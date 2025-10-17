@@ -1,0 +1,28 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+
+# Build artifacts
+dist/
+*.tsbuildinfo
+
+# Local runtime data
+data/
+.blobs/
+*.log
+
+# Keys & env
+.nodekey*
+.env
+.env.*
+KEY_FILE
+NODE_ID_FILE
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
