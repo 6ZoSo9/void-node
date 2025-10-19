@@ -4,8 +4,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import net from 'node:net'
 import crypto from 'node:crypto'
-import readline from 'node:readline'
-import { ReceiptsStore, Receipt } from './chain/receipts.js'
 
 import { Mempool } from './chain/mempool.js'
 import { Block, computeRoots, blockHash } from './chain/block.js'
@@ -14,6 +12,7 @@ import { ensureDir } from './util/files.js'
 import { SegStore } from './chain/seg_store.js'
 import { TxIndex } from './chain/txindex.js'
 import { buildAllKidx, buildKidxForJsonl, queryKidx } from './util/kidx.js'
+import { ReceiptsStore } from './chain/receipts.js'
 
 // ---------- config ----------
 const HTTP_PORT = Number(process.env.HTTP_PORT || 4100)
@@ -23,28 +22,8 @@ const KEY_FILE  = process.env.KEY_FILE || '.nodekey'
 const TOPIC     = 'void/hello'
 const PROTO_VER = 1
 
-// --- tiny kidx helper: rebuild one shard’s .kidx next to its JSONL ---
-async function rebuildKidxForShard(jsonlPath: string) {
-  const kidxPath = jsonlPath.replace(/\.jsonl$/, '.kidx')
-  const inStream  = fs.createReadStream(jsonlPath, { encoding: 'utf8' })
-  const outStream = fs.createWriteStream(kidxPath + '.tmp', { encoding: 'utf8' })
-  const rl = readline.createInterface({ input: inStream, crlfDelay: Infinity })
-  for await (const line of rl) {
-    const s = line.trim()
-    if (!s) continue
-    try {
-      const rec = JSON.parse(s) as { h: string, n: number, o: number }
-      outStream.write(`${rec.h},${rec.n},${rec.o}\n`)
-    } catch {}
-  }
-  await new Promise<void>(r => outStream.end(r))
-  fs.renameSync(kidxPath + '.tmp', kidxPath)
-  return { ok: true, kidxPath }
-}
-
 // ---------- crypto (Ed25519) ----------
 type Keypair = { privateKey: crypto.KeyObject, publicKey: crypto.KeyObject, nodeId: string, pubPEM: string }
-
 function loadOrCreateKeypair(file: string): Keypair {
   if (fs.existsSync(file)) {
     const raw = fs.readFileSync(file, 'utf8').trim()
@@ -130,7 +109,7 @@ type Peer = {
   listens: string[]; outbound: boolean; handshakeDone: boolean;
 }
 
-// ---------- validators (placeholder) ----------
+// ---------- validators ----------
 function isPlainObject(x: any): x is Record<string, unknown> {
   return x && typeof x === 'object' && !Array.isArray(x)
 }
@@ -140,6 +119,7 @@ function validateTxPayload(x: unknown): {ok: true} | {ok:false, error:string} {
 }
 
 // ---------- node core ----------
+
 class Node {
   readonly id: string
   readonly pubPEM: string
@@ -149,6 +129,7 @@ class Node {
   readonly listenAddrs: string[] = []
   readonly peers: Map<string, Peer> = new Map()
   readonly pubsub = new PubSub()
+
   readonly txIndex = new TxIndex(path.join('data','index'))
   readonly receipts = new ReceiptsStore(path.join('data','receipts'), { shardSpan: 10_000 })
 
@@ -180,7 +161,7 @@ class Node {
     ensureDir(this.blobsDir)
   }
 
-  /** Rebuild compact tx index from blocks—idempotent and memory-light. */
+  /** Rebuild compact tx index from blocks (idempotent, memory-light). */
   async rebuildTxIndex(): Promise<{ ok: true, blocks: number, indexed: number }> {
     const idxDir = path.join('data', 'index')
     if (fs.existsSync(idxDir)) fs.rmSync(idxDir, { recursive: true, force: true })
@@ -225,17 +206,6 @@ class Node {
         if (now - ts > this.SEEN_TTL_MS) { this.seenTimestamps.delete(k); this.seen.delete(k) }
       }
     }, 30_000)
-
-    // opportunistic .kidx maintenance (keeps index fast without bloat)
-    setInterval(() => {
-      try {
-        const shards = this.txIndex.listShards()
-        for (const s of shards) {
-          const k = s.path.replace(/\.jsonl$/, '.kidx')
-          if (!fs.existsSync(k)) buildKidxForJsonl(s.path)
-        }
-      } catch {}
-    }, 15_000)
 
     for (const a of BOOTSTRAP) this.connect(a)
   }
@@ -376,60 +346,77 @@ class Node {
     return { ok:true, intervalMs }
   }
 
-  async sealBlock() {
-    const parent = this.store.loadHeadNumber()
-    const number = parent + 1
-    const txs = this.mempool.drain(1000)
-    const blobs = discoverLocalBlobs()
-    const roots = computeRoots(txs, blobs)
+async sealBlock() {
+  const parent = this.store.loadHeadNumber()
+  const number = parent + 1
+  const txs = this.mempool.drain(1000)
+  const blobs = discoverLocalBlobs()
+  const roots = computeRoots(txs, blobs)
 
-    const headerBytes = Buffer.from(JSON.stringify({
-      number,
-      parentHash: number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64,'0'),
-      timestamp: Date.now(),
-      txRoot: roots.txRoot,
-      blobRoot: roots.blobRoot,
-      proposer: this.id
-    }))
+  const headerBytes = Buffer.from(JSON.stringify({
+    number,
+    parentHash: number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64,'0'),
+    timestamp: Date.now(),
+    txRoot: roots.txRoot,
+    blobRoot: roots.blobRoot,
+    proposer: this.id
+  }))
 
-    const sig = signBytes(this.priv, headerBytes)
-    const b: Block = {
-      number,
-      parentHash: number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64,'0'),
-      timestamp: Date.now(),
-      txRoot: roots.txRoot,
-      blobRoot: roots.blobRoot,
-      txs,
-      blobs,
-      proposer: this.id,
-      sig
-    }
-
-    // persist
-    this.store.saveBlock(b)
-
-    // update compact tx index + kidx only if there are txs
-    if (b.txs?.length) {
-      const refs = b.txs.map((tx, i) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }))
-      this.txIndex.putMany(refs)
-      try {
-        const shard = this.txIndex.shardForBlock(b.number)
-        await rebuildKidxForShard(shard.path)
-      } catch (e) {
-        console.warn('[kidx] single-shard rebuild failed:', (e as Error).message)
-      }
-    }
-
-    // announce
-    this.publishJson('void/block', {
-      number: b.number,
-      hash: blockHash(b),
-      txRoot: b.txRoot,
-      blobRoot: b.blobRoot
-    })
+  const sig = signBytes(this.priv, headerBytes)
+  const b: Block = {
+    number,
+    parentHash: number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64,'0'),
+    timestamp: Date.now(),
+    txRoot: roots.txRoot,
+    blobRoot: roots.blobRoot,
+    txs,
+    blobs,
+    proposer: this.id,
+    sig
   }
 
-  // follower: pull recent blocks + index refs from a peer's HTTP
+  // 1) persist the block
+  this.store.saveBlock(b)
+
+  // 2) if there are txs: index -> kidx -> receipts (single conditional to avoid duplicates)
+  if (b.txs?.length) {
+    // 2a) append compact tx refs
+    const refs = b.txs.map((tx, i) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }))
+    this.txIndex.putMany(refs)
+
+    // 2b) refresh this shard’s .kidx (best-effort)
+    try {
+      const shard = this.txIndex.shardForBlock(b.number)
+      await buildKidxForJsonl(shard.path)
+    } catch (e) {
+      console.warn('[kidx] single-shard rebuild failed:', (e as Error).message)
+    }
+
+    // 2c) append receipts (compat: appendMany or append fallback)
+    const recs = b.txs.map((tx, i) => ({
+      h: tx.hash.toLowerCase(),
+      n: b.number,
+      o: i,
+      ts: b.timestamp ?? Date.now()
+    }))
+    const anyReceipts: any = this.receipts as any
+    if (typeof anyReceipts.appendMany === 'function') {
+      await anyReceipts.appendMany(recs)
+    } else if (typeof anyReceipts.append === 'function') {
+      for (const r of recs) await anyReceipts.append(r)
+    }
+  }
+
+  // 3) announce the new block
+  this.publishJson('void/block', {
+    number: b.number,
+    hash: blockHash(b),
+    txRoot: b.txRoot,
+    blobRoot: b.blobRoot
+  })
+}
+
+  // follower: fetch recent blocks from peer’s HTTP, update index & receipts
   startFollower(peerHttp = 'http://127.0.0.1:4101', intervalMs = 2000) {
     let running = false
     const tick = async () => {
@@ -442,13 +429,16 @@ class Node {
         if (Number.isFinite(theirHead) && theirHead > myHead) {
           const from = Math.max(0, theirHead - 500)
           const to = theirHead
-          const arr = await fetch(`${peerHttp}/blocks/range?from=${from}&to=${to}`)
-            .then(r=>r.json()).catch(()=>[])
+          const arr = await fetch(`${peerHttp}/blocks/range?from=${from}&to=${to}`).then(r=>r.json()).catch(()=>[])
           for (const b of arr) {
             this.store.saveBlock(b)
             if (b.txs?.length) {
               const refs = b.txs.map((tx:any, i:number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }))
               this.txIndex.putMany(refs)
+              const anyReceipts: any = this.receipts as any
+              const recs = b.txs.map((tx:any, i:number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i, ts: b.timestamp ?? Date.now() }))
+              if (typeof anyReceipts.appendMany === 'function') await anyReceipts.appendMany(recs)
+              else if (typeof anyReceipts.append === 'function') for (const r of recs) await anyReceipts.append(r)
             }
           }
         }
@@ -512,155 +502,51 @@ app.post('/index/kidx/build', async (_req, res) => {
   try { res.json(await buildAllKidx()) }
   catch (e:any) { res.status(500).json({ ok:false, error: String(e?.message || e) }) }
 })
-
-// Remove older shards, keep only the newest N (JSONL + .kidx)
-app.post('/index/gc', (req, res) => {
-  const keep = Math.max(1, Number(req.query.keepLast ?? 3)) // default: keep last 3 shards
-  try {
-    const r = node.txIndex.gc(keep)
-    res.json({ ok: true, keepLast: keep, ...r })
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error: String(e?.message || e) })
-  }
-})
-
-// Keep receipts lean too (mirror tx index GC policy)
-app.post('/receipts/gc', (req, res) => {
-  const keep = Math.max(1, Number(req.query.keepLast ?? 3))
-  try {
-    const r = node.receipts.gcKeepLast(keep)
-    res.json({ ok:true, keepLast: keep, ...r })
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error: String(e?.message || e) })
-  }
-})
-
-
-// ---- Index tools: stats / verify / rebuild single shard kidx ----
-
-// tiny helper to count lines in a small/medium file
-function countLinesSync(file: string): number {
-  if (!fs.existsSync(file)) return 0
-  const buf = fs.readFileSync(file)
-  let count = 0
-  for (let i = 0; i < buf.length; i++) if (buf[i] === 0x0a) count++
-  // handle files without trailing newline
-  if (buf.length && buf[buf.length - 1] !== 0x0a) count++
-  return count
-}
-
-// List shard stats: size, line-count, kidx size (if present)
 app.get('/index/stats', (_req, res) => {
-  const shards = node.txIndex.listShards()
-  const items = shards.map(s => {
-    const st = fs.existsSync(s.path) ? fs.statSync(s.path) : null
-    const kpath = s.path.replace(/\.jsonl$/, '.kidx')
-    const kst = fs.existsSync(kpath) ? fs.statSync(kpath) : null
+  const shards = node.txIndex.listShards().map(s => {
+    const jsonlStat = fs.existsSync(s.path) ? fs.statSync(s.path) : null
+    const kidxPath = s.path.replace(/\.jsonl$/, '.kidx')
+    const kidxStat = fs.existsSync(kidxPath) ? fs.statSync(kidxPath) : null
+    const lines = jsonlStat ? countLinesQuick(s.path) : 0
     return {
       from: s.from, to: s.to,
-      jsonl: { path: s.path, bytes: st?.size ?? 0, lines: countLinesSync(s.path) },
-      kidx: { path: kpath, bytes: kst?.size ?? 0, present: !!kst }
+      jsonl: { path: s.path, bytes: jsonlStat?.size ?? 0, lines },
+      kidx: { path: kidxPath, bytes: kidxStat?.size ?? 0, present: !!kidxStat }
     }
   })
-  res.json({ ok: true, shards: items })
+  res.json({ ok:true, shards })
 })
-
-// Verify JSONL entries map to real tx in blocks. Optional ?limitBad=20
-app.post('/index/verify', async (req, res) => {
-  const limitBad = Math.max(1, Number(req.query.limitBad ?? 20))
-  let checked = 0
-  const bad: Array<{ h: string, n: number, o: number, reason: string }> = []
-
-  for (const s of node.txIndex.listShards()) {
-    const data = fs.existsSync(s.path) ? fs.readFileSync(s.path, 'utf8') : ''
-    if (!data) continue
-    for (const line of data.split('\n')) {
-      const t = line.trim()
-      if (!t) continue
-      try {
-        const rec = JSON.parse(t) as { h: string, n: number, o: number }
-        const blk = node.store.loadBlock(rec.n)
-        if (!blk) { bad.push({ ...rec, reason: 'block-missing' }); if (bad.length >= limitBad) break; continue }
-        const tx = blk.txs?.[rec.o]
-        if (!tx) { bad.push({ ...rec, reason: 'tx-missing' }); if (bad.length >= limitBad) break; continue }
-        if (String(tx.hash).toLowerCase() !== rec.h) {
-          bad.push({ ...rec, reason: 'hash-mismatch' })
-          if (bad.length >= limitBad) break
-        }
-        checked++
-      } catch {
-        // skip malformed line
-      }
-    }
-    if (bad.length >= limitBad) break
-  }
-
-  res.json({ ok: true, checked, bad, truncated: bad.length >= limitBad })
+app.post('/index/gc', (req, res) => {
+  const keepLast = Number(req.query.keepLast || 1)
+  try { res.json(node.txIndex.gc(keepLast)) }
+  catch (e:any) { res.status(500).json({ ok:false, error:String(e?.message||e) }) }
 })
-
-// Rebuild a single shard's .kidx by block *or* tx hash.
-// Usage:
-//   POST /index/kidx/rebuild-shard?block=7905
-//   POST /index/kidx/rebuild-shard?hash=<64hex>
 app.post('/index/kidx/rebuild-shard', async (req, res) => {
   const blockParam = req.query.block
-  const hashParam  = (req.query.hash ? String(req.query.hash) : '').toLowerCase()
-
-  let block = Number(blockParam)
-  if (!Number.isFinite(block) || block < 0) {
-    if (/^[0-9a-f]{64}$/.test(hashParam)) {
-      // resolve block via the same logic as /tx/lookup (kidx first, then JSONL)
-      const shards = node.txIndex.listShards().sort((a,b) => b.from - a.from)
-      let foundBlock: number | null = null
+  const hashParam = req.query.hash
+  try {
+    let fromTo: {from:number,to:number}|null = null
+    if (blockParam !== undefined) {
+      const bn = Number(blockParam)
+      if (!Number.isFinite(bn) || bn < 0) return res.json({ ok:false, error:'bad block' })
+      const shard = node.txIndex.shardForBlock(bn)
+      await buildKidxForJsonl(shard.path)
+      return res.json({ ok:true, shard: { from: shard.from, to: shard.to }, kidx: shard.path.replace(/\.jsonl$/, '.kidx') })
+    } else if (typeof hashParam === 'string') {
+      const hash = String(hashParam).toLowerCase()
+      if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
+      // try to locate first to know shard
+      const shards = node.txIndex.listShards().sort((a,b)=>b.from-a.from)
       for (const s of shards) {
-        const kidxPath = s.path.replace(/\.jsonl$/, '.kidx')
-        if (fs.existsSync(kidxPath)) {
-          const hit = queryKidx(kidxPath, hashParam)
-          if (hit.found) { foundBlock = hit.n!; break }
-          continue
-        }
-        const r = node.txIndex.lookupInShard(s.path, hashParam)
-        if (r.found) { foundBlock = r.n; break }
+        const hit = fs.existsSync(s.path.replace(/\.jsonl$/,'.kidx')) ? queryKidx(s.path.replace(/\.jsonl$/,'.kidx'), hash)
+                                                                      : node.txIndex.lookupInShard(s.path, hash)
+        if (hit.found) { await buildKidxForJsonl(s.path); return res.json({ ok:true, shard:{from:s.from,to:s.to}, kidx:s.path.replace(/\.jsonl$/,'.kidx') }) }
       }
-      if (foundBlock == null) return res.status(404).json({ ok:false, error:'hash not found' })
-      block = foundBlock
+      return res.json({ ok:false, error:'hash not found' })
     }
-  }
-
-  if (!Number.isFinite(block) || block < 0) {
-    return res.status(400).json({ ok:false, error:'provide ?block=NUMBER or ?hash=64hex' })
-  }
-
-  try {
-    const shard = node.txIndex.shardForBlock(block)
-    await rebuildKidxForShard(shard.path)
-    res.json({ ok:true, shard: { from: shard.from, to: shard.to }, kidx: shard.path.replace(/\.jsonl$/, '.kidx') })
-  } catch (e: any) {
-    res.status(500).json({ ok:false, error: String(e?.message || e) })
-  }
-})
-
-// Force-rebuild the .kidx for the shard that contains a given block number
-app.post('/index/kidx/rebuild-shard', async (req, res) => {
-  const n = Number(req.query.block ?? -1)
-  if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:'bad block' })
-  try {
-    const shard = node.txIndex.shardForBlock(n)
-    await (async function rebuildKidxForShard(jsonlPath: string){
-      const kidxPath = jsonlPath.replace(/\.jsonl$/, '.kidx')
-      const inStream  = fs.createReadStream(jsonlPath, { encoding: 'utf8' })
-      const outStream = fs.createWriteStream(kidxPath + '.tmp', { encoding: 'utf8' })
-      const rl = (await import('node:readline')).createInterface({ input: inStream, crlfDelay: Infinity })
-      for await (const line of rl) {
-        const s = line.trim(); if (!s) continue
-        try { const rec = JSON.parse(s) as { h:string,n:number,o:number }; outStream.write(`${rec.h},${rec.n},${rec.o}\n`) } catch {}
-      }
-      await new Promise<void>(r => outStream.end(r))
-      fs.renameSync(kidxPath + '.tmp', kidxPath)
-    })(shard.path)
-    return res.json({ ok:true, rebuilt: shard.path.replace(/\.jsonl$/, '.kidx') })
+    return res.json({ ok:false, error:'provide block or hash' })
   } catch (e:any) {
-    return res.status(500).json({ ok:false, error: String(e?.message || e) })
+    res.status(500).json({ ok:false, error:String(e?.message||e) })
   }
 })
 
@@ -684,16 +570,15 @@ app.post('/pub', (req, res) => {
   res.json({ ok: true, published: { topic, msg } })
 })
 
-// Heads
+// Fast head probe
 app.get('/blocks/head', (_req, res) => {
   const n = node.store.loadHeadNumber()
   const b = node.store.loadBlock(n)
   if (!b) return res.json({ ok: true, head: -1 })
   res.json({ ok: true, head: n, hash: blockHash(b) })
 })
-app.get('/head', (_req, res) => { res.json({ ok:true, head: node.store.loadHeadNumber() }) })
 
-// Import blocks (updates per-shard kidx only when needed)
+// Import blocks (bulk), update index+receipts per shard
 app.post('/blocks/import', async (req, res) => {
   try {
     const arr = Array.isArray(req.body) ? req.body : []
@@ -701,53 +586,56 @@ app.post('/blocks/import', async (req, res) => {
 
     const touchedShardPaths = new Set<string>()
     let imported = 0
+
     for (const b of arr) {
       node.store.saveBlock(b)
       imported++
+
       if (b?.txs?.length) {
+        // compact refs
         const refs = b.txs.map((tx: any, i: number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }))
         node.txIndex.putMany(refs)
+
+        // receipts (appendMany if available)
+        const anyReceipts: any = node.receipts as any
+        const recs = b.txs.map((tx: any, i: number) => ({
+          h: tx.hash.toLowerCase(),
+          n: b.number,
+          o: i,
+          ts: b.timestamp ?? Date.now()
+        }))
+        if (typeof anyReceipts.appendMany === 'function') {
+          await anyReceipts.appendMany(recs)
+        } else if (typeof anyReceipts.append === 'function') {
+          for (const r of recs) await anyReceipts.append(r)
+        }
+
+        // note touched shard for kidx refresh
         const shard = node.txIndex.shardForBlock(b.number)
         touchedShardPaths.add(shard.path)
       }
-
-      if (b.txs?.length) {
-        const now = Date.now()
-        const recs: Receipt[] = b.txs.map((tx, i) => ({
-          h: String(tx.hash).toLowerCase(),
-          n: b.number,
-          o: i,
-          ts: now,
-        }))
-        this.receipts.putMany(recs)
-      }
-
     }
 
+    // refresh .kidx only for shards we touched
     let kidxRebuilt = 0
     for (const p of touchedShardPaths) {
-      try { await rebuildKidxForShard(p); kidxRebuilt++ } catch {}
+      try { await buildKidxForJsonl(p); kidxRebuilt++ } catch {}
     }
 
-    res.json({ ok: true, imported, kidxRebuilt })
+    return res.json({ ok: true, imported, kidxRebuilt })
   } catch (e: any) {
-    res.status(500).json({ ok: false, error: String(e?.message || e) })
+    return res.status(500).json({ ok: false, error: String(e?.message || e) })
   }
 })
 
 // Tx lookup via compact index (+ .kidx if present)
-// Tx lookup via compact index (+ .kidx if present, with JSONL fallback on miss)
 app.get('/tx/lookup', (req, res) => {
   const hash = String(req.query.hash || '').toLowerCase()
   if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
 
-  // newest-first shard order
-  const shards = node.txIndex.listShards().sort((a,b) => b.from - a.from)
-
+  const shards = node.txIndex.listShards().sort((a,b) => b.from - a.from) // newest first
   for (const s of shards) {
     const kidxPath = s.path.replace(/\.jsonl$/, '.kidx')
-
-    // 1) Try kidx first
     if (fs.existsSync(kidxPath)) {
       const hit = queryKidx(kidxPath, hash)
       if (hit.found) {
@@ -756,10 +644,8 @@ app.get('/tx/lookup', (req, res) => {
         const tx = blk.txs?.[hit.o!]
         return res.json({ ok:true, found:true, block: hit.n, offset: hit.o, tx })
       }
-      // IMPORTANT: fall through to JSONL scan if the kidx didn't have it
+      continue
     }
-
-    // 2) Fallback: scan the JSONL shard
     const r = node.txIndex.lookupInShard(s.path, hash)
     if (r.found) {
       const blk = node.store.loadBlock(r.n)
@@ -768,22 +654,56 @@ app.get('/tx/lookup', (req, res) => {
       return res.json({ ok:true, found:true, block: r.n, offset: r.o, tx })
     }
   }
-
   return res.json({ ok:true, found:false })
 })
 
-// TX receipt lookup (cheap): /tx/receipt?hash=0x...
+// Receipts: lookup, stats, GC
 app.get('/tx/receipt', (req, res) => {
   const hash = String(req.query.hash || '').toLowerCase()
   if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
   const r = node.receipts.get(hash)
-  if (!r.found) return res.json({ ok:true, found:false })
-  res.json({ ok:true, found:true, block: r.n, offset: r.o, timestamp: r.ts })
+  if (!r) return res.json({ ok:true, found:false })
+  res.json({ ok:true, found:true, ...r })
 })
 
-// Receipt stats (optional)
+// Tx status: pending (mempool) OR confirmed (receipt), cheap checks only
+app.get('/tx/status', (req, res) => {
+  const hash = String(req.query.hash || '').toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
+
+  // 1) check mempool (pending)
+  try {
+    const txs = node.mempool.peekAll()
+    // mempool items already have .hash from make_tx.ts
+    if (txs.some((t:any) => String(t?.hash || '').toLowerCase() === hash)) {
+      return res.json({ ok:true, status:'pending' })
+    }
+  } catch {}
+
+  // 2) check receipts (confirmed)
+  const r = node.receipts.get(hash)
+  if (r && (r as any).found) {
+    // normalize shape to a stable API
+    const { n, o, ts } = r as any
+    return res.json({ ok:true, status:'confirmed', n, o, ts })
+  }
+
+  // 3) unknown
+  return res.json({ ok:true, status:'unknown' })
+})
+
 app.get('/receipts/stats', (_req, res) => {
-  res.json({ ok:true, ...node.receipts.stats() })
+  const s = node.receipts.stats ? node.receipts.stats() : { shards: [], totalBytes: 0, totalLines: 0 }
+  res.json({ ok:true, ...s })
+})
+app.post('/receipts/gc', (req, res) => {
+  const keepLast = Number(req.query.keepLast || 1)
+  try {
+    const r = node.receipts.gc ? node.receipts.gc(keepLast) : { ok:true, keepLast, removed: 0, kept: 0 }
+    res.json(r)
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error:String(e?.message||e) })
+  }
 })
 
 // TX endpoint
@@ -855,13 +775,13 @@ app.post('/blocks/start', (req, res) => {
   const r = node.startProposer(intervalMs)
   res.json(r)
 })
-
 app.post('/blocks/once', async (_req, res) => {
   await node.sealBlock()
   res.json({ ok: true })
 })
 
 // Sync helpers
+app.get('/head', (_req, res) => { res.json({ ok:true, head: node.store.loadHeadNumber() }) })
 app.post('/follower/start', (req, res) => {
   const peer = String(req.query.peer || 'http://127.0.0.1:4101')
   const ms = Number(req.query.intervalMs || 2000)
@@ -874,4 +794,14 @@ app.listen(HTTP_PORT, () => {
   console.log(`[void-node] bootstrap: ${BOOTSTRAP.join(', ') || '(none)'}`)
   if (!fs.existsSync(KEY_FILE)) console.log(`[void-node] wrote new key: ${KEY_FILE}`)
 })
+
+// ---------- small util ----------
+function countLinesQuick(p: string): number {
+  try {
+    const buf = fs.readFileSync(p)
+    let n = 0
+    for (let i = 0; i < buf.length; i++) if (buf[i] === 0x0a) n++
+    return n
+  } catch { return 0 }
+}
 
