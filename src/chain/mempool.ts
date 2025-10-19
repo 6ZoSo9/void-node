@@ -1,29 +1,37 @@
 // src/chain/mempool.ts
-export type Tx = {
-  body: any
-  hash: string
-  signature: string
-}
+export class Mempool<T = any> {
+  private q: T[] = []
 
-export class Mempool {
-  private byHash = new Map<string, Tx>()
-
-  add (tx: Tx): boolean {
-    if (this.byHash.has(tx.hash)) return false
-    this.byHash.set(tx.hash, tx)
-    return true
+  push(tx: T) {
+    this.q.push(tx)
   }
 
-  has (hash: string): boolean {
-    return this.byHash.has(hash)
+  size(): number {
+    return this.q.length
   }
 
-  all (): Tx[] {
-    return [...this.byHash.values()]
+  /** Return a shallow copy of all txs (without removing). */
+  peekAll(): T[] {
+    return this.q.slice()
   }
 
-  size (): number {
-    return this.byHash.size
+  /**
+   * Remove up to `n` txs (FIFO) and return them.
+   * If n is omitted or <= 0, drain everything.
+   */
+  drain(n?: number): T[] {
+    if (n == null || n <= 0 || n >= this.q.length) {
+      const all = this.q
+      this.q = []
+      return all
+    }
+    const out = this.q.slice(0, n)
+    this.q = this.q.slice(n)
+    return out
+  }
+
+  clear() {
+    this.q = []
   }
 }
 

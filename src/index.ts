@@ -1,13 +1,16 @@
+// src/index.ts
 import express from 'express'
 import fs from 'node:fs'
 import path from 'node:path'
 import net from 'node:net'
 import crypto from 'node:crypto'
 import { Mempool } from './chain/mempool.js'
-import { ChainStore } from './chain/store.js'
 import { Block, computeRoots, blockHash } from './chain/block.js'
 import { cidForBytes } from './util/cid.js'
 import { ensureDir } from './util/files.js'
+import { SegStore } from './chain/seg_store.js'
+import { TxIndex } from './chain/txindex.js'
+import { buildAllKidx, buildKidxForJsonl, queryKidx } from './util/kidx.js'
 
 // ---------- config ----------
 const HTTP_PORT = Number(process.env.HTTP_PORT || 4100)
@@ -104,13 +107,12 @@ type Peer = {
   listens: string[]; outbound: boolean; handshakeDone: boolean;
 }
 
-// ---------- validators ----------
+// ---------- validators (placeholder, keep strict later) ----------
 function isPlainObject(x: any): x is Record<string, unknown> {
   return x && typeof x === 'object' && !Array.isArray(x)
 }
 function validateTxPayload(x: unknown): {ok: true} | {ok:false, error:string} {
   if (!isPlainObject(x)) return { ok:false, error:'not an object' }
-  // (extend later with signature/body checks)
   return { ok:true }
 }
 
@@ -124,6 +126,7 @@ class Node {
   readonly listenAddrs: string[] = []
   readonly peers: Map<string, Peer> = new Map()
   readonly pubsub = new PubSub()
+  readonly txIndex = new TxIndex(path.join('data','index'))
 
   private seen = new Set<string>()
   private seenTimestamps = new Map<string, number>()
@@ -137,8 +140,8 @@ class Node {
 
   private myTopics = new Set<string>()
 
-  // Chain and blobs
-  readonly store = new ChainStore('data')
+  // segmented block store
+  readonly store = new SegStore('data', { segmentMaxBytes: 128 * 1024 * 1024, sparseEvery: 512 })
   readonly mempool = new Mempool()
   private proposerTimer: NodeJS.Timeout | null = null
   private blobsDir = path.join('data', 'blobs')
@@ -153,6 +156,38 @@ class Node {
     ensureDir(this.blobsDir)
   }
 
+  /** Rebuild compact tx index from blocks—idempotent and memory-light. */
+  async rebuildTxIndex(): Promise<{ ok: true, blocks: number, indexed: number }> {
+    const idxDir = path.join('data', 'index')
+    if (fs.existsSync(idxDir)) {
+      fs.rmSync(idxDir, { recursive: true, force: true })
+    }
+    fs.mkdirSync(idxDir, { recursive: true })
+
+    const head = this.store.loadHeadNumber()
+    let indexed = 0
+    const BATCH = 2000
+    let batch: { h: string; n: number; o: number }[] = []
+
+    for (let n = 0; n <= head; n++) {
+      const b = this.store.loadBlock(n)
+      if (!b?.txs?.length) continue
+      for (let i = 0; i < b.txs.length; i++) {
+        const tx = b.txs[i]
+        if (tx?.hash) {
+          batch.push({ h: tx.hash.toLowerCase(), n, o: i })
+          indexed++
+          if (batch.length >= BATCH) {
+            this.txIndex.putMany(batch)
+            batch = []
+          }
+        }
+      }
+    }
+    if (batch.length) this.txIndex.putMany(batch)
+    return { ok: true, blocks: head + 1, indexed }
+  }
+
   async start () {
     await new Promise<void>(resolve => this.server.listen(this.tcpPort, '0.0.0.0', resolve))
     const addr = `127.0.0.1:${(this.server.address() as net.AddressInfo).port}`
@@ -161,13 +196,26 @@ class Node {
     for (const a of BOOTSTRAP) this.knownAddrs.add(a)
     console.log(`[void-node] started TCP on ${addr}, id=${this.id}`)
 
-    // GC dedupe cache
+    // GC dedup table
     setInterval(() => {
       const now = Date.now()
       for (const [k, ts] of this.seenTimestamps) {
         if (now - ts > this.SEEN_TTL_MS) { this.seenTimestamps.delete(k); this.seen.delete(k) }
       }
     }, 30_000)
+
+    // opportunistic .kidx maintenance (keeps index fast without bloat)
+    setInterval(() => {
+      try {
+        const shards = this.txIndex.listShards()
+        for (const s of shards) {
+          const k = s.path.replace(/\.jsonl$/, '.kidx')
+          if (!fs.existsSync(k)) {
+            buildKidxForJsonl(s.path)
+          }
+        }
+      } catch {}
+    }, 15_000)
 
     for (const a of BOOTSTRAP) this.connect(a)
   }
@@ -233,11 +281,12 @@ class Node {
 
       this.seen.add(key); this.seenTimestamps.set(key, Date.now())
       if (this.pubsub.subscribers(msg.topic).has(this.id)) {
-        // handle local ingestion for special topics
         if (msg.topic === 'void/tx') {
           try { const tx = JSON.parse(msg.data); this.mempool.push(tx) } catch {}
         } else if (msg.topic === 'void/blob.announce') {
           // future: on-demand fetch
+        } else if (msg.topic === 'void/block') {
+          // future: follower fast-fetch by /blocks/range
         } else {
           console.log(`[pubsub] ${msg.topic} <- ${msg.from}: ${msg.data}`)
         }
@@ -306,24 +355,78 @@ class Node {
     this.proposerTimer = setInterval(() => this.sealBlock(), intervalMs)
     return { ok:true, intervalMs }
   }
-  private sealBlock() {
+  sealBlock() {
     const parent = this.store.loadHeadNumber()
     const number = parent + 1
     const txs = this.mempool.drain(1000)
     const blobs = discoverLocalBlobs()
     const roots = computeRoots(txs, blobs)
-    const parentHash = number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64,'0')
+
     const headerBytes = Buffer.from(JSON.stringify({
-      number, parentHash, timestamp: Date.now(), txRoot: roots.txRoot, blobRoot: roots.blobRoot, proposer: this.id
+      number,
+      parentHash: number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64, '0'),
+      timestamp: Date.now(),
+      txRoot: roots.txRoot,
+      blobRoot: roots.blobRoot,
+      proposer: this.id
     }))
+
     const sig = signBytes(this.priv, headerBytes)
     const b: Block = {
-      number, parentHash, timestamp: Date.now(),
-      txRoot: roots.txRoot, blobRoot: roots.blobRoot,
-      txs, blobs, proposer: this.id, sig
+      number,
+      parentHash: number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64, '0'),
+      timestamp: Date.now(),
+      txRoot: roots.txRoot,
+      blobRoot: roots.blobRoot,
+      txs,
+      blobs,
+      proposer: this.id,
+      sig
     }
+
     this.store.saveBlock(b)
-    this.publishJson('void/block', { number: b.number, hash: blockHash(b), txRoot: b.txRoot, blobRoot: b.blobRoot })
+
+    // append tx refs to compact index (only if txs exist)
+    if (b.txs?.length) {
+      const refs = b.txs.map((tx, i) => ({ h: tx.hash, n: b.number, o: i }))
+      this.txIndex.putMany(refs)
+    }
+
+    this.publishJson('void/block', {
+      number: b.number,
+      hash: blockHash(b),
+      txRoot: b.txRoot,
+      blobRoot: b.blobRoot
+    })
+  }
+
+  // follower: pull recent blocks + index refs from a peer's HTTP
+  startFollower(peerHttp = 'http://127.0.0.1:4101', intervalMs = 2000) {
+    let running = false
+    const tick = async () => {
+      if (running) return
+      running = true
+      try {
+        const myHead = this.store.loadHeadNumber()
+        const headRes = await fetch(`${peerHttp}/head`).then(r=>r.json()).catch(()=>null)
+        const theirHead = Number(headRes?.head ?? -1)
+        if (Number.isFinite(theirHead) && theirHead > myHead) {
+          const from = Math.max(0, theirHead - 500)
+          const to = theirHead
+          const arr = await fetch(`${peerHttp}/blocks/range?from=${from}&to=${to}`).then(r=>r.json()).catch(()=>[])
+          for (const b of arr) {
+            this.store.saveBlock(b)
+            if (b.txs?.length) {
+              const refs = b.txs.map((tx:any, i:number) => ({ h: tx.hash, n: b.number, o: i }))
+              this.txIndex.putMany(refs)
+            }
+          }
+        }
+      } catch {}
+      running = false
+    }
+    setInterval(tick, intervalMs)
+    return { ok:true, peerHttp, intervalMs }
   }
 
   peersSnapshot () {
@@ -358,22 +461,6 @@ function discoverLocalBlobs(): { cid: string, size: number }[] {
   })
 }
 
-// Flexible mempool snapshot (works across different class shapes)
-function memSnapshot(mp: any): any[] {
-  try {
-    if (!mp) return []
-    if (typeof mp.all === 'function') return mp.all()
-    if (typeof mp.peek === 'function') return mp.peek(Infinity)
-    if (Array.isArray(mp.items)) return mp.items.slice()
-    if (Array.isArray(mp.queue)) return mp.queue.slice()
-    if (Array.isArray(mp._items)) return mp._items.slice()
-    if (mp.list && Array.isArray(mp.list)) return mp.list.slice()
-    if (mp.values && typeof mp.values === 'function') return Array.from(mp.values())
-    if (mp.map && typeof mp.map?.values === 'function') return Array.from(mp.map.values())
-  } catch {}
-  return []
-}
-
 // ---------- boot + HTTP ----------
 const kp = loadOrCreateKeypair(path.resolve(KEY_FILE))
 const node = new Node(P2P_PORT, kp)
@@ -384,20 +471,26 @@ node.subscribe('void/blob.announce')
 node.subscribe('void/block')
 
 const app = express()
-// allow big JSON for blob wrappers
 app.use(express.json({ limit: '128mb' }))
 
+// INDEX maintenance
+app.post('/index/rebuild', async (_req, res) => {
+  try { res.json(await node.rebuildTxIndex()) }
+  catch (e:any) { res.status(500).json({ ok:false, error: String(e?.message || e) }) }
+})
+app.post('/index/kidx/build', async (_req, res) => {
+  try { res.json(await buildAllKidx()) }
+  catch (e:any) { res.status(500).json({ ok:false, error: String(e?.message || e) }) }
+})
+
+// Health/peers
 app.get('/health', (_req, res) => {
   res.json({ ok: true, proto: PROTO_VER, nodeId: node.id, http: HTTP_PORT, p2p: P2P_PORT,
     peers: [...node.peers.keys()].filter(k => !k.startsWith('?-')), listen: node.listenAddrs })
 })
 app.get('/peers', (_req, res) => res.json({ ok: true, ...node.peersSnapshot() }))
 
-app.get('/mempool', (_req, res) => {
-  const txs = memSnapshot(node.mempool)
-  res.json({ ok: true, size: Array.isArray(txs) ? txs.length : 0, txs })
-})
-
+// Sub/Pub
 app.post('/sub', (req, res) => {
   const topic = typeof req.body?.topic === 'string' ? req.body.topic : TOPIC
   node.subscribe(topic)
@@ -410,7 +503,36 @@ app.post('/pub', (req, res) => {
   res.json({ ok: true, published: { topic, msg } })
 })
 
-// TX endpoint (validated then published to mempool)
+// Tx lookup via compact index (+ .kidx if present)
+app.get('/tx/lookup', (req, res) => {
+  const hash = String(req.query.hash || '').toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
+
+  const shards = node.txIndex.listShards().sort((a,b) => b.from - a.from) // newest first
+  for (const s of shards) {
+    const kidxPath = s.path.replace(/\.jsonl$/, '.kidx')
+    if (fs.existsSync(kidxPath)) {
+      const hit = queryKidx(kidxPath, hash)
+      if (hit.found) {
+        const blk = node.store.loadBlock(hit.n!)
+        if (!blk) return res.json({ ok:false, error:'block not found (stale index?)' })
+        const tx = blk.txs?.[hit.o!]
+        return res.json({ ok:true, found:true, block: hit.n, offset: hit.o, tx })
+      }
+      continue
+    }
+    const r = node.txIndex.lookupInShard(s.path, hash)
+    if (r.found) {
+      const blk = node.store.loadBlock(r.n)
+      if (!blk) return res.json({ ok:false, error:'block not found (stale index?)' })
+      const tx = blk.txs?.[r.o]
+      return res.json({ ok:true, found:true, block: r.n, offset: r.o, tx })
+    }
+  }
+  return res.json({ ok:true, found:false })
+})
+
+// TX endpoint
 app.post('/tx', (req, res) => {
   const v = validateTxPayload(req.body)
   if (!v.ok) return res.json({ ok:false, error:`validation failed: ${v.error}` })
@@ -418,19 +540,23 @@ app.post('/tx', (req, res) => {
   res.json({ ok:true })
 })
 
-// Blobs: JSON wrapper or raw bytes
+// Mempool
+app.get('/mempool', (_req, res) => {
+  const txs = node.mempool.peekAll()
+  res.json({ ok:true, size: txs.length, txs })
+})
+
+// Blobs
 app.post('/blob/put', async (req, res) => {
   if (typeof req.body?.text === 'string') {
     const buf = Buffer.from(req.body.text, 'utf8')
     const out = await node.putBlobFromBuffer(buf)
-    res.json({ ok:true, ...out })
-    return
+    res.json({ ok:true, ...out }); return
   }
   if (typeof req.body?.base64 === 'string') {
     const buf = Buffer.from(req.body.base64, 'base64')
     const out = await node.putBlobFromBuffer(buf)
-    res.json({ ok:true, ...out })
-    return
+    res.json({ ok:true, ...out }); return
   }
   res.json({ ok:false, error:'send {text} or {base64} JSON' })
 })
@@ -441,10 +567,48 @@ app.get('/blob/:cid', (req, res) => {
   res.send(b)
 })
 
-// Blocks
+// Blocks (single)
+app.get('/blocks/get/:number', (req, res) => {
+  const n = Number(req.params.number)
+  if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:'bad number' })
+  const b = node.store.loadBlock(n)
+  if (!b) return res.status(404).json({ ok:false, error:'not found' })
+  res.json(b)
+})
+
+// Blocks (range stream using sparse index)
+app.get('/blocks/range', async (req, res) => {
+  const from = Number(req.query.from ?? 0)
+  const to   = Number(req.query.to   ?? node.store.loadHeadNumber())
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
+    return res.status(400).json({ ok:false, error:'bad range' })
+  }
+  res.setHeader('content-type', 'application/json')
+  res.write('[')
+  let first = true
+  for await (const b of node.store.findRange(from, to)) {
+    if (!first) res.write(',')
+    first = false
+    res.write(JSON.stringify(b))
+  }
+  res.write(']')
+  res.end()
+})
+
+// Proposer controls
 app.post('/blocks/start', (req, res) => {
   const intervalMs = Number(req.query.intervalMs || 5000)
   const r = node.startProposer(intervalMs)
+  res.json(r)
+})
+app.post('/blocks/once', (_req, res) => { node.sealBlock(); res.json({ ok:true }) })
+
+// Sync helpers
+app.get('/head', (_req, res) => { res.json({ ok:true, head: node.store.loadHeadNumber() }) })
+app.post('/follower/start', (req, res) => {
+  const peer = String(req.query.peer || 'http://127.0.0.1:4101')
+  const ms = Number(req.query.intervalMs || 2000)
+  const r = node.startFollower(peer, ms)
   res.json(r)
 })
 
