@@ -1,117 +1,105 @@
+// src/chain/txindex.ts
 import fs from 'node:fs'
 import path from 'node:path'
-import readline from 'node:readline'
 
-type Ref = { h: string; n: number; o: number }
+export type TxRef = { h: string; n: number; o: number }
+export type ShardInfo = { from: number; to: number; path: string }
 
-function ensureDir (dir: string) {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-}
-
-/**
- * Compact, append-only JSONL shards:
- *   data/index/tx-0-9999.jsonl
- *   data/index/tx-10000-19999.jsonl
- *   ...
- * Each line: {"h":"<64-hex>","n":<block>,"o":<offset>}
- *
- * We keep it tiny (no duplication, no per-tx JSON) to avoid index bloat.
- */
 export class TxIndex {
-  readonly indexDir: string
-  // 10k-block shards; easy to change later without touching readers
-  readonly shardSpan = 10_000
+  private span: number
 
-  constructor (indexDir: string) {
-    this.indexDir = indexDir
-    ensureDir(this.indexDir)
+  constructor(private dir: string, opts?: { shardSpan?: number }) {
+    this.span = Math.max(1_000, Number(opts?.shardSpan ?? 10_000)) // 10k-block shards
+    fs.mkdirSync(this.dir, { recursive: true })
   }
 
-  /** Return shard file path that should contain refs for block n */
-  private shardPathForBlock (n: number): string {
-    const base = Math.floor(n / this.shardSpan) * this.shardSpan
-    const to = base + this.shardSpan - 1
-    return path.join(this.indexDir, `tx-${base}-${to}.jsonl`)
+  private fileForRange(from: number, to: number) {
+    return path.join(this.dir, `tx-${from}-${to}.jsonl`)
   }
 
-  /** Append many refs, grouped by shard to minimize fs churn */
-  putMany (refs: Ref[]) {
-    if (!refs.length) return
-    // normalize hashes once
-    for (const r of refs) r.h = String(r.h || '').toLowerCase()
-
-    // group by shard path
-    const grouped = new Map<string, Ref[]>()
-    for (const r of refs) {
-      const p = this.shardPathForBlock(r.n)
-      if (!grouped.has(p)) grouped.set(p, [])
-      grouped.get(p)!.push(r)
-    }
-
-    for (const [file, list] of grouped) {
-      const lines = list.map(r => JSON.stringify({ h: r.h, n: r.n, o: r.o })).join('\n') + '\n'
-      fs.appendFileSync(file, lines)
-    }
+  shardBoundsForBlock(n: number) {
+    const from = Math.floor(n / this.span) * this.span
+    const to = from + this.span - 1
+    return { from, to }
   }
 
-  /**
-   * List all known shards on disk.
-   * Example return:
-   *   [{ path:".../tx-0-9999.jsonl", from:0, to:9999 }, ...]
-   */
-  listShards (): { path: string, from: number, to: number }[] {
-    if (!fs.existsSync(this.indexDir)) return []
-    const out: { path: string, from: number, to: number }[] = []
-    for (const f of fs.readdirSync(this.indexDir)) {
-      const m = /^tx-(\d+)-(\d+)\.jsonl$/.exec(f)
+  shardForBlock(n: number): ShardInfo {
+    const { from, to } = this.shardBoundsForBlock(n)
+    const p = this.fileForRange(from, to)
+    return { from, to, path: p }
+  }
+
+  listShards(): ShardInfo[] {
+    if (!fs.existsSync(this.dir)) return []
+    const out: ShardInfo[] = []
+    for (const f of fs.readdirSync(this.dir)) {
+      const m = f.match(/^tx-(\d+)-(\d+)\.jsonl$/)
       if (!m) continue
-      const from = Number(m[1]); const to = Number(m[2])
-      if (!Number.isFinite(from) || !Number.isFinite(to)) continue
-      out.push({ path: path.join(this.indexDir, f), from, to })
+      const from = Number(m[1]), to = Number(m[2])
+      out.push({ from, to, path: path.join(this.dir, f) })
     }
-    // sort by "from" ascending
     out.sort((a, b) => a.from - b.from)
     return out
   }
 
-  /**
-   * Fallback scan of a single shard (used when .kidx isn’t present).
-   * Returns {found, n, o}.
-   */
-  lookupInShard (jsonlPath: string, hashHex: string): { found: boolean, n: number, o: number } {
-    if (!fs.existsSync(jsonlPath)) return { found: false, n: 0, o: 0 }
-    const target = String(hashHex || '').toLowerCase()
-
-    // Fast path: small files — read whole and scan.
-    // Still bounded because shards are compact.
-    const buf = fs.readFileSync(jsonlPath, 'utf8')
-    const lines = buf.split('\n')
-    for (const line of lines) {
-      if (!line) continue
-      try {
-        const rec = JSON.parse(line) as any
-        if (rec?.h === target) return { found: true, n: rec.n >>> 0, o: rec.o >>> 0 }
-      } catch { /* ignore bad lines */ }
+  /** Append many tx refs; groups by shard and does one append per shard. */
+  putMany(refs: TxRef[]) {
+    if (!refs?.length) return
+    const groups = new Map<string, { path: string; lines: string[] }>()
+    for (const r of refs) {
+      const s = this.shardForBlock(r.n)
+      const key = `${s.from}-${s.to}`
+      if (!groups.has(key)) groups.set(key, { path: s.path, lines: [] })
+      groups.get(key)!.lines.push(JSON.stringify({
+        h: String(r.h).toLowerCase(), n: r.n, o: r.o
+      }))
     }
-    return { found: false, n: 0, o: 0 }
+    fs.mkdirSync(this.dir, { recursive: true })
+    for (const g of groups.values()) {
+      fs.appendFileSync(g.path, g.lines.join('\n') + '\n', 'utf8')
+    }
   }
 
-  /**
-   * Streaming scan helper (not used right now — kept for very large shards).
-   * Slightly slower per line but constant memory.
-   */
-  async lookupInShardStream (jsonlPath: string, hashHex: string): Promise<{ found: boolean, n: number, o: number }> {
-    if (!fs.existsSync(jsonlPath)) return { found: false, n: 0, o: 0 }
-    const target = String(hashHex || '').toLowerCase()
-    const rl = readline.createInterface({ input: fs.createReadStream(jsonlPath), crlfDelay: Infinity })
-    for await (const line of rl) {
-      if (!line) continue
-      try {
-        const rec = JSON.parse(line) as any
-        if (rec?.h === target) return { found: true, n: rec.n >>> 0, o: rec.o >>> 0 }
-      } catch {}
+  /** Fallback scan when .kidx is missing. */
+  lookupInShard(jsonlPath: string, hashLower: string):
+    | { found: true, n: number, o: number }
+    | { found: false } {
+    if (!fs.existsSync(jsonlPath)) return { found: false }
+    const data = fs.readFileSync(jsonlPath, 'utf8')
+    let i = 0, start = 0
+    while (i <= data.length) {
+      if (i === data.length || data.charCodeAt(i) === 10 /*\n*/) {
+        const line = data.slice(start, i).trim()
+        if (line) {
+          try {
+            const rec = JSON.parse(line) as TxRef
+            if (rec.h === hashLower) return { found: true, n: rec.n, o: rec.o }
+          } catch {}
+        }
+        start = i + 1
+      }
+      i++
     }
-    return { found: false, n: 0, o: 0 }
+    return { found: false }
+  }
+
+  /** Delete older shards, keeping only the newest N shards (JSONL + .kidx). */
+  gc(keepLast: number): { removed: number; kept: number; details: { removed: string[]; kept: string[] } } {
+    const shards = this.listShards()
+    if (keepLast <= 0) keepLast = 1
+    if (shards.length <= keepLast) {
+      return { removed: 0, kept: shards.length, details: { removed: [], kept: shards.map(s => s.path) } }
+    }
+    const toRemove = shards.slice(0, Math.max(0, shards.length - keepLast))
+    const removedPaths: string[] = []
+    for (const s of toRemove) {
+      const jsonl = s.path
+      const kidx = s.path.replace(/\.jsonl$/, '.kidx')
+      try { if (fs.existsSync(jsonl)) { fs.rmSync(jsonl); removedPaths.push(jsonl) } } catch {}
+      try { if (fs.existsSync(kidx))  { fs.rmSync(kidx);  removedPaths.push(kidx) } } catch {}
+    }
+    const kept = this.listShards().length
+    return { removed: removedPaths.length, kept, details: { removed: removedPaths, kept: this.listShards().map(s => s.path) } }
   }
 }
 

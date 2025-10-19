@@ -511,6 +511,121 @@ app.post('/index/kidx/build', async (_req, res) => {
   catch (e:any) { res.status(500).json({ ok:false, error: String(e?.message || e) }) }
 })
 
+// Remove older shards, keep only the newest N (JSONL + .kidx)
+app.post('/index/gc', (req, res) => {
+  const keep = Math.max(1, Number(req.query.keepLast ?? 3)) // default: keep last 3 shards
+  try {
+    const r = node.txIndex.gc(keep)
+    res.json({ ok: true, keepLast: keep, ...r })
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error: String(e?.message || e) })
+  }
+})
+
+// ---- Index tools: stats / verify / rebuild single shard kidx ----
+
+// tiny helper to count lines in a small/medium file
+function countLinesSync(file: string): number {
+  if (!fs.existsSync(file)) return 0
+  const buf = fs.readFileSync(file)
+  let count = 0
+  for (let i = 0; i < buf.length; i++) if (buf[i] === 0x0a) count++
+  // handle files without trailing newline
+  if (buf.length && buf[buf.length - 1] !== 0x0a) count++
+  return count
+}
+
+// List shard stats: size, line-count, kidx size (if present)
+app.get('/index/stats', (_req, res) => {
+  const shards = node.txIndex.listShards()
+  const items = shards.map(s => {
+    const st = fs.existsSync(s.path) ? fs.statSync(s.path) : null
+    const kpath = s.path.replace(/\.jsonl$/, '.kidx')
+    const kst = fs.existsSync(kpath) ? fs.statSync(kpath) : null
+    return {
+      from: s.from, to: s.to,
+      jsonl: { path: s.path, bytes: st?.size ?? 0, lines: countLinesSync(s.path) },
+      kidx: { path: kpath, bytes: kst?.size ?? 0, present: !!kst }
+    }
+  })
+  res.json({ ok: true, shards: items })
+})
+
+// Verify JSONL entries map to real tx in blocks. Optional ?limitBad=20
+app.post('/index/verify', async (req, res) => {
+  const limitBad = Math.max(1, Number(req.query.limitBad ?? 20))
+  let checked = 0
+  const bad: Array<{ h: string, n: number, o: number, reason: string }> = []
+
+  for (const s of node.txIndex.listShards()) {
+    const data = fs.existsSync(s.path) ? fs.readFileSync(s.path, 'utf8') : ''
+    if (!data) continue
+    for (const line of data.split('\n')) {
+      const t = line.trim()
+      if (!t) continue
+      try {
+        const rec = JSON.parse(t) as { h: string, n: number, o: number }
+        const blk = node.store.loadBlock(rec.n)
+        if (!blk) { bad.push({ ...rec, reason: 'block-missing' }); if (bad.length >= limitBad) break; continue }
+        const tx = blk.txs?.[rec.o]
+        if (!tx) { bad.push({ ...rec, reason: 'tx-missing' }); if (bad.length >= limitBad) break; continue }
+        if (String(tx.hash).toLowerCase() !== rec.h) {
+          bad.push({ ...rec, reason: 'hash-mismatch' })
+          if (bad.length >= limitBad) break
+        }
+        checked++
+      } catch {
+        // skip malformed line
+      }
+    }
+    if (bad.length >= limitBad) break
+  }
+
+  res.json({ ok: true, checked, bad, truncated: bad.length >= limitBad })
+})
+
+// Rebuild a single shard's .kidx by block *or* tx hash.
+// Usage:
+//   POST /index/kidx/rebuild-shard?block=7905
+//   POST /index/kidx/rebuild-shard?hash=<64hex>
+app.post('/index/kidx/rebuild-shard', async (req, res) => {
+  const blockParam = req.query.block
+  const hashParam  = (req.query.hash ? String(req.query.hash) : '').toLowerCase()
+
+  let block = Number(blockParam)
+  if (!Number.isFinite(block) || block < 0) {
+    if (/^[0-9a-f]{64}$/.test(hashParam)) {
+      // resolve block via the same logic as /tx/lookup (kidx first, then JSONL)
+      const shards = node.txIndex.listShards().sort((a,b) => b.from - a.from)
+      let foundBlock: number | null = null
+      for (const s of shards) {
+        const kidxPath = s.path.replace(/\.jsonl$/, '.kidx')
+        if (fs.existsSync(kidxPath)) {
+          const hit = queryKidx(kidxPath, hashParam)
+          if (hit.found) { foundBlock = hit.n!; break }
+          continue
+        }
+        const r = node.txIndex.lookupInShard(s.path, hashParam)
+        if (r.found) { foundBlock = r.n; break }
+      }
+      if (foundBlock == null) return res.status(404).json({ ok:false, error:'hash not found' })
+      block = foundBlock
+    }
+  }
+
+  if (!Number.isFinite(block) || block < 0) {
+    return res.status(400).json({ ok:false, error:'provide ?block=NUMBER or ?hash=64hex' })
+  }
+
+  try {
+    const shard = node.txIndex.shardForBlock(block)
+    await rebuildKidxForShard(shard.path)
+    res.json({ ok:true, shard: { from: shard.from, to: shard.to }, kidx: shard.path.replace(/\.jsonl$/, '.kidx') })
+  } catch (e: any) {
+    res.status(500).json({ ok:false, error: String(e?.message || e) })
+  }
+})
+
 // Force-rebuild the .kidx for the shard that contains a given block number
 app.post('/index/kidx/rebuild-shard', async (req, res) => {
   const n = Number(req.query.block ?? -1)
