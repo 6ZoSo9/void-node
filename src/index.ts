@@ -5,6 +5,7 @@ import path from 'node:path'
 import net from 'node:net'
 import crypto from 'node:crypto'
 import readline from 'node:readline'
+import { ReceiptsStore, Receipt } from './chain/receipts.js'
 
 import { Mempool } from './chain/mempool.js'
 import { Block, computeRoots, blockHash } from './chain/block.js'
@@ -149,6 +150,7 @@ class Node {
   readonly peers: Map<string, Peer> = new Map()
   readonly pubsub = new PubSub()
   readonly txIndex = new TxIndex(path.join('data','index'))
+  readonly receipts = new ReceiptsStore(path.join('data','receipts'), { shardSpan: 10_000 })
 
   private seen = new Set<string>()
   private seenTimestamps = new Map<string, number>()
@@ -522,6 +524,18 @@ app.post('/index/gc', (req, res) => {
   }
 })
 
+// Keep receipts lean too (mirror tx index GC policy)
+app.post('/receipts/gc', (req, res) => {
+  const keep = Math.max(1, Number(req.query.keepLast ?? 3))
+  try {
+    const r = node.receipts.gcKeepLast(keep)
+    res.json({ ok:true, keepLast: keep, ...r })
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error: String(e?.message || e) })
+  }
+})
+
+
 // ---- Index tools: stats / verify / rebuild single shard kidx ----
 
 // tiny helper to count lines in a small/medium file
@@ -696,6 +710,18 @@ app.post('/blocks/import', async (req, res) => {
         const shard = node.txIndex.shardForBlock(b.number)
         touchedShardPaths.add(shard.path)
       }
+
+      if (b.txs?.length) {
+        const now = Date.now()
+        const recs: Receipt[] = b.txs.map((tx, i) => ({
+          h: String(tx.hash).toLowerCase(),
+          n: b.number,
+          o: i,
+          ts: now,
+        }))
+        this.receipts.putMany(recs)
+      }
+
     }
 
     let kidxRebuilt = 0
@@ -744,6 +770,20 @@ app.get('/tx/lookup', (req, res) => {
   }
 
   return res.json({ ok:true, found:false })
+})
+
+// TX receipt lookup (cheap): /tx/receipt?hash=0x...
+app.get('/tx/receipt', (req, res) => {
+  const hash = String(req.query.hash || '').toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
+  const r = node.receipts.get(hash)
+  if (!r.found) return res.json({ ok:true, found:false })
+  res.json({ ok:true, found:true, block: r.n, offset: r.o, timestamp: r.ts })
+})
+
+// Receipt stats (optional)
+app.get('/receipts/stats', (_req, res) => {
+  res.json({ ok:true, ...node.receipts.stats() })
 })
 
 // TX endpoint
