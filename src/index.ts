@@ -4,6 +4,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import net from 'node:net'
 import crypto from 'node:crypto'
+import readline from 'node:readline'
+
 import { Mempool } from './chain/mempool.js'
 import { Block, computeRoots, blockHash } from './chain/block.js'
 import { cidForBytes } from './util/cid.js'
@@ -20,8 +22,28 @@ const KEY_FILE  = process.env.KEY_FILE || '.nodekey'
 const TOPIC     = 'void/hello'
 const PROTO_VER = 1
 
+// --- tiny kidx helper: rebuild one shard’s .kidx next to its JSONL ---
+async function rebuildKidxForShard(jsonlPath: string) {
+  const kidxPath = jsonlPath.replace(/\.jsonl$/, '.kidx')
+  const inStream  = fs.createReadStream(jsonlPath, { encoding: 'utf8' })
+  const outStream = fs.createWriteStream(kidxPath + '.tmp', { encoding: 'utf8' })
+  const rl = readline.createInterface({ input: inStream, crlfDelay: Infinity })
+  for await (const line of rl) {
+    const s = line.trim()
+    if (!s) continue
+    try {
+      const rec = JSON.parse(s) as { h: string, n: number, o: number }
+      outStream.write(`${rec.h},${rec.n},${rec.o}\n`)
+    } catch {}
+  }
+  await new Promise<void>(r => outStream.end(r))
+  fs.renameSync(kidxPath + '.tmp', kidxPath)
+  return { ok: true, kidxPath }
+}
+
 // ---------- crypto (Ed25519) ----------
 type Keypair = { privateKey: crypto.KeyObject, publicKey: crypto.KeyObject, nodeId: string, pubPEM: string }
+
 function loadOrCreateKeypair(file: string): Keypair {
   if (fs.existsSync(file)) {
     const raw = fs.readFileSync(file, 'utf8').trim()
@@ -107,7 +129,7 @@ type Peer = {
   listens: string[]; outbound: boolean; handshakeDone: boolean;
 }
 
-// ---------- validators (placeholder, keep strict later) ----------
+// ---------- validators (placeholder) ----------
 function isPlainObject(x: any): x is Record<string, unknown> {
   return x && typeof x === 'object' && !Array.isArray(x)
 }
@@ -159,9 +181,7 @@ class Node {
   /** Rebuild compact tx index from blocks—idempotent and memory-light. */
   async rebuildTxIndex(): Promise<{ ok: true, blocks: number, indexed: number }> {
     const idxDir = path.join('data', 'index')
-    if (fs.existsSync(idxDir)) {
-      fs.rmSync(idxDir, { recursive: true, force: true })
-    }
+    if (fs.existsSync(idxDir)) fs.rmSync(idxDir, { recursive: true, force: true })
     fs.mkdirSync(idxDir, { recursive: true })
 
     const head = this.store.loadHeadNumber()
@@ -210,9 +230,7 @@ class Node {
         const shards = this.txIndex.listShards()
         for (const s of shards) {
           const k = s.path.replace(/\.jsonl$/, '.kidx')
-          if (!fs.existsSync(k)) {
-            buildKidxForJsonl(s.path)
-          }
+          if (!fs.existsSync(k)) buildKidxForJsonl(s.path)
         }
       } catch {}
     }, 15_000)
@@ -352,10 +370,11 @@ class Node {
   // blocks
   startProposer(intervalMs = 5000) {
     if (this.proposerTimer) return { ok:false, error:'already running' }
-    this.proposerTimer = setInterval(() => this.sealBlock(), intervalMs)
+    this.proposerTimer = setInterval(() => { void this.sealBlock() }, intervalMs)
     return { ok:true, intervalMs }
   }
-  sealBlock() {
+
+  async sealBlock() {
     const parent = this.store.loadHeadNumber()
     const number = parent + 1
     const txs = this.mempool.drain(1000)
@@ -364,7 +383,7 @@ class Node {
 
     const headerBytes = Buffer.from(JSON.stringify({
       number,
-      parentHash: number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64, '0'),
+      parentHash: number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64,'0'),
       timestamp: Date.now(),
       txRoot: roots.txRoot,
       blobRoot: roots.blobRoot,
@@ -374,7 +393,7 @@ class Node {
     const sig = signBytes(this.priv, headerBytes)
     const b: Block = {
       number,
-      parentHash: number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64, '0'),
+      parentHash: number > 0 ? blockHash(this.store.loadBlock(parent)!) : ''.padStart(64,'0'),
       timestamp: Date.now(),
       txRoot: roots.txRoot,
       blobRoot: roots.blobRoot,
@@ -384,14 +403,22 @@ class Node {
       sig
     }
 
+    // persist
     this.store.saveBlock(b)
 
-    // append tx refs to compact index (only if txs exist)
+    // update compact tx index + kidx only if there are txs
     if (b.txs?.length) {
-      const refs = b.txs.map((tx, i) => ({ h: tx.hash, n: b.number, o: i }))
+      const refs = b.txs.map((tx, i) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }))
       this.txIndex.putMany(refs)
+      try {
+        const shard = this.txIndex.shardForBlock(b.number)
+        await rebuildKidxForShard(shard.path)
+      } catch (e) {
+        console.warn('[kidx] single-shard rebuild failed:', (e as Error).message)
+      }
     }
 
+    // announce
     this.publishJson('void/block', {
       number: b.number,
       hash: blockHash(b),
@@ -413,11 +440,12 @@ class Node {
         if (Number.isFinite(theirHead) && theirHead > myHead) {
           const from = Math.max(0, theirHead - 500)
           const to = theirHead
-          const arr = await fetch(`${peerHttp}/blocks/range?from=${from}&to=${to}`).then(r=>r.json()).catch(()=>[])
+          const arr = await fetch(`${peerHttp}/blocks/range?from=${from}&to=${to}`)
+            .then(r=>r.json()).catch(()=>[])
           for (const b of arr) {
             this.store.saveBlock(b)
             if (b.txs?.length) {
-              const refs = b.txs.map((tx:any, i:number) => ({ h: tx.hash, n: b.number, o: i }))
+              const refs = b.txs.map((tx:any, i:number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }))
               this.txIndex.putMany(refs)
             }
           }
@@ -483,6 +511,30 @@ app.post('/index/kidx/build', async (_req, res) => {
   catch (e:any) { res.status(500).json({ ok:false, error: String(e?.message || e) }) }
 })
 
+// Force-rebuild the .kidx for the shard that contains a given block number
+app.post('/index/kidx/rebuild-shard', async (req, res) => {
+  const n = Number(req.query.block ?? -1)
+  if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:'bad block' })
+  try {
+    const shard = node.txIndex.shardForBlock(n)
+    await (async function rebuildKidxForShard(jsonlPath: string){
+      const kidxPath = jsonlPath.replace(/\.jsonl$/, '.kidx')
+      const inStream  = fs.createReadStream(jsonlPath, { encoding: 'utf8' })
+      const outStream = fs.createWriteStream(kidxPath + '.tmp', { encoding: 'utf8' })
+      const rl = (await import('node:readline')).createInterface({ input: inStream, crlfDelay: Infinity })
+      for await (const line of rl) {
+        const s = line.trim(); if (!s) continue
+        try { const rec = JSON.parse(s) as { h:string,n:number,o:number }; outStream.write(`${rec.h},${rec.n},${rec.o}\n`) } catch {}
+      }
+      await new Promise<void>(r => outStream.end(r))
+      fs.renameSync(kidxPath + '.tmp', kidxPath)
+    })(shard.path)
+    return res.json({ ok:true, rebuilt: shard.path.replace(/\.jsonl$/, '.kidx') })
+  } catch (e:any) {
+    return res.status(500).json({ ok:false, error: String(e?.message || e) })
+  }
+})
+
 // Health/peers
 app.get('/health', (_req, res) => {
   res.json({ ok: true, proto: PROTO_VER, nodeId: node.id, http: HTTP_PORT, p2p: P2P_PORT,
@@ -503,14 +555,58 @@ app.post('/pub', (req, res) => {
   res.json({ ok: true, published: { topic, msg } })
 })
 
+// Heads
+app.get('/blocks/head', (_req, res) => {
+  const n = node.store.loadHeadNumber()
+  const b = node.store.loadBlock(n)
+  if (!b) return res.json({ ok: true, head: -1 })
+  res.json({ ok: true, head: n, hash: blockHash(b) })
+})
+app.get('/head', (_req, res) => { res.json({ ok:true, head: node.store.loadHeadNumber() }) })
+
+// Import blocks (updates per-shard kidx only when needed)
+app.post('/blocks/import', async (req, res) => {
+  try {
+    const arr = Array.isArray(req.body) ? req.body : []
+    if (!arr.length) return res.json({ ok: true, imported: 0 })
+
+    const touchedShardPaths = new Set<string>()
+    let imported = 0
+    for (const b of arr) {
+      node.store.saveBlock(b)
+      imported++
+      if (b?.txs?.length) {
+        const refs = b.txs.map((tx: any, i: number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }))
+        node.txIndex.putMany(refs)
+        const shard = node.txIndex.shardForBlock(b.number)
+        touchedShardPaths.add(shard.path)
+      }
+    }
+
+    let kidxRebuilt = 0
+    for (const p of touchedShardPaths) {
+      try { await rebuildKidxForShard(p); kidxRebuilt++ } catch {}
+    }
+
+    res.json({ ok: true, imported, kidxRebuilt })
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
+  }
+})
+
 // Tx lookup via compact index (+ .kidx if present)
+// Tx lookup via compact index (+ .kidx if present, with JSONL fallback on miss)
 app.get('/tx/lookup', (req, res) => {
   const hash = String(req.query.hash || '').toLowerCase()
   if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
 
-  const shards = node.txIndex.listShards().sort((a,b) => b.from - a.from) // newest first
+  // newest-first shard order
+  const shards = node.txIndex.listShards().sort((a,b) => b.from - a.from)
+
   for (const s of shards) {
     const kidxPath = s.path.replace(/\.jsonl$/, '.kidx')
+
+    // 1) Try kidx first
     if (fs.existsSync(kidxPath)) {
       const hit = queryKidx(kidxPath, hash)
       if (hit.found) {
@@ -519,8 +615,10 @@ app.get('/tx/lookup', (req, res) => {
         const tx = blk.txs?.[hit.o!]
         return res.json({ ok:true, found:true, block: hit.n, offset: hit.o, tx })
       }
-      continue
+      // IMPORTANT: fall through to JSONL scan if the kidx didn't have it
     }
+
+    // 2) Fallback: scan the JSONL shard
     const r = node.txIndex.lookupInShard(s.path, hash)
     if (r.found) {
       const blk = node.store.loadBlock(r.n)
@@ -529,6 +627,7 @@ app.get('/tx/lookup', (req, res) => {
       return res.json({ ok:true, found:true, block: r.n, offset: r.o, tx })
     }
   }
+
   return res.json({ ok:true, found:false })
 })
 
@@ -601,10 +700,13 @@ app.post('/blocks/start', (req, res) => {
   const r = node.startProposer(intervalMs)
   res.json(r)
 })
-app.post('/blocks/once', (_req, res) => { node.sealBlock(); res.json({ ok:true }) })
+
+app.post('/blocks/once', async (_req, res) => {
+  await node.sealBlock()
+  res.json({ ok: true })
+})
 
 // Sync helpers
-app.get('/head', (_req, res) => { res.json({ ok:true, head: node.store.loadHeadNumber() }) })
 app.post('/follower/start', (req, res) => {
   const peer = String(req.query.peer || 'http://127.0.0.1:4101')
   const ms = Number(req.query.intervalMs || 2000)
