@@ -1,87 +1,111 @@
+// src/util/kidx.ts
 import fs from 'node:fs'
 import path from 'node:path'
 import readline from 'node:readline'
 
-const ENTRY_BYTES = 32 + 4 + 4 // hash(32) + block(uint32) + offset(uint32)
-
-function hexToBytes (hex: string): Buffer {
-  return Buffer.from(hex.replace(/^0x/i, ''), 'hex')
+/**
+ * Very small in-process mutex so kidx builds never race each other.
+ */
+let kidxLock = Promise.resolve()
+function withKidxLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = kidxLock.then(fn, fn) // chain either way
+  // ensure future callers serialize after this one
+  kidxLock = next.then(() => undefined, () => undefined)
+  return next
 }
-function readU32BE (buf: Buffer, off: number): number {
-  return buf.readUInt32BE(off)
-}
-function writeU32BE (buf: Buffer, off: number, v: number) {
-  buf.writeUInt32BE(v, off)
-}
 
-export async function buildKidxForJsonl (jsonlPath: string) {
-  const kidxPath = jsonlPath.replace(/\.jsonl$/, '.kidx')
-  const tmpPath  = kidxPath + '.tmp'
+/**
+ * Build a .kidx file next to a JSONL shard.
+ * JSONL lines: {"h": "<hash>", "n": <block>, "o": <offset>}
+ * KIDX lines:  <hash>,<block>,<offset>\n
+ */
+export async function buildKidxForJsonl(jsonlPath: string): Promise<{ ok: true, kidxPath: string }> {
+  return withKidxLock(async () => {
+    const kidxPath = jsonlPath.replace(/\.jsonl$/, '.kidx')
+    const tmpPath  = kidxPath + '.tmp'
 
-  const rl = readline.createInterface({
-    input: fs.createReadStream(jsonlPath),
-    crlfDelay: Infinity
+    // Ensure JSONL exists (quietly succeed if not present)
+    if (!fs.existsSync(jsonlPath)) return { ok: true, kidxPath }
+
+    // Clean any stale tmp
+    try { fs.unlinkSync(tmpPath) } catch {}
+
+    const inStream  = fs.createReadStream(jsonlPath, { encoding: 'utf8' })
+    const outStream = fs.createWriteStream(tmpPath,  { encoding: 'utf8' })
+
+    const rl = readline.createInterface({ input: inStream, crlfDelay: Infinity })
+
+    try {
+      for await (const line of rl) {
+        const s = line.trim()
+        if (!s) continue
+        try {
+          const rec = JSON.parse(s) as { h: string, n: number, o: number }
+          // write a compact CSV line
+          outStream.write(`${(rec.h || '').toLowerCase()},${rec.n|0},${rec.o|0}\n`)
+        } catch { /* ignore malformed lines */ }
+      }
+    } finally {
+      // Close writer (and wait for 'close') before rename
+      await new Promise<void>(resolve => outStream.end(resolve))
+      // Also ensure read stream is shut down before rename
+      try { inStream.close() } catch {}
+    }
+
+    // Atomic replace
+    fs.renameSync(tmpPath, kidxPath)
+    return { ok: true, kidxPath }
   })
-  const out = fs.openSync(tmpPath, 'w')
-  let count = 0
-  for await (const line of rl) {
-    if (!line.trim()) continue
-    const rec = JSON.parse(line) as { h?: string, n?: number, o?: number }
-    const h = String(rec.h || '').toLowerCase()
-    if (!/^[0-9a-f]{64}$/.test(h)) continue
-
-    const buf = Buffer.alloc(ENTRY_BYTES)
-    hexToBytes(h).copy(buf, 0)
-    writeU32BE(buf, 32, (rec.n ?? 0) >>> 0)
-    writeU32BE(buf, 36, (rec.o ?? 0) >>> 0)
-    fs.writeSync(out, buf)
-    count++
-  }
-  fs.closeSync(out)
-  fs.renameSync(tmpPath, kidxPath)
-  return { kidxPath, count }
 }
 
-export function queryKidx (kidxPath: string, hashHex: string): { found: boolean, n?: number, o?: number } {
-  if (!fs.existsSync(kidxPath)) return { found: false }
+/**
+ * Scan all tx-*.jsonl shards under data/index and build missing/outdated .kidx files.
+ * We currently treat “outdated” as “missing” to keep it simple and small.
+ */
+export async function buildAllKidx(): Promise<{ ok: true, built: number }> {
+  return withKidxLock(async () => {
+    const dir = path.join('data', 'index')
+    if (!fs.existsSync(dir)) return { ok: true, built: 0 }
 
-  const fd = fs.openSync(kidxPath, 'r')
-  try {
-    const target = hexToBytes(hashHex.toLowerCase())
-    const stat = fs.fstatSync(fd)
-    const entries = Math.floor(stat.size / ENTRY_BYTES)
-    const buf = Buffer.alloc(ENTRY_BYTES)
+    const files = fs.readdirSync(dir)
+      .filter(f => /^tx-\d+-\d+\.jsonl$/.test(f))
+      .map(f => path.join(dir, f))
 
-    // NOTE: linear scan (kidx isn’t sorted yet). It’s still tiny/fast.
-    // Later we can sort + switch to binary search.
-    for (let i = 0; i < entries; i++) {
-      fs.readSync(fd, buf, 0, ENTRY_BYTES, i * ENTRY_BYTES)
-      if (buf.subarray(0, 32).equals(target)) {
-        const n = readU32BE(buf, 32)
-        const o = readU32BE(buf, 36)
-        return { found: true, n, o }
+    let built = 0
+    for (const jsonl of files) {
+      const kidx = jsonl.replace(/\.jsonl$/, '.kidx')
+      if (!fs.existsSync(kidx)) {
+        await buildKidxForJsonl(jsonl)
+        built++
       }
     }
-    return { found: false }
-  } finally {
-    fs.closeSync(fd)
-  }
+    return { ok: true, built }
+  })
 }
 
-export async function buildAllKidx (indexDir = path.join('data', 'index')) {
-  if (!fs.existsSync(indexDir)) return { ok: true, built: 0 }
-  const files = fs.readdirSync(indexDir).filter(f => f.endsWith('.jsonl'))
-  let built = 0
-  for (const f of files) {
-    const jsonl = path.join(indexDir, f)
-    const kidx  = jsonl.replace(/\.jsonl$/, '.kidx')
-    const jStat = fs.statSync(jsonl)
-    const kStat = fs.existsSync(kidx) ? fs.statSync(kidx) : null
-    if (!kStat || kStat.mtimeMs < jStat.mtimeMs) {
-      await buildKidxForJsonl(jsonl)
-      built++
+/**
+ * Fast point lookup in a .kidx file (CSV lines).
+ * Returns {found,n,o} or {found:false}.
+ */
+export function queryKidx(kidxPath: string, hash: string): { found: true, n: number, o: number } | { found: false } {
+  if (!fs.existsSync(kidxPath)) return { found: false }
+  const needle = (hash || '').toLowerCase()
+
+  const buf = fs.readFileSync(kidxPath, 'utf8')
+  // very simple scan (files are small). Each line: "<hash>,<n>,<o>\n"
+  let start = 0
+  for (let i = 0; i <= buf.length; i++) {
+    if (i === buf.length || buf.charCodeAt(i) === 10 /* \n */) {
+      const line = buf.slice(start, i).trim()
+      start = i + 1
+      if (!line) continue
+      const [h, nStr, oStr] = line.split(',', 3)
+      if (h === needle) {
+        const n = Number(nStr), o = Number(oStr)
+        if (Number.isFinite(n) && Number.isFinite(o)) return { found: true, n, o }
+      }
     }
   }
-  return { ok: true, built }
+  return { found: false }
 }
 
