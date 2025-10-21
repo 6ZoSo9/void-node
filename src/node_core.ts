@@ -132,6 +132,10 @@ export class Node {
   private readonly MAX_BACKOFF = 15_000
 
   private myTopics = new Set<string>()
+  // --- blob replication state ---
+  private peerHttp = new Map<string, string>()              // nodeId -> http base
+  private blobFetchQ: { cid: string, providers: string[], enqueuedAt: number }[] = []
+  private blobFetchRunning = false
 
   readonly store = new SegStore('data', { segmentMaxBytes: 128 * 1024 * 1024, sparseEvery: 512 })
   readonly mempool = new Mempool()
@@ -247,7 +251,7 @@ export class Node {
       this.pubsub.subscribe(tempOrRealId, msg.topic)
       return
     }
-    if (msg.type === 'PUB') {
+   if (msg.type === 'PUB') {
       const key = `${msg.topic}:${msg.nonce}`
       if (this.seen.has(key)) return
       const pub = safeImportPublicKey(msg.pubkey); if (!pub) return
@@ -255,36 +259,49 @@ export class Node {
       if (!verifyBytes(pub, bytes, msg.sig)) return
 
       this.seen.add(key); this.seenTimestamps.set(key, Date.now())
+
       if (this.pubsub.subscribers(msg.topic).has(this.id)) {
-        if (msg.topic === 'void/tx') {
-          try { const tx = JSON.parse(msg.data); this.mempool.push(tx) } catch {}
-        } else if (msg.topic === 'void/blob.announce') {
-          // future: on-demand fetch
-        } else if (msg.topic === 'void/block') {
-        // Save a lightweight header so followers learn the new tip immediately.
         try {
-          const hdr = JSON.parse(msg.data);
-          const num = Number(hdr?.number);
-          if (!Number.isFinite(num)) return;
-
-          const already = this.store.loadBlock(num);
-          if (!already) {
-            this.store.saveBlock({
-              number: num,
-              hash: String(hdr.hash || '').toLowerCase(),
-              txRoot: String(hdr.txRoot || '').toLowerCase(),
-              blobRoot: String(hdr.blobRoot || '').toLowerCase(),
-              timestamp: Number.isFinite(hdr?.timestamp) ? Number(hdr.timestamp) : Date.now(),
-              // Note: header-only (no txs). Follower fill will merge real txs later.
-            });
+          if (msg.topic === 'void/tx') {
+            const tx = JSON.parse(msg.data); this.mempool.push(tx)
+          } else if (msg.topic === 'void/http') {
+            // { id, http } -> record peer's HTTP base for later blob fetches
+            const info = JSON.parse(msg.data)
+            const pid  = String(info?.id || '').trim()
+            const http = String(info?.http || '').trim()
+            if (pid && /^https?:\/\/.+/.test(http)) this.peerHttp.set(pid, http.replace(/\/+$/,''))
+          } else if (msg.topic === 'void/blob.announce') {
+            // { cid, size } -> if we don't have it, enqueue a fetch from any providers we know
+            const ann  = JSON.parse(msg.data)
+            const cid  = String(ann?.cid || '').trim()
+            if (cid && !this.getBlob(cid)) {
+              // Any HTTP bases we know about
+              const providers = [...this.peerHttp.values()]
+              if (providers.length) this.enqueueBlobFetch(cid, providers)
+            }
+          } else if (msg.topic === 'void/block') {
+            // Save a lightweight header so followers learn the new tip immediately.
+            const hdr = JSON.parse(msg.data)
+            const num = Number(hdr?.number)
+            if (Number.isFinite(num)) {
+              const already = this.store.loadBlock(num)
+              if (!already) {
+                this.store.saveBlock({
+                  number: num,
+                  hash: String(hdr.hash || '').toLowerCase(),
+                  txRoot: String(hdr.txRoot || '').toLowerCase(),
+                  blobRoot: String(hdr.blobRoot || '').toLowerCase(),
+                  timestamp: Number.isFinite(hdr?.timestamp) ? Number(hdr.timestamp) : Date.now(),
+                })
+              }
+            }
+          } else {
+            console.log(`[pubsub] ${msg.topic} <- ${msg.from}: ${msg.data}`)
           }
-        } catch { /* ignore bad header */ }
-
-
-        } else {
-          console.log(`[pubsub] ${msg.topic} <- ${msg.from}: ${msg.data}`)
-        }
+        } catch {/* ignore */}
       }
+
+      // fan-out to other subscribers
       for (const p of this.peers.values()) {
         if (p.id === tempOrRealId) continue
         if (this.pubsub.subscribers(msg.topic).has(p.id)) this.sendRaw(p, msg)
@@ -355,6 +372,40 @@ export class Node {
   }
 
   publishJson (topic: string, obj: any) { this.publishString(topic, JSON.stringify(obj)) }
+  
+   /** Queue a blob fetch from any of the given provider HTTP bases */
+  private enqueueBlobFetch(cid: string, providers: string[]) {
+    // de-dup
+    if (this.blobFetchQ.some(q => q.cid === cid)) return
+    this.blobFetchQ.push({ cid, providers: providers.slice(0, 8), enqueuedAt: Date.now() })
+    if (!this.blobFetchRunning) { this.blobFetchRunning = true; void this.blobFetchLoop() }
+  }
+
+  /** Simple worker: try providers in order, save first that responds */
+  private async blobFetchLoop() {
+    while (this.blobFetchQ.length) {
+      const job = this.blobFetchQ.shift()!
+      if (this.getBlob(job.cid)) continue
+      let ok = false
+      for (const base of job.providers) {
+        try {
+          const u = `${base}/blob/${job.cid}`
+          const r = await fetch(u)
+          if (r.ok) {
+            const buf = Buffer.from(await r.arrayBuffer())
+            await this.putBlobFromBuffer(buf)  // will announce as well (harmless)
+            ok = true
+            break
+          }
+        } catch {/* try next provider */}
+      }
+      if (!ok) {
+        // No providers worked; requeue with small delay (basic anti-entropy)
+        setTimeout(() => this.enqueueBlobFetch(job.cid, job.providers), 1500)
+      }
+    }
+    this.blobFetchRunning = false
+  }
 
   /** proposer */
   startProposer(intervalMs = 5000) {

@@ -82,6 +82,8 @@ node.subscribe('void/hello')
 node.subscribe('void/tx')
 node.subscribe('void/blob.announce')
 node.subscribe('void/block')
+node.subscribe('void/http')
+
 
 // optional: extra best-effort dialing
 for (const a of BOOTSTRAP) { try { node.connect(a) } catch {} }
@@ -470,6 +472,12 @@ app.listen(HTTP_PORT, () => {
   console.log(`[void-node] http :${HTTP_PORT}`)
   console.log(`[void-node] bootstrap: ${BOOTSTRAP.join(', ') || '(none)'}`)
   if (!fs.existsSync(KEY_FILE)) console.log(`[void-node] wrote new key: ${KEY_FILE}`)
+
+  // Advertise our HTTP base over pubsub so peers can fetch /blob/:cid from us
+  try {
+    const httpBase = process.env.PUBLIC_HTTP_BASE || `http://127.0.0.1:${HTTP_PORT}`
+node.publishJson('void/http', { id: node.id, http: httpBase })
+  } catch {}
 })
 
 // ---------- small util ----------
