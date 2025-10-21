@@ -382,30 +382,69 @@ export class Node {
   }
 
   /** Simple worker: try providers in order, save first that responds */
-  private async blobFetchLoop() {
-    while (this.blobFetchQ.length) {
-      const job = this.blobFetchQ.shift()!
-      if (this.getBlob(job.cid)) continue
-      let ok = false
-      for (const base of job.providers) {
-        try {
-          const u = `${base}/blob/${job.cid}`
-          const r = await fetch(u)
-          if (r.ok) {
-            const buf = Buffer.from(await r.arrayBuffer())
-            await this.putBlobFromBuffer(buf)  // will announce as well (harmless)
-            ok = true
-            break
-          }
-        } catch {/* try next provider */}
-      }
-      if (!ok) {
-        // No providers worked; requeue with small delay (basic anti-entropy)
-        setTimeout(() => this.enqueueBlobFetch(job.cid, job.providers), 1500)
+ 
+private async blobFetchLoop() {
+  // simple per-CID backoff map
+  const backoff = new Map<string, number>();
+  const MIN_MS = 1500;
+  const MAX_MS = 20_000;
+
+  const fetchWithTimeout = async (url: string, ms = 5000) => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try {
+      return await fetch(url, { signal: ctrl.signal, headers: { 'user-agent': 'void-node/1 blob-fetch' } });
+    } finally {
+      clearTimeout(t);
+    }
+  };
+
+  while (this.blobFetchQ.length) {
+    const job = this.blobFetchQ.shift()!;
+    // already have it now?
+    if (this.getBlob(job.cid)) continue;
+
+    let ok = false;
+
+    for (const base of job.providers) {
+      try {
+        const url = `${base}/blob/${job.cid}`;
+        const r = await fetchWithTimeout(url, 7000);
+        if (!r.ok) continue;
+
+        const buf = Buffer.from(await r.arrayBuffer());
+
+        // Verify content-addressed integrity BEFORE saving.
+        const computed = await cidForBytes(buf);
+        if (computed !== job.cid) {
+          // wrong content (provider stale/corrupt); try next provider
+          continue;
+        }
+
+        // Save + announce (dedupbed by filesystem; announcement is harmless).
+        await this.putBlobFromBuffer(buf);
+
+        ok = true;
+        break;
+      } catch {
+        // try next provider
       }
     }
-    this.blobFetchRunning = false
+
+    if (!ok) {
+      // No providers worked; exponential backoff and requeue
+      const cur = backoff.get(job.cid) ?? MIN_MS;
+      const next = Math.min(cur * 2, MAX_MS);
+      backoff.set(job.cid, next);
+      setTimeout(() => this.enqueueBlobFetch(job.cid, job.providers), cur);
+    } else {
+      backoff.delete(job.cid);
+    }
   }
+
+  this.blobFetchRunning = false;
+}
+
 
   /** proposer */
   startProposer(intervalMs = 5000) {
