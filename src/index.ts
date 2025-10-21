@@ -490,3 +490,16 @@ function countLinesQuick(p: string): number {
   } catch { return 0 }
 }
 
+/* -------- Blob debug -------- */
+// GET /blob/stat/:cid -> { ok, present: boolean, size?: number }
+app.get('/blob/stat/:cid', (req, res) => {
+  try {
+    const cid = String(req.params.cid || '').trim()
+    if (!cid) return res.json({ ok:false, error:'missing cid' })
+    const b = node.getBlob(cid)
+    if (!b) return res.json({ ok:true, present:false })
+    res.json({ ok:true, present:true, size: b.length })
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error: String(e?.message || e) })
+  }
+})
