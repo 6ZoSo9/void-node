@@ -8,7 +8,10 @@
     "start": "node dist/index.js",
     "build": "tsc -p .",
     "cli": "tsx src/cli.ts",
-    "make-tx": "tsx src/tx/make_tx.ts"
+    "make-tx": "tsx src/tx/make_tx.ts",
+    "node:a": "HTTP_PORT=4101 P2P_PORT=4701 PUBLIC_HTTP_BASE=\"http://127.0.0.1:4101\" npx tsx src/index.ts",
+    "node:b": "HTTP_PORT=4102 P2P_PORT=4702 PUBLIC_HTTP_BASE=\"http://127.0.0.1:4102\" BOOTSTRAP=127.0.0.1:4701 npx tsx src/index.ts",
+    "kill": "pkill -f \"tsx src/index.ts\" || true; pkill -f \"node .*dist/index.js\" || true"
   },
   "dependencies": {
     "@chainsafe/libp2p-gossipsub": "13.2.0",
