@@ -6,6 +6,7 @@ import path from 'node:path'
 import { Node, loadOrCreateKeypair } from './node_core.js'
 import { blockHash } from './chain/block.js'
 import { buildAllKidx, buildKidxForJsonl, queryKidx } from './util/kidx.js'
+import { PeerRegistry } from './node_peer_registry.js'
 
 /* ===================== METRICS ===================== */
 class Metrics {
@@ -16,9 +17,9 @@ class Metrics {
     tx_indexed: 0,
     receipts_appended: 0,
   }
-  gauges = { last_seal_ms: 0 }
+  gauges = { last_seal_ms: 0, peers_known: 0 }
   inc<K extends keyof Metrics['counters']>(k: K, v = 1) { this.counters[k] += v }
-  renderText(extra: { peers: number; mempool: number; head: number }) {
+  renderText(extra: { peers: number; mempool: number; head: number; peers_known: number }) {
     const L: string[] = []
 
     // counters
@@ -55,6 +56,9 @@ class Metrics {
     L.push('# TYPE void_head_number gauge')
     L.push(`void_head_number ${extra.head}`)
 
+    L.push('# HELP void_peers_known Known peers in registry')
+    L.push('# TYPE void_peers_known gauge')
+    L.push(`void_peers_known ${extra.peers_known}`)
     L.push('# HELP void_last_seal_ms Duration of last sealBlock in ms')
     L.push('# TYPE void_last_seal_ms gauge')
     L.push(`void_last_seal_ms ${this.gauges.last_seal_ms}`)
@@ -76,6 +80,7 @@ const PROTO_VER = 1
 const kp = loadOrCreateKeypair(path.resolve(KEY_FILE))
 const node = new Node(P2P_PORT, kp)
 await node.start()
+const peersReg = new PeerRegistry()
 
 // topics we actually use
 node.subscribe('void/hello')
@@ -92,6 +97,35 @@ const app = express()
 app.use(express.json({ limit: '128mb' }))
 
 /* -------- Index maintenance -------- */
+/* -------- Peer registry HTTP -------- */
+app.get('/peers/registry', (_req, res) => {
+  try { res.json({ ok:true, peers: peersReg.all() }) }
+  catch (e:any) { res.status(500).json({ ok:false, error:String(e?.message||e) }) }
+})
+app.post('/peers/registry/upsert', (req, res) => {
+  try {
+    const id = String(req.body?.id || '')
+    if (!id) return res.json({ ok:false, error:'missing id' })
+    const http = typeof req.body?.http === 'string' ? req.body.http : undefined
+    const p2p  = typeof req.body?.p2p  === 'string' ? req.body.p2p  : undefined
+    const caps = Array.isArray(req.body?.capabilities) ? req.body.capabilities : undefined
+    const r = peersReg.upsert({ id, http, p2p, capabilities: caps })
+    metrics.gauges.peers_known = peersReg.count()
+    res.json({ ok:true, peer:r })
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error:String(e?.message||e) })
+  }
+})
+app.post('/peers/registry/purge', (req, res) => {
+  try {
+    const maxAgeSec = Number(req.query.maxAgeSec || 600)
+    const r = peersReg.purgeStale(Math.max(1, maxAgeSec) * 1000)
+    metrics.gauges.peers_known = peersReg.count()
+    res.json(r)
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error:String(e?.message||e) })
+  }
+})
 app.post('/index/rebuild', async (_req, res) => {
   try { res.json(await node.rebuildTxIndex()) }
   catch (e:any) { res.status(500).json({ ok:false, error: String(e?.message || e) }) }
@@ -465,7 +499,7 @@ app.get('/metrics', (_req, res) => {
   const peers = [...node.peers.keys()].filter(k => !k.startsWith('?-')).length
   const mempool = node.mempool.peekAll().length
   res.setHeader('content-type', 'text/plain; version=0.0.4; charset=utf-8')
-  res.send(metrics.renderText({ peers, mempool, head }))
+  res.send(metrics.renderText({ peers, mempool, head, peers_known: peersReg.count() }))
 })
 
 app.listen(HTTP_PORT, () => {
@@ -477,6 +511,10 @@ app.listen(HTTP_PORT, () => {
   try {
     const httpBase = process.env.PUBLIC_HTTP_BASE || `http://127.0.0.1:${HTTP_PORT}`
 node.publishJson('void/http', { id: node.id, http: httpBase })
+    const p2pListen = (node.listenAddrs?.[0] || `127.0.0.1:${P2P_PORT}`)
+    peersReg.upsert({ id: node.id, http: httpBase, p2p: p2pListen, capabilities: ['blob','tx','block'] })
+    metrics.gauges.peers_known = peersReg.count()
+    console.log(`[peers] self upsert -> id=\${node.id} http=\${httpBase} p2p=\${p2pListen}`)
   } catch {}
 })
 
@@ -503,3 +541,12 @@ app.get('/blob/stat/:cid', (req, res) => {
     res.status(500).json({ ok:false, error: String(e?.message || e) })
   }
 })
+
+// periodic purge of stale peers (every 2 minutes, older than 10 minutes)
+setInterval(() => {
+  try {
+    const r = peersReg.purgeStale(10 * 60 * 1000)
+    if (r.removed) console.log(`[peers] purged ${r.removed}, remaining=\${r.remaining}`)
+    metrics.gauges.peers_known = peersReg.count()
+  } catch {}
+}, 2 * 60 * 1000).unref?.()
