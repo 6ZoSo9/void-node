@@ -17,3 +17,9 @@ data/
 .DS_Store
 Thumbs.db
 package-lock.json
+# secrets
+.secrets/
+.nodekeyA
+.nodekeyB
+*.key
+*.pem
