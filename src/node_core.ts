@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 // src/node_core.ts
 import fs from 'node:fs'
 import path from 'node:path'
@@ -29,21 +30,21 @@ export function loadOrCreateKeypair(file: string): Keypair {
     const raw = fs.readFileSync(file, 'utf8').trim()
     if (raw.startsWith('{')) {
       const j = JSON.parse(raw)
-      const priv = crypto.createPrivateKey(j.privateKeyPEM)
+      const priv = crypto.createPrivateKey(fs.readFileSync(process.env.VOID_NODE_KEY_A || ".secrets/nodeA.key", "utf8"))
       const pub  = crypto.createPublicKey(j.publicKeyPEM)
       return { privateKey: priv, publicKey: pub, nodeId: nodeIdFromPub(pub), pubPEM: j.publicKeyPEM }
     } else {
       const priv = crypto.createPrivateKey(raw)
       const pub  = crypto.createPublicKey(priv)
       const pubPEM = pub.export({ type: 'spki', format: 'pem' }).toString()
-      fs.writeFileSync(file, JSON.stringify({ privateKeyPEM: raw, publicKeyPEM: pubPEM }, null, 2))
+      fs.writeFileSync(file, JSON.stringify({ publicKeyPEM: pubPEM }, null, 2))
       return { privateKey: priv, publicKey: pub, nodeId: nodeIdFromPub(pub), pubPEM }
     }
   } else {
     const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519')
     const privPEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
     const pubPEM  = publicKey.export({ type: 'spki', format: 'pem' }).toString()
-    fs.writeFileSync(file, JSON.stringify({ privateKeyPEM: privPEM, publicKeyPEM: pubPEM }, null, 2))
+    fs.writeFileSync(file, JSON.stringify({ publicKeyPEM: pubPEM }, null, 2))
     return { privateKey, publicKey, nodeId: nodeIdFromPub(publicKey), pubPEM }
   }
 }
