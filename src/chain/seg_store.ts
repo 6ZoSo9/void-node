@@ -38,6 +38,37 @@ export class SegStore {
   private metaCache = new Map<string, Meta>()            // segment -> meta (small)
   private sparseCache = new Map<string, Buffer>()        // segment -> raw sparse buffer (last segment cached)
 
+  private ensureSegmentFiles(seg: string) {
+  const segPath = path.join(this.segDir, seg)
+  this.ensureDir(segPath)
+
+  const metaFile = path.join(segPath, 'meta.json')
+  const binFile = path.join(segPath, 'blocks.bin')
+  const sparseFile = path.join(segPath, 'index.sparse')
+
+  if (!fs.existsSync(metaFile)) {
+    const meta: Meta = {
+      from: -1, to: -1, bytes: 0,
+      createdAt: Date.now(), updatedAt: Date.now()
+    }
+    fs.writeFileSync(metaFile, JSON.stringify(meta, null, 2))
+    this.metaCache.set(seg, meta)
+  } else {
+    // keep cache fresh
+    const meta: Meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'))
+    this.metaCache.set(seg, meta)
+  }
+
+  if (!fs.existsSync(binFile)) fs.writeFileSync(binFile, '')
+  if (!fs.existsSync(sparseFile)) fs.writeFileSync(sparseFile, '')
+}
+
+private lastSegmentName(): string | null {
+  const all = this.listSegmentsSorted()
+  return all.length ? all[all.length - 1] : null
+}
+
+
   constructor(rootDir: string, opts: SegOpts) {
     this.root = path.resolve(rootDir)
     this.segDir = path.join(this.root, 'segments')
@@ -113,6 +144,9 @@ export class SegStore {
       const before = fs.existsSync(blocksFile) ? fs.statSync(blocksFile).size : 0
       fs.writeSync(fd, lenBuf)
       fs.writeSync(fd, json)
+      // durability: flush appended bytes so we never lose a written block
+      // @ts-ignore - fdatasyncSync is available on recent Node versions
+      if ((fs as any).fdatasyncSync) { (fs as any).fdatasyncSync(fd) } else { fs.fsyncSync(fd) }
       const after = before + 4 + json.length
 
       // meta update
@@ -177,17 +211,27 @@ export class SegStore {
   }
 
   private loadHeads() {
-    if (fs.existsSync(this.headsFile)) {
-      try {
-        this.heads = JSON.parse(fs.readFileSync(this.headsFile, 'utf8'))
-      } catch {
-        this.heads = { head: -1, currentSegment: null }
-      }
-    } else {
+  if (fs.existsSync(this.headsFile)) {
+    try {
+      this.heads = JSON.parse(fs.readFileSync(this.headsFile, 'utf8'))
+    } catch {
       this.heads = { head: -1, currentSegment: null }
+    }
+  } else {
+    this.heads = { head: -1, currentSegment: null }
+    this.saveHeads()
+  }
+
+  // If heads points to a missing segment, clear it so append picks a valid one.
+  if (this.heads.currentSegment) {
+    const p = path.join(this.segDir, this.heads.currentSegment)
+    if (!fs.existsSync(p)) {
+      this.heads.currentSegment = null
       this.saveHeads()
     }
   }
+}
+
 
   private saveHeads() {
     this.ensureDir(this.root)
@@ -204,24 +248,31 @@ export class SegStore {
   }
 
   private currentSegmentForAppend(nextBlockNumber: number): string {
-    let seg = this.heads.currentSegment
-    if (seg && this.segmentHasRoom(seg)) return seg
-    // create new segment
-    seg = this.newSegmentName()
-    const segPath = path.join(this.segDir, seg)
-    this.ensureDir(segPath)
-    // init meta
-    const meta: Meta = {
-      from: -1, to: -1, bytes: 0,
-      createdAt: Date.now(), updatedAt: Date.now()
-    }
-    fs.writeFileSync(path.join(segPath, 'meta.json'), JSON.stringify(meta, null, 2))
-    this.metaCache.set(seg, meta)
-    // update heads
-    this.heads.currentSegment = seg
-    this.saveHeads()
+  let seg = this.heads.currentSegment
+
+  // Case A: heads points to a segment with room → ensure files, use it
+  if (seg && this.segmentHasRoom(seg)) {
+    this.ensureSegmentFiles(seg)
     return seg
   }
+
+  // Case B: no current segment, but there is an existing last segment with room
+  const last = this.lastSegmentName()
+  if (!seg && last && this.segmentHasRoom(last)) {
+    this.ensureSegmentFiles(last)
+    this.heads.currentSegment = last
+    this.saveHeads()
+    return last
+  }
+
+  // Case C: we need a fresh segment
+  seg = this.newSegmentName()
+  this.ensureSegmentFiles(seg)
+  this.heads.currentSegment = seg
+  this.saveHeads()
+  return seg
+}
+
 
   private segmentHasRoom(seg: string): boolean {
     const blocksFile = path.join(this.segDir, seg, 'blocks.bin')

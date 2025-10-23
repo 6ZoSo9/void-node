@@ -1,3 +1,6 @@
+import "./http/api_autoboot.ts"
+import { SegStore } from "./chain/seg_store.ts"
+import { attachApi } from "./http/api_attach.ts"
 // src/index.ts
 import express from 'express'
 import fs from 'node:fs'
@@ -7,6 +10,11 @@ import { Node, loadOrCreateKeypair } from './node_core.js'
 import { blockHash } from './chain/block.js'
 import { buildAllKidx, buildKidxForJsonl, queryKidx } from './util/kidx.js'
 import { PeerRegistry } from './node_peer_registry.js'
+const DATA_DIR = process.env.DATA_DIR || "data"
+const __apiSegStore = new SegStore(DATA_DIR, { segmentMaxBytes: 8*1024*1024, sparseEvery: 16 })
+
+// --- inserted: wrap top-level await ---
+async function __main__() {
 
 /* ===================== METRICS ===================== */
 class Metrics {
@@ -72,6 +80,7 @@ const metrics = new Metrics()
 // ---------- config ----------
 const HTTP_PORT = Number(process.env.HTTP_PORT || 4100)
 const P2P_PORT  = Number(process.env.P2P_PORT  || 4700)
+const MAX_BLOB_MB = Number(process.env.MAX_BLOB_MB || 8)
 const BOOTSTRAP = (process.env.BOOTSTRAP || '').split(',').map(s => s.trim()).filter(Boolean)
 const KEY_FILE  = process.env.KEY_FILE || '.nodekey'
 const PROTO_VER = 1
@@ -81,6 +90,16 @@ const kp = loadOrCreateKeypair(path.resolve(KEY_FILE))
 const node = new Node(P2P_PORT, kp)
 await node.start()
 const peersReg = new PeerRegistry()
+
+// Learn peers automatically from pubsub ("void/http" announcements)
+node.onHttpAnnounce = ({ id, http }) => {
+  try {
+    if (!id) return
+    peersReg.upsert({ id, http, capabilities: ['blob','tx','block'] })
+    metrics.gauges.peers_known = peersReg.count()
+    // optional: console.log(`[peers] learned via pubsub: ${id} -> ${http ?? '(no http)'}`)
+  } catch {}
+}
 
 // topics we actually use
 node.subscribe('void/hello')
@@ -425,24 +444,70 @@ app.get('/mempool', (_req, res) => {
 
 /* -------- Blobs -------- */
 app.post('/blob/put', async (req, res) => {
+  const MAX = MAX_BLOB_MB * 1024 * 1024;
+
   if (typeof req.body?.text === 'string') {
-    const buf = Buffer.from(req.body.text, 'utf8')
-    const out = await node.putBlobFromBuffer(buf)
-    res.json({ ok:true, ...out }); return
+    const buf = Buffer.from(req.body.text, 'utf8');
+    if (buf.length > MAX) return res.json({ ok:false, error:`too large (> ${MAX_BLOB_MB}MB)` });
+    const out = await node.putBlobFromBuffer(buf);
+    return res.json({ ok:true, ...out });
   }
+
   if (typeof req.body?.base64 === 'string') {
-    const buf = Buffer.from(req.body.base64, 'base64')
-    const out = await node.putBlobFromBuffer(buf)
-    res.json({ ok:true, ...out }); return
+    const buf = Buffer.from(req.body.base64, 'base64'); // check *decoded* size
+    if (buf.length > MAX) return res.json({ ok:false, error:`too large (> ${MAX_BLOB_MB}MB)` });
+    const out = await node.putBlobFromBuffer(buf);
+    return res.json({ ok:true, ...out });
   }
-  res.json({ ok:false, error:'send {text} or {base64} JSON' })
-})
-app.get('/blob/:cid', (req, res) => {
-  const b = node.getBlob(req.params.cid)
-  if (!b) return res.status(404).send('not found')
-  res.setHeader('content-type', 'application/octet-stream')
-  res.send(b)
-})
+
+  return res.json({ ok:false, error:'send {text} or {base64} JSON' });
+});
+
+// ---------- Blob stats ----------
+app.get('/blob/stats', (_req, res) => {
+  try {
+    const dir = path.join('data','blobs');
+    if (!fs.existsSync(dir)) return res.json({ ok:true, total:0, pinned:0, bytes:0, largest:0, oldest:null });
+
+    let total = 0, pinned = 0, bytes = 0, largest = 0;
+    let oldest: null | { cid:string, mtimeMs:number } = null;
+
+    for (const cid of fs.readdirSync(dir)) {
+      if (cid === 'pins.json') continue;
+      if (!/^[0-9a-f]{64}$/.test(cid)) continue;
+      const p = path.join(dir, cid);
+      const st = fs.statSync(p);
+      total++;
+      if (blobPins?.has?.(cid)) pinned++;
+      bytes += st.size;
+      if (st.size > largest) largest = st.size;
+      if (!oldest || st.mtimeMs < oldest.mtimeMs) oldest = { cid, mtimeMs: st.mtimeMs };
+    }
+    res.json({ ok:true, total, pinned, bytes, largest, oldest });
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error:String(e?.message||e) });
+  }
+});
+
+// ---------- Peer registry QoL ----------
+app.get('/peers/registry/ids', (_req, res) => {
+  try {
+    res.json(peersReg.all().map(p => p.id));
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error:String(e?.message||e) });
+  }
+});
+
+app.delete('/peers/registry/:id', (req, res) => {
+  try {
+    const id = String(req.params.id || '');
+    const r = peersReg.remove(id);
+    res.json({ ok:true, removed:r.removed, remaining:r.remaining });
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error:String(e?.message||e) });
+  }
+});
+
 
 /* -------- Proposer controls -------- */
 app.post('/blocks/start', (req, res) => {
@@ -506,15 +571,17 @@ app.listen(HTTP_PORT, () => {
   console.log(`[void-node] http :${HTTP_PORT}`)
   console.log(`[void-node] bootstrap: ${BOOTSTRAP.join(', ') || '(none)'}`)
   if (!fs.existsSync(KEY_FILE)) console.log(`[void-node] wrote new key: ${KEY_FILE}`)
-
-  // Advertise our HTTP base over pubsub so peers can fetch /blob/:cid from us
   try {
     const httpBase = process.env.PUBLIC_HTTP_BASE || `http://127.0.0.1:${HTTP_PORT}`
-node.publishJson('void/http', { id: node.id, http: httpBase })
     const p2pListen = (node.listenAddrs?.[0] || `127.0.0.1:${P2P_PORT}`)
+
+    node.publishJson('void/http', { id: node.id, http: httpBase })
+    setInterval(() => {
+      node.publishJson('void/http', { id: node.id, http: httpBase })
+    }, 10_000).unref?.()
     peersReg.upsert({ id: node.id, http: httpBase, p2p: p2pListen, capabilities: ['blob','tx','block'] })
     metrics.gauges.peers_known = peersReg.count()
-    console.log(`[peers] self upsert -> id=\${node.id} http=\${httpBase} p2p=\${p2pListen}`)
+    console.log(`[peers] self upsert -> id=${node.id} http=${httpBase} p2p=${p2pListen}`)
   } catch {}
 })
 
@@ -550,3 +617,48 @@ setInterval(() => {
     metrics.gauges.peers_known = peersReg.count()
   } catch {}
 }, 2 * 60 * 1000).unref?.()
+
+// ---------- Blob stats ----------
+app.get('/blob/stats', (_req, res) => {
+  try {
+    const dir = path.join('data','blobs');
+    if (!fs.existsSync(dir)) return res.json({ ok:true, total:0, pinned:0, bytes:0, largest:0, oldest:null });
+
+    let total = 0, pinned = 0, bytes = 0, largest = 0;
+    let oldest: null | { cid:string, mtimeMs:number } = null;
+
+    for (const cid of fs.readdirSync(dir)) {
+      if (cid === 'pins.json') continue;
+      if (!/^[0-9a-f]{64}$/.test(cid)) continue;
+      const p = path.join(dir, cid);
+      const st = fs.statSync(p);
+      total++;
+      if (blobPins?.has?.(cid)) pinned++;
+      bytes += st.size;
+      if (st.size > largest) largest = st.size;
+      if (!oldest || st.mtimeMs < oldest.mtimeMs) oldest = { cid, mtimeMs: st.mtimeMs };
+    }
+    res.json({ ok:true, total, pinned, bytes, largest, oldest });
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error:String(e?.message||e) })
+  }
+});
+
+// ---------- Peer registry QoL ----------
+app.get('/peers/registry/ids', (_req, res) => {
+  try {
+    const ids = peersReg.all().map(p => p.id);
+    res.json(ids);
+  } catch (e:any) { res.status(500).json({ ok:false, error:String(e?.message||e) }) }
+});
+
+app.delete('/peers/registry/:id', (req, res) => {
+  try {
+    const id = String(req.params.id || '');
+    const r = peersReg.remove(id);
+    res.json({ ok:true, removed:r.removed, remaining:r.remaining });
+  } catch (e:any) { res.status(500).json({ ok:false, error:String(e?.message||e) }) }
+});
+
+}
+__main__().catch(e => { console.error(e); process.exitCode = 1 })

@@ -137,10 +137,14 @@ export class Node {
   private blobFetchQ: { cid: string, providers: string[], enqueuedAt: number }[] = []
   private blobFetchRunning = false
 
-  readonly store = new SegStore('data', { segmentMaxBytes: 128 * 1024 * 1024, sparseEvery: 512 })
+  readonly store = new SegStore(process.env.DATA_DIR || 'data', { segmentMaxBytes: 128 * 1024 * 1024, sparseEvery: 512 })
   readonly mempool = new Mempool()
   private proposerTimer: NodeJS.Timeout | null = null
   private blobsDir = path.join('data', 'blobs')
+
+
+  onHttpAnnounce?: (p: { id: string; http?: string; p2p?: string }) => void;
+
 
   server = net.createServer((sock) => this.onIncoming(sock))
 
@@ -265,11 +269,15 @@ export class Node {
           if (msg.topic === 'void/tx') {
             const tx = JSON.parse(msg.data); this.mempool.push(tx)
           } else if (msg.topic === 'void/http') {
-            // { id, http } -> record peer's HTTP base for later blob fetches
+  // { id, http } -> record peer's HTTP base for later blob fetches
             const info = JSON.parse(msg.data)
             const pid  = String(info?.id || '').trim()
             const http = String(info?.http || '').trim()
-            if (pid && /^https?:\/\/.+/.test(http)) this.peerHttp.set(pid, http.replace(/\/+$/,''))
+            if (pid && /^https?:\/\/.+/.test(http)) {
+              const base = http.replace(/\/+$/, '')
+              this.peerHttp.set(pid, base)
+              if (pid !== this.id) this.onHttpAnnounce?.({ id: pid, http: base })
+            }
           } else if (msg.topic === 'void/blob.announce') {
             // { cid, size } -> if we don't have it, enqueue a fetch from any providers we know
             const ann  = JSON.parse(msg.data)
