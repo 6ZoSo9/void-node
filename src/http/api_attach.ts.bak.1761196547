@@ -1,0 +1,130 @@
+import { IncomingMessage, ServerResponse } from "node:http"
+import url from "node:url"
+import { SegStore } from "../chain/seg_store.ts"
+
+export function attachApi(server: any, store: SegStore, dataDir: string) {
+  if (!server || typeof server.on !== "function") return
+
+  server.on("request", async (req: IncomingMessage, res: ServerResponse) => {
+    try {
+      const u = url.parse(req.url || "", true)
+      const pathname = u.pathname || "/"
+
+      // /api/health (helper-style)
+      if (req.method === "GET" && pathname === "/api/health") {
+        const out = { ok: true, dataDir, head: store.loadHeadNumber() }
+        res.writeHead(200, { "content-type": "application/json" })
+        res.end(JSON.stringify(out))
+        return
+      }
+
+      // /head (expected by follower)
+      if (req.method === "GET" && pathname === "/head") {
+        res.writeHead(200, { "content-type": "application/json" })
+        res.end(JSON.stringify({ ok: true, head: store.loadHeadNumber() }))
+        return
+      }
+
+      // /blocks/range?from=&to=
+      if (req.method === "GET" && pathname === "/blocks/range") {
+        const q = u.query || {}
+        const from = Number(q.from ?? 0)
+        const to   = Number(q.to   ?? store.loadHeadNumber())
+        if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
+          res.writeHead(400, { "content-type": "application/json" })
+          res.end(JSON.stringify({ ok:false, error:"bad range" }))
+          return
+        }
+        const out: any[] = []
+        for (let i = from; i <= to; i++) {
+          const b = store.loadBlock(i)
+          if (b) out.push(b)
+        }
+        res.writeHead(200, { "content-type": "application/json" })
+        res.end(JSON.stringify(out))
+        return
+      }
+
+      // fallthrough
+      res.writeHead(404, { "content-type": "application/json" })
+      res.end(JSON.stringify({ ok:false, error:"not found" }))
+    } catch (e:any) {
+      try {
+        res.writeHead(500, { "content-type": "application/json" })
+      } catch {}
+      res.end(JSON.stringify({ ok:false, error:String(e?.message || e) }))
+    }
+  })
+}
+
+      // /metrics  (Prometheus text)
+      if (req.method === "GET" && pathname === "/metrics") {
+        // Aggregate over all segments we have
+        const fs = await import("node:fs")
+        const path = await import("node:path")
+
+        const segRoot = path.join(dataDir, "segments")
+        let segments = 0
+        let totalBytes = 0
+        let totalSparseEntries = 0
+        let head = 0
+
+        try { head = store.loadHeadNumber() } catch {}
+
+        if (fs.existsSync(segRoot)) {
+          const dirs = fs.readdirSync(segRoot).filter(d => /^\d{8}$/.test(d)).sort()
+          for (const d of dirs) {
+            segments++
+            const dir = path.join(segRoot, d)
+            const metaP = path.join(dir, "meta.json")
+            const binP  = path.join(dir, "blocks.bin")
+            const sprP  = path.join(dir, "index.sparse")
+
+            // bytes (prefer meta.bytes, fall back to file size)
+            let segBytes = 0
+            try {
+              if (fs.existsSync(metaP)) {
+                const meta = JSON.parse(fs.readFileSync(metaP,"utf8"))
+                segBytes = Number(meta?.bytes || 0)
+              }
+              if (!segBytes && fs.existsSync(binP)) {
+                segBytes = fs.statSync(binP).size
+              }
+            } catch {}
+            totalBytes += segBytes
+
+            // sparse entries (8-byte u64 offsets per entry)
+            try {
+              if (fs.existsSync(sprP)) {
+                const st = fs.statSync(sprP)
+                totalSparseEntries += Math.floor(st.size / 8)
+              }
+            } catch {}
+          }
+        }
+
+        const lines: string[] = []
+        lines.push('# HELP void_helper_head Current head number on helper store')
+        lines.push('# TYPE void_helper_head gauge')
+        lines.push(`void_helper_head ${head}`)
+
+        lines.push('# HELP void_helper_blocks_total Total blocks (= head+1 when head>=0)')
+        lines.push('# TYPE void_helper_blocks_total gauge')
+        lines.push(`void_helper_blocks_total ${head >= 0 ? head + 1 : 0}`)
+
+        lines.push('# HELP void_helper_segments Number of segment directories')
+        lines.push('# TYPE void_helper_segments gauge')
+        lines.push(`void_helper_segments ${segments}`)
+
+        lines.push('# HELP void_helper_segment_bytes Sum of bytes across segments')
+        lines.push('# TYPE void_helper_segment_bytes gauge')
+        lines.push(`void_helper_segment_bytes ${totalBytes}`)
+
+        lines.push('# HELP void_helper_sparse_entries Sum of sparse index entries across segments')
+        lines.push('# TYPE void_helper_sparse_entries gauge')
+        lines.push(`void_helper_sparse_entries ${totalSparseEntries}`)
+
+        res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8" })
+        res.end(lines.join('\n') + '\n')
+        return
+      }

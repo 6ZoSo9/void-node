@@ -1,19 +1,23 @@
-import "./http/api_autoboot.ts"
 import { SegStore } from "./chain/seg_store.ts"
-import { attachApi } from "./http/api_attach.ts"
-// src/index.ts
-import express from 'express'
-import fs from 'node:fs'
-import path from 'node:path'
+import { attachApi } from "./http/api_attach.ts" // ok to keep even if unused
+import { autoRepairDataDir } from "./chain/auto_repair.ts"
 
-import { Node, loadOrCreateKeypair } from './node_core.js'
-import { blockHash } from './chain/block.js'
-import { buildAllKidx, buildKidxForJsonl, queryKidx } from './util/kidx.js'
-import { PeerRegistry } from './node_peer_registry.js'
+import express from "express"
+import fs from "node:fs"
+import path from "node:path"
+import { execFile } from "node:child_process"
+
+import { Node, loadOrCreateKeypair } from "./node_core.js"
+import { blockHash } from "./chain/block.js"
+import { buildAllKidx, buildKidxForJsonl, queryKidx } from "./util/kidx.js"
+import { PeerRegistry } from "./node_peer_registry.js"
+
 const DATA_DIR = process.env.DATA_DIR || "data"
-const __apiSegStore = new SegStore(DATA_DIR, { segmentMaxBytes: 8*1024*1024, sparseEvery: 16 })
+// legacy helper var (harmless if kept)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const __apiSegStore = new SegStore(DATA_DIR, { segmentMaxBytes: 8 * 1024 * 1024, sparseEvery: 16 })
 
-// --- inserted: wrap top-level await ---
+// ---------- wrap top-level await ----------
 async function __main__() {
 
 /* ===================== METRICS ===================== */
@@ -26,52 +30,53 @@ class Metrics {
     receipts_appended: 0,
   }
   gauges = { last_seal_ms: 0, peers_known: 0 }
-  inc<K extends keyof Metrics['counters']>(k: K, v = 1) { this.counters[k] += v }
+  inc<K extends keyof Metrics["counters"]>(k: K, v = 1) { this.counters[k] += v }
   renderText(extra: { peers: number; mempool: number; head: number; peers_known: number }) {
     const L: string[] = []
 
     // counters
-    L.push('# HELP void_tx_submitted Total tx submitted via HTTP')
-    L.push('# TYPE void_tx_submitted counter')
+    L.push("# HELP void_tx_submitted Total tx submitted via HTTP")
+    L.push("# TYPE void_tx_submitted counter")
     L.push(`void_tx_submitted ${this.counters.tx_submitted}`)
 
-    L.push('# HELP void_blocks_sealed Total blocks sealed by this node')
-    L.push('# TYPE void_blocks_sealed counter')
+    L.push("# HELP void_blocks_sealed Total blocks sealed by this node")
+    L.push("# TYPE void_blocks_sealed counter")
     L.push(`void_blocks_sealed ${this.counters.blocks_sealed}`)
 
-    L.push('# HELP void_blocks_imported Total blocks imported by follower')
-    L.push('# TYPE void_blocks_imported counter')
+    L.push("# HELP void_blocks_imported Total blocks imported by follower")
+    L.push("# TYPE void_blocks_imported counter")
     L.push(`void_blocks_imported ${this.counters.blocks_imported}`)
 
-    L.push('# HELP void_tx_indexed Total transactions indexed')
-    L.push('# TYPE void_tx_indexed counter')
+    L.push("# HELP void_tx_indexed Total transactions indexed")
+    L.push("# TYPE void_tx_indexed counter")
     L.push(`void_tx_indexed ${this.counters.tx_indexed}`)
 
-    L.push('# HELP void_receipts_appended Total receipts appended')
-    L.push('# TYPE void_receipts_appended counter')
+    L.push("# HELP void_receipts_appended Total receipts appended")
+    L.push("# TYPE void_receipts_appended counter")
     L.push(`void_receipts_appended ${this.counters.receipts_appended}`)
 
     // gauges
-    L.push('# HELP void_peers_connected Current connected peers')
-    L.push('# TYPE void_peers_connected gauge')
+    L.push("# HELP void_peers_connected Current connected peers")
+    L.push("# TYPE void_peers_connected gauge")
     L.push(`void_peers_connected ${extra.peers}`)
 
-    L.push('# HELP void_mempool_size Current mempool size')
-    L.push('# TYPE void_mempool_size gauge')
+    L.push("# HELP void_mempool_size Current mempool size")
+    L.push("# TYPE void_mempool_size gauge")
     L.push(`void_mempool_size ${extra.mempool}`)
 
-    L.push('# HELP void_head_number Current head block number')
-    L.push('# TYPE void_head_number gauge')
+    L.push("# HELP void_head_number Current head block number")
+    L.push("# TYPE void_head_number gauge")
     L.push(`void_head_number ${extra.head}`)
 
-    L.push('# HELP void_peers_known Known peers in registry')
-    L.push('# TYPE void_peers_known gauge')
+    L.push("# HELP void_peers_known Known peers in registry")
+    L.push("# TYPE void_peers_known gauge")
     L.push(`void_peers_known ${extra.peers_known}`)
-    L.push('# HELP void_last_seal_ms Duration of last sealBlock in ms')
-    L.push('# TYPE void_last_seal_ms gauge')
+
+    L.push("# HELP void_last_seal_ms Duration of last sealBlock in ms")
+    L.push("# TYPE void_last_seal_ms gauge")
     L.push(`void_last_seal_ms ${this.gauges.last_seal_ms}`)
 
-    return L.join('\n') + '\n'
+    return L.join("\n") + "\n"
   }
 }
 const metrics = new Metrics()
@@ -81,9 +86,12 @@ const metrics = new Metrics()
 const HTTP_PORT = Number(process.env.HTTP_PORT || 4100)
 const P2P_PORT  = Number(process.env.P2P_PORT  || 4700)
 const MAX_BLOB_MB = Number(process.env.MAX_BLOB_MB || 8)
-const BOOTSTRAP = (process.env.BOOTSTRAP || '').split(',').map(s => s.trim()).filter(Boolean)
-const KEY_FILE  = process.env.KEY_FILE || '.nodekey'
+const BOOTSTRAP = (process.env.BOOTSTRAP || "").split(",").map(s => s.trim()).filter(Boolean)
+const KEY_FILE  = process.env.KEY_FILE || ".nodekey"
 const PROTO_VER = 1
+
+// ---------- auto-repair (BEFORE node touches storage) ----------
+await autoRepairDataDir(DATA_DIR, { sparseEvery: 16 })
 
 // ---------- boot ----------
 const kp = loadOrCreateKeypair(path.resolve(KEY_FILE))
@@ -91,72 +99,129 @@ const node = new Node(P2P_PORT, kp)
 await node.start()
 const peersReg = new PeerRegistry()
 
-// Learn peers automatically from pubsub ("void/http" announcements)
+// pubsub learning for "void/http"
 node.onHttpAnnounce = ({ id, http }) => {
   try {
     if (!id) return
-    peersReg.upsert({ id, http, capabilities: ['blob','tx','block'] })
+    peersReg.upsert({ id, http, capabilities: ["blob", "tx", "block"] })
     metrics.gauges.peers_known = peersReg.count()
-    // optional: console.log(`[peers] learned via pubsub: ${id} -> ${http ?? '(no http)'}`)
   } catch {}
 }
 
 // topics we actually use
-node.subscribe('void/hello')
-node.subscribe('void/tx')
-node.subscribe('void/blob.announce')
-node.subscribe('void/block')
-node.subscribe('void/http')
+node.subscribe("void/hello")
+node.subscribe("void/tx")
+node.subscribe("void/blob.announce")
+node.subscribe("void/block")
+node.subscribe("void/http")
 
-
-// optional: extra best-effort dialing
+// optional best-effort dialing
 for (const a of BOOTSTRAP) { try { node.connect(a) } catch {} }
 
 const app = express()
-app.use(express.json({ limit: '128mb' }))
+app.use(express.json({ limit: "128mb" }))
 
-/* -------- Index maintenance -------- */
-/* -------- Peer registry HTTP -------- */
-app.get('/peers/registry', (_req, res) => {
-  try { res.json({ ok:true, peers: peersReg.all() }) }
-  catch (e:any) { res.status(500).json({ ok:false, error:String(e?.message||e) }) }
+/* ===================== FOLLOWER TELEMETRY ===================== */
+type SyncState = {
+  enabled: boolean
+  peer?: string
+  intervalMs?: number
+  lastOk?: number
+  lastErr?: string | null
+  lastImported?: number
+  theirHead?: number
+}
+const syncState: SyncState = { enabled: false, lastErr: null }
+
+app.get("/sync/status", (_req, res) => {
+  const myHead = node.store.loadHeadNumber()
+  res.json({ ok: true, myHead, ...syncState })
 })
-app.post('/peers/registry/upsert', (req, res) => {
+/* ============================================================= */
+
+/* ===================== MAINTENANCE ===================== */
+
+// GET /maintenance/verify -> runs scripts/check_store.ts (read-only)
+app.get("/maintenance/verify", async (_req, res) => {
   try {
-    const id = String(req.body?.id || '')
-    if (!id) return res.json({ ok:false, error:'missing id' })
-    const http = typeof req.body?.http === 'string' ? req.body.http : undefined
-    const p2p  = typeof req.body?.p2p  === 'string' ? req.body.p2p  : undefined
-    const caps = Array.isArray(req.body?.capabilities) ? req.body.capabilities : undefined
-    const r = peersReg.upsert({ id, http, p2p, capabilities: caps })
-    metrics.gauges.peers_known = peersReg.count()
-    res.json({ ok:true, peer:r })
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error:String(e?.message||e) })
+    const r = await runTsxScript("scripts/check_store.ts", {
+      env: { DATA_DIR: process.env.DATA_DIR || "data" },
+      timeoutMs: 45_000,
+    })
+    res.json({
+      ok: r.ok,
+      code: r.code,
+      timedOut: r.timedOut,
+      summary: r.stdout.split("\n").filter(Boolean).slice(-6),
+      stdout: r.stdout,
+      stderr: r.stderr,
+    })
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
   }
 })
-app.post('/peers/registry/purge', (req, res) => {
+
+// POST /maintenance/auto-repair?dryRun=1 -> runs scripts/auto_repair.ts (mutating unless dry)
+app.post("/maintenance/auto-repair", async (req, res) => {
   try {
-    const maxAgeSec = Number(req.query.maxAgeSec || 600)
-    const r = peersReg.purgeStale(Math.max(1, maxAgeSec) * 1000)
-    metrics.gauges.peers_known = peersReg.count()
-    res.json(r)
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error:String(e?.message||e) })
+    const remote = String(req.socket.remoteAddress || '')
+    const allowRemote = process.env.ALLOW_REMOTE_REPAIR === '1'
+
+// accept common loopback forms: 127.0.0.1, ::1, and IPv6-mapped ::ffff:127.0.0.x
+    const isLocal =
+      remote === '127.0.0.1' ||
+      remote === '::1' ||
+      remote.startsWith('::ffff:127.0.0.')
+
+    if (!allowRemote && !isLocal) {
+      return res.status(403).json({ ok:false, error:'forbidden (local only by default)' })
+    }
+
+    const dry = String(req.query.dryRun ?? "0") === "1" ? "1" : "0"
+    const r = await runTsxScript("scripts/auto_repair.ts", {
+      env: { DATA_DIR: process.env.DATA_DIR || "data", DRY_RUN: dry },
+      timeoutMs: 5 * 60_000,
+    })
+
+    // quick post-check for confidence
+    const verify = await runTsxScript("scripts/check_store.ts", {
+      env: { DATA_DIR: process.env.DATA_DIR || "data" },
+      timeoutMs: 45_000,
+    })
+
+    res.json({
+      ok: r.ok,
+      code: r.code,
+      timedOut: r.timedOut,
+      repair: { stdout: r.stdout, stderr: r.stderr },
+      verify: {
+        ok: verify.ok,
+        code: verify.code,
+        timedOut: verify.timedOut,
+        summary: verify.stdout.split("\n").filter(Boolean).slice(-6),
+      },
+    })
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
   }
 })
-app.post('/index/rebuild', async (_req, res) => {
+
+/* ===================== INDEX MAINTENANCE ===================== */
+
+app.post("/index/rebuild", async (_req, res) => {
   try { res.json(await node.rebuildTxIndex()) }
-  catch (e:any) { res.status(500).json({ ok:false, error: String(e?.message || e) }) }
+  catch (e: any) { res.status(500).json({ ok: false, error: String(e?.message || e) }) }
 })
-app.post('/index/kidx/build', async (_req, res) => {
+
+app.post("/index/kidx/build", async (_req, res) => {
   try { res.json(await buildAllKidx()) }
-  catch (e:any) { res.status(500).json({ ok:false, error: String(e?.message || e) }) }
+  catch (e: any) { res.status(500).json({ ok: false, error: String(e?.message || e) }) }
 })
-app.get('/index/stats', (_req, res) => {
+
+app.get("/index/stats", (_req, res) => {
   const shards = node.txIndex.listShards().map(s => {
     const jsonlStat = fs.existsSync(s.path) ? fs.statSync(s.path) : null
-    const kidxPath = s.path.replace(/\.jsonl$/, '.kidx')
+    const kidxPath = s.path.replace(/\.jsonl$/, ".kidx")
     const kidxStat = fs.existsSync(kidxPath) ? fs.statSync(kidxPath) : null
     const lines = jsonlStat ? countLinesQuick(s.path) : 0
     return {
@@ -165,104 +230,140 @@ app.get('/index/stats', (_req, res) => {
       kidx: { path: kidxPath, bytes: kidxStat?.size ?? 0, present: !!kidxStat }
     }
   })
-  res.json({ ok:true, shards })
+  res.json({ ok: true, shards })
 })
-app.post('/index/gc', (req, res) => {
+
+app.post("/index/gc", (req, res) => {
   const keepLast = Number(req.query.keepLast || 1)
   try { res.json(node.txIndex.gc(keepLast)) }
-  catch (e:any) { res.status(500).json({ ok:false, error:String(e?.message||e) }) }
+  catch (e: any) { res.status(500).json({ ok: false, error: String(e?.message || e) }) }
 })
-app.post('/index/kidx/rebuild-shard', async (req, res) => {
+
+app.post("/index/kidx/rebuild-shard", async (req, res) => {
   const blockParam = req.query.block
   const hashParam = req.query.hash
   try {
     if (blockParam !== undefined) {
       const bn = Number(blockParam)
-      if (!Number.isFinite(bn) || bn < 0) return res.json({ ok:false, error:'bad block' })
+      if (!Number.isFinite(bn) || bn < 0) return res.json({ ok: false, error: "bad block" })
       const shard = node.txIndex.shardForBlock(bn)
       await buildKidxForJsonl(shard.path)
-      return res.json({ ok:true, shard: { from: shard.from, to: shard.to }, kidx: shard.path.replace(/\.jsonl$/, '.kidx') })
-    } else if (typeof hashParam === 'string') {
+      return res.json({ ok: true, shard: { from: shard.from, to: shard.to }, kidx: shard.path.replace(/\.jsonl$/, ".kidx") })
+    } else if (typeof hashParam === "string") {
       const hash = String(hashParam).toLowerCase()
-      if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
-      const shards = node.txIndex.listShards().sort((a,b)=>b.from-a.from)
+      if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" })
+      const shards = node.txIndex.listShards().sort((a, b) => b.from - a.from)
       for (const s of shards) {
-        const kidxPath = s.path.replace(/\.jsonl$/, '.kidx')
+        const kidxPath = s.path.replace(/\.jsonl$/, ".kidx")
         if (fs.existsSync(kidxPath)) {
           const hit = queryKidx(kidxPath, hash)
-          if (hit.found) {
-            await buildKidxForJsonl(s.path)
-            return res.json({ ok:true, shard:{from:s.from,to:s.to}, kidx:kidxPath })
-          }
+          if (hit.found) { await buildKidxForJsonl(s.path); return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx: kidxPath }) }
           continue
         }
         const r = node.txIndex.lookupInShard(s.path, hash)
-        if (r.found) { await buildKidxForJsonl(s.path); return res.json({ ok:true, shard:{from:s.from,to:s.to}, kidx:s.path.replace(/\.jsonl$/,'.kidx') }) }
+        if (r.found) { await buildKidxForJsonl(s.path); return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx: s.path.replace(/\.jsonl$/, ".kidx") }) }
       }
-      return res.json({ ok:false, error:'hash not found' })
+      return res.json({ ok: false, error: "hash not found" })
     }
-    return res.json({ ok:false, error:'provide block or hash' })
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error:String(e?.message||e) })
+    return res.json({ ok: false, error: "provide block or hash" })
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
   }
 })
 
-/* -------- Health/peers -------- */
-app.get('/health', (_req, res) => {
-  res.json({ ok: true, proto: PROTO_VER, nodeId: node.id, http: HTTP_PORT, p2p: P2P_PORT,
-    peers: [...node.peers.keys()].filter(k => !k.startsWith('?-')), listen: node.listenAddrs })
-})
-app.get('/peers', (_req, res) => res.json({ ok: true, ...node.peersSnapshot() }))
+/* ===================== HEALTH / PEERS ===================== */
 
-/* -------- Head -------- */
-app.get('/blocks/head', (_req, res) => {
+app.get("/health", (_req, res) => {
+  res.json({
+    ok: true, proto: PROTO_VER, nodeId: node.id, http: HTTP_PORT, p2p: P2P_PORT,
+    peers: [...node.peers.keys()].filter(k => !k.startsWith("?-")),
+    listen: node.listenAddrs
+  })
+})
+
+app.get("/peers", (_req, res) => res.json({ ok: true, ...node.peersSnapshot() }))
+
+/* Peer registry QoL */
+app.get("/peers/registry", (_req, res) => {
+  try { res.json({ ok: true, peers: peersReg.all() }) }
+  catch (e: any) { res.status(500).json({ ok: false, error: String(e?.message || e) }) }
+})
+app.post("/peers/registry/upsert", (req, res) => {
+  try {
+    const id = String(req.body?.id || "")
+    if (!id) return res.json({ ok: false, error: "missing id" })
+    const http = typeof req.body?.http === "string" ? req.body.http : undefined
+    const p2p  = typeof req.body?.p2p  === "string" ? req.body.p2p  : undefined
+    const caps = Array.isArray(req.body?.capabilities) ? req.body.capabilities : undefined
+    const r = peersReg.upsert({ id, http, p2p, capabilities: caps })
+    metrics.gauges.peers_known = peersReg.count()
+    res.json({ ok: true, peer: r })
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
+  }
+})
+app.post("/peers/registry/purge", (req, res) => {
+  try {
+    const maxAgeSec = Number(req.query.maxAgeSec || 600)
+    const r = peersReg.purgeStale(Math.max(1, maxAgeSec) * 1000)
+    metrics.gauges.peers_known = peersReg.count()
+    res.json(r)
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
+  }
+})
+app.get("/peers/registry/ids", (_req, res) => {
+  try { res.json(peersReg.all().map(p => p.id)) }
+  catch (e: any) { res.status(500).json({ ok: false, error: String(e?.message || e) }) }
+})
+app.delete("/peers/registry/:id", (req, res) => {
+  try { const id = String(req.params.id || ""); const r = peersReg.remove(id); res.json({ ok: true, removed: r.removed, remaining: r.remaining }) }
+  catch (e: any) { res.status(500).json({ ok: false, error: String(e?.message || e) }) }
+})
+
+/* ===================== BLOCKS ===================== */
+
+app.get("/blocks/head", (_req, res) => {
   const n = node.store.loadHeadNumber()
   const b = node.store.loadBlock(n)
   if (!b) return res.json({ ok: true, head: -1 })
   res.json({ ok: true, head: n, hash: blockHash(b) })
 })
 
-/* -------- Blocks (single) -------- */
-app.get('/blocks/get/:number', (req, res) => {
+app.get("/blocks/get/:number", (req, res) => {
   const n = Number(req.params.number)
-  if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:'bad number' })
+  if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, error: "bad number" })
   const b = node.store.loadBlock(n)
-  if (!b) return res.status(404).json({ ok:false, error:'not found' })
+  if (!b) return res.status(404).json({ ok: false, error: "not found" })
   res.json(b)
 })
 
-/* -------- Blocks (range) -------- */
-
-app.get('/blocks/range', (req, res) => {
+app.get("/blocks/range", (req, res) => {
   const from = Number(req.query.from ?? 0)
   const to   = Number(req.query.to   ?? node.store.loadHeadNumber())
   if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
-    return res.status(400).json({ ok: false, error: 'bad range' })
+    return res.status(400).json({ ok: false, error: "bad range" })
   }
-
   try {
     const blocks: any[] = []
     for (let i = from; i <= to; i++) {
       const b = node.store.loadBlock(i)
       if (b) blocks.push(b)
     }
-    res.setHeader('content-type', 'application/json')
     res.json(blocks)
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e) })
   }
 })
 
-/* ---------------- Bulk block import (follower) ---------------- */
-app.post('/blocks/import', async (req, res) => {
+/* Bulk block import (follower) */
+app.post("/blocks/import", async (req, res) => {
   try {
     const arr = Array.isArray(req.body) ? req.body : []
     if (!arr.length) return res.json({ ok: true, imported: 0, alreadyHad: 0, filled: 0, kidxRebuilt: 0 })
 
     const touchedShardPaths = new Set<string>()
-    let imported = 0
-    let alreadyHad = 0
-    let filled = 0
+    let imported = 0, alreadyHad = 0, filled = 0
 
     for (const b of arr) {
       const n = Number(b?.number)
@@ -275,17 +376,16 @@ app.post('/blocks/import', async (req, res) => {
       if (!existing) {
         node.store.saveBlock(b)
         imported++
-
         if (incomingHasTxs) {
           const refs = b.txs.map((tx: any, i: number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }))
           node.txIndex.putMany(refs)
-          metrics.inc('tx_indexed', b.txs.length)
+          metrics.inc("tx_indexed", b.txs.length)
 
           const anyReceipts: any = node.receipts as any
           const recs = b.txs.map((tx: any, i: number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i, ts: b.timestamp ?? Date.now() }))
-          if (typeof anyReceipts.appendMany === 'function') await anyReceipts.appendMany(recs)
-          else if (typeof anyReceipts.append === 'function') for (const r of recs) await anyReceipts.append(r)
-          metrics.inc('receipts_appended', recs.length)
+          if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs)
+          else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r)
+          metrics.inc("receipts_appended", recs.length)
 
           const shard = node.txIndex.shardForBlock(b.number)
           touchedShardPaths.add(shard.path)
@@ -294,20 +394,19 @@ app.post('/blocks/import', async (req, res) => {
       }
 
       if (!existingHasTxs && incomingHasTxs) {
-        // Fill header-only block in place
         const merged = { ...existing, ...b, txs: b.txs }
         node.store.saveBlock(merged)
         filled++
 
         const refs = b.txs.map((tx: any, i: number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }))
         node.txIndex.putMany(refs)
-        metrics.inc('tx_indexed', b.txs.length)
+        metrics.inc("tx_indexed", b.txs.length)
 
         const anyReceipts: any = node.receipts as any
         const recs = b.txs.map((tx: any, i: number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i, ts: b.timestamp ?? Date.now() }))
-        if (typeof anyReceipts.appendMany === 'function') await anyReceipts.appendMany(recs)
-        else if (typeof anyReceipts.append === 'function') for (const r of recs) await anyReceipts.append(r)
-        metrics.inc('receipts_appended', recs.length)
+        if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs)
+        else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r)
+        metrics.inc("receipts_appended", recs.length)
 
         const shard = node.txIndex.shardForBlock(b.number)
         touchedShardPaths.add(shard.path)
@@ -328,53 +427,66 @@ app.post('/blocks/import', async (req, res) => {
   }
 })
 
+/* -------- Proposer controls (stop) -------- */
 
-/* -------- Tx lookup -------- */
-app.get('/tx/lookup', (req, res) => {
-  const hash = String(req.query.hash || '').toLowerCase()
-  if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
+   app.post('/blocks/stop', (_req, res) => {
+    try {
+    // If your Node exposes stopProposer(), call it; otherwise no-op safely.
+    const r = (node as any).stopProposer ? (node as any).stopProposer() : { ok:true, note:'no stopProposer(), noop' }
+    res.json(r || { ok:true })
+  } catch (e:any) {
+    res.status(500).json({ ok:false, error:String(e?.message||e) })
+  }
+})
 
-  const shards = node.txIndex.listShards().sort((a,b) => b.from - a.from)
+
+/* ===================== TX / RECEIPTS ===================== */
+
+app.get("/tx/lookup", (req, res) => {
+  const hash = String(req.query.hash || "").toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" })
+
+  const shards = node.txIndex.listShards().sort((a, b) => b.from - a.from)
   for (const s of shards) {
-    const kidxPath = s.path.replace(/\.jsonl$/, '.kidx')
+    const kidxPath = s.path.replace(/\.jsonl$/, ".kidx")
     if (fs.existsSync(kidxPath)) {
       const hit = queryKidx(kidxPath, hash)
       if (hit.found) {
         const blk = node.store.loadBlock(hit.n!)
-        if (!blk) return res.json({ ok:false, error:'block not found (stale index?)' })
+        if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" })
         const tx = blk.txs?.[hit.o!]
-        return res.json({ ok:true, found:true, block: hit.n, offset: hit.o, tx })
+        return res.json({ ok: true, found: true, block: hit.n, offset: hit.o, tx })
       }
       continue
     }
     const r = node.txIndex.lookupInShard(s.path, hash)
     if (r.found) {
       const blk = node.store.loadBlock(r.n)
-      if (!blk) return res.json({ ok:false, error:'block not found (stale index?)' })
+      if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" })
       const tx = blk.txs?.[r.o]
-      return res.json({ ok:true, found:true, block: r.n, offset: r.o, tx })
+      return res.json({ ok: true, found: true, block: r.n, offset: r.o, tx })
     }
   }
-  return res.json({ ok:true, found:false })
+  return res.json({ ok: true, found: false })
 })
 
-/* -------- Receipts & status -------- */
-app.get('/tx/receipt', (req, res) => {
-  const hash = String(req.query.hash || '').toLowerCase()
-  if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
+app.get("/tx/receipt", (req, res) => {
+  const hash = String(req.query.hash || "").toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" })
   const r = node.receipts.get(hash)
-  if (!r) return res.json({ ok:true, found:false })
-  res.json({ ok:true, found:true, ...r })
+  if (!r) return res.json({ ok: true, found: false })
+  res.json({ ok: true, found: true, ...r })
 })
-app.get('/tx/status', (req, res) => {
-  const hash = String(req.query.hash || '').toLowerCase()
-  if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok:false, error:'bad hash' })
+
+app.get("/tx/status", (req, res) => {
+  const hash = String(req.query.hash || "").toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" })
 
   // pending?
   try {
     const txs = node.mempool.peekAll()
-    if (txs.some((t:any) => String(t?.hash || '').toLowerCase() === hash)) {
-      return res.json({ ok:true, status:'pending' })
+    if (txs.some((t: any) => String(t?.hash || "").toLowerCase() === hash)) {
+      return res.json({ ok: true, status: "pending" })
     }
   } catch {}
 
@@ -382,204 +494,200 @@ app.get('/tx/status', (req, res) => {
   const r = node.receipts.get(hash)
   if (r && (r as any).found) {
     const { n, o, ts } = r as any
-    return res.json({ ok:true, status:'confirmed', n, o, ts })
+    return res.json({ ok: true, status: "confirmed", n, o, ts })
   }
-  return res.json({ ok:true, status:'unknown' })
+  return res.json({ ok: true, status: "unknown" })
 })
-app.get('/receipts/stats', (_req, res) => {
+
+app.get("/receipts/stats", (_req, res) => {
   const s = node.receipts.stats ? node.receipts.stats() : { shards: [], totalBytes: 0, totalLines: 0 }
-  res.json({ ok:true, ...s })
+  res.json({ ok: true, ...s })
 })
-app.post('/receipts/gc', (req, res) => {
+
+app.post("/receipts/gc", (req, res) => {
   const keepLast = Number(req.query.keepLast || 1)
   try {
-    const r = node.receipts.gc ? node.receipts.gc(keepLast) : { ok:true, keepLast, removed: 0, kept: 0 }
+    const r = node.receipts.gc ? node.receipts.gc(keepLast) : { ok: true, keepLast, removed: 0, kept: 0 }
     res.json(r)
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error:String(e?.message||e) })
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
   }
 })
 
- /* -------- Mempool quick count -------- */
-app.get('/mempool/count', (_req, res) => {
+/* ===================== MEMPOOL / TX SUBMIT ===================== */
+
+app.get("/mempool/count", (_req, res) => {
   try {
-    const txs = node.mempool.peekAll();
-    res.json({ ok: true, count: Array.isArray(txs) ? txs.length : 0 });
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error: String(e?.message || e) });
+    const txs = node.mempool.peekAll()
+    res.json({ ok: true, count: Array.isArray(txs) ? txs.length : 0 })
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
   }
-});
+})
 
-/* -------- TX endpoint -------- */
-app.post('/tx', (req, res) => {
-  const tx = req.body;
-  if (!tx || typeof tx !== 'object') {
-    return res.status(400).json({ ok: false, error: 'validation failed: not an object' });
+app.post("/tx", (req, res) => {
+  const tx = req.body
+  if (!tx || typeof tx !== "object") {
+    return res.status(400).json({ ok: false, error: "validation failed: not an object" })
   }
-  const hash = String(tx.hash || '').toLowerCase();
-  const bodyOk = typeof tx.body === 'object' && tx.body !== null;
-  const hashOk = /^[0-9a-f]{64}$/.test(hash);
-
+  const hash = String(tx.hash || "").toLowerCase()
+  const bodyOk = typeof tx.body === "object" && tx.body !== null
+  const hashOk = /^[0-9a-f]{64}$/.test(hash)
   if (!bodyOk || !hashOk) {
-    return res.status(400).json({ ok: false, error: 'bad tx: require {hash: 64-hex, body: object}' });
+    return res.status(400).json({ ok: false, error: "bad tx: require {hash: 64-hex, body: object}" })
   }
 
-  // 1) Push to *local* mempool immediately (authoritative for sealing)
-  try { node.mempool.push({ ...tx, hash }); } catch {}
-
-  // 2) Publish to peers (self will not re-enqueue due to publishString guard)
-  metrics.inc('tx_submitted', 1);
-  node.publishJson('void/tx', { ...tx, hash });
-
-  res.json({ ok: true });
-});
-
-
-
-/* -------- Mempool -------- */
-app.get('/mempool', (_req, res) => {
-  const txs = node.mempool.peekAll()
-  res.json({ ok:true, size: txs.length, txs })
+  try { node.mempool.push({ ...tx, hash }) } catch {}
+  metrics.inc("tx_submitted", 1)
+  node.publishJson("void/tx", { ...tx, hash })
+  res.json({ ok: true })
 })
 
-/* -------- Blobs -------- */
-app.post('/blob/put', async (req, res) => {
-  const MAX = MAX_BLOB_MB * 1024 * 1024;
+app.get("/mempool", (_req, res) => {
+  const txs = node.mempool.peekAll()
+  res.json({ ok: true, size: txs.length, txs })
+})
 
-  if (typeof req.body?.text === 'string') {
-    const buf = Buffer.from(req.body.text, 'utf8');
-    if (buf.length > MAX) return res.json({ ok:false, error:`too large (> ${MAX_BLOB_MB}MB)` });
-    const out = await node.putBlobFromBuffer(buf);
-    return res.json({ ok:true, ...out });
+/* ===================== BLOBS ===================== */
+
+app.post("/blob/put", async (req, res) => {
+  const MAX = MAX_BLOB_MB * 1024 * 1024
+
+  if (typeof req.body?.text === "string") {
+    const buf = Buffer.from(req.body.text, "utf8")
+    if (buf.length > MAX) return res.json({ ok: false, error: `too large (> ${MAX_BLOB_MB}MB)` })
+    const out = await node.putBlobFromBuffer(buf)
+    return res.json({ ok: true, ...out })
   }
 
-  if (typeof req.body?.base64 === 'string') {
-    const buf = Buffer.from(req.body.base64, 'base64'); // check *decoded* size
-    if (buf.length > MAX) return res.json({ ok:false, error:`too large (> ${MAX_BLOB_MB}MB)` });
-    const out = await node.putBlobFromBuffer(buf);
-    return res.json({ ok:true, ...out });
+  if (typeof req.body?.base64 === "string") {
+    const buf = Buffer.from(req.body.base64, "base64")
+    if (buf.length > MAX) return res.json({ ok: false, error: `too large (> ${MAX_BLOB_MB}MB)` })
+    const out = await node.putBlobFromBuffer(buf)
+    return res.json({ ok: true, ...out })
   }
 
-  return res.json({ ok:false, error:'send {text} or {base64} JSON' });
-});
+  return res.json({ ok: false, error: "send {text} or {base64} JSON" })
+})
 
-// ---------- Blob stats ----------
-app.get('/blob/stats', (_req, res) => {
+app.get("/blob/stat/:cid", (req, res) => {
   try {
-    const dir = path.join('data','blobs');
-    if (!fs.existsSync(dir)) return res.json({ ok:true, total:0, pinned:0, bytes:0, largest:0, oldest:null });
+    const cid = String(req.params.cid || "").trim()
+    if (!cid) return res.json({ ok: false, error: "missing cid" })
+    const b = node.getBlob(cid)
+    if (!b) return res.json({ ok: true, present: false })
+    res.json({ ok: true, present: true, size: b.length })
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
+  }
+})
 
-    let total = 0, pinned = 0, bytes = 0, largest = 0;
-    let oldest: null | { cid:string, mtimeMs:number } = null;
+app.get("/blob/stats", (_req, res) => {
+  try {
+    const dir = path.join("data", "blobs")
+    if (!fs.existsSync(dir)) return res.json({ ok: true, total: 0, pinned: 0, bytes: 0, largest: 0, oldest: null })
+
+    let total = 0, pinned = 0, bytes = 0, largest = 0
+    let oldest: null | { cid: string, mtimeMs: number } = null
+
+    // optional pin file
+    let blobPins: Set<string> | null = null
+    const pinsPath = path.join(dir, "pins.json")
+    if (fs.existsSync(pinsPath)) {
+      try { blobPins = new Set(JSON.parse(fs.readFileSync(pinsPath, "utf8"))) } catch {}
+    }
 
     for (const cid of fs.readdirSync(dir)) {
-      if (cid === 'pins.json') continue;
-      if (!/^[0-9a-f]{64}$/.test(cid)) continue;
-      const p = path.join(dir, cid);
-      const st = fs.statSync(p);
-      total++;
-      if (blobPins?.has?.(cid)) pinned++;
-      bytes += st.size;
-      if (st.size > largest) largest = st.size;
-      if (!oldest || st.mtimeMs < oldest.mtimeMs) oldest = { cid, mtimeMs: st.mtimeMs };
+      if (cid === "pins.json") continue
+      if (!/^[0-9a-f]{64}$/.test(cid)) continue
+      const p = path.join(dir, cid)
+      const st = fs.statSync(p)
+      total++
+      if (blobPins?.has?.(cid)) pinned++
+      bytes += st.size
+      if (st.size > largest) largest = st.size
+      if (!oldest || st.mtimeMs < oldest.mtimeMs) oldest = { cid, mtimeMs: st.mtimeMs }
     }
-    res.json({ ok:true, total, pinned, bytes, largest, oldest });
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error:String(e?.message||e) });
+    res.json({ ok: true, total, pinned, bytes, largest, oldest })
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
   }
-});
+})
 
-// ---------- Peer registry QoL ----------
-app.get('/peers/registry/ids', (_req, res) => {
-  try {
-    res.json(peersReg.all().map(p => p.id));
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
+/* ===================== PROPOSER / FOLLOWER ===================== */
 
-app.delete('/peers/registry/:id', (req, res) => {
-  try {
-    const id = String(req.params.id || '');
-    const r = peersReg.remove(id);
-    res.json({ ok:true, removed:r.removed, remaining:r.remaining });
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
-
-
-/* -------- Proposer controls -------- */
-app.post('/blocks/start', (req, res) => {
+app.post("/blocks/start", (req, res) => {
   const intervalMs = Number(req.query.intervalMs || 5000)
   const r = node.startProposer(intervalMs)
   res.json(r)
 })
-app.post('/blocks/once', async (_req, res) => {
-  const t0 = Date.now()
-  const r = await node.sealBlock()   // node_core seals + persists + indexes + receipts
-  metrics.gauges.last_seal_ms = Date.now() - t0
-  metrics.inc('blocks_sealed', 1)
-  if (r?.txs > 0) {
-    metrics.inc('tx_indexed', r.txs)
-    metrics.inc('receipts_appended', r.txs)
-  }
-  res.json({ ok: true, number: r?.number, txs: r?.txs ?? 0 })
-})
 
-/* -------- Sync helpers -------- */
-app.get('/head', (_req, res) => { res.json({ ok:true, head: node.store.loadHeadNumber() }) })
-app.post('/follower/start', (req, res) => {
-  const peer = String(req.query.peer || 'http://127.0.0.1:4101')
+app.post("/follower/start", (req, res) => {
+  const peer = String(req.query.peer || "http://127.0.0.1:4101")
   const ms = Number(req.query.intervalMs || 2000)
+
+  // telemetry
+  syncState.enabled = true
+  syncState.peer = peer
+  syncState.intervalMs = ms
+  syncState.lastErr = null
+
   const r = node.startFollower(peer, ms, {
-    onImportBlock: (b:any) => {
-      metrics.inc('blocks_imported', 1)
+    onImportBlock: (b: any) => {
+      metrics.inc("blocks_imported", 1)
       if (b?.txs?.length) {
-        metrics.inc('tx_indexed', b.txs.length)
-        metrics.inc('receipts_appended', b.txs.length)
-      }
-    }
-  })
-  res.json(r)
-})
-app.post('/follower/once', async (req, res) => {
-  const peer = String(req.query.peer || 'http://127.0.0.1:4101')
-  const r = await node.pullOnce(peer, {
-    onImportBlock: (b) => {
-      metrics.inc('blocks_imported', 1)
-      if (b?.txs?.length) {
-        metrics.inc('tx_indexed', b.txs.length)
-        metrics.inc('receipts_appended', b.txs.length)
+        metrics.inc("tx_indexed", b.txs.length)
+        metrics.inc("receipts_appended", b.txs.length)
       }
     }
   })
   res.json(r)
 })
 
+app.post("/follower/once", async (req, res) => {
+  const peer = String(req.query.peer || "http://127.0.0.1:4101")
+  try {
+    const r = await node.pullOnce(peer, {
+      onImportBlock: (b) => {
+        metrics.inc("blocks_imported", 1)
+        if (b?.txs?.length) {
+          metrics.inc("tx_indexed", b.txs.length)
+          metrics.inc("receipts_appended", b.txs.length)
+        }
+      }
+    })
+    syncState.lastOk = Date.now()
+    syncState.lastErr = null
+    syncState.lastImported = (r as any)?.imported ?? 0
+    syncState.theirHead   = (r as any)?.theirHead
+    res.json(r)
+  } catch (e: any) {
+    syncState.lastErr = String(e?.message || e)
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
+  }
+})
 
-/* -------- Metrics -------- */
-app.get('/metrics', (_req, res) => {
+/* ===================== METRICS ===================== */
+
+app.get("/metrics", (_req, res) => {
   const head = node.store.loadHeadNumber()
-  const peers = [...node.peers.keys()].filter(k => !k.startsWith('?-')).length
+  const peers = [...node.peers.keys()].filter(k => !k.startsWith("?-")).length
   const mempool = node.mempool.peekAll().length
-  res.setHeader('content-type', 'text/plain; version=0.0.4; charset=utf-8')
+  res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8")
   res.send(metrics.renderText({ peers, mempool, head, peers_known: peersReg.count() }))
 })
 
 app.listen(HTTP_PORT, () => {
   console.log(`[void-node] http :${HTTP_PORT}`)
-  console.log(`[void-node] bootstrap: ${BOOTSTRAP.join(', ') || '(none)'}`)
+  console.log(`[void-node] bootstrap: ${BOOTSTRAP.join(", ") || "(none)"}`)
   if (!fs.existsSync(KEY_FILE)) console.log(`[void-node] wrote new key: ${KEY_FILE}`)
   try {
     const httpBase = process.env.PUBLIC_HTTP_BASE || `http://127.0.0.1:${HTTP_PORT}`
     const p2pListen = (node.listenAddrs?.[0] || `127.0.0.1:${P2P_PORT}`)
 
-    node.publishJson('void/http', { id: node.id, http: httpBase })
-    setInterval(() => {
-      node.publishJson('void/http', { id: node.id, http: httpBase })
-    }, 10_000).unref?.()
-    peersReg.upsert({ id: node.id, http: httpBase, p2p: p2pListen, capabilities: ['blob','tx','block'] })
+    node.publishJson("void/http", { id: node.id, http: httpBase })
+    setInterval(() => { node.publishJson("void/http", { id: node.id, http: httpBase }) }, 10_000).unref?.()
+    peersReg.upsert({ id: node.id, http: httpBase, p2p: p2pListen, capabilities: ["blob", "tx", "block"] })
     metrics.gauges.peers_known = peersReg.count()
     console.log(`[peers] self upsert -> id=${node.id} http=${httpBase} p2p=${p2pListen}`)
   } catch {}
@@ -595,70 +703,44 @@ function countLinesQuick(p: string): number {
   } catch { return 0 }
 }
 
-/* -------- Blob debug -------- */
-// GET /blob/stat/:cid -> { ok, present: boolean, size?: number }
-app.get('/blob/stat/:cid', (req, res) => {
-  try {
-    const cid = String(req.params.cid || '').trim()
-    if (!cid) return res.json({ ok:false, error:'missing cid' })
-    const b = node.getBlob(cid)
-    if (!b) return res.json({ ok:true, present:false })
-    res.json({ ok:true, present:true, size: b.length })
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error: String(e?.message || e) })
-  }
-})
+// ---- helper to run tsx scripts with timeout ----
+async function runTsxScript(scriptRelPath: string, opts?: {
+  env?: Record<string, string>,
+  args?: string[],
+  timeoutMs?: number
+}): Promise<{ ok: boolean; code: number | null; stdout: string; stderr: string; timedOut: boolean }> {
+  const timeoutMs = Math.max(1_000, opts?.timeoutMs ?? 60_000)
+  const args = [scriptRelPath, ...(opts?.args ?? [])]
+  const env = { ...process.env, ...(opts?.env ?? {}) }
+
+  return await new Promise((resolve) => {
+    const child = execFile(process.execPath, ["node_modules/.bin/tsx", ...args], { env }, (err, stdout, stderr) => {
+      resolve({
+        ok: !err,
+        code: (err as any)?.code ?? 0,
+        stdout: String(stdout ?? ""),
+        stderr: String(stderr ?? ""),
+        timedOut: false,
+      })
+    })
+    const t = setTimeout(() => {
+      try { child.kill("SIGKILL") } catch {}
+      resolve({ ok: false, code: null, stdout: "", stderr: "timeout", timedOut: true })
+    }, timeoutMs)
+    child.on("exit", () => clearTimeout(t))
+  })
+}
 
 // periodic purge of stale peers (every 2 minutes, older than 10 minutes)
 setInterval(() => {
   try {
     const r = peersReg.purgeStale(10 * 60 * 1000)
-    if (r.removed) console.log(`[peers] purged ${r.removed}, remaining=\${r.remaining}`)
+    if (r.removed) console.log(`[peers] purged ${r.removed}, remaining=${r.remaining}`)
     metrics.gauges.peers_known = peersReg.count()
   } catch {}
 }, 2 * 60 * 1000).unref?.()
 
-// ---------- Blob stats ----------
-app.get('/blob/stats', (_req, res) => {
-  try {
-    const dir = path.join('data','blobs');
-    if (!fs.existsSync(dir)) return res.json({ ok:true, total:0, pinned:0, bytes:0, largest:0, oldest:null });
+} // __main__
 
-    let total = 0, pinned = 0, bytes = 0, largest = 0;
-    let oldest: null | { cid:string, mtimeMs:number } = null;
-
-    for (const cid of fs.readdirSync(dir)) {
-      if (cid === 'pins.json') continue;
-      if (!/^[0-9a-f]{64}$/.test(cid)) continue;
-      const p = path.join(dir, cid);
-      const st = fs.statSync(p);
-      total++;
-      if (blobPins?.has?.(cid)) pinned++;
-      bytes += st.size;
-      if (st.size > largest) largest = st.size;
-      if (!oldest || st.mtimeMs < oldest.mtimeMs) oldest = { cid, mtimeMs: st.mtimeMs };
-    }
-    res.json({ ok:true, total, pinned, bytes, largest, oldest });
-  } catch (e:any) {
-    res.status(500).json({ ok:false, error:String(e?.message||e) })
-  }
-});
-
-// ---------- Peer registry QoL ----------
-app.get('/peers/registry/ids', (_req, res) => {
-  try {
-    const ids = peersReg.all().map(p => p.id);
-    res.json(ids);
-  } catch (e:any) { res.status(500).json({ ok:false, error:String(e?.message||e) }) }
-});
-
-app.delete('/peers/registry/:id', (req, res) => {
-  try {
-    const id = String(req.params.id || '');
-    const r = peersReg.remove(id);
-    res.json({ ok:true, removed:r.removed, remaining:r.remaining });
-  } catch (e:any) { res.status(500).json({ ok:false, error:String(e?.message||e) }) }
-});
-
-}
 __main__().catch(e => { console.error(e); process.exitCode = 1 })
+
