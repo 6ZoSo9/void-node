@@ -47,3 +47,5 @@ fs/
 
 .nodekeyA
 .nodekeyB
+
+.tx-key.pem
