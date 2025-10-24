@@ -49,3 +49,9 @@ fs/
 .nodekeyB
 
 .tx-key.pem
+
+# local keys & certs
+*.pem
+*.key
+*.p12
+*.pfx
