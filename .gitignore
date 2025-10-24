@@ -35,3 +35,11 @@ package-lock.json
 # editor/backup files
 *.bak*
 *~
+
+# local data stores
+/data_a/
+/data_b/
+# local artifacts
+fs/
+# editor/backup files
+*.bak*
