@@ -43,3 +43,4 @@ package-lock.json
 fs/
 # editor/backup files
 *.bak*
+fs/
