@@ -23,3 +23,15 @@ package-lock.json
 .nodekeyB
 *.key
 *.pem
+
+# local data stores
+/data_a/
+/data_b/
+
+# local data stores
+/data_a/
+/data_b/
+
+# editor/backup files
+*.bak*
+*~
