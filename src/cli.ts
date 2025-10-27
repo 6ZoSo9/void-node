@@ -1,10 +1,12 @@
-/* Tiny CLI for quick pokes:
-   Examples:
-   npm run cli -- health
-   npm run cli -- sub void/tx
-   npm run cli -- pub void/tx '{"kind":"tx","hash":"0x1"}'
-   npm run cli -- put-blob ./README.md
-*/
+// Tiny CLI for quick pokes:
+// Examples:
+//   npm run cli -- health
+//   npm run cli -- sub void/tx
+//   npm run cli -- pub void/tx '{"kind":"tx","hash":"0x1"}'
+//   npm run cli -- put-blob ./README.md
+
+import { readFile } from 'node:fs/promises'
+
 const base = process.env.BASE || 'http://127.0.0.1:4101'
 
 async function main() {
@@ -34,8 +36,8 @@ async function main() {
   if (cmd === 'put-blob') {
     const file = rest[0]
     if (!file) { console.error('put-blob <path>'); process.exit(1) }
-    const data = await Bun.file ? await (await (globalThis as any).Bun.file(file).arrayBuffer()) : await (await import('node:fs/promises')).readFile(file)
-    const base64 = Buffer.from(data as Buffer).toString('base64')
+    const data = await readFile(file)
+    const base64 = Buffer.from(data).toString('base64')
     return j(await postJSON('/blob/put', { base64 }))
   }
 
@@ -59,12 +61,11 @@ function usage() {
   `)
 }
 
-async function fetchJSON(path: string) { const r = await fetch(base + path); return r.json() }
-async function postJSON(path: string, body: any) {
-  const r = await fetch(base + path, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) })
+async function fetchJSON(p: string) { const r = await fetch(base + p); return r.json() }
+async function postJSON(p: string, body: any) {
+  const r = await fetch(base + p, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) })
   return r.json()
 }
 function j(x: any) { console.log(JSON.stringify(x, null, 2)) }
 
 main().catch(e => { console.error(e); process.exit(1) })
-

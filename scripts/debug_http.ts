@@ -1,6 +1,6 @@
 import http from "node:http"
 import url from "node:url"
-import { SegStore } from "../src/chain/seg_store.ts"
+import { SegStore } from "../src/chain/seg_store"
 
 const HTTP_PORT = Number(process.env.HTTP_PORT || 4300)
 const DATA_DIR  = process.env.DATA_DIR || "data"

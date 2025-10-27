@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import { SegStore } from "../src/chain/seg_store.ts"
+import { SegStore } from "../src/chain/seg_store"
 
 const DATA_DIR = process.env.DATA_DIR || "data_a"
 const TMP_DIR  = `${DATA_DIR}_rewrite_tmp`

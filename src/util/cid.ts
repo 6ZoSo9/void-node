@@ -1,4 +1,4 @@
-import crypto from 'node:crypto'
+import * as crypto from 'node:crypto'
 
 export async function sha256Hex(buf: Buffer | Uint8Array): Promise<string> {
   const hash = crypto.createHash('sha256')

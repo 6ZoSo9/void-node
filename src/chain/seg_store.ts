@@ -9,8 +9,8 @@
  *         meta.json            { from:number, to:number, bytes:number, createdAt:number, updatedAt:number }
  */
 
-import fs from 'node:fs'
-import path from 'node:path'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { Block } from '../chain/block.js'
 
 type Heads = { head: number; currentSegment: string | null }

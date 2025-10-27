@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
+    "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
     "noEmitOnError": true,
@@ -11,15 +11,15 @@
     "outDir": "dist",
     "rootDir": "src",
     "resolveJsonModule": true,
-    "allowJs": false,
-    "declaration": false
+    "allowJs": false
   },
   "include": ["src/**/*.ts"],
   "exclude": [
     "node_modules",
     "dist",
-    "scripts/**/*",
-    "src/p2p/**/*"
+    "scripts",
+    "src/p2p/**/*",
+    "src/diag-identify.ts",
+    "src/http/**/*"
   ]
 }
-
