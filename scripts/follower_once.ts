@@ -1,4 +1,4 @@
-import { SegStore } from "../src/chain/seg_store.ts"
+import { SegStore } from "../src/chain/seg_store"
 
 const SRC      = process.env.SRC || "http://127.0.0.1:4300"
 const DATA_DIR = process.env.DATA_DIR || "data_b"
@@ -37,8 +37,8 @@ async function main() {
     const to = Math.min(from + CHUNK - 1, theirHead)
     const blocks = await getJSON<Block[]>(`${SRC}/blocks/range?from=${from}&to=${to}`)
     for (const b of blocks) store.saveBlock(b as any)
-    process.stdout.write(\` imported \${from}..\${to}\r\`)
+        process.stdout.write(` imported ${from}..${to}\r`);
   }
-  console.log(\`\\n[follower_once] done. head=\${store.loadHeadNumber()}\`)
+    console.log(`\n[follower_once] done. head=${store.loadHeadNumber()}`);
 }
 main().catch(e => { console.error("[follower_once] error:", e) })

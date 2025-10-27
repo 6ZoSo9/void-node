@@ -1,4 +1,4 @@
-import crypto from 'node:crypto'
+import * as crypto from 'node:crypto'
 
 function h(b: Buffer): Buffer {
   return crypto.createHash('sha256').update(b).digest()

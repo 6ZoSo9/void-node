@@ -1,4 +1,4 @@
-import crypto from 'node:crypto'
+import * as crypto from 'node:crypto'
 import { merkleRoot } from '../util/merkle.js'
 
 export type Block = {

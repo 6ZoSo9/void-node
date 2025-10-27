@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import { SegStore } from "../src/chain/seg_store.ts"
+import { SegStore } from "../src/chain/seg_store"
 
 const DATA_DIR = process.env.DATA_DIR || "data_a"
 const store = new SegStore(DATA_DIR, { segmentMaxBytes: 8*1024*1024, sparseEvery: 16 })

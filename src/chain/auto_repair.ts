@@ -1,6 +1,6 @@
 // src/chain/auto_repair.ts
-import fs from "node:fs"
-import path from "node:path"
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 
 type RepairOpts = {
   sparseEvery?: number   // default 16

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "build": "tsc -p .",
+    "build": "tsc -p tsconfig.build.json",
     "cli": "tsx src/cli.ts",
     "make-tx": "tsx src/tx/make_tx.ts",
     "node:a": "HTTP_PORT=4101 P2P_PORT=4701 PUBLIC_HTTP_BASE=\"http://127.0.0.1:4101\" npx tsx src/index.ts",
@@ -14,7 +14,8 @@
     "kill": "pkill -f 'tsx src/index.ts' || true",
     "proposer": "tsx src/index.ts --role=proposer",
     "follower": "tsx src/index.ts --role=follower",
-    "dev:a": "DATA_DIR=data_a tsx src/index.ts"
+    "dev:a": "DATA_DIR=data_a tsx src/index.ts",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@chainsafe/libp2p-gossipsub": "13.2.0",
@@ -22,11 +23,14 @@
     "@chainsafe/libp2p-yamux": "7.0.4",
     "@libp2p/identify": "1.0.21",
     "@libp2p/tcp": "10.1.7",
+    "@noble/ed25519": "^3.0.0",
     "dotenv": "16.4.5",
     "express": "4.21.2",
-    "libp2p": "1.9.4"
+    "libp2p": "1.9.4",
+    "noble-ed25519": "^1.2.6"
   },
   "devDependencies": {
+    "@types/express": "^5.0.4",
     "@types/node": "^24.9.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"

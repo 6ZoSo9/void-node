@@ -1,4 +1,4 @@
-import { SegStore } from "../src/chain/seg_store.ts"
+import { SegStore } from "../src/chain/seg_store"
 
 type Block = { number: number; [k:string]: any }
 

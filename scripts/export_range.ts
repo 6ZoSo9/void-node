@@ -1,5 +1,5 @@
 import fs from "node:fs"
-import { SegStore } from "../src/chain/seg_store.ts"
+import { SegStore } from "../src/chain/seg_store"
 
 const DATA_DIR = process.env.DATA_DIR || "data_a"
 const FROM = Number(process.env.FROM ?? 0)
