@@ -1,7 +1,6 @@
 // src/chain/receipts.ts
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import * as readline from 'node:readline'
 
 export type Receipt = {
   h: string   // tx hash (lowercase 64-hex)
@@ -11,7 +10,7 @@ export type Receipt = {
 }
 
 type Opts = {
-  shardSpan?: number // how many blocks per shard file
+  shardSpan?: number // how many blocks per shard file (default 10_000)
 }
 
 export class ReceiptsStore {
@@ -19,27 +18,29 @@ export class ReceiptsStore {
   private shardSpan: number
 
   constructor (dir: string, opts: Opts = {}) {
-    this.dir = dir
-    this.shardSpan = Math.max(1, opts.shardSpan ?? 10_000)
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    this.dir = path.resolve(dir)
+    this.shardSpan = Math.max(1, Math.floor(opts.shardSpan ?? 10_000))
+    try { fs.mkdirSync(this.dir, { recursive: true }) } catch {}
   }
 
   // ---------- public API ----------
 
   /** Append a single receipt. */
   async append (r: Receipt): Promise<void> {
-    const p = this.pathForBlock(r.n)
-    await appendJsonlLine(p, r)
+    const rec = normalize(r)
+    const p = this.pathForBlock(rec.n)
+    await appendJsonlMany(p, [rec])
   }
 
   /** Append many receipts, grouped into correct shard files. */
   async appendMany (rs: Receipt[]): Promise<void> {
-    if (!rs.length) return
+    if (!Array.isArray(rs) || rs.length === 0) return
     const groups = new Map<string, Receipt[]>()
-    for (const r of rs) {
-      const p = this.pathForBlock(r.n)
+    for (const rr of rs) {
+      const rec = normalize(rr)
+      const p = this.pathForBlock(rec.n)
       if (!groups.has(p)) groups.set(p, [])
-      groups.get(p)!.push(r)
+      groups.get(p)!.push(rec)
     }
     for (const [p, arr] of groups) {
       await appendJsonlMany(p, arr)
@@ -49,35 +50,32 @@ export class ReceiptsStore {
   /**
    * Receipt lookup by tx hash.
    * Scans shard files from newest to oldest; stops at first match.
-   * Returns {found:false} if not present.
+   * Returns {ok:true, found:false} if not present.
    */
-  get (hash: string): { ok: true, found: false } |
-                       { ok: true, found: true, n: number, o: number, ts: number, shard: string } {
-    const h = String(hash).toLowerCase()
+  get (hash: string):
+    | { ok: true, found: false }
+    | { ok: true, found: true, n: number, o: number, ts: number, shard: string } {
+    const h = String(hash || '').toLowerCase()
     if (!/^[0-9a-f]{64}$/.test(h)) return { ok: true, found: false }
 
     const shards = this.listReceiptShards().sort((a, b) => b.from - a.from) // newest first
     for (const s of shards) {
-      const p = s.path
-      if (!fs.existsSync(p)) continue
-      // Quick negative filter: if file is small, just read it; else stream it.
-      const found = findInJsonl(p, h)
-      if (found) {
-        return { ok: true, found: true, n: found.n, o: found.o, ts: found.ts, shard: p }
-      }
+      const rec = findInJsonlSync(s.path, h)
+      if (rec) return { ok: true, found: true, n: rec.n, o: rec.o, ts: rec.ts, shard: s.path }
     }
     return { ok: true, found: false }
   }
 
-  /**
-   * Stats for UI/debug.
-   * Lists shards with byte+line counts, and totals.
-   */
-  stats (): { ok: true, shards: { from: number, to: number, path: string, bytes: number, lines: number }[], totalBytes: number, totalLines: number } {
+  /** Stats for UI/debug (sizes and fast line counts). */
+  stats (): {
+    ok: true,
+    shards: { from: number, to: number, path: string, bytes: number, lines: number }[],
+    totalBytes: number, totalLines: number
+  } {
     const shards = this.listReceiptShards()
     let totalBytes = 0, totalLines = 0
     const out = shards.map(s => {
-      const st = fs.existsSync(s.path) ? fs.statSync(s.path) : { size: 0 } as fs.Stats
+      const st = fs.existsSync(s.path) ? fs.statSync(s.path) : ({ size: 0 } as fs.Stats)
       const lines = countLinesQuick(s.path)
       totalBytes += st.size
       totalLines += lines
@@ -88,10 +86,14 @@ export class ReceiptsStore {
 
   /**
    * GC: keep only the last `keepLast` shards (by block-span), delete older ones.
+   * Returns lists of removed/kept for observability.
    */
-  gc (keepLast: number): { ok: true, keepLast: number, removed: number, kept: number, details: { removed: string[], kept: string[] } } {
+  gc (keepLast: number): {
+    ok: true, keepLast: number, removed: number, kept: number,
+    details: { removed: string[], kept: string[] }
+  } {
     const shards = this.listReceiptShards().sort((a, b) => a.from - b.from) // oldest first
-    const keep = Math.max(0, keepLast|0)
+    const keep = Math.max(0, keepLast | 0)
     const toRemove = keep > 0 ? Math.max(0, shards.length - keep) : shards.length
 
     const removed: string[] = []
@@ -130,11 +132,15 @@ export class ReceiptsStore {
   }
 }
 
-// ---------- tiny IO helpers ----------
+// ---------- helpers ----------
 
-async function appendJsonlLine (p: string, obj: any): Promise<void> {
-  await fs.promises.mkdir(path.dirname(p), { recursive: true })
-  await fs.promises.appendFile(p, JSON.stringify(obj) + '\n', 'utf8')
+function normalize (r: Receipt): Receipt {
+  return {
+    h: String(r.h || '').toLowerCase(),
+    n: Number(r.n || 0),
+    o: Number(r.o || 0),
+    ts: Number.isFinite(r.ts) ? Number(r.ts) : Date.now(),
+  }
 }
 
 async function appendJsonlMany (p: string, arr: any[]): Promise<void> {
@@ -143,33 +149,21 @@ async function appendJsonlMany (p: string, arr: any[]): Promise<void> {
   await fs.promises.appendFile(p, lines, 'utf8')
 }
 
-/** Stream a JSONL file and return the first record whose "h" matches the hash. */
-function findInJsonl (p: string, hash: string): Receipt | null {
+/** Fast, synchronous scan of a JSONL file for a receipt with hash `h`. */
+function findInJsonlSync (p: string, h: string): Receipt | null {
   try {
-    const fd = fs.openSync(p, 'r')
-    const stream = fs.createReadStream('', { fd, encoding: 'utf8', autoClose: true })
-    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity })
-    return syncIterate(rl, hash)
-  } catch { return null }
-}
-
-function syncIterate (rl: readline.Interface, hash: string): Receipt | null {
-  // NOTE: readline is async by nature; we gather matches synchronously by
-  // buffering lines quickly (these shards are modest). For simplicity in this
-  // implementation, we read the whole file at once instead.
-  // If files get large, switch to a fully async get() and await readline.
-  (rl as any).close?.() // ensure it's closed—using the simple fallback version below
-  try {
-    const text = fs.readFileSync((rl as any).input.path ?? (rl as any).input.fd ?? '', 'utf8')
+    if (!fs.existsSync(p)) return null
+    const text = fs.readFileSync(p, 'utf8')
     const lines = text.split('\n')
-    for (const s of lines) {
-      const t = s.trim(); if (!t) continue
+    for (const line of lines) {
+      const t = line.trim()
+      if (!t) continue
       try {
         const rec = JSON.parse(t) as Receipt
-        if (rec.h === hash) return rec
-      } catch {}
+        if (String(rec.h).toLowerCase() === h) return rec
+      } catch { /* ignore bad lines */ }
     }
-  } catch {}
+  } catch { /* ignore I/O issues */ }
   return null
 }
 

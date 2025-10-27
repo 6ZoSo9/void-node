@@ -1,57 +1,9 @@
-# Node / tooling
 node_modules/
 dist/
-.env
-*.log
-
-# Local chain data
-data/
-!data/.gitkeep
-
-# Keys
-.nodekey
-.nodekey-*
-*.pem
-
-# OS/editor files
 .DS_Store
-Thumbs.db
-package-lock.json
-# secrets
-.secrets/
-.nodekeyA
-.nodekeyB
-*.key
+*.log
+*.tmp
+*.kidx
 *.pem
-
-# local data stores
-/data_a/
-/data_b/
-
-# local data stores
-/data_a/
-/data_b/
-
-# editor/backup files
-*.bak*
-*~
-
-# local data stores
-/data_a/
-/data_b/
-# local artifacts
-fs/
-# editor/backup files
-*.bak*
-fs/
-
-.nodekeyA
-.nodekeyB
-
-.tx-key.pem
-
-# local keys & certs
-*.pem
-*.key
-*.p12
-*.pfx
+data*/
+coverage/

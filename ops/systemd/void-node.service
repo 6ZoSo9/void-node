@@ -1,0 +1,16 @@
+[Unit]
+Description=void-node (proposer)
+After=network.target
+
+[Service]
+WorkingDirectory=%h/dev/void-node
+ExecStart=/usr/bin/npm run start
+Environment=DATA_DIR=data_a
+Environment=HTTP_PORT=4100
+Environment=P2P_PORT=4700
+Environment=BOOTSTRAP_ADDRS=127.0.0.1:4701
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

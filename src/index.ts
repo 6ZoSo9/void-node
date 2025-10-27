@@ -19,7 +19,6 @@ process.env.DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "dat
 process.env.HTTP_PORT = process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100";
 process.env.P2P_PORT = process.env.P2P_PORT || process.env.VOID_P2P_PORT || "4700";
 
-  process.env.NODE_PRIVKEY_PATH || process.env.VOID_NODE_KEY_A || process.env.KEY_FILE || ".nodekey";
 /* ------------------------------------------------------------------- */
 
 /* ----------------------------- Config ------------------------------ */
@@ -585,10 +584,7 @@ app.get("/tx/lookup", (req, res) => {
         if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
         const tx = (blk as any).txs?.[r2.o];
         // Opportunistic rebuild to refresh kidx for this shard.
-        try { void buildtry {
-          metrics.inc("kidx_stale_rebuilds", 1);
-          void buildKidxForJsonl(s.path);
-        } catch {}
+        try { metrics.inc("kidx_stale_rebuilds", 1); void buildKidxForJsonl(s.path); } catch {}
         return res.json({ ok: true, found: true, block: r2.n, offset: r2.o, tx });
       }
       continue;
