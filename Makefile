@@ -57,3 +57,17 @@ propose_once:
 
 propose_loop:
 	@curl -fsS -4 -X POST "http://127.0.0.1:4100/blocks/start?intervalMs=2000" | jq .
+
+# --- STEP-001 additions ---
+
+  # Additive Makefile targets; append to your Makefile
+  .PHONY: metrics-check peers-check follower-check
+
+  metrics-check:
+	curl -fsS http://127.0.0.1:4100/metrics | head -n 5 && echo OK || true
+
+  peers-check:
+	curl -fsS http://127.0.0.1:4100/p2p/peers | jq . || true
+
+  follower-check:
+	curl -fsS http://127.0.0.1:4101/p2p/peers | jq . || true
