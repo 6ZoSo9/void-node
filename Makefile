@@ -1,73 +1,53 @@
-.PHONY: status heads metrics verify repair_dry repair maintenance \
-        helper_start helper_stop follow_once follow_helper propose_once propose_loop
+.RECIPEPREFIX := >
+PROPOSER ?= http://127.0.0.1:4100
+FOLLOWER ?= http://127.0.0.1:4101
 
-# --- Quick views ---
+.PHONY: build up proposer follower seal follow-once tx lookup status receipts kidx-all kidx-block kidx-hash hello-now stop
+
+build:
+> npm run build
+
+up:
+> bash scripts/boot.sh up
+
+proposer:
+> bash scripts/boot.sh proposer
+
+follower:
+> bash scripts/boot.sh follower
+
+seal:
+> bash scripts/boot.sh seal
+
+follow-once:
+> bash scripts/boot.sh once
+
+tx:
+> bash scripts/boot.sh tx
+
+lookup:
+> bash scripts/boot.sh lookup
+
 status:
-	@echo "helper health:"; curl -fsS -4 "http://127.0.0.1:4315/api/health" | jq .
-	@echo "main   health:"; curl -fsS -4 "http://127.0.0.1:4100/health"       | jq .
-	@echo "helper 0..10 :" ; curl -fsS -4 "http://127.0.0.1:4315/blocks/range?from=0&to=10" | jq length
-	@echo "main   0..10 :" ; curl -fsS -4 "http://127.0.0.1:4100/blocks/range?from=0&to=10" | jq length
+> curl -sS $(FOLLOWER)/sync/status | jq .
 
-heads:
-	@echo "helper:"; curl -fsS -4 "http://127.0.0.1:4315/head"         | jq .
-	@echo "main  :" ; curl -fsS -4 "http://127.0.0.1:4100/blocks/head" | jq .
+receipts:
+> bash scripts/boot.sh rcpt
 
-metrics:
-	@curl -fsS -4 "http://127.0.0.1:4100/metrics" | sed -n '1,40p'
+kidx-all:
+> curl -sS -X POST $(FOLLOWER)/index/kidx/build | jq .
 
-# --- Maintenance (verify / repair) ---
-verify:
-	@curl -fsS -4 "http://127.0.0.1:4100/maintenance/verify" \
-	| jq '{ok,code,timedOut,summary}'
+kidx-block:
+> test -n "$(BLOCK)" || (echo "usage: make kidx-block BLOCK=<number>"; exit 1)
+> curl -sS -X POST "$(FOLLOWER)/index/kidx/rebuild-shard?block=$(BLOCK)" | jq .
 
-repair_dry:
-	@curl -fsS -4 -X POST "http://127.0.0.1:4100/maintenance/auto-repair?dryRun=1" \
-	| jq '{ok,code,timedOut,repair:{stdout,stderr},verify:{ok: .verify.ok, summary: .verify.summary}}'
+kidx-hash:
+> test -n "$(HASH)" || (echo "usage: make kidx-hash HASH=<64-hex>"; exit 1)
+> curl -sS -X POST "$(FOLLOWER)/index/kidx/rebuild-shard?hash=$(HASH)" | jq .
 
-repair:
-	@curl -fsS -4 -X POST "http://127.0.0.1:4100/maintenance/auto-repair" \
-	| jq '{ok,code,timedOut,repair:{stdout,stderr},verify:{ok: .verify.ok, summary: .verify.summary}}'
+hello-now:
+> curl -sS $(PROPOSER)/p2p/hello-now | jq .
+> curl -sS $(FOLLOWER)/p2p/hello-now | jq .
 
-maintenance: verify repair_dry repair status
-
-# --- Helper lifecycle (reads SegStore directly) ---
-helper_start:
-	@mkdir -p logs
-	@fuser -k 4315/tcp 2>/dev/null || true
-	@nohup env DATA_DIR=data_a HELPER_PORT=4315 npx tsx src/http/api_autoboot.ts \
-	   > logs/helper_4315.log 2>&1 & \
-	&& sleep 1 \
-	&& curl -fsS -4 "http://127.0.0.1:4315/api/health" | jq .
-
-helper_stop:
-	@fuser -k 4315/tcp 2>/dev/null || true
-
-# --- Sync from helper -> main ---
-follow_once:
-	@curl -fsS -4 -X POST \
-	   "http://127.0.0.1:4100/follower/once?peer=http://127.0.0.1:4315" | jq .
-
-follow_helper:
-	@curl -fsS -4 -X POST \
-	   "http://127.0.0.1:4100/follower/start?peer=http://127.0.0.1:4315&intervalMs=2000" | jq .
-
-# --- Proposer controls ---
-propose_once:
-	@curl -fsS -4 -X POST "http://127.0.0.1:4100/blocks/once" | jq .
-
-propose_loop:
-	@curl -fsS -4 -X POST "http://127.0.0.1:4100/blocks/start?intervalMs=2000" | jq .
-
-# --- STEP-001 additions ---
-
-  # Additive Makefile targets; append to your Makefile
-  .PHONY: metrics-check peers-check follower-check
-
-  metrics-check:
-	curl -fsS http://127.0.0.1:4100/metrics | head -n 5 && echo OK || true
-
-  peers-check:
-	curl -fsS http://127.0.0.1:4100/p2p/peers | jq . || true
-
-  follower-check:
-	curl -fsS http://127.0.0.1:4101/p2p/peers | jq . || true
+stop:
+> bash scripts/boot.sh stop

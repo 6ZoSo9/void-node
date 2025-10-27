@@ -16,15 +16,18 @@ function nodeIdFromPublic(pub: crypto.KeyObject): string {
 }
 
 function isAsciiPEM(buf: Buffer): boolean {
-  const head = buf.slice(0, 64).toString("utf8");
-  return head.includes("-----BEGIN PRIVATE KEY-----") ||
-         head.includes("-----BEGIN ED25519 PRIVATE KEY-----");
+  const text = buf.toString("utf8");
+  return text.includes("-----BEGIN PRIVATE KEY-----")
+      || text.includes("-----BEGIN ED25519 PRIVATE KEY-----");
 }
 
-function isLikelyUtf8(buf: Buffer): boolean {
-  // fast check: no NUL bytes in the sample window
-  const n = Math.min(buf.length, 64);
-  for (let i = 0; i < n; i++) if (buf[i] === 0) return false;
+// Printable ASCII guard
+function isPrintableAscii(buf: Buffer): boolean {
+  for (let i = 0; i < buf.length; i++) {
+    const b = buf[i];
+    if (b === 9 || b === 10 || b === 13) continue; // \t \n \r
+    if (b < 32 || b > 126) return false;
+  }
   return true;
 }
 
@@ -43,25 +46,20 @@ function b64ToBuf(s: string): Buffer | null {
 }
 
 /**
- * Build minimal PKCS#8 DER for Ed25519 private key per RFC 8410:
- *
+ * PKCS#8 (RFC 8410) for Ed25519:
  * PrivateKeyInfo ::= SEQUENCE {
- *   version                   INTEGER { v1(0) } (v1,...),
- *   privateKeyAlgorithm       AlgorithmIdentifier,
- *   privateKey                OCTET STRING
+ *   version                   INTEGER 0,
+ *   privateKeyAlgorithm       AlgorithmIdentifier (OID 1.3.101.112),
+ *   privateKey                OCTET STRING  -- contains DER-encoded Ed25519 private key
  * }
  *
- * AlgorithmIdentifier for Ed25519:
- *   OID 1.3.101.112  (no params)
- *
- * The OCTET STRING is the raw 32-byte seed.
+ * OpenSSL expects the privateKey OCTET STRING to contain an inner OCTET STRING of the 32-byte seed.
  */
 function pkcs8Ed25519FromSeed(seed32: Buffer): Buffer {
   if (seed32.length !== 32) {
     throw new Error(`ed25519 seed must be 32 bytes, got ${seed32.length}`);
   }
 
-  // DER building helpers
   const derLen = (n: number) => {
     if (n < 0x80) return Buffer.from([n]);
     const bytes: number[] = [];
@@ -69,61 +67,99 @@ function pkcs8Ed25519FromSeed(seed32: Buffer): Buffer {
     while (x > 0) { bytes.unshift(x & 0xff); x >>= 8; }
     return Buffer.from([0x80 | bytes.length, ...bytes]);
   };
+
   const derInt0 = Buffer.from([0x02, 0x01, 0x00]); // INTEGER 0
-  // AlgorithmIdentifier = SEQUENCE { OID 1.3.101.112 }
-  // OID encoding: 1*40+3 = 43 (0x2B), then 101 (0x65), 112 (0x70)
+
+  // AlgorithmIdentifier = SEQUENCE { OID 1.3.101.112 } (no params)
   const oidEd25519 = Buffer.from([0x06, 0x03, 0x2B, 0x65, 0x70]);
   const algId = Buffer.concat([Buffer.from([0x30]), derLen(oidEd25519.length), oidEd25519]);
 
-  // privateKey OCTET STRING (raw 32-byte seed)
-  const pkOctet = Buffer.concat([Buffer.from([0x04]), derLen(seed32.length), seed32]);
+  // Inner OCTET STRING = 0x04 || len(32) || seed
+  const innerOctet = Buffer.concat([Buffer.from([0x04]), derLen(seed32.length), seed32]);
 
-  const seqBody = Buffer.concat([derInt0, algId, pkOctet]);
-  const top = Buffer.concat([Buffer.from([0x30]), derLen(seqBody.length), seqBody]);
+  // privateKey OCTET STRING wraps the inner OCTET STRING
+  const privateKey = Buffer.concat([Buffer.from([0x04]), derLen(innerOctet.length), innerOctet]);
 
-  return top;
+  const seqBody = Buffer.concat([derInt0, algId, privateKey]);
+  return Buffer.concat([Buffer.from([0x30]), derLen(seqBody.length), seqBody]);
 }
 
-// Try to interpret content as PEM first; if not PEM, try seed formats.
+// Canonical loader: prefer exact 32-byte binary seed, then PEM, then textual hex/base64
 function makePrivateKeyFromFile(p: string): crypto.KeyObject {
-  const raw = fs.readFileSync(p); // read as raw bytes
+  const raw = fs.readFileSync(p);
+
+  // 1) Exact 32-byte binary seed
+  if (raw.length === 32) {
+    const der = pkcs8Ed25519FromSeed(raw);
+    return crypto.createPrivateKey({ key: der, format: "der", type: "pkcs8" });
+  }
+
+  // 2) PEM
   if (isAsciiPEM(raw)) {
     const pem = raw.toString("utf8");
     return crypto.createPrivateKey(pem);
   }
 
-  // Not PEM: treat as seed
+  // 3) Text seed (hex/base64) if printable
   let seed: Buffer | null = null;
-
-  if (isLikelyUtf8(raw)) {
+  if (isPrintableAscii(raw)) {
     const txt = raw.toString("utf8").trim();
-    seed = hexToBuf(txt);
-    if (!seed) seed = b64ToBuf(txt);
+    seed = hexToBuf(txt) || b64ToBuf(txt);
   }
-  if (!seed && raw.length === 32) seed = raw; // pure 32-byte file
-
-  if (!seed) {
-    throw new Error("Unrecognized key file: not PEM and not a 32-byte seed (hex/base64/binary)");
+  if (!seed || seed.length !== 32) {
+    throw new Error("Unrecognized key file: expected PEM or a 32-byte seed (binary/hex/base64)");
   }
 
   const der = pkcs8Ed25519FromSeed(seed);
-  // Create PKCS#8 Ed25519 private key from DER
   return crypto.createPrivateKey({ key: der, format: "der", type: "pkcs8" });
 }
 
+function softModeWarning(pathToKey: string) {
+  try {
+    const st = fs.statSync(pathToKey);
+    // World/group readable? Warn (don’t fail) — cross-platform friendly.
+    // 0o077 are group/other bits; if any are set, warn.
+    // Only on POSIX-y platforms where mode is meaningful.
+    if ((st.mode & 0o077) !== 0) {
+      console.warn(`[keypair] warning: ${pathToKey} is too permissive (mode ${(
+        st.mode & 0o777
+      ).toString(8)}). Consider chmod 600.`);
+    }
+  } catch { /* ignore */ }
+}
+
+function ensureEd25519(k: crypto.KeyObject) {
+  const t = k.asymmetricKeyType;
+  if (t && t !== "ed25519") {
+    throw new Error(`key is ${t}, expected ed25519`);
+  }
+}
+
 // ---------- main API ----------
-export function loadKeypair(pemOrSeedPath: string): Keypair {
-  if (!fs.existsSync(pemOrSeedPath)) {
-    throw new Error(`key file not found: ${pemOrSeedPath}`);
-    // Do NOT auto-create keys here; the caller enforces presence.
+export function loadKeypair(pathToKey: string): Keypair {
+  if (!fs.existsSync(pathToKey)) {
+    throw new Error(`key file not found: ${pathToKey}`);
   }
 
-  const privateKey = makePrivateKeyFromFile(pemOrSeedPath);
+  softModeWarning(pathToKey);
+
+  const privateKey = makePrivateKeyFromFile(pathToKey);
+  ensureEd25519(privateKey);
+
   const publicKey = crypto.createPublicKey(privateKey);
+  ensureEd25519(publicKey);
 
   const pubPEM = publicKey.export({ type: "spki", format: "pem" }).toString();
   const nodeId = nodeIdFromPublic(publicKey);
 
   return { privateKey, publicKey, nodeId, pubPEM };
+}
+
+/** Optional: short printable fingerprint (SHA256 over SPKI, base64url, 8 chars). */
+export function publicKeyFingerprint(pub: crypto.KeyObject): string {
+  const der = pub.export({ type: "spki", format: "der" }) as Buffer;
+  const raw = crypto.createHash("sha256").update(der).digest();
+  // base64url, first 8 chars (good for logs/prompts)
+  return raw.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "").slice(0, 8);
 }
 

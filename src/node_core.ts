@@ -12,7 +12,6 @@ import { SegStore } from "./chain/seg_store.js";
 import { TxIndex } from "./chain/txindex.js";
 import { ReceiptsStore } from "./chain/receipts.js";
 import { buildKidxForJsonl } from "./util/kidx.js";
-import type { Keypair } from "./crypto/keypair.js";
 
 /** ---------- keypair shape we accept from loadKeypair() ---------- */
 type KeypairShape = {
@@ -121,14 +120,16 @@ export class Node {
   readonly peers: Map<string, Peer> = new Map();
   readonly pubsub = new PubSub();
 
-  readonly txIndex = new TxIndex(path.join("data", "index"));
-  readonly receipts = new ReceiptsStore(path.join("data", "receipts"), { shardSpan: 10_000 });
+  private readonly baseDir = process.env.DATA_DIR || "data";
+  readonly txIndex = new TxIndex(path.join(this.baseDir, "index"));
+  readonly receipts = new ReceiptsStore(path.join(this.baseDir, "receipts"), { shardSpan: 10_000 });
 
   private seen = new Set<string>();                 // pubsub message (topic:nonce) dedupe
   private seenTimestamps = new Map<string, number>();
   private readonly SEEN_TTL_MS = 5 * 60_000;
 
-  private txSeen = new Set<string>();               // NEW: tx hash dedupe across mempool + pubsub
+  private txSeen = new Map<string, number>();       // tx hash -> firstSeenMs (TTL GC below)
+  private readonly TX_TTL_MS = 30 * 60_000;
 
   private dialing = new Set<string>();
   private knownAddrs = new Set<string>();
@@ -149,9 +150,9 @@ export class Node {
   });
   readonly mempool = new Mempool();
   private proposerTimer: NodeJS.Timeout | null = null;
-  private blobsDir = path.join("data", "blobs");
+  private blobsDir = path.join(this.baseDir, "blobs");
 
-private allowEmptyBlocks = false;
+  private allowEmptyBlocks = false;
 
   // Single canonical constructor: sets keys and honors opts.allowEmptyBlocks
   constructor(public tcpPort: number, kp: KeypairShape, opts?: NodeOpts) {
@@ -165,12 +166,13 @@ private allowEmptyBlocks = false;
   }
 
   onHttpAnnounce?: (p: { id: string; http?: string; p2p?: string }) => void;
-  onSealed?: (b: Block, sealMs: number) => void;    // NEW: metrics-friendly hook
+  onSealed?: (b: Block, sealMs: number) => void;    // metrics-friendly hook
 
   server = net.createServer((sock) => this.onIncoming(sock));
+
   /** Rebuild compact tx index from blocks. */
   async rebuildTxIndex(): Promise<{ ok: true; blocks: number; indexed: number }> {
-    const idxDir = path.join("data", "index");
+    const idxDir = path.join(this.baseDir, "index");
     if (fs.existsSync(idxDir)) fs.rmSync(idxDir, { recursive: true, force: true });
     fs.mkdirSync(idxDir, { recursive: true });
 
@@ -207,7 +209,7 @@ private allowEmptyBlocks = false;
     this.knownAddrs.add(addr);
     console.log(`[void-node] started TCP on ${addr}, id=${this.id}`);
 
-    // GC dedup table
+    // GC dedup tables
     setInterval(() => {
       const now = Date.now();
       for (const [k, ts] of this.seenTimestamps) {
@@ -215,6 +217,9 @@ private allowEmptyBlocks = false;
           this.seenTimestamps.delete(k);
           this.seen.delete(k);
         }
+      }
+      for (const [h, ts] of this.txSeen) {
+        if (now - ts > this.TX_TTL_MS) this.txSeen.delete(h);
       }
     }, 30_000).unref?.();
   }
@@ -309,7 +314,6 @@ private allowEmptyBlocks = false;
         try {
           if (msg.topic === "void/tx") {
             const tx = JSON.parse(msg.data);
-            // NEW: funnel through validator/dedupe
             this.acceptTx(tx);
           } else if (msg.topic === "void/http") {
             const info = JSON.parse(msg.data);
@@ -347,10 +351,10 @@ private allowEmptyBlocks = false;
               }
             }
           } else {
-            // other topics: optionally log
+            // other topics: ignore
           }
         } catch {
-          /* ignore */
+          /* ignore bad payloads */
         }
       }
 
@@ -363,17 +367,15 @@ private allowEmptyBlocks = false;
     }
   }
 
-  /** NEW: canonical tx intake (validation + dedupe) */
+  /** canonical tx intake (validation + dedupe) */
   acceptTx(raw: any): boolean {
     if (!raw || typeof raw !== "object") return false;
     const h = String(raw.hash || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(h)) return false;
     if (this.txSeen.has(h)) return false;      // de-dupe globally
-    // normalize
     const tx = { hash: h, body: raw.body ?? {} };
-    this.txSeen.add(h);
-    // let mempool implementation do its thing (queue order etc.)
-    try { (this.mempool as any).push?.(tx); } catch { /* ignore */ }
+    this.txSeen.set(h, Date.now());
+    try { (this.mempool as any).push?.(tx); } catch {}
     return true;
   }
 
@@ -432,17 +434,14 @@ private allowEmptyBlocks = false;
     const sig = signBytes(this.priv, bytes);
     const msg: Msg = { type: "PUB", topic, data, from: this.id, nonce, sig, pubkey: this.pubPEM };
 
-    // Send to peers that are subscribed
     for (const p of this.peers.values()) {
       if (this.pubsub.subscribers(topic).has(p.id)) this.sendRaw(p, msg);
     }
 
-    // mark self-seen
     if (this.pubsub.subscribers(topic).has(this.id)) {
       const key = `${topic}:${nonce}`;
       this.seen.add(key);
       this.seenTimestamps.set(key, Date.now());
-      // no noisy logging
     }
   }
   publishJson(topic: string, obj: any) {
@@ -464,14 +463,41 @@ private allowEmptyBlocks = false;
     const MIN_MS = 1500;
     const MAX_MS = 20_000;
 
-    const fetchWithTimeout = async (url: string, ms = 5000) => {
+    const fetchWithTimeout = async (url: string, ms = 7000) => {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), ms);
       try {
-        return await fetch(url, { signal: ctrl.signal, headers: { "user-agent": "void-node/1 blob-fetch" } });
+        return await fetch(url, { signal: ctrl.signal, headers: { "user-agent": "void-node/1 blob-fetch" } } as any);
       } finally {
         clearTimeout(t);
       }
+    };
+
+    // Try several common endpoints and payload shapes
+    const tryFetchBlob = async (base: string, cid: string): Promise<Buffer | null> => {
+      const candidates = [
+        `${base}/blob/${cid}`,          // raw bytes (preferred by our code)
+        `${base}/blob/raw/${cid}`,     // alt
+        `${base}/blob/get/${cid}`,     // alt
+      ];
+      for (const url of candidates) {
+        try {
+          const r = await fetchWithTimeout(url);
+          if (!r?.ok) continue;
+          const ctype = String(r.headers.get("content-type") || "").toLowerCase();
+          if (ctype.includes("application/json")) {
+            const j: any = await r.json();
+            if (typeof j?.base64 === "string") return Buffer.from(j.base64, "base64");
+            if (typeof j?.text === "string") return Buffer.from(j.text, "utf8");
+            continue;
+          }
+          const buf = Buffer.from(await r.arrayBuffer());
+          return buf;
+        } catch {
+          /* keep trying */
+        }
+      }
+      return null;
     };
 
     while (this.blobFetchQ.length) {
@@ -481,20 +507,17 @@ private allowEmptyBlocks = false;
       let ok = false;
 
       for (const base of job.providers) {
-        try {
-          const url = `${base}/blob/${job.cid}`;
-          const r = await fetchWithTimeout(url, 7000);
-          if (!r.ok) continue;
-          const buf = Buffer.from(await r.arrayBuffer());
+        const buf = await tryFetchBlob(base, job.cid);
+        if (!buf) continue;
 
+        try {
           const computed = await cidForBytes(buf);
           if (computed !== job.cid) continue;
-
           await this.putBlobFromBuffer(buf);
           ok = true;
           break;
         } catch {
-          /* try next */
+          /* move to next provider */
         }
       }
 
@@ -554,7 +577,7 @@ private allowEmptyBlocks = false;
     return [];
   }
 
-async sealBlock(opts?: { allowEmptyOnce?: boolean }): Promise<{ ok: true; number: number; txs: number }> {
+  async sealBlock(opts?: { allowEmptyOnce?: boolean }): Promise<{ ok: true; number: number; txs: number }> {
     const t0 = Date.now();
 
     const parent = this.store.loadHeadNumber();
@@ -575,11 +598,10 @@ async sealBlock(opts?: { allowEmptyOnce?: boolean }): Promise<{ ok: true; number
 
     // Allow sealing an empty block if the one-shot flag is set OR global flag is enabled
     const allowEmpty = !!opts?.allowEmptyOnce || this.allowEmptyBlocks;
-    console.log("[sealBlock] allowEmpty decide", { once: !!opts?.allowEmptyOnce, global: this.allowEmptyBlocks, allowEmpty });
     if (txs.length === 0 && !allowEmpty) {
       return { ok: true, number: parent, txs: 0 };
     }
-    const blobs = discoverLocalBlobs();
+    const blobs = discoverLocalBlobs(this.baseDir);
     const roots = computeRoots(txs, blobs);
     const now = Date.now();
 
@@ -646,7 +668,7 @@ async sealBlock(opts?: { allowEmptyOnce?: boolean }): Promise<{ ok: true; number
     });
 
     const dt = Date.now() - t0;
-    this.onSealed?.(b, dt);  // NEW: metrics callback
+    this.onSealed?.(b, dt);
 
     return { ok: true, number: b.number, txs: b.txs?.length ?? 0 };
   }
@@ -654,8 +676,9 @@ async sealBlock(opts?: { allowEmptyOnce?: boolean }): Promise<{ ok: true; number
   /** follower: one-shot */
   async pullOnce(peerHttp: string, hooks?: { onImportBlock?: (b: any) => void }) {
     const myHead = this.store.loadHeadNumber();
-    const headRes = await fetch(`${peerHttp}/head`).then((r) => r.json()).catch(() => null);
-    const theirHead = Number(headRes?.head ?? -1);
+
+    const headRes: any = await fetch(`${peerHttp}/head`).then((r) => r.json()).catch(() => null);
+    const theirHead = Number((headRes as any)?.head ?? -1);
 
     if (!Number.isFinite(theirHead)) {
       return { ok: false, imported: 0, alreadyHad: 0, filled: 0, reason: "peer head unavailable" };
@@ -667,9 +690,10 @@ async sealBlock(opts?: { allowEmptyOnce?: boolean }): Promise<{ ok: true; number
     const from = myHead + 1;
     const to = theirHead;
 
-    const fetchRange = async () =>
+    const fetchRange = async (): Promise<any[]> =>
       await fetch(`${peerHttp}/blocks/range?from=${from}&to=${to}`)
         .then((r) => r.json())
+        .then((j) => (Array.isArray(j) ? j : []))
         .catch(() => []);
 
     let arr: any[] = await fetchRange();
@@ -802,8 +826,8 @@ async sealBlock(opts?: { allowEmptyOnce?: boolean }): Promise<{ ok: true; number
   }
 }
 
-function discoverLocalBlobs(): { cid: string; size: number }[] {
-  const dir = path.join("data", "blobs");
+function discoverLocalBlobs(baseDir = process.env.DATA_DIR || "data"): { cid: string; size: number }[] {
+  const dir = path.join(baseDir, "blobs");
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)

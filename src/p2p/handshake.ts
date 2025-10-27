@@ -1,67 +1,163 @@
-import * as crypto from "node:crypto";
-import { sign, verify, getPublicKey } from "@noble/ed25519";
-import { loadPrivateKeyPEM, sha256Utf8 } from "../util/crypto_helpers.js";
+// src/p2p/handshake.ts
+export type StartP2POpts = {
+  host?: string;
+  port: number;
+  bootstrap?: string[];
+  nodeId: string;
+  getHead: () => number;
+  onPeer?: (p: { id: string; host: string; port: number; seenAt: number }) => void;
+  log?: (...a: any[]) => void;
+};
 
-function stableJson(obj: unknown): string {
-  // stable order for hashing
-  return JSON.stringify(obj, Object.keys(obj as any).sort());
+export type P2PHandle = {
+  stop(): void;
+  /** Manually trigger an announce tick (useful in tests). */
+  tickNow(): void;
+  /** Replace the bootstrap set at runtime. */
+  updateBootstrap(addrs: string[]): void;
+  /** Is the worker running? */
+  isRunning(): boolean;
+};
+
+function dlog(opts: StartP2POpts, ...a: any[]) {
+  try { opts.log?.('[p2p-stub]', ...a); } catch {}
 }
-function newNonceHex(): string { return crypto.randomBytes(32).toString("hex"); }
-function hexToU8(hex: string): Uint8Array {
-  if (hex.length % 2) throw new Error("bad hex");
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i*2, i*2+2), 16);
+
+function dedupe(arr: string[] | undefined): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const s of arr || []) {
+    const t = String(s).trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
   return out;
 }
 
-/** Load 32-byte ed25519 private key bytes from a PKCS8 PEM on disk. */
-export function loadPrivKeyBytes(): Uint8Array {
-  const pem = loadPrivateKeyPEM(); // your helper returns PEM string from env path
-  const key = crypto.createPrivateKey(pem || "");
-  // Node exports PKCS8 DER; we need raw seed. For ed25519, export raw private key:
-  const raw = key.export({ format: 'der', type: 'pkcs8' }) as Buffer;
-  // If your helper can already return raw 32 bytes, prefer that and return directly.
-  // Fallback: accept hex in env (64 hex chars).
-  if (raw.length >= 48) {
-    // If you have a direct raw form exposed, replace this section with it.
-    // Here we assume a separate helper already does the right thing.
+/** Parse common address formats into {host, port}. Supports:
+ *  - "host:port"
+ *  - "[ipv6]:port"
+ *  - "http(s)://host[:port]" (port defaults 80/443)
+ */
+function parseAddr(s: string): { host: string; port: number } | null {
+  const txt = String(s || '').trim();
+  if (!txt) return null;
+
+  // URL form
+  if (/^https?:\/\//i.test(txt)) {
+    try {
+      const u = new URL(txt);
+      const def = u.protocol === 'https:' ? 443 : 80;
+      const port = Number(u.port || def);
+      const host = u.hostname;
+      if (!host || !Number.isFinite(port) || port <= 0) return null;
+      return { host, port };
+    } catch {
+      return null;
+    }
   }
-  // As a safe fallback, use random (dev only). Replace in production.
-  return crypto.randomBytes(32);
+
+  // [ipv6]:port
+  const m6 = /^\[([^[\]]+)\]:(\d+)$/.exec(txt);
+  if (m6) {
+    const host = m6[1];
+    const port = Number(m6[2]);
+    if (!Number.isFinite(port) || port <= 0) return null;
+    return { host, port };
+  }
+
+  // host:port (ipv4 or hostname)
+  const i = txt.lastIndexOf(':');
+  if (i > 0) {
+    const host = txt.slice(0, i);
+    const port = Number(txt.slice(i + 1));
+    if (!host || !Number.isFinite(port) || port <= 0) return null;
+    return { host, port };
+  }
+
+  return null;
 }
 
-export async function makeHello(nodeId: string, info?: { http?: number; p2p?: number }) {
-  const priv = loadPrivKeyBytes();
-  const pub = await getPublicKey(priv);
-  const nonce = newNonceHex();
-  const ts = Date.now();
+/**
+ * Minimal stub P2P:
+ * - No sockets; no external deps.
+ * - Immediately (and periodically) announces any bootstrap peers via onPeer().
+ * - Jittered interval to avoid thundering herd.
+ */
+export function startP2P(opts: StartP2POpts): P2PHandle {
+  const host = opts.host ?? '0.0.0.0';
+  const port = Number(opts.port);
+  if (!Number.isFinite(port) || port <= 0) {
+    throw new Error(`startP2P: invalid port: ${opts.port}`);
+  }
 
-  const msg = { v: 1, ts, nodeId, nonce, http: info?.http ?? null, p2p: info?.p2p ?? null };
-  const digestHex = sha256Utf8(stableJson(msg));   // hex string of SHA-256
-  const sig = await sign(Uint8Array.from(hexToU8(digestHex)), (priv instanceof Uint8Array ? priv : new Uint8Array(priv))); // sign bytes, not UTF-8 text
+  let running = true;
+  let timer: NodeJS.Timeout | null = null;
+
+  // normalized bootstrap list (deduped, trimmed)
+  let bootstrap = dedupe(opts.bootstrap);
+
+  // last announce time per peer id — informational; we still re-emit every tick
+  const lastAnnounced = new Map<string, number>();
+
+  const announceOnce = () => {
+    const seenAt = Date.now();
+    for (const raw of bootstrap) {
+      const ap = parseAddr(raw);
+      if (!ap) continue;
+      const id = `boot-${ap.host}:${ap.port}`;
+      lastAnnounced.set(id, seenAt);
+      try {
+        opts.onPeer?.({ id, host: ap.host, port: ap.port, seenAt });
+      } catch {
+        /* ignore listener errors */
+      }
+    }
+  };
+
+  const nextIntervalMs = (base = 30_000) => {
+    // jitter ±10% to stagger multiple nodes
+    const jitter = base * 0.1;
+    return Math.max(1000, Math.floor(base + (Math.random() * 2 - 1) * jitter));
+  };
+
+  const schedule = () => {
+    if (!running) return;
+    const ms = nextIntervalMs();
+    timer = setTimeout(tick, ms);
+    (timer as any).unref?.();
+  };
+
+  const tick = () => {
+    if (!running) return;
+    // Log a tiny heartbeat with current head for debugging
+    const head = Number(opts.getHead?.() ?? -1);
+    dlog(opts, `tick head=${head}, announcing ${bootstrap.length} bootstrap(s)`);
+    announceOnce();
+    schedule();
+  };
+
+  dlog(opts, `stub online at ${host}:${port} (nodeId=${opts.nodeId})`);
+  // fire immediately
+  tick();
 
   return {
-    ...msg,
-    pubkey: Buffer.from(pub).toString("hex"),
-    sig: Buffer.from(sig).toString("hex"),
+    stop() {
+      running = false;
+      if (timer) clearTimeout(timer);
+      timer = null;
+      dlog(opts, 'stub stopped');
+    },
+    tickNow() {
+      if (!running) return;
+      announceOnce();
+    },
+    updateBootstrap(addrs: string[]) {
+      bootstrap = dedupe(addrs);
+      dlog(opts, `bootstrap updated (${bootstrap.length})`);
+    },
+    isRunning() { return running; },
   };
 }
 
-export async function verifyHello(hello: any): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const { v, ts, nodeId, nonce, http, p2p, pubkey, sig } = hello ?? {};
-    if (v !== 1) return { ok:false, error:"bad version" };
-    if (typeof ts !== "number" || ts <= 0) return { ok:false, error:"bad ts" };
-    if (typeof nodeId !== "string" || !/^[0-9a-f]{16,64}$/i.test(nodeId)) return { ok:false, error:"bad nodeId" };
-    if (typeof nonce !== "string" || !/^[0-9a-f]{64}$/i.test(nonce)) return { ok:false, error:"bad nonce" };
-    if (typeof pubkey !== "string" || !/^[0-9a-f]{64}$/i.test(pubkey)) return { ok:false, error:"bad pubkey" };
-    if (typeof sig !== "string" || !/^[0-9a-f]{128}$/i.test(sig)) return { ok:false, error:"bad sig" };
-
-    const msg = { v, ts, nodeId, nonce, http: http ?? null, p2p: p2p ?? null };
-    const digestHex = sha256Utf8(stableJson(msg));
-    const ok = await verify((hexToU8(sig) instanceof Uint8Array ? hexToU8(sig) : new Uint8Array(hexToU8(sig))), (hexToU8(digestHex) instanceof Uint8Array ? hexToU8(digestHex) : new Uint8Array(hexToU8(digestHex))), (hexToU8(pubkey) instanceof Uint8Array ? hexToU8(pubkey) : new Uint8Array(hexToU8(pubkey))));
-    return ok ? { ok:true } : { ok:false, error:"signature invalid" };
-  } catch (e:any) {
-    return { ok:false, error:String(e?.message||e) };
-  }
-}

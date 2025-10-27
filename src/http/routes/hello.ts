@@ -1,10 +1,11 @@
+// src/http/routes/hello.ts
 // Registers a POST /hello route directly on a node:http server.
 // Validates a signed handshake with replay+skew protection.
 // Signature covers the canonical "nodeId|nonce|ts" string.
 
 import { IncomingMessage, ServerResponse } from "node:http";
-import * as url from 'node:url';
-import { sha256Utf8, verifyEd25519 } from "../../util/crypto_helpers";
+import * as url from "node:url";
+import * as crypto from "node:crypto";
 
 type HelloBody = {
   nodeId: string;      // peer logical id
@@ -29,7 +30,7 @@ function sweepSeen(now: number) {
 function readJson(req: IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    req.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
     req.on("end", () => {
       try {
         const raw = Buffer.concat(chunks).toString("utf8");
@@ -44,6 +45,23 @@ function writeJson(res: ServerResponse, status: number, payload: any) {
   try { res.writeHead(status, { "content-type": "application/json" }); } catch {}
   res.end(JSON.stringify(payload));
 }
+
+/* ---------- local crypto helpers (no external deps) ---------- */
+function sha256Utf8(s: string): Buffer {
+  return crypto.createHash("sha256").update(s, "utf8").digest();
+}
+
+function verifyEd25519(opts: { message: string; signatureB64: string; publicKeyPem: string }): boolean {
+  try {
+    const pub = crypto.createPublicKey(opts.publicKeyPem);
+    const sig = Buffer.from(opts.signatureB64, "base64");
+    // For Ed25519 in Node, the digest is done internally when passing `null` as algorithm.
+    return crypto.verify(null, Buffer.from(opts.message, "utf8"), pub, sig);
+  } catch {
+    return false;
+  }
+}
+/* ------------------------------------------------------------- */
 
 export function registerHelloRoute(server: any, opts?: {
   // If you pre-know peers, you can resolve nodeId -> publicKeyPem here.
@@ -87,7 +105,7 @@ export function registerHelloRoute(server: any, opts?: {
       // Canonical message
       const canonical = `${body.nodeId}|${body.nonce}|${body.ts}`;
 
-      // (Optional) include a digest for your logs/metrics (not part of signature)
+      // (Optional) include a digest for logs/metrics (not part of signature)
       const digestHex = sha256Utf8(canonical).toString("hex").slice(0, 16);
 
       // Verify signature

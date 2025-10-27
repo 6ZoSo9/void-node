@@ -1,0 +1,34 @@
+openapi: 3.0.0
+info:
+  title: void-node API
+  version: 0.1.0
+servers:
+  - url: http://localhost:4100
+paths:
+  /api/health:
+    get:
+      summary: Node health
+      responses:
+        '200':
+          description: ok
+  /tx:
+    post:
+      summary: Submit tx
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200': { description: ok }
+  /tx/lookup:
+    get:
+      summary: Lookup tx by hash
+      parameters:
+        - in: query
+          name: hash
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: ok }

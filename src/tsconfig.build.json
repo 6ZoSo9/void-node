@@ -1,25 +1,53 @@
 {
   "compilerOptions": {
+    /* ----- Target & libs ----- */
     "target": "ES2022",
-    "module": "ESNext",
+    "lib": ["ES2022"],
+
+    /* ----- ESM / NodeNext ----- */
+    "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "strict": true,
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+
+    /* ----- Project layout & emit ----- */
+    "rootDir": "src",
+    "outDir": "dist",
+    "sourceMap": true,
+    "noEmit": false,
     "noEmitOnError": true,
-    "esModuleInterop": true,
+    "incremental": true,
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+
+    /* ----- Type-checking rigor (balanced) ----- */
+    "strict": true,
+    "useUnknownInCatchVariables": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "outDir": "dist",
-    "rootDir": "src",
+
+    /* ----- Interop / quality-of-life ----- */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
+
+    /* ----- Declarations / JS intake ----- */
     "allowJs": false,
-    "declaration": false
+    "declaration": false,
+
+    /* ----- Env types ----- */
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
   "exclude": [
     "node_modules",
     "dist",
     "scripts/**/*",
-    "src/p2p/**/*"
+    "src/p2p/**/*",
+    "**/*.test.ts",
+    "**/__tests__/**"
   ]
 }
 
