@@ -60,8 +60,8 @@ start_follower() {
 
 peers_handshake() {
   echo "==> peer handshake"
-  curl -sf "http://127.0.0.1:${PROPOSER_HTTP}/p2p/hello-now" >/dev/null || true
-  curl -sf "http://127.0.0.1:${FOLLOWER_HTTP}/p2p/hello-now" >/dev/null || true
+#   curl -sf "http://127.0.0.1:${PROPOSER_HTTP}/p2p/hello-now" >/dev/null || true
+#   curl -sf "http://127.0.0.1:${FOLLOWER_HTTP}/p2p/hello-now" >/dev/null || true
 }
 
 kidx_build_all() {
@@ -83,8 +83,8 @@ sanity() {
   echo "==> /index/stats"
   curl -sS "http://127.0.0.1:${FOLLOWER_HTTP}/index/stats" | jq .
   echo "==> /metrics (peers/head)"
-  curl -sS "http://127.0.0.1:${PROPOSER_HTTP}/metrics" | grep -E 'peers_|head_number' || true
-  curl -sS "http://127.0.0.1:${FOLLOWER_HTTP}/metrics" | grep -E 'peers_|head_number' || true
+#   curl -sS "http://127.0.0.1:${PROPOSER_HTTP}/metrics" | grep -E 'peers_|head_number' || true
+#   curl -sS "http://127.0.0.1:${FOLLOWER_HTTP}/metrics" | grep -E 'peers_|head_number' || true
 }
 
 case "${1:-up}" in
@@ -100,7 +100,7 @@ case "${1:-up}" in
   follower) start_follower ;;
   kidx)      kidx_build_all ;;
   once)      curl -sS -X POST "http://127.0.0.1:${FOLLOWER_HTTP}/follower/once?peer=http://127.0.0.1:${PROPOSER_HTTP}" | jq . ;;
-  seal)      curl -sS -X POST "http://127.0.0.1:${PROPOSER_HTTP}/blocks/once?allowEmpty=1" | jq . ;;
+#   seal)      curl -sS -X POST "http://127.0.0.1:${PROPOSER_HTTP}/blocks/once?allowEmpty=1" | jq . ;;
   tx)
     ( cd "$ROOT_DIR"
       npx tsx src/tx/make_tx.ts "{\"note\":\"boot-$(date +%s)\"}" | tee /tmp/tx.json
