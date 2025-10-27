@@ -141,7 +141,6 @@ async function __main__() {
   registerFollowerRoutes(app, node, metrics);
   registerIndexExtras(app as any, node as any, metrics as any);
 
-import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
 
   const __kidxRebuildInFlight = new Set<string>();
   async function rebuildKidxOnce(p: string){

@@ -1,15 +1,15 @@
 import * as fs from "node:fs";
 import { buildKidxForJsonl } from "../../util/kidx.js";
 
-type AnyApp = any; // express app
-type AnyNode = any; // our Node instance
+type AnyApp = any;
+type AnyNode = any;
 type AnyMetrics = any;
 
 async function ensureKidxExists(jsonlPath: string, metrics: AnyMetrics): Promise<boolean> {
   const kidxPath = jsonlPath.replace(/\.jsonl$/, ".kidx");
   try {
     if (!fs.existsSync(kidxPath)) {
-      metrics.inc?.("kidx_missing_rebuilds", 1);
+      metrics?.inc?.("kidx_missing_rebuilds", 1);
       await buildKidxForJsonl(jsonlPath);
       console.log("[kidx] warm-built", jsonlPath);
       return true;
@@ -19,7 +19,7 @@ async function ensureKidxExists(jsonlPath: string, metrics: AnyMetrics): Promise
 }
 
 export function registerIndexExtras(app: AnyApp, node: AnyNode, metrics: AnyMetrics) {
-  // Background warmer: keep the newest shard's KIDX present
+  // Background warmer: keep newest shard’s KIDX present
   setInterval(async () => {
     try {
       const shards = node.txIndex.listShards().sort((a: any, b: any) => b.from - a.from);
@@ -28,7 +28,7 @@ export function registerIndexExtras(app: AnyApp, node: AnyNode, metrics: AnyMetr
     } catch {}
   }, 15000).unref?.();
 
-  // Rebuild all KIDX files (optionally force)
+  // POST /index/kidx/rebuild-all?force=1
   app.post("/index/kidx/rebuild-all", async (req: any, res: any) => {
     try {
       const force = String(req.query.force || "0") === "1";
@@ -45,7 +45,7 @@ export function registerIndexExtras(app: AnyApp, node: AnyNode, metrics: AnyMetr
     }
   });
 
-  // Quick substring search across recent shards (debug QoL)
+  // GET /tx/search?substr=<hex>&limitShards=3
   app.get("/tx/search", (req: any, res: any) => {
     const needle = String(req.query.substr || "").toLowerCase().replace(/[^0-9a-f]/g, "");
     const limit = Math.max(1, Math.min(20, Number(req.query.limitShards || 3)));
