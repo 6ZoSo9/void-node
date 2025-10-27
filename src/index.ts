@@ -139,6 +139,20 @@ async function __main__() {
   // Mount follower routes (needs metrics)
   registerFollowerRoutes(app, node, metrics);
 
+  const __kidxRebuildInFlight = new Set<string>();
+  async function rebuildKidxOnce(p: string){
+    if (__kidxRebuildInFlight.has(p)) return false;
+    __kidxRebuildInFlight.add(p);
+    try {
+      metrics.inc("kidx_missing_rebuilds", 1);
+      await buildKidxForJsonl(p);
+      console.log("[kidx] rebuilt-once", p);
+      return true;
+    } finally {
+      __kidxRebuildInFlight.delete(p);
+    }
+  }
+
   /* ===================== MAINTENANCE ===================== */
   app.get("/maintenance/verify", async (_req, res) => {
     try {
@@ -560,7 +574,7 @@ app.post("/index/kidx/rebuild-hash", async (req, res) => {
   });
 
   /* ===================== TX / RECEIPTS ===================== */
-app.get("/tx/lookup", (req, res) => {
+app.get("/tx/lookup", async (req, res) => {
   const hash = String(req.query.hash || "").toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
 
@@ -584,7 +598,8 @@ app.get("/tx/lookup", (req, res) => {
         if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
         const tx = (blk as any).txs?.[r2.o];
         // Opportunistic rebuild to refresh kidx for this shard.
-        try { metrics.inc("kidx_stale_rebuilds", 1); void buildKidxForJsonl(s.path); } catch {}
+        try { metrics.inc("kidx_stale_rebuilds", 1);
+        await rebuildKidxOnce(s.path); } catch {}
         return res.json({ ok: true, found: true, block: r2.n, offset: r2.o, tx });
       }
       continue;
@@ -596,6 +611,7 @@ app.get("/tx/lookup", (req, res) => {
       const blk = node.store.loadBlock(r.n);
       if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
       const tx = (blk as any).txs?.[r.o];
+      try { metrics.inc("kidx_missing_rebuilds", 1); await rebuildKidxOnce(s.path); } catch {}
       return res.json({ ok: true, found: true, block: r.n, offset: r.o, tx });
     }
   }
