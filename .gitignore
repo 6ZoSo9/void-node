@@ -7,3 +7,6 @@ dist/
 *.pem
 data*/
 coverage/
+.secrets/
+.nodekey*
+
