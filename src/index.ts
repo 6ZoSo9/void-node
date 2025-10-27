@@ -10,6 +10,10 @@ import { blockHash } from "./chain/block.js"
 import { buildAllKidx, buildKidxForJsonl, queryKidx } from "./util/kidx.js"
 import { PeerRegistry } from "./node_peer_registry.js"
 import { loadKeypair } from "./crypto/keypair.js"   // <-- ADDED
+import { loadEnv } from "./util/env.js"
+import { mountMetrics } from "./http/metrics.js"
+import { startP2P } from "./p2p/handshake.js"
+
 
 // ---- ENV BRIDGE (place at top of src/index.ts, before config constants) ----
 process.env.DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
@@ -157,6 +161,39 @@ node.onSealed = (b, dt) => {
 
   const app = express()
   app.use(express.json({ limit: "128mb" }))
+  const env = loadEnv()
+  mountMetrics(app)
+// Use your real getHead if you have it; fallback to heads.json
+const getHead = () => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('node:fs')
+    const h = JSON.parse(fs.readFileSync(`${env.DATA_DIR}/heads.json`, 'utf8'))
+    return (typeof h?.head === 'number') ? h.head : -1
+  } catch {
+    return -1
+  }
+}
+
+const nodeId = process.env.NODE_ID || (await import('node:crypto')).randomUUID()
+const peers = new Map<string, {id:string,addr:string,seenAt:number}>()
+
+const p2p = startP2P({
+  host: env.P2P_HOST,
+  port: env.P2P_PORT,
+  bootstrap: env.BOOTSTRAP_ADDRS,
+  nodeId,
+  getHead,
+  onPeer: (peer) => {
+    const addr = `${peer.host}:${peer.port}`
+    peers.set(addr, { id: peer.id, addr, seenAt: peer.seenAt })
+  },
+  log: (...a:any[]) => console.log(...a),
+})
+
+app.get('/p2p/peers', (_req, res) => {
+  res.json({ count: peers.size, peers: [...peers.values()] })
+})
 
   /* ===================== FOLLOWER TELEMETRY ===================== */
   type SyncState = {
