@@ -12,6 +12,7 @@ import { PeerRegistry } from "./node_peer_registry.js";
 import { loadKeypair } from "./crypto/keypair.js";
 import { loadEnv } from "./util/env.js";
 import { registerFollowerRoutes } from "./http/follower_routes.js";
+import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
 import { Metrics } from "./metrics.js";
 
 /* ---------------------------- ENV BRIDGE ---------------------------- */
@@ -138,6 +139,9 @@ async function __main__() {
 
   // Mount follower routes (needs metrics)
   registerFollowerRoutes(app, node, metrics);
+  registerIndexExtras(app as any, node as any, metrics as any);
+
+import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
 
   const __kidxRebuildInFlight = new Set<string>();
   async function rebuildKidxOnce(p: string){
