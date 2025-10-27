@@ -297,6 +297,34 @@ async function __main__() {
       res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
+app.post("/index/kidx/rebuild-hash", async (req, res) => {
+  try {
+    const hash = String(req.query.hash || "").toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
+
+    // Walk shards newest→oldest, try kidx first, then JSONL
+    const shards = node.txIndex.listShards().sort((a, b) => b.from - a.from);
+    for (const s of shards) {
+      const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
+      if (fs.existsSync(kidxPath)) {
+        const hit = queryKidx(kidxPath, hash);
+        if (hit.found) {
+          await buildKidxForJsonl(s.path);  // refresh
+          return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx: kidxPath });
+        }
+      }
+      const r = node.txIndex.lookupInShard(s.path, hash);
+      if (r.found) {
+        const kidx = s.path.replace(/\.jsonl$/, ".kidx");
+        await buildKidxForJsonl(s.path);
+        return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx });
+      }
+    }
+    return res.json({ ok: false, error: "hash not found in any shard" });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
 
   /* ===================== HEALTH / PEERS ===================== */
   app.get(["/health", "/api/health"], (_req, res) => {
@@ -557,7 +585,10 @@ app.get("/tx/lookup", (req, res) => {
         if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
         const tx = (blk as any).txs?.[r2.o];
         // Opportunistic rebuild to refresh kidx for this shard.
-        try { void buildKidxForJsonl(s.path); } catch {}
+        try { void buildtry {
+          metrics.inc("kidx_stale_rebuilds", 1);
+          void buildKidxForJsonl(s.path);
+        } catch {}
         return res.json({ ok: true, found: true, block: r2.n, offset: r2.o, tx });
       }
       continue;
