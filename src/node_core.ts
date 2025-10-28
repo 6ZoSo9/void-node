@@ -281,6 +281,26 @@ export class Node {
       p.listens = Array.isArray(msg.listen) ? msg.listen : [];
       this.peers.set(p.id, p);
       console.log(`[peer] HELLO -> ${p.id} @ ${p.addr} (they listen: ${p.listens.join(",") || "n/a"})`);
+// [void-node] PATCH: persist peer advertised listen/http (follower side)
+try {
+  const firstListen = (Array.isArray(p?.listens) && p.listens.length) ? String(p.listens[0]) : null;
+  const httpFromP2P = (addr) => {
+    if (!addr || typeof addr !== "string") return null;
+    const m = addr.match(/^([^:]+):(\d+)$/);
+    if (!m) return null;
+    const host = m[1], port = Number(m[2]);
+    // dev heuristic: :470x -> :410x
+    if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
+    return null;
+  };
+  if (this.peerRegistry?.upsert) {
+    const rec = this.peerRegistry.upsert(p.id, {});
+    if (firstListen) {
+      rec.p2pListen = firstListen;
+      if (!rec.httpAddr) rec.httpAddr = httpFromP2P(firstListen);
+    }
+  }
+} catch {}
 // [void-node] PATCH: persist theyListen/httpAddr into peerRegistry
 // --- BEGIN PATCH SNIPPET ---
 // Assume we are inside the HELLO handling block with vars like:
