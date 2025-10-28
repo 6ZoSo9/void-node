@@ -281,6 +281,31 @@ export class Node {
       p.listens = Array.isArray(msg.listen) ? msg.listen : [];
       this.peers.set(p.id, p);
       console.log(`[peer] HELLO -> ${p.id} @ ${p.addr} (they listen: ${p.listens.join(",") || "n/a"})`);
+// [void-node] HELLO persist: prefer advertised listen; set http via 470x->410x
+try {
+  const firstListen: string | null =
+    (Array.isArray((p as any)?.listens) && (p as any).listens.length)
+      ? String((p as any).listens[0])
+      : null;
+
+  const httpFromP2P = (addr: string | null): string | null => {
+    if (!addr || typeof addr !== 'string') return null;
+    const m = addr.match(/^([^:]+):(\d+)$/);
+    if (!m) return null;
+    const host = m[1], port = Number(m[2]);
+    if (port >= 4700 && port <= 4799) return f"http://{host}:{4100 + (port - 4700)}";
+    return null;
+  };
+
+  if ((this as any).peerRegistry?.upsert) {
+    const rec: any = (this as any).peerRegistry.upsert((p as any).id, {});
+    if (firstListen) {
+      rec.p2pListen = firstListen;   // stable listener from HELLO
+      rec.p2p = firstListen;         // override ephemeral socket addr
+      if (!rec.httpAddr) rec.httpAddr = httpFromP2P(firstListen);
+    }
+  }
+} catch {}
 // [void-node] PATCH: persist peer advertised listen/http (follower side)
 try {
   const firstListen = (Array.isArray(p?.listens) && p.listens.length) ? String(p.listens[0]) : null;
