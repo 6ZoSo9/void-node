@@ -418,7 +418,7 @@ try {
                   parentHash: String(hdr.parentHash || "").padStart(64, "0"),
                   txRoot: String(hdr.txRoot || "").toLowerCase(),
                   blobRoot: String(hdr.blobRoot || "").toLowerCase(),
-                  txs: [],
+                  txs: ((this as any)._devTxs txs: []txs: [] Array.isArray((this as any)._devTxs) ? (this as any)._devTxs.splice(0) : []),
                   blobs: [],
                   proposer: String(hdr.proposer || this.id),
                   sig: String(hdr.sig || ""),
