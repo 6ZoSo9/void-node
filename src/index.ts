@@ -137,6 +137,7 @@ async function __main__() {
 
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
+app.get("/api/health", (_req:any,res:any)=>res.json({ok:true, ts:Date.now()}));
 app.use(express.json()); // dev: body parser for /dev/emit-tx
   app.use(express.json({ limit: "128mb" }));
 
