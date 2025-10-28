@@ -1,73 +1,30 @@
-// src/types/p2p.ts
+// src/p2p/p2p.ts
+/**
+ * Small helpers shared by our P2P surfaces (heuristics, http inference, etc.)
+ */
 
-/** Minimal peer record used by the HTTP P2P routes. */
-export type PeerInfo = {
-  /** Canonical base URL for the peer (e.g., "http://127.0.0.1:4100") */
-  url: string;
-  /** Last successful /p2p/hello-now timestamp (ms). */
-  lastHelloAt?: number;
-  /** Whether we currently consider this peer connected/reachable. */
-  connected?: boolean;
-};
-
-/** Status shape for follower controls/endpoints. */
-export type FollowerStatus = {
-  running: boolean;
-  peer?: string;
-  intervalMs?: number;
-};
-
-/* -------------------------- tiny type guards -------------------------- */
-
-/** Runtime guard for PeerInfo. */
-export function isPeerInfo(x: unknown): x is PeerInfo {
-  if (!x || typeof x !== "object") return false;
-  const o = x as Record<string, unknown>;
-  if (typeof o.url !== "string" || o.url.length === 0) return false;
-  if (o.lastHelloAt !== undefined && (typeof o.lastHelloAt !== "number" || !Number.isFinite(o.lastHelloAt))) {
-    return false;
-  }
-  if (o.connected !== undefined && typeof o.connected !== "boolean") return false;
-  return true;
+/** Infer http base from a p2p address like 127.0.0.1:4701 -> http://127.0.0.1:4101 */
+export function httpBaseFromP2P(addr?: string): string | undefined {
+  if (!addr) return;
+  const m = addr.match(/^([^:]+):(\d+)$/);
+  if (!m) return;
+  const host = m[1], port = Number(m[2]);
+  if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
+  return;
 }
 
-/* ------------------------ normalization helpers ----------------------- */
-
-/**
- * Normalize a peer URL:
- * - Adds "http://" if missing scheme
- * - Strips trailing "/"
- * - Rejects obviously bad inputs
- * Returns null if it can't be normalized.
- */
-export function normalizePeerUrl(s: string | URL): string | null {
-  try {
-    const raw = String(s).trim();
-    if (!raw) return null;
-    const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
-    const u = new URL(withScheme);
-    if (!u.hostname) return null;
-    if (!u.port) return null; // we expect explicit port for node APIs
-    // canonical: lower-case protocol/host, keep port, strip trailing slash and path/query
-    const proto = u.protocol.toLowerCase();
-    const host = u.hostname.toLowerCase();
-    const origin = `${proto}//${host}:${u.port}`;
-    return origin;
-  } catch {
-    return null;
-  }
+/** Normalize bootstrap list from env string "a,b,c" */
+export function parseBootstrap(s?: string | null): string[] {
+  if (!s) return [];
+  return String(s)
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
 }
 
-/**
- * Merge partial fields into an existing PeerInfo (immutable).
- * Useful for registries that upsert flags like `connected` and `lastHelloAt`.
- */
-export function mergePeerInfo(base: PeerInfo, patch: Partial<PeerInfo>): PeerInfo {
-  const out: PeerInfo = {
-    url: base.url,
-    connected: patch.connected ?? base.connected,
-    lastHelloAt: patch.lastHelloAt ?? base.lastHelloAt,
-  };
-  return out;
+/** Quick backoff curve (ms) with caps */
+export function nextBackoff(prev: number, min = 500, max = 15000): number {
+  const p = Math.max(min, prev || min);
+  return Math.min(p * 2, max);
 }
 

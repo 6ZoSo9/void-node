@@ -1,4 +1,3 @@
-// src/node_core.ts
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as net from "node:net";
@@ -161,7 +160,6 @@ export class Node {
     this.pub = kp.publicKey;
     this.pubPEM = kp.pubPEM;
     this.allowEmptyBlocks = !!opts?.allowEmptyBlocks;
-    console.log("[node_core] ctor", { allowEmptyBlocks: this.allowEmptyBlocks });
     ensureDir(this.blobsDir);
   }
 
@@ -208,6 +206,12 @@ export class Node {
     this.listenAddrs.push(addr);
     this.knownAddrs.add(addr);
     console.log(`[void-node] started TCP on ${addr}, id=${this.id}`);
+
+    // Default topic subscriptions used across the stack
+    this.subscribe("void/tx");
+    this.subscribe("void/http");
+    this.subscribe("void/blob.announce");
+    this.subscribe("void/block");
 
     // GC dedup tables
     setInterval(() => {
@@ -264,6 +268,7 @@ export class Node {
       const ent = [...this.peers.entries()].find(([k]) => k === tempOrRealId || k.startsWith("?-"));
       if (!ent) return;
       const [tmpKey, p] = ent;
+
       const existing = this.peers.get(msg.id);
       if (existing) {
         if (existing.outbound && !p.outbound) {
@@ -275,103 +280,54 @@ export class Node {
           this.peers.delete(msg.id);
         }
       }
+
       this.peers.delete(tmpKey);
       p.id = msg.id;
       p.handshakeDone = true;
       p.listens = Array.isArray(msg.listen) ? msg.listen : [];
       this.peers.set(p.id, p);
+
       console.log(`[peer] HELLO -> ${p.id} @ ${p.addr} (they listen: ${p.listens.join(",") || "n/a"})`);
-// [void-node] HELLO persist: prefer advertised listen; set http via 470x->410x
-try {
-  const firstListen: string | null =
-    (Array.isArray((p as any)?.listens) && (p as any).listens.length)
-      ? String((p as any).listens[0])
-      : null;
 
-  const httpFromP2P = (addr: string | null): string | null => {
-    if (!addr || typeof addr !== 'string') return null;
-    const m = addr.match(/^([^:]+):(\d+)$/);
-    if (!m) return null;
-    const host = m[1], port = Number(m[2]);
-    if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
-    return null;
-  };
+      // Heuristic: infer their HTTP base from first p2p listen like 127.0.0.1:4701 -> http://127.0.0.1:4101
+      const firstListen: string | undefined = p.listens[0];
+      const httpFromP2P = (addr?: string): string | undefined => {
+        if (!addr) return undefined;
+        const m = addr.match(/^([^:]+):(\d+)$/);
+        if (!m) return undefined;
+        const host = m[1], port = Number(m[2]);
+        if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
+        return undefined;
+      };
+      const inferredHttp = httpFromP2P(firstListen);
+      if (inferredHttp) {
+        this.peerHttp.set(p.id, inferredHttp);
+        if (p.id !== this.id) this.onHttpAnnounce?.({ id: p.id, http: inferredHttp, p2p: firstListen });
+      }
 
-  if ((this as any).peerRegistry?.upsert) {
-    const rec: any = (this as any).peerRegistry.upsert((p as any).id, {});
-    if (firstListen) {
-      rec.p2pListen = firstListen;   // stable listener from HELLO
-      rec.p2p = firstListen;         // override ephemeral socket addr
-      if (!rec.httpAddr) rec.httpAddr = httpFromP2P(firstListen);
-    }
-  }
-} catch {}
-// [void-node] PATCH: persist peer advertised listen/http (follower side)
-try {
-  const firstListen = (Array.isArray(p?.listens) && p.listens.length) ? String(p.listens[0]) : null;
-  const httpFromP2P = (addr) => {
-    if (!addr || typeof addr !== "string") return null;
-    const m = addr.match(/^([^:]+):(\d+)$/);
-    if (!m) return null;
-    const host = m[1], port = Number(m[2]);
-    // dev heuristic: :470x -> :410x
-    if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
-    return null;
-  };
-  if (this.peerRegistry?.upsert) {
-    const rec = this.peerRegistry.upsert(p.id, {});
-    if (firstListen) {
-      rec.p2pListen = firstListen;
-      if (!rec.httpAddr) rec.httpAddr = httpFromP2P(firstListen);
-    }
-  }
-} catch {}
-// [void-node] PATCH: persist theyListen/httpAddr into peerRegistry
-// --- BEGIN PATCH SNIPPET ---
-// Assume we are inside the HELLO handling block with vars like:
-//   peerId, hello (contains theyListen or similar), registry = this.peerRegistry
-try {
-  const theyListen: string | null =
-    (hello?.p2pListen ?? hello?.theyListen ?? hello?.listen ?? null) || null;
-
-  const httpFromP2P = (addr: string | null): string | null => {
-    if (!addr || typeof addr !== "string") return null;
-    const m = addr.match(/^([^:]+):(\d+)$/);
-    if (!m) return null;
-    const host = m[1], port = Number(m[2]);
-    // dev heuristic: :470x -> :410x
-    if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
-    return null;
-  };
-
-  // Upsert or annotate registry record
-  if (this.peerRegistry?.upsert) {
-    const rec = this.peerRegistry.upsert(peerId, {} as any);
-    if (theyListen) {
-      (rec as any).p2pListen = theyListen;
-      (rec as any).httpAddr  = (rec as any).httpAddr || httpFromP2P(theyListen);
-    }
-  }
-} catch {}
-// --- END PATCH SNIPPET ---
+      // Merge peerset and send back PEERS + our current topic subs
       for (const a of p.listens) this.knownAddrs.add(a);
       const addrs = new Set<string>();
       for (const pp of this.peers.values()) for (const a of pp.listens) addrs.add(a);
       for (const a of this.listenAddrs) addrs.add(a);
+
       this.sendRaw(p, { type: "PEERS", addrs: [...addrs] });
       for (const t of this.myTopics) this.sendRaw(p, { type: "SUB", topic: t });
       return;
     }
+
     if (msg.type === "PEERS") {
       for (const a of msg.addrs) if (!this.isSelfAddress(a)) this.knownAddrs.add(a);
       for (const a of msg.addrs) if (this.shouldDial(a)) this.connect(a);
       return;
     }
+
     if (msg.type === "SUB") {
       if (!this.isKnownPeer(tempOrRealId)) return;
       this.pubsub.subscribe(tempOrRealId, msg.topic);
       return;
     }
+
     if (msg.type === "PUB") {
       const key = `${msg.topic}:${msg.nonce}`;
       if (this.seen.has(key)) return;
@@ -424,7 +380,7 @@ try {
               }
             }
           } else {
-            // other topics: ignore
+            // other topics: ignore for now
           }
         } catch {
           /* ignore bad payloads */
@@ -911,4 +867,3 @@ function discoverLocalBlobs(baseDir = process.env.DATA_DIR || "data"): { cid: st
       return { cid: f, size: st.size };
     });
 }
-

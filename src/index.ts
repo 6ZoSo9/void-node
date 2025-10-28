@@ -1,4 +1,4 @@
-import { registerDevRoutes } from "./http/dev_routes.js";
+import { registerDevRoutes } from "./http/dev_routes.js";              // ok if present; safely wrapped
 import express from "express";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -18,52 +18,53 @@ import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
 import { Metrics } from "./metrics.js";
 
 /* ---------------------------- ENV BRIDGE ---------------------------- */
-process.env.DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+process.env.DATA_DIR  = process.env.DATA_DIR  || process.env.VOID_DATA_DIR  || "data";
 process.env.HTTP_PORT = process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100";
-process.env.P2P_PORT = process.env.P2P_PORT || process.env.VOID_P2P_PORT || "4700";
-
-/* ------------------------------------------------------------------- */
+process.env.P2P_PORT  = process.env.P2P_PORT  || process.env.VOID_P2P_PORT  || "4700";
 
 /* ----------------------------- Config ------------------------------ */
 function firstEnv(...names: string[]): string | undefined {
   for (const n of names) {
-    const v = process.env[n];
+    const v = (process.env as any)[n];
     if (v !== undefined && v !== "") return v;
   }
 }
-function reqInt(names: string[], label: string): number {
-  const raw = firstEnv(...names);
-  if (raw === undefined) throw new Error(`Missing required env: ${label} (${names.join(" or ")})`);
+function reqInt(names: string[] | string, label: string): number {
+  const arr = Array.isArray(names) ? names : [names];
+  const raw = firstEnv(...arr);
+  if (raw === undefined) throw new Error(`Missing required env: ${label} (${arr.join(" or ")})`);
   const n = Number(raw);
   if (!Number.isInteger(n) || n <= 0) throw new Error(`Invalid integer for ${label}: ${raw}`);
   return n;
 }
-function reqStr(names: string[], label: string): string {
-  const v = firstEnv(...names);
-  if (!v) throw new Error(`Missing required env: ${label} (${names.join(" or ")})`);
+function reqStr(names: string[] | string, label: string): string {
+  const arr = Array.isArray(names) ? names : [names];
+  const v = firstEnv(...arr);
+  if (!v) throw new Error(`Missing required env: ${label} (${arr.join(" or ")})`);
   return v;
 }
 
-const DATA_DIR = reqStr(["VOID_DATA_DIR", "DATA_DIR"], "DATA_DIR");
-const HTTP_PORT = reqInt(["VOID_HTTP_PORT", "HTTP_PORT"], "HTTP_PORT");
-const P2P_PORT = reqInt(["VOID_P2P_PORT", "P2P_PORT"], "P2P_PORT");
-const MAX_BLOB_MB = Number(firstEnv("MAX_BLOB_MB") ?? 8);
-const PROTO_VER = 1;
+const DATA_DIR     = reqStr(["VOID_DATA_DIR", "DATA_DIR"], "DATA_DIR");
+const HTTP_PORT    = reqInt(["VOID_HTTP_PORT", "HTTP_PORT"], "HTTP_PORT");
+const P2P_PORT     = reqInt(["VOID_P2P_PORT", "P2P_PORT"], "P2P_PORT");
+const MAX_BLOB_MB  = Number(firstEnv("MAX_BLOB_MB") ?? 8);
+const PROTO_VER    = 1;
 const ALLOW_EMPTY_BLOCKS = firstEnv("ALLOW_EMPTY_BLOCKS") === "1";
 
 // Accept both BOOTSTRAP and BOOTSTRAP_ADDRS; also merge loadEnv() later.
 const BOOTSTRAP_RAW = (firstEnv("BOOTSTRAP_ADDRS", "BOOTSTRAP") || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+  .split(",").map((s) => s.trim()).filter(Boolean);
 
 // Require a key file path; do not auto-generate
-const KEY_PATH = path.resolve(reqStr(["NODE_PRIVKEY_PATH","KEY_FILE","VOID_NODE_KEY_A"], "node private key path"));
+const KEY_PATH = path.resolve(
+  reqStr(["NODE_PRIVKEY_PATH", "KEY_FILE", "VOID_NODE_KEY_A"], "node private key path")
+);
 
 console.log("[void-node] config", { DATA_DIR, HTTP_PORT, P2P_PORT, KEY_PATH });
 
-/* Optional legacy helper (safe to keep) */
-const __apiSegStore = new SegStore(DATA_DIR, { segmentMaxBytes: 8 * 1024 * 1024, sparseEvery: 16 });
+/* Optional legacy helper (safe to keep for scripts/tests) */
+const __apiSegStore = 
+new SegStore(DATA_DIR, { segmentMaxBytes: 8 * 1024 * 1024, sparseEvery: 16 } as any);
 
 /* ------------------------- Top-level main -------------------------- */
 async function __main__() {
@@ -90,7 +91,7 @@ async function __main__() {
   const node = new Node(P2P_PORT, kp, { allowEmptyBlocks: ALLOW_EMPTY_BLOCKS });
   await node.start();
 
-  // If your Node still exposes an onSealed callback, wire it; otherwise we track via endpoints.
+  // Optional: if Node exposes onSealed, wire it (harmless if absent)
   if ("onSealed" in (node as any)) {
     (node as any).onSealed = (b: any, dt: number) => {
       metrics.inc("blocks_sealed", 1);
@@ -104,62 +105,51 @@ async function __main__() {
 
   const peersReg = new PeerRegistry();
 
-  // Keep peer-registry in sync with HTTP announcements
+  // Sync peer-registry when HTTP announcements arrive
   ;(node as any).onHttpAnnounce = ({ id, http }: any) => {
     try {
       if (!id) return;
       peersReg.upsert({ id, http, capabilities: ["blob", "tx", "block"] });
       (metrics.gauges as any).peers_known = peersReg.count();
       if (http && selfAdvert.httpBase && selfAdvert.p2pListen) {
-        void upsertRemotePeer(http, node.id, selfAdvert.httpBase, selfAdvert.p2pListen);
+        void upsertRemotePeer(http, (node as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
       }
     } catch {}
   };
 
-  // Subscribe to topics we actually use
-  node.subscribe("void/hello");
-  node.subscribe("void/tx");
-  node.subscribe("void/blob.announce");
-  node.subscribe("void/block");
-  node.subscribe("void/http");
-
-  /* ---------- bootstrap dialing ---------- */
+  /* ---------- bootstrap dialing (placeholder; actual dialing lives in node_core) ---------- */
   const env = loadEnv(); // may include BOOTSTRAP_ADDRS, ports, etc.
-  const mergedBootstrap = new Set<string>([
-    ...BOOTSTRAP_RAW,
-    ...((env as any).BOOTSTRAP_ADDRS || []),
-  ]);
-  for (const a of mergedBootstrap) {
-    try {
-      node.connect(a);
-    } catch {}
+  const mergedBootstrap = new Set<string>([...BOOTSTRAP_RAW, ...((env as any).BOOTSTRAP_ADDRS || [])]);
+  for (const _a of mergedBootstrap) {
+    // dialing handled by Node; we keep env merge here for logging & future hooks
   }
 
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
-app.get("/api/health", (_req:any,res:any)=>res.json({ok:true, ts:Date.now()}));
-app.use(express.json()); // dev: body parser for /dev/emit-tx
   app.use(express.json({ limit: "128mb" }));
 
-  // Mount follower routes (needs metrics)
+  // Dev routes (safe if not present)
+  try { if (typeof registerDevRoutes === "function") registerDevRoutes(app as any, node as any); } catch {}
+
+  // --- minimal mempool-backed tx submit route (dev only) ---
+  const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
+  app.post("/tx/submit", async (req, res) => {
+    try {
+      const tx = req.body && typeof req.body === "object" ? req.body : null;
+      if (!tx || typeof tx.data !== "string" || !tx.data.length)
+        return res.status(400).json({ ok:false, error:"expected {data:string}" });
+      await fs.promises.mkdir(path.dirname(MEMPOOL), { recursive: true });
+      await fs.promises.appendFile(MEMPOOL, JSON.stringify({ data: tx.data, ts: Date.now() }) + "\n");
+      return res.json({ ok:true });
+    } catch (err) {
+      return res.status(500).json({ ok:false, error: String((err as any)?.message ?? err) });
+    }
+  });
+
+  // Mount follower + P2P + KIDX-extra routes
   registerFollowerRoutes(app, node, metrics);
   registerP2PRoutes(app as any, node as any);
   registerIndexExtras(app as any, node as any, metrics as any);
-
-
-  const __kidxRebuildInFlight = new Set<string>();
-  async function rebuildKidxOnce(p: string){
-    if (__kidxRebuildInFlight.has(p)) return false;
-    __kidxRebuildInFlight.add(p);
-    try {
-      metrics.inc("kidx_missing_rebuilds", 1);
-      await buildKidxForJsonl(p);
-      console.log("[kidx] rebuilt-once", p);
-      return true;
-    } finally {
-      __kidxRebuildInFlight.delete(p);
-    }
-  }
 
   /* ===================== MAINTENANCE ===================== */
   app.get("/maintenance/verify", async (_req, res) => {
@@ -299,6 +289,15 @@ app.use(express.json()); // dev: body parser for /dev/emit-tx
               await buildKidxForJsonl(s.path);
               return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx: kidxPath });
             }
+            const r2 = (node as any).txIndex.lookupInShard(s.path, hash);
+            if (r2.found) {
+              await buildKidxForJsonl(s.path);
+              return res.json({
+                ok: true,
+                shard: { from: s.from, to: s.to },
+                kidx: s.path.replace(/\.jsonl$/, ".kidx"),
+              });
+            }
             continue;
           }
           const r = (node as any).txIndex.lookupInShard(s.path, hash);
@@ -318,34 +317,33 @@ app.use(express.json()); // dev: body parser for /dev/emit-tx
       res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
-app.post("/index/kidx/rebuild-hash", async (req, res) => {
-  try {
-    const hash = String(req.query.hash || "").toLowerCase();
-    if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
 
-    // Walk shards newest→oldest, try kidx first, then JSONL
-    const shards = node.txIndex.listShards().sort((a, b) => b.from - a.from);
-    for (const s of shards) {
-      const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
-      if (fs.existsSync(kidxPath)) {
-        const hit = queryKidx(kidxPath, hash);
-        if (hit.found) {
-          await buildKidxForJsonl(s.path);  // refresh
-          return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx: kidxPath });
+  app.post("/index/kidx/rebuild-hash", async (req, res) => {
+    try {
+      const hash = String(req.query.hash || "").toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
+
+      const shards = (node as any).txIndex.listShards().sort((a: any, b: any) => b.from - a.from);
+      for (const s of shards) {
+        const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
+        if (fs.existsSync(kidxPath)) {
+          const hit = queryKidx(kidxPath, hash);
+          if (hit.found) {
+            await buildKidxForJsonl(s.path);  // refresh
+            return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx: kidxPath });
+          }
+        }
+        const r = (node as any).txIndex.lookupInShard(s.path, hash);
+        if (r.found) {
+          await buildKidxForJsonl(s.path);
+          return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx: s.path.replace(/\.jsonl$/, ".kidx") });
         }
       }
-      const r = node.txIndex.lookupInShard(s.path, hash);
-      if (r.found) {
-        const kidx = s.path.replace(/\.jsonl$/, ".kidx");
-        await buildKidxForJsonl(s.path);
-        return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx });
-      }
+      return res.json({ ok: false, error: "hash not found in any shard" });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-    return res.json({ ok: false, error: "hash not found in any shard" });
-  } catch (e: any) {
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
+  });
 
   /* ===================== HEALTH / PEERS ===================== */
   app.get(["/health", "/api/health"], (_req, res) => {
@@ -364,7 +362,7 @@ app.post("/index/kidx/rebuild-hash", async (req, res) => {
     res.json({ ok: true, head: (node as any).store.loadHeadNumber() });
   });
 
-  app.get("/peers", (_req, res) => res.json({ ok: true, ...(node as any).peersSnapshot() }));
+  app.get("/peers", (_req, res) => res.json({ ok: true, ...(node as any).peersSnapshot?.() }));
 
   /* Peer registry QoL */
   app.get("/peers/registry", (_req, res) => {
@@ -582,50 +580,58 @@ app.post("/index/kidx/rebuild-hash", async (req, res) => {
   });
 
   /* ===================== TX / RECEIPTS ===================== */
-app.get("/tx/lookup", async (req, res) => {
-  const hash = String(req.query.hash || "").toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
-
-  const shards = node.txIndex.listShards().sort((a, b) => b.from - a.from);
-  for (const s of shards) {
-    const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
-
-    // If we have a KIDX, try it first…
-    if (fs.existsSync(kidxPath)) {
-      const hit = queryKidx(kidxPath, hash);
-      if (hit.found) {
-        const blk = node.store.loadBlock(hit.n!);
-        if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
-        const tx = (blk as any).txs?.[hit.o!];
-        return res.json({ ok: true, found: true, block: hit.n, offset: hit.o, tx });
-      }
-      // …then fall back to scanning JSONL if KIDX misses (stale kidx case).
-      const r2 = node.txIndex.lookupInShard(s.path, hash);
-      if (r2.found) {
-        const blk = node.store.loadBlock(r2.n);
-        if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
-        const tx = (blk as any).txs?.[r2.o];
-        // Opportunistic rebuild to refresh kidx for this shard.
-        try { metrics.inc("kidx_stale_rebuilds", 1);
-        await rebuildKidxOnce(s.path); } catch {}
-        return res.json({ ok: true, found: true, block: r2.n, offset: r2.o, tx });
-      }
-      continue;
-    }
-
-    // No KIDX present: scan JSONL
-    const r = node.txIndex.lookupInShard(s.path, hash);
-    if (r.found) {
-      const blk = node.store.loadBlock(r.n);
-      if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
-      const tx = (blk as any).txs?.[r.o];
-      try { metrics.inc("kidx_missing_rebuilds", 1); await rebuildKidxOnce(s.path); } catch {}
-      return res.json({ ok: true, found: true, block: r.n, offset: r.o, tx });
+  const __kidxRebuildInFlight = new Set<string>();
+  async function rebuildKidxOnce(p: string){
+    if (__kidxRebuildInFlight.has(p)) return false;
+    __kidxRebuildInFlight.add(p);
+    try {
+      metrics.inc("kidx_missing_rebuilds", 1);
+      await buildKidxForJsonl(p);
+      console.log("[kidx] rebuilt-once", p);
+      return true;
+    } finally {
+      __kidxRebuildInFlight.delete(p);
     }
   }
-  return res.json({ ok: true, found: false });
-});
 
+  app.get("/tx/lookup", async (req, res) => {
+    const hash = String(req.query.hash || "").toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
+
+    const shards = (node as any).txIndex.listShards().sort((a: any, b: any) => b.from - a.from);
+    for (const s of shards) {
+      const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
+
+      if (fs.existsSync(kidxPath)) {
+        const hit = queryKidx(kidxPath, hash);
+        if (hit.found) {
+          const blk = (node as any).store.loadBlock(hit.n!);
+          if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
+          const tx = (blk as any).txs?.[hit.o!];
+          return res.json({ ok: true, found: true, block: hit.n, offset: hit.o, tx });
+        }
+        const r2 = (node as any).txIndex.lookupInShard(s.path, hash);
+        if (r2.found) {
+          const blk = (node as any).store.loadBlock(r2.n);
+          if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
+          const tx = (blk as any).txs?.[r2.o];
+          try { metrics.inc("kidx_stale_rebuilds", 1); await rebuildKidxOnce(s.path); } catch {}
+          return res.json({ ok: true, found: true, block: r2.n, offset: r2.o, tx });
+        }
+        continue;
+      }
+
+      const r = (node as any).txIndex.lookupInShard(s.path, hash);
+      if (r.found) {
+        const blk = (node as any).store.loadBlock(r.n);
+        if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
+        const tx = (blk as any).txs?.[r.o];
+        try { metrics.inc("kidx_missing_rebuilds", 1); await rebuildKidxOnce(s.path); } catch {}
+        return res.json({ ok: true, found: true, block: r.n, offset: r.o, tx });
+      }
+    }
+    return res.json({ ok: true, found: false });
+  });
 
   app.get("/tx/receipt", (req, res) => {
     const hash = String(req.query.hash || "").toLowerCase();
@@ -885,3 +891,4 @@ __main__().catch((e) => {
   console.error(e);
   process.exitCode = 1;
 });
+

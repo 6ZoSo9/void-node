@@ -1,10 +1,17 @@
 {
   "name": "void-node",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
+  "description": "VOID Chain local node (dev/proposer/follower) with HTTP + P2P, kidx/receipts, metrics, and CLI.",
   "type": "module",
+  "license": "MIT",
   "engines": {
     "node": ">=18.17"
+  },
+  "packageManager": "npm@>=9",
+  "main": "src/index.ts",
+  "bin": {
+    "voidctl": "src/cli.ts"
   },
   "scripts": {
     "dev": "tsx src/index.ts",
@@ -31,7 +38,16 @@
     "cli:mempool": "BASE=http://127.0.0.1:4100 tsx src/cli.ts mempool",
     "cli:once": "BASE=http://127.0.0.1:4100 tsx src/cli.ts once --empty",
     "cli:start-proposer": "BASE=http://127.0.0.1:4100 tsx src/cli.ts start-proposer 5000",
-    "cli:follow-start": "BASE=http://127.0.0.1:4101 tsx src/cli.ts follow-start http://127.0.0.1:4100 1000"
+    "cli:follow-start": "BASE=http://127.0.0.1:4101 tsx src/cli.ts follow-start http://127.0.0.1:4100 1000",
+
+    "// ===== Ops & Maintenance (via HTTP API) =====": "────────",
+    "index:rebuild": "BASE=http://127.0.0.1:4100 tsx src/cli.ts index-rebuild",
+    "index:build": "BASE=http://127.0.0.1:4100 tsx src/cli.ts index-build",
+    "index:gc": "BASE=http://127.0.0.1:4100 tsx src/cli.ts index-gc 2",
+    "receipts:stats": "BASE=http://127.0.0.1:4100 tsx src/cli.ts receipts-stats",
+    "receipts:gc": "BASE=http://127.0.0.1:4100 tsx src/cli.ts receipts-gc 2",
+    "sync:status": "BASE=http://127.0.0.1:4100 tsx src/cli.ts sync-status",
+    "metrics": "BASE=http://127.0.0.1:4100 tsx src/cli.ts metrics"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -43,6 +59,19 @@
     "tsx": "^4.17.0",
     "typescript": "^5.6.3"
   },
-  "packageManager": "npm@>=9"
+  "optionalDependencies": {
+    "@chainsafe/libp2p-noise": "^15.1.3",
+    "@chainsafe/libp2p-yamux": "^7.1.2",
+    "@libp2p/identify": "^2.0.14",
+    "@libp2p/tcp": "^9.6.1",
+    "libp2p": "^1.6.0"
+  },
+  "peerDependenciesMeta": {
+    "@chainsafe/libp2p-noise": { "optional": true },
+    "@chainsafe/libp2p-yamux": { "optional": true },
+    "@libp2p/identify": { "optional": true },
+    "@libp2p/tcp": { "optional": true },
+    "libp2p": { "optional": true }
+  }
 }
 

@@ -1,74 +1,23 @@
 // src/chain/mempool.ts
-export type Tx = { hash: string; body: Record<string, any> };
+export type MemTx = { hash: string; body?: any };
 
-/**
- * FIFO mempool with global hash de-duplication.
- * - `seen` set is NOT cleared by drains to resist replay/spam.
- * - Compatible with all access patterns used by Node:
- *   - drain/popMany/take(max?), peekAll(), clear(), push()
- */
 export class Mempool {
-  private order: Tx[] = [];         // FIFO queue
-  private seen = new Set<string>(); // global hash de-duplication
+  private q: MemTx[] = [];
 
-  /** Add a tx if new (by 64-hex hash); normalizes hash to lowercase. */
-  push(tx: Tx): void {
-    if (!tx || typeof tx !== "object") throw new Error("tx must be an object");
-    const h = String((tx as any).hash || "").toLowerCase();
-    if (!/^[0-9a-f]{64}$/.test(h)) throw new Error("bad tx hash");
-    const body = (tx as any).body;
-    if (typeof body !== "object" || body === null || Array.isArray(body)) {
-      throw new Error("tx.body must be an object");
-    }
-    if (this.seen.has(h)) return; // de-dupe across lifetime
-    this.seen.add(h);
-    this.order.push({ hash: h, body });
+  push(tx: MemTx) {
+    if (!tx || typeof tx !== "object") return;
+    if (!/^[0-9a-f]{64}$/i.test(String(tx.hash || ""))) return;
+    this.q.push({ hash: String(tx.hash).toLowerCase(), body: tx.body ?? {} });
   }
 
-  /** Number of queued txs. */
-  size(): number {
-    return this.order.length;
-  }
+  peekAll(): MemTx[] { return this.q.slice(); }
+  clear() { this.q.length = 0; }
 
-  /** True if we’ve ever seen this tx hash (even if drained). */
-  has(hash: string): boolean {
-    return this.seen.has(String(hash || "").toLowerCase());
+  drain(max?: number): MemTx[] {
+    if (!max || max >= this.q.length) { const a = this.q; this.q = []; return a; }
+    return this.q.splice(0, max);
   }
-
-  /** Shallow copy of current queue (no removal). */
-  peekAll(): Tx[] {
-    return this.order.slice();
-  }
-
-  /** Remove and return up to `max` oldest txs (default: all). */
-  drain(max?: number): Tx[] {
-    if (!this.order.length) return [];
-    const limit = Number.isFinite(max as number) ? Math.max(0, Number(max)) : this.order.length;
-    if (limit <= 0) return [];
-    const n = Math.min(limit, this.order.length);
-    const out = this.order.slice(0, n);
-    this.order = this.order.slice(n);
-    return out;
-  }
-
-  /** Alias of drain(max) for compatibility. */
-  popMany(max?: number): Tx[] {
-    return this.drain(max);
-  }
-
-  /** Another alias used by some callers. */
-  take(max?: number): Tx[] {
-    return this.drain(max);
-  }
-
-  /** Clear only the queue (keep `seen` for spam resistance). */
-  clear(): void {
-    this.order = [];
-  }
-
-  /** Testing helper: forget dedupe history. Not used in production paths. */
-  _resetSeen(): void {
-    this.seen.clear();
-  }
+  popMany(max = 1000): MemTx[] { return this.drain(max); }
+  take(max = 1000): MemTx[] { return this.drain(max); }
 }
 
