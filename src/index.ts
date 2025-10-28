@@ -1,3 +1,4 @@
+import { registerDevRoutes } from "./http/dev_routes.js";
 import express from "express";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -136,6 +137,7 @@ async function __main__() {
 
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
+app.use(require("express").json()); // dev: body parser for /dev/emit-tx
   app.use(express.json({ limit: "128mb" }));
 
   // Mount follower routes (needs metrics)
