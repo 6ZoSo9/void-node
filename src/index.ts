@@ -13,8 +13,10 @@ import { PeerRegistry } from "./node_peer_registry.js";
 import { loadKeypair } from "./crypto/keypair.js";
 import { loadEnv } from "./util/env.js";
 import { registerFollowerRoutes } from "./http/follower_routes.js";
+import { registerTxRoutes } from "./http/tx_routes.js";
 import { registerP2PRoutes } from "./http/p2p_routes.js";
 import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
+import { registerBlockExtras } from "./http/blocks_extras.js";
 import { Metrics } from "./metrics.js";
 
 /* ---------------------------- ENV BRIDGE ---------------------------- */
@@ -127,6 +129,8 @@ async function __main__() {
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   app.use(express.json({ limit: "128mb" }));
+  // tx routes must come right after body parser
+  registerTxRoutes(app);
 
   // Dev routes (safe if not present)
   try { if (typeof registerDevRoutes === "function") registerDevRoutes(app as any, node as any); } catch {}
@@ -148,8 +152,12 @@ async function __main__() {
 
   // Mount follower + P2P + KIDX-extra routes
   registerFollowerRoutes(app, node, metrics);
+// DUPLICATE DISABLED ->   registerTxRoutes(app);
+  registerBlockExtras(app);
   registerP2PRoutes(app as any, node as any);
+// DUPLICATE DISABLED -> // DUPLICATE DISABLED -> registerTxRoutes(app);
   registerIndexExtras(app as any, node as any, metrics as any);
+// DUPLICATE DISABLED -> // DUPLICATE DISABLED -> registerTxRoutes(app);
 
   /* ===================== MAINTENANCE ===================== */
   app.get("/maintenance/verify", async (_req, res) => {
