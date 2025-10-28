@@ -283,34 +283,6 @@ export class Node {
       console.log(`[peer] HELLO -> ${p.id} @ ${p.addr} (they listen: ${p.listens.join(",") || "n/a"})`);
 // [void-node] PATCH: persist peer advertised listen/http (follower side)
 try {
-  // 'p' is the peer record in the HELLO handler scope
-  const firstListen: string | null =
-    (Array.isArray((p as any)?.listens) && (p as any).listens.length)
-      ? String((p as any).listens[0])
-      : null;
-
-  const httpFromP2P = (addr: string | null): string | null => {
-    if (!addr || typeof addr !== 'string') return null;
-    const m = addr.match(/^([^:]+):(\d+)$/);
-    if (!m) return null;
-    const host = m[1], port = Number(m[2]);
-    // dev heuristic: :470x -> :410x
-    if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
-    return null;
-  };
-
-  if ((this as any).peerRegistry?.upsert) {
-    const rec: any = (this as any).peerRegistry.upsert((p as any).id, {});
-    if (firstListen) {
-      rec.p2pListen = firstListen;   // preferred, stable listener
-      rec.p2p = firstListen;         // override ephemeral addr
-      if (!rec.httpAddr) rec.httpAddr = httpFromP2P(firstListen);
-    }
-  }
-} catch {}
-// [void-node] /PATCH
-// [void-node] PATCH: persist peer advertised listen/http (follower side)
-try {
   const firstListen = (Array.isArray(p?.listens) && p.listens.length) ? String(p.listens[0]) : null;
   const httpFromP2P = (addr) => {
     if (!addr || typeof addr !== "string") return null;
