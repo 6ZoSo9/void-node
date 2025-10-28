@@ -12,6 +12,7 @@ import { PeerRegistry } from "./node_peer_registry.js";
 import { loadKeypair } from "./crypto/keypair.js";
 import { loadEnv } from "./util/env.js";
 import { registerFollowerRoutes } from "./http/follower_routes.js";
+import { registerP2PRoutes } from "./http/p2p_routes.js";
 import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
 import { Metrics } from "./metrics.js";
 
@@ -139,6 +140,7 @@ async function __main__() {
 
   // Mount follower routes (needs metrics)
   registerFollowerRoutes(app, node, metrics);
+  registerP2PRoutes(app as any, node as any);
   registerIndexExtras(app as any, node as any, metrics as any);
 
 
