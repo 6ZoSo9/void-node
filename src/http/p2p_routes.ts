@@ -1,95 +1,61 @@
-type AnyApp = any;
-type AnyNode = any;
+// src/http/p2p_routes.ts
+import type express from "express";
 
-function toArray(x: any): any[] {
-  if (!x) return [];
-  if (Array.isArray(x)) return x;
-  if (x instanceof Map) return Array.from(x.values());
-  if (typeof x?.values === "function") { try { return Array.from(x.values()); } catch {} }
-  if (typeof x === "object") return Object.values(x);
-  return [];
-}
-
-function httpFromP2P(addr: string | null): string | null {
-  if (!addr || typeof addr !== "string") return null;
-  const m = addr.match(/^([^:]+):(\d+)$/);
-  if (!m) return null;
-  const host = m[1], port = Number(m[2]);
-  if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
-  return null;
-}
-
-function collectRegistry(reg: any): Map<string, any> {
-  const seen = new Map<string, any>();
-  if (!reg) return seen;
-
-  const buckets: any[] = [];
-  try { if (reg.list) buckets.push(reg.list() || []); } catch {}
-  try { buckets.push((reg as any).peers); } catch {}
-  try { buckets.push((reg as any).records); } catch {}
-  try { buckets.push((reg as any).map); } catch {}
-  try { if (reg.dump) buckets.push(reg.dump()); } catch {}
-  try { if (reg.snapshot) buckets.push(reg.snapshot()); } catch {}
-
-  for (const bucket of buckets) {
-    for (const r of toArray(bucket)) {
-      const id = r?.id || r?.peerId || r?.nodeId || r?.key || r?.k;
-      if (!id) continue;
-      const cur = seen.get(id) || {};
-      // normalize common fields if present
-      cur.id = id;
-      cur.httpAddr = cur.httpAddr ?? r?.httpAddr ?? r?.http ?? r?.http_url ?? null;
-      cur.p2p = cur.p2p ?? r?.p2p ?? r?.addr ?? null;
-      cur.p2pListen = cur.p2pListen ?? r?.p2pListen ?? r?.listen ?? r?.listens?.[0] ?? null;
-      cur.lastSeenMs = cur.lastSeenMs ?? r?.lastSeenMs ?? null;
-      cur.rttMs = cur.rttMs ?? r?.rttMs ?? null;
-      cur.score = cur.score ?? r?.score ?? null;
-      seen.set(id, cur);
-    }
-  }
-  return seen;
-}
-
-export function registerP2PRoutes(app: AnyApp, node: AnyNode) {
-  app.get("/p2p/peers", (_req: any, res: any) => {
+export function registerP2PRoutes(app: express.Express, node: any) {
+  // Dial another node's P2P address, e.g. 127.0.0.1:4700
+  const doDial = (addr: string) => {
+    if (!addr || !/^[^:]+:\d+$/.test(addr)) return { ok: false, error: "bad addr" };
     try {
-      const livePeers = toArray((node as any)?.peers || (node as any)?.p2p?.peers);
-      const regPeers  = collectRegistry((node as any)?.peerRegistry);
-      const out: any[] = [];
-
-      for (const lp of livePeers) {
-        const id  = lp?.id || lp?.peerId || lp?.nodeId || "unknown";
-        const rec = regPeers.get(id) || {};
-        const liveListens = Array.isArray(lp?.listens) && lp.listens.length ? lp.listens : [];
-        const liveListen0 = liveListens.length ? String(liveListens[0]) : null;
-        const p2pListen = rec?.p2pListen || liveListen0 || null;
-        const liveP2P = (lp?.addr || lp?.p2p) ? String(lp.addr || lp.p2p) : null;
-        const p2p = p2pListen || liveP2P;
-        const httpSynth = httpFromP2P(p2pListen || liveListen0 || p2p);
-        const http = rec?.httpAddr || lp?.http || httpSynth || null;
-        const p2pListen: string | null = rec?.p2pListen || null;
-        const liveP2P: string | null = String(lp?.addr || lp?.p2p || "") || null;
-
-        // Prefer stable listener from HELLO; fall back to live socket
-        
-        
-        
-
-        out.push({
-          id,
-          http,
-          p2p,
-          connected: !!lp?.socket || !!lp?.connected,
-          lastSeenMs: rec?.lastSeenMs ?? null,
-          lastSeenAgoMs: (rec?.lastSeenMs ? (Date.now() - rec.lastSeenMs) : null),
-          rttMs: rec?.rttMs ?? null,
-          score: rec?.score ?? null,
-        });
+      if (typeof node.connect === "function") {
+        node.connect(addr);
+        return { ok: true, dialing: addr };
       }
-
-      res.json({ ok: true, count: out.length, peers: out });
+      return { ok: false, error: "node.connect() not available" };
     } catch (e: any) {
-      res.status(500).json({ ok:false, error: String(e?.message || e) });
+      return { ok: false, error: String(e?.message || e) };
+    }
+  };
+
+  app.get("/p2p/dial", (req, res) => {
+    const addr = String(req.query.addr || "");
+    res.json(doDial(addr));
+  });
+
+  app.post("/p2p/dial", (req, res) => {
+    const addr = String((req.body && (req.body.addr ?? req.query.addr)) || "");
+    res.json(doDial(addr));
+  });
+
+  // Quick hello/snapshot; returns JSON always
+  app.get("/p2p/hello-now", (_req, res) => {
+    try {
+      const listen = Array.isArray(node.listenAddrs) ? node.listenAddrs : [];
+      const peers = Array.isArray(node.peers) ? node.peers.length : (node.peers?.size ?? 0);
+      const snap = typeof node.peersSnapshot === "function" ? node.peersSnapshot() : { connected: [], knownAddrs: [] };
+      res.json({ ok: true, id: node.id, listen, peers, ...snap });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
+
+  // Extra helpers (always JSON)
+  app.get("/p2p/peers", (_req, res) => {
+    try {
+      const snap = typeof node.peersSnapshot === "function" ? node.peersSnapshot() : { connected: [], knownAddrs: [] };
+      res.json({ ok: true, ...snap });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  });
+
+  app.get("/p2p/listen", (_req, res) => {
+    const listen = Array.isArray(node.listenAddrs) ? node.listenAddrs : [];
+    res.json({ ok: true, listen });
+  });
+
+  app.get("/p2p/known", (_req, res) => {
+    const known = Array.isArray(node.knownAddrs) ? node.knownAddrs : [...(node.knownAddrs ?? [])];
+    res.json({ ok: true, known });
+  });
 }
+

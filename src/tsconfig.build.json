@@ -1,19 +1,19 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "void-node build",
   "compilerOptions": {
-    /* ----- Target & libs ----- */
+    /* ----- Emit / output layout ----- */
     "target": "ES2022",
     "lib": ["ES2022"],
-
-    /* ----- ESM / NodeNext ----- */
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "moduleDetection": "force",
-    "verbatimModuleSyntax": true,
-    "allowImportingTsExtensions": true,
-
-    /* ----- Project layout & emit ----- */
+    "verbatimModuleSyntax": true,     // keep ESM import/export as-is
     "rootDir": "src",
     "outDir": "dist",
+    "newLine": "lf",
+
+    /* ----- Maps / emit control ----- */
     "sourceMap": true,
     "noEmit": false,
     "noEmitOnError": true,
@@ -32,12 +32,13 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
+    "importsNotUsedAsValues": "preserve",
 
     /* ----- Declarations / JS intake ----- */
     "allowJs": false,
     "declaration": false,
 
-    /* ----- Env types ----- */
+    /* ----- Node env types ----- */
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],

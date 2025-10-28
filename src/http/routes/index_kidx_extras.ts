@@ -1,76 +1,59 @@
+// src/http/routes/index_kidx_extras.ts
+/**
+ * Extra helpers around the compact JSONL index and .kidx accelerators.
+ * NOTE: index.ts already mounts several /index/* endpoints.
+ * These are purely additive and safe to co-exist.
+ */
+import type { Express } from "express";
 import * as fs from "node:fs";
-import { buildKidxForJsonl } from "../../util/kidx.js";
+import * as path from "node:path";
+import { buildAllKidx, buildKidxForJsonl, queryKidx } from "../../util/kidx.js";
 
-type AnyApp = any;
-type AnyNode = any;
-type AnyMetrics = any;
-
-async function ensureKidxExists(jsonlPath: string, metrics: AnyMetrics): Promise<boolean> {
-  const kidxPath = jsonlPath.replace(/\.jsonl$/, ".kidx");
-  try {
-    if (!fs.existsSync(kidxPath)) {
-      metrics?.inc?.("kidx_missing_rebuilds", 1);
-      await buildKidxForJsonl(jsonlPath);
-      console.log("[kidx] warm-built", jsonlPath);
-      return true;
-    }
-  } catch {}
-  return false;
-}
-
-export function registerIndexExtras(app: AnyApp, node: AnyNode, metrics: AnyMetrics) {
-  // Background warmer: keep newest shard’s KIDX present
-  setInterval(async () => {
+export function registerIndexExtras(app: Express, node: any, metrics?: any) {
+  // Rebuild all .kidx files under the index directory base
+  app.post("/index/kidx/rebuild-all", async (_req, res) => {
     try {
-      const shards = node.txIndex.listShards().sort((a: any, b: any) => b.from - a.from);
-      if (!shards.length) return;
-      await ensureKidxExists(shards[0].path, metrics);
-    } catch {}
-  }, 15000).unref?.();
-
-  // POST /index/kidx/rebuild-all?force=1
-  app.post("/index/kidx/rebuild-all", async (req: any, res: any) => {
-    try {
-      const force = String(req.query.force || "0") === "1";
-      const shards = node.txIndex.listShards();
-      let rebuilt = 0, skipped = 0;
-      for (const s of shards) {
-        const kidx = s.path.replace(/\.jsonl$/, ".kidx");
-        if (!force && fs.existsSync(kidx)) { skipped++; continue; }
-        try { await buildKidxForJsonl(s.path); rebuilt++; } catch {}
-      }
-      res.json({ ok: true, rebuilt, skipped, total: shards.length });
+      const shards = node.txIndex?.listShards?.() ?? [];
+      let baseDir = (process.env.DATA_DIR || "data");
+      if (shards.length) baseDir = path.dirname(path.dirname(shards[0].path)); // <base>/index
+      const r = await buildAllKidx(baseDir);
+      res.json(r);
     } catch (e: any) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
-  // GET /tx/search?substr=<hex>&limitShards=3
-  app.get("/tx/search", (req: any, res: any) => {
-    const needle = String(req.query.substr || "").toLowerCase().replace(/[^0-9a-f]/g, "");
-    const limit = Math.max(1, Math.min(20, Number(req.query.limitShards || 3)));
-    if (!needle || needle.length < 6) return res.json({ ok: false, error: "provide ?substr= at least 6 hex chars" });
-
+  // Lookup via .kidx first, fallback to JSONL scan; rebuild stale/missing on hit.
+  app.get("/index/kidx/lookup", async (req, res) => {
+    const hash = String(req.query.hash || "").toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
     try {
-      const shards = node.txIndex.listShards().sort((a: any, b: any) => b.from - a.from).slice(0, limit);
-      const hits: any[] = [];
+      const shards = node.txIndex?.listShards?.().sort((a: any, b: any) => b.from - a.from) ?? [];
       for (const s of shards) {
-        try {
-          const text = fs.readFileSync(s.path, "utf8");
-          if (!text) continue;
-          const lines = text.trim().split(/\n+/);
-          for (const line of lines) {
-            try {
-              const j = JSON.parse(line);
-              const h = String(j?.h || "");
-              if (h.includes(needle)) hits.push(j);
-            } catch {}
+        const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
+        if (fs.existsSync(kidxPath)) {
+          const hit = queryKidx(kidxPath, hash);
+          if (hit.found) {
+            const blk = node.store?.loadBlock?.(hit.n);
+            const tx = blk?.txs?.[hit.o];
+            return res.json({ ok: true, found: true, block: hit.n, offset: hit.o, tx });
           }
-        } catch {}
+          // stale? rebuild
+          try { metrics?.inc?.("kidx_stale_rebuilds", 1); await buildKidxForJsonl(s.path); } catch {}
+        } else {
+          const r = node.txIndex?.lookupInShard?.(s.path, hash);
+          if (r?.found) {
+            const blk = node.store?.loadBlock?.(r.n);
+            const tx = blk?.txs?.[r.o];
+            try { metrics?.inc?.("kidx_missing_rebuilds", 1); await buildKidxForJsonl(s.path); } catch {}
+            return res.json({ ok: true, found: true, block: r.n, offset: r.o, tx });
+          }
+        }
       }
-      res.json({ ok: true, needle, limitShards: limit, hits });
+      return res.json({ ok: true, found: false });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 }
+

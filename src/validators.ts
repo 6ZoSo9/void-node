@@ -35,6 +35,12 @@ function isHexEither(s: unknown, byteLen?: number) {
   return isBareHex(s, charLen) || is0xHex(s, charLen);
 }
 
+/* ------------------------- number helpers ------------------------- */
+
+function isSafeInt(x: unknown, min = 0) {
+  return typeof x === "number" && Number.isSafeInteger(x) && x >= min;
+}
+
 /** Utility for defensive JSON parsing with a size cap */
 function safeParseJSON(jsonStr: string): { ok: true; value: any } | { ok: false; error: string } {
   if (typeof jsonStr !== "string") return { ok: false, error: "not string" };
@@ -59,7 +65,7 @@ function validateHello(msg: string): V {
 /**
  * TX validator aligned with our node (mempool + pubsub):
  * - require: hash (32 bytes hex; 0x or bare), body (object)
- * - optional: from/to (20 bytes hex), nonce (>=0), sig (65 bytes hex unless LOOSE)
+ * - optional: from/to (20 bytes hex), nonce (>=0 integer), sig (65 bytes hex unless LOOSE)
  */
 function validateTx(jsonStr: string): V {
   const parsed = safeParseJSON(jsonStr);
@@ -77,8 +83,8 @@ function validateTx(jsonStr: string): V {
   // optional
   if (o.from !== undefined && !isHexEither(o.from, 20)) return bad("from must be 20-byte hex");
   if (o.to !== undefined && !isHexEither(o.to, 20)) return bad("to must be 20-byte hex");
-  if (o.nonce !== undefined && (typeof o.nonce !== "number" || !Number.isFinite(o.nonce) || o.nonce < 0)) {
-    return bad("nonce must be number >= 0");
+  if (o.nonce !== undefined && !isSafeInt(o.nonce, 0)) {
+    return bad("nonce must be safe integer >= 0");
   }
   if (o.sig !== undefined) {
     if (LOOSE) {
@@ -122,15 +128,15 @@ function validateBlockHeader(jsonStr: string): V {
 
   if (typeof o !== "object" || o === null) return bad("not object");
 
-  const numOk = Number.isInteger(o.number) && o.number >= 0;
+  const numOk = isSafeInt(o.number, 0);
   if (!numOk) return bad("number must be integer >= 0");
 
   if (!isHexEither(o.parentHash, 32)) return bad("parentHash must be 32-byte hex");
   if (!isHexEither(o.txRoot, 32)) return bad("txRoot must be 32-byte hex");
   if (!isHexEither(o.blobRoot, 32)) return bad("blobRoot must be 32-byte hex");
 
-  const tsOk = typeof o.timestamp === "number" && Number.isFinite(o.timestamp) && o.timestamp > 0;
-  if (!tsOk) return bad("timestamp must be a positive number");
+  const tsOk = isSafeInt(o.timestamp, 1);
+  if (!tsOk) return bad("timestamp must be a positive integer");
 
   if (o.proposer !== undefined) {
     const prop = String(o.proposer || "").trim();

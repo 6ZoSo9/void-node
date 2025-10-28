@@ -1,19 +1,31 @@
-// dev-only routes to help testing tx indexing
-export function registerDevRoutes(app: any, node: any) {
-  // POST /dev/emit-tx { data?: string }
-  app.post("/dev/emit-tx", (req: any, res: any) => {
-    try {
-      const body = (req && req.body) || {};
-      const data = (typeof body.data === "string") ? body.data : "hello-void";
-      const h = (Math.random().toString(16).slice(2)).padEnd(64, '0'); // fake tx hash-like
-      const tx = { h, data };
+// src/http/dev_routes.ts
+import type { Express } from "express";
 
-      (node as any)._devTxs = (node as any)._devTxs || [];
-      (node as any)._devTxs.push(tx);
+export function registerDevRoutes(app: Express, node: any) {
+  // Echo for quick sanity
+  app.post("/dev/echo", (req, res) => res.json({ ok: true, body: req.body ?? null }));
 
-      res.json({ ok: true, queued: tx, queuedCount: (node as any)._devTxs.length });
-    } catch (e: any) {
-      res.status(500).json({ ok:false, error: String(e?.message || e) });
-    }
+  // Env preview (safe subset)
+  app.get("/dev/env", (_req, res) => {
+    const pick = (k: string) => process.env[k];
+    res.json({
+      ok: true,
+      DATA_DIR: pick("DATA_DIR"),
+      HTTP_PORT: pick("HTTP_PORT"),
+      P2P_PORT: pick("P2P_PORT"),
+      PUBLIC_HTTP_BASE: pick("PUBLIC_HTTP_BASE"),
+    });
+  });
+
+  // Start/stop proposer quickly
+  app.post("/dev/proposer/start", (req, res) => {
+    const intervalMs = Number(req.query.intervalMs ?? 5000);
+    try { return res.json(node.startProposer?.(intervalMs) ?? { ok: false, error: "no startProposer()" }); }
+    catch (e: any) { return res.status(500).json({ ok: false, error: String(e?.message || e) }); }
+  });
+  app.post("/dev/proposer/stop", (_req, res) => {
+    try { return res.json(node.stopProposer?.() ?? { ok: false, error: "no stopProposer()" }); }
+    catch (e: any) { return res.status(500).json({ ok: false, error: String(e?.message || e) }); }
   });
 }
+
