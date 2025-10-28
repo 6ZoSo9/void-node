@@ -1,27 +1,25 @@
-import type { Express, Request, Response } from "express";
+type AnyApp = any;
+type AnyNode = any;
 
-type NodeLike = {
-  id?: string;
-  getHead?: () => number;
-  peersSnapshot?: () => { connected: any[]; knownAddrs: string[] };
-};
-
-export function registerP2PRoutes(app: Express, node: NodeLike) {
-  // Simple hello endpoint with head (if provided)
-  app.get("/p2p/hello-now", (_req: Request, res: Response) => {
-    const head = typeof node.getHead === "function" ? node.getHead() : undefined;
-    res.json({ ok: true, nodeId: node.id, head });
-  });
-
-  // Expose peers known by the in-process p2p shim in node_core
-  app.get("/p2p/peers", (_req: Request, res: Response) => {
+export function registerP2PRoutes(app: AnyApp, node: AnyNode) {
+  app.get("/p2p/peers", (_req, res) => {
     try {
-      const snap = typeof node.peersSnapshot === "function"
-        ? node.peersSnapshot()
-        : { connected: [], knownAddrs: [] };
-      res.json({ ok: true, ...snap });
-    } catch (e: any) {
-      res.status(500).json({ ok: false, error: String(e?.message || e) });
+      const now = Date.now();
+      // Be defensive across shapes: prefer node.peerRegistry if it exists
+      const list = (node.peerRegistry?.list?.() || node.peers?.list?.() || [])
+        .map((p: any) => ({
+          id: p.id || p.peerId || "unknown",
+          http: p.http || p.httpAddr || null,
+          p2p: p.p2p || p.p2pAddr || null,
+          connected: Boolean(p.connected ?? p.isConnected ?? true),
+          lastSeenMs: typeof p.lastSeenMs === "number" ? p.lastSeenMs : null,
+          lastSeenAgoMs: typeof p.lastSeenMs === "number" ? (now - p.lastSeenMs) : null,
+          rttMs: p.rttMs ?? null,
+          score: p.score ?? null,
+        }));
+      res.json({ ok: true, count: list.length, peers: list });
+    } catch (e:any) {
+      res.status(500).json({ ok:false, error: String(e?.message || e) });
     }
   });
 }
