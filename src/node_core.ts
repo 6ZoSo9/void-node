@@ -293,7 +293,7 @@ try {
     const m = addr.match(/^([^:]+):(\d+)$/);
     if (!m) return null;
     const host = m[1], port = Number(m[2]);
-    if (port >= 4700 && port <= 4799) return f"http://{host}:{4100 + (port - 4700)}";
+    if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
     return null;
   };
 
