@@ -103,7 +103,16 @@ export function registerP2PRoutes(app: AnyApp, node: AnyNode) {
 
         return {
           id,
-          http: (typeof http === "string") ? http : null,
+          http: (it?.http || it?.httpAddr || it?.httpURL || it?.httpUrl || (
+                  (()=>{
+                    const addr = (it?.p2pListen || it?.theyListen || null);
+                    if (!addr) return null;
+                    const m = String(addr).match(/^([^:]+):(\d+)$/);
+                    if (!m) return null;
+                    const host=m[1], port=Number(m[2]);
+                    return (port>=4700 && port<=4799) ? `http://${host}:${4100 + (port - 4700)}` : null;
+                  })()
+                )),
           p2p : (typeof p2p  === "string") ? p2p  : null,
           connected,
           lastSeenMs: (typeof lastSeen === "number") ? lastSeen : null,
@@ -135,7 +144,16 @@ export function registerP2PRoutes(app: AnyApp, node: AnyNode) {
       res.json({
         ok: true,
         id: (node as any)?.id || null,
-        http: `http://${host}:${port}`,
+          http: (it?.http || it?.httpAddr || it?.httpURL || it?.httpUrl || (
+                  (()=>{
+                    const addr = (it?.p2pListen || it?.theyListen || null);
+                    if (!addr) return null;
+                    const m = String(addr).match(/^([^:]+):(\d+)$/);
+                    if (!m) return null;
+                    const host=m[1], port=Number(m[2]);
+                    return (port>=4700 && port<=4799) ? `http://${host}:${4100 + (port - 4700)}` : null;
+                  })()
+                )),
         p2p: `${p2pHost}:${p2pPort}`,
       });
     } catch (e:any) {
