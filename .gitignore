@@ -10,3 +10,7 @@ coverage/
 .secrets/
 .nodekey*
 
+
+# Bulk assets not tracked
+fs/
+
