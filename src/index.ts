@@ -149,11 +149,8 @@ app.use(express.json()); // dev: body parser for /dev/emit-tx
         return res.status(400).json({ ok:false, error:"expected {data:string}" });
       await fs.promises.mkdir(path.dirname(MEMPOOL), { recursive: true });
       await fs.promises.appendFile(MEMPOOL, JSON.stringify({ data: tx.data, ts: Date.now() }) + "\n");
-      try { const { Metrics } = await import("./metrics.js"); (Metrics?.singleton?.inc||(()=>{})).call(Metrics?.singleton, "tx_submitted", 1);} catch {}
       return res.json({ ok:true });
-    } catch (e) {
-      return res.status(500).json({ ok:false, error: String(e&&e.message||e) });
-    }
+    } catch (err: any) { return res.status(500).json({ ok:false, error: String(err?.message ?? err) }); }
   });
 
   app.use(express.json({ limit: "128mb" }));
