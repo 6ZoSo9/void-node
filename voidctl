@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+A=void-node
+B=void-node-b
+
+case "${1:-}" in
+  start)  systemctl --user start  "$A" "$B" ;;
+  stop)   systemctl --user stop   "$A" "$B" ;;
+  restart|bounce) systemctl --user restart "$A" "$B" ;;
+  status)
+    systemctl --user --no-pager status "$A" "$B"
+    echo; echo "Ports:"
+    ss -ltnp | grep -E ':(4100|4101)\b' || echo "no listeners on 4100/4101"
+    ;;
+  logs-a) journalctl --user -u "$A" -f ;;
+  logs-b) journalctl --user -u "$B" -f ;;
+  head)
+    echo "A:" && curl -fsS http://127.0.0.1:4100/head | jq -r '.head'
+    echo "B:" && curl -fsS http://127.0.0.1:4101/head | jq -r '.head'
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart|status|logs-a|logs-b|head}" >&2
+    exit 1 ;;
+esac
