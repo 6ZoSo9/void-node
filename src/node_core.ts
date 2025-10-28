@@ -281,6 +281,34 @@ export class Node {
       p.listens = Array.isArray(msg.listen) ? msg.listen : [];
       this.peers.set(p.id, p);
       console.log(`[peer] HELLO -> ${p.id} @ ${p.addr} (they listen: ${p.listens.join(",") || "n/a"})`);
+// [void-node] PATCH: persist theyListen/httpAddr into peerRegistry
+// --- BEGIN PATCH SNIPPET ---
+// Assume we are inside the HELLO handling block with vars like:
+//   peerId, hello (contains theyListen or similar), registry = this.peerRegistry
+try {
+  const theyListen: string | null =
+    (hello?.p2pListen ?? hello?.theyListen ?? hello?.listen ?? null) || null;
+
+  const httpFromP2P = (addr: string | null): string | null => {
+    if (!addr || typeof addr !== "string") return null;
+    const m = addr.match(/^([^:]+):(\d+)$/);
+    if (!m) return null;
+    const host = m[1], port = Number(m[2]);
+    // dev heuristic: :470x -> :410x
+    if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
+    return null;
+  };
+
+  // Upsert or annotate registry record
+  if (this.peerRegistry?.upsert) {
+    const rec = this.peerRegistry.upsert(peerId, {} as any);
+    if (theyListen) {
+      (rec as any).p2pListen = theyListen;
+      (rec as any).httpAddr  = (rec as any).httpAddr || httpFromP2P(theyListen);
+    }
+  }
+} catch {}
+// --- END PATCH SNIPPET ---
       for (const a of p.listens) this.knownAddrs.add(a);
       const addrs = new Set<string>();
       for (const pp of this.peers.values()) for (const a of pp.listens) addrs.add(a);
