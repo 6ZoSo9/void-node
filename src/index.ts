@@ -139,6 +139,23 @@ async function __main__() {
   const app = express();
 app.get("/api/health", (_req:any,res:any)=>res.json({ok:true, ts:Date.now()}));
 app.use(express.json()); // dev: body parser for /dev/emit-tx
+
+  // --- minimal mempool-backed tx submit route (dev only) ---
+  const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
+  app.post("/tx/submit", async (req, res) => {
+    try {
+      const tx = req.body && typeof req.body === "object" ? req.body : null;
+      if (!tx || typeof tx.data !== "string" || !tx.data.length)
+        return res.status(400).json({ ok:false, error:"expected {data:string}" });
+      await fs.promises.mkdir(path.dirname(MEMPOOL), { recursive: true });
+      await fs.promises.appendFile(MEMPOOL, JSON.stringify({ data: tx.data, ts: Date.now() }) + "\n");
+      try { const { Metrics } = await import("./metrics.js"); (Metrics?.singleton?.inc||(()=>{})).call(Metrics?.singleton, "tx_submitted", 1);} catch {}
+      return res.json({ ok:true });
+    } catch (e) {
+      return res.status(500).json({ ok:false, error: String(e&&e.message||e) });
+    }
+  });
+
   app.use(express.json({ limit: "128mb" }));
 
   // Mount follower routes (needs metrics)
@@ -152,7 +169,7 @@ app.use(express.json()); // dev: body parser for /dev/emit-tx
     if (__kidxRebuildInFlight.has(p)) return false;
     __kidxRebuildInFlight.add(p);
     try {
-      metrics.inc("kidx_missing_rebuilds", 1);
+      metrics.inc("kidx_missing_rebuilds" as any, 1);
       await buildKidxForJsonl(p);
       console.log("[kidx] rebuilt-once", p);
       return true;
@@ -606,7 +623,7 @@ app.get("/tx/lookup", async (req, res) => {
         if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
         const tx = (blk as any).txs?.[r2.o];
         // Opportunistic rebuild to refresh kidx for this shard.
-        try { metrics.inc("kidx_stale_rebuilds", 1);
+        try { metrics.inc("kidx_stale_rebuilds" as any, 1);
         await rebuildKidxOnce(s.path); } catch {}
         return res.json({ ok: true, found: true, block: r2.n, offset: r2.o, tx });
       }
@@ -619,7 +636,7 @@ app.get("/tx/lookup", async (req, res) => {
       const blk = node.store.loadBlock(r.n);
       if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
       const tx = (blk as any).txs?.[r.o];
-      try { metrics.inc("kidx_missing_rebuilds", 1); await rebuildKidxOnce(s.path); } catch {}
+      try { metrics.inc("kidx_missing_rebuilds" as any, 1); await rebuildKidxOnce(s.path); } catch {}
       return res.json({ ok: true, found: true, block: r.n, offset: r.o, tx });
     }
   }
