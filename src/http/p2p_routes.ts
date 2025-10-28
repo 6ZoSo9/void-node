@@ -60,13 +60,20 @@ export function registerP2PRoutes(app: AnyApp, node: AnyNode) {
       for (const lp of livePeers) {
         const id  = lp?.id || lp?.peerId || lp?.nodeId || "unknown";
         const rec = regPeers.get(id) || {};
+        const liveListens = Array.isArray(lp?.listens) && lp.listens.length ? lp.listens : [];
+        const liveListen0 = liveListens.length ? String(liveListens[0]) : null;
+        const p2pListen = rec?.p2pListen || liveListen0 || null;
+        const liveP2P = (lp?.addr || lp?.p2p) ? String(lp.addr || lp.p2p) : null;
+        const p2p = p2pListen || liveP2P;
+        const httpSynth = httpFromP2P(p2pListen || liveListen0 || p2p);
+        const http = rec?.httpAddr || lp?.http || httpSynth || null;
         const p2pListen: string | null = rec?.p2pListen || null;
         const liveP2P: string | null = String(lp?.addr || lp?.p2p || "") || null;
 
         // Prefer stable listener from HELLO; fall back to live socket
-        const p2p = (p2pListen || liveP2P) || null;
-        const httpSynth = httpFromP2P(p2pListen || p2p);
-        const http = rec?.httpAddr || lp?.http || httpSynth || null;
+        
+        
+        
 
         out.push({
           id,
