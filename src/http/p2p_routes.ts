@@ -15,25 +15,14 @@ function httpFromP2P(addr: string | null): string | null {
   const m = addr.match(/^([^:]+):(\d+)$/);
   if (!m) return null;
   const host = m[1], port = Number(m[2]);
-  // dev heuristic 470x -> 410x
   if (port >= 4700 && port <= 4799) return `http://${host}:${4100 + (port - 4700)}`;
   return null;
-}
-
-function getSelfId(node: AnyNode): string {
-  return (node as any)?.id || (node as any)?.nodeId || "unknown";
-}
-function getSelfEnv() {
-  const httpHost = process.env.HTTP_HOST || "127.0.0.1";
-  const httpPort = process.env.HTTP_PORT || "0";
-  const p2pHost  = process.env.P2P_HOST  || "127.0.0.1";
-  const p2pPort  = process.env.P2P_PORT  || "0";
-  return { http: `http://${httpHost}:${httpPort}`, p2p: `${p2pHost}:${p2pPort}` };
 }
 
 function collectRegistry(reg: any): Map<string, any> {
   const seen = new Map<string, any>();
   if (!reg) return seen;
+
   const buckets: any[] = [];
   try { if (reg.list) buckets.push(reg.list() || []); } catch {}
   try { buckets.push((reg as any).peers); } catch {}
@@ -44,82 +33,50 @@ function collectRegistry(reg: any): Map<string, any> {
 
   for (const bucket of buckets) {
     for (const r of toArray(bucket)) {
-      const id = r?.id || r?.peerId;
+      const id = r?.id || r?.peerId || r?.nodeId || r?.key || r?.k;
       if (!id) continue;
-      const prev = seen.get(id) || {};
-      seen.set(id, { ...prev, ...r });
+      const cur = seen.get(id) || {};
+      // normalize common fields if present
+      cur.id = id;
+      cur.httpAddr = cur.httpAddr ?? r?.httpAddr ?? r?.http ?? r?.http_url ?? null;
+      cur.p2p = cur.p2p ?? r?.p2p ?? r?.addr ?? null;
+      cur.p2pListen = cur.p2pListen ?? r?.p2pListen ?? r?.listen ?? r?.listens?.[0] ?? null;
+      cur.lastSeenMs = cur.lastSeenMs ?? r?.lastSeenMs ?? null;
+      cur.rttMs = cur.rttMs ?? r?.rttMs ?? null;
+      cur.score = cur.score ?? r?.score ?? null;
+      seen.set(id, cur);
     }
   }
   return seen;
 }
 
-function collectLive(node: AnyNode): Map<string, any> {
-  const liveMap = (node as any).peers || (node as any)._peers || (node as any).peerMap;
-  const out = new Map<string, any>();
-  for (const p of toArray(liveMap)) {
-    const id = p?.id || p?.peerId;
-    if (!id) continue;
-    const prev = out.get(id) || {};
-    out.set(id, { ...prev, ...p });
-  }
-  return out;
-}
-
 export function registerP2PRoutes(app: AnyApp, node: AnyNode) {
-  app.get("/p2p/self", (_req: any, res: any) => {
-    try {
-      const id = getSelfId(node);
-      const env = getSelfEnv();
-      res.json({ ok: true, id, http: env.http, p2p: env.p2p });
-    } catch (e: any) {
-      res.status(500).json({ ok:false, error: String(e?.message || e) });
-    }
-  });
-
   app.get("/p2p/peers", (_req: any, res: any) => {
     try {
-      const now = Date.now();
-      const selfId = getSelfId(node);
-      const env = getSelfEnv();
-
-      const reg = collectRegistry((node as any).peerRegistry);
-      const live = collectLive(node);
-
-      const ids = new Set<string>([...reg.keys(), ...live.keys()]);
+      const livePeers = toArray((node as any)?.peers || (node as any)?.p2p?.peers);
+      const regPeers  = collectRegistry((node as any)?.peerRegistry);
       const out: any[] = [];
-      for (const id of ids) {
-        // Skip self (we want only remote peers)
-        if (id === selfId || id === "unknown") continue;
 
-        const r = reg.get(id) || {};
-        const p = live.get(id) || {};
+      for (const lp of livePeers) {
+        const id  = lp?.id || lp?.peerId || lp?.nodeId || "unknown";
+        const rec = regPeers.get(id) || {};
+        const p2pListen: string | null = rec?.p2pListen || null;
+        const liveP2P: string | null = String(lp?.addr || lp?.p2p || "") || null;
 
-        // Prefer advertised listeners over ephemerals
-        const advertisedP2P =
-          r.p2pListen || r.p2p || r.addr ||
-          p.p2pListen || p.p2p || p.addr || null;
-
-        // Choose http: registry http*, then live http*, then synthesize from advertised p2p
-        const http =
-          r.httpAddr || r.http || p.httpAddr || p.http ||
-          httpFromP2P(advertisedP2P ? String(advertisedP2P) : null) ||
-          null;
-
-        const connected   = Boolean(p.connected ?? p.isConnected ?? true);
-        const lastSeenMs  = typeof p.lastSeenMs === "number" ? p.lastSeenMs
-                         : typeof r.lastSeenMs === "number" ? r.lastSeenMs
-                         : null;
-        const lastSeenAgo = typeof lastSeenMs === "number" ? (now - lastSeenMs) : null;
+        // Prefer stable listener from HELLO; fall back to live socket
+        const p2p = (p2pListen || liveP2P) || null;
+        const httpSynth = httpFromP2P(p2pListen || p2p);
+        const http = rec?.httpAddr || lp?.http || httpSynth || null;
 
         out.push({
           id,
           http,
-          p2p: advertisedP2P || null,
-          connected,
-          lastSeenMs,
-          lastSeenAgoMs: lastSeenAgo,
-          rttMs: p.rttMs ?? r.rttMs ?? null,
-          score: p.score ?? r.score ?? null,
+          p2p,
+          connected: !!lp?.socket || !!lp?.connected,
+          lastSeenMs: rec?.lastSeenMs ?? null,
+          lastSeenAgoMs: (rec?.lastSeenMs ? (Date.now() - rec.lastSeenMs) : null),
+          rttMs: rec?.rttMs ?? null,
+          score: rec?.score ?? null,
         });
       }
 
