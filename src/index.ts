@@ -3875,3 +3875,143 @@ import type {} from "express"; // type-only safety; no runtime impact
   }
   attach();
 })();
+
+// ---------------- [ADD] txRoot + metrics wrapper ----------------
+import { computeTxRoot } from "./util/txroot.js";
+(function installTxRootSealHook(){
+  try{
+    const g:any = globalThis as any;
+    let tries = 0;
+    (function tick(){
+      const node:any = g.__void_node || g.node;
+      if (!node || !node.store) { if (++tries < 200) return setTimeout(tick, 25); return; }
+      const store:any = node.store;
+      if ((store as any).__txroot_wrapped) return;
+
+      const orig = store.saveBlock?.bind(store) || store.writeBlock?.bind(store) || store.persistBlock?.bind(store);
+      if (typeof orig !== "function") return; // nothing to wrap yet
+
+      store.saveBlock = async function(b:any){
+        try {
+          const txs:any[] = Array.isArray(b?.txs) ? b.txs : [];
+          const txRoot = computeTxRoot(txs);
+          b.txRoot = txRoot;            // annotate block object (persisted with block)
+        } catch(e){ /* best-effort; keep going */ }
+
+        const res = await orig(b);
+
+        try {
+          // bump metrics (best-effort)
+          if (node?.metrics?.incSealed) node.metrics.incSealed((b?.txs?.length)||0);
+        } catch(e){ /* ignore */ }
+
+        // dev diag
+        try {
+          const n = (b && (b.number ?? b.n)) ?? "?";
+          const len = (b?.txs?.length)||0;
+          const r = (b?.txRoot)||"(none)";
+          console.log(`[txroot] sealed #${n} txs=${len} txRoot=${r}`);
+        } catch {}
+
+        return res;
+      };
+      (store as any).__txroot_wrapped = true;
+
+      // Extend /metrics output with our two counters (non-invasive)
+      try {
+        const app:any = g.__void_http_app || g.app;
+        if (app && typeof app.get === "function") {
+          app.get("/metrics/txroot", (_req:any, res:any)=>{
+            const snap = node?.metrics?.sealedSnapshot ? node.metrics.sealedSnapshot() : {sealed_blocks_total:0, sealed_txs_total:0};
+            res.type("text/plain").send([
+              `void_sealed_blocks_total ${snap.sealed_blocks_total}`,
+              `void_sealed_txs_total ${snap.sealed_txs_total}`
+            ].join("\n"));
+          });
+        }
+      } catch {}
+    })();
+  } catch {}
+})();
+
+// ------------- [ADD] light shim to include txRoot in /blocks/:n/full2 -------------
+(function augmentFull2TxRoot(){
+  try{
+    const g:any = globalThis as any;
+    let tries = 0;
+    (function tick(){
+      const app:any = g.__void_http_app || g.app;
+      const node:any = g.__void_node || g.node;
+      if (!app || !node || !node.store) { if (++tries < 120) return setTimeout(tick, 50); return; }
+
+      if ((app as any).__full2_txroot_augmented) return;
+      (app as any).__full2_txroot_augmented = true;
+
+      // Add a minimal route if /blocks/:n/full2 does not include txRoot elsewhere
+      app.get("/blocks/:n/full2+txroot", async (req:any, res:any)=>{
+        const n = Number(req.params.n);
+        try {
+          const blk = await node.store.getBlock?.(n);
+          if (!blk) return res.status(404).json({ok:false, error:"block not found"});
+          const body:any = { ok:true, number:n, txs: blk.txs||[], txRoot: blk.txRoot || null };
+          res.setHeader("x-void-number", String(n));
+          if (blk.txRoot) res.setHeader("x-void-txroot", blk.txRoot);
+          return res.json(body);
+        } catch(e:any){
+          return res.status(500).json({ok:false, error:String(e?.message||e)});
+        }
+      });
+    })();
+  } catch {}
+})();
+
+// ---------------- [ADD] Hardened txroot counters (global, not tied to Metrics) ----------------
+(function installTxRootCountersShim(){
+  try{
+    const g:any = globalThis as any;
+    if (!g.__txroot_counters) g.__txroot_counters = { blocks: 0, txs: 0 };
+
+    // Ensure our /metrics/txroot endpoint reads the global counters (fall back)
+    let tries = 0;
+    (function tick(){
+      const app:any = g.__void_http_app || g.app;
+      if (!app || typeof app.get !== "function") { if (++tries < 200) return setTimeout(tick, 50); return; }
+      if ((app as any).__txroot_metrics_hardened) return;
+      (app as any).__txroot_metrics_hardened = true;
+
+      app.get("/metrics/txroot", (_req:any, res:any)=>{
+        const c = (globalThis as any).__txroot_counters || {blocks:0, txs:0};
+        res.type("text/plain").send([
+          `void_sealed_blocks_total ${c.blocks}`,
+          `void_sealed_txs_total ${c.txs}`
+        ].join("\n"));
+      });
+    })();
+
+    // Hook the global counters from the existing txroot wrapper if present, or re-wrap saveBlock best-effort.
+    let armTries = 0;
+    (function arm(){
+      const node:any = (globalThis as any).__void_node || (globalThis as any).node;
+      const store:any = node?.store;
+      if (!store) { if (++armTries < 200) return setTimeout(arm, 50); return; }
+
+      // If our txroot wrapper is already wrapping, just decorate saveBlock again to bump globals.
+      const orig = store.saveBlock?.bind(store) || store.writeBlock?.bind(store) || store.persistBlock?.bind(store);
+      if (typeof orig !== "function") return;
+
+      if ((store as any).__txroot_counters_wrapped) return;
+      store.saveBlock = async function(b:any){
+        const res = await orig(b);
+        try {
+          const txsLen = (b?.txs?.length) || 0;
+          const c = (globalThis as any).__txroot_counters;
+          if (c) { c.blocks += 1; c.txs += txsLen; }
+          // Also try to bump node.metrics if present (best-effort, but not required)
+          node?.metrics?.incSealed?.(txsLen);
+        } catch {}
+        return res;
+      };
+      (store as any).__txroot_counters_wrapped = true;
+    })();
+  } catch {}
+})();
