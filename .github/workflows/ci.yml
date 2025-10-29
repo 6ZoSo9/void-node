@@ -32,6 +32,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Block secret-like files in PR diff
         if: ${{ github.event_name == 'pull_request' }}
         run: |
@@ -54,6 +56,7 @@ jobs:
       - run: npx tsc --noEmit || true
 
       - name: Secret scan (ggshield repo)
+        if: ${{ secrets.GITGUARDIAN_API_KEY !=  }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -61,3 +64,5 @@ jobs:
       - env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
         run: ggshield secret scan repo --all .
+
+
