@@ -3804,3 +3804,74 @@ import type {} from "express"; // type-only safety; no runtime impact
   }
   attach();
 })();
+
+// ---------------- Persisted txRoot seal hook (additive, no deletions) ---------------
+(function persistTxRootOnSave(){
+  let tries = 0, attached = false;
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node || undefined; }
+
+  async function sha256Hex(data: string | Uint8Array){
+    const { createHash } = await import('node:crypto');
+    const h = createHash('sha256'); h.update(data); return '0x'+h.digest('hex');
+  }
+  async function merkleRoot(leavesHex: string[]){
+    if (leavesHex.length === 0) return await sha256Hex(new Uint8Array());
+    let layer = leavesHex.slice();
+    while (layer.length > 1) {
+      const next:string[] = [];
+      for (let i=0;i<layer.length;i+=2){
+        const a = layer[i], b = layer[i+1] ?? layer[i];
+        next.push(await sha256Hex(a + b));
+      }
+      layer = next;
+    }
+    return layer[0];
+  }
+  async function computeTxRootFromTxs(txs:any[]){
+    const leaves:string[] = [];
+    for (const tx of (Array.isArray(txs)?txs:[])){
+      const s = JSON.stringify(tx, Object.keys(tx).sort());
+      leaves.push(await sha256Hex(s));
+    }
+    return await merkleRoot(leaves);
+  }
+
+  function wrapOnce(obj:any, fnName:string, wrapper:(orig:Function)=>Function){
+    if (!obj || typeof obj[fnName] !== "function") return false;
+    const orig = obj[fnName].__void_wrapped_orig || obj[fnName];
+    if (obj[fnName].__void_wrapped) return true;
+    obj[fnName] = wrapper(orig);
+    Object.defineProperty(obj[fnName], "__void_wrapped", { value:true });
+    Object.defineProperty(obj[fnName], "__void_wrapped_orig", { value:orig });
+    return true;
+  }
+
+  async function attach(){
+    const nd:any = getNode();
+    if (!nd) { if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    const store:any = nd?.store || nd?.segStore || nd?.segmentStore || undefined;
+    if (!store) return; // nothing to patch (safe no-op)
+
+    const makeWrapper = (orig:Function)=> (async function wrappedSaveBlock(block:any, ...rest:any[]){
+      try{
+        const txs:any[] = Array.isArray(block?.txs) ? block.txs : (Array.isArray(block?.transactions) ? block.transactions : []);
+        const root = await computeTxRootFromTxs(txs);
+        // ensure header exists and persist root
+        block.header = block.header || {};
+        // only set if missing or zeroed, otherwise keep caller’s value
+        const zero = /^0x0+$/.test(String(block.header.txRoot||""));
+        if (!block.header.txRoot || zero) block.header.txRoot = root;
+        // also mirror at top-level if your schema exposes txRoot there
+        if (!block.txRoot || zero) block.txRoot = block.header.txRoot;
+      }catch(_e){}
+      return await orig.call(this, block, ...rest);
+    });
+
+    // Wrap common methods safely if present
+    wrapOnce(store, "saveBlock", makeWrapper);
+    wrapOnce(store, "writeBlock", makeWrapper);   // in case your store uses a different name
+  }
+  attach();
+})();
