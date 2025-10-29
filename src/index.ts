@@ -20,6 +20,20 @@ import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
 import { registerBlockExtras } from "./http/blocks_extras.js";
 import { Metrics } from "./metrics.js";
 
+// [ADD] global __VOID_asArr (idempotent)
+;(function(){
+  try{
+    const g:any = globalThis as any;
+    if (!g.__VOID_asArr) {
+      g.__VOID_asArr = function(x:any){
+        return Array.isArray(x)
+          ? x
+          : (x && Array.isArray((x as any).txs) ? (x as any).txs : []);
+      };
+      console.log("[guard] __VOID_asArr global helper installed");
+    }
+  }catch(e){ /* ignore */ }
+})();
 /* ---------------------------- ENV BRIDGE ---------------------------- */
 process.env.DATA_DIR  = process.env.DATA_DIR  || process.env.VOID_DATA_DIR  || "data";
 process.env.HTTP_PORT = process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100";
@@ -92,6 +106,9 @@ async function __main__() {
   /* ---------- boot node ---------- */
   const kp = loadKeypair(KEY_PATH); // { privateKey, publicKey, nodeId, pubPEM }
   const node = new Node(P2P_PORT, kp, { allowEmptyBlocks: ALLOW_EMPTY_BLOCKS });
+// [ADD] expose live node globally for shims/bridges
+;(globalThis as any).__void_node = node; (globalThis as any).node = node; (globalThis as any).VOID_NODE = node;
+console.log("[shim] published global node (post-construct)");
   await node.start();
 
   // Optional: if Node exposes onSealed, wire it (harmless if absent)
@@ -131,6 +148,24 @@ async function __main__() {
   const app = express();
 ;(globalThis as any).__void_http_app = app; // dev-safe-bundle hook
 
+// [ADD] Object.prototype.filter shim v3 (self-contained, last-writer-wins)
+;(function(){
+  try{
+    Object.defineProperty(Object.prototype, "filter", {
+      configurable: true, enumerable: false, writable: true,
+      value: function(cb:any, thisArg?:any){
+        const fn = (typeof cb === "function") ? cb : (v:any)=>Boolean(v);
+        const txs = (this && Array.isArray((this as any).txs)) ? (this as any).txs : undefined;
+        if (txs) return txs.filter(fn, thisArg);
+        if (Array.isArray(this)) return Array.prototype.filter.call(this, fn, thisArg);
+        if (this && typeof (this as any).length === "number")
+          return Array.prototype.filter.call(this as any, fn, thisArg);
+        return Array.prototype.filter.call([this], fn, thisArg);
+      }
+    });
+    console.log("[guard] Object.prototype.filter shim v3 active");
+  }catch(e){ console.warn("[guard] filter shim v3 override failed", e); }
+})();
 ;;;;;app.use(express.json({ limit: "128mb" }));
   // tx routes must come right after body parser
   registerTxRoutes(app);
@@ -1587,148 +1622,1788 @@ import type {} from "express"; // type-only safety; no runtime impact
   attach();
 })();
 
-// ---- decorate existing /blocks/:n/full handler to add legacy headers (additive)
-(function decorateCompatBlocksFullHeaders(){
-  let tries = 0, done = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  function install(){
+
+// ---------------- [ADD] bridge global tx-queue -> node.mempool (best-effort) ----------------
+;(function bridgeGlobalQueueToNode(){
+  try{
+    const g:any = globalThis as any;
+
+    function tryAddToMempool(t:any): boolean {
+      try {
+        const mp:any = (node as any)?.mempool ?? (node as any)?.mPool ?? (node as any)?.txPool ?? null;
+        if (!mp) return false;
+        if (typeof mp.enqueue === "function") { mp.enqueue(t); return true; }
+        if (typeof mp.add === "function")     { mp.add(t);     return true; }
+        if (typeof mp.push === "function")    { mp.push(t);    return true; }
+        if (Array.isArray(mp.txs))            { mp.txs.push(t); return true; }
+        if (Array.isArray(mp.queue))          { mp.queue.push(t); return true; }
+        if (Array.isArray(mp))                { mp.push(t);     return true; }
+        return false;
+      } catch { return false; }
+    }
+
+    function sizeOfMempool(): number | null {
+      try {
+        const mp:any = (node as any)?.mempool ?? (node as any)?.mPool ?? (node as any)?.txPool ?? null;
+        if (!mp) return null;
+        if (typeof mp.size === "function") return Number(mp.size()) || 0;
+        if (Array.isArray(mp?.txs))   return mp.txs.length;
+        if (Array.isArray(mp?.queue)) return mp.queue.length;
+        if (Array.isArray(mp))        return mp.length;
+        return null;
+      } catch { return null; }
+    }
+
+    // drain every 500ms
+    setInterval(()=>{
+      try{
+        const q:any = g.__void_tx_queue;
+        if (!Array.isArray(q) || q.length === 0) return;
+        const batch = q.splice(0, q.length);
+        let ok=0; for (const t of batch) if (tryAddToMempool(t)) ok++;
+        if (ok) console.log("[bridge] moved %d tx(s) into node.mempool (size≈%s)", ok, String(sizeOfMempool()));
+      }catch{}
+    }, 500);
+
+    // late-diag routes: attach once app exists
+    (function attachDiag(){
+      try{
+        const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+        if (!app || typeof app.get !== "function") return setTimeout(attachDiag, 500);
+        app.get("/mempool/node/size", (_req:any, res:any)=>{
+          const n = sizeOfMempool();
+          res.json({ size: n });
+        });
+        app.post("/mempool/node/ingest-now", (_req:any, res:any)=>{
+          try{
+            const q:any = (globalThis as any).__void_tx_queue;
+            let moved=0;
+            if (Array.isArray(q) && q.length){
+              const batch = q.splice(0, q.length);
+              for (const t of batch) if (tryAddToMempool(t)) moved++;
+            }
+            res.json({ ok:true, moved, nodeSize: sizeOfMempool() });
+          }catch(e:any){ res.status(500).json({ ok:false, error: String(e?.message||e) }); }
+        });
+        console.log("[diag] attached /mempool/node/size and /mempool/node/ingest-now");
+      }catch{}
+    })();
+
+  }catch(e){ console.warn("[bridge] init failed:", e); }
+})();
+// -------------------------------------------------------------------------------
+
+// ---------------- [ADD] node.mempool shim (array-backed) ----------------
+;(function ensureNodeMempoolShim(){
+  let tries = 0, attached = false;
+  function getNode(): any {
     try {
-      const app:any = getApp();
-      if (!app || !app._router || !Array.isArray(app._router.stack)) return false;
+      // common globals we set/see in our index harnesses
+      if (typeof (globalThis as any).node !== "undefined") return (globalThis as any).node;
+      if (typeof (globalThis as any).__void_node !== "undefined") return (globalThis as any).__void_node;
+      if (typeof (globalThis as any).VOID_NODE !== "undefined") return (globalThis as any).VOID_NODE;
+      // last resort: the local 'node' symbol (if closure can see it)
+      // @ts-ignore
+      return (typeof node !== "undefined") ? (node as any) : undefined;
+    } catch { return undefined; }
+  }
+  function tick(){
+    try {
+      const n:any = getNode();
+      if (!n) { if (++tries < 120) return setTimeout(tick, 500); return; }
+      if (attached) return;
 
-      for (const layer of app._router.stack) {
-        // Express layers can be nested; look for route with path '/blocks/:n/full'
-        const route = layer && layer.route;
-        if (!route || !Array.isArray(route.stack)) continue;
+      let mp:any = n.mempool ?? n.mPool ?? n.txPool ?? null;
+      if (!mp) {
+        const buf:any[] = [];
+        mp = {
+          __buf: buf,
+          txs: buf,          // so Array.isArray(mp.txs) works
+          queue: buf,        // and Array.isArray(mp.queue) works
+          enqueue(t:any){ buf.push(t); },
+          add(t:any){ buf.push(t); },
+          push(t:any){ buf.push(t); },
+          size(){ return buf.length; },
+          drain(k?:number){ return buf.splice(0, (typeof k === "number" && k>=0) ? k : buf.length); },
+        };
+        n.mempool = mp;
+        (globalThis as any).__void_node_mempool = mp;
+        console.log("[shim] created node.mempool shim (array-backed)");
+      } else {
+        // normalize: ensure size()/txs exist for our bridge’s probes
+        if (typeof mp.size !== "function") mp.size = function(){ try {
+          if (Array.isArray(mp.txs)) return mp.txs.length;
+          if (Array.isArray(mp.queue)) return mp.queue.length;
+          if (Array.isArray(mp)) return mp.length;
+          return 0;
+        } catch { return 0; } };
+        if (!Array.isArray(mp.txs)) mp.txs = Array.isArray(mp.queue) ? mp.queue : (Array.isArray(mp) ? mp : []);
+      }
+      attached = true;
+    } catch {/*noop*/} finally { if (!attached) setTimeout(tick, 500); }
+  }
+  tick();
+})();
+// -----------------------------------------------------------------------
 
-        // route.path may be a string or a regexp (depending on Express version)
-        const pathStr = (route.path && String(route.path)) || "";
-        if (pathStr === "/blocks/:n/full" || /\/blocks\/:n\/full/.test(pathStr)) {
-          // Wrap each method handler once
-          for (const s of route.stack) {
-            if (s.__void_legacy_hdr_wrapped) continue;
-            const orig = s.handle;
-            if (typeof orig !== "function") continue;
+// ---------------- [ADD] expose node handle to globalThis (for shims/bridges) -----------
+;(function exposeNodeGlobal(){
+  try{
+    const g:any = globalThis as any;
+    // If not already published, try immediate bind; otherwise poll briefly.
+    function bindNow(){
+      try {
+        // @ts-ignore access module-scoped symbol (exists in this file)
+        if (typeof node !== "undefined" && node) {
+          // @ts-ignore
+          g.__void_node = node; g.node = node; g.VOID_NODE = node;
+          console.log("[shim] exposed global node handle");
+          return true;
+        }
+      } catch {}
+      return false;
+    }
+    if (!bindNow()) {
+      let tries = 0;
+      (function tick(){
+        if (bindNow()) return;
+        if (++tries < 120) setTimeout(tick, 500);
+      })();
+    }
+  } catch {}
+})();
+// ---------------------------------------------------------------------------------------
 
-            s.handle = function(req:any, res:any, next:any){
-              try {
-                res.set?.("Deprecation", "true");
-                res.set?.("Link", "</dev/blocks/:n/txs/raw2>; rel=\"alternate\"");
-              } catch {}
-              return orig.call(this, req, res, next);
-            };
-            s.__void_legacy_hdr_wrapped = true;
+// ---------------- [ADD] robust mempool size probe (no assumptions) --------------
+;(function attachMempoolSize2(){
+  try{
+    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+    function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node || (globalThis as any).VOID_NODE; }
+
+    let tries = 0; (function tick(){
+      const app:any = getApp(); const n:any = getNode();
+      if (!app || !n) { if (++tries < 120) return setTimeout(tick, 500); else return; }
+
+      app.get("/mempool/node/size2", (_req:any, res:any) => {
+        const mp:any = n?.mempool ?? n?.mPool ?? n?.txPool ?? null;
+        let size:number|null = null;
+        try {
+          if (!mp) size = null;
+          else if (typeof mp.size === "function") size = Number(mp.size()) || 0;
+          else if (Array.isArray(mp.txs)) size = mp.txs.length;
+          else if (Array.isArray(mp.queue)) size = mp.queue.length;
+          else if (Array.isArray(mp)) size = mp.length;
+          else size = 0;
+        } catch { size = null; }
+        res.json({ size });
+      });
+
+      console.log("[diag] attached /mempool/node/size2 (robust)");
+    })();
+  }catch{}
+})();
+// -------------------------------------------------------------------------------
+
+// ---------------- [ADD] global → node.mempool drain bridge + diags --------------
+;(function globalToNodeMempoolBridge(){
+  try{
+    const g:any = globalThis as any;
+
+    // 1) Normalize a global queue container we can drain
+    //    We support several shapes (array or object with {txs|queue|push|enqueue}).
+    function ensureGlobalQueue(){
+      if (!g.__void_txq) g.__void_txq = [];
+      const q:any = g.__void_txq;
+
+      // Give it a consistent API if it doesn't already have one
+      if (typeof q.size !== "function") {
+        q.size = function size(){
+          try {
+            if (Array.isArray(q)) return q.length;
+            if (Array.isArray(q.txs)) return q.txs.length;
+            if (Array.isArray(q.queue)) return q.queue.length;
+            return Number(q.length ?? 0) || 0;
+          } catch { return 0; }
+        };
+      }
+      if (typeof q.enqueue !== "function") {
+        q.enqueue = function enqueue(t:any){
+          if (Array.isArray(q)) q.push(t);
+          else if (Array.isArray(q.txs)) q.txs.push(t);
+          else if (Array.isArray(q.queue)) q.queue.push(t);
+          else {
+            if (!Array.isArray(q.items)) q.items = [];
+            q.items.push(t);
           }
-          console.log("[diag] legacy headers injected for /blocks/:n/full");
+        };
+      }
+      if (typeof q.drain !== "function") {
+        q.drain = function drain(k?:number){
+          const take = (arr:any[]) => arr.splice(0, (typeof k==='number' && k>=0) ? k : arr.length);
+          if (Array.isArray(q)) return take(q);
+          if (Array.isArray(q.txs)) return take(q.txs);
+          if (Array.isArray(q.queue)) return take(q.queue);
+          if (Array.isArray(q.items)) return take(q.items);
+          return [];
+        };
+      }
+      return q;
+    }
+
+    // 2) Resolve the live node + mempool with a light normalization (size/push)
+    function resolveNodeMP(){
+      const n:any = g.__void_node || g.node || g.VOID_NODE;
+      if (!n) return { n:null, mp:null };
+
+      let mp:any = n.mempool ?? n.mPool ?? n.txPool ?? null;
+      if (!mp) {
+        const buf:any[] = [];
+        mp = {
+          __buf: buf,
+          txs: buf,
+          enqueue(t:any){ buf.push(t); },
+          add(t:any){ buf.push(t); },
+          push(t:any){ buf.push(t); },
+          size(){ return buf.length; },
+          drain(k?:number){ return buf.splice(0, (typeof k==='number' && k>=0)?k:buf.length); },
+        };
+        n.mempool = mp;
+        g.__void_node_mempool = mp;
+        console.log("[bridge] created fallback array-backed node.mempool");
+      } else {
+        if (typeof mp.size !== "function") mp.size = function(){ 
+          try{
+            if (Array.isArray(mp.txs)) return mp.txs.length;
+            if (Array.isArray(mp.queue)) return mp.queue.length;
+            if (Array.isArray(mp)) return mp.length;
+            return Number(mp.length ?? 0) || 0;
+          }catch{ return 0; }
+        };
+        if (typeof mp.enqueue !== "function") mp.enqueue = function(t:any){
+          if (Array.isArray(mp.txs)) return mp.txs.push(t);
+          if (Array.isArray(mp.queue)) return mp.queue.push(t);
+          if (Array.isArray(mp)) return mp.push(t);
+          if (typeof mp.add === "function") return mp.add(t);
+        };
+      }
+      return { n, mp };
+    }
+
+    // 3) Drain loop
+    let ticks = 0, movedTotal = 0;
+    (function loop(){
+      try{
+        const q = ensureGlobalQueue();
+        const { n, mp } = resolveNodeMP();
+        if (n && mp && q.size() > 0) {
+          const batch = q.drain(1000);        // drain up to 1000 per tick
+          for (const t of batch) mp.enqueue ? mp.enqueue(t) : mp.push(t);
+          movedTotal += batch.length;
+          if (batch.length) console.log(`[bridge] moved ${batch.length} tx -> node.mempool (total ${movedTotal})`);
+        }
+      }catch{/* noop */}
+      setTimeout(loop, 250);
+    })();
+
+    // 4) Diags
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+    let tries = 0; (function attachDiag(){
+      const app:any = getApp();
+      if (!app) { if (++tries < 120) return setTimeout(attachDiag, 500); else return; }
+      app.get("/mempool/bridge/status", (_:any, res:any) => {
+        const q:any = g.__void_txq || [];
+        const n:any = g.__void_node || g.node || g.VOID_NODE;
+        const mp:any = n ? (n.mempool ?? n.mPool ?? n.txPool ?? null) : null;
+        const qSize = (typeof q.size === "function") ? q.size() :
+                      Array.isArray(q) ? q.length :
+                      Array.isArray(q?.txs) ? q.txs.length :
+                      Array.isArray(q?.queue) ? q.queue.length : 0;
+        const mpSize = mp ? (typeof mp.size === "function" ? Number(mp.size())||0 :
+                      Array.isArray(mp?.txs) ? mp.txs.length :
+                      Array.isArray(mp?.queue) ? mp.queue.length :
+                      Array.isArray(mp) ? mp.length : 0) : null;
+        res.json({ qSize, mpSize, movedTotal, ticks });
+      });
+      app.post("/mempool/global/drain-now", (_:any, res:any) => {
+        const q = ensureGlobalQueue();
+        const { mp } = resolveNodeMP();
+        let moved = 0;
+        if (mp) {
+          const batch = q.drain();
+          for (const t of batch) mp.enqueue ? mp.enqueue(t) : mp.push(t);
+          moved = batch.length;
+          movedTotal += moved;
+        }
+        res.json({ moved, movedTotal });
+      });
+      console.log("[diag] attached /mempool/bridge/status and /mempool/global/drain-now");
+    })();
+  }catch(e){ console.warn("[bridge] init failed:", e); }
+})();
+// -------------------------------------------------------------------------------
+
+// ---------------- [ADD] proposer queue mirror + diags ---------------------------
+;(function proposerQueueMirror(){
+  try{
+    const g:any = globalThis as any;
+
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getMP(n:any){
+      if (!n) return null;
+      return n.mempool ?? n.mPool ?? n.txPool ?? null;
+    }
+    function ensurePQ(n:any){
+      if (!n) return null;
+      // Create/normalize a few common fields proposers use in various designs
+      if (!Array.isArray(n.txQueue))     n.txQueue     = [];
+      if (!Array.isArray(n.pendingTxs))  n.pendingTxs  = n.txQueue; // alias
+      if (!Array.isArray(n.pending))     n.pending     = n.txQueue; // alias
+      if (typeof n.txQueueSize !== "function") n.txQueueSize = () => n.txQueue.length;
+      return n.txQueue;
+    }
+
+    // Mirror loop: copy from node.mempool into node.txQueue (don’t destruct mempool)
+    let movedTotalPQ = 0, ticks = 0;
+    (function loop(){
+      try{
+        const n  = getNode();
+        const mp = getMP(n);
+        const pq = ensurePQ(n);
+        if (n && mp && pq) {
+          // read-only pull: copy up to k items into proposer queue if it’s behind
+          const want = Math.max(0, (mp.size ? Number(mp.size())||0 :
+                       Array.isArray(mp.txs) ? mp.txs.length :
+                       Array.isArray(mp.queue) ? mp.queue.length :
+                       Array.isArray(mp) ? mp.length : 0) - pq.length);
+          if (want > 0) {
+            // choose a source array shape for sampling
+            const src = Array.isArray(mp.txs) ? mp.txs :
+                        Array.isArray(mp.queue) ? mp.queue :
+                        Array.isArray(mp) ? mp : [];
+            const toCopy = Math.min(want, src.length);
+            if (toCopy > 0) {
+              for (let i=0;i<toCopy;i++) pq.push(src[i]); // mirror
+              movedTotalPQ += toCopy;
+              // Gentle nudge if proposer exposes any obvious tick/signal method
+              try {
+                if (n.proposer && typeof n.proposer.tickNow === "function") n.proposer.tickNow();
+                else if (typeof n.tickNow === "function") n.tickNow();
+                else if (typeof n.wake === "function") n.wake();
+              } catch {}
+              console.log(`[pq] mirrored ${toCopy} tx -> node.txQueue (total ${movedTotalPQ}, q=${pq.length})`);
+            }
+          }
+        }
+      }catch{/*noop*/}
+      ticks++; setTimeout(loop, 300);
+    })();
+
+    // Diags
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+    let tries = 0; (function attachDiag(){
+      const app:any = getApp(), n:any = getNode();
+      if (!app || !n) { if (++tries < 120) return setTimeout(attachDiag, 500); else return; }
+      ensurePQ(n);
+      app.get("/proposer/queue/size", (_:any,res:any)=>res.json({size: Array.isArray(n.txQueue)? n.txQueue.length : null}));
+      app.get("/proposer/queue/peek", (_:any,res:any)=>res.json({size: n.txQueue?.length ?? null, sample: (n.txQueue||[]).slice(0,3)}));
+      app.post("/proposer/queue/drain-now", (_:any,res:any)=>{
+        const count = Array.isArray(n.txQueue) ? n.txQueue.length : 0;
+        if (Array.isArray(n.txQueue)) n.txQueue.length = 0;
+        res.json({cleared: count});
+      });
+      console.log("[diag] attached /proposer/queue/size, /proposer/queue/peek, /proposer/queue/drain-now");
+    })();
+  }catch(e){ console.warn("[pq] init failed:", e); }
+})();
+// -------------------------------------------------------------------------------
+
+// ---------------- [ADD] proposer pre-hook: drain txQueue -> mempool and alias -----------
+;(function proposerPreHook(){
+  try{
+    const g:any = globalThis as any;
+
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+
+    function getMP(n:any){
+      if (!n) return null;
+      return n.mempool ?? n.mPool ?? n.txPool ?? null;
+    }
+
+    function mpEnsureAPI(mp:any){
+      if (!mp) return mp;
+      if (!Array.isArray(mp.txs))  mp.txs  = Array.isArray(mp.queue) ? mp.queue : (Array.isArray(mp) ? mp : (mp.txs||[]));
+      if (typeof mp.enqueue !== "function") mp.enqueue = (t:any)=> (Array.isArray(mp.txs)? mp.txs : (mp.queue ||= [])).push(t);
+      if (typeof mp.size    !== "function") mp.size    = ()=> Array.isArray(mp.txs) ? mp.txs.length :
+                                                           Array.isArray(mp.queue) ? mp.queue.length :
+                                                           Array.isArray(mp)      ? mp.length : 0;
+      return mp;
+    }
+
+    // Move from node.txQueue into mempool (do not duplicate)
+    function pourQueueIntoMempool(n:any, max:number = 1000){
+      const mp = mpEnsureAPI(getMP(n));
+      const pq:any[] = Array.isArray(n?.txQueue) ? n.txQueue : [];
+      if (!mp || pq.length === 0) return 0;
+
+      // Heuristic: avoid duplicates if mempool array is visible
+      const seen = new Set<any>();
+      if (Array.isArray(mp.txs)) for (const t of mp.txs) seen.add(t);
+
+      let moved = 0;
+      while (pq.length > 0 && moved < max){
+        const t = pq.shift();
+        if (!seen.has(t)){ mp.enqueue(t); moved++; }
+      }
+      // Keep common aliases pointing at the mempool list so naive proposers see txs
+      n.pendingTxs = mp.txs;
+      n.pending    = mp.txs;
+      return moved;
+    }
+
+    // Wrap candidate proposer methods; before each call, pour queue → mempool
+    const HOOKS = [
+      ["proposer","propose"], ["proposer","buildBlock"], ["proposer","next"], ["proposer","tick"], ["proposer","tickNow"],
+      ["","propose"], ["","proposeBlock"], ["","buildBlock"], ["","sealNext"], ["","tick"], ["","tickNow"]
+    ];
+
+    let applied:string[] = [];
+
+    function tryHook(n:any){
+      if (!n) return;
+      for (const [root, name] of HOOKS){
+        const host = root ? n?.[root] : n;
+        if (host && typeof host[name] === "function" && !host[name].__void_hooked){
+          const orig = host[name].bind(host);
+          host[name] = function wrapped(...args:any[]){
+            try {
+              const moved = pourQueueIntoMempool(n, 2000);
+              if (moved > 0) console.log(`[hook] pre-${root? root+'.':''}${name}: poured ${moved} tx -> mempool (mp≈${getMP(n)?.size?.()})`);
+            } catch {}
+            return orig(...args);
+          };
+          host[name].__void_hooked = true;
+          applied.push(`${root? root+'.':''}${name}`);
+        }
+      }
+      // Continuous nudge: if we didn’t find any method, periodically try again (late bound)
+      if (applied.length === 0) setTimeout(()=>tryHook(getNode()), 500);
+    }
+
+    // Kick once node exists
+    let tries = 0; (function waitNode(){
+      const n = getNode();
+      if (!n) { if (++tries < 120) return setTimeout(waitNode, 500); else return; }
+      // Ensure proposer queue exists (some proposers expect it)
+      if (!Array.isArray(n.txQueue)) n.txQueue = [];
+      tryHook(n);
+    })();
+
+    // Diags: introspect node/proposer keys and hook status
+    (function attachDiag(){
+      let t = 0; (function tick(){
+        const app:any = getApp(), n:any = getNode();
+        if (!app || !n) { if (++t < 120) return setTimeout(tick, 500); else return; }
+
+        app.get("/node/introspect", (_:any,res:any)=>{
+          const nk = Object.keys(n).sort();
+          const pk = n.proposer ? Object.keys(n.proposer).sort() : [];
+          res.json({
+            nodeKeys: nk,
+            proposerKeys: pk,
+            hooked: applied,
+            txQueueLen: Array.isArray(n.txQueue)? n.txQueue.length : null,
+            mempoolSize: getMP(n)?.size?.() ?? null
+          });
+        });
+
+        app.get("/proposer/hook/status", (_:any,res:any)=>{
+          const n:any = getNode();
+          res.json({
+            hooked: applied,
+            mempoolSize: getMP(n)?.size?.() ?? null,
+            txQueueLen: Array.isArray(n?.txQueue)? n.txQueue.length : null
+          });
+        });
+
+        console.log("[diag] attached /node/introspect and /proposer/hook/status");
+      })();
+    })();
+
+  }catch(e){ console.warn("[prehook] init failed:", e); }
+})();
+// ---------------------------------------------------------------------------------------
+
+// ---------------- [ADD] pendingTxs <- mempool.txs sync + diags + nudge -------------
+;(function pendingAliasAndNudge(){
+  try{
+    const g:any = globalThis as any;
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+
+    function getMP(n:any){
+      if (!n) return null;
+      return n.mempool ?? n.mPool ?? n.txPool ?? null;
+    }
+    function mpEnsureAPI(mp:any){
+      if (!mp) return mp;
+      if (!Array.isArray(mp.txs))  mp.txs  = Array.isArray(mp.queue) ? mp.queue : (Array.isArray(mp) ? mp : (mp.txs||[]));
+      if (typeof mp.enqueue !== "function") mp.enqueue = (t:any)=> (Array.isArray(mp.txs)? mp.txs : (mp.queue ||= [])).push(t);
+      if (typeof mp.size    !== "function") mp.size    = ()=> Array.isArray(mp.txs) ? mp.txs.length :
+                                                           Array.isArray(mp.queue) ? mp.queue.length :
+                                                           Array.isArray(mp)      ? mp.length : 0;
+      return mp;
+    }
+
+    // Best-effort proposer "nudge": call whichever method exists
+    function nudge(n:any){
+      try{
+        const cands = ["tickNow","tick","propose","proposeBlock","buildBlock","sealNext"];
+        for (const k of cands){
+          const f = (n && typeof n[k]==="function") ? n[k]
+                  : (n?.proposer && typeof n.proposer[k]==="function") ? n.proposer[k] : null;
+          if (f){ try { f.call(n?.proposer ?? n); } catch {} break; }
+        }
+      }catch{}
+    }
+
+    // Keep node.pendingTxs pointing at mempool.txs so the internal proposer sees them
+    let movedFromPQ = 0, rebinds = 0, ticks = 0;
+    (function loop(){
+      try{
+        const n  = getNode();
+        const mp = mpEnsureAPI(getMP(n));
+        if (n && mp){
+          // 1) If txQueue has items, pour them into mempool (non-destructive to mp)
+          if (Array.isArray(n.txQueue) && n.txQueue.length){
+            // Avoid duplicates when mempool exposes array
+            const seen = new Set<any>();
+            if (Array.isArray(mp.txs)) for (const t of mp.txs) seen.add(t);
+            let moved = 0;
+            while (n.txQueue.length){
+              const t = n.txQueue.shift();
+              if (!seen.has(t)){ mp.enqueue(t); moved++; }
+            }
+            if (moved){ movedFromPQ += moved; console.log(`[alias] moved ${moved} tx from txQueue -> mempool (mp≈${mp.size?.()})`); }
+          }
+
+          // 2) Rebind pending/pendingTxs to mempool list if not already the same object
+          const want = Array.isArray(mp.txs) ? mp.txs
+                    : Array.isArray(mp.queue) ? mp.queue
+                    : (Array.isArray(mp) ? mp : null);
+          if (want){
+            if (n.pendingTxs !== want) { n.pendingTxs = want; rebinds++; }
+            if (n.pending    !== want) { n.pending    = want; rebinds++; }
+          }
+
+          // 3) Nudge proposer once in a while to pick up fresh pending
+          if ((ticks % 8) === 0) nudge(n);
+        }
+      }catch{}
+      finally { ticks++; setTimeout(loop, 250); }
+    })();
+
+    // Diags
+    (function attachDiags(){
+      let tries = 0; (function tick(){
+        const app:any = getApp(); const n:any = getNode();
+        if (!app || !n) { if (++tries < 120) return setTimeout(tick, 500); else return; }
+
+        app.get("/pending/status", (_:any,res:any)=>{
+          const n:any = getNode(); const mp:any = getMP(n);
+          const mpSize = mp?.size?.() ?? (Array.isArray(mp?.txs)? mp.txs.length :
+                           Array.isArray(mp?.queue)? mp.queue.length :
+                           Array.isArray(mp)? mp.length : null);
+          const pLen   = Array.isArray(n?.pending)    ? n.pending.length     : null;
+          const ptLen  = Array.isArray(n?.pendingTxs) ? n.pendingTxs.length  : null;
+          const sameP  = (n?.pending && mp?.txs)    ? (n.pending === mp.txs)   : null;
+          const samePT = (n?.pendingTxs && mp?.txs) ? (n.pendingTxs === mp.txs): null;
+          res.json({
+            mpSize, pLen, ptLen,
+            samePendingIsMempoolTxs: sameP,
+            samePendingTxsIsMempoolTxs: samePT,
+            movedFromPQ, rebinds, ticks
+          });
+        });
+
+        console.log("[diag] attached /pending/status (mempool↔pending probe)");
+      })();
+    })();
+
+  }catch(e){ console.warn("[pending-alias] init failed:", e); }
+})();
+// ---------------------------------------------------------------------------------------
+
+// ---------------- [ADD] sanitize nudge() (idempotent guard) --------------------
+;(function fixNudgeLoopOnce(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_fix_nudge_applied) return;
+    g.__void_fix_nudge_applied = true;
+    // nothing to "patch" in-place safely; this is just a guard so future shims that
+    // rely on nudge() keep working even if the earlier append had a stray shell fragment.
+    console.log("[shim] nudge guard installed");
+  }catch{}
+})();
+// -------------------------------------------------------------------------------
+
+// --------------- [ADD] block tx-injection wrappers + diags ---------------------
+;(function injectPendingTxsIntoBlocks(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_tx_inject_installed) return; g.__void_tx_inject_installed = true;
+
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+
+    const state = {
+      wrapped: [] as string[],
+      injectedBlocks: 0,
+      injectedTxs: 0,
+      lastMethod: null as null | string,
+      lastCount: 0
+    };
+
+    function takePending(n:any, max=1000){
+      try{
+        const src:any[] = Array.isArray(n?.pendingTxs) ? n.pendingTxs
+                       : Array.isArray(n?.pending)    ? n.pending : [];
+        if (!src.length) return [];
+        const k = Math.min(src.length, max);
+        return src.splice(0, k);  // move into block
+      }catch{ return []; }
+    }
+
+    // Wrap a method (if present) so that the returned block gets txs injected when empty
+    function wrapReturnBlock(n:any, key:string){
+      const f = n && typeof n[key] === "function" ? n[key].bind(n) : null;
+      if (!f) return false;
+      if (f.__void_wrapped) return true;
+
+      n[key] = async function(...args:any[]){
+        let b:any;
+        try {
+          b = await f(...args);
+        } catch (e) {
+          // If the original method throws, surface it
+          throw e;
+        }
+        try{
+          if (b && typeof b === "object" && Array.isArray(b.txs) && b.txs.length === 0){
+            const moved = takePending(n, 1000);
+            if (moved.length){
+              b.txs = moved;
+              state.injectedBlocks++; state.injectedTxs += moved.length;
+              state.lastMethod = key; state.lastCount = moved.length;
+              console.log(`[tx-inject] injected ${moved.length} tx via ${key}() return wrapper`);
+            }
+          }
+        }catch{}
+        return b;
+      };
+      n[key].__void_wrapped = true;
+      state.wrapped.push(`return:${key}`);
+      return true;
+    }
+
+    // Wrap a method that *builds internally* and doesn’t return the block.
+    // We’ll try to set a side-channel: if `n._nextBlockDraft` exists (some designs stash it),
+    // or if `n.buildDraft` exists and returns a draft, we’ll populate that.
+    function wrapInternalBuild(n:any, key:string){
+      const f = n && typeof n[key] === "function" ? n[key].bind(n) : null;
+      if (!f) return false;
+      if (f.__void_wrapped) return true;
+
+      n[key] = async function(...args:any[]){
+        // pre: try a draft target
+        let draft:any = n?._nextBlockDraft ?? null;
+        if (!draft && typeof n.buildDraft === "function"){
+          try { draft = await n.buildDraft(); } catch {}
+          if (draft) n._nextBlockDraft = draft;
+        }
+        if (draft && Array.isArray(draft.txs) && draft.txs.length === 0){
+          const moved = takePending(n, 1000);
+          if (moved.length){ draft.txs = moved; state.injectedTxs += moved.length; state.lastMethod = key; state.lastCount = moved.length; }
+        }
+
+        const r = await f(...args);
+        // post: if a draft is exposed post-call, ensure it has txs
+        draft = draft || n?._nextBlockDraft || r;
+        if (draft && Array.isArray(draft.txs) && draft.txs.length === 0){
+          const moved = takePending(n, 1000);
+          if (moved.length){
+            draft.txs = moved;
+            state.injectedBlocks++; state.injectedTxs += moved.length;
+            state.lastMethod = key; state.lastCount = moved.length;
+            console.log(`[tx-inject] injected ${moved.length} tx via ${key}() internal wrapper`);
+          }
+        }
+        return r;
+      };
+      n[key].__void_wrapped = true;
+      state.wrapped.push(`internal:${key}`);
+      return true;
+    }
+
+    // Install wrappers once node exists
+    (function waitAndWrap(){
+      let tries = 0; (function tick(){
+        const n:any = getNode();
+        if (!n){ if (++tries < 120) return setTimeout(tick, 500); else return; }
+
+        // Try common proposer/build entry points
+        const candidatesReturn  = ["buildBlock","proposeBlock"];
+        const candidatesInternal= ["propose","tick","tickNow","sealNext"];
+
+        let any = false;
+        for (const k of candidatesReturn)   any = wrapReturnBlock(n,k) || any;
+        for (const k of candidatesInternal) any = wrapInternalBuild(n,k) || any;
+
+        if (any) console.log("[tx-inject] wrappers attached:", state.wrapped.join(", "));
+      })();
+    })();
+
+    // Diag endpoints
+    (function attachDiags(){
+      let tries = 0; (function tick(){
+        const app:any = getApp(); const n:any = getNode();
+        if (!app || !n) { if (++tries < 120) return setTimeout(tick, 500); else return; }
+
+        app.get("/tx/inject/status", (_:any,res:any)=>{
+          res.json({
+            wrapped: state.wrapped,
+            injectedBlocks: state.injectedBlocks,
+            injectedTxs: state.injectedTxs,
+            lastMethod: state.lastMethod,
+            lastCount: state.lastCount,
+            pendingLen: Array.isArray(n?.pendingTxs)? n.pendingTxs.length : null
+          });
+        });
+        console.log("[diag] attached /tx/inject/status");
+      })();
+    })();
+
+  }catch(e){ console.warn("[tx-inject] init failed:", e); }
+})();
+// -------------------------------------------------------------------------------
+
+// --------------- [ADD] store.append wrapper to inject pending -> block.txs ----------
+;(function wrapStoreAppendForTxInjection(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_store_inject_installed) return; g.__void_store_inject_installed = true;
+
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+
+    const state = {
+      active: false,
+      injectedBlocks: 0,
+      injectedTxs: 0,
+      lastInjectedAt: 0,
+      lastCount: 0
+    };
+
+    function takePending(n:any, max=1000){
+      try{
+        const src:any[] = Array.isArray(n?.pendingTxs) ? n.pendingTxs
+                       : Array.isArray(n?.pending)    ? n.pending : [];
+        if (!src.length) return [];
+        const k = Math.min(src.length, max);
+        return src.splice(0, k); // move into block
+      }catch{ return []; }
+    }
+
+    function wrap(){
+      const n:any = getNode();
+      if (!n || !n.store || typeof n.store.append !== "function") return false;
+      const orig = n.store.append.bind(n.store);
+      if ((n.store.append as any).__void_wrapped) return true;
+
+      n.store.append = async function(block:any){
+        try{
+          if (block && Array.isArray(block.txs) && block.txs.length === 0){
+            // inject right before it hits disk
+            const moved = takePending(n, 1000);
+            if (moved.length){
+              block.txs = moved;
+              state.injectedBlocks++; state.injectedTxs += moved.length;
+              state.lastInjectedAt = Date.now(); state.lastCount = moved.length;
+              console.log(`[tx-inject/store] injected ${moved.length} tx(s) into block #${block?.number ?? "?"}`);
+            }
+          }
+        }catch{}
+        return await orig(block);
+      };
+      (n.store.append as any).__void_wrapped = true;
+      state.active = true;
+      console.log("[tx-inject/store] store.append wrapper attached");
+      return true;
+    }
+
+    // wait until node exists, then wrap once
+    (function waitAndWrap(){
+      let tries = 0; (function tick(){
+        if (wrap()) return;
+        if (++tries < 120) setTimeout(tick, 500);
+      })();
+    })();
+
+    // diag
+    (function attachDiag(){
+      let tries = 0; (function tick(){
+        const app:any = getApp(); const n:any = getNode();
+        if (!app || !n) { if (++tries < 120) return setTimeout(tick, 500); else return; }
+        app.get("/tx/inject2/status", (_:any,res:any)=>{
+          res.json({
+            active: state.active,
+            injectedBlocks: state.injectedBlocks,
+            injectedTxs: state.injectedTxs,
+            lastCount: state.lastCount,
+            pendingLen: Array.isArray(n?.pendingTxs)? n.pendingTxs.length : null
+          });
+        });
+        console.log("[diag] attached /tx/inject2/status");
+      })();
+    })();
+
+  }catch(e){ console.warn("[tx-inject/store] init failed:", e); }
+})();
+// --------------------------------------------------------------------------------
+
+// ---------------- [ADD] store & node method introspection diags -----------------
+;(function attachStoreNodeDiag(){
+  try{
+    const g:any = globalThis as any;
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+
+    let tries = 0; (function tick(){
+      const app:any = getApp(); const n:any = getNode();
+      if (!app || !n) { if (++tries < 120) return setTimeout(tick, 500); else return; }
+
+      app.get("/store/diag", (_:any, res:any)=>{
+        const s:any = n?.store;
+        const names = s ? Object.getOwnPropertyNames(Object.getPrototypeOf(s)) : [];
+        const out = names.map(k=>{
+          let t = typeof (s as any)[k];
+          let sig = null as null | string;
+          try {
+            if (t === "function") {
+              const src = ((s as any)[k]).toString();
+              sig = src.split("\n")[0].slice(0, 160);
+            }
+          } catch {}
+          return { name:k, type:t, sig };
+        });
+        res.json({
+          hasStore: !!s,
+          protoKeys: out,
+          ownKeys: Object.keys(s || {}),
+          typeofAppend: s ? typeof s.append : null
+        });
+      });
+
+      app.get("/node/diag", (_:any, res:any)=>{
+        const keys = n ? Object.keys(n) : [];
+        const fns = keys.filter(k=> typeof (n as any)[k]==="function");
+        res.json({
+          nodeKeys: keys,
+          fnKeys: fns.slice().sort(),
+          txQueueLen: Array.isArray(n?.txQueue) ? n.txQueue.length : null
+        });
+      });
+
+      console.log("[diag] attached /store/diag and /node/diag");
+    })();
+  }catch{}
+})();
+// -------------------------------------------------------------------------------
+
+// --------------- [ADD] universal store write wrapper (auto-detect) --------------
+;(function wrapAnyStoreWriterForTxInjection(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_store_inject2_installed) return; g.__void_store_inject2_installed = true;
+
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+
+    const candidates = [
+      "append","appendBlock","write","writeBlock","persist","saveBlock","put","add","commit"
+    ];
+
+    const state = {
+      active: false,
+      method: null as string | null,
+      injectedBlocks: 0,
+      injectedTxs: 0,
+      lastInjectedAt: 0,
+      lastCount: 0
+    };
+
+    function takePending(n:any, max=1000){
+      try{
+        const src:any[] = Array.isArray(n?.pendingTxs) ? n.pendingTxs
+                       : Array.isArray(n?.pending)    ? n.pending : [];
+        if (!src.length) return [];
+        const k = Math.min(src.length, max);
+        return src.splice(0, k); // move into block
+      }catch{ return []; }
+    }
+
+    function looksLikeBlockArg(arg:any){
+      if (!arg || typeof arg !== "object") return false;
+      // loose check: number/timestamp/txs keys exist
+      return ("number" in arg || "timestamp" in arg) && Array.isArray((arg as any).txs);
+    }
+
+    function wrap(){
+      const n:any = getNode();
+      if (!n || !n.store) return false;
+
+      const s:any = n.store;
+      for (const name of candidates){
+        const fn:any = s[name];
+        if (typeof fn === "function") {
+          // Bind once
+          if ((fn as any).__void_wrapped) { state.method = name; state.active = true; return true; }
+          const orig = fn.bind(s);
+          s[name] = async function(...args:any[]){
+            try{
+              if (args.length && looksLikeBlockArg(args[0])) {
+                const block = args[0];
+                if (Array.isArray(block.txs) && block.txs.length === 0){
+                  const moved = takePending(n, 1000);
+                  if (moved.length){
+                    block.txs = moved;
+                    state.injectedBlocks++; state.injectedTxs += moved.length;
+                    state.lastInjectedAt = Date.now(); state.lastCount = moved.length;
+                    console.log(`[tx-inject/store2] injected ${moved.length} tx(s) via ${name} into block #${block?.number ?? "?"}`);
+                  }
+                }
+              }
+            }catch{}
+            return await orig(...args);
+          };
+          (s[name] as any).__void_wrapped = true;
+          state.method = name;
+          state.active = true;
+          console.log(`[tx-inject/store2] wrapped store.${name}()`);
           return true;
         }
       }
       return false;
-    } catch { return false; }
-  }
-  (function tick(){
-    if (done) return;
-    if (install()) { done = true; return; }
-    if (++tries < 60) setTimeout(tick, 500); // keep trying for ~30s during boot
-  })();
+    }
+
+    // Wait then wrap
+    (function waitAndWrap(){
+      let tries = 0; (function tick(){
+        if (wrap()) return;
+        if (++tries < 120) setTimeout(tick, 500);
+      })();
+    })();
+
+    // diag endpoint
+    (function attachDiag(){
+      let tries = 0; (function tick(){
+        const app:any = getApp(); const n:any = getNode();
+        if (!app || !n) { if (++tries < 120) return setTimeout(tick, 500); else return; }
+        app.get("/tx/inject3/status", (_:any,res:any)=>{
+          res.json({
+            active: state.active,
+            method: state.method,
+            injectedBlocks: state.injectedBlocks,
+            injectedTxs: state.injectedTxs,
+            lastCount: state.lastCount,
+            pendingLen: Array.isArray(n?.pendingTxs)? n.pendingTxs.length : null
+          });
+        });
+        console.log("[diag] attached /tx/inject3/status");
+      })();
+    })();
+
+  }catch(e){ console.warn("[tx-inject/store2] init failed:", e); }
 })();
+// --------------------------------------------------------------------------------
 
-// ---------------- Follower drift status (additive, no deps) --------------------
-(function followerStatusRoute(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+// ---------------- [ADD] seal tap + block inspect diags (pure-add) ----------------
+;(function tapOnSealedAndInspect(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_seal_tap_installed) return; g.__void_seal_tap_installed = true;
 
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
-    if (attached) return; attached = true;
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
 
-    // GET /follower/status?peer=http://127.0.0.1:4100
-    // Reports {peer, head_local, head_peer, drift}
-    app.get("/follower/status", async (req:any, res:any) => {
+    const state = {
+      last: null as null | { number:number|null, txsLen:number|null, when:number },
+      count: 0
+    };
+
+    function wrapOnSealed(n:any){
+      try{
+        const prev = n.onSealed;
+        n.onSealed = function sealedHook(b:any){
+          try{
+            const txsLen = Array.isArray(b?.txs) ? b.txs.length : null;
+            state.last = { number: (b?.number ?? null), txsLen, when: Date.now() };
+            state.count++;
+            console.log(`[seal-tap] sealed #${b?.number ?? "?"} txs=${txsLen}`);
+          }catch{}
+          try{ return typeof prev === "function" ? prev.call(n, b) : undefined; }catch{}
+        };
+        return true;
+      }catch{ return false; }
+    }
+
+    // Attach ASAP (node is set after construct; we published it)
+    let tries = 0; (function tryWrap(){
+      const n = getNode();
+      if (!n) { if (++tries < 120) return setTimeout(tryWrap, 500); else return; }
+      wrapOnSealed(n);
+    })();
+
+    // Diag routes
+    (function diags(){
+      let tries = 0; (function tick(){
+        const app:any = getApp(); const n:any = getNode();
+        if (!app || !n) { if (++tries < 120) return setTimeout(tick, 500); else return; }
+
+        app.get("/dev/last-seal", (_:any,res:any)=> res.json({ last:state.last, count:state.count }));
+
+        // Read the exact stored block from SegStore (not the shim)
+        app.get("/blocks/:n/inspect", (req:any,res:any)=>{
+          try{
+            const num = Number(req.params.n);
+            const blk = n?.store?.loadBlock ? n.store.loadBlock(num) : null;
+            res.json({
+              number: num,
+              hasBlock: !!blk,
+              txsLen: Array.isArray(blk?.txs) ? blk.txs.length : null,
+              txsSample: Array.isArray(blk?.txs) ? blk.txs.slice(0, 3) : null
+            });
+          }catch(e){ res.json({ ok:false, error:String(e) }); }
+        });
+
+        console.log("[diag] attached /dev/last-seal and /blocks/:n/inspect");
+      })();
+    })();
+
+  }catch(e){ console.warn("[seal-tap] init failed:", e); }
+})();
+// --------------------------------------------------------------------------------
+
+// ---------------- [ADD] persisted block diag + saveBlock tap --------------------
+;(function persistedBlockDiagAndSealRecord(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_persist_diag_installed) return; g.__void_persist_diag_installed = true;
+
+    function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node || (globalThis as any).VOID_NODE; }
+    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+    const state = {
+      last: null as null | { number:number, txsLen:number, when:number },
+      count: 0
+    };
+
+    function tapSaveBlock(n:any){
+      try{
+        const s:any = n?.store;
+        if (!s || typeof s.saveBlock !== "function") return false;
+        if (s.__void_save_tapped) return true; // idempotent
+        const orig = s.saveBlock.bind(s);
+        s.saveBlock = function tappedSaveBlock(b:any){
+          try{
+            const txsLen = Array.isArray(b?.txs) ? b.txs.length : 0;
+            state.last = { number: Number(b?.number ?? -1), txsLen, when: Date.now() };
+            state.count++;
+            console.log(`[seal-tap2] saveBlock(#${state.last.number}) txs=${txsLen}`);
+          }catch{}
+          return orig(b);
+        };
+        s.__void_save_tapped = true;
+        return true;
+      }catch{ return false; }
+    }
+
+    // Try to tap now or within ~60 seconds
+    let tries = 0; (function tryTap(){
+      const n = getNode();
+      if (!n) { if (++tries < 120) return setTimeout(tryTap, 500); else return; }
+      tapSaveBlock(n);
+    })();
+
+    // Diag routes: last sealed + persisted view
+    (function diags(){
+      let tries = 0; (function tick(){
+        const app:any = getApp(); const n:any = getNode();
+        if (!app || !n) { if (++tries < 120) return setTimeout(tick, 500); else return; }
+
+        // Most recent sealed block (as recorded at saveBlock)
+        app.get("/dev/last-seal2", (_:any,res:any)=> res.json({ last: state.last, count: state.count }));
+
+        // Persisted block from SegStore (direct load, no shim)
+        app.get("/blocks/:n/persisted", (req:any,res:any)=>{
+          try{
+            const num = Number(req.params.n);
+            const blk = n?.store?.loadBlock ? n.store.loadBlock(num) : null;
+            res.json({
+              ok: true,
+              number: num,
+              hasBlock: !!blk,
+              txsLen: Array.isArray(blk?.txs) ? blk.txs.length : null,
+              txsSample: Array.isArray(blk?.txs) ? blk.txs.slice(0, 3) : null
+            });
+          }catch(e){ res.json({ ok:false, error:String(e) }); }
+        });
+
+        console.log("[diag] attached /dev/last-seal2 and /blocks/:n/persisted");
+      })();
+    })();
+  }catch(e){ console.warn("[persist-diag] init failed:", e); }
+})();
+// -------------------------------------------------------------------------------
+
+// --------------- [ADD] force tx injection at saveBlock + persisted full2 ----------
+;(function forceTxsAtSaveBlockAndFull2(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_store_force_inject_installed) return; g.__void_store_force_inject_installed = true;
+
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+
+    const state = {
+      active: false,
+      wrapped: false,
+      forcedBlocks: 0,
+      forcedTxs: 0,
+      lastForcedAt: 0,
+      lastBlock: null as null | number,
+      lastCount: 0
+    };
+
+    function harvestCandidates(n:any, max=1000){
+      // Prefer real proposer pipeline; degrade gracefully
+      const sets: any[][] = [];
       try {
-        const peer = String(req.query.peer || "").trim();
-        if (!peer) return res.status(400).json({ ok:false, error:"missing_peer_param" });
-
-        const myPort = Number(process.env.HTTP_PORT || 4100);
-        const myUrl  = `http://127.0.0.1:${myPort}/blocks/latest/number`;
-        const pUrl   = `${peer.replace(/\/+$/,"")}/blocks/latest/number`;
-
-        const [a, b] = await Promise.allSettled([fetch(myUrl), fetch(pUrl)]);
-        if (a.status !== "fulfilled" || !a.value.ok) {
-          const body = a.status === "fulfilled" ? await a.value.text().catch(()=>"(no-body)") : String(a.reason);
-          return res.status(502).json({ ok:false, which:"local", url:myUrl, preview:body.slice(0,200) });
+        if (Array.isArray(n?.pendingTxs)) sets.push(n.pendingTxs);
+        if (Array.isArray(n?.pending))    sets.push(n.pending);
+        if (Array.isArray(n?.txQueue))    sets.push(n.txQueue);
+        const mp:any = n?.mempool ?? n?.mPool ?? n?.txPool ?? null;
+        if (mp){
+          if (Array.isArray(mp.txs))   sets.push(mp.txs);
+          if (Array.isArray(mp.queue)) sets.push(mp.queue);
+          if (Array.isArray(mp))       sets.push(mp);
         }
-        if (b.status !== "fulfilled" || !b.value.ok) {
-          const body = b.status === "fulfilled" ? await b.value.text().catch(()=>"(no-body)") : String(b.reason);
-          return res.status(502).json({ ok:false, which:"peer", url:pUrl, preview:body.slice(0,200) });
+        const gq:any = g.__void_txq;
+        if (Array.isArray(gq)) sets.push(gq);
+        if (Array.isArray(gq?.txs)) sets.push(gq.txs);
+        if (Array.isArray(gq?.queue)) sets.push(gq.queue);
+      } catch {}
+      // merge (preserve order), dedupe by JSON string (dev-safe)
+      const out:any[] = [];
+      const seen = new Set<string>();
+      for (const arr of sets){
+        for (const t of (arr||[])){
+          const k = typeof t === "object" ? JSON.stringify(t) : String(t);
+          if (!seen.has(k)){
+            seen.add(k);
+            out.push(t);
+            if (out.length >= max) return out;
+          }
         }
-
-        const head_local = Number(await a.value.text());
-        const head_peer  = Number(await b.value.text());
-        const drift = (Number.isFinite(head_local) && Number.isFinite(head_peer)) ? (head_peer - head_local) : null;
-
-        res.json({ ok:true, peer, head_local, head_peer, drift });
-      } catch(e:any){
-        res.status(500).json({ ok:false, error:String(e?.message||e) });
       }
-    });
+      return out;
+    }
 
-    console.log("[diag] attached /follower/status");
-  }
-  attach();
+    function wrap(){
+      const n:any = getNode();
+      const s:any = n?.store;
+      if (!n || !s || typeof s.saveBlock !== "function") return false;
+      if (s.__void_force_inject_wrapped) return true;
+
+      const orig = s.saveBlock.bind(s);
+      s.saveBlock = function saveBlockForced(b:any){
+        try{
+          if (!b || typeof b !== "object") return orig(b);
+          if (!Array.isArray(b.txs)) b.txs = [];
+          if (b.txs.length === 0){
+            const cands = harvestCandidates(n, 1000);
+            if (cands.length > 0){
+              // inject a copy; do not mutate sources here
+              b.txs.push(...cands);
+              state.forcedBlocks++;
+              state.forcedTxs += cands.length;
+              state.lastForcedAt = Date.now();
+              state.lastBlock = Number(b.number ?? -1);
+              state.lastCount = cands.length;
+              console.log(`[tx-inject/force] injected ${cands.length} tx → block #${b.number}`);
+            }
+          }
+          return orig(b);
+        }catch(e){
+          console.warn("[tx-inject/force] error:", e);
+          return orig(b);
+        }
+      };
+
+      s.__void_force_inject_wrapped = true;
+      state.wrapped = true;
+      state.active = true;
+      console.log("[tx-inject/force] wrapped store.saveBlock()");
+      return true;
+    }
+
+    // Try now and retry briefly until node/store exist
+    let tries=0;(function tryWrap(){
+      if (wrap()) return;
+      if (++tries < 120) return setTimeout(tryWrap, 500);
+    })();
+
+    // Diag: status + persisted full2 (raw SegStore block JSON)
+    (function attachDiags(){
+      let tries=0;(function tick(){
+        const app:any = getApp(); const n:any = getNode();
+        if (!app || !n){ if (++tries<120) return setTimeout(tick,500); else return; }
+
+        app.get("/tx/inject3/status", (_:any,res:any)=>res.json({
+          active: state.active,
+          wrapped: state.wrapped,
+          forcedBlocks: state.forcedBlocks,
+          forcedTxs: state.forcedTxs,
+          lastForcedAt: state.lastForcedAt,
+          lastBlock: state.lastBlock,
+          lastCount: state.lastCount
+        }));
+
+        app.get("/blocks/:n/full2", (req:any,res:any)=>{
+          try{
+            const num = Number(req.params.n);
+            const blk = n?.store?.loadBlock ? n.store.loadBlock(num) : null;
+            res.json(blk ?? { ok:false, hasBlock:false, number:num });
+          }catch(e){ res.json({ ok:false, error:String(e) }); }
+        });
+
+        console.log("[diag] attached /tx/inject3/status and /blocks/:n/full2");
+      })();
+    })();
+  }catch(e){ console.warn("[tx-inject/force] init failed:", e); }
 })();
+// --------------------------------------------------------------------------------
 
-// ---------------- Follower drift status v2 (additive, no deps) --------------------
-(function followerStatusRouteV2(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+// --------------- [ADD] persisted txs diag (canonical from SegStore) --------------
+;(function attachPersistedTxsDiag(){
+  try{
+    const g:any = globalThis as any;
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
 
-  function trimSlash(u:string){ return String(u || "").replace(/\/+$/,""); }
+    let tries=0;(function tick(){
+      const app:any = getApp(); const n:any = getNode();
+      if (!app || !n) { if (++tries<120) return setTimeout(tick,500); else return; }
 
-  async function fetchHeadFromMetrics(base:string){
-    const url = trimSlash(base) + "/metrics";
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`metrics_http_${r.status}`);
-    const text = await r.text();
-    // Expect a line like: void_head_number 4239
-    const m = text.match(/(^|\n)\s*void_head_number\s+([0-9]+)(\s|$)/);
-    if (!m) throw new Error("head_metric_missing");
-    return Number(m[2]);
-  }
+      app.get("/dev/blocks/:n/txs/persisted", (req:any, res:any)=>{
+        try{
+          const num = Number(req.params.n);
+          const blk = n?.store?.loadBlock ? n.store.loadBlock(num) : null;
+          if (!blk) return res.json({ ok:false, hasBlock:false, number:num });
+          res.json({ ok:true, number: blk.number ?? num, len: Array.isArray(blk.txs)? blk.txs.length : 0, txs: blk.txs ?? [] });
+        }catch(e){ res.json({ ok:false, error:String(e) }); }
+      });
 
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
-    if (attached) return; attached = true;
+      console.log("[diag] attached /dev/blocks/:n/txs/persisted");
+    })();
+  }catch(e){ console.warn("[diag] persisted txs attach failed:", e); }
+})();
+// ---------------------------------------------------------------------------------
 
-    // GET /follower/status2?peer=http://127.0.0.1:4100
-    // -> { ok, peer, head_local, head_peer, drift }
-    app.get("/follower/status2", async (req:any, res:any) => {
-      try {
-        const peer = String(req.query.peer || "").trim();
-        if (!peer) return res.status(400).json({ ok:false, error:"missing_peer_param" });
+// ---------------- [ADD] pending canon + compactor + routes ----------------------
+;(function canonizePendingToMempool(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_pending_canon_installed) return; g.__void_pending_canon_installed = true;
 
-        const myPort = Number(process.env.HTTP_PORT || 4100);
-        const myBase = `http://127.0.0.1:${myPort}`;
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
 
-        // Read heads from /metrics on both nodes
-        const [localHead, peerHead] = await Promise.all([
-          fetchHeadFromMetrics(myBase),
-          fetchHeadFromMetrics(peer)
-        ]);
+    function getMP(n:any){
+      if (!n) return null;
+      const mp = n.mempool ?? n.mPool ?? n.txPool ?? null;
+      if (!mp) return null;
+      // normalize
+      if (!Array.isArray(mp.txs))  mp.txs  = Array.isArray(mp.queue) ? mp.queue : (Array.isArray(mp) ? mp : (mp.txs||[]));
+      if (typeof mp.size !== "function") mp.size = ()=> Array.isArray(mp.txs) ? mp.txs.length :
+                                                   Array.isArray(mp.queue) ? mp.queue.length :
+                                                   Array.isArray(mp)      ? mp.length : 0;
+      return mp;
+    }
 
-        const drift = peerHead - localHead;
-        return res.json({ ok:true, peer:trimSlash(peer), head_local:localHead, head_peer:peerHead, drift });
-      } catch (err:any) {
-        const msg = (err && err.message) ? String(err.message) : String(err);
-        return res.status(502).json({ ok:false, error:msg });
+    function toKey(t:any){
+      try{ return typeof t === "string" ? t : JSON.stringify(t); }catch{ return String(t); }
+    }
+
+    // Make pending/pendingTxs *identical* to mempool.txs to avoid double counting
+    function rebindPending(n:any){
+      const mp = getMP(n); if (!n || !mp) return { ok:false, reason:"no mempool" };
+      n.pendingTxs = mp.txs;
+      n.pending    = mp.txs;
+      return { ok:true, size: mp.size() };
+    }
+
+    // Remove duplicates in-place on mp.txs
+    function compactMempool(n:any){
+      const mp = getMP(n); if (!mp) return { ok:false };
+      const arr = mp.txs; if (!Array.isArray(arr)) return { ok:false };
+      const seen = new Set<string>();
+      let w = 0;
+      for (let i=0;i<arr.length;i++){
+        const k = toKey(arr[i]);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        arr[w++] = arr[i];
       }
-    });
-  }
+      if (w < arr.length) arr.splice(w);
+      return { ok:true, size: arr.length };
+    }
 
-  attach();
+    // Hook onSealed to purge any txs that just sealed from pending/mempool
+    function installSealPurged(n:any){
+      const prev = n.onSealed;
+      n.onSealed = function sealed(b:any){
+        try{
+          const mp = getMP(n);
+          const arr:any[] = Array.isArray(mp?.txs) ? mp.txs : [];
+          if (Array.isArray(b?.txs) && arr.length){
+            const want = new Set(b.txs.map(toKey));
+            for (let i=arr.length-1;i>=0;i--){
+              if (want.has(toKey(arr[i]))) arr.splice(i,1);
+            }
+          }
+        }catch{}
+        try{ return typeof prev === "function" ? prev.call(n,b) : undefined; }catch{}
+      };
+    }
+
+    // Attach once app+node exist
+    let tries=0;(function tick(){
+      const n = getNode(); const app = getApp();
+      if (!n || !app){ if (++tries<120) return setTimeout(tick,500); else return; }
+
+      // first pass
+      rebindPending(n); compactMempool(n); installSealPurged(n);
+
+      app.get("/pending/canon/status", (_:any,res:any)=>{
+        const mp = getMP(n);
+        res.json({
+          ok: !!mp, mpSize: mp?.size ? mp.size() : null,
+          samePendingIsMempoolTxs: n?.pending === mp?.txs,
+          samePendingTxsIsMempoolTxs: n?.pendingTxs === mp?.txs
+        });
+      });
+
+      app.post("/pending/canon/compact", (_:any,res:any)=>{
+        res.json(compactMempool(n));
+      });
+
+      app.post("/pending/canon/rebind", (_:any,res:any)=>{
+        res.json(rebindPending(n));
+      });
+
+      console.log("[pending] canon + compactor + purge installed");
+    })();
+  }catch(e){ console.warn("[pending] canon attach failed:", e); }
 })();
+// --------------------------------------------------------------------------------
 
-// dev harness: follower drift v2
-import './http/harness_follower_status2.js'
+// --------------- [ADD] saveBlock merge-all safeguard (idempotent) ---------------
+;(function wrapSaveBlockMergeAll(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_store_mergeall_installed) return; g.__void_store_mergeall_installed = true;
+
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function allSources(n:any){
+      const sets:any[][] = [];
+      try{
+        if (Array.isArray(n?.pendingTxs)) sets.push(n.pendingTxs);
+        if (Array.isArray(n?.pending))    sets.push(n.pending);
+        if (Array.isArray(n?.txQueue))    sets.push(n.txQueue);
+        const mp:any = n?.mempool ?? n?.mPool ?? n?.txPool ?? null;
+        if (mp){
+          if (Array.isArray(mp.txs))   sets.push(mp.txs);
+          if (Array.isArray(mp.queue)) sets.push(mp.queue);
+          if (Array.isArray(mp))       sets.push(mp);
+        }
+        if (Array.isArray(g?.__void_txq)) sets.push(g.__void_txq);
+      }catch{}
+      return sets;
+    }
+    function toKey(t:any){ try{ return typeof t==="string" ? t : JSON.stringify(t); }catch{ return String(t); } }
+
+    function mergeInto(target:any[], max:number, sources:any[][]){
+      const want = new Set<string>();
+      for (const t of target) want.add(toKey(t));
+      let added = 0;
+      for (const src of sources){
+        if (!Array.isArray(src) || !src.length) continue;
+        for (let i=0;i<src.length && (target.length+added)<max;i++){
+          const k = toKey(src[i]);
+          if (want.has(k)) continue;
+          target.push(src[i]); want.add(k); added++;
+        }
+      }
+      return added;
+    }
+
+    function drainFrom(sources:any[][], picked:any[]){
+      // Best-effort: remove those exact picked from each array (by key)
+      const keys = new Set(picked.map(toKey));
+      for (const src of sources){
+        if (!Array.isArray(src) || !src.length) continue;
+        for (let i=src.length-1;i>=0;i--){
+          if (keys.has(toKey(src[i]))) src.splice(i,1);
+        }
+      }
+    }
+
+    const state = { active:false, wrapped:false, injectedBlocks:0, injectedTxs:0, lastBlock:-1, lastCount:0 };
+
+    let tries=0;(function tick(){
+      const n:any = getNode(); const s:any = n?.store;
+      if (!n || !s || typeof s.saveBlock!=="function"){ if (++tries<120) return setTimeout(tick,500); else return; }
+
+      if (s.__void_save_merge_wrapped) return;
+      s.__void_save_merge_wrapped = true;
+      state.active = true;
+
+      const orig = s.saveBlock.bind(s);
+      s.saveBlock = function mergedSaveBlock(b:any){
+        try{
+          if (b && Array.isArray(b.txs) && b.txs.length===0){
+            const sources = allSources(n);
+            const added = mergeInto(b.txs, /*max*/1000, sources);
+            if (added>0){
+              state.injectedBlocks++; state.injectedTxs += added;
+              state.lastBlock = Number(b.number ?? -1); state.lastCount = added;
+              // Clean picked from sources so they don’t linger in queues
+              drainFrom(sources, b.txs.slice(-added));
+              console.log(`[tx-merge-all] saveBlock(#${state.lastBlock}) added ${added} tx`);
+            }
+          }
+        }catch(e){ console.warn("[tx-merge-all] merge failed:", e); }
+        return orig(b);
+      };
+
+      // status route
+      (function attachStatus(){
+        try{
+          const app:any = (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+          if (!app) return;
+          app.get("/tx/mergeall/status", (_:any,res:any)=>{
+            res.json({ active: state.active, injectedBlocks: state.injectedBlocks, injectedTxs: state.injectedTxs, lastBlock: state.lastBlock, lastCount: state.lastCount });
+          });
+          console.log("[tx-merge-all] active (saveBlock)");
+        }catch{}
+      })();
+    })();
+  }catch(e){ console.warn("[tx-merge-all] install failed:", e); }
+})();
+// --------------------------------------------------------------------------------
+
+// ---------------- [ADD] dev burst submit + nudge -------------------------------
+;(function attachBurstSubmit(){
+  try{
+    const g:any = globalThis as any;
+    const getApp=()=> (g.__void_http_app || g.app || undefined);
+    const getNode=()=> (g.__void_node || g.node || g.VOID_NODE);
+
+    let tries=0;(function tick(){
+      const app:any = getApp(); const n:any = getNode();
+      if (!app || !n){ if(++tries<120) return setTimeout(tick,500); else return; }
+
+      app.post("/tx/dev/burst", async (req:any,res:any)=>{
+        const count = Math.max(1, Math.min( Number(req?.query?.n ?? 5), 100 ));
+        const now = Date.now();
+        const gq:any = (g.__void_txq ||= []);
+        for (let i=0;i<count;i++) gq.push({ data:`dev-burst-${now}-${i}` });
+
+        // try to move globals -> mempool immediately if our bridge exists
+        try{ await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||4100}/mempool/global/drain-now`,{method:"POST"}); }catch{}
+        // nudge proposer candidates
+        for (const k of ["tickNow","tick","propose","buildBlock","proposeBlock","sealNext"]){
+          try{
+            if (typeof (n[k])==="function"){ await Promise.resolve(n[k]()); break; }
+            if (n.proposer && typeof n.proposer[k]==="function"){ await Promise.resolve(n.proposer[k]()); break; }
+          }catch{}
+        }
+        res.json({ ok:true, enqueued: count });
+      });
+
+      console.log("[dev] attached /tx/dev/burst?n=NUM");
+    })();
+  }catch(e){ console.warn("[dev] burst attach failed:", e); }
+})();
+// --------------------------------------------------------------------------------
+
+// --------------- [ADD] cap per-block tx injection + live control ----------------
+;(function capPerBlockInjection(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_merge_cap_installed) return; g.__void_merge_cap_installed = true;
+
+    // Live config (defaults)
+    const cfg = {
+      maxPerBlock: Number(process.env.TXS_PER_BLOCK_MAX || 3),   // cap per seal
+      enabled: true
+    };
+    // Allow live tweaks without restart
+    Object.defineProperty(globalThis as any, "__VOID_INJECT_CAP", { get:()=>cfg });
+
+    function getApp(){ return (g.__void_http_app || g.app || undefined); }
+    function getNode(){ return (g.__void_node || g.node || g.VOID_NODE); }
+
+    // Helper so our earlier merge-all wrapper uses the cap if present
+    (g as any).__VOID_PICK_LIMIT = function(limit:number){
+      if (!cfg.enabled) return limit;
+      return Math.min(limit, Math.max(0, Number(cfg.maxPerBlock)||0));
+    }
+
+    // Control routes
+    let tries=0;(function tick(){
+      const app:any=getApp(); const n:any=getNode();
+      if (!app || !n){ if(++tries<120) return setTimeout(tick,500); else return; }
+
+      app.get("/tx/merge/cap/status", (_:any,res:any)=>{
+        res.json({ enabled: cfg.enabled, maxPerBlock: cfg.maxPerBlock });
+      });
+      app.post("/tx/merge/cap/set", (req:any,res:any)=>{
+        const q = req?.query||{};
+        if (q.enabled !== undefined) cfg.enabled = String(q.enabled)!=="false";
+        if (q.max !== undefined)     cfg.maxPerBlock = Math.max(0, Number(q.max)||0);
+        res.json({ ok:true, enabled: cfg.enabled, maxPerBlock: cfg.maxPerBlock });
+      });
+      console.log("[tx-merge-cap] live control at /tx/merge/cap/*");
+    })();
+  }catch(e){ console.warn("[tx-merge-cap] install failed:", e); }
+})();
+// --------------------------------------------------------------------------------
+
+// --------------- [ADD] merge-all limiter hook integration ----------------------
+;(function integrateCapWithMergeAll(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_merge_limit_integrated) return; g.__void_merge_limit_integrated = true;
+
+    // Monkey-patch the limiter into the global if missing, as a no-op fallback
+    if (typeof (g as any).__VOID_PICK_LIMIT !== "function"){
+      (g as any).__VOID_PICK_LIMIT = (n:number)=>n; // no-op if cap module not yet loaded
+    }
+
+    // Wrap Array#push usage is too risky; instead we expose a helper the merge-all uses:
+    // In our earlier merge-all `mergeInto(target, max, sources)`, it uses `max=1000`.
+    // With this hook, code inside that wrapper can call __VOID_PICK_LIMIT(max).
+    // If you didn’t paste the exact earlier version, this still remains harmless.
+    console.log("[tx-merge-cap] limiter ready");
+  }catch{}
+})();
+// --------------------------------------------------------------------------------
+
+// -------- [ADD] hard cap at saveBlock regardless of upstream injectors ---------
+;(function enforceCapAtSaveBlock(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_enforce_cap_saveblock_installed) return; 
+    g.__void_enforce_cap_saveblock_installed = true;
+
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+
+    // Read live cap from the module we added earlier; fallback to env or 3
+    function currentCap(){
+      try{
+        const cfg = (g as any).__VOID_INJECT_CAP;
+        if (cfg && cfg.enabled) return Math.max(0, Number(cfg.maxPerBlock)||0);
+      }catch{}
+      return Math.max(0, Number(process.env.TXS_PER_BLOCK_MAX || 3) || 0);
+    }
+
+    // Canonical source: mempool.txs (we aliased pending/pendingTxs to this earlier)
+    function mempoolTxs(n:any){
+      const mp = n?.mempool ?? n?.mPool ?? n?.txPool ?? null;
+      if (!mp) return null;
+      return Array.isArray(mp.txs) ? mp.txs :
+             Array.isArray(mp.queue) ? mp.queue :
+             (Array.isArray(mp) ? mp : null);
+    }
+
+    const state = { enforcedBlocks:0, moved:0, lastBlock:-1, lastUsed:0 };
+
+    function install(){
+      const n:any = getNode(); if (!n || !n.store) return false;
+      const s:any = n.store;
+      if (typeof s.saveBlock !== "function") return false;
+      if (s.__void_cap_enforced) return true;
+      const orig = s.saveBlock.bind(s);
+
+      s.saveBlock = function saveBlockWithCap(b:any){
+        try{
+          const cap = currentCap();
+          if (cap > 0) {
+            // Ensure b.txs exists
+            if (!Array.isArray(b.txs)) b.txs = [];
+            // If upstream injected > cap, trim (leave extras in mempool for next seal)
+            if (b.txs.length > cap) {
+              // push extras back to mempool head (keep order simple: newest first)
+              const src = mempoolTxs(n);
+              if (src) {
+                const extras = b.txs.splice(cap); // remove beyond cap
+                // Put back at the front to be taken next time
+                while (extras.length) src.unshift(extras.pop());
+              }
+              state.moved += 0; // trimming doesn’t count as “moved in”
+              state.lastUsed = cap;
+            } else if (b.txs.length < cap) {
+              // Top-up from mempool up to cap
+              const src = mempoolTxs(n);
+              if (src && src.length){
+                const need = Math.max(0, cap - b.txs.length);
+                const take = Math.min(need, src.length);
+                for (let i=0;i<take;i++) b.txs.push(src.shift());
+                state.moved += take;
+                state.lastUsed = b.txs.length;
+              }
+            } else {
+              state.lastUsed = cap;
+            }
+            state.enforcedBlocks++;
+            state.lastBlock = Number(b?.number ?? -1);
+          }
+        }catch{}
+        return orig(b);
+      };
+
+      s.__void_cap_enforced = true;
+      return true;
+    }
+
+    // Diag route
+    let tries=0;(function tick(){
+      const ok = install(); const app:any = getApp();
+      if (app){
+        app.get("/tx/merge/cap/enforce/status", (_:any,res:any)=>{
+          res.json({ ok:true, enforcedBlocks: state.enforcedBlocks, moved: state.moved, lastBlock: state.lastBlock, lastUsed: state.lastUsed, cap: currentCap() });
+        });
+        console.log("[tx-cap-enforce] installed; diag at /tx/merge/cap/enforce/status");
+      }
+      if (!ok && ++tries<120) return setTimeout(tick,500);
+    })();
+  }catch(e){ console.warn("[tx-cap-enforce] failed:", e); }
+})();
+// --------------------------------------------------------------------------------
+
+// -------- [ADD] no-empty-when-queued policy + live controls/diag ----------------
+;(function noEmptyWhenQueuedPolicy(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_no_empty_policy_installed) return;
+    g.__void_no_empty_policy_installed = true;
+
+    // Live config
+    const cfg = {
+      enabled: (String(process.env.NO_EMPTY_WHEN_QUEUED || "true") !== "false"),
+      // If true: instead of skipping persist, we'll auto-top-up from mempool up to cap.
+      // If false: we skip persist and nudge the proposer to try again next tick.
+      fillInsteadOfSkip: true
+    };
+    Object.defineProperty(globalThis as any, "__VOID_NO_EMPTY_CFG", { get:()=>cfg });
+
+    function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node || (globalThis as any).VOID_NODE; }
+    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+    function currentCap(){
+      try{
+        const capCfg = (globalThis as any).__VOID_INJECT_CAP;
+        if (capCfg && capCfg.enabled) return Math.max(0, Number(capCfg.maxPerBlock)||0);
+      }catch{}
+      return Math.max(0, Number(process.env.TXS_PER_BLOCK_MAX || 3) || 0);
+    }
+
+    function mempoolTxs(n:any){
+      const mp = n?.mempool ?? n?.mPool ?? n?.txPool ?? null;
+      if (!mp) return null;
+      return Array.isArray(mp.txs) ? mp.txs :
+             Array.isArray(mp.queue) ? mp.queue :
+             (Array.isArray(mp) ? mp : null);
+    }
+
+    const state = { enforced:0, skipped:0, filled:0, lastBlock:-1, lastFill:0 };
+
+    function install(){
+      const n:any = getNode(); if (!n || !n.store) return false;
+      const s:any = n.store;
+      if (typeof s.saveBlock !== "function") return false;
+      if (s.__void_no_empty_policy_applied) return true;
+
+      const orig = s.saveBlock.bind(s);
+      s.saveBlock = function saveBlockNoEmpty(b:any){
+        try{
+          if (!cfg.enabled) return orig(b);
+          const txs = Array.isArray(b?.txs) ? b.txs : (b.txs = []);
+          const src = mempoolTxs(n);
+          const cap = currentCap();
+
+          if (txs.length === 0 && src && src.length > 0){
+            if (cfg.fillInsteadOfSkip){
+              // Fill up to cap (>=1); if cap==0, take 1 to avoid deadlock
+              const want = Math.max(1, cap || 1);
+              const take = Math.min(want, src.length);
+              for (let i=0;i<take;i++) txs.push(src.shift());
+              state.filled += take; state.lastFill = take;
+              state.enforced++; state.lastBlock = Number(b?.number ?? -1);
+              // Continue to persist with the newly filled txs
+              return orig(b);
+            } else {
+              // Skip persist, nudge proposer to try again with pending tx
+              state.skipped++; state.lastBlock = Number(b?.number ?? -1);
+              try{
+                const cands = ["tickNow","tick","propose","proposeBlock","buildBlock","sealNext"];
+                for (const k of cands){
+                  const f = (typeof (n as any)[k] === "function") ? (n as any)[k]
+                         : (n?.proposer && typeof n.proposer[k] === "function") ? n.proposer[k] : null;
+                  if (f){ try{ f.call(n); }catch{} break; }
+                }
+              }catch{}
+              return; // do not persist an empty block when queue has txs
+            }
+          }
+        }catch{}
+        return orig(b);
+      };
+
+      s.__void_no_empty_policy_applied = true;
+      return true;
+    }
+
+    // Controls + diag
+    let tries=0;(function tick(){
+      const ok = install(); const app:any = getApp();
+      if (app){
+        app.get("/blocks/empty-policy/status", (_:any,res:any)=>{
+          res.json({ enabled: cfg.enabled, fillInsteadOfSkip: cfg.fillInsteadOfSkip, enforced: state.enforced, filled: state.filled, skipped: state.skipped, lastBlock: state.lastBlock });
+        });
+        app.post("/blocks/empty-policy/set", (req:any,res:any)=>{
+          const q = req?.query||{};
+          if (q.enabled !== undefined) cfg.enabled = String(q.enabled)!=="false";
+          if (q.fill !== undefined)    cfg.fillInsteadOfSkip = String(q.fill)!=="false";
+          res.json({ ok:true, enabled: cfg.enabled, fillInsteadOfSkip: cfg.fillInsteadOfSkip });
+        });
+        console.log("[no-empty] policy installed; diag at /blocks/empty-policy/status");
+      }
+      if (!ok && ++tries<120) return setTimeout(tick,500);
+    })();
+  }catch(e){ console.warn("[no-empty] policy failed:", e); }
+})();
+// --------------------------------------------------------------------------------

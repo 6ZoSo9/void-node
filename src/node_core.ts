@@ -2,8 +2,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as net from "node:net";
 import * as crypto from "node:crypto";
-import { drainTxs } from "./proposer/tx_drain.js";
-import { makeTx } from "./tx/make_tx.js";
 
 import { Mempool } from "./chain/mempool.js";
 import { Block, computeRoots, blockHash } from "./chain/block.js";
@@ -266,14 +264,6 @@ export class Node {
   }
 
   private onMsg(tempOrRealId: string, msg: Msg) {
-    // --- ADDITIVE SHIM (legacy log safety) ---
-    // Define `txs` from payload if present so old logs using `txs` don\x27t throw.
-    var txs: any = (function(){
-      const __args: any[] = Array.from(arguments as any);
-      const __payload: any = __args.length >= 3 ? __args[2] : undefined;
-      return Array.isArray(__payload?.txs) ? __payload.txs : undefined;
-    }).apply(this, arguments);
-    // --- END ADDITIVE SHIM ---
     if (msg.type === "HELLO") {
       const ent = [...this.peers.entries()].find(([k]) => k === tempOrRealId || k.startsWith("?-"));
       if (!ent) return;
@@ -419,26 +409,9 @@ export class Node {
   }
 
   private sendRaw(peer: Peer, msg: Msg) {
-    // --- ADDITIVE SHIM (sendRaw legacy log safety) ---
-    // Define `txs` from the 3rd argument (payload) if present so old logs using
-    // `txs` in logs don\x27t throw. Does not alter logic; read-only.
-    var txs: any = (function(){
-      try {
-        const __args: any[] = Array.from(arguments as any);
-        const __payload: any = __args.length >= 3 ? __args[2] : undefined;
-        return Array.isArray(__payload?.txs) ? __payload.txs : undefined;
-      } catch { return undefined }
-    }).apply(this, arguments);
-    // --- END ADDITIVE SHIM ---
     try {
       peer.socket.write(encode(msg));
     } catch {}
-
-      console.log("[seal] after-drain txs=%s first=%s",
-  Array.isArray(txs)?txs.length:-1,
-  (function(){ try { return JSON.stringify(txs[0]); } catch(e){ return "?" } })().slice(0,180)
-);
-
   }
   private isKnownPeer(id: string): boolean {
     return this.peers.has(id) && !id.startsWith("?-");
@@ -630,7 +603,6 @@ export class Node {
         }
       }
     } catch {}
-
     return [];
   }
 
@@ -641,7 +613,7 @@ export class Node {
     const number = parent + 1;
 
     const batch = this.takeTxBatch(1000);
-    let txs = (batch || [])
+    const txs = batch
       .filter(
         (t) =>
           t &&
@@ -652,262 +624,14 @@ export class Node {
           /^[0-9a-fA-F]{64}$/.test(t.hash),
       )
       .map((t) => ({ ...t, hash: String(t.hash).toLowerCase() }));
-    // Merge txs drained from txBuffer (strings → tx objects)
-    try {
-      const drained = drainTxs({ max: 256, stringify: true }); drainedLen = Array.isArray(drained) ? drained.length : 0;
-      if (Array.isArray(drained) && drained.length) {
-        const bufTxs = drained.map((s) => {
-          try {
-            const o = JSON.parse(String(s));
-            /* Case A: already a full tx {hash, body} */
-            if (
-              o && typeof o === "object" && !Array.isArray(o) &&
-              typeof o.hash === "string" && /^[0-9a-fA-F]{64}$/.test(o.hash) &&
-              o.body && typeof o.body === "object" && !Array.isArray(o.body)
-            ) {
-              return { hash: String(o.hash).toLowerCase(), body: o.body };
-            }
-  // PROBE: before bufTxs mapping, try to infer pending buffer size if accessible
-  try {
-    const cand = (this && (this as any).buffer) || (this && (this as any).mempool && (this as any).mempool.buffer) || null;
-    let sz = -1; if (cand && typeof cand.size === "function") { sz = cand.size(); }
-    console.log("[seal] DRAIN-PROBE buffer.size=%s (if -1, opaque)", sz);
-  } catch {}
 
-            /* Case B: looks like a body → construct tx */
-            const body = (o && typeof o === "object" && !Array.isArray(o)) ? o : { data: String(s) };
-            return makeTx(body);
-          } catch {
-            /* Case C: not JSON → wrap string as body */
-            return makeTx({ data: String(s) });
-          }
-        }).filter(Boolean);
-        txs = txs.concat(bufTxs);
-  try { (this as any).__lastDrain = Array.isArray(txs) ? txs.slice() : []; } catch {}
-  console.log("[seal] post-drain txs.len=%s first=%s", Array.isArray(txs)?txs.length:-1, (function(){try{return JSON.stringify(txs[0])}catch(e){return "?"}})().slice(0,120));
-  console.log("[seal] post-drain txs.len=%s sample=%s", Array.isArray(txs)?txs.length:-1, (function(){try{return JSON.stringify(txs[0])}catch(e){return "?"}})().slice(0,120));
-        console.log("[seal] after-drain txs=%s first=%s", Array.isArray(txs)?txs.length:-1, (()=>{try{return JSON.stringify(txs[0])}catch(e){return "?"}})().slice(0,180));
-      }
-    } catch {}
-  // freeze drained txs for sealing; prevents accidental later mutation/overwrite
-  if (Array.isArray(txs)) { txs = txs.slice(); }
-  // If something zeroed txs after drain, restore from snapshot.
-  try {
-    const snap = (this as any).__lastDrain;
-    if ((Array.isArray(txs) ? txs.length : 0) === 0 && Array.isArray(snap) && snap.length > 0) {
-      console.log("[seal] RESTORE from snapshot len=%s", snap.length);
-      txs = snap.slice();
+    // Allow sealing an empty block if the one-shot flag is set OR global flag is enabled
+    const allowEmpty = !!opts?.allowEmptyOnce || this.allowEmptyBlocks;
+    if (txs.length === 0 && !allowEmpty) {
+      return { ok: true, number: parent, txs: 0 };
     }
-  } catch {}
-
-  // --- BEGIN: EMERGENCY DRAIN (additive, temporary) ---
-
-  try {
-
-
-    // If still empty here, try to drain obvious buffers/mempools.
-
-    const mp = (this as any).mempool || this;
-
-
-    // Try common buffer containers: Queue/Array-like with pop/shift or an iterator
-
-
-    let acc:any[] = [];
-
-
-    const tryEnqueue = (val:any) => {
-
-
-      try {
-
-
-        // Try to form a tx-shaped object. Prefer objects; wrap strings.
-
-
-        if (val && typeof val === "object" && !Array.isArray(val)) {
-
-
-          acc.push(val);
-
-
-        } else if (typeof val === "string") {
-
-
-          try { const o = JSON.parse(val); if (o && typeof o === "object" && !Array.isArray(o)) { acc.push(o); } else { acc.push({ data: String(val) }); } }
-
-
-          catch { acc.push({ data: String(val) }); }
-
-
-        } else {
-
-
-          acc.push({ data: String(val) });
-
-
-        }
-
-
-      } catch {}
-
-
-    };
-
-
-    // Try well-known fields
-
-
-    const candidates = [] as any[];
-
-
-    try { if (mp && mp.buffer) candidates.push(mp.buffer); } catch {}
-
-
-    try { if (this && (this as any).buffer) candidates.push((this as any).buffer); } catch {}
-
-
-    // Drain each candidate conservatively (non-crashing)
-
-
-    for (const c of candidates) {
-
-
-      try {
-
-
-        let guard = 0;
-
-
-        // Prefer pop(), else shift(), else iterate once
-
-
-        if (c && typeof c.pop === "function") {
-
-
-          while (guard++ < 10000) { const v = c.pop(); if (v == null) break; tryEnqueue(v); }
-
-
-        } else if (c && typeof c.shift === "function") {
-
-
-          while (guard++ < 10000) { const v = c.shift(); if (v == null) break; tryEnqueue(v); }
-
-
-        } else if (c && typeof c[Symbol.iterator] === "function") {
-
-
-          for (const v of c) { tryEnqueue(v); }
-
-
-        }
-
-
-      } catch {}
-
-
-    }
-
-
-    // Heuristic: scan for arrays on `this` that look tx-like (key contains "tx")
-
-
-    try {
-
-
-      const keys = Object.keys(this || {}).filter(k => /tx/i.test(k));
-
-
-      for (const k of keys) {
-
-
-        try {
-
-
-          const v:any = (this as any)[k];
-
-
-          if (Array.isArray(v) && v.length > 0) {
-
-
-            console.log("[seal] DISCOVER tx-array %s len=%s", k, v.length);
-
-
-            acc = acc.concat(v);
-
-
-          }
-
-
-        } catch {}
-
-
-      }
-
-
-    } catch {}
-
-
-    if ((Array.isArray(txs)?txs.length:0) === 0 && acc.length > 0) {
-
-
-      // Freeze into sealing set without mutating original holders
-
-
-      txs = acc.map(x => ({ body: (x && typeof x === "object" && !Array.isArray(x)) ? x : { data: String(x) } }));
-
-
-      console.log("[seal] EMERGENCY-DRAIN filled txs=%s (sample=%s)", txs.length, (function(){try{return JSON.stringify(txs[0])}catch(e){return "?"}})().slice(0,120));
-
-
-    }
-
-
-  } catch {}
-
-
-  // --- END: EMERGENCY DRAIN ---
-
-
-
-
-
-
     const blobs = discoverLocalBlobs(this.baseDir);
-    console.log("[seal] pre-roots txs.len=%s", Array.isArray(txs)?txs.length:-1);
-
-    // --- Additive global queue drain (no redeclare) ---
-    try {
-      const __q = (globalThis as any).__void_tx_queue;
-      if (Array.isArray(__q) && __q.length) {
-        const pulled = __q.splice(0, __q.length);
-        const norm = pulled.map(v => (v && typeof v === "object" && !Array.isArray(v)) ? v : { data: String(v ?? "") });
-        try {
-          // Only touch if the sealing scope already has `txs`
-          const target:any[] = (txs as any);
-          const packed = (typeof makeTx === "function") ? norm.map(v => makeTx(v)).filter(Boolean) : norm;
-          target.push(...packed);
-          console.log("[seal] global-drain pulled=%s txs_after=%s",
-            pulled.length, Array.isArray(target)?target.length:-1);
-        } catch (e) {
-          // If `txs` is not in scope (or push fails), skip gracefully
-          console.warn("[seal] WARN no txs in scope; drain skipped pulled=%s", pulled.length);
-        }
-      }
-    } catch {}
-const roots = computeRoots(txs, blobs);
-
-try{
-  const crypto = await import("node:crypto");
-  const txIds = (Array.isArray(txs)?txs:[]).map(t=>{
-    try{ return crypto.createHash("sha256").update(JSON.stringify(t.body ?? t)).digest("hex"); }catch{ return "na"; }
-  });
-  console.log("[seal] DEBUG tx-ids-before-append n=%s ids=%s", Array.isArray(txs)?txs.length:-1, JSON.stringify(txIds));
-}catch(e){ console.warn("[seal] DEBUG tx-ids-before-append failed", String(e)); }
-console.log("[seal] DEBUG about-to-append number=%s txs.len=%s blobs.len=%s", number, Array.isArray(txs)?txs.length:-1, Array.isArray(blobs)?blobs.length:-1);
-
-
-      console.log("[seal] after-roots txs=%s blobs=%s", Array.isArray(txs)?txs.length:-1, Array.isArray(blobs)?blobs.length:-1);
+    const roots = computeRoots(txs, blobs);
     const now = Date.now();
 
     const parentBlock = parent >= 0 ? this.store.loadBlock(parent) : null;
@@ -944,12 +668,10 @@ console.log("[seal] DEBUG about-to-append number=%s txs.len=%s blobs.len=%s", nu
         const refs = b.txs.map((tx, i) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }));
         this.txIndex.putMany(refs);
       } catch {}
-
       try {
         const shard = this.txIndex.shardForBlock(b.number);
         await buildKidxForJsonl(shard.path);
       } catch {}
-
       try {
         const anyReceipts: any = this.receipts as any;
         const recs = b.txs.map((tx, i) => ({
@@ -964,7 +686,6 @@ console.log("[seal] DEBUG about-to-append number=%s txs.len=%s blobs.len=%s", nu
           for (const r of recs) await anyReceipts.append(r);
         }
       } catch {}
-
     }
 
     this.publishJson("void/block", {
@@ -1035,7 +756,6 @@ console.log("[seal] DEBUG about-to-append number=%s txs.len=%s blobs.len=%s", nu
             const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
             this.txIndex.putMany(refs);
           } catch {}
-
           try {
             const anyReceipts: any = this.receipts as any;
             const recs = b.txs.map((tx: any, i: number) => ({
@@ -1047,7 +767,6 @@ console.log("[seal] DEBUG about-to-append number=%s txs.len=%s blobs.len=%s", nu
             if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
             else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r);
           } catch {}
-
         }
 
         hooks?.onImportBlock?.(b);
@@ -1064,7 +783,6 @@ console.log("[seal] DEBUG about-to-append number=%s txs.len=%s blobs.len=%s", nu
           const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
           this.txIndex.putMany(refs);
         } catch {}
-
         try {
           const anyReceipts: any = this.receipts as any;
           const recs = b.txs.map((tx: any, i: number) => ({
@@ -1076,7 +794,6 @@ console.log("[seal] DEBUG about-to-append number=%s txs.len=%s blobs.len=%s", nu
           if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
           else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r);
         } catch {}
-
 
         hooks?.onImportBlock?.(b);
         continue;
@@ -1109,7 +826,6 @@ console.log("[seal] DEBUG about-to-append number=%s txs.len=%s blobs.len=%s", nu
       try {
         await this.pullOnce(peerHttp, opts);
       } catch {}
-
       running = false;
     };
     void tick();
@@ -1152,20 +868,17 @@ function discoverLocalBlobs(baseDir = process.env.DATA_DIR || "data"): { cid: st
     });
 }
 
-// -------------------- GLOBAL TX QUEUE FALLBACK (additive) --------------------
-export function __void_getGlobalTxQueue(): any[] {
-  const g = (globalThis as any);
-  if (!Array.isArray(g.__void_tx_queue)) g.__void_tx_queue = [];
-  return g.__void_tx_queue as any[];
-}
-
-/** Safe enqueue from anywhere (routes, tests, tools) */
-export function globalEnqueueTx(obj: any): void {
+// ---------------- [ADD] tx enqueue shim export (idempotent) ----------------
+// Some routes import { globalEnqueueTx } from "../node_core.js". Provide a tiny
+// queue that lives on globalThis so the import resolves without touching other code.
+export function globalEnqueueTx(tx: any) {
   try {
-    const q = __void_getGlobalTxQueue();
-    // normalize: prefer object bodies; wrap non-objects
-    const body = (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : { data: String(obj ?? '') };
-    q.push(body);
-  } catch {}
+    const g: any = globalThis as any;
+    if (!g.__void_tx_queue) g.__void_tx_queue = [];
+    g.__void_tx_queue.push(tx ?? {});
+    return g.__void_tx_queue.length;
+  } catch {
+    return -1;
+  }
 }
-// ----------------------------------------------------------------------------- 
+// ---------------------------------------------------------------------------
