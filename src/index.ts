@@ -3742,3 +3742,65 @@ import type {} from "express"; // type-only safety; no runtime impact
   }
   attach();
 })();
+
+// ---------------- txRoot checker v2 (compares against /blocks/:n/full3) -------------
+(function devTxRootV2(){
+  let tries = 0, attached = false;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  const port = Number(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || 4100);
+
+  async function sha256Hex(data: string | Uint8Array){
+    const { createHash } = await import('node:crypto');
+    const h = createHash('sha256'); h.update(data); return '0x'+h.digest('hex');
+  }
+  async function merkleRoot(leavesHex: string[]){
+    if (leavesHex.length === 0) return await sha256Hex(new Uint8Array());
+    let layer = leavesHex.slice();
+    while (layer.length > 1) {
+      const next:string[] = [];
+      for (let i=0;i<layer.length;i+=2){
+        const a = layer[i];
+        const b = layer[i+1] ?? layer[i];
+        next.push(await sha256Hex(a + b));
+      }
+      layer = next;
+    }
+    return layer[0];
+  }
+  async function computeTxRootFromTxs(txs:any[]){
+    const leaves:string[] = [];
+    for (const tx of (Array.isArray(txs)?txs:[])){
+      const s = JSON.stringify(tx, Object.keys(tx).sort());
+      leaves.push(await sha256Hex(s));
+    }
+    return await merkleRoot(leaves);
+  }
+  async function jget(url:string){
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
+    return await r.json();
+  }
+
+  async function attach(){
+    const a:any = app();
+    if (!a || typeof a.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // GET /dev/blocks/:n/txroot2 -> { computed, header, match }
+    a.get("/dev/blocks/:n/txroot2", async (req:any, res:any) => {
+      try{
+        const n = Number(req.params.n);
+        const persisted = await jget(`http://127.0.0.1:${port}/dev/blocks/${n}/txs/persisted`);
+        const full3     = await jget(`http://127.0.0.1:${port}/blocks/${n}/full3`);
+        const txs:any[] = persisted?.txs || [];
+        const computed  = await computeTxRootFromTxs(txs);
+        const headerRoot = full3?.header?.txRoot || null;
+        const match = !!headerRoot && headerRoot === computed;
+        res.json({ ok:true, number:n, computed, header:headerRoot, match });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+  }
+  attach();
+})();
