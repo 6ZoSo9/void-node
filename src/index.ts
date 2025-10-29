@@ -1565,3 +1565,170 @@ import type {} from "express"; // type-only safety; no runtime impact
   }
   attach();
 })();
+
+// ---- mark /blocks/:n/full as legacy so clients can migrate gracefully
+(function compatBlocksFullHeaders(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function attach(){
+    const app: any = getApp();
+    if (!app || typeof app.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    app.use("/blocks/:n/full", (_req:any, res:any, next:any) => {
+      try {
+        res.set("Deprecation", "true");
+        res.set("Link", '</blocks/:n/txs/raw2>; rel="alternate"');
+      } catch {}
+      next();
+    });
+    console.log("[diag] set legacy headers for /blocks/:n/full");
+  }
+  attach();
+})();
+
+// ---- decorate existing /blocks/:n/full handler to add legacy headers (additive)
+(function decorateCompatBlocksFullHeaders(){
+  let tries = 0, done = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function install(){
+    try {
+      const app:any = getApp();
+      if (!app || !app._router || !Array.isArray(app._router.stack)) return false;
+
+      for (const layer of app._router.stack) {
+        // Express layers can be nested; look for route with path '/blocks/:n/full'
+        const route = layer && layer.route;
+        if (!route || !Array.isArray(route.stack)) continue;
+
+        // route.path may be a string or a regexp (depending on Express version)
+        const pathStr = (route.path && String(route.path)) || "";
+        if (pathStr === "/blocks/:n/full" || /\/blocks\/:n\/full/.test(pathStr)) {
+          // Wrap each method handler once
+          for (const s of route.stack) {
+            if (s.__void_legacy_hdr_wrapped) continue;
+            const orig = s.handle;
+            if (typeof orig !== "function") continue;
+
+            s.handle = function(req:any, res:any, next:any){
+              try {
+                res.set?.("Deprecation", "true");
+                res.set?.("Link", "</dev/blocks/:n/txs/raw2>; rel=\"alternate\"");
+              } catch {}
+              return orig.call(this, req, res, next);
+            };
+            s.__void_legacy_hdr_wrapped = true;
+          }
+          console.log("[diag] legacy headers injected for /blocks/:n/full");
+          return true;
+        }
+      }
+      return false;
+    } catch { return false; }
+  }
+  (function tick(){
+    if (done) return;
+    if (install()) { done = true; return; }
+    if (++tries < 60) setTimeout(tick, 500); // keep trying for ~30s during boot
+  })();
+})();
+
+// ---------------- Follower drift status (additive, no deps) --------------------
+(function followerStatusRoute(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // GET /follower/status?peer=http://127.0.0.1:4100
+    // Reports {peer, head_local, head_peer, drift}
+    app.get("/follower/status", async (req:any, res:any) => {
+      try {
+        const peer = String(req.query.peer || "").trim();
+        if (!peer) return res.status(400).json({ ok:false, error:"missing_peer_param" });
+
+        const myPort = Number(process.env.HTTP_PORT || 4100);
+        const myUrl  = `http://127.0.0.1:${myPort}/blocks/latest/number`;
+        const pUrl   = `${peer.replace(/\/+$/,"")}/blocks/latest/number`;
+
+        const [a, b] = await Promise.allSettled([fetch(myUrl), fetch(pUrl)]);
+        if (a.status !== "fulfilled" || !a.value.ok) {
+          const body = a.status === "fulfilled" ? await a.value.text().catch(()=>"(no-body)") : String(a.reason);
+          return res.status(502).json({ ok:false, which:"local", url:myUrl, preview:body.slice(0,200) });
+        }
+        if (b.status !== "fulfilled" || !b.value.ok) {
+          const body = b.status === "fulfilled" ? await b.value.text().catch(()=>"(no-body)") : String(b.reason);
+          return res.status(502).json({ ok:false, which:"peer", url:pUrl, preview:body.slice(0,200) });
+        }
+
+        const head_local = Number(await a.value.text());
+        const head_peer  = Number(await b.value.text());
+        const drift = (Number.isFinite(head_local) && Number.isFinite(head_peer)) ? (head_peer - head_local) : null;
+
+        res.json({ ok:true, peer, head_local, head_peer, drift });
+      } catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    console.log("[diag] attached /follower/status");
+  }
+  attach();
+})();
+
+// ---------------- Follower drift status v2 (additive, no deps) --------------------
+(function followerStatusRouteV2(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+  function trimSlash(u:string){ return String(u || "").replace(/\/+$/,""); }
+
+  async function fetchHeadFromMetrics(base:string){
+    const url = trimSlash(base) + "/metrics";
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`metrics_http_${r.status}`);
+    const text = await r.text();
+    // Expect a line like: void_head_number 4239
+    const m = text.match(/(^|\n)\s*void_head_number\s+([0-9]+)(\s|$)/);
+    if (!m) throw new Error("head_metric_missing");
+    return Number(m[2]);
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // GET /follower/status2?peer=http://127.0.0.1:4100
+    // -> { ok, peer, head_local, head_peer, drift }
+    app.get("/follower/status2", async (req:any, res:any) => {
+      try {
+        const peer = String(req.query.peer || "").trim();
+        if (!peer) return res.status(400).json({ ok:false, error:"missing_peer_param" });
+
+        const myPort = Number(process.env.HTTP_PORT || 4100);
+        const myBase = `http://127.0.0.1:${myPort}`;
+
+        // Read heads from /metrics on both nodes
+        const [localHead, peerHead] = await Promise.all([
+          fetchHeadFromMetrics(myBase),
+          fetchHeadFromMetrics(peer)
+        ]);
+
+        const drift = peerHead - localHead;
+        return res.json({ ok:true, peer:trimSlash(peer), head_local:localHead, head_peer:peerHead, drift });
+      } catch (err:any) {
+        const msg = (err && err.message) ? String(err.message) : String(err);
+        return res.status(502).json({ ok:false, error:msg });
+      }
+    });
+  }
+
+  attach();
+})();
+
+// dev harness: follower drift v2
+import './http/harness_follower_status2.js'
