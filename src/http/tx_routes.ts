@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from "express";
+import { globalEnqueueTx } from "../node_core.js";
 import { mempool } from "../mempool.js";
 import { txBuffer } from "../tx_buffer.js";
 
@@ -11,7 +12,11 @@ import { txBuffer } from "../tx_buffer.js";
 export function registerTxRoutes(app: Express) {
   // Alias preferred by tools: POST /tx/submit
   app.post("/tx/submit", (req: Request, res: Response) => {
-    const b = (req as any).body ?? {};
+    
+    
+    try { globalEnqueueTx(req.body ?? {}); const q=(globalThis as any).__void_tx_queue; console.log("[route] /tx/submit enq size=%s", Array.isArray(q)?q.length:-1); } catch {} 
+  try { globalEnqueueTx(req.body ?? {}); } catch {}
+  const b = (req as any).body ?? {};
     const id: string = (typeof b.id === "string" && b.id.length)
       ? b.id
       : `tx-${Date.now()}-${Math.random().toString(16).slice(2,8)}`;
@@ -29,7 +34,9 @@ export function registerTxRoutes(app: Express) {
 
   // Neutral path kept: POST /mempool/submit  (same behavior)
   app.post("/mempool/submit", (req: Request, res: Response) => {
-    const b = (req as any).body ?? {};
+    
+    try { globalEnqueueTx(req.body ?? {}); } catch {}
+  const b = (req as any).body ?? {};
     const id: string = (typeof b.id === "string" && b.id.length)
       ? b.id
       : `tx-${Date.now()}-${Math.random().toString(16).slice(2,8)}`;
