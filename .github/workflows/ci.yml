@@ -52,3 +52,12 @@ jobs:
       - run: npm ci
       - run: npm run build:loose --if-present
       - run: npx tsc --noEmit || true
+
+      - name: Secret scan (ggshield repo)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: python -m pip install --upgrade pip && pip install ggshield
+      - env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+        run: ggshield secret scan repo --all .
