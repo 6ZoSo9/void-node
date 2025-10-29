@@ -1,3 +1,6 @@
+permissions:
+  contents: read
+
 name: CI
 name: CI
 
@@ -26,9 +29,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
+        cache-dependency-path: package-lock.json
         with:
           node-version: '20.x'
           cache: 'npm'
