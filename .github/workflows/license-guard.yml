@@ -13,6 +13,9 @@ jobs:
         with: {fetch-depth: 0}
       - name: Verify LICENSE matches canonical VCL
         run: |
+        run: |
+          set -euo pipefail
+          diff -u --strip-trailing-cr .ci/VCL_LICENSE.txt LICENSE
           set -euo pipefail
           if ! diff -u .ci/VCL_LICENSE.txt LICENSE; then
             echo "::error ::LICENSE must match .ci/VCL_LICENSE.txt (VCL v1.0 pinned)."
