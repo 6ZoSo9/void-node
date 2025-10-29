@@ -17,7 +17,8 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -55,7 +56,7 @@ jobs:
       - name: Typecheck (no emit)
         run: npx tsc --noEmit
 
-      # Full-repo secret scan (only if secret exists)
+      # Optional: full repo secret scan only if the secret is set
       - name: Setup Python (for ggshield)
         if: ${{ secrets.GITGUARDIAN_API_KEY != '' }}
         uses: actions/setup-python@v5
