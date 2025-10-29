@@ -14,3 +14,8 @@ coverage/
 # Bulk assets not tracked
 fs/
 
+
+# CI artifacts
+run_*_logs.zip
+smoke_*.zip
+ci_*.zip
