@@ -1633,6 +1633,8 @@ import type {} from "express"; // type-only safety; no runtime impact
       try {
         // @ts-ignore - resolve at runtime via globalThis.__void_node || globalThis.node
         // @ts-ignore - resolve at runtime via globalThis.__void_node || globalThis.node
+        // runtime alias for global node handle (additive shim)
+        const node:any = (globalThis as any).__void_node || (globalThis as any).node || null;
         const mp:any = (node as any)?.mempool ?? (node as any)?.mPool ?? (node as any)?.txPool ?? null;
         if (!mp) return false;
         if (typeof mp.enqueue === "function") { mp.enqueue(t); return true; }
