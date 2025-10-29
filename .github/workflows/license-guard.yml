@@ -1,0 +1,20 @@
+name: license-guard
+on:
+  pull_request:
+  push:
+    branches: [ new-main-2025-10-29, main, new-main, restore-2025-10-28 ]
+permissions:
+  contents: read
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Verify LICENSE matches canonical VCL
+        run: |
+          set -euo pipefail
+          if ! diff -u .ci/VCL_LICENSE.txt LICENSE; then
+            echo "::error ::LICENSE must match .ci/VCL_LICENSE.txt (VCL v1.0 pinned)."
+            exit 1
+          fi
