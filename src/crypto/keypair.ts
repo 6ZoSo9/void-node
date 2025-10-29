@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 // src/crypto/keypair.ts
 import * as fs from "node:fs";
 import * as crypto from "node:crypto";

@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 // src/p2p/handshake.ts
 /**
  * Minimal signed-hello helpers used by our PubSub wire protocol.

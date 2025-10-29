@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 import type { Express, Request, Response } from "express";
 
 /**

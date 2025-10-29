@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 // ---------------- Follower drift status v2 (additive, no deps) --------------------
 (function followerStatusRouteV2(){
   let tries = 0, attached = false;

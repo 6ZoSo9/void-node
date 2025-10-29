@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 // src/http/api_autoboot.ts
 /**
  * Minimal “autoboot” helper for dev: if the store is empty, write a genesis block 0.

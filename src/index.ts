@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 import { registerDevRoutes } from "./http/dev_routes.js";              // ok if present; safely wrapped
 import { globalEnqueueTx } from "./node_core.js";
 import express from "express";

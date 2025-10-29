@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 // src/cli.ts
 /* Minimal CLI for local ops. Designed to be resilient even if some HTTP routes
  * are not present. BASE defaults to http://127.0.0.1:4100

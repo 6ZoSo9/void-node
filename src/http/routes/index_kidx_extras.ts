@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 // src/http/routes/index_kidx_extras.ts
 /**
  * Extra helpers around the compact JSONL index and .kidx accelerators.

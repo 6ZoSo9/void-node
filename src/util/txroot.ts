@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 import { createHash } from "node:crypto";
 
 /** sha256 hex with 0x prefix (matches the empty root you logged earlier). */

@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 /**
  * Dev Safe Bundle — idempotent, additive observer:
  * - Patches SegStore.append to snapshot sealed tx hashes (non-invasive)

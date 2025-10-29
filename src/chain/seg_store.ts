@@ -1,3 +1,6 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
 // src/chain/seg_store.ts
 import * as fs from "node:fs";
 import * as path from "node:path";
