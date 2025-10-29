@@ -5,6 +5,16 @@ name: CI
 on:
   push:
     branches: [ restore-2025-10-28 ]
+    paths:
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig*.json"
+      - ".github/workflows/**"
+      - "!**.md"
+      - "!docs/**"
+      - "!**.png"
+      - "!**.jpg"
   pull_request:
 concurrency:
   group: ci-${{ github.ref }}
