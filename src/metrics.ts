@@ -1,6 +1,17 @@
 type GMap = Record<string, number>;
 
 export class Metrics {
+
+  // [ADD] Counters for sealing
+  private _sealedBlocks = 0;
+  private _sealedTxs = 0;
+  public incSealed(blockTxs: number){
+    this._sealedBlocks++;
+    this._sealedTxs += (blockTxs|0);
+  }
+  public sealedSnapshot(){
+    return { sealed_blocks_total: this._sealedBlocks, sealed_txs_total: this._sealedTxs };
+  }
   private counters: GMap = Object.create(null);
   public gauges: GMap = Object.create(null);
 
