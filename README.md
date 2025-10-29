@@ -26,3 +26,6 @@ See `.env.example` for the full list. Common:
 
 ## Runbooks
 See `runbook/` for operational guides.
+
+## CI Status
+![CI](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml/badge.svg)
