@@ -25,7 +25,7 @@ export function registerTxRoutes(app: Express) {
 
     if (process.env.DEBUG_TX) console.log("[tx_routes] submit", {id, typeofData: typeof data, sample: (typeof data=="string"?data.slice(0,64):"[obj]")});
     const result = mempool.submit({ id, data });
-    if (!result?.ok) return res.status(400).json({ ok:false, ...result });
+    if (!result?.ok) return res.status(400).json({ ...(result || {}), ok:false });
 
     // mirror into our lightweight buffer (string guaranteed)
     txBuffer.push({ id, data });
@@ -44,7 +44,7 @@ export function registerTxRoutes(app: Express) {
     if (typeof data !== "string") data = JSON.stringify(data);
 
     const result = mempool.submit({ id, data });
-    if (!result?.ok) return res.status(400).json({ ok:false, ...result });
+    if (!result?.ok) return res.status(400).json({ ...(result || {}), ok:false });
 
     txBuffer.push({ id, data });
     return res.json({ ok:true, id, size: (mempool as any).size?.() ?? 0 });
