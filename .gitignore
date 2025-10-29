@@ -14,3 +14,15 @@ coverage/
 # Bulk assets not tracked
 fs/
 
+# Secrets and private material
+.secrets/
+*.pem
+*.key
+*_private.*
+*.p12
+*.pfx
+
+# Local ops and artifacts
+*.env
+.env*
+*.log
