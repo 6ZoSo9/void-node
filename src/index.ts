@@ -1,4 +1,5 @@
 import { registerDevRoutes } from "./http/dev_routes.js";              // ok if present; safely wrapped
+import { globalEnqueueTx } from "./node_core.js";
 import express from "express";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -128,7 +129,9 @@ async function __main__() {
 
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
-  app.use(express.json({ limit: "128mb" }));
+;(globalThis as any).__void_http_app = app; // dev-safe-bundle hook
+
+;;;;;app.use(express.json({ limit: "128mb" }));
   // tx routes must come right after body parser
   registerTxRoutes(app);
 
@@ -138,7 +141,11 @@ async function __main__() {
   // --- minimal mempool-backed tx submit route (dev only) ---
   const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
   app.post("/tx/submit", async (req, res) => {
-    try {
+    
+    
+    try { globalEnqueueTx(req.body ?? {}); const q=(globalThis as any).__void_tx_queue; console.log("[route] /tx/submit enq size=%s", Array.isArray(q)?q.length:-1); } catch {}
+  try { globalEnqueueTx(req.body ?? {}); } catch {}
+  try {
       const tx = req.body && typeof req.body === "object" ? req.body : null;
       if (!tx || typeof tx.data !== "string" || !tx.data.length)
         return res.status(400).json({ ok:false, error:"expected {data:string}" });
@@ -160,6 +167,19 @@ async function __main__() {
 // DUPLICATE DISABLED -> // DUPLICATE DISABLED -> registerTxRoutes(app);
 
   /* ===================== MAINTENANCE ===================== */
+  // Convenience: full latest block JSON (robust for jq etc.)
+  app.get("/blocks/latest/full", (_req, res) => {
+    try {
+      const n = (node as any).store?.loadHeadNumber?.() ?? -1;
+      if (n < 0) return res.status(404).json({ ok:false, error:"no blocks" });
+      const b = (node as any).store?.loadBlock?.(n) ?? null;
+      if (!b) return res.status(404).json({ ok:false, error:"block not found" });
+      return res.json(b);
+    } catch (e:any) {
+      return res.status(500).json({ ok:false, error: String(e?.message || e) });
+    }
+  });
+
   app.get("/maintenance/verify", async (_req, res) => {
     try {
       const r = await runTsxScript("scripts/check_store.ts", {
@@ -900,3 +920,648 @@ __main__().catch((e) => {
   process.exitCode = 1;
 });
 
+
+// ---------------- Temporary diagnostics: mempool size ----------------
+import type {} from "express"; // type-only safety; no runtime impact
+
+(function attachMempoolSizeRoutes(){
+  try {
+    // Note: we only read the global queue; no side effects.
+    const getSize = () => {
+      const q = (globalThis as any).__void_tx_queue;
+      return Array.isArray(q) ? q.length : 0;
+    };
+
+    // Express is the default server in this file; locate the 'app' via global or closure.
+    // If 'app' is not in scope, we stored it earlier on globalThis (fallback below).
+    const appAny: any = (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+    if (!appAny || typeof appAny.get !== "function") {
+      console.warn("[diag] mempool size routes not attached (no app handle)");
+      return;
+    }
+
+    appAny.get("/mempool/global/size", (_req: any, res: any) => {
+      res.type("text/plain").send(String(getSize()));
+    });
+
+    appAny.get("/mempool/global/size.json", (_req: any, res: any) => {
+      res.json({ size: getSize() });
+    });
+
+    console.log("[diag] attached /mempool/global/size(.json)");
+  } catch (e) {
+    console.warn("[diag] failed to attach mempool size routes:", e);
+  }
+})();
+
+// ---------------- Temporary diagnostics: latest block number ----------------
+(function attachLatestNumber(){
+  try {
+    const appAny: any = (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+    if (!appAny || typeof appAny.get !== "function") return;
+
+    appAny.get("/blocks/latest/number", async (_req: any, res: any) => {
+      try {
+        // Reuse the public API you already expose:
+        const r = await fetch(`http://127.0.0.1:${process.env.HTTP_PORT || 4100}/blocks/latest/full`);
+        const full = await r.json();
+        const n = (full && typeof full.number === "number") ? full.number : -1;
+        if (n < 0) return res.status(404).json({ error: "latest number unavailable" });
+        res.type("text/plain").send(String(n));
+      } catch (e:any) {
+        res.status(500).json({ error: String(e?.message || e) });
+      }
+    });
+
+    console.log("[diag] attached /blocks/latest/number");
+  } catch {}
+})();
+
+// ---------------- Temporary diagnostics: latest block number ----------------
+(function attachLatestNumber(){
+  try {
+    const appAny = (globalThis as any).__void_http_app;
+    if (!appAny || typeof appAny.get !== "function") return;
+
+    appAny.get("/blocks/latest/number", async (_req, res) => {
+      try {
+        const r = await fetch(`http://127.0.0.1:${process.env.HTTP_PORT || 4100}/blocks/latest/full`);
+        const full = await r.json();
+        const n = (full && typeof full.number === "number") ? full.number : -1;
+        if (n < 0) return res.status(404).json({ error: "latest number unavailable" });
+        res.type("text/plain").send(String(n));
+      } catch (e) {
+        res.status(500).json({ error: String((e as any)?.message || e) });
+      }
+    });
+
+    console.log("[diag] attached /blocks/latest/number");
+  } catch {}
+})();
+
+// ---------------- Late-bound diagnostics (attach when app exists) ----------------
+(function lateAttachDiag(){
+  let tries = 0;
+  let attached = false;
+
+  function getApp(): any {
+    return (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+  }
+
+  function attach() {
+    const appAny = getApp();
+    if (!appAny || typeof appAny.get !== "function") {
+      // Retry up to ~30s total (60 * 500ms) without being noisy
+      if (++tries < 60) return setTimeout(attach, 500);
+      console.warn("[diag] mempool routes not attached (no app handle after retries)");
+      return;
+    }
+    if (attached) return;
+    attached = true;
+
+    const getSize = () => {
+      const q = (globalThis as any).__void_tx_queue;
+      return Array.isArray(q) ? q.length : 0;
+    };
+
+    appAny.get("/mempool/global/size", (_req: any, res: any) => {
+      res.type("text/plain").send(String(getSize()));
+    });
+
+    appAny.get("/mempool/global/size.json", (_req: any, res: any) => {
+      res.json({ size: getSize() });
+    });
+
+    appAny.get("/blocks/latest/number", async (_req: any, res: any) => {
+      try {
+        const r = await fetch(`http://127.0.0.1:${process.env.HTTP_PORT || 4100}/blocks/latest/full`);
+        const full = await r.json();
+        const n = (full && typeof full.number === "number") ? full.number : -1;
+        if (n < 0) return res.status(404).json({ error: "latest number unavailable" });
+        res.type("text/plain").send(String(n));
+      } catch (e:any) {
+        res.status(500).json({ error: String(e?.message || e) });
+      }
+    });
+
+    console.log("[diag] attached /mempool/global/size(.json), /blocks/latest/number (late)");
+  }
+
+  // Kick off the first attempt (next tick)
+  setTimeout(attach, 0);
+})();
+
+// --- JSON-only error surface (additive; last middleware) ---
+(function enforceJsonErrors(){
+  const appAny: any = (globalThis as any).__void_http_app;
+  if (!appAny || typeof appAny.use !== "function") return;
+
+  // 404 JSON fallback
+  appAny.use((req: any, res: any, next: any) => {
+    if (res.headersSent) return next();
+  });
+
+  // 500 JSON fallback
+  appAny.use((err: any, _req: any, res: any, _next: any) => {
+    try {
+      const msg = (err && (err.message||String(err))) || "internal_error";
+      res.status(500).json({ ok:false, error: msg });
+    } catch {
+      res.status(500).json({ ok:false, error: "internal_error" });
+    }
+  });
+})();
+
+// ---------------- Late-bound helpers: /tx/ping and /mempool/global/peek ------
+(function lateAttachHelpers(){
+  let tries = 0, attached = false;
+
+  function getApp(): any {
+    return (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+  }
+
+  async function sha256Hex(s: string): Promise<string> {
+    // Dynamic import avoids top-level import churn
+    const { createHash } = await import("node:crypto");
+    return createHash("sha256").update(s).digest("hex");
+    // If Node <18 or crypto import fails in your env, we can fall back to a tiny JS hash.
+  }
+
+  async function attach() {
+    const appAny = getApp();
+    if (!appAny || typeof appAny.get !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      console.warn("[diag] helpers not attached (no app handle after retries)");
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // --- /mempool/global/peek?max=10 (read-only)
+    appAny.get("/mempool/global/peek", (req: any, res: any) => {
+      const max = Math.max(0, Math.min(+(req.query?.max ?? 10), 100));
+      const q = (globalThis as any).__void_tx_queue;
+      const arr = Array.isArray(q) ? q.slice(0, max) : [];
+      // Try to normalize a bit, but don't assume shape
+      const view = arr.map((t: any, i: number) => {
+        if (t && typeof t === "object") {
+          const out: any = {};
+          if ("hash" in t) out.hash = t.hash;
+          if ("body" in t) out.body = t.body;
+          if (!("hash" in out) && !("body" in out)) out.value = t;
+          out.idx = i;
+          return out;
+        }
+        return { idx: i, value: t };
+      });
+      res.json({ size: Array.isArray(q) ? q.length : 0, peek: view });
+    });
+
+    // --- /tx/ping  (enqueue a deterministic ping body and return its hash)
+    appAny.post("/tx/ping", async (_req: any, res: any) => {
+      try {
+        const now = Date.now();
+        const nonce = Math.floor(Math.random() * 1e9);
+        const body = { kind: "ping", ts: now, nonce, note: "void-node ping" };
+        const hash = await sha256Hex(JSON.stringify(body));
+        const port = process.env.HTTP_PORT || 4100;
+
+        // Reuse your existing /tx/submit route (no secret queue poking)
+        const r = await fetch(`http://127.0.0.1:${port}/tx/submit`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ data: body })
+        });
+        const submit = await r.json().catch(() => ({ ok:false, error:"non-json submit" }));
+
+        res.json({ ok: true, hash, body, submit });
+      } catch (e: any) {
+        res.status(500).json({ ok:false, error: String(e?.message || e) });
+      }
+    });
+
+    console.log("[diag] attached helpers: /mempool/global/peek, /tx/ping");
+  }
+
+  attach();
+})();
+
+// ---------------- Late-bound helper: /tx/ping/verify?window=20 --------------
+(function lateAttachPingVerify(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function attach(){
+    const appAny = getApp();
+    if (!appAny || typeof appAny.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
+    if(attached) return; attached = true;
+
+    appAny.get("/tx/ping/verify", async (req: any, res: any) => {
+      try {
+        const win = Math.max(1, Math.min(+((req.query||{}).window ?? 20), 200));
+        const port = process.env.HTTP_PORT || 4100;
+        const latest = await fetch(`http://127.0.0.1:${port}/blocks/latest/full`).then(r=>r.json()).then(j=>j?.number ?? -1);
+        if (latest < 0) return res.status(404).json({ ok:false, error:"latest unavailable" });
+        const from = Math.max(0, latest - win);
+        const blocks = await fetch(`http://127.0.0.1:${port}/blocks/range?from=${from}&to=${latest}`).then(r=>r.json());
+        const hits = (Array.isArray(blocks)?blocks:[]).map((b:any)=>({
+          number: b?.number,
+          pings: ((b?.txs)||[]).filter((t:any)=>t?.body?.kind==="ping").map((t:any)=>t.body)
+        })).filter((x:any)=>x.pings.length>0);
+        res.json({ ok:true, from, to: latest, hits });
+      } catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    console.log("[diag] attached /tx/ping/verify");
+  }
+  attach();
+})();
+
+// ---------------- Dev-only hash->body cache + ping2 + verify2 ---------------
+(function devTxCacheAndPing(){
+  let tries = 0, attached = false;
+
+  // Simple LRU-ish cache in globalThis
+  type Body = any;
+  type CacheRec = { body: Body; ts: number };
+  const MAX = 2000, TTL_MS = 15 * 60 * 1000; // keep ~15m
+  const g: any = globalThis as any;
+  g.__void_recent_tx = g.__void_recent_tx || new Map<string, CacheRec>();
+
+  function put(hash: string, body: any){
+    const m: Map<string, CacheRec> = g.__void_recent_tx;
+    m.set(hash, { body, ts: Date.now() });
+    // trim occasionally
+    if (m.size > MAX) {
+      const toDrop = m.size - MAX;
+      for (const k of m.keys()) { m.delete(k); if (m.size <= MAX) break; }
+    }
+  }
+  function get(hash: string): Body | undefined {
+    const m: Map<string, CacheRec> = g.__void_recent_tx;
+    const r = m.get(hash);
+    if (!r) return;
+    if (Date.now() - r.ts > TTL_MS) { m.delete(hash); return; }
+    return r.body;
+  }
+
+  function getApp(): any {
+    return (g.__void_http_app || (g as any).app || undefined);
+  }
+
+  async function attach(){
+    const app = getApp();
+    if (!app || typeof app.post !== "function" || typeof app.get !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      console.warn("[diag] devTx cache routes not attached (no app handle)");
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // POST /tx/ping2 -> enqueue + cache body under its hash
+    app.post("/tx/ping2", async (_req: any, res: any) => {
+      try {
+        const { createHash } = await import("node:crypto");
+        const body = {
+          kind: "ping",
+          ts: Date.now(),
+          nonce: Math.floor(Math.random() * 2**31),
+          note: "void-node ping2"
+        };
+        const hash = createHash("sha256").update(JSON.stringify(body)).digest("hex");
+
+        // submit via your existing submit endpoint
+        const port = process.env.HTTP_PORT || 4100;
+        const sub = await fetch(`http://127.0.0.1:${port}/tx/submit`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ data: body })
+        }).then(r=>r.json()).catch(()=>({ ok:false }));
+
+        // cache regardless; proposer will drain soon
+        put(hash, body);
+
+        res.json({ ok:true, hash, body, submit: sub });
+      } catch (e:any) {
+        res.status(500).json({ ok:false, error: String(e?.message || e) });
+      }
+    });
+
+    // GET /tx/ping/verify2?window=20 -> scan recent blocks, resolve tx hashes via cache
+    app.get("/tx/ping/verify2", async (req: any, res: any) => {
+      try {
+        const win = Math.max(1, Math.min(+((req.query||{}).window ?? 20), 200));
+        const port = process.env.HTTP_PORT || 4100;
+        const latest = await fetch(`http://127.0.0.1:${port}/blocks/latest/full`).then(r=>r.json()).then(j=>j?.number ?? -1);
+        if (latest < 0) return res.status(404).json({ ok:false, error:"latest unavailable" });
+        const from = Math.max(0, latest - win);
+        const blocks = await fetch(`http://127.0.0.1:${port}/blocks/range?from=${from}&to=${latest}`).then(r=>r.json());
+        const out: any[] = [];
+        for (const b of (Array.isArray(blocks)?blocks:[])) {
+          const txs = (b?.txs)||[];
+          // Normalize each tx to a hash string if possible
+          const hashes = txs.map((t:any)=> (typeof t === "string") ? t : (t?.hash ?? null)).filter(Boolean);
+          const pings: any[] = [];
+          for (const h of hashes) {
+            const cached = get(h);
+            if (cached && cached.kind === "ping") pings.push(cached);
+          }
+          if (pings.length) out.push({ number: b.number, pings });
+        }
+        res.json({ ok:true, from, to: latest, hits: out });
+      } catch (e:any) {
+        res.status(500).json({ ok:false, error: String(e?.message || e) });
+      }
+    });
+
+    console.log("[diag] attached /tx/ping2 and /tx/ping/verify2 (dev cache)");
+  }
+  attach();
+})();
+
+// ---------------- Dev-only: inspect raw txs stored for a block ---------------
+(function devRawTxsInspector(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function attach(){
+    const app: any = getApp();
+    if (!app || typeof app.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    app.get("/dev/blocks/:n/txs/raw", async (req: any, res: any) => {
+      try {
+        const n = +req.params.n;
+        const port = process.env.HTTP_PORT || 4100;
+        const b = await fetch(`http://127.0.0.1:${port}/blocks/${n}/full`).then(r=>r.json());
+        const txs = Array.isArray(b?.txs) ? b.txs : [];
+        res.json({
+          ok: true,
+          number: b?.number ?? n,
+          types: txs.map((t:any)=>typeof t),
+          sample: txs.slice(0,5)
+        });
+      } catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    console.log("[diag] attached /dev/blocks/:n/txs/raw");
+  }
+  attach();
+})();
+
+// --------------- Dev-only: /tx/ping/seen?window=N (hash intersection) --------
+(function devPingSeen(){
+  let tries = 0, attached = false;
+  const g:any = globalThis as any;
+
+  function getApp(){ return g.__void_http_app || (g as any).app || undefined; }
+  function keysOfCache(): string[] {
+    const m: Map<string, {body:any, ts:number}> = g.__void_recent_tx || new Map();
+    return Array.from(m.keys());
+  }
+
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    app.get("/tx/ping/seen", async (req:any, res:any) => {
+      try {
+        const win = Math.max(1, Math.min(+((req.query||{}).window ?? 40), 400));
+        const port = process.env.HTTP_PORT || 4100;
+
+        const latest = await fetch(`http://127.0.0.1:${port}/blocks/latest/full`).then(r=>r.json()).then(j=>j?.number ?? -1);
+        if (latest < 0) return res.status(404).json({ ok:false, error:"latest unavailable" });
+
+        const from = Math.max(0, latest - win);
+        const blocks:any[] = await fetch(`http://127.0.0.1:${port}/blocks/range?from=${from}&to=${latest}`).then(r=>r.json());
+        const cacheKeys = new Set(keysOfCache());
+        const hits: any[] = [];
+
+        for (const b of (Array.isArray(blocks)?blocks:[])) {
+          const txs = (b?.txs) || [];
+          const hashes = txs.map((t:any)=> {
+            if (typeof t === "string") return t;
+            if (t && typeof t === "object" && typeof t.hash === "string") return t.hash;
+            return null;
+          }).filter(Boolean) as string[];
+
+          const matched = hashes.filter(h => cacheKeys.has(h));
+          if (matched.length) hits.push({ number: b.number, matched });
+        }
+        res.json({ ok:true, from, to: latest, hits });
+      } catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    console.log("[diag] attached /tx/ping/seen");
+  }
+  attach();
+})();
+
+// ---------------- Dev-only: inspect raw txs (range-backed, robust) ----------
+(function devRawTxsInspector2(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function attach(){
+    const app: any = getApp();
+    if (!app || typeof app.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    // Always uses /blocks/range?from=n&to=n so we avoid the flaky /blocks/:n/full
+    app.get("/dev/blocks/:n/txs/raw", async (req: any, res: any) => {
+      try {
+        const n = +req.params.n;
+        const port = process.env.HTTP_PORT || 4100;
+        const arr = await fetch(`http://127.0.0.1:${port}/blocks/range?from=${n}&to=${n}`).then(r=>r.json());
+        const b = Array.isArray(arr) ? arr[0] : null;
+        if (!b) return res.status(404).json({ ok:false, error:"block_not_found", number:n });
+
+        const txs = Array.isArray(b?.txs) ? b.txs : [];
+        res.json({
+          ok: true,
+          number: b?.number ?? n,
+          tx_count: txs.length,
+          types: txs.map((t:any)=> typeof t),
+          // show first few entries exactly as stored
+          sample: txs.slice(0,5)
+        });
+      } catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    console.log("[diag] attached /dev/blocks/:n/txs/raw (range-backed)");
+  }
+  attach();
+})();
+
+// ---------------- Dev-only: read last sealed tx hashes -----------------------
+(function devLastSeal(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    app.get("/dev/last-seal", (_req:any, res:any) => {
+      const snap = (globalThis as any).__void_last_seal || null;
+      res.json({ ok:true, last: snap });
+    });
+
+    console.log("[diag] attached /dev/last-seal");
+  }
+  attach();
+})();
+
+// --------- Dev-only: /dev/sealed/window?from=&to= (hash snapshot view) -------
+
+
+// ---------------- Dev-only: inspect raw txs (range-backed, robust v2) ----------
+(function devRawTxsInspector_v2(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  async function attach(){
+    const app: any = getApp();
+    if (!app || typeof app.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    // New endpoint: /dev/blocks/:n/txs/raw2
+    app.get("/dev/blocks/:n/txs/raw2", async (req: any, res: any) => {
+      try {
+        const n = Number(req.params.n);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:"bad_number" });
+        const port = process.env.HTTP_PORT || 4100;
+        const url = `http://127.0.0.1:${port}/blocks/range?from=${n}&to=${n}`;
+
+        const r = await fetch(url);
+        if (!r.ok) {
+          const peek = await r.text().catch(()=>"(no-body)");
+          return res.status(502).json({ ok:false, upstream:url, status:r.status, preview:peek.slice(0,200) });
+        }
+        const arr = await r.json().catch(async (e:any) => {
+          const peek = await r.text().catch(()=>"(no-body)");
+          throw new Error(`json_parse_failed: ${String(e)} preview=${peek.slice(0,200)}`);
+        });
+
+        const b = Array.isArray(arr) ? arr[0] : null;
+        if (!b) return res.status(404).json({ ok:false, error:"block_not_found", number:n });
+
+        const txs = Array.isArray(b?.txs) ? b.txs : [];
+        res.json({
+          ok: true,
+          number: b?.number ?? n,
+          tx_count: txs.length,
+          types: txs.map((t:any)=> typeof t),
+          sample: txs.slice(0,5)
+        });
+      } catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    console.log("[diag] attached /dev/blocks/:n/txs/raw2 (robust, range-backed)");
+  }
+  attach();
+})();
+
+// -------------- Compat shim: /blocks/:n/full (range-backed, JSON) ---------------
+(function compatBlocksFull(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  async function attach(){
+    const app: any = getApp();
+    if (!app || typeof app.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    app.get("/blocks/:n/full", async (req: any, res: any) => {
+      try {
+        const n = Number(req.params.n);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:"bad_number" });
+        const port = Number(process.env.HTTP_PORT || 4100);
+        const url = `http://127.0.0.1:${port}/blocks/range?from=${n}&to=${n}`;
+
+        const r = await fetch(url);
+        if (!r.ok) {
+          const peek = await r.text().catch(()=>"(no-body)");
+          return res.status(502).json({ ok:false, upstream:url, status:r.status, preview:peek.slice(0,200) });
+        }
+
+        // Try JSON; if it fails, show an informative error with a preview.
+        let arr: any;
+        try {
+          arr = await r.json();
+        } catch(e:any){
+          const peek = await r.text().catch(()=>"(no-body)");
+          return res.status(500).json({ ok:false, error:`json_parse_failed: ${String(e)}`, preview:peek.slice(0,200) });
+        }
+
+        const b = Array.isArray(arr) ? arr[0] : null;
+        if (!b) return res.status(404).json({ ok:false, error:"block_not_found", number:n });
+
+        return res.json(b);
+      } catch(e:any){
+        return res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    console.log("[compat] attached /blocks/:n/full -> /blocks/range shim");
+  }
+  attach();
+})();
+
+// ---------------- Dev-only: guard legacy /dev/blocks/:n/txs/raw -----------------
+(function devRawLegacyGuard(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  async function attach(){
+    const app: any = getApp();
+    if (!app || typeof app.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    // Add a second endpoint that mirrors /dev/blocks/:n/txs/raw but with a strict JSON guard,
+    // so older tools can flip over with only a path change if needed.
+    app.get("/dev/blocks/:n/txs/raw-guard", async (req: any, res: any) => {
+      try {
+        const n = Number(req.params.n);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:"bad_number" });
+        const port = Number(process.env.HTTP_PORT || 4100);
+        const url = `http://127.0.0.1:${port}/blocks/range?from=${n}&to=${n}`;
+
+        const r = await fetch(url);
+        if (!r.ok) {
+          const peek = await r.text().catch(()=>"(no-body)");
+          return res.status(502).json({ ok:false, upstream:url, status:r.status, preview:peek.slice(0,200) });
+        }
+
+        let arr: any;
+        try {
+          arr = await r.json();
+        } catch(e:any){
+          const peek = await r.text().catch(()=>"(no-body)");
+          return res.status(500).json({ ok:false, error:`json_parse_failed: ${String(e)}`, preview:peek.slice(0,200) });
+        }
+
+        const b = Array.isArray(arr) ? arr[0] : null;
+        if (!b) return res.status(404).json({ ok:false, error:"block_not_found", number:n });
+
+        const txs = Array.isArray(b?.txs) ? b.txs : [];
+        return res.json({
+          ok: true,
+          number: b?.number ?? n,
+          tx_count: txs.length,
+          types: txs.map((t:any)=> typeof t),
+          sample: txs.slice(0,5)
+        });
+      } catch(e:any){
+        return res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    console.log("[diag] attached /dev/blocks/:n/txs/raw-guard");
+  }
+  attach();
+})();
