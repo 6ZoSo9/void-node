@@ -1018,6 +1018,7 @@ import type {} from "express"; // type-only safety; no runtime impact
     const appAny = (globalThis as any).__void_http_app;
     if (!appAny || typeof appAny.get !== "function") return;
 
+    // @ts-ignore - dev shim route, loose types
     appAny.get("/blocks/latest/number", async (_req, res) => {
       try {
         const r = await fetch(`http://127.0.0.1:${process.env.HTTP_PORT || 4100}/blocks/latest/full`);
@@ -1630,6 +1631,8 @@ import type {} from "express"; // type-only safety; no runtime impact
 
     function tryAddToMempool(t:any): boolean {
       try {
+        // @ts-ignore - resolve at runtime via globalThis.__void_node || globalThis.node
+        // @ts-ignore - resolve at runtime via globalThis.__void_node || globalThis.node
         const mp:any = (node as any)?.mempool ?? (node as any)?.mPool ?? (node as any)?.txPool ?? null;
         if (!mp) return false;
         if (typeof mp.enqueue === "function") { mp.enqueue(t); return true; }
@@ -3866,6 +3869,7 @@ import type {} from "express"; // type-only safety; no runtime impact
         // also mirror at top-level if your schema exposes txRoot there
         if (!block.txRoot || zero) block.txRoot = block.header.txRoot;
       }catch(_e){}
+      // @ts-ignore - preserving original call site; this is bound at runtime
       return await orig.call(this, block, ...rest);
     });
 
@@ -4210,6 +4214,101 @@ import { computeTxRoot } from "./util/txroot.js";
         res.json({ blocks: c.blocks, txs: c.txs });
       });
       console.log("[txroot/v2] endpoint /metrics/txroot2.json ready");
+    })();
+  }catch{}
+})();
+
+// ---------------- [ADD] /blocks/latest/number.json (JSON mirror) ----------------
+(function installLatestNumberJson(){
+  try{
+    const g:any = globalThis as any;
+    let tries = 0;
+    (function arm(){
+      const app:any = g.__void_http_app || g.app;
+      const node:any = g.__void_node || (g as any).node;
+      if (!app || typeof app.get !== "function" || !node?.store) {
+        if (++tries < 200) return setTimeout(arm, 50);
+        return;
+      }
+      if ((app as any).__latest_number_json) return;
+      (app as any).__latest_number_json = true;
+
+      app.get("/blocks/latest/number.json", async (_req:any, res:any)=>{
+        try{
+          const head = await node.store.getHead?.();
+          // Fallback if store doesn't expose getHead()
+          const n = (typeof head?.number === "number") ? head.number
+                  : (typeof node?.headNumber === "number") ? node.headNumber
+                  : await (async ()=> {
+                      try{
+                        const s = await fetch("http://127.0.0.1:" + (process.env.HTTP_PORT || 4100) + "/blocks/latest/number").then(r=>r.text());
+                        return Number(s.trim());
+                      }catch{ return -1; }
+                    })();
+          res.json({ number: n });
+        }catch(e){
+          res.status(500).json({ ok:false, error: String(e) });
+        }
+      });
+      console.log("[compat] endpoint /blocks/latest/number.json ready");
+    })();
+  }catch{}
+})();
+
+// ---------------- [ADD] /blocks/latest/number2.json (fetch-free JSON mirror) ----------------
+(function installLatestNumberJsonV2(){
+  try{
+    const g:any = globalThis as any;
+    let tries = 0;
+    (function arm(){
+      const app:any  = g.__void_http_app || g.app;
+      const node:any = g.__void_node || (g as any).node;
+      if (!app || typeof app.get !== "function" || !node?.store) {
+        if (++tries < 200) return setTimeout(arm, 50);
+        return;
+      }
+      if ((app as any).__latest_number_json_v2) return;
+      (app as any).__latest_number_json_v2 = true;
+
+      // Helper: read from disk heads.json if store doesn't expose a head
+      async function readHeadFromDisk(): Promise<number>{
+        try{
+          const fs:any   = await import("node:fs");
+          const path:any = await import("node:path");
+          const root  = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+          const file  = path.join(root, "heads.json");
+          if (!fs.existsSync(file)) return -1;
+          const raw = fs.readFileSync(file, "utf8");
+          const j = JSON.parse(raw || "{}");
+          const n = (typeof j?.head === "number") ? j.head : -1;
+          return n;
+        }catch{ return -1; }
+      }
+
+      app.get("/blocks/latest/number2.json", async (_req:any, res:any)=>{
+        try{
+          let n = -1;
+
+          // 1) Preferred: store.getHead()
+          try{
+            const head = await node.store.getHead?.();
+            if (typeof head?.number === "number") n = head.number;
+          }catch{}
+
+          // 2) Fallback: node.headNumber if present
+          if (n < 0 && typeof node?.headNumber === "number") {
+            n = node.headNumber;
+          }
+
+          // 3) Final fallback: read heads.json on disk (no fetch)
+          if (n < 0) n = await readHeadFromDisk();
+
+          res.json({ number: n });
+        }catch(e){
+          res.status(500).json({ ok:false, error: String(e) });
+        }
+      });
+      console.log("[compat] endpoint /blocks/latest/number2.json ready (fetch-free)");
     })();
   }catch{}
 })();

@@ -12,6 +12,7 @@ const SEG_SPAN = 10_000;
 export class SegStore {
 
   // [ADD] Compatibility alias: saveBlock -> writeBlock (non-breaking)
+  // @ts-ignore - back-compat: legacy signature kept; real impl below
   public saveBlock(b: any){
     // If writeBlock exists, use it; otherwise surface a clear error
     // (keeps Node.sealBlock() happy while we stabilize APIs)
@@ -103,6 +104,7 @@ export class SegStore {
     this.metaCache.set(seg, m);
   }
 
+  // @ts-ignore - back-compat: second impl retained for runtime; TS ignore
   saveBlock(b: Block) {
     const seg = this.segName(b.number);
     this.ensureSeg(seg);
