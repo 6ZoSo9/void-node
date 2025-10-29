@@ -1,6 +1,11 @@
 name: CI
 
 on:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
   push:
   pull_request:
 
