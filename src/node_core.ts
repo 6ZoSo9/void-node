@@ -266,6 +266,14 @@ export class Node {
   }
 
   private onMsg(tempOrRealId: string, msg: Msg) {
+    // --- ADDITIVE SHIM (legacy log safety) ---
+    // Define `txs` from payload if present so old logs using `txs` don\x27t throw.
+    var txs: any = (function(){
+      const __args: any[] = Array.from(arguments as any);
+      const __payload: any = __args.length >= 3 ? __args[2] : undefined;
+      return Array.isArray(__payload?.txs) ? __payload.txs : undefined;
+    }).apply(this, arguments);
+    // --- END ADDITIVE SHIM ---
     if (msg.type === "HELLO") {
       const ent = [...this.peers.entries()].find(([k]) => k === tempOrRealId || k.startsWith("?-"));
       if (!ent) return;
@@ -411,6 +419,17 @@ export class Node {
   }
 
   private sendRaw(peer: Peer, msg: Msg) {
+    // --- ADDITIVE SHIM (sendRaw legacy log safety) ---
+    // Define `txs` from the 3rd argument (payload) if present so old logs using
+    // `txs` in logs don\x27t throw. Does not alter logic; read-only.
+    var txs: any = (function(){
+      try {
+        const __args: any[] = Array.from(arguments as any);
+        const __payload: any = __args.length >= 3 ? __args[2] : undefined;
+        return Array.isArray(__payload?.txs) ? __payload.txs : undefined;
+      } catch { return undefined }
+    }).apply(this, arguments);
+    // --- END ADDITIVE SHIM ---
     try {
       peer.socket.write(encode(msg));
     } catch {}
