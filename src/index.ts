@@ -112,8 +112,8 @@ console.log("[shim] published global node (post-construct)");
   await node.start();
 
   // Optional: if Node exposes onSealed, wire it (harmless if absent)
-  if ("onSealed" in (node as any)) {
-    (node as any).onSealed = (b: any, dt: number) => {
+  if ("onSealed" in (((globalThis as any).__void_node || (globalThis as any).node) as any)) {
+    (((globalThis as any).__void_node || (globalThis as any).node) as any).onSealed = (b: any, dt: number) => {
       metrics.inc("blocks_sealed", 1);
       (metrics.gauges as any).last_seal_ms = dt;
       if (Array.isArray(b?.txs)) {
@@ -126,13 +126,13 @@ console.log("[shim] published global node (post-construct)");
   const peersReg = new PeerRegistry();
 
   // Sync peer-registry when HTTP announcements arrive
-  ;(node as any).onHttpAnnounce = ({ id, http }: any) => {
+  ;(((globalThis as any).__void_node || (globalThis as any).node) as any).onHttpAnnounce = ({ id, http }: any) => {
     try {
       if (!id) return;
       peersReg.upsert({ id, http, capabilities: ["blob", "tx", "block"] });
       (metrics.gauges as any).peers_known = peersReg.count();
       if (http && selfAdvert.httpBase && selfAdvert.p2pListen) {
-        void upsertRemotePeer(http, (node as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
+        void upsertRemotePeer(http, (((globalThis as any).__void_node || (globalThis as any).node) as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
       }
     } catch {}
   };
@@ -205,9 +205,9 @@ console.log("[shim] published global node (post-construct)");
   // Convenience: full latest block JSON (robust for jq etc.)
   app.get("/blocks/latest/full", (_req, res) => {
     try {
-      const n = (node as any).store?.loadHeadNumber?.() ?? -1;
+      const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store?.loadHeadNumber?.() ?? -1;
       if (n < 0) return res.status(404).json({ ok:false, error:"no blocks" });
-      const b = (node as any).store?.loadBlock?.(n) ?? null;
+      const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store?.loadBlock?.(n) ?? null;
       if (!b) return res.status(404).json({ ok:false, error:"block not found" });
       return res.json(b);
     } catch (e:any) {
@@ -272,7 +272,7 @@ console.log("[shim] published global node (post-construct)");
   /* ===================== INDEX MAINTENANCE ===================== */
   app.post("/index/rebuild", async (_req, res) => {
     try {
-      res.json(await (node as any).rebuildTxIndex());
+      res.json(await (((globalThis as any).__void_node || (globalThis as any).node) as any).rebuildTxIndex());
     } catch (e: any) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
@@ -288,7 +288,7 @@ console.log("[shim] published global node (post-construct)");
 
   app.post("/index/kidx/build", async (_req, res) => {
     try {
-      const shards = (node as any).txIndex.listShards();
+      const shards = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.listShards();
       let baseDir = DATA_DIR;
       if (shards.length > 0) {
         const first = shards[0].path;
@@ -302,7 +302,7 @@ console.log("[shim] published global node (post-construct)");
   });
 
   app.get("/index/stats", (_req, res) => {
-    const shards = (node as any).txIndex.listShards().map((s: any) => {
+    const shards = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.listShards().map((s: any) => {
       const jsonlStat = fs.existsSync(s.path) ? fs.statSync(s.path) : null;
       const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
       const kidxStat = fs.existsSync(kidxPath) ? fs.statSync(kidxPath) : null;
@@ -320,7 +320,7 @@ console.log("[shim] published global node (post-construct)");
   app.post("/index/gc", (req, res) => {
     const keepLast = Number(req.query.keepLast || 1);
     try {
-      res.json((node as any).txIndex.gc(keepLast));
+      res.json((((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.gc(keepLast));
     } catch (e: any) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
@@ -333,7 +333,7 @@ console.log("[shim] published global node (post-construct)");
       if (blockParam !== undefined) {
         const bn = Number(blockParam);
         if (!Number.isFinite(bn) || bn < 0) return res.json({ ok: false, error: "bad block" });
-        const shard = (node as any).txIndex.shardForBlock(bn);
+        const shard = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.shardForBlock(bn);
         await buildKidxForJsonl(shard.path);
         return res.json({
           ok: true,
@@ -343,7 +343,7 @@ console.log("[shim] published global node (post-construct)");
       } else if (typeof hashParam === "string") {
         const hash = String(hashParam).toLowerCase();
         if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
-        const shards = (node as any).txIndex.listShards().sort((a: any, b: any) => b.from - a.from);
+        const shards = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.listShards().sort((a: any, b: any) => b.from - a.from);
         for (const s of shards) {
           const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
           if (fs.existsSync(kidxPath)) {
@@ -352,7 +352,7 @@ console.log("[shim] published global node (post-construct)");
               await buildKidxForJsonl(s.path);
               return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx: kidxPath });
             }
-            const r2 = (node as any).txIndex.lookupInShard(s.path, hash);
+            const r2 = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.lookupInShard(s.path, hash);
             if (r2.found) {
               await buildKidxForJsonl(s.path);
               return res.json({
@@ -363,7 +363,7 @@ console.log("[shim] published global node (post-construct)");
             }
             continue;
           }
-          const r = (node as any).txIndex.lookupInShard(s.path, hash);
+          const r = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.lookupInShard(s.path, hash);
           if (r.found) {
             await buildKidxForJsonl(s.path);
             return res.json({
@@ -386,7 +386,7 @@ console.log("[shim] published global node (post-construct)");
       const hash = String(req.query.hash || "").toLowerCase();
       if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
 
-      const shards = (node as any).txIndex.listShards().sort((a: any, b: any) => b.from - a.from);
+      const shards = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.listShards().sort((a: any, b: any) => b.from - a.from);
       for (const s of shards) {
         const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
         if (fs.existsSync(kidxPath)) {
@@ -396,7 +396,7 @@ console.log("[shim] published global node (post-construct)");
             return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx: kidxPath });
           }
         }
-        const r = (node as any).txIndex.lookupInShard(s.path, hash);
+        const r = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.lookupInShard(s.path, hash);
         if (r.found) {
           await buildKidxForJsonl(s.path);
           return res.json({ ok: true, shard: { from: s.from, to: s.to }, kidx: s.path.replace(/\.jsonl$/, ".kidx") });
@@ -413,19 +413,19 @@ console.log("[shim] published global node (post-construct)");
     res.json({
       ok: true,
       proto: PROTO_VER,
-      nodeId: (node as any).id,
+      nodeId: (((globalThis as any).__void_node || (globalThis as any).node) as any).id,
       http: HTTP_PORT,
       p2p: P2P_PORT,
-      peers: [...(node as any).peers.keys()].filter((k: string) => !k.startsWith("?-")),
-      listen: (node as any).listenAddrs,
+      peers: [...(((globalThis as any).__void_node || (globalThis as any).node) as any).peers.keys()].filter((k: string) => !k.startsWith("?-")),
+      listen: (((globalThis as any).__void_node || (globalThis as any).node) as any).listenAddrs,
     });
   });
 
   app.get(["/head", "/api/head"], (_req, res) => {
-    res.json({ ok: true, head: (node as any).store.loadHeadNumber() });
+    res.json({ ok: true, head: (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber() });
   });
 
-  app.get("/peers", (_req, res) => res.json({ ok: true, ...(node as any).peersSnapshot?.() }));
+  app.get("/peers", (_req, res) => res.json({ ok: true, ...(((globalThis as any).__void_node || (globalThis as any).node) as any).peersSnapshot?.() }));
 
   /* Peer registry QoL */
   app.get("/peers/registry", (_req, res) => {
@@ -457,7 +457,7 @@ console.log("[shim] published global node (post-construct)");
       let sent = 0;
       for (const p of peers) {
         if (!p?.http) continue;
-        await upsertRemotePeer(p.http, (node as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
+        await upsertRemotePeer(p.http, (((globalThis as any).__void_node || (globalThis as any).node) as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
         sent++;
       }
       res.json({ ok: true, sent, http: selfAdvert.httpBase, p2p: selfAdvert.p2pListen });
@@ -497,8 +497,8 @@ console.log("[shim] published global node (post-construct)");
 
   /* ===================== BLOCKS ===================== */
   app.get("/blocks/head", (_req, res) => {
-    const n = (node as any).store.loadHeadNumber();
-    const b = (node as any).store.loadBlock(n);
+    const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
+    const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(n);
     if (!b) return res.json({ ok: true, head: -1 });
     res.json({ ok: true, head: n, hash: blockHash(b) });
   });
@@ -506,21 +506,21 @@ console.log("[shim] published global node (post-construct)");
   app.get("/blocks/get/:number", (req, res) => {
     const n = Number(req.params.number);
     if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, error: "bad number" });
-    const b = (node as any).store.loadBlock(n);
+    const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(n);
     if (!b) return res.status(404).json({ ok: false, error: "not found" });
     res.json(b);
   });
 
   app.get("/blocks/range", (req, res) => {
     const from = Number(req.query.from ?? 0);
-    const to = Number(req.query.to ?? (node as any).store.loadHeadNumber());
+    const to = Number(req.query.to ?? (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber());
     if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
       return res.status(400).json({ ok: false, error: "bad range" });
     }
     try {
       const blocks: any[] = [];
       for (let i = from; i <= to; i++) {
-        const b = (node as any).store.loadBlock(i);
+        const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(i);
         if (b) blocks.push(b);
       }
       res.json(blocks);
@@ -542,25 +542,25 @@ console.log("[shim] published global node (post-construct)");
         const n = Number(b?.number);
         if (!Number.isFinite(n)) continue;
 
-        const existing = (node as any).store.loadBlock(n);
+        const existing = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(n);
         const incomingHasTxs = Array.isArray(b?.txs) && b.txs.length > 0;
         const existingHasTxs = Array.isArray(existing?.txs) && existing.txs.length > 0;
 
         if (!existing) {
-          (node as any).store.saveBlock(b);
+          (((globalThis as any).__void_node || (globalThis as any).node) as any).store.saveBlock(b);
           imported++;
           if (incomingHasTxs) {
             const refs = b.txs.map((tx: any, i: number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }));
-            ;(node as any).txIndex.putMany(refs);
+            ;(((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.putMany(refs);
             metrics.inc("tx_indexed", b.txs.length);
-            const anyReceipts: any = (node as any).receipts;
+            const anyReceipts: any = (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts;
             const recs = b.txs.map((tx: any, i: number) => ({
               h: tx.hash.toLowerCase(), n: b.number, o: i, ts: b.timestamp ?? Date.now(),
             }));
             if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
             else if (typeof anyReceipts.append === "function") for (const r2 of recs) await anyReceipts.append(r2);
             metrics.inc("receipts_appended", recs.length);
-            const shard = (node as any).txIndex.shardForBlock(b.number);
+            const shard = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.shardForBlock(b.number);
             touched.add(shard.path);
           }
           continue;
@@ -568,20 +568,20 @@ console.log("[shim] published global node (post-construct)");
 
         if (!existingHasTxs && incomingHasTxs) {
           const merged = { ...existing, ...b, txs: b.txs };
-          (node as any).store.saveBlock(merged);
+          (((globalThis as any).__void_node || (globalThis as any).node) as any).store.saveBlock(merged);
           filled++;
           metrics.inc("blocks_filled", 1);
           const refs = b.txs.map((tx: any, i: number) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }));
-          ;(node as any).txIndex.putMany(refs);
+          ;(((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.putMany(refs);
           metrics.inc("tx_indexed", b.txs.length);
-          const anyReceipts: any = (node as any).receipts;
+          const anyReceipts: any = (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts;
           const recs = b.txs.map((tx: any, i: number) => ({
             h: tx.hash.toLowerCase(), n: b.number, o: i, ts: b.timestamp ?? Date.now(),
           }));
           if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
           else if (typeof anyReceipts.append === "function") for (const r3 of recs) await anyReceipts.append(r3);
           metrics.inc("receipts_appended", recs.length);
-          const shard = (node as any).txIndex.shardForBlock(b.number);
+          const shard = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.shardForBlock(b.number);
           touched.add(shard.path);
           continue;
         }
@@ -602,7 +602,7 @@ console.log("[shim] published global node (post-construct)");
   /* -------- Proposer controls -------- */
   app.post("/blocks/stop", (_req, res) => {
     try {
-      const r = ( (node as any).stopProposer?.() ) ?? ({ ok: true, note: "no stopProposer(), noop" } as any);
+      const r = ( (((globalThis as any).__void_node || (globalThis as any).node) as any).stopProposer?.() ) ?? ({ ok: true, note: "no stopProposer(), noop" } as any);
       res.json(r || { ok: true });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -615,14 +615,14 @@ console.log("[shim] published global node (post-construct)");
       const allowEmptyOnce = String(req.query.allowEmpty || req.query.empty || "0") === "1";
 
       // HARD GUARD: refuse empty seals unless explicitly allowed
-      const mp = (((node as any).mempool?.peekAll?.()) ?? []);
+      const mp = (((((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.()) ?? []);
       if (!allowEmptyOnce && !ALLOW_EMPTY_BLOCKS && mp.length === 0) {
         return res.json({ ok: false, error: "no txs in mempool (set allowEmpty=1 to force)" });
       }
 
       // Preferred: direct method if available
-      if (typeof (node as any).sealBlock === "function") {
-        const r = await (node as any).sealBlock({ allowEmptyOnce });
+      if (typeof (((globalThis as any).__void_node || (globalThis as any).node) as any).sealBlock === "function") {
+        const r = await (((globalThis as any).__void_node || (globalThis as any).node) as any).sealBlock({ allowEmptyOnce });
         return res.json({ ...r, ms: Date.now() - t0, via: "node.sealBlock" });
       }
 
@@ -661,21 +661,21 @@ console.log("[shim] published global node (post-construct)");
     const hash = String(req.query.hash || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
 
-    const shards = (node as any).txIndex.listShards().sort((a: any, b: any) => b.from - a.from);
+    const shards = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.listShards().sort((a: any, b: any) => b.from - a.from);
     for (const s of shards) {
       const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
 
       if (fs.existsSync(kidxPath)) {
         const hit = queryKidx(kidxPath, hash);
         if (hit.found) {
-          const blk = (node as any).store.loadBlock(hit.n!);
+          const blk = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(hit.n!);
           if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
           const tx = (blk as any).txs?.[hit.o!];
           return res.json({ ok: true, found: true, block: hit.n, offset: hit.o, tx });
         }
-        const r2 = (node as any).txIndex.lookupInShard(s.path, hash);
+        const r2 = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.lookupInShard(s.path, hash);
         if (r2.found) {
-          const blk = (node as any).store.loadBlock(r2.n);
+          const blk = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(r2.n);
           if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
           const tx = (blk as any).txs?.[r2.o];
           try { metrics.inc("kidx_stale_rebuilds", 1); await rebuildKidxOnce(s.path); } catch {}
@@ -684,9 +684,9 @@ console.log("[shim] published global node (post-construct)");
         continue;
       }
 
-      const r = (node as any).txIndex.lookupInShard(s.path, hash);
+      const r = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.lookupInShard(s.path, hash);
       if (r.found) {
-        const blk = (node as any).store.loadBlock(r.n);
+        const blk = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(r.n);
         if (!blk) return res.json({ ok: false, error: "block not found (stale index?)" });
         const tx = (blk as any).txs?.[r.o];
         try { metrics.inc("kidx_missing_rebuilds", 1); await rebuildKidxOnce(s.path); } catch {}
@@ -699,7 +699,7 @@ console.log("[shim] published global node (post-construct)");
   app.get("/tx/receipt", (req, res) => {
     const hash = String(req.query.hash || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
-    const r: any = (node as any).receipts.get(hash);
+    const r: any = (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts.get(hash);
     if (!r?.found) return res.json({ ok: true, found: false });
     const { n, o, ts } = r;
     res.json({ ok: true, found: true, n, o, ts });
@@ -709,12 +709,12 @@ console.log("[shim] published global node (post-construct)");
     const hash = String(req.query.hash || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
     try {
-      const txs = (node as any).mempool?.peekAll?.() ?? [];
+      const txs = (((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ?? [];
       if (Array.isArray(txs) && txs.some((t: any) => String(t?.hash || "").toLowerCase() === hash)) {
         return res.json({ ok: true, status: "pending" });
       }
     } catch {}
-    const r: any = (node as any).receipts.get(hash);
+    const r: any = (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts.get(hash);
     if (r && r.found) {
       const { n, o, ts } = r;
       return res.json({ ok: true, status: "confirmed", n, o, ts });
@@ -723,7 +723,7 @@ console.log("[shim] published global node (post-construct)");
   });
 
   app.get("/receipts/stats", (_req, res) => {
-    const s = ( (node as any).receipts?.stats?.() ) ?? ({ shards: [], totalBytes: 0, totalLines: 0 } as any);
+    const s = ( (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts?.stats?.() ) ?? ({ shards: [], totalBytes: 0, totalLines: 0 } as any);
     res.json({ ok: true, ...s });
   });
 
@@ -731,7 +731,7 @@ console.log("[shim] published global node (post-construct)");
     const keepLast = Number(req.query.keepLast || 1);
     try {
       const r =
-        ( (node as any).receipts?.gc?.(keepLast) ) ??
+        ( (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts?.gc?.(keepLast) ) ??
         ({ ok: true, keepLast, removed: 0, kept: 0 } as any);
       res.json(r);
     } catch (e: any) {
@@ -742,7 +742,7 @@ console.log("[shim] published global node (post-construct)");
   /* ===================== MEMPOOL / TX SUBMIT ===================== */
   app.get("/mempool/count", (_req, res) => {
     try {
-      const txs = (node as any).mempool?.peekAll?.() ?? [];
+      const txs = (((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ?? [];
       res.json({ ok: true, count: Array.isArray(txs) ? txs.length : 0 });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -761,15 +761,15 @@ console.log("[shim] published global node (post-construct)");
       return res.status(400).json({ ok: false, error: "bad tx: require {hash: 64-hex, body: object}" });
     }
     try {
-      (node as any).mempool?.push?.({ ...(tx as any), hash });
+      (((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.push?.({ ...(tx as any), hash });
     } catch {}
     metrics.inc("tx_submitted", 1);
-    (node as any).publishJson("void/tx", { ...(tx as any), hash });
+    (((globalThis as any).__void_node || (globalThis as any).node) as any).publishJson("void/tx", { ...(tx as any), hash });
     res.json({ ok: true });
   });
 
   app.get("/mempool", (_req, res) => {
-    const txs = (node as any).mempool?.peekAll?.() ?? [];
+    const txs = (((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ?? [];
     res.json({ ok: true, size: Array.isArray(txs) ? txs.length : 0, txs });
   });
 
@@ -779,13 +779,13 @@ console.log("[shim] published global node (post-construct)");
     if (typeof (req.body as any)?.text === "string") {
       const buf = Buffer.from((req.body as any).text, "utf8");
       if (buf.length > MAX) return res.json({ ok: false, error: `too large (> ${MAX_BLOB_MB}MB)` });
-      const out = await (node as any).putBlobFromBuffer(buf);
+      const out = await (((globalThis as any).__void_node || (globalThis as any).node) as any).putBlobFromBuffer(buf);
       return res.json({ ok: true, ...out });
     }
     if (typeof (req.body as any)?.base64 === "string") {
       const buf = Buffer.from((req.body as any).base64, "base64");
       if (buf.length > MAX) return res.json({ ok: false, error: `too large (> ${MAX_BLOB_MB}MB)` });
-      const out = await (node as any).putBlobFromBuffer(buf);
+      const out = await (((globalThis as any).__void_node || (globalThis as any).node) as any).putBlobFromBuffer(buf);
       return res.json({ ok: true, ...out });
     }
     return res.json({ ok: false, error: "send {text} or {base64} JSON" });
@@ -795,7 +795,7 @@ console.log("[shim] published global node (post-construct)");
     try {
       const cid = String(req.params.cid || "").trim();
       if (!cid) return res.json({ ok: false, error: "missing cid" });
-      const b = (node as any).getBlob(cid);
+      const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).getBlob(cid);
       if (!b) return res.json({ ok: true, present: false });
       res.json({ ok: true, present: true, size: b.length });
     } catch (e: any) {
@@ -836,9 +836,9 @@ console.log("[shim] published global node (post-construct)");
 
   /* ===================== METRICS TEXT ===================== */
   app.get("/metrics", (_req, res) => {
-    const head = (node as any).store.loadHeadNumber();
-    const peers = [...(node as any).peers.keys()].filter((k: string) => !k.startsWith("?-")).length;
-    const mempool = (((node as any).mempool?.peekAll?.() ) || []).length;
+    const head = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
+    const peers = [...(((globalThis as any).__void_node || (globalThis as any).node) as any).peers.keys()].filter((k: string) => !k.startsWith("?-")).length;
+    const mempool = (((((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ) || []).length;
     res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
     res.send(metrics.renderText({ peers, mempool, head, peers_known: peersReg.count() }));
   });
@@ -848,24 +848,24 @@ console.log("[shim] published global node (post-construct)");
     console.log(`[void-node] bootstrap: ${[...mergedBootstrap].join(", ") || "(none)"}`);
     try {
       const httpBase = process.env.PUBLIC_HTTP_BASE || `http://127.0.0.1:${HTTP_PORT}`;
-      const p2pListen = ( (node as any).listenAddrs?.[0] ) || `127.0.0.1:${P2P_PORT}`;
+      const p2pListen = ( (((globalThis as any).__void_node || (globalThis as any).node) as any).listenAddrs?.[0] ) || `127.0.0.1:${P2P_PORT}`;
 
       selfAdvert.httpBase = httpBase;
       selfAdvert.p2pListen = p2pListen;
 
-      (node as any).publishJson("void/http", { id: (node as any).id, http: httpBase });
+      (((globalThis as any).__void_node || (globalThis as any).node) as any).publishJson("void/http", { id: (((globalThis as any).__void_node || (globalThis as any).node) as any).id, http: httpBase });
       setInterval(() => {
-        (node as any).publishJson("void/http", { id: (node as any).id, http: httpBase });
+        (((globalThis as any).__void_node || (globalThis as any).node) as any).publishJson("void/http", { id: (((globalThis as any).__void_node || (globalThis as any).node) as any).id, http: httpBase });
       }, 10_000).unref?.();
 
       peersReg.upsert({
-        id: (node as any).id,
+        id: (((globalThis as any).__void_node || (globalThis as any).node) as any).id,
         http: httpBase,
         p2p: p2pListen,
         capabilities: ["blob", "tx", "block"],
       });
       (metrics.gauges as any).peers_known = peersReg.count();
-      console.log(`[peers] self upsert -> id=${(node as any).id} http=${httpBase} p2p=${p2pListen}`);
+      console.log(`[peers] self upsert -> id=${(((globalThis as any).__void_node || (globalThis as any).node) as any).id} http=${httpBase} p2p=${p2pListen}`);
 
       // periodic announce-upsert to known peers
       setInterval(() => {
@@ -873,7 +873,7 @@ console.log("[shim] published global node (post-construct)");
           const peers = peersReg.all();
           for (const p of peers) {
             if (!p?.http) continue;
-            void upsertRemotePeer(p.http, (node as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
+            void upsertRemotePeer(p.http, (((globalThis as any).__void_node || (globalThis as any).node) as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
           }
         } catch {}
       }, 30_000).unref?.();
@@ -1635,7 +1635,7 @@ import type {} from "express"; // type-only safety; no runtime impact
         // @ts-ignore - resolve at runtime via globalThis.__void_node || globalThis.node
         // runtime alias for global node handle (additive shim)
         const node:any = (globalThis as any).__void_node || (globalThis as any).node || null;
-        const mp:any = (node as any)?.mempool ?? (node as any)?.mPool ?? (node as any)?.txPool ?? null;
+        const mp:any = (((globalThis as any).__void_node || (globalThis as any).node) as any)?.mempool ?? (((globalThis as any).__void_node || (globalThis as any).node) as any)?.mPool ?? (((globalThis as any).__void_node || (globalThis as any).node) as any)?.txPool ?? null;
         if (!mp) return false;
         if (typeof mp.enqueue === "function") { mp.enqueue(t); return true; }
         if (typeof mp.add === "function")     { mp.add(t);     return true; }
@@ -1649,7 +1649,7 @@ import type {} from "express"; // type-only safety; no runtime impact
 
     function sizeOfMempool(): number | null {
       try {
-        const mp:any = (node as any)?.mempool ?? (node as any)?.mPool ?? (node as any)?.txPool ?? null;
+        const mp:any = (((globalThis as any).__void_node || (globalThis as any).node) as any)?.mempool ?? (((globalThis as any).__void_node || (globalThis as any).node) as any)?.mPool ?? (((globalThis as any).__void_node || (globalThis as any).node) as any)?.txPool ?? null;
         if (!mp) return null;
         if (typeof mp.size === "function") return Number(mp.size()) || 0;
         if (Array.isArray(mp?.txs))   return mp.txs.length;
@@ -1709,7 +1709,7 @@ import type {} from "express"; // type-only safety; no runtime impact
       if (typeof (globalThis as any).VOID_NODE !== "undefined") return (globalThis as any).VOID_NODE;
       // last resort: the local 'node' symbol (if closure can see it)
       // @ts-ignore
-      return (typeof node !== "undefined") ? (node as any) : undefined;
+      return (typeof node !== "undefined") ? (((globalThis as any).__void_node || (globalThis as any).node) as any) : undefined;
     } catch { return undefined; }
   }
   function tick(){
