@@ -3624,3 +3624,121 @@ import type {} from "express"; // type-only safety; no runtime impact
   }
   attach();
 })();
+
+// ---------------- Mempool GC watcher + /blocks/:n/full3 (additive) -------------------
+(function mempoolGcAndFull3(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node || undefined; }
+  const port = Number(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || 4100);
+
+  // stable JSON helper for id
+  function stableId(tx:any){
+    if (!tx || typeof tx !== 'object') return '';
+    const keys = Object.keys(tx).sort();
+    return JSON.stringify(tx, keys);
+  }
+
+  async function sha256Hex(data: string | Uint8Array){
+    const { createHash } = await import('node:crypto');
+    const h = createHash('sha256'); h.update(data); return '0x'+h.digest('hex');
+  }
+  async function merkleRoot(leavesHex: string[]){
+    if (leavesHex.length === 0) return await sha256Hex(new Uint8Array());
+    let layer = leavesHex.slice();
+    while (layer.length > 1) {
+      const next:string[] = [];
+      for (let i=0;i<layer.length;i+=2){
+        const a = layer[i];
+        const b = layer[i+1] ?? layer[i];
+        next.push(await sha256Hex(a + b));
+      }
+      layer = next;
+    }
+    return layer[0];
+  }
+  async function computeTxRootFromTxs(txs:any[]){
+    const leaves:string[] = [];
+    for (const tx of (Array.isArray(txs)?txs:[])){
+      const s = JSON.stringify(tx, Object.keys(tx).sort());
+      leaves.push(await sha256Hex(s));
+    }
+    return await merkleRoot(leaves);
+  }
+
+  async function fetchJson(url:string){
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
+    return await r.json();
+  }
+
+  // Background loop: after each head bump, remove persisted txs from mempool
+  async function gcLoop(){
+    const nd:any = getNode();
+    const app:any = getApp();
+    if (!nd || !app) return setTimeout(gcLoop, 500);
+
+    const getHead = async ()=> Number(await (await fetch(`http://127.0.0.1:${port}/blocks/latest/number`)).text());
+    let last = -1;
+    while (true){
+      try{
+        const head = await getHead();
+        if (Number.isFinite(head) && head > last){
+          // pull persisted txs for this block
+          const persisted = await fetchJson(`http://127.0.0.1:${port}/dev/blocks/${head}/txs/persisted`);
+          const sealed:any[] = persisted?.txs || [];
+          if (sealed.length){
+            // choose mempool array reference
+            let pool:any[] = [];
+            if (nd?.mempool?.txs && Array.isArray(nd.mempool.txs)) pool = nd.mempool.txs;
+            else if (nd?.pending?.pendingTxs && Array.isArray(nd.pending.pendingTxs)) pool = nd.pending.pendingTxs;
+
+            if (Array.isArray(pool) && pool.length){
+              // build a set of sealed IDs
+              const sealedIds = new Set(sealed.map(stableId));
+              // in-place filter: keep only items NOT sealed
+              let w = 0;
+              for (let r=0; r<pool.length; r++){
+                const keep = !sealedIds.has(stableId(pool[r]));
+                if (keep) pool[w++] = pool[r];
+              }
+              if (w !== pool.length) pool.length = w;
+            }
+          }
+          last = head;
+        }
+      } catch {}
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // Enriched block endpoint: computes txRoot if header lacks it
+    app.get("/blocks/:n/full3", async (req:any, res:any) => {
+      try{
+        const n = Number(req.params.n);
+        const full2 = await fetchJson(`http://127.0.0.1:${port}/blocks/${n}/full2`);
+        const persisted = await fetchJson(`http://127.0.0.1:${port}/dev/blocks/${n}/txs/persisted`);
+        const txs:any[] = persisted?.txs || [];
+
+        const computed = await computeTxRootFromTxs(txs);
+        const header = full2.header ?? {};
+        const headerTxRoot = header.txRoot && typeof header.txRoot === 'string' && header.txRoot.startsWith('0x')
+          ? header.txRoot : computed;
+
+        const merged = { ...full2, header: { ...header, txRoot: headerTxRoot }, txRoot: headerTxRoot };
+        res.json(merged);
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    // kick off GC loop
+    gcLoop();
+  }
+  attach();
+})();
