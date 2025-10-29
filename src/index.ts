@@ -4314,3 +4314,47 @@ import { computeTxRoot } from "./util/txroot.js";
     })();
   }catch{}
 })();
+
+// ---------------- [ADD] /health/summary.json ----------------
+(function installHealthSummaryJson(){
+  try{
+    const g:any = globalThis as any;
+    let tries = 0;
+    (function arm(){
+      const app:any = g.__void_http_app || g.app;
+      if (!app || typeof app.get !== "function") { if (++tries < 200) return setTimeout(arm, 50); return; }
+      if ((app as any).__health_summary_json) return;
+      (app as any).__health_summary_json = true;
+
+      app.get("/health/summary.json", async (_req:any, res:any) => {
+        try{
+          // Depend only on the stable JSON mirrors we already added
+          const base = "http://127.0.0.1:" + (process.env.HTTP_PORT || 4100);
+          const [headJ, txJ] = await Promise.all([
+            fetch(base + "/blocks/latest/number2.json").then(r=>r.json()).catch(()=>({number:-1})),
+            fetch(base + "/metrics/txroot2.json").then(r=>r.json()).catch(()=>({blocks:0, txs:0})),
+          ]);
+
+          // Optionally include follower drift if the route exists (best-effort)
+          let drift:any = null;
+          try{
+            const r = await fetch(base + "/follower/status");
+            if (r.ok) drift = await r.json();
+          }catch{}
+
+          res.json({
+            ok: true,
+            head: Number(headJ?.number ?? -1),
+            sealedBlocks: Number(txJ?.blocks ?? 0),
+            sealedTxs: Number(txJ?.txs ?? 0),
+            drift
+          });
+        }catch(e){
+          res.status(500).json({ ok:false, error: String(e) });
+        }
+      });
+
+      console.log("[health] endpoint /health/summary.json ready");
+    })();
+  }catch{}
+})();
