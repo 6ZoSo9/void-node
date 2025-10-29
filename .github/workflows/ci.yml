@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [ new-main*, restore-2025-10-28, main ]
+    branches: [ main ]
   pull_request:
 permissions:
   contents: read
@@ -11,14 +11,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
+
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
           cache: 'npm'
+
       - name: Install
         run: npm ci
+
       - name: Typecheck (no emit)
         run: npx tsc --noEmit

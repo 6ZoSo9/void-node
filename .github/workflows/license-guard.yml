@@ -1,8 +1,8 @@
 name: license-guard
 on:
-  pull_request:
   push:
-    branches: [ new-main-2025-10-29, main, new-main, restore-2025-10-28 ]
+    branches: [ main ]
+  pull_request:
 permissions:
   contents: read
 jobs:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
+        with: { fetch-depth: 0 }
       - name: Verify LICENSE matches canonical VCL
         run: |
           set -euo pipefail

@@ -1,7 +1,7 @@
 name: SMOKE
 on:
   push:
-    branches: [ new-main*, restore-2025-10-28, main ]
+    branches: [ main ]
 jobs:
   ok:
     runs-on: ubuntu-latest
