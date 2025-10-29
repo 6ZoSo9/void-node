@@ -10,6 +10,16 @@ sparseEvery?: number };
 const SEG_SPAN = 10_000;
 
 export class SegStore {
+
+  // [ADD] Compatibility alias: saveBlock -> writeBlock (non-breaking)
+  public saveBlock(b: any){
+    // If writeBlock exists, use it; otherwise surface a clear error
+    // (keeps Node.sealBlock() happy while we stabilize APIs)
+    // @ts-ignore
+    const fn:any = (this as any).writeBlock || (this as any).persistBlock || (this as any).appendBlock;
+    if (typeof fn !== "function") throw new Error("SegStore.saveBlock not implemented");
+    return fn.call(this, b);
+  }
   private root: string;
   private segDir: string;
   private headsFile: string;
