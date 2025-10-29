@@ -1,68 +1,81 @@
-permissions:
-  contents: read
-
 name: CI
-name: CI
-
 
 on:
   push:
-    branches: [ restore-2025-10-28 ]
-    paths:
-      - "src/**"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig*.json"
-      - ".github/workflows/**"
-      - "!**.md"
-      - "!docs/**"
-      - "!**.png"
-      - "!**.jpg"
+    branches:
+      - restore-2025-10-28
   pull_request:
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
 
-  push:
-  pull_request:
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # PR-only denylist for secret-like paths in the diff
       - name: Block secret-like files in PR diff
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           set -euo pipefail
-          BASE=${{ github.event.pull_request.base.sha }}
-          HEAD=${{ github.sha }}
-          CHANGED=$(git diff --name-only "$BASE...$HEAD" || true)
-          if echo "$CHANGED" | grep -E "(^|/)\.secrets/|(\.key$|\.pem$|\.p12$|\.pfx$|\.env(\.|$))"; then
-            echo "Secret-like file detected in changes"; exit 1
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.sha }}"
+          CHANGED="$(git diff --name-only "$BASE...$HEAD" || true)"
+          if echo "$CHANGED" | grep -E '(^|/)\.secrets/|(\.key$|\.pem$|\.p12$|\.pfx$|\.env(\.|$))' ; then
+            echo "Secret-like file detected in changes"
+            exit 1
           else
             echo "OK"
           fi
-      - uses: actions/setup-node@v4
-        cache-dependency-path: package-lock.json
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build:loose --if-present
-      - run: npx tsc --noEmit || true
 
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck (no emit)
+        run: npx tsc --noEmit
+
+      - name: Loose build (ignores TS on purpose for shipping)
+        run: npm run build:loose --if-present
+
+      # Optional repo-wide secret scan (runs only if secret exists)
       - name: Secret scan (ggshield repo)
-        if: ${{ secrets.GITGUARDIAN_API_KEY !=  }}
+        if: ${{ secrets.GITGUARDIAN_API_KEY != '' }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
-      - run: python -m pip install --upgrade pip && pip install ggshield
-      - env:
+          python-version: '3.x'
+      - if: ${{ secrets.GITGUARDIAN_API_KEY != '' }}
+        env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
-        run: ggshield secret scan repo --all .
+        run: |
+          python -m pip install --upgrade pip
+          pip install ggshield
+          ggshield secret scan repo --all .
 
+      - name: Summary health (mock)
+        run: |
+          echo "CI OK on ${{ github.sha }}"
 
+      # Always upload basic diagnostics on failure
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs
+          path: |
+            npm-debug.log
+            **/npm-debug.log
+            ./*.log
+            ./logs/**
+          if-no-files-found: ignore
