@@ -4015,3 +4015,201 @@ import { computeTxRoot } from "./util/txroot.js";
     })();
   } catch {}
 })();
+
+// ---------------- [ADD] Resilient txroot counter hook (watches saveBlock reassigns) ----------------
+(function installTxRootResilientHook(){
+  try {
+    const g:any = globalThis as any;
+    g.__txroot_counters = g.__txroot_counters || { blocks: 0, txs: 0 };
+
+    let tries = 0;
+    (function arm(){
+      const node:any = (g.__void_node || (g as any).node);
+      const store:any = node?.store;
+      if (!store) { if (++tries < 200) return setTimeout(arm, 50); return; }
+
+      if ((store as any).__txroot_resilient_installed) return;
+      (store as any).__txroot_resilient_installed = true;
+
+      // Remember current impl (if any) and expose a setter that wraps ANY future impl.
+      let currentImpl: any = store.saveBlock?.bind(store);
+
+      function wrap(impl:any){
+        if (typeof impl !== "function") return impl;
+        // Avoid double-wrapping
+        if ((impl as any).__txroot_counters_wrapped) return impl;
+        const wrapped = async function(b:any){
+          const res = await impl(b);
+          try {
+            const txsLen = (b?.txs?.length) || 0;
+            const c = (globalThis as any).__txroot_counters;
+            if (c) { c.blocks += 1; c.txs += txsLen; }
+            // Best-effort bump on Metrics if present
+            (node?.metrics?.incSealed)?.(txsLen);
+          } catch {}
+          return res;
+        };
+        (wrapped as any).__txroot_counters_wrapped = true;
+        return wrapped;
+      }
+
+      // Install property descriptor to catch ALL future assignments.
+      Object.defineProperty(store, "saveBlock", {
+        configurable: true,
+        enumerable: true,
+        get(){ return currentImpl; },
+        set(v:any){ currentImpl = wrap(v); }
+      });
+
+      // If there was an existing impl, re-assign it through our setter to ensure wrapping.
+      if (currentImpl) { store.saveBlock = currentImpl; }
+    })();
+  } catch {}
+})();
+
+// ---------------- [ADD] TxRoot counters: periodic last-wins wrapper ----------------
+(function installTxRootCountersWatchdog(){
+  try{
+    const g:any = globalThis as any;
+    g.__txroot_counters = g.__txroot_counters || { blocks: 0, txs: 0 };
+
+    const WRAP_SYM = Symbol.for("void.txrootCountersWrapped.v2");
+    let tries = 0;
+
+    function arm(){
+      const node:any = g.__void_node || (g as any).node;
+      const store:any = node?.store;
+      if (!store) { if (++tries < 200) return setTimeout(arm, 50); return; }
+
+      function wrapOnce(){
+        const impl:any = store.saveBlock && store.saveBlock.bind(store);
+        if (!impl) return;
+        if ((impl as any)[WRAP_SYM]) return; // already wrapped by us
+
+        const wrapped = async function(b:any){
+          const out = await impl(b);
+          try {
+            const n = (b?.txs?.length) || 0;
+            const c = (globalThis as any).__txroot_counters;
+            if (c) { c.blocks += 1; c.txs += n; }
+            // Best-effort mirror into Metrics if present (safe no-op otherwise)
+            (node?.metrics?.incSealed)?.(n);
+          } catch {}
+          return out;
+        };
+        (wrapped as any)[WRAP_SYM] = true;
+        store.saveBlock = wrapped;
+      }
+
+      // Do it once now, then keep it fresh if later code replaces saveBlock.
+      wrapOnce();
+      setInterval(wrapOnce, 500);
+    }
+    arm();
+  } catch {}
+})();
+
+// ---------------- [ADD] TxRoot counters: clean-room last-wins wrapper + /metrics/txroot2 ----------------
+(function installTxRootCountersCleanRoom(){
+  try{
+    const g:any = globalThis as any;
+    g.__txroot_counters = g.__txroot_counters || { blocks: 0, txs: 0 };
+
+    // Expose a fresh endpoint that we control (plain text; Prometheus-friendly)
+    let triesEP = 0;
+    (function armEndpoint(){
+      const app:any = g.__void_http_app || g.app;
+      if (!app || typeof app.get !== "function") { if (++triesEP < 200) return setTimeout(armEndpoint, 50); return; }
+      if ((app as any).__txroot_metrics_v2) return;
+      (app as any).__txroot_metrics_v2 = true;
+
+      app.get("/metrics/txroot2", (_req:any, res:any)=>{
+        const c = (globalThis as any).__txroot_counters || {blocks:0, txs:0};
+        // Ensure newline-terminated lines (Prometheus scrape robustness)
+        res.type("text/plain").send(
+          `void_sealed_blocks_total ${c.blocks}\n` +
+          `void_sealed_txs_total ${c.txs}\n`
+        );
+      });
+      console.log("[txroot/v2] endpoint /metrics/txroot2 ready");
+    })();
+
+    // Always wrap the current saveBlock AND any future reassignments
+    const WRAP_SYM = Symbol.for("void.txrootCountersWrapped.v3");
+    let seenStore:any = null;
+
+    function wrapImpl(store:any){
+      if (!store) return;
+      // Guard: if already instrumented via our accessor, skip redefining
+      if ((store as any).__txroot_instrumented_accessor_v3) return;
+
+      let _impl:any = typeof store.saveBlock === "function" ? store.saveBlock.bind(store) : undefined;
+
+      function makeWrapped(impl:any){
+        if (typeof impl !== "function") return impl;
+        if ((impl as any)[WRAP_SYM]) return impl;
+        const wrapped = async function(b:any){
+          const out = await impl(b);
+          try{
+            const n = (b?.txs?.length)||0;
+            const c = (globalThis as any).__txroot_counters;
+            if (c){ c.blocks += 1; c.txs += n; }
+          }catch{}
+          return out;
+        };
+        (wrapped as any)[WRAP_SYM] = true;
+        return wrapped;
+      }
+
+      // Define accessor so any future assignment gets wrapped automatically
+      Object.defineProperty(store, "saveBlock", {
+        configurable: true,
+        enumerable: false,
+        get(){ return _impl; },
+        set(v:any){ _impl = makeWrapped(v); },
+      });
+
+      // Wrap current impl (if any)
+      if (_impl) store.saveBlock = _impl;
+
+      (store as any).__txroot_instrumented_accessor_v3 = true;
+      console.log("[txroot/v3] saveBlock accessor installed");
+    }
+
+    // Arm when node/store becomes available, then re-check in case store object is swapped later
+    let tries = 0;
+    (function arm(){
+      const node:any = g.__void_node || (g as any).node;
+      const store:any = node?.store;
+      if (!store) { if (++tries < 200) return setTimeout(arm, 50); return; }
+      seenStore = store; wrapImpl(store);
+      // Watch for store swaps (rare but possible in dev harnesses)
+      setInterval(()=>{
+        const n:any = g.__void_node || (g as any).node;
+        const s:any = n?.store;
+        if (s && s !== seenStore){ seenStore = s; wrapImpl(s); }
+      }, 500);
+    })();
+
+  }catch(e){}
+})();
+
+// ---------------- [ADD] /metrics/txroot2.json (JSON mirror for jq) ----------------
+(function installTxRootJsonMirror(){
+  try{
+    const g:any = globalThis as any;
+    let tries = 0;
+    (function arm(){
+      const app:any = g.__void_http_app || g.app;
+      if (!app || typeof app.get !== "function") { if (++tries < 200) return setTimeout(arm, 50); return; }
+      if ((app as any).__txroot_metrics_v2_json) return;
+      (app as any).__txroot_metrics_v2_json = true;
+
+      app.get("/metrics/txroot2.json", (_req:any, res:any)=>{
+        const c = (globalThis as any).__txroot_counters || { blocks: 0, txs: 0 };
+        res.json({ blocks: c.blocks, txs: c.txs });
+      });
+      console.log("[txroot/v2] endpoint /metrics/txroot2.json ready");
+    })();
+  }catch{}
+})();
