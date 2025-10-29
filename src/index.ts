@@ -3407,3 +3407,220 @@ import type {} from "express"; // type-only safety; no runtime impact
   }catch(e){ console.warn("[no-empty] policy failed:", e); }
 })();
 // --------------------------------------------------------------------------------
+
+// ---------------- Mempool dev helpers (additive, no deps) --------------------
+(function mempoolDevRoutes(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node || undefined; }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // GET /tx/dev/size  -> { size }
+    app.get("/tx/dev/size", async (_req:any, res:any) => {
+      try{
+        const node:any = getNode();
+        const arr:any[] = node?.mempool?.txs || node?.pending?.pendingTxs || [];
+        res.json({ ok:true, size:Array.isArray(arr)?arr.length:0 });
+      }catch(e:any){ res.status(500).json({ ok:false, error:String(e?.message||e) }); }
+    });
+
+    // POST /tx/dev/flush -> { removed }
+    app.post("/tx/dev/flush", async (_req:any, res:any) => {
+      try{
+        const node:any = getNode();
+        let removed = 0;
+        if (node?.mempool?.txs && Array.isArray(node.mempool.txs)) {
+          removed = node.mempool.txs.length;
+          node.mempool.txs.length = 0;   // clear in place
+        } else if (node?.pending?.pendingTxs && Array.isArray(node.pending.pendingTxs)) {
+          removed = node.pending.pendingTxs.length;
+          node.pending.pendingTxs.length = 0;
+        }
+        res.json({ ok:true, removed });
+      }catch(e:any){ res.status(500).json({ ok:false, error:String(e?.message||e) }); }
+    });
+  }
+  attach();
+})();
+
+// ---------------- Tagged burst + txRoot dev utilities (additive) --------------------
+(function devTaggedBurstAndTxRoot(){
+  let tries = 0, attached = false;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node || undefined; }
+  const port = Number(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || 4100);
+
+  // in-mem dev counters (Prometheus-style)
+  const devCounters = {
+    txroot_computed_total: 0,
+    txroot_mismatch_total: 0,
+  };
+
+  // simple SHA-256 helper
+  async function sha256Hex(data: string | Uint8Array){
+    const { createHash } = await import('node:crypto');
+    const h = createHash('sha256'); h.update(data); return '0x'+h.digest('hex');
+  }
+
+  // Merkle over array of hex strings (pair-wise, dup last if odd)
+  async function merkleRoot(leavesHex: string[]){
+    if (leavesHex.length === 0) return await sha256Hex(new Uint8Array());
+    let layer = leavesHex.slice();
+    while (layer.length > 1) {
+      const next:string[] = [];
+      for (let i=0;i<layer.length;i+=2){
+        const a = layer[i];
+        const b = layer[i+1] ?? layer[i];
+        const ab = a + b;
+        next.push(await sha256Hex(ab));
+      }
+      layer = next;
+    }
+    return layer[0];
+  }
+
+  // Compute txRoot from a block object { txs: [...] } by hashing each tx's stable JSON
+  async function computeTxRootFromBlock(block:any){
+    const txs:any[] = Array.isArray(block?.txs) ? block.txs : [];
+    const leaves:string[] = [];
+    for (const tx of txs){
+      // stable stringify: keys sorted
+      const s = JSON.stringify(tx, Object.keys(tx).sort());
+      leaves.push(await sha256Hex(s));
+    }
+    return await merkleRoot(leaves);
+  }
+
+  // fetch persisted txs for block n via existing dev route
+  async function fetchPersistedTxs(n:number){
+    const r = await fetch(`http://127.0.0.1:${port}/dev/blocks/${n}/txs/persisted`);
+    if (!r.ok) throw new Error(`persisted fetch ${n} -> HTTP ${r.status}`);
+    return await r.json(); // {number, len, txs:[...], ...}
+  }
+
+  // tiny helper: filter array by equality on .tag
+  function filterByTag(arr:any[], tag:string){ return (arr||[]).filter(x => x && x.tag === tag); }
+
+  async function attach(){
+    const a:any = app();
+    if (!a || typeof a.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // POST /tx/dev/burst2?n=7&tag=RUN123
+    // Enqueues n synthetic dev txs with a visible {kind:"dev", tag, ts, nonce}
+    a.post("/tx/dev/burst2", async (req:any, res:any) => {
+      try{
+        const nparam = Number((req.query?.n ?? '1'));
+        const ncount = Number.isFinite(nparam) && nparam > 0 ? Math.min(nparam, 5000) : 1;
+        const tag = String(req.query?.tag ?? `RUN-${Date.now()}`);
+        const nd = node();
+        const arr:any[] =
+          (nd?.mempool?.txs && Array.isArray(nd.mempool.txs)) ? nd.mempool.txs :
+          (nd?.pending?.pendingTxs && Array.isArray(nd.pending.pendingTxs)) ? nd.pending.pendingTxs :
+          (() => { throw new Error("mempool array not found"); })();
+
+        const baseTs = Date.now();
+        const before = arr.length;
+        for (let i=0;i<ncount;i++){
+          arr.push({
+            kind: "dev",
+            tag,
+            ts: baseTs + i,
+            nonce: (before + i + 1),
+            payload: { bytes: Math.floor(Math.random()*256) }
+          });
+        }
+        res.json({ ok:true, enqueued:ncount, tag, mempoolSize: arr.length });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    // GET /dev/blocks/:n/txs/persisted/by-tag?tag=RUN123  -> { n, tag, count }
+    a.get("/dev/blocks/:n/txs/persisted/by-tag", async (req:any, res:any) => {
+      try{
+        const n = Number(req.params.n);
+        const tag = String(req.query?.tag ?? "");
+        const persisted = await fetchPersistedTxs(n);
+        const arr = filterByTag(persisted?.txs || [], tag);
+        res.json({ ok:true, number:n, tag, count:arr.length });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    // GET /dev/blocks/:n/txroot -> { computed, header, match }
+    a.get("/dev/blocks/:n/txroot", async (req:any, res:any) => {
+      try{
+        const n = Number(req.params.n);
+        const persisted = await fetchPersistedTxs(n);
+        const blockLike = { txs: persisted?.txs || [] };
+        const computed = await computeTxRootFromBlock(blockLike);
+
+        // optional: read header's txRoot if your /blocks/:n/full2 provides it
+        let headerRoot:string|undefined;
+        try {
+          const r = await fetch(`http://127.0.0.1:${port}/blocks/${n}/full2`);
+          if (r.ok) {
+            const full = await r.json();
+            headerRoot = full?.header?.txRoot || full?.txRoot || undefined;
+          }
+        } catch {}
+
+        const match = (headerRoot && headerRoot === computed) || false;
+        devCounters.txroot_computed_total++;
+        if (headerRoot && headerRoot !== computed) devCounters.txroot_mismatch_total++;
+        res.json({ ok:true, number:n, computed, header:headerRoot ?? null, match });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    // POST /dev/blocks/txroot/recompute?from=…&to=…
+    a.post("/dev/blocks/txroot/recompute", async (req:any, res:any) => {
+      try{
+        const from = Number(req.query?.from ?? 0);
+        const to   = Number(req.query?.to ?? from);
+        let computed=0, mismatches=0;
+        for (let n=from; n<=to; n++){
+          try{
+            const persisted = await fetchPersistedTxs(n);
+            const blockLike = { txs: persisted?.txs || [] };
+            const root = await computeTxRootFromBlock(blockLike);
+            let headerRoot:string|undefined;
+            try {
+              const r = await fetch(`http://127.0.0.1:${port}/blocks/${n}/full2`);
+              if (r.ok) { const full = await r.json(); headerRoot = full?.header?.txRoot || full?.txRoot; }
+            } catch {}
+            devCounters.txroot_computed_total++;
+            computed++;
+            if (headerRoot && headerRoot !== root) { devCounters.txroot_mismatch_total++; mismatches++; }
+          }catch{}
+        }
+        res.json({ ok:true, from, to, computed, mismatches });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    // GET /metrics/dev  (Prometheus format for the above counters)
+    a.get("/metrics/dev", (_req:any, res:any) => {
+      res.type("text/plain").send(
+        [
+          "# HELP void_txroot_computed_total Number of txRoot computations performed (dev).",
+          "# TYPE void_txroot_computed_total counter",
+          `void_txroot_computed_total ${devCounters.txroot_computed_total}`,
+          "# HELP void_txroot_mismatch_total Number of txRoot mismatches (header vs computed) (dev).",
+          "# TYPE void_txroot_mismatch_total counter",
+          `void_txroot_mismatch_total ${devCounters.txroot_mismatch_total}`,
+          ""
+        ].join("\n")
+      );
+    });
+  }
+  attach();
+})();
