@@ -32,6 +32,18 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Block secret-like files in PR diff
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          BASE=${{ github.event.pull_request.base.sha }}
+          HEAD=${{ github.sha }}
+          CHANGED=$(git diff --name-only "$BASE...$HEAD" || true)
+          if echo "$CHANGED" | grep -E "(^|/)\.secrets/|(\.key$|\.pem$|\.p12$|\.pfx$|\.env(\.|$))"; then
+            echo "Secret-like file detected in changes"; exit 1
+          else
+            echo "OK"
+          fi
       - uses: actions/setup-node@v4
         cache-dependency-path: package-lock.json
         with:
