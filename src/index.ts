@@ -4591,3 +4591,45 @@ import { computeTxRoot } from "./util/txroot.js";
 
   setTimeout(attach, 0);
 })();
+
+// ---------------- TxRoot pre-persist header (feature-flagged) -------------------
+;(function txrootPrePersist(){
+  let tries = 0, attached = false;
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  async function attach(){
+    const node:any = getNode();
+    if (!node || !node.store || typeof node.store.saveBlock !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    const enabled = String(process.env.TXROOT_PERSIST || "0") === "1";
+    if (!enabled) { console.log("[txroot/persist] disabled (set TXROOT_PERSIST=1 to enable)"); return; }
+
+    if ((node.store as any).__txrootPrePersistWrapped) {
+      console.log("[txroot/persist] already wrapped"); return;
+    }
+
+    const orig = node.store.saveBlock.bind(node.store);
+    (node.store as any).__txrootPrePersistWrapped = true;
+
+    node.store.saveBlock = async (blk:any) => {
+      try {
+        const { computeTxRoot } = await import("./util/txroot.js");
+        const txs:any[] = Array.isArray(blk?.txs) ? blk.txs : [];
+        const { root } = computeTxRoot(txs);
+        blk.header = blk.header || {};
+        blk.header.txRoot = blk.header.txRoot || root;  // set only if missing
+        console.log(`[txroot/persist] set header.txRoot for #\${blk?.number ?? "?"} txs=\${txs.length} root=\${root}`);
+      } catch (e:any) {
+        console.warn("[txroot/persist] compute failed:", e?.message || e);
+      }
+      return await orig(blk);
+    };
+
+    console.log("[txroot/persist] enabled (pre-persist wrapper active)");
+  }
+  attach();
+})();
