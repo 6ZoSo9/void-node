@@ -1,0 +1,324 @@
+# journal @ 2025-10-29-190156
+## service status (void-node)
+● void-node.service - Void Node (main proposer)
+     Loaded: loaded (/home/zoso/.config/systemd/user/void-node.service; enabled; preset: enabled)
+    Drop-In: /home/zoso/.config/systemd/user/void-node.service.d
+             └─05-restart-budget.conf, 10-derace.conf, 10-proposer.conf, 15-key-parse-check.conf, 20-port-guard.conf, override.conf
+     Active: active (running) since Wed 2025-10-29 19:01:43 CDT; 13s ago
+    Process: 2176117 ExecStartPre=/usr/bin/test -r ${NODE_PRIVKEY_PATH} (code=exited, status=0/SUCCESS)
+    Process: 2176119 ExecStartPre=/bin/bash -lc ! ss -ltn | grep -q ":${HTTP_PORT} " (code=exited, status=0/SUCCESS)
+    Process: 2176126 ExecStartPre=/bin/bash -lc ! ss -ltn | grep -q ":${P2P_PORT} " (code=exited, status=0/SUCCESS)
+    Process: 2176133 ExecStartPre=/bin/sh -c ! ss -lnt "( sport = :${HTTP_PORT} )" | grep -q :${HTTP_PORT} (code=exited, status=0/SUCCESS)
+    Process: 2176137 ExecStartPre=/bin/sh -c ! ss -lnt "( sport = :${P2P_PORT} )" | grep -q :${P2P_PORT} (code=exited, status=0/SUCCESS)
+    Process: 2176141 ExecStartPre=/bin/bash -lc "$HOME/dev/void-node/scripts/validate_key.sh" "${NODE_PRIVKEY_PATH}" (code=exited, status=0/SUCCESS)
+    Process: 2176148 ExecStartPre=/bin/sh -c ! ss -lnt "( sport = :${HTTP_PORT} )" | grep -q :${HTTP_PORT} (code=exited, status=0/SUCCESS)
+    Process: 2176152 ExecStartPre=/bin/sh -c ! ss -lnt "( sport = :${P2P_PORT} )" | grep -q :${P2P_PORT} (code=exited, status=0/SUCCESS)
+    Process: 2176157 ExecStartPost=/usr/bin/bash -lc for i in {1..15}; do curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/dev/proposer/start?intervalMs=1000" >/dev/null && exit 0; sleep 1; done; exit 0 (code=exited, status=0/SUCCESS)
+   Main PID: 2176156 (npm exec tsx sr)
+      Tasks: 56 (limit: 154311)
+     Memory: 118.7M (peak: 160.6M)
+        CPU: 3.785s
+     CGroup: /user.slice/user-1000.slice/user@1000.service/app.slice/void-node.service
+             ├─2176156 "npm exec tsx src/index.ts"
+             ├─2176176 sh -c "tsx src/index.ts"
+             ├─2176177 node /home/zoso/dev/void-node/node_modules/.bin/tsx src/index.ts
+             ├─2176188 /usr/bin/node --require /home/zoso/dev/void-node/node_modules/tsx/dist/preflight.cjs --import file:///home/zoso/dev/void-node/node_modules/tsx/dist/loader.mjs src/index.ts
+             └─2176200 /home/zoso/dev/void-node/node_modules/@esbuild/linux-x64/bin/esbuild --service=0.25.11 --ping
+
+Oct 29 19:01:53 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49807 txs=0 txRoot=[object Object]
+Oct 29 19:01:54 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49808 txs=0
+Oct 29 19:01:54 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49808) txs=0
+Oct 29 19:01:54 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49808 txs=0 txRoot=[object Object]
+Oct 29 19:01:55 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49809 txs=0
+Oct 29 19:01:55 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49809) txs=0
+Oct 29 19:01:55 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49809 txs=0 txRoot=[object Object]
+Oct 29 19:01:56 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49810 txs=0
+Oct 29 19:01:56 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49810) txs=0
+Oct 29 19:01:56 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49810 txs=0 txRoot=[object Object]
+## service status (follower)
+● void-node@bootstrap-1.service - VOID Node instance (bootstrap-1)
+     Loaded: loaded (/home/zoso/.config/systemd/user/void-node@bootstrap-1.service; enabled; preset: enabled)
+    Drop-In: /home/zoso/.config/systemd/user/void-node@.service.d
+             └─05-clear-autofollow.conf, 05-restart-budget.conf, 10-derace.conf
+             /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d
+             └─10-env.conf
+             /home/zoso/.config/systemd/user/void-node@.service.d
+             └─15-autofollow-gate.conf, 16-p2p-autodial.conf, 20-port-guard.conf
+             /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d
+             └─override.conf
+     Active: active (running) since Wed 2025-10-29 19:01:44 CDT; 11s ago
+    Process: 2176251 ExecStartPre=/usr/bin/bash -lc ! ss -ltn | grep -q ":${HTTP_PORT} " (code=exited, status=0/SUCCESS)
+    Process: 2176259 ExecStartPre=/usr/bin/bash -lc ! ss -ltn | grep -q ":${HTTP_PORT} " (code=exited, status=0/SUCCESS)
+    Process: 2176266 ExecStartPre=/usr/bin/bash -lc ! ss -ltn | grep -q ":${P2P_PORT} " (code=exited, status=0/SUCCESS)
+    Process: 2176273 ExecStartPre=/bin/sh -c ! ss -lnt "( sport = :${HTTP_PORT} )" | grep -q :${HTTP_PORT} (code=exited, status=0/SUCCESS)
+    Process: 2176277 ExecStartPre=/bin/sh -c ! ss -lnt "( sport = :${P2P_PORT} )" | grep -q :${P2P_PORT} (code=exited, status=0/SUCCESS)
+    Process: 2176282 ExecStartPost=/bin/sh -lc [ "${FOLLOW_AUTOSTART:-0}" = "1" ] && for i in $(seq 1 20); do    curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/follower/start?peer=${BOOTSTRAP_ADDRS:-http://127.0.0.1:4100}&intervalMs=${FOLLOW_INTERVAL_MS:-1000}" >/dev/null && exit 0;    sleep 1; done; exit 0 || true (code=exited, status=0/SUCCESS)
+    Process: 2176329 ExecStartPost=/bin/sh -lc [ -n "${BOOTSTRAP_P2P:-}" ] && for i in $(seq 1 20); do    curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/p2p/dial?addr=${BOOTSTRAP_P2P}" >/dev/null && exit 0;    sleep 1; done; exit 0 || true (code=exited, status=0/SUCCESS)
+   Main PID: 2176281 (npm exec tsx sr)
+      Tasks: 35 (limit: 154311)
+     Memory: 109.9M (peak: 132.8M)
+        CPU: 2.969s
+     CGroup: /user.slice/user-1000.slice/user@1000.service/app.slice/app-void\x2dnode.slice/void-node@bootstrap-1.service
+             ├─2176281 "npm exec tsx src/index.ts"
+             ├─2176303 sh -c "tsx src/index.ts"
+             ├─2176304 node /home/zoso/dev/void-node/node_modules/.bin/tsx src/index.ts
+             └─2176315 /usr/bin/node --require /home/zoso/dev/void-node/node_modules/tsx/dist/preflight.cjs --import file:///home/zoso/dev/void-node/node_modules/tsx/dist/loader.mjs src/index.ts
+
+Oct 29 19:01:52 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49806) txs=0
+Oct 29 19:01:52 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49806 txs=0 txRoot=[object Object]
+Oct 29 19:01:53 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49807) txs=0
+Oct 29 19:01:53 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49807 txs=0 txRoot=[object Object]
+Oct 29 19:01:54 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49808) txs=0
+Oct 29 19:01:54 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49808 txs=0 txRoot=[object Object]
+Oct 29 19:01:55 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49809) txs=0
+Oct 29 19:01:55 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49809 txs=0 txRoot=[object Object]
+Oct 29 19:01:56 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49810) txs=0
+Oct 29 19:01:56 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49810 txs=0 txRoot=[object Object]
+## last 120 lines (void-node)
+Oct 29 19:01:39 zoso-Precision-Tower-7810 env[2166660]: [seal-tap2] saveBlock(#49796) txs=0
+Oct 29 19:01:39 zoso-Precision-Tower-7810 env[2166660]: [txroot] sealed #49796 txs=0 txRoot=[object Object]
+Oct 29 19:01:40 zoso-Precision-Tower-7810 env[2166660]: [seal-tap] sealed #49797 txs=0
+Oct 29 19:01:40 zoso-Precision-Tower-7810 env[2166660]: [seal-tap2] saveBlock(#49797) txs=0
+Oct 29 19:01:40 zoso-Precision-Tower-7810 env[2166660]: [txroot] sealed #49797 txs=0 txRoot=[object Object]
+Oct 29 19:01:40 zoso-Precision-Tower-7810 systemd[2990]: Stopping void-node.service - Void Node (main proposer)...
+Oct 29 19:01:40 zoso-Precision-Tower-7810 systemd[2990]: Stopped void-node.service - Void Node (main proposer).
+Oct 29 19:01:40 zoso-Precision-Tower-7810 systemd[2990]: void-node.service: Consumed 37.162s CPU time, 160.9M memory peak, 0B memory swap peak.
+Oct 29 19:01:40 zoso-Precision-Tower-7810 systemd[2990]: Starting void-node.service - Void Node (main proposer)...
+Oct 29 19:01:41 zoso-Precision-Tower-7810 bash[2176164]: curl: (7) Failed to connect to 127.0.0.1 port 4100 after 0 ms: Couldn't connect to server
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [guard] __VOID_asArr global helper installed
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [void-node] config {
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]:   DATA_DIR: '/home/zoso/dev/void-node/data_a',
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]:   HTTP_PORT: 4100,
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]:   P2P_PORT: 4700,
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]:   KEY_PATH: '/home/zoso/dev/void-node/.secrets/nodeA.key'
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: }
+Oct 29 19:01:42 zoso-Precision-Tower-7810 bash[2176221]: curl: (7) Failed to connect to 127.0.0.1 port 4100 after 0 ms: Couldn't connect to server
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] mempool size routes not attached (no app handle)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [shim] nudge guard installed
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [tx-merge-cap] limiter ready
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [shim] published global node (post-construct)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [void-node] started TCP on 127.0.0.1:4700, id=2505eb157c504b3e6ecb2cb519001f8f
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [guard] Object.prototype.filter shim v3 active
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [void-node] http :4100
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [void-node] bootstrap: (none)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [peers] self upsert -> id=2505eb157c504b3e6ecb2cb519001f8f http=http://127.0.0.1:4100 p2p=127.0.0.1:4700
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /mempool/global/size(.json), /blocks/latest/number (late)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [txroot/v2] endpoint /metrics/txroot2 ready
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [txroot/v3] saveBlock accessor installed
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [txroot/v2] endpoint /metrics/txroot2.json ready
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [compat] endpoint /blocks/latest/number.json ready
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [compat] endpoint /blocks/latest/number2.json ready (fetch-free)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [health] endpoint /health/summary.json ready
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached helpers: /mempool/global/peek, /tx/ping
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /tx/ping/verify
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /tx/ping2 and /tx/ping/verify2 (dev cache)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /dev/blocks/:n/txs/raw
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /tx/ping/seen
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /dev/blocks/:n/txs/raw (range-backed)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /dev/last-seal
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /dev/blocks/:n/txs/raw2 (robust, range-backed)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [compat] attached /blocks/:n/full -> /blocks/range shim
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /dev/blocks/:n/txs/raw-guard
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] set legacy headers for /blocks/:n/full
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /mempool/node/size and /mempool/node/ingest-now
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [shim] exposed global node handle
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /mempool/node/size2 (robust)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /mempool/bridge/status and /mempool/global/drain-now
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /proposer/queue/size, /proposer/queue/peek, /proposer/queue/drain-now
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /node/introspect and /proposer/hook/status
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /pending/status (mempool↔pending probe)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /tx/inject/status
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /tx/inject2/status
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /store/diag and /node/diag
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [tx-inject/store2] wrapped store.saveBlock()
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /tx/inject3/status
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /dev/last-seal and /blocks/:n/inspect
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /dev/last-seal2 and /blocks/:n/persisted
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [tx-inject/force] wrapped store.saveBlock()
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /tx/inject3/status and /blocks/:n/full2
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [diag] attached /dev/blocks/:n/txs/persisted
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [pending] canon + compactor + purge installed
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [tx-merge-all] active (saveBlock)
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [dev] attached /tx/dev/burst?n=NUM
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [tx-merge-cap] live control at /tx/merge/cap/*
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [tx-cap-enforce] installed; diag at /tx/merge/cap/enforce/status
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [no-empty] policy installed; diag at /blocks/empty-policy/status
+Oct 29 19:01:42 zoso-Precision-Tower-7810 env[2176188]: [txroot/route] /dev/txroot/:n ready
+Oct 29 19:01:43 zoso-Precision-Tower-7810 systemd[2990]: Started void-node.service - Void Node (main proposer).
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49798 txs=0
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49798) txs=0
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49798 txs=0 txRoot=[object Object]
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176188]: [peer] HELLO -> 463c7cbd35597873670056776b53d6fe @ 127.0.0.1:39166 (they listen: 127.0.0.1:4701)
+Oct 29 19:01:45 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49799 txs=0
+Oct 29 19:01:45 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49799) txs=0
+Oct 29 19:01:45 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49799 txs=0 txRoot=[object Object]
+Oct 29 19:01:46 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49800 txs=0
+Oct 29 19:01:46 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49800) txs=0
+Oct 29 19:01:46 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49800 txs=0 txRoot=[object Object]
+Oct 29 19:01:46 zoso-Precision-Tower-7810 env[2176188]: [pq] mirrored 5 tx -> node.txQueue (total 5, q=5)
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176188]: [pq] mirrored 5 tx -> node.txQueue (total 10, q=5)
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49801 txs=0
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49801) txs=3
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49801 txs=3 txRoot=[object Object]
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176188]: [alias] moved 3 tx from txQueue -> mempool (mp≈5)
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176188]: [pq] mirrored 5 tx -> node.txQueue (total 15, q=5)
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176188]: [alias] moved 3 tx from txQueue -> mempool (mp≈5)
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176188]: [pq] mirrored 5 tx -> node.txQueue (total 20, q=5)
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176188]: [pq] mirrored 5 tx -> node.txQueue (total 25, q=5)
+Oct 29 19:01:48 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49802 txs=0
+Oct 29 19:01:48 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49802) txs=3
+Oct 29 19:01:48 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49802 txs=3 txRoot=[object Object]
+Oct 29 19:01:48 zoso-Precision-Tower-7810 env[2176188]: [pq] mirrored 2 tx -> node.txQueue (total 27, q=2)
+Oct 29 19:01:48 zoso-Precision-Tower-7810 env[2176188]: [pq] mirrored 2 tx -> node.txQueue (total 29, q=2)
+Oct 29 19:01:48 zoso-Precision-Tower-7810 env[2176188]: [pq] mirrored 2 tx -> node.txQueue (total 31, q=2)
+Oct 29 19:01:49 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49803 txs=0
+Oct 29 19:01:49 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49803) txs=2
+Oct 29 19:01:49 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49803 txs=2 txRoot=[object Object]
+Oct 29 19:01:50 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49804 txs=0
+Oct 29 19:01:50 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49804) txs=0
+Oct 29 19:01:50 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49804 txs=0 txRoot=[object Object]
+Oct 29 19:01:51 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49805 txs=0
+Oct 29 19:01:51 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49805) txs=0
+Oct 29 19:01:51 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49805 txs=0 txRoot=[object Object]
+Oct 29 19:01:52 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49806 txs=0
+Oct 29 19:01:52 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49806) txs=0
+Oct 29 19:01:52 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49806 txs=0 txRoot=[object Object]
+Oct 29 19:01:53 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49807 txs=0
+Oct 29 19:01:53 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49807) txs=0
+Oct 29 19:01:53 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49807 txs=0 txRoot=[object Object]
+Oct 29 19:01:54 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49808 txs=0
+Oct 29 19:01:54 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49808) txs=0
+Oct 29 19:01:54 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49808 txs=0 txRoot=[object Object]
+Oct 29 19:01:55 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49809 txs=0
+Oct 29 19:01:55 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49809) txs=0
+Oct 29 19:01:55 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49809 txs=0 txRoot=[object Object]
+Oct 29 19:01:56 zoso-Precision-Tower-7810 env[2176188]: [seal-tap] sealed #49810 txs=0
+Oct 29 19:01:56 zoso-Precision-Tower-7810 env[2176188]: [seal-tap2] saveBlock(#49810) txs=0
+Oct 29 19:01:56 zoso-Precision-Tower-7810 env[2176188]: [txroot] sealed #49810 txs=0 txRoot=[object Object]
+## last 120 lines (follower)
+Oct 29 19:01:26 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49783 txs=0 txRoot=[object Object]
+Oct 29 19:01:27 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49784) txs=0
+Oct 29 19:01:27 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49784 txs=0 txRoot=[object Object]
+Oct 29 19:01:28 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49785) txs=0
+Oct 29 19:01:28 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49785 txs=0 txRoot=[object Object]
+Oct 29 19:01:29 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49786) txs=0
+Oct 29 19:01:29 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49786 txs=0 txRoot=[object Object]
+Oct 29 19:01:30 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49787) txs=0
+Oct 29 19:01:30 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49787 txs=0 txRoot=[object Object]
+Oct 29 19:01:31 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49788) txs=0
+Oct 29 19:01:31 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49788 txs=0 txRoot=[object Object]
+Oct 29 19:01:32 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49789) txs=0
+Oct 29 19:01:32 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49789 txs=0 txRoot=[object Object]
+Oct 29 19:01:33 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49790) txs=0
+Oct 29 19:01:33 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49790 txs=0 txRoot=[object Object]
+Oct 29 19:01:34 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49791) txs=0
+Oct 29 19:01:34 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49791 txs=0 txRoot=[object Object]
+Oct 29 19:01:35 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49792) txs=0
+Oct 29 19:01:35 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49792 txs=0 txRoot=[object Object]
+Oct 29 19:01:36 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49793) txs=0
+Oct 29 19:01:36 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49793 txs=0 txRoot=[object Object]
+Oct 29 19:01:37 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49794) txs=0
+Oct 29 19:01:37 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49794 txs=0 txRoot=[object Object]
+Oct 29 19:01:38 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49795) txs=0
+Oct 29 19:01:38 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49795 txs=0 txRoot=[object Object]
+Oct 29 19:01:39 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49796) txs=0
+Oct 29 19:01:39 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49796 txs=0 txRoot=[object Object]
+Oct 29 19:01:40 zoso-Precision-Tower-7810 env[2166786]: [seal-tap2] saveBlock(#49797) txs=0
+Oct 29 19:01:40 zoso-Precision-Tower-7810 env[2166786]: [txroot] sealed #49797 txs=0 txRoot=[object Object]
+Oct 29 19:01:43 zoso-Precision-Tower-7810 systemd[2990]: Stopping void-node@bootstrap-1.service - VOID Node instance (bootstrap-1)...
+Oct 29 19:01:43 zoso-Precision-Tower-7810 systemd[2990]: Stopped void-node@bootstrap-1.service - VOID Node instance (bootstrap-1).
+Oct 29 19:01:43 zoso-Precision-Tower-7810 systemd[2990]: void-node@bootstrap-1.service: Consumed 35.740s CPU time, 134.4M memory peak, 0B memory swap peak.
+Oct 29 19:01:43 zoso-Precision-Tower-7810 systemd[2990]: Starting void-node@bootstrap-1.service - VOID Node instance (bootstrap-1)...
+Oct 29 19:01:43 zoso-Precision-Tower-7810 sh[2176291]: curl: (7) Failed to connect to 127.0.0.1 port 4101 after 0 ms: Couldn't connect to server
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [guard] __VOID_asArr global helper installed
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [void-node] config {
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]:   DATA_DIR: '/home/zoso/dev/void-node/data_b',
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]:   HTTP_PORT: 4101,
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]:   P2P_PORT: 4701,
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]:   KEY_PATH: '/home/zoso/dev/void-node/.secrets/nodeB.key'
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: }
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] mempool size routes not attached (no app handle)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [shim] nudge guard installed
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [tx-merge-cap] limiter ready
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [shim] published global node (post-construct)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [void-node] started TCP on 127.0.0.1:4701, id=463c7cbd35597873670056776b53d6fe
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [guard] Object.prototype.filter shim v3 active
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [void-node] http :4101
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [void-node] bootstrap: http://127.0.0.1:4100, h, t, p, :, /, 1, 2, 7, ., 0, 4
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [peers] self upsert -> id=463c7cbd35597873670056776b53d6fe http=http://127.0.0.1:4101 p2p=127.0.0.1:4701
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /mempool/global/size(.json), /blocks/latest/number (late)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [txroot/v2] endpoint /metrics/txroot2 ready
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [txroot/v3] saveBlock accessor installed
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [txroot/v2] endpoint /metrics/txroot2.json ready
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [compat] endpoint /blocks/latest/number.json ready
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [compat] endpoint /blocks/latest/number2.json ready (fetch-free)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [health] endpoint /health/summary.json ready
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49798 txs=0 txRoot=[object Object]
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [dial] connected 127.0.0.1:4700
+Oct 29 19:01:44 zoso-Precision-Tower-7810 systemd[2990]: Started void-node@bootstrap-1.service - VOID Node instance (bootstrap-1).
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [peer] HELLO -> 2505eb157c504b3e6ecb2cb519001f8f @ 127.0.0.1:4700 (they listen: 127.0.0.1:4700)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached helpers: /mempool/global/peek, /tx/ping
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /tx/ping/verify
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /tx/ping2 and /tx/ping/verify2 (dev cache)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /dev/blocks/:n/txs/raw
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /tx/ping/seen
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /dev/blocks/:n/txs/raw (range-backed)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /dev/last-seal
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /dev/blocks/:n/txs/raw2 (robust, range-backed)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [compat] attached /blocks/:n/full -> /blocks/range shim
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /dev/blocks/:n/txs/raw-guard
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] set legacy headers for /blocks/:n/full
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /mempool/node/size and /mempool/node/ingest-now
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [shim] exposed global node handle
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /mempool/node/size2 (robust)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /mempool/bridge/status and /mempool/global/drain-now
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /proposer/queue/size, /proposer/queue/peek, /proposer/queue/drain-now
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /node/introspect and /proposer/hook/status
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /pending/status (mempool↔pending probe)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /tx/inject/status
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /tx/inject2/status
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /store/diag and /node/diag
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [tx-inject/store2] wrapped store.saveBlock()
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /tx/inject3/status
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /dev/last-seal and /blocks/:n/inspect
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /dev/last-seal2 and /blocks/:n/persisted
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [tx-inject/force] wrapped store.saveBlock()
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /tx/inject3/status and /blocks/:n/full2
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [diag] attached /dev/blocks/:n/txs/persisted
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [pending] canon + compactor + purge installed
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [tx-merge-all] active (saveBlock)
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [dev] attached /tx/dev/burst?n=NUM
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [tx-merge-cap] live control at /tx/merge/cap/*
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [tx-cap-enforce] installed; diag at /tx/merge/cap/enforce/status
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [no-empty] policy installed; diag at /blocks/empty-policy/status
+Oct 29 19:01:44 zoso-Precision-Tower-7810 env[2176315]: [txroot/route] /dev/txroot/:n ready
+Oct 29 19:01:45 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49799) txs=0
+Oct 29 19:01:45 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49799 txs=0 txRoot=[object Object]
+Oct 29 19:01:46 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49800) txs=0
+Oct 29 19:01:46 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49800 txs=0 txRoot=[object Object]
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49801) txs=3
+Oct 29 19:01:47 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49801 txs=3 txRoot=[object Object]
+Oct 29 19:01:48 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49802) txs=3
+Oct 29 19:01:48 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49802 txs=3 txRoot=[object Object]
+Oct 29 19:01:49 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49803) txs=2
+Oct 29 19:01:49 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49803 txs=2 txRoot=[object Object]
+Oct 29 19:01:50 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49804) txs=0
+Oct 29 19:01:50 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49804 txs=0 txRoot=[object Object]
+Oct 29 19:01:51 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49805) txs=0
+Oct 29 19:01:51 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49805 txs=0 txRoot=[object Object]
+Oct 29 19:01:52 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49806) txs=0
+Oct 29 19:01:52 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49806 txs=0 txRoot=[object Object]
+Oct 29 19:01:53 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49807) txs=0
+Oct 29 19:01:53 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49807 txs=0 txRoot=[object Object]
+Oct 29 19:01:54 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49808) txs=0
+Oct 29 19:01:54 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49808 txs=0 txRoot=[object Object]
+Oct 29 19:01:55 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49809) txs=0
+Oct 29 19:01:55 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49809 txs=0 txRoot=[object Object]
+Oct 29 19:01:56 zoso-Precision-Tower-7810 env[2176315]: [seal-tap2] saveBlock(#49810) txs=0
+Oct 29 19:01:56 zoso-Precision-Tower-7810 env[2176315]: [txroot] sealed #49810 txs=0 txRoot=[object Object]
+## heads
+# TYPE void_peers_known gauge
+void_peers_known 2
+# TYPE void_peers gauge
+void_peers 1
+## drift

@@ -4361,3 +4361,149 @@ import { computeTxRoot } from "./util/txroot.js";
     })();
   }catch{}
 })();
+
+// ---------------- Dev: /dev/blocks/:n/txroot (additive, no deps) ----------------
+(function registerTxRootDevRoute() {
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // GET /dev/blocks/:n/txroot -> {ok, number, txCount, root, leaves[]}
+    app.get("/dev/blocks/:n/txroot", async (req:any, res:any) => {
+      try {
+        const n = Number(req.params.n);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:"invalid block number" });
+
+        const port = process.env.HTTP_PORT || "4100";
+        const url = `http://127.0.0.1:${port}/dev/blocks/${n}/txs/persisted`;
+        const r = await fetch(url);
+        if (!r.ok) return res.status(502).json({ ok:false, error:`upstream ${url} -> ${r.status}` });
+        const j = await r.json();
+        const txs = Array.isArray(j?.txs) ? j.txs : [];
+
+        const { computeTxRoot } = await import("./util/txroot.js");
+        const { root, leaves } = computeTxRoot(txs);
+        res.json({ ok:true, number:n, txCount: txs.length, root, leaves });
+      } catch(e:any) {
+      }
+    });
+  }
+  attach();
+})();
+
+// ---------------- Dev: /dev/txroot/:n (additive shim; ignores broken snippet) ----------------
+(function registerTxRootDevRoute_v2() {
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // GET /dev/txroot/:n  -> {ok, number, txCount, root, leaves[]}
+    app.get("/dev/txroot/:n", async (req:any, res:any) => {
+      try {
+        const n = Number(req.params.n);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:"invalid block number" });
+
+        const port = process.env.HTTP_PORT || "4100";
+        const url = `http://127.0.0.1:${port}/dev/blocks/${n}/txs/persisted`;
+        const r = await fetch(url);
+        if (!r.ok) return res.status(502).json({ ok:false, error:`upstream ${url} -> ${r.status}` });
+        const j = await r.json();
+        const txs = Array.isArray(j?.txs) ? j.txs : [];
+
+        const { computeTxRoot } = await import("./util/txroot.js");
+        const { root, leaves } = computeTxRoot(txs);
+        res.json({ ok:true, number:n, txCount: txs.length, root, leaves });
+      } catch (e:any) {
+      }
+    });
+  }
+  attach();
+})();
+
+// ---------------- Dev: /dev/txroot/:n (stable JSON->sha256 merkle) ----------------
+(function registerTxRootDevRoute_clean(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function handler(req:any, res:any){
+    try{
+      const n = Number(req.params.n);
+      if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:"bad block number" });
+
+      const port = Number(process.env.HTTP_PORT || 4100);
+      const base = `http://127.0.0.1:${port}`;
+      const r = await fetch(`${base}/dev/blocks/${n}/txs/persisted`);
+      if (!r.ok) return res.status(502).json({ ok:false, error:`fetch persisted txs failed (${r.status})` });
+      const j = await r.json().catch(()=>null);
+      const txs = Array.isArray(j?.txs) ? j.txs : [];
+
+      const { computeTxRoot } = await import("./util/txroot.js");
+      const { root, leaves } = computeTxRoot(txs);
+      return res.json({ ok:true, n, count: txs.length, root, leaves });
+    }catch(e:any){
+      return res.status(500).json({ ok:false, error: String(e?.message || e) });
+    }
+  }
+
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function"){ if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+    app.get("/dev/txroot/:n", handler);
+    try{ console.log("[txroot/route] /dev/txroot/:n ready"); }catch{}
+  }
+
+  attach();
+})();
+
+// ---------------- Follower drift status (additive, no imports) --------------------
+;(function followerStatusRoute(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function getHead(base){
+    try {
+      const r = await fetch(String(base).replace(/\/+$/,'') + "/blocks/latest/number2.json");
+      if (!r.ok) throw new Error("bad " + r.status);
+      const d = await r.json();
+      return (typeof d.n === "number" ? d.n : (typeof d.number === "number" ? d.number : -1));
+    } catch { return -1; }
+  }
+
+  async function attach(){
+    const app = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // GET /follower/status?peer=http://127.0.0.1:4100
+    app.get("/follower/status", async (req, res) => {
+      const peer = String(req.query.peer || "http://127.0.0.1:4100");
+      const self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
+
+      const [head_local, head_peer] = await Promise.all([getHead(self), getHead(peer)]);
+      const drift = (head_peer >= 0 && head_local >= 0) ? (head_peer - head_local) : null;
+      res.json({ ok: true, peer, head_local, head_peer, drift });
+    });
+
+    // Compat alias
+    app.get("/follower/status2", async (req, res) => {
+      const peer = String(req.query.peer || "http://127.0.0.1:4100");
+      const self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
+      const [head_local, head_peer] = await Promise.all([getHead(self), getHead(peer)]);
+      const drift = (head_peer >= 0 && head_local >= 0) ? (head_peer - head_local) : null;
+      res.json({ ok: true, peer, head_local, head_peer, drift });
+    });
+
+    try { console.log("[follower/status] route ready"); } catch {}
+  }
+  attach();
+})();

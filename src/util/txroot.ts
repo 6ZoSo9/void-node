@@ -1,27 +1,32 @@
 // VOID Community License (VCL) v1.0 — see LICENSE
 // Copyright (c) 2025 6ZoSo9
-
 import { createHash } from "node:crypto";
 
-/** sha256 hex with 0x prefix (matches the empty root you logged earlier). */
-export function sha256Hex(input: string | Uint8Array | Buffer): string {
-  const h = createHash("sha256");
-  h.update(input);
-  return "0x" + h.digest("hex");
+function stableStringify(v: any): string {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
+  const keys = Object.keys(v).sort();
+  const body = keys.map(k => `${JSON.stringify(k)}:${stableStringify((v as any)[k])}`).join(",");
+  return `{${body}}`;
 }
 
-/** Deterministic tx root from a list of strings/bytes-ish. */
-export function computeTxRoot(list: any[]): string {
-  if (!list || list.length === 0) return sha256Hex("");
-  const h = createHash("sha256");
-  for (const it of list) {
-    if (typeof it === "string") h.update(it);
-    else if (it instanceof Uint8Array || Buffer.isBuffer(it)) h.update(it);
-    else h.update(JSON.stringify(it));
+function sha256Hex(buf: Buffer | string): string {
+  return createHash("sha256").update(buf).digest("hex");
+}
+
+/** Merkle root over JSON txs. Odd-node duping (BTC-style pair-with-self). */
+export function computeTxRoot(txs: any[]): { root: string; leaves: string[] } {
+  const leaves = txs.map(tx => sha256Hex(stableStringify(tx)));
+  if (leaves.length === 0) return { root: sha256Hex(""), leaves };
+  let level: Buffer[] = leaves.map(h => Buffer.from(h, "hex"));
+  while (level.length > 1) {
+    const next: Buffer[] = [];
+    for (let i = 0; i < level.length; i += 2) {
+      const left = level[i];
+      const right = level[i + 1] ?? level[i];
+      next.push(Buffer.from(sha256Hex(Buffer.concat([left, right])), "hex"));
+    }
+    level = next;
   }
-  return "0x" + h.digest("hex");
+  return { root: level[0].toString("hex"), leaves };
 }
-
-/** Aliases to be future-proof with older call sites. */
-export const txRootFromList = computeTxRoot;
-export function txRootEmpty(): string { return sha256Hex(""); }
