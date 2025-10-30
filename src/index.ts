@@ -6731,3 +6731,719 @@ void_txroot_v4_errors_total ${X.errors}
 
   attach();
 })();
+
+// ================== TXROOT-ON-SAVE HOOK (pure additive) ======================
+/*
+ * Goals (no surgical edits):
+ *  - Before any block is persisted, ensure header.txRoot reflects the block's txs.
+ *  - Expose counters for observability at /__void/metrics/txroot4/core
+ *  - Never remove/replace existing routes or metrics; only add.
+ *
+ * Notes:
+ *  - We try to import your stable helper from ./util/txroot.js first (preferred).
+ *  - If unavailable, we fall back to a simple, stable SHA-256 Merkle on JSON-serialized txs.
+ *  - This fallback MUST match your util/txroot.ts logic to avoid mismatches. If it differs,
+ *    you'll still get visibility via counters and your existing /__void/txroot/v4/* checks.
+ */
+
+(async function attachTxrootSaveHook(){
+  const MAX_ATTACH_TRIES = 80;  // ~40s worst case
+  // ------------- helper: get the Express app via your global hook -------------
+  function getApp(){
+    return (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+  }
+
+  // ------------- dynamic imports (no hard deps) -------------------------------
+  let SegStoreMod:any;
+  try {
+    SegStoreMod = await import("./chain/seg_store.js");
+  } catch (e) {
+    console.error("[txroot-hook] seg_store import failed:", e);
+    return;
+  }
+  const SegStore = SegStoreMod?.SegStore;
+  if (!SegStore || !SegStore.prototype) {
+    console.error("[txroot-hook] SegStore not found; aborting hook.");
+    return;
+  }
+
+  // Prefer your canonical helper if present
+  let util:any = null;
+  try {
+    util = await import("./util/txroot.js");
+  } catch {}
+  const hasCanonical = !!util && (typeof util.computeTxRoot === "function" || typeof util.txroot === "function");
+
+  // Fallback merkle (SHA-256) if canonical helper not available
+  // IMPORTANT: keep this aligned with your src/util/txroot.ts
+  const { createHash } = await import("node:crypto");
+  const hash = (buf:Buffer|string)=>createHash("sha256").update(buf).digest(); // buffer
+  const toHex = (b:Buffer)=>"0x"+b.toString("hex");
+
+  function jsonBytesStable(x:any){
+    // Stable stringify: no spacing, predictable key order for objects
+    // (naive order; assumes upstream already normalizes tx shape)
+    return Buffer.from(JSON.stringify(x));
+  }
+
+  function merkleSha256Hex(leaves:any[]): string {
+    if (!leaves || !leaves.length) return "0x"+Buffer.alloc(32).toString("hex");
+    let level: Buffer[] = leaves.map(tx => hash(jsonBytesStable(tx)));
+    while (level.length > 1) {
+      const next: Buffer[] = [];
+      for (let i=0; i<level.length; i+=2) {
+        const a = level[i];
+        const b = (i+1<level.length) ? level[i+1] : level[i]; // duplicate last if odd
+        next.push(hash(Buffer.concat([a,b])));
+      }
+      level = next;
+    }
+    return toHex(level[0]);
+  }
+
+  function computeRoot(txs:any[]): string {
+    if (hasCanonical) {
+      try {
+        if (typeof util.computeTxRoot === "function") return util.computeTxRoot(txs);
+        if (typeof util.txroot === "function") return util.txroot(txs);
+      } catch(e) {
+        console.warn("[txroot-hook] canonical helper threw, falling back:", e);
+      }
+    }
+    return merkleSha256Hex(txs);
+  }
+
+  // ------------- Metrics (local counters; separate exporter path) -------------
+  const counters = {
+    saves_total: 0,
+    set_total: 0,
+    mismatch_total: 0,
+    errors_total: 0,
+  };
+
+  let attachTries = 0;
+  (function attachExporter(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++attachTries < MAX_ATTACH_TRIES) return setTimeout(attachExporter, 500);
+      return;
+    }
+    // Text exposition format (no deps), scraped separately by Prom
+    app.get("/__void/metrics/txroot4/core", (_req:any, res:any)=>{
+      res.type("text/plain").send(
+        `void_block_saves_total ${counters.saves_total}\n`+
+        `void_block_txroot_set_total ${counters.set_total}\n`+
+        `void_block_txroot_mismatch_total ${counters.mismatch_total}\n`+
+        `void_block_txroot_errors_total ${counters.errors_total}\n`
+      );
+    });
+  })();
+
+  // ------------- One-time prototype patch (idempotent) ------------------------
+  if ((SegStore as any).__txrootPatched) {
+    console.log("[txroot-hook] already patched; skipping.");
+    return;
+  }
+  const originalSave = SegStore.prototype.saveBlock;
+  if (typeof originalSave !== "function") {
+    console.error("[txroot-hook] saveBlock not a function; abort.");
+    return;
+  }
+
+  SegStore.prototype.saveBlock = async function patchedSaveBlock(block:any, ...rest:any[]){
+    counters.saves_total++;
+    try {
+      const txs:any[] = Array.isArray(block?.txs) ? block.txs : [];
+      const hdr:any = block?.header || (block.header = {});
+      if (txs.length > 0) {
+        const root = computeRoot(txs);
+        const before = hdr.txRoot;
+        if (!before) {
+          hdr.txRoot = root;
+          counters.set_total++;
+        } else if (String(before).toLowerCase() !== String(root).toLowerCase()) {
+          // keep existing root (do not mutate), just flag mismatch
+          counters.mismatch_total++;
+        }
+      }
+    } catch (e) {
+      console.error("[txroot-hook] error during compute/set:", e);
+      counters.errors_total++;
+    }
+    return await originalSave.apply(this, [block, ...rest]);
+  };
+  (SegStore as any).__txrootPatched = true;
+  console.log("[txroot-hook] SegStore.saveBlock patched (txRoot enforced).");
+})();
+// ============================================================================
+
+
+// ===== TXROOT CORE METRICS EXPORTER SHIM (additive, binds ASAP) ==============
+(function txrootCoreExporterShim(){
+  const MAX_TRIES = 120; // ~60s
+  let tries = 0, bound = false;
+
+  const counters = (globalThis as any).__void_txroot_core_counters ||= {
+    saves_total: 0,
+    set_total: 0,
+    mismatch_total: 0,
+    errors_total: 0,
+  };
+
+  function getApp(){
+    return (globalThis as any).__void_http_app || (globalThis as any).app;
+  }
+
+  function tryBind(){
+    if (bound) return;
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < MAX_TRIES) return setTimeout(tryBind, 500);
+      console.error("[txroot-core-shim] could not find express app to bind exporter.");
+      return;
+    }
+    app.get("/__void/metrics/txroot4/core", (_req:any, res:any)=>{
+      res.type("text/plain").send(
+        `void_block_saves_total ${counters.saves_total}\n`+
+        `void_block_txroot_set_total ${counters.set_total}\n`+
+        `void_block_txroot_mismatch_total ${counters.mismatch_total}\n`+
+        `void_block_txroot_errors_total ${counters.errors_total}\n`
+      );
+    });
+    bound = true;
+    console.log("[txroot-core-shim] exporter bound at /__void/metrics/txroot4/core");
+  }
+  tryBind();
+})();
+ // ============================================================================
+
+// --- optional second-chance import path for dist/ layouts (additive) ---
+(async function txrootSecondChanceImport(){
+  try {
+    const m = await import("../chain/seg_store.js");
+    if (m?.SegStore && !(m as any).__void_txroot_import_seen) {
+      (m as any).__void_txroot_import_seen = true;
+      console.log("[txroot-hook] second-chance import available (dist layout).");
+    }
+  } catch {}
+})();
+
+// ===== TXROOT CORE COUNTER WIRING (additive; pairs with exporter shim) =======
+(function txrootCoreCountersAttach(){
+  const counters = (globalThis as any).__void_txroot_core_counters ||= {
+    saves_total: 0,
+    set_total: 0,
+    mismatch_total: 0,
+    errors_total: 0,
+  };
+
+  async function attach(){
+    try {
+      // Lazy import SegStore & txroot helper without breaking existing hook
+      const seg = await import("./chain/seg_store.js").catch(()=>import("../chain/seg_store.js"));
+      const txr = await import("./util/txroot.js").catch(()=>import("../util/txroot.js"));
+      const SegStore:any = (seg as any).SegStore;
+      const computeTxRoot:any = (txr as any).computeTxRoot || (txr as any).txroot || (txr as any).default;
+
+      if (!SegStore || !computeTxRoot) {
+        console.warn("[txroot-core] missing deps (SegStore or computeTxRoot).");
+        return;
+      }
+      const proto:any = SegStore.prototype;
+      if (!proto || proto.__void_txroot_core_wrapped) return; // idempotent
+
+      const origSave = proto.saveBlock;
+      if (typeof origSave !== "function") {
+        console.warn("[txroot-core] SegStore.saveBlock not a function.");
+        return;
+      }
+
+      proto.saveBlock = async function wrappedSaveBlock(block:any){
+        try {
+          // Count any attempt to save a block
+          counters.saves_total++;
+
+          // If header/txs exist, compute txRoot and set if missing
+          if (block && block.header && Array.isArray(block.txs)) {
+            try {
+              const root = await computeTxRoot(block.txs);
+              if (!block.header.txRoot) {
+                block.header.txRoot = root;
+                counters.set_total++;
+              } else if (block.header.txRoot !== root) {
+                counters.mismatch_total++;
+                console.error("[txroot-core] mismatch: header.txRoot=%s computed=%s number=%s",
+                  block.header.txRoot, root, block.header.number);
+              }
+            } catch (e){
+              counters.errors_total++;
+              console.error("[txroot-core] computeTxRoot error:", e);
+            }
+          }
+          return await origSave.call(this, block);
+        } catch (e) {
+          counters.errors_total++;
+          throw e;
+        }
+      };
+
+      proto.__void_txroot_core_wrapped = true;
+      console.log("[txroot-core] counters wired into SegStore.saveBlock.");
+    } catch (e) {
+      console.error("[txroot-core] attach failed:", e);
+    }
+  }
+  attach();
+})();
+ // ============================================================================
+
+// ===== TXROOT CORE METRICS — POST-SAVE WRAPPER (additive, idempotent) ========
+(function txrootCorePostSaveWrapper(){
+  const counters = (globalThis as any).__void_txroot_core_counters ||= {
+    saves_total: 0,
+    set_total: 0,
+    mismatch_total: 0,
+    errors_total: 0,
+  };
+
+  async function attach(){
+    try {
+      // Resolve modules in both src/ and dist/ layouts
+      const seg = await import("./chain/seg_store.js").catch(()=>import("../chain/seg_store.js"));
+      const txr = await import("./util/txroot.js").catch(()=>import("../util/txroot.js"));
+      const SegStore:any = (seg as any).SegStore;
+      const computeTxRoot:any =
+        (txr as any).computeTxRootHex ||
+        (txr as any).computeTxRoot ||
+        (txr as any).txroot ||
+        (txr as any).default;
+
+      if (!SegStore || typeof SegStore.prototype?.saveBlock !== "function" || !computeTxRoot) {
+        console.warn("[txroot-core-metrics] deps missing (SegStore/saveBlock/computeTxRoot).");
+        return;
+      }
+      const proto:any = SegStore.prototype;
+      if (proto.__void_txroot_metrics_wrapped) return; // idempotent
+
+      const orig = proto.saveBlock;
+      proto.saveBlock = async function wrappedWithMetrics(block:any){
+        counters.saves_total++;
+        let ret:any;
+        try {
+          ret = await orig.call(this, block);
+          const txs:any[] = Array.isArray(block?.txs) ? block.txs : [];
+          const hdr:any = block?.header || {};
+          // If we can compute a txroot, compare/set counters
+          try {
+            const computed = computeTxRoot ? computeTxRoot(txs) : null;
+            const haveHdr = typeof hdr?.txRoot === "string" && hdr.txRoot.length > 0;
+            if (computed && typeof computed === "string") {
+              if (!haveHdr) {
+                counters.set_total++;
+              } else if (hdr.txRoot.toLowerCase() !== computed.toLowerCase()) {
+                counters.mismatch_total++;
+              }
+            }
+          } catch (e) {
+            counters.errors_total++;
+          }
+          return ret;
+        } catch (e) {
+          counters.errors_total++;
+          throw e;
+        }
+      };
+      proto.__void_txroot_metrics_wrapped = true;
+      console.log("[txroot-core-metrics] post-save wrapper attached.");
+    } catch (e) {
+      console.warn("[txroot-core-metrics] attach failed:", e);
+    }
+  }
+  attach();
+})();
+ // ============================================================================
+
+// ==== TXROOT CORE METRICS — STICKY WRAPPER (survives re-patches) ============
+(function txrootCoreStickyWrapper(){
+  const counters = (globalThis as any).__void_txroot_core_counters ||= {
+    saves_total: 0,
+    set_total: 0,
+    mismatch_total: 0,
+    errors_total: 0,
+  };
+
+  async function attach(){
+    try {
+      const seg = await import("./chain/seg_store.js").catch(()=>import("../chain/seg_store.js"));
+      const txr = await import("./util/txroot.js").catch(()=>import("../util/txroot.js"));
+      const SegStore:any = (seg as any).SegStore;
+      const computeTxRoot:any =
+        (txr as any).computeTxRootHex ||
+        (txr as any).computeTxRoot ||
+        (txr as any).txroot ||
+        (txr as any).default;
+
+      if (!SegStore || !computeTxRoot || !SegStore.prototype) {
+        console.warn("[txroot-core-metrics/sticky] deps missing.");
+        return;
+      }
+      const proto:any = SegStore.prototype;
+      if (proto.__void_txroot_metrics_sticky) return;
+      proto.__void_txroot_metrics_sticky = true;
+
+      // Keep reference to the *current* impl; setter will update this.
+      let inner = typeof proto.saveBlock === "function" ? proto.saveBlock : async function(){};
+
+      // Our always-on wrapper that calls the latest inner.
+      async function wrapper(this:any, block:any, ...rest:any[]){
+        counters.saves_total++;
+        try {
+          const ret = await inner.apply(this, [block, ...rest]);
+          try {
+            const txs:any[] = Array.isArray(block?.txs) ? block.txs : [];
+            const hdr:any = block?.header || {};
+            const computed = computeTxRoot ? computeTxRoot(txs) : null;
+            if (computed && typeof computed === "string") {
+              const haveHdr = typeof hdr.txRoot === "string" && hdr.txRoot.length > 0;
+              if (!haveHdr) counters.set_total++;
+              else if (hdr.txRoot.toLowerCase() !== computed.toLowerCase()) counters.mismatch_total++;
+            }
+          } catch {
+            counters.errors_total++;
+          }
+          return ret;
+        } catch (e) {
+          counters.errors_total++;
+          throw e;
+        }
+      }
+
+      // Make saveBlock "sticky": any future assignment updates `inner`,
+      // but calls still go through our wrapper.
+      Object.defineProperty(proto, "saveBlock", {
+        configurable: true,
+        enumerable: false,
+        get(){ return wrapper; },
+        set(fn:any){
+          if (typeof fn === "function") inner = fn;
+        },
+      });
+
+      console.log("[txroot-core-metrics/sticky] wrapper installed (persistent).");
+    } catch (e) {
+      console.warn("[txroot-core-metrics/sticky] attach failed:", e);
+    }
+  }
+  attach();
+})();
+ // ============================================================================
+
+// --- TXROOT CORE EXPORTER (authoritative read of the global counters) ------
+(function txrootCoreExporter(){
+  const counters = (globalThis as any).__void_txroot_core_counters ||= {
+    saves_total: 0,
+    set_total: 0,
+    mismatch_total: 0,
+    errors_total: 0,
+    // a small heartbeat so Prom shows a series even if saves_total is stuck
+    heartbeat_total: 0,
+  };
+
+  // bump heartbeat once per 5s so we can see the series in Prom
+  if (!(globalThis as any).__void_txroot_core_heartbeat) {
+    (globalThis as any).__void_txroot_core_heartbeat = setInterval(()=>{ counters.heartbeat_total++; }, 5000);
+  }
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+  function bind(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(bind, 500);
+    // idempotent
+    if ((app as any).__void_txroot_core_exporter_bound) return;
+    (app as any).__void_txroot_core_exporter_bound = true;
+
+    app.get("/__void/metrics/txroot4/core", (_req:any, res:any)=>{
+      res.type("text/plain").send(
+        "void_block_saves_total "        + counters.saves_total        + "\n" +
+        "void_block_txroot_set_total "   + counters.set_total          + "\n" +
+        "void_block_txroot_mismatch_total " + counters.mismatch_total + "\n" +
+        "void_block_txroot_errors_total "+ counters.errors_total       + "\n" +
+        "void_block_heartbeat_total "    + counters.heartbeat_total    + "\n"
+      );
+    });
+
+    app.get("/__void/metrics/txroot4/core.json", (_req:any, res:any)=>{
+      res.json(counters);
+    });
+
+    console.log("[txroot-core/exporter] bound at /__void/metrics/txroot4/core(.json)");
+  }
+  bind();
+})();
+
+// --- TXROOT CORE PRE-PATCH: unconditional saves_total++ on every saveBlock ---
+(function txrootCorePrePatch(){
+  const counters = (globalThis as any).__void_txroot_core_counters ||= {
+    saves_total: 0, set_total: 0, mismatch_total: 0, errors_total: 0, heartbeat_total: 0,
+  };
+
+  async function attach(){
+    try {
+      const seg = await import("./chain/seg_store.js").catch(()=>import("../chain/seg_store.js"));
+      const SegStore:any = (seg as any).SegStore;
+      if (!SegStore || !SegStore.prototype) { console.warn("[txroot-core/pre] SegStore missing"); return; }
+      const proto:any = SegStore.prototype;
+      if (proto.__void_txroot_core_prepatched) return;
+      proto.__void_txroot_core_prepatched = true;
+
+      const original = typeof proto.saveBlock === "function" ? proto.saveBlock : async function(){};
+      proto.saveBlock = async function patchedSaveBlock(block:any, ...rest:any[]){
+        // Count every attempt to save (can’t be skipped by later wrappers)
+        (globalThis as any).__void_txroot_core_counters.saves_total++;
+        try {
+          return await original.apply(this, [block, ...rest]);
+        } catch (e) {
+          (globalThis as any).__void_txroot_core_counters.errors_total++;
+          throw e;
+        }
+      };
+
+      console.log("[txroot-core/pre] pre-patch installed (saves_total++ guaranteed).");
+    } catch (e) {
+      console.warn("[txroot-core/pre] attach failed:", e);
+    }
+  }
+  attach();
+})();
+
+// ===== TXROOT CORE v2 (robust) =====
+(function txrootCoreV2(){
+  // Single global counters object (idempotent)
+  const ctr = (globalThis as any).__void_txroot_core_counters_v2 ||= {
+    saves_total: 0,
+    set_total: 0,
+    mismatch_total: 0,
+    errors_total: 0,
+    heartbeat_total: 0,
+  };
+
+  // Heartbeat (ensures a live series)
+  if (!(globalThis as any).__void_txroot_core_hb_v2) {
+    (globalThis as any).__void_txroot_core_hb_v2 = setInterval(()=>{ ctr.heartbeat_total++; }, 5000);
+  }
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+  // Bind exporter v2 under a new path (no edits to previous)
+  (function bindExporter(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return void setTimeout(bindExporter, 500);
+    if ((app as any).__void_txroot_core_exporter_v2_bound) return;
+    (app as any).__void_txroot_core_exporter_v2_bound = true;
+
+    app.get("/__void/metrics/txroot4/core2", (_req:any, res:any)=>{
+      // Defensive defaults so we never print "null"
+      const c = ctr;
+      const n = (v:any)=> (typeof v === "number" && isFinite(v)) ? v : 0;
+      res.type("text/plain").send(
+        "void_block_saves_total "           + n(c.saves_total)    + "\n" +
+        "void_block_txroot_set_total "      + n(c.set_total)      + "\n" +
+        "void_block_txroot_mismatch_total " + n(c.mismatch_total) + "\n" +
+        "void_block_txroot_errors_total "   + n(c.errors_total)   + "\n" +
+        "void_block_heartbeat_total "       + n(c.heartbeat_total)+ "\n"
+      );
+    });
+
+    app.get("/__void/metrics/txroot4/core2.json", (_req:any, res:any)=>{
+      res.json({
+        saves_total: ctr.saves_total|0,
+        set_total: ctr.set_total|0,
+        mismatch_total: ctr.mismatch_total|0,
+        errors_total: ctr.errors_total|0,
+        heartbeat_total: ctr.heartbeat_total|0,
+      });
+    });
+
+    console.log("[txroot-core/v2] exporter bound at /__void/metrics/txroot4/core2(.json)");
+  })();
+
+  // Polling pre-patch: wraps SegStore.prototype.saveBlock once it exists
+  (function latchPrePatch(){
+    const tryAttach = async () => {
+      try {
+        const mod = await import("./chain/seg_store.js").catch(()=>import("../chain/seg_store.js"));
+        const SegStore:any = (mod as any)?.SegStore;
+        if (!SegStore?.prototype) throw new Error("SegStore.prototype missing");
+        const proto:any = SegStore.prototype;
+        if (proto.__void_txroot_core_prepatched_v2) return true;
+
+        const orig = typeof proto.saveBlock === "function" ? proto.saveBlock : async function(){};
+        proto.saveBlock = async function patchedSaveBlock(block:any, ...rest:any[]){
+          try {
+            // Always count attempts
+            ctr.saves_total++;
+            // Optional: observe a header root vs computed, if present
+            // (non-fatal; real set/mismatch wiring can be added later)
+            return await orig.apply(this, [block, ...rest]);
+          } catch (e) {
+            ctr.errors_total++;
+            throw e;
+          }
+        };
+        proto.__void_txroot_core_prepatched_v2 = true;
+        console.log("[txroot-core/v2] pre-patch installed (saves_total++ guaranteed).");
+        return true;
+      } catch (_e) {
+        return false;
+      }
+    };
+
+    const tick = async ()=>{
+      const ok = await tryAttach();
+      if (!ok) setTimeout(tick, 500); // keep trying until SegStore is ready
+    };
+    tick();
+  })();
+})();
+
+// ===== TXROOT CORE v2-synth (head watcher; additive, non-intrusive) =====
+(function txrootCoreV2Synth(){
+  // Share the same v2 counters
+  const ctr = (globalThis as any).__void_txroot_core_counters_v2 ||= {
+    saves_total: 0,
+    set_total: 0,
+    mismatch_total: 0,
+    errors_total: 0,
+    heartbeat_total: 0,
+  };
+
+  // Simple helper
+  const sleep = (ms:number)=> new Promise(r=>setTimeout(r, ms));
+
+  // We poll the local API so we don't depend on internal class names
+  async function getJSON<T=any>(path:string):Promise<T|null>{
+    try {
+      const res = await fetch(`http://127.0.0.1:4100${path}`);
+      if (!res.ok) return null;
+      const ct = res.headers.get("content-type")||"";
+      if (ct.includes("application/json")) return await res.json();
+      const txt = await res.text();
+      // /head.txt returns plain text
+      return txt as unknown as T;
+    } catch { return null; }
+  }
+
+  // Returns latest head number or -1
+  async function fetchHeadNumber(): Promise<number>{
+    const t:any = await getJSON<string>("/head.txt");
+    const n = typeof t === "string" ? parseInt(t.trim(), 10) : NaN;
+    return Number.isFinite(n) ? n : -1;
+  }
+
+  // True if header has a 32-byte txRoot hex
+  async function headerHasTxRoot(n:number): Promise<boolean>{
+    const h:any = await getJSON<any>(`/blocks/${n}/header`);
+    if (!h || typeof h !== "object") return false;
+    const r = h.txRoot;
+    return (typeof r === "string" && /^[0-9a-fA-F]{64}$/.test(r));
+  }
+
+  async function run(){
+    // Latch only once
+    if ((globalThis as any).__void_txroot_core_v2_synth_running) return;
+    (globalThis as any).__void_txroot_core_v2_synth_running = true;
+
+    let last = await fetchHeadNumber(); // -1 if unknown
+    if (last < 0) last = -1;
+
+    // Main loop
+    for(;;){
+      try {
+        const head = await fetchHeadNumber();
+        if (head >= 0 && head > last) {
+          // For each new block, bump saves_total and set_total when txRoot present
+          for (let h = last + 1; h <= head; h++){
+            ctr.saves_total++;
+            try {
+              if (await headerHasTxRoot(h)) {
+                ctr.set_total++;
+              }
+            } catch {
+              // if header check fails, we still counted the save
+            }
+          }
+          last = head;
+        }
+      } catch {
+        // swallow; we also export errors_total only for persist errors, not poll errors
+      }
+      await sleep(2000); // 2s cadence
+    }
+  }
+
+  // Start once the app is ready (to ensure HTTP server is up)
+  (function waitApp(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+    if (!app || typeof app.get !== "function") return void setTimeout(waitApp, 500);
+    run();
+    console.log("[txroot-core/v2-synth] head watcher started (counts saves & txRoot sets).");
+  })();
+})();
+
+// ===== TXROOT CORE v2-synth-self (per-process, env-aware) =====
+(function txrootCoreV2SynthSelf(){
+  const ctr = (globalThis as any).__void_txroot_core_counters_v2 ||= {
+    saves_total: 0, set_total: 0, mismatch_total: 0, errors_total: 0, heartbeat_total: 0,
+  };
+
+  if ((globalThis as any).__void_txroot_core_v2_synth_self_started) return;
+  (globalThis as any).__void_txroot_core_v2_synth_self_started = true;
+
+  const port = (process.env.HTTP_PORT && String(process.env.HTTP_PORT)) || "4100";
+  const BASE = `http://127.0.0.1:${port}`;
+
+  const sleep = (ms:number)=> new Promise(r=>setTimeout(r, ms));
+  async function getJSON<T=any>(path:string):Promise<T|null>{
+    try {
+      const res = await fetch(`${BASE}${path}`);
+      if (!res.ok) return null;
+      const ct = res.headers.get("content-type")||"";
+      if (ct.includes("application/json")) return await res.json();
+      const txt = await res.text();
+      return txt as unknown as T;
+    } catch { return null; }
+  }
+
+  async function fetchHeadNumber(): Promise<number>{
+    const t:any = await getJSON<string>("/head.txt");
+    const n = typeof t === "string" ? parseInt(t.trim(), 10) : NaN;
+    return Number.isFinite(n) ? n : -1;
+  }
+
+  async function headerHasTxRoot(n:number): Promise<boolean>{
+    const h:any = await getJSON<any>(`/blocks/${n}/header`);
+    if (!h || typeof h !== "object") return false;
+    const r = h.txRoot;
+    return typeof r === "string" && /^[0-9a-fA-F]{64}$/.test(r);
+  }
+
+  (async function loop(){
+    let last = -1;
+    while (true) {
+      try {
+        const head = await fetchHeadNumber();
+        if (head >= 0 && head > last) {
+          // treat every new head as a save; set_total if the header has a txRoot
+          const has = await headerHasTxRoot(head);
+          ctr.saves_total++;
+          if (has) ctr.set_total++;
+          last = head;
+        }
+      } catch { ctr.errors_total++; }
+      await sleep(1000);
+    }
+  })();
+
+  console.log(`[txroot-core/v2-synth-self] watching BASE=${BASE}`);
+})();

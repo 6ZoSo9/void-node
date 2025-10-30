@@ -51,3 +51,32 @@ hello-now:
 
 stop:
 > bash scripts/boot.sh stop
+
+PROM=http://127.0.0.1:9090
+
+prom-ok:
+	@until curl -sf $(PROM)/-/ready >/dev/null; do sleep 0.2; done && echo "[ok] ready"
+	@curl -sS $(PROM)/api/v1/status/flags | jq '{time:.data["storage.tsdb.retention.time"], size:.data["storage.tsdb.retention.size"], lifecycle:.data["web.enable-lifecycle"]}'
+	@curl -sS '$(PROM)/api/v1/targets?state=active' \
+	  | jq '.data.activeTargets | length as $$n | {count:$$n, ok:[ .[]|select(.health=="up") ]|length, jobs:[ .[]|.labels.job ]}'
+	@for j in prometheus node void-node void-follower-v4 void-scheduler; do \
+	  printf "up{%s}=" $$j; \
+	  curl -sS --get $(PROM)/api/v1/query --data-urlencode "query=up{job=\"$$j\"}" \
+	    | jq -r '.data.result[0].value[1]'; \
+	done
+
+prom-reload:
+	@curl -sS -X POST $(PROM)/-/reload && echo "reloaded"
+
+prom-flags:
+	@curl -sS $(PROM)/api/v1/status/flags \
+	  | jq '{cfg:.data["config.file"], tsdb:.data["storage.tsdb.path"], time:.data["storage.tsdb.retention.time"], size:.data["storage.tsdb.retention.size"], lifecycle:.data["web.enable-lifecycle"]}'
+
+prom-targets:
+	@curl -sS '$(PROM)/api/v1/targets?state=active' \
+	  | jq '.data.activeTargets | length as $$n | {count:$$n, targets:[ .[] | {job:.labels.job,url:.scrapeUrl,health:.health} ]}'
+
+prom-backup:
+	@sudo tar czf /root/prometheus-config-OK.$$(date +%F-%H%M).tgz /etc/prometheus /etc/systemd/system/prometheus.service.d && \
+	echo "backup -> /root/prometheus-config-OK.$$(date +%F-%H%M).tgz"
+
