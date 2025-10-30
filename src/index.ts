@@ -4633,3 +4633,73 @@ import { computeTxRoot } from "./util/txroot.js";
   }
   attach();
 })();
+
+// ---------------- Header shim + txroot counter metrics (additive) -------------------
+;(function headerShimAndTxrootCounter(){
+  let tries = 0, attached = false;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  // local state for metrics
+  const m = { txrootUpdatesTotal: 0 };
+
+  async function attach(){
+    const app:any  = getApp();
+    const node:any = getNode();
+    if (!app || !node || !node.store || typeof node.store.saveBlock !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // --- wrap saveBlock (lightweight, only increments counter; do it once) ---
+    if (!(node.store as any).__txrootCounterWrapped){
+      const orig = node.store.saveBlock.bind(node.store);
+      (node.store as any).__txrootCounterWrapped = true;
+      node.store.saveBlock = async (blk:any) => {
+        const res = await orig(blk);
+        try {
+          const txs:any[] = Array.isArray((res?.txs ?? blk?.txs)) ? (res?.txs ?? blk?.txs) : [];
+          // increment only when there were txs (i.e., non-empty root event)
+          if (txs.length > 0) m.txrootUpdatesTotal++;
+        } catch {}
+        return res;
+      };
+      console.log("[txroot/counter] wrapper installed");
+    }
+
+    const base = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
+
+    // --- GET /blocks/:n/header (proxy to full2 and return .header) ---
+    app.get("/blocks/:n/header", async (req:any, res:any) => {
+      try {
+        const n = Number(req.params.n);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:"bad number" });
+        const r = await fetch(`${base}/blocks/${n}/full2`);
+        if (!r.ok) return res.status(404).json({ ok:false, error:"block not found" });
+        const full = await r.json();
+        return res.json({ ok:true, number:n, header: full?.header ?? null });
+      } catch(e:any){
+        return res.status(500).json({ ok:false, error: String(e?.message || e) });
+      }
+    });
+
+    // --- Prometheus-style metrics: void_txroot_updates_total ---
+    app.get("/metrics/txroot4", (_req:any, res:any) => {
+      res.type("text/plain").send(
+        "# HELP void_txroot_updates_total counter of blocks where txroot updated\n" +
+        "# TYPE void_txroot_updates_total counter\n" +
+        `void_txroot_updates_total ${m.txrootUpdatesTotal}\n`
+      );
+    });
+
+    app.get("/metrics/txroot4.json", (_req:any, res:any) => {
+      res.json({ ok:true, txrootUpdatesTotal: m.txrootUpdatesTotal });
+    });
+
+    console.log("[header+metrics] ready (/blocks/:n/header, /metrics/txroot4(.json))");
+  }
+
+  attach();
+})();
