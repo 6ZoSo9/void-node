@@ -6579,3 +6579,155 @@ void_txroot_v4_errors_total ${X.errors}
   }
   attach();
 })();
+
+// ---------------- txroot v4: background scheduler + gauges (additive) -------------------
+(function txrootV4Scheduler(){
+  let attached = false;
+  const state:any = {
+    running: false,
+    timer: null as any,
+    intervalMs: 5000,
+    lastCount: 16,
+    lastRunMs: 0,
+    lastFrom: null as number|null,
+    lastTo: null as number|null,
+    summary: { count:0, ok:0, mismatch:0, errors:0 },
+  };
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function now(){ return Date.now(); }
+
+  async function verifyRange(from:number, to:number){
+    try{
+      const u = new URL(`http://127.0.0.1:${process.env.HTTP_PORT || 4100}/__void/txroot/v4/agg2`);
+      const body = JSON.stringify({from, to});
+      const res = await fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body });
+      const j = await res.json();
+      if (j && j.summary) return j;
+      return { from, to, summary:{count:0, ok:0, mismatch:0, errors:1} };
+    }catch(e){
+      return { from, to, summary:{count:0, ok:0, mismatch:0, errors:1} };
+    }
+  }
+
+  async function tick(){
+    if (!state.running) return;
+    try{
+      // HEAD
+      const headTxt = await (await fetch(`http://127.0.0.1:${process.env.HTTP_PORT || 4100}/head.txt`)).text();
+      const head = parseInt(headTxt.trim(), 10);
+      const from = Math.max(0, head - (state.lastCount - 1));
+      const to = head;
+
+      const r = await verifyRange(from, to);
+      state.lastRunMs = now();
+      state.lastFrom = r.from ?? from;
+      state.lastTo = r.to ?? to;
+      state.summary = r.summary ?? { count:0, ok:0, mismatch:0, errors:1 };
+    }finally{
+      if (state.running){
+        state.timer = setTimeout(tick, state.intervalMs);
+      }
+    }
+  }
+
+  function start(intervalMs?:number, lastCount?:number){
+    if (typeof intervalMs === 'number' && intervalMs > 0) state.intervalMs = intervalMs;
+    if (typeof lastCount === 'number' && lastCount > 0) state.lastCount = lastCount;
+    if (state.running) return false;
+    state.running = true;
+    state.timer && clearTimeout(state.timer);
+    state.timer = setTimeout(tick, 10);
+    return true;
+  }
+
+  function stop(){
+    if (!state.running) return false;
+    state.running = false;
+    state.timer && clearTimeout(state.timer);
+    state.timer = null;
+    return true;
+  }
+
+  function attach(){
+    if (attached) return;
+    const app:any = getApp();
+    if (!app || typeof app.get !== 'function') return setTimeout(attach, 300), undefined;
+    attached = true;
+
+    // Controls
+    app.post('/__void/txroot/v4/scheduler/start', (req:any,res:any)=>{
+      const q = req.query || {};
+      const intervalMs = q.intervalMs ? parseInt(String(q.intervalMs),10) : undefined;
+      const lastCount  = q.lastCount  ? parseInt(String(q.lastCount),10)  : undefined;
+      const started = start(intervalMs, lastCount);
+      res.json({ ok:true, started, intervalMs:state.intervalMs, lastCount:state.lastCount });
+    });
+    app.post('/__void/txroot/v4/scheduler/stop', (req:any,res:any)=>{
+      const stopped = stop();
+      res.json({ ok:true, stopped });
+    });
+    app.get('/__void/txroot/v4/scheduler/status', (req:any,res:any)=>{
+      res.json({
+        ok:true,
+        running: state.running,
+        intervalMs: state.intervalMs,
+        lastCount: state.lastCount,
+        lastRunMs: state.lastRunMs,
+        from: state.lastFrom,
+        to: state.lastTo,
+        summary: state.summary,
+      });
+    });
+
+    // Prom-friendly metrics (own mini endpoint; scrape if useful)
+    app.get('/__void/metrics/txroot4/scheduler', (req:any,res:any)=>{
+      const lines = [
+        '# HELP void_txroot_v4_sched_running 1 if scheduler running',
+        '# TYPE void_txroot_v4_sched_running gauge',
+        `void_txroot_v4_sched_running ${state.running?1:0}`,
+        '# HELP void_txroot_v4_sched_interval_ms Interval between runs (ms)',
+        '# TYPE void_txroot_v4_sched_interval_ms gauge',
+        `void_txroot_v4_sched_interval_ms ${state.intervalMs}`,
+        '# HELP void_txroot_v4_sched_last_count Last window size verified',
+        '# TYPE void_txroot_v4_sched_last_count gauge',
+        `void_txroot_v4_sched_last_count ${state.lastCount}`,
+        '# HELP void_txroot_v4_sched_last_run_ms Timestamp of last run (ms)',
+        '# TYPE void_txroot_v4_sched_last_run_ms gauge',
+        `void_txroot_v4_sched_last_run_ms ${state.lastRunMs || 0}`,
+        '# HELP void_txroot_v4_sched_from Last verified start block',
+        '# TYPE void_txroot_v4_sched_from gauge',
+        `void_txroot_v4_sched_from ${state.lastFrom ?? -1}`,
+        '# HELP void_txroot_v4_sched_to Last verified end block',
+        '# TYPE void_txroot_v4_sched_to gauge',
+        `void_txroot_v4_sched_to ${state.lastTo ?? -1}`,
+        '# HELP void_txroot_v4_sched_ok Last run ok count',
+        '# TYPE void_txroot_v4_sched_ok gauge',
+        `void_txroot_v4_sched_ok ${state.summary.ok || 0}`,
+        '# HELP void_txroot_v4_sched_mismatch Last run mismatch count',
+        '# TYPE void_txroot_v4_sched_mismatch gauge',
+        `void_txroot_v4_sched_mismatch ${state.summary.mismatch || 0}`,
+        '# HELP void_txroot_v4_sched_errors Last run error count',
+        '# TYPE void_txroot_v4_sched_errors gauge',
+        `void_txroot_v4_sched_errors ${state.summary.errors || 0}`,
+        '# HELP void_txroot_v4_sched_count Last run total verified',
+        '# TYPE void_txroot_v4_sched_count gauge',
+        `void_txroot_v4_sched_count ${state.summary.count || 0}`,
+        '# HELP void_txroot_v4_sched_ok_ratio Last run ok/count ratio',
+        '# TYPE void_txroot_v4_sched_ok_ratio gauge',
+        `void_txroot_v4_sched_ok_ratio ${
+          (state.summary.count>0) ? (state.summary.ok/state.summary.count) : 0
+        }`,
+      ];
+      res.type('text/plain').send(lines.join('\n')+'\n');
+    });
+
+    // tiny log fix for earlier "[object Object]" messages (stringify known hex)
+    try{
+      const g:any = globalThis as any;
+      g.__void_txroot_logHex = (x:any)=> (typeof x==='string'?x : (x?.hex || x?.toString?.() || String(x)));
+    }catch{}
+  }
+
+  attach();
+})();
