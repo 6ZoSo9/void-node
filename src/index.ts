@@ -4543,7 +4543,7 @@ import { computeTxRoot } from "./util/txroot.js";
           if (typeof saved.number === "number") state.byNumber.set(saved.number, root);
         }
         state.lastRoot = root; state.lastCount = txs.length;
-        console.log(`[txroot/header] #\${saved?.number ?? "?"} txs=\${txs.length} root=\${root}`);
+        console.log(`[txroot/header] #${saved?.number ?? "?"} txs=${txs.length} root=${root}`);
       } catch (e:any) {
         console.warn("[txroot/header] compute failed:", e?.message || e);
       }
@@ -4622,7 +4622,7 @@ import { computeTxRoot } from "./util/txroot.js";
         const { root } = computeTxRoot(txs);
         blk.header = blk.header || {};
         blk.header.txRoot = blk.header.txRoot || root;  // set only if missing
-        console.log(`[txroot/persist] set header.txRoot for #\${blk?.number ?? "?"} txs=\${txs.length} root=\${root}`);
+        console.log(`[txroot/persist] set header.txRoot for #${blk?.number ?? "?"} txs=${txs.length} root=${root}`);
       } catch (e:any) {
         console.warn("[txroot/persist] compute failed:", e?.message || e);
       }
@@ -4732,6 +4732,31 @@ import { computeTxRoot } from "./util/txroot.js";
       );
     });
     console.log("[metrics/lastblock] ready");
+  }
+  attach();
+})();
+
+// ---------------- Metrics bundle (/metrics/void) -------------------
+;(function metricsBundle(){
+  let tries=0, attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function fetchText(path:string){
+    try{ const r=await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100")+path); return await r.text(); }
+    catch{ return ""; }
+  }
+  async function attach(){
+    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
+    if(attached) return; attached=true;
+
+    app.get("/metrics/void", async (_req,res)=>{
+      const [m4,m3,ml] = await Promise.all([
+        fetchText("/metrics/txroot4"),
+        fetchText("/metrics/txroot3"),
+        fetchText("/metrics/lastblock"),
+      ]);
+      res.type("text/plain").send([m4,m3,ml].join("\n"));
+    });
+    console.log("[metrics/bundle] ready at /metrics/void");
   }
   attach();
 })();
