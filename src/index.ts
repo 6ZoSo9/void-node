@@ -4760,3 +4760,20 @@ import { computeTxRoot } from "./util/txroot.js";
   }
   attach();
 })();
+
+// ---------------- Ops snapshot (/ops/txroot-state.json) -------------------
+;(function opsTxrootState(){
+  let tries=0, attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function t(path){ try{ const r=await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100")+path); return await r.text(); }catch{ return ""; } }
+  async function attach(){
+    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
+    if(attached) return; attached=true;
+    app.get("/ops/txroot-state.json", async (_req,res)=>{
+      const [m4,m3,ml] = await Promise.all([t("/metrics/txroot4"), t("/metrics/txroot3"), t("/metrics/lastblock")]);
+      res.json({ ok:true, metrics:{ txroot4:m4, txroot3:m3, lastblock:ml } });
+    });
+    console.log("[ops] /ops/txroot-state.json ready");
+  }
+  attach();
+})();
