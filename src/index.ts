@@ -4507,3 +4507,87 @@ import { computeTxRoot } from "./util/txroot.js";
   }
   attach();
 })();
+
+// ---------------- TxRoot header + metrics (additive, no import edits) -------------------
+;(function txrootHeaderAndMetrics(){
+  let tries = 0, attached = false;
+  const state:any = {
+    lastRoot: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    lastCount: 0,
+    byNumber: new Map<number,string>(),
+  };
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  async function attach(){
+    const app = getApp(); const node = getNode();
+    if (!app || !node || !node.store || typeof node.store.saveBlock !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // Wrap saveBlock to compute txroot after persistence
+    const orig = node.store.saveBlock.bind(node.store);
+    node.store.saveBlock = async (blk:any) => {
+      const saved = await orig(blk);
+      try {
+        const { computeTxRoot } = await import("./util/txroot.js");
+        const txs:any[] = Array.isArray(saved?.txs) ? saved.txs : (Array.isArray(blk?.txs) ? blk.txs : []);
+        const { root } = computeTxRoot(txs);
+        // Best-effort: set header field in-memory (persistence untouched)
+        if (saved && typeof saved === "object") {
+          saved.header = saved.header || {};
+          if (!saved.header.txRoot) saved.header.txRoot = root;
+          if (typeof saved.number === "number") state.byNumber.set(saved.number, root);
+        }
+        state.lastRoot = root; state.lastCount = txs.length;
+        console.log(`[txroot/header] #\${saved?.number ?? "?"} txs=\${txs.length} root=\${root}`);
+      } catch (e:any) {
+        console.warn("[txroot/header] compute failed:", e?.message || e);
+      }
+      return saved;
+    };
+
+    // Read path: expose per-block txroot (from cache if known; else compute live)
+    app.get("/blocks/:n/txroot", async (req:any, res:any) => {
+      const n = Number(req.params.n);
+      if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:"bad number" });
+
+      const cached = state.byNumber.get(n);
+      if (cached) return res.json({ ok:true, number:n, root: cached, source:"cache" });
+
+      try {
+        const r = await fetch(`http://127.0.0.1:${process.env.HTTP_PORT || "4100"}/dev/blocks/${n}/txs/persisted`);
+        if (!r.ok) throw new Error("persisted tx fetch failed");
+        const d = await r.json();
+        const txs = Array.isArray(d?.txs) ? d.txs : [];
+        const { computeTxRoot } = await import("./util/txroot.js");
+        const { root } = computeTxRoot(txs);
+        return res.json({ ok:true, number:n, root, source:"live" });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    // Minimal metrics (text and JSON)
+    app.get("/metrics/txroot3", (_req:any, res:any) => {
+      res.type("text/plain").send([
+        "# HELP void_last_txroot_count number of txs used in last txroot",
+        "# TYPE void_last_txroot_count gauge",
+        `void_last_txroot_count ${state.lastCount}`,
+        "# HELP void_last_txroot_info last txroot hex (info string)",
+        "# TYPE void_last_txroot_info gauge",
+        `void_last_txroot_info{root="${state.lastRoot}"} 1`,
+      ].join("\n"));
+    });
+    app.get("/metrics/txroot3.json", (_req:any, res:any) => {
+      res.json({ ok:true, lastRoot: state.lastRoot, lastCount: state.lastCount });
+    });
+
+    console.log("[txroot/header] wrapper + endpoints ready (/blocks/:n/txroot, /metrics/txroot3(.json))");
+  }
+
+  setTimeout(attach, 0);
+})();
