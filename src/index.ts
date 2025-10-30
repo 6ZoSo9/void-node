@@ -5319,3 +5319,1263 @@ import { computeTxRoot } from "./util/txroot.js";
   }
   attach();
 })();
+
+// ---------------- txRoot header integration (pure-additive) ------------------
+(async function installTxRootHeaderIntegration(){
+  try {
+    // NOTE: SegStore is already imported at top of index.ts
+    const anySeg: any = SegStore as any;
+    const proto = anySeg?.prototype;
+    if (!proto || typeof proto.saveBlock !== "function") return;
+
+    const origSave = proto.saveBlock;
+    const { txRootOf } = await import("./util/txroot.js");
+
+    // Global counters for ad-hoc Prom scrape
+    (globalThis as any).__void_txroot_set_total = (globalThis as any).__void_txroot_set_total || 0;
+    (globalThis as any).__void_txroot_empty_blocks_total = (globalThis as any).__void_txroot_empty_blocks_total || 0;
+    (globalThis as any).__void_txroot_errors_total = (globalThis as any).__void_txroot_errors_total || 0;
+
+    // Monkey-patch SegStore.saveBlock to set header.txRoot before persist
+    proto.saveBlock = async function(block: any){
+      try {
+        if (block && Array.isArray(block.txs)) {
+          if (block.txs.length > 0) {
+            const res = txRootOf(block.txs);
+            const root = res?.root || res; // helper returns {root, leaves}
+            block.header = block.header || {};
+            if (block.header.txRoot !== root) {
+              block.header.txRoot = root;
+              (globalThis as any).__void_txroot_set_total++;
+            }
+          } else {
+            // empty block persisted
+            (globalThis as any).__void_txroot_empty_blocks_total++;
+          }
+        }
+      } catch (e) {
+        (globalThis as any).__void_txroot_errors_total++;
+      }
+      return await origSave.call(this, block);
+    };
+
+    // Defer until app is mounted (keep the global app hook intact!)
+    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+    let tries = 0;
+    (function attachRoutes(){
+      const app: any = getApp();
+      if (!app || typeof app.get !== "function") {
+        if (++tries < 60) return setTimeout(attachRoutes, 500);
+        return;
+      }
+
+      // GET /blocks/:n/header  -> returns only the header (including txRoot)
+      app.get("/blocks/:n/header", async (req: any, res: any) => {
+        const n = String(req.params.n);
+        try {
+          // Use our own HTTP shim endpoint to fetch persisted block JSON
+          const port = process.env.HTTP_PORT || "4100";
+          const resp = await fetch(`http://127.0.0.1:${port}/blocks/${n}/full2`);
+          if (!resp.ok) throw new Error(`upstream status ${resp.status}`);
+          const block = await resp.json();
+          res.json(block?.header || {});
+        } catch (e:any) {
+          res.status(500).json({ error: String(e?.message || e) });
+        }
+      });
+
+      // GET /blocks/:n/txroot/verify -> {number, expected, headerTxRoot, match}
+      app.get("/blocks/:n/txroot/verify", async (req: any, res: any) => {
+        const n = String(req.params.n);
+        try {
+          const port = process.env.HTTP_PORT || "4100";
+          const resp = await fetch(`http://127.0.0.1:${port}/blocks/${n}/full2`);
+          if (!resp.ok) throw new Error(`upstream status ${resp.status}`);
+          const block = await resp.json();
+
+          const { txRootOf } = await import("./util/txroot.js");
+          const expected = txRootOf(block?.txs || [])?.root ?? txRootOf(block?.txs || []);
+          const headerTxRoot = block?.header?.txRoot ?? null;
+          res.json({ number: Number(n), expected, headerTxRoot, match: expected && headerTxRoot ? expected === headerTxRoot : false });
+        } catch (e:any) {
+          res.status(500).json({ number: Number(n), error: String(e?.message || e) });
+        }
+      });
+
+      // Lightweight Prom scrape for txroot activity
+      app.get("/metrics/txroot", (_req: any, res: any) => {
+        const set = (globalThis as any).__void_txroot_set_total || 0;
+        const empty = (globalThis as any).__void_txroot_empty_blocks_total || 0;
+        const errs = (globalThis as any).__void_txroot_errors_total || 0;
+        res.type("text/plain").send(
+          [
+            "# HELP void_txroot_set_total blocks where header.txRoot was (re)set before persist",
+            "# TYPE void_txroot_set_total counter",
+            `void_txroot_set_total ${set}`,
+            "# HELP void_txroot_empty_blocks_total empty blocks observed at persist time",
+            "# TYPE void_txroot_empty_blocks_total counter",
+            `void_txroot_empty_blocks_total ${empty}`,
+            "# HELP void_txroot_errors_total errors thrown while computing txRoot during persist",
+            "# TYPE void_txroot_errors_total counter",
+            `void_txroot_errors_total ${errs}`,
+            ""
+          ].join("\n")
+        );
+      });
+    })();
+
+  } catch {}
+})();
+
+// --------------- txRoot normalization + verify v2 (pure-additive) ---------------
+;(async function installTxRootNormalizationV2(){
+  function normRoot(v:any): string | null {
+    if (!v) return null;
+    if (typeof v === "string") return v;
+    if (typeof v === "object" && v.root && typeof v.root === "string") return v.root;
+    return String(v);
+  }
+
+  try {
+    const anySeg: any = SegStore as any;
+    const proto = anySeg?.prototype;
+    if (!proto || typeof proto.saveBlock !== "function") return;
+
+    const prevSave = proto.saveBlock; // whatever is currently installed
+    const { txRootOf } = await import("./util/txroot.js");
+
+    // global counters (separate from v1)
+    (globalThis as any).__void_txroot_v2_set_total = (globalThis as any).__void_txroot_v2_set_total || 0;
+    (globalThis as any).__void_txroot_v2_empty_total = (globalThis as any).__void_txroot_v2_empty_total || 0;
+    (globalThis as any).__void_txroot_v2_errors_total = (globalThis as any).__void_txroot_v2_errors_total || 0;
+
+    // late-binding wrapper to ensure header.txRoot is always a string
+    proto.saveBlock = async function(block:any){
+      try {
+        if (block && Array.isArray(block.txs)) {
+          const txs = block.txs;
+          const computed = normRoot(txRootOf(txs));
+          block.header = block.header || {};
+          if (txs.length === 0) {
+            (globalThis as any).__void_txroot_v2_empty_total++;
+          }
+          if (computed && block.header.txRoot !== computed) {
+            block.header.txRoot = computed;
+            (globalThis as any).__void_txroot_v2_set_total++;
+          }
+          // helpful trace
+          if (process?.env?.VOID_TXROOT_TRACE === "1") {
+            console.log(`[txroot/v2] sealing #? txs=${txs.length} txRoot=${computed}`);
+          }
+        }
+      } catch (e) {
+        (globalThis as any).__void_txroot_v2_errors_total++;
+        if (process?.env?.VOID_TXROOT_TRACE === "1") {
+          console.warn("[txroot/v2] error computing txRoot:", e);
+        }
+      }
+      return await prevSave.call(this, block);
+    };
+
+    // attach v2 routes once app is ready
+    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+    let tries = 0;
+    (function attachV2(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") {
+        if (++tries < 60) return setTimeout(attachV2, 500);
+        return;
+      }
+
+      // GET /blocks/:n/txroot/verify2  -> always JSON
+      app.get("/blocks/:n/txroot/verify2", async (req:any, res:any) => {
+        const n = String(req.params.n);
+        try {
+          const port = process.env.HTTP_PORT || "4100";
+          const resp = await fetch(`http://127.0.0.1:${port}/blocks/${n}/full2`);
+          if (!resp.ok) throw new Error(`upstream status ${resp.status}`);
+          const block:any = await resp.json();
+
+          const expected = normRoot((await import("./util/txroot.js")).txRootOf(block?.txs || []));
+          const headerTxRoot = normRoot(block?.header?.txRoot ?? null);
+          const match = !!(expected && headerTxRoot && expected === headerTxRoot);
+
+          res.type("application/json").send(JSON.stringify({
+            number: Number(n),
+            txCount: Array.isArray(block?.txs) ? block.txs.length : null,
+            expected,
+            headerTxRoot,
+            match
+          }));
+        } catch (e:any) {
+          res.status(500).type("application/json").send(JSON.stringify({
+            number: Number(n),
+            error: String(e?.message || e)
+          }));
+        }
+      });
+
+      // Tiny Prom endpoint v2 (separate names to avoid clashes)
+      app.get("/metrics/txroot2", (_req:any, res:any) => {
+        const set = (globalThis as any).__void_txroot_v2_set_total || 0;
+        const empty = (globalThis as any).__void_txroot_v2_empty_total || 0;
+        const errs = (globalThis as any).__void_txroot_v2_errors_total || 0;
+        res.type("text/plain").send(
+          [
+            "# HELP void_txroot_v2_set_total blocks where header.txRoot was set (v2)",
+            "# TYPE void_txroot_v2_set_total counter",
+            `void_txroot_v2_set_total ${set}`,
+            "# HELP void_txroot_v2_empty_total empty blocks observed at persist time (v2)",
+            "# TYPE void_txroot_v2_empty_total counter",
+            `void_txroot_v2_empty_total ${empty}`,
+            "# HELP void_txroot_v2_errors_total errors while computing txRoot (v2)",
+            "# TYPE void_txroot_v2_errors_total counter",
+            `void_txroot_v2_errors_total ${errs}`,
+            ""
+          ].join("\n")
+        );
+      });
+    })();
+  } catch {}
+})();
+
+// ---------------------- txRoot verifier v3 (JSON-safe) -----------------------
+;(function installTxRootVerifierV3(){
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function normRoot(v:any): string|null {
+    if (!v) return null;
+    if (typeof v === "string") return v;
+    if (typeof v === "object" && typeof v.root === "string") return v.root;
+    return String(v);
+  }
+
+  // counters
+  (globalThis as any).__void_txroot_v3_ok_total = (globalThis as any).__void_txroot_v3_ok_total || 0;
+  (globalThis as any).__void_txroot_v3_mismatch_total = (globalThis as any).__void_txroot_v3_mismatch_total || 0;
+  (globalThis as any).__void_txroot_v3_errors_total = (globalThis as any).__void_txroot_v3_errors_total || 0;
+
+  async function jget(path:string){
+    const port = process.env.HTTP_PORT || "4100";
+    const resp = await fetch(`http://127.0.0.1:${port}${path}`, { headers: { "accept":"application/json" }});
+    if (!resp.ok) throw new Error(`GET ${path} -> ${resp.status}`);
+    // Some of our dev routes return text/json; force JSON parse
+    const text = await resp.text();
+    try { return JSON.parse(text); } catch(e){ throw new Error(`non-JSON at ${path}: ${text.slice(0,120)}`); }
+  }
+
+  let tries = 0;
+  (function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      return;
+    }
+
+    // GET /dev/txroot/verify/:n  -> always JSON
+    app.get("/dev/txroot/verify/:n", async (req:any, res:any) => {
+      const n = Number(req.params.n);
+      try {
+        const [{ header }, persisted] = await Promise.all([
+          jget(`/blocks/${n}/header`),           // { header: {... txRoot? ...} }
+          jget(`/dev/blocks/${n}/txs/persisted`) // { txs: [...] }
+        ]);
+
+        const { txRootOf } = await import("./util/txroot.js");
+        const txs = Array.isArray(persisted?.txs) ? persisted.txs : [];
+        const expected = normRoot(txRootOf(txs));
+        const headerTxRoot = normRoot(header?.txRoot ?? null);
+        const match = !!(expected && headerTxRoot && expected === headerTxRoot);
+
+        if (match) (globalThis as any).__void_txroot_v3_ok_total++;
+        else       (globalThis as any).__void_txroot_v3_mismatch_total++;
+
+        res.type("application/json").send(JSON.stringify({
+          number: n,
+          txCount: txs.length,
+          expected,
+          headerTxRoot,
+          match
+        }));
+      } catch (e:any) {
+        (globalThis as any).__void_txroot_v3_errors_total++;
+        res.status(500).type("application/json").send(JSON.stringify({
+          number: Number(req.params.n),
+          error: String(e?.message || e)
+        }));
+      }
+    });
+
+    // GET /metrics/txroot2  (keep name from earlier suggestion, but v3 counters)
+    app.get("/metrics/txroot2", (_req:any, res:any) => {
+      const ok  = (globalThis as any).__void_txroot_v3_ok_total || 0;
+      const mm  = (globalThis as any).__void_txroot_v3_mismatch_total || 0;
+      const err = (globalThis as any).__void_txroot_v3_errors_total || 0;
+      res.type("text/plain").send(
+        [
+          "# HELP void_txroot_v3_ok_total header.txRoot equals computed persisted txRoot",
+          "# TYPE void_txroot_v3_ok_total counter",
+          `void_txroot_v3_ok_total ${ok}`,
+          "# HELP void_txroot_v3_mismatch_total header.txRoot != computed persisted txRoot",
+          "# TYPE void_txroot_v3_mismatch_total counter",
+          `void_txroot_v3_mismatch_total ${mm}`,
+          "# HELP void_txroot_v3_errors_total errors while verifying txRoot",
+          "# TYPE void_txroot_v3_errors_total counter",
+          `void_txroot_v3_errors_total ${err}`,
+          ""
+        ].join("\n")
+      );
+    });
+  })();
+})();
+// ---------------------------------------------------------------------------
+
+// ===================== VOID diag + txroot v4 (collision-proof) =====================
+;(function voidTxRootV4(){
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function normRoot(v:any): string|null {
+    if (!v) return null;
+    if (typeof v === "string") return v;
+    if (typeof v === "object" && typeof v.root === "string") return v.root;
+    try { return String(v); } catch { return null; }
+  }
+
+  // counters (prom-friendly)
+  (globalThis as any).__void_txroot_v4_ok_total = (globalThis as any).__void_txroot_v4_ok_total || 0;
+  (globalThis as any).__void_txroot_v4_mismatch_total = (globalThis as any).__void_txroot_v4_mismatch_total || 0;
+  (globalThis as any).__void_txroot_v4_errors_total = (globalThis as any).__void_txroot_v4_errors_total || 0;
+
+  async function jget(path:string){
+    const port = process.env.HTTP_PORT || "4100";
+    const resp = await fetch(`http://127.0.0.1:${port}${path}`, { headers: { "accept":"application/json" }});
+    if (!resp.ok) throw new Error(`GET ${path} -> ${resp.status}`);
+    const text = await resp.text();
+    try { return JSON.parse(text); } catch(e){ throw new Error(`non-JSON at ${path}: ${text.slice(0,160)}`); }
+  }
+
+  let tries = 0;
+  (function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 80) return setTimeout(attach, 250);
+      return;
+    }
+
+    // 0) Ping
+    app.get("/__void/ping", (_req:any, res:any) => res.type("application/json").send('{"ok":true,"who":"txroot-v4"}'));
+
+    // 1) Route lister (quick sanity of collisions)
+    try {
+      app.get("/__void/routes", (_req:any, res:any) => {
+        try {
+          const stack = (app._router && app._router.stack) ? app._router.stack : [];
+          const routes = stack
+            .filter((l:any) => l && l.route && l.route.path && l.route.methods)
+            .map((l:any) => ({ path: l.route.path, methods: Object.keys(l.route.methods) }));
+          res.type("application/json").send(JSON.stringify({ count: routes.length, routes }, null, 2));
+        } catch (e:any) {
+          res.status(500).type("application/json").send(JSON.stringify({ error: String(e?.message||e) }));
+        }
+      });
+    } catch {}
+
+    // 2) Collision-proof verifier (unique path)
+    app.get("/__void/txroot/v4/verify/:n", async (req:any, res:any) => {
+      const n = Number(req.params.n);
+      try {
+        const [{ header }, persisted] = await Promise.all([
+          jget(`/blocks/${n}/header`),           // -> { header: {..., txRoot?} (JSON)
+          jget(`/dev/blocks/${n}/txs/persisted`) // -> { txs: [...] } (JSON)
+        ]);
+
+        const { txRootOf } = await import("./util/txroot.js");
+        const txs = Array.isArray(persisted?.txs) ? persisted.txs : [];
+        const expected = normRoot(txRootOf(txs));
+        const headerTxRoot = normRoot(header?.txRoot ?? null);
+        const match = !!(expected && headerTxRoot && expected === headerTxRoot);
+
+        if (match) (globalThis as any).__void_txroot_v4_ok_total++;
+        else       (globalThis as any).__void_txroot_v4_mismatch_total++;
+
+        res.type("application/json").send(JSON.stringify({
+          number: n,
+          txCount: txs.length,
+          expected,
+          headerTxRoot,
+          match
+        }));
+      } catch (e:any) {
+        (globalThis as any).__void_txroot_v4_errors_total++;
+        res.status(500).type("application/json").send(JSON.stringify({
+          number: Number(req.params.n),
+          error: String(e?.message || e)
+        }));
+      }
+    });
+
+    // 3) Metrics (text/plain, Prom-friendly)
+    app.get("/__void/metrics/txroot4", (_req:any, res:any) => {
+      const ok  = (globalThis as any).__void_txroot_v4_ok_total || 0;
+      const mm  = (globalThis as any).__void_txroot_v4_mismatch_total || 0;
+      const err = (globalThis as any).__void_txroot_v4_errors_total || 0;
+      res.type("text/plain").send(
+        [
+          "# HELP void_txroot_v4_ok_total header.txRoot equals computed persisted txRoot",
+          "# TYPE void_txroot_v4_ok_total counter",
+          `void_txroot_v4_ok_total ${ok}`,
+          "# HELP void_txroot_v4_mismatch_total header.txRoot != computed persisted txRoot",
+          "# TYPE void_txroot_v4_mismatch_total counter",
+          `void_txroot_v4_mismatch_total ${mm}`,
+          "# HELP void_txroot_v4_errors_total errors while verifying txRoot",
+          "# TYPE void_txroot_v4_errors_total counter",
+          `void_txroot_v4_errors_total ${err}`,
+          ""
+        ].join("\n")
+      );
+    });
+  })();
+})();
+// =============================================================================
+
+// ------------------------------ __void diag + txroot v4 (additive) ------------------------------
+(function __void_diag_and_txroot_v4() {
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 120) return setTimeout(attach, 500);
+      return; // give up quietly after ~60s
+    }
+    if (attached) return; attached = true;
+
+    // Lightweight health ping
+    app.get("/__void/ping", (req:any, res:any) => {
+      res.setHeader("Content-Security-Policy", "default-src 'none'");
+      res.json({ ok:true, now:Date.now(), pid:process.pid });
+    });
+
+    // Route inventory (best-effort)
+    app.get("/__void/routes", (req:any, res:any) => {
+      try {
+        const stack = (app._router && app._router.stack) ? app._router.stack : [];
+        const routes:any[] = [];
+        for (const layer of stack) {
+          // Express 4: layer.route?.path + layer.route?.methods
+          if (layer && layer.route && layer.route.path) {
+            routes.push({
+              path: layer.route.path,
+              methods: Object.keys(layer.route.methods || {})
+            });
+          }
+          // Nested routers: layer.name === 'router' etc. (skip for brevity)
+        }
+        res.json({ ok:true, count: routes.length, routes });
+      } catch (e:any) {
+        res.status(500).json({ ok:false, error: String(e) });
+      }
+    });
+
+    // Helper for local fetch to same process
+    const LOCAL = `http://${process.env.HTTP_HOST || '127.0.0.1'}:${process.env.HTTP_PORT || '4100'}`;
+
+    // Collision-proof verifier alias: delegates to existing dev endpoint
+    // GET /__void/txroot/v4/verify/:n  -> proxies /dev/txroot/verify/:n
+    app.get("/__void/txroot/v4/verify/:n", async (req:any, res:any) => {
+      try {
+        const n = String(req.params.n ?? "").trim();
+        if (!/^\d+$/.test(n)) return res.status(400).json({ ok:false, error:"bad block number" });
+        const r = await fetch(`${LOCAL}/dev/txroot/verify/${n}`);
+        const body = await r.text();
+        res.status(r.status);
+        res.set("Content-Type", r.headers.get("content-type") || "application/json; charset=utf-8");
+        res.send(body);
+      } catch (e:any) {
+        res.status(500).json({ ok:false, error:String(e) });
+      }
+    });
+
+    // Text/plain metrics passthrough so you don't accidentally pipe to jq
+    // GET /__void/metrics/txroot4  -> proxies /metrics/txroot2
+    app.get("/__void/metrics/txroot4", async (req:any, res:any) => {
+      try {
+        const r = await fetch(`${LOCAL}/metrics/txroot2`);
+        const text = await r.text();
+        res.status(r.status);
+        // Explicit Prometheus exposition format
+        res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        res.send(text);
+      } catch {
+        res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        res.send(`# __void/metrics/txroot4
+# fallback: metrics source unavailable
+__void_txroot4_up 0
+`);
+      }
+    });
+  }
+
+  // Try now, and keep retrying until the global app hook appears
+  attach();
+})();
+
+// ------------------------------ __void txroot v4 verifier (self-contained) ------------------------------
+(function __void_txroot_v4_verify2() {
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 120) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    const LOCAL = `http://${process.env.HTTP_HOST || '127.0.0.1'}:${process.env.HTTP_PORT || '4100'}`;
+    const C = (globalThis as any).__void_txroot_v4 ||= { ok:0, mismatch:0, errors:0 };
+
+    // GET /__void/txroot/v4/verify2/:n   (JSON)
+    app.get("/__void/txroot/v4/verify2/:n", async (req:any, res:any) => {
+      const n = String(req.params.n ?? "").trim();
+      if (!/^\d+$/.test(n)) return res.status(400).json({ ok:false, error:"bad block number" });
+      try {
+        // 1) Compute persisted root using the existing dev endpoint
+        const rComp = await fetch(`${LOCAL}/dev/txroot/${n}`);
+        if (!rComp.ok) {
+          C.errors++; return res.status(rComp.status).json({ ok:false, number:+n, error:`compute failed ${rComp.status}` });
+        }
+        const comp = await rComp.json(); // { number, root, leaves? }
+        const computedRoot = comp.root || comp.txRoot || null;
+
+        // 2) Read header.txRoot
+        const rHdr = await fetch(`${LOCAL}/blocks/${n}/header`);
+        if (!rHdr.ok) {
+          C.errors++; return res.status(rHdr.status).json({ ok:false, number:+n, error:`header failed ${rHdr.status}` });
+        }
+        const hdr = await rHdr.json();
+        const headerRoot = (hdr && (hdr.txRoot || (hdr.header && hdr.header.txRoot))) || null;
+
+        const match = !!computedRoot && !!headerRoot && (String(computedRoot).toLowerCase() === String(headerRoot).toLowerCase());
+        if (match) C.ok++; else C.mismatch++;
+
+        return res.json({
+          ok:true, number:+n,
+          headerTxRoot: headerRoot || null,
+          computedTxRoot: computedRoot || null,
+          match
+        });
+      } catch (e:any) {
+        C.errors++;
+        return res.status(500).json({ ok:false, number:+n, error:String(e) });
+      }
+    });
+
+    // GET /__void/metrics/txroot4/quick  (text/plain one-liners for quick greps)
+    app.get("/__void/metrics/txroot4/quick", (req:any, res:any) => {
+      const C = (globalThis as any).__void_txroot_v4 || { ok:0, mismatch:0, errors:0 };
+      res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+      res.send(
+`# quick counters (local-only)
+void_txroot_v4_ok_total ${C.ok}
+void_txroot_v4_mismatch_total ${C.mismatch}
+void_txroot_v4_errors_total ${C.errors}
+`);
+    });
+  }
+
+  attach();
+})();
+
+// ------------------------------ __void txroot v4 verify2 RANGE + metrics ------------------------------
+(function __void_txroot_v4_verify2_range_and_metrics() {
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 120) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    const LOCAL = `http://${process.env.HTTP_HOST || '127.0.0.1'}:${process.env.HTTP_PORT || '4100'}`;
+    const C = (globalThis as any).__void_txroot_v4 ||= { ok:0, mismatch:0, errors:0 };
+
+    async function verifyOne(n:number){
+      try {
+        const rComp = await fetch(`${LOCAL}/dev/txroot/${n}`);
+        if (!rComp.ok) { C.errors++; return { ok:false, number:n, error:`compute ${rComp.status}` }; }
+        const comp = await rComp.json();
+        const computedRoot = comp.root || comp.txRoot || null;
+
+        const rHdr = await fetch(`${LOCAL}/blocks/${n}/header`);
+        if (!rHdr.ok) { C.errors++; return { ok:false, number:n, error:`header ${rHdr.status}` }; }
+        const hdr = await rHdr.json();
+        const headerRoot = (hdr && (hdr.txRoot || (hdr.header && hdr.header.txRoot))) || null;
+
+        const match = !!computedRoot && !!headerRoot && (String(computedRoot).toLowerCase() === String(headerRoot).toLowerCase());
+        if (match) C.ok++; else C.mismatch++;
+        return { ok:true, number:n, headerTxRoot: headerRoot || null, computedTxRoot: computedRoot || null, match };
+      } catch (e:any) {
+        C.errors++;
+        return { ok:false, number:n, error:String(e) };
+      }
+    }
+
+    // JSON: /__void/txroot/v4/verify2/range?from=N&to=M
+    app.get("/__void/txroot/v4/verify2/range", async (req:any, res:any) => {
+      const from = Number(req.query.from), to = Number(req.query.to);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || from<0 || to<from || (to-from)>1000) {
+        return res.status(400).json({ ok:false, error:"bad range (0<=from<=to, max span=1000)" });
+      }
+      const results:any[] = [];
+      for (let n=from; n<=to; n++) results.push(await verifyOne(n));
+      const summary = {
+        ok: results.filter(r=>r.ok && r.match).length,
+        mismatch: results.filter(r=>r.ok && !r.match).length,
+        errors: results.filter(r=>!r.ok).length,
+        total: results.length
+      };
+      res.json({ ok:true, from, to, summary, results });
+    });
+
+    // Prometheus text metrics: /__void/metrics/txroot4
+    app.get("/__void/metrics/txroot4", (req:any, res:any) => {
+      const X = (globalThis as any).__void_txroot_v4 || { ok:0, mismatch:0, errors:0 };
+      res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+      res.send(
+`# HELP void_txroot_v4_ok_total header.txRoot equals computed persisted txRoot
+# TYPE void_txroot_v4_ok_total counter
+void_txroot_v4_ok_total ${X.ok}
+# HELP void_txroot_v4_mismatch_total header.txRoot != computed persisted txRoot
+# TYPE void_txroot_v4_mismatch_total counter
+void_txroot_v4_mismatch_total ${X.mismatch}
+# HELP void_txroot_v4_errors_total errors while verifying txRoot
+# TYPE void_txroot_v4_errors_total counter
+void_txroot_v4_errors_total ${X.errors}
+`);
+    });
+  }
+
+  attach();
+})();
+
+// ------------------------------ __void txroot v4 counters debug (additive) ------------------------------
+(function __void_txroot_v4_counters_debug(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function getC(){ return (globalThis as any).__void_txroot_v4 ||= { ok:0, mismatch:0, errors:0 }; }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // JSON dump of in-proc counters
+    app.get("/__void/txroot/v4/counters.json", (req:any, res:any) => {
+      const C = getC();
+      res.json({ ok:true, counters: { ok:C.ok, mismatch:C.mismatch, errors:C.errors }, pid:process.pid, now:Date.now() });
+    });
+
+    // Reset counters (manual)
+    app.post("/__void/txroot/v4/counters/reset", (req:any, res:any) => {
+      const C = getC(); C.ok=0; C.mismatch=0; C.errors=0;
+      res.json({ ok:true, reset:true, counters:C, pid:process.pid, now:Date.now() });
+    });
+  }
+  attach();
+})();
+
+// ------------------------------ __void txroot v4 verify3 + metrics bridge (additive) ------------------------------
+(function __void_txroot_v4_verify3(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function getC(){ return (globalThis as any).__void_txroot_v4 ||= { ok:0, mismatch:0, errors:0, last:{} as any }; }
+  function asHex(x:any){ 
+    if (!x) return null;
+    if (typeof x === "string") return x;
+    if (x.type === "Buffer" && Array.isArray(x.data)) return Buffer.from(x.data).toString("hex");
+    if (x instanceof Uint8Array) return Buffer.from(x).toString("hex");
+    if (typeof x === "object" && x.hex) return String(x.hex);
+    return String(x);
+  }
+
+  async function verifyOnce(n:number, base:string){
+    const C = getC();
+    try {
+      const rComp = await fetch(`${base}/dev/txroot/${n}`);
+      if (!rComp.ok) { C.errors++; return { ok:false, number:n, error:`compute ${rComp.status}` }; }
+      const comp = await rComp.json();
+      const computed = comp.root || comp.txRoot || null;
+
+      const rHdr = await fetch(`${base}/blocks/${n}/header`);
+      if (!rHdr.ok) { C.errors++; return { ok:false, number:n, error:`header ${rHdr.status}` }; }
+      const hdr = await rHdr.json();
+      const headerTxRoot = hdr && (hdr.txRoot ?? hdr.header?.txRoot ?? null);
+
+      const computedHex = asHex(computed);
+      const headerHex   = asHex(headerTxRoot);
+
+      const match = (computedHex && headerHex && computedHex.toLowerCase() === headerHex.toLowerCase()) || false;
+      if (match) C.ok++; else C.mismatch++;
+      const out = { ok:true, number:n, headerTxRoot: headerHex, computedTxRoot: computedHex, match };
+      C.last = out;
+      return out;
+    } catch (e:any) {
+      getC().errors++;
+      return { ok:false, number:n, error:String(e) };
+    }
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 120) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    const LOCAL = `http://${process.env.HTTP_HOST || '127.0.0.1'}:${process.env.HTTP_PORT || '4100'}`;
+
+    // Single verify (verify3) — independent of earlier verify2
+    app.get("/__void/txroot/v4/verify3/:n", async (req:any, res:any) => {
+      const nStr = String(req.params.n||"");
+      if (!/^\d+$/.test(nStr)) return res.status(400).json({ ok:false, error:"bad number" });
+      const r = await verifyOnce(+nStr, LOCAL);
+      res.status(r.ok?200:500).json(r);
+    });
+
+    // Range verify (inclusive): /__void/txroot/v4/verify3/range?from&to
+    app.get("/__void/txroot/v4/verify3/range", async (req:any, res:any) => {
+      const from = Number(req.query.from);
+      const to   = Number(req.query.to);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || from<0 || to<from || (to-from)>2000) {
+        return res.status(400).json({ ok:false, error:"bad range; require 0<=from<=to and span<=2000" });
+      }
+      const results:any[] = [];
+      let ok=0, mismatch=0, errors=0;
+      for (let n=from; n<=to; n++){
+        const r = await verifyOnce(n, LOCAL);
+        results.push(r);
+        if (!r.ok) errors++; else if (r.match) ok++; else mismatch++;
+      }
+      res.json({ ok:true, from, to, summary:{count: results.length, ok, mismatch, errors}, results });
+    });
+
+    // Header inspect: /__void/txroot/v4/header/:n (shows txRoot normalized)
+    app.get("/__void/txroot/v4/header/:n", async (req:any, res:any) => {
+      const nStr = String(req.params.n||"");
+      if (!/^\d+$/.test(nStr)) return res.status(400).json({ ok:false, error:"bad number" });
+      const rHdr = await fetch(`${LOCAL}/blocks/${nStr}/header`);
+      if (!rHdr.ok) return res.status(rHdr.status).json({ ok:false, error:`header ${rHdr.status}` });
+      const hdr = await rHdr.json();
+      const raw = hdr && (hdr.txRoot ?? hdr.header?.txRoot ?? null);
+      res.json({ ok:true, number:+nStr, txRoot_raw: raw, txRoot_hex: asHex(raw) });
+    });
+
+    // Prometheus bridge (text) — mirrors in-proc counters
+    app.get("/__void/metrics/txroot4/bridge", (req:any, res:any) => {
+      const C = getC();
+      res.setHeader("Content-Type","text/plain; version=0.0.4");
+      res.end([
+        "# HELP void_txroot_v4_ok_total header.txRoot equals computed persisted txRoot",
+        "# TYPE void_txroot_v4_ok_total counter",
+        `void_txroot_v4_ok_total ${C.ok}`,
+        "# HELP void_txroot_v4_mismatch_total header.txRoot != computed persisted txRoot",
+        "# TYPE void_txroot_v4_mismatch_total counter",
+        `void_txroot_v4_mismatch_total ${C.mismatch}`,
+        "# HELP void_txroot_v4_errors_total errors while verifying txRoot",
+        "# TYPE void_txroot_v4_errors_total counter",
+        `void_txroot_v4_errors_total ${C.errors}`,
+        ""
+      ].join("\n"));
+    });
+
+    // JSON mirror for quick checks
+    app.get("/__void/metrics/txroot4.json", (req:any, res:any) => {
+      const C = getC();
+      res.json({ ok:true, counters:{ ok:C.ok, mismatch:C.mismatch, errors:C.errors }, last:C.last||null, pid:process.pid, now:Date.now() });
+    });
+  }
+
+  attach();
+})();
+
+// ------------------------------ __void txroot v4 verify3: range hardening (additive) ------------------------------
+(function __void_txroot_v4_verify3_range_hardening(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function toInt(x:any){ const n = Number(x); return Number.isFinite(n) ? n : NaN; }
+
+  async function latestNumber(base:string){
+    try {
+      // Prefer fetch-free compat if present:
+      let r = await fetch(`${base}/blocks/latest/number2.json`);
+      if (r.ok) { const j = await r.json(); return Number(j?.number ?? j); }
+      // Fallback:
+      r = await fetch(`${base}/blocks/latest/number.json`);
+      if (r.ok) { const j = await r.json(); return Number(j?.number ?? j); }
+      // Last resort: /head.txt
+      const r2 = await fetch(`${base}/head.txt`);
+      if (r2.ok) return Number(await r2.text());
+    } catch {}
+    return NaN;
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    const BASE = `http://${process.env.HTTP_HOST || '127.0.0.1'}:${process.env.HTTP_PORT || '4100'}`;
+    // Import the verifyOnce from the earlier verify3 closure, if available:
+    const verifyOnce = (globalThis as any).__void_txroot_v4_verify3_verifyOnce;
+
+    // If not exported yet, synthesize a local minimal one by calling the public single endpoint:
+    async function verifyOnceShim(n:number){
+      const r = await fetch(`${BASE}/__void/txroot/v4/verify3/${n}`);
+      const j = await r.json().catch(()=>({ok:false,error:`bad json ${r.status}`}));
+      return j;
+    }
+    const vOnce = typeof verifyOnce === "function" ? verifyOnce : verifyOnceShim;
+
+    function parseRange(req:any){
+      // Accept many names: from/to, start/end, a/b
+      const q = req.query||{};
+      const candFrom = [q.from, q.start, q.a];
+      const candTo   = [q.to,   q.end,   q.b];
+      const F = toInt(candFrom.find((x:any)=>x!==undefined));
+      const T = toInt(candTo.find((x:any)=>x!==undefined));
+      return { F, T };
+    }
+
+    // Upgrade GET /verify3/range to auto-fill and be lenient
+    app.get("/__void/txroot/v4/verify3/range", async (req:any, res:any) => {
+      let { F, T } = parseRange(req);
+
+      if (!Number.isFinite(F) || !Number.isFinite(T)) {
+        // Auto-fill if missing: last 16 blocks ending at head
+        const head = await latestNumber(BASE);
+        if (!Number.isFinite(F)) F = Math.max(0, head - 15);
+        if (!Number.isFinite(T)) T = head;
+      }
+
+      if (!Number.isFinite(F) || !Number.isFinite(T)) {
+        return res.status(400).json({ ok:false, error:"cannot determine head; provide ?from&to" });
+      }
+      if (F < 0 || T < F) return res.status(400).json({ ok:false, error:"bad range: require 0<=from<=to" });
+      if ((T - F) > 5000) return res.status(400).json({ ok:false, error:"range too large; max span=5000" });
+
+      let ok=0, mismatch=0, errors=0; const results:any[]=[];
+      for (let n=F; n<=T; n++){
+        const r = await vOnce(n);
+        results.push(r);
+        if (!r.ok) errors++; else if (r.match) ok++; else mismatch++;
+      }
+      res.json({ ok:true, from:F, to:T, summary:{ count: results.length, ok, mismatch, errors }, results });
+    });
+
+    // POST variant with JSON body {from, to}
+    app.post("/__void/txroot/v4/verify3/range2", express.json({limit:"64kb"}), async (req:any, res:any) => {
+      const body = req.body || {};
+      let F = toInt(body.from), T = toInt(body.to);
+      if (!Number.isFinite(F) || !Number.isFinite(T)) {
+        const head = await latestNumber(BASE);
+        if (!Number.isFinite(F)) F = Math.max(0, head - 15);
+        if (!Number.isFinite(T)) T = head;
+      }
+      if (!Number.isFinite(F) || !Number.isFinite(T)) return res.status(400).json({ ok:false, error:"need from/to" });
+      if (F<0 || T<F) return res.status(400).json({ ok:false, error:"bad range" });
+      if ((T-F)>5000) return res.status(400).json({ ok:false, error:"range too large" });
+
+      let ok=0, mismatch=0, errors=0; const results:any[]=[];
+      for (let n=F; n<=T; n++){
+        const r = await vOnce(n);
+        results.push(r);
+        if (!r.ok) errors++; else if (r.match) ok++; else mismatch++;
+      }
+      res.json({ ok:true, from:F, to:T, summary:{ count: results.length, ok, mismatch, errors }, results });
+    });
+
+    // Param echo to debug parser quickly
+    app.get("/__void/txroot/v4/verify3/range/echo", async (req:any, res:any) => {
+      const { F, T } = parseRange(req);
+      res.json({ ok:true, parsed:{ from: Number.isFinite(F)?F:null, to: Number.isFinite(T)?T:null }, raw:req.query||{} });
+    });
+  }
+
+  attach();
+})();
+
+// ------------------------------ txroot v4 verify3: unshadowed aliases + nicer logs ------------------------------
+(function __void_txroot_v4_verify3_aliases_and_logs(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function toInt(x:any){ const n = Number(x); return Number.isFinite(n) ? n : NaN; }
+
+  // Pretty print a txRoot if it's a Buffer/Uint8Array/object
+  function toHex(x:any){
+    try {
+      if (!x) return String(x);
+      if (typeof x === "string") {
+        // assume already hex
+        return x;
+      }
+      if (x instanceof Uint8Array || (Array.isArray(x) && x.every(v=>Number.isInteger(v) && v>=0 && v<256))) {
+        return Buffer.from(x).toString("hex");
+      }
+      if (typeof Buffer !== "undefined" && Buffer.isBuffer?.(x)) {
+        return x.toString("hex");
+      }
+      // Last resort stringify
+      return JSON.stringify(x);
+    } catch { return String(x); }
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // ---- (A) Safer alias for GET range to avoid /verify3/:n shadowing
+    // Old: /__void/txroot/v4/verify3/range   (may be shadowed)
+    // New: /__void/txroot/v4/verify3_range   (alias, unshadowed)
+    app.get("/__void/txroot/v4/verify3_range", async (req:any, res:any) => {
+      // Reuse the original endpoint by rewriting to an internal fetch (keeps SSoT)
+      const url = new URL(req.protocol + "://" + req.headers.host + "/__void/txroot/v4/verify3/range");
+      for (const [k,v] of Object.entries(req.query||{})) url.searchParams.set(k, String(v));
+      try {
+        const r = await fetch(url.toString());
+        const j = await r.json().catch(()=>({ok:false,error:`bad json ${r.status}`}));
+        return res.status(r.status).json(j);
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    // Also provide an explicit non-conflicting path with params: /verify3/range3
+    app.get("/__void/txroot/v4/verify3/range3", async (req:any, res:any) => {
+      const url = new URL(req.protocol + "://" + req.headers.host + "/__void/txroot/v4/verify3/range");
+      for (const [k,v] of Object.entries(req.query||{})) url.searchParams.set(k, String(v));
+      try {
+        const r = await fetch(url.toString());
+        const j = await r.json().catch(()=>({ok:false,error:`bad json ${r.status}`}));
+        return res.status(r.status).json(j);
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    // ---- (B) Log beautifier shim: prints txRoot as hex, never [object Object]
+    const g:any = globalThis as any;
+    if (!g.__void_txroot_log_hex_installed) {
+      g.__void_txroot_log_hex_installed = true;
+      const origConsoleLog = console.log.bind(console);
+      console.log = (...args:any[]) => {
+        // Map common fields in txroot logs to hex
+        const mapped = args.map(a => {
+          if (typeof a === "object" && a && (a.txRoot || a.headerTxRoot || a.computedTxRoot)) {
+            const o:any = { ...a };
+            if (o.txRoot) o.txRoot = toHex(o.txRoot);
+            if (o.headerTxRoot) o.headerTxRoot = toHex(o.headerTxRoot);
+            if (o.computedTxRoot) o.computedTxRoot = toHex(o.computedTxRoot);
+            return o;
+          }
+          return a;
+        });
+        return origConsoleLog(...mapped);
+      }
+    }
+  }
+  attach();
+})();
+
+// ------------------------------ txroot v4: range aggregator (unshadowed, self-contained) ------------------------------
+(function __void_txroot_v4_verify3_aggregator(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  async function getHead(base:string){
+    const r = await fetch(`${base}/head.txt`); 
+    const t = await r.text(); 
+    const n = Number(t.trim()); 
+    if (!Number.isFinite(n)) throw new Error(`bad head: ${t}`); 
+    return n;
+  }
+  function parseFromTo(q:any){ 
+    let from = q?.from!=null ? Number(q.from) : NaN;
+    let to   = q?.to!=null   ? Number(q.to)   : NaN;
+    return {from, to};
+  }
+  function clampRange(from:number, to:number, max=500){
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return {ok:false, error:"from/to not finite"};
+    if (from>to) return {ok:false, error:"from > to"};
+    if (to - from + 1 > max) return {ok:false, error:`range too large (max ${max})`};
+    return {ok:true};
+  }
+  async function verifyOne(base:string, n:number){
+    try{
+      const r = await fetch(`${base}/__void/txroot/v4/verify3/${n}`);
+      const j = await r.json().catch(()=>({ok:false, error:`bad json ${r.status}`}));
+      return {ok: true, data: j};
+    }catch(e:any){
+      return {ok:false, error:String(e?.message||e)};
+    }
+  }
+  async function runRange(base:string, from:number, to:number){
+    let ok=0, mismatch=0, errors=0;
+    const results:any[] = [];
+    for (let n=from; n<=to; n++){
+      const res = await verifyOne(base, n);
+      if (!res.ok){ errors++; results.push({number:n, ok:false, error:res.error}); continue; }
+      const d:any = res.data||{};
+      // Heuristic: prefer explicit fields if present
+      const match = (typeof d.match === "boolean") ? d.match
+                   : (d.ok===true && d.mismatch===0) ? true
+                   : (d.mismatch>0) ? false
+                   : (d.headerTxRoot && d.computedTxRoot) ? (String(d.headerTxRoot)===String(d.computedTxRoot))
+                   : (d.ok===true);
+      if (match) ok++; else mismatch++;
+      results.push({number:n, ok: !!match});
+    }
+    return {summary:{count: (to-from+1), ok, mismatch, errors}, results};
+  }
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    const base = `http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`;
+
+    // GET /__void/txroot/v4/verify3/agg?from=&to=   (auto-fills [head-15, head] if missing)
+    app.get("/__void/txroot/v4/verify3/agg", async (req:any, res:any) => {
+      try{
+        let {from, to} = parseFromTo(req.query||{});
+        if (!Number.isFinite(from) || !Number.isFinite(to)){
+          const head = await getHead(base);
+          to = Number.isFinite(to) ? to : head;
+          from = Number.isFinite(from) ? from : Math.max(0, head-15);
+        }
+        const chk = clampRange(from, to, 1000);
+        if (!chk.ok) return res.status(400).json({ok:false, from, to, error:chk.error});
+        const out = await runRange(base, from, to);
+        return res.json({from, to, ...out});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+
+    // POST /__void/txroot/v4/verify3/agg2   body: {from,to}
+    app.post("/__void/txroot/v4/verify3/agg2", async (req:any, res:any) => {
+      try{
+        const body = req.body||{};
+        let from = Number(body.from), to = Number(body.to);
+        if (!Number.isFinite(from) || !Number.isFinite(to)){
+          const head = await getHead(base);
+          to = Number.isFinite(to) ? to : head;
+          from = Number.isFinite(from) ? from : Math.max(0, head-15);
+        }
+        const chk = clampRange(from, to, 1000);
+        if (!chk.ok) return res.status(400).json({ok:false, from, to, error:chk.error});
+        const out = await runRange(base, from, to);
+        return res.json({from, to, ...out});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+  }
+  attach();
+})();
+
+// ------------------------------ txroot v4: range aggregator (non-shadowed aliases) ------------------------------
+(function __void_txroot_v4_verify3_aggregator_alias(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  async function getHead(base:string){
+    const r = await fetch(`${base}/head.txt`);
+    const t = await r.text();
+    const n = Number(t.trim());
+    if (!Number.isFinite(n)) throw new Error(`bad head: ${t}`);
+    return n;
+  }
+  function parseFromTo(q:any){
+    let from = q?.from!=null ? Number(q.from) : NaN;
+    let to   = q?.to!=null   ? Number(q.to)   : NaN;
+    return {from, to};
+  }
+  function clampRange(from:number, to:number, max=1000){
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return {ok:false, error:"from/to not finite"};
+    if (from>to) return {ok:false, error:"from > to"};
+    if (to - from + 1 > max) return {ok:false, error:`range too large (max ${max})`};
+    return {ok:true};
+  }
+  async function verifyOne(base:string, n:number){
+    try{
+      const r = await fetch(`${base}/__void/txroot/v4/verify3/${n}`);
+      const j = await r.json().catch(()=>({ok:false, error:`bad json ${r.status}`}));
+      return {ok: true, data: j};
+    }catch(e:any){
+      return {ok:false, error:String(e?.message||e)};
+    }
+  }
+  async function runRange(base:string, from:number, to:number){
+    let ok=0, mismatch=0, errors=0;
+    const results:any[] = [];
+    for (let n=from; n<=to; n++){
+      const res = await verifyOne(base, n);
+      if (!res.ok){ errors++; results.push({number:n, ok:false, error:res.error}); continue; }
+      const d:any = res.data||{};
+      const match = (typeof d.match === "boolean") ? d.match
+                   : (d.ok===true && d.mismatch===0) ? true
+                   : (d.mismatch>0) ? false
+                   : (d.headerTxRoot && d.computedTxRoot) ? (String(d.headerTxRoot)===String(d.computedTxRoot))
+                   : (d.ok===true);
+      if (match) ok++; else mismatch++;
+      results.push({number:n, ok: !!match});
+    }
+    return {summary:{count:(to-from+1), ok, mismatch, errors}, results};
+  }
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function"){ if (++tries<120) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    const base = `http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`;
+
+    // GET /__void/txroot/v4/agg?from=&to=  (auto-fills [head-15, head] if missing)
+    app.get("/__void/txroot/v4/agg", async (req:any, res:any) => {
+      try{
+        let {from, to} = parseFromTo(req.query||{});
+        if (!Number.isFinite(from) || !Number.isFinite(to)){
+          const head = await getHead(base);
+          to = Number.isFinite(to) ? to : head;
+          from = Number.isFinite(from) ? from : Math.max(0, head-15);
+        }
+        const chk = clampRange(from, to, 1000);
+        if (!chk.ok) return res.status(400).json({ok:false, from, to, error:chk.error});
+        const out = await runRange(base, from, to);
+        return res.json({from, to, ...out});
+      }catch(e:any){ return res.status(500).json({ok:false, error:String(e?.message||e)}); }
+    });
+
+    // POST /__void/txroot/v4/agg2   body: {from,to}
+    app.post("/__void/txroot/v4/agg2", async (req:any, res:any) => {
+      try{
+        const body = req.body||{};
+        let from = Number(body.from), to = Number(body.to);
+        if (!Number.isFinite(from) || !Number.isFinite(to)){
+          const head = await getHead(base);
+          to = Number.isFinite(to) ? to : head;
+          from = Number.isFinite(from) ? from : Math.max(0, head-15);
+        }
+        const chk = clampRange(from, to, 1000);
+        if (!chk.ok) return res.status(400).json({ok:false, from, to, error:chk.error});
+        const out = await runRange(base, from, to);
+        return res.json({from, to, ...out});
+      }catch(e:any){ return res.status(500).json({ok:false, error:String(e?.message||e)}); }
+    });
+  }
+  attach();
+})();
+
+// ------------------------------ txroot v4: recent headers (hex-safe) ------------------------------
+(function __void_txroot_v4_recent_headers(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  async function getHead(base:string){
+    const r = await fetch(`${base}/head.txt`);
+    const t = await r.text(); const n = Number(t.trim());
+    if (!Number.isFinite(n)) throw new Error(`bad head: ${t}`); return n;
+  }
+  async function getHeader(base:string, n:number){
+    const r = await fetch(`${base}/__void/txroot/v4/header/${n}`); return r.json();
+  }
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function"){ if (++tries<120) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    const base = `http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`;
+
+    // GET /__void/txroot/v4/recent-headers?count=20
+    app.get("/__void/txroot/v4/recent-headers", async (req:any, res:any) => {
+      try{
+        const head = await getHead(base);
+        const count = Math.min(Math.max(Number(req.query?.count ?? 20), 1), 200);
+        const from = Math.max(0, head - count + 1);
+        const out:any[] = [];
+        for (let n = from; n <= head; n++){
+          const h = await getHeader(base, n);
+          out.push({ number: n, txRoot_hex: h?.txRoot_hex ?? null });
+        }
+        res.json({from, to: head, count: out.length, headers: out});
+      }catch(e:any){ res.status(500).json({ok:false, error:String(e?.message||e)}); }
+    });
+  }
+  attach();
+})();
+
+// ------------------------------ txroot v4: agg -> metrics bridge ------------------------------
+(function __void_txroot_v4_agg_metrics_bridge(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  const state = { last:{ from:null as any, to:null as any, count:0, ok:0, mismatch:0, errors:0, ts:0 } };
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function"){ if (++tries<120) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    // Wrap the existing /agg2 handler results by intercepting res.json (non-invasive)
+    app.post("/__void/txroot/v4/agg2/metrics", async (req:any, res:any) => {
+      try{
+        const base = `http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`;
+        const body = req.body||{};
+        const from = Number(body.from), to = Number(body.to);
+        const r = await fetch(`${base}/__void/txroot/v4/agg2`, {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({from, to})
+        });
+        const j = await r.json();
+        const sum = j?.summary||{};
+        state.last = {
+          from: j?.from ?? null, to: j?.to ?? null,
+          count: Number(sum.count||0), ok: Number(sum.ok||0),
+          mismatch: Number(sum.mismatch||0), errors: Number(sum.errors||0),
+          ts: Date.now()
+        };
+        res.json(j);
+      }catch(e:any){ res.status(500).json({ok:false, error:String(e?.message||e)}); }
+    });
+
+    // GET /__void/metrics/txroot4/agg  (Prometheus text)
+    app.get("/__void/metrics/txroot4/agg", (_req:any, res:any) => {
+      res.type("text/plain; version=0.0.4");
+      const s = state.last;
+      res.send([
+        "# HELP void_txroot_v4_agg_count Last aggregation range size",
+        "# TYPE void_txroot_v4_agg_count gauge",
+        `void_txroot_v4_agg_count ${s.count}`,
+        "# HELP void_txroot_v4_agg_ok Last aggregation ok count",
+        "# TYPE void_txroot_v4_agg_ok gauge",
+        `void_txroot_v4_agg_ok ${s.ok}`,
+        "# HELP void_txroot_v4_agg_mismatch Last aggregation mismatch count",
+        "# TYPE void_txroot_v4_agg_mismatch gauge",
+        `void_txroot_v4_agg_mismatch ${s.mismatch}`,
+        "# HELP void_txroot_v4_agg_errors Last aggregation error count",
+        "# TYPE void_txroot_v4_agg_errors gauge",
+        `void_txroot_v4_agg_errors ${s.errors}`,
+        "# HELP void_txroot_v4_agg_from Last aggregation start block",
+        "# TYPE void_txroot_v4_agg_from gauge",
+        `void_txroot_v4_agg_from ${Number(s.from||0)}`,
+        "# HELP void_txroot_v4_agg_to Last aggregation end block",
+        "# TYPE void_txroot_v4_agg_to gauge",
+        `void_txroot_v4_agg_to ${Number(s.to||0)}`,
+        "# HELP void_txroot_v4_agg_timestamp_ms Timestamp of last aggregation (ms)",
+        "# TYPE void_txroot_v4_agg_timestamp_ms gauge",
+        `void_txroot_v4_agg_timestamp_ms ${s.ts}`
+      ].join("\n"));
+    });
+  }
+  attach();
+})();
