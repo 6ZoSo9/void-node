@@ -19,3 +19,4 @@ fs/
 run_*_logs.zip
 smoke_*.zip
 ci_*.zip
+node:*
