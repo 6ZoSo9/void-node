@@ -4777,3 +4777,545 @@ import { computeTxRoot } from "./util/txroot.js";
   }
   attach();
 })();
+
+// ---------------- Follower drift metric (/metrics/drift) -------------------
+;(function followerDriftMetric(){
+  let tries=0, attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); }catch{ return null; } }
+
+  async function attach(){
+    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
+    if(attached) return; attached=true;
+
+    // On the FOLLOWER (HTTP_PORT=4101), query its own /follower/status against the main (4100).
+    const selfPort = String(process.env.HTTP_PORT || "4100");
+    const peer = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+
+    app.get("/metrics/drift", async (_req,res)=>{
+      let drift = NaN, head_local = NaN, head_peer = NaN;
+      try {
+        const url = `http://127.0.0.1:${selfPort}/follower/status?peer=${encodeURIComponent(peer)}`;
+        const d = await getJSON(url);
+        if (d && d.ok) { drift = Number(d.drift); head_local = Number(d.head_local); head_peer = Number(d.head_peer); }
+      } catch {}
+      res.type("text/plain").send(
+        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+        `void_follower_drift${Number.isFinite(drift)?` ${drift}`:" NaN"}\n`+
+        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+        `void_follower_head_local${Number.isFinite(head_local)?` ${head_local}`:" NaN"}\n`+
+        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+        `void_follower_head_peer${Number.isFinite(head_peer)?` ${head_peer}`:" NaN"}\n`
+      );
+    });
+    console.log("[metrics/drift] ready (peer=%s, selfPort=%s)", peer, selfPort);
+  }
+  attach();
+})();
+
+// ---- follower drift metric: always numeric (no NaN) -----------------------
+;(function followerDriftMetric_v2(){
+  let tries=0, attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); }catch{ return null; } }
+  function numOr0(x:any){ const n=Number(x); return Number.isFinite(n)? n : 0; }
+
+  async function attach(){
+    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
+    if(attached) return; attached=true;
+
+    const selfPort = String(process.env.HTTP_PORT || "4100");
+    const peer = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+
+    app.get("/metrics/drift", async (_req,res)=>{
+      let drift=0, head_local=0, head_peer=0;
+      const url = `http://127.0.0.1:${selfPort}/follower/status?peer=${encodeURIComponent(peer)}`;
+      const d = await getJSON(url);
+      if (d && d.ok) {
+        drift = numOr0(d.drift);
+        head_local = numOr0(d.head_local);
+        head_peer = numOr0(d.head_peer);
+      }
+      res.type("text/plain").send(
+        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+        `void_follower_drift ${drift}\n`+
+        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+        `void_follower_head_local ${head_local}\n`+
+        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+        `void_follower_head_peer ${head_peer}\n`
+      );
+    });
+    console.log("[metrics/drift:v2] ready (peer=%s, selfPort=%s)", peer, selfPort);
+  }
+  attach();
+})();
+
+// ---- follower drift metric v3: derive selfBase from request Host (no env) ---
+;(function followerDriftMetric_v3(){
+  let tries=0, attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); }catch{ return null; } }
+  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+
+  function num(x:any, d=0){ const n=Number(x); return Number.isFinite(n)? n : d; }
+
+  async function attach(){
+    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
+    if(attached) return; attached=true;
+
+    // GET /metrics/drift2  (uses Host header to hit this same instance's /follower/status)
+    app.get("/metrics/drift2", async (req:any, res:any)=>{
+      // e.g. Host: 127.0.0.1:4101  -> http://127.0.0.1:4101
+      const host = req.get("host") || "127.0.0.1:4100";
+      const selfBase = `http://${host}`;
+      const url = `${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`;
+
+      let drift=0, head_local=0, head_peer=0;
+      const d = await getJSON(url);
+      if (d && d.ok) {
+        drift      = num(d.drift, 0);
+        head_local = num(d.head_local, 0);
+        head_peer  = num(d.head_peer, 0);
+      }
+      res.type("text/plain").send(
+        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+        `void_follower_drift ${drift}\n`+
+        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+        `void_follower_head_local ${head_local}\n`+
+        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+        `void_follower_head_peer ${head_peer}\n`
+      );
+    });
+    console.log("[metrics/drift:v3] ready peer=%s", PEER);
+  }
+  attach();
+})();
+
+// ---- follower drift metric v3b: selfBase from Host; clean closure -----------
+;(function followerDriftMetric_v3b(){
+  let tries=0, attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); }catch{ return null; } }
+  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
+
+  async function attach(){
+    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
+    if(attached) return; attached=true;
+
+    // GET /metrics/drift3
+    app.get("/metrics/drift3", async (req:any, res:any)=>{
+      const host = req.get("host") || "127.0.0.1:4101";        // expect follower host:port
+      const selfBase = `http://${host}`;
+      const url = `${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`;
+
+      let drift=0, head_local=0, head_peer=0;
+      const d = await getJSON(url);
+      if (d && d.ok) {
+        drift      = num(d.drift, 0);
+        head_local = num(d.head_local, 0);
+        head_peer  = num(d.head_peer, 0);
+      }
+      res.type("text/plain").send(
+        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+        `void_follower_drift ${drift}\n`+
+        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+        `void_follower_head_local ${head_local}\n`+
+        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+        `void_follower_head_peer ${head_peer}\n`
+      );
+    });
+    console.log("[metrics/drift:v3b] ready peer=%s", PEER);
+  }
+  attach();
+})();
+
+// ---- follower drift metric v3b: selfBase from Host; clean closure -----------
+;(function followerDriftMetric_v3b(){
+  let tries=0, attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); }catch{ return null; } }
+  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
+
+  async function attach(){
+    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
+    if(attached) return; attached=true;
+
+    // GET /metrics/drift3
+    app.get("/metrics/drift3", async (req:any, res:any)=>{
+      const host = req.get("host") || "127.0.0.1:4101";  // follower host:port expected
+      const selfBase = `http://${host}`;
+      const url = `${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`;
+
+      let drift=0, head_local=0, head_peer=0;
+      const d = await getJSON(url);
+      if (d && d.ok) {
+        drift      = num(d.drift, 0);
+        head_local = num(d.head_local, 0);
+        head_peer  = num(d.head_peer, 0);
+      }
+      res.type("text/plain").send(
+        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+        `void_follower_drift ${drift}\n`+
+        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+        `void_follower_head_local ${head_local}\n`+
+        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+        `void_follower_head_peer ${head_peer}\n`
+      );
+    });
+    console.log("[metrics/drift:v3b] ready peer=%s", PEER);
+  }
+  attach();
+})();
+
+// ---- follower drift exporter v4 (hot-attach, loud logs, health) -------------
+;(function driftExporterV4(){
+  let tries = 0, attached = false;
+  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
+  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
+  const wait = (ms:number)=>new Promise(r=>setTimeout(r,ms));
+
+  async function getJSON(u:string){ try{ const r=await fetch(u, {cache:"no-store"}); return await r.json(); } catch { return null; } }
+
+  async function attach() {
+    while (!attached && tries < 1200) {       // 1200 * 500ms = 10 minutes
+      const app:any = getApp();
+      if (app && typeof app.get === "function") {
+        // health
+        app.get("/metrics/drift3/health", (_req:any,res:any)=>res.type("text/plain").send("ok\n"));
+
+        // exporter
+        app.get("/metrics/drift3", async (req:any, res:any)=>{
+          const host = req.get("host") || "127.0.0.1:4101";
+          const selfBase = `http://${host}`;
+          const url = `${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`;
+
+          let drift=0, head_local=0, head_peer=0;
+          const d = await getJSON(url);
+          if (d && d.ok) {
+            drift      = num(d.drift, 0);
+            head_local = num(d.head_local, 0);
+            head_peer  = num(d.head_peer, 0);
+          }
+          res.type("text/plain").send(
+            "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+            `void_follower_drift ${drift}\n`+
+            "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+            `void_follower_head_local ${head_local}\n`+
+            "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+            `void_follower_head_peer ${head_peer}\n`
+          );
+        });
+
+        attached = true;
+        console.log("[metrics/drift:v4] ready (peer=%s)", PEER);
+        return;
+      }
+      tries++;
+      if (tries % 10 === 0) console.log("[metrics/drift:v4] waiting for app... try=%d", tries);
+      await wait(500);
+    }
+    if (!attached) console.warn("[metrics/drift:v4] gave up after %d tries", tries);
+  }
+  attach();
+})();
+
+// ---- follower drift exporter v4b (reads head from /metrics/void) -----------
+;(function driftExporterV4b(){
+  let tries = 0, attached = false;
+  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+
+  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
+  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
+
+  async function getText(u:string){ try{ const r=await fetch(u, {cache:"no-store"}); return await r.text(); } catch { return null; } }
+  function parseHead(text:string|null): number {
+    if (!text) return NaN;
+    // Look for a line like: void_head_number 65011
+    const m = text.match(/^\s*void_head_number\s+([0-9]+)\s*$/m);
+    return m ? Number(m[1]) : NaN;
+  }
+
+  async function attach() {
+    while (!attached && tries < 1200) { // up to ~10 min
+      const app:any = getApp();
+      if (app && typeof app.get === "function") {
+        app.get("/metrics/drift4/health", (_req:any,res:any)=>res.type("text/plain").send("ok\n"));
+
+        app.get("/metrics/drift4", async (req:any, res:any)=>{
+          const host = req.get("host") || "127.0.0.1:4101";
+          const selfBase = `http://${host}`;
+
+          const selfText = await getText(`${selfBase}/metrics/void`);
+          const peerText = await getText(`${PEER}/metrics/void`);
+
+          const head_local = num(parseHead(selfText), 0);
+          const head_peer  = num(parseHead(peerText), 0);
+          const drift = Math.max(0, head_peer - head_local);
+
+          res.type("text/plain").send(
+            "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+            `void_follower_drift ${drift}\n`+
+            "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+            `void_follower_head_local ${head_local}\n`+
+            "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+            `void_follower_head_peer ${head_peer}\n`
+          );
+        });
+
+        attached = true;
+        console.log("[metrics/drift:v4b] ready (peer=%s)", PEER);
+        break;
+      }
+      await new Promise(r=>setTimeout(r,500));
+      tries++;
+    }
+    if (!attached) console.warn("[metrics/drift:v4b] attach timeout after %d tries", tries);
+  }
+  attach();
+})();
+
+// ---- follower drift exporter v4b (reads head from /metrics/void) -----------
+;(function driftExporterV4b(){
+  let tries = 0, attached = false;
+  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+
+  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
+  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
+
+  async function getText(u:string){ try{ const r=await fetch(u, {cache:"no-store"}); return await r.text(); } catch { return null; } }
+  function parseHead(text:string|null): number {
+    if (!text) return NaN;
+    // Look for a line like: void_head_number 65011
+    const m = text.match(/^\s*void_head_number\s+([0-9]+)\s*$/m);
+    return m ? Number(m[1]) : NaN;
+  }
+
+  async function attach() {
+    while (!attached && tries < 1200) { // up to ~10 min
+      const app:any = getApp();
+      if (app && typeof app.get === "function") {
+        app.get("/metrics/drift4/health", (_req:any,res:any)=>res.type("text/plain").send("ok\n"));
+
+        app.get("/metrics/drift4", async (req:any, res:any)=>{
+          const host = req.get("host") || "127.0.0.1:4101";
+          const selfBase = `http://${host}`;
+
+          const selfText = await getText(`${selfBase}/metrics/void`);
+          const peerText = await getText(`${PEER}/metrics/void`);
+
+          const head_local = num(parseHead(selfText), 0);
+          const head_peer  = num(parseHead(peerText), 0);
+          const drift = Math.max(0, head_peer - head_local);
+
+          res.type("text/plain").send(
+            "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+            `void_follower_drift ${drift}\n`+
+            "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+            `void_follower_head_local ${head_local}\n`+
+            "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+            `void_follower_head_peer ${head_peer}\n`
+          );
+        });
+
+        attached = true;
+        console.log("[metrics/drift:v4b] ready (peer=%s)", PEER);
+        break;
+      }
+      await new Promise(r=>setTimeout(r,500));
+      tries++;
+    }
+    if (!attached) console.warn("[metrics/drift:v4b] attach timeout after %d tries", tries);
+  }
+  attach();
+})();
+
+// ---- follower drift exporter v4c (status→status; no metrics/void needed) ----
+;(function driftExporterV4c(){
+  let tries = 0, attached = false;
+  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
+  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
+  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); } catch { return null; } }
+  const sleep = (ms:number)=>new Promise(r=>setTimeout(r,ms));
+
+  async function attach(){
+    while(!attached && ++tries<=1200){
+      const app:any = getApp();
+      if (app && typeof app.get === "function") {
+        app.get("/metrics/drift5/health", (_req:any,res:any)=>res.type("text/plain").send("ok\n"));
+
+        app.get("/metrics/drift5", async (req:any, res:any)=>{
+          const host = req.get("host") || "127.0.0.1:4101";
+          const selfBase = `http://${host}`;
+
+          // 1) Local status against true peer → reliable head_local
+          const selfStatus = await getJSON(`${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`);
+
+          // 2) Peer status against itself → take its head_local as peer head
+          const peerStatus = await getJSON(`${PEER}/follower/status?peer=${encodeURIComponent(PEER)}`);
+
+          const head_local = num(selfStatus?.head_local, 0);
+          const head_peer  = num(peerStatus?.head_local ?? peerStatus?.head_peer, 0);
+          const drift = Math.max(0, head_peer - head_local);
+
+          res.type("text/plain").send(
+            "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+            `void_follower_drift ${drift}\n`+
+            "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+            `void_follower_head_local ${head_local}\n`+
+            "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+            `void_follower_head_peer ${head_peer}\n`
+          );
+        });
+
+        attached = true;
+        console.log("[metrics/drift:v4c] ready (peer=%s)", PEER);
+        break;
+      }
+      await sleep(500);
+    }
+    if (!attached) console.warn("[metrics/drift:v4c] attach timeout");
+  }
+  attach();
+})();
+
+// ---- head shim: /head (JSON) and /head.txt (plain) -------------------------
+;(function headShim(){
+  let tries=0, attached=false;
+  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
+  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
+
+  async function j(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); } catch { return null; } }
+
+  async function attach(){
+    const app:any = getApp();
+    if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
+    if(attached) return; attached = true;
+
+    // GET /head -> { number }, GET /head.txt -> "number\n"
+    app.get("/head", async (req:any,res:any)=>{
+      const host = req.get("host") || "127.0.0.1:4100";
+      const selfBase = `http://${host}`;
+      // ask our own follower/status for a canonical local head
+      const d = await j(`${selfBase}/follower/status?peer=${encodeURIComponent(selfBase)}`);
+      const number = d && d.ok ? num(d.head_local, 0) : 0;
+      res.json({ number });
+    });
+
+    app.get("/head.txt", async (req:any,res:any)=>{
+      const host = req.get("host") || "127.0.0.1:4100";
+      const selfBase = `http://${host}`;
+      const d = await j(`${selfBase}/follower/status?peer=${encodeURIComponent(selfBase)}`);
+      const number = d && d.ok ? num(d.head_local, 0) : 0;
+      res.type("text/plain").send(String(number) + "\n");
+    });
+
+    console.log("[head-shim] ready");
+  }
+  attach();
+})();
+
+// ---- exporter alias: /metrics/drift5 mirrors /metrics/drift3 ---------------
+;(function driftExporterAlias(){
+  let tries=0, attached=false;
+  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
+  async function attach(){
+    const app:any = getApp();
+    if (!app) { if (++tries < 60) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+
+    // If drift3 exists, create a simple alias at drift5 that uses same logic
+    // (Duplicate the small body to avoid grabbing internal handler references)
+    const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
+    async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); } catch { return null; } }
+    const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+
+    app.get("/metrics/drift5", async (req:any, res:any)=>{
+      const host = req.get("host") || "127.0.0.1:4101";
+      const selfBase = `http://${host}`;
+      const url = `${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`;
+
+      let drift=0, head_local=0, head_peer=0;
+      const d = await getJSON(url);
+      if (d && d.ok) {
+        drift      = num(d.drift, 0);
+        head_local = num(d.head_local, 0);
+        head_peer  = num(d.head_peer, 0);
+      }
+      res.type("text/plain").send(
+        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+        `void_follower_drift ${drift}\n`+
+        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+        `void_follower_head_local ${head_local}\n`+
+        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+        `void_follower_head_peer ${head_peer}\n`
+      );
+    });
+    console.log("[metrics/drift:alias] /metrics/drift5 ready (alias of drift3)");
+  }
+  attach();
+})();
+
+// ---- follower drift exporter v6 (direct heads: self vs real peer) ----------
+;(function driftExporterV6(){
+  let tries = 0, attached = false;
+  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
+  const wait = (ms:number)=>new Promise(r=>setTimeout(r,ms));
+
+  async function getHeadTxt(base:string): Promise<number|null> {
+    try {
+      const r = await fetch(`${base}/head.txt`, { cache: "no-store" });
+      if (!r.ok) return null;
+      const t = (await r.text()).trim();
+      const n = Number(t);
+      return Number.isFinite(n) ? n : null;
+    } catch { return null; }
+  }
+
+  async function attach() {
+    while (!attached && tries < 1200) { // up to 10 minutes, 500ms steps
+      const app:any = getApp();
+      if (app && typeof app.get === "function") {
+        attached = true;
+
+        app.get("/metrics/drift6/health", (_req:any,res:any)=>res.type("text/plain").send("ok\n"));
+
+        // exporter: reads self and peer heads directly
+        app.get("/metrics/drift6", async (req:any, res:any)=>{
+          const host = req.get("host") || "127.0.0.1:4101";       // follower instance host:port
+          const selfBase = `http://${host}`;
+          const peerBase = PEER;
+
+          const [hSelf, hPeer] = await Promise.all([
+            getHeadTxt(selfBase),
+            getHeadTxt(peerBase),
+          ]);
+
+          const head_local = (hSelf ?? 0);
+          const head_peer  = (hPeer ?? head_local); // if peer fails, drift=0 so we don't flap
+
+          const drift = Math.max(0, head_peer - head_local);
+
+          res.type("text/plain").send(
+            "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
+            `void_follower_drift ${drift}\n`+
+            "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
+            `void_follower_head_local ${head_local}\n`+
+            "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
+            `void_follower_head_peer ${head_peer}\n`
+          );
+        });
+
+        console.log("[metrics/drift:v6] ready (peer=%s)", PEER);
+        return;
+      }
+      tries++; await wait(500);
+    }
+    if (!attached) console.warn("[metrics/drift:v6] gave up waiting for app attach");
+  }
+  attach();
+})();
