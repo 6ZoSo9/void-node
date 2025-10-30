@@ -4703,3 +4703,35 @@ import { computeTxRoot } from "./util/txroot.js";
 
   attach();
 })();
+
+// -------------- last-block metrics: txcount + empty (additive) --------------
+;(function lastBlockMetrics(){
+  let tries=0, attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getHead(){
+    try { const r=await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/blocks/latest/number2.json");
+      const d=await r.json(); return d.n ?? d.number ?? -1; } catch { return -1; }
+  }
+  async function attach(){
+    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
+    if(attached) return; attached=true;
+
+    app.get("/metrics/lastblock", async(_req,res)=>{
+      const n=await getHead();
+      let txCount=0;
+      if(n>=0){
+        try{ const r=await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/dev/txroot/${n}`);
+             const d=await r.json(); txCount = Number(d.txCount||0); }catch{}
+      }
+      const empty = txCount===0 ? 1 : 0;
+      res.type("text/plain").send(
+        "# HELP void_block_txcount tx count in latest block\n# TYPE void_block_txcount gauge\n"+
+        `void_block_txcount ${txCount}\n`+
+        "# HELP void_block_was_empty 1 if latest block had 0 tx, else 0\n# TYPE void_block_was_empty gauge\n"+
+        `void_block_was_empty ${empty}\n`
+      );
+    });
+    console.log("[metrics/lastblock] ready");
+  }
+  attach();
+})();
