@@ -11772,3 +11772,333 @@ void_seal_rate_1m ${rate}
   })();
 })();
 // --- SEALS_EXPORTER_V3_END ---
+// --- SEALS_V3_DIAG_BEGIN ---
+// Diagnostics + self-healing remounter for seals exporter.
+(() => {
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  // Try to discover an Express app object hanging around
+  function getRouterStack(app:any){ return (app && (app as any)._router && Array.isArray((app as any)._router.stack)) ? (app as any)._router.stack : null; }
+
+  // Reuse V3 state if present (from the exporter), else create a stub we can fill
+  const g:any = (globalThis as any);
+  g.__void_seals_state = g.__void_seals_state || { lastNumber: -1, lastTsMs: 0, recent: [] as number[] };
+  const state = g.__void_seals_state;
+
+  function rate1m(){ const cut = Date.now()-60_000; return state.recent.filter((t:number)=>t>=cut).length; }
+
+  function scrubSeals(stack:any[]){
+    if (!Array.isArray(stack)) return 0;
+    let removed = 0;
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const L:any = stack[i];
+      try {
+        if (L && L.route && L.route.methods && L.route.methods.get) {
+          const p = L.route.path;
+          if (p === "/metrics/void/seals" || p === "/metrics/void/seals2") { stack.splice(i, 1); removed++; continue; }
+        }
+        if (L && L.name === "router" && L.handle && Array.isArray(L.handle.stack)) {
+          removed += scrubSeals(L.handle.stack);
+        }
+        const s = (L && L.regexp && String(L.regexp)) || "";
+        if (s.includes("\\/metrics\\/void\\/seals")) { stack.splice(i, 1); removed++; }
+        if (s.includes("\\/metrics\\/void\\/seals2")) { stack.splice(i, 1); removed++; }
+      } catch {}
+    }
+    return removed;
+  }
+
+  function attachSeals(app:any){
+    // mount both handlers
+    const handler = (_req:any, res:any) => {
+      const lines = [
+        "# HELP void_seal_last_number Latest sealed block number",
+        "# TYPE void_seal_last_number gauge",
+        `void_seal_last_number ${state.lastNumber}`,
+        "# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed",
+        "# TYPE void_seal_last_ts_ms gauge",
+        `void_seal_last_ts_ms ${state.lastTsMs}`,
+        "# HELP void_seal_rate_1m Seals observed in the last 60 seconds",
+        "# TYPE void_seal_rate_1m gauge",
+        `void_seal_rate_1m ${rate1m()}`
+      ];
+      res.type("text/plain").send(lines.join("\n"));
+    };
+    app.get("/metrics/void/seals2", handler);
+    app.get("/metrics/void/seals",  handler);
+  }
+
+  function mounted(app:any){
+    try {
+      const st = getRouterStack(app) || [];
+      const names = new Set<string>();
+      for (const L of st) {
+        if (L && L.route && L.route.path && L.route.methods && L.route.methods.get) names.add(L.route.path);
+      }
+      return {
+        seals:  names.has("/metrics/void/seals"),
+        seals2: names.has("/metrics/void/seals2"),
+      };
+    } catch { return { seals:false, seals2:false }; }
+  }
+
+  let tries = 0, attached = false;
+  (function boot(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 200) return setTimeout(boot, 500); return; }
+    if (attached) return; attached = true;
+
+    // diag endpoints
+    app.get("/__void/seals/v3/status", (_req:any, res:any) => {
+      const m = mounted(app);
+      res.json({ mounted: m, lastNumber: state.lastNumber, lastTsMs: state.lastTsMs, rate1m: rate1m(), tries });
+    });
+    app.get("/__void/routes", (_req:any, res:any) => {
+      try {
+        const st = getRouterStack(app) || [];
+        const list: any[] = [];
+        for (const L of st) {
+          if (L && L.route && L.route.path && L.route.methods && L.route.methods.get) list.push(L.route.path);
+        }
+        res.json({ count: list.length, routes: list.slice(0,200) });
+      } catch (e:any) { res.status(500).json({ error: String(e) }); }
+    });
+
+    // initial mount or repair
+    try {
+      const st = getRouterStack(app); if (st) scrubSeals(st);
+      attachSeals(app);
+      console.log("[metrics/seals:v3diag] (re)attached routes /metrics/void/seals{,2}");
+    } catch (e) { console.error("[metrics/seals:v3diag] attach error", e); }
+
+    // self-healing remounter every 5s
+    setInterval(() => {
+      try {
+        const m = mounted(app);
+        if (!m.seals || !m.seals2) {
+          const st = getRouterStack(app); if (st) scrubSeals(st);
+          attachSeals(app);
+          console.log("[metrics/seals:v3diag] self-heal remount fired");
+        }
+      } catch {}
+    }, 5000);
+  })();
+})();
+// --- SEALS_V3_DIAG_END ---
+// --- SEALS_V3_HEADABLE_BEGIN ---
+// Head-derived seals exporter: computes last seal from /blocks/latest/number.
+// No dev shims required. Idempotent re-mount.
+(() => {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app || g.app;
+  if (!app || typeof app.get !== "function") return;
+
+  g.__void_seals_state = g.__void_seals_state || { lastNumber: -1, lastTsMs: 0, recent: [] as number[] };
+  const S:any = g.__void_seals_state;
+
+  async function getLatestNumber(): Promise<number> {
+    try {
+      const port = (process.env.HTTP_PORT || "4100").trim();
+      const url  = `http://127.0.0.1:${port}/blocks/latest/number`;
+      const r = await fetch(url);
+      if (!r.ok) return S.lastNumber;
+      const t = await r.text();
+      const n = parseInt((t||"").trim(), 10);
+      return Number.isFinite(n) ? n : S.lastNumber;
+    } catch {
+      return S.lastNumber;
+    }
+  }
+
+  function rate1m(): number {
+    const cut = Date.now() - 60_000;
+    S.recent = Array.isArray(S.recent) ? S.recent.filter((t:number)=>t>=cut) : [];
+    return S.recent.length;
+  }
+
+  // Remove older mounts (if any)
+  try {
+    const stack:any[] = app._router?.stack || [];
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const L:any = stack[i];
+      if (L?.route?.methods?.get && (L.route.path === "/metrics/void/seals" || L.route.path === "/metrics/void/seals2")) {
+        stack.splice(i, 1);
+      }
+    }
+  } catch {}
+
+  // Mount fresh endpoints that compute from head on-demand
+  async function handleSeals(req:any, res:any) {
+    const before = S.lastNumber;
+    const nowNum = await getLatestNumber();
+    if (Number.isFinite(nowNum) && nowNum > S.lastNumber) {
+      S.lastNumber = nowNum;
+      S.lastTsMs = Date.now();
+      (S.recent = S.recent || []).push(S.lastTsMs);
+    }
+    res.type("text/plain; version=0.0.4");
+    res.end(
+      "# HELP void_seal_last_number Latest sealed block number\n" +
+      "# TYPE void_seal_last_number gauge\n" +
+      `void_seal_last_number ${S.lastNumber}\n\n` +
+      "# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed\n" +
+      "# TYPE void_seal_last_ts_ms gauge\n" +
+      `void_seal_last_ts_ms ${S.lastTsMs}\n\n` +
+      "# HELP void_seal_rate_1m Seals observed in the last 60 seconds\n" +
+      "# TYPE void_seal_rate_1m gauge\n" +
+      `void_seal_rate_1m ${rate1m()}\n`
+    );
+  }
+
+  app.get("/metrics/void/seals", handleSeals);
+  app.get("/metrics/void/seals2", handleSeals);
+
+  // Small background refresher so rate window advances even if Prom scrape is sparse
+  if (!g.__void_seals_head_timer) {
+    g.__void_seals_head_timer = setInterval(async () => {
+      const n = await getLatestNumber();
+      if (Number.isFinite(n) && n > S.lastNumber) {
+        S.lastNumber = n;
+        S.lastTsMs = Date.now();
+        (S.recent = S.recent || []).push(S.lastTsMs);
+      } else {
+        // keep recent window trimmed
+        rate1m();
+      }
+    }, 4000);
+  }
+
+  console.log("[metrics/seals:v3head] exporter bound at /metrics/void/seals{,2} (head-derived)");
+})();
+// --- SEALS_V3_HEADABLE_END ---
+// --- SEALS_V3_HEADABLE_V2_BEGIN ---
+// Head-derived seals (v2): prefers in-process head, falls back to local HTTP via node:http.
+// Safe re-mount: removes older /metrics/void/seals{,2} and mounts fresh.
+(() => {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app || g.app;
+  if (!app || typeof app.get !== "function") return;
+
+  // Shared state
+  g.__void_seals_state = g.__void_seals_state || { lastNumber: -1, lastTsMs: 0, recent: [] as number[] };
+  const S:any = g.__void_seals_state;
+
+  function nowMs(){ return Date.now(); }
+  function rate1m(): number {
+    const cut = nowMs() - 60_000;
+    S.recent = Array.isArray(S.recent) ? S.recent.filter((t:number)=>t>=cut) : [];
+    return S.recent.length;
+  }
+
+  // Try to read head number from globals (exposed during boot)
+  function readHeadFromGlobals(): number | null {
+    try {
+      const cand = [
+        (g as any).__void_node,
+        (g as any).node,
+        (g as any).__node,
+        (g as any).__VOID_NODE,
+      ];
+      for (const n of cand) {
+        if (!n) continue;
+        // Common shapes we’ve used:
+        const h1 = n?.store?.heads?.head;
+        if (Number.isFinite(h1)) return Number(h1);
+        const h2 = n?.heads?.head;
+        if (Number.isFinite(h2)) return Number(h2);
+        const h3 = typeof n?.getHead === "function" ? n.getHead() : undefined;
+        if (Number.isFinite(h3)) return Number(h3);
+        const h4 = n?.head;
+        if (Number.isFinite(h4)) return Number(h4);
+      }
+    } catch {}
+    return null;
+  }
+
+  // Fallback: read via local HTTP using node:http (no fetch required)
+  async function readHeadViaHttp(): Promise<number | null> {
+    try {
+      const port = (process.env.HTTP_PORT || "4100").trim();
+      const http = await import('node:http');
+      const opts = { hostname: '127.0.0.1', port: Number(port), path: '/blocks/latest/number', method: 'GET' as const };
+      return await new Promise<number | null>((resolve) => {
+        const req = http.request(opts, (res:any) => {
+          if (res.statusCode !== 200) { res.resume(); return resolve(null); }
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk:string)=> data += chunk);
+          res.on('end', ()=>{
+            const n = parseInt((data||'').trim(), 10);
+            resolve(Number.isFinite(n) ? n : null);
+          });
+        });
+        req.on('error', ()=> resolve(null));
+        req.end();
+      });
+    } catch { return null; }
+  }
+
+  async function getLatestNumber(): Promise<number> {
+    // Try globals first
+    const gHead = readHeadFromGlobals();
+    if (Number.isFinite(gHead)) return Number(gHead);
+    // Fallback to HTTP
+    const h = await readHeadViaHttp();
+    return Number.isFinite(h) ? Number(h) : S.lastNumber;
+  }
+
+  // Clean older mounts (v1/v2)
+  try {
+    const stack:any[] = app._router?.stack || [];
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const L:any = stack[i];
+      if (L?.route?.methods?.get && (L.route.path === "/metrics/void/seals" || L.route.path === "/metrics/void/seals2")) {
+        stack.splice(i, 1);
+      }
+    }
+  } catch {}
+
+  async function handleSeals(req:any, res:any) {
+    const latest = await getLatestNumber();
+    if (Number.isFinite(latest) && latest > S.lastNumber) {
+      S.lastNumber = latest;
+      S.lastTsMs = nowMs();
+      (S.recent = S.recent || []).push(S.lastTsMs);
+    } else {
+      // keep 1m window trimmed so rate is accurate
+      rate1m();
+    }
+
+    res.type("text/plain; version=0.0.4");
+    res.end(
+      "# HELP void_seal_last_number Latest sealed block number\n" +
+      "# TYPE void_seal_last_number gauge\n" +
+      `void_seal_last_number ${S.lastNumber}\n\n` +
+      "# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed\n" +
+      "# TYPE void_seal_last_ts_ms gauge\n" +
+      `void_seal_last_ts_ms ${S.lastTsMs}\n\n` +
+      "# HELP void_seal_rate_1m Seals observed in the last 60 seconds\n" +
+      "# TYPE void_seal_rate_1m gauge\n" +
+      `void_seal_rate_1m ${rate1m()}\n`
+    );
+  }
+
+  app.get("/metrics/void/seals", handleSeals);
+  app.get("/metrics/void/seals2", handleSeals);
+
+  // Background refresher so the 1m window advances between scrapes
+  if (!g.__void_seals_head_timer_v2) {
+    g.__void_seals_head_timer_v2 = setInterval(async () => {
+      const latest = await getLatestNumber();
+      if (Number.isFinite(latest) && latest > S.lastNumber) {
+        S.lastNumber = latest;
+        S.lastTsMs = nowMs();
+        (S.recent = S.recent || []).push(S.lastTsMs);
+      } else {
+        rate1m();
+      }
+    }, 4000);
+  }
+
+  console.log("[metrics/seals:v3head-v2] exporter bound at /metrics/void/seals{,2} (globals->http fallback)");
+})();
+// --- SEALS_V3_HEADABLE_V2_END ---
