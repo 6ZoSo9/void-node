@@ -1,32 +1,40 @@
-// VOID Community License (VCL) v1.0 — see LICENSE
-// Copyright (c) 2025 6ZoSo9
 import { createHash } from "node:crypto";
 
-function stableStringify(v: any): string {
-  if (v === null || typeof v !== "object") return JSON.stringify(v);
-  if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
-  const keys = Object.keys(v).sort();
-  const body = keys.map(k => `${JSON.stringify(k)}:${stableStringify((v as any)[k])}`).join(",");
-  return `{${body}}`;
+export type TxRootResult = { root: string; leaves: string[] };
+
+function sha256Hex(buf: Buffer): string {
+  const h = createHash("sha256");
+  h.update(buf);
+  return h.digest("hex");
 }
 
-function sha256Hex(buf: Buffer | string): string {
-  return createHash("sha256").update(buf).digest("hex");
-}
+export function computeTxRoot(txs: any[]): TxRootResult {
+  const EMPTY =
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
-/** Merkle root over JSON txs. Odd-node duping (BTC-style pair-with-self). */
-export function computeTxRoot(txs: any[]): { root: string; leaves: string[] } {
-  const leaves = txs.map(tx => sha256Hex(stableStringify(tx)));
-  if (leaves.length === 0) return { root: sha256Hex(""), leaves };
-  let level: Buffer[] = leaves.map(h => Buffer.from(h, "hex"));
+  const leaves = (txs || []).map((tx) =>
+    sha256Hex(Buffer.isBuffer(tx) ? tx : Buffer.from(JSON.stringify(tx)))
+  );
+
+  if (leaves.length === 0) return { root: EMPTY, leaves: [] };
+
+  let level = leaves.slice();
   while (level.length > 1) {
-    const next: Buffer[] = [];
+    const next: string[] = [];
     for (let i = 0; i < level.length; i += 2) {
-      const left = level[i];
-      const right = level[i + 1] ?? level[i];
-      next.push(Buffer.from(sha256Hex(Buffer.concat([left, right])), "hex"));
+      const a = level[i];
+      const b = level[i + 1] ?? level[i]; // duplicate last if odd
+      next.push(sha256Hex(Buffer.from(a + b, "hex")));
     }
     level = next;
   }
-  return { root: level[0].toString("hex"), leaves };
+  return { root: level[0], leaves };
+}
+
+/**
+ * Returns the root string. Typed as `any` so callers using `?.root ??`
+ * (object form) or direct string form both compile without churn.
+ */
+export function txRootOf(txs: any[]): any {
+  return computeTxRoot(txs).root;
 }

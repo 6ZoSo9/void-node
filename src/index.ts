@@ -4782,7 +4782,7 @@ import { computeTxRoot } from "./util/txroot.js";
 ;(function followerDriftMetric(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); }catch{ return null; } }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
 
   async function attach(){
     const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
@@ -4817,7 +4817,7 @@ import { computeTxRoot } from "./util/txroot.js";
 ;(function followerDriftMetric_v2(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); }catch{ return null; } }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
   function numOr0(x:any){ const n=Number(x); return Number.isFinite(n)? n : 0; }
 
   async function attach(){
@@ -4854,7 +4854,7 @@ import { computeTxRoot } from "./util/txroot.js";
 ;(function followerDriftMetric_v3(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); }catch{ return null; } }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
   const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
 
   function num(x:any, d=0){ const n=Number(x); return Number.isFinite(n)? n : d; }
@@ -4895,7 +4895,7 @@ import { computeTxRoot } from "./util/txroot.js";
 ;(function followerDriftMetric_v3b(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); }catch{ return null; } }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
   const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
 
@@ -4934,7 +4934,7 @@ import { computeTxRoot } from "./util/txroot.js";
 ;(function followerDriftMetric_v3b(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); }catch{ return null; } }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
   const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
 
@@ -4977,7 +4977,7 @@ import { computeTxRoot } from "./util/txroot.js";
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
   const wait = (ms:number)=>new Promise(r=>setTimeout(r,ms));
 
-  async function getJSON(u:string){ try{ const r=await fetch(u, {cache:"no-store"}); return await r.json(); } catch { return null; } }
+  async function getJSON(u:string){ try{ const r=await fetch(u, {headers:{'cache-control':'no-cache'}}); return await r.json(); } catch { return null; } }
 
   async function attach() {
     while (!attached && tries < 1200) {       // 1200 * 500ms = 10 minutes
@@ -5030,7 +5030,7 @@ import { computeTxRoot } from "./util/txroot.js";
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
 
-  async function getText(u:string){ try{ const r=await fetch(u, {cache:"no-store"}); return await r.text(); } catch { return null; } }
+  async function getText(u:string){ try{ const r=await fetch(u, {headers:{'cache-control':'no-cache'}}); return await r.text(); } catch { return null; } }
   function parseHead(text:string|null): number {
     if (!text) return NaN;
     // Look for a line like: void_head_number 65011
@@ -5085,7 +5085,7 @@ import { computeTxRoot } from "./util/txroot.js";
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
 
-  async function getText(u:string){ try{ const r=await fetch(u, {cache:"no-store"}); return await r.text(); } catch { return null; } }
+  async function getText(u:string){ try{ const r=await fetch(u, {headers:{'cache-control':'no-cache'}}); return await r.text(); } catch { return null; } }
   function parseHead(text:string|null): number {
     if (!text) return NaN;
     // Look for a line like: void_head_number 65011
@@ -5138,7 +5138,7 @@ import { computeTxRoot } from "./util/txroot.js";
   const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
-  async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); } catch { return null; } }
+  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); } catch { return null; } }
   const sleep = (ms:number)=>new Promise(r=>setTimeout(r,ms));
 
   async function attach(){
@@ -5188,7 +5188,7 @@ import { computeTxRoot } from "./util/txroot.js";
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
 
-  async function j(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); } catch { return null; } }
+  async function j(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); } catch { return null; } }
 
   async function attach(){
     const app:any = getApp();
@@ -5230,7 +5230,7 @@ import { computeTxRoot } from "./util/txroot.js";
     // If drift3 exists, create a simple alias at drift5 that uses same logic
     // (Duplicate the small body to avoid grabbing internal handler references)
     const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
-    async function getJSON(u:string){ try{ const r=await fetch(u,{cache:"no-store"}); return await r.json(); } catch { return null; } }
+    async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); } catch { return null; } }
     const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
 
     app.get("/metrics/drift5", async (req:any, res:any)=>{
@@ -5268,7 +5268,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
   async function getHeadTxt(base:string): Promise<number|null> {
     try {
-      const r = await fetch(`${base}/head.txt`, { cache: "no-store" });
+      const r = await fetch(`${base}/head.txt`, { headers: {'cache-control':'no-cache'} });
       if (!r.ok) return null;
       const t = (await r.text()).trim();
       const n = Number(t);
@@ -6059,7 +6059,7 @@ void_txroot_v4_errors_total ${X.errors}
       for (let n=from; n<=to; n++){
         const r = await verifyOnce(n, LOCAL);
         results.push(r);
-        if (!r.ok) errors++; else if (r.match) ok++; else mismatch++;
+        if (!r.ok) errors++; else if ((r as any).match) ok++; else mismatch++;
       }
       res.json({ ok:true, from, to, summary:{count: results.length, ok, mismatch, errors}, results });
     });
@@ -6920,7 +6920,7 @@ void_txroot_v4_errors_total ${X.errors}
 // --- optional second-chance import path for dist/ layouts (additive) ---
 (async function txrootSecondChanceImport(){
   try {
-    const m = await import("../chain/seg_store.js");
+    const m = await import("./chain/seg_store.js");
     if (m?.SegStore && !(m as any).__void_txroot_import_seen) {
       (m as any).__void_txroot_import_seen = true;
       console.log("[txroot-hook] second-chance import available (dist layout).");
@@ -6940,8 +6940,8 @@ void_txroot_v4_errors_total ${X.errors}
   async function attach(){
     try {
       // Lazy import SegStore & txroot helper without breaking existing hook
-      const seg = await import("./chain/seg_store.js").catch(()=>import("../chain/seg_store.js"));
-      const txr = await import("./util/txroot.js").catch(()=>import("../util/txroot.js"));
+      const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
+      const txr = await import("./util/txroot.js").catch(()=>import("./util/txroot.js"));
       const SegStore:any = (seg as any).SegStore;
       const computeTxRoot:any = (txr as any).computeTxRoot || (txr as any).txroot || (txr as any).default;
 
@@ -7009,8 +7009,8 @@ void_txroot_v4_errors_total ${X.errors}
   async function attach(){
     try {
       // Resolve modules in both src/ and dist/ layouts
-      const seg = await import("./chain/seg_store.js").catch(()=>import("../chain/seg_store.js"));
-      const txr = await import("./util/txroot.js").catch(()=>import("../util/txroot.js"));
+      const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
+      const txr = await import("./util/txroot.js").catch(()=>import("./util/txroot.js"));
       const SegStore:any = (seg as any).SegStore;
       const computeTxRoot:any =
         (txr as any).computeTxRootHex ||
@@ -7074,8 +7074,8 @@ void_txroot_v4_errors_total ${X.errors}
 
   async function attach(){
     try {
-      const seg = await import("./chain/seg_store.js").catch(()=>import("../chain/seg_store.js"));
-      const txr = await import("./util/txroot.js").catch(()=>import("../util/txroot.js"));
+      const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
+      const txr = await import("./util/txroot.js").catch(()=>import("./util/txroot.js"));
       const SegStore:any = (seg as any).SegStore;
       const computeTxRoot:any =
         (txr as any).computeTxRootHex ||
@@ -7190,7 +7190,7 @@ void_txroot_v4_errors_total ${X.errors}
 
   async function attach(){
     try {
-      const seg = await import("./chain/seg_store.js").catch(()=>import("../chain/seg_store.js"));
+      const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
       const SegStore:any = (seg as any).SegStore;
       if (!SegStore || !SegStore.prototype) { console.warn("[txroot-core/pre] SegStore missing"); return; }
       const proto:any = SegStore.prototype;
@@ -7272,7 +7272,7 @@ void_txroot_v4_errors_total ${X.errors}
   (function latchPrePatch(){
     const tryAttach = async () => {
       try {
-        const mod = await import("./chain/seg_store.js").catch(()=>import("../chain/seg_store.js"));
+        const mod = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
         const SegStore:any = (mod as any)?.SegStore;
         if (!SegStore?.prototype) throw new Error("SegStore.prototype missing");
         const proto:any = SegStore.prototype;
@@ -7446,4 +7446,794 @@ void_txroot_v4_errors_total ${X.errors}
   })();
 
   console.log(`[txroot-core/v2-synth-self] watching BASE=${BASE}`);
+})();
+
+// ---------------- txRoot setter attach (additive) --------------------
+;(function attachTxrootSetterAdditive(){
+  try {
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    const store:any = (globalThis as any).__void_store || (globalThis as any).store || (globalThis as any).SegStoreInstance;
+    // Fallback: if you export your active store under node or app.locals, try to find it:
+    const nodeAny:any = (globalThis as any).__void_node || (app?.locals?.node);
+    const store2:any = store || nodeAny?.store || nodeAny?.segStore || app?.locals?.store;
+
+    // Lazy import to avoid top-level churn
+    const { attachTxrootSetter } = require("./hooks/txroot_setter.js");
+
+    if (app && store2 && typeof attachTxrootSetter === "function") {
+      attachTxrootSetter({ app, store: store2, log: (...a:any[])=>console.log("[boot.txroot-setter]", ...a) });
+    } else {
+      console.log("[boot.txroot-setter] waiting for app/store…");
+      // Retry a few times in case init ordering differs
+      let tries = 0;
+      const tick = () => {
+        const appR:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+        const nodeR:any = (globalThis as any).__void_node || (appR?.locals?.node);
+        const storeR:any = (globalThis as any).__void_store || nodeR?.store || nodeR?.segStore || appR?.locals?.store;
+        if (appR && storeR) {
+          attachTxrootSetter({ app: appR, store: storeR, log: (...a:any[])=>console.log("[boot.txroot-setter]", ...a) });
+        } else if (++tries < 40) { setTimeout(tick, 250); }
+      };
+      setTimeout(tick, 250);
+    }
+  } catch (e) {
+    console.error("[boot.txroot-setter] failed to attach:", e);
+  }
+})();
+
+// ---------------- txRoot setter attach (additive, ESM-safe) --------------------
+;(function attachTxrootSetterESM(){
+  try {
+    if ((globalThis as any).__void_txroot_setter_attached) return;
+    const tryAttach = async () => {
+      const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+      const nodeAny:any = (globalThis as any).__void_node || (app?.locals?.node);
+      const store:any = (globalThis as any).__void_store || nodeAny?.store || nodeAny?.segStore || app?.locals?.store;
+      if (!app || !store) return false;
+      try {
+        const mod = await import("./hooks/txroot_setter.js");
+        if (typeof mod.attachTxrootSetter === "function") {
+          mod.attachTxrootSetter({ app, store, log: (...a:any[])=>console.log("[boot.txroot-setter]", ...a) });
+          (globalThis as any).__void_txroot_setter_attached = true;
+          return true;
+        }
+      } catch (e) { console.error("[boot.txroot-setter] dynamic import failed:", e); }
+      return false;
+    };
+    let tries = 0;
+    const tick = async () => {
+      if (await tryAttach()) return;
+      if (++tries < 40) setTimeout(tick, 250);
+    };
+    setTimeout(tick, 100);
+  } catch (e) {
+    console.error("[boot.txroot-setter] failed to schedule attach:", e);
+  }
+})();
+
+// ---------------- txRoot setter DIAGNOSTIC harness (additive, ESM-safe) --------------------
+;(function txrootSetterDiagHarness(){
+  try {
+    const G:any = (globalThis as any);
+    if (G.__void_txroot_setter_diag_installed) return;
+    G.__void_txroot_setter_diag_installed = true;
+
+    const getApp = () => G.__void_http_app || G.app;
+    const getNode = (app:any) => G.__void_node || app?.locals?.node;
+    const getStore = (app:any) => G.__void_store || getNode(app)?.store || getNode(app)?.segStore || app?.locals?.store;
+
+    // Expose a tiny diag route as soon as app exists (no imports needed)
+    const tryWireDiag = () => {
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") return false;
+      if (!app.__void_txroot_diag_route) {
+        app.get("/__void/diag/txroot-setter", (_req:any, res:any) => {
+          const appNow:any = getApp();
+          const storeNow:any = getStore(appNow);
+          res.json({
+            ok: true,
+            diag: "txroot-setter",
+            hasApp: !!appNow,
+            hasStore: !!storeNow,
+            hasSaveBlock: !!(storeNow && typeof storeNow.saveBlock === "function"),
+            attachedFlag: !!G.__void_txroot_setter_attached,
+            lastError: G.__void_txroot_setter_last_error || null,
+            timestamp_ms: Date.now(),
+          });
+        });
+        app.__void_txroot_diag_route = true;
+        console.log("[boot.txroot-setter] diag route wired");
+      }
+      return true;
+    };
+
+    // Robust dynamic import: try .js then .ts (tsx runtime usually maps .ts)
+    const dynamicLoad = async () => {
+      try {
+        return await import("./hooks/txroot_setter.js");
+      } catch (e1) {
+        (globalThis as any).__void_txroot_setter_last_error = String(e1);
+        try {
+          return await import("./hooks/txroot_setter.js");
+        } catch (e2) {
+          (globalThis as any).__void_txroot_setter_last_error = String(e2);
+          throw e2;
+        }
+      }
+    };
+
+    const tryAttach = async () => {
+      const app:any = getApp();
+      const store:any = getStore(app);
+      if (!app || !store) return false;
+      try {
+        const mod:any = await dynamicLoad();
+        if (typeof mod?.attachTxrootSetter === "function") {
+          mod.attachTxrootSetter({ app, store, log: (...a:any[]) => console.log("[boot.txroot-setter]", ...a) });
+          (globalThis as any).__void_txroot_setter_attached = true;
+          console.log("[boot.txroot-setter] attached OK");
+          return true;
+        } else {
+          (globalThis as any).__void_txroot_setter_last_error = "attachTxrootSetter not a function";
+        }
+      } catch (e:any) {
+        (globalThis as any).__void_txroot_setter_last_error = String(e?.message || e);
+        console.error("[boot.txroot-setter] attach failed:", e);
+      }
+      return false;
+    };
+
+    let tries = 0;
+    const tick = async () => {
+      tryWireDiag();
+      const ok = await tryAttach();
+      if (!ok && ++tries < 80) setTimeout(tick, 250); // ~20s of retries
+    };
+    setTimeout(tick, 100);
+  } catch (e) {
+    console.error("[boot.txroot-setter] harness error:", e);
+  }
+})();
+
+// ---------------- PROM text exporter for txroot-setter (direct mount; additive) --------------------
+;(function mountSetterPromDirect(){
+  try{
+    const G:any = (globalThis as any);
+    if (G.__void_setter_prom_direct) return; // one-shot
+
+    let tries=0;
+    const getApp = () => G.__void_http_app || G.app;
+    const getCounters = () => G.__void_txroot_setter_counters || { set_total:0, mismatch_total:0, errors_total:0, last_set_block:-1 };
+
+    const tick = () => {
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(tick, 500); return; }
+      if (app.__void_setter_prom_direct) return;
+
+      app.get("/__void/metrics/txroot4/setter.prom", (_req:any, res:any) => {
+        const c = getCounters();
+        res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
+        const lines = [
+          "# HELP void_txroot_header_set_total Header txRoot sets performed",
+          "# TYPE void_txroot_header_set_total counter",
+          `void_txroot_header_set_total ${Number(c.set_total)||0}`,
+          "# HELP void_txroot_header_mismatch_total Header txRoot mismatches detected (pre-normalization)",
+          "# TYPE void_txroot_header_mismatch_total counter",
+          `void_txroot_header_mismatch_total ${Number(c.mismatch_total)||0}`,
+          "# HELP void_txroot_header_errors_total Errors while setting txRoot",
+          "# TYPE void_txroot_header_errors_total counter",
+          `void_txroot_header_errors_total ${Number(c.errors_total)||0}`,
+          "# HELP void_txroot_header_last_set_block Last block number where txRoot was set",
+          "# TYPE void_txroot_header_last_set_block gauge",
+          `void_txroot_header_last_set_block ${Number(c.last_set_block)||-1}`
+        ];
+        res.end(lines.join("\n")+"\n");
+      });
+
+      app.__void_setter_prom_direct = true;
+      G.__void_setter_prom_direct = true;
+      console.log("[void] mounted direct /__void/metrics/txroot4/setter.prom");
+    };
+
+    tick();
+  }catch(e){ console.error("[void] mountSetterPromDirect error:", e); }
+})();
+
+// ---------------- txRoot health probe (additive, no deps) --------------------
+;(function txrootHealthProbe(){
+  try {
+    const G:any = (globalThis as any);
+    const getApp = () => G.__void_http_app || G.app;
+    const getNode = (app:any) => G.__void_node || app?.locals?.node;
+    const getStore = (app:any) => G.__void_store || getNode(app)?.store || getNode(app)?.segStore || app?.locals?.store;
+
+    async function computeRootViaHelper(n:number){
+      try {
+        const base = process.env.HTTP_HOST ? `http://${process.env.HTTP_HOST}:${process.env.HTTP_PORT}` : '';
+        const u = base ? `${base}/__void/txroot/check/${n}` : `/__void/txroot/check/${n}`;
+        const res = await fetch(u);
+        if (!res.ok) throw new Error(`txroot helper ${res.status}`);
+        return await res.json();
+      } catch (e:any) {
+        return { ok:false, error: String(e) };
+      }
+    }
+
+    function wire(){
+      const app:any = getApp();
+      const store:any = getStore(app);
+      if (!app || typeof app.get !== "function") return false;
+
+      if (!app.__void_txroot_health){
+        // GET /health/txroot
+        app.get("/health/txroot", async (_req:any, res:any) => {
+          try {
+            // pull head number from the node or helper shim
+            const headText = await (await fetch("/head.txt")).text().catch(()=>null);
+            const head = headText ? Number(String(headText).trim()) : NaN;
+
+            if (!Number.isFinite(head)) {
+              res.status(500).json({ ok:false, why:"no head" }); return;
+            }
+
+            const diag = await computeRootViaHelper(head);
+            const fresh = (Date.now() - Number(diag?.timestamp_ms ?? Date.now())) < 60_000;
+
+            const match = !!diag?.match;
+            const ok = match && fresh;
+
+            // Inline Prom text for one gauge (no config changes required)
+            // curl 127.0.0.1:4100/health/txroot?format=prom
+            if (_req.query?.format === 'prom') {
+              res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
+              res.end(`# HELP void_txroot_health Is txroot healthy (1 ok, 0 bad)
+# TYPE void_txroot_health gauge
+void_txroot_health ${ok ? 1 : 0}
+`);
+              return;
+            }
+
+            res.status(ok ? 200 : 500).json({
+              ok, match, fresh, head, diag: (diag?.ok===false? {error:diag.error}: undefined)
+            });
+          } catch (e:any) {
+            res.status(500).json({ ok:false, error:String(e) });
+          }
+        });
+
+        app.__void_txroot_health = true;
+        console.log("[health.txroot] wired");
+      }
+      return true;
+    }
+
+    let tries = 0;
+    const tick = () => { if (!wire() && ++tries < 60) setTimeout(tick, 500); };
+    tick();
+  } catch (e) {
+    console.error("[health.txroot] attach error", e);
+  }
+})();
+
+// ---------------- txRoot health probe v2 (additive; absolute URL fix) -----------
+;(function txrootHealthProbeV2(){
+  try {
+    const G:any = (globalThis as any);
+    if (G.__void_txroot_health_v2) return; // don't double-mount
+    const getApp = () => G.__void_http_app || G.app;
+
+    async function fetchJson(u:string){
+      const r = await fetch(u);
+      if (!r.ok) throw new Error(`GET ${u} -> ${r.status}`);
+      return r.json();
+    }
+    async function fetchText(u:string){
+      const r = await fetch(u);
+      if (!r.ok) throw new Error(`GET ${u} -> ${r.status}`);
+      return r.text();
+    }
+
+    function wire(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") return false;
+
+      if (!app.__void_txroot_health_v2){
+        app.get("/health/txroot2", async (req:any, res:any) => {
+          try {
+            // Build absolute base from the request (e.g., http://127.0.0.1:4100)
+            const base = `${req.protocol}://${req.headers.host}`;
+            // Pull current head
+            const headText = await fetchText(`${base}/head.txt`);
+            const head = Number(String(headText).trim());
+            if (!Number.isFinite(head)) {
+              res.status(500).json({ ok:false, why:"no head" }); return;
+            }
+            // Use your existing helper to compute/compare
+            const diag:any = await fetchJson(`${base}/__void/txroot/check/${head}`);
+            const fresh = (Date.now() - Number(diag?.timestamp_ms ?? Date.now())) < 60_000;
+            const match = !!diag?.match;
+            const ok = match && fresh;
+
+            if (req.query?.format === 'prom') {
+              res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
+              res.end(`# HELP void_txroot_health Is txroot healthy (1 ok, 0 bad)
+# TYPE void_txroot_health gauge
+void_txroot_health ${ok ? 1 : 0}
+`);
+              return;
+            }
+
+            res.status(ok ? 200 : 500).json({ ok, match, fresh, head });
+          } catch (e:any) {
+            res.status(500).json({ ok:false, error:String(e) });
+          }
+        });
+
+        app.__void_txroot_health_v2 = true;
+        console.log("[health.txroot2] wired");
+      }
+      return true;
+    }
+
+    let tries = 0;
+    const tick = () => { if (!wire() && ++tries < 60) setTimeout(tick, 500); };
+    tick();
+  } catch (e) {
+    console.error("[health.txroot2] attach error", e);
+  }
+})();
+
+// ----- txRoot health probe v2.1 (fallbacks for 404 on __void/txroot/check/:n) -----
+;(function txrootHealthProbeV21(){
+  try {
+    const G:any = (globalThis as any);
+    if (G.__void_txroot_health_v21) return;
+    const getApp = () => G.__void_http_app || G.app;
+
+    async function j(u:string){ const r=await fetch(u); if(!r.ok) throw Object.assign(new Error(`GET ${u} -> ${r.status}`),{status:r.status}); return r.json(); }
+    async function t(u:string){ const r=await fetch(u); if(!r.ok) throw Object.assign(new Error(`GET ${u} -> ${r.status}`),{status:r.status}); return r.text(); }
+    const hex = (s:any) => String(s ?? "").toLowerCase().replace(/^0x/,"");
+
+    function wire(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") return false;
+
+      if (!app.__void_txroot_health_v21){
+        app.get("/health/txroot2", async (req:any, res:any) => {
+          try {
+            const base = `${req.protocol}://${req.headers.host}`;
+            const headStr = await t(`${base}/head.txt`);
+            const head = Number(String(headStr).trim());
+            if (!Number.isFinite(head)) { res.status(500).json({ok:false, why:"no head"}); return; }
+
+            // 1) Preferred: existing checker route
+            let match:boolean|undefined, headerRoot:string|undefined, computedRoot:string|undefined, ts:number|undefined;
+            try {
+              const diag:any = await j(`${base}/__void/txroot/check/${head}`);
+              // old checker returned either strings or {root,leaves}; normalize
+              const hRoot = typeof diag?.header_txRoot === "string" ? diag.header_txRoot : diag?.header_txRoot?.root;
+              const cRoot = typeof diag?.computed_txRoot === "string" ? diag.computed_txRoot : diag?.computed_txRoot?.root;
+              headerRoot = hRoot ? hex(hRoot) : undefined;
+              computedRoot = cRoot ? hex(cRoot) : undefined;
+              match = !!diag?.match;
+              ts = Number(diag?.timestamp_ms ?? Date.now());
+            } catch (e:any) {
+              if (e?.status !== 404) throw e;
+              // 2) Fallback: fetch header + compute via /dev/txroot/:n
+              const full:any = await j(`${base}/blocks/${head}/full2`);
+              const hObj = full?.header_txRoot ?? full?.header?.txRoot ?? full?.header?.txroot ?? full?.header?.tx_root;
+              headerRoot = typeof hObj === "string" ? hex(hObj) : hex(hObj?.root);
+
+              const comp:any = await j(`${base}/dev/txroot/${head}`); // returns {root, leaves}
+              computedRoot = hex(comp?.root);
+
+              if (!headerRoot || !computedRoot) throw new Error("missing roots for comparison");
+              match = headerRoot === computedRoot;
+              ts = Date.now();
+            }
+
+            const fresh = (Date.now() - (ts ?? Date.now())) < 60_000;
+            const ok = !!match && fresh;
+
+            if (req.query?.format === 'prom') {
+              res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
+              res.end(`# HELP void_txroot_health Is txroot healthy (1 ok, 0 bad)
+# TYPE void_txroot_health gauge
+void_txroot_health ${ok ? 1 : 0}
+`); return;
+            }
+
+            res.status(ok ? 200 : 500).json({
+              ok, match, fresh, head, headerRoot, computedRoot, timestamp_ms: ts
+            });
+          } catch (e:any) {
+            res.status(500).json({ ok:false, error:String(e) });
+          }
+        });
+
+        app.__void_txroot_health_v21 = true;
+        console.log("[health.txroot2] v2.1 wired (with fallbacks)");
+      }
+      return true;
+    }
+
+    let tries=0; const tick=()=>{ if(!wire() && ++tries<60) setTimeout(tick,500); }; tick();
+  } catch(e){ console.error("[health.txroot2] v2.1 attach error", e); }
+})();
+
+// ----- txRoot health probe v3 (always fallback-safe) -----
+;(function txrootHealthProbeV3(){
+  try {
+    const G:any = (globalThis as any);
+    if (G.__void_txroot_health_v3) return;
+    const getApp = () => G.__void_http_app || G.app;
+
+    const hex = (s:any) => String(s ?? "").toLowerCase().replace(/^0x/,"");
+    const j = async (u:string) => { const r=await fetch(u); if(!r.ok) throw new Error(`GET ${u} -> ${r.status}`); return r.json(); };
+    const t = async (u:string) => { const r=await fetch(u); if(!r.ok) throw new Error(`GET ${u} -> ${r.status}`); return r.text(); };
+
+    // Try best-known places to read a header txRoot from a "full" block
+    function pickHeaderTxRoot(full:any): string | undefined {
+      const h = full?.header_txRoot ?? full?.header?.txRoot ?? full?.header?.txroot ?? full?.header?.tx_root;
+      return typeof h === "string" ? hex(h) : hex(h?.root);
+    }
+
+    function wire(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") return false;
+
+      if (!app.__void_txroot_health_v3){
+        app.get("/health/txroot3", async (req:any, res:any) => {
+          const base = `${req.protocol}://${req.headers.host}`;
+          try {
+            const headStr = await t(`${base}/head.txt`);
+            const head = Number(String(headStr).trim());
+            if (!Number.isFinite(head)) throw new Error("invalid head");
+
+            let headerRoot:string|undefined, computedRoot:string|undefined, match:boolean|undefined, ts = Date.now();
+
+            // 1) Best-effort: old checker (ignore *any* error)
+            try {
+              const diag:any = await j(`${base}/__void/txroot/check/${head}`);
+              const hRoot = typeof diag?.header_txRoot === "string" ? diag.header_txRoot : diag?.header_txRoot?.root;
+              const cRoot = typeof diag?.computed_txRoot === "string" ? diag.computed_txRoot : diag?.computed_txRoot?.root;
+              headerRoot = hRoot ? hex(hRoot) : undefined;
+              computedRoot = cRoot ? hex(cRoot) : undefined;
+              match = !!diag?.match;
+              ts = Number(diag?.timestamp_ms ?? Date.now());
+            } catch { /* swallow and fallback */ }
+
+            // 2) Fallback via block+compute if needed
+            if (!headerRoot || !computedRoot || typeof match !== "boolean") {
+              let full:any;
+              try {
+                // prefer /full2, then /full
+                full = await j(`${base}/blocks/${head}/full2`);
+              } catch {
+                full = await j(`${base}/blocks/${head}/full`);
+              }
+              headerRoot = pickHeaderTxRoot(full);
+
+              // compute via dev endpoint (returns {root,...})
+              const comp:any = await j(`${base}/dev/txroot/${head}`);
+              computedRoot = hex(comp?.root);
+              match = !!(headerRoot && computedRoot && headerRoot === computedRoot);
+              ts = Date.now();
+            }
+
+            const fresh = (Date.now() - ts) < 60_000;
+            const ok = !!match && fresh;
+
+            if (req.query?.format === 'prom') {
+              res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
+              res.end(`# HELP void_txroot_health Is txroot healthy (1 ok, 0 bad)
+# TYPE void_txroot_health gauge
+void_txroot_health ${ok ? 1 : 0}
+`);
+              return;
+            }
+
+            res.status(ok ? 200 : 500).json({
+              ok, match, fresh, head,
+              headerRoot, computedRoot, timestamp_ms: ts
+            });
+          } catch (e:any) {
+            res.status(500).json({ ok:false, error:String(e) });
+          }
+        });
+
+        app.__void_txroot_health_v3 = true;
+        console.log("[health.txroot3] wired (fallback-first)");
+      }
+      return true;
+    }
+
+    let tries=0; const tick=()=>{ if(!wire() && ++tries<60) setTimeout(tick,500); }; tick();
+  } catch(e){ console.error("[health.txroot3] attach error", e); }
+})();
+// ---------------- void_head_number exporter (additive, no deps) ----------------
+(function addHeadGaugeExporter(){
+  let tries = 0, mounted = false;
+  const HTTP_PORT = process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100";
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  const mount = async () => {
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 120) return setTimeout(mount, 500);
+      return;
+    }
+    if (mounted) return; mounted = true;
+
+    // Prometheus text endpoint with just the head gauge
+    // GET /metrics/void/head
+    app.get("/metrics/void/head", async (_req:any, res:any) => {
+      try {
+        res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
+        const url = `http://127.0.0.1:${HTTP_PORT}/head.txt`;
+        let head = -1;
+        try {
+          const r = await fetch(url);
+          const txt = await r.text();
+          const n = Number.parseInt((txt||"").trim(),10);
+          if (Number.isFinite(n) && n >= 0) head = n;
+        } catch {}
+        res.end(`# HELP void_head_number Latest persisted block number
+# TYPE void_head_number gauge
+void_head_number ${head}
+`);
+      } catch (e:any) {
+        res.status(500).json({ ok:false, error: String(e?.stack||e) });
+      }
+    });
+  };
+  setTimeout(mount, 0);
+})();
+
+// ---------------- txroot core v2 exporter shim (additive, safe) ----------------
+(function txrootCoreV2Shim(){
+  let tries = 0, attached = false;
+  const g:any = (globalThis as any);
+
+  // shared counters; if real core wires these, this shim will reflect them
+  g.__void_txroot_core2 = g.__void_txroot_core2 || {
+    saves_total: 0,
+    set_total: 0,
+    mismatch_total: 0,
+    errors_total: 0,
+    heartbeat_total: 0,
+    last_set_block: -1,
+  };
+
+  // lightweight heartbeat so Prom sees liveness even before first seal
+  setInterval(()=>{ try { g.__void_txroot_core2.heartbeat_total++; } catch {} }, 2000);
+
+  function getApp(){ return g.__void_http_app || g.app; }
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 80) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    app.get("/__void/metrics/txroot4/core2", (req:any, res:any) => {
+      const m = g.__void_txroot_core2 || {};
+      const lines = [
+        "# HELP void_txroot_core_saves_total Saves observed by core",
+        "# TYPE void_txroot_core_saves_total counter",
+        `void_txroot_core_saves_total ${Number(m.saves_total||0)}`,
+        "# HELP void_txroot_core_set_total Header sets observed by core",
+        "# TYPE void_txroot_core_set_total counter",
+        `void_txroot_core_set_total ${Number(m.set_total||0)}`,
+        "# HELP void_txroot_core_mismatch_total Mismatches observed by core",
+        "# TYPE void_txroot_core_mismatch_total counter",
+        `void_txroot_core_mismatch_total ${Number(m.mismatch_total||0)}`,
+        "# HELP void_txroot_core_errors_total Errors observed by core",
+        "# TYPE void_txroot_core_errors_total counter",
+        `void_txroot_core_errors_total ${Number(m.errors_total||0)}`,
+        "# HELP void_txroot_core_heartbeat_total Heartbeat to signal liveness",
+        "# TYPE void_txroot_core_heartbeat_total counter",
+        `void_txroot_core_heartbeat_total ${Number(m.heartbeat_total||0)}`,
+        "# HELP void_txroot_core_last_set_block Last block the core claims to have set",
+        "# TYPE void_txroot_core_last_set_block gauge",
+        `void_txroot_core_last_set_block ${Number(m.last_set_block||-1)}`,
+      ];
+      res.type("text/plain").send(lines.join("\n") + "\n");
+    });
+  }
+  attach();
+})();
+
+// (finish) ensure /__void/metrics/txroot4/core2 route is present
+(function ensureCore2Route(){
+  const g:any = (globalThis as any);
+  let tries=0, attached=false;
+  function getApp(){ return g.__void_http_app || g.app; }
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function"){ if(++tries<60) return setTimeout(attach,500); return; }
+    if (attached) return; attached = true;
+    g.__void_txroot_core2 = g.__void_txroot_core2 || {
+      saves_total:0,set_total:0,mismatch_total:0,errors_total:0,heartbeat_total:0,last_set_block:-1,
+    };
+    app.get("/__void/metrics/txroot4/core2", (_req:any, res:any)=>{
+      const m = g.__void_txroot_core2;
+      const out = [
+        "# HELP void_txroot_core_saves_total Saves observed by core",
+        "# TYPE void_txroot_core_saves_total counter",
+        `void_txroot_core_saves_total ${Number(m.saves_total||0)}`,
+        "# HELP void_txroot_core_set_total Header sets observed by core",
+        "# TYPE void_txroot_core_set_total counter",
+        `void_txroot_core_set_total ${Number(m.set_total||0)}`,
+        "# HELP void_txroot_core_mismatch_total Mismatches observed by core",
+        "# TYPE void_txroot_core_mismatch_total counter",
+        `void_txroot_core_mismatch_total ${Number(m.mismatch_total||0)}`,
+        "# HELP void_txroot_core_errors_total Errors observed by core",
+        "# TYPE void_txroot_core_errors_total counter",
+        `void_txroot_core_errors_total ${Number(m.errors_total||0)}`,
+        "# HELP void_txroot_core_heartbeat_total Heartbeat to signal liveness",
+        "# TYPE void_txroot_core_heartbeat_total counter",
+        `void_txroot_core_heartbeat_total ${Number(m.heartbeat_total||0)}`,
+        "# HELP void_txroot_core_last_set_block Last block the core claims to have set",
+        "# TYPE void_txroot_core_last_set_block gauge",
+        `void_txroot_core_last_set_block ${Number(m.last_set_block||-1)}`,
+      ];
+      res.type("text/plain").send(out.join("\n")+"\n");
+    });
+  }
+  attach();
+})();
+
+// ---------------- txroot setter watcher (additive, non-invasive) ----------------
+(function txrootSetterWatcher(){
+  const g:any = (globalThis as any);
+  g.__void_txroot_setter = g.__void_txroot_setter || {
+    set_total: 0,
+    mismatch_total: 0,
+    errors_total: 0,
+    heartbeat_total: 0,
+    last_set_block: -1,
+  };
+
+  // If core2 counters exist, mirror them as a baseline (so Prom shows *something*)
+  g.__void_txroot_core2 = g.__void_txroot_core2 || {
+    saves_total: 0, set_total: 0, mismatch_total: 0, errors_total: 0, heartbeat_total: 0, last_set_block: -1,
+  };
+
+  // Small helper: fetch text/json without TSX "cache" option that caused TS errors earlier
+  async function getText(u:string){
+    try { const r = await fetch(u as any); return await r.text(); } catch { return null; }
+  }
+  async function getJSON(u:string){
+    try { const r = await fetch(u as any); return await r.json(); } catch { return null; }
+  }
+
+  // Try a few known block endpoints in descending preference
+  async function getBlockHeader(n:number): Promise<{txRoot?:string|null} | null> {
+    const base = "";
+    // full2 (newer), full (legacy), persisted (diag) — all additive shims in this repo
+    const paths = [
+      `/blocks/${n}/full2`,
+      `/blocks/${n}/full`,
+      `/blocks/${n}/persisted`
+    ];
+    for (const p of paths){
+      const j = await getJSON(base + p);
+      if (j && j.header) return j.header as any;
+      if (j && j.ok && j.block && j.block.header) return j.block.header as any;
+    }
+    return null;
+  }
+
+  // Normalize 0x… vs hex string; accept empty-root constant too
+  const EMPTY = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  function norm(x:any): string | null {
+    if (x == null) return null;
+    const s = String(x).toLowerCase().replace(/^0x/,"");
+    return s.length ? s : null;
+  }
+
+  // Heartbeat so Prom can see liveness on setter
+  setInterval(()=>{ try { g.__void_txroot_setter.heartbeat_total++; } catch {} }, 2000);
+
+  // Watch head; when a new block has a header.txRoot, bump counters once
+  let lastChecked = -1;
+  async function tick(){
+    try {
+      // Prefer in-process head if exported, else HTTP
+      let head = -1;
+      try {
+        const t = await getText(`/head.txt`);
+        const n = t ? parseInt(t.trim(), 10) : NaN;
+        if (Number.isFinite(n)) head = n;
+      } catch {}
+
+      if (!Number.isFinite(head) || head < 0) return;
+
+      if (head <= lastChecked) return;
+      lastChecked = head;
+
+      const hdr = await getBlockHeader(head);
+      const txr = norm(hdr?.txRoot);
+      if (txr){ // consider EMPTY as a valid root (0 tx)
+        // Only advance if this head is newer than what we've recorded
+        if (g.__void_txroot_setter.last_set_block < head){
+          g.__void_txroot_setter.last_set_block = head;
+          g.__void_txroot_setter.set_total++;
+        }
+      }
+      // Mirror core2 if it’s ahead (keeps both exporters consistent)
+      if (g.__void_txroot_core2.last_set_block > g.__void_txroot_setter.last_set_block){
+        g.__void_txroot_setter.last_set_block = g.__void_txroot_core2.last_set_block;
+      }
+      if (g.__void_txroot_core2.set_total > g.__void_txroot_setter.set_total){
+        g.__void_txroot_setter.set_total = g.__void_txroot_core2.set_total;
+      }
+    } catch {
+      try { g.__void_txroot_setter.errors_total++; } catch {}
+    }
+  }
+  setInterval(tick, 1000);
+})();
+
+// ---------------- txroot setter watcher V2 (absolute URLs, header endpoint) ----------------
+(function txrootSetterWatcherV2(){
+  const g:any = (globalThis as any);
+  g.__void_txroot_setter = g.__void_txroot_setter || {
+    set_total: 0, mismatch_total: 0, errors_total: 0, heartbeat_total: 0, last_set_block: -1,
+  };
+
+  const HOST = process.env.HTTP_HOST || "127.0.0.1";
+  const PORT = process.env.HTTP_PORT || "4100";
+  const BASE = `http://${HOST}:${PORT}`;
+
+  async function getText(u:string){ try{ const r = await fetch(u as any); return await r.text(); } catch { return null; } }
+  async function getJSON(u:string){ try{ const r = await fetch(u as any); return await r.json(); } catch { return null; } }
+
+  function norm(x:any){ if (x==null) return null; return String(x).toLowerCase().replace(/^0x/,""); }
+
+  setInterval(()=>{ try { g.__void_txroot_setter.heartbeat_total++; } catch {} }, 2000);
+
+  let lastChecked = -1;
+  async function tick(){
+    try{
+      // 1) head
+      const t = await getText(`${BASE}/head.txt`);
+      const head = t ? parseInt(t.trim(), 10) : NaN;
+      if (!Number.isFinite(head) || head < 0) return;
+      if (head <= lastChecked) return;
+      lastChecked = head;
+
+      // 2) ask inspector (it returns headerTxRoot/computedTxRoot/match)
+      const insp:any = await getJSON(`${BASE}/__void/txroot/v4/header/${head}`);
+      if (insp && insp.ok){
+        const hx = norm(insp.headerTxRoot);
+        if (hx){ // accept empty-root too; normalize
+          if (g.__void_txroot_setter.last_set_block < head){
+            g.__void_txroot_setter.last_set_block = head;
+            g.__void_txroot_setter.set_total++;
+          }
+          return;
+        }
+      }
+
+      // 3) fallback: try persisted/full shims
+      const tries = [`${BASE}/blocks/${head}/full2`, `${BASE}/blocks/${head}/full`, `${BASE}/blocks/${head}/persisted`];
+      for (const url of tries){
+        const j:any = await getJSON(url);
+        const hdr = j?.header || j?.block?.header;
+        const root = hdr?.txRoot ?? hdr?.txroot ?? hdr?.txRootHex;
+        const hx = norm(root);
+        if (hx){
+          if (g.__void_txroot_setter.last_set_block < head){
+            g.__void_txroot_setter.last_set_block = head;
+            g.__void_txroot_setter.set_total++;
+          }
+          return;
+        }
+      }
+    }catch{ try { g.__void_txroot_setter.errors_total++; } catch {} }
+  }
+  setInterval(tick, 1000);
 })();
