@@ -1,0 +1,7 @@
+{
+  "networkName": "VOID-DEV",
+  "chainId": 2050,
+  "seedPeers": ["127.0.0.1:4700"],
+  "genesisTime": "2025-10-31T00:00:00Z",
+  "params": { "blockIntervalMs": 1000 }
+}

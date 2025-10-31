@@ -10934,3 +10934,841 @@ void_seal_rate_1m ${rate}
   }
   attach();
 })();
+
+// ===================== /version (additive, no deps) ==========================
+(function versionRoute(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  // Sync, require-free; uses top-level fs/path imports already in this file
+  function getPkgVersion(){
+    try {
+      const guesses = ["./package.json","../package.json","../../package.json"];
+      for (const rel of guesses) {
+        const abs = path.resolve(process.cwd(), rel);
+        if (fs.existsSync(abs)) {
+          const j = JSON.parse(fs.readFileSync(abs, "utf8"));
+          return j.version || "0.0.0-dev";
+        }
+      }
+    } catch {}
+    return "0.0.0-dev";
+  }
+
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    const version = getPkgVersion();
+    app.get("/version", (_req:any, res:any) => res.json({ version }));
+
+    // Lightweight Prom exporter (uses globals we already increment elsewhere)
+    app.get("/__void/metrics/throughput.prom", (_req:any, res:any) => {
+      res.type("text/plain");
+      res.end([
+        `void_last_block_number ${ (globalThis as any).void_last_block_number ?? 0 }`,
+        `void_blocks_saved_total ${ (globalThis as any).void_blocks_saved_total ?? 0 }`,
+        `void_txs_persisted_total ${ (globalThis as any).void_txs_persisted_total ?? 0 }`,
+        ""
+      ].join("\\n"));
+    });
+  }
+  setTimeout(attach, 0);
+})();
+// ========== Block throughput counters + Prom text exporter (additive) =========
+(function blockThroughput(){
+  let tries = 0, attached = false;
+  const S = {
+    blocks_saved_total: 0,
+    blocks_empty_skipped_total: 0,
+    blocks_nonempty_total: 0,
+    txs_persisted_total: 0,
+    last_block_number: -1,
+    last_updated_ms: 0
+  };
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getStore(){
+    // Best effort: many of our additive hooks stash store on globals
+    return (globalThis as any).__void_store || (globalThis as any).store || undefined;
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // ---- Wrap store.saveBlock once (idempotent) ----
+    try {
+      const store:any = getStore();
+      if (store && store.saveBlock && !(store as any).__throughputWrapped) {
+        const original = store.saveBlock.bind(store);
+        (store as any).__throughputWrapped = true;
+        store.saveBlock = async (block:any) => {
+          // Observe before
+          const hadTxs = Array.isArray(block?.txs) && block.txs.length > 0;
+          const txCount = hadTxs ? block.txs.length : 0;
+
+          const result = await original(block);
+
+          // Observe after (persisted)
+          S.blocks_saved_total += 1;
+          if (hadTxs) {
+            S.blocks_nonempty_total += 1;
+            S.txs_persisted_total += txCount;
+          } else {
+            S.blocks_empty_skipped_total += 1; // counts empty-persists; if policy skips empty, this stays ~0
+          }
+          if (typeof block?.number === "number") S.last_block_number = block.number;
+          S.last_updated_ms = Date.now();
+          return result;
+        };
+      }
+    } catch { /* non-fatal */ }
+
+    // ---- Prom text endpoint (no extra deps) ----
+    app.get("/__void/metrics/throughput.prom", (_req:any, res:any) => {
+      res.type("text/plain; version=0.0.4");
+      res.send(
+        [
+          "# HELP void_blocks_saved_total Total blocks saved (any kind).",
+          "# TYPE void_blocks_saved_total counter",
+          `void_blocks_saved_total ${S.blocks_saved_total}`,
+          "# HELP void_blocks_nonempty_total Total blocks with >=1 tx.",
+          "# TYPE void_blocks_nonempty_total counter",
+          `void_blocks_nonempty_total ${S.blocks_nonempty_total}`,
+          "# HELP void_blocks_empty_skipped_total Empty blocks observed on saveBlock path.",
+          "# TYPE void_blocks_empty_skipped_total counter",
+          `void_blocks_empty_skipped_total ${S.blocks_empty_skipped_total}`,
+          "# HELP void_txs_persisted_total Total transactions persisted into blocks.",
+          "# TYPE void_txs_persisted_total counter",
+          `void_txs_persisted_total ${S.txs_persisted_total}`,
+          "# HELP void_last_block_number Last observed block number on save.",
+          "# TYPE void_last_block_number gauge",
+          `void_last_block_number ${S.last_block_number}`,
+          "# HELP void_metrics_last_updated_ms Last update timestamp (ms since epoch).",
+          "# TYPE void_metrics_last_updated_ms gauge",
+          `void_metrics_last_updated_ms ${S.last_updated_ms}`,
+          ""
+        ].join("\n")
+      );
+    });
+  }
+  attach();
+})();
+
+// ---------------- Throughput exporter (v2, newline-correct) -------------------
+(function throughputPromV2(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // GET /__void/metrics/throughput2.prom
+    // Emits:
+    //   void_last_block_number <n>
+    //   void_blocks_saved_total <n>
+    //   void_txs_persisted_total <n>
+    app.get("/__void/metrics/throughput2.prom", async (req:any, res:any) => {
+      try {
+        const port = (process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
+        const base = `http://127.0.0.1:${port}`;
+
+        // Head number (compat JSON endpoint we already exposed)
+        const headJson = await fetch(`${base}/blocks/latest/number2.json`).then(r=>r.json()).catch(()=>({number:0}));
+        const headNum = Number(headJson.number ?? headJson.head ?? 0);
+
+        // TxRoot core counters (we already expose this JSON)
+        const core = await fetch(`${base}/__void/metrics/txroot4/core2.json`).then(r=>r.json()).catch(()=>({saves_total:0,set_total:0}));
+        const saves = Number(core.saves_total ?? 0);
+        const sets  = Number(core.set_total ?? 0);
+
+        const lines = [
+          `void_last_block_number ${headNum}`,
+          `void_blocks_saved_total ${saves}`,
+          `void_txs_persisted_total ${sets}`,
+        ];
+        res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        res.end(lines.join("\n"));
+      } catch (e:any) {
+        res.status(500).type("text/plain").end(`# error ${e?.message || e}`);
+      }
+    });
+  }
+  attach();
+})();
+
+// ---------------- Readiness probe (+ dev-shim gate) ----------------
+(function readinessAndDevShimGate(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function nowMs(){ return Date.now(); }
+
+  // simple cache for last-seen head + timestamp
+  let lastHead = 0;
+  let lastHeadAt = 0;
+
+  async function fetchJson(url:string, fallback:any){ try { return await fetch(url).then(r=>r.json()); } catch { return fallback; } }
+  async function fetchText(url:string, fallback:string){ try { return await fetch(url).then(r=>r.text()); } catch { return fallback; } }
+
+  async function pollSelf() {
+    const port = (process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
+    const base = `http://127.0.0.1:${port}`;
+    // head (prom text -> number)
+    const headText = await fetchText(`${base}/metrics/void/head`, "");
+    // format: "void_head_number <n>"
+    const m = headText.match(/void_head_number\s+(\d+)/);
+    if (m) { const n = Number(m[1]); if (!Number.isNaN(n) && n >= lastHead) { lastHead = n; lastHeadAt = nowMs(); } }
+    setTimeout(pollSelf, 2000);
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // start polling our own metrics for head progress
+    pollSelf();
+
+    // Dev-shim gate (passive block): if VOID_DEV_SHIMS !== "true", hide /dev/* and /tx/dev/* (but leave internal/metrics alone)
+    const allowDev = String(process.env.VOID_DEV_SHIMS || "").toLowerCase() === "true";
+    if (!allowDev) {
+      app.use((req:any, res:any, next:any)=>{
+        const p = req.path || "";
+        if (p.startsWith("/dev/") || p.startsWith("/tx/dev/")) {
+          return res.status(404).json({ ok:false, error:"dev-shims disabled" });
+        }
+        next();
+      });
+    }
+
+    // GET /health/ready[?format=prom&window_ms=20000]
+    // Ready if txroot health == 1 AND head advanced within window_ms (default 20000)
+    app.get("/health/ready", async (req:any, res:any)=>{
+      const windowMs = Math.max(1000, Number(req.query.window_ms ?? 20000));
+      const port = (process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
+      const base = `http://127.0.0.1:${port}`;
+
+      const txh = await fetchJson(`${base}/health/txroot3`, { ok:false, health:0 });
+      const health = Number((txh && (txh.health ?? (txh.ok?1:0))) || 0);
+      const recent = (nowMs() - (lastHeadAt||0)) <= windowMs ? 1 : 0;
+      const ready = (health === 1 && recent === 1) ? 1 : 0;
+
+      const payload = { ready, health, recent, window_ms: windowMs, head:lastHead, head_age_ms: (nowMs()-(lastHeadAt||0)) };
+      if ((req.query.format||"") === "prom") {
+        res.setHeader("Content-Type","text/plain; version=0.0.4");
+        // single-sample gauges for quick alerting
+        return res.end([
+          `void_ready ${ready}`,
+          `void_txroot_health ${health}`,
+          `void_head_recent ${recent}`,
+          `void_head_number ${lastHead}`
+        ].join("\n") + "\n");
+      }
+      res.json(payload);
+    });
+
+    // tiny status route for the gate (debug)
+    app.get("/__void/dev-shims/status", (_req:any, res:any)=>{
+      res.json({ allow_dev: allowDev });
+    });
+  }
+  attach();
+})();
+
+// ---------------- BlockHash setter + health (additive, no deletions) --------------------
+(function blockHashSetterAndHealth(){
+  let tries = 0, attached = false;
+
+  // Lazy require in case of import order
+  const { blockHash } = (() => {
+    try { return require("./chain/block.js"); } catch { return { blockHash: (h:any)=>h?.hash || "" }; }
+  })();
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  async function attach(){
+    const app:any = getApp();
+    const node:any = getNode();
+    if (!app || !node || !node.store || typeof node.store.saveBlock !== "function") {
+      if (++tries < 80) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // --- Wrap saveBlock to enforce header.hash deterministically (after txRoot is set) ---
+    const store:any = node.store;
+    const _save = store.saveBlock.bind(store);
+
+    if (!(store as any).__void_hash_setter_wrapped) {
+      (store as any).__void_hash_setter_wrapped = true;
+
+      store.saveBlock = async function(block:any){
+        try {
+          // Ensure header exists
+          block.header = block.header || {};
+          // If txRoot object present, prefer its hex for stable hashing
+          if (block.header.txRoot && typeof block.header.txRoot === "object" && block.header.txRoot.hex) {
+            block.header.txRoot = block.header.txRoot.hex;
+          }
+          // Compute deterministic hash from header fields
+          const h = blockHash(block.header);
+          block.header.hash = h;
+        } catch (e:any) {
+          // Non-fatal; we still persist but expose error via counter
+          (globalThis as any).__void_blockhash_errors = ((globalThis as any).__void_blockhash_errors|0) + 1;
+        }
+        const res = await _save(block);
+        // Track last N hash checks in memory for quick health
+        try {
+          (globalThis as any).__void_blockhash_last = block.header?.hash || "";
+          (globalThis as any).__void_blockhash_saved_total = ((globalThis as any).__void_blockhash_saved_total|0) + 1;
+        } catch {}
+        return res;
+      };
+    }
+
+    // --- Endpoints ---
+    // GET /blocks/:n/hash -> {number, hash}
+    app.get("/blocks/:n/hash", async (req:any, res:any) => {
+      try{
+        const n = Number(req.params.n);
+        const blk = await node.store.getBlock(n);
+        const header = blk?.header || {};
+        const current = header.hash || "";
+        // Recompute to verify
+        const t = { ...header };
+        const recomputed = blockHash(t);
+        const ok = current === recomputed;
+        res.json({ number:n, hash: current, recomputed, ok });
+      } catch(e:any){
+        res.status(500).json({ error: e?.message || String(e) });
+      }
+    });
+
+    // Health: /health/blockhash (.json or ?format=prom)
+    // Verifies last 50 blocks (or up to head) and emits void_blockhash_health 1/0 + counters
+    app.get("/health/blockhash", async (req:any, res:any) => {
+      try{
+        const head = await node.store.getHeadNumber();
+        const from = Math.max(0, head - 49);
+        let checked=0, mismatches=0;
+        for (let i=from; i<=head; i++){
+          const blk = await node.store.getBlock(i);
+          if (!blk) continue;
+          const hdr = blk.header || {};
+          const saved = hdr.hash || "";
+          const recomputed = blockHash({ ...hdr });
+          if (saved !== recomputed) mismatches++;
+          checked++;
+        }
+        const ok = mismatches === 0 ? 1 : 0;
+        const format = (req.query?.format || "").toString();
+        if (format === "prom") {
+          res.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+          res.end([
+            "# HELP void_blockhash_health Are recent block hashes valid (1 ok, 0 bad)",
+            "# TYPE void_blockhash_health gauge",
+            `void_blockhash_health ${ok}`,
+            "# HELP void_blockhash_checked Total blocks verified in last window",
+            "# TYPE void_blockhash_checked gauge",
+            `void_blockhash_checked ${checked}`,
+            "# HELP void_blockhash_mismatches Mismatched hashes in last window",
+            "# TYPE void_blockhash_mismatches gauge",
+            `void_blockhash_mismatches ${mismatches}`
+          ].join("\n"));
+          return;
+        }
+        res.json({ ok, checked, mismatches, head, from });
+      } catch(e:any){
+        res.status(500).json({ error: e?.message || String(e) });
+      }
+    });
+  }
+  attach();
+})();
+
+// ---------------- BlockHash health v2 (self-HTTP; no node.store) --------------------
+(function blockHashHealthV2(){
+  let tries = 0, attached = false;
+
+  const { blockHash } = (() => {
+    try { return require("./chain/block.js"); } catch { return { blockHash: (h:any)=>h?.hash || "" }; }
+  })();
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function fetchJson(url:string){ try { const r = await fetch(url); return await r.json(); } catch { return null; } }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 80) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // GET /blocks/:n/hash2 -> {number, hash, recomputed, ok}
+    app.get("/blocks/:n/hash2", async (req:any, res:any) => {
+      const port = (process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
+      const n = Number(req.params.n);
+      const hdr = await fetchJson(`http://127.0.0.1:${port}/blocks/${n}/header`);
+      if (!hdr || typeof hdr !== "object") return res.status(404).json({ error:"header not found", number:n });
+
+      // If txRoot is an object, prefer its .hex for hashing stability
+      const header = { ...hdr };
+      if (header.txRoot && typeof header.txRoot === "object" && header.txRoot.hex) header.txRoot = header.txRoot.hex;
+
+      const current = header.hash || "";
+      const recomputed = blockHash({ ...header });
+      const ok = current === recomputed;
+      res.json({ number:n, hash: current, recomputed, ok });
+    });
+
+    // GET /health/blockhash2[?format=prom]
+    // Verifies last 50 blocks (using /blocks/latest/number2.json and /blocks/:n/header)
+    app.get("/health/blockhash2", async (req:any, res:any) => {
+      const port = (process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
+      const latest = await fetchJson(`http://127.0.0.1:${port}/blocks/latest/number2.json`);
+      const head = Number(latest?.number ?? latest?.head ?? 0);
+      const from = Math.max(0, head - 49);
+
+      let checked = 0, mismatches = 0;
+      for (let i = from; i <= head; i++) {
+        const hdr = await fetchJson(`http://127.0.0.1:${port}/blocks/${i}/header`);
+        if (!hdr) continue;
+        const header = { ...hdr };
+        if (header.txRoot && typeof header.txRoot === "object" && header.txRoot.hex) header.txRoot = header.txRoot.hex;
+        const saved = header.hash || "";
+        const recomputed = blockHash({ ...header });
+        if (saved !== recomputed) mismatches++;
+        checked++;
+      }
+      const ok = mismatches === 0 ? 1 : 0;
+
+      const format = (req.query?.format || "").toString();
+      if (format === "prom") {
+        res.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        return res.end([
+          "# HELP void_blockhash_health Are recent block hashes valid (1 ok, 0 bad)",
+          "# TYPE void_blockhash_health gauge",
+          `void_blockhash_health ${ok}`,
+          "# HELP void_blockhash_checked Total blocks verified in last window",
+          "# TYPE void_blockhash_checked gauge",
+          `void_blockhash_checked ${checked}`,
+          "# HELP void_blockhash_mismatches Mismatched hashes in last window",
+          "# TYPE void_blockhash_mismatches gauge",
+          `void_blockhash_mismatches ${mismatches}`
+        ].join("\n"));
+      }
+      res.json({ ok, checked, mismatches, head, from });
+    });
+  }
+  attach();
+})();
+
+// ---------------- Genesis manifest health (v2, ESM-safe) --------------------
+(function genesisHealthV2(){
+  let tries = 0, attached = false;
+
+  type Genesis = {
+    networkName?: string;
+    chainId?: number;
+    seedPeers?: string[];
+    genesisTime?: string;
+    params?: any;
+  };
+
+  // Shared state; filled after async init()
+  let cache: { ok: 0|1; error?: string; genesis?: Genesis; mtime?: number } =
+    { ok: 0, error: 'initializing' };
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function init(){
+    try {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+
+      const GENESIS_PATH = process.env.VOID_GENESIS_PATH || (path as any).resolve(process.cwd(), 'genesis.json');
+      const REQUIRED_CHAIN_ID = Number(process.env.VOID_CHAIN_ID || 2050);
+
+      function loadGenesis(): { ok: 0|1; error?: string; genesis?: Genesis; mtime?: number } {
+        try {
+          const stat = (fs as any).statSync(GENESIS_PATH);
+          const txt  = (fs as any).readFileSync(GENESIS_PATH, 'utf8');
+          const json: Genesis = JSON.parse(txt);
+
+          if (!json || typeof json !== 'object') return { ok: 0, error: 'invalid_json' };
+          const cid = Number((json as any).chainId ?? NaN);
+          if (!Number.isFinite(cid)) return { ok: 0, error: 'missing_chainId' };
+          if (cid !== REQUIRED_CHAIN_ID) return { ok: 0, error: `chainId_mismatch_expected_${REQUIRED_CHAIN_ID}_got_${cid}` };
+          if (!Array.isArray(json.seedPeers) || json.seedPeers.length === 0) return { ok: 0, error: 'missing_seedPeers' };
+
+          return { ok: 1, genesis: json, mtime: +stat.mtime };
+        } catch (e:any) {
+          return { ok: 0, error: e?.message || 'read_failed' };
+        }
+      }
+
+      // Prime + refresh
+      cache = loadGenesis();
+      const t = setInterval(() => { cache = loadGenesis(); }, 30_000);
+      // @ts-ignore
+      t.unref && t.unref();
+    } catch (e:any) {
+      cache = { ok: 0, error: e?.message || 'init_failed' };
+    }
+  }
+
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== 'function') {
+      if (++tries < 80) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // JSON status
+    app.get('/genesis/status', (_req:any, res:any) => {
+      const s = cache.ok ? {
+        ok: 1,
+        chainId: cache.genesis?.chainId,
+        networkName: cache.genesis?.networkName,
+        seedPeers: cache.genesis?.seedPeers,
+        mtime: cache.mtime
+      } : { ok: 0, error: cache.error };
+      res.json(s);
+    });
+
+    // Prom/JSON health
+    app.get('/health/genesis', (req:any, res:any) => {
+      const ok = cache.ok ? 1 : 0;
+      const format = (req.query?.format || '').toString();
+      if (format === 'prom') {
+        res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+        return res.end([
+          '# HELP void_genesis_health Is genesis manifest valid (1 ok, 0 bad)',
+          '# TYPE void_genesis_health gauge',
+          `void_genesis_health ${ok}`
+        ].join('\n'));
+      }
+      res.json(cache.ok ? { ok: 1 } : { ok: 0, error: cache.error });
+    });
+  }
+
+  // Boot sequence: init (async), then attempt to attach; also retry attach until app exists
+  init().then(()=>attach());
+  setTimeout(attach, 250);
+})();
+
+// ---------------- Mempool metrics exporter (ESM-safe, additive) ----------------
+(function mempoolMetricsExporter(){
+  let tries = 0, attached = false;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node || undefined; }
+
+  function scrape() {
+    try {
+      const n:any = getNode();
+      const size = Number(n?.mempool?.txs?.length ?? 0);
+      // Keep names consistent with throughput rules we planned
+      const lines = [
+        '# HELP void_mempool_size Current number of transactions in mempool',
+        '# TYPE void_mempool_size gauge',
+        `void_mempool_size ${size}`,
+      ];
+      return lines.join('\n') + '\n';
+    } catch { return '# error scraping mempool size\n'; }
+  }
+
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== 'function') {
+      if (++tries < 120) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    // Prom text endpoint
+    app.get('/__void/metrics/mempool.prom', (_req:any, res:any) => {
+      res.type('text/plain; version=0.0.4; charset=utf-8').send(scrape());
+    });
+
+    console.log('[mempool/metrics] exporter at /__void/metrics/mempool.prom');
+  }
+
+  setTimeout(attach, 0);
+})();
+
+// ---------------- Tx-actual metrics (additive, ESM-safe) ----------------------
+(function txActualMetrics(){
+  let tries = 0, attached = false;
+  let txIncludedTotal = 0;                 // counter
+  let lastBlockTxs = 0;                    // gauge
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  function installWrapper(){
+    const n:any = getNode();
+    if (!n?.store || typeof n.store.saveBlock !== 'function') return false;
+    if ((n.store as any).__txActualWrapped) return true;
+
+    const orig = n.store.saveBlock.bind(n.store);
+    (n.store as any).__txActualWrapped = true;
+
+    n.store.saveBlock = async function wrappedSave(block:any){
+      // call original
+      const res = await orig(block);
+
+      // count txs actually persisted on this block (best effort)
+      try {
+        const txs = Array.isArray(block?.txs) ? block.txs.length
+                  : Array.isArray(block?.body?.txs) ? block.body.txs.length
+                  : Number(block?.txCount ?? 0);
+        const add = Number.isFinite(txs) ? txs : 0;
+        txIncludedTotal += add;
+        lastBlockTxs = add;
+      } catch { /* noop */ }
+
+      return res;
+    };
+    return true;
+  }
+
+  function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== 'function') {
+      if (++tries < 120) return setTimeout(attach, 500);
+      return;
+    }
+    if (!attached) {
+      // try to install wrapper now; retry a few times if node not ready yet
+      let wtries = 0;
+      const ensure = () => {
+        if (installWrapper()) return;
+        if (++wtries < 60) setTimeout(ensure, 500);
+      };
+      ensure();
+
+      // Prometheus text endpoint
+      app.get('/__void/metrics/tx-actual.prom', (_req:any, res:any) => {
+        const lines = [
+          '# HELP void_txs_included_total_actual Count of transactions actually persisted (counter)',
+          '# TYPE void_txs_included_total_actual counter',
+          `void_txs_included_total_actual ${txIncludedTotal}`,
+          '# HELP void_last_block_txs Number of txs in the most recently saved block',
+          '# TYPE void_last_block_txs gauge',
+          `void_last_block_txs ${lastBlockTxs}`,
+        ];
+        res.type('text/plain; version=0.0.4; charset=utf-8').send(lines.join('\n')+'\n');
+      });
+
+      attached = true;
+    }
+  }
+
+  setTimeout(attach, 0);
+})();
+// --- SEALS_EXPORTER_V2_BEGIN --- (additive-only; keeps global app hook intact)
+(() => {
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  const state = { lastNumber: -1, lastTsMs: 0, recent: [] as number[] };
+  function prune(){ const cut = Date.now()-60_000; while(state.recent.length && state.recent[0] < cut) state.recent.shift(); }
+  async function tick(){
+    try{
+      const r = await fetch("http://127.0.0.1:4100/blocks/latest/number.json");
+      if (r.ok){
+        const j:any = await r.json().catch(()=>null);
+        const n = j && typeof j.number === "number" ? j.number : null;
+        if (n!=null && (state.lastNumber===-1 || n>state.lastNumber)){
+          state.lastNumber = n; state.lastTsMs = Date.now(); state.recent.push(state.lastTsMs); prune();
+        } else { prune(); }
+      }
+    } catch {}
+    setTimeout(tick, 1000);
+  }
+  let attached=false, tries=0;
+  (function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function"){ if(++tries<120) return setTimeout(attach,500); return; }
+    if(attached) return; attached=true;
+    app.get("/metrics/void/seals2", (_req:any, res:any)=>{
+      prune();
+      const rate1m = state.recent.length;
+      const out = [
+        "# HELP void_seal_last_number Latest sealed block number",
+        "# TYPE void_seal_last_number gauge",
+        `void_seal_last_number ${state.lastNumber}`,
+        "# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed",
+        "# TYPE void_seal_last_ts_ms gauge",
+        `void_seal_last_ts_ms ${state.lastTsMs}`,
+        "# HELP void_seal_rate_1m Seals observed in the last 60 seconds",
+        "# TYPE void_seal_rate_1m gauge",
+        `void_seal_rate_1m ${rate1m}`,
+        ""
+      ];
+      res.type("text/plain").send(out.join("\n"));
+    });
+    tick();
+  })();
+})();
+// --- SEALS_EXPORTER_V2_END ---
+// --- SEALS_EXPORTER_ALIAS_BEGIN ---
+(() => {
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+  // Recursively remove ANY prior GET handler for /metrics/void/seals (handles nested routers)
+  function scrubSeals(stack){
+    if (!Array.isArray(stack)) return;
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const L:any = stack[i];
+      try {
+        // If this layer has a route with GET and an exact path
+        if (L && L.route && L.route.methods && L.route.methods.get) {
+          const p = L.route.path;
+          if (p === "/metrics/void/seals") { stack.splice(i, 1); continue; }
+        }
+        // If this is a nested router, recurse
+        if (L && L.name === "router" && L.handle && Array.isArray(L.handle.stack)) {
+          // If the regexp string hints at our path, still recurse to be safe
+          const hint = (L.regexp && String(L.regexp)) || "";
+          if (hint.includes("\\/metrics\\/void\\/seals") || true) {
+            scrubSeals(L.handle.stack);
+          }
+        }
+        // As a fallback, check a direct regexp on this layer (some Express versions)
+        const s = (L && L.regexp && String(L.regexp)) || "";
+        if (s.includes("\\/metrics\\/void\\/seals") && L.route && L.route.methods && L.route.methods.get) {
+          stack.splice(i, 1);
+        }
+      } catch(_) {}
+    }
+  }
+
+  let attached=false, tries=0;
+  (function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+    try { scrubSeals((app as any)._router?.stack); } catch(_) {}
+
+    // Our override: proxy seals2 -> seals
+    app.get("/metrics/void/seals", async (_req:any, res:any) => {
+      try {
+        const r = await fetch("http://127.0.0.1:4100/metrics/void/seals2");
+        const text = await r.text();
+        res.type("text/plain").send(text);
+      } catch {
+        res.type("text/plain").status(500).send("# ERROR: seals2 not available\n");
+      }
+    });
+  })();
+})();
+// --- SEALS_EXPORTER_ALIAS_END ---
+// --- SEALS_EXPORTER_V3_BEGIN ---
+// Self-contained seals exporter.
+// - Polls /head.txt every 1s
+// - Exposes /metrics/void/seals2 and legacy /metrics/void/seals
+// - Scrubs any older handlers that may shadow these routes
+(() => {
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+  const state = { lastNumber: -1, lastTsMs: 0, recent: [] as number[] };
+  function prune(){ const cut = Date.now() - 60_000; while (state.recent.length && state.recent[0] < cut) state.recent.shift(); }
+
+  async function poll(){
+    try {
+      const r = await fetch("http://127.0.0.1:4100/head.txt");
+      if (r.ok) {
+        const txt = (await r.text()).trim();
+        const n = Number.parseInt(txt, 10);
+        if (Number.isFinite(n) && (state.lastNumber === -1 || n > state.lastNumber)) {
+          state.lastNumber = n;
+          state.lastTsMs = Date.now();
+          state.recent.push(state.lastTsMs);
+        }
+      }
+    } catch {}
+    prune();
+    setTimeout(poll, 1000);
+  }
+
+  function scrubPaths(app:any, paths:string[]){
+    try {
+      const scrub = (stack:any[]) => {
+        if (!Array.isArray(stack)) return;
+        for (let i = stack.length - 1; i >= 0; i--) {
+          const L:any = stack[i];
+          try {
+            // direct route
+            if (L && L.route && L.route.methods && L.route.methods.get) {
+              const p = L.route.path;
+              if (paths.includes(p)) { stack.splice(i,1); continue; }
+            }
+            // nested router
+            if (L && L.name === "router" && L.handle && Array.isArray(L.handle.stack)) {
+              scrub(L.handle.stack);
+            }
+            // some express variants expose a regexp hint
+            const s = (L && L.regexp && String(L.regexp)) || "";
+            if (paths.some(p => s.includes(p.replaceAll("/","\\/"))) && L.route && L.route.methods && L.route.methods.get) {
+              stack.splice(i,1);
+            }
+          } catch {}
+        }
+      };
+      scrub((app as any)._router?.stack);
+    } catch {}
+  }
+
+  function metricsText(){
+    prune();
+    const rate1m = state.recent.length;
+    return [
+      "# HELP void_seal_last_number Latest sealed block number",
+      "# TYPE void_seal_last_number gauge",
+      "void_seal_last_number " + state.lastNumber,
+      "# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed",
+      "# TYPE void_seal_last_ts_ms gauge",
+      "void_seal_last_ts_ms " + state.lastTsMs,
+      "# HELP void_seal_rate_1m Seals observed in the last 60 seconds",
+      "# TYPE void_seal_rate_1m gauge",
+      "void_seal_rate_1m " + rate1m
+    ].join("\n");
+  }
+
+  let attached=false, tries=0;
+  (function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
+    if (attached) return; attached=true;
+
+    // ensure nothing shadows our paths, then mount both
+    scrubPaths(app, ["/metrics/void/seals", "/metrics/void/seals2"]);
+    app.get("/metrics/void/seals2", (_req:any, res:any) => res.type("text/plain").send(metricsText()));
+    app.get("/metrics/void/seals",  (_req:any, res:any) => res.type("text/plain").send(metricsText()));
+
+    // start polling
+    poll();
+
+    // safety: re-scrub a bit later in case other code adds handlers after us
+    setTimeout(() => { try { scrubPaths(app, ["/metrics/void/seals", "/metrics/void/seals2"]); } catch {} }, 3000);
+  })();
+})();
+// --- SEALS_EXPORTER_V3_END ---
