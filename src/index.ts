@@ -11772,3 +11772,294 @@ void_seal_rate_1m ${rate}
   })();
 })();
 // --- SEALS_EXPORTER_V3_END ---
+// --- SEALS_V3_BOOTSAFE_BEGIN ---
+// Boot-safe seals exporter (head-derived, no dev shims). Idempotent re-mount.
+// Exposes:
+//   - /metrics/void/seals       (Prometheus text: last_number, last_ts_ms, rate_1m)
+//   - /__void/seals/v3/status   (JSON diag)
+(() => {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app || g.app;
+  if (!app || typeof app.get !== "function") return;
+
+  if (g.__void_seals_v3_bootsafe) return; // already mounted
+  g.__void_seals_v3_bootsafe = true;
+
+  const S:any = g.__void_seals_state = g.__void_seals_state || {
+    lastNumber: -1,
+    lastTsMs: 0,
+    recent: [] as number[],
+    polls: 0,
+    lastErr: ""
+  };
+
+  function rate1m(): number {
+    const cut = Date.now() - 60_000;
+    S.recent = Array.isArray(S.recent) ? S.recent.filter((t:number)=>t>=cut) : [];
+    return S.recent.length;
+  }
+
+  async function readLatestNumber(): Promise<number> {
+    // Prefer in-process helpers if present
+    try {
+      const cand = [g.__void_node, g.node, g.__node, g.__VOID_NODE];
+      for (const n of cand) {
+        if (n && typeof n.getHeadNumber === "function") {
+          const nnum = await n.getHeadNumber();
+          if (Number.isFinite(nnum)) return nnum;
+        }
+        if (n && typeof n.headNumber === "number") {
+          const nnum = n.headNumber;
+          if (Number.isFinite(nnum)) return nnum;
+        }
+      }
+    } catch {}
+
+    // Fallback: local HTTP (/blocks/latest/number) or /head.txt
+    const port = (process.env.HTTP_PORT || "4100").trim();
+    const base = `http://127.0.0.1:${port}`;
+    try {
+      const r = await fetch(`${base}/blocks/latest/number`);
+      if (r.ok) {
+        const t = (await r.text()).trim();
+        const n = parseInt(t, 10);
+        if (Number.isFinite(n)) return n;
+      }
+    } catch (e:any) {
+      S.lastErr = String(e?.message || e);
+    }
+
+    try {
+      const r2 = await fetch(`${base}/head.txt`);
+      if (r2.ok) {
+        const t2 = (await r2.text()).trim();
+        const n2 = parseInt(t2, 10);
+        if (Number.isFinite(n2)) return n2;
+      }
+    } catch (e:any) {
+      S.lastErr = String(e?.message || e);
+    }
+
+    return S.lastNumber;
+  }
+
+  async function tick() {
+    S.polls++;
+    try {
+      const n = await readLatestNumber();
+      if (Number.isFinite(n) && n > S.lastNumber) {
+        S.lastNumber = n;
+        S.lastTsMs = Date.now();
+        S.recent = Array.isArray(S.recent) ? S.recent : [];
+        S.recent.push(S.lastTsMs);
+      }
+    } catch (e:any) {
+      S.lastErr = String(e?.message || e);
+    }
+  }
+
+  // Start a single poller (idempotent)
+  if (!g.__void_seals_v3_timer) {
+    g.__void_seals_v3_timer = setInterval(tick, 2000);
+    setTimeout(tick, 250); // first kick shortly after boot
+  }
+
+  // Prom text
+  app.get("/metrics/void/seals", (_req:any, res:any) => {
+    // keep recent window fresh even if Prom is the only traffic
+    rate1m();
+    res.type("text/plain; version=0.0.4");
+    res.send(
+`# HELP void_seal_last_number Latest sealed block number
+# TYPE void_seal_last_number gauge
+void_seal_last_number ${S.lastNumber}
+# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed
+# TYPE void_seal_last_ts_ms gauge
+void_seal_last_ts_ms ${S.lastTsMs}
+# HELP void_seal_rate_1m Seals observed in the last 60 seconds
+# TYPE void_seal_rate_1m gauge
+void_seal_rate_1m ${rate1m()}
+`);
+  });
+
+  // JSON diag
+  app.get("/__void/seals/v3/status", (_req:any, res:any) => {
+    res.json({
+      mounted: { bootsafe: true },
+      lastNumber: S.lastNumber,
+      lastTsMs: S.lastTsMs,
+      rate1m: rate1m(),
+      polls: S.polls,
+      lastErr: S.lastErr || null
+    });
+  });
+})();
+// --- SEALS_V3_BOOTSAFE_END ---
+// --- SEALS_V3_WATCHDOG_BEGIN ---
+// Seals V3 watchdog: auto-remount /metrics/void/seals and /__void/seals/v3/status
+// if the Express app is replaced or routes disappear.
+(() => {
+  const g:any = (globalThis as any);
+  const getApp = () => g.__void_http_app || g.app;
+  const PATH_METRICS = "/metrics/void/seals";
+  const PATH_DIAG    = "/__void/seals/v3/status";
+
+  // Shared state used by bootsafe block if present; create if missing.
+  g.__void_seals_state = g.__void_seals_state || {
+    lastNumber: -1,
+    lastTsMs: 0,
+    recent: [] as number[],
+    polls: 0,
+    lastErr: ""
+  };
+  const S:any = g.__void_seals_state;
+
+  function rate1m(): number {
+    const cut = Date.now() - 60_000;
+    S.recent = Array.isArray(S.recent) ? S.recent.filter((t:number)=>t>=cut) : [];
+    return S.recent.length;
+  }
+
+  function hasRoute(app:any, path:string): boolean {
+    try {
+      const st = app?._router?.stack || [];
+      return st.some((l:any) => (l?.route?.path === path) || (l?.regexp && String(l.regexp).includes(path)));
+    } catch { return false; }
+  }
+
+  function mount(app:any) {
+    if (!app || typeof app.get !== "function") return false;
+
+    // (Re)register metrics
+    if (!hasRoute(app, PATH_METRICS)) {
+      app.get(PATH_METRICS, (_req:any, res:any) => {
+        rate1m(); // keep window fresh
+        res.type("text/plain; version=0.0.4");
+        res.send(
+`# HELP void_seal_last_number Latest sealed block number
+# TYPE void_seal_last_number gauge
+void_seal_last_number ${S.lastNumber}
+# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed
+# TYPE void_seal_last_ts_ms gauge
+void_seal_last_ts_ms ${S.lastTsMs}
+# HELP void_seal_rate_1m Seals observed in the last 60 seconds
+# TYPE void_seal_rate_1m gauge
+void_seal_rate_1m ${rate1m()}
+`);
+      });
+    }
+
+    // (Re)register diag
+    if (!hasRoute(app, PATH_DIAG)) {
+      app.get(PATH_DIAG, (_req:any, res:any) => {
+        res.json({
+          mounted: { watchdog: true },
+          lastNumber: S.lastNumber,
+          lastTsMs: S.lastTsMs,
+          rate1m: rate1m(),
+          polls: S.polls,
+          lastErr: S.lastErr || null
+        });
+      });
+    }
+    return true;
+  }
+
+  // Remember last seen app to detect swaps
+  let lastApp:any = null;
+
+  function tickWatchdog() {
+    const app = getApp();
+    if (!app) return;
+    if (app !== lastApp || !hasRoute(app, PATH_METRICS) || !hasRoute(app, PATH_DIAG)) {
+      mount(app);
+      lastApp = app;
+    }
+  }
+
+  // Start watchdog (idempotent)
+  if (!g.__void_seals_watchdog_timer) {
+    g.__void_seals_watchdog_timer = setInterval(tickWatchdog, 1000);
+    setTimeout(tickWatchdog, 200); // early pass
+  }
+})();
+// --- SEALS_V3_WATCHDOG_END ---
+// --- SEALS_V3_POLLER_BEGIN ---
+// Seals V3 poller: updates shared state by reading current head periodically.
+// Works with the watchdog + bootsafe blocks. Idempotent.
+(() => {
+  const g:any = (globalThis as any);
+
+  // Shared state (created if missing)
+  g.__void_seals_state = g.__void_seals_state || {
+    lastNumber: -1,
+    lastTsMs: 0,
+    recent: [] as number[],
+    polls: 0,
+    lastErr: ""
+  };
+  const S:any = g.__void_seals_state;
+
+  // Try several fast/local sources to read the latest head number.
+  async function readHead(): Promise<number> {
+    // 1) In-process globals if present
+    try {
+      const cand = [g.__void_node, g.node, g.__node, g.__VOID_NODE];
+      for (const n of cand) {
+        if (!n) continue;
+        // common shapes we've used:
+        //   n.headNumber  OR  n.head?.number  OR  n.store?.heads?.head
+        const v = (n.headNumber ?? n.head?.number ?? n.store?.heads?.head);
+        if (Number.isFinite(v)) return v;
+      }
+    } catch {}
+
+    // 2) Lightweight local HTTP: /head.txt -> /blocks/latest/number
+    const port = (process.env.HTTP_PORT || "4100").trim();
+    const tryFetchNum = async (url:string) => {
+      const r = await fetch(url).catch(()=>null);
+      if (!r || !r.ok) return null;
+      const t = await r.text();
+      const n = parseInt((t||"").trim(), 10);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const a = await tryFetchNum(`http://127.0.0.1:${port}/head.txt`);
+    if (a !== null) return a;
+
+    const b = await tryFetchNum(`http://127.0.0.1:${port}/blocks/latest/number`);
+    if (b !== null) return b;
+
+    return S.lastNumber; // fallback (no change)
+  }
+
+  function trimRecent(now:number) {
+    const cut = now - 60_000;
+    S.recent = Array.isArray(S.recent) ? S.recent.filter((t:number)=>t>=cut) : [];
+  }
+
+  async function tick() {
+    S.polls = (S.polls|0) + 1;
+    try {
+      const n = await readHead();
+      if (Number.isFinite(n) && n > S.lastNumber) {
+        const now = Date.now();
+        S.lastNumber = n;
+        S.lastTsMs   = now;
+        trimRecent(now);
+        S.recent.push(now);
+        if (S.recent.length > 600) S.recent.splice(0, S.recent.length - 600); // cap
+        S.lastErr = "";
+      }
+    } catch (e:any) {
+      S.lastErr = (e?.message || String(e)).slice(0, 200);
+    }
+  }
+
+  if (!g.__void_seals_poller_timer) {
+    // quick priming passes, then steady every 1s
+    tick(); setTimeout(tick, 200); setTimeout(tick, 800);
+    g.__void_seals_poller_timer = setInterval(tick, 1000);
+  }
+})();
+// --- SEALS_V3_POLLER_END ---
