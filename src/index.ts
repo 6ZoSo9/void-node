@@ -6172,7 +6172,7 @@ void_txroot_v4_errors_total ${X.errors}
       for (let n=F; n<=T; n++){
         const r = await vOnce(n);
         results.push(r);
-        if (!r.ok) errors++; else if (r.match) ok++; else mismatch++;
+        if (!r.ok) errors++; else if ((r as any).match) ok++; else mismatch++;
       }
       res.json({ ok:true, from:F, to:T, summary:{ count: results.length, ok, mismatch, errors }, results });
     });
@@ -6194,7 +6194,7 @@ void_txroot_v4_errors_total ${X.errors}
       for (let n=F; n<=T; n++){
         const r = await vOnce(n);
         results.push(r);
-        if (!r.ok) errors++; else if (r.match) ok++; else mismatch++;
+        if (!r.ok) errors++; else if ((r as any).match) ok++; else mismatch++;
       }
       res.json({ ok:true, from:F, to:T, summary:{ count: results.length, ok, mismatch, errors }, results });
     });
@@ -8236,4 +8236,26 @@ void_head_number ${head}
     }catch{ try { g.__void_txroot_setter.errors_total++; } catch {} }
   }
   setInterval(tick, 1000);
+})();
+
+// --- Additive: soft-gate dev & inspector routes w/o deleting anything ---
+(function devRouteGate(){
+  try {
+    const appAny:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!appAny || typeof appAny.use !== 'function') return;
+
+    const allow = process.env.VOID_DEV_ROUTES === '1';
+    if (allow) return; // dev routes enabled
+
+    // Block only well-known debug namespaces; core APIs unaffected
+    const blocked = [
+      "/__void",                // all our txroot shims/inspectors
+      "/dev",                   // any dev inspectors
+      "/tx/dev",                // tx burst helpers, raw inspectors
+      "/metrics/drift6",        // follower drift exporter (dev)
+      "/__void/metrics"         // ad-hoc prom text exporters
+    ];
+
+    appAny.use(blocked, (_req:any, res:any)=> res.status(404).end());
+  } catch {}
 })();
