@@ -10583,3 +10583,103 @@ return fn.call(this, clean);
     (globalThis as any).__void_last_seal_tracker = { enabled: true };
   } catch {}
 })();
+
+// --------------- Additive: remember last txRoot after each save (no behavior change) ---------------
+(() => {
+  try {
+    const segAny: any = (globalThis as any).SegStore || (SegStore as any);
+    if (!segAny?.prototype) return;
+    const proto: any = segAny.prototype;
+    if (proto.__void_txroot_tap_v1) return; // idempotent guard
+
+    const orig = proto.saveBlock;
+    if (typeof orig !== "function") return;
+
+    proto.saveBlock = function txrootTapV1(block: any, ...rest: any[]) {
+      const out = (orig as any).apply(this, [block, ...rest]);
+      try {
+        // Prefer header.txRoot if present (string/Uint8Array/etc)
+        const root =
+          block?.header?.txRoot ??
+          (typeof block?.header?.txroot !== "undefined" ? block.header.txroot : undefined);
+        if (root != null) {
+          (globalThis as any).__lastTxRoot = root;
+        }
+      } catch {}
+      return out;
+    };
+    proto.__void_txroot_tap_v1 = true;
+  } catch {}
+})();
+
+// Optional: expose for quick debugging
+(() => {
+  try {
+    const app: any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || app.__void_last_txroot_route) return;
+    app.get('/__void/last-txroot.json', (_req:any, res:any) => {
+      res.json({ lastTxRoot: (globalThis as any).__lastTxRoot ?? null,
+                 lastBlock: (globalThis as any).__void_last_seal_number ?? null });
+    });
+    app.__void_last_txroot_route = true;
+  } catch {}
+})();
+
+// ---- additive: robust attach for /__void/last-txroot.json (polls until app ready)
+(() => {
+  try {
+    let tries = 0;
+    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+    function attach(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") {
+        if (++tries < 120) return setTimeout(attach, 500); // retry up to ~60s
+        return;
+      }
+      if ((app as any).__void_last_txroot_route) return; // idempotent
+      app.get('/__void/last-txroot.json', (_req:any, res:any) => {
+        res.json({
+          lastTxRoot: (globalThis as any).__lastTxRoot ?? null,
+          lastBlock:  (globalThis as any).__void_last_seal_number ?? null
+        });
+      });
+      (app as any).__void_last_txroot_route = true;
+      console.log('[last-txroot] route attached');
+    }
+    attach();
+  } catch {}
+})();
+
+// ---- additive: prom text exporter for last txroot ----
+(() => {
+  try {
+    let tries = 0;
+    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+    function attach(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") {
+        if (++tries < 120) return setTimeout(attach, 500);
+        return;
+      }
+      if (app.__void_last_txroot_prom) return; // idempotent
+      app.get('/__void/metrics/txroot4/last.prom', (_req:any, res:any) => {
+        const lastRoot = (globalThis as any).__lastTxRoot ?? null;
+        const lastBlk  = (globalThis as any).__void_last_seal_number ?? null;
+        const rootStr  = typeof lastRoot === 'string' ? lastRoot : (Array.isArray(lastRoot) ? Array.from(lastRoot).map((x:number)=>x.toString(16).padStart(2,'0')).join('') : String(lastRoot));
+        res.type('text/plain; version=0.0.4');
+        res.send([
+          '# HELP void_txroot_last_block Latest block number observed by txroot tap',
+          '# TYPE void_txroot_last_block gauge',
+          `void_txroot_last_block{root="${rootStr || ''}"} ${Number.isFinite(lastBlk)? lastBlk : -1}`,
+          '# HELP void_txroot_last_seen Always 1 when endpoint is healthy',
+          '# TYPE void_txroot_last_seen gauge',
+          'void_txroot_last_seen 1',
+          ''
+        ].join('\n'));
+      });
+      app.__void_last_txroot_prom = true;
+      console.log('[last-txroot.prom] exporter attached at /__void/metrics/txroot4/last.prom');
+    }
+    attach();
+  } catch {}
+})();
