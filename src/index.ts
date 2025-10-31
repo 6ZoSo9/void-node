@@ -12063,3 +12063,130 @@ void_seal_rate_1m ${rate1m()}
   }
 })();
 // --- SEALS_V3_POLLER_END ---
+// --- SEALS_V3_HEALTH_BEGIN ---
+// Health gauge for seals v3. Returns JSON or Prom text (?format=prom)
+(() => {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app || g.app;
+  if (!app || typeof app.get !== "function") return;
+
+  app.get("/metrics/void/seals/health", (req:any, res:any) => {
+    const S = (g.__void_seals_state||{});
+    const fresh = Number.isFinite(S.lastTsMs) ? (Date.now() - S.lastTsMs < 120_000) : false;
+    const ok = (S.lastNumber>=0) && fresh;
+    if ((req.query?.format||"") === "prom") {
+      res.type("text/plain").send(
+        "# HELP void_seals_health 1=healthy, 0=stalled\n" +
+        "# TYPE void_seals_health gauge\n" +
+        `void_seals_health ${ok?1:0}\n`
+      );
+    } else {
+      res.json({ ok, lastNumber:S.lastNumber??-1, lastTsMs:S.lastTsMs??0 });
+    }
+  });
+})();
+/// --- SEALS_V3_HEALTH_END ---
+// --- SEALS_V3_HEALTH_WATCHDOG_BEGIN ---
+// Watches the Express app and (re)mounts /metrics/void/seals/health reliably.
+(() => {
+  const g:any = (globalThis as any);
+  const getApp = () => g.__void_http_app || g.app;
+  const PATH_HEALTH = "/metrics/void/seals/health";
+
+  // Share state with seals v3 blocks
+  g.__void_seals_state = g.__void_seals_state || {
+    lastNumber: -1, lastTsMs: 0, recent: [] as number[], polls: 0, lastErr: ""
+  };
+  const S:any = g.__void_seals_state;
+
+  function hasRoute(app:any, path:string): boolean {
+    try {
+      const st = app?._router?.stack || [];
+      return st.some((l:any) => (l?.route?.path === path) || (l?.regexp && String(l.regexp).includes(path)));
+    } catch { return false; }
+  }
+
+  function mount(app:any){
+    if (!app || typeof app.get !== "function") return false;
+    if (hasRoute(app, PATH_HEALTH)) return true;
+
+    app.get(PATH_HEALTH, (req:any, res:any) => {
+      const fresh = Number.isFinite(S.lastTsMs) ? (Date.now() - S.lastTsMs < 120_000) : false;
+      const ok = (S.lastNumber>=0) && fresh;
+      if ((req.query?.format||"") === "prom") {
+        res.type("text/plain").send(
+          "# HELP void_seals_health 1=healthy, 0=stalled\n" +
+          "# TYPE void_seals_health gauge\n" +
+          `void_seals_health ${ok?1:0}\n`
+        );
+      } else {
+        res.json({ ok, lastNumber:S.lastNumber??-1, lastTsMs:S.lastTsMs??0 });
+      }
+    });
+    return true;
+  }
+
+  // Try now, then keep it alive
+  mount(getApp());
+  setInterval(() => { mount(getApp()); }, 2000);
+})();
+/// --- SEALS_V3_HEALTH_WATCHDOG_END ---
+// --- SEALS_V3_HEARTBEAT_FIX_BEGIN ---
+// Seals v3 heartbeat: minimal poller that updates lastTsMs when head advances.
+// Safe to coexist with the main poller; does nothing if already running.
+(() => {
+  const g:any = (globalThis as any);
+  if (g.__void_seals_v3_heartbeat) return;
+  g.__void_seals_v3_heartbeat = true;
+
+  // Shared state with bootsafe/watchdog/poller
+  g.__void_seals_state = g.__void_seals_state || {
+    lastNumber: -1, lastTsMs: 0, recent: [] as number[], polls: 0, lastErr: ""
+  };
+  const S:any = g.__void_seals_state;
+
+  async function readHeadNumber(): Promise<number> {
+    try {
+      const cand = [g.__void_node, g.node, g.__node, g.__VOID_NODE];
+      for (const n of cand) {
+        if (!n) continue;
+        const v = (n.headNumber ?? n.head?.number ?? n.store?.heads?.head);
+        if (Number.isFinite(v)) return v;
+      }
+    } catch {}
+    try {
+      const port = (process.env.HTTP_PORT || "4100").trim();
+      const tryNum = async (u:string) => {
+        const r = await fetch(u).catch(()=>null); if (!r?.ok) return NaN;
+        const t = (await r.text()).trim(); const n = parseInt(t, 10);
+        return Number.isFinite(n) ? n : NaN;
+      };
+      let n = await tryNum(`http://127.0.0.1:${port}/head.txt`);
+      if (!Number.isFinite(n)) n = await tryNum(`http://127.0.0.1:${port}/blocks/latest/number`);
+      return Number.isFinite(n) ? n : S.lastNumber;
+    } catch { return S.lastNumber; }
+  }
+
+  function pushRecent(ts:number){ 
+    const cut = Date.now() - 60_000;
+    S.recent = Array.isArray(S.recent) ? S.recent.filter((t:number)=>t>=cut) : [];
+    S.recent.push(ts);
+  }
+
+  async function tick(){
+    try {
+      const n = await readHeadNumber();
+      S.polls = (S.polls|0) + 1;
+      if (Number.isFinite(n) && n >= 0 && n !== S.lastNumber) {
+        S.lastNumber = n;
+        S.lastTsMs = Date.now();
+        pushRecent(S.lastTsMs);
+      }
+    } catch(e:any){ S.lastErr = String(e?.message||e); }
+  }
+
+  // Start fast at boot, then steady every 5s
+  tick();
+  setInterval(tick, 5000).unref?.();
+})();
+/// --- SEALS_V3_HEARTBEAT_FIX_END ---
