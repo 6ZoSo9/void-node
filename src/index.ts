@@ -169,6 +169,56 @@ console.log("[shim] published global node (post-construct)");
   const app = express();
 ;(globalThis as any).__void_http_app = app; // dev-safe-bundle hook
 
+// ---- TxRoot Core v2 -> Prom text adapter (inline) ----
+app.get("/__void/metrics/txroot4/core2.prom", async (_req:any, res:any) => {
+  try {
+    // Prefer an in-process snapshot if your code exposes one later
+    const g:any = globalThis as any;
+    async function fetchCore(): Promise<any> {
+      if (g.__void_txroot_core2_snapshot && typeof g.__void_txroot_core2_snapshot === "function") {
+        return await g.__void_txroot_core2_snapshot();
+      }
+      // Fallback: call our existing JSON endpoint locally
+      const http = await import("node:http");
+      const port = Number(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || 4100);
+      return await new Promise((resolve, reject) => {
+        const req = http.request({ host:"127.0.0.1", port, path:"/__void/metrics/txroot4/core2.json", method:"GET" }, r=>{
+          let buf=""; r.setEncoding("utf8");
+          r.on("data", c=> buf+=c);
+          r.on("end", ()=> { try { resolve(JSON.parse(buf)); } catch(e){ reject(e); } });
+        });
+        req.on("error", reject); req.end();
+      });
+    }
+
+    const snap = await fetchCore();
+    const saves = Number(snap?.saves_total ?? 0);
+    const set = Number(snap?.set_total ?? 0);
+    const mismatch = Number(snap?.mismatch_total ?? 0);
+    const hb = Number(snap?.heartbeat_total ?? 0);
+
+    const lines = [
+      "# HELP void_txroot_core_saves_total Core saves total",
+      "# TYPE void_txroot_core_saves_total counter",
+      `void_txroot_core_saves_total ${saves}`,
+      "# HELP void_txroot_core_set_total Core sets total",
+      "# TYPE void_txroot_core_set_total counter",
+      `void_txroot_core_set_total ${set}`,
+      "# HELP void_txroot_core_mismatch_total Core mismatches total",
+      "# TYPE void_txroot_core_mismatch_total counter",
+      `void_txroot_core_mismatch_total ${mismatch}`,
+      "# HELP void_txroot_core_heartbeat_total Core heartbeat total",
+      "# TYPE void_txroot_core_heartbeat_total counter",
+      `void_txroot_core_heartbeat_total ${hb}`
+    ];
+    res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
+    res.end(lines.join("\n")+"\n");
+  } catch(err:any){
+    res.statusCode = 500;
+    res.setHeader("Content-Type","text/plain");
+    res.end(`# txroot core2 prom adapter error: ${String(err && err.message || err)}\n`);
+  }
+});
 // [ADD] Object.prototype.filter shim v3 (self-contained, last-writer-wins)
 ;(function(){
   try{
@@ -10682,4 +10732,205 @@ return fn.call(this, clean);
     }
     attach();
   } catch {}
+})();
+
+// ------------------- Additive: Seals tap + Prom text exporter -------------------
+(() => {
+  try {
+    // 1) SaveBlock tap (idempotent)
+    const segAny: any = (globalThis as any).SegStore || (SegStore as any);
+    if (segAny?.prototype && !segAny.prototype.__void_seals_tap_v1) {
+      const proto: any = segAny.prototype;
+      const orig = proto.saveBlock;
+      if (typeof orig === "function") {
+        const win: number[] = []; // timestamps ms, last 60s
+        (globalThis as any).__void_seal_ts_window = win;
+
+        proto.saveBlock = function sealsTapV1(block: any, ...rest: any[]) {
+          const out = (orig as any).apply(this, [block, ...rest]);
+          try {
+            const n = block?.header?.number ?? block?.number;
+            if (typeof n === "number" && Number.isFinite(n)) {
+              (globalThis as any).__void_last_seal_number = n;
+              (globalThis as any).__void_last_seal_ts_ms = Date.now();
+              // slide window
+              win.push((globalThis as any).__void_last_seal_ts_ms);
+              const cutoff = Date.now() - 60_000;
+              while (win.length && win[0] < cutoff) win.shift();
+            }
+          } catch {}
+          return out;
+        };
+        proto.__void_seals_tap_v1 = true;
+      }
+    }
+
+    // 2) Prom text exporter (idempotent)
+    const app: any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (app && !app.__void_seals_prom_v1) {
+      app.get('/metrics/void/seals', (_req:any, res:any) => {
+        try {
+          const last = (globalThis as any).__void_last_seal_number ?? -1;
+          const ts   = (globalThis as any).__void_last_seal_ts_ms ?? 0;
+          const win: number[] = (globalThis as any).__void_seal_ts_window || [];
+          // crude seals/min over the last 60s
+          const rate = win.length;
+
+          res.set('Content-Type', 'text/plain; version=0.0.4');
+          res.send(
+`# HELP void_seal_last_number Latest sealed block number
+# TYPE void_seal_last_number gauge
+void_seal_last_number ${typeof last === 'number' ? last : -1}
+# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed
+# TYPE void_seal_last_ts_ms gauge
+void_seal_last_ts_ms ${typeof ts === 'number' ? ts : 0}
+# HELP void_seal_rate_1m Seals observed in the last 60 seconds
+# TYPE void_seal_rate_1m gauge
+void_seal_rate_1m ${rate}
+`);
+        } catch (e:any) {
+          res.status(500).send(`# error ${e?.message||e}`);
+        }
+      });
+      app.__void_seals_prom_v1 = true;
+      console.log('[metrics/seals] exporter ready at /metrics/void/seals');
+    }
+  } catch {}
+})();
+
+// ------------------- Additive: Seals tap + Prom exporter (v2 resilient) -------------------
+(() => {
+  try {
+    // Ensure the saveBlock tap is present (idempotent)
+    const segAny: any = (globalThis as any).SegStore || (typeof SegStore !== "undefined" ? (SegStore as any) : undefined);
+    if (segAny?.prototype && !segAny.prototype.__void_seals_tap_v2) {
+      const proto: any = segAny.prototype;
+      const orig = proto.saveBlock;
+      if (typeof orig === "function") {
+        const win: number[] = (globalThis as any).__void_seal_ts_window || [];
+        (globalThis as any).__void_seal_ts_window = win;
+
+        proto.saveBlock = function sealsTapV2(block: any, ...rest: any[]) {
+          const out = (orig as any).apply(this, [block, ...rest]);
+          try {
+            const n = block?.header?.number ?? block?.number;
+            if (typeof n === "number" && Number.isFinite(n)) {
+              (globalThis as any).__void_last_seal_number = n;
+              const now = Date.now();
+              (globalThis as any).__void_last_seal_ts_ms = now;
+              win.push(now);
+              const cutoff = now - 60_000;
+              while (win.length && win[0] < cutoff) win.shift();
+            }
+          } catch {}
+          return out;
+        };
+        proto.__void_seals_tap_v2 = true;
+      }
+    }
+
+    // Retry until app exists, then bind the route (idempotent)
+    let tries = 0;
+    const attach = () => {
+      const app: any = (globalThis as any).__void_http_app || (globalThis as any).app;
+      if (!app || typeof app.get !== "function") {
+        if (++tries < 120) return setTimeout(attach, 500); // retry up to ~60s
+        return;
+      }
+      if (app.__void_seals_prom_v2) return; // already bound
+
+      app.get('/metrics/void/seals', (_req:any, res:any) => {
+        try {
+          const last = (globalThis as any).__void_last_seal_number ?? -1;
+          const ts   = (globalThis as any).__void_last_seal_ts_ms ?? 0;
+          const win: number[] = (globalThis as any).__void_seal_ts_window || [];
+          const rate = win.length; // seals seen in last 60s (sliding window)
+          res.set('Content-Type', 'text/plain; version=0.0.4');
+          res.send(
+`# HELP void_seal_last_number Latest sealed block number
+# TYPE void_seal_last_number gauge
+void_seal_last_number ${typeof last === 'number' ? last : -1}
+# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed
+# TYPE void_seal_last_ts_ms gauge
+void_seal_last_ts_ms ${typeof ts === 'number' ? ts : 0}
+# HELP void_seal_rate_1m Seals observed in the last 60 seconds
+# TYPE void_seal_rate_1m gauge
+void_seal_rate_1m ${rate}
+`);
+        } catch (e:any) {
+          res.status(500).send(`# error ${e?.message||e}`);
+        }
+      });
+
+      app.__void_seals_prom_v2 = true;
+      console.log('[metrics/seals:v2] exporter ready at /metrics/void/seals');
+    };
+    attach();
+  } catch {}
+})();
+
+// ---- TxRoot Core v2 -> Prom text adapter (additive) ----
+(function txrootCoreV2PromAdapter(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    // Prometheus text endpoint mirroring core2 JSON counters
+    // Exposes: void_txroot_core_saves_total, _set_total, _mismatch_total, _heartbeat_total
+    app.get("/__void/metrics/txroot4/core2.prom", async (_req:any, res:any) => {
+      try {
+        // Reuse in-process route if available to avoid HTTP loop
+        const fetchCore = async () => {
+          // Prefer direct function if someone set it on global (future-proof)
+          const g:any = globalThis as any;
+          if (g.__void_txroot_core2_snapshot && typeof g.__void_txroot_core2_snapshot === "function") {
+            return await g.__void_txroot_core2_snapshot();
+          }
+          // Fallback: local HTTP call to the JSON endpoint
+          const http = await import("node:http");
+          const port = Number(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || 4100);
+          const data = await new Promise<any>((resolve, reject) => {
+            const req = http.request({ host:"127.0.0.1", port, path:"/__void/metrics/txroot4/core2.json", method:"GET" }, r=>{
+              let buf=""; r.setEncoding("utf8");
+              r.on("data", c=> buf+=c); r.on("end", ()=> { try { resolve(JSON.parse(buf)); } catch(e){ reject(e); } });
+            });
+            req.on("error", reject); req.end();
+          });
+          return data;
+        };
+
+        const snap = await fetchCore();
+        const saves = Number(snap?.saves_total ?? 0);
+        const set = Number(snap?.set_total ?? 0);
+        const mismatch = Number(snap?.mismatch_total ?? 0);
+        const hb = Number(snap?.heartbeat_total ?? 0);
+
+        const lines = [
+          "# HELP void_txroot_core_saves_total Core saves total",
+          "# TYPE void_txroot_core_saves_total counter",
+          `void_txroot_core_saves_total ${saves}`,
+          "# HELP void_txroot_core_set_total Core sets total",
+          "# TYPE void_txroot_core_set_total counter",
+          `void_txroot_core_set_total ${set}`,
+          "# HELP void_txroot_core_mismatch_total Core mismatches total",
+          "# TYPE void_txroot_core_mismatch_total counter",
+          `void_txroot_core_mismatch_total ${mismatch}`,
+          "# HELP void_txroot_core_heartbeat_total Core heartbeat total",
+          "# TYPE void_txroot_core_heartbeat_total counter",
+          `void_txroot_core_heartbeat_total ${hb}`
+        ];
+        res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
+        res.end(lines.join("\n")+"\n");
+      } catch(err:any){
+        res.statusCode = 500;
+        res.setHeader("Content-Type","text/plain");
+        res.end(`# txroot core2 prom adapter error: ${String(err && err.message || err)}\n`);
+      }
+    });
+  }
+  attach();
 })();

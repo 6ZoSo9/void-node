@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"up","env":"dev","instance":"127.0.0.1:4101","job":"void-follower-v4"},"value":[1761908175.932,"1"]}]}}

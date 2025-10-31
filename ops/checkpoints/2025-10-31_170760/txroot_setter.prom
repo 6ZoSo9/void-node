@@ -1,0 +1,3 @@
+# HELP void_txroot_setter_errors_total Total errors in txroot setter
+# TYPE void_txroot_setter_errors_total counter
+void_txroot_setter_errors_total 0

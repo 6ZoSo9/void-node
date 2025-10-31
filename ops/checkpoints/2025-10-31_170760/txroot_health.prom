@@ -1,0 +1,3 @@
+# HELP void_txroot_health Is txroot healthy (1 ok, 0 bad)
+# TYPE void_txroot_health gauge
+void_txroot_health 1
