@@ -1,0 +1,18 @@
+name: Guard index.ts size & markers
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure script is executable
+        run: chmod +x tools/check_index_size.sh
+
+      - name: Run guard
+        run: tools/check_index_size.sh
