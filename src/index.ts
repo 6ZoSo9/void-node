@@ -178,6 +178,32 @@ console.log("[shim] published global node (post-construct)");
   const app = express();
  (globalThis as any).__void_http_app = app
 
+// --- peers exporter (Prom text) ---
+(function peersExporter(){
+  const app:any = (globalThis as any).__void_http_app;
+  if (!app || app.__void_peers_bound) return; app.__void_peers_bound=true;
+  app.get("/__void/peers.prom", async (_req:any, res:any)=>{
+    try {
+      const ts = Date.now();
+      const node:any = (globalThis as any).__void_node_core || {};
+      const reg = node.peerRegistry || (globalThis as any).__void_peer_registry;
+      const connected = Number(reg?.connectedCount?.() ?? node.metrics?.peersConnected ?? -1);
+      const known = Number(reg?.knownCount?.() ?? node.metrics?.peersKnown ?? -1);
+      res.type("text/plain").send([
+        "# HELP void_peers_connected Connected peers",
+        "# TYPE void_peers_connected gauge",
+        `void_peers_connected ${connected}` ,
+        "# HELP void_peers_known Known peers",
+        "# TYPE void_peers_known gauge",
+        `void_peers_known ${known}` ,
+        "# HELP void_peers_exporter_timestamp_ms Exporter timestamp (ms)",
+        "# TYPE void_peers_exporter_timestamp_ms gauge",
+        `void_peers_exporter_timestamp_ms ${ts}`
+      ].join("\n"));
+    } catch(e){ res.type("text/plain").send("void_peers_connected -1\nvoid_peers_known -1\n"); }
+  });
+})();
+
 // --- info exporter (Prometheus text) ---
 ;(function infoExporter(){
   const G = globalThis;
