@@ -1,25 +1,26 @@
-node_modules/
+
+*.bak
+# Bulk assets not tracked
+# CI artifacts
+ci_*.zip
+coverage/
+data*/
 dist/
 .DS_Store
-*.log
-*.tmp
-*.kidx
-*.pem
-data*/
-coverage/
-.secrets/
-.nodekey*
-
-
-# Bulk assets not tracked
 fs/
-
-
-# CI artifacts
-run_*_logs.zip
-smoke_*.zip
-ci_*.zip
+id_*
+*.key
+*.kidx
+*.log
 node:*
-src/index.ts.*.bak
-*.bak
+.nodekey*
+node_modules/
+*.pem
+run_*_logs.zip
+.secrets/
 segments*/
+smoke_*.zip
+src/index.ts.*.bak
+*.tmp
+*wallet*.json
+*.bak.*
