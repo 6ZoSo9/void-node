@@ -1,0 +1,12 @@
+groups:
+- name: void-ready
+  rules:
+  - alert: VoidNodeNotReady
+    expr: (void_ready == 0) or (increase(void_head_number{job="void-head"}[2m]) <= 0)
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "VOID node is not ready"
+      description: "Ready flag is 0 or head advance stalled for >=2m."
