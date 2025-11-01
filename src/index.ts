@@ -176,7 +176,47 @@ console.log("[shim] published global node (post-construct)");
 
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
- (globalThis as any).__void_http_app = app; // dev-safe-bundle hook
+ (globalThis as any).__void_http_app = app
+
+// --- info exporter (Prometheus text) ---
+;(function infoExporter(){
+  const G = globalThis;
+  const app = (G && G.__void_http_app) || (G && G.app);
+  if (!app || app.__void_info_bound) return; app.__void_info_bound = true;
+  const started = Date.now();
+
+  app.get("/__void/info.prom", (_req, res) => {
+    try {
+      const rss = (process.memoryUsage && process.memoryUsage().rss) || 0;
+      const up = (typeof process.uptime === "function") ? process.uptime() : Math.max(0, (Date.now()-started)/1000);
+      const http_port = process.env.HTTP_PORT || "4100";
+      const p2p_port  = process.env.P2P_PORT  || "4700";
+      const role = process.env.VOID_ROLE || "unknown";
+
+      const lines = [
+        "# HELP void_uptime_seconds Process uptime (seconds)",
+        "# TYPE void_uptime_seconds gauge",
+        `void_uptime_seconds ${up}`,
+        "# HELP void_process_rss_bytes Resident set size",
+        "# TYPE void_process_rss_bytes gauge",
+        `void_process_rss_bytes ${rss}`,
+        "# HELP void_ports_info Port info (labels)",
+        "# TYPE void_ports_info gauge",
+        `void_ports_info{http_port="${http_port}",p2p_port="${p2p_port}"} 1`,
+        "# HELP void_role_info Node role (labels)",
+        "# TYPE void_role_info gauge",
+        `void_role_info{role="${role}"} 1`,
+        "# HELP void_info_exporter_timestamp_ms Exporter timestamp (ms)",
+        "# TYPE void_info_exporter_timestamp_ms gauge",
+        `void_info_exporter_timestamp_ms ${Date.now()}`
+      ];
+      res.type("text/plain").send(lines.join("\n"));
+    } catch (e) {
+      res.type("text/plain").send("void_uptime_seconds -1\n");
+    }
+  });
+})();
+; // dev-safe-bundle hook
 
 // --- summary exporter (Prom text) ---
 (function summaryExporter(){
