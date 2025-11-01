@@ -7486,6 +7486,7 @@ void_txroot_v4_errors_total ${X.errors}
 
     // Lazy import to avoid top-level churn
     const { attachTxrootSetter } = await import("./hooks/txroot_setter.js");
+try { /* ok */ } catch (e) { console.warn("[boot.txroot-setter] dynamic import warning:", String(e?.message||e)); }
 
     if (app && store2 && typeof attachTxrootSetter === "function") {
       attachTxrootSetter({ app, store: store2, log: (...a:any[])=>console.log("[boot.txroot-setter]", ...a) });
