@@ -39,6 +39,32 @@ import { Metrics } from "./metrics.js";
 })();
 /* ---------------------------- ENV BRIDGE ---------------------------- */
 process.env.DATA_DIR  = process.env.DATA_DIR  || process.env.VOID_DATA_DIR  || "data";
+// [ADDON-BEGIN:esm-crypto-shim.v2 early]
+(function esmCryptoShimV2Early(){
+  const G:any = globalThis as any;
+  if (G.__void_getCreateHash) return; // idempotent
+  let _p: Promise<(alg:string)=>any> | null = null;
+  async function loadCreateHash(){
+    try {
+      // CJS path if available
+      // @ts-ignore
+      if (typeof require === "function") {
+        // @ts-ignore
+        const { createHash } = require("node:crypto");
+        return createHash;
+      }
+    } catch {}
+    const mod: any = await import("node:crypto"); // ESM path
+    return mod.createHash;
+  }
+  G.__void_getCreateHash = function __void_getCreateHash(){
+    if (!_p) _p = loadCreateHash();
+    return _p;
+  };
+  // warm-up
+  G.__void_getCreateHash().catch(()=>{});
+})();
+// [ADDON-END:esm-crypto-shim.v2 early]
 process.env.HTTP_PORT = process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100";
 process.env.P2P_PORT  = process.env.P2P_PORT  || process.env.VOID_P2P_PORT  || "4700";
 
