@@ -8654,3 +8654,1666 @@ void_seal_rate_1m ${rate1m()}
   setInterval(() => { mount(getApp()); }, 2000);
 })();
 /// --- SEALS_V3_HEALTH_WATCHDOG_END ---
+
+// ===================== txRoot Header-Setter Shim v2 (additive) =====================
+(function txrootHeaderSetterShimV2(){
+  const BOOT_TAG = "[txroot/header-shim:v2]";
+  let attached = false;
+  // in-memory header map (number -> { txRoot, ts })
+  const headerMap = new Map<number, { txRoot: string; ts: number }>();
+  // counters
+  let set_total = 0, mismatch_total = 0, errors_total = 0, heartbeat_total = 0;
+  let last_set_block = -1;
+
+  function env(k: string, d: string) { return (process.env[k] ?? d); }
+  const HTTP_PORT = parseInt(env("HTTP_PORT", "4100"), 10);
+  const BASE = `http://127.0.0.1:${HTTP_PORT}`;
+
+  function getApp(): any {
+    return (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+  }
+
+  async function httpJSON(url: string): Promise<any> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    return res.json();
+  }
+
+  async function computeTxRoot(n: number): Promise<string> {
+    // Uses existing dev endpoint that returns { ok, number, root, leaves }
+    const j = await httpJSON(`${BASE}/dev/txroot/${n}`);
+    if (!j || j.ok !== true || typeof j.root !== "string") {
+      throw new Error(`txroot endpoint unexpected for #${n}`);
+    }
+    return j.root as string;
+  }
+
+  async function getLatestNumber(): Promise<number> {
+    const res = await fetch(`${BASE}/blocks/latest/number`);
+    if (!res.ok) throw new Error(`latest/number HTTP ${res.status}`);
+    const text = await res.text();
+    const n = parseInt(text, 10);
+    if (!Number.isFinite(n)) throw new Error(`bad latest number: ${text}`);
+    return n;
+  }
+
+  function promLine(name: string, help: string, type: "counter" | "gauge", val: string | number) {
+    return `# HELP ${name} ${help}\n# TYPE ${name} ${type}\n${name} ${val}\n`;
+  }
+
+  // exporter
+  function installMetricsExporter(app: any){
+    const path = "/__void/metrics/txroot4/setter.prom";
+    if ((app as any)._txroot_setter_v2_metrics_bound) return;
+    app.get(path, (_req: any, res: any) => {
+      heartbeat_total++;
+      let out = "";
+      out += promLine("void_txroot_header_set_total", "Header txRoot sets performed", "counter", set_total);
+      out += promLine("void_txroot_header_mismatch_total", "Header txRoot mismatches detected (pre-normalization)", "counter", mismatch_total);
+      out += promLine("void_txroot_header_errors_total", "Errors while setting txRoot", "counter", errors_total);
+      out += promLine("void_txroot_header_last_set_block", "Last block number where txRoot was set", "gauge", last_set_block);
+      out += promLine("void_txroot_header_heartbeat_total", "Heartbeat to signal liveness of setter", "counter", heartbeat_total);
+      res.type("text/plain").send(out);
+    });
+    (app as any)._txroot_setter_v2_metrics_bound = true;
+    console.log(BOOT_TAG, "metrics bound at", path);
+  }
+
+  // read-only header view with txRoot (doesn't overwrite disk)
+  function installHeaderView(app: any){
+    if ((app as any)._txroot_setter_v2_header_bound) return;
+    app.get("/blocks/:n/header2", async (req: any, res: any) => {
+      const n = parseInt(req.params.n, 10);
+      if (!Number.isFinite(n)) return res.status(400).json({ ok:false, error:"bad number" });
+      const m = headerMap.get(n);
+      if (!m) return res.json({}); // unknown yet — allow caller to retry
+      return res.json({ number: n, txRoot: m.txRoot, timestamp_ms: m.ts });
+    });
+    (app as any)._txroot_setter_v2_header_bound = true;
+    console.log(BOOT_TAG, "header view bound at /blocks/:n/header2");
+  }
+
+  async function processNewBlocks(latest: number, fromIncl: number){
+    for (let n = Math.max(0, fromIncl); n <= latest; n++){
+      if (headerMap.has(n)) continue;
+      try {
+        const root = await computeTxRoot(n);
+        headerMap.set(n, { txRoot: root, ts: Date.now() });
+        set_total++;
+        last_set_block = n;
+      } catch (e:any) {
+        errors_total++;
+        // no throw; keep loop resilient
+      }
+    }
+  }
+
+  function startPoller(app: any){
+    if ((app as any)._txroot_setter_v2_poller) return;
+    let lastSeen = -1;
+    let tickBusy = false;
+    const interval = setInterval(async ()=>{
+      if (tickBusy) return;
+      tickBusy = true;
+      try {
+        const latest = await getLatestNumber();
+        if (latest > lastSeen){
+          await processNewBlocks(latest, lastSeen + 1);
+          lastSeen = latest;
+        }
+      } catch (e:any) {
+        // swallow errors; exporter will still heartbeat
+      } finally {
+        tickBusy = false;
+      }
+    }, 1000);
+    (app as any)._txroot_setter_v2_poller = interval;
+    console.log(BOOT_TAG, "poller started (1s)");
+  }
+
+  // bootsafe attach
+  (function attachSoon(){
+    const app = getApp();
+    if (!app || typeof app.get !== "function") {
+      return setTimeout(attachSoon, 300);
+    }
+    if (attached) return;
+    attached = true;
+    installMetricsExporter(app);
+    installHeaderView(app);
+    startPoller(app);
+    console.log(BOOT_TAG, "attached");
+  })();
+
+})();
+ // =================== /txRoot Header-Setter Shim v2 (additive) =====================
+
+// ===================== txRoot Header-Setter Sidecar v3 (additive) =====================
+(function txrootHeaderSetterSidecarV3(){
+  const TAG = "[txroot/header-sidecar:v3]";
+  let attached = false;
+
+  // counters
+  let set_total = 0, mismatch_total = 0, errors_total = 0, heartbeat_total = 0;
+  let last_set_block = -1;
+
+  function env(k: string, d: string) { return (process.env[k] ?? d); }
+  const HTTP_PORT = parseInt(env("HTTP_PORT", "4100"), 10);
+  const BASE = `http://127.0.0.1:${HTTP_PORT}`;
+
+  function getApp(): any {
+    return (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+  }
+
+  async function httpText(url: string): Promise<string> {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
+    return r.text();
+  }
+  async function httpJSON(url: string): Promise<any> {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
+    return r.json();
+  }
+
+  async function getHeadNumber(): Promise<number> {
+    // Use ultra-stable /head.txt first; fallback to /blocks/latest/number
+    try {
+      const t = await httpText(`${BASE}/head.txt`);
+      const n = parseInt(t.trim(), 10);
+      if (Number.isFinite(n)) return n;
+    } catch {}
+    const t2 = await httpText(`${BASE}/blocks/latest/number`);
+    const n2 = parseInt(t2.trim(), 10);
+    if (!Number.isFinite(n2)) throw new Error(`bad latest number: ${t2}`);
+    return n2;
+  }
+
+  async function computeTxRoot(n: number): Promise<string> {
+    const j = await httpJSON(`${BASE}/dev/txroot/${n}`);
+    if (!j || j.ok !== true || typeof j.root !== "string") {
+      throw new Error(`/dev/txroot/${n} unexpected`);
+    }
+    return j.root as string;
+  }
+
+  function promLine(name: string, help: string, type: "counter"|"gauge", val: string|number) {
+    return `# HELP ${name} ${help}\n# TYPE ${name} ${type}\n${name} ${val}\n`;
+  }
+
+  function bindExporter(app:any){
+    const path = "/__void/metrics/txroot4/setter2.prom";
+    if ((app as any)._txroot_setter_v3_metrics_bound) return;
+    app.get(path, (_req:any, res:any) => {
+      heartbeat_total++;
+      let out = "";
+      out += promLine("void_txroot_header_set_total", "Header txRoot sets performed", "counter", set_total);
+      out += promLine("void_txroot_header_mismatch_total", "Header txRoot mismatches detected (pre-normalization)", "counter", mismatch_total);
+      out += promLine("void_txroot_header_errors_total", "Errors while setting txRoot", "counter", errors_total);
+      out += promLine("void_txroot_header_last_set_block", "Last block number where txRoot was set", "gauge", last_set_block);
+      out += promLine("void_txroot_header_heartbeat_total", "Heartbeat to signal liveness of setter", "counter", heartbeat_total);
+      res.type("text/plain").send(out);
+    });
+    (app as any)._txroot_setter_v3_metrics_bound = true;
+    console.log(TAG, "metrics bound at", path);
+  }
+
+  function startPoller(app:any){
+    if ((app as any)._txroot_setter_v3_poller) return;
+    let tickBusy = false;
+    let lastSeen = -1;
+
+    const interval = setInterval(async () => {
+      if (tickBusy) return;
+      tickBusy = true;
+      try {
+        const head = await getHeadNumber();            // robust source of truth
+        if (head > lastSeen) {
+          // Only process the latest (or a small catch-up window)
+          const start = Math.max(lastSeen + 1, head - 4);
+          for (let n = start; n <= head; n++) {
+            try {
+              const root = await computeTxRoot(n);
+              // NOTE: read-only path (no disk writes here)
+              set_total++;
+              last_set_block = n;
+            } catch (e:any) {
+              errors_total++;
+            }
+          }
+          lastSeen = head;
+        }
+      } catch (e:any) {
+        errors_total++;
+      } finally {
+        tickBusy = false;
+      }
+    }, 1000);
+    (app as any)._txroot_setter_v3_poller = interval;
+    console.log(TAG, "poller started (1s, /head.txt primary)");
+  }
+
+  (function attachSoon(){
+    const app = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(attachSoon, 300);
+    if (attached) return;
+    attached = true;
+    bindExporter(app);
+    startPoller(app);
+    console.log(TAG, "attached");
+  })();
+})();
+// =================== /txRoot Header-Setter Sidecar v3 (additive) =====================
+
+// ===================== txRoot Header-Write Wrapper v1 (pure-additive) =====================
+(async function txrootHeaderWriteWrapper(){
+  const TAG = "[txroot/header-write:v1]";
+  let installed = false;
+
+  // Local counters (exported at /__void/metrics/txroot4/headerwrap.prom)
+  let wrap_set_total = 0, wrap_skip_total = 0, wrap_errors_total = 0, wrap_heartbeat_total = 0;
+
+  // Minimal sha256 + merkle helpers as fallback (in case util/txroot isn't importable)
+  const nodeCrypto = await import('node:crypto');
+  function sha256Hex(buf: Buffer | string){ return nodeCrypto.createHash('sha256').update(buf).digest('hex'); }
+  function merkleRootHex(leavesHex: string[]): string {
+    if (!leavesHex || leavesHex.length === 0) return sha256Hex(""); // empty = sha256("")
+    let level = leavesHex.slice();
+    while (level.length > 1) {
+      const next: string[] = [];
+      for (let i=0;i<level.length;i+=2){
+        const a = level[i], b = i+1<level.length ? level[i+1] : level[i];
+        next.push(sha256Hex(Buffer.from(a + b, "hex")));
+      }
+      level = next;
+    }
+    return level[0];
+  }
+
+  async function computeTxRootFromBlock(block: any): Promise<string> {
+    // Try to use your canonical helper if present
+    try {
+      const mod = await import('./util/txroot.js').catch(()=>null);
+      if (mod && typeof (mod as any).txrootFromTxs === 'function') {
+        return (mod as any).txrootFromTxs(block?.txs ?? []);
+      }
+      if (mod && typeof (mod as any).computeTxRoot === 'function') {
+        return (mod as any).computeTxRoot(block?.txs ?? []);
+      }
+    } catch {}
+    // Fallback: hash JSON of each tx (stable stringify) → sha256 → merkle(sha256 hex)
+    const txs = Array.isArray(block?.txs) ? block.txs : [];
+    const leaves = txs.map(tx => sha256Hex(JSON.stringify(tx)));
+    return merkleRootHex(leaves);
+  }
+
+  function exportMetricsRoute(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+    if (!app || typeof app.get !== "function") return false;
+    if (app.__VOID_TXROOT_HEADERWRAP_ROUTE__) return true;
+    app.__VOID_TXROOT_HEADERWRAP_ROUTE__ = true;
+    app.get("/__void/metrics/txroot4/headerwrap.prom", (_req:any, res:any)=>{
+      wrap_heartbeat_total++;
+      res.type("text/plain").send([
+        "# HELP void_headerwrap_set_total Header txRoot sets done by write-wrapper",
+        "# TYPE void_headerwrap_set_total counter",
+        `void_headerwrap_set_total ${wrap_set_total}`,
+        "# HELP void_headerwrap_skip_total Blocks skipped (no txs/header already set)",
+        "# TYPE void_headerwrap_skip_total counter",
+        `void_headerwrap_skip_total ${wrap_skip_total}`,
+        "# HELP void_headerwrap_errors_total Errors in header write-wrapper",
+        "# TYPE void_headerwrap_errors_total counter",
+        `void_headerwrap_errors_total ${wrap_errors_total}`,
+        "# HELP void_headerwrap_heartbeat_total Liveness counter of header write-wrapper",
+        "# TYPE void_headerwrap_heartbeat_total counter",
+        `void_headerwrap_heartbeat_total ${wrap_heartbeat_total}`,
+        ""
+      ].join("\n"));
+    });
+    console.log(TAG, "prom route attached: /__void/metrics/txroot4/headerwrap.prom");
+    return true;
+  }
+
+  async function install(){
+    if (installed) return;
+    // Try to find SegStore and patch the prototype method
+    let SegStoreMod:any = null;
+    try { SegStoreMod = await import('./chain/seg_store.js'); } catch {}
+    const SegStoreCtor:any = SegStoreMod?.SegStore;
+    if (!SegStoreCtor || !SegStoreCtor.prototype || typeof SegStoreCtor.prototype.saveBlock !== "function") {
+      setTimeout(install, 500); // retry until code is warm
+      return;
+    }
+    if ((SegStoreCtor.prototype as any).__VOID_WRAP_APPLIED__) { installed = true; exportMetricsRoute(); return; }
+
+    const original = SegStoreCtor.prototype.saveBlock;
+    SegStoreCtor.prototype.saveBlock = async function wrappedSaveBlock(block:any){
+      try {
+        // Guard: if header already has txRoot and txs is empty, we can skip
+        const txs = Array.isArray(block?.txs) ? block.txs : [];
+        const header = (block.header ||= {});
+
+        if (txs.length === 0 && typeof header.txRoot === "string" && header.txRoot.length > 0) {
+          wrap_skip_total++;
+          return await original.call(this, block);
+        }
+
+        // Compute and set txRoot pre-persist
+        const root = await computeTxRootFromBlock(block);
+        if (typeof header.txRoot !== "string" || header.txRoot !== root) {
+          header.txRoot = root;
+        }
+
+        const out = await original.call(this, block);
+        wrap_set_total++;
+        return out;
+      } catch (err:any) {
+        wrap_errors_total++;
+        console.error(TAG, "failed to set header.txRoot:", err?.message || err);
+        return await original.call(this, block); // never block persistence
+      }
+    };
+    (SegStoreCtor.prototype as any).__VOID_WRAP_APPLIED__ = true;
+    installed = true;
+    exportMetricsRoute();
+    console.log(TAG, "installed on SegStore.prototype.saveBlock");
+  }
+
+  // lazy attach + keep trying until success
+  exportMetricsRoute();
+  install();
+})();
+
+// ================== Dev TX pour-on-save shim (additive, idempotent) ==================
+(function devTxPourOnSaveShim(){
+  const TAG = "[dev/pour-on-save:v1]";
+  let attached = false;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  // Try to find a few likely queue holders used by our dev routes
+  function getDevQueue(){
+    const g:any = globalThis as any;
+    return (
+      g.__void_dev_inject3_queue  ||  // preferred if present
+      g.__void_dev_inject3        ||  // older name
+      g.__void_dev_tx_queue       ||  // another variant
+      null
+    );
+  }
+  function getCap(){
+    const v = (process.env.VOID_TX_MERGE_CAP || process.env.TX_MERGE_CAP || "3");
+    const n = parseInt(v, 10); return Number.isFinite(n) && n>0 ? n : 3;
+  }
+
+  async function attach(){
+    if (attached) return;
+    // Wait until store.saveBlock is visible on global (our code exposes it via app.locals or globals)
+    const app:any = getApp();
+    const g:any = globalThis as any;
+    const store:any =
+      g.__void_store || (app && app.locals && app.locals.__void_store) || g.store || null;
+    if (!store || typeof store.saveBlock !== "function") {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    const orig = store.saveBlock.bind(store);
+    if (store.__devPourWrapped) return; // idempotent
+    store.__devPourWrapped = true;
+
+    store.saveBlock = async function(block:any, ...rest:any[]){
+      try {
+        const q:any = getDevQueue();
+        if (q && (Array.isArray(q) || (typeof q.length === "number"))) {
+          const cap = getCap();
+          const take:number = Math.min(cap, q.length||0);
+          if (take > 0) {
+            // ensure payload.txs array
+            block.payload = block.payload || {};
+            const arr = (block.payload.txs = block.payload.txs || []);
+            for (let i=0;i<take;i++){
+              // pop from queue; prefer shift() semantics (FIFO)
+              const tx = typeof q.shift === "function" ? q.shift() : null;
+              if (!tx && (q.length && q[i])) {
+                arr.push(q[i]); // fallback if it's a plain array snapshot
+              } else if (tx) {
+                arr.push(tx);
+              }
+            }
+            // simple uniqueness guard to avoid duping if caller also stuffed txs
+            if (Array.isArray(block.payload.txs)) {
+              const seen = new Set<string>();
+              block.payload.txs = block.payload.txs.filter((t:any)=>{
+                const k = typeof t === "string" ? t : JSON.stringify(t);
+                if (seen.has(k)) return false; seen.add(k); return true;
+              });
+            }
+          }
+        }
+      } catch (e){ console.warn(TAG, "pour error:", (e as any)?.message || e); }
+      return await orig(block, ...rest);
+    };
+
+    console.log(TAG, "attached (cap via env VOID_TX_MERGE_CAP, default=3)");
+    attached = true;
+  }
+
+  setTimeout(attach, 0);
+})();
+// ================== /Dev TX pour-on-save shim ==================
+
+// ================== Dev TX pour-on-save shim v2 (additive, idempotent) ==================
+(function devTxPourOnSaveShimV2(){
+  const TAG = "[dev/pour-on-save:v2]";
+  let attached = false;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function getNode(){
+    const g:any = globalThis as any;
+    const app:any = getApp();
+    return g.__void_node || (app && app.locals && app.locals.__void_node) || g.node || null;
+  }
+  function getStore(){
+    const g:any = globalThis as any;
+    const app:any = getApp();
+    return g.__void_store || (app && app.locals && app.locals.__void_store) || g.store || null;
+  }
+  function getDevQueues(){
+    const g:any = globalThis as any;
+    const node:any = getNode();
+    const mempoolTxs = node?.mempool?.txs; // primary source in current baseline
+    return {
+      mempool: Array.isArray(mempoolTxs) ? mempoolTxs : null,
+      inject3a: (g.__void_dev_inject3_queue && Array.isArray(g.__void_dev_inject3_queue)) ? g.__void_dev_inject3_queue : null,
+      inject3b: (g.__void_dev_inject3 && Array.isArray(g.__void_dev_inject3)) ? g.__void_dev_inject3 : null,
+      legacy: (g.__void_dev_tx_queue && Array.isArray(g.__void_dev_tx_queue)) ? g.__void_dev_tx_queue : null,
+    };
+  }
+  function getCap(){
+    const v = (process.env.VOID_TX_MERGE_CAP || process.env.TX_MERGE_CAP || "3");
+    const n = parseInt(v, 10); return Number.isFinite(n) && n>0 ? n : 3;
+  }
+
+  async function attach(){
+    if (attached) return;
+    const store:any = getStore();
+    if (!store || typeof store.saveBlock !== "function") {
+      return setTimeout(attach, 500).unref?.();
+    }
+    if (store.__devPourV2Wrapped) return; // idempotent
+    store.__devPourV2Wrapped = true;
+
+    const orig = store.saveBlock.bind(store);
+
+    store.saveBlock = async function(block:any, ...rest:any[]){
+      try {
+        const { mempool, inject3a, inject3b, legacy } = getDevQueues();
+        const sources = [mempool, inject3a, inject3b, legacy].filter(Boolean) as any[]; // priority order
+
+        let poured = 0;
+        const cap = getCap();
+        const takeFrom = (q:any[], n:number, fifo=true) => {
+          const out:any[] = [];
+          for(let i=0;i<n && q.length>0;i++){
+            out.push(fifo && typeof q.shift === "function" ? q.shift() : q.pop());
+          }
+          return out;
+        };
+
+        // create both placements for maximum compatibility
+        block.payload = block.payload || {};
+        block.payload.txs = block.payload.txs || [];
+        block.txs = block.txs || [];
+
+        for (const q of sources){
+          if (poured >= cap) break;
+          const need = cap - poured;
+          const pulled = takeFrom(q, need, true); // FIFO
+          if (pulled.length){
+            poured += pulled.length;
+            block.payload.txs.push(...pulled);
+            block.txs.push(...pulled);
+          }
+        }
+
+        // dedupe (stringify-safe)
+        if (Array.isArray(block.payload.txs)){
+          const seen = new Set<string>();
+          block.payload.txs = block.payload.txs.filter((t:any)=>{
+            const k = typeof t === "string" ? t : JSON.stringify(t);
+            if (seen.has(k)) return false; seen.add(k); return true;
+          });
+        }
+        if (Array.isArray(block.txs)){
+          const seen2 = new Set<string>();
+          block.txs = block.txs.filter((t:any)=>{
+            const k = typeof t === "string" ? t : JSON.stringify(t);
+            if (seen2.has(k)) return false; seen2.add(k); return true;
+          });
+        }
+
+        if (poured > 0) {
+          // optional: note marker for debug
+          block.payload = block.payload || {};
+          block.payload.__dev_poured = (block.payload.__dev_poured || 0) + poured;
+        }
+      } catch (e){ console.warn(TAG, "pour error:", (e as any)?.message || e); }
+      return await orig(block, ...rest);
+    };
+
+    console.log(TAG, "attached (sources: mempool.txs -> inject3 queues; cap env VOID_TX_MERGE_CAP, default=3)");
+    attached = true;
+  }
+
+  setTimeout(attach, 0);
+})();
+// ================== /Dev TX pour-on-save shim v2 ==================
+
+// ================= Dev Injector → Mempool Bridge (v1, additive) =================
+(function devInjectorToMempoolBridge(){
+  const TAG = "[dev/inject-bridge:v1]";
+  let attached = false;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function getNode(){
+    const g:any = globalThis as any;
+    const app:any = getApp();
+    return g.__void_node || (app && app.locals && app.locals.__void_node) || g.node || null;
+  }
+
+  function getQueues(){
+    const g:any = globalThis as any;
+    // Common dev queues we’ve used in this repo; we’ll drain any that exist.
+    const qA = g.__void_dev_inject3_queue;
+    const qB = g.__void_dev_inject3;
+    const qC = g.__void_dev_tx_queue;
+    // Some older shims stash into app.locals too:
+    const app:any = getApp();
+    const qL = app?.locals?.__void_dev_inject3_queue;
+    // Return only arrays
+    const arrs = [qA,qB,qC,qL].filter(a => Array.isArray(a)) as any[];
+    return arrs;
+  }
+
+  function ensureMempoolArray(node:any){
+    node.mempool = node.mempool || {};
+    node.mempool.txs = Array.isArray(node.mempool.txs) ? node.mempool.txs : [];
+    return node.mempool.txs as any[];
+  }
+
+  function attach(){
+    if (attached) return;
+    const node = getNode();
+    if (!node) return void setTimeout(attach, 500).unref?.(); // wait until node present
+    attached = true;
+
+    // Drain in small batches to avoid long stalls
+    const BATCH = parseInt(process.env.VOID_DEV_INJECT_DRAIN_BATCH || "32", 10) || 32;
+    setInterval(()=>{
+      try{
+        const queues = getQueues();
+        if (!queues.length) return;
+
+        const mem = ensureMempoolArray(getNode());
+        let moved = 0;
+
+        for (const q of queues){
+          // Drain up to BATCH across *all* queues each tick
+          for (let i=0; i<BATCH && q.length>0; i++){
+            const t = q.shift();
+            mem.push(t);
+            moved++;
+          }
+        }
+
+        if (moved > 0){
+          // Optional: lightweight heartbeat to console for visibility
+          // console.log(TAG, "moved", moved, "→ mempool.txs len=", mem.length);
+        }
+      } catch(e:any){
+        console.warn(TAG, "drain error:", e?.message || e);
+      }
+    }, 300).unref?.();
+
+    // Debug route: peek sizes
+    const app:any = getApp();
+    if (app && typeof app.get === "function"){
+      app.get("/dev/queues/peek", (_req:any, res:any)=>{
+        const node = getNode();
+        const mem = node?.mempool?.txs || [];
+        const qs = getQueues();
+        res.json({
+          ok: true,
+          mempool: { len: Array.isArray(mem)? mem.length : -1 },
+          injectQueues: qs.map((q,i)=>({i, len: q.length}))
+        });
+      });
+    }
+
+    console.log(TAG, "attached (drains dev injector queues into node.mempool.txs)");
+  }
+  setTimeout(attach, 0);
+})();
+// =============== /Dev Injector → Mempool Bridge (v1, additive) =================
+
+// =========== Dev Direct Enqueue → node.mempool.txs (v1, additive) ===========
+(function devDirectEnqueueV1(){
+  const TAG = "[dev/enqueue:v1]";
+  let attached = false;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function getNode(){
+    const g:any = globalThis as any;
+    const app:any = getApp();
+    return g.__void_node || (app?.locals?.__void_node) || g.node || null;
+  }
+  function ensureMempoolArray(node:any){
+    node.mempool = node.mempool || {};
+    node.mempool.txs = Array.isArray(node.mempool.txs) ? node.mempool.txs : [];
+    return node.mempool.txs as any[];
+  }
+  // simple dev tx generator (unique-ish string payloads)
+  function mkTx(i:number){
+    const t = Date.now();
+    return { type:"dev", i, t, nonce: Math.floor(Math.random()*1e9), data:`dev:${t}:${Math.random().toString(36).slice(2)}` };
+  }
+
+  function attach(){
+    if (attached) return;
+    const app:any = getApp();
+    if (!app || typeof app.post !== "function") return void setTimeout(attach, 300).unref?.();
+    attached = true;
+
+    // POST /tx/dev/enqueue?n=6  → pushes n generated txs into node.mempool.txs
+    app.post("/tx/dev/enqueue", async (req:any, res:any)=>{
+      const n = Math.max(1, Math.min(1000, parseInt((req.query?.n ?? "1"), 10) || 1));
+      const node:any = getNode();
+      if (!node) return res.status(503).json({ok:false, error:"node not ready"});
+      const mem = ensureMempoolArray(node);
+      for (let i=0;i<n;i++) mem.push(mkTx(i));
+      res.json({ok:true, enqueued:n, mempoolLen: mem.length});
+    });
+
+    // GET /dev/mempool/len  → {len}
+    app.get("/dev/mempool/len", (_req:any, res:any)=>{
+      const node:any = getNode();
+      const len = node?.mempool?.txs ? node.mempool.txs.length : -1;
+      res.json({ok:true, len});
+    });
+
+    console.log(TAG, "attached (POST /tx/dev/enqueue?n=...)");
+  }
+  setTimeout(attach, 0);
+})();
+// ========== /Dev Direct Enqueue → node.mempool.txs (v1, additive) ============
+
+// ======================= TX MERGE v2 (additive-only) =========================
+(function txMergeV2(){
+  const TAG = "[tx/merge:v2]";
+  let attached = false;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function getNode(){
+    const g:any = globalThis as any;
+    const app:any = getApp();
+    return g.__void_node || (app?.locals?.__void_node) || g.node || null;
+  }
+  function ensureMempoolArray(node:any){
+    node.mempool = node.mempool || {};
+    node.mempool.txs = Array.isArray(node.mempool.txs) ? node.mempool.txs : [];
+    return node.mempool.txs as any[];
+  }
+  function envInt(k:string, d:number){ const v = parseInt(String(process.env[k] ?? "")); return Number.isFinite(v) ? v : d; }
+
+  // live controls (separate from any older v1 controls)
+  let enabled = true;
+  let cap = envInt("VOID_TX_MERGE_CAP", 3);  // default 3/blk
+
+  // simple metrics counters
+  let sets_total=0, merged_total=0, skipped_total=0, errors_total=0, heartbeat_total=0, last_merged_block=-1;
+
+  function attach(){
+    if (attached) return;
+    const g:any = globalThis as any;
+    const app:any = getApp();
+    const node:any = getNode();
+    if (!app || !node) return void setTimeout(attach, 300).unref?.();
+    if (!node.store || typeof node.store.saveBlock !== "function") return void setTimeout(attach, 300).unref?.();
+    if (g.__void_txmerge_v2_wrapped) return; // idempotent
+
+    const orig = node.store.saveBlock.bind(node.store);
+    node.store.__orig_saveBlock_v2 = orig;
+
+    node.store.saveBlock = async function wrappedSaveBlock(block:any){
+      heartbeat_total++;
+      try{
+        if (!enabled){
+          skipped_total++;
+          return await orig(block);
+        }
+        const mp = ensureMempoolArray(node);
+        const take = Math.max(0, Math.min(cap, mp.length));
+        if (take === 0){
+          skipped_total++;
+          return await orig(block);
+        }
+        // ensure payload.txs array
+        block = block || {};
+        block.payload = block.payload || {};
+        block.payload.txs = Array.isArray(block.payload.txs) ? block.payload.txs : [];
+
+        const picked = mp.splice(0, take);
+        for (const tx of picked) block.payload.txs.push(tx);
+        merged_total += picked.length;
+        last_merged_block = block.number ?? -1;
+
+        // mark we attempted "set" at header-level (setter will later set header root)
+        sets_total++;
+        return await orig(block);
+      }catch(e){
+        errors_total++;
+        throw e;
+      }
+    };
+
+    // Prom-style exporter
+    app.get("/__void/metrics/txmerge2.prom", (_req:any, res:any)=>{
+      const lines = [
+        "# HELP void_txmerge2_enabled 1=enabled 0=disabled",
+        "# TYPE void_txmerge2_enabled gauge",
+        `void_txmerge2_enabled ${enabled?1:0}`,
+        "# HELP void_txmerge2_cap Max tx merged per block",
+        "# TYPE void_txmerge2_cap gauge",
+        `void_txmerge2_cap ${cap}`,
+        "# HELP void_txmerge2_sets_total Blocks where merge path executed",
+        "# TYPE void_txmerge2_sets_total counter",
+        `void_txmerge2_sets_total ${sets_total}`,
+        "# HELP void_txmerge2_merged_total Total tx merged into blocks",
+        "# TYPE void_txmerge2_merged_total counter",
+        `void_txmerge2_merged_total ${merged_total}`,
+        "# HELP void_txmerge2_skipped_total Blocks skipped (no tx or disabled)",
+        "# TYPE void_txmerge2_skipped_total counter",
+        `void_txmerge2_skipped_total ${skipped_total}`,
+        "# HELP void_txmerge2_errors_total Errors in merge wrapper",
+        "# TYPE void_txmerge2_errors_total counter",
+        `void_txmerge2_errors_total ${errors_total}`,
+        "# HELP void_txmerge2_heartbeat_total Liveness counter",
+        "# TYPE void_txmerge2_heartbeat_total counter",
+        `void_txmerge2_heartbeat_total ${heartbeat_total}`,
+        "# HELP void_txmerge2_last_merged_block Last block number where tx were merged",
+        "# TYPE void_txmerge2_last_merged_block gauge",
+        `void_txmerge2_last_merged_block ${last_merged_block}`
+      ];
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+
+    // tiny controls
+    app.get("/__void/txmerge2/status", (_req:any, res:any)=>{
+      res.json({ok:true, enabled, cap, merged_total, skipped_total, last_merged_block});
+    });
+    app.post("/__void/txmerge2/set", (req:any, res:any)=>{
+      if (typeof req.query.enabled !== "undefined") enabled = String(req.query.enabled) !== "false";
+      if (typeof req.query.cap !== "undefined") {
+        const n = parseInt(String(req.query.cap),10);
+        if (Number.isFinite(n) && n>=0) cap = n;
+      }
+      res.json({ok:true, enabled, cap});
+    });
+
+    g.__void_txmerge_v2_wrapped = true;
+    console.log(TAG, "attached (cap=",cap,")");
+  }
+  setTimeout(attach, 0);
+})();
+// ===================== /TX MERGE v2 (additive-only) ==========================
+
+// ===================== Dev mempool PICK endpoints (additive) =====================
+(function devMempoolPickRoutes(){
+  const TAG = "[dev/mempool-pick:v1]";
+  let attached = false;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  function getNode(){
+    const g:any = globalThis as any;
+    const app:any = getApp();
+    return g.__void_node || (app?.locals?.__void_node) || g.node || null;
+  }
+  function ensureMempoolArray(node:any){
+    node.mempool = node.mempool || {};
+    node.mempool.txs = Array.isArray(node.mempool.txs) ? node.mempool.txs : [];
+    return node.mempool.txs as any[];
+  }
+
+  function attach(){
+    if (attached) return;
+    const app:any = getApp(); const node:any = getNode();
+    if (!app || !node) return void setTimeout(attach, 300).unref?.();
+
+    // GET /dev/mempool/peek  -> {ok, len, sample:[...]}
+    app.get("/dev/mempool/peek", (_req:any, res:any)=>{
+      const mp = ensureMempoolArray(getNode());
+      res.json({ok:true, len: mp.length, sample: mp.slice(0, Math.min(5, mp.length))});
+    });
+
+    // POST /tx/dev/pick?max=3  -> pops up to max txs
+    app.post("/tx/dev/pick", (req:any, res:any)=>{
+      const node = getNode(); const mp = ensureMempoolArray(node);
+      const max = Math.max(0, Math.min( (parseInt(String(req.query.max??"3"),10)||3), mp.length ));
+      const picked = mp.splice(0, max);
+      res.json({ok:true, picked, left: mp.length, max});
+    });
+
+    attached = true;
+    console.log(TAG, "routes attached");
+  }
+  setTimeout(attach, 0);
+})();
+// =================== /Dev mempool PICK endpoints (additive) =====================
+
+
+// ---------------------- Dev mempool picker (additive) ----------------------
+(function devMempoolPickerV1(){
+  const TAG = "[dev/mempool-pick:v1]";
+  let attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){
+    const g:any = globalThis as any;
+    const app:any = getApp();
+    return g.__void_node || app?.locals?.__void_node || g.node || null;
+  }
+  function attach(){
+    if (attached) return;
+    const app:any = getApp(), node:any = getNode();
+    if (!app || !node || typeof app.post!=="function"){ return void setTimeout(attach, 500).unref?.(); }
+    attached=true;
+
+    // POST /dev/mempool/pick?max=3
+    app.post("/dev/mempool/pick", (req:any, res:any)=>{
+      try{
+        const max = Math.max(0, Math.min(1000, Number(req?.query?.max ?? 0) || 0));
+        node.mempool = node.mempool || {};
+        const arr:any[] = Array.isArray(node.mempool.txs) ? node.mempool.txs : (node.mempool.txs = []);
+        const before = arr.length;
+        const picked = max > 0 ? arr.splice(0, max) : [];
+        const after = arr.length;
+        res.json({ ok:true, picked, before, after });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    // tiny lens
+    app.get("/dev/mempool/len", (_req:any, res:any)=>{
+      const arr = (getNode()?.mempool?.txs)||[];
+      res.json({ ok:true, len:Array.isArray(arr)?arr.length:0 });
+    });
+
+    console.log(TAG, "attached");
+  }
+  attach();
+})();
+
+// ---------------- txmerge v23 prom-exporter bridge (additive) ----------------
+(function txmergeV23PromBridge(){
+  const TAG = "[txmerge:v23:prom-bridge]";
+  let attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function attach(){
+    if (attached) return;
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function"){ return void setTimeout(attach, 500).unref?.(); }
+    attached = true;
+    app.get("/__void/metrics/txmerge_v23.prom", (_req:any, res:any)=>{
+      const g:any = globalThis as any;
+      const M = g.__void_txmerge_v23_metrics || {};
+      const lines = [
+        "# HELP void_txmerge_v23_sets_total save hooks executed",
+        "# TYPE void_txmerge_v23_sets_total counter",
+        `void_txmerge_v23_sets_total ${Number(M.sets_total||0)}`,
+        "# HELP void_txmerge_v23_picked_total tx picked for merge",
+        "# TYPE void_txmerge_v23_picked_total counter",
+        `void_txmerge_v23_picked_total ${Number(M.picked_total||0)}`,
+        "# HELP void_txmerge_v23_errors_total errors in merge hook",
+        "# TYPE void_txmerge_v23_errors_total counter",
+        `void_txmerge_v23_errors_total ${Number(M.errors_total||0)}`,
+        "# HELP void_txmerge_v23_last_block last block number observed",
+        "# TYPE void_txmerge_v23_last_block gauge",
+        `void_txmerge_v23_last_block ${Number(M.last_block||-1)}`,
+        "# HELP void_txmerge_v23_last_picked count last picked batch",
+        "# TYPE void_txmerge_v23_last_picked gauge",
+        `void_txmerge_v23_last_picked ${Number(M.last_picked||0)}`,
+        "# HELP void_txmerge_v23_heartbeat liveness",
+        "# TYPE void_txmerge_v23_heartbeat counter",
+        `void_txmerge_v23_heartbeat ${(M.heartbeat=(Number(M.heartbeat||0)+1))}`
+      ];
+      res.setHeader("Content-Type","text/plain; version=0.0.4");
+      res.end(lines.join("\n")+"\n");
+      g.__void_txmerge_v23_metrics = M;
+    });
+    console.log(TAG, "attached");
+  }
+  attach();
+})();
+
+// -------- txmerge v23b prom-exporter (additive, alt path) --------
+(function txmergeV23bPromBridge(){
+  const TAG = "[txmerge:v23b:prom-bridge]";
+  let attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function attach(){
+    if (attached) return;
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function"){ return void setTimeout(attach, 500).unref?.(); }
+    attached = true;
+    app.get("/__void/metrics/txmerge_v23b.prom", (_req:any, res:any)=>{
+      const g:any = globalThis as any;
+      const M = g.__void_txmerge_v23_metrics || {};
+      const lines = [
+        "# HELP void_txmerge_v23b_sets_total save hooks executed",
+        "# TYPE void_txmerge_v23b_sets_total counter",
+        `void_txmerge_v23b_sets_total ${Number(M.sets_total||0)}`,
+        "# HELP void_txmerge_v23b_picked_total tx picked for merge",
+        "# TYPE void_txmerge_v23b_picked_total counter",
+        `void_txmerge_v23b_picked_total ${Number(M.picked_total||0)}`,
+        "# HELP void_txmerge_v23b_last_block last block number observed",
+        "# TYPE void_txmerge_v23b_last_block gauge",
+        `void_txmerge_v23b_last_block ${Number(M.last_block||-1)}`,
+        "# HELP void_txmerge_v23b_last_picked last picked batch size",
+        "# TYPE void_txmerge_v23b_last_picked gauge",
+        `void_txmerge_v23b_last_picked ${Number(M.last_picked||0)}`,
+        "# HELP void_txmerge_v23b_heartbeat liveness",
+        "# TYPE void_txmerge_v23b_heartbeat counter",
+        `void_txmerge_v23b_heartbeat ${(M.heartbeat=(Number(M.heartbeat||0)+1))}`
+      ];
+      res.setHeader("Content-Type","text/plain; version=0.0.4");
+      res.end(lines.join("\n")+"\n");
+      g.__void_txmerge_v23_metrics = M;
+    });
+    console.log(TAG, "attached");
+  }
+  attach();
+})();
+
+// ----------------- __void picker shim (additive) -----------------
+(function voidDevPickerShim(){
+  let attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function findMempool(){
+    const g:any = (globalThis as any);
+    // try common places we've used before
+    const cand:any[] = [
+      g.__void_node?.mempool, g.node?.mempool, g.mempool,
+      g.__void?.mempool, g.__void_core?.mempool
+    ].filter(Boolean);
+    for (const mp of cand){
+      const arr = (mp?.txs || mp?.pending || mp?.pendingTxs);
+      if (Array.isArray(arr)) return {mp, arr};
+    }
+    return null;
+  }
+  function attach(){
+    if (attached) return;
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function" || typeof app.post!=="function"){
+      return void setTimeout(attach, 500).unref?.();
+    }
+    attached = true;
+
+    async function pick(max:number){
+      const h = findMempool();
+      if (!h) return {ok:false, error:"mempool_not_found", picked:[] as any[]};
+      const arr:any[] = h.arr;
+      if (!Number.isFinite(max) || max<0) max = 0;
+      if (max===0) return {ok:true, picked:[]};
+      const n = Math.min(max, arr.length);
+      const picked = arr.splice(0, n); // destructive drain (front)
+      return {ok:true, picked};
+    }
+
+    function parseMax(req:any){
+      const qv = req.query?.max ?? req.query?.n ?? req.query?.count;
+      const bv = (()=>{ try{ return JSON.parse(req?.body||"null")?.max; }catch{ return undefined; } })();
+      const v = Number(qv ?? bv ?? 0);
+      return Number.isFinite(v) && v>=0 ? v : 0;
+    }
+
+    app.get("/__void/dev/pick", async (req:any,res:any)=>{
+      const out = await pick(parseMax(req));
+      res.status(out.ok?200:500).json(out);
+    });
+    app.post("/__void/dev/pick", async (req:any,res:any)=>{
+      const out = await pick(parseMax(req));
+      res.status(out.ok?200:500).json(out);
+    });
+
+    // tiny diag
+    app.get("/__void/dev/picker/diag", (_req:any,res:any)=>{
+      const h = findMempool();
+      res.json({ok:!!h, len: h? h.arr.length : null});
+    });
+
+    console.log("[__void/dev/pick] shim attached");
+  }
+  attach();
+})();
+
+// ==================== TXMERGE_LAST_MILE_V1 (additive-only) ====================
+// Goal: If a block is about to be saved with no txs, inject up to cap from the
+// *real* node mempool and write into BOTH block.txs and block.payload.txs.
+// Runs as the OUTERMOST wrapper on saveBlock (after any existing wrappers).
+
+(function lastMileTxMerge(){
+  const MAX_WAIT_MS = 20_000;
+  const RETRY_MS = 250;
+  let attached = false, tries = 0;
+
+  function getApp() {
+    return (globalThis as any).__void_http_app || (globalThis as any).app;
+  }
+  function getNode(){
+    // honor any of these globals locals you’ve used before
+    const g = (globalThis as any);
+    if (g.__void_node) return g.__void_node;
+    try {
+      const app:any = getApp();
+      if (app?.locals?.node) return app.locals.node;
+    } catch {}
+    return undefined;
+  }
+  function getStore(){
+    const g = (globalThis as any);
+    // Most builds keep store on node.store; also expose via globals sometimes
+    const node = getNode();
+    if (node?.store) return node.store;
+    if (g.__void_store) return g.__void_store;
+    return undefined;
+  }
+  function getCap() {
+    const g = (globalThis as any);
+    // Prefer live cap if you already expose it; fallback to 3
+    return Number(g.__void_tx_cap ?? 3);
+  }
+  function popFromMempool(max:number){
+    const node:any = getNode();
+    if (!node) return [];
+    // Common shapes: node.mempool.txs (array) or node.pending/pendingTxs
+    const mp:any = node.mempool || node.pending || {};
+    let arr:any[] =
+      Array.isArray(mp.txs) ? mp.txs :
+      Array.isArray(node.pendingTxs) ? node.pendingTxs :
+      [];
+
+    if (!Array.isArray(arr) || arr.length === 0) return [];
+    const take = Math.min(max, arr.length);
+    const picked = arr.slice(0, take);
+    // Mutate the mempool if we recognize it as the live array
+    try {
+      if (Array.isArray(mp.txs) && mp.txs === arr) mp.txs.splice(0, take);
+      else if (Array.isArray(node.pendingTxs) && node.pendingTxs === arr) node.pendingTxs.splice(0, take);
+    } catch {}
+    return picked;
+  }
+
+  function ensureArrays(block:any){
+    if (!block) return;
+    if (!Array.isArray(block.txs)) block.txs = [];
+    if (!block.payload || typeof block.payload !== "object") block.payload = {};
+    if (!Array.isArray(block.payload.txs)) block.payload.txs = [];
+  }
+
+  async function attach(){
+    if (attached) return;
+    const store:any = getStore();
+    if (!store || typeof store.saveBlock !== "function") {
+      if ((tries += 1) * RETRY_MS < MAX_WAIT_MS) return setTimeout(attach, RETRY_MS);
+      return; // give up quietly if this build doesn’t match
+    }
+
+    // Only wrap once
+    if ((store as any).__lastMileWrapped) { attached = true; return; }
+    const inner = store.saveBlock.bind(store);
+
+    store.saveBlock = async function lastMileWrapper(block:any){
+      try {
+        ensureArrays(block);
+        const cap = getCap();
+
+        const have =
+          (Array.isArray(block.txs) ? block.txs.length : 0) +
+          (Array.isArray(block.payload?.txs) ? block.payload.txs.length : 0);
+
+        if (have === 0) {
+          const picked = popFromMempool(cap);
+          if (picked.length > 0) {
+            // Write to BOTH paths to avoid reader/writer mismatches
+            block.txs = Array.isArray(block.txs) ? block.txs : [];
+            block.payload = block.payload || {};
+            block.payload.txs = Array.isArray(block.payload.txs) ? block.payload.txs : [];
+
+            for (const tx of picked) {
+              block.txs.push(tx);
+              block.payload.txs.push(tx);
+            }
+            (globalThis as any).__lastMile_info = {
+              when: Date.now(),
+              injected: picked.length,
+              cap,
+              head_hint: (globalThis as any).__void_head_number
+            };
+          }
+        }
+      } catch (e) {
+        // Non-fatal: never block persistence
+        (globalThis as any).__lastMile_error = String(e && (e.stack || e));
+      }
+      return inner(block);
+    };
+
+    (store as any).__lastMileWrapped = true;
+    attached = true;
+
+    // Optional tiny status route
+    try {
+      const app:any = getApp();
+      if (app && typeof app.get === "function") {
+        app.get("/__void/lastmile/status", (_req:any,res:any)=>{
+          res.json({
+            wrapped: true,
+            cap: getCap(),
+            info: (globalThis as any).__lastMile_info || null,
+            err:  (globalThis as any).__lastMile_error || null,
+          });
+        });
+      }
+    } catch {}
+  }
+
+  // Defer until app/node exist
+  (function wait(){ try { attach(); } finally {
+    if (!attached && (tries * RETRY_MS) < MAX_WAIT_MS) setTimeout(wait, RETRY_MS);
+  }})();
+})();
+
+// ================= /TXMERGE_LAST_MILE_V1 =================
+
+// ---- LASTMILE metrics (Prom text) ----
+(function lastMileMetrics(){
+  let tries=0, attached=false;
+  const RETRY=250, MAX=20000;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function bump(n:number){ (globalThis as any).__lastMile_injected_total = ((globalThis as any).__lastMile_injected_total||0)+n; }
+
+  // Hook into info object the wrapper already writes
+  const g = (globalThis as any);
+  const origDesc = Object.getOwnPropertyDescriptor(g, "__lastMile_info");
+  Object.defineProperty(g, "__lastMile_info", {
+    configurable: true,
+    get(){ return origDesc?.get ? origDesc.get.call(g) : g.__lastMile_info_value; },
+    set(v:any){ 
+      try {
+        if (v && typeof v.injected === "number") bump(v.injected);
+      } catch {}
+      if (origDesc?.set) origDesc.set.call(g, v); else g.__lastMile_info_value = v;
+    }
+  });
+
+  function attach(){
+    if (attached) return;
+    const a:any = app();
+    if (!a || typeof a.get!=="function") { if ((tries+=RETRY)<MAX) return setTimeout(attach,RETRY); else return; }
+    if (a.__lastMileMetricsAttached) { attached=true; return; }
+    a.get("/__void/metrics/lastmile.prom", (_req:any,res:any)=>{
+      const total = (globalThis as any).__lastMile_injected_total || 0;
+      res.type("text/plain").send(
+        "# HELP void_lastmile_injected_total Total txs injected by last-mile wrapper\n" +
+        "# TYPE void_lastmile_injected_total counter\n" +
+        `void_lastmile_injected_total ${total}\n`
+      );
+    });
+    a.__lastMileMetricsAttached = true;
+    attached = true;
+  }
+  (function wait(){ attach(); if (!attached) setTimeout(wait, RETRY); })();
+})();
+// ---- /LASTMILE metrics ----
+
+// ---- LASTMILE metrics (Prom text) ----
+(function lastMileMetrics(){
+  let tries=0, attached=false;
+  const RETRY=250, MAX=20000;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function bump(n:number){ (globalThis as any).__lastMile_injected_total = ((globalThis as any).__lastMile_injected_total||0)+n; }
+
+  // Hook into info object the wrapper writes; count injected txs
+  const g = (globalThis as any);
+  try {
+    const orig = Object.getOwnPropertyDescriptor(g, "__lastMile_info");
+    if (!orig || (!orig.get && !orig.set)) {
+      let _v:any = g.__lastMile_info;
+      Object.defineProperty(g, "__lastMile_info", {
+        configurable: true,
+        get(){ return _v; },
+        set(v:any){ try{ if (v && typeof v.injected==="number") bump(v.injected); }catch{} _v=v; }
+      });
+    } else {
+      Object.defineProperty(g, "__lastMile_info", {
+        configurable: true,
+        get(){ return orig.get ? orig.get.call(g) : (g as any).__lastMile_info_value; },
+        set(v:any){
+          try{ if (v && typeof v.injected==="number") bump(v.injected); }catch{}
+          if (orig.set) orig.set.call(g, v); else (g as any).__lastMile_info_value = v;
+        }
+      });
+    }
+  } catch {}
+
+  function attach(){
+    if (attached) return;
+    const a:any = app();
+    if (!a || typeof a.get!=="function") { if ((tries+=RETRY)<MAX) return setTimeout(attach,RETRY); else return; }
+    if (a.__lastMileMetricsAttached) { attached=true; return; }
+
+    a.get("/__void/metrics/lastmile.prom", (_req:any,res:any)=>{
+      const total = (globalThis as any).__lastMile_injected_total || 0;
+      res.type("text/plain").send(
+        "# HELP void_lastmile_injected_total Total txs injected by last-mile wrapper\n" +
+        "# TYPE void_lastmile_injected_total counter\n" +
+        `void_lastmile_injected_total ${total}\n`
+      );
+    });
+
+    a.__lastMileMetricsAttached = true;
+    attached = true;
+  }
+
+  (function wait(){ attach(); if (!attached) setTimeout(wait, RETRY); })();
+})();
+// ---- /LASTMILE metrics ----
+
+// ---- TXROOT HEALTH LIVE SHIM (additive, no deps) ----------------------------
+(function txrootHealthLiveShim(){
+  let tries=0, attached=false;
+  const RETRY=250, MAX=20000;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function now(){ return Date.now(); }
+
+  async function j(url:string){ const r = await fetch(url); if(!r.ok) throw new Error(url+" -> "+r.status); return r.json(); }
+
+  async function computeLive(){
+    const base = `http://127.0.0.1:${process.env.HTTP_PORT||'4100'}`;
+    const n = Number(await (await fetch(`${base}/blocks/latest/number`)).text());
+    const dev = await j(`${base}/dev/txroot/${n}`);           // {number, root, txCount}
+    const hdr = await j(`${base}/blocks/${n}/txroot`);        // {number, root, source}
+    const full = await j(`${base}/blocks/${n}/full2`);        // {ts, txs:[...], payload.txs?}
+
+    const txCount = Number(dev.txCount || (Array.isArray(full.txs)?full.txs.length:0));
+    const rootsEqual = (dev.root && hdr.root && (dev.root === hdr.root));
+    // Freshness: consider healthy only if the block is recent (<= 90s old)
+    const FRESH_MS = 90_000;
+    const fresh = (typeof full.ts === 'number') ? (now() - full.ts <= FRESH_MS) : true;
+
+    const healthy = !!rootsEqual && fresh && (txCount >= 0); // allow empty or non-empty, equality + freshness is key
+    return { n, txCount, devRoot: dev.root, hdrRoot: hdr.root, equal: rootsEqual, fresh, healthy };
+  }
+
+  function attach(){
+    if (attached) return;
+    const a:any = app();
+    if (!a || typeof a.get!=="function") { if ((tries+=RETRY)<MAX) return setTimeout(attach,RETRY); else return; }
+
+    // Force a recompute and store into globals many exporters read
+    a.get("/health/txroot3/refresh", async (_req:any,res:any)=>{
+      try {
+        const out = await computeLive();
+        (globalThis as any).__txroot3_last = out;
+        (globalThis as any).__txroot_health = out.healthy ? 1 : 0; // common gauge name used by some exporters
+        res.json({ ok:true, ...out, gauge:(globalThis as any).__txroot_health });
+      } catch (e:any) {
+        res.status(500).json({ ok:false, error:String(e) });
+      }
+    });
+
+    // Prom-text live mirror (scrape this if the legacy exporter stays cached)
+    a.get("/health/txroot3/live.prom", async (_req:any,res:any)=>{
+      try {
+        const out = await computeLive();
+        (globalThis as any).__txroot3_last = out;
+        (globalThis as any).__txroot_health = out.healthy ? 1 : 0;
+        res.type("text/plain").send(
+          "# HELP void_txroot_health Is txroot healthy (1 ok, 0 bad)\n" +
+          "# TYPE void_txroot_health gauge\n" +
+          `void_txroot_health ${(globalThis as any).__txroot_health}\n`
+        );
+      } catch (e:any) {
+        res.type("text/plain").send(
+          "# HELP void_txroot_health Is txroot healthy (1 ok, 0 bad)\n" +
+          "# TYPE void_txroot_health gauge\n" +
+          "void_txroot_health 0\n"
+        );
+      }
+    });
+
+    attached = true;
+  }
+
+  (function wait(){ attach(); if (!attached) setTimeout(wait,RETRY); })();
+})();
+// ---- /TXROOT HEALTH SHIM -----------------------------------------------------
+
+// ---- LASTMILE injected counter v2 (increment on real saveBlock with txs) ----
+(function lastMileInjectedV2(){
+  let tries=0, attached=false;
+  const RETRY=250, MAX=20000;
+  const g:any = (globalThis as any);
+  g.__lastMile_injected_total = g.__lastMile_injected_total || 0;
+
+  function wait(fn:Function){ if (attached) return;
+    if ((tries+=RETRY) > MAX) return;
+    setTimeout(()=>fn(), RETRY);
+  }
+
+  function attach(){
+    if (attached) return;
+    // store/saveBlock lives on the Node or store singleton — discover lazily
+    const app:any = g.__void_http_app || g.app;
+    const node:any = (g.__void_node) || (g.node) || undefined;
+    const store:any = (node && node.store) || g.__void_store || undefined;
+
+    // Try to locate a saveBlock function
+    const target:any = store || (node && node.store);
+    if (!target || typeof target.saveBlock !== "function") return wait(attach);
+
+    if (target.__lastMilePatchedV2) { attached=true; return; }
+    const orig = target.saveBlock.bind(target);
+    target.saveBlock = async function patchedSaveBlock(block:any){
+      try {
+        const before = Array.isArray(block?.txs) ? block.txs.length : 0;
+        const beforePayload = Array.isArray(block?.payload?.txs) ? block.payload.txs.length : 0;
+
+        const res = await orig(block);
+
+        const after = Array.isArray(block?.txs) ? block.txs.length : 0;
+        const afterPayload = Array.isArray(block?.payload?.txs) ? block.payload.txs.length : 0;
+
+        // Count txs that actually ended up in the block; prefer block.txs, fallback to payload.txs
+        const used = Math.max(after, afterPayload);
+        // If there were none before and some after, assume they were injected this cycle
+        if (used > Math.max(before, beforePayload)) {
+          const delta = used - Math.max(before, beforePayload);
+          g.__lastMile_injected_total = (g.__lastMile_injected_total || 0) + Math.max(delta, 0);
+        }
+        return res;
+      } catch (e){ try { console.error("[lastMileInjectedV2] error", e); } catch{}; throw e; }
+    };
+    target.__lastMilePatchedV2 = true;
+
+    // Minimal Prom text endpoint
+    if (app && typeof app.get === "function" && !app.__lastMileV2Prom){
+      app.get("/__void/metrics/lastmile.v2.prom", (_req:any,res:any)=>{
+        const total = g.__lastMile_injected_total || 0;
+        res.type("text/plain").send(
+          "# HELP void_lastmile_injected_total Total txs injected (on saveBlock)\n" +
+          "# TYPE void_lastmile_injected_total counter\n" +
+          `void_lastmile_injected_total ${total}\n`
+        );
+      });
+      app.__lastMileV2Prom = true;
+    }
+
+    attached = true;
+    try { console.log("[lastMileInjectedV2] patch attached"); } catch {}
+  }
+  attach();
+})();
+
+// ---- LASTMILE v3: count txs actually persisted per block (Prom text) ----
+(function lastMileV3(){
+  let tries=0, attached=false;
+  const RETRY=250, MAX=20000;
+  const g:any = (globalThis as any);
+  g.__lastMile_block_txs_total = g.__lastMile_block_txs_total || 0;
+
+  function wait(){ if ((tries+=RETRY) <= MAX) setTimeout(attach, RETRY); }
+  function attach(){
+    if (attached) return;
+    const app:any = g.__void_http_app || g.app;
+    const node:any = g.__void_node || g.node;
+    const store:any = (node && node.store) || g.__void_store;
+    if (!store || typeof store.saveBlock!=="function"){ return wait(); }
+
+    if (!store.__lastMileV3Patched){
+      const orig = store.saveBlock.bind(store);
+      store.saveBlock = async function lmV3_saveBlock(block:any){
+        const count = Array.isArray(block?.txs) ? block.txs.length :
+                      Array.isArray(block?.payload?.txs) ? block.payload.txs.length : 0;
+        const res = await orig(block);
+        if (count>0) g.__lastMile_block_txs_total = (g.__lastMile_block_txs_total||0)+count;
+        return res;
+      };
+      store.__lastMileV3Patched = true;
+      try { console.log("[lastMileV3] patch attached"); } catch {}
+    }
+
+    if (app && typeof app.get==="function" && !app.__lastMileV3Prom){
+      app.get("/__void/metrics/lastmile.v3.prom", (_req:any,res:any)=>{
+        const total = g.__lastMile_block_txs_total || 0;
+        res.type("text/plain").send(
+          "# HELP void_lastmile_block_txs_total Total txs persisted into blocks\n" +
+          "# TYPE void_lastmile_block_txs_total counter\n" +
+          `void_lastmile_block_txs_total ${total}\n`
+        );
+      });
+      app.__lastMileV3Prom = true;
+    }
+
+    attached = true;
+  }
+  attach();
+})();
+
+// ---- LASTMILE v3b: piggyback on __lastMile_info (add injected) ----
+(function lastMileV3b(){
+  const g:any = (globalThis as any);
+  g.__lastMile_block_txs_total = g.__lastMile_block_txs_total || 0;
+
+  // Wrap the getter/setter to observe updates from the last-mile wrapper
+  const desc = Object.getOwnPropertyDescriptor(g, "__lastMile_info");
+  let backing = (desc && desc.get) ? undefined : (g.__lastMile_info ?? null);
+
+  Object.defineProperty(g, "__lastMile_info", {
+    configurable: true,
+    get(){ return desc?.get ? desc.get.call(g) : backing; },
+    set(v:any){
+      try {
+        if (v && typeof v.injected === "number" && v.injected > 0) {
+          g.__lastMile_block_txs_total = (g.__lastMile_block_txs_total||0) + v.injected;
+        }
+      } catch {}
+      if (desc?.set) desc.set.call(g, v); else backing = v;
+    }
+  });
+
+  // Tiny diag route to confirm we’re attached
+  let tries=0; const RETRY=250, MAX=15000;
+  function app(){ return g.__void_http_app || g.app; }
+  (function attach(){
+    const a:any = app();
+    if (!a || typeof a.get!=="function"){ if((tries+=RETRY)<=MAX) return setTimeout(attach,RETRY); return; }
+    if (a.__lastMileV3bDiag) return;
+    a.get("/__void/diag/lastmile.v3", (_req:any,res:any)=>{
+      res.json({
+        total: g.__lastMile_block_txs_total||0,
+        hasSetter: true,
+        note: "v3b piggyback on __lastMile_info + v3 store.saveBlock wrapper (if attached)"
+      });
+    });
+    a.__lastMileV3bDiag = true;
+  })();
+})();
+
+// ---- LASTMILE v4: scrape-driven accumulator using local HTTP endpoints ----
+(function lastMileV4(){
+  const g:any = (globalThis as any);
+  g.__lm_v4_total = g.__lm_v4_total || 0;
+  g.__lm_v4_last = g.__lm_v4_last || { n: -1, txs: 0 };
+
+  const RETRY=250, MAX=20000;
+  let tries=0;
+  function app(){ return g.__void_http_app || g.app; }
+
+  async function getJSON(url:string){
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
+    return r.json();
+  }
+
+  async function advanceToLatest(base="http://127.0.0.1:4100"){
+    // latest number
+    const nText = await (await fetch(`${base}/blocks/latest/number`)).text();
+    const latest = parseInt(nText, 10);
+    if (!Number.isFinite(latest)) return { latest: -1, added: 0, lastSeen: g.__lm_v4_last.n };
+
+    let added = 0;
+    let from = g.__lm_v4_last.n + 1;
+    if (from < 0) from = latest; // on first run just align without backfill
+
+    for (let k = from; k <= latest; k++){
+      // prefer raw2 inspector you already expose
+      try {
+        const j:any = await getJSON(`${base}/dev/blocks/${k}/txs/raw2`);
+        const txc = (typeof j?.tx_count === "number") ? j.tx_count : (Array.isArray(j?.txs) ? j.txs.length : 0);
+        if (k > g.__lm_v4_last.n) {
+          g.__lm_v4_total += txc;
+          g.__lm_v4_last = { n:k, txs: txc };
+          added += txc;
+        }
+      } catch (_e){
+        // fallback: full2
+        try {
+          const f:any = await getJSON(`${base}/blocks/${k}/full2`);
+          const txc = Array.isArray(f?.txs) ? f.txs.length : (Array.isArray(f?.payload?.txs) ? f.payload.txs.length : 0);
+          if (k > g.__lm_v4_last.n) {
+            g.__lm_v4_total += txc;
+            g.__lm_v4_last = { n:k, txs: txc };
+            added += txc;
+          }
+        } catch(e2){}
+      }
+    }
+    return { latest, added, lastSeen: g.__lm_v4_last.n };
+  }
+
+  (function attach(){
+    const a:any = app();
+    if (!a || typeof a.get!=="function"){ if((tries+=RETRY)<=MAX) return setTimeout(attach,RETRY); return; }
+    if (a.__lastMileV4Attached) return;
+    a.get("/__void/metrics/lastmile.v4.prom", async (_req:any,res:any)=>{
+      try {
+        await advanceToLatest();
+      } catch {}
+
+      const total = g.__lm_v4_total || 0;
+      const last = g.__lm_v4_last || { n:-1, txs:0 };
+      res.type("text/plain").send(
+        "# HELP void_lastmile_block_txs_total Total txs persisted into blocks (scrape-accumulated)\n" +
+        "# TYPE void_lastmile_block_txs_total counter\n" +
+        `void_lastmile_block_txs_total ${total}\n` +
+        "# HELP void_lastmile_latest_txs Txs in the most recent block seen\n" +
+        "# TYPE void_lastmile_latest_txs gauge\n" +
+        `void_lastmile_latest_txs ${last.txs}\n` +
+        "# HELP void_lastmile_last_seen_block Last block number accounted for\n" +
+        "# TYPE void_lastmile_last_seen_block gauge\n" +
+        `void_lastmile_last_seen_block ${last.n}\n`
+      );
+    });
+    a.__lastMileV4Attached = true;
+  })();
+})();
+
+// ---- LASTMILE v4b: background tally, zero work on scrape ----
+(function lastMileV4b(){
+  const g:any = (globalThis as any);
+  g.__lm_v4_total = g.__lm_v4_total || 0;
+  g.__lm_v4_last  = g.__lm_v4_last  || { n:-1, txs:0 };
+  g.__lm_v4_errs  = g.__lm_v4_errs  || 0;
+
+  const BASE = "http://127.0.0.1:4100";
+  const INTERVAL_MS = 1000;
+  let ticking = false;
+
+  async function getText(u:string, ms=500){
+    const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), ms);
+    try { const r = await fetch(u, {signal: ctl.signal}); if (!r.ok) throw new Error(String(r.status)); return await r.text(); }
+    finally { clearTimeout(t); }
+  }
+  async function getJSON(u:string, ms=500){
+    const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), ms);
+    try { const r = await fetch(u, {signal: ctl.signal}); if (!r.ok) throw new Error(String(r.status)); return await r.json(); }
+    finally { clearTimeout(t); }
+  }
+
+  async function step(){
+    try {
+      const nTxt = await getText(`${BASE}/blocks/latest/number`, 400);
+      const latest = parseInt(nTxt, 10);
+      if (!Number.isFinite(latest)) return;
+
+      // only ever look at up to the last 3 blocks to avoid long loops
+      let from = Math.max(g.__lm_v4_last.n + 1, latest - 2);
+      if (g.__lm_v4_last.n < 0) from = latest; // first align w/o backfill
+
+      for (let k = from; k <= latest; k++){
+        let txc = 0;
+        try {
+          const j:any = await getJSON(`${BASE}/dev/blocks/${k}/txs/raw2`, 400);
+          txc = (typeof j?.tx_count === "number") ? j.tx_count :
+                (Array.isArray(j?.txs) ? j.txs.length : 0);
+        } catch {
+          try {
+            const f:any = await getJSON(`${BASE}/blocks/${k}/full2`, 400);
+            txc = Array.isArray(f?.txs) ? f.txs.length :
+                  (Array.isArray(f?.payload?.txs) ? f.payload.txs.length : 0);
+          } catch { /* swallow */ }
+        }
+        if (k > g.__lm_v4_last.n) {
+          g.__lm_v4_total += txc;
+          g.__lm_v4_last = { n:k, txs: txc };
+        }
+      }
+    } catch {
+      g.__lm_v4_errs = (g.__lm_v4_errs||0) + 1;
+    }
+  }
+
+  // background ticker (never blocks requests)
+  if (!g.__lm_v4b_started){
+    g.__lm_v4b_started = true;
+    setInterval(()=>{ if (!ticking){ ticking = true; step().finally(()=>{ ticking=false; }); } }, INTERVAL_MS);
+  }
+
+  // lightweight Prom endpoint: just prints current counters
+  (function attach(){
+    const a:any = g.__void_http_app || g.app;
+    if (!a || typeof a.get!=="function"){ return setTimeout(attach, 250); }
+    if (a.__lastMileV4bProm) return;
+    a.get("/__void/metrics/lastmile.v4b.prom", (_req:any,res:any)=>{
+      const total = g.__lm_v4_total || 0;
+      const last  = g.__lm_v4_last  || { n:-1, txs:0 };
+      const errs  = g.__lm_v4_errs  || 0;
+      res.type("text/plain").send(
+        "# HELP void_lastmile_block_txs_total Total txs persisted into blocks (bg worker)\n" +
+        "# TYPE void_lastmile_block_txs_total counter\n" +
+        `void_lastmile_block_txs_total ${total}\n` +
+        "# HELP void_lastmile_latest_txs Txs in the most recent block seen\n" +
+        "# TYPE void_lastmile_latest_txs gauge\n" +
+        `void_lastmile_latest_txs ${last.txs}\n` +
+        "# HELP void_lastmile_last_seen_block Last block number accounted for\n" +
+        "# TYPE void_lastmile_last_seen_block gauge\n" +
+        `void_lastmile_last_seen_block ${last.n}\n` +
+        "# HELP void_lastmile_errors_total Background worker errors/timeouts\n" +
+        "# TYPE void_lastmile_errors_total counter\n" +
+        `void_lastmile_errors_total ${errs}\n`
+      );
+    });
+    a.__lastMileV4bProm = true;
+  })();
+})();
