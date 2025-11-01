@@ -10811,7 +10811,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
         `void_ready ${ready?1:0}\n` +
         `# HELP void_ready_gap Head minus lastmile_seen (blocks)\n` +
         `# TYPE void_ready_gap gauge\n` +
-        `void_ready_gap ${gap}\n`
+        `void_ready_gap ${gap_clamped}\n`
       );
     });
 
@@ -10820,3 +10820,34 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
   attach();
 })();
 // [DEV-ONLY-END:ready-endpoints-v1]
+// [ADDON-BEGIN:esm-crypto-shim.v1]
+(function esmCryptoShimV1(){
+  const G:any = globalThis as any;
+  if (G.__void_getCreateHash) return; // idempotent
+
+  let _p: Promise<(alg:string)=>any> | null = null;
+
+  async function loadCreateHash(){
+    try {
+      // CJS path if available
+      // @ts-ignore
+      if (typeof require === "function") {
+        // @ts-ignore
+        const { createHash } = require("node:crypto");
+        return createHash;
+      }
+    } catch {}
+    // ESM path
+    const mod: any = await import("node:crypto");
+    return mod.createHash;
+  }
+
+  G.__void_getCreateHash = function __void_getCreateHash(){
+    if (!_p) _p = loadCreateHash();
+    return _p;
+  };
+
+  // warm-up (best effort)
+  G.__void_getCreateHash().then(()=>{ try{ console.log("[esm-crypto-shim] createHash ready"); }catch{} }).catch(()=>{});
+})();
+// [ADDON-END:esm-crypto-shim.v1]
