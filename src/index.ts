@@ -50,7 +50,8 @@ process.env.DATA_DIR  = process.env.DATA_DIR  || process.env.VOID_DATA_DIR  || "
       // @ts-ignore
       if (typeof require === "function") {
         // @ts-ignore
-        const { createHash } = require("node:crypto");
+        // [JUNK-LEGACY] const { createHash } = require("node:crypto");
+        const createHash = await (globalThis as any).__void_getCreateHash();
         return createHash;
       }
     } catch {}
@@ -7475,7 +7476,7 @@ void_txroot_v4_errors_total ${X.errors}
 })();
 
 // ---------------- txRoot setter attach (additive) --------------------
-;(function attachTxrootSetterAdditive(){
+;(async function attachTxrootSetterAdditive(){
   try {
     const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
     const store:any = (globalThis as any).__void_store || (globalThis as any).store || (globalThis as any).SegStoreInstance;
@@ -7484,7 +7485,7 @@ void_txroot_v4_errors_total ${X.errors}
     const store2:any = store || nodeAny?.store || nodeAny?.segStore || app?.locals?.store;
 
     // Lazy import to avoid top-level churn
-    const { attachTxrootSetter } = require("./hooks/txroot_setter.js");
+    const { attachTxrootSetter } = await import("./hooks/txroot_setter.js");
 
     if (app && store2 && typeof attachTxrootSetter === "function") {
       attachTxrootSetter({ app, store: store2, log: (...a:any[])=>console.log("[boot.txroot-setter]", ...a) });
@@ -10879,3 +10880,93 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
   G.__void_getCreateHash().then(()=>{ try{ console.log("[esm-crypto-shim] createHash ready"); }catch{} }).catch(()=>{});
 })();
 // [ADDON-END:esm-crypto-shim.v1]
+
+// ---------------- Ready Details Prom Exporter (fetch-based, additive, idempotent) -----
+;(function readyDetailsExporter_v2(){
+  let tries = 0, attached = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
+    if (attached) return; attached = true;
+
+    app.get("/__void/ready.details.prom", async (_req:any, res:any) => {
+      try {
+        const port = String(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
+        const base = `http://127.0.0.1:${port}`;
+        let j:any = null;
+        try {
+          const r = await fetch(`${base}/__void/ready.json`, { cache: "no-store" } as any);
+          if (r.ok) j = await r.json();
+        } catch {}
+        const head  = Number(j?.head ?? -1);
+        const seen  = Number((j?.lastmile_seen ?? j?.head) ?? -1);
+        const gap   = Math.max(0, (Number.isFinite(head)&&Number.isFinite(seen)) ? (head - seen) : -1);
+        const ready = j?.ready ? 1 : 0;
+        const txok  = (typeof j?.txroot_live === "number") ? j.txroot_live : (j?.txroot_live ? 1 : 1); // optimistic=1
+        const now   = Date.now();
+
+        res.set("Content-Type", "text/plain; version=0.0.4");
+        res.end(
+`# HELP void_ready Node readiness (1 ready, 0 not ready)
+# TYPE void_ready gauge
+void_ready ${ready}
+# HELP void_ready_head Latest known head number
+# TYPE void_ready_head gauge
+void_ready_head ${Number.isFinite(head)?head:-1}
+# HELP void_ready_lastmile_seen Last-mile seen block number
+# TYPE void_ready_lastmile_seen gauge
+void_ready_lastmile_seen ${Number.isFinite(seen)?seen:-1}
+# HELP void_ready_gap Head minus lastmile_seen (blocks)
+# TYPE void_ready_gap gauge
+void_ready_gap ${gap}
+# HELP void_txroot_live TxRoot health (1 healthy, 0 not)
+# TYPE void_txroot_live gauge
+void_txroot_live ${txok}
+# HELP void_ready_exporter_timestamp_ms Exporter timestamp (ms)
+# TYPE void_ready_exporter_timestamp_ms gauge
+void_ready_exporter_timestamp_ms ${now}
+`);
+      } catch (e:any) {
+        res.status(500).type("text/plain").end(`# error ${e?.message||e}`);
+      }
+    });
+
+    console.log("[ready.details.v2] exporter attached (/__void/ready.details.prom)");
+  }
+  setTimeout(attach, 0);
+})();
+
+// ---------------- txroot-setter bootsafe retry (idempotent) ----------------
+;(function txrootSetterBootsafe(){
+  const G:any = globalThis as any;
+  if (G.__txroot_setter_bootsafe) return; G.__txroot_setter_bootsafe = true;
+  let tries = 0, done = false;
+
+  async function tick(){
+    if (done) return;
+    tries++;
+    const f = (G.attachTxrootSetterAdditive || G.__attachTxrootSetterAdditive);
+    if (typeof f === "function"){
+      try {
+        await f();
+        done = true;
+        console.log("[boot.txroot-setter] bootsafe ok (async)");
+        return;
+      } catch (e:any) {
+        const msg = String(e?.message || e);
+        // If it's just ESM timing ("require is not defined"), back off and retry briefly
+        if (/require is not defined/.test(msg) && tries < 10) {
+          return setTimeout(tick, 150);
+        }
+        // Other transient issues: retry a few times with a softer backoff
+        if (tries < 20) return setTimeout(tick, 300);
+        console.warn("[boot.txroot-setter] bootsafe gave up after", tries, "tries:", msg);
+        return;
+      }
+    }
+    // Function not attached yet; try again a bit later (up to ~6s total)
+    if (tries < 40) return setTimeout(tick, 150);
+  }
+  tick();
+})();
