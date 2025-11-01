@@ -16,3 +16,16 @@ jobs:
 
       - name: Run guard
         run: tools/check_index_size.sh
+
+  large-files:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block files >=10MB in working tree
+        run: |
+          big=$(find . -type f -size +10M -not -path './.git/*' -printf '%s %p\n' | wc -l)
+          if [ "$big" -gt 0 ]; then
+            echo "Found files >=10MB in working tree:"
+            find . -type f -size +10M -not -path './.git/*' -printf '%s %p\n' | awk '{printf "%.2f MB  %s\n",$1/1024/1024,$2}'
+            exit 1
+          fi
