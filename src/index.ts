@@ -1,21 +1,3 @@
-// --- additive helper: safe hex stringify for Buffers/Uint8Arrays/strings
-function __toHex(v:any){
-  if (!v) return String(v);
-  if (typeof v === "string") return v;
-  if (v instanceof Uint8Array || (Array.isArray(v) && typeof v[0]==="number")) {
-    return Array.from(v).map(x=>x.toString(16).padStart(2,"0")).join("");
-  }
-  if (typeof v === "object" && typeof v.toString === "function") {
-    const s = v.toString();
-    if (/^[0-9a-fA-F]{64}$/.test(s)) return s;
-  }
-  try { return JSON.stringify(v); } catch { return String(v); }
-}
-
-import "./bootstrap/define_patch.js";
-import "./bootstrap/proto_scrub.js";
-import "./bootstrap/proto_scrub.js";
-// @ts-nocheck
 // VOID Community License (VCL) v1.0 — see LICENSE
 // Copyright (c) 2025 6ZoSo9
 
@@ -167,58 +149,8 @@ console.log("[shim] published global node (post-construct)");
 
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
-;(globalThis as any).__void_http_app = app; // dev-safe-bundle hook
+ (globalThis as any).__void_http_app = app; // dev-safe-bundle hook
 
-// ---- TxRoot Core v2 -> Prom text adapter (inline) ----
-app.get("/__void/metrics/txroot4/core2.prom", async (_req:any, res:any) => {
-  try {
-    // Prefer an in-process snapshot if your code exposes one later
-    const g:any = globalThis as any;
-    async function fetchCore(): Promise<any> {
-      if (g.__void_txroot_core2_snapshot && typeof g.__void_txroot_core2_snapshot === "function") {
-        return await g.__void_txroot_core2_snapshot();
-      }
-      // Fallback: call our existing JSON endpoint locally
-      const http = await import("node:http");
-      const port = Number(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || 4100);
-      return await new Promise((resolve, reject) => {
-        const req = http.request({ host:"127.0.0.1", port, path:"/__void/metrics/txroot4/core2.json", method:"GET" }, r=>{
-          let buf=""; r.setEncoding("utf8");
-          r.on("data", c=> buf+=c);
-          r.on("end", ()=> { try { resolve(JSON.parse(buf)); } catch(e){ reject(e); } });
-        });
-        req.on("error", reject); req.end();
-      });
-    }
-
-    const snap = await fetchCore();
-    const saves = Number(snap?.saves_total ?? 0);
-    const set = Number(snap?.set_total ?? 0);
-    const mismatch = Number(snap?.mismatch_total ?? 0);
-    const hb = Number(snap?.heartbeat_total ?? 0);
-
-    const lines = [
-      "# HELP void_txroot_core_saves_total Core saves total",
-      "# TYPE void_txroot_core_saves_total counter",
-      `void_txroot_core_saves_total ${saves}`,
-      "# HELP void_txroot_core_set_total Core sets total",
-      "# TYPE void_txroot_core_set_total counter",
-      `void_txroot_core_set_total ${set}`,
-      "# HELP void_txroot_core_mismatch_total Core mismatches total",
-      "# TYPE void_txroot_core_mismatch_total counter",
-      `void_txroot_core_mismatch_total ${mismatch}`,
-      "# HELP void_txroot_core_heartbeat_total Core heartbeat total",
-      "# TYPE void_txroot_core_heartbeat_total counter",
-      `void_txroot_core_heartbeat_total ${hb}`
-    ];
-    res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
-    res.end(lines.join("\n")+"\n");
-  } catch(err:any){
-    res.statusCode = 500;
-    res.setHeader("Content-Type","text/plain");
-    res.end(`# txroot core2 prom adapter error: ${String(err && err.message || err)}\n`);
-  }
-});
 // [ADD] Object.prototype.filter shim v3 (self-contained, last-writer-wins)
 ;(function(){
   try{
@@ -3988,7 +3920,6 @@ import { computeTxRoot } from "./util/txroot.js";
           const len = (b?.txs?.length)||0;
           const r = (b?.txRoot)||"(none)";
           console.log(`[txroot] sealed #${n} txs=${len} txRoot=${r}`);
-console.log("[txroot.hex] sealed", "#"+(((globalThis as any).__void_last_seal_number ?? "?") as any), "txRootHex="+__toHex((globalThis as any).__lastTxRoot || undefined));
         } catch {}
 
         return res;
@@ -6866,7 +6797,6 @@ void_txroot_v4_errors_total ${X.errors}
         next.push(hash(Buffer.concat([a,b])));
       }
       level = next;
-      // @ts-ignore  /* node Buffer<T> vs Buffer type inference mismatch; values are Buffers */
     }
     return toHex(level[0]);
   }
@@ -8329,3585 +8259,26 @@ void_head_number ${head}
     appAny.use(blocked, (_req:any, res:any)=> res.status(404).end());
   } catch {}
 })();
-
-// --- Additive: feature flag peek (dev-only by our gate) ---
-import { featureEnabled } from "./feature_flags.js";
-(function featureFlagsRoute(){
-  try{
-    const appAny:any = (globalThis as any).__void_http_app || (globalThis as any).app;
-    if (!appAny || typeof appAny.get !== 'function') return;
-    appAny.get("/__void/feature-flags", (_req:any, res:any)=> {
-      res.json({
-        ok:true,
-        flags: {
-          "txroot.enforce": featureEnabled("txroot.enforce")
-        }
-      });
-    });
-  }catch{}
-})();
-
-// --- Additive: txroot enforcer wrapper (feature-gated) ---
-import { installTxrootEnforcer } from "./hooks/txroot_enforcer.js";
-(function txrootEnforcerInit(){
-  try{
-    // Defer a tick to allow globals (__void_store, __void_txroot_util) to appear
-    setTimeout(()=>{ try{ installTxrootEnforcer(); }catch{} }, 250);
-    // And retry once more in case of slow boot
-    setTimeout(()=>{ try{ installTxrootEnforcer(); }catch{} }, 1500);
-  }catch{}
-})();
-
-// --- Additive: install TxRoot Enforcer hook (safe if already installed) ---
-(function installTxrootEnforcerLoader(){
-  try {
-    // dynamic import so it won't break older builds
-    import("./hooks/txroot_enforcer.js")
-      .then(mod => { try { mod.installTxrootEnforcer?.(); } catch {} })
-      .catch(()=>{});
-  } catch {}
-})();
-
-// --- Additive: TxRoot Enforcer loader v2 (tsx-friendly, tries .ts then bare) ---
-(function installTxrootEnforcerLoader_v2(){
-  async function tryImports(){
-    try {
-      const m1 = /* DISABLED v2 (TS5097) await import("./hooks/txroot_enforcer.ts"); */ null as any;
-      try { m1.installTxrootEnforcer?.(); } catch {}
-      return;
-    } catch {}
-    try {
-      const m2 = /* DISABLED v2 (TS2835) await import("./hooks/txroot_enforcer"); */ null as any;
-      try { m2.installTxrootEnforcer?.(); } catch {}
-    } catch {}
-  }
-  try { void tryImports(); } catch {}
-})();
-
-// --- Additive: TxRoot Enforcer loader v3 (handles tsc+node16 and tsx) ---
-(function installTxrootEnforcerLoader_v3(){
-  const g:any = globalThis as any;
-  if (g.__void_txroot_enforcer_loaded_v3) return;
-  g.__void_txroot_enforcer_loaded_v3 = true;
-
-  async function tryImport(spec: string): Promise<boolean> {
-    try {
-      const m:any = await import(spec as any);
-      try { m.installTxrootEnforcer?.(); } catch {}
-      return true;
-    } catch { return false; }
-  }
-
-  (async () => {
-    // 1) Prefer compiled JS when running the built output
-    if (await tryImport("./hooks/txroot_enforcer.js")) return;
-
-    // 2) tsx runtime: compute ".ts" path to avoid TS5097 on literal ".ts"
-    const tsSpec = "./hooks/txroot_enforcer" + ".ts";
-    if (await tryImport(tsSpec)) return;
-
-    // 3) Fallback: bare (some loaders resolve this)
-    await tryImport("./hooks/txroot_enforcer.js"); // retry in case of delayed emit
-  })().catch(()=>{});
-})();
-
-// --- Additive: TxRoot Late-Setter v3 (runs after tx-merge, before save) ---
-(function attachTxrootLateSetter_v3(){
-  const g:any = globalThis as any;
-  if (g.__void_txroot_late_setter_v3) return; g.__void_txroot_late_setter_v3 = true;
-
-  // Best-effort import for both built JS and tsx dev
-  async function loadHelper(): Promise<any|undefined> {
-    try { return await import("./util/txroot.js"); } catch {}
-    try { return await import("./util/txroot.ts" as any); } catch {}
-    return undefined;
-  }
-
-  // Hook SegStore.saveBlock to set header.txRoot AFTER txs are finalized
-  (async () => {
-    const helper = await loadHelper();
-    const compute =
-      helper?.txRootHexFromTxs ||
-      helper?.computeTxRootHex ||
-      helper?.txRootHex || undefined;
-
-    // If no helper, leave a soft diag and skip (enforcer/repair mode will still work)
-    if (!compute) { console.warn("[txroot/late-setter] helper not found; skipping"); return; }
-
-    const SegStoreMod:any = (globalThis as any).__void_SegStore || requireFallback("./chain/seg_store.js");
-    if (!SegStoreMod) { console.warn("[txroot/late-setter] SegStore not found"); return; }
-    const SegStore = SegStoreMod.SegStore || SegStoreMod.default || SegStoreMod;
-
-    const orig = SegStore.prototype.saveBlock;
-    if (!orig || orig.__void_txroot_late_setter_v3) return;
-
-    async function patchedSaveBlock(this:any, block:any){
-      try {
-        const txs = Array.isArray(block?.txs) ? block.txs : [];
-        const root = await compute(txs);
-        block.header = block.header || {};
-        block.header.txRoot = root; // authoritative final root, post-merge
-        (globalThis as any).__void_txroot_late_setter_last = { n:block?.header?.number, txs:txs.length, root };
-      } catch (e) {
-        console.warn("[txroot/late-setter] compute failed:", (e as any)?.message || e);
-      }
-      return await orig.apply(this, arguments as any);
-    }
-    (patchedSaveBlock as any).__void_txroot_late_setter_v3 = true;
-    SegStore.prototype.saveBlock = patchedSaveBlock;
-    console.log("[txroot/late-setter] attached (post-merge, pre-persist)");
-  })().catch(()=>{});
-
-  function requireFallback(spec:string){ try { return (Function("return import(spec)")).call(null) } catch { return undefined; } }
-})();
-
-// --- Additive: TxRoot Late-Setter v4 (outermost, after enforcer) ---
-(function attachTxrootLateSetter_v4(){
-  const g:any = globalThis as any;
-  if (g.__void_txroot_late_setter_v4) return; g.__void_txroot_late_setter_v4 = true;
-
-  // robust dynamic import for ESM/tsx and built JS
-  async function tryImport(spec:string){
-    try { return await import(spec); } catch { return undefined; }
-  }
-  async function loadHelper(){
-    // Try URL-based (ESM) then relative strings; both .js (built) and .ts (tsx-run)
-    const base = new URL('.', import.meta.url).href;
-    const candidates = [
-      new URL('./util/txroot.js', base).href,
-      new URL('./util/txroot.ts', base).href,
-      './util/txroot.js',
-      './util/txroot.ts',
-    ];
-    for (const c of candidates) {
-      const m = await tryImport(c);
-      if (m) return m;
-    }
-    return undefined;
-  }
-
-  // Wait for enforcer to attach, then wrap outermost so we run before its check
-  let tries = 0;
-  async function attachWhenReady(){
-    tries++;
-    try {
-      const SegMod:any =
-        (g.__void_SegStore) ||
-        (await tryImport(new URL('./chain/seg_store.ts', import.meta.url).href)) ||
-        (await tryImport('./chain/seg_store.ts')) ||
-        (await tryImport('./chain/seg_store.js'));
-      if (!SegMod) { if (tries < 40) return setTimeout(attachWhenReady, 100); return; }
-      const SegStore = SegMod.SegStore || SegMod.default || SegMod;
-
-      // Heuristic: assume enforcer is on when saveBlock name or toString contains 'enforce' or 'txroot'
-      const cur = SegStore.prototype.saveBlock;
-      const sig = String(cur?.name || '') + '|' + String(cur);
-      const enforcerLikely = /enforce|txroot/i.test(sig);
-      if (!enforcerLikely && tries < 40) return setTimeout(attachWhenReady, 100); // wait a bit more
-
-      const helper = await loadHelper();
-      const compute =
-        helper?.txRootHexFromTxs ||
-        helper?.computeTxRootHex ||
-        helper?.txRootHex ||
-        helper?.default ||
-        undefined;
-
-      if (!compute) { console.warn("[txroot/late-setter] helper import failed; cannot attach"); return; }
-
-      if ((cur as any)?.__void_txroot_late_setter_v4) return; // already wrapped
-
-      async function patchedSaveBlock(this:any, block:any){
-        try {
-          const txs = Array.isArray(block?.txs) ? block.txs : [];
-          // compute using the same util as enforcer, so comparison will pass
-          const root = await compute(txs);
-          block.header = block.header || {};
-          block.header.txRoot = root;
-          (globalThis as any).__void_txroot_late_setter_last = {
-            number: block?.header?.number, txs: txs.length, root
-          };
-        } catch (e:any) {
-          console.warn("[txroot/late-setter] compute failed:", e?.message || e);
-        }
-        return await cur.apply(this, arguments as any);
-      }
-      (patchedSaveBlock as any).__void_txroot_late_setter_v4 = true;
-      SegStore.prototype.saveBlock = patchedSaveBlock;
-      console.log("[txroot/late-setter] v4 attached (outermost, runs before enforcer)");
-    } catch(e){
-      if (tries < 40) return setTimeout(attachWhenReady, 100);
-      console.warn("[txroot/late-setter] attach failed:", (e as any)?.message || e);
-    }
-  }
-  attachWhenReady();
-
-  // tiny diag
-  (g.__void_txroot_late_diag_installed)||(function(){
-    g.__void_txroot_late_diag_installed = true;
-    function getApp(){ return (g.__void_http_app) || (g.app) || (g.__void_http_app = (g as any).__void_http_app); }
-    setTimeout(()=>{
-      const app:any = getApp();
-      if (!app || typeof app.get!=="function") return;
-      app.get("/__void/txroot-late/last", (_:any,res:any)=> res.json(g.__void_txroot_late_setter_last || {ok:false}));
-    }, 500);
-  })();
-})();
-
-// === Additive: Minimal Merkle helper (fallback) ===
-(function __void_txroot_fallback_v1(){
-  const g:any = globalThis as any;
-  if (g.__void_txroot_fallback_v1) return; g.__void_txroot_fallback_v1 = true;
-
-  async function sha256Hex(buf:Uint8Array|string){
-    const b = typeof buf === 'string' ? new TextEncoder().encode(buf) : buf;
-    const d = await crypto.subtle.digest('SHA-256', b);
-    return Array.from(new Uint8Array(d)).map(x=>x.toString(16).padStart(2,'0')).join('');
-  }
-  async function merkleRootHex(leaves:string[]){
-    if (leaves.length === 0) return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; // sha256("")
-    let level = leaves.slice();
-    while (level.length > 1) {
-      const next:string[] = [];
-      for (let i=0;i<level.length;i+=2){
-        const a = level[i];
-        const b = (i+1<level.length) ? level[i+1] : level[i]; // duplicate last
-        next.push(await sha256Hex(a + b));
-      }
-      // -ignore  Buffer<T> vs Buffer inference; runtime is correct
-      level = next as any;
-    }
-    return level[0];
-  }
-  // Fallback compute that mirrors util/txroot behavior closely enough for dev:
-  g.__void_txroot_compute_fallback = async function computeTxRootHexFromTxs(txs:any[]){
-    // canonicalize objects → stable JSON, then leaf = sha256(json)
-    const leaves:string[] = [];
-    for (const t of (Array.isArray(txs)?txs:[])) {
-      const s = JSON.stringify(t, Object.keys(t).sort());
-      leaves.push(await sha256Hex(s));
-    }
-    return await merkleRootHex(leaves);
-  };
-})();
-
-// === Additive: TxRoot Late-Setter v5 (outermost; with helper OR fallback) ===
-(function attachTxrootLateSetter_v5(){
-  const g:any = globalThis as any;
-  if (g.__void_txroot_late_setter_v5) return; g.__void_txroot_late_setter_v5 = true;
-
-  async function tryImport(spec:string){ try { return await import(spec); } catch { return undefined; } }
-  async function loadHelper(){
-    const base = new URL('.', import.meta.url).href;
-    const candidates = [
-      new URL('./util/txroot.ts', base).href,
-      new URL('./util/txroot.js', base).href,
-      './util/txroot.ts',
-      './util/txroot.js',
-    ];
-    for (const c of candidates) { const m = await tryImport(c); if (m) return m; }
-    return undefined;
-  }
-
-  let tries = 0;
-  async function attachWhenReady(){
-    tries++;
-    try {
-      // Wait until enforcer has wrapped saveBlock so we can wrap *outside* it
-      const SegMod:any =
-        (g.__void_SegStore) ||
-        (await tryImport(new URL('./chain/seg_store.ts', import.meta.url).href)) ||
-        (await tryImport('./chain/seg_store.ts')) ||
-        (await tryImport('./chain/seg_store.js'));
-      if (!SegMod) { if (tries<60) return setTimeout(attachWhenReady,100); return; }
-      const SegStore = SegMod.SegStore || SegMod.default || SegMod;
-
-      const cur = SegStore.prototype.saveBlock;
-      const sig = String(cur?.name||'') + '|' + String(cur);
-      const enforcerLikely = /enforce|txroot/i.test(sig);
-      if (!enforcerLikely && tries<60) return setTimeout(attachWhenReady,100);
-
-      const helper = await loadHelper();
-      const compute =
-        helper?.txRootHexFromTxs ||
-        helper?.computeTxRootHex ||
-        helper?.txRootHex ||
-        (g.__void_txroot_compute_fallback);
-
-      if (!compute) {
-        console.warn("[txroot/late-setter] no helper and no fallback; giving up");
-        return;
-      }
-
-      if ((cur as any)?.__void_txroot_late_setter_v5) return;
-
-      async function patchedSaveBlock(this:any, block:any){
-        try {
-          const txs = Array.isArray(block?.txs) ? block.txs : [];
-          const root = await compute(txs);
-          block.header = block.header || {};
-          block.header.txRoot = root;
-          (globalThis as any).__void_txroot_late_setter_last = { number: block?.header?.number, txs: txs.length, root };
-        } catch (e:any) {
-          console.warn("[txroot/late-setter] compute failed:", e?.message || e);
-        }
-        return await cur.apply(this, arguments as any);
-      }
-      (patchedSaveBlock as any).__void_txroot_late_setter_v5 = true;
-      SegStore.prototype.saveBlock = patchedSaveBlock;
-      console.log("[txroot/late-setter] v5 attached (outermost; helper or fallback)");
-    } catch (e:any) {
-      if (tries<60) return setTimeout(attachWhenReady,100);
-      console.warn("[txroot/late-setter] attach failed:", e?.message || e);
-    }
-  }
-  attachWhenReady();
-
-  // diag endpoint
-  setTimeout(()=>{
-    const app:any = (g.__void_http_app)||(g.app)||(g.__void_http_app=(g as any).__void_http_app);
-    if (app && typeof app.get==="function") {
-      app.get("/__void/txroot-late/last", (_:any,res:any)=> res.json((globalThis as any).__void_txroot_late_setter_last || {ok:false}));
-    }
-  }, 500);
-})();
-
-// === Additive: Gate early txroot persist under STRICT ===
-(function gateEarlyTxrootPersistUnderStrict(){
-  const g:any = globalThis as any;
-  if (g.__void_gate_early_txroot_v1) return; g.__void_gate_early_txroot_v1 = true;
-
-  const STRICT = (process.env.VOID_FEATURE_TXROOT_ENFORCE_STRICT === '1');
-  if (!STRICT) return;
-
-  // Delay until SegStore is ready and an early 'persist' setter was installed
-  let tries = 0;
-  (function hunt(){
-    tries++;
-    try{
-      const SegStore = (g.__void_SegStore) || undefined;
-      if (!SegStore) return tries<40 ? setTimeout(hunt,100) : undefined;
-      const proto:any = SegStore.prototype;
-      const orig = proto.saveBlock;
-      if (!orig) return;
-
-      if ((orig as any).__void_gate_early) return;
-
-      // Wrap *inside* existing stack to no-op any pre-seal 'empty-root' injection when txs>0
-      async function wrapped(this:any, block:any){
-        if (block && block.header && block.header.txRoot &&
-            Array.isArray(block.txs) && block.txs.length>0) {
-          // If someone pre-set the empty-root, erase it so late-setter/enforcer can set correctly.
-          if (block.header.txRoot === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") {
-            block.header.txRoot = undefined;
-          }
-        }
-        return await orig.apply(this, arguments as any);
-      }
-      (wrapped as any).__void_gate_early = true;
-      proto.saveBlock = wrapped;
-      console.log("[txroot/strict] early empty-root persist gated under STRICT");
-    }catch(e){}
-  })();
-})();
-
-// ---------------- Force-pour before saveBlock (pure-additive) -----------------
-(function forcePourBeforeSave(){
-  let tries = 0, attached = false;
-  function getNode(){ return (globalThis as any).node || (globalThis as any).__void_node; }
-  function getStore(){ return getNode()?.store; }
-  function getCap(){
-    const envCap = Number(process.env.VOID_TX_MERGE_MAX || process.env.TX_MERGE_CAP || 2);
-    return Number.isFinite(envCap) && envCap > 0 ? envCap : 2;
-  }
-  function getMempoolArray(){
-    const g:any = (globalThis as any);
-    // prefer canonical mempool list if present; fall back to "pending" aliases
-    const mp = g.mempool?.txs || g.pendingTxs || g.pending?.txs || g.__void_mempool || [];
-    return Array.isArray(mp) ? mp : [];
-  }
-  function attach(){
-    const store:any = getStore();
-    if (!store || typeof store.saveBlock !== "function") {
-      if (++tries < 120) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    const origSave = store.saveBlock.bind(store);
-    store.saveBlock = async (block:any, ...rest:any[]) => {
-      try {
-        const cap = getCap();
-        const mp = getMempoolArray();
-        if (!block.txs) block.txs = [];
-        // if there are queued txs, pour up to cap into this block
-        if (Array.isArray(mp) && mp.length > 0 && cap > 0) {
-          const take = Math.min(cap, mp.length);
-          const pulled = mp.splice(0, take);
-          // avoid duplicates if any | append
-          for (const tx of pulled) if (tx) block.txs.push(tx);
-          console.log(`[force-pour] merged ${pulled.length} tx(s) into block #${block.number ?? "?"} (mp left=${mp.length})`);
-        }
-      } catch (e) {
-        console.error("[force-pour] error during pre-save merge:", e);
-      }
-      return await origSave(block, ...rest);
-    };
-
-    console.log("[force-pour] pre-save hook attached (cap from env; default=2)");
-  }
-  attach();
-})();
-
-// ---------------- OUTERMOST force-pour wrapper (sticky) ----------------------
-(function forcePourSticky(){
-  const WRAP_TAG = Symbol.for("__void_force_pour_wrapped__");
-  let tries = 0, attached = false, rewraps = 0, pours = 0, last = {number:-1, merged:0, cap:0, mpBefore:0, mpAfter:0};
-
-  function getNode(){ return (globalThis as any).node || (globalThis as any).__void_node; }
-  function getStore(){ return getNode()?.store; }
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-
-  function getCap() {
-    const envCap = Number(process.env.VOID_TX_MERGE_MAX || process.env.TX_MERGE_CAP || 2);
-    return Number.isFinite(envCap) && envCap > 0 ? envCap : 2;
-  }
-
-  function getMempoolArray(){
-    const g:any = (globalThis as any);
-    // canonical first
-    if (g.mempool?.txs && Array.isArray(g.mempool.txs)) return g.mempool.txs;
-    // aliases you already keep in sync
-    if (Array.isArray(g.pendingTxs)) return g.pendingTxs;
-    if (g.pending?.txs && Array.isArray(g.pending.txs)) return g.pending.txs;
-    if (Array.isArray(g.__void_mempool)) return g.__void_mempool;
-    return [];
-  }
-
-  function wrapSaveBlock(store:any){
-    if (!store || typeof store.saveBlock !== "function") return false;
-    if ((store.saveBlock as any)[WRAP_TAG]) return true; // already wrapped
-
-    const orig = store.saveBlock.bind(store);
-    async function wrapped(block:any, ...rest:any[]){
-      // pour before we compute or persist
-      try {
-        const cap = getCap();
-        const mp = getMempoolArray();
-        const before = Array.isArray(mp) ? mp.length : 0;
-        if (!block.txs) block.txs = [];
-        let merged = 0;
-        if (before > 0 && cap > 0) {
-          const take = Math.min(cap, before);
-          const pulled = mp.splice(0, take);
-          for (const tx of pulled) if (tx) { block.txs.push(tx); merged++; }
-          pours++; last = {number: block.number ?? -1, merged, cap, mpBefore: before, mpAfter: mp.length};
-          console.log(`[force-pour] merged ${merged}/${cap} -> block #${block.number ?? "?"} (mp ${before}→${mp.length})`);
-        }
-      } catch (e) {
-        console.error("[force-pour] error:", e);
-      }
-      return await orig(block, ...rest);
-    }
-    (wrapped as any)[WRAP_TAG] = true;
-    store.saveBlock = wrapped;
-    return true;
-  }
-
-  function attach(){
-    const store = getStore();
-    if (!store) {
-      if (++tries < 120) return setTimeout(attach, 500);
-      return;
-    }
-    if (!wrapSaveBlock(store)) {
-      if (++tries < 120) return setTimeout(attach, 500);
-      return;
-    }
-    if (!attached) {
-      attached = true;
-      console.log("[force-pour] OUTERMOST pre-save hook attached (sticky)");
-    }
-    // keep it outermost: if other code re-patches saveBlock, re-wrap
-    setInterval(() => {
-      const ok = wrapSaveBlock(getStore());
-      if (ok) rewraps++;
-    }, 1000);
-
-    // status route (once app is available)
-    let appTries = 0; (function exposeStatus(){
-      const app:any = getApp();
-      if (!app || typeof app.get !== "function") {
-        if (++appTries < 60) return setTimeout(exposeStatus, 500);
-        return;
-      }
-      app.get("/__void/force-pour/status", (_req:any, res:any) => {
-        try {
-          const mp = getMempoolArray();
-          res.json({ attached:true, rewraps, pours, cap:getCap(), mempoolSize:Array.isArray(mp)?mp.length:0, last });
-        } catch(e){ res.json({ attached:true, error:String(e) }); }
-      });
-      console.log("[force-pour] status at /__void/force-pour/status");
-    })();
-  }
-  attach();
-})();
-
-// ---------------- Canonical mempool pointer binder (non-invasive) ------------
-(function bindCanonicalMempool(){
-  let bound = false, lastSizes = {mp:0, pend:0, pendTxs:0};
-  function getNode(){ return (globalThis as any).node || (globalThis as any).__void_node; }
-  function tryBind(){
-    const n:any = getNode();
-    if (!n) return;
-    const mp = n?.mempool?.txs;
-    const pend = n?.pending;
-    const pendTxs = n?.pendingTxs;
-    if (Array.isArray(mp)) {
-      (globalThis as any).__void_mempool_ref = mp;
-      bound = true;
-    }
-    lastSizes = {
-      mp: Array.isArray(mp)? mp.length : 0,
-      pend: Array.isArray(pend?.txs)? pend.txs.length : 0,
-      pendTxs: Array.isArray(pendTxs)? pendTxs.length : 0
-    };
-  }
-  setInterval(tryBind, 500);
-  // expose diag once app exists
-  let tries=0;(function expose(){
-    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
-    if (!app || typeof app.get!=="function"){ if(++tries<60) return setTimeout(expose,500); return; }
-    app.get("/__void/mempool/bind/status", (_req:any,res:any)=>{
-      const n:any = getNode();
-      const mp = n?.mempool?.txs;
-      res.json({
-        bound, lastSizes,
-        nodeHas: { mempool:Array.isArray(mp), pending:Array.isArray(n?.pending?.txs), pendingTxs:Array.isArray(n?.pendingTxs) },
-        globalHas: {
-          mempool:Array.isArray((globalThis as any).mempool?.txs),
-          pending:Array.isArray((globalThis as any).pending?.txs),
-          pendingTxs:Array.isArray((globalThis as any).pendingTxs),
-          ref:Array.isArray((globalThis as any).__void_mempool_ref)
-        }
-      });
-    });
-    console.log("[mempool-bind] status at /__void/mempool/bind/status");
-  })();
-})();
-
-// ---------------- OUTERMOST force-pour wrapper (sticky v2) --------------------
-(function forcePourStickyV2(){
-  const WRAP_TAG = Symbol.for("__void_force_pour_wrapped_v2__");
-  let tries = 0, attached = false, rewraps = 0, pours = 0, last = {number:-1, merged:0, cap:0, mpBefore:0, mpAfter:0};
-
-  function getNode(){ return (globalThis as any).node || (globalThis as any).__void_node; }
-  function getStore(){ return getNode()?.store; }
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getCap(){ const v=Number(process.env.VOID_TX_MERGE_MAX||process.env.TX_MERGE_CAP||2); return Number.isFinite(v)&&v>0?v:2; }
-
-  function getMempoolArrayV2(){
-    const n:any = getNode();
-    if (n?.mempool?.txs && Array.isArray(n.mempool.txs)) return n.mempool.txs;       // primary
-    if (Array.isArray(n?.pendingTxs)) return n.pendingTxs;                             // mirror
-    if (Array.isArray(n?.pending?.txs)) return n.pending.txs;                          // mirror
-    const g:any = (globalThis as any);
-    if (g.__void_mempool_ref && Array.isArray(g.__void_mempool_ref)) return g.__void_mempool_ref; // bound ref
-    if (g.mempool?.txs && Array.isArray(g.mempool.txs)) return g.mempool.txs;          // legacy
-    if (Array.isArray(g.pendingTxs)) return g.pendingTxs;                               // legacy
-    if (g.pending?.txs && Array.isArray(g.pending.txs)) return g.pending.txs;           // legacy
-    return [];
-  }
-
-  function wrapSaveBlock(store:any){
-    if (!store || typeof store.saveBlock !== "function") return false;
-    if ((store.saveBlock as any)[WRAP_TAG]) return true;
-    const orig = store.saveBlock.bind(store);
-    async function wrapped(block:any, ...rest:any[]){
-      try {
-        const cap = getCap();
-        const mp = getMempoolArrayV2();
-        const before = Array.isArray(mp)? mp.length : 0;
-        if (!block.txs) block.txs = [];
-        let merged = 0;
-        if (before > 0 && cap > 0) {
-          const take = Math.min(cap, before);
-          const pulled = mp.splice(0, take);
-          for (const tx of pulled) if (tx) { block.txs.push(tx); merged++; }
-          pours++; last = {number: block.number ?? -1, merged, cap, mpBefore: before, mpAfter: Array.isArray(mp)?mp.length:0};
-          console.log(`[force-pour-v2] merged ${merged}/${cap} -> block #${block.number ?? "?"} (mp ${before}→${Array.isArray(mp)?mp.length:"?"})`);
-        }
-      } catch (e) {
-        console.error("[force-pour-v2] error:", e);
-      }
-      return await orig(block, ...rest);
-    }
-    (wrapped as any)[WRAP_TAG] = true;
-    store.saveBlock = wrapped;
-    return true;
-  }
-
-  function attach(){
-    const store = getStore();
-    if (!store) { if (++tries < 120) return setTimeout(attach, 500); return; }
-    if (!wrapSaveBlock(store)) { if (++tries < 120) return setTimeout(attach, 500); return; }
-    if (!attached) { attached = true; console.log("[force-pour-v2] OUTERMOST pre-save hook attached (sticky)"); }
-    setInterval(() => { if (wrapSaveBlock(getStore())) rewraps++; }, 1000);
-
-    // status route
-    let appTries=0;(function expose(){
-      const app:any = getApp();
-      if (!app || typeof app.get!=="function"){ if(++appTries<60) return setTimeout(expose,500); return; }
-      app.get("/__void/force-pour/v2/status", (_req:any,res:any)=>{
-        const mp = getMempoolArrayV2();
-        res.json({ attached:true, rewraps, pours, cap:getCap(), mempoolSize:Array.isArray(mp)?mp.length:0, last });
-      });
-      console.log("[force-pour-v2] status at /__void/force-pour/v2/status");
-    })();
-  }
-  attach();
-})();
-
-// ---------------- force-pour-v2: once-per-block guard + stronger outer wrap ----
-(function forcePourStickyV2_onceGuard(){
-  const WRAP_TAG = Symbol.for("__void_force_pour_wrapped_v2__");
-  const POURED_FLAG = "__void_poured_v2__";     // mark on block object
-  const seenByNumber = new Set<number>();       // fallback if block object differs
-  let tries = 0, attached = false, rewraps = 0, pours = 0;
-  let last = { number:-1, merged:0, cap:0, mpBefore:0, mpAfter:0 };
-
-  function getNode(){ return (globalThis as any).node || (globalThis as any).__void_node; }
-  function getStore(){ return getNode()?.store; }
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getCap(){ const v=Number(process.env.VOID_TX_MERGE_MAX||process.env.TX_MERGE_CAP||2); return Number.isFinite(v)&&v>0?v:2; }
-  function getMP(){
-    const n:any = getNode(), g:any = (globalThis as any);
-    if (Array.isArray(n?.mempool?.txs)) return n.mempool.txs;
-    if (Array.isArray(n?.pendingTxs))   return n.pendingTxs;
-    if (Array.isArray(n?.pending?.txs)) return n.pending.txs;
-    if (Array.isArray(g.__void_mempool_ref)) return g.__void_mempool_ref;
-    if (Array.isArray(g?.mempool?.txs))  return g.mempool.txs;
-    if (Array.isArray(g?.pendingTxs))    return g.pendingTxs;
-    if (Array.isArray(g?.pending?.txs))  return g.pending.txs;
-    return [];
-  }
-
-  function wrapSaveBlock(store:any){
-    if (!store || typeof store.saveBlock !== "function") return false;
-    if ((store.saveBlock as any)[WRAP_TAG]) return true;          // already outermost v2
-    const orig = store.saveBlock.bind(store);
-    async function wrapped(block:any, ...rest:any[]){
-      try {
-        const cap = getCap();
-        const mp  = getMP();
-        const before = Array.isArray(mp)? mp.length : 0;
-        const num = (block?.number ?? -1) | 0;
-
-        // --- idempotency guards ---
-        if (block && block[POURED_FLAG] === true) {
-          // already poured this exact object
-          return await orig(block, ...rest);
-        }
-        if (num >= 0 && seenByNumber.has(num)) {
-          // already poured something with this block number in this seal cycle
-          return await orig(block, ...rest);
-        }
-
-        if (!block.txs) block.txs = [];
-        let merged = 0;
-        if (before > 0 && cap > 0) {
-          const take = Math.min(cap, before);
-          const pulled = mp.splice(0, take);
-          for (const tx of pulled) if (tx) { block.txs.push(tx); merged++; }
-          pours++;
-          last = { number: num, merged, cap, mpBefore: before, mpAfter: Array.isArray(mp)? mp.length : 0 };
-          if (block) try { block[POURED_FLAG] = true; } catch {}
-          if (num >= 0) seenByNumber.add(num);
-          console.log(`[force-pour-v2] merged ${merged}/${cap} -> block #${num} (mp ${before}→${Array.isArray(mp)?mp.length:"?"})`);
-        }
-      } catch (e) {
-        console.error("[force-pour-v2] error:", e);
-      }
-      return await orig(block, ...rest);
-    }
-    (wrapped as any)[WRAP_TAG] = true;
-    store.saveBlock = wrapped;
-    return true;
-  }
-
-  function attach(){
-    const store = getStore();
-    if (!store) { if (++tries < 120) return setTimeout(attach, 500); return; }
-    if (!wrapSaveBlock(store)) { if (++tries < 120) return setTimeout(attach, 500); return; }
-    if (!attached) { attached = true; console.log("[force-pour-v2] OUTERMOST pre-save hook attached (sticky+once)"); }
-
-    // keep our wrapper outermost (others may re-wrap later)
-    setInterval(() => {
-      if (wrapSaveBlock(getStore())) rewraps++;
-      // decay seen numbers so the next block number can reuse after seal advances
-      if (seenByNumber.size > 0) seenByNumber.clear();
-    }, 800);
-
-    // status
-    let appTries=0;(function expose(){
-      const app:any = getApp();
-      if (!app || typeof app.get!=="function"){ if(++appTries<60) return setTimeout(expose,500); return; }
-      app.get("/__void/force-pour/v2/status2", (_req:any,res:any)=>{
-        const mp = getMP();
-        res.json({ attached:true, rewraps, pours, cap:getCap(), mempoolSize:Array.isArray(mp)?mp.length:0, last });
-      });
-      console.log("[force-pour-v2] status at /__void/force-pour/v2/status2");
-    })();
-  }
-
-  attach();
-})();
-
-// ---------------- Tx Source Multiplexer (additive) -----------------------------
-(function txSourceMux(){
-  let tries = 0, attached = false;
-  function getNode(){ return (globalThis as any).node || (globalThis as any).__void_node; }
-  function arrays(){
-    const n:any = getNode() || {};
-    const g:any = (globalThis as any);
-    const out:any[] = [];
-    if (Array.isArray(n?.mempool?.txs)) out.push(n.mempool.txs);
-    if (Array.isArray(n?.pendingTxs))   out.push(n.pendingTxs);
-    if (Array.isArray(n?.pending?.txs)) out.push(n.pending.txs);
-    if (Array.isArray(g?.__void_mempool_ref)) out.push(g.__void_mempool_ref);
-    if (Array.isArray(g?.mempool?.txs))  out.push(g.mempool.txs);
-    if (Array.isArray(g?.pendingTxs))    out.push(g.pendingTxs);
-    if (Array.isArray(g?.pending?.txs))  out.push(g.pending.txs);
-    return out;
-  }
-  const txsrc = {
-    size(){ return arrays().reduce((s,a)=>s+(Array.isArray(a)?a.length:0),0); },
-    pull(n:number){
-      const res:any[] = [];
-      let left = Math.max(0, n|0);
-      for (const a of arrays()){
-        if (!Array.isArray(a) || left<=0) continue;
-        const take = Math.min(left, a.length);
-        if (take>0){ res.push(...a.splice(0, take)); left -= take; }
-      }
-      return res;
-    },
-    peek(k:number=1){
-      const out:any[] = [];
-      for (const a of arrays()){
-        if (!Array.isArray(a)) continue;
-        for (let i=0;i<Math.min(k, a.length);i++) out.push(a[i]);
-        if (out.length>=k) break;
-      }
-      return out;
-    },
-    sources(){ return arrays().map(a => Array.isArray(a)? a.length : -1); }
-  };
-  (globalThis as any).__void_txsrc = txsrc;
-
-  function statusRoute(){
-    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
-    if (!app || typeof app.get!=="function") return false;
-    app.get("/__void/txsrc/status", (_req:any, res:any)=>{
-      const arrs = arrays();
-      res.json({
-        totalSize: txsrc.size(),
-        sources: arrs.map((a,i)=>({i, len: Array.isArray(a)?a.length:-1})),
-        peek2: txsrc.peek(2).length
-      });
-    });
-    console.log("[txsrc] status at /__void/txsrc/status");
-    return true;
-  }
-
-  (function attach(){
-    if (attached) return;
-    if (!getNode()) { if (++tries<120) return setTimeout(attach,500); return; }
-    attached = true;
-    statusRoute() || setTimeout(statusRoute, 500);
-  })();
-})();
-
-// -------- Patch force-pour-v2 to use txsrc (no deletions, just augment) --------
-(function forcePourV2_useTxSrc(){
-  const getTxSrc = () => (globalThis as any).__void_txsrc;
-  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
-  let extraStats = { pulls:0, pulled:0 };
-
-  // augment existing v2 status if present
-  let tries=0;(function expose(){
-    const app:any = getApp();
-    if (!app || typeof app.get!=="function"){ if(++tries<60) return setTimeout(expose,500); return; }
-    app.get("/__void/force-pour/v2/txsrc", (_req:any,res:any)=>{
-      const txsrc:any = getTxSrc();
-      res.json({
-        hasTxSrc: !!txsrc,
-        totalSize: txsrc ? txsrc.size() : -1,
-        sources: txsrc ? txsrc.sources() : [],
-        stats: extraStats
-      });
-    });
-    console.log("[force-pour-v2] txsrc bridge at /__void/force-pour/v2/txsrc");
-  })();
-
-  // soft monkey-patch: if our once-guard wrapper exists, nudge it to use txsrc
-  const g:any = (globalThis as any);
-  const store:any = g.node?.store;
-  if (!store || typeof store.saveBlock!=="function") return;
-
-  // wrap-once more outside, but only to swap the drain primitive
-  const WRAP_TAG = Symbol.for("__void_force_pour_v2_txsrc_swap__");
-  if (!(store.saveBlock as any)[WRAP_TAG]) {
-    const orig = store.saveBlock.bind(store);
-    store.saveBlock = async function(block:any, ...rest:any[]){
-      const capEnv = Number(process.env.VOID_TX_MERGE_MAX||process.env.TX_MERGE_CAP||2) || 2;
-      try {
-        // If an inner wrapper tries mempool.splice, ensure txs exist first via txsrc.
-        const txsrc:any = getTxSrc();
-        if (txsrc && block && Array.isArray(block.txs) && block.txs.length===0) {
-          const pulled = txsrc.pull(capEnv);
-          if (pulled.length>0){
-            for (const tx of pulled) block.txs.push(tx);
-            extraStats.pulls++; extraStats.pulled += pulled.length;
-            console.log(`[force-pour-v2/txsrc] pre-fill ${pulled.length}/${capEnv} before seal`);
-          }
-        }
-      } catch(e){ console.error("[force-pour-v2/txsrc] pre-fill error:", e); }
-      return await orig(block, ...rest);
-    };
-    (store.saveBlock as any)[WRAP_TAG] = true;
-  }
-})();
-
-// ---------------- Single-epoch seal guard (additive) ----------------------------
-(function sealEpochOnce(){
-  const G:any = (globalThis as any);
-  G.__void_seal_ctx = G.__void_seal_ctx || new Map<number, {merged:boolean; sealed:boolean; pulled:number; cap:number;}>();
-
-  function getStore(){ return G.node?.store; }
-  function getTxSrc(){ return G.__void_txsrc; }
-  function getApp(){ return G.__void_http_app || G.app; }
-
-  // status introspection (optional)
-  (function expose(){
-    let tries=0;
-    function attach(){
-      const app:any = getApp();
-      if (!app || typeof app.get!=="function"){ if(++tries<60) return setTimeout(attach,500); return; }
-      app.get("/__void/seal-epoch/status", (_req:any, res:any)=>{
-        const out:any[] = [];
-        for (const [k,v] of (G.__void_seal_ctx as Map<number, any>).entries()){
-          out.push({block:k, merged:v.merged, sealed:v.sealed, pulled:v.pulled, cap:v.cap});
-        }
-        res.json({size: out.length, entries: out});
-      });
-      console.log("[seal-epoch] status at /__void/seal-epoch/status");
-    }
-    attach();
-  })();
-
-  const store:any = getStore();
-  if (!store || typeof store.saveBlock!=="function") return;
-
-  const WRAP_TAG = Symbol.for("__void_seal_epoch_once_wrap__");
-  if ((store.saveBlock as any)[WRAP_TAG]) return;
-
-  const orig = store.saveBlock.bind(store);
-  store.saveBlock = async function(block:any, ...rest:any[]){
-    try{
-      const cap = Number(process.env.VOID_TX_MERGE_MAX || process.env.TX_MERGE_CAP || 2) || 2;
-      const num = (block && typeof block.number==="number") ? block.number : -1;
-      const ctxMap:Map<number, any> = G.__void_seal_ctx;
-      const ctx = ctxMap.get(num) || { merged:false, sealed:false, pulled:0, cap };
-      ctx.cap = cap;
-
-      // Exactly one merge per block number
-      if (!ctx.merged) {
-        const txsrc:any = getTxSrc();
-        if (txsrc && block && Array.isArray(block.txs)) {
-          const have = block.txs.length;
-          const room = Math.max(0, cap - have);
-          if (room > 0) {
-            const pulled = txsrc.pull(room);
-            if (pulled.length > 0){
-              for (const tx of pulled) block.txs.push(tx);
-              ctx.pulled += pulled.length;
-              console.log(`[seal-epoch] merged ${pulled.length}/${cap} -> block #${num} (txs ${have}→${block.txs.length})`);
-            }
-          }
-        }
-        ctx.merged = true;
-        // freeze further changes by other wrappers in this process
-        (block as any).__void_seal_epoch_locked = true;
-        ctxMap.set(num, ctx);
-      } else {
-        // Subsequent wrappers see merged=true and DO NOTHING to txs
-        // They just fall through to persist the already-merged block
-      }
-    } catch(e){ console.error("[seal-epoch] pre-merge error:", e); }
-
-    try{
-      const res = await orig(block, ...rest);
-      // mark sealed & cleanup shortly to avoid unbounded map growth
-      const num = (block && typeof block.number==="number") ? block.number : -1;
-      const ctxMap:Map<number, any> = (globalThis as any).__void_seal_ctx;
-      const ctx = ctxMap.get(num);
-      if (ctx){ ctx.sealed = true; setTimeout(()=>ctxMap.delete(num), 15_000); }
-      return res;
-    } catch(e){
-      // on error, let ctx live a bit longer for debugging
-      console.error("[seal-epoch] saveBlock error:", e);
-      throw e;
-    }
-  };
-  (store.saveBlock as any)[WRAP_TAG] = true;
-})();
-
-// ---------------- Merge-once + txroot freeze (additive) -----------------------
-(function mergeOnceAndFreezeTxRoot(){
-  const G:any = (globalThis as any);
-  function getStore(){ return G.node?.store; }
-  function getApp(){ return G.__void_http_app || G.app; }
-
-  // small, stable txroot (keeps your existing helper compatible)
-  function merkleRootHex(leaves: string[]): string {
-    // empty root (kept identical to your earlier code path)
-    const EMPTY = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-    if (!leaves || leaves.length === 0) return EMPTY;
-
-    // ensure 0x-less hex → Buffer
-    const bufs = leaves.map(h => {
-      const s = (h.startsWith('0x') ? h.slice(2) : h);
-      return Buffer.from(s, 'hex');
-    });
-
-    let level = bufs;
-    const crypto = require('node:crypto');
-    while (level.length > 1) {
-      const next: any[] = [] as any[];
-      for (let i=0;i<level.length;i+=2) {
-        const a = level[i];
-        const b = (i+1<level.length) ? level[i+1] : level[i]; // duplicate last if odd
-        next.push(crypto.createHash('sha256').update(Buffer.concat([a,b])).digest());
-      }
-      level = next;
-    }
-    return level[0].toString('hex');
-  }
-
-  const store:any = getStore();
-  if (!store || typeof store.saveBlock !== "function") return;
-
-  const WRAP_TAG = Symbol.for("__void_merge_once_freeze_txroot__");
-  if ((store.saveBlock as any)[WRAP_TAG]) return;
-
-  // expose tiny status for debugging
-  (function expose(){
-    let tries=0;
-    function attach(){
-      const app:any = getApp();
-      if (!app || typeof app.get!=="function"){ if(++tries<60) return setTimeout(attach,500); return; }
-      app.get("/__void/txroot/freeze-status", (_req:any,res:any)=>{
-        res.json({ ok:true, note:"merge-once + txroot-freeze active" });
-      });
-      console.log("[txroot/freeze] status at /__void/txroot/freeze-status");
-    }
-    attach();
-  })();
-
-  const orig = store.saveBlock.bind(store);
-  store.saveBlock = async function(block:any, ...rest:any[]){
-    // ----- Merge exactly once per block object -----
-    try {
-      if (block && !block.__void_merge_done) {
-        // honor live cap like your other hooks (default 2)
-        const cap = Number(process.env.VOID_TX_MERGE_MAX || process.env.TX_MERGE_CAP || 2) || 2;
-        block.txs = Array.isArray(block.txs) ? block.txs : [];
-        const have = block.txs.length;
-        const room = Math.max(0, cap - have);
-
-        const txsrc = (G.__void_txsrc || null);
-        if (txsrc && room > 0 && typeof txsrc.pull === "function") {
-          const pulled = txsrc.pull(room) || [];
-          if (pulled.length > 0) {
-            for (const tx of pulled) block.txs.push(tx);
-            console.log(`[merge-once] merged ${pulled.length}/${cap} -> block #${block.number ?? -1} (txs ${have}→${block.txs.length})`);
-          }
-        }
-        // mark done so other wrappers in this process won't add again
-        Object.defineProperty(block, "__void_merge_done", { value:true, enumerable:false, configurable:false, writable:false });
-      }
-    } catch (e) {
-      console.error("[merge-once] pre-merge error:", e);
-    }
-
-    // ----- Freeze header.txRoot from a snapshot before persist -----
-    try {
-      if (block) {
-        block.header = block.header || {};
-        // compute from current snapshot of txs (assume txs already have ids/hashes)
-        // if transactions are objects, map to deterministic hex id/hash field you already use
-        const leaves = (block.txs || []).map((t:any)=>{
-          if (typeof t === "string") return t.replace(/^0x/,'');
-          if (t && typeof t.hash === "string") return t.hash.replace(/^0x/,'');
-          if (t && typeof t.id === "string") return t.id.replace(/^0x/,'');
-          // fallback: stable JSON hash
-          const crypto = require('node:crypto');
-          return crypto.createHash('sha256').update(JSON.stringify(t)).digest('hex');
-        });
-        const root = merkleRootHex(leaves);
-
-        // If txRoot already present and differs, treat as violation (prevent flip-flop)
-        if (typeof block.header.txRoot === "string" && block.header.txRoot !== root) {
-          console.warn(`[txroot/freeze] detected differing header (${block.header.txRoot}) vs computed (${root}) on #${block.number ?? -1}; using computed and freezing.`);
-        }
-
-        // define non-writable, non-configurable to block further mutation
-        Object.defineProperty(block.header, "txRoot", {
-          value: root, enumerable: true, writable: false, configurable: false
-        });
-
-        // mark frozen (debug)
-        Object.defineProperty(block, "__void_txroot_frozen", { value:true, enumerable:false, configurable:false, writable:false });
-      }
-    } catch (e) {
-      console.error("[txroot/freeze] pre-persist compute/freeze error:", e);
-    }
-
-    // persist
-    const res = await orig(block, ...rest);
-    return res;
-  };
-  (store.saveBlock as any)[WRAP_TAG] = true;
-})();
-
-// ---- type anchors for merkle local vars (no-ops at runtime) ----
-try {
-  (function __void_txroot_type_anchors(){
-    const G:any = (globalThis as any);
-    const noop = (_x:any)=>{};
-    // If the symbol was set by our wrapper, expose a soft flag (debug only)
-    const store = G?.node?.store;
-    if (store && (store.saveBlock as any)) {
-      (store.saveBlock as any).__void_merge_once_freeze_installed = true;
-    }
-    noop(0);
-  })();
-} catch { /* ignore */ }
-
-// ---------------- Merge-once + txroot freeze (pure-additive, idempotent) -----
-(function mergeOnceAndFreezeTxRoot(){
-  const G:any = (globalThis as any);
-  function getStore(){ return G?.node?.store; }
-  function getApp(){ return G.__void_http_app || G.app; }
-
-  // Minimal Merkle helper (sha256, duplicate-last if odd)
-  function merkleRootHex(leaves: string[]): string {
-    const EMPTY = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-    if (!leaves || leaves.length === 0) return EMPTY;
-    const crypto = require('node:crypto');
-    // buffers
-    let level = leaves.map((h:string) => Buffer.from(h.startsWith('0x')? h.slice(2): h, 'hex'));
-    while (level.length > 1) {
-      const next: Buffer[] = [];
-      for (let i = 0; i < level.length; i += 2) {
-        const a = level[i];
-        const b = (i+1 < level.length) ? level[i+1] : level[i];
-        next.push(crypto.createHash('sha256').update(Buffer.concat([a,b])).digest());
-      }
-      // @ts-ignore  Buffer<T> vs Buffer inference; runtime is correct
-      level = next;
-    }
-    return level[0].toString('hex');
-  }
-
-  const store:any = getStore();
-  if (!store || typeof store.saveBlock !== "function") return;
-  if ((store.saveBlock as any).__void_merge_once_freeze) return; // idempotent
-
-  const origSave = store.saveBlock.bind(store);
-  (store.saveBlock as any).__void_merge_once_freeze = true;
-
-  // Track merge-per-block to avoid topping up the same number repeatedly
-  const mergedByNumber = new Set<number>();
-
-  store.saveBlock = async function(block:any){
-    try {
-      const hdr = (block.header ||= {});
-      const num = typeof hdr.number === 'number' ? hdr.number : -1;
-
-      // One-merge guard per block number (best-effort; survives wrapper re-entry)
-      if (num >= 0) {
-        if (mergedByNumber.has(num)) {
-          // No-op: already merged for this number
-        } else {
-          mergedByNumber.add(num);
-          // (optional) Log once
-          console.log('[merge-once] first merge for #'+num);
-        }
-      }
-
-      // Freeze header.txRoot exactly once (if not present)
-      if (!('txRoot' in hdr) || hdr.txRoot == null) {
-        // use tx arrays we already expose in node
-        const txs:any[] =
-          (Array.isArray(block.txs) ? block.txs :
-          (Array.isArray(block.pendingTxs) ? block.pendingTxs : []));
-        const leaves = txs.map((t:any) => {
-          const h = (t?.hash || t?.id || t?.txid || t?.h || t);
-          return String(h).replace(/^0x/, '');
-        });
-        const root = merkleRootHex(leaves);
-
-        // Define as non-writable & non-configurable so later writers cannot flip it
-        Object.defineProperty(hdr, 'txRoot', {
-          value: root,
-          writable: false,
-          configurable: false,
-          enumerable: true
-        });
-        console.log('[txroot/freeze] #'+num+' txs='+txs.length+' root='+root);
-      } else {
-        // If present, do not modify. (enforcer will compare computed vs frozen)
-      }
-    } catch (e) {
-      console.warn('[merge-once/freeze] wrapper error:', e);
-    }
-    return origSave(block);
-  };
-
-  // tiny status endpoint
-  setTimeout(() => {
-    const app:any = getApp();
-    if (app?.get) {
-      app.get('/__void/txroot/freeze-status', (_req:any, res:any) => {
-        res.json({ installed: true, mergeOnce: true });
-      });
-    }
-  }, 0);
-})();
-
-// ---- type anchors / debug flag (no-ops at runtime) ----
-try {
-  (function __void_txroot_type_anchors(){
-    const G:any = (globalThis as any);
-    const s = G?.node?.store?.saveBlock as any;
-    if (s) s.__void_merge_once_freeze_installed = true;
-  })();
-} catch {}
-
-// ---------------- txroot freeze (merge-once, additive, idempotent) ------------
-(function __void_txroot_merge_once_freeze(){
-  const G:any = (globalThis as any);
-  function getApp(){ return G.__void_http_app || G.app; }
-  function getStore(){ return G?.node?.store; }
-
-  // Reuse a simple, stable Merkle (sha256 of concatenated pair; dup-last if odd)
-  const EMPTY = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-  function sha256Hex(buf: Uint8Array){ return require('node:crypto').createHash('sha256').update(buf).digest('hex'); }
-  function hexBuf(h:string){ const s=h.startsWith('0x')?h.slice(2):h; return Buffer.from(s,'hex'); }
-  function toLeafHex(x:any): string {
-    if (typeof x === 'string') {
-      const s = x.startsWith('0x') ? x.slice(2) : x;
-      return /^[0-9a-fA-F]{64}$/.test(s) ? s.toLowerCase() : sha256Hex(Buffer.from(x));
-    }
-    const c = (x && (x.hash||x.id||x.txid));
-    if (typeof c === 'string') {
-      const s = c.startsWith('0x') ? c.slice(2) : c;
-      return /^[0-9a-fA-F]{64}$/.test(s) ? s.toLowerCase() : sha256Hex(Buffer.from(c));
-    }
-    // fallback: hash the JSON
-    return sha256Hex(Buffer.from(JSON.stringify(x ?? "")));
-  }
-  function merkleRootHex(leaves: string[]): string {
-    if (!leaves || leaves.length === 0) return EMPTY;
-    let level: any[] = leaves.map(hexBuf);
-    const crypto = require('node:crypto');
-    while (level.length > 1) {
-      const next:any[] = [] as any[];
-      for (let i=0;i<level.length;i+=2) {
-        const a = level[i];
-        const b = (i+1<level.length) ? level[i+1] : level[i];
-        next.push(crypto.createHash('sha256').update(Buffer.concat([a,b])).digest());
-      }
-      // Cast only inside this function to keep TS quiet without touching other code
-      level = next as any;
-    }
-    return (level[0] as Buffer).toString('hex');
-  }
-  function computeBlockTxRoot(block:any): string {
-    const txs = Array.isArray(block?.txs) ? block.txs : [];
-    const leaves = txs.map(toLeafHex);
-    return merkleRootHex(leaves);
-  }
-
-  const store:any = getStore();
-  if (!store || typeof store.saveBlock !== "function") return;
-  if ((store.saveBlock as any).__void_txroot_freeze_installed) return;
-
-  const origSave = store.saveBlock.bind(store);
-  (store.saveBlock as any).__void_txroot_freeze_installed = true;
-
-  const frozenByNumber = new Set<number>();  // "merge once" per block number
-
-  // Small status endpoint
-  try {
-    const app:any = getApp();
-    if (app && typeof app.get === 'function') {
-      app.get("/__void/txroot/freeze-status", (_req:any, res:any) => {
-        res.json({
-          installed: true,
-          mergeOnce: true,
-          frozenCount: frozenByNumber.size,
-        });
-      });
-    }
-  } catch {}
-
-  store.saveBlock = async function __void_txroot_freeze(block:any){
-    try {
-      const n:number = (block?.header?.number ?? block?.number ?? -1);
-      if (n >= 0 && frozenByNumber.has(n)) {
-        // Already processed this number — do NOT recompute/rewrite. Just persist.
-        return await origSave(block);
-      }
-
-      // Compute the canonical root from the block's txs
-      const computed = computeBlockTxRoot(block);
-
-      // Ensure header exists
-      block.header = block.header || {};
-      const had = Object.prototype.hasOwnProperty.call(block.header, 'txRoot');
-      const prev = block.header.txRoot;
-
-      // If missing or empty, set to computed
-      const shouldSet = (!had) || (typeof prev !== 'string') || prev === '' || prev === EMPTY;
-      if (shouldSet) {
-        try {
-          // Define as non-writable/non-configurable to freeze it
-          Object.defineProperty(block.header, 'txRoot', {
-            value: computed,
-            enumerable: true,
-            writable: false,
-            configurable: false,
-          });
-          console.log(`[txroot/freeze] set & froze header.txRoot for #${n} root=${computed}`);
-        } catch (e) {
-          // If defineProperty fails (already defined non-configurable), best-effort assign
-          try { (block.header as any).txRoot = computed; } catch {}
-          console.log(`[txroot/freeze] set header.txRoot (fallback) for #${n} root=${computed}`);
-        }
-      } else {
-        // Already had a value. If it differs, do NOT flip it again. We just log once.
-        if (typeof prev === 'string' && prev !== computed) {
-          console.log(`[txroot/freeze] header present for #${n}, prev!=computed  prev=${prev} computed=${computed}  (kept prev)`);
-        } else {
-          console.log(`[txroot/freeze] header present for #${n}, matches computed`);
-        }
-        // Freeze anyway to stop later changes.
-        try {
-          const desc = Object.getOwnPropertyDescriptor(block.header, 'txRoot');
-          if (!desc || desc.configurable || desc.writable) {
-            Object.defineProperty(block.header, 'txRoot', {
-              value: block.header.txRoot,
-              enumerable: true,
-              writable: false,
-              configurable: false,
-            });
-          }
-        } catch {}
-      }
-
-      if (n >= 0) frozenByNumber.add(n);
-    } catch (e:any) {
-      console.log("[txroot/freeze] non-fatal error:", e?.message || e);
-    }
-
-    // Persist downstream
-    return await origSave(block);
-  };
-
-})();
-
-// ---------------- Global txRoot first-write-wins guard (additive) -------------
-(function __void_txroot_define_guard(){
-  try {
-    const G:any = (globalThis as any);
-    if ((G.__void_txroot_define_guard_installed)) return;
-    G.__void_txroot_define_guard_installed = true;
-
-    // Track header objects we've already frozen once
-    const seen = new WeakSet<object>();
-
-    const _defineProperty = Object.defineProperty;
-    // -ignore -- legacy override kept for back-compat; guarded by bootstrap define_patch
-    (Object as any).defineProperty = function(obj:any, prop:any, desc:any){
-      try {
-        // Only intercept exact 'txRoot' on plain objects (headers)
-        if (prop === 'txRoot' && obj && typeof obj === 'object') {
-          // If we've seen this header already, refuse to change its txRoot value
-          if (seen.has(obj)) {
-            // If caller tries to change the value, silently ignore
-            if (desc && Object.prototype.hasOwnProperty.call(desc, 'value')) {
-              const cur = obj.txRoot;
-              if (typeof cur === 'string' && desc.value !== cur) {
-                // Keep the original; return the object as if succeeded
-                // (non-throwing to avoid breaking callers)
-                return obj;
-              }
-            }
-            // If they are re-defining with same value, allow but ensure frozen
-            try {
-              return _defineProperty(obj, 'txRoot', {
-                value: obj.txRoot,
-                enumerable: true,
-                writable: false,
-                configurable: false,
-              });
-            } catch { return obj; }
-          }
-
-          // First time we see this header: if no value, allow and mark seen;
-          // if value exists, keep it stable and freeze it.
-          let nextVal = desc && Object.prototype.hasOwnProperty.call(desc, 'value')
-            ? desc.value
-            : obj.txRoot;
-
-          // Normalize empty → leave as is; the saveBlock freeze will fill it if needed
-          // Allow the initial set to proceed:
-          const ret = _defineProperty(obj, 'txRoot', {
-            value: nextVal,
-            enumerable: true,
-            writable: false,
-            configurable: false,
-          });
-          try { seen.add(obj); } catch {}
-          return ret;
-        }
-      } catch {
-        // fall through to default defineProperty
-      }
-      // Non-txRoot or any error → pass through
-      // @ts-ignore - spread args for TS
-      return _defineProperty.apply(Object, arguments as any);
-    };
-
-    // Tiny status endpoint
-    try {
-      const app:any = G.__void_http_app || G.app;
-      if (app && typeof app.get === 'function') {
-        app.get('/__void/txroot/guard-status', (_req:any, res:any) => {
-          res.json({ installed:true, mode:'first-write-wins' });
-        });
-      }
-    } catch {}
-
-    // Note: saveBlock freeze stays in place from earlier block; this guard handles
-    // earlier/other codepaths that try to rewrite header.txRoot.
-    console.log('[txroot/guard] installed global first-write-wins for header.txRoot');
-  } catch (e:any) {
-    console.log('[txroot/guard] install error:', e?.message || e);
-  }
-})();
-
-// ---------------- txRoot Guard v2 (block-number keyed, additive) --------------
-(function __void_txroot_guard_v2(){
-  try {
-    const G:any = (globalThis as any);
-    if (G.__void_txroot_guard_v2_installed) return;
-    G.__void_txroot_guard_v2_installed = true;
-
-    const symVal = Symbol.for('__void_txroot_val');
-    const frozenByNumber = new Map<number,string>();      // number -> frozen root
-    const allowOnce = new Set<number>();                  // numbers allowed to update once (finalize)
-
-    function getBlockNumber(obj:any): number|undefined {
-      try {
-        if (!obj || typeof obj !== 'object') return;
-        if (typeof obj.number === 'number') return obj.number;
-        if (obj.header && typeof obj.header.number === 'number') return obj.header.number;
-      } catch {}
-      return;
-    }
-
-    function freezeOnObject(obj:any, val:string){
-      try {
-        return _defineProperty(obj, 'txRoot', { value: val, enumerable: true, writable: false, configurable: false });
-      } catch { return obj; }
-    }
-
-    // Finalizer hook (callable from saveBlock wrapper)
-    G.__void_txroot_setFinal = function(n:number, val:string, obj?:any){
-      try {
-        frozenByNumber.set(n, val);
-        if (obj && typeof obj === 'object') freezeOnObject(obj, val);
-      } catch {}
-    };
-
-    // Allow a single update (for finalization) for block n
-    G.__void_txroot_allowFinalOnce = function(n:number){
-      try { allowOnce.add(n); } catch {}
-    };
-
-    // ---- Intercept defineProperty (covers many libs and explicit setters)
-    const _defineProperty = Object.defineProperty;
-    (Object as any).defineProperty = function(obj:any, prop:any, desc:any){
-      try {
-        if (prop === 'txRoot' && obj && typeof obj === 'object') {
-          const n = getBlockNumber(obj);
-          if (typeof n === 'number') {
-            const hasFrozen = frozenByNumber.has(n);
-            const nextVal = (desc && Object.prototype.hasOwnProperty.call(desc, 'value'))
-              ? desc.value
-              : (obj && obj[symVal]);
-
-            if (hasFrozen && !allowOnce.has(n)) {
-              // keep the first frozen value
-              const keep = frozenByNumber.get(n)!;
-              return freezeOnObject(obj, keep);
-            }
-
-            // first set, or final once-override
-            const chosen = hasFrozen && allowOnce.has(n) ? nextVal : nextVal;
-            freezeOnObject(obj, chosen);
-            frozenByNumber.set(n, chosen);
-            if (allowOnce.has(n)) allowOnce.delete(n);
-            return obj;
-          }
-        }
-      } catch {}
-      // @ts-ignore
-      return _defineProperty.apply(Object, arguments as any);
-    };
-
-    // ---- Intercept plain assignments via a narrow accessor on Object.prototype
-    const proto:any = Object.prototype;
-    if (!Object.getOwnPropertyDescriptor(proto, 'txRoot')) {
-      _defineProperty(proto, 'txRoot', {
-        get: function(){ try { return this && this[symVal]; } catch { return undefined; } },
-        set: function(v:any){
-          try {
-            const n = getBlockNumber(this);
-            if (typeof n !== 'number') { this[symVal] = v; return; }
-
-            const hasFrozen = frozenByNumber.has(n);
-            if (hasFrozen && !allowOnce.has(n)) {
-              // ignore changes; pin to the first-frozen
-              this[symVal] = frozenByNumber.get(n);
-              try { freezeOnObject(this, this[symVal]); } catch {}
-              return;
-            }
-
-            // first set or allowed final override
-            this[symVal] = v;
-            frozenByNumber.set(n, v);
-            try { freezeOnObject(this, v); } catch {}
-            if (allowOnce.has(n)) allowOnce.delete(n);
-          } catch { this[symVal] = v; }
-        },
-        enumerable: false,
-        configurable: true
-      });
-    }
-
-    // ---- saveBlock wrapper: permit one final override and then pin
-    try {
-      const store:any = G?.node?.store;
-      if (store && typeof store.saveBlock === 'function' && !(store.saveBlock as any).__void_txroot_guard_v2_wrapped) {
-        const orig = store.saveBlock.bind(store);
-        (store.saveBlock as any).__void_txroot_guard_v2_wrapped = true;
-        store.saveBlock = async function(block:any){
-          try {
-            const n = block?.header?.number ?? block?.number;
-            if (typeof n === 'number') G.__void_txroot_allowFinalOnce(n);
-          } catch {}
-          const res = await orig(block);
-          try {
-            const n = block?.header?.number ?? block?.number;
-            const v = block?.header?.txRoot;
-            if (typeof n === 'number' && typeof v === 'string') G.__void_txroot_setFinal(n, v, block?.header);
-          } catch {}
-          return res;
-        };
-      }
-    } catch {}
-
-    // status endpoint (JSON)
-    try {
-      const app:any = G.__void_http_app || G.app;
-      app?.get?.('/__void/txroot/guard2-status', (_req:any, res:any) => {
-        res.json({ installed: true, frozenCount: frozenByNumber.size });
-      });
-    } catch {}
-
-    console.log('[txroot/guard2] write-once-by-block-number installed');
-  } catch (e:any) {
-    console.log('[txroot/guard2] install error:', e?.message || e);
-  }
-})();
-
-// -------------- txRoot persist-safe wrapper (outermost, additive) -------------
-(function __void_txroot_persist_soft_clone(){
-  try {
-    const G:any = (globalThis as any);
-    const store:any = G?.node?.store;
-    if (!store || typeof store.saveBlock !== 'function') return;
-    if ((store.saveBlock as any).__void_txroot_persist_soft_clone) return;
-    const orig = store.saveBlock.bind(store);
-    (store.saveBlock as any).__void_txroot_persist_soft_clone = true;
-
-    // Deep clone via JSON to strip non-writable accessors and symbols.
-    function cloneForPersist(block:any){
-      try { return JSON.parse(JSON.stringify(block)); }
-      catch { 
-        // As a fallback, do a shallow-but-safe rebuild of header + block
-        const h = block && block.header ? {
-          ...block.header,
-          txRoot: String(block.header.txRoot ?? ''),
-        } : undefined;
-        return { ...block, header: h };
-      }
-    }
-
-    store.saveBlock = async function(block:any){
-      // Allow existing wrappers (guards, counters) to do their thing,
-      // but do the final persist on a plain JSON-safe clone.
-      const clean = cloneForPersist(block);
-      return await orig(clean);
-    };
-
-    // diag
-    try {
-      const app:any = G.__void_http_app || G.app;
-      app?.get?.('/__void/txroot/persist-soft/status', (_req:any, res:any) => {
-        res.json({ installed: true });
-      });
-    } catch {}
-
-    console.log('[txroot/persist-soft] wrapper installed (json-clone before append)');
-  } catch (e:any) {
-    console.log('[txroot/persist-soft] install error:', e?.message || e);
-  }
-})();
-
-// ================= OUTERMOST FS SANITIZER (additive, idempotent) =================
-(async function __void_fs_append_sanitizer(){
-  try {
-    const G:any = (globalThis as any);
-    const fsMod:any = (fs as any);
-    if ((fsMod.appendFileSync as any)?.__void_sanitized) return;
-
-    const mark = (fn:any)=>{ try { fn.__void_sanitized = true; } catch {} };
-
-    const wrapAppend = (orig:any)=>function(path:any, data:any, options?:any){
-      // If someone accidentally passed a frozen/header object as options, replace with a safe object.
-      if (options && typeof options === 'object') {
-        try {
-          // Detect clearly-not-options: presence of txRoot or non-extensible/frozen objects.
-          if ('txRoot' in options || Object.isFrozen(options)) {
-            options = { encoding: 'utf8' };
-          }
-        } catch { options = { encoding: 'utf8' }; }
-      }
-      // If data is an object, stringify defensively.
-      if (data && typeof data === 'object' && !(data instanceof Uint8Array)) {
-        try { data = JSON.stringify(data) + '\n'; } catch { data = String(data) + '\n'; }
-      }
-      return orig(path, data, options);
-    };
-
-    const wrapWrite = (orig:any)=>function(path:any, data:any, options?:any){
-      if (options && typeof options === 'object') {
-        try {
-          if ('txRoot' in options || Object.isFrozen(options)) {
-            options = { encoding: 'utf8' };
-          }
-        } catch { options = { encoding: 'utf8' }; }
-      }
-      if (data && typeof data === 'object' && !(data instanceof Uint8Array)) {
-        try { data = JSON.stringify(data); } catch { data = String(data); }
-      }
-      return orig(path, data, options);
-    };
-
-    fsMod.appendFileSync = wrapAppend(fsMod.appendFileSync);
-    fsMod.writeFileSync  = wrapWrite (fsMod.writeFileSync);
-    mark(fsMod.appendFileSync); mark(fsMod.writeFileSync);
-
-    // tiny diag (optional)
-    const app:any = G.__void_http_app || G.app;
-    app?.get?.('/__void/fs-sanitizer/status', (_r:any, res:any)=>res.json({installed:true}));
-    console.log('[fs/sanitizer] appendFileSync/writeFileSync options sanitized');
-  } catch (e:any) {
-    console.log('[fs/sanitizer] install error:', e?.message || e);
-  }
-})();
-
-// ============ txRoot persist-soft (json-clone) OUTERMOST, idempotent ============
-(function __void_txroot_persist_soft_clone_v2(){
-  try {
-    const G:any = (globalThis as any);
-    const store:any = G?.node?.store;
-    if (!store || typeof store.saveBlock !== 'function') return;
-    if ((store.saveBlock as any).__void_txroot_persist_soft_clone_v2) return;
-
-    const orig = store.saveBlock.bind(store);
-    (store.saveBlock as any).__void_txroot_persist_soft_clone_v2 = true;
-
-    function cloneForPersist(block:any){
-      try { return JSON.parse(JSON.stringify(block)); }
-      catch {
-        const h = block && block.header ? {
-          ...block.header,
-          txRoot: String(block.header?.txRoot ?? ''),
-        } : undefined;
-        return { ...block, header: h };
-      }
-    }
-
-    store.saveBlock = async function(block:any){
-      const clean = cloneForPersist(block);
-      return await orig(clean);
-    };
-
-    const app:any = G.__void_http_app || G.app;
-    app?.get?.('/__void/txroot/persist-soft/status', (_req:any, res:any)=>res.json({installed:true, version:2}));
-    console.log('[txroot/persist-soft] v2 installed (json-clone before persist)');
-  } catch (e:any) {
-    console.log('[txroot/persist-soft] v2 install error:', e?.message || e);
-  }
-})();
-
-// ================= OUTERMOST FS SANITIZER (additive, idempotent) =================
-(function __void_fs_append_sanitizer_v2(){
-  try {
-    const G:any = (globalThis as any);
-    // Use the existing top-level import: `import * as fs from "node:fs";`
-    // If it doesn't exist for some reason, bail safely.
-    const fsMod:any = (typeof (fs as any) !== "undefined") ? (fs as any) : null;
-    if (!fsMod || typeof fsMod.appendFileSync !== "function" || typeof fsMod.writeFileSync !== "function") {
-      console.log('[fs/sanitizer] fs module not available; skipping');
-      return;
-    }
-    if ((fsMod.appendFileSync as any).__void_sanitized_v2) return;
-
-    const mark = (fn:any)=>{ try { fn.__void_sanitized_v2 = true; } catch {} };
-
-    const wrapAppend = (orig:any)=>function(path:any, data:any, options?:any){
-      // If options is frozen/garbled (e.g., a header object), replace with a safe literal.
-      if (options && typeof options === 'object') {
-        try {
-          if ('txRoot' in options || Object.isFrozen(options)) options = { encoding: 'utf8' };
-        } catch { options = { encoding: 'utf8' }; }
-      }
-      // If data is an object, stringify defensively.
-      if (data && typeof data === 'object' && !(data instanceof Uint8Array)) {
-        try { data = JSON.stringify(data) + '\n'; } catch { data = String(data) + '\n'; }
-      }
-      return orig(path, data, options);
-    };
-
-    const wrapWrite = (orig:any)=>function(path:any, data:any, options?:any){
-      if (options && typeof options === 'object') {
-        try {
-          if ('txRoot' in options || Object.isFrozen(options)) options = { encoding: 'utf8' };
-        } catch { options = { encoding: 'utf8' }; }
-      }
-      if (data && typeof data === 'object' && !(data instanceof Uint8Array)) {
-        try { data = JSON.stringify(data); } catch { data = String(data); }
-      }
-      return orig(path, data, options);
-    };
-
-    fsMod.appendFileSync = wrapAppend(fsMod.appendFileSync);
-    fsMod.writeFileSync  = wrapWrite (fsMod.writeFileSync);
-    mark(fsMod.appendFileSync); mark(fsMod.writeFileSync);
-
-    // tiny diag (optional)
-    const app:any = G.__void_http_app || G.app;
-    app?.get?.('/__void/fs-sanitizer/status', (_r:any, res:any)=>res.json({installed:true, version:2}));
-    console.log('[fs/sanitizer] v2 installed: appendFileSync/writeFileSync options sanitized');
-  } catch (e:any) {
-    console.log('[fs/sanitizer] v2 install error:', e?.message || e);
-  }
-})();
-
-// ============ txRoot persist-soft (json-clone) OUTERMOST, idempotent ============
-(function __void_txroot_persist_soft_clone_v3(){
-  try {
-    const G:any = (globalThis as any);
-    const store:any = G?.node?.store;
-    if (!store || typeof store.saveBlock !== 'function') return;
-    if ((store.saveBlock as any).__void_txroot_persist_soft_clone_v3) return;
-
-    const orig = store.saveBlock.bind(store);
-    (store.saveBlock as any).__void_txroot_persist_soft_clone_v3 = true;
-
-    function cloneForPersist(block:any){
-      try {
-        // JSON path strips getters, symbols, and non-writable descriptors.
-        return JSON.parse(JSON.stringify(block));
-      } catch {
-        // Safe rebuild of header to ensure writable txRoot.
-        const h = block && block.header ? {
-          ...block.header,
-          txRoot: String(block.header?.txRoot ?? ''),
-        } : undefined;
-        return { ...block, header: h };
-      }
-    }
-
-    store.saveBlock = async function(block:any){
-      // Ensure downstream wrappers (persist/guard) see a plain, writable object.
-      const clean = cloneForPersist(block);
-      // Make doubly sure header fields are writable (defineProperty overwrite).
-      try {
-        if (clean?.header) {
-          const desc = Object.getOwnPropertyDescriptor(clean.header, 'txRoot');
-          if (!desc || desc.writable === false || desc.configurable === false) {
-            Object.defineProperty(clean.header, 'txRoot', { value: clean.header.txRoot ?? '', writable: true, configurable: true, enumerable: true });
-          }
-        }
-      } catch {}
-      return await orig(clean);
-    };
-
-    const app:any = G.__void_http_app || G.app;
-    app?.get?.('/__void/txroot/persist-soft/status', (_req:any, res:any)=>res.json({installed:true, version:3}));
-    console.log('[txroot/persist-soft] v3 installed (json-clone before persist)');
-  } catch (e:any) {
-    console.log('[txroot/persist-soft] v3 install error:', e?.message || e);
-  }
-})();
-
-// === OUTERMOST persist-safe clone with retry attach (additive-only) ==========
-(function __void_txroot_persist_soft_clone_outer(){
-  try {
-    let tries = 0, attached = false;
-
-    function jsonClone(x:any){
-      try { return JSON.parse(JSON.stringify(x)); } catch { return x; }
-    }
-    function makeWritableTxRoot(h:any){
-      if (!h || typeof h !== 'object') return;
-      const val = (h.txRoot ?? h.txroot ?? '');
-      try {
-        Object.defineProperty(h, 'txRoot', {
-          value: String(val),
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
-      } catch {
-        try { h.txRoot = String(val); } catch {}
-      }
-    }
-
-    function tryAttach(){
-      if (attached) return;
-      const G:any = (globalThis as any);
-      const store:any = G?.node?.store;
-      if (!store || typeof store.saveBlock !== 'function') {
-        if (++tries < 200) return setTimeout(tryAttach, 200);
-        return;
-      }
-      // already installed?
-      if ((store.saveBlock as any).__void_txroot_persist_soft_clone_outer) { attached = true; return; }
-
-      const orig = store.saveBlock.bind(store);
-      function outerPatched(block:any){
-        // Clone FIRST, so inner wrappers (like txroot/persist) always see a plain, writable object.
-        const clean = jsonClone(block);
-        if (clean && clean.header && typeof clean.header === 'object') {
-          makeWritableTxRoot(clean.header);
-        }
-        return orig(clean);
-      }
-      (outerPatched as any).__void_txroot_persist_soft_clone_outer = true;
-      store.saveBlock = outerPatched;
-      attached = true;
-
-      try {
-        const app:any = G.__void_http_app || G.app;
-        app?.get?.('/__void/txroot/persist-soft/outer/status', (_q:any, res:any) =>
-          res.json({ installed:true, tries }));
-      } catch {}
-    }
-
-    tryAttach();
-  } catch {}
-})();
-
-// ===== STICKY saveBlock accessor (outermost, additive, re-wraps future patches) =====
-(function __void_txroot_sticky_outermost_v1(){
-  try {
-    let tries = 0, installed = false;
-    function jsonClone(x:any){ try { return JSON.parse(JSON.stringify(x)); } catch { return x; } }
-
-    function makeWritableHeaderTxRoot(h:any){
-      if (!h || typeof h !== 'object') return;
-      const val = (h.txRoot ?? h.txroot ?? '');
-      // ensure own, writable, configurable data prop
-      try {
-        const desc = Object.getOwnPropertyDescriptor(h, 'txRoot');
-        if (!desc || desc.get || desc.set || !desc.writable || desc.configurable === false) {
-          Object.defineProperty(h, 'txRoot', {
-            value: String(val),
-            writable: true,
-            enumerable: true,
-            configurable: true,
-          });
-        }
-      } catch {
-        try { h.txRoot = String(val); } catch {}
-      }
-    }
-
-    function wrap(fn:any){
-      if (typeof fn !== 'function') return fn;
-      if ((fn as any).__void_txroot_sticky_outermost_v1) return fn;
-      const wrapped = function(block:any){
-        // clone to strip frozen/readonly shapes that later code might create
-        const clean = jsonClone(block) ?? block;
-        if (clean && clean.header && typeof clean.header === 'object') {
-          // replace header with a plain shallow clone to drop RO descriptors, then make txRoot writable
-          try { clean.header = { ...clean.header }; } catch {}
-          makeWritableHeaderTxRoot(clean.header);
-        }
-
-
-
-
-
-// -ignore -- implicit this is okay in legacy wrapper
-
-
-
-
-
-
-// @ts-ignore -- legacy shim uses untyped this by design
-return fn.call(this, clean);
-
-      };
-      (wrapped as any).__void_txroot_sticky_outermost_v1 = true;
-      return wrapped;
-    }
-
-    function attach(){
-      if (installed) return;
-      const G:any = (globalThis as any);
-      const store:any = G?.node?.store;
-      if (!store) { if (++tries < 200) return setTimeout(attach, 150); return; }
-
-      const desc = Object.getOwnPropertyDescriptor(store, 'saveBlock');
-      let current = (desc && desc.value) ? desc.value : store.saveBlock;
-
-      // define sticky accessor that re-wraps any future setter
-      let inner = wrap(current);
-      Object.defineProperty(store, 'saveBlock', {
-        configurable: true,
-        enumerable: false,
-        get(){ return inner; },
-        set(v:any){ inner = wrap(v); },
-      });
-
-      // force any later “store.saveBlock = …” to go through our setter once
-      store.saveBlock = inner;
-      installed = true;
-
-      // tiny diag
-      try {
-        const app:any = G.__void_http_app || G.app;
-        app?.get?.('/__void/txroot/sticky/status', (_q:any, res:any) =>
-          res.json({ installed:true, tries }));
-      } catch {}
-    }
-
-    attach();
-  } catch {}
-})();
-// ===== STICKY saveBlock on SegStore.prototype (outermost, additive) =====
-(function __void_txroot_sticky_proto_v1(){
-  try {
-    // Guard: only once
-    const anySeg:any = (SegStore as any);
-    if (anySeg.__void_txroot_sticky_proto_v1_installed) return;
-    anySeg.__void_txroot_sticky_proto_v1_installed = true;
-
-    function jsonClone(x:any){ try { return JSON.parse(JSON.stringify(x)); } catch { return x; } }
-    function makeWritableHeaderTxRoot(h:any){
-      if (!h || typeof h !== 'object') return;
-      const val = (h.txRoot ?? h.txroot ?? '');
-      try {
-        const d = Object.getOwnPropertyDescriptor(h, 'txRoot');
-        if (!d || d.get || d.set || d.writable === false || d.configurable === false) {
-          Object.defineProperty(h, 'txRoot', { value: String(val), writable: true, enumerable: true, configurable: true });
-        }
-      } catch { try { (h as any).txRoot = String(val); } catch {} }
-    }
-    function wrap(fn:any){
-      if (typeof fn !== 'function') return fn;
-      if ((fn as any).__void_txroot_sticky_proto_v1) return fn;
-      const wrapped = function(this:any, block:any){
-        const clean = jsonClone(block) ?? block;
-        if (clean && clean.header && typeof clean.header === 'object') {
-          try { clean.header = { ...clean.header }; } catch {}
-          makeWritableHeaderTxRoot(clean.header);
-        }
-
-
-
-        // -ignore -- implicit this is okay in legacy wrapper
-
-
-
-
-// @ts-ignore -- legacy shim uses untyped this by design
-        return fn.call(this, clean);
-      };
-      (wrapped as any).__void_txroot_sticky_proto_v1 = true;
-      return wrapped;
-    }
-
-    const proto:any = (SegStore as any)?.prototype;
-    if (!proto) return;
-
-    // Capture current method (value or getter)
-    const desc = Object.getOwnPropertyDescriptor(proto, 'saveBlock');
-    let inner = wrap(desc?.value ?? proto.saveBlock);
-
-    // Define sticky accessor on the prototype
-    Object.defineProperty(proto, 'saveBlock', {
-      configurable: true,
-      enumerable: false,
-      get(){ return inner; },
-      set(v:any){ inner = wrap(v); },
-    });
-
-    // Force one pass through setter to ensure wrapping applies immediately
-    proto.saveBlock = inner;
-
-    // Optional tiny diag: if express app exists, expose status
-    try {
-      const G:any = (globalThis as any);
-      const app:any = G.__void_http_app || G.app;
-      app?.get?.('/__void/txroot/sticky-proto/status', (_q:any, res:any) =>
-        res.json({ installed:true, level:'prototype' }));
-    } catch {}
-  } catch {}
-})();
-
-// ===== Global robust setter for header.txRoot (idempotent) =====
-(function __void_install_txroot_setter_global(){
-  try {
-    if ((globalThis as any).__void_set_writable_txRoot) return;
-    (globalThis as any).__void_set_writable_txRoot = function(block:any, hex:string){
-      try {
-        const hdr:any = (block && typeof block === 'object'
-          ? (block as any).header ?? ((block as any).header = {})
-          : {});
-        const raw = typeof hex === 'string' ? hex : String(hex ?? '');
-        const val = raw.startsWith('0x') ? raw.slice(2) : raw;
-
-        // Fast path: assign if writable/missing
-        try {
-          const d = Object.getOwnPropertyDescriptor(hdr, 'txRoot');
-          if (!d || d.writable === true) { (hdr as any).txRoot = val; return; }
-        } catch { try { (hdr as any).txRoot = val; return; } catch {} }
-
-        // Redefine as writable
-        try {
-          Object.defineProperty(hdr, 'txRoot', { value: val, writable: true, enumerable: true, configurable: true });
-          return;
-        } catch {}
-
-        // Final fallback: replace header object
-        try { (block as any).header = { ...(hdr || {}), txRoot: val }; } catch {}
-      } catch {}
-    };
-  } catch {}
-})();
-
-// ---------------- TXROOT setter v3 (safe, clone-before-write) ----------------
-/* __void_txroot_setter_v3 */
-(function txrootSetterV3(){
-  let tries = 0, attached = false;
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
-
-  async function attach(){
-    const app:any = getApp();
-    const node:any = getNode();
-    if (!app || !node || !node.store || typeof node.store.saveBlock !== "function") {
-      if (++tries < 120) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    const store:any = node.store;
-    const origSave = store.saveBlock.bind(store);
-    app.locals.__txroot_setter_errors = 0;
-
-    // Optional compute hook if previously defined by our txroot helpers
-    const computeTxRoot =
-      (app.locals && typeof app.locals.txrootCompute === "function")
-        ? app.locals.txrootCompute
-        : (globalThis as any).__void_txroot_compute;
-
-    store.saveBlock = async function patchedSaveBlockSafe(block:any){
-      try {
-        const header = (block && block.header) ? block.header : {};
-        const hasRoot = typeof header.txRoot === "string" && header.txRoot.length > 0;
-
-        // Only set if we don't already have a txRoot and we can compute one
-        if (!hasRoot && typeof computeTxRoot === "function") {
-          const root = await computeTxRoot(block).catch(() => undefined);
-          if (root && typeof root === "string") {
-            // *** DO NOT mutate original block or header ***
-            const block2 = { ...block, header: { ...header, txRoot: root } };
-            return await origSave(block2);
-          }
-        }
-        // Fallback: pass original block unchanged
-        return await origSave(block);
-      } catch (e) {
-        app.locals.__txroot_setter_errors++;
-        // Last-resort: never block persistence
-        try { return await origSave(block); } catch {}
-        throw e;
-      }
-    };
-
-    // Small status endpoint to confirm this wrapper is active
-    app.get("/__void/txroot/setter/status", (_req:any, res:any) => {
-      res.json({ ok: true, attached: true, errors: app.locals.__txroot_setter_errors || 0 });
-    });
-
-    // Prometheus text for quick scrape if desired
-    app.get("/__void/metrics/txroot4/setter.prom", (_req:any, res:any) => {
-      const errs = app.locals.__txroot_setter_errors || 0;
-      res.type("text/plain").send(
-        [
-          "# HELP void_txroot_setter_errors_total Total errors in txroot setter",
-          "# TYPE void_txroot_setter_errors_total counter",
-          `void_txroot_setter_errors_total ${errs}`
-        ].join("\n") + "\n"
-      );
-    });
-
-    console.log("[txroot-setter:v3] safe clone-before-write wrapper attached");
-  }
-
-  setTimeout(attach, 0);
-})();
-
-// ---------------- TXROOT setter v3b (deep-clone, outermost) -----------------
-/* __void_txroot_setter_v3b */
-(function txrootSetterV3b(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
-
-  async function attach(){
-    const app:any  = getApp();
-    const node:any = getNode();
-    if (!app || !node || !node.store || typeof node.store.saveBlock !== "function") {
-      if (++tries < 120) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    const store:any = node.store;
-    const origSave  = store.saveBlock.bind(store);
-
-    const computeTxRoot =
-      (app.locals && typeof app.locals.txrootCompute === "function")
-        ? app.locals.txrootCompute
-        : (globalThis as any).__void_txroot_compute;
-
-    store.saveBlock = async function patchedSaveBlockDeep(block:any){
-      try {
-        const header = (block && block.header) ? block.header : {};
-        const hasRoot = typeof header.txRoot === "string" && header.txRoot.length > 0;
-
-        if (!hasRoot && typeof computeTxRoot === "function") {
-          let root: string | undefined;
-          try { root = await computeTxRoot(block); } catch {}
-          if (root && typeof root === "string") {
-            // NEW OBJECT GRAPH (no frozen props), then deep-clone:
-            const fresh = { ...block, header: { ...header, txRoot: root } };
-            const clean = JSON.parse(JSON.stringify(fresh));
-            return await origSave(clean);
-          }
-        }
-        // Fallback: deep-clone anyway to shed any readonly descriptors from prior wrappers
-        const clean = JSON.parse(JSON.stringify(block));
-        return await origSave(clean);
-      } catch (e) {
-        // Last resort: do not block persistence
-        try { return await origSave(block); } catch {}
-        throw e;
-      }
-    };
-
-    app.get("/__void/txroot/setter/v3b/status", (_req:any, res:any) =>
-      res.json({ ok:true, attached:true, note:"v3b deep-clone outermost" })
-    );
-
-    console.log("[txroot-setter:v3b] deep-clone outermost wrapper attached");
-  }
-
-  setTimeout(attach, 0);
-})();
-
-// ---------------- Writable txRoot guard (additive, scoped) -------------------
-(function writableTxRootGuard(){
-  try {
-    // 1) Force any future defineProperty('txRoot', ...) to be writable+configurable
-    const _defineProperty = Object.defineProperty;
-    (Object as any).defineProperty = function(target: any, prop: any, desc: any){
-      try {
-        if (prop === 'txRoot' && desc && typeof desc === 'object') {
-          const patched = { ...desc, writable: true, configurable: true };
-          return _defineProperty.call(Object, target, prop, patched);
-        }
-      } catch {}
-      return _defineProperty.call(Object, target, prop, desc);
-    };
-
-    // 2) Helper to sanitize an existing header so normal assignment won't throw
-    function makeTxRootWritable(header: any){
-      if (!header || typeof header !== 'object') return;
-      try {
-        const d = Object.getOwnPropertyDescriptor(header, 'txRoot');
-        if (d && d.writable === false) {
-          // delete + redefine writable
-          try { delete (header as any).txRoot; } catch {}
-          try { Object.defineProperty(header, 'txRoot', { value: d.value, writable: true, enumerable: true, configurable: true }); } catch {}
-        }
-      } catch {}
-    }
-
-    // Expose a tiny API for other additive shims
-    (globalThis as any).__void_make_txroot_writable = makeTxRootWritable;
-
-    // Optional: small diag
-    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
-    if (app && typeof app.get === 'function') {
-      app.get('/__void/txroot/writable-guard/status', (_req:any, res:any) => {
-        res.json({ ok:true, guard:'installed', note:'defineProperty(txRoot) forced writable', api:!!(globalThis as any).__void_make_txroot_writable });
-      });
-    }
-    console.log('[txroot/writable-guard] installed');
-  } catch {
-    // never throw from guard
-  }
-})();
-
-// ---------------- Object.prototype pollution scrub (additive) ----------------
-(function neutralizeGlobalTxRootOnPrototype(){
-  try {
-    const proto = Object.prototype as any;
-    // If any earlier shim defined a global txRoot on Object.prototype, remove/soften it.
-    if (Object.prototype.hasOwnProperty.call(proto, 'txRoot')) {
-      try {
-        delete proto.txRoot;  // best case: fully remove it
-        // console.log('[txroot/proto-scrub] deleted Object.prototype.txRoot');
-      } catch {
-        // Fallback: make it benign and writable so merges can't throw
-        try {
-          Object.defineProperty(proto, 'txRoot', {
-            value: undefined,
-            writable: true,
-            enumerable: false,
-            configurable: true
-          });
-          // console.log('[txroot/proto-scrub] softened Object.prototype.txRoot');
-        } catch {}
-      }
-    }
-  } catch {/* never throw */}
-})();
-
-// --------------- SegStore.saveBlock outermost safety wrapper -----------------
-(function safeSaveBlockWrapper(){
-  try {
-    const SegStore = (globalThis as any).SegStore || require?.("./chain/seg_store.js")?.SegStore;
-    if (!SegStore || !SegStore.prototype || typeof SegStore.prototype.saveBlock !== "function") return;
-
-    const original = SegStore.prototype.saveBlock;
-
-    // Minimal deep clone that guarantees plain JSON and a writable header.txRoot
-    function sanitizeBlock(b:any){
-      try {
-        const headerSrc = (b && b.header) || {};
-        const header = { ...headerSrc };
-        // ensure header.txRoot is writable plain data (string)
-        try {
-          const d = Object.getOwnPropertyDescriptor(header, 'txRoot');
-          if (d && d.writable === false) {
-            try { delete (header as any).txRoot; } catch {}
-            Object.defineProperty(header, 'txRoot', { value: d.value, writable: true, enumerable: true, configurable: true });
-          }
-        } catch {}
-        const txs = Array.isArray(b?.txs) ? b.txs.map(x => (typeof x === 'object' ? JSON.parse(JSON.stringify(x)) : x)) : [];
-        return { header, txs };
-      } catch {
-        // last resort: JSON roundtrip
-        return JSON.parse(JSON.stringify(b));
-      }
-    }
-
-    // Replace with wrapper that always feeds a sanitized block to the original
-    SegStore.prototype.saveBlock = function wrappedSaveBlock(block:any){
-      const clean = sanitizeBlock(block);
-      return original.call(this, clean);
-    };
-
-    // tiny diag
-    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
-    if (app && typeof app.get === 'function') {
-      app.get("/__void/guards/saveblock-wrapper/status", (_req:any, res:any) => {
-        res.json({ ok:true, wrapped:true, note:"sanitizeBlock->original(save)" });
-      });
-    }
-
-    console.log("[saveBlock/wrapper] outermost sanitizer attached");
-  } catch {/* never throw */}
-})();
-
-// ---- proto-scrub diag (additive) ----
-(function protoScrubDiag(){
-  try {
-    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
-    if (app && typeof app.get === 'function') {
-      app.get("/__void/proto/txroot/desc", (_req:any, res:any) => {
-        const d = Object.getOwnPropertyDescriptor(Object.prototype as any, 'txRoot') || null;
-        res.json({ ok:true, hasOwn: !!d, desc: d });
-      });
-    } else {
-      // retry attach shortly (app becomes available after express init)
-      setTimeout(protoScrubDiag, 200);
-    }
-  } catch {}
-})();
-
-// ---- diag: verify Object.prototype.txRoot state (additive) ----
-(function protoTxRootDiag(){
-  try {
-    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
-    if (app && typeof app.get === 'function') {
-      app.get("/__void/proto/txroot/desc", (_req:any, res:any) => {
-        const d = Object.getOwnPropertyDescriptor(Object.prototype as any, 'txRoot') || null;
-        res.json({ ok:true, hasOwn: !!d, desc: d });
-      });
-    } else {
-      setTimeout(protoTxRootDiag, 200);
-    }
-  } catch {}
-})();
-
-// ---------------- Additive: track last sealed block number (safe wrapper) ----------------
-(() => {
-  try {
-    const segAny: any = (globalThis as any).SegStore || (SegStore as any);
-    if (!segAny?.prototype) return;
-    const proto: any = segAny.prototype;
-    if (proto.__void_last_seal_wrap) return; // idempotent
-    const orig = proto.saveBlock;
-    if (typeof orig !== "function") return;
-    proto.saveBlock = function wrappedSaveBlock(block: any, ...rest: any[]) {
-      try {
-        const n =
-          (block && block.header && typeof block.header.number === "number")
-            ? block.header.number
-            : (typeof block?.number === "number" ? block.number : undefined);
-        if (typeof n === "number") (globalThis as any).__void_last_seal_number = n;
-      } catch {}
-      return (orig as any).apply(this, [block, ...rest]);
-    };
-    proto.__void_last_seal_wrap = true;
-    // Optional diag toggle:
-    (globalThis as any).__void_last_seal_tracker = { enabled: true };
-  } catch {}
-})();
-
-// --------------- Additive: remember last txRoot after each save (no behavior change) ---------------
-(() => {
-  try {
-    const segAny: any = (globalThis as any).SegStore || (SegStore as any);
-    if (!segAny?.prototype) return;
-    const proto: any = segAny.prototype;
-    if (proto.__void_txroot_tap_v1) return; // idempotent guard
-
-    const orig = proto.saveBlock;
-    if (typeof orig !== "function") return;
-
-    proto.saveBlock = function txrootTapV1(block: any, ...rest: any[]) {
-      const out = (orig as any).apply(this, [block, ...rest]);
-      try {
-        // Prefer header.txRoot if present (string/Uint8Array/etc)
-        const root =
-          block?.header?.txRoot ??
-          (typeof block?.header?.txroot !== "undefined" ? block.header.txroot : undefined);
-        if (root != null) {
-          (globalThis as any).__lastTxRoot = root;
-        }
-      } catch {}
-      return out;
-    };
-    proto.__void_txroot_tap_v1 = true;
-  } catch {}
-})();
-
-// Optional: expose for quick debugging
-(() => {
-  try {
-    const app: any = (globalThis as any).__void_http_app || (globalThis as any).app;
-    if (!app || app.__void_last_txroot_route) return;
-    app.get('/__void/last-txroot.json', (_req:any, res:any) => {
-      res.json({ lastTxRoot: (globalThis as any).__lastTxRoot ?? null,
-                 lastBlock: (globalThis as any).__void_last_seal_number ?? null });
-    });
-    app.__void_last_txroot_route = true;
-  } catch {}
-})();
-
-// ---- additive: robust attach for /__void/last-txroot.json (polls until app ready)
-(() => {
-  try {
-    let tries = 0;
-    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-    function attach(){
-      const app:any = getApp();
-      if (!app || typeof app.get !== "function") {
-        if (++tries < 120) return setTimeout(attach, 500); // retry up to ~60s
-        return;
-      }
-      if ((app as any).__void_last_txroot_route) return; // idempotent
-      app.get('/__void/last-txroot.json', (_req:any, res:any) => {
-        res.json({
-          lastTxRoot: (globalThis as any).__lastTxRoot ?? null,
-          lastBlock:  (globalThis as any).__void_last_seal_number ?? null
-        });
-      });
-      (app as any).__void_last_txroot_route = true;
-      console.log('[last-txroot] route attached');
-    }
-    attach();
-  } catch {}
-})();
-
-// ---- additive: prom text exporter for last txroot ----
-(() => {
-  try {
-    let tries = 0;
-    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-    function attach(){
-      const app:any = getApp();
-      if (!app || typeof app.get !== "function") {
-        if (++tries < 120) return setTimeout(attach, 500);
-        return;
-      }
-      if (app.__void_last_txroot_prom) return; // idempotent
-      app.get('/__void/metrics/txroot4/last.prom', (_req:any, res:any) => {
-        const lastRoot = (globalThis as any).__lastTxRoot ?? null;
-        const lastBlk  = (globalThis as any).__void_last_seal_number ?? null;
-        const rootStr  = typeof lastRoot === 'string' ? lastRoot : (Array.isArray(lastRoot) ? Array.from(lastRoot).map((x:number)=>x.toString(16).padStart(2,'0')).join('') : String(lastRoot));
-        res.type('text/plain; version=0.0.4');
-        res.send([
-          '# HELP void_txroot_last_block Latest block number observed by txroot tap',
-          '# TYPE void_txroot_last_block gauge',
-          `void_txroot_last_block{root="${rootStr || ''}"} ${Number.isFinite(lastBlk)? lastBlk : -1}`,
-          '# HELP void_txroot_last_seen Always 1 when endpoint is healthy',
-          '# TYPE void_txroot_last_seen gauge',
-          'void_txroot_last_seen 1',
-          ''
-        ].join('\n'));
-      });
-      app.__void_last_txroot_prom = true;
-      console.log('[last-txroot.prom] exporter attached at /__void/metrics/txroot4/last.prom');
-    }
-    attach();
-  } catch {}
-})();
-
-// ------------------- Additive: Seals tap + Prom text exporter -------------------
-(() => {
-  try {
-    // 1) SaveBlock tap (idempotent)
-    const segAny: any = (globalThis as any).SegStore || (SegStore as any);
-    if (segAny?.prototype && !segAny.prototype.__void_seals_tap_v1) {
-      const proto: any = segAny.prototype;
-      const orig = proto.saveBlock;
-      if (typeof orig === "function") {
-        const win: number[] = []; // timestamps ms, last 60s
-        (globalThis as any).__void_seal_ts_window = win;
-
-        proto.saveBlock = function sealsTapV1(block: any, ...rest: any[]) {
-          const out = (orig as any).apply(this, [block, ...rest]);
-          try {
-            const n = block?.header?.number ?? block?.number;
-            if (typeof n === "number" && Number.isFinite(n)) {
-              (globalThis as any).__void_last_seal_number = n;
-              (globalThis as any).__void_last_seal_ts_ms = Date.now();
-              // slide window
-              win.push((globalThis as any).__void_last_seal_ts_ms);
-              const cutoff = Date.now() - 60_000;
-              while (win.length && win[0] < cutoff) win.shift();
-            }
-          } catch {}
-          return out;
-        };
-        proto.__void_seals_tap_v1 = true;
-      }
-    }
-
-    // 2) Prom text exporter (idempotent)
-    const app: any = (globalThis as any).__void_http_app || (globalThis as any).app;
-    if (app && !app.__void_seals_prom_v1) {
-      app.get('/metrics/void/seals', (_req:any, res:any) => {
-        try {
-          const last = (globalThis as any).__void_last_seal_number ?? -1;
-          const ts   = (globalThis as any).__void_last_seal_ts_ms ?? 0;
-          const win: number[] = (globalThis as any).__void_seal_ts_window || [];
-          // crude seals/min over the last 60s
-          const rate = win.length;
-
-          res.set('Content-Type', 'text/plain; version=0.0.4');
-          res.send(
-`# HELP void_seal_last_number Latest sealed block number
-# TYPE void_seal_last_number gauge
-void_seal_last_number ${typeof last === 'number' ? last : -1}
-# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed
-# TYPE void_seal_last_ts_ms gauge
-void_seal_last_ts_ms ${typeof ts === 'number' ? ts : 0}
-# HELP void_seal_rate_1m Seals observed in the last 60 seconds
-# TYPE void_seal_rate_1m gauge
-void_seal_rate_1m ${rate}
-`);
-        } catch (e:any) {
-          res.status(500).send(`# error ${e?.message||e}`);
-        }
-      });
-      app.__void_seals_prom_v1 = true;
-      console.log('[metrics/seals] exporter ready at /metrics/void/seals');
-    }
-  } catch {}
-})();
-
-// ------------------- Additive: Seals tap + Prom exporter (v2 resilient) -------------------
-(() => {
-  try {
-    // Ensure the saveBlock tap is present (idempotent)
-    const segAny: any = (globalThis as any).SegStore || (typeof SegStore !== "undefined" ? (SegStore as any) : undefined);
-    if (segAny?.prototype && !segAny.prototype.__void_seals_tap_v2) {
-      const proto: any = segAny.prototype;
-      const orig = proto.saveBlock;
-      if (typeof orig === "function") {
-        const win: number[] = (globalThis as any).__void_seal_ts_window || [];
-        (globalThis as any).__void_seal_ts_window = win;
-
-        proto.saveBlock = function sealsTapV2(block: any, ...rest: any[]) {
-          const out = (orig as any).apply(this, [block, ...rest]);
-          try {
-            const n = block?.header?.number ?? block?.number;
-            if (typeof n === "number" && Number.isFinite(n)) {
-              (globalThis as any).__void_last_seal_number = n;
-              const now = Date.now();
-              (globalThis as any).__void_last_seal_ts_ms = now;
-              win.push(now);
-              const cutoff = now - 60_000;
-              while (win.length && win[0] < cutoff) win.shift();
-            }
-          } catch {}
-          return out;
-        };
-        proto.__void_seals_tap_v2 = true;
-      }
-    }
-
-    // Retry until app exists, then bind the route (idempotent)
-    let tries = 0;
-    const attach = () => {
-      const app: any = (globalThis as any).__void_http_app || (globalThis as any).app;
-      if (!app || typeof app.get !== "function") {
-        if (++tries < 120) return setTimeout(attach, 500); // retry up to ~60s
-        return;
-      }
-      if (app.__void_seals_prom_v2) return; // already bound
-
-      app.get('/metrics/void/seals', (_req:any, res:any) => {
-        try {
-          const last = (globalThis as any).__void_last_seal_number ?? -1;
-          const ts   = (globalThis as any).__void_last_seal_ts_ms ?? 0;
-          const win: number[] = (globalThis as any).__void_seal_ts_window || [];
-          const rate = win.length; // seals seen in last 60s (sliding window)
-          res.set('Content-Type', 'text/plain; version=0.0.4');
-          res.send(
-`# HELP void_seal_last_number Latest sealed block number
-# TYPE void_seal_last_number gauge
-void_seal_last_number ${typeof last === 'number' ? last : -1}
-# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed
-# TYPE void_seal_last_ts_ms gauge
-void_seal_last_ts_ms ${typeof ts === 'number' ? ts : 0}
-# HELP void_seal_rate_1m Seals observed in the last 60 seconds
-# TYPE void_seal_rate_1m gauge
-void_seal_rate_1m ${rate}
-`);
-        } catch (e:any) {
-          res.status(500).send(`# error ${e?.message||e}`);
-        }
-      });
-
-      app.__void_seals_prom_v2 = true;
-      console.log('[metrics/seals:v2] exporter ready at /metrics/void/seals');
-    };
-    attach();
-  } catch {}
-})();
-
-// ---- TxRoot Core v2 -> Prom text adapter (additive) ----
-(function txrootCoreV2PromAdapter(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
-    if (attached) return; attached = true;
-
-    // Prometheus text endpoint mirroring core2 JSON counters
-    // Exposes: void_txroot_core_saves_total, _set_total, _mismatch_total, _heartbeat_total
-    app.get("/__void/metrics/txroot4/core2.prom", async (_req:any, res:any) => {
-      try {
-        // Reuse in-process route if available to avoid HTTP loop
-        const fetchCore = async () => {
-          // Prefer direct function if someone set it on global (future-proof)
-          const g:any = globalThis as any;
-          if (g.__void_txroot_core2_snapshot && typeof g.__void_txroot_core2_snapshot === "function") {
-            return await g.__void_txroot_core2_snapshot();
-          }
-          // Fallback: local HTTP call to the JSON endpoint
-          const http = await import("node:http");
-          const port = Number(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || 4100);
-          const data = await new Promise<any>((resolve, reject) => {
-            const req = http.request({ host:"127.0.0.1", port, path:"/__void/metrics/txroot4/core2.json", method:"GET" }, r=>{
-              let buf=""; r.setEncoding("utf8");
-              r.on("data", c=> buf+=c); r.on("end", ()=> { try { resolve(JSON.parse(buf)); } catch(e){ reject(e); } });
-            });
-            req.on("error", reject); req.end();
-          });
-          return data;
-        };
-
-        const snap = await fetchCore();
-        const saves = Number(snap?.saves_total ?? 0);
-        const set = Number(snap?.set_total ?? 0);
-        const mismatch = Number(snap?.mismatch_total ?? 0);
-        const hb = Number(snap?.heartbeat_total ?? 0);
-
-        const lines = [
-          "# HELP void_txroot_core_saves_total Core saves total",
-          "# TYPE void_txroot_core_saves_total counter",
-          `void_txroot_core_saves_total ${saves}`,
-          "# HELP void_txroot_core_set_total Core sets total",
-          "# TYPE void_txroot_core_set_total counter",
-          `void_txroot_core_set_total ${set}`,
-          "# HELP void_txroot_core_mismatch_total Core mismatches total",
-          "# TYPE void_txroot_core_mismatch_total counter",
-          `void_txroot_core_mismatch_total ${mismatch}`,
-          "# HELP void_txroot_core_heartbeat_total Core heartbeat total",
-          "# TYPE void_txroot_core_heartbeat_total counter",
-          `void_txroot_core_heartbeat_total ${hb}`
-        ];
-        res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
-        res.end(lines.join("\n")+"\n");
-      } catch(err:any){
-        res.statusCode = 500;
-        res.setHeader("Content-Type","text/plain");
-        res.end(`# txroot core2 prom adapter error: ${String(err && err.message || err)}\n`);
-      }
-    });
-  }
-  attach();
-})();
-
-// ===================== /version (additive, no deps) ==========================
-(function versionRoute(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-
-  // Sync, require-free; uses top-level fs/path imports already in this file
-  function getPkgVersion(){
-    try {
-      const guesses = ["./package.json","../package.json","../../package.json"];
-      for (const rel of guesses) {
-        const abs = path.resolve(process.cwd(), rel);
-        if (fs.existsSync(abs)) {
-          const j = JSON.parse(fs.readFileSync(abs, "utf8"));
-          return j.version || "0.0.0-dev";
-        }
-      }
-    } catch {}
-    return "0.0.0-dev";
-  }
-
-  function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") {
-      if (++tries < 60) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    const version = getPkgVersion();
-    app.get("/version", (_req:any, res:any) => res.json({ version }));
-
-    // Lightweight Prom exporter (uses globals we already increment elsewhere)
-    app.get("/__void/metrics/throughput.prom", (_req:any, res:any) => {
-      res.type("text/plain");
-      res.end([
-        `void_last_block_number ${ (globalThis as any).void_last_block_number ?? 0 }`,
-        `void_blocks_saved_total ${ (globalThis as any).void_blocks_saved_total ?? 0 }`,
-        `void_txs_persisted_total ${ (globalThis as any).void_txs_persisted_total ?? 0 }`,
-        ""
-      ].join("\\n"));
-    });
-  }
-  setTimeout(attach, 0);
-})();
-// ========== Block throughput counters + Prom text exporter (additive) =========
-(function blockThroughput(){
-  let tries = 0, attached = false;
-  const S = {
-    blocks_saved_total: 0,
-    blocks_empty_skipped_total: 0,
-    blocks_nonempty_total: 0,
-    txs_persisted_total: 0,
-    last_block_number: -1,
-    last_updated_ms: 0
-  };
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getStore(){
-    // Best effort: many of our additive hooks stash store on globals
-    return (globalThis as any).__void_store || (globalThis as any).store || undefined;
-  }
-
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
-    if (attached) return; attached = true;
-
-    // ---- Wrap store.saveBlock once (idempotent) ----
-    try {
-      const store:any = getStore();
-      if (store && store.saveBlock && !(store as any).__throughputWrapped) {
-        const original = store.saveBlock.bind(store);
-        (store as any).__throughputWrapped = true;
-        store.saveBlock = async (block:any) => {
-          // Observe before
-          const hadTxs = Array.isArray(block?.txs) && block.txs.length > 0;
-          const txCount = hadTxs ? block.txs.length : 0;
-
-          const result = await original(block);
-
-          // Observe after (persisted)
-          S.blocks_saved_total += 1;
-          if (hadTxs) {
-            S.blocks_nonempty_total += 1;
-            S.txs_persisted_total += txCount;
-          } else {
-            S.blocks_empty_skipped_total += 1; // counts empty-persists; if policy skips empty, this stays ~0
-          }
-          if (typeof block?.number === "number") S.last_block_number = block.number;
-          S.last_updated_ms = Date.now();
-          return result;
-        };
-      }
-    } catch { /* non-fatal */ }
-
-    // ---- Prom text endpoint (no extra deps) ----
-    app.get("/__void/metrics/throughput.prom", (_req:any, res:any) => {
-      res.type("text/plain; version=0.0.4");
-      res.send(
-        [
-          "# HELP void_blocks_saved_total Total blocks saved (any kind).",
-          "# TYPE void_blocks_saved_total counter",
-          `void_blocks_saved_total ${S.blocks_saved_total}`,
-          "# HELP void_blocks_nonempty_total Total blocks with >=1 tx.",
-          "# TYPE void_blocks_nonempty_total counter",
-          `void_blocks_nonempty_total ${S.blocks_nonempty_total}`,
-          "# HELP void_blocks_empty_skipped_total Empty blocks observed on saveBlock path.",
-          "# TYPE void_blocks_empty_skipped_total counter",
-          `void_blocks_empty_skipped_total ${S.blocks_empty_skipped_total}`,
-          "# HELP void_txs_persisted_total Total transactions persisted into blocks.",
-          "# TYPE void_txs_persisted_total counter",
-          `void_txs_persisted_total ${S.txs_persisted_total}`,
-          "# HELP void_last_block_number Last observed block number on save.",
-          "# TYPE void_last_block_number gauge",
-          `void_last_block_number ${S.last_block_number}`,
-          "# HELP void_metrics_last_updated_ms Last update timestamp (ms since epoch).",
-          "# TYPE void_metrics_last_updated_ms gauge",
-          `void_metrics_last_updated_ms ${S.last_updated_ms}`,
-          ""
-        ].join("\n")
-      );
-    });
-  }
-  attach();
-})();
-
-// ---------------- Throughput exporter (v2, newline-correct) -------------------
-(function throughputPromV2(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") {
-      if (++tries < 60) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    // GET /__void/metrics/throughput2.prom
-    // Emits:
-    //   void_last_block_number <n>
-    //   void_blocks_saved_total <n>
-    //   void_txs_persisted_total <n>
-    app.get("/__void/metrics/throughput2.prom", async (req:any, res:any) => {
-      try {
-        const port = (process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
-        const base = `http://127.0.0.1:${port}`;
-
-        // Head number (compat JSON endpoint we already exposed)
-        const headJson = await fetch(`${base}/blocks/latest/number2.json`).then(r=>r.json()).catch(()=>({number:0}));
-        const headNum = Number(headJson.number ?? headJson.head ?? 0);
-
-        // TxRoot core counters (we already expose this JSON)
-        const core = await fetch(`${base}/__void/metrics/txroot4/core2.json`).then(r=>r.json()).catch(()=>({saves_total:0,set_total:0}));
-        const saves = Number(core.saves_total ?? 0);
-        const sets  = Number(core.set_total ?? 0);
-
-        const lines = [
-          `void_last_block_number ${headNum}`,
-          `void_blocks_saved_total ${saves}`,
-          `void_txs_persisted_total ${sets}`,
-        ];
-        res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-        res.end(lines.join("\n"));
-      } catch (e:any) {
-        res.status(500).type("text/plain").end(`# error ${e?.message || e}`);
-      }
-    });
-  }
-  attach();
-})();
-
-// ---------------- Readiness probe (+ dev-shim gate) ----------------
-(function readinessAndDevShimGate(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  function nowMs(){ return Date.now(); }
-
-  // simple cache for last-seen head + timestamp
-  let lastHead = 0;
-  let lastHeadAt = 0;
-
-  async function fetchJson(url:string, fallback:any){ try { return await fetch(url).then(r=>r.json()); } catch { return fallback; } }
-  async function fetchText(url:string, fallback:string){ try { return await fetch(url).then(r=>r.text()); } catch { return fallback; } }
-
-  async function pollSelf() {
-    const port = (process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
-    const base = `http://127.0.0.1:${port}`;
-    // head (prom text -> number)
-    const headText = await fetchText(`${base}/metrics/void/head`, "");
-    // format: "void_head_number <n>"
-    const m = headText.match(/void_head_number\s+(\d+)/);
-    if (m) { const n = Number(m[1]); if (!Number.isNaN(n) && n >= lastHead) { lastHead = n; lastHeadAt = nowMs(); } }
-    setTimeout(pollSelf, 2000);
-  }
-
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") {
-      if (++tries < 60) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    // start polling our own metrics for head progress
-    pollSelf();
-
-    // Dev-shim gate (passive block): if VOID_DEV_SHIMS !== "true", hide /dev/* and /tx/dev/* (but leave internal/metrics alone)
-    const allowDev = String(process.env.VOID_DEV_SHIMS || "").toLowerCase() === "true";
-    if (!allowDev) {
-      app.use((req:any, res:any, next:any)=>{
-        const p = req.path || "";
-        if (p.startsWith("/dev/") || p.startsWith("/tx/dev/")) {
-          return res.status(404).json({ ok:false, error:"dev-shims disabled" });
-        }
-        next();
-      });
-    }
-
-    // GET /health/ready[?format=prom&window_ms=20000]
-    // Ready if txroot health == 1 AND head advanced within window_ms (default 20000)
-    app.get("/health/ready", async (req:any, res:any)=>{
-      const windowMs = Math.max(1000, Number(req.query.window_ms ?? 20000));
-      const port = (process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
-      const base = `http://127.0.0.1:${port}`;
-
-      const txh = await fetchJson(`${base}/health/txroot3`, { ok:false, health:0 });
-      const health = Number((txh && (txh.health ?? (txh.ok?1:0))) || 0);
-      const recent = (nowMs() - (lastHeadAt||0)) <= windowMs ? 1 : 0;
-      const ready = (health === 1 && recent === 1) ? 1 : 0;
-
-      const payload = { ready, health, recent, window_ms: windowMs, head:lastHead, head_age_ms: (nowMs()-(lastHeadAt||0)) };
-      if ((req.query.format||"") === "prom") {
-        res.setHeader("Content-Type","text/plain; version=0.0.4");
-        // single-sample gauges for quick alerting
-        return res.end([
-          `void_ready ${ready}`,
-          `void_txroot_health ${health}`,
-          `void_head_recent ${recent}`,
-          `void_head_number ${lastHead}`
-        ].join("\n") + "\n");
-      }
-      res.json(payload);
-    });
-
-    // tiny status route for the gate (debug)
-    app.get("/__void/dev-shims/status", (_req:any, res:any)=>{
-      res.json({ allow_dev: allowDev });
-    });
-  }
-  attach();
-})();
-
-// ---------------- BlockHash setter + health (additive, no deletions) --------------------
-(function blockHashSetterAndHealth(){
-  let tries = 0, attached = false;
-
-  // Lazy require in case of import order
-  const { blockHash } = (() => {
-    try { return require("./chain/block.js"); } catch { return { blockHash: (h:any)=>h?.hash || "" }; }
-  })();
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
-
-  async function attach(){
-    const app:any = getApp();
-    const node:any = getNode();
-    if (!app || !node || !node.store || typeof node.store.saveBlock !== "function") {
-      if (++tries < 80) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    // --- Wrap saveBlock to enforce header.hash deterministically (after txRoot is set) ---
-    const store:any = node.store;
-    const _save = store.saveBlock.bind(store);
-
-    if (!(store as any).__void_hash_setter_wrapped) {
-      (store as any).__void_hash_setter_wrapped = true;
-
-      store.saveBlock = async function(block:any){
-        try {
-          // Ensure header exists
-          block.header = block.header || {};
-          // If txRoot object present, prefer its hex for stable hashing
-          if (block.header.txRoot && typeof block.header.txRoot === "object" && block.header.txRoot.hex) {
-            block.header.txRoot = block.header.txRoot.hex;
-          }
-          // Compute deterministic hash from header fields
-          const h = blockHash(block.header);
-          block.header.hash = h;
-        } catch (e:any) {
-          // Non-fatal; we still persist but expose error via counter
-          (globalThis as any).__void_blockhash_errors = ((globalThis as any).__void_blockhash_errors|0) + 1;
-        }
-        const res = await _save(block);
-        // Track last N hash checks in memory for quick health
-        try {
-          (globalThis as any).__void_blockhash_last = block.header?.hash || "";
-          (globalThis as any).__void_blockhash_saved_total = ((globalThis as any).__void_blockhash_saved_total|0) + 1;
-        } catch {}
-        return res;
-      };
-    }
-
-    // --- Endpoints ---
-    // GET /blocks/:n/hash -> {number, hash}
-    app.get("/blocks/:n/hash", async (req:any, res:any) => {
-      try{
-        const n = Number(req.params.n);
-        const blk = await node.store.getBlock(n);
-        const header = blk?.header || {};
-        const current = header.hash || "";
-        // Recompute to verify
-        const t = { ...header };
-        const recomputed = blockHash(t);
-        const ok = current === recomputed;
-        res.json({ number:n, hash: current, recomputed, ok });
-      } catch(e:any){
-        res.status(500).json({ error: e?.message || String(e) });
-      }
-    });
-
-    // Health: /health/blockhash (.json or ?format=prom)
-    // Verifies last 50 blocks (or up to head) and emits void_blockhash_health 1/0 + counters
-    app.get("/health/blockhash", async (req:any, res:any) => {
-      try{
-        const head = await node.store.getHeadNumber();
-        const from = Math.max(0, head - 49);
-        let checked=0, mismatches=0;
-        for (let i=from; i<=head; i++){
-          const blk = await node.store.getBlock(i);
-          if (!blk) continue;
-          const hdr = blk.header || {};
-          const saved = hdr.hash || "";
-          const recomputed = blockHash({ ...hdr });
-          if (saved !== recomputed) mismatches++;
-          checked++;
-        }
-        const ok = mismatches === 0 ? 1 : 0;
-        const format = (req.query?.format || "").toString();
-        if (format === "prom") {
-          res.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-          res.end([
-            "# HELP void_blockhash_health Are recent block hashes valid (1 ok, 0 bad)",
-            "# TYPE void_blockhash_health gauge",
-            `void_blockhash_health ${ok}`,
-            "# HELP void_blockhash_checked Total blocks verified in last window",
-            "# TYPE void_blockhash_checked gauge",
-            `void_blockhash_checked ${checked}`,
-            "# HELP void_blockhash_mismatches Mismatched hashes in last window",
-            "# TYPE void_blockhash_mismatches gauge",
-            `void_blockhash_mismatches ${mismatches}`
-          ].join("\n"));
-          return;
-        }
-        res.json({ ok, checked, mismatches, head, from });
-      } catch(e:any){
-        res.status(500).json({ error: e?.message || String(e) });
-      }
-    });
-  }
-  attach();
-})();
-
-// ---------------- BlockHash health v2 (self-HTTP; no node.store) --------------------
-(function blockHashHealthV2(){
-  let tries = 0, attached = false;
-
-  const { blockHash } = (() => {
-    try { return require("./chain/block.js"); } catch { return { blockHash: (h:any)=>h?.hash || "" }; }
-  })();
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-
-  async function fetchJson(url:string){ try { const r = await fetch(url); return await r.json(); } catch { return null; } }
-
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") {
-      if (++tries < 80) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    // GET /blocks/:n/hash2 -> {number, hash, recomputed, ok}
-    app.get("/blocks/:n/hash2", async (req:any, res:any) => {
-      const port = (process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
-      const n = Number(req.params.n);
-      const hdr = await fetchJson(`http://127.0.0.1:${port}/blocks/${n}/header`);
-      if (!hdr || typeof hdr !== "object") return res.status(404).json({ error:"header not found", number:n });
-
-      // If txRoot is an object, prefer its .hex for hashing stability
-      const header = { ...hdr };
-      if (header.txRoot && typeof header.txRoot === "object" && header.txRoot.hex) header.txRoot = header.txRoot.hex;
-
-      const current = header.hash || "";
-      const recomputed = blockHash({ ...header });
-      const ok = current === recomputed;
-      res.json({ number:n, hash: current, recomputed, ok });
-    });
-
-    // GET /health/blockhash2[?format=prom]
-    // Verifies last 50 blocks (using /blocks/latest/number2.json and /blocks/:n/header)
-    app.get("/health/blockhash2", async (req:any, res:any) => {
-      const port = (process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
-      const latest = await fetchJson(`http://127.0.0.1:${port}/blocks/latest/number2.json`);
-      const head = Number(latest?.number ?? latest?.head ?? 0);
-      const from = Math.max(0, head - 49);
-
-      let checked = 0, mismatches = 0;
-      for (let i = from; i <= head; i++) {
-        const hdr = await fetchJson(`http://127.0.0.1:${port}/blocks/${i}/header`);
-        if (!hdr) continue;
-        const header = { ...hdr };
-        if (header.txRoot && typeof header.txRoot === "object" && header.txRoot.hex) header.txRoot = header.txRoot.hex;
-        const saved = header.hash || "";
-        const recomputed = blockHash({ ...header });
-        if (saved !== recomputed) mismatches++;
-        checked++;
-      }
-      const ok = mismatches === 0 ? 1 : 0;
-
-      const format = (req.query?.format || "").toString();
-      if (format === "prom") {
-        res.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-        return res.end([
-          "# HELP void_blockhash_health Are recent block hashes valid (1 ok, 0 bad)",
-          "# TYPE void_blockhash_health gauge",
-          `void_blockhash_health ${ok}`,
-          "# HELP void_blockhash_checked Total blocks verified in last window",
-          "# TYPE void_blockhash_checked gauge",
-          `void_blockhash_checked ${checked}`,
-          "# HELP void_blockhash_mismatches Mismatched hashes in last window",
-          "# TYPE void_blockhash_mismatches gauge",
-          `void_blockhash_mismatches ${mismatches}`
-        ].join("\n"));
-      }
-      res.json({ ok, checked, mismatches, head, from });
-    });
-  }
-  attach();
-})();
-
-// ---------------- Genesis manifest health (v2, ESM-safe) --------------------
-(function genesisHealthV2(){
-  let tries = 0, attached = false;
-
-  type Genesis = {
-    networkName?: string;
-    chainId?: number;
-    seedPeers?: string[];
-    genesisTime?: string;
-    params?: any;
-  };
-
-  // Shared state; filled after async init()
-  let cache: { ok: 0|1; error?: string; genesis?: Genesis; mtime?: number } =
-    { ok: 0, error: 'initializing' };
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-
-  async function init(){
-    try {
-      const fs = await import('node:fs');
-      const path = await import('node:path');
-
-      const GENESIS_PATH = process.env.VOID_GENESIS_PATH || (path as any).resolve(process.cwd(), 'genesis.json');
-      const REQUIRED_CHAIN_ID = Number(process.env.VOID_CHAIN_ID || 2050);
-
-      function loadGenesis(): { ok: 0|1; error?: string; genesis?: Genesis; mtime?: number } {
-        try {
-          const stat = (fs as any).statSync(GENESIS_PATH);
-          const txt  = (fs as any).readFileSync(GENESIS_PATH, 'utf8');
-          const json: Genesis = JSON.parse(txt);
-
-          if (!json || typeof json !== 'object') return { ok: 0, error: 'invalid_json' };
-          const cid = Number((json as any).chainId ?? NaN);
-          if (!Number.isFinite(cid)) return { ok: 0, error: 'missing_chainId' };
-          if (cid !== REQUIRED_CHAIN_ID) return { ok: 0, error: `chainId_mismatch_expected_${REQUIRED_CHAIN_ID}_got_${cid}` };
-          if (!Array.isArray(json.seedPeers) || json.seedPeers.length === 0) return { ok: 0, error: 'missing_seedPeers' };
-
-          return { ok: 1, genesis: json, mtime: +stat.mtime };
-        } catch (e:any) {
-          return { ok: 0, error: e?.message || 'read_failed' };
-        }
-      }
-
-      // Prime + refresh
-      cache = loadGenesis();
-      const t = setInterval(() => { cache = loadGenesis(); }, 30_000);
-      // @ts-ignore
-      t.unref && t.unref();
-    } catch (e:any) {
-      cache = { ok: 0, error: e?.message || 'init_failed' };
-    }
-  }
-
-  function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== 'function') {
-      if (++tries < 80) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    // JSON status
-    app.get('/genesis/status', (_req:any, res:any) => {
-      const s = cache.ok ? {
-        ok: 1,
-        chainId: cache.genesis?.chainId,
-        networkName: cache.genesis?.networkName,
-        seedPeers: cache.genesis?.seedPeers,
-        mtime: cache.mtime
-      } : { ok: 0, error: cache.error };
-      res.json(s);
-    });
-
-    // Prom/JSON health
-    app.get('/health/genesis', (req:any, res:any) => {
-      const ok = cache.ok ? 1 : 0;
-      const format = (req.query?.format || '').toString();
-      if (format === 'prom') {
-        res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
-        return res.end([
-          '# HELP void_genesis_health Is genesis manifest valid (1 ok, 0 bad)',
-          '# TYPE void_genesis_health gauge',
-          `void_genesis_health ${ok}`
-        ].join('\n'));
-      }
-      res.json(cache.ok ? { ok: 1 } : { ok: 0, error: cache.error });
-    });
-  }
-
-  // Boot sequence: init (async), then attempt to attach; also retry attach until app exists
-  init().then(()=>attach());
-  setTimeout(attach, 250);
-})();
-
-// ---------------- Mempool metrics exporter (ESM-safe, additive) ----------------
-(function mempoolMetricsExporter(){
-  let tries = 0, attached = false;
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node || undefined; }
-
-  function scrape() {
-    try {
-      const n:any = getNode();
-      const size = Number(n?.mempool?.txs?.length ?? 0);
-      // Keep names consistent with throughput rules we planned
-      const lines = [
-        '# HELP void_mempool_size Current number of transactions in mempool',
-        '# TYPE void_mempool_size gauge',
-        `void_mempool_size ${size}`,
-      ];
-      return lines.join('\n') + '\n';
-    } catch { return '# error scraping mempool size\n'; }
-  }
-
-  function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== 'function') {
-      if (++tries < 120) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    // Prom text endpoint
-    app.get('/__void/metrics/mempool.prom', (_req:any, res:any) => {
-      res.type('text/plain; version=0.0.4; charset=utf-8').send(scrape());
-    });
-
-    console.log('[mempool/metrics] exporter at /__void/metrics/mempool.prom');
-  }
-
-  setTimeout(attach, 0);
-})();
-
-// ---------------- Tx-actual metrics (additive, ESM-safe) ----------------------
-(function txActualMetrics(){
-  let tries = 0, attached = false;
-  let txIncludedTotal = 0;                 // counter
-  let lastBlockTxs = 0;                    // gauge
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
-
-  function installWrapper(){
-    const n:any = getNode();
-    if (!n?.store || typeof n.store.saveBlock !== 'function') return false;
-    if ((n.store as any).__txActualWrapped) return true;
-
-    const orig = n.store.saveBlock.bind(n.store);
-    (n.store as any).__txActualWrapped = true;
-
-    n.store.saveBlock = async function wrappedSave(block:any){
-      // call original
-      const res = await orig(block);
-
-      // count txs actually persisted on this block (best effort)
-      try {
-        const txs = Array.isArray(block?.txs) ? block.txs.length
-                  : Array.isArray(block?.body?.txs) ? block.body.txs.length
-                  : Number(block?.txCount ?? 0);
-        const add = Number.isFinite(txs) ? txs : 0;
-        txIncludedTotal += add;
-        lastBlockTxs = add;
-      } catch { /* noop */ }
-
-      return res;
-    };
-    return true;
-  }
-
-  function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== 'function') {
-      if (++tries < 120) return setTimeout(attach, 500);
-      return;
-    }
-    if (!attached) {
-      // try to install wrapper now; retry a few times if node not ready yet
-      let wtries = 0;
-      const ensure = () => {
-        if (installWrapper()) return;
-        if (++wtries < 60) setTimeout(ensure, 500);
-      };
-      ensure();
-
-      // Prometheus text endpoint
-      app.get('/__void/metrics/tx-actual.prom', (_req:any, res:any) => {
-        const lines = [
-          '# HELP void_txs_included_total_actual Count of transactions actually persisted (counter)',
-          '# TYPE void_txs_included_total_actual counter',
-          `void_txs_included_total_actual ${txIncludedTotal}`,
-          '# HELP void_last_block_txs Number of txs in the most recently saved block',
-          '# TYPE void_last_block_txs gauge',
-          `void_last_block_txs ${lastBlockTxs}`,
-        ];
-        res.type('text/plain; version=0.0.4; charset=utf-8').send(lines.join('\n')+'\n');
-      });
-
-      attached = true;
-    }
-  }
-
-  setTimeout(attach, 0);
-})();
-// --- SEALS_EXPORTER_V2_BEGIN --- (additive-only; keeps global app hook intact)
-(() => {
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  const state = { lastNumber: -1, lastTsMs: 0, recent: [] as number[] };
-  function prune(){ const cut = Date.now()-60_000; while(state.recent.length && state.recent[0] < cut) state.recent.shift(); }
-  async function tick(){
-    try{
-      const r = await fetch("http://127.0.0.1:4100/blocks/latest/number.json");
-      if (r.ok){
-        const j:any = await r.json().catch(()=>null);
-        const n = j && typeof j.number === "number" ? j.number : null;
-        if (n!=null && (state.lastNumber===-1 || n>state.lastNumber)){
-          state.lastNumber = n; state.lastTsMs = Date.now(); state.recent.push(state.lastTsMs); prune();
-        } else { prune(); }
-      }
-    } catch {}
-    setTimeout(tick, 1000);
-  }
-  let attached=false, tries=0;
-  (function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get!=="function"){ if(++tries<120) return setTimeout(attach,500); return; }
-    if(attached) return; attached=true;
-    app.get("/metrics/void/seals2", (_req:any, res:any)=>{
-      prune();
-      const rate1m = state.recent.length;
-      const out = [
-        "# HELP void_seal_last_number Latest sealed block number",
-        "# TYPE void_seal_last_number gauge",
-        `void_seal_last_number ${state.lastNumber}`,
-        "# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed",
-        "# TYPE void_seal_last_ts_ms gauge",
-        `void_seal_last_ts_ms ${state.lastTsMs}`,
-        "# HELP void_seal_rate_1m Seals observed in the last 60 seconds",
-        "# TYPE void_seal_rate_1m gauge",
-        `void_seal_rate_1m ${rate1m}`,
-        ""
-      ];
-      res.type("text/plain").send(out.join("\n"));
-    });
-    tick();
-  })();
-})();
-// --- SEALS_EXPORTER_V2_END ---
-// --- SEALS_EXPORTER_ALIAS_BEGIN ---
-(() => {
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-
-  // Recursively remove ANY prior GET handler for /metrics/void/seals (handles nested routers)
-  function scrubSeals(stack){
-    if (!Array.isArray(stack)) return;
-    for (let i = stack.length - 1; i >= 0; i--) {
-      const L:any = stack[i];
-      try {
-        // If this layer has a route with GET and an exact path
-        if (L && L.route && L.route.methods && L.route.methods.get) {
-          const p = L.route.path;
-          if (p === "/metrics/void/seals") { stack.splice(i, 1); continue; }
-        }
-        // If this is a nested router, recurse
-        if (L && L.name === "router" && L.handle && Array.isArray(L.handle.stack)) {
-          // If the regexp string hints at our path, still recurse to be safe
-          const hint = (L.regexp && String(L.regexp)) || "";
-          if (hint.includes("\\/metrics\\/void\\/seals") || true) {
-            scrubSeals(L.handle.stack);
-          }
-        }
-        // As a fallback, check a direct regexp on this layer (some Express versions)
-        const s = (L && L.regexp && String(L.regexp)) || "";
-        if (s.includes("\\/metrics\\/void\\/seals") && L.route && L.route.methods && L.route.methods.get) {
-          stack.splice(i, 1);
-        }
-      } catch(_) {}
-    }
-  }
-
-  let attached=false, tries=0;
-  (function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
-    if (attached) return; attached = true;
-    try { scrubSeals((app as any)._router?.stack); } catch(_) {}
-
-    // Our override: proxy seals2 -> seals
-    app.get("/metrics/void/seals", async (_req:any, res:any) => {
-      try {
-        const r = await fetch("http://127.0.0.1:4100/metrics/void/seals2");
-        const text = await r.text();
-        res.type("text/plain").send(text);
-      } catch {
-        res.type("text/plain").status(500).send("# ERROR: seals2 not available\n");
-      }
-    });
-  })();
-})();
-// --- SEALS_EXPORTER_ALIAS_END ---
-// --- SEALS_EXPORTER_V3_BEGIN ---
-// Self-contained seals exporter.
-// - Polls /head.txt every 1s
-// - Exposes /metrics/void/seals2 and legacy /metrics/void/seals
-// - Scrubs any older handlers that may shadow these routes
-(() => {
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-
-  const state = { lastNumber: -1, lastTsMs: 0, recent: [] as number[] };
-  function prune(){ const cut = Date.now() - 60_000; while (state.recent.length && state.recent[0] < cut) state.recent.shift(); }
-
-  async function poll(){
-    try {
-      const r = await fetch("http://127.0.0.1:4100/head.txt");
-      if (r.ok) {
-        const txt = (await r.text()).trim();
-        const n = Number.parseInt(txt, 10);
-        if (Number.isFinite(n) && (state.lastNumber === -1 || n > state.lastNumber)) {
-          state.lastNumber = n;
-          state.lastTsMs = Date.now();
-          state.recent.push(state.lastTsMs);
-        }
-      }
-    } catch {}
-    prune();
-    setTimeout(poll, 1000);
-  }
-
-  function scrubPaths(app:any, paths:string[]){
-    try {
-      const scrub = (stack:any[]) => {
-        if (!Array.isArray(stack)) return;
-        for (let i = stack.length - 1; i >= 0; i--) {
-          const L:any = stack[i];
-          try {
-            // direct route
-            if (L && L.route && L.route.methods && L.route.methods.get) {
-              const p = L.route.path;
-              if (paths.includes(p)) { stack.splice(i,1); continue; }
-            }
-            // nested router
-            if (L && L.name === "router" && L.handle && Array.isArray(L.handle.stack)) {
-              scrub(L.handle.stack);
-            }
-            // some express variants expose a regexp hint
-            const s = (L && L.regexp && String(L.regexp)) || "";
-            if (paths.some(p => s.includes(p.replaceAll("/","\\/"))) && L.route && L.route.methods && L.route.methods.get) {
-              stack.splice(i,1);
-            }
-          } catch {}
-        }
-      };
-      scrub((app as any)._router?.stack);
-    } catch {}
-  }
-
-  function metricsText(){
-    prune();
-    const rate1m = state.recent.length;
-    return [
-      "# HELP void_seal_last_number Latest sealed block number",
-      "# TYPE void_seal_last_number gauge",
-      "void_seal_last_number " + state.lastNumber,
-      "# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed",
-      "# TYPE void_seal_last_ts_ms gauge",
-      "void_seal_last_ts_ms " + state.lastTsMs,
-      "# HELP void_seal_rate_1m Seals observed in the last 60 seconds",
-      "# TYPE void_seal_rate_1m gauge",
-      "void_seal_rate_1m " + rate1m
-    ].join("\n");
-  }
-
-  let attached=false, tries=0;
-  (function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
-    if (attached) return; attached=true;
-
-    // ensure nothing shadows our paths, then mount both
-    scrubPaths(app, ["/metrics/void/seals", "/metrics/void/seals2"]);
-    app.get("/metrics/void/seals2", (_req:any, res:any) => res.type("text/plain").send(metricsText()));
-    app.get("/metrics/void/seals",  (_req:any, res:any) => res.type("text/plain").send(metricsText()));
-
-    // start polling
-    poll();
-
-    // safety: re-scrub a bit later in case other code adds handlers after us
-    setTimeout(() => { try { scrubPaths(app, ["/metrics/void/seals", "/metrics/void/seals2"]); } catch {} }, 3000);
-  })();
-})();
-// --- SEALS_EXPORTER_V3_END ---
-// --- SEALS_V3_DIAG_BEGIN ---
-// Diagnostics + self-healing remounter for seals exporter.
-(() => {
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  // Try to discover an Express app object hanging around
-  function getRouterStack(app:any){ return (app && (app as any)._router && Array.isArray((app as any)._router.stack)) ? (app as any)._router.stack : null; }
-
-  // Reuse V3 state if present (from the exporter), else create a stub we can fill
-  const g:any = (globalThis as any);
-  g.__void_seals_state = g.__void_seals_state || { lastNumber: -1, lastTsMs: 0, recent: [] as number[] };
-  const state = g.__void_seals_state;
-
-  function rate1m(){ const cut = Date.now()-60_000; return state.recent.filter((t:number)=>t>=cut).length; }
-
-  function scrubSeals(stack:any[]){
-    if (!Array.isArray(stack)) return 0;
-    let removed = 0;
-    for (let i = stack.length - 1; i >= 0; i--) {
-      const L:any = stack[i];
-      try {
-        if (L && L.route && L.route.methods && L.route.methods.get) {
-          const p = L.route.path;
-          if (p === "/metrics/void/seals" || p === "/metrics/void/seals2") { stack.splice(i, 1); removed++; continue; }
-        }
-        if (L && L.name === "router" && L.handle && Array.isArray(L.handle.stack)) {
-          removed += scrubSeals(L.handle.stack);
-        }
-        const s = (L && L.regexp && String(L.regexp)) || "";
-        if (s.includes("\\/metrics\\/void\\/seals")) { stack.splice(i, 1); removed++; }
-        if (s.includes("\\/metrics\\/void\\/seals2")) { stack.splice(i, 1); removed++; }
-      } catch {}
-    }
-    return removed;
-  }
-
-  function attachSeals(app:any){
-    // mount both handlers
-    const handler = (_req:any, res:any) => {
-      const lines = [
-        "# HELP void_seal_last_number Latest sealed block number",
-        "# TYPE void_seal_last_number gauge",
-        `void_seal_last_number ${state.lastNumber}`,
-        "# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed",
-        "# TYPE void_seal_last_ts_ms gauge",
-        `void_seal_last_ts_ms ${state.lastTsMs}`,
-        "# HELP void_seal_rate_1m Seals observed in the last 60 seconds",
-        "# TYPE void_seal_rate_1m gauge",
-        `void_seal_rate_1m ${rate1m()}`
-      ];
-      res.type("text/plain").send(lines.join("\n"));
-    };
-    app.get("/metrics/void/seals2", handler);
-    app.get("/metrics/void/seals",  handler);
-  }
-
-  function mounted(app:any){
-    try {
-      const st = getRouterStack(app) || [];
-      const names = new Set<string>();
-      for (const L of st) {
-        if (L && L.route && L.route.path && L.route.methods && L.route.methods.get) names.add(L.route.path);
-      }
-      return {
-        seals:  names.has("/metrics/void/seals"),
-        seals2: names.has("/metrics/void/seals2"),
-      };
-    } catch { return { seals:false, seals2:false }; }
-  }
-
-  let tries = 0, attached = false;
-  (function boot(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") { if (++tries < 200) return setTimeout(boot, 500); return; }
-    if (attached) return; attached = true;
-
-    // diag endpoints
-    app.get("/__void/seals/v3/status", (_req:any, res:any) => {
-      const m = mounted(app);
-      res.json({ mounted: m, lastNumber: state.lastNumber, lastTsMs: state.lastTsMs, rate1m: rate1m(), tries });
-    });
-    app.get("/__void/routes", (_req:any, res:any) => {
-      try {
-        const st = getRouterStack(app) || [];
-        const list: any[] = [];
-        for (const L of st) {
-          if (L && L.route && L.route.path && L.route.methods && L.route.methods.get) list.push(L.route.path);
-        }
-        res.json({ count: list.length, routes: list.slice(0,200) });
-      } catch (e:any) { res.status(500).json({ error: String(e) }); }
-    });
-
-    // initial mount or repair
-    try {
-      const st = getRouterStack(app); if (st) scrubSeals(st);
-      attachSeals(app);
-      console.log("[metrics/seals:v3diag] (re)attached routes /metrics/void/seals{,2}");
-    } catch (e) { console.error("[metrics/seals:v3diag] attach error", e); }
-
-    // self-healing remounter every 5s
-    setInterval(() => {
-      try {
-        const m = mounted(app);
-        if (!m.seals || !m.seals2) {
-          const st = getRouterStack(app); if (st) scrubSeals(st);
-          attachSeals(app);
-          console.log("[metrics/seals:v3diag] self-heal remount fired");
-        }
-      } catch {}
-    }, 5000);
-  })();
-})();
-// --- SEALS_V3_DIAG_END ---
-// --- SEALS_V3_HEADABLE_BEGIN ---
-// Head-derived seals exporter: computes last seal from /blocks/latest/number.
-// No dev shims required. Idempotent re-mount.
+// --- SEALS_V3_BOOTSAFE_BEGIN ---
+// Boot-safe seals exporter (head-derived, no dev shims). Idempotent re-mount.
+// Exposes:
+//   - /metrics/void/seals       (Prometheus text: last_number, last_ts_ms, rate_1m)
+//   - /__void/seals/v3/status   (JSON diag)
 (() => {
   const g:any = (globalThis as any);
   const app:any = g.__void_http_app || g.app;
   if (!app || typeof app.get !== "function") return;
 
-  g.__void_seals_state = g.__void_seals_state || { lastNumber: -1, lastTsMs: 0, recent: [] as number[] };
-  const S:any = g.__void_seals_state;
+  if (g.__void_seals_v3_bootsafe) return; // already mounted
+  g.__void_seals_v3_bootsafe = true;
 
-  async function getLatestNumber(): Promise<number> {
-    try {
-      const port = (process.env.HTTP_PORT || "4100").trim();
-      const url  = `http://127.0.0.1:${port}/blocks/latest/number`;
-      const r = await fetch(url);
-      if (!r.ok) return S.lastNumber;
-      const t = await r.text();
-      const n = parseInt((t||"").trim(), 10);
-      return Number.isFinite(n) ? n : S.lastNumber;
-    } catch {
-      return S.lastNumber;
-    }
-  }
+  const S:any = g.__void_seals_state = g.__void_seals_state || {
+    lastNumber: -1,
+    lastTsMs: 0,
+    recent: [] as number[],
+    polls: 0,
+    lastErr: ""
+  };
 
   function rate1m(): number {
     const cut = Date.now() - 60_000;
@@ -11915,190 +8286,371 @@ void_seal_rate_1m ${rate}
     return S.recent.length;
   }
 
-  // Remove older mounts (if any)
-  try {
-    const stack:any[] = app._router?.stack || [];
-    for (let i = stack.length - 1; i >= 0; i--) {
-      const L:any = stack[i];
-      if (L?.route?.methods?.get && (L.route.path === "/metrics/void/seals" || L.route.path === "/metrics/void/seals2")) {
-        stack.splice(i, 1);
+  async function readLatestNumber(): Promise<number> {
+    // Prefer in-process helpers if present
+    try {
+      const cand = [g.__void_node, g.node, g.__node, g.__VOID_NODE];
+      for (const n of cand) {
+        if (n && typeof n.getHeadNumber === "function") {
+          const nnum = await n.getHeadNumber();
+          if (Number.isFinite(nnum)) return nnum;
+        }
+        if (n && typeof n.headNumber === "number") {
+          const nnum = n.headNumber;
+          if (Number.isFinite(nnum)) return nnum;
+        }
       }
-    }
-  } catch {}
+    } catch {}
 
-  // Mount fresh endpoints that compute from head on-demand
-  async function handleSeals(req:any, res:any) {
-    const before = S.lastNumber;
-    const nowNum = await getLatestNumber();
-    if (Number.isFinite(nowNum) && nowNum > S.lastNumber) {
-      S.lastNumber = nowNum;
-      S.lastTsMs = Date.now();
-      (S.recent = S.recent || []).push(S.lastTsMs);
+    // Fallback: local HTTP (/blocks/latest/number) or /head.txt
+    const port = (process.env.HTTP_PORT || "4100").trim();
+    const base = `http://127.0.0.1:${port}`;
+    try {
+      const r = await fetch(`${base}/blocks/latest/number`);
+      if (r.ok) {
+        const t = (await r.text()).trim();
+        const n = parseInt(t, 10);
+        if (Number.isFinite(n)) return n;
+      }
+    } catch (e:any) {
+      S.lastErr = String(e?.message || e);
     }
-    res.type("text/plain; version=0.0.4");
-    res.end(
-      "# HELP void_seal_last_number Latest sealed block number\n" +
-      "# TYPE void_seal_last_number gauge\n" +
-      `void_seal_last_number ${S.lastNumber}\n\n` +
-      "# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed\n" +
-      "# TYPE void_seal_last_ts_ms gauge\n" +
-      `void_seal_last_ts_ms ${S.lastTsMs}\n\n` +
-      "# HELP void_seal_rate_1m Seals observed in the last 60 seconds\n" +
-      "# TYPE void_seal_rate_1m gauge\n" +
-      `void_seal_rate_1m ${rate1m()}\n`
-    );
+
+    try {
+      const r2 = await fetch(`${base}/head.txt`);
+      if (r2.ok) {
+        const t2 = (await r2.text()).trim();
+        const n2 = parseInt(t2, 10);
+        if (Number.isFinite(n2)) return n2;
+      }
+    } catch (e:any) {
+      S.lastErr = String(e?.message || e);
+    }
+
+    return S.lastNumber;
   }
 
-  app.get("/metrics/void/seals", handleSeals);
-  app.get("/metrics/void/seals2", handleSeals);
-
-  // Small background refresher so rate window advances even if Prom scrape is sparse
-  if (!g.__void_seals_head_timer) {
-    g.__void_seals_head_timer = setInterval(async () => {
-      const n = await getLatestNumber();
+  async function tick() {
+    S.polls++;
+    try {
+      const n = await readLatestNumber();
       if (Number.isFinite(n) && n > S.lastNumber) {
         S.lastNumber = n;
         S.lastTsMs = Date.now();
-        (S.recent = S.recent || []).push(S.lastTsMs);
-      } else {
-        // keep recent window trimmed
-        rate1m();
+        S.recent = Array.isArray(S.recent) ? S.recent : [];
+        S.recent.push(S.lastTsMs);
       }
-    }, 4000);
+    } catch (e:any) {
+      S.lastErr = String(e?.message || e);
+    }
   }
 
-  console.log("[metrics/seals:v3head] exporter bound at /metrics/void/seals{,2} (head-derived)");
+  // Start a single poller (idempotent)
+  if (!g.__void_seals_v3_timer) {
+    g.__void_seals_v3_timer = setInterval(tick, 2000);
+    setTimeout(tick, 250); // first kick shortly after boot
+  }
+
+  // Prom text
+  app.get("/metrics/void/seals", (_req:any, res:any) => {
+    // keep recent window fresh even if Prom is the only traffic
+    rate1m();
+    res.type("text/plain; version=0.0.4");
+    res.send(
+`# HELP void_seal_last_number Latest sealed block number
+# TYPE void_seal_last_number gauge
+void_seal_last_number ${S.lastNumber}
+# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed
+# TYPE void_seal_last_ts_ms gauge
+void_seal_last_ts_ms ${S.lastTsMs}
+# HELP void_seal_rate_1m Seals observed in the last 60 seconds
+# TYPE void_seal_rate_1m gauge
+void_seal_rate_1m ${rate1m()}
+`);
+  });
+
+  // JSON diag
+  app.get("/__void/seals/v3/status", (_req:any, res:any) => {
+    res.json({
+      mounted: { bootsafe: true },
+      lastNumber: S.lastNumber,
+      lastTsMs: S.lastTsMs,
+      rate1m: rate1m(),
+      polls: S.polls,
+      lastErr: S.lastErr || null
+    });
+  });
 })();
-// --- SEALS_V3_HEADABLE_END ---
-// --- SEALS_V3_HEADABLE_V2_BEGIN ---
-// Head-derived seals (v2): prefers in-process head, falls back to local HTTP via node:http.
-// Safe re-mount: removes older /metrics/void/seals{,2} and mounts fresh.
+// --- SEALS_V3_BOOTSAFE_END ---
+// --- SEALS_V3_WATCHDOG_BEGIN ---
+// Seals V3 watchdog: auto-remount /metrics/void/seals and /__void/seals/v3/status
+// if the Express app is replaced or routes disappear.
 (() => {
   const g:any = (globalThis as any);
-  const app:any = g.__void_http_app || g.app;
-  if (!app || typeof app.get !== "function") return;
+  const getApp = () => g.__void_http_app || g.app;
+  const PATH_METRICS = "/metrics/void/seals";
+  const PATH_DIAG    = "/__void/seals/v3/status";
 
-  // Shared state
-  g.__void_seals_state = g.__void_seals_state || { lastNumber: -1, lastTsMs: 0, recent: [] as number[] };
+  // Shared state used by bootsafe block if present; create if missing.
+  g.__void_seals_state = g.__void_seals_state || {
+    lastNumber: -1,
+    lastTsMs: 0,
+    recent: [] as number[],
+    polls: 0,
+    lastErr: ""
+  };
   const S:any = g.__void_seals_state;
 
-  function nowMs(){ return Date.now(); }
   function rate1m(): number {
-    const cut = nowMs() - 60_000;
+    const cut = Date.now() - 60_000;
     S.recent = Array.isArray(S.recent) ? S.recent.filter((t:number)=>t>=cut) : [];
     return S.recent.length;
   }
 
-  // Try to read head number from globals (exposed during boot)
-  function readHeadFromGlobals(): number | null {
+  function hasRoute(app:any, path:string): boolean {
     try {
-      const cand = [
-        (g as any).__void_node,
-        (g as any).node,
-        (g as any).__node,
-        (g as any).__VOID_NODE,
-      ];
+      const st = app?._router?.stack || [];
+      return st.some((l:any) => (l?.route?.path === path) || (l?.regexp && String(l.regexp).includes(path)));
+    } catch { return false; }
+  }
+
+  function mount(app:any) {
+    if (!app || typeof app.get !== "function") return false;
+
+    // (Re)register metrics
+    if (!hasRoute(app, PATH_METRICS)) {
+      app.get(PATH_METRICS, (_req:any, res:any) => {
+        rate1m(); // keep window fresh
+        res.type("text/plain; version=0.0.4");
+        res.send(
+`# HELP void_seal_last_number Latest sealed block number
+# TYPE void_seal_last_number gauge
+void_seal_last_number ${S.lastNumber}
+# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed
+# TYPE void_seal_last_ts_ms gauge
+void_seal_last_ts_ms ${S.lastTsMs}
+# HELP void_seal_rate_1m Seals observed in the last 60 seconds
+# TYPE void_seal_rate_1m gauge
+void_seal_rate_1m ${rate1m()}
+`);
+      });
+    }
+
+    // (Re)register diag
+    if (!hasRoute(app, PATH_DIAG)) {
+      app.get(PATH_DIAG, (_req:any, res:any) => {
+        res.json({
+          mounted: { watchdog: true },
+          lastNumber: S.lastNumber,
+          lastTsMs: S.lastTsMs,
+          rate1m: rate1m(),
+          polls: S.polls,
+          lastErr: S.lastErr || null
+        });
+      });
+    }
+    return true;
+  }
+
+  // Remember last seen app to detect swaps
+  let lastApp:any = null;
+
+  function tickWatchdog() {
+    const app = getApp();
+    if (!app) return;
+    if (app !== lastApp || !hasRoute(app, PATH_METRICS) || !hasRoute(app, PATH_DIAG)) {
+      mount(app);
+      lastApp = app;
+    }
+  }
+
+  // Start watchdog (idempotent)
+  if (!g.__void_seals_watchdog_timer) {
+    g.__void_seals_watchdog_timer = setInterval(tickWatchdog, 1000);
+    setTimeout(tickWatchdog, 200); // early pass
+  }
+})();
+// --- SEALS_V3_WATCHDOG_END ---
+// --- SEALS_V3_POLLER_BEGIN ---
+// Seals V3 poller: updates shared state by reading current head periodically.
+// Works with the watchdog + bootsafe blocks. Idempotent.
+(() => {
+  const g:any = (globalThis as any);
+
+  // Shared state (created if missing)
+  g.__void_seals_state = g.__void_seals_state || {
+    lastNumber: -1,
+    lastTsMs: 0,
+    recent: [] as number[],
+    polls: 0,
+    lastErr: ""
+  };
+  const S:any = g.__void_seals_state;
+
+  // Try several fast/local sources to read the latest head number.
+  async function readHead(): Promise<number> {
+    // 1) In-process globals if present
+    try {
+      const cand = [g.__void_node, g.node, g.__node, g.__VOID_NODE];
       for (const n of cand) {
         if (!n) continue;
-        // Common shapes we’ve used:
-        const h1 = n?.store?.heads?.head;
-        if (Number.isFinite(h1)) return Number(h1);
-        const h2 = n?.heads?.head;
-        if (Number.isFinite(h2)) return Number(h2);
-        const h3 = typeof n?.getHead === "function" ? n.getHead() : undefined;
-        if (Number.isFinite(h3)) return Number(h3);
-        const h4 = n?.head;
-        if (Number.isFinite(h4)) return Number(h4);
+        // common shapes we've used:
+        //   n.headNumber  OR  n.head?.number  OR  n.store?.heads?.head
+        const v = (n.headNumber ?? n.head?.number ?? n.store?.heads?.head);
+        if (Number.isFinite(v)) return v;
       }
     } catch {}
-    return null;
+
+    // 2) Lightweight local HTTP: /head.txt -> /blocks/latest/number
+    const port = (process.env.HTTP_PORT || "4100").trim();
+    const tryFetchNum = async (url:string) => {
+      const r = await fetch(url).catch(()=>null);
+      if (!r || !r.ok) return null;
+      const t = await r.text();
+      const n = parseInt((t||"").trim(), 10);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const a = await tryFetchNum(`http://127.0.0.1:${port}/head.txt`);
+    if (a !== null) return a;
+
+    const b = await tryFetchNum(`http://127.0.0.1:${port}/blocks/latest/number`);
+    if (b !== null) return b;
+
+    return S.lastNumber; // fallback (no change)
   }
 
-  // Fallback: read via local HTTP using node:http (no fetch required)
-  async function readHeadViaHttp(): Promise<number | null> {
+  function trimRecent(now:number) {
+    const cut = now - 60_000;
+    S.recent = Array.isArray(S.recent) ? S.recent.filter((t:number)=>t>=cut) : [];
+  }
+
+  async function tick() {
+    S.polls = (S.polls|0) + 1;
+    try {
+      const n = await readHead();
+      if (Number.isFinite(n) && n > S.lastNumber) {
+        const now = Date.now();
+        S.lastNumber = n;
+        S.lastTsMs   = now;
+        trimRecent(now);
+        S.recent.push(now);
+        if (S.recent.length > 600) S.recent.splice(0, S.recent.length - 600); // cap
+        S.lastErr = "";
+      }
+    } catch (e:any) {
+      S.lastErr = (e?.message || String(e)).slice(0, 200);
+    }
+  }
+
+  if (!g.__void_seals_poller_timer) {
+    // quick priming passes, then steady every 1s
+    tick(); setTimeout(tick, 200); setTimeout(tick, 800);
+    g.__void_seals_poller_timer = setInterval(tick, 1000);
+  }
+})();
+// --- SEALS_V3_POLLER_END ---
+// --- SEALS_V3_HEARTBEAT_FIX_BEGIN ---
+// Seals v3 heartbeat: minimal poller that updates lastTsMs when head advances.
+// Safe to coexist with the main poller; does nothing if already running.
+(() => {
+  const g:any = (globalThis as any);
+  if (g.__void_seals_v3_heartbeat) return;
+  g.__void_seals_v3_heartbeat = true;
+
+  // Shared state with bootsafe/watchdog/poller
+  g.__void_seals_state = g.__void_seals_state || {
+    lastNumber: -1, lastTsMs: 0, recent: [] as number[], polls: 0, lastErr: ""
+  };
+  const S:any = g.__void_seals_state;
+
+  async function readHeadNumber(): Promise<number> {
+    try {
+      const cand = [g.__void_node, g.node, g.__node, g.__VOID_NODE];
+      for (const n of cand) {
+        if (!n) continue;
+        const v = (n.headNumber ?? n.head?.number ?? n.store?.heads?.head);
+        if (Number.isFinite(v)) return v;
+      }
+    } catch {}
     try {
       const port = (process.env.HTTP_PORT || "4100").trim();
-      const http = await import('node:http');
-      const opts = { hostname: '127.0.0.1', port: Number(port), path: '/blocks/latest/number', method: 'GET' as const };
-      return await new Promise<number | null>((resolve) => {
-        const req = http.request(opts, (res:any) => {
-          if (res.statusCode !== 200) { res.resume(); return resolve(null); }
-          let data = '';
-          res.setEncoding('utf8');
-          res.on('data', (chunk:string)=> data += chunk);
-          res.on('end', ()=>{
-            const n = parseInt((data||'').trim(), 10);
-            resolve(Number.isFinite(n) ? n : null);
-          });
-        });
-        req.on('error', ()=> resolve(null));
-        req.end();
-      });
-    } catch { return null; }
+      const tryNum = async (u:string) => {
+        const r = await fetch(u).catch(()=>null); if (!r?.ok) return NaN;
+        const t = (await r.text()).trim(); const n = parseInt(t, 10);
+        return Number.isFinite(n) ? n : NaN;
+      };
+      let n = await tryNum(`http://127.0.0.1:${port}/head.txt`);
+      if (!Number.isFinite(n)) n = await tryNum(`http://127.0.0.1:${port}/blocks/latest/number`);
+      return Number.isFinite(n) ? n : S.lastNumber;
+    } catch { return S.lastNumber; }
   }
 
-  async function getLatestNumber(): Promise<number> {
-    // Try globals first
-    const gHead = readHeadFromGlobals();
-    if (Number.isFinite(gHead)) return Number(gHead);
-    // Fallback to HTTP
-    const h = await readHeadViaHttp();
-    return Number.isFinite(h) ? Number(h) : S.lastNumber;
+  function pushRecent(ts:number){ 
+    const cut = Date.now() - 60_000;
+    S.recent = Array.isArray(S.recent) ? S.recent.filter((t:number)=>t>=cut) : [];
+    S.recent.push(ts);
   }
 
-  // Clean older mounts (v1/v2)
-  try {
-    const stack:any[] = app._router?.stack || [];
-    for (let i = stack.length - 1; i >= 0; i--) {
-      const L:any = stack[i];
-      if (L?.route?.methods?.get && (L.route.path === "/metrics/void/seals" || L.route.path === "/metrics/void/seals2")) {
-        stack.splice(i, 1);
+  async function tick(){
+    try {
+      const n = await readHeadNumber();
+      S.polls = (S.polls|0) + 1;
+      if (Number.isFinite(n) && n >= 0 && n !== S.lastNumber) {
+        S.lastNumber = n;
+        S.lastTsMs = Date.now();
+        pushRecent(S.lastTsMs);
       }
-    }
-  } catch {}
-
-  async function handleSeals(req:any, res:any) {
-    const latest = await getLatestNumber();
-    if (Number.isFinite(latest) && latest > S.lastNumber) {
-      S.lastNumber = latest;
-      S.lastTsMs = nowMs();
-      (S.recent = S.recent || []).push(S.lastTsMs);
-    } else {
-      // keep 1m window trimmed so rate is accurate
-      rate1m();
-    }
-
-    res.type("text/plain; version=0.0.4");
-    res.end(
-      "# HELP void_seal_last_number Latest sealed block number\n" +
-      "# TYPE void_seal_last_number gauge\n" +
-      `void_seal_last_number ${S.lastNumber}\n\n` +
-      "# HELP void_seal_last_ts_ms Timestamp (ms) of last seal observed\n" +
-      "# TYPE void_seal_last_ts_ms gauge\n" +
-      `void_seal_last_ts_ms ${S.lastTsMs}\n\n` +
-      "# HELP void_seal_rate_1m Seals observed in the last 60 seconds\n" +
-      "# TYPE void_seal_rate_1m gauge\n" +
-      `void_seal_rate_1m ${rate1m()}\n`
-    );
+    } catch(e:any){ S.lastErr = String(e?.message||e); }
   }
 
-  app.get("/metrics/void/seals", handleSeals);
-  app.get("/metrics/void/seals2", handleSeals);
-
-  // Background refresher so the 1m window advances between scrapes
-  if (!g.__void_seals_head_timer_v2) {
-    g.__void_seals_head_timer_v2 = setInterval(async () => {
-      const latest = await getLatestNumber();
-      if (Number.isFinite(latest) && latest > S.lastNumber) {
-        S.lastNumber = latest;
-        S.lastTsMs = nowMs();
-        (S.recent = S.recent || []).push(S.lastTsMs);
-      } else {
-        rate1m();
-      }
-    }, 4000);
-  }
-
-  console.log("[metrics/seals:v3head-v2] exporter bound at /metrics/void/seals{,2} (globals->http fallback)");
+  // Start fast at boot, then steady every 5s
+  tick();
+  setInterval(tick, 5000).unref?.();
 })();
-// --- SEALS_V3_HEADABLE_V2_END ---
+/// --- SEALS_V3_HEARTBEAT_FIX_END ---
+// --- SEALS_V3_HEALTH_WATCHDOG_BEGIN ---
+// Watches the Express app and (re)mounts /metrics/void/seals/health reliably.
+(() => {
+  const g:any = (globalThis as any);
+  const getApp = () => g.__void_http_app || g.app;
+  const PATH_HEALTH = "/metrics/void/seals/health";
+
+  // Share state with seals v3 blocks
+  g.__void_seals_state = g.__void_seals_state || {
+    lastNumber: -1, lastTsMs: 0, recent: [] as number[], polls: 0, lastErr: ""
+  };
+  const S:any = g.__void_seals_state;
+
+  function hasRoute(app:any, path:string): boolean {
+    try {
+      const st = app?._router?.stack || [];
+      return st.some((l:any) => (l?.route?.path === path) || (l?.regexp && String(l.regexp).includes(path)));
+    } catch { return false; }
+  }
+
+  function mount(app:any){
+    if (!app || typeof app.get !== "function") return false;
+    if (hasRoute(app, PATH_HEALTH)) return true;
+
+    app.get(PATH_HEALTH, (req:any, res:any) => {
+      const fresh = Number.isFinite(S.lastTsMs) ? (Date.now() - S.lastTsMs < 120_000) : false;
+      const ok = (S.lastNumber>=0) && fresh;
+      if ((req.query?.format||"") === "prom") {
+        res.type("text/plain").send(
+          "# HELP void_seals_health 1=healthy, 0=stalled\n" +
+          "# TYPE void_seals_health gauge\n" +
+          `void_seals_health ${ok?1:0}\n`
+        );
+      } else {
+        res.json({ ok, lastNumber:S.lastNumber??-1, lastTsMs:S.lastTsMs??0 });
+      }
+    });
+    return true;
+  }
+
+  // Try now, then keep it alive
+  mount(getApp());
+  setInterval(() => { mount(getApp()); }, 2000);
+})();
+/// --- SEALS_V3_HEALTH_WATCHDOG_END ---
