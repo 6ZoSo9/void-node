@@ -10833,7 +10833,9 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
       // @ts-ignore
       if (typeof require === "function") {
         // @ts-ignore
-        const { createHash } = require("node:crypto");
+
+        // [JUNK-LEGACY] const { createHash } = require("node:crypto");
+        const createHash = await (globalThis as any).__void_getCreateHash();
         return createHash;
       }
     } catch {}
