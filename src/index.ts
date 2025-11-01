@@ -178,6 +178,27 @@ console.log("[shim] published global node (post-construct)");
   const app = express();
  (globalThis as any).__void_http_app = app; // dev-safe-bundle hook
 
+// --- summary exporter (Prom text) ---
+(function summaryExporter(){
+  const app:any = (globalThis as any).__void_http_app;
+  if (!app || app.__void_summary_bound) return; app.__void_summary_bound=true;
+  app.get("/__void/summary.prom", async (_req:any, res:any)=>{
+    try {
+      const ts = Date.now();
+      const headTxt = await fetch("http://127.0.0.1:"+process.env.HTTP_PORT+"/blocks/latest/number").then(r=>r.text()).catch(()=>"-1");
+      const head = Number(headTxt)||-1;
+      res.type("text/plain").send([
+        "# HELP void_head_number Latest known head",
+        "# TYPE void_head_number gauge",
+        `void_head_number ${head}`,
+        "# HELP void_summary_timestamp_ms Exporter ts",
+        "# TYPE void_summary_timestamp_ms gauge",
+        `void_summary_timestamp_ms ${ts}`
+      ].join("\n"));
+    } catch(e){ res.type("text/plain").send("void_head_number -1\n"); }
+  });
+})();
+
 // [ADD] Object.prototype.filter shim v3 (self-contained, last-writer-wins)
 ;(function(){
   try{
