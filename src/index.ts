@@ -10797,7 +10797,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
       if(!okSeen) reasons.push("no_lastmile_seen");
       if(!okLive) reasons.push("txroot_live!=1");
       if(okHead && okSeen && gap>10) reasons.push(`gap>10 (gap=${gap})`);
-      res.json({ready: reasons.length===0, head: okHead?head:null, lastmile_seen: okSeen?seen:null, gap, txroot_live: okLive?1:0, reasons});
+      res.json({ready: reasons.length===0, head: okHead?head:null, lastmile_seen: okSeen?seen:null, gap: (typeof gap_clamped!=="undefined"? gap_clamped : Math.max(0,(gap ?? -1))), txroot_live: okLive?1:0, reasons});
     });
 
     app.get("/__void/ready.prom", async (_req,res)=>{
@@ -10811,7 +10811,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
         `void_ready ${ready?1:0}\n` +
         `# HELP void_ready_gap Head minus lastmile_seen (blocks)\n` +
         `# TYPE void_ready_gap gauge\n` +
-        `void_ready_gap ${gap_clamped}\n`
+        `void_ready_gap ${(typeof gap_clamped!=="undefined"?gap_clamped:Math.max(0,(typeof gap!=="undefined"?gap:-1)))}\n`
       );
     });
 
