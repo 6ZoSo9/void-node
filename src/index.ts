@@ -13706,3 +13706,112 @@ void_header3_last_mismatch ${lastMismatch}
 
   ensure();
 })();
+// -------- txRoot Header Setter — prototype patch (additive, idempotent) -------
+(function txrootHeaderSetterProtoV5(){
+  const TICK = 400;
+  let installed = false;
+
+  function getG(){ return (globalThis as any); }
+  function getApp(){ const g=getG(); return g.__void_http_app || g.app || undefined; }
+
+  async function ensure(){
+    if (installed) return;
+    try{
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") return void setTimeout(ensure, TICK);
+
+      // Import SegStore and txroot helper from compiled paths
+      const [{ SegStore }, { txroot }] = await Promise.all([
+        import("./chain/seg_store.js"),
+        import("./util/txroot.js"),
+      ]);
+
+      const G = getG();
+      // Reuse your existing metrics object if present; else create it
+      const M = (G.__void_txroot_header_metrics ||= {
+        set_total: 0,
+        mismatch_total: 0,
+        errors_total: 0,
+        last_set_block: -1,
+        heartbeat_total: 0,
+      });
+
+      // Heartbeat endpoint was already present in your exporter; keep it ticking
+      if (!(app as any).__void_txroot_header_exporter_v5){
+        (app as any).__void_txroot_header_exporter_v5 = true;
+        // Keep your existing metric names
+        app.get("/__void/metrics/txroot4/setter.prom", (_req:any, res:any)=>{
+          res.type("text/plain; version=0.0.4");
+          res.write("# HELP void_txroot_header_set_total Header txRoot sets performed\n");
+          res.write("# TYPE void_txroot_header_set_total counter\n");
+          res.write(`void_txroot_header_set_total ${M.set_total}\n`);
+          res.write("# HELP void_txroot_header_mismatch_total Header txRoot mismatches detected (pre-normalization)\n");
+          res.write("# TYPE void_txroot_header_mismatch_total counter\n");
+          res.write(`void_txroot_header_mismatch_total ${M.mismatch_total}\n`);
+          res.write("# HELP void_txroot_header_errors_total Errors while setting txRoot\n");
+          res.write("# TYPE void_txroot_header_errors_total counter\n");
+          res.write(`void_txroot_header_errors_total ${M.errors_total}\n`);
+          res.write("# HELP void_txroot_header_last_set_block Last block number where txRoot was set\n");
+          res.write("# TYPE void_txroot_header_last_set_block gauge\n");
+          res.write(`void_txroot_header_last_set_block ${M.last_set_block}\n`);
+          res.write("# HELP void_txroot_header_heartbeat_total Heartbeat to signal liveness of setter\n");
+          res.write("# TYPE void_txroot_header_heartbeat_total counter\n");
+          res.write(`void_txroot_header_heartbeat_total ${++M.heartbeat_total}\n`);
+          res.end();
+        });
+      }
+
+      // Only patch once globally
+      if ((SegStore as any).__void_txroot_proto_patched_v5){ installed = true; return; }
+      (SegStore as any).__void_txroot_proto_patched_v5 = true;
+
+      // Helper to wrap a method if it exists on the prototype
+      function wrap(name:string){
+        const proto:any = (SegStore as any).prototype;
+        if (!proto || typeof proto[name] !== "function") return;
+        const orig = proto[name];
+        if ((orig as any).__void_txroot_wrapped_v5) return;
+
+        const wrapped = async function(this:any, block:any, ...rest:any[]){
+          try{
+            // Some writers might pass header/txs separately; normalize common shapes
+            let b = block;
+            if (!b || typeof b !== "object"){
+              // If signature is (header, txs, ...), try to reconstruct
+              const [a0, a1] = [block, rest?.[0]];
+              if (a0 && typeof a0 === "object" && Array.isArray(a1)){
+                b = { header: a0, txs: a1 };
+              } else {
+                // give up, just call through
+                return await orig.apply(this, [block, ...rest]);
+              }
+            }
+            b.header = b.header || {};
+            const txs = Array.isArray(b.txs) ? b.txs : [];
+            const root = await txroot(txs);
+            if (b.header.txRoot !== root){
+              b.header.txRoot = root;
+              M.set_total++;
+              M.last_set_block = Number(b.number ?? b.header?.number ?? -1);
+            }
+          }catch(e){
+            M.errors_total++;
+            // continue to persist regardless
+          }
+          return await orig.apply(this, [block, ...rest]);
+        };
+        (wrapped as any).__void_txroot_wrapped_v5 = true;
+        proto[name] = wrapped;
+      }
+
+      // Wrap likely persistence paths
+      ["saveBlock","appendBlock","writeBlock","persistBlock"].forEach(wrap);
+
+      installed = true;
+    }catch(_e){
+      return void setTimeout(ensure, TICK);
+    }
+  }
+
+  ensure();
+})();
