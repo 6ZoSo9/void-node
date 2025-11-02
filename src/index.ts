@@ -14472,3 +14472,176 @@ void_header3_last_mismatch ${lastMismatch}
   tick();
   observeHeadTick();
 })();
+// ===== txroot forensics: descriptor-guard v4 (owns saveBlock assignment) =====
+(function txrootForensicsDescriptorV4(){
+  const g:any = globalThis as any;
+  const SYM = Symbol.for('__void_forensics_v4');
+  const STATE = g.__void_txroot_forensic_state_v3 || (g.__void_txroot_forensic_state_v3 = {
+    calls_total: 0,
+    last_kind: 'unknown',
+    last_shape: 'n/a',
+    last_number: -1,
+    last_duration_ms: 0,
+    observed_saves_total: (g.__void_txroot_forensic_state_v3?.observed_saves_total ?? 0),
+    observed_last_head: (g.__void_txroot_forensic_state_v3?.observed_last_head ?? -1),
+  });
+  const META = g.__void_txroot_forensic_meta_v4 || (g.__void_txroot_forensic_meta_v4 = {
+    wraps_total: 0,
+    binds_total: 0,
+    last_bind_ms: 0,
+    last_set_ms: 0,
+    last_probe_err: '',
+    route_mounted: false,
+  });
+
+  function wrap(fn:any){
+    if (typeof fn !== 'function') return fn;
+    if ((fn as any)[SYM]) return fn;
+    const wrapped = function(this:any, ...args:any[]){
+      const t0 = Date.now();
+      STATE.calls_total++;
+      const a0 = args[0];
+      if (Array.isArray(a0)) {
+        STATE.last_kind = 'array';
+        STATE.last_shape = `len=${a0.length}; keys=${Object.keys(a0[0]||{}).slice(0,8).join(',')}`;
+        if (a0?.[0]?.number >= 0) STATE.last_number = a0[0].number;
+      } else if (a0 && typeof a0 === 'object') {
+        STATE.last_kind = 'object';
+        STATE.last_shape = `keys=${Object.keys(a0).slice(0,12).join(',')}`;
+        if (typeof (a0 as any).number === 'number') STATE.last_number = (a0 as any).number;
+      } else {
+        STATE.last_kind = typeof a0; STATE.last_shape = 'n/a';
+      }
+      try {
+        const out = fn.apply(this, args);
+        if (out && typeof out.then === 'function') {
+          return (out as Promise<any>).finally(()=>{ STATE.last_duration_ms = Date.now()-t0; });
+        } else {
+          STATE.last_duration_ms = Date.now()-t0; return out;
+        }
+      } catch(e){ STATE.last_duration_ms = Date.now()-t0; throw e; }
+    };
+    Object.defineProperty(wrapped, SYM, { value: true });
+    META.wraps_total++; META.last_bind_ms = Date.now();
+    return wrapped;
+  }
+
+  // Install a property descriptor so ANY later assignment becomes wrapped.
+  function guardSaveBlockOn(obj:any, key='saveBlock'){
+    if (!obj) return false;
+    try {
+      const desc = Object.getOwnPropertyDescriptor(obj, key);
+      // If accessor already present, leave it (someone else owns assignment).
+      if (desc && (desc.get || desc.set)) return false;
+
+      // capture current
+      let _fn:any = (desc && desc.value) ? desc.value : obj[key];
+      if (typeof _fn === 'function' && !(_fn as any)[SYM]) _fn = wrap(_fn);
+
+      Object.defineProperty(obj, key, {
+        configurable: true,
+        enumerable: false,
+        get(){ return _fn; },
+        set(v:any){ _fn = (typeof v === 'function') ? wrap(v) : v; META.last_set_ms = Date.now(); },
+      });
+      META.binds_total++; META.last_bind_ms = Date.now();
+      return true;
+    } catch(e:any){ META.last_probe_err = String(e?.message||e); return false; }
+  }
+
+  function mountProtoGuard(){
+    (async ()=>{
+      try {
+        const mod = g.SegStore ? {SegStore:g.SegStore} : await import('./chain/seg_store.js');
+        if (mod?.SegStore?.prototype) {
+          g.SegStore = mod.SegStore;
+          guardSaveBlockOn(mod.SegStore.prototype, 'saveBlock');
+          // Also guard common alternates if they exist
+          for (const alt of ['persistBlock','append','_saveBlock','save']) {
+            if (typeof mod.SegStore.prototype[alt] === 'function') guardSaveBlockOn(mod.SegStore.prototype, alt);
+          }
+        }
+      } catch(e:any){ META.last_probe_err = String(e?.message||e); }
+    })();
+  }
+
+  function mountInstanceGuards(){
+    // scan globals for live stores and guard them too
+    try {
+      const seen = new Set<any>();
+      for (const k of Object.keys(g)) {
+        const v = (g as any)[k];
+        if (v && v.store && typeof v.store === 'object' && !seen.has(v.store)) {
+          seen.add(v.store);
+          guardSaveBlockOn(v.store, 'saveBlock');
+          for (const alt of ['persistBlock','append','_saveBlock','save']) {
+            if (typeof (v.store as any)[alt] === 'function') guardSaveBlockOn(v.store, alt);
+          }
+        }
+      }
+    } catch(e:any){ META.last_probe_err = String(e?.message||e); }
+  }
+
+  function route(){
+    if (META.route_mounted) return;
+    const app:any = g.__void_http_app || g.app;
+    if (!app || typeof app.get !== 'function') return;
+    META.route_mounted = true;
+    app.get('/__void/metrics/txroot4/forensics.prom', (_req:any, res:any)=>{
+      res.type('text/plain; version=0.0.4; charset=utf-8').end([
+        '# HELP void_txroot_forensics_calls_total saveBlock calls observed (wrapper)',
+        '# TYPE void_txroot_forensics_calls_total counter',
+        `void_txroot_forensics_calls_total ${STATE.calls_total}`,
+        '# HELP void_txroot_forensics_wraps_total wrap() applications',
+        '# TYPE void_txroot_forensics_wraps_total counter',
+        `void_txroot_forensics_wraps_total ${META.wraps_total}`,
+        '# HELP void_txroot_forensics_binds_total descriptor binds',
+        '# TYPE void_txroot_forensics_binds_total counter',
+        `void_txroot_forensics_binds_total ${META.binds_total}`,
+        '# HELP void_txroot_forensics_last_bind_ms epoch ms of last bind',
+        '# TYPE void_txroot_forensics_last_bind_ms gauge',
+        `void_txroot_forensics_last_bind_ms ${META.last_bind_ms||0}`,
+        '# HELP void_txroot_forensics_last_set_ms epoch ms of last set()',
+        '# TYPE void_txroot_forensics_last_set_ms gauge',
+        `void_txroot_forensics_last_set_ms ${META.last_set_ms||0}`,
+        '# HELP void_txroot_forensics_last_info last arg sketch',
+        '# TYPE void_txroot_forensics_last_info gauge',
+        `void_txroot_forensics_last_info{kind="${STATE.last_kind}",shape="${String(STATE.last_shape).replace(/"/g,'\\\"')}",number="${STATE.last_number}",duration_ms="${STATE.last_duration_ms}"} 1`,
+        '# HELP void_txroot_forensics_observed_saves_total inferred saves by head advance',
+        '# TYPE void_txroot_forensics_observed_saves_total counter',
+        `void_txroot_forensics_observed_saves_total ${STATE.observed_saves_total}`,
+        '# HELP void_txroot_forensics_last_probe_error last probe error (1=has error)',
+        '# TYPE void_txroot_forensics_last_probe_error gauge',
+        `void_txroot_forensics_last_probe_error ${META.last_probe_err ? 1 : 0}`,
+      ].join('\n')+'\n');
+    });
+  }
+
+  // Head observer (fallback stays as in v3)
+  async function observeHeadTick(){
+    try {
+      const base = 'http://127.0.0.1:'+ (process.env.HTTP_PORT || '4100');
+      const res = await fetch(base + '/blocks/latest/number2.json').catch(()=>null);
+      if (res?.ok) {
+        const j = await res.json().catch(()=>null);
+        const n = (j && typeof j.number === 'number') ? j.number : -1;
+        if (n >= 0 && n > STATE.observed_last_head) {
+          if (STATE.observed_last_head >= 0) STATE.observed_saves_total += (n - STATE.observed_last_head);
+          STATE.observed_last_head = n;
+        }
+        META.last_probe_err = '';
+      }
+    } catch(e:any){ META.last_probe_err = String(e?.message||e); }
+    setTimeout(observeHeadTick, 1000);
+  }
+
+  function tick(){
+    route();
+    mountProtoGuard();
+    mountInstanceGuards();
+    setTimeout(tick, 250); // keep owning any late reassignments
+  }
+
+  tick();
+  observeHeadTick();
+})();
