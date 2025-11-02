@@ -158,6 +158,17 @@ prom-warn-wait-test:
 	@./ops/prom-alert-wait.sh VoidSnapshotStaleTEST
 prom-crit-wait-test:
 	@./ops/prom-alert-wait.sh VoidSnapshotVeryStaleTEST
+
+prom-test-remove:
+	@sudo rm -f /etc/prometheus/alerts/void-snapshot-age-TEST.yml || true
+
+prom-test-reload:
+	@curl -fsS -X POST 127.0.0.1:9090/-/reload >/dev/null && echo reloaded
+.PHONY: prom-test-install
+prom-test-install:
+	@tmp="$$(mktemp)"; \
+	printf '%s\n' \
+'groups:' \
 '- name: void-snapshot-age-TEST' \
 '  interval: 5s' \
 '  rules:' \
@@ -174,14 +185,3 @@ prom-crit-wait-test:
 	> "$$tmp"; \
 	sudo mv "$$tmp" /etc/prometheus/alerts/void-snapshot-age-TEST.yml; \
 	sudo promtool check rules /etc/prometheus/alerts/void-snapshot-age-TEST.yml
-
-'    annotations: {summary: "TEST CRIT", description: "Age >3m (TEST)"}' \
-	> "$$tmp"; \
-	sudo mv "$$tmp" /etc/prometheus/alerts/void-snapshot-age-TEST.yml; \
-	sudo promtool check rules /etc/prometheus/alerts/void-snapshot-age-TEST.yml
-
-prom-test-remove:
-	@sudo rm -f /etc/prometheus/alerts/void-snapshot-age-TEST.yml || true
-
-prom-test-reload:
-	@curl -fsS -X POST 127.0.0.1:9090/-/reload >/dev/null && echo reloaded
