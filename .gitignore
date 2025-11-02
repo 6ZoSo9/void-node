@@ -24,3 +24,7 @@ src/index.ts.*.bak
 *.tmp
 *wallet*.json
 *.bak.*
+
+# local big backups
+*.bak
+
