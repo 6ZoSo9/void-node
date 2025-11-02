@@ -13925,3 +13925,154 @@ void_header3_last_mismatch ${lastMismatch}
   });
   start();
 })();
+// ---------------- txroot forensics + observer (pure-additive) -----------------
+(function txrootForensicsAndObserver(){
+  const TICK = 1000;
+
+  // lazy app getter (keeps our additive pattern)
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  // Shared state
+  const forensic = {
+    calls_total: 0,
+    last_kind: 'unknown',      // 'object' | 'array' | 'other'
+    last_shape: 'n/a',         // field summary or array length
+    last_number: -1,
+    last_duration_ms: 0
+  };
+
+  // Try to hook saveBlock just to inspect arguments (no behavior change)
+  (function hookSaveBlockForShape(){
+    try {
+      const SegStore = (globalThis as any).SegStore || require('./chain/seg_store.js').SegStore;
+      if (!SegStore || !SegStore.prototype || (SegStore.prototype as any).__void_forensics_hooked) return;
+      const orig = SegStore.prototype.saveBlock;
+      if (typeof orig !== 'function') return;
+
+      (SegStore.prototype as any).__void_forensics_hooked = true;
+      SegStore.prototype.saveBlock = async function(...args:any[]){
+        const t0 = Date.now();
+        forensic.calls_total++;
+        const a0 = args[0];
+        if (Array.isArray(a0)) {
+          forensic.last_kind = 'array';
+          forensic.last_shape = `len=${a0.length}; keys=${Object.keys(a0[0]||{}).slice(0,8).join(',')}`;
+          forensic.last_number = (a0[0] && typeof a0[0].number==='number') ? a0[0].number : forensic.last_number;
+        } else if (a0 && typeof a0 === 'object') {
+          forensic.last_kind = 'object';
+          forensic.last_shape = `keys=${Object.keys(a0).slice(0,12).join(',')}`;
+          forensic.last_number = (typeof (a0 as any).number === 'number') ? (a0 as any).number : forensic.last_number;
+        } else {
+          forensic.last_kind = 'other';
+          forensic.last_shape = typeof a0;
+        }
+        try {
+          // Do the real work
+          const ret = await orig.apply(this, args);
+          forensic.last_duration_ms = Date.now() - t0;
+          return ret;
+        } catch (e) {
+          forensic.last_duration_ms = Date.now() - t0;
+          throw e;
+        }
+      };
+      console.log('[txroot/forensics] saveBlock shape wrapper installed');
+    } catch (e) {
+      console.log('[txroot/forensics] wrapper install failed:', (e as any)?.message || e);
+    }
+  })();
+
+  // Mount /__void/metrics/txroot4/forensics.prom
+  (function mountForensicsRoute(){
+    function attach(){
+      const app:any = getApp();
+      if (!app || typeof app.get!=='function') return setTimeout(attach, TICK);
+      if ((app as any).__void_forensics_prom_mounted) return;
+      (app as any).__void_forensics_prom_mounted = true;
+
+      app.get('/__void/metrics/txroot4/forensics.prom', (_req:any, res:any)=>{
+        res.type('text/plain; version=0.0.4; charset=utf-8');
+        res.end([
+          '# HELP void_txroot_forensics_calls_total saveBlock calls observed',
+          '# TYPE void_txroot_forensics_calls_total counter',
+          `void_txroot_forensics_calls_total ${forensic.calls_total}`,
+          '# HELP void_txroot_forensics_last_info last observed arg-shape/kind/number/duration',
+          '# TYPE void_txroot_forensics_last_info gauge',
+          `void_txroot_forensics_last_info{kind="${forensic.last_kind}",shape="${forensic.last_shape.replace(/"/g,'\\\"')}",number="${forensic.last_number}",duration_ms="${forensic.last_duration_ms}"} 1`
+        ].join('\n') + '\n');
+      });
+      console.log('[txroot/forensics] metrics at /__void/metrics/txroot4/forensics.prom');
+    }
+    attach();
+  })();
+
+  // ---------------- Observer: treat "header3==dev-root" per new block as a set ----------------
+  const obs = {
+    last_seen: -1,
+    seen_blocks_total: 0,
+    sets_total: 0,
+    mismatches_total: 0,
+  };
+
+  // helper to GET JSON internally using global fetch if available, else node fetch
+  async function fetchJson(url:string){
+    const f = (globalThis as any).fetch || require('node-fetch');
+    const r = await f(url);
+    if (!r.ok) throw new Error(`fetch ${url} -> ${r.status}`);
+    return r.json();
+  }
+
+  (function startObserver(){
+    let timer:any;
+    async function tick(){
+      try {
+        const base = `http://127.0.0.1:${process.env.HTTP_PORT || '4100'}`;
+        const latest = await fetchJson(`${base}/blocks/latest/number2.json`);
+        const n = latest?.number;
+        if (typeof n === 'number' && n !== obs.last_seen) {
+          obs.last_seen = n;
+          obs.seen_blocks_total++;
+          const header3 = await fetchJson(`${base}/blocks/${n}/header3`);
+          const dev = await fetchJson(`${base}/dev/txroot/${n}`);
+          const h = header3?.txRoot;
+          const r = dev?.root;
+          if (h && r && typeof h === 'string' && typeof r === 'string' && h.toLowerCase() === r.toLowerCase()) {
+            obs.sets_total++;
+          } else {
+            obs.mismatches_total++;
+          }
+        }
+      } catch (_e) { /* swallow */ }
+      timer = setTimeout(tick, 1000);
+    }
+    tick();
+
+    // mount exporter
+    function attach(){
+      const app:any = getApp();
+      if (!app || typeof app.get!=='function') return setTimeout(attach, TICK);
+      if ((app as any).__void_txroot_observer_prom_mounted) return;
+      (app as any).__void_txroot_observer_prom_mounted = true;
+
+      app.get('/__void/metrics/txroot4/observer.prom', (_req:any, res:any)=>{
+        res.type('text/plain; version=0.0.4; charset=utf-8');
+        res.end([
+          '# HELP void_txroot_observer_seen_blocks_total blocks observed by header==root watcher',
+          '# TYPE void_txroot_observer_seen_blocks_total counter',
+          `void_txroot_observer_seen_blocks_total ${obs.seen_blocks_total}`,
+          '# HELP void_txroot_observer_sets_total inferred sets (header3==dev-root) per new block',
+          '# TYPE void_txroot_observer_sets_total counter',
+          `void_txroot_observer_sets_total ${obs.sets_total}`,
+          '# HELP void_txroot_observer_mismatches_total header!=root cases seen',
+          '# TYPE void_txroot_observer_mismatches_total counter',
+          `void_txroot_observer_mismatches_total ${obs.mismatches_total}`,
+          '# HELP void_txroot_observer_last_block last block observed',
+          '# TYPE void_txroot_observer_last_block gauge',
+          `void_txroot_observer_last_block ${obs.last_seen}`
+        ].join('\n') + '\n');
+      });
+      console.log('[txroot/observer] metrics at /__void/metrics/txroot4/observer.prom');
+    }
+    attach();
+  })();
+})();
