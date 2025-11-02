@@ -17,3 +17,12 @@ jobs:
           ROOTY=$(git ls-files | xargs -I{} bash -c 'test -e "{}" && [ "$(stat -c"%U" "{}")" = "root" ] && echo "{}" || true')
           if [ -n "${ROOTY:-}" ]; then
             echo "Root-owned files:"; echo "$ROOTY"; exit 1; fi
+
+      - name: Guard .RECIPEPREFIX for ops
+        run: |
+          set -euo pipefail
+          if grep -qE '^[[:space:]]*>' Makefile.ops; then
+            grep -q '^[.]RECIPEPREFIX := >' Makefile.ops || { 
+              echo "Missing '.RECIPEPREFIX := >' in Makefile.ops"; exit 1; 
+            }
+          fi
