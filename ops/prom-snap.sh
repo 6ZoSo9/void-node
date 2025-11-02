@@ -23,9 +23,28 @@ do
     | jq . > "$OUT/query.$(echo "$q" | tr ':() ' '____').$TS.json"
 done
 
-# 2) copy live configs without root ownership
-sudo rsync -a --chown="$(id -un)":"$(id -gn)" /etc/prometheus/prometheus.yml "$OUT/"
-sudo rsync -a --chown="$(id -un)":"$(id -gn)" /etc/prometheus/rules.d     "$OUT/"
-sudo rsync -a --chown="$(id -un)":"$(id -gn)" /etc/prometheus/alerts      "$OUT/"
+# 2) copy live configs if readable (non-root timer-safe). Otherwise, try sudo -n, else skip.
+copy_cfg() {
+  local src="$1" dst="$2"
+  if [ -r "$src" ]; then
+    rsync -a "$src" "$dst"/
+    return 0
+  fi
+  if command -v sudo >/dev/null 2>&1; then
+    # Non-interactive; if it fails, we skip without error.
+    sudo -n rsync -a "$src" "$dst"/ 2>/dev/null || return 1
+    return 0
+  fi
+  return 1
+}
+
+mkdir -p "$OUT"
+ok1=skip ok2=skip ok3=skip
+copy_cfg /etc/prometheus/prometheus.yml "$OUT" && ok1=ok
+copy_cfg /etc/prometheus/rules.d        "$OUT" && ok2=ok
+copy_cfg /etc/prometheus/alerts         "$OUT" && ok3=ok
+
+printf 'config copies: prometheus.yml=%s rules.d=%s alerts=%s\n' "$ok1" "$ok2" "$ok3" \
+  | tee "$OUT/copy-status.$TS.txt"
 
 echo "snapshot: $OUT"
