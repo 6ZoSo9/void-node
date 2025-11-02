@@ -111,3 +111,7 @@ help:
 .PHONY: prom-snap-age
 prom-snap-age:
 	sudo ./ops/prom-textfile-snap-age.sh
+.PHONY: prom-poke
+prom-poke:
+	sudo systemctl start void-prom-snap-root.service
+	sudo ./ops/prom-textfile-snap-age.sh
