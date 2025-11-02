@@ -14076,3 +14076,96 @@ void_header3_last_mismatch ${lastMismatch}
     attach();
   })();
 })();
+// -------- txroot forensics: STICKY wrapper so later patches can't overwrite -----
+(function txrootForensicsSticky(){
+  const TICK = 500;
+  const sym = Symbol.for('__void_forensics_wrapped');
+
+  const state = {
+    wraps_total: 0,
+    last_bind_ms: 0,
+  };
+
+  function wrapOnce(fn:any){
+    if (typeof fn !== 'function') return fn;
+    if ((fn as any)[sym]) return fn;
+    const forensic = (globalThis as any).__void_txroot_forensic_state || ((globalThis as any).__void_txroot_forensic_state = {
+      calls_total: 0,
+      last_kind: 'unknown',
+      last_shape: 'n/a',
+      last_number: -1,
+      last_duration_ms: 0,
+    });
+
+    const wrapped = async function(...args:any[]){
+      const t0 = Date.now();
+      forensic.calls_total++;
+      const a0 = args[0];
+      if (Array.isArray(a0)) {
+        forensic.last_kind = 'array';
+        forensic.last_shape = `len=${a0.length}; keys=${Object.keys(a0[0]||{}).slice(0,8).join(',')}`;
+        forensic.last_number = (a0[0] && typeof a0[0].number==='number') ? a0[0].number : forensic.last_number;
+      } else if (a0 && typeof a0 === 'object') {
+        forensic.last_kind = 'object';
+        forensic.last_shape = `keys=${Object.keys(a0).slice(0,12).join(',')}`;
+        forensic.last_number = (typeof (a0 as any).number === 'number') ? (a0 as any).number : forensic.last_number;
+      } else {
+        forensic.last_kind = 'other';
+        forensic.last_shape = typeof a0;
+      }
+      try {
+        const ret = await fn.apply(this, args);
+        forensic.last_duration_ms = Date.now() - t0;
+        return ret;
+      } catch (e) {
+        forensic.last_duration_ms = Date.now() - t0;
+        throw e;
+      }
+    };
+    Object.defineProperty(wrapped, sym, { value: true });
+
+    state.wraps_total++;
+    state.last_bind_ms = Date.now();
+    return wrapped;
+  }
+
+  function stickify(){
+    try{
+      const SegStore = (globalThis as any).SegStore || require('./chain/seg_store.js').SegStore;
+      if (!SegStore || !SegStore.prototype) return setTimeout(stickify, TICK);
+      const cur = SegStore.prototype.saveBlock;
+      const isWrapped = cur && (cur as any)[sym] === true;
+      if (typeof cur === 'function' && !isWrapped){
+        SegStore.prototype.saveBlock = wrapOnce(cur);
+        if (!(globalThis as any).__void_forensics_route_mounted) {
+          // mount/refresh the prom route once (uses shared state on global)
+          const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+          if (app && typeof app.get === 'function') {
+            (globalThis as any).__void_forensics_route_mounted = true;
+            app.get('/__void/metrics/txroot4/forensics.prom', (_req:any, res:any)=>{
+              const f = (globalThis as any).__void_txroot_forensic_state || {calls_total:0,last_kind:'unknown',last_shape:'n/a',last_number:-1,last_duration_ms:0};
+              res.type('text/plain; version=0.0.4; charset=utf-8');
+              res.end([
+                '# HELP void_txroot_forensics_calls_total saveBlock calls observed',
+                '# TYPE void_txroot_forensics_calls_total counter',
+                `void_txroot_forensics_calls_total ${f.calls_total}`,
+                '# HELP void_txroot_forensics_last_info last observed arg-shape/kind/number/duration',
+                '# TYPE void_txroot_forensics_last_info gauge',
+                `void_txroot_forensics_last_info{kind="${f.last_kind}",shape="${String(f.last_shape).replace(/"/g,'\\\"')}",number="${f.last_number}",duration_ms="${f.last_duration_ms}"} 1`,
+                '# HELP void_txroot_forensics_wraps_total times we rebound the wrapper',
+                '# TYPE void_txroot_forensics_wraps_total counter',
+                `void_txroot_forensics_wraps_total ${state.wraps_total}`,
+                '# HELP void_txroot_forensics_last_bind_ms epoch ms of last bind',
+                '# TYPE void_txroot_forensics_last_bind_ms gauge',
+                `void_txroot_forensics_last_bind_ms ${state.last_bind_ms || 0}`
+              ].join('\n') + '\n');
+            });
+            console.log('[txroot/forensics/sticky] route mounted + first bind');
+          }
+        }
+      }
+    } catch(_e){}
+    setTimeout(stickify, TICK);
+  }
+  stickify();
+})();
