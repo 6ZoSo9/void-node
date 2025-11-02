@@ -13625,3 +13625,84 @@ void_header3_last_mismatch ${lastMismatch}
   }
   boot();
 })();
+// ---------------- txRoot Header Setter (additive, safe) -----------------------
+(function txrootHeaderSetterV4(){
+  const TICK=400;
+  let installed=false;
+
+  function getG(){ return (globalThis as any); }
+  function getApp(){
+    const g=getG(); return g.__void_http_app || g.app || undefined;
+  }
+  function getNode(){
+    const g=getG(); return g.__void_node || g.node || g.VOID_NODE || undefined;
+  }
+
+  async function ensure(){
+    if (installed) return;
+    const n:any = getNode(); const app:any = getApp();
+    if (!n || !n.store || typeof n.store.saveBlock !== "function" || !app || typeof app.get!=="function"){
+      return void setTimeout(ensure, TICK);
+    }
+    try {
+      const { txroot } = await import("./util/txroot.js");
+      const orig = n.store.saveBlock.bind(n.store);
+
+      const M = (getG().__void_txroot_setter_metrics ||= {
+        sets_total: 0,
+        errors_total: 0,
+        last_set_block: -1,
+        last_error_ts: -1,
+      });
+
+      // patch only once per process
+      if ((n.store as any).__txroot_setter_patched) { installed = true; wireMetrics(app, M); return; }
+      (n.store as any).__txroot_setter_patched = true;
+
+      n.store.saveBlock = async function wrappedSaveBlock(block:any, ...rest:any[]){
+        try{
+          // compute from in-memory txs if present; fallback empty root for 0 txs
+          const txs = Array.isArray(block?.txs) ? block.txs : [];
+          const root = await txroot(txs);
+          block.header = block.header || {};
+          if (!block.header.txRoot || block.header.txRoot !== root) {
+            block.header.txRoot = root;
+          }
+          M.sets_total++; M.last_set_block = Number(block?.number ?? -1);
+        }catch(e){
+          M.errors_total++; M.last_error_ts = Date.now();
+          // swallow error to not block persistence; we still save the block
+        }
+        return orig(block, ...rest);
+      };
+
+      wireMetrics(app, M);
+      installed = true;
+    } catch (_e) {
+      return void setTimeout(ensure, TICK);
+    }
+  }
+
+  function wireMetrics(app:any, M:any){
+    if ((app as any).__void_txroot_setter_prom_v4) return;
+    (app as any).__void_txroot_setter_prom_v4 = true;
+    app.get("/__void/metrics/txroot4/setter.prom", (_req:any, res:any)=>{
+      res.type("text/plain; version=0.0.4");
+      res.write("# HELP void_block_txroot_set_total Header txRoot sets\n");
+      res.write("# TYPE void_block_txroot_set_total counter\n");
+      res.write(`void_block_txroot_set_total ${M.sets_total}\n`);
+      res.write("# HELP void_block_txroot_set_errors_total Header txRoot set errors\n");
+      res.write("# TYPE void_block_txroot_set_errors_total counter\n");
+      res.write(`void_block_txroot_set_errors_total ${M.errors_total}\n`);
+      res.write("# HELP void_header_last_set_block Last block number where header txRoot was set\n");
+      res.write("# TYPE void_header_last_set_block gauge\n");
+      res.write(`void_header_last_set_block ${M.last_set_block}\n`);
+      res.write("# HELP void_header_last_error_ts_ms Last error timestamp (ms since epoch, -1 if none)\n");
+      res.write("# TYPE void_header_last_error_ts_ms gauge\n");
+      res.write(`void_header_last_error_ts_ms ${M.last_error_ts}\n`);
+      res.end();
+    });
+  }
+
+  ensure();
+})();
