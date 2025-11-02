@@ -90,3 +90,6 @@ prom-backup:
 .PHONY: prom-timer-install
 prom-timer-install:
 	./ops/systemd/install-root-timer.sh
+.PHONY: prom-verify
+prom-verify:
+	sudo ./ops/prom-verify.sh && curl -fsS -X POST http://127.0.0.1:9090/-/reload && echo reloaded
