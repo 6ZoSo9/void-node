@@ -14645,3 +14645,109 @@ void_header3_last_mismatch ${lastMismatch}
   tick();
   observeHeadTick();
 })();
+// ===== txroot forensics: hard trampoline v5 + inspector (additive) =====
+(function txrootForensicsTrampolineV5(){
+  const g:any = globalThis as any;
+  const S = g.__void_txroot_forensic_state_v5 || (g.__void_txroot_forensic_state_v5 = {
+    calls_total: 0,
+    last_kind: 'unknown',
+    last_shape: 'n/a',
+    last_number: -1,
+    last_duration_ms: 0,
+    bound: false,
+    note: ''
+  });
+
+  function summarizeFn(fn:any){
+    try {
+      if (typeof fn !== 'function') return String(fn);
+      const src = Function.prototype.toString.call(fn);
+      const head = src.slice(0, 120).replace(/\s+/g,' ');
+      return (src.includes('[native code]') ? '[native code]' : head);
+    } catch { return 'uninspectable'; }
+  }
+
+  function forceTrampoline(){
+    try {
+      const Seg = g.SegStore || null;
+      if (!Seg?.prototype) return;
+
+      // Capture the *current* callable used by callers right now
+      const current = Seg.prototype.saveBlock;
+      if (typeof current !== 'function') { S.note = 'no saveBlock fn yet'; return; }
+      if ((current as any).__void_trampoline_v5) { S.note = 'already trampolined'; return; }
+
+      const orig = current;
+      function tramp(this:any, ...args:any[]){
+        const t0 = Date.now();
+        S.calls_total++;
+        const a0 = args[0];
+        if (Array.isArray(a0)) {
+          S.last_kind = 'array';
+          S.last_shape = `len=${a0.length}; keys=${Object.keys(a0[0]||{}).slice(0,8).join(',')}`;
+          if (a0?.[0]?.number >= 0) S.last_number = a0[0].number;
+        } else if (a0 && typeof a0 === 'object') {
+          S.last_kind = 'object';
+          S.last_shape = `keys=${Object.keys(a0).slice(0,12).join(',')}`;
+          if (typeof (a0 as any).number === 'number') S.last_number = (a0 as any).number;
+        } else {
+          S.last_kind = typeof a0; S.last_shape = 'n/a';
+        }
+        const out = orig.apply(this, args);
+        if (out && typeof out.then === 'function') {
+          return (out as Promise<any>).finally(()=>{ S.last_duration_ms = Date.now()-t0; });
+        } else { S.last_duration_ms = Date.now()-t0; return out; }
+      }
+      Object.defineProperty(tramp, '__void_trampoline_v5', { value: true });
+      // Replace the method in-place so any *previously captured* references
+      // still point to `orig`, but callers using `instance.saveBlock(...)`
+      // now hit `tramp`, guaranteeing our counter increments.
+      Seg.prototype.saveBlock = tramp as any;
+      S.bound = true;
+      S.note = 'trampoline installed on SegStore.prototype.saveBlock';
+    } catch(e:any){ S.note = 'trampoline error: '+(e?.message||e); }
+  }
+
+  function mountInspector(){
+    const app:any = g.__void_http_app || g.app;
+    if (!app || typeof app.get !== 'function') return;
+    if (app.__void_trampoline_v5_inspector) return;
+    app.__void_trampoline_v5_inspector = true;
+
+    app.get('/__void/dev/inspect/saveBlock', (_req:any, res:any)=>{
+      const Seg = g.SegStore || null;
+      const proto = Seg?.prototype;
+      const live = proto?.saveBlock;
+      res.json({
+        ok: true,
+        segstore_present: !!Seg,
+        tramp_bound: !!g.__void_txroot_forensic_state_v5?.bound,
+        note: g.__void_txroot_forensic_state_v5?.note || '',
+        proto_has_saveBlock: typeof live === 'function',
+        proto_saveBlock_summary: summarizeFn(live),
+        counters: {
+          calls_total: S.calls_total,
+          last_number: S.last_number,
+          last_kind: S.last_kind,
+          last_shape: S.last_shape,
+          last_duration_ms: S.last_duration_ms
+        }
+      });
+    });
+
+    app.get('/__void/metrics/txroot4/forensics.prom.v5', (_req:any, res:any)=>{
+      res.type('text/plain; version=0.0.4; charset=utf-8').end([
+        '# HELP void_txroot_forensics_calls_total_v5 saveBlock calls observed (trampoline)',
+        '# TYPE void_txroot_forensics_calls_total_v5 counter',
+        `void_txroot_forensics_calls_total_v5 ${S.calls_total}`,
+      ].join('\n')+'\n');
+    });
+  }
+
+  // Retry until SegStore + app are ready, then stay latched.
+  (function tick(){
+    mountInspector();
+    if (!S.bound && (globalThis as any).SegStore?.prototype) forceTrampoline();
+    setTimeout(tick, 300);
+  })();
+})();
