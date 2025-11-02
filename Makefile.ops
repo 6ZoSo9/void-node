@@ -92,3 +92,19 @@ prom-timer-install:
 .PHONY: prom-verify
 prom-verify:
 	sudo ./ops/prom-verify.sh && curl -fsS -X POST http://127.0.0.1:9090/-/reload && echo reloaded
+
+# ---- friendly help and default goal ----
+.PHONY: help
+help:
+	@echo "Void Ops Targets:"
+	@echo "  prom-timer-install   – install/enable root snapshot timer"
+	@echo "  prom-snap            – take a Prometheus snapshot now"
+	@echo "  prom-prune           – prune snapshots (keeps last 12)"
+	@echo "  prom-verify          – promtool verify + reload Prometheus"
+	@echo "  prom-ok              – quick Prom ready/targets summary"
+	@echo "  prom-reload          – POST /-/reload"
+	@echo "  prom-flags           – show key Prom flags"
+	@echo "  prom-targets         – list active targets"
+	@echo "  prom-backup          – tar /etc/prometheus + unit override"
+
+.DEFAULT_GOAL := help
