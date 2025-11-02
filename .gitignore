@@ -29,3 +29,7 @@ src/index.ts.*.bak
 *.bak
 
 ops/prom-snap/
+
+# Ignore raw Prom snapshots
+ops/prom-snap/
+
