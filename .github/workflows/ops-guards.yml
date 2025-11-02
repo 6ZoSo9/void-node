@@ -26,3 +26,14 @@ jobs:
               echo "Missing '.RECIPEPREFIX := >' in Makefile.ops"; exit 1; 
             }
           fi
+
+      - name: Basic bash sanity (no CRLF, no DOS paths)
+        run: |
+          set -euo pipefail
+          if grep -RIl $'\r' ops/*.sh ops/**/*.sh 2>/dev/null | grep .; then
+            echo "CRLF found in shell scripts"; exit 1; fi
+          # Ensure executable bit on our ops scripts
+          for f in ops/*.sh ops/**/*.sh; do
+            [ -f "$f" ] || continue
+            if [ ! -x "$f" ]; then echo "not executable: $f"; exit 1; fi
+          done
