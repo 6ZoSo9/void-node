@@ -187,11 +187,16 @@ prom-test-install:
 	sudo promtool check rules /etc/prometheus/alerts/void-snapshot-age-TEST.yml
 .PHONY: prom-reload-safe
 prom-reload-safe:
-	@for i in 1 2 3 4 5; do \
-	  if curl -fsS -X POST 127.0.0.1:9090/-/reload >/dev/null; then echo reloaded; exit 0; fi; \
-	  echo "reload 500, retry $$i..." && sleep 1; \
-	done; \
-	echo "reload failed after retries" && exit 1
+	@ok=0; for i in 1 2 3 4 5 6 7 8 9 10; do \
+	  if curl -fsS -X POST 127.0.0.1:9090/-/reload >/dev/null; then ok=1; break; fi; \
+	  echo "reload 500, retry $$i..."; sleep 1; \
+	done; [ $$ok -eq 1 ] || { echo "reload failed"; exit 1; } \
+	# wait until TEST rules are visible (up to 20s) \
+	for j in 1 2 3 4 5 6 7 8 9 10; do \
+	  iv=$$(curl -fsS 127.0.0.1:9090/api/v1/rules | jq -r '.data.groups[] | select(.name=="void-snapshot-age-TEST") | .interval' || true); \
+	  if [ -n "$$iv" ] && [ "$$iv" != "null" ]; then echo "rules visible: interval=$$iv"; exit 0; fi; \
+	  echo waiting-rules...; sleep 2; \
+	done; echo "rules not visible after reload"; exit 1
 
 # Wait until Prom query >= THRESH (default 4000)
 .PHONY: prom-wait-val
@@ -212,7 +217,7 @@ prom-alert-clear:
 	@ALERT=$${ALERT:?usage: make prom-alert-clear ALERT=<Name>}; \
 	URL="http://127.0.0.1:9090/api/v1/alerts"; \
 	while :; do \
-	  CNT="$$(curl -fsS "$$URL" | jq -r --arg A "$$ALERT" '[.data.alerts[]? | select(.labels.alertname==$A)] | length')" ; \
+	  CNT="$$(curl -fsS "$$URL" | jq -r --arg A "$$ALERT" '[.data.alerts[]? | select(.labels.alertname==$$A)] | length')" ; \
 	  echo "$$ALERT active=$$CNT" ; \
 	  [ "$$CNT" = "0" ] && break; \
 	  sleep 2; \
@@ -223,7 +228,7 @@ prom-alert-clear:
 prom-test-cycle:
 	@$(MAKE) prom-test-install
 	@$(MAKE) prom-reload-safe
-	@echo "interval=$$(curl -fsS 127.0.0.1:9090/api/v1/rules | jq -r '.data.groups[] | select(.name==\"void-snapshot-age-TEST\") | .interval')s"
+	@echo "interval=$$(curl -fsS 127.0.0.1:9090/api/v1/rules | jq -r '.data.groups[] | select(.name=="void-snapshot-age-TEST") | .interval')s"
 	@$(MAKE) prom-age-stale
 	@$(MAKE) prom-wait-val THRESH=3000
 	@$(MAKE) prom-warn-wait-test
