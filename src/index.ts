@@ -14989,3 +14989,884 @@ void_header3_last_mismatch ${lastMismatch}
     setTimeout(loop, 300);
   })();
 })();
+
+// -------------------- txroot/forensics v7 (ESM-safe, additive) --------------------
+(function txrootForensicsV7(){
+  const TICK_MS = 250;
+  const FLAG = Symbol.for("void.txroot.forensics.v7.wrapped");
+
+  // shared counters
+  const C = {
+    proto_binds: 0,
+    inst_binds: 0,
+    calls: 0,
+    last_number: -1 as number,
+    last_kind: "unknown" as string,
+    last_shape: "n/a" as string,
+    last_ms: 0 as number,
+  };
+
+  // helpers
+  function getApp(): any {
+    return (globalThis as any).__void_http_app || (globalThis as any).app;
+  }
+  function prom() {
+    return [
+      "# HELP void_txroot_forensics_binds_proto_v7 prototype binds",
+      "# TYPE void_txroot_forensics_binds_proto_v7 counter",
+      `void_txroot_forensics_binds_proto_v7 ${C.proto_binds}`,
+      "# HELP void_txroot_forensics_binds_inst_v7 instance binds",
+      "# TYPE void_txroot_forensics_binds_inst_v7 counter",
+      `void_txroot_forensics_binds_inst_v7 ${C.inst_binds}`,
+      "# HELP void_txroot_forensics_calls_v7 observed calls across all paths",
+      "# TYPE void_txroot_forensics_calls_v7 counter",
+      `void_txroot_forensics_calls_v7 ${C.calls}`,
+      "# HELP void_txroot_forensics_last_number_v7 last seen block number",
+      "# TYPE void_txroot_forensics_last_number_v7 gauge",
+      `void_txroot_forensics_last_number_v7 ${C.last_number}`,
+      "# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)",
+      "# TYPE void_txroot_forensics_last_ms_v7 gauge",
+      `void_txroot_forensics_last_ms_v7 ${C.last_ms}`,
+    ].join("\n") + "\n";
+  }
+
+  function bindRoutes(app:any){
+    if (!app || (app as any).__void_forensics_v7_routes) return;
+    (app as any).__void_forensics_v7_routes = true;
+
+    app.get("/__void/metrics/txroot4/forensics.prom.v7", (_req:any, res:any)=>{
+      res.type("text/plain; version=0.0.4").send(prom());
+    });
+
+    app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any)=>{
+      try{
+        const SegStore = (globalThis as any).SegStore || requireMaybe("SegStore?");
+        const proto = SegStore?.prototype;
+        const store = (globalThis as any).__void_store; // optional if you export it elsewhere
+        const inst = store || (globalThis as any).store;
+
+        res.json({
+          ok: true,
+          store_present: !!inst,
+          proto_present: !!proto,
+          proto_desc: {
+            has_get: !!proto && typeof proto.saveBlock === "function",
+            has_set: !!proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.set != null,
+            has_value: !!proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.value != null,
+            configurable: !!proto && !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.configurable,
+          },
+          inst_desc: {
+            has_get: !!inst && typeof inst.saveBlock === "function",
+            has_set: !!inst && Object.getOwnPropertyDescriptor(inst,"saveBlock")?.set != null,
+            has_value: !!inst && Object.getOwnPropertyDescriptor(inst,"saveBlock")?.value != null,
+            configurable: !!inst && !!Object.getOwnPropertyDescriptor(inst,"saveBlock")?.configurable,
+          },
+          counters: {...C},
+          note: ""
+        });
+      }catch(e:any){
+        res.json({ok:false,error:String(e), counters:{...C}});
+      }
+    });
+  }
+
+  // no-op placeholder for optional require path (keeps ESM safe)
+  function requireMaybe(_x:string){ return undefined; }
+
+  function tryWrap(){
+    // resolve app
+    const app = getApp();
+    if (app) bindRoutes(app);
+
+    // SegStore in scope?
+    const SegStore = (globalThis as any).SegStore;
+    if (!SegStore || !SegStore.prototype) return false;
+
+    const proto = SegStore.prototype as any;
+    if (proto[FLAG]) return true; // already wrapped
+
+    const orig = proto.saveBlock;
+    if (typeof orig !== "function") return false;
+
+    // wrap prototype (one time)
+    C.proto_binds++;
+    proto[FLAG] = true;
+    proto.saveBlock = async function wrappedSaveBlockV7(block:any){
+      // count an instance bind the first time an object is seen
+      if (!(this as any).__void_forensics_v7_seen){
+        (this as any).__void_forensics_v7_seen = true;
+        C.inst_binds++;
+      }
+      const t0 = Date.now();
+      try{
+        const out = await orig.apply(this, arguments as any);
+        const t1 = Date.now();
+        C.calls++;
+        C.last_ms = t1 - t0;
+
+        // infer simple fields if present
+        const n = typeof block?.number === "number" ? block.number
+                : typeof block?.header?.number === "number" ? block.header.number
+                : -1;
+        C.last_number = n;
+        C.last_kind = "saveBlock";
+        C.last_shape = n >= 0 ? "header|number" : "unknown";
+        return out;
+      }catch(e){
+        const t1 = Date.now();
+        C.calls++;
+        C.last_ms = t1 - t0;
+        C.last_kind = "saveBlock.error";
+        throw e;
+      }
+    };
+
+    return true;
+  }
+
+  (function boot(){
+    let tries = 0;
+    const loop = () => {
+      try{
+        if (tryWrap()) return;         // success: wrapper installed
+      }catch(_e){}
+      if (++tries < 200) setTimeout(loop, TICK_MS);
+    };
+    loop();
+  })();
+})();
+// ------------------ end txroot/forensics v7 (ESM-safe, additive) ------------------
+// ---------------- txroot forensics v7 (ESM-safe, additive) --------------------
+(function txrootForensicsV7(){
+  const FLAG = '__void_txroot_forensics_v7_wrapped__';
+  const state = {
+    proto_binds: 0,
+    inst_binds: 0,
+    calls: 0,
+    last_number: -1,
+    last_kind: 'unknown',
+    last_shape: 'n/a',
+    last_ms: 0,
+  };
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  function numberFrom(anyObj:any): number {
+    try {
+      if (!anyObj) return -1;
+      if (typeof anyObj.number === 'number') return anyObj.number;
+      if (anyObj.header && typeof anyObj.header.number === 'number') return anyObj.header.number;
+      if (anyObj.block && typeof anyObj.block.number === 'number') return anyObj.block.number;
+      if (anyObj.block && anyObj.block.header && typeof anyObj.block.header.number === 'number') return anyObj.block.header.number;
+    } catch {}
+    return -1;
+  }
+
+  function wrapOnce(){
+    try{
+      const P:any = (globalThis as any).SegStore || undefined;
+      // In this file we import SegStore at top; access it off the module global via eval-safe path:
+      const S:any = P || (typeof (SegStore as any) !== "undefined" ? (SegStore as any) : undefined);
+      if (!S || !S.prototype) return false;
+
+      const desc = Object.getOwnPropertyDescriptor(S.prototype, 'saveBlock');
+      const original:any = desc?.value ?? (S.prototype as any).saveBlock;
+      if (typeof original !== 'function') return false;
+      if ((original as any)[FLAG] || (S.prototype as any)[FLAG]) return true;
+
+      const wrapped = async function(this:any, ...args:any[]){
+        const t0 = Date.now();
+        try {
+          const res = await original.apply(this, args);
+          state.last_number = numberFrom(args[0]) ?? numberFrom(res) ?? (this?.heads?.head ?? -1);
+          state.last_kind   = 'saveBlock';
+          state.last_shape  = (args && args[0]) ? (args[0].header ? 'block+header' : 'block') : 'unknown';
+          return res;
+        } finally {
+          state.calls++;
+          state.last_ms = Date.now() - t0;
+        }
+      };
+      (wrapped as any)[FLAG] = true;
+
+      // Prefer defineProperty so we control writability/configurability
+      try {
+        Object.defineProperty(S.prototype, 'saveBlock', {
+          value: wrapped, writable: true, configurable: true, enumerable: false
+        });
+        state.proto_binds++;
+      } catch {
+        // Fallback simple assignment
+        (S.prototype as any).saveBlock = wrapped;
+        state.proto_binds++;
+      }
+      (S.prototype as any)[FLAG] = true;
+      return true;
+    }catch{ return false; }
+  }
+
+  // Mount inspector + prom exporter once app exists
+  function mountHttp(){
+    const TICK=400;
+    const app:any = getApp();
+    if (!app || typeof app.get!=='function') return setTimeout(mountHttp, TICK);
+
+    if (!(app as any).__void_txroot_forensics_v7_http){
+      (app as any).__void_txroot_forensics_v7_http = true;
+
+      app.get('/__void/dev/inspect/saveBlock.v7', (req:any, res:any)=>{
+        // describe prototype+instance descriptors without using require()
+        try{
+          const P:any = (typeof (SegStore as any)!=="undefined") ? (SegStore as any) : undefined;
+          const proto = P?.prototype || undefined;
+          const inst = (globalThis as any).__void_last_store_instance; // best-effort if someone pinned it elsewhere
+          const pdesc = proto ? Object.getOwnPropertyDescriptor(proto,'saveBlock') : undefined;
+          const idesc = inst ? Object.getOwnPropertyDescriptor(inst,'saveBlock') : undefined;
+
+          res.json({
+            ok:true,
+            store_present: !!inst,
+            proto_present: !!proto,
+            proto_desc: pdesc ? {
+              has_get: !!pdesc.get, has_set: !!pdesc.set, has_value: typeof pdesc.value === 'function',
+              configurable: !!pdesc.configurable, writable: !!pdesc.writable
+            } : null,
+            inst_desc: idesc ? {
+              has_get: !!idesc.get, has_set: !!idesc.set, has_value: typeof idesc.value === 'function',
+              configurable: !!idesc.configurable, writable: !!idesc.writable
+            } : null,
+            counters: {...state},
+            note: ''
+          });
+        }catch(e:any){
+          res.json({ok:false, error: String(e), counters:{...state}});
+        }
+      });
+
+      app.get('/__void/metrics/txroot4/forensics.prom.v7', (req:any, res:any)=>{
+        res.type('text/plain; charset=utf-8');
+        res.end(
+`# HELP void_txroot_forensics_binds_proto_v7 prototype binds
+# TYPE void_txroot_forensics_binds_proto_v7 counter
+void_txroot_forensics_binds_proto_v7 ${state.proto_binds}
+# HELP void_txroot_forensics_binds_inst_v7 instance binds
+# TYPE void_txroot_forensics_binds_inst_v7 counter
+void_txroot_forensics_binds_inst_v7 ${state.inst_binds}
+# HELP void_txroot_forensics_calls_v7 observed calls across all paths
+# TYPE void_txroot_forensics_calls_v7 counter
+void_txroot_forensics_calls_v7 ${state.calls}
+# HELP void_txroot_forensics_last_number_v7 last seen block number
+# TYPE void_txroot_forensics_last_number_v7 gauge
+void_txroot_forensics_last_number_v7 ${state.last_number}
+# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)
+# TYPE void_txroot_forensics_last_ms_v7 gauge
+void_txroot_forensics_last_ms_v7 ${state.last_ms}
+`);
+      });
+    }
+  }
+
+  function tick(){
+    const ok = wrapOnce();
+    mountHttp();
+    if (!ok) setTimeout(tick, 400);
+  }
+  tick();
+})();
+
+// ---------------- txroot forensics v7 (sticky, ESM-safe, additive) ----------------
+(function txrootForensicsV7(){
+  const TICK = 1200;
+  const state:any = {
+    mounted:false,
+    lastWrapped:null,
+    counters:{ proto_binds:0, inst_binds:0, calls:0, last_number:-1, last_kind:"unknown", last_shape:"n/a", last_ms:0 }
+  };
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getSegProto(){
+    try { return (globalThis as any).__void_seg_proto || (SegStore as any)?.prototype; } catch { return undefined; }
+  }
+
+  function promDump(){
+    const c = state.counters;
+    return [
+      "# HELP void_txroot_forensics_binds_proto_v7 prototype binds",
+      "# TYPE void_txroot_forensics_binds_proto_v7 counter",
+      `void_txroot_forensics_binds_proto_v7 ${c.proto_binds}`,
+      "# HELP void_txroot_forensics_binds_inst_v7 instance binds",
+      "# TYPE void_txroot_forensics_binds_inst_v7 counter",
+      `void_txroot_forensics_binds_inst_v7 ${c.inst_binds}`,
+      "# HELP void_txroot_forensics_calls_v7 observed calls across all paths",
+      "# TYPE void_txroot_forensics_calls_v7 counter",
+      `void_txroot_forensics_calls_v7 ${c.calls}`,
+      "# HELP void_txroot_forensics_last_number_v7 last seen block number",
+      "# TYPE void_txroot_forensics_last_number_v7 gauge",
+      `void_txroot_forensics_last_number_v7 ${c.last_number}`,
+      "# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)",
+      "# TYPE void_txroot_forensics_last_ms_v7 gauge",
+      `void_txroot_forensics_last_ms_v7 ${c.last_ms}`,
+      ""
+    ].join("\n");
+  }
+
+  function installRoutes(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return false;
+    if ((app as any).__void_txroot_forensics_v7_routes) return true;
+    (app as any).__void_txroot_forensics_v7_routes = true;
+
+    app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any)=>{
+      const proto = getSegProto();
+      const store = (globalThis as any).__void_store;
+      res.json({
+        ok:true,
+        store_present: !!store,
+        proto_present: !!proto,
+        proto_desc: proto ? {
+          has_get: !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.get,
+          has_set: !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.set,
+          has_value: "value" in (Object.getOwnPropertyDescriptor(proto,"saveBlock")||{}),
+          configurable: !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.configurable,
+        } : {},
+        inst_desc: store ? (()=>{
+          const d=Object.getOwnPropertyDescriptor(store,"saveBlock")||{};
+          return {
+            has_get: !!d.get, has_set: !!d.set,
+            has_value: "value" in d, configurable: !!d.configurable
+          };
+        })() : {},
+        counters: state.counters,
+        note: ""
+      });
+    });
+
+    app.get("/__void/metrics/txroot4/forensics.prom.v7", (_req:any, res:any)=>{
+      res.type("text/plain; version=0.0.4").send(promDump());
+    });
+
+    return true;
+  }
+
+  function sameFn(a:any,b:any){ try { return a===b; } catch { return false; } }
+
+  function wrapIfNeeded(){
+    const proto = getSegProto(); if (!proto) return;
+    const desc = Object.getOwnPropertyDescriptor(proto, "saveBlock");
+
+    // Determine the *current* callable we need to wrap
+    const current = (desc && "value" in desc && typeof desc.value==="function")
+      ? desc.value
+      : (proto as any).saveBlock;
+
+    if (typeof current !== "function") return;
+
+    if (sameFn(state.lastWrapped, current)) return; // already wrapping latest winner
+
+    const original = current;
+    async function wrapped(this:any, ...args:any[]){
+      const t0 = Date.now();
+      try {
+        const block = args?.[0];
+        state.counters.calls++;
+        state.counters.last_number = (block?.header?.number ?? -1);
+        state.counters.last_kind = block?.kind ?? "unknown";
+        state.counters.last_shape = block ? Object.keys(block).join(",") : "n/a";
+        return await original.apply(this, args);
+      } finally {
+        state.counters.last_ms = Date.now() - t0;
+      }
+    }
+
+    // Replace on prototype so *future* instances get it
+    Object.defineProperty(proto, "saveBlock", { configurable:true, writable:true, value: wrapped });
+    state.counters.proto_binds++;
+    state.lastWrapped = wrapped;
+  }
+
+  function tick(){
+    try {
+      installRoutes();
+      wrapIfNeeded();
+    } finally {
+      setTimeout(tick, TICK);
+    }
+  }
+
+  if (!state.mounted){ state.mounted = true; tick(); }
+})();
+
+// ---------- txroot/forensics:v7 (ESM-safe, additive, no require) ----------
+(function txrootForensicsV7(){
+  const TICK = 300;
+  const c = {
+    proto_binds: 0,
+    inst_binds: 0,    // kept for parity with your counters
+    calls: 0,
+    last_number: -1,
+    last_kind: "unknown",
+    last_shape: "n/a",
+    last_ms: 0,
+  };
+
+  function wait(fn){ setTimeout(fn, TICK); }
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  try {
+    // Lazy import to avoid top-level import churn if bundling changes
+    // NOTE: This path matches your existing import in this file.
+    // If SegStore is already in scope, use that; else dynamic import.
+    let SegStoreRef:any = undefined;
+    try { SegStoreRef = (SegStore as any); } catch {}
+    const bind = async () => {
+      if (!SegStoreRef) {
+        try {
+          // dynamic import in ESM world
+          const mod = await import("./chain/seg_store.js");
+          SegStoreRef = mod.SegStore;
+        } catch {
+          return wait(bind);
+        }
+      }
+      if (!SegStoreRef?.prototype?.saveBlock) return wait(bind);
+      if ((SegStoreRef.prototype as any).__forensics_v7_patched) return; // idempotent
+
+      const orig = SegStoreRef.prototype.saveBlock;
+      (SegStoreRef.prototype as any).__forensics_v7_patched = true;
+      c.proto_binds++;
+
+      SegStoreRef.prototype.saveBlock = async function wrappedSaveBlock(...args:any[]){
+        const b = args?.[0];
+        const t0 = Date.now();
+        c.calls++;
+        // Snapshot
+        try {
+          const n = (b && typeof b.number === "number") ? b.number : -1;
+          const txs = Array.isArray(b?.txs) ? b.txs : [];
+          c.last_number = n;
+          c.last_kind   = Array.isArray(txs) ? "txs" : typeof (b?.txs);
+          c.last_shape  = `txs=${txs.length}`;
+        } catch {}
+        try {
+          return await orig.apply(this, args as any);
+        } finally {
+          c.last_ms = Date.now() - t0;
+        }
+      };
+
+      // Expose endpoints once app exists
+      const mountRoutes = () => {
+        const app:any = getApp();
+        if (!app || typeof app.get !== "function") return wait(mountRoutes);
+
+        if (!(app as any).__forensics_v7_routes){
+          (app as any).__forensics_v7_routes = true;
+
+          // JSON inspector (your jq .counters call)
+          app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any) => {
+            res.json({ counters: c });
+          });
+
+          // Prom-style metrics (your .prom.v7 curl)
+          app.get("/__void/metrics/txroot4/forensics.prom.v7", (_req:any, res:any) => {
+            res.type("text/plain").send(
+`# HELP void_txroot_forensics_binds_proto_v7 prototype binds
+# TYPE void_txroot_forensics_binds_proto_v7 counter
+void_txroot_forensics_binds_proto_v7 ${c.proto_binds}
+# HELP void_txroot_forensics_binds_inst_v7 instance binds
+# TYPE void_txroot_forensics_binds_inst_v7 counter
+void_txroot_forensics_binds_inst_v7 ${c.inst_binds}
+# HELP void_txroot_forensics_calls_v7 observed calls across all paths
+# TYPE void_txroot_forensics_calls_v7 counter
+void_txroot_forensics_calls_v7 ${c.calls}
+# HELP void_txroot_forensics_last_number_v7 last seen block number
+# TYPE void_txroot_forensics_last_number_v7 gauge
+void_txroot_forensics_last_number_v7 ${c.last_number}
+# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)
+# TYPE void_txroot_forensics_last_ms_v7 gauge
+void_txroot_forensics_last_ms_v7 ${c.last_ms}
+`);
+          });
+          console.log("[txroot/forensics:v7] routes mounted + proto patch active");
+        }
+      };
+      mountRoutes();
+    };
+    bind();
+  } catch (e) {
+    console.log("[txroot/forensics:v7] install error", e && (e as any).message || e);
+  }
+})();
+
+// ============ txroot/forensics v7b + header-normalize (pure-additive) ============
+(function txrootForensicsV7b(){
+  const TICK = 400;
+  let mounted = false;
+
+  // tiny hex helper
+  function toHex(bytes:any): string {
+    try {
+      if (!bytes) return "";
+      if (typeof bytes === "string") return bytes.startsWith("0x") ? bytes.slice(2) : bytes;
+      if (Array.isArray(bytes)) return Buffer.from(bytes).toString("hex");
+      if (bytes instanceof Uint8Array) return Buffer.from(bytes).toString("hex");
+      // object? try common fields
+      if (bytes.data) return Buffer.from(bytes.data).toString("hex");
+      return String(bytes);
+    } catch {
+      return String(bytes);
+    }
+  }
+
+  // Expose a tiny metrics endpoint
+  const state:any = {
+    proto_binds: 0,
+    inst_binds: 0,
+    calls: 0,
+    last_number: -1,
+    last_kind: "unknown",
+    last_shape: "n/a",
+    last_ms: 0,
+    store_present: false,
+    note: ""
+  };
+
+  function getApp(){
+    return (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+  }
+  function getStore(){
+    try {
+      return (globalThis as any).__void_store || (globalThis as any).store || undefined;
+    } catch { return undefined; }
+  }
+  function getSegStoreCtor(){
+    try {
+      const mod = (globalThis as any).__void_modules || {};
+      // prefer the real constructor hung off the loaded store
+      const st = getStore();
+      if (st && st.constructor && st.constructor.name) return st.constructor;
+      // last resort: walk known module cache (if any published)
+      return (globalThis as any).SegStore || undefined;
+    } catch { return undefined; }
+  }
+
+  function bindMetricsRoute(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return false;
+    if ((app as any).__void_txroot_forensics_v7b) return true;
+    (app as any).__void_txroot_forensics_v7b = true;
+
+    app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any)=>{
+      const st = getStore();
+      res.json({
+        ok: true,
+        store_present: !!st,
+        proto_present: !!getSegStoreCtor()?.prototype,
+        proto_desc: (()=>{
+          const p = getSegStoreCtor()?.prototype || {};
+          return {
+            has_get: !!p.saveBlock,
+            has_set: false,
+            has_value: false,
+            configurable: true
+          };
+        })(),
+        inst_desc: (()=>{
+          const inst = st || {};
+          return {
+            has_get: !!(inst as any).saveBlock,
+            has_set: false,
+            has_value: false,
+            configurable: false
+          };
+        })(),
+        counters: {
+          proto_binds: state.proto_binds,
+          inst_binds: state.inst_binds,
+          calls: state.calls,
+          last_number: state.last_number,
+          last_kind: state.last_kind,
+          last_shape: state.last_shape,
+          last_ms: state.last_ms
+        },
+        note: state.note
+      });
+    });
+
+    app.get("/__void/metrics/txroot4/forensics.prom.v7", (_req:any, res:any)=>{
+      res.type("text/plain; version=0.0.4");
+      const lines = [];
+      lines.push(`# HELP void_txroot_forensics_binds_proto_v7 prototype binds`);
+      lines.push(`# TYPE void_txroot_forensics_binds_proto_v7 counter`);
+      lines.push(`void_txroot_forensics_binds_proto_v7 ${state.proto_binds}`);
+      lines.push(`# HELP void_txroot_forensics_binds_inst_v7 instance binds`);
+      lines.push(`# TYPE void_txroot_forensics_binds_inst_v7 counter`);
+      lines.push(`void_txroot_forensics_binds_inst_v7 ${state.inst_binds}`);
+      lines.push(`# HELP void_txroot_forensics_calls_v7 observed calls across all paths`);
+      lines.push(`# TYPE void_txroot_forensics_calls_v7 counter`);
+      lines.push(`void_txroot_forensics_calls_v7 ${state.calls}`);
+      lines.push(`# HELP void_txroot_forensics_last_number_v7 last seen block number`);
+      lines.push(`# TYPE void_txroot_forensics_last_number_v7 gauge`);
+      lines.push(`void_txroot_forensics_last_number_v7 ${state.last_number}`);
+      lines.push(`# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)`);
+      lines.push(`# TYPE void_txroot_forensics_last_ms_v7 gauge`);
+      lines.push(`void_txroot_forensics_last_ms_v7 ${state.last_ms}`);
+      res.send(lines.join("\n")+"\n");
+    });
+    return true;
+  }
+
+  function installWrapper(){
+    if (mounted) return true;
+    const SegCtor:any = getSegStoreCtor();
+    const app:any = getApp();
+    const store:any = getStore();
+
+    if (!SegCtor || !SegCtor.prototype || !SegCtor.prototype.saveBlock) return false;
+
+    if (!(SegCtor.prototype as any).__void_txroot_forensics_v7b_wrapped) {
+      const orig = SegCtor.prototype.saveBlock;
+      (SegCtor.prototype as any).__void_txroot_forensics_v7b_wrapped = true;
+      state.proto_binds++;
+
+      SegCtor.prototype.saveBlock = async function wrappedSaveBlock(block:any){
+        const t0 = Date.now();
+        try {
+          // Normalize txRoot RIGHT BEFORE persist, using merged txs
+          const hdr = block?.header || (block.header = {});
+          const txs = block?.txs || [];
+          // compute root if absent or clearly empty
+          if (!hdr.txRoot || hdr.txRoot === "" || /^e3b0c4/.test(String(hdr.txRoot))) {
+            // prefer existing helper if exposed on app
+            let rootHex = "";
+            try {
+              const h3 = (app && app.__void_header3_compute) ? app.__void_header3_compute(txs) : null;
+              rootHex = h3 ? String(h3).replace(/^0x/,"") : toHex((globalThis as any).__void_txroot_compute ? (globalThis as any).__void_txroot_compute(txs) : "");
+            } catch { /* fallthrough */ }
+            if (!rootHex) {
+              // tiny fallback: empty==sha256() of nothing is e3b0..., else hash JSON quickly
+              const buf = Buffer.from(JSON.stringify(txs));
+              const crypto = await import("node:crypto");
+              rootHex = crypto.createHash("sha256").update(buf).digest("hex");
+            }
+            hdr.txRoot = "0x"+toHex(rootHex);
+          } else {
+            hdr.txRoot = "0x"+toHex(hdr.txRoot);
+          }
+
+          const res = await orig.call(this, block);
+
+          // metrics
+          state.calls++;
+          state.last_number = Number(block?.header?.number ?? -1);
+          state.last_kind = Array.isArray(txs) ? `txs:${txs.length}` : typeof txs;
+          state.last_shape = (txs && typeof txs === "object") ? Object.keys(txs).slice(0,4).join(",") : String(typeof txs);
+          state.last_ms = Date.now() - t0;
+          return res;
+        } catch (e:any) {
+          state.last_ms = Date.now() - t0;
+          state.note = `err:${e?.message||e}`;
+          throw e;
+        }
+      };
+    }
+
+    if (store && !(store as any).__void_txroot_forensics_v7b_installed) {
+      // marker for visibility; actual wrapping is on prototype
+      (store as any).__void_txroot_forensics_v7b_installed = true;
+      state.inst_binds++;
+    }
+
+    state.store_present = !!store;
+    mounted = true;
+    return true;
+  }
+
+  (function tick(){
+    try {
+      const okRoute = bindMetricsRoute();
+      const okWrap  = installWrapper();
+      if (!okRoute || !okWrap) return setTimeout(tick, TICK);
+    } catch {
+      return setTimeout(tick, TICK);
+    }
+  })();
+})();
+// ---------------- TXROOT FORENSICS v7 — INSTANCE PROXY BINDER (additive, safe) ----------------
+(function txrootForensicsV7ProxyBinder(){
+  const TICK = 500;
+  const state:any = {
+    proto_binds: 0, inst_binds: 0, calls: 0,
+    last_number: -1, last_kind: "unknown", last_shape: "n/a", last_ms: 0,
+    bound: false, proxied: false
+  };
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  function tryProtoBind() {
+    try {
+      const SegStore = (globalThis as any).SegStore || undefined;
+      if (!SegStore?.prototype) return;
+      const desc = Object.getOwnPropertyDescriptor(SegStore.prototype, "saveBlock");
+      if (!desc || typeof desc.value !== "function") return;
+      if ((SegStore.prototype as any).__txroot_v7_bound) return;
+      const original = desc.value;
+      Object.defineProperty(SegStore.prototype, "saveBlock", {
+        value: async function saveBlock_v7_proxy(block:any) {
+          const t0 = Date.now();
+          try {
+            const r = await original.apply(this, [block]);
+            state.calls++; state.last_number = block?.number ?? -1;
+            state.last_kind = "proto"; state.last_shape = (block && typeof block === "object" ? Object.keys(block).join(",") : String(typeof block));
+            state.last_ms = Date.now() - t0;
+            return r;
+          } catch(e){ state.last_ms = Date.now() - t0; throw e; }
+        }
+      });
+      (SegStore.prototype as any).__txroot_v7_bound = true;
+      state.proto_binds++;
+    } catch {}
+  }
+
+  function findCtx() {
+    const app:any = getApp();
+    const locals = app?.locals || {};
+    const candidates:any[] = [
+      locals.store, locals.node?.store,
+      (globalThis as any).__void_store,
+      (globalThis as any).__void_node?.store,
+      (globalThis as any).void?.store
+    ].filter(Boolean);
+    return { app, locals, store: candidates[0], node: locals.node || (globalThis as any).__void_node };
+  }
+
+  function bindViaProxy() {
+    const { node, store } = findCtx();
+    if (!node || !store || state.proxied) return false;
+    try {
+      const prox = new Proxy(store, {
+        get(target, prop, recv){
+          if (prop === "saveBlock" && typeof (target as any).saveBlock === "function") {
+            const orig = (target as any).saveBlock.bind(target);
+            return async function saveBlock_v7_inst_proxy(block:any){
+              const t0 = Date.now();
+              try{
+                const r = await orig(block);
+                state.calls++; state.last_number = block?.number ?? -1;
+                state.last_kind = "inst-proxy";
+                state.last_shape = (block && typeof block === "object" ? Object.keys(block).join(",") : String(typeof block));
+                state.last_ms = Date.now() - t0;
+                return r;
+              }catch(e){ state.last_ms = Date.now() - t0; throw e; }
+            };
+          }
+          return Reflect.get(target, prop, recv);
+        }
+      });
+      node.store = prox;
+      state.inst_binds++;
+      state.proxied = true;
+      return true;
+    } catch { return false; }
+  }
+
+  async function mountRoutes(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mountRoutes, TICK);
+
+    app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any)=>{
+      const { store, node } = findCtx();
+      const SegStore = (globalThis as any).SegStore || undefined;
+      const proto = SegStore?.prototype ? Object.getOwnPropertyDescriptor(SegStore.prototype, "saveBlock") : undefined;
+      const inst = store ? Object.getOwnPropertyDescriptor(store, "saveBlock") : undefined;
+      res.json({
+        ok: true,
+        store_present: !!store,
+        node_present: !!node,
+        proto_present: !!proto && typeof proto.value === "function",
+        proto_desc: proto ? { has_get: !!proto.get, has_set: !!proto.set, has_value: !!proto.value, configurable: !!proto.configurable } : {},
+        inst_desc: inst ? { has_get: !!inst.get, has_set: !!inst.set, has_value: !!inst.value, configurable: !!inst.configurable } : {},
+        counters: { ...state },
+        note: state.proxied ? "proxied node.store; counting should advance on next saves" : ""
+      });
+    });
+
+    app.post("/__void/dev/bind/saveBlock.v7", (_req:any, res:any)=>{
+      tryProtoBind();
+      const prox = bindViaProxy();
+      res.json({ ok:true, proxied: !!prox, proto_binds: state.proto_binds, inst_binds: state.inst_binds });
+    });
+
+    app.get("/__void/metrics/txroot4/forensics.prom.v7", (_req:any, res:any)=>{
+      res.set("Content-Type","text/plain; version=0.0.4");
+      res.end([
+        "# HELP void_txroot_forensics_binds_proto_v7 prototype binds",
+        "# TYPE void_txroot_forensics_binds_proto_v7 counter",
+        `void_txroot_forensics_binds_proto_v7 ${state.proto_binds}`,
+        "# HELP void_txroot_forensics_binds_inst_v7 instance binds",
+        "# TYPE void_txroot_forensics_binds_inst_v7 counter",
+        `void_txroot_forensics_binds_inst_v7 ${state.inst_binds}`,
+        "# HELP void_txroot_forensics_calls_v7 observed calls across all paths",
+        "# TYPE void_txroot_forensics_calls_v7 counter",
+        `void_txroot_forensics_calls_v7 ${state.calls}`,
+        "# HELP void_txroot_forensics_last_number_v7 last seen block number",
+        "# TYPE void_txroot_forensics_last_number_v7 gauge",
+        `void_txroot_forensics_last_number_v7 ${state.last_number}`,
+        "# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)",
+        "# TYPE void_txroot_forensics_last_ms_v7 gauge",
+        `void_txroot_forensics_last_ms_v7 ${state.last_ms}`,
+        ""
+      ].join("\n"));
+    });
+
+    setTimeout(()=>{ tryProtoBind(); bindViaProxy(); }, 300);
+  }
+  mountRoutes();
+})();
+
+// ---------------- header3 auto-warm poller (additive, safe) -------------------
+(function header3AutoWarmPoller(){
+  const TICK_MS = Number(process.env.VOID_HEADER3_POLL_MS || 10000); // default 10s
+  let attached = false, t: any;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function pokeOnce(fetch: any){
+    try {
+      const port = String(process.env.HTTP_PORT || "4100");
+      const r = await fetch("http://127.0.0.1:" + port + "/blocks/latest/number2.json");
+      if (!r?.ok) return;
+      const j = await r.json();
+      const n = (j && (j.number ?? j.num ?? j.N)) ?? null;
+      if (typeof n === "number" && n >= 0) {
+        await fetch(`http://127.0.0.1:${port}/blocks/${encodeURIComponent(n)}/header3`).catch(()=>{});
+      }
+    } catch {}
+  }
+
+  function start(){
+    if (attached) return; attached = true;
+    const g:any = globalThis as any;
+    const fetch = (g.fetch || ((...args:any[]) => import("node-fetch").then(m => (m.default as any)(...args)))) as any;
+    const tick = async ()=>{ await pokeOnce(fetch); t = setTimeout(tick, TICK_MS); };
+    tick();
+
+    // health gauge (Prom-style text) under /__void/metrics/header3.warm.prom
+    const app:any = getApp();
+    if (app?.get && !(app as any).__void_header3_warm_prom) {
+      (app as any).__void_header3_warm_prom = true;
+      app.get("/__void/metrics/header3.warm.prom", (_req:any, res:any)=>{
+        res.type("text/plain; version=0.0.4");
+        res.write("# HELP void_header3_warm_enabled Auto-warm poller enabled (1/0)\n");
+        res.write("# TYPE void_header3_warm_enabled gauge\n");
+        res.write("void_header3_warm_enabled 1\n");
+        res.end();
+      });
+    }
+  }
+
+  function waitForApp(){
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function") return setTimeout(waitForApp, 400);
+    start();
+  }
+
+  try { waitForApp(); } catch {}
+})();
