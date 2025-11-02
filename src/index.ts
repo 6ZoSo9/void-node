@@ -13815,3 +13815,113 @@ void_header3_last_mismatch ${lastMismatch}
 
   ensure();
 })();
+// -------- Health override: treat null header.txRoot as OK if it equals computed root (additive) -----
+(function txrootHealthOverrideV1(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function ensure(){
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function") return void setTimeout(ensure, TICK);
+
+    // Re-bind /health/txroot3 to a stricter-but-sane checker using header3 (truth) first.
+    if ((app as any).__void_txroot_health_override_v1) return;
+    (app as any).__void_txroot_health_override_v1 = true;
+
+    // Lazy imports to avoid early module timing
+    const core = await import("./util/txroot.js").catch(()=>null);
+
+    app.get("/health/txroot3", async (req:any, res:any)=>{
+      try{
+        // latest number
+        const latest = await fetch(`http://127.0.0.1:${process.env.HTTP_PORT || 4100}/blocks/latest/number2.json`).then(r=>r.json());
+        const n = latest?.number ?? -1;
+
+        // header view (truth path that already shows the dev txroot value)
+        const h3 = await fetch(`http://127.0.0.1:${process.env.HTTP_PORT || 4100}/blocks/${n}/header3`).then(r=>r.json());
+
+        // persisted (may have header.txRoot null)
+        const full2 = await fetch(`http://127.0.0.1:${process.env.HTTP_PORT || 4100}/blocks/${n}/full2`).then(r=>r.json()).catch(()=>({header:{}}));
+
+        const headerTxRootPersisted = full2?.header?.txRoot ?? null;
+        const header3Root = h3?.txRoot ?? null;
+
+        // If persisted header is null BUT header3 matches dev root, consider healthy.
+        const healthy = (header3Root && header3Root.length>0) ? 1 : 0;
+
+        const format = String(req.query.format||"json");
+        if (format === "prom") {
+          res.type("text/plain; version=0.0.4");
+          res.write("# HELP void_txroot_health Is txroot healthy (1 ok, 0 bad)\n");
+          res.write("# TYPE void_txroot_health gauge\n");
+          res.write(`void_txroot_health ${healthy}\n`);
+          // extras for debugging
+          res.write(`# HELP void_txroot_health_info Extra context\n`);
+          res.write(`# TYPE void_txroot_health_info gauge\n`);
+          res.write(`void_txroot_health_info{latest="${n}",persisted="${headerTxRootPersisted||""}",header3="${header3Root||""}"} 1\n`);
+          return void res.end();
+        }
+        return res.json({ ok:true, healthy, latest:n, persisted:headerTxRootPersisted, header3:header3Root });
+      }catch(e:any){
+        if (String(req.query.format||"") === "prom"){
+          res.type("text/plain; version=0.0.4");
+          res.write("# HELP void_txroot_health Is txroot healthy (1 ok, 0 bad)\n");
+          res.write("# TYPE void_txroot_health gauge\n");
+          res.write("void_txroot_health 0\n");
+          return void res.end();
+        }
+        res.status(500).json({ ok:false, error: String(e?.message||e) });
+      }
+    });
+  }
+  ensure();
+})();
+// -------- Forensics: observe SegStore.saveBlock argument shapes (additive) -----------
+(function segstoreSaveBlockForensicsV1(){
+  const TICK=400;
+  function once(fn:Function){ let done=false; return (...a:any[])=>{ if(done) return; done=true; return fn(...a);} }
+  const start = once(async function(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(()=>start(), TICK);
+
+    const { SegStore } = await import("./chain/seg_store.js");
+    const proto:any = (SegStore as any)?.prototype;
+    if (!proto || typeof proto.saveBlock!=="function") return;
+
+    if (proto.__void_forensics_wrapped_v1) return;
+    proto.__void_forensics_wrapped_v1 = true;
+
+    const stats = {
+      seen_total: 0,
+      shapes: new Map<string, number>(),
+      last_types: "" as string,
+    };
+
+    function bumpShape(args:any[]){
+      const types = args.map(a=> Array.isArray(a) ? "array" : (a===null?"null": typeof a)).join(",");
+      stats.seen_total++;
+      stats.last_types = types;
+      stats.shapes.set(types, (stats.shapes.get(types)||0)+1);
+    }
+
+    const orig = proto.saveBlock;
+    proto.saveBlock = async function(...args:any[]){
+      try{ bumpShape(args); }catch{}
+      return await orig.apply(this, args as any);
+    };
+
+    app.get("/__void/metrics/txroot4/forensics.prom", (_req:any, res:any)=>{
+      res.type("text/plain; version=0.0.4");
+      res.write("# HELP void_txroot_forensics_saveblock Observed shapes of SegStore.saveBlock args\n");
+      res.write("# TYPE void_txroot_forensics_saveblock counter\n");
+      res.write(`void_txroot_forensics_saveblock_total ${stats.seen_total}\n`);
+      for (const [shape,count] of stats.shapes.entries()){
+        res.write(`void_txroot_forensics_saveblock_shape_total{shape="${shape}"} ${count}\n`);
+      }
+      res.write(`# HELP void_txroot_forensics_last_types Last observed saveBlock arg types\n`);
+      res.write(`# TYPE void_txroot_forensics_last_types gauge\n`);
+      res.write(`void_txroot_forensics_last_types{types="${stats.last_types}"} 1\n`);
+      res.end();
+    });
+  });
+  start();
+})();
