@@ -13565,7 +13565,7 @@ void_header3_last_mismatch ${lastMismatch}
     const ok = origAdd(n);
     if (S.seen.size > SEEN_CAP) {
       // Drop older half to cap memory (keeps recent activity)
-      const arr = Array.from(S.seen).sort((a,b)=>a-b);
+      const arr = Array.from(S.seen).sort((a:any,b:any)=>{ const na=Number(a), nb=Number(b); return (Number.isFinite(na)&&Number.isFinite(nb)) ? na-nb : String(a).localeCompare(String(b)); });
       const cut = Math.floor(arr.length/2);
       for (let i=0;i<cut;i++) S.seen.delete(arr[i]);
     }
@@ -13573,4 +13573,55 @@ void_header3_last_mismatch ${lastMismatch}
   };
 
   console.log(`[txroot/noop-sidecar:v1.1] lookback=${LOOKBACK} seen_cap=${SEEN_CAP}`);
+})();
+
+// ---------------- WAL bootstrap (purely additive) --------------------
+;(function bootWAL(){
+  const TICK=400;
+  async function attach(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    const getDataDir = () => process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    try{
+      if (!app || typeof app.get !== "function") return setTimeout(attach, TICK);
+      const { WAL } = await import("./wal.js");
+      const { registerWalRoutes } = await import("./http/wal_routes.js");
+      const wal = new WAL(getDataDir());
+      await wal.open();
+      registerWalRoutes(app, wal);
+
+      // Lightweight startup scan (log only; reconciliation hooks come next)
+      const boot = wal.scan();
+      (app as any).__void_wal = wal;
+      (app as any).__void_wal_boot_scan = { count: boot.length, last: boot.at(-1) || null };
+
+      // Export a tiny health probe
+      app.get("/health/wal", (_req:any, res:any)=>{
+        const s = (app as any).__void_wal_boot_scan;
+        res.json({ ok:true, scan:s });
+      });
+    }catch(e){ /* retry until app is ready */ return setTimeout(attach, TICK); }
+  }
+  attach();
+})();
+
+// ------------- WAL metrics (Prom text; additive) -------------
+;(function walMetrics(){
+  const TICK=500;
+  function boot(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get !== "function") return setTimeout(boot, TICK);
+    app.get("/metrics/void/wal.prom", (_req:any, res:any)=>{
+      try{
+        const s = (app as any).__void_wal_boot_scan || {count:0};
+        const last = s.last?.ts ?? -1;
+        res.type("text/plain").send(
+          `void_wal_boot_scan_total ${Number(s.count)||0}\n` +
+          `void_wal_boot_last_ts ${Number(last)}\n`
+        );
+      }catch{
+        res.type("text/plain").send("void_wal_boot_scan_total 0\nvoid_wal_boot_last_ts -1\n");
+      }
+    });
+  }
+  boot();
 })();
