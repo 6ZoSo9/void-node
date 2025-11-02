@@ -1,0 +1,18 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "instance": "127.0.0.1:4100",
+          "job": "void-seals-v2"
+        },
+        "value": [
+          1762080453.975,
+          "13.629999876022339"
+        ]
+      }
+    ]
+  }
+}

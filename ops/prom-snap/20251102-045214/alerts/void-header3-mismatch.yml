@@ -1,0 +1,11 @@
+groups:
+- name: void-header3-mismatch
+  interval: 15s
+  rules:
+  - alert: VoidHeader3Mismatch
+    expr: (void:header3:last_mismatch) >= 0
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Header3 mismatch detected"
+      description: "last_mismatch >= 0 for 2m"
