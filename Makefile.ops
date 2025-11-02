@@ -129,3 +129,11 @@ prom-age-stale:
 prom-age-fresh:
 	@echo "void_ops_prom_snap_age_seconds 0" | sudo tee /var/lib/node_exporter/textfile_collector/void_prom_snap.prom >/dev/null
 	@curl -fsS 127.0.0.1:9100/metrics | grep -E 'void_ops_prom_snap_age_seconds|node_textfile_scrape_error|node_textfile_mtime_seconds' || true
+.PHONY: prom-age-stale prom-age-fresh
+prom-age-stale:
+	@echo "void_ops_prom_snap_age_seconds 4000" | sudo tee /var/lib/node_exporter/textfile_collector/void_prom_snap.prom >/dev/null
+	@curl -fsS 127.0.0.1:9100/metrics | grep -E 'void_ops_prom_snap_age_seconds|node_textfile_scrape_error|node_textfile_mtime_seconds' || true
+
+prom-age-fresh:
+	@echo "void_ops_prom_snap_age_seconds 0" | sudo tee /var/lib/node_exporter/textfile_collector/void_prom_snap.prom >/dev/null
+	@curl -fsS 127.0.0.1:9100/metrics | grep -E 'void_ops_prom_snap_age_seconds|node_textfile_scrape_error|node_textfile_mtime_seconds' || true
