@@ -108,3 +108,6 @@ help:
 	@echo "  prom-backup          – tar /etc/prometheus + unit override"
 
 .DEFAULT_GOAL := help
+.PHONY: prom-snap-age
+prom-snap-age:
+	sudo ./ops/prom-textfile-snap-age.sh
