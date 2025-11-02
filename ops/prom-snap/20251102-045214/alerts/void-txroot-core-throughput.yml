@@ -1,0 +1,10 @@
+groups:
+- name: void-txroot-core-throughput
+  rules:
+  - alert: VoidTxrootLowThroughput
+    expr: rate(void_block_saves_total{job="void-txroot-core-v2"}[1m]) < 0.5
+    for: 1m
+    labels: { severity: warning }
+    annotations:
+      summary: "Txroot throughput low"
+      description: "Block saves < 0.5/s for 2m (possible proposer stall or mempool empty)."

@@ -1,0 +1,11 @@
+groups:
+- name: void-seals-fresh
+  interval: 15s
+  rules:
+  - alert: VoidSealsStale2m
+    expr: rate(void_seal_last_number[2m]) == 0
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Seals stalled"
+      description: "No new seals observed for 2 minutes."

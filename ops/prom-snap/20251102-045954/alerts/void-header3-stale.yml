@@ -1,0 +1,11 @@
+groups:
+- name: void-header3-stale
+  interval: 15s
+  rules:
+  - alert: VoidHeader3Stale2m
+    expr: rate(void_header3_last_number[2m]) == 0
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "header3 exporter not advancing"
+      description: "void_header3_last_number hasn't advanced for 2 minutes."
