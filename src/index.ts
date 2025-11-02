@@ -14169,3 +14169,135 @@ void_header3_last_mismatch ${lastMismatch}
   }
   stickify();
 })();
+// ---- txroot forensics: STICKY v2 (ESM-safe + instance-level fallback) ----
+(function txrootForensicsStickyV2(){
+  const TICK = 500;
+  const sym = Symbol.for('__void_forensics_wrapped_v2');
+
+  const g:any = globalThis as any;
+  const forensic = g.__void_txroot_forensic_state || (g.__void_txroot_forensic_state = {
+    calls_total: 0,
+    last_kind: 'unknown',
+    last_shape: 'n/a',
+    last_number: -1,
+    last_duration_ms: 0,
+  });
+
+  const state = g.__void_txroot_forensic_state_meta || (g.__void_txroot_forensic_state_meta = {
+    wraps_total: 0,
+    last_bind_ms: 0,
+    route_mounted: false,
+  });
+
+  function wrapOnce(fn:any){
+    if (typeof fn !== 'function') return fn;
+    if ((fn as any)[sym]) return fn;
+    const wrapped = async function(...args:any[]){
+      const t0 = Date.now();
+      forensic.calls_total++;
+      const a0 = args[0];
+      if (Array.isArray(a0)) {
+        forensic.last_kind = 'array';
+        forensic.last_shape = `len=${a0.length}; keys=${Object.keys(a0[0]||{}).slice(0,8).join(',')}`;
+        forensic.last_number = (a0[0] && typeof a0[0].number==='number') ? a0[0].number : forensic.last_number;
+      } else if (a0 && typeof a0 === 'object') {
+        forensic.last_kind = 'object';
+        forensic.last_shape = `keys=${Object.keys(a0).slice(0,12).join(',')}`;
+        forensic.last_number = (typeof (a0 as any).number === 'number') ? (a0 as any).number : forensic.last_number;
+      } else {
+        forensic.last_kind = 'other';
+        forensic.last_shape = typeof a0;
+      }
+      try {
+        const ret = await fn.apply(this, args);
+        forensic.last_duration_ms = Date.now() - t0;
+        return ret;
+      } catch (e) {
+        forensic.last_duration_ms = Date.now() - t0;
+        throw e;
+      }
+    };
+    Object.defineProperty(wrapped, sym, { value: true });
+    state.wraps_total++; state.last_bind_ms = Date.now();
+    return wrapped;
+  }
+
+  function mountRouteOnce(){
+    if (state.route_mounted) return;
+    const app:any = g.__void_http_app || g.app;
+    if (!app || typeof app.get !== 'function') return;
+    state.route_mounted = true;
+    app.get('/__void/metrics/txroot4/forensics.prom', (_req:any, res:any)=>{
+      res.type('text/plain; version=0.0.4; charset=utf-8');
+      res.end([
+        '# HELP void_txroot_forensics_calls_total saveBlock calls observed',
+        '# TYPE void_txroot_forensics_calls_total counter',
+        `void_txroot_forensics_calls_total ${forensic.calls_total}`,
+        '# HELP void_txroot_forensics_last_info last observed arg-shape/kind/number/duration',
+        '# TYPE void_txroot_forensics_last_info gauge',
+        `void_txroot_forensics_last_info{kind="${forensic.last_kind}",shape="${String(forensic.last_shape).replace(/"/g,'\\\"')}",number="${forensic.last_number}",duration_ms="${forensic.last_duration_ms}"} 1`,
+        '# HELP void_txroot_forensics_wraps_total times we rebound the wrapper',
+        '# TYPE void_txroot_forensics_wraps_total counter',
+        `void_txroot_forensics_wraps_total ${state.wraps_total}`,
+        '# HELP void_txroot_forensics_last_bind_ms epoch ms of last bind',
+        '# TYPE void_txroot_forensics_last_bind_ms gauge',
+        `void_txroot_forensics_last_bind_ms ${state.last_bind_ms || 0}`,
+      ].join('\n') + '\n');
+    });
+    console.log('[txroot/forensics/sticky-v2] route mounted');
+  }
+
+  async function getSegStoreProto(){
+    try {
+      if (g.SegStore && g.SegStore.prototype) return g.SegStore.prototype;
+      // ESM-safe dynamic import
+      const mod = await import('./chain/seg_store.js');
+      if (mod && mod.SegStore && mod.SegStore.prototype) {
+        g.SegStore = mod.SegStore; // cache globally for others
+        return mod.SegStore.prototype;
+      }
+    } catch {}
+    return null;
+  }
+
+  function findNodeInstance(){
+    // try common globals first
+    const candidates = [
+      g.__void_node, g.__voidNode, g.node, g.VOID_NODE,
+      (g.app && g.app.locals && g.app.locals.node)
+    ];
+    for (const c of candidates) {
+      if (c && c.store && typeof c.store.saveBlock === 'function') return c;
+    }
+    // fallback: scan a few globals heuristically
+    for (const k of Object.keys(g)) {
+      try {
+        const v = (g as any)[k];
+        if (v && v.store && typeof v.store.saveBlock === 'function') return v;
+      } catch {}
+    }
+    return null;
+  }
+
+  async function tick(){
+    try {
+      mountRouteOnce();
+
+      // 1) Prefer prototype wrapping (covers all instances)
+      const proto = await getSegStoreProto();
+      if (proto && typeof proto.saveBlock === 'function' && !(proto.saveBlock as any)[sym]) {
+        proto.saveBlock = wrapOnce(proto.saveBlock);
+        // console.log('[txroot/forensics/sticky-v2] bound SegStore.prototype.saveBlock');
+      }
+
+      // 2) Also bind instance-level (in case something swapped the method after instantiation)
+      const node = findNodeInstance();
+      if (node && node.store && typeof node.store.saveBlock === 'function' && !(node.store.saveBlock as any)[sym]) {
+        node.store.saveBlock = wrapOnce(node.store.saveBlock);
+        // console.log('[txroot/forensics/sticky-v2] bound node.store.saveBlock');
+      }
+    } catch (_e) {}
+    setTimeout(tick, TICK);
+  }
+  tick();
+})();
