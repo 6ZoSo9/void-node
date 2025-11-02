@@ -1,0 +1,12 @@
+groups:
+- name: void-node-runtime
+  rules:
+  # If you have a tx counter: void_tx_submitted_total{job="void-node"}
+  - alert: VoidNodeNoTxIn5m
+    expr: (rate(void_tx_submitted_total{job="void-node"}[5m]) == bool 0)
+          * (1 - scalar(void:canary:ok))
+    for: 5m
+    labels: {severity: warning, system: void, env: dev}
+    annotations:
+      summary: "No transactions in 5m (guarded by canary)"
+      description: "rate(void_tx_submitted_total[5m]) == 0 AND canary not OK."

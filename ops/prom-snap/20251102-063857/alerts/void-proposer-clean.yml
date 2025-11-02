@@ -1,0 +1,11 @@
+groups:
+- name: void-proposer-clean
+  interval: 15s
+  rules:
+  - alert: VoidProposerEnabledButNoHead
+    expr: (void:proposer:enabled == 1) and (void:head:rate2m < 0.05)
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Proposer enabled but head not advancing"
+      description: "enabled=1, head rate <0.05 blk/s for 2m."

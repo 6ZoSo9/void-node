@@ -1,0 +1,10 @@
+groups:
+- name: void-mempool-alerts
+  rules:
+  - alert: VoidEmptyWhenQueued
+    expr: void:empty_when_queued:suspect == 1
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Mempool non-empty but blocks look empty"
+      description: "Mempool > 0 while txs/block ~ 0 for 2m. Check /tx/merge/cap and empty-block policy."

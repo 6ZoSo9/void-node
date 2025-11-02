@@ -1,0 +1,13 @@
+groups:
+- name: void-proposer-stall
+  rules:
+  - alert: VoidProposerStalled
+    expr: (max_over_time(void_ready[1m]) == 1)
+          and (increase(void_head_number[2m]) == 0)
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "VOID proposer stalled"
+      description: "Head hasn't advanced for 2m while node is ready."

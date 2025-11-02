@@ -1,0 +1,22 @@
+groups:
+- name: void-snapshot-age-TEST
+  interval: 5s
+  rules:
+  - alert: VoidSnapshotStaleTEST
+    expr: void_ops_prom_snap_age_seconds > 120
+    for: 30s
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "TEST WARN"
+      description: "Age >2m (TEST)"
+  - alert: VoidSnapshotVeryStaleTEST
+    expr: void_ops_prom_snap_age_seconds > 180
+    for: 30s
+    labels:
+      severity: critical
+      system: void
+    annotations:
+      summary: "TEST CRIT"
+      description: "Age >3m (TEST)"

@@ -1,0 +1,20 @@
+groups:
+- name: void-ready-exporter
+  rules:
+  - alert: VoidReadyExporterDown
+    expr: up{job="void-ready"} == 0
+    for: 1m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "void-ready exporter down"
+      description: "Prometheus cannot scrape /metrics/void/ready."
+      runbook_url: "https://grafana.local/runbooks/void-ready-lite"
+
+  - alert: VoidReadyBitZero
+    expr: (up{job="void-ready"} == 1) and (void_ready_bit == 0)
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Node-ready bit is 0"
+      description: "Node reports not-ready via /metrics/void/ready."
+      runbook_url: "https://grafana.local/runbooks/void-ready-lite"

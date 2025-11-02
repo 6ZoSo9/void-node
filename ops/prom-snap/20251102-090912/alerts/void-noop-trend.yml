@@ -1,0 +1,13 @@
+groups:
+- name: void-noop-trend
+  interval: 15s
+  rules:
+  - alert: VoidNoopLagGrowing
+    expr: delta(void:noop_lag_to_head[5m]) > 0
+    for: 3m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "NOOP lag is growing"
+      description: "Lag increased over the last 5m (delta={{ $value }})."

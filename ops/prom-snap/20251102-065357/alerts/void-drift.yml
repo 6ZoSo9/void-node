@@ -1,0 +1,13 @@
+groups:
+- name: void-follower-drift
+  interval: 15s
+  rules:
+  - alert: VoidFollowerDrift
+    expr: up{job="void-follower-v4",env="dev"} == 1
+      and void:follower_head_local:changes_2m == 0
+      and void:follower_head_peer:increase_2m > 0
+    for: 2m
+    labels: { severity: warning }
+    annotations:
+      summary: "VOID follower drift > 0 (peer advancing, follower stalled)"
+      description: "Follower head not moving in 2m while peer head advanced."

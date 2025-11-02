@@ -1,0 +1,11 @@
+groups:
+- name: void-proposer-rescue
+  interval: 15s
+  rules:
+  - alert: VoidProposerRescueOccurred
+    expr: increase(void_proposer_rescues_total[10m]) > 0
+    for: 0m
+    labels: { severity: info, system: void }
+    annotations:
+      summary: "Proposer auto-rescue occurred"
+      description: "The node performed an automatic proposer rescue in the last 10 minutes."

@@ -1,0 +1,10 @@
+groups:
+- name: void-txroot-follow-gap-critical
+  rules:
+  - alert: VoidTxrootFollowerLaggingCritical
+    expr: void:txroot:saves_gap_1m > 2
+    for: 1m
+    labels: { severity: critical }
+    annotations:
+      summary: "Follower significantly behind"
+      description: "Gap (main - follower) > 2.0/s for 2m. Investigate follower loop and peer connectivity."

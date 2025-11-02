@@ -1,0 +1,12 @@
+groups:
+- name: void-genesis-alerts
+  rules:
+  - alert: VoidGenesisBad
+    expr: (void:genesis:ok:last_2m == 0) or on() (void_genesis_health == 0)
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Genesis manifest failing validation"
+      description: "void_genesis_health has been 0 for 2 minutes. Check /genesis/status and VOID_GENESIS_PATH/chainId."

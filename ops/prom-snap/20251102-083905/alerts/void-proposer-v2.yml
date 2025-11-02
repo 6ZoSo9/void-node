@@ -1,0 +1,13 @@
+groups:
+- name: void-proposer-v2
+  rules:
+  - alert: VoidProposerNotAdvancing
+    expr: (avg_over_time(void_proposer_active{job="void-proposer-v2"}[2m]) < 0.2)
+          and (increase(void_head_number{job="void-head"}[2m]) == 0)
+    for: 30s
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "VOID proposer appears idle"
+      description: "No head growth for 2m and active ratio < 0.2 over the last 2m."

@@ -1,0 +1,11 @@
+groups:
+- name: void-scrape-freshness
+  rules:
+  - alert: VoidTxrootScrapeStale
+    expr: void:txroot:scrape_age_seconds{job=~"void-txroot-core-v2|void-txroot-core-v2-follower"} > 30
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Stale scrape for {{ $labels.job }}"
+      description: "Last scrape for {{ $labels.job }} ({{ $labels.instance }}) is {{ $value | printf \"%.0fs\" }} old."

@@ -1,0 +1,12 @@
+groups:
+- name: void-header3-recording
+  interval: 15s
+  rules:
+  - record: void:header3:last_number
+    expr: max_over_time(void_header3_last_number[1m])
+
+  - record: void:header3:last_mismatch
+    expr: max_over_time(void_header3_last_mismatch[1m])
+
+  - record: void:header3:adv_rate2m
+    expr: rate(void_header3_last_number[2m])

@@ -1,0 +1,18 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "instance": "127.0.0.1:4100",
+          "job": "void-header3"
+        },
+        "value": [
+          1762089837.501,
+          "6.1529998779296875"
+        ]
+      }
+    ]
+  }
+}

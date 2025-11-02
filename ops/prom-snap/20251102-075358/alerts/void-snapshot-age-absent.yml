@@ -1,0 +1,14 @@
+groups:
+- name: void-snapshot-age-absent
+  interval: 30s
+  rules:
+  - alert: VoidSnapshotMetricAbsent
+    # Fires if the series is missing for 10m (e.g., exporter down, path changed)
+    expr: absent(void_ops_prom_snap_age_seconds)
+    for: 10m
+    labels:
+      severity: critical
+      system: void
+    annotations:
+      summary: "Snapshot age metric missing"
+      description: "void_ops_prom_snap_age_seconds has been absent for 10 minutes."

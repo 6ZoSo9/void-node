@@ -1,0 +1,10 @@
+groups:
+- name: void-proposer-recording
+  interval: 15s
+  rules:
+  - record: void:proposer:enabled
+    expr: max( max_over_time(void_proposer_auto_enabled_v2[1m]) or max_over_time(void_proposer_auto_enabled[1m]) )
+  - record: void:proposer:tick_ms
+    expr: max( max_over_time(void_proposer_auto_ms_v2[1m]) or max_over_time(void_proposer_auto_ms[1m]) )
+  - record: void:head:rate2m
+    expr: rate(void_head_number[2m])

@@ -1,0 +1,10 @@
+groups:
+- name: void-txroot-enforcer
+  rules:
+  - alert: VoidTxrootEnforcerRejects
+    expr: rate(void_txroot_enforcer_rejects_total[2m]) > 0
+    for: 2m
+    labels: { system: void, severity: warning }
+    annotations:
+      summary: "TxRoot enforcer is rejecting seals"
+      description: "rate(rejects_total[2m]) = {{ $value }} > 0. Check tx normalization and header root."

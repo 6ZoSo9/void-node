@@ -1,0 +1,29 @@
+groups:
+- name: void-head-stall
+  rules:
+  - alert: VoidNodeDown
+    expr: up{job="void-head"} == 0
+    for: 1m
+    labels: { severity: critical, system: void }
+    annotations:
+      summary: "void-head target down"
+      description: "Prometheus up{job='void-head'} is 0 — exporter/node not reachable."
+      runbook_url: "https://grafana.local/runbooks/void-ready-lite"
+
+  - alert: VoidHeadStallWarn
+    expr: (up{job="void-head"} == 1) and (void:head:inc_5m == 0)
+    for: 30m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Head not advancing (warning)"
+      description: "No head growth for 30m while node is UP (may be normal during idle)."
+      runbook_url: "https://grafana.local/runbooks/void-ready-lite"
+
+  - alert: VoidHeadStallCritical
+    expr: (up{job="void-head"} == 1) and (void:head:inc_5m == 0) and (void:setter:hb_rate_5m == 0)
+    for: 5m
+    labels: { severity: critical, system: void }
+    annotations:
+      summary: "Head + setter stalled (critical)"
+      description: "No head growth AND no txroot setter heartbeat for 5m — loop likely stuck."
+      runbook_url: "https://grafana.local/runbooks/void-ready-lite"

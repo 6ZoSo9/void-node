@@ -1,0 +1,11 @@
+groups:
+- name: void-proposer-disabled
+  interval: 15s
+  rules:
+  - alert: VoidProposerDisabled
+    expr: void:proposer_auto_enabled:min_2m == 0
+    for: 0m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Proposer auto is DISABLED (sustained)"
+      description: "Auto-loop has been continuously off for 2 minutes."

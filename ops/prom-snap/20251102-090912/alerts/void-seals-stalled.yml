@@ -1,0 +1,12 @@
+groups:
+- name: void-seals
+  rules:
+  - alert: VoidSealsStalled
+    expr: (void:seals:stalled_2m == 1) and on(job,instance) (up == 1)
+    for: 2m
+    labels:
+      system: void
+      severity: warning
+    annotations:
+      summary: "Seals stalled ({{ $labels.instance }})"
+      description: "No new seals for 2 minutes (job={{ $labels.job }}, instance={{ $labels.instance }})."

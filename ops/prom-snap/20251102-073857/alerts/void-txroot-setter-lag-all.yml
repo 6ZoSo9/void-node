@@ -1,0 +1,18 @@
+groups:
+- name: void-txroot-setter-lag-all
+  rules:
+  - alert: VoidTxrootSetterLagWarning
+    expr: void:txroot:setter_lag_2m >= 5
+    for: 3m
+    labels: { system: void, severity: warning }
+    annotations:
+      summary: "TxRoot setter lagging (≥5 blocks)"
+      description: "void:txroot:setter_lag_2m = {{ $value }}."
+
+  - alert: VoidTxrootSetterLagCritical
+    expr: void:txroot:setter_lag_2m >= 20
+    for: 2m
+    labels: { system: void, severity: critical }
+    annotations:
+      summary: "TxRoot setter severely lagging (≥20 blocks)"
+      description: "void:txroot:setter_lag_2m = {{ $value }}."

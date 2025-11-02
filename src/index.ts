@@ -15870,3 +15870,94 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 
   try { waitForApp(); } catch {}
 })();
+
+// ---------------- saveBlock Trampoline Guard v1 (additive, safe) -----------------
+(function saveBlockTrampolineGuardV1(){
+  const TICK = 400;
+
+  function getG(){ return (globalThis as any); }
+  function getProto(){
+    const G = getG();
+    return (G.SegStore && G.SegStore.prototype) ? G.SegStore.prototype : undefined;
+  }
+
+  function install(){
+    const proto:any = getProto();
+    if (!proto) return setTimeout(install, TICK);
+
+    const ORIG = Symbol.for("void.segstore.saveBlock.orig.v1");
+    const TRAMP = Symbol.for("void.segstore.saveBlock.tramp.v1");
+
+    // Record the very first real original if we haven't yet.
+    if (!proto[ORIG] && typeof proto.saveBlock === "function" && !proto.saveBlock[TRAMP]) {
+      try { Object.defineProperty(proto, ORIG, { value: proto.saveBlock, writable: false, configurable: true }); }
+      catch { (proto as any)[ORIG] = proto.saveBlock; }
+    }
+
+    const orig:any = proto[ORIG] || proto.saveBlock;
+    if (typeof orig !== "function") return;
+
+    // Trampoline that ALWAYS calls the original (breaks wrap->wrap recursion).
+    const tramp = async function saveBlockTrampolineV1(this:any, ...args:any[]){
+      return await orig.apply(this, args);
+    };
+    (tramp as any)[TRAMP] = true;
+
+    // Only install if current saveBlock isn't already our trampoline.
+    if (proto.saveBlock !== tramp) {
+      try {
+        Object.defineProperty(proto, "saveBlock", { value: tramp, writable: true, configurable: true, enumerable: false });
+      } catch {
+        proto.saveBlock = tramp;
+      }
+    }
+
+    // Expose minimal HTTP controls
+    const app:any = (getG().__void_http_app || getG().app);
+    if (app && typeof app.get === "function" && !(app as any).__void_tramp_guard_http_v1) {
+      (app as any).__void_tramp_guard_http_v1 = true;
+
+      // GET status
+      app.get("/__void/dev/saveBlock.tramp/status", (_req:any, res:any)=>{
+        const p:any = getProto();
+        const desc = p ? Object.getOwnPropertyDescriptor(p, "saveBlock") : null;
+        res.json({
+          ok: true,
+          has_proto: !!p,
+          has_orig: !!(p && p[ORIG]),
+          is_tramp: !!(p && typeof p.saveBlock === "function" && (p.saveBlock as any)[TRAMP]),
+          writable: !!desc?.writable,
+          configurable: !!desc?.configurable
+        });
+      });
+
+      // POST unbind → restore original
+      app.post("/__void/dev/saveBlock.tramp/unbind", (_req:any, res:any)=>{
+        const p:any = getProto();
+        const o:any = p && p[ORIG];
+        if (p && typeof o === "function") {
+          try { Object.defineProperty(p, "saveBlock", { value: o, writable: true, configurable: true, enumerable: false }); }
+          catch { p.saveBlock = o; }
+          res.json({ ok: true, action: "restore-original" });
+        } else {
+          res.json({ ok: false, error: "no-original" });
+        }
+      });
+
+      // POST bind → re-install trampoline
+      app.post("/__void/dev/saveBlock.tramp/bind", (_req:any, res:any)=>{
+        const p:any = getProto();
+        if (!p) return res.json({ ok:false, error:"no-proto" });
+        const o:any = p[ORIG] || p.saveBlock;
+        if (typeof o !== "function") return res.json({ ok:false, error:"no-func" });
+        const tramp2:any = async function saveBlockTrampolineV1b(this:any, ...args:any[]){ return await (p[ORIG]||o).apply(this, args); };
+        tramp2[TRAMP] = true;
+        try { Object.defineProperty(p, "saveBlock", { value: tramp2, writable: true, configurable: true, enumerable: false }); }
+        catch { p.saveBlock = tramp2; }
+        res.json({ ok:true, action:"bind-trampoline" });
+      });
+    }
+  }
+
+  try { install(); } catch { setTimeout(install, TICK); }
+})();

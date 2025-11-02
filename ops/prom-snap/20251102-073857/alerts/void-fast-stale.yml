@@ -1,0 +1,19 @@
+groups:
+- name: void-fast-stale
+  interval: 15s
+  rules:
+  - alert: VoidHeader3StaleFast
+    expr: (time() - timestamp(void_header3_last_number)) > 45
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "header3 exporter stale (>45s)"
+      description: "void_header3_last_number has not updated in >45s."
+
+  - alert: VoidSealsStaleFast
+    expr: (time() - timestamp(void_seal_last_number)) > 45
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "seals exporter stale (>45s)"
+      description: "void_seal_last_number has not updated in >45s."

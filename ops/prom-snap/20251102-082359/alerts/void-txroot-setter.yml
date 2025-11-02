@@ -1,0 +1,11 @@
+groups:
+- name: void-txroot-setter
+  rules:
+  - alert: VoidTxRootHeaderSetterMismatch
+    expr: rate(void_txroot_header_mismatch_total{job="void-txroot-setter"}[2m]) > 0
+      and max_over_time(void_block_txcount{job="void-head"}[2m]) > 0
+    for: 1m
+    labels: { system: void, severity: warning }
+    annotations:
+      summary: "Setter mismatch"
+      description: "Header txRoot set did not match computed root on non-empty block(s)."
