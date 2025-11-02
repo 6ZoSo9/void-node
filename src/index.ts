@@ -15820,3 +15820,53 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   }
   mountRoutes();
 })();
+
+// ---------------- header3 auto-warm poller (additive, safe) -------------------
+(function header3AutoWarmPoller(){
+  const TICK_MS = Number(process.env.VOID_HEADER3_POLL_MS || 10000); // default 10s
+  let attached = false, t: any;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function pokeOnce(fetch: any){
+    try {
+      const port = String(process.env.HTTP_PORT || "4100");
+      const r = await fetch("http://127.0.0.1:" + port + "/blocks/latest/number2.json");
+      if (!r?.ok) return;
+      const j = await r.json();
+      const n = (j && (j.number ?? j.num ?? j.N)) ?? null;
+      if (typeof n === "number" && n >= 0) {
+        await fetch(`http://127.0.0.1:${port}/blocks/${encodeURIComponent(n)}/header3`).catch(()=>{});
+      }
+    } catch {}
+  }
+
+  function start(){
+    if (attached) return; attached = true;
+    const g:any = globalThis as any;
+    const fetch = (g.fetch || ((...args:any[]) => import("node-fetch").then(m => (m.default as any)(...args)))) as any;
+    const tick = async ()=>{ await pokeOnce(fetch); t = setTimeout(tick, TICK_MS); };
+    tick();
+
+    // health gauge (Prom-style text) under /__void/metrics/header3.warm.prom
+    const app:any = getApp();
+    if (app?.get && !(app as any).__void_header3_warm_prom) {
+      (app as any).__void_header3_warm_prom = true;
+      app.get("/__void/metrics/header3.warm.prom", (_req:any, res:any)=>{
+        res.type("text/plain; version=0.0.4");
+        res.write("# HELP void_header3_warm_enabled Auto-warm poller enabled (1/0)\n");
+        res.write("# TYPE void_header3_warm_enabled gauge\n");
+        res.write("void_header3_warm_enabled 1\n");
+        res.end();
+      });
+    }
+  }
+
+  function waitForApp(){
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function") return setTimeout(waitForApp, 400);
+    start();
+  }
+
+  try { waitForApp(); } catch {}
+})();
