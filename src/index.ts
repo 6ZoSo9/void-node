@@ -14751,3 +14751,123 @@ void_header3_last_mismatch ${lastMismatch}
     setTimeout(tick, 300);
   })();
 })();
+// ===== txroot forensics: property-latch trampoline v6 (additive) =====
+(function txrootForensicsTrampolineV6(){
+  const g:any = globalThis as any;
+  const S = g.__void_txroot_forensic_state_v6 || (g.__void_txroot_forensic_state_v6 = {
+    calls_total: 0,
+    binds_total: 0,
+    last_number: -1,
+    last_kind: 'unknown',
+    last_shape: 'n/a',
+    last_duration_ms: 0,
+    note: '',
+    latched: false,
+  });
+
+  function makeTramp(orig:any){
+    function tramp(this:any, ...args:any[]){
+      const t0 = Date.now();
+      S.calls_total++;
+      const a0 = args[0];
+      if (Array.isArray(a0)) { S.last_kind = 'array'; S.last_shape = `len=${a0.length}`; if (a0?.[0]?.number>=0) S.last_number=a0[0].number; }
+      else if (a0 && typeof a0 === 'object') { S.last_kind = 'object'; S.last_shape = `keys=${Object.keys(a0).slice(0,8).join(',')}`; if (typeof a0.number==='number') S.last_number=a0.number; }
+      else { S.last_kind = typeof a0; S.last_shape = 'n/a'; }
+      const out = orig.apply(this, args);
+      if (out && typeof out.then === 'function') {
+        return (out as Promise<any>).finally(()=>{ S.last_duration_ms = Date.now()-t0; });
+      } else { S.last_duration_ms = Date.now()-t0; return out; }
+    }
+    Object.defineProperty(tramp, '__void_trampoline_v6', { value: true });
+    return tramp;
+  }
+
+  function latchProperty(){
+    try{
+      const Seg = g.SegStore; if (!Seg || !Seg.prototype) { S.note='no SegStore yet'; return; }
+      const proto = Seg.prototype;
+
+      // If we already latched, bail.
+      const desc0 = Object.getOwnPropertyDescriptor(proto, 'saveBlock');
+      if ((desc0 as any)?.__void_latched_v6) { S.note='already latched'; S.latched=true; return; }
+
+      // Start with whatever is there now (method or accessor)
+      let _inner:any;
+      if (!desc0 || typeof desc0.value === 'function') {
+        _inner = (desc0 && 'value' in desc0) ? desc0.value : proto.saveBlock;
+      } else if (desc0 && (desc0.get || desc0.set)) {
+        // Try to read current via getter
+        try { _inner = desc0.get?.call(proto); } catch { _inner = proto.saveBlock; }
+      }
+
+      // Define accessor that wraps any future writes
+      Object.defineProperty(proto, 'saveBlock', {
+        configurable: true,
+        enumerable: false,
+        get(){ return _inner; },
+        set(fn:any){
+          // Every assignment passes through here; wrap if not our tramp
+          const target = (fn && fn.__void_trampoline_v6) ? fn : makeTramp(fn);
+          _inner = target;
+          S.binds_total++;
+        },
+        __void_latched_v6: true
+      } as any);
+
+      // Force current inner to be tramp’d too
+      if (_inner && !_inner.__void_trampoline_v6) {
+        proto.saveBlock = _inner; // triggers setter -> wraps
+      }
+
+      S.latched = true;
+      S.note = 'property accessor latched; future overwrites will be trampolined';
+    }catch(e:any){ S.note = 'latch error: '+(e?.message||e); }
+  }
+
+  function mountInspector(){
+    const app:any = (g as any).__void_http_app || (g as any).app;
+    if (!app || typeof app.get !== 'function') return;
+    if (app.__void_trampoline_v6_inspector) return; app.__void_trampoline_v6_inspector = true;
+
+    app.get('/__void/dev/inspect/saveBlock.v6', (_req:any, res:any)=>{
+      const Seg = g.SegStore; const proto = Seg?.prototype;
+      const desc = proto && Object.getOwnPropertyDescriptor(proto, 'saveBlock');
+      res.json({
+        ok: true,
+        segstore_present: !!Seg,
+        latched: S.latched,
+        note: S.note,
+        descriptor: desc ? {
+          has_get: !!desc.get, has_set: !!desc.set,
+          has_value: 'value' in (desc as any),
+          writable: !!desc.writable, configurable: !!desc.configurable
+        } : null,
+        counters: {
+          binds_total: S.binds_total,
+          calls_total: S.calls_total,
+          last_number: S.last_number,
+          last_kind: S.last_kind,
+          last_shape: S.last_shape,
+          last_duration_ms: S.last_duration_ms
+        }
+      });
+    });
+
+    app.get('/__void/metrics/txroot4/forensics.prom.v6', (_req:any, res:any)=>{
+      res.type('text/plain; version=0.0.4; charset=utf-8').end([
+        '# HELP void_txroot_forensics_binds_total_v6 saveBlock descriptor binds',
+        '# TYPE void_txroot_forensics_binds_total_v6 counter',
+        `void_txroot_forensics_binds_total_v6 ${S.binds_total}`,
+        '# HELP void_txroot_forensics_calls_total_v6 saveBlock calls observed (trampoline-latched)',
+        '# TYPE void_txroot_forensics_calls_total_v6 counter',
+        `void_txroot_forensics_calls_total_v6 ${S.calls_total}`,
+      ].join('\n')+'\n');
+    });
+  }
+
+  (function tick(){
+    latchProperty();
+    mountInspector();
+    setTimeout(tick, 300);
+  })();
+})();
