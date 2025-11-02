@@ -185,3 +185,53 @@ prom-test-install:
 	> "$$tmp"; \
 	sudo mv "$$tmp" /etc/prometheus/alerts/void-snapshot-age-TEST.yml; \
 	sudo promtool check rules /etc/prometheus/alerts/void-snapshot-age-TEST.yml
+.PHONY: prom-reload-safe
+prom-reload-safe:
+	@for i in 1 2 3 4 5; do \
+	  if curl -fsS -X POST 127.0.0.1:9090/-/reload >/dev/null; then echo reloaded; exit 0; fi; \
+	  echo "reload 500, retry $$i..." && sleep 1; \
+	done; \
+	echo "reload failed after retries" && exit 1
+
+# Wait until Prom query >= THRESH (default 4000)
+.PHONY: prom-wait-val
+prom-wait-val:
+	@THRESH=$${THRESH:-4000}; \
+	URL="http://127.0.0.1:9090/api/v1/query"; \
+	while :; do \
+	  V="$$(curl -fsS --get "$$URL" --data-urlencode 'query=void_ops_prom_snap_age_seconds' \
+	       | jq -r '.data.result[]?.value[1] // "NaN"')" ; \
+	  printf "prom void_ops_prom_snap_age_seconds=%s (target>=%s)\n" "$$V" "$$THRESH"; \
+	  awk "BEGIN{exit !($$V>=$$THRESH)}" && break; \
+	  sleep 1; \
+	done
+
+# Wait until the named alert is ABSENT
+.PHONY: prom-alert-clear
+prom-alert-clear:
+	@ALERT=$${ALERT:?usage: make prom-alert-clear ALERT=<Name>}; \
+	URL="http://127.0.0.1:9090/api/v1/alerts"; \
+	while :; do \
+	  CNT="$$(curl -fsS "$$URL" | jq -r --arg A "$$ALERT" '[.data.alerts[]? | select(.labels.alertname==$A)] | length')" ; \
+	  echo "$$ALERT active=$$CNT" ; \
+	  [ "$$CNT" = "0" ] && break; \
+	  sleep 2; \
+	done
+
+# Full end-to-end TEST cycle
+.PHONY: prom-test-cycle
+prom-test-cycle:
+	@$(MAKE) prom-test-install
+	@$(MAKE) prom-reload-safe
+	@echo "interval=$$(curl -fsS 127.0.0.1:9090/api/v1/rules | jq -r '.data.groups[] | select(.name==\"void-snapshot-age-TEST\") | .interval')s"
+	@$(MAKE) prom-age-stale
+	@$(MAKE) prom-wait-val THRESH=3000
+	@$(MAKE) prom-warn-wait-test
+	@$(MAKE) prom-crit-wait-test
+	@$(MAKE) prom-age-fresh
+	@sleep 10
+	@$(MAKE) prom-alert-clear ALERT=VoidSnapshotStaleTEST
+	@$(MAKE) prom-alert-clear ALERT=VoidSnapshotVeryStaleTEST
+	@$(MAKE) prom-test-remove
+	@$(MAKE) prom-reload-safe
+	@echo "TEST cycle complete"
