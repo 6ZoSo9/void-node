@@ -80,3 +80,6 @@ prom-backup:
 	@sudo tar czf /root/prometheus-config-OK.$$(date +%F-%H%M).tgz /etc/prometheus /etc/systemd/system/prometheus.service.d && \
 	echo "backup -> /root/prometheus-config-OK.$$(date +%F-%H%M).tgz"
 
+.PHONY: prom-snap
+prom-snap:
+	./ops/prom-snap.sh
