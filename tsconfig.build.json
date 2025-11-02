@@ -1,19 +1,13 @@
 {
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "noEmit": false,
-    "outDir": "dist",
-    "sourceMap": true,
-    "skipLibCheck": true,
-    "noImplicitAny": false,
-    "useUnknownInCatchVariables": false,
-    "typeRoots": [
-      "./src/types",
-      "./node_modules/@types"
-    ]
-  },
-  "include": [
-    "src/**/*",
-    "src/types/**/*.d.ts"
-  ]
+  "noEmit": false,
+  "outDir": "dist",
+  "sourceMap": true,
+  "skipLibCheck": true,
+  "noImplicitAny": false,
+  "useUnknownInCatchVariables": false,
+  "typeRoots": [
+    "./src/types",
+    "./node_modules/@types"
+  ],
+  "noEmitOnError": false
 }
