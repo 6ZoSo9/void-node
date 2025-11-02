@@ -115,3 +115,6 @@ prom-snap-age:
 prom-poke:
 	sudo systemctl start void-prom-snap-root.service
 	sudo ./ops/prom-textfile-snap-age.sh
+.PHONY: prom-age
+prom-age:
+	curl -fsS 127.0.0.1:9090/api/v1/query --data-urlencode 'query=void_ops_prom_snap_age_seconds' | jq -r '.data.result[]?.value[1]'
