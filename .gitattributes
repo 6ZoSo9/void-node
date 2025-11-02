@@ -1,3 +1,4 @@
 * text=auto eol=lf
 LICENSE text eol=lf
 .ci/VCL_LICENSE.txt text eol=lf
+/.secrets/** -diff -merge export-ignore

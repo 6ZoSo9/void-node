@@ -1,3 +1,7 @@
+// --- shim: legacy proposer exporter free identifiers (additive, safe) ---
+var autoTimer: any;
+var autoMs: any;
+
 // VOID Community License (VCL) v1.0 — see LICENSE
 // Copyright (c) 2025 6ZoSo9
 
@@ -11906,3 +11910,1667 @@ void_header3_last_mismatch ${lastMismatch}
   mount();
 })();
  // ================== /READY WATCHDOG v1 ==================
+
+// ---------------- Proposer Auto Shim: status/stop + metrics (additive) ----------------
+(function proposerAutoShim(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  // Lightweight state mirror (purely observational)
+  const mirror:any = (globalThis as any).__void_proposer_mirror || ((globalThis as any).__void_proposer_mirror = {
+    auto:false, ms: NaN, lastTickMs: 0, lastSeenHead: -1
+  });
+
+  // Try to infer existing starter hooks if present (best-effort)
+  function inferAuto(){
+    // If other code stashes state somewhere known, reflect it here.
+    // We leave this generic so we don't couple tightly to internals.
+    const g:any = (globalThis as any);
+    if (g.__void_proposer_auto && typeof g.__void_proposer_auto === "object") {
+      try {
+        mirror.auto = !!g.__void_proposer_auto.enabled;
+        mirror.ms = Number(g.__void_proposer_auto.ms ?? g.__void_proposer_auto.intervalMs ?? mirror.ms);
+      } catch {}
+    }
+  }
+
+  function observeHead(){
+    // Poll /blocks/latest/number2.json if the app provides a fetch helper
+    // Otherwise we leave lastSeenHead as whatever other parts set.
+    // Many builds already update this via existing tickers; this is best-effort.
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_proposer_auto_shim) return; (app as any).__void_proposer_auto_shim = true;
+
+    // Status: report best-effort info even if core route doesn't exist
+    app.get("/proposer/auto/status", (_req:any, res:any)=>{
+      inferAuto();
+      res.json({ ok:true, auto: !!mirror.auto, ms: isFinite(mirror.ms)? Number(mirror.ms) : null, lastTickMs: mirror.lastTickMs || null, lastSeenHead: mirror.lastSeenHead });
+    });
+
+    // Stop: call the existing stop route if present, else just flip our mirror
+    app.post("/proposer/auto/stop", async (_req:any, res:any)=>{
+      let ok=false;
+      try {
+        // If the canonical stop route exists in this build, proxy to it:
+        if (typeof (app as any).handle === "function") {
+          // noop: local app router; we don't know internal stop handler; mirror only
+        }
+      } catch {}
+      mirror.auto = false;
+      res.json({ ok:true, auto:false });
+    });
+
+    // Tiny Prom exporter for the proposer auto state
+    app.get("/metrics/void/proposer", (_req:any, res:any)=>{
+      inferAuto();
+      const lines = [];
+      { const M=(globalThis as any).__void_metrics||{}; lines.push("void_proposer_auto_enabled " + (M.proposerAutoEnabled ? 1 : 0)); }
+      lines.push("# TYPE void_proposer_auto_enabled gauge");
+      { const M=(globalThis as any).__void_metrics||{}; lines.push("void_proposer_auto_enabled " + (M.proposerAutoEnabled ? 1 : 0)); }
+      lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+      lines.push("# TYPE void_proposer_auto_ms gauge");
+      { const M=(globalThis as any).__void_metrics||{}; const v = Number(M.proposerAutoMs); lines.push("void_proposer_auto_ms " + (Number.isFinite(v) ? v : NaN)); }
+      if (mirror.lastTickMs) {
+        lines.push("# HELP void_proposer_last_tick_ms Last observed tick (epoch ms)");
+        lines.push("# TYPE void_proposer_last_tick_ms gauge");
+        lines.push(`void_proposer_last_tick_ms ${mirror.lastTickMs}`);
+      }
+      if (mirror.lastSeenHead >= 0) {
+        lines.push("# HELP void_proposer_last_seen_head Last head number observed by shim");
+        lines.push("# TYPE void_proposer_last_seen_head gauge");
+        lines.push(`void_proposer_last_seen_head ${mirror.lastSeenHead}`);
+      }
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+
+    // If other parts of the app emit events, they can update the mirror like so:
+    try {
+      const g:any = (globalThis as any);
+      if (!g.__void_proposer_notify) {
+        g.__void_proposer_notify = (ev:any)=>{
+          if (!ev) return;
+          if (typeof ev.auto === "boolean") mirror.auto = ev.auto;
+          if (typeof ev.ms === "number") mirror.ms = ev.ms;
+          if (typeof ev.head === "number") mirror.lastSeenHead = ev.head;
+          mirror.lastTickMs = Date.now();
+        };
+      }
+    } catch {}
+  }
+  mount();
+})();
+
+// ---------- Proposer Status (minimal shim; additive/safe) ----------
+(function proposerStatusShimV2(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function infer(){
+    const g:any = (globalThis as any);
+    const s:any = { auto:null as null|boolean, ms:null as null|number, lastTickMs:null as null|number, lastSeenHead:null as null|number };
+    try{
+      if (g.__void_proposer_auto && typeof g.__void_proposer_auto==="object"){
+        s.auto = !!g.__void_proposer_auto.enabled;
+        const m = (g.__void_proposer_auto.ms ?? g.__void_proposer_auto.intervalMs);
+        if (m!=null && isFinite(Number(m))) s.ms = Number(m);
+      }
+      if (g.__void_proposer_notify && g.__void_proposer_notify.__mirror){
+        const m = g.__void_proposer_notify.__mirror;
+        if (typeof m.lastTickMs==="number") s.lastTickMs = m.lastTickMs;
+        if (typeof m.lastSeenHead==="number") s.lastSeenHead = m.lastSeenHead;
+      }
+    }catch{}
+    return s;
+  }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_proposer_status_shim_v2) return; (app as any).__void_proposer_status_shim_v2 = true;
+
+    app.get("/proposer/auto/status", (_req:any, res:any)=>{
+      const s = infer();
+      res.json({ ok:true, auto: s.auto, ms: s.ms, lastTickMs: s.lastTickMs, lastSeenHead: s.lastSeenHead });
+    });
+
+    app.get("/metrics/void/proposer", (_req:any, res:any)=>{
+      const s = infer();
+      const lines:string[] = [];
+      lines.push("# HELP void_proposer_auto_enabled Proposer auto enabled (1/0; NaN if unknown)");
+      lines.push("# TYPE void_proposer_auto_enabled gauge");
+      { const M=(globalThis as any).__void_metrics||{}; lines.push("void_proposer_auto_enabled " + (M.proposerAutoEnabled ? 1 : 0)); }
+      lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+      lines.push("# TYPE void_proposer_auto_ms gauge");
+      { const M=(globalThis as any).__void_metrics||{}; const v = Number(M.proposerAutoMs); lines.push("void_proposer_auto_ms " + (Number.isFinite(v) ? v : NaN)); }
+      if (s.lastTickMs!==null){
+        lines.push("# HELP void_proposer_last_tick_ms Last observed proposer tick (epoch ms)");
+        lines.push("# TYPE void_proposer_last_tick_ms gauge");
+        lines.push(`void_proposer_last_tick_ms ${s.lastTickMs}`);
+      }
+      if (s.lastSeenHead!==null){
+        lines.push("# HELP void_proposer_last_seen_head Last head number seen by proposer");
+        lines.push("# TYPE void_proposer_last_seen_head gauge");
+        lines.push(`void_proposer_last_seen_head ${s.lastSeenHead}`);
+      }
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+  }
+  mount();
+})();
+
+// ---------- Proposer Activity Gauge (additive, safe) ----------
+(function proposerActivityGauge(){
+  const TICK=2000, WINDOW_MS=10_000;
+  let lastHead = -1, lastChange = 0;
+  function now(){ return Date.now(); }
+  async function poll(){
+    try{
+      const r = await fetch('http://127.0.0.1:'+ (process.env.HTTP_PORT||'4100') +'/head.txt');
+      const txt = await r.text();
+      const n = Number((txt||'').trim());
+      if (Number.isFinite(n)){
+        if (n !== lastHead){ lastHead = n; lastChange = now(); }
+      }
+    }catch{}
+    setTimeout(poll, TICK);
+  }
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_proposer_activity_gauge) return; (app as any).__void_proposer_activity_gauge = true;
+    app.get("/metrics/void/proposer", (_req:any, res:any)=>{
+      // keep existing lines if the other shim wrote first
+      let buf = "";
+      try{ buf = (res as any).body || ""; }catch{}
+      const active = (now() - lastChange) <= WINDOW_MS ? 1 : 0;
+      const lines = [];
+      lines.push("# HELP void_proposer_active Head advanced within last 10s (1 yes, 0 no)");
+      lines.push("# TYPE void_proposer_active gauge");
+      lines.push(`void_proposer_active ${active}`);
+      res.type("text/plain").send((buf?buf+"\n":"") + lines.join("\n") + "\n");
+    });
+  }
+  poll(); mount();
+})();
+
+// ---------- Proposer Metrics v2 (standalone endpoint, additive) ----------
+(function proposerMetricsV2(){
+  const TICK=2000, WINDOW_MS=10_000;
+  let lastHead = -1, lastChange = 0;
+
+  const port = String(process.env.HTTP_PORT || '4100');
+  async function poll(){
+    try{
+      const r = await fetch('http://127.0.0.1:'+port+'/head.txt');
+      const txt = await r.text();
+      const n = Number((txt||'').trim());
+      if (Number.isFinite(n) && n !== lastHead){ lastHead = n; lastChange = Date.now(); }
+    }catch{/* ignore */}
+    setTimeout(poll, TICK);
+  }
+
+  function inferAuto(){ // mirror internal auto-loop if present
+    const g:any = (globalThis as any);
+    const out = { enabled: 0, ms: NaN };
+    try{
+      if (g.__void_proposer_auto && typeof g.__void_proposer_auto === "object"){
+        out.enabled = g.__void_proposer_auto.enabled ? 1 : 0;
+        const m = g.__void_proposer_auto.ms ?? g.__void_proposer_auto.intervalMs;
+        if (m!=null) out.ms = Number(m);
+      }
+    }catch{}
+    return out;
+  }
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_proposer_metrics_v2) return; (app as any).__void_proposer_metrics_v2 = true;
+
+    // Text exposition endpoint – cannot be shadowed by other handlers
+    app.get("/metrics/void/proposer.v2.prom", (_req:any, res:any)=>{
+      const auto = inferAuto();
+      const active = (Date.now() - lastChange) <= WINDOW_MS ? 1 : 0;
+
+      const lines = [];
+      lines.push("# HELP void_proposer_active Head advanced within last 10s (1 yes, 0 no)");
+      lines.push("# TYPE void_proposer_active gauge");
+      lines.push(`void_proposer_active ${active}`);
+      lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+      lines.push("# TYPE void_proposer_auto_enabled gauge");
+      { const M=(globalThis as any).__void_metrics||{}; lines.push("void_proposer_auto_enabled " + (M.proposerAutoEnabled ? 1 : 0)); }
+      lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+      lines.push("# TYPE void_proposer_auto_ms gauge");
+      { const M=(globalThis as any).__void_metrics||{}; const v = Number(M.proposerAutoMs); lines.push("void_proposer_auto_ms " + (Number.isFinite(v) ? v : NaN)); }
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+  }
+
+  poll(); mount();
+})();
+
+// ---------- Proposer Auto Switch v2 (additive, safe) ----------
+(function ProposerAutoSwitchV2(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node; } // assumes you expose node once ready
+  let autoTimer: any = null, autoMs: number|undefined;
+
+  function setGauge(val:number){ try {
+    (globalThis as any).__void_metrics = (globalThis as any).__void_metrics || {};
+    (globalThis as any).__void_metrics.proposerAutoEnabled = (val?1:0);
+    (globalThis as any).__void_metrics.proposerAutoMs = Number.isFinite(autoMs||NaN)?(autoMs as number):NaN;
+  } catch{} }
+
+  async function tick(){
+    try {
+      const node:any = getNode(); if (!node || typeof node.proposeBlock!=="function") return;
+      await node.proposeBlock?.();
+    } catch(e) { /* swallow */ }
+  }
+
+  function start(ms:number){
+    stop(); autoMs = ms; setGauge(1);
+    autoTimer = setInterval(tick, ms);
+  }
+  function stop(){
+    if (autoTimer) clearInterval(autoTimer);
+    autoTimer = null; setGauge(0);
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_proposer_auto_v2) return; (app as any).__void_proposer_auto_v2 = true;
+
+    app.post("/proposer/auto/start", (req:any,res:any)=>{
+      const ms = Number(req.query.ms ?? 2000); start(ms);
+      res.json({ok:true, ms});
+    });
+    app.post("/proposer/auto/stop", (_req:any,res:any)=>{ stop(); res.json({ok:true}); });
+
+    // exporter bridge (piggybacks your existing /metrics/void/proposer.v2.prom writer)
+    const old = (globalThis as any).__void_exporters = (globalThis as any).__void_exporters || {};
+    (globalThis as any).__void_exporters["proposer.v2.prom"] = function(){
+      const lines = [];
+      lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+      lines.push("# TYPE void_proposer_auto_ms gauge");
+      { const M=(globalThis as any).__void_metrics||{}; const v = Number(M.proposerAutoMs); lines.push("void_proposer_auto_ms " + (Number.isFinite(v) ? v : NaN)); }
+      lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+      lines.push("# TYPE void_proposer_auto_enabled gauge");
+      { const M=(globalThis as any).__void_metrics||{}; lines.push("void_proposer_auto_enabled " + (M.proposerAutoEnabled ? 1 : 0)); }
+      return lines.join("\\n");
+    };
+  }
+  mount();
+})();
+
+// ---------- Proposer exporter bridge: fix string interpolation (additive) ----------
+(function ProposerExporterBridgeFix(){
+  try {
+    (globalThis as any).__void_exporters = (globalThis as any).__void_exporters || {};
+    (globalThis as any).__void_exporters["proposer.v2.prom"] = function(){
+      const M = (globalThis as any).__void_metrics || {};
+      const enabled = M.proposerAutoEnabled ? 1 : 0;
+      const ms = Number.isFinite(M.proposerAutoMs) ? M.proposerAutoMs : NaN;
+      const out:string[] = [];
+      out.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+      out.push("# TYPE void_proposer_auto_enabled gauge");
+      out.push(`void_proposer_auto_enabled ${enabled}`);
+      out.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+      out.push("# TYPE void_proposer_auto_ms gauge");
+      out.push(`void_proposer_auto_ms ${Number.isFinite(ms) ? ms : 'NaN'}`);
+      return out.join("\n");
+    };
+  } catch {}
+})();
+
+// ---------- Proposer exporter override (additive, safe, scope-free) ----------
+(function ProposerExporterOverrideV3(){
+  const TICK = 300;
+  function mount(){
+    const exp = (globalThis as any).__void_exporters;
+    if (!exp) return setTimeout(mount, TICK);
+    exp["proposer.v2.prom"] = function(){
+      const M = (globalThis as any).__void_metrics || {};
+      const ms = Number.isFinite(M.proposerAutoMs) ? M.proposerAutoMs : NaN;
+      const enabled = M.proposerAutoEnabled ? 1 : 0;
+      const lines = [];
+      lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+      lines.push("# TYPE void_proposer_auto_ms gauge");
+      lines.push("void_proposer_auto_ms " + ms);
+      lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+      lines.push("# TYPE void_proposer_auto_enabled gauge");
+      lines.push("void_proposer_auto_enabled " + enabled);
+      return lines.join("\n");
+    };
+  }
+  mount();
+})();
+
+// ---------- Proposer auto metrics mirror (additive, safe) ----------
+(function ProposerAutoMetricsMirror(){
+  const TICK = 500;
+  function tick(){
+    try {
+      const M = (globalThis as any).__void_metrics = (globalThis as any).__void_metrics || {};
+      // legacy shims we hoisted earlier:
+      const enabled = !!(globalThis as any).autoTimer;
+      const ms = Number.isFinite((globalThis as any).autoMs) ? (globalThis as any).autoMs : NaN;
+      M.proposerAutoEnabled = enabled;
+      M.proposerAutoMs = ms;
+    } catch { /* no-op */ }
+    setTimeout(tick, TICK);
+  }
+  tick();
+})();
+
+// ---------- Proposer auto: metrics mark endpoints (additive, safe) ----------
+(function ProposerAutoMetricsMark(){
+  const TICK = 300;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function ensureMetrics(){
+    const G:any = globalThis as any;
+    G.__void_metrics = G.__void_metrics || {};
+    if (typeof G.__void_metrics.proposerAutoEnabled !== "boolean") G.__void_metrics.proposerAutoEnabled = false;
+    if (!Number.isFinite(G.__void_metrics.proposerAutoMs)) G.__void_metrics.proposerAutoMs = NaN;
+  }
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
+    ensureMetrics();
+
+    // POST /proposer/auto/mark?enabled=0|1&ms=NNNN
+    app.post("/proposer/auto/mark", (req:any, res:any)=>{
+      try {
+        const G:any = globalThis as any;
+        G.__void_metrics = G.__void_metrics || {};
+        if (req.query.enabled !== undefined) {
+          G.__void_metrics.proposerAutoEnabled = String(req.query.enabled)==="1";
+        }
+        if (req.query.ms !== undefined) {
+          const v = Number(req.query.ms);
+          G.__void_metrics.proposerAutoMs = Number.isFinite(v) ? v : NaN;
+        }
+        res.json({ok:true, enabled:G.__void_metrics.proposerAutoEnabled, ms:G.__void_metrics.proposerAutoMs});
+      } catch(e:any){
+        res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+
+    // Boot mark from env (so systemd can set defaults)
+    try {
+      const G:any = globalThis as any;
+      G.__void_metrics = G.__void_metrics || {};
+      if (process.env.PROPOSER_AUTO) {
+        G.__void_metrics.proposerAutoEnabled = String(process.env.PROPOSER_AUTO)==="1";
+      }
+      if (process.env.PROPOSER_TICK_MS) {
+        const v = Number(process.env.PROPOSER_TICK_MS);
+        if (Number.isFinite(v)) G.__void_metrics.proposerAutoMs = v;
+      }
+    } catch {}
+  }
+  mount();
+})();
+// ---------- Proposer auto: metrics mark endpoints (additive, safe) ----------
+(function ProposerAutoMetricsMark(){
+  const TICK = 300;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
+
+    app.post("/proposer/auto/mark", (req:any, res:any)=>{
+      try {
+        const G:any = globalThis as any;
+        G.__void_metrics = G.__void_metrics || {};
+        if (req.query.enabled !== undefined) {
+          G.__void_metrics.proposerAutoEnabled = String(req.query.enabled)==="1";
+        }
+        if (req.query.ms !== undefined) {
+          const v = Number(req.query.ms);
+          G.__void_metrics.proposerAutoMs = Number.isFinite(v) ? v : NaN;
+        }
+        res.json({ok:true, enabled:G.__void_metrics.proposerAutoEnabled, ms:G.__void_metrics.proposerAutoMs});
+      } catch(e:any){
+        res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+
+    // On boot, seed from env if present
+    try {
+      const G:any = globalThis as any;
+      G.__void_metrics = G.__void_metrics || {};
+      if (process.env.PROPOSER_AUTO) {
+        G.__void_metrics.proposerAutoEnabled = String(process.env.PROPOSER_AUTO)==="1";
+      }
+      if (process.env.PROPOSER_TICK_MS) {
+        const v = Number(process.env.PROPOSER_TICK_MS);
+        if (Number.isFinite(v)) G.__void_metrics.proposerAutoMs = v;
+      }
+    } catch {}
+  }
+  mount();
+})();
+
+// ---------- DEBUG: dump __void_metrics (additive) ----------
+(function VoidMetricsDebug(){
+  const TICK=300;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_metrics_debug_mounted) return; (app as any).__void_metrics_debug_mounted = true;
+    app.get("/__debug/void-metrics", (_req:any, res:any)=>{
+      try { res.json((globalThis as any).__void_metrics || {}); }
+      catch(e:any){ res.status(500).json({ok:false, error:String(e?.message||e)}); }
+    });
+  }
+  mount();
+})();
+
+// ---------- FINAL OVERRIDE: proposer exporter reads __void_metrics (additive) ----------
+(function ProposerExporterFinalOverride(){
+  const TICK = 300;
+  function mount(){
+    const exp = (globalThis as any).__void_exporters;
+    if (!exp) return setTimeout(mount, TICK);
+    exp["proposer.v2.prom"] = function(){
+      const M = (globalThis as any).__void_metrics || {};
+      const ms = Number.isFinite(M.proposerAutoMs) ? M.proposerAutoMs : NaN;
+      const enabled = M.proposerAutoEnabled ? 1 : 0;
+      const lines:string[] = [];
+      lines.push("# HELP void_proposer_active Head advanced within last 10s (1 yes, 0 no)");
+      lines.push("# TYPE void_proposer_active gauge");
+      // delegate active line to whatever already sets it; we don't touch it here
+      // (the composer typically prepends it; if not present, it won't appear)
+
+      lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+      lines.push("# TYPE void_proposer_auto_enabled gauge");
+      lines.push("void_proposer_auto_enabled " + enabled);
+
+      lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+      lines.push("# TYPE void_proposer_auto_ms gauge");
+      lines.push("void_proposer_auto_ms " + ms);
+
+      return lines.join("\n");
+    };
+  }
+  mount();
+})();
+
+// ---------- Proposer exporter freshness (additive) ----------
+(function ProposerExporterFreshness(){
+  const TICK=300;
+  function mount(){
+    const exp = (globalThis as any).__void_exporters; if (!exp) return setTimeout(mount, TICK);
+    const old = exp["proposer.v2.prom"];
+    exp["proposer.v2.prom"] = function(){
+      const out = (old ? String(old()) : "");
+      const now = Date.now();
+      const lines = [];
+      lines.push("# HELP void_proposer_exporter_ts_ms Exporter generation timestamp (ms since epoch)");
+      lines.push("# TYPE void_proposer_exporter_ts_ms gauge");
+      lines.push("void_proposer_exporter_ts_ms " + now);
+      return (out ? out + "\n" : "") + lines.join("\n");
+    };
+  }
+  mount();
+})();
+
+// ---------- STICKY OVERRIDE: proposer exporter reads __void_metrics (additive) ----------
+(function ProposerExporterStickyOverride(){
+  const TICK = 400;     // rebinding cadence
+  let seq = 0;
+
+  function writeExporter(){
+    const G:any = globalThis as any;
+    const exp = G.__void_exporters;
+    if (!exp) return;  // wait until first writer creates the map
+
+    exp["proposer.v2.prom"] = function(){
+      const M = (G.__void_metrics || {});
+      const ms = Number.isFinite(M.proposerAutoMs) ? M.proposerAutoMs : NaN;
+      const enabled = M.proposerAutoEnabled ? 1 : 0;
+
+      const lines:string[] = [];
+      lines.push("# HELP void_proposer_active Head advanced within last 10s (1 yes, 0 no)");
+      lines.push("# TYPE void_proposer_active gauge");
+      // NOTE: `void_proposer_active` is still produced elsewhere; we only append our gauges.
+      lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+      lines.push("# TYPE void_proposer_auto_enabled gauge");
+      lines.push("void_proposer_auto_enabled " + enabled);
+      lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+      lines.push("# TYPE void_proposer_auto_ms gauge");
+      lines.push("void_proposer_auto_ms " + ms);
+      // Tag so we can verify who is winning
+      lines.push("# SOURCE proposer_exporter_override_vFINAL seq=" + seq);
+      return lines.join("\n");
+    };
+  }
+
+  function tick(){
+    try { seq++; writeExporter(); } catch {}
+    setTimeout(tick, TICK);
+  }
+
+  // Start after exporters likely exist, but keep trying anyway.
+  setTimeout(tick, TICK);
+})();
+
+// ---------- HIJACK: keep proposer exporter pinned even if __void_exporters is replaced ----------
+(function ProposerExporterHijackV1(){
+  const TAG = "proposer_exporter_hijack_v1";
+  function buildWriter(){
+    return function(){
+      const G:any = globalThis as any;
+      const M = G.__void_metrics || {};
+      const ms = Number.isFinite(M.proposerAutoMs) ? M.proposerAutoMs : NaN;
+      const enabled = M.proposerAutoEnabled ? 1 : 0;
+
+      const out:string[] = [];
+      // NOTE: we only emit our gauges; other metrics are emitted elsewhere.
+      out.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+      out.push("# TYPE void_proposer_auto_enabled gauge");
+      out.push("void_proposer_auto_enabled " + enabled);
+
+      out.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+      out.push("# TYPE void_proposer_auto_ms gauge");
+      out.push("void_proposer_auto_ms " + ms);
+
+      out.push("# SOURCE " + TAG);
+      return out.join("\n");
+    };
+  }
+
+  // Inject our writer into whatever exporters object is passed.
+  function inject(exp:any){
+    try { exp["proposer.v2.prom"] = buildWriter(); } catch {}
+  }
+
+  // 1) Wrap the global property so any future assignment re-injects our writer.
+  try {
+    const G:any = globalThis as any;
+    let store = G.__void_exporters;
+
+    Object.defineProperty(G, "__void_exporters", {
+      configurable: true,
+      enumerable: false,
+      get(){ if (!store) store = {}; return store; },
+      set(v:any){ store = v || {}; inject(store); }
+    });
+
+    // If it already exists, inject now.
+    inject(G.__void_exporters);
+  } catch {
+    // 2) Fallback poller: if defineProperty fails, keep re-injecting periodically.
+    const TICK = 300;
+    (function poll(){ try {
+      const G:any = globalThis as any;
+      G.__void_exporters = G.__void_exporters || {};
+      inject(G.__void_exporters);
+    } catch {} setTimeout(poll, TICK); })();
+  }
+})();
+
+// ---------- Proposer exporter v2 gauges (additive, pinned via hijack) ----------
+(function ProposerExporterV2Gauges(){
+  const TICK=300;
+  function addV2(){
+    try {
+      const G:any = globalThis as any;
+      const exp = G.__void_exporters; if (!exp) return setTimeout(addV2, TICK);
+
+      const old = exp["proposer.v2.prom"];
+      exp["proposer.v2.prom"] = function(){
+        const M = (G.__void_metrics || {});
+        const ms = Number.isFinite(M.proposerAutoMs) ? M.proposerAutoMs : NaN;
+        const enabled = M.proposerAutoEnabled ? 1 : 0;
+
+        // Render our v2 block
+        const v2:string[] = [];
+        v2.push("# HELP void_proposer_auto_enabled_v2 Proposer auto-loop enabled (1/0) [v2]");
+        v2.push("# TYPE void_proposer_auto_enabled_v2 gauge");
+        v2.push("void_proposer_auto_enabled_v2 " + enabled);
+
+        v2.push("# HELP void_proposer_auto_ms_v2 Proposer tick interval in ms (NaN if unknown) [v2]");
+        v2.push("# TYPE void_proposer_auto_ms_v2 gauge");
+        v2.push("void_proposer_auto_ms_v2 " + ms);
+
+        v2.push("# HELP void_proposer_exporter_ts_ms_v2 Exporter generation timestamp (ms since epoch) [v2]");
+        v2.push("# TYPE void_proposer_exporter_ts_ms_v2 gauge");
+        v2.push("void_proposer_exporter_ts_ms_v2 " + Date.now());
+
+        // Prepend/append around any existing block so both coexist safely.
+        const legacy = old ? String(old()) : "";
+        // Our v2 block LAST so Prom takes our values if names ever collide (they don't).
+        return (legacy ? legacy + "\n" : "") + v2.join("\n");
+      };
+    } catch { return setTimeout(addV2, TICK); }
+  }
+  addV2();
+})();
+
+// ---------- STICKY HIJACK: keep proposer exporter ours (additive, safe) ----------
+(function ProposerExporterStickyHijack(){
+  function makeWriter(){
+    const G:any = globalThis as any;
+    return function(){
+      const M = (G.__void_metrics || {});
+      const ms = Number.isFinite(M.proposerAutoMs) ? M.proposerAutoMs : NaN;
+      const enabled = M.proposerAutoEnabled ? 1 : 0;
+
+      const out:string[] = [];
+
+      // Legacy names (so existing dashboards don't 404)
+      out.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+      out.push("# TYPE void_proposer_auto_enabled gauge");
+      out.push("void_proposer_auto_enabled " + enabled);
+
+      out.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+      out.push("# TYPE void_proposer_auto_ms gauge");
+      out.push("void_proposer_auto_ms " + ms);
+
+      // v2 names (unambiguous, recommended for panels/alerts)
+      out.push("# HELP void_proposer_auto_enabled_v2 Proposer auto-loop enabled (1/0) [v2]");
+      out.push("# TYPE void_proposer_auto_enabled_v2 gauge");
+      out.push("void_proposer_auto_enabled_v2 " + enabled);
+
+      out.push("# HELP void_proposer_auto_ms_v2 Proposer tick interval in ms (NaN if unknown) [v2]");
+      out.push("# TYPE void_proposer_auto_ms_v2 gauge");
+      out.push("void_proposer_auto_ms_v2 " + ms);
+
+      out.push("# HELP void_proposer_exporter_ts_ms_v2 Exporter generation timestamp (ms since epoch) [v2]");
+      out.push("# TYPE void_proposer_exporter_ts_ms_v2 gauge");
+      out.push("void_proposer_exporter_ts_ms_v2 " + Date.now());
+
+      // Tag so we can grep the live scrape
+      out.push("# SOURCE proposer_exporter_sticky_hijack_v1");
+      return out.join("\n");
+    };
+  }
+
+  const TICK = 1000;
+  function rehook(){
+    try {
+      const G:any = globalThis as any;
+      G.__void_exporters = G.__void_exporters || {};
+      // Always re-assign so we win even if someone else overwrote it.
+      G.__void_exporters["proposer.v2.prom"] = makeWriter();
+    } catch {}
+    setTimeout(rehook, TICK);
+  }
+  rehook();
+})();
+
+// ---------- Proposer exporter v3 (independent Express route; additive, safe) ----------
+(function ProposerExporterV3Route(){
+  const TICK = 300;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_proposer_exporter_v3) return; (app as any).__void_proposer_exporter_v3 = true;
+
+    app.get("/metrics/void/proposer.v3.prom", (_req:any, res:any)=>{
+      try{
+        const G:any = globalThis as any;
+        const M = G.__void_metrics || {};
+        const ms = Number.isFinite(M.proposerAutoMs) ? M.proposerAutoMs : NaN;
+        const enabled = M.proposerAutoEnabled ? 1 : 0;
+        const lines:string[] = [];
+
+        // Legacy names to keep panels working
+        lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+        lines.push("# TYPE void_proposer_auto_enabled gauge");
+        lines.push("void_proposer_auto_enabled " + enabled);
+
+        lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+        lines.push("# TYPE void_proposer_auto_ms gauge");
+        lines.push("void_proposer_auto_ms " + ms);
+
+        // v2 unambiguous names
+        lines.push("# HELP void_proposer_auto_enabled_v2 Proposer auto-loop enabled (1/0) [v2]");
+        lines.push("# TYPE void_proposer_auto_enabled_v2 gauge");
+        lines.push("void_proposer_auto_enabled_v2 " + enabled);
+
+        lines.push("# HELP void_proposer_auto_ms_v2 Proposer tick interval in ms (NaN if unknown) [v2]");
+        lines.push("# TYPE void_proposer_auto_ms_v2 gauge");
+        lines.push("void_proposer_auto_ms_v2 " + ms);
+
+        lines.push("# HELP void_proposer_exporter_ts_ms_v2 Exporter generation timestamp (ms since epoch) [v2]");
+        lines.push("# TYPE void_proposer_exporter_ts_ms_v2 gauge");
+        lines.push("void_proposer_exporter_ts_ms_v2 " + Date.now());
+
+        lines.push("# SOURCE proposer_exporter_v3_route");
+        res.setHeader("Content-Type", "text/plain; version=0.0.4");
+        res.end(lines.join("\n"));
+      }catch(e:any){
+        res.status(500).end("# ERROR " + String(e?.message||e));
+      }
+    });
+  }
+  mount();
+})();
+
+// ---------- Proposer exporter v3 (hardened truth merge + diag) ----------
+(function ProposerExporterV3_Hardened(){
+  const TICK = 300;
+  const sticky:any = { enabled: undefined, ms: undefined, last_ts: 0 };
+
+  function num(v:any){ const n = Number(v); return Number.isFinite(n) ? n : NaN; }
+  function asBool01(v:any){
+    if (v === true || v === 1 || v === "1" || v === "true" || v === "TRUE") return 1;
+    return 0;
+  }
+
+  // Merge truth from multiple possible writers
+  function getTruth(){
+    const G:any = globalThis as any;
+    const app:any = G.__void_http_app || G.app || undefined;
+
+    // Sources (highest priority first)
+    const s1 = (G.__void_proposer_auto || {}); // expected {enabled, ms}
+    const s2 = (G.__void_metrics || {});       // expected {proposerAutoEnabled, proposerAutoMs}
+    const s3 = ((G.__void_flags || {}).PROPOSER_AUTO);  // "1"/"0"
+    const s4 = process.env.PROPOSER_AUTO;      // env override
+    const s5 = process.env.PROPOSER_TICK_MS;   // env override
+
+    // app.locals hints (if our /proposer/auto/... stored there)
+    const L = app && app.locals ? app.locals : {};
+    const s6 = (L.__void_proposer_auto || {}); // local cache {enabled, ms}
+
+    // Compose
+    const enabled =
+      (typeof s1.enabled !== "undefined" ? asBool01(s1.enabled) :
+      (typeof s2.proposerAutoEnabled !== "undefined" ? asBool01(s2.proposerAutoEnabled) :
+      (typeof s6.enabled !== "undefined" ? asBool01(s6.enabled) :
+      asBool01(s3 ?? s4))));
+
+    const ms =
+      (Number.isFinite(s1.ms) ? Number(s1.ms) :
+      (Number.isFinite(s2.proposerAutoMs) ? Number(s2.proposerAutoMs) :
+      (Number.isFinite(s6.ms) ? Number(s6.ms) :
+      num(s5))));
+
+    // stickiness so we don't regress to 0/NaN after first good read
+    if (enabled === 1) sticky.enabled = 1;
+    if (Number.isFinite(ms)) sticky.ms = ms;
+    sticky.last_ts = Date.now();
+
+    return {
+      enabled: (typeof sticky.enabled !== "undefined" ? sticky.enabled : enabled),
+      ms: (typeof sticky.ms !== "undefined" ? sticky.ms : ms),
+      ts_ms: sticky.last_ts,
+      sources: {
+        s1_has: (typeof s1.enabled !== "undefined") || (typeof s1.ms !== "undefined"),
+        s2_has: (typeof s2.proposerAutoEnabled !== "undefined") || (typeof s2.proposerAutoMs !== "undefined"),
+        s3_env_flag: s3 ?? null,
+        s4_env_flag: s4 ?? null,
+        s5_env_ms: s5 ?? null,
+        s6_has: (typeof s6.enabled !== "undefined") || (typeof s6.ms !== "undefined"),
+      }
+    };
+  }
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_proposer_exporter_v3_hardened) return; (app as any).__void_proposer_exporter_v3_hardened = true;
+
+    // Prom exporter with merged truth
+    app.get("/metrics/void/proposer.v3.prom", (_req:any, res:any)=>{
+      try{
+        const truth = getTruth();
+        const enabled = Number(truth.enabled||0);
+        const ms = Number.isFinite(truth.ms) ? Number(truth.ms) : NaN;
+
+        const lines:string[] = [];
+        lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+        lines.push("# TYPE void_proposer_auto_enabled gauge");
+        lines.push("void_proposer_auto_enabled " + enabled);
+
+        lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+        lines.push("# TYPE void_proposer_auto_ms gauge");
+        lines.push("void_proposer_auto_ms " + (Number.isFinite(ms)?ms:"NaN"));
+
+        lines.push("# HELP void_proposer_auto_enabled_v2 Proposer auto-loop enabled (1/0) [v2]");
+        lines.push("# TYPE void_proposer_auto_enabled_v2 gauge");
+        lines.push("void_proposer_auto_enabled_v2 " + enabled);
+
+        lines.push("# HELP void_proposer_auto_ms_v2 Proposer tick interval in ms (NaN if unknown) [v2]");
+        lines.push("# TYPE void_proposer_auto_ms_v2 gauge");
+        lines.push("void_proposer_auto_ms_v2 " + (Number.isFinite(ms)?ms:"NaN"));
+
+        lines.push("# HELP void_proposer_exporter_ts_ms_v2 Exporter generation timestamp (ms since epoch) [v2]");
+        lines.push("# TYPE void_proposer_exporter_ts_ms_v2 gauge");
+        lines.push("void_proposer_exporter_ts_ms_v2 " + (truth.ts_ms||Date.now()));
+
+        lines.push("# SOURCE proposer_exporter_v3_hardened");
+        res.setHeader("Content-Type", "text/plain; version=0.0.4");
+        res.end(lines.join("\n"));
+      }catch(e:any){
+        res.status(500).end("# ERROR " + String(e?.message||e));
+      }
+    });
+
+    // Human/JSON diag to see which sources were present at scrape time
+    app.get("/__void/metrics/proposer.truth.json", (_req:any, res:any)=>{
+      try{
+        const truth = getTruth();
+        res.json({ ok:true, truth });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+  }
+  mount();
+})();
+
+// ---------- Proposer exporter v3b (new path, hardened truth merge + sticky) ----------
+(function ProposerExporterV3B_Hardened(){
+  const TICK = 300;
+  const sticky:any = { enabled: undefined, ms: undefined, last_ts: 0 };
+
+  function num(v:any){ const n = Number(v); return Number.isFinite(n) ? n : NaN; }
+  function asBool01(v:any){
+    if (v === true || v === 1 || v === "1" || v === "true" || v === "TRUE") return 1;
+    return 0;
+  }
+
+  function getTruth(){
+    const G:any = globalThis as any;
+    const app:any = G.__void_http_app || G.app || undefined;
+
+    const s1 = (G.__void_proposer_auto || {}); // {enabled, ms}
+    const s2 = (G.__void_metrics || {});       // {proposerAutoEnabled, proposerAutoMs}
+    const s3 = ((G.__void_flags || {}).PROPOSER_AUTO);
+    const s4 = process.env.PROPOSER_AUTO;
+    const s5 = process.env.PROPOSER_TICK_MS;
+    const L  = app && app.locals ? app.locals : {};
+    const s6 = (L.__void_proposer_auto || {});
+
+    const enabled =
+      (typeof s1.enabled !== "undefined" ? asBool01(s1.enabled) :
+      (typeof s2.proposerAutoEnabled !== "undefined" ? asBool01(s2.proposerAutoEnabled) :
+      (typeof s6.enabled !== "undefined" ? asBool01(s6.enabled) :
+      asBool01(s3 ?? s4))));
+
+    const ms =
+      (Number.isFinite(s1.ms) ? Number(s1.ms) :
+      (Number.isFinite(s2.proposerAutoMs) ? Number(s2.proposerAutoMs) :
+      (Number.isFinite(s6.ms) ? Number(s6.ms) :
+      num(s5))));
+
+    // sticky last-good
+    if (enabled === 1) sticky.enabled = 1;
+    if (Number.isFinite(ms)) sticky.ms = ms;
+    sticky.last_ts = Date.now();
+
+    return {
+      enabled: (typeof sticky.enabled !== "undefined" ? sticky.enabled : enabled),
+      ms:      (typeof sticky.ms      !== "undefined" ? sticky.ms      : ms),
+      ts_ms: sticky.last_ts,
+      sources: {
+        s1_has: (typeof s1.enabled !== "undefined") || (typeof s1.ms !== "undefined"),
+        s2_has: (typeof s2.proposerAutoEnabled !== "undefined") || (typeof s2.proposerAutoMs !== "undefined"),
+        s3_env_flag: s3 ?? null,
+        s4_env_flag: s4 ?? null,
+        s5_env_ms:   s5 ?? null,
+        s6_has: (typeof s6.enabled !== "undefined") || (typeof s6.ms !== "undefined"),
+      }
+    };
+  }
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_proposer_exporter_v3b_hardened) return; (app as any).__void_proposer_exporter_v3b_hardened = true;
+
+    // Hardened exporter on a NEW path so we don't conflict with older v3
+    app.get("/metrics/void/proposer.v3b.prom", (_req:any, res:any)=>{
+      try{
+        const truth = getTruth();
+        const enabled = Number(truth.enabled||0);
+        const ms = Number.isFinite(truth.ms) ? Number(truth.ms) : NaN;
+
+        const lines:string[] = [];
+        lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
+        lines.push("# TYPE void_proposer_auto_enabled gauge");
+        lines.push("void_proposer_auto_enabled " + enabled);
+
+        lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
+        lines.push("# TYPE void_proposer_auto_ms gauge");
+        lines.push("void_proposer_auto_ms " + (Number.isFinite(ms)?ms:"NaN"));
+
+        lines.push("# HELP void_proposer_auto_enabled_v2 Proposer auto-loop enabled (1/0) [v2]");
+        lines.push("# TYPE void_proposer_auto_enabled_v2 gauge");
+        lines.push("void_proposer_auto_enabled_v2 " + enabled);
+
+        lines.push("# HELP void_proposer_auto_ms_v2 Proposer tick interval in ms (NaN if unknown) [v2]");
+        lines.push("# TYPE void_proposer_auto_ms_v2 gauge");
+        lines.push("void_proposer_auto_ms_v2 " + (Number.isFinite(ms)?ms:"NaN"));
+
+        lines.push("# HELP void_proposer_exporter_ts_ms_v2 Exporter generation timestamp (ms since epoch) [v2]");
+        lines.push("# TYPE void_proposer_exporter_ts_ms_v2 gauge");
+        lines.push("void_proposer_exporter_ts_ms_v2 " + (truth.ts_ms||Date.now()));
+
+        lines.push("# SOURCE proposer_exporter_v3b_hardened");
+        res.setHeader("Content-Type", "text/plain; version=0.0.4");
+        res.end(lines.join("\n"));
+      }catch(e:any){
+        res.status(500).end("# ERROR " + String(e?.message||e));
+      }
+    });
+
+    // JSON diag for visibility
+    app.get("/__void/metrics/proposer.truth2.json", (_req:any, res:any)=>{
+      try{ res.json({ ok:true, truth:getTruth(), source:"v3b" }); }
+      catch(e:any){ res.status(500).json({ ok:false, error:String(e?.message||e) }); }
+    });
+  }
+  mount();
+})();
+// ---------------- Proposer Auto Self-Rescue (additive, feature-flagged) ----------------
+(function proposerAutoSelfRescue(){
+  const FLAG = process.env.VOID_PROPOSER_AUTORESCUE === "1";
+  if (!FLAG) return;
+
+  let attached = false, rescues = 0;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function now(){ return Date.now(); }
+
+  async function readTruth(){
+    try{
+      const r = await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/__void/metrics/proposer.truth2.json");
+      if(!r.ok) return null;
+      const j = await r.json();
+      return j?.truth || null;
+    }catch{ return null; }
+  }
+
+  async function maybeRescue(){
+    const t = await readTruth();
+    if (!t) return;
+    const enabled = Number(t.enabled) === 1;
+    const ms = Number(t.ms);
+    const stale = (now() - Number(t.ts_ms)) > 60_000;
+
+    // Rescue if disabled, NaN ms, or stale exporter TS
+    if (!enabled || !Number.isFinite(ms) || stale){
+      try{
+        const url = "http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/proposer/auto/mark?enabled=1&ms=" + (Number.isFinite(ms)? ms : 2000);
+        await fetch(url, { method:"POST" });
+        rescues++;
+      }catch{}
+    }
+  }
+
+  function mount(){
+    const app:any = getApp(); if(!app || typeof app.get!=="function"){ return setTimeout(mount, 400); }
+    if (attached) return; attached = true;
+
+    // Manual trigger: POST /ops/proposer/auto/rescue
+    app.post("/ops/proposer/auto/rescue", async (_req:any,res:any)=>{
+      await maybeRescue();
+      res.json({ ok:true, rescues });
+    });
+
+    // Prom text exporter: /__void/metrics/proposer.rescue.prom
+    app.get("/__void/metrics/proposer.rescue.prom", (_req:any,res:any)=>{
+      res.setHeader("Content-Type","text/plain; version=0.0.4");
+      res.end([
+        "# HELP void_proposer_rescues_total Auto-rescue actions taken",
+        "# TYPE void_proposer_rescues_total counter",
+        `void_proposer_rescues_total ${rescues}`,
+        `void_proposer_rescue_last_ts_ms ${now()}`
+      ].join("\n")+"\n");
+    });
+
+    // Background watchdog every 20s
+    setInterval(maybeRescue, 20_000);
+  }
+  mount();
+})();
+// ---------------- TxRoot header NOOP-setter v3c (additive, safe) -----------------
+(function txrootHeaderNoopSetterV3c(){
+  const TICK = 400;
+  const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  const GUARD = "__void_txroot_noop_setter_v3c";
+  function getSegStore(){ try { return (globalThis as any).SegStore || require?.("./chain/seg_store.js").SegStore; } catch{} }
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  let metrics = {
+    set_total: 0,
+    errors_total: 0,
+    last_set_block: -1,
+    heartbeat_total: 0,
+    source: "noop-setter-v3c"
+  };
+
+  function mountExporter(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mountExporter, TICK);
+    if ((app as any).__void_txroot_noop_exporter_v3c) return; (app as any).__void_txroot_noop_exporter_v3c = true;
+
+    // Prom text exporter
+    app.get("/__void/metrics/txroot4/noop_setter.prom", (_req:any, res:any)=>{
+      metrics.heartbeat_total++;
+      res.type("text/plain; version=0.0.4");
+      res.end(
+        "# HELP void_txroot_header_noop_set_total Header txRoot noop-sets (empty blocks)\n" +
+        "# TYPE void_txroot_header_noop_set_total counter\n" +
+        `void_txroot_header_noop_set_total ${metrics.set_total}\n` +
+        "# HELP void_txroot_header_noop_last_set_block Last block number accounted by noop-setter\n" +
+        "# TYPE void_txroot_header_noop_last_set_block gauge\n" +
+        `void_txroot_header_noop_last_set_block ${metrics.last_set_block}\n` +
+        "# HELP void_txroot_header_noop_errors_total Errors in noop-setter path\n" +
+        "# TYPE void_txroot_header_noop_errors_total counter\n" +
+        `void_txroot_header_noop_errors_total ${metrics.errors_total}\n` +
+        "# HELP void_txroot_header_noop_heartbeat_total Liveness heartbeats for noop-setter\n" +
+        "# TYPE void_txroot_header_noop_heartbeat_total counter\n" +
+        `void_txroot_header_noop_heartbeat_total ${metrics.heartbeat_total}\n` +
+        `txroot_noop_setter_source{source="${metrics.source}"} 1\n`
+      );
+    });
+
+    // Small JSON diag
+    app.get("/__void/metrics/txroot4/noop_setter.json", (_req:any, res:any)=>{
+      metrics.heartbeat_total++;
+      res.json({ ok:true, ...metrics });
+    });
+  }
+
+  function attach(){
+    const SegStore = getSegStore();
+    if (!SegStore || !SegStore.prototype) return setTimeout(attach, TICK);
+    if ((SegStore.prototype as any)[GUARD]) return; (SegStore.prototype as any)[GUARD] = true;
+
+    const orig = SegStore.prototype.saveBlock;
+    if (typeof orig !== "function") return;
+
+    SegStore.prototype.saveBlock = async function wrappedSaveBlock(block:any){
+      // Perform the real save first
+      const ret = await orig.apply(this, arguments as any);
+      try {
+        // After-save accounting for empty blocks with canonical empty root
+        const num = Number(block?.number ?? -1);
+        const txCount = Number(block?.txs?.length ?? block?.txCount ?? 0);
+        const headerRoot = String(block?.txRoot || block?.header?.txRoot || "");
+        if (txCount === 0 && headerRoot === EMPTY_SHA256) {
+          metrics.set_total++;
+          metrics.last_set_block = isFinite(num) ? num : metrics.last_set_block;
+        }
+      } catch (e){ metrics.errors_total++; }
+      return ret;
+    };
+
+    // Mount exporter after wrapper is active
+    mountExporter();
+  }
+
+  attach(); // kick
+})();
+// ---------------- TxRoot header NOOP-setter v3d (ESM-safe, additive) -----------------
+(function txrootHeaderNoopSetterV3d(){
+  const TICK = 400;
+  const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  const GUARD = "__void_txroot_noop_setter_v3d";
+
+  const metrics = {
+    set_total: 0,
+    errors_total: 0,
+    last_set_block: -1,
+    heartbeat_total: 0,
+    source: "noop-setter-v3d"
+  };
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  function mountExporter(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mountExporter, TICK);
+    if ((app as any).__void_txroot_noop_exporter_v3d) return; (app as any).__void_txroot_noop_exporter_v3d = true;
+
+    console.log("[txroot/noop-setter:v3d] exporter bound at /__void/metrics/txroot4/noop_setter.prom");
+    app.get("/__void/metrics/txroot4/noop_setter.prom", (_req:any, res:any)=>{
+      metrics.heartbeat_total++;
+      res.type("text/plain; version=0.0.4");
+      res.end(
+        "# HELP void_txroot_header_noop_set_total Header txRoot noop-sets (empty blocks)\n" +
+        "# TYPE void_txroot_header_noop_set_total counter\n" +
+        `void_txroot_header_noop_set_total ${metrics.set_total}\n` +
+        "# HELP void_txroot_header_noop_last_set_block Last block accounted by noop-setter\n" +
+        "# TYPE void_txroot_header_noop_last_set_block gauge\n" +
+        `void_txroot_header_noop_last_set_block ${metrics.last_set_block}\n` +
+        "# HELP void_txroot_header_noop_errors_total Errors in noop-setter path\n" +
+        "# TYPE void_txroot_header_noop_errors_total counter\n" +
+        `void_txroot_header_noop_errors_total ${metrics.errors_total}\n` +
+        "# HELP void_txroot_header_noop_heartbeat_total Liveness\n" +
+        "# TYPE void_txroot_header_noop_heartbeat_total counter\n" +
+        `void_txroot_header_noop_heartbeat_total ${metrics.heartbeat_total}\n` +
+        `txroot_noop_setter_source{source="${metrics.source}"} 1\n`
+      );
+    });
+  }
+
+  async function attach(){
+    try{
+      // ESM-safe dynamic import
+      const mod = await import("./chain/seg_store.js");
+      const SegStore:any = (mod as any).SegStore;
+      if (!SegStore || !SegStore.prototype) return setTimeout(attach, TICK);
+      if ((SegStore.prototype as any)[GUARD]) return;
+      (SegStore.prototype as any)[GUARD] = true;
+
+      const orig = SegStore.prototype.saveBlock;
+      if (typeof orig !== "function") return;
+
+      SegStore.prototype.saveBlock = async function wrappedSaveBlock(block:any){
+        const ret = await orig.apply(this, arguments as any);
+        try{
+          const num = Number(block?.number ?? -1);
+          const txCount = Number(block?.txs?.length ?? block?.txCount ?? 0);
+          const headerRoot = String(block?.txRoot || block?.header?.txRoot || "");
+          if (txCount === 0 && headerRoot === EMPTY_SHA256) {
+            metrics.set_total++;
+            metrics.last_set_block = Number.isFinite(num) ? num : metrics.last_set_block;
+          }
+        }catch(e){ metrics.errors_total++; }
+        return ret;
+      };
+
+      console.log("[txroot/noop-setter:v3d] wrapped SegStore.saveBlock (accounting only)");
+      mountExporter(); // after wrapper active
+    }catch(e){
+      // import may fail before app mounts—retry
+      setTimeout(attach, TICK);
+    }
+  }
+
+  // Wait for express & module readiness
+  (function waitApp(){ const app = getApp(); if (!app) return setTimeout(waitApp, TICK); attach(); })();
+})();
+// --------------- TxRoot noop-setter v3e (pre-save snapshot, additive) ---------------
+(function txrootHeaderNoopSetterV3e(){
+  const TICK = 400;
+  const GUARD = "__void_txroot_noop_setter_v3e";
+  const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+  // reuse v3d metrics if present; else make a shared one
+  const shared:any = (globalThis as any).__void_txroot_noop_metrics || ((globalThis as any).__void_txroot_noop_metrics = {
+    set_total: 0,
+    errors_total: 0,
+    last_set_block: -1,
+    heartbeat_total: 0,
+    source: "noop-setter-v3e"
+  });
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  function mountExporterOnce(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mountExporterOnce, TICK);
+    if ((app as any).__void_txroot_noop_exporter_v3e) return; (app as any).__void_txroot_noop_exporter_v3e = true;
+    app.get("/__void/metrics/txroot4/noop_setter.prom", (_req:any, res:any)=>{
+      shared.heartbeat_total++;
+      res.type("text/plain; version=0.0.4");
+      res.end(
+        "# HELP void_txroot_header_noop_set_total Header txRoot noop-sets (empty blocks, pre-save)\n" +
+        "# TYPE void_txroot_header_noop_set_total counter\n" +
+        `void_txroot_header_noop_set_total ${shared.set_total}\n` +
+        "# HELP void_txroot_header_noop_last_set_block Last block accounted by noop-setter\n" +
+        "# TYPE void_txroot_header_noop_last_set_block gauge\n" +
+        `void_txroot_header_noop_last_set_block ${shared.last_set_block}\n` +
+        "# HELP void_txroot_header_noop_errors_total Errors in noop-setter path\n" +
+        "# TYPE void_txroot_header_noop_errors_total counter\n" +
+        `void_txroot_header_noop_errors_total ${shared.errors_total}\n` +
+        "# HELP void_txroot_header_noop_heartbeat_total Liveness\n" +
+        "# TYPE void_txroot_header_noop_heartbeat_total counter\n" +
+        `void_txroot_header_noop_heartbeat_total ${shared.heartbeat_total}\n`
+      );
+    });
+    console.log("[txroot/noop-setter:v3e] exporter ready (/__void/metrics/txroot4/noop_setter.prom)");
+  }
+
+  async function attach(){
+    try{
+      const mod = await import("./chain/seg_store.js");
+      const SegStore:any = (mod as any).SegStore;
+      if (!SegStore || !SegStore.prototype) return setTimeout(attach, TICK);
+      if ((SegStore.prototype as any)[GUARD]) return;
+      (SegStore.prototype as any)[GUARD] = true;
+
+      const orig = SegStore.prototype.saveBlock;
+      if (typeof orig !== "function") return;
+
+      SegStore.prototype.saveBlock = async function wrappedSaveBlockPreSnap(block:any){
+        // PRE-SAVE snapshot
+        let preNum = Number(block?.number ?? -1);
+        let preCount = Number(block?.txs?.length ?? block?.txCount ?? 0);
+        let preRoot = String(block?.txRoot || block?.header?.txRoot || "");
+
+        let ret;
+        try {
+          ret = await orig.apply(this, arguments as any);
+        } catch (e) {
+          throw e;
+        } finally {
+          try{
+            // Count noop when it *was* empty at pre-save snapshot
+            if (preCount === 0 && preRoot === EMPTY_SHA256) {
+              shared.set_total++;
+              if (Number.isFinite(preNum)) shared.last_set_block = preNum;
+            }
+          }catch(e){ shared.errors_total++; }
+        }
+        return ret;
+      };
+
+      console.log("[txroot/noop-setter:v3e] pre-save snapshot wrapper installed");
+      mountExporterOnce();
+    }catch(e){
+      setTimeout(attach, TICK);
+    }
+  }
+
+  (function wait(){ const app = getApp(); if (!app) return setTimeout(wait, TICK); attach(); })();
+})();
+// --------------- TxRoot noop-setter v3f (relaxed presave + debug gauge, additive) ---------------
+(function txrootHeaderNoopSetterV3f(){
+  const TICK = 400;
+  const GUARD = "__void_txroot_noop_setter_v3f";
+  const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+  // shared metrics bucket across versions
+  const shared:any = (globalThis as any).__void_txroot_noop_metrics || ((globalThis as any).__void_txroot_noop_metrics = {
+    set_total: 0,
+    errors_total: 0,
+    last_set_block: -1,
+    heartbeat_total: 0,
+    presnap_seen_total: 0,
+    source: "noop-setter-v3f"
+  });
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mountExporterOnce(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mountExporterOnce, TICK);
+    if ((app as any).__void_txroot_noop_exporter_v3f) return; (app as any).__void_txroot_noop_exporter_v3f = true;
+    app.get("/__void/metrics/txroot4/noop_setter.prom", (_req:any, res:any)=>{
+      shared.heartbeat_total++;
+      res.type("text/plain; version=0.0.4");
+      res.end(
+        "# HELP void_txroot_header_noop_set_total Header txRoot noop-sets (empty blocks, presave)\n" +
+        "# TYPE void_txroot_header_noop_set_total counter\n" +
+        `void_txroot_header_noop_set_total ${shared.set_total}\n` +
+        "# HELP void_txroot_header_noop_last_set_block Last block accounted by noop-setter\n" +
+        "# TYPE void_txroot_header_noop_last_set_block gauge\n" +
+        `void_txroot_header_noop_last_set_block ${shared.last_set_block}\n` +
+        "# HELP void_txroot_header_noop_errors_total Errors in noop-setter path\n" +
+        "# TYPE void_txroot_header_noop_errors_total counter\n" +
+        `void_txroot_header_noop_errors_total ${shared.errors_total}\n` +
+        "# HELP void_txroot_header_noop_presnap_seen_total Presave snapshots that were empty regardless of txRoot\n" +
+        "# TYPE void_txroot_header_noop_presnap_seen_total counter\n" +
+        `void_txroot_header_noop_presnap_seen_total ${shared.presnap_seen_total}\n` +
+        "# HELP void_txroot_header_noop_heartbeat_total Liveness\n" +
+        "# TYPE void_txroot_header_noop_heartbeat_total counter\n" +
+        `void_txroot_header_noop_heartbeat_total ${shared.heartbeat_total}\n` +
+        `txroot_noop_setter_source{source="${shared.source}"} 1\n`
+      );
+    });
+    console.log("[txroot/noop-setter:v3f] exporter ready (/__void/metrics/txroot4/noop_setter.prom)");
+  }
+
+  async function attach(){
+    try{
+      const mod = await import("./chain/seg_store.js");
+      const SegStore:any = (mod as any).SegStore;
+      if (!SegStore || !SegStore.prototype) return setTimeout(attach, TICK);
+      if ((SegStore.prototype as any)[GUARD]) return;
+      (SegStore.prototype as any)[GUARD] = true;
+
+      const prev = SegStore.prototype.saveBlock;
+      if (typeof prev !== "function") return;
+
+      SegStore.prototype.saveBlock = async function wrappedSaveBlockV3f(block:any){
+        // RELAXED presave snapshot:
+        const preNum = Number(block?.number ?? -1);
+        const preCount = Number(block?.txs?.length ?? block?.txCount ?? 0);
+        const preRoot = String(block?.txRoot || block?.header?.txRoot || "");
+        // Track every presave "empty" regardless of txRoot presence
+        if (preCount === 0) shared.presnap_seen_total++;
+
+        let ret;
+        try {
+          ret = await prev.apply(this, arguments as any);
+        } catch (e) {
+          throw e;
+        } finally {
+          try{
+            // Count noop if we were empty at presave AND txRoot looked empty or unset
+            if (preCount === 0 && (!preRoot || preRoot === EMPTY_SHA256)) {
+              shared.set_total++;
+              if (Number.isFinite(preNum)) shared.last_set_block = preNum;
+            }
+          }catch(e){ shared.errors_total++; }
+        }
+        return ret;
+      };
+
+      console.log("[txroot/noop-setter:v3f] presave wrapper installed (relaxed)");
+      mountExporterOnce();
+    }catch(e){
+      setTimeout(attach, TICK);
+    }
+  }
+  (function wait(){ const app = getApp(); if (!app) return setTimeout(wait, TICK); attach(); })();
+})();
+// -------- noop-setter:v3g (count empties by tx count) --------
+(function noopSetterV3g(){
+  const TICK=400;
+  function getStore(){ return (globalThis as any).__void_store; }
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function txCountOf(b:any){
+    if (!b) return -1;
+    if (Array.isArray(b.txs)) return b.txs.length|0;
+    if (typeof b.txCount === "number") return b.txCount|0;
+    if (b.header && typeof b.header.txCount === "number") return b.header.txCount|0;
+    return -1;
+  }
+  function mount(){
+    const store = getStore(), app = getApp();
+    if (!store || !store.constructor || !store.constructor.prototype || !app) return setTimeout(mount, TICK);
+
+    const proto:any = store.constructor.prototype;
+    if ((proto as any).__noop_v3g_installed) return;
+    (proto as any).__noop_v3g_installed = true;
+
+    const shared = (globalThis as any).__void_txroot_noop_metrics
+      || ((globalThis as any).__void_txroot_noop_metrics = {
+           source:"noop-setter-v3g",
+           set_total:0, last_set_block:-1, errors_total:0, heartbeat:0
+         });
+
+    const orig = proto.saveBlock;
+    proto.saveBlock = async function(...args:any[]){
+      try {
+        const blockArg = args[0];
+        const n = blockArg?.number ?? -1;
+        const preCnt = txCountOf(blockArg);
+        // Count *before* persist based on txCount==0
+        if (preCnt === 0 && typeof n === "number" && n >= 0) {
+          shared.set_total++;
+          shared.last_set_block = n;
+          shared.source = "noop-setter-v3g";
+        }
+      } catch (e) {
+        try { (globalThis as any).__void_txroot_noop_metrics.errors_total++; } catch{}
+      }
+      try { return await orig.apply(this, args); }
+      finally { try { (globalThis as any).__void_txroot_noop_metrics.heartbeat++; } catch{} }
+    };
+
+    // Prom exporter (reuses existing path if mounted)
+    app.get("/__void/metrics/txroot4/noop_setter.prom", (_req:any, res:any)=>{
+      const s = (globalThis as any).__void_txroot_noop_metrics || {};
+      res.type("text/plain").send([
+        "# HELP void_txroot_header_noop_set_total Header txRoot noop-sets (empty blocks)",
+        "# TYPE void_txroot_header_noop_set_total counter",
+        `void_txroot_header_noop_set_total ${s.set_total ?? 0}`,
+        "# HELP void_txroot_header_noop_last_set_block Last block accounted by noop-setter",
+        "# TYPE void_txroot_header_noop_last_set_block gauge",
+        `void_txroot_header_noop_last_set_block ${s.last_set_block ?? -1}`,
+        "# HELP void_txroot_header_noop_errors_total Errors in noop-setter path",
+        "# TYPE void_txroot_header_noop_errors_total counter",
+        `void_txroot_header_noop_errors_total ${s.errors_total ?? 0}`,
+        "# HELP void_txroot_header_noop_heartbeat_total Liveness",
+        "# TYPE void_txroot_header_noop_heartbeat_total counter",
+        `void_txroot_header_noop_heartbeat_total ${s.heartbeat ?? 0}`,
+        `txroot_noop_setter_source{source="${s.source || "noop-setter-v3g"}"} 1`,
+        ""
+      ].join("\n"));
+    });
+    // done
+  }
+  mount();
+})();
+// -------- noop-setter:v3h (robust) --------
+(function noopSetterV3h(){
+  const TICK=400;
+  function getStore(){ return (globalThis as any).__void_store; }
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  function pickBlockFromArgs(args:any[]): any {
+    if (!args || !args.length) return undefined;
+    // shapes we try: (block), (n, block), ({number, ...}, opts)
+    if (args.length === 1) return args[0];
+    if (args.length >= 2) {
+      if (args[0] && typeof args[0]==="object" && "number" in args[0]) return args[0];
+      if (args[1] && typeof args[1]==="object" && "number" in args[1]) return args[1];
+      if (args[0] && typeof args[0]==="number" && args[1] && typeof args[1]==="object") return args[1];
+    }
+    return undefined;
+  }
+  function txCountOf(b:any){
+    if (!b) return -1;
+    if (Array.isArray(b.txs)) return b.txs.length|0;
+    if (typeof b.txCount === "number") return b.txCount|0;
+    if (b.header && typeof b.header.txCount === "number") return b.header.txCount|0;
+    return -1;
+  }
+  function numberOf(b:any){
+    if (!b) return -1;
+    if (typeof b.number === "number") return b.number|0;
+    if (b.header && typeof b.header.number === "number") return b.header.number|0;
+    return -1;
+  }
+
+  function mount(){
+    const store = getStore(), app = getApp();
+    if (!store || !store.constructor || !store.constructor.prototype || !app) return setTimeout(mount, TICK);
+
+    const proto:any = store.constructor.prototype;
+    if ((proto as any).__noop_v3h_installed) return;
+    (proto as any).__noop_v3h_installed = true;
+
+    const shared = (globalThis as any).__void_txroot_noop_metrics
+      || ((globalThis as any).__void_txroot_noop_metrics = {});
+    Object.assign(shared, {
+      source: "noop-setter-v3h",
+      set_total: shared.set_total|0,
+      last_set_block: shared.last_set_block ?? -1,
+      errors_total: shared.errors_total|0,
+      heartbeat: shared.heartbeat|0,
+      debug_last_number: shared.debug_last_number ?? -1,
+      debug_last_pre_count: shared.debug_last_pre_count ?? -2
+    });
+
+    const orig = proto.saveBlock;
+    console.log("[txroot/noop-setter:v3h] wrapper installed");
+
+    proto.saveBlock = async function(...args:any[]){
+      let n = -1, preCnt = -1;
+      try {
+        const blk = pickBlockFromArgs(args);
+        preCnt = txCountOf(blk);
+        n = numberOf(blk);
+        shared.debug_last_number = (typeof n==="number"?n:-1);
+        shared.debug_last_pre_count = (typeof preCnt==="number"?preCnt:-2);
+      } catch(e) {
+        try { shared.errors_total++; } catch {}
+      }
+
+      let ret:any;
+      try { ret = await orig.apply(this, args); }
+      catch(e){ try { shared.errors_total++; } catch{}; throw e; }
+      finally { try { shared.heartbeat++; } catch{} }
+
+      try {
+        // Prefer pre-save if explicitly 0; otherwise try post-save header view
+        let didCount = false;
+        if (preCnt === 0 && n >= 0) { didCount = true; }
+        else {
+          // post-save: args[0/1]?.header?.txCount
+          const blk2 = pickBlockFromArgs(args);
+          const postCnt = txCountOf(blk2);
+          if (postCnt === 0 && n >= 0) { didCount = true; }
+        }
+        if (didCount) {
+          shared.set_total++;
+          if (n >= 0) shared.last_set_block = n;
+          shared.source = "noop-setter-v3h";
+        }
+      } catch(e) { try { shared.errors_total++; } catch{} }
+
+      return ret;
+    };
+
+    // Prom exporter (keeps same path; last mounted wins)
+    app.get("/__void/metrics/txroot4/noop_setter.prom", (_req:any, res:any)=>{
+      const s = (globalThis as any).__void_txroot_noop_metrics || {};
+      res.type("text/plain").send([
+        "# HELP void_txroot_header_noop_set_total Header txRoot noop-sets (empty blocks)",
+        "# TYPE void_txroot_header_noop_set_total counter",
+        `void_txroot_header_noop_set_total ${s.set_total ?? 0}`,
+        "# HELP void_txroot_header_noop_last_set_block Last block accounted by noop-setter",
+        "# TYPE void_txroot_header_noop_last_set_block gauge",
+        `void_txroot_header_noop_last_set_block ${s.last_set_block ?? -1}`,
+        "# HELP void_txroot_header_noop_errors_total Errors in noop-setter path",
+        "# TYPE void_txroot_header_noop_errors_total counter",
+        `void_txroot_header_noop_errors_total ${s.errors_total ?? 0}`,
+        "# HELP void_txroot_header_noop_heartbeat_total Liveness",
+        "# TYPE void_txroot_header_noop_heartbeat_total counter",
+        `void_txroot_header_noop_heartbeat_total ${s.heartbeat ?? 0}`,
+        "# HELP void_txroot_header_noop_debug_last_number Last seen block number (presave)",
+        "# TYPE void_txroot_header_noop_debug_last_number gauge",
+        `void_txroot_header_noop_debug_last_number ${s.debug_last_number ?? -1}`,
+        "# HELP void_txroot_header_noop_debug_last_pre_count Last seen pre-save tx count",
+        "# TYPE void_txroot_header_noop_debug_last_pre_count gauge",
+        `void_txroot_header_noop_debug_last_pre_count ${s.debug_last_pre_count ?? -2}`,
+        `txroot_noop_setter_source{source="${s.source || "noop-setter-v3h"}"} 1`,
+        ""
+      ].join("\n"));
+    });
+  }
+  mount();
+})();
+// -------- noop-sidecar:v1 (header watcher, race-proof) --------
+(function noopSidecarV1(){
+  const TICK = 1000;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  const state:any = (globalThis as any).__void_txroot_noop_sidecar
+    || ((globalThis as any).__void_txroot_noop_sidecar = {
+      set_total: 0,
+      last_set_block: -1,
+      errors_total: 0,
+      heartbeat: 0,
+      last_checked: -1,
+      seen: new Set<number>(),
+      source: "noop-sidecar-v1",
+    });
+
+  async function json(u:string){
+    const r = await fetch(u, { headers: { "accept": "application/json" }});
+    if (!r.ok) throw new Error(`fetch ${u} ${r.status}`);
+    return r.json();
+  }
+
+  async function tick(){
+    try {
+      state.heartbeat++;
+      // latest number (fetch-free endpoint exists in your node)
+      const base = `http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`;
+      const latest = await json(`${base}/blocks/latest/number2.json`);
+      const n = latest?.number;
+      if (typeof n !== "number") return;
+      if (state.last_checked === -1) state.last_checked = Math.max(0, n-3);
+
+      // scan from last_checked+1 .. n
+      for (let i = state.last_checked + 1; i <= n; i++){
+        if (state.seen.has(i)) continue;
+        try {
+          const h = await json(`${base}/blocks/${i}/header3`);
+          const txc = (typeof h?.txCount === "number") ? h.txCount : -1;
+          if (txc === 0) {
+            state.set_total++;
+            state.last_set_block = i;
+          }
+          state.seen.add(i);
+        } catch (e){ state.errors_total++; }
+      }
+      state.last_checked = n;
+    } catch(e){ state.errors_total++; }
+    finally { setTimeout(tick, TICK); }
+  }
+
+  function mount(){
+    const app = getApp();
+    if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+
+    // Primary sidecar exporter
+    app.get("/__void/metrics/txroot4/noop_sidecar.prom", (_req:any, res:any)=>{
+      res.type("text/plain").send([
+        "# HELP void_txroot_header_noop_set_total Header txRoot noop-sets (empty blocks) [sidecar]",
+        "# TYPE void_txroot_header_noop_set_total counter",
+        `void_txroot_header_noop_set_total ${state.set_total}`,
+        "# HELP void_txroot_header_noop_last_set_block Last block accounted by noop-setter [sidecar]",
+        "# TYPE void_txroot_header_noop_last_set_block gauge",
+        `void_txroot_header_noop_last_set_block ${state.last_set_block}`,
+        "# HELP void_txroot_header_noop_errors_total Errors in noop-setter path [sidecar]",
+        "# TYPE void_txroot_header_noop_errors_total counter",
+        `void_txroot_header_noop_errors_total ${state.errors_total}`,
+        "# HELP void_txroot_header_noop_heartbeat_total Liveness [sidecar]",
+        "# TYPE void_txroot_header_noop_heartbeat_total counter",
+        `void_txroot_header_noop_heartbeat_total ${state.heartbeat}`,
+        `txroot_noop_setter_source{source="${state.source}"} 1`,
+        ""
+      ].join("\n"));
+    });
+
+    // Compatibility mirror: if something else already bound /noop_setter.prom,
+    // we still re-bind it to our sidecar output so existing Prom jobs work.
+    app.get("/__void/metrics/txroot4/noop_setter.prom", (_req:any, res:any)=>{
+      res.redirect(307, "/__void/metrics/txroot4/noop_sidecar.prom");
+    });
+
+    console.log("[txroot/noop-sidecar:v1] started (polling headers)");
+    setTimeout(tick, 200); // slight delay so HTTP is fully up
+  }
+  mount();
+})();
+// -------- noop-sidecar:v1.1 (lookback + pruning) --------
+(function noopSidecarTweaks(){
+  const getState = () => (globalThis as any).__void_txroot_noop_sidecar;
+  const S:any = getState && getState();
+  if (!S || S.__tweaks_applied) return;
+  S.__tweaks_applied = true;
+
+  // ENV knobs
+  const LOOKBACK = Math.max(0, Number(process.env.VOID_NOOP_SIDECAR_LOOKBACK||"32")); // blocks to scan on boot
+  const SEEN_CAP = Math.max(256, Number(process.env.VOID_NOOP_SIDECAR_SEEN_CAP||"4096")); // max remembered heights
+
+  // On first tick, if last_checked is near head, back up a little to re-scan
+  const _origLast = S.last_checked;
+  Object.defineProperty(S, "last_checked", {
+    get(){ return this._lc ?? _origLast; },
+    set(v:number){
+      this._lc = v;
+      if (typeof v==="number" && this._boot_adj !== true) {
+        // one-time backoff
+        this._boot_adj = true;
+        this._lc = Math.max(0, v - LOOKBACK);
+      }
+    },
+    configurable: true
+  });
+
+  // Prune the seen set when it grows too large
+  const origAdd = S.seen.add.bind(S.seen);
+  S.seen.add = (n:number) => {
+    const ok = origAdd(n);
+    if (S.seen.size > SEEN_CAP) {
+      // Drop older half to cap memory (keeps recent activity)
+      const arr = Array.from(S.seen).sort((a,b)=>a-b);
+      const cut = Math.floor(arr.length/2);
+      for (let i=0;i<cut;i++) S.seen.delete(arr[i]);
+    }
+    return ok;
+  };
+
+  console.log(`[txroot/noop-sidecar:v1.1] lookback=${LOOKBACK} seen_cap=${SEEN_CAP}`);
+})();
