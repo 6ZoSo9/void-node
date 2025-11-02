@@ -133,3 +133,16 @@ prom-age-stale:
 prom-age-fresh:
 	@echo "void_ops_prom_snap_age_seconds 0" | sudo tee /var/lib/node_exporter/textfile_collector/void_prom_snap.prom >/dev/null
 	@curl -fsS 127.0.0.1:9100/metrics | grep -E 'void_ops_prom_snap_age_seconds|node_textfile_scrape_error|node_textfile_mtime_seconds' || true
+.PHONY: prom-age-show prom-age-wait-3k prom-alerts
+prom-age-show:
+	@echo "Exporter:" && curl -fsS 127.0.0.1:9100/metrics | grep -E '^void_ops_prom_snap_age_seconds ' || true
+	@echo "Prom:" && curl -fsS 127.0.0.1:9090/api/v1/query --data-urlencode 'query=void_ops_prom_snap_age_seconds' \
+	  | jq -r '.data.result[]?.value[1] // "∅"'
+
+# Wait until Prom sees >= 3000s (about 50m), useful for testing WARN/CRIT after their 5m for: windows
+prom-age-wait-3k:
+	@./ops/prom-age-wait.sh 3000
+
+# Show active Prometheus alert states (those defined in /etc/prometheus/alerts/*.yml)
+prom-alerts:
+	@curl -fsS 127.0.0.1:9090/api/v1/alerts | jq -r '.data.alerts[] | "\(.labels.alertname) \(.state) \(.labels.severity) \(.annotations.summary // "")"'
