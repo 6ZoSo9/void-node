@@ -28,3 +28,4 @@ src/index.ts.*.bak
 # local big backups
 *.bak
 
+ops/prom-snap/
