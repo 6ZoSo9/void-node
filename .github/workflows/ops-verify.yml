@@ -1,0 +1,33 @@
+name: ops-verify
+on: [push, pull_request]
+jobs:
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard Makefile shrink (>30 lines)
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            BEFORE=$(git show HEAD~1:Makefile 2>/dev/null | wc -l | tr -d ' ')
+            AFTER=$(test -f Makefile && wc -l < Makefile | tr -d ' ' || echo 0)
+            DELTA=$((BEFORE-AFTER))
+            if [ "$DELTA" -gt 30 ]; then
+              echo "Makefile shrank by $DELTA lines (limit 30)."; exit 1
+            fi
+          fi
+
+      - name: Install promtool
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y prometheus || true
+          command -v promtool || echo "promtool not found (verify step will be skipped)"
+
+      - name: Run prom-verify if promtool exists
+        run: |
+          if command -v promtool >/dev/null 2>&1; then
+            bash ops/prom-verify.sh || exit 1
+          else
+            echo "Skipping prom-verify: promtool unavailable on runner."
+          fi
