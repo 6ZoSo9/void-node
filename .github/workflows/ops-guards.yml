@@ -1,0 +1,19 @@
+name: ops-guards
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block files >=10MB
+        run: |
+          set -euo pipefail
+          BIG=$(git ls-files -z | xargs -0 -I{} bash -c 'test -f "{}" && stat -c"%s {}" "{}"' | awk '$1>=10485760{print $2}')
+          if [ -n "${BIG:-}" ]; then
+            echo "Files >=10MB:"; echo "$BIG"; exit 1; fi
+      - name: Block root-owned files
+        run: |
+          set -euo pipefail
+          ROOTY=$(git ls-files | xargs -I{} bash -c 'test -e "{}" && [ "$(stat -c"%U" "{}")" = "root" ] && echo "{}" || true')
+          if [ -n "${ROOTY:-}" ]; then
+            echo "Root-owned files:"; echo "$ROOTY"; exit 1; fi
