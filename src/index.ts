@@ -14871,3 +14871,121 @@ void_header3_last_mismatch ${lastMismatch}
     setTimeout(tick, 300);
   })();
 })();
+// ===== txroot forensics: dual-latch v7 (instance + proto + alternates) =====
+(function txrootForensicsTrampolineV7(){
+  const g:any = globalThis as any;
+  const S = g.__void_txroot_forensic_state_v7 || (g.__void_txroot_forensic_state_v7 = {
+    proto_binds: 0, inst_binds: 0, calls: 0,
+    last_number: -1, last_kind: 'unknown', last_shape: 'n/a', last_ms: 0,
+    note: ''
+  });
+
+  function makeTramp(orig:any, tag:string){
+    function tramp(this:any, ...args:any[]){
+      const t0 = Date.now();
+      S.calls++;
+      const a0 = args[0];
+      if (Array.isArray(a0)) { S.last_kind='array'; S.last_shape=`len=${a0.length}`; if (a0?.[0]?.number>=0) S.last_number=a0[0].number; }
+      else if (a0 && typeof a0 === 'object') { S.last_kind='object'; S.last_shape=`keys=${Object.keys(a0).slice(0,8).join(',')}`; if (typeof a0.number==='number') S.last_number=a0.number; }
+      else { S.last_kind=typeof a0; S.last_shape='n/a'; }
+      const out = orig.apply(this, args);
+      if (out && typeof out.then==='function') return (out as Promise<any>).finally(()=>{ S.last_ms = Date.now()-t0; });
+      S.last_ms = Date.now()-t0; return out;
+    }
+    Object.defineProperty(tramp, '__void_trampoline_v7', { value: tag });
+    return tramp;
+  }
+
+  function wrapMethod(obj:any, key:string, counterKey:'proto_binds'|'inst_binds'){
+    try{
+      if (!obj) return;
+      const desc = Object.getOwnPropertyDescriptor(obj, key);
+      // If accessor exists, hijack setter to always wrap; else define one.
+      let _inner:any = (desc && 'value' in desc && typeof desc.value==='function') ? desc.value : obj[key];
+      const setter = function(fn:any){
+        _inner = (fn && fn.__void_trampoline_v7) ? fn : makeTramp(fn, `${counterKey}:${key}`);
+        S[counterKey]++; 
+      };
+      const getter = function(){ return _inner; };
+
+      Object.defineProperty(obj, key, {
+        configurable: counterKey==='proto_binds', // instance: lock it; proto: keep flexible
+        enumerable: false,
+        get: getter,
+        set: setter
+      });
+
+      if (_inner && !_inner.__void_trampoline_v7) {
+        // trigger our setter to wrap the current target
+        (obj as any)[key] = _inner;
+      }
+    }catch(e){}
+  }
+
+  function latchProto(){
+    const Seg = (g as any).SegStore; if (!Seg || !Seg.prototype) { return; }
+    // Latch likely methods on the prototype
+    ['saveBlock','persistBlock','_saveBlock','append','save'].forEach(k=>wrapMethod(Seg.prototype, k, 'proto_binds'));
+  }
+
+  function latchInstance(){
+    const node = (g as any).__void_node;
+    const store = node?.store || (g as any).__void_store || node?.SegStore || node?.segStore;
+    if (!store) return;
+    // Latch directly on the instance and LOCK saveBlock so defineProperty can't shadow it
+    wrapMethod(store, 'saveBlock', 'inst_binds');
+    try {
+      const desc = Object.getOwnPropertyDescriptor(store, 'saveBlock');
+      if (desc && !desc.configurable) {
+        // already locked
+      } else if (desc) {
+        Object.defineProperty(store, 'saveBlock', { ...desc, configurable: false });
+      }
+    } catch {}
+    // Also latch alternates on the instance
+    ['persistBlock','_saveBlock','append','save'].forEach(k=>wrapMethod(store, k, 'inst_binds'));
+  }
+
+  function mountInspector(){
+    const app:any = (g as any).__void_http_app || (g as any).app;
+    if (!app || typeof app.get!=='function' || app.__void_tramp_v7) return;
+    app.__void_tramp_v7 = true;
+
+    app.get('/__void/dev/inspect/saveBlock.v7', (_req:any, res:any)=>{
+      const node = (g as any).__void_node;
+      const store = node?.store;
+      const Seg = (g as any).SegStore;
+      const pdesc = Seg?.prototype && Object.getOwnPropertyDescriptor(Seg.prototype, 'saveBlock');
+      const idesc = store && Object.getOwnPropertyDescriptor(store, 'saveBlock');
+      res.json({
+        ok: true,
+        store_present: !!store,
+        proto_present: !!Seg,
+        proto_desc: pdesc ? {has_get:!!pdesc.get, has_set:!!pdesc.set, has_value:'value'in (pdesc as any), configurable:!!pdesc.configurable} : null,
+        inst_desc:  idesc ? {has_get:!!idesc.get, has_set:!!idesc.set, has_value:'value'in (idesc as any), configurable:!!idesc.configurable} : null,
+        counters: { proto_binds:S.proto_binds, inst_binds:S.inst_binds, calls:S.calls,
+                    last_number:S.last_number, last_kind:S.last_kind, last_shape:S.last_shape, last_ms:S.last_ms },
+        note: S.note
+      });
+    });
+
+    app.get('/__void/metrics/txroot4/forensics.prom.v7', (_req:any, res:any)=>{
+      res.type('text/plain; version=0.0.4; charset=utf-8').end([
+        '# HELP void_txroot_forensics_binds_proto_v7 prototype binds',
+        '# TYPE void_txroot_forensics_binds_proto_v7 counter',
+        `void_txroot_forensics_binds_proto_v7 ${S.proto_binds}`,
+        '# HELP void_txroot_forensics_binds_inst_v7 instance binds',
+        '# TYPE void_txroot_forensics_binds_inst_v7 counter',
+        `void_txroot_forensics_binds_inst_v7 ${S.inst_binds}`,
+        '# HELP void_txroot_forensics_calls_v7 observed calls across all paths',
+        '# TYPE void_txroot_forensics_calls_v7 counter',
+        `void_txroot_forensics_calls_v7 ${S.calls}`,
+      ].join('\n')+'\n');
+    });
+  }
+
+  (function loop(){
+    try{ latchProto(); latchInstance(); mountInspector(); }catch(e){}
+    setTimeout(loop, 300);
+  })();
+})();
