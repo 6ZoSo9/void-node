@@ -1,0 +1,14 @@
+name: Ops Guards (autostart)
+on: [push, pull_request]
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure single ExecStartPost drop-in
+        run: |
+          set -euo pipefail
+          c=$(grep -Rl "ExecStartPost=.*proposer-autostart-http.sh" ops/systemd/user/void-node.service.d | wc -l || true)
+          if [ "$c" -ne 1 ]; then
+            echo "Expected exactly one autostart ExecStartPost drop-in, found $c"; exit 1
+          fi
