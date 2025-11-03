@@ -1,0 +1,10 @@
+[Unit]
+Description=VOID Node: molt periodically and on login
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=1d
+Unit=void-molt-dropins.service
+
+[Install]
+WantedBy=default.target
