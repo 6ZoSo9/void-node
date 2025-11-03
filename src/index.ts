@@ -16715,3 +16715,62 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   }
   mount();
 })();
+
+// ---------------- log filter (additive, reversible) -----------------
+(function voidLogFilterV1(){
+  try{
+    const DROP = [
+      /\btxroot\/forensics\b/i,
+      /\btxroot\/header-shim\b/i,
+      /\btxroot\/header-sidecar\b/i,
+      /\btxroot\/noop-setter\b/i
+    ];
+    const origLog = console.log, origInfo = console.info, origWarn = console.warn;
+    function shouldDrop(args:any[]){
+      const s = args.map(a => (typeof a === 'string' ? a : (a && a.message) || '')).join(' ');
+      return DROP.some(rx => rx.test(s));
+    }
+    console.log = (...a:any[]) => { if (!shouldDrop(a)) origLog.apply(console, a); };
+    console.info = (...a:any[]) => { if (!shouldDrop(a)) origInfo.apply(console, a); };
+    console.warn = (...a:any[]) => { if (!shouldDrop(a)) origWarn.apply(console, a); };
+    (globalThis as any).__void_log_filter_v1 = 'installed';
+  }catch{}
+})();
+
+// ---------------- forensics v7 kill-switch (additive, reversible) -----------------
+(function voidTxrootForensicsKillSwitchV7(){
+  try {
+    const FLAG_SYM = Symbol.for("void.txroot.forensics.v7.wrapped");
+    const FLAG_STR = "__void_txroot_forensics_v7_wrapped__";
+    const TICK = 250;
+    function markApp(){
+      try{
+        const app = (globalThis as any).__void_http_app || (globalThis as any).app;
+        if (app && typeof app.get === "function") {
+          // Prevent the inspector from mounting (mountInspector checks this)
+          (app as any).__void_tramp_v7 = true;
+          return true;
+        }
+      }catch{}
+      return false;
+    }
+    function markSegStore(){
+      try{
+        const Seg:any = (globalThis as any).SegStore;
+        if (Seg && Seg.prototype) {
+          // Make trampolines think we're already wrapped
+          try { Object.defineProperty(Seg.prototype, FLAG_SYM, { value: true, configurable: true }); } catch {}
+          try { (Seg.prototype as any)[FLAG_STR] = true; } catch {}
+          return true;
+        }
+      }catch{}
+      return false;
+    }
+    (function loop(){
+      let ok1 = false, ok2 = false;
+      try { ok1 = markApp(); ok2 = markSegStore(); } catch {}
+      if (!(ok1 && ok2)) setTimeout(loop, TICK);
+    })();
+    (globalThis as any).__void_killswitch_forensics_v7 = "installed";
+  } catch {}
+})();
