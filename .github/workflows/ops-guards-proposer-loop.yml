@@ -1,0 +1,9 @@
+name: Ops Guards (proposer loop)
+on: [push, pull_request]
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure proposer loop unit exists in repo
+        run: test -f ops/systemd/user/void-proposer-loop.service
