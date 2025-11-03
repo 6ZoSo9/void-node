@@ -42,3 +42,6 @@ status:
 	@bash ops/void-status.sh
 reset-green:
 	@bash ops/void-reset-green.sh
+.PHONY: prom-guard-check
+prom-guard-check:
+	@/etc/prometheus/guards/no-stale-txroot-health.sh && echo "OK: no forbidden job in active config"
