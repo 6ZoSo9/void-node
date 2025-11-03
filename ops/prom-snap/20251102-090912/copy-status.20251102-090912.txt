@@ -1,1 +1,0 @@
-config copies: prometheus.yml=ok rules.d=ok alerts=ok

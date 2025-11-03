@@ -1,8 +1,0 @@
-groups:
-- name: void-snapshot-age-recording
-  interval: 15s
-  rules:
-  - record: void:prom_snap_age:seconds
-    expr: void_ops_prom_snap_age_seconds
-  - record: void:prom_snap_age:minutes
-    expr: void_ops_prom_snap_age_seconds / 60

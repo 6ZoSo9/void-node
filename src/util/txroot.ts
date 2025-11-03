@@ -38,3 +38,19 @@ export function computeTxRoot(txs: any[]): TxRootResult {
 export function txRootOf(txs: any[]): any {
   return computeTxRoot(txs).root;
 }
+
+// ---------------- txroot compat alias (additive, safe) ---------------- 
+// Some code paths dynamically import { txroot } from "./util/txroot.js".
+// Expose a facade that defers to local helpers if they exist.
+
+export const txroot = (...args: any[]) => {
+  try {
+    // @ts-ignore -- these may or may not exist in this module; we probe safely
+    if (typeof computeTxRoot === 'function') { /* @ts-ignore */ return (computeTxRoot as any)(...args); }
+  } catch {}
+  try {
+    // @ts-ignore
+    if (typeof merkleRoot === 'function')   { /* @ts-ignore */ return (merkleRoot as any)(...args); }
+  } catch {}
+  throw new Error('[txroot compat] No computeTxRoot/merkleRoot available in util/txroot.ts');
+};

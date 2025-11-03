@@ -15034,9 +15034,9 @@ void_header3_last_mismatch ${lastMismatch}
     if (!app || (app as any).__void_forensics_v7_routes) return;
     (app as any).__void_forensics_v7_routes = true;
 
-    app.get("/__void/metrics/txroot4/forensics.prom.v7", (_req:any, res:any)=>{
-      res.type("text/plain; version=0.0.4").send(prom());
-    });
+// [disabled-forensics-v7] // [disabled-forensics-v7]     app.get("/__void/metrics/txroot4/forensics.prom.v7", (_req:any, res:any)=>{
+// [disabled-forensics-v7]       res.type("text/plain; version=0.0.4").send(prom());
+// [disabled-forensics-v7]     });
 
     app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any)=>{
       try{
@@ -15960,4 +15960,758 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   }
 
   try { install(); } catch { setTimeout(install, TICK); }
+})();
+
+
+
+// ---- proposer.truth2 proxy (pure-additive, safe) --------------------------------
+;(async function mountProposerTruth2Proxy(){
+  try{
+    const http:any = await import('node:http');
+    const TICK = 500;
+
+    let attached = false;
+    let cache:{enabled:null|number; ms:null|number; lastChangeMs:null|number; _ts:number} =
+      { enabled: null, ms: null, lastChangeMs: null, _ts: 0 };
+
+    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+    function parsePromText(text:string){
+      const mEnabled = text.match(/^\s*void_proposer_auto_enabled_v2\s+([0-9.]+)\s*$/m);
+      const mMs      = text.match(/^\s*void_proposer_auto_ms_v2\s+([0-9.]+)\s*$/m);
+      const mTs      = text.match(/^\s*void_proposer_exporter_ts_ms_v2\s+([0-9.]+)\s*$/m);
+      if (!mEnabled || !mMs) return;
+
+      const en = Number(mEnabled[1]);
+      const ms = Number(mMs[1]);
+      const ts = mTs ? Number(mTs[1]) : Date.now();
+
+      if (cache.enabled !== null && cache.enabled !== en) cache.lastChangeMs = ts;
+      if (cache.lastChangeMs === null) cache.lastChangeMs = ts;
+
+      cache.enabled = en;
+      cache.ms = ms;
+      cache._ts = ts;
+    }
+
+    function pollOnce():Promise<void>{
+      return new Promise<void>((resolve)=>{
+        const req = http.request(
+          { host:'127.0.0.1', port: 4100, path:'/metrics/void/proposer.v3b.prom', method:'GET', timeout: 800 },
+          (res:any)=>{
+            let buf=''; res.setEncoding('utf8');
+            res.on('data',(c:string)=>buf+=c);
+            res.on('end',()=>{ try{ parsePromText(buf); }catch{} resolve(); });
+          });
+        req.on('error', ()=>resolve());
+        req.on('timeout', ()=>{ try{ req.destroy(); }catch{} resolve(); });
+        req.end();
+      });
+    }
+
+    async function attach(){
+      const app:any = getApp(); if (!app || typeof app.get!=='function') return setTimeout(attach, TICK);
+      if (attached) return; attached = true;
+
+      setInterval(()=>{ pollOnce(); }, 1500);
+      await pollOnce();
+
+      app.get('/__void/metrics/proposer.truth2.json', async (_req:any, res:any)=>{
+        if (cache.enabled === null || (Date.now() - cache._ts) > 5000) await pollOnce();
+        res.setHeader('Content-Type','application/json');
+        res.end(JSON.stringify({ enabled: cache.enabled, ms: cache.ms, lastChangeMs: cache.lastChangeMs }));
+      });
+    }
+    attach();
+  }catch(_e){}
+})();
+
+// ---------------- VOID Ready exporter (additive, mount-once) -----------------
+(function voidReadyExporter(){
+  const TICK = 400;
+  const HTTP_PORT = Number(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || 4100);
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function getJSON<T=any>(path:string):Promise<T|null>{
+    try{
+      const r = await fetch(`http://127.0.0.1:${HTTP_PORT}${path}`, {headers:{'accept':'application/json'}});
+      if(!r.ok) return null; return await r.json() as T;
+    }catch{ return null; }
+  }
+  async function getText(path:string):Promise<string|null>{
+    try{
+      const r = await fetch(`http://127.0.0.1:${HTTP_PORT}${path}`); if(!r.ok) return null; return await r.text();
+    }catch{ return null; }
+  }
+
+  // Parse a single gauge line from Prom text (very small helper)
+  function parseGauge(text:string, metric:string): number | null {
+    // e.g., 'void_proposer_auto_ms_v2 2000'
+    const re = new RegExp(`^${metric}\\s+([-+]?[0-9]*\\.?[0-9]+)\\s*$`, 'm');
+    const m = text.match(re);
+    if(!m) return null;
+    const v = Number(m[1]); return Number.isFinite(v) ? v : null;
+  }
+
+  async function computeReady(){
+    // 1) truth: {enabled, ms}
+    const truth = await getJSON<{enabled:number, ms:number}>("/__void/metrics/proposer.truth2.json");
+    // 2) exporter text for timestamp + ms (authoritative)
+    const prom = await getText("/metrics/void/proposer.v3b.prom");
+
+    const enabled = truth?.enabled === 1 ? 1 : 0;
+    const ms      = (truth?.ms ?? null);
+
+    let msGauge   = prom ? parseGauge(prom, "void_proposer_auto_ms_v2") : null;
+    if (msGauge == null && typeof ms === "number") msGauge = ms;
+
+    const tsMs    = prom ? parseGauge(prom, "void_proposer_exporter_ts_ms_v2") : null;
+    const ageSec  = tsMs != null ? Math.max(0, (Date.now() - tsMs) / 1000) : null;
+
+    // readiness mirrors your alert:
+    // enabled==1 AND age<=120 AND |ms-2000|<=100
+    const msDrift = (msGauge != null) ? Math.abs(msGauge - 2000) : Infinity;
+    const fresh   = (ageSec != null) ? ageSec <= 120 : false;
+
+    const ready = (enabled === 1) && fresh && (msDrift <= 100) ? 1 : 0;
+
+    return {
+      ready,
+      reasons: {
+        enabled,
+        ms: msGauge,
+        ms_drift: Number.isFinite(msDrift) ? msDrift : null,
+        exporter_age_s: ageSec
+      },
+      now_ms: Date.now()
+    };
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_ready_exporter_mounted) return; (app as any).__void_ready_exporter_mounted = true;
+
+    // JSON: /ready/void.json
+    app.get("/ready/void.json", async (_req:any, res:any)=>{
+      const s = await computeReady();
+      res.setHeader("content-type","application/json; charset=utf-8");
+      res.end(JSON.stringify(s));
+    });
+
+    // Prom text: /ready/void.prom
+    app.get("/ready/void.prom", async (_req:any, res:any)=>{
+      const s = await computeReady();
+      res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
+      res.write("# HELP void_ready Combined readiness (1=ready, 0=not ready)\n");
+      res.write("# TYPE void_ready gauge\n");
+      res.write(`void_ready ${s.ready}\n`);
+      if (s.reasons.enabled != null){ res.write("# HELP void_ready_enabled Proposer enabled (1/0)\n# TYPE void_ready_enabled gauge\n"); res.write(`void_ready_enabled ${s.reasons.enabled}\n`); }
+      if (s.reasons.ms != null){ res.write("# HELP void_ready_ms_v2 Proposer tick ms (from exporter)\n# TYPE void_ready_ms_v2 gauge\n"); res.write(`void_ready_ms_v2 ${s.reasons.ms}\n`); }
+      if (s.reasons.ms_drift != null){ res.write("# HELP void_ready_ms_drift_v2 |ms-2000| (ms)\n# TYPE void_ready_ms_drift_v2 gauge\n"); res.write(`void_ready_ms_drift_v2 ${s.reasons.ms_drift}\n`); }
+      if (s.reasons.exporter_age_s != null){ res.write("# HELP void_ready_exporter_age_s_v3b Exporter sample age (s)\n# TYPE void_ready_exporter_age_s_v3b gauge\n"); res.write(`void_ready_exporter_age_s_v3b ${s.reasons.exporter_age_s}\n`); }
+      res.end();
+    });
+  }
+  mount();
+})();
+
+// --------------- VOID Ready exporter v2 (prefers exporter gauges) ---------------
+(function voidReadyExporterV2(){
+  const TICK = 400;
+  const HTTP_PORT = Number(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || 4100);
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function getText(path:string):Promise<string|null>{
+    try{ const r = await fetch(`http://127.0.0.1:${HTTP_PORT}${path}`); if(!r.ok) return null; return await r.text(); }
+    catch{ return null; }
+  }
+  async function getJSON<T=any>(path:string):Promise<T|null>{
+    try{ const r = await fetch(`http://127.0.0.1:${HTTP_PORT}${path}`, {headers:{'accept':'application/json'}}); if(!r.ok) return null; return await r.json() as T; }
+    catch{ return null; }
+  }
+  function g(text:string|null, name:string): number | null {
+    if(!text) return null;
+    const re = new RegExp(`^${name}\\s+([-+]?[0-9]*\\.?[0-9]+)\\s*$`, 'm');
+    const m = text.match(re); if(!m) return null;
+    const v = Number(m[1]); return Number.isFinite(v) ? v : null;
+  }
+
+  async function compute(){
+    const promText = await getText("/metrics/void/proposer.v3b.prom");
+    const truth    = await getJSON<{enabled:number, ms:number}>("/__void/metrics/proposer.truth2.json");
+
+    // Prefer exporter gauges; fall back to truth
+    const enabled = (g(promText, "void_proposer_auto_enabled_v2") ?? truth?.enabled ?? 0) > 0 ? 1 : 0;
+    const ms      = g(promText, "void_proposer_auto_ms_v2") ?? truth?.ms ?? null;
+    const tsMs    = g(promText, "void_proposer_exporter_ts_ms_v2");
+    const ageSec  = tsMs != null ? Math.max(0, (Date.now() - tsMs) / 1000) : null;
+
+    const msDrift = (ms != null) ? Math.abs(ms - 2000) : Infinity;
+    const fresh   = (ageSec != null) ? ageSec <= 120 : false;
+    const ready   = (enabled===1) && fresh && (msDrift <= 100) ? 1 : 0;
+
+    return { ready, reasons:{ enabled, ms, ms_drift: Number.isFinite(msDrift)?msDrift:null, exporter_age_s: ageSec }, now_ms: Date.now() };
+  }
+
+  function mount(){
+    const app:any = getApp(); if(!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if((app as any).__void_ready_exporter_v2_mounted) return; (app as any).__void_ready_exporter_v2_mounted = true;
+
+    app.get("/ready/void.v2.json", async (_req:any, res:any)=>{
+      const s = await compute(); res.setHeader("content-type","application/json; charset=utf-8"); res.end(JSON.stringify(s));
+    });
+    app.get("/ready/void.v2.prom", async (_req:any, res:any)=>{
+      const s = await compute(); res.setHeader("content-type","text/plain; version=0.0.4; charset=utf-8");
+      res.write("# HELP void_ready_v2 Combined readiness (1=ready)\n# TYPE void_ready_v2 gauge\n");
+      res.write(`void_ready_v2 ${s.ready}\n`);
+      if (s.reasons.enabled!=null){ res.write("# HELP void_ready_enabled_v2 Proposer enabled (1/0)\n# TYPE void_ready_enabled_v2 gauge\n"); res.write(`void_ready_enabled_v2 ${s.reasons.enabled}\n`); }
+      if (s.reasons.ms!=null){ res.write("# HELP void_ready_ms_v2 Proposer tick ms\n# TYPE void_ready_ms_v2 gauge\n"); res.write(`void_ready_ms_v2 ${s.reasons.ms}\n`); }
+      if (s.reasons.ms_drift!=null){ res.write("# HELP void_ready_ms_drift_v2 |ms-2000| (ms)\n# TYPE void_ready_ms_drift_v2 gauge\n"); res.write(`void_ready_ms_drift_v2 ${s.reasons.ms_drift}\n`); }
+      if (s.reasons.exporter_age_s!=null){ res.write("# HELP void_ready_exporter_age_s_v2 Exporter sample age (s)\n# TYPE void_ready_exporter_age_s_v2 gauge\n"); res.write(`void_ready_exporter_age_s_v2 ${s.reasons.exporter_age_s}\n`); }
+      res.end();
+    });
+  }
+  mount();
+})();
+// ---------------- P2P Mini-Registry v1 (additive, no deps) -------------------
+(function P2PMiniRegistryV1(){
+  const TICK = 400;
+  type Peer = { id: string; addr: string; seenAt: number; rttMs?: number };
+  type State = { selfId: string; peers: Map<string, Peer> };
+
+  function now(){ return Date.now(); }
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getState(): State {
+    const g:any = globalThis as any;
+    if (!g.__void_p2p_mini) {
+      // Try to derive selfId from env or fallback
+      const selfId = process.env.VOID_NODE_ID || process.env.VOID_NODE_KEY_A || "void-self";
+      g.__void_p2p_mini = { selfId, peers: new Map<string, Peer>() } as State;
+    }
+    return g.__void_p2p_mini as State;
+  }
+
+  function putPeer(p: Peer){
+    const st = getState();
+    const cur = st.peers.get(p.id);
+    if (!cur || cur.addr !== p.addr || (p.seenAt && p.seenAt > (cur.seenAt||0))) {
+      st.peers.set(p.id, { ...cur, ...p, seenAt: p.seenAt || now() });
+    } else if (p.rttMs !== undefined) {
+      cur.rttMs = p.rttMs;
+    }
+  }
+
+  async function pingOnce(addr: string): Promise<number> {
+    const start = now();
+    const url = new URL(addr);
+    // try hello/health endpoints (best-effort)
+    const candidates = [
+      new URL('/p2p/hello-now', url).toString(),
+      new URL('/health', url).toString(),
+      addr
+    ];
+    for (const u of candidates) {
+      try {
+        // Node 18+ has global fetch
+        const res = await fetch(u, { method: 'GET' });
+        if (res.ok) return now() - start;
+      } catch {}
+    }
+    throw new Error('ping failed');
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== 'function') return setTimeout(mount, TICK);
+    if ((app as any).__void_p2p_mini_attached) return;
+    (app as any).__void_p2p_mini_attached = true;
+
+    const st = getState();
+
+    // POST /p2p/handshake/v2  {id, addr, name?}
+    app.post('/p2p/handshake/v2', express.json(), async (req:any, res:any) => {
+      try {
+        const { id, addr } = req.body || {};
+        if (!id || !addr) return res.status(400).json({ ok:false, error:'id and addr required' });
+        putPeer({ id, addr, seenAt: now() });
+        return res.json({ ok:true, selfId: st.selfId, received: { id, addr }, peersKnown: st.peers.size });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error: e?.message || 'err' });
+      }
+    });
+
+    // GET /p2p/peers/known
+    app.get('/p2p/peers/known', (_req:any, res:any) => {
+      const arr = Array.from(st.peers.values()).sort((a,b)=>b.seenAt-a.seenAt);
+      res.json({ ok:true, selfId: st.selfId, count: arr.length, peers: arr });
+    });
+
+    // GET /p2p/peers/active?since=60
+    app.get('/p2p/peers/active', (req:any, res:any) => {
+      const sinceSec = Math.max(0, parseInt(String(req.query.since||'60'))||60);
+      const cutoff = now() - sinceSec*1000;
+      const arr = Array.from(st.peers.values()).filter(p=>p.seenAt>=cutoff).sort((a,b)=>b.seenAt-a.seenAt);
+      res.json({ ok:true, sinceSec, count: arr.length, peers: arr });
+    });
+
+    // GET /p2p/ping?addr=http://127.0.0.1:4101
+    app.get('/p2p/ping', async (req:any, res:any) => {
+      const addr = String(req.query.addr||'');
+      if (!addr) return res.status(400).json({ ok:false, error:'addr required' });
+      try {
+        const rtt = await pingOnce(addr);
+        // Try to infer peer id via addr as key (best-effort)
+        const id = 'peer:' + addr;
+        putPeer({ id, addr, seenAt: now(), rttMs: rtt });
+        res.json({ ok:true, addr, rttMs: rtt });
+      } catch (e:any) {
+        res.status(502).json({ ok:false, addr, error: e?.message || 'ping failed' });
+      }
+    });
+
+    // Prom text exporter: /metrics/p2p/mini.prom
+    app.get('/metrics/p2p/mini.prom', (_req:any, res:any) => {
+      const peers = Array.from(st.peers.values());
+      const nowMs = now();
+      const active = peers.filter(p => (nowMs - p.seenAt) <= 60_000).length;
+      let out = '';
+      out += `void_p2p_peers_known ${peers.length}\n`;
+      out += `void_p2p_peers_active_60s ${active}\n`;
+      const lastRtt = peers.reduce((m,p)=> p.rttMs!==undefined ? p.rttMs : m, -1);
+      if (lastRtt >= 0) out += `void_p2p_last_rtt_ms ${lastRtt}\n`;
+      res.type('text/plain').send(out);
+    });
+
+    // tiny self-check
+    app.get('/p2p/mini/health', (_req:any,res:any)=> res.json({ok:true,selfId:st.selfId,peers:st.peers.size}));
+  }
+  mount();
+})();
+// ---------------- P2P Mini-Registry v1 FIX (additive, no deps) ---------------
+(function P2PMiniRegistryV1_FIX(){
+  const TICK = 400;
+  type Peer = { id: string; addr: string; seenAt: number; rttMs?: number };
+  type State = { selfId: string; peers: Map<string, Peer> };
+
+  function now(){ return Date.now(); }
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getState(): State {
+    const g:any = globalThis as any;
+    if (!g.__void_p2p_mini_fix) {
+      const selfId = process.env.VOID_NODE_ID || process.env.VOID_NODE_KEY_A || "void-self";
+      g.__void_p2p_mini_fix = { selfId, peers: new Map<string, Peer>() } as State;
+    }
+    return (globalThis as any).__void_p2p_mini_fix as State;
+  }
+  function putPeer(p: Peer){
+    const st = getState();
+    const cur = st.peers.get(p.id);
+    if (!cur || cur.addr !== p.addr || (p.seenAt && p.seenAt > (cur.seenAt||0))) {
+      st.peers.set(p.id, { ...cur, ...p, seenAt: p.seenAt || now() });
+    } else if (p.rttMs !== undefined) {
+      cur.rttMs = p.rttMs;
+    }
+  }
+  async function pingOnce(addr: string): Promise<number> {
+    const start = now();
+    const url = new URL(addr);
+    const candidates = [
+      new URL('/p2p/hello-now', url).toString(),
+      new URL('/health', url).toString(),
+      addr
+    ];
+    for (const u of candidates) {
+      try { const r = await fetch(u); if (r.ok) return now()-start; } catch {}
+    }
+    throw new Error('ping failed');
+  }
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== 'function') return setTimeout(mount, TICK);
+    if ((app as any).__void_p2p_mini_fix_attached) return;
+    (app as any).__void_p2p_mini_fix_attached = true;
+
+    const st = getState();
+
+    // POST /p2p/handshake/v2
+    app.post('/p2p/handshake/v2', (express as any).json(), async (req:any,res:any)=>{
+      try{
+        const { id, addr } = req.body || {};
+        if (!id || !addr) return res.status(400).json({ ok:false, error:'id and addr required' });
+        putPeer({ id, addr, seenAt: now() });
+        return res.json({ ok:true, selfId: st.selfId, received:{id,addr}, peersKnown: st.peers.size });
+      }catch(e:any){ return res.status(500).json({ ok:false, error: e?.message||'err' });}
+    });
+
+    // GET /p2p/peers/known
+    app.get('/p2p/peers/known', (_req:any,res:any)=>{
+      const arr = Array.from(st.peers.values()).sort((a,b)=>b.seenAt-a.seenAt);
+      res.json({ ok:true, selfId: st.selfId, count: arr.length, peers: arr });
+    });
+
+    // GET /p2p/peers/active?since=60
+    app.get('/p2p/peers/active', (req:any,res:any)=>{
+      const sinceSec = Math.max(0, parseInt(String(req.query.since||'60'))||60);
+      const cutoff = now() - sinceSec*1000;
+      const arr = Array.from(st.peers.values()).filter(p=>p.seenAt>=cutoff).sort((a,b)=>b.seenAt-a.seenAt);
+      res.json({ ok:true, sinceSec, count: arr.length, peers: arr });
+    });
+
+    // GET /p2p/ping?addr=http://127.0.0.1:4101
+    app.get('/p2p/ping', async (req:any,res:any)=>{
+      const addr = String(req.query.addr||'');
+      if (!addr) return res.status(400).json({ ok:false, error:'addr required' });
+      try{
+        const rtt = await pingOnce(addr);
+        const id = 'peer:' + addr;
+        putPeer({ id, addr, seenAt: now(), rttMs: rtt });
+        res.json({ ok:true, addr, rttMs: rtt });
+      }catch(e:any){ res.status(502).json({ ok:false, addr, error: e?.message||'ping failed' });}
+    });
+
+    // GET /metrics/p2p/mini.prom
+    app.get('/metrics/p2p/mini.prom', (_req:any,res:any)=>{
+      const peers = Array.from(getState().peers.values());
+      const active = peers.filter(p => (now()-p.seenAt) <= 60_000).length;
+      let out = '';
+      out += `void_p2p_peers_known ${peers.length}\n`;
+      out += `void_p2p_peers_active_60s ${active}\n`;
+      const lastRtt = peers.reduce((m,p)=> p.rttMs!==undefined ? p.rttMs : m, -1);
+      if (lastRtt >= 0) out += `void_p2p_last_rtt_ms ${lastRtt}\n`;
+      res.type('text/plain').send(out);
+    });
+
+    app.get('/p2p/mini/health', (_req:any,res:any)=> res.json({ ok:true, selfId: st.selfId, peers: st.peers.size }));
+  }
+  mount();
+})();
+// ---------------- P2P Mini-Registry v1 CLEAN (additive) -----------------------
+(function P2PMiniRegistryV1_CLEAN(){
+  const TICK = 400;
+  type Peer = { id: string; addr: string; seenAt: number; rttMs?: number };
+  type State = { selfId: string; peers: Map<string, Peer> };
+
+  function now(){ return Date.now(); }
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getState(): State {
+    const g:any = globalThis as any;
+    if (!g.__void_p2p_mini_clean) {
+      const selfId = process.env.VOID_NODE_ID || process.env.VOID_NODE_KEY_A || "void-self";
+      g.__void_p2p_mini_clean = { selfId, peers: new Map<string, Peer>() } as State;
+    }
+    return (globalThis as any).__void_p2p_mini_clean as State;
+  }
+  function putPeer(p: Peer){
+    const st = getState();
+    const cur = st.peers.get(p.id);
+    if (!cur || cur.addr !== p.addr || (p.seenAt && p.seenAt > (cur.seenAt||0))) {
+      st.peers.set(p.id, { ...cur, ...p, seenAt: p.seenAt || now() });
+    } else if (p.rttMs !== undefined) { cur.rttMs = p.rttMs; }
+  }
+  async function pingOnce(addr: string): Promise<number> {
+    const start = now(); const url = new URL(addr);
+    const candidates = [ '/p2p/hello-now', '/health', '/' ].map(p => new URL(p, url).toString());
+    for (const u of candidates){ try{ const r=await fetch(u); if(r.ok) return now()-start; }catch{} }
+    throw new Error('ping failed');
+  }
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== 'function') return setTimeout(mount, TICK);
+    if ((app as any).__void_p2p_mini_clean_attached) return;
+    (app as any).__void_p2p_mini_clean_attached = true;
+
+    const st = getState();
+
+    app.post('/p2p/handshake/v2', express.json(), async (req:any,res:any)=>{
+      try{
+        const { id, addr } = req.body || {};
+        if (!id || !addr) return res.status(400).json({ ok:false, error:'id and addr required' });
+        putPeer({ id, addr, seenAt: now() });
+        return res.json({ ok:true, selfId: st.selfId, received:{id,addr}, peersKnown: st.peers.size });
+      }catch(e:any){ return res.status(500).json({ ok:false, error: e?.message||'err' });}
+    });
+
+    app.get('/p2p/peers/known', (_req:any,res:any)=>{
+      const arr = Array.from(st.peers.values()).sort((a,b)=>b.seenAt-a.seenAt);
+      res.json({ ok:true, selfId: st.selfId, count: arr.length, peers: arr });
+    });
+
+    app.get('/p2p/peers/active', (req:any,res:any)=>{
+      const sinceSec = Math.max(0, parseInt(String(req.query.since||'60'))||60);
+      const cutoff = now() - sinceSec*1000;
+      const arr = Array.from(st.peers.values()).filter(p=>p.seenAt>=cutoff).sort((a,b)=>b.seenAt-a.seenAt);
+      res.json({ ok:true, sinceSec, count: arr.length, peers: arr });
+    });
+
+    app.get('/p2p/ping', async (req:any,res:any)=>{
+      const addr = String(req.query.addr||''); if(!addr) return res.status(400).json({ok:false,error:'addr required'});
+      try{ const rtt = await pingOnce(addr); const id='peer:'+addr; putPeer({id,addr,seenAt:now(),rttMs:rtt}); res.json({ok:true,addr,rttMs:rtt}); }
+      catch(e:any){ res.status(502).json({ ok:false, addr, error: e?.message||'ping failed' }); }
+    });
+
+    app.get('/metrics/p2p/mini.prom', (_req:any,res:any)=>{
+      const peers = Array.from(st.peers.values()); const t=now();
+      const active = peers.filter(p => (t - p.seenAt) <= 60_000).length;
+      let out = '';
+      out += `void_p2p_peers_known ${peers.length}\n`;
+      out += `void_p2p_peers_active_60s ${active}\n`;
+      const lastRtt = peers.reduce((m,p)=> p.rttMs!==undefined ? p.rttMs : m, -1);
+      if (lastRtt >= 0) out += `void_p2p_last_rtt_ms ${lastRtt}\n`;
+      res.type('text/plain').send(out);
+    });
+
+    app.get('/p2p/mini/health', (_req:any,res:any)=> res.json({ ok:true, selfId: st.selfId, peers: st.peers.size }));
+  }
+  mount();
+})();
+
+// ---------------- require-guard (additive, non-invasive) ----------------
+(function requireGuardV1(){
+  try {
+    // If require exists, do nothing.
+    if (typeof require === 'function') return;
+  } catch (_e) {
+    // Some bundlers throw on typeof require; just swallow.
+  }
+  // Publish a flag so any optional dev/forensics patch can bail early.
+  (globalThis as any).__void_no_require = true;
+  // Optional: lightweight logger so we know the guard is active once.
+  const g = (globalThis as any);
+  if (!g.__void_no_require_logged) {
+    g.__void_no_require_logged = true;
+    console.log('[require-guard] require not available (ESM) — dev/forensics shims should skip.');
+  }
+})();
+
+// ---------------- P2P Mini Registry — CLEAN V2 (additive, ESM-safe) ----------------
+(function P2PMiniRegistryV2_CLEAN(){
+  const TICK = 300;
+  type Peer = { id: string; addr: string; lastSeen: number };
+  const st = {
+    peers: new Map<string, Peer>(),
+    selfId: 'void-self', // can be swapped to node id if you expose it globally later
+    http: `http://127.0.0.1:${process.env.HTTP_PORT||'4100'}`,
+    p2p:  `${process.env.P2P_HOST||'127.0.0.1'}:${process.env.P2P_PORT||'4700'}`,
+    lastHandshakeTs: 0,
+  };
+  function now(){ return Date.now(); }
+  function getApp(): any { return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  function putPeer(p: {id:string; addr:string}) {
+    const cur: Peer = { id: p.id, addr: p.addr, lastSeen: now() };
+    st.peers.set(p.id, cur);
+    st.lastHandshakeTs = cur.lastSeen;
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, TICK);
+    if ((app as any).__void_p2p_mini_v2_clean_attached) return;
+    (app as any).__void_p2p_mini_v2_clean_attached = true;
+
+    // Health (idempotent; if another block defined it, we replace only once)
+    app.get('/p2p/mini/health', (_req:any,res:any)=>{
+      res.json({ ok:true, selfId: st.selfId, peers: st.peers.size });
+    });
+
+    // Add/refresh a peer (simple local registry)
+    app.post('/p2p/mini/connect', express.json(), async (req:any,res:any)=>{
+      const { id, addr } = req.body || {};
+      if (!id || !addr) return res.status(400).json({ ok:false, error:'id and addr required' });
+      putPeer({ id, addr });
+      return res.json({ ok:true, selfId: st.selfId, received:{id,addr}, peersKnown: st.peers.size });
+    });
+
+    // List peers
+    app.get('/p2p/mini/peers', (_req:any,res:any)=>{
+      const peers = Array.from(st.peers.values()).map(p => ({ id:p.id, addr:p.addr, lastSeen:p.lastSeen }));
+      res.json({ ok:true, peers });
+    });
+
+    // Prometheus exporter (plain text)
+    app.get('/metrics/p2p/mini.prom', (_req:any,res:any)=>{
+      res.set('content-type','text/plain; version=0.0.4');
+      const lines:string[] = [];
+      lines.push('# HELP void_p2p_mini_peers_total Total peers known to the mini registry');
+      lines.push('# TYPE void_p2p_mini_peers_total gauge');
+      lines.push(`void_p2p_mini_peers_total ${st.peers.size}`);
+      lines.push('# HELP void_p2p_mini_last_handshake_ts Unix ms of the last handshake/registration');
+      lines.push('# TYPE void_p2p_mini_last_handshake_ts gauge');
+      lines.push(`void_p2p_mini_last_handshake_ts ${st.lastHandshakeTs}`);
+      lines.push('# HELP void_p2p_mini_self_info Static info about this node (labels)');
+      lines.push('# TYPE void_p2p_mini_self_info gauge');
+      lines.push(`void_p2p_mini_self_info{http="${st.http}",p2p="${st.p2p}",id="${st.selfId}"} 1`);
+      res.send(lines.join('\n')+'\n');
+    });
+
+    console.log('[p2p-mini:v2-clean] attached (peers=/p2p/mini/peers, connect=/p2p/mini/connect, prom=/metrics/p2p/mini.prom)');
+  }
+  mount();
+})();
+
+// ---------------- P2P auto-handshake refresher (additive, safe) ----------------
+(function p2pAutoHandshakeRefresher(){
+  const TICK_MS = Number(process.env.VOID_P2P_AUTO_MS || 15000);
+  const peersEnv = (process.env.VOID_P2P_AUTO_PEERS || 'http://127.0.0.1:4101')
+    .split(',').map(s => s.trim()).filter(Boolean);
+  let started = false, tries = 0;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function pingOnce() {
+    const targets = peersEnv.slice();
+    for (const base of targets) {
+      const url = `${base.replace(/\/+$/,'')}/p2p/hello-now`;
+      try { await fetch(url, { method:'GET' }); } catch { /* ignore */ }
+    }
+  }
+
+  function loop(){
+    if (started) return; started = true;
+    setInterval(pingOnce, TICK_MS);
+    // kick immediately so Prom metrics update fast
+    pingOnce().catch(()=>{});
+  }
+
+  function waitForApp(){
+    const app = getApp();
+    if (!app || typeof (app as any).get !== 'function') {
+      if (++tries < 120) return setTimeout(waitForApp, 500);
+      return;
+    }
+    loop();
+  }
+
+  waitForApp();
+})();
+
+// ---------------- P2P auto-handshake refresher v2 (additive, safe) ----------------
+(function p2pAutoHandshakeRefresherV2(){
+  const TICK_MS = Number(process.env.VOID_P2P_AUTO_MS || 15000);
+  const peersEnv = (process.env.VOID_P2P_AUTO_PEERS || 'http://127.0.0.1:4101')
+    .split(',').map(s => s.trim()).filter(Boolean);
+
+  async function pingOnce() {
+    const targets = peersEnv.slice();
+    for (const base of targets) {
+      const url = `${base.replace(/\/+$/,'')}/p2p/hello-now`;
+      try { await fetch(url, { method: 'GET' }); } catch { /* ignore */ }
+    }
+  }
+  setInterval(pingOnce, TICK_MS);
+  pingOnce().catch(()=>{});
+})();
+
+// ---------------- P2P mini exporter (additive, safe) ----------------
+(function p2pMiniExporter(){
+  const TICK_MS = Number(process.env.VOID_P2P_MINI_MS || 15000);
+  const peerBase = process.env.VOID_P2P_MINI_PEER || 'http://127.0.0.1:4101';
+
+  let lastHandshakeTs = 0;
+  let peersGauge = 0;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function pollOnce(){
+    try {
+      // Nudge hello; if it succeeds, update the ts
+      await fetch(`${peerBase.replace(/\/+$/,'')}/p2p/hello-now`).then(()=>{});
+      lastHandshakeTs = Math.floor(Date.now()/1000);
+    } catch { /* ignore */ }
+
+    try {
+      // Read peers count from our own /p2p/peers
+      const r = await fetch('http://127.0.0.1:' + (process.env.HTTP_PORT || '4100') + '/p2p/peers');
+      if (r.ok) {
+        const j:any = await r.json();
+        peersGauge = Array.isArray(j.connected) ? j.connected.length : (Number(j.peers)||0);
+      }
+    } catch { /* ignore */ }
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_p2p_mini_exporter) return; (app as any).__void_p2p_mini_exporter = true;
+
+    app.get('/__void/metrics/p2p-mini-dup.prom', (_req:any, res:any)=>{
+      res.setHeader('Content-Type','text/plain; version=0.0.4');
+      res.end(
+        '# HELP void_p2p_mini_last_handshake_ts Last successful mini-handshake UNIX timestamp\n' +
+        '# TYPE void_p2p_mini_last_handshake_ts gauge\n' +
+        `void_p2p_mini_last_handshake_ts ${lastHandshakeTs}\n` +
+        '# HELP void_p2p_mini_peers Connected peers (mini)\n' +
+        '# TYPE void_p2p_mini_peers gauge\n' +
+        `void_p2p_mini_peers ${peersGauge}\n`
+      );
+    });
+  }
+
+  mount();
+  setInterval(pollOnce, TICK_MS);
+  pollOnce().catch(()=>{});
+})();
+
+// ---------------- P2P mini exporter (additive, no deps) ----------------------
+(function voidP2PMiniExporter(){
+  const TICK_MS = 5000;
+  let mounted = false;
+  let lastHandshakeTs = 0;
+  let peersConnected = 0;
+
+  // Node 18+ has global fetch; fallback to http if needed
+  async function safeFetch(url:string, opts:any = {}): Promise<{ok:boolean, text:string}> {
+    try {
+      const r:any = await (globalThis as any).fetch(url, opts);
+      const t = await r.text();
+      return { ok: r.ok, text: t };
+    } catch (_e) { return { ok:false, text:"" }; }
+  }
+
+  async function poll() {
+    // 1) Try a hello (records last successful handshake)
+    const hello = await safeFetch('http://127.0.0.1:' + (process.env.HTTP_PORT||'4100') + '/p2p/hello-now');
+    if (hello.ok) lastHandshakeTs = Math.floor(Date.now()/1000);
+
+    // 2) Pull current peers from our own /metrics (parse Prom text)
+    const m = await safeFetch('http://127.0.0.1:' + (process.env.HTTP_PORT||'4100') + '/metrics');
+    if (m.ok) {
+      const match = m.text.match(/^\s*void_peers_connected\s+([0-9.]+)\s*$/m);
+      if (match) peersConnected = Number(match[1]) || 0;
+    }
+    setTimeout(poll, TICK_MS);
+  }
+
+  function promText(): string {
+    // No labels here; job-level labels come from Prom scrape config
+    return [
+      '# HELP void_p2p_mini_peers Current connected peers (from void_peers_connected).',
+      '# TYPE void_p2p_mini_peers gauge',
+      `void_p2p_mini_peers ${peersConnected}`,
+      '',
+      '# HELP void_p2p_mini_last_handshake_ts Unix seconds of last successful /p2p/hello-now.',
+      '# TYPE void_p2p_mini_last_handshake_ts gauge',
+      `void_p2p_mini_last_handshake_ts ${lastHandshakeTs}`,
+      ''
+    ].join('\n');
+  }
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    if (mounted) return;
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 400);
+
+    if (app.__void_p2p_mini_exporter_mounted) return;
+    app.__void_p2p_mini_exporter_mounted = true; mounted = true;
+
+    app.get('/__void/metrics/p2p-mini-dup.prom', (_req:any, res:any) => {
+      res.set('Content-Type','text/plain; version=0.0.4').send(promText());
+    });
+
+    // start polling loop
+    setTimeout(poll, 1000);
+  }
+  mount();
 })();
