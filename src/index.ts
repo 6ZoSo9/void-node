@@ -16774,3 +16774,29 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
     (globalThis as any).__void_killswitch_forensics_v7 = "installed";
   } catch {}
 })();
+
+// ------------ proposer/auto/status2 shim (derives from v3b exporter) ------------
+;(function proposerAutoStatus2Shim(){
+  const TICK=400;
+  async function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function attach(){
+    const app:any = await getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(attach, TICK);
+    if ((app as any).__void_proposer_status2_shim) return;
+    (app as any).__void_proposer_status2_shim = true;
+
+    app.get("/proposer/auto/status2", async (_req:any, res:any) => {
+      try {
+        const r = await fetch("http://127.0.0.1:4100/metrics/void/proposer.v3b.prom");
+        const txt = await r.text();
+        const enabled = /void_proposer_auto_enabled(?:_v2)?\s+(\d+)/.exec(txt)?.[1];
+        const ms      = /void_proposer_auto_ms(?:_v2)?\s+(\d+)/.exec(txt)?.[1];
+        const ok = enabled!==undefined && ms!==undefined;
+        res.json({ ok, source:"v3b.prom", enabled: enabled? Number(enabled):null, ms: ms? Number(ms):null });
+      } catch (e:any) {
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+  }
+  attach();
+})();
