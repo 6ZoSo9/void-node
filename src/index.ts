@@ -17503,7 +17503,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
       const req = createRequire(import.meta.url);
       const events = req('node:events');
       events.defaultMaxListeners = 0;
-      console.error("[listeners.guard] process+events ceiling set to unlimited");
+// [dupe-guard.listener.banner]       console.error("[listeners.guard] process+events ceiling set to unlimited");
     } catch {} })();
   }catch{}
 })();
