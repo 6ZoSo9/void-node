@@ -16800,3 +16800,88 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   }
   attach();
 })();
+
+// ---------------- WAL v1 bootsafe + endpoints + metrics (additive) ----------------
+(async function walV1Bootsafe(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getDataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"; }
+
+  async function attach(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+    if ((app as any).__void_wal_v1_mounted) return; (app as any).__void_wal_v1_mounted = true;
+
+    let wal:any = null, info:any = null, replayNeeded = 0, lastSeq = 0, unflushedBytes = 0;
+
+    async function ensure(){
+      if (!wal) {
+        const mod = await import("./wal/journal.js");
+        wal = await mod.Journal.open(getDataDir());
+        info = wal.info();
+      }
+      return wal;
+    }
+
+    // health: shows meta + whether replay is needed (we detect valid tail)
+    app.get("/wal/health", async (_req:any, res:any)=>{
+      try{
+        await ensure();
+        // quick scan: validate until torn frame; if torn → replayNeeded=1
+        replayNeeded = 0;
+        let seq=0, count=0;
+        for await (const rec of wal.replay({fromSeq:1})) { seq = rec.n; count++; }
+        lastSeq = seq;
+        const inf = wal.info();
+        unflushedBytes = inf.bytes;
+        res.json({ ok:true, lastSeq, bytes: inf.bytes, createdAt: inf.createdAt, updatedAt: inf.updatedAt, replayNeeded });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error: String(e?.message||e) });
+      }
+    });
+
+    // dry-run preview: returns first N records without applying
+    app.get("/wal/replay/preview", async (req:any, res:any)=>{
+      try{
+        await ensure();
+        const limit = Math.max(1, Math.min(100, Number(req.query.limit||10)));
+        const out:any[]=[];
+        for await (const rec of wal.replay({fromSeq:1})) { out.push(rec); if (out.length>=limit) break; }
+        res.json({ ok:true, records: out });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error: String(e?.message||e) });
+      }
+    });
+
+    // dev-only append hook (safe to keep; guarded by env in frontends)
+    app.post("/wal/dev/append", async (req:any, res:any)=>{
+      try{
+        await ensure();
+        const t = String(req.query.t||"block.save");
+        const payload = req.body || { note:"dev" };
+        const n = await wal.append(t, payload);
+        lastSeq = n;
+        const inf = wal.info();
+        unflushedBytes = inf.bytes;
+        res.json({ ok:true, n });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error: String(e?.message||e) });
+      }
+    });
+
+    // Prom exporter
+    app.get("/metrics/void/wal.prom", async (_req:any, res:any)=>{
+      try{
+        await ensure();
+        const inf = wal.info();
+        res.type("text/plain; version=0.0.4");
+        res.write(`# HELP void_wal_last_seq Last WAL sequence number\n# TYPE void_wal_last_seq gauge\nvoid_wal_last_seq ${lastSeq||0}\n`);
+        res.write(`# HELP void_wal_bytes WAL file size in bytes\n# TYPE void_wal_bytes gauge\nvoid_wal_bytes ${inf.bytes||0}\n`);
+        res.write(`# HELP void_wal_replay_needed 1 if replay needed\n# TYPE void_wal_replay_needed gauge\nvoid_wal_replay_needed ${replayNeeded||0}\n`);
+        res.end();
+      }catch(e:any){
+        res.type("text/plain").send(`# ERROR ${String(e?.message||e)}\n`);
+      }
+    });
+  }
+  attach();
+})();
