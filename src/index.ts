@@ -17508,3 +17508,32 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
     } catch {} })();
   }catch{}
 })();
+
+// ---- console-filter exporter (additive, safe) ----
+;(function ConsoleFilterExporterV1(){
+  const TICK=300;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    try{
+      const app:any=getApp();
+      if(!app||typeof app.get!=="function") return setTimeout(mount,TICK);
+      if(app.__void_console_filter_exporter_v1) return; app.__void_console_filter_exporter_v1=true;
+
+      // Prom text at /__void/metrics/console_filter.prom
+      app.get("/__void/metrics/console_filter.prom", (_req:any, res:any)=>{
+        const g:any = globalThis as any;
+        const ok = g && g.__void_console_filter_v0 ? 1 : 0;
+        res.type("text/plain; version=0.0.4; charset=utf-8").send([
+          "# HELP void_console_filter_ok 1 when console filter is loaded",
+          "# TYPE void_console_filter_ok gauge",
+          `void_console_filter_ok ${ok}`,
+          "# HELP void_console_filter_info Info line",
+          "# TYPE void_console_filter_info gauge",
+          `void_console_filter_info{state="${ok? "installed":"missing"}"} 1`,
+        ].join("\n")+"\n");
+      });
+      console.error("[console-filter.exporter] mounted");
+    }catch{ setTimeout(mount,TICK); }
+  }
+  mount();
+})();
