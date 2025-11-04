@@ -1,3 +1,16 @@
+// [early-console-filter.v0] if you see this twice, delete one copy
+(function EarlyConsoleFilterV0(){
+  try{
+    if((globalThis).__void_console_filter_v0)return;
+    (globalThis).__void_console_filter_v0=true;
+    const _err=console.error.bind(console);
+    console.error=function(...args){
+      const s = args && args[0] ? String(args[0]) : "";
+      if(s.startsWith("[fs-autoclose] failed")||s.startsWith("[http-autodrain] failed")) return;
+      return _err(...args);
+    };
+  }catch{}
+})();
 // --- shim: legacy proposer exporter free identifiers (additive, safe) ---
 var autoTimer: any;
 var autoMs: any;
