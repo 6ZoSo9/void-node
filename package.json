@@ -12,7 +12,8 @@
     "lint:braces": "node -e \"const fs=require(\"fs\");const s=fs.readFileSync(\"src/index.ts\",\"utf8\");let c=0,l=1;for(const ch of s){if(ch===\"\\n\")l++;if(ch===\"{\")c++;else if(ch===\"}\")c--;if(c<0){console.error(`extra } at line ${l}`);process.exit(1)}}if(c!==0){console.error(`brace imbalance ${c}`);process.exit(1)}\"",
     "build:loose": "tsc -p tsconfig.build.json || echo \"[loose build] TS errors ignored for CI\"",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
-    "check:listeners": "bash scripts/check-listener-singleton.sh"
+    "check:listeners": "bash scripts/check-listener-singleton.sh",
+    "test:listener-guard": "bash scripts/test-listener-guard-smoke.sh"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
