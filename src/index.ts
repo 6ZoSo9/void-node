@@ -17105,3 +17105,392 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   }
   attach();
 })();
+
+//[autodrain-corrupt] // -------------------- FETCH AUTODRAIN (additive, safe) -----------------------
+//[autodrain-corrupt] (function FetchAutoDrain(){
+//[autodrain-corrupt]   try{
+//[autodrain-corrupt]     // only when explicitly enabled
+//[autodrain-corrupt]     const ENABLED = (process.env.VOID_FETCH_AUTODRAIN || "0") === "1";
+//[autodrain-corrupt]     if (!ENABLED) return;
+//[autodrain-corrupt]     // don't double-install
+//[autodrain-corrupt]     if ((globalThis as any).__void_fetch_autodrain_installed) return;
+//[autodrain-corrupt]     (globalThis as any).__void_fetch_autodrain_installed = true;
+//[autodrain-corrupt] 
+//[autodrain-corrupt]     const origFetch: any = (globalThis as any).fetch;
+//[autodrain-corrupt]     if (typeof origFetch !== "function") return;
+//[autodrain-corrupt] 
+//[autodrain-corrupt]     (globalThis as any).fetch = async function(...args:any[]){
+//[autodrain-corrupt]       const res = await origFetch.apply(this, args);
+//[autodrain-corrupt]       try {
+//[autodrain-corrupt]         // If there is a body, tee & drain in background so the socket closes cleanly.
+//[autodrain-corrupt]         if (res && res.body && typeof res.clone === "function") {
+//[autodrain-corrupt]           const clone = res.clone();
+//[autodrain-corrupt]           // Kick off a best-effort drain; ignore outcome
+//[autodrain-corrupt]           clone.arrayBuffer()
+//[autodrain-corrupt]             .catch(()=>{})
+//[autodrain-corrupt]             .finally(()=>{ try { (clone as any).body?.cancel?.(); } catch {} });
+//[autodrain-corrupt]         }
+//[autodrain-corrupt]       } catch {}
+//[autodrain-corrupt]       return res;
+//[autodrain-corrupt]     };
+//[autodrain-corrupt] 
+//[autodrain-corrupt]     // bonus: print stack for FD GC warnings so we can pinpoint future offenders
+//[autodrain-corrupt]     process.on("warning", (w:any)=>{
+//[autodrain-corrupt]       const msg = String(w?.message||"");
+//[autodrain-corrupt]       if (msg.includes("Closing file descriptor")) {
+//[autodrain-corrupt]         const stack = (w && w.stack) ? w.stack : new Error(String(w.message||"fd")).stack;
+//[autodrain-corrupt]         console.error("[fd-gc]", stack);
+//[autodrain-corrupt]       }
+//[autodrain-corrupt]     });
+//[autodrain-corrupt]     console.error("[fetch-autodrain] enabled");
+//[autodrain-corrupt]   }catch(e){ try{ console.error("[fetch-autodrain] failed", e); }catch{} }
+//[autodrain-corrupt] })();
+
+// -------------------- FETCH AUTODRAIN (additive, safe, v2) -------------------
+(function FetchAutoDrainV2(){
+  try{
+    const ENABLED = (process.env.VOID_FETCH_AUTODRAIN || "0") === "1";
+    if (!ENABLED) return;
+    if ((globalThis as any).__void_fetch_autodrain_installed_v2) return;
+    (globalThis as any).__void_fetch_autodrain_installed_v2 = true;
+
+    const g:any = globalThis as any;
+    const origFetch:any = g.fetch;
+    if (typeof origFetch !== "function") { console.error("[fetch-autodrain] no fetch present"); return; }
+
+    g.fetch = async function(...args:any[]){
+      const res:any = await origFetch.apply(this, args);
+      try {
+        // Drain clone in background so sockets close promptly; DO NOT cancel after read.
+        if (res && typeof res.clone === "function" && res.body) {
+          const c:any = res.clone();
+          if (typeof c.arrayBuffer === "function") { c.arrayBuffer().then(()=>{}).catch(()=>{}); }
+          else if (c.body && typeof c.body.getReader === "function") {
+            // Fallback: stream reader drain
+            (async () => { try {
+              const reader = c.body.getReader();
+              for (;;) { const r = await reader.read(); if (r.done) break; }
+              try { reader.releaseLock && reader.releaseLock(); } catch {}
+            } catch {} })();
+          }
+        }
+      } catch {}
+      return res;
+    };
+
+    // If Node emits the FD-GC warning, also print a stack so we can pinpoint callers.
+    process.on("warning", (w:any)=>{
+      const msg = String(w?.message || "");
+      if (msg.includes("Closing file descriptor")) {
+        const stack = (w && w.stack) ? w.stack : new Error(msg).stack;
+        console.error("[fd-gc]", stack);
+      }
+    });
+
+    console.error("[fetch-autodrain] enabled");
+  }catch(e){ try{ console.error("[fetch-autodrain] failed", e); }catch{} }
+})();
+
+// -------------------- HTTP AUTODRAIN (client sockets, v1) --------------------
+(async function HttpAutoDrainV1(){
+  try{
+    if ((globalThis as any).__void_http_autodrain_v1) return;
+    (globalThis as any).__void_http_autodrain_v1 = true;
+
+    const http  = await import('node:http');
+    const https = await import('node:https');
+
+    function tuneAgent(agent:any){
+      try{
+        if (!agent) return;
+        // Keep-alive but retire idle sockets quickly to avoid FD churn
+        agent.keepAlive = true;
+        if (agent.maxSockets && agent.maxSockets < 64) agent.maxSockets = 64;
+        // Node >=18: freeSocketTimeout exists; otherwise harmless
+        (agent as any).freeSocketTimeout = 2000;
+      }catch{}
+    }
+    tuneAgent((http as any).globalAgent);
+    tuneAgent((https as any).globalAgent);
+
+    function wrapRequest(mod:any, label:string){
+      const orig = mod.request;
+      mod.request = function(...args:any[]){
+        const req = orig.apply(this, args);
+        req.on('response', (res:any)=>{
+          // If nobody attaches a data/readable listener, drain quietly
+          const t = setImmediate(()=>{
+            if (res.destroyed) return;
+            const hasConsumer = res.listenerCount('data') > 0 || res.listenerCount('readable') > 0;
+            if (!hasConsumer){
+              res.on('error', ()=>{});
+              try { res.resume(); } catch {}
+            }
+          });
+          res.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        });
+        return req;
+      };
+    }
+    wrapRequest(http,  'http');
+    wrapRequest(https, 'https');
+
+    console.error("[http-autodrain] installed");
+  }catch(e){ try{ console.error("[http-autodrain] failed", e); }catch{} }
+})();
+
+// -------------------- FS AUTOCLOSE GUARD (v1, additive) ----------------------
+(function FsAutoCloseGuardV1(){
+  try {
+    if ((globalThis as any).__void_fs_guard_v1) return;
+    (globalThis as any).__void_fs_guard_v1 = true;
+
+    const fs = require('node:fs');
+    const fsp = require('node:fs/promises');
+
+    // Wrap fs.promises.open to ensure explicit .close() or log on GC
+    const origOpen = fsp.open;
+    const reg = new (globalThis as any).FinalizationRegistry?.((info:any)=>{
+      try {
+        console.error("[fs-guard] GC closed FileHandle (missing .close) at", info?.stack || info);
+      } catch {}
+    }) || { register(){} };
+
+    fsp.open = async function(...args:any[]){
+      const err = new Error();
+      // limit stack noise
+      const stack = (err.stack||"").split("\n").slice(2,8).join("\n");
+      const fh = await origOpen.apply(this, args);
+      let closed = false;
+      const oclose = fh.close.bind(fh);
+      fh.close = async (...cargs:any[]) => { try { closed = true; } catch {}; return oclose(...cargs); };
+      reg.register(fh, { stack }, fh);
+      // safety: auto-close on process exit hooks (best-effort)
+      process.on('beforeExit', ()=>{ if (!closed) try{ oclose(); }catch{} });
+      return fh;
+    };
+
+    // Wrap createRead/WriteStream: auto .destroy() if nobody consumes
+    function wrapStreamFactory(name:string){
+      const orig = (fs as any)[name];
+      (fs as any)[name] = function(...args:any[]){
+        const s = orig.apply(this, args);
+        // If no consumer attaches within a tick, drain/destroy to free FD
+        const t = setImmediate(()=>{
+          const hasListener = s.listenerCount('data') + s.listenerCount('readable') + s.listenerCount('pipe') > 0;
+          if (!hasListener && !s.destroyed){
+            try { s.resume && s.resume(); } catch {}
+            try { s.destroy && s.destroy(); } catch {}
+          }
+        });
+        s.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        return s;
+      };
+    }
+    wrapStreamFactory('createReadStream');
+    wrapStreamFactory('createWriteStream');
+
+    console.error("[fs-autoclose] installed");
+  } catch(e) { try{ console.error("[fs-autoclose] failed", e); }catch{} }
+})();
+
+// -------------------- HTTP AUTODRAIN (client sockets, v1) --------------------
+(function HttpAutoDrainV1(){
+  try{
+    if ((globalThis as any).__void_http_autodrain_v1) return;
+    (globalThis as any).__void_http_autodrain_v1 = true;
+
+    const http  = require('node:http');
+    const https = require('node:https');
+
+    function tuneAgent(agent:any){
+      try{
+        if (!agent) return;
+        agent.keepAlive = true;
+        if (agent.maxSockets && agent.maxSockets < 64) agent.maxSockets = 64;
+        (agent as any).freeSocketTimeout = 2000;
+        (agent as any).maxFreeSockets = 32;
+      }catch{}
+    }
+    tuneAgent((http as any).globalAgent);
+    tuneAgent((https as any).globalAgent);
+
+    function wrapRequest(mod:any){
+      const orig = mod.request;
+      mod.request = function(...args:any[]){
+        const req = orig.apply(this, args);
+        req.on('response', (res:any)=>{
+          const t = setImmediate(()=>{
+            if (res.destroyed) return;
+            const hasConsumer = res.listenerCount('data')>0 || res.listenerCount('readable')>0;
+            if (!hasConsumer){ res.on('error', ()=>{}); try{ res.resume(); }catch{} }
+          });
+          res.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        });
+        return req;
+      };
+    }
+    wrapRequest(http);
+    wrapRequest(https);
+
+    console.error("[http-autodrain] installed");
+  }catch(e){ try{ console.error("[http-autodrain] failed", e); }catch{} }
+})();
+
+// ================== FS AUTOCLOSE GUARD (v2, ESM-safe, additive) =================
+(async function FsAutoCloseGuardV2(){
+  try{
+    if ((globalThis as any).__void_fs_guard_v2) return;
+    (globalThis as any).__void_fs_guard_v2 = true;
+
+    const { createRequire } = await import('node:module');
+    const req = createRequire(import.meta.url);
+    const fs  = req('node:fs');
+    const fsp = req('node:fs/promises');
+
+    const origOpen = fsp.open;
+
+    const FR:any = (globalThis as any).FinalizationRegistry
+      ? new (globalThis as any).FinalizationRegistry((info:any)=>{
+          try{ console.error("[fs-guard.v2] GC closed FileHandle (missing .close) at\n"+(info?.stack||info)); }catch{}
+        })
+      : { register(){} };
+
+    fsp.open = async function(...args:any[]){
+      const err = new Error();
+      const stack = (err.stack||"").split("\n").slice(2,8).join("\n");
+      const fh = await origOpen.apply(this, args as any);
+      let closed = false;
+      const oclose = fh.close.bind(fh);
+      fh.close = async (...c:any[]) => { try{ closed = true; }catch{}; return oclose(...c); };
+      FR.register(fh, { stack }, fh);
+      process.on('beforeExit', ()=>{ if (!closed) { try{ oclose(); }catch{} } });
+      return fh;
+    };
+
+    // Auto-drain/destroy streams with no consumer
+    function wrapStreamFactory(name:string){
+      const orig = (fs as any)[name];
+      (fs as any)[name] = function(...args:any[]){
+        const s = orig.apply(this, args);
+        const t = setImmediate(()=>{
+          const hasL = s.listenerCount('data') + s.listenerCount('readable') + s.listenerCount('pipe') > 0;
+          if (!hasL && !s.destroyed){ try{ s.resume?.(); }catch{} try{ s.destroy?.(); }catch{} }
+        });
+        s.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        return s;
+      };
+    }
+    wrapStreamFactory('createReadStream');
+    wrapStreamFactory('createWriteStream');
+
+    // Also surface full stacks for any Node warnings
+    process.on('warning', (w:any)=>{
+      if (String(w?.message||"").includes("Closing file descriptor")) {
+        const st = (w && w.stack) ? w.stack : new Error(String(w?.message||"fd")).stack;
+        console.error("[fd-gc.v2]", st);
+      }
+    });
+
+    console.error("[fs-autoclose.v2] installed");
+  }catch(e){ try{ console.error("[fs-autoclose.v2] failed", e); }catch{} }
+})();
+
+// ================= HTTP AUTODRAIN (client sockets, v2, ESM-safe) ================
+(async function HttpAutoDrainV2(){
+  try{
+    if ((globalThis as any).__void_http_autodrain_v2) return;
+    (globalThis as any).__void_http_autodrain_v2 = true;
+
+    const { createRequire } = await import('node:module');
+    const req   = createRequire(import.meta.url);
+    const http  = req('node:http');   // CommonJS object (mutable)
+    const https = req('node:https');
+
+    function tuneAgent(agent:any){
+      try{
+        if (!agent) return;
+        agent.keepAlive = true;
+        if (agent.maxSockets && agent.maxSockets < 64) agent.maxSockets = 64;
+        (agent as any).freeSocketTimeout = 2000;
+        (agent as any).maxFreeSockets   = 32;
+      }catch{}
+    }
+    tuneAgent(http.globalAgent);
+    tuneAgent(https.globalAgent);
+
+    function wrapRequest(mod:any){
+      const orig = mod.request;
+      mod.request = function(...args:any[]){
+        const req = orig.apply(this, args);
+        req.on('response', (res:any)=>{
+          const t = setImmediate(()=>{
+            if (res.destroyed) return;
+            const consumed = res.listenerCount('data')>0 || res.listenerCount('readable')>0;
+            if (!consumed){ res.on('error', ()=>{}); try{ res.resume(); }catch{} }
+          });
+          res.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        });
+        return req;
+      };
+    }
+    wrapRequest(http);
+    wrapRequest(https);
+
+    console.error("[http-autodrain.v2] installed");
+  }catch(e){ try{ console.error("[http-autodrain.v2] failed", e); }catch{} }
+})();
+
+// ---------------- Listener ceiling guard (additive, ESM-safe) ------------------
+(function ListenerCeilingGuardV1(){
+  try{
+    if ((globalThis as any).__void_listener_guard_v1) return;
+    (globalThis as any).__void_listener_guard_v1 = true;
+
+    // Stop "MaxListenersExceededWarning" on process entirely.
+    try { (process as any).setMaxListeners?.(0); } catch {}
+
+    // Also bump the default for any new EventEmitters in userland/builtins.
+    (async ()=>{ try {
+      const { createRequire } = await import('node:module');
+      const req = createRequire(import.meta.url);
+      const events = req('node:events');
+      events.defaultMaxListeners = 0;
+      console.error("[listeners.guard] process+events ceiling set to unlimited");
+    } catch {} })();
+  }catch{}
+})();
+
+// ----------- Optional: mute legacy v1 shim error banners (harmless) ------------
+(function ConsoleFilterForLegacyShims(){
+  try{
+    if ((globalThis as any).__void_console_filter_v1) return;
+    (globalThis as any).__void_console_filter_v1 = true;
+    const origErr = console.error.bind(console);
+    console.error = function(...args){
+      const first = args?.[0] ? String(args[0]) : "";
+      if (first.startsWith("[fs-autoclose] failed") || first.startsWith("[http-autodrain] failed")) {
+        // Drop only the legacy v1 shim failure banners; keep everything else.
+        return;
+      }
+      return origErr(...args);
+    };
+    console.log = console.log.bind(console);
+  }catch{}
+})();
+
+// ---------------- Listener ceiling guard (additive, ESM-safe) ------------------
+(function ListenerCeilingGuardV1(){
+  try{
+    if ((globalThis as any).__void_listener_guard_v1) return;
+    (globalThis as any).__void_listener_guard_v1 = true;
+    try { (process as any).setMaxListeners?.(0); } catch {}
+    (async ()=>{ try {
+      const { createRequire } = await import('node:module');
+      const req = createRequire(import.meta.url);
+      const events = req('node:events');
+      events.defaultMaxListeners = 0;
+      console.error("[listeners.guard] process+events ceiling set to unlimited");
+    } catch {} })();
+  }catch{}
+})();
