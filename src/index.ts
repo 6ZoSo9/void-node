@@ -14048,7 +14048,7 @@ void_header3_last_mismatch ${lastMismatch}
 
   // helper to GET JSON internally using global fetch if available, else node fetch
   async function fetchJson(url:string){
-    const f = (globalThis as any).fetch || require('node-fetch');
+    const f = (globalThis as any).fetch || (typeof require==='function' ? require('node-fetch') : (await import('node-fetch')).default);
     const r = await f(url);
     if (!r.ok) throw new Error(`fetch ${url} -> ${r.status}`);
     return r.json();
