@@ -16885,3 +16885,41 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   }
   attach();
 })();
+
+// ------------- WAL v1: hook block saves (additive wrapper) -------------
+(function walV1SaveHook(){
+  const TICK=500;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getWal(){
+    const mod = await import("./wal/journal.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    return await mod.Journal.open(dir);
+  }
+  async function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_wal_save_hook) return; (app as any).__void_wal_save_hook = true;
+
+    // expect global nodeCore/saveBlock via existing exports
+    const g:any = globalThis as any;
+    const core = g.__void_core || g.core || {};
+    const original = core.saveBlock || g.saveBlock;
+    if (typeof original !== "function") return; // no-op if not present
+
+    const wal = await getWal();
+
+    async function wrappedSaveBlock(block:any){
+      // 1) write intent to WAL
+      await wal.append("block.save", { number: block?.number, txCount: block?.txs?.length ?? 0 });
+      // 2) call real save
+      const out = await original(block);
+      // 3) optionally mark commit (not required, CRC guards already)
+      // await wal.append("block.commit", { number: block?.number });
+      return out;
+    }
+
+    // patch in-place
+    core.saveBlock = wrappedSaveBlock;
+    g.saveBlock = wrappedSaveBlock;
+  }
+  mount();
+})();
