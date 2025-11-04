@@ -17006,3 +17006,102 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   }
   attach();
 })();
+
+// ---------------- WAL v1.1: intent+commit wrapper (additive, idempotent) ----------------
+;(function walV11IntentCommit(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getWal(){
+    const mod = await import("./wal/journal.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    return await mod.Journal.open(dir);
+  }
+  async function attach(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+    if ((app as any).__void_wal_v11_wrapper) return; (app as any).__void_wal_v11_wrapper = true;
+
+    const g:any = globalThis as any;
+    const core = g.__void_core || g.core || {};
+    const original = core.saveBlock || g.saveBlock;
+    if (typeof original !== "function") return;
+
+    const wal = await getWal();
+
+    async function wrapped(block:any){
+      const n = Number(block?.number ?? -1);
+      const txCount = block?.txs?.length ?? 0;
+      // 1) intent — always before touching disk
+      await wal.append("block.intent", { number:n, txCount });
+
+      // 2) real save
+      const out = await original(block);
+
+      // 3) commit — only after successful save
+      await wal.append("block.commit", { number:n });
+
+      return out;
+    }
+
+    // supersede previous v1 hook safely
+    core.saveBlock = wrapped;
+    g.saveBlock = wrapped;
+    (globalThis as any).__void_wal_v11 = "installed";
+  }
+  attach();
+})();
+
+// ---------------- WAL Safe-Mode (read-only gate + Prom) ----------------
+;(function walSafeMode(){
+  const TICK=400;
+  let forced = 0, auto = 0, lastCheckMs = 0;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function checkAuto(){
+    try{
+      const r = await fetch("http://127.0.0.1:4100/wal/health2");
+      const j:any = await r.json();
+      auto = (j && j.replayNeeded) ? 1 : 0;
+      lastCheckMs = Date.now();
+    }catch{ /* keep previous */ }
+    setTimeout(checkAuto, 2000);
+  }
+
+  function isOn(){ return forced || auto; }
+
+  function blockIfUnsafe(req:any, res:any, next:any){
+    if (!isOn()) return next();
+    // deny obvious mutators (keep additive; extend as we add more POSTs)
+    const m = (req.method||'GET').toUpperCase();
+    if (m === "POST" || m === "PUT" || m === "PATCH" || m === "DELETE") {
+      return res.status(503).json({ ok:false, safeMode:true, reason: auto? "auto-replay-needed":"forced" });
+    }
+    next();
+  }
+
+  async function attach(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(attach, TICK);
+    if ((app as any).__void_wal_safemode) return; (app as any).__void_wal_safemode = true;
+
+    // middleware first, before route handlers see mutating calls
+    app.use(blockIfUnsafe);
+
+    // control + status
+    app.post("/wal/safe-mode/force", (req:any,res:any)=>{ forced = 1; res.json({ ok:true, forced }); });
+    app.post("/wal/safe-mode/clear", (req:any,res:any)=>{ forced = 0; res.json({ ok:true, forced }); });
+    app.get("/wal/safe-mode/status", (_req:any,res:any)=>{
+      res.json({ ok:true, forced, auto, on:isOn(), lastCheckMs });
+    });
+
+    // minimal Prom exporter
+    app.get("/metrics/void/safemode.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4");
+      res.write(`# HELP void_safe_mode 1 when read-only is active\n# TYPE void_safe_mode gauge\nvoid_safe_mode ${isOn()?1:0}\n`);
+      res.end();
+    });
+
+    // kick off auto monitor
+    checkAuto();
+  }
+  attach();
+})();
