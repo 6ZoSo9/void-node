@@ -17537,3 +17537,88 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   }
   mount();
 })();
+
+// ---- WAL v1 poller (additive, no core edits) ----
+;(function WalV1Poller(){
+  const TICK=1000;
+  const MAX_ERRORS=50;
+  const g:any = globalThis as any;
+
+  // helpers
+  function getApp(){ return (g).__void_http_app || (g).app; }
+  async function getJSON(u:string){ const r=await fetch(u); if(!r.ok) throw new Error(`fetch ${u} ${r.status}`); return r.json(); }
+// [fix-await-nonasync]   function join(...p:string[]){ return (await import("node:path")).default.join(...p); }
+  async function join(...p:string[]){ const m = await import("node:path"); return m.default.join(...p); }
+  async function ensureDir(p:string){ const fs = await import("node:fs/promises"); await fs.mkdir(p,{recursive:true}); }
+  async function appendAtomic(file:string, line:string){
+    const fs = await import("node:fs/promises");
+    const f = await fs.open(file, 'a');
+    try { await f.appendFile(line+"\n"); await f.sync(); } finally { await f.close(); }
+  }
+
+  let last=-1, errors=0, lastErr="";
+  let walPath = "";
+
+  async function initPath(){
+    const p = await import("node:path");
+    const dataDir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    const dir = p.default.join(dataDir, "wal_v1");
+    await ensureDir(dir);
+    walPath = p.default.join(dir, "wal.jsonl");
+  }
+
+  async function tick(){
+    try{
+      if(!walPath) await initPath();
+      // Try both endpoints we expose in our codebase
+      let n:number|undefined;
+      try { n = Number(await (await getJSON("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/blocks/latest/number2.json")).number); }
+      catch { n = Number(await (await getJSON("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/blocks/latest/number")).number); }
+      if(!Number.isFinite(n)) throw new Error("bad latest number");
+      if(n>last){
+        // fetch header3 for txRoot + tx count (fallback to header2->3 redirect)
+        const h = await getJSON(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/blocks/${n}/header3`);
+        const entry = {
+          ts: Date.now(),
+          number: n,
+          txCount: h?.txCount ?? null,
+          txRoot: h?.txRoot ?? null,
+        };
+        await appendAtomic(walPath, JSON.stringify(entry));
+        last = n;
+      }
+      lastErr = ""; errors = Math.max(0, errors-1);
+    }catch(e:any){
+      lastErr = String(e?.message||e); errors++;
+      if(errors>MAX_ERRORS) errors=MAX_ERRORS;
+    }finally{
+      setTimeout(tick, TICK);
+    }
+  }
+
+  // Exporter
+  function mount(){
+    const app:any = getApp();
+    if(!app || typeof app.get!=="function") return setTimeout(mount, 300);
+    if(app.__void_wal_v1_exporter) return; app.__void_wal_v1_exporter = true;
+    app.get("/__void/metrics/wal_v1.prom", async (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_wal_last_number Last block appended to WAL v1",
+          "# TYPE void_wal_last_number gauge",
+          `void_wal_last_number ${Number.isFinite(last)&&last>=0? last : -1}`,
+          "# HELP void_wal_errors_total Recent error counter (capped)",
+          "# TYPE void_wal_errors_total counter",
+          `void_wal_errors_total ${errors}`,
+          "# HELP void_wal_info Info line",
+          "# TYPE void_wal_info gauge",
+          `void_wal_info{path="${walPath||""}",state="${last>=0?"ok":"init"}",last_error="${(lastErr||"").replace(/"/g,'\\"') }"} 1`,
+        ].join("\n")+"\n"
+      );
+    });
+    console.error("[wal.v1] poller mounted ->", process.env.DATA_DIR||"data", "/wal_v1/wal.jsonl");
+  }
+
+  mount();
+  tick();
+})();
