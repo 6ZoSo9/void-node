@@ -4041,7 +4041,25 @@ import { computeTxRoot } from "./util/txroot.js";
           const n = (b && (b.number ?? b.n)) ?? "?";
           const len = (b?.txs?.length)||0;
           const r = (b?.txRoot)||"(none)";
-          console.log(`[txroot] sealed #${n} txs=${len} txRoot=${r}`);
+// [txroot-log-fix]           console.log(`[txroot] sealed #${n} txs=${len} txRoot=${r}`);
+  (function __void_txroot_log_fix(){
+    function hexify(x){
+      try {
+        if (x==null) return String(x);
+        if (typeof x === "string") return x;
+        if (x instanceof Uint8Array) return Buffer.from(x).toString("hex");
+        if (x && x.type==="Buffer" && Array.isArray(x.data)) return Buffer.from(x.data).toString("hex");
+        if (x && typeof x.root === "string") return x.root;
+      } catch(e) {}
+      try { return JSON.stringify(x); } catch { return String(x); }
+    }
+    try {
+      /* eslint-disable no-undef */
+      if (typeof n !== "undefined" && typeof txs !== "undefined" && typeof txRoot !== "undefined")
+        console.log(`[txroot] sealed #${n} txs=${txs} txRoot=${hexify(txRoot)}`);
+    } catch(_) {}
+  })();
+// [txroot-log-fix]           console.log(`[txroot] sealed #${n} txs=${len} txRoot=${r}`);
         } catch {}
 
         return res;
@@ -17622,3 +17640,20 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   mount();
   tick();
 })();
+
+// ----- console filter: ignore forensics ESM complaint (additive, safe) -----
+(function consoleFilterForensicsESM(){
+  const TICK=400;
+  function attach(){
+    const anyG = globalThis;
+    const filt = anyG.__void_console_filter;
+    if (!filt || typeof filt.add !== "function") return setTimeout(attach, TICK);
+    try {
+      filt.add(/txroot\/forensics.*require is not defined/i);
+      // diag
+      if (typeof console !== "undefined" && console.log) console.log("[console-filter] drop forensics require() ESM noise");
+    } catch {}
+  }
+  attach();
+})();
+
