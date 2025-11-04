@@ -13,7 +13,8 @@
     "build:loose": "tsc -p tsconfig.build.json || echo \"[loose build] TS errors ignored for CI\"",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
     "check:listeners": "bash scripts/check-listener-singleton.sh",
-    "test:listener-guard": "bash scripts/test-listener-guard-smoke.sh"
+    "test:listener-guard": "bash scripts/test-listener-guard-smoke.sh",
+    "check:console-filter": "test $(grep -c EarlyConsoleFilterV0 src/index.ts || true) -le 1"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
