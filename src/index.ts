@@ -17657,3 +17657,19 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   attach();
 })();
 
+
+// -------- quiet txroot "number=undefined" chatter (follower-only, narrow) --------
+(function quietTxrootUndefinedWarn(){
+  try {
+    if ((process.env.VOID_ROLE || "").toLowerCase() !== "follower") return;
+    const origWarn = console.warn.bind(console);
+    console.warn = (...args:any[]) => {
+      try {
+        const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+        // Only suppress txroot-core mismatch lines that carry "number=undefined"
+        if (s.includes("[txroot-core] mismatch") && s.includes("number=undefined")) return;
+      } catch { /* no-op */ }
+      origWarn(...args);
+    };
+  } catch { /* no-op */ }
+})();
