@@ -1,0 +1,11 @@
+groups:
+- name: void-header3-gap
+  interval: 15s
+  rules:
+  - alert: VoidHeader3Lag
+    expr: void:header3_gap > 3
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "header3 lagging head"
+      description: "header3_last trails head by >3 blocks for >2m."
