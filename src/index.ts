@@ -1,3 +1,4 @@
+import "./util/console_filter.js"
 // [early-console-filter.v0] if you see this twice, delete one copy
 (function EarlyConsoleFilterV0(){
   try{
