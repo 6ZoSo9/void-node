@@ -16923,3 +16923,86 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   }
   mount();
 })();
+
+// ---------------- WAL v1: replay preview + run (additive) ----------------
+;(function walV1Replay(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getWal(){
+    const mod = await import("./wal/journal.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    return await mod.Journal.open(dir);
+  }
+  async function attach(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+    if ((app as any).__void_wal_replay_mounted) return; (app as any).__void_wal_replay_mounted = true;
+
+    let replayed = 0, lastApplied = 0, lastMs = 0;
+
+    app.get("/wal/replay/status", (_req:any, res:any)=>{
+      res.json({ ok:true, replayed, lastApplied, lastMs });
+    });
+
+    app.post("/wal/replay/run", async (_req:any, res:any)=>{
+      const t0 = Date.now();
+      try{
+        const wal = await getWal();
+        replayed = 0; lastApplied = 0;
+        for await (const rec of wal.replay({fromSeq:1})) {
+          // TODO: apply(rec) once we define handlers; for now count
+          replayed++; lastApplied = rec.n;
+        }
+        lastMs = Date.now()-t0;
+        res.json({ ok:true, replayed, lastApplied, ms:lastMs });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+  }
+  attach();
+})();
+
+// ---------------- WAL v1: stricter health flag (additive) ----------------
+;(function walV1Health2(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getWal(){
+    const mod = await import("./wal/journal.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    return await mod.Journal.open(dir);
+  }
+  async function attach(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+    if ((app as any).__void_wal_health2) return; (app as any).__void_wal_health2 = true;
+
+    app.get("/wal/health2", async (_req:any, res:any)=>{
+      let replayNeeded = 0, lastSeq = 0, bytes = 0, createdAt=0, updatedAt=0;
+      try{
+        const wal = await getWal();
+        const inf = wal.info(); bytes = inf.bytes; createdAt = inf.createdAt; updatedAt = inf.updatedAt;
+        try {
+          for await (const rec of wal.replay({fromSeq:1})) lastSeq = rec.n;
+        } catch { replayNeeded = 1; }
+        if (bytes>0 && lastSeq===0) replayNeeded = 1;
+        res.json({ ok:true, lastSeq, bytes, createdAt, updatedAt, replayNeeded });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    app.get("/metrics/void/wal2.prom", async (_req:any, res:any)=>{
+      try{
+        const r = await fetch("http://127.0.0.1:4100/wal/health2");
+        const j:any = await r.json();
+        res.type("text/plain; version=0.0.4");
+        res.write(`# HELP void_wal_last_seq Last WAL sequence number\n# TYPE void_wal_last_seq gauge\nvoid_wal_last_seq ${j.lastSeq||0}\n`);
+        res.write(`# HELP void_wal_bytes WAL file size in bytes\n# TYPE void_wal_bytes gauge\nvoid_wal_bytes ${j.bytes||0}\n`);
+        res.write(`# HELP void_wal_replay_needed 1 if replay needed\n# TYPE void_wal_replay_needed gauge\nvoid_wal_replay_needed ${j.replayNeeded||0}\n`);
+        res.end();
+      }catch(e:any){
+        res.type("text/plain").send(`# ERROR ${String(e?.message||e)}\n`);
+      }
+    });
+  }
+  attach();
+})();
