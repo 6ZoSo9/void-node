@@ -20412,3 +20412,36 @@ void_wal_wrapped ${isWrapped?1:0}
     };
   }catch(e){ /* noop */ }
 })();
+
+// --- esm-crypto-shim.v3 (additive, non-recursive, only if needed) ---
+(function esmCryptoShimV3(){
+  try{
+    const G = globalThis as any;
+    const bad = G.__void_getCreateHash;
+    if (!bad) return;
+    const src = String(bad);
+    // Detect self-recursive implementation (calls __void_getCreateHash inside its own loader)
+    const looksRecursive = src.includes("__void_getCreateHash(") || src.includes("globalThis.__void_getCreateHash");
+    if (!looksRecursive) return;
+
+    let _p: Promise<(alg:string)=>any> | null = null;
+    async function load(){
+      try {
+        // CJS fast-path when available — do NOT call __void_getCreateHash here.
+        // @ts-ignore
+        if (typeof require === "function") {
+          // @ts-ignore
+          const { createHash } = require("node:crypto");
+          return createHash;
+        }
+      } catch {}
+      const mod: any = await import("node:crypto"); // ESM path
+      return mod.createHash;
+    }
+    G.__void_getCreateHash = function __void_getCreateHash_v3(){
+      if (!_p) _p = load();
+      return _p;
+    };
+    console.error("[esm-crypto-shim] v3 installed (non-recursive override)");
+  }catch{/*noop*/}
+})();
