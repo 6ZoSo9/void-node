@@ -17480,7 +17480,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 })();
 
 // ---------------- Listener ceiling guard (additive, ESM-safe) ------------------
-(function ListenerCeilingGuardV1(){
+(function LCG_PARKEDV1_PARKED(){
   try{
     if ((globalThis as any).__void_listener_guard_v1) return;
     (globalThis as any).__void_listener_guard_v1 = true;
@@ -17518,7 +17518,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 })();
 
 // ---------------- Listener ceiling guard (additive, ESM-safe) ------------------
-(function ListenerCeilingGuardV1(){
+(function LCG_PARKEDV1_PARKED(){
   try{
     if ((globalThis as any).__void_listener_guard_v1) return;
     (globalThis as any).__void_listener_guard_v1 = true;

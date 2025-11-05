@@ -20993,3 +20993,19 @@ void_wal_wrapped ${isWrapped?1:0}
   }
   mount();
 })();
+// --- Agent v0: pressure-aware gate on enqueue (additive) ---
+(function agentV0PressureGate(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_pressure_gate) return; (app as any).__void_agent_v0_pressure_gate = true;
+    app.use((req:any, res:any, next:any)=>{
+      if (req.path==="/agent/v0/jobs" && req.method==="POST"){
+        const p = Number((G.__void_wal?.pressure?.() ?? 0));
+        if (p >= 0.95){ res.setHeader("Retry-After","2"); return res.status(429).json({ok:false, error:"backpressure", pressure:p}); }
+      }
+      next();
+    });
+  } mount();
+})();
