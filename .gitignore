@@ -35,3 +35,6 @@ ops/prom-snap/
 
 ops/prom-snap/**
 !ops/prom-snap/README.md
+
+# park scratch
+src/.park/
