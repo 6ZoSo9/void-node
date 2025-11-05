@@ -1,0 +1,17 @@
+{
+  "networkName": "VOID",
+  "chainId": 2050,
+  "genesisTime": "2025-11-01T00:00:00Z",
+  "seedPeers": {
+    "http": [
+      "http://127.0.0.1:4100"
+    ],
+    "p2p": [
+      "127.0.0.1:4700"
+    ]
+  },
+  "meta": {
+    "version": 1,
+    "notes": "Canonical local dev genesis for VOID (chainId 2050)."
+  }
+}

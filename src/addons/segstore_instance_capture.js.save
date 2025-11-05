@@ -1,0 +1,74 @@
+q
+// --- segstore_instance_capture (additive, idempotent) ---
+(function SegStoreInstanceCapture(){
+  const TICK=300;
+  const CANDIDATES = ['saveBlock','persistBlock','appendBlock','writeBlock','save','putBlock','saveBlockV2'];
+
+  async function mount(){
+    // Avoid double-mount
+    if ((globalThis).__void_segstore_instance_capture_mounted) return;
+    (globalThis).__void_segstore_instance_capture_mounted = true;
+
+    let mod;
+    try { mod = await import('../chain/seg_store.ts'); } catch(_e) {}
+    if (!mod || !(mod.SegStore || mod.default)) {
+      // Retry until module is resolvable
+      setTimeout(mount, TICK);
+      return;
+    }
+    const SegStore = mod.SegStore || mod.default;
+
+    // If we already have an instance, no need to wrap again
+    if (globalThis.__void_store) return;
+
+    // Find a plausible save method on the prototype
+    const proto = SegStore && SegStore.prototype;
+    if (!proto) return;
+
+    const key = CANDIDATES.find(k => typeof proto[k] === 'function');
+    if (!key) { setTimeout(mount, TICK); return; }
+
+    const orig = proto[key];
+    if (orig && !orig.__void_capture_wrapped) {
+      proto[key] = function wrappedSaveBlock(...args){
+        try {
+          // First time we see a real call, capture the instance + publish keys
+          if (!globalThis.__void_store) {
+            const inst = this;
+            globalThis.__void_store = inst;
+
+            try{
+              const keys = new Set();
+              let p = inst;
+              while (p && p !== Object.prototype){
+                for (const n of Object.getOwnPropertyNames(p)){
+                  try { if (typeof inst[n] === 'function') keys.add(n); } catch(_e){}
+                }
+                p = Object.getPrototypeOf(p);
+              }
+              const list = Array.from(keys).sort();
+              globalThis.__void_save_keys = {
+                storeKeys: list,
+                candidates: CANDIDATES.filter(k=>list.includes(k)),
+              };
+              console.error('[segstore.instance_capture] store captured via', key, 'candidates=', JSON.stringify(globalThis.__void_save_keys.candidates||[]));
+            }catch(_e){}
+          }
+        } catch(_e) {}
+        return orig.apply(this, args);
+      };
+      proto[key].__void_capture_wrapped = true;
+    }
+
+    // Provide a dumper endpoint if app is available
+    const app = (globalThis.__void_http_app || globalThis.app || null);
+    if (app && typeof app.get === 'function' && !(app).__void_segstore_instance_dump){
+      (app).__void_segstore_instance_dump = true;
+      app.get('/__void/txroot-wrap/ctor', (_q,res)=>{
+        const k = (globalThis.__void_save_keys||{});
+        res.json({ hasStore: !!globalThis.__void_store, keys: k.storeKeys||[], candidates: k.candidates||[] });
+      });
+    }
+  }
+  mount();
+})();

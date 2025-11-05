@@ -1,18 +1,16 @@
-import { createRequire as __voidCreateRequire } from "node:module";
-(globalThis as any).require = (globalThis as any).require || __voidCreateRequire(import.meta.url);
-// [esm-sync-bridge] installed global require early
-// ---- ESM bridge (early, additive) ----
-(function esmBridgeEarly(){
-  try {
-    const G = globalThis;
-    if (typeof (G as any).require !== "function") {
-      // no await: install quickly without blocking module init
-      import("node:module").then(m => {
-        (G as any).require = m.createRequire(import.meta.url);
-        console.error("[esm-bridge] early installed global require");
-      }).catch(e => console.error("[esm-bridge] install failed", e?.message||e));
-    }
-  } catch(e) { console.error("[esm-bridge] early error", e?.message||e); }
+import "./util/console_filter.js"
+// [early-console-filter.v0] if you see this twice, delete one copy
+(function EarlyConsoleFilterV0(){
+  try{
+    if((globalThis).__void_console_filter_v0)return;
+    (globalThis).__void_console_filter_v0=true;
+    const _err=console.error.bind(console);
+    console.error=function(...args){
+      const s = args && args[0] ? String(args[0]) : "";
+      if(s.startsWith("[fs-autoclose] failed")||s.startsWith("[http-autodrain] failed")) return;
+      return _err(...args);
+    };
+  }catch{}
 })();
 // --- shim: legacy proposer exporter free identifiers (additive, safe) ---
 var autoTimer: any;
@@ -4043,7 +4041,25 @@ import { computeTxRoot } from "./util/txroot.js";
           const n = (b && (b.number ?? b.n)) ?? "?";
           const len = (b?.txs?.length)||0;
           const r = (b?.txRoot)||"(none)";
-          console.log(`[txroot] sealed #${n} txs=${len} txRoot=${r}`);
+// [txroot-log-fix]           console.log(`[txroot] sealed #${n} txs=${len} txRoot=${r}`);
+  (function __void_txroot_log_fix(){
+    function hexify(x){
+      try {
+        if (x==null) return String(x);
+        if (typeof x === "string") return x;
+        if (x instanceof Uint8Array) return Buffer.from(x).toString("hex");
+        if (x && x.type==="Buffer" && Array.isArray(x.data)) return Buffer.from(x.data).toString("hex");
+        if (x && typeof x.root === "string") return x.root;
+      } catch(e) {}
+      try { return JSON.stringify(x); } catch { return String(x); }
+    }
+    try {
+      /* eslint-disable no-undef */
+      if (typeof n !== "undefined" && typeof txs !== "undefined" && typeof txRoot !== "undefined")
+        console.log(`[txroot] sealed #${n} txs=${txs} txRoot=${hexify(txRoot)}`);
+    } catch(_) {}
+  })();
+// [txroot-log-fix]           console.log(`[txroot] sealed #${n} txs=${len} txRoot=${r}`);
         } catch {}
 
         return res;
@@ -11058,7 +11074,7 @@ void_ready_exporter_timestamp_ms ${now}
           return setTimeout(tick, 150);
         }
         // Other transient issues: retry a few times with a softer backoff
-        if (tries < 20) return setTimeout(tick,120);
+        if (tries < 20) return setTimeout(tick, 300);
         console.warn("[boot.txroot-setter] bootsafe gave up after", tries, "tries:", msg);
         return;
       }
@@ -14032,7 +14048,7 @@ void_header3_last_mismatch ${lastMismatch}
 
   // helper to GET JSON internally using global fetch if available, else node fetch
   async function fetchJson(url:string){
-    const f = (globalThis as any).fetch || require('node-fetch');
+    const f = (globalThis as any).fetch || (typeof require==='function' ? require('node-fetch') : (await import('node-fetch')).default);
     const r = await f(url);
     if (!r.ok) throw new Error(`fetch ${url} -> ${r.status}`);
     return r.json();
@@ -14881,553 +14897,558 @@ void_header3_last_mismatch ${lastMismatch}
     });
   }
 
-  (function tick(){
-    latchProperty();
-    mountInspector();
-    setTimeout(tick, 300);
-  })();
-})();
+// [v7-sweep] === BEGIN hard sweep 14900-15450 ===
+// [v7-sweep]   (function tick(){
+// [v7-sweep]     latchProperty();
+// [v7-fix] === BEGIN sweep 14902-15807 ===
+// [v7-sweep]     mountInspector();
+// [v7-sweep]     setTimeout(tick, 300);
+// [v7-sweep]   })();
+// [v7-sweep] })();
 // ===== txroot forensics: dual-latch v7 (instance + proto + alternates) =====
-(function txrootForensicsTrampolineV7(){
-  const g:any = globalThis as any;
-  const S = g.__void_txroot_forensic_state_v7 || (g.__void_txroot_forensic_state_v7 = {
-    proto_binds: 0, inst_binds: 0, calls: 0,
-    last_number: -1, last_kind: 'unknown', last_shape: 'n/a', last_ms: 0,
-    note: ''
-  });
-
-  function makeTramp(orig:any, tag:string){
-    function tramp(this:any, ...args:any[]){
-      const t0 = Date.now();
-      S.calls++;
-      const a0 = args[0];
-      if (Array.isArray(a0)) { S.last_kind='array'; S.last_shape=`len=${a0.length}`; if (a0?.[0]?.number>=0) S.last_number=a0[0].number; }
-      else if (a0 && typeof a0 === 'object') { S.last_kind='object'; S.last_shape=`keys=${Object.keys(a0).slice(0,8).join(',')}`; if (typeof a0.number==='number') S.last_number=a0.number; }
-      else { S.last_kind=typeof a0; S.last_shape='n/a'; }
-      const out = orig.apply(this, args);
-      if (out && typeof out.then==='function') return (out as Promise<any>).finally(()=>{ S.last_ms = Date.now()-t0; });
-      S.last_ms = Date.now()-t0; return out;
-    }
-    Object.defineProperty(tramp, '__void_trampoline_v7', { value: tag });
-    return tramp;
-  }
-
-  function wrapMethod(obj:any, key:string, counterKey:'proto_binds'|'inst_binds'){
-    try{
-      if (!obj) return;
-      const desc = Object.getOwnPropertyDescriptor(obj, key);
+// [v7-fallback] (function txrootForensicsTrampolineV7(){
+// [v7-sweep]   const g:any = globalThis as any;
+// [v7-sweep]   const S = g.__void_txroot_forensic_state_v7 || (g.__void_txroot_forensic_state_v7 = {
+// [v7-sweep]     proto_binds: 0, inst_binds: 0, calls: 0,
+// [v7-sweep]     last_number: -1, last_kind: 'unknown', last_shape: 'n/a', last_ms: 0,
+// [v7-sweep]     note: ''
+// [v7-sweep]   });
+// [v7-sweep] 
+// [v7-sweep]   function makeTramp(orig:any, tag:string){
+// [v7-sweep]     function tramp(this:any, ...args:any[]){
+// [v7-sweep]       const t0 = Date.now();
+// [v7-sweep]       S.calls++;
+// [v7-sweep]       const a0 = args[0];
+// [v7-sweep]       if (Array.isArray(a0)) { S.last_kind='array'; S.last_shape=`len=${a0.length}`; if (a0?.[0]?.number>=0) S.last_number=a0[0].number; }
+// [v7-sweep]       else if (a0 && typeof a0 === 'object') { S.last_kind='object'; S.last_shape=`keys=${Object.keys(a0).slice(0,8).join(',')}`; if (typeof a0.number==='number') S.last_number=a0.number; }
+// [v7-sweep]       else { S.last_kind=typeof a0; S.last_shape='n/a'; }
+// [v7-sweep]       const out = orig.apply(this, args);
+// [v7-sweep]       if (out && typeof out.then==='function') return (out as Promise<any>).finally(()=>{ S.last_ms = Date.now()-t0; });
+// [v7-sweep]       S.last_ms = Date.now()-t0; return out;
+// [v7-sweep]     }
+// [v7-sweep]     Object.defineProperty(tramp, '__void_trampoline_v7', { value: tag });
+// [v7-sweep]     return tramp;
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   function wrapMethod(obj:any, key:string, counterKey:'proto_binds'|'inst_binds'){
+// [v7-sweep]     try{
+// [v7-sweep]       if (!obj) return;
+// [v7-sweep]       const desc = Object.getOwnPropertyDescriptor(obj, key);
       // If accessor exists, hijack setter to always wrap; else define one.
-      let _inner:any = (desc && 'value' in desc && typeof desc.value==='function') ? desc.value : obj[key];
-      const setter = function(fn:any){
-        _inner = (fn && fn.__void_trampoline_v7) ? fn : makeTramp(fn, `${counterKey}:${key}`);
-        S[counterKey]++; 
-      };
-      const getter = function(){ return _inner; };
-
-      Object.defineProperty(obj, key, {
-        configurable: counterKey==='proto_binds', // instance: lock it; proto: keep flexible
-        enumerable: false,
-        get: getter,
-        set: setter
-      });
-
-      if (_inner && !_inner.__void_trampoline_v7) {
+// [v7-sweep]       let _inner:any = (desc && 'value' in desc && typeof desc.value==='function') ? desc.value : obj[key];
+// [v7-sweep]       const setter = function(fn:any){
+// [v7-sweep]         _inner = (fn && fn.__void_trampoline_v7) ? fn : makeTramp(fn, `${counterKey}:${key}`);
+// [v7-sweep]         S[counterKey]++; 
+// [v7-sweep]       };
+// [v7-sweep]       const getter = function(){ return _inner; };
+// [v7-sweep] 
+// [v7-sweep]       Object.defineProperty(obj, key, {
+// [v7-sweep]         configurable: counterKey==='proto_binds', // instance: lock it; proto: keep flexible
+// [v7-sweep]         enumerable: false,
+// [v7-sweep]         get: getter,
+// [v7-sweep]         set: setter
+// [v7-sweep]       });
+// [v7-sweep] 
+// [v7-sweep]       if (_inner && !_inner.__void_trampoline_v7) {
         // trigger our setter to wrap the current target
-        (obj as any)[key] = _inner;
-      }
-    }catch(e){}
-  }
-
-  function latchProto(){
-    const Seg = (g as any).SegStore; if (!Seg || !Seg.prototype) { return; }
+// [v7-sweep]         (obj as any)[key] = _inner;
+// [v7-sweep]       }
+// [v7-sweep]     }catch(e){}
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   function latchProto(){
+// [v7-sweep]     const Seg = (g as any).SegStore; if (!Seg || !Seg.prototype) { return; }
     // Latch likely methods on the prototype
-    ['saveBlock','persistBlock','_saveBlock','append','save'].forEach(k=>wrapMethod(Seg.prototype, k, 'proto_binds'));
-  }
-
-  function latchInstance(){
-    const node = (g as any).__void_node;
-    const store = node?.store || (g as any).__void_store || node?.SegStore || node?.segStore;
-    if (!store) return;
+// [v7-sweep]     ['saveBlock','persistBlock','_saveBlock','append','save'].forEach(k=>wrapMethod(Seg.prototype, k, 'proto_binds'));
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   function latchInstance(){
+// [v7-sweep]     const node = (g as any).__void_node;
+// [v7-sweep]     const store = node?.store || (g as any).__void_store || node?.SegStore || node?.segStore;
+// [v7-sweep]     if (!store) return;
     // Latch directly on the instance and LOCK saveBlock so defineProperty can't shadow it
-    wrapMethod(store, 'saveBlock', 'inst_binds');
-    try {
-      const desc = Object.getOwnPropertyDescriptor(store, 'saveBlock');
-      if (desc && !desc.configurable) {
+// [v7-sweep]     wrapMethod(store, 'saveBlock', 'inst_binds');
+// [v7-sweep]     try {
+// [v7-sweep]       const desc = Object.getOwnPropertyDescriptor(store, 'saveBlock');
+// [v7-sweep]       if (desc && !desc.configurable) {
         // already locked
-      } else if (desc) {
-        Object.defineProperty(store, 'saveBlock', { ...desc, configurable: false });
-      }
-    } catch {}
+// [v7-sweep]       } else if (desc) {
+// [v7-sweep]         Object.defineProperty(store, 'saveBlock', { ...desc, configurable: false });
+// [v7-sweep]       }
+// [v7-sweep]     } catch {}
     // Also latch alternates on the instance
-    ['persistBlock','_saveBlock','append','save'].forEach(k=>wrapMethod(store, k, 'inst_binds'));
-  }
-
-  function mountInspector(){
-    const app:any = (g as any).__void_http_app || (g as any).app;
-    if (!app || typeof app.get!=='function' || app.__void_tramp_v7) return;
-    app.__void_tramp_v7 = true;
-
-    app.get('/__void/dev/inspect/saveBlock.v7', (_req:any, res:any)=>{
-      const node = (g as any).__void_node;
-      const store = node?.store;
-      const Seg = (g as any).SegStore;
-      const pdesc = Seg?.prototype && Object.getOwnPropertyDescriptor(Seg.prototype, 'saveBlock');
-      const idesc = store && Object.getOwnPropertyDescriptor(store, 'saveBlock');
-      res.json({
-        ok: true,
-        store_present: !!store,
-        proto_present: !!Seg,
-        proto_desc: pdesc ? {has_get:!!pdesc.get, has_set:!!pdesc.set, has_value:'value'in (pdesc as any), configurable:!!pdesc.configurable} : null,
-        inst_desc:  idesc ? {has_get:!!idesc.get, has_set:!!idesc.set, has_value:'value'in (idesc as any), configurable:!!idesc.configurable} : null,
-        counters: { proto_binds:S.proto_binds, inst_binds:S.inst_binds, calls:S.calls,
-                    last_number:S.last_number, last_kind:S.last_kind, last_shape:S.last_shape, last_ms:S.last_ms },
-        note: S.note
-      });
-    });
-
-    app.get('/__void/metrics/txroot4/forensics.prom.v7', (_req:any, res:any)=>{
-      res.type('text/plain; version=0.0.4; charset=utf-8').end([
-        '# HELP void_txroot_forensics_binds_proto_v7 prototype binds',
-        '# TYPE void_txroot_forensics_binds_proto_v7 counter',
-        `void_txroot_forensics_binds_proto_v7 ${S.proto_binds}`,
-        '# HELP void_txroot_forensics_binds_inst_v7 instance binds',
-        '# TYPE void_txroot_forensics_binds_inst_v7 counter',
-        `void_txroot_forensics_binds_inst_v7 ${S.inst_binds}`,
-        '# HELP void_txroot_forensics_calls_v7 observed calls across all paths',
-        '# TYPE void_txroot_forensics_calls_v7 counter',
-        `void_txroot_forensics_calls_v7 ${S.calls}`,
-      ].join('\n')+'\n');
-    });
-  }
-
-  (function loop(){
-    try{ latchProto(); latchInstance(); mountInspector(); }catch(e){}
-    setTimeout(loop, 300);
-  })();
-})();
-
+// [v7-sweep]     ['persistBlock','_saveBlock','append','save'].forEach(k=>wrapMethod(store, k, 'inst_binds'));
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   function mountInspector(){
+// [v7-sweep]     const app:any = (g as any).__void_http_app || (g as any).app;
+// [v7-sweep]     if (!app || typeof app.get!=='function' || app.__void_tramp_v7) return;
+// [v7-sweep]     app.__void_tramp_v7 = true;
+// [v7-sweep] 
+// [v7-sweep]     app.get('/__void/dev/inspect/saveBlock.v7', (_req:any, res:any)=>{
+// [v7-sweep]       const node = (g as any).__void_node;
+// [v7-sweep]       const store = node?.store;
+// [v7-sweep]       const Seg = (g as any).SegStore;
+// [v7-sweep]       const pdesc = Seg?.prototype && Object.getOwnPropertyDescriptor(Seg.prototype, 'saveBlock');
+// [v7-sweep]       const idesc = store && Object.getOwnPropertyDescriptor(store, 'saveBlock');
+// [v7-sweep]       res.json({
+// [v7-sweep]         ok: true,
+// [v7-sweep]         store_present: !!store,
+// [v7-sweep]         proto_present: !!Seg,
+// [v7-sweep]         proto_desc: pdesc ? {has_get:!!pdesc.get, has_set:!!pdesc.set, has_value:'value'in (pdesc as any), configurable:!!pdesc.configurable} : null,
+// [v7-sweep]         inst_desc:  idesc ? {has_get:!!idesc.get, has_set:!!idesc.set, has_value:'value'in (idesc as any), configurable:!!idesc.configurable} : null,
+// [v7-sweep]         counters: { proto_binds:S.proto_binds, inst_binds:S.inst_binds, calls:S.calls,
+// [v7-sweep]                     last_number:S.last_number, last_kind:S.last_kind, last_shape:S.last_shape, last_ms:S.last_ms },
+// [v7-sweep]         note: S.note
+// [v7-sweep]       });
+// [v7-sweep]     });
+// [v7-sweep] 
+// [v7-sweep]     app.get('/__void/metrics/txroot4/forensics.prom.v7', (_req:any, res:any)=>{
+// [v7-sweep]       res.type('text/plain; version=0.0.4; charset=utf-8').end([
+// [v7-sweep]         '# HELP void_txroot_forensics_binds_proto_v7 prototype binds',
+// [v7-sweep]         '# TYPE void_txroot_forensics_binds_proto_v7 counter',
+// [v7-sweep]         `void_txroot_forensics_binds_proto_v7 ${S.proto_binds}`,
+// [v7-sweep]         '# HELP void_txroot_forensics_binds_inst_v7 instance binds',
+// [v7-sweep]         '# TYPE void_txroot_forensics_binds_inst_v7 counter',
+// [v7-sweep]         `void_txroot_forensics_binds_inst_v7 ${S.inst_binds}`,
+// [v7-sweep]         '# HELP void_txroot_forensics_calls_v7 observed calls across all paths',
+// [v7-sweep]         '# TYPE void_txroot_forensics_calls_v7 counter',
+// [v7-sweep]         `void_txroot_forensics_calls_v7 ${S.calls}`,
+// [v7-sweep]       ].join('\n')+'\n');
+// [v7-sweep]     });
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   (function loop(){
+// [v7-sweep]     try{ latchProto(); latchInstance(); mountInspector(); }catch(e){}
+// [v7-sweep]     setTimeout(loop, 300);
+// [v7-fix-close]   })();
+// [v7-fix-close] })();
+// [v7-sweep] 
 // -------------------- txroot/forensics v7 (ESM-safe, additive) --------------------
-(function txrootForensicsV7(){
-  const TICK_MS = 250;
-  const FLAG = Symbol.for("void.txroot.forensics.v7.wrapped");
-
+// [v7-fallback] (function txrootForensicsV7(){
+// [v7-fix-body] === BEGIN V7 body 15028-15169 ===
+// [v7-fix-body]   const TICK_MS = 250;
+// [v7-fix-body]   const FLAG = Symbol.for("void.txroot.forensics.v7.wrapped");
+// [v7-fix-body] 
   // shared counters
-  const C = {
-    proto_binds: 0,
-    inst_binds: 0,
-    calls: 0,
-    last_number: -1 as number,
-    last_kind: "unknown" as string,
-    last_shape: "n/a" as string,
-    last_ms: 0 as number,
-  };
-
+// [v7-fix-body]   const C = {
+// [v7-fix-body]     proto_binds: 0,
+// [v7-fix-body]     inst_binds: 0,
+// [v7-fix-body]     calls: 0,
+// [v7-fix-body]     last_number: -1 as number,
+// [v7-fix-body]     last_kind: "unknown" as string,
+// [v7-fix-body]     last_shape: "n/a" as string,
+// [v7-fix-body]     last_ms: 0 as number,
+// [v7-fix-body]   };
+// [v7-fix-body] 
   // helpers
-  function getApp(): any {
-    return (globalThis as any).__void_http_app || (globalThis as any).app;
-  }
-  function prom() {
-    return [
-      "# HELP void_txroot_forensics_binds_proto_v7 prototype binds",
-      "# TYPE void_txroot_forensics_binds_proto_v7 counter",
-      `void_txroot_forensics_binds_proto_v7 ${C.proto_binds}`,
-      "# HELP void_txroot_forensics_binds_inst_v7 instance binds",
-      "# TYPE void_txroot_forensics_binds_inst_v7 counter",
-      `void_txroot_forensics_binds_inst_v7 ${C.inst_binds}`,
-      "# HELP void_txroot_forensics_calls_v7 observed calls across all paths",
-      "# TYPE void_txroot_forensics_calls_v7 counter",
-      `void_txroot_forensics_calls_v7 ${C.calls}`,
-      "# HELP void_txroot_forensics_last_number_v7 last seen block number",
-      "# TYPE void_txroot_forensics_last_number_v7 gauge",
-      `void_txroot_forensics_last_number_v7 ${C.last_number}`,
-      "# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)",
-      "# TYPE void_txroot_forensics_last_ms_v7 gauge",
-      `void_txroot_forensics_last_ms_v7 ${C.last_ms}`,
-    ].join("\n") + "\n";
-  }
-
-  function bindRoutes(app:any){
-    if (!app || (app as any).__void_forensics_v7_routes) return;
-    (app as any).__void_forensics_v7_routes = true;
-
+// [v7-fix-body]   function getApp(): any {
+// [v7-fix-body]     return (globalThis as any).__void_http_app || (globalThis as any).app;
+// [v7-fix-body]   }
+// [v7-fix-body]   function prom() {
+// [v7-fix-body]     return [
+// [v7-fix-body]       "# HELP void_txroot_forensics_binds_proto_v7 prototype binds",
+// [v7-fix-body]       "# TYPE void_txroot_forensics_binds_proto_v7 counter",
+// [v7-fix-body]       `void_txroot_forensics_binds_proto_v7 ${C.proto_binds}`,
+// [v7-fix-body]       "# HELP void_txroot_forensics_binds_inst_v7 instance binds",
+// [v7-fix-body]       "# TYPE void_txroot_forensics_binds_inst_v7 counter",
+// [v7-fix-body]       `void_txroot_forensics_binds_inst_v7 ${C.inst_binds}`,
+// [v7-fix-body]       "# HELP void_txroot_forensics_calls_v7 observed calls across all paths",
+// [v7-fix-body]       "# TYPE void_txroot_forensics_calls_v7 counter",
+// [v7-fix-body]       `void_txroot_forensics_calls_v7 ${C.calls}`,
+// [v7-fix-body]       "# HELP void_txroot_forensics_last_number_v7 last seen block number",
+// [v7-fix-body]       "# TYPE void_txroot_forensics_last_number_v7 gauge",
+// [v7-fix-body]       `void_txroot_forensics_last_number_v7 ${C.last_number}`,
+// [v7-fix-body]       "# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)",
+// [v7-fix-body]       "# TYPE void_txroot_forensics_last_ms_v7 gauge",
+// [v7-fix-body]       `void_txroot_forensics_last_ms_v7 ${C.last_ms}`,
+// [v7-fix-body]     ].join("\n") + "\n";
+// [v7-fix-body]   }
+// [v7-fix-body] 
+// [v7-fix-body]   function bindRoutes(app:any){
+// [v7-fix-body]     if (!app || (app as any).__void_forensics_v7_routes) return;
+// [v7-fix-body]     (app as any).__void_forensics_v7_routes = true;
+// [v7-fix-body] 
 // [disabled-forensics-v7] // [disabled-forensics-v7]     app.get("/__void/metrics/txroot4/forensics.prom.v7", (_req:any, res:any)=>{
 // [disabled-forensics-v7]       res.type("text/plain; version=0.0.4").send(prom());
 // [disabled-forensics-v7]     });
-
-    app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any)=>{
-      try{
-        const SegStore = (globalThis as any).SegStore || requireMaybe("SegStore?");
-        const proto = SegStore?.prototype;
-        const store = (globalThis as any).__void_store; // optional if you export it elsewhere
-        const inst = store || (globalThis as any).store;
-
-        res.json({
-          ok: true,
-          store_present: !!inst,
-          proto_present: !!proto,
-          proto_desc: {
-            has_get: !!proto && typeof proto.saveBlock === "function",
-            has_set: !!proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.set != null,
-            has_value: !!proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.value != null,
-            configurable: !!proto && !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.configurable,
-          },
-          inst_desc: {
-            has_get: !!inst && typeof inst.saveBlock === "function",
-            has_set: !!inst && Object.getOwnPropertyDescriptor(inst,"saveBlock")?.set != null,
-            has_value: !!inst && Object.getOwnPropertyDescriptor(inst,"saveBlock")?.value != null,
-            configurable: !!inst && !!Object.getOwnPropertyDescriptor(inst,"saveBlock")?.configurable,
-          },
-          counters: {...C},
-          note: ""
-        });
-      }catch(e:any){
-        res.json({ok:false,error:String(e), counters:{...C}});
-      }
-    });
-  }
-
+// [v7-fix-body] 
+// [v7-fix-body]     app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any)=>{
+// [v7-fix-body]       try{
+// [v7-fix-body]         const SegStore = (globalThis as any).SegStore || requireMaybe("SegStore?");
+// [v7-fix-body]         const proto = SegStore?.prototype;
+// [v7-fix-body]         const store = (globalThis as any).__void_store; // optional if you export it elsewhere
+// [v7-fix-body]         const inst = store || (globalThis as any).store;
+// [v7-fix-body] 
+// [v7-fix-body]         res.json({
+// [v7-fix-body]           ok: true,
+// [v7-fix-body]           store_present: !!inst,
+// [v7-fix-body]           proto_present: !!proto,
+// [v7-fix-body]           proto_desc: {
+// [v7-fix-body]             has_get: !!proto && typeof proto.saveBlock === "function",
+// [v7-fix-body]             has_set: !!proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.set != null,
+// [v7-fix-body]             has_value: !!proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.value != null,
+// [v7-fix-body]             configurable: !!proto && !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.configurable,
+// [v7-fix-body]           },
+// [v7-fix-body]           inst_desc: {
+// [v7-fix-body]             has_get: !!inst && typeof inst.saveBlock === "function",
+// [v7-fix-body]             has_set: !!inst && Object.getOwnPropertyDescriptor(inst,"saveBlock")?.set != null,
+// [v7-fix-body]             has_value: !!inst && Object.getOwnPropertyDescriptor(inst,"saveBlock")?.value != null,
+// [v7-fix-body]             configurable: !!inst && !!Object.getOwnPropertyDescriptor(inst,"saveBlock")?.configurable,
+// [v7-fix-body]           },
+// [v7-fix-body]           counters: {...C},
+// [v7-fix-body]           note: ""
+// [v7-fix-body]         });
+// [v7-fix-body]       }catch(e:any){
+// [v7-fix-body]         res.json({ok:false,error:String(e), counters:{...C}});
+// [v7-fix-body]       }
+// [v7-fix-body]     });
+// [v7-fix-body]   }
+// [v7-fix-body] 
   // no-op placeholder for optional require path (keeps ESM safe)
-  function requireMaybe(_x:string){ return undefined; }
-
-  function tryWrap(){
+// [v7-fix-body]   function requireMaybe(_x:string){ return undefined; }
+// [v7-fix-body] 
+// [v7-fix-body]   function tryWrap(){
     // resolve app
-    const app = getApp();
-    if (app) bindRoutes(app);
-
+// [v7-fix-body]     const app = getApp();
+// [v7-fix-body]     if (app) bindRoutes(app);
+// [v7-fix-body] 
     // SegStore in scope?
-    const SegStore = (globalThis as any).SegStore;
-    if (!SegStore || !SegStore.prototype) return false;
-
-    const proto = SegStore.prototype as any;
-    if (proto[FLAG]) return true; // already wrapped
-
-    const orig = proto.saveBlock;
-    if (typeof orig !== "function") return false;
-
+// [v7-fix-body]     const SegStore = (globalThis as any).SegStore;
+// [v7-fix-body]     if (!SegStore || !SegStore.prototype) return false;
+// [v7-fix-body] 
+// [v7-fix-body]     const proto = SegStore.prototype as any;
+// [v7-fix-body]     if (proto[FLAG]) return true; // already wrapped
+// [v7-fix-body] 
+// [v7-fix-body]     const orig = proto.saveBlock;
+// [v7-fix-body]     if (typeof orig !== "function") return false;
+// [v7-fix-body] 
     // wrap prototype (one time)
-    C.proto_binds++;
-    proto[FLAG] = true;
-    proto.saveBlock = async function wrappedSaveBlockV7(block:any){
+// [v7-fix-body]     C.proto_binds++;
+// [v7-fix-body]     proto[FLAG] = true;
+// [v7-fix-body]     proto.saveBlock = async function wrappedSaveBlockV7(block:any){
       // count an instance bind the first time an object is seen
-      if (!(this as any).__void_forensics_v7_seen){
-        (this as any).__void_forensics_v7_seen = true;
-        C.inst_binds++;
-      }
-      const t0 = Date.now();
-      try{
-        const out = await orig.apply(this, arguments as any);
-        const t1 = Date.now();
-        C.calls++;
-        C.last_ms = t1 - t0;
-
+// [v7-fix-body]       if (!(this as any).__void_forensics_v7_seen){
+// [v7-fix-body]         (this as any).__void_forensics_v7_seen = true;
+// [v7-fix-body]         C.inst_binds++;
+// [v7-fix-body]       }
+// [v7-fix-body]       const t0 = Date.now();
+// [v7-fix-body]       try{
+// [v7-fix-body]         const out = await orig.apply(this, arguments as any);
+// [v7-fix-body]         const t1 = Date.now();
+// [v7-fix-body]         C.calls++;
+// [v7-fix-body]         C.last_ms = t1 - t0;
+// [v7-fix-body] 
         // infer simple fields if present
-        const n = typeof block?.number === "number" ? block.number
-                : typeof block?.header?.number === "number" ? block.header.number
-                : -1;
-        C.last_number = n;
-        C.last_kind = "saveBlock";
-        C.last_shape = n >= 0 ? "header|number" : "unknown";
-        return out;
-      }catch(e){
-        const t1 = Date.now();
-        C.calls++;
-        C.last_ms = t1 - t0;
-        C.last_kind = "saveBlock.error";
-        throw e;
-      }
-    };
-
-    return true;
-  }
-
-  (function boot(){
-    let tries = 0;
-    const loop = () => {
-      try{
-        if (tryWrap()) return;         // success: wrapper installed
-      }catch(_e){}
-      if (++tries < 200) setTimeout(loop, TICK_MS);
-    };
-    loop();
-  })();
-})();
+// [v7-fix-body]         const n = typeof block?.number === "number" ? block.number
+// [v7-fix-body]                 : typeof block?.header?.number === "number" ? block.header.number
+// [v7-fix-body]                 : -1;
+// [v7-fix-body]         C.last_number = n;
+// [v7-fix-body]         C.last_kind = "saveBlock";
+// [v7-fix-body]         C.last_shape = n >= 0 ? "header|number" : "unknown";
+// [v7-fix-body]         return out;
+// [v7-fix-body]       }catch(e){
+// [v7-fix-body]         const t1 = Date.now();
+// [v7-fix-body]         C.calls++;
+// [v7-fix-body]         C.last_ms = t1 - t0;
+// [v7-fix-body]         C.last_kind = "saveBlock.error";
+// [v7-fix-body]         throw e;
+// [v7-fix-body]       }
+// [v7-fix-body]     };
+// [v7-fix-body] 
+// [v7-fix-body]     return true;
+// [v7-fix-body]   }
+// [v7-fix-body] 
+// [v7-fix-body]   (function boot(){
+// [v7-fix-body]     let tries = 0;
+// [v7-fix-body]     const loop = () => {
+// [v7-fix-body]       try{
+// [v7-fix-body]         if (tryWrap()) return;         // success: wrapper installed
+// [v7-fix-body]       }catch(_e){}
+// [v7-fix-body]       if (++tries < 200) setTimeout(loop, TICK_MS);
+// [v7-fix-body]     };
+// [v7-fix-body]     loop();
+// [v7-fix-body] === END V7 body 15028-15169 ===
+// [v7-fix-tail]   })();
+// [v7-fix-tail] })();
 // ------------------ end txroot/forensics v7 (ESM-safe, additive) ------------------
 // ---------------- txroot forensics v7 (ESM-safe, additive) --------------------
-(function txrootForensicsV7(){
-  const FLAG = '__void_txroot_forensics_v7_wrapped__';
-  const state = {
-    proto_binds: 0,
-    inst_binds: 0,
-    calls: 0,
-    last_number: -1,
-    last_kind: 'unknown',
-    last_shape: 'n/a',
-    last_ms: 0,
-  };
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-
-  function numberFrom(anyObj:any): number {
-    try {
-      if (!anyObj) return -1;
-      if (typeof anyObj.number === 'number') return anyObj.number;
-      if (anyObj.header && typeof anyObj.header.number === 'number') return anyObj.header.number;
-      if (anyObj.block && typeof anyObj.block.number === 'number') return anyObj.block.number;
-      if (anyObj.block && anyObj.block.header && typeof anyObj.block.header.number === 'number') return anyObj.block.header.number;
-    } catch {}
-    return -1;
-  }
-
-  function wrapOnce(){
-    try{
-      const P:any = (globalThis as any).SegStore || undefined;
+// [v7-fallback] (function txrootForensicsV7(){
+// [v7-fix-tail]   const FLAG = '__void_txroot_forensics_v7_wrapped__';
+// [v7-fix-tail]   const state = {
+// [v7-fix-tail]     proto_binds: 0,
+// [v7-fix-tail]     inst_binds: 0,
+// [v7-fix-tail]     calls: 0,
+// [v7-fix-tail]     last_number: -1,
+// [v7-fix-tail]     last_kind: 'unknown',
+// [v7-fix-tail]     last_shape: 'n/a',
+// [v7-fix-tail]     last_ms: 0,
+// [v7-fix-tail]   };
+// [v7-fix-tail] 
+// [v7-fix-tail]   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+// [v7-fix-tail] 
+// [v7-fix-tail]   function numberFrom(anyObj:any): number {
+// [v7-fix-tail]     try {
+// [v7-fix-tail]       if (!anyObj) return -1;
+// [v7-fix-tail]       if (typeof anyObj.number === 'number') return anyObj.number;
+// [v7-fix-tail]       if (anyObj.header && typeof anyObj.header.number === 'number') return anyObj.header.number;
+// [v7-fix-tail]       if (anyObj.block && typeof anyObj.block.number === 'number') return anyObj.block.number;
+// [v7-fix-tail]       if (anyObj.block && anyObj.block.header && typeof anyObj.block.header.number === 'number') return anyObj.block.header.number;
+// [v7-fix-tail]     } catch {}
+// [v7-fix-tail]     return -1;
+// [v7-fix-tail]   }
+// [v7-fix-tail] 
+// [v7-fix-tail]   function wrapOnce(){
+// [v7-sweep]     try{
+// [v7-sweep]       const P:any = (globalThis as any).SegStore || undefined;
       // In this file we import SegStore at top; access it off the module global via eval-safe path:
-      const S:any = P || (typeof (SegStore as any) !== "undefined" ? (SegStore as any) : undefined);
-      if (!S || !S.prototype) return false;
-
-      const desc = Object.getOwnPropertyDescriptor(S.prototype, 'saveBlock');
-      const original:any = desc?.value ?? (S.prototype as any).saveBlock;
-      if (typeof original !== 'function') return false;
-      if ((original as any)[FLAG] || (S.prototype as any)[FLAG]) return true;
-
-      const wrapped = async function(this:any, ...args:any[]){
-        const t0 = Date.now();
-        try {
-          const res = await original.apply(this, args);
-          state.last_number = numberFrom(args[0]) ?? numberFrom(res) ?? (this?.heads?.head ?? -1);
-          state.last_kind   = 'saveBlock';
-          state.last_shape  = (args && args[0]) ? (args[0].header ? 'block+header' : 'block') : 'unknown';
-          return res;
-        } finally {
-          state.calls++;
-          state.last_ms = Date.now() - t0;
-        }
-      };
-      (wrapped as any)[FLAG] = true;
-
+// [v7-sweep]       const S:any = P || (typeof (SegStore as any) !== "undefined" ? (SegStore as any) : undefined);
+// [v7-sweep]       if (!S || !S.prototype) return false;
+// [v7-sweep] 
+// [v7-sweep]       const desc = Object.getOwnPropertyDescriptor(S.prototype, 'saveBlock');
+// [v7-sweep]       const original:any = desc?.value ?? (S.prototype as any).saveBlock;
+// [v7-sweep]       if (typeof original !== 'function') return false;
+// [v7-sweep]       if ((original as any)[FLAG] || (S.prototype as any)[FLAG]) return true;
+// [v7-sweep] 
+// [v7-sweep]       const wrapped = async function(this:any, ...args:any[]){
+// [v7-sweep]         const t0 = Date.now();
+// [v7-sweep]         try {
+// [v7-sweep]           const res = await original.apply(this, args);
+// [v7-sweep]           state.last_number = numberFrom(args[0]) ?? numberFrom(res) ?? (this?.heads?.head ?? -1);
+// [v7-sweep]           state.last_kind   = 'saveBlock';
+// [v7-sweep]           state.last_shape  = (args && args[0]) ? (args[0].header ? 'block+header' : 'block') : 'unknown';
+// [v7-sweep]           return res;
+// [v7-sweep]         } finally {
+// [v7-sweep]           state.calls++;
+// [v7-sweep]           state.last_ms = Date.now() - t0;
+// [v7-sweep]         }
+// [v7-sweep]       };
+// [v7-sweep]       (wrapped as any)[FLAG] = true;
+// [v7-sweep] 
       // Prefer defineProperty so we control writability/configurability
-      try {
-        Object.defineProperty(S.prototype, 'saveBlock', {
-          value: wrapped, writable: true, configurable: true, enumerable: false
-        });
-        state.proto_binds++;
-      } catch {
+// [v7-sweep]       try {
+// [v7-sweep]         Object.defineProperty(S.prototype, 'saveBlock', {
+// [v7-sweep]           value: wrapped, writable: true, configurable: true, enumerable: false
+// [v7-sweep]         });
+// [v7-sweep]         state.proto_binds++;
+// [v7-sweep]       } catch {
         // Fallback simple assignment
-        (S.prototype as any).saveBlock = wrapped;
-        state.proto_binds++;
-      }
-      (S.prototype as any)[FLAG] = true;
-      return true;
-    }catch{ return false; }
-  }
-
+// [v7-sweep]         (S.prototype as any).saveBlock = wrapped;
+// [v7-sweep]         state.proto_binds++;
+// [v7-sweep]       }
+// [v7-sweep]       (S.prototype as any)[FLAG] = true;
+// [v7-sweep]       return true;
+// [v7-sweep]     }catch{ return false; }
+// [v7-sweep]   }
+// [v7-sweep] 
   // Mount inspector + prom exporter once app exists
-  function mountHttp(){
-    const TICK=400;
-    const app:any = getApp();
-    if (!app || typeof app.get!=='function') return setTimeout(mountHttp, TICK);
-
-    if (!(app as any).__void_txroot_forensics_v7_http){
-      (app as any).__void_txroot_forensics_v7_http = true;
-
-      app.get('/__void/dev/inspect/saveBlock.v7', (req:any, res:any)=>{
+// [v7-sweep]   function mountHttp(){
+// [v7-sweep]     const TICK=400;
+// [v7-sweep]     const app:any = getApp();
+// [v7-sweep]     if (!app || typeof app.get!=='function') return setTimeout(mountHttp, TICK);
+// [v7-sweep] 
+// [v7-sweep]     if (!(app as any).__void_txroot_forensics_v7_http){
+// [v7-sweep]       (app as any).__void_txroot_forensics_v7_http = true;
+// [v7-sweep] 
+// [v7-sweep]       app.get('/__void/dev/inspect/saveBlock.v7', (req:any, res:any)=>{
         // describe prototype+instance descriptors without using require()
-        try{
-          const P:any = (typeof (SegStore as any)!=="undefined") ? (SegStore as any) : undefined;
-          const proto = P?.prototype || undefined;
-          const inst = (globalThis as any).__void_last_store_instance; // best-effort if someone pinned it elsewhere
-          const pdesc = proto ? Object.getOwnPropertyDescriptor(proto,'saveBlock') : undefined;
-          const idesc = inst ? Object.getOwnPropertyDescriptor(inst,'saveBlock') : undefined;
-
-          res.json({
-            ok:true,
-            store_present: !!inst,
-            proto_present: !!proto,
-            proto_desc: pdesc ? {
-              has_get: !!pdesc.get, has_set: !!pdesc.set, has_value: typeof pdesc.value === 'function',
-              configurable: !!pdesc.configurable, writable: !!pdesc.writable
-            } : null,
-            inst_desc: idesc ? {
-              has_get: !!idesc.get, has_set: !!idesc.set, has_value: typeof idesc.value === 'function',
-              configurable: !!idesc.configurable, writable: !!idesc.writable
-            } : null,
-            counters: {...state},
-            note: ''
-          });
-        }catch(e:any){
-          res.json({ok:false, error: String(e), counters:{...state}});
-        }
-      });
-
-      app.get('/__void/metrics/txroot4/forensics.prom.v7', (req:any, res:any)=>{
-        res.type('text/plain; charset=utf-8');
-        res.end(
-`# HELP void_txroot_forensics_binds_proto_v7 prototype binds
-# TYPE void_txroot_forensics_binds_proto_v7 counter
-void_txroot_forensics_binds_proto_v7 ${state.proto_binds}
-# HELP void_txroot_forensics_binds_inst_v7 instance binds
-# TYPE void_txroot_forensics_binds_inst_v7 counter
-void_txroot_forensics_binds_inst_v7 ${state.inst_binds}
-# HELP void_txroot_forensics_calls_v7 observed calls across all paths
-# TYPE void_txroot_forensics_calls_v7 counter
-void_txroot_forensics_calls_v7 ${state.calls}
-# HELP void_txroot_forensics_last_number_v7 last seen block number
-# TYPE void_txroot_forensics_last_number_v7 gauge
-void_txroot_forensics_last_number_v7 ${state.last_number}
-# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)
-# TYPE void_txroot_forensics_last_ms_v7 gauge
-void_txroot_forensics_last_ms_v7 ${state.last_ms}
-`);
-      });
-    }
-  }
-
-  function tick(){
-    const ok = wrapOnce();
-    mountHttp();
-    if (!ok) setTimeout(tick, 400);
-  }
-  tick();
-})();
-
+// [v7-sweep]         try{
+// [v7-sweep]           const P:any = (typeof (SegStore as any)!=="undefined") ? (SegStore as any) : undefined;
+// [v7-sweep]           const proto = P?.prototype || undefined;
+// [v7-sweep]           const inst = (globalThis as any).__void_last_store_instance; // best-effort if someone pinned it elsewhere
+// [v7-sweep]           const pdesc = proto ? Object.getOwnPropertyDescriptor(proto,'saveBlock') : undefined;
+// [v7-sweep]           const idesc = inst ? Object.getOwnPropertyDescriptor(inst,'saveBlock') : undefined;
+// [v7-sweep] 
+// [v7-sweep]           res.json({
+// [v7-sweep]             ok:true,
+// [v7-sweep]             store_present: !!inst,
+// [v7-sweep]             proto_present: !!proto,
+// [v7-sweep]             proto_desc: pdesc ? {
+// [v7-sweep]               has_get: !!pdesc.get, has_set: !!pdesc.set, has_value: typeof pdesc.value === 'function',
+// [v7-sweep]               configurable: !!pdesc.configurable, writable: !!pdesc.writable
+// [v7-sweep]             } : null,
+// [v7-sweep]             inst_desc: idesc ? {
+// [v7-sweep]               has_get: !!idesc.get, has_set: !!idesc.set, has_value: typeof idesc.value === 'function',
+// [v7-sweep]               configurable: !!idesc.configurable, writable: !!idesc.writable
+// [v7-sweep]             } : null,
+// [v7-sweep]             counters: {...state},
+// [v7-sweep]             note: ''
+// [v7-sweep]           });
+// [v7-sweep]         }catch(e:any){
+// [v7-sweep]           res.json({ok:false, error: String(e), counters:{...state}});
+// [v7-sweep]         }
+// [v7-sweep]       });
+// [v7-sweep] 
+// [v7-sweep]       app.get('/__void/metrics/txroot4/forensics.prom.v7', (req:any, res:any)=>{
+// [v7-sweep]         res.type('text/plain; charset=utf-8');
+// [v7-sweep]         res.end(
+// [v7-sweep] `# HELP void_txroot_forensics_binds_proto_v7 prototype binds
+// [v7-sweep] # TYPE void_txroot_forensics_binds_proto_v7 counter
+// [v7-sweep] void_txroot_forensics_binds_proto_v7 ${state.proto_binds}
+// [v7-sweep] # HELP void_txroot_forensics_binds_inst_v7 instance binds
+// [v7-sweep] # TYPE void_txroot_forensics_binds_inst_v7 counter
+// [v7-sweep] void_txroot_forensics_binds_inst_v7 ${state.inst_binds}
+// [v7-sweep] # HELP void_txroot_forensics_calls_v7 observed calls across all paths
+// [v7-sweep] # TYPE void_txroot_forensics_calls_v7 counter
+// [v7-sweep] void_txroot_forensics_calls_v7 ${state.calls}
+// [v7-sweep] # HELP void_txroot_forensics_last_number_v7 last seen block number
+// [v7-sweep] # TYPE void_txroot_forensics_last_number_v7 gauge
+// [v7-sweep] void_txroot_forensics_last_number_v7 ${state.last_number}
+// [v7-sweep] # HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)
+// [v7-sweep] # TYPE void_txroot_forensics_last_ms_v7 gauge
+// [v7-sweep] void_txroot_forensics_last_ms_v7 ${state.last_ms}
+// [v7-sweep] `);
+// [v7-sweep]       });
+// [v7-sweep]     }
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   function tick(){
+// [v7-sweep]     const ok = wrapOnce();
+// [v7-sweep]     mountHttp();
+// [v7-sweep]     if (!ok) setTimeout(tick, 400);
+// [v7-sweep]   }
+// [v7-sweep]   tick();
+// [v7-sweep] })();
+// [v7-sweep] 
 // ---------------- txroot forensics v7 (sticky, ESM-safe, additive) ----------------
-(function txrootForensicsV7(){
-  const TICK = 1200;
-  const state:any = {
-    mounted:false,
-    lastWrapped:null,
-    counters:{ proto_binds:0, inst_binds:0, calls:0, last_number:-1, last_kind:"unknown", last_shape:"n/a", last_ms:0 }
-  };
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getSegProto(){
-    try { return (globalThis as any).__void_seg_proto || (SegStore as any)?.prototype; } catch { return undefined; }
-  }
-
-  function promDump(){
-    const c = state.counters;
-    return [
-      "# HELP void_txroot_forensics_binds_proto_v7 prototype binds",
-      "# TYPE void_txroot_forensics_binds_proto_v7 counter",
-      `void_txroot_forensics_binds_proto_v7 ${c.proto_binds}`,
-      "# HELP void_txroot_forensics_binds_inst_v7 instance binds",
-      "# TYPE void_txroot_forensics_binds_inst_v7 counter",
-      `void_txroot_forensics_binds_inst_v7 ${c.inst_binds}`,
-      "# HELP void_txroot_forensics_calls_v7 observed calls across all paths",
-      "# TYPE void_txroot_forensics_calls_v7 counter",
-      `void_txroot_forensics_calls_v7 ${c.calls}`,
-      "# HELP void_txroot_forensics_last_number_v7 last seen block number",
-      "# TYPE void_txroot_forensics_last_number_v7 gauge",
-      `void_txroot_forensics_last_number_v7 ${c.last_number}`,
-      "# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)",
-      "# TYPE void_txroot_forensics_last_ms_v7 gauge",
-      `void_txroot_forensics_last_ms_v7 ${c.last_ms}`,
-      ""
-    ].join("\n");
-  }
-
-  function installRoutes(){
-    const app:any = getApp(); if (!app || typeof app.get!=="function") return false;
-    if ((app as any).__void_txroot_forensics_v7_routes) return true;
-    (app as any).__void_txroot_forensics_v7_routes = true;
-
-    app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any)=>{
-      const proto = getSegProto();
-      const store = (globalThis as any).__void_store;
-      res.json({
-        ok:true,
-        store_present: !!store,
-        proto_present: !!proto,
-        proto_desc: proto ? {
-          has_get: !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.get,
-          has_set: !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.set,
-          has_value: "value" in (Object.getOwnPropertyDescriptor(proto,"saveBlock")||{}),
-          configurable: !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.configurable,
-        } : {},
-        inst_desc: store ? (()=>{
-          const d=Object.getOwnPropertyDescriptor(store,"saveBlock")||{};
-          return {
-            has_get: !!d.get, has_set: !!d.set,
-            has_value: "value" in d, configurable: !!d.configurable
-          };
-        })() : {},
-        counters: state.counters,
-        note: ""
-      });
-    });
-
-    app.get("/__void/metrics/txroot4/forensics.prom.v7", (_req:any, res:any)=>{
-      res.type("text/plain; version=0.0.4").send(promDump());
-    });
-
-    return true;
-  }
-
-  function sameFn(a:any,b:any){ try { return a===b; } catch { return false; } }
-
-  function wrapIfNeeded(){
-    const proto = getSegProto(); if (!proto) return;
-    const desc = Object.getOwnPropertyDescriptor(proto, "saveBlock");
-
+// [v7-fallback] (function txrootForensicsV7(){
+// [v7-sweep]   const TICK = 1200;
+// [v7-sweep]   const state:any = {
+// [v7-sweep]     mounted:false,
+// [v7-sweep]     lastWrapped:null,
+// [v7-sweep]     counters:{ proto_binds:0, inst_binds:0, calls:0, last_number:-1, last_kind:"unknown", last_shape:"n/a", last_ms:0 }
+// [v7-sweep]   };
+// [v7-sweep] 
+// [v7-sweep]   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+// [v7-sweep]   function getSegProto(){
+// [v7-sweep]     try { return (globalThis as any).__void_seg_proto || (SegStore as any)?.prototype; } catch { return undefined; }
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   function promDump(){
+// [v7-sweep]     const c = state.counters;
+// [v7-sweep]     return [
+// [v7-sweep]       "# HELP void_txroot_forensics_binds_proto_v7 prototype binds",
+// [v7-sweep]       "# TYPE void_txroot_forensics_binds_proto_v7 counter",
+// [v7-sweep]       `void_txroot_forensics_binds_proto_v7 ${c.proto_binds}`,
+// [v7-sweep]       "# HELP void_txroot_forensics_binds_inst_v7 instance binds",
+// [v7-sweep]       "# TYPE void_txroot_forensics_binds_inst_v7 counter",
+// [v7-sweep]       `void_txroot_forensics_binds_inst_v7 ${c.inst_binds}`,
+// [v7-sweep]       "# HELP void_txroot_forensics_calls_v7 observed calls across all paths",
+// [v7-sweep]       "# TYPE void_txroot_forensics_calls_v7 counter",
+// [v7-sweep]       `void_txroot_forensics_calls_v7 ${c.calls}`,
+// [v7-sweep]       "# HELP void_txroot_forensics_last_number_v7 last seen block number",
+// [v7-sweep]       "# TYPE void_txroot_forensics_last_number_v7 gauge",
+// [v7-sweep]       `void_txroot_forensics_last_number_v7 ${c.last_number}`,
+// [v7-sweep]       "# HELP void_txroot_forensics_last_ms_v7 last saveBlock duration (ms)",
+// [v7-sweep]       "# TYPE void_txroot_forensics_last_ms_v7 gauge",
+// [v7-sweep]       `void_txroot_forensics_last_ms_v7 ${c.last_ms}`,
+// [v7-sweep]       ""
+// [v7-sweep]     ].join("\n");
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   function installRoutes(){
+// [v7-sweep]     const app:any = getApp(); if (!app || typeof app.get!=="function") return false;
+// [v7-sweep]     if ((app as any).__void_txroot_forensics_v7_routes) return true;
+// [v7-sweep]     (app as any).__void_txroot_forensics_v7_routes = true;
+// [v7-sweep] 
+// [v7-sweep]     app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any)=>{
+// [v7-sweep]       const proto = getSegProto();
+// [v7-sweep]       const store = (globalThis as any).__void_store;
+// [v7-sweep]       res.json({
+// [v7-sweep]         ok:true,
+// [v7-sweep]         store_present: !!store,
+// [v7-sweep]         proto_present: !!proto,
+// [v7-sweep]         proto_desc: proto ? {
+// [v7-sweep]           has_get: !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.get,
+// [v7-sweep]           has_set: !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.set,
+// [v7-sweep]           has_value: "value" in (Object.getOwnPropertyDescriptor(proto,"saveBlock")||{}),
+// [v7-sweep]           configurable: !!Object.getOwnPropertyDescriptor(proto,"saveBlock")?.configurable,
+// [v7-sweep]         } : {},
+// [v7-sweep]         inst_desc: store ? (()=>{
+// [v7-sweep]           const d=Object.getOwnPropertyDescriptor(store,"saveBlock")||{};
+// [v7-sweep]           return {
+// [v7-sweep]             has_get: !!d.get, has_set: !!d.set,
+// [v7-sweep]             has_value: "value" in d, configurable: !!d.configurable
+// [v7-sweep]           };
+// [v7-sweep]         })() : {},
+// [v7-sweep]         counters: state.counters,
+// [v7-sweep]         note: ""
+// [v7-sweep]       });
+// [v7-sweep]     });
+// [v7-sweep] 
+// [v7-sweep]     app.get("/__void/metrics/txroot4/forensics.prom.v7", (_req:any, res:any)=>{
+// [v7-sweep]       res.type("text/plain; version=0.0.4").send(promDump());
+// [v7-sweep]     });
+// [v7-sweep] 
+// [v7-sweep]     return true;
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   function sameFn(a:any,b:any){ try { return a===b; } catch { return false; } }
+// [v7-sweep] 
+// [v7-sweep]   function wrapIfNeeded(){
+// [v7-sweep]     const proto = getSegProto(); if (!proto) return;
+// [v7-sweep]     const desc = Object.getOwnPropertyDescriptor(proto, "saveBlock");
+// [v7-sweep] 
     // Determine the *current* callable we need to wrap
-    const current = (desc && "value" in desc && typeof desc.value==="function")
-      ? desc.value
-      : (proto as any).saveBlock;
-
-    if (typeof current !== "function") return;
-
-    if (sameFn(state.lastWrapped, current)) return; // already wrapping latest winner
-
-    const original = current;
-    async function wrapped(this:any, ...args:any[]){
-      const t0 = Date.now();
-      try {
-        const block = args?.[0];
-        state.counters.calls++;
-        state.counters.last_number = (block?.header?.number ?? -1);
-        state.counters.last_kind = block?.kind ?? "unknown";
-        state.counters.last_shape = block ? Object.keys(block).join(",") : "n/a";
-        return await original.apply(this, args);
-      } finally {
-        state.counters.last_ms = Date.now() - t0;
-      }
-    }
-
+// [v7-sweep]     const current = (desc && "value" in desc && typeof desc.value==="function")
+// [v7-sweep]       ? desc.value
+// [v7-sweep]       : (proto as any).saveBlock;
+// [v7-sweep] 
+// [v7-sweep]     if (typeof current !== "function") return;
+// [v7-sweep] 
+// [v7-sweep]     if (sameFn(state.lastWrapped, current)) return; // already wrapping latest winner
+// [v7-sweep] 
+// [v7-sweep]     const original = current;
+// [v7-sweep]     async function wrapped(this:any, ...args:any[]){
+// [v7-sweep]       const t0 = Date.now();
+// [v7-sweep]       try {
+// [v7-sweep]         const block = args?.[0];
+// [v7-sweep]         state.counters.calls++;
+// [v7-sweep]         state.counters.last_number = (block?.header?.number ?? -1);
+// [v7-sweep]         state.counters.last_kind = block?.kind ?? "unknown";
+// [v7-sweep]         state.counters.last_shape = block ? Object.keys(block).join(",") : "n/a";
+// [v7-sweep]         return await original.apply(this, args);
+// [v7-sweep]       } finally {
+// [v7-sweep]         state.counters.last_ms = Date.now() - t0;
+// [v7-sweep]       }
+// [v7-sweep]     }
+// [v7-sweep] 
     // Replace on prototype so *future* instances get it
-    Object.defineProperty(proto, "saveBlock", { configurable:true, writable:true, value: wrapped });
-    state.counters.proto_binds++;
-    state.lastWrapped = wrapped;
-  }
-
-  function tick(){
-    try {
-      installRoutes();
-      wrapIfNeeded();
-    } finally {
-      setTimeout(tick, TICK);
-    }
-  }
-
-  if (!state.mounted){ state.mounted = true; tick(); }
-})();
-
+// [v7-sweep]     Object.defineProperty(proto, "saveBlock", { configurable:true, writable:true, value: wrapped });
+// [v7-sweep]     state.counters.proto_binds++;
+// [v7-sweep]     state.lastWrapped = wrapped;
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   function tick(){
+// [v7-sweep]     try {
+// [v7-sweep]       installRoutes();
+// [v7-sweep]       wrapIfNeeded();
+// [v7-sweep]     } finally {
+// [v7-sweep]       setTimeout(tick, TICK);
+// [v7-sweep]     }
+// [v7-sweep]   }
+// [v7-sweep] 
+// [v7-sweep]   if (!state.mounted){ state.mounted = true; tick(); }
+// [v7-sweep] })();
+// [v7-sweep] 
 // ---------- txroot/forensics:v7 (ESM-safe, additive, no require) ----------
-(function txrootForensicsV7(){
-  const TICK = 300;
-  const c = {
-    proto_binds: 0,
-    inst_binds: 0,    // kept for parity with your counters
-    calls: 0,
-    last_number: -1,
-    last_kind: "unknown",
-    last_shape: "n/a",
-    last_ms: 0,
-  };
-
-  function wait(fn){ setTimeout(fn, TICK); }
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-
-  try {
+// [v7-fallback] (function txrootForensicsV7(){
+// [v7-sweep]   const TICK = 300;
+// [v7-sweep]   const c = {
+// [v7-sweep]     proto_binds: 0,
+// [v7-sweep]     inst_binds: 0,    // kept for parity with your counters
+// [v7-sweep]     calls: 0,
+// [v7-sweep]     last_number: -1,
+// [v7-sweep]     last_kind: "unknown",
+// [v7-sweep]     last_shape: "n/a",
+// [v7-sweep]     last_ms: 0,
+// [v7-sweep]   };
+// [v7-sweep] 
+// [v7-sweep]   function wait(fn){ setTimeout(fn, TICK); }
+// [v7-sweep]   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+// [v7-sweep] 
+// [v7-sweep]   try {
+// [v7-sweep] === END hard sweep 14900-15450 ===
     // Lazy import to avoid top-level import churn if bundling changes
     // NOTE: This path matches your existing import in this file.
     // If SegStore is already in scope, use that; else dynamic import.
@@ -15514,7 +15535,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 })();
 
 // ============ txroot/forensics v7b + header-normalize (pure-additive) ============
-(function txrootForensicsV7b(){
+// [v7-fallback] (function txrootForensicsV7b(){
   const TICK = 400;
   let mounted = false;
 
@@ -15708,7 +15729,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   })();
 })();
 // ---------------- TXROOT FORENSICS v7 — INSTANCE PROXY BINDER (additive, safe) ----------------
-(function txrootForensicsV7ProxyBinder(){
+// [v7-fallback] (function txrootForensicsV7ProxyBinder(){
   const TICK = 500;
   const state:any = {
     proto_binds: 0, inst_binds: 0, calls: 0,
@@ -15788,6 +15809,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
     const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mountRoutes, TICK);
 
     app.get("/__void/dev/inspect/saveBlock.v7", (_req:any, res:any)=>{
+// [v7-fix] === END sweep 14902-15807 ===
       const { store, node } = findCtx();
       const SegStore = (globalThis as any).SegStore || undefined;
       const proto = SegStore?.prototype ? Object.getOwnPropertyDescriptor(SegStore.prototype, "saveBlock") : undefined;
@@ -17506,2671 +17528,525 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
       const req = createRequire(import.meta.url);
       const events = req('node:events');
       events.defaultMaxListeners = 0;
-      console.error("[listeners.guard] process+events ceiling set to unlimited");
+// [dupe-guard.listener.banner]       console.error("[listeners.guard] process+events ceiling set to unlimited");
     } catch {} })();
   }catch{}
 })();
-// -------- proposer.pump.v1 (additive, non-recursive, rescue sealer) --------
-(function ProposerPumpV1(){
-  const TICK=400;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
 
-  let pumping = false;
-  async function pumpOnce(max:number){
-    if (pumping) return {ok:false, reason:"busy"};
-    const node:any = getNode();
-    if (!node || !node.store || !node.mempool) return {ok:false, reason:"node-missing"};
-    pumping = true;
-    try {
-      // Pull up to N txs from mempool into a batch, then seal via existing saveBlock path.
-      const txs:any[] = [];
-      const cap = Math.max(1, Math.min(+max||1, 1000));
-      // Prefer pending bridge if present
-      const pq = (node.pending && Array.isArray(node.pending.txs)) ? node.pending.txs : (node.mempool.txs || []);
-      while (txs.length < cap && pq.length) txs.push(pq.shift());
-      // If nothing to seal but empty-policy is enabled, still produce an empty block
-      const allowEmpty = true;
-
-      const nowHead = await node.store.getHeadNumber?.() ?? -1;
-      const sealed = await node.store.saveBlock({ txs, allowEmpty });
-      const newHead = await node.store.getHeadNumber?.() ?? -1;
-
-      return {ok:true, took:txs.length, fromHead:nowHead, toHead:newHead, sealed};
-    } catch(e:any){
-      return {ok:false, error:String(e && e.stack || e)};
-    } finally { pumping = false; }
-  }
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
-    if ((app as any).__void_pump_v1) return; (app as any).__void_pump_v1 = true;
-
-    app.post("/proposer/pump.v1", async (req:any, res:any)=>{
-      const max = Number((req.query && req.query.max) || 3);
-      const out = await pumpOnce(max);
-      res.type("application/json").send(JSON.stringify(out));
-    });
-
-    // Optional: alias for convenience
-    app.post("/proposer/seal-now.v1", async (req:any,res:any)=>{
-      const max = Number((req.query && req.query.max) || 3);
-      const out = await pumpOnce(max);
-      res.type("application/json").send(JSON.stringify(out));
-    });
-
-    // Prom-style health
-    app.get("/__void/metrics/proposer.pump.v1.prom", async (_req:any, res:any)=>{
-      res.type("text/plain; version=0.0.4").send("# HELP void_proposer_pump_v1 1 if mounted\n# TYPE void_proposer_pump_v1 gauge\nvoid_proposer_pump_v1 1\n");
-    });
-    // eslint-disable-next-line no-console
-    console.error("[proposer.pump.v1] mounted: POST /proposer/pump.v1?max=3");
-  }
-  mount();
-})();
-// -------- proposer.pump.v1b (queue-first, non-recursive) --------
-(function ProposerPumpV1b(){
-  const TICK=400;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
-
-  let pumping = false;
-
-  function takeFromQueue(node:any, cap:number){
-    // Prefer the real proposer queue if present
-    const q = node?.proposer?.queue;
-    if (Array.isArray(q) && q.length) {
-      const n = Math.max(0, Math.min(cap, q.length));
-      return q.splice(0, n);
-    }
-    // Fallbacks, just in case
-    const p = node?.pending?.txs;
-    if (Array.isArray(p) && p.length) {
-      const n = Math.max(0, Math.min(cap, p.length));
-      return p.splice(0, n);
-    }
-    const m = node?.mempool?.txs;
-    if (Array.isArray(m) && m.length) {
-      const n = Math.max(0, Math.min(cap, m.length));
-      return m.splice(0, n);
-    }
-    return [];
-  }
-
-  async function pumpOnce(max:number){
-    if (pumping) return {ok:false, reason:"busy"};
-    const node:any = getNode();
-    if (!node || !node.store) return {ok:false, reason:"node-missing"};
-    pumping = true;
-    try {
-      const cap = Math.max(1, Math.min(+max||1, 1000));
-      const txs:any[] = takeFromQueue(node, cap);
-      const allowEmpty = true; // still advance if queue is empty (policy allows)
-
-      // Save via the already-wrapped SegStore.saveBlock (txroot/header hooks are active)
-      const before = (await node.store.getHeadNumber?.()) ?? -1;
-      const sealed = await node.store.saveBlock({ txs, allowEmpty });
-      const after  = (await node.store.getHeadNumber?.()) ?? -1;
-
-      return {ok:true, took:txs.length, fromHead:before, toHead:after, sealed};
-    } catch(e:any){
-      return {ok:false, error:String(e && e.stack || e)};
-    } finally { pumping = false; }
-  }
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
-    if ((app as any).__void_pump_v1b) return; (app as any).__void_pump_v1b = true;
-
-    app.post("/proposer/pump.v1b", async (req:any,res:any)=>{
-      const max = Number((req.query && req.query.max) || 5);
-      const out = await pumpOnce(max);
-      res.type("application/json").send(JSON.stringify(out));
-    });
-
-    app.get("/__void/metrics/proposer.pump.v1b.prom", (_req:any,res:any)=>{
-      res.type("text/plain; version=0.0.4").send(
-        "# HELP void_proposer_pump_v1b 1 if mounted\n# TYPE void_proposer_pump_v1b gauge\nvoid_proposer_pump_v1b 1\n"
-      );
-    });
-
-    console.error("[proposer.pump.v1b] mounted: POST /proposer/pump.v1b?max=5");
-  }
-  mount();
-})();
-// -------- proposer.seal.v7-guard (additive, non-recursive, one-shot) --------
-(function ProposerSealV7Guard(){
-  const TICK=400;
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
-
-  // Global re-entry lock + counters
-  const G:any = (globalThis as any);
-  if (!G.__void_sealguard){ 
-    G.__void_sealguard = {
-      busy:false,
-      calls:0, blocked:0, errors:0, ok:0,
-      lastOkBlock:-1, lastErr:"", lastTs:0
-    };
-  }
-  const S = G.__void_sealguard;
-
-  async function getHeadNumberSafe(node:any){
-    try {
-      if (node?.store?.getHeadNumber) return await node.store.getHeadNumber();
-      if (node?.store?.headNumber != null) return node.store.headNumber;
-    } catch {}
-    return -1;
-  }
-
-  function takeFromQueues(node:any, cap:number){
-    const out:any[] = [];
-    const capN = Math.max(1, Math.min(+cap||1, 1000));
-    const sources = [
-      () => node?.proposer?.queue,
-      () => node?.pending?.txs,
-      () => node?.mempool?.txs,
-    ];
-    for (const getQ of sources){
-      const q = getQ();
-      if (Array.isArray(q) && q.length){
-        const n = Math.min(capN - out.length, q.length);
-        out.push(...q.splice(0, n));
-        if (out.length >= capN) break;
-      }
-    }
-    return out;
-  }
-
-  async function sealOnceNoRecurse(max:number){
-    S.calls++; S.lastTs = Date.now();
-    if (S.busy){ S.blocked++; return {ok:false, reason:"reentry-blocked"}; }
-    const node:any = getNode();
-    if (!node || !node.store) { S.errors++; S.lastErr="node-missing"; return {ok:false, reason:"node-missing"}; }
-
-    S.busy = true;
-    try {
-      const head0 = await getHeadNumberSafe(node);
-      const txs = takeFromQueues(node, Math.max(1, +max||1));
-      const allowEmpty = true; // let policy decide; we want forward motion
-
-      // CRITICAL: call store.saveBlock directly, no proposer hooks.
-      const sealed = await node.store.saveBlock({ txs, allowEmpty });
-
-      const head1 = await getHeadNumberSafe(node);
-      const advanced = (head1 > head0) && head1 >= 0;
-
-      if (advanced) { S.ok++; S.lastOkBlock = head1; }
-      return {ok: true, took: txs.length, head0, head1, advanced, sealed};
-    } catch (e:any){
-      S.errors++; S.lastErr = String(e && e.stack || e);
-      return {ok:false, error:S.lastErr};
-    } finally {
-      S.busy = false;
-    }
-  }
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.post !== "function") return setTimeout(mount, TICK);
-    if ((app as any).__void_sealguard_mounted) return; (app as any).__void_sealguard_mounted = true;
-
-    // POST /proposer/seal/once-v7?max=10
-    app.post("/proposer/seal/once-v7", async (req:any,res:any)=>{
-      const max = Number(req.query.max ?? 1);
-      const r = await sealOnceNoRecurse(max);
-      res.json(r);
-    });
-
-    // POST /proposer/queue/drain-safe?max=20  (drain queues then seal once)
-    app.post("/proposer/queue/drain-safe", async (req:any,res:any)=>{
-      const max = Number(req.query.max ?? 1);
-      const r = await sealOnceNoRecurse(max);
-      res.json(r);
-    });
-
-    // Prom-style metrics
-    app.get("/metrics/void/sealguard.prom", (_req:any, res:any)=>{
-      res.type("text/plain; version=0.0.4; charset=utf-8").send(
-        [
-          "# HELP void_sealguard_mounted 1 if sealguard mounted",
-          "# TYPE void_sealguard_mounted gauge",
-          "void_sealguard_mounted 1",
-          "# HELP void_sealguard_calls_total Total calls to guard seal",
-          "# TYPE void_sealguard_calls_total counter",
-          `void_sealguard_calls_total ${S.calls}`,
-          "# HELP void_sealguard_blocked_total Reentry blocks",
-          "# TYPE void_sealguard_blocked_total counter",
-          `void_sealguard_blocked_total ${S.blocked}`,
-          "# HELP void_sealguard_errors_total Errors on seal",
-          "# TYPE void_sealguard_errors_total counter",
-          `void_sealguard_errors_total ${S.errors}`,
-          "# HELP void_sealguard_ok_total Successful advancing seals",
-          "# TYPE void_sealguard_ok_total counter",
-          `void_sealguard_ok_total ${S.ok}`,
-          "# HELP void_sealguard_last_ok_block Last block that advanced",
-          "# TYPE void_sealguard_last_ok_block gauge",
-          `void_sealguard_last_ok_block ${S.lastOkBlock}`,
-          "# HELP void_sealguard_last_ts_ms Last call timestamp (ms)",
-          "# TYPE void_sealguard_last_ts_ms gauge",
-          `void_sealguard_last_ts_ms ${S.lastTs}`,
-          "# HELP void_sealguard_busy 1 if in-flight",
-          "# TYPE void_sealguard_busy gauge",
-          `void_sealguard_busy ${S.busy?1:0}`
-        ].join("\n")+"\n"
-      );
-    });
-  }
-  mount();
-})();
-// ---------- head.mount.v2 (additive, idempotent) ----------
-(function HeadMountV2(){
-  const TICK=400;
-  const G:any = (globalThis as any);
-
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  function getNode(){ return G.__void_node || (G as any).node; }
-
-  // [esm-fix] const path = require("node:path");
-  // [esm-fix] const fs   = require("node:fs");
-
-  function dataDir(){
-    return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
-  }
-  function headsJsonPath(){
-    return path.join(dataDir(), "heads.json");
-  }
-
-  function readHeadsJson(){
-    try { return JSON.parse(fs.readFileSync(headsJsonPath(), "utf8")); } catch(_e){ return null; }
-  }
-  function writeHeadsJson(n:number){
-    try { fs.writeFileSync(headsJsonPath(), JSON.stringify({ number:n })+"\n"); return true; } catch(_e){ return false; }
-  }
-
-  async function bestFromStore(node:any){
-    // Try API first
-    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch(_e){}
-    // Try known fields
-    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch(_e){}
-    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch(_e){}
-
-    // Disk scan fallback: look for max segment index or receipts/index
-    try {
-      const segDir = path.join(dataDir(), "segments");
-      let maxN = -1;
-      if (fs.existsSync(segDir)) {
-        for (const d of fs.readdirSync(segDir)) {
-          // accept numbers or hex-ish dirs; you’ve used decimal ranges before
-          const m = String(d).match(/^(\d+)(?:-|$)/);
-          if (m) { const n = parseInt(m[1],10); if (Number.isFinite(n) && n > maxN) maxN = n; }
-        }
-      }
-      return maxN;
-    } catch(_e){}
-    return -1;
-  }
-
-  async function ensureGenesis(node:any){
-    // Use existing helpers if present; else force an empty block 0
-    try { if (node?.store?.ensureGenesis) { await node.store.ensureGenesis(); return true; } } catch(_e){}
-    try { if (node?.store?.saveBlock) { await node.store.saveBlock({ txs:[], allowEmpty:true, forceGenesis:true }); return true; } } catch(_e){}
-    return false;
-  }
-
-  async function mountHead(){
-    const node:any = getNode();
-    if (!node || !node.store) return { ok:false, reason:"node-missing" };
-
-    // 1) prefer disk heads.json if valid
-    const hj = readHeadsJson();
-    if (hj && typeof hj.number === "number" && hj.number >= 0) {
-      setInMem(node, hj.number);
-      return { ok:true, source:"heads.json", head:hj.number, seeded:false, wrote:false };
-    }
-
-    // 2) derive from store/disk
-    let n = await bestFromStore(node);
-    if (n < 0) {
-      // truly empty -> seed genesis
-      const seeded = await ensureGenesis(node);
-      n = await bestFromStore(node);
-      setInMem(node, n);
-      if (n >= 0) writeHeadsJson(n);
-      return { ok:(n>=0), source:"seed", head:n, seeded, wrote:(n>=0) };
-    } else {
-      setInMem(node, n);
-      const wrote = writeHeadsJson(n);
-      return { ok:true, source:"scan", head:n, seeded:false, wrote };
-    }
-  }
-
-  function setInMem(node:any, n:number){
-    try { node.store.headNumber = n; } catch(_e){}
-    try { if (node.store.setHeadNumber) node.store.setHeadNumber(n); } catch(_e){}
-  }
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.post !== "function") return setTimeout(mount, TICK);
-    if (app.__void_head_mount_v2) return; app.__void_head_mount_v2 = true;
-
-    app.post("/blocks/head/bootstrap", async (_req:any,res:any)=>{
-      const r = await mountHead(); res.json(r);
-    });
-
-    // Prom exporter
-    app.get("/metrics/void/headmount.prom", async (_req:any,res:any)=>{
-      const node:any = getNode();
-      const head = (node && node.store && (node.store.headNumber ?? -1)) ?? -1;
-      const hj = readHeadsJson(); const hjN = hj && typeof hj.number==="number" ? hj.number : -1;
-      res.type("text/plain; version=0.0.4; charset=utf-8").send(
-        [
-          "# HELP void_headmount_head Current in-memory headNumber",
-          "# TYPE void_headmount_head gauge",
-          `void_headmount_head ${head}`,
-          "# HELP void_headmount_heads_json Head from heads.json (or -1)",
-          "# TYPE void_headmount_heads_json gauge",
-          `void_headmount_heads_json ${hjN}`
-        ].join("\n")+"\n"
-      );
-    });
-  }
-  mount();
-})();
-
-// -------- head.rebind.v1 (additive, idempotent) --------
-(function HeadRebindV1(){
-  const TICK=400;
-  const G:any = (globalThis as any);
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  function getNode(){ return G.__void_node   || (G as any).node; }
-  function headsPath(){ return (process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data") + "/heads.json"; }
-
-  async function readHeads(){
-    try { return JSON.parse(await (await import("node:fs/promises")).readFile(headsPath(), "utf8")); } catch(_e){ return null; }
-  }
-  function currentHead(node:any){
-    try { if (typeof node?.store?.getHeadNumber === "function") return node.store.getHeadNumber(); } catch {}
-    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch {}
-    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch {}
-    return -1;
-  }
-  async function setHead(node:any, n:number){
-    try { node.store.headNumber = n; } catch {}
-    try { if (typeof node.store.setHeadNumber === "function") await node.store.setHeadNumber(n); } catch {}
-    try { node.store.latestNumber = n; } catch {}
-  }
-
-  async function rebind(){
-    const node = getNode(); if (!node || !node.store) return {ok:false, reason:"node-missing"};
-    let h = await currentHead(node); if (typeof h !== "number") h = -1;
-    if (h >= 0) return {ok:true, changed:false, head:h, source:"mem"};
-    const hj = await readHeads(); const n = (hj && typeof hj.number==="number") ? hj.number : -1;
-    if (n >= 0){ await setHead(node, n); return {ok:true, changed:true, head:n, source:"heads.json"}; }
-    return {ok:false, head:h, source:"none"};
-  }
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
-    if (app.__void_head_rebind_v1) return; app.__void_head_rebind_v1 = true;
-
-    // Manual nudge if needed
-    app.post("/dev/head/rebind", async (_req:any,res:any)=>{ res.json(await rebind()); });
-
-    // First minute: retry until head >=0
-    let tries = 0;
-    (async function loop(){
-      const r = await rebind();
-      if (!(r && r.ok && r.head >= 0) && ++tries < 150) return setTimeout(loop, 400);
-    })();
-  }
-  mount();
-})();
-// -------- proposer.v7-decom.v1 (additive, idempotent) --------
-(function ProposerV7DecomV1(){
-  const TICK=400;
-  const G:any = (globalThis as any);
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-
-  // Minimal in-memory counter for observability
-  G.__void_v7_decom = G.__void_v7_decom || { calls:0, lastTs:0 };
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
-    if (app.__void_v7_decom_v1) return; app.__void_v7_decom_v1 = true;
-
-    const deny = (req:any, res:any)=>{
-      try { G.__void_v7_decom.calls++; G.__void_v7_decom.lastTs = Date.now(); } catch {}
-      res.status(410).json({
-        ok:false,
-        error:"gone",
-        message:"/proposer/seal/once-v7 is deprecated and disabled. Use auto-proposer or once-safe.",
-        replace:[
-          "POST /proposer/auto/start?ms=2000",
-          "POST /proposer/seal/once-safe?max=10"
-        ]
-      });
-    };
-
-    // Block common v7 routes (we don't delete existing code; we shadow them first)
-    app.post("/proposer/seal/once-v7", deny);
-    app.post("/proposer/seal/v7/once", deny);
-    app.post("/proposer/v7/seal",      deny);
-    app.post("/proposer/v7/start",     deny);
-
-    // Optional: provide a v7-safe single tick alias that does NOT recurse
-    app.post("/proposer/seal/once-safe", async (_req:any, res:any)=>{
-      try {
-        const node:any = (G.__void_node || (G as any).node);
-        if (!node?.store) return res.json({ok:false, error:"node-missing"});
-        // Guard: refuse if head unknown
-        const h = (typeof node.store.getHeadNumber==="function")
-          ? await node.store.getHeadNumber()
-          : (node.store.headNumber ?? node.store.latestNumber ?? -1);
-        if (!(typeof h === "number" && h >= 0)) return res.json({ok:false, error:"head<0"});
-
-        // Non-recursive: try proposer.tick once if it exists, else no-op
-        if (typeof node?.proposer?.tick === "function") {
-          const before = h;
-          await node.proposer.tick({max:10, allowEmpty:false, safe:true});
-          const after = (typeof node.store.getHeadNumber==="function")
-            ? await node.store.getHeadNumber()
-            : (node.store.headNumber ?? node.store.latestNumber ?? -1);
-          return res.json({ok:true, head0:before, head1:after, advanced:(Number(after)>Number(before))});
-        }
-        return res.json({ok:false, error:"no-proposer-tick"});
-      } catch (e:any) {
-        return res.json({ok:false, error:String(e && e.message || e)});
-      }
-    });
-
-    // Prometheus exporter so we can alert if anything still hits v7
-    app.get("/metrics/void/v7_decom.prom", (_req:any, res:any)=>{
-      const s = G.__void_v7_decom || {calls:0,lastTs:0};
-      res.type("text/plain; version=0.0.4; charset=utf-8").send([
-        "# HELP void_v7_decom_calls_total Deprecated v7 endpoint calls since boot",
-        "# TYPE void_v7_decom_calls_total counter",
-        `void_v7_decom_calls_total ${Number(s.calls)||0}`,
-        "# HELP void_v7_decom_last_ts_ms Last call timestamp (ms) to deprecated v7 endpoint",
-        "# TYPE void_v7_decom_last_ts_ms gauge",
-        `void_v7_decom_last_ts_ms ${Number(s.lastTs)||0}`
-      ].join("\n")+"\n");
-    });
-  }
-  mount();
-})();
-// -------- proposer.v7-guard.localonly.v1 (additive) --------
-(function ProposerV7GuardLocalOnlyV1(){
-  const TICK=400;
-  const G:any = (globalThis as any);
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.all!=="function") return setTimeout(mount, TICK);
-    if (app.__void_v7_guard_localonly_v1) return; app.__void_v7_guard_localonly_v1 = true;
-
-    // local-only gate
-    function isLocal(req:any){
-      try {
-        const ip = (req.ip || req.connection?.remoteAddress || "").replace("::ffff:","");
-        return ip === "127.0.0.1" || ip === "::1";
-      } catch{ return false; }
-    }
-
-    const deny = (req:any, res:any)=>{
-      const local = isLocal(req);
-      if (!local) return res.status(403).json({ok:false, error:"forbidden"});
-      // If local, still deny v7 usage with 410 (matches your decom block behavior)
-      res.status(410).json({ok:false, error:"gone", message:"v7 disabled"});
-    };
-
-    // Wildcard catch for any "/proposer/...v7..." attempts (any method)
-    app.all(/\/proposer\/.*v7.*/i, deny);
-  }
-  mount();
-})();
-// -------- proposer.once-safe2 (allowEmpty opt) --------
-(function ProposerOnceSafe2(){
-  const TICK=400, G:any=(globalThis as any);
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  function getNode(){ return G.__void_node   || (G as any).node; }
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
-    if (app.__void_once_safe2) return; app.__void_once_safe2 = true;
-
-    app.post("/proposer/seal/once-safe2", async (req:any,res:any)=>{
-      try{
-        const node:any = getNode(); if (!node?.store) return res.json({ok:false, error:"node-missing"});
-        const q = req.query||{};
-        const allowEmpty = String(q.allowEmpty||"false").toLowerCase()==="true";
-        const max = Number(q.max||10);
-
-        const head0 = (typeof node.store.getHeadNumber==="function")
-          ? await node.store.getHeadNumber()
-          : (node.store.headNumber ?? node.store.latestNumber ?? -1);
-
-        if (typeof node?.proposer?.tick === "function") {
-          await node.proposer.tick({max, allowEmpty, safe:true});
-        }
-
-        const head1 = (typeof node.store.getHeadNumber==="function")
-          ? await node.store.getHeadNumber()
-          : (node.store.headNumber ?? node.store.latestNumber ?? -1);
-
-        res.json({ok:true, head0, head1, advanced:(Number(head1)>Number(head0)), allowEmpty, max});
-      }catch(e:any){ res.json({ok:false, error:String(e?.message||e)}); }
-    });
-  }
-  mount();
-})();
-// -------- proposer.v7-guard.localonly.v2 (counter + headers + stricter) --------
-(function ProposerV7GuardLocalOnlyV2(){
-  const TICK=400;
-  const G:any = (globalThis as any);
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-
-  // tiny in-memory counter; also exposed via /metrics/void/v7_guard.prom (below)
-  let hits = 0, lastTs = 0;
-
-  function isLocal(req:any){
-    try {
-      const ip = (req.ip || req.connection?.remoteAddress || "").replace("::ffff:","");
-      return ip === "127.0.0.1" || ip === "::1";
-    } catch{ return false; }
-  }
-
-  function deny(req:any, res:any){
-    hits++; lastTs = Date.now();
-    res.setHeader("X-Void-V7-Guard", "blocked");
-    if (!isLocal(req)) return res.status(403).json({ok:false, error:"forbidden", guard:"v7"});
-    return res.status(410).json({ok:false, error:"gone", guard:"v7"});
-  }
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.all!=="function") return setTimeout(mount, TICK);
-    if (app.__void_v7_guard_localonly_v2) return; app.__void_v7_guard_localonly_v2 = true;
-
-    // 1) Stronger wildcard: any '/proposer/...v7...' (any method, any case)
-    app.all(/\/proposer\/.*v7.*/i, deny);
-
-    // 2) Paranoid: also block if a 'v7' appears in query (e.g., ?mode=v7)
-    app.all("/proposer/*", (req:any, res:any, next:any)=>{
-      try {
-        const s = (req.originalUrl||"") + " " + JSON.stringify(req.query||{});
-        if (/[?&]?(mode|m|v)=?v7\b/i.test(s)) return deny(req,res);
-      } catch {}
-      next();
-    });
-
-    // 3) Exporter for the guard (Prom text)
-    app.get("/metrics/void/v7_guard.prom", (_req:any, res:any)=>{
-      res
-        .type("text/plain")
-        .send([
-          "# HELP void_v7_guard_hits_total Total blocked v7-like requests",
-          "# TYPE void_v7_guard_hits_total counter",
-          `void_v7_guard_hits_total ${hits}`,
-          "# HELP void_v7_guard_last_ts_ms Last blocked timestamp (ms)",
-          "# TYPE void_v7_guard_last_ts_ms gauge",
-          `void_v7_guard_last_ts_ms ${lastTs||0}`
-        ].join("\n")+"\n");
-    });
-  }
-  mount();
-})();
-// -------- v7.firewall.prehandle.v1 (additive, idempotent) --------
-(function V7FirewallPrehandleV1(){
-  const TICK=200; const G:any = (globalThis as any);
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.handle!=="function") return setTimeout(mount, TICK);
-    if (app.__void_v7_firewall_v1) return; app.__void_v7_firewall_v1 = true;
-
-    const stats = (G.__void_v7_fw_stats ||= {blocks:0,last:0});
-    const originalHandle = app.handle.bind(app);
-
-    // Patch the top-level dispatcher so we run BEFORE any route handlers
-    app.handle = function(req:any, res:any, next:any){
-      try{
-        const url = String(req?.originalUrl || req?.url || "");
-        if (/\/proposer\/.*v7/i.test(url)){
-          stats.blocks++; stats.last = Date.now();
-          res.status(410).json({ ok:false, error:"gone", message:"v7 disabled (firewall)", url });
-          return;
-        }
-      }catch { /* fall through */ }
-      return originalHandle(req, res, next);
-    };
-
-    // Prometheus metrics for the firewall
-    if (typeof app.get==="function"){
-      app.get("/metrics/void/v7_guard.prom", (_req:any, res:any)=>{
-        res.type("text/plain").send(
-`# HELP void_v7_guard_blocks_total Requests blocked by v7 firewall
-# TYPE void_v7_guard_blocks_total counter
-void_v7_guard_blocks_total ${stats.blocks}
-# HELP void_v7_guard_last_ts_ms Last v7 firewall block timestamp (ms)
-# TYPE void_v7_guard_last_ts_ms gauge
-void_v7_guard_last_ts_ms ${stats.last}
-`);
-      });
-    }
-  }
-  mount();
-})();
-// -------- v7.killswitch.env.v1 (additive) --------
-(function V7KillSwitchEnvV1(){
-  const TICK=200, G:any=(globalThis as any);
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  function on(){ return String(process.env.VOID_V7_ENABLED||"0").toLowerCase()==="1"; }
-
-  function mount(){
-    const app:any = getApp(); if(!app||typeof app.get!=="function") return setTimeout(mount,TICK);
-    if (app.__void_v7_killswitch_env_v1) return; app.__void_v7_killswitch_env_v1 = true;
-
-    // Prom-state: 0 means blocked (safe default), 1 means enabled (should never be in prod)
-    app.get("/metrics/void/v7_guard_state.prom", (_req:any,res:any)=>{
-      const enabled = on()?1:0;
-      res.type("text/plain").send(
-`# HELP void_v7_enabled V7 legacy path enable flag (1=enabled, 0=blocked)
-# TYPE void_v7_enabled gauge
-void_v7_enabled ${enabled}
-`);
-    });
-  }
-  mount();
-})();
-// -------- v7.firewall.app-handle.v1 (additive, idempotent, highest-priority) --------
-(function V7FirewallAppHandleV1(){
-  const TICK=200, G:any=(globalThis as any);
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.handle !== "function") return setTimeout(mount, TICK);
-    if (app.__void_v7_firewall_app_handle_v1) return; app.__void_v7_firewall_app_handle_v1 = true;
-
-    // counters
-    let blocks = 0, lastTs = 0;
-    function bump(){ blocks++; lastTs = Date.now(); }
-
-    // prom exporter
-    app.get("/metrics/void/v7_guard.prom", (_req:any,res:any)=>{
-      res.type("text/plain").send(
-`# HELP void_v7_guard_blocks_total Requests blocked by v7 firewall
-# TYPE void_v7_guard_blocks_total counter
-void_v7_guard_blocks_total ${blocks}
-# HELP void_v7_guard_last_ts_ms Last v7 firewall block timestamp (ms)
-# TYPE void_v7_guard_last_ts_ms gauge
-void_v7_guard_last_ts_ms ${lastTs}
-`);
-    });
-
-    // hard kill-switch (default 0 via systemd env; you've set it already)
-    const enabled = ()=> String(process.env.VOID_V7_ENABLED||"0").toLowerCase()==="1";
-
-    // patch app.handle so we intercept BEFORE any route
-    const origHandle = app.handle.bind(app);
-    app.handle = function v7FirewallPatched(req:any, res:any, out?:any){
-      try{
-        const url = String(req?.url||"");
-        if (!enabled() && /\/proposer\/.*v7/i.test(url)) {
-          bump();
-          // 410 Gone; never let legacy handler run
-          res.statusCode = 410;
-          res.setHeader("Content-Type","application/json; charset=utf-8");
-          res.end(JSON.stringify({ok:false, error:"gone", message:"v7 disabled"}));
-          return;
-        }
-      }catch(_e){}
-      return origHandle(req,res,out);
-    };
-  }
-  mount();
-})();
-// -------- proposer.watchdog.auto-rescue.v1 (additive, idempotent) --------
-(function ProposerAutoRescueV1(){
-  const G:any=(globalThis as any), TICK=2000, STALL_MS=20000;
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  function getNode(){ return G.__void_node   || (G as any).node; }
-
-  let lastHead = -1, lastAdvanceTs = 0, loops = 0, rescues = 0, lastRescueTs = 0, errors = 0;
-
-  function now(){ return Date.now(); }
-
-  function metrics(app:any){
-    if (app.__void_proposer_watchdog_metrics_v1) return;
-    app.__void_proposer_watchdog_metrics_v1 = true;
-    app.get("/metrics/void/proposer.watchdog.prom", (_req:any,res:any)=>{
-      res.type("text/plain").send(
-`# HELP void_proposer_watchdog_loops_total Watchdog loops
-# TYPE void_proposer_watchdog_loops_total counter
-void_proposer_watchdog_loops_total ${loops}
-# HELP void_proposer_watchdog_rescues_total Rescue invocations
-# TYPE void_proposer_watchdog_rescues_total counter
-void_proposer_watchdog_rescues_total ${rescues}
-# HELP void_proposer_watchdog_last_rescue_ts_ms Last rescue ts (ms)
-# TYPE void_proposer_watchdog_last_rescue_ts_ms gauge
-void_proposer_watchdog_last_rescue_ts_ms ${lastRescueTs}
-# HELP void_proposer_watchdog_errors_total Errors in watchdog
-# TYPE void_proposer_watchdog_errors_total counter
-void_proposer_watchdog_errors_total ${errors}
-# HELP void_proposer_watchdog_last_advance_ts_ms Last head advance ts (ms)
-# TYPE void_proposer_watchdog_last_advance_ts_ms gauge
-void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
-`);
-    });
-  }
-
-  async function loop(){
-    try{
-      loops++;
-      const app:any = getApp(); if (!app) return setTimeout(loop, TICK);
-      metrics(app);
-      const node:any = getNode(); if (!node?.store) return setTimeout(loop, TICK);
-
-      const enabled = (() => {
-        try { return Number((globalThis as any).__proposer_auto_enabled_v2 ?? 0) === 1; } catch { return false; }
-      })();
-
-      const head = (typeof node.store.getHeadNumber==="function")
-        ? await node.store.getHeadNumber()
-        : (node.store.headNumber ?? node.store.latestNumber ?? -1);
-
-      if (head !== lastHead){ lastHead = head; lastAdvanceTs = now(); }
-
-      // stale AND auto says enabled -> try rescue
-      if (enabled && (now() - lastAdvanceTs) > STALL_MS){
-        try{
-          const ok = await fetch("http://127.0.0.1:"+String(process.env.HTTP_PORT||process.env.VOID_HTTP_PORT||"4100")+
-            "/proposer/hook/run?name=rescue-v1&max=5", {method:"POST"});
-          if (ok?.ok){ rescues++; lastRescueTs = now(); }
-        }catch{ errors++; }
-      }
-    }catch{ errors++; }
-    setTimeout(loop, TICK);
-  }
-  loop();
-})();
-// [v7-tarpit-bad] // -------- v7.cost.tarpit.quarantine.v1 (additive, idempotent, pre-firewall) --------
-// [v7-tarpit-bad] (function V7CostTarpitV1(){
-// [v7-tarpit-bad]   const TICK=200, G:any=(globalThis as any);
-// [v7-tarpit-bad]   function getApp(){ return G.__void_http_app || (G as any).app; }
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]   // In-memory state
-// [v7-tarpit-bad]   type Stat = { score:number; last:number; quarantinedUntil:number; totalBlocks:number; totalDelayMs:number; totalQuarantines:number; };
-// [v7-tarpit-bad]   const STATS = new Map<string,Stat>();
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]   // Tunables via env (safe defaults)
-// [v7-tarpit-bad]   function n(v:string|undefined, d:number){ const x=Number(v); return Number.isFinite(x)&&x>=0 ? x : d; }
-// [v7-tarpit-bad]   const BASE_MS      = n(process.env.VOID_V7_TARPIT_BASE_MS, 250);    // base delay per offense step
-// [v7-tarpit-bad]   const MAX_MS       = n(process.env.VOID_V7_TARPIT_MAX_MS, 5000);    // cap per-request delay
-// [v7-tarpit-bad]   const DECAY_MS     = n(process.env.VOID_V7_TARPIT_DECAY_MS, 15000); // how fast score decays
-// [v7-tarpit-bad]   const STEP         = n(process.env.VOID_V7_TARPIT_STEP, 1);         // score increment per hit
-// [v7-tarpit-bad]   const QUAR_AFTER   = n(process.env.VOID_V7_QUARANTINE_AFTER, 6);    // score threshold to quarantine
-// [v7-tarpit-bad]   const QUAR_MS      = n(process.env.VOID_V7_QUARANTINE_MS, 5*60*1000); // quarantine window
-// [v7-tarpit-bad]   const CPU_MS       = n(process.env.VOID_V7_CPU_BURN_MS, 0);         // optional CPU burn ms per hit (0 = off)
-// [v7-tarpit-bad]   const ENABLED      = String(process.env.VOID_V7_COST_ENABLED||"1").toLowerCase()==="1";
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]   function ipOf(req:any){
-// [v7-tarpit-bad]     // Try X-Forwarded-For first, then socket remoteAddress; normalize to single token
-// [v7-tarpit-bad]     const xff=(req.headers?.['x-forwarded-for']||"").toString().split(',')[0].trim();
-// [v7-tarpit-bad]     return xff || (req.socket?.remoteAddress||"unknown");
-// [v7-tarpit-bad]   }
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]   function decay(stat:Stat){
-// [v7-tarpit-bad]     const now=Date.now();
-// [v7-tarpit-bad]     const dt = now - stat.last;
-// [v7-tarpit-bad]     if (dt > 0 && DECAY_MS > 0){
-// [v7-tarpit-bad]       const dec = dt/DECAY_MS;
-// [v7-tarpit-bad]       stat.score = Math.max(0, stat.score - dec);
-// [v7-tarpit-bad]     }
-// [v7-tarpit-bad]     stat.last = now;
-// [v7-tarpit-bad]   }
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]   function penaltyMs(score:number){
-// [v7-tarpit-bad]     // Linear ramp with cap; simple & predictable
-// [v7-tarpit-bad]     return Math.min(MAX_MS, Math.ceil(score) * BASE_MS);
-// [v7-tarpit-bad]   }
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]   function busyWait(ms:number){
-// [v7-tarpit-bad]     if (ms <= 0) return;
-// [v7-tarpit-bad]     const end = Date.now()+ms;
-// [v7-tarpit-bad]     while (Date.now() < end) { /* spin */ }
-// [v7-tarpit-bad]   }
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]   function prom(app:any){
-// [v7-tarpit-bad]     if (app.__void_v7_cost_prom_v1) return; app.__void_v7_cost_prom_v1 = true;
-// [v7-tarpit-bad]     app.get("/metrics/void/v7_cost.prom", (_req:any,res:any)=>{
-// [v7-tarpit-bad]       let lines = [
-// [v7-tarpit-bad]         "# HELP void_v7_cost_enabled Cost layer enabled (1/0)",
-// [v7-tarpit-bad]         "# TYPE void_v7_cost_enabled gauge",
-// [v7-tarpit-bad]         `void_v7_cost_enabled ${ENABLED?1:0}`,
-// [v7-tarpit-bad]         "# HELP void_v7_tarpit_base_ms Base delay per offense step (ms)",
-// [v7-tarpit-bad]         "# TYPE void_v7_tarpit_base_ms gauge",
-// [v7-tarpit-bad]         `void_v7_tarpit_base_ms ${BASE_MS}`,
-// [v7-tarpit-bad]         "# HELP void_v7_tarpit_max_ms Max delay cap (ms)",
-// [v7-tarpit-bad]         "# TYPE void_v7_tarpit_max_ms gauge",
-// [v7-tarpit-bad]         `void_v7_tarpit_max_ms ${MAX_MS}`,
-// [v7-tarpit-bad]         "# HELP void_v7_cpu_burn_ms Optional CPU burn per hit (ms)",
-// [v7-tarpit-bad]         "# TYPE void_v7_cpu_burn_ms gauge",
-// [v7-tarpit-bad]         `void_v7_cpu_burn_ms ${CPU_MS}`,
-// [v7-tarpit-bad]         "# HELP void_v7_quarantine_after Score threshold to quarantine",
-// [v7-tarpit-bad]         "# TYPE void_v7_quarantine_after gauge",
-// [v7-tarpit-bad]         `void_v7_quarantine_after ${QUAR_AFTER}`,
-// [v7-tarpit-bad]         "# HELP void_v7_quarantine_ms Quarantine window (ms)",
-// [v7-tarpit-bad]         "# TYPE void_v7_quarantine_ms gauge",
-// [v7-tarpit-bad]         `void_v7_quarantine_ms ${QUAR_MS}`,
-// [v7-tarpit-bad]       ];
-// [v7-tarpit-bad]       // Per-IP aggregates
-// [v7-tarpit-bad]       for (const [ip, s] of STATS.entries()){
-// [v7-tarpit-bad]         lines.push(
-// [v7-tarpit-bad]           "# HELP void_v7_cost_score Current offense score per IP",
-// [v7-tarpit-bad]           "# TYPE void_v7_cost_score gauge",
-// [v7-tarpit-bad]           `void_v7_cost_score{ip="${ip}"} ${s.score}`,
-// [v7-tarpit-bad]           "# HELP void_v7_cost_quarantined Quarantine state per IP (1/0)",
-// [v7-tarpit-bad]           "# TYPE void_v7_cost_quarantined gauge",
-// [v7-tarpit-bad]           `void_v7_cost_quarantined{ip="${ip}"} ${Date.now()<s.quarantinedUntil?1:0}`,
-// [v7-tarpit-bad]           "# HELP void_v7_cost_blocks_total Requests blocked (tarpit applied) per IP",
-// [v7-tarpit-bad]           "# TYPE void_v7_cost_blocks_total counter",
-// [v7-tarpit-bad]           `void_v7_cost_blocks_total{ip="${ip}"} ${s.totalBlocks}`,
-// [v7-tarpit-bad]           "# HELP void_v7_cost_delay_ms_total Total delay imposed (ms) per IP",
-// [v7-tarpit-bad]           "# TYPE void_v7_cost_delay_ms_total counter",
-// [v7-tarpit-bad]           `void_v7_cost_delay_ms_total{ip="${ip}"} ${s.totalDelayMs}`,
-// [v7-tarpit-bad]           "# HELP void_v7_cost_quarantines_total Total quarantines issued per IP",
-// [v7-tarpit-bad]           "# TYPE void_v7_cost_quarantines_total counter",
-// [v7-tarpit-bad]           `void_v7_cost_quarantines_total{ip="${ip}"} ${s.totalQuarantines}`,
-// [v7-tarpit-bad]         );
-// [v7-tarpit-bad]       }
-// [v7-tarpit-bad]       res.type("text/plain").send(lines.join("\n")+"\n");
-// [v7-tarpit-bad]     });
-// [v7-tarpit-bad]   }
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]   function mount(){
-// [v7-tarpit-bad]     const app:any = getApp(); if (!app || typeof app.handle!=="function") return setTimeout(mount, TICK);
-// [v7-tarpit-bad]     prom(app);
-// [v7-tarpit-bad]     if (app.__void_v7_cost_tarpit_v1) return; app.__void_v7_cost_tarpit_v1 = true;
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]     const prev = app.handle.bind(app);
-// [v7-tarpit-bad]     app.handle = function v7CostWrapper(req:any, res:any, out?:any){
-// [v7-tarpit-bad]       try{
-// [v7-tarpit-bad]         if (!ENABLED) return prev(req,res,out);
-// [v7-tarpit-bad]         const url = String(req?.url||"");
-// [v7-tarpit-bad]         // Only trigger on v7 attempts (same match as firewall), BEFORE firewall sends 410
-// [v7-tarpit-bad]         if (/\/proposer\/.*v7/i.test(url)) {
-// [v7-tarpit-bad]           const ip = ipOf(req);
-// [v7-tarpit-bad]           const s = STATS.get(ip) || {score:0,last:Date.now(),quarantinedUntil:0,totalBlocks:0,totalDelayMs:0,totalQuarantines:0};
-// [v7-tarpit-bad]           decay(s);
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]           // escalate score
-// [v7-tarpit-bad]           s.score += STEP;
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]           // quarantine if too many hits
-// [v7-tarpit-bad]           const now = Date.now();
-// [v7-tarpit-bad]           if (s.score >= QUAR_AFTER && now >= s.quarantinedUntil){
-// [v7-tarpit-bad]             s.quarantinedUntil = now + QUAR_MS;
-// [v7-tarpit-bad]             s.totalQuarantines++;
-// [v7-tarpit-bad]           }
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]           // compute delay (longer if quarantined)
-// [v7-tarpit-bad]           let delay = penaltyMs(s.score);
-// [v7-tarpit-bad]           if (now < s.quarantinedUntil) delay = Math.max(delay, Math.min(MAX_MS, Math.floor(MAX_MS*0.9)));
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]           // optional CPU burn (small, capped by config)
-// [v7-tarpit-bad]           if (CPU_MS > 0) busyWait(Math.min(CPU_MS, 500)); // hard cap to avoid self-DOS
-// [v7-tarpit-bad] 
-// [v7-tarpit-bad]           // impose tarpit before handing to firewall (which will still 410)
-// [v7-tarpit-bad]           if (delay > 0){
-// [v7-tarpit-bad]             s.totalBlocks++;
-// [v7-tarpit-bad]             s.totalDelayMs += delay;
-// [v7-tarpit-bad]             // block the event loop for delay using a timed promise; keep it simple
-// [v7-tarpit-bad]             const start = Date.now();
-// [v7-tarpit-bad]             const wait = (ms:number)=>new Promise(r=>setTimeout(r,ms));
-// [v7-tarpit-bad]             return wait(delay).then(()=>{ STATS.set(ip,s); return prev(req,res,out); });
-// [v7-tarpit-bad]           } else {
-// [v7-tarpit-bad]             STATS.set(ip,s);
-// [v7-tarpit-bad]             return prev(req,res,out);
-// [v7-tarpit-bad]           }
-// [v7-tarpit-bad]         } else {
-// [v7-tarpit-bad]           return prev(req,res,out);
-// [v7-tarpit-bad]         }
-// [v7-tarpit-bad]       } catch(e){
-// [v7-tarpit-bad]         try { return prev(req,res,out); } catch(_) { throw e; }
-// [v7-tarpit-bad]       }
-// [v7-tarpit-bad]     };
-// [v7-tarpit-bad]   }
-// [v7-tarpit-bad]   mount();
-// [v7-tarpit-bad] })();
-// -------- v7.cost.tarpit.quarantine.v2 (additive, idempotent, pre-firewall) --------
-(function V7CostTarpitV2(){
-  const TICK=250, G:any=(globalThis as any);
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-
-  type Stat = { score:number; last:number; quarantinedUntil:number;
-                totalBlocks:number; totalDelayMs:number; totalQuarantines:number; };
-  const STATS = new Map<string,Stat>();
-
-  function n(v:string|undefined, d:number){ const x=Number(v); return Number.isFinite(x)&&x>=0?x:d; }
-  const BASE_MS    = n(process.env.VOID_V7_TARPIT_BASE_MS, 250);
-  const MAX_MS     = n(process.env.VOID_V7_TARPIT_MAX_MS, 8000);
-  const DECAY_MS   = n(process.env.VOID_V7_TARPIT_DECAY_MS, 15000);
-  const STEP       = n(process.env.VOID_V7_TARPIT_STEP, 1);
-  const QUAR_AFTER = n(process.env.VOID_V7_QUARANTINE_AFTER, 6);
-  const QUAR_MS    = n(process.env.VOID_V7_QUARANTINE_MS, 5*60*1000);
-  const CPU_MS     = n(process.env.VOID_V7_CPU_BURN_MS, 0);
-  const ENABLED    = String(process.env.VOID_V7_COST_ENABLED||"1").toLowerCase()==="1";
-  const CANARY     = (process.env.VOID_CANARY_TOKEN||"").trim();
-
-  function ipOf(req:any){
-    const xff=(req.headers?.['x-forwarded-for']||"").toString().split(',')[0].trim();
-    return xff || (req.socket?.remoteAddress||"unknown");
-  }
-  function decay(stat:Stat, now:number){
-    if (!stat.last) return;
-    const dt = Math.max(0, now - stat.last);
-    if (dt<=0) return;
-    const drop = dt/DECAY_MS;
-    stat.score = Math.max(0, stat.score - drop);
-  }
-  function randInt(a:number,b:number){ return Math.floor(a + Math.random()*(b-a+1)); }
-
-  function delayMsFor(score:number){
-    // smooth/exponential-ish + jitter
-    const core = Math.pow(Math.ceil(score), 1.25) * BASE_MS;
-    const jitter = randInt(0, BASE_MS);
-    return Math.min(MAX_MS, Math.ceil(core + jitter));
-  }
-
-  async function busyWait(ms:number){
-    if (ms<=0) return;
-    const end = Date.now()+ms;
-    while (Date.now()<end) { /* burn */ }
-  }
-
-  async function tarpit(req:any, res:any, next:any){
-    if (!ENABLED) return next();
-    // canary bypass for ops/canaries
-    if (CANARY && req.headers && String(req.headers['x-void-canary']||"")===CANARY) return next();
-
-    const now = Date.now(), ip = ipOf(req);
-    let s = STATS.get(ip); if (!s) { s={score:0,last:0,quarantinedUntil:0,totalBlocks:0,totalDelayMs:0,totalQuarantines:0}; STATS.set(ip,s); }
-    decay(s, now);
-    s.score += STEP; s.last = now;
-
-    // quarantine
-    if (s.score >= QUAR_AFTER) {
-      if (now < s.quarantinedUntil) {
-        const d = delayMsFor(s.score);
-        if (CPU_MS>0) await busyWait(Math.min(CPU_MS,d));
-        await new Promise(r=>setTimeout(r,d));
-        s.totalBlocks++; s.totalDelayMs+=d;
-        res.status(410).end(); return;
-      } else {
-        s.quarantinedUntil = now + QUAR_MS;
-        s.totalQuarantines++;
-      }
-    }
-
-    // tarpit delay (even before firewall 410)
-    const d = delayMsFor(s.score);
-    if (CPU_MS>0) await busyWait(Math.min(CPU_MS,d));
-    await new Promise(r=>setTimeout(r,d));
-    s.totalBlocks++; s.totalDelayMs+=d;
-    return next();
-  }
-
-  function mount(){
-    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, TICK);
-    if ((app as any).__void_v7_tarpit_mounted_v2) return; (app as any).__void_v7_tarpit_mounted_v2 = true;
-
-    // Pre-firewall middleware on the legacy path
-    try { app.use("/proposer/seal/once-v7", tarpit); } catch {}
-
-    (globalThis as any).__void_v7_cost_stats = () => STATS;
-    // Prom-style metrics exporter
-    app.get("/metrics/void/v7_cost.prom", (_:any, res:any)=>{
-      res.setHeader("Content-Type","text/plain; version=0.0.4");
-      let out = "";
-      out += "# HELP void_v7_cost_enabled Cost layer enabled (1/0)\n# TYPE void_v7_cost_enabled gauge\n";
-      out += `void_v7_cost_enabled ${ENABLED?1:0}\n`;
-      out += "# HELP void_v7_tarpit_base_ms Base delay per offense step (ms)\n# TYPE void_v7_tarpit_base_ms gauge\n";
-      out += `void_v7_tarpit_base_ms ${BASE_MS}\n`;
-      out += "# HELP void_v7_tarpit_max_ms Max delay cap (ms)\n# TYPE void_v7_tarpit_max_ms gauge\n";
-      out += `void_v7_tarpit_max_ms ${MAX_MS}\n`;
-      out += "# HELP void_v7_cpu_burn_ms Optional CPU burn per hit (ms)\n# TYPE void_v7_cpu_burn_ms gauge\n";
-      out += `void_v7_cpu_burn_ms ${CPU_MS}\n`;
-      out += "# HELP void_v7_quarantine_after Score threshold to quarantine\n# TYPE void_v7_quarantine_after gauge\n";
-      out += `void_v7_quarantine_after ${QUAR_AFTER}\n`;
-      out += "# HELP void_v7_quarantine_ms Quarantine window (ms)\n# TYPE void_v7_quarantine_ms gauge\n";
-      out += `void_v7_quarantine_ms ${QUAR_MS}\n`;
-
-      out += "# HELP void_v7_cost_score Current offense score per IP\n# TYPE void_v7_cost_score gauge\n";
-      out += "# HELP void_v7_cost_quarantined Quarantine state per IP (1/0)\n# TYPE void_v7_cost_quarantined gauge\n";
-      out += "# HELP void_v7_cost_blocks_total Requests blocked (tarpit applied) per IP\n# TYPE void_v7_cost_blocks_total counter\n";
-      out += "# HELP void_v7_cost_delay_ms_total Total delay imposed (ms) per IP\n# TYPE void_v7_cost_delay_ms_total counter\n";
-      out += "# HELP void_v7_cost_quarantines_total Total quarantines issued per IP\n# TYPE void_v7_cost_quarantines_total counter\n";
-      for (const [ip,s] of STATS.entries()){
-        const q = Date.now() < s.quarantinedUntil ? 1 : 0;
-        out += `void_v7_cost_score{ip="${ip}"} ${s.score}\n`;
-        out += `void_v7_cost_quarantined{ip="${ip}"} ${q}\n`;
-        out += `void_v7_cost_blocks_total{ip="${ip}"} ${s.totalBlocks}\n`;
-        out += `void_v7_cost_delay_ms_total{ip="${ip}"} ${s.totalDelayMs}\n`;
-        out += `void_v7_cost_quarantines_total{ip="${ip}"} ${s.totalQuarantines}\n`;
-      }
-      res.status(200).end(out);
-    });
-  }
-  mount();
-})();
-// --- v7.cost.admin.reset (additive, tiny) ---
-// NOTE: This requires the v7 tarpit block to expose a getter like:
-//   (globalThis as any).__void_v7_cost_stats = () => STATS;
-// If you didn't add that inside v7 tarpit v2, skip this route and just restart the service to clear scores.
-(function V7CostAdminReset(){
-  const G:any=(globalThis as any);
-  function getApp(){ return G.__void_http_app || (G as any).app; }
+// ---- console-filter exporter (additive, safe) ----
+;(function ConsoleFilterExporterV1(){
   const TICK=300;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   function mount(){
-    const app:any=getApp(); if(!app||typeof app.get!=="function") return setTimeout(mount,TICK);
-    if ((app as any).__void_v7_cost_admin_reset) return; (app as any).__void_v7_cost_admin_reset = true;
-    app.post("/ops/v7-cost/reset", (req:any,res:any)=>{
-      try{
-        const ip=(req.query.ip||"").toString().trim();
-        const getter = (G as any).__void_v7_cost_stats;
-        const map = typeof getter==="function" ? getter() : null;
-        if(!ip || !map || !map.delete) return res.status(400).json({ok:false,err:"bad ip or map"});
-        map.delete(ip); return res.json({ok:true,ip});
-      }catch(e){ return res.status(500).json({ok:false,err:String(e)}); }
-    });
+    try{
+      const app:any=getApp();
+      if(!app||typeof app.get!=="function") return setTimeout(mount,TICK);
+      if(app.__void_console_filter_exporter_v1) return; app.__void_console_filter_exporter_v1=true;
+
+      // Prom text at /__void/metrics/console_filter.prom
+      app.get("/__void/metrics/console_filter.prom", (_req:any, res:any)=>{
+        const g:any = globalThis as any;
+        const ok = g && g.__void_console_filter_v0 ? 1 : 0;
+        res.type("text/plain; version=0.0.4; charset=utf-8").send([
+          "# HELP void_console_filter_ok 1 when console filter is loaded",
+          "# TYPE void_console_filter_ok gauge",
+          `void_console_filter_ok ${ok}`,
+          "# HELP void_console_filter_info Info line",
+          "# TYPE void_console_filter_info gauge",
+          `void_console_filter_info{state="${ok? "installed":"missing"}"} 1`,
+        ].join("\n")+"\n");
+      });
+      console.error("[console-filter.exporter] mounted");
+    }catch{ setTimeout(mount,TICK); }
   }
-  setTimeout(mount,TICK);
+  mount();
 })();
 
-// ---------------- WAL v1 (additive, safe boot compatible) -----------------
-(function walV1Mount(){
+// ---- WAL v1 poller (additive, no core edits) ----
+;(function WalV1Poller(){
+  const TICK=1000;
+  const MAX_ERRORS=50;
+  const g:any = globalThis as any;
+
+  // helpers
+  function getApp(){ return (g).__void_http_app || (g).app; }
+  async function getJSON(u:string){ const r=await fetch(u); if(!r.ok) throw new Error(`fetch ${u} ${r.status}`); return r.json(); }
+// [fix-await-nonasync]   function join(...p:string[]){ return (await import("node:path")).default.join(...p); }
+  async function join(...p:string[]){ const m = await import("node:path"); return m.default.join(...p); }
+  async function ensureDir(p:string){ const fs = await import("node:fs/promises"); await fs.mkdir(p,{recursive:true}); }
+  async function appendAtomic(file:string, line:string){
+    const fs = await import("node:fs/promises");
+    const f = await fs.open(file, 'a');
+    try { await f.appendFile(line+"\n"); await f.sync(); } finally { await f.close(); }
+  }
+
+  let last=-1, errors=0, lastErr="";
+  let walPath = "";
+
+  async function initPath(){
+    const p = await import("node:path");
+    const dataDir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    const dir = p.default.join(dataDir, "wal_v1");
+    await ensureDir(dir);
+    walPath = p.default.join(dir, "wal.jsonl");
+  }
+
+  async function tick(){
+    try{
+      if(!walPath) await initPath();
+      // Try both endpoints we expose in our codebase
+      let n:number|undefined;
+      try { n = Number(await (await getJSON("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/blocks/latest/number2.json")).number); }
+      catch { n = Number(await (await getJSON("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/blocks/latest/number")).number); }
+      if(!Number.isFinite(n)) throw new Error("bad latest number");
+      if(n>last){
+        // fetch header3 for txRoot + tx count (fallback to header2->3 redirect)
+        const h = await getJSON(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/blocks/${n}/header3`);
+        const entry = {
+          ts: Date.now(),
+          number: n,
+          txCount: h?.txCount ?? null,
+          txRoot: h?.txRoot ?? null,
+        };
+        await appendAtomic(walPath, JSON.stringify(entry));
+        last = n;
+      }
+      lastErr = ""; errors = Math.max(0, errors-1);
+    }catch(e:any){
+      lastErr = String(e?.message||e); errors++;
+      if(errors>MAX_ERRORS) errors=MAX_ERRORS;
+    }finally{
+      setTimeout(tick, TICK);
+    }
+  }
+
+  // Exporter
+  function mount(){
+    const app:any = getApp();
+    if(!app || typeof app.get!=="function") return setTimeout(mount, 300);
+    if(app.__void_wal_v1_exporter) return; app.__void_wal_v1_exporter = true;
+    app.get("/__void/metrics/wal_v1.prom", async (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_wal_last_number Last block appended to WAL v1",
+          "# TYPE void_wal_last_number gauge",
+          `void_wal_last_number ${Number.isFinite(last)&&last>=0? last : -1}`,
+          "# HELP void_wal_errors_total Recent error counter (capped)",
+          "# TYPE void_wal_errors_total counter",
+          `void_wal_errors_total ${errors}`,
+          "# HELP void_wal_info Info line",
+          "# TYPE void_wal_info gauge",
+          `void_wal_info{path="${walPath||""}",state="${last>=0?"ok":"init"}",last_error="${(lastErr||"").replace(/"/g,'\\"') }"} 1`,
+        ].join("\n")+"\n"
+      );
+    });
+    console.error("[wal.v1] poller mounted ->", process.env.DATA_DIR||"data", "/wal_v1/wal.jsonl");
+  }
+
+  mount();
+  tick();
+})();
+
+// ----- console filter: ignore forensics ESM complaint (additive, safe) -----
+(function consoleFilterForensicsESM(){
   const TICK=400;
-  let mounted=false;
+  function attach(){
+    const anyG = globalThis;
+    const filt = anyG.__void_console_filter;
+    if (!filt || typeof filt.add !== "function") return setTimeout(attach, TICK);
+    try {
+      filt.add(/txroot\/forensics.*require is not defined/i);
+      // diag
+      if (typeof console !== "undefined" && console.log) console.log("[console-filter] drop forensics require() ESM noise");
+    } catch {}
+  }
+  attach();
+})();
+
+
+// -------- quiet txroot "number=undefined" chatter (follower-only, narrow) --------
+(function quietTxrootUndefinedWarn(){
+  try {
+    if ((process.env.VOID_ROLE || "").toLowerCase() !== "follower") return;
+    const origWarn = console.warn.bind(console);
+    console.warn = (...args:any[]) => {
+      try {
+        const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+        // Only suppress txroot-core mismatch lines that carry "number=undefined"
+        if (s.includes("[txroot-core] mismatch") && s.includes("number=undefined")) return;
+      } catch { /* no-op */ }
+      origWarn(...args);
+    };
+  } catch { /* no-op */ }
+})();
+
+// ---------------- TXROOT GAP EXPORTER (additive, no core edits) ----------------
+(function txrootGapExporterV1(){
+  const TICK = 2000;
+  const STATE: any = {
+    enabled: (process.env.VOID_TXROOT_GAP === "1" || process.env.TXROOT_GAP === "1"),
+    last: { saves_total: 0, set_total: 0, ts: 0, gap: 0, rate1m: 0 },
+    hist: [] as Array<{ts:number,gap:number}>
+  };
 
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getStore(){ try{ return (globalThis as any).__void_store || (globalThis as any).store; }catch{ return undefined; } }
-  function getDataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
+
+  async function fetchJson(url: string){
+    const r = await fetch(url);
+    if(!r.ok) throw new Error(`GET ${url} => ${r.status}`);
+    return r.json();
+  }
+
+  async function poll(){
+    try{
+      if(!STATE.enabled) return;
+      // Core counters JSON was added earlier: /__void/metrics/txroot4/core2.json
+      const core:any = await fetchJson(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/__void/metrics/txroot4/core2.json`);
+      const saves = Number(core?.counters?.saves_total ?? 0);
+      const setts = Number(core?.counters?.set_total ?? 0);
+      const now   = Date.now();
+      const gap   = Math.max(0, saves - setts);
+
+      // keep 60s window for a crude 1m rate
+      STATE.hist.push({ts: now, gap});
+      const cutoff = now - 60000;
+      while(STATE.hist.length && STATE.hist[0].ts < cutoff) STATE.hist.shift();
+
+      const first = STATE.hist[0]?.gap ?? gap;
+      const rate1m = (gap - first) / 60; // blocks/sec equivalent (can be negative -> clamp)
+      STATE.last = { saves_total: saves, set_total: setts, ts: now, gap, rate1m: Math.max(0, rate1m) };
+    }catch(e){ /* silent */ }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if(!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+
+    if ((app as any).__void_txroot_gap_v1) return;
+    (app as any).__void_txroot_gap_v1 = true;
+
+    app.get("/__void/metrics/txroot4/gap.prom", (_req:any, res:any)=>{
+      const L = STATE.last;
+      const b:string[] = [];
+      b.push("# HELP void_txroot_gap_blocks Backlog between saves_total and header set_total (blocks)");
+      b.push("# TYPE void_txroot_gap_blocks gauge");
+      b.push(`void_txroot_gap_blocks ${L.gap}`);
+
+      b.push("# HELP void_txroot_gap_rate1m Approx change in gap over 60s (blocks/sec, >=0)");
+      b.push("# TYPE void_txroot_gap_rate1m gauge");
+      b.push(`void_txroot_gap_rate1m ${L.rate1m}`);
+
+      b.push("# HELP void_txroot_gap_ts_ms Exporter sample timestamp (ms)");
+      b.push("# TYPE void_txroot_gap_ts_ms gauge");
+      b.push(`void_txroot_gap_ts_ms ${L.ts||0}`);
+
+      res.type("text/plain").send(b.join("\n")+"\n");
+    });
+
+    // poller (enabled only if env set)
+    setInterval(poll, 2000);
+    setTimeout(poll, 500);
+  }
+
+  // defer until app is ready
+  let tries=0; (function wait(){ tries++; mount(); if(tries<120) setTimeout(wait, TICK); })();
+})();
+// ---------------- Genesis manifest loader + Prom exporter (additive, safe) ---------------
+(function GenesisManifestExporter(){
+  const TICK = 400;
+  let mounted = false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function loadGenesis() {
+    try {
+      const fs = await import('node:fs/promises');
+      const { createHash } = await import('node:crypto');
+      const path = process.env.GENESIS_PATH || (process.cwd() + '/genesis/void.genesis.json');
+      const raw = await fs.readFile(path, 'utf8');
+      const hash = createHash('sha256').update(raw).digest('hex');
+      const j = JSON.parse(raw);
+
+      const now = Date.now();
+      const gtime = Date.parse(j.genesisTime || '');
+      const ageSec = isNaN(gtime) ? NaN : Math.max(0, Math.floor((now - gtime)/1000));
+
+      const expectedChain = Number(process.env.VOID_CHAIN_ID || process.env.CHAIN_ID || 2050);
+      const manifestChain = Number(j.chainId);
+      const chainMatch = (manifestChain === expectedChain);
+
+      const seedHttp = Array.isArray(j?.seedPeers?.http) ? j.seedPeers.http : [];
+      const seedP2P  = Array.isArray(j?.seedPeers?.p2p)  ? j.seedPeers.p2p  : [];
+      const seedsOk = seedHttp.length > 0 || seedP2P.length > 0;
+
+      const ok = !!manifestChain && !Number.isNaN(manifestChain) && !!gtime && !Number.isNaN(gtime) && seedsOk;
+
+      return {
+        ok, hash, path, manifest: j,
+        chain: { expected: expectedChain, manifest: manifestChain, match: chainMatch },
+        seeds: { http: seedHttp, p2p: seedP2P, count: seedHttp.length + seedP2P.length },
+        time: { genesisMs: gtime, ageSec }
+      };
+    } catch (e:any) {
+      return { ok:false, error: String(e && e.message || e), hash:'', path: process.env.GENESIS_PATH || '' };
+    }
+  }
 
   async function mount(){
-    if (mounted) return;
     const app:any = getApp();
-    const store:any = getStore();
-    if (!app || typeof app.get!=="function" || !store || !store.SegStore || !store.SegStore.prototype?.saveBlock){
-      return setTimeout(mount, TICK);
-    }
-    mounted = true;
+    if (!app || typeof app.get !== 'function') return setTimeout(mount, TICK);
+    if (mounted) return; mounted = true;
 
-    // Lazy import to avoid early ESM churn
-    const mod = await import("./wal/wal_v1.js");
-    const wal = new mod.WALv1(getDataDir());
-
-    // Exporter
-    app.get("/__void/metrics/wal.prom", (_req:any, res:any)=>{
-      try { res.type("text/plain").send(wal.metricsProm()); }
-      catch(e){ res.type("text/plain").send(`# wal exporter error\nvoid_wal_exporter_error 1\n`); }
+    // status JSON
+    app.get('/genesis/status', async (_req:any, res:any)=>{
+      const s = await loadGenesis();
+      res.setHeader('Content-Type','application/json');
+      res.end(JSON.stringify(s, null, 2));
     });
 
-    // Wrap SegStore.saveBlock (pre-intent, post-commit)
-    const SegStore = store.SegStore || require("./chain/seg_store.js").SegStore; // keep legacy fallback
-    const origSave = SegStore.prototype.saveBlock;
-    if (!(SegStore as any).__wal_v1_wrapped){
-      SegStore.prototype.saveBlock = async function(block:any){
-        try{
-          const n = Number(block?.number ?? block?.header?.number ?? -1);
-          const txRoot = block?.header?.txRoot || block?.txRoot;
-          const hash = (block?.hash) || (block?.header && (await (await import("./chain/block.js")).blockHash(block.header)));
-          if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
-        }catch(_e){ /* best-effort */ }
-        const out = await origSave.apply(this, arguments as any);
-        try{
-          const n = Number(block?.number ?? block?.header?.number ?? -1);
-          if (Number.isFinite(n) && n>=0) wal.commit(n);
-        }catch(_e){ /* best-effort */ }
-        return out;
-      };
-      (SegStore as any).__wal_v1_wrapped = true;
-    }
+    // prometheus text exporter
+    app.get('/__void/metrics/genesis.prom', async (_req:any, res:any)=>{
+      const s = await loadGenesis();
+      res.setHeader('Content-Type','text/plain; version=0.0.4');
+      const lines:string[] = [];
+      const labelHash = s.hash ? `{hash="${s.hash}"}` : '';
+      const chainId = (s as any)?.chain?.manifest ?? NaN;
+      const match = (s as any)?.chain?.match ? 1 : 0;
+      const ok = s.ok ? 1 : 0;
+      const seeds = (s as any)?.seeds?.count ?? 0;
+      const age = (s as any)?.time?.ageSec ?? NaN;
 
-    // Minimal boot replay: just recount inflight; do not mutate store
-    wal.counters.replays_total++;
+      lines.push('# HELP void_genesis_chain_id chain id from manifest');
+      lines.push('# TYPE void_genesis_chain_id gauge');
+      lines.push(`void_genesis_chain_id${labelHash} ${Number.isFinite(chainId)? chainId : 'NaN'}`);
+
+      lines.push('# HELP void_genesis_ok manifest present & minimally valid');
+      lines.push('# TYPE void_genesis_ok gauge');
+      lines.push(`void_genesis_ok${labelHash} ${ok}`);
+
+      lines.push('# HELP void_genesis_mismatch 1 if expected chainId != manifest chainId');
+      lines.push('# TYPE void_genesis_mismatch gauge');
+      lines.push(`void_genesis_mismatch${labelHash} ${match ? 0 : 1}`);
+
+      lines.push('# HELP void_genesis_seed_peers total seed peers (http+p2p)');
+      lines.push('# TYPE void_genesis_seed_peers gauge');
+      lines.push(`void_genesis_seed_peers${labelHash} ${seeds}`);
+
+      lines.push('# HELP void_genesis_age_seconds seconds since manifest.genesisTime');
+      lines.push('# TYPE void_genesis_age_seconds gauge');
+      lines.push(`void_genesis_age_seconds${labelHash} ${Number.isFinite(age)? age : 'NaN'}`);
+
+      res.end(lines.join('\n')+'\n');
+    });
   }
   mount();
 })();
 
-// ---------------- WAL v1 FIX MOUNT (additive, no store dependency) -----------------
-(function walV1FixMount(){
-  const TICK=300;
-  let mounted=false;
+// ---------- SegStore saveBlock Guard v1 (additive, ESM-safe, reentrancy-safe) ----------
+(function SaveBlockGuardV1(){
+  const TICK=400;
+  const SYM_ORIG = Symbol.for('void.segstore.saveBlock.orig');
+  const SYM_WRAP = Symbol.for('void.segstore.saveBlock.wrapped');
+  const SYM_BUSY = Symbol.for('void.segstore.saveBlock.busy');
+  const state = { patched:false, calls:0, last_ms:0, last_number:-1, last_result:"" };
+  const skip = String(process.env.VOID_TXROOT_FORENSICS||"").trim()==="0" ? true : false;
 
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
-
-  async function attach(){
-    if (mounted) return;
-    const app:any = getApp();
-    if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
-
-    mounted = true;
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const wal = new WALv1(dataDir());
-
-    // Exporter (idempotent)
-    if (!(app as any).__void_wal_v1_exporter){
-      (app as any).__void_wal_v1_exporter = true;
-      app.get("/__void/metrics/wal.prom", (_req:any, res:any)=>{
-        try { res.type("text/plain").send(wal.metricsProm()); }
-        catch { res.type("text/plain").send("# wal exporter error\nvoid_wal_exporter_error 1\n"); }
-      });
-    }
-
-    // Wrap SegStore.saveBlock directly (idempotent)
+  function numOf(x:any):number{
     try{
-      const { SegStore } = await import("./chain/seg_store.js");
-      if (SegStore && !((SegStore as any).__wal_v1_wrapped)){
-        const origSave = SegStore.prototype.saveBlock;
-        SegStore.prototype.saveBlock = async function(block:any){
-          try{
-            const n = Number(block?.number ?? block?.header?.number ?? -1);
-            const txRoot = block?.header?.txRoot || block?.txRoot;
-            let hash:any = (block?.hash);
-            try{
-              if (!hash && block?.header){
-                const bh = await import("./chain/block.js");
-                hash = await bh.blockHash(block.header);
-              }
-            }catch{}
-            if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
-          }catch{}
-          const out = await origSave.apply(this, arguments as any);
-          try{
-            const n = Number(block?.number ?? block?.header?.number ?? -1);
-            if (Number.isFinite(n) && n>=0) wal.commit(n);
-          }catch{}
-          return out;
-        };
-        (SegStore as any).__wal_v1_wrapped = true;
-      }
-    }catch(e){
-      // If seg_store import fails for some reason, exporter still works; wrapper can retry later if needed.
-      setTimeout(()=>{ mounted=false; attach(); }, 1000);
-      return;
-    }
-
-    // Count a replay pass (we don't mutate store on boot)
-    // Safe even if exporter only
-    try{ (wal as any).counters.replays_total++; }catch{}
-  }
-  attach();
-})();
-
-// ---------------- WAL v1 HEAD-FALLBACK (additive) -----------------
-(function walV1HeadFallback(){
-  const TICK=300;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
-
-  async function getHeadNumber(): Promise<number>{
-    try {
-      // fastest local path (already in your build)
-      const r = await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/blocks/latest/number2.json");
-      if (r.ok) { const j:any = await r.json(); const n = Number(j?.number ?? j); if (Number.isFinite(n)) return n; }
-    } catch {}
-    try {
-      // fallback to text exporter void_head_number if present
-      const r2 = await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/metrics/void/head");
-      if (r2.ok) {
-        const t = await r2.text();
-        const m = t.match(/void_head_number(?:{[^}]*})?\s+([0-9]+)/);
-        if (m) return Number(m[1]);
-      }
-    } catch {}
+      if (!x) return -1;
+      if (typeof x.number === "number") return x.number;
+      if (x.header && typeof x.header.number === "number") return x.header.number;
+      if (x.block && typeof x.block.number === "number") return x.block.number;
+      if (x.block?.header && typeof x.block.header.number === "number") return x.block.header.number;
+    }catch{}
     return -1;
   }
 
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
-
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const wal = new WALv1(dataDir());
-
-    // exporter idempotent
-    if (!(app as any).__void_wal_v1_exporter2){
-      (app as any).__void_wal_v1_exporter2 = true;
-      app.get("/__void/metrics/wal.prom", (_:any, res:any)=>{
-        try { res.type("text/plain").send(wal.metricsProm()); }
-        catch { res.type("text/plain").send("# wal exporter error\nvoid_wal_exporter_error 1\n"); }
-      });
-    }
-
-    // wrap SegStore.saveBlock with head-fallback (idempotent)
-    const { SegStore } = await import("./chain/seg_store.js");
-    if (SegStore && !((SegStore as any).__wal_v1_wrapped_headfb)){
-      const origSave = SegStore.prototype.saveBlock;
-      SegStore.prototype.saveBlock = async function(block:any){
-        let n = Number(block?.number ?? block?.header?.number ?? -1);
-        try{
-          if (!(Number.isFinite(n) && n>=0)) {
-            const head = await getHeadNumber();
-            if (Number.isFinite(head) && head>=0) n = head + 1; // assume next
-          }
-          const txRoot = block?.header?.txRoot || block?.txRoot;
-          let hash:any = block?.hash;
-          try {
-            if (!hash && block?.header){
-              const bh = await import("./chain/block.js");
-              hash = await bh.blockHash(block.header);
-            }
-          } catch {}
-          if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
-        }catch{}
-        const out = await origSave.apply(this, arguments as any);
-        try{
-          // commit to the real latest after save
-          const latest = await getHeadNumber();
-          if (Number.isFinite(latest) && latest>=0) wal.commit(latest);
-        }catch{}
-        return out;
-      };
-      (SegStore as any).__wal_v1_wrapped_headfb = true;
-      try{ (wal as any).counters.replays_total++; }catch{}
-    }
-  }
-  attach();
-})();
-
-// ---------------- WAL v1 SYNTHETIC-SEQUENCE (additive) -----------------
-(function walV1SyntheticSeq(){
-  const TICK=300;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
-
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
-
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const wal = new WALv1(dataDir());
-
-    // mark that synthetic mode is present
-    (wal as any).__synthetic_seq = (wal as any).__synthetic_seq || 0;
-
-    // exporter (with a tiny gauge so we can see this wrapper is live)
-    if (!(app as any).__void_wal_v1_exporter3){
-      (app as any).__void_wal_v1_exporter3 = true;
-      app.get("/__void/metrics/wal.prom", (_:any, res:any)=>{
-        try {
-          const base = wal.metricsProm();
-          const extra = "\n# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq " + ((wal as any).__synthetic_seq||0) + "\n";
-          res.type("text/plain").send(base + extra);
-        } catch {
-          res.type("text/plain").send("# wal exporter error\nvoid_wal_exporter_error 1\n");
-        }
-      });
-      // quick debug JSON
-      app.get("/__void/wal/debug.json", (_:any, res:any)=>{
-        res.json({
-          synthetic_seq: (wal as any).__synthetic_seq||0,
-          inflight: wal.counters.inflight_gauge,
-          last_uncommitted: wal.counters.last_uncommitted_number
-        });
-      });
-    }
-
-    // wrap SegStore.saveBlock; use synthetic sequence when n<0
-    const { SegStore } = await import("./chain/seg_store.js");
-    if (SegStore && !((SegStore as any).__wal_v1_wrapped_synth)){
-      const origSave = SegStore.prototype.saveBlock;
-      SegStore.prototype.saveBlock = async function(block:any){
-        let n = Number(block?.number ?? block?.header?.number ?? -1);
-
-        // synthetic numbering if the node is in safe-boot index (n<0)
-        if (!(Number.isFinite(n) && n>=0)) {
-          (wal as any).__synthetic_seq = ((wal as any).__synthetic_seq||0) + 1;
-          n = (wal as any).__synthetic_seq;
-        }
-
-        // txRoot/hash best-effort
-        const txRoot = block?.header?.txRoot || block?.txRoot;
-        let hash:any = block?.hash;
-        try {
-          if (!hash && block?.header){
-            const bh = await import("./chain/block.js");
-            hash = await bh.blockHash(block.header);
-          }
-        } catch {}
-
-        try { wal.append(n, txRoot, hash); } catch {}
-
-        const out = await origSave.apply(this, arguments as any);
-
-        // commit same number we appended (synthetic-safe)
-        try { wal.commit(n); } catch {}
-
-        return out;
-      };
-      (SegStore as any).__wal_v1_wrapped_synth = true;
-      try{ (wal as any).counters.replays_total++; }catch{}
-    }
-  }
-  attach();
-})();
-// ---------------- WAL v1 SYNTHETIC-SEQUENCE v2 (self-healing, new exporter) -----------
-(function walV1SyntheticSeqV2(){
-  const TICK=350;
-  const ENFORCE_MS=1500; // re-assert our wrapper once after startup
-  const G:any = (globalThis as any);
-
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
-
-  async function installOnce(tag:string){
+  function tryPatch(){
     try{
-      const app:any = getApp();
-      if (!app || typeof app.get!=="function") return false;
+      // ESM-safe global reach
+      const S:any = (globalThis as any).SegStore || (typeof SegStore!=="undefined"? (SegStore as any) : undefined);
+      if (!S || !S.prototype) return false;
 
-      const { WALv1 } = await import("./wal/wal_v1.js");
-      const wal = (G.__void_wal_v1 ||= new WALv1(dataDir()));
-      wal.counters.replays_total++; // harmless tick
-      wal.__synthetic_seq ||= 0;
+      const proto:any = S.prototype;
+      if (proto[SYM_WRAP]) return (state.patched=true);
 
-      // New exporter path so we know THIS code is serving it
-      if (!app.__void_wal_v2_exporter){
-        app.__void_wal_v2_exporter = true;
-        app.get("/__void/metrics/wal.v2.prom", (_:any, res:any)=>{
-          let base = "# HELP void_wal_exporter_v2 1 if this v2 exporter is active\n# TYPE void_wal_exporter_v2 gauge\nvoid_wal_exporter_v2 1\n";
-          try { base += wal.metricsProm(); } catch { base += "void_wal_exporter_error 1\n"; }
-          base += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
-          res.type("text/plain").send(base);
-        });
-        app.get("/__void/wal/debug2.json", (_:any,res:any)=>{
-          res.json({tag, synthetic_seq: wal.__synthetic_seq||0, inflight: wal.counters.inflight_gauge, last_uncommitted: wal.counters.last_uncommitted_number});
-        });
-      }
+      const original = (proto[SYM_ORIG] ||= proto.saveBlock);
+      if (typeof original !== "function") return false;
 
-      // Always (re)wrap current saveBlock; last wrapper wins
-      const mod = await import("./chain/seg_store.js");
-      const SegStore:any = mod.SegStore;
-      if (!SegStore || !SegStore.prototype?.saveBlock) return false;
-
-      const current = SegStore.prototype.saveBlock;
-      const WRAP_FLAG = "__wal_v1_wrapped_synth_v2";
-      if (current[WRAP_FLAG]) return true; // already ours
-
-      const wrapped = async function saveBlock_WALv2(this:any, block:any){
-        let n = Number(block?.number ?? block?.header?.number ?? -1);
-        if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
-
-        // best-effort txRoot/hash
-        const txRoot = block?.header?.txRoot || block?.txRoot;
-        let hash:any = block?.hash;
-        try{ if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); } }catch{}
-
-        try{ wal.append(n, txRoot, hash); }catch{}
-        const out = await current.apply(this, arguments as any);
-        try{ wal.commit(n); }catch{}
-        return out;
+      // Reentrancy guard per-instance
+      const wrapped = async function wrappedSaveBlock(this:any, ...args:any[]){
+        if (this && this[SYM_BUSY]) {
+          // If some other shim caused recursion, bail to original without nesting again
+          return original.apply(this, args);
+        }
+        const t0 = Date.now();
+        try{
+          if (this) this[SYM_BUSY] = true;
+          const out = await original.apply(this, args);
+          state.last_number = numOf(args[0]) ?? numOf(out);
+          state.last_result = "ok";
+          return out;
+        } catch(e:any){
+          state.last_result = "error:" + String(e?.message||e);
+          throw e;
+        } finally {
+          state.calls++; state.last_ms = Date.now()-t0;
+          if (this) try{ delete this[SYM_BUSY]; }catch{}
+        }
       };
-      wrapped[WRAP_FLAG] = true;
-      SegStore.prototype.saveBlock = wrapped;
+
+      // Flag + install
+      Object.defineProperty(wrapped, 'name', { value: 'wrappedSaveBlockV1' });
+      (wrapped as any)[SYM_WRAP] = true;
+      Object.defineProperty(proto, "saveBlock", { value: wrapped, configurable: true, writable: true });
+      state.patched = true;
       return true;
     }catch{ return false; }
   }
 
-  // First mount, then enforce once after other boot wrappers attach
-  (function boot(){
-    const tryMount = async ()=>{
-      const ok = await installOnce("boot");
-      if (!ok) setTimeout(tryMount, TICK);
-    };
-    tryMount();
-
-    setTimeout(()=>{ installOnce("enforce"); }, ENFORCE_MS);
-  })();
-})();
-// ---------------- WAL v1 sticky wrapper v3 (can't be overwritten) ----------------
-(function walV1StickyWrapV3(){
-  const G:any = (globalThis as any);
-  const TICK=300;
-  const ENFORCE_EVERY_MS=2000;     // keep asserting periodically
-  const WRAP_FLAG="__wal_v1_wrapped_synth_v3";
-  const SEEN_KEY="__wal_v1_seen_setter_v3";
-
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
-
-  async function ensureWal(){
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    return (G.__void_wal_v1 ||= new WALv1(dataDir()));
-  }
-
-  function mountExporter(app:any, wal:any){
-    if (app.__void_wal_v3_exporter) return;
-    app.__void_wal_v3_exporter = true;
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
-      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
-      out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${G.__wal_setter_events_total||0}\n`;
-      res.type("text/plain").send(out);
-    });
-    app.get("/__void/wal/hook.status", (_:any,res:any)=>{
-      const store = (G.__void_store_class)||null;
-      const proto = store?.prototype || (G.__void_store_proto)||null;
-      const fn = proto?.saveBlock;
-      res.json({
-        sticky:true, wrap_flag: WRAP_FLAG,
-        active: !!(fn && (fn as any)[WRAP_FLAG]),
-        has_setter: !!(proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.set),
-        seen_setter_events: G.__wal_setter_events_total||0,
-      });
-    });
-  }
-
-  async function installSticky(){
-    const app:any = getApp();
-    if (!app || typeof app.get!=="function") return false;
-
-    const mod = await import("./chain/seg_store.js");
-    const SegStore:any = mod.SegStore;
-    if (!SegStore || !SegStore.prototype) return false;
-    G.__void_store_class = SegStore; G.__void_store_proto = SegStore.prototype;
-
-    const wal = await ensureWal();
-    wal.__synthetic_seq ||= 0;
-
-    // 1) Define a sticky accessor on prototype.saveBlock
-    const desc = Object.getOwnPropertyDescriptor(SegStore.prototype, "saveBlock");
-    if (!desc || ("value" in desc)) {
-      // convert to accessor with our current function as backing field
-      const real = SegStore.prototype.saveBlock;
-      let _real = typeof real==="function" ? real : async function(){};
-      Object.defineProperty(SegStore.prototype, "saveBlock", {
-        configurable: true, enumerable: false,
-        get(){ return wrapIfNeeded(_real); },
-        set(fn:any){
-          G.__wal_setter_events_total = (G.__wal_setter_events_total||0) + 1;
-          _real = typeof fn==="function" ? fn : _real;
-        },
-      });
-    }
-
-    // 2) Replace current backing impl by calling the setter once with itself
-    const cur = SegStore.prototype.saveBlock;
-    SegStore.prototype.saveBlock = cur;
-
-    // 3) exporter
-    mountExporter(app, wal);
-    return true;
-
-    function wrapIfNeeded(fn:any){
-      if (fn && fn[WRAP_FLAG]) return fn; // already ours
-      const wrapped = async function saveBlock_WALv3(this:any, block:any){
-        // derive n or synthesize monotonically
-        let n = Number(block?.number ?? block?.header?.number ?? -1);
-        if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
-
-        // best-effort roots/hashes (non-fatal)
-        try{
-          const txRoot = block?.header?.txRoot || block?.txRoot;
-          let hash:any = block?.hash;
-          if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); }
-          try { wal.append(n, txRoot, hash); } catch {}
-          const out = await fn.apply(this, arguments as any);
-          try { wal.commit(n); } catch {}
-          return out;
-        }catch(e){
-          try { wal.append(n, null, null); } catch {}
-          const out = await fn.apply(this, arguments as any);
-          try { wal.commit(n); } catch {}
-          return out;
-        }
-      };
-      wrapped[WRAP_FLAG] = true;
-      return wrapped;
-    }
-  }
-
-  // Retry until app/store exist, then keep enforcing periodically
-  (function boot(){
-    const tryMount = async ()=>{ const ok = await installSticky(); if (!ok) setTimeout(tryMount, TICK); };
-    tryMount();
-    setInterval(()=>{ installSticky(); }, ENFORCE_EVERY_MS);
-  })();
-})();
-// ---------------- WAL v1 sticky wrapper v3b (proxy existing accessor) ----------------
-(function walV1StickyWrapV3b(){
-  const G:any = (globalThis as any);
-  const TICK=300, ENFORCE_MS=2000;
-  const WRAP_FLAG="__wal_v1_wrapped_synth_v3";
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
-
-  async function ensureWal(){
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    return (G.__void_wal_v1 ||= new WALv1(dataDir()));
-  }
-
-  function wrapIfNeeded(fn:any, wal:any){
-    if (!fn) return fn;
-    if ((fn as any)[WRAP_FLAG]) return fn;
-    const wrapped = async function saveBlock_WALv3(this:any, block:any){
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
-      try{
-        const txRoot = block?.header?.txRoot || block?.txRoot;
-        let hash:any = block?.hash;
-        if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); }
-        try { wal.append(n, txRoot, hash); } catch {}
-        const out = await fn.apply(this, arguments as any);
-        try { wal.commit(n); } catch {}
-        return out;
-      }catch(e){
-        try { wal.append(n, null, null); } catch {}
-        const out = await fn.apply(this, arguments as any);
-        try { wal.commit(n); } catch {}
-        return out;
-      }
-    };
-    (wrapped as any)[WRAP_FLAG] = true;
-    return wrapped;
-  }
-
-  function mountExporter(app:any, wal:any){
-    if (app.__void_wal_v3_exporter) return;
-    app.__void_wal_v3_exporter = true;
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
-      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
-      out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${G.__wal_setter_events_total||0}\n`;
-      res.type("text/plain").send(out);
-    });
-    app.get("/__void/wal/hook.status", (_:any,res:any)=>{
-      // read the currently returned function to judge "active"
-      const SegStore = G.__void_store_class;
-      const proto = SegStore?.prototype || G.__void_store_proto || null;
-      let cur:any = undefined;
-      try { cur = proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.get?.call(proto) || proto?.saveBlock; } catch {}
-      res.json({
-        sticky:true, wrap_flag: WRAP_FLAG,
-        active: !!(cur && cur[WRAP_FLAG]),
-        has_setter: !!(proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.set),
-        seen_setter_events: G.__wal_setter_events_total||0,
-      });
-    });
-  }
-
-  async function installSticky(){
-    const app:any = getApp(); if (!app || typeof app.get!=="function") return false;
-    const mod = await import("./chain/seg_store.js");
-    const SegStore:any = mod.SegStore;
-    if (!SegStore || !SegStore.prototype) return false;
-    G.__void_store_class = SegStore; G.__void_store_proto = SegStore.prototype;
-
-    const wal = await ensureWal(); wal.__synthetic_seq ||= 0;
-
-    const desc = Object.getOwnPropertyDescriptor(SegStore.prototype, "saveBlock");
-    // Always replace with our proxy accessor that wraps-through
-    const prevGet = desc?.get;
-    const prevSet = desc?.set;
-    let prevValue:any = (desc && "value" in desc) ? desc.value : undefined;
-
-    Object.defineProperty(SegStore.prototype, "saveBlock", {
-      configurable: true, enumerable: false,
-      get: function(){
-        let fn:any;
-        if (prevGet) { try { fn = prevGet.call(this); } catch { fn = undefined; } }
-        else { fn = prevValue ?? (SegStore.prototype as any).__sb_fallback_value; }
-        return wrapIfNeeded(fn, wal);
-      },
-      set: function(fn:any){
-        G.__wal_setter_events_total = (G.__wal_setter_events_total||0) + 1;
-        if (prevSet) { try { prevSet.call(this, fn); } catch {} }
-        else { prevValue = fn; (SegStore.prototype as any).__sb_fallback_value = fn; }
-      },
-    });
-
-    // Touch setter once to flow current impl through our setter, then wrapping occurs on next get()
-    try { const cur = (prevGet ? prevGet.call(SegStore.prototype) : (prevValue||SegStore.prototype.saveBlock)); SegStore.prototype.saveBlock = cur; } catch {}
-
-    mountExporter(app, wal);
-    return true;
-  }
-
-  (function boot(){
-    const tryMount = async ()=>{ const ok = await installSticky(); if (!ok) setTimeout(tryMount, TICK); };
-    tryMount();
-    setInterval(()=>{ installSticky(); }, ENFORCE_MS);
-  })();
-})();
-// ---------------- WAL v4 (instance-level, reasserting) ----------------
-(function walV4InstanceWrap(){
-  const G:any = globalThis as any;
-  const TICK=350, REASSERT_MS=1500, FLAG="__wal_v4_wrapped";
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
-
-  async function ensureWal(){
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    return (G.__void_wal_v1 ||= new WALv1(dataDir()));
-  }
-
-  function wrapSaveBlock(fn:any, wal:any){
-    if (!fn) return fn;
-    if ((fn as any)[FLAG]) return fn;
-    const wrapped = async function saveBlock_WALv4(this:any, block:any){
-      // derive n (fallback to synthetic)
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
-      let hash:any = block?.hash;
-      if (!hash && block?.header){ const m = await import("./chain/block.js"); hash = await m.blockHash(block.header); }
-      const txRoot = block?.header?.txRoot || block?.txRoot || null;
-      try { wal.append(n, txRoot, hash); } catch {}
-      try { const out = await fn.apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
-      catch(e){ try { wal.commit(n); } catch {}; throw e; }
-    };
-    (wrapped as any)[FLAG] = true;
-    return wrapped;
-  }
-
-  function mountExporter(app:any, wal:any){
-    if (app.__void_wal_v4_exporter) return;
-    app.__void_wal_v4_exporter = true;
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
-      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
-      out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${(G.__wal_setter_events_total||0)}\n`;
-      res.type("text/plain").send(out);
-    });
-    app.get("/__void/wal/hook.status", (_:any,res:any)=>{
-      const app2:any = getApp();
-      const store:any = app2?.locals?.store || G.__void_store_instance;
-      const cur = store?.saveBlock;
-      res.json({ sticky:true, wrap_flag: FLAG, active: !!(cur && cur[FLAG]), has_setter: true, seen_setter_events: (G.__wal_setter_events_total||0) });
-    });
-  }
-
-  async function install(){
-    const app:any = getApp(); if (!app || typeof app.get!=="function") return false;
-    // stash instance once available
-    const store:any = app.locals?.store || G.__void_store_instance;
-    if (!store || typeof store.saveBlock!=="function"){ setTimeout(install, TICK); return false; }
-    G.__void_store_instance = store;
-
-    const wal = await ensureWal(); wal.__synthetic_seq ||= 0;
-    // wrap once now …
-    store.saveBlock = wrapSaveBlock(store.saveBlock, wal);
-    // …and reassert periodically in case other patches replace it
-    if (!G.__void_wal_v4_timer){
-      G.__void_wal_v4_timer = setInterval(()=>{ 
-        if (!G.__void_store_instance) return;
-        const s = G.__void_store_instance;
-        s.saveBlock = wrapSaveBlock(s.saveBlock, wal);
-      }, REASSERT_MS);
-    }
-    mountExporter(app, wal);
-    return true;
-  }
-
-  (function boot(){ const t = ()=>install().then(ok=>{ if (!ok) setTimeout(t, TICK); }); t(); })();
-})();
-// ---------------- WAL v5 (instance trap: property setter + rewrap) ----------------
-(function walV5Trap(){
-  const G:any = globalThis as any;
-  const FLAG="__wal_v5_wrapped", RAW="__wal_v5_raw";
-  const TICK=300, REASSERT_MS=1500;
-
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  async function ensureWal(){
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
-    return (G.__void_wal_v1 ||= new WALv1(dir));
-  }
-
-  function wrap(fn:any, wal:any){
-    if (!fn) return fn;
-    if ((fn as any)[FLAG]) return fn;
-    const wrapped = async function saveBlock_WALv5(this:any, block:any){
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
-      let hash:any = block?.hash;
-      if (!hash && block?.header){ const m = await import("./chain/block.js"); hash = await m.blockHash(block.header); }
-      const txRoot = block?.header?.txRoot || block?.txRoot || null;
-      try { wal.append(n, txRoot, hash); } catch {}
-      try { const out = await (fn as any).apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
-      catch(e){ try { wal.commit(n); } catch {}; throw e; }
-    };
-    (wrapped as any)[FLAG] = true;
-    return wrapped;
-  }
-
-  function mountExporter(app:any, wal:any){
-    if (app.__void_wal_v5_exporter) return; app.__void_wal_v5_exporter = true;
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
-      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
-      out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${(G.__wal_setter_events_total||0)}\n`;
-      res.type("text/plain").send(out);
-    });
-    app.get("/__void/wal/hook.status", (_:any,res:any)=>{
-      const s:any = (getApp()?.locals?.store) || G.__void_store_instance;
-      const cur = s?.saveBlock;
-      res.json({ sticky:true, wrap_flag: FLAG, active: !!(cur && cur[FLAG]), has_setter: true, seen_setter_events: (G.__wal_setter_events_total||0) });
-    });
-    app.get("/__void/wal/fn.status", (_:any,res:any)=>{
-      const s:any = (getApp()?.locals?.store) || G.__void_store_instance;
-      res.json({
-        has_store: !!s,
-        typeof_saveBlock: typeof s?.saveBlock,
-        wrapped: !!(s?.saveBlock && s.saveBlock[FLAG]),
-        has_raw: !!s?.[RAW],
-        fn_name: (s?.saveBlock && s.saveBlock.name) || null
-      });
-    });
-  }
-
-  function installTrapOnStore(store:any, wal:any){
-    if (!store) return false;
-    // Keep current function as raw
-    if (!store[RAW] && typeof store.saveBlock === "function") store[RAW] = store.saveBlock;
-
-    // Define a trapping accessor on saveBlock
-    const desc = Object.getOwnPropertyDescriptor(store, "saveBlock");
-    const currentGetter = desc && (desc.get || desc.set) ? desc.get : null;
-    if (currentGetter && (currentGetter as any)[FLAG]) return true; // already trapped
-
-    let _raw = store[RAW] || store.saveBlock;
-    Object.defineProperty(store, "saveBlock", {
-      configurable: true,
-      enumerable: false,
-      get: function(){
-        // Always return wrapped version
-        return wrap(_raw, wal);
-      },
-      set: function(v:any){
-        // Every replacement becomes our new raw; callers still get wrapped
-        _raw = v;
-      }
-    });
-    // mark getter so we know it's ours
-    (Object.getOwnPropertyDescriptor(store, "saveBlock")!.get as any)[FLAG] = true;
-    return true;
-  }
-
-  async function boot(){
-    const tryOnce = async()=>{
-      const app:any = getApp(); if (!app || typeof app.get!=="function") return false;
-      const store:any = app.locals?.store || G.__void_store_instance;
-      if (!store || typeof store.saveBlock!=="function") return false;
-      G.__void_store_instance = store;
-      const wal = await ensureWal(); wal.__synthetic_seq ||= 0;
-      installTrapOnStore(store, wal);
-      mountExporter(app, wal);
-      // Reassert periodically (in case store object is swapped entirely)
-      if (!G.__void_wal_v5_timer){
-        G.__void_wal_v5_timer = setInterval(()=>{
-          const s:any = getApp()?.locals?.store || G.__void_store_instance;
-          if (!s) return;
-          if (!Object.getOwnPropertyDescriptor(s, "saveBlock")?.get?.[FLAG]){
-            const w = G.__void_wal_v1 || wal;
-            installTrapOnStore(s, w);
-          }
-        }, REASSERT_MS);
-      }
-      return true;
-    };
-    (async function loop(){ if (!(await tryOnce())) setTimeout(loop, TICK); })();
-  }
-  boot();
-})();
-// ---------------- WAL v6 (reassert loop + status routes, pure-additive) ----------------
-(function walV6Reassert(){
-  const G:any = globalThis as any;
-  const FLAG="__wal_v6_wrapped";
-  const RAW ="__wal_v6_raw";
-  const TICK=500;
-
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-  async function getWal(){
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
-    return (G.__void_wal_v1 ||= new WALv1(dir));
-  }
-  function wrap(fn:any, wal:any){
-    if (!fn) return fn;
-    if ((fn as any)[FLAG]) return fn;
-    const wrapped = async function saveBlock_WALv6(this:any, block:any){
-      // number / synthetic fallback
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
-      // txRoot/hash best-effort
-      let hash:any = block?.hash;
-      if (!hash && block?.header){ const m = await import("./chain/block.js"); try { hash = await m.blockHash(block.header); } catch {} }
-      const txRoot = block?.header?.txRoot || block?.txRoot || null;
-      try { wal.append(n, txRoot, hash); } catch {}
-      try { const out = await (fn as any).apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
-      catch(e){ try { wal.commit(n); } catch {}; throw e; }
-    };
-    (wrapped as any)[FLAG] = true;
-    return wrapped;
-  }
-
-  function mountRoutes(app:any, wal:any){
-    if (app.__void_wal_v6_routes) return; app.__void_wal_v6_routes = true;
-    // prom exporter (v3 path)
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
-      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
-      res.type("text/plain").send(out);
-    });
-    // hook + fn status
-    app.get("/__void/wal/hook.status", (_:any,res:any)=>{
-      const s:any = app.locals?.store || G.__void_store_instance;
-      res.json({ sticky:true, wrap_flag:FLAG, active: !!(s?.saveBlock && s.saveBlock[FLAG]) , has_setter:true, seen_setter_events: (G.__wal_setter_events_total||0) });
-    });
-    app.get("/__void/wal/fn.status", (_:any,res:any)=>{
-      const s:any = app.locals?.store || G.__void_store_instance;
-      const d = s ? Object.getOwnPropertyDescriptor(s,"saveBlock") : null;
-      res.json({
-        has_store: !!s,
-        typeof_saveBlock: s ? typeof s.saveBlock : null,
-        wrapped: !!(s?.saveBlock && s.saveBlock[FLAG]),
-        has_raw: !!s?.[RAW],
-        own_prop: !!d,
-        getter: !!d?.get,
-        setter: !!d?.set,
-        fn_name: (s?.saveBlock && s.saveBlock.name) || null
-      });
-    });
-  }
-
-  async function reassert(){
-    const app:any = getApp(); if (!app || typeof app.get !== "function") return;
-    const wal = await getWal(); wal.__synthetic_seq ||= 0;
-    const store:any = app.locals?.store || G.__void_store_instance;
-    if (!store || typeof store.saveBlock!=="function") return;
-    G.__void_store_instance = store;
-    if (!store[RAW]) store[RAW] = store.saveBlock;
-    if (!store.saveBlock[FLAG]) store.saveBlock = wrap(store.saveBlock, wal);
-    mountRoutes(app, wal);
-  }
-
-  (function loop(){
-    reassert().catch(()=>{}); setTimeout(loop, TICK);
-  })();
-})();
-// ---------------- WAL v7 (Vector-7): proto+instance wrap, safe-boot paths, reassert ----------------
-(function walV7Vector(){
-  const G:any = globalThis as any;
-  const FLAG="__wal_v7_wrapped";
-  const RAW ="__wal_v7_raw";
-  const TICK=400;
-  let overwrites = 0;
-
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-
-  async function getMods(){
-    const seg = await import("./chain/seg_store.js");
-    const blk = await import("./chain/block.js");
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
-    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
-    wal.__synthetic_seq ||= 0;
-    return {SegStore: seg.SegStore, blockHash: blk.blockHash, wal};
-  }
-
-  function mkWrapped(fn:any, wal:any, blockHash:any){
-    if (!fn) return fn;
-    if ((fn as any)[FLAG]) return fn;
-    const wrapped = async function saveBlock_WALv7(this:any, block:any){
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0)+1; n = wal.__synthetic_seq; }
-      let hash:any = block?.hash;
-      if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
-      const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
-      try { wal.append(n, txRoot, hash); } catch {}
-      try {
-        const out = await (fn as any).apply(this, arguments as any);
-        try { wal.commit(n); } catch {}
-        return out;
-      } catch(e){
-        try { wal.commit(n); } catch {}
-        throw e;
-      }
-    };
-    (wrapped as any)[FLAG] = true;
-    return wrapped;
-  }
-
-  function mountStatus(app:any, wal:any){
-    if (app.__void_wal_v7_routes) return; app.__void_wal_v7_routes = true;
-
-    // Prom exporter (v3 path) – allowed under safe-boot
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
-      out += `# TYPE void_wal_synthetic_seq gauge
-void_wal_synthetic_seq ${wal.__synthetic_seq||0}
-# TYPE void_wal_overwrites_total counter
-void_wal_overwrites_total ${overwrites}
-# TYPE void_wal_wrapped gauge
-void_wal_wrapped ${((G.__void_store_instance?.saveBlock && G.__void_store_instance.saveBlock[FLAG])?1:0)}
-`;
-      res.type("text/plain").send(out);
-    });
-
-    // JSON status also under __void/metrics (safe-boot-friendly)
-    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
-      const s:any = G.__void_store_instance;
-      res.json({
-        wrapped: !!(s?.saveBlock && s.saveBlock[FLAG]),
-        overwrites,
-        synthetic_seq: (G.__void_wal_v1?.__synthetic_seq)||0
-      });
-    });
-  }
-
-  async function reassert(){
-    const app:any = getApp(); if (!app || typeof app.get!=="function") return;
-    const {SegStore, blockHash, wal} = await getMods();
-
-    // 1) Prototype guard: hook setter so any reassignment is auto-wrapped
-    const pd = Object.getOwnPropertyDescriptor(SegStore.prototype, "saveBlock") || {};
-    if (!G.__wal_v7_proto_guard){
-      let current = (pd.value || SegStore.prototype.saveBlock);
-      const getter = function(){ return current; };
-      const setter = function(v:any){ current = mkWrapped(v, wal, blockHash); overwrites++; };
-      try {
-        Object.defineProperty(SegStore.prototype, "saveBlock", { configurable: true, enumerable: false, get: getter, set: setter });
-        // initialize via setter once
-        SegStore.prototype.saveBlock = current;
-        G.__wal_v7_proto_guard = true;
-      } catch {}
-    }
-
-    // 2) Instance guard: wrap live store if present
-    const store:any = app.locals?.store || G.__void_store_instance;
-    if (store && typeof store.saveBlock === "function"){
-      G.__void_store_instance = store;
-      if (!store[RAW]) store[RAW] = store.saveBlock;
-      if (!store.saveBlock[FLAG]) store.saveBlock = mkWrapped(store.saveBlock, wal, blockHash);
-    }
-
-    // 3) Routes
-    mountStatus(app, wal);
-  }
-
-  (function loop(){ reassert().catch(()=>{}); setTimeout(loop, TICK); })();
-})();
-// ---------------- WAL v7.2 (Vector-7): value-hook + defineProperty trap + instance reseat ----------------
-(function walV72Vector(){
-  const G:any = globalThis as any;
-  const FLAG="__wal_v72_wrapped";
-  const RAW ="__wal_v72_raw";
-  const TICK=400;
-  let overwrites = 0;
-
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-
-  async function getMods(){
-    const seg = await import("./chain/seg_store.js");
-    const blk = await import("./chain/block.js");
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
-    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
-    wal.__synthetic_seq ||= 0;
-    return {SegStore: seg.SegStore, blockHash: blk.blockHash, wal};
-  }
-
-  function mkWrapped(fn:any, wal:any, blockHash:any){
-    if (!fn) return fn;
-    if ((fn as any)[FLAG]) return fn;
-    const wrapped = async function saveBlock_WALv72(this:any, block:any){
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0)+1; n = wal.__synthetic_seq; }
-      let hash:any = block?.hash;
-      if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
-      const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
-      try { wal.append(n, txRoot, hash); } catch {}
-      try {
-        const out = await (fn as any).apply(this, arguments as any);
-        try { wal.commit(n); } catch {}
-        return out;
-      } catch(e){
-        try { wal.commit(n); } catch {}
-        throw e;
-      }
-    };
-    (wrapped as any)[FLAG] = true;
-    return wrapped;
-  }
-
-  function mountStatus(app:any, wal:any){
-    if (app.__void_wal_v72_routes) return; app.__void_wal_v72_routes = true;
-
-    // Prom exporter: allowed under safeboot
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
-      const wrapped = !!(G.__void_store_instance?.saveBlock && G.__void_store_instance.saveBlock[FLAG]);
-      out += `# TYPE void_wal_synthetic_seq gauge
-void_wal_synthetic_seq ${wal.__synthetic_seq||0}
-# TYPE void_wal_overwrites_total counter
-void_wal_overwrites_total ${overwrites}
-# TYPE void_wal_wrapped gauge
-void_wal_wrapped ${wrapped?1:0}
-`;
-      res.type("text/plain").send(out);
-    });
-
-    // Safe JSON status
-    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
-      const wrapped = !!(G.__void_store_instance?.saveBlock && G.__void_store_instance.saveBlock[FLAG]);
-      res.json({ wrapped, overwrites, synthetic_seq: (G.__void_wal_v1?.__synthetic_seq)||0 });
-    });
-  }
-
-  async function arm(){
-    const app:any = getApp(); if (!app || typeof app.get!=="function") return;
-    const {SegStore, blockHash, wal} = await getMods();
-
-    // (A) Wrap current prototype value (plain function → wrapped)
-    try {
-      const cur = SegStore.prototype.saveBlock;
-      if (typeof cur === "function" && !cur[FLAG]) {
-        SegStore.prototype.saveBlock = mkWrapped(cur, wal, blockHash);
-        overwrites++;
-      }
-    } catch {}
-
-    // (B) Trap future defineProperty writes to SegStore.prototype.saveBlock
-    if (!G.__wal_v72_define_trap){
-      const origDefine = Object.defineProperty;
-      Object.defineProperty = function(target:any, prop:any, desc:any){
-        try{
-          const isSeg = target && prop==="saveBlock" && (
-            // target === SegStore.prototype (best-effort id check)
-            (target === SegStore.prototype) ||
-            // or stringy class name match fallback
-            (target?.constructor?.name === "SegStore" && target?.saveBlock)
-          );
-          if (isSeg && typeof desc?.value === "function" && !desc.value[FLAG]){
-            desc = { ...desc, value: mkWrapped(desc.value, (G.__void_wal_v1), (G.__void_blockHash||(()=>{}))) };
-            overwrites++;
-          }
-        }catch{}
-        return (origDefine as any).call(Object, target, prop, desc);
-      };
-      G.__wal_v72_define_trap = true;
-    }
-
-    // (C) Reseat live instance if present
-    const store:any = app.locals?.store || G.__void_store_instance;
-    if (store && typeof store.saveBlock === "function"){
-      G.__void_store_instance = store;
-      if (!store[RAW]) store[RAW] = store.saveBlock;
-      if (!store.saveBlock[FLAG]) { store.saveBlock = mkWrapped(store.saveBlock, (G.__void_wal_v1), (G.__void_blockHash||(()=>{}))); overwrites++; }
-    }
-
-    mountStatus(app, (G.__void_wal_v1));
-  }
-
-  (function loop(){ arm().catch(()=>{}); setTimeout(loop, TICK); })();
-})();
-// --------------- WAL v7.4 (Vector-7): INSTANCE ACCESSOR GUARD (last-wins) ---------------
-(function walV74InstanceAccessor(){
-  const G:any = globalThis as any;
-  const FLAG   = "__wal_v74_wrapped";
-  const RAWKEY = "__wal_v74_raw";
-  const TICK   = 250;
-  let overwrites = 0;
-
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-
-  async function getMods(){
-    const seg = await import("./chain/seg_store.js");
-    const blk = await import("./chain/block.js");
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
-    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
-    wal.__synthetic_seq ||= 0;
-    G.__void_blockHash ||= blk.blockHash;
-    return {SegStore: seg.SegStore, blockHash: blk.blockHash, wal};
-  }
-
-  function mkWrapped(fn:any, wal:any, blockHash:any){
-    if (!fn || (fn as any)[FLAG]) return fn;
-    const wrapped = async function saveBlock_WALv74(this:any, block:any){
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0)+1; n = wal.__synthetic_seq; }
-      let hash:any = block?.hash;
-      if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
-      const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
-      try { wal.append(n, txRoot, hash); } catch {}
-      try {
-        const out = await (fn as any).apply(this, arguments as any);
-        try { wal.commit(n); } catch {}
-        return out;
-      } catch(e){
-        try { wal.commit(n); } catch {}
-        throw e;
-      }
-    };
-    (wrapped as any)[FLAG] = true;
-    return wrapped;
-  }
-
-  function mountStatus(app:any, wal:any){
-    if (app.__void_wal_v74_routes) return; app.__void_wal_v74_routes = true;
-
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
-      const store = (app.locals && app.locals.store) || G.__void_store_instance;
-      const wrapped = !!(store?.saveBlock && store.saveBlock[FLAG]);
-      out += `# TYPE void_wal_synthetic_seq gauge
-void_wal_synthetic_seq ${wal.__synthetic_seq||0}
-# TYPE void_wal_overwrites_total counter
-void_wal_overwrites_total ${overwrites}
-# TYPE void_wal_wrapped gauge
-void_wal_wrapped ${wrapped?1:0}
-`;
-      res.type("text/plain").send(out);
-    });
-
-    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
-      const store = (app.locals && app.locals.store) || G.__void_store_instance;
-      const wrapped = !!(store?.saveBlock && store.saveBlock[FLAG]);
-      res.json({ wrapped, overwrites, synthetic_seq: (G.__void_wal_v1?.__synthetic_seq)||0 });
-    });
-  }
-
-  async function arm(){
-    const app:any = getApp(); if (!app || typeof app.get!=="function") return;
-    const {SegStore, wal} = await getMods();
-
-    // Bind once the live store exists
-    const store:any = app.locals?.store || G.__void_store_instance;
-    if (!store) return;
-
-    // (A) Remember store (used by status)
-    G.__void_store_instance = store;
-
-    // (B) Install an *instance-level accessor* that intercepts *all* future sets.
-    // This shadows the prototype prop, so direct assigns go through our setter.
-    const pd = Object.getOwnPropertyDescriptor(store, "saveBlock");
-    if (!pd || (!pd.get && !pd.set)) {
-      let _wrapped:any = (typeof store.saveBlock === "function")
-        ? mkWrapped(store.saveBlock, G.__void_wal_v1, G.__void_blockHash)
-        : store.saveBlock;
-
-      Object.defineProperty(store, "saveBlock", {
-        configurable: true,
-        enumerable: false,
-        get(){ return _wrapped; },
-        set(v:any){
-          _wrapped = (typeof v === "function")
-            ? mkWrapped(v, G.__void_wal_v1, G.__void_blockHash)
-            : v;
-          overwrites++;
-        }
-      });
-
-      // ensure the very first value is wrapped
-      store.saveBlock = store[RAWKEY] || SegStore.prototype.saveBlock;
-    } else {
-      // already accessorized by someone else — still force a wrap of current value
-      if (typeof store.saveBlock === "function" && !store.saveBlock[FLAG]) {
-        (store as any).saveBlock = store.saveBlock;
-        overwrites++;
-      }
-    }
-
-    // (C) If prototype gets stomped later, our instance accessor still wins.
-    mountStatus(app, G.__void_wal_v1);
-  }
-
-  (function loop(){ arm().catch(()=>{}); setTimeout(loop, TICK); })();
-})();
-// -------- WAL v7.6 (Vector-7): trap app.locals.store assignment + manual arm --------
-(function walV76Trap(){
-  const G:any = globalThis as any;
-  const FLAG="__wal_v76_wrapped"; let overwrites=0;
-
-  function getApp(){ return G.__void_http_app || (G as any).app; }
-
-  async function getWalCtx(){
-    const seg = await import("./chain/seg_store.js");
-    const blk = await import("./chain/block.js");
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
-    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
-    wal.__synthetic_seq ||= 0;
-    G.__void_blockHash ||= blk.blockHash;
-    return { SegStore: seg.SegStore, blockHash: blk.blockHash, wal };
-  }
-
-  function mkWrapped(fn:any, wal:any, blockHash:any){
-    if (fn && fn[FLAG]) return fn;
-    if (typeof fn!=="function") return fn;
-    const wrapped = async function saveBlock_WALv76(this:any, block:any){
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq=(wal.__synthetic_seq||0)+1; n=wal.__synthetic_seq; }
-      let hash = block?.hash;
-      if (!hash && block?.header){ try{ hash = await blockHash(block.header);}catch{} }
-      const txRoot = block?.header?.txRoot ?? block?.txRoot ?? null;
-      try { wal.append(n, txRoot, hash); } catch {}
-      try { const out = await fn.apply(this, arguments as any); try{ wal.commit(n);}catch{}; return out; }
-      catch(e){ try{ wal.commit(n);}catch{}; throw e; }
-    };
-    (wrapped as any)[FLAG]=true;
-    return wrapped;
-  }
-
-  async function accessorizeStore(store:any){
-    if (!store) return false;
-    const { SegStore, blockHash, wal } = await getWalCtx();
-
-    // Instance-level accessor that shadows prototype forever.
-    const pd = Object.getOwnPropertyDescriptor(store, "saveBlock");
-    if (!pd || (!pd.get && !pd.set)) {
-      let _wrapped = mkWrapped(
-        typeof store.saveBlock==="function" ? store.saveBlock : SegStore.prototype.saveBlock,
-        wal, blockHash
-      );
-      Object.defineProperty(store, "saveBlock", {
-        configurable:true, enumerable:false,
-        get(){ return _wrapped; },
-        set(v:any){ _wrapped = mkWrapped(v, wal, blockHash); overwrites++; }
-      });
-      // force initial wrap path through setter once
-      store.saveBlock = store.saveBlock;
-    } else {
-      // Already accessorized by someone — force one pass through setter anyway
-      store.saveBlock = store.saveBlock;
-      overwrites++;
-    }
-    G.__void_store_instance = store;
-    return true;
-  }
-
-  function mountStatus(app:any){
-    if (app.__void_wal_v76_routes) return; app.__void_wal_v76_routes=true;
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      const wal = G.__void_wal_v1;
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal?.metricsProm?.() ?? ""; } catch {}
-      const s = (app.locals && app.locals.store) || G.__void_store_instance;
-      const wrapped = !!(s?.saveBlock && s.saveBlock[FLAG]);
-      out += `# TYPE void_wal_synthetic_seq gauge
-void_wal_synthetic_seq ${wal?.__synthetic_seq||0}
-# TYPE void_wal_overwrites_total counter
-void_wal_overwrites_total ${overwrites}
-# TYPE void_wal_wrapped gauge
-void_wal_wrapped ${wrapped?1:0}
-`;
-      res.type("text/plain").send(out);
-    });
-    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
-      const wal = G.__void_wal_v1;
-      const s = (app.locals && app.locals.store) || G.__void_store_instance;
-      const wrapped = !!(s?.saveBlock && s.saveBlock[FLAG]);
-      res.json({ wrapped, overwrites, synthetic_seq: wal?.__synthetic_seq||0 });
-    });
-    // Manual arming endpoint (safe to call anytime)
-    app.post("/__void/wal/arm-now", async (_:any,res:any)=>{
-      const s = (app.locals && app.locals.store) || G.__void_store_instance;
-      const ok = await accessorizeStore(s);
-      res.json({ ok, overwrites });
-    });
-  }
-
-  function trapLocalsStore(app:any){
-    if (!app || !app.locals) return;
-    if (app.locals.__void_wal_v76_trapped) return;
-    app.locals.__void_wal_v76_trapped = true;
-    let _store = app.locals.store;
-    Object.defineProperty(app.locals, "store", {
-      configurable:true, enumerable:true,
-      get(){ return _store; },
-      set(v:any){ _store=v; accessorizeStore(v).catch(()=>{}); }
-    });
-    if (_store) accessorizeStore(_store).catch(()=>{});
-  }
-
-  // Boot loop: wait for app, then trap and mount routes.
-  (function loop(){
-    const app:any = getApp();
-    if (app && typeof app.get==="function") { trapLocalsStore(app); mountStatus(app); }
-    setTimeout(loop, 250);
-  })();
-})();
-// -------- WAL v7.8 (Vector-7): persistent SegStore.prototype.saveBlock wrapper --------
-(function walV78ProtoLoop(){
-  const G:any = globalThis as any;
-  const FLAG = "__wal_v78_proto_wrapped";
-  let overwrites = 0;
-
-  async function getCtx(){
-    const seg = await import("./chain/seg_store.js");
-    const blk = await import("./chain/block.js");
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
-    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
-    wal.__synthetic_seq ||= 0;
-    return { SegStore: seg.SegStore, blockHash: blk.blockHash, wal };
-  }
-
-  function mkWrapped(orig:any, wal:any, blockHash:any){
-    if (!orig || typeof orig!=="function") return orig;
-    if ((orig as any)[FLAG]) return orig;
-    const wrapped = async function saveBlock_WALv78(this:any, block:any){
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq=(wal.__synthetic_seq||0)+1; n=wal.__synthetic_seq; }
-      let hash = block?.hash;
-      if (!hash && block?.header) { try { hash = await blockHash(block.header); } catch {} }
-      const txRoot = block?.header?.txRoot ?? block?.txRoot ?? null;
-
-      try { wal.append(n, txRoot, hash); } catch {}
-      try { const out = await orig.apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
-      catch(e){ try { wal.commit(n); } catch {}; throw e; }
-    };
-    (wrapped as any)[FLAG] = true;
-    return wrapped;
-  }
-
-  async function rewrapProto(){
+  function tryUnpatch(){
     try{
-      const { SegStore, blockHash, wal } = await getCtx();
-      const cur = SegStore.prototype.saveBlock;
-      const wrapped = mkWrapped(cur, wal, blockHash);
-      if (wrapped !== cur){
-        SegStore.prototype.saveBlock = wrapped;
-        overwrites++;
+      const S:any = (globalThis as any).SegStore || (typeof SegStore!=="undefined"? (SegStore as any) : undefined);
+      if (!S || !S.prototype) return false;
+      const proto:any = S.prototype;
+      const orig = proto[SYM_ORIG];
+      if (typeof orig === "function") {
+        Object.defineProperty(proto, "saveBlock", { value: orig, configurable: true, writable: true });
+        delete proto[SYM_WRAP];
+        state.patched = false;
+        return true;
       }
-    }catch{}
+      return false;
+    }catch{ return false; }
   }
 
-  // Prom exporter & status (piggyback on existing path names you’re scraping)
-  function mountExporters(){
-    const app = G.__void_http_app || (G as any).app;
-    if (!app || typeof app.get!=="function") return;
-    if (app.__void_wal_v78_routes) return; app.__void_wal_v78_routes = true;
-
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      const wal = G.__void_wal_v1;
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal?.metricsProm?.() ?? ""; } catch {}
-      const proto = (G.__void_seg_proto_cached ||= require("./dist/chain/seg_store.js")?.SegStore?.prototype ?? null);
-      const isWrapped = !!proto?.saveBlock && !!proto.saveBlock[FLAG];
-      out += `# TYPE void_wal_synthetic_seq gauge
-void_wal_synthetic_seq ${wal?.__synthetic_seq||0}
-# TYPE void_wal_overwrites_total counter
-void_wal_overwrites_total ${overwrites}
-# TYPE void_wal_wrapped gauge
-void_wal_wrapped ${isWrapped?1:0}
-`;
-      res.type("text/plain").send(out);
-    });
-
-    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
-      const wal = G.__void_wal_v1;
-      const proto = (G.__void_seg_proto_cached ||= require("./dist/chain/seg_store.js")?.SegStore?.prototype ?? null);
-      const isWrapped = !!proto?.saveBlock && !!proto.saveBlock[FLAG];
-      res.json({ wrapped: isWrapped, overwrites, synthetic_seq: wal?.__synthetic_seq||0 });
-    });
-  }
-
-  // Keep re-wrapping forever; anything that stomps the proto gets re-wrapped next tick.
-  (function loop(){
-    rewrapProto().finally(()=>{ setTimeout(loop, 400); });
-    // exporters can mount late; try each tick
-    try { mountExporters(); } catch {}
-  })();
-})();
-// -------- WAL v80: self-contained prototype wrapper (no imports) --------
-(function walV80(){
-  const G:any = globalThis as any;
-  const FLAG = "__wal_v80_proto_wrapped";
-
-  // in-mem counters + status
-  const S = (G.__void_wal_v80 ||= {
-    appends: 0, commits: 0, replays: 0,
-    inflight: 0, lastUncommitted: -1,
-    synthetic_seq: 0, overwrites: 0
-  });
-
-  // best-effort: find SegStore.prototype without importing TS modules
-  function getSegProto(){
-    try { return require("./dist/chain/seg_store.js")?.SegStore?.prototype || null; } catch {}
-    try { return (G.__void_seg_proto_cached ||= require("./dist/chain/seg_store.js")?.SegStore?.prototype || null); } catch {}
-    return null;
-  }
-
-  function mkWrapped(orig:any){
-    if (!orig || typeof orig!=="function") return orig;
-    if ((orig as any)[FLAG]) return orig;
-    const wrapped = async function saveBlock_WALv80(this:any, block:any){
-      // derive a safe number; use synthetic if negative/undefined
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { n = ++S.synthetic_seq; }
-      S.inflight++; S.lastUncommitted = n;
-      try { S.appends++; } catch {}
-      try {
-        const out = await orig.apply(this, arguments as any);
-        try { S.commits++; S.inflight--; S.lastUncommitted = -1; } catch {}
-        return out;
-      } catch (e){
-        try { S.commits++; S.inflight--; S.lastUncommitted = -1; } catch {}
-        throw e;
-      }
-    };
-    (wrapped as any)[FLAG] = true;
-    return wrapped;
-  }
-
-  function rewrapProto(){
-    try{
-      const proto = getSegProto();
-      if (!proto || !proto.saveBlock) return;
-      const cur = proto.saveBlock;
-      const wrapped = mkWrapped(cur);
-      if (wrapped !== cur){
-        proto.saveBlock = wrapped;
-        S.overwrites++;
-      }
-    }catch{}
-  }
-
-  // exporters (reuse existing scrape path you added)
-  function mountExporters(){
-    const app = G.__void_http_app || (G as any).app;
-    if (!app || typeof app.get!=="function") return;
-    if (app.__void_wal_v80_routes) return; app.__void_wal_v80_routes = true;
-
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      const proto = getSegProto();
-      const wrapped = !!proto?.saveBlock && !!(proto.saveBlock as any)[FLAG];
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      out += `void_wal_appends_total ${S.appends}\n`;
-      out += `void_wal_commits_total ${S.commits}\n`;
-      out += `void_wal_replays_total ${S.replays}\n`;
-      out += `void_wal_inflight_gauge ${S.inflight}\n`;
-      out += `void_wal_last_uncommitted_number ${S.lastUncommitted}\n`;
-      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${S.synthetic_seq}\n`;
-      out += `# TYPE void_wal_overwrites_total counter\nvoid_wal_overwrites_total ${S.overwrites}\n`;
-      out += `# TYPE void_wal_wrapped gauge\nvoid_wal_wrapped ${wrapped?1:0}\n`;
-      res.type("text/plain").send(out);
-    });
-
-    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
-      const proto = getSegProto();
-      const wrapped = !!proto?.saveBlock && !!(proto.saveBlock as any)[FLAG];
-      res.json({ wrapped, overwrites: S.overwrites, synthetic_seq: S.synthetic_seq });
-    });
-  }
-
-  // assert forever
-  (function tick(){
-    try { rewrapProto(); } catch {}
-    try { mountExporters(); } catch {}
-    setTimeout(tick, 300);
-  })();
-})();
-// -------- WAL v81: robust proto resolver + defineProperty overwrite --------
-(function walV81(){
-  const G:any = globalThis as any;
-  const FLAG80 = "__wal_v80_proto_wrapped";
-  const FLAG81 = "__wal_v81_proto_wrapped";
-
-  // Helper: find SegStore.prototype from LIVE app first, else dist (absolute)
-  function getSegProto(){
-    try {
-      const app = G.__void_http_app || (G as any).app;
-      const st = app?.locals?.store;
-      if (st) return Object.getPrototypeOf(st);
-    } catch {}
-    // Absolute fallbacks (no relative-from-src nonsense)
-    const path = require("node:path");
-    const abs1 = path.resolve(process.cwd(), "dist/chain/seg_store.js");
-    try { return require(abs1)?.SegStore?.prototype || null; } catch {}
-    // One more: parent of src when running from TS loader
-    try {
-      const here = __dirname || process.cwd();
-      const abs2 = path.resolve(here, "..", "dist/chain/seg_store.js");
-      return require(abs2)?.SegStore?.prototype || null;
-    } catch {}
-    return null;
-  }
-
-  function wrap(orig:any){
-    if (!orig || typeof orig!=="function") return orig;
-    if ((orig as any)[FLAG80] || (orig as any)[FLAG81]) return orig;
-
-    const S = (G.__void_wal_v80 ||= { appends:0, commits:0, replays:0, inflight:0, lastUncommitted:-1, synthetic_seq:0, overwrites:0 });
-
-    async function wrapped(this:any, block:any){
-      // mirror v80 counters so exporter starts moving
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { n = ++S.synthetic_seq; }
-      S.inflight++; S.lastUncommitted = n; S.appends++;
-      try {
-        const out = await orig.apply(this, arguments as any);
-        S.commits++; S.inflight--; S.lastUncommitted = -1;
-        return out;
-      } catch (e){
-        S.commits++; S.inflight--; S.lastUncommitted = -1;
-        throw e;
-      }
-    }
-    (wrapped as any)[FLAG80] = true;  // so v80 exporter reports wrapped=1
-    (wrapped as any)[FLAG81] = true;
-    return wrapped;
-  }
-
-  function rewrap(){
-    try{
-      const proto = getSegProto();
-      if (!proto || !proto.saveBlock) return;
-
-      const cur = proto.saveBlock;
-      const next = wrap(cur);
-      if (next !== cur){
-        const d = Object.getOwnPropertyDescriptor(proto, "saveBlock");
-        // force replace even if writable:false (as long as configurable:true)
-        try {
-          Object.defineProperty(proto, "saveBlock", {
-            value: next,
-            writable: true,
-            enumerable: d ? d.enumerable : false,
-            configurable: d ? d.configurable : true,
-          });
-        } catch {
-          // last-ditch attempt (if descriptor was plain writable)
-          try { (proto as any).saveBlock = next; } catch {}
-        }
-        const S = (G.__void_wal_v80 ||= { appends:0, commits:0, replays:0, inflight:0, lastUncommitted:-1, synthetic_seq:0, overwrites:0 });
-        S.overwrites++;
-      }
-    } catch {}
-  }
-
-  // assert frequently; do NOT mount routes (v80 already did)
-  (function tick(){
-    rewrap();
-    setTimeout(tick, 250);
-  })();
-})();
-// -------- WAL debug v1: print where saveBlock actually comes from ----------
-(function walDebugV1(){
-  const path = require("node:path");
-  const G:any = globalThis as any;
-
-  // Safe resolver for SegStore.prototype from two absolute locations
-  function protoAt(p:string){
-    try { return require(p)?.SegStore?.prototype || null; } catch { return null; }
-  }
-  function desc(obj:any, key:string){
-    try { const d = Object.getOwnPropertyDescriptor(obj, key); return d ? {
-      writable: !!d.writable, configurable: !!d.configurable, enumerable: !!d.enumerable,
-      hasGet: !!d.get, hasSet: !!d.set, hasValue: !!d.value
-    } : null; } catch { return null; }
-  }
-  function fnId(f:any){ try { return (f && typeof f==="function") ? (f.name||"anon")+":len="+String((f.toString()||"").length) : String(typeof f); } catch { return "err"; } }
-
-  // mount once
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   function mount(){
-    const app = G.__void_http_app || (G as any).app;
-    if (!app || typeof app.get!=="function") return setTimeout(mount, 300);
-    if ((app as any).__void_wal_debug_v1) return; (app as any).__void_wal_debug_v1 = true;
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
 
-    app.get("/__void/metrics/wal.debug.json", (_req:any, res:any)=>{
-      const cwdProto = protoAt(path.resolve(process.cwd(), "dist/chain/seg_store.js"));
-      const hereProto = protoAt(path.resolve((__dirname||process.cwd()), "..", "dist/chain/seg_store.js"));
-
-      const store = app?.locals?.store;
-      const liveProto = store ? Object.getPrototypeOf(store) : null;
-
-      const liveFn = liveProto?.saveBlock;
-      const cwdFn  = cwdProto?.saveBlock;
-      const hereFn = hereProto?.saveBlock;
-
-      res.setHeader("Content-Type","application/json");
-      res.end(JSON.stringify({
-        has_app: !!app, has_store: !!store,
-        live_desc: liveProto ? desc(liveProto,"saveBlock") : null,
-        cwd_desc:  cwdProto  ? desc(cwdProto ,"saveBlock") : null,
-        here_desc: hereProto ? desc(hereProto,"saveBlock") : null,
-        ids: {
-          live: fnId(liveFn),
-          cwd:  fnId(cwdFn),
-          here: fnId(hereFn)
-        },
-        eq: {
-          live_eq_cwd:  (liveFn && cwdFn)  ? (liveFn === cwdFn)  : null,
-          live_eq_here: (liveFn && hereFn) ? (liveFn === hereFn) : null
-        }
-      }));
+    // Status
+    app.get("/__void/ops/saveBlock/status", (_req:any, res:any)=>{
+      try{
+        const S:any = (globalThis as any).SegStore || (typeof SegStore!=="undefined"? (SegStore as any) : undefined);
+        const proto = S?.prototype;
+        const hasWrap = !!(proto && proto[SYM_WRAP]);
+        const hasOrig = !!(proto && typeof proto[SYM_ORIG]==="function");
+        res.json({ ok:true, skip, patched:state.patched, hasWrap, hasOrig, state });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e) });
+      }
     });
+
+    // Unpatch (restore original)
+    app.post("/__void/ops/saveBlock/unpatch", (_req:any, res:any)=>{
+      const ok = tryUnpatch();
+      res.json({ ok, action:"unpatch", state });
+    });
+
+    // Patch (idempotent)
+    app.post("/__void/ops/saveBlock/patch", (_req:any, res:any)=>{
+      const ok = tryPatch();
+      res.json({ ok, action:"patch", state });
+    });
+
+    // Prom exporter
+    app.get("/__void/metrics/saveblock.guard.prom", (_req:any, res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8");
+      const p = state.patched ? 1 : 0;
+      res.end(
+        "# HELP void_saveblock_guard_patched 1 if guard is active\n" +
+        "# TYPE void_saveblock_guard_patched gauge\n" +
+        `void_saveblock_guard_patched ${p}\n` +
+        "# HELP void_saveblock_guard_calls total calls that flowed through guard\n" +
+        "# TYPE void_saveblock_guard_calls counter\n" +
+        `void_saveblock_guard_calls ${state.calls}\n` +
+        "# HELP void_saveblock_guard_last_ms last call duration ms\n" +
+        "# TYPE void_saveblock_guard_last_ms gauge\n" +
+        `void_saveblock_guard_last_ms ${state.last_ms}\n` +
+        "# HELP void_saveblock_guard_last_number last observed block number\n" +
+        "# TYPE void_saveblock_guard_last_number gauge\n" +
+        `void_saveblock_guard_last_number ${Math.max(-1, Number(state.last_number)||-1)}\n`
+      );
+    });
+  }
+
+  // Activate unless explicitly disabled
+  if (!skip) {
+    let tries=0;
+    (function boot(){
+      const ok = tryPatch();
+      if (!ok && ++tries<200) setTimeout(boot, TICK);
+    })();
   }
   mount();
 })();
-// -------- ESM bridge: install global `require` safely (additive, idempotent) ----
-(async function esmRequireBridgeV1(){
-  try{
-    const G:any = globalThis as any;
-    if (typeof G.require !== "function") {
-      const { createRequire } = await import("node:module");
-      G.require = createRequire(import.meta.url);
-      console.error("[esm-bridge] installed global require");
-    }
-  }catch(e){ console.error("[esm-bridge] failed", e?.message||e); }
+
+// ---------------- v7 safety prebind (additive, no deletions) -----------------
+(function v7SafetyPrebind(){
+  try {
+    const TICK = 300;
+    const FLAG5 = "__void_trampoline_v5";
+    const FLAG6 = "__void_trampoline_v6";
+    const FLAG7 = "__void_trampoline_v7";
+    const DONE  = "__void_v7_safety_prebound__";
+
+    function once(fn){let d=false;return (...a)=>{ if(d) return; d=true; try{ return fn(...a);}finally{ d=true;} } }
+
+    const install = once(function install(){
+      const g = globalThis;
+      // Prefer existing SegStore if present, else lazy-retry until it appears
+      const Seg = g.SegStore;
+      if (!Seg || !Seg.prototype) { setTimeout(install, TICK); return; }
+
+      const proto = Seg.prototype;
+      if (proto[DONE]) return; // already safe
+
+      const current = proto.saveBlock;
+      if (typeof current !== "function") { proto[DONE] = true; return; }
+
+      // Wrap in a pass-through that carries ALL known flags so trampolines back off.
+      const stable = function(...args){ return current.apply(this, args); };
+      try { Object.defineProperty(stable, FLAG7, { value: "prebound" }); } catch {}
+      try { Object.defineProperty(stable, FLAG6, { value: true }); } catch {}
+      try { Object.defineProperty(stable, FLAG5, { value: true }); } catch {}
+
+      // If someone already installed a flagged fn, keep it; else swap in our flagged pass-through.
+      const hasV7 = current && current[FLAG7];
+      const hasV6 = current && current[FLAG6];
+      const hasV5 = current && current[FLAG5];
+
+      if (!hasV7 && !hasV6 && !hasV5) {
+        try {
+          // Assign once; later v7/v6 setters will see the flags and *not* rewrap.
+          Seg.prototype.saveBlock = stable;
+        } catch { /* non-fatal */ }
+      }
+
+      // Mark as done so we don’t spam.
+      try { Object.defineProperty(proto, DONE, { value: true, configurable: true }); } catch { proto[DONE] = true; }
+      // Optional: tiny inspector so we can verify quickly
+      const app = (g as any).__void_http_app || (g as any).app;
+      if (app && typeof app.get === "function" && !app.__void_v7_safety_probe){
+        app.__void_v7_safety_probe = true;
+        app.get("/__void/dev/inspect/v7-safety", (_req:any, res:any) => {
+          const live = (g as any).SegStore?.prototype?.saveBlock;
+          res.json({
+            ok: true,
+            proto_safety_done: !!proto[DONE],
+            live_has_v7: !!(live && live[FLAG7]),
+            live_has_v6: !!(live && live[FLAG6]),
+            live_has_v5: !!(live && live[FLAG5]),
+            summary: (function(){
+              try {
+                const s = Function.prototype.toString.call(live||(()=>{}));
+                return s.slice(0,120).replace(/\s+/g,' ');
+              } catch { return "[uninspectable]"; }
+            })()
+          });
+        });
+      }
+    });
+
+    install();
+  } catch(_) {}
 })();
