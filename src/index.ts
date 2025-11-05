@@ -20174,3 +20174,241 @@ void_wal_wrapped ${isWrapped?1:0}
     }
   }catch(e){ console.error("[esm-bridge] failed", e?.message||e); }
 })();
+
+// ---------------- WAL v1 (inline, additive, idempotent) ----------------
+(function walV1InlineBoot(){
+  const TICK = 250;
+  let attached = false;
+
+  function getStore(){ try{ const G:any=globalThis as any; return (G.__void_node||G.node)?.store; }catch{ return null; } }
+  function getApp(){ try{ const G:any=globalThis as any; return (G.__void_http_app||G.app); }catch{ return null; } }
+
+  // Metrics state
+  const state = {
+    wrapped: false,
+    appends: 0,
+    commits: 0,
+    overwrites: 0,
+    lastUncommitted: -1,
+    syntheticSeq: 0,
+  };
+
+  function expose(app:any){
+    if (app.__void_wal_bound) return; app.__void_wal_bound = true;
+
+    app.get("/__void/metrics/wal.status.json", (_req:any,res:any)=>{
+      res.json({ wrapped: state.wrapped, overwrites: state.overwrites, synthetic_seq: state.syntheticSeq });
+    });
+
+    app.get("/__void/metrics/wal.v3.prom", (_req:any,res:any)=>{
+      const lines = [
+        `void_wal_wrapped ${state.wrapped ? 1 : 0}`,
+        `void_wal_appends_total ${state.appends}`,
+        `void_wal_commits_total ${state.commits}`,
+        `void_wal_overwrites_total ${state.overwrites}`,
+        `void_wal_last_uncommitted_number ${state.lastUncommitted}`,
+        `void_wal_synthetic_seq ${state.syntheticSeq}`,
+      ];
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+    console.error("[wal.v1-inline] exporters bound");
+  }
+
+  function patch(store:any){
+    if (!store || store.__void_wal_wrapped) return;
+    const orig = store.saveBlock?.bind(store);
+    if (typeof orig !== "function") { console.error("[wal.v1-inline] no store.saveBlock; skip"); return; }
+
+    store.saveBlock = async function wrappedSaveBlock(b:any){
+      state.appends++;
+      state.lastUncommitted = (typeof b?.number === "number") ? b.number : state.lastUncommitted;
+      try {
+        const r = await orig(b);
+        state.commits++;
+        state.syntheticSeq++;
+        state.lastUncommitted = -1;
+        return r;
+      } catch (e:any) {
+        // leave lastUncommitted pointing to the failed number
+        throw e;
+      }
+    };
+    store.__void_wal_wrapped = true;
+    state.wrapped = true;
+    console.error("[wal.v1-inline] saveBlock wrapped");
+  }
+
+  (function mount(){
+    try{
+      if (attached) return;
+      const app = getApp();
+      const store = getStore();
+      if (!app || !store) return void setTimeout(mount, TICK);
+      expose(app);
+      patch(store);
+      attached = true;
+    }catch(e:any){
+      console.error("[wal.v1-inline] mount failed", e?.message||e);
+      setTimeout(mount, TICK);
+    }
+  })();
+})();
+
+// ---------------- WAL v1b (dual-loop, additive, idempotent) ----------------
+
+/* [wal-disabled] walV1b removed */
+// 2) Bind exporters when app is ready (independent loop)
+// [wal-iife-neutralized]   (function exportLoop(){
+// [wal-iife-neutralized]     try{
+// [wal-iife-neutralized]       const app:any = getApp();
+// [wal-iife-neutralized]       if (!app) throw new Error("app not ready");
+// [wal-iife-neutralized]       if (app.__void_wal_v1b_bound) return;
+// [wal-iife-neutralized]       app.__void_wal_v1b_bound = true;
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.status.json", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         res.json({ wrapped: S.wrapped, overwrites: S.overwrites, synthetic_seq: S.syntheticSeq, wrapped_at_ms: S.wrappedStamp });
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.v3.prom", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         const lines = [
+// [wal-iife-neutralized]           `void_wal_wrapped ${S.wrapped ? 1 : 0}`,
+// [wal-iife-neutralized]           `void_wal_appends_total ${S.appends}`,
+// [wal-iife-neutralized]           `void_wal_commits_total ${S.commits}`,
+// [wal-iife-neutralized]           `void_wal_overwrites_total ${S.overwrites}`,
+// [wal-iife-neutralized]           `void_wal_last_uncommitted_number ${S.lastUncommitted}`,
+// [wal-iife-neutralized]           `void_wal_synthetic_seq ${S.syntheticSeq}`,
+// [wal-iife-neutralized]         ];
+// [wal-iife-neutralized]         res.type("text/plain").send(lines.join("\n")+"\n");
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       // tiny debug: show current saveBlock chain length
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.debug.prom", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         const st:any = getStore();
+// [wal-iife-neutralized]         const fn:any = st?.saveBlock;
+// [wal-iife-neutralized]         const len = (typeof fn === "function") ? String(fn).length : -1;
+// [wal-iife-neutralized]         res.type("text/plain").send(`void_wal_saveBlock_toString_len ${len}\n`);
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       console.error("[wal.v1b] exporters bound");
+// [wal-iife-neutralized]     } catch(e:any){
+// [wal-iife-neutralized]       return void setTimeout(exportLoop, TICK);
+// [wal-iife-neutralized]     }
+// [wal-iife-neutralized]   })();
+// [wal-fix] })();
+
+// ---------------- WAL v1c (self-healing proxy + non-colliding exporter) ---------------
+
+/* [wal-disabled] walV1c removed */
+// [wal-iife-neutralized] (function exportLoop(){
+// [wal-iife-neutralized]     try{
+// [wal-iife-neutralized]       const app:any = getApp();
+// [wal-iife-neutralized]       if (!app) throw new Error("app not ready");
+// [wal-iife-neutralized]       if (app.__void_wal_v1c_bound) return; app.__void_wal_v1c_bound = true;
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       // Non-colliding endpoints (.v4) and a richer status
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.status2.json", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         const st:any = getStore();
+// [wal-iife-neutralized]         const sb:any = st?.saveBlock;
+// [wal-iife-neutralized]         res.json({
+// [wal-iife-neutralized]           id: ID,
+// [wal-iife-neutralized]           wrapped: !!(sb && sb.__void_wal_wrapper_id === ID),
+// [wal-iife-neutralized]           counters: {
+// [wal-iife-neutralized]             appends: S.appends, commits: S.commits,
+// [wal-iife-neutralized]             overwrites: S.overwrites, synthetic_seq: S.syntheticSeq,
+// [wal-iife-neutralized]             last_uncommitted_number: S.lastUncommitted
+// [wal-iife-neutralized]           },
+// [wal-iife-neutralized]           debug: {
+// [wal-iife-neutralized]             wrapped_at_ms: S.wrapped_at_ms,
+// [wal-iife-neutralized]             saveBlock_toString_len: (typeof sb === "function") ? String(sb).length : -1,
+// [wal-iife-neutralized]             orig_toString_len: S.last_seen_toString_len
+// [wal-iife-neutralized]           }
+// [wal-iife-neutralized]         });
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.v4.prom", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         const st:any = getStore();
+// [wal-iife-neutralized]         const sb:any = st?.saveBlock;
+// [wal-iife-neutralized]         const active = !!(sb && sb.__void_wal_wrapper_id === ID);
+// [wal-iife-neutralized]         const lines = [
+// [wal-iife-neutralized]           `void_wal_v4_active ${active ? 1 : 0}`,
+// [wal-iife-neutralized]           `void_wal_v4_appends_total ${S.appends}`,
+// [wal-iife-neutralized]           `void_wal_v4_commits_total ${S.commits}`,
+// [wal-iife-neutralized]           `void_wal_v4_overwrites_total ${S.overwrites}`,
+// [wal-iife-neutralized]           `void_wal_v4_last_uncommitted_number ${S.lastUncommitted}`,
+// [wal-iife-neutralized]           `void_wal_v4_synthetic_seq ${S.syntheticSeq}`,
+// [wal-iife-neutralized]         ];
+// [wal-iife-neutralized]         res.type("text/plain").send(lines.join("\n")+"\n");
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       console.error("[wal.v1c] exporters bound (/__void/metrics/wal.v4.prom, status2.json)");
+// [wal-iife-neutralized]     } catch { /* retry until app exists */ }
+// [wal-iife-neutralized]     setTimeout(exportLoop, TICK);
+// [wal-iife-neutralized]   })();
+// [wal-fix] })();
+
+// ---------------- WAL v1d (prototype hard-lock + commit tap) -------------------
+
+/* [wal-disabled] walV1d removed */
+// [wal-iife-neutralized] (function exportLoop(){
+// [wal-iife-neutralized]     try{
+// [wal-iife-neutralized]       const app:any = getApp(); if (!app) throw new Error("app not ready");
+// [wal-iife-neutralized]       if (app.__void_wal_v1d_bound) return; app.__void_wal_v1d_bound = true;
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.status3.json", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         const st = getStore();
+// [wal-iife-neutralized]         const Seg = st && st.constructor;
+// [wal-iife-neutralized]         const d = Seg && Object.getOwnPropertyDescriptor(Seg.prototype, "saveBlock");
+// [wal-iife-neutralized]         const live:any = d && d.get ? d.get.call(st) : (Seg && (Seg.prototype as any).saveBlock);
+// [wal-iife-neutralized]         S.toString_len_live = (typeof live === "function") ? String(live).length : S.toString_len_live;
+// [wal-iife-neutralized]         res.json({
+// [wal-iife-neutralized]           id: ID,
+// [wal-iife-neutralized]           active: !!(live && live.__void_wal_wrapper_id === ID),
+// [wal-iife-neutralized]           counters: {
+// [wal-iife-neutralized]             appends: S.appends, commits: S.commits, overwrites: S.overwrites,
+// [wal-iife-neutralized]             last_uncommitted_number: S.last_uncommitted
+// [wal-iife-neutralized]           },
+// [wal-iife-neutralized]           debug: {
+// [wal-iife-neutralized]             installed_ms: S.installed_ms,
+// [wal-iife-neutralized]             live_toString_len: S.toString_len_live,
+// [wal-iife-neutralized]             orig_toString_len: S.toString_len_orig
+// [wal-iife-neutralized]           }
+// [wal-iife-neutralized]         });
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.v5.prom", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         res.type("text/plain").send([
+// [wal-iife-neutralized]           `void_wal_v5_active ${S.active ? 1 : 0}`,
+// [wal-iife-neutralized]           `void_wal_v5_appends_total ${S.appends}`,
+// [wal-iife-neutralized]           `void_wal_v5_commits_total ${S.commits}`,
+// [wal-iife-neutralized]           `void_wal_v5_overwrites_total ${S.overwrites}`,
+// [wal-iife-neutralized]           `void_wal_v5_last_uncommitted_number ${S.last_uncommitted}`,
+// [wal-iife-neutralized]         ].join("\n")+"\n");
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       console.error("[wal.v1d] exporters bound (/__void/metrics/wal.v5.prom, status3.json)");
+// [wal-iife-neutralized]     } catch { /* retry */ }
+// [wal-iife-neutralized]     setTimeout(exportLoop, TICK);
+// [wal-iife-neutralized]   })();
+// [wal-fix] })();
+
+// ----------- dev/log shim: pretty hex for txroot logs (additive) -----------
+(function devLogPrettyHexShim(){
+  try{
+    const toHex = (b:any)=> {
+      if (!b) return String(b);
+      if (typeof b === "string") return b;
+      if (Array.isArray(b)) return Buffer.from(b).toString("hex");
+      if (b instanceof Uint8Array) return Buffer.from(b).toString("hex");
+      if (Buffer.isBuffer?.(b)) return b.toString("hex");
+      if (typeof b === "object" && typeof (b as any).data !== "undefined") {
+        try { return Buffer.from((b as any).data).toString("hex"); } catch {}
+      }
+      return String(b);
+    };
+    const origLog = console.log.bind(console);
+    console.log = (...args:any[])=>{
+      const patched = args.map(x => (x && x.__void_txroot_bytes) ? toHex(x) : x);
+      return origLog(...patched);
+    };
+  }catch(e){ /* noop */ }
+})();
