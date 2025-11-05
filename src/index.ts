@@ -17496,7 +17496,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 })();
 
 // ---------------- Listener ceiling guard (additive, ESM-safe) ------------------
-(function ListenerCeilingGuardV1(){
+(function ListenerCeilingGuard_DISABLEDV1(){
   try{
     if ((globalThis as any).__void_listener_guard_v1) return;
     (globalThis as any).__void_listener_guard_v1 = true;
@@ -20909,4 +20909,53 @@ void_wal_wrapped ${isWrapped?1:0}
     });
   }
   mount();
+})();
+// --- Agent v0 token gate (additive) ---
+(function agentV0TokenGate(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_token_gate) return; (app as any).__void_agent_v0_token_gate = true;
+    const TOKEN = process.env.VOID_AGENT_TOKEN || "";
+    app.use((req:any, res:any, next:any)=>{
+      if (req.path==="/agent/v0/jobs" && req.method==="POST" && TOKEN){
+        const got = (req.headers["x-agent-token"] || req.headers["authorization"] || "").toString().replace(/^Bearer\s+/i,"");
+        if (got !== TOKEN) return res.status(401).json({ok:false, error:"unauthorized"});
+      }
+      next();
+    });
+  } mount();
+})();
+// --- Agent v0: persist results JSONL (additive) ---
+(function agentV0Persist(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const out = path.join(base, "agent", "results.jsonl");
+  async function appendResult(line:string){
+    try{ fs.mkdirSync(path.dirname(out), {recursive:true});
+      const fd = fs.openSync(out, "a"); fs.writeSync(fd, line+"\n"); try{ fs.fdatasyncSync(fd);}catch{} fs.closeSync(fd);
+    }catch{}
+  }
+  function wire(){
+    const S = (G.__void_agent_state); if (!S || (globalThis as any).__void_agent_v0_persist_wired) return setTimeout(wire, 500);
+    (globalThis as any).__void_agent_v0_persist_wired = true;
+    const origDone = S._origDone || null;
+    S._origDone = async function(j:any, body:any){ if (origDone) await origDone(j, body); };
+    // monkey-patch via event: wrap the HTTP handler from our agent module
+    const app:any = (G.__void_http_app || (G as any).app); if (!app) return setTimeout(wire, 500);
+    const expressPost = app.post.bind(app);
+    app.post = (route:any, ...handlers:any[])=>{
+      if (route && typeof route==="string" && route.startsWith("/agent/v0/done/")){
+        const h = handlers.pop();
+        handlers.push(async (req:any, res:any)=>{
+          const id = req.params.id; const body = req.body||{};
+          await appendResult(JSON.stringify({id, ts:Date.now(), ok:!!body.ok, output:body.output||null, error:body.error||null}));
+          return h(req,res);
+        });
+      }
+      return expressPost(route, ...handlers);
+    };
+  } wire();
 })();
