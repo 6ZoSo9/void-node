@@ -17673,3 +17673,75 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
     };
   } catch { /* no-op */ }
 })();
+
+// ---------------- TXROOT GAP EXPORTER (additive, no core edits) ----------------
+(function txrootGapExporterV1(){
+  const TICK = 2000;
+  const STATE: any = {
+    enabled: (process.env.VOID_TXROOT_GAP === "1" || process.env.TXROOT_GAP === "1"),
+    last: { saves_total: 0, set_total: 0, ts: 0, gap: 0, rate1m: 0 },
+    hist: [] as Array<{ts:number,gap:number}>
+  };
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function fetchJson(url: string){
+    const r = await fetch(url);
+    if(!r.ok) throw new Error(`GET ${url} => ${r.status}`);
+    return r.json();
+  }
+
+  async function poll(){
+    try{
+      if(!STATE.enabled) return;
+      // Core counters JSON was added earlier: /__void/metrics/txroot4/core2.json
+      const core:any = await fetchJson(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/__void/metrics/txroot4/core2.json`);
+      const saves = Number(core?.counters?.saves_total ?? 0);
+      const setts = Number(core?.counters?.set_total ?? 0);
+      const now   = Date.now();
+      const gap   = Math.max(0, saves - setts);
+
+      // keep 60s window for a crude 1m rate
+      STATE.hist.push({ts: now, gap});
+      const cutoff = now - 60000;
+      while(STATE.hist.length && STATE.hist[0].ts < cutoff) STATE.hist.shift();
+
+      const first = STATE.hist[0]?.gap ?? gap;
+      const rate1m = (gap - first) / 60; // blocks/sec equivalent (can be negative -> clamp)
+      STATE.last = { saves_total: saves, set_total: setts, ts: now, gap, rate1m: Math.max(0, rate1m) };
+    }catch(e){ /* silent */ }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if(!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+
+    if ((app as any).__void_txroot_gap_v1) return;
+    (app as any).__void_txroot_gap_v1 = true;
+
+    app.get("/__void/metrics/txroot4/gap.prom", (_req:any, res:any)=>{
+      const L = STATE.last;
+      const b:string[] = [];
+      b.push("# HELP void_txroot_gap_blocks Backlog between saves_total and header set_total (blocks)");
+      b.push("# TYPE void_txroot_gap_blocks gauge");
+      b.push(`void_txroot_gap_blocks ${L.gap}`);
+
+      b.push("# HELP void_txroot_gap_rate1m Approx change in gap over 60s (blocks/sec, >=0)");
+      b.push("# TYPE void_txroot_gap_rate1m gauge");
+      b.push(`void_txroot_gap_rate1m ${L.rate1m}`);
+
+      b.push("# HELP void_txroot_gap_ts_ms Exporter sample timestamp (ms)");
+      b.push("# TYPE void_txroot_gap_ts_ms gauge");
+      b.push(`void_txroot_gap_ts_ms ${L.ts||0}`);
+
+      res.type("text/plain").send(b.join("\n")+"\n");
+    });
+
+    // poller (enabled only if env set)
+    setInterval(poll, 2000);
+    setTimeout(poll, 500);
+  }
+
+  // defer until app is ready
+  let tries=0; (function wait(){ tries++; mount(); if(tries<120) setTimeout(wait, TICK); })();
+})();
