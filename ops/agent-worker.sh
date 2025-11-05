@@ -9,19 +9,16 @@ HDR_COMMON=(-H 'content-type: application/json')
 heartbeat(){ curl -fsS -X POST "$BASE/agent/v0/extend/$1?ms=$LEASE_MS" >/dev/null || true; }
 
 while true; do
-  # lease 1
   ids=$(curl -fsS -X POST "$BASE/agent/v0/lease?max=1" "${HDR_COMMON[@]}" | jq -r '.jobs[].id')
   [[ -z "$ids" ]] && sleep 1 && continue
   for id in $ids; do
-    # heartbeat loop in background
-    (
-      for i in {1..10}; do heartbeat "$id"; sleep 5; done
-    ) & hb=$!
-
+    ( for i in {1..10}; do heartbeat "$id"; sleep 5; done ) & hb=$!
     # pretend work
     sleep 1
-    if curl -fsS -X POST "$BASE/agent/v0/done/$id" "${HDR_COMMON[@]}" -d '{"ok":true,"output":{"echo":true}}' >/dev/null; then
-      :
+    body='{"ok":true,"output":{"echo":true}}'
+    if curl -fsS -X POST "$BASE/agent/v0/done/$id" "${HDR_COMMON[@]}" -d "$body" >/dev/null; then
+      # ALSO write the receipt so results.jsonl includes output
+      curl -fsS -X POST "$BASE/agent/v0/receipt/$id" "${HDR_COMMON[@]}" -d "$body" >/dev/null || true
     else
       curl -fsS -X POST "$BASE/agent/v0/fail/$id" "${HDR_COMMON[@]}" -d '{"retry":true,"error":"worker-fail"}' >/dev/null || true
     fi
