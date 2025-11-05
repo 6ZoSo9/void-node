@@ -21009,3 +21009,174 @@ void_wal_wrapped ${isWrapped?1:0}
     });
   } mount();
 })();
+// --- Agent v0 durability + replay + sweeper (additive) ------------------------
+(function agentV0Durable(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path"); const crypto = require("node:crypto");
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const dir = path.join(base, "agent");
+  const jobsFile = path.join(dir, "jobs.jsonl");         // append-only: {id, ts, type, input}
+  const doneFile = path.join(dir, "results.jsonl");      // append-only: {id, ts, ok, output, error}
+  const dlqFile  = path.join(dir, "deadletter.jsonl");   // append-only: {id, ts, error, retries}
+  const MAX_RETRIES = Number(process.env.VOID_AGENT_MAX_RETRIES || "3");
+  const DEFAULT_LEASE_MS = Number(process.env.VOID_AGENT_LEASE_MS || "30000");
+
+  function ensureDir(){ try{ fs.mkdirSync(dir, {recursive:true}); }catch{} }
+  function appendJSONL(file:string, obj:any){
+    try{ ensureDir(); const fd = fs.openSync(file, "a");
+      fs.writeSync(fd, JSON.stringify(obj)+"\n"); try{ fs.fdatasyncSync(fd);}catch{} fs.closeSync(fd);
+    }catch{}
+  }
+
+  function S(){ return (G.__void_agent_state ||= { q:[], map:new Map(), metrics:{submitted:0, leased:0, completed:0, failed:0}, _leases:new Map(), _retries:new Map() }); }
+
+  // Replay on boot: reconstruct queue = jobs - done
+  async function replayDurable(){
+    ensureDir();
+    const done = new Set<string>();
+    try{
+      if (fs.existsSync(doneFile)){
+        for (const line of fs.readFileSync(doneFile, "utf8").split("\n")){ if (!line.trim()) continue;
+          const rec = JSON.parse(line); if (rec && rec.id) done.add(rec.id);
+        }
+      }
+    }catch{}
+    try{
+      if (fs.existsSync(jobsFile)){
+        for (const line of fs.readFileSync(jobsFile, "utf8").split("\n")){ if (!line.trim()) continue;
+          const j = JSON.parse(line);
+          if (!j || !j.id || done.has(j.id)) continue;
+          if (!S().map.has(j.id)){ j.status = "queued"; S().map.set(j.id, j); S().q.push(j); }
+        }
+      }
+    }catch{}
+  }
+
+  // Sweeper: return expired leases to queue
+  function startSweeper(){
+    const metrics:any = (G.__void_agent_metrics ||= {expired:0, dlq:0});
+    setInterval(()=>{
+      const now = Date.now();
+      for (const [id, until] of S()._leases){
+        if (until <= now){
+          S()._leases.delete(id);
+          const j = S().map.get(id); if (j && j.status==="leased"){ j.status="queued"; S().q.unshift(j); metrics.expired++; }
+        }
+      }
+    }, 2000);
+  }
+
+  // Mount HTTP (extend/fail/debug) once app exists
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_durable) return; (app as any).__void_agent_v0_durable = true;
+
+    // POST /agent/v0/extend/:id?ms=10000
+    app.post("/agent/v0/extend/:id", async (req:any, res:any)=>{
+      const id = req.params.id; const ms = Math.max(1000, Math.min(10*60*1000, Number(req.query.ms||DEFAULT_LEASE_MS)));
+      if (!S().map.has(id)) return res.status(404).json({ok:false, error:"unknown id"});
+      const until = Date.now()+ms; S()._leases.set(id, until);
+      res.json({ok:true, id, until});
+    });
+
+    // POST /agent/v0/fail/:id  {error?, retry?}
+    app.post("/agent/v0/fail/:id", require("express").json({limit:"256kb"}), async (req:any, res:any)=>{
+      const id = req.params.id; const body = req.body||{};
+      const j = S().map.get(id); if (!j) return res.status(404).json({ok:false, error:"unknown id"});
+      const r = S()._retries; const cur = r.get(id)||0; const wantRetry = !!body.retry;
+      if (wantRetry && cur < MAX_RETRIES){
+        r.set(id, cur+1); j.status="queued"; S().q.unshift(j); S()._leases.delete(id);
+        return res.json({ok:true, retried:true, attempt:cur+1});
+      }
+      // DLQ
+      appendJSONL(dlqFile, {id, ts:Date.now(), error:String(body.error||"fail"), retries:cur});
+      (G.__void_agent_metrics ||= {}).dlq = ((G.__void_agent_metrics||{}).dlq||0)+1;
+      j.status="error"; S()._leases.delete(id); res.json({ok:true, retried:false, dlq:true});
+    });
+
+    // GET /__void/agent/debug
+    app.get("/__void/agent/debug", (_req:any, res:any)=>{
+      res.json({
+        ok:true,
+        q_len:S().q.length,
+        map_size:S().map.size,
+        leases:S()._leases.size,
+        retries:[...S()._retries.entries()].slice(0,50),
+        maxRetries:MAX_RETRIES,
+      });
+    });
+
+    // Exporter add-ons (augment existing agent.prom if present)
+    app.get("/__void/metrics/agent_extra.prom", (_req:any, res:any)=>{
+      const met = (G.__void_agent_metrics||{});
+      const lines = [];
+      lines.push("# HELP void_agent_leases_expired total leases returned to queue");
+      lines.push("# TYPE void_agent_leases_expired counter");
+      lines.push(`void_agent_leases_expired ${Number(met.expired||0)}`);
+      lines.push("# HELP void_agent_dlq_total total jobs sent to dead-letter");
+      lines.push("# TYPE void_agent_dlq_total counter");
+      lines.push(`void_agent_dlq_total ${Number(met.dlq||0)}`);
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+  }
+
+  // Wire enqueue persistence (shadow existing /agent/v0/jobs handler via post wrapper)
+  function wireEnqueuePersistence(){
+    const app:any = getApp(); if (!app) return setTimeout(wireEnqueuePersistence, 500);
+    if ((app as any).__void_agent_enq_persist) return; (app as any).__void_agent_enq_persist = true;
+    const origPost = app.post.bind(app);
+    app.post = (route:any, ...handlers:any[])=>{
+      if (route === "/agent/v0/jobs"){
+        const h = handlers.pop();
+        handlers.push(async (req:any, res:any)=>{
+          const preCount = S().metrics.submitted;
+          await h(req,res); // call original
+          // If original incremented submitted, we can safely persist the payload
+          if (S().metrics.submitted > preCount && res.locals && res.locals.__void_last_job){
+            appendJSONL(jobsFile, res.locals.__void_last_job);
+          }
+        });
+      }
+      return origPost(route, ...handlers);
+    };
+  }
+
+  // Boot: replay, sweeper, then mount
+  replayDurable();
+  startSweeper();
+  mount();
+  wireEnqueuePersistence();
+})();
+// --- Agent v0 enqueue shim: expose last job for durability wrapper (additive) --
+(function agentV0EnqueueShim(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_enqueue_shim) return; (app as any).__void_agent_v0_enqueue_shim = true;
+    // Monkey-patch the current /agent/v0/jobs route to stash the created job into res.locals
+    const orig = app.post.bind(app);
+    app.post = (route:any, ...handlers:any[])=>{
+      if (route === "/agent/v0/jobs"){
+        const h = handlers.pop();
+        handlers.push(async (req:any, res:any)=>{
+          const before = (globalThis as any).__void_agent_state?.metrics?.submitted||0;
+          // Call original handler
+          const ret = await h(req,res);
+          const after = (globalThis as any).__void_agent_state?.metrics?.submitted||before;
+          // Best-effort: reconstruct minimal job object if handler created one
+          try{
+            const id = (res.locals && res.locals.__void_last_job_id) || (ret && ret.jobId) || (res.locals && res.locals.jobId);
+            if (id){
+              const rec = { id, ts: Date.now(), type: String(req.body?.type||"unknown"), input: (req.body?.input ?? null) };
+              (res.locals ||= {}).__void_last_job = rec;
+            }
+          }catch{}
+          return ret;
+        });
+      }
+      return orig(route, ...handlers);
+    };
+  } mount();
+})();
