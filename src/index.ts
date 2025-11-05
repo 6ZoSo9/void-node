@@ -20808,3 +20808,105 @@ void_wal_wrapped ${isWrapped?1:0}
 
   tick(); mountExporter();
 })();
+// ---------------- Agent v0 (WAL-backed) — additive only -----------------------
+(function agentV0(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  type Job = {
+    id: string, ts: number,
+    type: string, input: any,
+    status: "queued"|"leased"|"done"|"error",
+    leaseBy?: number, leaseId?: string,
+    output?: any, error?: string
+  };
+
+  const S = (G.__void_agent_state ||= {
+    q: [] as Job[],                  // in-memory queue (dev)
+    map: new Map<string, Job>(),
+    metrics: { submitted:0, leased:0, completed:0, failed:0 }
+  });
+
+  function uuid(){ return Math.random().toString(16).slice(2)+Date.now().toString(16); }
+
+  async function walAppend(obj:any){
+    const wal:any = (G.__void_wal);
+    if (!wal || typeof wal.append !== "function") throw new Error("WAL unavailable");
+    const enc = new TextEncoder().encode(JSON.stringify({kind:"agent.job", payload:obj}));
+    await wal.append(enc);
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.post!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_mounted) return;
+    (app as any).__void_agent_v0_mounted = true;
+
+    // enqueue
+    app.post("/agent/v0/jobs", express.json({limit:"256kb"}), async (req:any, res:any)=>{
+      try{
+        const { type, input } = req.body || {};
+        if (!type) return res.status(400).json({ok:false, error:"type required"});
+        const job:Job = { id: uuid(), ts: Date.now(), type, input, status:"queued" };
+        S.q.push(job); S.map.set(job.id, job); S.metrics.submitted++;
+        try{ await walAppend({ op:"enqueue", job }); }catch{}
+        res.json({ ok:true, jobId: job.id, receipt: { id:job.id, ts:job.ts } });
+      }catch(e:any){ res.status(500).json({ok:false, error:String(e?.message||e)}); }
+    });
+
+    // lease for workers
+    app.post("/agent/v0/lease", async (req:any, res:any)=>{
+      const max = Math.max(1, Math.min(32, Number(req.query.max||1)));
+      const now = Date.now();
+      const out: Job[] = [];
+      for (let i=0;i<S.q.length && out.length<max;i++){
+        const j = S.q[i];
+        if (j.status!=="queued") continue;
+        j.status = "leased"; j.leaseBy = now + 60_000; j.leaseId = uuid();
+        out.push({ ...j, output: undefined, error: undefined }); // copy, no secrets
+        S.metrics.leased++;
+      }
+      try{ await walAppend({ op:"lease", ids: out.map(j=>j.id) }); }catch{}
+      res.json({ ok:true, jobs: out });
+    });
+
+    // mark done
+    app.post("/agent/v0/done/:id", express.json({limit:"512kb"}), async (req:any, res:any)=>{
+      const j = S.map.get(req.params.id);
+      if (!j) return res.status(404).json({ok:false, error:"job not found"});
+      const { ok, output, error } = req.body || {};
+      if (ok){ j.status="done"; j.output=output; S.metrics.completed++; }
+      else { j.status="error"; j.error=String(error||""); S.metrics.failed++; }
+      try{ await walAppend({ op:"finish", id:j.id, ok:!!ok }); }catch{}
+      res.json({ ok:true });
+    });
+
+    // tiny metrics
+    app.get("/__void/metrics/agent.prom", (_req:any, res:any)=>{
+      const m = S.metrics;
+      const queued = [...S.map.values()].filter(j=>j.status==="queued").length;
+      const leased = [...S.map.values()].filter(j=>j.status==="leased").length;
+      const done   = [...S.map.values()].filter(j=>j.status==="done").length;
+      const failed = [...S.map.values()].filter(j=>j.status==="error").length;
+      res.type("text/plain").end(
+        "# HELP void_agent_jobs_submitted total submitted\n# TYPE void_agent_jobs_submitted counter\n"+
+        `void_agent_jobs_submitted ${m.submitted}\n`+
+        "# HELP void_agent_jobs_leased total leased\n# TYPE void_agent_jobs_leased counter\n"+
+        `void_agent_jobs_leased ${m.leased}\n`+
+        "# HELP void_agent_jobs_completed total completed\n# TYPE void_agent_jobs_completed counter\n"+
+        `void_agent_jobs_completed ${m.completed}\n`+
+        "# HELP void_agent_jobs_failed total failed\n# TYPE void_agent_jobs_failed counter\n"+
+        `void_agent_jobs_failed ${m.failed}\n`+
+        "# HELP void_agent_queue_depth current queued\n# TYPE void_agent_queue_depth gauge\n"+
+        `void_agent_queue_depth ${queued}\n`+
+        "# HELP void_agent_leases current leased\n# TYPE void_agent_leases gauge\n"+
+        `void_agent_leases ${leased}\n`+
+        "# HELP void_agent_done current done\n# TYPE void_agent_done gauge\n"+
+        `void_agent_done ${done}\n`+
+        "# HELP void_agent_errors current errored\n# TYPE void_agent_errors gauge\n"+
+        `void_agent_errors ${failed}\n`
+      );
+    });
+  }
+  mount();
+})();
