@@ -20445,3 +20445,21 @@ void_wal_wrapped ${isWrapped?1:0}
     console.error("[esm-crypto-shim] v3 installed (non-recursive override)");
   }catch{/*noop*/}
 })();
+
+// --- esm-crypto-shim.v3 metric (additive) ---
+(function esmCryptoShimV3_metric(){
+  try{
+    const G:any = globalThis as any;
+    function getApp(){ return (G.__void_http_app || (G as any).app) }
+    function mount(){
+      const app:any = getApp();
+      if (!app || typeof app.get!=="function") return setTimeout(mount, 300);
+      if (app.__void_esm_shim_metric) return; app.__void_esm_shim_metric = true;
+      app.get("/__void/metrics/esm.prom", (_:any,res:any)=>{
+        const ver = (typeof G.__void_getCreateHash === "function" && String(G.__void_getCreateHash).includes("__void_getCreateHash_v3")) ? 3 : 0;
+        res.type("text/plain").send(`# HELP void_esm_crypto_shim_version version\n# TYPE void_esm_crypto_shim_version gauge\nvoid_esm_crypto_shim_version ${ver}\n`);
+      });
+    }
+    mount();
+  }catch{}
+})();
