@@ -17496,7 +17496,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 })();
 
 // ---------------- Listener ceiling guard (additive, ESM-safe) ------------------
-(function ListenerCeilingGuard_DISABLEDV1(){
+(function LCG_DISABLED_DISABLEDV1(){
   try{
     if ((globalThis as any).__void_listener_guard_v1) return;
     (globalThis as any).__void_listener_guard_v1 = true;
@@ -20958,4 +20958,38 @@ void_wal_wrapped ${isWrapped?1:0}
       return expressPost(route, ...handlers);
     };
   } wire();
+})();
+// --- Agent v0: receipt writer (append-only JSONL, additive) -------------------
+(function agentV0Receipt(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const out = path.join(base, "agent", "results.jsonl");
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_receipt) return; (app as any).__void_agent_v0_receipt = true;
+
+    app.post("/agent/v0/receipt/:id", require("express").json({limit:"512kb"}), (req:any, res:any)=>{
+      try{
+        fs.mkdirSync(path.dirname(out), {recursive:true});
+        const rec = {
+          id: req.params.id, ts: Date.now(),
+          ok: !!req.body?.ok,
+          output: req.body?.output ?? null,
+          error: req.body?.error ? String(req.body.error) : null
+        };
+        const line = JSON.stringify(rec);
+        const fd = fs.openSync(out, "a");
+        fs.writeSync(fd, line+"\n");
+        try{ fs.fdatasyncSync(fd); }catch{}
+        fs.closeSync(fd);
+        res.json({ok:true});
+      }catch(e:any){
+        res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+  }
+  mount();
 })();
