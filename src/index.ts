@@ -20463,3 +20463,348 @@ void_wal_wrapped ${isWrapped?1:0}
     mount();
   }catch{}
 })();
+
+// ---------------- WAL v1 bootstrap (additive, safe) -------------------
+(async function mountWALv1(){
+  try{
+    const G:any = globalThis as any;
+    function getApp(){ return (G.__void_http_app || (G as any).app); }
+    function getDataDir(){
+      return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    }
+
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const wal = new WALv1(getDataDir());
+    await wal.open();
+    (G.__void_wal = G.__void_wal || wal);
+
+    // 1) Metrics exporter
+    (function exposeWalMetrics(){
+      const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(exposeWalMetrics, 300);
+      if (app.__void_wal_metrics) return; app.__void_wal_metrics = true;
+      app.get("/__void/metrics/wal.prom", (_:any,res:any)=>{
+        res.type("text/plain").send(wal.metricsText());
+      });
+      // live tuning (optional): /__void/wal/caps?bytes=268435456&entries=2000000
+      app.post("/__void/wal/caps", (req:any,res:any)=>{
+        const b = Number(req.query.bytes ?? req.body?.bytes);
+        const e = Number(req.query.entries ?? req.body?.entries);
+        if (Number.isFinite(b) && b>0) wal.capBytes = b|0;
+        if (Number.isFinite(e) && e>0) wal.capEntries = e|0;
+        res.json({ ok:true, capBytes: wal.capBytes, capEntries: wal.capEntries });
+      });
+    })();
+
+    // 2) TX submission pre-middleware -> WAL
+    (function walTxMirror(){
+      const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(walTxMirror, 300);
+      if (app.__void_wal_tx_mirror) return; app.__void_wal_tx_mirror = true;
+
+      // Express runs middleware in order; this mirrors bodies before core handlers.
+      app.use("/tx/submit", async (req:any, res:any, next:any)=>{
+        try{
+          if (wal.overCap()){
+            // Backpressure: refuse new TX to relieve memory pressure (V7 mitigation)
+            res.status(429).json({ ok:false, overCap:true, pressure: wal.pressure() });
+            return;
+          }
+          const body = req.body ?? {};
+          await wal.append("tx", { body });
+        }catch(_){}
+        next();
+      });
+
+      // Optional: capture bursts/dev routes if they exist
+      app.use("/tx/dev", async (req:any, res:any, next:any)=>{
+        try{
+          if (wal.overCap()){
+            res.status(429).json({ ok:false, overCap:true, pressure: wal.pressure() });
+            return;
+          }
+          const body = req.body ?? {};
+          await wal.append("tx", { dev:true, body, path:req.path, qs:req.query });
+        }catch(_){}
+        next();
+      });
+    })();
+
+    // 3) Block seal mirror (monkeypatch store.saveBlock if present)
+    (function walSealTap(){
+      const node:any = (G.node || G.__void_node || {});
+      const store:any = node?.store || (G.store);
+      if (!store) return setTimeout(walSealTap, 300);
+      if (store.__void_wal_saveBlock_wrapped) return;
+      const orig = store.saveBlock?.bind(store);
+      if (typeof orig !== "function") return; // nothing to do
+      store.__void_wal_saveBlock_wrapped = true;
+      store.saveBlock = async function(...args:any[]){
+        try{
+          const blk = args[0];
+          const meta = {
+            number: blk?.number ?? null,
+            txCount: Array.isArray(blk?.txs) ? blk.txs.length : (blk?.txCount ?? null),
+            txRoot: (blk?.header?.txRoot ?? blk?.txRoot ?? null),
+          };
+          await wal.append("block", meta);
+        }catch(_){}
+        return await orig(...args);
+      }
+    })();
+
+    // 4) Minimal replay endpoint (read-only)
+    ;(function walReplayEndpoint(){
+      const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(walReplayEndpoint, 300);
+      if (app.__void_wal_replay) return; app.__void_wal_replay = true;
+
+      // GET /__void/wal/replay?limit=100 -> streams last N lines (unsafe for huge; dev only)
+      app.get("/__void/wal/replay", async (_req:any, res:any)=>{
+        try{
+          // very light: we only expose timing; full dump avoided for now
+          res.json({ ok:true, lastReplayMs: (G.__void_wal?.lastReplayMs ?? -1) });
+        }catch(e:any){
+          res.status(500).json({ ok:false, error:String(e?.message||e) });
+        }
+      });
+    })();
+
+  }catch(e){}
+})();
+// --- WAL pressure -> proposer slowdown (additive) ---
+(function walPressureController(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  async function tick(){
+    try{
+      const wal:any = (G.__void_wal);
+      if (!wal) return setTimeout(tick, 1500);
+      const p = wal.pressure();
+      // mild slope: 0..1 pressure -> 2000..6000ms
+      const ms = Math.round(2000 + Math.max(0, Math.min(1, p)) * 4000);
+      // best-effort: many builds have this endpoint
+      await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/proposer/auto/start?ms=${ms}`, { method:"POST" }).catch(()=>{});
+    }catch{}
+    setTimeout(tick, 1500);
+  }
+  function whenApp(){ const a:any = getApp(); if (!a) return setTimeout(whenApp, 500); tick(); }
+  whenApp();
+})();
+// --- WAL pressure guardrail: 429 on write when over cap (additive) ---
+(function walPressureWriteGate(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.use !== "function") return setTimeout(mount, 400);
+
+    if ((app as any).__void_wal_gate_mounted) return;
+    (app as any).__void_wal_gate_mounted = true;
+
+    app.use(async (req:any, res:any, next:any)=>{
+      try{
+        const wal:any = (G.__void_wal);
+        if (!wal) return next();
+        const p = Number(wal.pressure?.() ?? 0);
+        // Only gate "write-ish" routes; expand list as needed
+        const isWrite = req.method === "POST" && (
+          req.path === "/tx/submit" ||
+          req.path.startsWith("/tx/") ||
+          req.path.startsWith("/blocks/submit") ||
+          req.path.startsWith("/__void/ingest")
+        );
+        if (isWrite && p >= 1){
+          // Surface backpressure explicitly
+          res.status(429).json({ ok:false, error:"WAL over cap", pressure:p });
+          return;
+        }
+      } catch{}
+      next();
+    });
+  }
+  mount();
+})();
+// --- WAL pressure gate (top-of-stack via handle wrapper) ---
+(function walPressureHandleWrapper(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function classifyWrite(req:any){
+    if (req.method !== "POST") return false;
+    const p = req.path || req.url || "";
+    return (
+      p === "/tx/submit" ||
+      p.startsWith("/tx/") ||
+      p.startsWith("/blocks/submit") ||
+      p.startsWith("/__void/ingest")
+    );
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.handle !== "function") return setTimeout(mount, 400);
+    if ((app as any).__void_wal_gate_wrapped) return;
+    (app as any).__void_wal_gate_wrapped = true;
+
+    const origHandle = app.handle.bind(app);
+    app.handle = function(req:any, res:any, out:any){
+      try{
+        const wal:any = (G.__void_wal);
+        const p = Number(wal?.pressure?.() ?? 0);
+        (G.__void_wal_gate_metrics ||= { rejects:0, last_pressure:-1 });
+        G.__void_wal_gate_metrics.last_pressure = p;
+
+        if (classifyWrite(req) && p >= 1){
+          G.__void_wal_gate_metrics.rejects++;
+          res.status(429).json({ ok:false, error:"WAL over cap", pressure:p });
+          return;
+        }
+      }catch{/* fall through */}
+      return origHandle(req, res, out);
+    };
+
+    // tiny text exporter for visibility (doesn't touch existing exporters)
+    app.get("/__void/metrics/wal_gate.prom", (_req:any, res:any)=>{
+      const m = (G.__void_wal_gate_metrics || {rejects:0, last_pressure:-1});
+      res.type("text/plain").end(
+        `# HELP void_wal_gate_rejects Total 429 rejects by WAL gate\n`+
+        `# TYPE void_wal_gate_rejects counter\n`+
+        `void_wal_gate_rejects ${m.rejects}\n`+
+        `# HELP void_wal_gate_last_pressure Last seen WAL pressure by gate\n`+
+        `# TYPE void_wal_gate_last_pressure gauge\n`+
+        `void_wal_gate_last_pressure ${m.last_pressure}\n`
+      );
+    });
+  }
+  mount();
+})();
+// --- WAL boot caps from env (additive, best-effort) ---
+(function walBootCaps(){
+  const G:any = globalThis as any;
+  function later(){ setTimeout(trySet, 800); }
+  async function trySet(){
+    try{
+      const capBytes = Number(process.env.VOID_WAL_CAP_BYTES || "");
+      const capEntries = Number(process.env.VOID_WAL_CAP_ENTRIES || "");
+      if (!Number.isFinite(capBytes) || !Number.isFinite(capEntries)) return;
+      const port = process.env.HTTP_PORT || "4100";
+      await fetch(`http://127.0.0.1:${port}/__void/wal/caps?bytes=${capBytes}&entries=${capEntries}`, {method:"POST"})
+        .catch(()=>{});
+    }catch{}
+  }
+  later();
+})();
+// --- WAL dev helpers: append + debug + optional replay (additive) ---
+(function walDevHelpers(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 500);
+    if ((app as any).__void_wal_dev_helpers) return;
+    (app as any).__void_wal_dev_helpers = true;
+
+    // GET /__void/wal/dev/append?n=100&bytes=256
+    app.get("/__void/wal/dev/append", async (req:any, res:any)=>{
+      try{
+        const wal:any = (G.__void_wal);
+        if (!wal || typeof wal.append !== "function") {
+          return res.status(501).json({ok:false, error:"wal.append unavailable"});
+        }
+        const n = Math.max(1, Math.min(100000, Number(req.query.n||1)));
+        const bytes = Math.max(1, Math.min(1<<20, Number(req.query.bytes||256)));
+        const buf = new Uint8Array(bytes).fill(0xAB); // synthetic payload
+        for(let i=0;i<n;i++) await wal.append(buf);
+        return res.json({ok:true, appended:n, bytes});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+
+    // GET /__void/wal/debug
+    app.get("/__void/wal/debug", async (_req:any, res:any)=>{
+      try{
+        const wal:any = (G.__void_wal)||{};
+        const info = {
+          hasWal: !!G.__void_wal,
+          segOpen: wal.segmentsOpen ?? undefined,
+          pressure: Number(wal.pressure?.() ?? -1),
+          lastReplayMs: wal.lastReplayMs ?? -1,
+          caps: { bytes: wal.capBytes ?? undefined, entries: wal.capEntries ?? undefined },
+        };
+        res.json({ok:true, info});
+      }catch(e:any){
+        res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+
+    // POST /__void/wal/dev/replay (best-effort; no-op if not exposed)
+    app.post("/__void/wal/dev/replay", async (_req:any, res:any)=>{
+      try{
+        const wal:any = (G.__void_wal);
+        if (!wal || typeof wal.replay !== "function") return res.json({ok:false, error:"replay() not exposed"});
+        const t0 = Date.now();
+        await wal.replay();
+        const ms = Date.now()-t0;
+        // stash for exporter readers if available
+        (G.__void_wal_last_replay_forced = ms);
+        res.json({ok:true, replayMs:ms});
+      }catch(e:any){
+        res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+  }
+  mount();
+})();
+// --- WAL auto-replay on boot (best-effort, additive) --------------------------
+(function walBootAutoReplayOnce(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  let ran = false, lastErr = "";
+
+  async function tryReplay(){
+    if (ran) return;
+    try{
+      const wal:any = (G.__void_wal);
+      if (!wal || typeof wal.replay !== "function") return;
+      const t0 = Date.now();
+      await wal.replay();
+      const ms = Date.now() - t0;
+      (G.__void_wal_boot_replay = { ok:true, ms, at:Date.now() });
+      ran = true;
+    }catch(e:any){
+      lastErr = String(e?.message || e);
+      (G.__void_wal_boot_replay = { ok:false, error:lastErr, at:Date.now() });
+    }
+  }
+
+  function tick(){
+    const wal:any = (G.__void_wal);
+    if (!wal || typeof wal.replay !== "function") return setTimeout(tick, 400);
+    tryReplay();
+  }
+
+  // small exporter so ops can see it
+  function mountExporter(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mountExporter, 400);
+    if ((app as any).__void_wal_boot_replay_exporter) return;
+    (app as any).__void_wal_boot_replay_exporter = true;
+
+    app.get("/__void/metrics/wal_boot_replay.prom", (_req:any, res:any)=>{
+      const s = (G.__void_wal_boot_replay || {ok:false, ms:-1, at:0, error:""});
+      res.type("text/plain").end(
+        "# HELP void_wal_boot_replay_ms Replay duration run at boot (ms)\n"+
+        "# TYPE void_wal_boot_replay_ms gauge\n"+
+        `void_wal_boot_replay_ms ${Number(s.ms ?? -1)}\n`+
+        "# HELP void_wal_boot_replay_ok 1 if boot replay succeeded\n"+
+        "# TYPE void_wal_boot_replay_ok gauge\n"+
+        `void_wal_boot_replay_ok ${s.ok?1:0}\n`+
+        "# HELP void_wal_boot_replay_last_at_ms Epoch ms of last boot replay attempt\n"+
+        "# TYPE void_wal_boot_replay_last_at_ms gauge\n"+
+        `void_wal_boot_replay_last_at_ms ${Number(s.at||0)}\n`
+      );
+    });
+  }
+
+  tick(); mountExporter();
+})();

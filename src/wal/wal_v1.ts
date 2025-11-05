@@ -1,85 +1,134 @@
 import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 
-type WalIntent = {
-  t: "append";    // intent to write block
-  n: number;      // block number
-  txRoot?: string;
-  hash?: string;
-  ts: number;
-};
-type WalCommit = {
-  t: "commit";    // post-save confirmation
-  n: number;
-  ts: number;
+type WalEntry = {
+  ts: number;                 // ms epoch
+  kind: "tx" | "block" | "meta";
+  payload: any;               // arbitrary JSON
 };
 
 export class WALv1 {
-  walDir: string;
-  walLog: string;
-  inflight = new Set<number>();
-  counters = {
-    appends_total: 0,
-    commits_total: 0,
-    replays_total: 0,
-    inflight_gauge: 0,
-    last_uncommitted_number: -1,
-  };
+  private dir: string;
+  private filePath: string;
+  private fd: fs.promises.FileHandle | null = null;
+  private bytes = 0;
+  private entries = 0;
+  private segIndex = 0;
 
-  constructor(dataDir: string){
-    this.walDir = path.join(dataDir, "wal");
-    this.walLog = path.join(this.walDir, "000000.jsonl");
-    fs.mkdirSync(this.walDir, {recursive:true});
-    if (!fs.existsSync(this.walLog)) fs.writeFileSync(this.walLog, "");
-    this.scanInflight();
+  private fsyncEvery = 1;          // fsync every N appends (N=1 = strongest)
+  private _sinceSync = 0;
+
+  // pressure caps (tune live via setter endpoints later)
+  public capBytes = 256 * 1024 * 1024;   // 256MB
+  public capEntries = 2_000_000;         // safety ceiling
+
+  // stats
+  public fsyncTotal = 0;
+  public lastReplayMs = -1;
+
+  constructor(rootDir: string){
+    this.dir = path.join(rootDir, "wal");
+    this.segIndex = Date.now(); // simple unique seed; rotate() can roll segments later
+    this.filePath = path.join(this.dir, `journal-${this.segIndex}.ndjson`);
   }
 
-  private scanInflight(){
-    // Simple replay: scan jsonl and rebuild inflight set
-    const text = fs.readFileSync(this.walLog, "utf8");
-    const lines = text.split(/\r?\n/).filter(Boolean);
-    const open = new Set<number>();
-    for (const line of lines){
-      try{
-        const rec = JSON.parse(line) as WalIntent|WalCommit;
-        if (rec.t === "append") open.add(rec.n);
-        else if (rec.t === "commit") open.delete(rec.n);
-      }catch{}
-    }
-    this.inflight = open;
-    this.counters.inflight_gauge = this.inflight.size;
-    if (open.size){
-      // Highest uncommitted (best-effort)
-      this.counters.last_uncommitted_number = Math.max(...Array.from(open.values()));
+  async open(){
+    await fsp.mkdir(this.dir, { recursive: true });
+    const exists = await fsp.stat(this.filePath).then(()=>true).catch(()=>false);
+    this.fd = await fsp.open(this.filePath, exists ? "a" : "a+");
+    if (exists){
+      const st = await this.fd.stat();
+      this.bytes = st.size;
     }
   }
 
-  append(n:number, txRoot?:string, hash?:string){
-    const rec: WalIntent = { t:"append", n, txRoot, hash, ts: Date.now() };
-    fs.appendFileSync(this.walLog, JSON.stringify(rec)+"\n");
-    this.inflight.add(n);
-    this.counters.appends_total++;
-    this.counters.inflight_gauge = this.inflight.size;
-    if (n > this.counters.last_uncommitted_number) this.counters.last_uncommitted_number = n;
+  private lineFor(e: WalEntry){
+    const raw = JSON.stringify(e);
+    const h = createHash("sha256").update(raw).digest("hex");
+    return JSON.stringify({ h, raw }) + "\n";
   }
 
-  commit(n:number){
-    const rec: WalCommit = { t:"commit", n, ts: Date.now() };
-    fs.appendFileSync(this.walLog, JSON.stringify(rec)+"\n");
-    this.inflight.delete(n);
-    this.counters.commits_total++;
-    this.counters.inflight_gauge = this.inflight.size;
-    if (!this.inflight.size) this.counters.last_uncommitted_number = -1;
+  pressure(){
+    const b = this.bytes;
+    const e = this.entries;
+    const bRatio = this.capBytes > 0 ? b / this.capBytes : 0;
+    const eRatio = this.capEntries > 0 ? e / this.capEntries : 0;
+    return Math.max(bRatio, eRatio); // 0..1+ (>=1 means over-cap)
   }
 
-  metricsProm(): string{
-    const c = this.counters;
+  overCap(){ return this.bytes >= this.capBytes || this.entries >= this.capEntries; }
+
+  async append(kind: WalEntry["kind"], payload: any){
+    if (!this.fd) throw new Error("WAL not open");
+    const entry: WalEntry = { ts: Date.now(), kind, payload };
+    const line = this.lineFor(entry);
+    await this.fd.write(line);
+    this.bytes += Buffer.byteLength(line);
+    this.entries++;
+    if (++this._sinceSync >= this.fsyncEvery){
+      await this.fd.sync(); this.fsyncTotal++; this._sinceSync = 0;
+    }
+  }
+
+  async rotate(){
+    if (!this.fd) return;
+    await this.fd.sync(); await this.fd.close();
+    this.segIndex++;
+    this.filePath = path.join(this.dir, `journal-${this.segIndex}.ndjson`);
+    this.fd = await fsp.open(this.filePath, "a+");
+    this._sinceSync = 0;
+  }
+
+  async replay(onEntry:(e:WalEntry)=>Promise<void> | void){
+    const t0 = Date.now();
+    const files = (await fsp.readdir(this.dir)).filter(f=>f.startsWith("journal-") && f.endsWith(".ndjson")).sort();
+    for (const f of files){
+      const p = path.join(this.dir, f);
+      const rd = fs.createReadStream(p, { encoding: "utf8" });
+      let buf = "";
+      for await (const chunk of rd){
+        buf += chunk;
+        let idx;
+        while ((idx = buf.indexOf("\n")) >= 0){
+          const line = buf.slice(0, idx); buf = buf.slice(idx+1);
+          if (!line.trim()) continue;
+          try{
+            const obj = JSON.parse(line);
+            const { h, raw } = obj || {};
+            if (typeof raw !== "string" || typeof h !== "string") continue;
+            const calc = createHash("sha256").update(raw).digest("hex");
+            if (calc !== h) continue; // integrity check fail -> skip
+            const entry = JSON.parse(raw) as WalEntry;
+            await onEntry(entry);
+          }catch{}
+        }
+      }
+    }
+    this.lastReplayMs = Date.now() - t0;
+  }
+
+  metricsText(){
     return [
-      `void_wal_appends_total ${c.appends_total}`,
-      `void_wal_commits_total ${c.commits_total}`,
-      `void_wal_replays_total ${c.replays_total}`,
-      `void_wal_inflight_gauge ${c.inflight_gauge}`,
-      `void_wal_last_uncommitted_number ${c.last_uncommitted_number}`,
-    ].join("\n")+"\n";
+      "# HELP void_wal_bytes Total WAL bytes across current segment",
+      "# TYPE void_wal_bytes gauge",
+      `void_wal_bytes ${this.bytes}`,
+      "# HELP void_wal_entries Total WAL entries appended (since open)",
+      "# TYPE void_wal_entries counter",
+      `void_wal_entries ${this.entries}`,
+      "# HELP void_wal_segments_open Current WAL segment index",
+      "# TYPE void_wal_segments_open gauge",
+      `void_wal_segments_open ${this.segIndex}`,
+      "# HELP void_wal_fsync_total Total fsync calls",
+      "# TYPE void_wal_fsync_total counter",
+      `void_wal_fsync_total ${this.fsyncTotal}`,
+      "# HELP void_wal_pressure_ratio Pressure ratio (0..1+, >=1 means over cap)",
+      "# TYPE void_wal_pressure_ratio gauge",
+      `void_wal_pressure_ratio ${this.pressure()}`,
+      "# HELP void_wal_last_replay_ms Last replay duration in ms (-1 if none)",
+      "# TYPE void_wal_last_replay_ms gauge",
+      `void_wal_last_replay_ms ${this.lastReplayMs}`,
+    ].join("\n") + "\n";
   }
 }
