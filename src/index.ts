@@ -23628,3 +23628,277 @@ void_wal_wrapped ${isWrapped?1:0}
   }
   mount();
 })();
+// ---------------- Agent Core v0: health, peer ping, drift, snapshots (additive) -----------------
+(function agentCoreV0(){
+  const TICK=400;
+  const PROM_PATH = "/__void/metrics/agent.core.prom";
+  const state:any = {
+    mounted:false, metrics:{
+      jobs_total:0, ok_total:0, err_total:0,
+      last_ts:0, kinds:{} as Record<string,{ok:number,err:number,last_ts:number}>
+    }
+  };
+
+  const { execFile } = require("node:child_process");
+  const fs = require("node:fs");
+  const path = require("node:path");
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function now(){ return Date.now(); }
+  function ensureKind(k:string){
+    if(!state.metrics.kinds[k]) state.metrics.kinds[k] = { ok:0, err:0, last_ts:0 };
+    return state.metrics.kinds[k];
+  }
+  function mark(k:string, ok:boolean){
+    state.metrics.jobs_total++; state.metrics.last_ts = now();
+    const slot = ensureKind(k);
+    slot.last_ts = state.metrics.last_ts;
+    if(ok){ state.metrics.ok_total++; slot.ok++; } else { state.metrics.err_total++; slot.err++; }
+  }
+  function writeProm(){
+    try{
+      const lines:string[] = [];
+      lines.push("# HELP void_agent_core_jobs_total total agent jobs seen");
+      lines.push("# TYPE void_agent_core_jobs_total counter");
+      lines.push(`void_agent_core_jobs_total ${state.metrics.jobs_total}`);
+      lines.push("# HELP void_agent_core_ok_total successful agent jobs");
+      lines.push("# TYPE void_agent_core_ok_total counter");
+      lines.push(`void_agent_core_ok_total ${state.metrics.ok_total}`);
+      lines.push("# HELP void_agent_core_err_total failed agent jobs");
+      lines.push("# TYPE void_agent_core_err_total counter");
+      lines.push(`void_agent_core_err_total ${state.metrics.err_total}`);
+      lines.push("# HELP void_agent_core_last_ts_millis last job timestamp");
+      lines.push("# TYPE void_agent_core_last_ts_millis gauge");
+      lines.push(`void_agent_core_last_ts_millis ${state.metrics.last_ts}`);
+
+      // Per-kind
+      lines.push("# HELP void_agent_core_kind_ok_total ok count per kind");
+      lines.push("# TYPE void_agent_core_kind_ok_total counter");
+      lines.push("# HELP void_agent_core_kind_err_total err count per kind");
+      lines.push("# TYPE void_agent_core_kind_err_total counter");
+      lines.push("# HELP void_agent_core_kind_last_ts_millis last job ts per kind");
+      lines.push("# TYPE void_agent_core_kind_last_ts_millis gauge");
+      for(const [k,v] of Object.entries(state.metrics.kinds)){
+        const esc = k.replace(/["\\]/g, "\\$&");
+        lines.push(`void_agent_core_kind_ok_total{kind="${esc}"} ${v.ok}`);
+        lines.push(`void_agent_core_kind_err_total{kind="${esc}"} ${v.err}`);
+        lines.push(`void_agent_core_kind_last_ts_millis{kind="${esc}"} ${v.last_ts}`);
+      }
+
+      const app:any = getApp(); if(!app) return;
+      // mount (idempotent) lightweight Prom endpoint
+      if(!app.__void_agent_core_prom){
+        app.__void_agent_core_prom = true;
+        app.get(PROM_PATH, (_req:any, res:any)=>{ res.type("text/plain").send(lines.join("\n")+"\n"); });
+      }
+    }catch(_e){}
+  }
+
+  function shJson(args:string[]):Promise<any>{
+    return new Promise((resolve,reject)=>{
+      execFile("curl", ["-fsS"].concat(args), {timeout: 5000}, (err: any, out: string)=>{
+        if(err) return reject(err);
+        try{ resolve(JSON.parse(out)); } catch(parseErr){ reject(parseErr); }
+      });
+    });
+  }
+  function shText(args:string[]):Promise<string>{
+    return new Promise((resolve,reject)=>{
+      execFile("curl", ["-fsS"].concat(args), {timeout: 5000}, (err: any, out: string)=>{
+        if(err) return reject(err);
+        resolve(out);
+      });
+    });
+  }
+
+  async function handle(kind:string, payload:any){
+    // All agents must be side-effect safe and quick (<5s). Fail closed.
+    switch(kind){
+
+      // 1) snapshot.head — read local /head.txt and persist last number to data/agent/head.log
+      case "snapshot.head": {
+        const txt = await shText(["http://127.0.0.1:4100/head.txt"]);
+        const n = parseInt((txt||"").split(/\s+/)[0], 10);
+        if(!Number.isFinite(n)) throw new Error("bad head");
+        const outDir = path.join(process.cwd(), "data","agent");
+        fs.mkdirSync(outDir, {recursive:true});
+        fs.writeFileSync(path.join(outDir,"head.log"), String(n)+"\n", {encoding:"utf8"});
+        return { number:n };
+      }
+
+      // 2) peer.ping — GET peer /head.txt; returns peer head
+      case "peer.ping": {
+        const peer = String(payload?.peer || "");
+        if(!peer) throw new Error("peer required");
+        const txt = await shText([`${peer.replace(/\/$/,"")}/head.txt`]);
+        const n = parseInt((txt||"").split(/\s+/)[0],10);
+        if(!Number.isFinite(n)) throw new Error("bad peer head");
+        return { peer, number:n };
+      }
+
+      // 3) drift.check — compares local head vs peer and returns drift
+      case "drift.check": {
+        const peer = String(payload?.peer || "http://127.0.0.1:4100");
+        const localTxt = await shText(["http://127.0.0.1:4100/head.txt"]);
+        const peerTxt  = await shText([`${peer.replace(/\/$/,"")}/head.txt`]);
+        const localN = parseInt((localTxt||"").split(/\s+/)[0],10);
+        const peerN  = parseInt((peerTxt ||"").split(/\s+/)[0],10);
+        if(!Number.isFinite(localN) || !Number.isFinite(peerN)) throw new Error("bad heads");
+        return { peer, local:localN, peerHead:peerN, drift:(peerN - localN) };
+      }
+
+      // 4) seals.health — read Prom-like health (1 good else bad). Accepts prom text and parses the first number.
+      case "seals.health": {
+        const txt = await shText(["http://127.0.0.1:4100/metrics/void/seals/health?format=prom"]);
+        const m = txt.match(/void_seals_health\s+([0-9\.\-eE]+)/);
+        const val = m ? Number(m[1]) : NaN;
+        if(!Number.isFinite(val)) throw new Error("no metric");
+        return { ok: (val===1), value: val };
+      }
+
+      // 5) txroot.health — JSON health (1 good). Falls back to prom if json not available.
+      case "txroot.health": {
+        try {
+          const j = await shJson(["http://127.0.0.1:4100/health/txroot3"]);
+          const ok = (j && (j.ok === true || j.health === 1 || j.status === "ok"));
+          return { ok: !!ok, raw: j };
+        } catch(_e){
+          const txt = await shText(["http://127.0.0.1:4100/health/txroot3?format=prom"]);
+          const m = txt.match(/void_txroot_health\s+([0-9\.\-eE]+)/);
+          const val = m ? Number(m[1]) : NaN;
+          if(!Number.isFinite(val)) throw new Error("no txroot metric");
+          return { ok:(val===1), value: val };
+        }
+      }
+
+      // 6) agent.selftest — quick internal ping for scheduler sanity
+      case "agent.selftest": {
+        return { ok:true, ts: Date.now() };
+      }
+
+      default:
+        throw new Error("unknown kind: "+kind);
+    }
+  }
+
+  function mount(){
+    const app:any = getApp(); if(!app?.post){ return setTimeout(mount, TICK); }
+    if(state.mounted) return; state.mounted = true;
+
+    // Hook into existing wrapper dispatch (NO new route assumptions). If your handler calls us,
+    // it should pass through here by importing/using the same switch or by consulting this map.
+    // Fallback: expose a minimal internal endpoint that the existing wrapper can call.
+    if(!app.__void_agent_core_dispatch){
+      app.__void_agent_core_dispatch = true;
+      app.post("/__void/agent-core/dispatch", async (req:any,res:any)=>{
+        try{
+          const kind = String(req?.body?.kind||"");
+          const payload = req?.body?.payload || {};
+          const out = await handle(kind, payload);
+          mark(kind, true); writeProm();
+          res.json({ok:true, kind, out});
+        }catch(e:any){
+          const kind = String(req?.body?.kind||"");
+          mark(kind||"__unknown__", false); writeProm();
+          res.status(500).json({ok:false, error:String(e?.message||e)});
+        }
+      });
+    }
+
+    // Make sure the prom endpoint is live
+    writeProm();
+  }
+  mount();
+})();
+
+// ---------------- header3 self-checker v2 (additive, safeboot-friendly) ----------------
+(function Header3CheckerV2(){
+  const TICK_MS = 5000;
+  const BASE = `http://127.0.0.1:${process.env.HTTP_PORT || 4100}`;
+  let mounted = false, lastNum = -1, lastMismatch = -1, lastMatch = 0;
+
+  const lines:string[] = [];
+  function prom() {
+    const L: string[] = [];
+    L.push('# HELP void_header3_match_v2 Header3 txRoot matches dev txroot (1 yes, 0 no)');
+    L.push('# TYPE void_header3_match_v2 gauge');
+    L.push(`void_header3_match_v2{number="${lastNum}"} ${lastMatch}`);
+    L.push('# HELP void_header3_last_number_v2 Last block checked');
+    L.push('# TYPE void_header3_last_number_v2 gauge');
+    L.push(`void_header3_last_number_v2 ${lastNum}`);
+    L.push('# HELP void_header3_last_mismatch_v2 Last block where header3 root mismatched dev txroot (-1 if none)');
+    L.push('# TYPE void_header3_last_mismatch_v2 gauge');
+    L.push(`void_header3_last_mismatch_v2 ${lastMismatch}`);
+    return L.join('\n') + '\n';
+  }
+
+  async function readyApp():Promise<any>{
+    return new Promise((res)=> {
+      const check=()=>{ const app:any=(globalThis as any).__void_http_app || (globalThis as any).app;
+        if(app && typeof app.get==='function') return res(app); setTimeout(check,250); };
+      check();
+    });
+  }
+
+  async function fetchJson(path:string){
+    const r = await fetch(`${BASE}${path}`).catch(()=>null);
+    if(!r || !r.ok) throw new Error(`fetch ${path} failed`);
+    return r.headers.get('content-type')?.includes('application/json') ? r.json() : r.text();
+  }
+
+  async function tick(){
+    try{
+      // latest number
+      const latest = await fetchJson('/blocks/latest/number2.json');
+      const n = (typeof latest === 'object' && latest.number!=null) ? Number(latest.number) : Number(latest);
+      if (!Number.isFinite(n) || n < 0){ lastNum = -1; lastMatch = 0; return; }
+
+      // /blocks/:n/header3
+      const h3:any = await fetchJson(`/blocks/${n}/header3`);
+      const EMPTY_ROOT = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+      const txCount = (h3 && typeof h3.txCount === "number") ? h3.txCount : 0;
+      // Fast path: empty block => expect EMPTY_ROOT, no dev endpoint required
+      if (txCount === 0) {
+        lastNum = n; lastMatch = (String(h3.txRoot||"").toLowerCase() === EMPTY_ROOT) ? 1 : 0;
+        if (!lastMatch) lastMismatch = n;
+        return;
+      }
+      const txRoot = (h3 && typeof h3.txRoot === 'string') ? h3.txRoot : '';
+
+      // dev root (prefer stable shim if available)
+      // dev root fetch with safe fallbacks
+      let devRoot = "";
+      try {
+        const r:any = await fetchJson(`/dev/txroot/${n}.root`);
+        devRoot = (typeof r === "string") ? r : String(r);
+      } catch (_e1:any) {
+        try {
+          const j:any = await fetchJson(`/dev/txroot/${n}`);
+          devRoot = (j && typeof j.root === "string") ? j.root : "";
+        } catch (_e2:any) { /* ignore */ }
+      }
+      // compare
+      lastNum = n;
+      if (txRoot && devRoot && txRoot.toLowerCase() === devRoot.toLowerCase()){
+        lastMatch = 1;
+      } else {
+        lastMatch = 0;
+        lastMismatch = n;
+      }
+    }catch(e){ /* silent; leaves last values */ }
+  }
+
+  async function mount(){
+    if (mounted) return; mounted = true;
+    const app:any = await readyApp();
+    // exporter endpoint
+    app.get('/__void/metrics/header3.prom.v2', (_req:any, res:any)=>{
+      res.set('Content-Type','text/plain; version=0.0.4'); res.end(prom());
+    });
+    // background loop
+    setInterval(tick, TICK_MS).unref?.();
+    // kick immediately
+    tick();
+  }
+  mount();
+})();
