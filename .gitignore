@@ -51,3 +51,7 @@ src/.park/
 **/.env.*
 # operator USB (just in case someone rsyncs it by accident)
 mnt/voidkey/
+proposer.env
+void.env
+secrets*/
+*.env*
