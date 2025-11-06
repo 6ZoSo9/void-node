@@ -22003,3 +22003,212 @@ void_wal_wrapped ${isWrapped?1:0}
   }
   mount();
 })();
+
+// ========================== Agent v0 — JobQueue minimal ==========================
+(function AgentV0JobQueue(){
+  const TICK=400;
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const crypto = require("node:crypto");
+
+  const DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const AGENT_DIR = path.join(DATA_DIR, "agent");
+  const FILE_JOBS      = path.join(AGENT_DIR, "jobs.jsonl");
+  const FILE_RESULTS   = path.join(AGENT_DIR, "results.jsonl");
+  const FILE_RECEIPTS  = path.join(AGENT_DIR, "receipts.jsonl");
+  const FILE_LEASES    = path.join(AGENT_DIR, "leases.jsonl"); // who picked which job
+
+  const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
+
+  function mkdirp(p){ fs.mkdirSync(p, {recursive:true}); }
+  function sha256Hex(buf){ return crypto.createHash("sha256").update(buf).digest("hex"); }
+  function jsonlAppend(file, obj){
+    mkdirp(path.dirname(file));
+    fs.appendFileSync(file, JSON.stringify(obj) + "\n", {encoding:"utf8"});
+  }
+  function nowMs(){ return Date.now(); }
+  function id24(){ return crypto.randomBytes(12).toString("hex"); } // 24 chars
+
+  // Auth (optional for clients; required for agent endpoints)
+  function requireAgentAuth(req,res,next){
+    if (!AGENT_TOKEN) return res.status(503).json({ok:false, error:"agent token not configured"});
+    const hdr = (req.headers["x-agent-token"] || req.headers["authorization"] || "").toString().trim();
+    const tok = hdr.startsWith("Bearer ") ? hdr.slice(7) : hdr;
+    if (tok !== AGENT_TOKEN) return res.status(401).json({ok:false, error:"unauthorized"});
+    next();
+  }
+
+  // Simple in-memory index for quick picks (rebuilt lazily)
+  let queued = []; // ids not yet leased/completed
+  let building = false;
+  function rebuildIndex(){
+    if (building) return;
+    building = true;
+    try {
+      queued = [];
+      if (fs.existsSync(FILE_JOBS)){
+        const seen = new Set();
+        const leased = new Set();
+        const done = new Set();
+        // collect leases
+        if (fs.existsSync(FILE_LEASES)){
+          fs.readFileSync(FILE_LEASES,"utf8").split("\n").forEach(l=>{
+            if(!l.trim()) return;
+            try{ const x=JSON.parse(l); if(x && x.id) leased.add(x.id); }catch{}
+          });
+        }
+        // collect done
+        if (fs.existsSync(FILE_RESULTS)){
+          fs.readFileSync(FILE_RESULTS,"utf8").split("\n").forEach(l=>{
+            if(!l.trim()) return;
+            try{ const x=JSON.parse(l); if(x && x.id) done.add(x.id); }catch{}
+          });
+        }
+        // list jobs not done/not leased
+        fs.readFileSync(FILE_JOBS,"utf8").split("\n").forEach(l=>{
+          if(!l.trim()) return;
+          try{
+            const x=JSON.parse(l);
+            if(!x || !x.id) return;
+            if(seen.has(x.id)) return;
+            seen.add(x.id);
+            if(!done.has(x.id) && !leased.has(x.id)) queued.push(x.id);
+          }catch{}
+        });
+      }
+    } finally { building = false; }
+  }
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if(!app || typeof app.post!=="function"){ return setTimeout(mount, TICK); }
+
+    // POST /agent/v0/job — client submits a job (no auth)
+    // body: {input:any, meta?} -> {ok,id,inputHash,ts}
+    app.post("/agent/v0/job", express.json({limit:"5mb"}), (req,res)=>{
+      try{
+        const id = id24();
+        const input = req.body?.input ?? req.body;
+        const meta  = req.body?.meta ?? {};
+        const inputStr = JSON.stringify(input ?? null);
+        const inputHash = sha256Hex(inputStr);
+        const rec = { id, input, inputHash, meta, ts: nowMs(), status:"queued" };
+        jsonlAppend(FILE_JOBS, rec);
+        rebuildIndex();
+        return res.json({ok:true, id, inputHash, ts:rec.ts});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    // POST /agent/v0/pick — agent pulls a job (auth)
+    // body: {worker?:string} -> {ok, job?}
+    app.post("/agent/v0/pick", requireAgentAuth, express.json(), (req,res)=>{
+      try{
+        if (!queued.length) rebuildIndex();
+        const id = queued.shift();
+        if (!id) return res.json({ok:true, job:null});
+        const worker = (req.body?.worker || "anon").toString();
+        jsonlAppend(FILE_LEASES, {id, worker, ts:nowMs()});
+        // fetch the job payload to return
+        let job:any = null;
+        if (fs.existsSync(FILE_JOBS)){
+          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
+          for (let i=lines.length-1;i>=0;--i){
+            const l = lines[i]; if(!l.trim()) continue;
+            try{ const x=JSON.parse(l); if(x.id===id){ job=x; break; } }catch{}
+          }
+        }
+        return res.json({ok:true, job});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    // POST /agent/v0/result/:id — agent posts result (auth)
+    // body: {output:any, inputHash?, outputHash?}
+    app.post("/agent/v0/result/:id", requireAgentAuth, express.json({limit:"10mb"}), (req,res)=>{
+      try{
+        const id = req.params.id;
+        const output = req.body?.output ?? req.body;
+        const outStr = JSON.stringify(output ?? null);
+        const outputHash = req.body?.outputHash || sha256Hex(outStr);
+
+        // try to find original inputHash for this id
+        let inputHash = (req.body?.inputHash || "");
+        if (!inputHash && fs.existsSync(FILE_JOBS)){
+          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
+          for (let i=lines.length-1;i>=0;--i){
+            const l = lines[i]; if(!l.trim()) continue;
+            try{ const x=JSON.parse(l); if(x.id===id){ inputHash = x.inputHash || ""; break; } }catch{}
+          }
+        }
+        const rec = { id, output, outputHash, inputHash, ts: nowMs() };
+        jsonlAppend(FILE_RESULTS, rec);
+        // auto-write a receipt line as well
+        jsonlAppend(FILE_RECEIPTS, { id, inputHash, outputHash, ts: rec.ts });
+        return res.json({ok:true, id, inputHash, outputHash});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    // GET /agent/v0/result/:id — fetch latest result
+    app.get("/agent/v0/result/:id", async (req,res)=>{
+      try{
+        const id = req.params.id;
+        let out:any = null;
+        if (fs.existsSync(FILE_RESULTS)){
+          const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\n");
+          for (let i=lines.length-1;i>=0;--i){
+            const l = lines[i]; if(!l.trim()) continue;
+            try{ const x=JSON.parse(l); if(x.id===id){ out=x; break; } }catch{}
+          }
+        }
+        return res.json({ok:true, result: out});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    // Metrics: queued size, totals (text format)
+    app.get("/__void/metrics/agent_jobs.prom", (_req,res)=>{
+      try{
+        if (!queued.length) rebuildIndex();
+        let totalJobs=0, totalResults=0, totalReceipts=0;
+        if (fs.existsSync(FILE_JOBS))     totalJobs    = fs.readFileSync(FILE_JOBS,"utf8").split("\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_RESULTS))  totalResults = fs.readFileSync(FILE_RESULTS,"utf8").split("\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_RECEIPTS)) totalReceipts= fs.readFileSync(FILE_RECEIPTS,"utf8").split("\n").filter(Boolean).length;
+        const lines = [
+          "# HELP void_agent_jobs_queued current queued jobs",
+          "# TYPE void_agent_jobs_queued gauge",
+          `void_agent_jobs_queued ${queued.length}`,
+          "# HELP void_agent_jobs_total total jobs submitted",
+          "# TYPE void_agent_jobs_total gauge",
+          `void_agent_jobs_total ${totalJobs}`,
+          "# HELP void_agent_results_total total results submitted",
+          "# TYPE void_agent_results_total gauge",
+          `void_agent_results_total ${totalResults}`,
+          "# HELP void_agent_receipts_file_total total receipts lines (file)",
+          "# TYPE void_agent_receipts_file_total gauge",
+          `void_agent_receipts_file_total ${totalReceipts}`,
+        ];
+        res.type("text/plain").send(lines.join("\n")+"\n");
+      }catch(e:any){
+        res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
+      }
+    });
+
+    // Introspection you already used
+    app.get("/__void/agent/receipt/routes", (_req,res)=>{
+      const routes = (app._router?.stack||[])
+        .filter((r:any)=>r.route && r.route.path && (""+r.route.path).includes("/agent/v0/receipt"))
+        .map((r:any)=>({ path:r.route.path, posts:Object.keys(r.route.methods||{}).filter(k=>r.route.methods[k]) }));
+      res.json({ok:true, routes});
+    });
+
+    // Done
+  }
+  mount();
+})();
+// ====================== /Agent v0 — JobQueue minimal ============================

@@ -38,3 +38,4 @@ ops/prom-snap/**
 
 # park scratch
 src/.park/
+.park/
