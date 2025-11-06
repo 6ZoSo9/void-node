@@ -1,0 +1,71 @@
+[35m.ci/guard-no-literal-agent-token.sh[m[36m:[m[32m3[m[36m:[mgrep -R --line-number --fixed-strings 'Environment=[1;31mVOID_AGENT_TOKEN[m=${[1;31mVOID_AGENT_TOKEN[m}' \
+[35m.ci/guard-no-literal-agent-token.sh[m[36m:[m[32m5[m[36m:[m  echo "[FAIL] Systemd drop-in uses a literal \${[1;31mVOID_AGENT_TOKEN[m}; write the real value."; exit 1; }
+[35m.ci/guard-no-literal-at-runtime.sh[m[36m:[m[32m5[m[36m:[mtr '\0' '\n' </proc/$PID/environ | grep -qx '[1;31mVOID_AGENT_TOKEN[m=${[1;31mVOID_AGENT_TOKEN[m}' && {
+[35m.ci/guard-no-literal-at-runtime.sh[m[36m:[m[32m6[m[36m:[m  echo "[FAIL] Service running with literal placeholder for [1;31mVOID_AGENT_TOKEN[m"; exit 1; }
+[35m.ci/guard-no-placeholder-agent-token.sh[m[36m:[m[32m3[m[36m:[mgrep -R --line-number --fixed-strings '[1;31mVOID_AGENT_TOKEN[m=${[1;31mVOID_AGENT_TOKEN[m}' \
+[35m.ci/guard-no-placeholder-agent-token.sh[m[36m:[m[32m5[m[36m:[m    echo "[FAIL] Placeholder [1;31mVOID_AGENT_TOKEN[m detected in drop-ins"; exit 1; }
+[35m.park/index.ts.broken.1762381315[m[36m:[m[32m4639[m[36m:[m    lastRoot: "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m",
+[35m.park/index.ts.broken.1762381315[m[36m:[m[32m8255[m[36m:[m  const EMPTY = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35m.park/index.ts.broken.1762381315[m[36m:[m[32m11336[m[36m:[m          return "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35m.park/index.ts.broken.1762381315[m[36m:[m[32m11407[m[36m:[m          txRoot = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35m.park/index.ts.broken.1762381315[m[36m:[m[32m12953[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35m.park/index.ts.broken.1762381315[m[36m:[m[32m13031[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35m.park/index.ts.broken.1762381315[m[36m:[m[32m13111[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35m.park/index.ts.broken.1762381315[m[36m:[m[32m13194[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35m.park/index.ts.broken.1762381315[m[36m:[m[32m20920[m[36m:[m    const TOKEN = process.env.[1;31mVOID_AGENT_TOKEN[m || "";
+[35mbin/start-node-with-agent.sh[m[36m:[m[32m3[m[36m:[m: "${[1;31mVOID_AGENT_TOKEN[m:?missing [1;31mVOID_AGENT_TOKEN[m}"
+[35mbin/start-node-with-agent.sh[m[36m:[m[32m4[m[36m:[mAGENT_TOKEN="${AGENT_TOKEN:-$[1;31mVOID_AGENT_TOKEN[m}"
+[35mbin/start-node-with-agent.sh[m[36m:[m[32m5[m[36m:[mexport [1;31mVOID_AGENT_TOKEN[m AGENT_TOKEN
+[35mbin/start-node-with-agent.sh[m[36m:[m[32m6[m[36m:[mecho "[wrapper] VOID=${#[1;31mVOID_AGENT_TOKEN[m} AGENT=${#AGENT_TOKEN}" >&2
+[35mops/agent-worker.sh[m[36m:[m[32m5[m[36m:[mTOKEN=${[1;31mVOID_AGENT_TOKEN[m:-}
+[35mops/checkpoints/2025-10-31_170760/void-node-bootstrap.service.txt[m[36m:[m[32m37[m[36m:[mOct 31 05:56:14 zoso-Precision-Tower-7810 env[2987216]: [txroot/persist] set header.txRoot for #170833 txs=0 root=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mops/checkpoints/2025-10-31_170760/void-node-bootstrap.service.txt[m[36m:[m[32m39[m[36m:[mOct 31 05:56:14 zoso-Precision-Tower-7810 env[2987216]: [txroot/header] #? txs=0 root=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mops/checkpoints/2025-10-31_170760/void-node-bootstrap.service.txt[m[36m:[m[32m41[m[36m:[mOct 31 05:56:14 zoso-Precision-Tower-7810 env[2987216]: [txroot.hex] sealed #170833 txRootHex=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mops/checkpoints/2025-10-31_170760/void-node-bootstrap.service.txt[m[36m:[m[32m42[m[36m:[mOct 31 05:56:15 zoso-Precision-Tower-7810 env[2987216]: [txroot/persist] set header.txRoot for #170834 txs=0 root=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mops/checkpoints/2025-10-31_170760/void-node-bootstrap.service.txt[m[36m:[m[32m44[m[36m:[mOct 31 05:56:15 zoso-Precision-Tower-7810 env[2987216]: [txroot/header] #? txs=0 root=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mops/checkpoints/2025-10-31_170760/void-node-bootstrap.service.txt[m[36m:[m[32m46[m[36m:[mOct 31 05:56:15 zoso-Precision-Tower-7810 env[2987216]: [txroot.hex] sealed #170834 txRootHex=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mops/checkpoints/2025-10-31_170760/void-node.service.txt[m[36m:[m[32m26[m[36m:[mOct 31 05:56:14 zoso-Precision-Tower-7810 env[2988574]: [txroot/header] #? txs=0 root=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mops/checkpoints/2025-10-31_170760/void-node.service.txt[m[36m:[m[32m28[m[36m:[mOct 31 05:56:14 zoso-Precision-Tower-7810 env[2988574]: [txroot.hex] sealed #170833 txRootHex=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mops/checkpoints/2025-10-31_170760/void-node.service.txt[m[36m:[m[32m30[m[36m:[mOct 31 05:56:15 zoso-Precision-Tower-7810 env[2988574]: [txroot/persist] set header.txRoot for #170834 txs=0 root=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mops/checkpoints/2025-10-31_170760/void-node.service.txt[m[36m:[m[32m32[m[36m:[mOct 31 05:56:15 zoso-Precision-Tower-7810 env[2988574]: [txroot/header] #? txs=0 root=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mops/checkpoints/2025-10-31_170760/void-node.service.txt[m[36m:[m[32m34[m[36m:[mOct 31 05:56:15 zoso-Precision-Tower-7810 env[2988574]: [txroot.hex] sealed #170834 txRootHex=[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m
+[35mproposer.env[m[36m:[m[32m7[m[36m:[m[1;31mVOID_AGENT_TOKEN[m=883697bb3788826cb2bb4d0d93d6c329
+[35mscripts/agent_worker_loop.sh[m[36m:[m[32m3[m[36m:[m: "${[1;31mVOID_AGENT_TOKEN[m:?set [1;31mVOID_AGENT_TOKEN[m in env}"
+[35mscripts/agent_worker_loop.sh[m[36m:[m[32m6[m[36m:[m      -H "Authorization: Bearer $[1;31mVOID_AGENT_TOKEN[m" -H 'content-type: application/json' \
+[35mscripts/agent_worker_loop.sh[m[36m:[m[32m12[m[36m:[m    -H "Authorization: Bearer $[1;31mVOID_AGENT_TOKEN[m" -H 'content-type: application/json' \
+[35msrc/.park/index.ts.v7broken.1762328896[m[36m:[m[32m4655[m[36m:[m    lastRoot: "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m",
+[35msrc/.park/index.ts.v7broken.1762328896[m[36m:[m[32m8271[m[36m:[m  const EMPTY = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/.park/index.ts.v7broken.1762328896[m[36m:[m[32m11352[m[36m:[m          return "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/.park/index.ts.v7broken.1762328896[m[36m:[m[32m11423[m[36m:[m          txRoot = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/.park/index.ts.v7broken.1762328896[m[36m:[m[32m12969[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/.park/index.ts.v7broken.1762328896[m[36m:[m[32m13047[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/.park/index.ts.v7broken.1762328896[m[36m:[m[32m13127[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/.park/index.ts.v7broken.1762328896[m[36m:[m[32m13210[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.js[m[36m:[m[32m6650[m[36m:[m        lastRoot: "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m",
+[35msrc/index.js[m[36m:[m[32m12294[m[36m:[m    var EMPTY = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.js[m[36m:[m[32m16639[m[36m:[m                                        return [2 /*return*/, "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m"];
+[35msrc/index.js[m[36m:[m[32m16771[m[36m:[m                                    txRoot = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.js[m[36m:[m[32m18759[m[36m:[m    var EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.js[m[36m:[m[32m18849[m[36m:[m    var EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.js[m[36m:[m[32m18952[m[36m:[m    var EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.js[m[36m:[m[32m19064[m[36m:[m    var EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.ts[m[36m:[m[32m4639[m[36m:[m    lastRoot: "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m",
+[35msrc/index.ts[m[36m:[m[32m8255[m[36m:[m  const EMPTY = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.ts[m[36m:[m[32m11336[m[36m:[m          return "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.ts[m[36m:[m[32m11407[m[36m:[m          txRoot = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.ts[m[36m:[m[32m12953[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.ts[m[36m:[m[32m13031[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.ts[m[36m:[m[32m13111[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.ts[m[36m:[m[32m13194[m[36m:[m  const EMPTY_SHA256 = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.ts[m[36m:[m[32m20920[m[36m:[m    const TOKEN = process.env.[1;31mVOID_AGENT_TOKEN[m || "";
+[35msrc/index.ts[m[36m:[m[32m22021[m[36m:[m  const AGENT_TOKEN = process.env.[1;31mVOID_AGENT_TOKEN[m || process.env.AGENT_TOKEN || "";
+[35msrc/index.ts[m[36m:[m[32m22228[m[36m:[m  const AGENT_TOKEN = process.env.[1;31mVOID_AGENT_TOKEN[m || process.env.AGENT_TOKEN || "";
+[35msrc/index.ts[m[36m:[m[32m22342[m[36m:[m  const AGENT_TOKEN = process.env.[1;31mVOID_AGENT_TOKEN[m || process.env.AGENT_TOKEN || "";
+[35msrc/index.ts[m[36m:[m[32m23858[m[36m:[m      const EMPTY_ROOT = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.ts.ckpt.2025-11-01[m[36m:[m[32m4515[m[36m:[m    lastRoot: "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m",
+[35msrc/index.ts.ckpt.2025-11-01[m[36m:[m[32m8130[m[36m:[m  const EMPTY = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/index.ts.ckpt.2025-11-01-v2b[m[36m:[m[32m4515[m[36m:[m    lastRoot: "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m",
+[35msrc/index.ts.ckpt.2025-11-01-v2b[m[36m:[m[32m8130[m[36m:[m  const EMPTY = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/util/txroot.js[m[36m:[m[32m13[m[36m:[m    var EMPTY = "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35msrc/util/txroot.ts[m[36m:[m[32m13[m[36m:[m    "[1;31me3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855[m";
+[35mvoid.env[m[36m:[m[32m13[m[36m:[m[1;31mVOID_AGENT_TOKEN[m=883697bb3788826cb2bb4d0d93d6c329

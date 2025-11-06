@@ -24102,3 +24102,220 @@ void_wal_wrapped ${isWrapped?1:0}
 
   setTimeout(tick, TICK_MS);
 })();
+
+// ---------------- Agent Receipts Prom Exporter (additive, no deps) -----------------
+(function voidAgentReceiptsExporter(){
+  const TICK=400;
+  let attached=false;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  // simple counters + freshness
+  let total=0, ok=0, err=0, lastOkTs=0, lastAnyTs=0;
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.use!=="function") return setTimeout(mount, TICK);
+    if (attached) return; attached=true;
+
+    // count results of /agent/v0/receipt/:id POSTs without touching core handlers
+    app.use((req:any, res:any, next:any)=>{
+      const isReceipt = req.method==="POST" && /^\/agent\/v0\/receipt(\/|$)/.test(req.path || "");
+      if (!isReceipt) return next();
+      total++;
+      res.on("finish", ()=>{
+        lastAnyTs = Date.now();
+        if (res.statusCode>=200 && res.statusCode<300){ ok++; lastOkTs = Date.now(); }
+        else { err++; }
+      });
+      next();
+    });
+
+    function prom(){
+      const now = Date.now();
+      const freshSec = 60; // coverage window
+      const coverage = (lastOkTs && ((now - lastOkTs) <= freshSec*1000)) ? 1 : 0;
+      const lines = [
+        "# HELP void_agent_receipts_total Total receipt POST attempts",
+        "# TYPE void_agent_receipts_total counter",
+        `void_agent_receipts_total ${total}`,
+        "# HELP void_agent_receipts_ok_total Successful receipt posts",
+        "# TYPE void_agent_receipts_ok_total counter",
+        `void_agent_receipts_ok_total ${ok}`,
+        "# HELP void_agent_receipts_err_total Failed receipt posts",
+        "# TYPE void_agent_receipts_err_total counter",
+        `void_agent_receipts_err_total ${err}`,
+        "# HELP void_agent_receipts_coverage 1 if a success occurred in the last 60s",
+        "# TYPE void_agent_receipts_coverage gauge",
+        `void_agent_receipts_coverage ${coverage}`,
+        "# HELP void_agent_receipts_last_ok_ts_ms Last successful post timestamp (ms)",
+        "# TYPE void_agent_receipts_last_ok_ts_ms gauge",
+        `void_agent_receipts_last_ok_ts_ms ${lastOkTs||0}`,
+        "# HELP void_agent_receipts_last_any_ts_ms Last post attempt timestamp (ms)",
+        "# TYPE void_agent_receipts_last_any_ts_ms gauge",
+        `void_agent_receipts_last_any_ts_ms ${lastAnyTs||0}`,
+      ];
+      return lines.join("\n")+"\n";
+    }
+
+    // exporter routes
+    app.get("/__void/metrics/agent/receipts.prom", (req:any,res:any)=>{
+      res.setHeader("content-type","text/plain; version=0.0.4");
+      res.end(prom());
+    });
+    // alias for convenience
+    app.get("/__void/metrics/agent/receipts", (req:any,res:any)=>{
+      res.setHeader("content-type","text/plain; version=0.0.4");
+      res.end(prom());
+    });
+  }
+  mount();
+})();
+
+// ---------------- Agent Receipts Hook + Exporter v2 (order-proof, additive) ------------
+(function voidAgentReceiptsHookV2(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  // shared counters (global so multiple blocks can see them)
+  const S = (globalThis as any).__void_agent_receipts || ((globalThis as any).__void_agent_receipts = {
+    total:0, ok:0, err:0, lastOkTs:0, lastAnyTs:0
+  });
+
+  function promText(){
+    const now = Date.now();
+    const coverage = (S.lastOkTs && (now - S.lastOkTs) <= 60_000) ? 1 : 0;
+    const lines = [
+      "# HELP void_agent_receipts_total Total receipt POST attempts",
+      "# TYPE void_agent_receipts_total counter",
+      `void_agent_receipts_total ${S.total}`,
+      "# HELP void_agent_receipts_ok_total Successful receipt posts",
+      "# TYPE void_agent_receipts_ok_total counter",
+      `void_agent_receipts_ok_total ${S.ok}`,
+      "# HELP void_agent_receipts_err_total Failed receipt posts",
+      "# TYPE void_agent_receipts_err_total counter",
+      `void_agent_receipts_err_total ${S.err}`,
+      "# HELP void_agent_receipts_coverage 1 if a success occurred in the last 60s",
+      "# TYPE void_agent_receipts_coverage gauge",
+      `void_agent_receipts_coverage ${coverage}`,
+      "# HELP void_agent_receipts_last_ok_ts_ms Last successful post timestamp (ms)",
+      "# TYPE void_agent_receipts_last_ok_ts_ms gauge",
+      `void_agent_receipts_last_ok_ts_ms ${S.lastOkTs||0}`,
+      "# HELP void_agent_receipts_last_any_ts_ms Last post attempt timestamp (ms)",
+      "# TYPE void_agent_receipts_last_any_ts_ms gauge",
+      `void_agent_receipts_last_any_ts_ms ${S.lastAnyTs||0}`,
+    ];
+    return lines.join("\n")+"\n";
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.use !== "function") return setTimeout(mount, TICK);
+
+    // idempotent
+    if ((app as any).__void_agent_receipts_hook_v2) return;
+    (app as any).__void_agent_receipts_hook_v2 = true;
+
+    // order-proof interceptor: wraps app.handle so we always see the request
+    const origHandle = app.handle.bind(app);
+    app.handle = function(req:any, res:any, out:any){
+      const p = (req && (req.path || req.url || "")) || "";
+      const isReceipt = req && req.method === "POST" && /^\/agent\/v0\/receipt(\/|$)/.test(p);
+      if (isReceipt) {
+        S.total++;
+        res.on("finish", ()=>{
+          S.lastAnyTs = Date.now();
+          if (res.statusCode >= 200 && res.statusCode < 300) { S.ok++; S.lastOkTs = Date.now(); }
+          else { S.err++; }
+        });
+      }
+      return origHandle(req,res,out);
+    };
+
+    // Prometheus v2 endpoint (use this for scraping)
+    app.get("/__void/metrics/agent/receipts.prom.v2", (req:any,res:any)=>{
+      res.setHeader("content-type","text/plain; version=0.0.4");
+      res.end(promText());
+    });
+  }
+  mount();
+})();
+
+// ---------------- Agent Receipts - per-ID counters (additive) -----------------
+(function voidAgentReceiptsByIdProm(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  const G = (globalThis as any);
+
+  // Shared container
+  const S = G.__void_agent_receipts_byid || (G.__void_agent_receipts_byid = { byId: new Map() as Map<string,{t:number,o:number,e:number,okTs:number,anyTs:number}> });
+
+  function bump(id:string, kind:'t'|'o'|'e', when:number){
+    let row = S.byId.get(id);
+    if(!row) { row = {t:0,o:0,e:0,okTs:0,anyTs:0}; S.byId.set(id,row); }
+    row[kind]++; row.anyTs = when; if (kind==='o') row.okTs = when;
+  }
+
+  function parseIdFromPath(p:string){
+    try{
+      const idx = p.indexOf("/agent/v0/receipt/");
+      if (idx < 0) return null;
+      const rest = p.slice(idx + "/agent/v0/receipt/".length);
+      const id = rest.split(/[/?#]/)[0] || "";
+      return decodeURIComponent(id);
+    }catch{ return null; }
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_agent_receipts_byid_mount) return; (app as any).__void_agent_receipts_byid_mount = true;
+
+    // Wrap handle (idempotent with v2 hook)
+    const orig = app.handle.bind(app);
+    app.handle = function(req:any,res:any,out:any){
+      const p = (req && (req.path || req.url || "")) || "";
+      const now = Date.now();
+      if (req && req.method==="POST" && /^\/agent\/v0\/receipt(\/|$)/.test(p)){
+        const id = parseIdFromPath(p);
+        bump(id||"unknown", 't', now);
+        res.on("finish", ()=>{
+          const sc = res.statusCode|0;
+          if (sc>=200 && sc<300) bump(id||"unknown", 'o', Date.now());
+          else bump(id||"unknown", 'e', Date.now());
+        });
+      }
+      return orig(req,res,out);
+    };
+
+    // /__void/metrics/agent/receipts.byid.prom.v1
+    app.get("/__void/metrics/agent/receipts.byid.prom.v1", (req:any,res:any)=>{
+      const now = Date.now();
+      const freshMs = 60_000;
+      const L:string[] = [];
+      L.push("# HELP void_agent_receipts_ok_total Per-agent ok posts");
+      L.push("# TYPE void_agent_receipts_ok_total counter");
+      L.push("# HELP void_agent_receipts_total Per-agent total posts");
+      L.push("# TYPE void_agent_receipts_total counter");
+      L.push("# HELP void_agent_receipts_err_total Per-agent error posts");
+      L.push("# TYPE void_agent_receipts_err_total counter");
+      L.push("# HELP void_agent_receipts_coverage Per-agent 60s coverage");
+      L.push("# TYPE void_agent_receipts_coverage gauge");
+      L.push("# HELP void_agent_receipts_last_ok_ts_ms Per-agent last ok ts");
+      L.push("# TYPE void_agent_receipts_last_ok_ts_ms gauge");
+      L.push("# HELP void_agent_receipts_last_any_ts_ms Per-agent last any ts");
+      L.push("# TYPE void_agent_receipts_last_any_ts_ms gauge");
+      for (const [id,row] of S.byId.entries()){
+        const cov = (row.okTs && (now - row.okTs) <= freshMs) ? 1 : 0;
+        const lid = id.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        L.push(`void_agent_receipts_ok_total{id="${lid}"} ${row.o}`);
+        L.push(`void_agent_receipts_total{id="${lid}"} ${row.t}`);
+        L.push(`void_agent_receipts_err_total{id="${lid}"} ${row.e}`);
+        L.push(`void_agent_receipts_coverage{id="${lid}"} ${cov}`);
+        L.push(`void_agent_receipts_last_ok_ts_ms{id="${lid}"} ${row.okTs||0}`);
+        L.push(`void_agent_receipts_last_any_ts_ms{id="${lid}"} ${row.anyTs||0}`);
+      }
+      res.setHeader("content-type","text/plain; version=0.0.4");
+      res.end(L.join("\n")+"\n");
+    });
+  }
+  mount();
+})();
