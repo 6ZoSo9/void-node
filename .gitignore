@@ -39,3 +39,15 @@ ops/prom-snap/**
 # park scratch
 src/.park/
 .park/
+# secrets & keys
+.secrets/
+**/*.p8
+**/*.pem
+**/*.key
+**/id_rsa
+**/id_ed25519
+**/*_private_key*
+**/.env
+**/.env.*
+# operator USB (just in case someone rsyncs it by accident)
+mnt/voidkey/
