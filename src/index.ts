@@ -21472,3 +21472,534 @@ void_wal_wrapped ${isWrapped?1:0}
   }
   mount();
 })();
+// --- Agent v0: receipts v1 (JSONL + Prom exporter) -----------------------------
+(function agentV0ReceiptsV1(){
+  const G:any = globalThis as any;
+  const crypto = require("node:crypto");
+  const fs = require("node:fs"); const path = require("node:path");
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const dir  = path.join(base, "agent");
+  const receiptsFile = path.join(dir, "receipts.jsonl");
+  (G.__void_agent_metrics ||= {}); const met = G.__void_agent_metrics;
+
+  function sha256(x:any){
+    try{
+      const h = crypto.createHash("sha256");
+      const b = Buffer.isBuffer(x) ? x : Buffer.from(typeof x==="string" ? x : JSON.stringify(x));
+      return h.update(b).digest("hex");
+    }catch{ return ""; }
+  }
+  function append(rec:any){
+    try{
+      fs.mkdirSync(dir, {recursive:true});
+      const fd = fs.openSync(receiptsFile, "a");
+      fs.writeSync(fd, JSON.stringify(rec)+"\n");
+      try{ fs.fdatasyncSync(fd); }catch{}
+      fs.closeSync(fd);
+      met.receipts_total = (Number(met.receipts_total||0)+1);
+    }catch{ met.receipts_errors = (Number(met.receipts_errors||0)+1); }
+  }
+
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_v1) return; (app as any).__void_agent_receipts_v1 = true;
+
+    // POST /agent/v0/receipt/:id  body: {input?, output?}
+    app.post("/agent/v0/receipt/:id", (req:any, res:any)=>{
+      try{
+        const id = req.params?.id || "";
+        const inputHash  = sha256(req.body?.input ?? null);
+        const outputHash = sha256(req.body?.output ?? null);
+        const rec = { id, inputHash, outputHash, ts: Date.now() };
+        append(rec);
+        return res.json({ ok:true, id, inputHash, outputHash });
+      }catch(e){ return res.status(500).json({ ok:false, error: String(e&&e.message||e) }); }
+    });
+
+    // Prom exporter
+    app.get("/__void/metrics/agent_receipts.prom", (_req:any, res:any)=>{
+      const lines = [];
+      lines.push("# HELP void_agent_receipts_total total receipts written");
+      lines.push("# TYPE void_agent_receipts_total counter");
+      lines.push(`void_agent_receipts_total ${Number(met.receipts_total||0)}`);
+      lines.push("# HELP void_agent_receipts_errors total receipt write errors");
+      lines.push("# TYPE void_agent_receipts_errors counter");
+      lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
+      res.type("text/plain").send(lines.join("\\n")+"\\n");
+    });
+  } mount();
+})();
+// --- Agent v0: receipts JSON guard + compat + self-test ------------------------
+(function agentV0ReceiptsCompat(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_compat) return; (app as any).__void_agent_receipts_compat = true;
+
+    // 1) Ensure JSON body parser is present (idempotent/safe even if added earlier)
+    try {
+      const express = require("express");
+      app.use(express.json({ limit:"512kb" }));
+    } catch {}
+
+    // 2) Compat route: POST /agent/v0/receipt  {id, input?, output?}
+    //    Internally forwards to /agent/v0/receipt/:id to reuse main handler
+    app.post("/agent/v0/receipt", async (req:any, res:any)=>{
+      try{
+        const id = String(req.body?.id || "").trim();
+        if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+        const f = await fetchLike(app, `/agent/v0/receipt/${encodeURIComponent(id)}`, req.body, req);
+        return res.status(f.status).type(f.type).send(f.body);
+      }catch(e:any){ return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
+    });
+
+    // 3) Self-test: writes a deterministic test receipt and reports the file path
+    app.post("/__void/agent/receipt/selftest", (_req:any, res:any)=>{
+      try{
+        const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+        const dir  = path.join(base, "agent");
+        const file = path.join(dir, "receipts.jsonl");
+        // minimal write using the same append path as main handler (reuse metrics obj)
+        const crypto = require("node:crypto");
+        const h = (x:any)=> crypto.createHash("sha256").update(Buffer.from(JSON.stringify(x))).digest("hex");
+        fs.mkdirSync(dir, {recursive:true});
+        const rec = { id:"selftest", inputHash:h({ok:true}), outputHash:h({ok:true}), ts:Date.now() };
+        const fd = fs.openSync(file, "a");
+        fs.writeSync(fd, JSON.stringify(rec)+"\n"); try{ fs.fdatasyncSync(fd); }catch{} fs.closeSync(fd);
+        (G.__void_agent_metrics ||= {}).receipts_total = Number((G.__void_agent_metrics||{}).receipts_total||0) + 1;
+        return res.json({ ok:true, file, wrote:rec });
+      }catch(e:any){ (G.__void_agent_metrics ||= {}).receipts_errors = Number((G.__void_agent_metrics||{}).receipts_errors||0) + 1;
+        return res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    // helper: local fetch-ish to hit our own handler without another HTTP stack
+    async function fetchLike(app:any, path:string, body:any, srcReq:any){
+      return new Promise<{status:number,type:string,body:string}>((resolve)=>{
+        const req:any = { method:"POST", path, headers:srcReq.headers||{}, body };
+        const chunks:string[] = [];
+        const res:any = {
+          statusCode:200, setHeader:()=>{}, getHeader:()=>undefined,
+          status(c:number){ this.statusCode=c; return this; },
+          type(t:string){ this._type=t; return this; },
+          json(o:any){ const s = JSON.stringify(o); chunks.push(s); done(); },
+          send(b:any){ chunks.push(typeof b==="string"?b:String(b)); done(); }
+        };
+        function done(){ resolve({ status:res.statusCode||200, type:res._type||"application/json", body:chunks.join("") }); }
+        try { app.handle(req, res); } catch { resolve({status:500, type:"application/json", body:JSON.stringify({ok:false,error:"internal"})}); }
+      });
+    }
+  } mount();
+})();
+// --- Agent v0: receipts compat v2 (no internal fetch; direct write) ------------
+(function agentV0ReceiptsCompatV2(){
+  const G:any = globalThis as any;
+  const crypto = require("node:crypto");
+  const fs = require("node:fs"); const path = require("node:path");
+
+  function sha256(x:any){
+    try{
+      const h = crypto.createHash("sha256");
+      const b = Buffer.isBuffer(x) ? x : Buffer.from(typeof x==="string" ? x : JSON.stringify(x));
+      return h.update(b).digest("hex");
+    }catch{ return ""; }
+  }
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function append(rec:any){
+    try{
+      const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+      const dir  = path.join(base, "agent");
+      const file = path.join(dir, "receipts.jsonl");
+      fs.mkdirSync(dir, {recursive:true});
+      const fd = fs.openSync(file, "a");
+      fs.writeSync(fd, JSON.stringify(rec)+"\n");
+      try{ fs.fdatasyncSync(fd); }catch{}
+      fs.closeSync(fd);
+      (G.__void_agent_metrics ||= {}).receipts_total = Number((G.__void_agent_metrics||{}).receipts_total||0) + 1;
+    }catch{
+      (G.__void_agent_metrics ||= {}).receipts_errors = Number((G.__void_agent_metrics||{}).receipts_errors||0) + 1;
+      throw new Error("append_failed");
+    }
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_compat_v2) return; (app as any).__void_agent_receipts_compat_v2 = true;
+
+    // make sure JSON body parsing is active
+    try { app.use(require("express").json({limit:"512kb"})); } catch {}
+
+    // POST /agent/v0/receipt  body: {id, input?, output?}
+    app.post("/agent/v0/receipt", (req:any, res:any)=>{
+      try{
+        const id = String(req.body?.id||"").trim();
+        if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+        const inputHash  = sha256(req.body?.input ?? null);
+        const outputHash = sha256(req.body?.output ?? null);
+        const rec = { id, inputHash, outputHash, ts: Date.now() };
+        append(rec);
+        return res.json({ ok:true, id, inputHash, outputHash });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+  } mount();
+})();
+// --- Agent v0: receipts compat pruner (keep last writer) -----------------------
+(function agentV0ReceiptsCompatPruner(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function prune(){
+    const app:any = getApp();
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(prune, 400);
+    if ((app as any).__void_agent_receipts_pruned) return; (app as any).__void_agent_receipts_pruned = true;
+
+    try{
+      const stacks = app._router.stack;
+      const keep = [];
+      for (const layer of stacks){
+        const r = layer && layer.route; if (!r) { keep.push(layer); continue; }
+        const p = r.path || r?.route?.path || "";
+        // Drop *older* POST /agent/v0/receipt handlers so the new direct-writer wins
+        if (String(p).startsWith("/agent/v0/receipt") && r.stack?.length){
+          r.stack = r.stack.filter((s:any)=> !(s && s.method==="post" && s.handle && s.handle.name==="wrappedDone")); // drop the old "wrapped" relay
+        }
+        keep.push(layer);
+      }
+      (app._router as any).stack = keep;
+    }catch{}
+  }
+  prune();
+})();
+// --- Agent v0: receipts compat prune (drop legacy relay; keep v2 direct writer)
+(function agentV0ReceiptsCompatPruneVFinal(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function prune(){
+    const app:any = getApp();
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(prune, 400);
+    if ((app as any).__void_agent_receipts_prune_done) return; (app as any).__void_agent_receipts_prune_done = true;
+    try{
+      for (const layer of app._router.stack){
+        const r = layer && layer.route; if (!r) continue;
+        const p = r.path || r?.route?.path || "";
+        if (!String(p).startsWith("/agent/v0/receipt")) continue;
+        // Keep only the last POST handler (v2 direct writer mounted last)
+        if (Array.isArray(r.stack)){
+          const posts = r.stack.filter((s:any)=> s && s.method==="post");
+          if (posts.length > 1){
+            const keep = posts[posts.length-1];
+            r.stack = r.stack.filter((s:any)=> !(s && s.method==="post")) // drop all posts
+                             .concat([keep]);                               // re-attach last only
+          }
+        }
+      }
+    }catch{}
+  }
+  prune();
+})();
+// --- Agent receipts exporter newline fix (mounts last; overrides path) ----------
+(function agentReceiptsExporterFix(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_exporter_fix) return; (app as any).__void_agent_receipts_exporter_fix = true;
+
+    app.get("/__void/metrics/agent_receipts.prom", (_req:any, res:any)=>{
+      const met = (G.__void_agent_metrics||{});
+      const lines:string[] = [];
+      lines.push("# HELP void_agent_receipts_total total receipts written");
+      lines.push("# TYPE void_agent_receipts_total counter");
+      lines.push(`void_agent_receipts_total ${Number(met.receipts_total||0)}`);
+      lines.push("# HELP void_agent_receipts_errors total receipt write errors");
+      lines.push("# TYPE void_agent_receipts_errors counter");
+      lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
+      // IMPORTANT: real newlines (not '\n' literals)
+      res.type("text/plain").send(lines.join("\n") + "\n");
+    });
+  } mount();
+})();
+// --- Agent receipts exporter: force-replace handler with real newlines ----------
+(function agentReceiptsExporterReplace(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function install(){
+    const app:any = getApp();
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(install, 400);
+    if ((app as any).__void_agent_receipts_exporter_replace) return;
+    (app as any).__void_agent_receipts_exporter_replace = true;
+
+    const pathWanted = "/__void/metrics/agent_receipts.prom";
+    let replaced = false;
+
+    try{
+      for (const layer of app._router.stack){
+        const r = layer && layer.route; if (!r) continue;
+        const p = r.path || r?.route?.path || "";
+        if (p !== pathWanted) continue;
+
+        for (const s of (r.stack||[])){
+          if (!s || s.method !== "get" || typeof s.handle !== "function") continue;
+
+          // Replace the existing GET handler with a newline-correct one
+          s.handle = function(_req:any, res:any){
+            const met = (G.__void_agent_metrics||{});
+            const lines:string[] = [];
+            lines.push("# HELP void_agent_receipts_total total receipts written");
+            lines.push("# TYPE void_agent_receipts_total counter");
+            lines.push(`void_agent_receipts_total ${Number(met.receipts_total||0)}`);
+            lines.push("# HELP void_agent_receipts_errors total receipt write errors");
+            lines.push("# TYPE void_agent_receipts_errors counter");
+            lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
+            res.type("text/plain").send(lines.join("\n") + "\n"); // real newlines
+          };
+          replaced = true;
+        }
+      }
+    }catch{}
+
+    if (!replaced){
+      // If route wasn't present yet, add a clean one.
+      app.get(pathWanted, (_req:any, res:any)=>{
+        const met = (G.__void_agent_metrics||{});
+        const lines = [
+          "# HELP void_agent_receipts_total total receipts written",
+          "# TYPE void_agent_receipts_total counter",
+          `void_agent_receipts_total ${Number(met.receipts_total||0)}`,
+          "# HELP void_agent_receipts_errors total receipt write errors",
+          "# TYPE void_agent_receipts_errors counter",
+          `void_agent_receipts_errors ${Number(met.receipts_errors||0)}`
+        ];
+        res.type("text/plain").send(lines.join("\n") + "\n");
+      });
+    }
+  }
+  install();
+})();
+// --- Agent v0: receipts coverage (results ↔ receipts) + Prom exporter ----------
+(function agentV0ReceiptsCoverage(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function safeJSONL(pathStr:string){
+    const out:any[] = [];
+    try{
+      if (!fs.existsSync(pathStr)) return out;
+      for (const line of fs.readFileSync(pathStr, "utf8").split("\n")){
+        if (!line) continue;
+        try { out.push(JSON.parse(line)); } catch {}
+      }
+    }catch{}
+    return out;
+  }
+
+  function compute(){
+    const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    const dir  = path.join(base, "agent");
+    const resultsFile   = path.join(dir, "results.jsonl");
+    const receiptsFile  = path.join(dir, "receipts.jsonl");
+
+    // Unique results by id (last-write-wins semantics like the unique.tail route)
+    const uniq = new Map<string, any>();
+    for (const o of safeJSONL(resultsFile)){ if (o && o.id) uniq.set(o.id, o); }
+    const resultsIds = new Set(uniq.keys());
+
+    // Receipts by id
+    const receipts:any[] = safeJSONL(receiptsFile);
+    const recIds = new Set<string>(); for (const r of receipts){ if (r && r.id) recIds.add(r.id); }
+
+    // Coverage & mismatches (result present but no receipt)
+    let covered = 0; for (const id of resultsIds){ if (recIds.has(id)) covered++; }
+    const total = resultsIds.size;
+    const coverage = total>0 ? covered/total : 1;
+
+    // Optionally, inspect mismatches
+    const missing = [];
+    if (total > 0 && covered < total){
+      let n = 0;
+      for (const id of resultsIds){
+        if (!recIds.has(id)){ missing.push(id); if (++n>=10) break; }
+      }
+    }
+    return { total, receipts: recIds.size, covered, coverage, sample_missing: missing };
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_cov) return; (app as any).__void_agent_receipts_cov = true;
+
+    // JSON inspector
+    app.get("/__void/agent/verify_receipts", (_req:any, res:any)=>{
+      try{ const r = compute(); res.json({ok:true, ...r}); }
+      catch(e:any){ res.status(500).json({ok:false, error:String(e?.message||e)}); }
+    });
+
+    // Prom exporter
+    app.get("/__void/metrics/agent_receipts_coverage.prom", (_req:any, res:any)=>{
+      const r = compute();
+      const lines = [];
+      lines.push("# HELP void_agent_results_unique_total total unique job results observed");
+      lines.push("# TYPE void_agent_results_unique_total gauge");
+      lines.push(`void_agent_results_unique_total ${r.total}`);
+      lines.push("# HELP void_agent_receipts_total total receipts observed (file count)");
+      lines.push("# TYPE void_agent_receipts_total gauge");
+      lines.push(`void_agent_receipts_total ${r.receipts}`);
+      lines.push("# HELP void_agent_receipts_covered results with corresponding receipts");
+      lines.push("# TYPE void_agent_receipts_covered gauge");
+      lines.push(`void_agent_receipts_covered ${r.covered}`);
+      lines.push("# HELP void_agent_receipts_coverage fraction of results with receipts (0..1)");
+      lines.push("# TYPE void_agent_receipts_coverage gauge");
+      lines.push(`void_agent_receipts_coverage ${isFinite(r.coverage)?r.coverage:0}`);
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+  } mount();
+})();
+// --- Agent v0: receipts coverage exporter (prom) ------------------------------
+(function agentV0ReceiptsCoverageProm(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const dir  = path.join(base, "agent");
+  const resultsFile   = path.join(dir, "results.jsonl");
+  const receiptsFile  = path.join(dir, "receipts.jsonl");
+
+  function compute(){
+    let total=0, receipts=0, covered=0;
+    const seen = new Set<string>();
+    const rmap = new Map<string, number>(); // id -> count
+    try{
+      if (fs.existsSync(resultsFile)){
+        for (const line of fs.readFileSync(resultsFile,"utf8").split("\n")){
+          if (!line) continue;
+          try{ const o=JSON.parse(line); if (o?.id){ total++; seen.add(o.id); } }catch{}
+        }
+      }
+      if (fs.existsSync(receiptsFile)){
+        for (const line of fs.readFileSync(receiptsFile,"utf8").split("\n")){
+          if (!line) continue;
+          try{ const o=JSON.parse(line); if (o?.id){ receipts++; rmap.set(o.id, (rmap.get(o.id)||0)+1); } }catch{}
+        }
+      }
+      for (const id of seen){ if (rmap.has(id)) covered++; }
+    }catch{}
+    const coverage = total>0 ? (covered/total) : 0;
+    return {total, receipts, covered, coverage};
+  }
+
+  function mount(){
+    const app:any = (G.__void_http_app || (G as any).app);
+    if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_cov_prom) return; (app as any).__void_agent_receipts_cov_prom = true;
+
+    app.get("/__void/metrics/agent_receipts_coverage.prom", (_req:any, res:any)=>{
+      const {total, receipts, covered, coverage} = compute();
+      const lines = [
+        "# HELP void_agent_results_unique_total total unique job results observed",
+        "# TYPE void_agent_results_unique_total gauge",
+        `void_agent_results_unique_total ${total}`,
+        "# HELP void_agent_receipts_total total receipts observed (file count)",
+        "# TYPE void_agent_receipts_total gauge",
+        `void_agent_receipts_total ${receipts}`,
+        "# HELP void_agent_receipts_covered results with corresponding receipts",
+        "# TYPE void_agent_receipts_covered gauge",
+        `void_agent_receipts_covered ${covered}`,
+        "# HELP void_agent_receipts_coverage fraction of results with receipts (0..1)",
+        "# TYPE void_agent_receipts_coverage gauge",
+        `void_agent_receipts_coverage ${coverage}`
+      ];
+      res.type("text/plain").end(lines.join("\n")+"\n");
+    });
+  }
+  mount();
+})();
+// --- Agent v0: receipts FINAL override (additive, last-wins, logs errors) -----------
+(function agentV0ReceiptsFinal(){
+  if (String(process.env.VOID_AGENT_RECEIPTS_FINAL||"1")!=="1") return;
+  const G:any = globalThis as any;
+  const crypto = require("node:crypto");
+  const fs = require("node:fs"); const path = require("node:path");
+
+  function sha256(x:any){
+    try{
+      const h = crypto.createHash("sha256");
+      const b = Buffer.isBuffer(x) ? x : Buffer.from(typeof x==="string" ? x : JSON.stringify(x));
+      return h.update(b).digest("hex");
+    }catch{ return ""; }
+  }
+  function append(rec:any){
+    const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    const dir  = path.join(base, "agent");
+    const file = path.join(dir, "receipts.jsonl");
+    fs.mkdirSync(dir, {recursive:true});
+    const fd = fs.openSync(file, "a");
+    fs.writeSync(fd, JSON.stringify(rec)+"\n");
+    try{ fs.fdatasyncSync(fd); }catch{}
+    fs.closeSync(fd);
+    (G.__void_agent_metrics ||= {}).receipts_total = Number((G.__void_agent_metrics||{}).receipts_total||0) + 1;
+  }
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_final) return; (app as any).__void_agent_receipts_final = true;
+    try { app.use(require("express").json({limit:"512kb"})); } catch {}
+
+    // 1) Prune older POST handlers for both paths so our final writer wins.
+    try{
+      const paths = ["/agent/v0/receipt", "/agent/v0/receipt/:id"];
+      if (app._router?.stack){
+        for (const layer of app._router.stack){
+          const r = layer && layer.route; if (!r) continue;
+          const p = r.path || r?.route?.path || "";
+          if (!paths.includes(String(p))) continue;
+          if (Array.isArray(r.stack)){
+            r.stack = r.stack.filter((s:any)=> !(s && s.method==="post"));
+          }
+        }
+      }
+    }catch(e){ console.error("[agent.receipts.final] prune error:", e?.message||e); }
+
+    // 2) Final writer for both endpoints
+    function handler(req:any, res:any){
+      try{
+        const id = String(req.params?.id || req.body?.id || "").trim();
+        if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+        const inputHash  = req.body?.inputHash  || sha256(req.body?.input  ?? null);
+        const outputHash = req.body?.outputHash || sha256(req.body?.output ?? null);
+        const rec = { id, inputHash, outputHash, ts: Date.now() };
+        append(rec);
+        return res.json({ ok:true, id, inputHash, outputHash });
+      }catch(e:any){
+        console.error("[agent.receipts.final] write error:", e?.code||"", e?.message||e);
+        return res.status(500).json({ ok:false, error:String(e?.code||e?.message||e) });
+      }
+    }
+    app.post("/agent/v0/receipt", handler);
+    app.post("/agent/v0/receipt/:id", handler);
+
+    // 3) Debug: dump active POST handlers for the two paths
+    app.get("/__void/agent/receipt/routes", (_req:any, res:any)=>{
+      const out:any[] = [];
+      try{
+        for (const layer of (app._router?.stack||[])){
+          const r = layer && layer.route; if (!r) continue;
+          const p = r.path || r?.route?.path || "";
+          if (!String(p).startsWith("/agent/v0/receipt")) continue;
+          const posts = (r.stack||[]).filter((s:any)=> s && s.method==="post").map((s:any)=> s.handle?.name || "anon");
+          out.push({ path:p, posts });
+        }
+      }catch(e){ out.push({error:String(e?.message||e)}); }
+      res.json({ok:true, routes: out});
+    });
+  }
+  mount();
+})();
