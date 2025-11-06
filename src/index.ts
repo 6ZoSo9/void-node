@@ -22012,7 +22012,7 @@ void_wal_wrapped ${isWrapped?1:0}
   const crypto = require("node:crypto");
 
   const DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
-  const AGENT_DIR = path.join(DATA_DIR, "agent");
+  const AGENT_DIR = (process.env.AGENT_DIR || process.env.VOID_AGENT_DIR || path.join(DATA_DIR, "agent"));
   const FILE_JOBS      = path.join(AGENT_DIR, "jobs.jsonl");
   const FILE_RESULTS   = path.join(AGENT_DIR, "results.jsonl");
   const FILE_RECEIPTS  = path.join(AGENT_DIR, "receipts.jsonl");
@@ -22371,3 +22371,42 @@ void_wal_wrapped ${isWrapped?1:0}
   mount();
 })();
  // ============ /Agent v0 — auth hash metrics (additive, safe) ===============
+
+// ===== Agent v0 — corrected jobs metrics (jobs - results) =====
+(function AgentV0JobsMetricsV2(){
+  const TICK=400, fs = require("node:fs"), path = require("node:path");
+  const DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const AGENT_DIR = path.join(DATA_DIR, "agent");
+  const FILE_JOBS = path.join(AGENT_DIR, "jobs.jsonl");
+  const FILE_RESULTS = path.join(AGENT_DIR, "results.jsonl");
+
+  function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\n").filter(l=>l.trim()) : []; }
+  function countSet(file){ const s=new Set(); for (const l of safeLines(file)){ try{ s.add(JSON.parse(l).id) }catch{} } return s; }
+
+  function mount(){
+    const app = (globalThis).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+
+    app.get("/__void/metrics/agent_jobs.v2.prom", (_req,res)=>{
+      try{
+        const jobs = countSet(FILE_JOBS);
+        const done = countSet(FILE_RESULTS);
+        let queued = 0; for (const id of jobs){ if (!done.has(id)) queued++; }
+        const out = [
+          "# HELP void_agent_jobs_queued_v2 jobs without a result (jobs - results)",
+          "# TYPE void_agent_jobs_queued_v2 gauge",
+          `void_agent_jobs_queued_v2 ${queued}`,
+          "# HELP void_agent_jobs_total_v2 distinct job ids seen",
+          "# TYPE void_agent_jobs_total_v2 gauge",
+          `void_agent_jobs_total_v2 ${jobs.size}`,
+          "# HELP void_agent_results_total_v2 distinct result ids seen",
+          "# TYPE void_agent_results_total_v2 gauge",
+          `void_agent_results_total_v2 ${done.size}`
+        ];
+        res.type("text/plain").send(out.join("\\n")+"\\n");
+      }catch(e){ res.type("text/plain").send("# error "+(e?.message||"internal")+"\\n"); }
+    });
+  }
+  mount();
+})();
+ // ==== /Agent v0 — corrected jobs metrics =====
