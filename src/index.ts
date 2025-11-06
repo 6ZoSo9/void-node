@@ -22212,3 +22212,125 @@ void_wal_wrapped ${isWrapped?1:0}
   mount();
 })();
 // ====================== /Agent v0 — JobQueue minimal ============================
+
+// =================== Agent v0 — TTL-aware pick2 (additive, no edits) ===================
+(function AgentV0Pick2(){
+  const TICK=400;
+  const fs = require("node:fs");
+  const path = require("node:path");
+
+  const DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const AGENT_DIR = path.join(DATA_DIR, "agent");
+  const FILE_JOBS     = path.join(AGENT_DIR, "jobs.jsonl");
+  const FILE_RESULTS  = path.join(AGENT_DIR, "results.jsonl");
+  const FILE_LEASES   = path.join(AGENT_DIR, "leases.jsonl");
+
+  const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
+  const LEASE_MS = Math.max(1000, Number(process.env.VOID_AGENT_LEASE_MS || 30000)); // default 30s
+
+  function requireAgentAuth(req,res,next){
+    if (!AGENT_TOKEN) return res.status(503).json({ok:false, error:"agent token not configured"});
+    const hdr = (req.headers["x-agent-token"] || req.headers["authorization"] || "").toString().trim();
+    const tok = hdr.startsWith("Bearer ") ? hdr.slice(7) : hdr;
+    if (tok !== AGENT_TOKEN) return res.status(401).json({ok:false, error:"unauthorized"});
+    return next();
+  }
+
+  function nowMs(){ return Date.now(); }
+  function safeLines(file){
+    if (!fs.existsSync(file)) return [];
+    return fs.readFileSync(file,"utf8").split("\n").filter(l=>l.trim().length>0);
+  }
+  function readSetFrom(file, idKey){ // returns Set<string>
+    const s = new Set();
+    for (const l of safeLines(file)){
+      try{ const x = JSON.parse(l); const id = x[idKey]; if (id) s.add(String(id)); }catch{}
+    }
+    return s;
+  }
+  function readLeasesActive(){ // Map<id, ts>
+    const m = new Map();
+    const cutoff = nowMs() - LEASE_MS;
+    for (const l of safeLines(FILE_LEASES)){
+      try{
+        const x = JSON.parse(l);
+        const id = String(x.id||"");
+        const ts = Number(x.ts||0);
+        if (!id) continue;
+        if (ts >= cutoff) m.set(id, ts); // keep only active lease
+      }catch{}
+    }
+    return m;
+  }
+  function readLatestJob(id){
+    for (let l of safeLines(FILE_JOBS).reverse()){
+      try{ const x = JSON.parse(l); if (String(x.id||"") === id) return x; }catch{}
+    }
+    return null;
+  }
+
+  function mount(){
+    const app = (globalThis).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.post!=="function"){ return setTimeout(mount, TICK); }
+
+    // POST /agent/v0/pick2  {worker?:string}  -> {ok, job|null, leaseMs}
+    app.post("/agent/v0/pick2", requireAgentAuth, (req:any, res:any)=>{
+      try{
+        const jobs  = readSetFrom(FILE_JOBS, "id");
+        const done  = readSetFrom(FILE_RESULTS, "id");
+        const active= readLeasesActive(); // only leases within LEASE_MS
+
+        // available = jobs - done - active
+        const avail: string[] = [];
+        for (const id of jobs){ if (!done.has(id) && !active.has(id)) avail.push(id); }
+
+        if (!avail.length) return res.json({ok:true, job:null, leaseMs:LEASE_MS});
+
+        const id = avail[0];
+        const worker = (req.body?.worker || "anon").toString();
+        const lease = {id, worker, ts: nowMs(), leaseMs: LEASE_MS};
+        fs.mkdirSync(AGENT_DIR, {recursive:true});
+        fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n");
+
+        const job = readLatestJob(id);
+        return res.json({ok:true, job, leaseMs: LEASE_MS});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    // Metrics for leases (in-flight & expired heuristic)
+    app.get("/__void/metrics/agent_leases.prom", (_req:any, res:any)=>{
+      try{
+        const now = nowMs();
+        const cutoff = now - LEASE_MS;
+        let inflight=0, expired=0;
+        const done = readSetFrom(FILE_RESULTS, "id");
+        for (const l of safeLines(FILE_LEASES)){
+          try{
+            const x = JSON.parse(l);
+            const id = String(x.id||"");
+            const ts = Number(x.ts||0);
+            if (!id) continue;
+            if (done.has(id)) continue;
+            if (ts >= cutoff) inflight++; else expired++;
+          }catch{}
+        }
+        const out = [
+          "# HELP void_agent_leases_inflight leases younger than lease_ms and not done",
+          "# TYPE void_agent_leases_inflight gauge",
+          `void_agent_leases_inflight ${inflight}`,
+          "# HELP void_agent_leases_expired leases older than lease_ms and not done",
+          "# TYPE void_agent_leases_expired gauge",
+          `void_agent_leases_expired ${expired}`,
+          `void_agent_lease_ms ${LEASE_MS}`
+        ];
+        res.type("text/plain").send(out.join("\n")+"\n");
+      }catch(e:any){
+        res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
+      }
+    });
+  }
+  mount();
+})();
+ // ================= /Agent v0 — TTL-aware pick2 (additive, no edits) ===================
