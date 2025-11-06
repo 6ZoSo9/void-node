@@ -22334,3 +22334,40 @@ void_wal_wrapped ${isWrapped?1:0}
   mount();
 })();
  // ================= /Agent v0 — TTL-aware pick2 (additive, no edits) ===================
+
+// ============== Agent v0 — auth hash metrics (additive, safe) ==============
+(function AgentV0AuthDiag(){
+  const TICK=400;
+  const crypto = require("node:crypto");
+  const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
+  function sha256Hex(s){ return crypto.createHash("sha256").update(String(s)).digest("hex"); }
+  function mount(){
+    const app = (globalThis).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    const hash = AGENT_TOKEN ? sha256Hex(AGENT_TOKEN) : "";
+    const len  = AGENT_TOKEN ? String(AGENT_TOKEN).length : 0;
+
+    // Prom text
+    app.get("/__void/metrics/agent_auth.prom", (_req,res)=>{
+      const lines = [
+        "# HELP void_agent_auth_len length of configured agent token (server)",
+        "# TYPE void_agent_auth_len gauge",
+        `void_agent_auth_len ${len}`,
+        "# HELP void_agent_auth_configured whether server has a token (1/0)",
+        "# TYPE void_agent_auth_configured gauge",
+        `void_agent_auth_configured ${AGENT_TOKEN?1:0}`,
+        "# HELP void_agent_auth_hash_sha256 token hash (label) for equality checks; value is always 1",
+        "# TYPE void_agent_auth_hash_sha256 gauge",
+        `void_agent_auth_hash_sha256{hash="${hash}"} 1`
+      ];
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+
+    // JSON (optional)
+    app.get("/__void/agent/auth/info", (_req,res)=>{
+      res.json({ok:true, configured: !!AGENT_TOKEN, len, hash});
+    });
+  }
+  mount();
+})();
+ // ============ /Agent v0 — auth hash metrics (additive, safe) ===============
