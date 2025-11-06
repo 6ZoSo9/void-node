@@ -1,0 +1,20 @@
+name: tag-guard
+on: [push]
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, fetch-tags: true }
+      - name: Detect moved tags
+        run: |
+          set -euo pipefail
+          git for-each-ref --format='%(refname:short) %(objectname)' refs/tags | sort > before.txt
+          git fetch --tags --force origin
+          git for-each-ref --format='%(refname:short) %(objectname)' refs/tags | sort > after.txt
+          # Any tag name present in both with different SHA?
+          while read -r name sha; do
+            rsha="$(grep -E "^${name} " after.txt | awk '{print $2}' || true)"
+            [[ -n "$rsha" && "$rsha" != "$sha" ]] && { echo "[FAIL] tag moved: $name $sha -> $rsha"; exit 1; }
+          done < before.txt
+          echo "[OK] no moved tags detected."
