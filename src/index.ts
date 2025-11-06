@@ -23902,3 +23902,203 @@ void_wal_wrapped ${isWrapped?1:0}
   }
   mount();
 })();
+
+// ---------------- Liveness TX shim (SAFEBOOT-friendly, additive) ----------------
+(function LivenessTxShim(){
+  const ENABLED = (process.env.VOID_LIVENESS_TX ?? process.env.LIVENESS_TX ?? "0") === "1";
+  if (!ENABLED) return;
+
+  const PORT = Number(process.env.HTTP_PORT || 4100);
+  const TICK_MS = Math.max(1000, Number(process.env.PROPOSER_TICK_MS || 2000));
+  const STALL_MS = Math.max(2*TICK_MS + 500, Number(process.env.LIVENESS_STALL_MS || (2*TICK_MS + 500)));
+  const MIN_GAP_MS = Math.max(TICK_MS, Number(process.env.LIVENESS_MIN_GAP_MS || 6000));
+  const URL_BASE = `http://127.0.0.1:${PORT}`;
+
+  let lastHead = -1;
+  let lastHeadAt = Date.now();
+  let lastSubmitAt = 0;
+  let mounted = false;
+
+  async function getHead(): Promise<number> {
+    try {
+      const r = await fetch(`${URL_BASE}/head.txt`, { cache: "no-store" });
+      const t = await r.text();
+      const n = Number(String(t).trim().split(/\s+/)[0]);
+      return Number.isFinite(n) ? n : -1;
+    } catch { return -1; }
+  }
+  async function getMempoolSize(): Promise<number> {
+    try {
+      const r = await fetch(`${URL_BASE}/mempool/global/size.json`, { cache: "no-store" });
+      const j:any = await r.json();
+      return Number(j?.size ?? 0);
+    } catch { return 0; }
+  }
+  async function submitLiveness(): Promise<boolean> {
+    try {
+      const payload = Buffer.from(`live:${Date.now()}`).toString("hex");
+      const r = await fetch(`${URL_BASE}/tx/submit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data: `0x${payload}` })
+      });
+      return r.ok;
+    } catch { return false; }
+  }
+
+  async function tick(){
+    const now = Date.now();
+    const h = await getHead();
+    if (h >= 0) {
+      if (h !== lastHead) { lastHead = h; lastHeadAt = now; }
+    }
+    const age = now - lastHeadAt;
+
+    if (age >= STALL_MS && (now - lastSubmitAt) >= MIN_GAP_MS) {
+      const mp = await getMempoolSize();
+      if (mp === 0) {
+        const ok = await submitLiveness();
+        if (ok) { lastSubmitAt = Date.now(); }
+      }
+    }
+  }
+
+  function mount(){
+    if (mounted) return; mounted = true;
+    setInterval(tick, Math.max(800, Math.floor(TICK_MS/2)));
+  }
+
+  // Defer mount until express app is born (works under our global app hook rule)
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+  (function wait(){
+    if (getApp()) { mount(); } else { setTimeout(wait, 250); }
+  })();
+})();
+
+// ---------------- Liveness metrics exporter (additive, safe) -------------------
+(function LivenessMetrics(){
+  const TICK=1000;
+  let lastSubmitMs = 0;
+  let submits = 0;
+  // Allow the liveness shim to update this state if present
+  (globalThis as any).__void_liveness = (globalThis as any).__void_liveness || {
+    bump(){ lastSubmitMs = Date.now(); submits++; },
+    reads(){ return { lastSubmitMs, submits }; }
+  };
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_liveness_metrics) return; (app as any).__void_liveness_metrics = true;
+
+    app.get("/__void/metrics/liveness.prom", (_req:any, res:any)=>{
+      const { lastSubmitMs: ms, submits: n } = (globalThis as any).__void_liveness.reads();
+      const now = Date.now();
+      const age = ms ? Math.max(0, (now - ms)/1000) : -1;
+      res.type("text/plain").send(
+        "# HELP void_liveness_submits_total Liveness txs submitted by shim\n" +
+        "# TYPE void_liveness_submits_total counter\n" +
+        `void_liveness_submits_total ${n}\n` +
+        "# HELP void_liveness_last_submit_age_seconds Age of last liveness submit (-1 if never)\n" +
+        "# TYPE void_liveness_last_submit_age_seconds gauge\n" +
+        `void_liveness_last_submit_age_seconds ${age}\n`
+      );
+    });
+  }
+  mount();
+})();
+;(function HookLivenessBump(){
+  const orig = (globalThis as any).__void_liveness_submit;
+  // If the shim exposes a submit function, wrap it; otherwise no-op.
+  if (typeof orig === "function") {
+    (globalThis as any).__void_liveness_submit = async (...args:any[])=>{
+      const ok = await orig(...args);
+      try { if (ok && (globalThis as any).__void_liveness?.bump) (globalThis as any).__void_liveness.bump(); } catch {}
+      return ok;
+    };
+  }
+})();
+// ---------------- Liveness TX shim v2 (SAFEBOOT-friendly, additive) ----------------
+(function LivenessTxShimV2(){
+  const ENABLED = (process.env.VOID_LIVENESS_TX ?? process.env.LIVENESS_TX ?? "0") === "1";
+  if (!ENABLED) return;
+
+  const PORT = Number(process.env.HTTP_PORT || 4100);
+  const URL_BASE = `http://127.0.0.1:${PORT}`;
+
+  const TICK_MS    = Math.max(1000, Number(process.env.PROPOSER_TICK_MS || 2000));
+  const STALL_MS   = Math.max(2*TICK_MS + 500, Number(process.env.LIVENESS_STALL_MS || (2*TICK_MS + 500)));
+  const MIN_GAP_MS = Math.max(TICK_MS, Number(process.env.LIVENESS_MIN_GAP_MS || 6000));
+
+  // Optional hard cap: submits/min (defaults modestly)
+  const MAX_PER_MIN = Math.max(1, Number(process.env.LIVENESS_MAX_PER_MIN || 6));
+
+  // Shared state (coexists with your existing exporter)
+  const LNSYM = "__void_liveness";
+  const state = (globalThis as any)[LNSYM] = (globalThis as any)[LNSYM] || {
+    _lastSubmitMs: 0, _submits: 0,
+    bump(){ this._lastSubmitMs = Date.now(); this._submits++; },
+    reads(){ return { lastSubmitMs: this._lastSubmitMs, submits: this._submits }; }
+  };
+
+  let lastHead = -1;
+  let lastHeadAt = Date.now();
+  let recent = [] as number[]; // submit timestamps (ms)
+
+  async function getHead(): Promise<number> {
+    try {
+      const r = await fetch(`${URL_BASE}/head.txt`, { cache: "no-store" });
+      const t = await r.text();
+      const n = Number(String(t).trim().split(/\s+/)[0]);
+      return Number.isFinite(n) ? n : -1;
+    } catch { return -1; }
+  }
+
+  async function getMempoolSize(): Promise<number> {
+    try {
+      const r = await fetch(`${URL_BASE}/mempool/global/size.json`, { cache: "no-store" });
+      const j:any = await r.json();
+      return Number(j?.size ?? 0);
+    } catch { return 0; }
+  }
+
+  function rateWindowOk(now:number): boolean {
+    recent = recent.filter(ms => now - ms < 60_000);
+    return recent.length < MAX_PER_MIN;
+  }
+
+  async function submitTinyTx(): Promise<boolean> {
+    try {
+      const payload = Buffer.from(`live:${Date.now()}`).toString("hex");
+      const r = await fetch(`${URL_BASE}/tx/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: `0x${payload}` })
+      });
+      if (!r.ok) return false;
+      state.bump();
+      recent.push(Date.now());
+      return true;
+    } catch { return false; }
+  }
+
+  async function tick(){
+    try {
+      const now = Date.now();
+      const head = await getHead();
+      if (head >= 0) {
+        if (head !== lastHead) { lastHead = head; lastHeadAt = now; }
+      }
+      const stalled = (now - lastHeadAt) >= STALL_MS;
+      const mp = await getMempoolSize();
+      const canSubmit = (now - state._lastSubmitMs) >= MIN_GAP_MS && rateWindowOk(now);
+
+      if (stalled && mp === 0 && canSubmit) {
+        await submitTinyTx(); // ignore result; exporter will reflect success
+      }
+    } catch { /* ignore */ }
+    setTimeout(tick, TICK_MS);
+  }
+
+  setTimeout(tick, TICK_MS);
+})();
