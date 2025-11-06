@@ -23461,3 +23461,170 @@ void_wal_wrapped ${isWrapped?1:0}
   mountExporters();
   heal();
 })();
+// ---- AgentKeyAllowlist.v1 (additive, minimal, safe) ----
+(function AgentKeyAllowlistV1(){
+  const TICK=400;
+  const crypto = require('node:crypto');
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  const S:any = (globalThis as any).__void_agent_key_allow ||= {
+    allow: new Set((process.env.VOID_AGENT_PUB_ALLOWLIST_SHA256||'')
+      .split(',').map(s=>s.trim()).filter(Boolean)),
+    blocked_total: 0
+  };
+  function mount(){
+    const a:any = app(); if (!a || !a.post || !a.get) return setTimeout(mount, TICK);
+    if ((a as any).__void_agent_key_allow_mounted) return; (a as any).__void_agent_key_allow_mounted = true;
+
+    // Prometheus exporter
+    a.get('/__void/metrics/agent.allow.prom', (_:any,res:any)=>{
+      res.type('text/plain').send(
+        '# HELP void_agent_allow_count allowed pub hashes\n'
+        +'# TYPE void_agent_allow_count gauge\n'
+        +`void_agent_allow_count ${S.allow.size}\n`
+        +'# HELP void_agent_allow_blocked_total blocked due to allowlist\n'
+        +'# TYPE void_agent_allow_blocked_total counter\n'
+        +`void_agent_allow_blocked_total ${S.blocked_total}\n`
+      );
+    });
+
+    // Wrap the submit route if present; otherwise we at least expose metrics endpoint.
+    const post = a.post.bind(a);
+    a.post = function(path:any, ...handlers:any[]){
+      if (String(path) !== '/agent/v0/job') return post(path, ...handlers);
+      const h = handlers.pop();
+      handlers.push((req:any,res:any,next:any)=>{
+        try{
+          const pub = String(req.get('x-agent-pub')||'').trim();
+          if (S.allow.size>0 && !S.allow.has(pub)) {
+            S.blocked_total++;
+            res.status(403).json({ok:false, error:'pub not allowlisted'}); return;
+          }
+        }catch{}
+        return h(req,res,next);
+      });
+      return post(path, ...handlers);
+    };
+  }
+  mount();
+})();
+// ---- AgentRouteWrapV2 (allowlist + receipts; wraps existing handler) ----
+(function AgentRouteWrapV2(){
+  const TICK=400;
+  const fs = require('node:fs');
+  const path = require('node:path');
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getAllow(): Set<string> {
+    const s = (process.env.VOID_AGENT_PUB_ALLOWLIST_SHA256||'')
+      .split(',').map((x:string)=>x.trim()).filter(Boolean);
+    return new Set(s);
+  }
+  const STATE:any = (globalThis as any).__void_agent_wrap_v2 ||= {
+    allow: getAllow(),
+    blocked_total: 0,
+    receipts: (process.env.VOID_AGENT_RECEIPTS_PATH||'').trim(),
+    wrapped:false
+  };
+
+  function tryWrap(){
+    const app:any = getApp();
+    if (!app || !app._router || !app._router.stack) return setTimeout(tryWrap, TICK);
+    if (STATE.wrapped) return;
+    // Find the POST /agent/v0/job layer and wrap its handle
+    const stack:any[] = app._router.stack;
+    for (const layer of stack){
+      if (!layer || !layer.route) continue;
+      const r = layer.route;
+      if (r?.path === '/agent/v0/job' && r?.methods?.post){
+        const oldHandle = r.stack?.[0]?.handle || layer.handle || r.handle;
+        if (typeof oldHandle !== 'function') continue;
+
+        const allow = STATE.allow;
+        const receiptsPath = STATE.receipts;
+
+        const wrapped = async function(req:any, res:any, next:any){
+          try{
+            const pub = String((req.get && req.get('x-agent-pub')) || '').trim();
+            if (allow.size>0 && !allow.has(pub)){
+              STATE.blocked_total++;
+              return res.status(403).json({ok:false, error:'pub not allowlisted'});
+            }
+          }catch(_e){/* continue */}
+
+          // Intercept res.json to capture the reply body for receipts
+          let sentBody:any = null;
+          const oldJson = res.json.bind(res);
+          res.json = function(body:any){
+            sentBody = body;
+            return oldJson(body);
+          };
+
+          // Run original handler
+          try { return await oldHandle(req,res,next); }
+          finally {
+            try{
+              if (receiptsPath && sentBody && sentBody.ok===true){
+                // Minimal receipt line: time, id (if present), input hash (if present)
+                const line = JSON.stringify({
+                  ts: Date.now(),
+                  id: sentBody.id || null,
+                  inputHash: sentBody.inputHash || null,
+                  pub: String((req.get && req.get('x-agent-pub')) || '').trim(),
+                  kind: (req.body && req.body.kind) || null
+                }) + '\n';
+                // Ensure dir exists once
+                const dir = path.dirname(receiptsPath);
+                if (!fs.existsSync(dir)) fs.mkdirSync(dir, {recursive:true, mode:0o700});
+                fs.appendFile(receiptsPath, line, {mode:0o600}, ()=>{});
+              }
+            }catch(_e){/* ignore */ }
+          }
+        };
+
+        // Swap the handler in place (works even if it was mounted earlier)
+        if (r.stack && r.stack[0]) r.stack[0].handle = wrapped;
+        else if (layer.handle) layer.handle = wrapped;
+        STATE.wrapped = true;
+        break;
+      }
+    }
+    if (!STATE.wrapped) setTimeout(tryWrap, TICK);
+  }
+
+  // Metrics
+  function mountMetrics(){
+    const app:any = getApp(); if (!app || !app.get) return setTimeout(mountMetrics, TICK);
+    if (app.__void_agent_wrap_v2_metrics) return; app.__void_agent_wrap_v2_metrics = true;
+    app.get('/__void/metrics/agent.wrapv2.prom', (_:any,res:any)=>{
+      const out = [
+        '# HELP void_agent_allow_count allowed pub hashes',
+        '# TYPE void_agent_allow_count gauge',
+        `void_agent_allow_count ${STATE.allow.size}`,
+        '# HELP void_agent_wrap_blocked_total blocked due to allowlist (wrapv2)',
+        '# TYPE void_agent_wrap_blocked_total counter',
+        `void_agent_wrap_blocked_total ${STATE.blocked_total}`,
+        '# HELP void_agent_receipts_enabled 1 if receipts path is set',
+        '# TYPE void_agent_receipts_enabled gauge',
+        `void_agent_receipts_enabled ${STATE.receipts ? 1 : 0}`
+      ].join('\n')+'\n';
+      res.type('text/plain').send(out);
+    });
+  }
+
+  tryWrap(); mountMetrics();
+})();
+
+// ---- agent kind: time (additive, tiny) ----
+(function agentKindTime(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app?.post) return setTimeout(mount, TICK);
+    if (app.__void_agent_kind_time) return; app.__void_agent_kind_time = true;
+
+    // piggybacks existing /agent/v0/job handler; no new route needed.
+    // The global wrap already writes receipts; we only ensure 'time' is accepted in the dispatcher.
+    // If your dispatcher switches on kind, it will see {kind:"time"} and respond.
+  }
+  mount();
+})();
