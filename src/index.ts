@@ -22410,3 +22410,1054 @@ void_wal_wrapped ${isWrapped?1:0}
   mount();
 })();
  // ==== /Agent v0 — corrected jobs metrics =====
+// --------- DEV ROUTE KILL-SWITCH (additive, safe-boot friendly) ----------
+(function devRouteKillSwitch(){
+  const TICK = 300;
+  const OFF = (process.env.ALLOW_DEV_ROUTES === "1")
+           || (process.env.VOID_DEV_ROUTES === "1")
+           || (process.env.DISABLE_DEV_ROUTES === "0");
+  if (OFF) { return; }
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.use !== "function") return setTimeout(mount, TICK);
+    if ((app as any).__void_dev_killswitch) return;
+    (app as any).__void_dev_killswitch = true;
+
+    const deny: RegExp[] = [
+      /^\/dev(\/|$)/,
+      /^\/__void\/dev(\/|$)/,
+      /^\/tx\/dev(\/|$)/,
+      /^\/mempool\/global\/peek$/,
+      /^\/mempool\/node(\/|$)/,
+      /^\/dev\/txroot\/\d+$/,
+      /^\/dev\/blocks\/\d+\/txs\/raw$/,
+      /^\/dev\/blocks\/\d+\/txs\/raw2$/,
+      /^\/dev\/last-seal(2?)$/,
+      /^\/__void\/metrics\/txroot4\/observer\.prom$/,
+      /^\/__void\/txroot4\/observer\.prom$/,
+    ];
+
+    app.use((req:any, res:any, next:any) => {
+      const p = req.path || "";
+      for (const rx of deny) if (rx.test(p)) { res.status(404).end(); return; }
+      next();
+    });
+
+    (console?.log||(()=>{}))('[dev-kill] runtime gate mounted (ALLOW_DEV_ROUTES!=1)');
+  }
+  mount();
+})();
+// -------- SAFE submit (non-dev, additive) --------
+(function SafeSubmitV1(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function mount(){
+    const app = getApp(), node = getNode();
+    if (!app || !node || !node.mempool || !Array.isArray(node.mempool.txs)) return setTimeout(mount, TICK);
+    if ((app as any).__void_safe_submit_v1) return; (app as any).__void_safe_submit_v1 = true;
+
+    app.post("/tx/submit", express.json({limit:"64kb"}), (req:any,res:any)=>{
+      try{
+        const body = req.body || {};
+        const kind = String(body.kind||"").slice(0,32) || "ping";
+        const nonce = String(body.nonce ?? Date.now()).slice(0,64);
+        const tx = { kind, nonce };
+        node.mempool.txs.push(tx);
+        res.json({ok:true, queued:true, kind, nonce, mempool_size: node.mempool.txs.length});
+      }catch(e){ res.status(400).json({ok:false, error: String(e?.message||e)}) }
+    });
+
+    (console?.log||(()=>{}))('[safe-submit] mounted /tx/submit (direct mempool)');
+  }
+  mount();
+})();
+// -------- SAFE submit v1.1 (mirror to txQueue) --------
+(function SafeSubmitV11(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  function mount(){
+    const app = getApp(), node = getNode();
+    if (!app || !node || !node.mempool || !Array.isArray(node.mempool.txs)) return setTimeout(mount, TICK);
+    if ((app as any).__void_safe_submit_v1_1) return; (app as any).__void_safe_submit_v1_1 = true;
+
+    // Accept tx and mirror into mempool + txQueue (if present)
+    app.post("/tx/submit", require("express").json({limit:"64kb"}), (req:any,res:any)=>{
+      try{
+        const b = req.body || {};
+        const tx = { kind: String(b.kind||"ping").slice(0,32), nonce: String(b.nonce ?? Date.now()).slice(0,64) };
+        node.mempool.txs.push(tx);
+        if (node.txQueue && Array.isArray(node.txQueue)) node.txQueue.push(tx);
+        res.json({ok:true, queued:true, mempool_size: node.mempool.txs.length, queue_size: (node.txQueue?.length||0)});
+      }catch(e){ res.status(400).json({ok:false, error:String(e?.message||e)}) }
+    });
+
+    (console?.log||(()=>{}))('[safe-submit] /tx/submit mirrors to mempool + txQueue');
+  }
+  mount();
+})();
+
+// -------- Proposer pour (move from mempool -> txQueue up to cap) --------
+(function ProposerPourV1(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function cap(){ const m = Number(process.env.TX_CAP||process.env.TX_CAP_MAX||3); return Number.isFinite(m)&&m>0?m:3; }
+
+  function mount(){
+    const app = getApp(), node = getNode();
+    if (!app || !node || !node.mempool || !Array.isArray(node.mempool.txs)) return setTimeout(mount, TICK);
+    if ((app as any).__void_pour_v1) return; (app as any).__void_pour_v1 = true;
+
+    app.post("/proposer/queue/pour-now", (_req:any,res:any)=>{
+      const q = (node.txQueue && Array.isArray(node.txQueue)) ? node.txQueue : (node.txQueue = []);
+      let moved = 0; const k = cap();
+      while (moved < k && node.mempool.txs.length > 0){ q.push(node.mempool.txs.shift()); moved++; }
+      res.json({ok:true, moved, queue_size:q.length, mempool_size:node.mempool.txs.length, cap:k});
+    });
+
+    (console?.log||(()=>{}))('[pour] /proposer/queue/pour-now ready');
+  }
+  mount();
+})();
+// ------------ Blockcount v2 (non-dev persisted introspection) ------------
+(function BlockcountV2(){
+  const TICK=800;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function fetchJson(url){ try{ const r = await (await fetch(url)).json(); return r; }catch{ return null; } }
+  async function fetchText(url){ try{ return await (await fetch(url)).text(); }catch{ return ""; } }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+
+    let lastNum = -1, lastTxs = 0, lastWasEmpty = 1;
+    async function tick(){
+      try{
+        // Get latest number (works in SAFEBOOT)
+        const nStr = (await fetchText("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/head.txt")).trim().split(/\s+/)[0];
+        const n = Number(nStr); if (!Number.isFinite(n) || n < 0) return setTimeout(tick, TICK);
+        if (n !== lastNum) {
+          const p = await fetchJson(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/blocks/${n}/persisted`);
+          // persisted shape: { number, header, txs: [...] } in our builds
+          const txs = Array.isArray(p?.txs) ? p.txs.length : 0;
+          lastNum = n; lastTxs = txs; lastWasEmpty = txs === 0 ? 1 : 0;
+        }
+      }catch{}
+      setTimeout(tick, TICK);
+    }
+    tick();
+
+    // Prom text exporter
+    app.get("/__void/metrics/blockcount.v2.prom", (_req:any,res:any)=>{
+      const lines = [
+        "# HELP void_block_txcount_v2 tx count in latest persisted block (derived, SAFEBOOT)",
+        "# TYPE void_block_txcount_v2 gauge",
+        `void_block_txcount_v2 ${lastTxs}`,
+        "# HELP void_block_was_empty_v2 1 if latest block had 0 tx, else 0 (derived)",
+        "# TYPE void_block_was_empty_v2 gauge",
+        `void_block_was_empty_v2 ${lastWasEmpty}`,
+        "# HELP void_block_last_number_v2 latest block number (derived)",
+        "# TYPE void_block_last_number_v2 gauge",
+        `void_block_last_number_v2 ${lastNum < 0 ? 0 : lastNum}`
+      ];
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+
+    (console?.log||(()=>{}))('[blockcount.v2] exporter at /__void/metrics/blockcount.v2.prom');
+  }
+  mount();
+})();
+// ========== LastMileSafe v1 (additive, SAFEBOOT-friendly) ==========
+(function LastMileSafeV1(){
+  const TICK=400;
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function getSegStore(){ try{ return require("./chain/seg_store.js")?.SegStore; }catch{ return null; } }
+  function cap(){ const v = Number(process.env.TX_CAP||process.env.TX_CAP_MAX||3); return Number.isFinite(v)&&v>0?v:3; }
+
+  function mount(){
+    const node = getNode(), SegStore = getSegStore();
+    if (!node || !SegStore || !SegStore.prototype) return setTimeout(mount, TICK);
+    if ((SegStore.prototype as any).__void_lastmile_safe_v1) return;
+
+    const orig = SegStore.prototype.saveBlock;
+    SegStore.prototype.saveBlock = async function(block:any, ...rest:any[]){
+      try{
+        const q:any[] = (node.txQueue && Array.isArray(node.txQueue)) ? node.txQueue : (node.txQueue = []);
+        if (!Array.isArray(block.txs)) block.txs = [];
+        let take = Math.min(cap(), q.length);
+        for (let i=0;i<take;i++) block.txs.push(q.shift());
+      }catch(e){ /* keep saving even if we couldn't merge */ }
+      return await orig.apply(this, [block, ...rest]);
+    };
+    (SegStore.prototype as any).__void_lastmile_safe_v1 = true;
+    (console?.log||(()=>{}))(`[lastmile.safe] installed (cap=${cap()})`);
+  }
+  mount();
+})();
+
+// -------- Blockcount v2b (persisted → full2 fallback) --------
+(function BlockcountV2b(){
+  const TICK=900;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function j(u){ try{ const r=await fetch(u); return r.ok?await r.json():null; }catch{ return null; } }
+  async function t(u){ try{ const r=await fetch(u); return r.ok?await r.text():""; }catch{ return ""; } }
+  function base(){ return `http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`; }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount,TICK);
+
+    let lastNum=-1, lastTxs=0, lastEmpty=1;
+    async function tick(){
+      try{
+        const nStr=(await t(`${base()}/head.txt`)).trim().split(/\s+/)[0];
+        const n=Number(nStr); if (!Number.isFinite(n) || n<0) return setTimeout(tick,TICK);
+        if (n!==lastNum){
+          let txsLen = 0;
+          // 1) preferred persisted
+          let p = await j(`${base()}/blocks/${n}/persisted`);
+          if (!p || !Array.isArray(p.txs)) {
+            // 2) fallback to full2
+            const f2 = await j(`${base()}/blocks/${n}/full2`);
+            if (f2 && Array.isArray(f2.txs)) txsLen = f2.txs.length;
+          } else {
+            txsLen = p.txs.length;
+          }
+          lastNum=n; lastTxs=txsLen; lastEmpty = txsLen===0 ? 1 : 0;
+        }
+      }catch{}
+      setTimeout(tick,TICK);
+    }
+    tick();
+
+    app.get("/__void/metrics/blockcount.v2b.prom", (_req:any,res:any)=>{
+      const out = [
+        "# HELP void_block_txcount_v2b tx count latest block (derived, SAFEBOOT)",
+        "# TYPE void_block_txcount_v2b gauge",
+        `void_block_txcount_v2b ${lastTxs}`,
+        "# HELP void_block_was_empty_v2b 1 if latest had 0 tx",
+        "# TYPE void_block_was_empty_v2b gauge",
+        `void_block_was_empty_v2b ${lastEmpty}`,
+        "# HELP void_block_last_number_v2b latest block number (derived)",
+        "# TYPE void_block_last_number_v2b gauge",
+        `void_block_last_number_v2b ${lastNum<0?0:lastNum}`
+      ];
+      res.type("text/plain").send(out.join("\n")+"\n");
+    });
+    (console?.log||(()=>{}))('[blockcount.v2b] exporter at /__void/metrics/blockcount.v2b.prom');
+  }
+  mount();
+})();
+// ===== LastMileSafe v1.2 (cap; prime from mempool when queue empty) =====
+(function LastMileSafeV12(){
+  const TICK=400;
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function getSegStore(){ try{ return require("./chain/seg_store.js")?.SegStore; }catch{ return null; } }
+  function cap(){ const v = Number(process.env.TX_CAP||process.env.TX_CAP_MAX||3); return Number.isFinite(v)&&v>0?v:3; }
+  function mount(){
+    const node = getNode(), SegStore = getSegStore();
+    if (!node || !SegStore || !SegStore.prototype) return setTimeout(mount, TICK);
+    if ((SegStore.prototype as any).__void_lastmile_safe_v12) return;
+
+    // tiny helpers
+    function ensureQ(n:any){ return (n.txQueue && Array.isArray(n.txQueue)) ? n.txQueue : (n.txQueue = []); }
+    function primeFromMempool(n:any, q:any[], k:number){
+      let moved=0;
+      if (Array.isArray(n?.mempool?.txs)){
+        while (moved<k && n.mempool.txs.length>0){ q.push(n.mempool.txs.shift()); moved++; }
+      }
+      return moved;
+    }
+
+    const orig = SegStore.prototype.saveBlock;
+    SegStore.prototype.saveBlock = async function(block:any, ...rest:any[]){
+      try{
+        const q:any[] = ensureQ(node);
+        if (!Array.isArray(block.txs)) block.txs = [];
+
+        // If queue is empty but mempool has txs, prime it
+        const k = cap();
+        if (q.length === 0 && Array.isArray(node?.mempool?.txs) && node.mempool.txs.length>0){
+          primeFromMempool(node, q, k);
+        }
+
+        // Pull from queue into the block up to cap
+        let take = Math.min(k, q.length);
+        for (let i=0; i<take; i++) block.txs.push(q.shift());
+      }catch(e){ /* don't fail the save */ }
+      return await orig.apply(this, [block, ...rest]);
+    };
+    (SegStore.prototype as any).__void_lastmile_safe_v12 = true;
+    (console?.log||(()=>{}))(`[lastmile.safe.v12] installed (cap=${cap()})`);
+  }
+  mount();
+})();
+
+// ----- Queue+Mempool snapshot (Prom text) -----
+(function QueueSnapV1(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function mount(){
+    const app:any = getApp(), node:any = getNode();
+    if (!app || !node) return setTimeout(mount, TICK);
+    if ((app as any).__void_qsnap_v1) return; (app as any).__void_qsnap_v1 = true;
+    app.get("/__void/metrics/queue.prom", (_req:any,res:any)=>{
+      const mp = Array.isArray(node?.mempool?.txs) ? node.mempool.txs.length : 0;
+      const q  = (node?.txQueue && Array.isArray(node.txQueue)) ? node.txQueue.length : 0;
+      res.type("text/plain").send([
+        "# HELP void_mempool_size current mempool size",
+        "# TYPE void_mempool_size gauge",
+        `void_mempool_size ${mp}`,
+        "# HELP void_queue_size current proposer queue size",
+        "# TYPE void_queue_size gauge",
+        `void_queue_size ${q}`
+      ].join("\n")+"\n");
+    });
+    (console?.log||(()=>{}))('[qsnap] /__void/metrics/queue.prom ready');
+  }
+  mount();
+})();
+// ===== LastMileSafe v12.3 (authoritative inject + Prom) =====
+(function LastMileSafeV123(){
+  const FLAG = "__void_lastmile_safe_v123";
+  const TICK=400;
+
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function getSeg(){ try{ return require("./chain/seg_store.js")?.SegStore; }catch{ return null; } }
+  function cap(){ const v = Number(process.env.TX_CAP||process.env.TX_CAP_MAX||3); return Number.isFinite(v)&&v>0?v:3; }
+
+  // Local state for Prom export
+  const S = { last_injected: 0, injected_total: 0, last_seen_block: -1, last_queue_len: 0, last_mempool_len: 0 };
+
+  function ensureQ(n:any){ return (n.txQueue && Array.isArray(n.txQueue)) ? n.txQueue : (n.txQueue = []); }
+  function mpLen(n:any){ return Array.isArray(n?.mempool?.txs) ? n.mempool.txs.length : 0; }
+
+  function mountProm(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(mountProm, TICK);
+    if ((app as any).__void_lastmile_v123_prom) return; (app as any).__void_lastmile_v123_prom = true;
+    app.get("/__void/metrics/lastmile.v123.prom", (_req:any,res:any)=>{
+      const lines = [
+        "# HELP void_lastmile_last_injected number of tx injected into last saved block",
+        "# TYPE void_lastmile_last_injected gauge",
+        `void_lastmile_last_injected ${S.last_injected}`,
+        "# HELP void_lastmile_injected_total cumulative tx injected by lastmile wrapper",
+        "# TYPE void_lastmile_injected_total counter",
+        `void_lastmile_injected_total ${S.injected_total}`,
+        "# HELP void_lastmile_last_seen_block last block number observed by wrapper",
+        "# TYPE void_lastmile_last_seen_block gauge",
+        `void_lastmile_last_seen_block ${S.last_seen_block < 0 ? 0 : S.last_seen_block}`,
+        "# HELP void_lastmile_queue_len last observed proposer queue length",
+        "# TYPE void_lastmile_queue_len gauge",
+        `void_lastmile_queue_len ${S.last_queue_len}`,
+        "# HELP void_lastmile_mempool_len last observed mempool length",
+        "# TYPE void_lastmile_mempool_len gauge",
+        `void_lastmile_mempool_len ${S.last_mempool_len}`
+      ];
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+    (console?.log||(()=>{}))('[lastmile.v123] exporter at /__void/metrics/lastmile.v123.prom');
+  }
+
+  function mount(){
+    const Seg = getSeg(), node = getNode();
+    if (!Seg || !Seg.prototype || !node) return setTimeout(mount, TICK);
+    if ((Seg.prototype as any)[FLAG]) return;
+
+    const orig = Seg.prototype.saveBlock;
+    if (typeof orig !== "function") return setTimeout(mount, TICK);
+
+    Seg.prototype.saveBlock = async function(block:any, ...rest:any[]){
+      // Observe current pool/queue
+      try {
+        const q:any[] = ensureQ(node);
+        S.last_queue_len = q.length;
+        S.last_mempool_len = mpLen(node);
+
+        // Prime queue if empty and mempool has tx
+        const k = cap();
+        if (q.length === 0 && S.last_mempool_len > 0) {
+          let moved = 0;
+          while (moved < k && node.mempool.txs.length > 0) { q.push(node.mempool.txs.shift()); moved++; }
+        }
+
+        // Inject from queue into block (authoritative)
+        if (!Array.isArray(block?.txs)) block.txs = [];
+        let take = Math.min(k, q.length);
+        for (let i=0;i<take;i++) block.txs.push(q.shift());
+
+        S.last_injected = take;
+        S.injected_total += take;
+        const n = (typeof block?.number==="number") ? block.number :
+                  (typeof block?.header?.number==="number") ? block.header.number : -1;
+        S.last_seen_block = n;
+      } catch(_e) { /* never break the save */ }
+
+      return await orig.apply(this, [block, ...rest]);
+    };
+    Object.defineProperty(Seg.prototype, FLAG, { value: true });
+    (console?.log||(()=>{}))(`[lastmile.safe.v123] installed (cap=${cap()})`);
+  }
+
+  mount();
+  mountProm();
+})();
+
+// ---- SAFE crypto shim (preempts recursive one; additive) ----
+(function SafeCryptoShim_NoRecurse(){
+  try{
+    const G = globalThis as any;
+    if (!G.__void_getCreateHash) {
+      // Always resolve directly to node:crypto.createHash, no self-calls.
+      let cached:any = null;
+      G.__void_getCreateHash = function __void_getCreateHash(){
+        if (cached) return cached;
+        try {
+          // Prefer require if present (CJS context), else dynamic import.
+          // Never call __void_getCreateHash() from inside here.
+          if (typeof require === "function") {
+            const c = require("node:crypto");
+            cached = c && c.createHash ? c.createHash : null;
+          } else {
+            // Lazy async path; cache the promise result
+            cached = (async ()=> {
+              const mod = await import("node:crypto");
+              return (mod as any).createHash;
+            })();
+          }
+        } catch { cached = null; }
+        return cached;
+      };
+      (console?.log||(()=>{}))('[shim] SafeCryptoShim_NoRecurse installed');
+    }
+  }catch{}
+})();
+// ---- ExposeNodeV1 (bind real node/store; tiny Prom + snapshot) ----
+(function ExposeNodeV1(){
+  const TICK=400;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  function tick(){
+    try{
+      const n:any = node();
+      if (n && !((globalThis as any).__void_store)) {
+        const s = n.store || (n.segStore || (n.SegStore && n.SegStore.instance));
+        if (s) (globalThis as any).__void_store = s;
+      }
+    }catch{}
+    setTimeout(tick, TICK);
+  }
+  tick();
+
+  function mount(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(mount, TICK);
+    if ((a as any).__void_expose_node_v1) return; (a as any).__void_expose_node_v1 = true;
+
+    a.get("/__void/dev/node-snap", (_req:any,res:any)=>{
+      const n:any = node(), s:any = (globalThis as any).__void_store;
+      const mp = Array.isArray(n?.mempool?.txs) ? n.mempool.txs.length : -1;
+      const q  = (n?.txQueue && Array.isArray(n.txQueue)) ? n.txQueue.length : -1;
+      res.json({ ok:true, has_node:!!n, has_store:!!s, mempool_len:mp, queue_len:q,
+                 head_try:(n?.heads?.head ?? null) });
+    });
+
+    a.get("/__void/metrics/node-basic.prom", (_req:any,res:any)=>{
+      const n:any = node();
+      const mp = Array.isArray(n?.mempool?.txs) ? n.mempool.txs.length : 0;
+      const q  = (n?.txQueue && Array.isArray(n.txQueue)) ? n.txQueue.length : 0;
+      res.type("text/plain").end([
+        "# HELP void_node_mempool_len current mempool length (live object)",
+        "# TYPE void_node_mempool_len gauge",
+        `void_node_mempool_len ${mp}`,
+        "# HELP void_node_queue_len current proposer queue length (live object)",
+        "# TYPE void_node_queue_len gauge",
+        `void_node_queue_len ${q}`
+      ].join("\n")+"\n");
+    });
+
+    (console?.log||(()=>{}))('[expose-node] mounted /__void/dev/node-snap + /__void/metrics/node-basic.prom');
+  }
+  mount();
+})();
+// ---- NodeLatchV1 (capture live Node+store at construction) -------------------
+(function NodeLatchV1(){
+  const TICK=400;
+  function tryMount(){
+    try{
+      // Load the class once from the same module index.ts uses
+      const mod = require("./node_core.js");
+      const Node = mod && (mod.Node || mod.default);
+      if (!Node || Node.__void_latched_v1) return (console?.log||(()=>{}))('[nodelatch] no-op or already latched');
+
+      const Orig = Node;
+      function WrappedNode(...args){
+        const inst = new Orig(...args);
+        try{
+          // Publish the authoritative instance + store
+          (globalThis).__void_node  = inst;
+          const s = inst.store || inst.segStore || (inst.SegStore && inst.SegStore.instance);
+          if (s) (globalThis).__void_store = s;
+          (console?.log||(()=>{}))('[nodelatch] captured node+store');
+        }catch{}
+        return inst;
+      }
+      Object.setPrototypeOf(WrappedNode, Orig);
+      WrappedNode.prototype = Orig.prototype;
+      mod.Node = WrappedNode;
+      Object.defineProperty(WrappedNode, "__void_latched_v1", { value:true });
+      (console?.log||(()=>{}))('[nodelatch] constructor wrapper installed');
+    }catch(e){
+      // module not ready yet; retry shortly
+      setTimeout(tryMount, TICK);
+      return;
+    }
+  }
+  tryMount();
+})();
+// ---- SafeSubmit.v13 (unified against latched node) ---------------------------
+(function SafeSubmitV13(){
+  const TICK=400;
+  function app(){ return (globalThis).__void_http_app || (globalThis).app; }
+  function node(){ return (globalThis).__void_node || (globalThis).node || null; }
+
+  function mount(){
+    const a = app(), n = node();
+    if (!a || !n || !n.mempool || !Array.isArray(n.mempool.txs)) return setTimeout(mount, TICK);
+    if (a.__void_safe_submit_v13) return; a.__void_safe_submit_v13 = true;
+
+    const express = require("express");
+    a.post("/tx/submit", express.json({limit:"64kb"}), (req,res)=>{
+      try{
+        const b = req.body || {};
+        const tx = { kind: String(b.kind||"ping").slice(0,32), nonce: String(b.nonce ?? Date.now()).slice(0,64) };
+        // enqueue to mempool, mirror to txQueue if present
+        n.mempool.txs.push(tx);
+        if (Array.isArray(n.txQueue)) n.txQueue.push(tx);
+        res.json({ ok:true, queued:true, mempool_size:n.mempool.txs.length, queue_size:(n.txQueue?.length||0) });
+      }catch(e){ res.status(400).json({ ok:false, error: String(e?.message||e) }); }
+    });
+
+    (console?.log||(()=>{}))('[safe-submit.v13] /tx/submit unified to live node');
+  }
+  mount();
+})();
+// ===== LastMileSafe v123-inst (wrap *instance* saveBlock; own metrics) =====
+(function LastMileSafeV123_INST(){
+  const TICK = 400, FLAG = "__void_lastmile_v123_inst";
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+  function cap(){ const v = Number(process.env.TX_CAP||process.env.TX_CAP_MAX||3); return Number.isFinite(v)&&v>0?v:3; }
+  function ensureQ(n:any){ return (n.txQueue && Array.isArray(n.txQueue)) ? n.txQueue : (n.txQueue = []); }
+  function mpLen(n:any){ return Array.isArray(n?.mempool?.txs) ? n.mempool?.txs.length : 0; }
+
+  // Shared state for this inst wrapper (separate from v123-proto S)
+  const S:any = (globalThis as any).__void_lastmile_v123b_S || ((globalThis as any).__void_lastmile_v123b_S =
+    { last_injected:0, injected_total:0, last_seen_block:-1, last_queue_len:0, last_mempool_len:0 });
+
+  function mountExporter(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(mountExporter, TICK);
+    if ((a as any).__void_lastmile_v123b_prom) return; (a as any).__void_lastmile_v123b_prom = true;
+    a.get("/__void/metrics/lastmile.v123b.prom", (_req:any,res:any)=>{
+      res.type("text/plain").end([
+        "# HELP void_lastmile_b_last_injected number of tx injected (inst wrap)",
+        "# TYPE void_lastmile_b_last_injected gauge",
+        `void_lastmile_b_last_injected ${S.last_injected}`,
+        "# HELP void_lastmile_b_injected_total cumulative tx injected (inst wrap)",
+        "# TYPE void_lastmile_b_injected_total counter",
+        `void_lastmile_b_injected_total ${S.injected_total}`,
+        "# HELP void_lastmile_b_last_seen_block last block number observed (inst wrap)",
+        "# TYPE void_lastmile_b_last_seen_block gauge",
+        `void_lastmile_b_last_seen_block ${S.last_seen_block < 0 ? 0 : S.last_seen_block}`,
+        "# HELP void_lastmile_b_queue_len last observed proposer queue length",
+        "# TYPE void_lastmile_b_queue_len gauge",
+        `void_lastmile_b_queue_len ${S.last_queue_len}`,
+        "# HELP void_lastmile_b_mempool_len last observed mempool length",
+        "# TYPE void_lastmile_b_mempool_len gauge",
+        `void_lastmile_b_mempool_len ${S.last_mempool_len}`
+      ].join("\n")+"\n");
+    });
+    (console?.log||(()=>{}))('[lastmile.v123b] exporter at /__void/metrics/lastmile.v123b.prom');
+  }
+
+  function mount(){
+    const s:any = store(), n:any = node();
+    if (!s || !n || typeof s.saveBlock !== "function") return setTimeout(mount, TICK);
+    if ((s as any)[FLAG]) return;
+
+    const orig = s.saveBlock.bind(s);
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      try{
+        const q:any[] = ensureQ(n);
+        S.last_queue_len = q.length;
+        S.last_mempool_len = mpLen(n);
+
+        const k = cap();
+        if (q.length === 0 && S.last_mempool_len > 0) {
+          let moved = 0;
+          while (moved < k && n.mempool.txs.length > 0) { q.push(n.mempool.txs.shift()); moved++; }
+        }
+
+        if (!Array.isArray(block?.txs)) block.txs = [];
+        const take = Math.min(k, q.length);
+        for (let i=0;i<take;i++) block.txs.push(q.shift());
+
+        S.last_injected = take;
+        S.injected_total += take;
+        const num = (typeof block?.number==="number") ? block.number :
+                    (typeof block?.header?.number==="number") ? block.header.number : -1;
+        S.last_seen_block = num;
+      }catch(_e){ /* never break the save */ }
+      return await orig(block, ...rest);
+    };
+    Object.defineProperty(s, FLAG, { value:true });
+    (console?.log||(()=>{}))(`[lastmile.safe.v123-inst] installed (cap=${cap()})`);
+  }
+
+  mount();
+  mountExporter();
+})();
+// ===== Patch: better block-number detection (shared helper) =====
+(function LastmileHelpersV1(){
+  const G:any = globalThis as any;
+  if (G.__void_getBlockNumberV1) return;
+  G.__void_getBlockNumberV1 = function getBlockNumberV1(block:any, n:any){
+    try{
+      if (block && typeof block.number === "number") return block.number;
+      if (block && block.header && typeof block.header.number === "number") return block.header.number;
+      const h = (n && n.heads && typeof n.heads.head === "number") ? n.heads.head : undefined;
+      if (typeof h === "number") return h;
+    }catch{}
+    return -1;
+  };
+  (console?.log||(()=>{}))('[helper] getBlockNumberV1 ready');
+})();
+
+// ===== Update lastmile v123b to use helper + better fallbacks =====
+(function LastMileSafeV123b_Tune(){
+  const TICK=200;
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+  const getN = (globalThis as any).__void_getBlockNumberV1;
+
+  function patch(){
+    const s:any = store();
+    const n:any = node();
+    const S:any = (globalThis as any).__void_lastmile_v123b_S;
+    if (!s || !n || !S) return setTimeout(patch, TICK);
+    if ((s as any).__void_lastmile_v123b_tuned) return;
+
+    // Re-wrap to only adjust the number capture (keep our injection logic intact)
+    const cur = s.saveBlock.bind(s);
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      // call through first so any earlier injectors still work; then capture
+      const out = await cur(block, ...rest);
+      try { S.last_seen_block = typeof getN === "function" ? getN(block, n) : (block?.number ?? block?.header?.number ?? S.last_seen_block); } catch{}
+      return out;
+    };
+    Object.defineProperty(s, "__void_lastmile_v123b_tuned", { value:true });
+    (console?.log||(()=>{}))('[lastmile.v123b] tuned (better last_seen_block)');
+  }
+  patch();
+})();
+
+// ===== Forensics v7: instance-level tracer so metrics reflect real saves =====
+(function TxrootForensicsV7_INST(){
+  const TICK=200;
+  const MET = {
+    calls: 0, last_num: -1, last_ms: 0, binds_inst: 0
+  };
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+  const getN = (globalThis as any).__void_getBlockNumberV1;
+
+  function mountExporter(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(mountExporter, TICK);
+    if ((a as any).__void_forensics_v7b_prom) return; (a as any).__void_forensics_v7b_prom = true;
+    a.get("/__void/metrics/txroot4/forensics.prom.v7b", (_req:any,res:any)=>{
+      res.type("text/plain").end([
+        "# HELP void_txroot_forensics_binds_inst_v7b instance binds (shim-b)",
+        "# TYPE void_txroot_forensics_binds_inst_v7b counter",
+        `void_txroot_forensics_binds_inst_v7b ${MET.binds_inst}`,
+        "# HELP void_txroot_forensics_calls_v7b observed calls (shim-b)",
+        "# TYPE void_txroot_forensics_calls_v7b counter",
+        `void_txroot_forensics_calls_v7b ${MET.calls}`,
+        "# HELP void_txroot_forensics_last_number_v7b last seen block number (shim-b)",
+        "# TYPE void_txroot_forensics_last_number_v7b gauge",
+        `void_txroot_forensics_last_number_v7b ${MET.last_num}`,
+        "# HELP void_txroot_forensics_last_ms_v7b last saveBlock duration ms (shim-b)",
+        "# TYPE void_txroot_forensics_last_ms_v7b gauge",
+        `void_txroot_forensics_last_ms_v7b ${MET.last_ms}`
+      ].join("\n")+"\n");
+    });
+    (console?.log||(()=>{}))('[forensics.v7b] exporter at /__void/metrics/txroot4/forensics.prom.v7b');
+  }
+
+  function patch(){
+    const s:any = store(); const n:any = node();
+    if (!s || typeof s.saveBlock!=="function") return setTimeout(patch, TICK);
+    if ((s as any).__void_forensics_v7b) return;
+
+    const orig = s.saveBlock.bind(s);
+    (s as any).__void_forensics_v7b = true;
+    MET.binds_inst++;
+
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      const t0 = Date.now();
+      try { MET.calls++; } catch{}
+      try {
+        const num = typeof getN === "function" ? getN(block, n) :
+                    (typeof block?.number==="number" ? block.number :
+                     (typeof block?.header?.number==="number" ? block.header.number : -1));
+        MET.last_num = num;
+      } catch{}
+      const out = await orig(block, ...rest);
+      try { MET.last_ms = Math.max(0, Date.now()-t0); } catch{}
+      return out;
+    };
+    (console?.log||(()=>{}))('[forensics.v7b] instance tracer installed');
+  }
+
+  patch();
+  mountExporter();
+})();
+// ===== HeadNumberProbe v1 (belt-and-suspenders) =====
+(function HeadNumberProbeV1(){
+  const TICK=200;
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+  if ((globalThis as any).__void_head_probe_v1) return; (globalThis as any).__void_head_probe_v1 = true;
+
+  function pick(block:any, n:any, s:any){
+    try{
+      if (block && typeof block.number === "number") return block.number;
+      if (block && block.header && typeof block.header.number === "number") return block.header.number;
+      const nh = (n && n.heads && typeof n.heads.head === "number") ? n.heads.head : undefined;
+      if (typeof nh === "number") return nh;
+      const sm = (s && s.meta && typeof s.meta.head === "number") ? s.meta.head : undefined;
+      if (typeof sm === "number") return sm;
+    }catch{}
+    return -1;
+  }
+
+  function mount(){
+    const s:any = store(); if (!s || typeof s.saveBlock!=="function") return setTimeout(mount, TICK);
+    if ((s as any).__void_head_probe_bound) return;
+    const orig = s.saveBlock.bind(s);
+    (s as any).__void_head_probe_bound = true;
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      const n:any = node();
+      const out = await orig(block, ...rest);
+      try{
+        const num = pick(block, n, s);
+        if (num >= 0) (globalThis as any).__void_last_head_guess = num;
+      }catch{}
+      return out;
+    };
+    (console?.log||(()=>{}))('[head-probe] instance tracer installed');
+  }
+  mount();
+
+  // Exporter (optional debug)
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function exportProm(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(exportProm, TICK);
+    if ((a as any).__void_head_probe_prom) return; (a as any).__void_head_probe_prom = true;
+    a.get("/__void/metrics/head-probe.prom", (_req:any,res:any)=>{
+      const v = Number((globalThis as any).__void_last_head_guess ?? -1);
+      res.type("text/plain").end(
+        "# HELP void_head_probe_last_number last head observed by probe\n" +
+        "# TYPE void_head_probe_last_number gauge\n" +
+        `void_head_probe_last_number ${Number.isFinite(v)?v:-1}\n`
+      );
+    });
+  }
+  exportProm();
+})();
+
+// ===== Last-mile v123b: read the head guess if block lacks number =====
+(function LastmileV123b_UseProbe(){
+  const TICK=200;
+  function store(){ return (globalThis as any).__void_store; }
+  function hasS(){ return (globalThis as any).__void_lastmile_v123b_S; }
+  if ((globalThis as any).__void_lastmile_v123b_probe) return;
+
+  function patch(){
+    const s:any = store(); const S:any = hasS();
+    if (!s || !S || typeof s.saveBlock!=="function") return setTimeout(patch, TICK);
+    if ((s as any).__void_lastmile_v123b_probe) return;
+    const orig = s.saveBlock.bind(s);
+    (s as any).__void_lastmile_v123b_probe = true;
+
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      const out = await orig(block, ...rest);
+      try{
+        // Prefer real numbers from block/header; else use the probe’s last guess.
+        let num = -1;
+        if (block && typeof block.number === "number") num = block.number;
+        else if (block && block.header && typeof block.header.number === "number") num = block.header.number;
+        if (num < 0) {
+          const g = (globalThis as any).__void_last_head_guess;
+          if (typeof g === "number" && g >= 0) num = g;
+        }
+        if (num >= 0) S.last_seen_block = num;
+      }catch{}
+      return out;
+    };
+    (console?.log||(()=>{}))('[lastmile.v123b] now uses head-probe fallback');
+  }
+  (globalThis as any).__void_lastmile_v123b_probe = true;
+  patch();
+})();
+// ===== SaveBlockChainLatchV1 (self-healing, counts + numbers) =====
+(function SaveBlockChainLatchV1(){
+  const TICK = 300;
+
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+
+  // Shared state for v7b + lastmile.v123b
+  const S:any = (globalThis as any).__void_chain_latch_S ||= {
+    binds: 0,
+    calls: 0,
+    last_ms: 0,
+    last_number: -1,
+    last_injected: 0,
+    injected_total: 0
+  };
+
+  function pickNumber(block:any, n:any, s:any){
+    try{
+      if (block && typeof block.number === "number") return block.number;
+      if (block?.header && typeof block.header.number === "number") return block.header.number;
+      const nh = (n && n.heads && typeof n.heads.head === "number") ? n.heads.head : undefined;
+      if (typeof nh === "number") return nh;
+      const sm = (s && s.meta && typeof s.meta.head === "number") ? s.meta.head : undefined;
+      if (typeof sm === "number") return sm;
+    }catch{}
+    return -1;
+  }
+
+  function ensureExporter(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(ensureExporter, TICK);
+    if ((a as any).__void_chain_latch_exporter) return;
+    (a as any).__void_chain_latch_exporter = true;
+
+    // v7b forensics (instance-focused)
+    a.get("/__void/metrics/txroot4/forensics.prom.v7b", (_req:any,res:any)=>{
+      res.type("text/plain").end([
+        "# HELP void_txroot_forensics_binds_inst_v7b instance binds (shim-b)",
+        "# TYPE void_txroot_forensics_binds_inst_v7b counter",
+        `void_txroot_forensics_binds_inst_v7b ${S.binds}`,
+        "# HELP void_txroot_forensics_calls_v7b observed calls (shim-b)",
+        "# TYPE void_txroot_forensics_calls_v7b counter",
+        `void_txroot_forensics_calls_v7b ${S.calls}`,
+        "# HELP void_txroot_forensics_last_number_v7b last seen block number (shim-b)",
+        "# TYPE void_txroot_forensics_last_number_v7b gauge",
+        `void_txroot_forensics_last_number_v7b ${S.last_number}`,
+        "# HELP void_txroot_forensics_last_ms_v7b last saveBlock duration ms (shim-b)",
+        "# TYPE void_txroot_forensics_last_ms_v7b gauge",
+        `void_txroot_forensics_last_ms_v7b ${S.last_ms}`
+      ].join("\n")+"\n");
+    });
+
+    // last-mile v123b metrics (count what finally ended up in the block)
+    a.get("/__void/metrics/lastmile.v123b.prom", (_req:any,res:any)=>{
+      res.type("text/plain").end([
+        "# HELP void_lastmile_b_last_injected number of tx injected (inst wrap)",
+        "# TYPE void_lastmile_b_last_injected gauge",
+        `void_lastmile_b_last_injected ${S.last_injected}`,
+        "# HELP void_lastmile_b_injected_total cumulative tx injected (inst wrap)",
+        "# TYPE void_lastmile_b_injected_total counter",
+        `void_lastmile_b_injected_total ${S.injected_total}`,
+        "# HELP void_lastmile_b_last_seen_block last block number observed (inst wrap)",
+        "# TYPE void_lastmile_b_last_seen_block gauge",
+        `void_lastmile_b_last_seen_block ${S.last_number}`,
+        "# HELP void_lastmile_b_queue_len last observed proposer queue length",
+        "# TYPE void_lastmile_b_queue_len gauge",
+        `void_lastmile_b_queue_len ${Array.isArray((node()||{}).txQueue)?(node() as any).txQueue.length:0}`,
+        "# HELP void_lastmile_b_mempool_len last observed mempool length",
+        "# TYPE void_lastmile_b_mempool_len gauge",
+        `void_lastmile_b_mempool_len ${Array.isArray((node()||{}).mempool?.txs)?(node() as any).mempool.txs.length:0}`
+      ].join("\n")+"\n");
+    });
+  }
+
+  // Watch for saveBlock changes and re-wrap the latest function.
+  function bindOnce(){
+    const s:any = store(); if (!s || typeof s.saveBlock!=="function") return false;
+    const cur = s.saveBlock;
+    if ((s as any).__void_chain_latch_wrapped === cur) return true; // already wrapped this identity
+
+    const orig = cur.bind(s);
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      const t0 = Date.now(); S.calls++;
+      // snapshot pre-stats
+      let preTxs = Array.isArray(block?.txs) ? block.txs.length : 0;
+
+      const out = await orig(block, ...rest);
+
+      try{
+        // after final injector ran, measure txs and pick number
+        const n:any = node(), st:any = store();
+        const postTxs = Array.isArray(block?.txs) ? block.txs.length : 0;
+        const injected = Math.max(0, postTxs - preTxs);
+        S.last_injected = injected;
+        S.injected_total += injected;
+
+        const num = pickNumber(block, n, st);
+        if (num >= 0) {
+          S.last_number = num;
+          (globalThis as any).__void_last_head_guess = num; // keep the global in sync too
+        }
+        S.last_ms = Math.max(0, Date.now() - t0);
+      }catch{}
+      return out;
+    };
+    (s as any).__void_chain_latch_wrapped = s.saveBlock;
+    S.binds++;
+    (console?.log||(()=>{}))('[chain-latch] bound to store.saveBlock (self-healing)');
+    return true;
+  }
+
+  function healLoop(){
+    try { bindOnce(); } catch {}
+    setTimeout(healLoop, TICK);
+  }
+
+  ensureExporter();
+  healLoop();
+})();
+// ===== SaveBlockChainLatchV1.1 (deferred head sampling) =====
+(function SaveBlockChainLatchV1_1(){
+  const TICK = 300;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+
+  const S:any = (globalThis as any).__void_chain_latch_S ||= {
+    binds: 0, calls: 0, last_ms: 0,
+    last_number: -1, last_injected: 0, injected_total: 0
+  };
+
+  function pickNumberNow(block:any, n:any, s:any){
+    try{
+      if (block && typeof block.number === "number") return block.number;
+      if (block?.header && typeof block.header.number === "number") return block.header.number;
+      if (n?.heads && typeof n.heads.head === "number") return n.heads.head;
+      if (s?.meta && typeof s.meta.head === "number") return s.meta.head;
+    }catch{}
+    return -1;
+  }
+
+  function mountExporters(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(mountExporters, TICK);
+    if ((a as any).__void_chain_latch_exporter_v11) return; (a as any).__void_chain_latch_exporter_v11 = true;
+
+    a.get("/__void/metrics/txroot4/forensics.prom.v7b", (_q:any,res:any)=>{
+      res.type("text/plain").end(
+        [
+          "# HELP void_txroot_forensics_binds_inst_v7b instance binds (shim-b)",
+          "# TYPE void_txroot_forensics_binds_inst_v7b counter",
+          `void_txroot_forensics_binds_inst_v7b ${S.binds}`,
+          "# HELP void_txroot_forensics_calls_v7b observed calls (shim-b)",
+          "# TYPE void_txroot_forensics_calls_v7b counter",
+          `void_txroot_forensics_calls_v7b ${S.calls}`,
+          "# HELP void_txroot_forensics_last_number_v7b last seen block number (shim-b)",
+          "# TYPE void_txroot_forensics_last_number_v7b gauge",
+          `void_txroot_forensics_last_number_v7b ${S.last_number}`,
+          "# HELP void_txroot_forensics_last_ms_v7b last saveBlock duration ms (shim-b)",
+          "# TYPE void_txroot_forensics_last_ms_v7b gauge",
+          `void_txroot_forensics_last_ms_v7b ${S.last_ms}`
+        ].join("\n")+"\n"
+      );
+    });
+
+    a.get("/__void/metrics/lastmile.v123b.prom", (_q:any,res:any)=>{
+      res.type("text/plain").end(
+        [
+          "# HELP void_lastmile_b_last_injected number of tx injected (inst wrap)",
+          "# TYPE void_lastmile_b_last_injected gauge",
+          `void_lastmile_b_last_injected ${S.last_injected}`,
+          "# HELP void_lastmile_b_injected_total cumulative tx injected (inst wrap)",
+          "# TYPE void_lastmile_b_injected_total counter",
+          `void_lastmile_b_injected_total ${S.injected_total}`,
+          "# HELP void_lastmile_b_last_seen_block last block number observed (inst wrap)",
+          "# TYPE void_lastmile_b_last_seen_block gauge",
+          `void_lastmile_b_last_seen_block ${S.last_number}`,
+          "# HELP void_lastmile_b_queue_len last observed proposer queue length",
+          "# TYPE void_lastmile_b_queue_len gauge",
+          `${Array.isArray((node()||{}).txQueue)?(node() as any).txQueue.length:0}`,
+          "# HELP void_lastmile_b_mempool_len last observed mempool length",
+          "# TYPE void_lastmile_b_mempool_len gauge",
+          `${Array.isArray((node()||{}).mempool?.txs)?(node() as any).mempool.txs.length:0}`
+        ].join("\n")+"\n"
+      );
+    });
+
+    // Optional head probe for Prom
+    if (!(a as any).__void_head_probe_prom_v11){
+      (a as any).__void_head_probe_prom_v11 = true;
+      a.get("/__void/metrics/head-probe.prom", (_q:any,res:any)=>{
+        const n:any = node(), s:any = store();
+        const num = pickNumberNow(null, n, s);
+        res.type("text/plain").end([
+          "# HELP void_head_probe_last_number last head observed by probe",
+          "# TYPE void_head_probe_last_number gauge",
+          `void_head_probe_last_number ${num}`
+        ].join("\n")+"\n");
+      });
+    }
+  }
+
+  function bindOuterMost(){
+    const s:any = store(); if (!s || typeof s.saveBlock!=="function") return false;
+    if ((s as any).__void_chain_latch_wrapped_v11 === s.saveBlock) return true;
+
+    const orig = s.saveBlock.bind(s);
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      S.calls++; const t0 = Date.now();
+
+      // Measure pre
+      const pre = Array.isArray(block?.txs) ? block.txs.length : 0;
+
+      // Run the whole chain (all inner wrappers)
+      const out = await orig(block, ...rest);
+
+      try{
+        // Immediate post (still same tick)
+        const post = Array.isArray(block?.txs) ? block.txs.length : 0;
+        const injected = Math.max(0, post - pre);
+        S.last_injected = injected;
+        S.injected_total += injected;
+
+        // Defer head sampling so we see the bumped head AFTER persistence
+        queueMicrotask(()=> {
+          try{
+            const n2 = pickNumberNow(block, node(), store());
+            if (n2 >= 0) (S.last_number = n2, (globalThis as any).__void_last_head_guess = n2);
+          }catch{}
+        });
+        S.last_ms = Math.max(0, Date.now() - t0);
+      }catch{}
+      return out;
+    };
+    (s as any).__void_chain_latch_wrapped_v11 = s.saveBlock;
+    S.binds++;
+    (console?.log||(()=>{}))('[chain-latch.v11] bound outermost (deferred sampling)');
+    return true;
+  }
+
+  function heal(){ try{ bindOuterMost(); }catch{} setTimeout(heal, TICK); }
+
+  mountExporters();
+  heal();
+})();
