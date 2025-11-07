@@ -24319,3 +24319,984 @@ void_wal_wrapped ${isWrapped?1:0}
   }
   mount();
 })();
+// ---------------- USB health + Prom exporter (additive, safe) ------------------
+(function usbHealthExporter(){
+  const TICK=600; let mounted=false, fileOk=false, lastWrite=0;
+  const USB_PATH = "/mnt/voidkey"; 
+  const ENV_FILE = "/mnt/voidkey/operator/void-agent.env";
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  function checkMounted(){
+    try {
+      // cheap sync checks to avoid extra deps
+      const fs = require("node:fs");
+      mounted = fs.existsSync(USB_PATH) && fs.existsSync(`${USB_PATH}/operator`);
+      fileOk  = mounted && fs.existsSync(ENV_FILE) && fs.statSync(ENV_FILE).size > 0;
+    } catch { mounted=false; fileOk=false; }
+  }
+
+  function promText(){ 
+    return [
+      "# HELP void_usb_mounted 1 if /mnt/voidkey is mounted",
+      "# TYPE void_usb_mounted gauge",
+      `void_usb_mounted ${mounted?1:0}`,
+      "# HELP void_usb_envfile_ok 1 if void-agent.env is readable and non-empty",
+      "# TYPE void_usb_envfile_ok gauge",
+      `void_usb_envfile_ok ${fileOk?1:0}`,
+      "# HELP void_usb_health 1 if mounted && env ok",
+      "# TYPE void_usb_health gauge",
+      `void_usb_health ${(mounted&&fileOk)?1:0}`,
+    ].join("\n")+"\n";
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_usb_health_mounted) return; (app as any).__void_usb_health_mounted = true;
+
+    app.get("/health/usb", (_:any,res:any)=>{ checkMounted(); res.json({mounted, envfile:fileOk, ok:(mounted&&fileOk)}); });
+    app.get("/__void/metrics/usb.prom", (_:any,res:any)=>{
+      checkMounted(); res.type("text/plain").send(promText());
+    });
+
+    // background refresher (lazy, lightweight)
+    setInterval(()=>{ checkMounted(); lastWrite=Date.now(); }, 2000);
+  }
+  mount();
+})();
+
+// [write-gate-bad] // -------------------- WRITE-GATE MIDDLEWARE (additive, safe) --------------------
+// [write-gate-bad] (function voidWriteGate(){
+// [write-gate-bad]   const FS_PATH = "/mnt/voidkey/operator/void-gate.ok";
+// [write-gate-bad]   const TICK_MS = 1500;
+// [write-gate-bad]   const REQUIRE = (process.env.VOID_REQUIRE_GATE || "0") === "1";
+// [write-gate-bad]   let present = false, lastCheck = 0;
+// [write-gate-bad] 
+// [write-gate-bad]   function check(){
+// [write-gate-bad]     try {
+// [write-gate-bad]       const fs = require("fs");
+// [write-gate-bad]       present = fs.existsSync(FS_PATH);
+// [write-gate-bad]       lastCheck = Date.now();
+// [write-gate-bad]     } catch { present = false; lastCheck = Date.now(); }
+// [write-gate-bad]     setTimeout(check, TICK_MS);
+// [write-gate-bad]   }
+// [write-gate-bad]   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+// [write-gate-bad]   function isWrite(m:string){ m=m.toUpperCase(); return m==="POST"||m==="PUT"||m==="PATCH"||m==="DELETE"; }
+// [write-gate-bad] 
+// [write-gate-bad]   function mount(){
+// [write-gate-bad]     const app:any = getApp();
+// [write-gate-bad]     if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+// [write-gate-bad]     if ((app as any).__void_write_gate_mounted) return; (app as any).__void_write_gate_mounted = true;
+// [write-gate-bad]     check();
+// [write-gate-bad] 
+// [write-gate-bad]     // Health endpoint
+// [write-gate-bad]     app.get("/gate/health", (_:any, res:any)=>{
+// [write-gate-bad]       res.json({ require: REQUIRE, present, lastCheckMs: lastCheck });
+// [write-gate-bad]     });
+// [write-gate-bad] 
+// [write-gate-bad]     // Global write blocker
+// [write-gate-bad]     app.use((req:any, res:any, next:any)=>{
+// [write-gate-bad]       if (!REQUIRE) return next();
+// [write-gate-bad]       if (!isWrite(req.method)) return next();
+// [write-gate-bad]       if (present) return next();
+// [write-gate-bad]       res.status(423).json({ ok:false, error:"gate-missing", detail:"USB gate not present" });
+// [write-gate-bad]     });
+// [write-gate-bad]   }
+// [write-gate-bad]   mount();
+// [write-gate-bad] })();
+
+// -------------------- WRITE-GATE MIDDLEWARE (additive, safe, v2) --------------------
+(function voidWriteGate_v2(){
+  const FS_PATH = "/mnt/voidkey/operator/void-gate.ok";
+  const TICK_MS = 1500;
+  const REQUIRE = (process.env.VOID_REQUIRE_GATE || "0") === "1";
+
+  const fs = require("fs");
+  let present = false;
+  let lastCheck = 0;
+
+  function poll(){
+    try { present = fs.existsSync(FS_PATH); } catch { present = false; }
+    lastCheck = Date.now();
+  }
+  setInterval(poll, TICK_MS);
+  poll();
+
+  function getApp(){
+    return (globalThis as any).__void_http_app || (globalThis as any).app;
+  }
+  function isWrite(m:string){
+    m = (m||"").toUpperCase();
+    return m==="POST" || m==="PUT" || m==="PATCH" || m==="DELETE";
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_write_gate_mounted_v2) return;
+    (app as any).__void_write_gate_mounted_v2 = true;
+
+    // Health endpoint (idempotent)
+    app.get("/gate/health", (_:any, res:any)=>{
+      res.json({ require: REQUIRE, present, lastCheckMs: lastCheck });
+    });
+
+    // Global write blocker (423 Locked)
+    app.use((req:any, res:any, next:any)=>{
+      if (!REQUIRE) return next();
+      if (!isWrite(req.method)) return next();
+      if (present) return next();
+      res.status(423).json({ ok:false, error:"gate-missing", detail:"USB gate not present" });
+    });
+  }
+  mount();
+})();
+
+// -------------------- WRITE-GATE ROUTE WRAPPER (order-proof) --------------------
+(function voidWriteGate_wrap(){
+  const fs = require("fs");
+  const REQUIRE = (process.env.VOID_REQUIRE_GATE || "0") === "1";
+  const GATE = "/mnt/voidkey/operator/void-gate.ok";
+  const TARGETS: Array<{method:string, path:string}> = [
+    { method:"post", path:"/proposer/auto/start" },
+    { method:"post", path:"/proposer/auto/stop"  },
+    { method:"post", path:"/tx/submit"           },
+    { method:"post", path:"/blocks/empty-policy/set" },
+    { method:"post", path:"/tx/merge/cap/set"    },
+    // add more mutating endpoints here as we standardize them
+  ];
+
+  function gateOK(){ try { return fs.existsSync(GATE); } catch { return false; } }
+
+  function guardify(fn:any){
+    return function(req:any, res:any, next:any){
+      if (!REQUIRE) return fn(req,res,next);
+      if (!gateOK()) return res.status(423).json({ ok:false, error:"gate-missing", detail:"USB gate not present" });
+      return fn(req,res,next);
+    };
+  }
+
+  function wrapTargets(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(wrapTargets, 400);
+
+    let wrapped = 0;
+    for (const layer of app._router.stack){
+      if (!layer || !layer.route || !layer.route.path || !layer.route.stack) continue;
+      for (const t of TARGETS){
+        // match exact path and method
+        if (layer.route.path === t.path && layer.route.methods && layer.route.methods[t.method]){
+          for (let i=0;i<layer.route.stack.length;i++){
+            const h = layer.route.stack[i].handle;
+            if (!h || (h.__void_wrapped_gate===true)) continue;
+            layer.route.stack[i].handle = guardify(h);
+            layer.route.stack[i].handle.__void_wrapped_gate = true;
+            wrapped++;
+          }
+        }
+      }
+    }
+    // Re-run a few times to catch late-mounted routes during boot
+    if (wrapped === 0) setTimeout(wrapTargets, 600);
+  }
+
+  // Optional: a lightweight health (may still 404 if a greedy 404 sits before us; not critical)
+  function mountHealth(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(mountHealth, 400);
+    if ((app as any).__void_gate_health_mounted) return;
+    (app as any).__void_gate_health_mounted = true;
+    app.get("/gate/health2", (_:any,res:any)=>{ res.json({ require: REQUIRE, present: gateOK() }); });
+  }
+
+  wrapTargets();
+  mountHealth();
+})();
+
+// -------------------- WRITE-GATE WRAP (recursive, regex-aware, v3) --------------------
+(function voidWriteGate_wrap_v3(){
+  const fs = require("fs");
+  const REQUIRE = (process.env.VOID_REQUIRE_GATE || "0") === "1";
+  const GATE = "/mnt/voidkey/operator/void-gate.ok";
+
+  // Any mutating endpoints you want blocked when gate is absent:
+  const TARGETS = [
+    { method:"post", path: "/proposer/auto/start" },
+    { method:"post", path: "/proposer/auto/stop"  },
+    { method:"post", path: "/tx/submit"           },
+    { method:"post", path: "/blocks/empty-policy/set" },
+    { method:"post", path: "/tx/merge/cap/set"    },
+  ];
+
+  function gateOK(){ try { return fs.existsSync(GATE); } catch { return false; } }
+
+  function guardify(fn:any){
+    function wrapped(req:any, res:any, next:any){
+      if (!REQUIRE) return fn(req,res,next);
+      if (!gateOK()) return res.status(423).json({ ok:false, error:"gate-missing", detail:"USB gate not present" });
+      return fn(req,res,next);
+    }
+    (wrapped as any).__void_wrapped_gate = true;
+    return wrapped;
+  }
+
+  function methodMatches(layer:any, want:string){
+    // express stores methods as an object like { post:true }
+    return layer && layer.route && layer.route.methods && !!layer.route.methods[want];
+  }
+
+  function pathMatches(layer:any, want:string){
+    // layer.route.path may be a string or array; layer.regexp is often present
+    // 1) direct string match
+    if (layer && layer.route && typeof layer.route.path === "string") {
+      if (layer.route.path === want) return true;
+    }
+    // 2) array of strings
+    if (layer && layer.route && Array.isArray(layer.route.path)) {
+      if (layer.route.path.some((p:any)=>p===want)) return true;
+    }
+    // 3) regex check
+    if (layer && layer.regexp && typeof want === "string") {
+      try { if (layer.regexp.test && layer.regexp.test(want)) return true; } catch {}
+    }
+    // 4) router pathless layers: try match on layer.route?.path fallback
+    return false;
+  }
+
+  function wrapRouteLayer(layer:any){
+    if (!layer || !layer.route || !Array.isArray(layer.route.stack)) return 0;
+    let wraps = 0;
+    for (const t of TARGETS){
+      if (!methodMatches(layer, t.method)) continue;
+      if (!pathMatches(layer, t.path)) continue;
+      for (let i=0;i<layer.route.stack.length;i++){
+        const h = layer.route.stack[i].handle;
+        if (!h || (h as any).__void_wrapped_gate === true) continue;
+        layer.route.stack[i].handle = guardify(h);
+        wraps++;
+      }
+    }
+    return wraps;
+  }
+
+  function walk(stack:any[]):number{
+    if (!Array.isArray(stack)) return 0;
+    let wraps = 0;
+    for (const layer of stack){
+      // If this is a nested router, descend
+      // Express uses layer.name === 'router' and layer.handle.stack for sub-stacks
+      if (layer && layer.name === 'router' && layer.handle && Array.isArray(layer.handle.stack)){
+        wraps += walk(layer.handle.stack);
+      }
+      wraps += wrapRouteLayer(layer);
+    }
+    return wraps;
+  }
+
+  function tryWrap(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return 0;
+    return walk(app._router.stack);
+  }
+
+  // Keep trying for late-mounted routes during boot
+  let rounds = 0;
+  function tick(){
+    try { tryWrap(); } catch {}
+    if (++rounds < 40) setTimeout(tick, 500); // ~20s window
+  }
+  tick();
+
+  // Minimal health (new path to dodge any existing handlers/404s)
+  function mountHealth(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(mountHealth, 400);
+    if ((app as any).__void_gate_health3_mounted) return;
+    (app as any).__void_gate_health3_mounted = true;
+    app.get("/__void/gate/health3", (_:any,res:any)=>{ res.json({ require: REQUIRE, present: gateOK() }); });
+  }
+  mountHealth();
+})();
+
+// -------------------- WRITE-GATE GLOBAL (force top of stack, v4) --------------------
+(function voidWriteGate_global_v4(){
+  const fs = require("fs");
+  const REQUIRE = (process.env.VOID_REQUIRE_GATE || "0") === "1";
+  const GATE = "/mnt/voidkey/operator/void-gate.ok";
+
+  function gateOK(){ try { return fs.existsSync(GATE); } catch { return false; } }
+  function isWrite(m:any){ m = (m||"").toString().toUpperCase(); return m==="POST"||m==="PUT"||m==="PATCH"||m==="DELETE"; }
+
+  // our middleware (idempotent marker)
+  function mw(req:any, res:any, next:any){
+    if (!REQUIRE) return next();
+    if (!isWrite(req.method)) return next();
+    if (gateOK()) return next();
+    return res.status(423).json({ ok:false, error:"gate-missing", detail:"USB gate not present" });
+  }
+  (mw as any).__void_gate_mw = true;
+
+  function install(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.use!=="function" || !app._router || !Array.isArray(app._router.stack)) {
+      return setTimeout(install, 300);
+    }
+    if ((app as any).__void_gate_global_v4) return; // already mounted
+    (app as any).__void_gate_global_v4 = true;
+
+    // mount once, then move our layer to the very front
+    app.use(mw);
+    try {
+      const stack:any[] = app._router.stack;
+      const idx = stack.findIndex((layer:any)=>layer && layer.handle === mw);
+      if (idx > 0) {
+        const [layer] = stack.splice(idx, 1);
+        stack.splice(0, 0, layer); // put us at position 0 (before 404s and other handlers)
+      }
+    } catch {}
+    // tiny health endpoint, separate path to avoid conflicts
+    try { app.get("/__void/gate/health4", (_:any,res:any)=>res.json({require:REQUIRE, present:gateOK()})); } catch {}
+  }
+  // Try a few times to catch late app creation
+  let tries = 0;
+  (function loop(){ install(); if (++tries<60) setTimeout(loop, 500); })();
+})();
+(function voidGateProm(){
+  const fs = require("fs");
+  function present(){ try { return fs.existsSync("/mnt/voidkey/operator/void-gate.ok"); } catch { return false; } }
+  function mount(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(mount, 300);
+    if ((app as any).__void_gate_prom_mounted) return;
+    (app as any).__void_gate_prom_mounted = true;
+    app.get("/metrics/void/gate.prom", (_:any,res:any)=>res.type("text/plain").send(`void_gate_present ${present()?1:0}\n`));
+  }
+  mount();
+})();
+
+// -------- WRITE-GATE WRAP inside existing routes (SAFEBOOT-friendly, v3b) --------
+(function voidWriteGate_wrap_v3b(){
+  const fs = require("fs");
+  const REQUIRE = (process.env.VOID_REQUIRE_GATE || "0") === "1";
+  const GATE = "/mnt/voidkey/operator/void-gate.ok";
+  const TARGETS = [
+    { method:"post", path: "/proposer/auto/start" },
+    { method:"post", path: "/proposer/auto/stop"  },
+    { method:"post", path: "/tx/submit"           },
+    { method:"post", path: "/blocks/empty-policy/set" },
+    { method:"post", path: "/tx/merge/cap/set"    },
+  ];
+  const mark = "__void_wrapped_gate_v3b";
+  function gateOK(){ try { return fs.existsSync(GATE); } catch { return false; } }
+  function guardify(fn:any){
+    function w(req:any,res:any,next:any){
+      if (!REQUIRE) return fn(req,res,next);
+      if (!gateOK()) return res.status(423).json({ ok:false, error:"gate-missing", detail:"USB gate not present" });
+      return fn(req,res,next);
+    }
+    (w as any)[mark]=true; return w;
+  }
+  function methodOK(layer:any,m:string){ return layer?.route?.methods?.[m] === true; }
+  function pathOK(layer:any,p:string){
+    if (typeof layer?.route?.path === "string" && layer.route.path === p) return true;
+    if (Array.isArray(layer?.route?.path) && layer.route.path.includes(p)) return true;
+    if (layer?.regexp?.test) { try { if (layer.regexp.test(p)) return true; } catch {} }
+    return false;
+  }
+  function wrapLayer(layer:any){
+    if (!layer?.route?.stack) return 0;
+    let c=0;
+    for (const t of TARGETS){
+      if (!methodOK(layer, t.method)) continue;
+      if (!pathOK(layer, t.path)) continue;
+      for (const r of layer.route.stack){
+        if (!r?.handle || r.handle?.[mark]) continue;
+        r.handle = guardify(r.handle); c++;
+      }
+    }
+    return c;
+  }
+  function walk(stack:any[]):number{
+    if (!Array.isArray(stack)) return 0;
+    let c=0;
+    for (const L of stack){
+      if (L?.name==='router' && Array.isArray(L.handle?.stack)) c+=walk(L.handle.stack);
+      c+=wrapLayer(L);
+    }
+    return c;
+  }
+  function tryWrap(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app?._router?.stack) return 0;
+    return walk(app._router.stack);
+  }
+  let rounds=0; (function tick(){ try{tryWrap();}catch{} if(++rounds<60) setTimeout(tick,500); })();
+})();
+
+// [gate-http-old] // -------------- WRITE-GATE: HTTP server interceptor (order-proof, pre-Express) --------------
+// [gate-http-old] (function voidWriteGate_httpIntercept_v1(){
+// [gate-http-old]   try {
+// [gate-http-old]     const http = require("http");
+// [gate-http-old]     const fs = require("fs");
+// [gate-http-old]     const REQUIRE = (process.env.VOID_REQUIRE_GATE || "0") === "1";
+// [gate-http-old]     const GATE = "/mnt/voidkey/operator/void-gate.ok";
+// [gate-http-old] 
+// [gate-http-old]     function gateOK(){ try { return fs.existsSync(GATE); } catch { return false; } }
+// [gate-http-old]     function isWrite(m:any){ m = (m||"").toString().toUpperCase(); return m==="POST"||m==="PUT"||m==="PATCH"||m==="DELETE"; }
+// [gate-http-old] 
+// [gate-http-old]     const origEmit = http.Server.prototype.emit;
+// [gate-http-old]     if ((http.Server.prototype as any).__void_gate_patched) { /* already patched */ return; }
+// [gate-http-old]     (http.Server.prototype as any).__void_gate_patched = true;
+// [gate-http-old] 
+// [gate-http-old]     http.Server.prototype.emit = function(type:any, req:any, res:any){
+// [gate-http-old]       if (type === "request" && REQUIRE && req && res && isWrite(req.method) && !gateOK()) {
+// [gate-http-old]         // Hard-stop before Express; cannot be bypassed by route order.
+// [gate-http-old]         try {
+// [gate-http-old]           res.statusCode = 423;
+// [gate-http-old]           res.setHeader("Content-Type","application/json");
+// [gate-http-old]           res.end('{"ok":false,"error":"gate-missing","detail":"USB gate not present"}');
+// [gate-http-old]           return true; // handled
+// [gate-http-old]         } catch { /* fallthrough if something odd happens */ }
+// [gate-http-old]       }
+// [gate-http-old]       return origEmit.apply(this, arguments as any);
+// [gate-http-old]     };
+// [gate-http-old]   } catch { /* noop if http not available (should never happen) */ }
+// [gate-http-old] })();
+
+// -------------- WRITE-GATE: HTTP interceptor (ADMIN PATHS ONLY, v2) --------------
+(function voidWriteGate_httpIntercept_admin_v2(){
+  try {
+    const http = require("http");
+    const fs = require("fs");
+    const REQUIRE = (process.env.VOID_REQUIRE_GATE || "0") === "1";
+    const GATE = "/mnt/voidkey/operator/void-gate.ok";
+
+    // Exact or regex admin paths we want gated
+    const ADMIN = [
+      /^\/proposer\/auto\/start(?:\b|\?)/,
+      /^\/proposer\/auto\/stop(?:\b|\?)/,
+      /^\/blocks\/empty-policy\/set(?:\b|\?)/,
+      /^\/tx\/merge\/cap\/set(?:\b|\?)/,
+      /^\/admin\//,                 // keep space for future admin namespace
+      /^\/__void\/feature\/activate(?:\b|\?)/,
+      /^\/__void\/upgrade\/apply(?:\b|\?)/,
+    ];
+
+    function isAdminPath(u:any){
+      if (typeof u !== "string") return false;
+      for (const re of ADMIN) if (re.test(u)) return true;
+      return false;
+    }
+    function gateOK(){ try { return fs.existsSync(GATE); } catch { return false; } }
+    function isWrite(m:any){ m = (m||"").toString().toUpperCase(); return m==="POST"||m==="PUT"||m==="PATCH"||m==="DELETE"; }
+
+    const prev = http.Server.prototype.emit;
+    if ((http.Server.prototype as any).__void_gate_admin_patched) return;
+    (http.Server.prototype as any).__void_gate_admin_patched = true;
+
+    http.Server.prototype.emit = function(type:any, req:any, res:any){
+      if (type === "request" && REQUIRE && req && res && isWrite(req.method) && isAdminPath(req.url) && !gateOK()) {
+        try {
+          res.statusCode = 423;
+          res.setHeader("Content-Type","application/json");
+          res.end('{"ok":false,"error":"gate-missing","detail":"USB gate not present (admin)"}');
+          return true;
+        } catch {}
+      }
+      return prev.apply(this, arguments as any);
+    };
+  } catch {}
+})();
+
+// [pcert-old] // ---------- PCert verifier (admin-only HTTP interceptor; additive/safeboot-friendly) ----------
+// [pcert-old] (function voidPCert_httpIntercept_v1(){
+// [pcert-old]   try {
+// [pcert-old]     const http = require("http");
+// [pcert-old]     const fs   = require("fs");
+// [pcert-old]     const crypto = require("crypto");
+// [pcert-old] 
+// [pcert-old]     const REQUIRE = (process.env.VOID_POLICY_REQUIRE || "0") === "1";
+// [pcert-old]     const PCERT_PATH = process.env.VOID_PCERT_PATH || "/mnt/voidkey/operator/pcert.json";
+// [pcert-old]     const POLICY_PUB_PATH = process.env.VOID_POLICY_PUBKEY_PATH || "/mnt/voidkey/operator/policy.pub";
+// [pcert-old] 
+// [pcert-old]     // Admin endpoints only — do not block normal txs
+// [pcert-old]     const ADMIN = [
+// [pcert-old]       /^\/proposer\/auto\/start(?:\b|\?)/,
+// [pcert-old]       /^\/proposer\/auto\/stop(?:\b|\?)/,
+// [pcert-old]       /^\/blocks\/empty-policy\/set(?:\b|\?)/,
+// [pcert-old]       /^\/tx\/merge\/cap\/set(?:\b|\?)/,
+// [pcert-old]       /^\/__void\/feature\/activate(?:\b|\?)/,
+// [pcert-old]       /^\/__void\/upgrade\/apply(?:\b|\?)/
+// [pcert-old]     ];
+// [pcert-old] 
+// [pcert-old]     function isAdmin(u:any){ if (typeof u!=="string") return false; return ADMIN.some(re=>re.test(u)); }
+// [pcert-old]     function nowSec(){ return Math.floor(Date.now()/1000); }
+// [pcert-old] 
+// [pcert-old]     function readFile(path:string){ try { return fs.readFileSync(path); } catch { return null; } }
+// [pcert-old] 
+// [pcert-old]     function toRawKey(buf:Buffer){
+// [pcert-old]       // Accept base64 or hex in file; normalize to raw 32 bytes for ed25519
+// [pcert-old]       if (!buf) return null;
+// [pcert-old]       let s = buf.toString().trim();
+// [pcert-old]       try {
+// [pcert-old]         if (/^[A-Fa-f0-9]{64}$/.test(s)) return Buffer.from(s, "hex");
+// [pcert-old]         // raw b64 (may include trailing '=')
+// [pcert-old]         const b = Buffer.from(s, "base64");
+// [pcert-old]         if (b.length===32) return b;
+// [pcert-old]       } catch {}
+// [pcert-old]       // Accept raw 32 bytes file as-is
+// [pcert-old]       if (buf.length===32) return buf;
+// [pcert-old]       return null;
+// [pcert-old]     }
+// [pcert-old] 
+// [pcert-old]     function canonical(obj:any){
+// [pcert-old]       // deterministic JSON stringify (sorted keys, no sig)
+// [pcert-old]       const walk=(o:any)=>{
+// [pcert-old]         if (o===null || typeof o!=="object") return o;
+// [pcert-old]         if (Array.isArray(o)) return o.map(walk);
+// [pcert-old]         const out:any={};
+// [pcert-old]         for (const k of Object.keys(o).filter(k=>k!=="sig").sort()){
+// [pcert-old]           out[k]=walk(o[k]);
+// [pcert-old]         }
+// [pcert-old]         return out;
+// [pcert-old]       };
+// [pcert-old]       return JSON.stringify(walk(obj));
+// [pcert-old]     }
+// [pcert-old] 
+// [pcert-old]     function parseMaybeJSON(b:Buffer|null){ try { return b?JSON.parse(b.toString("utf8")):null; } catch { return null; } }
+// [pcert-old] 
+// [pcert-old]     function verifyPCert():{ok:boolean, reason?:string, fields?:any}{
+// [pcert-old]       if (!REQUIRE) return {ok:true, reason:"policy-not-required"};
+// [pcert-old]       const pcertBuf = readFile(PCERT_PATH);
+// [pcert-old]       const pubBuf   = readFile(POLICY_PUB_PATH);
+// [pcert-old]       if (!pcertBuf) return {ok:false, reason:"pcert-missing"};
+// [pcert-old]       if (!pubBuf)   return {ok:false, reason:"policy-pub-missing"};
+// [pcert-old]       const pcert = parseMaybeJSON(pcertBuf);
+// [pcert-old]       if (!pcert || typeof pcert!=="object") return {ok:false, reason:"pcert-bad-json"};
+// [pcert-old]       const sigB64 = pcert.sig || "";
+// [pcert-old]       if (typeof sigB64 !== "string" || sigB64.length<8) return {ok:false, reason:"pcert-missing-sig"};
+// [pcert-old] 
+// [pcert-old]       const canon = canonical(pcert);
+// [pcert-old]       const sig = Buffer.from(sigB64, "base64");
+// [pcert-old]       const policyRaw = toRawKey(pubBuf);
+// [pcert-old]       if (!policyRaw) return {ok:false, reason:"policy-pub-bad-format"};
+// [pcert-old] 
+// [pcert-old]       // Node crypto supports ed25519 verify with raw key via KeyObject
+// [pcert-old]       let keyObj:crypto.KeyObject;
+// [pcert-old]       try { keyObj = crypto.createPublicKey({key: Buffer.concat([
+// [pcert-old]                     Buffer.from([0x30,0x2A,0x30,0x05,0x06,0x03,0x2B,0x65,0x70,0x03,0x21,0x00]), // ASN.1 header for ed25519
+// [pcert-old]                     policyRaw
+// [pcert-old]                   ]), format:"der", type:"spki"}); }
+// [pcert-old]       catch { return {ok:false, reason:"policy-pub-parse-failed"}; }
+// [pcert-old] 
+// [pcert-old]       const okSig = crypto.verify(null, Buffer.from(canon, "utf8"), keyObj, sig);
+// [pcert-old]       if (!okSig) return {ok:false, reason:"pcert-bad-signature"};
+// [pcert-old] 
+// [pcert-old]       const t = nowSec();
+// [pcert-old]       if (typeof pcert.valid_from!=="number" || typeof pcert.valid_to!=="number")
+// [pcert-old]         return {ok:false, reason:"pcert-bad-validity"};
+// [pcert-old]       if (t < pcert.valid_from) return {ok:false, reason:"pcert-not-yet-valid"};
+// [pcert-old]       if (t > pcert.valid_to)   return {ok:false, reason:"pcert-expired"};
+// [pcert-old] 
+// [pcert-old]       if (!Array.isArray(pcert.rights) || !pcert.rights.includes("PROPOSE"))
+// [pcert-old]         return {ok:false, reason:"pcert-no-propose-right"};
+// [pcert-old] 
+// [pcert-old]       return {ok:true, fields:{from:pcert.valid_from, to:pcert.valid_to}};
+// [pcert-old]     }
+// [pcert-old] 
+// [pcert-old]     // Patch HTTP server for admin-only writes
+// [pcert-old]     const prev = http.Server.prototype.emit;
+// [pcert-old]     if ((http.Server.prototype as any).__void_pcert_patched) return;
+// [pcert-old]     (http.Server.prototype as any).__void_pcert_patched = true;
+// [pcert-old] 
+// [pcert-old]     http.Server.prototype.emit = function(type:any, req:any, res:any){
+// [pcert-old]       if (type==="request" && req && res && (req.method||"").toUpperCase()!=="GET" && isAdmin(req.url)){
+// [pcert-old]         const v = verifyPCert();
+// [pcert-old]         if (!v.ok){
+// [pcert-old]           res.statusCode = 423;
+// [pcert-old]           res.setHeader("Content-Type","application/json");
+// [pcert-old]           res.end(JSON.stringify({ ok:false, error:"pcert-denied", reason:v.reason||"invalid" }));
+// [pcert-old]           return true;
+// [pcert-old]         }
+// [pcert-old]       }
+// [pcert-old]       return prev.apply(this, arguments as any);
+// [pcert-old]     };
+// [pcert-old] 
+// [pcert-old]     // Optional tiny metric (may be hidden by safeboot; that’s fine)
+// [pcert-old]     function mountMetric(){
+// [pcert-old]       const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+// [pcert-old]       if (!app || typeof app.get!=="function") return setTimeout(mountMetric, 500);
+// [pcert-old]       if ((app as any).__void_pcert_metric) return; (app as any).__void_pcert_metric = true;
+// [pcert-old]       app.get("/__void/metrics/pcert.prom", (_:any,res:any)=>{
+// [pcert-old]         const v=verifyPCert(); const ok=v.ok?1:0;
+// [pcert-old]         res.type("text/plain").send(`void_pcert_ok ${ok}\n`);
+// [pcert-old]       });
+// [pcert-old]     }
+// [pcert-old]     mountMetric();
+// [pcert-old] 
+// [pcert-old]   } catch {}
+// [pcert-old] })();
+
+// ---------- PCert admin interceptor v2.1 (pre-Express; adds debug headers) ----------
+(function voidPCert_httpIntercept_v21(){
+  try {
+    const http = require("http");
+    const fs   = require("fs");
+    const crypto = require("crypto");
+
+    function readEnvBool(k:string, def=false){
+      const v = (process.env[k]||"").trim();
+      if (v==="1"||v.toLowerCase()==="true") return true;
+      if (v==="0"||v.toLowerCase()==="false") return false;
+      return def;
+    }
+
+    const REQUIRE    = readEnvBool("VOID_POLICY_REQUIRE", false);
+    const PCERT_PATH = process.env.VOID_PCERT_PATH || "/mnt/voidkey/operator/pcert.json";
+    const POLICY_PUB = process.env.VOID_POLICY_PUBKEY_PATH || "/mnt/voidkey/operator/policy.pub";
+
+    // Hardened admin matcher (path + query, with optional basePath)
+    const ADMIN_RE = [
+      /^\/proposer\/auto\/start(?:\b|[?])/,
+      /^\/proposer\/auto\/stop(?:\b|[?])/,
+      /^\/blocks\/empty-policy\/set(?:\b|[?])/,
+      /^\/tx\/merge\/cap\/set(?:\b|[?])/,
+      /^\/__void\/feature\/activate(?:\b|[?])/,
+      /^\/__void\/upgrade\/apply(?:\b|[?])/
+    ];
+    function isAdmin(url:string){
+      if (typeof url!=="string") return false;
+      // Normalize: strip scheme/host if a proxy injected them
+      try { if (url.startsWith("http")) url = new URL(url).pathname + (new URL(url).search||""); } catch {}
+      // Some builds mount behind a basePath; test suffix matches too.
+      for (const re of ADMIN_RE){
+        if (re.test(url)) return true;
+        const idx = url.indexOf("/", 1); // after first slash
+        if (idx>0 && re.test(url.slice(idx))) return true;
+      }
+      return false;
+    }
+
+    function nowSec(){ return Math.floor(Date.now()/1000); }
+    function readFile(p:string){ try { return fs.readFileSync(p); } catch { return null; } }
+    function toRawKey(buf:Buffer|null){
+      if (!buf) return null;
+      const s = buf.toString().trim();
+      try {
+        if (/^[A-Fa-f0-9]{64}$/.test(s)) return Buffer.from(s,"hex");
+        const b = Buffer.from(s,"base64"); if (b.length===32) return b;
+      } catch {}
+      if (buf.length===32) return buf;
+      return null;
+    }
+    function canonicalNoSig(o:any){
+      const walk=(x:any)=>{
+        if (x===null || typeof x!=="object") return x;
+        if (Array.isArray(x)) return x.map(walk);
+        const out:any={};
+        for (const k of Object.keys(x).filter(k=>k!=="sig").sort()) out[k]=walk(x[k]);
+        return out;
+      };
+      return JSON.stringify(walk(o));
+    }
+    function parseJSON(b:Buffer|null){ try { return b?JSON.parse(b.toString("utf8")):null; } catch { return null; } }
+
+    function verifyPCert():{ok:boolean, reason?:string}{
+      if (!REQUIRE) return {ok:true, reason:"not-required"};
+      const pcertBuf = readFile(PCERT_PATH);
+      const pubBuf   = readFile(POLICY_PUB);
+      if (!pcertBuf) return {ok:false, reason:"pcert-missing"};
+      if (!pubBuf)   return {ok:false, reason:"policy-pub-missing"};
+      const pcert = parseJSON(pcertBuf); if (!pcert) return {ok:false, reason:"pcert-bad-json"};
+      const sigB64 = pcert.sig; if (typeof sigB64!=="string" || sigB64.length<8) return {ok:false, reason:"pcert-missing-sig"};
+      const canon  = canonicalNoSig(pcert);
+      let keyObj:crypto.KeyObject;
+      const policyRaw = toRawKey(pubBuf); if (!policyRaw) return {ok:false, reason:"policy-pub-bad-format"};
+      try {
+        keyObj = crypto.createPublicKey({
+          key: Buffer.concat([
+            Buffer.from([0x30,0x2A,0x30,0x05,0x06,0x03,0x2B,0x65,0x70,0x03,0x21,0x00]), // ed25519 spki
+            policyRaw
+          ]),
+          type: "spki",
+          format: "der"
+        });
+      } catch { return {ok:false, reason:"policy-pub-parse-failed"}; }
+      const okSig = crypto.verify(null, Buffer.from(canon,"utf8"), keyObj, Buffer.from(sigB64,"base64"));
+      if (!okSig) return {ok:false, reason:"pcert-bad-signature"};
+      const t = nowSec();
+      if (typeof pcert.valid_from!=="number"||typeof pcert.valid_to!=="number") return {ok:false, reason:"pcert-bad-validity"};
+      if (t<pcert.valid_from) return {ok:false, reason:"pcert-not-yet-valid"};
+      if (t>pcert.valid_to)   return {ok:false, reason:"pcert-expired"};
+      if (!Array.isArray(pcert.rights)||!pcert.rights.includes("PROPOSE")) return {ok:false, reason:"pcert-no-propose-right"};
+      return {ok:true};
+    }
+
+    const prev = http.Server.prototype.emit;
+    if ((http.Server.prototype as any).__void_pcert_v21) return;
+    (http.Server.prototype as any).__void_pcert_v21 = true;
+
+    http.Server.prototype.emit = function(type:any, req:any, res:any){
+      if (type==="request" && req && res){
+        // Stamp debug headers on every response so we can SEE the hook and require flag
+        try {
+          res.setHeader("X-Void-Pcert-Hook","1");
+          res.setHeader("X-Void-Policy-Require", REQUIRE ? "1" : "0");
+        } catch {}
+        // Clamp only admin writes when required
+        const m = (req.method||"").toUpperCase();
+        if (REQUIRE && (m==="POST"||m==="PUT"||m==="PATCH"||m==="DELETE") && isAdmin(req.url||"")){
+          const v = verifyPCert();
+          if (!v.ok){
+            try {
+              res.statusCode = 423;
+              res.setHeader("Content-Type","application/json");
+              res.end(JSON.stringify({ ok:false, error:"pcert-denied", reason:v.reason||"invalid" }));
+              return true;
+            } catch {}
+          }
+        }
+      }
+      return prev.apply(this, arguments as any);
+    };
+  } catch {}
+})();
+
+// ------ VOID hook v3: stamp headers via writeHead + admin clamp (pre-route, additive) ------
+(function voidPolicy_v3_writeHead(){
+  try {
+    const http = require("http");
+    const fs   = require("fs");
+
+    function readBool(k:string, def=false){
+      const v = (process.env[k]||"").trim().toLowerCase();
+      return v==="1" || v==="true" ? true : v==="" ? def : false;
+    }
+    const REQUIRE = readBool("VOID_POLICY_REQUIRE", false);
+    const GATE_OK = ()=>{ try{ return fs.existsSync("/mnt/voidkey/operator/void-gate.ok"); }catch{ return false; } };
+
+    const ADMIN_RE = [
+      /^\/proposer\/auto\/start(?:\b|[?])/,
+      /^\/proposer\/auto\/stop(?:\b|[?])/,
+      /^\/blocks\/empty-policy\/set(?:\b|[?])/,
+      /^\/tx\/merge\/cap\/set(?:\b|[?])/,
+      /^\/__void\/feature\/activate(?:\b|[?])/,
+      /^\/__void\/upgrade\/apply(?:\b|[?])/
+    ];
+    function isAdmin(url:string){
+      if (typeof url!=="string") return false;
+      try { if (url.startsWith("http")) { const u=new URL(url); url=u.pathname+(u.search||""); } } catch{}
+      for (const re of ADMIN_RE){
+        if (re.test(url)) return true;
+        const idx = url.indexOf("/",1); if (idx>0 && re.test(url.slice(idx))) return true;
+      }
+      return false;
+    }
+
+    // Patch writeHead so we ALWAYS stamp debug headers on every response.
+    if ((http.ServerResponse.prototype as any).__void_writehead_patched) return;
+    (http.ServerResponse.prototype as any).__void_writehead_patched = true;
+
+    const _wh = http.ServerResponse.prototype.writeHead;
+    http.ServerResponse.prototype.writeHead = function(statusCode:any){
+      try {
+        this.setHeader("X-Void-Hook","1");
+        this.setHeader("X-Void-Policy-Require", REQUIRE ? "1" : "0");
+      } catch {}
+      return _wh.apply(this, arguments as any);
+    };
+
+    // Also patch Server.emit to clamp admin writes if REQUIRE=1 (and optional USB gate on your box)
+    const _emit = http.Server.prototype.emit;
+    if (!(http.Server.prototype as any).__void_admin_patched){
+      (http.Server.prototype as any).__void_admin_patched = true;
+      http.Server.prototype.emit = function(type:any, req:any, res:any){
+        if (type==="request" && req && res){
+          const m = (req.method||"").toUpperCase();
+          if (REQUIRE && (m==="POST"||m==="PUT"||m==="PATCH"||m==="DELETE") && isAdmin(req.url||"")){
+            // Optional local USB check: comment next 3 lines if you don't want USB involved here
+            if (!GATE_OK()){
+              res.statusCode=423; res.setHeader("Content-Type","application/json");
+              res.end('{"ok":false,"error":"gate-missing","detail":"USB gate not present (admin)"}'); return true;
+            }
+            // PCert verification block goes here once you’ve got real certs/signatures wired.
+          }
+        }
+        return _emit.apply(this, arguments as any);
+      };
+    }
+  } catch {}
+})();
+
+// ---------- PCert V3C (additive Express hook; no prototype monkey-patch) ----------
+(function PCertV3C_Additive(){
+  try {
+    const fs = require("fs");
+    const crypto = require("crypto");
+    const ADMIN = [
+      /^\/proposer\/auto\/start(?:\b|[?])/, /^\/proposer\/auto\/stop(?:\b|[?])/,
+      /^\/blocks\/empty-policy\/set(?:\b|[?])/, /^\/tx\/merge\/cap\/set(?:\b|[?])/,
+      /^\/__void\/feature\/activate(?:\b|[?])/, /^\/__void\/upgrade\/apply(?:\b|[?])/
+    ];
+    const b = (k,d=false)=>{ const v=(process.env[k]||"").trim().toLowerCase(); return v==="1"||v==="true" ? true : (v===""?d:false); };
+    const REQUIRE   = b("VOID_POLICY_REQUIRE", false);
+    const BLOCKALL  = b("VOID_ADMIN_BLOCK_ALL", false);
+    const PCERT_PATH= process.env.VOID_PCERT_PATH || "/mnt/voidkey/operator/pcert.json";
+    const PUB_PATH  = process.env.VOID_POLICY_PUBKEY_PATH || "/mnt/voidkey/operator/policy.pub";
+
+    function readHex64(p){ try{ const s=fs.readFileSync(p,"utf8").trim(); return /^[A-Fa-f0-9]{64}$/.test(s)?Buffer.from(s,"hex"):null; }catch{return null;} }
+    function readBuf(p){ try{ return fs.readFileSync(p); }catch{ return null; } }
+    function now(){ return Math.floor(Date.now()/1000); }
+    function canon(obj){
+      const walk=o=>{ if(o===null||typeof o!=="object") return o; if(Array.isArray(o)) return o.map(walk);
+        const out={}; for(const k of Object.keys(o).filter(k=>k!=="sig").sort()) out[k]=walk(o[k]); return out; };
+      return JSON.stringify(walk(obj));
+    }
+    function spkiFromRaw32(raw){ return Buffer.concat([Buffer.from("302a300506032b6570032100","hex"), raw]); }
+    function verifyPCert(){
+      try{
+        const pubRaw = readHex64(PUB_PATH); if(!pubRaw) return {ok:false, reason:"policy-pub-bad-format", path:PUB_PATH};
+        const pbuf = readBuf(PCERT_PATH);  if(!pbuf)  return {ok:false, reason:"pcert-missing", path:PCERT_PATH};
+        let pjson; try{ pjson=JSON.parse(pbuf.toString("utf8")); }catch{ return {ok:false, reason:"pcert-bad-json"}; }
+        const sigB64 = pjson.sig; if(typeof sigB64!=="string"||sigB64.length<8) return {ok:false, reason:"pcert-missing-sig"};
+        const msg = Buffer.from(canon(pjson),"utf8");
+        const sig = Buffer.from(sigB64,"base64");
+        const key = crypto.createPublicKey({key:spkiFromRaw32(pubRaw),format:"der",type:"spki"});
+        const okSig = crypto.verify(null, msg, key, sig); if(!okSig) return {ok:false, reason:"pcert-bad-signature"};
+        const t = now();
+        if(typeof pjson.valid_from!=="number"||typeof pjson.valid_to!=="number") return {ok:false, reason:"pcert-bad-validity"};
+        if(t<pjson.valid_from) return {ok:false, reason:"pcert-not-yet-valid", at:t};
+        if(t>pjson.valid_to)   return {ok:false, reason:"pcert-expired", at:t};
+        if(!Array.isArray(pjson.rights)||!pjson.rights.includes("PROPOSE")) return {ok:false, reason:"pcert-no-propose-right"};
+        return {ok:true, subject:pjson.subject||null, from:pjson.valid_from, to:pjson.valid_to};
+      }catch(e){ return {ok:false, reason:"pcert-exception", error:String(e&&e.message||e)}; }
+    }
+
+    let tries=0, mounted=false;
+    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+    function attach(){
+      const app:any = getApp();
+      if(!app || typeof app.get!=="function"){ if(++tries<200) return setTimeout(attach,150); return; }
+      if(mounted) return; mounted=true;
+
+      // Fingerprint header on all responses
+      app.use((req:any,res:any,next:any)=>{ try{
+        res.setHeader("X-Void-Pcert-Hook-V3C","1");
+        res.setHeader("X-Void-Policy-Require", (REQUIRE?1:0).toString());
+      }catch{} next(); });
+
+      // Debug
+      app.get("/__void/pcert/debug", (_:any,res:any)=>{
+        const v = verifyPCert();
+        res.type("application/json").status(200).send({require:REQUIRE, blockall:BLOCKALL, paths:{pcert:PCERT_PATH,pub:PUB_PATH}, verify:v});
+      });
+
+      // Admin gate (only for admin endpoints)
+      app.use((req:any,res:any,next:any)=>{
+        const url = req?.url || "";
+        const isAdmin = ADMIN.some(r=>r.test(url));
+        if(!isAdmin) return next();
+        if(BLOCKALL){ return res.status(423).json({ok:false,error:"pcert-denied",reason:"admin-block-all"}); }
+        if(!REQUIRE) return next();
+        const v = verifyPCert();
+        if(!v.ok) return res.status(423).json({ok:false,error:"pcert-denied",reason:v.reason||"invalid"});
+        return next();
+      });
+    }
+    attach();
+  } catch(e){ try{ console.error("[pcert-v3c]", e?.stack||e);}catch{} }
+})();
+
+// ---- idempotence guard for SegStore.saveBlock (additive, safe) ----
+(function __void_idempotent_saveBlock_guard(){
+  try{
+    // Late require to avoid import order issues
+    const seg = (globalThis as any).SegStore || require("./chain/seg_store.js").SegStore;
+    if (!seg || !seg.prototype) return;
+    const p:any = seg.prototype;
+
+    // If we've already installed the guard, bail.
+    if ((p as any).__void_saveBlock_guard_installed) return;
+
+    let _current = p.saveBlock;
+    let _lockedOnce = false; // first assignment after guard "wins"
+
+    Object.defineProperty(p, "saveBlock", {
+      get(){ return _current; },
+      set(fn){
+        // Allow the first post-guard assignment, then block further wraps.
+        if (!_lockedOnce) {
+          _current = fn;
+          _lockedOnce = true;
+          try { console.error("[idempotence] saveBlock: first wrap accepted"); } catch {}
+          return;
+        }
+        // Reject any subsequent attempts to re-wrap (prevents runaway bind loops)
+        try { console.warn("[idempotence] saveBlock: extra wrap blocked"); } catch {}
+      },
+      configurable: true,
+      enumerable: false
+    });
+
+    // Mark installed
+    (p as any).__void_saveBlock_guard_installed = true;
+    try { console.error("[idempotence] saveBlock guard installed"); } catch {}
+  } catch(e:any){
+    try { console.error("[idempotence] guard error:", e?.message || e); } catch {}
+  }
+})();
+// ---- tiny console debounce (same line -> suppressed for 2s) ----
+(function __void_console_debounce(){
+  try{
+    const orig = { log:console.log, warn:console.warn, error:console.error };
+    const last:any = new Map<string, number>();
+    function wrap(fn:Function){
+      return function(...args:any[]){
+        try{
+          const s = typeof args[0] === "string" ? args[0] : JSON.stringify(args[0]);
+          const now = Date.now();
+          const t  = last.get(s) || 0;
+          if (now - t < 2000) return; // suppress duplicates <2s
+          last.set(s, now);
+        }catch{}
+        // @ts-ignore
+        return fn.apply(this, args);
+      };
+    }
+    console.log  = wrap(orig.log);
+    console.warn = wrap(orig.warn);
+    console.error= wrap(orig.error);
+  }catch{}
+})();
+// ---- idempotence guard v2 for SegStore.saveBlock (additive, once-only) ----
+(function __void_idempotent_saveBlock_guard_v2(){
+  try{
+    const seg = (globalThis as any).SegStore || require("./chain/seg_store.js").SegStore;
+    if (!seg || !seg.prototype) return;
+    const p:any = seg.prototype;
+    if ((p as any).__void_saveBlock_guard_v2_installed) return;
+
+    // Preserve current impl
+    let _current = p.saveBlock;
+
+    Object.defineProperty(p, "saveBlock", {
+      get(){ return _current; },
+      set(fn){
+        if (!(p as any).__void_saveBlock_set_once) {
+          _current = fn;
+          (p as any).__void_saveBlock_set_once = true;
+          try { console.error("[idempotence.v2] saveBlock: first wrap accepted"); } catch {}
+        } else {
+          try { console.warn("[idempotence.v2] saveBlock: extra wrap blocked"); } catch {}
+        }
+      },
+      configurable: true,
+      enumerable: false
+    });
+
+    (p as any).__void_saveBlock_guard_v2_installed = true;
+    try { console.error("[idempotence.v2] saveBlock guard installed"); } catch {}
+  } catch(e:any){
+    try { console.error("[idempotence.v2] guard error:", e?.message || e); } catch {}
+  }
+})();
