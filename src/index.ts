@@ -25300,3 +25300,838 @@ void_wal_wrapped ${isWrapped?1:0}
     try { console.error("[idempotence.v2] guard error:", e?.message || e); } catch {}
   }
 })();
+// -------- WAL v1: Read-only verifier & health gate (ADD-ONLY) --------
+(function WalV1Verifier(){
+  const TICK_MS = 15000;
+  const RANGE = 50; // verify last 50 blocks
+  const HALT_ON_BAD = true;
+
+  type Gauge = { val:number };
+  const g = {
+    verify_ok_total: {val:0} as Gauge,
+    verify_err_total: {val:0} as Gauge,
+    verify_last_ms: {val:0} as Gauge,
+    verify_bad_blocks: {val:0} as Gauge,
+    health: {val:1} as Gauge, // 1=good, 0=bad
+  };
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getFetch(){ return (globalThis as any).fetch || require('node-fetch'); }
+
+  async function httpJSON(path:string){
+    const base = `http://127.0.0.1:${process.env.HTTP_PORT||4100}`;
+    const res = await getFetch()(base + path);
+    if(!res.ok) throw new Error(`HTTP ${res.status} ${path}`);
+    return res.headers.get('content-type')?.includes('application/json') ? res.json() : res.text();
+  }
+
+  async function getLatestNumber():Promise<number>{
+    const t = await httpJSON('/blocks/latest/number');
+    // supports either {number: N} or raw text
+    if (typeof t === 'object' && t && 'number' in t) return Number(t.number);
+    return Number(String(t).trim());
+  }
+
+  async function getHeaderRoot(n:number):Promise<string>{
+    const h = await httpJSON(`/blocks/${n}/header3`);
+    // expect {txRoot:"0x.."} or legacy field
+    const root = h?.txRoot || h?.txroot || h?.tx_root || h?.root;
+    if(!root) throw new Error(`no txRoot in header3 for ${n}`);
+    return String(root);
+  }
+
+  async function getComputedRoot(n:number):Promise<string>{
+    // prefer stable helper if present
+    try {
+      const t = await httpJSON(`/dev/txroot/${n}`);
+      if (t?.root) return String(t.root);
+    } catch { /* fallback below */ }
+    // fallback: recent headers aggregator if available
+    const t = await httpJSON(`/__void/txroot/v4/agg2`);
+    if (t?.byNumber && t.byNumber[String(n)]?.root) return String(t.byNumber[String(n)].root);
+    throw new Error(`no computed txroot for ${n}`);
+  }
+
+  async function verifyRange(){
+    const t0 = Date.now();
+    let bad = 0;
+    try {
+      const latest = await getLatestNumber();
+      const from = Math.max(0, latest - RANGE + 1);
+      for (let n = from; n <= latest; n++){
+        try {
+          const [hdr, comp] = await Promise.all([getHeaderRoot(n), getComputedRoot(n)]);
+          if (hdr.toLowerCase() !== comp.toLowerCase()) bad++;
+          else g.verify_ok_total.val++;
+        } catch(e){
+          g.verify_err_total.val++;
+          bad++;
+        }
+      }
+      g.verify_bad_blocks.val = bad;
+      g.health.val = bad === 0 ? 1 : 0;
+    } catch(e){
+      g.verify_err_total.val++;
+      g.health.val = 0;
+    } finally {
+      g.verify_last_ms.val = Date.now() - t0;
+    }
+
+    // Optional: gate the proposer if health is bad
+    if (HALT_ON_BAD && g.health.val === 0) {
+      (globalThis as any).__VOID_PROPOSER_DISABLED_BY_WAL = 1;
+    } else {
+      (globalThis as any).__VOID_PROPOSER_DISABLED_BY_WAL = 0;
+    }
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_wal_v1_verifier_mounted) return; (app as any).__void_wal_v1_verifier_mounted = true;
+
+    // Prometheus text exporter
+    app.get('/__void/metrics/wal.prom', (_req:any, res:any)=>{
+      res.type('text/plain').send([
+        '# HELP void_wal_verify_ok_total Successful block root matches',
+        '# TYPE void_wal_verify_ok_total counter',
+        `void_wal_verify_ok_total ${g.verify_ok_total.val}`,
+        '# HELP void_wal_verify_err_total Verification errors',
+        '# TYPE void_wal_verify_err_total counter',
+        `void_wal_verify_err_total ${g.verify_err_total.val}`,
+        '# HELP void_wal_verify_last_ms Duration of last verify run (ms)',
+        '# TYPE void_wal_verify_last_ms gauge',
+        `void_wal_verify_last_ms ${g.verify_last_ms.val}`,
+        '# HELP void_wal_verify_bad_blocks Bad blocks in last range scan',
+        '# TYPE void_wal_verify_bad_blocks gauge',
+        `void_wal_verify_bad_blocks ${g.verify_bad_blocks.val}`,
+        '# HELP void_wal_health Strict health (1 good, 0 bad)',
+        '# TYPE void_wal_health gauge',
+        `void_wal_health ${g.health.val}`,
+        '# HELP void_wal_gate_proposer 1 if proposer gated by WAL verifier',
+        '# TYPE void_wal_gate_proposer gauge',
+        `void_wal_gate_proposer ${(globalThis as any).__VOID_PROPOSER_DISABLED_BY_WAL ? 1 : 0}`,
+        ''
+      ].join('\n'));
+    });
+
+    // Manual trigger
+    app.post('/wal/v1/verify/start', async (_req:any, res:any)=>{
+      await verifyRange();
+      res.json({ok:true, bad:g.verify_bad_blocks.val, ms:g.verify_last_ms.val, health:g.health.val});
+    });
+
+    // Background loop
+    setInterval(verifyRange, TICK_MS);
+    setTimeout(verifyRange, 2000);
+  }
+  mount();
+})();
+// ---- WAL v1 verifier: duplicate exporter under a unique path (ADD-ONLY) ----
+(function WalV1VerifierExporterAlias(){
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function body(){
+    const G:any = globalThis as any;
+    const g = (G.__void_wal_v1_gauges||{
+      // fallback if called before first verify; zeros are fine
+      verify_ok_total:{val:0}, verify_err_total:{val:0}, verify_last_ms:{val:0},
+      verify_bad_blocks:{val:0}, health:{val:1},
+    });
+    const gated = G.__VOID_PROPOSER_DISABLED_BY_WAL ? 1 : 0;
+    return [
+      '# HELP void_wal_verify_ok_total Successful block root matches',
+      '# TYPE void_wal_verify_ok_total counter',
+      `void_wal_verify_ok_total ${g.verify_ok_total.val||0}`,
+      '# HELP void_wal_verify_err_total Verification errors',
+      '# TYPE void_wal_verify_err_total counter',
+      `void_wal_verify_err_total ${g.verify_err_total.val||0}`,
+      '# HELP void_wal_verify_last_ms Duration of last verify run (ms)',
+      '# TYPE void_wal_verify_last_ms gauge',
+      `void_wal_verify_last_ms ${g.verify_last_ms.val||0}`,
+      '# HELP void_wal_verify_bad_blocks Bad blocks in last range scan',
+      '# TYPE void_wal_verify_bad_blocks gauge',
+      `void_wal_verify_bad_blocks ${g.verify_bad_blocks.val||0}`,
+      '# HELP void_wal_health Strict health (1 good, 0 bad)',
+      '# TYPE void_wal_health gauge',
+      `void_wal_health ${g.health.val||0}`,
+      '# HELP void_wal_gate_proposer 1 if proposer gated by WAL verifier',
+      '# TYPE void_wal_gate_proposer gauge',
+      `void_wal_gate_proposer ${gated}`,
+      ''
+    ].join('\n');
+  }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_wal_v1_exporter_alias_mounted) return; (app as any).__void_wal_v1_exporter_alias_mounted = true;
+    app.get('/__void/metrics/wal.verify.prom', (_req:any, res:any)=>{ res.type('text/plain').send(body()); });
+    // expose gauges for other blocks to reference
+    (globalThis as any).__void_wal_v1_gauges = (globalThis as any).__void_wal_v1_gauges || {
+      verify_ok_total:{val:0}, verify_err_total:{val:0}, verify_last_ms:{val:0},
+      verify_bad_blocks:{val:0}, health:{val:1},
+    };
+  }
+  mount();
+})();
+// ---------- header3 alias -> header (additive, safe) ----------
+(function Header3AliasToHeader(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_header3_alias_mounted) return; (app as any).__void_header3_alias_mounted = true;
+    app.get("/blocks/:n/header3", (req:any, res:any)=>{
+      const n = req.params.n;
+      res.redirect(307, `/blocks/${encodeURIComponent(n)}/header`);
+    });
+  }
+  mount();
+})();
+// ---------- header3 alias -> header (additive, safe) ----------
+(function Header3AliasToHeader(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_header3_alias_mounted) return; (app as any).__void_header3_alias_mounted = true;
+    app.get("/blocks/:n/header3", (req:any, res:any)=>{
+      const n = req.params.n;
+      res.redirect(307, `/blocks/${encodeURIComponent(n)}/header`);
+    });
+  }
+  mount();
+})();
+// ---------- TxRoot Health v4 (truth: reads /blocks/:n/header) ----------
+(function TxrootHealthV4(){
+  const TICK=450;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_txroot_health_v4_mounted) return; (app as any).__void_txroot_health_v4_mounted = true;
+
+    async function fetchJSON(u:string){
+      const r = await (globalThis as any).fetch(u).catch(()=>null);
+      if(!r || !r.ok) return null;
+      return r.json().catch(()=>null);
+    }
+    function isEmptyHash(h:string){
+      return h === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    }
+    app.get("/__void/ready.v4.prom", async (_req:any, res:any)=>{
+      try{
+        const base = `http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`;
+        const n = Number(await (await fetch(`${base}/blocks/latest/number`)).text());
+        let ok = 0, reasons:string[]=[];
+        if(!Number.isFinite(n) || n<0){ reasons.push("bad_latest_number"); }
+
+        // truth header (object)
+        const hdr = await fetchJSON(`${base}/blocks/${n}/header`);
+        const root = hdr?.txRoot?.root;
+        if(!root){ reasons.push("no_header_txRoot"); }
+
+        // quick signals from existing metrics bundle (still optional)
+        const mtxt = await (await fetch(`${base}/metrics/void`).catch(()=>null))?.text();
+        let updates = 0, lastCount = 0;
+        if(mtxt){
+          const m = mtxt.match(/^void_txroot_updates_total\s+(\d+)/m); if(m) updates = Number(m[1]||0);
+          const c = mtxt.match(/^void_last_txroot_count\s+(\d+)/m);     if(c) lastCount = Number(c[1]||0);
+        }
+
+        if(root && !isEmptyHash(root) && (updates>0 || lastCount>0)){ ok = 1; }
+        if(isEmptyHash(root||"")) reasons.push("empty_txroot");
+        if(updates===0 && lastCount===0) reasons.push("no_txroot_activity");
+
+        const now = Date.now();
+        res.set("Content-Type","text/plain; version=0.0.4");
+        res.send([
+          "# HELP void_txroot_live_v4 TxRoot health (1 healthy, 0 not) — header truth",
+          "# TYPE void_txroot_live_v4 gauge",
+          `void_txroot_live_v4 ${ok}`,
+          "# HELP void_txroot_live_v4_ts_ms Export timestamp",
+          "# TYPE void_txroot_live_v4_ts_ms gauge",
+          `void_txroot_live_v4_ts_ms ${now}`,
+          "# HELP void_txroot_live_v4_block Latest block number inspected",
+          "# TYPE void_txroot_live_v4_block gauge",
+          `void_txroot_live_v4_block ${Number.isFinite(n)?n:-1}`,
+          ...(reasons.length?[
+            "# HELP void_txroot_live_v4_reason Info reasons (1 label line)",
+            "# TYPE void_txroot_live_v4_reason gauge",
+            `void_txroot_live_v4_reason{reasons="${reasons.join(",")||"none"}"} 1`
+          ]:[])
+        ].join("\n")+"\n");
+      }catch(e:any){
+        res.set("Content-Type","text/plain; version=0.0.4");
+        res.send([
+          "# TYPE void_txroot_live_v4 gauge",
+          "void_txroot_live_v4 0",
+          "# TYPE void_txroot_live_v4_reason gauge",
+          `void_txroot_live_v4_reason{reasons="exception:${(e?.message||"err").toString().slice(0,80)}"} 1`
+        ].join("\n")+"\n");
+      }
+    });
+  }
+  mount();
+})();
+// ---------- header3 -> header redirect (compat) ----------
+(function Header3AliasToHeader(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_header3_alias_mounted) return; (app as any).__void_header3_alias_mounted = true;
+    app.get("/blocks/:n/header3", (req:any, res:any)=>{
+      res.redirect(307, `/blocks/${encodeURIComponent(req.params.n)}/header`);
+    });
+  }
+  mount();
+})();
+// ---------- header3 -> header (hard redirect) ----------
+(function Header3AliasToHeader(){
+  const TICK=400;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  (function mount(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(mount, TICK);
+    if ((a as any).__void_header3_alias_mounted) return; (a as any).__void_header3_alias_mounted = true;
+    a.get("/blocks/:n/header3", (req:any, res:any)=>{
+      res.redirect(307, `/blocks/${encodeURIComponent(req.params.n)}/header`);
+    });
+  })();
+})();
+// ---------- ready v4b (idle_ok) ----------
+(function ReadyV4b(){
+  const TICK=400, EMPTY='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  function getApp(){return (globalThis as any).__void_http_app || (globalThis as any).app;}
+  async function latestHeader(){
+    try{
+      const fetch = (globalThis as any).fetch || (await import('node:node-fetch').then((m:any)=>m.default || m));
+      const n = await fetch('http://127.0.0.1:4100/blocks/latest/number').then((r:any)=>r.text()).then((t:string)=>Number(t.trim()));
+      const h = await fetch(`http://127.0.0.1:4100/blocks/${n}/header`).then((r:any)=>r.json());
+      return {n, root:(h?.txRoot?.root||'').toString()};
+    }catch{return {n:-1, root:''};}
+  }
+  (function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=='function') return void setTimeout(mount, TICK);
+    if ((app as any).__void_ready_v4b_mounted) return; (app as any).__void_ready_v4b_mounted = true;
+
+    app.get('/__void/ready.v4b.prom', async (req:any, res:any)=>{
+      const freshMs = Number(req.query.fresh_ms ?? 60000); // 60s default
+      const idleOk  = String(req.query.idle_ok ?? '1') === '1';
+
+      // Reuse v4 state if present
+      let live=0, block=-1, ts=-1, reason='unknown';
+      try{
+        const v4 = await fetch('http://127.0.0.1:4100/__void/ready.v4.prom').then((r:any)=>r.text());
+        // crude parse
+        const get = (k:string)=>Number((v4.match(new RegExp(`^${k} (\\d+)`, 'm'))||[])[1]||'-1');
+        const getR= ()=>String((v4.match(/^void_txroot_live_v4_reason\{reasons="([^"]+)"\} 1/m)||[])[1]||'');
+        live  = get('void_txroot_live_v4');
+        block = get('void_txroot_live_v4_block');
+        ts    = get('void_txroot_live_v4_ts_ms');
+        reason= getR() || (live? 'ok':'unknown');
+      }catch{}
+
+      // If v4 says "no_txroot_activity" but header root is non-empty, and idleOk==1 -> treat as healthy
+      if (idleOk && live===0 && reason==='no_txroot_activity'){
+        const {n, root} = await latestHeader();
+        if (n>=0 && root && root!==EMPTY){
+          live=1; block = n; reason='idle_ok_nonempty_header';
+          ts = Date.now();
+        }
+      }
+
+      res.type('text/plain; version=0.0.4').send(
+        '# HELP void_txroot_live_v4b TxRoot health (1 healthy, 0 not) — header truth (idle OK)\n' +
+        '# TYPE void_txroot_live_v4b gauge\n' +
+        `void_txroot_live_v4b ${live}\n` +
+        '# HELP void_txroot_live_v4b_ts_ms Export timestamp\n' +
+        '# TYPE void_txroot_live_v4b_ts_ms gauge\n' +
+        `void_txroot_live_v4b_ts_ms ${ts}\n` +
+        '# HELP void_txroot_live_v4b_block Latest block number inspected\n' +
+        '# TYPE void_txroot_live_v4b_block gauge\n' +
+        `void_txroot_live_v4b_block ${block}\n` +
+        '# HELP void_txroot_live_v4b_reason Info reasons (1 label line)\n' +
+        '# TYPE void_txroot_live_v4b_reason gauge\n' +
+        `void_txroot_live_v4b_reason{reasons="${reason}"} 1\n`
+      );
+    });
+  })();
+})();
+
+// ---------- header3 -> header (hijack-in-place; additive, no deletes) ----------
+(function Header3HijackToTruth(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function tryHijack(){
+    const app:any = getApp(); if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(tryHijack, TICK);
+    if ((app as any).__void_header3_hijacked) return;
+    let changed = 0;
+    for (const layer of app._router.stack) {
+      // Express layer with a route
+      const r = (layer && (layer as any).route);
+      if (!r) continue;
+      // Match likely variants of the legacy path
+      const paths = [r.path].flat().filter(Boolean);
+      const match = paths.some((p:string)=> typeof p==="string" && /\/blocks\/:n\/header3\b/.test(p));
+      if (!match) continue;
+
+      // Replace all handlers on this route with a 307 redirect to /blocks/:n/header
+      if (Array.isArray(r.stack)) {
+        for (const h of r.stack) {
+          if (h && typeof h.handle === "function") {
+            h.handle = (req:any, res:any) => {
+              const n = req.params?.n;
+              return res.redirect(307, `/blocks/${encodeURIComponent(n)}/header`);
+            };
+            changed++;
+          }
+        }
+      }
+    }
+    (app as any).__void_header3_hijacked = true;
+    console.warn(`[header3->header] hijack ${changed>0?"OK":"no-op"} (changed=${changed})`);
+  }
+  tryHijack();
+})();
+// ---------- header3 hard-shadow v2: preempt legacy with top-of-stack redirect ----------
+(function Header3HardShadowV2(){
+  const TICK = 400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp();
+    if (!app || !app._router || !Array.isArray(app._router.stack) || typeof app._router.route!=="function") {
+      return setTimeout(mount, TICK);
+    }
+    if ((app as any).__void_header3_shadow_v2) return;
+    (app as any).__void_header3_shadow_v2 = true;
+
+    // 1) Create our own canonical redirect route (this pushes a layer at the END)
+    const r = app._router.route('/blocks/:n/header3');
+    r.get((req:any, res:any)=>{
+      const n = req.params?.n;
+      return res.redirect(307, `/blocks/${encodeURIComponent(n)}/header`);
+    });
+
+    // 2) Move our newly created layer to the FRONT of the stack
+    //    (so it preempts any legacy header3 handlers without deleting them)
+    // Find the last added layer that matches /blocks/:n/header3
+    let idx = -1;
+    for (let i = app._router.stack.length - 1; i >= 0; i--) {
+      const L:any = app._router.stack[i];
+      const path = (L && L.route && L.route.path) || '';
+      if (typeof path === 'string' && path === '/blocks/:n/header3') { idx = i; break; }
+    }
+    if (idx >= 0) {
+      const layer = app._router.stack.splice(idx, 1)[0];
+      app._router.stack.unshift(layer);
+      console.warn('[header3-shadow-v2] moved redirect layer to top of stack (preempt legacy)');
+    } else {
+      console.warn('[header3-shadow-v2] WARN: could not locate new layer to move; legacy may still win');
+    }
+  }
+  mount();
+})();
+// ---------- header3 hard-shadow v3: serve real header JSON (no redirects) ----------
+(function Header3HardShadowV3(){
+  const TICK = 400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function fetchLocal(path:string):Promise<any>{
+    // Local HTTP to avoid Express route/self recursion on header3
+    const http = await import('node:http');
+    const port = Number(process.env.HTTP_PORT || 4100);
+    return new Promise((resolve,reject)=>{
+      const req = http.request({ host:'127.0.0.1', port, path, method:'GET' }, (res)=>{
+        let buf=''; res.setEncoding('utf8');
+        res.on('data', (c)=> buf+=c);
+        res.on('end', ()=> {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            try { resolve(JSON.parse(buf)); } catch(e){ reject(e); }
+          } else {
+            reject(new Error(`status ${res.statusCode}`));
+          }
+        });
+      });
+      req.on('error', reject); req.end();
+    });
+  }
+  function mount(){
+    const app:any = getApp();
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(mount, TICK);
+    if ((app as any).__void_header3_shadow_v3) return;
+    (app as any).__void_header3_shadow_v3 = true;
+
+    // Build our own layer that serves truth JSON for /blocks/:n/header3
+    const layerHandler = async (req:any, res:any, next:any)=>{
+      try{
+        const n = req.params?.n;
+        if (!n) return next();
+        // Prefer canonical header; fallback to /full
+        let hdr:any;
+        try {
+          hdr = await fetchLocal(`/blocks/${encodeURIComponent(n)}/header`);
+        } catch {
+          const full = await fetchLocal(`/blocks/${encodeURIComponent(n)}/full`);
+          hdr = full?.header;
+          if (!hdr) throw new Error('no header in /full');
+        }
+        // Normalize to legacy shape: { number, txRoot, ... } if present
+        const body:any = { number: Number(n) };
+        if (hdr?.txRoot) body.txRoot = hdr.txRoot.root ?? hdr.txRoot;
+        if (hdr) body.header = hdr;
+        res.setHeader('X-Void-Header3-Shadow', 'v3');
+        return res.status(200).json(body);
+      }catch(err){
+        // If anything goes wrong, let legacy handler run
+        res.setHeader('X-Void-Header3-Shadow', 'v3-fallback');
+        return next();
+      }
+    };
+
+    // Add our layer and move it to the very front so it preempts legacy
+    const r = app._router.route('/blocks/:n/header3');
+    r.get(layerHandler);
+    // find the just-added layer and unshift it to the front
+    let idx = -1;
+    for (let i = app._router.stack.length - 1; i >= 0; i--) {
+      const L:any = app._router.stack[i];
+      const path = (L && L.route && L.route.path) || '';
+      if (typeof path === 'string' && path === '/blocks/:n/header3') { idx = i; break; }
+    }
+    if (idx >= 0) {
+      const layer = app._router.stack.splice(idx, 1)[0];
+      app._router.stack.unshift(layer);
+      console.warn('[header3-shadow-v3] mounted at top (serving truth, no redirects)');
+    } else {
+      console.warn('[header3-shadow-v3] WARN: could not lift layer; legacy may still win');
+    }
+  }
+  mount();
+})();
+// ---------- header3 hard-lock v4 (pre-router intercept; zero recursion) ----------
+(function Header3HardLockV4(){
+  const TICK = 300;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function httpGetJson(path:string):Promise<any>{
+    const http = await import('node:http');
+    const port = Number(process.env.HTTP_PORT || 4100);
+    return new Promise((resolve,reject)=>{
+      const req = http.request({ host:'127.0.0.1', port, path, method:'GET' }, (res)=>{
+        let buf=''; res.setEncoding('utf8');
+        res.on('data', (c)=> buf+=c);
+        res.on('end', ()=> {
+          if ((res.statusCode||0) >= 200 && (res.statusCode||0) < 300) {
+            try { resolve(JSON.parse(buf)); } catch(e){ reject(e); }
+          } else { reject(new Error(`status ${res.statusCode}`)); }
+        });
+      });
+      req.on('error', reject); req.end();
+    });
+  }
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.handle !== 'function') return setTimeout(mount, TICK);
+    if ((app as any).__void_header3_hardlock_v4) return;
+    (app as any).__void_header3_hardlock_v4 = true;
+
+    const origHandle = app.handle.bind(app);
+    app.handle = async function(req:any, res:any, out:any){
+      try{
+        // Intercept exactly GET /blocks/:n/header3 (query allowed)
+        if (req && req.method === 'GET') {
+          const m = (req.url||'').match(/^\/blocks\/(\d+)\/header3(?:\?.*)?$/);
+          if (m) {
+            const n = m[1];
+            // Fetch canonical header (no path back to /header3)
+            let hdr:any;
+            try { hdr = await httpGetJson(`/blocks/${encodeURIComponent(n)}/header`); }
+            catch {
+              const full = await httpGetJson(`/blocks/${encodeURIComponent(n)}/full`);
+              hdr = full?.header;
+              if (!hdr) throw new Error('no header in /full');
+            }
+            const body:any = { number: Number(n) };
+            // Legacy 'header3' expects flat txRoot field when present
+            if (hdr?.txRoot) body.txRoot = (hdr.txRoot.root ?? hdr.txRoot);
+            body.header = hdr;
+
+            res.setHeader('Content-Type','application/json; charset=utf-8');
+            res.setHeader('X-Void-Header3-HardLock','v4');
+            res.statusCode = 200;
+            res.end(JSON.stringify(body));
+            return;
+          }
+        }
+      } catch (e:any) {
+        try { res.setHeader('X-Void-Header3-HardLock','v4-fallback'); } catch {}
+        // fall through to original handler on error
+      }
+      return origHandle(req, res, out);
+    };
+    console.warn('[header3-hardlock-v4] installed (pre-router, serving truth JSON)');
+  }
+  mount();
+})();
+// ---------- header3 hardlock v5 (stack[0] preemption; no recursion) ----------
+(function Header3HardLockV5(){
+  const TICK = 300;
+  const FLAG = '__void_header3_hardlock_v5';
+  const LAYER_FLAG = '__void_header3_layer_v5';
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function httpGetJson(path:string):Promise<any>{
+    const http = await import('node:http');
+    const port = Number(process.env.HTTP_PORT || 4100);
+    return new Promise((resolve,reject)=>{
+      const req = http.request({ host:'127.0.0.1', port, path, method:'GET' }, (res)=>{
+        let buf=''; res.setEncoding('utf8');
+        res.on('data', c=> buf+=c);
+        res.on('end', ()=>{
+          const sc = res.statusCode||0;
+          if (sc>=200 && sc<300) { try { resolve(JSON.parse(buf)); } catch(e){ reject(e); } }
+          else { reject(new Error(`status ${sc}`)); }
+        });
+      });
+      req.on('error', reject); req.end();
+    });
+  }
+
+  // the middleware we will pin at stack[0]
+  async function hardlock(req:any, res:any, next:any){
+    try{
+      if (req && req.method==='GET'){
+        const m = (req.url||'').match(/^\/blocks\/(\d+)\/header3(?:\?.*)?$/);
+        if (m){
+          const n = m[1];
+          let hdr:any;
+          try { hdr = await httpGetJson(`/blocks/${encodeURIComponent(n)}/header`); }
+          catch { const full = await httpGetJson(`/blocks/${encodeURIComponent(n)}/full`); hdr = full?.header; }
+          if (!hdr) throw new Error('no header');
+
+          const body:any = { number: Number(n) };
+          if (hdr.txRoot) body.txRoot = (hdr.txRoot.root ?? hdr.txRoot);
+          body.header = hdr;
+
+          res.setHeader('Content-Type','application/json; charset=utf-8');
+          res.setHeader('X-Void-Header3-HardLock','v5');
+          res.statusCode = 200;
+          res.end(JSON.stringify(body));
+          return;
+        }
+      }
+    } catch(e){}
+    return next();
+  }
+
+  function pinFront(app:any){
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return false;
+
+    // If we already inserted our layer, ensure it's at index 0
+    const stack:any[] = app._router.stack;
+    let idx = stack.findIndex((L:any)=> (L && (L.handle===hardlock || (L as any)[LAYER_FLAG])));
+    if (idx === -1){
+      // add then move to front
+      app.use(hardlock);
+      const L = stack.pop();
+      if (L) { (L as any)[LAYER_FLAG] = true; stack.unshift(L); }
+      return true;
+    } else {
+      if (idx !== 0){
+        const [L] = stack.splice(idx,1);
+        stack.unshift(L);
+      }
+      return true;
+    }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.use!=='function' || !app._router){
+      return setTimeout(mount, TICK);
+    }
+    if ((app as any)[FLAG]) return;
+    (app as any)[FLAG] = true;
+
+    // initial pin + guard (keep it first in case overlays re-mount)
+    const ok = pinFront(app);
+    if (ok) console.warn('[header3-hardlock-v5] installed at stack[0]');
+    setInterval(()=>{ try{ pinFront(getApp()); }catch{} }, 2000);
+  }
+  mount();
+})();
+// ---------- header3 hardlock v6 (app.handle preemption; no recursion) ----------
+(function Header3HandleHardLockV6(){
+  const TICK = 250;
+  const FLAG = '__void_header3_hardlock_v6';
+  const OWN = '__void_header3_hardlock_v6_own';
+  const httpHost = '127.0.0.1';
+  const httpPort = Number(process.env.HTTP_PORT || 4100);
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function httpGetJson(path:string):Promise<any>{
+    const http = await import('node:http');
+    return new Promise((resolve,reject)=>{
+      const req = http.request({host:httpHost, port:httpPort, path, method:'GET'}, (res)=>{
+        let buf=''; res.setEncoding('utf8');
+        res.on('data', c=> buf+=c);
+        res.on('end', ()=>{
+          const sc = res.statusCode||0;
+          if (sc>=200 && sc<300) { try { resolve(JSON.parse(buf)); } catch(e){ reject(e); } }
+          else reject(new Error('status '+sc));
+        });
+      });
+      req.on('error', reject); req.end();
+    });
+  }
+
+  function wrapOnce(app:any){
+    if (!app || typeof app.handle!=='function') return false;
+    const cur = app.handle;
+    if ((cur as any)[OWN]) return true; // already ours
+
+    const ours = async function hardlock_handle_v6(this:any, req:any, res:any, out:any){
+      try{
+        if (req && req.method==='GET'){
+          const m = (req.url||'').match(/^\/blocks\/(\d+)\/header3(?:\?.*)?$/);
+          if (m){
+            const n = m[1];
+            let hdr:any;
+            try { hdr = await httpGetJson(`/blocks/${encodeURIComponent(n)}/header`); }
+            catch { const full = await httpGetJson(`/blocks/${encodeURIComponent(n)}/full`); hdr = full?.header; }
+            if (!hdr) throw new Error('no header');
+
+            const body:any = { number: Number(n) };
+            if (hdr.txRoot) body.txRoot = (hdr.txRoot.root ?? hdr.txRoot);
+            body.header = hdr;
+
+            res.setHeader('Content-Type','application/json; charset=utf-8');
+            res.setHeader('X-Void-Header3-HardLock','v6');
+            res.statusCode = 200;
+            res.end(JSON.stringify(body));
+            return;
+          }
+        }
+      } catch(_) { /* fall through to original */ }
+      return (cur as any).call(this, req, res, out);
+    };
+    (ours as any)[OWN] = true;
+    app.handle = ours;
+    (app as any)[FLAG] = true;
+    return true;
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.handle!=='function'){
+      return setTimeout(mount, TICK);
+    }
+    wrapOnce(app);
+    // Re-assert our handle in case other overlays re-wrap later.
+    setInterval(()=>{ try{ wrapOnce(getApp()); }catch{} }, 1500);
+
+    // tiny diag
+    if (!app.get) return;
+    if (!(app as any).__void_header3_diag_v6){
+      (app as any).__void_header3_diag_v6 = true;
+      app.get('/__void/diag/header3-hardlock.v6', (req:any,res:any)=>{
+        const cur = (getApp()||{}).handle;
+        res.json({own: !!(cur && cur[OWN])});
+      });
+    }
+  }
+  mount();
+})();
+// ---------- header3 server-level hardlock v7 (pre-Express; overlay-proof) ----------
+(function Header3ServerHardLockV7(){
+  const TICK = 250;
+  const BYPASS = 'x-void-hardlock-bypass';
+  const OWN = '__void_header3_server_hardlock_v7';
+  const httpHost = '127.0.0.1';
+  const httpPort = Number(process.env.HTTP_PORT || 4100);
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function httpGetJson(path:string):Promise<any>{
+    const http = await import('node:http');
+    return new Promise((resolve,reject)=>{
+      const req = http.request(
+        {host:httpHost, port:httpPort, path, method:'GET', headers:{[BYPASS]:'1'}},
+        (res)=>{
+          let buf=''; res.setEncoding('utf8');
+          res.on('data', c=> buf+=c);
+          res.on('end', ()=>{
+            const sc = res.statusCode||0;
+            if (sc>=200 && sc<300) { try { resolve(JSON.parse(buf)); } catch(e){ reject(e); } }
+            else reject(new Error('status '+sc));
+          });
+        });
+      req.on('error', reject); req.end();
+    });
+  }
+
+  function install(){
+    const http = require('node:http');
+    const S = http.Server && http.Server.prototype;
+    if (!S || (S as any)[OWN]) return false;
+
+    const emit = S.emit;
+    const ours = function hardlock_emit_v7(this:any, ev:string, ...args:any[]){
+      if (ev === 'request') {
+        const req = args[0], res = args[1];
+        try {
+          if (req && req.headers && req.headers[BYPASS]) {
+            // internal fetch; never intercept
+            return (emit as any).call(this, ev, ...args);
+          }
+          if (req && req.method === 'GET') {
+            const u = req.url || '';
+            const m = u.match(/^\/blocks\/(\d+)\/header3(?:\?.*)?$/);
+            if (m) {
+              (async ()=>{
+                const n = m[1];
+                let hdr:any;
+                try { hdr = await httpGetJson(`/blocks/${encodeURIComponent(n)}/header`); }
+                catch { const full = await httpGetJson(`/blocks/${encodeURIComponent(n)}/full`); hdr = full?.header; }
+                if (!hdr) throw new Error('no header');
+
+                const body:any = { number: Number(n) };
+                if (hdr.txRoot) body.txRoot = (hdr.txRoot.root ?? hdr.txRoot);
+                body.header = hdr;
+
+                // write minimal JSON without Express
+                try {
+                  res.statusCode = 200;
+                  res.setHeader('Content-Type','application/json; charset=utf-8');
+                  res.setHeader('X-Void-Header3-HardLock','v7');
+                } catch {}
+                res.end(JSON.stringify(body));
+              })().catch(()=>{
+                // On failure, fall back to original stack
+                (emit as any).call(this, ev, ...args);
+              });
+              return; // short-circuit overlay/router
+            }
+          }
+        } catch(_) {}
+      }
+      return (emit as any).call(this, ev, ...args);
+    };
+    (ours as any)[OWN] = true;
+    (S as any)[OWN] = true;
+    S.emit = ours;
+
+    // Optional diag route (best-effort) once Express is up
+    const mountDiag = ()=>{
+      const app:any = getApp();
+      if (!app || typeof app.get!=='function') return setTimeout(mountDiag, TICK);
+      if ((app as any).__void_header3_server_diag_v7) return;
+      (app as any).__void_header3_server_diag_v7 = true;
+      app.get('/__void/diag/header3-hardlock.v7', (req:any,res:any)=>{
+        const ok = !!((require('node:http').Server||{}).prototype||{})[OWN];
+        res.json({server_hook: ok});
+      });
+    };
+    mountDiag();
+    return true;
+  }
+
+  try { install(); } catch {}
+})();
