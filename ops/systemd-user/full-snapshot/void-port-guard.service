@@ -2,11 +2,10 @@
 Description=VOID port guard (no 4102)
 After=default.target
 Wants=default.target
-OnFailure=void-port-guard-report@port-4102.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -lc '! ss -ltnH | grep -q ":4102 "'
+ExecStart=%h/.local/bin/void-port-guard.sh
 
 [Install]
 WantedBy=default.target
