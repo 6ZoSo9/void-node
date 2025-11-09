@@ -1,0 +1,8 @@
+[Unit]
+Description=Kick proposer if head stalled
+[Timer]
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=void-proposer-kick.service
+[Install]
+WantedBy=timers.target

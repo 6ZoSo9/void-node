@@ -1,0 +1,6 @@
+[Unit]
+Description=Kick proposer if head stalled
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+ExecStart=/usr/local/bin/void-proposer-kick-if-stalled.sh

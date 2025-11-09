@@ -1,0 +1,8 @@
+[Unit]
+Description=Brake proposer if system fence is red
+[Timer]
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=void-proposer-brake.service
+[Install]
+WantedBy=timers.target

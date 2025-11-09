@@ -1,0 +1,6 @@
+[Unit]
+Description=Brake proposer if system fence is red
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+ExecStart=/usr/local/bin/void-proposer-brake-if-unhealthy.sh

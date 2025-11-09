@@ -1,0 +1,12 @@
+groups:
+- name: void-proposer-kickbrake
+  interval: 30s
+  rules:
+  - record: void:proposer:kicks_total
+    expr: max(void_proposer_kicks_total)
+  - record: void:proposer:brakes_total
+    expr: max(void_proposer_brakes_total)
+  - record: void:proposer:kicks_rate1m
+    expr: rate(void_proposer_kicks_total[1m])
+  - record: void:proposer:brakes_rate1m
+    expr: rate(void_proposer_brakes_total[1m])

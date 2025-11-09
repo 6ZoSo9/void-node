@@ -1,0 +1,7 @@
+groups:
+- name: void-system-green
+  interval: 15s
+  rules:
+  - record: void:system:green
+    expr: (max_over_time(void:txroot_bridge:green[1m]) == bool 1)
+          and (max_over_time(void:head:adv_ok_scalar[1m]) == bool 1)
