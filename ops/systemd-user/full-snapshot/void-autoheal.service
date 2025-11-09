@@ -1,0 +1,8 @@
+[Unit]
+Description=VOID auto-heal orchestrator (reads Prom -> fires nudges)
+
+[Service]
+Type=oneshot
+Environment=TEXTFILE_DIR=/var/lib/node_exporter/textfile_collector
+ExecStart=/bin/bash -lc '~/.local/bin/void-autoheal.sh || :'
+SuccessExitStatus=0 1 2
