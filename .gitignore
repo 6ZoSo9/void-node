@@ -55,3 +55,6 @@ proposer.env
 void.env
 secrets*/
 *.env*
+
+# Ignore AI diag drops
+ops/reports/ai-diag.*.json
