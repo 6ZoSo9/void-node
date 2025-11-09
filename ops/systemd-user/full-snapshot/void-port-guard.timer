@@ -5,6 +5,7 @@ Description=VOID port guard timer (no 4102)
 OnBootSec=10s
 OnUnitActiveSec=30s
 Unit=void-port-guard.service
+OnFailure=void-port-guard-report@port-4102.service
 Persistent=true
 
 [Install]
