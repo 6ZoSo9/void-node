@@ -1,0 +1,11 @@
+[Unit]
+Description=VOID port guard (no 4102)
+After=default.target
+Wants=default.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -lc '! ss -ltnH | grep -q ":4102 "'
+
+[Install]
+WantedBy=default.target

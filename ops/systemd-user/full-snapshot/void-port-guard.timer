@@ -1,0 +1,11 @@
+[Unit]
+Description=VOID port guard timer (no 4102)
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=30s
+Unit=void-port-guard.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

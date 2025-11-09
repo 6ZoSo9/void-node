@@ -1,0 +1,20 @@
+[Unit]
+Description=Void Node (main proposer)
+After=default.target
+
+[Service]
+Type=simple
+# Defaults; overridden by drop-ins you already synced
+Environment=HTTP_PORT=4100
+Environment=P2P_PORT=4700
+Environment=DATA_DIR=%h/dev/void-node/data_a
+Environment=NODE_PRIVKEY_PATH=%h/.secrets/nodeA.key
+# Prehook is harmless if missing
+Environment=NODE_OPTIONS=--require %h/.config/void/boot/void-prehook.js
+WorkingDirectory=%h/dev/void-node
+ExecStart=/bin/sh -lc 'node node_modules/.bin/tsx src/index.ts'
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
