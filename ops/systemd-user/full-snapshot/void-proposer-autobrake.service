@@ -1,0 +1,7 @@
+[Unit]
+Description=VOID proposer auto-brake on txroot mismatch
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+Environment=TEXTFILE_DIR=%h/.cache/node-exporter-textfile
+ExecStart=%h/.local/bin/void-proposer-autobrake.sh
