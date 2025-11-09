@@ -1,0 +1,11 @@
+[Unit]
+Description=Run proposer auto-rescue every 10s
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=10s
+Unit=void-proposer-autorescue.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

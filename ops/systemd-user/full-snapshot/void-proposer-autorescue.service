@@ -1,0 +1,7 @@
+[Unit]
+Description=VOID proposer auto-rescue (head stall watchdog)
+
+[Service]
+Type=oneshot
+Environment=STALL_SEC=30
+ExecStart=%h/.local/bin/void-proposer-autorescue.sh
