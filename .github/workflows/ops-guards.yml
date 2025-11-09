@@ -7,3 +7,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: No recursive __void_getCreateHash
         run: .ci/guard-no-recursive-shim.sh
+      - name: No forbidden 4102 port
+        run: .ci/guard-no-4102-port.sh
