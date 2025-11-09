@@ -20,3 +20,50 @@ ops-kickbrake-uninstall:
 	@sudo rm -f /etc/tmpfiles.d/voidlocks.conf
 	@sudo systemctl daemon-reload
 	@echo "[ok] kick/brake timers removed"
+
+ops-node-user-units-uninstall:
+	@systemctl --user disable --now void-node@safe-4102.service 2>/dev/null || true
+	@systemctl --user disable --now void-node@bootstrap-1.service 2>/dev/null || true
+	@systemctl --user disable --now void-node.service 2>/dev/null || true
+	@echo "[ok] user units disabled; files still on disk"
+
+ops-node-user-units-status:
+	@systemctl --user status --no-pager void-node.service           2>/dev/null | sed -n "1,60p" || true
+	@systemctl --user status --no-pager void-node@bootstrap-1.service 2>/dev/null | sed -n "1,60p" || true
+	@systemctl --user status --no-pager void-node@safe-4102.service   2>/dev/null | sed -n "1,60p" || true
+
+ops-node-user-units-backup:
+	@mkdir -p ops/backups
+	@tar -C ~/.config/systemd/user -czf ops/backups/user-units-$(shell date +%Y%m%d-%H%M%S).tgz \
+		void-node.service void-node@.service \
+		void-node.service.d void-node@.service.d \
+		void-node@safe-4102.service.d 2>/dev/null || true
+.PHONY: ops-node-user-units-install ops-node-user-units-uninstall ops-node-user-units-status ops-node-user-units-backup
+
+ops-node-user-units-install:
+	@mkdir -p ~/.config/systemd/user
+	@rsync -av ops/systemd-user/units/ ~/.config/systemd/user/ || true
+	@rsync -av ops/systemd-user/dropins/ ~/.config/systemd/user/ || true
+	@systemctl --user daemon-reload
+	@systemctl --user enable --now void-node.service || true
+	@systemctl --user enable --now void-node@bootstrap-1.service || true
+	@systemctl --user enable --now void-node@safe-4102.service || true
+	@echo "[ok] user units installed & enabled (where present)"
+
+ops-node-user-units-uninstall:
+	@systemctl --user disable --now void-node@safe-4102.service 2>/dev/null || true
+	@systemctl --user disable --now void-node@bootstrap-1.service 2>/dev/null || true
+	@systemctl --user disable --now void-node.service 2>/dev/null || true
+	@echo "[ok] user units disabled; files still on disk"
+
+ops-node-user-units-status:
+	@systemctl --user status --no-pager void-node.service            2>/dev/null | sed -n '1,60p' || true
+	@systemctl --user status --no-pager void-node@bootstrap-1.service 2>/dev/null | sed -n '1,60p' || true
+	@systemctl --user status --no-pager void-node@safe-4102.service  2>/dev/null | sed -n '1,60p' || true
+
+ops-node-user-units-backup:
+	@mkdir -p ops/backups
+	@tar -C ~/.config/systemd/user -czf ops/backups/user-units-$(shell date +%Y%m%d-%H%M%S).tgz \
+		void-node.service void-node@.service \
+		void-node.service.d void-node@.service.d \
+		void-node@safe-4102.service.d 2>/dev/null || true

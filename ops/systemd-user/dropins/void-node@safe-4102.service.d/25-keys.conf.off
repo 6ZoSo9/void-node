@@ -1,0 +1,7 @@
+[Service]
+# Import the persistent env file (loaded before ExecStartPre)
+EnvironmentFile=%h/.config/void/void-safe-4102.env
+
+# Replace any earlier checks and do a simple readability test
+ExecStartPre=
+ExecStartPre=/usr/bin/test -r ${NODE_PRIVKEY_PATH}

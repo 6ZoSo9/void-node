@@ -1,0 +1,2 @@
+[Service]
+Environment=VOID_WAL_GATE=0

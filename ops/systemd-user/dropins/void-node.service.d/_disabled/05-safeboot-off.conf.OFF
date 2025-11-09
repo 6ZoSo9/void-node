@@ -1,0 +1,4 @@
+[Service]
+Environment=VOID_SAFEBOOT=0
+Environment=VOID_SAFEBOOT_ALLOW_EXTRA=
+Environment=VOID_WAL_GATE=0

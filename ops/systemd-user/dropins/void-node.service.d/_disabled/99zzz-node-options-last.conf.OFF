@@ -1,0 +1,3 @@
+[Service]
+UnsetEnvironment=NODE_OPTIONS
+Environment=NODE_OPTIONS=--require /home/zoso/.config/void/boot/header3-hardlock-pre.js --require /home/zoso/.config/void/boot/listen-guard.js --require /home/zoso/.config/void/boot/crypto-shim.js --require /home/zoso/.config/void/boot/wal-gate-off.js

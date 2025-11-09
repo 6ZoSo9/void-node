@@ -1,0 +1,5 @@
+[Service]
+# Add full txroot module so health/txroot3 can mount
+Environment=VOID_SAFEBOOT=1
+Environment=VOID_SAFEBOOT_ALLOW=proposer,header3,seals,txroot,txroot_setter_wrap,headshim
+Environment=VOID_SAFEBOOT_ALLOWED=proposer,header3,seals,txroot,txroot_setter_wrap,headshim

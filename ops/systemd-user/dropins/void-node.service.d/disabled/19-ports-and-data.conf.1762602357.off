@@ -1,0 +1,7 @@
+[Service]
+# Environment=HTTP_PORT=4100 (disabled by zzzz-exec)
+Environment=P2P_PORT=4700
+Environment=DATA_DIR=%h/dev/void-node/data_a
+# Reassert correct key path (belt-and-suspenders)
+Environment=NODE_PRIVKEY_PATH=/mnt/voidkey/keys/nodeA.key
+Environment=KEY_PATH=/mnt/voidkey/keys/nodeA.key

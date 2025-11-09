@@ -1,0 +1,4 @@
+[Service]
+Environment=VOID_SAFEBOOT=1
+# Allow the verifier + the internal reads it needs
+Environment=VOID_SAFEBOOT_ALLOW_EXTRA=/__void/metrics/wal.verify.prom,/wal/v1/verify/start,/blocks,/dev/txroot,/__void/txroot

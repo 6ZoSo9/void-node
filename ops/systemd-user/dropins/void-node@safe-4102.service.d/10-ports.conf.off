@@ -1,0 +1,4 @@
+[Service]
+Environment=HTTP_PORT=4102
+Environment=P2P_PORT=4712
+Environment=DATA_DIR=%h/dev/void-node.safe/data_safe

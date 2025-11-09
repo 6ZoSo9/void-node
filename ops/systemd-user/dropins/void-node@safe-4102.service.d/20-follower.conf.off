@@ -1,0 +1,4 @@
+[Service]
+Environment=BOOTSTRAP_ADDRS=127.0.0.1:4700
+Environment=FOLLOW_AUTOSTART=1
+Environment=VOID_ROLE=follower
