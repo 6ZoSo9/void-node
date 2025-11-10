@@ -1,0 +1,28 @@
+[Service]
+# Working dir in case the base unit ever loses it
+WorkingDirectory=%h/dev/void-node
+
+# Core ports + datadir
+# Environment=HTTP_PORT=4100 (disabled by zzzz-exec)
+Environment=P2P_PORT=4700
+Environment=DATA_DIR=%h/dev/void-node/data_a
+Environment=VOID_DATA_DIR=%h/dev/void-node/data_a
+
+# Proposer basics
+Environment=PROPOSER_AUTO=1
+Environment=PROPOSER_TICK_MS=2000
+
+# Strict safeboot profile we were using
+Environment=VOID_SAFEBOOT=1
+Environment=VOID_SAFEBOOT_ALLOW=proposer,header3,seals,txroot_setter_wrap,headshim
+Environment=VOID_SAFEBOOT_ALLOWED=proposer,header3,seals,txroot_setter_wrap,headshim
+Environment=VOID_ADDONS=OFF
+
+# Key gating: read from the mounted key (not the old ~/.secrets path)
+Environment=NODE_PRIVKEY_PATH=/mnt/voidkey/keys/nodeA.key
+Environment=KEY_PATH=/mnt/voidkey/keys/nodeA.key
+
+# Refuse to start without the mount and the key
+ExecStartPre=
+ExecStartPre=/usr/bin/mountpoint -q /mnt/voidkey
+ExecStartPre=/usr/bin/test -r /mnt/voidkey/keys/nodeA.key

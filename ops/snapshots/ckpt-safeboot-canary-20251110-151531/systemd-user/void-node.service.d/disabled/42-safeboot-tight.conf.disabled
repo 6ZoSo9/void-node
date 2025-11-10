@@ -1,0 +1,9 @@
+[Service]
+Environment=VOID_SAFEBOOT=1
+# Cover BOTH spellings so whichever the code reads, it's locked down
+Environment=VOID_SAFEBOOT_ALLOW=proposer,header3,seals,txroot_setter_wrap,headshim
+Environment=VOID_SAFEBOOT_ALLOWED=proposer,header3,seals,txroot_setter_wrap,headshim
+# Ensure no addons try to hook saveBlock
+Environment=VOID_ADDONS=OFF
+# Turn off dev routes that mount inspectors/forensics
+Environment=ALLOW_DEV_ROUTES=0

@@ -1,0 +1,5 @@
+[Service]
+Environment=HTTP_PORT=4102
+Environment=P2P_PORT=4702
+Environment=DATA_DIR=%h/dev/void-node/data_a
+Environment=VOID_DATA_DIR=%h/dev/void-node/data_a

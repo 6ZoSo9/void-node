@@ -1,0 +1,13 @@
+[Service]
+ExecStart=
+ExecStart=/usr/bin/env -S bash -lc \
+ 'exec node \
+   -r /home/zoso/.config/void/boot/wal-gate-socket-final.js \
+   -r /home/zoso/.config/void/boot/wal-gate-socket-first.js \
+   -r /home/zoso/.config/void/boot/header3-hardlock-pre.js \
+   -r /home/zoso/.config/void/boot/listen-guard.js \
+   -r /home/zoso/.config/void/boot/crypto-shim.js \
+   -r /home/zoso/.config/void/boot/wal-gate-off.js \
+   -r /home/zoso/.config/void/boot/wal-gate-metric-zero4.js \
+   -r /home/zoso/.config/void/boot/wal-gate-route-override.js \
+   node_modules/.bin/tsx src/index.ts'

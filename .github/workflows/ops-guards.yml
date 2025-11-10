@@ -9,3 +9,5 @@ jobs:
         run: .ci/guard-no-recursive-shim.sh
       - name: No forbidden 4102 port
         run: .ci/guard-no-4102-port.sh
+      - name: No V7 tramp/forensics in index.ts
+        run: .ci/guard-no-v7-wraps.sh

@@ -1,0 +1,5 @@
+[Service]
+# Nuke anything set earlier (Environment=NODE_OPTIONS= and any EnvironmentFile contents)
+UnsetEnvironment=NODE_OPTIONS
+# Final, authoritative NODE_OPTIONS with ABSOLUTE paths (no %h expansion surprises)
+Environment=NODE_OPTIONS=--require /home/zoso/.config/void/boot/header3-hardlock-pre.js --require /home/zoso/.config/void/boot/listen-guard.js --require /home/zoso/.config/void/boot/crypto-shim.js

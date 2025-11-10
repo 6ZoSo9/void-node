@@ -1,0 +1,14 @@
+[Service]
+ExecStart=
+ExecStart=/usr/bin/node \
+  -r /home/zoso/.config/void/boot/wal-gate-socket-final.js \
+  -r /home/zoso/.config/void/boot/wal-gate-socket-first.js \
+  -r /home/zoso/.config/void/boot/header3-hardlock-pre.js \
+  -r /home/zoso/.config/void/boot/listen-guard.js \
+  -r /home/zoso/.config/void/boot/crypto-shim.js \
+  -r /home/zoso/.config/void/boot/wal-gate-off.js \
+  -r /home/zoso/.config/void/boot/wal-gate-metric-zero4.js \
+  -r /home/zoso/.config/void/boot/wal-gate-route-override.js \
+  -r /home/zoso/dev/void-node/node_modules/tsx/dist/preflight.cjs \
+  --import file:///home/zoso/dev/void-node/node_modules/tsx/dist/loader.mjs \
+  /home/zoso/dev/void-node/src/index.ts

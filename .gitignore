@@ -58,3 +58,9 @@ secrets*/
 
 # Ignore AI diag drops
 ops/reports/ai-diag.*.json
+data/
+data_a/
+data_b/
+segments*/
+*.bak
+node_modules/

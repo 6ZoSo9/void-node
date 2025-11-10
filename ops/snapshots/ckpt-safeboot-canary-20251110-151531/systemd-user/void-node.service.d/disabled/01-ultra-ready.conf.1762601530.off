@@ -1,0 +1,11 @@
+[Service]
+# Ensure this wins over any other ExecStart defined earlier
+ExecStart=
+ExecStart=/usr/bin/node \
+  -r /home/zoso/.config/void/boot/ultra-ready.js \
+  -r /home/zoso/.config/void/boot/http-bypass-ready.js \
+  -r /home/zoso/dev/void-node/node_modules/tsx/dist/preflight.cjs \
+  --import file:///home/zoso/dev/void-node/node_modules/tsx/dist/loader.mjs \
+  /home/zoso/dev/void-node/src/index.ts
+Environment=HTTP_PORT=4100
+Environment=READY_ULTRA_LOG=1

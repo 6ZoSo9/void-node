@@ -1,0 +1,30 @@
+[Service]
+# Force simple long-running behavior and sane kill policy
+Type=simple
+KillMode=process
+KillSignal=SIGINT
+TimeoutStartSec=0
+TimeoutStopSec=90
+Restart=always
+RestartSec=1
+
+# Clean env and pin working dir
+EnvironmentFile=
+Environment=NODE_ENV=production
+Environment=DATA_DIR=%h/dev/void-node/data_a
+Environment=HTTP_PORT=4100
+Environment=P2P_PORT=4700
+Environment=NODE_PRIVKEY_PATH=%h/.secrets/nodeA.key
+Environment=NODE_OPTIONS=
+Environment=VOID_SAFEBOOT=1
+WorkingDirectory=%h/dev/void-node
+
+# Make sure the key exists; fully replace start/stop
+ExecStartPre=/usr/bin/test -r %h/.secrets/nodeA.key
+ExecStart=
+ExecStart=/usr/bin/env -S bash -lc 'exec node node_modules/.bin/tsx src/index.ts'
+ExecStop=
+ExecStop=/usr/bin/kill -s SIGINT $MAINPID
+
+StandardOutput=journal
+StandardError=journal

@@ -1,0 +1,5 @@
+[Service]
+Environment=VOID_SAFEBOOT=1
+Environment=VOID_SAFEBOOT_ALLOW=proposer,header3,seals,txroot_setter_wrap,headshim
+Environment=VOID_SAFEBOOT_ALLOWED=proposer,header3,seals,txroot_setter_wrap,headshim
+Environment=VOID_ADDONS=OFF

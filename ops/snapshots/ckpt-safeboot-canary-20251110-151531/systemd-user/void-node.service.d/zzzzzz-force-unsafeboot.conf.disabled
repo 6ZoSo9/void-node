@@ -1,0 +1,5 @@
+[Service]
+Environment=VOID_SAFEBOOT=0
+Environment=VOID_SAFEBOOT_ALLOW=
+Environment=VOID_SAFEBOOT_ALLOWED=
+Environment=VOID_SAFEBOOT_ALLOW_EXTRA=

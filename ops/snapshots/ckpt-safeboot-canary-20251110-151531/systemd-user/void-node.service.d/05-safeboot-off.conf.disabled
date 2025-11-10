@@ -1,0 +1,2 @@
+[Service]
+Environment=VOID_SAFEBOOT=0
