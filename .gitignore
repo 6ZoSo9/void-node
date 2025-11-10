@@ -1,66 +1,56 @@
 
+424
 *.bak
+*.bak.*
+.bk/
 # Bulk assets not tracked
 # CI artifacts
 ci_*.zip
 coverage/
 data*/
-dist/
-.DS_Store
-fs/
-id_*
-*.key
-*.kidx
-*.log
-node:*
-.nodekey*
-node_modules/
-*.pem
-run_*_logs.zip
-.secrets/
-segments*/
-smoke_*.zip
-src/index.ts.*.bak
-*.tmp
-*wallet*.json
-*.bak.*
-
-# local big backups
-*.bak
-
-ops/prom-snap/
-
-# Ignore raw Prom snapshots
-ops/prom-snap/
-
-ops/prom-snap/**
-!ops/prom-snap/README.md
-
-# park scratch
-src/.park/
-.park/
-# secrets & keys
-.secrets/
-**/*.p8
-**/*.pem
-**/*.key
-**/id_rsa
-**/id_ed25519
-**/*_private_key*
-**/.env
-**/.env.*
-# operator USB (just in case someone rsyncs it by accident)
-mnt/voidkey/
-proposer.env
-void.env
-secrets*/
-*.env*
-
-# Ignore AI diag drops
-ops/reports/ai-diag.*.json
 data/
 data_a/
 data_b/
-segments*/
-*.bak
+dist/
+.DS_Store
+**/.env
+**/.env.*
+*.env*
+fs/
+id_*
+**/id_ed25519
+**/id_rsa
+# Ignore AI diag drops
+# Ignore raw Prom snapshots
+**/*.key
+*.key
+*.kidx
+# local big backups
+*.log
+mnt/voidkey/
+node:*
+.nodekey*
 node_modules/
+# operator USB (just in case someone rsyncs it by accident)
+ops/prom-snap/
+ops/prom-snap/**
+!ops/prom-snap/README.md
+ops/reports/ai-diag.*.json
+**/*.p8
+.park/
+# park scratch
+**/*.pem
+*.pem
+**/*_private_key*
+proposer.env
+run_*_logs.zip
+.secrets/
+secrets*/
+# secrets & keys
+segments*/
+smoke_*.zip
+src/index.ts.*.bak
+src/.park/
+*.tmp
+void.env
+*wallet*.json
