@@ -1,0 +1,19 @@
+groups:
+- name: void-follower-stall
+  interval: 15s
+  rules:
+  - alert: VoidFollowerStalled
+    expr: clamp_min(void:follower:adv_rate1m, 0) == 0
+    for: 2m
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "Follower stalled"
+      description: "Follower head not advancing for 2m (adv_rate1m==0)."
+
+  - alert: VoidFollowerRewind
+    expr: rate(void:follower:last_number[1m]) < 0
+    for: 30s
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "Follower rewinding"
+      description: "Follower head decreased over 1m (unexpected)."

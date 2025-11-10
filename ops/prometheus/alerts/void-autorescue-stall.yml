@@ -1,0 +1,13 @@
+groups:
+- name: void-autorescue-stall
+  interval: 15s
+  rules:
+  - alert: VoidHeadStall
+    expr: (void:autorescue:stall:last) == 1
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Main proposer stalled"
+      description: "Proposer enabled but head not advancing while mempool>0; autorescue is firing."

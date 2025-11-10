@@ -1,0 +1,11 @@
+groups:
+- name: void-v7-decom
+  interval: 15s
+  rules:
+  - alert: VoidV7PathUsed
+    expr: increase(void_v7_decom_calls_total[5m]) > 0
+    for: 0m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Deprecated v7 path was called"
+      description: "At least one request hit /proposer/seal/once-v7 in the last 5m."

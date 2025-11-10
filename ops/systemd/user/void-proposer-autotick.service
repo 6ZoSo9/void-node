@@ -1,0 +1,6 @@
+[Unit]
+Description=VOID proposer auto-tick (single run)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/void-autotick.sh

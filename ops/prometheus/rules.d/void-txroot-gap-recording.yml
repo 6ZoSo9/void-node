@@ -1,0 +1,8 @@
+groups:
+- name: void-txroot-gap-recording
+  interval: 15s
+  rules:
+  - record: void:txroot_gap:last
+    expr: last_over_time(void_txroot_gap_blocks[1m])
+  - record: void:txroot_gap_rate1m:last
+    expr: last_over_time(void_txroot_gap_rate1m[1m])

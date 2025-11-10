@@ -1,0 +1,14 @@
+[Unit]
+Description=VOID — Proposer Gate (run only when mempool has txs)
+Wants=void-node.service
+After=void-node.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+Environment=PATH=%h/bin:/usr/local/bin:/usr/bin
+ExecStart=%h/bin/void-proposer-gate.sh
+
+[Install]
+WantedBy=default.target

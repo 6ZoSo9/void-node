@@ -1,0 +1,30 @@
+groups:
+- name: void-agent-alerts
+  interval: 15s
+  rules:
+  # Worker stuck: queue non-empty AND no completions for 2m
+  - alert: VoidAgentStall
+    expr: (void:agent_queue_depth > 0) and (rate(void_agent_jobs_completed[1m]) <= 0)
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Agent stall (queue growing, no completions)"
+      description: "Queue depth {{ $value }} with zero completion rate for 2m."
+
+  # Dead-letter activity
+  - alert: VoidAgentDLQ
+    expr: increase(void_agent_dlq_total[5m]) > 0
+    for: 0m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Agent DLQ activity"
+      description: "One or more jobs moved to DLQ in the last 5m."
+
+  # Lease churn spike (optional noise guard)
+  - alert: VoidAgentLeaseChurn
+    expr: increase(void_agent_leases_expired[5m]) > 5
+    for: 0m
+    labels: { severity: info, system: void }
+    annotations:
+      summary: "Agent lease expirations > 5 in 5m"
+      description: "Investigate worker heartbeats and lease_ms."

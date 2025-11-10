@@ -1,0 +1,19 @@
+groups:
+- name: void-proposer-watchdog
+  interval: 15s
+  rules:
+  - alert: VoidProposerStalledButAutoOn
+    expr: (void:proposer_watchdog:last_advance_age_s > 60)
+    for: 1m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Proposer stalled >60s while auto=on"
+      description: "Head hasn't advanced in >60s. Watchdog will try rescue; check mempool, tx cap, and store.saveBlock path."
+
+  - alert: VoidProposerRescueStorm
+    expr: increase(void_proposer_watchdog_rescues_total[5m]) > 3
+    for: 0m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Watchdog rescues spiking"
+      description: "More than 3 rescues in 5m — investigate proposer health."

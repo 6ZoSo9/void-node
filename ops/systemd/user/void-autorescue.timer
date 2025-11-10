@@ -1,0 +1,11 @@
+[Unit]
+Description=Run VOID autorescue periodically
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

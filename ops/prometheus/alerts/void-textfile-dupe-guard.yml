@@ -1,0 +1,13 @@
+groups:
+- name: void-textfile-dupe-guard
+  interval: 15s
+  rules:
+  - alert: VoidTextfileDuplicateSeries
+    expr: (void_prom_dupe_guard_ok == 0)
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Textfile collector duplicate metrics found"
+      description: "node_exporter textfile dir has duplicate metric families or series. Check /var/lib/node_exporter/textfile_collector and prune duplicates."

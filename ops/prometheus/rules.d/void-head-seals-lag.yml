@@ -1,0 +1,10 @@
+groups:
+- name: void-head-seals-lag
+  interval: 15s
+  rules:
+  - record: void:head:last
+    expr: max(void_head_number)
+  - record: void:seals_last:textfile
+    expr: max(void_seals_last)
+  - record: void:lag_to_head:textfile
+    expr: max(void_lag_to_head)

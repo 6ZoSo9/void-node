@@ -1,0 +1,6 @@
+groups:
+- name: void-liveness-age
+  interval: 15s
+  rules:
+  - record: void:liveness_age:last_2m
+    expr: clamp_min(last_over_time(void_liveness_last_submit_age_seconds[2m]), 0)

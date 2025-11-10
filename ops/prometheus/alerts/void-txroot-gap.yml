@@ -1,0 +1,13 @@
+groups:
+- name: void-txroot-gap
+  interval: 15s
+  rules:
+  - alert: VoidTxrootBacklogGrowing
+    expr: increase(void_seal_last_number[2m]) > 0 and increase(void_txroot_gap_blocks[2m]) > 0
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Txroot backlog growing while blocks are sealing"
+      description: "Header set_total is not keeping up with saves_total (gap increasing over 2m)."

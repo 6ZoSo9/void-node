@@ -1,0 +1,35 @@
+groups:
+- name: void-proposer-kickbrake-alerts
+  interval: 15s
+  rules:
+  # 1) Too fast while idle: gate open, no WAL pressure, no advance → should relax to >=4000ms
+  - alert: VoidKickbrakeTooFastWhileIdle
+    expr: (void:kickbrake:gate_open:last == 1)
+          and (void:kickbrake:wal_max_1m == 0)
+          and (void:kickbrake:adv_rate_1m == 0)
+          and (void:kickbrake:target_ms:last < 4000)
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Kick-brake too fast while idle"
+      description: "Gate open, no head advance, no WAL pressure, but target_ms < 4000ms."
+
+  # 2) Too slow with traffic: mempool > 0 and head not advancing enough while target is too large
+  - alert: VoidKickbrakeTooSlowWithTraffic
+    expr: avg_over_time(void_kickbrake_mempool_size[1m]) > 0
+          and (void:kickbrake:adv_rate_1m < 0.1)
+          and (void:kickbrake:target_ms:last > 3000)
+    for: 3m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Kick-brake too slow with pending txs"
+      description: "Mempool non-empty, low head advance, but target_ms is still >3s."
+
+  # 3) Flapping: too many changes in a short window
+  - alert: VoidKickbrakeFlapping
+    expr: (void:kickbrake:changed_5m > 6)
+    for: 1m
+    labels: {severity: info, system: void}
+    annotations:
+      summary: "Kick-brake flapping"
+      description: "Kick-brake changed more than 6 times over 5 minutes."

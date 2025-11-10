@@ -1,0 +1,18 @@
+groups:
+- name: void-overall-green
+  interval: 15s
+  rules:
+  - alert: VoidOverallRed
+    expr: (void:overall_green < 1)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Overall status is RED"
+      description: "overall_green=0 (pillars/lag bad or rollup stale)"
+  - alert: VoidOverallTextfileStale
+    expr: (void:overall_green_age_seconds > 180)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "overall_green textfile stale"
+      description: "void_overall_green.prom older than 3m (age={{ $value }}s)"

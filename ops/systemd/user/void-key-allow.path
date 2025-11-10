@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch for VOID key sentinel (appearance)
+After=mnt-voidkey.automount
+StartLimitIntervalSec=0
+
+[Path]
+PathExists=/mnt/voidkey/operator/void-gate.ok
+Unit=void-key-allow.service
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,13 @@
+groups:
+- name: void-proposer-ready
+  interval: 15s
+  rules:
+  - alert: VoidProposerNotReady
+    expr: (void:proposer_enabled_v2:last_2m{job="void-proposer-v3b"} < 1)
+       or (void:proposer_sample_age_s_v3b:last_2m{job="void-proposer-v3b"} > 120)
+       or (void:proposer_ms_drift_v2:1m{job="void-proposer-v3b"} > 100)
+    for: 4m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "Proposer not ready"
+      description: "enabled={{ $labels.instance }} {{ $value }}"

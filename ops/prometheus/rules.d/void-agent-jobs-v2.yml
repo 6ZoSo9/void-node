@@ -1,0 +1,6 @@
+groups:
+- name: void-agent-jobs-v2
+  interval: 15s
+  rules:
+  - record: void:agent_jobs_queued:last
+    expr: last_over_time(void_agent_jobs_queued_v2[2m])

@@ -1,0 +1,11 @@
+groups:
+- name: void-safeboot-up
+  interval: 15s
+  rules:
+  - alert: VoidSafeBootScrapeDown
+    expr: up{job="void-safeboot-health"} != 1
+    for: 1m
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "SAFEBOOT scrape down"
+      description: "Prometheus can't scrape 127.0.0.1:4100/health/safeboot.prom"

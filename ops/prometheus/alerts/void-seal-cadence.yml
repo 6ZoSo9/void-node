@@ -1,0 +1,19 @@
+groups:
+- name: void-seal-cadence-alerts
+  interval: 15s
+  rules:
+  - alert: VoidSealNoProgress
+    expr: void:header3:age_ms > 60000
+    for: 1m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "No new sealed block"
+      description: "Header3 has not advanced for >60s."
+
+  - alert: VoidSealTooSlow
+    expr: avg_over_time(void:header3:rate1m[5m]) < 0.03
+    for: 3m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Sealing rate too low"
+      description: "Avg sealing rate < 0.03/s (~<2/min) over 5m."

@@ -1,0 +1,6 @@
+groups:
+- name: void-system-green-parity
+  interval: 15s
+  rules:
+  - record: void:system:green_parity_mismatch
+    expr: (void:system:green > bool 0) != bool (void:system:green:v2 > bool 0)

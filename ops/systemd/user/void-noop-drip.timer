@@ -1,0 +1,10 @@
+[Unit]
+Description=Run noop-drip periodically
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=15s
+Unit=void-noop-drip.service
+
+[Install]
+WantedBy=default.target

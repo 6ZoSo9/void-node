@@ -1,0 +1,14 @@
+[Unit]
+Description=VOID proxy 4100 -> 4102
+After=void-node.service
+Requires=void-node.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+ExecStartPre=/bin/bash -lc 'fuser -k 4100/tcp || true'
+ExecStart=/usr/bin/node /home/zoso/.config/void/boot/ultra-proxy4100.js
+
+[Install]
+WantedBy=default.target

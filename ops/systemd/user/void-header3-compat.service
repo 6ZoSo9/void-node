@@ -1,0 +1,8 @@
+[Unit]
+Description=VOID header3 compat emitter (follower -> textfile)
+
+[Service]
+Type=oneshot
+Environment=FOLLOWER_HTTP=127.0.0.1:4101
+Environment=TEXTFILE_DIR=/var/lib/node_exporter/textfile_collector
+ExecStart=%h/.local/bin/void-header3-compat.sh

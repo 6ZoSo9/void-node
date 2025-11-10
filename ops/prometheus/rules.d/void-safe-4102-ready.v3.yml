@@ -1,0 +1,23 @@
+groups:
+- name: void-safe-4102-ready-v3
+  interval: 15s
+  rules:
+  # Scalar 0/1: has *any* native header3 sample seen >=1 in the last minute?
+  - record: void:safe4102_h3_native_seen_v3
+    expr: count(max_over_time(void_header3_last_number{job="void-safe-4102-header3"}[1m]) >= bool 1) > bool 0
+
+  # Scalar 0/1: has textfile header3 sample (from node_exporter) seen >=1 in the last minute?
+  - record: void:safe4102_h3_textfile_seen_v3
+    expr: count(max_over_time(void_header3_last_number_4102[1m]) >= bool 1) > bool 0
+
+  # Scalar 0/1: either source is true (no labels, single sample)
+  - record: void:safe4102_header3_checked_v3
+    expr: (void:safe4102_h3_native_seen_v3) or (void:safe4102_h3_textfile_seen_v3)
+
+  # Scalar >=0: head movement last 1m from textfile (aggregate to single sample)
+  - record: void:safe4102_head_progress_1m_v3
+    expr: max( max_over_time(void_head_number_4102[1m]) - min_over_time(void_head_number_4102[1m]) )
+
+  # Scalar 0/1: READY when header3 was observed AND head actually moved
+  - record: void:safe4102_ready_v3
+    expr: (void:safe4102_header3_checked_v3 == bool 1) and on() (void:safe4102_head_progress_1m_v3 >= bool 1)

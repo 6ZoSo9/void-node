@@ -1,0 +1,21 @@
+groups:
+- name: void-system-ok
+  interval: 15s
+  rules:
+  # txroot leg == 1 at least once in the last 60s
+  - record: void:txroot_ok:last
+    expr: max_over_time(void_txroot_health[60s])
+
+  # wal leg: brake==0 over last 60s → ok==1
+  - record: void:wal_ok:last
+    expr: 1 - max_over_time(void_wal_brake[60s])
+
+  # instant composite (no range here)
+  - record: void:system_ok:instant
+    expr: (void:txroot_ok:last > bool 0)
+          and on() (void:seals_ok:last > bool 0)
+          and on() (void:wal_ok:last > bool 0)
+
+  # window the instant signal to smooth blips
+  - record: void:system_ok:last
+    expr: min_over_time(void:system_ok:instant[60s])

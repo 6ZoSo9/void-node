@@ -1,0 +1,19 @@
+groups:
+- name: void-head-setter-alerts
+  interval: 5s
+  rules:
+  - alert: VoidHeadStalled
+    expr: void:head:last_30s:unchanged == 1
+    for: 30s
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "VOID head stalled ≥30s"
+      description: "Head didn't advance for 30s while filler should keep it moving."
+
+  - alert: VoidTxrootSetterLag
+    expr: void:setter:fresh == 0
+    for: 15s
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "TxRoot setter lagging head"
+      description: "Header txRoot not set for the latest block for ≥15s."

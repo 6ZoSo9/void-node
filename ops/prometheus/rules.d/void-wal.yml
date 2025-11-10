@@ -1,0 +1,14 @@
+groups:
+- name: void-wal
+  interval: 15s
+  rules:
+  # p95 over the last 2m for a gauge time-series
+  - record: void:wal_fsync_ms:p95_2m
+    expr: quantile_over_time(0.95, void_wal_fsync_ms[2m])
+  # last observed values over 2m
+  - record: void:wal_fsync_ms:last
+    expr: last_over_time(void_wal_fsync_ms[2m])
+  - record: void:wal_total_ms:last
+    expr: last_over_time(void_wal_total_ms[2m])
+  - record: void:node_rss_kb:last
+    expr: last_over_time(void_node_rss_kb[2m])

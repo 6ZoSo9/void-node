@@ -1,0 +1,8 @@
+[Unit]
+Description=Export void_head_number to node_exporter textfile
+
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+Environment=TEXTFILE_DIR=%h/.cache/node-exporter-textfile
+ExecStart=%h/.local/bin/void-head-textfile.sh

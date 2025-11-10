@@ -1,0 +1,18 @@
+groups:
+- name: void-follower
+  interval: 15s
+  rules:
+  - alert: VoidFollowerDrift
+    expr: max_over_time(void_follower_drift[2m]) > 0
+    for: 3m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Follower drift > 0"
+      description: "Follower is lagging the peer for >3m."
+  - alert: VoidFollowerStalled
+    expr: changes(void_follower_head_local[2m]) < 1 and increase(void_follower_head_peer[2m]) > 4
+    for: 2m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "Follower stalled"
+      description: "Peer is advancing but follower head not changing."

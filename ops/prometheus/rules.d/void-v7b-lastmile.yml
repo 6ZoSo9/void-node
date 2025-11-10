@@ -1,0 +1,10 @@
+groups:
+- name: void-v7b-lastmile
+  interval: 15s
+  rules:
+  - record: void:v7b:last_number
+    expr: last_over_time(void_txroot_forensics_last_number_v7b[2m])
+  - record: void:lastmile_b:inj_total
+    expr: last_over_time(void_lastmile_b_injected_total[2m])
+  - record: void:head:latest
+    expr: last_over_time(void_head_probe_last_number[2m])

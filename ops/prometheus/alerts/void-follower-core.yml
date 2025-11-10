@@ -1,0 +1,22 @@
+groups:
+- name: void-follower-core
+  interval: 15s
+  rules:
+  - alert: VoidFollowerHeader3Mismatch
+    # Only evaluate when we have a real number; fire if match==0 for 2m
+    expr: (void:header3:last_number:follower:effective >= 0)
+          and on()
+          ( last_over_time(void_header3_match{job=~"void-header3-follower|node"}[1m]) == 0 )
+    for: 2m
+    labels: {system: "void", severity: "high"}
+    annotations:
+      summary: "Follower header3 mismatch"
+      description: "header3 txroot mismatch persisted for 2m on 4101"
+
+  - alert: VoidFollowerTxrootHealthBad
+    expr: void:txroot_health:last:follower != 1
+    for: 1m
+    labels: {system: "void", severity: "high"}
+    annotations:
+      summary: "Follower txroot health bad"
+      description: "void_txroot_health != 1 for 1m on 4101"

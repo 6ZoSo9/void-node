@@ -1,0 +1,30 @@
+groups:
+- name: void-wal-brake-alerts
+  interval: 15s
+  rules:
+  # fsync pressure (pairs with your p95 + last)
+  - alert: VoidWalFsyncHigh
+    expr: (void:wal_fsync_ms:last) > 250
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "WAL fsync elevated"
+      description: "void_wal_fsync_ms > 250ms for 2m; possible disk pressure."
+
+  # brake engaged (should be rare)
+  - alert: VoidWalBrakeEngaged
+    expr: (void:wal_brake:last) == 1
+    for: 1m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "WAL autobrake engaged"
+      description: "Proposer auto-braked due to disk/memory pressure."
+
+  # frequent braking (flapping)
+  - alert: VoidWalBrakeFlapping
+    expr: (void:wal_brake_hits:rate1m) > 0
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "WAL autobrake flapping"
+      description: "Brake hit at least once per minute for 5m."

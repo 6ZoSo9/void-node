@@ -1,0 +1,11 @@
+groups:
+- name: void-seals-fresh
+  interval: 15s
+  rules:
+  - alert: VoidSealsStale
+    expr: (void:seals_fresh_s:last_2m > 120)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Seals stale"
+      description: "No new seal for > 2m (instance={{ $labels.instance }})"

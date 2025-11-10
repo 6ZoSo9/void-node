@@ -1,0 +1,13 @@
+groups:
+- name: void-txroot-health-v2-alerts
+  interval: 15s
+  rules:
+  - alert: VoidTxrootHealthV2Bad
+    expr: void:txroot_health_v2 != 1
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "TxRoot v2 health bad"
+      description: "Parity not matching or exporter stale for >2m."

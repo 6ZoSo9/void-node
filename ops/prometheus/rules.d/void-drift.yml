@@ -1,0 +1,12 @@
+groups:
+- name: void-drift
+  interval: 15s
+  rules:
+  - record: void:head:main_pin
+    expr: void:headsafe:last
+  - record: void:head:follower_eff
+    expr: void:header3:last_number:follower:effective
+  - record: void:drift:follower_vs_main
+    expr: void:head:main_pin - void:head:follower_eff
+  - record: void:follower:adv_rate1m
+    expr: rate(void:header3:last_number:follower:effective[1m])

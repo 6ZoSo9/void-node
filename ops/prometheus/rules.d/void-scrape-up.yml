@@ -1,0 +1,6 @@
+groups:
+- name: void-scrape-up
+  interval: 15s
+  rules:
+  - record: void:last_up:1m
+    expr: last_over_time(up{job=~"void-(proposer-head|follower-v4)"}[1m])

@@ -1,0 +1,15 @@
+groups:
+- name: void-proposer-exporter-stale
+  interval: 15s
+  rules:
+  - alert: VoidProposerExporterStale
+    expr: |
+      (void_proposer_auto_enabled_v2 == 1)
+      and (time() - void_proposer_exporter_ts_ms_v2/1000 > 120)
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Proposer exporter stale"
+      description: "Exporter timestamp is stale >120s while proposer is enabled."

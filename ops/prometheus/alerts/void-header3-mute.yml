@@ -1,0 +1,5 @@
+groups:
+- name: void-header3-mute
+  rules:
+  - alert: VoidHeader3DownMuted
+    expr: 0  # keep file present but no firing rules for header3 in SAFEBOOT

@@ -1,0 +1,7 @@
+[Unit]
+Description=VOID header3 v2 textfile shim
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+Environment=TEXTFILE_DIR=/var/lib/node_exporter/textfile_collector
+ExecStart=%h/.local/bin/void-header3-textfile.sh

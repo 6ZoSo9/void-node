@@ -1,0 +1,20 @@
+groups:
+- name: void-pillars
+  interval: 15s
+  rules:
+  - record: void:pillar_ok
+    labels: { pillar: "ready" }
+    expr: void:ready_v2:last_2m
+  - record: void:pillar_ok
+    labels: { pillar: "header3" }
+    expr: void:header3_ok:last_2m
+  - record: void:pillar_ok
+    labels: { pillar: "txroot" }
+    expr: void:txroot_health:last_2m
+  - record: void:pillar_ok
+    labels: { pillar: "seals" }
+    expr: void:seals_ok_v2:last_2m
+
+  # How many pillars are currently OK (expect 4)
+  - record: void:pillars_ok_count
+    expr: sum(void:pillar_ok)

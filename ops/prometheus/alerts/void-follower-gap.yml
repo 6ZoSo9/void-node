@@ -1,0 +1,19 @@
+groups:
+- name: void-follower-gap-alerts
+  interval: 15s
+  rules:
+  - alert: VoidFollowerGapLarge
+    expr: void:follower_gap:abs > 50
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Follower gap >50 blocks"
+      description: "safe-4102 is >50 blocks behind main 4100 for 2m."
+
+  - alert: VoidFollowerStale
+    expr: void:header3:age_ms:safe > 120000
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Follower not advancing"
+      description: "safe-4102 header3 age >120s."

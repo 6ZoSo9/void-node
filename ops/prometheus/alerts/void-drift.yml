@@ -1,0 +1,19 @@
+groups:
+- name: void-drift
+  interval: 15s
+  rules:
+  - alert: VoidFollowerDriftTooHigh
+    expr: void:drift:follower_vs_main > 64
+    for: 5m
+    labels: {system: "void", severity: "high"}
+    annotations:
+      summary: "Follower drift > 64 blocks"
+      description: "Follower is >64 blocks behind SAFEBOOT pin."
+
+  - alert: VoidFollowerStalled
+    expr: clamp_min(void:follower:adv_rate1m, 0) == 0
+    for: 2m
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "Follower stalled"
+      description: "Follower head not advancing for 2m."

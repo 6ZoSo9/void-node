@@ -1,0 +1,14 @@
+groups:
+- name: void-txroot-last
+  rules:
+  - alert: VoidTxRootLastStalled
+    expr: (void:txroot_last:stalled_2m == 1) and on(job,instance,env) (void:txroot_last_seen:now == 1)
+    for: 4m
+    labels:
+      system: void
+      severity: warning
+    annotations:
+      summary: "TxRoot last-block stalled ({{ $labels.instance }})"
+      description: |
+        void_txroot_last_block has not advanced for 2m (job={{ $labels.job }}, instance={{ $labels.instance }}).
+        Root label: {{ $labels.root }}

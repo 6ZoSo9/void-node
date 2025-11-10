@@ -1,0 +1,13 @@
+groups:
+- name: void-system-ok
+  interval: 15s
+  rules:
+  - alert: VoidSystemNotOk
+    expr: (void:system_ok:last) == 0
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "VOID system not OK"
+      description: "Composite leg is 0 for >=2m (txroot/seals/wal). Investigate exporters and journal."

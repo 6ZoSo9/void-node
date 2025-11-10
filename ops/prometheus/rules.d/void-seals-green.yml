@@ -1,0 +1,10 @@
+groups:
+- name: void-seals-green
+  interval: 15s
+  rules:
+  - record: void:seals_last
+    expr: max by(job,instance) (void_seal_last_number{job=~".*seals.*"})
+  - record: void:seals_rate1m
+    expr: rate(void_seal_last_number{job=~".*seals.*"}[1m])
+  - record: void:seals_fresh_s:last_2m
+    expr: time() - max by(job,instance) (timestamp(void_seal_last_number{job=~".*seals.*"}))

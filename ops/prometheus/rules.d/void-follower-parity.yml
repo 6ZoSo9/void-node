@@ -1,0 +1,6 @@
+groups:
+- name: void-follower-parity
+  interval: 15s
+  rules:
+  - record: void:header3:parity:follower:effective
+    expr: clamp_max( max by () ( last_over_time(void_header3_match{job=~"void-header3-follower|node"}[1m]) ), 1)

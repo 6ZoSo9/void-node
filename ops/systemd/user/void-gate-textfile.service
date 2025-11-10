@@ -1,0 +1,12 @@
+[Unit]
+Description=Publish VOID gate sentinel to node_exporter textfile
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc '~/.local/bin/void-gate-textfile.sh; while :; do sleep 10; ~/.local/bin/void-gate-textfile.sh; done'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

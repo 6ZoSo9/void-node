@@ -1,0 +1,11 @@
+groups:
+- name: void-txroot-bridge-gap
+  interval: 15s
+  rules:
+  - alert: VoidTxRootBridgeLag
+    expr: (max(void_head_number) - max(void_core2_bridge_last_set_block)) >= 5
+    for: 2m
+    labels: {severity: warn, system: void}
+    annotations:
+      summary: txroot setter lagging (bridge)
+      desc: head - bridge_last_set_block >= 5 for 2m

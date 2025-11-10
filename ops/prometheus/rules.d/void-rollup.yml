@@ -1,0 +1,10 @@
+groups:
+- name: void-rollup
+  interval: 15s
+  rules:
+  - record: void:rollup_green:textfile
+    expr: max(void_rollup_green)
+  - record: void:rollup:pillars_ok_count:textfile
+    expr: max(void_pillars_ok_count)
+  - record: void:rollup:lag_to_head:textfile
+    expr: max(void_lag_to_head)

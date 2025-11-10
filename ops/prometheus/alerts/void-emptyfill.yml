@@ -1,0 +1,21 @@
+groups:
+- name: void-emptyfill-alerts
+  interval: 15s
+  rules:
+  # If the worker hasn't injected in >2m, something's off (or mempool isn't empty often).
+  - alert: VoidEmptyfillStalled
+    expr: (last_over_time(void_emptyfill_injected[2m]) == 0)
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Emptyfill stalled"
+      description: "No injections observed for >2m."
+
+  # If we're spamming fillers faster than ~2/min over 5m, probably a loop or bad signal.
+  - alert: VoidEmptyfillTooFast
+    expr: avg_over_time(void:emptyfill:rate1m[5m]) > 0.0333
+    for: 3m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Emptyfill running too frequently"
+      description: "Avg rate >2 per minute for 5m."

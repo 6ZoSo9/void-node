@@ -1,0 +1,25 @@
+groups:
+- name: void-agent-receipts-byid
+  interval: 15s
+  rules:
+  # If a specific agent stops reporting successes for 2m
+  - alert: VoidAgentReceiptByIdCoverageLow
+    expr: void_agent_receipts_coverage{job="void-agent-receipts-byid"} == 0
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Agent {{ $labels.id }} receipts stale"
+      description: "No successful receipts from {{ $labels.id }} in last 60s (held 2m)."
+
+  # Error rate spikes per-id
+  - alert: VoidAgentReceiptByIdErrorsHigh
+    expr: rate(void_agent_receipts_err_total{job="void-agent-receipts-byid"}[5m]) > 0
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Agent {{ $labels.id }} posting errors"
+      description: "Non-zero error rate for {{ $labels.id }} (5m window)."

@@ -1,0 +1,11 @@
+groups:
+- name: void-v7-guard-slo
+  interval: 1m
+  rules:
+  - alert: VoidV7GuardNoBlocksSLO
+    expr: increase(void_v7_guard_blocks_total[24h]) > 0
+    for: 0m
+    labels: { severity: info, system: void }
+    annotations:
+      summary: "v7 firewall was exercised in last 24h"
+      description: "Someone hit a legacy v7 route. Investigate clients and purge."

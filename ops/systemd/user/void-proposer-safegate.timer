@@ -1,0 +1,11 @@
+[Unit]
+Description=Run SafeGate every 10s
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=10s
+AccuracySec=2s
+Unit=void-proposer-safegate.service
+
+[Install]
+WantedBy=default.target

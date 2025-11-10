@@ -1,0 +1,19 @@
+groups:
+- name: void-follower-v4-alerts
+  interval: 15s
+  rules:
+  - alert: VoidFollowerV4ScrapeMissing
+    expr: up{job="void-follower-v4"} == 0
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Follower exporter missing"
+      description: "Prometheus cannot scrape follower drift exporter (void-follower-v4)."
+
+  - alert: VoidFollowerDriftNonZero
+    expr: (void:follower_drift:last_2m) != 0
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Follower drift > 0 for 2m"
+      description: "Follower head is behind peer for 2 minutes."

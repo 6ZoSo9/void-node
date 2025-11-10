@@ -1,0 +1,10 @@
+groups:
+- name: void-agent-receipts-byid-mini
+  interval: 15s
+  rules:
+  - record: void:agent_receipts_byid:ok_rate1m
+    expr: sum by (id) (rate(void_agent_receipts_ok_total{job="void-agent-receipts-byid"}[1m]))
+  - record: void:agent_receipts_byid:err_rate1m
+    expr: sum by (id) (rate(void_agent_receipts_err_total{job="void-agent-receipts-byid"}[1m]))
+  - record: void:agent_receipts_byid:coverage:last_2m
+    expr: last_over_time(void_agent_receipts_coverage{job="void-agent-receipts-byid"}[2m])

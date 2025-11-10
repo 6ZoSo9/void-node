@@ -1,0 +1,7 @@
+groups:
+- name: void-overall-qol
+  interval: 15s
+  rules:
+  # 1 if any overall_green==0 in the last 5m window
+  - record: void:overall_red_5m
+    expr: 1 - min_over_time(max(void:overall_green)[5m:])

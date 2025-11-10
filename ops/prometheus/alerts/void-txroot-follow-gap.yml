@@ -1,0 +1,10 @@
+groups:
+- name: void-txroot-follow-gap
+  rules:
+  - alert: VoidTxrootFollowerLagging
+    expr: void:txroot:saves_gap_1m > 0.5
+    for: 3m
+    labels: { severity: warning }
+    annotations:
+      summary: "Follower lagging behind txroot saves"
+      description: "Gap (main - follower) > 0.5/s for 2m. Check follower loop and peer connectivity."

@@ -1,0 +1,30 @@
+groups:
+- name: void-breadcrumbs-stall
+  interval: 15s
+  rules:
+  # Head moving but seals not → gap growing silently
+  - alert: VoidSealsStalledWhileHeadAdvances
+    expr: (void:head:rate1m:textfile > 0) and (void:seals_last:rate1m:textfile == 0)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Seals stalled while head advances"
+      description: "head is advancing but seals_last is not (2m)"
+
+  # Seals moving but head not → exporter/setter issue
+  - alert: VoidHeadStalledWhileSealsAdvance
+    expr: (void:seals_last:rate1m:textfile > 0) and (void:head:rate1m:textfile == 0)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Head stalled while seals advance"
+      description: "seals_last is advancing but head is not (2m)"
+
+  # Optional: lag ceiling (if it ever drifts above X)
+  - alert: VoidLagToHeadHighTextfile
+    expr: (void:lag_to_head:textfile > 5)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Lag to head high (textfile)"
+      description: "void_lag_to_head={{ $value }} (>5 for 2m)"

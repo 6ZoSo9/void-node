@@ -1,0 +1,13 @@
+groups:
+- name: void-esm-shim
+  interval: 30s
+  rules:
+  - record: void:esm_shim_version:last
+    expr: last_over_time(void_esm_crypto_shim_version[2m])
+  - alert: VoidEsmShimVersionBad
+    expr: (void:esm_shim_version:last) != 3
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "ESM crypto shim version is not 3"
+      description: "Expected 3 (non-recursive). Current: {{ $value }}"

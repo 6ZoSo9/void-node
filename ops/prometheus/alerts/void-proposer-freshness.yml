@@ -1,0 +1,14 @@
+groups:
+- name: void-proposer-freshness
+  interval: 15s
+  rules:
+  - alert: VoidProposerExporterGettingStale
+    # Fire a *gentle* heads-up if exporter age > 60s for 1m
+    expr: (void:proposer_sample_age_s_v3b:last_2m > 60)
+    for: 3m
+    labels:
+      severity: info
+      system: void
+    annotations:
+      summary: "Proposer exporter is getting stale (>60s)"
+      description: "Sample age has exceeded 60s for at least 1 minute. Health v3b will page at 120s."

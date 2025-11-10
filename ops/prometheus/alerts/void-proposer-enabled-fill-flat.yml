@@ -1,0 +1,13 @@
+groups:
+- name: void-proposer-enabled-fill-flat
+  interval: 15s
+  rules:
+  - alert: VoidProposerEnabledFillAndFlat
+    expr: |
+      (void_proposer_auto_enabled_v2 == 1)
+      and (changes(void_head_number[2m]) == 0)
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Proposer enabled + fill=true but head flat"
+      description: "Head hasn't changed for 2m while auto is on and fill=true; nudge/inspect."

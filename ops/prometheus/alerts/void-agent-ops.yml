@@ -1,0 +1,21 @@
+groups:
+- name: void-agent-ops-alerts
+  interval: 15s
+  rules:
+  # Receipts enabled but no new receipts for 15m
+  - alert: VoidAgentPipelineStale
+    expr: (void:agent_receipts:enabled == 1) and (void:agent_jobs_rate1m <= 0)
+    for: 15m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Agent receipts not advancing"
+      description: "Receipts enabled but no new jobs in 15m."
+
+  # Blocked spikes: sustained deny attempts
+  - alert: VoidAgentBlockedSurge
+    expr: void:agent_wrap_block_rate1m > 0.2
+    for: 5m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Agent blocked surge"
+      description: "wrap_blocked_total rising (>0.2/s over 1m) for 5m."

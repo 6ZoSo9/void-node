@@ -1,0 +1,11 @@
+groups:
+- name: void-textfile-ages
+  interval: 15s
+  rules:
+  - alert: VoidRollupTextfileStale
+    expr: (void:rollup_age_seconds > 180)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "rollup textfile stale"
+      description: "void_rollup.prom older than 3m (age={{ $value }}s)"

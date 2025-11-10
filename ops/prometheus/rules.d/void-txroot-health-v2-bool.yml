@@ -1,0 +1,6 @@
+groups:
+- name: void-txroot-health-v2-bool
+  interval: 15s
+  rules:
+  - record: void:txroot_health_v2_bool
+    expr: (void:txroot_health_v2 > 0)

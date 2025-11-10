@@ -1,0 +1,11 @@
+groups:
+- name: void-proposer-ms-drift
+  interval: 15s
+  rules:
+  - alert: VoidProposerMsDrift
+    expr: (void:proposer_ms_drift_v2:1m > 100)
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Proposer tick drift >100ms"
+      description: "Current drift: {{ $value | printf \"%.0f\" }}ms"

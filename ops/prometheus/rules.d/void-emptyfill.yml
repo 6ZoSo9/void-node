@@ -1,0 +1,10 @@
+groups:
+- name: void-emptyfill
+  interval: 5s
+  rules:
+  - record: void:emptyfill:injected_1m
+    expr: increase(void_emptyfill_injected_total[1m])
+  - record: void:emptyfill:rate1m
+    expr: rate(void_emptyfill_injected_total[1m])
+  - record: void:emptyfill:last
+    expr: last_over_time(void_emptyfill_injected[2m])

@@ -1,0 +1,11 @@
+groups:
+- name: void-lag
+  interval: 15s
+  rules:
+  - alert: VoidLagHigh
+    expr: max(void_lag_to_head) > 5
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Lag to head high"
+      description: "void_lag_to_head > 5 for 2m (lag={{ $value }})"

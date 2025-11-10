@@ -1,0 +1,13 @@
+groups:
+- name: void-scrape-up-alerts
+  interval: 15s
+  rules:
+  - alert: VoidScrapeDown
+    expr: void:last_up:1m{job=~"void-(proposer-head|follower-v4)"} == 0
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Scrape down: {{ $labels.job }}"
+      description: "Job {{ $labels.job }} has been down for 2 minutes."

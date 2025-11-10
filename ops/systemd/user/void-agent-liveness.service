@@ -1,0 +1,13 @@
+[Unit]
+Description=VOID Agent - Liveness Probe
+
+[Service]
+Type=oneshot
+Environment=API=http://127.0.0.1:4100
+Environment=ID=agent:liveness:v0
+Environment=TOK_FILE=/mnt/voidkey/operator/void-agent.env
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=DEBUG=1
+ExecStart=%h/.local/bin/void-agent-liveness.wrapper.sh
+StandardOutput=journal
+StandardError=journal

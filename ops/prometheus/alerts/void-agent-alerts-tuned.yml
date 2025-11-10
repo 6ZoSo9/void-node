@@ -1,0 +1,28 @@
+groups:
+- name: void-agent-alerts-tuned
+  interval: 15s
+  rules:
+  # Stall = queue consistently non-zero AND no completions over a generous window
+  - alert: VoidAgentStall
+    expr: (void:agent_queue_depth:avg_1m > 0) and (void:agent_completed_rate2m <= 0)
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Agent stall (queue non-zero, no completions)"
+      description: "Queue (avg 1m) > 0 with 0 completion rate for 2 minutes."
+
+  - alert: VoidAgentDLQ
+    expr: increase(void_agent_dlq_total[5m]) > 0
+    for: 0m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Agent DLQ activity"
+      description: "Jobs moved to dead-letter in last 5m."
+
+  - alert: VoidAgentLeaseChurn
+    expr: increase(void_agent_leases_expired[5m]) > 5
+    for: 0m
+    labels: { severity: info, system: void }
+    annotations:
+      summary: "Agent lease expirations > 5 / 5m"
+      description: "Investigate worker heartbeats/LEASE_MS."

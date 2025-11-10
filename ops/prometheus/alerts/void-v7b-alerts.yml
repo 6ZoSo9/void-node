@@ -1,0 +1,25 @@
+groups:
+- name: void-v7b-alerts
+  interval: 15s
+  rules:
+  - alert: VoidV7bHeadNotAdvancing
+    expr: increase(void:v7b:last_number[5m]) < 1
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "V7b head not advancing"
+      description: "v7b last_number did not move in 5m."
+  - alert: VoidLastmileNoInjection
+    expr: increase(void:lastmile_b:inj_total[5m]) < 1
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Last-mile not injecting"
+      description: "No new injections observed in 5m."
+  - alert: VoidHeadProbeSkew
+    expr: (void:head:latest - void:v7b:last_number) > 2
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Head probe vs v7b skew"
+      description: "v7b trails head-probe by >2 blocks for 2m."

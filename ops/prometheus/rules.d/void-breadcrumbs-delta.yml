@@ -1,0 +1,10 @@
+groups:
+- name: void-breadcrumbs-delta
+  interval: 15s
+  rules:
+  - record: void:head:rate1m:textfile
+    expr: rate(void_head_number[1m])
+  - record: void:seals_last:rate1m:textfile
+    expr: rate(void_seals_last[1m])
+  - record: void:lag_to_head:textfile
+    expr: max(void_lag_to_head)

@@ -1,0 +1,10 @@
+groups:
+- name: void-safeboot-parity
+  interval: 15s
+  rules:
+  - record: void:headsafe:last
+    expr: last_over_time(void_headsafe_number[45s])
+  - record: void:headsafe:parity
+    expr: (void:headsafe:last == bool 694)
+  - record: void:proposer_fresh_safe   # SAFEBOOT has no proposer; keep this 0 for visibility
+    expr: 0

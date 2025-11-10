@@ -1,0 +1,8 @@
+[Unit]
+Description=VOID Prometheus snapshot + prune
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/dev/void-node
+ExecStart=%h/dev/void-node/ops/prom-snap.sh
+ExecStartPost=%h/dev/void-node/ops/prom-prune.sh 12

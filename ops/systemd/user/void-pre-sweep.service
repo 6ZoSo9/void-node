@@ -1,0 +1,6 @@
+[Unit]
+Description=VOID pre-sweep ports (clear stale listeners)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/void-kill-port-owners.sh ignore 4100 4700 4101 4701

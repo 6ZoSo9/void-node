@@ -1,0 +1,15 @@
+[Unit]
+Description=VOID Attach HTTP (%i)
+After=default.target
+
+[Service]
+Type=simple
+Environment=HTTP_PORT=4310
+Environment=DATA_DIR=%h/dev/void-node/%i
+ExecStart=/bin/bash -lc 'exec npx --yes tsx src/http/api_attach.ts'
+WorkingDirectory=%h/dev/void-node.safe
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

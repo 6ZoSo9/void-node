@@ -1,0 +1,27 @@
+groups:
+- name: void-ro-proxy
+  interval: 15s
+  rules:
+  - alert: VoidROProxyBlockedWrites
+    expr: rate(void_ro_proxy_blocked_writes_total[1m]) > 0
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "RO proxy blocked write(s)"
+      description: "Non-GET/HEAD requests are hitting 4102."
+
+  - alert: VoidROProxyBlockedSurge
+    expr: rate(void_ro_proxy_blocked_writes_total[30s]) > 5
+    for: 30s
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "RO proxy blocked write surge >5/s"
+      description: "Sustained surge of blocked writes to 4102."
+
+  - alert: VoidROProxyHighBlockedRatio
+    expr: void:ro_proxy:blocked_ratio1m > 0.05
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "RO proxy blocked ratio >5%"
+      description: "More than 5% of requests to 4102 are blocked writes over 5m."

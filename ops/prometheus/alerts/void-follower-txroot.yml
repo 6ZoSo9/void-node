@@ -1,0 +1,11 @@
+groups:
+- name: void-follower-txroot-alerts
+  interval: 15s
+  rules:
+  - alert: VoidFollowerTxrootMismatch
+    expr: void:follower_txroot_mismatch:inc_2m > 0
+    for: 1m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "Follower txroot mismatch detected"
+      description: "Follower computed txroot disagrees with header at least once in the last 2m."

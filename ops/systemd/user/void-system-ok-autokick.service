@@ -1,0 +1,7 @@
+[Unit]
+Description=VOID system_ok autokick (gated, backoff)
+After=default.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -lc '~/.local/bin/void-system-ok-autokick.sh'

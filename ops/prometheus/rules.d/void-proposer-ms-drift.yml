@@ -1,0 +1,6 @@
+groups:
+- name: void-proposer-ms-drift
+  interval: 15s
+  rules:
+  - record: void:proposer_ms_drift_v2:1m
+    expr: abs(void_proposer_auto_ms_v2{job="void-proposer-v3b"} - 2000)

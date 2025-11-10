@@ -1,0 +1,27 @@
+groups:
+- name: void-p2p-mini
+  interval: 15s
+  rules:
+  - alert: VoidP2PMiniNoScrape
+    expr: p2p:mini:up == 0
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "p2p-mini scrape is DOWN"
+      description: "Prometheus cannot scrape /metrics/p2p/mini.prom (job=void-p2p-mini) for 2m."
+
+  - alert: VoidP2PMiniHandshakeStale
+    expr: p2p:mini:last_handshake_age_seconds > 600
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "p2p-mini handshake stale"
+      description: "Last handshake older than 10 minutes."
+
+  - alert: VoidP2PMiniPeersZero
+    expr: p2p:mini:peers == 0
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "p2p-mini peers == 0"
+      description: "No peers reported by mini P2P exporter for 5m."

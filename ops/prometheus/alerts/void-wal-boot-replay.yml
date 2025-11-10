@@ -1,0 +1,11 @@
+groups:
+- name: void-wal-boot-replay
+  interval: 15s
+  rules:
+  - alert: VoidWalBootReplayFailed
+    expr: last_over_time(void_wal_boot_replay_ok[2m]) < 1
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "WAL boot replay failed"
+      description: "Auto-replay at boot did not succeed in the last 2m."

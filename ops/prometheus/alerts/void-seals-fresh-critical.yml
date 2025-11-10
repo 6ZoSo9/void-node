@@ -1,0 +1,11 @@
+groups:
+- name: void-seals-fresh-critical
+  interval: 15s
+  rules:
+  - alert: VoidSealsStaleCritical
+    expr: (void:seals_fresh_s:last_2m > 600)
+    for: 3m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "Seals stale (critical)"
+      description: "No new seal for > 10m (instance={{ $labels.instance }})"

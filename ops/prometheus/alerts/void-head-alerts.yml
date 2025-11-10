@@ -1,0 +1,10 @@
+groups:
+- name: void-head-alerts
+  rules:
+  - alert: VoidHeadStalled
+    expr: (rate(void_head_number[90s]) < 0.01) or (void:head:age_s > 90)
+    for: 4m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Head stalled"
+      description: "No head advance for ~90s. Check proposer, mempool, follower."

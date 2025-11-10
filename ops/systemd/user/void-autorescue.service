@@ -1,0 +1,7 @@
+[Unit]
+Description=VOID autorescue (gated)
+After=default.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -lc '~/.local/bin/void-autorescue.sh'

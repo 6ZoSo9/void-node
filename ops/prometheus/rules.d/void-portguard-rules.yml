@@ -1,0 +1,6 @@
+groups:
+- name: void-portguard-rules
+  interval: 15s
+  rules:
+  - record: void:portguard_violation:last
+    expr: last_over_time(void_portguard_violation[2m])

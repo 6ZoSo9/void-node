@@ -1,0 +1,13 @@
+groups:
+- name: void-scrape-freshness-alerts
+  interval: 15s
+  rules:
+  - alert: VoidExporterStale
+    expr: void:scrape_age_seconds:1m{job=~"void-(proposer-head|follower-v4)"} > 90
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Stale exporter: {{ $labels.job }}"
+      description: "No fresh samples for {{ $labels.job }} in >90s (age={{ $value }}s)."

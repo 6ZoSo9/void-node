@@ -1,0 +1,11 @@
+groups:
+- name: void-wal-replay
+  interval: 15s
+  rules:
+  - alert: VoidWalReplayNeverRan
+    expr: max_over_time(void_wal_last_replay_ms[5m]) < 0
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "WAL replay has not run"
+      description: "void_wal_last_replay_ms stayed -1 over 5m window."

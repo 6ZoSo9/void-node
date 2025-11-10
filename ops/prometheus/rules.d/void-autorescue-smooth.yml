@@ -1,0 +1,10 @@
+groups:
+- name: void-autorescue-smooth
+  interval: 15s
+  rules:
+  - record: void:autorescue:ok:last
+    expr: last_over_time(void_autorescue_ok[2m])
+  - record: void:autorescue:stall:last
+    expr: last_over_time(void_autorescue_stall[2m])
+  - record: void:autorescue:fired1m
+    expr: increase(void_autorescue_fired_total[1m])

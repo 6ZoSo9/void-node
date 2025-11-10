@@ -1,0 +1,14 @@
+groups:
+- name: void-proposer-stall-head
+  interval: 15s
+  rules:
+  - alert: VoidProposerEnabledButNoHeadProgressByHeadGauge
+    expr: |
+      max(max_over_time(void_proposer_auto_enabled_v2{job="void-proposer-v3b"}[30s])) == 1
+      and
+      (sum(increase(void_head_number[30s])) or on() vector(0)) < 3
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Proposer enabled but head not advancing (head gauge)"
+      description: "Enabled in last 30s, but head advanced <3. Check tick/env and WAL."

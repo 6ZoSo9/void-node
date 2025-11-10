@@ -1,0 +1,12 @@
+groups:
+- name: void-v7
+  interval: 15s
+  rules:
+  - record: void:v7_quarantined_ips
+    expr: (count(void_v7_cost_quarantined == 1)) or vector(0)
+
+  - record: void:v7_blocks_rate1m
+    expr: (sum(rate(void_v7_cost_blocks_total[1m]))) or vector(0)
+
+  - record: void:v7_delay_ms_rate1m
+    expr: (sum(rate(void_v7_cost_delay_ms_total[1m]))) or vector(0)

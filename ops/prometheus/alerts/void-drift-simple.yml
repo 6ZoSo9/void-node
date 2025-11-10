@@ -1,0 +1,12 @@
+groups:
+- name: void-follower-drift-simple
+  interval: 15s
+  rules:
+  - alert: VoidFollowerDriftSimple
+    expr: up{job="void-follower-v4",env="dev"} == 1
+      and void:follower_drift:last_2m > 0
+    for: 4m
+    labels: { severity: info }
+    annotations:
+      summary: "VOID follower drift > 0 (simple)"
+      description: "Drift observed >0 over the last 2 minutes."

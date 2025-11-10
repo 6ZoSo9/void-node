@@ -1,0 +1,11 @@
+groups:
+- name: void-ready-v2
+  interval: 15s
+  rules:
+  - alert: VoidReadyV2Bad
+    expr: (void:ready_v2:last_2m{job="void-ready-v2"} < 1)
+    for: 3m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "VOID node not ready"
+      description: "Combined readiness is 0 for >1m (job={{ $labels.job }}, instance={{ $labels.instance }})"

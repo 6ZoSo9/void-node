@@ -1,0 +1,9 @@
+[Unit]
+Description=Update void_head_number textfile every 10s
+
+[Timer]
+OnBootSec=5
+OnUnitActiveSec=10
+
+[Install]
+WantedBy=default.target

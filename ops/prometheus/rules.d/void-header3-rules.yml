@@ -1,0 +1,12 @@
+groups:
+- name: void-header3-rules
+  interval: 5s
+  rules:
+  - record: void_header3:last_number
+    expr: max_over_time(void_header3_last_number[20s])
+
+  - record: void_head:last_number
+    expr: max_over_time(void_head_number[20s])
+
+  - record: void_header3:gap
+    expr: (max by() (void_head:last_number) - max by() (void_header3:last_number))

@@ -1,0 +1,12 @@
+groups:
+- name: void-seal-cadence
+  interval: 15s
+  rules:
+  - record: void:header3:last_number
+    expr: max_over_time(void_header3_last_number[30s])
+  - record: void:header3:rate1m
+    expr: rate(void_header3_last_number[1m])
+  - record: void:header3:last_ts_ms
+    expr: max_over_time(void_header3_last_ts_ms[30s])
+  - record: void:header3:age_ms
+    expr: (time() * 1000) - void:header3:last_ts_ms

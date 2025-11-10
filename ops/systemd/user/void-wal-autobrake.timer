@@ -1,0 +1,8 @@
+[Unit]
+Description=Run WAL auto-brake every 10s
+[Timer]
+OnBootSec=12s
+OnUnitActiveSec=10s
+Unit=void-wal-autobrake.service
+[Install]
+WantedBy=default.target

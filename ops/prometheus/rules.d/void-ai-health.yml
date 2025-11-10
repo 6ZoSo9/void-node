@@ -1,0 +1,6 @@
+groups:
+- name: void-ai-health
+  interval: 15s
+  rules:
+  - record: void:ai_health:last
+    expr: last_over_time(void_ai_health[2m])

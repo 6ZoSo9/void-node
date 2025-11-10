@@ -1,0 +1,9 @@
+groups:
+- name: void-txroot-bridge-green
+  interval: 15s
+  rules:
+  # Green when: small gap (<=1 block) AND fresh age (<20s).
+  - record: void:txroot_bridge:green
+    expr: (void:txroot_bridge:last_set_gap_blocks <= bool 1)
+          and on()
+          (void:txroot_bridge:last_set_age_s < bool 20)

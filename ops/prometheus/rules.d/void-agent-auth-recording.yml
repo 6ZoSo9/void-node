@@ -1,0 +1,8 @@
+groups:
+- name: void-agent-auth
+  interval: 15s
+  rules:
+  - record: void:agent_auth_configured:last
+    expr: last_over_time(void_agent_auth_configured[2m])
+  - record: void:agent_jobs_queued:last
+    expr: last_over_time(void_agent_jobs_queued[2m])

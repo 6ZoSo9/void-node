@@ -1,0 +1,9 @@
+groups:
+- name: void-system-green-hard
+  interval: 15s
+  rules:
+  - record: void:system:green:hard
+    expr: clamp_min(
+            (void:system:green:v2 > bool 0)
+            and (void:txroot_bridge:green == bool 1)
+            and (void:head:adv_ok_scalar == bool 1), 0)

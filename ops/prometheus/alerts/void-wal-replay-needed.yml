@@ -1,0 +1,11 @@
+groups:
+- name: void-wal-replay-needed
+  interval: 15s
+  rules:
+  - alert: VoidWalReplayNeeded
+    expr: max(void_wal_replay_needed) == 1
+    for: 1m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "WAL requires replay"
+      description: "Journal signals torn tail or unapplied entries."

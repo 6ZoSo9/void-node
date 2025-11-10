@@ -1,0 +1,10 @@
+groups:
+- name: void-agent-receipts-cov
+  interval: 15s
+  rules:
+  - record: void:agent_receipts_coverage
+    expr: void_agent_receipts_coverage
+  - record: void:agent_results_unique_total
+    expr: void_agent_results_unique_total
+  - record: void:agent_receipts_covered
+    expr: void_agent_receipts_covered

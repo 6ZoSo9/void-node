@@ -1,0 +1,11 @@
+groups:
+- name: void-head-stall
+  interval: 15s
+  rules:
+  - alert: VoidHeadStalled
+    expr: (max_over_time(void_head_number[45s]) - min_over_time(void_head_number[45s])) == 0
+    for: 0m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "VOID head stalled"
+      description: "No head movement in the last 45s on safe-4100."

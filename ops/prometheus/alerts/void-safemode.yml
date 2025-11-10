@@ -1,0 +1,11 @@
+groups:
+- name: void-safemode
+  interval: 15s
+  rules:
+  - alert: VoidSafeModeActive
+    expr: (void:safemode:on) == 1
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "VOID node in read-only safe-mode"
+      description: "WAL indicates replay or safe-mode forced; writes are blocked."

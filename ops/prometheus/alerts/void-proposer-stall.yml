@@ -1,0 +1,14 @@
+groups:
+- name: void-proposer-stall
+  interval: 15s
+  rules:
+  - alert: VoidProposerEnabledButNoHeadProgress
+    expr: |
+      max(max_over_time(void_proposer_auto_enabled_v2{job="void-proposer-v3b"}[30s])) == 1
+      and
+      (sum(increase(void_seal_last_number{job=~"void-seals.*"}[30s])) or on() vector(0)) < 3
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Proposer enabled but head not advancing"
+      description: "Enabled in last 30s, but sealed blocks <3 in 30s. Check tick/env and WAL."

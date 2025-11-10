@@ -1,0 +1,12 @@
+groups:
+- name: void-queue
+  interval: 15s
+  rules:
+  - alert: VoidQueueNotDraining
+    expr: avg_over_time(void_queue_size[5m]) > 0
+          and increase(void_txroot_forensics_calls_v7[5m]) > 0
+    for: 5m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Queue not draining"
+      description: "Queue stays >0 while seals occur."

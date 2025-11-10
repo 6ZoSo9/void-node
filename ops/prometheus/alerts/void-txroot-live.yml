@@ -1,0 +1,11 @@
+groups:
+- name: void-txroot-live-alerts
+  interval: 15s
+  rules:
+  - alert: VoidTxRootStuck
+    expr: (void:txroot_live:last_2m) < 1
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "TxRoot not healthy"
+      description: "void_txroot_live < 1 for 2m. Use /blocks/:n/header for truth; header3 may be stale."

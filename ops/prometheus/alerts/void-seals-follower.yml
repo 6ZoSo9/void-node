@@ -1,0 +1,19 @@
+groups:
+- name: void-seals-follower
+  interval: 15s
+  rules:
+  - alert: VoidSealsFollowerHealthBad
+    expr: void:seals:health:follower != 1
+    for: 1m
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "Follower seals health bad"
+      description: "void_seals_health != 1 for 1m on 4101."
+
+  - alert: VoidSealsFollowerStalled
+    expr: clamp_min(void:seals:rate1m:follower, 0) == 0
+    for: 2m
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "Follower seals stalled"
+      description: "No new sealed blocks observed for 2m on 4101."

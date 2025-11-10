@@ -1,0 +1,14 @@
+groups:
+- name: void-header3-parity
+  interval: 15s
+  rules:
+  # Smooth head and exporter last numbers over 1m to avoid flapping
+## DUPED -> kept in void-header3-rules.yml:   - record: void_head:last_number
+## DUPED -> kept in void-header3-rules.yml:     expr: max_over_time(void_head_number[1m])
+## DUPED -> kept in void-header3-rules.yml: 
+## DUPED -> kept in void-header3-rules.yml:   - record: void_header3:last_number
+## DUPED -> kept in void-header3-rules.yml:     expr: last_over_time(void_header3_last_number[1m])
+## DUPED -> kept in void-header3-rules.yml: 
+## DUPED -> kept in void-header3-rules.yml:   # Gap = head - exporter
+## DUPED -> kept in void-header3-rules.yml:   - record: void_header3:gap
+    expr: (void_head:last_number) - (void_header3:last_number)

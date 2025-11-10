@@ -1,0 +1,13 @@
+groups:
+- name: void-gate-writes
+  interval: 15s
+  rules:
+  # If gate is missing but proposer shows enabled=1 for >30s, panic.
+  - alert: VoidWritesWhileGateMissing
+    expr: (last_over_time(void_gate_present[1m]) == 0)
+          and on() (max_over_time(void_proposer_enabled{job="void-proposer-v2"}[1m]) == 1)
+    for: 30s
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "Proposer enabled while USB gate missing"
+      description: "Gate=0 but proposer reports enabled=1 in the last minute."

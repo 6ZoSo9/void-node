@@ -1,0 +1,10 @@
+groups:
+- name: void-txroot-core2-bridge
+  interval: 15s
+  rules:
+  - record: void:core2bridge:saves_rate1m
+    expr: rate(void_core2_bridge_saves_total[1m])
+  - record: void:core2bridge:set_rate1m
+    expr: rate(void_core2_bridge_set_total[1m])
+  - record: void:core2bridge:last_set_block
+    expr: max(void_core2_bridge_last_set_block)

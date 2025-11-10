@@ -1,0 +1,14 @@
+groups:
+- name: void-follower-ready-alerts
+  interval: 15s
+  rules:
+  - alert: VoidFollowerNotReady
+    expr: void:follower_ready{system="void",role="follower"} == 0
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+      role: follower
+    annotations:
+      summary: "Follower not ready"
+      description: "void:follower_ready==0 for 2m (instance={{ $labels.instance }}, job={{ $labels.job }}). Check: rate/drift/age."

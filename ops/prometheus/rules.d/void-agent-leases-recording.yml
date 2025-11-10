@@ -1,0 +1,8 @@
+groups:
+- name: void-agent-leases
+  interval: 15s
+  rules:
+  - record: void:agent_leases_inflight:last
+    expr: last_over_time(void_agent_leases_inflight[2m])
+  - record: void:agent_leases_expired:last
+    expr: last_over_time(void_agent_leases_expired[2m])

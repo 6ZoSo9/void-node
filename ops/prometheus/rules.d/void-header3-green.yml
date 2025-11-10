@@ -1,0 +1,6 @@
+groups:
+- name: void-header3-green
+  interval: 5s
+  rules:
+  - record: void_header3:is_green
+    expr: (void_header3:gap <= bool 1)

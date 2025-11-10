@@ -1,0 +1,8 @@
+groups:
+- name: void-overall-textfile
+  interval: 15s
+  rules:
+  - record: void:overall_green:textfile
+    expr: max(void_overall_green)
+  - record: void:overall_green_age_seconds
+    expr: time() - max(void_overall_green_updated_seconds)

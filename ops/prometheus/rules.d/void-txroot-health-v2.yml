@@ -1,0 +1,17 @@
+groups:
+- name: void-txroot-health-v2
+  interval: 15s
+  rules:
+  - record: void:header3_v2:fresh_s
+    expr: time() - (max_over_time(void_proposer_exporter_ts_ms_v2[1m]) / 1000)
+  - record: void:header3_v2:parity_last
+    expr: last_over_time(void_header3_match_v2[30s])
+
+  - record: void:header3_v2:fresh_s:scalar
+    expr: max without (job,instance,env,number) (void:header3_v2:fresh_s)
+  - record: void:header3_v2:parity_last:scalar
+    expr: max without (job,instance,env,number) (void:header3_v2:parity_last)
+
+  # FINAL: strict 0/1 (bool forces true->1, false->0)
+  - record: void:txroot_health_v2
+    expr: ( (void:header3_v2:fresh_s:scalar < bool 30) * (void:header3_v2:parity_last:scalar == bool 1) )

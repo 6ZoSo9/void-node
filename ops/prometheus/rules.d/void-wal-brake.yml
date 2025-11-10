@@ -1,0 +1,10 @@
+groups:
+- name: void-wal-brake
+  interval: 15s
+  rules:
+  - record: void:wal_brake:last
+    expr: last_over_time(void_wal_brake[2m])
+  - record: void:wal_brake_hits:rate1m
+    expr: increase(void_wal_brake_hits[1m])
+  - record: void:proposer_enabled:last
+    expr: last_over_time(void_proposer_enabled[2m])  # if you expose it; else remove this line

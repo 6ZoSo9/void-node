@@ -1,0 +1,6 @@
+groups:
+- name: void-txroot-green
+  interval: 15s
+  rules:
+  - record: void:txroot_health:last_2m
+    expr: last_over_time(void_txroot_health[2m])

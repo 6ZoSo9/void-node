@@ -1,0 +1,18 @@
+groups:
+- name: void-safeboot-health-alerts
+  interval: 15s
+  rules:
+  - alert: VoidSafeBootHealthBad
+    expr: void:safeboot:health:last != 1
+    for: 1m
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "SAFEBOOT health down"
+      description: "void_safeboot_health == {{ $value }} (expected 1)."
+  - alert: VoidSafeBootHealthMissing
+    expr: absent_over_time(void_safeboot_health[60s])
+    for: 2m
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "SAFEBOOT health metric missing"
+      description: "No samples for void_safeboot_health in the last 60s."

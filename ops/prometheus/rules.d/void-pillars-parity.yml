@@ -1,0 +1,6 @@
+groups:
+- name: void-pillars-parity
+  interval: 15s
+  rules:
+  - record: void:pillars_ok_count:diff
+    expr: abs(void_pillars_ok_count - void:pillars_ok_count)

@@ -1,0 +1,33 @@
+groups:
+- name: void-proposer-v3b
+  interval: 15s
+  rules:
+  - alert: VoidProposerDisabledV3b
+    expr: (void:proposer_enabled_v3b == 0)
+    for: 4m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Proposer auto disabled (v3b)"
+      description: "Proposer has been disabled for 2m."
+
+  - alert: VoidProposerTickSkewV3b
+    expr: abs(void:proposer_ms_v3b - 2000) > 100
+    for: 4m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Proposer tick ms skew (v3b)"
+      description: "Tick interval deviates from 2000±100ms for 2m (value={{ $value }})."
+
+  - alert: VoidProposerMetricsStaleV3b
+    expr: (void:proposer_sample_age_s_v3b > 120)
+    for: 3m
+    labels:
+      severity: critical
+      system: void
+    annotations:
+      summary: "Proposer metrics stale (v3b)"
+      description: "No fresh proposer v3b samples for > 120s (age={{ $value }}s)."

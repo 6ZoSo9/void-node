@@ -1,0 +1,13 @@
+groups:
+- name: void-txroot-bridge
+  interval: 15s
+  rules:
+  # Scope to the jobs we care about so other exporters can’t skew the max()
+  - record: void:head:last_scalar
+    expr: max(last_over_time(void_head_number{job="void-head"}[2m])) or vector(0)
+
+  - record: void:txroot_bridge:last_set_block_scalar
+    expr: max(last_over_time(void_core2_bridge_last_set_block{job="void-core2-bridge"}[2m])) or vector(0)
+
+  - record: void:txroot_bridge:last_set_gap_blocks
+    expr: clamp_min(void:head:last_scalar - void:txroot_bridge:last_set_block_scalar, 0)

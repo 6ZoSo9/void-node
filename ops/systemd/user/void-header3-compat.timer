@@ -1,0 +1,11 @@
+[Unit]
+Description=Run VOID header3 compat emitter every 10s
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=10s
+AccuracySec=1s
+Unit=void-header3-compat.service
+
+[Install]
+WantedBy=default.target

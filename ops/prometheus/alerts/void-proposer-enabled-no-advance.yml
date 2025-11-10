@@ -1,0 +1,11 @@
+groups:
+- name: void-proposer-enabled-no-advance
+  interval: 15s
+  rules:
+  - alert: VoidProposerEnabledNoHeadAdvance
+    expr: (void_proposer_auto_enabled_v2 == 1) and (changes(void_head_number[2m]) == 0)
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Proposer enabled but head not advancing"
+      description: "Auto loop is enabled while head stays flat for 2m."

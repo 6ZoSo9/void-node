@@ -1,0 +1,9 @@
+groups:
+- name: void-overall-slo
+  interval: 15s
+  rules:
+  # overall_green is 0/1 already; avg_over_time gives fraction in range [0,1]
+  - record: void:overall_uptime_1h
+    expr: avg_over_time(max(void:overall_green)[1h:])
+  - record: void:overall_uptime_24h
+    expr: avg_over_time(max(void:overall_green)[24h:])

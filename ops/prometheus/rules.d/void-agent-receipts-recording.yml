@@ -1,0 +1,10 @@
+groups:
+- name: void-agent-receipts-recording
+  interval: 15s
+  rules:
+  - record: void:agent_receipts_coverage:last_5m
+    expr: last_over_time(void_agent_receipts_coverage[5m])
+  - record: void:agent_receipts_total:last
+    expr: last_over_time(void_agent_receipts_total[5m])
+  - record: void:agent_results_unique:last
+    expr: last_over_time(void_agent_results_unique_total[5m])

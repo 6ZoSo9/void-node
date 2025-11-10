@@ -1,0 +1,16 @@
+groups:
+- name: void-textfile-ages
+  interval: 15s
+  rules:
+  - record: void:rollup_age_seconds
+    expr: time() - max(void_rollup_updated_seconds)
+  - record: void:head_age_seconds
+    expr: time() - max(void_head_updated_seconds)
+  - record: void:seals_last_age_seconds
+    expr: time() - max(void_seals_last_updated_seconds)
+  - record: void:lag_to_head_age_seconds
+    expr: time() - max(void_lag_to_head_updated_seconds)
+  - record: void:pillars_age_seconds
+    expr: time() - max(void_pillars_updated_seconds)
+  - record: void:system_green_age_seconds
+    expr: time() - max(void_system_green_updated_seconds)

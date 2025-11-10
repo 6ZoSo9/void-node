@@ -1,0 +1,9 @@
+[Unit]
+Description=VOID Agent - TxRoot Guardian Timer
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+AccuracySec=1s
+Unit=void-agent-txroot.service
+[Install]
+WantedBy=default.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run follower self-heal every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=10s
+Unit=void-follower-heal.service
+
+[Install]
+WantedBy=default.target

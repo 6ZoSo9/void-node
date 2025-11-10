@@ -1,0 +1,26 @@
+groups:
+- name: void-throughput-alerts
+  rules:
+  # Blocks are saving but txs per block ~0 (likely empty blocks)
+  - alert: VoidEmptyBlocksSuspect
+    expr: (void:blocks_saved:rate1m > 0.3)
+          and (void:tpb:ratio_1m < 0.1)
+    for: 4m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Empty-block regression suspected"
+      description: "Blocks are being saved but txs/block is ~0 for 2m. Check /tx/merge/cap and /blocks/empty-policy."
+
+  # Head moves but save rate ~0 (pipeline stall)
+  - alert: VoidThroughputStall
+    expr: (increase(void_head_number[2m]) > 0)
+          and (void:blocks_saved:rate1m < 0.05)
+    for: 4m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Throughput stall while head advances"
+      description: "void_head_number increased in 2m but blocks_saved rate ≈ 0. Inspect proposer, mempool, and setter hooks."

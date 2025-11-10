@@ -1,0 +1,9 @@
+[Unit]
+Description=VOID WAL probe (write+fsync, disk free, RSS)
+
+[Service]
+Type=oneshot
+Environment=DATA_DIR=%h/dev/void-node/data_a
+Environment=HTTP_PORT=4100
+Environment=TEXTFILE_DIR=%h/.cache/node-exporter-textfile
+ExecStart=%h/.local/bin/void-wal-probe.sh

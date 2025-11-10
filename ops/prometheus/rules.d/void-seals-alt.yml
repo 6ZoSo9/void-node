@@ -1,0 +1,11 @@
+groups:
+- name: void-seals-alt
+  interval: 15s
+  rules:
+  # "1" if node says seals healthy at any point in the last 120s
+  - record: void:seals_ok:last
+    expr: max_over_time(void_seals_health[120s])
+
+  # Scalar helper if you need it
+  - record: void:seals_ok:scalar
+    expr: scalar(max_over_time(void_seals_health[120s]))

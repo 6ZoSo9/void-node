@@ -1,0 +1,13 @@
+groups:
+- name: void-usb-alerts
+  interval: 15s
+  rules:
+  - alert: VoidUSBMissing
+    expr: (void_usb_health{job="void-usb"} == 0)
+    for: 30s
+    labels:
+      severity: critical
+      system: void
+    annotations:
+      summary: "USB key missing or unreadable"
+      description: "The operator USB (/mnt/voidkey) or env file is not healthy."

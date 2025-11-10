@@ -1,0 +1,19 @@
+groups:
+- name: void-proposer-health-v3b
+  interval: 15s
+  rules:
+  - alert: VoidProposerHealthV3b
+    expr: (void_proposer_auto_enabled_v2 == 0)
+          OR (abs(void_proposer_auto_ms_v2 - 2000) > 100)
+          OR (void:proposer_sample_age_s_v3b > 120)
+    for: 4m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Proposer health issue (v3b)"
+      description: |
+        One or more conditions for 2m:
+        - enabled==0 → {{ with query "void:proposer_enabled_v3b" }}{{ . | first | value }}{{ end }}
+        - |ms-2000|>100 → {{ with query "void:proposer_ms_v3b" }}{{ . | first | value }}{{ end }}
+        - sample_age>120s → {{ with query "void:proposer_sample_age_s_v3b" }}{{ . | first | value }}{{ end }}

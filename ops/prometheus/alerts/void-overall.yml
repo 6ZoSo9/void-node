@@ -1,0 +1,19 @@
+groups:
+- name: void-overall
+  interval: 15s
+  rules:
+  - alert: VoidRollupStale
+    expr: (void:rollup_age_seconds > 180)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Rollup textfile stale"
+      description: "void_rollup.prom older than 3m (age={{ $value }}s)"
+
+  - alert: VoidOverallRed
+    expr: (void:overall_green < 1)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Overall status is RED"
+      description: "overall_green=0 (either pillars/lag failed or data not fresh)"

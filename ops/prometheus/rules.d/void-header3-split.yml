@@ -1,0 +1,24 @@
+groups:
+- name: void-header3-split
+  interval: 15s
+  rules:
+  # Use ONLY v2 (textfile) — don't OR with legacy, to avoid stale 207 contamination
+  - record: void:header3:last_number:raw
+    expr: void_header3_last_number_v2
+  - record: void:header3:last_ts_ms:raw
+    expr: void_header3_last_ts_ms_v2
+
+  - record: void:header3:rate1m
+    expr: rate(void:header3:last_number:raw[1m])
+  - record: void:header3:last_number
+    expr: max_over_time(void:header3:last_number:raw[30s])
+  - record: void:header3:age_ms
+    expr: (time() * 1000) - max_over_time(void:header3:last_ts_ms:raw[30s])
+
+  # Treat "main" as the v2 singleton (node_exporter textfile)
+  - record: void:header3:last_number:main
+    expr: max by () (void:header3:last_number{job="node"})
+  - record: void:header3:rate1m:main
+    expr: max by () (void:header3:rate1m{job="node"})
+  - record: void:header3:age_ms:main
+    expr: max by () (void:header3:age_ms{job="node"})

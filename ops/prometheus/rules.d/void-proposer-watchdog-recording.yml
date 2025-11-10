@@ -1,0 +1,8 @@
+groups:
+- name: void-proposer-watchdog-recording
+  interval: 15s
+  rules:
+  - record: void:proposer_watchdog:last_rescue_age_s
+    expr: (time() - void_proposer_watchdog_last_rescue_ts_ms/1000)
+  - record: void:proposer_watchdog:last_advance_age_s
+    expr: (time() - void_proposer_watchdog_last_advance_ts_ms/1000)

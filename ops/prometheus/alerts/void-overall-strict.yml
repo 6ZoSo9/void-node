@@ -1,0 +1,11 @@
+groups:
+- name: void-overall-strict
+  interval: 15s
+  rules:
+  - alert: VoidOverallRedFresh
+    expr: (max(void:rollup_fresh) == bool 1) and (max(void:overall_green) < bool 1)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "VOID overall RED (fresh data)"
+      description: "overall_green=0 while rollup_fresh=1"

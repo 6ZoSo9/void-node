@@ -1,0 +1,11 @@
+groups:
+- name: void-build-green-alert
+  interval: 15s
+  rules:
+  - alert: VoidBuildNotGreen
+    expr: void:build:green != 1
+    for: 90s
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "VOID build not green"
+      description: "At least one of SAFEBOOT overall, follower match, or follower txroot health failed."

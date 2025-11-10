@@ -1,0 +1,15 @@
+groups:
+- name: void-agent-ops
+  interval: 15s
+  rules:
+  - record: void:agent_jobs_rate1m
+    expr: clamp_min(rate(void_agent_receipts_lines_total[2m]), 0)
+
+  - record: void:agent_receipts_age
+    expr: last_over_time(void_agent_receipts_age_seconds[2m])
+
+  - record: void:agent_wrap_block_rate1m
+    expr: rate(void_agent_wrap_blocked_total[2m])
+
+  - record: void:agent_success_proxy1m
+    expr: 1 / (1 + void:agent_wrap_block_rate1m)

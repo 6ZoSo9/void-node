@@ -1,0 +1,13 @@
+groups:
+- name: void-agent-receipts-stall
+  interval: 30s
+  rules:
+  - alert: VoidAgentReceiptsStalled
+    expr: increase(void_agent_receipts_total[5m]) == 0
+    for: 5m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Agent {{ $labels.id }} receipts stalled"
+      description: "No receipts in the last 5 minutes."

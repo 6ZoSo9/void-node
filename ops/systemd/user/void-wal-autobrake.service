@@ -1,0 +1,13 @@
+[Unit]
+Description=VOID WAL auto-brake (fsync/RSS burst)
+After=void-wal-probe.service
+
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+Environment=TEXTFILE_DIR=%h/.cache/node-exporter-textfile
+# Optional tuning:
+# Environment=THR_FSYNC_MS=250
+# Environment=THR_RSS_KB=1200000
+# Environment=BURST_N=6
+ExecStart=%h/.local/bin/void-wal-autobrake.sh

@@ -27,6 +27,7 @@ id_*
 *.kidx
 # local big backups
 *.log
+/mnt/voidkey/
 mnt/voidkey/
 node:*
 .nodekey*
@@ -51,6 +52,45 @@ segments*/
 smoke_*.zip
 src/index.ts.*.bak
 src/.park/
+*.tgz
 *.tmp
 void.env
 *wallet*.json
+*.zip
+# --- SAFE BACKUP (2025-11-10) ---
+# never commit secrets or local data
+.secrets/
+**/*.key
+**/*.pem
+**/*.der
+**/*.p12
+**/*.asc
+**/*.gpg
+**/*.kdbx
+mnt/
+mnt/**        # in case someone mounts under repo
+/mnt/voidkey/ # belt-and-suspenders
+
+# local runtime data / segments / caches
+data*/
+segments*/
+*.jsonl
+*.bin
+*.db
+*.sqlite
+*.log
+*.tmp
+tmp/
+**/*.tgz
+**/*.tar
+**/*.tar.gz
+**/*.zip
+
+# editor / backup / node_modules
+node_modules/
+*.bak
+*.swp
+.DS_Store
+
+# ops snapshots (root-owned risk)
+ops/prom-snap/

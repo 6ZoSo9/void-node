@@ -1,0 +1,11 @@
+groups:
+- name: void-rollup
+  interval: 15s
+  rules:
+  - alert: VoidRollupRed
+    expr: (void:rollup_green:textfile < 1)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "VOID rollup is RED"
+      description: "rollup_green=0 (pillars/lag check failed). Head={{ $labels.instance }}"

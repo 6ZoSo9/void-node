@@ -1,0 +1,15 @@
+groups:
+- name: void-txroot-shim-recording
+  interval: 15s
+  rules:
+  - record: void:txroot:last_set_block
+    expr: max_over_time(void_block_txroot_header_last_set_block[1m])
+
+  - record: void:head:last
+    expr: max_over_time(void_head_number[1m])
+
+  - record: void:txroot:lag
+    expr: (void:head:last - void:txroot:last_set_block)
+
+  - record: void:txroot:set_rate1m
+    expr: rate(void_block_txroot_set_total[1m])

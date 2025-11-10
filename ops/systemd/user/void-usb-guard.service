@@ -1,0 +1,16 @@
+[Unit]
+Description=Void USB guard (stop node if USB key goes away)
+# Disable rate limiting for this unit so rapid path events don't trip it
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+# Debounce: flock collapses bursts; short sleep to coalesce rapid PathChanged events
+ExecStart=/usr/bin/flock -n /home/zoso/.cache/void-usb-guard.lock /bin/bash -lc '\
+  mkdir -p /home/zoso/.cache; \
+  sleep 0.25; \
+  if [[ -r /mnt/voidkey/operator/void-agent.env ]]; then \
+    exit 0; \
+  else \
+    systemctl --user stop void-node.service; \
+  fi'

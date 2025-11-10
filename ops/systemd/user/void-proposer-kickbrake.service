@@ -1,0 +1,7 @@
+[Unit]
+Description=VOID proposer kick-brake autotune (gated)
+After=default.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -lc '~/.local/bin/void-proposer-kickbrake.sh'

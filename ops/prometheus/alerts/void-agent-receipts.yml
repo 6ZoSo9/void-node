@@ -1,0 +1,13 @@
+groups:
+- name: void-agent-receipts-alerts
+  interval: 15s
+  rules:
+  - alert: VoidAgentReceiptsDisabled
+    expr: (void:agent_receipts:enabled == 0)
+    for: 10m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Agent receipts disabled"
+      description: "Receipts pipeline not enabled for 10m."

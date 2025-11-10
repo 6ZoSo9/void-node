@@ -1,0 +1,12 @@
+groups:
+- name: void-lastmile
+  interval: 15s
+  rules:
+  - alert: VoidLastmileNoInject
+    expr: increase(void_txroot_forensics_calls_v7[2m]) > 0
+          and increase(void_lastmile_injected_total[2m]) == 0
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Lastmile not injecting despite seals"
+      description: "saveBlock ran but injected_total did not increase in 2m."

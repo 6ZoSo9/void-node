@@ -1,0 +1,12 @@
+groups:
+- name: void-proposer-uptime
+  interval: 15s
+  rules:
+  - record: void:proposer_uptime_pct:5m
+    expr: 100 * avg_over_time(void_proposer_auto_enabled_v2{job="void-proposer-v3b"}[5m])
+  - record: void:proposer_uptime_pct:1h
+    expr: 100 * avg_over_time(void_proposer_auto_enabled_v2{job="void-proposer-v3b"}[1h])
+  - record: void:proposer_uptime_pct:6h
+    expr: 100 * avg_over_time(void_proposer_auto_enabled_v2{job="void-proposer-v3b"}[6h])
+  - record: void:proposer_uptime_pct:24h
+    expr: 100 * avg_over_time(void_proposer_auto_enabled_v2{job="void-proposer-v3b"}[24h])

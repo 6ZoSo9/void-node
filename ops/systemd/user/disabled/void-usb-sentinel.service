@@ -1,0 +1,12 @@
+[Unit]
+Description=VOID USB Sentinel (fail-closed on key removal)
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/void-usb-sentinel.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

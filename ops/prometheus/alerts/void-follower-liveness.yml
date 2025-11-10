@@ -1,0 +1,19 @@
+groups:
+- name: void-follower-liveness-alerts
+  interval: 15s
+  rules:
+  - alert: VoidFollowerHeartbeatStalled
+    expr: void:follower_txroot_heartbeat:inc_2m == 0
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Follower exporter heartbeat stalled"
+      description: "No heartbeat increments in 2m."
+
+  - alert: VoidFollowerNotAdvancing
+    expr: (void:follower_head_local:changes_2m == 0)
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Follower head not advancing"
+      description: "Follower head didn't change in 2m while service is up."

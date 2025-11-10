@@ -1,0 +1,17 @@
+[Unit]
+Description=Start VOID node when key (sentinel) appears
+After=mnt-voidkey.automount mnt-voidkey.mount
+RequiresMountsFor=/mnt/voidkey
+ConditionPathExists=/mnt/voidkey/operator/void-gate.ok
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+# Ensure the mount is truly there
+ExecStartPre=/usr/bin/mountpoint -q /mnt/voidkey
+# Debounce for inotify/udev chatter
+ExecStartPre=/bin/sleep 1
+# Clear prior failure on the node
+ExecStartPre=/usr/bin/systemctl --user reset-failed void-node.service
+# Start only if not already running
+ExecStart=/bin/sh -lc 'systemctl --user is-active --quiet void-node.service || systemctl --user start void-node.service'

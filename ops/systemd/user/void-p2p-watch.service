@@ -1,0 +1,8 @@
+[Unit]
+Description=VOID mini-registry auto-connect watchdog
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env -S bash -lc '\
+  set -euo pipefail; \
+  curl -fsS -X POST "http://127.0.0.1:4101/p2p/mini/connect?peer=http://127.0.0.1:4100" >/dev/null 2>&1 || true'

@@ -1,0 +1,8 @@
+groups:
+- name: void-system-autokick
+  interval: 15s
+  rules:
+  - record: void:autokick:actions_total
+    expr: void_autokick_actions_total
+  - record: void:autokick:last
+    expr: void_autokick_last

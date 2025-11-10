@@ -1,0 +1,8 @@
+groups:
+- name: void-wal-health
+  interval: 15s
+  rules:
+  - record: void:wal_health:last
+    expr: last_over_time(void_wal_health[1m])
+  - record: void:wal_gate:last
+    expr: last_over_time(void_wal_gate_proposer[1m])

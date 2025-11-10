@@ -1,0 +1,33 @@
+groups:
+- name: void-wal-alerts
+  interval: 15s
+  rules:
+  - alert: VoidWalFsyncHigh
+    expr: (void:wal_fsync_ms:last) > 250
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "WAL fsync elevated"
+      description: "void_wal_fsync_ms > 250ms for 2m; possible disk pressure."
+
+  - alert: VoidNodeRssSurge
+    expr: (void:node_rss_kb:last) > 1200000
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Node RSS high"
+      description: "Node RSS > ~1.2GB; potential Vector-7 pressure."
+
+  - alert: VoidWalAutoBraked
+    expr: last_over_time(void_wal_brake[1m]) == 1
+    for: 1m
+    labels:
+      severity: critical
+      system: void
+    annotations:
+      summary: "Proposer auto-braked (WAL/RSS burst)"
+      description: "Auto-brake fired due to fsync/RSS burst; proposer disabled."

@@ -1,0 +1,8 @@
+groups:
+- name: void-ready-v4b-recording
+  interval: 15s
+  rules:
+  - record: void:ready_v4b:last
+    expr: last_over_time(void_txroot_live_v4b[2m])
+  - record: void:ready_v4b:block:last
+    expr: last_over_time(void_txroot_live_v4b_block[2m])

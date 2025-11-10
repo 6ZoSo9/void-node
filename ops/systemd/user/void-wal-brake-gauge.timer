@@ -1,0 +1,10 @@
+[Unit]
+Description=Run WAL brake gauge every 15s
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=15s
+Unit=void-wal-brake-gauge.service
+
+[Install]
+WantedBy=default.target

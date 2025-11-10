@@ -1,0 +1,13 @@
+groups:
+- name: void-follower-recordings
+  interval: 15s
+  rules:
+  # Take the best (non -1) from native header3 OR compat textfile (node exporter)
+  - record: void:header3:last_number:follower:effective
+    expr: max by () ( last_over_time(void_header3_last_number{job=~"void-header3-follower|node"}[1m]) )
+
+  - record: void:header3:match_last:follower:effective
+    expr: max by () ( last_over_time(void_header3_match{job=~"void-header3-follower|node"}[1m]) )
+
+  - record: void:txroot_health:last:follower
+    expr: last_over_time(void_txroot_health{job=~"void-txroot-health-follower|node"}[1m])

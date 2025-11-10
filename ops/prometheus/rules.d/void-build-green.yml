@@ -1,0 +1,12 @@
+groups:
+- name: void-build-green
+  interval: 15s
+  rules:
+  - record: void:sb:overall
+    expr: max(last_over_time(void:safeboot:overall[1m]))
+  - record: void:follower:match_ok
+    expr: max(last_over_time(void:header3:match_last:follower:effective[1m]))
+  - record: void:follower:txroot_ok
+    expr: max(last_over_time(void:txroot_health:last:follower[1m]))
+  - record: void:build:green
+    expr: clamp_max(void:sb:overall * void:follower:match_ok * void:follower:txroot_ok, 1)

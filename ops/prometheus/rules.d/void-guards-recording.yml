@@ -1,0 +1,6 @@
+groups:
+- name: void-guards-recording
+  interval: 15s
+  rules:
+  - record: void:forbidden_healthjob:present
+    expr: sum(up{job="void-txroot-health-prom"}) > 0

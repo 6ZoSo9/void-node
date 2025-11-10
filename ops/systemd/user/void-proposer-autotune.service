@@ -1,0 +1,8 @@
+[Unit]
+Description=VOID proposer autotune (mempool->tick ms)
+
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+Environment=TEXTFILE_DIR=%h/.cache/node-exporter-textfile
+ExecStart=%h/.local/bin/void-proposer-autotune.sh

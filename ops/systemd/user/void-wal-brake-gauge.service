@@ -1,0 +1,8 @@
+[Unit]
+Description=Compute WAL brake gauge (textfile)
+
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+ExecStart=%h/.local/bin/void-wal-brake-gauge.sh
+SuccessExitStatus=0 1 2

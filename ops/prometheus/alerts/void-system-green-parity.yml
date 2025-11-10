@@ -1,0 +1,13 @@
+groups:
+- name: void-system-green-parity-alerts
+  interval: 15s
+  rules:
+  - alert: VoidSystemGreenParityMismatch
+    expr: void:system:green_parity_mismatch == 1
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "System green parity mismatch"
+      description: "void:system:green != void:system:green:v2 for 2m."

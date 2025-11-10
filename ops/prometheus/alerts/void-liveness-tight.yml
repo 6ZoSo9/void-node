@@ -1,0 +1,15 @@
+groups:
+- name: void-liveness-tight
+  interval: 15s
+  rules:
+  - alert: VoidLivenessStalled
+    expr: (
+            (void_liveness_last_submit_age_seconds < 0)
+            or (clamp_min(void_liveness_last_submit_age_seconds, 0) > 300)
+          )
+          and (void:header_stalled_30s == 1)
+    for: 5m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "Liveness stalled while head is not advancing"
+      description: "No liveness submit >5m (or never) and head unchanged ≥30s on {{ $labels.instance }}"

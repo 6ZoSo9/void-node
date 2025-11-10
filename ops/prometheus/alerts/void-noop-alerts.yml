@@ -1,0 +1,25 @@
+groups:
+- name: void-noop-alerts
+  interval: 15s
+  rules:
+  # Parity between sidecar and setter rates should be ~0
+  - alert: VoidNoopParitySkew
+    expr: (void:noop_rate1m:diff) > 0.1
+    for: 4m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "NOOP parity skew"
+      description: "Rate difference > 0.1/s for 2m (sidecar vs setter)."
+
+  # Lag > 0 is okay briefly; alert if it persists (tune threshold/time as you like)
+  - alert: VoidNoopLagToHead
+    expr: (void:noop_lag_to_head) > 0
+    for: 4m
+    labels:
+      severity: info
+      system: void
+    annotations:
+      summary: "NOOP lag > 0"
+      description: "Head - last noop block = {{ $value }} for >2m"

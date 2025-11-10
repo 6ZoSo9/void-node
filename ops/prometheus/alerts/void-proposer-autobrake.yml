@@ -1,0 +1,13 @@
+groups:
+- name: void-proposer-autobrake
+  interval: 15s
+  rules:
+  - alert: VoidProposerAutoBraked
+    expr: (last_over_time(void_proposer_brake[1m])) == 1
+    for: 1m
+    labels:
+      severity: critical
+      system: void
+    annotations:
+      summary: "Proposer auto-braked due to txroot mismatch"
+      description: "Header3 parity failed; proposer disabled automatically. Investigate txroot immediately."

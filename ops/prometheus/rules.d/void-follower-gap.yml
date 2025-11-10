@@ -1,0 +1,8 @@
+groups:
+- name: void-follower-gap
+  interval: 15s
+  rules:
+  - record: void:follower_gap:blocks
+    expr: (void:header3:last_number:main - void:header3:last_number:safe)
+  - record: void:follower_gap:abs
+    expr: abs(void:follower_gap:blocks)

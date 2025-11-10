@@ -1,0 +1,14 @@
+[Unit]
+Description=VOID Ready Proxy (4100 -> 4102)
+After=default.target
+Requires=void-node.service
+
+[Service]
+Type=simple
+Environment=BACKEND_PORT=4102
+ExecStart=/usr/bin/node /home/zoso/.config/void/boot/ready-proxy.js
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,8 @@
+groups:
+- name: void-proposer-freshness
+  interval: 15s
+  rules:
+  - record: void:proposer_auto_enabled:last_2m
+    expr: last_over_time(void_proposer_auto_enabled[2m])
+  - record: void:proposer_tick_ms:last_2m
+    expr: last_over_time(void_proposer_auto_ms[2m])

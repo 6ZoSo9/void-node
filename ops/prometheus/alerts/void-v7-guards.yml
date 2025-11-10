@@ -1,0 +1,19 @@
+groups:
+- name: void-v7-guards
+  interval: 15s
+  rules:
+  - alert: VoidV7PathUsed
+    expr: increase(void_v7_guard_blocks_total[5m]) > 0 OR increase(void_v7_decom_calls_total[5m]) > 0
+    for: 0m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Legacy v7 path was invoked"
+      description: "The v7 firewall or the decom probe observed a call in the last 5m."
+
+  - alert: VoidV7EnabledFlag
+    expr: max_over_time(void_v7_enabled[2m]) > 0
+    for: 0m
+    labels: { severity: critical, system: void }
+    annotations:
+      summary: "Legacy v7 enable flag is ON"
+      description: "VOID_V7_ENABLED flipped to 1 — this should never happen outside a controlled test."

@@ -1,0 +1,8 @@
+groups:
+- name: void-autorescue-recording
+  interval: 15s
+  rules:
+  - record: void:autorescue:last
+    expr: (last_over_time(void_autorescue_last[2m]) or on() vector(0))
+  - record: void:autorescue:actions_10m
+    expr: (increase(void_autorescue_actions_total[10m]) or on() vector(0))

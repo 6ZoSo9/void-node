@@ -1,0 +1,13 @@
+groups:
+- name: void-header3-parity
+  interval: 15s
+  rules:
+  - alert: VoidHeader3ParityMismatch
+    expr: (last_over_time(void_header3_match_v2[1m]) == 0) or (last_over_time(void_header3_match[1m]) == 0)
+    for: 1m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Header3 parity mismatch"
+      description: "header3 exporter reports mismatch for ≥1m."

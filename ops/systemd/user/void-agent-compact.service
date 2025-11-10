@@ -1,0 +1,8 @@
+[Unit]
+Description=VOID agent results compactor
+
+[Service]
+Type=oneshot
+Environment=DATA_DIR=%h/dev/void-node/data_a
+WorkingDirectory=%h/dev/void-node
+ExecStart=%h/dev/void-node/ops/agent-compact-results.sh

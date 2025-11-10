@@ -1,0 +1,10 @@
+groups:
+- name: void-listener-guard
+  rules:
+  - alert: VoidListenerGuardBroken
+    expr: void_listener_guard_ok == 0
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Listener ceiling guard broken"
+      description: "Multiple active guards or none detected in src/index.ts."

@@ -1,14 +1,19 @@
 [Unit]
-Description=VOID Node (main proposer)
-After=network-online.target
-Wants=network-online.target
+Description=Void Node (main proposer)
+After=default.target
 
 [Service]
-ExecStartPost=/bin/bash -lc "for i in {1..40}; do code=$(curl -s -o /dev/null -w '%%{http_code}' http://127.0.0.1:${HTTP_PORT}/api/health || true); [ \"$code\" = \"200\" ] && exit 0; sleep 0.5; done; echo 'health wait timed out'; exit 0"
+Type=simple
+# Defaults; overridden by drop-ins you already synced
+Environment=HTTP_PORT=4100
+Environment=P2P_PORT=4700
+Environment=DATA_DIR=%h/dev/void-node/data_a
+Environment=NODE_PRIVKEY_PATH=%h/.secrets/nodeA.key
+# Prehook is harmless if missing
+Environment=NODE_OPTIONS=--require %h/.config/void/boot/void-prehook.js
 WorkingDirectory=%h/dev/void-node
-EnvironmentFile=%h/dev/void-node/void.env
-ExecStart=/usr/bin/env -S bash -lc 'exec npx --yes tsx src/index.ts'
-Restart=on-failure
+ExecStart=/bin/sh -lc 'node node_modules/.bin/tsx src/index.ts'
+Restart=always
 RestartSec=2
 
 [Install]

@@ -1,0 +1,12 @@
+groups:
+- name: void-both-missing
+  interval: 15s
+  rules:
+  - alert: VoidBothJobsMissing
+    expr: absent_over_time(up{job="void-proposer-head"}[2m])
+       and absent_over_time(up{job="void-follower-v4"}[2m])
+    for: 0m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "Both exporters missing"
+      description: "Prometheus has not seen samples for proposer and follower in 2m."

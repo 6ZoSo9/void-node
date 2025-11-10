@@ -1,0 +1,10 @@
+groups:
+- name: void-proposer-v3b-recording
+  interval: 15s
+  rules:
+  - record: void:proposer_enabled_v3b
+    expr: max_over_time(void_proposer_auto_enabled_v2[1m])
+  - record: void:proposer_ms_v3b
+    expr: max_over_time(void_proposer_auto_ms_v2[1m])
+  - record: void:proposer_sample_age_s_v3b
+    expr: time() - timestamp(void_proposer_auto_enabled_v2)

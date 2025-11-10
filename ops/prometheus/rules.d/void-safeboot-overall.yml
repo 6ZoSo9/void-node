@@ -1,0 +1,10 @@
+groups:
+- name: void-safeboot-overall
+  interval: 15s
+  rules:
+  - record: void:safeboot:health_ok
+    expr: max(last_over_time(void_safeboot_health[45s]) == bool 1)
+  - record: void:safeboot:head_ok
+    expr: max(last_over_time(void_headsafe_number[45s]) == bool 694)
+  - record: void:safeboot:overall
+    expr: void:safeboot:health_ok * void:safeboot:head_ok

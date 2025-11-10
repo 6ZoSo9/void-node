@@ -1,0 +1,6 @@
+groups:
+- name: void-header-stall
+  interval: 15s
+  rules:
+  - record: void:header_stalled_30s
+    expr: (changes(void_header3_last_number_v2[45s]) == 0) * 1

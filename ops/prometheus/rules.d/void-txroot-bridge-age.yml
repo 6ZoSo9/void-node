@@ -1,0 +1,9 @@
+groups:
+- name: void-txroot-bridge-age
+  interval: 15s
+  rules:
+  # Age in seconds since the last sample of the bridge metric.
+  # If the series is missing, default to 1e9 via an OR with an explicit vector().
+  - record: void:txroot_bridge:last_set_age_s
+    expr: ( time() - max(timestamp(void_core2_bridge_last_set_block{job="void-core2-bridge"}) ) )
+          or on() vector(1e9)

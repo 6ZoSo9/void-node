@@ -1,0 +1,9 @@
+groups:
+- name: void-header-age-v2
+  interval: 15s
+  rules:
+  - record: void:header3_last_age_s
+    expr: time() - timestamp(void_header3_last_number_v2)
+
+  - record: void:header_stalled_30s
+    expr: (time() - timestamp(void_header3_last_number_v2) >= 30) * 1

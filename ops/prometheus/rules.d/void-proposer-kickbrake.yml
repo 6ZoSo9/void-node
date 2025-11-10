@@ -1,0 +1,12 @@
+groups:
+- name: void-proposer-kickbrake
+  interval: 15s
+  rules:
+  - record: void:kickbrake:target_ms
+    expr: void_kickbrake_target_ms
+  - record: void:kickbrake:changed
+    expr: void_kickbrake_changed
+  - record: void:kickbrake:adv_60s
+    expr: void_kickbrake_head_adv_60s
+  - record: void:kickbrake:wal_60s
+    expr: void_kickbrake_wal_brake_max_60s

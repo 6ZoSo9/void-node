@@ -1,0 +1,20 @@
+groups:
+- name: void-agent-extra
+  interval: 15s
+  rules:
+  - record: void:agent_dlq_rate1m
+    expr: rate(void_agent_dlq_total[1m])
+  - alert: VoidAgentLeasesExpiring
+    expr: rate(void_agent_leases_expired[2m]) > 0.2
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Leases expiring into queue"
+      description: "Lease expirations >0.2/s for 2m (workers slow or dead)."
+  - alert: VoidAgentDLQGrowing
+    expr: (void:agent_dlq_rate1m) > 0.1
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Dead-letter queue growing"
+      description: "Jobs are failing repeatedly into DLQ."

@@ -1,0 +1,22 @@
+groups:
+- name: void-head-seal-gap
+  rules:
+  - alert: VoidHeadBehindSeals
+    expr: (void:head_seal_gap:seals_ahead >= 2) and on(instance) (up == 1)
+    for: 3m
+    labels:
+      system: void
+      severity: warning
+    annotations:
+      summary: "Head behind seals ({{ $labels.instance }})"
+      description: "Seals are {{ $value }} blocks ahead for ≥1m (instance={{ $labels.instance }}, env={{ $labels.env }})."
+
+  - alert: VoidHeadBehindSealsCritical
+    expr: (void:head_seal_gap:seals_ahead >= 10) and on(instance) (up == 1)
+    for: 4m
+    labels:
+      system: void
+      severity: critical
+    annotations:
+      summary: "Head significantly behind seals ({{ $labels.instance }})"
+      description: "Seals are {{ $value }} blocks ahead for ≥2m (instance={{ $labels.instance }}, env={{ $labels.env }})."

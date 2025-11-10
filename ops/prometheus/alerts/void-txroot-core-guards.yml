@@ -1,0 +1,19 @@
+groups:
+- name: void-txroot-core-alerts
+  interval: 15s
+  rules:
+  - alert: VoidTxrootParityBad
+    expr: void:txroot_parity:last < 1
+    for: 2m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "TxRoot parity mismatch"
+      description: "header3 != computed root for >2m."
+
+  - alert: VoidSetterIdle
+    expr: increase(void_txroot_header_set_total[5m]) == 0
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "TxRoot setter idle"
+      description: "No header txRoot sets in a 5m window."

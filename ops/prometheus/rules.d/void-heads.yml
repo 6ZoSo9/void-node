@@ -1,0 +1,6 @@
+groups:
+- name: void-heads
+  interval: 15s
+  rules:
+  - record: void_head_follower
+    expr: void:header3:last_number:follower:effective

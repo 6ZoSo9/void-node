@@ -1,0 +1,11 @@
+groups:
+- name: void-agent-receipts-alerts
+  interval: 15s
+  rules:
+  - alert: VoidAgentReceiptsStall
+    expr: (rate(void_agent_results_unique[5m]) > 0) and (rate(void_agent_receipts_total[5m]) == 0)
+    for: 3m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Receipts not keeping up with results"
+      description: "Unique results are advancing but receipts are flat for 3m."

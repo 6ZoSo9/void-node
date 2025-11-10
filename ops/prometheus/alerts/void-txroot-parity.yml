@@ -1,0 +1,11 @@
+groups:
+- name: void-txroot-parity-alerts
+  interval: 15s
+  rules:
+  - alert: VoidTxrootMismatch
+    expr: last_over_time(void_header3_match_v2[1m]) == 0
+    for: 1m
+    labels: { severity: critical, system: void }
+    annotations:
+      summary: "TxRoot mismatch"
+      description: "Header3 vs computed root mismatch persists >1m."

@@ -1,0 +1,6 @@
+groups:
+- name: void-agent-receipts-dev
+  interval: 5s
+  rules:
+  - record: void:agent_receipts_rate30s
+    expr: rate(void_agent_receipts_total[30s])

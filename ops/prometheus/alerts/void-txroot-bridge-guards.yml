@@ -1,0 +1,35 @@
+groups:
+- name: void-txroot-bridge-guards
+  interval: 15s
+  rules:
+  - alert: VoidTxrootBridgeGapTooHigh
+    expr: void:txroot_bridge:last_set_gap_blocks > 3
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "TxRoot bridge gap"
+      description: "Gap > 3 blocks for 1m (gap={{ $value }})"
+
+  - alert: VoidTxrootBridgeSetTooOld
+    expr: void:txroot_bridge:last_set_age_s > 90
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "TxRoot bridge set too old"
+      description: "Last set older than 90s (age={{ $value }}s)."
+
+  - alert: VoidHeadInputSeriesWeird
+    expr: (void:head:series_count != 1)
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Head input series count != 1"
+      description: "Expected exactly one series for void-head; got {{ $value }}."
+
+  - alert: VoidBridgeInputSeriesWeird
+    expr: (void:core2_bridge:last_set_block_series_count != 1)
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Bridge input series count != 1"
+      description: "Expected exactly one series for void-core2-bridge; got {{ $value }}."

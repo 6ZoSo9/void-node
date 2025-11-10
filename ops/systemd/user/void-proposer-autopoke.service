@@ -1,0 +1,8 @@
+[Unit]
+Description=VOID proposer autopoke (user)
+After=default.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/void-proposer-autopoke.sh
+RuntimeMaxSec=5

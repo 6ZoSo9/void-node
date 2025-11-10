@@ -1,0 +1,11 @@
+groups:
+- name: void-lag-alerts
+  interval: 15s
+  rules:
+  - alert: VoidLagToHeadHigh
+    expr: (void:lag_to_head:textfile > 5)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Lag to head high"
+      description: "void_lag_to_head={{ $value }} (>5) for 2m"

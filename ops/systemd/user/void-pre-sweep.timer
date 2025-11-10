@@ -1,0 +1,10 @@
+[Unit]
+Description=Run VOID pre-sweep at user session start
+
+[Timer]
+OnBootSec=5sec
+Persistent=true
+Unit=void-pre-sweep.service
+
+[Install]
+WantedBy=default.target

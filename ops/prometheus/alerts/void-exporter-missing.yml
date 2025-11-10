@@ -1,0 +1,14 @@
+groups:
+- name: void-exporter-missing
+  interval: 15s
+  rules:
+  - alert: VoidExporterMissing
+    # Fires when there are NO samples at all for the job for the last 2 minutes
+    expr: absent_over_time(up{job=~"void-(proposer-head|follower-v4)"}[2m])
+    for: 0m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Exporter missing: {{ $labels.job }}"
+      description: "Prometheus has not seen any samples for {{ $labels.job }} in the last 2 minutes."

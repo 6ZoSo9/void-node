@@ -1,0 +1,10 @@
+[Unit]
+Description=VOID anti-stall nudge timer
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=15s
+Unit=void-nudge.service
+
+[Install]
+WantedBy=timers.target

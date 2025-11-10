@@ -1,0 +1,27 @@
+groups:
+- name: void-header3-slo
+  interval: 30s
+  rules:
+  - alert: VoidHeader3GreenLow5m
+    expr: (void_header3:green_ratio_5m) < 0.95
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "header3 green ratio below 95% (5m)"
+      description: "void_header3:green_ratio_5m < 0.95 for 2m."
+
+  - alert: VoidHeader3GreenLow1h
+    expr: (void_header3:green_ratio_1h) < 0.90
+    for: 10m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "header3 green ratio below 90% (1h)"
+      description: "Sustained degradation over 1h window."
+
+  - alert: VoidHeader3ExporterBehind
+    expr: (void_header3:gap) > 2
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "header3 exporter is >2 blocks behind"
+      description: "Parity gap stayed >2 for 2 minutes."

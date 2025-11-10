@@ -1,0 +1,11 @@
+[Unit]
+Description=Run VOID proposer autopoke every 2s (user)
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=5s
+AccuracySec=500ms
+Unit=void-proposer-autopoke.service
+
+[Install]
+WantedBy=timers.target

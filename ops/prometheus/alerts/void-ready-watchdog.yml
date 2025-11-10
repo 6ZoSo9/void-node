@@ -1,0 +1,10 @@
+groups:
+- name: void-ready-watchdog
+  rules:
+  - alert: VoidReadyWatchdogIntervened
+    expr: increase(void_ready_watchdog_interventions_total[5m]) > 0
+    for: 4m
+    labels: { severity: info, system: void }
+    annotations:
+      summary: "Ready watchdog intervened"
+      description: "Self-heal triggered to recover readiness."

@@ -1,0 +1,11 @@
+groups:
+- name: void-head-4102
+  interval: 15s
+  rules:
+  - alert: VoidHead4102NoProgress5m
+    expr: (max_over_time(void_head_number_4102[5m]) - min_over_time(void_head_number_4102[5m])) < 1
+    for: 5m
+    labels: { severity: warning, system: void, env: dev }
+    annotations:
+      summary: "SAFE 4102 head stalled"
+      description: "Head number hasn't increased for 5 minutes."

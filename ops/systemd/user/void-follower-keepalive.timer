@@ -1,0 +1,10 @@
+[Unit]
+Description=Reassert follower loop (every 30s)
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=30s
+Unit=void-follower-keepalive.service
+
+[Install]
+WantedBy=default.target

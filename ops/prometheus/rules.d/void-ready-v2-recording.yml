@@ -1,0 +1,6 @@
+groups:
+- name: void-ready-v2-recording
+  interval: 15s
+  rules:
+  - record: void:ready_v2:last_2m
+    expr: last_over_time(void_ready_v2{job="void-ready-v2"}[2m])

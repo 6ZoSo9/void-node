@@ -1,0 +1,19 @@
+groups:
+- name: void-v7-alerts
+  interval: 15s
+  rules:
+  - alert: VoidV7QuarantineSpike
+    expr: increase(void:v7_quarantined_ips[5m]) > 20
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "v7 quarantine spike"
+      description: "More than 20 new quarantined IPs in 5m."
+
+  - alert: VoidV7TarpitHeavyDelay
+    expr: (void:v7_delay_ms_rate1m) > 200000
+    for: 3m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Heavy tarpit delay rate"
+      description: "Delay imposed exceeds 200k ms per second (aggregate)."

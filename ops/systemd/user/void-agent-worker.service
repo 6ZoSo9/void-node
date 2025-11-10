@@ -1,0 +1,14 @@
+[Unit]
+Description=VOID agent worker (HTTP lease/done loop)
+After=default.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/void/agent.env
+ExecStart=%h/dev/void-node/ops/agent-worker.sh
+Restart=always
+RestartSec=2
+WorkingDirectory=%h/dev/void-node
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=VOID Agent - TxRoot Guardian
+
+[Service]
+Type=oneshot
+Environment=API=http://127.0.0.1:4100
+Environment=ID=agent:txroot:v0
+Environment=TOK_FILE=/mnt/voidkey/operator/void-agent.env
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=%h/.local/bin/void-agent-txroot-guardian.sh

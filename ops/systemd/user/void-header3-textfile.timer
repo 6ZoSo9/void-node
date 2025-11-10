@@ -1,0 +1,8 @@
+[Unit]
+Description=Run header3 v2 textfile shim every 5s
+[Timer]
+OnUnitActiveSec=5s
+AccuracySec=1s
+Unit=void-header3-textfile.service
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,8 @@
+groups:
+- name: void-txroot-parity
+  interval: 15s
+  rules:
+  # Your exporter emits: void_header3_match{number="<n>"} 1|0
+  # Take the last value over 1m to smooth brief scrapes
+  - record: void:txroot_parity:last
+    expr: last_over_time(void_header3_match[1m])

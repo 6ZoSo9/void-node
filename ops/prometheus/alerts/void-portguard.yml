@@ -1,0 +1,13 @@
+groups:
+- name: void-portguard
+  interval: 15s
+  rules:
+  - alert: VoidPortGuardViolation
+    expr: (void_portguard_violation) == 1
+    for: 1m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Port guard violation (4102 detected)"
+      description: "A process bound to 4102 was detected in the last minute."

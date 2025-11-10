@@ -1,0 +1,11 @@
+groups:
+- name: void-pillars-parity
+  interval: 15s
+  rules:
+  - alert: VoidPillarsParityMismatch
+    expr: (void:pillars_ok_count:diff > 0)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Pillars parity mismatch"
+      description: "textfile void_pillars_ok_count != Prom void:pillars_ok_count (diff={{ $value }})"

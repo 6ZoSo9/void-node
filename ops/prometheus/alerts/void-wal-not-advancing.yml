@@ -1,0 +1,11 @@
+groups:
+- name: void-wal-not-advancing
+  interval: 15s
+  rules:
+  - alert: VoidWalNotAdvancing
+    expr: (void:wal:adv_rate1m == 0)
+    for: 5m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "WAL not advancing"
+      description: "WAL last_seq hasn't moved for 5m. Check proposer or saveBlock wrapper."

@@ -1,0 +1,7 @@
+groups:
+- name: void-seals-ok
+  interval: 15s
+  rules:
+  # Fresh if last raw sample < 120s ago → emit 1/0 using `bool`
+  - record: void:seals_ok_v2:last_2m
+    expr: ( (time() - max by(job,instance) (timestamp(void_seal_last_number{job=~".*seals.*"}))) < bool 120 )

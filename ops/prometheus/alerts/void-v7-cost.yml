@@ -1,0 +1,19 @@
+groups:
+- name: void-v7-cost
+  interval: 15s
+  rules:
+  - alert: VoidV7HeavyHitter
+    expr: max_over_time(void:v7_cost:blocks_5m[15s]) > 10
+    for: 0m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "v7 heavy hitter (blocks > 10 in 5m)"
+      description: "IP repeatedly hit v7; inspect and purge client."
+
+  - alert: VoidV7QuarantineActive
+    expr: sum(void_v7_cost_quarantined) > 0
+    for: 0m
+    labels: { severity: info, system: void }
+    annotations:
+      summary: "At least one IP is quarantined by v7 tarpit"
+      description: "Investigate source and block upstream if needed."

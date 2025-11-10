@@ -1,0 +1,35 @@
+groups:
+- name: void-slo-alerts
+  interval: 30s
+  rules:
+  - alert: VoidProposerDisabled
+    expr: void:proposer_enabled:last_2m < 0.5
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Proposer disabled"
+      description: "Proposer not enabled for 2m."
+
+  - alert: VoidProposerCadenceOff
+    expr: (void:proposer_ms:last_2m > 2500) or (void:proposer_ms:last_2m < 1500)
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Proposer cadence off-nominal"
+      description: "Expected ~2000ms; observed {{ $value }}ms for 5m."
+
+  - alert: VoidHeader3Stalled
+    expr: void:header3_adv_rate_1m == 0
+    for: 4m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "Header3 not advancing"
+      description: "header3 last_number not increasing for 2m."
+
+  - alert: VoidHeader3TooOld
+    expr: void:header3_age_seconds > 120
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Header3 stale"
+      description: "header3 age > 120s for 2m."

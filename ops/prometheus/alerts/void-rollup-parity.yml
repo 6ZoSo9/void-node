@@ -1,0 +1,11 @@
+groups:
+- name: void-rollup-parity
+  interval: 15s
+  rules:
+  - alert: VoidRollupParityMismatch
+    expr: (void:rollup_green:diff > 0)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Rollup parity mismatch"
+      description: "textfile vs Prom recompute differ (diff={{ $value }})"

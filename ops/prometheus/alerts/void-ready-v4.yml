@@ -1,0 +1,11 @@
+groups:
+- name: void-ready-v4
+  interval: 15s
+  rules:
+  - alert: VoidTxRootLiveV4Down
+    expr: avg_over_time(void_txroot_live_v4[2m]) < 0.5
+    for: 0m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "TxRoot truth health down (v4)"
+      description: "void_txroot_live_v4 < 1 for 2m — header truth shows empty/no activity."

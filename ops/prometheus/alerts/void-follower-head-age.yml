@@ -1,0 +1,11 @@
+groups:
+- name: void-follower-head-age-alerts
+  interval: 15s
+  rules:
+  - alert: VoidFollowerHeadStale
+    expr: void:follower_head_local:age_s > 120
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Follower head stale"
+      description: "No fresh sample for follower head in >120s."

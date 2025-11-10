@@ -1,0 +1,19 @@
+groups:
+- name: void-header3-parity
+  interval: 15s
+  rules:
+  # Instant gap (scalar)
+  - record: void_header3:gap
+    expr: (max by() (void_head:last_number) - max by() (void_header3:last_number))
+
+  # Green flag
+  - record: void_header3:is_green
+    expr: (void_header3:gap <= 1)
+
+  # Rolling green ratio
+  - record: void_header3:green_ratio_5m
+    expr: avg_over_time(void_header3:is_green[5m])
+  - record: void_header3:green_ratio_1h
+    expr: avg_over_time(void_header3:is_green[1h])
+  - record: void_header3:green_ratio_24h
+    expr: avg_over_time(void_header3:is_green[24h])

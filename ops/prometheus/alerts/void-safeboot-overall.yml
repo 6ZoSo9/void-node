@@ -1,0 +1,11 @@
+groups:
+- name: void-safeboot-overall-alerts
+  interval: 15s
+  rules:
+  - alert: VoidSafeBootOverallBad
+    expr: void:safeboot:overall != 1
+    for: 1m
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "SAFEBOOT overall failed"
+      description: "Either health != 1 or head != 694."

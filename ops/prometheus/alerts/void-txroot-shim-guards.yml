@@ -1,0 +1,19 @@
+groups:
+- name: void-txroot-shim-guards
+  interval: 15s
+  rules:
+  - alert: VoidTxrootSetterLag
+    expr: void:txroot:lag > 2
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "TxRoot setter is lagging head"
+      description: "Head {{ $value | printf \"%.0f\" }} blocks ahead of last txroot set."
+
+  - alert: VoidTxrootNoSetsWhileHeadMoves
+    expr: (rate(void_head_number[2m]) > 0.05) and (rate(void_block_txroot_set_total[2m]) == 0)
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "No txroot sets while head is advancing"
+      description: "Head is moving but txroot sets are not."

@@ -1,0 +1,11 @@
+groups:
+- name: void-liveness-age
+  interval: 15s
+  rules:
+  - alert: VoidLivenessTooOld
+    expr: (void_liveness_last_submit_age_seconds > 600) and (last_over_time(void_mempool[5m]) < 0.5)
+    for: 10m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Liveness shim hasn't submitted in a while"
+      description: "No liveness submits for >10m while mempool is ~0 on {{ $labels.instance }}"

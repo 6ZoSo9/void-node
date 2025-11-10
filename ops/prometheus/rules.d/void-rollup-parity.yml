@@ -1,0 +1,16 @@
+groups:
+- name: void-rollup-parity
+  interval: 15s
+  rules:
+  # 0/1 scalar bits:
+  #   - system green (already 0/1), reduce to scalar
+  #   - pillars exactly 4, use == bool 4 to get 0/1 then reduce
+  #   - lag_to_head <= 5, use <= bool 5 to get 0/1 then reduce
+  - record: void:rollup_green:recalc
+    expr: scalar(min(void:system_green:last_2m))
+          * scalar(min(void:pillars_ok_count == bool 4))
+          * scalar(max(void_lag_to_head) <= bool 5)
+
+  # Expect 0 when textfile and recalc agree
+  - record: void:rollup_green:diff
+    expr: abs( max(void_rollup_green) - scalar(void:rollup_green:recalc) )

@@ -1,0 +1,18 @@
+groups:
+- name: void-head-adv-scalar
+  interval: 15s
+  rules:
+  # Head last/min over 1m from the *right job* → scalar
+  - record: void:head:last_1m_scalar
+    expr: scalar(max(last_over_time(void_head_number{job="void-head"}[1m])))
+
+  - record: void:head:min_1m_scalar
+    expr: scalar(min(last_over_time(void_head_number{job="void-head"}[1m])))
+
+  # True scalar rate (blocks/sec)
+  - record: void:head:adv_rate1m_scalar
+    expr: (void:head:last_1m_scalar - void:head:min_1m_scalar) / 60
+
+  # 0/1 scalar: advancing at all?
+  - record: void:head:adv_ok_scalar
+    expr: (void:head:adv_rate1m_scalar > bool 0)

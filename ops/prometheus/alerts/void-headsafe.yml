@@ -1,0 +1,18 @@
+groups:
+- name: void-headsafe-alerts
+  interval: 15s
+  rules:
+  - alert: VoidHeadSafeWrong
+    expr: (void:headsafe:last != 694)
+    for: 1m
+    labels: {system: "void", severity: "warning"}
+    annotations:
+      summary: "SAFEBOOT head mismatch"
+      description: "void_headsafe_number={{ $value }} (expected 694)."
+  - alert: VoidHeadSafeStale
+    expr: absent_over_time(void_headsafe_number[90s])
+    for: 2m
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "SAFEBOOT head metric missing"
+      description: "No samples for void_headsafe_number in the last 90s."

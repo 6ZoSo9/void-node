@@ -1,0 +1,6 @@
+[Unit]
+Description=Gate proposer based on /mnt/voidkey/operator/void-agent.env (non-lethal)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/void-proposer-usb-gate.sh

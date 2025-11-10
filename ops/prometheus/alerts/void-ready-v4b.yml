@@ -1,0 +1,11 @@
+groups:
+- name: void-ready-v4b
+  interval: 15s
+  rules:
+  - alert: VoidTxRootLiveV4bDown
+    expr: avg_over_time(void_txroot_live_v4b[2m]) < 0.5
+    for: 0m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "TxRoot truth health down (v4b)"
+      description: "v4b < 1 for 2m (non-empty header OR recent activity required); investigate proposer / tx flow."

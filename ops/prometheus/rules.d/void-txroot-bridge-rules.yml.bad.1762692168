@@ -1,0 +1,12 @@
+groups:
+- name: void-txroot-bridge
+  interval: 15s
+  rules:
+  - record: void:txroot_bridge:last_set_block
+    expr: max_over_time(void_core2_bridge_last_set_block[1m])
+
+  - record: void:txroot_bridge:parity_ok
+    expr: clamp_min(1 - abs((void:txroot_bridge:last_set_block - on() last_over_time(void_head_number[1m]))), 0)
+
+  - record: void:txroot_bridge:last_set_age_s
+    expr: (time() - max_over_time(void_txroot_header_last_set_block{job!=""}[1m] * 0 + time())) # fallback if needed

@@ -1,0 +1,140 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules.d/*.yml
+  - /etc/prometheus/alerts/*.yml
+
+scrape_configs:
+  - job_name: void-seals-canary
+    metrics_path: /metrics/void/seals
+    scrape_interval: 10s
+    static_configs:
+    - targets: ["127.0.0.1:4110"]
+  - job_name: void-txroot-health-canary
+    metrics_path: /health/txroot3
+    params:
+      format: ["prom"]
+    scrape_interval: 10s
+    static_configs:
+    - targets: ["127.0.0.1:4110"]
+  - job_name: void-header3-canary
+    metrics_path: /__void/metrics/header3.prom
+    scrape_interval: 10s
+    static_configs:
+    - targets: ["127.0.0.1:4110"]
+  - job_name: void-seals-follower
+    metrics_path: /metrics/void/seals
+    scrape_interval: 10s
+    static_configs:
+    - targets: ["127.0.0.1:4101"]
+  - job_name: void-txroot-health-follower
+    metrics_path: /health/txroot3
+    params:
+      format: ["prom"]
+    scrape_interval: 10s
+    static_configs:
+    - targets: ["127.0.0.1:4101"]
+  - job_name: void-header3-follower
+    metrics_path: /__void/metrics/header3.prom
+    scrape_interval: 10s
+    static_configs:
+    - targets: ["127.0.0.1:4101"]
+  - job_name: "void-safeboot-health"
+    scrape_interval: 10s
+    metrics_path: /health/safeboot.prom
+    static_configs:
+      - targets: ["127.0.0.1:4100"]
+        labels:
+          system: void
+          env: dev
+
+  - job_name: 'void-safe-4102-header3'
+    scrape_interval: 5s
+    metrics_path: /__void/metrics/header3.prom
+    static_configs:
+      - targets: [ '127.0.0.1:4102' ]
+        labels: { env: dev, system: void, role: safe, port: "4102" }
+  - job_name: 'void-safe-4102-basics'
+    scrape_interval: 5s
+    metrics_path: /__void/metrics/void.basics.v2.prom
+    static_configs:
+      - targets: [ '127.0.0.1:4102' ]
+        labels: { env: dev, system: void, role: safe, port: "4102" }
+  - job_name: "void-wal-verify"
+    scrape_interval: 5s
+    metrics_path: /__void/metrics/wal.verify.prom
+    static_configs:
+      - targets: ["127.0.0.1:4100"]
+        labels: { env: "dev" }
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['127.0.0.1:9090']
+
+  - job_name: 'node'
+    static_configs:
+      - targets: ['127.0.0.1:9100']
+
+  - job_name: 'void-proposer-v3b'
+    scrape_interval: 5s
+    metrics_path: /metrics/void/proposer.v3b.prom
+    static_configs:
+      - targets: ['127.0.0.1:4100']
+        labels: { env: dev }
+
+  - job_name: 'void-header3-v2'
+    scrape_interval: 5s
+    metrics_path: /__void/metrics/header3.prom.v2
+    static_configs:
+      - targets: ['127.0.0.1:4100']
+        labels: { env: dev }
+  - job_name: 'void-head'
+    scrape_interval: 5s
+    metrics_path: /metrics/void/head
+    static_configs:
+      - targets: ['127.0.0.1:4100']
+        labels: {env: dev}
+  - job_name: 'void-core2-bridge'
+    scrape_interval: 5s
+    metrics_path: /__void/metrics/txroot4/core2.bridge.prom
+    static_configs:
+      - targets: ['127.0.0.1:4100']
+        labels: {env: dev}
+
+  - job_name: 'void-txroot-health-v3'
+    scrape_interval: 5s
+    metrics_path: /health/txroot3
+    params:
+      format: [prom]
+    static_configs:
+      - targets: ['127.0.0.1:4100']
+        labels:
+          env: dev
+
+  - job_name: 'void-header3'
+    scrape_interval: 5s
+    metrics_path: /__void/metrics/header3.prom
+    static_configs:
+      - targets: ['127.0.0.1:4100']
+        labels: { env: dev }
+
+  - job_name: 'void-seals-health'
+    scrape_interval: 5s
+    metrics_path: /metrics/void/seals/health
+    params:
+      format: [prom]
+    static_configs:
+      - targets: ['127.0.0.1:4100']
+        labels: { env: dev }
+  - job_name: "void-seals"
+    scrape_interval: 5s
+    metrics_path: /metrics/void/seals
+    static_configs:
+      - targets: ["127.0.0.1:4100"]
+        labels: { env: dev }
+  - job_name: "void-blockcount-canary"
+    scrape_interval: 10s
+    static_configs:
+    - targets: ["127.0.0.1:4110"]
+    metrics_path: /__void/metrics/blockcount.v2b.prom

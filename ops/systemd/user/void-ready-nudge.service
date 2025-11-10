@@ -1,0 +1,13 @@
+[Unit]
+Description=VOID ready nudge (policy, cap, tx burst)
+After=void-node.service
+Wants=void-node.service
+PartOf=void-node.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -lc "set -euo pipefail; curl -fsS -X POST 127.0.0.1:4100/blocks/empty-policy/set?enabled=true&fill=true >/dev/null; curl -fsS -X POST 127.0.0.1:4100/tx/merge/cap/set?enabled=true&max=2 >/dev/null; curl -fsS -X POST 127.0.0.1:4100/tx/dev/burst?n=4 >/dev/null || true"
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target

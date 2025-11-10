@@ -1,0 +1,11 @@
+[Unit]
+Description=Run VOID p2p auto-connect every 30s
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=void-p2p-watch.service
+
+[Install]
+WantedBy=timers.target

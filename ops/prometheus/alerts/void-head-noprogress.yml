@@ -1,0 +1,11 @@
+groups:
+- name: void-head-noprogress
+  interval: 15s
+  rules:
+  - alert: VoidHeadNoProgress
+    expr: increase(void_head_number[2m]) < 1
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Head not advancing"
+      description: "No head growth for 2m on {{ $labels.instance }}"

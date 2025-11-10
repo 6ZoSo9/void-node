@@ -1,0 +1,11 @@
+groups:
+- name: void-wal-gate
+  interval: 15s
+  rules:
+  - alert: VoidWALGatingUnexpected
+    expr: (last_over_time(void_wal_gate_proposer[2m]) == 1)
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "WAL gating turned ON unexpectedly"
+      description: "void_wal_gate_proposer==1 for 2m while WAL verifier is not deployed."

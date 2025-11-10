@@ -1,0 +1,10 @@
+groups:
+- name: void-usb-recording
+  interval: 15s
+  rules:
+  - record: void:usb_health:last
+    expr: last_over_time(void_usb_health{job="void-usb"}[1m])
+  - record: void:usb_mounted:last
+    expr: last_over_time(void_usb_mounted{job="void-usb"}[1m])
+  - record: void:usb_env_ok:last
+    expr: last_over_time(void_usb_envfile_ok{job="void-usb"}[1m])

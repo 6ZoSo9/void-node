@@ -1,0 +1,15 @@
+groups:
+- name: void-header-stall-v2
+  interval: 15s
+  rules:
+  # 1 when no change in last_number for >=30s (tolerant window)
+  - record: void:header_stalled_30s
+    expr: (
+            max_over_time( (void_header3_last_number_v2 or void_header3_last_number)[35s:5s] )
+          - min_over_time( (void_header3_last_number_v2 or void_header3_last_number)[35s:5s] )
+          == 0
+          ) * 1
+
+  # Age proxy: integrates the stalled bit (15s rule interval)
+  - record: void:header3_last_age_s
+    expr: sum_over_time(void:header_stalled_30s[5m]) * 15

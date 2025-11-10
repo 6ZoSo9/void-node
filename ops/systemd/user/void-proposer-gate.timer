@@ -1,0 +1,9 @@
+[Unit]
+Description=Start VOID Proposer Gate at login
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=0
+
+[Install]
+WantedBy=timers.target

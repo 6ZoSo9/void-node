@@ -1,0 +1,11 @@
+groups:
+- name: void-liveness-activity
+  interval: 15s
+  rules:
+  # 1 if at least one submit in the last 5m, else 0 — and default to 0 when no samples exist
+  - record: void:liveness_recent_5m
+    expr: (
+            (sum by(instance,job) (increase(void_liveness_submits_total[5m])) > 0) * 1
+          )
+          or on(instance,job)
+          (up{job="void-liveness"} * 0)

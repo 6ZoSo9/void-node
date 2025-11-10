@@ -1,0 +1,6 @@
+groups:
+- name: void-follower-txroot
+  interval: 15s
+  rules:
+  - record: void:follower_txroot_mismatch:inc_2m
+    expr: increase(void_txroot_core_mismatch_total{job="void-txroot-core-v2-follower"}[2m])

@@ -1,0 +1,8 @@
+groups:
+- name: void-follower-liveness
+  interval: 15s
+  rules:
+  - record: void:follower_txroot_heartbeat:inc_2m
+    expr: increase(void_txroot_core_heartbeat_total{job="void-txroot-core-v2-follower"}[2m])
+  - record: void:follower_head_local:changes_2m
+    expr: changes(void_follower_head_local{job="void-follower-v4"}[2m])

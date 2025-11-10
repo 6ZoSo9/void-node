@@ -1,0 +1,8 @@
+groups:
+- name: void-follower-head-age
+  interval: 15s
+  rules:
+  - record: void:follower_head_local:last
+    expr: last_over_time(void_follower_head_local{job="void-follower-v4"}[2m])
+  - record: void:follower_head_local:age_s
+    expr: time() - timestamp(void:follower_head_local:last)

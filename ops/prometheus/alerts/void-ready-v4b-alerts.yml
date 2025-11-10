@@ -1,0 +1,13 @@
+groups:
+- name: void-ready-v4b-alerts
+  interval: 15s
+  rules:
+  - alert: VoidReadyV4bNotGreen
+    expr: (void:ready_v4b:last == 0)
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "READY(v4b) not green"
+      description: "TxRoot truth health has been 0 for 2m. Last inspected block={{ $value | printf \"%.0f\" }} (see v4b exporter)."

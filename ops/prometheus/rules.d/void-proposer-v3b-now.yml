@@ -1,0 +1,8 @@
+groups:
+- name: void-proposer-v3b-now
+  interval: 15s
+  rules:
+  - record: void:proposer_auto_enabled:now
+    expr: void_proposer_auto_enabled
+  - record: void:proposer_auto_ms:now
+    expr: void_proposer_auto_ms

@@ -1,0 +1,11 @@
+groups:
+- name: void-pillars
+  interval: 30s
+  rules:
+  - alert: VoidPillarMetricMissing
+    expr: absent(void_header3:is_green) or absent(void_txroot_health) or absent(void_seals_health) or absent(void_head_number)
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "pillar metric missing"
+      description: "One of header3/txroot/seals/head metrics is absent for 2m."

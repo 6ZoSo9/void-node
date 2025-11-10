@@ -1,0 +1,6 @@
+groups:
+- name: void-txroot-live
+  interval: 15s
+  rules:
+  - record: void:txroot_live:last_2m
+    expr: last_over_time(void_txroot_live[2m])

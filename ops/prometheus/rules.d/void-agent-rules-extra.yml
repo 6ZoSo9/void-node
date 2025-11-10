@@ -1,0 +1,19 @@
+groups:
+- name: void-agent-rules-extra
+  interval: 15s
+  rules:
+  # Smoother completion rate (2m) + spike detector (irate short)
+  - record: void:agent_completed_rate2m
+    expr: rate(void_agent_jobs_completed[2m])
+  - record: void:agent_completed_irate_30s
+    expr: irate(void_agent_jobs_completed[30s])
+
+  # Queue depth summaries (last, avg, max across 1m)
+  - record: void:agent_queue_depth:avg_1m
+    expr: avg_over_time(void_agent_queue_depth[1m])
+  - record: void:agent_queue_depth:max_1m
+    expr: max_over_time(void_agent_queue_depth[1m])
+
+  # Unique results deltas with two windows
+  - record: void:agent_unique_delta_2m
+    expr: delta(void_agent_results_unique[2m])

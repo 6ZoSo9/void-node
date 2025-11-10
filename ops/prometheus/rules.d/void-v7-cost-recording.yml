@@ -1,0 +1,10 @@
+groups:
+- name: void-v7-cost-recording
+  interval: 15s
+  rules:
+  - record: void:v7_cost:blocks_5m
+    expr: sum by (ip) (increase(void_v7_cost_blocks_total[5m]))
+  - record: void:v7_cost:quarantines_30m
+    expr: sum by (ip) (increase(void_v7_cost_quarantines_total[30m]))
+  - record: void:v7_cost:delay_ms_5m
+    expr: sum by (ip) (increase(void_v7_cost_delay_ms_total[5m]))

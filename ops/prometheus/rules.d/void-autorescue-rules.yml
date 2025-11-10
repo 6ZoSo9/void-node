@@ -1,0 +1,6 @@
+groups:
+- name: void-autorescue
+  interval: 15s
+  rules:
+  - record: void:autorescue:stall:last
+    expr: last_over_time(void_autorescue_stall[1m])

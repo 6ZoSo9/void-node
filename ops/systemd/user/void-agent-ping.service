@@ -1,0 +1,19 @@
+[Unit]
+Description=VOID Agent - Ping/Receipt v0
+After=default.target
+Requires=void-usb-sentinel.service
+BindsTo=void-usb-sentinel.service
+
+[Service]
+Type=simple
+Environment=VOID_NODE_URL=http://127.0.0.1:4100
+Environment=VOID_AGENT_TOKEN_FILE=/mnt/voidkey/operator/void-agent.env
+Environment=VOID_AGENT_ID=agent:pinger:v0
+Environment=VOID_AGENT_INTERVAL_MS=5000
+# Absolute path so tsx can’t wander to /home/zoso/...
+ExecStart=/usr/bin/npx --yes tsx %h/dev/void-node/ops/agents/ping-agent.ts
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,12 @@
+groups:
+- name: void-txroot-core-throughput-guarded
+  interval: 15s
+  rules:
+  - alert: VoidTxRootCoreThroughputLowGuarded
+    expr: (rate(void_block_txroot_set_total{job="void-txroot-setter"}[2m]) < 0.2)
+          and on() (void_proposer_enabled == 1)
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "TxRoot throughput low (guarded)"
+      description: "Setter rate < 0.2/s for 2m while proposer is enabled."

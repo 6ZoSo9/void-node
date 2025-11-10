@@ -1,0 +1,11 @@
+groups:
+- name: void-follower-heartbeat-slo-alerts
+  interval: 15s
+  rules:
+  - alert: VoidFollowerHeartbeatOffTempo
+    expr: (void:follower_heartbeat:rate_2m < 0.15) OR (void:follower_heartbeat:rate_2m > 0.25)
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Follower heartbeat off-tempo"
+      description: "Expected ~0.20/s (5s period). Got {{ $value }} /s over 2m."

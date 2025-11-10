@@ -1,0 +1,15 @@
+groups:
+- name: void-system-green
+  interval: 15s
+  rules:
+  # Bridge already scalarized by your earlier work:
+  #   void:txroot_bridge:last_set_gap_blocks
+  #   void:txroot_bridge:last_set_age_s
+  - record: void:txroot_bridge:green
+    expr: (void:txroot_bridge:last_set_gap_blocks <= bool 1)
+          and (void:txroot_bridge:last_set_age_s < bool 20)
+
+  # Overall "green": both scalar booleans must be 1
+  - record: void:system:green
+    expr: (void:txroot_bridge:green == bool 1)
+          and (void:head:adv_ok_scalar == bool 1)

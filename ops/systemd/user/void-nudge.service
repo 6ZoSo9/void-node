@@ -1,0 +1,7 @@
+[Unit]
+Description=VOID anti-stall nudge (conditional)
+
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+ExecStart=%h/.local/bin/void-nudge-if-stalled.sh

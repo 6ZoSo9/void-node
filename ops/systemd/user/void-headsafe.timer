@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule headsafe metric
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=10s
+AccuracySec=1s
+Persistent=true
+
+[Install]
+WantedBy=default.target

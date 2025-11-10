@@ -1,0 +1,27 @@
+groups:
+- name: void-safeboot-core
+  interval: 15s
+  rules:
+  - alert: VoidSafeBootOverallBad
+    expr: void:safeboot:overall != 1
+    for: 1m
+    labels: {system: "void", severity: "critical"}
+    annotations:
+      summary: "SAFEBOOT overall bad"
+      description: "overall=0 (health/head check failing)"
+
+  - alert: VoidSafeBootHealthBad
+    expr: last_over_time(void_safeboot_health[45s]) != 1
+    for: 1m
+    labels: {system: "void", severity: "high"}
+    annotations:
+      summary: "SAFEBOOT health bad"
+      description: "void_safeboot_health != 1 for 1m"
+
+  - alert: VoidHeadSafeWrong
+    expr: void:headsafe:parity != 1
+    for: 1m
+    labels: {system: "void", severity: "high"}
+    annotations:
+      summary: "SAFEBOOT pinned head mismatch"
+      description: "void:headsafe:last != expected pin"

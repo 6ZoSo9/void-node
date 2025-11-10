@@ -1,0 +1,19 @@
+groups:
+- name: void-slo-recording
+  interval: 30s
+  rules:
+  # Proposer on/off and cadence
+  - record: void:proposer_auto_enabled:last_2m
+    expr: last_over_time(void_proposer_auto_enabled[2m])
+  - record: void:proposer_auto_ms:last_2m
+    expr: last_over_time(void_proposer_auto_ms[2m])
+  - record: void:proposer_tick_rate_1m
+    expr: vector(0)  # disabled: missing void_proposer_tick_total
+
+  # Header3 advancement and staleness
+  - record: void:header3_last_number
+    expr: max(void_header3_last_number)
+  - record: void:header3_adv_rate_1m
+    expr: rate(void_header3_last_number[1m])
+  - record: void:header3_age_seconds
+    expr: time() - timestamp(void_header3_last_number)

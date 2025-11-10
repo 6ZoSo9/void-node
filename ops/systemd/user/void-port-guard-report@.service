@@ -1,0 +1,6 @@
+[Unit]
+Description=VOID port guard reporter for %i
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -lc 'printf "void_portguard_violation 1\n" > "$HOME/void_portguard.prom" && mv "$HOME/void_portguard.prom" '"$TFD/"'void_portguard.prom'

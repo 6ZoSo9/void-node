@@ -1,0 +1,12 @@
+groups:
+- name: void-empty-stall
+  interval: 15s
+  rules:
+  # If mempool is 0 but head doesn't move, complain (looks back 2m)
+  - alert: VoidEmptyMempoolNoProgress
+    expr: (last_over_time(void_mempool[2m]) < 0.5) and (increase(void_head_number[2m]) < 1)
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Empty mempool but head is not advancing"
+      description: "mempool~0 and no head growth for 2m on {{ $labels.instance }} — enable empty-block fill or inject liveness txs."

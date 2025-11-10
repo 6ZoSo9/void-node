@@ -1,0 +1,27 @@
+groups:
+- name: void-canary
+  interval: 15s
+  rules:
+  - alert: VoidCanaryTxrootUnhealthy
+    expr: void:canary_txroot_health:last < 1
+    for: 1m
+    labels: {system: void, severity: warning}
+    annotations:
+      summary: "Canary txroot health bad"
+      desc: "void_txroot_health != 1 on 4110 for >1m"
+
+  - alert: VoidCanaryHeadStalled
+    expr: void:canary_head:changes_2m < 1
+    for: 2m
+    labels: {system: void, severity: warning}
+    annotations:
+      summary: "Canary head stalled"
+      desc: "No head movement on 4110 for >2m"
+
+  - alert: VoidCanaryOverallBad
+    expr: void:canary_overall < 1
+    for: 2m
+    labels: {system: void, severity: warning}
+    annotations:
+      summary: "Canary overall unhealthy"
+      desc: "Either txroot unhealthy or head not advancing on 4110"

@@ -1,0 +1,15 @@
+groups:
+- name: void-wal-gate-contradiction
+  interval: 15s
+  rules:
+  - alert: VoidWalGateContradiction
+    expr: (void_wal_gate_proposer == 1)
+      and (probe_success{job="void-wal-verify"} or vector(1))
+      and (absent_over_time(node_time_seconds[1m]) == 0 or vector(1))
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "WAL gate shows ON while feature disabled"
+      description: "void_wal_gate_proposer==1 but env/prehook disables gate. Check globals/exporter."

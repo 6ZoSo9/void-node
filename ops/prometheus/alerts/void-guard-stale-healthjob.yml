@@ -1,0 +1,13 @@
+groups:
+- name: void-guard-stale-healthjob
+  interval: 15s
+  rules:
+  - alert: VoidGuardStaleTxrootHealthJob
+    expr: sum(up{job="void-txroot-health-prom"}) > 0
+    for: 3m
+    labels:
+      severity: critical
+      system: void
+    annotations:
+      summary: "Stale job void-txroot-health-prom is active"
+      description: "A target with job=void-txroot-health-prom is UP; this job must not exist."

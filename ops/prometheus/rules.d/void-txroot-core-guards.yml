@@ -1,0 +1,10 @@
+groups:
+- name: void-txroot-core-guards
+  interval: 15s
+  rules:
+  # Smooth parity signal from header3 exporter
+  - record: void:txroot_parity:last
+    expr: last_over_time(void_header3_match[1m])
+  # Cheap "setter idle" helper (presence-only via heartbeat)
+  - record: void:setter:last_heartbeat
+    expr: max_over_time(void_txroot_header_heartbeat_total[5m])

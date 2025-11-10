@@ -1,0 +1,6 @@
+groups:
+- name: void-safeboot-health
+  interval: 15s
+  rules:
+  - record: void:safeboot:health:last
+    expr: last_over_time(void_safeboot_health[45s])

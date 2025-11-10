@@ -1,0 +1,9 @@
+[Unit]
+Description=VOID Agent - Scheduler Heartbeat
+
+[Service]
+Type=oneshot
+Environment=API=http://127.0.0.1:4100
+Environment=ID=agent:scheduler:v0
+Environment=TOK_FILE=/mnt/voidkey/operator/void-agent.env
+ExecStart=%h/.local/bin/void-agent-scheduler.sh

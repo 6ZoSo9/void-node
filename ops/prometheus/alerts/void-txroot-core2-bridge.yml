@@ -1,0 +1,25 @@
+groups:
+- name: void-txroot-core2-bridge-alerts
+  interval: 15s
+  rules:
+  - alert: VoidTxRootUnhealthy
+    expr: avg_over_time(void_txroot_health[1m]) < 1
+    for: 2m
+    labels: { severity: page, system: void }
+    annotations:
+      summary: txroot health is bad
+      desc: void_txroot_health < 1 for 2m
+  - alert: VoidTxRootSetterStalled
+    expr: rate(void_core2_bridge_set_total[5m]) == 0
+    for: 5m
+    labels: { severity: warn, system: void }
+    annotations:
+      summary: txroot setter not advancing
+      desc: No header txRoot sets for 5m (bridge)
+  - alert: VoidTxRootSavesStalled
+    expr: rate(void_core2_bridge_saves_total[5m]) == 0
+    for: 5m
+    labels: { severity: warn, system: void }
+    annotations:
+      summary: no block saves observed
+      desc: No saves for 5m (bridge)

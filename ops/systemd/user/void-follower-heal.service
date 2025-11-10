@@ -1,0 +1,6 @@
+[Unit]
+Description=VOID follower self-heal
+
+[Service]
+Type=oneshot
+ExecStart=%h/dev/void-node/ops/void-follower-heal.sh

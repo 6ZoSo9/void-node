@@ -1,0 +1,11 @@
+groups:
+- name: void-gate
+  interval: 15s
+  rules:
+  - alert: VoidGateMissing
+    expr: (1 - last_over_time(void_gate_present[1m])) == 1
+    for: 1m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "VOID USB gate missing"
+      description: "Gate file not present for >1m; nodes should be down."

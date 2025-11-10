@@ -1,0 +1,30 @@
+groups:
+- name: void-agent-alerts
+  interval: 15s
+  rules:
+  # Completed jobs but unique results not advancing => capture/receipt path broken
+  - alert: VoidAgentUniqueStalled
+    expr: (void:agent_completed_rate1m > 0.1) and (void:agent_unique_delta_5m <= 0)
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Agent results not advancing"
+      description: "Jobs completed >0 but unique results unchanged for 5m."
+
+  # DLQ growing
+  - alert: VoidAgentDLQSpike
+    expr: void:agent_dlq_inc_5m > 0
+    for: 1m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Agent DLQ increased"
+      description: "Dead-letter queue grew in the last 5 minutes."
+
+  # Leases frequently expiring (workers too slow / heartbeat failing)
+  - alert: VoidAgentLeaseExpiryBurst
+    expr: void:agent_leases_expired_inc_5m > 10
+    for: 2m
+    labels: { severity: info, system: void }
+    annotations:
+      summary: "Agent leases expiring"
+      description: "More than 10 leases expired over the last 5 minutes."

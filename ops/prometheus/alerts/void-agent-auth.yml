@@ -1,0 +1,18 @@
+groups:
+- name: void-agent-auth-alerts
+  interval: 15s
+  rules:
+  - alert: VoidAgentAuthMissing
+    expr: (void:agent_auth_configured:last) < 1
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Agent auth not configured"
+      description: "Server reports agent auth disabled for 2m."
+  - alert: VoidAgentQueueStuck
+    expr: (void:agent_jobs_queued:last) > 0
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Agent job backlog"
+      description: "Queued jobs > 0 for 2m — worker likely unhealthy or unauthorized."

@@ -1,0 +1,8 @@
+groups:
+- name: void-header3-v2-recording
+  interval: 15s
+  rules:
+  - record: void_header3:last_number_v2
+    expr: last_over_time(void_header3_last_number_v2[1m])
+  - record: void_header3:match_v2:last
+    expr: last_over_time(void_header3_match_v2[1m])

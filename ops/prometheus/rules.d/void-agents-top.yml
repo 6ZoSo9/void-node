@@ -1,0 +1,8 @@
+groups:
+- name: void-agents-top
+  interval: 15s
+  rules:
+  - record: void:agents_byid:ok_rate1m:top10
+    expr: topk(10, sum by (id) (rate(void_agent_receipts_ok_total{job="void-agent-receipts-byid"}[1m])))
+  - record: void:agents_byid:active:last_2m
+    expr: sum by () (last_over_time(void_agent_receipts_coverage{job="void-agent-receipts-byid"}[2m]))

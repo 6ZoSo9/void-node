@@ -1,0 +1,12 @@
+groups:
+- name: void-head-and-setter
+  interval: 5s
+  rules:
+  - record: void:head:last_30s:unchanged
+    expr: (max_over_time(void_seal_last_number[30s]) - min_over_time(void_seal_last_number[30s]) == 0)
+  - record: void:setter:last_block
+    expr: max_over_time(void_txroot_header_last_set_block[30s])
+  - record: void:head:last_block
+    expr: max_over_time(void_seal_last_number[30s])
+  - record: void:setter:fresh
+    expr: (void:setter:last_block == void:head:last_block)

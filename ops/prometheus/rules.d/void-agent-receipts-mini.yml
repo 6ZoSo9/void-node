@@ -1,0 +1,10 @@
+groups:
+- name: void-agent-receipts-mini
+  interval: 15s
+  rules:
+  - record: void:agent_receipts:coverage:last_2m
+    expr: last_over_time(void_agent_receipts_coverage{job="void-agent-receipts"}[2m])
+  - record: void:agent_receipts:ok_rate1m
+    expr: rate(void_agent_receipts_ok_total{job="void-agent-receipts"}[1m])
+  - record: void:agent_receipts:err_rate1m
+    expr: rate(void_agent_receipts_err_total{job="void-agent-receipts"}[1m])

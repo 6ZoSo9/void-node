@@ -1,0 +1,8 @@
+groups:
+- name: void-proposer-kick-recording
+  interval: 30s
+  rules:
+  - record: void:proposer:kicks_total
+    expr: sum(void_proposer_kicks_total)
+  - record: void:proposer:kicks_rate1m
+    expr: rate(void_proposer_kicks_total[1m])

@@ -1,0 +1,10 @@
+[Unit]
+Description=VOID system_ok -> textfile
+After=default.target
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc '~/.local/bin/void-system-ok-textfile.sh; while :; do sleep 15; ~/.local/bin/void-system-ok-textfile.sh; done'
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=default.target

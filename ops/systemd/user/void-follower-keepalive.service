@@ -1,0 +1,7 @@
+[Unit]
+Description=Reassert follower loop
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/dev/void-node/void.bootstrap-1.env
+ExecStart=/bin/sh -lc 'curl -sS -X POST "http://127.0.0.1:4101/follower/start?peer=${PUBLIC_HTTP_BASE_MAIN:-http://127.0.0.1:4100}&intervalMs=500" >/dev/null || true'

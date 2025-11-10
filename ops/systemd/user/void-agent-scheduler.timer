@@ -1,0 +1,11 @@
+[Unit]
+Description=VOID Agent - Scheduler Heartbeat Timer
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+AccuracySec=1s
+Unit=void-agent-scheduler.service
+
+[Install]
+WantedBy=default.target

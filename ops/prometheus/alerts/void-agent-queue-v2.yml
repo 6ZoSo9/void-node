@@ -1,0 +1,11 @@
+groups:
+- name: void-agent-queue-v2
+  interval: 15s
+  rules:
+  - alert: VoidAgentQueueStuckV2
+    expr: last_over_time(void_agent_jobs_queued_v2[2m]) > 0
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Agent job backlog (v2)"
+      description: "Jobs without results > 0 for 2m."

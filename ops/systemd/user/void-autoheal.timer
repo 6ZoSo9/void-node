@@ -1,0 +1,9 @@
+[Unit]
+Description=Run VOID auto-heal every 20s
+
+[Timer]
+OnBootSec=5
+OnUnitActiveSec=20
+
+[Install]
+WantedBy=default.target

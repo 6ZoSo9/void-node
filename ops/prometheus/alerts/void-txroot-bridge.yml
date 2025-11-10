@@ -1,0 +1,19 @@
+groups:
+- name: void-txroot-bridge-alerts
+  interval: 15s
+  rules:
+  - alert: VoidTxrootBridgeAgeHigh
+    expr: void:txroot_bridge:last_set_age_s > 30
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "txRoot bridge age high"
+      description: "No fresh bridge sample for >30s (≥2m). Investigate exporter or node."
+
+  - alert: VoidTxrootBridgeGapBlocks
+    expr: void:txroot_bridge:last_set_gap_blocks > 3
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "txRoot bridge gap too large"
+      description: "Bridge last_set_block lags head by >3 blocks (≥2m)."

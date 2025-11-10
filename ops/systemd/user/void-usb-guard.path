@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch operator env on USB
+StartLimitIntervalSec=0
+
+[Path]
+Unit=void-usb-guard.service
+PathChanged=/mnt/voidkey/operator/void-agent.env
+PathExists=/mnt/voidkey/operator/void-agent.env
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,11 @@
+groups:
+- name: void-ai-signal-alerts
+  interval: 15s
+  rules:
+  - alert: VoidAISignalBad
+    expr: (void:ai_signal_ok:last) == 0
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "AI signal degraded"
+      description: "Composite AI signal is bad for 2m (score < 70 or components failing)."

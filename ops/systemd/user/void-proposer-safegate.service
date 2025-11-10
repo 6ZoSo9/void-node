@@ -1,0 +1,9 @@
+[Unit]
+Description=Void proposer SafeGate (composite health → enable/disable)
+
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+Environment=TEXTFILE_DIR=%h/.cache/node-exporter-textfile
+ExecStart=%h/.local/bin/void-proposer-safegate.sh
+SuccessExitStatus=0 1

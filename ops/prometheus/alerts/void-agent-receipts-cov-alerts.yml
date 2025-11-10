@@ -1,0 +1,19 @@
+groups:
+- name: void-agent-receipts-cov-alerts
+  interval: 15s
+  rules:
+  - alert: VoidAgentReceiptsCoverageLow
+    expr: void:agent_receipts_coverage < 0.90
+    for: 3m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Receipts coverage below 90%"
+      description: "Coverage is {{ $value | printf \"%.2f\" }} for >3m"
+
+  - alert: VoidAgentReceiptsLagging
+    expr: (rate(void_agent_results_unique_total[5m]) > 0) and (rate(void_agent_receipts_total[5m]) == 0)
+    for: 3m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Receipts not keeping up"
+      description: "Results are advancing but receipts are flat for 3m."

@@ -1,0 +1,8 @@
+[Unit]
+Description=Run proposer auto-tick every 3s
+[Timer]
+OnUnitActiveSec=3s
+AccuracySec=1s
+Unit=void-proposer-autotick.service
+[Install]
+WantedBy=timers.target

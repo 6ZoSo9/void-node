@@ -1,0 +1,18 @@
+groups:
+- name: void-seals-green
+  interval: 15s
+  rules:
+  - alert: VoidSealsStalled
+    expr: (void:seals_rate1m == 0)
+    for: 4m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "Seals stalled"
+      description: "No new seals for 2m (job={{ $labels.job }}, instance={{ $labels.instance }})"
+  - alert: VoidSealsSlow
+    expr: (void:seals_rate1m < 0.2)
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Seals slow"
+      description: "Seals < 0.2 blk/s for 5m (job={{ $labels.job }}, instance={{ $labels.instance }})"

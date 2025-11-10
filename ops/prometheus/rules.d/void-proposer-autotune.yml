@@ -1,0 +1,8 @@
+groups:
+- name: void-proposer-autotune
+  interval: 15s
+  rules:
+  - record: void:proposer:tick_ms:last
+    expr: last_over_time(void_proposer_tick_ms[2m])
+  - record: void:mempool_size:last
+    expr: last_over_time(void_mempool_size[2m])

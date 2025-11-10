@@ -1,0 +1,18 @@
+[Unit]
+Description=Watch VOID key mount and stop nodes if missing
+After=default.target
+
+[Service]
+Type=simple
+Environment=HOME=%h
+WorkingDirectory=%h
+# Guard: fail fast if script missing/not exec
+ExecStartPre=/usr/bin/test -x %h/.local/bin/void-key-watch.sh
+ExecStart=%h/.local/bin/void-key-watch.sh
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

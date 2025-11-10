@@ -1,0 +1,12 @@
+groups:
+- name: void-proposer-active
+  rules:
+  - alert: VoidProposerInactive
+    expr: avg_over_time(void_proposer_active[2m]) < 0.1
+    for: 4m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "VOID proposer inactive"
+      description: "No head movement detected over the last 2 minutes."

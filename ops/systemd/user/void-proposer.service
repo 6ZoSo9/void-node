@@ -1,0 +1,21 @@
+[Unit]
+Description=Void Node Proposer Loop
+After=void-node.service
+Requires=void-node.service
+PartOf=void-node.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+Environment=HTTP_HOST=127.0.0.1
+Environment=HTTP_PORT=4100
+Environment=DATA_DIR=data_a
+# Optional: tune per-block merge cap
+# Environment=VOID_TX_MERGE_CAP=3
+ExecStart=/usr/bin/env bash -lc 'exec npx --yes tsx scripts/dev_proposer_merge.ts'
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

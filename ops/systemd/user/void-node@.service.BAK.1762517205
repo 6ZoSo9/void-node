@@ -1,0 +1,16 @@
+[Unit]
+Description=Void Node instance (%i)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+EnvironmentFile=%h/dev/void-node/void.env
+ExecStartPre=/usr/bin/test -r ${NODE_PRIVKEY_PATH}
+ExecStart=/usr/bin/env -S bash -lc 'exec node $NODE_OPTIONS node_modules/.bin/tsx src/index.ts'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

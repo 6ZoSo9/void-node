@@ -1,0 +1,23 @@
+groups:
+- name: void-canary-recording
+  interval: 15s
+  rules:
+  - record: void:canary_head:last
+    expr: last_over_time(void_block_last_number_v2b{job="void-blockcount-canary"}[1m])
+
+  - record: void:canary_head:changes_2m
+    expr: changes(void_block_last_number_v2b{job="void-blockcount-canary"}[2m])
+
+  - record: void:canary_txcount:last
+    expr: last_over_time(void_block_txcount_v2b{job="void-blockcount-canary"}[1m])
+
+  - record: void:canary_txroot_health:last
+    expr: last_over_time(void_txroot_health{job="void-txroot-health-canary"}[1m])
+
+  # Head moved? normalize to 0/1 then SCALAR it
+  - record: void:canary_head:moved_2m
+    expr: clamp_max(clamp_min(void:canary_head:changes_2m, 1), 1)
+
+  # Make BOTH sides scalar to drop labels, then multiply (1*1=1 ok)
+  - record: void:canary_overall
+    expr: scalar(void:canary_txroot_health:last) * scalar(void:canary_head:moved_2m)

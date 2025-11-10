@@ -1,0 +1,11 @@
+groups:
+- name: void-autorescue-fired
+  interval: 15s
+  rules:
+  - alert: VoidAutorescueFiredRecently
+    expr: void:autorescue:fired_10m
+    for: 2m
+    labels: {severity: info, system: void}
+    annotations:
+      summary: "Autorescue fired in the last 10m"
+      description: "Autorescue engaged recently; check txroot/seals/WAL and journal for context."

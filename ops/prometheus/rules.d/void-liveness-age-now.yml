@@ -1,0 +1,6 @@
+groups:
+- name: void-liveness-age-now
+  interval: 15s
+  rules:
+  - record: void:liveness_age_now
+    expr: clamp_min(void_liveness_last_submit_age_seconds, 0)

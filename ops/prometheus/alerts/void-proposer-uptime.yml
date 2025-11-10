@@ -1,0 +1,20 @@
+groups:
+- name: void-proposer-uptime
+  interval: 15s
+  rules:
+  # Early warning: 1h availability dipped
+  - alert: VoidProposerUptimeLow1h
+    expr: (void:proposer_uptime_pct:1h{job="void-proposer-v3b"} < 99)
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Proposer availability < 99% over 1h"
+      description: "On-time last 1h: {{ $value | printf \"%.2f\" }}%"
+  # Hard page: 24h SLO breach
+  - alert: VoidProposerUptimeLow24h
+    expr: (void:proposer_uptime_pct:24h{job="void-proposer-v3b"} < 95)
+    for: 15m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "Proposer availability < 95% over 24h"
+      description: "On-time last 24h: {{ $value | printf \"%.2f\" }}%"

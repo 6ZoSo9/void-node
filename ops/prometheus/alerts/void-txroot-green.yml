@@ -1,0 +1,11 @@
+groups:
+- name: void-txroot-green
+  interval: 15s
+  rules:
+  - alert: VoidTxrootHealthBadV2
+    expr: (void:txroot_health:last_2m < 1)
+    for: 4m
+    labels: {severity: critical, system: void}
+    annotations:
+      summary: "TxRoot health bad"
+      description: "TxRoot health < 1 for >2m (instance={{ $labels.instance }})"

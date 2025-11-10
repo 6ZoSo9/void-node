@@ -1,0 +1,10 @@
+groups:
+- name: void-p2p-mini-recording
+  interval: 15s
+  rules:
+  - record: void:p2p_mini_peers:last
+    expr: last_over_time(void_p2p_mini_peers[2m])
+  - record: void:p2p_mini_hello:age_seconds
+    expr: time() - last_over_time(void_p2p_mini_last_handshake_ts[2m])
+  - record: void:p2p_mini_peers:nonzero
+    expr: clamp_min(void_p2p_mini_peers, 0)

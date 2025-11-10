@@ -1,0 +1,8 @@
+[Unit]
+Description=VOID noop-drip (nudge head if flat)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/void-noop-drip.sh

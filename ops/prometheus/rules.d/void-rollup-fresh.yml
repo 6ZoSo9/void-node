@@ -1,0 +1,12 @@
+groups:
+- name: void-rollup-fresh
+  interval: 15s
+  rules:
+  # 0/1: is the rollup file fresh? (<=120s)
+  - record: void:rollup_fresh
+    expr: (void:rollup_age_seconds <= bool 120)
+
+  # Single overall status: rollup green AND fresh (both are 0/1)
+  - record: void:overall_green
+    expr: scalar(max(void:rollup_green:textfile))
+          * scalar(max(void:rollup_fresh))

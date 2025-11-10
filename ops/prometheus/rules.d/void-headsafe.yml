@@ -1,0 +1,6 @@
+groups:
+- name: void-headsafe
+  interval: 15s
+  rules:
+  - record: void:headsafe:last
+    expr: last_over_time(void_headsafe_number[30s])

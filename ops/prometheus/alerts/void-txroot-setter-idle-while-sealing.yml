@@ -1,0 +1,14 @@
+groups:
+- name: void-txroot-setter-idle-while-sealing
+  interval: 15s
+  rules:
+  - alert: VoidTxrootSetterIdleWhileSealing
+    expr: (increase(void_seal_last_number[2m]) > 0)
+          and (increase(void_txroot_header_set_total[2m]) == 0)
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Setter idle while blocks are sealing"
+      description: "Seals advanced in 2m, but txroot setter did not set any headers."

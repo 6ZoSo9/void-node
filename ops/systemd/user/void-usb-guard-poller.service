@@ -1,0 +1,6 @@
+[Unit]
+Description=USB guard poller (stop node if USB/env missing)
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/void-usb-guard-poller.sh

@@ -1,0 +1,10 @@
+[Unit]
+Description=Stop VOID node when key (sentinel) disappears
+After=mnt-voidkey.automount
+ConditionPathExists=!/mnt/voidkey/operator/void-gate.ok
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --user stop void-node.service
+# ExecStart=/usr/bin/systemctl --user stop 'void-node@bootstrap-1.service'

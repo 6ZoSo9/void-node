@@ -1,0 +1,11 @@
+[Unit]
+Description=USB guard poller timer
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=15s
+AccuracySec=1s
+Unit=void-usb-guard-poller.service
+
+[Install]
+WantedBy=timers.target

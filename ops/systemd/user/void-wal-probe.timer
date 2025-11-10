@@ -1,0 +1,8 @@
+[Unit]
+Description=Run WAL probe every 10s
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=10s
+Unit=void-wal-probe.service
+[Install]
+WantedBy=default.target

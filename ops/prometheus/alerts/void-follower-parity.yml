@@ -1,0 +1,11 @@
+groups:
+- name: void-follower-parity
+  interval: 15s
+  rules:
+  - alert: VoidFollowerParityBad
+    expr: void:header3:parity:follower:effective != 1
+    for: 2m
+    labels: {system: "void", severity: "high"}
+    annotations:
+      summary: "Follower header3 parity bad"
+      description: "header3 match fell to 0 for 2m (native-or-compat effective)."

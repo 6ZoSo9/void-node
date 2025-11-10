@@ -1,0 +1,19 @@
+groups:
+- name: void-routes-safeboot
+  interval: 30s
+  rules:
+  - alert: VoidRouteDuplicationDetected
+    expr: max by (path) (void_routes_path_count{path=~"/health/txroot3|/__void/metrics/txroot4/setter.prom|/blocks/latest/number2.json"}) > 1
+    for: 2m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Duplicate route layers detected for {{ $labels.path }}"
+      description: "More than one layer is serving {{ $labels.path }} for >2m."
+
+  - alert: VoidSafebootStuck
+    expr: avg_over_time(void_safeboot[10m]) > 0.5
+    for: 0m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "Safeboot still enabled after 10m"
+      description: "VOID_SAFEBOOT has remained 1 across the last 10 minutes."

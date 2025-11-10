@@ -1,0 +1,14 @@
+groups:
+- name: void-proposer-kickbrake-recording
+  interval: 15s
+  rules:
+  - record: void:kickbrake:target_ms:last
+    expr: last_over_time(void_kickbrake_target_ms[2m])
+  - record: void:kickbrake:changed_5m
+    expr: increase(void_kickbrake_changed[5m])
+  - record: void:kickbrake:gate_open:last
+    expr: last_over_time(void_kickbrake_gate_open[2m])
+  - record: void:kickbrake:adv_rate_1m
+    expr: avg_over_time(void_kickbrake_head_adv_60s[1m])
+  - record: void:kickbrake:wal_max_1m
+    expr: max_over_time(void_kickbrake_wal_brake_max_60s[1m])

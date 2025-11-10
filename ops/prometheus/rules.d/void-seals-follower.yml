@@ -1,0 +1,10 @@
+groups:
+- name: void-seals-follower
+  interval: 15s
+  rules:
+  - record: void:seals:last_number:follower
+    expr: last_over_time(void_seal_last_number{job="void-seals-follower"}[1m])
+  - record: void:seals:health:follower
+    expr: last_over_time(void_seals_health{job="void-seals-follower"}[1m])
+  - record: void:seals:rate1m:follower
+    expr: rate(void_seal_last_number{job="void-seals-follower"}[1m])

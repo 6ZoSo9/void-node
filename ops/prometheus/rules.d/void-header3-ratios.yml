@@ -1,0 +1,10 @@
+groups:
+- name: void-header3-ratios
+  interval: 30s
+  rules:
+  - record: void_header3:green_ratio_5m
+    expr: avg_over_time(void_header3:is_green[5m])
+  - record: void_header3:green_ratio_1h
+    expr: avg_over_time(void_header3:is_green[1h])
+  - record: void_header3:green_ratio_24h
+    expr: avg_over_time(void_header3:is_green[24h])

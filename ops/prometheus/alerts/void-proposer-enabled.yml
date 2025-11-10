@@ -1,0 +1,13 @@
+groups:
+- name: void-proposer-enabled
+  interval: 15s
+  rules:
+  - alert: VoidProposerDisabled
+    expr: last_over_time(void_proposer_auto_enabled_v2[1m]) < 0.5
+    for: 1m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "Proposer auto disabled"
+      description: "void_proposer_auto_enabled_v2 < 0.5 for 1m on {{ $labels.instance }}"

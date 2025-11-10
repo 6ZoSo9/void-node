@@ -1,0 +1,13 @@
+groups:
+- name: void-proposer-double
+  interval: 15s
+  rules:
+  - alert: VoidDoubleProposer
+    expr: sum by () (void_proposer_auto_enabled_v2) > 1
+    for: 3m
+    labels:
+      severity: critical
+      system: void
+    annotations:
+      summary: "Double proposer detected"
+      description: "More than one node reports proposer auto-enabled."

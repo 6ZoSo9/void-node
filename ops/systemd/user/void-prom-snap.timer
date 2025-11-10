@@ -1,0 +1,11 @@
+[Unit]
+Description=VOID Prometheus snapshot timer (15m)
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=15m
+AccuracySec=1m
+Unit=void-prom-snap.service
+
+[Install]
+WantedBy=default.target

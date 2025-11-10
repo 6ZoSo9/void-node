@@ -1,0 +1,19 @@
+groups:
+- name: void-system-green-alerts
+  interval: 15s
+  rules:
+  - alert: VoidSystemNotGreen
+    expr: void:system:green == 0
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "VOID system not green"
+      description: "Head not advancing and/or txroot bridge not fresh for 2m."
+
+  - alert: VoidTxrootBridgeDegraded
+    expr: (void:txroot_bridge:last_set_age_s > 45) or (void:txroot_bridge:last_set_gap_blocks > 2)
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "txRoot bridge degraded"
+      description: "Bridge age >45s or gap >2 blocks for 1m."

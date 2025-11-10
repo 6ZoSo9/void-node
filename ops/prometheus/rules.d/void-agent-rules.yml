@@ -1,0 +1,18 @@
+groups:
+- name: void-agent-rules
+  interval: 15s
+  rules:
+  - record: void:agent_completed_rate1m
+    expr: rate(void_agent_jobs_completed[1m])
+
+  - record: void:agent_unique_delta_5m
+    expr: delta(void_agent_results_unique[5m])
+
+  - record: void:agent_queue_depth:last_1m
+    expr: last_over_time(void_agent_queue_depth[1m])
+
+  - record: void:agent_leases_expired_inc_5m
+    expr: increase(void_agent_leases_expired[5m])
+
+  - record: void:agent_dlq_inc_5m
+    expr: increase(void_agent_dlq_total[5m])

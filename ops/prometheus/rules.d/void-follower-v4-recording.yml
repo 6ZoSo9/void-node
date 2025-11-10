@@ -1,0 +1,10 @@
+groups:
+- name: void-follower-v4-recording
+  interval: 15s
+  rules:
+  - record: void:follower_drift:last_2m
+    expr: last_over_time(void_follower_drift{job="void-follower-v4",env="dev"}[2m])
+  - record: void:follower_head_local:last
+    expr: last_over_time(void_follower_head_local{job="void-follower-v4",env="dev"}[1m])
+  - record: void:follower_head_peer:last
+    expr: last_over_time(void_follower_head_peer{job="void-follower-v4",env="dev"}[1m])

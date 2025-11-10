@@ -1,0 +1,8 @@
+groups:
+- name: void-follower-adv
+  interval: 15s
+  rules:
+  - record: void:follower:last_number
+    expr: void:header3:last_number:follower:effective
+  - record: void:follower:adv_rate1m
+    expr: rate(void:follower:last_number[1m])

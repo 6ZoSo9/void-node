@@ -1,0 +1,11 @@
+[Unit]
+Description=VOID port guard (no 4102)
+After=default.target
+Wants=default.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/void-port-guard.sh
+
+[Install]
+WantedBy=default.target

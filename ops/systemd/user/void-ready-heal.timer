@@ -1,0 +1,11 @@
+[Unit]
+Description=Run VOID ready self-heal every 2 minutes
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=2m
+AccuracySec=10s
+Unit=void-ready-heal.service
+
+[Install]
+WantedBy=timers.target

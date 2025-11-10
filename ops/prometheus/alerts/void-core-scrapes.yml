@@ -1,0 +1,13 @@
+groups:
+- name: void-core-scrapes
+  interval: 15s
+  rules:
+  - alert: VoidCoreExporterDown
+    expr: sum by(job)(up{job=~"void-(head|head-direct|header3|seals|ready-v2|wal-direct)"} == 0) > 0
+    for: 2m
+    labels:
+      severity: warning
+      system: void
+    annotations:
+      summary: "VOID core exporter down ({{ $labels.job }})"
+      description: "Exporter {{ $labels.job }} has been unhealthy for >2m."

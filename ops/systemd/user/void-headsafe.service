@@ -1,0 +1,7 @@
+[Unit]
+Description=Emit headsafe textfile metric
+
+[Service]
+Type=oneshot
+Environment=TEXTFILE_DIR=/var/lib/node_exporter/textfile_collector
+ExecStart=/bin/bash -lc '~/.local/bin/void-headsafe-metric.sh'

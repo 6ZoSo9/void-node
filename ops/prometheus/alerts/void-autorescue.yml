@@ -1,0 +1,11 @@
+groups:
+- name: void-autorescue-alerts
+  interval: 15s
+  rules:
+  - alert: VoidAutorescueRepeated
+    expr: (void:autorescue:actions_10m >= 3)
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Autorescue repeatedly engaged"
+      description: ">=3 autorescue actions in 10m. System likely flapping or stuck; check txroot/seals/WAL and journal."

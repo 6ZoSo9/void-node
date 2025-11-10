@@ -1,0 +1,12 @@
+groups:
+- name: void-overall-single
+  interval: 15s
+  rules:
+  - alert: VoidOverallNotGreen
+    # vector ({}), compare to 1 with BOOL
+    expr: (max(void:overall_green) < bool 1)
+    for: 4m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "VOID overall is RED"
+      description: "overall_green < 1 (pillars/lag failed or rollup stale)"

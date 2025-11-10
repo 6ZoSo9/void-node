@@ -1,0 +1,8 @@
+groups:
+- name: void-ai-signal
+  interval: 15s
+  rules:
+  - record: void:ai_signal_ok:last
+    expr: last_over_time(void_ai_signal_ok[2m])
+  - record: void:ai_signal_score:last
+    expr: last_over_time(void_ai_signal_score[2m])

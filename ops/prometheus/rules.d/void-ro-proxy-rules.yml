@@ -1,0 +1,21 @@
+groups:
+- name: void-ro-proxy-rules
+  interval: 15s
+  rules:
+  # Force empty/absent series to 0 using `or on() vector(0)`
+  - record: void:ro_proxy:req_rate1m
+    expr: (rate(void_ro_proxy_requests_total[1m]) OR on() vector(0))
+
+  - record: void:ro_proxy:blocked_rate1m
+    expr: (rate(void_ro_proxy_blocked_writes_total[1m]) OR on() vector(0))
+
+  - record: void:ro_proxy:post_rate1m
+    expr: (rate(void_ro_proxy_method_total{method="POST"}[1m]) OR on() vector(0))
+
+  # Safe ratio: divide by at least 1e-9 so we never get NaN/Inf
+  - record: void:ro_proxy:blocked_ratio1m
+    expr: clamp_max(
+            (rate(void_ro_proxy_blocked_writes_total[1m]) OR on() vector(0))
+            /
+            clamp_min((rate(void_ro_proxy_requests_total[1m]) OR on() vector(0)), 1e-9)
+          , 1)

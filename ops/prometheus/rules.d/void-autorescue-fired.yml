@@ -1,0 +1,6 @@
+groups:
+- name: void-autorescue-fired
+  interval: 15s
+  rules:
+  - record: void:autorescue:fired_10m
+    expr: (increase(void_autorescue_actions_total[10m]) > bool 0)

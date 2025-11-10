@@ -1,0 +1,25 @@
+groups:
+- name: void-agent-pipeline
+  interval: 15s
+  rules:
+  - alert: VoidAgentPipelineStale
+    expr: (void:agent_receipts:enabled == 1) and (void:agent_jobs_rate1m <= 0)
+    for: 10m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Agent receipts not advancing"
+      description: "Enabled, but no new jobs for 10m."
+  - alert: VoidAgentLastReceiptTooOld
+    expr: void:agent_receipts_age > 300
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Agent last receipt too old"
+      description: "Last receipt older than 5 minutes."
+  - alert: VoidAgentBlockedSurge
+    expr: rate(void_agent_wrap_blocked_total[5m]) > 0.2
+    for: 5m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Agent blocked surge"
+      description: "Allowlist blocks >0.2/s for 5m."

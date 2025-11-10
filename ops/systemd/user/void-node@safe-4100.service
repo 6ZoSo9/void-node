@@ -1,0 +1,18 @@
+[Unit]
+Description=Void Node (SAFEBOOT on :4100)
+After=default.target
+[Service]
+Type=simple
+Environment=NODE_ENV=dev
+Environment=HTTP_PORT=4100
+Environment=P2P_PORT=4713
+Environment=DATA_DIR=%h/dev/void-node/data_a
+Environment=VOID_SAFEBOOT=1
+Environment=ALLOW_EMPTY_BLOCKS=1
+Environment=VOID_ADDONS=
+Environment=NODE_PRIVKEY_PATH=%h/.secrets/nodeA.key
+ExecStart=/bin/sh -lc 'cd %h/dev/void-node.safe && node node_modules/.bin/tsx src/index.ts'
+Restart=always
+RestartSec=2
+[Install]
+WantedBy=default.target

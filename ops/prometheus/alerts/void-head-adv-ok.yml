@@ -1,0 +1,11 @@
+groups:
+- name: void-head-adv-ok
+  interval: 15s
+  rules:
+  - alert: VoidHeadNotAdvancing
+    expr: (void:head:adv_ok_scalar == 0)
+    for: 1m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Head not advancing"
+      description: "No block advance in the last minute."
