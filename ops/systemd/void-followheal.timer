@@ -1,0 +1,11 @@
+[Unit]
+Description=VOID follow-heal timer (every 30s)
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=void-followheal.service
+
+[Install]
+WantedBy=default.target
