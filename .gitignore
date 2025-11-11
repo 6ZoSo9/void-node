@@ -49,3 +49,6 @@ node:*
 !ops/prometheus/rules/*.yml
 !ops/prometheus/alerts/
 !ops/prometheus/alerts/*.yml
+
+!ops/systemd/
+!ops/systemd/**
