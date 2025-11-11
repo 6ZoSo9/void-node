@@ -1,0 +1,91 @@
+# /home/zoso/.config/systemd/user/void-node.service
+[Unit]
+Description=Void Node (main proposer)
+After=default.target
+# These MUST be in [Unit], not [Service]
+ConditionPathExists=%h/.config/void/boot/void-prehook.js
+ConditionPathExists=/mnt/voidkey/operator/void-gate.ok
+# If the mount is slow, this makes systemd order the unit after /mnt/voidkey exists
+RequiresMountsFor=/mnt/voidkey
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+Environment=NODE_ENV=dev
+Environment=HTTP_PORT=4100
+Environment=P2P_PORT=4700
+Environment=DATA_DIR=%h/dev/void-node/data_a
+# Your code expects NODE_PRIVKEY_PATH (or KEY_FILE/VOID_NODE_KEY_A). Use that exact name:
+Environment=NODE_PRIVKEY_PATH=/mnt/voidkey/keys/nodeA.key
+# Single ExecStart with the two preloaders
+ExecStart=/usr/bin/env npx --yes tsx src/index.ts
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
+
+# /home/zoso/.config/systemd/user/void-node.service.d/05-sterile-exec.conf
+[Service]
+ExecStart=
+ExecStart=/usr/bin/env -i \
+  NODE_ENV=dev \
+  HTTP_PORT=4100 \
+  P2P_PORT=4700 \
+  DATA_DIR=%h/dev/void-node/data_a \
+  NODE_PRIVKEY_PATH=/mnt/voidkey/keys/nodeA.key \
+  PROPOSER_AUTO=1 \
+  PROPOSER_TICK_MS=2000 \
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin \
+  HOME=%h \
+  npx --yes tsx src/index.ts
+
+# /home/zoso/.config/systemd/user/void-node.service.d/15-autofs-fix.conf
+[Unit]
+RequiresMountsFor=
+[Service]
+ExecStartPre=/bin/sh -lc 'head -c0 /mnt/voidkey/operator/void-gate.ok'
+
+# /home/zoso/.config/systemd/user/void-node.service.d/20-port-guard.conf
+[Service]
+ExecStartPre=/bin/sh -lc 'ss -ltpn | egrep -q ":(4100|4700)\\b" && { echo "[port-guard] 4100/4700 already in use"; exit 98; } || :'
+
+# /home/zoso/.config/systemd/user/void-node.service.d/20-proposer-auto.conf
+[Service]
+Environment=PROPOSER_AUTO=1
+Environment=PROPOSER_TICK_MS=2000
+
+# /home/zoso/.config/systemd/user/void-node.service.d/21-assert-ports-post.conf
+[Service]
+ExecStartPost=/bin/sh -lc 'ss -ltpn | egrep -q ":(4100|4700)\\b" && echo "[ok] bound 4100/4700" || echo "[warn] not bound yet"'
+
+# /home/zoso/.config/systemd/user/void-node.service.d/26-liveness.conf
+[Service]
+Environment=VOID_LIVENESS_TX=1
+# Optional tuning:
+# Environment=LIVENESS_STALL_MS=5000
+# Environment=LIVENESS_MIN_GAP_MS=6000
+
+# /home/zoso/.config/systemd/user/void-node.service.d/26-proposer.conf
+[Service]
+Environment=PROPOSER_AUTO=1
+Environment=PROPOSER_TICK_MS=2000
+
+# /home/zoso/.config/systemd/user/void-node.service.d/31-p2p-guard.conf
+[Service]
+# Fail fast if P2P already in use (127.0.0.1:4700)
+ExecStartPre=/bin/sh -lc 'ss -ltpn | grep -q ":${P2P_PORT:-4700} " && { echo "[port busy ${P2P_PORT:-4700}]"; exit 1; } || true'
+
+# /home/zoso/.config/systemd/user/void-node.service.d/32-no-autorescue.conf
+[Service]
+ExecStartPost=
+
+# /home/zoso/.config/systemd/user/void-node.service.d/33-proposer-auto.conf
+[Service]
+Environment=PROPOSER_AUTO=1
+Environment=PROPOSER_TICK_MS=2000
+
+# /home/zoso/.config/systemd/user/void-node.service.d/99-nodeopts-last.conf
+[Service]
+UnsetEnvironment=NODE_OPTIONS
+Environment="NODE_OPTIONS=--require=%h/.config/void/boot/void-prehook.js"
