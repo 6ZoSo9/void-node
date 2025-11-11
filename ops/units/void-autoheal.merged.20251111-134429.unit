@@ -1,0 +1,20 @@
+# /home/zoso/.config/systemd/user/void-autoheal.service
+[Unit]
+Description=VOID auto-heal (restart main if stalled)
+After=default.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/void-autoheal.sh
+
+# /home/zoso/.config/systemd/user/void-autoheal.service.d/10-exec.conf
+[Service]
+ExecStart=
+ExecStart=%h/.local/bin/void-autoheal.sh
+
+# /home/zoso/.config/systemd/user/void-autoheal.service.d/99-force-exec.conf
+[Service]
+ExecStartPre=
+ExecStartPost=
+ExecStart=
+ExecStart=%h/.local/bin/void-autoheal.sh
