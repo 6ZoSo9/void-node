@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+orig="$(dirname "$0")/void-followheal.sh"
+rc=0
+if ! /usr/bin/env bash "$orig"; then rc=$?; fi
+out="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}/void_followheal_rc.prom"
+ts_ms="$(( $(date +%s) * 1000 ))"
+mkdir -p "$(dirname "$out")" 2>/dev/null || true
+{
+  echo "void_followheal_last_rc $rc"
+  echo "void_followheal_last_ts_ms $ts_ms"
+  echo "void_followheal_last_ts_seconds $(date +%s)"
+} > "$out"
+if [[ $rc -ne 0 ]]; then echo "[followheal] script exit=$rc; masked to success" >&2; fi
+exit 0
