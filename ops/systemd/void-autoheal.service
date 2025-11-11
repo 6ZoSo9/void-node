@@ -1,0 +1,7 @@
+[Unit]
+Description=VOID auto-heal (restart main if stalled)
+After=default.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/void-autoheal.sh
