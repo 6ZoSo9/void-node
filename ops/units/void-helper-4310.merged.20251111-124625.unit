@@ -1,0 +1,25 @@
+# /home/zoso/.config/systemd/user/void-helper-4310.service
+[Unit]
+Description=VOID helper API (blocks/range on :4310)
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+Environment=NODE_ENV=dev
+Environment=DATA_DIR=%h/dev/void-node/data_a
+# force the right port (the script reads AUTOBOOT_PORT)
+Environment=AUTOBOOT_PORT=4310
+# sanity checks
+ExecStartPre=/bin/sh -lc 'ss -ltpn | grep -q ":${AUTOBOOT_PORT} " && { echo "[port busy ${AUTOBOOT_PORT}]"; exit 1; } || true'
+ExecStartPre=/bin/sh -lc 'test -f src/http/api_autoboot.ts || { echo "[missing src/http/api_autoboot.ts]"; exit 1; }'
+ExecStartPre=/bin/sh -lc 'test -x node_modules/.bin/tsx || { echo "[missing tsx bin]"; exit 1; }'
+# run with local tsx
+ExecStart=/bin/sh -lc './node_modules/.bin/tsx src/http/api_autoboot.ts'
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,360 @@
+# /home/zoso/.config/systemd/user/void-node@.service
+[Unit]
+Description=Void Node (%i)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+# Run from your repo
+WorkingDirectory=%h/dev/void-node
+# Your standard launch (env is provided by drop-ins)
+ExecStart=/usr/bin/env -S bash -lc 'npx --yes tsx src/index.ts'
+Restart=on-failure
+RestartSec=2
+# Keep journal noisy on failures
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/05-env-core.conf
+[Service]
+WorkingDirectory=%h/dev/void-node
+Environment=HTTP_PORT=4101
+Environment=P2P_PORT=4701
+Environment=DATA_DIR=%h/dev/void-node/data_b
+Environment=VOID_DATA_DIR=%h/dev/void-node/data_b
+Environment=PROPOSER_AUTO=0
+Environment=VOID_SAFEBOOT=1
+Environment=VOID_SAFEBOOT_ALLOW=proposer,header3,seals,txroot_setter_wrap,headshim
+Environment=VOID_SAFEBOOT_ALLOWED=proposer,header3,seals,txroot_setter_wrap,headshim
+Environment=VOID_ADDONS=OFF
+Environment=NODE_PRIVKEY_PATH=/mnt/voidkey/keys/nodeB.key
+Environment=KEY_PATH=/mnt/voidkey/keys/nodeB.key
+ExecStartPre=
+ExecStartPre=/usr/bin/mountpoint -q /mnt/voidkey
+ExecStartPre=/usr/bin/test -r /mnt/voidkey/keys/nodeB.key
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/05-sterile-exec.conf
+[Service]
+ExecStart=
+ExecStart=/usr/bin/env -i \
+  NODE_ENV=dev \
+  HTTP_PORT=4101 \
+  P2P_PORT=4701 \
+  DATA_DIR=%h/dev/void-node/data_b \
+  NODE_PRIVKEY_PATH=/mnt/voidkey/keys/nodeB.key \
+  BOOTSTRAP_ADDRS=127.0.0.1:4700 \
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin \
+  HOME=%h \
+  npx --yes tsx src/index.ts
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/09-logs-restart.conf
+[Service]
+StandardOutput=journal
+StandardError=journal
+Restart=on-failure
+RestartSec=2
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/10-env.conf
+[Service]
+Environment=DATA_DIR=%h/dev/void-node/data_b
+Environment=HTTP_PORT=4101
+Environment=P2P_PORT=4701
+Environment=VOID_ROLE=follower
+Environment=PROPOSER_AUTO=0
+Environment=HEAD_TXT_SOURCE=v3b.prom
+Environment=LATEST_NUMBER_SOURCE=v3b.prom
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/10-ports.conf
+[Service]
+Environment=HTTP_PORT=4101
+Environment=P2P_PORT=4701
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/10-usb-env.conf
+[Service]
+EnvironmentFile=/mnt/voidkey/operator/void-node.env
+Environment=VOID_NODE_KEY_PATH=%h/.secrets/void-node.key
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/10-wait-proposer.conf
+[Service]
+# Normalize env in case the unit doesn't set them
+Environment=HTTP_HOST=127.0.0.1
+Environment=HTTP_PORT=4101
+
+# Gate follower on proposer readiness (header3 healthy & advancing)
+ExecStartPre=/usr/local/bin/void-wait-ready.sh http://127.0.0.1:4100 180
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/100-no-autostart.conf
+[Service]
+ExecStartPost=
+Environment=VOID_PROPOSER_AUTOSTART=0
+Environment=PROPOSER_TICK_MS=
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/11-datadir.conf
+[Service]
+Environment=DATA_DIR=%h/dev/void-node/data_b
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/12-env-order.conf
+[Service]
+# Clear then re-add with common first, instance last (instance wins)
+EnvironmentFile=
+EnvironmentFile=%h/dev/void-node/void.env
+EnvironmentFile=-%h/dev/void-node/%i.env
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/14-keygate-exec.conf
+[Service]
+ExecStartPre=
+ExecStartPre=/bin/sh -lc 'head -c0 /mnt/voidkey/operator/void-gate.ok && head -c0 ${NODE_PRIVKEY_PATH}'
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/14-unset-mount.conf
+[Unit]
+# Wipe any inherited mount gating from the template
+RequiresMountsFor=
+ConditionPathExists=
+
+[Service]
+# Replace any inherited ExecStartPre with a real readability check
+ExecStartPre=
+ExecStartPre=/bin/sh -lc 'head -c0 /mnt/voidkey/operator/void-gate.ok && head -c0 /mnt/voidkey/keys/nodeB.key'
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/15-autofollow-force.conf
+[Service]
+# Force run after HTTP is up, every time
+ExecStartPost=/bin/sh -lc 'for i in $(seq 1 40); do \
+  curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/follower/start?peer=http://127.0.0.1:4100&intervalMs=1000" >/dev/null 2>&1 && exit 0; \
+  sleep 0.25; done; exit 0'
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/15-autofs-fix.conf
+[Unit]
+RequiresMountsFor=
+[Service]
+ExecStartPre=/bin/sh -lc 'head -c0 /mnt/voidkey/operator/void-gate.ok'
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/15-keygate.conf
+[Unit]
+Requires=void-key-gate.service
+After=void-key-gate.service
+
+[Service]
+Environment=SENTINEL=/mnt/key2/operator/void-gate.ok
+ExecStartPre=/bin/sh -lc '[ -f "$SENTINEL" ]'
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/17-prefree-kill.conf
+[Service]
+ExecStartPre=/usr/local/bin/void-kill-port-owners.sh void-node@bootstrap-1 4101 4701
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/18-pre-clear-guards.conf
+[Service]
+# Clear ANY inherited ExecStartPre entries first:
+ExecStartPre=
+# Keep the key check
+ExecStartPre=/usr/bin/test -r ${NODE_PRIVKEY_PATH}
+# Use the healthy-or-free guard (idempotent)
+ExecStartPre=/usr/local/bin/void-unit-healthy-or-free.sh follower ${HTTP_PORT} ${P2P_PORT}
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/20-env-keys.conf
+[Service]
+Environment=NODE_PRIVKEY_PATH=/home/zoso/dev/void-node/.secrets/nodeB.key
+Environment=FOLLOW_AUTOSTART=1
+Environment=BOOTSTRAP_ADDRS=http://127.0.0.1:4100
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/20-exporter-peer.conf
+[Service]
+Environment=VOID_DRIFT_PEER=http://127.0.0.1:4100
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/20-follower.conf
+[Service]
+Environment=FOLLOW_AUTOSTART=1
+Environment=FOLLOW_INTERVAL_MS=1000
+Environment=BOOTSTRAP_ADDRS=127.0.0.1:4700
+# Ensure NO proposer on follower
+Environment=PROPOSER_AUTO=0
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/20-port-guard.conf
+[Service]
+ExecStartPre=/bin/sh -lc 'ss -ltpn | egrep -q ":(4101|4701)\\b" && { echo "[port-guard] 4101/4701 in use"; exit 98; } || :'
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/20-ports-and-data.conf
+[Service]
+Environment=HTTP_PORT=4101
+Environment=P2P_PORT=4701
+Environment=DATA_DIR=%h/dev/void-node/data_b
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/21-ban-4102.conf
+[Service]
+Environment=HTTP_PORT=4100
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/21-headsrc.conf
+[Service]
+Environment=HEAD_TXT_SOURCE=latest.number
+Environment=LATEST_NUMBER_SOURCE=latest.number
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/21-keyB.conf
+[Service]
+Environment=NODE_PRIVKEY_PATH=/mnt/voidkey/keys/nodeB.key
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/22-drift-peer.conf
+[Service]
+Environment=VOID_DRIFT_PEER=http://127.0.0.1:4100
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/22-drift-self.conf
+[Service]
+Environment=VOID_DRIFT_PEER=http://127.0.0.1:4101
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/24-http-peer.conf
+[Service]
+Environment=FOLLOW_PEER_HTTP=http://127.0.0.1:4310
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/25-chain.conf
+[Service]
+Environment=VOID_CHAIN_ID=2050
+Environment=GENESIS_PATH=%h/dev/void-node/genesis/void.genesis.json
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/25-instance-env.conf
+[Service]
+Environment=HTTP_HOST=127.0.0.1
+Environment=HTTP_PORT=4101
+Environment=P2P_HOST=127.0.0.1
+Environment=P2P_PORT=4701
+Environment=DATA_DIR=%h/dev/void-node/data_b
+# keys: set both generic and B to be safe with current code
+Environment=VOID_NODE_KEY=%h/dev/void-node/.secrets/nodeB.key
+Environment=VOID_NODE_KEY_B=%h/dev/void-node/.secrets/nodeB.key
+# drift exporter peer (main proposer @4100)
+Environment=VOID_DRIFT_PEER=http://127.0.0.1:4100
+# follower should not propose
+Environment=PROPOSER_AUTO=0
+# make sure we start in the repo so relative paths work
+WorkingDirectory=%h/dev/void-node
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/26-pin-follower.conf
+[Service]
+Environment=DATA_DIR=/home/zoso/dev/void-node/data_b
+Environment=HTTP_PORT=4101
+Environment=P2P_PORT=4701
+Environment=NODE_PRIVKEY_PATH=/home/zoso/dev/void-node/.secrets/nodeB.key
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/27-key-align.conf
+[Service]
+Environment=VOID_NODE_KEY=/mnt/voidkey/keys/nodeB.key
+Environment=VOID_NODE_KEY_B=/mnt/voidkey/keys/nodeB.key
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/30-follow.conf
+[Service]
+Environment=FOLLOW_AUTOSTART=1
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/30-follower-mode.conf
+[Service]
+Environment=PROPOSER_AUTO=0
+# Share the same key gate & path as main (read-only usage is fine)
+Environment=NODE_PRIVKEY_PATH=/mnt/voidkey/keys/nodeA.key
+Environment=KEY_PATH=/mnt/voidkey/keys/nodeA.key
+# Hard-fail if key not present
+ExecStartPre=/usr/bin/test -r /mnt/voidkey/keys/nodeA.key
+# Ensure the key volume is mounted before start
+RequiresMountsFor=/mnt/voidkey
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/30-keygate.conf
+[Unit]
+ConditionPathExists=/mnt/voidkey/operator/void-gate.ok
+
+[Service]
+EnvironmentFile=-/mnt/voidkey/operator/void-node.env
+ExecStartPre=/bin/sh -lc 'test -f /mnt/voidkey/operator/void-gate.ok && . /mnt/voidkey/operator/void-node.env && [ "${VOID_KEYGATE_OK:-0}" = "1" ] || { echo "[keygate] missing/invalid"; exit 42; }'
+RestartPreventExitStatus=42
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/30-not-safeboot.conf
+[Service]
+Environment=VOID_SAFEBOOT=0
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/31-disable-forensics.conf
+[Service]
+Environment=VOID_TXROOT_FORENSICS=0
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/32-unset-addons.conf
+[Service]
+Environment=VOID_ADDONS=
+Environment=VOID_SAFEBOOT=1
+Environment=VOID_SAFEBOOT_ROUTES=header3,txroot,txroot_setter_wrap,seals,proposer,headshim,ready,health
+# extra paranoia: shrink Node heap growth noise in case a bad addon slipped through
+Environment=NODE_OPTIONS=--max-old-space-size=2048
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/33-hardlock-allow.conf
+[Service]
+# Allow these paths to always pass-through the pre-router lock
+Environment=HEADER3_HARDLOCK_ALLOW=/__void/ready,/__void/ready.prom,/__void/ready.json,/health/summary.json,/__void/about2,/follower/status,/follower/start,/metrics/drift6,/metrics/void,/tx/ping,/tx/ping2
+# Try all common kill switches the code may honor
+Environment=HEADER3_HARDLOCK_DISABLE=1
+Environment=HEADER3_HARDLOCK_OFF=1
+Environment=VOID_HEADER3_HARDLOCK_DISABLE=1
+# Be noisy so we can see behavior
+Environment=HEADER3_HARDLOCK_LOG=1
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/38-startlimit.conf
+[Unit]
+StartLimitIntervalSec=0
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/38-stop-clean.conf
+[Service]
+KillMode=control-group
+TimeoutStopSec=3
+SendSIGKILL=yes
+# Pre: try to clear ports (non-fatal)
+ExecStartPre=/usr/local/bin/void-kill-port-owners.sh void-node@bootstrap-1 4101 4701
+# Post: clean any stragglers after the unit stops
+ExecStopPost=/usr/local/bin/void-kill-port-owners.sh void-node@bootstrap-1 4101 4701
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/40-follow-start.conf
+[Service]
+# Kick the follower loop against the main @4100, retry briefly and don't fail the unit
+ExecStartPost=
+ExecStartPost=/bin/sh -lc 'for i in $(seq 1 40); do \
+  curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT:-4101}/follower/start?peer=http://127.0.0.1:4100&intervalMs=1000" >/dev/null 2>&1 && exit 0; \
+  sleep 0.25; \
+done; exit 0'
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/99-execstartpre-conditional.conf
+[Service]
+ExecStartPre=
+ExecStartPre=/bin/bash -lc '[ "${VOID_ROLE}" = "export" ] || /usr/bin/test -r "${NODE_PRIVKEY_PATH}"'
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/override.conf
+[Service]
+Environment=HTTP_PORT=4101
+Environment=P2P_PORT=4701
+Environment=DATA_DIR=/home/zoso/dev/void-node/data_b
+Environment=BOOTSTRAP_ADDRS=127.0.0.1:4700
+Environment=FOLLOW_AUTOSTART=1
+# Drift peer = main
+Environment=VOID_DRIFT_PEER=http://127.0.0.1:4100
+# Optional: make follower noisy if it can’t bind
+ExecStartPre=/bin/bash -lc 'ss -ltpn | grep -q ":${HTTP_PORT:-4101} " && { echo "[port busy ${HTTP_PORT}]"; exit 1; } || true'
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/zz100-unbind.conf
+[Unit]
+BindsTo=
+RequiresMountsFor=
+ConditionPathExists=
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/zz99-unset-mount.conf
+[Unit]
+RequiresMountsFor=
+ConditionPathExists=
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/zzzz-env-final.conf
+[Service]
+Environment=NODE_PRIVKEY_PATH=/mnt/voidkey/keys/nodeB.key
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/zzzz-exec.conf
+[Service]
+ExecStart=
+ExecStart=/usr/bin/node -r /home/zoso/.config/void/boot/prop-guard-pre.js -r /home/zoso/.config/void/boot/http-bypass-ready.js -r /home/zoso/dev/void-node/node_modules/tsx/dist/preflight.cjs --import file:///home/zoso/dev/void-node/node_modules/tsx/dist/loader.mjs /home/zoso/dev/void-node/src/index.ts
+Environment=HTTP_PORT=4101
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/zzzz-unbind.conf
+[Unit]
+BindsTo=
+RequiresMountsFor=
+ConditionPathExists=
