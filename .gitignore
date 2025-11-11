@@ -37,3 +37,4 @@ dist/
 backups/
 data2/
 catchup_*.ndjson
+node:*
