@@ -33,3 +33,7 @@ dist/
 # local units
 *.service
 *.service.d/
+.park/
+backups/
+data2/
+catchup_*.ndjson
