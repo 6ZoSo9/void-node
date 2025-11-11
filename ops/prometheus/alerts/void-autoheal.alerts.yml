@@ -1,0 +1,17 @@
+groups:
+- name: void-autoheal.alerts
+  rules:
+  - alert: VoidAutoHealFiringOften
+    expr: increase(void:autoheal:actions_total[10m]) > 3
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Auto-heal fired >3 times in 10m"
+      description: "Auto-heal actions in last 10m: {{ $value }}. Investigate proposer/seals pipeline."
+  - alert: VoidAutoHealStale
+    expr: (time() * 1000 - (void:autoheal:last_ts_ms)) > 30*60*1000
+    for: 2m
+    labels: {severity: warning, system: void}
+    annotations:
+      summary: "Auto-heal metric stale >30m"
+      description: "Textfile metric hasn’t updated in >30m; timer may be broken."

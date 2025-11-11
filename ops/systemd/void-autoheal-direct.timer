@@ -1,0 +1,11 @@
+[Unit]
+Description=VOID auto-heal timer (direct, every 30s)
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=void-autoheal-direct.service
+
+[Install]
+WantedBy=default.target

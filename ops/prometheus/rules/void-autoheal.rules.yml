@@ -1,0 +1,7 @@
+groups:
+- name: void-autoheal.rules
+  rules:
+  - record: void:autoheal:actions_total
+    expr: max by(instance) (void_autoheal_actions_total)
+  - record: void:autoheal:last_ts_ms
+    expr: max by(instance) (void_autoheal_last_ts_ms)

@@ -1,0 +1,9 @@
+[Unit]
+Description=VOID auto-heal (direct, no gate)
+After=default.target
+
+[Service]
+Type=oneshot
+Environment=HOME=%h
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
+ExecStart=/bin/bash -lc '%h/.local/bin/void-autoheal.sh'
