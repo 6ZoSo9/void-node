@@ -1,0 +1,19 @@
+groups:
+- name: void-txroot-setter-slo
+  rules:
+  - alert: VoidTxrootSetterLagHigh
+    expr: (max without(instance)(void:proposer:enabled) == 1)
+          and (max without(instance)(void:txroot:set_lag) > 90)
+    for: 3m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "TxRoot setter lag high (>90s)"
+      description: "Setter not advancing while proposer is enabled."
+  - alert: VoidTxrootSetterRateLow
+    expr: (max without(instance)(void:proposer:enabled) == 1)
+          and (max without(instance)(void:txroot:set_rate1m) < 0.2)
+    for: 5m
+    labels: { severity: warning, system: void }
+    annotations:
+      summary: "TxRoot setter rate low (<0.2/min)"
+      description: "Sustained low header-set rate while proposer enabled (idle or stuck)."

@@ -1,0 +1,35 @@
+groups:
+- name: void-txroot-v3
+  rules:
+  - alert: VoidTxRootSetterLag
+    expr: (void:txroot:set_lag > 2) and (void:proposer:enabled == 1)
+    for: 1m
+    labels:
+      severity: page
+      env: dev
+      system: void
+    annotations:
+      summary: "VOID txRoot setter lagging ({{ $value }} blocks)"
+      description: "Header tip is advancing but txRoot header writes are {{ $value }} blocks behind."
+
+  - alert: VoidTxRootNoSets
+    expr: (void:txroot:set_rate1m <= 0.001) and (deriv(void:header3:last_number[2m]) > 0)
+    for: 2m
+    labels:
+      severity: warn
+      env: dev
+      system: void
+    annotations:
+      summary: "VOID txRoot setter not writing while chain advances"
+      description: "Latest header increases but txRoot set_total isn't; check setter wrapper & exporter."
+
+  - alert: VoidTxRootMismatchSpike
+    expr: increase(void_txroot_mismatch_total[5m]) > 0
+    for: 0m
+    labels:
+      severity: page
+      env: dev
+      system: void
+    annotations:
+      summary: "VOID txRoot mismatch observed"
+      description: "Mismatch counter incremented in the last 5m; investigate header3 vs computed roots."

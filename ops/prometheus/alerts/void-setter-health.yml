@@ -1,0 +1,10 @@
+groups:
+- name: void-setter-health
+  rules:
+  - alert: VoidSetterScrapeRefused
+    expr: up{job="void-txroot-setter"} == 0
+    for: 1m
+    labels: {severity: warning, system: void, env: dev}
+    annotations:
+      summary: "void-txroot-setter target is DOWN"
+      description: "Prometheus cannot scrape setter exporter on {{ $labels.instance }} (connection refused or down)"

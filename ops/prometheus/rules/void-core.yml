@@ -1,0 +1,10 @@
+groups:
+- name: void-core
+  interval: 15s
+  rules:
+  - record: void:head:last_2m
+    expr: last_over_time(void_head_number[2m])
+  - record: void:head:changes_2m
+    expr: changes(void_head_number[2m])
+  - record: void:seals:rate1m_avg
+    expr: avg_over_time(void_seal_rate_1m[1m])

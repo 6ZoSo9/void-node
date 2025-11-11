@@ -1,0 +1,10 @@
+groups:
+- name: void-seals-stall
+  rules:
+  - alert: VoidSealsStall
+    expr: (void:seals:rate1m_avg == 0) or absent(void:seals:rate1m_avg)
+    for: 2m
+    labels: {system: void, severity: page}
+    annotations:
+      summary: "VOID: seals stalled"
+      description: "Seals/min dropped to 0 (or missing) for 2m on main proposer."

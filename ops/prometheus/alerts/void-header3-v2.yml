@@ -1,18 +1,26 @@
 groups:
 - name: void-header3-v2-alerts
-  interval: 15s
   rules:
   - alert: VoidHeader3V2NoProgress
-    expr: (time() - max_over_time(void_header3_last_number_v2[2m])) > 120
-    for: 0m
-    labels: {severity: warning, system: void}
-    annotations:
-      summary: "Header3 v2 not advancing"
-      description: "No new checks in >2m."
-  - alert: VoidHeader3V2Mismatch
-    expr: last_over_time(void_header3_match_v2[1m]) == 0
+    expr: (time() - max_over_time(void_header3_last_number_v2[5m])) > 180
     for: 2m
-    labels: {severity: warning, system: void}
+    labels: { system: "void", severity: "warn" }
     annotations:
-      summary: "Header3 v2 mismatch"
-      description: "Header txRoot != expected for >2m."
+      summary: "header3 v2 exporter not progressing"
+      description: "No header3 v2 progress in the last 3m."
+
+  - alert: VoidTxRootSetterMismatch
+    expr: increase(void_txroot_header_mismatch_total[5m]) > 0
+    for: 1m
+    labels: { system: "void", severity: "crit" }
+    annotations:
+      summary: "Header txRoot mismatch detected by setter"
+      description: "Setter observed mismatches in the last 5m."
+
+  - alert: VoidTxRootSetterErrors
+    expr: increase(void_txroot_header_errors_total[5m]) > 0
+    for: 1m
+    labels: { system: "void", severity: "crit" }
+    annotations:
+      summary: "Header txRoot setter errors"
+      description: "Setter returned errors in the last 5m."

@@ -1,0 +1,10 @@
+groups:
+- name: void-head-stuck
+  rules:
+  - alert: VoidHeadNoProgress
+    expr: void:head:changes_2m == 0
+    for: 2m
+    labels: {system: void, severity: page}
+    annotations:
+      summary: "VOID: head not advancing"
+      description: "No change in void_head_number for 2m."

@@ -1,11 +1,12 @@
 groups:
 - name: void-header3-gap
-  interval: 15s
   rules:
-  - alert: VoidHeader3StuckBehindHead
-    expr: (max by() (void_head:last_number) - max by() (void_header3:last_number)) > 2
+  - alert: VoidHeader3WriterGapTooLarge
+    expr: abs(max_over_time(void_header3:writer_gap[2m])) > 3
     for: 2m
-    labels: {severity: warning, system: void}
+    labels:
+      severity: warning
+      system: void
     annotations:
-      summary: "header3 exporter behind head"
-      description: "header3 is >2 blocks behind head for 2m."
+      summary: "Header writer/verifier gap > 3 for 2m"
+      description: "Setter last_set_block and header3_last_number_v2 are diverging: gap={{ $value }}."

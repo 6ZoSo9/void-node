@@ -1,0 +1,11 @@
+groups:
+- name: void-txroot-setter-idle
+  rules:
+  - alert: VoidTxrootSetterIdleWhileSealing
+    expr: (max without(instance)(void:proposer:enabled) == 1)
+          and (rate(void_txroot_set_total[2m]) == 0)
+    for: 2m
+    labels: { severity: warning }
+    annotations:
+      summary: "TxRoot setter idle while proposer enabled"
+      description: "No header sets in 2m while proposer is enabled."

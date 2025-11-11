@@ -38,3 +38,14 @@ backups/
 data2/
 catchup_*.ndjson
 node:*
+
+# --- allow ops artifacts ---
+!ops/
+!ops/systemd/
+!ops/systemd/*.service
+!ops/systemd/*.timer
+!ops/prometheus/
+!ops/prometheus/rules/
+!ops/prometheus/rules/*.yml
+!ops/prometheus/alerts/
+!ops/prometheus/alerts/*.yml

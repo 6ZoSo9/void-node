@@ -1,0 +1,6 @@
+[Unit]
+Description=VOID proposer auto-nudge (HTTP-only)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -lc '~/.local/bin/void-proposer-autonudge.sh'
