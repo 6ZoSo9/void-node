@@ -1,4 +1,4 @@
-# === VOID: never publish secrets ===
+# secrets
 .secrets/
 **/*.key
 **/*.pem
@@ -6,37 +6,30 @@
 **/*.p12
 **/keys/
 **/key?.meta
-
-# === Local data, segments, WAL, checkpoints, backups ===
+# data & backups
 data/
 data_*/
 data-*/
-dataa*/
-datab*/
-dataa_*/
-data_b*/
 data_a/
 data_b/
 data_c/
 data-nodeB/
-*.bak
-*.tgz
-*.zip
-*.ndjson
-*.jsonl
 **/wal/
 **/segments/
+*.tgz
+*.zip
+*.bak
+*.ndjson
+*.jsonl
 ops/checkpoints/
 ops/prom-snap/
 ops/prom-snap-*/
 *.prom
-
-# === Build/cache/system detritus ===
+# build junk
 node_modules/
 dist/
 .tmp/
 .DS_Store
-
-# === Local systemd units kept alongside repo (if any) ===
+# local units
 *.service
 *.service.d/
