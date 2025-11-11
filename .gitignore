@@ -94,3 +94,4 @@ node_modules/
 
 # ops snapshots (root-owned risk)
 ops/prom-snap/
+# noop
