@@ -1,0 +1,5 @@
+[compact] starting @ 2025-11-06T00:44:19-06:00
+[compact] wrote 10000 unique blocks. backup saved at data_a.bak_1762411461745
+[reindex] 00000000: wrote 625 sparse entries (10000 blocks)
+[reindex] done.
+[compact+reindex] done @ 2025-11-06T00:44:22-06:00

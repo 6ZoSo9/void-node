@@ -1,0 +1,25 @@
+[reindex] starting @ 2025-11-06T00:43:58-06:00
+[reindex] 00000000: wrote 651 sparse entries (10039 blocks)
+[reindex] 00010000: wrote 625 sparse entries (10000 blocks)
+[reindex] 00020000: wrote 625 sparse entries (10000 blocks)
+[reindex] 00030000: wrote 625 sparse entries (10001 blocks)
+[reindex] 00040000: wrote 625 sparse entries (10005 blocks)
+[reindex] 00050000: wrote 625 sparse entries (10000 blocks)
+[reindex] 00060000: wrote 625 sparse entries (10006 blocks)
+[reindex] 00070000: wrote 626 sparse entries (10011 blocks)
+[reindex] 00080000: wrote 625 sparse entries (10000 blocks)
+[reindex] 00090000: wrote 625 sparse entries (10000 blocks)
+[reindex] 00100000: wrote 627 sparse entries (10021 blocks)
+[reindex] 00110000: wrote 625 sparse entries (10004 blocks)
+[reindex] 00120000: wrote 625 sparse entries (10005 blocks)
+<anonymous_script>:1
+
+
+SyntaxError: Unexpected end of JSON input
+    at JSON.parse (<anonymous>)
+    at <anonymous> (/home/zoso/dev/void-node/scripts/reindex_sparse.ts:37:20)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.21.0
