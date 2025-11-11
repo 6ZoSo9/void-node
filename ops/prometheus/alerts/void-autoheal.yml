@@ -1,0 +1,18 @@
+groups:
+- name: void-autoheal
+  rules:
+  - alert: VoidAutohealStale
+    expr: void:autoheal:last_age_seconds > 300
+    for: 2m
+    labels: {system: "void"}
+    annotations: {summary: "auto-heal hasn’t run in >5m ({{ $value | humanizeDuration }})"}
+  - alert: VoidAutohealBadRC
+    expr: max_over_time(void_autoheal_last_rc[5m]) > 0
+    for: 2m
+    labels: {system: "void"}
+    annotations: {summary: "auto-heal script returned non-zero in last 5m"}
+  - alert: VoidAutohealChurnHigh
+    expr: void:autoheal:churn_10m > 3
+    for: 0m
+    labels: {system: "void"}
+    annotations: {summary: "auto-heal restarted node >3 times in 10m"}
