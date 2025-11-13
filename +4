@@ -1,0 +1,4 @@
+[Service]
+Environment=DRIFT_QUERY=vector(1)
+Environment=PEER_ADV_QUERY=vector(2)
+Environment=LOCAL_CHG_QUERY=vector(0)

@@ -1,0 +1,16 @@
+[Unit]
+Description=Void Node (main proposer)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/dev/void-node/void.env
+WorkingDirectory=%h/dev/void-node
+ExecStartPre=/usr/bin/test -r ${NODE_PRIVKEY_PATH}
+ExecStart=/usr/bin/env -S bash -lc 'npx --yes tsx src/index.ts'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

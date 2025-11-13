@@ -1,0 +1,45 @@
+[Unit]
+Description=VOID Node follower @4101/4701 (standalone)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=
+Environment=
+WorkingDirectory=%h/dev/void-node
+
+# Final follower env
+Environment=HTTP_HOST=127.0.0.1
+Environment=HTTP_PORT=4101
+Environment=P2P_HOST=127.0.0.1
+Environment=P2P_PORT=4701
+Environment=VOID_ROLE=follower
+Environment=DATA_DIR=%h/dev/void-node/data_b
+Environment=NODE_PRIVKEY_PATH=%h/dev/void-node/.secrets/nodeB.key
+Environment=BOOTSTRAP_ADDRS=http://127.0.0.1:4100
+Environment=BOOTSTRAP_P2P=127.0.0.1:4700
+Environment=NODE_OPTIONS=--max-old-space-size=3072
+Environment=DEV_SHIMS=0
+Environment=VOID_DEV_SHIMS=0
+Environment=VOID_DEV_ROUTES=0
+Environment=FOLLOW_AUTOSTART=0
+UnsetEnvironment=KEY_FILE VOID_NODE_KEY_A VOID_HTTP_PORT VOID_P2P_PORT
+
+# Guards + clean envdump (no weird unit-parser confusion)
+ExecStartPre=/usr/bin/bash -lc 'set -euo pipefail; \
+  test -n "${HTTP_PORT:-}" && test -n "${P2P_PORT:-}" && test -n "${DATA_DIR:-}"; \
+  ! ss -ltn | grep -q ":${HTTP_PORT} " || { echo "[guard] HTTP ${HTTP_PORT} busy" >&2; exit 1; }; \
+  ! ss -ltn | grep -q ":${P2P_PORT} " || { echo "[guard] P2P ${P2P_PORT} busy" >&2; exit 1; }; \
+  echo "[envdump] HP=${HTTP_PORT} PP=${P2P_PORT} ROLE=${VOID_ROLE} DATA_DIR=${DATA_DIR} KEY=$(basename "${NODE_PRIVKEY_PATH}")" >&2'
+
+ExecStart=/usr/bin/env -S bash -lc 'exec npx --yes tsx src/index.ts'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
+Environment=WAL_DISABLE=1
+Environment=VOID_DEV_SHIMS=0
+Environment=VOID_DEV_ROUTES=0
+Environment=DEV_SHIMS=0

@@ -1,0 +1,18 @@
+[Unit]
+Description=VOID Node instance (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStartPre=/usr/bin/bash -lc '! ss -ltn | grep -q ":${HTTP_PORT} "'
+WorkingDirectory=%h/dev/void-node
+# IMPORTANT: load shared defaults first, then instance overrides
+EnvironmentFile=%h/dev/void-node/void.env
+EnvironmentFile=%h/dev/void-node/%i.env
+ExecStart=/usr/bin/env -S bash -lc 'exec npx --yes tsx src/index.ts'
+Restart=on-failure
+RestartSec=2
+ExecStartPost=/usr/bin/bash -lc 'for i in {1..15}; do curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/follower/start?peer=http://127.0.0.1:4100&intervalMs=1000" >/dev/null && exit 0; sleep 1; done; exit 0'
+
+[Install]
+WantedBy=default.target

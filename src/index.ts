@@ -26135,3 +26135,193 @@ void_wal_wrapped ${isWrapped?1:0}
 
   try { install(); } catch {}
 })();
+
+// ===== VERSION_SHIM_V1 (additive, safe) =====
+(() => {
+  type MaybeApp = import('express').Express | undefined;
+  const fs = require('fs');
+  const path = require('path');
+
+  function readVersion(): { version: string, channel: string } {
+    try {
+      const cur = path.resolve(process.env.HOME || '', 'dev/void-node/current');
+      // Preferred explicit VERSION file
+      const verFile = path.join(cur, 'VERSION');
+      let version = 'unknown';
+      if (fs.existsSync(verFile)) {
+        version = String(fs.readFileSync(verFile)).trim();
+      } else {
+        // Fallback to symlink tail (…/releases/<ver>)
+        const target = fs.realpathSync.native ? fs.realpathSync.native(cur) : fs.realpathSync(cur);
+        version = path.basename(target || 'unknown');
+      }
+      // Channel is operator policy (allowed; best-effort)
+      const chFile = path.resolve(process.env.HOME || '', '.config/void/update-allowed-channels');
+      let channel = 'unknown';
+      if (fs.existsSync(chFile)) {
+        // first non-empty line
+        const raw = String(fs.readFileSync(chFile)).split(/\r?\n/).map(s => s.trim()).find(Boolean);
+        if (raw) channel = raw;
+      }
+      return { version, channel };
+    } catch (_e) {
+      return { version: 'unknown', channel: 'unknown' };
+    }
+  }
+
+  function mount(app: MaybeApp) {
+    if (!app) return false;
+    // JSON
+    app.get('/__void/version.json', (_req: any, res: any) => {
+      res.json(readVersion());
+    });
+    // Prometheus text
+    app.get('/__void/version.prom', (_req: any, res: any) => {
+      const { version, channel } = readVersion();
+      res.type('text/plain').send(
+        `void_version_info{version="${version}",channel="${channel}"} 1\n`
+      );
+    });
+    return true;
+  }
+
+  // Attach now or retry shortly if app isn’t exported yet
+  const appNow = (globalThis as any).__void_http_app as MaybeApp;
+  if (!mount(appNow)) {
+    setTimeout(() => { mount((globalThis as any).__void_http_app as MaybeApp); }, 250);
+  }
+})();
+// ===== /VERSION_SHIM_V1 =====
+// ===== VERSION_SHIM_V1 (additive, safe) =====
+(() => {
+  type MaybeApp = import('express').Express | undefined;
+  const fs = require('fs');
+  const path = require('path');
+
+  function readVersion(): { version: string, channel: string } {
+    try {
+      const cur = path.resolve(process.env.HOME || '', 'dev/void-node/current');
+      const verFile = path.join(cur, 'VERSION');
+      let version = 'unknown';
+      if (fs.existsSync(verFile)) {
+        version = String(fs.readFileSync(verFile)).trim();
+      } else {
+        const target = (fs.realpathSync.native ? fs.realpathSync.native(cur) : fs.realpathSync(cur));
+        version = path.basename(target || 'unknown');
+      }
+      const chFile = path.resolve(process.env.HOME || '', '.config/void/update-allowed-channels');
+      let channel = 'unknown';
+      if (fs.existsSync(chFile)) {
+        const raw = String(fs.readFileSync(chFile)).split(/\r?\n/).map(s => s.trim()).find(Boolean);
+        if (raw) channel = raw;
+      }
+      return { version, channel };
+    } catch (_e) {
+      return { version: 'unknown', channel: 'unknown' };
+    }
+  }
+
+  function mount(app: MaybeApp) {
+    if (!app) return false;
+    app.get('/__void/version.json', (_req: any, res: any) => res.json(readVersion()));
+    app.get('/__void/version.prom', (_req: any, res: any) => {
+      const { version, channel } = readVersion();
+      res.type('text/plain').send(`void_version_info{version="${version}",channel="${channel}"} 1\n`);
+    });
+    return true;
+  }
+
+  const appNow = (globalThis as any).__void_http_app as MaybeApp;
+  if (!mount(appNow)) {
+    setTimeout(() => mount((globalThis as any).__void_http_app as MaybeApp), 250);
+  }
+})();
+// ===== /VERSION_SHIM_V1 =====
+// [UPDATE_GATE v1.1] — bootsafe guard + metrics via global app hook
+(function updateGateBootsafe(){
+  try {
+    const fs = require('fs');
+    const path = require('path');
+
+    const TFD = process.env.TEXTFILE_DIR || '/var/lib/node_exporter/textfile_collector';
+    const VERIFY_PROM = path.join(TFD, 'void_update_manifest_verify.prom');
+    const EXPIRY_PROM = path.join(TFD, 'void_update_manifest_expiry.prom');
+
+    function readMetric(file, name){
+      try {
+        const txt = fs.readFileSync(file, 'utf8');
+        const m = txt.match(new RegExp('^' + name.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&') + '\\s+([0-9.eE+-]+)\\s*$', 'm'));
+        return m ? Number(m[1]) : null;
+      } catch { return null; }
+    }
+
+    let cache = { ts: 0, ok: false, sigOk: 0, daysLeft: -9999, detail: 'boot' };
+    function computeGate(){
+      const now = Date.now();
+      if (now - cache.ts < 5000) return cache;
+      const sig = readMetric(VERIFY_PROM, 'void_update_manifest_signature_ok');
+      const days = readMetric(EXPIRY_PROM, 'void_update_manifest_days_left');
+      let ok=false, detail=''; 
+      if (sig === null || days === null){ ok=false; detail='missing_metrics'; }
+      else { ok = (sig===1) && (days>=0); detail = ok ? 'ok' : (sig!==1 ? 'bad_sig' : 'expired'); }
+      cache = { ts: now, ok, sigOk: Number(sig??0), daysLeft: Number(days??-9999), detail };
+      return cache;
+    }
+
+    function attach(app){
+      // Exporter
+      app.get('/__void/metrics/update_gate.prom', (_req, res) => {
+        const s = computeGate();
+        res.type('text/plain').send(
+          '# HELP void_update_gate_ok 1 if update gate open (sig ok & not expired)\n' +
+          '# TYPE void_update_gate_ok gauge\n' +
+          `void_update_gate_ok ${s.ok ? 1 : 0}\n` +
+          '# HELP void_update_gate_sig_ok signature_ok metric\n' +
+          '# TYPE void_update_gate_sig_ok gauge\n' +
+          `void_update_gate_sig_ok ${s.sigOk}\n` +
+          '# HELP void_update_gate_days_left days_left metric\n' +
+          '# TYPE void_update_gate_days_left gauge\n' +
+          `void_update_gate_days_left ${s.daysLeft}\n` +
+          `# diag: ${s.detail}\n`
+        );
+      });
+
+      // Optional enforcement
+      const ENFORCE = process.env.VOID_UPDATE_GATE_ENFORCE === '1';
+      const PROTECT = (process.env.VOID_UPDATE_PROTECT ||
+        '/upgrade/apply,/update/apply,/admin/update/apply,/__void/update/apply'
+      ).split(',').map(s=>s.trim()).filter(Boolean);
+      if (ENFORCE){
+        app.use((req,res,next)=>{
+          if (PROTECT.some(pfx => req.path.startsWith(pfx))){
+            const OVERRIDE = process.env.VOID_UPDATE_GATE_OVERRIDE === '1';
+            const s = computeGate();
+            if (!s.ok && !OVERRIDE){
+              res.status(423).json({ error:'update-gate-blocked', detail:s.detail, sigOk:s.sigOk, daysLeft:s.daysLeft });
+              return;
+            }
+          }
+          next();
+        });
+      }
+      console.log('[update-gate] attached', { enforce: ENFORCE });
+    }
+
+    // Late attach via global export hook installed earlier in your app
+    const tryAttach = () => {
+      const app = (globalThis && (globalThis).__void_http_app) || null;
+      if (app && typeof app.get === 'function') { attach(app); return true; }
+      return false;
+    };
+
+    if (!tryAttach()){
+      let tries = 0;
+      const h = setInterval(() => {
+        if (tryAttach() || ++tries > 60) clearInterval(h); // give up after ~60 * 1s
+      }, 1000);
+    }
+  } catch (e) {
+    console.error('[update-gate] bootsafe init error:', e && e.stack || e);
+  }
+})();
+ // [/UPDATE_GATE v1.1]

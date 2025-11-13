@@ -1,0 +1,15 @@
+[Unit]
+Description=VOID Node (main proposer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/dev/void-node
+EnvironmentFile=%h/dev/void-node/void.env
+ExecStart=/usr/bin/env -S bash -lc 'exec npx --yes tsx src/index.ts'
+Restart=on-failure
+RestartSec=2
+ExecStartPost=/usr/bin/bash -lc 'for i in {1..15}; do curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/blocks/start?intervalMs=5000" >/dev/null && exit 0; sleep 1; done; exit 0'
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=VOID Node (main proposer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStartPost=/bin/bash -lc 'for i in {1..40}; do code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${HTTP_PORT}/api/health || true); [ "$code" = "200" ] && exit 0; sleep 0.5; done; echo "health wait timed out"; exit 0'
+WorkingDirectory=%h/dev/void-node
+EnvironmentFile=%h/dev/void-node/void.env
+ExecStart=/usr/bin/env -S bash -lc 'exec npx --yes tsx src/index.ts'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

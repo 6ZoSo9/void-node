@@ -1,0 +1,33 @@
+{
+  "ts": 1762957546,
+  "ms": 97,
+  "heads": {
+    "proposer": 8213,
+    "follower": 8213,
+    "peerFromFollower": 8213,
+    "followerLocal": 8213
+  },
+  "drift": 0,
+  "header3": {
+    "age_s": 9999,
+    "lastMismatch": -1
+  },
+  "proposer": {
+    "ok": true,
+    "source": "v3b.prom",
+    "enabled": 1,
+    "ms": 2001
+  },
+  "txroot": {
+    "health": 1,
+    "setter_rate_1m": 0
+  },
+  "seals": {
+    "health": 1
+  },
+  "ok": false,
+  "notes": [
+    "header3 stale 9999s",
+    "setter slow 0.00/s"
+  ]
+}
