@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "symbol": "VOID",
+  "decimals": 18,
+  "maxSupplyVOID": "666666666",
+  "premineVOID": "230000000",
+  "remainingEmissionsVOID": "436666666",
+  "scheduleType": "geometric-eras",
+  "eraLengthBlocksMainnet": 31536000,
+  "initialRewardWei": "1000000000000000000",
+  "decayNumerator": 97,
+  "decayDenominator": 100,
+  "notes": "Rewards decay over eras; chain never exceeds MAX_SUPPLY."
+}
