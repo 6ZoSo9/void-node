@@ -127,3 +127,27 @@ Use:
 - void-update-protocol-metrics.timer
 
 to refresh void_update_protocol.prom every few minutes via systemd.
+
+---
+
+## 4. Monitoring this node’s protocol status
+
+The node exports its current vs target protocol via a textfile collector:
+
+- Raw metrics (node_exporter):
+  - `void_update_protocol_diff`
+  - `void_update_protocol_local`
+  - `void_update_protocol_target`
+
+Prometheus recording rules (see `/etc/prometheus/void-update-protocol-rules.yml`):
+
+- `void:update_protocol:diff`
+- `void:update_protocol:local`
+- `void:update_protocol:target`
+- `void:update_protocol:outdated` (1 when this node is behind)
+- `void:update_protocol:ahead` (1 when this node is ahead)
+
+Alerting (see `/etc/prometheus/alerts/void-update-protocol.yml`):
+
+- `VoidNodeProtocolOutdated` (warning when `void:update_protocol:outdated > 0` for 10m)
+- `VoidNodeProtocolAhead` (critical when `void:update_protocol:ahead > 0` for 5m)
