@@ -1,0 +1,20 @@
+{
+  "app": "void-node",
+  "network": "void-mainnet",
+  "chainId": 2050,
+
+  "version": "1.2.3",
+  "protocolVersion": 3,
+  "minProtocolCompatible": 2,
+
+  "activationHeight": 123456,
+  "rolloutStartTime": "2025-12-01T00:00:00Z",
+  "deadline": "2025-12-03T00:00:00Z",
+
+  "binaryUrl": "https://downloads.voidchain.io/void-node/void-node-1.2.3-linux-x86_64.tar.gz",
+  "binarySha256": "0000000000000000000000000000000000000000000000000000000000000000",
+
+  "notesHash": "1111111111111111111111111111111111111111111111111111111111111111",
+
+  "emergency": false
+}
