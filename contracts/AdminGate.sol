@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: VCL-1.0
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
 /// @title AdminGate – VOID master key router (v1)
 /// @notice Holds the real MasterKey and forwards privileged calls to system contracts.
