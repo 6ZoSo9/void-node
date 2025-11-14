@@ -26405,3 +26405,6 @@ void_wal_wrapped ${isWrapped?1:0}
 
   setTimeout(attach, 1000);
 })();
+
+// reward_engine_v1 Prometheus exporter (non-consensus shadow mode)
+import './tokenomics/reward_engine_exporter_v1';
