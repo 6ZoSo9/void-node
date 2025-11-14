@@ -76,4 +76,4 @@ const manifest = {
 };
 
 const out = JSON.stringify(manifest, null, 2);
-fs.writeFileSync(0, out + "\n"); // stdout
+process.stdout.write(out + "\n");
