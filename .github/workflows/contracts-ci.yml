@@ -1,0 +1,34 @@
+name: Contracts CI
+
+on:
+  push:
+    paths:
+      - 'contracts/**'
+      - 'test/**'
+      - 'foundry.toml'
+      - 'ops/void-contracts-build.sh'
+      - '.github/workflows/contracts-ci.yml'
+  pull_request:
+    paths:
+      - 'contracts/**'
+      - 'test/**'
+      - 'foundry.toml'
+      - 'ops/void-contracts-build.sh'
+      - '.github/workflows/contracts-ci.yml'
+
+jobs:
+  forge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Build contracts
+        run: forge build
+
+      - name: Run tests
+        run: forge test
