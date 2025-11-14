@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: VCL-1.0
 // NON-CONSENSUS: reward_engine_v1 metrics exporter (shadow mode only).
 //
-// This hooks into the Express app via the global app handle that src/index.ts
-// exposes on globalThis.__void_http_app. It does NOT touch consensus state
-// or real balances; it's just observability plumbing for the reward engine.
+// This module exposes a Prometheus endpoint for the reward engine in
+// **shadow mode**. It does NOT touch consensus state or balances.
+// It waits for globalThis.__void_http_app to appear, then mounts:
+//
+//   GET /__void/metrics/reward_engine_v1.prom
+//
+// Numbers are currently synthetic; later we will wire this to the real
+// reward_engine_v1 state.
 
 const DECIMALS = 10n ** 18n;
 const MAX_SUPPLY_VOID = 666_666_666n;
@@ -12,21 +17,29 @@ const PREMINE_VOID = 230_000_000n;
 const MAX_SUPPLY_WEI = MAX_SUPPLY_VOID * DECIMALS;
 const PREMINE_WEI = PREMINE_VOID * DECIMALS;
 
-// Shadow state – for now synthetic; later phases will wire to real consensus.
-const state = {
+type RewardExporterState = {
+  totalMintedWei: bigint;
+  lastHeightRewarded: bigint;
+  capOverflowWei: bigint;
+  roundingDustWei: bigint;
+  health: bigint; // 1=ok, 0=degraded, -1=fatal
+};
+
+// Shadow state – placeholder for now, will be fed from real engine later.
+const state: RewardExporterState = {
   totalMintedWei: 0n,
   lastHeightRewarded: 0n,
   capOverflowWei: 0n,
   roundingDustWei: 0n,
-  health: 1n, // 1 = ok, 0 = degraded, -1 = fatal
+  health: 1n,
 };
 
 function formatGauge(name: string, help: string, value: bigint | number): string {
-  const num = typeof value === 'bigint' ? value.toString() : String(value);
+  const v = typeof value === 'bigint' ? value.toString() : String(value);
   const lines: string[] = [];
   lines.push(`# HELP ${name} ${help}`);
   lines.push(`# TYPE ${name} gauge`);
-  lines.push(`${name} ${num}`);
+  lines.push(`${name} ${v}`);
   return lines.join('\n');
 }
 
@@ -92,19 +105,17 @@ function buildMetrics(): string {
   return lines.join('\n') + '\n';
 }
 
-function installRewardEngineExporter(): void {
+function tryInstallOnce(): boolean {
   try {
     const g: any = globalThis as any;
     const app = g.__void_http_app;
 
     if (!app || typeof app.get !== 'function') {
-      // eslint-disable-next-line no-console
-      console.error('[reward-engine-exporter] no __void_http_app; exporter disabled');
-      return;
+      return false;
     }
 
     if (app.__void_reward_engine_exporter_v1_installed) {
-      return;
+      return true;
     }
     app.__void_reward_engine_exporter_v1_installed = true;
 
@@ -117,12 +128,36 @@ function installRewardEngineExporter(): void {
     console.log(
       '[reward-engine-exporter] /__void/metrics/reward_engine_v1.prom ready (shadow)',
     );
+    return true;
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('[reward-engine-exporter] failed to install exporter', err);
+    console.error('[reward-engine-exporter] install error', err);
+    return false;
   }
 }
 
-installRewardEngineExporter();
+function scheduleInstall(): void {
+  const MAX_TRIES = 60;
+  let tries = 0;
 
-export {};
+  if (tryInstallOnce()) return;
+
+  const timer = setInterval(() => {
+    tries += 1;
+    if (tryInstallOnce() || tries >= MAX_TRIES) {
+      if (tries >= MAX_TRIES) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[reward-engine-exporter] giving up; __void_http_app not available after %d tries',
+          tries,
+        );
+      }
+      clearInterval(timer);
+    }
+  }, 1000);
+}
+
+scheduleInstall();
+
+// Exporting state gives us a future hook if we want to feed real engine data in.
+export { state };
