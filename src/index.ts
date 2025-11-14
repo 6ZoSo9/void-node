@@ -26325,3 +26325,83 @@ void_wal_wrapped ${isWrapped?1:0}
   }
 })();
  // [/UPDATE_GATE v1.1]
+
+// --- Update protocol metrics v1 (additive-only block) ---
+(() => {
+  try {
+    const app = (globalThis as any).__void_http_app;
+    if (!app || !app.get) return;
+
+    const localProtocol = Number(process.env.VOID_PROTOCOL_VERSION || 0) || 0;
+    const policy = String(process.env.VOID_UPDATE_POLICY || 'unknown');
+
+    app.get('/__void/metrics/update-protocol.prom', (_req: any, res: any) => {
+      try {
+        res.type('text/plain; version=0.0.4');
+        const lines: string[] = [
+          '# HELP void_update_protocol_local local configured protocol version',
+          '# TYPE void_update_protocol_local gauge',
+          `void_update_protocol_local ${localProtocol}`,
+          '# HELP void_update_policy local update policy (labels only)',
+          '# TYPE void_update_policy gauge',
+          `void_update_policy{policy="${policy}"} 1`
+        ];
+        res.send(lines.join('\n') + '\n');
+      } catch (err) {
+        // last-ditch error log; never throw to Express
+        // eslint-disable-next-line no-console
+        console.error('[update-protocol-metrics] handler error', err);
+        try {
+          res.status(500).type('text/plain').send('# update-protocol-metrics error\n');
+        } catch (_) {}
+      }
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[update-protocol-metrics] init error', err);
+  }
+})();
+
+// --- Update protocol metrics v2 (delayed attach) ---
+(() => {
+  const attach = () => {
+    try {
+      const app = (globalThis as any).__void_http_app;
+      if (!app || !app.get) return;
+      if ((app as any).__void_update_protocol_attached_v2) return;
+      (app as any).__void_update_protocol_attached_v2 = true;
+
+      const localProtocol = Number(process.env.VOID_PROTOCOL_VERSION || 0) || 0;
+      const policy = String(process.env.VOID_UPDATE_POLICY || 'unknown');
+
+      app.get('/__void/metrics/update-protocol.prom', (_req: any, res: any) => {
+        try {
+          res.type('text/plain; version=0.0.4');
+          const lines: string[] = [
+            '# HELP void_update_protocol_local local configured protocol version',
+            '# TYPE void_update_protocol_local gauge',
+            `void_update_protocol_local ${localProtocol}`,
+            '# HELP void_update_policy local update policy (labels only)',
+            '# TYPE void_update_policy gauge',
+            `void_update_policy{policy="${policy}"} 1`
+          ];
+          res.send(lines.join('\n') + '\n');
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error('[update-protocol-metrics-v2] handler error', err);
+          try {
+            res.status(500).type('text/plain').send('# update-protocol-metrics error\n');
+          } catch (_) {}
+        }
+      });
+
+      // eslint-disable-next-line no-console
+      console.log('[update-protocol-metrics-v2] attached');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[update-protocol-metrics-v2] attach error', err);
+    }
+  };
+
+  setTimeout(attach, 1000);
+})();
