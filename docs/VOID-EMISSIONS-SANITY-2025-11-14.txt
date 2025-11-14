@@ -1,0 +1,20 @@
+=== VOID Emissions Sanity Check (NON-CONSENSUS) ===
+MAX_SUPPLY_VOID        = 666666666
+PREMINE_VOID           = 230000000
+REMAINING_EMISSIONS    = 436666666
+eraLengthBlocks        = 31536000
+initialRewardVOID      = 1
+decayNumerator/Denom   = 97 / 100
+
+Sample per-block rewards at various heights:
+  height=0            era=0    reward=1
+  height=31535999     era=0    reward=1
+  height=31536000     era=1    reward=0.97
+  height=157680000    era=5    reward=0.8587340257000001
+  height=315360000    era=10   reward=0.7374241268949284
+
+Approximate total minted over 50 eras: 821969677.4348052
+Approximate total supply (premine + approx minted): 1051969677.4348052
+Within MAX_SUPPLY_VOID?  false
+
+NOTE: This script is NON-CONSENSUS and for modelling/sanity only.
