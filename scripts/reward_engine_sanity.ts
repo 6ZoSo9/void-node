@@ -47,7 +47,7 @@ const validators: ValidatorStakeSnapshotV1[] = [
   },
   {
     validator: "0x0000000000000000000000000000000000000003",
-    stakeWei: 3_000_000n * ONE VOID,
+    stakeWei: 3_000_000n * ONE_VOID,
     active: true,
   },
 ];
