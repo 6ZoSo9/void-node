@@ -21,7 +21,6 @@ if [ -z "${DEVNET_PRIVKEY:-}" ]; then
   exit 1
 fi
 
-# Pull existing core state
 CHAIN_ID=$(jq -r '.chainId' "$STATE_JSON")
 DEPLOYER=$(jq -r '.deployer' "$STATE_JSON")
 ADMIN_GATE=$(jq -r '.AdminGate' "$STATE_JSON")
@@ -30,41 +29,44 @@ echo "[system-deploy] chainId(json) = $CHAIN_ID"
 echo "[system-deploy] deployer      = $DEPLOYER"
 echo "[system-deploy] AdminGate     = $ADMIN_GATE"
 
-if [ "$CHAIN_ID" != "2050" ] && [ "$CHAIN_ID" != "2050" ]; then
-  echo "[system-deploy][WARN] chainId in JSON is not 2050: $CHAIN_ID" >&2
-fi
-
 if [ -z "$ADMIN_GATE" ] || [ "$ADMIN_GATE" = "null" ]; then
   echo "[system-deploy][ERR] AdminGate missing in protocol state json" >&2
   exit 1
 fi
 
-# Helper: deploy a contract and parse "Deployed to:" line
 deploy_contract() {
   local label="$1"
   local artifact="$2"
   shift 2
   echo "[system-deploy] deploying $label ($artifact)…"
+
   local out
-  out=$(forge create "$artifact" \
-      --rpc-url "$RPC_URL" \
-      --private-key "$DEVNET_PRIVKEY" \
-      "$@" \
-      2>&1)
-  echo "$out"
-  local addr
-  addr=$(printf '%s\n' "$out" | awk '/Deployed to:/ {print $3}' | tail -1)
-  if [ -z "$addr" ]; then
-    echo "[system-deploy][ERR] failed to parse address for $label" >&2
+  if ! out=$(forge create "$artifact" \
+        --rpc-url "$RPC_URL" \
+        --private-key "$DEVNET_PRIVKEY" \
+        --json \
+        "$@" 2>&1); then
+    echo "[system-deploy][ERR] forge create failed for $label:" >&2
+    echo "$out" >&2
     exit 1
   fi
+
+  echo "$out"
+
+  # Expect JSON with a 'deployedTo' field.
+  local addr
+  addr=$(printf '%s\n' "$out" | jq -r '.deployedTo' 2>/dev/null || true)
+
+  if [ -z "$addr" ] || [ "$addr" = "null" ]; then
+    echo "[system-deploy][ERR] failed to parse deployed address for $label from JSON" >&2
+    exit 1
+  fi
+
   echo "[system-deploy] $label deployed at $addr"
   printf '%s\n' "$addr"
 }
 
-# NOTE: This assumes each registry + JobQueue takes AdminGate as its constructor arg:
-#   constructor(address _adminGate) { … }
-# If that’s different, fix the args here.
+# Assumes constructor(address _adminGate) for all four; if wrong, forge will yell.
 AGENT_REGISTRY=$(
   deploy_contract "AgentRegistry" "contracts/AgentRegistry.sol:AgentRegistry" \
     --constructor-args "$ADMIN_GATE"
