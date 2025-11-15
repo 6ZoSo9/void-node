@@ -24,8 +24,9 @@ echo "[verify] RPC_URL  = $RPC_URL"
 echo "[verify] Token    = $TOKEN_ADDR"
 echo "[verify] Deployer = $DEPLOYER"
 
-tsupply=$(cast call "$TOKEN_ADDR" "totalSupply()(uint256)" --rpc-url "$RPC_URL")
-dbal=$(cast call "$TOKEN_ADDR" "balanceOf(address)(uint256)" "$DEPLOYER" --rpc-url "$RPC_URL")
+# cast prints: "<uint> [pretty]" – grab just the first column
+tsupply=$(cast call "$TOKEN_ADDR" "totalSupply()(uint256)" --rpc-url "$RPC_URL" | awk '{print $1}')
+dbal=$(cast call "$TOKEN_ADDR" "balanceOf(address)(uint256)" "$DEPLOYER" --rpc-url "$RPC_URL" | awk '{print $1}')
 
 echo "[verify] totalSupply      = $tsupply"
 echo "[verify] deployer balance = $dbal"
