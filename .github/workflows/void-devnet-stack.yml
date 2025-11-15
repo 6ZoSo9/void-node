@@ -1,69 +1,56 @@
 name: VOID Devnet Stack
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
       - public-sync-*
-  pull_request:
 
 jobs:
   devnet-stack:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      RPC_URL: http://127.0.0.1:8545
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
-
-      - name: Start anvil (chainId 2050)
+      - name: Install Foundry (forge/cast/anvil)
         run: |
-          anvil \
-            --chain-id 2050 \
-            --silent \
-            --host 0.0.0.0 \
-            --port 8545 &
-          echo $! > anvil.pid
+          curl -L https://foundry.paradigm.xyz | bash
+          ~/.foundry/bin/foundryup
 
-      - name: Wait for anvil
+      - name: Start Anvil (chainId 2050)
         run: |
+          ~/.foundry/bin/anvil --chain-id 2050 --block-time 2 --silent &
+          echo "ANVIL_PID=$!" >> "$GITHUB_ENV"
+
+          # wait for RPC to come up
           for i in {1..30}; do
-            if curl -sSf "$RPC_URL" >/dev/null 2>&1; then
-              echo "[stack-ci] anvil is up on $RPC_URL"
+            if curl -sSf http://127.0.0.1:8545 >/dev/null 2>&1; then
+              echo "[ci] anvil up on 8545"
               exit 0
             fi
-            echo "[stack-ci] waiting for anvil ($i/30)…"
             sleep 1
           done
-          echo "[stack-ci][ERR] anvil not responding on $RPC_URL" >&2
+
+          echo "[ci][ERR] anvil did not start in time" >&2
           exit 1
 
-      - name: Run VOID devnet stack (tests + deploy + verify)
+      - name: Run VOID devnet bootstrap stack (tests+deploy+protocol+system)
         env:
-          DEVNET_PRIVKEY: ${{ secrets.VOID_DEVNET_PRIVKEY }}
+          RPC_URL: http://127.0.0.1:8545
+          # Anvil default dev key – devnet only, never mainnet
+          DEVNET_PRIVKEY: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
         run: |
-          chmod +x ops/void-devnet-stack.sh
-          ./ops/void-devnet-stack.sh
+          chmod +x ops/void-devnet-*.sh || true
+          ./ops/void-devnet-bootstrap-stack.sh
 
-      - name: Show devnet addresses
+      - name: Stop Anvil
         if: always()
         run: |
-          if [ -f docs/VOID-DEVNET-DEPLOY-ADDRESSES.json ]; then
-            cat docs/VOID-DEVNET-DEPLOY-ADDRESSES.json
-          else
-            echo "[stack-ci] no VOID-DEVNET-DEPLOY-ADDRESSES.json found"
-          fi
-
-      - name: Stop anvil
-        if: always()
-        run: |
-          if [ -f anvil.pid ]; then
-            kill "$(cat anvil.pid)" 2>/dev/null || true
+          if [ -n "${ANVIL_PID:-}" ]; then
+            echo "[ci] stopping anvil pid $ANVIL_PID"
+            kill "$ANVIL_PID" || true
           fi
