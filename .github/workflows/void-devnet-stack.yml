@@ -1,0 +1,69 @@
+name: VOID Devnet Stack
+
+on:
+  push:
+    branches:
+      - main
+      - public-sync-*
+  pull_request:
+
+jobs:
+  devnet-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RPC_URL: http://127.0.0.1:8545
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Start anvil (chainId 2050)
+        run: |
+          anvil \
+            --chain-id 2050 \
+            --silent \
+            --host 0.0.0.0 \
+            --port 8545 &
+          echo $! > anvil.pid
+
+      - name: Wait for anvil
+        run: |
+          for i in {1..30}; do
+            if curl -sSf "$RPC_URL" >/dev/null 2>&1; then
+              echo "[stack-ci] anvil is up on $RPC_URL"
+              exit 0
+            fi
+            echo "[stack-ci] waiting for anvil ($i/30)…"
+            sleep 1
+          done
+          echo "[stack-ci][ERR] anvil not responding on $RPC_URL" >&2
+          exit 1
+
+      - name: Run VOID devnet stack (tests + deploy + verify)
+        env:
+          DEVNET_PRIVKEY: ${{ secrets.VOID_DEVNET_PRIVKEY }}
+        run: |
+          chmod +x ops/void-devnet-stack.sh
+          ./ops/void-devnet-stack.sh
+
+      - name: Show devnet addresses
+        if: always()
+        run: |
+          if [ -f docs/VOID-DEVNET-DEPLOY-ADDRESSES.json ]; then
+            cat docs/VOID-DEVNET-DEPLOY-ADDRESSES.json
+          else
+            echo "[stack-ci] no VOID-DEVNET-DEPLOY-ADDRESSES.json found"
+          fi
+
+      - name: Stop anvil
+        if: always()
+        run: |
+          if [ -f anvil.pid ]; then
+            kill "$(cat anvil.pid)" 2>/dev/null || true
+          fi
