@@ -1,18 +1,14 @@
 # VOID Network – AgentRegistry Contract Spec (v1, minimal)
 
-AgentRegistry is the on-chain directory of VOID agents.
+AgentRegistry is the **on-chain directory of agents** that are allowed to
+pick up jobs in JobQueue and report outputs/evals off-chain.
 
-An "agent" is an off-chain worker or service that:
-- Reads jobs from JobQueue.
-- Runs models/datasets off-chain.
-- Writes back receipts to ReceiptRegistry or the VOID node.
+- It does NOT run jobs.
+- It does NOT enforce economics (no stake/slashing in v1).
+- It does NOT enforce policy – it only stores tags and metadata.
 
-AgentRegistry does NOT run agents or enforce uptime. It only tracks:
-- Which agents exist
-- Who owns them
-- What model(s)/dataset(s) they claim to serve
-- How to reach them (endpoint / metadata)
-- Whether they are active
+Policy and economics are handled by other components (PolicyGuard,
+AdminGate, off-chain infra, or future versions).
 
 ---
 
@@ -20,75 +16,210 @@ AgentRegistry does NOT run agents or enforce uptime. It only tracks:
 
 AgentRegistry must:
 
-- Store entries keyed by a numeric agentId (uint256).
-- Emit events when agents are registered or updated.
-- Track ownership per agent.
-- Allow deactivating an agent without deleting its history.
-- Be governed by a master key for global controls (masterKey).
+- Store entries keyed by a human-readable `agentId` (string).
+- Track the current **owner address** for each agent.
+- Track the **agent runtime address** (where callbacks/identities come from).
+- Track **capabilities** and **policy tags** as opaque metadata.
+- Allow enabling/disabling agents.
+- Emit events on registration and updates.
 
 AgentRegistry cannot:
 
-- Force an agent to actually run or respond.
-- Guarantee that an agent uses the claimed models/datasets.
-- Enforce SLAs or quality guarantees on-chain.
+- Guarantee that an off-chain process actually matches the metadata.
+- Enforce model compatibility or job correctness.
+- Directly move funds or control user balances.
+
+Those responsibilities belong to **off-chain agents**, **PolicyGuard**,
+**JobQueue**, and higher-level economics.
 
 ---
 
-## 2. Data Model (intent)
+## 2. Data model
 
-Each agent has a numeric id: agentId (uint256).
+### 2.1. Types
 
-For each agentId, the registry stores a struct:
+- `AgentId` – string (e.g. "void-agent/mainnet-router-1")
+- `Owner` – `address` (control key / admin)
+- `RuntimeAddr` – `address` (address used when interacting with JobReceipts)
+- `PolicyTag` – `bytes32` (optional policy tag reference)
+- `CapabilitiesHash` – `bytes32` (e.g. hash of a JSON capabilities doc)
+- `Metadata` – string (JSON recommended)
 
-- owner: address         // who controls this agent entry
-- endpoint: string       // optional: URL / URI / void:// endpoint
-- modelHint: string      // e.g. "void-agent-devnet-demo-1"
-- datasetHint: string    // optional dataset linkage (free-form or id encoded)
-- active: bool           // whether this agent is available for routing
-- createdAt: uint64
-- updatedAt: uint64
-- meta: string           // optional JSON/YAML/CBOR manifest (opaque)
+### 2.2. Storage (conceptual)
 
-Solidity implementation: mapping(uint256 => Agent) public agents;
-the exact fields live in contracts/AgentRegistry.sol.
+For each `agentId`:
 
----
+- `owner: address`
+- `runtime: address`
+- `policyTag: bytes32`
+- `capabilitiesHash: bytes32`
+- `metadata: string`
+- `active: bool`
+- `createdAt: uint64`
+- `updatedAt: uint64`
 
-## 3. Roles and Permissions
+Additional:
 
-### Master (masterKey)
-
-- May register bootstrap/system agents.
-- May perform emergency actions if implemented
-  (e.g., force-deactivate a compromised agent entry).
-
-### Owner (per-agent)
-
-- Set on first registration.
-- Can update endpoint, hints, meta, and active flag.
-- Can voluntarily deactivate their agent.
+- `isRegistered[agentId] -> bool`
+- Global `admin` or AdminGate reference.
 
 ---
 
-## 4. Interaction with Other VOID Components
+## 3. Core functions
 
-- **JobQueue**:
-  - Jobs may include an `agentId` hint or policy may choose agents
-    based on AgentRegistry fields (modelHint, datasetHint, active).
+### 3.1. registerAgent
 
-- **ModelRegistry / DatasetRegistry**:
-  - Off-chain tooling is expected to correlate `modelHint` and
-    `datasetHint` with concrete entries in ModelRegistry/DatasetRegistry.
-  - Policy layers may require that hints resolve to active entries.
+`registerAgent(agentId, runtime, policyTag, capabilitiesHash, metadata)`
 
-- **ReceiptRegistry / Node policy**:
-  - When a receipt claims it was produced by `agentId`,
-    nodes/validators can look up that agent and:
-    - Check that it was active at the time.
-    - Check that its hints/policy allow the claimed job type.
-    - Export observability metrics keyed by `agentId`.
+- New agent:
+  - `require(!isRegistered[agentId])`
+  - `owner = msg.sender` (or admin).
+  - `runtime = runtime`.
+  - `policyTag = policyTag`.
+  - `capabilitiesHash = capabilitiesHash`.
+  - `metadata = metadata`.
+  - `active = true`.
+  - `createdAt = block.timestamp`.
+  - `updatedAt = block.timestamp`.
+  - `isRegistered[agentId] = true`.
+- Existing agent:
+  - REVERT in v1 (no re-register; use update functions).
+- Emit `AgentRegistered`.
 
-AgentRegistry provides a canonical mapping from agentId to metadata,
-ownership, and activity flags. It does not, by itself, guarantee that
-agents behave; it simply gives VOID a shared directory for agents that
-the rest of the system (and monitoring) can reference.
+### 3.2. setAgentActive
+
+`setAgentActive(agentId, active)`
+
+- Require:
+  - `isRegistered[agentId]`
+  - caller is `owner` or `admin`.
+- Set `active` flag.
+- Update `updatedAt`.
+- Emit `AgentActivationChanged`.
+
+### 3.3. updateAgentRuntime
+
+`updateAgentRuntime(agentId, newRuntime)`
+
+- Require:
+  - `isRegistered[agentId]`
+  - caller is `owner` or `admin`.
+- Set `runtime = newRuntime`.
+- Update `updatedAt`.
+- Emit `AgentRuntimeUpdated`.
+
+### 3.4. updateAgentMeta
+
+`updateAgentMeta(agentId, policyTag, capabilitiesHash, metadata)`
+
+- Require:
+  - `isRegistered[agentId]`
+  - caller is `owner` or `admin`.
+- Update `policyTag`, `capabilitiesHash`, `metadata`.
+- Update `updatedAt`.
+- Emit `AgentMetaUpdated`.
+
+### 3.5. transferAgentOwnership
+
+`transferAgentOwnership(agentId, newOwner)`
+
+- Require:
+  - `isRegistered[agentId]`
+  - caller is current `owner` or `admin`.
+- Set `owner = newOwner`.
+- Update `updatedAt`.
+- Emit `AgentOwnershipTransferred`.
+
+---
+
+## 4. View functions (for JobReceipts and agents)
+
+Read-only helpers:
+
+- `getAgentOwner(agentId) -> address`
+- `getAgentRuntime(agentId) -> address`
+- `getAgentMeta(agentId) -> (policyTag, capabilitiesHash, metadata)`
+- `isAgentActive(agentId) -> bool`
+- `isRegistered(agentId) -> bool`
+
+Optional helpers:
+
+- `getAgent(agentId) -> (owner, runtime, policyTag, capabilitiesHash, metadata, active, createdAt, updatedAt)`
+
+Typical flow:
+
+1. Off-chain infra knows `agentId`.
+2. Resolve `agentId` → `runtime` and `active`.
+3. Check `active`.
+4. Read `policyTag` / `capabilitiesHash` / `metadata` for routing.
+
+---
+
+## 5. Access control & integration
+
+### 5.1. Admin
+
+- `admin` (or AdminGate) can:
+  - Force-register agents.
+  - Override `owner`.
+  - Force-disable agents.
+- Normal operations:
+  - `owner` is the main control key.
+  - `runtime` can be changed without changing `owner`.
+
+### 5.2. Integration with JobQueue / JobReceipts
+
+- JobReceipts can:
+  - Require that `isAgentActive(agentId)` is true.
+  - Use `getAgentRuntime(agentId)` to verify caller identity.
+- PolicyGuard can:
+  - Use `policyTag` and `capabilitiesHash` to decide if an agent is
+    allowed to handle a given job type or model.
+
+---
+
+## 6. Events (suggested)
+
+```solidity
+event AgentRegistered(
+    string agentId,
+    address owner,
+    address runtime,
+    bytes32 policyTag,
+    bytes32 capabilitiesHash,
+    string metadata
+);
+
+event AgentActivationChanged(
+    string agentId,
+    bool active
+);
+
+event AgentRuntimeUpdated(
+    string agentId,
+    address oldRuntime,
+    address newRuntime
+);
+
+event AgentMetaUpdated(
+    string agentId,
+    bytes32 policyTag,
+    bytes32 capabilitiesHash,
+    string metadata
+);
+
+event AgentOwnershipTransferred(
+    string agentId,
+    address oldOwner,
+    address newOwner
+);
+7. v2+ extension points
+Future versions may add:
+
+Stake and slashing (bonded agents).
+
+Reputation scores (aggregated from JobReceipts).
+
+Rate limits / quotas per agent or per policyTag.
+
+Links to ModelRegistry (e.g. "this agent supports models X/Y/Z").

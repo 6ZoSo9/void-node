@@ -1,218 +1,316 @@
-// SPDX-License-Identifier: VCL-1.0
-pragma solidity ^0.8.20;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.20;
 
-/// @title VOID AgentRegistry v1
-/// @notice Minimal registry of off-chain agents that work with JobQueue / VOID infra.
-/// @dev V1 is intentionally simple: no staking, no reputation, no capability tags.
+/// @title AgentRegistry (v1, minimal)
+/// @notice On-chain directory of agents that can handle jobs & report receipts.
+/// - Stores owner/runtime/policy metadata.
+/// - Does NOT run jobs or enforce economics in v1.
 contract AgentRegistry {
-    /// @notice Master key that can mark agents trusted and perform emergency actions.
-    address public masterKey;
-
     struct Agent {
-        address agentAddress;
-        address owner;
-        string metadataURI;
-        bool active;
-        bool trusted;
-        uint64 createdAt;
-        uint64 updatedAt;
+        address owner;           // control key / admin
+        address runtime;         // address used when talking to JobReceipts
+        bytes32 policyTag;       // opaque tag for PolicyGuard
+        bytes32 capabilitiesHash;// hash of JSON capabilities doc
+        string metadata;         // free-form JSON (small)
+        bool active;             // is this agent allowed to act
+        uint64 createdAt;        // first registration time
+        uint64 updatedAt;        // last update time
     }
 
-    /// @notice Monotonically increasing agent id (1-based).
-    uint256 public nextAgentId;
+    /// @notice Global admin (expected to be AdminGate / MasterKey governed in real deployments)
+    address public admin;
 
-    /// @notice Registry of agents by id.
-    mapping(uint256 => Agent) public agents;
+    /// @dev Agent data keyed by human-readable agentId string.
+    mapping(string => Agent) private agents;
 
-    /// @notice Optional reverse lookup: agent address -> agentId (0 if none).
-    mapping(address => uint256) public agentIdByAddress;
+    /// @notice Whether an agentId has been registered at least once.
+    mapping(string => bool) public isRegistered;
+
+    // ------------------------------------------------------------------------
+    // Events (match the spec)
+    // ------------------------------------------------------------------------
 
     event AgentRegistered(
-        uint256 indexed agentId,
-        address indexed agentAddress,
-        address indexed owner,
-        string metadataURI
+        string agentId,
+        address owner,
+        address runtime,
+        bytes32 policyTag,
+        bytes32 capabilitiesHash,
+        string metadata
     );
 
-    event AgentUpdated(
-        uint256 indexed agentId,
-        string metadataURI
-    );
-
-    event AgentStatusChanged(
-        uint256 indexed agentId,
+    event AgentActivationChanged(
+        string agentId,
         bool active
     );
 
-    event AgentTrustedChanged(
-        uint256 indexed agentId,
-        bool trusted
+    event AgentRuntimeUpdated(
+        string agentId,
+        address oldRuntime,
+        address newRuntime
     );
 
-    event AgentOwnerChanged(
-        uint256 indexed agentId,
-        address indexed oldOwner,
-        address indexed newOwner
+    event AgentMetaUpdated(
+        string agentId,
+        bytes32 oldPolicyTag,
+        bytes32 newPolicyTag,
+        bytes32 oldCapabilitiesHash,
+        bytes32 newCapabilitiesHash,
+        string oldMetadata,
+        string newMetadata
     );
 
-    event MasterKeyChanged(
-        address indexed oldKey,
-        address indexed newKey
+    event AgentOwnershipTransferred(
+        string agentId,
+        address oldOwner,
+        address newOwner
     );
 
-    modifier onlyMaster() {
-        require(msg.sender == masterKey, "AgentRegistry: not master");
+    event AdminChanged(
+        address oldAdmin,
+        address newAdmin
+    );
+
+    // ------------------------------------------------------------------------
+    // Modifiers / internal helpers
+    // ------------------------------------------------------------------------
+
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "AgentRegistry: not admin");
         _;
     }
 
-    modifier onlyOwner(uint256 agentId) {
-        address owner = agents[agentId].owner;
-        require(owner != address(0), "AgentRegistry: unknown agent");
-        require(msg.sender == owner, "AgentRegistry: not owner");
-        _;
+    constructor(address _admin) {
+        require(_admin != address(0), "AgentRegistry: admin zero");
+        admin = _admin;
+        emit AdminChanged(address(0), _admin);
     }
 
-    /// @notice Contract version for off-chain infra (not agent version).
-    function VERSION() external pure returns (uint256) {
-        return 1;
+    /// @notice Change the admin (AdminGate / MasterKey controller).
+    function setAdmin(address newAdmin) external onlyAdmin {
+        require(newAdmin != address(0), "AgentRegistry: admin zero");
+        emit AdminChanged(admin, newAdmin);
+        admin = newAdmin;
     }
 
-    /// @param masterKey_ Initial MasterKey address.
-    constructor(address masterKey_) {
-        require(masterKey_ != address(0), "AgentRegistry: masterKey zero");
-        masterKey = masterKey_;
-        emit MasterKeyChanged(address(0), masterKey_);
-    }
-
-    /// @notice Register the caller as a new agent.
-    /// @param metadataURI Off-chain URI describing models/capabilities/endpoints.
-    /// @return agentId Newly assigned agent id.
-    function registerAgent(string calldata metadataURI)
-        external
-        returns (uint256 agentId)
-    {
+    /// @dev Returns storage ref and enforces that caller is owner or admin.
+    function _requireOwnerOrAdmin(
+        string memory agentId
+    ) internal view returns (Agent storage a) {
+        require(isRegistered[agentId], "AgentRegistry: not registered");
+        a = agents[agentId];
         require(
-            agentIdByAddress[msg.sender] == 0,
-            "AgentRegistry: already registered"
+            msg.sender == a.owner || msg.sender == admin,
+            "AgentRegistry: not owner/admin"
         );
+    }
 
-        agentId = ++nextAgentId;
+    // ------------------------------------------------------------------------
+    // Core functions
+    // ------------------------------------------------------------------------
+
+    /// @notice Register a new agent. Fails if the agentId already exists.
+    /// @param agentId Human-readable ID (e.g. "void-agent/devnet-router-1").
+    /// @param runtime Runtime address that will interact with JobReceipts.
+    /// @param policyTag Opaque policy tag, interpreted by PolicyGuard.
+    /// @param capabilitiesHash Hash of JSON capabilities document.
+    /// @param metadata Free-form metadata (JSON, small).
+    function registerAgent(
+        string calldata agentId,
+        address runtime,
+        bytes32 policyTag,
+        bytes32 capabilitiesHash,
+        string calldata metadata
+    ) external {
+        require(!isRegistered[agentId], "AgentRegistry: already registered");
+        require(runtime != address(0), "AgentRegistry: runtime zero");
 
         Agent storage a = agents[agentId];
-        a.agentAddress = msg.sender;
         a.owner = msg.sender;
-        a.metadataURI = metadataURI;
+        a.runtime = runtime;
+        a.policyTag = policyTag;
+        a.capabilitiesHash = capabilitiesHash;
+        a.metadata = metadata;
         a.active = true;
-        a.trusted = false;
-        a.createdAt = uint64(block.number);
-        a.updatedAt = uint64(block.number);
 
-        agentIdByAddress[msg.sender] = agentId;
+        uint64 ts = uint64(block.timestamp);
+        a.createdAt = ts;
+        a.updatedAt = ts;
 
-        emit AgentRegistered(agentId, msg.sender, msg.sender, metadataURI);
-        emit AgentStatusChanged(agentId, true);
+        isRegistered[agentId] = true;
+
+        emit AgentRegistered(
+            agentId,
+            a.owner,
+            a.runtime,
+            a.policyTag,
+            a.capabilitiesHash,
+            a.metadata
+        );
+        emit AgentActivationChanged(agentId, true);
     }
 
-    /// @notice Update metadata URI for an existing agent (owner only).
-    function updateMetadata(uint256 agentId, string calldata metadataURI)
-        external
-        onlyOwner(agentId)
-    {
-        Agent storage a = agents[agentId];
-        a.metadataURI = metadataURI;
-        a.updatedAt = uint64(block.number);
-
-        emit AgentUpdated(agentId, metadataURI);
-    }
-
-    /// @notice Set the active flag for an agent (owner only).
-    function setActive(uint256 agentId, bool active)
-        external
-        onlyOwner(agentId)
-    {
-        Agent storage a = agents[agentId];
+    /// @notice Enable/disable an existing agent.
+    /// @param agentId Agent identifier.
+    /// @param active New active flag.
+    function setAgentActive(
+        string calldata agentId,
+        bool active
+    ) external {
+        Agent storage a = _requireOwnerOrAdmin(agentId);
+        if (a.active == active) {
+            // no-op
+            return;
+        }
         a.active = active;
-        a.updatedAt = uint64(block.number);
-
-        emit AgentStatusChanged(agentId, active);
+        a.updatedAt = uint64(block.timestamp);
+        emit AgentActivationChanged(agentId, active);
     }
 
-    /// @notice Mark/unmark an agent as trusted (MasterKey only).
-    function setTrusted(uint256 agentId, bool trusted)
-        external
-        onlyMaster
-    {
-        Agent storage a = agents[agentId];
-        require(a.owner != address(0), "AgentRegistry: unknown agent");
+    /// @notice Update runtime address for an agent.
+    /// @param agentId Agent identifier.
+    /// @param newRuntime New runtime address.
+    function updateAgentRuntime(
+        string calldata agentId,
+        address newRuntime
+    ) external {
+        require(newRuntime != address(0), "AgentRegistry: runtime zero");
+        Agent storage a = _requireOwnerOrAdmin(agentId);
 
-        a.trusted = trusted;
-        a.updatedAt = uint64(block.number);
+        address old = a.runtime;
+        if (old == newRuntime) {
+            return;
+        }
 
-        emit AgentTrustedChanged(agentId, trusted);
+        a.runtime = newRuntime;
+        a.updatedAt = uint64(block.timestamp);
+
+        emit AgentRuntimeUpdated(agentId, old, newRuntime);
     }
 
-    /// @notice Forcefully set active flag (MasterKey only, emergency/offboarding).
-    function forceSetActive(uint256 agentId, bool active)
-        external
-        onlyMaster
-    {
-        Agent storage a = agents[agentId];
-        require(a.owner != address(0), "AgentRegistry: unknown agent");
+    /// @notice Update policy/capabilities/metadata for an agent.
+    /// @param agentId Agent identifier.
+    /// @param policyTag New policy tag.
+    /// @param capabilitiesHash New capabilities hash.
+    /// @param metadata New metadata JSON.
+    function updateAgentMeta(
+        string calldata agentId,
+        bytes32 policyTag,
+        bytes32 capabilitiesHash,
+        string calldata metadata
+    ) external {
+        Agent storage a = _requireOwnerOrAdmin(agentId);
 
-        a.active = active;
-        a.updatedAt = uint64(block.number);
+        bytes32 oldPolicy = a.policyTag;
+        bytes32 oldCaps = a.capabilitiesHash;
+        string memory oldMeta = a.metadata;
 
-        emit AgentStatusChanged(agentId, active);
+        a.policyTag = policyTag;
+        a.capabilitiesHash = capabilitiesHash;
+        a.metadata = metadata;
+        a.updatedAt = uint64(block.timestamp);
+
+        emit AgentMetaUpdated(
+            agentId,
+            oldPolicy,
+            policyTag,
+            oldCaps,
+            capabilitiesHash,
+            oldMeta,
+            metadata
+        );
     }
 
-    /// @notice Transfer ownership of an agent (MasterKey only).
-    /// @dev Useful for key rotations or centralized agents.
-    function transferOwnership(uint256 agentId, address newOwner)
-        external
-        onlyMaster
-    {
-        require(newOwner != address(0), "AgentRegistry: newOwner zero");
-        Agent storage a = agents[agentId];
+    /// @notice Transfer control/ownership of an agent to a new owner.
+    /// @param agentId Agent identifier.
+    /// @param newOwner New owner address.
+    function transferAgentOwnership(
+        string calldata agentId,
+        address newOwner
+    ) external {
+        require(newOwner != address(0), "AgentRegistry: owner zero");
+        Agent storage a = _requireOwnerOrAdmin(agentId);
+
         address oldOwner = a.owner;
-        require(oldOwner != address(0), "AgentRegistry: unknown agent");
+        if (oldOwner == newOwner) {
+            return;
+        }
 
         a.owner = newOwner;
-        a.updatedAt = uint64(block.number);
+        a.updatedAt = uint64(block.timestamp);
 
-        emit AgentOwnerChanged(agentId, oldOwner, newOwner);
+        emit AgentOwnershipTransferred(agentId, oldOwner, newOwner);
     }
 
-    /// @notice Change MasterKey.
-    function setMasterKey(address newMasterKey) external onlyMaster {
-        require(newMasterKey != address(0), "AgentRegistry: masterKey zero");
-        address old = masterKey;
-        masterKey = newMasterKey;
-        emit MasterKeyChanged(old, newMasterKey);
+    // ------------------------------------------------------------------------
+    // Views (for JobReceipts & agents)
+    // ------------------------------------------------------------------------
+
+    function getAgentOwner(
+        string calldata agentId
+    ) external view returns (address) {
+        require(isRegistered[agentId], "AgentRegistry: not registered");
+        return agents[agentId].owner;
     }
 
-    /// @notice Convenience view that returns the full agent struct.
-    function getAgent(uint256 agentId)
+    function getAgentRuntime(
+        string calldata agentId
+    ) external view returns (address) {
+        require(isRegistered[agentId], "AgentRegistry: not registered");
+        return agents[agentId].runtime;
+    }
+
+    function getAgentMeta(
+        string calldata agentId
+    )
         external
         view
         returns (
-            address agentAddress,
+            bytes32 policyTag,
+            bytes32 capabilitiesHash,
+            string memory metadata
+        )
+    {
+        require(isRegistered[agentId], "AgentRegistry: not registered");
+        Agent storage a = agents[agentId];
+        return (a.policyTag, a.capabilitiesHash, a.metadata);
+    }
+
+    function isAgentActive(
+        string calldata agentId
+    ) external view returns (bool) {
+        if (!isRegistered[agentId]) {
+            return false;
+        }
+        return agents[agentId].active;
+    }
+
+    /// @notice Full dump of an agent record (for off-chain infra).
+    function getAgent(
+        string calldata agentId
+    )
+        external
+        view
+        returns (
             address owner,
-            string memory metadataURI,
+            address runtime,
+            bytes32 policyTag,
+            bytes32 capabilitiesHash,
+            string memory metadata,
             bool active,
-            bool trusted,
             uint64 createdAt,
             uint64 updatedAt
         )
     {
+        require(isRegistered[agentId], "AgentRegistry: not registered");
         Agent storage a = agents[agentId];
-        require(a.owner != address(0), "AgentRegistry: unknown agent");
-
         return (
-            a.agentAddress,
             a.owner,
-            a.metadataURI,
+            a.runtime,
+            a.policyTag,
+            a.capabilitiesHash,
+            a.metadata,
             a.active,
-            a.trusted,
             a.createdAt,
             a.updatedAt
         );

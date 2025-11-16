@@ -1,103 +1,122 @@
-// SPDX-License-Identifier: VCL-1.0
-pragma solidity ^0.8.20;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.20;
 
 import "../contracts/AgentRegistry.sol";
 
-/// @notice Minimal smoke tests for AgentRegistry.
-/// @dev No forge-std, just bare require().
 contract AgentRegistryTest {
-    AgentRegistry private registry;
+    AgentRegistry internal registry;
+    address internal admin = address(0xA11CE);
 
     constructor() {
-        // This test contract is the MasterKey.
-        registry = new AgentRegistry(address(this));
+        registry = new AgentRegistry(admin);
     }
 
-    function testRegisterAgentSetsFields() public {
-        string memory uri = "ipfs://agent-metadata-1";
+    // Basic admin wiring
+    function testAdminIsSetOnDeploy() public {
+        assert(registry.admin() == admin);
+    }
 
-        uint256 agentId = registry.registerAgent(uri);
-
-        // Check reverse mapping
-        require(
-            registry.agentIdByAddress(address(this)) == agentId,
-            "agentIdByAddress mismatch"
+    function testSetAdminOnlyAdmin() public {
+        // Non-admin should revert
+        (bool ok, ) = address(registry).call(
+            abi.encodeWithSelector(registry.setAdmin.selector, address(0xBEEF))
         );
+        require(!ok, "non-admin setAdmin should revert");
+
+        // Admin can set
+        (ok, ) = address(registry).call(
+            abi.encodeWithSelector(registry.setAdmin.selector, address(0xBEEF))
+        );
+        require(ok, "admin setAdmin should succeed");
+        assert(registry.admin() == address(0xBEEF));
+    }
+
+    function testRegisterAgentAndReadBack() public {
+        string memory agentId = "void-agent/devnet-router-1";
+        address runtime = address(this);
+        bytes32 policyTag = keccak256("POLICY_DEVNET_V1");
+        bytes32 capsHash = keccak256("CAPS_DEVNET_V1");
+        string memory metadata = '{"kind":"router","env":"devnet"}';
+
+        registry.registerAgent(agentId, runtime, policyTag, capsHash, metadata);
+
+        require(registry.isRegistered(agentId), "should be registered");
 
         (
-            address agentAddress,
             address owner,
-            string memory metadataURI,
+            address runtimeOut,
+            bytes32 policyOut,
+            bytes32 capsOut,
+            string memory metaOut,
             bool active,
-            bool trusted,
             uint64 createdAt,
             uint64 updatedAt
         ) = registry.getAgent(agentId);
 
-        require(agentAddress == address(this), "agentAddress mismatch");
-        require(owner == address(this), "owner mismatch");
+        assert(owner == address(this));
+        assert(runtimeOut == runtime);
+        assert(policyOut == policyTag);
+        assert(capsOut == capsHash);
         require(
-            keccak256(bytes(metadataURI)) == keccak256(bytes(uri)),
-            "metadataURI mismatch"
+            keccak256(bytes(metaOut)) == keccak256(bytes(metadata)),
+            "metadata mismatch"
         );
-        require(active == true, "active != true");
-        require(trusted == false, "trusted != false");
-        require(createdAt == updatedAt, "timestamps mismatch");
+        assert(active);
+        assert(createdAt > 0);
+        assert(updatedAt >= createdAt);
+
+        assert(registry.getAgentOwner(agentId) == owner);
+        assert(registry.getAgentRuntime(agentId) == runtimeOut);
+
+        (bytes32 p2, bytes32 c2, string memory m2) = registry.getAgentMeta(agentId);
+        assert(p2 == policyOut);
+        assert(c2 == capsOut);
+        require(
+            keccak256(bytes(m2)) == keccak256(bytes(metaOut)),
+            "meta getter mismatch"
+        );
+        assert(registry.isAgentActive(agentId));
     }
 
-    function testOwnerCanUpdateMetadataAndActive() public {
-        uint256 agentId = registry.registerAgent("ipfs://agent-metadata-2");
+    function testOwnerAndAdminCanToggleActiveAndTransfer() public {
+        string memory agentId = "void-agent/owner-test";
+        address runtime = address(this);
+        bytes32 policyTag = keccak256("POLICY");
+        bytes32 capsHash = keccak256("CAPS");
+        string memory metadata = "{}";
 
-        string memory newURI = "ipfs://agent-metadata-2b";
+        registry.registerAgent(agentId, runtime, policyTag, capsHash, metadata);
 
-        registry.updateMetadata(agentId, newURI);
-        registry.setActive(agentId, false);
-
-        (
-            ,
-            ,
-            string memory metadataURI,
-            bool active,
-            bool trusted,
-            uint64 createdAt,
-            uint64 updatedAt
-        ) = registry.getAgent(agentId);
-
-        require(
-            keccak256(bytes(metadataURI)) == keccak256(bytes(newURI)),
-            "metadataURI not updated"
+        // Non-owner/non-admin cannot toggle
+        (bool ok, ) = address(registry).call(
+            abi.encodeWithSelector(
+                registry.setAgentActive.selector,
+                agentId,
+                false
+            )
         );
-        require(active == false, "active not updated");
+        require(!ok, "non-owner toggle should revert");
 
-        // Sanity: these just prove the tuple shape is sane (no revert)
-        trusted; createdAt; updatedAt;
-    }
+        // Owner toggles off
+        registry.setAgentActive(agentId, false);
+        assert(!registry.isAgentActive(agentId));
 
-    function testMasterControlsTrustedAndOwnership() public {
-        uint256 agentId = registry.registerAgent("ipfs://agent-metadata-3");
+        // Admin toggles back on
+        (ok, ) = address(registry).call(
+            abi.encodeWithSelector(
+                registry.setAgentActive.selector,
+                agentId,
+                true
+            )
+        );
+        require(ok, "admin toggle should succeed");
+        assert(registry.isAgentActive(agentId));
 
-        // Master marks trusted and forces active off, then transfers ownership.
-        registry.setTrusted(agentId, true);
-        registry.forceSetActive(agentId, false);
-
+        // Owner transfers ownership
         address newOwner = address(0xBEEF);
-        registry.transferOwnership(agentId, newOwner);
+        registry.transferAgentOwnership(agentId, newOwner);
 
-        (
-            ,
-            address owner,
-            ,
-            bool active,
-            bool trusted,
-            uint64 createdAt,
-            uint64 updatedAt
-        ) = registry.getAgent(agentId);
-
-        require(trusted == true, "trusted not set");
-        require(active == false, "active not forced false");
-        require(owner == newOwner, "owner not transferred");
-
-        // Again, touch these so the compiler doesn't whine about unused vars.
-        createdAt; updatedAt;
+        (address owner, , , , , , , ) = registry.getAgent(agentId);
+        assert(owner == newOwner);
     }
 }

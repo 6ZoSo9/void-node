@@ -19,7 +19,7 @@ contract JobQueueTest {
         uint256 jobId = queue.postJob(app, payloadHash);
 
         // Status should be Posted
-        JobQueue.JobStatus status = queue.getJobStatus(jobId);
+        uint256 status = queue.getJobStatus(jobId);
         require(status == JobQueue.JobStatus.Posted, "status != Posted");
 
         // Inspect stored job via public mapping getter
@@ -31,7 +31,7 @@ contract JobQueueTest {
             bytes32 receiptHash,
             uint64 createdAt,
             uint64 updatedAt,
-            JobQueue.JobStatus status2
+            uint256 status2
         ) = queue.jobs(jobId);
 
         require(poster == address(this), "poster mismatch");
@@ -44,7 +44,7 @@ contract JobQueueTest {
 
         // Poster cancels while still Posted
         queue.cancelJob(jobId);
-        JobQueue.JobStatus status3 = queue.getJobStatus(jobId);
+        uint256 status3 = queue.getJobStatus(jobId);
         require(status3 == JobQueue.JobStatus.Cancelled, "status != Cancelled");
     }
 }
