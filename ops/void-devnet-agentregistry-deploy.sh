@@ -1,61 +1,64 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO"
+# Always run from repo root
+cd "$(dirname "$0")/.."
+REPO_ROOT="$(pwd)"
+
+PROTO_STATE="$REPO_ROOT/docs/VOID-DEVNET-PROTOCOL-STATE.json"
+AGENT_STATE="$REPO_ROOT/docs/VOID-DEVNET-AGENT-OS-STATE.json"
 
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
-STATE="$REPO/docs/VOID-DEVNET-PROTOCOL-STATE.json"
-
-if [ ! -f "$STATE" ]; then
-  echo "[agentreg-deploy] missing state file: $STATE" >&2
-  exit 1
-fi
 
 if [ -z "${DEVNET_PRIVKEY:-}" ]; then
-  echo "[agentreg-deploy] DEVNET_PRIVKEY is required (devnet deployer key)" >&2
+  echo "[agentregistry-deploy] ERROR: DEVNET_PRIVKEY not set" >&2
   exit 1
 fi
 
-# Try to grab a canonical admin from state; fall back to devnet deployer address.
-ADMIN="$(jq -r '.Admin.address // .deployer // empty' "$STATE" || true)"
-if [ -z "$ADMIN" ] || [ "$ADMIN" = "null" ]; then
-  if ! command -v cast >/dev/null 2>&1; then
-    echo "[agentreg-deploy] cast not found and no Admin in state" >&2
-    exit 1
-  fi
-  ADMIN="$(cast wallet address --private-key "$DEVNET_PRIVKEY")"
+ADMIN_GATE=$(jq -r '.AdminGate' "$PROTO_STATE")
+if [ -z "$ADMIN_GATE" ] || [ "$ADMIN_GATE" = "null" ]; then
+  echo "[agentregistry-deploy] ERROR: missing AdminGate in $PROTO_STATE" >&2
+  exit 1
 fi
 
-echo "[agentreg-deploy] repo:    $REPO"
-echo "[agentreg-deploy] RPC_URL: $RPC_URL"
-echo "[agentreg-deploy] STATE:   $STATE"
-echo "[agentreg-deploy] Admin:   $ADMIN"
+echo "[agentregistry-deploy] repo:        $REPO_ROOT"
+echo "[agentregistry-deploy] proto state: $PROTO_STATE"
+echo "[agentregistry-deploy] agent state: $AGENT_STATE"
+echo "[agentregistry-deploy] RPC_URL:     $RPC_URL"
+echo "[agentregistry-deploy] DEVNET_PRIVKEY: <set>"
+echo "[agentregistry-deploy] AdminGate:   $ADMIN_GATE"
 
-# Deploy AgentRegistry
-echo "[agentreg-deploy] deploying AgentRegistry via forge create --broadcast..."
-out_file="$(mktemp)"
+# Real deployment, NOT a dry run
+LOG=/tmp/agentregistry-create.log
+rm -f "$LOG"
+
 forge create contracts/AgentRegistry.sol:AgentRegistry \
   --rpc-url "$RPC_URL" \
   --private-key "$DEVNET_PRIVKEY" \
-  --constructor-args "$ADMIN" \
+  --constructor-args "$ADMIN_GATE" \
   --broadcast \
-  | tee "$out_file"
+  | tee "$LOG"
 
-ADDR="$(grep -m1 'Deployed to:' "$out_file" | awk '{print $3}')"
-rm -f "$out_file"
+# Parse "Deployed to: 0x..." from forge output
+ADDR=$(grep -Eo 'Deployed to: 0x[0-9a-fA-F]{40}' "$LOG" | awk '{print $3}' | tail -1)
 
 if [ -z "$ADDR" ]; then
-  echo "[agentreg-deploy] ERROR: could not parse AgentRegistry address" >&2
+  echo "[agentregistry-deploy] ERROR: could not parse deployed address from forge output" >&2
   exit 1
 fi
 
-echo "[agentreg-deploy] AgentRegistry: $ADDR"
+echo "[agentregistry-deploy] AgentRegistry deployed at: $ADDR"
 
-# Update protocol state
-tmp="$STATE.tmp.$$"
-jq --arg addr "$ADDR" '.AgentRegistry = { address: $addr }' "$STATE" > "$tmp"
-mv "$tmp" "$STATE"
+# Sanity check: there MUST be code at the address
+CODE=$(cast code "$ADDR" --rpc-url "$RPC_URL")
+if [ "$CODE" = "0x" ]; then
+  echo "[agentregistry-deploy] ERROR: no code at $ADDR even after broadcast" >&2
+  exit 1
+fi
 
-echo "[agentreg-deploy] updated $STATE with AgentRegistry.address"
-echo "[agentreg-deploy] done."
+# Update Agent OS state JSON
+TMP=$(mktemp)
+jq --arg addr "$ADDR" '.AgentRegistry = $addr' "$AGENT_STATE" > "$TMP"
+mv "$TMP" "$AGENT_STATE"
+
+echo "[agentregistry-deploy] updated $AGENT_STATE"

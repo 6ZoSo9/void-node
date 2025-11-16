@@ -2,69 +2,54 @@
 set -euo pipefail
 
 REPO="${REPO:-$HOME/dev/void-node}"
-STATE="${STATE:-$REPO/docs/VOID-DEVNET-PROTOCOL-STATE.json}"
-TEXTFILE_DIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}"
-RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+cd "$REPO"
 
-# devnet defaults
-ADMIN_DEFAULT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-ADMIN="${ADMIN:-$ADMIN_DEFAULT}"
+STATE_PROTO="docs/VOID-DEVNET-PROTOCOL-STATE.json"
+STATE_AGENT="docs/VOID-DEVNET-AGENT-OS-STATE.json"
 
-# 1) Resolve AgentRegistry from state
-if [[ ! -f "$STATE" ]]; then
-  health=0
-  reason="no_state"
-else
-  AGENTREG="$(jq -r '.AgentRegistry.address // empty' "$STATE" || true)"
-  if [[ -z "$AGENTREG" || "$AGENTREG" == "null" ]]; then
-    health=0
-    reason="no_agentregistry_in_state"
-  else
-    health=1
-    reason="ok"
-  fi
+echo "[agentreg-health] repo:        $REPO"
+echo "[agentreg-health] proto state: $STATE_PROTO"
+echo "[agentreg-health] agent state: $STATE_AGENT"
+echo "[agentreg-health] RPC_URL:     ${RPC_URL:-<unset>}"
+
+if [ -z "${RPC_URL:-}" ]; then
+  echo "[ERR] RPC_URL must be set in env"
+  exit 1
 fi
 
-# If we have an address, do some cheap on-chain checks
-if [[ "${health:-0}" -eq 1 ]]; then
-  # Sanity: admin() call
-  admin_val="$(cast call "$AGENTREG" "admin()(address)" --rpc-url "$RPC_URL" 2>/dev/null || echo "")"
-  if [[ -z "$admin_val" ]]; then
-    health=0
-    reason="admin_call_failed"
-  elif [[ "$admin_val" != "$ADMIN" ]]; then
-    health=0
-    reason="admin_mismatch"
-  fi
+if [ ! -f "$STATE_PROTO" ] || [ ! -f "$STATE_AGENT" ]; then
+  echo "[ERR] missing state json (need both protocol + agent OS)"
+  exit 1
 fi
 
-# Optional: we treat the devnet admin as our first agent for health
-if [[ "${health:-0}" -eq 1 ]]; then
-  AGENT="${AGENT:-$ADMIN}"
-  active_val="$(cast call "$AGENTREG" "isAgentActive(address)(bool)" "$AGENT" --rpc-url "$RPC_URL" 2>/dev/null || echo "")"
-  if [[ -z "$active_val" ]]; then
-    health=0
-    reason="isAgentActive_call_failed"
-  elif [[ "$active_val" != "true" ]]; then
-    health=0
-    reason="agent_not_active"
-  fi
+ADMIN_GATE=$(jq -r '.AdminGate' "$STATE_PROTO")
+AGENT_REG=$(jq -r '.AgentRegistry // empty' "$STATE_AGENT")
+
+echo "[agentreg-health] AdminGate:     $ADMIN_GATE"
+echo "[agentreg-health] AgentRegistry: $AGENT_REG"
+
+if [ -z "$ADMIN_GATE" ] || [ "$ADMIN_GATE" = "null" ]; then
+  echo "[ERR] AdminGate missing in protocol state"
+  exit 1
 fi
 
-mkdir -p "$TEXTFILE_DIR"
+if [ -z "$AGENT_REG" ] || [ "$AGENT_REG" = "null" ]; then
+  echo "[ERR] AgentRegistry missing in agent OS state"
+  exit 1
+fi
 
-# temp file **inside** the textfile dir to avoid cross-filesystem mv weirdness
-tmp="$(mktemp "$TEXTFILE_DIR/.void_agent_registry_devnet.prom.XXXXXX")"
+# 1) Check admin() matches AdminGate
+ONCHAIN_ADMIN=$(cast call "$AGENT_REG" 'admin()(address)' --rpc-url "$RPC_URL")
+echo "[agentreg-health] on-chain admin: $ONCHAIN_ADMIN"
 
-cat >"$tmp" <<EOF
-# HELP void_agent_registry_health_devnet overall AgentRegistry devnet health (1=ok, 0=bad)
-# TYPE void_agent_registry_health_devnet gauge
-void_agent_registry_health_devnet ${health:-0}
-# HELP void_agent_registry_reason_devnet reason for current AgentRegistry devnet health (1 on the active reason)
-# TYPE void_agent_registry_reason_devnet gauge
-void_agent_registry_reason_devnet{reason="${reason:-unknown}"} 1
-EOF
+if [ "${ONCHAIN_ADMIN,,}" != "${ADMIN_GATE,,}" ]; then
+  echo "[ERR] admin mismatch (on-chain != protocol AdminGate)"
+  exit 1
+fi
 
-mv "$tmp" "$TEXTFILE_DIR/void_agent_registry_devnet.prom"
+# 2) Sanity ping: isRegistered on a dummy ID (should be false, but must not revert)
+DUMMY_ID="void-agent/HEALTHCHECK_DUMMY"
+REGISTERED=$(cast call "$AGENT_REG" 'isRegistered(string)(bool)' "$DUMMY_ID" --rpc-url "$RPC_URL")
+echo "[agentreg-health] isRegistered('$DUMMY_ID') = $REGISTERED"
 
-echo "[info] wrote $TEXTFILE_DIR/void_agent_registry_devnet.prom (health=${health:-0} reason=${reason:-unknown})"
+echo "[agentreg-health] OK."
