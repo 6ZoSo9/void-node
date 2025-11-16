@@ -1,11 +1,26 @@
-// SPDX-License-Identifier: VCL-1.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title VOID JobQueue v1
-/// @notice Minimal on-chain job registry for off-chain AI/agent work.
-/// @dev Fee model, agent registry, and DAGs are intentionally out of scope for v1.
+/// @notice Minimal interface for the ModelRegistry used by JobQueue.
+interface IModelRegistry {
+    function isActive(string calldata modelId) external view returns (bool);
+}
+
+/// @notice VOID Network - JobQueue (v1, model-aware)
+/// Every job references a modelId that must be active in the ModelRegistry
+/// at the time of posting.
 contract JobQueue {
-    enum JobStatus {
+    // --- Errors ---
+
+    error NotAdmin();
+    error NotWorker();
+    error NotAuthorized();
+    error InvalidStatus();
+    error ModelNotActive();
+
+    // --- Types ---
+
+    enum Status {
         None,
         Posted,
         Claimed,
@@ -15,118 +30,149 @@ contract JobQueue {
 
     struct Job {
         address poster;
-        address agent;
-        bytes32 app;
+        address worker;
+        string  appId;
+        string  modelId;
         bytes32 payloadHash;
-        bytes32 receiptHash;
-        uint64 createdAt;
-        uint64 updatedAt;
-        JobStatus status;
+        bytes32 resultHash;
+        Status  status;
+        uint64  createdAt;
+        uint64  updatedAt;
     }
 
-    /// @notice Monotonically increasing job id (1-based).
-    uint256 public nextJobId;
-
-    /// @notice Registry of all jobs.
-    mapping(uint256 => Job) public jobs;
+    // --- Events ---
 
     event JobPosted(
         uint256 indexed jobId,
         address indexed poster,
-        bytes32 indexed app,
+        string appId,
+        string modelId,
         bytes32 payloadHash
     );
 
     event JobClaimed(
         uint256 indexed jobId,
-        address indexed agent
+        address indexed worker
     );
 
     event JobCompleted(
         uint256 indexed jobId,
-        address indexed agent,
-        bytes32 receiptHash
+        address indexed worker,
+        bytes32 resultHash
     );
 
     event JobCancelled(
         uint256 indexed jobId,
-        address indexed poster
+        address indexed caller
     );
 
-    /// @notice Simple version constant for off-chain infra.
-    function VERSION() external pure returns (uint256) {
-        return 1;
+    event ModelRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+
+    // --- Storage ---
+
+    address public admin;
+    IModelRegistry public modelRegistry;
+
+    uint256 public nextJobId;
+    mapping(uint256 => Job) public jobs;
+
+    // --- Modifiers ---
+
+    modifier onlyAdmin() {
+        if (msg.sender != admin) revert NotAdmin();
+        _;
     }
 
-    /// @notice Post a new job to the queue.
-    /// @param app Application tag (e.g. keccak256("VOID_AGENT_CHAT")).
-    /// @param payloadHash Hash of the off-chain request payload.
-    /// @return jobId The id of the newly created job.
-    function postJob(bytes32 app, bytes32 payloadHash)
-        external
-        returns (uint256 jobId)
-    {
+    // --- Constructor ---
+
+    constructor(address admin_, address modelRegistry_) {
+        if (admin_ == address(0)) revert NotAdmin();
+        admin = admin_;
+        modelRegistry = IModelRegistry(modelRegistry_);
+    }
+
+    // --- Admin ---
+
+    function setModelRegistry(address newRegistry) external onlyAdmin {
+        address old = address(modelRegistry);
+        modelRegistry = IModelRegistry(newRegistry);
+        emit ModelRegistryUpdated(old, newRegistry);
+    }
+
+    // --- Core API ---
+
+    /// @notice Post a new job bound to a specific modelId.
+    /// Reverts if the model is not active in ModelRegistry.
+    function postJob(
+        string calldata appId,
+        string calldata modelId,
+        bytes32 payloadHash
+    ) external returns (uint256 jobId) {
+        if (!modelRegistry.isActive(modelId)) {
+            revert ModelNotActive();
+        }
+
         jobId = ++nextJobId;
+        uint64 ts = uint64(block.timestamp);
 
         Job storage j = jobs[jobId];
-        j.poster = msg.sender;
-        j.app = app;
+        j.poster      = msg.sender;
+        j.worker      = address(0);
+        j.appId       = appId;
+        j.modelId     = modelId;
         j.payloadHash = payloadHash;
-        j.createdAt = uint64(block.number);
-        j.updatedAt = uint64(block.number);
-        j.status = JobStatus.Posted;
+        j.resultHash  = bytes32(0);
+        j.status      = Status.Posted;
+        j.createdAt   = ts;
+        j.updatedAt   = ts;
 
-        emit JobPosted(jobId, msg.sender, app, payloadHash);
+        emit JobPosted(jobId, msg.sender, appId, modelId, payloadHash);
     }
 
-    /// @notice Claim a posted job to signal that an agent is working on it.
-    /// @dev Any address can claim; v2 may restrict this to a registry.
+    /// @notice Claim a job as a worker.
     function claimJob(uint256 jobId) external {
         Job storage j = jobs[jobId];
+        if (j.status != Status.Posted) revert InvalidStatus();
 
-        require(j.status == JobStatus.Posted, "JobQueue: not claimable");
-        require(j.poster != address(0), "JobQueue: unknown job");
-        require(j.agent == address(0), "JobQueue: already claimed");
-
-        j.agent = msg.sender;
-        j.status = JobStatus.Claimed;
-        j.updatedAt = uint64(block.number);
+        j.worker    = msg.sender;
+        j.status    = Status.Claimed;
+        j.updatedAt = uint64(block.timestamp);
 
         emit JobClaimed(jobId, msg.sender);
     }
 
-    /// @notice Mark a claimed job as completed with a receipt hash.
-    /// @param jobId Id of the job.
-    /// @param receiptHash Hash of the off-chain result / receipt.
-    function completeJob(uint256 jobId, bytes32 receiptHash) external {
+    /// @notice Complete a job, providing a result hash.
+    /// Only the worker OR the admin can complete.
+    function completeJob(uint256 jobId, bytes32 resultHash) external {
         Job storage j = jobs[jobId];
+        if (j.status != Status.Claimed) revert InvalidStatus();
 
-        require(j.status == JobStatus.Claimed, "JobQueue: not claimed");
-        require(j.agent == msg.sender, "JobQueue: not job agent");
+        if (msg.sender != j.worker && msg.sender != admin) {
+            revert NotWorker();
+        }
 
-        j.receiptHash = receiptHash;
-        j.status = JobStatus.Completed;
-        j.updatedAt = uint64(block.number);
+        j.resultHash = resultHash;
+        j.status     = Status.Completed;
+        j.updatedAt  = uint64(block.timestamp);
 
-        emit JobCompleted(jobId, msg.sender, receiptHash);
+        emit JobCompleted(jobId, j.worker, resultHash);
     }
 
-    /// @notice Cancel a posted job that has not yet been claimed.
-    /// @param jobId Id of the job to cancel.
+    /// @notice Cancel a job (poster or admin).
     function cancelJob(uint256 jobId) external {
         Job storage j = jobs[jobId];
 
-        require(j.status == JobStatus.Posted, "JobQueue: not cancellable");
-        require(j.poster == msg.sender, "JobQueue: not poster");
+        if (j.status != Status.Posted && j.status != Status.Claimed) {
+            revert InvalidStatus();
+        }
 
-        j.status = JobStatus.Cancelled;
-        j.updatedAt = uint64(block.number);
+        if (msg.sender != j.poster && msg.sender != admin) {
+            revert NotAuthorized();
+        }
+
+        j.status    = Status.Cancelled;
+        j.updatedAt = uint64(block.timestamp);
 
         emit JobCancelled(jobId, msg.sender);
-    }
-
-    /// @notice Convenience view into the job status.
-    function getJobStatus(uint256 jobId) external view returns (JobStatus) {
-        return jobs[jobId].status;
     }
 }

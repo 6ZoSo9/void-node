@@ -1,46 +1,60 @@
-# VOID Network – ModelRegistry Contract Spec (v1)
+# VOID Network – ModelRegistry Contract Spec (v1, minimal)
 
-ModelRegistry is the on-chain registry for AI models used by VOID agents and apps.
+ModelRegistry is the on-chain directory of AI models used by VOID agents.
+It does NOT run models or verify outputs. It only tracks:
+- Which models exist
+- Who owns them
+- What hash/URI describes them
+- Whether they are active
 
-- Tracks: owner, metaHash, active, trusted.
-- Anyone can register a model (subject to basic validation).
-- Owners can update their own model metadata and active flag.
-- Governance/master can flip the trusted flag and override active in emergencies.
-- Off-chain infra (agents, schedulers, wallets, dApps) read this registry
-  to decide which models are allowed for a given job or use case.
-
-This spec mirrors the intent of `ModelRegistry.t.sol` tests:
-- master controls `trusted` + ownership,
-- owner can update metadata + active,
-- registration sets all fields.
+Nodes and agents may treat this registry as a policy source, but it is not
+a consensus rule by itself.
 
 ---
 
 ## 1. Responsibilities
 
-ModelRegistry MUST:
+ModelRegistry must:
+- Store entries keyed by a human-readable modelId (string).
+- Track owner, hash, uri, active flag, createdAt, updatedAt, version.
+- Emit events when models are registered or updated.
+- Allow deactivating a model without deleting its history.
+- Be controlled by an admin address (AdminGate or master-key-governed contract).
 
-- Let anyone register a model (EOA or contract owner).
-- Track, per model:
-  - `owner` (who controls updates)
-  - `metaHash` (hash or URI for model manifest: arch, version, license, etc.)
-  - `active` flag (owner- or governance-controlled)
-  - `trusted` flag (set by governance/master)
-- Let owners update `metaHash` and `active` for their own model(s).
-- Let governance flip `trusted` for any model.
-- Expose read APIs so off-chain infra can filter models.
+ModelRegistry cannot:
+- Guarantee that off-chain model code matches the stored hash.
+- Force nodes or agents to use only registered models.
+- Perform heavy on-chain checks of AI outputs.
 
-ModelRegistry MUST NOT:
+---
 
-- Store raw model weights or large blobs (only hashes / URIs / short fields).
-- Execute inference on-chain.
-- Hard-code any particular provider, format, or storage backend.
+## 2. Data Model (intent)
 
-## 2. Notes
+For each modelId, the registry stores:
 
-- This is a v1 stub spec; the Solidity contract + tests are the authoritative
-  source of behavior until this document is expanded.
-- Future versions may add:
-  - explicit versioning fields,
-  - evaluation/provenance references,
-  - linkage to DatasetRegistry entries and JobQueue receipts.
+- owner: address
+- hash: bytes32 (content hash or manifest root)
+- uri: string (IPFS / HTTPS / VOID manifest, etc.)
+- active: bool
+- createdAt: uint64
+- updatedAt: uint64
+- version: uint64 (monotonically increasing)
+
+The Solidity implementation in contracts/ModelRegistry.sol exposes a Model
+struct and a mapping from modelId (string) to Model.
+
+---
+
+## 3. Roles and Permissions
+
+- Admin (immutable admin address):
+  - Can register new models.
+  - Can transfer model ownership.
+  - Can deactivate or reactivate models.
+
+- Owner (per-model address):
+  - Can update hash, uri, active flag for that model.
+  - Can voluntarily deactivate their own model.
+
+Exact function names and signatures are defined in contracts/ModelRegistry.sol;
+this document describes the intended behavior and responsibilities only.

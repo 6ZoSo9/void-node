@@ -4,7 +4,7 @@ set -euo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$REPO"
 
-RPC_URL=${RPC_URL:-http://127.0.0.1:8545}
+RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
 STATE_JSON="$REPO/docs/VOID-DEVNET-PROTOCOL-STATE.json"
 
 echo "[system-deploy] repo:    $REPO"
@@ -38,27 +38,44 @@ deploy_contract() {
   local label="$1"
   local artifact="$2"
   shift 2
+
   echo "[system-deploy] deploying $label ($artifact)…"
 
   local out
-  if ! out=$(forge create "$artifact" \
-        --rpc-url "$RPC_URL" \
-        --private-key "$DEVNET_PRIVKEY" \
-        --json \
-        "$@" 2>&1); then
-    echo "[system-deploy][ERR] forge create failed for $label:" >&2
-    echo "$out" >&2
-    exit 1
+  if [ "$#" -gt 0 ]; then
+    # With constructor args (e.g. AdminGate address)
+    if ! out=$(forge create "$artifact" \
+          --rpc-url "$RPC_URL" \
+          --private-key "$DEVNET_PRIVKEY" \
+          --constructor-args "$@" 2>&1); then
+      echo "[system-deploy][ERR] forge create failed for $label:" >&2
+      printf '%s\n' "$out" >&2
+      exit 1
+    fi
+  else
+    # No constructor args
+    if ! out=$(forge create "$artifact" \
+          --rpc-url "$RPC_URL" \
+          --private-key "$DEVNET_PRIVKEY" 2>&1); then
+      echo "[system-deploy][ERR] forge create failed for $label:" >&2
+      printf '%s\n' "$out" >&2
+      exit 1
+    fi
   fi
 
-  echo "$out"
+  # Echo raw forge output so we can see what's going on
+  printf '%s\n' "$out"
 
-  # Expect JSON with a 'deployedTo' field.
+  # Strip ANSI + CR, then grab the last 0x + 40 hex chars (contract addr)
   local addr
-  addr=$(printf '%s\n' "$out" | jq -r '.deployedTo' 2>/dev/null || true)
+  addr=$(printf '%s\n' "$out" \
+    | sed -r 's/\x1B\[[0-9;]*[mK]//g' \
+    | tr -d '\r' \
+    | grep -Eo '0x[0-9a-fA-F]{40}' \
+    | tail -n 1)
 
-  if [ -z "$addr" ] || [ "$addr" = "null" ]; then
-    echo "[system-deploy][ERR] failed to parse deployed address for $label from JSON" >&2
+  if [ -z "$addr" ]; then
+    echo "[system-deploy][ERR] failed to parse deployed address for $label from forge output" >&2
     exit 1
   fi
 
@@ -66,25 +83,25 @@ deploy_contract() {
   printf '%s\n' "$addr"
 }
 
-# Assumes constructor(address _adminGate) for all four; if wrong, forge will yell.
+# All four take constructor(address _adminGate)
 AGENT_REGISTRY=$(
   deploy_contract "AgentRegistry" "contracts/AgentRegistry.sol:AgentRegistry" \
-    --constructor-args "$ADMIN_GATE"
+    "$ADMIN_GATE"
 )
 
 DATASET_REGISTRY=$(
   deploy_contract "DatasetRegistry" "contracts/DatasetRegistry.sol:DatasetRegistry" \
-    --constructor-args "$ADMIN_GATE"
+    "$ADMIN_GATE"
 )
 
 MODEL_REGISTRY=$(
   deploy_contract "ModelRegistry" "contracts/ModelRegistry.sol:ModelRegistry" \
-    --constructor-args "$ADMIN_GATE"
+    "$ADMIN_GATE"
 )
 
 JOBQUEUE=$(
   deploy_contract "JobQueue" "contracts/JobQueue.sol:JobQueue" \
-    --constructor-args "$ADMIN_GATE"
+    "$ADMIN_GATE"
 )
 
 echo "[system-deploy] updating protocol state json with system contract addresses…"

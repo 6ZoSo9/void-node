@@ -1,237 +1,109 @@
-// SPDX-License-Identifier: VCL-1.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title VOID ModelRegistry v1
-/// @notice On-chain registry of AI models for VOID agents and jobs.
-/// @dev V1 is deliberately simple: one "current" version per model, trusted flag, MasterKey controls.
+/// @title ModelRegistry (v1, minimal)
+/// @notice On-chain directory of AI models for VOID Network.
 contract ModelRegistry {
-    /// @notice Master key that can mark models trusted and perform emergency actions.
-    address public masterKey;
-
     struct Model {
-        bytes32 modelKey;
         address owner;
-        bytes32 versionHash;
-        string metadataURI;
+        bytes32 hash;
+        string uri;
         bool active;
-        bool trusted;
-        uint64 createdAt;
-        uint64 updatedAt;
     }
 
-    /// @notice Monotonically increasing model id (1-based).
-    uint256 public nextModelId;
+    event ModelRegistered(string modelId, address owner, bytes32 hash, string uri);
+    event ModelUpdated(string modelId, bytes32 hash, string uri);
+    event ModelStatusChanged(string modelId, bool active);
+    event ModelOwnershipTransferred(string modelId, address previousOwner, address newOwner);
 
-    /// @notice Registry of models by id.
-    mapping(uint256 => Model) public models;
+    address public immutable admin;
+    mapping(string => Model) private models;
 
-    /// @notice Stable key -> modelId mapping (0 if not registered).
-    mapping(bytes32 => uint256) public modelIdByKey;
+    error NotAdmin();
+    error NotOwner();
+    error ModelAlreadyExists();
+    error ModelDoesNotExist();
+    error ZeroOwner();
 
-    event MasterKeyChanged(
-        address indexed oldKey,
-        address indexed newKey
-    );
+    constructor(address _admin) {
+        require(_admin != address(0), "admin=0");
+        admin = _admin;
+    }
 
-    event ModelRegistered(
-        uint256 indexed modelId,
-        bytes32 indexed modelKey,
-        address indexed owner,
-        bytes32 versionHash,
-        string metadataURI
-    );
-
-    event ModelUpdated(
-        uint256 indexed modelId,
-        bytes32 versionHash,
-        string metadataURI
-    );
-
-    event ModelStatusChanged(
-        uint256 indexed modelId,
-        bool active
-    );
-
-    event ModelTrustedChanged(
-        uint256 indexed modelId,
-        bool trusted
-    );
-
-    event ModelOwnerChanged(
-        uint256 indexed modelId,
-        address indexed oldOwner,
-        address indexed newOwner
-    );
-
-    modifier onlyMaster() {
-        require(msg.sender == masterKey, "ModelRegistry: not master");
+    modifier onlyAdmin() {
+        if (msg.sender != admin) revert NotAdmin();
         _;
     }
 
-    modifier onlyOwner(uint256 modelId) {
-        address owner = models[modelId].owner;
-        require(owner != address(0), "ModelRegistry: unknown model");
-        require(msg.sender == owner, "ModelRegistry: not owner");
-        _;
-    }
-
-    /// @notice Contract version (not model version).
-    function VERSION() external pure returns (uint256) {
-        return 1;
-    }
-
-    /// @param masterKey_ Initial MasterKey address.
-    constructor(address masterKey_) {
-        require(masterKey_ != address(0), "ModelRegistry: masterKey zero");
-        masterKey = masterKey_;
-        emit MasterKeyChanged(address(0), masterKey_);
-    }
-
-    /// @notice Register a new model.
-    /// @param modelKey Stable model key (e.g. keccak256("void-gpt-1")).
-    /// @param versionHash Hash of the model's weights/config/manifest.
-    /// @param metadataURI Off-chain JSON describing the model.
-    /// @return modelId Newly assigned model id.
-    function registerModel(
-        bytes32 modelKey,
-        bytes32 versionHash,
-        string calldata metadataURI
-    ) external returns (uint256 modelId) {
-        require(modelKey != bytes32(0), "ModelRegistry: modelKey zero");
-        require(
-            modelIdByKey[modelKey] == 0,
-            "ModelRegistry: key already registered"
-        );
-
-        modelId = ++nextModelId;
-
+    modifier onlyOwner(string memory modelId) {
         Model storage m = models[modelId];
-        m.modelKey = modelKey;
-        m.owner = msg.sender;
-        m.versionHash = versionHash;
-        m.metadataURI = metadataURI;
-        m.active = true;
-        m.trusted = false;
-        m.createdAt = uint64(block.number);
-        m.updatedAt = uint64(block.number);
-
-        modelIdByKey[modelKey] = modelId;
-
-        emit ModelRegistered(
-            modelId,
-            modelKey,
-            msg.sender,
-            versionHash,
-            metadataURI
-        );
-        emit ModelStatusChanged(modelId, true);
+        if (m.owner == address(0)) revert ModelDoesNotExist();
+        if (m.owner != msg.sender) revert NotOwner();
+        _;
     }
 
-    /// @notice Update the current version and metadata for a model (owner only).
-    function updateModel(
-        uint256 modelId,
-        bytes32 versionHash,
-        string calldata metadataURI
+    function getModel(string calldata modelId) external view returns (Model memory) {
+        Model memory m = models[modelId];
+        if (m.owner == address(0)) revert ModelDoesNotExist();
+        return m;
+    }
+
+    function isActive(string calldata modelId) external view returns (bool) {
+        Model memory m = models[modelId];
+        if (m.owner == address(0)) return false;
+        return m.active;
+    }
+
+    /// @notice Register a new model. Only admin can call. Fails if modelId exists.
+    function registerModel(
+        string calldata modelId,
+        address owner_,
+        bytes32 hash_,
+        string calldata uri_
+    ) external onlyAdmin {
+        if (owner_ == address(0)) revert ZeroOwner();
+        Model storage existing = models[modelId];
+        if (existing.owner != address(0)) revert ModelAlreadyExists();
+
+        models[modelId] = Model({
+            owner: owner_,
+            hash: hash_,
+            uri: uri_,
+            active: true
+        });
+
+        emit ModelRegistered(modelId, owner_, hash_, uri_);
+    }
+
+    /// @notice Update hash/uri. Only current owner can call.
+    function setModel(
+        string calldata modelId,
+        bytes32 hash_,
+        string calldata uri_
     ) external onlyOwner(modelId) {
         Model storage m = models[modelId];
-        m.versionHash = versionHash;
-        m.metadataURI = metadataURI;
-        m.updatedAt = uint64(block.number);
-
-        emit ModelUpdated(modelId, versionHash, metadataURI);
+        m.hash = hash_;
+        m.uri = uri_;
+        emit ModelUpdated(modelId, hash_, uri_);
     }
 
-    /// @notice Set the active flag (owner only).
-    function setActive(uint256 modelId, bool active)
-        external
-        onlyOwner(modelId)
-    {
+    /// @notice Enable/disable model. Only admin can call.
+    function setActive(string calldata modelId, bool active_) external onlyAdmin {
         Model storage m = models[modelId];
-        m.active = active;
-        m.updatedAt = uint64(block.number);
-
-        emit ModelStatusChanged(modelId, active);
+        if (m.owner == address(0)) revert ModelDoesNotExist();
+        m.active = active_;
+        emit ModelStatusChanged(modelId, active_);
     }
 
-    /// @notice Mark/unmark a model as trusted (MasterKey only).
-    function setTrusted(uint256 modelId, bool trusted)
-        external
-        onlyMaster
-    {
+    /// @notice Transfer model ownership. Only current owner can call.
+    function transferModelOwnership(
+        string calldata modelId,
+        address newOwner
+    ) external onlyOwner(modelId) {
+        if (newOwner == address(0)) revert ZeroOwner();
         Model storage m = models[modelId];
-        require(m.owner != address(0), "ModelRegistry: unknown model");
-
-        m.trusted = trusted;
-        m.updatedAt = uint64(block.number);
-
-        emit ModelTrustedChanged(modelId, trusted);
-    }
-
-    /// @notice Forcefully set active flag (MasterKey only).
-    function forceSetActive(uint256 modelId, bool active)
-        external
-        onlyMaster
-    {
-        Model storage m = models[modelId];
-        require(m.owner != address(0), "ModelRegistry: unknown model");
-
-        m.active = active;
-        m.updatedAt = uint64(block.number);
-
-        emit ModelStatusChanged(modelId, active);
-    }
-
-    /// @notice Transfer model ownership (MasterKey only; for key rotation, etc.).
-    function transferOwnership(uint256 modelId, address newOwner)
-        external
-        onlyMaster
-    {
-        require(newOwner != address(0), "ModelRegistry: newOwner zero");
-        Model storage m = models[modelId];
-        address oldOwner = m.owner;
-        require(oldOwner != address(0), "ModelRegistry: unknown model");
-
+        address prev = m.owner;
         m.owner = newOwner;
-        m.updatedAt = uint64(block.number);
-
-        emit ModelOwnerChanged(modelId, oldOwner, newOwner);
-    }
-
-    /// @notice Change MasterKey.
-    function setMasterKey(address newMasterKey) external onlyMaster {
-        require(newMasterKey != address(0), "ModelRegistry: masterKey zero");
-        address old = masterKey;
-        masterKey = newMasterKey;
-        emit MasterKeyChanged(old, newMasterKey);
-    }
-
-    /// @notice Convenience view that returns the full model struct.
-    function getModel(uint256 modelId)
-        external
-        view
-        returns (
-            bytes32 modelKey,
-            address owner,
-            bytes32 versionHash,
-            string memory metadataURI,
-            bool active,
-            bool trusted,
-            uint64 createdAt,
-            uint64 updatedAt
-        )
-    {
-        Model storage m = models[modelId];
-        require(m.owner != address(0), "ModelRegistry: unknown model");
-
-        return (
-            m.modelKey,
-            m.owner,
-            m.versionHash,
-            m.metadataURI,
-            m.active,
-            m.trusted,
-            m.createdAt,
-            m.updatedAt
-        );
+        emit ModelOwnershipTransferred(modelId, prev, newOwner);
     }
 }
