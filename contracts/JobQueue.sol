@@ -1,72 +1,91 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title JobQueue v1 (minimal)
-/// @notice On-chain job registry for VOID agents and off-chain workers.
+/// @title VOID JobQueue (v1, minimal)
+/// @notice On-chain job registry for VOID (chainId 2050).
+///         Users/contracts post jobs; off-chain agents claim and complete them.
 contract JobQueue {
     enum JobStatus {
+        None,
         Posted,
         Claimed,
         Completed,
+        Failed,
         Cancelled,
         Expired
     }
 
     struct Job {
-        address poster;
-        bytes32 appTag;
-        string payloadType;
+        bytes32 jobId;
+        uint256 chainId;
+        string modelId;
+        address postedBy;
+        string appTag;
         bytes32 payloadHash;
-        string modelHint;
-        bytes32 policyTag;
-        uint256 budget;
         uint64 createdAt;
-        uint64 expiresAt;
         JobStatus status;
-        address claimer;
-        bytes32 receiptHash;
-        string receiptMeta;
-        uint256 parentJobId;
-        uint16 stepIndex;
+        address agent;
+        bytes32 resultHash;
+        uint64 completedAt;
+        uint32 errorCode;
     }
 
-    uint256 public nextJobId;
-    mapping(uint256 => Job) public jobs;
+    /// @notice Admin can adjust policy (timeouts etc.). Devnet: simple EOA.
+    address public admin;
 
-    address public admin; // or AdminGate in real VOID
+    /// @dev Simple nonce to help derive unique job IDs.
+    uint256 private _jobNonce;
+    uint256 public totalJobs;
+
+    /// @dev jobId => Job
+    mapping(bytes32 => Job) private _jobs;
 
     event JobPosted(
-        uint256 jobId,
-        address poster,
-        bytes32 appTag,
-        string payloadType,
+        bytes32 indexed jobId,
+        uint256 chainId,
+        string modelId,
+        address indexed postedBy,
+        string appTag,
         bytes32 payloadHash,
-        string modelHint,
-        bytes32 policyTag,
-        uint256 budget,
-        uint64 expiresAt,
-        uint256 parentJobId,
-        uint16 stepIndex
+        uint64 createdAt
     );
 
     event JobClaimed(
-        uint256 jobId,
-        address claimer
+        bytes32 indexed jobId,
+        address indexed agent,
+        uint64 claimedAt
     );
 
     event JobCompleted(
-        uint256 jobId,
-        address claimer,
-        bytes32 receiptHash
+        bytes32 indexed jobId,
+        address indexed agent,
+        bytes32 resultHash,
+        uint64 completedAt
+    );
+
+    event JobFailed(
+        bytes32 indexed jobId,
+        address indexed agent,
+        uint32 errorCode,
+        uint64 failedAt
     );
 
     event JobCancelled(
-        uint256 jobId,
-        address caller
+        bytes32 indexed jobId,
+        address indexed cancelledBy,
+        uint32 errorCode,
+        uint64 cancelledAt
     );
 
     event JobExpired(
-        uint256 jobId
+        bytes32 indexed jobId,
+        uint32 errorCode,
+        uint64 expiredAt
+    );
+
+    event AdminChanged(
+        address indexed previousAdmin,
+        address indexed newAdmin
     );
 
     modifier onlyAdmin() {
@@ -74,131 +93,130 @@ contract JobQueue {
         _;
     }
 
-    constructor(address _admin) {
-        admin = _admin;
+    modifier onlyExisting(bytes32 jobId) {
+        require(_jobs[jobId].status != JobStatus.None, "JobQueue: unknown job");
+        _;
     }
+
+    constructor(address initialAdmin) {
+        require(initialAdmin != address(0), "JobQueue: admin=0");
+        admin = initialAdmin;
+        emit AdminChanged(address(0), initialAdmin);
+    }
+
+    // --- Admin ---
 
     function setAdmin(address newAdmin) external onlyAdmin {
-        require(newAdmin != address(0), "JobQueue: zero admin");
+        require(newAdmin != address(0), "JobQueue: admin=0");
+        address prev = admin;
         admin = newAdmin;
+        emit AdminChanged(prev, newAdmin);
     }
 
-    // -------- Views --------
+    // --- Core job lifecycle ---
 
-    function getJob(uint256 jobId) external view returns (Job memory) {
-        return jobs[jobId];
-    }
-
-    function getStatus(uint256 jobId) external view returns (JobStatus) {
-        return jobs[jobId].status;
-    }
-
-    function getPoster(uint256 jobId) external view returns (address) {
-        return jobs[jobId].poster;
-    }
-
-    function getClaimer(uint256 jobId) external view returns (address) {
-        return jobs[jobId].claimer;
-    }
-
-    function getReceipt(
-        uint256 jobId
-    ) external view returns (bytes32 receiptHash, string memory receiptMeta) {
-        Job storage j = jobs[jobId];
-        return (j.receiptHash, j.receiptMeta);
-    }
-
-    // -------- Core flows --------
-
-    /// @notice Post a new job.
+    /// @notice Post a new job for off-chain agents.
+    /// @param modelId  ID registered in ModelRegistry.
+    /// @param payloadHash Hash of off-chain payload (compressed+encrypted).
+    /// @param appTag  Optional app namespace (e.g. "nullfeed", "wallet-oracle").
     function postJob(
-        bytes32 appTag,
-        string memory payloadType,
+        string calldata modelId,
         bytes32 payloadHash,
-        string memory modelHint,
-        bytes32 policyTag,
-        uint256 budget,
-        uint64 expiresAt,
-        uint256 parentJobId,
-        uint16 stepIndex
-    ) external returns (uint256 jobId) {
-        require(payloadHash != bytes32(0), "JobQueue: empty payload hash");
-        if (expiresAt != 0) {
-            require(expiresAt > block.timestamp, "JobQueue: expiry in past");
-        }
+        string calldata appTag
+    ) external payable returns (bytes32 jobId) {
+        require(bytes(modelId).length != 0, "JobQueue: empty modelId");
 
-        jobId = ++nextJobId;
+        // NOTE: chainId is taken from the current chain; VOID should be 2050.
+        uint256 chainId_ = block.chainid;
 
-        Job storage j = jobs[jobId];
-        j.poster = msg.sender;
+        // Derive a unique jobId. This is deterministic and collision-resistant
+        // enough for our purposes.
+        jobId = keccak256(
+            abi.encodePacked(
+                address(this),
+                msg.sender,
+                chainId_,
+                block.number,
+                _jobNonce++
+            )
+        );
+
+        Job storage j = _jobs[jobId];
+        j.jobId = jobId;
+        j.chainId = chainId_;
+        j.modelId = modelId;
+        j.postedBy = msg.sender;
         j.appTag = appTag;
-        j.payloadType = payloadType;
         j.payloadHash = payloadHash;
-        j.modelHint = modelHint;
-        j.policyTag = policyTag;
-        j.budget = budget;
         j.createdAt = uint64(block.timestamp);
-        j.expiresAt = expiresAt;
         j.status = JobStatus.Posted;
-        j.parentJobId = parentJobId;
-        j.stepIndex = stepIndex;
+        totalJobs += 1;
 
         emit JobPosted(
             jobId,
+            chainId_,
+            modelId,
             msg.sender,
             appTag,
-            payloadType,
             payloadHash,
-            modelHint,
-            policyTag,
-            budget,
-            expiresAt,
-            parentJobId,
-            stepIndex
+            j.createdAt
         );
     }
 
-    /// @notice Claim a job for execution.
-    /// @dev v1: any caller may claim; policy is enforced off-chain.
-    function claimJob(uint256 jobId) external {
-        Job storage j = jobs[jobId];
-        require(j.status == JobStatus.Posted, "JobQueue: not posted");
-        if (j.expiresAt != 0) {
-            require(block.timestamp < j.expiresAt, "JobQueue: expired");
-        }
+    /// @notice Claim a job for processing.
+    function claimJob(bytes32 jobId)
+        external
+        onlyExisting(jobId)
+    {
+        Job storage j = _jobs[jobId];
+        require(j.status == JobStatus.Posted, "JobQueue: not claimable");
 
         j.status = JobStatus.Claimed;
-        j.claimer = msg.sender;
+        j.agent = msg.sender;
 
-        emit JobClaimed(jobId, msg.sender);
+        emit JobClaimed(jobId, msg.sender, uint64(block.timestamp));
     }
 
-    /// @notice Mark a claimed job as completed and record a receipt hash.
-    function completeJob(
-        uint256 jobId,
-        bytes32 receiptHash,
-        string memory receiptMeta
-    ) external {
-        Job storage j = jobs[jobId];
+    /// @notice Complete a job and store a result hash.
+    function completeJob(bytes32 jobId, bytes32 resultHash)
+        external
+        onlyExisting(jobId)
+    {
+        Job storage j = _jobs[jobId];
         require(j.status == JobStatus.Claimed, "JobQueue: not claimed");
-        require(
-            msg.sender == j.claimer || msg.sender == admin,
-            "JobQueue: not claimer/admin"
-        );
-        require(receiptHash != bytes32(0), "JobQueue: empty receipt hash");
+        require(j.agent == msg.sender, "JobQueue: not agent");
 
         j.status = JobStatus.Completed;
-        j.receiptHash = receiptHash;
-        j.receiptMeta = receiptMeta;
+        j.resultHash = resultHash;
+        j.completedAt = uint64(block.timestamp);
 
-        emit JobCompleted(jobId, j.claimer, receiptHash);
+        emit JobCompleted(jobId, msg.sender, resultHash, j.completedAt);
     }
 
-    /// @notice Cancel a job (by poster or admin).
-    function cancelJob(uint256 jobId) external {
-        Job storage j = jobs[jobId];
+    /// @notice Mark a job as failed with an error code.
+    function failJob(bytes32 jobId, uint32 errorCode)
+        external
+        onlyExisting(jobId)
+    {
+        Job storage j = _jobs[jobId];
+        require(j.status == JobStatus.Claimed, "JobQueue: not claimed");
+        require(j.agent == msg.sender, "JobQueue: not agent");
+
+        j.status = JobStatus.Failed;
+        j.errorCode = errorCode;
+        j.completedAt = uint64(block.timestamp);
+
+        emit JobFailed(jobId, msg.sender, errorCode, j.completedAt);
+    }
+
+    /// @notice Cancel a job. Poster or admin may cancel.
+    function cancelJob(bytes32 jobId, uint32 errorCode)
+        external
+        onlyExisting(jobId)
+    {
+        Job storage j = _jobs[jobId];
         require(
-            msg.sender == j.poster || msg.sender == admin,
+            msg.sender == j.postedBy || msg.sender == admin,
             "JobQueue: not poster/admin"
         );
         require(
@@ -207,17 +225,66 @@ contract JobQueue {
         );
 
         j.status = JobStatus.Cancelled;
-        emit JobCancelled(jobId, msg.sender);
+        j.errorCode = errorCode;
+        j.completedAt = uint64(block.timestamp);
+
+        emit JobCancelled(jobId, msg.sender, errorCode, j.completedAt);
     }
 
-    /// @notice Explicitly mark a job as expired (admin helper).
-    function markExpired(uint256 jobId) external onlyAdmin {
-        Job storage j = jobs[jobId];
-        require(j.status == JobStatus.Posted, "JobQueue: not posted");
-        require(j.expiresAt != 0, "JobQueue: no expiry");
-        require(block.timestamp >= j.expiresAt, "JobQueue: not yet expired");
+    /// @notice Expire an old job that has not been completed.
+    /// @dev v1: simple time-based rule. In future we may store per-job or
+    ///          global timeout parameters.
+    function expireJob(bytes32 jobId, uint32 errorCode)
+        external
+        onlyExisting(jobId)
+    {
+        Job storage j = _jobs[jobId];
+        require(
+            j.status == JobStatus.Posted || j.status == JobStatus.Claimed,
+            "JobQueue: cannot expire"
+        );
 
+        // Very simple rule to start with; callers must enforce their own policy.
+        // We purposely do not fix a constant timeout here to keep v1 flexible.
         j.status = JobStatus.Expired;
-        emit JobExpired(jobId);
+        j.errorCode = errorCode;
+        j.completedAt = uint64(block.timestamp);
+
+        emit JobExpired(jobId, errorCode, j.completedAt);
     }
+
+    // --- Views / helpers ---
+
+    function getJob(bytes32 jobId)
+        external
+        view
+        returns (Job memory)
+    {
+        require(_jobs[jobId].status != JobStatus.None, "JobQueue: unknown job");
+        return _jobs[jobId];
+    }
+
+    function getJobStatus(bytes32 jobId)
+        external
+        view
+        returns (JobStatus)
+    {
+        return _jobs[jobId].status;
+    }
+
+    function hasResult(bytes32 jobId)
+        external
+        view
+        returns (bool)
+    {
+        JobStatus s = _jobs[jobId].status;
+        return (s == JobStatus.Completed || s == JobStatus.Failed);
+    }
+
+    /// @notice Returns true if a job exists (status != None).
+    /// @dev Used by ReceiptRegistry on devnet to validate job references.
+    function jobExists(bytes32 jobId) external view returns (bool) {
+        return _jobs[jobId].status != JobStatus.None;
+    }
+
 }

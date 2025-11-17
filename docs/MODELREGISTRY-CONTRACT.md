@@ -1,15 +1,19 @@
 # VOID Network – ModelRegistry Contract Spec (v1, minimal)
 
-ModelRegistry is the on-chain directory of AI models used by VOID agents.
+ModelRegistry is the on-chain directory of AI models used by VOID agents
+and contracts.
 
-It does NOT run the models or verify outputs. It only tracks:
+It does not run models or verify outputs. It only tracks:
+
 - Which models exist
 - Who owns them
-- What hash/URI describes them
+- What hash/URI/version describes them
 - Whether they are currently active
+- Some minimal metadata for policy / pricing
 
-Nodes and agents may treat this registry as a policy source, but it is not
-a consensus rule by itself.
+Nodes, agents, and dapps treat ModelRegistry as a policy and discovery
+source, but it is not a consensus rule by itself. Individual nodes may
+refuse jobs that reference unapproved models.
 
 ---
 
@@ -18,233 +22,216 @@ a consensus rule by itself.
 ModelRegistry must:
 
 - Store entries keyed by a human-readable modelId (string).
-- Track the current hash and metadata for each model.
-- Emit events when models are registered or updated.
-- Allow disabling (deactivating) a model without deleting its history.
-- Be controlled by an admin address (typically an AdminGate or master-key
-  governed contract).
+- Track the current hash/URI/version for each model.
+- Track owner for each model and an overall admin for the registry.
+- Emit events when models are created or updated.
+- Allow disabling a model without deleting its history.
+- Integrate with AdminGate / MasterKey for meta-governance.
 
 ModelRegistry cannot:
 
-- Guarantee that an off-chain model implementation actually matches the
-  declared hash or behaves as claimed.
-- Enforce quality, safety, or licensing on its own.
-- Run inference or verify outputs.
-
-Those responsibilities belong to off-chain agents, PolicyGuard, and other
-higher-level components.
+- Prove that a model is safe, unbiased, or high quality.
+- Prove that a given hash corresponds to a specific weight bundle.
+- Enforce off-chain usage rules by itself (that is up to agents + policy).
 
 ---
 
-## 2. Data model
+## 2. Data Model
 
-### 2.1 Types
+### 2.1. Types
 
-- ModelId – string (e.g. "gpt4x-mini-2025-01", "void-embed-v2")
-- ModelVersion – uint64 incremental version
-- Hash – bytes32 (content hash of model artifact or manifest)
-- Uri – string (IPFS/HTTPS/S3/etc.)
-- Owner – address
-- PolicyId – bytes32 (optional policy tag reference)
-- Metadata – string (JSON recommended)
+Model entry:
 
-### 2.2 Storage (conceptual)
+    struct ModelInfo {
+        // Stable, unique identifier (e.g. "gpt-4.1-mini", "void-summarizer-v2")
+        string modelId;
 
-For each modelId:
+        // EVM address that currently "owns" the model entry.
+        address owner;
 
-- owner: address
-- latestVersion: uint64
-- versions[version] with:
-  - hash: bytes32
-  - uri: string
-  - policyTag: bytes32
-  - metadata: string
-  - active: bool
+        // Chain ID where the model is intended to be used (2050 for VOID).
+        uint256 chainId;
 
-Additional:
+        // Opaque hash describing the model (code + weights bundle).
+        bytes32 modelHash;
 
-- isRegistered[modelId] -> bool
-- admin: address (or AdminGate reference)
+        // URI for off-chain manifest (IPFS, HTTPS, etc.).
+        string manifestURI;
 
----
+        // Semantic version string, e.g. "1.0.0", "2.1.3-rc1".
+        string version;
 
-## 3. Core functions
+        // True if this model is currently considered active/allowed.
+        bool active;
 
-### 3.1 registerModel
+        // Optional free-form metadata (short tag).
+        string tag;
+    }
 
-Signature (conceptual):
+### 2.2. Storage
 
-- registerModel(modelId, hash, uri, policyTag, metadata)
+- mapping(string => ModelInfo) public models;
+- mapping(string => bool) public modelExists;
+- address public admin;        // controlled by AdminGate / MasterKey
+- address public adminGate;    // optional: AdminGate contract address
 
-Behavior:
-
-- If modelId is new:
-  - owner = msg.sender (or admin, depending on config)
-  - latestVersion = 1
-- If modelId already exists:
-  - latestVersion += 1
-- In all cases:
-  - Create versions[latestVersion] entry
-  - Set active = true
-- Emit ModelRegistered event.
-
-### 3.2 updateModelMeta
-
-- updateModelMeta(modelId, version, uri, metadata, policyTag)
-
-Requirements:
-
-- isRegistered[modelId] == true
-- version exists
-- caller is owner or admin
-
-Effects:
-
-- Update uri, metadata, policyTag for that version
-- Emit ModelUpdated event.
-
-### 3.3 setModelActive
-
-- setModelActive(modelId, version, active)
-
-Requirements:
-
-- caller is owner or admin
-
-Effects:
-
-- Flip versions[version].active to the given value
-- Emit ModelActivationChanged event.
-
-### 3.4 transferModelOwnership
-
-- transferModelOwnership(modelId, newOwner)
-
-Requirements:
-
-- caller is current owner or admin
-
-Effects:
-
-- owner = newOwner
-- Emit ModelOwnershipTransferred event.
+Invariant: if modelExists[modelId] == false, the ModelInfo for that
+modelId must be treated as unset.
 
 ---
 
-## 4. View functions (for agents)
+## 3. Core API
 
-Read-only helpers:
+### 3.1. Admin
 
-- getModelOwner(modelId) -> address
-- getLatestVersion(modelId) -> uint64
-- getModelVersion(modelId, version) ->
-  (hash, uri, policyTag, metadata, active)
-- getActiveVersion(modelId) -> uint64 (0 if none active)
-- isModelActive(modelId, version) -> bool
+    function setAdmin(address newAdmin) external;
+    function setAdminGate(address newAdminGate) external;
 
-Typical agent flow:
+Only callable by:
 
-1. Resolve modelId to latestVersion.
-2. Check that the latest version is active.
-3. Pull hash, uri, policyTag to decide what to load and how to treat it.
+- current admin, or
+- adminGate (which itself is governed by MasterKey / UpdateGate).
 
----
+Any change must emit an AdminChanged or AdminGateChanged event.
 
-## 5. Access control and integration
+### 3.2. Model lifecycle
 
-### 5.1 Admin
+    function registerModel(
+        string calldata modelId,
+        address owner,
+        uint256 chainId,
+        bytes32 modelHash,
+        string calldata manifestURI,
+        string calldata version,
+        bool active,
+        string calldata tag
+    ) external;
 
-- admin (or AdminGate) can:
-  - Override owners in emergencies.
-  - Freeze or unfreeze entries (via setModelActive).
-- Normal operations:
-  - owner controls their model’s versions and metadata.
+    function updateModel(
+        string calldata modelId,
+        bytes32 newModelHash,
+        string calldata newManifestURI,
+        string calldata newVersion,
+        string calldata newTag
+    ) external;
 
-We expect a real deployment to wire admin into AdminGate so the VOID master key
-can indirectly govern model registry policy.
+    function setModelActive(
+        string calldata modelId,
+        bool active
+    ) external;
 
-### 5.2 Policy integration
+    function transferModelOwnership(
+        string calldata modelId,
+        address newOwner
+    ) external;
 
-- policyTag is a bytes32 hint.
-- PolicyGuard, JobQueue, AgentRegistry and other components interpret it.
-- ModelRegistry itself does not enforce policy logic; it only stores the tag.
+Access control:
 
-Examples:
-
-- Jobs may require models with a certain policyTag.
-- Agents may refuse to load models without a compatible policyTag.
-
----
-
-## 6. Events (suggested)
-
-Conceptual event signatures (Solidity-style):
-
-- ModelRegistered(
-    string modelId,
-    uint64 version,
-    address owner,
-    bytes32 hash,
-    string uri,
-    bytes32 policyTag
-  )
-
-- ModelUpdated(
-    string modelId,
-    uint64 version,
-    string uri,
-    string metadata,
-    bytes32 policyTag
-  )
-
-- ModelActivationChanged(
-    string modelId,
-    uint64 version,
-    bool active
-  )
-
-- ModelOwnershipTransferred(
-    string modelId,
-    address oldOwner,
-    address newOwner
-  )
-
-Indexers and agents will consume these events to build a fast off-chain view.
+- registerModel: admin or adminGate can register any modelId. Devnets
+  may allow self-registration, but mainnet should be admin-gated.
+- updateModel / setModelActive / transferModelOwnership:
+  - callable by current model owner, or admin, or adminGate.
 
 ---
 
-## 7. Minimal Solidity shape (sketch)
+## 4. Events
 
-High-level structure:
+    event ModelRegistered(
+        string indexed modelId,
+        address indexed owner,
+        uint256 chainId,
+        bytes32 modelHash,
+        string manifestURI,
+        string version,
+        bool active,
+        string tag
+    );
 
-- struct Version {
-    bytes32 hash;
-    string uri;
-    bytes32 policyTag;
-    string metadata;
-    bool active;
-  }
+    event ModelUpdated(
+        string indexed modelId,
+        bytes32 modelHash,
+        string manifestURI,
+        string version,
+        string tag
+    );
 
-- struct ModelInfo {
-    address owner;
-    uint64 latestVersion;
-    mapping(uint64 => Version) versions;
-  }
+    event ModelStatusChanged(
+        string indexed modelId,
+        bool active
+    );
 
-- mapping(string => ModelInfo) models;
-- mapping(string => bool) isRegistered;
-- address admin; // or AdminGate
+    event ModelOwnershipTransferred(
+        string indexed modelId,
+        address indexed previousOwner,
+        address indexed newOwner
+    );
 
-Core functions:
+    event AdminChanged(
+        address indexed previousAdmin,
+        address indexed newAdmin
+    );
 
-- registerModel
-- updateModelMeta
-- setModelActive
-- transferModelOwnership
-- view getters
+    event AdminGateChanged(
+        address indexed previousAdminGate,
+        address indexed newAdminGate
+    );
 
-The real implementation will add:
-- Proper access control
-- Input validation
-- Gas optimizations
-- Hooks into PolicyGuard, ModelEvalRegistry, etc.
+Agents and monitoring (like our devnet metrics) will:
+
+- Watch ModelRegistered / ModelUpdated for model metadata.
+- Watch ModelStatusChanged to avoid disabled models.
+- Watch AdminChanged / AdminGateChanged for governance anomalies.
+
+---
+
+## 5. View / helper functions
+
+    function getModel(string calldata modelId)
+        external
+        view
+        returns (ModelInfo memory);
+
+    function isActive(string calldata modelId)
+        external
+        view
+        returns (bool);
+
+    function getModelHash(string calldata modelId)
+        external
+        view
+        returns (bytes32);
+
+    function getModelOwner(string calldata modelId)
+        external
+        view
+        returns (address);
+
+Heavy enumeration (e.g., list all models) is left to off-chain indexers.
+
+---
+
+## 6. Security / Governance Notes
+
+- AdminGate integration: on VOID mainnet, admin should be an AdminGate
+  contract under MasterKey control. A raw EOA is devnet/test only.
+- No deletion: models should not be deleted. Deactivation must go through
+  setModelActive(modelId, false) and be visible via events.
+- ChainId: for VOID, chainId should be 2050, but we keep a field so the
+  same code can be reused on testnets or mirrors.
+
+---
+
+## 7. Devnet mapping
+
+Our current devnet instrumentation treats:
+
+- void_models_devnet_health as a 0/1 registry health scalar.
+- void_models_model_active{model="…", chain="devnet"} to represent
+  active/disabled models.
+- void_devnet_receipts_model_total{model="…",chain="devnet"} plus
+  void:devnet:jobs_*_by_model as coverage signals that agents are
+  actually using registered models.
+
+This spec is the canonical reference for how the on-chain ModelRegistry
+should behave when we port the devnet pipeline into real contracts on
+VOID (chainId 2050).

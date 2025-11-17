@@ -1,14 +1,14 @@
 # VOID Network – AgentRegistry Contract Spec (v1, minimal)
 
-AgentRegistry is the **on-chain directory of agents** that are allowed to
-pick up jobs in JobQueue and report outputs/evals off-chain.
+AgentRegistry is the directory of off-chain agents that execute VOID jobs.
 
-- It does NOT run jobs.
-- It does NOT enforce economics (no stake/slashing in v1).
-- It does NOT enforce policy – it only stores tags and metadata.
+- An agent is anything that reads jobs (from JobQueue or JSONL),
+  runs AI/model work, and submits receipts (to ReceiptRegistry or JSONL).
+- AgentRegistry tracks who the agents are, what they claim to support,
+  and whether they are allowed to post receipts for certain models.
 
-Policy and economics are handled by other components (PolicyGuard,
-AdminGate, off-chain infra, or future versions).
+This contract does not manage payouts or stakes. It is a source of
+identity, capability, and authorization.
 
 ---
 
@@ -16,210 +16,203 @@ AdminGate, off-chain infra, or future versions).
 
 AgentRegistry must:
 
-- Store entries keyed by a human-readable `agentId` (string).
-- Track the current **owner address** for each agent.
-- Track the **agent runtime address** (where callbacks/identities come from).
-- Track **capabilities** and **policy tags** as opaque metadata.
-- Allow enabling/disabling agents.
-- Emit events on registration and updates.
+- Register agents with:
+  - owner address
+  - agent name or id
+  - endpoint or metadata URI
+  - supported models
+- Allow admins to enable or disable agents.
+- Provide a cheap isAuthorized(agent, modelId) check for:
+  - JobQueue (future)
+  - ReceiptRegistry (for submitReceipt)
+  - off-chain policy engines.
 
-AgentRegistry cannot:
+AgentRegistry must NOT:
 
-- Guarantee that an off-chain process actually matches the metadata.
-- Enforce model compatibility or job correctness.
-- Directly move funds or control user balances.
-
-Those responsibilities belong to **off-chain agents**, **PolicyGuard**,
-**JobQueue**, and higher-level economics.
+- Run AI work.
+- Decide payouts or slashing directly.
+- Store large metadata blobs (use external URIs).
 
 ---
 
 ## 2. Data model
 
-### 2.1. Types
+Conceptual agent struct:
 
-- `AgentId` – string (e.g. "void-agent/mainnet-router-1")
-- `Owner` – `address` (control key / admin)
-- `RuntimeAddr` – `address` (address used when interacting with JobReceipts)
-- `PolicyTag` – `bytes32` (optional policy tag reference)
-- `CapabilitiesHash` – `bytes32` (e.g. hash of a JSON capabilities doc)
-- `Metadata` – string (JSON recommended)
+    struct Agent {
+        address owner;    // who controls this agent
+        bool    active;   // is it allowed to operate
+        string  name;     // human-readable name / id
+        string  metaURI;  // pointer to larger metadata (IPFS/HTTPS)
+    }
 
-### 2.2. Storage (conceptual)
+Capabilities:
 
-For each `agentId`:
+    mapping(bytes32 => bool) caps;
 
-- `owner: address`
-- `runtime: address`
-- `policyTag: bytes32`
-- `capabilitiesHash: bytes32`
-- `metadata: string`
-- `active: bool`
-- `createdAt: uint64`
-- `updatedAt: uint64`
+Where key = keccak256(abi.encode(agentAddr, modelId)).
 
-Additional:
+Storage:
 
-- `isRegistered[agentId] -> bool`
-- Global `admin` or AdminGate reference.
+- mapping(address => Agent) agents by address.
+- Optionally mapping(bytes32 => address) by agentId (future).
 
 ---
 
-## 3. Core functions
+## 3. Core functions (v1)
 
-### 3.1. registerAgent
+### 3.1 registerAgent
 
-`registerAgent(agentId, runtime, policyTag, capabilitiesHash, metadata)`
+    function registerAgent(
+        address agentAddr,
+        string calldata name,
+        string calldata metaURI
+    ) external;
 
-- New agent:
-  - `require(!isRegistered[agentId])`
-  - `owner = msg.sender` (or admin).
-  - `runtime = runtime`.
-  - `policyTag = policyTag`.
-  - `capabilitiesHash = capabilitiesHash`.
-  - `metadata = metadata`.
-  - `active = true`.
-  - `createdAt = block.timestamp`.
-  - `updatedAt = block.timestamp`.
-  - `isRegistered[agentId] = true`.
-- Existing agent:
-  - REVERT in v1 (no re-register; use update functions).
-- Emit `AgentRegistered`.
+Behavior:
 
-### 3.2. setAgentActive
+- Caller must be admin (strict v1).
+- If agent does not exist, create it with active = true.
+- Emit AgentRegistered(agentAddr, name, metaURI).
 
-`setAgentActive(agentId, active)`
+### 3.2 setAgentActive
 
-- Require:
-  - `isRegistered[agentId]`
-  - caller is `owner` or `admin`.
-- Set `active` flag.
-- Update `updatedAt`.
-- Emit `AgentActivationChanged`.
+    function setAgentActive(address agentAddr, bool active) external;
 
-### 3.3. updateAgentRuntime
+- Only admin.
+- Used to approve or ban agents.
+- Emit AgentStatusChanged(agentAddr, active).
 
-`updateAgentRuntime(agentId, newRuntime)`
+### 3.3 setAgentCapabilities
 
-- Require:
-  - `isRegistered[agentId]`
-  - caller is `owner` or `admin`.
-- Set `runtime = newRuntime`.
-- Update `updatedAt`.
-- Emit `AgentRuntimeUpdated`.
+    function setAgentCapabilities(
+        address agentAddr,
+        string[] calldata modelIds,
+        bool allowed
+    ) external;
 
-### 3.4. updateAgentMeta
+- Only admin (v1).
+- For each modelId:
+  - caps[keccak256(abi.encode(agentAddr, modelId))] = allowed.
+- Emit AgentCapabilitiesUpdated(agentAddr, modelIds, allowed).
 
-`updateAgentMeta(agentId, policyTag, capabilitiesHash, metadata)`
+### 3.4 isAuthorized
 
-- Require:
-  - `isRegistered[agentId]`
-  - caller is `owner` or `admin`.
-- Update `policyTag`, `capabilitiesHash`, `metadata`.
-- Update `updatedAt`.
-- Emit `AgentMetaUpdated`.
+    function isAuthorized(
+        address agentAddr,
+        string calldata modelId
+    ) external view returns (bool);
 
-### 3.5. transferAgentOwnership
+Returns:
 
-`transferAgentOwnership(agentId, newOwner)`
+    agents[agentAddr].active &&
+    caps[keccak256(abi.encode(agentAddr, modelId))];
 
-- Require:
-  - `isRegistered[agentId]`
-  - caller is current `owner` or `admin`.
-- Set `owner = newOwner`.
-- Update `updatedAt`.
-- Emit `AgentOwnershipTransferred`.
+ReceiptRegistry and any other contract can use this for authorization.
 
 ---
 
-## 4. View functions (for JobReceipts and agents)
+## 4. Events
 
-Read-only helpers:
+    event AgentRegistered(
+        address indexed agent,
+        string  name,
+        string  metaURI
+    );
 
-- `getAgentOwner(agentId) -> address`
-- `getAgentRuntime(agentId) -> address`
-- `getAgentMeta(agentId) -> (policyTag, capabilitiesHash, metadata)`
-- `isAgentActive(agentId) -> bool`
-- `isRegistered(agentId) -> bool`
+    event AgentStatusChanged(
+        address indexed agent,
+        bool    active
+    );
 
-Optional helpers:
+    event AgentCapabilitiesUpdated(
+        address indexed agent,
+        string[] modelIds,
+        bool     allowed
+    );
 
-- `getAgent(agentId) -> (owner, runtime, policyTag, capabilitiesHash, metadata, active, createdAt, updatedAt)`
+Events allow indexers to build a live directory of:
 
-Typical flow:
-
-1. Off-chain infra knows `agentId`.
-2. Resolve `agentId` → `runtime` and `active`.
-3. Check `active`.
-4. Read `policyTag` / `capabilitiesHash` / `metadata` for routing.
-
----
-
-## 5. Access control & integration
-
-### 5.1. Admin
-
-- `admin` (or AdminGate) can:
-  - Force-register agents.
-  - Override `owner`.
-  - Force-disable agents.
-- Normal operations:
-  - `owner` is the main control key.
-  - `runtime` can be changed without changing `owner`.
-
-### 5.2. Integration with JobQueue / JobReceipts
-
-- JobReceipts can:
-  - Require that `isAgentActive(agentId)` is true.
-  - Use `getAgentRuntime(agentId)` to verify caller identity.
-- PolicyGuard can:
-  - Use `policyTag` and `capabilitiesHash` to decide if an agent is
-    allowed to handle a given job type or model.
+- Which agents exist.
+- Which models each supports.
+- Whether each agent is currently allowed to operate.
 
 ---
 
-## 6. Events (suggested)
+## 5. Admin / control
 
-```solidity
-event AgentRegistered(
-    string agentId,
-    address owner,
-    address runtime,
-    bytes32 policyTag,
-    bytes32 capabilitiesHash,
-    string metadata
-);
+AgentRegistry has a single admin, ideally the same AdminGate that controls
+ModelRegistry, JobQueue, and ReceiptRegistry.
 
-event AgentActivationChanged(
-    string agentId,
-    bool active
-);
+Admin can:
 
-event AgentRuntimeUpdated(
-    string agentId,
-    address oldRuntime,
-    address newRuntime
-);
+- Register agents.
+- Toggle active status.
+- Change capabilities and metaURI.
 
-event AgentMetaUpdated(
-    string agentId,
-    bytes32 policyTag,
-    bytes32 capabilitiesHash,
-    string metadata
-);
+Future versions can add richer role systems (owner vs admin vs delegate), but
+v1 stays simple.
 
-event AgentOwnershipTransferred(
-    string agentId,
-    address oldOwner,
-    address newOwner
-);
-7. v2+ extension points
-Future versions may add:
+---
 
-Stake and slashing (bonded agents).
+## 6. Integration with ReceiptRegistry
 
-Reputation scores (aggregated from JobReceipts).
+ReceiptRegistry should have an optional AgentRegistry address.
 
-Rate limits / quotas per agent or per policyTag.
+- If agentRegistry == address(0):
+  - submitReceipt does not enforce agent auth.
+- If agentRegistry != address(0):
+  - submitReceipt must require:
+    - AgentRegistry.isAuthorized(msg.sender, modelId) == true.
 
-Links to ModelRegistry (e.g. "this agent supports models X/Y/Z").
+Migration path:
+
+- Devnet / early testnets: allow any address, or only soft-enforce via metrics.
+- Mainnet: enforce that only registered agents can post receipts for certain models.
+
+Off-chain metrics (future):
+
+- receipts per agent
+- coverage per agent and model
+- failure rates and latency per agent
+
+These follow the same pattern as the current per-model Prometheus metrics and alerts.
+
+---
+
+## 7. Integration with JobQueue (future)
+
+JobQueue can optionally use AgentRegistry for:
+
+- Validating agents when they claim jobs.
+- Implementing on-chain assignment flows.
+
+For v1, JobQueue does not depend on AgentRegistry. The key consumer is
+ReceiptRegistry, which uses it to gate receipt submissions.
+
+---
+
+## 8. Mapping to current devnet
+
+Today:
+
+- ops/devnet/jobs.jsonl has an agentHint field.
+- ops/devnet/receipts.jsonl has an agent field.
+
+These map conceptually to:
+
+- AgentRegistry entries (on-chain identity and capability).
+- Agent addresses that sign and submit real transactions.
+
+Real agents later will have:
+
+- An EVM address for signing and posting receipts.
+- A name and metaURI that describe:
+  - supported models
+  - endpoints
+  - hardware details
+  - optional attestation info
+
+Prometheus metrics already track global and per-model coverage. With
+AgentRegistry + ReceiptRegistry on-chain, we can extend to per-agent metrics
+and alerts without changing the overall pattern.

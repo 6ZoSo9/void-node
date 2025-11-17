@@ -1,24 +1,17 @@
-# VOID Network – ReceiptRegistry / PoPRegistry Spec (v1)
+# VOID Network – ReceiptRegistry Contract Spec (v1, minimal)
 
-Chain: VOID devnet (chainId 2050)  
-Role: On-chain Proof-of-Processing (PoP) registry for AI jobs.
+ReceiptRegistry is the on-chain registry of AI job receipts for VOID (chainId 2050+).
 
-JobQueue already tracks job lifecycle and `resultHash`. ReceiptRegistry
-adds a separate, queryable ledger of which jobs were actually processed
-by an off-chain agent.
+- JobQueue tracks requested work (jobs).
+- ReceiptRegistry tracks completed work (receipts for those jobs).
 
-It is intentionally small and conservative:
+It is the canonical place to:
+- Prove that some agent claims to have completed a job.
+- Anchor hashes for inputs, outputs, and results.
+- Drive metrics, accountability, and potential slashing off-chain.
 
-- It never executes AI.
-- It never stores raw inputs/outputs.
-- It only records that a particular (jobQueue, jobId) reached a final
-  result consistent with on-chain JobQueue state.
-
-This is v1 and assumes:
-
-- A canonical JobQueue contract per network.
-- A canonical ModelRegistry enforces model validity at postJob time
-  (out of scope for this contract; we just mirror app/model IDs).
+This spec matches the devnet behavior (jobs.jsonl + receipts.jsonl), but moves
+the truth of receipts on-chain.
 
 ---
 
@@ -26,280 +19,220 @@ This is v1 and assumes:
 
 ReceiptRegistry must:
 
-- Accept receipt records keyed by (jobQueue, jobId).
-- Verify each receipt against the JobQueue state:
-  - Job exists and is Completed.
-  - worker matches the job's recorded worker.
-  - resultHash matches the job's recorded resultHash.
-- Store a minimal record for each completed job:
-  - jobQueue (address)
-  - jobId (uint256)
-  - poster (address)
-  - worker (address)
-  - payloadHash (bytes32)
-  - resultHash (bytes32)
-  - appKey (bytes32 = keccak256(bytes(appId)))
-  - modelKey (bytes32 = keccak256(bytes(modelId)))
-  - postedAt, completedAt, recordedAt (uint64)
-- Emit events for off-chain analytics / monitoring.
-- Optionally restrict which JobQueue contracts are allowed.
+- Accept new receipts that reference a job (by jobId from JobQueue).
+- Store minimal but sufficient metadata to prove:
+  - which job was completed
+  - which model was used
+  - which agent submitted the receipt
+  - what hashes (input, output, model) were involved
+  - when it completed
+- Emit events when receipts are created or updated.
+- Allow querying receipts by:
+  - jobId
+  - receiptId
+  - agent
+  - modelId (optional or indexable)
+- Be controlled by an admin (AdminGate / master-key governed).
 
-ReceiptRegistry cannot:
+ReceiptRegistry must NOT:
 
-- Change JobQueue state.
-- Fix or override a wrong resultHash.
-- Enforce payments or slashing (later version).
+- Execute AI models.
+- Decide which model result is “correct”.
+- Manage balances or payouts directly (that’s for other contracts).
+- Override JobQueue’s meaning of job lifecycle.
 
----
-
-## 2. External Assumptions (JobQueue)
-
-We assume JobQueue exposes:
-
-struct Job {
-    address poster;
-    address worker;
-    string  appId;
-    string  modelId;
-    bytes32 payloadHash;
-    bytes32 resultHash;
-    uint8   status;     // 0=None,1=Posted,2=Claimed,3=Completed
-    uint64  createdAt;  // seconds
-    uint64  updatedAt;  // seconds
-}
-
-function jobs(uint256 id) external view returns (Job memory);
+It is a bookkeeping and evidence layer, not an oracle of truth about model quality.
 
 ---
 
-## 3. Internal Types & Storage
+## 2. Data model
 
-struct Receipt {
-    address jobQueue;
-    uint256 jobId;
+Conceptual receipt struct (Solidity-style):
 
-    address poster;
-    address worker;
-
-    bytes32 payloadHash;
-    bytes32 resultHash;
-
-    // Derived tags for indexing
-    bytes32 appKey;      // keccak256(bytes(appId))
-    bytes32 modelKey;    // keccak256(bytes(modelId))
-
-    uint64 postedAt;
-    uint64 completedAt;
-    uint64 recordedAt;   // block.timestamp when recorded
-}
-
-Primary key:
-
-    bytes32 key = keccak256(abi.encodePacked(jobQueue, jobId));
+    struct Receipt {
+        bytes32 jobId;        // JobQueue jobId (canonical)
+        bytes32 receiptId;    // Unique id for this receipt
+        address agent;        // Who submitted this receipt
+        string  modelId;      // Human-readable model identifier (e.g. "gpt-4.1-mini")
+        bytes32 inputHash;    // Hash of input payload (CBOR manifest, etc.)
+        bytes32 outputHash;   // Hash of output payload (result manifest / transcript)
+        bytes32 modelHash;    // Hash of model version / weights / manifest
+        uint64  chainId;      // Chain this job/receipt belongs to (e.g. 2050)
+        uint64  createdAt;    // Block timestamp when receipt was recorded
+        uint8   status;       // 0=pending, 1=completed, 2=failed, etc.
+    }
 
 Storage:
 
-    mapping(bytes32 => Receipt) public receipts;
-    mapping(bytes32 => bool)    public receiptExists;
+- mapping(bytes32 => Receipt) by receiptId.
+- mapping(bytes32 => bytes32[]) receipts by jobId (list of receiptIds).
 
-Config:
+Optional v2 indexes (not required for v1):
 
-    address public admin;                 // EOA or AdminGate/UpdateGate
-    mapping(address => bool) public allowedJobQueues;
-    address public modelRegistry;         // optional hint, unused in v1
+- receipts by agent
+- receipts by modelId (hash key + smaller index)
 
----
-
-## 4. Invariants
-
-1. At most one receipt per (jobQueue, jobId):
-   - receiptExists[key] is set on first record and never cleared.
-
-2. Every stored receipt corresponds to a Completed job in JobQueue:
-   - JobQueue(jobQueue).jobs(jobId).status == 3.
-
-3. Receipt worker, payloadHash, resultHash match the JobQueue record
-   at the time of recording.
-
-4. recordedAt >= completedAt >= postedAt.
-
-5. Admin cannot rewrite history:
-   - No function to edit or delete existing receipts.
+For v1, minimal indexing is fine: per-job lists plus a direct receiptId mapping.
 
 ---
 
-## 5. Events & Errors
+## 3. Core functions (v1)
 
-Events:
+### 3.1 submitReceipt
 
-    event ReceiptRecorded(
-        address indexed jobQueue,
-        uint256 indexed jobId,
-        address indexed worker,
-        bytes32 appKey,
-        bytes32 modelKey,
-        bytes32 payloadHash,
-        bytes32 resultHash,
-        uint64 postedAt,
-        uint64 completedAt,
-        uint64 recordedAt
+    function submitReceipt(ReceiptInput calldata r) external returns (bytes32 receiptId);
+
+ReceiptInput contains:
+
+- jobId
+- modelId
+- inputHash
+- outputHash
+- modelHash
+- status
+
+Behavior:
+
+- Compute receiptId, for example:
+
+      receiptId = keccak256(abi.encode(
+          r.jobId,
+          msg.sender,
+          r.inputHash,
+          r.outputHash,
+          block.timestamp
+      ));
+
+- Require JobQueue.jobExists(jobId) is true.
+- Optionally require AgentRegistry.isAuthorized(msg.sender, modelId) is true.
+- Store the full Receipt struct.
+- Append receiptId to the per-job list.
+- Emit ReceiptSubmitted(jobId, receiptId, msg.sender, modelId, status).
+
+Access control (v1):
+
+- Default: any address can submit receipts.
+- Optional admin policy: only known agents (in AgentRegistry) can submit for certain models.
+
+### 3.2 getReceipt
+
+    function getReceipt(bytes32 receiptId) external view returns (Receipt memory);
+
+Simple getter.
+
+### 3.3 getReceiptsForJob
+
+    function getReceiptsForJob(bytes32 jobId) external view returns (bytes32[] memory);
+
+Returns the list of receiptIds; callers can fetch each Receipt.
+
+### 3.4 markReceiptStatus (optional)
+
+    function markReceiptStatus(bytes32 receiptId, uint8 status) external;
+
+- Only callable by admin (AdminGate) or a policy contract.
+- Used to mark receipts as disputed, invalid, etc.
+
+---
+
+## 4. Events
+
+    event ReceiptSubmitted(
+        bytes32 indexed jobId,
+        bytes32 indexed receiptId,
+        address indexed agent,
+        string  modelId,
+        uint8   status
     );
 
-    event AllowedJobQueueUpdated(address jobQueue, bool allowed);
-    event ModelRegistryUpdated(address modelRegistry);
-    event AdminUpdated(address newAdmin);
-
-Errors:
-
-    error NotAdmin();
-    error JobQueueNotAllowed(address jobQueue);
-    error ReceiptAlreadyExists(address jobQueue, uint256 jobId);
-    error JobNotCompleted(address jobQueue, uint256 jobId, uint8 status);
-    error WorkerMismatch(address expected, address actual);
-    error ResultHashMismatch(bytes32 expected, bytes32 actual);
-    error PayloadHashMismatch(bytes32 expected, bytes32 actual);
-
----
-
-## 6. Core API
-
-recordReceipt:
-
-    struct RecordArgs {
-        address jobQueue;
-        uint256 jobId;
-        address worker;     // expected worker
-        bytes32 resultHash; // expected resultHash
-        // optional: bytes32 expectedPayloadHash;
-    }
-
-    function recordReceipt(RecordArgs calldata args) external;
-
-Expected flow:
-
-1) Check jobQueue allowlist (if used):
-
-    if (!allowedJobQueues[args.jobQueue]) {
-        revert JobQueueNotAllowed(args.jobQueue);
-    }
-
-2) Compute key and prevent duplicates:
-
-    bytes32 key = keccak256(abi.encodePacked(args.jobQueue, args.jobId));
-    if (receiptExists[key]) {
-        revert ReceiptAlreadyExists(args.jobQueue, args.jobId);
-    }
-
-3) Load job from JobQueue:
-
-    JobQueue jq = JobQueue(args.jobQueue);
-    JobQueue.Job memory j = jq.jobs(args.jobId);
-
-4) Validate job state:
-
-    if (j.status != 3) {
-        revert JobNotCompleted(args.jobQueue, args.jobId, j.status);
-    }
-    if (j.worker != args.worker) {
-        revert WorkerMismatch(j.worker, args.worker);
-    }
-    if (j.resultHash != args.resultHash) {
-        revert ResultHashMismatch(j.resultHash, args.resultHash);
-    }
-
-   (Optionally also check payloadHash if passed.)
-
-5) Derive tags:
-
-    bytes32 appKey   = keccak256(bytes(j.appId));
-    bytes32 modelKey = keccak256(bytes(j.modelId));
-
-6) Write receipt:
-
-    Receipt storage r = receipts[key];
-    r.jobQueue    = args.jobQueue;
-    r.jobId       = args.jobId;
-    r.poster      = j.poster;
-    r.worker      = j.worker;
-    r.payloadHash = j.payloadHash;
-    r.resultHash  = j.resultHash;
-    r.appKey      = appKey;
-    r.modelKey    = modelKey;
-    r.postedAt    = j.createdAt;
-    r.completedAt = j.updatedAt;
-    r.recordedAt  = uint64(block.timestamp);
-
-    receiptExists[key] = true;
-
-7) Emit event:
-
-    emit ReceiptRecorded(
-        args.jobQueue,
-        args.jobId,
-        j.worker,
-        appKey,
-        modelKey,
-        j.payloadHash,
-        j.resultHash,
-        j.createdAt,
-        j.updatedAt,
-        uint64(block.timestamp)
+    event ReceiptStatusUpdated(
+        bytes32 indexed receiptId,
+        uint8   oldStatus,
+        uint8   newStatus
     );
 
----
+Events let indexers and Prometheus bridges:
 
-## 7. Admin / Config API
-
-Admin controls which JobQueue addresses are trusted, not receipts.
-
-    function setAdmin(address newAdmin) external;
-    function setAllowedJobQueue(address jobQueue, bool allowed) external;
-    function setModelRegistry(address _modelRegistry) external;
-
-All three:
-
-- Must be restricted to admin.
-- Should be owned by AdminGate/UpdateGate in production, but can be an
-  EOA in devnet.
-
-No function exists to modify or delete stored receipts.
+- Count receipts per job, model, agent.
+- Detect jobs without receipts or low coverage.
+- Track disputed receipts.
 
 ---
 
-## 8. Read API
+## 5. Admin / control
 
-    function hasReceipt(address jobQueue, uint256 jobId)
-        external
-        view
-        returns (bool);
+ReceiptRegistry has a single admin address, set at construction:
 
-    function getReceipt(address jobQueue, uint256 jobId)
-        external
-        view
-        returns (Receipt memory);
+- For VOID, admin should be an AdminGate contract governed by the master key.
 
-    function getReceiptKey(address jobQueue, uint256 jobId)
-        external
-        pure
-        returns (bytes32);
+Admin can:
 
-Indexing is expected off-chain (custom VOID indexers, TheGraph-style)
-using ReceiptRecorded events.
+- Update policy hooks (AgentRegistry address, JobQueue address, etc.).
+- Pause or unpause receipt submission (emergency).
+- Configure allowed status transitions.
+
+Admin cannot in v1:
+
+- Rewrite existing receipt hashes.
+- Arbitrarily delete receipts.
 
 ---
 
-## 9. Devnet Usage (current flow)
+## 6. Integration with JobQueue
 
-1) User posts jobs to JobQueue via ops/void-devnet-* scripts.
-2) Off-chain VOID Agent claims and completes jobs, writing:
-   - On-chain: resultHash + status=Completed.
-   - Off-chain: JSONL receipts under ops/devnet-job-receipts.jsonl.
-3) Coverage script void-devnet-jobs-coverage.sh checks completion and
-   emits a Prom gauge.
-4) Next step: a PoP bridge script that:
-   - Reads ops/devnet-job-receipts.jsonl.
-   - For each line, calls recordReceipt on ReceiptRegistry.
-   - Fails fast if any invariant fails.
+ReceiptRegistry should:
 
-Once deployed and wired, ReceiptRegistry becomes the canonical
-on-chain PoP ledger for AI jobs on VOID.
+- Know the JobQueue contract address.
+- Call JobQueue.jobExists(jobId) (or equivalent) to ensure the job is valid.
+- Trust JobQueue for basic job lifecycle tracking (posted, cancelled, etc.).
+
+JobQueue does not need to call ReceiptRegistry in v1; this avoids tight coupling.
+
+Off-chain:
+
+- Indexers combine JobQueue and ReceiptRegistry events to compute:
+  - jobs_without_receipts
+  - jobs_receipt_coverage
+  - per-agent and per-model performance.
+
+This maps directly to existing devnet Prometheus metrics:
+
+- void:devnet:jobs_total
+- void:devnet:receipts_total
+- void:devnet:jobs_without_receipts
+- void:devnet:jobs_receipt_coverage
+- and the per-model variants.
+
+---
+
+## 7. Security and abuse considerations
+
+ReceiptRegistry must be hardened against:
+
+- Spam: unlimited receipts for fake jobs.
+  - Mitigation: JobQueue.jobExists(jobId) must be true.
+  - Future: require stake or bond for agents.
+
+- Replay: same receipt submitted multiple times.
+  - Enforce unique receiptId.
+  - Optional guard: reject identical jobId + agent + inputHash + outputHash combos.
+
+- Admin abuse:
+  - Admin can only mark status, not change hashes.
+  - All admin actions should emit events and can be further gated by UpdateGate.
+
+---
+
+## 8. Mapping devnet JSONL to ReceiptRegistry
+
+Current devnet receipts in ops/devnet/receipts.jsonl conceptually become:
+
+- jobId → bytes32
+- receiptId → derived from (jobId, agent, receiptTs) or explicitly stored
+- status → enum value
+- modelId → same as JSONL field
+- agent → from JSONL
+- receiptTs → createdAt in the on-chain struct
+- inputHash, outputHash, modelHash → additional fields (we already have hashes in the agent pipeline)
+
+Once ReceiptRegistry is live, JSONL becomes a client of the contract, not the source of truth.

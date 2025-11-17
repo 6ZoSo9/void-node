@@ -1,122 +1,101 @@
-// SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+// SPDX-License-Identifier: VCL-1.0
+pragma solidity ^0.8.20;
 
+import "forge-std/Test.sol";
 import "../contracts/AgentRegistry.sol";
 
-contract AgentRegistryTest {
-    AgentRegistry internal registry;
-    address internal admin = address(0xA11CE);
+contract AgentRegistryTest is Test {
+    AgentRegistry reg;
+    address admin = address(0xA11CE);
+    address agent = address(0xBEEF);
+    string constant MODEL_ID = "void-devnet-model-1";
 
-    constructor() {
-        registry = new AgentRegistry(admin);
+    function setUp() public {
+        reg = new AgentRegistry(admin);
     }
 
-    // Basic admin wiring
-    function testAdminIsSetOnDeploy() public {
-        assert(registry.admin() == admin);
+    function testAdminSetOnDeploy() public {
+        assertEq(reg.admin(), admin, "admin should be set from constructor");
     }
 
-    function testSetAdminOnlyAdmin() public {
-        // Non-admin should revert
-        (bool ok, ) = address(registry).call(
-            abi.encodeWithSelector(registry.setAdmin.selector, address(0xBEEF))
-        );
-        require(!ok, "non-admin setAdmin should revert");
+    function testOnlyAdminCanSetGlobal() public {
+        // non-admin should revert
+        vm.prank(address(0x1234));
+        vm.expectRevert(AgentRegistry.NotAdmin.selector);
+        reg.setAgentGlobal(agent, true);
 
-        // Admin can set
-        (ok, ) = address(registry).call(
-            abi.encodeWithSelector(registry.setAdmin.selector, address(0xBEEF))
-        );
-        require(ok, "admin setAdmin should succeed");
-        assert(registry.admin() == address(0xBEEF));
+        // admin path succeeds
+        vm.prank(admin);
+        reg.setAgentGlobal(agent, true);
+        assertTrue(reg.globalAgents(agent), "globalAgents(agent) should be true");
     }
 
-    function testRegisterAgentAndReadBack() public {
-        string memory agentId = "void-agent/devnet-router-1";
-        address runtime = address(this);
-        bytes32 policyTag = keccak256("POLICY_DEVNET_V1");
-        bytes32 capsHash = keccak256("CAPS_DEVNET_V1");
-        string memory metadata = '{"kind":"router","env":"devnet"}';
+    function testOnlyAdminCanSetPerModel() public {
+        vm.prank(address(0x1234));
+        vm.expectRevert(AgentRegistry.NotAdmin.selector);
+        reg.setAgentModel(agent, MODEL_ID, true);
 
-        registry.registerAgent(agentId, runtime, policyTag, capsHash, metadata);
+        vm.prank(admin);
+        reg.setAgentModel(agent, MODEL_ID, true);
 
-        require(registry.isRegistered(agentId), "should be registered");
-
-        (
-            address owner,
-            address runtimeOut,
-            bytes32 policyOut,
-            bytes32 capsOut,
-            string memory metaOut,
-            bool active,
-            uint64 createdAt,
-            uint64 updatedAt
-        ) = registry.getAgent(agentId);
-
-        assert(owner == address(this));
-        assert(runtimeOut == runtime);
-        assert(policyOut == policyTag);
-        assert(capsOut == capsHash);
-        require(
-            keccak256(bytes(metaOut)) == keccak256(bytes(metadata)),
-            "metadata mismatch"
-        );
-        assert(active);
-        assert(createdAt > 0);
-        assert(updatedAt >= createdAt);
-
-        assert(registry.getAgentOwner(agentId) == owner);
-        assert(registry.getAgentRuntime(agentId) == runtimeOut);
-
-        (bytes32 p2, bytes32 c2, string memory m2) = registry.getAgentMeta(agentId);
-        assert(p2 == policyOut);
-        assert(c2 == capsOut);
-        require(
-            keccak256(bytes(m2)) == keccak256(bytes(metaOut)),
-            "meta getter mismatch"
-        );
-        assert(registry.isAgentActive(agentId));
+        // should now be authorized for that model
+        bool ok = reg.isAuthorized(agent, MODEL_ID);
+        assertTrue(ok, "agent should be authorized for MODEL_ID");
     }
 
-    function testOwnerAndAdminCanToggleActiveAndTransfer() public {
-        string memory agentId = "void-agent/owner-test";
-        address runtime = address(this);
-        bytes32 policyTag = keccak256("POLICY");
-        bytes32 capsHash = keccak256("CAPS");
-        string memory metadata = "{}";
+    function testGlobalAuthOverridesModel() public {
+        // grant model-specific but then revoke global and test behavior
 
-        registry.registerAgent(agentId, runtime, policyTag, capsHash, metadata);
+        vm.startPrank(admin);
+        reg.setAgentModel(agent, MODEL_ID, true);
+        reg.setAgentGlobal(agent, true);
+        vm.stopPrank();
 
-        // Non-owner/non-admin cannot toggle
-        (bool ok, ) = address(registry).call(
-            abi.encodeWithSelector(
-                registry.setAgentActive.selector,
-                agentId,
-                false
-            )
-        );
-        require(!ok, "non-owner toggle should revert");
+        // any model should be allowed via global
+        bool ok1 = reg.isAuthorized(agent, MODEL_ID);
+        bool ok2 = reg.isAuthorized(agent, "some-other-model");
+        assertTrue(ok1, "MODEL_ID should be authorized");
+        assertTrue(ok2, "other model should be authorized via global");
 
-        // Owner toggles off
-        registry.setAgentActive(agentId, false);
-        assert(!registry.isAgentActive(agentId));
+        // revoke global; model-specific still applies
+        vm.prank(admin);
+        reg.setAgentGlobal(agent, false);
 
-        // Admin toggles back on
-        (ok, ) = address(registry).call(
-            abi.encodeWithSelector(
-                registry.setAgentActive.selector,
-                agentId,
-                true
-            )
-        );
-        require(ok, "admin toggle should succeed");
-        assert(registry.isAgentActive(agentId));
+        ok1 = reg.isAuthorized(agent, MODEL_ID);
+        ok2 = reg.isAuthorized(agent, "some-other-model");
 
-        // Owner transfers ownership
-        address newOwner = address(0xBEEF);
-        registry.transferAgentOwnership(agentId, newOwner);
+        assertTrue(ok1, "MODEL_ID should still be authorized via per-model");
+        assertFalse(ok2, "other model should no longer be authorized without global");
+    }
 
-        (address owner, , , , , , , ) = registry.getAgent(agentId);
-        assert(owner == newOwner);
+    function testChangeAdmin() public {
+        address newAdmin = address(0xDEAD);
+
+        // non-admin cannot change
+        vm.prank(address(0x1234));
+        vm.expectRevert(AgentRegistry.NotAdmin.selector);
+        reg.setAdmin(newAdmin);
+
+        // admin can change
+        vm.prank(admin);
+        reg.setAdmin(newAdmin);
+        assertEq(reg.admin(), newAdmin, "admin should be updated");
+
+        // old admin should no longer be able to act
+        vm.prank(admin);
+        vm.expectRevert(AgentRegistry.NotAdmin.selector);
+        reg.setAgentGlobal(agent, true);
+
+        // new admin can act
+        vm.prank(newAdmin);
+        reg.setAgentGlobal(agent, true);
+        assertTrue(reg.globalAgents(agent), "globalAgents(agent) should be true");
+    }
+
+    function testIsAuthorizedDefaultsToFalse() public {
+        bool ok1 = reg.isAuthorized(agent, MODEL_ID);
+        bool ok2 = reg.isAuthorized(agent, "");
+        assertFalse(ok1, "unauthorized agent should not be authorized");
+        assertFalse(ok2, "empty modelId should never be authorized");
     }
 }

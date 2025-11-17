@@ -1,355 +1,211 @@
-# VOID Network – JobQueue Contract Spec (v1, minimal)
+# VOID Network – JobQueue Contract Spec (v1, chainId 2050)
 
-JobQueue is the on-chain job registry for VOID (chainId 2050).
+JobQueue is the on-chain job registry for VOID.
 
-- Users and contracts can post jobs for AI agents and off-chain workers.
-- Off-chain VOID agents read jobs, execute them, and write back receipts.
-- The chain does not execute the AI – it only tracks what was requested and
-  what was returned.
-
-JobQueue cannot:
-- Force agents to run off-chain work.
-- Guarantee the quality of AI outputs.
-- Directly control user balances or external chains.
-
-It can:
-- Store job metadata (who posted, what app, what payload hash).
-- Track job lifecycle (posted -> claimed -> completed -> cancelled/expired).
-- Emit events for off-chain agent infrastructure.
-- Store minimal on-chain results (receipt hash, status metadata).
+- It does NOT run AI models or verify outputs.
+- It only tracks jobs, their poster, payload hash, status, and a minimal result hash.
+- Off-chain VOID agents watch events, pull jobs, execute them, and write back results.
 
 ---
 
-## 1. Job model
+## 1. Responsibilities & non-responsibilities
 
-### 1.1 Types
+JobQueue MUST:
+- Accept new jobs from users/contracts.
+- Emit events when jobs are posted, claimed, completed, or cancelled.
+- Track a full Job struct for each jobId.
+- Allow off-chain workers to claim and complete jobs.
+- Allow poster/admin to cancel jobs with an error code.
+- Be governed by an admin address (AdminGate on VOID).
 
-- JobId – uint256 (monotonic counter)
-- PayloadType – string (e.g. "json://void.ai/EmbeddingRequest/v1")
-- PayloadHash – bytes32 (hash of off-chain payload)
-- Poster – address (EOA or contract)
-- AppTag – bytes32 (application tag, e.g. "NULLFEED", "VOID_OS")
-- ModelId – string (optional hint to ModelRegistry)
-- PolicyId – bytes32 (policy requirement tag)
-- Budget – uint256 (optional budget / accounting)
-- StepIndex – uint16 (for simple DAGs)
-- JobStatus – enum:
-  - Posted
-  - Claimed
-  - Completed
-  - Cancelled
-  - Expired (logical / optional explicit)
-
-### 1.2 Stored job fields
-
-For each jobId:
-
-- poster: address
-- appTag: bytes32
-- payloadType: string
-- payloadHash: bytes32
-- modelHint: string (optional ModelRegistry modelId)
-- policyTag: bytes32
-- budget: uint256
-- createdAt: uint64 (block timestamp)
-- expiresAt: uint64 (0 if no expiry)
-- status: JobStatus
-- claimer: address (agent that claimed it)
-- receiptHash: bytes32 (hash of off-chain result)
-- receiptMeta: string (small JSON/meta)
-- parentJobId: uint256 (0 if root)
-- stepIndex: uint16
-
-This is enough for Agent OS v1:
-- Simple jobs
-- Simple multi-step workflows via parentJobId + stepIndex
-- Policy and model hints
+JobQueue CANNOT:
+- Force off-chain work to be executed.
+- Guarantee quality, safety, or timeliness of AI outputs.
+- Enforce payment terms by itself (payments belong in other contracts).
 
 ---
 
-## 2. Core flows
+## 2. Data model
 
-### 2.1 Post job
+### 2.1 Job struct
 
-Function (conceptual):
+From the deployed devnet contract (simplified):
 
-- postJob(
-    appTag,
-    payloadType,
-    payloadHash,
-    modelHint,
-    policyTag,
-    budget,
-    expiresAt,
-    parentJobId,
-    stepIndex
-  ) -> jobId
+- jobId: bytes32
+- chainId: uint256       (2050 for VOID)
+- modelId: string        (e.g. "void/devnet/model:test-v1")
+- poster: address        (who posted the job)
+- appTag: string         (e.g. "nullfeed-devnet")
+- payloadHash: bytes32   (hash of request payload stored off-chain)
+- postedAt: uint64       (unix seconds)
+- status: uint8          (enum-like, see below)
+- worker: address        (who claimed/completed the job)
+- resultHash: bytes32    (hash of result payload stored off-chain)
+- completedAt: uint64    (unix seconds; completion or cancel time)
+- errorCode: uint32      (0 = OK, non-zero = app-defined error)
 
-Requirements:
+### 2.2 Storage
 
-- payloadHash != 0
-- expiresAt == 0 or expiresAt > current time
+Conceptually:
+
+- jobs[jobId] -> Job
+- totalJobs: uint256
+- admin: address (should equal AdminGate on devnet/mainnet)
+
+Agents should treat jobId as the canonical key. Do NOT rely on array indices.
+
+---
+
+## 3. Status lifecycle
+
+### 3.1 Status values (uint8)
+
+Observed via getJobStatus(jobId):
+
+- 0 = NONE (no job present)
+- 1 = POSTED
+- 2 = CLAIMED
+- 3 = COMPLETED
+- 4 = CANCELLED (inferred from cancel flow)
+
+### 3.2 Allowed transitions
+
+- NONE -> POSTED  
+  - via postJob
+
+- POSTED -> CLAIMED  
+  - via claimJob(jobId) by a worker
+
+- CLAIMED -> COMPLETED  
+  - via completeJob(jobId, resultHash) by that same worker
+
+- POSTED or CLAIMED -> CANCELLED  
+  - via cancelJob(jobId, errorCode) by poster or admin
+
+Any other transition SHOULD revert:
+- Claim non-existent or non-POSTED job.
+- Complete when status != CLAIMED or worker != msg.sender.
+- Cancel if caller is not poster and not admin.
+
+---
+
+## 4. External interface (functions)
+
+### 4.1 View functions
+
+- admin() -> address
+- totalJobs() -> uint256
+- getJob(jobId: bytes32) -> Job
+- getJobStatus(jobId: bytes32) -> uint8
+- hasResult(jobId: bytes32) -> bool
+
+### 4.2 Posting a job
+
+postJob(modelId, payloadHash, appTag)
+
+Inputs:
+- modelId: string (human-friendly model identifier)
+- payloadHash: bytes32 (hash of request payload)
+- appTag: string (which app / pipeline created the job)
 
 Effects:
+- Derives a unique jobId.
+- Fills Job struct with chainId=2050, poster=msg.sender, postedAt=block.timestamp.
+- status = POSTED (1).
+- totalJobs++.
+- Emits JobPosted.
 
-- nextJobId += 1
-- Create Job struct with:
-  - jobId = nextJobId
-  - poster = msg.sender
-  - createdAt = current time
-  - status = Posted
-- Emit JobPosted event.
+msg.value MAY be used as stake/payment in higher-level designs, but JobQueue itself only records the job.
 
-Notes:
+### 4.3 Claiming a job
 
-- Payment / escrow is out of scope for v1; budget is informational.
-- Real payment logic can live in a separate rewards/escrow contract.
+claimJob(jobId)
 
-### 2.2 Claim job
+- Callable by any address.
+- Requires status == POSTED.
+- Sets status = CLAIMED, worker = msg.sender.
+- Emits JobClaimed.
 
-Function:
+### 4.4 Completing a job
 
-- claimJob(jobId)
+completeJob(jobId, resultHash)
 
-Requirements:
+- Callable only by the current worker for that job.
+- Requires status == CLAIMED.
+- Sets:
+  - status = COMPLETED
+  - resultHash = resultHash
+  - completedAt = block.timestamp
+  - errorCode = 0
+- Emits JobCompleted.
 
-- status == Posted
-- expiresAt == 0 or current time < expiresAt
+### 4.5 Cancelling a job
 
-Effects:
+cancelJob(jobId, errorCode)
 
-- status = Claimed
-- claimer = msg.sender
-- Emit JobClaimed event.
-
-Integration:
-
-- v1 keeps this open.
-- Future versions can require claimer to be registered in AgentRegistry.
-
-### 2.3 Complete job
-
-Function:
-
-- completeJob(jobId, receiptHash, receiptMeta)
-
-Requirements:
-
-- status == Claimed
-- claimer == msg.sender (or admin override)
-
-Effects:
-
-- status = Completed
-- receiptHash = receiptHash
-- receiptMeta = receiptMeta
-- Emit JobCompleted event.
-
-Receipt metadata:
-
-- Should be compact JSON:
-  - outcome/status code
-  - modelId / version used
-  - error codes if any
-  - optional policy verdict summary
-
-### 2.4 Cancel job
-
-Function:
-
-- cancelJob(jobId)
-
-Requirements:
-
-- Caller is poster or admin.
-- status in { Posted, Claimed }.
-
-Effects:
-
-- status = Cancelled
-- Emit JobCancelled event.
-
-### 2.5 Expiration (logical)
-
-Base v1 keeps expiration mostly off-chain:
-
-- A job with status == Posted and expiresAt < now is considered expired
-  by agents, even if not explicitly marked.
-
-Optionally, an admin helper:
-
-- markExpired(jobId)
-
-Requirements:
-
-- status == Posted
-- expiresAt > 0 and expiresAt < now
-
-Effects:
-
-- status = Expired
-- Emit JobExpired event (optional).
+- Allowed if caller is job.poster or admin.
+- Sets:
+  - status = CANCELLED
+  - errorCode = errorCode
+  - completedAt = block.timestamp
+- Emits JobCancelled.
 
 ---
 
-## 3. View and query helpers
+## 5. Events (logical shape)
 
-Read-only helpers:
+Event topics observed on devnet:
 
-- getJob(jobId) -> Job struct
-- getStatus(jobId) -> JobStatus
-- getPoster(jobId) -> address
-- getClaimer(jobId) -> address
-- getReceipt(jobId) -> (receiptHash, receiptMeta)
+- JobPosted:    topic0 = 0x9cc10673...
+- JobClaimed:   topic0 = 0x02a47c15...
+- JobCompleted: topic0 = 0x3460f941...
+- AdminChanged: topic0 = 0x7e644d79...
 
-Real filtering/search is done off-chain by indexing JobPosted / JobClaimed /
-JobCompleted events.
+Logical event forms (approximate):
 
----
+- JobPosted(jobId, modelIdHash, poster, chainId, postedAt, modelId, appTag, payloadHash)
+- JobClaimed(jobId, worker, claimedAt)
+- JobCompleted(jobId, worker, resultHash, completedAt)
+- JobCancelled(jobId, actor, errorCode, cancelledAt)
+- AdminChanged(oldAdmin, newAdmin)
 
-## 4. Events (conceptual)
-
-Recommended events:
-
-- JobPosted(
-    uint256 jobId,
-    address poster,
-    bytes32 appTag,
-    string payloadType,
-    bytes32 payloadHash,
-    string modelHint,
-    bytes32 policyTag,
-    uint256 budget,
-    uint64 expiresAt,
-    uint256 parentJobId,
-    uint16 stepIndex
-  )
-
-- JobClaimed(
-    uint256 jobId,
-    address claimer
-  )
-
-- JobCompleted(
-    uint256 jobId,
-    address claimer,
-    bytes32 receiptHash
-  )
-
-- JobCancelled(
-    uint256 jobId,
-    address caller
-  )
-
-Optional:
-
-- JobExpired(
-    uint256 jobId
-  )
-
-Indexers and agents will consume these events to build queues and dashboards.
+Agents MUST:
+- Watch JobPosted to discover new jobs.
+- Watch JobClaimed/JobCompleted/JobCancelled to track lifecycle.
+- Watch AdminChanged to keep track of governance.
 
 ---
 
-## 5. Access control
+## 6. Admin & governance
 
-Base assumptions for v1:
-
-- Anyone can call postJob.
-- Anyone can call claimJob (subject to off-chain policy).
-- Only poster or admin can cancel jobs.
-- Only claimer (or admin) can complete.
-
-Admin (via AdminGate or simple admin address) can:
-
-- Cancel or markExpired jobs in emergencies.
-- Potentially override claimer in extreme cases.
-
-Future extensions:
-
-- Restrict claimJob to registered agents in AgentRegistry.
-- App-specific ACLs or whitelists.
+- admin() is set to AdminGate (master-key governed).
+- Posting/claiming/completing jobs is permissionless.
+- Admin powers:
+  - Rotate admin (via AdminGate).
+  - Cancel abusive or stuck jobs.
+- Nodes and agents MAY enforce policies that require admin to be a known AdminGate instance.
 
 ---
 
-## 6. Integration points (Agent OS v1)
+## 7. Devnet monitoring (current)
 
-### 6.1 AgentRegistry
+The textfile exporter void_jobqueue_devnet.prom exposes:
 
-Registered agents will:
+- void_jobqueue_devnet_health{chain="devnet"}
+  - 1 if contract exists, totalJobs() OK, and admin == AdminGate.
+  - 0 on any hard failure.
 
-- Listen to JobPosted events.
-- Filter by:
-  - appTag
-  - payloadType
-  - modelHint
-  - policyTag
-- Decide whether to claim based on:
-  - capabilities
-  - policies
-  - budgets or external incentives.
+- void_jobqueue_devnet_total_jobs{chain="devnet"}
+  - Mirrors totalJobs() from the contract.
 
-Future: JobQueue can optionally enforce that only registered agents claim.
+- void_jobqueue_admin_mismatch{chain="devnet"}
+  - 1 if admin() != AdminGate.
+  - 0 if admin() matches AdminGate.
 
-### 6.2 ModelRegistry
+Prometheus aggregates:
 
-Jobs may set modelHint to a ModelRegistry modelId:
+- void:jobqueue:devnet:health
+- void:jobqueue:devnet:total_jobs
+- void:jobqueue:devnet:admin_mismatch
 
-- Agents resolve:
-  - modelHint -> latest active version
-  - model hash / uri / policyTag
-- JobQueue itself treats modelHint as a hint; it does not verify model hashes.
-
-### 6.3 PolicyGuard
-
-policyTag in JobQueue jobs:
-
-- Links jobs into wider policy framework.
-- PolicyGuard and external agents decide:
-  - Whether a given agent is allowed to process jobs with a given policyTag.
-- JobQueue itself stores the tag but does not interpret it.
-
----
-
-## 7. Minimal Solidity shape (sketch)
-
-High-level structure:
-
-- enum JobStatus { Posted, Claimed, Completed, Cancelled, Expired }
-
-- struct Job {
-    address poster;
-    bytes32 appTag;
-    string payloadType;
-    bytes32 payloadHash;
-    string modelHint;
-    bytes32 policyTag;
-    uint256 budget;
-    uint64 createdAt;
-    uint64 expiresAt;
-    JobStatus status;
-    address claimer;
-    bytes32 receiptHash;
-    string receiptMeta;
-    uint256 parentJobId;
-    uint16 stepIndex;
-  }
-
-- uint256 nextJobId;
-- mapping(uint256 => Job) jobs;
-- address admin; // or AdminGate
-
-Core functions:
-
-- postJob
-- claimJob
-- completeJob
-- cancelJob
-- optional markExpired
-- view getters
-
-Real implementation will add:
-
-- Input validation and gas optimizations.
-- Proper access control and admin plumbing.
-- Optional tighter integration with AgentRegistry and PolicyGuard.
+These form the base SLOs for JobQueue on VOID devnet.

@@ -1,58 +1,72 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title ModelRegistry v1 (minimal)
-/// @notice On-chain directory of AI models for VOID agents.
-/// @dev No external dependencies; admin is a simple address (can be AdminGate later).
+/// @title VOID ModelRegistry (v1, minimal)
+/// @notice On-chain directory of AI models used by VOID agents and contracts.
+///         This contract does NOT run models or verify outputs; it only tracks
+///         metadata and active status.
 contract ModelRegistry {
-    struct Version {
-        bytes32 hash;
-        string uri;
-        bytes32 policyTag;
-        string metadata;
-        bool active;
-    }
-
     struct ModelInfo {
+        string modelId;
         address owner;
-        uint64 latestVersion;
-        mapping(uint64 => Version) versions;
+        uint256 chainId;
+        bytes32 modelHash;
+        string manifestURI;
+        string version;
+        bool active;
+        string tag;
     }
 
-    // modelId (string) -> model info
-    mapping(string => ModelInfo) private models;
-    mapping(string => bool) public isRegistered;
-
-    // Simple admin; in VOID this will usually be wired to AdminGate.
+    /// @notice Admin that can register models and override owners.
     address public admin;
 
+    /// @dev Optional future hook for AdminGate (not used in v1).
+    address public adminGate;
+
+    /// @dev modelId => ModelInfo
+    mapping(string => ModelInfo) private _models;
+
+    /// @dev Tracks existence to distinguish unset from empty struct.
+    mapping(string => bool) private _modelExists;
+
     event ModelRegistered(
-        string modelId,
-        uint64 version,
-        address owner,
-        bytes32 hash,
-        string uri,
-        bytes32 policyTag
+        string indexed modelId,
+        address indexed owner,
+        uint256 chainId,
+        bytes32 modelHash,
+        string manifestURI,
+        string version,
+        bool active,
+        string tag
     );
 
     event ModelUpdated(
-        string modelId,
-        uint64 version,
-        string uri,
-        string metadata,
-        bytes32 policyTag
+        string indexed modelId,
+        bytes32 modelHash,
+        string manifestURI,
+        string version,
+        string tag
     );
 
-    event ModelActivationChanged(
-        string modelId,
-        uint64 version,
+    event ModelStatusChanged(
+        string indexed modelId,
         bool active
     );
 
     event ModelOwnershipTransferred(
-        string modelId,
-        address oldOwner,
-        address newOwner
+        string indexed modelId,
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+
+    event AdminChanged(
+        address indexed previousAdmin,
+        address indexed newAdmin
+    );
+
+    event AdminGateChanged(
+        address indexed previousAdminGate,
+        address indexed newAdminGate
     );
 
     modifier onlyAdmin() {
@@ -61,7 +75,8 @@ contract ModelRegistry {
     }
 
     modifier onlyOwnerOrAdmin(string memory modelId) {
-        ModelInfo storage info = models[modelId];
+        require(_modelExists[modelId], "ModelRegistry: unknown model");
+        ModelInfo storage info = _models[modelId];
         require(
             msg.sender == info.owner || msg.sender == admin,
             "ModelRegistry: not owner/admin"
@@ -69,161 +84,139 @@ contract ModelRegistry {
         _;
     }
 
-    constructor(address _admin) {
-        admin = _admin;
+    constructor(address initialAdmin) {
+        require(initialAdmin != address(0), "ModelRegistry: admin=0");
+        admin = initialAdmin;
+        emit AdminChanged(address(0), initialAdmin);
     }
+
+    // --- Admin configuration ---
 
     function setAdmin(address newAdmin) external onlyAdmin {
-        require(newAdmin != address(0), "ModelRegistry: zero admin");
+        require(newAdmin != address(0), "ModelRegistry: admin=0");
+        address prev = admin;
         admin = newAdmin;
+        emit AdminChanged(prev, newAdmin);
     }
 
-    // -------- Views (for agents) --------
-
-    function getModelOwner(string memory modelId) external view returns (address) {
-        return models[modelId].owner;
+    function setAdminGate(address newAdminGate) external onlyAdmin {
+        address prev = adminGate;
+        adminGate = newAdminGate;
+        emit AdminGateChanged(prev, newAdminGate);
     }
 
-    function getLatestVersion(string memory modelId) external view returns (uint64) {
-        return models[modelId].latestVersion;
-    }
+    // --- Model lifecycle ---
 
-    function getModelVersion(
-        string memory modelId,
-        uint64 version
-    )
-        external
-        view
-        returns (
-            bytes32 hash_,
-            string memory uri_,
-            bytes32 policyTag_,
-            string memory metadata_,
-            bool active_
-        )
-    {
-        ModelInfo storage info = models[modelId];
-        Version storage v = info.versions[version];
-        return (v.hash, v.uri, v.policyTag, v.metadata, v.active);
-    }
-
-    function getActiveVersion(string memory modelId) external view returns (uint64) {
-        ModelInfo storage info = models[modelId];
-        uint64 latest = info.latestVersion;
-        if (latest == 0) return 0;
-        Version storage v = info.versions[latest];
-        if (v.active) {
-            return latest;
-        }
-        // v1: simple behavior — if latest is not active, return 0.
-        // Future versions could scan backwards for last active.
-        return 0;
-    }
-
-    function isModelActive(
-        string memory modelId,
-        uint64 version
-    ) external view returns (bool) {
-        return models[modelId].versions[version].active;
-    }
-
-    // -------- Core functions --------
-
-    /// @notice Register a new model or add a new version.
-    /// @dev v1 rule: first registration requires admin; later versions can be added by owner or admin.
     function registerModel(
-        string memory modelId,
-        bytes32 hash_,
-        string memory uri_,
-        bytes32 policyTag_,
-        string memory metadata_
-    ) external {
-        require(hash_ != bytes32(0), "ModelRegistry: empty hash");
+        string calldata modelId,
+        address owner,
+        uint256 chainId_,
+        bytes32 modelHash,
+        string calldata manifestURI,
+        string calldata version,
+        bool active,
+        string calldata tag
+    ) external onlyAdmin {
         require(bytes(modelId).length != 0, "ModelRegistry: empty id");
+        require(!_modelExists[modelId], "ModelRegistry: already exists");
+        require(owner != address(0), "ModelRegistry: owner=0");
 
-        ModelInfo storage info = models[modelId];
+        ModelInfo storage info = _models[modelId];
+        info.modelId = modelId;
+        info.owner = owner;
+        info.chainId = chainId_;
+        info.modelHash = modelHash;
+        info.manifestURI = manifestURI;
+        info.version = version;
+        info.active = active;
+        info.tag = tag;
 
-        if (!isRegistered[modelId]) {
-            // First registration: only admin to avoid random squatting.
-            require(msg.sender == admin, "ModelRegistry: first reg admin-only");
-            info.owner = msg.sender;
-            info.latestVersion = 1;
-            isRegistered[modelId] = true;
-        } else {
-            // Subsequent versions: owner or admin.
-            require(
-                msg.sender == info.owner || msg.sender == admin,
-                "ModelRegistry: not owner/admin"
-            );
-            info.latestVersion += 1;
-        }
+        _modelExists[modelId] = true;
 
-        uint64 vnum = info.latestVersion;
-        Version storage v = info.versions[vnum];
-        v.hash = hash_;
-        v.uri = uri_;
-        v.policyTag = policyTag_;
-        v.metadata = metadata_;
-        v.active = true;
-
-        emit ModelRegistered(modelId, vnum, info.owner, hash_, uri_, policyTag_);
+        emit ModelRegistered(
+            modelId,
+            owner,
+            chainId_,
+            modelHash,
+            manifestURI,
+            version,
+            active,
+            tag
+        );
     }
 
-    /// @notice Update URI/metadata/policyTag for an existing version.
-    function updateModelMeta(
-        string memory modelId,
-        uint64 version,
-        string memory uri_,
-        string memory metadata_,
-        bytes32 policyTag_
+    function updateModel(
+        string calldata modelId,
+        bytes32 newModelHash,
+        string calldata newManifestURI,
+        string calldata newVersion,
+        string calldata newTag
     ) external onlyOwnerOrAdmin(modelId) {
-        require(version != 0, "ModelRegistry: bad version");
+        ModelInfo storage info = _models[modelId];
+        info.modelHash = newModelHash;
+        info.manifestURI = newManifestURI;
+        info.version = newVersion;
+        info.tag = newTag;
 
-        ModelInfo storage info = models[modelId];
-        require(isRegistered[modelId], "ModelRegistry: not registered");
-        require(version <= info.latestVersion, "ModelRegistry: version too high");
-
-        Version storage v = info.versions[version];
-        // Existence check: we at least enforce non-zero hash as "exists" signal.
-        require(v.hash != bytes32(0), "ModelRegistry: version missing");
-
-        v.uri = uri_;
-        v.metadata = metadata_;
-        v.policyTag = policyTag_;
-
-        emit ModelUpdated(modelId, version, uri_, metadata_, policyTag_);
+        emit ModelUpdated(
+            modelId,
+            newModelHash,
+            newManifestURI,
+            newVersion,
+            newTag
+        );
     }
 
-    /// @notice Activate or deactivate a specific model version.
     function setModelActive(
-        string memory modelId,
-        uint64 version,
-        bool active_
+        string calldata modelId,
+        bool active
     ) external onlyOwnerOrAdmin(modelId) {
-        require(version != 0, "ModelRegistry: bad version");
-        ModelInfo storage info = models[modelId];
-        require(isRegistered[modelId], "ModelRegistry: not registered");
-        require(version <= info.latestVersion, "ModelRegistry: version too high");
-
-        Version storage v = info.versions[version];
-        require(v.hash != bytes32(0), "ModelRegistry: version missing");
-
-        v.active = active_;
-        emit ModelActivationChanged(modelId, version, active_);
+        ModelInfo storage info = _models[modelId];
+        info.active = active;
+        emit ModelStatusChanged(modelId, active);
     }
 
-    /// @notice Transfer ownership of a model to another address.
     function transferModelOwnership(
-        string memory modelId,
+        string calldata modelId,
         address newOwner
     ) external onlyOwnerOrAdmin(modelId) {
-        require(newOwner != address(0), "ModelRegistry: zero owner");
-        ModelInfo storage info = models[modelId];
-        require(isRegistered[modelId], "ModelRegistry: not registered");
-
-        address oldOwner = info.owner;
+        require(newOwner != address(0), "ModelRegistry: newOwner=0");
+        ModelInfo storage info = _models[modelId];
+        address prev = info.owner;
         info.owner = newOwner;
+        emit ModelOwnershipTransferred(modelId, prev, newOwner);
+    }
 
-        emit ModelOwnershipTransferred(modelId, oldOwner, newOwner);
+    // --- Views / helpers ---
+
+    function modelExists(string calldata modelId) external view returns (bool) {
+        return _modelExists[modelId];
+    }
+
+    function getModel(
+        string calldata modelId
+    ) external view returns (ModelInfo memory) {
+        require(_modelExists[modelId], "ModelRegistry: unknown model");
+        return _models[modelId];
+    }
+
+    function isActive(
+        string calldata modelId
+    ) external view returns (bool) {
+        return _modelExists[modelId] && _models[modelId].active;
+    }
+
+    function getModelHash(
+        string calldata modelId
+    ) external view returns (bytes32) {
+        require(_modelExists[modelId], "ModelRegistry: unknown model");
+        return _models[modelId].modelHash;
+    }
+
+    function getModelOwner(
+        string calldata modelId
+    ) external view returns (address) {
+        require(_modelExists[modelId], "ModelRegistry: unknown model");
+        return _models[modelId].owner;
     }
 }
