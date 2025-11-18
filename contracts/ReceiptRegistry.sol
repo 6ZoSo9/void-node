@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: VCL 1.0
 pragma solidity ^0.8.20;
 
 /// @title ReceiptRegistry (v1, minimal)

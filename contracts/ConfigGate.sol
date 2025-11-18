@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: VCL 1.0
 pragma solidity ^0.8.20;
 
 /// @title ConfigGate v1 – on-chain config registry for VOID (chainId 2050)

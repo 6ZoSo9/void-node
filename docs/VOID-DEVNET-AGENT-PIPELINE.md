@@ -1,275 +1,307 @@
-# VOID Devnet – Agent + Job + Receipt Pipeline (v1)
+# VOID Devnet – Agent Pipeline (v1)
 
-This doc snapshots how VOID devnet currently wires **AI jobs** and **receipts**
-around the core governance contracts.
+This file documents the **VOID devnet agent pipeline** on chainId 2050.
 
 It covers:
+- On-chain contracts: JobQueue, ReceiptRegistry, AgentRegistry, ModelRegistry, AdminGate
+- Off-chain agent-OS: posting jobs, claiming, writing receipts, completing jobs
+- CLI helpers and metrics files
 
-- On-chain: `AdminGate`, `ModelRegistry`, `JobQueue`
-- Off-chain: devnet jobs/receipts JSONL + agent simulator
-- Observability: Prometheus metrics + alerts
-- Future: `AgentRegistry`, `ReceiptRegistry`, `ModelEvalRegistry`, `DatasetRegistry`
-
----
-
-## 1. On-chain contracts (devnet)
-
-Chain: **VOID devnet (chainId 2050)**
-
-From `docs/VOID-DEVNET-PROTOCOL-STATE.json`:
-
-- **AdminGate**
-  - Address: `0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9`
-  - Role: master-key controlled governance root.
-  - Expected to own / admin other protocol contracts (via `admin()`).
-
-- **ModelRegistry**
-  - Address: `0x8f86403A4DE0BB5791fa46B8e795C547942fE4Cf`
-  - Contract: `contracts/ModelRegistry.sol`
-  - Admin: `AdminGate` (verified with `cast call admin()`).
-  - Purpose: registry of **AI model IDs** and metadata (hash, URI, owner, active flag).
-
-- **JobQueue**
-  - Address: `0x851356ae760d987E095750cCeb3bC6014560891C`
-  - Contract: `contracts/JobQueue.sol`
-  - Admin: `AdminGate` (verified with `cast call admin()`).
-  - Purpose: on-chain registry of **AI jobs**:
-    - who posted
-    - model ID requested
-    - payload hash / URI
-    - lifecycle status (posted, claimed, completed, cancelled, etc.)
-
-These are all controlled by **AdminGate** on devnet and are wired into our
-off-chain pipeline via **JSONL logs + exporters**.
+This is DEVNET ONLY. Mainnet design will evolve, but this is our working, tested reference.
 
 ---
 
-## 2. Off-chain devnet files & scripts
+## 1. Core contracts (devnet)
 
-Working dir:
+All addresses come from:
 
-- Repo: `~/dev/void-node`
-- Devnet ops dir: `ops/devnet/`
+- docs/VOID-DEVNET-PROTOCOL-STATE.json
 
-### 2.1 JSONL logs
+Key fields:
 
-- **Jobs log**
-  - Path: `ops/devnet/jobs.jsonl`
-  - Format: one JSON job per line, e.g.:
+- AdminGate
+- JobQueue
+- ReceiptRegistry
+- AgentRegistry
+- ModelRegistry
+- chainId = 2050
 
-    ```json
-    {
-      "chainId": 2050,
-      "jobId": "0xjob-devnet-1763314469",
-      "status": "posted",
-      "modelId": "gpt-4.1-mini",
-      "postedBy": "0x0000000000000000000000000000000000000000",
-      "agentHint": "obelisk-devnet-manual-1",
-      "createdAt": 1763314469
-    }
-    ```
-
-- **Receipts log**
-  - Path: `ops/devnet/receipts.jsonl`
-  - Format: one JSON receipt per line, e.g.:
-
-    ```json
-    {
-      "chainId": 2050,
-      "jobId": "0xjob-devnet-1763314469",
-      "receiptId": "0xrcpt1",
-      "status": "completed",
-      "modelId": "gpt-4.1-mini",
-      "postedBy": "0x111",
-      "agent": "obelisk-devnet-agent-1",
-      "receiptTs": 1763315728124
-    }
-    ```
-
-These files are the **off-chain mirror** of what on-chain JobQueue and future
-ReceiptRegistry will see.
-
-### 2.2 Devnet helper scripts
-
-Installed under `~/.local/bin/` (devnet only):
-
-- `void-devnet-mk-job.sh`
-  - Creates a **synthetic devnet job** and appends it to `ops/devnet/jobs.jsonl`.
-  - Used for smoke tests.
-
-- `void-devnet-agent-sim.sh`
-  - Reads jobs from `ops/devnet/jobs.jsonl`
-  - Adds receipts into `ops/devnet/receipts.jsonl` for jobs that are missing them.
-  - Acts as a **fake Obelisk agent** for devnet.
-
-- `void-devnet-receipts-exporter.sh`
-  - Reads `ops/devnet/receipts.jsonl`
-  - Emits Prometheus **textfile** metrics:
-    - totals
-    - per-model counts
-
-- `void-devnet-jobs-exporter.sh` (naming may differ, but conceptually):
-  - Reads both `jobs.jsonl` and `receipts.jsonl`
-  - Computes:
-    - jobs with missing receipts
-    - coverage ratios
-    - per-model breakdowns
-
-- `void-devnet-status.sh`
-  - Calls Prometheus for the main devnet metrics and prints them as JSON.
-  - Quick CLI health snapshot for:
-    - models health/admin mismatch
-    - jobs/receipts totals and coverage
-    - per-model stats
-    - devnet contracts health gauges.
-
-- `void-devnet-contract-health.sh`
-  - Uses `cast` to call `admin()` on:
-    - `ModelRegistry`
-    - `JobQueue`
-  - Compares each to `AdminGate`.
-  - Writes textfile metrics like:
-    - `void_devnet_modelregistry_admin_mismatch`
-    - `void_devnet_jobqueue_admin_mismatch`
-    - `void_devnet_contracts_healthy`
+We do **not** hardcode these in scripts; they are read from the state file.
 
 ---
 
-## 3. Systemd + exporters (devnet)
+## 2. Files and metrics
 
-Devnet uses **systemd user services + timers** to keep the simulated agent
-world ticking:
+**Job spool**
 
-- `void-devnet-receipts-exporter.service` / `.timer`
-  - Runs `void-devnet-receipts-exporter.sh`.
-  - Writes `void_devnet_receipts.prom` into the node_exporter textfile dir.
+- docs/VOID-DEVNET-JOB-SPOOL.txt  
+- One jobId (0x…) per line  
+- Used by sweep + dump scripts to find jobs
 
-- `void-devnet-agent-sim.service` / `.timer`
-  - Periodically runs `void-devnet-agent-sim.sh`.
-  - Ensures jobs gain receipts over time for smoke tests.
+**Manifest index**
 
-Textfile metrics are symlinked into:
+- docs/VOID-DEVNET-MANIFEST-INDEX.txt  
+- Format:  
+  `<manifestPath> <jobId>`  
+- manifestPath can be **relative or absolute** (both work)  
+- jobId is 0x… from JobQueue
 
-- `/var/lib/node_exporter/textfile_collector/*.prom`
+**Manifest files**
 
-and then scraped by node_exporter → Prometheus.
+- docs/VOID-DEVNET-MANIFESTS/VOID-DEVNET-MANIFEST-*.json  
+- Each contains:
+  - prompt (human-readable)
+  - chainId
+  - state (contract addresses)
+  - hashes for the prompt/IO payload
 
----
+**Coverage metrics (textfile)**
 
-## 4. Prometheus metrics (devnet)
+- ~/.cache/node-exporter-textfile/void_devnet_coverage.prom  
+- Exported via void-devnet-coverage.sh  
 
-We expose two main **namespaces**:
+Metrics:
 
-1. **Raw devnet textfile metrics**  
-   From node_exporter, e.g.:
+- void_devnet_coverage{chain="devnet"} 0..1
+- void_devnet_jobs_total{chain="devnet"}
+- void_devnet_receipts_total{chain="devnet"}
+- void_devnet_coverage_health{chain="devnet"} (1 if jobs == receipts)
 
-   - `void_devnet_receipts_total{chain="devnet"}`
-   - `void_devnet_receipts_model_total{chain="devnet",model="gpt-4.1-mini"}`
-   - `void_devnet_contracts_healthy{chain="devnet"}`
-   - `void_devnet_modelregistry_admin_mismatch{chain="devnet"}`
-   - `void_devnet_jobqueue_admin_mismatch{chain="devnet"}`
-
-2. **Derived devnet recordings**  
-   Prometheus `record` rules compute:
-
-   - `void:devnet:receipts_total`
-   - `void:devnet:receipts_total_by_model{model="gpt-4.1-mini"}`
-   - `void:devnet:jobs_total`
-   - `void:devnet:jobs_total_by_model{model="gpt-4.1-mini"}`
-   - `void:devnet:jobs_without_receipts`
-   - `void:devnet:jobs_without_receipts_by_model{model="gpt-4.1-mini"}`
-   - `void:devnet:jobs_receipt_coverage`
-   - `void:devnet:jobs_receipt_coverage_by_model{model="gpt-4.1-mini"}`
-   - `void:devnet:models:health`
-   - `void:devnet:models:admin_mismatch`
-
-These are what `~/.local/bin/void-devnet-status.sh` reads and prints.
+Node exporter scrapes a copy of this via its textfile collector.
 
 ---
 
-## 5. Devnet alerts
+## 3. Helper scripts (devnet)
 
-We have several **alert groups** wired for VOID devnet:
+All helpers are in ~/.local/bin unless noted.
 
-### 5.1 Model / ModelRegistry alerts
+### 3.1 Manifest lifecycle
 
-Group: `void-devnet-alerts`:
+**Create a manifest from a prompt**
 
-- `VoidDevnetModelsHealthBad`
-  - Fires if `void:devnet:models:health != 1` for 5m.
+- void-devnet-make-manifest.sh "prompt text"
 
-- `VoidDevnetModelsAdminMismatch`
-  - Fires if `void:devnet:models:admin_mismatch > 0` for 5m.
+Writes JSON under docs/VOID-DEVNET-MANIFESTS/ and prints lines like:
 
-### 5.2 Job coverage alerts
+- file=/path/to/manifest.json  
+- hash=0x…
 
-Same group, for global coverage:
+**Post a job from a manifest**
 
-- `VoidDevnetJobsStuckNoReceipts`
-  - Fires if `void:devnet:jobs_without_receipts > 0` for 10m.
+- void-devnet-post-manifest-job.sh PATH_TO_MANIFEST
 
-- `VoidDevnetJobsCoverageLow`
-  - Fires if `void:devnet:jobs_receipt_coverage < 0.8` for 15m.
+Reads:
 
-### 5.3 Per-model alerts
+- chainId from manifest
+- JobQueue from the protocol state JSON
+- prompt from manifest (for logging)
 
-Group: `void-devnet-model-alerts`:
+Delegates to void-devnet-post-job.sh with:
 
-- `VoidDevnetModelBacklog`
-  - Condition: `void:devnet:jobs_without_receipts_by_model > 0` for 10m.
+- APP_ID=void-demo-app-1  
+- MODEL_ID=void-demo-llm-1  
+- PAYLOAD_HASH from the manifest hash
 
-- `VoidDevnetModelCoverageLow`
-  - Condition: `void:devnet:jobs_receipt_coverage_by_model < 0.8` for 15m.
+Side effects:
 
-### 5.4 Contract health alert
+- Appends jobId to docs/VOID-DEVNET-JOB-SPOOL.txt  
+- Appends `<manifest> <jobId>` to docs/VOID-DEVNET-MANIFEST-INDEX.txt
 
-Group: `void-devnet-contracts-alerts`:
+**Inspect a manifest and its job/receipts**
 
-- `VoidDevnetContractsHealthBad`
-  - Condition: `void_devnet_contracts_healthy != 1` for 5m.
-  - Indicates:
-    - ModelRegistry.admin or JobQueue.admin != AdminGate, or
-    - cast `admin()` calls are failing (e.g., contract replaced or misconfigured).
+- void-devnet-manifest-inspect.sh PATH_TO_MANIFEST
+
+Resolves jobId via MANIFEST-INDEX and prints:
+
+- prompt
+- chainId
+- ReceiptRegistry
+- jobId
+- status + decoded receipts for that job
+
+### 3.2 Jobs and receipts
+
+**Post a raw job (no manifest)**
+
+- void-devnet-post-job.sh
+
+Uses:
+
+- RPC_URL
+- DEVNET_PRIVKEY
+- APP_ID=void-demo-app-1
+- MODEL_ID=void-demo-llm-1
+- PAYLOAD_HASH from script
+
+Appends jobId to the spool.
+
+**Sweep jobs with agent-OS**
+
+- void-devnet-agent-sweep.sh
+
+Reads:
+
+- docs/VOID-DEVNET-JOB-SPOOL.txt
+- docs/VOID-DEVNET-PROTOCOL-STATE.json
+
+For each job:
+
+- If status_raw = 1 (Posted) and hasResult = false:
+  - Calls agent-OS to:
+    - claim job (as DEV_AGENT_ADDR)
+    - write ReceiptRegistry entry
+    - complete job on JobQueue
+- Skips jobs already in HAS_RECEIPTS
+
+**Dump jobs**
+
+- void-devnet-dump-jobs.sh
+
+Loops over SPOOL and prints:
+
+- job #N: <jobId>  
+- status: … (e.g. HAS_RECEIPTS)  
+- receiptIds: [0x…] when present
+
+**Dump receipts**
+
+- void-devnet-dump-receipts.sh
+
+For each job in SPOOL:
+
+- Looks up receipt IDs
+- Prints decoded receipt fields:
+  - jobId
+  - receiptId
+  - agent address
+  - modelId
+  - input/output/model/result hashes
+  - chainId
+  - timestamp
+  - status
 
 ---
 
-## 6. Where this is heading (next steps)
+## 4. One-shot run: manifest → job → receipt → coverage
 
-This devnet slice proves:
+High-level one-button flow:
 
-- AdminGate, ModelRegistry, JobQueue are wired with a **single admin root**.
-- Off-chain jobs + receipts can be:
-  - Logged (`jobs.jsonl`, `receipts.jsonl`)
-  - Simulated (agent sim)
-  - Measured (Prometheus metrics + coverage)
-  - Alerted on (backlog & coverage alerts, per-model).
+1. Create manifest from prompt  
+2. Post job from manifest  
+3. Sweep jobs with agent-OS  
+4. Recompute coverage  
+5. Inspect manifest → job → receipts
 
-Next steps for VOID Network, building on this:
+We wrap that in:
 
-1. **Deploy and wire `AgentRegistry` + `ReceiptRegistry` on devnet**
-   - Admin = `AdminGate`
-   - ChainId = 2050
-   - Hook them into:
-     - future Obelisk agents
-     - future on-chain audits of receipts.
+- void-devnet-manifest-run.sh
 
-2. **Extend exporters**
-   - Read from real on-chain AgentRegistry / ReceiptRegistry instead of only JSONL.
-   - Keep JSONL as the “off-chain ground truth” for agent processing.
+Example:
 
-3. **Integrate ModelEval & Dataset registries (later phase)**
-   - ModelEvalRegistry: store evaluation runs, scores, and hashes.
-   - DatasetRegistry: track datasets, owners, licenses, and hashes.
+- Set env:
 
-4. **Obelisk Wallet devnet agent**
-   - Replace the simple `void-devnet-agent-sim.sh` with a real Obelisk Agent that:
-     - Reads JobQueue on-chain
-     - Fetches payloads from VOID storage
-     - Runs models
-     - Writes receipts on-chain (ReceiptRegistry) and off-chain (JSONL)
-     - Updates metrics.
+  - RPC_URL="http://127.0.0.1:8545"  
+  - DEVNET_PRIVKEY='<devnet private key>'
 
-This document is the **canonical devnet spec** for the current agent/job/receipt
-pipeline. When we evolve the contracts or exporters, this file should be updated
-to match and tagged alongside protocol changes.
+- Then run:
 
+  ~/.local/bin/void-devnet-manifest-run.sh "demo: write a haiku about Void devnet vN"
+
+That script:
+
+1. Calls void-devnet-make-manifest.sh
+2. Calls void-devnet-post-manifest-job.sh
+3. Calls void-devnet-agent-sweep.sh
+4. Calls void-devnet-coverage.sh
+5. Calls void-devnet-manifest-inspect.sh on the new manifest
+
+End result:
+
+- jobs_total and receipts_total incremented
+- void_devnet_coverage == 1
+- manifest mapped to jobId in MANIFEST-INDEX
+- job in HAS_RECEIPTS state
+
+---
+
+## 5. Quick status dashboard (ops helper)
+
+We have an ops helper under ops/:
+
+- ops/void-devnet-status.sh
+
+Usage:
+
+- cd ~/dev/void-node  
+- ./ops/void-devnet-status.sh
+
+It prints:
+
+1. Repo + RPC_URL
+2. Job spool path and jobs_in_spool
+3. Coverage snapshot (void_devnet_coverage.prom)
+4. Tail of VOID-DEVNET-MANIFEST-INDEX.txt (latest manifest → job pairs)
+5. Compact job summary via void-devnet-dump-jobs.sh
+
+This is the top-level sanity check for the devnet agent pipeline.
+
+---
+
+## 6. Typical workflows
+
+### 6.1 Run a new demo job from a prompt
+
+1. One-shot run:
+
+   cd ~/dev/void-node  
+   export RPC_URL="http://127.0.0.1:8545"  
+   export DEVNET_PRIVKEY='0x…'  
+
+   ~/.local/bin/void-devnet-manifest-run.sh "demo: write a haiku about Void devnet vX"
+
+2. Status:
+
+   ./ops/void-devnet-status.sh
+
+You should see:
+
+- coverage=1
+- jobs_total and receipts_total bumped
+- New `<manifest> <jobId>` in MANIFEST-INDEX
+- New job in job summary with HAS_RECEIPTS
+
+### 6.2 Inspect the latest manifest
+
+   cd ~/dev/void-node  
+   MANIFEST=$(ls -1t docs/VOID-DEVNET-MANIFESTS/VOID-DEVNET-MANIFEST-*.json | head -1)  
+   ~/.local/bin/void-devnet-manifest-inspect.sh "$MANIFEST"
+
+Shows:
+
+- prompt
+- jobId
+- status
+- decoded receipt(s)
+
+---
+
+## 7. Future upgrades (notes)
+
+Potential upgrades for this pipeline:
+
+- Real model IO:
+  - Replace fixed INPUT/OUTPUT/RESULT hashes with actual LLM calls
+  - Compute hashes over real prompt + response payload
+- Persistence:
+  - Local per-job log dir with:
+    - manifest JSON
+    - full model response
+    - receipt metadata
+- Monitoring:
+  - Prometheus rules/alerts on:
+    - void_devnet_coverage_health == 0
+    - jobs advancing without receipts
+    - last receipt timestamp going stale
+
+For now the devnet pipeline is functionally complete:
+on-chain jobs, off-chain agent, receipts, and coverage gauges.
