@@ -53,3 +53,7 @@ node:*
 !ops/systemd/
 !ops/systemd/**
 out/
+# VOID devnet runtime artifacts (do not version)
+docs/VOID-DEVNET-JOB-SPOOL.txt
+docs/VOID-DEVNET-MANIFEST-INDEX.txt
+docs/VOID-DEVNET-MANIFESTS/
