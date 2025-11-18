@@ -2,28 +2,23 @@
   "chainId": 2050,
   "AdminGate": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "ModelRegistry": {
-    "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-    "deployedBlock": 1284,
-    "chainId": 2050
+    "address": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
+    "admin": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
   },
   "DatasetRegistry": {
-    "address": "",
-    "deployedBlock": 0,
-    "chainId": 2050
+    "address": "0x6080346100e257601f610ef83881900391820160"
   },
   "JobQueue": {
-    "address": "",
-    "deployedBlock": 0,
-    "chainId": 2050
+    "address": "0x922D6956C99E12DFeB3224DEA977D0939758A1Fe",
+    "admin": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
   },
   "AgentRegistry": {
-    "address": "",
-    "deployedBlock": 0,
-    "chainId": 2050
+    "address": "0x1fA02b2d6A771842690194Cf62D91bdd92BfE28d"
   },
   "ReceiptRegistry": {
-    "address": "",
-    "deployedBlock": 0,
-    "chainId": 2050
+    "address": "0x04C89607413713Ec9775E14b954286519d836FEf",
+    "admin": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "jobQueue": "0x922D6956C99E12DFeB3224DEA977D0939758A1Fe",
+    "agentRegistry": "0x1fA02b2d6A771842690194Cf62D91bdd92BfE28d"
   }
 }

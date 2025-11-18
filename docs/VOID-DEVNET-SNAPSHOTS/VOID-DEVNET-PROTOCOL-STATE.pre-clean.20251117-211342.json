@@ -1,0 +1,13 @@
+{
+  "chainId": 2050,
+
+  // For now we treat the dev EOA as the AdminGate / master key.
+  // Later we can point this at a real AdminGate contract.
+  "AdminGate": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+
+  // These will be filled by the deploy script with real addresses.
+  "ModelRegistry": null,
+  "DatasetRegistry": null,
+  "JobQueue": null,
+  "AgentRegistry": null
+}

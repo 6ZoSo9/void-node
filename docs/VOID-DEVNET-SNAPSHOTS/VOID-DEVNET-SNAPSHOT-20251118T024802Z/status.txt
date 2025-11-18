@@ -1,0 +1,51 @@
+[status] repo=/home/zoso/dev/void-node
+[status] RPC_URL=http://127.0.0.1:8545
+
+[status] job spool: /home/zoso/dev/void-node/docs/VOID-DEVNET-JOB-SPOOL.txt
+[status] jobs_in_spool=11
+
+[status] recomputing coverage...
+[status] coverage snapshot: /home/zoso/.cache/node-exporter-textfile/void_devnet_coverage.prom
+# HELP void_devnet_coverage Job coverage on VOID devnet (0..1)
+# TYPE void_devnet_coverage gauge
+void_devnet_coverage{chain="devnet"} 1
+# HELP void_devnet_jobs_total Total jobs ever posted on VOID devnet
+# TYPE void_devnet_jobs_total gauge
+void_devnet_jobs_total{chain="devnet"} 14
+# HELP void_devnet_receipts_total Total receipts ever recorded on VOID devnet
+# TYPE void_devnet_receipts_total gauge
+void_devnet_receipts_total{chain="devnet"} 14
+# HELP void_devnet_coverage_health 1 if jobs==receipts, else 0
+# TYPE void_devnet_coverage_health gauge
+void_devnet_coverage_health{chain="devnet"} 1
+
+[status] latest manifest → job mapping (tail): /home/zoso/dev/void-node/docs/VOID-DEVNET-MANIFEST-INDEX.txt
+docs/VOID-DEVNET-MANIFESTS/VOID-DEVNET-MANIFEST-20251118T011602Z.json 0xed47496963a036a59d2b398e3af6ab952db3daf49ce922550f2832d98bce4e9c
+/home/zoso/dev/void-node/docs/VOID-DEVNET-MANIFESTS/VOID-DEVNET-MANIFEST-20251118T012852Z.json 0x7c34ec7e27958437d6f719a975df5b9399125a45447a9daac866ed935f4dbcaa
+docs/VOID-DEVNET-MANIFESTS/VOID-DEVNET-MANIFEST-20251118T013054Z.json 0x432d210ba738332d065808a2a3c863e3e37af22aeb8ef0ccd73840413149c529
+docs/VOID-DEVNET-MANIFESTS/VOID-DEVNET-MANIFEST-20251118T021541Z.json 0x04e708ef19d2efcdd19337294c0cba8bedb67710799dd1cf5b9fdf61bf6e5226
+docs/VOID-DEVNET-MANIFESTS/VOID-DEVNET-MANIFEST-20251118T022210Z.json 0xb1484bafb4739f90ecfb3558e78cb0d88ab09bda9e9cf7c5e34578a6f696be1a
+
+[status] jobs summary (from dump-jobs; truncated)...
+=== job #1: 0x5aec4d68f44a5761ee6cbbe720c0023e1aca6734462daccf99425857c3115e34 ===
+status: HAS_RECEIPTS
+=== job #2: 0xccb508cdd79af2d3b63a92e93578b4134576c5517d90cdce82f571c60150d08d ===
+status: HAS_RECEIPTS
+=== job #3: 0x5f32e1ec343704ccf490d0d2f7bd2faad9c332afcda0c81b6d50d61ba2429e99 ===
+status: HAS_RECEIPTS
+=== job #4: 0x07ceec8d93479fdbd58fc9e3c4356f2f48359681659710b3bd88e02af8ceacf7 ===
+status: HAS_RECEIPTS
+=== job #5: 0x6e12bf37a8d97055437c01f3f13452911b67db0ae2d6d7a9e55a4371ced9cf5f ===
+status: HAS_RECEIPTS
+=== job #6: 0x6cf30de5c05185452111cd2fe7d336f5e1d4ad16b06a0f9c3b20dab7acb0e0d1 ===
+status: HAS_RECEIPTS
+=== job #7: 0xed47496963a036a59d2b398e3af6ab952db3daf49ce922550f2832d98bce4e9c ===
+status: HAS_RECEIPTS
+=== job #8: 0x7c34ec7e27958437d6f719a975df5b9399125a45447a9daac866ed935f4dbcaa ===
+status: HAS_RECEIPTS
+=== job #9: 0x432d210ba738332d065808a2a3c863e3e37af22aeb8ef0ccd73840413149c529 ===
+status: HAS_RECEIPTS
+=== job #10: 0x04e708ef19d2efcdd19337294c0cba8bedb67710799dd1cf5b9fdf61bf6e5226 ===
+status: HAS_RECEIPTS
+=== job #11: 0xb1484bafb4739f90ecfb3558e78cb0d88ab09bda9e9cf7c5e34578a6f696be1a ===
+status: HAS_RECEIPTS

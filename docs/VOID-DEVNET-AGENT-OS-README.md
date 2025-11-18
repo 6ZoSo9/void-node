@@ -1,209 +1,324 @@
-# VOID Devnet – Agent OS Loop (v0)
+# VOID Devnet – Agent OS README (v1)
 
-This describes the current **devnet-only** VOID Agent OS loop.
-It is a working prototype, not the final mainnet design.
+This document explains the **VOID devnet agent OS** and how it interacts with:
 
----
+- On-chain contracts (JobQueue, ReceiptRegistry, AgentRegistry, ModelRegistry, AdminGate)
+- Off-chain scripts (`ops/` and `~/.local/bin/`)
+- Systemd timers for sweeps and health checks
+- Coverage metrics for jobs vs receipts
 
-## 1. On-chain pieces (devnet)
-
-All addresses live in:
-
-- docs/VOID-DEVNET-PROTOCOL-STATE.json
-
-Contracts:
-
-- AdminGate          – dev admin / master-key stand-in.
-- ModelRegistry      – tracks models (e.g. "void-demo-llm-1").
-- DatasetRegistry    – tracks datasets (not used heavily yet).
-- JobQueue           – on-chain job registry for AI work.
-- AgentRegistry      – which agents are authorized for which models.
-- ReceiptRegistry    – on-chain receipts for job results.
-
-Devnet constants:
-
-- chainId = 2050
-- Dev admin / dev agent EOA:
-  0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+This is **DEVNET ONLY** for chainId **2050**. Mainnet will evolve from this, but this is the working, tested reference.
 
 ---
 
-## 2. Core scripts
+## 1. On-chain prerequisites (devnet)
 
-### 2.1 System deploy (one-time per fresh devnet)
+Core addresses are taken from:
 
-Script:
+- `docs/VOID-DEVNET-PROTOCOL-STATE.json`
 
-- ops/void-devnet-system-deploy.sh
+Important fields:
 
-Behavior:
+- `chainId` (must be `2050` for devnet)
+- `AdminGate`
+- `JobQueue`
+- `ReceiptRegistry`
+- `AgentRegistry`
+- `ModelRegistry`
 
-- Deploys AdminGate, ModelRegistry, DatasetRegistry, JobQueue, AgentRegistry, ReceiptRegistry.
-- Writes canonical state to:
-  docs/VOID-DEVNET-PROTOCOL-STATE.json
-
-You have already run this and are in a green state.
-
----
-
-### 2.2 Posting jobs (simple payload)
-
-Script:
-
-- ~/.local/bin/void-devnet-post-job.sh
-
-What it does:
-
-- Reads JobQueue address from:
-  docs/VOID-DEVNET-PROTOCOL-STATE.json
-- Posts a job with:
-  APP_ID   = "void-demo-app-1"
-  MODEL_ID = "void-demo-llm-1"
-  PAYLOAD_HASH = random-ish keccak for now (dev only)
-- Appends the new jobId to:
-  docs/VOID-DEVNET-JOB-SPOOL.txt
-
-This is the **stable, supported** posting path right now.
-
-Typical usage:
-
-  export RPC_URL="http://127.0.0.1:8545"
-  export DEVNET_PRIVKEY='<dev-key>'
-  ~/.local/bin/void-devnet-post-job.sh
+The agent OS scripts **never hardcode** these; they read from the JSON state file.
 
 ---
 
-### 2.3 Agent OS – process jobs
+## 2. Key files and directories
 
-Single-job mode:
+### 2.1 State + manifests
 
-- ~/.local/bin/void-agent-os-devnet.sh
-  (expects JOB_ID exported in the environment)
+- `docs/VOID-DEVNET-PROTOCOL-STATE.json`  
+  Canonical devnet state (addresses, chainId, admin, etc.).
 
-Sweep mode (what you actually use):
+- `docs/VOID-DEVNET-MANIFESTS/VOID-DEVNET-MANIFEST-YYYYMMDDTHHMMSSZ.json`  
+  One JSON **manifest per job input** (prompt + metadata).
 
-- ~/.local/bin/void-devnet-agent-sweep.sh
+- `docs/VOID-DEVNET-MANIFEST-INDEX.txt`  
+  Mapping of **manifest → jobId**.  
+  Format (space-separated):  
+  `<manifestPath> <jobId>`
 
-Sweep behavior:
+### 2.2 Job spool
 
-1. Reads protocol state from:
-   docs/VOID-DEVNET-PROTOCOL-STATE.json
-2. Iterates jobIds in:
-   docs/VOID-DEVNET-JOB-SPOOL.txt
-3. For each jobId:
-   - Reads status and result from JobQueue.
-   - If status == Posted:
-       claim job as DEV_AGENT_ADDR.
-   - If status == Claimed and no result:
-       submit a new ReceiptRegistry entry.
-   - If status == Completed and hasResult == true:
-       skip (already done).
+- `docs/VOID-DEVNET-JOB-SPOOL.txt`  
+  One `jobId` (0x…) per line.  
+  This is the **source of truth** for jobs that the sweep script inspects.
 
-Dev constants used by the agent:
+### 2.3 Coverage metrics
 
-- MODEL_ID   = "void-demo-llm-1"
-- INPUT_HASH  = fixed keccak("void-demo-job-1:input")
-- OUTPUT_HASH = fixed keccak("void-demo-job-1:output")
-- MODEL_HASH  = fixed keccak("void-demo-llm-1:v0.1")
-- RESULT_HASH = fixed keccak("void-demo-result:v0")
+- `~/.cache/node-exporter-textfile/void_devnet_coverage.prom`  
+  Textfile exposing devnet coverage metrics:
 
-These are placeholders; real mainnet will use actual manifests / payloads.
+  - `void_devnet_coverage{chain="devnet"}` (0..1)
+  - `void_devnet_jobs_total{chain="devnet"}`
+  - `void_devnet_receipts_total{chain="devnet"}`
+  - `void_devnet_coverage_health{chain="devnet"}` (1 if jobs==receipts)
 
-End result:
-
-- Every posted devnet job eventually has:
-  - A ReceiptRegistry entry.
-  - A completed JobQueue status with RESULT_HASH filled.
+This cache file is what the status and health scripts read, and is intended to be scraped (directly or via node_exporter textfile).
 
 ---
 
-## 3. Coverage script and metrics
+## 3. Core scripts
 
-Script:
+### 3.1 System deploy (contracts)
 
-- ~/.local/bin/void-devnet-coverage.sh
+- `ops/void-devnet-system-deploy.sh`  
+- `ops/void-devnet-system-deploy-v2.sh`  
 
-Behavior:
+Deploys the core devnet contracts (AdminGate, JobQueue, ReceiptRegistry, AgentRegistry, ModelRegistry), then writes:
 
-1. Reads JobQueue and ReceiptRegistry addresses from protocol state.
-2. Counts:
-   - total jobs on devnet.
-   - total receipts recorded.
-3. Computes:
-   coverage = receipts / max(jobs, 1).
-4. Writes a node-exporter textfile to:
-   ~/.cache/node-exporter-textfile/void_devnet_coverage.prom
-   (and your pipeline mirrors this into /var/lib/node_exporter/textfile_collector)
+- `docs/VOID-DEVNET-PROTOCOL-STATE.json` (addresses, chainId=2050)
+- Any additional metadata required by the agent OS
 
-Metrics exposed:
-
-- void_devnet_jobs_total{chain="devnet"}
-- void_devnet_receipts_total{chain="devnet"}
-- void_devnet_coverage{chain="devnet"}        (float 0..1)
-- void_devnet_coverage_health{chain="devnet"} (1 if jobs == receipts, else 0)
-
-You already installed a Prometheus alert:
-
-- Fires when void_devnet_coverage_health == 0 for some window:
-  "there are jobs without matching receipts".
+These scripts are **prerequisites** for everything else.
 
 ---
 
-## 4. Normal devnet operator flow
+### 3.2 High-level manifest runner
 
-Environment:
+- `~/.local/bin/void-devnet-manifest-run.sh`
 
-  cd ~/dev/void-node
-  export RPC_URL="http://127.0.0.1:8545"
-  export DEVNET_PRIVKEY='<dev-key>'
+This is the main **end-to-end driver** for a single job.
 
-1. Post jobs:
+**Step 1 – Create manifest from prompt**
 
-  ~/.local/bin/void-devnet-post-job.sh
-  ~/.local/bin/void-devnet-post-job.sh
-  (run as many times as you want)
+- Takes a prompt string, e.g.:  
+  `demo: write a haiku about Void devnet v7`
+- Writes a new manifest JSON under `docs/VOID-DEVNET-MANIFESTS/`.
+- Computes `payloadHash` from the manifest.
+- Logs the manifest path and hash.
 
-2. Sweep with the agent OS:
+**Step 2 – Post job from manifest**
 
-  ~/.local/bin/void-devnet-agent-sweep.sh
+- Reads `JobQueue` and `chainId` from `docs/VOID-DEVNET-PROTOCOL-STATE.json`.
+- Calls `void-devnet-post-job.sh` with:
+  - `APP_ID=void-demo-app-1`
+  - `MODEL_ID=void-demo-llm-1`
+  - `PAYLOAD_HASH=<hash of manifest>`
+- On success, gets a `jobId` and:
+  - Appends `jobId` to `docs/VOID-DEVNET-JOB-SPOOL.txt`.
+  - Records `manifest → jobId` in `docs/VOID-DEVNET-MANIFEST-INDEX.txt`.
 
-3. Check coverage:
+**Step 3 – Sweep jobs with agent OS**
 
-  RPC_URL="http://127.0.0.1:8545" ~/.local/bin/void-devnet-coverage.sh
-  sed -n '1,40p' ~/.cache/node-exporter-textfile/void_devnet_coverage.prom
+- Delegates to the sweep script (see below).
+- The sweep finds the new job, runs agent OS, writes a receipt, and completes the job.
 
-Healthy output looks like:
+**Step 4 – Recompute coverage**
 
-- void_devnet_jobs_total{chain="devnet"} N
-- void_devnet_receipts_total{chain="devnet"} N
-- void_devnet_coverage{chain="devnet"} 1
-- void_devnet_coverage_health{chain="devnet"} 1
+- Rebuilds `void_devnet_coverage.prom` by scanning all jobs and receipts on-chain.
+- Sets:
+  - `coverage = receipts / jobs`
+  - `coverage_health = 1` if `coverage == 1`, else `0`.
 
-If coverage < 1:
+**Step 5 – Inspect manifest → job → receipts**
 
-- There are more jobs than receipts.
-- Run the sweep again or debug JobQueue / ReceiptRegistry.
+- Runs a manifest inspection pass so you can immediately see:
+  - `jobId`
+  - Receipt IDs and core fields (modelId, hashes, timestamps, status).
+
+Example usage (from repo root):
+
+    ~/.local/bin/void-devnet-manifest-run.sh "demo: write a haiku about Void devnet vN"
 
 ---
 
-## 5. Manifest jobs (experimental)
+### 3.3 Sweep jobs (agent OS integration)
 
-You also have:
+- `~/.local/bin/void-devnet-agent-sweep.sh`  
+  (Wrapped by systemd timer `void-devnet-agent-sweep.timer`.)
 
-- ~/.local/bin/void-devnet-make-manifest.sh
-- ~/.local/bin/void-devnet-post-manifest-job.sh
+Responsibilities:
 
-Current status:
+1. Read state from:
+   - `docs/VOID-DEVNET-PROTOCOL-STATE.json`
+   - `docs/VOID-DEVNET-JOB-SPOOL.txt`
 
-- make-manifest works and writes JSON under:
-  docs/VOID-DEVNET-MANIFESTS/
-- post-manifest-job currently reverts with a bare 0x
-  (some require() in the JobQueue path is failing).
+2. For each `jobId` in the spool:
+   - Query on-chain status via JobQueue:
+     - `status_raw`
+     - `hasResult`
+   - If `status_raw == 3` **and** `hasResult == true` → skip (already fully processed).
+   - If `status_raw == 1` (Posted) and `hasResult == false` → **hand off to agent OS**.
 
-Conclusion:
+3. When processing a job:
+   - Calls the agent OS script with environment variables:
+     - `STATE_FILE=docs/VOID-DEVNET-PROTOCOL-STATE.json`
+     - `RPC_URL`
+     - `JOB_ID`
+     - `MODEL_ID` (currently `void-demo-llm-1` for demo)
+     - `INPUT_HASH`, `OUTPUT_HASH`, `MODEL_HASH`, `RESULT_HASH` (demo values)
+   - The agent OS then:
+     - Claims the job on JobQueue.
+     - Submits a receipt to ReceiptRegistry.
+     - Marks the job as completed (status=3) with the `RESULT_HASH`.
 
-- Manifest-based jobs are **not** part of the stable devnet path yet.
-- The canonical, working path is:
-  simple payload job -> Agent OS sweep -> ReceiptRegistry coverage == 1.
+If agent OS fails for a job (e.g., `nonce too low`), the sweep script logs a **WARN** but does not abort overall processing. You can rerun the sweep later.
 
-This README captures the working v0 loop so we do not lose it in shell history.
+---
+
+### 3.4 Agent OS script (on-chain actions only)
+
+The agent OS script is responsible for **on-chain side effects only**. It does **not** run real LLM inference yet; it uses placeholder hashes.
+
+High-level steps for one job:
+
+1. Load **state** from `docs/VOID-DEVNET-PROTOCOL-STATE.json`:
+   - `AdminGate`
+   - `JobQueue`
+   - `ReceiptRegistry`
+   - `AgentRegistry`
+   - `chainId`
+
+2. Verify `JOB_ID` status via JobQueue:
+   - If `status != 1` (not Posted) or `hasResult == true`, abort.
+
+3. **Claim job**:
+   - Send a tx to JobQueue to claim the job under `DEV_AGENT_ADDR`.
+   - On success, status becomes `2` (Claimed).
+
+4. **Submit receipt**:
+   - Call `ReceiptRegistry` with:
+     - `jobId`
+     - `receiptId` (derived)
+     - `modelId` (e.g., `void-demo-llm-1`)
+     - `inputHash`, `outputHash`, `modelHash`, `resultHash`
+   - On success, a `ReceiptRecorded` event is emitted.
+
+5. **Complete job**:
+   - Final tx to JobQueue to mark job as completed:
+     - Includes `RESULT_HASH`.
+   - On success:
+     - Job status becomes `3`.
+     - `hasResult == true`.
+
+Later phases will replace the fixed hashes with real **off-chain inference** + hashing pipeline. For now, this is a **skeleton agent** that proves:
+
+- Job lifecycle works end to end.
+- Receipts are written and linked to jobs.
+- Coverage metrics can hit and stay at 1.0.
+
+---
+
+### 3.5 Status + health wrappers
+
+- `ops/void-devnet-status.sh`  
+  Recomputes coverage from on-chain JobQueue + ReceiptRegistry, writes `void_devnet_coverage.prom`, and prints:
+
+  - `coverage`, `jobs`, `receipts`, `coverage_health`
+  - Tail of `VOID-DEVNET-MANIFEST-INDEX.txt`
+  - Truncated job summaries (`HAS_RECEIPTS` vs `NO_RECEIPTS`).
+
+- `ops/void-devnet-agent-health.sh`  
+  Thin wrapper around `void-devnet-status.sh`. It:
+
+  - Reads the coverage file.
+  - Sets exit code:
+    - `0` when `coverage_health == 1`
+    - Non-zero otherwise.
+
+Used by systemd as a periodic **health probe**.
+
+---
+
+## 4. Systemd integration (user services)
+
+All systemd units here are **user units**, located at:
+
+- `~/.config/systemd/user/`
+
+### 4.1 Agent sweep timer
+
+Service:
+
+- `void-devnet-agent-sweep.service`
+
+  - `Type=oneshot`
+  - `WorkingDirectory=%h/dev/void-node`
+  - `ExecStart=%h/dev/void-node/ops/void-devnet-agent-sweep.sh`
+
+Timer:
+
+- `void-devnet-agent-sweep.timer`
+
+  - `OnBootSec=60s`
+  - `OnUnitActiveSec=60s` (example dev interval)
+  - `Persistent=true`
+
+Typical dev commands:
+
+    systemctl --user enable --now void-devnet-agent-sweep.timer
+    systemctl --user list-timers 'void-devnet-agent-sweep*'
+    journalctl --user -u void-devnet-agent-sweep.service -n 30 -o cat
+
+### 4.2 Agent health timer
+
+Service:
+
+- `void-devnet-agent-health.service`
+
+  - `Type=oneshot`
+  - `WorkingDirectory=%h/dev/void-node`
+  - `ExecStart=%h/dev/void-node/ops/void-devnet-agent-health.sh`
+
+Timer:
+
+- `void-devnet-agent-health.timer`
+
+  - `OnBootSec=2min`
+  - `OnUnitActiveSec=5min`
+  - `AccuracySec=30s`
+  - `Persistent=true`
+
+Typical dev commands:
+
+    systemctl --user enable --now void-devnet-agent-health.timer
+    systemctl --user list-timers 'void-devnet-agent-health*'
+    journalctl --user -u void-devnet-agent-health.service -n 30 -o cat
+
+A non-zero exit from `void-devnet-agent-health.service` means **coverage broken** (jobs != receipts) or some other failure in the status script.
+
+---
+
+## 5. Expected green-state
+
+When everything is healthy on devnet, you should see:
+
+### 5.1 Status script
+
+    ./ops/void-devnet-status.sh
+
+Output should include:
+
+- `void_devnet_coverage{chain="devnet"} 1`
+- `void_devnet_jobs_total{chain="devnet"} N`
+- `void_devnet_receipts_total{chain="devnet"} N`
+- `void_devnet_coverage_health{chain="devnet"} 1`
+- All jobs in the summary listed as `HAS_RECEIPTS`.
+
+### 5.2 Agent health
+
+    ./ops/void-devnet-agent-health.sh
+    echo "[exit code] $?"
+
+Exit code should be `0` when green.
+
+### 5.3 Systemd timers
+
+    systemctl --user list-timers 'void-devnet-agent-*'
+
+Both sweep and health timers present, with recent `LAST` and sane `NEXT` values.
+
+This gives you a **self-healing devnet loop**:
+
+- New jobs are posted (manually or via demo scripts).
+- Agent OS claims, writes receipts, and completes jobs.
+- Coverage metric tracks jobs vs receipts.
+- Timers keep sweeping and checking health in the background.

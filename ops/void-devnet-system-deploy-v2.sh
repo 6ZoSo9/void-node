@@ -1,184 +1,128 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Simple, *real broadcast* deploy script for VOID devnet
-# Requirements:
-#   - RPC_URL (default: http://127.0.0.1:8545)
-#   - DEVNET_PRIVKEY (your dev EOA key)
-#   - DEVNET_BROADCAST=1 (we refuse to run without this)
+### CONFIG / ENV ###
 
-RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STATE="$REPO/docs/VOID-DEVNET-PROTOCOL-STATE.json"
+REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+cd "$REPO"
 
-DEVNET_PRIVKEY="${DEVNET_PRIVKEY:-}"
-DEVNET_BROADCAST="${DEVNET_BROADCAST:-0}"
+STATE_FILE="docs/VOID-DEVNET-PROTOCOL-STATE.json"
 
-if [[ -z "$DEVNET_PRIVKEY" ]]; then
-  echo "[system-deploy-v2] ERROR: DEVNET_PRIVKEY is not set" >&2
+: "${RPC_URL:?RPC_URL must be set}"
+: "${DEVNET_PRIVKEY:?DEVNET_PRIVKEY must be set}"
+
+# Hard-lock: you MUST opt-in to broadcasting
+if [[ "${DEVNET_BROADCAST:-0}" != "1" ]]; then
+  echo "[system-deploy-v2] DEVNET_BROADCAST != 1"
+  echo "[system-deploy-v2] Refusing to run a fake dry-run that corrupts state."
+  echo "[system-deploy-v2] Export DEVNET_BROADCAST=1 if you really want to send txs."
   exit 1
 fi
 
-if [[ "$DEVNET_BROADCAST" != "1" ]]; then
-  echo "[system-deploy-v2] REFUSING to run without DEVNET_BROADCAST=1" >&2
-  echo "[system-deploy-v2] If you want a dry run, call forge create manually." >&2
-  exit 1
-fi
-
-if ! command -v forge >/dev/null 2>&1; then
-  echo "[system-deploy-v2] ERROR: forge not found in PATH" >&2
-  exit 1
-fi
-
+# Derive deployer address from the private key
 if ! command -v cast >/dev/null 2>&1; then
-  echo "[system-deploy-v2] ERROR: cast not found in PATH" >&2
-  exit 1
+  echo "[ERR] 'cast' not found in PATH"; exit 1
 fi
 
-if [[ ! -f "$STATE" ]]; then
-  echo "[system-deploy-v2] ERROR: state file not found: $STATE" >&2
-  exit 1
-fi
+DEPLOYER_ADDR=$(cast wallet address "$DEVNET_PRIVKEY")
+echo "[system-deploy-v2] repo:    $REPO"
+echo "[system-deploy-v2] RPC_URL: $RPC_URL"
+echo "[system-deploy-v2] deployer: $DEPLOYER_ADDR"
 
-CHAIN_ID="$(jq -r '.chainId' "$STATE" 2>/dev/null || echo "")"
-if [[ "$CHAIN_ID" != "2050" ]]; then
-  echo "[system-deploy-v2] ERROR: expected chainId 2050 in $STATE, got '$CHAIN_ID'" >&2
-  exit 1
-fi
+CHAIN_ID="2050"   # VOID devnet; change only if you change the chain
 
-ADMIN_GATE="$(jq -r '.AdminGate' "$STATE" 2>/dev/null || echo "")"
-if [[ -z "$ADMIN_GATE" || "$ADMIN_GATE" == "null" ]]; then
-  echo "[system-deploy-v2] WARN: AdminGate missing in state; using dev deployer as AdminGate" >&2
-fi
+### HELPER: forge create -> deployed address (JSON) ###
 
-DEPLOYER="$(cast wallet address "$DEVNET_PRIVKEY" 2>/dev/null || echo "")"
-if [[ -z "$DEPLOYER" ]]; then
-  echo "[system-deploy-v2] ERROR: could not derive deployer from DEVNET_PRIVKEY" >&2
-  exit 1
-fi
+deploy_contract() {
+  local out_var="$1"    # name of shell var to set
+  local path="$2"       # e.g. contracts/ModelRegistry.sol
+  local name="$3"       # e.g. ModelRegistry
+  shift 3
+  local ctor_args=("$@")
 
-if [[ -z "$ADMIN_GATE" || "$ADMIN_GATE" == "null" ]]; then
-  ADMIN_GATE="$DEPLOYER"
-fi
+  echo "[deploy] $name (${path}:${name})"
 
-echo "[system-deploy-v2] repo:     $REPO"
-echo "[system-deploy-v2] RPC_URL:  $RPC_URL"
-echo "[system-deploy-v2] STATE:    $STATE"
-echo "[system-deploy-v2] chainId:  $CHAIN_ID"
-echo "[system-deploy-v2] deployer: $DEPLOYER"
-echo "[system-deploy-v2] AdminGate:$ADMIN_GATE"
-echo "[system-deploy-v2] mode:     LIVE BROADCAST (no dry run)"
-echo
-
-deploy_one() {
-  local label="$1"
-  local fqcn="$2"
-  local ctor_arg="${3:-}"
-
-  echo "[system-deploy-v2] deploying $label ($fqcn) ..." >&2
-
-  local out
-  if [[ -n "$ctor_arg" ]]; then
-    out="$(forge create "$fqcn" \
+  local forge_json
+  if ! forge_json=$(
+    forge create "${path}:${name}" \
       --rpc-url "$RPC_URL" \
       --private-key "$DEVNET_PRIVKEY" \
-      --constructor-args "$ctor_arg" \
-      --broadcast 2>&1 | tee /dev/stderr)"
-  else
-    out="$(forge create "$fqcn" \
-      --rpc-url "$RPC_URL" \
-      --private-key "$DEVNET_PRIVKEY" \
-      --broadcast 2>&1 | tee /dev/stderr)"
-  fi
-
-  local addr tx block_hex block_dec
-  addr="$(grep -Eo 'Deployed to: (0x[0-9a-fA-F]{40})' <<<"$out" | awk '{print $3}' | tail -n1 || true)"
-  tx="$(grep -Eo 'Transaction hash: (0x[0-9a-fA-F]{64})' <<<"$out" | awk '{print $3}' | tail -n1 || true)"
-
-  if [[ -z "$addr" || -z "$tx" ]]; then
-    echo "[system-deploy-v2] ERROR: failed to parse address/tx for $label" >&2
+      --constructor-args "${ctor_args[@]}" \
+      --broadcast \
+      --json
+  ); then
+    echo "[ERR] forge create failed for ${name}"
     exit 1
   fi
 
-  block_hex="$(cast receipt "$tx" --rpc-url "$RPC_URL" | jq -r '.blockNumber' 2>/dev/null || echo "0x0")"
-  if [[ "$block_hex" =~ ^0x ]]; then
-    block_dec=$((block_hex))
-  else
-    block_dec="$block_hex"
+  # Foundry JSON has "deployedTo"
+  local addr
+  addr=$(jq -r '.deployedTo // .deployedTo[0]' <<<"$forge_json" || true)
+
+  if [[ ! "$addr" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+    echo "[ERR] could not parse deployed address for ${name}"
+    echo "---- forge output ----"
+    echo "$forge_json"
+    echo "----------------------"
+    exit 1
   fi
 
-  echo "[system-deploy-v2] $label deployed at $addr (block $block_dec, tx $tx)" >&2
-  printf '%s|%s|%s\n' "$label" "$addr" "$block_dec"
+  printf -v "$out_var" '%s' "$addr"
+  echo "[$name] deployed at $addr"
 }
 
-mapfile -t lines < <(
-  deploy_one "ModelRegistry"   "contracts/ModelRegistry.sol:ModelRegistry"         "$ADMIN_GATE"
-  deploy_one "DatasetRegistry" "contracts/DatasetRegistry.sol:DatasetRegistry"     "$ADMIN_GATE"
-  deploy_one "JobQueue"        "contracts/JobQueue.sol:JobQueue"                   "$ADMIN_GATE"
-  deploy_one "AgentRegistry"   "contracts/AgentRegistry.sol:AgentRegistry"         "$ADMIN_GATE"
-  deploy_one "ReceiptRegistry" "contracts/ReceiptRegistry.sol:ReceiptRegistry"     "$ADMIN_GATE"
-)
+### ACTUAL DEPLOYS ###
 
-ModelRegistry_ADDR="";   ModelRegistry_BLOCK=0
-DatasetRegistry_ADDR=""; DatasetRegistry_BLOCK=0
-JobQueue_ADDR="";        JobQueue_BLOCK=0
-AgentRegistry_ADDR="";   AgentRegistry_BLOCK=0
-ReceiptRegistry_ADDR=""; ReceiptRegistry_BLOCK=0
+# All four admin/master parameters are the deployer for devnet.
+ADMIN_ADDR="$DEPLOYER_ADDR"
+MASTER_KEY="$DEPLOYER_ADDR"
 
-for line in "${lines[@]}"; do
-  IFS='|' read -r label addr block <<<"$line"
-  case "$label" in
-    ModelRegistry)    ModelRegistry_ADDR="$addr";   ModelRegistry_BLOCK="$block" ;;
-    DatasetRegistry)  DatasetRegistry_ADDR="$addr"; DatasetRegistry_BLOCK="$block" ;;
-    JobQueue)         JobQueue_ADDR="$addr";        JobQueue_BLOCK="$block" ;;
-    AgentRegistry)    AgentRegistry_ADDR="$addr";   AgentRegistry_BLOCK="$block" ;;
-    ReceiptRegistry)  ReceiptRegistry_ADDR="$addr"; ReceiptRegistry_BLOCK="$block" ;;
-  esac
-done
+echo "[system-deploy-v2] chainId: $CHAIN_ID"
+echo "[system-deploy-v2] admin/masterKey: $ADMIN_ADDR"
 
-tmp="$(mktemp)"
+MODEL_REG_ADDR=""
+DATASET_REG_ADDR=""
+JOBQUEUE_ADDR=""
+AGENT_REG_ADDR=""
+
+deploy_contract MODEL_REG_ADDR   "contracts/ModelRegistry.sol"   "ModelRegistry"   "$ADMIN_ADDR"
+deploy_contract DATASET_REG_ADDR "contracts/DatasetRegistry.sol" "DatasetRegistry" "$MASTER_KEY"
+deploy_contract JOBQUEUE_ADDR    "contracts/JobQueue.sol"        "JobQueue"        "$ADMIN_ADDR"
+deploy_contract AGENT_REG_ADDR   "contracts/AgentRegistry.sol"   "AgentRegistry"   "$ADMIN_ADDR"
+
+### WRITE CLEAN STATE FILE ###
+
+mkdir -p "$(dirname "$STATE_FILE")"
+
+# Shape is:
+# {
+#   "chainId": 2050,
+#   "AdminGate": "0x....",          // devnet master key / admin EOA
+#   "ModelRegistry":   { "address": "0x..." },
+#   "DatasetRegistry": { "address": "0x..." },
+#   "JobQueue":        { "address": "0x..." },
+#   "AgentRegistry":   { "address": "0x..." }
+# }
+
+tmp="${STATE_FILE}.tmp"
+
 jq -n \
-  --argjson chainId "$CHAIN_ID" \
-  --arg AdminGate "$ADMIN_GATE" \
-  --arg mr   "$ModelRegistry_ADDR"   --argjson mrBlock   "$ModelRegistry_BLOCK" \
-  --arg dr   "$DatasetRegistry_ADDR" --argjson drBlock   "$DatasetRegistry_BLOCK" \
-  --arg jqc  "$JobQueue_ADDR"        --argjson jqBlock   "$JobQueue_BLOCK" \
-  --arg ar   "$AgentRegistry_ADDR"   --argjson arBlock   "$AgentRegistry_BLOCK" \
-  --arg rr   "$ReceiptRegistry_ADDR" --argjson rrBlock   "$ReceiptRegistry_BLOCK" \
-  '
-  {
-    chainId: $chainId,
-    AdminGate: $AdminGate,
-    ModelRegistry: {
-      address: $mr,
-      deployedBlock: $mrBlock,
-      chainId: $chainId
-    },
-    DatasetRegistry: {
-      address: $dr,
-      deployedBlock: $drBlock,
-      chainId: $chainId
-    },
-    JobQueue: {
-      address: $jqc,
-      deployedBlock: $jqBlock,
-      chainId: $chainId
-    },
-    AgentRegistry: {
-      address: $ar,
-      deployedBlock: $arBlock,
-      chainId: $chainId
-    },
-    ReceiptRegistry: {
-      address: $rr,
-      deployedBlock: $rrBlock,
-      chainId: $chainId
-    }
-  }
-  ' > "$tmp"
+  --arg admin "$ADMIN_ADDR" \
+  --arg mr   "$MODEL_REG_ADDR" \
+  --arg ds   "$DATASET_REG_ADDR" \
+  --arg jqc  "$JOBQUEUE_ADDR" \
+  --arg ar   "$AGENT_REG_ADDR" \
+  '{
+     chainId: 2050,
+     AdminGate: $admin,
+     ModelRegistry:   { address: $mr },
+     DatasetRegistry: { address: $ds },
+     JobQueue:        { address: $jqc },
+     AgentRegistry:   { address: $ar }
+   }' >"$tmp"
 
-mv "$tmp" "$STATE"
+mv "$tmp" "$STATE_FILE"
 
 echo
-echo "[system-deploy-v2] wrote updated state to $STATE:"
-sed -n '1,80p' "$STATE"
+echo "[system-deploy-v2] wrote state -> $STATE_FILE"
+jq '. | {chainId, AdminGate, ModelRegistry, DatasetRegistry, JobQueue, AgentRegistry}' "$STATE_FILE"

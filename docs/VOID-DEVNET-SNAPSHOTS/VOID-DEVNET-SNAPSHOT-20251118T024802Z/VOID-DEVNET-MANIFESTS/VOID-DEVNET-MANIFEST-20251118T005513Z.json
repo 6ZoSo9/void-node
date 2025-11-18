@@ -1,0 +1,10 @@
+{
+  "version": "devnet-manifest-v0",
+  "chainId": 2050,
+  "appId": "void-demo-app-1",
+  "modelId": "void-demo-llm-1",
+  "kind": "text.prompt.v0",
+  "createdAt": 1763427313,
+  "nonce": "0x00000000000050e5",
+  "prompt": "demo: write a haiku about Void devnet v2"
+}
