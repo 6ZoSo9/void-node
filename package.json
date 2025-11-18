@@ -14,7 +14,8 @@
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
     "check:listeners": "bash scripts/check-listener-singleton.sh",
     "test:listener-guard": "bash scripts/test-listener-guard-smoke.sh",
-    "check:console-filter": "test $(grep -c EarlyConsoleFilterV0 src/index.ts || true) -le 1"
+    "check:console-filter": "test $(grep -c EarlyConsoleFilterV0 src/index.ts || true) -le 1",
+    "test": "./ops/void-devnet-e2e.sh"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
