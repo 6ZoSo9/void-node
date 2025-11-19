@@ -15,5 +15,15 @@
   "AgentRegistry": {
     "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
     "chainId": 2050
+  },
+  "JobQueue": {
+    "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "deployedBlock": 3031,
+    "chainId": 2050
+  },
+  "ReceiptRegistry": {
+    "address": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    "deployedBlock": 5084,
+    "chainId": 2050
   }
 }
