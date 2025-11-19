@@ -1,29 +1,19 @@
 {
   "chainId": 2050,
-  "AdminGate": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "AdminGate": {
+    "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  },
   "ModelRegistry": {
     "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-    "deployedBlock": 1284,
-    "chainId": 2050
+    "chainId": 2050,
+    "demoModelId": "void-demo-llm-1"
   },
   "DatasetRegistry": {
     "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
-    "deployedBlock": 2003,
-    "chainId": 2050
-  },
-  "JobQueue": {
-    "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
-    "deployedBlock": 3031,
     "chainId": 2050
   },
   "AgentRegistry": {
-    "address": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
-    "deployedBlock": 3821,
-    "chainId": 2050
-  },
-  "ReceiptRegistry": {
-    "address": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
-    "deployedBlock": 5084,
+    "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
     "chainId": 2050
   }
 }
