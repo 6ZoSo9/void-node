@@ -116,3 +116,7 @@ devnet-full-ci-smoke:
 # Devnet overall health exporter -> node_exporter textfile
 devnet-overall-health-export:
 	./ops/void-devnet-overall-health-exporter.sh
+
+# Devnet full health hammer: CI smokes + overall health check
+devnet-health-all:
+	./ops/void-devnet-health-all.sh
