@@ -100,3 +100,11 @@ devnet-ci-smoke:
 # Devnet AgentRegistry CI smoke (local-only)
 devnet-agent-ci-smoke:
 	./ops/void-devnet-agent-ci-smoke.sh
+
+# Devnet ModelRegistry CI smoke (local-only)
+devnet-models-ci-smoke:
+	./ops/void-devnet-models-ci-smoke.sh
+
+# Devnet DatasetRegistry CI smoke (local-only)
+devnet-datasets-ci-smoke:
+	./ops/void-devnet-datasets-ci-smoke.sh
