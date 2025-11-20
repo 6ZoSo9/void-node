@@ -1,76 +1,72 @@
 #!/usr/bin/env bash
-
-# --- DEVNET EARLY-EXIT: skip heavy coverage recompute if textfile already healthy ---
-CF=${CACHE_FILE:-$HOME/.cache/node-exporter-textfile/void_devnet_coverage.prom}
-if [ -f "$CF" ]; then
-  if grep -q '^void_devnet_coverage_health' "$CF"; then
-    hv=$(grep '^void_devnet_coverage_health' "$CF" | awk '{print $2; exit}')
-    if [ "$hv" = "1" ] || [ "$hv" = "1.0" ]; then
-      echo "[status] coverage textfile healthy (health=$hv), skipping devnet-status heavy checks."
-      exit 0
-    fi
-  fi
-fi
-# --- end DEVNET EARLY-EXIT guard ---
 set -euo pipefail
 
-REPO="${REPO:-$HOME/dev/void-node}"
+REPO="${REPO:-$(pwd)}"
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
 
-cd "$REPO"
-
+STATE="$REPO/docs/VOID-DEVNET-PROTOCOL-STATE.json"
 SPOOL="$REPO/docs/VOID-DEVNET-JOB-SPOOL.txt"
-INDEX="$REPO/docs/VOID-DEVNET-MANIFEST-INDEX.txt"
-COV_FILE="$HOME/.cache/node-exporter-textfile/void_devnet_coverage.prom"
+TEXTFILE="/var/lib/node_exporter/textfile_collector/void_devnet_coverage.prom"
 
 echo "[status] repo=$REPO"
 echo "[status] RPC_URL=$RPC_URL"
+echo "[status] PROM_URL=$PROM_URL"
 echo
 
-# 1) Spool stats
+# --- Job spool info (just a quick signal) ---
+
 if [ -f "$SPOOL" ]; then
-  jobs_in_spool=$(grep -cE '^0x[0-9a-f]{64}$' "$SPOOL" || true)
-  echo "[status] job spool: $SPOOL"
-  echo "[status] jobs_in_spool=$jobs_in_spool"
+  jobs_in_spool="$(wc -l < "$SPOOL" || echo 0)"
 else
-  echo "[status] job spool missing: $SPOOL"
+  jobs_in_spool=0
 fi
 
+echo "[status] job spool: $SPOOL"
+echo "[status] jobs_in_spool=$jobs_in_spool"
 echo
 
-# 2) Recompute coverage + show gauges
-if [ -x "$HOME/.local/bin/void-devnet-coverage.sh" ]; then
-  echo "[status] recomputing coverage..."
-  RPC_URL="$RPC_URL" "$HOME/.local/bin/void-devnet-coverage.sh" >/dev/null 2>&1 || true
-else
-  echo "[WARN] void-devnet-coverage.sh not found in ~/.local/bin"
-fi
-
-if [ -f "$COV_FILE" ]; then
-  echo "[status] coverage snapshot: $COV_FILE"
-  sed -n '1,20p' "$COV_FILE"
-else
-  echo "[status] coverage textfile missing: $COV_FILE"
-fi
-
+# --- NOTE: coverage recompute is now a root-only op via void-devnet-coverage-smoke.sh ---
+echo "[status] coverage recompute: SKIPPED (run ops/void-devnet-coverage-smoke.sh for root-only heal)"
 echo
 
-# 3) Latest manifest → job mapping (tail)
-if [ -f "$INDEX" ]; then
-  echo "[status] latest manifest → job mapping (tail): $INDEX"
-  tail -n 5 "$INDEX"
+# --- Show current textfile snapshot if present ---
+
+if [ -f "$TEXTFILE" ]; then
+  echo "[status] textfile snapshot ($TEXTFILE):"
+  sed -n '1,40p' "$TEXTFILE"
+  echo
 else
-  echo "[status] manifest index missing: $INDEX"
+  echo "[status] textfile snapshot missing: $TEXTFILE"
+  echo
 fi
 
+# --- Helper to pull a Prom value safely (no label filters here) ---
+
+get_prom() {
+  local metric="$1"
+  curl -fsS "$PROM_URL/api/v1/query?query=$metric" \
+    | jq -r '.data.result[0].value[1] // "NaN"'
+}
+
+# --- Raw gauges ---
+
+cov_job="$(get_prom void_devnet_coverage)"
+cov_health="$(get_prom void_devnet_coverage_health)"
+rec_cov_v2="$(get_prom void_devnet_receipts_coverage_v2)"
+rec_health_v2="$(get_prom void_devnet_receipts_health_v2)"
+
+echo "[status] raw devnet coverage gauges:"
+printf '  void_devnet_coverage              = %s\n' "$cov_job"
+printf '  void_devnet_coverage_health       = %s\n' "$cov_health"
+printf '  void_devnet_receipts_coverage_v2  = %s\n' "$rec_cov_v2"
+printf '  void_devnet_receipts_health_v2    = %s\n' "$rec_health_v2"
 echo
 
-# 4) Optional: dump jobs summary (if helper exists)
-if [ -x "$HOME/.local/bin/void-devnet-dump-jobs.sh" ]; then
-  echo "[status] jobs summary (from dump-jobs; truncated)..."
-  # Show just the header lines for each job
-  RPC_URL="$RPC_URL" "$HOME/.local/bin/void-devnet-dump-jobs.sh" 2>/dev/null \
-    | egrep -m 50 '=== job #|status:' || true
-else
-  echo "[status] dump-jobs helper not found; skipping job summary."
-fi
+cat <<'EOT'
+[status] interpretation:
+  - void_devnet_coverage == 1 means every JobQueue job has >=1 receipt.
+  - void_devnet_coverage_health == 1 means no uncovered jobs.
+  - void_devnet_receipts_health_v2 == 1 means receipts_total >= jobs_total.
+  - void_devnet_receipts_coverage_v2 > 1 just means multiple receipts per job (fine on devnet).
+EOT
