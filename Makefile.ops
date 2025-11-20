@@ -148,3 +148,9 @@ devnet-agent-worker-loop:
 .PHONY: devnet-spool-health
 devnet-spool-health:
 	./ops/void-devnet-spool-health.sh
+
+mainnet-core-summary:
+	@./ops/void-mainnet-core-summary.sh
+
+devnet-summary:
+	@./ops/void-devnet-summary.sh
