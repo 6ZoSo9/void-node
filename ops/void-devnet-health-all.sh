@@ -45,3 +45,16 @@ fi
 
 echo
 echo "[health-all] RESULT: OK (devnet overall health==1 and FULL CI smoke passed)"
+
+echo
+echo "[spool] check void_devnet_spool_health"
+SPOOL_HEALTH=$(curl -fsS "http://127.0.0.1:9090/api/v1/query?query=void_devnet_spool_health" | jq -r '.data.result[0].value[1]')
+echo "[spool] void_devnet_spool_health = ${SPOOL_HEALTH:-<none>}"
+
+/bin/echo "[spool] RESULT:" $(
+  if [ "$SPOOL_HEALTH" = "1" ]; then
+    echo "OK"
+  else
+    echo "BAD (spool health != 1)"
+  fi
+)

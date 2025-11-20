@@ -106,3 +106,8 @@ fi
 
 mv "$TMP" "$OUT_FILE"
 echo "[spool-health] wrote metrics to $OUT_FILE"
+
+# Ensure textfile is world-readable so node_exporter can scrape it
+if [ -n "${OUT_FILE:-}" ] && [ -f "$OUT_FILE" ]; then
+  chmod 644 "$OUT_FILE" 2>/dev/null || true
+fi
