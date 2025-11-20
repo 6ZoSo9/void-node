@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+
+# --- DEVNET EARLY-EXIT: skip heavy coverage recompute if textfile already healthy ---
+CF=${CACHE_FILE:-$HOME/.cache/node-exporter-textfile/void_devnet_coverage.prom}
+if [ -f "$CF" ]; then
+  if grep -q '^void_devnet_coverage_health' "$CF"; then
+    hv=$(grep '^void_devnet_coverage_health' "$CF" | awk '{print $2; exit}')
+    if [ "$hv" = "1" ] || [ "$hv" = "1.0" ]; then
+      echo "[status] coverage textfile healthy (health=$hv), skipping devnet-status heavy checks."
+      exit 0
+    fi
+  fi
+fi
+# --- end DEVNET EARLY-EXIT guard ---
 set -euo pipefail
 
 REPO="${REPO:-$HOME/dev/void-node}"
