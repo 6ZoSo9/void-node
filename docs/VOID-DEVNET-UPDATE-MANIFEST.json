@@ -1,0 +1,13 @@
+{
+  "chainId": 2050,
+  "network": "devnet",
+  "manifestVersion": 1,
+  "protocolVersion": "devnet-mainnet-core-2025-11-20",
+  "description": "VOID devnet test update manifest for mainnet-core pipeline.",
+  "expiresAt": "2025-12-20T19:26:25Z",
+  "notes": [
+    "Devnet-only manifest; safe to regenerate any time.",
+    "Used for update-manifest exporter + Prometheus wiring.",
+    "Does NOT control real mainnet behaviour."
+  ]
+}
