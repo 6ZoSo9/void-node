@@ -1,284 +1,229 @@
-# VOID Chain – JobQueue Contract Spec (v1, mainnet-oriented)
+# VOID Network – JobQueue & ReceiptRegistry Spec (v1, mainnet-oriented)
 
-JobQueue is the **on-chain job ledger** for VOID (chainId 2050).
+Status: draft-v1, aligned with devnet 2025-11-20  
+Scope: JobQueue + ReceiptRegistry contracts that drive AI jobs on VOID (chainId 2050)
 
-- Users / dApps / agents post **jobs** that describe work to be done (usually AI tasks).
-- Off-chain VOID agents read jobs, do the work, and write back **receipts** via `ReceiptRegistry`.
-- VOID nodes never run the AI; they only enforce the **job lifecycle** and a minimal set of invariants.
+This spec defines **what must be true on-chain** for jobs and receipts:
 
-This spec is the **mainnet-facing behavior**. Devnet scripts must conform to this over time.
+- How jobs are posted and tracked (JobQueue).
+- How receipts are recorded (ReceiptRegistry).
+- What invariants monitoring relies on.
 
----
-
-## 1. Responsibilities
-
-JobQueue must:
-
-- Accept new jobs from EOAs and contracts.
-- Track **job lifecycle** based on a small state machine:
-  - `0 = NONE` (unset / invalid)
-  - `1 = POSTED`
-  - `2 = CLAIMED`
-  - `3 = COMPLETED`
-  - `4 = CANCELLED`
-  - `5 = EXPIRED`
-- Store minimal metadata so off-chain infra can reconstruct:
-  - who posted the job
-  - which app / model it targets
-  - what payload hash was committed
-- Emit events for **every state transition** agents care about.
-- Expose view functions so:
-  - wallets can show job history
-  - agents can find work and prove what they did.
-
-JobQueue cannot:
-
-- Force any off-chain agent to actually do the job.
-- Guarantee the quality of outputs.
-- Guarantee “best agent” selection — that is an off-chain concern.
-- Directly move user balances / tokens (beyond optional future fee hooks).
+It is **not** a full ABI dump; it’s the behavioral contract nodes and agents
+depend on.
 
 ---
 
-## 2. Core Data Model
+## 1. Roles & Concepts
 
-### 2.1 JobId
+### 1.1 JobQueue
 
-- `jobId` is a `bytes32` identifier.
-- v1 recommended definition:
+JobQueue is the on-chain registry of AI jobs.
 
-`jobId = keccak256(abi.encodePacked(
-    chainId,          // uint256
-    appId,            // bytes32
-    modelId,          // bytes32
-    payloadHash,      // bytes32
-    postedBy,         // address
-    nonce             // uint256 per poster
-));`
+Each job is identified by a `bytes32 jobId` and has core fields:
 
-Implementation detail:
+- `jobId` – unique identifier (typically a hash of posting params).
+- `appId` / `tag` – free-form string identifiers for the app / use-case.
+- `requester` – `address` that posted the job (payer / owner).
+- `payloadHash` – `bytes32` hash of the off-chain payload or CID.
+- `modelKey` – string or bytes tag for the requested model (e.g. `gpt-4.1-mini`).
+- `createdAt` – unix timestamp or block-based time.
+- `status` – small integer enum, see below.
+- `hasResult` – boolean indicating whether at least one receipt exists.
 
-- Use a per-poster nonce: `mapping(address => uint256) nonces;`
-- This makes `jobId` derivable off-chain and avoids collisions.
+(Names/types may vary in Solidity; behavior MUST match this spec.)
 
-### 2.2 Job Struct (conceptual)
+### 1.2 ReceiptRegistry
 
-    struct Job {
-        address postedBy;      // who posted
-        bytes32 appId;         // application namespace (e.g. "void-demo-app-1")
-        bytes32 modelId;       // model namespace (e.g. "void-demo-llm-1")
-        bytes32 payloadHash;   // hash of manifest / input blob
-        uint64  postedAt;      // block timestamp at POSTED
-        uint64  claimedAt;     // block timestamp at CLAIMED (0 if never)
-        uint64  completedAt;   // block timestamp at COMPLETED (0 if never)
-        uint8   status;        // 0 NONE, 1 POSTED, 2 CLAIMED, 3 COMPLETED, 4 CANCELLED, 5 EXPIRED
-    }
+ReceiptRegistry tracks **off-chain work results** for jobs.
 
-Notes:
+Each receipt is identified by a `bytes32 receiptId` and has core fields:
 
-- Result hashes **do not** live here. They live in `ReceiptRegistry`, which may have multiple receipts per job.
+- `receiptId` – unique identifier (e.g. hash of jobId + agent + payload).
+- `jobId` – `bytes32` referencing the JobQueue entry.
+- `agent` – `address` of the agent/worker that produced this receipt.
+- `resultHash` – `bytes32` hash of the off-chain result or CID.
+- `status` – result status code (e.g. success / error / partial).
+- `createdAt` – unix timestamp or block-based time.
 
-### 2.3 Global Counters
-
-JobQueue should track:
-
-- `uint256 public totalJobs;` – count of jobs ever posted (including cancelled/expired).
-- `mapping(bytes32 => Job) public jobs;` – main storage.
-
-Optional but useful:
-
-- `mapping(address => uint256) public jobsPostedBy;`
-- `mapping(bytes32 => uint256) public jobsByApp;`
-
-Only `totalJobs` is strictly required for correctness.
+Multiple receipts per job are allowed (e.g. retries, multiple agents, or
+multi-step workflows). Monitoring treats **“>= 1 receipt per job”** as
+coverage.
 
 ---
 
-## 3. Lifecycle & State Machine
+## 2. Job Status Semantics
 
-### 3.1 States
+JobQueue uses a small integer status enum. At minimum:
 
-- `0 = NONE`       – no job stored at this id.
-- `1 = POSTED`     – job exists, not yet claimed.
-- `2 = CLAIMED`    – some agent has claimed responsibility.
-- `3 = COMPLETED`  – job completed and at least one receipt exists in ReceiptRegistry.
-- `4 = CANCELLED`  – job cancelled by poster or admin before completion.
-- `5 = EXPIRED`    – job auto-expired by time rules.
+- `0` – **Unknown / Not set** (implementation detail; SHOULD NOT be returned for a valid job).
+- `1` – **Posted**: job exists, has not been finalized.
+- `2` – **Done**: job has at least one valid receipt; from JobQueue’s POV it is “completed”.
+- `>=3` – **Extended states** (e.g. Cancelled, Expired, Failed, Disputed, etc.).
 
-### 3.2 Allowed Transitions
+Mainnet requirement:
 
-Valid transitions:
-
-- `NONE -> POSTED`
-- `POSTED -> CLAIMED`
-- `POSTED -> CANCELLED`
-- `POSTED -> EXPIRED`
-- `CLAIMED -> COMPLETED`
-- `CLAIMED -> CANCELLED` (optional, via admin or poster with rules)
-- `CLAIMED -> EXPIRED` (if agents stall too long)
-
-Invalid transitions MUST revert:
-
-- `COMPLETED -> anything`
-- `CANCELLED -> anything`
-- `EXPIRED -> anything`
-- `NONE -> CLAIMED`, `NONE -> COMPLETED`, etc.
-
-### 3.3 Roles
-
-v1 keeps roles simple:
-
-- **Poster**: `msg.sender` on `postJob`.
-- **Agent**: off-chain agent address that claims and completes jobs.
-- **Admin**: admin (AdminGate / master-key governed) allowed to:
-  - cancel misbehaving jobs
-  - mark jobs expired in bulk (future version).
-
-Most operations are permissionless:
-
-- Any address can post jobs.
-- Any agent can claim eligible jobs.
+- Status **must be monotonic**: it may move from lower -> higher severity
+  / finality, but never backwards (e.g. `Done -> Posted` is forbidden).
 
 ---
 
-## 4. External Interfaces (v1 – conceptual)
+## 3. Core Invariants (MUST HOLD)
 
-### 4.1 Post Job
+Let:
 
-    function postJob(
-        bytes32 appId,
-        bytes32 modelId,
-        bytes32 payloadHash
-    ) external returns (bytes32 jobId);
+- `J = totalJobs()` – total number of jobs ever posted.
+- `R = totalReceipts()` – total number of receipts ever written.
+- For a given job `jobId`:
+  - `r(jobId) = receiptCount(jobId)` – how many receipts refer to that job.
+  - `hasResult(jobId) = JobQueue.hasResult(jobId)`.
+  - `status(jobId) = JobQueue.getJobStatus(jobId)`.
 
-Semantics:
+### 3.1 Monotonic counts
 
-- Derive `jobId` as above.
-- Require `jobs[jobId].status == 0` to avoid collisions.
-- Store:
-  - `postedBy = msg.sender`
-  - `postedAt = uint64(block.timestamp)`
-  - `status = 1` (POSTED)
-- Increment `totalJobs`.
-- Emit `JobPosted`.
+- `J` and `R` MUST be **monotonic non-decreasing** over time.
+- Deleting or reusing ids is forbidden on mainnet.
+- Any “reset” or pruning must be done on devnets only.
 
-### 4.2 Claim Job
+### 3.2 Coverage invariant
 
-    function claimJob(bytes32 jobId) external;
+For every job that exists:
 
-Semantics:
+- If `r(jobId) == 0`:
+  - `hasResult(jobId)` **MUST** be `false`.
+  - `status(jobId)` **MUST NOT** be `Done` (2). It SHOULD be `Posted` (1) or
+    another non-final state (e.g. Cancelled, Expired).
 
-- Fetch `Job storage j = jobs[jobId];`
-- Require `j.status == 1` (POSTED).
-- Set `claimedAt = uint64(block.timestamp)` (optional but recommended).
-- Set `status = 2` (CLAIMED).
-- Emit `JobClaimed(jobId, msg.sender)`.
+- If `r(jobId) >= 1`:
+  - `hasResult(jobId)` **MUST** be `true`.
+  - `status(jobId)` **MUST** be a final or at-least-“has-results” state such as
+    `Done` (2) or a future extended state that semantically means “completed
+    with results”.
+  - `status(jobId) == Posted` (1) while `r(jobId) >= 1` is forbidden.
 
-### 4.3 Mark Completed (ReceiptRegistry hook)
+This is the invariant that devnet coverage gauges are checking:
 
-    function markCompleted(bytes32 jobId) external;
+- `void_devnet_coverage == 1` iff every job has `r(jobId) >= 1`.
+- `void_devnet_coverage_health == 1` iff coverage is complete.
+- `void_devnet_receipts_health_v2 == 1` iff `R >= J`.
 
-Semantics:
+### 3.3 Multi-receipt behavior
 
-- Only callable by `ReceiptRegistry` (and optionally admin).
-- Require at least one valid receipt exists for `jobId`.
-- Set `status = 3` (COMPLETED) and `completedAt = block.timestamp`.
-- Emit `JobCompleted(jobId)`.
+Mainnet allows multiple receipts per job:
 
-### 4.4 Cancel / Expire
+- Receipts MUST be **append-only**; an existing `receiptId` cannot be mutated.
+- For a fixed `jobId`, the sequence of receipts:
+  - MAY represent retries or different agents.
+  - MUST always reference the same `jobId`.
+- Monitoring is allowed to:
+  - Treat `r(jobId) >= 1` as “covered”.
+  - Track additional stats (e.g. receipts/job, per-agent receipts, errors).
 
-    function cancelJob(bytes32 jobId) external;
-    function expireJob(bytes32 jobId) external;
-
-Suggested semantics:
-
-- `cancelJob`:
-  - If `msg.sender == jobs[jobId].postedBy` and `status` in `{1,2}`, allow.
-  - Or if `msg.sender` is admin, allow forced cancellation.
-  - Set `status = 4` (CANCELLED).
-  - Emit `JobCancelled(jobId, msg.sender, reasonCode)`.
-
-- `expireJob`:
-  - Callable by anyone or by a designated sweeper.
-  - Apply time rules, e.g.:
-    - `status == 1` and `now > postedAt + POST_EXPIRY_SECS`
-    - `status == 2` and `now > claimedAt + CLAIM_EXPIRY_SECS`
-  - Set `status = 5` (EXPIRED).
-  - Emit `JobExpired(jobId, reasonCode)`.
-
-### 4.5 Views
-
-At minimum:
-
-- `function getJob(bytes32 jobId) external view returns (Job memory);`
-- `function getJobStatus(bytes32 jobId) external view returns (uint8 status);`
-- `function totalJobs() external view returns (uint256);`
+The current devnet behavior (`R >> J` and `coverage == 1`) is acceptable and
+expected for stress tests.
 
 ---
 
-## 5. Events
+## 4. Observability Contract
 
-    event JobPosted(
-        bytes32 indexed jobId,
-        address indexed postedBy,
-        bytes32 indexed appId,
-        bytes32 modelId,
-        bytes32 payloadHash
-    );
+The following metrics represent the source of truth for devnet and are the
+shape we will preserve into mainnet (with network/env labels).
 
-    event JobClaimed(
-        bytes32 indexed jobId,
-        address indexed agent
-    );
+### 4.1 Coverage (v1 historic flags; diagnostic only)
 
-    event JobCompleted(
-        bytes32 indexed jobId
-    );
+Exporter: `ops/void-devnet-jobs-status-exporter.sh`  
+Textfile: `/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v1.prom`
 
-    event JobCancelled(
-        bytes32 indexed jobId,
-        address indexed caller,
-        uint8   reasonCode
-    );
+Metrics:
 
-    event JobExpired(
-        bytes32 indexed jobId,
-        uint8   reasonCode
-    );
+- `void_devnet_jobs_status_v1_total` – jobs in spool (historic).
+- `void_devnet_jobs_status_v1_chain_total` – `totalJobs()` from JobQueue.
+- `void_devnet_jobs_status_v1_receipts_total` – `totalReceipts()` from ReceiptRegistry.
+- `void_devnet_jobs_status_v1_posted` – jobs with `status == 1`.
+- `void_devnet_jobs_status_v1_done` – jobs with `status == 2`.
+- `void_devnet_jobs_status_v1_other` – jobs with other status codes.
+- `void_devnet_jobs_status_v1_bad_flags` – jobs where `hasResult` / `status`
+  are inconsistent with receipts (e.g. `r(jobId) >= 1` but `hasResult == false`).
+- `void_devnet_jobs_status_v1_health` – `1` if spool and chain agree on counts,
+  else `0`.
 
-Reason codes are left as an enum in doc form; v1 can start with:
+Recording rules:
 
-- `0 = UNSPECIFIED`
-- `1 = POSTER_REQUEST`
-- `2 = ADMIN_FORCE`
-- `3 = TIMEOUT_POSTED`
-- `4 = TIMEOUT_CLAIMED`
+- `void:devnet_jobs_status_v1:health` – min over `void_devnet_jobs_status_v1_health`.
+- `void:devnet_jobs_status_v1:bad_flags` – max over `void_devnet_jobs_status_v1_bad_flags`.
+- `void:devnet_jobs_status_v1:total` – max over `void_devnet_jobs_status_v1_total`.
+
+Mainnet stance:
+
+- v1 metrics are **diagnostic only** and MUST NOT gate devnet/mainnet health.
+- We accept historic warts (non-zero `bad_flags`) on devnet.
+- Mainnet SHOULD be run with `bad_flags == 0` as an operational target.
+
+### 4.2 Coverage (v2 canonical)
+
+Exporter: `ops/void-devnet-coverage-exporter.sh` (and related helpers)  
+Textfile: `/var/lib/node_exporter/textfile_collector/void_devnet_coverage.prom`
+
+Key metrics:
+
+- `void_devnet_coverage` – fraction of jobs with `r(jobId) >= 1`, 0..1.
+- `void_devnet_coverage_health` – `1` when coverage == 1, else 0.
+- `void_devnet_jobs_total` / `void_devnet_jobs_total_v2` – total jobs.
+- `void_devnet_receipts_total` / `void_devnet_receipts_total_v2` – total receipts.
+- `void_devnet_receipts_coverage_v2` – `R / J` ratio.
+- `void_devnet_receipts_health_v2` – `1` when `R >= J`, else 0.
+- Smoothed recordings over 5 minutes:
+  - `void:devnet_coverage_v2:last_5m`
+  - `void:devnet_receipts_health_v2:5m`
+
+Operational rule:
+
+- Devnet/mainnet health requires:
+  - `void_devnet_coverage_health == 1`
+  - `void_devnet_receipts_health_v2 == 1`
+
+These are already wired into `void-devnet-health-all.sh` and the overall
+Prometheus `void_devnet_overall_health` gauge.
 
 ---
 
-## 6. Admin & Gate Wiring (VOID-specific)
+## 5. Devnet vs Mainnet Expectations
 
-On VOID mainnet:
+### 5.1 Devnet
 
-- `JobQueue` is **owned by AdminGate**, which itself is governed by the master key.
-- Admin-level actions (`forceCancel`, `forceExpireBatch`, future fee toggles) must be restricted to AdminGate.
-- Normal posting/claiming/completion paths are **permissionless** and do not require the master key.
+Devnet is allowed to:
 
-This preserves:
+- Accumulate historic anomalies in v1 metrics (non-zero `bad_flags`).
+- Stress-test with high receipts/job ratios.
+- Run extra diag exporters and experimental invariants.
 
-- Open job posting and agent participation.
-- A narrow, auditable control surface for protocol-level interventions.
+Devnet MUST:
+
+- Keep v2 coverage gauges green (`coverage_health == 1`,
+  `receipts_health_v2 == 1`) before declaring the environment “healthy”.
+
+### 5.2 Mainnet
+
+Mainnet SHOULD:
+
+- Deploy JobQueue + ReceiptRegistry implementations that:
+  - Enforce the coverage invariants in section 3.
+  - Keep `bad_flags == 0` in normal operation.
+- Treat any violation of the coverage invariants as **operator alerts**
+  (potential contract bug or misconfiguration).
+- Persist coverage and health metrics with chain/network labels and
+  integrate them into global VOID health dashboards.
 
 ---
 
-## 7. Compatibility Notes (Devnet → Mainnet)
+## 6. Next Steps (Implementation TODOs)
 
-- Devnet scripts (`void-devnet-post-job.sh`, agent sweepers, coverage exporters) should treat this spec as canonical.
-- Any deviation (extra fields, different status codes) must be documented with:
-  - a migration plan
-  - a concrete mapping back to this v1 state machine.
-- For mainnet, JobQueue MUST be simple enough that:
-  - light clients and off-chain agents can reconstruct job state cheaply
-  - VOID Node can expose JobQueue-derived metrics without heavy queries.
+- [ ] Ensure JobQueue sets `hasResult(jobId) = true` as soon as a receipt is
+      written for that job, and never clears it.
+- [ ] Ensure JobQueue status transitions never regress (e.g. `Done` -> `Posted`).
+- [ ] Add explicit coverage invariants to the devnet tests (Forge / Foundry):
+      for a test harness posting jobs and writing receipts, assert that
+      invariants in §3 always hold.
+- [ ] Optionally add per-agent metrics (receipts per agent) on devnet, to
+      build toward agent reputation and slashing on mainnet.
 
-End of v1 spec.
