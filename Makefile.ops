@@ -154,3 +154,12 @@ mainnet-core-summary:
 
 devnet-summary:
 	@./ops/void-devnet-summary.sh
+
+.PHONY: mainnet-core-ci-smoke
+mainnet-core-ci-smoke:
+	./ops/void-mainnet-core-ci-smoke.sh
+
+.PHONY: mainnet-core-health-all
+mainnet-core-health-all:
+	./ops/void-mainnet-core-ci-smoke.sh
+	./ops/void-mainnet-core-summary.sh
