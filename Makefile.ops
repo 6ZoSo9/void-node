@@ -124,3 +124,7 @@ devnet-health-all:
 # Agent-focused devnet E2E sanity (registries + coverage + overall health)
 devnet-agent-e2e-smoke:
 	./ops/void-devnet-agent-e2e-smoke.sh
+
+.PHONY: devnet-agent-worker-once
+devnet-agent-worker-once:
+	./ops/void-devnet-agent-worker.sh
