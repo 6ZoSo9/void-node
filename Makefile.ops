@@ -112,3 +112,7 @@ devnet-datasets-ci-smoke:
 # Devnet full CI smoke: jobs/receipts coverage + AgentRegistry + ModelRegistry + DatasetRegistry
 devnet-full-ci-smoke:
 	./ops/void-devnet-full-ci-smoke.sh
+
+# Devnet overall health exporter -> node_exporter textfile
+devnet-overall-health-export:
+	./ops/void-devnet-overall-health-exporter.sh
