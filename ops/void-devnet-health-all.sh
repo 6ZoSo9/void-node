@@ -58,3 +58,11 @@ echo "[spool] void_devnet_spool_health = ${SPOOL_HEALTH:-<none>}"
     echo "BAD (spool health != 1)"
   fi
 )
+
+echo
+echo "=== [devnet jobs-status v1 historic flags] ==="
+if ./ops/void-devnet-jobs-status-v1-health.sh; then
+  :
+else
+  echo "[health-all] WARNING: jobs-status-v1 helper failed (non-fatal)" >&2
+fi
