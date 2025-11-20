@@ -120,3 +120,7 @@ devnet-overall-health-export:
 # Devnet full health hammer: CI smokes + overall health check
 devnet-health-all:
 	./ops/void-devnet-health-all.sh
+
+# Agent-focused devnet E2E sanity (registries + coverage + overall health)
+devnet-agent-e2e-smoke:
+	./ops/void-devnet-agent-e2e-smoke.sh
