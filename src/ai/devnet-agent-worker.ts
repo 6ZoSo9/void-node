@@ -1,12 +1,15 @@
-// VOID Network – devnet agent worker v1 (read-only job scanner)
+// VOID Network – devnet agent worker v1.1 (read-only job scanner, stale-safe)
 //
 // - Reads JobQueue / ReceiptRegistry addresses from docs/VOID-DEVNET-PROTOCOL-STATE.json
 // - Reads jobIds from docs/VOID-DEVNET-JOB-SPOOL.txt
 // - For each jobId, calls hasResult(bytes32)(bool) on JobQueue via `cast call`
-// - Summarizes coverage and, if any pending job exists, dumps its getJob(...) tuple.
+// - Summarizes coverage and, if any *known* pending job exists, dumps its getJob(...) tuple.
 //
-// This is deliberately read-only: it does NOT submit receipts yet.
-// Next step will be wiring this into an actual AI worker + ReceiptRegistry writes.
+// Hardened behaviour:
+// - If hasResult/getJob revert with "JobQueue: unknown job", treat that jobId as STALE and skip.
+// - If all pending jobs are stale/unknown, exit 0 with a clear message.
+//
+// This is still read-only: no receipts are written on-chain yet.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -20,16 +23,33 @@ function logJob(msg: string) {
   console.log(`[job] ${msg}`);
 }
 
-function castCall(rpcUrl: string, to: string, sig: string, ...args: string[]): string {
-  const fullArgs = ["call", to, sig, ...args, "--rpc-url", rpcUrl];
+function castCallRaw(args: string[]): string {
   try {
-    const out = execFileSync("cast", fullArgs, { encoding: "utf8" });
+    const out = execFileSync("cast", args, { encoding: "utf8" });
     return out.trim();
   } catch (err: any) {
-    throw new Error(
-      `cast call failed: cast ${fullArgs.join(" ")}\n${err?.stderr || err?.message || String(err)}`
+    const stderr = err?.stderr ? String(err.stderr) : "";
+    const msg = err?.message ? String(err.message) : "";
+    const combined = `${msg}\n${stderr}`.trim();
+    const error = new Error(
+      `cast ${args.join(" ")}\n${combined || "<no stderr>"}`
     );
+    (error as any).__raw = err;
+    throw error;
   }
+}
+
+function castCall(rpcUrl: string, to: string, sig: string, ...args: string[]): string {
+  const fullArgs = ["call", to, sig, ...args, "--rpc-url", rpcUrl];
+  return castCallRaw(fullArgs);
+}
+
+function isUnknownJobError(e: unknown): boolean {
+  const s = String((e as any)?.message || e || "");
+  return (
+    s.includes("JobQueue: unknown job") ||
+    s.toLowerCase().includes("unknown job")
+  );
 }
 
 function loadJson<T = any>(file: string): T {
@@ -108,34 +128,49 @@ async function main() {
   }
 
   let withResult = 0;
+  let pendingCount = 0;
+  let staleUnknown = 0;
   const pending: string[] = [];
 
+  // First pass: classify via hasResult, but be tolerant of unknown jobs
   for (const jobId of jobIds) {
-    const raw = castCall(
-      rpcUrl,
-      jobQueue,
-      "hasResult(bytes32)(bool)",
-      jobId
-    );
+    let has: boolean | null = null;
 
-    const normalized = raw.toLowerCase();
-    const has =
-      normalized === "true" ||
-      normalized === "1" ||
-      normalized === "0x1" ||
-      normalized === "0x01";
+    try {
+      const raw = castCall(
+        rpcUrl,
+        jobQueue,
+        "hasResult(bytes32)(bool)",
+        jobId
+      );
+
+      const normalized = raw.toLowerCase();
+      has =
+        normalized === "true" ||
+        normalized === "1" ||
+        normalized === "0x1" ||
+        normalized === "0x01";
+    } catch (e) {
+      if (isUnknownJobError(e)) {
+        staleUnknown++;
+        logJob(`jobId=${jobId} UNKNOWN in hasResult() – marking STALE and skipping`);
+        continue;
+      }
+      throw e;
+    }
 
     if (has) {
       withResult++;
       logJob(`jobId=${jobId} hasResult=true`);
     } else {
+      pendingCount++;
       pending.push(jobId);
       logJob(`jobId=${jobId} hasResult=false (PENDING)`);
     }
   }
 
   log(
-    `summary: jobs_in_spool=${jobIds.length}, with_result=${withResult}, pending=${pending.length}`
+    `summary: jobs_in_spool=${jobIds.length}, with_result=${withResult}, pending=${pendingCount}, stale_unknown=${staleUnknown}`
   );
 
   if (pending.length === 0) {
@@ -143,32 +178,55 @@ async function main() {
     return;
   }
 
-  const target = pending[0];
-  log(`next_pending_job=${target}`);
+  // Second pass: find the first PENDING job that is actually known on-chain
+  let chosenJobId: string | null = null;
+  let chosenJobRaw: string | null = null;
 
-  // Dump the raw Job struct so an off-chain agent can act on it.
-  // ABI matches what we already use in shell scripts.
-  const jobRaw = castCall(
-    rpcUrl,
-    jobQueue,
-    "getJob(bytes32)((bytes32,uint256,string,address,string,bytes32,uint64,uint8,address,bytes32,uint64,uint32))",
-    target
-  );
+  for (const jobId of pending) {
+    try {
+      const jobRaw = castCall(
+        rpcUrl,
+        jobQueue,
+        "getJob(bytes32)((bytes32,uint256,string,address,string,bytes32,uint64,uint8,address,bytes32,uint64,uint32))",
+        jobId
+      );
 
-  logJob(`getJob(${target}) => ${jobRaw}`);
+      chosenJobId = jobId;
+      chosenJobRaw = jobRaw;
+      break;
+    } catch (e) {
+      if (isUnknownJobError(e)) {
+        staleUnknown++;
+        logJob(`jobId=${jobId} UNKNOWN in getJob() – treating as STALE and skipping`);
+        continue;
+      }
+      // Unexpected revert: bubble up
+      throw e;
+    }
+  }
+
+  if (!chosenJobId || !chosenJobRaw) {
+    log(
+      `no actionable pending jobs: pending=${pending.length}, but all appear STALE / unknown on-chain`
+    );
+    return;
+  }
+
+  log(`next_pending_job=${chosenJobId}`);
+  logJob(`getJob(${chosenJobId}) => ${chosenJobRaw}`);
 
   console.log("");
   console.log("=== NEXT STEPS (manual / future AI) ===");
   console.log("- Use the raw tuple above to inspect app/prompt/payload for the job.");
   console.log("- Run your agent off-chain to produce a result (URI + hash, etc.).");
   console.log("- Then submit a receipt on-chain via ReceiptRegistry using cast/forge.");
-  console.log("  (ReceiptRegistry ABI is left flexible by design; this worker is read-only v1.)");
+  console.log("  (ReceiptRegistry ABI is left flexible by design; this worker is read-only v1.1.)");
 }
 
 main().catch((err) => {
   console.error(`[agent-worker] ERROR: ${err?.message || String(err)}`);
-  if (err?.stack) {
-    console.error(err.stack);
+  if ((err as any)?.stack) {
+    console.error((err as any).stack);
   }
   process.exit(1);
 });
