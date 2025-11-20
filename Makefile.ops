@@ -136,3 +136,15 @@ devnet-job-spool-refresh:
 # Rebuild devnet job spool to the 4 canonical jobs (hard reset)
 devnet-job-spool-hardreset:
 	./ops/void-devnet-job-spool-hardreset.sh
+
+.PHONY: devnet-agent-worker-loop
+devnet-agent-worker-loop:
+	@echo "[loop] starting devnet agent worker loop (Ctrl+C to stop)..."
+	@while true; do \
+	  ./ops/void-devnet-agent-worker.sh || echo "[loop] worker exited with $$?"; \
+	  sleep 10; \
+	done
+
+.PHONY: devnet-spool-health
+devnet-spool-health:
+	./ops/void-devnet-spool-health.sh
