@@ -197,3 +197,79 @@ When we implement v2 contracts:
 
 This doc exists so we do not forget what “correct” looks like when we come
 back to refactor the contracts.
+
+---
+
+### Devnet v1 behavior (historic note)
+
+On the original VOID devnet deployment (chainId 2050), the relationship between
+`JobQueue` and `ReceiptRegistry` is slightly inconsistent and should be treated
+as **historic behavior**, not a mainnet target:
+
+- `ReceiptRegistry` is the **canonical source of truth** for whether a job has
+  any receipts. If `ReceiptRegistry` has ≥1 receipt for `jobId`, the job is
+  considered **covered**.
+- `JobQueue.hasResult(jobId)` may still return `false` even when many receipts
+  exist in `ReceiptRegistry` for that job. This is a wiring/semantics issue in
+  the v1 devnet contracts, not a data-corruption bug.
+- VOID devnet coverage metrics and health gauges are defined in terms of
+  `ReceiptRegistry` only:
+  - `void_devnet_coverage` / `void_devnet_coverage_health` are based on
+    “every JobQueue job has ≥1 ReceiptRegistry entry”.
+  - `void_devnet_receipts_health_v2` checks that `receipts_total >= jobs_total`.
+
+For example, on the current devnet snapshot:
+
+- There are 4 jobs total and 74 receipts total.
+- Two jobs (`jobId_3`, `jobId_4`) report `hasResult == false` in `JobQueue`,
+  but both have ≥1 receipt in `ReceiptRegistry` (one of them has many receipts).
+
+This behavior is acceptable for **devnet v1 only** and is **not** the target
+semantics for production. Mainnet / v2 MUST ensure that:
+
+- Either `JobQueue.hasResult(jobId)` is kept in sync with `ReceiptRegistry`
+  (e.g., flipped once a valid receipt is recorded), or
+- `hasResult` is treated as deprecated and all coverage / health logic uses
+  `ReceiptRegistry` as the sole authority for “has result”.
+
+Any future protocol version (v2+) should avoid relying on the v1 devnet
+`hasResult` flag and instead follow the lifecycle and invariants defined in
+this document for mainnet.
+
+---
+
+### Devnet v1 behavior (historic note)
+
+On the original VOID devnet deployment (chainId 2050), the relationship between
+`JobQueue` and `ReceiptRegistry` is slightly inconsistent and should be treated
+as **historic behavior**, not a mainnet target:
+
+- `ReceiptRegistry` is the **canonical source of truth** for whether a job has
+  any receipts. If `ReceiptRegistry` has ≥1 receipt for `jobId`, the job is
+  considered **covered**.
+- `JobQueue.hasResult(jobId)` may still return `false` even when many receipts
+  exist in `ReceiptRegistry` for that job. This is a wiring/semantics issue in
+  the v1 devnet contracts, not a data-corruption bug.
+- VOID devnet coverage metrics and health gauges are defined in terms of
+  `ReceiptRegistry` only:
+  - `void_devnet_coverage` / `void_devnet_coverage_health` are based on
+    “every JobQueue job has ≥1 ReceiptRegistry entry”.
+  - `void_devnet_receipts_health_v2` checks that `receipts_total >= jobs_total`.
+
+For example, on the current devnet snapshot:
+
+- There are 4 jobs total and 74 receipts total.
+- Two jobs report `hasResult == false` in `JobQueue`, but both have ≥1 receipt
+  in `ReceiptRegistry` (one of them has many receipts).
+
+This behavior is acceptable for **devnet v1 only** and is **not** the target
+semantics for production. Mainnet / v2 MUST ensure that:
+
+- Either `JobQueue.hasResult(jobId)` is kept in sync with `ReceiptRegistry`
+  (e.g., flipped once a valid receipt is recorded), or
+- `hasResult` is treated as deprecated and all coverage / health logic uses
+  `ReceiptRegistry` as the sole authority for “has result”.
+
+Any future protocol version (v2+) should avoid relying on the v1 devnet
+`hasResult` flag and instead follow the lifecycle and invariants defined in
+this document for mainnet.
