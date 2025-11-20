@@ -128,3 +128,11 @@ devnet-agent-e2e-smoke:
 .PHONY: devnet-agent-worker-once
 devnet-agent-worker-once:
 	./ops/void-devnet-agent-worker.sh
+
+.PHONY: devnet-job-spool-refresh
+devnet-job-spool-refresh:
+	./ops/void-devnet-job-spool-refresh.sh
+
+# Rebuild devnet job spool to the 4 canonical jobs (hard reset)
+devnet-job-spool-hardreset:
+	./ops/void-devnet-job-spool-hardreset.sh
