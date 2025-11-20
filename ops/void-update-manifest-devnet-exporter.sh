@@ -90,3 +90,9 @@ mv "${tmp_file}" "${OUT_FILE}"
 echo "[ok] wrote ${OUT_FILE}"
 echo "     configured=${configured} days_left=${days_left} health=${health}"
 echo "     manifest=${MANIFEST}"
+
+# void-update-manifest-devnet:fix-perms-v1
+# Ensure textfile is always world-readable for node_exporter
+if [ -n "${out_file:-}" ] && [ -f "$out_file" ]; then
+  chmod 644 "$out_file" 2>/dev/null || true
+fi
