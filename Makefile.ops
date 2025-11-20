@@ -94,3 +94,9 @@ ops-node-user-units-backup:
 		void-node.service void-node@.service \
 		void-node.service.d void-node@.service.d \
 		void-node@safe-4102.service.d 2>/dev/null || true
+devnet-ci-smoke:
+	./ops/void-devnet-ci-smoke.sh
+
+# Devnet AgentRegistry CI smoke (local-only)
+devnet-agent-ci-smoke:
+	./ops/void-devnet-agent-ci-smoke.sh
