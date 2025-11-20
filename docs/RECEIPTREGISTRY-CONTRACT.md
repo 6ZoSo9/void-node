@@ -1,17 +1,16 @@
 # VOID Network – ReceiptRegistry Contract Spec (v1, minimal)
 
-ReceiptRegistry is the on-chain registry of AI job receipts for VOID (chainId 2050+).
+ReceiptRegistry is the **on-chain receipt log** for VOID devnet/mainnet.
 
-- JobQueue tracks requested work (jobs).
-- ReceiptRegistry tracks completed work (receipts for those jobs).
+It does NOT run AI jobs. It only records **what came back** from agents or
+off-chain workers for a given `jobId`.
 
-It is the canonical place to:
-- Prove that some agent claims to have completed a job.
-- Anchor hashes for inputs, outputs, and results.
-- Drive metrics, accountability, and potential slashing off-chain.
+Typical questions it should answer:
 
-This spec matches the devnet behavior (jobs.jsonl + receipts.jsonl), but moves
-the truth of receipts on-chain.
+- "Does this job have any receipts yet?"
+- "How many receipts exist for this job?"
+- "What URI/hash describes the latest result?"
+- "Who submitted the receipt and when?"
 
 ---
 
@@ -19,220 +18,111 @@ the truth of receipts on-chain.
 
 ReceiptRegistry must:
 
-- Accept new receipts that reference a job (by jobId from JobQueue).
-- Store minimal but sufficient metadata to prove:
-  - which job was completed
-  - which model was used
-  - which agent submitted the receipt
-  - what hashes (input, output, model) were involved
-  - when it completed
-- Emit events when receipts are created or updated.
-- Allow querying receipts by:
-  - jobId
-  - receiptId
-  - agent
-  - modelId (optional or indexable)
-- Be controlled by an admin (AdminGate / master-key governed).
+- Track **receipts keyed by jobId** (and optionally a separate receiptId).
+- Allow multiple receipts per job (for retries, competing agents, etc.).
+- Emit events when receipts are recorded so off-chain infra can index them.
+- Be controlled by an admin / policy layer (e.g., AdminGate + AgentRegistry),
+  at least for dangerous operations (purge, override, etc.).
+- Expose read functions for:
+  - `receiptsTotal()`
+  - `getReceipts(jobId)` or `getReceipt(jobId, idx)`
+  - `hasReceipt(jobId)` or `hasResult(jobId)`
 
-ReceiptRegistry must NOT:
+ReceiptRegistry cannot:
 
-- Execute AI models.
-- Decide which model result is “correct”.
-- Manage balances or payouts directly (that’s for other contracts).
-- Override JobQueue’s meaning of job lifecycle.
-
-It is a bookkeeping and evidence layer, not an oracle of truth about model quality.
+- Force agents to actually do any work.
+- Judge correctness of AI outputs (that is a higher-level policy problem).
+- Directly move user funds or touch JobQueue balances.
 
 ---
 
-## 2. Data model
+## 2. Minimal interface (conceptual)
 
-Conceptual receipt struct (Solidity-style):
+**NOTE:** Exact function signatures are defined by the Solidity implementation.
+This file describes the *intent* of the interface we rely on for devnet.
 
-    struct Receipt {
-        bytes32 jobId;        // JobQueue jobId (canonical)
-        bytes32 receiptId;    // Unique id for this receipt
-        address agent;        // Who submitted this receipt
-        string  modelId;      // Human-readable model identifier (e.g. "gpt-4.1-mini")
-        bytes32 inputHash;    // Hash of input payload (CBOR manifest, etc.)
-        bytes32 outputHash;   // Hash of output payload (result manifest / transcript)
-        bytes32 modelHash;    // Hash of model version / weights / manifest
-        uint64  chainId;      // Chain this job/receipt belongs to (e.g. 2050)
-        uint64  createdAt;    // Block timestamp when receipt was recorded
-        uint8   status;       // 0=pending, 1=completed, 2=failed, etc.
-    }
+We assume a minimal shape like:
 
-Storage:
+- `function totalReceipts() external view returns (uint256);`
+- `function receiptsFor(bytes32 jobId) external view returns (uint256);`
+- `function hasResult(bytes32 jobId) external view returns (bool);`
+- `function getReceipt(bytes32 jobId, uint256 index) external view returns (
+      bytes32 jobId,
+      address agent,
+      string memory resultURI,
+      bytes32 resultHash,
+      uint64  createdAt,
+      uint8   status
+  );`
 
-- mapping(bytes32 => Receipt) by receiptId.
-- mapping(bytes32 => bytes32[]) receipts by jobId (list of receiptIds).
+And one primary write function, conceptually:
 
-Optional v2 indexes (not required for v1):
+- `function recordReceipt(
+      bytes32 jobId,
+      string calldata resultURI,
+      bytes32 resultHash
+  ) external returns (bytes32 receiptId);`
 
-- receipts by agent
-- receipts by modelId (hash key + smaller index)
+On devnet, we are tolerant of this evolving as long as:
 
-For v1, minimal indexing is fine: per-job lists plus a direct receiptId mapping.
-
----
-
-## 3. Core functions (v1)
-
-### 3.1 submitReceipt
-
-    function submitReceipt(ReceiptInput calldata r) external returns (bytes32 receiptId);
-
-ReceiptInput contains:
-
-- jobId
-- modelId
-- inputHash
-- outputHash
-- modelHash
-- status
-
-Behavior:
-
-- Compute receiptId, for example:
-
-      receiptId = keccak256(abi.encode(
-          r.jobId,
-          msg.sender,
-          r.inputHash,
-          r.outputHash,
-          block.timestamp
-      ));
-
-- Require JobQueue.jobExists(jobId) is true.
-- Optionally require AgentRegistry.isAuthorized(msg.sender, modelId) is true.
-- Store the full Receipt struct.
-- Append receiptId to the per-job list.
-- Emit ReceiptSubmitted(jobId, receiptId, msg.sender, modelId, status).
-
-Access control (v1):
-
-- Default: any address can submit receipts.
-- Optional admin policy: only known agents (in AgentRegistry) can submit for certain models.
-
-### 3.2 getReceipt
-
-    function getReceipt(bytes32 receiptId) external view returns (Receipt memory);
-
-Simple getter.
-
-### 3.3 getReceiptsForJob
-
-    function getReceiptsForJob(bytes32 jobId) external view returns (bytes32[] memory);
-
-Returns the list of receiptIds; callers can fetch each Receipt.
-
-### 3.4 markReceiptStatus (optional)
-
-    function markReceiptStatus(bytes32 receiptId, uint8 status) external;
-
-- Only callable by admin (AdminGate) or a policy contract.
-- Used to mark receipts as disputed, invalid, etc.
+- JobQueue and coverage tools can still answer:
+  - "Does this job have >=1 receipt?"
+  - "How many receipts exist in total?"
+- The ReceiptRegistry address stays stable in the devnet state file:
+  `docs/VOID-DEVNET-PROTOCOL-STATE.json` under `.ReceiptRegistry.address`.
 
 ---
 
-## 4. Events
+## 3. Events
 
-    event ReceiptSubmitted(
-        bytes32 indexed jobId,
-        bytes32 indexed receiptId,
-        address indexed agent,
-        string  modelId,
-        uint8   status
-    );
+At minimum, ReceiptRegistry should emit:
 
-    event ReceiptStatusUpdated(
-        bytes32 indexed receiptId,
-        uint8   oldStatus,
-        uint8   newStatus
-    );
+- `event ReceiptRecorded(
+      bytes32 indexed jobId,
+      bytes32 indexed receiptId,
+      address indexed agent,
+      string  resultURI,
+      bytes32 resultHash,
+      uint64  createdAt,
+      uint8   status
+  );`
 
-Events let indexers and Prometheus bridges:
-
-- Count receipts per job, model, agent.
-- Detect jobs without receipts or low coverage.
-- Track disputed receipts.
+Indexing `jobId` and `receiptId` lets off-chain infra quickly find all
+receipts for a given job and correlate them to logs.
 
 ---
 
-## 5. Admin / control
+## 4. Admin / policy
 
-ReceiptRegistry has a single admin address, set at construction:
+ReceiptRegistry should be governed by an admin / master-key layer:
 
-- For VOID, admin should be an AdminGate contract governed by the master key.
+- Admin may:
+  - Pause/unpause new receipts (emergency only).
+  - Mark certain agents as disallowed (integrate with AgentRegistry).
+  - Optionally mark certain receipts as invalid / superseded.
 
-Admin can:
+- Normal agents may:
+  - Call `recordReceipt` for jobs they are allowed to serve.
 
-- Update policy hooks (AgentRegistry address, JobQueue address, etc.).
-- Pause or unpause receipt submission (emergency).
-- Configure allowed status transitions.
-
-Admin cannot in v1:
-
-- Rewrite existing receipt hashes.
-- Arbitrarily delete receipts.
+The final mainnet design will likely route authority through AdminGate and
+AgentRegistry; devnet v1 may be simpler as long as we can upgrade later.
 
 ---
 
-## 6. Integration with JobQueue
+## 5. Devnet invariants we care about
 
-ReceiptRegistry should:
+For VOID devnet, monitoring enforces:
 
-- Know the JobQueue contract address.
-- Call JobQueue.jobExists(jobId) (or equivalent) to ensure the job is valid.
-- Trust JobQueue for basic job lifecycle tracking (posted, cancelled, etc.).
+- `void_devnet_receipts_total_v2 >= void_devnet_jobs_total_v2`
+- `void_devnet_receipts_health_v2 == 1`
+- `void_devnet_coverage == 1` (every job has >=1 receipt)
 
-JobQueue does not need to call ReceiptRegistry in v1; this avoids tight coupling.
+ReceiptRegistry **must not** break these core invariants when we iterate:
 
-Off-chain:
+- Posting a receipt for a job that already has one should be allowed, but
+  must not silently erase history.
+- Removing receipts (if ever allowed) must be rare and observable (events).
 
-- Indexers combine JobQueue and ReceiptRegistry events to compute:
-  - jobs_without_receipts
-  - jobs_receipt_coverage
-  - per-agent and per-model performance.
-
-This maps directly to existing devnet Prometheus metrics:
-
-- void:devnet:jobs_total
-- void:devnet:receipts_total
-- void:devnet:jobs_without_receipts
-- void:devnet:jobs_receipt_coverage
-- and the per-model variants.
-
----
-
-## 7. Security and abuse considerations
-
-ReceiptRegistry must be hardened against:
-
-- Spam: unlimited receipts for fake jobs.
-  - Mitigation: JobQueue.jobExists(jobId) must be true.
-  - Future: require stake or bond for agents.
-
-- Replay: same receipt submitted multiple times.
-  - Enforce unique receiptId.
-  - Optional guard: reject identical jobId + agent + inputHash + outputHash combos.
-
-- Admin abuse:
-  - Admin can only mark status, not change hashes.
-  - All admin actions should emit events and can be further gated by UpdateGate.
-
----
-
-## 8. Mapping devnet JSONL to ReceiptRegistry
-
-Current devnet receipts in ops/devnet/receipts.jsonl conceptually become:
-
-- jobId → bytes32
-- receiptId → derived from (jobId, agent, receiptTs) or explicitly stored
-- status → enum value
-- modelId → same as JSONL field
-- agent → from JSONL
-- receiptTs → createdAt in the on-chain struct
-- inputHash, outputHash, modelHash → additional fields (we already have hashes in the agent pipeline)
-
-Once ReceiptRegistry is live, JSONL becomes a client of the contract, not the source of truth.
+This doc is a **living spec**. As we evolve the Solidity contract, we will
+update this file but keep the devnet invariants and monitoring semantics
+stable across versions.
