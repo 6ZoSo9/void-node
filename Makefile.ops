@@ -108,3 +108,7 @@ devnet-models-ci-smoke:
 # Devnet DatasetRegistry CI smoke (local-only)
 devnet-datasets-ci-smoke:
 	./ops/void-devnet-datasets-ci-smoke.sh
+
+# Devnet full CI smoke: jobs/receipts coverage + AgentRegistry + ModelRegistry + DatasetRegistry
+devnet-full-ci-smoke:
+	./ops/void-devnet-full-ci-smoke.sh
