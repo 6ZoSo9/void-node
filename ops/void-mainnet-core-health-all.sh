@@ -3,45 +3,73 @@ set -euo pipefail
 
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
 
-q_scalar() {
+echo "[mainnet-core-health] repo=$(pwd)"
+echo "[mainnet-core-health] prom_url=$PROM_URL"
+
+get_scalar() {
   local expr="$1"
-  curl -fsS "$PROM_URL/api/v1/query" \
-    --data-urlencode "query=$expr" \
-  | jq -r '.data.result[0].value[1] // "NaN"'
+  curl -fsS "$PROM_URL/api/v1/query?query=${expr}" \
+    | jq -r '.data.result[0].value[1] // "null"' 2>/dev/null \
+    || echo "null"
 }
 
-echo "[mainnet-core] checking pillar metrics..."
+echo "[mainnet-core-health] querying pillar gauges..."
 
-safeboot_overall=$(q_scalar 'void:safeboot:overall')
-core_health=$(q_scalar 'void_mainnet_core_health')
-core_health_last=$(q_scalar 'void:mainnet_core:health:last_5m')
-manifest_health=$(q_scalar 'void_mainnet_core_manifest_health')
-manifest_days=$(q_scalar 'void_mainnet_core_manifest_days_left')
+safeboot_overall="$(get_scalar 'void:safeboot:overall')"
+core_health="$(get_scalar 'void_mainnet_core_health')"
+core_health_5m="$(get_scalar 'void:mainnet_core:health:last_5m')"
+manifest_health="$(get_scalar 'void_mainnet_core_manifest_health')"
+manifest_days="$(get_scalar 'void_mainnet_core_manifest_days')"
 
-echo "  safeboot_overall                 = $safeboot_overall"
-echo "  void_mainnet_core_health         = $core_health"
-echo "  void:mainnet_core:health:last_5m = $core_health_last"
-echo "  manifest_health                  = $manifest_health"
-echo "  manifest_days_left               = $manifest_days"
+echo "[mainnet-core-health] safeboot_overall                 = ${safeboot_overall}"
+echo "[mainnet-core-health] void_mainnet_core_health         = ${core_health}"
+echo "[mainnet-core-health] void:mainnet_core:health:last_5m = ${core_health_5m}"
+echo "[mainnet-core-health] void_mainnet_core_manifest_health= ${manifest_health}"
+echo "[mainnet-core-health] void_mainnet_core_manifest_days  = ${manifest_days}"
 
-ok=1
+err=0
 
-[[ "$safeboot_overall" == "1" ]] || ok=0
-[[ "$core_health" == "1" ]] || ok=0
-[[ "$core_health_last" == "1" ]] || ok=0
-[[ "$manifest_health" == "1" ]] || ok=0
+# Basic null / presence checks
+for name in safeboot_overall core_health core_health_5m manifest_health manifest_days; do
+  val="${!name}"
+  if [[ "$val" == "null" ]]; then
+    echo "[mainnet-core-health] ERROR: metric ${name} is null/missing from Prometheus"
+    err=1
+  fi
+done
 
-# require at least 7 days left on manifest
-if [[ "$manifest_days" == "NaN" ]] || (( ${manifest_days%.*} < 7 )); then
-  ok=0
+# Only do deeper checks if we actually got values
+if [[ "$core_health" != "1" ]]; then
+  echo "[mainnet-core-health] ERROR: void_mainnet_core_health != 1 (got ${core_health})"
+  err=1
 fi
 
-if [[ "$ok" == "1" ]]; then
-  echo
-  echo "[mainnet-core] RESULT: OK (pillar healthy and manifest days_left>=7)"
-  exit 0
+if [[ "$core_health_5m" != "1" ]]; then
+  echo "[mainnet-core-health] ERROR: void:mainnet_core:health:last_5m != 1 (got ${core_health_5m})"
+  err=1
+fi
+
+if [[ "$manifest_health" != "1" ]]; then
+  echo "[mainnet-core-health] ERROR: void_mainnet_core_manifest_health != 1 (got ${manifest_health})"
+  err=1
+fi
+
+# manifest_days is a scalar; treat it as "days remaining"
+days_int="${manifest_days%.*}"
+
+if ! [[ "$days_int" =~ ^-?[0-9]+$ ]]; then
+  echo "[mainnet-core-health] ERROR: void_mainnet_core_manifest_days is not an integer (${manifest_days})"
+  err=1
 else
-  echo
-  echo "[mainnet-core] RESULT: BAD (see values above)"
+  if (( days_int < 7 )); then
+    echo "[mainnet-core-health] ERROR: manifest days < 7 (days=${days_int})"
+    err=1
+  fi
+fi
+
+if (( err != 0 )); then
+  echo "[mainnet-core-health] RESULT: BAD (pillar not healthy or manifest too close to expiry)"
   exit 1
 fi
+
+echo "[mainnet-core-health] RESULT: OK (safeboot+core healthy, manifest_days>=7)"
