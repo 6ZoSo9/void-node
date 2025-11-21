@@ -19,24 +19,41 @@ safeboot_overall="$(get_scalar 'void:safeboot:overall')"
 core_health="$(get_scalar 'void_mainnet_core_health')"
 core_health_5m="$(get_scalar 'void:mainnet_core:health:last_5m')"
 manifest_health="$(get_scalar 'void_mainnet_core_manifest_health')"
-manifest_days="$(get_scalar 'void_mainnet_core_manifest_days')"
 
-echo "[mainnet-core-health] safeboot_overall                 = ${safeboot_overall}"
-echo "[mainnet-core-health] void_mainnet_core_health         = ${core_health}"
-echo "[mainnet-core-health] void:mainnet_core:health:last_5m = ${core_health_5m}"
-echo "[mainnet-core-health] void_mainnet_core_manifest_health= ${manifest_health}"
-echo "[mainnet-core-health] void_mainnet_core_manifest_days  = ${manifest_days}"
+# NEW: use the days_left metrics that actually exist
+manifest_days_rec="$(get_scalar 'void:mainnet_core:manifest_days_left:last')"
+manifest_days_gauge="$(get_scalar 'void_mainnet_core_manifest_days_left')"
+
+# Choose which days value to use (prefer recording rule)
+manifest_days="$manifest_days_rec"
+if [[ "$manifest_days" == "null" && "$manifest_days_gauge" != "null" ]]; then
+  manifest_days="$manifest_days_gauge"
+fi
+
+echo "[mainnet-core-health] safeboot_overall                      = ${safeboot_overall}"
+echo "[mainnet-core-health] void_mainnet_core_health              = ${core_health}"
+echo "[mainnet-core-health] void:mainnet_core:health:last_5m      = ${core_health_5m}"
+echo "[mainnet-core-health] void_mainnet_core_manifest_health     = ${manifest_health}"
+echo "[mainnet-core-health] void:mainnet_core:manifest_days_left:last = ${manifest_days_rec}"
+echo "[mainnet-core-health] void_mainnet_core_manifest_days_left  = ${manifest_days_gauge}"
+echo "[mainnet-core-health] chosen_manifest_days                  = ${manifest_days}"
 
 err=0
 
-# Basic null / presence checks
-for name in safeboot_overall core_health core_health_5m manifest_health manifest_days; do
+# Presence checks for the core health metrics
+for name in safeboot_overall core_health core_health_5m manifest_health; do
   val="${!name}"
   if [[ "$val" == "null" ]]; then
     echo "[mainnet-core-health] ERROR: metric ${name} is null/missing from Prometheus"
     err=1
   fi
 done
+
+# Manifest days presence check (after selection)
+if [[ "$manifest_days" == "null" ]]; then
+  echo "[mainnet-core-health] ERROR: manifest_days (days_left) is null/missing from Prometheus"
+  err=1
+fi
 
 # Only do deeper checks if we actually got values
 if [[ "$core_health" != "1" ]]; then
@@ -58,7 +75,7 @@ fi
 days_int="${manifest_days%.*}"
 
 if ! [[ "$days_int" =~ ^-?[0-9]+$ ]]; then
-  echo "[mainnet-core-health] ERROR: void_mainnet_core_manifest_days is not an integer (${manifest_days})"
+  echo "[mainnet-core-health] ERROR: chosen_manifest_days is not an integer (${manifest_days})"
   err=1
 else
   if (( days_int < 7 )); then
