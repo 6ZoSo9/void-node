@@ -1,204 +1,151 @@
-# VOID Mainnet – Allocation & Account Classes (v0.1)
+# VOID Network – Mainnet Allocation & Emissions Spec (v0.2 – LOCKED DRAFT)
 
-> Companion to `docs/VOID-MAINNET-GENESIS-SPEC.md`.  
-> Genesis spec describes **what** exists at height 0.  
-> This file describes **who** is allowed to hold what, and under which rules.
+Chain: VOID mainnet (chainId 2050)  
+Token: VOID (a.k.a. VoidStones)  
+Max supply (hard cap): **666,666,666 VOID**
 
----
+We split supply into:
 
-## 1. Goals
+- **Premine at genesis (50%)**: 333,333,333 VOID  
+- **Long-term emissions over 100 years (50%)**: 333,333,333 VOID  
 
-We want a mainnet allocation that is:
-
-- **Transparent** – no hidden premines, no mystery wallets.
-- **Operational** – enough supply in the right hands to actually run the network.
-- **Defensible** – easy to explain in a short paragraph to exchanges, auditors, and users.
-- **Chain-aligned** – matches chainId **2050** and the governance story in `UpdateGate` / `AdminGate`.
-
-This document is **policy**, not code. Genesis tooling must refuse to produce a file
-that violates the invariants here once they’re finalized.
+All numbers below are **protocol-level targets**. Final contracts will encode exact integers and enforce `totalSupply <= 666,666,666` forever.
 
 ---
 
-## 2. Supply & Denominations (high-level only)
+## 1. Genesis Premine (333,333,333 VOID)
 
-We deliberately **do not** lock exact numbers yet. This section only fixes structure.
+At genesis, 333,333,333 VOID are minted into an allocator contract / vault and then streamed or vested into the buckets below.
 
-- **Native token**: `VoidStones` (`$VOID`)
-- **ChainId**: `2050` (already fixed)
-- **Smallest unit**: `wei_VOID` (1e-18 VOID, analogous to ETH wei)
-- **Initial supply at height 0**: `TBD_INITIAL_SUPPLY`
-  - Exact value and breakdown will be set in a later revision.
-  - MUST be fully accounted for by the account classes in §3.
+### 1.1 Premine buckets
 
-Constraints (once numbers are chosen):
+| Bucket                                           | Amount (VOID)   | % of Premine | Notes |
+|--------------------------------------------------|-----------------|--------------|-------|
+| **Founder Trust – VOID Labs LLC**               | **230,000,000** | 69.0%        | Held in a trust in ZoSo’s name for VOID Labs LLC. Used to acquire property, build backbone infra, buy servers in multiple countries, pay core staff, and fund long-horizon R&D. Not a degen cash-out bag. |
+| **Ecosystem & Infra Reserve**                   | 70,000,000      | 21.0%        | Treasury-style pool for protocol operations, validator subsidies, core client work, monitoring, emergency repair work, and long-term infra upgrades (data centers, regional hubs, backbone networking). |
+| **Community, Liquidity & Strategic Partners**   | 33,333,333      | 10.0%        | Airdrops, hackathons, grants, early integrations, cautious CEX listings, MM, and strategic partnerships that actually move the needle. |
 
-- Sum of all allocations at genesis MUST equal `INITIAL_SUPPLY`.
-- No account may receive a negative or implicit allocation.
-- No “off-ledger” IOUs; every promise must correspond to a concrete address or be out of scope.
+Total premine = **333,333,333 VOID** (50% of cap)
 
----
+### 1.2 Founder Trust constraints (high level)
 
-## 3. Account Classes at Genesis
+Intent:
 
-We group all human/contract recipients into classes. Concrete addresses will be
-filled in later (and tracked in a separate `VOID-MAINNET-ALLOCATION-TABLE.json`).
+- The **230,000,000 VOID** founder allocation is **explicitly tied to building the network**, not extracting rent.
+- It funds:
+  - Property in multiple regions to host servers and offices.
+  - Salaries/comp for family + trusted staff who physically watch hardware and workers.
+  - Travel and logistics required to maintain infra in different states/countries.
+  - Strategic deals that strengthen VOID’s backbone (not random hype partnerships).
 
-### 3.1 Protocol / Governance Core
+Ethical/lockup sketch (to be hardened in contracts later):
 
-Purpose: keep the chain operable and upgradable without being able to steal user funds.
+- **50% of founder trust (115,000,000 VOID)**:
+  - Hard-locked for **10 years** via time-lock / vesting contract.
+  - Accessible only for strictly defined infra / R&D / protocol-level spend.
+- **Remaining 50% (115,000,000 VOID)**:
+  - Vested linearly over **4–6 years** with clear policy:
+    - Reasonable personal runway (you’re a human, not a robot).
+    - Majority reinvested into infra, hiring, security, and ecosystem.
 
-Classes:
-
-1. **AdminGate / MasterKey contracts**
-   - Purpose: own **governance**, not treasury. No arbitrary draining of user balances.
-   - Allowed to:
-     - Change protocol parameters via `UpdateGate` / manifests.
-     - Move *governance-scoped* funds (e.g., upgrade bonds, protocol reserves).
-   - NOT allowed to:
-     - Seize arbitrary user funds.
-     - Mint unbounded new supply.
-
-2. **Protocol Reserve / Safety Fund**
-   - Address(es) earmarked for:
-     - Emergency recovery operations (chain halts, migrations, etc.).
-     - Covering bugs that require on-chain remediation.
-   - Policy:
-     - Movements must be on-chain visible and justified (e.g., via `UpdateGate` event log).
-
-> **Status**: exact addresses & percentages = **TBD** (v0.1).
+Exact lockup mechanics will live in a separate **Founder Trust Spec**.
 
 ---
 
-### 3.2 Validators / Operators
+## 2. Emissions – 100-Year Schedule (333,333,333 VOID)
 
-Purpose: enable liveness and security from day one.
+The other half of supply (**333,333,333 VOID**) is emitted over **~100 years** in **4 eras of 25 years** each, Bitcoin-style, with emissions roughly halving each era.
 
-Classes:
+Eras target the following **cool totals**:
 
-1. **Genesis Validators / Core Operators**
-   - Receive enough VOID to:
-     - Post required bonds / stakes.
-     - Run nodes and pay gas for maintenance.
-   - Invariant:
-     - No single operator (person or org) should control a majority of internal
-       validator allocation at genesis.
+- **Era 1**: 177,777,777 VOID  
+- **Era 2**: 88,888,888 VOID  
+- **Era 3**: 44,444,444 VOID  
+- **Era 4**: 22,222,222 VOID  
 
-2. **Infra / Observability Operators (non-validators)**
-   - Optional addresses that run explorers, monitoring, public RPC, etc.
-   - May receive small allocations for bootstrapping infra, but not protocol-level privileges by default.
+> Note: these numbers are intentionally “aesthetic”. The on-chain emission contract will enforce the exact 333,333,333 emission budget and will make tiny integer adjustments if needed so that `Σ era_minted == 333,333,333`.
 
-> **Status**: list of operators, their addresses, and allocations = **TBD**.
+### 2.1 Era breakdown (25 years each)
 
----
+Assume Year 0 = mainnet launch / first emission block.
 
-### 3.3 Ecosystem & Grants
+| Era | Years (relative) | Era Total (VOID) | Approx / year | % of full cap | Description |
+|-----|------------------|------------------|---------------|---------------|-------------|
+| **1** | 0–25             | **177,777,777**  | ~7.11M / year | ~26.67%       | High-emission bootstrapping phase. Strong validator rewards + aggressive funding of on-chain automation and JobQueue workloads to harden the network. |
+| **2** | 25–50            | **88,888,888**   | ~3.56M / year | ~13.33%       | First halving. Network should be fee-bearing; emissions still meaningful but not dominant. |
+| **3** | 50–75            | **44,444,444**   | ~1.78M / year | ~6.67%        | Second halving. Emissions mostly top-up security and keep long-horizon jobs funded. Fees should be the main driver by now. |
+| **4** | 75–100           | **22,222,222**   | ~0.89M / year | ~3.33%        | Final trickle. Primarily incentive smoothing and tail security. System expected to live off fees + matured ecosystem. |
 
-Purpose: grow the VOID ecosystem over years, not weeks.
-
-Classes:
-
-1. **Ecosystem Fund**
-   - Multi-sig or contract that funds:
-     - Grants, bounties, audits.
-     - AI agent / model integrations.
-     - Obelisk Wallet / NullFeed / tooling.
-   - Strong expectations:
-     - On-chain transparency for large outflows.
-     - Published criteria for grants.
-
-2. **R&D / Labs Allocation**
-   - Long-term funding for VOID-Labs-style internal development.
-   - Optionally vested via smart contracts (cliff + linear vest).
-
-> **Status**: % of supply and vesting schedule = **TBD** (will be nailed down before mainnet launch).
+Total emissions target = **333,333,333 VOID** (50% of cap)
 
 ---
 
-### 3.4 Community, Users, and Liquidity
+## 3. Where emissions actually go
 
-Purpose: get VOID in the hands of real users and give markets enough liquidity.
+Emissions are not just “spray tokens at validators”. We wire them into **protocol-level automation** so the network **uses** its own token to keep itself alive:
 
-Classes:
+1. **Validator & Staker rewards**
+   - Base share of each era goes to validator/staker sets for block production and finality.
+   - Distribution is stake-weighted with slashing for misbehavior.
 
-1. **Community / Airdrop / Rewards Pool**
-   - For:
-     - Early community members.
-     - Builders & testers.
-     - Incentives for running nodes, agents, or storing data.
-   - Will likely be governed by on-chain programs or grants.
+2. **Protocol Ops & Automation (JobQueue)**
+   - A fixed portion of each era’s emissions flows into **on-chain JobQueue budgets**:
+     - Header/txroot sanity jobs.
+     - Update manifest checks.
+     - Coverage/receipts health, dataset/model checks.
+     - Observability and metrics integrity jobs.
+   - Off-chain VOID agents claim these jobs and must write back receipts; we already have this pipeline on devnet.
 
-2. **Liquidity / MM Pool(s)**
-   - VOID allocated to bootstrap on-chain liquidity (AMMs, etc.).
-   - Must be handled with:
-     - Clear rules (e.g., LP tokens sent to a timelock, or liquidity “locked” via explicit on-chain constraints).
-     - No backdoor “rug” mechanics.
+3. **Ecosystem tasks**
+   - Some emissions can be redirected (via governance) to:
+     - Indexers, relayers, sequencer-like roles.
+     - Storage/verifier nodes for off-chain data.
+     - Reference client implementers and security auditors.
 
-3. **Reserved Users (known addresses)**
-   - Optional bucket for:
-     - Key ecosystem partners.
-     - Strategic integrations.
-   - Each such allocation must have:
-     - A reason (one line of text).
-     - A label in the final allocation table.
-
-> **Status**: none of these numbers are fixed yet in v0.1.
+Exact splits per era (e.g., % to validators vs % to JobQueue vs % to ecosystem tasks) will be encoded in a **VOID Emissions Policy** doc + contract once we freeze more of mainnet’s final architecture.
 
 ---
 
-### 3.5 Burn / Sink / Blackhole Addresses
+## 4. Long-term sustainability once the cap is reached
 
-We may want one or more canonical “no return” addresses defined **up front**.
+When `totalSupply` asymptotically approaches **666,666,666 VOID** and emissions effectively stop:
 
-- **Burn address**: `VOID_BURN_ADDR` (TBD exact form, e.g., provably unspendable pattern).
-- Invariant:
-  - Any VOID sent to the burn address is considered permanently removed from
-    circulating supply (but still visible in state).
+1. **Validators live on fees**
+   - Block proposers/validators earn:
+     - Base gas fees.
+     - Priority tips.
+     - MEV capture where allowed by policy (TBD).
+   - Emissions become negligible, but fiscal gravity of on-chain activity replaces them.
 
-No supply should start in burn at genesis unless explicitly justified (e.g., provable premine burn).
+2. **JobQueue & automation funded by fees / treasuries**
+   - A portion of transaction fees can be:
+     - Routed to protocol-owned JobQueue budgets.
+     - Topped up via ecosystem treasuries seeded from premine and earlier eras.
+   - The network “hires itself” via on-chain jobs that pay in VOID, not in infinite new inflation.
 
----
-
-## 4. Invariants for Genesis Tooling
-
-When we build the actual genesis generator (JSON / RLP), it must enforce:
-
-1. **Total Supply Equality**
-   - \`sum(class_allocations) == INITIAL_SUPPLY\`
-
-2. **Class Coverage**
-   - Every funded address belongs to exactly one class in this document.
-   - No “misc” or unlabeled allocations.
-
-3. **No Hidden God Mode**
-   - No EOA or contract may be able to:
-     - Arbitrarily mint VOID.
-     - Arbitrarily move other users’ balances.
-   - Any mint/burn authority must be:
-     - Explicitly documented here.
-     - Implemented via audited contracts (e.g., bridge minter roles, if any).
-
-4. **Reproducibility**
-   - Given:
-     - A canonical CSV/JSON allocation table
-     - Chain config constants (chainId 2050, genesis timestamp, etc.)
-   - The genesis builder must produce the **same** genesis file byte-for-byte.
+3. **Treasury & founder trust as backstops, not crutches**
+   - Founder trust and ecosystem reserves **frontload** infra, property, staff, and core engineering in the early decades.
+   - Over time, those bags should shift from “fund operations” to “strategic capital” while the **day-to-day security budget** comes from fees and mature on-chain economics.
 
 ---
 
-## 5. Open Questions (v0.1)
+## 5. Summary (what is locked now)
 
-These are intentionally left open and will be filled in future revisions:
+- **Max supply:** 666,666,666 VOID (hard cap).  
+- **Premine (genesis):** 333,333,333 VOID.
+  - 230,000,000 VOID → Founder Trust (VOID Labs LLC, infra-focused, with heavy lockups).
+  - 70,000,000 VOID → Ecosystem & Infra Reserve.
+  - 33,333,333 VOID → Community, liquidity, and strategic partners.
+- **Emissions over 100 years:** 333,333,333 VOID in 4 × 25-year eras:
+  - Era 1: 177,777,777  
+  - Era 2: 88,888,888  
+  - Era 3: 44,444,444  
+  - Era 4: 22,222,222  
+- Bitcoin-style halving over human-scale decades, **not** a degen rush.
+- Emissions are explicitly tied to:
+  - Validator security.
+  - Automated JobQueue workloads.
+  - Long-term protocol operations.
+- After emissions fade out, **fees + mature treasuries** keep the chain alive indefinitely.
 
-1. **INITIAL_SUPPLY** – exact number and decimal layout.
-2. **Validator set size at genesis** – and per-validator allocation.
-3. **Ecosystem vs Community split** – % to each and vesting terms.
-4. **Liquidity strategy** – how much, where, and how locked.
-5. **Any bridge/minter roles** – and how they’re prevented from abusing supply.
-
-Once these are decided, v0.2+ of this doc will:
-
-- Replace `TBD_*` placeholders with concrete values.
-- Add a machine-readable mirror (e.g., `docs/VOID-MAINNET-ALLOCATION-TABLE.json`).
-- Be wired into genesis-generation tooling used in CI.
-
+This document is the **canonical token allocation & emissions spec for VOID mainnet** unless superseded by a later versioned spec.
