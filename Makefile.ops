@@ -198,3 +198,7 @@ mainnet-overall-health-all:
 .PHONY: mainnet-tokenomics-health-all
 mainnet-tokenomics-health-all:
 	./ops/void-mainnet-tokenomics-health.sh
+
+.PHONY: void-mainnet-overall-health
+void-mainnet-overall-health:
+	@./ops/void-mainnet-overall-health.sh
