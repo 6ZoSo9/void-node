@@ -185,3 +185,16 @@ pillars-health-export:
 	  OUT=/var/lib/node_exporter/textfile_collector/void_pillars.prom \
 	  ./ops/void-pillars-health-exporter.sh
 	@sudo chmod 644 /var/lib/node_exporter/textfile_collector/void_pillars.prom
+
+# Devnet demo: post a job, run the demo agent once, then run devnet CI smoke
+.PHONY: devnet-demo-cycle
+devnet-demo-cycle:
+	./ops/void-devnet-demo-cycle.sh
+
+mainnet-overall-health-all:
+	./ops/void-mainnet-overall-health.sh
+
+# ---- mainnet tokenomics pillar health hammer ----
+.PHONY: mainnet-tokenomics-health-all
+mainnet-tokenomics-health-all:
+	./ops/void-mainnet-tokenomics-health.sh
