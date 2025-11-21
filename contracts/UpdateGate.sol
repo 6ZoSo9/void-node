@@ -1,57 +1,50 @@
 // SPDX-License-Identifier: VCL-1.0
 pragma solidity ^0.8.20;
 
-/// @title VOID UpdateGate v1
-/// @notice M-of-N signer gate for protocol update manifests on VOID (chainId 2050).
-/// @dev Nodes MAY follow this contract to decide which protocol version / manifest is "current".
-///      It does NOT enforce anything on-chain by itself; it's just a registry.
+/// @title VOID Network - UpdateGate (v1, minimal)
+/// @notice Coordinates protocol update manifests using an M-of-N signer set.
+///         Nodes MAY choose to follow this contract when deciding which
+///         manifest is "current".
 contract UpdateGate {
-    uint256 public constant CHAIN_ID = 2050;
+    struct UpdateRecord {
+        bytes32 manifestHash;      // hash of the off-chain manifest JSON
+        uint64 activationHeight;   // block height when this should go live
+        bool   emergency;          // if true, can be activated before height
+        bool   executed;           // true once activated
+        uint256 approvals;         // number of signer approvals
+        uint64 createdAt;          // block timestamp when proposed
+    }
 
-    /// @notice Master key that can manage signer set and threshold.
-    address public masterKey;
+    // --- core state ---
 
-    /// @notice Current active protocol version (monotonic).
-    uint256 public currentVersion;
+    address public admin;
 
-    /// @notice Signer set and threshold for approvals.
+    // signer set + threshold (M-of-N)
     mapping(address => bool) public isSigner;
     uint256 public signerCount;
-    uint256 public threshold;
+    uint256 public signerThreshold;
 
-    enum UpdateStatus {
-        None,
-        Proposed,
-        Active,
-        Cancelled
-    }
-
-    struct Update {
-        uint256 version;
-        bytes32 manifestHash;
-        uint64 proposedAt;
-        uint64 activateAt;
-        bool emergency;
-        uint256 approvals;
-        UpdateStatus status;
-    }
-
-    /// @dev updateId = keccak256(abi.encodePacked(version, manifestHash)).
-    mapping(bytes32 => Update) public updates;
+    // updateId => UpdateRecord
+    mapping(bytes32 => UpdateRecord) private _updates;
+    // updateId => signer => approved?
     mapping(bytes32 => mapping(address => bool)) public hasApproved;
 
-    event MasterKeyChanged(address indexed oldKey, address indexed newKey);
-    event SignerAdded(address indexed signer);
-    event SignerRemoved(address indexed signer);
-    event ThresholdChanged(uint256 oldThreshold, uint256 newThreshold);
+    // current active manifest (if any)
+    bytes32 public currentUpdateId;
+    bytes32 public currentManifestHash;
+
+    // --- events ---
+
+    event AdminChanged(address indexed oldAdmin, address indexed newAdmin);
+
+    event SignerSet(address indexed signer, bool isSigner);
+    event ThresholdSet(uint256 threshold);
 
     event UpdateProposed(
         bytes32 indexed updateId,
-        uint256 indexed version,
         bytes32 manifestHash,
-        uint64 activateAt,
-        bool emergency,
-        address indexed proposer
+        uint64 activationHeight,
+        bool emergency
     );
 
     event UpdateApproved(
@@ -62,17 +55,15 @@ contract UpdateGate {
 
     event UpdateActivated(
         bytes32 indexed updateId,
-        uint256 indexed version
+        bytes32 manifestHash,
+        uint64 activationHeight,
+        bool emergency
     );
 
-    event UpdateCancelled(
-        bytes32 indexed updateId,
-        address indexed canceller
-    );
+    // --- modifiers ---
 
-    modifier onlyMaster() {
-        require(msg.sender == masterKey, "UpdateGate: not master");
-        return;
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "UpdateGate: not admin");
         _;
     }
 
@@ -81,175 +72,159 @@ contract UpdateGate {
         _;
     }
 
-    /// @notice Version constant for off-chain infra (contract version, not protocol).
-    function VERSION() external pure returns (uint256) {
-        return 1;
+    // --- ctor ---
+
+    constructor() {
+        admin = msg.sender;
+        emit AdminChanged(address(0), msg.sender);
     }
 
-    /// @param masterKey_ Initial master key.
-    /// @param initialSigners Initial signer set.
-    /// @param threshold_ Initial M-of-N threshold (1 <= M <= N).
-    constructor(
-        address masterKey_,
-        address[] memory initialSigners,
-        uint256 threshold_
-    ) {
-        require(masterKey_ != address(0), "UpdateGate: masterKey zero");
-        require(initialSigners.length > 0, "UpdateGate: no signers");
-        masterKey = masterKey_;
+    // --- admin controls ---
 
-        for (uint256 i = 0; i < initialSigners.length; i++) {
-            address s = initialSigners[i];
-            require(s != address(0), "UpdateGate: signer zero");
-            require(!isSigner[s], "UpdateGate: dup signer");
-            isSigner[s] = true;
-            signerCount++;
-            emit SignerAdded(s);
+    function setAdmin(address newAdmin) external onlyAdmin {
+        require(newAdmin != address(0), "UpdateGate: zero admin");
+        address old = admin;
+        admin = newAdmin;
+        emit AdminChanged(old, newAdmin);
+    }
+
+    function setSigner(address signer, bool enabled) external onlyAdmin {
+        require(signer != address(0), "UpdateGate: zero signer");
+
+        bool was = isSigner[signer];
+        if (was == enabled) {
+            return;
         }
 
-        require(
-            threshold_ > 0 && threshold_ <= signerCount,
-            "UpdateGate: bad threshold"
-        );
-        threshold = threshold_;
-        emit ThresholdChanged(0, threshold_);
+        isSigner[signer] = enabled;
+
+        if (enabled) {
+            signerCount += 1;
+        } else {
+            require(signerCount > 0, "UpdateGate: signerCount underflow");
+            signerCount -= 1;
+        }
+
+        emit SignerSet(signer, enabled);
+
+        // keep invariant: threshold <= signerCount if non-zero
+        if (signerThreshold > signerCount && signerCount > 0) {
+            signerThreshold = signerCount;
+            emit ThresholdSet(signerThreshold);
+        }
     }
 
-    /// @notice Propose a new protocol update.
-    /// @param manifestHash Hash of off-chain manifest describing the update.
-    /// @param activateAt Block number at or after which it may activate.
-    /// @param emergency Emergency flag (metadata only in v1).
-    /// @return updateId Derived id for this update.
-    /// @return version New protocol version number.
+    function setThreshold(uint256 newThreshold) external onlyAdmin {
+        require(newThreshold > 0, "UpdateGate: threshold=0");
+        require(
+            newThreshold <= signerCount,
+            "UpdateGate: threshold > signerCount"
+        );
+        signerThreshold = newThreshold;
+        emit ThresholdSet(newThreshold);
+    }
+
+    // --- update lifecycle ---
+
+    /// @notice Propose a new manifest update.
+    /// @param manifestHash keccak256 hash of the off-chain manifest JSON.
+    /// @param activationHeight block number when this should become valid
+    ///                         (ignored if `emergency` is true).
+    /// @param emergency if true, can be activated immediately once approvals >= threshold.
+    /// @return updateId opaque id for this update (derived from parameters).
     function proposeUpdate(
         bytes32 manifestHash,
-        uint64 activateAt,
+        uint64 activationHeight,
         bool emergency
-    ) external onlySigner returns (bytes32 updateId, uint256 version) {
-        require(manifestHash != bytes32(0), "UpdateGate: empty manifest");
-        require(activateAt >= block.number, "UpdateGate: activateAt < now");
+    ) external onlyAdmin returns (bytes32 updateId) {
+        require(manifestHash != bytes32(0), "UpdateGate: empty hash");
+        // allow activationHeight=0 for emergency-only updates
 
-        version = currentVersion + 1;
-        updateId = keccak256(abi.encodePacked(version, manifestHash));
-
-        Update storage u = updates[updateId];
-        require(u.status == UpdateStatus.None, "UpdateGate: exists");
-
-        u.version = version;
-        u.manifestHash = manifestHash;
-        u.proposedAt = uint64(block.number);
-        u.activateAt = activateAt;
-        u.emergency = emergency;
-        u.status = UpdateStatus.Proposed;
-
-        // Proposer auto-approves.
-        u.approvals = 1;
-        hasApproved[updateId][msg.sender] = true;
-
-        emit UpdateProposed(
-            updateId,
-            version,
-            manifestHash,
-            activateAt,
-            emergency,
-            msg.sender
+        updateId = keccak256(
+            abi.encodePacked(
+                manifestHash,
+                activationHeight,
+                emergency,
+                block.chainid
+            )
         );
-        emit UpdateApproved(updateId, msg.sender, 1);
+
+        UpdateRecord storage rec = _updates[updateId];
+        require(rec.manifestHash == bytes32(0), "UpdateGate: exists");
+
+        rec.manifestHash = manifestHash;
+        rec.activationHeight = activationHeight;
+        rec.emergency = emergency;
+        rec.executed = false;
+        rec.approvals = 0;
+        rec.createdAt = uint64(block.timestamp);
+
+        emit UpdateProposed(updateId, manifestHash, activationHeight, emergency);
     }
 
-    /// @notice Approve a proposed update.
-    /// @param updateId Id returned by proposeUpdate.
+    /// @notice Approve an existing update (signer-only).
     function approveUpdate(bytes32 updateId) external onlySigner {
-        Update storage u = updates[updateId];
-        require(u.status == UpdateStatus.Proposed, "UpdateGate: not proposed");
-        require(!hasApproved[updateId][msg.sender], "UpdateGate: already");
+        UpdateRecord storage rec = _updates[updateId];
+        require(rec.manifestHash != bytes32(0), "UpdateGate: unknown");
+        require(!rec.executed, "UpdateGate: already executed");
+
+        require(!hasApproved[updateId][msg.sender], "UpdateGate: already approved");
         hasApproved[updateId][msg.sender] = true;
 
-        u.approvals += 1;
-        emit UpdateApproved(updateId, msg.sender, u.approvals);
+        rec.approvals += 1;
+        emit UpdateApproved(updateId, msg.sender, rec.approvals);
     }
 
-    /// @notice Try to activate an update (anyone can call).
-    /// @dev Conditions:
-    ///      - status == Proposed
-    ///      - approvals >= threshold
-    ///      - block.number >= activateAt
-    function activateUpdate(bytes32 updateId) external {
-        Update storage u = updates[updateId];
-        require(u.status == UpdateStatus.Proposed, "UpdateGate: not proposed");
-        require(u.approvals >= threshold, "UpdateGate: insufficient approvals");
-        require(block.number >= u.activateAt, "UpdateGate: too early");
-
-        u.status = UpdateStatus.Active;
-        currentVersion = u.version;
-
-        emit UpdateActivated(updateId, u.version);
-    }
-
-    /// @notice Cancel a proposed update (master only).
-    /// @param updateId Id of update to cancel.
-    function cancelUpdate(bytes32 updateId) external onlyMaster {
-        Update storage u = updates[updateId];
+    /// @notice Activate an update once approvals >= threshold and height rule satisfied.
+    function executeUpdate(bytes32 updateId) external onlyAdmin {
+        UpdateRecord storage rec = _updates[updateId];
+        require(rec.manifestHash != bytes32(0), "UpdateGate: unknown");
+        require(!rec.executed, "UpdateGate: already executed");
+        require(signerThreshold > 0, "UpdateGate: threshold not set");
         require(
-            u.status == UpdateStatus.Proposed,
-            "UpdateGate: not cancellable"
+            rec.approvals >= signerThreshold,
+            "UpdateGate: approvals < threshold"
         );
-        u.status = UpdateStatus.Cancelled;
-        emit UpdateCancelled(updateId, msg.sender);
-    }
 
-    /// @notice Change master key.
-    function setMasterKey(address newMasterKey) external onlyMaster {
-        require(newMasterKey != address(0), "UpdateGate: zero");
-        address old = masterKey;
-        masterKey = newMasterKey;
-        emit MasterKeyChanged(old, newMasterKey);
-    }
-
-    /// @notice Replace signer set and/or threshold in one shot.
-    /// @param addSigners Signers to add (can be empty).
-    /// @param removeSigners Signers to remove (can be empty).
-    /// @param newThreshold New threshold (0 to keep unchanged).
-    function configureSigners(
-        address[] calldata addSigners,
-        address[] calldata removeSigners,
-        uint256 newThreshold
-    ) external onlyMaster {
-        // Remove signers.
-        for (uint256 i = 0; i < removeSigners.length; i++) {
-            address s = removeSigners[i];
-            if (s != address(0) && isSigner[s]) {
-                isSigner[s] = false;
-                signerCount -= 1;
-                emit SignerRemoved(s);
-            }
-        }
-
-        // Add signers.
-        for (uint256 j = 0; j < addSigners.length; j++) {
-            address s2 = addSigners[j];
-            if (s2 != address(0) && !isSigner[s2]) {
-                isSigner[s2] = true;
-                signerCount += 1;
-                emit SignerAdded(s2);
-            }
-        }
-
-        require(signerCount > 0, "UpdateGate: no signers");
-
-        if (newThreshold != 0) {
+        if (!rec.emergency) {
             require(
-                newThreshold <= signerCount,
-                "UpdateGate: threshold > signers"
-            );
-            uint256 old = threshold;
-            threshold = newThreshold;
-            emit ThresholdChanged(old, newThreshold);
-        } else {
-            require(
-                threshold > 0 && threshold <= signerCount,
-                "UpdateGate: bad threshold"
+                block.number >= rec.activationHeight,
+                "UpdateGate: not at activation height"
             );
         }
+
+        rec.executed = true;
+        currentUpdateId = updateId;
+        currentManifestHash = rec.manifestHash;
+
+        emit UpdateActivated(
+            updateId,
+            rec.manifestHash,
+            rec.activationHeight,
+            rec.emergency
+        );
+    }
+
+    // --- views ---
+
+    function getUpdate(bytes32 updateId)
+        external
+        view
+        returns (
+            bytes32 manifestHash,
+            uint64 activationHeight,
+            bool emergency,
+            bool executed,
+            uint256 approvals,
+            uint64 createdAt
+        )
+    {
+        UpdateRecord storage rec = _updates[updateId];
+        manifestHash = rec.manifestHash;
+        activationHeight = rec.activationHeight;
+        emergency = rec.emergency;
+        executed = rec.executed;
+        approvals = rec.approvals;
+        createdAt = rec.createdAt;
     }
 }
