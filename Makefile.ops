@@ -174,3 +174,14 @@ mainnet-core-health-all:
 
 pillars-health-all:
 	./ops/void-pillars-preflight.sh
+
+pillars-health-export:
+	@echo "[pillars-export] repo=$(PWD)"
+	@./ops/void-pillars-health-exporter.sh
+
+pillars-health-export:
+	@echo "[pillars-export] repo=$(PWD)"
+	@sudo PROM_URL=http://127.0.0.1:9090 \
+	  OUT=/var/lib/node_exporter/textfile_collector/void_pillars.prom \
+	  ./ops/void-pillars-health-exporter.sh
+	@sudo chmod 644 /var/lib/node_exporter/textfile_collector/void_pillars.prom
