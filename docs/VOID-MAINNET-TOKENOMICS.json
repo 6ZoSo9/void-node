@@ -3,40 +3,50 @@
   "symbol": "VOID",
   "name": "VOID",
   "maxSupply": "666666666",
-
   "premine": {
     "total": "333333333",
     "founderTrust": "230000000",
     "ecosystemInfra": "70000000",
     "communityLiquidityPartners": "33333333"
   },
-
   "emissions": {
     "total": "333333333",
     "eras": [
       {
         "index": 1,
-        "years": [0, 25],
+        "years": [
+          0,
+          25
+        ],
         "label": "Era 1",
         "amount": "177777777"
       },
       {
         "index": 2,
-        "years": [25, 50],
+        "years": [
+          25,
+          50
+        ],
         "label": "Era 2",
         "amount": "88888888"
       },
       {
         "index": 3,
-        "years": [50, 75],
+        "years": [
+          50,
+          75
+        ],
         "label": "Era 3",
         "amount": "44444444"
       },
       {
         "index": 4,
-        "years": [75, 100],
+        "years": [
+          75,
+          100
+        ],
         "label": "Era 4",
-        "amount": "22222222"
+        "amount": "22222224"
       }
     ]
   }
