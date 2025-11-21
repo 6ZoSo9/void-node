@@ -1,215 +1,233 @@
 # VOID Network – Mainnet Genesis Spec (v0.1)
 
-This document defines the **initial parameters and structure** for the
-first VOID mainnet chain (chainId 2050).
+This document defines the **human-readable** specification for the VOID mainnet
+genesis block (chainId 2050). It is the canonical description of what MUST be
+frozen into `genesis.json` and any equivalent on-disk format used by void-node.
 
-It is intentionally narrow and concrete: what chain we are starting,
-with which contracts, using which keys, and what minimum monitoring and
-update rules we require on day one.
-
-This is NOT a marketing doc. It is the thing operators and tooling read
-to know how to boot and validate VOID mainnet.
+This spec is **normative**; generated JSON/YAML/TOML is a _mechanical_ view.
 
 ---
 
-## 1. High-Level Goals
+## 1. Scope and goals
 
-- Launch a **single canonical mainnet chain** with:
-  - ChainId **2050**.
-  - A minimal but real set of system contracts:
-    - `AdminGate`
-    - `UpdateGate`
-    - `ModelRegistry`
-    - `DatasetRegistry`
-    - `AgentRegistry`
-    - `JobQueue`
-    - `ReceiptRegistry`
-  - A clean upgrade path via **UpdateGate + manifest**.
-  - Monitoring and health signals equivalent to what we already have for:
-    - Safeboot
-    - Devnet
-    - Mainnet-Core
+Mainnet genesis must:
 
-- Keep the first mainnet version simple:
-  - Likely **single-proposer / validator** at launch.
-  - Multi-validator / full consensus-engine work is a **follow-up phase**,
-    not a blocker to bringing chainId 2050 up.
+- Fix the chain identifier to `2050` (VOID mainnet).
+- Define the initial set of system contracts and their roles.
+- Define the initial validator set (if any) and consensus params.
+- Define the initial token state and key balances.
+- Be stable: once published and signed, it is never edited in place.
+- Be verifiable: every on-disk `genesis.json` can be hashed and checked against
+  a signed **Genesis Manifest**.
+
+Out of scope:
+
+- Future protocol upgrades (handled by UpdateGate + Update Manifest).
+- Devnet/testnet parameters (covered in separate docs).
+- Off-chain deployment pipelines.
 
 ---
 
-## 2. Chain Parameters
+## 2. Chain identifiers
 
-### 2.1 Identity
-
-- **ChainId:** `2050`
-- **Network name (working):** `void-mainnet`
-- **Human name:** VOID Network Mainnet (v1)
-
-### 2.2 Block & Gas
-
-Initial targets (v0.1, subject to later tuning via updates):
-
-- **Target block time:** 2 seconds
-- **Max gas per block:** TBD (must be consistent across:
-  - node config
-  - genesis JSON
-  - monitoring / expectations)
-- **Fee model:** placeholder / “flat gas” at launch, with a clear path to a
-  more sophisticated fee model later (EIP-1559-style or custom).
-
-For this spec version we only assert:
-
-- There **must** be a single, explicit `maxGasPerBlock` (or equivalent)
-  value in the genesis config.
-- All nodes MUST agree on that value or they are not mainnet.
+- `name`: `VOID-MAINNET`
+- `chainId`: `2050`
+- `networkId`: `2050` (must match chainId for EVM tooling sanity)
+- `genesisVersion`: `v0.1`
+- `specFile`: `docs/VOID-MAINNET-GENESIS-SPEC.md`
+- `manifestFile`: `docs/VOID-MAINNET-GENESIS-MANIFEST.json` (planned)
+- `updateGateChain`: `mainnet-core` (matches mainnet-core pillar in Prometheus)
 
 ---
 
-## 3. Genesis Accounts & Predeploys
+## 3. Genesis time and block 0
 
-### 3.1 Admin / Master Keys
+- `genesisTime`: **TBD** – must be a precise UTC timestamp chosen before launch.
+- `blockNumber`: `0`
+- `blockHash`: computed from finalized genesis header (not predeclared here).
+- `extraData`: MUST contain a human-readable marker, e.g.:
 
-We separate “dev keys” (used on devnet) from “mainnet keys”:
+  - `extraData.human`: `"VOID mainnet genesis v0.1 (chainId 2050)"`
+  - `extraData.versionTag`: `"v0.1"`
+  - `extraData.commit`: `<git commit hash at freeze>`
 
-- **Devnet deployer EOA (current devnet):**
-  - `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
-  - Used in devnet for system contracts, NOT acceptable as a long-term
-    mainnet admin key.
+Constraints:
 
-- **Mainnet admin keys (TBD):**
-  - One or more EOAs or contracts that will:
-    - Own `AdminGate`
-    - Control `UpdateGate`
-  - MUST be documented in this spec before genesis is finalized.
+- Once `genesisTime` and `commit` are fixed, they are never changed.
+- Any future re-genesis requires a **new** spec file with a bumped version.
 
-The final genesis spec must include:
+---
 
-- A list of admin addresses.
-- A short explanation of how they are safeguarded (hardware keys, sentinel
-  USB, etc.).
+## 4. System contracts at genesis
 
-### 3.2 System Predeploys
+The following contracts are considered **system core** and MUST exist at or
+immediately after genesis. Exact addresses are determined by the deployment
+pipeline but MUST be fixed and documented in the Genesis Manifest.
 
-At genesis, the following contracts are expected to be **predeployed** or
-deployed in block 0 by a well-defined process:
+Core contracts:
 
 - `AdminGate`
 - `UpdateGate`
+- `VoidToken` (native ERC-20 representation / accounting)
+- `JobQueue` (AI/off-chain job registry)
+- `ReceiptRegistry`
+- `AgentRegistry`
 - `ModelRegistry`
 - `DatasetRegistry`
-- `AgentRegistry`
-- `JobQueue`
-- `ReceiptRegistry`
+- `WalletOracle` / `ObeliskAgent` bridge (name TBD but role fixed)
+- `UpdateRegistry` or equivalent index of accepted update manifests
 
-For v0.1 of this spec we define:
+For each, the manifest will record:
 
-- Contract **ABIs and code** must match the devnet versions that passed:
-  - Full devnet CI smoke
-  - Coverage / receipts checks
-  - Devnet health-all
-- Contract **addresses** for mainnet are TBD, but must be:
-  - Fixed ahead of time.
-  - Captured in:
-    - `docs/VOID-MAINNET-PROTOCOL-STATE.json` (future)
-    - The canonical genesis JSON.
+- `name`
+- `address`
+- `deployer`
+- `admin` (typically AdminGate)
+- `implementationHash` (code hash or bytecode hash)
+- `sourceTag` (git commit / release tag for the contracts repo)
 
----
-
-## 4. Genesis File Layout
-
-We standardize where the genesis description lives in the repo:
-
-- **Human spec (this file):**
-  - `docs/VOID-MAINNET-GENESIS-SPEC.md`
-
-- **Machine-readable genesis (TBD, v0.2+):**
-  - `genesis/void-mainnet-genesis.v1.json`
-
-The JSON file must contain at least:
-
-- Chain parameters:
-  - `chainId`
-  - `networkName`
-  - `genesisTime`
-  - `maxGasPerBlock` (or equivalent)
-- Account allocations:
-  - Any funded EOAs or contracts at height 0.
-- System contract predeploys:
-  - Code hashes
-  - Storage / constructor params where applicable.
-
-This spec is the **source of truth** for the intent; the JSON is the
-exact artifact nodes use.
+None of these contracts may be **upgradeable via proxies** unless the upgrade
+path is explicitly controlled by UpdateGate + AdminGate and documented.
 
 ---
 
-## 5. Monitoring & Health Requirements (Day 1)
+## 5. Governance and admin keys at genesis
 
-Mainnet must ship with health and update signals at least as strong as
-what we already have for mainnet-core:
+Main roles:
 
-- A mainnet-core health gauge:
-  - `void_mainnet_core_health`
-- An update manifest gauge set for mainnet:
-  - `void_mainnet_core_manifest_health`
-  - `void_mainnet_core_manifest_days_left`
+- **Master Key / AdminGate owner**
+  - A single EOA or multi-sig that controls AdminGate at launch.
+  - Mapped to the sentinel USB / master-key process on the ops side.
+- **Update Signers (M-of-N) for UpdateGate**
+  - A fixed list of signer addresses.
+  - Threshold `M` and set `N` are encoded in UpdateGate storage.
 
-Prometheus side:
+Constraints:
 
-- Recording rules:
-  - `void:mainnet_core:health:last_5m = max_over_time(void_mainnet_core_health[5m])`
-  - `void:mainnet_core:manifest_days_left:last = last_over_time(void_mainnet_core_manifest_days_left[5m])`
-- Alerts:
-  - Mainnet-core health != 1.
-  - Manifest days_left dropping below thresholds (e.g. 14d, 7d).
+- AdminGate owner MUST be able to:
+  - Add/remove Update Signers (subject to policy).
+  - Freeze or unfreeze specific system contracts.
+- UpdateGate MUST be the only on-chain source of truth for:
+  - Current protocol version.
+  - Active Update Manifest hash.
+  - Activation heights / windows.
 
-Genesis is not considered “done” until:
+Genesis spec MUST include:
 
-- These metrics exist.
-- They are scraped.
-- Alerts are defined and passing in our own environment.
+- `admin.masterKey`: `<EOA or multi-sig address>`
+- `updateSigners`: list of addresses
+- `updateThresholdM`: integer
+- `updateSignerCountN`: integer
 
----
-
-## 6. Update Manifest & UpdateGate
-
-Mainnet MUST be tied into the update flow:
-
-- There must be a **mainnet update manifest JSON** (separate from devnet):
-  - Example path: `docs/VOID-MAINNET-UPDATE-MANIFEST.json`
-- The manifest must define at minimum:
-  - Protocol version / build hash.
-  - Activation rules (even if just “current/always on” at launch).
-  - Expiry window (days_left target).
-
-UpdateGate:
-
-- Controls which manifest hashes are valid.
-- Is governed by an M-of-N signer set controlled by `AdminGate` / master key.
-
-This spec will be extended to include:
-
-- Exact signer set.
-- Exact M-of-N policy.
+Values remain `TBD` here and are filled in at freeze time.
 
 ---
 
-## 7. Open Items Before Genesis Freeze
+## 6. Monetary policy at genesis
 
-These MUST be resolved before we call the genesis spec “frozen”:
+VoidStones (`$VOID`) token parameters:
 
-- [ ] Choose final mainnet admin keys (no devnet keys).
-- [ ] Fix and document:
-  - `maxGasPerBlock`
-  - Any additional hard limits (max tx size, etc.).
-- [ ] Decide on the initial fee model and encode it in the genesis config.
-- [ ] Finalize system contract addresses for mainnet.
-- [ ] Produce `genesis/void-mainnet-genesis.v1.json` that matches this spec.
-- [ ] Wire mainnet-core update manifest JSON + exporter.
-- [ ] Confirm Prometheus jobs and alerts for:
-  - `void_mainnet_core_health`
-  - `void_mainnet_core_manifest_*`
+- `symbol`: `VOID`
+- `name`: `VoidStones`
+- `decimals`: `18`
+- `initialSupply`: **TBD**, but must be encoded explicitly as a uint256.
+- `mintable`: yes/no (policy decision; if yes, mint authority must be AdminGate).
+- `burnable`: yes, with on-chain events and clear accounting.
 
-Once the above are done, bump this file to **v1.0**, tag the repo with a
-checkpoint, and treat both the spec and the genesis JSON as immutable
-history for the first VOID mainnet chain.
+Genesis allocations must specify:
+
+- Foundation / treasury allocation.
+- Team / contributor allocations (with optional vesting contracts).
+- Ecosystem / community pools.
+- Any reserved pools for AI agent incentives, datasets, and validators.
+
+All balances must sum exactly to `initialSupply`. This doc does **not**
+hardcode numbers; they are filled out in the manifest and cross-checked by CI.
+
+---
+
+## 7. Validator / consensus parameters
+
+At v0.1 we treat consensus parameters abstractly, since void-node is custom.
+
+Genesis spec MUST cover:
+
+- `consensusEngine`: `"VOID"` (custom).
+- Initial validator set:
+  - `validators[]` entries with:
+    - `pubkey` (node public key / identity)
+    - `power` or weight
+    - `rewardAddress` (where rewards accrue)
+- Block parameters:
+  - `targetBlockTimeMs`: `2000` (example; final value TBD)
+  - `maxGasPerBlock`: value tuned for AI workloads (TBD)
+  - `maxTxPerBlock`: value tuned for safety (TBD, currently small on devnet)
+- Finality / epoch structure:
+  - `epochLengthBlocks`: integer (TBD)
+  - `checkpointIntervalBlocks`: integer (TBD)
+
+This spec intentionally leaves concrete numbers to the `GENESIS-MANIFEST` but
+forces them to exist and be validated.
+
+---
+
+## 8. Storage and data layout expectations
+
+Genesis must encode:
+
+- Initial `SegStore` shard layout expectations (e.g. segments per shard).
+- WAL settings at block 0 (durability policy).
+- Whether the node MUST start with erasure-coding enabled for blobs.
+
+Nodes that see a `genesis.json` that does not meet the minimum constraints
+(incorrect chainId, missing system contracts, missing UpdateGate, etc.)
+MUST refuse to start.
+
+---
+
+## 9. Hashing and Genesis Manifest
+
+For mainnet, we will publish a **Genesis Manifest**:
+
+- `docs/VOID-MAINNET-GENESIS-MANIFEST.json`
+
+It will contain:
+
+- `genesisSpecVersion`: `"v0.1"`
+- `genesisFileHash`: SHA-256 (or stronger) of the exact `genesis.json`.
+- `codeHashSet`: list of bytecode hashes for system contracts.
+- `systemContractMap`: names → addresses.
+- `adminConfig`: admin / update signer addresses and thresholds.
+- `timestamp`: manifest creation time (UTC).
+- `signatures`: list of signatures from Update Signers / Master Key.
+
+Nodes SHOULD:
+
+- Verify `genesis.json` hash against the manifest.
+- Verify signatures before accepting the manifest as canonical.
+- Expose a Prometheus gauge that reflects manifest health for mainnet-core.
+
+---
+
+## 10. Invariants and CI checks
+
+The following invariants MUST hold and be enforced by CI before launch:
+
+1. `chainId == 2050` and `networkId == 2050`.
+2. All system contracts in §4 are present and wired to AdminGate / UpdateGate.
+3. All admin/update addresses in §5 are non-zero and unique where required.
+4. Token allocations sum exactly to `initialSupply`.
+5. Genesis Manifest hash of `genesis.json` matches what UpdateGate points to.
+6. At least one Update Signer and threshold `1 <= M <= N`.
+
+Any violation should fail the **mainnet-core** health gates and block release.
+
+---
+
+## 11. Versioning
+
+- This file: `VOID-MAINNET-GENESIS-SPEC.md` version `v0.1`.
+- Changes that alter consensus or genesis layout MUST bump the version and
+  create a new spec file (e.g. `v0.2`) instead of editing this one in place.
+- Historical specs remain in the repo for auditability.
+
