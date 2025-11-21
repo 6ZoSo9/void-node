@@ -163,3 +163,14 @@ mainnet-core-ci-smoke:
 mainnet-core-health-all:
 	./ops/void-mainnet-core-ci-smoke.sh
 	./ops/void-mainnet-core-summary.sh
+
+.PHONY: devnet-health-all mainnet-core-health-all pillars-health-all
+
+devnet-health-all:
+	./ops/void-devnet-health-all.sh
+
+mainnet-core-health-all:
+	./ops/void-mainnet-core-health-all.sh
+
+pillars-health-all:
+	./ops/void-pillars-preflight.sh
