@@ -27078,3 +27078,745 @@ import './tokenomics/reward_engine_exporter_v1';
 
   tick();
 })();
+
+// -----------------------------------------------------------------------------
+// Safeboot health exporter (Prometheus) - additive-only
+// Scraped by 'void-safeboot-health' job at /health/safeboot.prom.
+// Feeds void_safeboot_health, which drives void-safeboot-rules.
+// -----------------------------------------------------------------------------
+(function SafebootHealthExporterV2(){
+  const TICK = 500;
+
+  function attachOnce(){
+    try {
+      const g = globalThis;
+      const app = (g && (g).__void_http_app) || (g && (g).app);
+
+      if (!app || typeof app.get !== 'function') {
+        // app not ready yet – try again shortly
+        if (typeof setTimeout === 'function') {
+          const t = setTimeout(attachOnce, TICK);
+          if (t && typeof t.unref === 'function') t.unref();
+        }
+        console.error('[safeboot] waiting for app handle...');
+        return;
+      }
+
+      app.get('/health/safeboot.prom', async (req, res) => {
+        try {
+          // Prometheus text exposition format
+          res.type('text/plain; version=0.0.4; charset=utf-8');
+
+          let value = 0;
+
+          try {
+            // Reuse txroot health as underlying signal – if txroot is healthy,
+            // safeboot is considered OK from Prom's perspective.
+            const port = process.env.HTTP_PORT || '4100';
+            const url = `http://127.0.0.1:${port}/health/txroot3?format=prom`;
+
+            const fetchFn = (globalThis).fetch;
+            if (typeof fetchFn === 'function') {
+              const resp = await fetchFn(url);
+              if (resp.ok) {
+                const body = await resp.text();
+                const line = body
+                  .split('\n')
+                  .find((l) => l.startsWith('void_txroot_health '));
+
+                if (line) {
+                  const parts = line.trim().split(/\s+/);
+                  if (parts.length >= 2) {
+                    const parsed = Number.parseFloat(parts[1]);
+                    if (!Number.isNaN(parsed)) {
+                      value = parsed;
+                    }
+                  }
+                }
+              }
+            }
+          } catch {
+            // On any error, leave value = 0 (unhealthy)
+          }
+
+          const lines = [
+            '# HELP void_safeboot_health Safeboot overall health (1=ok,0=bad)',
+            '# TYPE void_safeboot_health gauge',
+            `void_safeboot_health ${value}`,
+            ''
+          ];
+
+          res.send(lines.join('\n'));
+        } catch {
+          // Last resort: still emit a valid 0-valued metric so Prom can scrape.
+          res.type('text/plain; version=0.0.4; charset=utf-8');
+          res.send(
+            '# HELP void_safeboot_health Safeboot overall health (1=ok,0=bad)\n' +
+            '# TYPE void_safeboot_health gauge\n' +
+            'void_safeboot_health 0\n'
+          );
+        }
+      });
+
+      console.error('[safeboot] exporter attached at /health/safeboot.prom');
+    } catch (e) {
+      console.error('[safeboot] init error', (e && e.message) || e);
+    }
+  }
+
+  if (typeof setTimeout === 'function') {
+    const t = setTimeout(attachOnce, TICK);
+    if (t && typeof t.unref === 'function') t.unref();
+  } else {
+    attachOnce();
+  }
+})();
+
+// -----------------------------------------------------------------------------
+// end: Safeboot health exporter
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Last-mile diagnostics exporter (mempool/queue/block) v1 - additive-only
+// Exposes gauges so we can see what the proposer *actually* sees.
+// -----------------------------------------------------------------------------
+(function LastMileDiagExporterV1() {
+  const TICK = 500;
+
+  function attachOnce() {
+    try {
+      const g = globalThis as any;
+      const app = (g && g.__void_http_app) || (g && (g as any).app);
+
+      if (!app || typeof app.get !== 'function') {
+        if (typeof setTimeout === 'function') {
+          const t: any = setTimeout(attachOnce, TICK);
+          if (t && typeof t.unref === 'function') t.unref();
+        }
+        console.error('[lastmile] waiting for app handle...');
+        return;
+      }
+
+      app.get('/__void/metrics/lastmile.v3.prom', (req, res) => {
+        try {
+          res.type('text/plain; version=0.0.4; charset=utf-8');
+
+          let mempoolSize: number = -1;
+          let queueSize: number = -1;
+          let lastBlockTxCount: number = -1;
+
+          try {
+            const node = (g.__void_node || (g as any).node) as any;
+
+            if (node) {
+              if (node.mempool && Array.isArray(node.mempool.txs)) {
+                mempoolSize = node.mempool.txs.length;
+              }
+
+              const q = node.txQueue;
+              if (Array.isArray(q)) {
+                queueSize = q.length;
+              }
+
+              const lb = (node.lastBlock || node.latestBlock || null) as any;
+              const txs =
+                lb && Array.isArray(lb.txs)
+                  ? lb.txs
+                  : lb && Array.isArray(lb.transactions)
+                    ? lb.transactions
+                    : null;
+
+              if (txs) {
+                lastBlockTxCount = txs.length;
+              }
+            }
+          } catch {
+            // keep -1 defaults
+          }
+
+          const fmt = (v: number) =>
+            Number.isFinite(v) && v >= 0 ? v : -1;
+
+          const lines = [
+            '# HELP void_lastmile_mempool_size_v1 Mempool size (txs) as seen by last-mile diag',
+            '# TYPE void_lastmile_mempool_size_v1 gauge',
+            `void_lastmile_mempool_size_v1 ${fmt(mempoolSize)}`,
+            '# HELP void_lastmile_queue_size_v1 Tx queue size (txs) as seen by last-mile diag',
+            '# TYPE void_lastmile_queue_size_v1 gauge',
+            `void_lastmile_queue_size_v1 ${fmt(queueSize)}`,
+            '# HELP void_lastmile_block_txcount_v1 Tx count in latest block as seen by last-mile diag',
+            '# TYPE void_lastmile_block_txcount_v1 gauge',
+            `void_lastmile_block_txcount_v1 ${fmt(lastBlockTxCount)}`,
+            ''
+          ];
+
+          res.send(lines.join('\n'));
+        } catch {
+          res.type('text/plain; version=0.0.4; charset=utf-8');
+          res.send(
+            '# HELP void_lastmile_mempool_size_v1 Mempool size (txs) as seen by last-mile diag\n' +
+            '# TYPE void_lastmile_mempool_size_v1 gauge\n' +
+            'void_lastmile_mempool_size_v1 -1\n' +
+            '# HELP void_lastmile_queue_size_v1 Tx queue size (txs) as seen by last-mile diag\n' +
+            '# TYPE void_lastmile_queue_size_v1 gauge\n' +
+            'void_lastmile_queue_size_v1 -1\n' +
+            '# HELP void_lastmile_block_txcount_v1 Tx count in latest block as seen by last-mile diag\n' +
+            '# TYPE void_lastmile_block_txcount_v1 gauge\n' +
+            'void_lastmile_block_txcount_v1 -1\n'
+          );
+        }
+      });
+
+      console.error('[lastmile] exporter attached at /__void/metrics/lastmile.v3.prom');
+    } catch (e: any) {
+      console.error('[lastmile] init error', (e && e.message) || e);
+    }
+  }
+
+  if (typeof setTimeout === 'function') {
+    const t: any = setTimeout(attachOnce, TICK);
+    if (t && typeof t.unref === 'function') t.unref();
+  } else {
+    attachOnce();
+  }
+})();
+// -----------------------------------------------------------------------------
+// Last-mile diagnostics exporter v2 (mempool/queue/block) - additive-only
+// Independent of any saveBlock injection wrappers.
+// Emits what the proposer actually sees (mempool, txQueue, last block txs).
+// -----------------------------------------------------------------------------
+(function LastMileDiagExporterV2() {
+  const TICK = 500;
+
+  function attachOnce() {
+    try {
+      const g: any = globalThis as any;
+      const app = (g && g.__void_http_app) || (g && (g as any).app);
+
+      if (!app || typeof app.get !== "function") {
+        if (typeof setTimeout === "function") {
+          const t: any = setTimeout(attachOnce, TICK);
+          if (t && typeof t.unref === "function") t.unref();
+        }
+        console.error("[lastmile-diag.v2] waiting for app handle...");
+        return;
+      }
+
+      app.get("/__void/metrics/lastmile.diag.v1.prom", (req: any, res: any) => {
+        try {
+          res.type("text/plain; version=0.0.4; charset=utf-8");
+
+          let mempoolSize: number = -1;
+          let queueSize: number = -1;
+          let blockTxCount: number = -1;
+
+          try {
+            const node: any = (g.__void_node || (g as any).node);
+
+            if (node) {
+              if (node.mempool && Array.isArray(node.mempool.txs)) {
+                mempoolSize = node.mempool.txs.length;
+              }
+
+              let q: any = null;
+              if (Array.isArray(node.txQueue)) {
+                q = node.txQueue;
+              } else if (node.txQueue && Array.isArray((node.txQueue as any).txs)) {
+                q = (node.txQueue as any).txs;
+              }
+
+              if (Array.isArray(q)) {
+                queueSize = q.length;
+              }
+
+              const lb: any = node.lastBlock || node.latestBlock || null;
+              const txs: any[] | null =
+                lb && Array.isArray(lb.txs)
+                  ? lb.txs
+                  : lb && Array.isArray((lb as any).transactions)
+                    ? (lb as any).transactions
+                    : null;
+
+              if (txs) {
+                blockTxCount = txs.length;
+              }
+            }
+          } catch {
+            // keep -1 defaults
+          }
+
+          const fmt = (v: number) =>
+            Number.isFinite(v) && v >= 0 ? v : -1;
+
+          const lines = [
+            "# HELP void_lastmile_diag_mempool_size Mempool size (txs) as seen by last-mile diag v1",
+            "# TYPE void_lastmile_diag_mempool_size gauge",
+            `void_lastmile_diag_mempool_size ${fmt(mempoolSize)}`,
+            "# HELP void_lastmile_diag_queue_size Tx queue size (txs) as seen by last-mile diag v1",
+            "# TYPE void_lastmile_diag_queue_size gauge",
+            `void_lastmile_diag_queue_size ${fmt(queueSize)}`,
+            "# HELP void_lastmile_diag_block_txcount Tx count in latest block as seen by last-mile diag v1",
+            "# TYPE void_lastmile_diag_block_txcount gauge",
+            `void_lastmile_diag_block_txcount ${fmt(blockTxCount)}`,
+            ""
+          ];
+
+          res.send(lines.join("\n"));
+        } catch {
+          res.type("text/plain; version=0.0.4; charset=utf-8");
+          res.send(
+            "# HELP void_lastmile_diag_mempool_size Mempool size (txs) as seen by last-mile diag v1\n" +
+            "# TYPE void_lastmile_diag_mempool_size gauge\n" +
+            "void_lastmile_diag_mempool_size -1\n" +
+            "# HELP void_lastmile_diag_queue_size Tx queue size (txs) as seen by last-mile diag v1\n" +
+            "# TYPE void_lastmile_diag_queue_size gauge\n" +
+            "void_lastmile_diag_queue_size -1\n" +
+            "# HELP void_lastmile_diag_block_txcount Tx count in latest block as seen by last-mile diag v1\n" +
+            "# TYPE void_lastmile_diag_block_txcount gauge\n" +
+            "void_lastmile_diag_block_txcount -1\n"
+          );
+        }
+      });
+
+      console.error("[lastmile-diag.v2] exporter attached at /__void/metrics/lastmile.diag.v1.prom");
+    } catch (e: any) {
+      console.error("[lastmile-diag.v2] init error", (e && e.message) || e);
+    }
+  }
+
+  if (typeof setTimeout === "function") {
+    const t: any = setTimeout(attachOnce, TICK);
+    if (t && typeof t.unref === "function") t.unref();
+  } else {
+    attachOnce();
+  }
+})();
+
+// -----------------------------------------------------------------------------
+// Last-mile diagnostics exporter v2b (HTTP-based persisted view)
+// Reads latest block number and persisted txs via HTTP, so it can't lie.
+// Exposed at /__void/metrics/lastmile.diag.v2.prom
+// -----------------------------------------------------------------------------
+(function LastMileDiagExporterV2b() {
+  const TICK = 500;
+
+  function attachOnce() {
+    try {
+      const g: any = globalThis as any;
+      const app = (g && g.__void_http_app) || (g && (g as any).app);
+
+      if (!app || typeof app.get !== "function") {
+        if (typeof setTimeout === "function") {
+          const t: any = setTimeout(attachOnce, TICK);
+          if (t && typeof t.unref === "function") t.unref();
+        }
+        console.error("[lastmile.diag.v2b] waiting for app handle...");
+        return;
+      }
+
+      app.get("/__void/metrics/lastmile.diag.v2.prom", async (req: any, res: any) => {
+        try {
+          res.type("text/plain; version=0.0.4; charset=utf-8");
+
+          let lastNumber: number = -1;
+          let lastTxCount: number = -1;
+
+          try {
+            const port = process.env.HTTP_PORT || "4100";
+            const base = `http://127.0.0.1:${port}`;
+            const fetchFn: any = (globalThis as any).fetch;
+
+            if (typeof fetchFn === "function") {
+              // 1) get latest block number via number2.json
+              const headResp = await fetchFn(`${base}/blocks/latest/number2.json`);
+              if (headResp.ok) {
+                const j: any = await headResp.json();
+                const n = Number(
+                  (j && (j.number ?? j.latest ?? j.block ?? j.height ?? j.n)) ?? -1
+                );
+                if (Number.isFinite(n) && n >= 0) {
+                  lastNumber = n;
+                }
+              }
+
+              // 2) get persisted txs for that block
+              if (Number.isFinite(lastNumber) && lastNumber >= 0) {
+                const txResp = await fetchFn(
+                  `${base}/dev/blocks/${lastNumber}/txs/persisted`
+                );
+                if (txResp.ok) {
+                  const tj: any = await txResp.json();
+                  const lenFromField = Number(
+                    (tj && (tj.len ?? tj.length)) ?? -1
+                  );
+                  const lenFromArray =
+                    Array.isArray(tj && tj.txs) ? (tj.txs as any[]).length : -1;
+                  const cand =
+                    Number.isFinite(lenFromField) && lenFromField >= 0
+                      ? lenFromField
+                      : lenFromArray;
+                  if (Number.isFinite(cand) && cand >= 0) {
+                    lastTxCount = cand;
+                  }
+                }
+              }
+            }
+          } catch {
+            // leave defaults as -1
+          }
+
+          const fmt = (v: number) =>
+            Number.isFinite(v) && v >= 0 ? v : -1;
+
+          const lines = [
+            "# HELP void_lastmile_diag2_last_block Last block number (via HTTP persisted view)",
+            "# TYPE void_lastmile_diag2_last_block gauge",
+            `void_lastmile_diag2_last_block ${fmt(lastNumber)}`,
+            "# HELP void_lastmile_diag2_block_txcount Tx count in latest block (via HTTP persisted view)",
+            "# TYPE void_lastmile_diag2_block_txcount gauge",
+            `void_lastmile_diag2_block_txcount ${fmt(lastTxCount)}`,
+            "",
+          ];
+
+          res.send(lines.join("\n"));
+        } catch {
+          res.type("text/plain; version=0.0.4; charset=utf-8");
+          res.send(
+            "# HELP void_lastmile_diag2_last_block Last block number (via HTTP persisted view)\n" +
+            "# TYPE void_lastmile_diag2_last_block gauge\n" +
+            "void_lastmile_diag2_last_block -1\n" +
+            "# HELP void_lastmile_diag2_block_txcount Tx count in latest block (via HTTP persisted view)\n" +
+            "# TYPE void_lastmile_diag2_block_txcount gauge\n" +
+            "void_lastmile_diag2_block_txcount -1\n"
+          );
+        }
+      });
+
+      console.error(
+        "[lastmile.diag.v2b] exporter attached at /__void/metrics/lastmile.diag.v2.prom"
+      );
+    } catch (e: any) {
+      console.error(
+        "[lastmile.diag.v2b] init error",
+        (e && e.message) || e
+      );
+    }
+  }
+
+  if (typeof setTimeout === "function") {
+    const t: any = setTimeout(attachOnce, TICK);
+    if (t && typeof t.unref === "function") t.unref();
+  } else {
+    attachOnce();
+  }
+})();
+// -----------------------------------------------------------------------------
+// Seal-block debug wrapper v1 (additive, runtime-only)
+// Wraps node.sealBlock to track attempts, last result, and exposes a Prom exporter.
+// -----------------------------------------------------------------------------
+(function SealBlockDebugV1() {
+  const TICK = 500;
+
+  function attachOnce() {
+    try {
+      const g: any = globalThis as any;
+      const app = (g && g.__void_http_app) || (g && (g as any).app);
+      const node = (g && (g.__void_node || (g as any).node)) as any;
+
+      if (!app || typeof app.get !== "function" || !node || typeof node.sealBlock !== "function") {
+        if (typeof setTimeout === "function") {
+          const t: any = setTimeout(attachOnce, TICK);
+          if (t && typeof t.unref === "function") t.unref();
+        }
+        console.error("[seal-debug] waiting for app/node handle...");
+        return;
+      }
+
+      const orig = node.sealBlock;
+      if ((orig as any).__void_seal_debug_v1) {
+        console.error("[seal-debug] node.sealBlock already wrapped (v1)");
+      } else {
+        const wrapped = async (opts?: any) => {
+          const g2: any = globalThis as any;
+          const dbg = (g2.__void_seal_debug = g2.__void_seal_debug || { attempts: 0 });
+          dbg.attempts = (dbg.attempts || 0) + 1;
+          dbg.lastStart = Date.now();
+          dbg.lastOpts = opts || null;
+
+          try {
+            const res = await orig.call(node, opts);
+            dbg.lastOk = 1;
+            dbg.lastEnd = Date.now();
+            dbg.lastDurationMs = dbg.lastEnd - dbg.lastStart;
+            dbg.lastResultNumber = Number(
+              res && typeof res.number === "number" ? res.number : NaN
+            );
+            dbg.lastResultTxs = Number(
+              res && typeof res.txs === "number" ? res.txs : NaN
+            );
+            return res;
+          } catch (e: any) {
+            dbg.lastOk = 0;
+            dbg.lastEnd = Date.now();
+            dbg.lastDurationMs = dbg.lastEnd - dbg.lastStart;
+            dbg.lastError = String((e && e.message) || e);
+            console.error("[seal-debug] ERROR in sealBlock:", dbg.lastError);
+            throw e;
+          }
+        };
+
+        (wrapped as any).__void_seal_debug_v1 = true;
+        node.sealBlock = wrapped;
+        console.error("[seal-debug] wrapped node.sealBlock with debug wrapper v1");
+      }
+
+      app.get("/__void/metrics/lastmile.seal.v1.prom", (_req, res) => {
+        try {
+          const g2: any = globalThis as any;
+          const dbg = g2.__void_seal_debug || {};
+          const attempts = Number(dbg.attempts || 0);
+          const lastOk =
+            typeof dbg.lastOk === "number" ? dbg.lastOk : -1;
+          const lastDur =
+            typeof dbg.lastDurationMs === "number"
+              ? dbg.lastDurationMs
+              : -1;
+          const lastNum =
+            typeof dbg.lastResultNumber === "number" &&
+            Number.isFinite(dbg.lastResultNumber)
+              ? dbg.lastResultNumber
+              : -1;
+          const lastTxs =
+            typeof dbg.lastResultTxs === "number" &&
+            Number.isFinite(dbg.lastResultTxs)
+              ? dbg.lastResultTxs
+              : -1;
+
+          res.type("text/plain; version=0.0.4; charset=utf-8");
+          res.send(
+            [
+              "# HELP void_lastmile_seal_attempts_total Total sealBlock attempts (debug wrapper)",
+              "# TYPE void_lastmile_seal_attempts_total counter",
+              `void_lastmile_seal_attempts_total ${attempts}`,
+              "# HELP void_lastmile_seal_last_ok_v1 Last sealBlock result: 1=ok,0=error,-1=unknown",
+              "# TYPE void_lastmile_seal_last_ok_v1 gauge",
+              `void_lastmile_seal_last_ok_v1 ${lastOk}`,
+              "# HELP void_lastmile_seal_last_duration_ms_v1 Last sealBlock duration in ms (-1 if none)",
+              "# TYPE void_lastmile_seal_last_duration_ms_v1 gauge",
+              `void_lastmile_seal_last_duration_ms_v1 ${lastDur}`,
+              "# HELP void_lastmile_seal_last_number_v1 Last block number from sealBlock result (-1 if none)",
+              "# TYPE void_lastmile_seal_last_number_v1 gauge",
+              `void_lastmile_seal_last_number_v1 ${lastNum}`,
+              "# HELP void_lastmile_seal_last_txs_v1 Last tx count from sealBlock result (-1 if none)",
+              "# TYPE void_lastmile_seal_last_txs_v1 gauge",
+              `void_lastmile_seal_last_txs_v1 ${lastTxs}`,
+              ""
+            ].join("\n")
+          );
+        } catch {
+          res.type("text/plain; version=0.0.4; charset=utf-8");
+          res.send(
+            "# HELP void_lastmile_seal_attempts_total Total sealBlock attempts (debug wrapper)\n" +
+              "# TYPE void_lastmile_seal_attempts_total counter\n" +
+              "void_lastmile_seal_attempts_total 0\n"
+          );
+        }
+      });
+
+      console.error(
+        "[seal-debug] exporter attached at /__void/metrics/lastmile.seal.v1.prom"
+      );
+    } catch (e: any) {
+      console.error("[seal-debug] init error", (e && e.message) || e);
+    }
+  }
+
+  if (typeof setTimeout === "function") {
+    const t: any = setTimeout(attachOnce, TICK);
+    if (t && typeof t.unref === "function") t.unref();
+  } else {
+    attachOnce();
+  }
+})();
+// === VOID last-mile exporter v1 (additive; do not delete) ===
+//
+// Scans recent blocks via existing HTTP shims and reports whether
+// any non-empty block exists in the window. This is our last-mile
+// health signal (tx submit -> acceptTx -> txQueue -> proposer -> SegStore).
+
+async function __void_compute_lastmile_v1(windowSize: number) {
+  const port = process.env.HTTP_PORT || '4100';
+  const base = `http://127.0.0.1:${port}`;
+
+  async function j(path: string): Promise<any> {
+    const res = await fetch(base + path);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} for ${path}`);
+    }
+    return res.json();
+  }
+
+  const latestInfo = await j('/blocks/latest/number2.json');
+  const latestNum = Number(
+    (latestInfo as any).number ??
+    (latestInfo as any).n ??
+    (latestInfo as any).latest,
+  );
+  if (!Number.isFinite(latestNum) || latestNum < 1) {
+    throw new Error(`bad latest block: ${JSON.stringify(latestInfo)}`);
+  }
+
+  const from = Math.max(1, latestNum - windowSize + 1);
+  let nonEmpty = 0;
+  let empty = 0;
+
+  for (let n = from; n <= latestNum; n++) {
+    try {
+      const r = await j(`/dev/blocks/${n}/txs/persisted`);
+      const len = Number(
+        (r as any).len ??
+        (Array.isArray((r as any).txs) ? (r as any).txs.length : 0),
+      );
+      if (len > 0) nonEmpty++;
+      else empty++;
+    } catch (_e) {
+      // Treat missing / error as empty for now
+      empty++;
+    }
+  }
+
+  const blocks = nonEmpty + empty;
+  const health = blocks > 0 && nonEmpty > 0 ? 1 : 0;
+
+  return {
+    ok: true,
+    latest: latestNum,
+    from,
+    to: latestNum,
+    window: blocks,
+    nonEmpty,
+    empty,
+    health,
+  };
+}
+
+function __void_register_lastmile_v1(app: any) {
+  if (!app) return;
+  const a: any = app;
+  if (a.__void_lastmile_v1_attached) return;
+  a.__void_lastmile_v1_attached = true;
+
+  async function compute(windowSize: number) {
+    return __void_compute_lastmile_v1(windowSize);
+  }
+
+  a.get('/__void/metrics/lastmile.v1.json', async (req: any, res: any) => {
+    try {
+      const wRaw = (req.query.window as string | undefined) ?? '16';
+      const windowSize = Number(wRaw) || 16;
+      const data = await compute(windowSize);
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: String((err && err.message) || err) });
+    }
+  });
+
+  a.get('/__void/metrics/lastmile.v1.prom', async (req: any, res: any) => {
+    res.type('text/plain; version=0.0.4; charset=utf-8');
+    try {
+      const wRaw = (req.query.window as string | undefined) ?? '16';
+      const windowSize = Number(wRaw) || 16;
+      const data = await compute(windowSize);
+
+      const lines: string[] = [];
+      lines.push('# HELP void_lastmile_recent_blocks Number of recent blocks scanned for last-mile health');
+      lines.push('# TYPE void_lastmile_recent_blocks gauge');
+      lines.push(`void_lastmile_recent_blocks{window="${windowSize}"} ${data.window}`);
+
+      lines.push('# HELP void_lastmile_recent_nonempty_blocks Number of non-empty blocks in recent window');
+      lines.push('# TYPE void_lastmile_recent_nonempty_blocks gauge');
+      lines.push(`void_lastmile_recent_nonempty_blocks{window="${windowSize}"} ${data.nonEmpty}`);
+
+      lines.push('# HELP void_lastmile_health 1 if any non-empty block seen in recent window, else 0');
+      lines.push('# TYPE void_lastmile_health gauge');
+      lines.push(`void_lastmile_health{window="${windowSize}"} ${data.health}`);
+
+      lines.push('# HELP void_lastmile_latest_block Latest block number checked for last-mile health');
+      lines.push('# TYPE void_lastmile_latest_block gauge');
+      lines.push(`void_lastmile_latest_block{window="${windowSize}"} ${data.latest}`);
+
+      res.send(lines.join('\\n') + '\\n');
+    } catch (err: any) {
+      res.status(500);
+      res.send('# lastmile exporter error ' + String((err && err.message) || err) + '\\n');
+    }
+  });
+}
+
+// Nudge once the global app is published.
+(function __void_lastmile_v1_nudge() {
+  try {
+    const g: any = globalThis as any;
+    const app = g.__void_http_app;
+    if (app) {
+      __void_register_lastmile_v1(app);
+      return;
+    }
+  } catch (_e) {
+    // ignore
+  }
+  setTimeout(__void_lastmile_v1_nudge, 500).unref?.();
+})();
+
+// === END last-mile exporter v1 ===
+
+// -----------------------------------------------------------------------------
+// VOID global error guards (additive, non-recursive)
+// This is intentionally at the bottom to avoid fighting with module init.
+// It installs a single, sane unhandledRejection handler and trims
+// runaway listeners if some earlier code went recursive.
+// -----------------------------------------------------------------------------
+;(function installVoidGlobalErrorGuards() {
+  const g = globalThis as any;
+  if (g.__void_errorGuardsInstalled) {
+    return;
+  }
+  g.__void_errorGuardsInstalled = true;
+
+  try {
+    const existing = process.listeners("unhandledRejection");
+    if (existing.length > 5) {
+      console.error("[guard] trimming runaway unhandledRejection listeners", existing.length);
+      for (const fn of existing) {
+        try {
+          process.removeListener("unhandledRejection", fn as any);
+        } catch {
+          // best-effort: ignore
+        }
+      }
+    }
+  } catch {
+    // best-effort only
+  }
+
+  process.on("unhandledRejection", (reason, p) => {
+    try {
+      const msg =
+        (reason as any)?.message !== undefined
+          ? (reason as any).message
+          : String(reason);
+
+      if (String(msg).includes("Maximum call stack size exceeded")) {
+        console.error(
+          "[guard] suppressed unhandledRejection RangeError (stack overflow)",
+          msg
+        );
+        return;
+      }
+
+      console.error("[unhandledRejection]", msg);
+    } catch (e) {
+      console.error("[unhandledRejection] handler error", e);
+    }
+  });
+})();
