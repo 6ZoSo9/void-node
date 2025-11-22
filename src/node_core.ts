@@ -408,6 +408,17 @@ export class Node {
     const tx = { hash: h, body: raw.body ?? {} };
     this.txSeen.set(h, Date.now());
     try { (this.mempool as any).push?.(tx); } catch {}
+
+    // [void] acceptTx mirrors into txQueue if present
+    try {
+      const q: any = (this as any).txQueue;
+      if (Array.isArray(q)) {
+        q.push(tx);
+      }
+    } catch (e) {
+      // best-effort only; ignore errors
+    }
+
     return true;
   }
 
@@ -615,7 +626,14 @@ export class Node {
     const parent = this.store.loadHeadNumber();
     const number = parent + 1;
 
+
     const batch = this.takeTxBatch(1000);
+
+    const __batchLen = Array.isArray(batch) ? batch.length : -1;
+
+    const __sample = (__batchLen > 0 && batch[0] && typeof batch[0] === "object") ? Object.keys(batch[0]).slice(0, 10) : null;
+
+    console.log("[seal-block-debug-v2] batchLen=%s keys=%j", String(__batchLen), __sample);
     const txs = batch
       .filter(
         (t) =>
@@ -690,6 +708,11 @@ export class Node {
         }
       } catch {}
     }
+
+    
+    (this as any).latestBlock = b;
+    (this as any).lastBlock = b;
+    try { (globalThis as any).__void_last_block = b; } catch {}
 
     this.publishJson("void/block", {
       number: b.number,
