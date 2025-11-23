@@ -900,6 +900,32 @@ function discoverLocalBlobs(baseDir = process.env.DATA_DIR || "data"): { cid: st
 export function globalEnqueueTx(tx: any) {
   try {
     const g: any = globalThis as any;
+    const node: any = (g.__void_node || g.node || g.VOID_NODE);
+
+    // Forward into the live node if available
+    if (node && typeof node.acceptTx === "function") {
+      try {
+        const r = node.acceptTx(tx);
+        // If acceptTx is async, don't crash on rejection
+        if (r && typeof (r as any).then === "function") {
+          (r as any).catch((err: any) => {
+            // eslint-disable-next-line no-console
+            console.error(
+              "[globalEnqueueTx] acceptTx async error",
+              (err && (err as any).message) || err
+            );
+          });
+        }
+      } catch (err: any) {
+        // eslint-disable-next-line no-console
+        console.error(
+          "[globalEnqueueTx] acceptTx error",
+          (err && (err as any).message) || err
+        );
+      }
+    }
+
+    // Keep the original global queue for any dev tooling
     if (!g.__void_tx_queue) g.__void_tx_queue = [];
     g.__void_tx_queue.push(tx ?? {});
     return g.__void_tx_queue.length;
