@@ -59,9 +59,9 @@ The other half of supply (**333,333,333 VOID**) is emitted over **~100 years** i
 Eras target the following **cool totals**:
 
 - **Era 1**: 177,777,777 VOID  
-- **Era 2**: 88,888,888 VOID  
+- **Era 2**: 88,888,889 VOID  
 - **Era 3**: 44,444,444 VOID  
-- **Era 4**: 22,222,222 VOID  
+- **Era 4**: 22,222,223 VOID  
 
 > Note: these numbers are intentionally “aesthetic”. The on-chain emission contract will enforce the exact 333,333,333 emission budget and will make tiny integer adjustments if needed so that `Σ era_minted == 333,333,333`.
 
@@ -72,9 +72,9 @@ Assume Year 0 = mainnet launch / first emission block.
 | Era | Years (relative) | Era Total (VOID) | Approx / year | % of full cap | Description |
 |-----|------------------|------------------|---------------|---------------|-------------|
 | **1** | 0–25             | **177,777,777**  | ~7.11M / year | ~26.67%       | High-emission bootstrapping phase. Strong validator rewards + aggressive funding of on-chain automation and JobQueue workloads to harden the network. |
-| **2** | 25–50            | **88,888,888**   | ~3.56M / year | ~13.33%       | First halving. Network should be fee-bearing; emissions still meaningful but not dominant. |
+| **2** | 25–50            | **88,888,889**   | ~3.56M / year | ~13.33%       | First halving. Network should be fee-bearing; emissions still meaningful but not dominant. |
 | **3** | 50–75            | **44,444,444**   | ~1.78M / year | ~6.67%        | Second halving. Emissions mostly top-up security and keep long-horizon jobs funded. Fees should be the main driver by now. |
-| **4** | 75–100           | **22,222,222**   | ~0.89M / year | ~3.33%        | Final trickle. Primarily incentive smoothing and tail security. System expected to live off fees + matured ecosystem. |
+| **4** | 75–100           | **22,222,223**   | ~0.89M / year | ~3.33%        | Final trickle. Primarily incentive smoothing and tail security. System expected to live off fees + matured ecosystem. |
 
 Total emissions target = **333,333,333 VOID** (50% of cap)
 
@@ -138,9 +138,9 @@ When `totalSupply` asymptotically approaches **666,666,666 VOID** and emissions 
   - 33,333,333 VOID → Community, liquidity, and strategic partners.
 - **Emissions over 100 years:** 333,333,333 VOID in 4 × 25-year eras:
   - Era 1: 177,777,777  
-  - Era 2: 88,888,888  
+  - Era 2: 88,888,889  
   - Era 3: 44,444,444  
-  - Era 4: 22,222,222  
+  - Era 4: 22,222,223  
 - Bitcoin-style halving over human-scale decades, **not** a degen rush.
 - Emissions are explicitly tied to:
   - Validator security.
