@@ -197,6 +197,14 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
+
+  // Attach last-mile exporter v1 directly to app (additive; do not delete)
+  try {
+    __void_register_lastmile_v1(app as any);
+  } catch (e: any) {
+    console.error("[lastmile] attach error", (e && (e as any).message) || e);
+  }
+
  
 
 
@@ -27819,4 +27827,311 @@ function __void_register_lastmile_v1(app: any) {
       console.error("[unhandledRejection] handler error", e);
     }
   });
+})();
+
+// -----------------------------------------------------------------------------
+// ProposerAutoLoopEnvV1 – env-driven proposer auto-loop (additive, no dev routes)
+// Source of truth: PROPOSER_AUTO=1, PROPOSER_TICK_MS=NNNN via systemd env.
+// This bypasses dead /proposer/* dev harnesses and drives the proposer directly.
+// -----------------------------------------------------------------------------
+;(function ProposerAutoLoopEnvV1(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_proposer_auto_env_v1) return;
+    G.__void_proposer_auto_env_v1 = true;
+
+    function getNode(){
+      return G.__void_node || G.node || G.VOID_NODE || null;
+    }
+
+    const autoRaw = String(process.env.PROPOSER_AUTO || process.env.VOID_PROPOSER_AUTO || "").toLowerCase();
+    const enabled = ["1","true","yes"].includes(autoRaw);
+    if (!enabled){
+      // Respect env: if PROPOSER_AUTO is off, we don't do anything.
+      return;
+    }
+
+    const msRaw = Number(process.env.PROPOSER_TICK_MS || process.env.VOID_PROPOSER_TICK_MS || 2000);
+    const ms = (Number.isFinite(msRaw) && msRaw > 50) ? msRaw : 2000;
+
+    function nudge(n:any){
+      try{
+        const cands = ["tickNow","tick","propose","proposeBlock","buildBlock","sealNext"];
+        for (const k of cands){
+          const f =
+            (n && typeof (n as any)[k] === "function") ? (n as any)[k] :
+            (n && n.proposer && typeof (n.proposer as any)[k] === "function") ? (n.proposer as any)[k] :
+            null;
+          if (f){
+            try { f.call(n.proposer ?? n); } catch {}
+            break;
+          }
+        }
+      }catch{}
+    }
+
+    function tickLoop(){
+      try{
+        const n = getNode();
+        if (n) nudge(n);
+        // Keep metrics in sync so existing exporters show enabled=1, ms=NNNN
+        if (!G.__void_metrics) G.__void_metrics = {};
+        G.__void_metrics.proposerAutoEnabled = true;
+        G.__void_metrics.proposerAutoMs = ms;
+      }catch(e){
+        // best-effort; don't crash the loop
+      }finally{
+        setTimeout(tickLoop, ms);
+      }
+    }
+
+    (function waitForNode(){
+      const n = getNode();
+      if (!n){
+        return void setTimeout(waitForNode, 500);
+      }
+      console.log("[proposer-auto-env] loop enabled via PROPOSER_AUTO="+String(autoRaw)+", ms="+ms);
+      tickLoop();
+    })();
+  }catch(e){
+    console.warn("[proposer-auto-env] init failed:", e);
+  }
+})();
+
+// -----------------------------------------------------------------------------
+// ProposerAutoLoopDefault4100V1 – force proposer auto-loop on HTTP_PORT=4100
+// This is a safety net when dev harness/env-based auto control is broken.
+// It never runs on followers (e.g. 4101), only on main node.
+// -----------------------------------------------------------------------------
+;(function ProposerAutoLoopDefault4100V1(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_proposer_auto_default_4100_v1) return;
+    G.__void_proposer_auto_default_4100_v1 = true;
+
+    const port = String(process.env.HTTP_PORT || "4100");
+    if (port !== "4100") {
+      // Only main node gets this forced auto-loop
+      return;
+    }
+
+    // Optional hard kill-switch if you ever need it:
+    const killRaw = String(process.env.DISABLE_PROPOSER_AUTO_4100 || "").toLowerCase();
+    if (["1","true","yes"].includes(killRaw)) {
+      console.log("[proposer-auto-4100] disabled via DISABLE_PROPOSER_AUTO_4100");
+      return;
+    }
+
+    const msRaw = Number(process.env.PROPOSER_TICK_MS || 2000);
+    const ms = (Number.isFinite(msRaw) && msRaw > 50) ? msRaw : 2000;
+
+    function getNode(){
+      return G.__void_node || G.node || G.VOID_NODE || null;
+    }
+
+    function nudge(n:any){
+      try{
+        const cands = ["tickNow","tick","propose","proposeBlock","buildBlock","sealNext"];
+        for (const k of cands){
+          const f =
+            (n && typeof (n as any)[k] === "function") ? (n as any)[k] :
+            (n && n.proposer && typeof (n.proposer as any)[k] === "function") ? (n.proposer as any)[k] :
+            null;
+          if (f){
+            try { f.call(n.proposer ?? n); } catch {}
+            break;
+          }
+        }
+      }catch{}
+    }
+
+    function tickLoop(){
+      try{
+        const n = getNode();
+        if (n) nudge(n);
+
+        if (!G.__void_metrics) G.__void_metrics = {};
+        G.__void_metrics.proposerAutoEnabled = true;
+        G.__void_metrics.proposerAutoMs = ms;
+      }catch(e){
+        // best-effort; never crash the loop
+      }finally{
+        setTimeout(tickLoop, ms);
+      }
+    }
+
+    (function waitForNode(){
+      const n = getNode();
+      if (!n) return void setTimeout(waitForNode, 500);
+      console.log("[proposer-auto-4100] loop enabled (ms="+ms+") on HTTP_PORT=4100");
+      tickLoop();
+    })();
+  }catch(e){
+    console.warn("[proposer-auto-4100] init failed:", e);
+  }
+})();
+
+// -----------------------------------------------------------------------------
+// ProposerAutoStartDirectV1 – env-driven proposer loop via node.startProposer()
+// Bypasses dev /proposer/* HTTP routes and talks directly to the Node instance.
+// -----------------------------------------------------------------------------
+;(function ProposerAutoStartDirectV1(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_proposer_auto_direct_v1) return;
+    G.__void_proposer_auto_direct_v1 = true;
+
+    function getNode(){
+      return G.__void_node || G.node || G.VOID_NODE || null;
+    }
+
+    function envConfig(){
+      const raw = String(process.env.PROPOSER_AUTO || process.env.VOID_PROPOSER_AUTO || "").toLowerCase();
+      const enabled = ["1","true","yes"].includes(raw);
+      const msRaw = Number(process.env.PROPOSER_TICK_MS || process.env.VOID_PROPOSER_TICK_MS || 2000);
+      const ms = (!Number.isFinite(msRaw) || msRaw < 100) ? 2000 : msRaw;
+      return { enabled, ms };
+    }
+
+    const { enabled, ms } = envConfig();
+    if (!enabled) {
+      (console.log || (()=>{}))("[proposer-auto-direct] PROPOSER_AUTO disabled; not starting loop");
+      return;
+    }
+
+    let tries = 0;
+    (function wait(){
+      const n:any = getNode();
+      if (!n) {
+        if (++tries < 120) return void setTimeout(wait, 500);
+        (console.error || (()=>{}))("[proposer-auto-direct] node never appeared; giving up");
+        return;
+      }
+
+      // Prefer native startProposer if available.
+      if (typeof n.startProposer === "function") {
+        try {
+          const r = n.startProposer(ms);
+          (console.log || (()=>{}))(
+            `[proposer-auto-direct] startProposer(${ms}) invoked`,
+            typeof r === "object" ? r : String(r)
+          );
+        } catch (e:any) {
+          (console.error || (()=>{}))("[proposer-auto-direct] startProposer failed:", e?.message || e);
+        }
+        return;
+      }
+
+      // Fallback: simple timer calling sealBlock if present.
+      if (G.__void_proposer_auto_direct_timer) return;
+      if (typeof n.sealBlock === "function") {
+        G.__void_proposer_auto_direct_timer = setInterval(async () => {
+          try {
+            await n.sealBlock({});
+          } catch (e:any) {
+            // best-effort; keep going on errors
+          }
+        }, ms);
+        (console.log || (()=>{}))(`[proposer-auto-direct] manual sealBlock timer @ ${ms}ms`);
+      } else {
+        (console.error || (()=>{}))(
+          "[proposer-auto-direct] no startProposer()/sealBlock() on node; nothing to do"
+        );
+      }
+    })();
+  }catch(e:any){
+    (console.error || (()=>{}))("[proposer-auto-direct] init error:", e?.message || e);
+  }
+})();
+
+// -----------------------------------------------------------------------------
+// ProposerManualStartRouteV1 – direct HTTP hooks into node.startProposer/sealBlock
+// Non-dev paths, so they survive the dev-route kill-switch.
+//   POST /__void/proposer/direct/start?ms=2000
+//   POST /__void/proposer/direct/seal-once?allowEmptyOnce=1
+// -----------------------------------------------------------------------------
+;(function ProposerManualStartRouteV1(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_proposer_manual_start_v1) return;
+    G.__void_proposer_manual_start_v1 = true;
+
+    const TICK = 600;
+
+    function getApp(){ return G.__void_http_app || G.app || undefined; }
+    function getNode(){ return G.__void_node || G.node || G.VOID_NODE || undefined; }
+
+    function attach(){
+      const app:any = getApp();
+      const n:any = getNode();
+      if (!app || !n || typeof app.post !== "function") return void setTimeout(attach, TICK);
+
+      // Start the internal proposer timer via Node.startProposer()
+      app.post("/__void/proposer/direct/start", express.json({limit:"32kb"}), (req:any,res:any)=>{
+        try{
+          const body = req.body || {};
+          const qMs  = req.query && req.query.ms ? Number(req.query.ms) : NaN;
+          const bMs  = body.ms !== undefined ? Number(body.ms) : NaN;
+          const raw  = Number.isFinite(qMs) ? qMs : bMs;
+          const ms   = (!Number.isFinite(raw) || raw < 300) ? 2000 : raw;
+
+          const hasStart = typeof n.startProposer === "function";
+          const hasSeal  = typeof n.sealBlock === "function";
+
+          let result:any = null;
+          if (hasStart){
+            try { result = n.startProposer(ms); }
+            catch(e:any){ result = { ok:false, error:String(e?.message || e) }; }
+          } else {
+            result = { ok:false, error:"no startProposer() on node" };
+          }
+
+          res.json({
+            ok: true,
+            ms,
+            hasStartProposer: hasStart,
+            hasSealBlock: hasSeal,
+            result
+          });
+        } catch(e:any){
+          res.status(500).json({ ok:false, error:String(e?.message||e) });
+        }
+      });
+
+      // One-shot seal, optionally allowing an empty block
+      app.post("/__void/proposer/direct/seal-once", express.json({limit:"32kb"}), async (req:any,res:any)=>{
+        try{
+          const body = req.body || {};
+          const allowFlag = String(req.query?.allowEmptyOnce ?? body.allowEmptyOnce ?? "").toLowerCase();
+          const allowEmptyOnce = ["1","true","yes"].includes(allowFlag);
+          const hasSeal = typeof n.sealBlock === "function";
+
+          if (!hasSeal){
+            return res.status(500).json({ ok:false, error:"no sealBlock() on node" });
+          }
+
+          let r:any;
+          try {
+            r = await n.sealBlock({ allowEmptyOnce });
+          } catch(e:any){
+            return res.status(500).json({ ok:false, error:String(e?.message||e) });
+          }
+
+          res.json({
+            ok: true,
+            allowEmptyOnce,
+            result: r
+          });
+        } catch(e:any){
+          res.status(500).json({ ok:false, error:String(e?.message||e) });
+        }
+      });
+
+      (console.log || (()=>{}))("[proposer-direct-route] mounted /__void/proposer/direct/*");
+    }
+
+    attach();
+  }catch(e:any){
+    (console.error || (()=>{}))("[proposer-direct-route] init error:", e?.message || e);
+  }
 })();
