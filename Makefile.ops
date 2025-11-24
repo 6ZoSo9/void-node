@@ -202,3 +202,8 @@ mainnet-tokenomics-health-all:
 .PHONY: void-mainnet-overall-health
 void-mainnet-overall-health:
 	@./ops/void-mainnet-overall-health.sh
+
+# ---- mainnet last-mile pillar health hammer ----
+.PHONY: mainnet-lastmile-health-all
+mainnet-lastmile-health-all:
+	./ops/void-mainnet-lastmile-health.sh
