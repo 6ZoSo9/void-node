@@ -224,3 +224,6 @@ mainnet-health-export:
 	  OUT=/var/lib/node_exporter/textfile_collector/void_mainnet_health.prom \
 	  ./ops/void-mainnet-health-exporter.sh
 	@sudo chmod 644 /var/lib/node_exporter/textfile_collector/void_mainnet_health.prom
+
+void-mainnet-health-all:
+	@./ops/void-mainnet-health-all.sh
