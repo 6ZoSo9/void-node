@@ -2,7 +2,7 @@ const TICK = 200;
 let installed = false;
 
 async function loadSegStore(): Promise<any|null> {
-  try { return await import('../chain/seg_store.ts'); } catch(_) {}
+  try { return await import('../chain/seg_store.js'); } catch(_) {}
   try { return await import('../chain/seg_store.js'); } catch(_) {}
   return null;
 }

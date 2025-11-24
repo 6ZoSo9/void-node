@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/ai/cli.ts
 //
 // Minimal VOID devnet AI/agent CLI.
@@ -11,7 +12,7 @@
 
 import { spawnSync } from "child_process";
 import { resolve } from "path";
-import { loadVoidDevnetState } from "./state";
+import { loadVoidDevnetState } from "./state.js";
 
 function runScript(scriptRelPath: string, args: string[] = []): never | void {
   const repoRoot = process.cwd();

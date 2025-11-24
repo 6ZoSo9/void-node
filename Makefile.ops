@@ -207,3 +207,20 @@ void-mainnet-overall-health:
 .PHONY: mainnet-lastmile-health-all
 mainnet-lastmile-health-all:
 	./ops/void-mainnet-lastmile-health.sh
+
+# ---- mainnet full pillar health hammer (core + lastmile + tokenomics + overall) ----
+.PHONY: mainnet-health-all
+mainnet-health-all:
+	./ops/void-mainnet-core-health-all.sh
+	./ops/void-mainnet-lastmile-health.sh
+	./ops/void-mainnet-tokenomics-health.sh
+	./ops/void-mainnet-overall-health.sh
+
+# ---- mainnet pillars health exporter -> node_exporter textfile ----
+.PHONY: mainnet-health-export
+mainnet-health-export:
+	@echo "[mainnet-health-export] repo=$(PWD)"
+	@sudo PROM_URL=http://127.0.0.1:9090 \
+	  OUT=/var/lib/node_exporter/textfile_collector/void_mainnet_health.prom \
+	  ./ops/void-mainnet-health-exporter.sh
+	@sudo chmod 644 /var/lib/node_exporter/textfile_collector/void_mainnet_health.prom

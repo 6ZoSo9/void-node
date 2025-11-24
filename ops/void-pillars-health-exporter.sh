@@ -1,47 +1,70 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
-OUT="${OUT:-/var/lib/node_exporter/textfile_collector/void_pillars.prom}"
+PROM="http://127.0.0.1:9090"
+OUTDIR="/var/lib/node_exporter/textfile_collector"
+OUT="$OUTDIR/void_pillars_health.prom"
 
-jq_bin="${JQ_BIN:-jq}"
+mkdir -p "$OUTDIR"
 
-query_scalar() {
+q() {
   local expr="$1"
-  curl -fsS "$PROM_URL/api/v1/query" \
-    --data-urlencode "query=${expr}" |
-    "$jq_bin" -r '.data.result[0].value[1]' 2>/dev/null || echo "NaN"
+  curl -fsS "$PROM/api/v1/query?query=$expr" \
+    | jq -r '.data.result[0].value[1] // "null"' || echo "null"
 }
 
-safeboot_overall="$(query_scalar 'void:safeboot:overall')"
-devnet_overall="$(query_scalar 'void_devnet_overall_health')"
-mainnet_core_health="$(query_scalar 'void_mainnet_core_health')"
-mainnet_core_manifest_health="$(query_scalar 'void_mainnet_core_manifest_health')"
-mainnet_core_manifest_days="$(query_scalar 'void_mainnet_core_manifest_days_left')"
+ts_now=$(date +%s)
 
-health=0
-days_int=0
+# Components:
+# - safeboot: from exporter job
+# - devnet: overall devnet health (5m max)
+# - mainnet: pillars aggregate (5m max)
+safeboot_raw=$(q 'void_safeboot_health')
+devnet_raw=$(q 'void:devnet_overall:max_5m')
+mainnet_pillars_raw=$(q 'void:mainnet_pillars:health:last_5m')
 
-if [[ "$mainnet_core_manifest_days" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-  days_int="${mainnet_core_manifest_days%.*}"
-fi
+norm01() {
+  local v="$1"
+  if [ "$v" = "null" ] || [ -z "$v" ]; then
+    echo "0"
+  else
+    echo "$v"
+  fi
+}
 
-if [[ "$safeboot_overall" == "1" && \
-      "$devnet_overall" == "1" && \
-      "$mainnet_core_health" == "1" && \
-      "$mainnet_core_manifest_health" == "1" && \
-      "$days_int" -ge 7 ]]; then
-  health=1
-fi
+safeboot_raw=$(norm01 "$safeboot_raw")
+devnet_raw=$(norm01 "$devnet_raw")
+mainnet_pillars_raw=$(norm01 "$mainnet_pillars_raw")
 
-tmp="$(mktemp)"
-cat > "$tmp" <<EOF
-# HELP void_pillars_health VOID pillars health (1=ok,0=bad)
+safeboot_ok=0
+[ "$safeboot_raw" = "1" ] && safeboot_ok=1
+
+devnet_ok=0
+[ "$devnet_raw" = "1" ] && devnet_ok=1
+
+mainnet_pillars_ok=0
+[ "$mainnet_pillars_raw" = "1" ] && mainnet_pillars_ok=1
+
+pillars_health=$(( safeboot_ok * devnet_ok * mainnet_pillars_ok ))
+
+cat >"$OUT" <<EOF
+# HELP void_pillars_safeboot_ok Safeboot pillar OK (1=yes,0=no)
+# TYPE void_pillars_safeboot_ok gauge
+void_pillars_safeboot_ok $safeboot_ok
+
+# HELP void_pillars_devnet_ok Devnet pillar OK (1=yes,0=no)
+# TYPE void_pillars_devnet_ok gauge
+void_pillars_devnet_ok $devnet_ok
+
+# HELP void_pillars_mainnet_ok Mainnet pillars OK (1=yes,0=no)
+# TYPE void_pillars_mainnet_ok gauge
+void_pillars_mainnet_ok $mainnet_pillars_ok
+
+# HELP void_pillars_health Global VOID pillars health (1=ok,0=bad)
 # TYPE void_pillars_health gauge
-void_pillars_health $health
-# HELP void_pillars_manifest_days_min minimum mainnet-core manifest days_left
-# TYPE void_pillars_manifest_days_min gauge
-void_pillars_manifest_days_min $mainnet_core_manifest_days
-EOF
+void_pillars_health $pillars_health
 
-mv "$tmp" "$OUT"
+# HELP void_pillars_last_run_ts Unix timestamp of last global pillars exporter run
+# TYPE void_pillars_last_run_ts gauge
+void_pillars_last_run_ts $ts_now
+EOF

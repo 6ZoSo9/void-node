@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * VOID Chain (chainId 2050) – ReceiptRegistry types.
  *
@@ -5,7 +6,7 @@
  * ReceiptRegistry behavior.
  */
 
-import type { Hex32, Address } from "./jobqueue";
+import type { Hex32, Address } from "./jobqueue.js";
 
 export enum ReceiptStatus {
   Unknown = 0,

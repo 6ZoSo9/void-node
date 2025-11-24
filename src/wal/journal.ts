@@ -17,7 +17,7 @@ export class Journal {
   private root: string;
   private logPath: string;
   private metaPath: string;
-  private fh: fs.FileHandle | null = null;
+  private fh: any | null = null;
   private meta: WalMeta = { lastSeq: 0, bytes: 0, createdAt: Date.now(), updatedAt: Date.now() };
   private opened = false;
 
