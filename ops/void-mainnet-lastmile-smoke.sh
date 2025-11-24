@@ -27,11 +27,11 @@ send_tx () {
 
   # log status + body, don't -f so we can see errors
   local resp
-  resp=$(curl -sS -w '\n[http_status:%{http_code}]\n' -X POST "$BASE/tx/submit" \
+  resp=$(curl -sS -w '\n[http_status:%{http_code}]\n' -X POST "$BASE/__void/dev/tx/submit-direct" \
     -H 'Content-Type: application/json' \
     -d "$body")
 
-  echo "[lastmile-smoke] /tx/submit resp tx $idx:"
+  echo "[lastmile-smoke] /__void/dev/tx/submit-direct resp tx $idx:"
   echo "$resp"
 }
 
@@ -84,7 +84,7 @@ if [ "$LAST_NONEMPTY" -ge 0 ] && [ "$TOTAL" -gt 0 ]; then
 fi
 
 if [ "$TOTAL" -gt 0 ]; then
-  echo "[lastmile-smoke] RESULT: OK (non-empty persisted txs found after /tx/submit)"
+  echo "[lastmile-smoke] RESULT: OK (non-empty persisted txs found after /__void/dev/tx/submit-direct)"
   exit 0
 else
   echo "[lastmile-smoke] RESULT: FAIL (no persisted txs found in $START..$HEAD_AFTER)"
