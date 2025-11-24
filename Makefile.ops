@@ -227,3 +227,11 @@ mainnet-health-export:
 
 void-mainnet-health-all:
 	@./ops/void-mainnet-health-all.sh
+
+.PHONY: mainnet-usage-smoke
+mainnet-usage-smoke:
+	./ops/void-mainnet-usage-smoke.sh
+
+.PHONY: devnet-traffic-smoke
+devnet-traffic-smoke:
+	./ops/void-devnet-traffic-smoke.sh
