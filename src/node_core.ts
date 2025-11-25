@@ -407,50 +407,16 @@ export class Node {
     if (this.txSeen.has(h)) return false;      // de-dupe globally
     const tx = { hash: h, body: raw.body ?? {} };
     this.txSeen.set(h, Date.now());
-
-    // Debug: mempool state before push
-    try {
-      const mp: any = (this as any).mempool;
-      const beforeLen =
-        mp && typeof mp.peekAll === "function" ? mp.peekAll().length : -1;
-      console.log("[acceptTx] before push mempool_len=%s hash=%s", beforeLen, h);
-    } catch {}
-
-    // Push into mempool (best-effort)
     try { (this.mempool as any).push?.(tx); } catch {}
-
-    // Debug: mempool state after push
-    try {
-      const mp2: any = (this as any).mempool;
-      const afterLen =
-        mp2 && typeof mp2.peekAll === "function" ? mp2.peekAll().length : -1;
-      console.log("[acceptTx] after push mempool_len=%s hash=%s", afterLen, h);
-    } catch {}
 
     // [void] acceptTx mirrors into txQueue if present
     try {
       const q: any = (this as any).txQueue;
       if (Array.isArray(q)) {
         q.push(tx);
-        try {
-          console.log(
-            "[acceptTx] txQueue push len=%s hash=%s",
-            q.length,
-            h
-          );
-        } catch {}
-      } else {
-        try {
-          console.log("[acceptTx] txQueue missing or non-array");
-        } catch {}
       }
     } catch (e) {
-      try {
-        console.error(
-          "[acceptTx] txQueue mirror error",
-          (e as any).message || e
-        );
-      } catch {}
+      // best-effort only; ignore errors
     }
 
     return true;
@@ -663,21 +629,6 @@ export class Node {
 
     const batch = this.takeTxBatch(1000);
 
-    // [seal-block-debug-v3] observe batch content before filtering
-    try {
-      const __batchLen = Array.isArray(batch) ? batch.length : -1;
-      const __markers = Array.isArray(batch)
-        ? batch.map((t: any) => t && t.body && t.body.marker).filter((m: any) => typeof m === "string")
-        : [];
-      console.log(
-        "[seal-block-debug-v3] number=%s batchLen=%s markers=%j",
-        String(number),
-        String(__batchLen),
-        __markers.slice(0, 5),
-      );
-    } catch {}
-
-
     const __batchLen = Array.isArray(batch) ? batch.length : -1;
 
     const __sample = (__batchLen > 0 && batch[0] && typeof batch[0] === "object") ? Object.keys(batch[0]).slice(0, 10) : null;
@@ -694,19 +645,6 @@ export class Node {
           /^[0-9a-fA-F]{64}$/.test(t.hash),
       )
       .map((t) => ({ ...t, hash: String(t.hash).toLowerCase() }));
-
-    // [seal-block-debug-v3] after filter
-    try {
-      const __txMarkers = Array.isArray(txs)
-        ? txs.map((t: any) => t && t.body && t.body.marker).filter((m: any) => typeof m === "string")
-        : [];
-      console.log(
-        "[seal-block-debug-v3] after-filter txs=%s markers=%j",
-        Array.isArray(txs) ? txs.length : -1,
-        __txMarkers.slice(0, 5),
-      );
-    } catch {}
-
 
     // Allow sealing an empty block if the one-shot flag is set OR global flag is enabled
     const allowEmpty = !!opts?.allowEmptyOnce || this.allowEmptyBlocks;
@@ -962,32 +900,6 @@ function discoverLocalBlobs(baseDir = process.env.DATA_DIR || "data"): { cid: st
 export function globalEnqueueTx(tx: any) {
   try {
     const g: any = globalThis as any;
-    const node: any = (g.__void_node || g.node || g.VOID_NODE);
-
-    // Forward into the live node if available
-    if (node && typeof node.acceptTx === "function") {
-      try {
-        const r = node.acceptTx(tx);
-        // If acceptTx is async, don't crash on rejection
-        if (r && typeof (r as any).then === "function") {
-          (r as any).catch((err: any) => {
-            // eslint-disable-next-line no-console
-            console.error(
-              "[globalEnqueueTx] acceptTx async error",
-              (err && (err as any).message) || err
-            );
-          });
-        }
-      } catch (err: any) {
-        // eslint-disable-next-line no-console
-        console.error(
-          "[globalEnqueueTx] acceptTx error",
-          (err && (err as any).message) || err
-        );
-      }
-    }
-
-    // Keep the original global queue for any dev tooling
     if (!g.__void_tx_queue) g.__void_tx_queue = [];
     g.__void_tx_queue.push(tx ?? {});
     return g.__void_tx_queue.length;

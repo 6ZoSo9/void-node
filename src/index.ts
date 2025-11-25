@@ -197,14 +197,6 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
-
-  // Attach last-mile exporter v1 directly to app (additive; do not delete)
-  try {
-    __void_register_lastmile_v1(app as any);
-  } catch (e: any) {
-    console.error("[lastmile] attach error", (e && (e as any).message) || e);
-  }
-
  
 
 
@@ -2859,21 +2851,7 @@ import type {} from "express"; // type-only safety; no runtime impact
             const txsLen = Array.isArray(b?.txs) ? b.txs.length : 0;
             state.last = { number: Number(b?.number ?? -1), txsLen, when: Date.now() };
             state.count++;
-            try {
-  const bAny: any = b as any;
-  const txsAny: any[] = (bAny.txs as any[]) || [];
-  const markers = txsAny
-    .map((t: any) => (t && (t.body && t.body.marker) || t.marker || null))
-    .filter((x: any) => !!x)
-    .slice(0, 3);
-  console.log(
-    `[seal-tap2] saveBlock(#${bAny.number}) txs=${txsAny.length} markers=${JSON.stringify(markers)}`
-  );
-} catch (e) {
-  try {
-    console.log(`[seal-tap2] saveBlock.diag.err`, (e && (e.message || String(e))) || "<err>");
-  } catch {}
-}
+            console.log(`[seal-tap2] saveBlock(#${state.last.number}) txs=${txsLen}`);
           }catch{}
           return orig(b);
         };
@@ -8078,7 +8056,7 @@ void_txroot_health 1
                 const u = base + "/blocks/" + head + "/header3";
                 const h3 = await j(u);
                 const h3Root = (h3 && (h3.txRoot || (h3.header && h3.header.txRoot))) || null;
-                if (!h3Root) ok = true;
+                if (!h3Root) ok = 1;
               } catch {}
             }
 
@@ -11179,7 +11157,7 @@ void_ready_exporter_timestamp_ms ${now}
         const mem = n && n.mempool && Array.isArray(n.mempool.txs) ? n.mempool.txs : [];
         // Only try if we have pending txs OR your "fillInsteadOfSkip" policy will create non-empty
         // (your saveBlock wrappers enforce no-empty-if-queued anyway)
-        await sealOnce();
+        if (mem.length > 0) await sealOnce();
       } catch {}
     }, Math.max(500, ms|0 || 2000));
   }
@@ -17381,7 +17359,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 
     // Wrap fs.promises.open to ensure explicit .close() or log on GC
     const origOpen = fsp.open;
-    const reg = new (globalThis as any).FinalizationRegistry((info:any)=>{
+    const reg = new (globalThis as any).FinalizationRegistry?.((info:any)=>{
       try {
         console.error("[fs-guard] GC closed FileHandle (missing .close) at", info?.stack || info);
       } catch {}
@@ -18725,7 +18703,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
 
     // Exporter
     app.get("/__void/metrics/wal.prom", (_req:any, res:any)=>{
-      try { res.type("text/plain").send((wal as any).metricsProm()); }
+      try { res.type("text/plain").send(wal.metricsProm()); }
       catch(e){ res.type("text/plain").send(`# wal exporter error\nvoid_wal_exporter_error 1\n`); }
     });
 
@@ -18738,12 +18716,12 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
           const n = Number(block?.number ?? block?.header?.number ?? -1);
           const txRoot = block?.header?.txRoot || block?.txRoot;
           const hash = (block?.hash) || (block?.header && (await (await import("./chain/block.js")).blockHash(block.header)));
-          if (Number.isFinite(n) && n>=0) (wal as any).append(n, txRoot, hash);
+          if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
         }catch(_e){ /* best-effort */ }
         const out = await origSave.apply(this, arguments as any);
         try{
           const n = Number(block?.number ?? block?.header?.number ?? -1);
-          if (Number.isFinite(n) && n>=0) (wal as any).commit(n);
+          if (Number.isFinite(n) && n>=0) wal.commit(n);
         }catch(_e){ /* best-effort */ }
         return out;
       };
@@ -18751,7 +18729,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     }
 
     // Minimal boot replay: just recount inflight; do not mutate store
-    (wal as any).counters.replays_total++;
+    wal.counters.replays_total++;
   }
   mount();
 })();
@@ -18777,7 +18755,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     if (!(app as any).__void_wal_v1_exporter){
       (app as any).__void_wal_v1_exporter = true;
       app.get("/__void/metrics/wal.prom", (_req:any, res:any)=>{
-        try { res.type("text/plain").send((wal as any).metricsProm()); }
+        try { res.type("text/plain").send(wal.metricsProm()); }
         catch { res.type("text/plain").send("# wal exporter error\nvoid_wal_exporter_error 1\n"); }
       });
     }
@@ -18798,12 +18776,12 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
                 hash = await bh.blockHash(block.header);
               }
             }catch{}
-            if (Number.isFinite(n) && n>=0) (wal as any).append(n, txRoot, hash);
+            if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
           }catch{}
           const out = await origSave.apply(this, arguments as any);
           try{
             const n = Number(block?.number ?? block?.header?.number ?? -1);
-            if (Number.isFinite(n) && n>=0) (wal as any).commit(n);
+            if (Number.isFinite(n) && n>=0) wal.commit(n);
           }catch{}
           return out;
         };
@@ -18857,7 +18835,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     if (!(app as any).__void_wal_v1_exporter2){
       (app as any).__void_wal_v1_exporter2 = true;
       app.get("/__void/metrics/wal.prom", (_:any, res:any)=>{
-        try { res.type("text/plain").send((wal as any).metricsProm()); }
+        try { res.type("text/plain").send(wal.metricsProm()); }
         catch { res.type("text/plain").send("# wal exporter error\nvoid_wal_exporter_error 1\n"); }
       });
     }
@@ -18881,13 +18859,13 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
               hash = await bh.blockHash(block.header);
             }
           } catch {}
-          if (Number.isFinite(n) && n>=0) (wal as any).append(n, txRoot, hash);
+          if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
         }catch{}
         const out = await origSave.apply(this, arguments as any);
         try{
           // commit to the real latest after save
           const latest = await getHeadNumber();
-          if (Number.isFinite(latest) && latest>=0) (wal as any).commit(latest);
+          if (Number.isFinite(latest) && latest>=0) wal.commit(latest);
         }catch{}
         return out;
       };
@@ -18919,7 +18897,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       (app as any).__void_wal_v1_exporter3 = true;
       app.get("/__void/metrics/wal.prom", (_:any, res:any)=>{
         try {
-          const base = (wal as any).metricsProm();
+          const base = wal.metricsProm();
           const extra = "\n# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq " + ((wal as any).__synthetic_seq||0) + "\n";
           res.type("text/plain").send(base + extra);
         } catch {
@@ -18930,8 +18908,8 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       app.get("/__void/wal/debug.json", (_:any, res:any)=>{
         res.json({
           synthetic_seq: (wal as any).__synthetic_seq||0,
-          inflight: (wal as any).counters.inflight_gauge,
-          last_uncommitted: (wal as any).counters.last_uncommitted_number
+          inflight: wal.counters.inflight_gauge,
+          last_uncommitted: wal.counters.last_uncommitted_number
         });
       });
     }
@@ -18959,12 +18937,12 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
           }
         } catch {}
 
-        try { (wal as any).append(n, txRoot, hash); } catch {}
+        try { wal.append(n, txRoot, hash); } catch {}
 
         const out = await origSave.apply(this, arguments as any);
 
         // commit same number we appended (synthetic-safe)
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
 
         return out;
       };
@@ -18990,7 +18968,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
 
       const { WALv1 } = await import("./wal/wal_v1.js");
       const wal = (G.__void_wal_v1 ||= new WALv1(dataDir()));
-      (wal as any).counters.replays_total++; // harmless tick
+      wal.counters.replays_total++; // harmless tick
       wal.__synthetic_seq ||= 0;
 
       // New exporter path so we know THIS code is serving it
@@ -18998,12 +18976,12 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
         app.__void_wal_v2_exporter = true;
         app.get("/__void/metrics/wal.v2.prom", (_:any, res:any)=>{
           let base = "# HELP void_wal_exporter_v2 1 if this v2 exporter is active\n# TYPE void_wal_exporter_v2 gauge\nvoid_wal_exporter_v2 1\n";
-          try { base += (wal as any).metricsProm(); } catch { base += "void_wal_exporter_error 1\n"; }
+          try { base += wal.metricsProm(); } catch { base += "void_wal_exporter_error 1\n"; }
           base += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
           res.type("text/plain").send(base);
         });
         app.get("/__void/wal/debug2.json", (_:any,res:any)=>{
-          res.json({tag, synthetic_seq: wal.__synthetic_seq||0, inflight: (wal as any).counters.inflight_gauge, last_uncommitted: (wal as any).counters.last_uncommitted_number});
+          res.json({tag, synthetic_seq: wal.__synthetic_seq||0, inflight: wal.counters.inflight_gauge, last_uncommitted: wal.counters.last_uncommitted_number});
         });
       }
 
@@ -19025,9 +19003,9 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
         let hash:any = block?.hash;
         try{ if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); } }catch{}
 
-        try{ (wal as any).append(n, txRoot, hash); }catch{}
+        try{ wal.append(n, txRoot, hash); }catch{}
         const out = await current.apply(this, arguments as any);
-        try{ (wal as any).commit(n); }catch{}
+        try{ wal.commit(n); }catch{}
         return out;
       };
       wrapped[WRAP_FLAG] = true;
@@ -19068,7 +19046,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     app.__void_wal_v3_exporter = true;
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
       out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${G.__wal_setter_events_total||0}\n`;
       res.type("text/plain").send(out);
@@ -19134,14 +19112,14 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
           const txRoot = block?.header?.txRoot || block?.txRoot;
           let hash:any = block?.hash;
           if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); }
-          try { (wal as any).append(n, txRoot, hash); } catch {}
+          try { wal.append(n, txRoot, hash); } catch {}
           const out = await fn.apply(this, arguments as any);
-          try { (wal as any).commit(n); } catch {}
+          try { wal.commit(n); } catch {}
           return out;
         }catch(e){
           try { wal.append(n, null, null); } catch {}
           const out = await fn.apply(this, arguments as any);
-          try { (wal as any).commit(n); } catch {}
+          try { wal.commit(n); } catch {}
           return out;
         }
       };
@@ -19180,14 +19158,14 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
         const txRoot = block?.header?.txRoot || block?.txRoot;
         let hash:any = block?.hash;
         if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); }
-        try { (wal as any).append(n, txRoot, hash); } catch {}
+        try { wal.append(n, txRoot, hash); } catch {}
         const out = await fn.apply(this, arguments as any);
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         return out;
       }catch(e){
         try { wal.append(n, null, null); } catch {}
         const out = await fn.apply(this, arguments as any);
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         return out;
       }
     };
@@ -19200,7 +19178,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     app.__void_wal_v3_exporter = true;
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
       out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${G.__wal_setter_events_total||0}\n`;
       res.type("text/plain").send(out);
@@ -19285,9 +19263,9 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       let hash:any = block?.hash;
       if (!hash && block?.header){ const m = await import("./chain/block.js"); hash = await m.blockHash(block.header); }
       const txRoot = block?.header?.txRoot || block?.txRoot || null;
-      try { (wal as any).append(n, txRoot, hash); } catch {}
-      try { const out = await fn.apply(this, arguments as any); try { (wal as any).commit(n); } catch {}; return out; }
-      catch(e){ try { (wal as any).commit(n); } catch {}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await fn.apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
     };
     (wrapped as any)[FLAG] = true;
     return wrapped;
@@ -19298,7 +19276,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     app.__void_wal_v4_exporter = true;
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
       out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${(G.__wal_setter_events_total||0)}\n`;
       res.type("text/plain").send(out);
@@ -19357,9 +19335,9 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       let hash:any = block?.hash;
       if (!hash && block?.header){ const m = await import("./chain/block.js"); hash = await m.blockHash(block.header); }
       const txRoot = block?.header?.txRoot || block?.txRoot || null;
-      try { (wal as any).append(n, txRoot, hash); } catch {}
-      try { const out = await (fn as any).apply(this, arguments as any); try { (wal as any).commit(n); } catch {}; return out; }
-      catch(e){ try { (wal as any).commit(n); } catch {}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await (fn as any).apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
     };
     (wrapped as any)[FLAG] = true;
     return wrapped;
@@ -19369,7 +19347,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     if (app.__void_wal_v5_exporter) return; app.__void_wal_v5_exporter = true;
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
       out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${(G.__wal_setter_events_total||0)}\n`;
       res.type("text/plain").send(out);
@@ -19469,9 +19447,9 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       let hash:any = block?.hash;
       if (!hash && block?.header){ const m = await import("./chain/block.js"); try { hash = await m.blockHash(block.header); } catch {} }
       const txRoot = block?.header?.txRoot || block?.txRoot || null;
-      try { (wal as any).append(n, txRoot, hash); } catch {}
-      try { const out = await (fn as any).apply(this, arguments as any); try { (wal as any).commit(n); } catch {}; return out; }
-      catch(e){ try { (wal as any).commit(n); } catch {}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await (fn as any).apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
     };
     (wrapped as any)[FLAG] = true;
     return wrapped;
@@ -19482,7 +19460,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     // prom exporter (v3 path)
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
       res.type("text/plain").send(out);
     });
@@ -19551,13 +19529,13 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       let hash:any = block?.hash;
       if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
       const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
-      try { (wal as any).append(n, txRoot, hash); } catch {}
+      try { wal.append(n, txRoot, hash); } catch {}
       try {
         const out = await (fn as any).apply(this, arguments as any);
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         return out;
       } catch(e){
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         throw e;
       }
     };
@@ -19571,7 +19549,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     // Prom exporter (v3 path) – allowed under safe-boot
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge
 void_wal_synthetic_seq ${wal.__synthetic_seq||0}
 # TYPE void_wal_overwrites_total counter
@@ -19654,13 +19632,13 @@ void_wal_wrapped ${((G.__void_store_instance?.saveBlock && G.__void_store_instan
       let hash:any = block?.hash;
       if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
       const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
-      try { (wal as any).append(n, txRoot, hash); } catch {}
+      try { wal.append(n, txRoot, hash); } catch {}
       try {
         const out = await (fn as any).apply(this, arguments as any);
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         return out;
       } catch(e){
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         throw e;
       }
     };
@@ -19674,7 +19652,7 @@ void_wal_wrapped ${((G.__void_store_instance?.saveBlock && G.__void_store_instan
     // Prom exporter: allowed under safeboot
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       const wrapped = !!(G.__void_store_instance?.saveBlock && G.__void_store_instance.saveBlock[FLAG]);
       out += `# TYPE void_wal_synthetic_seq gauge
 void_wal_synthetic_seq ${wal.__synthetic_seq||0}
@@ -19769,13 +19747,13 @@ void_wal_wrapped ${wrapped?1:0}
       let hash:any = block?.hash;
       if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
       const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
-      try { (wal as any).append(n, txRoot, hash); } catch {}
+      try { wal.append(n, txRoot, hash); } catch {}
       try {
         const out = await (fn as any).apply(this, arguments as any);
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         return out;
       } catch(e){
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         throw e;
       }
     };
@@ -19788,7 +19766,7 @@ void_wal_wrapped ${wrapped?1:0}
 
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       const store = (app.locals && app.locals.store) || G.__void_store_instance;
       const wrapped = !!(store?.saveBlock && store.saveBlock[FLAG]);
       out += `# TYPE void_wal_synthetic_seq gauge
@@ -19882,9 +19860,9 @@ void_wal_wrapped ${wrapped?1:0}
       let hash = block?.hash;
       if (!hash && block?.header){ try{ hash = await blockHash(block.header);}catch{} }
       const txRoot = block?.header?.txRoot ?? block?.txRoot ?? null;
-      try { (wal as any).append(n, txRoot, hash); } catch {}
-      try { const out = await fn.apply(this, arguments as any); try{ (wal as any).commit(n);}catch{}; return out; }
-      catch(e){ try{ (wal as any).commit(n);}catch{}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await fn.apply(this, arguments as any); try{ wal.commit(n);}catch{}; return out; }
+      catch(e){ try{ wal.commit(n);}catch{}; throw e; }
     };
     (wrapped as any)[FLAG]=true;
     return wrapped;
@@ -19994,9 +19972,9 @@ void_wal_wrapped ${wrapped?1:0}
       if (!hash && block?.header) { try { hash = await blockHash(block.header); } catch {} }
       const txRoot = block?.header?.txRoot ?? block?.txRoot ?? null;
 
-      try { (wal as any).append(n, txRoot, hash); } catch {}
-      try { const out = await orig.apply(this, arguments as any); try { (wal as any).commit(n); } catch {}; return out; }
-      catch(e){ try { (wal as any).commit(n); } catch {}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await orig.apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
     };
     (wrapped as any)[FLAG] = true;
     return wrapped;
@@ -23821,9 +23799,9 @@ void_wal_wrapped ${isWrapped?1:0}
       lines.push("# TYPE void_agent_core_kind_last_ts_millis gauge");
       for(const [k,v] of Object.entries(state.metrics.kinds)){
         const esc = k.replace(/["\\]/g, "\\$&");
-        lines.push(`void_agent_core_kind_ok_total{kind="${esc}"} ${(v as any).ok}`);
-        lines.push(`void_agent_core_kind_err_total{kind="${esc}"} ${(v as any).err}`);
-        lines.push(`void_agent_core_kind_last_ts_millis{kind="${esc}"} ${(v as any).last_ts}`);
+        lines.push(`void_agent_core_kind_ok_total{kind="${esc}"} ${v.ok}`);
+        lines.push(`void_agent_core_kind_err_total{kind="${esc}"} ${v.err}`);
+        lines.push(`void_agent_core_kind_last_ts_millis{kind="${esc}"} ${v.last_ts}`);
       }
 
       const app:any = getApp(); if(!app) return;
@@ -25023,7 +25001,7 @@ void_wal_wrapped ${isWrapped?1:0}
 // [pcert-old]       if (!policyRaw) return {ok:false, reason:"policy-pub-bad-format"};
 // [pcert-old] 
 // [pcert-old]       // Node crypto supports ed25519 verify with raw key via KeyObject
-// [pcert-old]       let keyObj:any;
+// [pcert-old]       let keyObj:crypto.KeyObject;
 // [pcert-old]       try { keyObj = crypto.createPublicKey({key: Buffer.concat([
 // [pcert-old]                     Buffer.from([0x30,0x2A,0x30,0x05,0x06,0x03,0x2B,0x65,0x70,0x03,0x21,0x00]), // ASN.1 header for ed25519
 // [pcert-old]                     policyRaw
@@ -25151,7 +25129,7 @@ void_wal_wrapped ${isWrapped?1:0}
       const pcert = parseJSON(pcertBuf); if (!pcert) return {ok:false, reason:"pcert-bad-json"};
       const sigB64 = pcert.sig; if (typeof sigB64!=="string" || sigB64.length<8) return {ok:false, reason:"pcert-missing-sig"};
       const canon  = canonicalNoSig(pcert);
-      let keyObj:any;
+      let keyObj:crypto.KeyObject;
       const policyRaw = toRawKey(pubBuf); if (!policyRaw) return {ok:false, reason:"policy-pub-bad-format"};
       try {
         keyObj = crypto.createPublicKey({
@@ -25742,11 +25720,7 @@ void_wal_wrapped ${isWrapped?1:0}
   function getApp(){return (globalThis as any).__void_http_app || (globalThis as any).app;}
   async function latestHeader(){
     try{
-      const fetch = (globalThis as any).fetch;
-      if (!fetch) {
-        throw new Error("[void-node] fetch not available in this Node runtime; please run on Node 18+ where global fetch exists");
-      }
-
+      const fetch = (globalThis as any).fetch || (await import('node:node-fetch').then((m:any)=>m.default || m));
       const n = await fetch('http://127.0.0.1:4100/blocks/latest/number').then((r:any)=>r.text()).then((t:string)=>Number(t.trim()));
       const h = await fetch(`http://127.0.0.1:4100/blocks/${n}/header`).then((r:any)=>r.json());
       return {n, root:(h?.txRoot?.root||'').toString()};
@@ -27103,2228 +27077,4 @@ import './tokenomics/reward_engine_exporter_v1';
   }
 
   tick();
-})();
-
-// -----------------------------------------------------------------------------
-// Safeboot health exporter (Prometheus) - additive-only
-// Scraped by 'void-safeboot-health' job at /health/safeboot.prom.
-// Feeds void_safeboot_health, which drives void-safeboot-rules.
-// -----------------------------------------------------------------------------
-(function SafebootHealthExporterV2(){
-  const TICK = 500;
-
-  function attachOnce(){
-    try {
-      const g = globalThis;
-      const app = (g && (g).__void_http_app) || (g && (g).app);
-
-      if (!app || typeof app.get !== 'function') {
-        // app not ready yet – try again shortly
-        if (typeof setTimeout === 'function') {
-          const t = setTimeout(attachOnce, TICK);
-          if (t && typeof t.unref === 'function') t.unref();
-        }
-        console.error('[safeboot] waiting for app handle...');
-        return;
-      }
-
-      app.get('/health/safeboot.prom', async (req, res) => {
-        try {
-          // Prometheus text exposition format
-          res.type('text/plain; version=0.0.4; charset=utf-8');
-
-          let value = 0;
-
-          try {
-            // Reuse txroot health as underlying signal – if txroot is healthy,
-            // safeboot is considered OK from Prom's perspective.
-            const port = process.env.HTTP_PORT || '4100';
-            const url = `http://127.0.0.1:${port}/health/txroot3?format=prom`;
-
-            const fetchFn = (globalThis).fetch;
-            if (typeof fetchFn === 'function') {
-              const resp = await fetchFn(url);
-              if (resp.ok) {
-                const body = await resp.text();
-                const line = body
-                  .split('\n')
-                  .find((l) => l.startsWith('void_txroot_health '));
-
-                if (line) {
-                  const parts = line.trim().split(/\s+/);
-                  if (parts.length >= 2) {
-                    const parsed = Number.parseFloat(parts[1]);
-                    if (!Number.isNaN(parsed)) {
-                      value = parsed;
-                    }
-                  }
-                }
-              }
-            }
-          } catch {
-            // On any error, leave value = 0 (unhealthy)
-          }
-
-          const lines = [
-            '# HELP void_safeboot_health Safeboot overall health (1=ok,0=bad)',
-            '# TYPE void_safeboot_health gauge',
-            `void_safeboot_health ${value}`,
-            ''
-          ];
-
-          res.send(lines.join('\n'));
-        } catch {
-          // Last resort: still emit a valid 0-valued metric so Prom can scrape.
-          res.type('text/plain; version=0.0.4; charset=utf-8');
-          res.send(
-            '# HELP void_safeboot_health Safeboot overall health (1=ok,0=bad)\n' +
-            '# TYPE void_safeboot_health gauge\n' +
-            'void_safeboot_health 0\n'
-          );
-        }
-      });
-
-      console.error('[safeboot] exporter attached at /health/safeboot.prom');
-    } catch (e) {
-      console.error('[safeboot] init error', (e && e.message) || e);
-    }
-  }
-
-  if (typeof setTimeout === 'function') {
-    const t = setTimeout(attachOnce, TICK);
-    if (t && typeof t.unref === 'function') t.unref();
-  } else {
-    attachOnce();
-  }
-})();
-
-// -----------------------------------------------------------------------------
-// end: Safeboot health exporter
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-// Last-mile diagnostics exporter (mempool/queue/block) v1 - additive-only
-// Exposes gauges so we can see what the proposer *actually* sees.
-// -----------------------------------------------------------------------------
-(function LastMileDiagExporterV1() {
-  const TICK = 500;
-
-  function attachOnce() {
-    try {
-      const g = globalThis as any;
-      const app = (g && g.__void_http_app) || (g && (g as any).app);
-
-      if (!app || typeof app.get !== 'function') {
-        if (typeof setTimeout === 'function') {
-          const t: any = setTimeout(attachOnce, TICK);
-          if (t && typeof t.unref === 'function') t.unref();
-        }
-        console.error('[lastmile] waiting for app handle...');
-        return;
-      }
-
-      app.get('/__void/metrics/lastmile.v3.prom', (req, res) => {
-        try {
-          res.type('text/plain; version=0.0.4; charset=utf-8');
-
-          let mempoolSize: number = -1;
-          let queueSize: number = -1;
-          let lastBlockTxCount: number = -1;
-
-          try {
-            const node = (g.__void_node || (g as any).node) as any;
-
-            if (node) {
-              if (node.mempool && Array.isArray(node.mempool.txs)) {
-                mempoolSize = node.mempool.txs.length;
-              }
-
-              const q = node.txQueue;
-              if (Array.isArray(q)) {
-                queueSize = q.length;
-              }
-
-              const lb = (node.lastBlock || node.latestBlock || null) as any;
-              const txs =
-                lb && Array.isArray(lb.txs)
-                  ? lb.txs
-                  : lb && Array.isArray(lb.transactions)
-                    ? lb.transactions
-                    : null;
-
-              if (txs) {
-                lastBlockTxCount = txs.length;
-              }
-            }
-          } catch {
-            // keep -1 defaults
-          }
-
-          const fmt = (v: number) =>
-            Number.isFinite(v) && v >= 0 ? v : -1;
-
-          const lines = [
-            '# HELP void_lastmile_mempool_size_v1 Mempool size (txs) as seen by last-mile diag',
-            '# TYPE void_lastmile_mempool_size_v1 gauge',
-            `void_lastmile_mempool_size_v1 ${fmt(mempoolSize)}`,
-            '# HELP void_lastmile_queue_size_v1 Tx queue size (txs) as seen by last-mile diag',
-            '# TYPE void_lastmile_queue_size_v1 gauge',
-            `void_lastmile_queue_size_v1 ${fmt(queueSize)}`,
-            '# HELP void_lastmile_block_txcount_v1 Tx count in latest block as seen by last-mile diag',
-            '# TYPE void_lastmile_block_txcount_v1 gauge',
-            `void_lastmile_block_txcount_v1 ${fmt(lastBlockTxCount)}`,
-            ''
-          ];
-
-          res.send(lines.join('\n'));
-        } catch {
-          res.type('text/plain; version=0.0.4; charset=utf-8');
-          res.send(
-            '# HELP void_lastmile_mempool_size_v1 Mempool size (txs) as seen by last-mile diag\n' +
-            '# TYPE void_lastmile_mempool_size_v1 gauge\n' +
-            'void_lastmile_mempool_size_v1 -1\n' +
-            '# HELP void_lastmile_queue_size_v1 Tx queue size (txs) as seen by last-mile diag\n' +
-            '# TYPE void_lastmile_queue_size_v1 gauge\n' +
-            'void_lastmile_queue_size_v1 -1\n' +
-            '# HELP void_lastmile_block_txcount_v1 Tx count in latest block as seen by last-mile diag\n' +
-            '# TYPE void_lastmile_block_txcount_v1 gauge\n' +
-            'void_lastmile_block_txcount_v1 -1\n'
-          );
-        }
-      });
-
-      console.error('[lastmile] exporter attached at /__void/metrics/lastmile.v3.prom');
-    } catch (e: any) {
-      console.error('[lastmile] init error', (e && e.message) || e);
-    }
-  }
-
-  if (typeof setTimeout === 'function') {
-    const t: any = setTimeout(attachOnce, TICK);
-    if (t && typeof t.unref === 'function') t.unref();
-  } else {
-    attachOnce();
-  }
-})();
-// -----------------------------------------------------------------------------
-// Last-mile diagnostics exporter v2 (mempool/queue/block) - additive-only
-// Independent of any saveBlock injection wrappers.
-// Emits what the proposer actually sees (mempool, txQueue, last block txs).
-// -----------------------------------------------------------------------------
-(function LastMileDiagExporterV2() {
-  const TICK = 500;
-
-  function attachOnce() {
-    try {
-      const g: any = globalThis as any;
-      const app = (g && g.__void_http_app) || (g && (g as any).app);
-
-      if (!app || typeof app.get !== "function") {
-        if (typeof setTimeout === "function") {
-          const t: any = setTimeout(attachOnce, TICK);
-          if (t && typeof t.unref === "function") t.unref();
-        }
-        console.error("[lastmile-diag.v2] waiting for app handle...");
-        return;
-      }
-
-      app.get("/__void/metrics/lastmile.diag.v1.prom", (req: any, res: any) => {
-        try {
-          res.type("text/plain; version=0.0.4; charset=utf-8");
-
-          let mempoolSize: number = -1;
-          let queueSize: number = -1;
-          let blockTxCount: number = -1;
-
-          try {
-            const node: any = (g.__void_node || (g as any).node);
-
-            if (node) {
-              if (node.mempool && Array.isArray(node.mempool.txs)) {
-                mempoolSize = node.mempool.txs.length;
-              }
-
-              let q: any = null;
-              if (Array.isArray(node.txQueue)) {
-                q = node.txQueue;
-              } else if (node.txQueue && Array.isArray((node.txQueue as any).txs)) {
-                q = (node.txQueue as any).txs;
-              }
-
-              if (Array.isArray(q)) {
-                queueSize = q.length;
-              }
-
-              const lb: any = node.lastBlock || node.latestBlock || null;
-              const txs: any[] | null =
-                lb && Array.isArray(lb.txs)
-                  ? lb.txs
-                  : lb && Array.isArray((lb as any).transactions)
-                    ? (lb as any).transactions
-                    : null;
-
-              if (txs) {
-                blockTxCount = txs.length;
-              }
-            }
-          } catch {
-            // keep -1 defaults
-          }
-
-          const fmt = (v: number) =>
-            Number.isFinite(v) && v >= 0 ? v : -1;
-
-          const lines = [
-            "# HELP void_lastmile_diag_mempool_size Mempool size (txs) as seen by last-mile diag v1",
-            "# TYPE void_lastmile_diag_mempool_size gauge",
-            `void_lastmile_diag_mempool_size ${fmt(mempoolSize)}`,
-            "# HELP void_lastmile_diag_queue_size Tx queue size (txs) as seen by last-mile diag v1",
-            "# TYPE void_lastmile_diag_queue_size gauge",
-            `void_lastmile_diag_queue_size ${fmt(queueSize)}`,
-            "# HELP void_lastmile_diag_block_txcount Tx count in latest block as seen by last-mile diag v1",
-            "# TYPE void_lastmile_diag_block_txcount gauge",
-            `void_lastmile_diag_block_txcount ${fmt(blockTxCount)}`,
-            ""
-          ];
-
-          res.send(lines.join("\n"));
-        } catch {
-          res.type("text/plain; version=0.0.4; charset=utf-8");
-          res.send(
-            "# HELP void_lastmile_diag_mempool_size Mempool size (txs) as seen by last-mile diag v1\n" +
-            "# TYPE void_lastmile_diag_mempool_size gauge\n" +
-            "void_lastmile_diag_mempool_size -1\n" +
-            "# HELP void_lastmile_diag_queue_size Tx queue size (txs) as seen by last-mile diag v1\n" +
-            "# TYPE void_lastmile_diag_queue_size gauge\n" +
-            "void_lastmile_diag_queue_size -1\n" +
-            "# HELP void_lastmile_diag_block_txcount Tx count in latest block as seen by last-mile diag v1\n" +
-            "# TYPE void_lastmile_diag_block_txcount gauge\n" +
-            "void_lastmile_diag_block_txcount -1\n"
-          );
-        }
-      });
-
-      console.error("[lastmile-diag.v2] exporter attached at /__void/metrics/lastmile.diag.v1.prom");
-    } catch (e: any) {
-      console.error("[lastmile-diag.v2] init error", (e && e.message) || e);
-    }
-  }
-
-  if (typeof setTimeout === "function") {
-    const t: any = setTimeout(attachOnce, TICK);
-    if (t && typeof t.unref === "function") t.unref();
-  } else {
-    attachOnce();
-  }
-})();
-
-// -----------------------------------------------------------------------------
-// Last-mile diagnostics exporter v2b (HTTP-based persisted view)
-// Reads latest block number and persisted txs via HTTP, so it can't lie.
-// Exposed at /__void/metrics/lastmile.diag.v2.prom
-// -----------------------------------------------------------------------------
-(function LastMileDiagExporterV2b() {
-  const TICK = 500;
-
-  function attachOnce() {
-    try {
-      const g: any = globalThis as any;
-      const app = (g && g.__void_http_app) || (g && (g as any).app);
-
-      if (!app || typeof app.get !== "function") {
-        if (typeof setTimeout === "function") {
-          const t: any = setTimeout(attachOnce, TICK);
-          if (t && typeof t.unref === "function") t.unref();
-        }
-        console.error("[lastmile.diag.v2b] waiting for app handle...");
-        return;
-      }
-
-      app.get("/__void/metrics/lastmile.diag.v2.prom", async (req: any, res: any) => {
-        try {
-          res.type("text/plain; version=0.0.4; charset=utf-8");
-
-          let lastNumber: number = -1;
-          let lastTxCount: number = -1;
-
-          try {
-            const port = process.env.HTTP_PORT || "4100";
-            const base = `http://127.0.0.1:${port}`;
-            const fetchFn: any = (globalThis as any).fetch;
-
-            if (typeof fetchFn === "function") {
-              // 1) get latest block number via number2.json
-              const headResp = await fetchFn(`${base}/blocks/latest/number2.json`);
-              if (headResp.ok) {
-                const j: any = await headResp.json();
-                const n = Number(
-                  (j && (j.number ?? j.latest ?? j.block ?? j.height ?? j.n)) ?? -1
-                );
-                if (Number.isFinite(n) && n >= 0) {
-                  lastNumber = n;
-                }
-              }
-
-              // 2) get persisted txs for that block
-              if (Number.isFinite(lastNumber) && lastNumber >= 0) {
-                const txResp = await fetchFn(
-                  `${base}/dev/blocks/${lastNumber}/txs/persisted`
-                );
-                if (txResp.ok) {
-                  const tj: any = await txResp.json();
-                  const lenFromField = Number(
-                    (tj && (tj.len ?? tj.length)) ?? -1
-                  );
-                  const lenFromArray =
-                    Array.isArray(tj && tj.txs) ? (tj.txs as any[]).length : -1;
-                  const cand =
-                    Number.isFinite(lenFromField) && lenFromField >= 0
-                      ? lenFromField
-                      : lenFromArray;
-                  if (Number.isFinite(cand) && cand >= 0) {
-                    lastTxCount = cand;
-                  }
-                }
-              }
-            }
-          } catch {
-            // leave defaults as -1
-          }
-
-          const fmt = (v: number) =>
-            Number.isFinite(v) && v >= 0 ? v : -1;
-
-          const lines = [
-            "# HELP void_lastmile_diag2_last_block Last block number (via HTTP persisted view)",
-            "# TYPE void_lastmile_diag2_last_block gauge",
-            `void_lastmile_diag2_last_block ${fmt(lastNumber)}`,
-            "# HELP void_lastmile_diag2_block_txcount Tx count in latest block (via HTTP persisted view)",
-            "# TYPE void_lastmile_diag2_block_txcount gauge",
-            `void_lastmile_diag2_block_txcount ${fmt(lastTxCount)}`,
-            "",
-          ];
-
-          res.send(lines.join("\n"));
-        } catch {
-          res.type("text/plain; version=0.0.4; charset=utf-8");
-          res.send(
-            "# HELP void_lastmile_diag2_last_block Last block number (via HTTP persisted view)\n" +
-            "# TYPE void_lastmile_diag2_last_block gauge\n" +
-            "void_lastmile_diag2_last_block -1\n" +
-            "# HELP void_lastmile_diag2_block_txcount Tx count in latest block (via HTTP persisted view)\n" +
-            "# TYPE void_lastmile_diag2_block_txcount gauge\n" +
-            "void_lastmile_diag2_block_txcount -1\n"
-          );
-        }
-      });
-
-      console.error(
-        "[lastmile.diag.v2b] exporter attached at /__void/metrics/lastmile.diag.v2.prom"
-      );
-    } catch (e: any) {
-      console.error(
-        "[lastmile.diag.v2b] init error",
-        (e && e.message) || e
-      );
-    }
-  }
-
-  if (typeof setTimeout === "function") {
-    const t: any = setTimeout(attachOnce, TICK);
-    if (t && typeof t.unref === "function") t.unref();
-  } else {
-    attachOnce();
-  }
-})();
-// -----------------------------------------------------------------------------
-// Seal-block debug wrapper v1 (additive, runtime-only)
-// Wraps node.sealBlock to track attempts, last result, and exposes a Prom exporter.
-// -----------------------------------------------------------------------------
-(function SealBlockDebugV1() {
-  const TICK = 500;
-
-  function attachOnce() {
-    try {
-      const g: any = globalThis as any;
-      const app = (g && g.__void_http_app) || (g && (g as any).app);
-      const node = (g && (g.__void_node || (g as any).node)) as any;
-
-      if (!app || typeof app.get !== "function" || !node || typeof node.sealBlock !== "function") {
-        if (typeof setTimeout === "function") {
-          const t: any = setTimeout(attachOnce, TICK);
-          if (t && typeof t.unref === "function") t.unref();
-        }
-        console.error("[seal-debug] waiting for app/node handle...");
-        return;
-      }
-
-      const orig = node.sealBlock;
-      if ((orig as any).__void_seal_debug_v1) {
-        console.error("[seal-debug] node.sealBlock already wrapped (v1)");
-      } else {
-        const wrapped = async (opts?: any) => {
-          const g2: any = globalThis as any;
-          const dbg = (g2.__void_seal_debug = g2.__void_seal_debug || { attempts: 0 });
-          dbg.attempts = (dbg.attempts || 0) + 1;
-          dbg.lastStart = Date.now();
-          dbg.lastOpts = opts || null;
-
-          try {
-            const res = await orig.call(node, opts);
-            dbg.lastOk = 1;
-            dbg.lastEnd = Date.now();
-            dbg.lastDurationMs = dbg.lastEnd - dbg.lastStart;
-            dbg.lastResultNumber = Number(
-              res && typeof res.number === "number" ? res.number : NaN
-            );
-            dbg.lastResultTxs = Number(
-              res && typeof res.txs === "number" ? res.txs : NaN
-            );
-            return res;
-          } catch (e: any) {
-            dbg.lastOk = 0;
-            dbg.lastEnd = Date.now();
-            dbg.lastDurationMs = dbg.lastEnd - dbg.lastStart;
-            dbg.lastError = String((e && e.message) || e);
-            console.error("[seal-debug] ERROR in sealBlock:", dbg.lastError);
-            throw e;
-          }
-        };
-
-        (wrapped as any).__void_seal_debug_v1 = true;
-        node.sealBlock = wrapped;
-        console.error("[seal-debug] wrapped node.sealBlock with debug wrapper v1");
-      }
-
-      app.get("/__void/metrics/lastmile.seal.v1.prom", (_req, res) => {
-        try {
-          const g2: any = globalThis as any;
-          const dbg = g2.__void_seal_debug || {};
-          const attempts = Number(dbg.attempts || 0);
-          const lastOk =
-            typeof dbg.lastOk === "number" ? dbg.lastOk : -1;
-          const lastDur =
-            typeof dbg.lastDurationMs === "number"
-              ? dbg.lastDurationMs
-              : -1;
-          const lastNum =
-            typeof dbg.lastResultNumber === "number" &&
-            Number.isFinite(dbg.lastResultNumber)
-              ? dbg.lastResultNumber
-              : -1;
-          const lastTxs =
-            typeof dbg.lastResultTxs === "number" &&
-            Number.isFinite(dbg.lastResultTxs)
-              ? dbg.lastResultTxs
-              : -1;
-
-          res.type("text/plain; version=0.0.4; charset=utf-8");
-          res.send(
-            [
-              "# HELP void_lastmile_seal_attempts_total Total sealBlock attempts (debug wrapper)",
-              "# TYPE void_lastmile_seal_attempts_total counter",
-              `void_lastmile_seal_attempts_total ${attempts}`,
-              "# HELP void_lastmile_seal_last_ok_v1 Last sealBlock result: 1=ok,0=error,-1=unknown",
-              "# TYPE void_lastmile_seal_last_ok_v1 gauge",
-              `void_lastmile_seal_last_ok_v1 ${lastOk}`,
-              "# HELP void_lastmile_seal_last_duration_ms_v1 Last sealBlock duration in ms (-1 if none)",
-              "# TYPE void_lastmile_seal_last_duration_ms_v1 gauge",
-              `void_lastmile_seal_last_duration_ms_v1 ${lastDur}`,
-              "# HELP void_lastmile_seal_last_number_v1 Last block number from sealBlock result (-1 if none)",
-              "# TYPE void_lastmile_seal_last_number_v1 gauge",
-              `void_lastmile_seal_last_number_v1 ${lastNum}`,
-              "# HELP void_lastmile_seal_last_txs_v1 Last tx count from sealBlock result (-1 if none)",
-              "# TYPE void_lastmile_seal_last_txs_v1 gauge",
-              `void_lastmile_seal_last_txs_v1 ${lastTxs}`,
-              ""
-            ].join("\n")
-          );
-        } catch {
-          res.type("text/plain; version=0.0.4; charset=utf-8");
-          res.send(
-            "# HELP void_lastmile_seal_attempts_total Total sealBlock attempts (debug wrapper)\n" +
-              "# TYPE void_lastmile_seal_attempts_total counter\n" +
-              "void_lastmile_seal_attempts_total 0\n"
-          );
-        }
-      });
-
-      console.error(
-        "[seal-debug] exporter attached at /__void/metrics/lastmile.seal.v1.prom"
-      );
-    } catch (e: any) {
-      console.error("[seal-debug] init error", (e && e.message) || e);
-    }
-  }
-
-  if (typeof setTimeout === "function") {
-    const t: any = setTimeout(attachOnce, TICK);
-    if (t && typeof t.unref === "function") t.unref();
-  } else {
-    attachOnce();
-  }
-})();
-// === VOID last-mile exporter v1 (additive; do not delete) ===
-//
-// Scans recent blocks via existing HTTP shims and reports whether
-// any non-empty block exists in the window. This is our last-mile
-// health signal (tx submit -> acceptTx -> txQueue -> proposer -> SegStore).
-
-async function __void_compute_lastmile_v1(windowSize: number) {
-  const port = process.env.HTTP_PORT || '4100';
-  const base = `http://127.0.0.1:${port}`;
-
-  async function j(path: string): Promise<any> {
-    const res = await fetch(base + path);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} for ${path}`);
-    }
-    return res.json();
-  }
-
-  const latestInfo = await j('/blocks/latest/number2.json');
-  const latestNum = Number(
-    (latestInfo as any).number ??
-    (latestInfo as any).n ??
-    (latestInfo as any).latest,
-  );
-  if (!Number.isFinite(latestNum) || latestNum < 1) {
-    throw new Error(`bad latest block: ${JSON.stringify(latestInfo)}`);
-  }
-
-  const from = Math.max(1, latestNum - windowSize + 1);
-  let nonEmpty = 0;
-  let empty = 0;
-
-  for (let n = from; n <= latestNum; n++) {
-    try {
-      const r = await j(`/dev/blocks/${n}/txs/persisted`);
-      const len = Number(
-        (r as any).len ??
-        (Array.isArray((r as any).txs) ? (r as any).txs.length : 0),
-      );
-      if (len > 0) nonEmpty++;
-      else empty++;
-    } catch (_e) {
-      // Treat missing / error as empty for now
-      empty++;
-    }
-  }
-
-  const blocks = nonEmpty + empty;
-  const health = blocks > 0 && nonEmpty > 0 ? 1 : 0;
-
-  return {
-    ok: true,
-    latest: latestNum,
-    from,
-    to: latestNum,
-    window: blocks,
-    nonEmpty,
-    empty,
-    health,
-  };
-}
-
-function __void_register_lastmile_v1(app: any) {
-  if (!app) return;
-  const a: any = app;
-  if (a.__void_lastmile_v1_attached) return;
-  a.__void_lastmile_v1_attached = true;
-
-  async function compute(windowSize: number) {
-    return __void_compute_lastmile_v1(windowSize);
-  }
-
-  a.get('/__void/metrics/lastmile.v1.json', async (req: any, res: any) => {
-    try {
-      const wRaw = (req.query.window as string | undefined) ?? '16';
-      const windowSize = Number(wRaw) || 16;
-      const data = await compute(windowSize);
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ ok: false, error: String((err && err.message) || err) });
-    }
-  });
-
-  a.get('/__void/metrics/lastmile.v1.prom', async (req: any, res: any) => {
-    res.type('text/plain; version=0.0.4; charset=utf-8');
-    try {
-      const wRaw = (req.query.window as string | undefined) ?? '16';
-      const windowSize = Number(wRaw) || 16;
-      const data = await compute(windowSize);
-
-      const lines: string[] = [];
-      lines.push('# HELP void_lastmile_recent_blocks Number of recent blocks scanned for last-mile health');
-      lines.push('# TYPE void_lastmile_recent_blocks gauge');
-      lines.push(`void_lastmile_recent_blocks{window="${windowSize}"} ${data.window}`);
-
-      lines.push('# HELP void_lastmile_recent_nonempty_blocks Number of non-empty blocks in recent window');
-      lines.push('# TYPE void_lastmile_recent_nonempty_blocks gauge');
-      lines.push(`void_lastmile_recent_nonempty_blocks{window="${windowSize}"} ${data.nonEmpty}`);
-
-      lines.push('# HELP void_lastmile_health 1 if any non-empty block seen in recent window, else 0');
-      lines.push('# TYPE void_lastmile_health gauge');
-      lines.push(`void_lastmile_health{window="${windowSize}"} ${data.health}`);
-
-      lines.push('# HELP void_lastmile_latest_block Latest block number checked for last-mile health');
-      lines.push('# TYPE void_lastmile_latest_block gauge');
-      lines.push(`void_lastmile_latest_block{window="${windowSize}"} ${data.latest}`);
-
-      res.send(lines.join('\\n') + '\\n');
-    } catch (err: any) {
-      res.status(500);
-      res.send('# lastmile exporter error ' + String((err && err.message) || err) + '\\n');
-    }
-  });
-}
-
-// Nudge once the global app is published.
-(function __void_lastmile_v1_nudge() {
-  try {
-    const g: any = globalThis as any;
-    const app = g.__void_http_app;
-    if (app) {
-      __void_register_lastmile_v1(app);
-      return;
-    }
-  } catch (_e) {
-    // ignore
-  }
-  setTimeout(__void_lastmile_v1_nudge, 500).unref?.();
-})();
-
-// === END last-mile exporter v1 ===
-
-// -----------------------------------------------------------------------------
-// VOID global error guards (additive, non-recursive)
-// This is intentionally at the bottom to avoid fighting with module init.
-// It installs a single, sane unhandledRejection handler and trims
-// runaway listeners if some earlier code went recursive.
-// -----------------------------------------------------------------------------
-;(function installVoidGlobalErrorGuards() {
-  const g = globalThis as any;
-  if (g.__void_errorGuardsInstalled) {
-    return;
-  }
-  g.__void_errorGuardsInstalled = true;
-
-  try {
-    const existing = process.listeners("unhandledRejection");
-    if (existing.length > 5) {
-      console.error("[guard] trimming runaway unhandledRejection listeners", existing.length);
-      for (const fn of existing) {
-        try {
-          process.removeListener("unhandledRejection", fn as any);
-        } catch {
-          // best-effort: ignore
-        }
-      }
-    }
-  } catch {
-    // best-effort only
-  }
-
-  process.on("unhandledRejection", (reason, p) => {
-    try {
-      const msg =
-        (reason as any)?.message !== undefined
-          ? (reason as any).message
-          : String(reason);
-
-      if (String(msg).includes("Maximum call stack size exceeded")) {
-        console.error(
-          "[guard] suppressed unhandledRejection RangeError (stack overflow)",
-          msg
-        );
-        return;
-      }
-
-      console.error("[unhandledRejection]", msg);
-    } catch (e) {
-      console.error("[unhandledRejection] handler error", e);
-    }
-  });
-})();
-
-// -----------------------------------------------------------------------------
-// ProposerAutoLoopEnvV1 – env-driven proposer auto-loop (additive, no dev routes)
-// Source of truth: PROPOSER_AUTO=1, PROPOSER_TICK_MS=NNNN via systemd env.
-// This bypasses dead /proposer/* dev harnesses and drives the proposer directly.
-// -----------------------------------------------------------------------------
-;(function ProposerAutoLoopEnvV1(){
-  try{
-    const G:any = globalThis as any;
-    if (G.__void_proposer_auto_env_v1) return;
-    G.__void_proposer_auto_env_v1 = true;
-
-    function getNode(){
-      return G.__void_node || G.node || G.VOID_NODE || null;
-    }
-
-    const autoRaw = String(process.env.PROPOSER_AUTO || process.env.VOID_PROPOSER_AUTO || "").toLowerCase();
-    const enabled = ["1","true","yes"].includes(autoRaw);
-    if (!enabled){
-      // Respect env: if PROPOSER_AUTO is off, we don't do anything.
-      return;
-    }
-
-    const msRaw = Number(process.env.PROPOSER_TICK_MS || process.env.VOID_PROPOSER_TICK_MS || 2000);
-    const ms = (Number.isFinite(msRaw) && msRaw > 50) ? msRaw : 2000;
-
-    function nudge(n:any){
-      try{
-        const cands = ["tickNow","tick","propose","proposeBlock","buildBlock","sealNext"];
-        for (const k of cands){
-          const f =
-            (n && typeof (n as any)[k] === "function") ? (n as any)[k] :
-            (n && n.proposer && typeof (n.proposer as any)[k] === "function") ? (n.proposer as any)[k] :
-            null;
-          if (f){
-            try { f.call(n.proposer ?? n); } catch {}
-            break;
-          }
-        }
-      }catch{}
-    }
-
-    function tickLoop(){
-      try{
-        const n = getNode();
-        if (n) nudge(n);
-        // Keep metrics in sync so existing exporters show enabled=1, ms=NNNN
-        if (!G.__void_metrics) G.__void_metrics = {};
-        G.__void_metrics.proposerAutoEnabled = true;
-        G.__void_metrics.proposerAutoMs = ms;
-      }catch(e){
-        // best-effort; don't crash the loop
-      }finally{
-        setTimeout(tickLoop, ms);
-      }
-    }
-
-    (function waitForNode(){
-      const n = getNode();
-      if (!n){
-        return void setTimeout(waitForNode, 500);
-      }
-      console.log("[proposer-auto-env] loop enabled via PROPOSER_AUTO="+String(autoRaw)+", ms="+ms);
-      tickLoop();
-    })();
-  }catch(e){
-    console.warn("[proposer-auto-env] init failed:", e);
-  }
-})();
-
-// -----------------------------------------------------------------------------
-// ProposerAutoLoopDefault4100V1 – force proposer auto-loop on HTTP_PORT=4100
-// This is a safety net when dev harness/env-based auto control is broken.
-// It never runs on followers (e.g. 4101), only on main node.
-// -----------------------------------------------------------------------------
-;(function ProposerAutoLoopDefault4100V1(){
-  try{
-    const G:any = globalThis as any;
-    if (G.__void_proposer_auto_default_4100_v1) return;
-    G.__void_proposer_auto_default_4100_v1 = true;
-
-    const port = String(process.env.HTTP_PORT || "4100");
-    if (port !== "4100") {
-      // Only main node gets this forced auto-loop
-      return;
-    }
-
-    // Optional hard kill-switch if you ever need it:
-    const killRaw = String(process.env.DISABLE_PROPOSER_AUTO_4100 || "").toLowerCase();
-    if (["1","true","yes"].includes(killRaw)) {
-      console.log("[proposer-auto-4100] disabled via DISABLE_PROPOSER_AUTO_4100");
-      return;
-    }
-
-    const msRaw = Number(process.env.PROPOSER_TICK_MS || 2000);
-    const ms = (Number.isFinite(msRaw) && msRaw > 50) ? msRaw : 2000;
-
-    function getNode(){
-      return G.__void_node || G.node || G.VOID_NODE || null;
-    }
-
-    function nudge(n:any){
-      try{
-        const cands = ["tickNow","tick","propose","proposeBlock","buildBlock","sealNext"];
-        for (const k of cands){
-          const f =
-            (n && typeof (n as any)[k] === "function") ? (n as any)[k] :
-            (n && n.proposer && typeof (n.proposer as any)[k] === "function") ? (n.proposer as any)[k] :
-            null;
-          if (f){
-            try { f.call(n.proposer ?? n); } catch {}
-            break;
-          }
-        }
-      }catch{}
-    }
-
-    function tickLoop(){
-      try{
-        const n = getNode();
-        if (n) nudge(n);
-
-        if (!G.__void_metrics) G.__void_metrics = {};
-        G.__void_metrics.proposerAutoEnabled = true;
-        G.__void_metrics.proposerAutoMs = ms;
-      }catch(e){
-        // best-effort; never crash the loop
-      }finally{
-        setTimeout(tickLoop, ms);
-      }
-    }
-
-    (function waitForNode(){
-      const n = getNode();
-      if (!n) return void setTimeout(waitForNode, 500);
-      console.log("[proposer-auto-4100] loop enabled (ms="+ms+") on HTTP_PORT=4100");
-      tickLoop();
-    })();
-  }catch(e){
-    console.warn("[proposer-auto-4100] init failed:", e);
-  }
-})();
-
-// -----------------------------------------------------------------------------
-// ProposerAutoStartDirectV1 – env-driven proposer loop via node.startProposer()
-// Bypasses dev /proposer/* HTTP routes and talks directly to the Node instance.
-// -----------------------------------------------------------------------------
-;(function ProposerAutoStartDirectV1(){
-  try{
-    const G:any = globalThis as any;
-    if (G.__void_proposer_auto_direct_v1) return;
-    G.__void_proposer_auto_direct_v1 = true;
-
-    function getNode(){
-      return G.__void_node || G.node || G.VOID_NODE || null;
-    }
-
-    function envConfig(){
-      const raw = String(process.env.PROPOSER_AUTO || process.env.VOID_PROPOSER_AUTO || "").toLowerCase();
-      const enabled = ["1","true","yes"].includes(raw);
-      const msRaw = Number(process.env.PROPOSER_TICK_MS || process.env.VOID_PROPOSER_TICK_MS || 2000);
-      const ms = (!Number.isFinite(msRaw) || msRaw < 100) ? 2000 : msRaw;
-      return { enabled, ms };
-    }
-
-    const { enabled, ms } = envConfig();
-    if (!enabled) {
-      (console.log || (()=>{}))("[proposer-auto-direct] PROPOSER_AUTO disabled; not starting loop");
-      return;
-    }
-
-    let tries = 0;
-    (function wait(){
-      const n:any = getNode();
-      if (!n) {
-        if (++tries < 120) return void setTimeout(wait, 500);
-        (console.error || (()=>{}))("[proposer-auto-direct] node never appeared; giving up");
-        return;
-      }
-
-      // Prefer native startProposer if available.
-      if (typeof n.startProposer === "function") {
-        try {
-          const r = n.startProposer(ms);
-          (console.log || (()=>{}))(
-            `[proposer-auto-direct] startProposer(${ms}) invoked`,
-            typeof r === "object" ? r : String(r)
-          );
-        } catch (e:any) {
-          (console.error || (()=>{}))("[proposer-auto-direct] startProposer failed:", e?.message || e);
-        }
-        return;
-      }
-
-      // Fallback: simple timer calling sealBlock if present.
-      if (G.__void_proposer_auto_direct_timer) return;
-      if (typeof n.sealBlock === "function") {
-        G.__void_proposer_auto_direct_timer = setInterval(async () => {
-          try {
-            await n.sealBlock({});
-          } catch (e:any) {
-            // best-effort; keep going on errors
-          }
-        }, ms);
-        (console.log || (()=>{}))(`[proposer-auto-direct] manual sealBlock timer @ ${ms}ms`);
-      } else {
-        (console.error || (()=>{}))(
-          "[proposer-auto-direct] no startProposer()/sealBlock() on node; nothing to do"
-        );
-      }
-    })();
-  }catch(e:any){
-    (console.error || (()=>{}))("[proposer-auto-direct] init error:", e?.message || e);
-  }
-})();
-
-// -----------------------------------------------------------------------------
-// ProposerManualStartRouteV1 – direct HTTP hooks into node.startProposer/sealBlock
-// Non-dev paths, so they survive the dev-route kill-switch.
-//   POST /__void/proposer/direct/start?ms=2000
-//   POST /__void/proposer/direct/seal-once?allowEmptyOnce=1
-// -----------------------------------------------------------------------------
-;(function ProposerManualStartRouteV1(){
-  try{
-    const G:any = globalThis as any;
-    if (G.__void_proposer_manual_start_v1) return;
-    G.__void_proposer_manual_start_v1 = true;
-
-    const TICK = 600;
-
-    function getApp(){ return G.__void_http_app || G.app || undefined; }
-    function getNode(){ return G.__void_node || G.node || G.VOID_NODE || undefined; }
-
-    function attach(){
-      const app:any = getApp();
-      const n:any = getNode();
-      if (!app || !n || typeof app.post !== "function") return void setTimeout(attach, TICK);
-
-      // Start the internal proposer timer via Node.startProposer()
-      app.post("/__void/proposer/direct/start", express.json({limit:"32kb"}), (req:any,res:any)=>{
-        try{
-          const body = req.body || {};
-          const qMs  = req.query && req.query.ms ? Number(req.query.ms) : NaN;
-          const bMs  = body.ms !== undefined ? Number(body.ms) : NaN;
-          const raw  = Number.isFinite(qMs) ? qMs : bMs;
-          const ms   = (!Number.isFinite(raw) || raw < 300) ? 2000 : raw;
-
-          const hasStart = typeof n.startProposer === "function";
-          const hasSeal  = typeof n.sealBlock === "function";
-
-          let result:any = null;
-          if (hasStart){
-            try { result = n.startProposer(ms); }
-            catch(e:any){ result = { ok:false, error:String(e?.message || e) }; }
-          } else {
-            result = { ok:false, error:"no startProposer() on node" };
-          }
-
-          res.json({
-            ok: true,
-            ms,
-            hasStartProposer: hasStart,
-            hasSealBlock: hasSeal,
-            result
-          });
-        } catch(e:any){
-          res.status(500).json({ ok:false, error:String(e?.message||e) });
-        }
-      });
-
-      // One-shot seal, optionally allowing an empty block
-      app.post("/__void/proposer/direct/seal-once", express.json({limit:"32kb"}), async (req:any,res:any)=>{
-        try{
-          const body = req.body || {};
-          const allowFlag = String(req.query?.allowEmptyOnce ?? body.allowEmptyOnce ?? "").toLowerCase();
-          const allowEmptyOnce = ["1","true","yes"].includes(allowFlag);
-          const hasSeal = typeof n.sealBlock === "function";
-
-          if (!hasSeal){
-            return res.status(500).json({ ok:false, error:"no sealBlock() on node" });
-          }
-
-          let r:any;
-          try {
-            r = await n.sealBlock({ allowEmptyOnce });
-          } catch(e:any){
-            return res.status(500).json({ ok:false, error:String(e?.message||e) });
-          }
-
-          res.json({
-            ok: true,
-            allowEmptyOnce,
-            result: r
-          });
-        } catch(e:any){
-          res.status(500).json({ ok:false, error:String(e?.message||e) });
-        }
-      });
-
-      (console.log || (()=>{}))("[proposer-direct-route] mounted /__void/proposer/direct/*");
-    }
-
-    attach();
-  }catch(e:any){
-    (console.error || (()=>{}))("[proposer-direct-route] init error:", e?.message || e);
-  }
-})();
-// --- VOID last-mile fixer vFinal: patch /tx/submit to always use node.acceptTx ---
-// [lastmile.fix.vFinal] additive-only block; do not remove existing routes; we patch the first one at runtime.
-(function attachLastmileFixVFinal(){
-  const g: any = globalThis as any;
-
-  function getApp(): any {
-    return (g.__void_http_app || (g as any).app) ?? undefined;
-  }
-
-  function getNode(): any {
-    return (g.__void_node || (g as any).node || (g as any).VOID_NODE) ?? undefined;
-  }
-
-  let tries = 0;
-  const maxTries = 60;
-
-  function doPatch() {
-    const appAny: any = getApp();
-    const nodeAny: any = getNode();
-
-    if (
-      !appAny ||
-      typeof appAny.post !== "function" ||
-      !appAny._router ||
-      !Array.isArray(appAny._router.stack) ||
-      !nodeAny ||
-      typeof nodeAny.acceptTx !== "function"
-    ) {
-      if (++tries < maxTries) {
-        return setTimeout(doPatch, 500);
-      }
-      try {
-        console.warn("[lastmile.fix.vFinal] could not patch /tx/submit (app/router/node not ready)");
-      } catch {}
-      return;
-    }
-
-    const router: any = appAny._router;
-    let patched = false;
-
-    const unifiedHandler = async (req: any, res: any) => {
-  // [void-mainnet] acceptTx-first last-mile path (additive, early-return on success)
-  try {
-    const g: any = globalThis as any;
-    const node: any = g.__void_node || g.node || g.VOID_NODE || null;
-    const tx: any = (req && (req as any).body) || {};
-
-    const tag =
-      (tx && (tx.marker || tx.note || tx.tag || tx.id || tx.hash)) ||
-      "<tx>";
-
-    if (node && typeof node.acceptTx === "function") {
-      try {
-        const r = node.acceptTx(tx);
-        if (r && typeof (r as any).then === "function") {
-          await (r as any);
-        }
-
-        // Best-effort mempool length for debug
-        let mempoolLen = -1;
-        try {
-          const mp: any =
-            (node as any).mempool ??
-            (node as any).mPool ??
-            (node as any).txPool ??
-            null;
-          if (mp) {
-            if (typeof mp.peekAll === "function") {
-              const arr: any = mp.peekAll();
-              mempoolLen = Array.isArray(arr) ? arr.length : -1;
-            } else if (Array.isArray((mp as any).txs)) {
-              mempoolLen = (mp as any).txs.length;
-            }
-          }
-        } catch (e: any) {
-          console.error(
-            "[lastmile.submit.acceptTx] mempool inspect error",
-            (e && (e as any).message) || e
-          );
-        }
-
-        console.log(
-          "[lastmile.submit.acceptTx] ok tag=%s mempool_len=%s",
-          tag,
-          mempoolLen
-        );
-
-        return res.status(200).json({
-          ok: true,
-          marker: tag,
-          via: "acceptTx",
-          mempool_len: mempoolLen,
-        });
-      } catch (err: any) {
-        console.error(
-          "[lastmile.submit.acceptTx] acceptTx error",
-          (err && (err as any).message) || err
-        );
-        // fall through to existing v2/backstop logic
-      }
-    } else {
-      console.warn(
-        "[lastmile.submit.acceptTx] node.acceptTx missing; falling back"
-      );
-      // fall through to existing v2/backstop logic
-    }
-  } catch (err: any) {
-    console.error(
-      "[lastmile.submit.acceptTx] unexpected error",
-      (err && (err as any).message) || err
-    );
-    // fall through to existing v2/backstop logic
-  }
-
-      try {
-        const tx = req.body ?? {};
-        const ok = !!nodeAny.acceptTx(tx);
-        if (!ok) {
-          try {
-          const tx: any = (req && (req as any).body) || {};
-          const tag =
-            (tx && (tx.marker || tx.note || tx.tag || tx.id || tx.hash)) ||
-            "<tx>";
-          try {
-            // Backstop: import node_core.js and use globalEnqueueTx directly
-            // so last-mile always has a working path.
-            // We keep this very loose-typed to avoid build churn.
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const mod: any = require("./node_core.js");
-            const globalEnqueueTx: any = mod.globalEnqueueTx;
-            if (typeof globalEnqueueTx === "function") {
-              const n = globalEnqueueTx(tx);
-              console.log(
-                "[enqueue.backstop] marker=%s len=%s",
-                tag,
-                n
-              );
-              let accepted = false;
-              try {
-                const gAny: any = globalThis as any;
-                const nodeAny: any = gAny.__void_node || gAny.node || gAny.VOID_NODE;
-                if (nodeAny && typeof (nodeAny as any).acceptTx === "function") {
-                  const r2 = (nodeAny as any).acceptTx(tx);
-                  if (r2 && typeof (r2 as any).then === "function") {
-                    await r2;
-                    accepted = true;
-                  } else {
-                    accepted = (r2 === undefined) ? true : !!r2;
-                  }
-                } else {
-                  console.warn("[enqueue.backstop] node.acceptTx missing");
-                }
-              } catch (err: any) {
-                console.error(
-                  "[enqueue.backstop] acceptTx error",
-                  (err && (err as any).message) || err
-                );
-              }
-              let mpLen = -1;
-              let qLen = -1;
-              try {
-                const gAny: any = globalThis as any;
-                const nodeAny: any = gAny.__void_node || gAny.node || gAny.VOID_NODE;
-                const mp: any[] =
-                  nodeAny && nodeAny.mempool && typeof nodeAny.mempool.peekAll === "function"
-                    ? nodeAny.mempool.peekAll()
-                    : [];
-                mpLen = Array.isArray(mp) ? mp.length : -1;
-                const qRaw: any = nodeAny ? (nodeAny as any).txQueue : null;
-                if (Array.isArray(qRaw)) {
-                  qLen = qRaw.length;
-                } else if (qRaw && Array.isArray((qRaw as any).queue)) {
-                  qLen = (qRaw as any).queue.length;
-                } else {
-                  qLen = -1;
-                }
-              } catch {}
-              return res.json({
-                ok: accepted,
-                marker: tag,
-                enqueued: n,
-                mempool_len: mpLen,
-                txqueue_len: qLen,
-                via: accepted ? "acceptTx" : "backstop"
-              });
-            } else {
-              console.error("[enqueue.backstop] globalEnqueueTx missing; keeping enqueue_failed");
-            }
-          } catch (e: any) {
-            console.error(
-              "[enqueue.backstop] require node_core.js failed",
-              (e && (e.message || String(e))) || e
-            );
-          }
-          return res.status(500).json({ ok: false, error: "enqueue_failed", marker: tag, via: "backstop" });
-        } catch (err: any) {
-          console.error(
-            "[enqueue.backstop] outer enqueue error",
-            (err && (err.message || String(err))) || err
-          );
-          return res.status(500).json({ ok: false, error: "enqueue_failed", detail: String((err && (err.message || err)) || "unknown") });
-        }
-        }
-        return res.json({ ok: true });
-      } catch (err: any) {
-        try {
-          console.error("[lastmile.fix.vFinal] acceptTx error", err && (err.message || err));
-        } catch {}
-        return res.status(500).json({ ok: false, error: "internal_error" });
-      }
-    };
-
-    for (const layer of router.stack) {
-      const r: any = (layer as any).route;
-      if (!r) continue;
-      if (r.path !== "/tx/submit") continue;
-      if (!r.methods || !r.methods.post) continue;
-      if (!Array.isArray(r.stack) || r.stack.length === 0) continue;
-
-      // Patch the first handler for the first POST /tx/submit route.
-      r.stack[0].handle = unifiedHandler;
-      patched = true;
-      break;
-    }
-
-    if (!patched) {
-      // Fallback: if no /tx/submit route existed, install one.
-      appAny.post(
-        "/tx/submit",
-        require("express").json({ limit: "64kb" }),
-        unifiedHandler
-      );
-    }
-
-    try {
-      console.log("[lastmile.fix.vFinal] /tx/submit patched to use node.acceptTx");
-    } catch {}
-  }
-
-  setTimeout(doPatch, 0);
-})();
-
-
-// --- VOID last-mile hard override v2: /tx/submit -> globalEnqueueTx ---
-(function lastmileSubmitOverrideV2(){
-  try {
-    const G:any = globalThis as any;
-    const app:any = G.__void_http_app || (G.app as any);
-    if (!app || typeof app.post !== "function") {
-      console.warn("[lastmile.submit.v2] no app handle yet; skipping attach");
-      return;
-    }
-    const expressMod = require("express");
-    const json = expressMod.json
-      ? expressMod.json({ limit: "64kb" })
-      : ((req:any,_res:any,next:any)=>next());
-
-    app.post("/tx/submit", json, async (req:any, res:any) => {
-      try {
-        const tx = req.body ?? {};
-        console.log(
-          "[lastmile.submit.v2] enqueue",
-          (tx && (tx.marker || tx.note || tx.tag)) || "<tx>"
-        );
-
-        try {
-          // This is the *only* thing that matters: go through globalEnqueueTx,
-          // which now calls node.acceptTx + mirrors into txQueue.
-          globalEnqueueTx(tx);
-        } catch (err:any) {
-          console.error(
-            "[lastmile.submit.v2] globalEnqueueTx threw",
-            err?.message || err
-          );
-          try {
-          const tx: any = (req && (req as any).body) || {};
-          const tag =
-            (tx && (tx.marker || tx.note || tx.tag || tx.id || tx.hash)) ||
-            "<tx>";
-          try {
-            // Backstop for 500s as well: attempt enqueue via node_core.js
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const mod: any = require("./node_core.js");
-            const globalEnqueueTx: any = mod.globalEnqueueTx;
-            if (typeof globalEnqueueTx === "function") {
-              const n = globalEnqueueTx(tx);
-              console.log(
-                "[enqueue.backstop] (500-path) marker=%s len=%s",
-                tag,
-                n
-              );
-              let accepted = false;
-              try {
-                const gAny: any = globalThis as any;
-                const nodeAny: any = gAny.__void_node || gAny.node || gAny.VOID_NODE;
-                if (nodeAny && typeof (nodeAny as any).acceptTx === "function") {
-                  const r2 = (nodeAny as any).acceptTx(tx);
-                  if (r2 && typeof (r2 as any).then === "function") {
-                    await r2;
-                    accepted = true;
-                  } else {
-                    accepted = (r2 === undefined) ? true : !!r2;
-                  }
-                } else {
-                  console.warn("[enqueue.backstop] (500-path) node.acceptTx missing");
-                }
-              } catch (err: any) {
-                console.error(
-                  "[enqueue.backstop] (500-path) acceptTx error",
-                  (err && (err as any).message) || err
-                );
-              }
-              let mpLen = -1;
-              let qLen = -1;
-              try {
-                const gAny: any = globalThis as any;
-                const nodeAny: any = gAny.__void_node || gAny.node || gAny.VOID_NODE;
-                const mp: any[] =
-                  nodeAny && nodeAny.mempool && typeof nodeAny.mempool.peekAll === "function"
-                    ? nodeAny.mempool.peekAll()
-                    : [];
-                mpLen = Array.isArray(mp) ? mp.length : -1;
-                const qRaw: any = nodeAny ? (nodeAny as any).txQueue : null;
-                if (Array.isArray(qRaw)) {
-                  qLen = qRaw.length;
-                } else if (qRaw && Array.isArray((qRaw as any).queue)) {
-                  qLen = (qRaw as any).queue.length;
-                } else {
-                  qLen = -1;
-                }
-              } catch {}
-              return res.json({
-                ok: accepted,
-                marker: tag,
-                enqueued: n,
-                mempool_len: mpLen,
-                txqueue_len: qLen,
-                via: accepted ? "acceptTx-500" : "backstop-500"
-              });
-            } else {
-              console.error("[enqueue.backstop] (500-path) globalEnqueueTx missing; keeping enqueue_failed");
-            }
-          } catch (e: any) {
-            console.error(
-              "[enqueue.backstop] (500-path) require node_core.js failed",
-              (e && (e.message || String(e))) || e
-            );
-          }
-          return res.status(500).json({ ok: false, error: "enqueue_failed", marker: tag, via: "backstop-500" });
-        } catch (err: any) {
-          console.error(
-            "[enqueue.backstop] (500-path) outer enqueue error",
-            (err && (err.message || String(err))) || err
-          );
-          return res.status(500).json({ ok: false, error: "enqueue_failed", detail: String((err && (err.message || err)) || "unknown-500") });
-        }
-        }
-
-        return res.json({ ok:true });
-      } catch (err:any) {
-        console.error(
-          "[lastmile.submit.v2] /tx/submit handler error",
-          err?.message || err
-        );
-        return res.status(500).json({ ok:false, error:"internal" });
-      }
-    });
-
-    console.log("[lastmile.submit.v2] /tx/submit override installed (globalEnqueueTx bridge)");
-  } catch (e:any) {
-    console.error("[lastmile.submit.v2] failed to install", e?.message || e);
-  }
-})();
-
-
-// --- Hard override for /tx/submit to ensure last-mile uses globalEnqueueTx ---
-(function lastmileSubmitHardOverride(){
-  const g: any = globalThis as any;
-  let tries = 0;
-  const MAX_TRIES = 60;
-
-  async function attach() {
-    const app: any = g.__void_http_app || (g as any).app;
-    if (!app || typeof app.post !== "function") {
-      if (tries++ < MAX_TRIES) {
-        return setTimeout(attach, 500);
-      }
-      console.warn("[lastmile.submit.hard] no app handle; giving up");
-      return;
-    }
-
-    try {
-      // Dynamic import of the node core (TS will compile this; runtime loader maps .js to TS).
-      const mod: any = await import("./node_core.js");
-      const globalEnqueueTx = mod.globalEnqueueTx;
-      if (typeof globalEnqueueTx !== "function") {
-        console.error("[lastmile.submit.hard] globalEnqueueTx missing");
-        return;
-      }
-
-      app.post("/tx/submit", async (req: any, res: any) => {
-        const tx = (req && req.body) || {};
-        const tag =
-          (tx && (tx.marker || tx.note || tx.tag || tx.id || tx.hash)) ||
-          "<tx>";
-        try {
-          const n = globalEnqueueTx(tx);
-          console.log(
-            "[lastmile.submit.hard] enqueued marker=%s len=%s",
-            tag,
-            n
-          );
-          return res.json({ ok: true, enqueued: n, marker: tag });
-        } catch (err: any) {
-          console.error(
-            "[lastmile.submit.hard] enqueue error",
-            (err && (err.message || String(err))) || err
-          );
-          return res
-            .status(500)
-            .json({
-              ok: false,
-              error: "enqueue_failed",
-              detail:
-                (err && (err.message || String(err))) || "enqueue_failed",
-            });
-        }
-      });
-
-      console.log("[lastmile.submit.hard] /tx/submit override installed");
-    } catch (e: any) {
-      console.error(
-        "[lastmile.submit.hard] failed to install",
-        (e && (e.message || String(e))) || e
-      );
-    }
-  }
-
-  // Kick it off on next tick so __void_http_app has a chance to be set.
-  setTimeout(attach, 0);
-})();
-
-
-// --- Runtime wrapper to trace whatever acceptTx the live node exposes ---
-(function wrapAcceptTxV2(){
-  const g: any = globalThis as any;
-  let tries = 0;
-  const MAX_TRIES = 60;
-
-  function attempt() {
-    const node: any = g.__void_node || g.node || g.VOID_NODE;
-    if (!node || typeof node.acceptTx !== "function") {
-      if (tries++ < MAX_TRIES) {
-        return setTimeout(attempt, 500);
-      }
-      console.warn("[acceptTx.wrap.v2] no node.acceptTx after retries");
-      return;
-    }
-
-    if ((node as any).__acceptTxWrappedV2) {
-      return;
-    }
-    (node as any).__acceptTxWrappedV2 = true;
-
-    const orig = node.acceptTx.bind(node);
-    node.acceptTx = function(raw: any): boolean {
-      let tag = "";
-      try {
-        tag = String(
-          (raw && (raw.hash || raw.marker || raw.note || raw.tag || "")) || ""
-        );
-      } catch {}
-
-      try {
-        console.log("[acceptTx.wrap.v2] entry hashOrTag=%s", tag);
-      } catch {}
-
-      const r = orig(raw);
-
-      try {
-        const mp: any = (this as any).mempool;
-        let mpLen = -1;
-        if (mp && typeof mp.peekAll === "function") {
-          mpLen = mp.peekAll().length;
-        }
-        const q: any = (this as any).txQueue;
-        const qLen = Array.isArray(q) ? q.length : -1;
-        console.log(
-          "[acceptTx.wrap.v2] exit hashOrTag=%s r=%s mempool_len=%s txqueue_len=%s",
-          tag,
-          r,
-          mpLen,
-          qLen
-        );
-      } catch {}
-
-      return r;
-    };
-
-    console.log("[acceptTx.wrap.v2] installed acceptTx wrapper");
-  }
-
-  // Kick off
-  setTimeout(attempt, 0);
-})();
-
-
-// --- Last-mile diag: inspect live node mempool/txQueue via HTTP ---
-(function lastmileDiagV2(){
-  const g: any = globalThis as any;
-  let tries = 0;
-  const MAX_TRIES = 60;
-
-  function getApp(): any {
-    return g.__void_http_app || (g as any).app || undefined;
-  }
-
-  function getNode(): any {
-    return g.__void_node || (g as any).node || (g as any).VOID_NODE || undefined;
-  }
-
-  function attach() {
-    const app: any = getApp();
-    const node: any = getNode();
-    if (!app || typeof app.get !== "function" || !node) {
-      if (tries++ < MAX_TRIES) {
-        return setTimeout(attach, 500);
-      }
-      try {
-        console.warn("[lastmile.diag.v2] no app/node after retries");
-      } catch {}
-      return;
-    }
-
-    app.get("/__void/dev/lastmile/diag", (_req: any, res: any) => {
-      try {
-        const n: any = getNode();
-        const mp: any = n && n.mempool;
-        let mpLen = -1;
-        let mpPeek: any = null;
-        try {
-          if (mp && typeof mp.peekAll === "function") {
-            const all = mp.peekAll();
-            mpLen = Array.isArray(all) ? all.length : (all?.length ?? -1);
-            mpPeek = Array.isArray(all) ? all.slice(0, 5) : null;
-          }
-        } catch {}
-
-        let qLen = -1;
-        let qPeek: any = null;
-        try {
-          const q: any = (n as any).txQueue;
-          if (Array.isArray(q)) {
-            qLen = q.length;
-            qPeek = q.slice(0, 5);
-          }
-        } catch {}
-
-        let keys: string[] = [];
-        try {
-          keys = Object.keys(n || {});
-        } catch {}
-
-        res.json({
-          ok: true,
-          mempool_len: mpLen,
-          txqueue_len: qLen,
-          has_startProposer: !!(n && typeof n.startProposer === "function"),
-          has_sealBlock: !!(n && typeof n.sealBlock === "function"),
-          node_keys_sample: keys.slice(0, 15),
-          mempool_peek_sample: mpPeek,
-          txqueue_peek_sample: qPeek,
-        });
-      } catch (err: any) {
-        try {
-          res.status(500).json({ ok: false, error: String(err && err.message || err) });
-        } catch {}
-      }
-    });
-
-    try {
-      console.log("[lastmile.diag.v2] attached /__void/dev/lastmile/diag");
-    } catch {}
-  }
-
-  setTimeout(attach, 0);
-})();
-
-
-// --- Last-mile poke: call node.acceptTx directly and inspect queues ---
-(function lastmilePokeAcceptV1(){
-  const g: any = globalThis as any;
-  let tries = 0;
-  const MAX_TRIES = 60;
-
-  function getApp(): any {
-    return g.__void_http_app || (g as any).app || undefined;
-  }
-
-  function getNode(): any {
-    return g.__void_node || (g as any).node || (g as any).VOID_NODE || undefined;
-  }
-
-  async function attach() {
-    const app: any = getApp();
-    const node: any = getNode();
-    if (!app || typeof app.post !== "function" || !node) {
-      if (tries++ < MAX_TRIES) {
-        return setTimeout(attach, 500);
-      }
-      try {
-        console.warn("[lastmile.pokeAccept.v1] no app/node after retries");
-      } catch {}
-      return;
-    }
-
-    // simple JSON body
-    const json = (require("express") as any).json?.({ limit: "64kb" }) || ((req: any, _res: any, next: any) => next());
-
-    app.post("/__void/dev/lastmile/poke-accept", json, async (req: any, res: any) => {
-      const n: any = getNode();
-      const body: any = (req && req.body) || {};
-      const marker =
-        (body && (body.marker || body.note || body.tag || body.id || body.hash)) ||
-        "<poke>";
-
-      let hash = "";
-      let ok = false;
-      let errMsg: string | null = null;
-
-      try {
-        const { createHash } = await import("node:crypto");
-        hash = createHash("sha256").update(JSON.stringify(body)).digest("hex");
-      } catch (e: any) {
-        errMsg = "[poke-accept] hash error: " + String(e && e.message || e);
-      }
-
-      try {
-        if (!n || typeof n.acceptTx !== "function") {
-          errMsg = errMsg || "node.acceptTx missing";
-        } else if (hash) {
-          const raw = { hash, body };
-          try {
-            // rely on the canonical acceptTx from node_core
-            ok = !!n.acceptTx(raw);
-          } catch (e: any) {
-            errMsg = "[poke-accept] acceptTx threw: " + String(e && e.message || e);
-          }
-        }
-      } catch (e: any) {
-        errMsg = "[poke-accept] outer error: " + String(e && e.message || e);
-      }
-
-      let mpLen = -1;
-      let qLen = -1;
-
-      try {
-        const mp: any = n && (n as any).mempool;
-        if (mp && typeof mp.peekAll === "function") {
-          const all = mp.peekAll();
-          mpLen = Array.isArray(all) ? all.length : (all && all.length) || -1;
-        }
-      } catch {}
-
-      try {
-        const q: any = n && (n as any).txQueue;
-        if (Array.isArray(q)) {
-          qLen = q.length;
-        }
-      } catch {}
-
-      try {
-        res.json({
-          ok,
-          marker,
-          hash,
-          mempool_len: mpLen,
-          txqueue_len: qLen,
-          error: errMsg,
-        });
-      } catch {}
-    });
-
-    try {
-      console.log("[lastmile.pokeAccept.v1] attached /__void/dev/lastmile/poke-accept");
-    } catch {}
-  }
-
-  setTimeout(attach, 0);
-})();
-
-
-
-// --- Last-mile seal injector v1: force mempool->block.txs when empty ---
-(function lastmileSealInjectV1(){
-  const g: any = globalThis as any;
-  function getNode(): any {
-    return (g as any).__void_node || (g as any).node || undefined;
-  }
-  let tries = 0;
-  const MAX_TRIES = 60;
-
-  function attach() {
-    const node: any = getNode();
-    if (!node || typeof node.sealBlock !== "function") {
-      if (tries++ < MAX_TRIES) {
-        return setTimeout(attach, 500);
-      }
-      console.warn("[lastmile.seal.inject.v1] no node.sealBlock; giving up");
-      return;
-    }
-    try {
-      const origSeal = node.sealBlock.bind(node);
-      node.sealBlock = async (opts: any) => {
-        let mp: any[] = [];
-        try {
-          const raw = (node as any).mempool;
-          if (raw && typeof raw.peekAll === "function") {
-            mp = raw.peekAll() || [];
-          }
-        } catch (e) {
-          console.error("[lastmile.seal.inject.v1] mempool peek failed", (e as any)?.message || e);
-        }
-
-        const res = await origSeal(opts);
-
-        try {
-          const block: any = (res && (res as any).block) || res || null;
-          const count = Array.isArray(mp) ? mp.length : 0;
-          const existing = block && Array.isArray((block as any).txs) ? (block as any).txs.length : 0;
-          if (block && count > 0 && existing === 0) {
-            (block as any).txs = mp.slice();
-            console.log("[lastmile.seal.inject.v1] injected", count, "txs into block", (block as any).number ?? "?");
-          } else {
-            console.log("[lastmile.seal.inject.v1] skip inject; count=%s existing=%s", count, existing);
-          }
-        } catch (e) {
-          console.error("[lastmile.seal.inject.v1] inject error", (e as any)?.message || e);
-        }
-
-        return res;
-      };
-      console.log("[lastmile.seal.inject.v1] attached");
-    } catch (e) {
-      console.error("[lastmile.seal.inject.v1] attach failed", (e as any)?.message || e);
-    }
-  }
-
-  setTimeout(attach, 0);
-})();
-
-
-
-// --- Last-mile seal injector v2: loud logging + inject mempool->block.txs when empty ---
-(function lastmileSealInjectV2(){
-  const g: any = globalThis as any;
-  console.log("[lastmile.seal.inject.v2] init; have __void_node? %s node? %s",
-    !!(g && (g as any).__void_node),
-    !!(g && (g as any).node)
-  );
-
-  function getNode(): any {
-    const n = (g as any).__void_node || (g as any).node || undefined;
-    return n;
-  }
-
-  let tries = 0;
-  const MAX_TRIES = 60;
-
-  function attach() {
-    const node: any = getNode();
-    if (!node || typeof node.sealBlock !== "function") {
-      tries++;
-      if (tries <= MAX_TRIES) {
-        if (tries <= 3 || tries % 10 === 0) {
-          console.log("[lastmile.seal.inject.v2] attach try=%s node=%s sealBlock=%s",
-            tries,
-            !!node,
-            !!(node && (node as any).sealBlock)
-          );
-        }
-        return setTimeout(attach, 500);
-      }
-      console.warn("[lastmile.seal.inject.v2] giving up; node/sealBlock never ready");
-      return;
-    }
-
-    try {
-      const origSeal = node.sealBlock.bind(node);
-      node.sealBlock = async (opts: any) => {
-        let mp: any[] = [];
-        try {
-          const raw = (node as any).mempool;
-          if (raw && typeof raw.peekAll === "function") {
-            mp = raw.peekAll() || [];
-          }
-        } catch (e) {
-          console.error("[lastmile.seal.inject.v2] mempool peek failed", (e as any)?.message || e);
-        }
-
-        const res = await origSeal(opts);
-
-        try {
-          const block: any = (res && (res as any).block) || res || null;
-          const count = Array.isArray(mp) ? mp.length : 0;
-          const existing = block && Array.isArray((block as any).txs) ? (block as any).txs.length : 0;
-          const num = block && (block as any).number;
-          if (block && count > 0 && existing === 0) {
-            (block as any).txs = mp.slice();
-            console.log("[lastmile.seal.inject.v2] injected %s txs into block %s", count, num ?? "?");
-          } else {
-            console.log("[lastmile.seal.inject.v2] skip inject; block=%s count=%s existing=%s",
-              num ?? "?",
-              count,
-              existing
-            );
-          }
-        } catch (e) {
-          console.error("[lastmile.seal.inject.v2] inject error", (e as any)?.message || e);
-        }
-
-        return res;
-      };
-      console.log("[lastmile.seal.inject.v2] attached");
-    } catch (e) {
-      console.error("[lastmile.seal.inject.v2] attach failed", (e as any)?.message || e);
-    }
-  }
-
-  // Defer to let __void_node get set
-  setTimeout(attach, 0);
-})();
-
-
-
-// --- Tail diag: prove src/index.ts bottom is executing at runtime ---
-try {
-  console.log("[index.tail.diag.v1] tail executed at", new Date().toISOString());
-} catch (e) {
-  // if console.log explodes somehow, at least don't crash the node
-}
-
-
-// ========== Dev raw block inspection route (v1, additive) ==========
-(function devBlocksRawV1(){
-  const TAG = "[dev/blocks.raw.v1]";
-  const TICK = 300;
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  function getNode(){
-    const g:any = globalThis as any;
-    const app:any = getApp();
-    return g.__void_node || (app?.locals?.__void_node) || g.node || null;
-  }
-
-  function mount(){
-    const app:any = getApp();
-    const node:any = getNode();
-    if (!app || typeof app.get !== "function" || !node || !node.store || typeof node.store.loadBlock !== "function"){
-      const t:any = setTimeout(mount, TICK);
-      t?.unref?.();
-      return;
-    }
-
-    app.get("/__void/dev/blocks/:n/raw", (req:any, res:any)=>{
-      try{
-        const num = Number(req.params.n);
-        if (!Number.isFinite(num) || num < 0){
-          return res.status(400).json({ ok:false, error:"bad_number" });
-        }
-        const b = node.store.loadBlock(num);
-        if (!b){
-          return res.status(404).json({ ok:false, error:"not_found" });
-        }
-        res.json({ ok:true, block: b });
-      }catch(e:any){
-        res.status(500).json({ ok:false, error:String(e?.message || e) });
-      }
-    });
-
-    console.log(TAG, "attached");
-  }
-
-  const t:any = setTimeout(mount, TICK);
-  t?.unref?.();
-})();
-
-
-// =========== Dev Direct Submit → node.acceptTx (v1, additive) ===========
-(function txSubmitDirectV1(){
-  const TAG = "[tx-submit-direct:v1]";
-  const TICK = 500;
-
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  function getNode(){
-    const g:any = globalThis as any;
-    const app:any = getApp();
-    return g.__void_node || (app?.locals?.__void_node) || g.node || null;
-  }
-
-  // simple 64-hex dev hash (not crypto, just to satisfy acceptTx regex)
-  function mkDevHash(){
-    const hex = "0123456789abcdef";
-    let out = "";
-    for (let i=0; i<64; i++){
-      out += hex[Math.floor(Math.random()*16)];
-    }
-    return out;
-  }
-
-  function mount(){
-    const app:any = getApp();
-    const node:any = getNode();
-    if (!app || typeof app.post !== "function" || !node || typeof node.acceptTx !== "function") {
-      if (typeof setTimeout === "function") {
-        const t:any = setTimeout(mount, TICK);
-        t.unref?.();
-      }
-      return;
-    }
-
-    app.post("/__void/dev/tx/submit-direct", (req:any, res:any)=>{
-      try{
-        const body = (req && req.body) || {};
-        const marker = body && body.marker;
-        const hash = mkDevHash();
-
-        const ok = node.acceptTx({ hash, body });
-
-        const memLen = Array.isArray(node?.mempool?.txs) ? node.mempool.txs.length : -1;
-        const qLen  = Array.isArray((node as any).txQueue) ? (node as any).txQueue.length : -1;
-
-        return res.json({
-          ok,
-          marker,
-          hash,
-          via: "acceptTx-direct",
-          mempool_len: memLen,
-          txqueue_len: qLen
-        });
-      } catch(e:any){
-        const msg = e?.message || String(e);
-        console.error(TAG, "handler error:", msg);
-        return res.status(500).json({ ok:false, error: msg });
-      }
-    });
-
-    console.log(TAG, "attached /__void/dev/tx/submit-direct via node.acceptTx");
-  }
-
-  if (typeof setTimeout === "function") {
-    const t:any = setTimeout(mount, TICK);
-    t.unref?.();
-  } else {
-    mount();
-  }
-})();
-// ======== /Dev Direct Submit → node.acceptTx (v1, additive) ===========
-
-
-// ========== Safeboot header3 proxy v1 (additive, read-only) ==========
-(function safebootHeader3ProxyV1(){
-  try {
-    const g:any = (globalThis as any);
-    const isSafeboot = String(process.env.VOID_SAFEBOOT || "").trim() === "1";
-    if (!isSafeboot) return;
-
-    function getApp(){ return g.__void_http_app || g.app; }
-
-    // Base URL for the canonical main node
-    const MAIN_BASE = (process.env.VOID_MAIN_HTTP || "http://127.0.0.1:4100").replace(/\/+$/,"");
-
-    let tries = 0;
-    const TICK = 500;
-
-    const mount = () => {
-      const app:any = getApp();
-      if (!app || typeof app.get !== "function") {
-        if (++tries < 120) return setTimeout(mount, TICK);
-        return;
-      }
-      if ((app as any).__void_safeboot_header3_proxy_v1) return;
-      (app as any).__void_safeboot_header3_proxy_v1 = true;
-
-      async function proxyRaw(path:string, req:any, res:any){
-        const qs = (req.originalUrl && req.originalUrl.includes("?"))
-          ? req.originalUrl.slice(req.originalUrl.indexOf("?"))
-          : "";
-        const url = MAIN_BASE + path + qs;
-        try{
-          const r = await fetch(url);
-          const txt = await r.text();
-          res.status(r.status);
-          const ct = r.headers.get("content-type");
-          if (ct) res.setHeader("Content-Type", ct);
-          res.send(txt);
-        }catch(e:any){
-          res.status(502).json({
-            ok:false,
-            error:"safeboot proxy error",
-            path,
-            detail:String(e?.stack||e)
-          });
-        }
-      }
-
-      // /blocks/:n/header3 -> main /blocks/:n/header3
-      app.get("/blocks/:n/header3", async (req:any, res:any)=>{
-        const n = String(req.params?.n ?? "0").replace(/[^0-9]/g,"");
-        return proxyRaw(`/blocks/${encodeURIComponent(n)}/header3`, req, res);
-      });
-
-      // /health/txroot3 -> main /health/txroot3
-      app.get("/health/txroot3", async (req:any, res:any)=>{
-        return proxyRaw("/health/txroot3", req, res);
-      });
-
-      // /__void/metrics/header3.prom -> main /__void/metrics/header3.prom
-      app.get("/__void/metrics/header3.prom", async (req:any, res:any)=>{
-        return proxyRaw("/__void/metrics/header3.prom", req, res);
-      });
-
-      (console?.log||(()=>{}))('[safeboot] header3/txroot3/header3.prom proxy mounted (read-only)');
-    };
-
-    mount();
-  } catch(e:any){
-    console.error("[safebootHeader3ProxyV1] init error", e);
-  }
-})();
-
-// ========== Safeboot header3 proxy v2 (port-based, read-only, additive) ==========
-(function safebootHeader3ProxyV2(){
-  try {
-    const g:any = (globalThis as any);
-    const HTTP_PORT = String(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
-    const hasFlag = String(process.env.VOID_SAFEBOOT || "").trim() === "1";
-    const isCandidate = hasFlag || HTTP_PORT === "4104";
-    if (!isCandidate) return;
-
-    function getApp(){ return g.__void_http_app || g.app; }
-    const MAIN_BASE = (process.env.VOID_MAIN_HTTP || "http://127.0.0.1:4100").replace(/\/+$/,"");
-
-    let tries = 0;
-    const TICK = 500;
-
-    const mount = () => {
-      const app:any = getApp();
-      if (!app || typeof app.get !== "function") {
-        if (++tries < 120) return setTimeout(mount, TICK);
-        return;
-      }
-
-      if ((app as any).__void_safeboot_header3_proxy_v2 ||
-          (app as any).__void_safeboot_header3_proxy_v1) {
-        return;
-      }
-      (app as any).__void_safeboot_header3_proxy_v2 = true;
-
-      async function proxyRaw(path:string, req:any, res:any){
-        const qs = (req.originalUrl && req.originalUrl.includes("?"))
-          ? req.originalUrl.slice(req.originalUrl.indexOf("?"))
-          : "";
-        const url = MAIN_BASE + path + qs;
-        try{
-          const r = await fetch(url);
-          const body = await r.text();
-          res.status(r.status);
-          const ct = r.headers.get("content-type");
-          if (ct) res.setHeader("Content-Type", ct);
-          res.send(body);
-        }catch(e:any){
-          res.status(502).json({
-            ok:false,
-            error:"safeboot proxy v2 error",
-            path,
-            detail:String(e?.stack||e)
-          });
-        }
-      }
-
-      // /blocks/:n/header3 -> main /blocks/:n/header3
-      app.get("/blocks/:n/header3", async (req:any, res:any)=>{
-        const n = String(req.params?.n ?? "0").replace(/[^0-9]/g,"");
-        return proxyRaw(`/blocks/${encodeURIComponent(n)}/header3`, req, res);
-      });
-
-      // /health/txroot3 -> main /health/txroot3
-      app.get("/health/txroot3", async (req:any, res:any)=>{
-        return proxyRaw("/health/txroot3", req, res);
-      });
-
-      // /__void/metrics/header3.prom -> main /__void/metrics/header3.prom
-      app.get("/__void/metrics/header3.prom", async (req:any, res:any)=>{
-        return proxyRaw("/__void/metrics/header3.prom", req, res);
-      });
-
-      (console?.log||(()=>{}))(`[safeboot-v2] header3/txroot3/header3.prom proxy mounted (HTTP_PORT=${HTTP_PORT})`);
-    };
-
-    mount();
-  } catch(e:any){
-    console.error("[safebootHeader3ProxyV2] init error", e);
-  }
-})();
-
-// ========== LastMile TakeBatch Z3 (additive runtime patch) ==========
-//
-// This wrapper sits on top of Node.prototype.takeTxBatch and deliberately
-// prefers txQueue, then mempool.txs, to ensure that if there are any
-// pending transactions we actually feed them into the proposer.
-// It is additive-only: on error it defers to the original implementation.
-
-(function LastMileTakeBatchZ3() {
-  const g: any = globalThis as any;
-  if (g.__void_lastmile_takeBatch_z3_installed) return;
-  g.__void_lastmile_takeBatch_z3_installed = true;
-
-  let NodeCtor: any = null;
-  try {
-    // node_core.js is already used elsewhere in index.ts via require(...)
-    const mod: any = require("./node_core.js");
-    NodeCtor = (mod && (mod.Node || (mod.default && mod.default.Node) || mod.NodeCore)) || null;
-  } catch (err) {
-    console.warn("[lastmile.z3] require('./node_core.js') failed:", err);
-  }
-
-  if (!NodeCtor || !NodeCtor.prototype) {
-    console.warn("[lastmile.z3] NodeCtor not found; skipping takeBatch patch");
-    return;
-  }
-
-  const orig: any = NodeCtor.prototype["takeTxBatch"];
-
-  NodeCtor.prototype["takeTxBatch"] = function patchedTakeTxBatch(max: number) {
-    const node: any = this;
-    const cap = typeof max === "number" && max > 0 ? max : 100;
-
-    try {
-      const q: any[] = Array.isArray(node.txQueue) ? node.txQueue : [];
-      const m: any[] =
-        node.mempool && Array.isArray(node.mempool.txs) ? node.mempool.txs : [];
-
-      const out: any[] = [];
-
-      // Prefer txQueue (these are "queued for next block" entries).
-      while (out.length < cap && q.length > 0) {
-        const cand = q.shift();
-        if (cand) out.push(cand);
-      }
-
-      // Then mempool (may not have been mirrored into txQueue yet).
-      let idx = 0;
-      while (out.length < cap && idx < m.length) {
-        const cand = m[idx++];
-        if (cand) out.push(cand);
-      }
-
-      // If we still have nothing, fall back to the original implementation.
-      if (out.length === 0 && typeof orig === "function") {
-        return orig.call(node, max);
-      }
-
-      return out;
-    } catch (err) {
-      console.warn("[lastmile.z3] patchedTakeTxBatch error, falling back to orig:", err);
-      if (typeof orig === "function") {
-        return orig.call(this, max);
-      }
-      return [];
-    }
-  };
-
-  console.log("[lastmile.z3] patched Node.prototype.takeTxBatch (txQueue + mempool)");
 })();
