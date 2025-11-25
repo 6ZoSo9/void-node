@@ -11179,7 +11179,7 @@ void_ready_exporter_timestamp_ms ${now}
         const mem = n && n.mempool && Array.isArray(n.mempool.txs) ? n.mempool.txs : [];
         // Only try if we have pending txs OR your "fillInsteadOfSkip" policy will create non-empty
         // (your saveBlock wrappers enforce no-empty-if-queued anyway)
-        if (mem.length > 0) await sealOnce();
+        await sealOnce();
       } catch {}
     }, Math.max(500, ms|0 || 2000));
   }
@@ -29112,3 +29112,149 @@ try {
 })();
 // ======== /Dev Direct Submit → node.acceptTx (v1, additive) ===========
 
+
+// ========== Safeboot header3 proxy v1 (additive, read-only) ==========
+(function safebootHeader3ProxyV1(){
+  try {
+    const g:any = (globalThis as any);
+    const isSafeboot = String(process.env.VOID_SAFEBOOT || "").trim() === "1";
+    if (!isSafeboot) return;
+
+    function getApp(){ return g.__void_http_app || g.app; }
+
+    // Base URL for the canonical main node
+    const MAIN_BASE = (process.env.VOID_MAIN_HTTP || "http://127.0.0.1:4100").replace(/\/+$/,"");
+
+    let tries = 0;
+    const TICK = 500;
+
+    const mount = () => {
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") {
+        if (++tries < 120) return setTimeout(mount, TICK);
+        return;
+      }
+      if ((app as any).__void_safeboot_header3_proxy_v1) return;
+      (app as any).__void_safeboot_header3_proxy_v1 = true;
+
+      async function proxyRaw(path:string, req:any, res:any){
+        const qs = (req.originalUrl && req.originalUrl.includes("?"))
+          ? req.originalUrl.slice(req.originalUrl.indexOf("?"))
+          : "";
+        const url = MAIN_BASE + path + qs;
+        try{
+          const r = await fetch(url);
+          const txt = await r.text();
+          res.status(r.status);
+          const ct = r.headers.get("content-type");
+          if (ct) res.setHeader("Content-Type", ct);
+          res.send(txt);
+        }catch(e:any){
+          res.status(502).json({
+            ok:false,
+            error:"safeboot proxy error",
+            path,
+            detail:String(e?.stack||e)
+          });
+        }
+      }
+
+      // /blocks/:n/header3 -> main /blocks/:n/header3
+      app.get("/blocks/:n/header3", async (req:any, res:any)=>{
+        const n = String(req.params?.n ?? "0").replace(/[^0-9]/g,"");
+        return proxyRaw(`/blocks/${encodeURIComponent(n)}/header3`, req, res);
+      });
+
+      // /health/txroot3 -> main /health/txroot3
+      app.get("/health/txroot3", async (req:any, res:any)=>{
+        return proxyRaw("/health/txroot3", req, res);
+      });
+
+      // /__void/metrics/header3.prom -> main /__void/metrics/header3.prom
+      app.get("/__void/metrics/header3.prom", async (req:any, res:any)=>{
+        return proxyRaw("/__void/metrics/header3.prom", req, res);
+      });
+
+      (console?.log||(()=>{}))('[safeboot] header3/txroot3/header3.prom proxy mounted (read-only)');
+    };
+
+    mount();
+  } catch(e:any){
+    console.error("[safebootHeader3ProxyV1] init error", e);
+  }
+})();
+
+// ========== Safeboot header3 proxy v2 (port-based, read-only, additive) ==========
+(function safebootHeader3ProxyV2(){
+  try {
+    const g:any = (globalThis as any);
+    const HTTP_PORT = String(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100");
+    const hasFlag = String(process.env.VOID_SAFEBOOT || "").trim() === "1";
+    const isCandidate = hasFlag || HTTP_PORT === "4104";
+    if (!isCandidate) return;
+
+    function getApp(){ return g.__void_http_app || g.app; }
+    const MAIN_BASE = (process.env.VOID_MAIN_HTTP || "http://127.0.0.1:4100").replace(/\/+$/,"");
+
+    let tries = 0;
+    const TICK = 500;
+
+    const mount = () => {
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") {
+        if (++tries < 120) return setTimeout(mount, TICK);
+        return;
+      }
+
+      if ((app as any).__void_safeboot_header3_proxy_v2 ||
+          (app as any).__void_safeboot_header3_proxy_v1) {
+        return;
+      }
+      (app as any).__void_safeboot_header3_proxy_v2 = true;
+
+      async function proxyRaw(path:string, req:any, res:any){
+        const qs = (req.originalUrl && req.originalUrl.includes("?"))
+          ? req.originalUrl.slice(req.originalUrl.indexOf("?"))
+          : "";
+        const url = MAIN_BASE + path + qs;
+        try{
+          const r = await fetch(url);
+          const body = await r.text();
+          res.status(r.status);
+          const ct = r.headers.get("content-type");
+          if (ct) res.setHeader("Content-Type", ct);
+          res.send(body);
+        }catch(e:any){
+          res.status(502).json({
+            ok:false,
+            error:"safeboot proxy v2 error",
+            path,
+            detail:String(e?.stack||e)
+          });
+        }
+      }
+
+      // /blocks/:n/header3 -> main /blocks/:n/header3
+      app.get("/blocks/:n/header3", async (req:any, res:any)=>{
+        const n = String(req.params?.n ?? "0").replace(/[^0-9]/g,"");
+        return proxyRaw(`/blocks/${encodeURIComponent(n)}/header3`, req, res);
+      });
+
+      // /health/txroot3 -> main /health/txroot3
+      app.get("/health/txroot3", async (req:any, res:any)=>{
+        return proxyRaw("/health/txroot3", req, res);
+      });
+
+      // /__void/metrics/header3.prom -> main /__void/metrics/header3.prom
+      app.get("/__void/metrics/header3.prom", async (req:any, res:any)=>{
+        return proxyRaw("/__void/metrics/header3.prom", req, res);
+      });
+
+      (console?.log||(()=>{}))(`[safeboot-v2] header3/txroot3/header3.prom proxy mounted (HTTP_PORT=${HTTP_PORT})`);
+    };
+
+    mount();
+  } catch(e:any){
+    console.error("[safebootHeader3ProxyV2] init error", e);
+  }
+})();
