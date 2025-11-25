@@ -7,12 +7,12 @@ pragma solidity ^0.8.20;
 ///         manifest is "current".
 contract UpdateGate {
     struct UpdateRecord {
-        bytes32 manifestHash;      // hash of the off-chain manifest JSON
-        uint64 activationHeight;   // block height when this should go live
-        bool   emergency;          // if true, can be activated before height
-        bool   executed;           // true once activated
-        uint256 approvals;         // number of signer approvals
-        uint64 createdAt;          // block timestamp when proposed
+        bytes32 manifestHash; // hash of the off-chain manifest JSON
+        uint64 activationHeight; // block height when this should go live
+        bool emergency; // if true, can be activated before height
+        bool executed; // true once activated
+        uint256 approvals; // number of signer approvals
+        uint64 createdAt; // block timestamp when proposed
     }
 
     // --- core state ---
@@ -40,25 +40,11 @@ contract UpdateGate {
     event SignerSet(address indexed signer, bool isSigner);
     event ThresholdSet(uint256 threshold);
 
-    event UpdateProposed(
-        bytes32 indexed updateId,
-        bytes32 manifestHash,
-        uint64 activationHeight,
-        bool emergency
-    );
+    event UpdateProposed(bytes32 indexed updateId, bytes32 manifestHash, uint64 activationHeight, bool emergency);
 
-    event UpdateApproved(
-        bytes32 indexed updateId,
-        address indexed signer,
-        uint256 approvals
-    );
+    event UpdateApproved(bytes32 indexed updateId, address indexed signer, uint256 approvals);
 
-    event UpdateActivated(
-        bytes32 indexed updateId,
-        bytes32 manifestHash,
-        uint64 activationHeight,
-        bool emergency
-    );
+    event UpdateActivated(bytes32 indexed updateId, bytes32 manifestHash, uint64 activationHeight, bool emergency);
 
     // --- modifiers ---
 
@@ -116,10 +102,7 @@ contract UpdateGate {
 
     function setThreshold(uint256 newThreshold) external onlyAdmin {
         require(newThreshold > 0, "UpdateGate: threshold=0");
-        require(
-            newThreshold <= signerCount,
-            "UpdateGate: threshold > signerCount"
-        );
+        require(newThreshold <= signerCount, "UpdateGate: threshold > signerCount");
         signerThreshold = newThreshold;
         emit ThresholdSet(newThreshold);
     }
@@ -132,22 +115,15 @@ contract UpdateGate {
     ///                         (ignored if `emergency` is true).
     /// @param emergency if true, can be activated immediately once approvals >= threshold.
     /// @return updateId opaque id for this update (derived from parameters).
-    function proposeUpdate(
-        bytes32 manifestHash,
-        uint64 activationHeight,
-        bool emergency
-    ) external onlyAdmin returns (bytes32 updateId) {
+    function proposeUpdate(bytes32 manifestHash, uint64 activationHeight, bool emergency)
+        external
+        onlyAdmin
+        returns (bytes32 updateId)
+    {
         require(manifestHash != bytes32(0), "UpdateGate: empty hash");
         // allow activationHeight=0 for emergency-only updates
 
-        updateId = keccak256(
-            abi.encodePacked(
-                manifestHash,
-                activationHeight,
-                emergency,
-                block.chainid
-            )
-        );
+        updateId = keccak256(abi.encodePacked(manifestHash, activationHeight, emergency, block.chainid));
 
         UpdateRecord storage rec = _updates[updateId];
         require(rec.manifestHash == bytes32(0), "UpdateGate: exists");
@@ -181,28 +157,17 @@ contract UpdateGate {
         require(rec.manifestHash != bytes32(0), "UpdateGate: unknown");
         require(!rec.executed, "UpdateGate: already executed");
         require(signerThreshold > 0, "UpdateGate: threshold not set");
-        require(
-            rec.approvals >= signerThreshold,
-            "UpdateGate: approvals < threshold"
-        );
+        require(rec.approvals >= signerThreshold, "UpdateGate: approvals < threshold");
 
         if (!rec.emergency) {
-            require(
-                block.number >= rec.activationHeight,
-                "UpdateGate: not at activation height"
-            );
+            require(block.number >= rec.activationHeight, "UpdateGate: not at activation height");
         }
 
         rec.executed = true;
         currentUpdateId = updateId;
         currentManifestHash = rec.manifestHash;
 
-        emit UpdateActivated(
-            updateId,
-            rec.manifestHash,
-            rec.activationHeight,
-            rec.emergency
-        );
+        emit UpdateActivated(updateId, rec.manifestHash, rec.activationHeight, rec.emergency);
     }
 
     // --- views ---

@@ -12,7 +12,7 @@ contract ReceiptRegistryAgentAuthTest is Test {
     AgentRegistry agentRegistry;
 
     address ADMIN = address(0xA11CE);
-    address USER  = address(0xCAFE);
+    address USER = address(0xCAFE);
     address AGENT = address(0xBEEF);
 
     string constant MODEL_ID = "void-devnet-model-1";
@@ -20,36 +20,32 @@ contract ReceiptRegistryAgentAuthTest is Test {
     function setUp() public {
         jobQueue = new JobQueue(ADMIN);
         agentRegistry = new AgentRegistry(ADMIN);
-        receiptRegistry = new ReceiptRegistry(
-            ADMIN,
-            address(jobQueue),
-            address(agentRegistry)
-        );
+        receiptRegistry = new ReceiptRegistry(ADMIN, address(jobQueue), address(agentRegistry));
     }
 
     function _postJob() internal returns (bytes32 jobId, bytes32 payloadHash) {
         bytes32 payload = keccak256("agent-auth-test-input");
         vm.prank(USER);
-        jobId = jobQueue.postJob(
-            MODEL_ID,
-            payload,
-            "auth-test-app"
-        );
+        jobId = jobQueue.postJob(MODEL_ID, payload, "auth-test-app");
         payloadHash = payload;
     }
 
-    function _makeReceiptInput(bytes32 jobId, bytes32 inputHash) internal pure returns (ReceiptRegistry.ReceiptInput memory) {
+    function _makeReceiptInput(bytes32 jobId, bytes32 inputHash)
+        internal
+        pure
+        returns (ReceiptRegistry.ReceiptInput memory)
+    {
         bytes32 outputHash = keccak256("agent-auth-test-output");
-        bytes32 modelHash  = keccak256("agent-auth-test-model");
-        uint8 status       = 1; // completed
+        bytes32 modelHash = keccak256("agent-auth-test-model");
+        uint8 status = 1; // completed
 
         return ReceiptRegistry.ReceiptInput({
-            jobId:      jobId,
-            modelId:    MODEL_ID,
-            inputHash:  inputHash,
+            jobId: jobId,
+            modelId: MODEL_ID,
+            inputHash: inputHash,
             outputHash: outputHash,
-            modelHash:  modelHash,
-            status:     status
+            modelHash: modelHash,
+            status: status
         });
     }
 

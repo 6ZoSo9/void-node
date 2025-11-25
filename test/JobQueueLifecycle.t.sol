@@ -7,7 +7,7 @@ import "../contracts/JobQueue.sol";
 contract JobQueueLifecycleTest is Test {
     JobQueue jq;
     address ADMIN = address(0xA11CE);
-    address USER  = address(0xCAFE);
+    address USER = address(0xCAFE);
     address AGENT = address(0xBEEF);
 
     string constant MODEL_ID = "lifecycle-test-model";
@@ -24,7 +24,7 @@ contract JobQueueLifecycleTest is Test {
     }
 
     function testClaimAndCompleteFlow() public {
-        (bytes32 jobId, ) = _postJob();
+        (bytes32 jobId,) = _postJob();
 
         // claim
         vm.prank(AGENT);
@@ -48,7 +48,7 @@ contract JobQueueLifecycleTest is Test {
     }
 
     function testOnlyAgentCanCompleteOrFail() public {
-        (bytes32 jobId, ) = _postJob();
+        (bytes32 jobId,) = _postJob();
 
         vm.prank(AGENT);
         jq.claimJob(jobId);
@@ -67,7 +67,7 @@ contract JobQueueLifecycleTest is Test {
     }
 
     function test_FailOpSetsStatusAndErrorCode() public {
-        (bytes32 jobId, ) = _postJob();
+        (bytes32 jobId,) = _postJob();
 
         vm.prank(AGENT);
         jq.claimJob(jobId);
@@ -85,7 +85,7 @@ contract JobQueueLifecycleTest is Test {
     }
 
     function testCancelByAdminOrPoster() public {
-        (bytes32 jobId, ) = _postJob();
+        (bytes32 jobId,) = _postJob();
 
         // random cannot cancel (message in implementation: "JobQueue: not poster/admin")
         vm.prank(address(0x1234));
@@ -101,7 +101,7 @@ contract JobQueueLifecycleTest is Test {
     }
 
     function testExpireSetsExpiredStatus() public {
-        (bytes32 jobId, ) = _postJob();
+        (bytes32 jobId,) = _postJob();
 
         // current implementation allows expireJob even from non-admin; we just
         // assert that calling it puts the job into Expired status.
@@ -113,7 +113,7 @@ contract JobQueueLifecycleTest is Test {
     }
 
     function testCannotClaimNonPosted() public {
-        (bytes32 jobId, ) = _postJob();
+        (bytes32 jobId,) = _postJob();
 
         vm.prank(AGENT);
         jq.claimJob(jobId);

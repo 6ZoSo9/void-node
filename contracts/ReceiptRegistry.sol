@@ -25,25 +25,25 @@ contract ReceiptRegistry {
     address public agentRegistry;
 
     struct Receipt {
-        bytes32 jobId;        // JobQueue jobId (canonical)
-        bytes32 receiptId;    // Unique id for this receipt
-        address agent;        // Who submitted this receipt (msg.sender)
-        string  modelId;      // Human-readable model identifier
-        bytes32 inputHash;    // Hash of input payload (CBOR manifest, etc.)
-        bytes32 outputHash;   // Hash of output payload (result manifest / transcript)
-        bytes32 modelHash;    // Hash of model version / weights / manifest
-        uint64  chainId;      // Chain id (e.g. 2050)
-        uint64  createdAt;    // Block timestamp when receipt was recorded
-        uint8   status;       // 0=pending, 1=completed, 2=failed, etc.
+        bytes32 jobId; // JobQueue jobId (canonical)
+        bytes32 receiptId; // Unique id for this receipt
+        address agent; // Who submitted this receipt (msg.sender)
+        string modelId; // Human-readable model identifier
+        bytes32 inputHash; // Hash of input payload (CBOR manifest, etc.)
+        bytes32 outputHash; // Hash of output payload (result manifest / transcript)
+        bytes32 modelHash; // Hash of model version / weights / manifest
+        uint64 chainId; // Chain id (e.g. 2050)
+        uint64 createdAt; // Block timestamp when receipt was recorded
+        uint8 status; // 0=pending, 1=completed, 2=failed, etc.
     }
 
     struct ReceiptInput {
         bytes32 jobId;
-        string  modelId;
+        string modelId;
         bytes32 inputHash;
         bytes32 outputHash;
         bytes32 modelHash;
-        uint8   status;
+        uint8 status;
     }
 
     /// @notice Direct lookup by receiptId.
@@ -60,18 +60,10 @@ contract ReceiptRegistry {
     event AgentRegistryChanged(address indexed oldAgentRegistry, address indexed newAgentRegistry);
 
     event ReceiptSubmitted(
-        bytes32 indexed jobId,
-        bytes32 indexed receiptId,
-        address indexed agent,
-        string  modelId,
-        uint8   status
+        bytes32 indexed jobId, bytes32 indexed receiptId, address indexed agent, string modelId, uint8 status
     );
 
-    event ReceiptStatusUpdated(
-        bytes32 indexed receiptId,
-        uint8   oldStatus,
-        uint8   newStatus
-    );
+    event ReceiptStatusUpdated(bytes32 indexed receiptId, uint8 oldStatus, uint8 newStatus);
 
     modifier onlyAdmin() {
         require(msg.sender == admin, "ReceiptRegistry: not admin");
@@ -124,31 +116,22 @@ contract ReceiptRegistry {
         }
 
         // Derive a deterministic-ish id for this receipt
-        receiptId = keccak256(
-            abi.encode(
-                r.jobId,
-                msg.sender,
-                r.inputHash,
-                r.outputHash,
-                block.timestamp,
-                block.number
-            )
-        );
+        receiptId = keccak256(abi.encode(r.jobId, msg.sender, r.inputHash, r.outputHash, block.timestamp, block.number));
 
         // Prevent duplicates
         require(receipts[receiptId].createdAt == 0, "ReceiptRegistry: duplicate receiptId");
 
         Receipt storage rec = receipts[receiptId];
-        rec.jobId     = r.jobId;
+        rec.jobId = r.jobId;
         rec.receiptId = receiptId;
-        rec.agent     = msg.sender;
-        rec.modelId   = r.modelId;
+        rec.agent = msg.sender;
+        rec.modelId = r.modelId;
         rec.inputHash = r.inputHash;
         rec.outputHash = r.outputHash;
-        rec.modelHash  = r.modelHash;
-        rec.chainId   = uint64(block.chainid);
+        rec.modelHash = r.modelHash;
+        rec.chainId = uint64(block.chainid);
         rec.createdAt = uint64(block.timestamp);
-        rec.status    = r.status;
+        rec.status = r.status;
         totalReceipts += 1;
 
         _receiptsByJob[r.jobId].push(receiptId);
@@ -169,6 +152,4 @@ contract ReceiptRegistry {
         rec.status = newStatus;
         emit ReceiptStatusUpdated(receiptId, old, newStatus);
     }
-
-
 }

@@ -50,43 +50,17 @@ contract JobQueue {
         uint64 createdAt
     );
 
-    event JobClaimed(
-        bytes32 indexed jobId,
-        address indexed agent,
-        uint64 claimedAt
-    );
+    event JobClaimed(bytes32 indexed jobId, address indexed agent, uint64 claimedAt);
 
-    event JobCompleted(
-        bytes32 indexed jobId,
-        address indexed agent,
-        bytes32 resultHash,
-        uint64 completedAt
-    );
+    event JobCompleted(bytes32 indexed jobId, address indexed agent, bytes32 resultHash, uint64 completedAt);
 
-    event JobFailed(
-        bytes32 indexed jobId,
-        address indexed agent,
-        uint32 errorCode,
-        uint64 failedAt
-    );
+    event JobFailed(bytes32 indexed jobId, address indexed agent, uint32 errorCode, uint64 failedAt);
 
-    event JobCancelled(
-        bytes32 indexed jobId,
-        address indexed cancelledBy,
-        uint32 errorCode,
-        uint64 cancelledAt
-    );
+    event JobCancelled(bytes32 indexed jobId, address indexed cancelledBy, uint32 errorCode, uint64 cancelledAt);
 
-    event JobExpired(
-        bytes32 indexed jobId,
-        uint32 errorCode,
-        uint64 expiredAt
-    );
+    event JobExpired(bytes32 indexed jobId, uint32 errorCode, uint64 expiredAt);
 
-    event AdminChanged(
-        address indexed previousAdmin,
-        address indexed newAdmin
-    );
+    event AdminChanged(address indexed previousAdmin, address indexed newAdmin);
 
     modifier onlyAdmin() {
         require(msg.sender == admin, "JobQueue: not admin");
@@ -119,11 +93,11 @@ contract JobQueue {
     /// @param modelId  ID registered in ModelRegistry.
     /// @param payloadHash Hash of off-chain payload (compressed+encrypted).
     /// @param appTag  Optional app namespace (e.g. "nullfeed", "wallet-oracle").
-    function postJob(
-        string calldata modelId,
-        bytes32 payloadHash,
-        string calldata appTag
-    ) external payable returns (bytes32 jobId) {
+    function postJob(string calldata modelId, bytes32 payloadHash, string calldata appTag)
+        external
+        payable
+        returns (bytes32 jobId)
+    {
         require(bytes(modelId).length != 0, "JobQueue: empty modelId");
 
         // NOTE: chainId is taken from the current chain; VOID should be 2050.
@@ -131,15 +105,7 @@ contract JobQueue {
 
         // Derive a unique jobId. This is deterministic and collision-resistant
         // enough for our purposes.
-        jobId = keccak256(
-            abi.encodePacked(
-                address(this),
-                msg.sender,
-                chainId_,
-                block.number,
-                _jobNonce++
-            )
-        );
+        jobId = keccak256(abi.encodePacked(address(this), msg.sender, chainId_, block.number, _jobNonce++));
 
         Job storage j = _jobs[jobId];
         j.jobId = jobId;
@@ -152,22 +118,11 @@ contract JobQueue {
         j.status = JobStatus.Posted;
         totalJobs += 1;
 
-        emit JobPosted(
-            jobId,
-            chainId_,
-            modelId,
-            msg.sender,
-            appTag,
-            payloadHash,
-            j.createdAt
-        );
+        emit JobPosted(jobId, chainId_, modelId, msg.sender, appTag, payloadHash, j.createdAt);
     }
 
     /// @notice Claim a job for processing.
-    function claimJob(bytes32 jobId)
-        external
-        onlyExisting(jobId)
-    {
+    function claimJob(bytes32 jobId) external onlyExisting(jobId) {
         Job storage j = _jobs[jobId];
         require(j.status == JobStatus.Posted, "JobQueue: not claimable");
 
@@ -178,10 +133,7 @@ contract JobQueue {
     }
 
     /// @notice Complete a job and store a result hash.
-    function completeJob(bytes32 jobId, bytes32 resultHash)
-        external
-        onlyExisting(jobId)
-    {
+    function completeJob(bytes32 jobId, bytes32 resultHash) external onlyExisting(jobId) {
         Job storage j = _jobs[jobId];
         require(j.status == JobStatus.Claimed, "JobQueue: not claimed");
         require(j.agent == msg.sender, "JobQueue: not agent");
@@ -194,10 +146,7 @@ contract JobQueue {
     }
 
     /// @notice Mark a job as failed with an error code.
-    function failJob(bytes32 jobId, uint32 errorCode)
-        external
-        onlyExisting(jobId)
-    {
+    function failJob(bytes32 jobId, uint32 errorCode) external onlyExisting(jobId) {
         Job storage j = _jobs[jobId];
         require(j.status == JobStatus.Claimed, "JobQueue: not claimed");
         require(j.agent == msg.sender, "JobQueue: not agent");
@@ -210,19 +159,10 @@ contract JobQueue {
     }
 
     /// @notice Cancel a job. Poster or admin may cancel.
-    function cancelJob(bytes32 jobId, uint32 errorCode)
-        external
-        onlyExisting(jobId)
-    {
+    function cancelJob(bytes32 jobId, uint32 errorCode) external onlyExisting(jobId) {
         Job storage j = _jobs[jobId];
-        require(
-            msg.sender == j.postedBy || msg.sender == admin,
-            "JobQueue: not poster/admin"
-        );
-        require(
-            j.status == JobStatus.Posted || j.status == JobStatus.Claimed,
-            "JobQueue: cannot cancel"
-        );
+        require(msg.sender == j.postedBy || msg.sender == admin, "JobQueue: not poster/admin");
+        require(j.status == JobStatus.Posted || j.status == JobStatus.Claimed, "JobQueue: cannot cancel");
 
         j.status = JobStatus.Cancelled;
         j.errorCode = errorCode;
@@ -234,15 +174,9 @@ contract JobQueue {
     /// @notice Expire an old job that has not been completed.
     /// @dev v1: simple time-based rule. In future we may store per-job or
     ///          global timeout parameters.
-    function expireJob(bytes32 jobId, uint32 errorCode)
-        external
-        onlyExisting(jobId)
-    {
+    function expireJob(bytes32 jobId, uint32 errorCode) external onlyExisting(jobId) {
         Job storage j = _jobs[jobId];
-        require(
-            j.status == JobStatus.Posted || j.status == JobStatus.Claimed,
-            "JobQueue: cannot expire"
-        );
+        require(j.status == JobStatus.Posted || j.status == JobStatus.Claimed, "JobQueue: cannot expire");
 
         // Very simple rule to start with; callers must enforce their own policy.
         // We purposely do not fix a constant timeout here to keep v1 flexible.
@@ -255,28 +189,16 @@ contract JobQueue {
 
     // --- Views / helpers ---
 
-    function getJob(bytes32 jobId)
-        external
-        view
-        returns (Job memory)
-    {
+    function getJob(bytes32 jobId) external view returns (Job memory) {
         require(_jobs[jobId].status != JobStatus.None, "JobQueue: unknown job");
         return _jobs[jobId];
     }
 
-    function getJobStatus(bytes32 jobId)
-        external
-        view
-        returns (JobStatus)
-    {
+    function getJobStatus(bytes32 jobId) external view returns (JobStatus) {
         return _jobs[jobId].status;
     }
 
-    function hasResult(bytes32 jobId)
-        external
-        view
-        returns (bool)
-    {
+    function hasResult(bytes32 jobId) external view returns (bool) {
         JobStatus s = _jobs[jobId].status;
         return (s == JobStatus.Completed || s == JobStatus.Failed);
     }
@@ -286,5 +208,4 @@ contract JobQueue {
     function jobExists(bytes32 jobId) external view returns (bool) {
         return _jobs[jobId].status != JobStatus.None;
     }
-
 }

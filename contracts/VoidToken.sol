@@ -11,7 +11,7 @@ contract VoidToken {
 
     // Locked monetary parameters (match docs/VOID-EMISSIONS-SCHEDULE.md)
     uint256 public constant MAX_SUPPLY = 666_666_666 * 1e18;
-    uint256 public constant PREMINE    = 230_000_000 * 1e18;
+    uint256 public constant PREMINE = 230_000_000 * 1e18;
 
     address public immutable owner;
     uint256 public totalSupply;

@@ -13,13 +13,12 @@ contract VoidEmissionsController {
     //   Era3 =  44,444,444
     //   Era4 =  22,222,223
     uint256 public constant ERA1_BUDGET = 177_777_777 * 1e18;
-    uint256 public constant ERA2_BUDGET =  88_888_889 * 1e18;
-    uint256 public constant ERA3_BUDGET =  44_444_444 * 1e18;
-    uint256 public constant ERA4_BUDGET =  22_222_223 * 1e18;
+    uint256 public constant ERA2_BUDGET = 88_888_889 * 1e18;
+    uint256 public constant ERA3_BUDGET = 44_444_444 * 1e18;
+    uint256 public constant ERA4_BUDGET = 22_222_223 * 1e18;
 
     /// @notice Total emissions budget across all eras (333,333,333 VOIDSTONES).
-    uint256 public constant EMISSIONS_BUDGET =
-        ERA1_BUDGET + ERA2_BUDGET + ERA3_BUDGET + ERA4_BUDGET;
+    uint256 public constant EMISSIONS_BUDGET = ERA1_BUDGET + ERA2_BUDGET + ERA3_BUDGET + ERA4_BUDGET;
 
     // ----- Admin -----
     address public admin;

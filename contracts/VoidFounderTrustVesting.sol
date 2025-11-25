@@ -13,15 +13,15 @@ contract VoidFounderTrustVesting {
     address public beneficiary;
     address public immutable gate;
 
-    uint64 public immutable start;          // vesting start timestamp
-    uint64 public immutable tenYearCliff;   // start + 10 years
-    uint64 public immutable vestDurationB;  // linear vest span for tranche B
+    uint64 public immutable start; // vesting start timestamp
+    uint64 public immutable tenYearCliff; // start + 10 years
+    uint64 public immutable vestDurationB; // linear vest span for tranche B
 
     bool public initialized;
 
-    uint256 public constant TOTAL_TRUST      = 230_000_000e18;
+    uint256 public constant TOTAL_TRUST = 230_000_000e18;
     uint256 public constant TRANCHE_A_LOCKED = 115_000_000e18; // 10-year cliff
-    uint256 public constant TRANCHE_B_VEST   = 115_000_000e18; // linear vest
+    uint256 public constant TRANCHE_B_VEST = 115_000_000e18; // linear vest
 
     uint256 public claimedA;
     uint256 public claimedB;
@@ -38,20 +38,11 @@ contract VoidFounderTrustVesting {
     }
 
     modifier onlyBeneficiaryOrGate() {
-        require(
-            msg.sender == beneficiary || msg.sender == gate,
-            "Trust: NOT_AUTHORIZED"
-        );
+        require(msg.sender == beneficiary || msg.sender == gate, "Trust: NOT_AUTHORIZED");
         _;
     }
 
-    constructor(
-        IVoidToken _token,
-        address _beneficiary,
-        address _gate,
-        uint64 _start,
-        uint8 vestYearsB
-    ) {
+    constructor(IVoidToken _token, address _beneficiary, address _gate, uint64 _start, uint8 vestYearsB) {
         require(address(_token) != address(0), "Trust: token zero");
         require(_beneficiary != address(0), "Trust: beneficiary zero");
         require(_gate != address(0), "Trust: gate zero");
@@ -66,10 +57,7 @@ contract VoidFounderTrustVesting {
         vestDurationB = uint64(vestYearsB) * YEAR;
 
         // Sanity check: split matches total
-        require(
-            TRANCHE_A_LOCKED + TRANCHE_B_VEST == TOTAL_TRUST,
-            "Trust: bad math"
-        );
+        require(TRANCHE_A_LOCKED + TRANCHE_B_VEST == TOTAL_TRUST, "Trust: bad math");
     }
 
     /// @notice Lock in the initial balance. Must be called after
@@ -91,11 +79,7 @@ contract VoidFounderTrustVesting {
     }
 
     /// @notice Compute how much is currently claimable in each tranche.
-    function claimable()
-        public
-        view
-        returns (uint256 claimableA, uint256 claimableB)
-    {
+    function claimable() public view returns (uint256 claimableA, uint256 claimableB) {
         if (!initialized) {
             return (0, 0);
         }
@@ -140,19 +124,14 @@ contract VoidFounderTrustVesting {
         claimedB += cb;
 
         uint256 total = ca + cb;
-        (bool ok, bytes memory data) = address(token).call(
-    abi.encodeWithSelector(
-        bytes4(keccak256("transfer(address,uint256)")),
-        to,
-        total
-    )
-);
+        (bool ok, bytes memory data) =
+            address(token).call(abi.encodeWithSelector(bytes4(keccak256("transfer(address,uint256)")), to, total));
 
-// Accept:
-// - tokens that return no data (old style)
-// - tokens that return a single bool which must be true
-bool success = ok && (data.length == 0 || abi.decode(data, (bool)));
-require(success, "Trust: transfer failed");
-emit Claimed(msg.sender, to, ca, cb);
+        // Accept:
+        // - tokens that return no data (old style)
+        // - tokens that return a single bool which must be true
+        bool success = ok && (data.length == 0 || abi.decode(data, (bool)));
+        require(success, "Trust: transfer failed");
+        emit Claimed(msg.sender, to, ca, cb);
     }
 }

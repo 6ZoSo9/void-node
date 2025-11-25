@@ -48,31 +48,20 @@ contract JobReceipts {
 
     event AdminChanged(address oldAdmin, address newAdmin);
 
-    event JobClaimed(
-        uint256 jobId,
-        string agentId,
-        address agentRuntime,
-        uint64 claimedAt
-    );
+    event JobClaimed(uint256 jobId, string agentId, address agentRuntime, uint64 claimedAt);
 
     event JobCompleted(
         uint256 jobId,
         string agentId,
         address agentRuntime,
-        uint8 status,           // 2 = Completed, 3 = Failed
+        uint8 status, // 2 = Completed, 3 = Failed
         bytes32 receiptHash,
         bytes32 outputHash,
         string metadata,
         uint64 completedAt
     );
 
-    event JobCancelled(
-        uint256 jobId,
-        string agentId,
-        address agentRuntime,
-        uint8 oldStatus,
-        uint8 newStatus
-    );
+    event JobCancelled(uint256 jobId, string agentId, address agentRuntime, uint8 oldStatus, uint8 newStatus);
 
     // ------------------------------------------------------------------------
     // Modifiers / ctor
@@ -126,10 +115,7 @@ contract JobReceipts {
         require(!r.exists, "JobReceipts: already claimed");
 
         // Agent must be active and runtime must match msg.sender.
-        require(
-            agentRegistry.isAgentActive(agentId),
-            "JobReceipts: agent not active"
-        );
+        require(agentRegistry.isAgentActive(agentId), "JobReceipts: agent not active");
         address runtime = agentRegistry.getAgentRuntime(agentId);
         require(runtime == msg.sender, "JobReceipts: bad runtime");
 
@@ -157,10 +143,7 @@ contract JobReceipts {
         bytes32 outputHash,
         string calldata metadata
     ) external {
-        require(
-            statusCode == 2 || statusCode == 3,
-            "JobReceipts: bad status"
-        );
+        require(statusCode == 2 || statusCode == 3, "JobReceipts: bad status");
 
         Receipt storage r = receipts[jobId];
         require(r.exists, "JobReceipts: no record");
@@ -174,16 +157,7 @@ contract JobReceipts {
         uint64 ts = uint64(block.timestamp);
         r.completedAt = ts;
 
-        emit JobCompleted(
-            jobId,
-            r.agentId,
-            r.agentRuntime,
-            statusCode,
-            receiptHash,
-            outputHash,
-            metadata,
-            ts
-        );
+        emit JobCompleted(jobId, r.agentId, r.agentRuntime, statusCode, receiptHash, outputHash, metadata, ts);
     }
 
     /// @notice Admin-only cancel of a job's receipt record.
@@ -214,9 +188,7 @@ contract JobReceipts {
         return r.status;
     }
 
-    function getReceipt(
-        uint256 jobId
-    )
+    function getReceipt(uint256 jobId)
         external
         view
         returns (
@@ -233,15 +205,7 @@ contract JobReceipts {
         Receipt storage r = receipts[jobId];
         require(r.exists, "JobReceipts: no record");
 
-        return (
-            r.agentId,
-            r.agentRuntime,
-            r.status,
-            r.receiptHash,
-            r.outputHash,
-            r.metadata,
-            r.claimedAt,
-            r.completedAt
-        );
+        return
+            (r.agentId, r.agentRuntime, r.status, r.receiptHash, r.outputHash, r.metadata, r.claimedAt, r.completedAt);
     }
 }

@@ -19,15 +19,11 @@ contract JobQueueReceiptPipelineTest is Test {
 
     function testJobAndReceiptPipeline() public {
         // --- 1) Post a job on JobQueue ---
-        string memory modelId   = "devnet-model-1";
-        string memory appTag    = "devnet-app";
-        bytes32 payloadHash     = keccak256("input-payload");
+        string memory modelId = "devnet-model-1";
+        string memory appTag = "devnet-app";
+        bytes32 payloadHash = keccak256("input-payload");
 
-        bytes32 jobId = jobQueue.postJob(
-            modelId,
-            payloadHash,
-            appTag
-        );
+        bytes32 jobId = jobQueue.postJob(modelId, payloadHash, appTag);
 
         // Basic sanity: jobExists must be true now
         bool exists = jobQueue.jobExists(jobId);
@@ -35,16 +31,16 @@ contract JobQueueReceiptPipelineTest is Test {
 
         // --- 2) Submit a receipt referencing this job on ReceiptRegistry ---
         bytes32 outputHash = keccak256("output-payload");
-        bytes32 modelHash  = keccak256("model-manifest");
-        uint8   status     = 1; // completed
+        bytes32 modelHash = keccak256("model-manifest");
+        uint8 status = 1; // completed
 
         ReceiptRegistry.ReceiptInput memory r = ReceiptRegistry.ReceiptInput({
-            jobId:      jobId,
-            modelId:    modelId,
-            inputHash:  payloadHash,
+            jobId: jobId,
+            modelId: modelId,
+            inputHash: payloadHash,
             outputHash: outputHash,
-            modelHash:  modelHash,
-            status:     status
+            modelHash: modelHash,
+            status: status
         });
 
         // ReceiptRegistry will call jobQueue.jobExists(jobId) internally

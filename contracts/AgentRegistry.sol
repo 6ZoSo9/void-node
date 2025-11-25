@@ -18,17 +18,10 @@ contract AgentRegistry {
     event AdminChanged(address indexed oldAdmin, address indexed newAdmin);
 
     /// @notice Global agent toggle (all models).
-    event AgentGlobalUpdated(
-        address indexed agent,
-        bool allowed
-    );
+    event AgentGlobalUpdated(address indexed agent, bool allowed);
 
     /// @notice Per-model agent toggle.
-    event AgentModelUpdated(
-        address indexed agent,
-        string modelId,
-        bool allowed
-    );
+    event AgentModelUpdated(address indexed agent, string modelId, bool allowed);
 
     error NotAdmin();
 
@@ -59,11 +52,7 @@ contract AgentRegistry {
     }
 
     /// @notice Set or clear an agent's authorization for a specific modelId.
-    function setAgentModel(
-        address agent,
-        string calldata modelId,
-        bool allowed
-    ) external onlyAdmin {
+    function setAgentModel(address agent, string calldata modelId, bool allowed) external onlyAdmin {
         require(agent != address(0), "AgentRegistry: agent zero");
         require(bytes(modelId).length != 0, "AgentRegistry: empty modelId");
         _agentModelAllowed[agent][modelId] = allowed;
@@ -74,10 +63,7 @@ contract AgentRegistry {
     /// @dev This is the hook ReceiptRegistry expects:
     ///      - true if agent is globally allowed, OR
     ///      - true if explicitly allowed for that modelId.
-    function isAuthorized(
-        address agentAddr,
-        string calldata modelId
-    ) external view returns (bool) {
+    function isAuthorized(address agentAddr, string calldata modelId) external view returns (bool) {
         if (globalAgents[agentAddr]) return true;
         if (bytes(modelId).length == 0) return false;
         return _agentModelAllowed[agentAddr][modelId];

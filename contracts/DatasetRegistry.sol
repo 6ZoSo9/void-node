@@ -28,10 +28,7 @@ contract DatasetRegistry {
     /// @notice Stable key -> datasetId mapping (0 if not registered).
     mapping(bytes32 => uint256) public datasetIdByKey;
 
-    event MasterKeyChanged(
-        address indexed oldKey,
-        address indexed newKey
-    );
+    event MasterKeyChanged(address indexed oldKey, address indexed newKey);
 
     event DatasetRegistered(
         uint256 indexed datasetId,
@@ -41,27 +38,13 @@ contract DatasetRegistry {
         string metadataURI
     );
 
-    event DatasetUpdated(
-        uint256 indexed datasetId,
-        bytes32 contentHash,
-        string metadataURI
-    );
+    event DatasetUpdated(uint256 indexed datasetId, bytes32 contentHash, string metadataURI);
 
-    event DatasetStatusChanged(
-        uint256 indexed datasetId,
-        bool active
-    );
+    event DatasetStatusChanged(uint256 indexed datasetId, bool active);
 
-    event DatasetTrustedChanged(
-        uint256 indexed datasetId,
-        bool trusted
-    );
+    event DatasetTrustedChanged(uint256 indexed datasetId, bool trusted);
 
-    event DatasetOwnerChanged(
-        uint256 indexed datasetId,
-        address indexed oldOwner,
-        address indexed newOwner
-    );
+    event DatasetOwnerChanged(uint256 indexed datasetId, address indexed oldOwner, address indexed newOwner);
 
     modifier onlyMaster() {
         require(msg.sender == masterKey, "DatasetRegistry: not master");
@@ -92,16 +75,12 @@ contract DatasetRegistry {
     /// @param contentHash Hash of the dataset manifest or bundle.
     /// @param metadataURI Off-chain JSON describing the dataset.
     /// @return datasetId Newly assigned dataset id.
-    function registerDataset(
-        bytes32 datasetKey,
-        bytes32 contentHash,
-        string calldata metadataURI
-    ) external returns (uint256 datasetId) {
+    function registerDataset(bytes32 datasetKey, bytes32 contentHash, string calldata metadataURI)
+        external
+        returns (uint256 datasetId)
+    {
         require(datasetKey != bytes32(0), "DatasetRegistry: datasetKey zero");
-        require(
-            datasetIdByKey[datasetKey] == 0,
-            "DatasetRegistry: key already registered"
-        );
+        require(datasetIdByKey[datasetKey] == 0, "DatasetRegistry: key already registered");
 
         datasetId = ++nextDatasetId;
 
@@ -117,22 +96,15 @@ contract DatasetRegistry {
 
         datasetIdByKey[datasetKey] = datasetId;
 
-        emit DatasetRegistered(
-            datasetId,
-            datasetKey,
-            msg.sender,
-            contentHash,
-            metadataURI
-        );
+        emit DatasetRegistered(datasetId, datasetKey, msg.sender, contentHash, metadataURI);
         emit DatasetStatusChanged(datasetId, true);
     }
 
     /// @notice Update the current content hash and metadata for a dataset (owner only).
-    function updateDataset(
-        uint256 datasetId,
-        bytes32 contentHash,
-        string calldata metadataURI
-    ) external onlyOwner(datasetId) {
+    function updateDataset(uint256 datasetId, bytes32 contentHash, string calldata metadataURI)
+        external
+        onlyOwner(datasetId)
+    {
         Dataset storage d = datasets[datasetId];
         d.contentHash = contentHash;
         d.metadataURI = metadataURI;
@@ -142,10 +114,7 @@ contract DatasetRegistry {
     }
 
     /// @notice Set the active flag (owner only).
-    function setActive(uint256 datasetId, bool active)
-        external
-        onlyOwner(datasetId)
-    {
+    function setActive(uint256 datasetId, bool active) external onlyOwner(datasetId) {
         Dataset storage d = datasets[datasetId];
         d.active = active;
         d.updatedAt = uint64(block.number);
@@ -154,10 +123,7 @@ contract DatasetRegistry {
     }
 
     /// @notice Mark/unmark a dataset as trusted (MasterKey only).
-    function setTrusted(uint256 datasetId, bool trusted)
-        external
-        onlyMaster
-    {
+    function setTrusted(uint256 datasetId, bool trusted) external onlyMaster {
         Dataset storage d = datasets[datasetId];
         require(d.owner != address(0), "DatasetRegistry: unknown dataset");
 
@@ -168,10 +134,7 @@ contract DatasetRegistry {
     }
 
     /// @notice Forcefully set active flag (MasterKey only).
-    function forceSetActive(uint256 datasetId, bool active)
-        external
-        onlyMaster
-    {
+    function forceSetActive(uint256 datasetId, bool active) external onlyMaster {
         Dataset storage d = datasets[datasetId];
         require(d.owner != address(0), "DatasetRegistry: unknown dataset");
 
@@ -182,10 +145,7 @@ contract DatasetRegistry {
     }
 
     /// @notice Transfer dataset ownership (MasterKey only; for key rotation, etc.).
-    function transferOwnership(uint256 datasetId, address newOwner)
-        external
-        onlyMaster
-    {
+    function transferOwnership(uint256 datasetId, address newOwner) external onlyMaster {
         require(newOwner != address(0), "DatasetRegistry: newOwner zero");
         Dataset storage d = datasets[datasetId];
         address oldOwner = d.owner;
@@ -223,15 +183,6 @@ contract DatasetRegistry {
         Dataset storage d = datasets[datasetId];
         require(d.owner != address(0), "DatasetRegistry: unknown dataset");
 
-        return (
-            d.datasetKey,
-            d.owner,
-            d.contentHash,
-            d.metadataURI,
-            d.active,
-            d.trusted,
-            d.createdAt,
-            d.updatedAt
-        );
+        return (d.datasetKey, d.owner, d.contentHash, d.metadataURI, d.active, d.trusted, d.createdAt, d.updatedAt);
     }
 }

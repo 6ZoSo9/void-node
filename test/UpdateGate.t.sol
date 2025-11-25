@@ -29,11 +29,7 @@ contract UpdateGateTest is Test {
         uint64 activationHeight = uint64(block.number + 5);
         bool emergency = false;
 
-        bytes32 updateId = gate.proposeUpdate(
-            manifestHash,
-            activationHeight,
-            emergency
-        );
+        bytes32 updateId = gate.proposeUpdate(manifestHash, activationHeight, emergency);
 
         // two signers approve
         vm.prank(signer1);
@@ -80,11 +76,7 @@ contract UpdateGateTest is Test {
         uint64 activationHeight = 0;
         bool emergency = true;
 
-        bytes32 updateId = gate.proposeUpdate(
-            manifestHash,
-            activationHeight,
-            emergency
-        );
+        bytes32 updateId = gate.proposeUpdate(manifestHash, activationHeight, emergency);
 
         vm.prank(signer1);
         gate.approveUpdate(updateId);

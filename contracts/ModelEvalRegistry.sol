@@ -20,20 +20,10 @@ contract ModelEvalRegistry {
     address public admin;
 
     event EvalRecorded(
-        string modelId,
-        uint64 version,
-        string evalSuiteId,
-        int256 overallScore,
-        bytes32 metricsHash,
-        address submitter
+        string modelId, uint64 version, string evalSuiteId, int256 overallScore, bytes32 metricsHash, address submitter
     );
 
-    event EvalActivationChanged(
-        string modelId,
-        uint64 version,
-        string evalSuiteId,
-        bool active
-    );
+    event EvalActivationChanged(string modelId, uint64 version, string evalSuiteId, bool active);
 
     modifier onlyAdmin() {
         require(msg.sender == admin, "ModelEvalRegistry: not admin");
@@ -51,11 +41,7 @@ contract ModelEvalRegistry {
 
     // -------- Views --------
 
-    function getEval(
-        string memory modelId,
-        uint64 version,
-        string memory evalSuiteId
-    )
+    function getEval(string memory modelId, uint64 version, string memory evalSuiteId)
         external
         view
         returns (
@@ -71,11 +57,11 @@ contract ModelEvalRegistry {
         return (r.overallScore, r.metricsHash, r.metadata, r.submitter, r.recordedAt, r.active);
     }
 
-    function isEvalActive(
-        string memory modelId,
-        uint64 version,
-        string memory evalSuiteId
-    ) external view returns (bool) {
+    function isEvalActive(string memory modelId, uint64 version, string memory evalSuiteId)
+        external
+        view
+        returns (bool)
+    {
         return evals[modelId][version][evalSuiteId].active;
     }
 
@@ -104,23 +90,14 @@ contract ModelEvalRegistry {
 
         isRecorded[modelId][version][evalSuiteId] = true;
 
-        emit EvalRecorded(
-            modelId,
-            version,
-            evalSuiteId,
-            overallScore,
-            metricsHash,
-            msg.sender
-        );
+        emit EvalRecorded(modelId, version, evalSuiteId, overallScore, metricsHash, msg.sender);
     }
 
     /// @notice Set active flag for an eval record.
-    function setEvalActive(
-        string memory modelId,
-        uint64 version,
-        string memory evalSuiteId,
-        bool active_
-    ) external onlyAdmin {
+    function setEvalActive(string memory modelId, uint64 version, string memory evalSuiteId, bool active_)
+        external
+        onlyAdmin
+    {
         require(isRecorded[modelId][version][evalSuiteId], "ModelEvalRegistry: not recorded");
 
         EvalRecord storage r = evals[modelId][version][evalSuiteId];

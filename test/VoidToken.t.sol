@@ -16,16 +16,13 @@ contract VoidTokenTest {
 
     function testConstantsAndPremine() public {
         uint256 maxSupply = token.MAX_SUPPLY();
-        uint256 premine   = token.PREMINE();
+        uint256 premine = token.PREMINE();
 
         require(maxSupply == 666_666_666 * 1e18, "MAX_SUPPLY mismatch");
-        require(premine   == 230_000_000 * 1e18, "PREMINE mismatch");
+        require(premine == 230_000_000 * 1e18, "PREMINE mismatch");
 
         require(token.totalSupply() == premine, "totalSupply != PREMINE");
-        require(
-            token.balanceOf(premineRecipient) == premine,
-            "premine not minted to recipient"
-        );
+        require(token.balanceOf(premineRecipient) == premine, "premine not minted to recipient");
     }
 
     function testTransferKeepsSupplyInvariant() public {
@@ -36,15 +33,12 @@ contract VoidTokenTest {
         bool ok = token.transfer(to, amount);
         require(ok, "transfer failed");
         require(token.balanceOf(to) == amount, "to balance mismatch");
-        require(
-            token.balanceOf(premineRecipient) + token.balanceOf(to) == beforeSupply,
-            "supply invariant broken"
-        );
+        require(token.balanceOf(premineRecipient) + token.balanceOf(to) == beforeSupply, "supply invariant broken");
         require(token.totalSupply() == beforeSupply, "totalSupply changed on transfer");
     }
 
     function testOwnerCanMintUpToCap() public {
-        uint256 premine   = token.PREMINE();
+        uint256 premine = token.PREMINE();
         uint256 maxSupply = token.MAX_SUPPLY();
         uint256 remaining = maxSupply - premine;
 
@@ -57,9 +51,6 @@ contract VoidTokenTest {
 
         uint256 expected = premine + 2 * chunk;
         require(token.totalSupply() == expected, "totalSupply after mint mismatch");
-        require(
-            token.balanceOf(address(0xCAFE)) == 2 * chunk,
-            "minted balance mismatch"
-        );
+        require(token.balanceOf(address(0xCAFE)) == 2 * chunk, "minted balance mismatch");
     }
 }

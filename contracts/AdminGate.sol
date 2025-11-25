@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 /// @title AdminGate – VOID master key router (v1)
 /// @notice Holds the real MasterKey and forwards privileged calls to system contracts.
 contract AdminGate {
-    uint256 public immutable chainId;      // 2050 on VOID mainnet
+    uint256 public immutable chainId; // 2050 on VOID mainnet
 
     // EOA / multisig / HW wallet that actually controls AdminGate.
     address public masterKey;
@@ -35,11 +35,7 @@ contract AdminGate {
 
     // --- Constructor ---
 
-    constructor(
-        uint256 _chainId,
-        address _masterKey,
-        address _updateGate
-    ) {
+    constructor(uint256 _chainId, address _masterKey, address _updateGate) {
         require(_masterKey != address(0), "AdminGate: masterKey=0");
         chainId = _chainId;
         masterKey = _masterKey;
@@ -85,11 +81,7 @@ contract AdminGate {
 
     /// @notice Forward an opaque admin call to a registered system contract.
     /// @dev Reverts if target is unset or the call fails.
-    function forward(bytes32 key, bytes calldata data)
-        external
-        onlyMasterKey
-        returns (bytes memory)
-    {
+    function forward(bytes32 key, bytes calldata data) external onlyMasterKey returns (bytes memory) {
         address target = systemContracts[key];
         require(target != address(0), "AdminGate: unknown system");
 
@@ -101,11 +93,7 @@ contract AdminGate {
     }
 
     /// @notice Convenience helper to forward directly to UpdateGate.
-    function forwardUpdateGate(bytes calldata data)
-        external
-        onlyMasterKey
-        returns (bytes memory)
-    {
+    function forwardUpdateGate(bytes calldata data) external onlyMasterKey returns (bytes memory) {
         address target = updateGate;
         require(target != address(0), "AdminGate: updateGate unset");
 

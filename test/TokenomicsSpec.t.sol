@@ -15,13 +15,13 @@ contract TokenomicsSpec is Test {
     uint256 constant MAX_SUPPLY_VOID = 666_666_666;
 
     // Premine & emissions split (both in VOID, not wei)
-    uint256 constant PREMINE_VOID    = 333_333_333;
-    uint256 constant EMISSIONS_VOID  = 333_333_333;
+    uint256 constant PREMINE_VOID = 333_333_333;
+    uint256 constant EMISSIONS_VOID = 333_333_333;
 
     // Premine buckets (section 1.1)
-    uint256 constant FOUNDER_TRUST_VOID   = 230_000_000;
-    uint256 constant ECOSYSTEM_RES_VOID   = 70_000_000;
-    uint256 constant COMMUNITY_LP_VOID    = 33_333_333;
+    uint256 constant FOUNDER_TRUST_VOID = 230_000_000;
+    uint256 constant ECOSYSTEM_RES_VOID = 70_000_000;
+    uint256 constant COMMUNITY_LP_VOID = 33_333_333;
 
     // Emission era totals (section 2)
     uint256 constant ERA1_VOID = 177_777_777;
@@ -37,20 +37,13 @@ contract TokenomicsSpec is Test {
     }
 
     function testPremineBucketsSumCorrectly() public pure {
-        uint256 premineBuckets =
-            FOUNDER_TRUST_VOID +
-            ECOSYSTEM_RES_VOID +
-            COMMUNITY_LP_VOID;
+        uint256 premineBuckets = FOUNDER_TRUST_VOID + ECOSYSTEM_RES_VOID + COMMUNITY_LP_VOID;
 
         assertEq(premineBuckets, PREMINE_VOID, "premine buckets must sum to premine total");
     }
 
     function testEmissionErasSumCorrectly() public pure {
-        uint256 eraTotal =
-            ERA1_VOID +
-            ERA2_VOID +
-            ERA3_VOID +
-            ERA4_VOID;
+        uint256 eraTotal = ERA1_VOID + ERA2_VOID + ERA3_VOID + ERA4_VOID;
 
         assertEq(eraTotal, EMISSIONS_VOID, "emission eras must sum to emissions total");
     }
@@ -67,7 +60,7 @@ contract TokenomicsSpec is Test {
         // 0.68 < 230/333.333... < 0.70
         uint256 num = FOUNDER_TRUST_VOID * 1000; // scale by 1000
         uint256 den = PREMINE_VOID;
-        uint256 bp  = num / den; // "per-thousand" approx
+        uint256 bp = num / den; // "per-thousand" approx
 
         assertTrue(bp > 680, "founder trust should be > 68% of premine");
         assertTrue(bp < 700, "founder trust should be < 70% of premine");

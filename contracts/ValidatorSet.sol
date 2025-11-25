@@ -12,11 +12,11 @@ contract ValidatorSet {
     address public masterKey;
 
     struct Validator {
-        address consensusAddr;   // address/key used at the consensus layer
-        uint256 bondedStake;     // nominal bonded stake (for off-chain weighting)
-        bool active;             // whether this validator is currently in the active set
-        uint64 joinedAt;         // block number when first added
-        uint64 updatedAt;        // block number of last update
+        address consensusAddr; // address/key used at the consensus layer
+        uint256 bondedStake; // nominal bonded stake (for off-chain weighting)
+        bool active; // whether this validator is currently in the active set
+        uint64 joinedAt; // block number when first added
+        uint64 updatedAt; // block number of last update
     }
 
     /// @notice Monotonically increasing validator id (1-based).
@@ -28,26 +28,13 @@ contract ValidatorSet {
     /// @notice Lookup from consensus address to validator id (0 if not registered).
     mapping(address => uint256) public validatorIdByAddress;
 
-    event MasterKeyChanged(
-        address indexed oldKey,
-        address indexed newKey
-    );
+    event MasterKeyChanged(address indexed oldKey, address indexed newKey);
 
-    event ValidatorAdded(
-        uint256 indexed validatorId,
-        address indexed consensusAddr,
-        uint256 bondedStake
-    );
+    event ValidatorAdded(uint256 indexed validatorId, address indexed consensusAddr, uint256 bondedStake);
 
-    event ValidatorStakeUpdated(
-        uint256 indexed validatorId,
-        uint256 bondedStake
-    );
+    event ValidatorStakeUpdated(uint256 indexed validatorId, uint256 bondedStake);
 
-    event ValidatorStatusUpdated(
-        uint256 indexed validatorId,
-        bool active
-    );
+    event ValidatorStatusUpdated(uint256 indexed validatorId, bool active);
 
     modifier onlyMaster() {
         require(msg.sender == masterKey, "ValidatorSet: not master");
@@ -77,10 +64,7 @@ contract ValidatorSet {
         returns (uint256 validatorId)
     {
         require(consensusAddr != address(0), "ValidatorSet: zero addr");
-        require(
-            validatorIdByAddress[consensusAddr] == 0,
-            "ValidatorSet: already registered"
-        );
+        require(validatorIdByAddress[consensusAddr] == 0, "ValidatorSet: already registered");
 
         validatorId = ++nextValidatorId;
 
@@ -98,10 +82,7 @@ contract ValidatorSet {
     }
 
     /// @notice Update bonded stake for a validator (MasterKey only).
-    function setValidatorStake(uint256 validatorId, uint256 bondedStake)
-        external
-        onlyMaster
-    {
+    function setValidatorStake(uint256 validatorId, uint256 bondedStake) external onlyMaster {
         Validator storage v = validators[validatorId];
         require(v.consensusAddr != address(0), "ValidatorSet: unknown");
         v.bondedStake = bondedStake;
@@ -111,10 +92,7 @@ contract ValidatorSet {
     }
 
     /// @notice Toggle validator active flag (MasterKey only).
-    function setValidatorActive(uint256 validatorId, bool active)
-        external
-        onlyMaster
-    {
+    function setValidatorActive(uint256 validatorId, bool active) external onlyMaster {
         Validator storage v = validators[validatorId];
         require(v.consensusAddr != address(0), "ValidatorSet: unknown");
         v.active = active;
@@ -144,22 +122,10 @@ contract ValidatorSet {
     function getValidator(uint256 validatorId)
         external
         view
-        returns (
-            address consensusAddr,
-            uint256 bondedStake,
-            bool active,
-            uint64 joinedAt,
-            uint64 updatedAt
-        )
+        returns (address consensusAddr, uint256 bondedStake, bool active, uint64 joinedAt, uint64 updatedAt)
     {
         Validator storage v = validators[validatorId];
         require(v.consensusAddr != address(0), "ValidatorSet: unknown");
-        return (
-            v.consensusAddr,
-            v.bondedStake,
-            v.active,
-            v.joinedAt,
-            v.updatedAt
-        );
+        return (v.consensusAddr, v.bondedStake, v.active, v.joinedAt, v.updatedAt);
     }
 }

@@ -12,7 +12,7 @@ contract ConfigGate {
     // --- Typed config maps ---
 
     mapping(bytes32 => uint256) public uintConfig;
-    mapping(bytes32 => bool)    public boolConfig;
+    mapping(bytes32 => bool) public boolConfig;
     mapping(bytes32 => address) public addressConfig;
 
     // --- Events ---

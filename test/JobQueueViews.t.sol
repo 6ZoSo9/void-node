@@ -7,23 +7,19 @@ import "../contracts/JobQueue.sol";
 contract JobQueueViewsTest is Test {
     JobQueue jq;
     address ADMIN = address(0xA11CE);
-    address USER  = address(0xCAFE);
+    address USER = address(0xCAFE);
 
     function setUp() public {
         jq = new JobQueue(ADMIN);
     }
 
     function testGetJobAndStatus() public {
-        string memory modelId   = "view-test-model";
-        string memory appTag    = "view-test-app";
-        bytes32 payloadHash     = keccak256("view-test-input");
+        string memory modelId = "view-test-model";
+        string memory appTag = "view-test-app";
+        bytes32 payloadHash = keccak256("view-test-input");
 
         vm.prank(USER);
-        bytes32 jobId = jq.postJob(
-            modelId,
-            payloadHash,
-            appTag
-        );
+        bytes32 jobId = jq.postJob(modelId, payloadHash, appTag);
 
         // status via helper
         JobQueue.JobStatus st = jq.getJobStatus(jobId);

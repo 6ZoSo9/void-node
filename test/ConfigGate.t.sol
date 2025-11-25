@@ -12,8 +12,8 @@ contract ConfigGateTest {
         // Deploy ConfigGate with VOID mainnet semantics.
         // chainId = 2050, adminGate = this test contract.
         cfg = new ConfigGate(
-            2050,          // chainId
-            address(this)  // adminGate
+            2050, // chainId
+            address(this) // adminGate
         );
     }
 

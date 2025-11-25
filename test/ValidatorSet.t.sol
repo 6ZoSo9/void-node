@@ -25,13 +25,8 @@ contract ValidatorSetTest {
 
         uint256 id = set.addValidator(v1, stake);
 
-        (
-            address consensusAddr,
-            uint256 bondedStake,
-            bool active,
-            uint64 joinedAt,
-            uint64 updatedAt
-        ) = set.getValidator(id);
+        (address consensusAddr, uint256 bondedStake, bool active, uint64 joinedAt, uint64 updatedAt) =
+            set.getValidator(id);
 
         require(consensusAddr == v1, "addr mismatch");
         require(bondedStake == stake, "stake mismatch");
@@ -50,7 +45,7 @@ contract ValidatorSetTest {
 
         set.setValidatorStake(id, 20);
 
-        (, uint256 bondedStake, , , ) = set.getValidator(id);
+        (, uint256 bondedStake,,,) = set.getValidator(id);
         require(bondedStake == 20, "stake not updated");
     }
 

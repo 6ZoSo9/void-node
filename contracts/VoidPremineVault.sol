@@ -18,16 +18,13 @@ contract VoidPremineVault {
 
     bool public initialized;
 
-    uint256 public constant PREMINE_SUPPLY  = 333_333_333e18;
-    uint256 public constant FOUNDER_TRUST   = 230_000_000e18;
-    uint256 public constant ECOSYSTEM_RES   =  70_000_000e18;
-    uint256 public constant COMMUNITY_POOL  =  33_333_333e18;
+    uint256 public constant PREMINE_SUPPLY = 333_333_333e18;
+    uint256 public constant FOUNDER_TRUST = 230_000_000e18;
+    uint256 public constant ECOSYSTEM_RES = 70_000_000e18;
+    uint256 public constant COMMUNITY_POOL = 33_333_333e18;
 
     event Initialized(
-        address indexed caller,
-        address indexed founderTrust,
-        address indexed ecosystemReserve,
-        address communityPool
+        address indexed caller, address indexed founderTrust, address indexed ecosystemReserve, address communityPool
     );
 
     modifier onlyGate() {
@@ -49,10 +46,7 @@ contract VoidPremineVault {
         require(_gate != address(0), "Vault: gate zero");
 
         // Sanity: premine breakdown must match spec.
-        require(
-            FOUNDER_TRUST + ECOSYSTEM_RES + COMMUNITY_POOL == PREMINE_SUPPLY,
-            "Vault: bad premine math"
-        );
+        require(FOUNDER_TRUST + ECOSYSTEM_RES + COMMUNITY_POOL == PREMINE_SUPPLY, "Vault: bad premine math");
 
         token = _token;
         founderTrust = _founderTrust;
@@ -70,40 +64,27 @@ contract VoidPremineVault {
         require(bal == PREMINE_SUPPLY, "Vault: premine balance mismatch");
 
         // Split per spec
-        (bool ok, bytes memory data) = address(token).call(
-    abi.encodeWithSelector(
-        bytes4(keccak256("transfer(address,uint256)")),
-        founderTrust,
-        FOUNDER_TRUST
-    )
-);
+        (bool ok, bytes memory data) = address(token)
+            .call(abi.encodeWithSelector(bytes4(keccak256("transfer(address,uint256)")), founderTrust, FOUNDER_TRUST));
 
-// Accept:
-// - tokens that return no data (old style)
-// - tokens that return a single bool which must be true
-bool success = ok && (data.length == 0 || abi.decode(data, (bool)));
-require(success, "Vault: founder transfer failed");
-(bool okEco, bytes memory dataEco) = address(token).call(
-    abi.encodeWithSelector(
-        bytes4(keccak256("transfer(address,uint256)")),
-        ecosystemReserve,
-        ECOSYSTEM_RES
-    )
-);
+        // Accept:
+        // - tokens that return no data (old style)
+        // - tokens that return a single bool which must be true
+        bool success = ok && (data.length == 0 || abi.decode(data, (bool)));
+        require(success, "Vault: founder transfer failed");
+        (bool okEco, bytes memory dataEco) = address(token)
+            .call(
+                abi.encodeWithSelector(bytes4(keccak256("transfer(address,uint256)")), ecosystemReserve, ECOSYSTEM_RES)
+            );
 
-bool successEco = okEco && (dataEco.length == 0 || abi.decode(dataEco, (bool)));
-require(successEco, "Vault: eco transfer failed");
-(bool okComm, bytes memory dataComm) = address(token).call(
-    abi.encodeWithSelector(
-        bytes4(keccak256("transfer(address,uint256)")),
-        communityPool,
-        COMMUNITY_POOL
-    )
-);
+        bool successEco = okEco && (dataEco.length == 0 || abi.decode(dataEco, (bool)));
+        require(successEco, "Vault: eco transfer failed");
+        (bool okComm, bytes memory dataComm) = address(token)
+            .call(abi.encodeWithSelector(bytes4(keccak256("transfer(address,uint256)")), communityPool, COMMUNITY_POOL));
 
-bool successComm = okComm && (dataComm.length == 0 || abi.decode(dataComm, (bool)));
-require(successComm, "Vault: community transfer failed");
-// Must be fully drained
+        bool successComm = okComm && (dataComm.length == 0 || abi.decode(dataComm, (bool)));
+        require(successComm, "Vault: community transfer failed");
+        // Must be fully drained
         require(token.balanceOf(address(this)) == 0, "Vault: leftover premine");
 
         initialized = true;

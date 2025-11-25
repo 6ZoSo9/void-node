@@ -40,34 +40,15 @@ contract ModelRegistry {
         string tag
     );
 
-    event ModelUpdated(
-        string indexed modelId,
-        bytes32 modelHash,
-        string manifestURI,
-        string version,
-        string tag
-    );
+    event ModelUpdated(string indexed modelId, bytes32 modelHash, string manifestURI, string version, string tag);
 
-    event ModelStatusChanged(
-        string indexed modelId,
-        bool active
-    );
+    event ModelStatusChanged(string indexed modelId, bool active);
 
-    event ModelOwnershipTransferred(
-        string indexed modelId,
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    event ModelOwnershipTransferred(string indexed modelId, address indexed previousOwner, address indexed newOwner);
 
-    event AdminChanged(
-        address indexed previousAdmin,
-        address indexed newAdmin
-    );
+    event AdminChanged(address indexed previousAdmin, address indexed newAdmin);
 
-    event AdminGateChanged(
-        address indexed previousAdminGate,
-        address indexed newAdminGate
-    );
+    event AdminGateChanged(address indexed previousAdminGate, address indexed newAdminGate);
 
     modifier onlyAdmin() {
         require(msg.sender == admin, "ModelRegistry: not admin");
@@ -77,10 +58,7 @@ contract ModelRegistry {
     modifier onlyOwnerOrAdmin(string memory modelId) {
         require(_modelExists[modelId], "ModelRegistry: unknown model");
         ModelInfo storage info = _models[modelId];
-        require(
-            msg.sender == info.owner || msg.sender == admin,
-            "ModelRegistry: not owner/admin"
-        );
+        require(msg.sender == info.owner || msg.sender == admin, "ModelRegistry: not owner/admin");
         _;
     }
 
@@ -133,16 +111,7 @@ contract ModelRegistry {
 
         _modelExists[modelId] = true;
 
-        emit ModelRegistered(
-            modelId,
-            owner,
-            chainId_,
-            modelHash,
-            manifestURI,
-            version,
-            active,
-            tag
-        );
+        emit ModelRegistered(modelId, owner, chainId_, modelHash, manifestURI, version, active, tag);
     }
 
     function updateModel(
@@ -158,28 +127,16 @@ contract ModelRegistry {
         info.version = newVersion;
         info.tag = newTag;
 
-        emit ModelUpdated(
-            modelId,
-            newModelHash,
-            newManifestURI,
-            newVersion,
-            newTag
-        );
+        emit ModelUpdated(modelId, newModelHash, newManifestURI, newVersion, newTag);
     }
 
-    function setModelActive(
-        string calldata modelId,
-        bool active
-    ) external onlyOwnerOrAdmin(modelId) {
+    function setModelActive(string calldata modelId, bool active) external onlyOwnerOrAdmin(modelId) {
         ModelInfo storage info = _models[modelId];
         info.active = active;
         emit ModelStatusChanged(modelId, active);
     }
 
-    function transferModelOwnership(
-        string calldata modelId,
-        address newOwner
-    ) external onlyOwnerOrAdmin(modelId) {
+    function transferModelOwnership(string calldata modelId, address newOwner) external onlyOwnerOrAdmin(modelId) {
         require(newOwner != address(0), "ModelRegistry: newOwner=0");
         ModelInfo storage info = _models[modelId];
         address prev = info.owner;
@@ -193,29 +150,21 @@ contract ModelRegistry {
         return _modelExists[modelId];
     }
 
-    function getModel(
-        string calldata modelId
-    ) external view returns (ModelInfo memory) {
+    function getModel(string calldata modelId) external view returns (ModelInfo memory) {
         require(_modelExists[modelId], "ModelRegistry: unknown model");
         return _models[modelId];
     }
 
-    function isActive(
-        string calldata modelId
-    ) external view returns (bool) {
+    function isActive(string calldata modelId) external view returns (bool) {
         return _modelExists[modelId] && _models[modelId].active;
     }
 
-    function getModelHash(
-        string calldata modelId
-    ) external view returns (bytes32) {
+    function getModelHash(string calldata modelId) external view returns (bytes32) {
         require(_modelExists[modelId], "ModelRegistry: unknown model");
         return _models[modelId].modelHash;
     }
 
-    function getModelOwner(
-        string calldata modelId
-    ) external view returns (address) {
+    function getModelOwner(string calldata modelId) external view returns (address) {
         require(_modelExists[modelId], "ModelRegistry: unknown model");
         return _models[modelId].owner;
     }

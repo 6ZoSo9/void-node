@@ -12,9 +12,9 @@ contract AdminGateTest {
         // Deploy an AdminGate where THIS test contract is the MasterKey.
         // chainId is fixed to 2050 for VOID mainnet semantics.
         gate = new AdminGate(
-            2050,          // chainId
+            2050, // chainId
             address(this), // masterKey
-            address(0)     // updateGate (none for this smoke test)
+            address(0) // updateGate (none for this smoke test)
         );
     }
 
@@ -29,10 +29,7 @@ contract AdminGateTest {
 
         gate.setSystemContract(key, target);
 
-        require(
-            gate.systemContracts(key) == target,
-            "systemContracts not updated"
-        );
+        require(gate.systemContracts(key) == target, "systemContracts not updated");
     }
 
     function testSetMasterKey() public {
@@ -40,9 +37,6 @@ contract AdminGateTest {
 
         gate.setMasterKey(newMaster);
 
-        require(
-            gate.masterKey() == newMaster,
-            "masterKey not updated"
-        );
+        require(gate.masterKey() == newMaster, "masterKey not updated");
     }
 }

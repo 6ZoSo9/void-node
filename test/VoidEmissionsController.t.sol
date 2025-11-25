@@ -14,9 +14,9 @@ contract VoidEmissionsControllerTest is Test {
     function testConstantsMatchSpec() public view {
         // Per-era budgets
         assertEq(ctrl.ERA1_BUDGET(), 177_777_777 * 1e18, "era1");
-        assertEq(ctrl.ERA2_BUDGET(),  88_888_889 * 1e18, "era2");
-        assertEq(ctrl.ERA3_BUDGET(),  44_444_444 * 1e18, "era3");
-        assertEq(ctrl.ERA4_BUDGET(),  22_222_223 * 1e18, "era4");
+        assertEq(ctrl.ERA2_BUDGET(), 88_888_889 * 1e18, "era2");
+        assertEq(ctrl.ERA3_BUDGET(), 44_444_444 * 1e18, "era3");
+        assertEq(ctrl.ERA4_BUDGET(), 22_222_223 * 1e18, "era4");
 
         // Global budget
         uint256 expected = (177_777_777 + 88_888_889 + 44_444_444 + 22_222_223) * 1e18;
