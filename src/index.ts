@@ -29258,3 +29258,73 @@ try {
     console.error("[safebootHeader3ProxyV2] init error", e);
   }
 })();
+
+// ========== LastMile TakeBatch Z3 (additive runtime patch) ==========
+//
+// This wrapper sits on top of Node.prototype.takeTxBatch and deliberately
+// prefers txQueue, then mempool.txs, to ensure that if there are any
+// pending transactions we actually feed them into the proposer.
+// It is additive-only: on error it defers to the original implementation.
+
+(function LastMileTakeBatchZ3() {
+  const g: any = globalThis as any;
+  if (g.__void_lastmile_takeBatch_z3_installed) return;
+  g.__void_lastmile_takeBatch_z3_installed = true;
+
+  let NodeCtor: any = null;
+  try {
+    // node_core.js is already used elsewhere in index.ts via require(...)
+    const mod: any = require("./node_core.js");
+    NodeCtor = (mod && (mod.Node || (mod.default && mod.default.Node) || mod.NodeCore)) || null;
+  } catch (err) {
+    console.warn("[lastmile.z3] require('./node_core.js') failed:", err);
+  }
+
+  if (!NodeCtor || !NodeCtor.prototype) {
+    console.warn("[lastmile.z3] NodeCtor not found; skipping takeBatch patch");
+    return;
+  }
+
+  const orig: any = NodeCtor.prototype["takeTxBatch"];
+
+  NodeCtor.prototype["takeTxBatch"] = function patchedTakeTxBatch(max: number) {
+    const node: any = this;
+    const cap = typeof max === "number" && max > 0 ? max : 100;
+
+    try {
+      const q: any[] = Array.isArray(node.txQueue) ? node.txQueue : [];
+      const m: any[] =
+        node.mempool && Array.isArray(node.mempool.txs) ? node.mempool.txs : [];
+
+      const out: any[] = [];
+
+      // Prefer txQueue (these are "queued for next block" entries).
+      while (out.length < cap && q.length > 0) {
+        const cand = q.shift();
+        if (cand) out.push(cand);
+      }
+
+      // Then mempool (may not have been mirrored into txQueue yet).
+      let idx = 0;
+      while (out.length < cap && idx < m.length) {
+        const cand = m[idx++];
+        if (cand) out.push(cand);
+      }
+
+      // If we still have nothing, fall back to the original implementation.
+      if (out.length === 0 && typeof orig === "function") {
+        return orig.call(node, max);
+      }
+
+      return out;
+    } catch (err) {
+      console.warn("[lastmile.z3] patchedTakeTxBatch error, falling back to orig:", err);
+      if (typeof orig === "function") {
+        return orig.call(this, max);
+      }
+      return [];
+    }
+  };
+
+  console.log("[lastmile.z3] patched Node.prototype.takeTxBatch (txQueue + mempool)");
+})();
