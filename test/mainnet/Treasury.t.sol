@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {IVoidTokenLike} from "../../contracts/mainnet/IVoidTokenLike.sol";
@@ -41,7 +41,7 @@ contract TreasuryTest is Test {
 
     address internal admin = address(0xA11CE);
     address internal nonAdmin = address(0xBEEF);
-    address internal vendor = address(0xV3ND0R);
+    address internal vendor = address(0x1111111111111111111111111111111111111111);
 
     function setUp() public {
         token = new MockVoidToken();

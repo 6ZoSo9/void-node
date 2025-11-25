@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
 /// @notice Minimal VOID token view the treasuries care about.
 /// @dev We keep this tiny on purpose. If you already have a richer VoidToken
