@@ -96,3 +96,9 @@ echo "     manifest=${MANIFEST}"
 if [ -n "${out_file:-}" ] && [ -f "$out_file" ]; then
   chmod 644 "$out_file" 2>/dev/null || true
 fi
+
+# --- perms guard: ensure textfile is world-readable for node_exporter ---
+if [ -n "${OUT_FILE:-}" ] && [ -f "$OUT_FILE" ]; then
+  chmod 0644 "$OUT_FILE" || true
+fi
+# --- end perms guard ---
