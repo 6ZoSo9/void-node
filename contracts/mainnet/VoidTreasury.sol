@@ -2,59 +2,38 @@
 pragma solidity ^0.8.20;
 
 import {IVoidTokenLike} from "./IVoidTokenLike.sol";
+import {OpsTreasury} from "./OpsTreasury.sol";
 
 /// @title VoidTreasury
-/// @notice Cold / deep treasury that holds the premine.
-/// @dev Intentionally minimal. The idea:
-///      - This contract *only* sends $VOID to the OpsTreasury.
-///      - Only the admin (later: AdminGate / UpdateGate) can trigger flows.
-///      - No direct payouts to EOAs from here.
+/// @notice Cold treasury holding premine funds. Only the admin can move
+///         funds from here into the OpsTreasury (hot wallet).
 contract VoidTreasury {
-    IVoidTokenLike public immutable token;
-    address public immutable opsTreasury;
-
-    address public admin;
-
-    event AdminChanged(address indexed oldAdmin, address indexed newAdmin);
-    event SentToOps(address indexed caller, uint256 amount, bytes32 tag);
-
     error NotAdmin();
-    error ZeroAddress();
-    error TransferFailed();
 
-    constructor(IVoidTokenLike _token, address _opsTreasury, address _admin) {
-        if (address(_token) == address(0)) revert ZeroAddress();
-        if (_opsTreasury == address(0)) revert ZeroAddress();
-        if (_admin == address(0)) revert ZeroAddress();
+    IVoidTokenLike public immutable token;
+    OpsTreasury public immutable opsTreasury;
+    address public immutable admin;
 
+    event SendToOps(uint256 amount, bytes32 indexed tag);
+
+    constructor(
+        IVoidTokenLike _token,
+        address _opsTreasury,
+        address _admin
+    ) {
         token = _token;
-        opsTreasury = _opsTreasury;
+        opsTreasury = OpsTreasury(_opsTreasury);
         admin = _admin;
-
-        emit AdminChanged(address(0), _admin);
     }
 
-    modifier onlyAdmin() {
+    /// @notice Move `amount` tokens from the cold treasury into OpsTreasury.
+    /// @dev Only `admin` may call. Reverts on failed transfer.
+    function sendToOps(uint256 amount, bytes32 tag) external {
         if (msg.sender != admin) revert NotAdmin();
-        _;
-    }
 
-    /// @notice Change the admin key for this treasury.
-    /// @dev In mainnet this should probably be wired to AdminGate/UpdateGate,
-    ///      not a raw EOA.
-    function changeAdmin(address newAdmin) external onlyAdmin {
-        if (newAdmin == address(0)) revert ZeroAddress();
-        emit AdminChanged(admin, newAdmin);
-        admin = newAdmin;
-    }
+        bool ok = token.transfer(address(opsTreasury), amount);
+        require(ok, "VoidTreasury: transfer failed");
 
-    /// @notice Move funds from VoidTreasury to OpsTreasury.
-    /// @param amount Amount of $VOID to send.
-    /// @param tag    Opaque application tag (e.g. keccak of a proposal id).
-    function sendToOps(uint256 amount, bytes32 tag) external onlyAdmin {
-        // No allowance mechanics here; the token is held by this contract.
-        bool ok = token.transfer(opsTreasury, amount);
-        if (!ok) revert TransferFailed();
-        emit SentToOps(msg.sender, amount, tag);
+        emit SendToOps(amount, tag);
     }
 }
