@@ -20,7 +20,7 @@ This document locks the high-level keys + treasury plan for VOID mainnet.
 
 **Founder Trust**
 
-- `FOUNDER_TRUST = 230,000,000 VOID`
+- `FOUNDER_TRUST = 230,000,000 VOID` (subset of the 333,333,333 premine)
 - This is **inside** the 333,333,333 premine, not extra.
 - Percentages:
   - 69.0% of the premine (230M / 333.333M).

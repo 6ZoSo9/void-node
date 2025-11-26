@@ -31,7 +31,7 @@ Total premine = **333,333,333 VOID** (50% of cap)
 
 Intent:
 
-- The **230,000,000 VOID** founder allocation is **explicitly tied to building the network**, not extracting rent.
+- The **230,000,000 VOID** founder allocation is **inside the 333,333,333 premine** and is explicitly tied to building the network, not extracting rent.
 - It funds:
   - Property in multiple regions to host servers and offices.
   - Salaries/comp for family + trusted staff who physically watch hardware and workers.
@@ -133,7 +133,7 @@ When `totalSupply` asymptotically approaches **666,666,666 VOID** and emissions 
 
 - **Max supply:** 666,666,666 VOID (hard cap).  
 - **Premine (genesis):** 333,333,333 VOID.
-  - 230,000,000 VOID → Founder Trust (VOID Labs LLC, infra-focused, with heavy lockups).
+  - 230,000,000 VOID → Founder Trust (inside the 333,333,333 premine; VOID Labs LLC, infra-focused, heavy lockups).
   - 70,000,000 VOID → Ecosystem & Infra Reserve.
   - 33,333,333 VOID → Community, liquidity, and strategic partners.
 - **Emissions over 100 years:** 333,333,333 VOID in 4 × 25-year eras:

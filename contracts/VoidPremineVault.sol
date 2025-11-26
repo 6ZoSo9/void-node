@@ -6,7 +6,7 @@ import "./IVoidToken.sol";
 /// @notice One-shot splitter for the 333,333,333 VOID premine.
 /// It receives the full premine, then an authorized gate calls initialize()
 /// to send:
-/// - 230,000,000 VOID -> FounderTrustVesting
+/// - 230,000,000 VOID -> FounderTrustVesting (inside 333,333,333 premine)
 /// - 70,000,000 VOID  -> Ecosystem & Infra Reserve
 /// - 33,333,333 VOID  -> Community / Liquidity / Partners
 contract VoidPremineVault {

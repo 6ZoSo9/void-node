@@ -19,7 +19,7 @@ contract TokenomicsSpec is Test {
     uint256 constant EMISSIONS_VOID = 333_333_333;
 
     // Premine buckets (section 1.1)
-    uint256 constant FOUNDER_TRUST_VOID = 230_000_000;
+    uint256 constant FOUNDER_TRUST_VOID = 230_000_000; // subset of 333,333,333 premine
     uint256 constant ECOSYSTEM_RES_VOID = 70_000_000;
     uint256 constant COMMUNITY_LP_VOID = 33_333_333;
 

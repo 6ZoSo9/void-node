@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "./IVoidToken.sol";
 
-/// @notice Founder Trust vesting for 230,000,000 VOID (VoidStones).
+/// @notice Founder Trust vesting for 230,000,000 VOID (subset of 333,333,333 premine).
 /// Split into:
 /// - 115M: hard cliff after 10 years (infra / R&D only).
 /// - 115M: linear vest over VEST_YEARS (default 5) for personal + reinvestment.
