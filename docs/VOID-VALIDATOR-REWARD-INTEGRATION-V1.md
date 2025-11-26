@@ -5,7 +5,7 @@ the consensus layer so that **validators actually get paid** and the total
 supply stays bounded by:
 
 - MAX_SUPPLY = 666,666,666 VOID
-- PREMINE   = 230,000,000 VOID
+- PREMINE   = 333,333,333 VOID
 
 It is the blueprint for wiring `src/tokenomics/emissions_v1.ts` into `void-node`
 proposer logic.
@@ -53,7 +53,7 @@ High-level:
 The long-tail curve is chosen so that:
 
 - sum_{h=1..∞} rewardPerBlock(h) <= REMAINING_EMISSIONS
-- REMAINING_EMISSIONS = 436,666,666 VOID
+- REMAINING_EMISSIONS = 333,333,333 VOID
 
 ---
 

@@ -46,11 +46,7 @@ contract TreasuryTest is Test {
     function setUp() public {
         token = new MockVoidToken();
         opsTreasury = new OpsTreasury(IVoidTokenLike(address(token)), admin);
-        voidTreasury = new VoidTreasury(
-            IVoidTokenLike(address(token)),
-            address(opsTreasury),
-            admin
-        );
+        voidTreasury = new VoidTreasury(IVoidTokenLike(address(token)), address(opsTreasury), admin);
 
         // Seed premine into the cold treasury.
         token.mint(address(voidTreasury), 1_000_000 ether);

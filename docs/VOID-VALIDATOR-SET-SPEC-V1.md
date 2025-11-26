@@ -25,7 +25,7 @@ This spec focuses on **who is a validator**, **how they are selected**, and
   decentralized (e.g. full staking with slashing) without breaking invariants:
 
   - MAX_SUPPLY = 666,666,666 VOID
-  - PREMINE    = 230,000,000 VOID
+  - PREMINE   = 333,333,333 VOID
   - Emissions bounded by REMAINING_EMISSIONS.
 
 ---

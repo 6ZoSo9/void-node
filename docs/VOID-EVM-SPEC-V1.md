@@ -102,8 +102,8 @@ Nothing in this range is active in v1. They are reserved for:
 Genesis MUST respect:
 
 - `MAX_SUPPLY = 666,666,666 VOID`
-- `PREMINE   = 230,000,000 VOID`
-- `REMAINING_EMISSIONS = 436,666,666 VOID`
+- `PREMINE   = 333,333,333 VOID`
+- `REMAINING_EMISSIONS = 333,333,333 VOID`
 
 Policy:
 

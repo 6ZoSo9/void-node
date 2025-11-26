@@ -4,8 +4,8 @@ This file is the canonical summary of VOID monetary policy and validator rewards
 
 Locked constants for mainnet:
 - MAX_SUPPLY = 666,666,666 VOID
-- PREMINE    = 230,000,000 VOID
-- REMAINING_EMISSIONS = 436,666,666 VOID (for validators over time)
+- PREMINE   = 333,333,333 VOID
+- REMAINING_EMISSIONS = 333,333,333 VOID (for validators over time)
 
 Rules:
 - At genesis, totalSupply = PREMINE.

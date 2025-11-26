@@ -19,7 +19,7 @@ contract VoidTokenTest {
         uint256 premine = token.PREMINE();
 
         require(maxSupply == 666_666_666 * 1e18, "MAX_SUPPLY mismatch");
-        require(premine == 230_000_000 * 1e18, "PREMINE mismatch");
+        require(premine == 333_333_333 * 1e18, "PREMINE mismatch");
 
         require(token.totalSupply() == premine, "totalSupply != PREMINE");
         require(token.balanceOf(premineRecipient) == premine, "premine not minted to recipient");
