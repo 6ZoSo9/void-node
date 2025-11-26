@@ -1,213 +1,155 @@
-# VOID Network – Validator Set & Staking Spec v1
+# VOID Network – Validator Set Spec (v1)
 
-This file defines how **validators / nodes** participate in VOID (chainId 2050)
-and how they are rewarded in conjunction with the emissions + tokenomics docs.
+This document describes the on-chain validator set contract used by VOID mainnet-core and how it matches the current contracts:
 
-It is meant to stay consistent with:
+- contracts/mainnet/IValidatorSetLike.sol
+- contracts/mainnet/ValidatorSet.sol
+- test/ValidatorSet.t.sol
+- test/mainnet/ValidatorSet.t.sol
 
-- docs/VOID-EMISSIONS-SCHEDULE.md
-- docs/VOID-EMISSIONS-PARAMS-V1.json
-- docs/VOID-VALIDATOR-REWARDS-V1.md
-- docs/VOID-VALIDATOR-REWARD-INTEGRATION-V1.md
-- docs/VOID-TOKENOMICS-SPEC-V1.md
-- docs/VOID-MAINNET-GENESIS-PLAN.md
-
-This spec focuses on **who is a validator**, **how they are selected**, and
-**how rewards flow to them**.
+The v1 design is intentionally minimal and auditable: a single admin maintains powers, consensus and rewards only depend on a small, stable view interface.
 
 ---
 
-## 0. Goals
+## 1. Interface
 
-- Validators (nodes) are the **primary recipients of emissions**.
-- The validator set is **on-chain visible**, not just a config file.
-- The design can start **simple/centralized** and evolve to more
-  decentralized (e.g. full staking with slashing) without breaking invariants:
+The consensus / rewards layer only depends on:
 
-  - MAX_SUPPLY = 666,666,666 VOID
-  - PREMINE   = 333,333,333 VOID
-  - Emissions bounded by REMAINING_EMISSIONS.
+    interface IValidatorSetLike {
+        function getActiveValidators() external view returns (address[] memory);
+        function getValidators() external view returns (address[] memory);
+        function getVotingPower(address validator) external view returns (uint256);
+        function totalPower() external view returns (uint256);
+    }
 
----
+Meanings:
 
-## 1. Validator roles
+- getValidators()
+  - Returns the full configured set of validator addresses (including those with power 0).
 
-A **validator** in VOID:
+- getActiveValidators()
+  - Returns only validators whose voting power is strictly greater than zero.
+  - This is the set used for consensus weighting and reward shares.
 
-- Runs `void-node` with a **consensus keypair** (e.g. ed25519/BLS).
-- Participates in block proposal / voting (depending on consensus flavor).
-- Has an associated **reward address** (an EOA or contract on VOID).
-- Is tracked on-chain by a **ValidatorSet contract** (v1 conceptual).
+- getVotingPower(validator)
+  - Returns the current voting power for a given address.
+  - MUST return 0 for unknown or zeroed validators.
 
-Validators are expected to:
+- totalPower()
+  - Returns the sum of getVotingPower(v) across all validators in getValidators().
 
-- Stay online and follow protocol rules.
-- Keep their node software updated per UpdateGate/ConfigGate (when they opt in).
-- Accept that rewards are tied to correct participation.
+Invariants:
 
----
-
-## 2. ValidatorSet contract (logical design)
-
-v1 focuses on **tracking who is in the active set** and what their **weight**
-(stake) is. The actual Solidity contract will be defined separately; this file
-is the design.
-
-### 2.1 Core data
-
-For each validator, ValidatorSet tracks:
-
-- `validatorAddr` (address)
-- `rewardAddr` (address)
-- `stakeWeight` (uint256) – abstract “weight” for proposer selection and rewards
-- `active` (bool)
-- `joinedAt` / `updatedAt` (block numbers)
-
-There is also a global view:
-
-- `totalWeight` – sum of `stakeWeight` over all active validators.
-- `validators[]` – array of active validator addresses (for enumeration).
-
-### 2.2 Ownership / control
-
-v1 control model (can evolve later):
-
-- A **MasterKey / AdminGate-controlled address** has authority to:
-
-  - Add / remove validators.
-  - Adjust `stakeWeight` for testing / bootstrap.
-  - Update `rewardAddr` in emergencies.
-
-- Later versions can move toward:
-
-  - **Self-stake**, where validators bond VOID in a staking contract.
-  - Governance-controlled changes (e.g. on-chain voting / DAO).
-
-The key invariant: **node software reads ValidatorSet and uses it**; the exact
-control model can evolve via UpdateGate + ConfigGate.
+- totalPower() == sum of votingPower[v] for all v in getValidators().
+- totalPower() > 0 whenever getActiveValidators().length > 0.
+- totalPower() == 0 iff getActiveValidators().length == 0.
 
 ---
 
-## 3. Relationship to VOID token & rewards
+## 2. Admin model (v1)
 
-Validators are the **primary sink** for emissions:
+The v1 contract exposes a single admin address:
 
-1. Emissions layer (emissions_v1) computes a per-block reward.
-2. Monetary state (monetary_state_v1) clamps rewards so:
-   - totalMinted <= REMAINING_EMISSIONS_WEI
-   - PREMINE + totalMinted <= MAX_SUPPLY_WEI
-3. Reward splitting (validator_rewards_v1) divides rewards between:
+- admin (EOA or multisig; configured at deployment)
+- all mutating functions are protected by onlyAdmin
 
-   - Proposer(s)
-   - Active validator set (by `stakeWeight`)
-   - Optional infra slices (e.g. community funding, dev fund)
+Key mutating function:
 
-4. The **reward addresses** for validators come from ValidatorSet.
+- setValidatorPower(address validator, uint256 power)
+  - If power > 0:
+    - validator is active and appears in getActiveValidators().
+  - If power == 0:
+    - validator becomes inactive but remains in getValidators() for audit/history.
+  - totalPower() is updated to remain equal to the sum of all powers.
 
-The core guarantee:
+Admin rotation:
 
-> Over the life of the chain, **validators are paid out of emissions**, and the
-> chain never exceeds the hard cap of 666,666,666 VOID.
+- setAdmin(address newAdmin)
+  - Rotates the admin.
+  - Emits an event for monitoring.
 
----
-
-## 4. Node / consensus integration (high-level)
-
-`void-node` consensus must, for each block:
-
-1. Determine the **active validator set** and their `stakeWeight` from
-   ValidatorSet state at that height.
-
-2. Use emissions_v1 + monetary_state_v1 to compute:
-
-   - `rewardThisBlockWei`
-   - `newTotalMintedWei`
-
-3. Use validator_rewards_v1 (consensus version) to compute:
-
-   - proposerRewardWei
-   - perValidatorRewardWei (or validator-specific amounts)
-   - optional infra slices
-
-4. Create **reward outputs**:
-
-   - For a pure account-based model: special “mint” operations that increase
-     balances of reward addresses.
-   - For an ERC20-like layer: calls / internal mints to VoidToken, respecting
-     the cap.
-
-5. Enforce **invariants**:
-
-   - If applying this block’s reward would break the supply cap, the block is
-     *invalid*.
-   - If the validator set used does not match on-chain ValidatorSet state, the
-     block is *invalid*.
-
-This ties validator rewards directly into consensus – nodes cannot “skip” paying
-validators and still produce valid blocks.
+The admin is expected (in v1) to mirror the “real” staking / slashing state that is enforced off-chain.
 
 ---
 
-## 5. Validator selection & weight
+## 3. Security & invariants
 
-v1 keeps selection rules simple:
+ValidatorSet v1 is expected to maintain:
 
-- **Proposer selection** is out-of-scope for this doc, but must:
+1. Total power consistency
+   - After any sequence of setValidatorPower calls:
+     - totalPower() == Σ getVotingPower(v) for v in getValidators().
 
-  - Only choose from `active == true` validators.
-  - Weight selection by `stakeWeight` or use simple round-robin initially.
+2. Non-negative power
+   - Powers are uint256; no negative values.
+   - Power 0 means “configured but currently inactive”.
 
-- **Reward weight**:
+3. Correct active set
+   - getActiveValidators() is exactly the subset of getValidators() with power > 0.
 
-  - The share of block rewards per validator is proportional to
-    `stakeWeight` (once we move beyond pure-round-robin bootstrap).
+4. View-only read path
+   - All four IValidatorSetLike methods are view and cannot mutate state.
 
-In bootstrap / dev networks, a single validator (you) may be 100% of the set.
-The design must gracefully handle `N = 1` and gradually scale to many validators.
+5. Admin-only writes
+   - All state mutations (power updates, admin rotation) are gated by onlyAdmin.
 
----
+Test coverage:
 
-## 6. Evolution path (v2+)
-
-Planned future upgrades (documented now so we don’t paint ourselves into a
-corner):
-
-- **Full on-chain staking**:
-
-  - A dedicated Staking contract where validators bond VOID.
-  - ValidatorSet reads stake balances from Staking contract, not direct admin
-    writes.
-  - Slashing hooks for misbehavior.
-
-- **Self-service joining**:
-
-  - Any address can stake above `MIN_STAKE` to become a validator.
-  - Admin / MasterKey mainly controls parameters, not individual validators.
-
-- **Decentralized governance**:
-
-  - UpdateGate + ConfigGate used to evolve staking parameters and reward splits.
-  - Eventually, community governance can control these, with MasterKey as a
-    safety backstop only.
+- test/ValidatorSet.t.sol exercises generic behaviour and master-key rotation.
+- test/mainnet/ValidatorSet.t.sol exercises mainnet-facing invariants:
+  - totalPower tracks the sum of individual powers;
+  - getActiveValidators() filters out zero-power validators;
+  - only the admin may update powers.
 
 ---
 
-## 7. Status (2025-11-14)
+## 4. Integration points
 
-As of this spec:
+The validator set feeds into:
 
-- Tokenomics is defined (MAX_SUPPLY, PREMINE, emissions, rewards).
-- VoidToken ERC20 exists with tests.
-- Non-consensus helpers exist in `src/tokenomics/*` for:
-  - emissions_v1
-  - validator reward splitting
-  - monetary state / supply cap enforcement
+1. Consensus (void-node)
+   - Node reads:
+     - getActiveValidators()
+     - getVotingPower(v)
+     - totalPower()
+   - These values form the weighted validator set for proposer selection and voting rules (exact fork-choice logic is outside this spec).
 
-This file **locks the high-level validator set / staking model** for v1 so that
-the next steps can:
+2. RewardEngine
+   - RewardEngine uses:
+     - getActiveValidators()
+     - getVotingPower(v)
+     - totalPower()
+   - Rewards are allocated pro-rata:
+     - share[v] ∝ votingPower[v] / totalPower().
 
-1. Implement a minimal `ValidatorSet.sol` consistent with this spec.
-2. Add Foundry tests for validator registration / weights.
-3. Wire validator rewards (non-consensus first, then consensus) to use the
-   ValidatorSet view of the active set.
+3. Tooling and ops
+   - Off-chain scripts (ops/) can:
+     - Dump active set and powers.
+     - Compare on-chain config against the genesis / planned config.
+     - Propose updates to be applied by the admin.
 
+---
+
+## 5. Monitoring expectations
+
+Prometheus / exporters are expected to enforce at least:
+
+- totalPower() > 0 for a live network.
+- getActiveValidators().length > 0.
+- totalPower() == Σ getVotingPower(v) over getValidators() (within one read cycle).
+- No “accidental zeroing” of the entire set.
+
+Any deviation should trip a mainnet-core alert.
+
+---
+
+## 6. Roadmap (v1 → v2)
+
+ValidatorSet v1 is intentionally simple. Future iterations can:
+
+- Add on-chain staking contracts that feed into ValidatorSet.
+- Add slashing hooks to reduce voting power and unclaimed rewards.
+- Move from single admin to a multi-sig or on-chain governance, while keeping the same IValidatorSetLike interface.
+- Distinguish between “consensus power” and “reward weight” if needed later.
+
+This document is the canonical description of ValidatorSet v1 as currently implemented in the repository.
