@@ -26,7 +26,7 @@ These are logical roles; concrete addresses will be filled in later:
 - `DEPLOYER_EOA` – hot key used *only* for:
   - Deploying contracts.
   - Initial wiring (where allowed by constructor or AdminGate).
-- `PREMINE_VAULT` – multisig / cold wallet holding the 230,000,000 VOID premine.
+- `PREMINE_VAULT` – multisig / cold wallet holding the 333,333,333 VOID premine.
 - `FOUNDATION_OPS_1..N` – operational wallets that will run early validators.
 
 During bootstrap, **only** MASTER_KEY_EOA and DEPLOYER_EOA should send txs.
@@ -39,7 +39,7 @@ At mainnet boot we deploy at least:
 
 1. `VoidToken` – capped ERC20:
    - `MAX_SUPPLY = 666,666,666 VOID`
-   - `PREMINE   = 230,000,000 VOID`
+   - `PREMINE   = 333,333,333 VOID`
    - Premine minted to `PREMINE_VAULT`.
 2. `AdminGate` – master control plane:
    - Stores `masterKey`.
@@ -94,7 +94,7 @@ base. AI stack + update machinery are wired on top.
   - Decimals: `18`
   - Cap / premine constants per `VoidToken` implementation.
 - Postcondition:
-  - `totalSupply() == 230,000,000 * 1e18`
+  - `totalSupply() == 333,333,333 * 1e18`
   - All premine balance sits in `PREMINE_VAULT`.
 
 This must respect the cap `666,666,666 * 1e18` and MUST NOT allow minting above.
@@ -233,7 +233,7 @@ After all steps:
 2. **Discovery**
    - All core contract addresses are resolvable via AdminGate system keys.
 3. **Tokenomics**
-   - Total supply at height 0 = `230,000,000 VOID`.
+   - Total supply at height 0 = `333,333,333 VOID`.
    - Cap = `666,666,666 VOID`.
    - Reward engine in node software enforces that cumulative minted rewards
      never exceed `MAX_SUPPLY`.

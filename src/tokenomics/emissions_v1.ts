@@ -25,7 +25,7 @@ export interface EmissionsParams {
 
 // Locked monetary constants for VOID mainnet (v1).
 export const MAX_SUPPLY_VOID = 666_666_666;
-export const PREMINE_VOID = 230_000_000;
+export const PREMINE_VOID = 333_333_333;
 export const REMAINING_EMISSIONS_VOID = MAX_SUPPLY_VOID - PREMINE_VOID;
 
 // Default parameters matching docs/VOID-EMISSIONS-PARAMS-V1.json.

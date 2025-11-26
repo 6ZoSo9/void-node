@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 /// @title VoidToken (VOID) – main VOID Network asset
-/// @notice Max supply 666,666,666 VOID with 230,000,000 VOID premine.
+/// @notice Max supply 666,666,666 VOID with 333,333,333 VOID premine.
 /// @dev Minimal ERC20, no external deps. Minting is owner-gated and capped.
 contract VoidToken {
     string public constant name = "VoidStones";
@@ -11,7 +11,7 @@ contract VoidToken {
 
     // Locked monetary parameters (match docs/VOID-EMISSIONS-SCHEDULE.md)
     uint256 public constant MAX_SUPPLY = 666_666_666 * 1e18;
-    uint256 public constant PREMINE = 230_000_000 * 1e18;
+    uint256 public constant PREMINE = 333_333_333 * 1e18;
 
     address public immutable owner;
     uint256 public totalSupply;

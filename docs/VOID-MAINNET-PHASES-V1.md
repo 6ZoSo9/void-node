@@ -29,13 +29,13 @@ Requirements (we already have most of this):
     - AdminGate, ConfigGate, UpdateGate
     - JobQueue, AgentRegistry, ModelRegistry, DatasetRegistry, ReceiptRegistry
     - ValidatorSet
-    - VoidToken (cap 666,666,666; premine 230,000,000; cap-enforced mint).
+    - VoidToken (cap 666,666,666; premine 333,333,333; cap-enforced mint).
 
 - Tokenomics:
   - Emissions schedule modeled and captured:
     - MAX_SUPPLY = 666,666,666 VOID
-    - PREMINE   = 230,000,000 VOID
-    - REMAINING_EMISSIONS = 436,666,666 VOID
+    - PREMINE   = 333,333,333 VOID
+    - REMAINING_EMISSIONS = 333,333,333 VOID
   - emissions_v1 helpers + validator_rewards_v1 helpers implemented in void-node.
   - Emissions sanity reports stored under docs/ (we have 2025-11-14).
 
@@ -118,7 +118,7 @@ Additional requirements on top of Phase 1:
 - Economics / Token:
   - VoidToken mainnet tokenomics exactly match:
     - MAX_SUPPLY = 666,666,666
-    - PREMINE    = 230,000,000
+    - PREMINE    = 333,333,333
     - Remaining emissions wired to validator rewards.
   - Genesis allocation and premine addressed in VOID-MAINNET-GENESIS-PLAN.md.
   - Emissions schedule and reward split frozen as v1 in docs + code.

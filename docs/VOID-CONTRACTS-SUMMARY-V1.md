@@ -52,7 +52,7 @@ tag `ckpt-2025-11-14-contracts-v1` + tokenomics commits.
 - `VoidToken.sol`
   - ERC20 for VoidStones (`name = "VoidStones"`, `symbol = "VOID"`, `decimals = 18`).
   - Hard cap: `MAX_SUPPLY = 666,666,666 * 1e18`.
-  - Premine: `PREMINE = 230,000,000 * 1e18` minted to deploy-time recipient.
+  - Premine: `PREMINE = 333,333,333 * 1e18` minted to deploy-time recipient.
   - `owner` is the deployer; only owner can mint, and cap is enforced on-chain.
 
 ## 4. Tokenomics / Emissions (Node-Side Helpers)
@@ -60,8 +60,8 @@ tag `ckpt-2025-11-14-contracts-v1` + tokenomics commits.
 - `docs/VOID-EMISSIONS-SCHEDULE.md`
   - Locks:
     - `MAX_SUPPLY = 666,666,666 VOID`
-    - `PREMINE   = 230,000,000 VOID`
-    - `REMAINING_EMISSIONS = 436,666,666 VOID`
+    - `PREMINE   = 333,333,333 VOID`
+    - `REMAINING_EMISSIONS = 333,333,333 VOID`
   - Emissions never fully stop; rewards decay so total supply stays <= MAX_SUPPLY.
 
 - `docs/VOID-EMISSIONS-PARAMS-V1.json`

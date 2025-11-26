@@ -12,7 +12,7 @@
 
 const DECIMALS = 10n ** 18n;
 const MAX_SUPPLY_VOID = 666_666_666n;
-const PREMINE_VOID = 230_000_000n;
+const PREMINE_VOID = 333_333_333n;
 
 const MAX_SUPPLY_WEI = MAX_SUPPLY_VOID * DECIMALS;
 const PREMINE_WEI = PREMINE_VOID * DECIMALS;
@@ -57,7 +57,7 @@ function buildMetrics(): string {
   lines.push(
     formatGauge(
       'void_reward_premine_wei',
-      'Premine for VOID in wei (230,000,000 * 1e18)',
+      'Premine for VOID in wei (333,333,333 * 1e18)',
       PREMINE_WEI,
     ),
   );

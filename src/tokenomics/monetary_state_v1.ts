@@ -6,14 +6,14 @@
 //
 // Canonical constants (must match docs/VOID-EMISSIONS-SCHEDULE.md):
 // - MAX_SUPPLY = 666,666,666 VOID
-// - PREMINE   = 230,000,000 VOID
-// - REMAINING = 436,666,666 VOID
+// - PREMINE   = 333,333,333 VOID
+// - REMAINING = 333,333,333 VOID
 
 export const VOID_DECIMALS = 18n;
 export const VOID_UNIT = 10n ** VOID_DECIMALS;
 
 export const MAX_SUPPLY_VOID = 666_666_666n;
-export const PREMINE_VOID    = 230_000_000n;
+export const PREMINE_VOID    = 333_333_333n;
 export const REMAINING_VOID  = MAX_SUPPLY_VOID - PREMINE_VOID;
 
 // In wei-style smallest units.
