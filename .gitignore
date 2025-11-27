@@ -58,3 +58,10 @@ docs/VOID-DEVNET-JOB-SPOOL.txt
 docs/VOID-DEVNET-MANIFEST-INDEX.txt
 docs/VOID-DEVNET-MANIFESTS/
 ops/reports/ai-diag.*.json
+
+# VOID mainnet bootstrap artifacts
+broadcast/VoidMainnetBootstrapDev.s.sol/
+broadcast/VoidMainnetBootstrapMainnet.s.sol/
+cache/VoidMainnetBootstrapDev.s.sol/
+cache/VoidMainnetBootstrapMainnet.s.sol/
+ops/mainnet-bootstrap-addresses.mainnet.json
