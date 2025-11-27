@@ -1,0 +1,68 @@
+{
+  "_note": "VOID mainnet bootstrap SAMPLE config. Do NOT use on real mainnet as-is.",
+  "_version": 1,
+
+  "network": {
+    "name": "void-mainnet-dev",
+    "chainId": 2050,
+    "rpcUrl": "http://127.0.0.1:8545",
+    "_note": "For anvil/dev rehearsal. Real mainnet will use a separate, locked config."
+  },
+
+  "tokenomics": {
+    "_note": "Human units (VOID), not wei. Script will scale by 10^decimals.",
+    "symbol": "VOID",
+    "name": "VoidStones",
+    "decimals": 18,
+    "maxSupply": 666666666,
+    "premine": 333333333,
+    "emissions": {
+      "era1": 177777777,
+      "era2": 88888889,
+      "era3": 44444444,
+      "era4": 22222223
+    }
+  },
+
+  "treasury": {
+    "_note": "Contract addresses to be deployed/minted during bootstrap.",
+    "voidTreasury": "0x0000000000000000000000000000000000000000",
+    "opsTreasury": "0x0000000000000000000000000000000000000000"
+  },
+
+  "gates": {
+    "_note": "Signer sets for AdminGate / UpdateGate / ConfigGate (addresses only).",
+    "adminGate": {
+      "signers": [],
+      "thresholdNumerator": 2,
+      "thresholdDenominator": 3
+    },
+    "updateGate": {
+      "signers": [],
+      "thresholdNumerator": 2,
+      "thresholdDenominator": 3
+    },
+    "configGate": {
+      "signers": [],
+      "thresholdNumerator": 2,
+      "thresholdDenominator": 3
+    }
+  },
+
+  "validatorSet": {
+    "_note": "Initial mainnet validator set (addresses + stakes in VOID, human units).",
+    "validators": [
+      {
+        "address": "0x0000000000000000000000000000000000000000",
+        "stake": 0
+      }
+    ],
+    "minStake": 0
+  },
+
+  "roles": {
+    "_note": "Externally-held EOAs that participate in bootstrap or Ops.",
+    "devBootstrapDeployer": "0x0000000000000000000000000000000000000000",
+    "mainnetBootstrapDeployer": "0x0000000000000000000000000000000000000000"
+  }
+}
