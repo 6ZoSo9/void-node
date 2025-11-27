@@ -196,7 +196,7 @@ contract VoidMainnetBootstrapDev is Script {
         return d;
     }
 
-    function run() external {
+    function run() external virtual {
         Roles memory R = devRoles();
 
         console2.log("=== VOID mainnet dev bootstrap (dev-sim) ===");
