@@ -11,3 +11,9 @@ via_ir          = true
 
 # added by void-ensure-forge-std-v2.sh
 remappings = ["forge-std/=lib/forge-std/src/"]
+
+# VOID mainnet bootstrap – allow scripts to read local config files
+fs_permissions = [
+  { access = "read", path = "./ops" },
+  { access = "read", path = "./" }
+]

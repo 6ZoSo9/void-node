@@ -1,53 +1,152 @@
-// SPDX-License-Identifier: VCL-1.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./VoidMainnetBootstrapDev.s.sol";
+// NOTE: This script is for REAL VOID MAINNET bootstrap.
+// It currently does not deploy anything; it only loads and validates
+// addresses from a JSON config and logs them. The broadcast block
+// will be wired later for real mainnet bootstrap.
 
-/// @notice Mainnet-oriented bootstrap script that reuses the dev _bootstrapCore
-///         but loads all roles from environment variables.
-/// For rehearsal we can point these env vars at dummy/dev keys; for REAL mainnet
-/// they must be fresh, never-reused keys per the LUKS/hardware-key plan.
-contract VoidMainnetBootstrapMainnet is VoidMainnetBootstrapDev {
-    /// @notice Load mainnet roles from environment variables.
-    /// All of these MUST be set in the environment / .env before running.
-    function mainnetRolesFromEnv() internal view returns (Roles memory R) {
-        // Core authority / premine path
-        R.deployer           = vm.envAddress("VOID_MAINNET_DEPLOYER");
-        R.masterKey          = vm.envAddress("VOID_MAINNET_MASTER_KEY");
-        R.configAdmin        = vm.envAddress("VOID_MAINNET_CONFIG_ADMIN");
-        R.validatorAdmin     = vm.envAddress("VOID_MAINNET_VALIDATOR_ADMIN");
-        R.emissionsAdmin     = vm.envAddress("VOID_MAINNET_EMISSIONS_ADMIN");
-        R.rewardsAdmin       = vm.envAddress("VOID_MAINNET_REWARDS_ADMIN");
-        R.voidOwner          = vm.envAddress("VOID_MAINNET_VOID_OWNER");
+import "forge-std/Script.sol";
+import "forge-std/StdJson.sol";
+import "forge-std/console.sol";
 
-        // Long-term allocations / beneficiaries
-        R.founderBeneficiary = vm.envAddress("VOID_MAINNET_FOUNDER_BENEFICIARY");
-        R.ecosystemReserve   = vm.envAddress("VOID_MAINNET_ECOSYSTEM_RESERVE");
-        R.communityPool      = vm.envAddress("VOID_MAINNET_COMMUNITY_POOL");
+contract VoidMainnetBootstrapMainnet is Script {
+    using stdJson for string;
 
-        // Treasury / ops controllers
-        R.voidTreasuryAdmin  = vm.envAddress("VOID_MAINNET_TREASURY_ADMIN");
-        R.opsTreasuryAdmin   = vm.envAddress("VOID_MAINNET_OPS_TREASURY_ADMIN");
-        R.opsSpender         = vm.envAddress("VOID_MAINNET_OPS_SPENDER");
+    struct BootstrapConfig {
+        uint256 chainId;
 
-        // AI / agent infra admins
-        R.agentAdmin         = vm.envAddress("VOID_MAINNET_AGENT_ADMIN");
-        R.datasetAdmin       = vm.envAddress("VOID_MAINNET_DATASET_ADMIN");
-        R.modelAdmin         = vm.envAddress("VOID_MAINNET_MODEL_ADMIN");
-        R.evalAdmin          = vm.envAddress("VOID_MAINNET_EVAL_ADMIN");
-        R.jobQueueAdmin      = vm.envAddress("VOID_MAINNET_JOBQUEUE_ADMIN");
-        R.receiptsAdmin      = vm.envAddress("VOID_MAINNET_RECEIPTS_ADMIN");
+        address deployer;
+
+        address masterKey;
+        address configAdmin;
+
+        address validatorAdmin;
+        address emissionsAdmin;
+        address rewardsAdmin;
+
+        address voidOwner;
+        address founderBeneficiary;
+        address ecosystemReserve;
+        address communityPool;
+
+        address voidTreasuryAdmin;
+        address opsTreasuryAdmin;
+        address opsSpender;
+
+        address agentAdmin;
+        address datasetAdmin;
+        address modelAdmin;
+        address evalAdmin;
+        address jobQueueAdmin;
+        address receiptsAdmin;
     }
 
-    /// @notice Mainnet bootstrap entrypoint using env-provided roles.
-    /// For rehearsals: call without --broadcast (or against an anvil/dev RPC).
-    /// For real VOID mainnet: call with --broadcast and REAL mainnet keys.
-    function run() external override {
-        Roles memory R = mainnetRolesFromEnv();
+    function _loadConfig(string memory path) internal view returns (BootstrapConfig memory cfg) {
+        string memory json = vm.readFile(path);
 
-        // Deployer key handles all constructor txs in _bootstrapCore.
-        vm.startBroadcast(R.deployer);
-        _bootstrapCore(R);
-        vm.stopBroadcast();
+        cfg.chainId            = json.readUint(".chainId");
+
+        cfg.deployer           = json.readAddress(".deployer");
+
+        cfg.masterKey          = json.readAddress(".masterKey");
+        cfg.configAdmin        = json.readAddress(".configAdmin");
+
+        cfg.validatorAdmin     = json.readAddress(".validatorAdmin");
+        cfg.emissionsAdmin     = json.readAddress(".emissionsAdmin");
+        cfg.rewardsAdmin       = json.readAddress(".rewardsAdmin");
+
+        cfg.voidOwner          = json.readAddress(".voidOwner");
+        cfg.founderBeneficiary = json.readAddress(".founderBeneficiary");
+        cfg.ecosystemReserve   = json.readAddress(".ecosystemReserve");
+        cfg.communityPool      = json.readAddress(".communityPool");
+
+        cfg.voidTreasuryAdmin  = json.readAddress(".voidTreasuryAdmin");
+        cfg.opsTreasuryAdmin   = json.readAddress(".opsTreasuryAdmin");
+        cfg.opsSpender         = json.readAddress(".opsSpender");
+
+        cfg.agentAdmin         = json.readAddress(".agentAdmin");
+        cfg.datasetAdmin       = json.readAddress(".datasetAdmin");
+        cfg.modelAdmin         = json.readAddress(".modelAdmin");
+        cfg.evalAdmin          = json.readAddress(".evalAdmin");
+        cfg.jobQueueAdmin      = json.readAddress(".jobQueueAdmin");
+        cfg.receiptsAdmin      = json.readAddress(".receiptsAdmin");
+    }
+
+    function _requireNonZero(address a, string memory label) internal pure {
+        require(a != address(0), string.concat(label, "=0"));
+    }
+
+    /// @notice Main entrypoint for VOID mainnet bootstrap validation.
+    /// Uses VOID_MAINNET_BOOTSTRAP_CONFIG if set, otherwise falls back
+    /// to ops/mainnet-bootstrap-addresses.mainnet.json.
+    function run() external {
+        string memory defaultPath = "ops/mainnet-bootstrap-addresses.mainnet.json";
+        string memory path;
+
+        // Allow override via env var VOID_MAINNET_BOOTSTRAP_CONFIG.
+        // If unset, fall back to defaultPath.
+        try vm.envString("VOID_MAINNET_BOOTSTRAP_CONFIG") returns (string memory p) {
+            path = p;
+        } catch {
+            path = defaultPath;
+        }
+
+        BootstrapConfig memory cfg = _loadConfig(path);
+
+        // Basic invariants
+        require(cfg.chainId == block.chainid, "chainId mismatch");
+
+        _requireNonZero(cfg.deployer,          "deployer");
+        _requireNonZero(cfg.masterKey,         "masterKey");
+        _requireNonZero(cfg.configAdmin,       "configAdmin");
+        _requireNonZero(cfg.validatorAdmin,    "validatorAdmin");
+        _requireNonZero(cfg.emissionsAdmin,    "emissionsAdmin");
+        _requireNonZero(cfg.rewardsAdmin,      "rewardsAdmin");
+        _requireNonZero(cfg.voidTreasuryAdmin, "voidTreasuryAdmin");
+        _requireNonZero(cfg.opsTreasuryAdmin,  "opsTreasuryAdmin");
+        _requireNonZero(cfg.opsSpender,        "opsSpender");
+        _requireNonZero(cfg.jobQueueAdmin,     "jobQueueAdmin");
+        _requireNonZero(cfg.receiptsAdmin,     "receiptsAdmin");
+
+        console.log("=== VOID mainnet bootstrap (MAINNET skeleton) ===");
+        console.log("config path       :", path);
+        console.log("chainId (cfg)     :", cfg.chainId);
+        console.log("chainId (block)   :", block.chainid);
+        console.log("deployer          :", cfg.deployer);
+
+        console.log("masterKey         :", cfg.masterKey);
+        console.log("configAdmin       :", cfg.configAdmin);
+
+        console.log("validatorAdmin    :", cfg.validatorAdmin);
+        console.log("emissionsAdmin    :", cfg.emissionsAdmin);
+        console.log("rewardsAdmin      :", cfg.rewardsAdmin);
+
+        console.log("voidOwner         :", cfg.voidOwner);
+        console.log("founderBeneficiary:", cfg.founderBeneficiary);
+        console.log("ecosystemReserve  :", cfg.ecosystemReserve);
+        console.log("communityPool     :", cfg.communityPool);
+
+        console.log("voidTreasuryAdmin :", cfg.voidTreasuryAdmin);
+        console.log("opsTreasuryAdmin  :", cfg.opsTreasuryAdmin);
+        console.log("opsSpender        :", cfg.opsSpender);
+
+        console.log("agentAdmin        :", cfg.agentAdmin);
+        console.log("datasetAdmin      :", cfg.datasetAdmin);
+        console.log("modelAdmin        :", cfg.modelAdmin);
+        console.log("evalAdmin         :", cfg.evalAdmin);
+        console.log("jobQueueAdmin     :", cfg.jobQueueAdmin);
+        console.log("receiptsAdmin     :", cfg.receiptsAdmin);
+
+        // REAL DEPLOYMENT WILL GO HERE LATER:
+        //
+        // vm.startBroadcast(cfg.deployer);
+        //
+        //   // 1) Deploy VoidToken, OpsTreasury, VoidTreasury, AdminGate,
+        //   //    ConfigGate, ValidatorSet, EmissionsController, RewardEngine.
+        //   // 2) Wire roles exactly as per our locked tokenomics & gates plan.
+        //   // 3) Move premine into VoidTreasury, set OpsTreasury spenders, etc.
+        //
+        // vm.stopBroadcast();
     }
 }
