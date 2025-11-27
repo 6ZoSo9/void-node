@@ -1,306 +1,313 @@
 # VOID Network – Mainnet Genesis Plan (v1)
 
-This doc sketches the **genesis plan** for VOID mainnet (chainId **2050**).
+This document is the **operational playbook** for building and launching
+VOID mainnet genesis (chainId 2050) in a way that matches our locked specs:
 
-It does NOT define the full genesis JSON yet; it defines:
-- which contracts must exist at or near genesis,
-- how they relate to each other,
-- what invariants must hold before we call a network “VOID mainnet”.
+- `docs/VOID-TOKENOMICS-SPEC-V1.md`
+- `docs/VOID-EMISSIONS-SCHEDULE.md`
+- `docs/VOID-EMISSIONS-PARAMS-V1.json`
+- `docs/VOID-MONETARY-SPEC-V1.md`
+- `docs/VOID-MAINNET-GENESIS-SPEC-V1.md`
+- `docs/VOID-VALIDATOR-SET-SPEC-V1.md`
+- `docs/VOID-VALIDATOR-REWARD-INTEGRATION-V1.md`
+- `docs/VOID-MAINNET-KEYS-PLAN.md`
+- `docs/VOID-MAINNET-ALLOCATION-SPEC.md`
 
-The idea: by the time we launch mainnet, this file should be nearly identical
-to the human-readable version of the real genesis manifest.
-
----
-
-## 0. High-level goals
-
-- Chain ID: **2050**.
-- Network keeps running **without** the MasterKey present.
-- MasterKey is only for:
-  - wiring / migrating system contracts,
-  - protocol update signalling (via UpdateGate),
-  - AI policy safety levers (trusted models/datasets, kill-switch for bad agents).
-- **Any user** can:
-  - deploy arbitrary contracts,
-  - use VOID as a normal EVM chain,
-  - read all AI registries and job queues permissionlessly.
-
-VOID is AI-centered by default:
-- Core AI contracts (JobQueue, AgentRegistry, ModelRegistry, DatasetRegistry,
-  ReceiptRegistry) are first-class citizens at or near genesis.
-- ConfigGate exposes AI pointers so wallets / agents don’t have to guess.
+The goal is a **repeatable, auditable path** from these specs to a concrete
+genesis manifest and genesis JSON that any third party can re-derive.
 
 ---
 
-## 1. Core system contracts at/near genesis
+## 1. High-level constraints (recap)
 
-These are the “system” contracts that VOID nodes and infra are expected to know
-about and/or follow.
+From the locked tokenomics + monetary specs:
 
-### 1.1 Governance / control plane
+- `MAX_SUPPLY_VOID`      = **666,666,666 VOID**
+- `PREMINE_VOID`         = **333,333,333 VOID**
+- `EMISSIONS_TOTAL_VOID` = **333,333,333 VOID**
 
-- **AdminGate**
-  - Holds the **MasterKey**.
-  - Can wire “system contracts” by key, e.g.:
-    - `ADMIN_GATE`
-    - `CONFIG_GATE`
-    - `UPDATE_GATE`
-    - `JOB_QUEUE`
-    - `AGENT_REGISTRY`
-    - `MODEL_REGISTRY`
-    - `DATASET_REGISTRY`
-    - `RECEIPT_REGISTRY`
-  - Can rotate the MasterKey (with appropriate ceremony).
-  - Is _not_ a kill switch: cannot pause consensus or spend user funds by itself.
+For **genesis v1**:
 
-- **ConfigGate**
-  - Holds typed config values (`uint`, `bool`, `address`) keyed by `bytes32`.
-  - Writers: **AdminGate** only in v1.
-  - Intended usage:
-    - Vector7 / WAL thresholds (`WAL_MAX_PRESSURE`, etc.).
-    - Block limits (`MAX_BLOCK_GAS` or weight).
-    - AI pointers:
-      - `AI_JOB_QUEUE_ADDR`
-      - `AI_AGENT_REGISTRY_ADDR`
-      - `AI_MODEL_REGISTRY_ADDR`
-      - `AI_DATASET_REGISTRY_ADDR`
-      - `AI_RECEIPT_REGISTRY_ADDR`
-    - Policy hints:
-      - `AI_DEFAULT_MODEL`
-      - `AI_DEFAULT_DATASET`
-      - `AI_AGENT_MAX_JOBS`
-      - `UPDATE_POLICY_DEFAULT`
-  - NO arbitrary external calls, NO consensus pause.
+1. The **entire premine** (333,333,333 VOID) sits in **VoidTreasury** only.
+2. No validators receive any premine at genesis.
+3. All long-term validator rewards come from **emissions**, via:
+   - `RewardEngine` (emissions budget + validator claims)
+   - `ValidatorSet` (voting power / active set)
+4. On-chain balances at height 0 must satisfy:
 
-- **UpdateGate**
-  - Maintains protocol versions and update manifests.
-  - Tracks signers (M-of-N) who can approve an update.
-  - Stores:
-    - `currentVersion`
-    - history of `Update` structs with:
-      - `updateId`
-      - `manifestHash`
-      - `version`
-      - `activationHeight`
-      - `emergency` flag
-      - signer approvals
-  - Consulted by nodes that opt-in to “follow canonical protocol versions”.
-  - Cannot halt block production by itself.
+   - `totalSupply(0) = PREMINE_VOID`
+   - `totalMinted(0) = PREMINE_VOID`
+   - No other addresses hold VOID at height 0 except the treasury
+     and any explicitly documented special cases in
+     `VOID-MAINNET-ALLOCATION-SPEC.md` (which **must not** include
+     direct validator balances).
 
-### 1.2 AI registries + job plane
+5. All constants and allocations used during genesis build must be
+   **consistent with the Prometheus spec health gauge**:
 
-- **JobQueue**
-  - On-chain registry of jobs.
-  - Stores:
-    - `jobId`
-    - `poster`
-    - `appId` / `tag`
-    - hashes for payload / params
-    - status (posted / claimed / completed / cancelled / expired)
-  - Emits events so off-chain agents can pick up work.
-  - Does not do AI work itself.
-
-- **AgentRegistry**
-  - Registry of off-chain agents.
-  - Each agent:
-    - `agentAddress`
-    - `owner`
-    - `metadataURI`
-    - `active`
-    - `trusted` (MasterKey-controlled)
-    - timestamps
-  - Owner controls metadata + `active`.
-  - MasterKey controls `trusted` and emergency deactivation.
-
-- **ModelRegistry**
-  - Registry of AI models, keyed by `modelKey` (`bytes32`).
-  - Each model:
-    - `owner`
-    - `versionHash`
-    - `metadataURI`
-    - `active`
-    - `trusted` (MasterKey-controlled)
-    - timestamps
-  - Open registration in v1 (anyone can register).
-  - MasterKey can mark trusted/untrusted and force deactivation.
-
-- **DatasetRegistry**
-  - Registry of datasets / corpora, keyed by `datasetKey`.
-  - Fields mirror ModelRegistry:
-    - `owner`
-    - `versionHash`
-    - `metadataURI`
-    - `active`
-    - `trusted`
-    - timestamps
-  - Used to track what data models are trained on / allowed to use.
-
-- **ReceiptRegistry**
-  - Ledger of job receipts:
-    - `receiptId`
-    - `jobId`
-    - `agentId`
-    - `modelId`
-    - `datasetId`
-    - `resultHash`
-    - `proofHash`
-    - `metadataURI`
-    - `status`
-    - `submitter`
-    - `createdAt`
-  - Does **not** enforce correctness.
-  - Must be cheap to write; trust / scoring is off-chain.
+   - `void_mainnet_tokenomics_spec_health == 1`
+   - `void:mainnet_tokenomics:spec_health:last_5m == 1`
 
 ---
 
-## 2. Boot order / deployment order
+## 2. Required inputs
 
-When we eventually deploy to real VOID mainnet (chainId 2050), the recommended
-order is:
+Before building the genesis manifest, we must lock down the following files
+and treat them as **source of truth**:
 
-1. Deploy **AdminGate** with:
-   - `chainId = 2050`
-   - `masterKey = MASTER_KEY_ADDR`
-   - `updateGate = address(0)` initially.
+1. **Tokenomics + emissions**
 
-2. Deploy **ConfigGate** with:
-   - `chainId = 2050`
-   - `adminGate = address(AdminGate)`.
+   - `docs/VOID-TOKENOMICS-SPEC-V1.md`
+   - `docs/VOID-EMISSIONS-SCHEDULE.md`
+   - `docs/VOID-EMISSIONS-PARAMS-V1.json`
+   - `docs/VOID-MONETARY-SPEC-V1.md`
+   - `docs/VOID-EMISSIONS-SANITY-2025-11-14.txt` (sanity notes)
 
-3. Deploy **UpdateGate** with:
-   - `chainId = 2050`
-   - `masterKey = MASTER_KEY_ADDR`
-   - signer set seeded (M-of-N; details TBD).
+2. **Genesis layout**
 
-4. Deploy AI registries:
-   - `AgentRegistry(masterKey)`
-   - `ModelRegistry(masterKey)`
-   - `DatasetRegistry(masterKey)`
-   - `JobQueue(...)` (constructor TBD; v1 may take no special args)
-   - `ReceiptRegistry()` (constructor TBD; v1 may take no special args)
+   - `docs/VOID-MAINNET-GENESIS-SPEC-V1.md`
+   - `docs/VOID-MAINNET-ALLOCATION-SPEC.md`
 
-5. Wire AdminGate system contracts:
-   - `setSystemContract("ADMIN_GATE",   AdminGate)`
-   - `setSystemContract("CONFIG_GATE",  ConfigGate)`
-   - `setSystemContract("UPDATE_GATE",  UpdateGate)`
-   - `setSystemContract("JOB_QUEUE",    JobQueue)`
-   - `setSystemContract("AGENT_REGISTRY",   AgentRegistry)`
-   - `setSystemContract("MODEL_REGISTRY",   ModelRegistry)`
-   - `setSystemContract("DATASET_REGISTRY", DatasetRegistry)`
-   - `setSystemContract("RECEIPT_REGISTRY", ReceiptRegistry)`
+3. **Validators + rewards**
 
-6. Seed ConfigGate AI pointers:
-   - `setAddress("AI_JOB_QUEUE_ADDR",       JobQueue)`
-   - `setAddress("AI_AGENT_REGISTRY_ADDR",  AgentRegistry)`
-   - `setAddress("AI_MODEL_REGISTRY_ADDR",  ModelRegistry)`
-   - `setAddress("AI_DATASET_REGISTRY_ADDR",DatasetRegistry)`
-   - `setAddress("AI_RECEIPT_REGISTRY_ADDR",ReceiptRegistry)`
+   - `docs/VOID-VALIDATOR-SET-SPEC-V1.md`
+   - `docs/VOID-VALIDATOR-REWARD-INTEGRATION-V1.md`
 
-7. Seed safety / policy defaults via ConfigGate:
-   - `setUint("WAL_MAX_PRESSURE", ...)`
-   - `setUint("MAX_BLOCK_GAS",    ...)`
-   - `setUint("AI_AGENT_MAX_JOBS",...)`
-   - `setBool("UPDATE_POLICY_DEFAULT", true/false)` etc.
+4. **Keys and addresses**
 
-The **actual concrete values** (signers, limits) live in the runbook +
-final manifest, but this ordering is the backbone.
+   - `docs/VOID-MAINNET-KEYS-PLAN.md` (treasury, admin, UpdateGate,
+     ConfigGate, master keys, etc.)
+
+5. **Contracts & ABIs**
+
+   - `contracts/mainnet/VoidToken.sol`
+   - `contracts/mainnet/VoidTreasury.sol`
+   - `contracts/mainnet/OpsTreasury.sol`
+   - `contracts/mainnet/RewardEngine.sol`
+   - `contracts/mainnet/ValidatorSet.sol`
+   - `contracts/mainnet/IRewardEngineLike.sol`
+   - `contracts/mainnet/IValidatorSetLike.sol`
+
+All of the above must be **green in CI** (Foundry tests passing) before we
+attempt a real genesis build.
 
 ---
 
-## 3. Genesis invariants / sanity checks
+## 3. Concrete genesis shape (what we’re building)
 
-Before calling anything “VOID mainnet”:
+At a high level, genesis for chainId 2050 must contain:
 
-1. **Contract code hash lock**
-   - For each system contract, we record:
-     - `bytecodeHash`
-     - `constructor args`
-   - These must match what’s built by `forge build` at the
-     `ckpt-2025-11-14-contracts-v1` tag (or a later explicitly blessed tag).
+1. **Chain metadata**
 
-2. **Chain ID**
-   - On-chain chainId must be 2050.
-   - Contracts that store `chainId` (AdminGate, ConfigGate, UpdateGate) must
-     have `chainId() == 2050`.
+   - `chainId`: `2050`
+   - Human label: `VOID-MAINNET`
+   - Initial block height: `0`
+   - Genesis timestamp: ISO8601 UTC (`TBD` at launch time)
 
-3. **MasterKey wiring**
-   - `AdminGate.masterKey() == MASTER_KEY_ADDR`.
-   - `UpdateGate.masterKey() == MASTER_KEY_ADDR`.
-   - All registries using MasterKey must show the same `masterKey`.
+2. **System contracts + code**
 
-4. **System contract wiring via AdminGate**
-   - `systemContracts("CONFIG_GATE") == ConfigGate`.
-   - `systemContracts("UPDATE_GATE") == UpdateGate`.
-   - `systemContracts("JOB_QUEUE") == JobQueue`.
-   - `systemContracts("AGENT_REGISTRY") == AgentRegistry`.
-   - `systemContracts("MODEL_REGISTRY") == ModelRegistry`.
-   - `systemContracts("DATASET_REGISTRY") == DatasetRegistry`.
-   - `systemContracts("RECEIPT_REGISTRY") == ReceiptRegistry`.
+   Deployed (or “predeployed”) at the addresses chosen in
+   `VOID-MAINNET-KEYS-PLAN.md` and `VOID-MAINNET-GENESIS-SPEC-V1.md`:
 
-5. **ConfigGate pointers**
-   - All AI pointer keys in ConfigGate match what AdminGate knows.
-   - Optional: a “self-check” script that reads both and asserts equality.
+   - `VoidToken` (main ERC-20, symbol `VOID`, 18 decimals)
+   - `VoidTreasury`
+   - `OpsTreasury`
+   - `RewardEngine`
+   - `ValidatorSet`
+   - Any minimal gate or registry contracts we consider **core** for mainnet v1
+     (e.g. `UpdateGate`, `ConfigGate`) — these must be explicitly listed
+     in the genesis spec.
 
-6. **Upgradeable but not kill-switch**
-   - There is **no single call** from AdminGate / ConfigGate / UpdateGate that
-     can:
-     - pause consensus,
-     - seize arbitrary user funds,
-     - make arbitrary external calls to user contracts.
-   - Update powers are limited to signalling & pointers.
+3. **Balances and supply**
 
-7. **Registries operational**
-   - A dry-run script on a staging network MUST:
-     - register an agent,
-     - register a model,
-     - register a dataset,
-     - post a job,
-     - write a receipt,
-     - mark model/dataset/agent as trusted/untrusted.
-   - All of that must pass tests and basic manual checks before mainnet.
+   - `VoidToken` totalSupply at genesis: `PREMINE_VOID` (scaled to 18 decimals).
+   - `VoidTreasury` balance: full premine.
+   - No other addresses should hold VOID except for any explicitly documented
+     special-case allocations (if we ever decide to carve out something like an
+     immediate liquidity pool or migration pool — those must be documented
+     line-by-line in `VOID-MAINNET-ALLOCATION-SPEC.md` and still respect the
+     “no direct validator premine” rule).
+
+4. **Validator set**
+
+   - A concrete list of validators and their voting powers, written into
+     the `ValidatorSet` contract’s storage at height 0.
+   - This must match the logical spec in `VOID-VALIDATOR-SET-SPEC-V1.md`
+     and be consistent with the addresses in `VOID-MAINNET-KEYS-PLAN.md`.
+
+5. **Reward engine**
+
+   - `RewardEngine` must be initialized with:
+     - `emissionsBudget = EMISSIONS_TOTAL_VOID` (scaled to 18 decimals)
+     - `admin` address as per keys plan
+     - `validatorSet` address
+   - No emissions are pulled at genesis; `totalPulled == 0`.
 
 ---
 
-## 4. Relationship to repos / tags
+## 4. Genesis build pipeline (planned)
 
-- Source of truth for contracts: this repo (void-node) under:
-  - `contracts/*.sol`
-  - `test/*.t.sol`
-  - `ops/void-contracts-build.sh`
-  - `.github/workflows/contracts-ci.yml`
-- Foundry CI:
-  - Must be green at the tag used for genesis.
-  - Tag example: `ckpt-2025-11-14-contracts-v1`.
+The recommended pipeline is:
 
-When we are closer to mainnet, we’ll add:
+1. **Freeze specs**
 
-- A concrete **deployment manifest** (JSON) including:
-  - addresses, tx hashes, bytecode hashes,
-  - constructor args,
-  - verification URLs.
-- A small CLI or script that:
-  - deploys these contracts to a target network,
-  - verifies them on a block explorer,
-  - writes out a `contracts.genesis.json` manifest
-    that can be embedded into a VOID genesis file.
+   - Tag the repo with a “spec freeze” tag, e.g.:
+
+     - `ckpt-mainnet-spec-freeze-YYYYMMDD-HHMMSS`
+
+   - Ensure all spec docs listed in section 2 are committed and pushed.
+
+2. **Derive canonical JSON inputs**
+
+   Write a deterministic script (e.g. `ops/void-mainnet-genesis-build.sh`)
+   that:
+
+   - Reads:
+     - `docs/VOID-MAINNET-GENESIS-SPEC-V1.md`
+     - `docs/VOID-MAINNET-ALLOCATION-SPEC.md`
+     - `docs/VOID-MAINNET-KEYS-PLAN.md`
+     - `docs/VOID-VALIDATOR-SET-SPEC-V1.md`
+     - `docs/VOID-VALIDATOR-REWARD-INTEGRATION-V1.md`
+   - Emits:
+     - `ops/genesis/void-mainnet-addresses.json`
+     - `ops/genesis/void-mainnet-balances.json`
+     - `ops/genesis/void-mainnet-validators.json`
+     - `ops/genesis/void-mainnet-reward-engine.json`
+
+   These JSON files should be **pure data**, no logic.
+
+3. **Construct genesis manifest**
+
+   From the above JSON inputs, build a single manifest:
+
+   - `ops/genesis/void-mainnet-genesis-manifest.json`
+
+   This manifest should include:
+
+   - `chainId`
+   - `genesisTime`
+   - `tokenomics` block (copy of constants)
+   - `contracts` with code hashes + addresses
+   - `balances` mapping (token balances)
+   - `validators` (addresses + powers)
+   - `rewardEngine` config (budget, admin, links)
+
+4. **Generate client-specific genesis file**
+
+   Finally, transform the manifest into whatever format `void-node` expects
+   for its genesis import, e.g.:
+
+   - `ops/genesis/void-mainnet-genesis-voidnode.json`
+
+   `void-node` should be able to **verify** that this JSON is consistent with
+   the manifest (and ideally with the raw spec docs), or at minimum record the
+   manifest hash in node logs / metrics.
 
 ---
 
-## 5. Open TODOs before real mainnet
+## 5. Pre-launch checks
 
-- Decide concrete values for:
-  - signer set for UpdateGate (addresses, M-of-N),
-  - MasterKey storage / ceremony,
-  - WAL / Vector7 defaults,
-  - block gas / weight limits,
-  - default AI model/dataset flags (if any).
-- Write and freeze:
-  - a non-interactive deployment script (likely under `ops/`),
-  - a verification script that checks all invariants above against a live RPC.
-- Align node implementation:
-  - have void-node read ConfigGate AI pointers (optional at first),
-  - expose them via diagnostics endpoints so agents/wallets can confirm.
+Before we launch VOID mainnet, we must pass these checks:
 
-This document is the human-readable spec for what a “VOID mainnet genesis”
-must satisfy. The actual genesis manifest should be a tighter JSON+/CBOR
-encoding of the same facts.
+1. **Spec health**
+
+   - `void_mainnet_tokenomics_spec_health == 1`
+   - `void:mainnet_tokenomics:spec_health:last_5m == 1`
+
+2. **Genesis manifest sanity**
+
+   - Total premine equals `PREMINE_VOID`.
+   - Emissions budget in `RewardEngine` equals `EMISSIONS_TOTAL_VOID`.
+   - Sum of balances equals `PREMINE_VOID`.
+   - No direct validator balances in the premine.
+
+3. **Validator set sanity**
+
+   - `totalPower() > 0`
+   - `getActiveValidators().length > 0`
+   - `totalPower()` equals the sum of `getVotingPower(v)` over
+     `getValidators()`.
+
+4. **Key plan consistency**
+
+   - All addresses in the manifest match `VOID-MAINNET-KEYS-PLAN.md`.
+   - Premine address is the **cold VoidTreasury** address from the keys plan.
+   - Admin / gate addresses match the plan.
+
+5. **Reproducibility**
+
+   - At least one independent re-run of the genesis build script (on a second
+     machine or clean environment) must produce the **same manifest hash**.
+
+---
+
+## 6. Launch sequence (high level)
+
+1. **Finalize tag**
+
+   - Create a final release tag, e.g.:
+
+     - `void-mainnet-genesis-v1`
+
+   - This tag references the exact commit (code + docs) used to build the
+     manifest.
+
+2. **Distribute manifest & binaries**
+
+   - Publish:
+     - `void-node` binary (or installation instructions).
+     - `void-mainnet-genesis-manifest.json`
+     - `void-mainnet-genesis-voidnode.json`
+   - Optionally, publish a **human-readable report** summarizing:
+     - premine
+     - validator set
+     - reward engine config
+     - key roles
+
+3. **Validator bring-up**
+
+   - Validators initialize their nodes with the published genesis JSON.
+   - Validators verify:
+     - manifest hash
+     - chainId = 2050
+     - their own validator address and expected voting power
+
+4. **Genesis block**
+
+   - At the configured genesis time, validators start their nodes.
+   - Network begins producing blocks.
+   - Monitoring immediately checks:
+     - heads advancing
+     - txroot/header3/seals health
+     - mainnet_core / lastmile / tokenomics SLOs
+     - reward engine and validator set metrics (once integrated)
+
+---
+
+## 7. Post-launch guardrails
+
+Once mainnet is live:
+
+1. Keep the **genesis manifest immutable**. Any changes must be treated as a
+   fork with a new chainId (not applicable for normal upgrades).
+
+2. Future changes to tokenomics, validator sets, or reward logic must:
+
+   - Respect the total supply cap and emissions budget.
+   - Preserve the rule: **premine does not go directly to validators**.
+   - Go through the UpdateGate / ConfigGate process, with proper
+     monitoring and rollback plans.
+
+3. All production incidents related to monetary policy, validator rewards,
+   or generator bugs must refer back to:
+
+   - `VOID-MONETARY-SPEC-V1.md`
+   - `VOID-TOKENOMICS-SPEC-V1.md`
+   - `VOID-MAINNET-GENESIS-SPEC-V1.md`
+   - `VOID-VALIDATOR-SET-SPEC-V1.md`
+   - `VOID-VALIDATOR-REWARD-INTEGRATION-V1.md`
+   - `VOID-MAINNET-KEYS-PLAN.md`
+   - `VOID-MAINNET-GENESIS-PLAN.md` (this file)
+
+as the canonical design and operational intent for mainnet genesis v1.
+
