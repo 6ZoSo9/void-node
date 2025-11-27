@@ -11,11 +11,11 @@ if ! command -v forge >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[bootstrap-dryrun] running forge script dryrun (compile + simulate)..."
-# We treat failure as a warning for now so missing RPC config doesn't break pipes.
-if ! forge script script/VoidMainnetBootstrap.s.sol --dry-run; then
-  echo "[bootstrap-dryrun] WARN: forge script failed (likely missing rpc-url/FOUNDRY_ETH_RPC_URL); ignoring for now"
-  exit 0
+echo "[bootstrap-dryrun] running forge compile for mainnet bootstrap script..."
+# Keep it simple: compile the whole repo so the script + contracts are type-checked.
+if ! forge compile; then
+  echo "[bootstrap-dryrun] ERROR: forge compile failed"
+  exit 1
 fi
 
-echo "[bootstrap-dryrun] OK (script compiled and dryrun succeeded)"
+echo "[bootstrap-dryrun] OK (forge compile succeeded)"
