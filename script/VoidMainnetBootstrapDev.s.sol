@@ -4,34 +4,29 @@ pragma solidity ^0.8.20;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 
-// NOTE: When you're ready to actually wire deployments, uncomment the imports you need
-// and line up constructor args with your real contracts.
-//
-// import {VoidToken} from "../contracts/VoidToken.sol";
-// import {VoidPremineVault} from "../contracts/VoidPremineVault.sol";
-// import {VoidFounderTrustVesting} from "../contracts/VoidFounderTrustVesting.sol";
-// import {AdminGate} from "../contracts/AdminGate.sol";
-// import {ConfigGate} from "../contracts/ConfigGate.sol";
-// import {VoidEmissionsController} from "../contracts/VoidEmissionsController.sol";
-// import {VoidTreasury} from "../contracts/mainnet/VoidTreasury.sol";
-// import {OpsTreasury} from "../contracts/mainnet/OpsTreasury.sol";
-// import {RewardEngine} from "../contracts/mainnet/RewardEngine.sol";
-// import {ValidatorSet} from "../contracts/mainnet/ValidatorSet.sol";
-// import {JobQueue} from "../contracts/JobQueue.sol";
-// import {ReceiptRegistry} from "../contracts/ReceiptRegistry.sol";
-// import {AgentRegistry} from "../contracts/AgentRegistry.sol";
-// import {DatasetRegistry} from "../contracts/DatasetRegistry.sol";
-// import {ModelRegistry} from "../contracts/ModelRegistry.sol";
-// import {ModelEvalRegistry} from "../contracts/ModelEvalRegistry.sol";
-// import {JobReceipts} from "../contracts/JobReceipts.sol";
+import {VoidToken} from "../contracts/VoidToken.sol";
+import {VoidEmissionsController} from "../contracts/VoidEmissionsController.sol";
+import {AdminGate} from "../contracts/AdminGate.sol";
+import {ConfigGate} from "../contracts/ConfigGate.sol";
+import {ValidatorSet} from "../contracts/mainnet/ValidatorSet.sol";
+import {RewardEngine} from "../contracts/mainnet/RewardEngine.sol";
+import {VoidTreasury} from "../contracts/mainnet/VoidTreasury.sol";
+import {OpsTreasury} from "../contracts/mainnet/OpsTreasury.sol";
+import {IVoidTokenLike} from "../contracts/mainnet/IVoidTokenLike.sol";
+import {IValidatorSetLike} from "../contracts/mainnet/IValidatorSetLike.sol";
 
 /// @dev Dev-sim bootstrap for VOID mainnet stack.
-///      This does NOT deploy anything yet; it gives you a single place to
-///      define dev addresses and the call-order. You fill in the new Foo(...)
-///      lines once you line up constructor signatures.
+///      This version actually deploys core contracts and moves the premine
+///      into VoidTreasury on an ephemeral chain (or devnet fork).
+///
+///      It is **not** the real mainnet bootstrap. Later we will add a
+///      VoidMainnetBootstrapMainnet that fills the same Roles struct from
+///      env variables tied to LUKS/hardware keys.
 contract VoidMainnetBootstrapDev is Script {
+    uint256 internal constant VOID_CHAIN_ID = 2050;
+
     /// @dev Key dev addresses / roles we’ll use in simulations.
-    struct DevRoles {
+    struct Roles {
         address deployer;
 
         // top-level governance / admin
@@ -42,7 +37,7 @@ contract VoidMainnetBootstrapDev is Script {
         address rewardsAdmin;     // Reward engine admin
 
         // treasury / premine plumbing
-        address voidOwner;        // initial VoidToken owner (can be VoidTreasury in dev)
+        address voidOwner;        // initial VoidToken owner (here: deployer; premine ends up in Treasury)
         address founderBeneficiary;
         address ecosystemReserve;
         address communityPool;
@@ -62,18 +57,33 @@ contract VoidMainnetBootstrapDev is Script {
         address receiptsAdmin;
     }
 
+    /// @dev Handles deployed core contracts for logging / inspection.
+    struct Deployed {
+        VoidToken token;
+        VoidEmissionsController emissions;
+        AdminGate adminGate;
+        ConfigGate configGate;
+        ValidatorSet validatorSet;
+        OpsTreasury opsTreasury;
+        VoidTreasury voidTreasury;
+        RewardEngine rewardEngine;
+    }
+
     /// @dev Dev-only deterministic addresses. For real mainnet, you’ll
     ///      replace these with env-driven values: vm.envAddress("VOID_MASTER_KEY"), etc.
-    function devRoles() internal pure returns (DevRoles memory r) {
+    function devRoles() internal pure returns (Roles memory r) {
         // These are all tiny hex literals; they’re just labels in dev-sim.
         r.deployer           = address(0xD00D);
+
+        // governance
         r.masterKey          = address(0xA11CE);
         r.configAdmin        = address(0xA11CE);
         r.validatorAdmin     = address(0xBEEF);
         r.emissionsAdmin     = address(0xBEEF);
         r.rewardsAdmin       = address(0xBEEF);
 
-        r.voidOwner          = address(0xD00D);
+        // premine / treasury plumbing
+        r.voidOwner          = address(0xD00D);      // deployer/owner; premine will be moved into Treasury
         r.founderBeneficiary = address(0xF00D);
         r.ecosystemReserve   = address(0xE550);
         r.communityPool      = address(0xC001);
@@ -82,19 +92,114 @@ contract VoidMainnetBootstrapDev is Script {
         r.opsTreasuryAdmin   = address(0xC0FFEE);
         r.opsSpender         = address(0xCAFE);
 
+        // AI infra admins (not wired yet, but reserved)
         r.agentAdmin         = address(0xA91317);
         r.datasetAdmin       = address(0xD47537);
-        r.modelAdmin         = address(0xAD031); // <-- replace with a real hex before using
+        r.modelAdmin         = address(0xAD031);
         r.evalAdmin          = address(0xE7A11);
 
+        // job / receipts infra
         r.jobQueueAdmin      = address(0xFABB1E);
         r.receiptsAdmin      = address(0xF00BA4);
     }
 
-    function run() external {
-        DevRoles memory R = devRoles();
+    /// @dev Core bootstrap logic: deploys mainnet-ish contracts and moves
+    ///      the entire PREMINE into VoidTreasury.
+    function _bootstrapCore(Roles memory R) internal returns (Deployed memory d) {
+        console2.log("=== [core] deploy VoidToken ===");
+        d.token = new VoidToken(R.voidOwner);
+        // Owner is msg.sender (R.deployer) inside constructor; premine is minted to R.voidOwner.
 
-        console2.log("=== VOID mainnet dev bootstrap (skeleton) ===");
+        uint256 premine = d.token.balanceOf(R.voidOwner);
+        uint256 expectedPremine = d.token.PREMINE();
+        require(premine == expectedPremine, "bootstrap: premine mismatch");
+
+        console2.log("VoidToken.totalSupply :", d.token.totalSupply());
+        console2.log("VoidToken.PREMINE     :", expectedPremine);
+        console2.log("VoidToken.owner       :", d.token.owner());
+        console2.log("VoidToken premine to  :", R.voidOwner);
+
+        console2.log("=== [core] deploy OpsTreasury & VoidTreasury ===");
+        d.opsTreasury = new OpsTreasury(
+            IVoidTokenLike(address(d.token)),
+            R.opsTreasuryAdmin
+        );
+
+        d.voidTreasury = new VoidTreasury(
+            IVoidTokenLike(address(d.token)),
+            address(d.opsTreasury),
+            R.voidTreasuryAdmin
+        );
+
+        console2.log("OpsTreasury   :", address(d.opsTreasury));
+        console2.log("VoidTreasury  :", address(d.voidTreasury));
+
+        console2.log("=== [core] move premine into VoidTreasury ===");
+        // Transfer the entire premine from voidOwner into the cold treasury.
+        // In dev, voidOwner == deployer; on mainnet we’ll map this appropriately.
+        {
+            bool ok = d.token.transfer(address(d.voidTreasury), premine);
+            require(ok, "bootstrap: transfer premine -> treasury failed");
+        }
+
+        console2.log("balance[voidOwner]    :", d.token.balanceOf(R.voidOwner));
+        console2.log("balance[VoidTreasury] :", d.token.balanceOf(address(d.voidTreasury)));
+
+        console2.log("=== [core] deploy AdminGate & ConfigGate ===");
+        d.adminGate = new AdminGate(
+            VOID_CHAIN_ID,
+            R.masterKey,
+            address(0) // UpdateGate to be wired later
+        );
+
+        d.configGate = new ConfigGate(
+            VOID_CHAIN_ID,
+            address(d.adminGate) // AdminGate controls config via forwarding
+        );
+
+        console2.log("AdminGate    :", address(d.adminGate));
+        console2.log("ConfigGate   :", address(d.configGate));
+        console2.log("AdminGate.masterKey :", d.adminGate.masterKey());
+        console2.log("ConfigGate.adminGate:", d.configGate.adminGate());
+
+        console2.log("=== [core] deploy ValidatorSet ===");
+        d.validatorSet = new ValidatorSet(R.validatorAdmin);
+        console2.log("ValidatorSet :", address(d.validatorSet));
+        console2.log("Validator admin:", d.validatorSet.admin());
+
+        console2.log("=== [core] deploy EmissionsController ===");
+        d.emissions = new VoidEmissionsController(R.emissionsAdmin);
+        console2.log("EmissionsController :", address(d.emissions));
+        console2.log("Emissions admin     :", d.emissions.admin());
+        console2.log("Emissions budget    :", d.emissions.EMISSIONS_BUDGET());
+
+        console2.log("=== [core] deploy RewardEngine ===");
+        d.rewardEngine = new RewardEngine(
+            IVoidTokenLike(address(d.token)),
+            IValidatorSetLike(address(d.validatorSet)),
+            R.rewardsAdmin
+        );
+
+        console2.log("RewardEngine :", address(d.rewardEngine));
+        console2.log("Reward admin :", d.rewardEngine.admin());
+        console2.log("Reward budget:", d.rewardEngine.EMISSIONS_BUDGET());
+
+        // NOTE: We are not yet wiring:
+        //  - Era schedules into a router that calls VoidEmissionsController + RewardEngine
+        //  - AdminGate.systemContracts keys
+        //  - ConfigGate initial parameters
+        //  - Agent/Dataset/Model/Job/Receipts infra
+        //
+        // Those will come next once the high-level wiring is locked in and we
+        // add a dedicated mainnet bootstrap script that reads roles from env.
+
+        return d;
+    }
+
+    function run() external {
+        Roles memory R = devRoles();
+
+        console2.log("=== VOID mainnet dev bootstrap (dev-sim) ===");
         console2.log("deployer           :", R.deployer);
         console2.log("masterKey          :", R.masterKey);
         console2.log("configAdmin        :", R.configAdmin);
@@ -115,78 +220,21 @@ contract VoidMainnetBootstrapDev is Script {
         console2.log("jobQueueAdmin      :", R.jobQueueAdmin);
         console2.log("receiptsAdmin      :", R.receiptsAdmin);
 
-        // Once you’re ready to actually simulate a deploy, you’ll do:
-        //
-        // vm.startBroadcast(R.deployer);
-        //
-        // 1) Core token + premine plumbing.
-        //
-        //     // TODO: line this up with your real constructor
-        //     // VoidToken token = new VoidToken(R.voidOwner);
-        //     // VoidFounderTrustVesting trust = new VoidFounderTrustVesting(
-        //     //     token,
-        //     //     R.gateAddress,
-        //     //     R.founderBeneficiary,
-        //     //     startTimestamp,
-        //     //     ...
-        //     // );
-        //     // VoidPremineVault vault = new VoidPremineVault(
-        //     //     token,
-        //     //     R.founderTrustAddress,
-        //     //     R.ecosystemReserve,
-        //     //     R.communityPool,
-        //     //     R.gateAddress
-        //     // );
-        //
-        // 2) Governance / gates.
-        //
-        //     // AdminGate adminGate = new AdminGate(R.masterKey, 2050);
-        //     // ConfigGate configGate = new ConfigGate(address(adminGate), 2050);
-        //     // ValidatorSet validatorSet = new ValidatorSet(2050, R.masterKey, R.validatorAdmin);
-        //
-        // 3) Emissions + reward plumbing.
-        //
-        //     // VoidEmissionsController emissions = new VoidEmissionsController(
-        //     //     address(token),
-        //     //     R.emissionsAdmin,
-        //     //     /* schedule params consistent with TokenomicsSpec.t.sol */
-        //     // );
-        //     // OpsTreasury opsTreasury = new OpsTreasury(
-        //     //     IVoidTokenLike(address(token)),
-        //     //     R.opsTreasuryAdmin
-        //     // );
-        //     // VoidTreasury voidTreasury = new VoidTreasury(
-        //     //     IVoidTokenLike(address(token)),
-        //     //     opsTreasury,
-        //     //     R.voidTreasuryAdmin
-        //     // );
-        //     // RewardEngine rewardEngine = new RewardEngine(
-        //     //     IVoidTokenLike(address(token)),
-        //     //     IValidatorSetLike(address(validatorSet)),
-        //     //     R.rewardsAdmin
-        //     // );
-        //
-        // 4) Agent / dataset / model infra.
-        //
-        //     // AgentRegistry agentReg = new AgentRegistry(R.agentAdmin);
-        //     // DatasetRegistry datasetReg = new DatasetRegistry(R.datasetAdmin, R.masterKey);
-        //     // ModelRegistry modelReg = new ModelRegistry(R.modelAdmin, R.masterKey);
-        //     // ModelEvalRegistry evalReg = new ModelEvalRegistry(R.evalAdmin);
-        //
-        // 5) Job / receipts infra.
-        //
-        //     // JobQueue jobQueue = new JobQueue(R.jobQueueAdmin);
-        //     // ReceiptRegistry receipts = new ReceiptRegistry(R.receiptsAdmin);
-        //     // JobReceipts jobReceipts = new JobReceipts(R.receiptsAdmin);
-        //
-        // vm.stopBroadcast();
-        //
-        // You’ll fill these out by looking at each contract’s actual constructor
-        // and tests in this repo, then keep this script as the canonical
-        // mainnet bootstrap plan (dev-sim version).
+        // In dev we simulate that R.deployer is the premine key / token owner.
+        vm.startBroadcast(R.deployer);
 
-        // For now we don’t broadcast so the script is a pure "plan printer".
-        // This keeps forge compile + script dry-runs green until you’re ready
-        // to hook real deployments.
+        Deployed memory d = _bootstrapCore(R);
+
+        vm.stopBroadcast();
+
+        console2.log("=== [summary] deployed core VOID stack (dev-sim) ===");
+        console2.log("VoidToken         :", address(d.token));
+        console2.log("VoidTreasury      :", address(d.voidTreasury));
+        console2.log("OpsTreasury       :", address(d.opsTreasury));
+        console2.log("AdminGate         :", address(d.adminGate));
+        console2.log("ConfigGate        :", address(d.configGate));
+        console2.log("ValidatorSet      :", address(d.validatorSet));
+        console2.log("EmissionsControl  :", address(d.emissions));
+        console2.log("RewardEngine      :", address(d.rewardEngine));
     }
 }
