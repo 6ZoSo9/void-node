@@ -1,0 +1,177 @@
+============================================================
+VOID MAINNET KEYS & ROLES WORKSHEET (TEMPLATE ONLY)
+============================================================
+
+!! IMPORTANT !!
+- This file in git is a TEMPLATE ONLY.
+- DO NOT put real seeds, mnemonics, private keys, or live addresses
+  that you don’t want on GitHub into this file.
+- For real mainnet:
+    * Copy this structure to your LUKS-encrypted USB / hardware vault.
+    * Fill it out OFF-REPO.
+    * Use the filled version to set VOID_* env vars and the mainnet
+      bootstrap config (.live.json).
+
+Chain:
+  - Name     : VOID Mainnet
+  - ChainId  : 2050
+  - Network  : mainnet
+
+------------------------------------------------------------
+SECTION 1: CORE ROLES (OWNER / ADMIN KEYS)
+------------------------------------------------------------
+
+Each of these should be a hardened, hardware-backed address.
+No anvil/dev/test keys. No reusing devnet keys.
+
+1. AdminGate Owner (MASTER KEY)
+   - Address (0x...)      : <ADMIN_GATE_OWNER_MAINNET>
+   - Backing (Ledger/Trezor/etc) :
+   - Storage plan:
+       * Seed stored in: <LUKS_USB_NAME / hardware-only / etc>
+       * Backup copy   : <where, how many>
+
+2. UpdateGate Owner (PROTOCOL UPDATES)
+   - Address (0x...)      : <UPDATE_GATE_OWNER_MAINNET>
+   - Backing              :
+   - Storage plan         :
+
+3. ConfigGate Owner (PARAM CHANGES)
+   - Address (0x...)      : <CONFIG_GATE_OWNER_MAINNET>
+   - Backing              :
+   - Storage plan         :
+
+4. VoidTreasury Owner (PREMINE VAULT CONTROLLER)
+   - Address (0x...)      : <VOID_TREASURY_OWNER_MAINNET>
+   - Backing              :
+   - Storage plan         :
+
+5. OpsTreasury Owner (OPS FUNDS CONTROLLER)
+   - Address (0x...)      : <VOID_OPS_TREASURY_OWNER_MAINNET>
+   - Backing              :
+   - Storage plan         :
+
+6. RewardEngine Owner (EMISSIONS CONTROLLER)
+   - Address (0x...)      : <VOID_REWARD_ENGINE_OWNER_MAINNET>
+   - Backing              :
+   - Storage plan         :
+
+7. ValidatorSet Owner (VALIDATOR ADMIN)
+   - Address (0x...)      : <VOID_VALIDATORSET_OWNER_MAINNET>
+   - Backing              :
+   - Storage plan         :
+
+------------------------------------------------------------
+SECTION 2: TREASURY FLOW PLAN
+------------------------------------------------------------
+
+Premine MUST live in a contract-based VoidTreasury, not a hot EOA.
+
+- MAX_SUPPLY              : 666,666,666 VOID
+- PREMINE (VoidTreasury)  : 333,333,333 VOID
+- EMISSIONS TOTAL         : 333,333,333 VOID
+    Era1: 177,777,777
+    Era2: 88,888,889
+    Era3: 44,444,444
+    Era4: 22,222,223
+
+Live flow plan (high-level):
+
+- Genesis:
+    * Premine -> VoidTreasury (contract)
+    * Ops bootstrap amount -> OpsTreasury
+    * Initial validator stake(s) -> Validator addresses
+
+- Spending path (long term):
+    VoidTreasury -> OpsTreasury -> hot wallets / grants / etc.
+
+Notes:
+  - Premine key is effectively “one-shot”: used at genesis then retired.
+  - Authority should be via UpdateGate / AdminGate / multi-sigs, not raw EOAs.
+  - All real keys live in LUKS / hardware, never sitting unencrypted on disk.
+
+------------------------------------------------------------
+SECTION 3: INITIAL VALIDATORS (BOOTSTRAP SET)
+------------------------------------------------------------
+
+For each initial mainnet validator, record:
+
+Validator #0
+  - Label / name           : <validator-0>
+  - Reward address (0x...) : <VALIDATOR_0_REWARD_MAINNET>
+  - Stake (VOID units)     : <VALIDATOR_0_STAKE_MAINNET>
+  - Consensus key (hex)    : <VALIDATOR_0_CONSKEY_MAINNET>
+  - Storage for consensus key:
+      * Stored where       : <LUKS_USB / HSM / etc>
+      * Backup             :
+
+Validator #1
+  - Label / name           : <validator-1>
+  - Reward address (0x...) : <VALIDATOR_1_REWARD_MAINNET>
+  - Stake (VOID units)     : <VALIDATOR_1_STAKE_MAINNET>
+  - Consensus key (hex)    : <VALIDATOR_1_CONSKEY_MAINNET>
+  - Storage for consensus key:
+      * Stored where       :
+      * Backup             :
+
+(... add more validators as needed ...)
+
+------------------------------------------------------------
+SECTION 4: ENVIRONMENT VARIABLES MAPPING
+------------------------------------------------------------
+
+These VOID_* env vars are consumed by:
+
+- ops/void-mainnet-bootstrap-template-fill.sh
+- ops/void-mainnet-bootstrap-mainnet-*.sh
+- Safety / PLAN scripts and lint
+
+When you are ready for real mainnet, you will populate these env vars
+from the LUKS/hardware worksheet (NOT from git).
+
+Role owners:
+
+  export VOID_ADMIN_GATE_OWNER=<ADMIN_GATE_OWNER_MAINNET>
+  export VOID_UPDATE_GATE_OWNER=<UPDATE_GATE_OWNER_MAINNET>
+  export VOID_CONFIG_GATE_OWNER=<CONFIG_GATE_OWNER_MAINNET>
+  export VOID_TREASURY_OWNER=<VOID_TREASURY_OWNER_MAINNET>
+  export VOID_OPS_TREASURY_OWNER=<VOID_OPS_TREASURY_OWNER_MAINNET>
+  export VOID_REWARD_ENGINE_OWNER=<VOID_REWARD_ENGINE_OWNER_MAINNET>
+  export VOID_VALIDATORSET_OWNER=<VOID_VALIDATORSET_OWNER_MAINNET>
+
+Initial validator 0:
+
+  export VOID_VALIDATOR_0_REWARD=<VALIDATOR_0_REWARD_MAINNET>
+  export VOID_VALIDATOR_0_STAKE=<VALIDATOR_0_STAKE_MAINNET>
+  export VOID_VALIDATOR_0_CONSKEY=<VALIDATOR_0_CONSKEY_MAINNET>
+
+(Add VOID_VALIDATOR_1_*, VOID_VALIDATOR_2_*, etc. if supporting multiple.)
+
+------------------------------------------------------------
+SECTION 5: STORAGE / BACKUP CHECKLIST
+------------------------------------------------------------
+
+For each critical key (AdminGate, UpdateGate, ConfigGate, Treasury, Ops),
+double-check:
+
+  [ ] Seed / key material exists in at least 2 physically separate places.
+  [ ] At least one copy is on a LUKS-encrypted USB (tested unlock).
+  [ ] At least one copy is on a hardware wallet (Ledger / Trezor / etc).
+  [ ] No seeds or raw private keys stored in:
+        - plain-text on your dev machines
+        - git repo
+        - screenshots / photos on phone
+  [ ] You have written down:
+        - which address controls which contract
+        - how to rotate signers via UpdateGate/AdminGate
+
+Extra notes:
+  - When we are close to mainnet, we’ll walk through:
+        * filling this worksheet OFF-REPO
+        * running template-fill with real VOID_* envs
+        * running mainnet PLAN + SAFETY against a real RPC
+        * only then preparing the one-shot mainnet bootstrap run.
+
+============================================================
+END OF TEMPLATE (KEEP PLACEHOLDERS ONLY IN GIT)
+============================================================
