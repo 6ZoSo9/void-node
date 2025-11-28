@@ -22,5 +22,6 @@
   "limits": {
     "maxGasPriceGweiHint": 50,
     "defaultGasLimitHint": 8000000
-  }
+  },
+  "chainId": 2050
 }
