@@ -1,0 +1,79 @@
+# VOID mainnet bootstrap template (chainId=2050)
+
+This file documents the *structure* of the REAL mainnet bootstrap for VOID,
+without embedding any private keys or live addresses. It pairs with:
+
+  config/void-mainnet-bootstrap-mainnet.template.json
+
+The template JSON contains the roles and contract slots we need to fill in
+for an actual mainnet launch:
+
+  - roles.deployer
+  - roles.treasuryAdmin / roles.treasuryOwner
+  - roles.opsTreasuryAdmin / roles.opsTreasuryOwner
+  - roles.validatorAdmin / roles.validatorSetOwner
+  - roles.adminGateOwner / roles.updateGateOwner / roles.configGateOwner
+  - validator0.{reward, stakeVOID, consensusKey}
+  - contracts.{updateGate, adminGate, configGate, validatorSet}
+  - contracts.{voidToken, voidTreasury, opsTreasury, rewardEngine}
+
+## High-level bootstrap flow (REAL mainnet, not dev)
+
+1) PREP KEYS (OFFLINE)
+   - Generate separate hardware-backed keys for:
+       * Premine / VoidTreasury (genesis Treasury authority)
+       * Ops Treasury admin
+       * Validator admin
+       * AdminGate / UpdateGate / ConfigGate owners
+       * At least one validator reward address + consensus key
+   - Store seeds on encrypted media (e.g. LUKS USB + hardware wallets).
+   - The "premine key" signs genesis once, then is effectively retired.
+     Ongoing control flows via AdminGate/UpdateGate and multi-sigs.
+
+2) PREP CONFIG (OFFLINE)
+   - Copy:
+       config/void-mainnet-bootstrap-mainnet.template.json
+     to a new, untracked file, e.g.:
+       config/void-mainnet-bootstrap-mainnet.live.json
+   - Populate ONLY public addresses:
+       - roles.* with the chosen EOAs / contract owners
+       - validator0.reward with the validator reward EOA
+       - validator0.stakeVOID with the intended initial stake amount
+       - validator0.consensusKey with the consensus pubkey
+   - Keep the live JSON on the hardened / air-gapped machine only.
+     Do NOT commit or sync it.
+
+3) DRY-RUN ON DEV / ANVIL
+   - Before touching real mainnet, rehearse the full flow against a local
+     anvil or dev network using a *dev copy* of the live JSON and dev keys.
+   - Use scripts:
+       - /tmp/void-mainnet-bootstrap-dev-run.sh
+       - ops/void-mainnet-tokenomics-dev-invariants.sh
+       - ops/void-mainnet-treasury-ops-reward-flow.sh
+   - Confirm:
+       - Premine minted once to VoidTreasury.
+       - Treasury -> Ops -> RewardEngine -> Validator flow matches spec.
+       - Invariants hold: supply == treasury + ops + reward + validator.
+
+4) REAL MAINNET BOOTSTRAP (LATER)
+   - When ready for actual mainnet:
+       - Start from the LIVE JSON on the hardened machine.
+       - Run the real mainnet bootstrap script (to be written closer to launch)
+         which will:
+           * Deploy UpdateGate, AdminGate, ConfigGate, ValidatorSet.
+           * Deploy VoidToken, VoidTreasury, OpsTreasury, RewardEngine.
+           * Mint the premine to VoidTreasury only.
+           * Wire Treasury -> Ops -> RewardEngine -> ValidatorSet as per spec.
+       - Immediately verify on-chain invariants via a dedicated mainnet
+         invariants script and Prometheus exporters.
+
+5) POST-LAUNCH KEY HYGIENE
+   - Move premine / genesis keys back to deep storage.
+   - Regular operations should flow:
+       VoidTreasury -> OpsTreasury -> hot wallets / RewardEngine,
+     with changes governed by AdminGate/UpdateGate and multi-sig policies.
+
+NOTE: This document and the template JSON are safe to keep in Git because they
+contain no secrets and only describe structure + placeholders. The REAL mainnet
+addresses and any signing keys will live in out-of-band storage according to
+our key management plan.
