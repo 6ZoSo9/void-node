@@ -1,0 +1,141 @@
+VOID Network — Mainnet Network Config
+=====================================
+
+Purpose
+-------
+
+This document defines the canonical "network config" structure for VOID
+mainnet-style networks. It is the single source of truth that wallets,
+agents, explorers, and tooling should use to discover:
+
+  - Basic chain identity (chainId, name, currency symbol).
+  - RPC endpoints.
+  - Contract surface manifest locations.
+
+The network config is separate from:
+
+  - The VOID node itself (consensus / data chain).
+  - The contract surface manifest
+      (config/void-mainnet-contract-surface.*.json).
+
+Wallets and agents SHOULD treat this as a high-level "network profile"
+and then follow the contractSurface pointer to discover on-chain contracts.
+
+
+1. Network Config Shape
+-----------------------
+
+A VOID network config JSON has the following shape:
+
+{
+  "chainId": 2050,
+  "network": "void-mainnet-dev",
+  "name": "VOID Mainnet (dev)",
+  "currency": {
+    "symbol": "VOID",
+    "decimals": 18
+  },
+  "rpc": {
+    "primary": "http://127.0.0.1:8545",
+    "fallbacks": []
+  },
+  "explorer": {
+    "name": "VOID Dev Explorer",
+    "url": "http://localhost:8546",
+    "txPath": "/tx",
+    "addressPath": "/address"
+  },
+  "contractSurface": {
+    "type": "file",
+    "path": "config/void-mainnet-contract-surface.dev.json"
+  }
+}
+
+Field descriptions:
+
+  - chainId (number)
+      EVM-style chain id. For VOID mainnet and its dev/staging networks,
+      this MUST be 2050.
+
+  - network (string)
+      Machine-readable network id, e.g.:
+        "void-mainnet-dev"
+        "void-mainnet-stage"
+        "void-mainnet"
+
+  - name (string)
+      Human-readable network name for UI display.
+
+  - currency.symbol (string)
+      Ticker symbol for the native token. For VOID, this is "VOID".
+
+  - currency.decimals (number)
+      ERC-20 style decimals, usually 18.
+
+  - rpc.primary (string)
+      Primary EVM RPC URL for this network. For dev/anvil, this will
+      usually be http://127.0.0.1:8545.
+
+  - rpc.fallbacks (array of string)
+      Optional backup RPC URLs. Clients MAY use these if the primary is
+      unavailable.
+
+  - explorer (object)
+      Optional block explorer metadata. Wallets MAY show links to this.
+
+      explorer.name       — name of the explorer.
+      explorer.url        — base URL.
+      explorer.txPath     — relative path to append "/<txHash>" to.
+      explorer.addressPath — relative path to append "/<address>" to.
+
+  - contractSurface (object)
+      How to obtain the contract surface manifest.
+
+      type: "file" | "url" | "onchain"
+        - "file"   — local file path (dev tools, local wallets).
+        - "url"    — HTTPS URL to a JSON manifest.
+        - "onchain" — future: read from ConfigGate / Registry on-chain.
+
+      path or url:
+        - For type "file", a relative path inside the repo / config dir.
+        - For type "url", an HTTPS URL.
+
+Clients MUST:
+
+  - Use chainId and network to select the right config.
+  - Use rpc.primary as the default RPC endpoint for EVM calls.
+  - Use contractSurface.* to locate the contract surface manifest and then
+    use that manifest to discover UpdateGate / AdminGate / ConfigGate /
+    ValidatorSet / VoidToken / VoidTreasury / OpsTreasury / RewardEngine.
+
+VOID nodes and monitoring MAY:
+
+  - Export metrics ensuring network config and contract surface remain
+    consistent with on-chain reality (codehash checks, address checks).
+  - Alert if the "network config" used by Obelisk / infra drifts from
+    what UpdateGate/ConfigGate consider canonical.
+
+
+2. Dev / Anvil Reference Network Config
+---------------------------------------
+
+A reference dev/anvil network config lives at:
+
+  config/void-mainnet-network.dev.json
+
+This is suitable for:
+
+  - Local Obelisk Wallet dev builds.
+  - Agent integration tests.
+  - Explorer prototypes pointing at anvil.
+
+Real mainnet WILL use a separate config:
+
+  config/void-mainnet-network.mainnet.json
+
+with:
+
+  - Real RPC URLs (load-balanced endpoint).
+  - Real explorer URLs.
+  - contractSurface.type = "url" and a stable HTTPS location.
+

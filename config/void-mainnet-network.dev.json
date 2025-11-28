@@ -1,0 +1,23 @@
+{
+  "chainId": 2050,
+  "network": "void-mainnet-dev",
+  "name": "VOID Mainnet (dev/anvil)",
+  "currency": {
+    "symbol": "VOID",
+    "decimals": 18
+  },
+  "rpc": {
+    "primary": "http://127.0.0.1:8545",
+    "fallbacks": []
+  },
+  "explorer": {
+    "name": "VOID Dev Explorer (placeholder)",
+    "url": "http://localhost:8546",
+    "txPath": "/tx",
+    "addressPath": "/address"
+  },
+  "contractSurface": {
+    "type": "file",
+    "path": "config/void-mainnet-contract-surface.dev.json"
+  }
+}
