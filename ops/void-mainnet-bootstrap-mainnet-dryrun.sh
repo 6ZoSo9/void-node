@@ -1,97 +1,75 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$HOME/dev/void-node"
+# VOID mainnet bootstrap MAINNET-DRYRUN (LINT + PLAN, no txs)
+#
+# This script:
+#   1) Lints a *mainnet* bootstrap JSON (offline).
+#   2) Runs the PLAN script (read-only) against a given RPC.
+#
+# It does NOT send any transactions. It only calls:
+#   - ops/void-mainnet-bootstrap-mainnet-lint.sh
+#   - ops/void-mainnet-bootstrap-plan.sh
+#
+# Usage (recommended, with anvil on 2050):
+#   ./ops/void-mainnet-bootstrap-mainnet-dryrun.sh \
+#     --config config/void-mainnet-bootstrap-mainnet.template.json \
+#     --rpc    http://127.0.0.1:8545
 
-CFG="${1:-config/void-mainnet-bootstrap-mainnet.live.json}"
+CONFIG=""
+RPC_URL="http://127.0.0.1:8545"
 
-echo "=== VOID mainnet bootstrap dry-run (JSON planner) ==="
-echo "[dryrun] config path: $CFG"
-echo
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      CONFIG="$2"
+      shift 2
+      ;;
+    --rpc)
+      RPC_URL="$2"
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: $0 --config <config.json> [--rpc <rpc-url>]"
+      echo
+      echo "MAINNET-DRYRUN (LINT + PLAN only, no txs)."
+      exit 0
+      ;;
+    *)
+      echo "[ERROR] Unknown arg: $1" >&2
+      exit 1
+      ;;
+  esac
+done
 
-if [ ! -f "$CFG" ]; then
-  echo "[dryrun] FATAL: config file not found: $CFG" >&2
+# Default config if none provided
+if [[ -z "${CONFIG:-}" ]]; then
+  if [[ -f config/void-mainnet-bootstrap-mainnet.template.json ]]; then
+    CONFIG="config/void-mainnet-bootstrap-mainnet.template.json"
+  else
+    echo "[ERROR] --config is required and default template not found." >&2
+    exit 1
+  fi
+fi
+
+if [[ ! -f "$CONFIG" ]]; then
+  echo "[ERROR] config file not found: $CONFIG" >&2
   exit 1
 fi
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "[dryrun] FATAL: jq not found on PATH" >&2
-  exit 1
-fi
+echo "=== VOID mainnet bootstrap MAINNET-DRYRUN ==="
+echo "[info] CONFIG = $CONFIG"
+echo "[info] RPC    = $RPC_URL"
+echo
 
-# Reuse the live JSON validator as a guardrail
-./ops/void-mainnet-bootstrap-mainnet-live-validate.sh "$CFG"
+echo "=== [STEP 1] MAINNET-LINT (offline) ==="
+./ops/void-mainnet-bootstrap-mainnet-lint.sh --config "$CONFIG"
+echo
+
+echo "=== [STEP 2] PLAN (read-only against RPC) ==="
+./ops/void-mainnet-bootstrap-plan.sh \
+  --config "$CONFIG" \
+  --rpc    "$RPC_URL"
 
 echo
-jq -r '
-  def roles: .roles;
-  def vals: (.validators // []);
-
-  "=== VOID mainnet bootstrap dry-run ===",
-  "config file : " + input_filename,
-  "chainId     : " + ((.chainId // "<missing>") | tostring),
-  "networkName : " + (.networkName // "<missing>"),
-  "",
-  "[STEP 01] Repo / env sanity",
-  "  - Branch / tag, pillars, RPC, hardware wallets are handled outside this script.",
-  "",
-  "[STEP 02] Config roles (owners/controllers)",
-  "  adminGateOwner    = "    + (roles.adminGateOwner    // "<nil>"),
-  "  updateGateOwner   = "    + (roles.updateGateOwner   // "<nil>"),
-  "  configGateOwner   = "    + (roles.configGateOwner   // "<nil>"),
-  "  treasuryOwner     = "    + (roles.treasuryOwner     // "<nil>"),
-  "  opsTreasuryOwner  = "    + (roles.opsTreasuryOwner  // "<nil>"),
-  "  rewardEngineOwner = "    + (roles.rewardEngineOwner // "<nil>"),
-  "  validatorSetOwner = "    + (roles.validatorSetOwner // "<nil>"),
-  "",
-  "[STEP 03] Core wiring overview (high-level)",
-  "  - Will deploy/wire:",
-  "      UpdateGate, AdminGate, ConfigGate, ValidatorSet(mainnet),",
-  "      VoidToken, VoidTreasury, OpsTreasury, RewardEngine.",
-  "  - Control addresses pulled from the roles above.",
-  "",
-  "[STEP 04] Premine -> VoidTreasury plan",
-  "  - Mint premine to staging/deployer as per script.",
-  "  - Transfer 100% premine to VoidTreasury.",
-  "",
-  "[STEP 05] Validator set & stake plan",
-  "  validators = " + ((vals | length) | tostring),
-  (
-    vals
-    | to_entries[]
-    | [
-        "  [" + (.key | tostring) + "] id         = " + (.value.id           // "<empty>"),
-        "      rewardAddr = " + (.value.rewardAddress // "<nil>"),
-        "      stakeVOID  = " + ((.value.stakeVOID // "<nil>") | tostring)
-      ]
-    | .[]
-  ),
-  (
-    "  total stakeVOID = " +
-    (
-      vals
-      | map(.stakeVOID | tonumber)
-      | add // 0
-      | tostring
-    )
-  ),
-  "",
-  "[STEP 06] RewardEngine & claim() (conceptual)",
-  "  - RewardEngine will be wired to VoidToken, VoidTreasury, ValidatorSet.",
-  "  - Validators can claim rewards from their rewardAddress EOAs.",
-  "",
-  "[STEP 07] Tokenomics invariants (separate script)",
-  "  - ops/void-mainnet-tokenomics-*-invariants.sh will verify:",
-  "      * totalSupply",
-  "      * Treasury / OpsTreasury / validator balances",
-  "      * premine + emissions vs MAX_SUPPLY.",
-  "",
-  "[STEP 08] Genesis manifest (manual / scripted)",
-  "  - After real bootstrap, capture:",
-  "      * all deployed addresses",
-  "      * all tx hashes / receipts",
-  "      * hash of this config file",
-  "      * git commit/tag used for contracts.",
-  "",
-  "=== END bootstrap dry-run ==="
-' "$CFG"
+echo "=== RESULT: MAINNET DRYRUN COMPLETED (LINT+PLAN, no txs) ==="
