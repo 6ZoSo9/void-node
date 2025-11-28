@@ -62,3 +62,10 @@ else
   echo "[mainnet-health-all] RESULT: BAD (see warnings above)"
   exit 1
 fi
+
+echo
+echo "=== [mainnet] bootstrap PLAN (soft check) ==="
+set +e
+./ops/void-mainnet-bootstrap-mainnet-plan-health.sh \
+  || echo "[mainnet-bootstrap-plan] (soft) PLAN not ready yet; ignoring for now"
+set -e

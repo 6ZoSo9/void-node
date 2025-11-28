@@ -1,123 +1,122 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+# PLAN-only harness for VOID mainnet bootstrap:
+# - Reads a mainnet config JSON (template or *.live.json)
+# - Prints a human-readable plan (chainId + addresses)
+# - Writes a textfile metric: void_mainnet_bootstrap_plan_ready
+# - Exits 0 if checks pass, 1 otherwise.
 
-CONFIG="${1:-config/void-mainnet-bootstrap-mainnet.live.json}"
-TEMPLATE="config/void-mainnet-bootstrap-mainnet.template.json"
+REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
+cd "$REPO_ROOT"
 
-echo "=== [VOID mainnet bootstrap PLAN] ==="
-echo "[plan] repo:    $ROOT"
-echo "[plan] config:  $CONFIG"
+CONFIG_PATH="${1:-config/void-mainnet-bootstrap-mainnet.live.json}"
 
-if [ ! -f "$CONFIG" ]; then
-  echo "[warn] config file $CONFIG not found."
-  if [ -f "$TEMPLATE" ]; then
-    echo "[warn] falling back to TEMPLATE $TEMPLATE for address preview only"
-    CONFIG="$TEMPLATE"
+TEXTFILE_DIR="${TEXTFILE_DIR:-$REPO_ROOT/ops/textfile}"
+METRIC_FILE="${TEXTFILE_DIR}/void_mainnet_bootstrap_plan.prom"
+
+echo "=== [mainnet-bootstrap-plan] VOID mainnet bootstrap PLAN ==="
+echo "[info] REPO_ROOT   = $REPO_ROOT"
+echo "[info] CONFIG_PATH = $CONFIG_PATH"
+echo "[info] METRIC_FILE = $METRIC_FILE"
+echo
+
+PLAN_OK=1
+CHAIN_ID=""
+
+if [[ ! -f "$CONFIG_PATH" ]]; then
+  echo "[error] config file not found: $CONFIG_PATH" >&2
+  PLAN_OK=0
+else
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "[fatal] jq not installed; cannot parse JSON" >&2
+    PLAN_OK=0
   else
-    echo "[fatal] neither live config nor template exist; abort." >&2
-    exit 1
+    # chainId from root or nested
+    CHAIN_ID="$(jq -r '.chainId // .config.chainId // empty' "$CONFIG_PATH" 2>/dev/null || echo "")"
+
+    echo "==[1] Chain & config sanity =="
+    if [[ -z "$CHAIN_ID" || "$CHAIN_ID" == "null" ]]; then
+      echo "[error] chainId not found in config JSON (.chainId or .config.chainId)" >&2
+      PLAN_OK=0
+    else
+      echo "  config chainId : $CHAIN_ID"
+      if [[ "$CHAIN_ID" != "2050" ]]; then
+        echo "  [!] EXPECTED chainId 2050 but got $CHAIN_ID" >&2
+        PLAN_OK=0
+      else
+        echo "  [ok] chainId matches VOID mainnet (2050)"
+      fi
+    fi
+    echo
+
+    echo "==[2] Core addresses from config (addresses.*) =="
+    ADDR_TOKEN="$(jq -r '.addresses.voidToken       // empty' "$CONFIG_PATH" 2>/dev/null || echo "")"
+    ADDR_TREASURY="$(jq -r '.addresses.voidTreasury // empty' "$CONFIG_PATH" 2>/dev/null || echo "")"
+    ADDR_OPS_TREASURY="$(jq -r '.addresses.opsTreasury // empty' "$CONFIG_PATH" 2>/dev/null || echo "")"
+    ADDR_ADMIN_GATE="$(jq -r '.addresses.adminGate  // empty' "$CONFIG_PATH" 2>/dev/null || echo "")"
+    ADDR_UPDATE_GATE="$(jq -r '.addresses.updateGate // empty' "$CONFIG_PATH" 2>/dev/null || echo "")"
+    ADDR_VALIDATOR_SET="$(jq -r '.addresses.validatorSet // empty' "$CONFIG_PATH" 2>/dev/null || echo "")"
+    ADDR_REWARD_ENGINE="$(jq -r '.addresses.rewardEngine // empty' "$CONFIG_PATH" 2>/dev/null || echo "")"
+
+    check_addr() {
+      local key="$1"
+      local val="$2"
+      printf "  %-14s : %s\n" "$key" "${val:-<unset>}"
+      if [[ -z "$val" || "$val" == "null" || "$val" == "0x0000000000000000000000000000000000000000" ]]; then
+        echo "    [!] $key is missing or zero address" >&2
+        PLAN_OK=0
+      fi
+    }
+
+    check_addr "VoidToken"      "$ADDR_TOKEN"
+    check_addr "VoidTreasury"   "$ADDR_TREASURY"
+    check_addr "OpsTreasury"    "$ADDR_OPS_TREASURY"
+    check_addr "AdminGate"      "$ADDR_ADMIN_GATE"
+    check_addr "UpdateGate"     "$ADDR_UPDATE_GATE"
+    check_addr "ValidatorSet"   "$ADDR_VALIDATOR_SET"
+    check_addr "RewardEngine"   "$ADDR_REWARD_ENGINE"
+    echo
+
+    echo "==[3] High-level flow (conceptual) =="
+    echo "  • Premine → VoidTreasury (contract-based treasury, not hot EOA)."
+    echo "  • Treasury → OpsTreasury for operating budgets."
+    echo "  • OpsTreasury → RewardEngine to feed emissions + validator rewards."
+    echo "  • AdminGate + UpdateGate guard core upgrades (v99 freeze model)."
+    echo "  • ValidatorSet defines initial validator set for VOID mainnet."
+    echo "  (This script only verifies addresses + chainId; actual deployment"
+    echo "   wiring remains in the Forge bootstrap script.)"
+    echo
   fi
 fi
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "[fatal] jq is required for this planning script" >&2
+mkdir -p "$TEXTFILE_DIR"
+
+TMP="${METRIC_FILE}.tmp.$$"
+{
+  echo "# HELP void_mainnet_bootstrap_plan_ready 1 if mainnet bootstrap config passes basic sanity checks"
+  echo "# TYPE void_mainnet_bootstrap_plan_ready gauge"
+  echo "void_mainnet_bootstrap_plan_ready $PLAN_OK"
+
+  echo "# HELP void_mainnet_bootstrap_plan_chainid Config chainId from live JSON (0 if missing)"
+  echo "# TYPE void_mainnet_bootstrap_plan_chainid gauge"
+  if [[ -n "$CHAIN_ID" ]]; then
+    echo "void_mainnet_bootstrap_plan_chainid $CHAIN_ID"
+  else
+    echo "void_mainnet_bootstrap_plan_chainid 0"
+  fi
+} >"$TMP"
+
+mv "$TMP" "$METRIC_FILE"
+
+echo "==[4] Metric written =="
+echo "  $(wc -l <"$METRIC_FILE") lines -> $METRIC_FILE"
+echo
+
+if [[ "$PLAN_OK" -eq 1 ]]; then
+  echo "[result] OK   – void_mainnet_bootstrap_plan_ready = 1"
+  exit 0
+else
+  echo "[result] FAIL – void_mainnet_bootstrap_plan_ready = 0 (see messages above)"
   exit 1
 fi
-
-get() {
-  jq -r "$1 // \"\"" "$CONFIG"
-}
-
-CHAIN_ID=$(get '.chainId')
-
-DEPLOYER=$(get '.roles.deployer')
-TREASURY_ADMIN=$(get '.roles.treasuryAdmin')
-OPS_ADMIN=$(get '.roles.opsTreasuryAdmin')
-VALIDATOR_ADMIN=$(get '.roles.validatorAdmin')
-
-ADMIN_GATE_OWNER=$(get '.roles.adminGateOwner')
-UPDATE_GATE_OWNER=$(get '.roles.updateGateOwner')
-CONFIG_GATE_OWNER=$(get '.roles.configGateOwner')
-
-TREASURY_OWNER=$(get '.roles.treasuryOwner')
-OPS_OWNER=$(get '.roles.opsTreasuryOwner')
-REWARD_OWNER=$(get '.roles.rewardEngineOwner')
-VALSET_OWNER=$(get '.roles.validatorSetOwner')
-
-VAL0_REWARD=$(get '.validator0.reward')
-VAL0_STAKE=$(get '.validator0.stakeVOID')
-VAL0_CONSKEY=$(get '.validator0.consensusKey')
-
-echo
-echo "[plan] chainId (config) = ${CHAIN_ID}"
-
-echo
-echo "[plan] core roles (EOAs / hardware wallets):"
-echo "  deployer            = ${DEPLOYER}"
-echo "  treasuryAdmin       = ${TREASURY_ADMIN}"
-echo "  opsTreasuryAdmin    = ${OPS_ADMIN}"
-echo "  validatorAdmin      = ${VALIDATOR_ADMIN}"
-echo
-echo "  adminGateOwner      = ${ADMIN_GATE_OWNER}"
-echo "  updateGateOwner     = ${UPDATE_GATE_OWNER}"
-echo "  configGateOwner     = ${CONFIG_GATE_OWNER}"
-echo
-echo "  treasuryOwner       = ${TREASURY_OWNER}"
-echo "  opsTreasuryOwner    = ${OPS_OWNER}"
-echo "  rewardEngineOwner   = ${REWARD_OWNER}"
-echo "  validatorSetOwner   = ${VALSET_OWNER}"
-
-echo
-echo "[plan] validator[0] bootstrap:"
-echo "  reward address      = ${VAL0_REWARD}"
-echo "  stake (VOID)        = ${VAL0_STAKE}"
-echo "  consensus pubkey    = ${VAL0_CONSKEY}"
-
-# Optional RPC sanity if RPC_URL + cast are available
-if [ -n "${RPC_URL:-}" ]; then
-  if command -v cast >/dev/null 2>&1; then
-    echo
-    echo "[plan] RPC sanity (optional): RPC_URL=${RPC_URL}"
-    if cast chain-id --rpc-url "$RPC_URL" 2>/tmp/void-mainnet-plan-cast.log; then
-      echo "[plan] chainId(rpc) OK (see cast output above if any)"
-    else
-      echo "[warn] cast chain-id failed; see /tmp/void-mainnet-plan-cast.log" >&2
-    fi
-  else
-    echo
-    echo "[warn] RPC_URL is set but 'cast' is not installed; skipping RPC sanity check"
-  fi
-fi
-
-echo
-echo "[plan] bootstrap transaction sequence (HIGH LEVEL ONLY, no sends here):"
-echo
-echo "  Phase 1 — gates and governance wiring"
-echo "    1. Deploy UpdateGate (chainId=2050, master/deployer key)."
-echo "    2. Deploy AdminGate and wire to UpdateGate."
-echo "    3. Deploy ConfigGate and point it at AdminGate."
-echo
-echo "  Phase 2 — validator + token + treasuries"
-echo "    4. Deploy ValidatorSet (mainnet) under validatorAdmin / validatorSetOwner."
-echo "    5. Register validator[0] with (reward address, stake VOID, consensus key)."
-echo "    6. Deploy VoidToken (VOID) with maxSupply=333,333,333 VOID."
-echo "    7. Deploy VoidTreasury and OpsTreasury and set their owners/admins."
-echo
-echo "  Phase 3 — emissions + premine flow"
-echo "    8. Deploy RewardEngine and VoidEmissionsController; set RewardEngine owner."
-echo "    9. Mint full premine (333,333,333 VOID) directly into VoidTreasury."
-echo "   10. (Optional test) Treasury -> OpsTreasury -> RewardEngine -> validator[0] flow,"
-echo "        consuming a small emission amount and verifying balances."
-echo
-echo "  Phase 4 — UpdateGate / ConfigGate finalization"
-echo "   11. Use UpdateGate to record the canonical addresses for:"
-echo "        - VoidToken, VoidTreasury, OpsTreasury,"
-echo "        - RewardEngine, ValidatorSet, JobQueue, Receipts, etc."
-echo "   12. Use ConfigGate to set core config keys (chainId, gates, treasury, reward)."
-echo "   13. Lock down admin keys as per key-management plan (LUKS + hardware wallets)."
-echo
-echo "[plan] This script is READ-ONLY: it does not broadcast transactions."
-echo "[plan] Use it as a checklist against your live JSON + hardware wallets."
