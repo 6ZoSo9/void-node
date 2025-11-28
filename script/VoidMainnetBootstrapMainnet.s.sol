@@ -1,152 +1,71 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-// NOTE: This script is for REAL VOID MAINNET bootstrap.
-// It currently does not deploy anything; it only loads and validates
-// addresses from a JSON config and logs them. The broadcast block
-// will be wired later for real mainnet bootstrap.
-
 import "forge-std/Script.sol";
-import "forge-std/StdJson.sol";
-import "forge-std/console.sol";
+import {console2} from "forge-std/console2.sol";
 
+/// @notice VOID mainnet bootstrap script (mainnet path).
+/// @dev STUB ONLY:
+///      - Parses the JSON config to read .chainId
+///      - Enforces chainId == 2050 (both runtime and config)
+///      - Then *always* reverts
+///      This lets us wire the forge signature and config shape now
+///      without any risk of accidentally broadcasting a real mainnet bootstrap.
 contract VoidMainnetBootstrapMainnet is Script {
-    using stdJson for string;
-
-    struct BootstrapConfig {
+    /// @notice Minimal config header we care about for now.
+    /// @dev Expected JSON shape (top-level):
+    ///   {
+    ///     "chainId": 2050,
+    ///     "network": "void-mainnet",   // optional for now
+    ///     ...
+    ///   }
+    struct ConfigHeader {
         uint256 chainId;
-
-        address deployer;
-
-        address masterKey;
-        address configAdmin;
-
-        address validatorAdmin;
-        address emissionsAdmin;
-        address rewardsAdmin;
-
-        address voidOwner;
-        address founderBeneficiary;
-        address ecosystemReserve;
-        address communityPool;
-
-        address voidTreasuryAdmin;
-        address opsTreasuryAdmin;
-        address opsSpender;
-
-        address agentAdmin;
-        address datasetAdmin;
-        address modelAdmin;
-        address evalAdmin;
-        address jobQueueAdmin;
-        address receiptsAdmin;
+        // We ignore .network for now to avoid hard coupling to the current template.
+        // string network;
     }
 
-    function _loadConfig(string memory path) internal view returns (BootstrapConfig memory cfg) {
+    /// @dev Load the top-level .chainId from the JSON config file.
+    function _loadConfigHeader(string memory path) internal view returns (ConfigHeader memory cfg) {
         string memory json = vm.readFile(path);
-
-        cfg.chainId            = json.readUint(".chainId");
-
-        cfg.deployer           = json.readAddress(".deployer");
-
-        cfg.masterKey          = json.readAddress(".masterKey");
-        cfg.configAdmin        = json.readAddress(".configAdmin");
-
-        cfg.validatorAdmin     = json.readAddress(".validatorAdmin");
-        cfg.emissionsAdmin     = json.readAddress(".emissionsAdmin");
-        cfg.rewardsAdmin       = json.readAddress(".rewardsAdmin");
-
-        cfg.voidOwner          = json.readAddress(".voidOwner");
-        cfg.founderBeneficiary = json.readAddress(".founderBeneficiary");
-        cfg.ecosystemReserve   = json.readAddress(".ecosystemReserve");
-        cfg.communityPool      = json.readAddress(".communityPool");
-
-        cfg.voidTreasuryAdmin  = json.readAddress(".voidTreasuryAdmin");
-        cfg.opsTreasuryAdmin   = json.readAddress(".opsTreasuryAdmin");
-        cfg.opsSpender         = json.readAddress(".opsSpender");
-
-        cfg.agentAdmin         = json.readAddress(".agentAdmin");
-        cfg.datasetAdmin       = json.readAddress(".datasetAdmin");
-        cfg.modelAdmin         = json.readAddress(".modelAdmin");
-        cfg.evalAdmin          = json.readAddress(".evalAdmin");
-        cfg.jobQueueAdmin      = json.readAddress(".jobQueueAdmin");
-        cfg.receiptsAdmin      = json.readAddress(".receiptsAdmin");
+        // This will revert if .chainId is missing or not a uint, which is what we want.
+        cfg.chainId = vm.parseJsonUint(json, ".chainId");
     }
 
-    function _requireNonZero(address a, string memory label) internal pure {
-        require(a != address(0), string.concat(label, "=0"));
-    }
+    /// @notice Main entrypoint for forge:
+    ///   forge script script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \\
+    ///     --sig "run(string)" config/void-mainnet-bootstrap-mainnet.live.json
+    ///
+    /// @dev This is intentionally NON-FUNCTIONAL for live mainnet:
+    ///      after sanity checks it always reverts.
+    function run(string memory configPath) external {
+        ConfigHeader memory cfg = _loadConfigHeader(configPath);
 
-    /// @notice Main entrypoint for VOID mainnet bootstrap validation.
-    /// Uses VOID_MAINNET_BOOTSTRAP_CONFIG if set, otherwise falls back
-    /// to ops/mainnet-bootstrap-addresses.mainnet.json.
-    function run() external {
-        string memory defaultPath = "ops/mainnet-bootstrap-addresses.mainnet.json";
-        string memory path;
+        uint256 runtimeChainId = block.chainid;
 
-        // Allow override via env var VOID_MAINNET_BOOTSTRAP_CONFIG.
-        // If unset, fall back to defaultPath.
-        try vm.envString("VOID_MAINNET_BOOTSTRAP_CONFIG") returns (string memory p) {
-            path = p;
-        } catch {
-            path = defaultPath;
-        }
+        console2.log("=== [VOID mainnet bootstrap mainnet stub] ===");
+        console2.log("  runtime chainId :", runtimeChainId);
+        console2.log("  config  chainId :", cfg.chainId);
 
-        BootstrapConfig memory cfg = _loadConfig(path);
+        // Hard gate: this script must *only* ever run on VOID mainnet (chainId 2050).
+        require(
+            runtimeChainId == 2050,
+            "VoidMainnetBootstrapMainnet: wrong runtime chainId (expected 2050)"
+        );
+        require(
+            cfg.chainId == 2050,
+            "VoidMainnetBootstrapMainnet: config.chainId != 2050"
+        );
+        require(
+            cfg.chainId == runtimeChainId,
+            "VoidMainnetBootstrapMainnet: config/runtime chainId mismatch"
+        );
 
-        // Basic invariants
-        require(cfg.chainId == block.chainid, "chainId mismatch");
+        console2.log("  chainId sanity OK; this is still a STUB (no deployments).");
 
-        _requireNonZero(cfg.deployer,          "deployer");
-        _requireNonZero(cfg.masterKey,         "masterKey");
-        _requireNonZero(cfg.configAdmin,       "configAdmin");
-        _requireNonZero(cfg.validatorAdmin,    "validatorAdmin");
-        _requireNonZero(cfg.emissionsAdmin,    "emissionsAdmin");
-        _requireNonZero(cfg.rewardsAdmin,      "rewardsAdmin");
-        _requireNonZero(cfg.voidTreasuryAdmin, "voidTreasuryAdmin");
-        _requireNonZero(cfg.opsTreasuryAdmin,  "opsTreasuryAdmin");
-        _requireNonZero(cfg.opsSpender,        "opsSpender");
-        _requireNonZero(cfg.jobQueueAdmin,     "jobQueueAdmin");
-        _requireNonZero(cfg.receiptsAdmin,     "receiptsAdmin");
-
-        console.log("=== VOID mainnet bootstrap (MAINNET skeleton) ===");
-        console.log("config path       :", path);
-        console.log("chainId (cfg)     :", cfg.chainId);
-        console.log("chainId (block)   :", block.chainid);
-        console.log("deployer          :", cfg.deployer);
-
-        console.log("masterKey         :", cfg.masterKey);
-        console.log("configAdmin       :", cfg.configAdmin);
-
-        console.log("validatorAdmin    :", cfg.validatorAdmin);
-        console.log("emissionsAdmin    :", cfg.emissionsAdmin);
-        console.log("rewardsAdmin      :", cfg.rewardsAdmin);
-
-        console.log("voidOwner         :", cfg.voidOwner);
-        console.log("founderBeneficiary:", cfg.founderBeneficiary);
-        console.log("ecosystemReserve  :", cfg.ecosystemReserve);
-        console.log("communityPool     :", cfg.communityPool);
-
-        console.log("voidTreasuryAdmin :", cfg.voidTreasuryAdmin);
-        console.log("opsTreasuryAdmin  :", cfg.opsTreasuryAdmin);
-        console.log("opsSpender        :", cfg.opsSpender);
-
-        console.log("agentAdmin        :", cfg.agentAdmin);
-        console.log("datasetAdmin      :", cfg.datasetAdmin);
-        console.log("modelAdmin        :", cfg.modelAdmin);
-        console.log("evalAdmin         :", cfg.evalAdmin);
-        console.log("jobQueueAdmin     :", cfg.jobQueueAdmin);
-        console.log("receiptsAdmin     :", cfg.receiptsAdmin);
-
-        // REAL DEPLOYMENT WILL GO HERE LATER:
-        //
-        // vm.startBroadcast(cfg.deployer);
-        //
-        //   // 1) Deploy VoidToken, OpsTreasury, VoidTreasury, AdminGate,
-        //   //    ConfigGate, ValidatorSet, EmissionsController, RewardEngine.
-        //   // 2) Wire roles exactly as per our locked tokenomics & gates plan.
-        //   // 3) Move premine into VoidTreasury, set OpsTreasury spenders, etc.
-        //
-        // vm.stopBroadcast();
+        // SAFETY FUSE:
+        //   Do not remove this until we are *actually* ready to implement
+        //   the real mainnet bootstrap wiring and have triple-checked the plan.
+        revert("VoidMainnetBootstrapMainnet: stub only; implement real wiring before broadcast");
     }
 }
