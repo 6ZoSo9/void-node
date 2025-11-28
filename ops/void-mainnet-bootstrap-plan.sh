@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# VOID mainnet bootstrap PLAN script
-# Read-only: inspects config JSON and RPC, prints what would happen.
+# VOID mainnet bootstrap PLAN script (read-only)
+#
 # Usage:
 #   ./ops/void-mainnet-bootstrap-plan.sh \
 #     --config config/void-mainnet-bootstrap-mainnet.live.json \
 #     --rpc    https://your-mainnet-rpc
 #
-# For now, you can test it with:
-#   --config config/void-mainnet-bootstrap-dev.json \
-#   --rpc    http://127.0.0.1:8545
+# For dev/anvil testing:
+#   ./ops/void-mainnet-bootstrap-plan.sh \
+#     --config config/void-mainnet-bootstrap-dev.json \
+#     --rpc    http://127.0.0.1:8545
 
 CONFIG=""
 RPC_URL=""
@@ -27,6 +28,8 @@ while [[ $# -gt 0 ]]; do
       ;;
     -h|--help)
       echo "Usage: $0 --config <config.json> --rpc <rpc-url>"
+      echo
+      echo "This is a READ-ONLY inspection tool. It does not send any transactions."
       exit 0
       ;;
     *)
@@ -60,6 +63,25 @@ if [[ ! -f "$CONFIG" ]]; then
   echo "[ERROR] config file not found: $CONFIG" >&2
   exit 1
 fi
+
+# Known anvil dev addresses (subset; enough to catch obvious mistakes)
+ANVIL_ADDRS=(
+  0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+  0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+  0x90F79bf6EB2c4f870365E785982E1f101E93b906
+  0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
+)
+
+is_anvil_addr() {
+  local target="$1"
+  for a in "${ANVIL_ADDRS[@]}"; do
+    if [[ "${target,,}" == "${a,,}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
 
 echo "=== VOID mainnet bootstrap PLAN ==="
 echo "[info] CONFIG = $CONFIG"
@@ -101,6 +123,31 @@ if [[ "$VALIDATOR_COUNT" -gt 0 ]]; then
   ' "$CONFIG"
   echo
 fi
+
+echo "=== [STEP 1b] Config sanity: dev/anvil address detection ==="
+
+check_role_addr() {
+  local role="$1"
+  local addr="$2"
+  if [[ "$addr" == "null" ]]; then
+    echo "[WARN] $role is null in config (did you forget to set it?)"
+    return
+  fi
+  if is_anvil_addr "$addr"; then
+    echo "[WARN] $role ($addr) matches a KNOWN ANVIL DEV ADDRESS. This is fine for dev, NOT for real mainnet."
+  else
+    echo "[OK]   $role looks non-anvil (not in known dev list)."
+  fi
+}
+
+check_role_addr "roles.adminGateOwner"      "$ADMIN_GATE_OWNER"
+check_role_addr "roles.updateGateOwner"     "$UPDATE_GATE_OWNER"
+check_role_addr "roles.configGateOwner"     "$CONFIG_GATE_OWNER"
+check_role_addr "roles.treasuryOwner"       "$TREASURY_OWNER"
+check_role_addr "roles.opsTreasuryOwner"    "$OPS_TREASURY_OWNER"
+check_role_addr "roles.rewardEngineOwner"   "$REWARD_OWNER"
+check_role_addr "roles.validatorSetOwner"   "$VALIDATOR_SET_OWNER"
+echo
 
 echo "=== [STEP 2] Inspect RPC chain ==="
 set +e
@@ -165,5 +212,29 @@ else
     | "    - \(.id // "unknown"): rewardAddress=\(.rewardAddress // "null"), stakeVOID=\(.stakeVOID // "null")"
   ' "$CONFIG"
 fi
+echo
+
+echo "=== [STEP 5] VOID tokenomics expectations (spec) ==="
+# These are SPEC values, not read from chain.
+MAX_SUPPLY="666,666,666"
+PREMINE="333,333,333"
+EMISSIONS_TOTAL="333,333,333"
+ERA1="177,777,777"
+ERA2="88,888,889"
+ERA3="44,444,444"
+ERA4="22,222,223"
+
+echo "MAX_SUPPLY (VOID)         = $MAX_SUPPLY"
+echo "PREMINE (VoidTreasury)    = $PREMINE"
+echo "EMISSIONS (total)         = $EMISSIONS_TOTAL"
+echo "  Era1                    = $ERA1"
+echo "  Era2                    = $ERA2"
+echo "  Era3                    = $ERA3"
+echo "  Era4                    = $ERA4"
+echo
+echo "NOTE: These are the locked VOID tokenomics constants."
+echo "      On real mainnet, invariants scripts must confirm that:"
+echo "        totalSupply == Treasury + Ops + Reward + staked validators"
+echo "      and equals PREMINE at bootstrap (pre-emissions)."
 echo
 echo "=== DONE: PLAN completed (read-only) ==="
