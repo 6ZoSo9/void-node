@@ -1,0 +1,149 @@
+VOID MAINNET BOOTSTRAP RUNBOOK (OUTLINE)
+=======================================
+
+Scope
+-----
+This document describes the high-level procedure to bootstrap the REAL VOID
+mainnet (chainId 2050) using the contracts in this repository.
+
+It is **addresses-only**. Never store private keys, mnemonics, or raw seeds
+in this repo. All signing for mainnet must happen on a hardened machine with
+hardware wallets and/or LUKS-encrypted key material.
+
+Roles and contracts (summary)
+-----------------------------
+Core contracts involved in mainnet bootstrap:
+
+- UpdateGate       — controls protocol-level updates under a master key.
+- AdminGate        — central admin router for system contracts.
+- ConfigGate       — on-chain configuration registry.
+- ValidatorSet     — mainnet validator set (voting power, totalPower, etc.).
+- VoidToken        — VOID / VoidStones ERC20 with MAX_SUPPLY=333,333,333.
+- VoidTreasury     — holds the premine (333,333,333 VOID) at genesis.
+- OpsTreasury      — operational treasury used for emissions + ops spending.
+- RewardEngine     — stages emissions and credits validators.
+
+Key addresses (see config/void-mainnet-bootstrap-mainnet.template.json):
+
+- roles.deployer            — deploy-time operator (NOT a long-term treasury).
+- roles.treasuryAdmin       — controls VoidTreasury policy.
+- roles.opsTreasuryAdmin    — controls OpsTreasury policy.
+- roles.validatorAdmin      — controls ValidatorSet.
+- roles.adminGateOwner      — owner of AdminGate.
+- roles.updateGateOwner     — owner of UpdateGate (master key).
+- roles.configGateOwner     — owner of ConfigGate.
+- roles.treasuryOwner       — on-chain owner of Treasury contract.
+- roles.opsTreasuryOwner    — on-chain owner of OpsTreasury.
+- roles.rewardEngineOwner   — on-chain owner of RewardEngine.
+- roles.validatorSetOwner   — on-chain owner of ValidatorSet.
+
+- validator0.reward         — reward address for initial validator[0].
+- validator0.stakeVOID      — stake amount for validator[0] (VOID units).
+- validator0.consensusKey   — 32-byte consensus public key.
+
+Premine / supply model
+----------------------
+- MAX_SUPPLY      = 666,666,666 VOID
+- PREMINE         = 333,333,333 VOID  (into VoidTreasury at genesis)
+- EMISSIONS       = 333,333,333 VOID over 100 years in 4 eras:
+                    [177,777,777, 88,888,889, 44,444,444, 22,222,223]
+
+On REAL mainnet:
+
+- All 333,333,333 premine tokens MUST be minted directly into VoidTreasury.
+- No premine balance should ever sit on a hot EOA.
+- Emissions for validators flow: VoidTreasury -> OpsTreasury -> RewardEngine
+  -> validator reward addresses, enforced by RewardEngine + VoidEmissionsController.
+
+Phase A — Dev rehearsal (anvil)
+-------------------------------
+Goal: prove the entire bootstrap + tokenomics flow on an anvil devnet with
+chainId=2050 before touching real keys.
+
+1. Start anvil with chainId 2050.
+2. Export dev-only keys:
+     export RPC_URL=http://127.0.0.1:8545
+     export DEPLOYER_KEY=<anvil deployer key>
+     export OPS_KEY=<anvil ops key>
+3. Run the dev full pipeline orchestrator (current canonical helper):
+     /tmp/void-mainnet-dev-bootstrap-full.sh
+   This will:
+     - Deploy / reuse UpdateGate, AdminGate, ConfigGate, ValidatorSet,
+       VoidToken, VoidTreasury, OpsTreasury, RewardEngine.
+     - Run the premine -> Treasury flow.
+     - Run Treasury -> Ops -> RewardEngine -> validator[0] emission flow.
+4. Confirm invariants:
+     ./ops/void-mainnet-tokenomics-dev-invariants.sh
+   It must report:
+     - totalSupply = 333,333,333 VOID
+     - supply == treasury + ops + reward + validator
+5. Confirm the dev bootstrap state doc:
+     docs/VOID-MAINNET-DEV-BOOTSTRAP-STATE.txt
+   matches what you expect for dev rehearsal (addresses, roles, etc.).
+
+Phase B — Prepare REAL mainnet config (addresses only)
+------------------------------------------------------
+1. Copy the template to a LIVE, untracked config file on a hardened machine:
+     cp config/void-mainnet-bootstrap-mainnet.template.json \
+        config/void-mainnet-bootstrap-mainnet.live.json
+2. Ensure .gitignore (and any other tooling) is configured so that
+   *.live.json, private key files, and LUKS images are NEVER committed.
+3. Edit config/void-mainnet-bootstrap-mainnet.live.json and fill in:
+   - roles.* fields with REAL hardware wallet addresses (Treasury, Ops,
+     AdminGate, UpdateGate, ConfigGate, ValidatorSet admin/owner).
+   - validator0.reward with the first validator’s payout address.
+   - validator0.stakeVOID with the intended stake size in VOID units.
+   - validator0.consensusKey with the 32-byte consensus public key.
+4. Verify the file by inspection on the hardened box.
+
+Phase C — Bootstrap PLAN (read-only)
+------------------------------------
+1. On the hardened machine with the repo + live JSON:
+   - Optionally export RPC_URL pointing at the VOID mainnet RPC endpoint
+     (when it exists) or leave it unset to do an offline plan.
+2. Run the planning script:
+     ./ops/void-mainnet-bootstrap-mainnet-plan.sh \
+       [config/void-mainnet-bootstrap-mainnet.live.json]
+3. The script will:
+   - Print all roles from the JSON (deployer, admins, owners, validator0).
+   - Summarize the intended transaction sequence:
+       Phase 1: deploy + wire UpdateGate / AdminGate / ConfigGate
+       Phase 2: deploy ValidatorSet, register validator[0], deploy VoidToken,
+                VoidTreasury, OpsTreasury
+       Phase 3: deploy RewardEngine, mint premine into VoidTreasury, run a
+                small test emission flow
+       Phase 4: finalize UpdateGate + ConfigGate config and lock down keys
+   - Optionally, if RPC_URL and 'cast' are available, print the on-chain
+     chainId for sanity.
+
+This phase is READ-ONLY. It must not broadcast any transactions.
+
+Phase D — REAL mainnet broadcast (future script)
+------------------------------------------------
+A future script (name TBD, e.g. ops/void-mainnet-bootstrap-mainnet-run.sh)
+will be responsible for actually broadcasting the real mainnet bootstrap
+transactions. It will:
+
+- Read config/void-mainnet-bootstrap-mainnet.live.json.
+- Execute the same sequence proven in dev:
+    1) Deploy/wire gates (UpdateGate, AdminGate, ConfigGate).
+    2) Deploy ValidatorSet and register validator[0].
+    3) Deploy VoidToken, VoidTreasury, OpsTreasury.
+    4) Deploy RewardEngine + emissions controller.
+    5) Mint 333,333,333 VOID premine directly into VoidTreasury.
+    6) Run a very small Treasury -> Ops -> RewardEngine -> validator[0]
+       emission test to verify the flow.
+    7) Finalize UpdateGate + ConfigGate config and lock down keys.
+- Use hardware wallets / offline signing for all sensitive roles.
+
+Until that script is implemented and reviewed, this RUNBOOK and the PLAN
+script are the authoritative documentation for mainnet bootstrap design.
+
+Key management (high-level)
+---------------------------
+- Premine / Treasury keys live on LUKS-encrypted USB and/or hardware wallets.
+- The premine key (if any) should be used once at genesis and effectively
+  retired; normal spending flows must go via VoidTreasury -> OpsTreasury.
+- AdminGate / UpdateGate / ConfigGate owners must be multi-sig or at least
+  rotatable keys with a documented emergency procedure.
+
