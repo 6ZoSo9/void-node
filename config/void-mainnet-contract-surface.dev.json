@@ -1,0 +1,57 @@
+{
+  "chainId": 2050,
+  "network": "void-mainnet-dev",
+  "version": "0.0.1-dev-bootstrap",
+  "commit": "UNKNOWN_COMMIT_REPLACE_ME",
+  "generatedAt": "REPLACE_ME_WITH_TIMESTAMP",
+  "contracts": {
+    "UpdateGate": {
+      "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+      "deployBlock": 0,
+      "impl": "UpdateGate",
+      "notes": "Dev/anvil instance from VOID mainnet dev bootstrap."
+    },
+    "AdminGate": {
+      "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+      "deployBlock": 0,
+      "impl": "AdminGate",
+      "notes": "Dev/anvil instance."
+    },
+    "ConfigGate": {
+      "address": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+      "deployBlock": 0,
+      "impl": "ConfigGate",
+      "notes": "Dev/anvil instance."
+    },
+    "ValidatorSet": {
+      "address": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
+      "deployBlock": 0,
+      "impl": "ValidatorSet",
+      "notes": "Dev/anvil mainnet ValidatorSet."
+    },
+    "VoidToken": {
+      "address": "0xdc64a140aa3e981100a9beca4e685f962f0cf6c9",
+      "deployBlock": 0,
+      "impl": "VoidToken",
+      "notes": "Dev/anvil VOID token used in tokenomics dev bootstrap."
+    },
+    "OpsTreasury": {
+      "address": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
+      "deployBlock": 0,
+      "impl": "OpsTreasury",
+      "notes": "Dev/anvil operational treasury."
+    },
+    "VoidTreasury": {
+      "address": "0x0165878a594ca255338adfa4d48449f69242eb8f",
+      "deployBlock": 0,
+      "impl": "VoidTreasury",
+      "notes": "Dev/anvil premine vault."
+    },
+    "RewardEngine": {
+      "address": "0xa513e6e4b8f2a923d98304ec87f64353c4d5c853",
+      "deployBlock": 0,
+      "impl": "RewardEngine",
+      "notes": "Dev/anvil emissions controller used in tokenomics dev bootstrap."
+    }
+  }
+}

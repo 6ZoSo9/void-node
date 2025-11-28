@@ -1,0 +1,169 @@
+VOID Network — Mainnet Contract Surface
+======================================
+
+Purpose
+-------
+
+This document defines the canonical "contract surface" for the VOID mainnet.
+It is the stable interface that wallets, explorers, agents, and tooling should
+rely on once the real VOID mainnet goes live.
+
+There are two layers:
+
+  1. SPEC layer  — what MUST exist, and what each contract does.
+  2. INSTANCE layer — where those contracts actually live (addresses, blocks).
+
+The SPEC layer is frozen by the v99 core freeze and UpdateGate governance.
+The INSTANCE layer is specific to each deployed chain (dev/anvil, staging,
+real mainnet) and is captured in a JSON "contract surface manifest".
+
+
+1. SPEC Layer — Required Contracts
+----------------------------------
+
+All VOID mainnet-style networks (dev, staging, real mainnet) MUST expose:
+
+  - UpdateGate
+      Role: Canonical upgrade/config gate for core VOID contracts.
+      Trust: Controlled by a small, well-audited signer set (M-of-N).
+      Used by:
+        * AdminGate / ConfigGate to register allowed changes.
+        * Off-chain governance tooling (signer rotation, freezes).
+        * VOID node / monitoring to confirm we are on an allowed config.
+
+  - AdminGate
+      Role: Owner/master key registry for "admin-level" actions.
+      Trust: High-privilege, used for emergency actions & rare ops tasks.
+      Used by:
+        * Treasury / OpsTreasury / RewardEngine admin actions.
+        * ValidatorSet owner-level changes (e.g., repair after slashing).
+        * Any future v99-governed contract that needs a master owner.
+
+  - ConfigGate
+      Role: Registry / router for key on-chain configuration.
+      Trust: Medium – managed via UpdateGate policy.
+      Used by:
+        * VOID nodes and agents to discover canonical contract addresses.
+        * Obelisk Wallet / explorers for chain-wide configuration.
+        * Future per-epoch config (fees, limits, etc.) under UpdateGate rules.
+
+  - ValidatorSet (mainnet)
+      Role: On-chain validator registry and staking surface for VOID mainnet.
+      Trust: Directly impacts security of block production / finality.
+      Used by:
+        * VOID nodes to discover validators & their consensus keys.
+        * RewardEngine to compute emissions and payouts.
+        * Obelisk Wallet / explorers to show validator info and status.
+
+  - VoidToken (VOID)
+      Role: ERC-20 / ERC-20-like representation of the VOID mainnet token.
+      Trust: Economic core of the system; MUST follow locked tokenomics spec.
+      Used by:
+        * End-users, wallets, and exchanges.
+        * Treasury / OpsTreasury / RewardEngine flows.
+        * Validator staking and reward flows.
+
+  - VoidTreasury
+      Role: Premine vault and long-term "cold" treasury.
+      Trust: Maximum – this is where the genesis PREMINE lives.
+      Used by:
+        * One-time bootstrap transfer into OpsTreasury + RewardEngine.
+        * Long-horizon ecosystem allocations under UpdateGate/AdminGate rules.
+
+  - OpsTreasury
+      Role: Hotter operational treasury.
+      Trust: High – funds used for real-world spend and active operations.
+      Used by:
+        * Routine transfers to hot wallets and operational accounts.
+        * Direct funding of RewardEngine, validators, ecosystem ops.
+
+  - RewardEngine
+      Role: Emissions controller and reward distributor.
+      Trust: High – enforces 100-year emissions and payout flows.
+      Used by:
+        * Scheduled emissions / epoch-based VOID distribution.
+        * Validator reward flows and other protocol-level incentives.
+        * Monitoring to ensure emissions match the locked spec.
+
+
+2. INSTANCE Layer — Contract Surface Manifest
+---------------------------------------------
+
+Each concrete network (dev/anvil, staging, real mainnet) must publish a JSON
+"contract surface manifest" with the following shape:
+
+  - chainId: number
+      MUST be 2050 for VOID mainnet and its dev/staging networks.
+
+  - network: string
+      Human-readable name, e.g.:
+        "void-mainnet-dev"
+        "void-mainnet-stage"
+        "void-mainnet"
+
+  - version: string
+      Semver-like identifier or CI-derived version. For real mainnet,
+      this should line up with a tagged release (e.g. v1.0.0-mainnet).
+
+  - commit: string
+      Git commit hash of the void-node / contracts repo that produced
+      this manifest.
+
+  - generatedAt: string
+      ISO 8601 timestamp when this manifest was generated.
+
+  - contracts: object
+      Map of well-known names to contract descriptors:
+
+        "UpdateGate": {
+          "address": "0x...",
+          "deployBlock": 12345,
+          "impl": "UpdateGate",
+          "notes": "M-of-N signer set under UpdateGate governance"
+        }
+
+        "AdminGate": { ... }
+        "ConfigGate": { ... }
+        "ValidatorSet": { ... }
+        "VoidToken": { ... }
+        "VoidTreasury": { ... }
+        "OpsTreasury": { ... }
+        "RewardEngine": { ... }
+
+      Additional fields MAY be present (e.g. ABI hashes, codeHashes,
+      extra registries), but clients MUST NOT depend on them for
+      basic connectivity.
+
+Clients (wallets, agents, explorers) MUST:
+
+  - Use chainId + network to choose the correct manifest.
+  - Use the "contracts" map as the canonical source of addresses.
+  - Treat this manifest as READ-ONLY and signed/verified out-of-band
+    (e.g. via UpdateGate / ConfigGate or a signed JSON).
+
+VOID node and monitoring SHOULD:
+
+  - Export metrics tying back to these addresses (e.g. codehash checks).
+  - Alert if any "core" address changes without a corresponding
+    UpdateGate / ConfigGate-approved event.
+
+In future revisions, the contract surface manifest may move fully on-chain
+via ConfigGate or a dedicated Registry contract. The JSON format here is
+the off-chain representation used by wallets and infra.
+
+
+3. Dev / Anvil Reference Instance
+---------------------------------
+
+A reference dev/anvil instance of the contract surface manifest lives at:
+
+  config/void-mainnet-contract-surface.dev.json
+
+This file is generated from a recent dev bootstrap run and shows the
+expected shape and core mapping, using anvil addresses.
+
+Real mainnet WILL NOT reuse those addresses. Instead, a separate manifest
+(e.g. config/void-mainnet-contract-surface.mainnet.json) will be created
+from the live bootstrap run and signed / published via the official VOID
+channels.
+
