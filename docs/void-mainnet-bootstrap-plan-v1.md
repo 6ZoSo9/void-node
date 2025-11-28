@@ -1,316 +1,241 @@
-# VOID Mainnet Bootstrap Plan v1
+# VOID Mainnet Bootstrap Plan — v1 (PLAN-only, stub)
 
-Status: DRAFT (design locked, addresses TBD)  
-Chain ID: 2050  
-Scope: Real VOID mainnet (not devnet/safeboot)
-
----
-
-## 1. Design Goals
-
-- Hard cap: **MAX_SUPPLY = 666,666,666 VOID**
-- Premine: **333,333,333 VOID** into a **contract Treasury**, not an EOA.
-- Emissions: **333,333,333 VOID** over ~100 years in 4 eras:
-  - Era 1: 177,777,777
-  - Era 2: 88,888,889
-  - Era 3: 44,444,444
-  - Era 4: 22,222,223
-- Premine key is one-shot at genesis, then effectively retired.
-- Users interact permissionlessly; only **core control** is gated (upgrades/params).
-- All “real power” sits behind **AdminGate / UpdateGate / ConfigGate** with rotatable signer sets and multi-sig.
+**Status (2025-11-28)**  
+- Branch: `feat/mainnet-core-20251120`  
+- Checkpoint tag: `ckpt-mainnet-bootstrap-plan-v1-20251128-173734`  
+- Script is **PLAN-only** / **SIMULATION ONLY** and hard-reverts with:
+  `VoidMainnetBootstrapMainnet: stub only; implement real wiring before broadcast`
+- Monitoring shows:
+  - `void_mainnet_bootstrap_plan_ready = 0`
+  - `void:mainnet_bootstrap_plan:ready:last_5m = 0`
+- This is **intentional** until real addresses, tokenomics wiring, and validator stakes are locked.
 
 ---
 
-## 2. Core Contracts (High Level)
+## 1. Files involved
 
-Main actors we expect for mainnet:
+### Config
 
-- **VoidToken** (VOID / VoidStones)
-  - Implements MAX_SUPPLY, emission logic, and premine mint.
-  - Only trusted contracts (Treasury, RewardEngine, etc.) can mint/burn beyond premine behavior.
+- `config/void-mainnet-bootstrap-mainnet.live.json`
+  - This is the **LIVE** mainnet bootstrap config file.
+  - It is **never committed** to git (guarded by .gitignore).
+  - Current contents are a **stub**: placeholder addresses, TODO stake strings, etc.
 
-- **VoidPremineVault** (optional)
-  - Temporary holding for initial premine before sending to Treasury.
-  - Used **once** during bootstrap, then frozen/emptied.
+**Example of what the script currently parses from `.live.json` (from logs):**
 
-- **VoidTreasury**
-  - Holds the main 333,333,333 VOID premine.
-  - Refuses arbitrary withdrawals; only whitelisted flows:
-    - To **OpsTreasury**.
-    - To **RewardEngine** or other programmatic distributions.
-  - Controlled by AdminGate/UpdateGate, not by a raw EOA.
+- `chainId = 2050`
+- Roles:
+  - `.roles.deployer          = 0x0000...0000` (stub)
+  - `.roles.treasuryAdmin     = 0x0000...0000` (stub)
+  - `.roles.opsTreasuryAdmin  = 0x0000...0000` (stub)
+  - `.roles.validatorAdmin    = 0x0000...0000` (stub)
+  - `.roles.adminGateOwner    = 0x1111...1111` (placeholder)
+  - `.roles.updateGateOwner   = 0x2222...2222` (placeholder)
+  - `.roles.configGateOwner   = 0x3333...3333` (placeholder)
+  - `.roles.treasuryOwner     = 0x4444...4444` (placeholder)
+  - `.roles.opsTreasuryOwner  = 0x5555...5555` (placeholder)
+  - `.roles.rewardEngineOwner = 0x6666...6666` (placeholder)
+  - `.roles.validatorSetOwner = 0x7777...7777` (placeholder)
+- Contracts:
+  - `.contracts.updateGate    = 0x0000...0000` (stub)
+  - `.contracts.adminGate     = 0x0000...0000` (stub)
+  - `.contracts.configGate    = 0x0000...0000` (stub)
+  - `.contracts.validatorSet  = 0x0000...0000` (stub)
+  - `.contracts.voidToken     = 0x0000...0000` (stub)
+  - `.contracts.voidTreasury  = 0x0000...0000` (stub)
+  - `.contracts.opsTreasury   = 0x0000...0000` (stub)
+  - `.contracts.rewardEngine  = 0x0000...0000` (stub)
+- Validator 0:
+  - `.validator0.reward       = 0x0000...0000` (stub)
+  - `.validator0.consensusKey = 0x0000...0000` (stub)
+  - `.validator0.stakeVOID    = "TODO"` (string placeholder; not parsed yet)
 
-- **OpsTreasury**
-  - Hotter pool for operational spending (salaries, infra, grants, etc.).
-  - Funded from Treasury in controlled increments.
-  - Managed by a smaller multi-sig / signer set, also wired through AdminGate/UpdateGate.
+### Scripts
 
-- **RewardEngine**
-  - Handles validator rewards / emissions over time.
-  - Reads from tokenomics constants.
-  - Gets funded from Treasury and/or inflation as designed.
+- `ops/void-mainnet-bootstrap-plan.sh`
+  - PLAN-only harness around `forge script` for `VoidMainnetBootstrapMainnet`.
+  - Inputs:
+    - `CONFIG_PATH = config/void-mainnet-bootstrap-mainnet.live.json`
+    - `RPC_URL     = http://127.0.0.1:8545`
+    - `OUT_DIR     = ops/out`
+    - `PROM_FILE   = ops/out/void-mainnet-bootstrap-plan.prom`
+  - Actions:
+    1. Prints a **best-effort config summary** using `jq`:
+       - network (if present), `chainId`, `treasury`, `opsTreasury`, `premine.total`, `validators`.
+    2. Runs `forge script` in **simulation** (no broadcast) and traces:
+       - Reads JSON.
+       - Parses all role / contract / validator fields listed above.
+       - Logs them via `console::log`.
+    3. Script currently **reverts intentionally**:
+       - `revert("stub only; implement real wiring before broadcast")`
+    4. Writes `ops/out/void-mainnet-bootstrap-plan.prom` containing:
+       - `void_mainnet_bootstrap_plan_ready`-related fields:
+         - `PLAN_OK`      (0 for now)
+         - `CHAIN_ID`     (2050)
+         - `VALIDATORS`   (1)
+         - `CONFIG_SHA`   (sha256 of the live config file)
 
-- **ValidatorSetMainnet**
-  - Canonical validator registry for VOID mainnet.
-  - Receives validator bond deposits (in VOID).
-  - Talks to RewardEngine for payouts.
+- `ops/void-mainnet-bootstrap-plan-health.sh`
+  - Wraps `...-plan.sh` and interprets the `.prom` file.
+  - Prints:
+    - `PLAN_OK`, `CHAIN_ID`, `VALIDATORS`, `CONFIG_SHA`.
+  - Current result:
+    - `RESULT: NOT READY (PLAN_OK==0)`
+    - Text explicitly says this is **expected while stub is in place**.
 
-- **AdminGate**
-  - Top-level authority.
-  - Can:
-    - Rotate signer sets.
-    - Change UpdateGate/ConfigGate admins.
-    - Trigger emergency routines (with timelocks where possible).
-
-- **UpdateGate**
-  - Controls upgrades to core contracts.
-  - Only way to upgrade critical things like RewardEngine, Treasury logic, etc.
-
-- **ConfigGate**
-  - Controls configuration knobs:
-    - Emission rate parameters.
-    - Validator minimums.
-    - Fee tunables, etc.
-
-- **JobQueue / Agents (future-connected)**
-  - Deployed with base version.
-  - Used later for AI agents and on-chain jobs.
-  - Not critical for genesis correctness but part of the long-term design.
-
----
-
-## 3. Key & Custody Model
-
-### 3.1 Categories of keys
-
-1. **Genesis Premine Key**
-   - Used once to execute mainnet bootstrap and mint premine.
-   - After bootstrap:
-     - No remaining direct control over funds.
-     - Treated as a nuclear launch key: stored offline, ideally never used again.
-
-2. **VoidTreasury Control Keys (AdminGate / UpdateGate)**
-   - Multi-sig or threshold scheme.
-   - Stored on:
-     - Hardware wallets and/or
-     - Devices whose seeds live on **LUKS-encrypted USBs**.
-   - Rotation supported via AdminGate.
-
-3. **OpsTreasury Keys**
-   - More frequently used, but still hardware/secure.
-   - Used for:
-     - Paying expenses.
-     - Operational withdrawals from Treasury (via governed flows).
-   - Also rotatable via AdminGate/UpdateGate.
-
-4. **Validator Keys**
-   - One per validator node (or more, if operators want separation).
-   - Live on validator machines (or HSM), potentially protected with local disk encryption.
-   - Can be rotated via ValidatorSet logic.
-
-5. **User Wallet Keys**
-   - On users’ own machines/devices.
-   - Wallet UX should:
-     - Encourage encryption, local backups, and “write it down” seed options.
-     - Never centralize custody.
-
-### 3.2 Storage requirements
-
-- **Genesis Premine Key**
-  - Stored on **LUKS-encrypted USB** and/or hardware wallet.
-  - Physical backups separated geographically if possible.
-  - Usage procedure must be scripted (no ad-hoc CLI guesswork on ceremony day).
-
-- **Treasury/Ops/Validator Signers**
-  - Recorded in a simple config manifest (YAML/JSON) used by the bootstrap script.
-  - For mainnet, we must never hardcode secrets in the repo; only reference addresses.
+- `ops/void-mainnet-bootstrap-plan-exporter.sh`
+  - Runs the health script.
+  - Copies `ops/out/void-mainnet-bootstrap-plan.prom` into the node_exporter textfile dir as:
+    - `/var/lib/node_exporter/textfile/void_mainnet_bootstrap_plan.prom` (or similar path on this box).
+  - Node exporter then exposes gauges named `void_mainnet_bootstrap_plan_*`.
 
 ---
 
-## 4. Bootstrap Phases
+## 2. Metrics
 
-This plan separates **dev rehearsal** from the **real mainnet ceremony**.
+### Node exporter
 
-### Phase 0 — Pre-flight (today)
+From scraping `http://127.0.0.1:9100/metrics` you see:
 
-- All core contracts compile and tests pass (`forge test`).
-- Tokenomics tests confirm:
-  - MAX_SUPPLY and era totals match spec.
-  - Premine and emissions add up correctly.
-- Prometheus / Grafana pillars are **green**:
-  - mainnet_core_health, mainnet_tokenomics_health, mainnet_lastmile, overall, etc.
+- `void_mainnet_bootstrap_plan_ready 0`
 
-*(We are here now.)*
+(`0` because the script currently always reverts as a stub.)
 
----
+### Prometheus
 
-### Phase 1 — Key Ceremony (Planning & Offline Work)
+Queries already confirmed:
 
-Goal: have all addresses we need for mainnet, without actually using the keys yet.
+- Raw gauge:
 
-Outputs:
+  - `void_mainnet_bootstrap_plan_ready`
+    - Returns `0`.
 
-- `mainnet-bootstrap-addresses.json` (not committed with secrets, only addresses), containing:
-  - `genesis_premine_signer`
-  - `treasury_multisig_address`
-  - `ops_treasury_multisig_address`
-  - `admin_gate_signers[]`
-  - `update_gate_signers[]`
-  - `config_gate_signers[]`
-  - `validator_initial_set[]` (addresses + stakes)
+- 5m smoothed view:
 
-Rules:
+  - `void:mainnet_bootstrap_plan:ready:last_5m`
+    - Recording rule over the raw gauge.
+    - Currently `0`.
 
-- Keys created with hardware wallets / secure tools.
-- Seeds stored on LUKS USB / offline backups.
-- Only addresses go into the bootstrap config kept in the repo (no private keys, no mnemonics).
+**Intent:**  
+- While PLAN is a stub: **observe only**; **do not gate pushes or mainnet health**.  
+- After real addresses & stakes are wired and the stub revert is removed:
+  - `void_mainnet_bootstrap_plan_ready` is expected to be `1`.
+  - `void:mainnet_bootstrap_plan:ready:last_5m` should also track `1`.
+  - We can then promote this into:
+    - Pillars checks.
+    - Pre-push gating.
+    - A real alert: “Mainnet bootstrap plan no longer simulating cleanly”.
 
 ---
 
-### Phase 2 — Dev/Anvil Rehearsal (VoidMainnetBootstrapDev.s.sol)
+## 3. What this PLAN v1 guarantees (today)
 
-This is the dry run we will do **before** mainnet.
+1. **Config shape sanity**
+   - The `.live.json` has all the expected fields:
+     - `.chainId`, `.roles.*`, `.contracts.*`, `.validator0.*`.
+   - Missing/renamed fields would break the script and be visible in logs/metrics.
 
-Steps (high-level):
+2. **ChainId match**
+   - Script compares:
+     - `runtime chainId` (from RPC 8545, expected 2050)
+     - `config chainId` (from `.live.json`)
+   - Logs:
+     - `runtime chainId : 2050`
+     - `config  chainId : 2050`
+     - `chainId sanity OK; parsed config view.`
 
-1. Spin up **anvil** with chainId 2050 and deterministic keys.
-2. Run `VoidMainnetBootstrapDev.s.sol` against anvil using:
-   - Dummy signers that mirror the structure of the real ones (same number of signers, different keys).
-3. Script performs:
-   - Deployment of VoidToken, Treasury, OpsTreasury, RewardEngine, ValidatorSetMainnet, AdminGate, UpdateGate, ConfigGate, JobQueue, etc.
-   - Premine mint into the Treasury (and possibly Vault → Treasury).
-   - Wiring of gates and roles.
-   - Initial funding rules for RewardEngine and OpsTreasury.
+3. **No accidental broadcast**
+   - Forge script is simulation-only.
+   - Even if broadcast flags accidentally sneak in later, the explicit **stub revert** guarantees failures until you consciously remove it.
 
-4. Script writes out a **bootstrap report** to stdout (and ideally JSON):
-   - Deployed addresses.
-   - Final balances.
-   - Emission/timing config.
-   - Invariants check (supply sums, no stray supply, etc.).
-
-5. We verify:
-   - All invariants pass.
-   - No contract has direct EOA control over premine.
-   - AdminGate / UpdateGate / ConfigGate all point to the expected signer sets.
-
-We will have a dedicated shell script to do this entire rehearsal, so it becomes a one-command routine.
+4. **Visibility in monitoring**
+   - Node exporter: `void_mainnet_bootstrap_plan_ready`.
+   - Prometheus: both raw and smoothed metric.
+   - Easy to put on dashboards and feed into future gating.
 
 ---
 
-### Phase 3 — Real Mainnet Bootstrap (One-Shot Ceremony)
+## 4. What is **NOT** done yet
 
-Once we’re satisfied with the dev rehearsal:
+This PLAN v1 does **NOT**:
 
-1. Prepare mainnet RPC endpoint (e.g., a dedicated mainnet bootstrap node).
-2. Freeze the bootstrap config:
-   - JSON/YAML file with:
-     - Final addresses for all signers.
-     - Emission parameters.
-     - Any deployment constants needed by the script.
+- Deploy any contracts.
+- Move any premine.
+- Wire up real addresses for:
+  - AdminGate, UpdateGate, ConfigGate.
+  - VoidToken, VoidTreasury, OpsTreasury, RewardEngine.
+  - ValidatorSet / ValidatorSet L1 ↔ mainnet linkage.
+- Parse validator stake amounts (e.g., `.validator0.stakeVOID` numeric handling).
+- Enforce `PLAN_OK==1` in:
+  - Pillars.
+  - Pre-push hooks.
+  - Any mainnet health SLOs.
 
-3. Run the **mainnet** bootstrap script:
-   - Essentially the same logic as the dev script, but using real signer addresses.
-   - Signed with the **genesis premine key** and any required gate signers.
-
-4. Confirm on-chain:
-   - `MAX_SUPPLY` and `totalSupply` match expectations.
-   - Treasury holds exactly 333,333,333 VOID.
-   - OpsTreasury, RewardEngine, etc., have the correct initial balances.
-   - AdminGate/UpdateGate/ConfigGate are wired to the correct addresses.
-   - ValidatorSetMainnet has the intended initial validators and bonds.
-
-5. Tag repo & config:
-   - Git tag like `void-mainnet-bootstrap-YYYYMMDD-HHMMSS`.
-   - Archive the bootstrap config + outputs in an offline vault.
-
-After this, the **premine key is done**. All further control routes through the gates.
+It is **only** a simulator + metrics harness.
 
 ---
 
-### Phase 4 — Post-Bootstrap Activation & Monitoring
+## 5. Future TODOs (high level)
 
-After contracts are live:
+These are the steps needed to turn PLAN v1 into a **real** mainnet bootstrap plan:
 
-- **Validators**
-  - Bring up initial validators using the configured ValidatorSetMainnet.
-  - Confirm they can:
-    - Bond.
-    - Unbond.
-    - Receive rewards from RewardEngine.
+1. **Lock role addresses for mainnet**
+   - Real hardware-wallet-backed addresses for:
+     - Deployer (short-lived hot)
+     - AdminGateOwner (cold)
+     - UpdateGateOwner (cold, multi-sig)
+     - ConfigGateOwner (config/governance)
+     - TreasuryAdmin / OpsTreasuryAdmin / ValidatorAdmin
+     - TreasuryOwner / OpsTreasuryOwner / RewardEngineOwner / ValidatorSetOwner
+   - Update `.live.json` accordingly.
 
-- **Wallet**
-  - Obelisk Wallet connects to mainnet (chainId 2050).
-  - Users can:
-    - Receive VOID.
-    - Send VOID.
-    - Stake (if wallet supports validator flows early).
+2. **Lock contract addresses or deployment plan**
+   - Decide whether `.contracts.*` are:
+     - Pre-deployed (e.g., from a previous script run), or
+     - To be created in the real bootstrap run (then `.live.json` might hold “expected” addresses or be patched after deployment).
+   - Ensure `VoidToken`, `VoidTreasury`, `OpsTreasury`, `RewardEngine`, `ValidatorSet`, `AdminGate`, `UpdateGate`, `ConfigGate` all line up with our tokenomics + v99 freeze design.
 
-- **Monitoring**
-  - Prometheus/Grafana expand from “devnet only” to include:
-    - On-chain metrics for mainnet contracts if available.
-    - JobQueue / agent receipts once live.
-  - A dedicated “Mainnet Pillars” exporter tracks:
-    - mainnet_core_health
-    - mainnet_lastmile
-    - mainnet_tokenomics_health
-    - mainnet_overall (aggregated)
+3. **Wire validator stakes**
+   - Decide numeric stake for validator0 (and any others).
+   - Implement parsing of `validator0.stakeVOID` as a number.
+   - Add invariants to the script:
+     - Total validator stake ≤ emissions and consistent with RewardEngine schedule.
+     - Validator reward address is a real cold wallet, not a hot key.
 
----
+4. **Remove stub revert (when safe)**
+   - Replace the “stub only” revert with:
+     - Full dry-run path that **succeeds** when everything is consistent.
+     - Strict internal sanity checks so any mismatch fails the PLAN.
 
-## 5. Safety & Invariants Checklist
+5. **Flip PLAN_OK to 1 and gate on it**
+   - Once (1)–(4) are done:
+     - `void_mainnet_bootstrap_plan_ready` should be `1` during normal operation.
+     - Wire this into:
+       - A new `void-mainnet-bootstrap-plan-health` script (or extend pillars).
+       - A Prometheus alert if it drops to `0`.
+       - Pre-push gating (e.g., “don’t push if PLAN_OK==0 for the last 5m”).
 
-These are non-negotiable conditions that must hold at the end of bootstrap:
-
-1. **Supply Invariants**
-   - `totalSupply(VOID) == 333,333,333 (premine) + current_emitted`
-   - `MAX_SUPPLY == 666,666,666`
-   - Sum of balances (Treasury + OpsTreasury + RewardEngine + other) == totalSupply.
-
-2. **No Hot EOA Custody of Premine**
-   - No EOA holds bulk premine at any point after bootstrap completes.
-   - All large balances are in contracts with explicit rules.
-
-3. **Gate Control**
-   - Every upgrade or config knob for core systems is behind AdminGate/UpdateGate/ConfigGate.
-   - Gate signers are rotatable by design.
-
-4. **Key Hygiene**
-   - Genesis premine key used once, then effectively retired.
-   - Treasury/Ops/Validator keys recorded and backed up.
-   - No mnemonics or private keys ever committed to Git.
-
-5. **Monitoring Green**
-   - All mainnet pillars show green:
-     - core
-     - last-mile
-     - tokenomics
-     - overall
-   - Alerts exist and are tested for:
-     - Supply mismatches.
-     - Stalled emission / rewards.
-     - Broken last-mile or agent flows.
+6. **Document key-handling + LUKS / hardware requirements**
+   - Tie this PLAN doc into:
+     - Your existing keys & treasury plan.
+     - LUKS/USB sentinel requirements.
+     - Hardware-wallet flows for the real deployment day.
 
 ---
 
-## 6. What Still Needs Concrete Commands
+## 6. How to read this doc in the future
 
-This doc is the **plan**, not the final CLI.
+- When you see:
+  - `void_mainnet_bootstrap_plan_ready = 0`
+  - and logs like: `stub only; implement real wiring before broadcast`
+- That means you are **still on PLAN v1**:
+  - Safe.
+  - Observable.
+  - Not ready for live broadcast.
 
-We still need to codify:
+Once we move beyond v1, we should:
 
-- `ops/void-mainnet-bootstrap-dev.sh`
-  - Spins anvil.
-  - Runs VoidMainnetBootstrapDev.s.sol.
-  - Writes JSON report.
-  - Runs invariants and dumps a summary.
-
-- `ops/void-mainnet-bootstrap-mainnet.sh`
-  - Uses a config file of addresses.
-  - Runs the real bootstrap script against mainnet RPC.
-  - Writes logs + JSON summary for archival.
-
-When we get closer to mainnet, we will:
-- Lock the exact config schema.
-- Define the one-liner commands for both dev rehearsal and mainnet.
-- Dry-run the dev script multiple times until it is boring.
+- Create a new doc (e.g. `void-mainnet-bootstrap-plan-v2.md`).
+- Tag a new checkpoint.
+- Update all references in ops scripts and monitoring to match.
 
