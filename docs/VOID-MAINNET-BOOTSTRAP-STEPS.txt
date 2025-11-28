@@ -1,0 +1,136 @@
+VOID MAINNET BOOTSTRAP — CANONICAL STEP MAP
+==========================================
+
+This file defines the canonical, numbered steps we use for:
+
+  - Dev rehearsal bootstrap (anvil, chainId 2050)
+  - Real VOID mainnet bootstrap (hardware wallets, live JSON, real chain)
+
+Dev and mainnet must follow the SAME logical order; only the signing / infra changes.
+
+------------------------------------------------------------
+[STEP 01] Repo / branch / environment sanity
+------------------------------------------------------------
+Dev:
+  - Ensure we are on branch feat/mainnet-core-20251120 (or successor).
+  - Ensure forge test is green (we typically run this outside the pipeline).
+  - Confirm anvil is running on chainId 2050 for dev bootstrap.
+
+Mainnet:
+  - Ensure we are on the tagged release commit for mainnet.
+  - Ensure all pillar health scripts (devnet, mainnet-core, lastmile, tokenomics) are green.
+  - Confirm L1 RPC, gas settings, and signer hardware wallets are ready.
+
+------------------------------------------------------------
+[STEP 02] Load bootstrap config (dev or mainnet)
+------------------------------------------------------------
+Dev:
+  - Use config/void-mainnet-bootstrap-dev.json
+  - This defines role addresses and validator[0] for dev rehearsal.
+
+Mainnet:
+  - Use config/void-mainnet-bootstrap-mainnet.live.json
+  - This file NEVER goes into git.
+  - Contains ONLY public addresses and stake amounts (no mnemonics, no private keys).
+
+------------------------------------------------------------
+[STEP 03] Deploy and wire core contracts
+------------------------------------------------------------
+Dev:
+  - Deploy and wire:
+      - UpdateGate
+      - AdminGate
+      - ConfigGate
+      - ValidatorSet (mainnet)
+      - VoidToken
+      - VoidTreasury
+      - OpsTreasury
+      - RewardEngine
+  - Configure gates and roles using dev addresses from the config JSON.
+
+Mainnet:
+  - Same wiring as dev, but:
+      - All txs signed via hardware wallets.
+      - All addresses / amounts driven by the LIVE JSON.
+      - Broadcast via Foundry script (VoidMainnetBootstrap*).sh/s.sol + hardware wallets.
+
+------------------------------------------------------------
+[STEP 04] Move premine into VoidTreasury
+------------------------------------------------------------
+Dev:
+  - Mint the premine slice to the deployer or staging address.
+  - Transfer **all premine** for dev rehearsal into the VoidTreasury contract.
+
+Mainnet:
+  - Mint the full premine (333,333,333 VOID) as per the mainnet spec.
+  - Move 100% of premine into VoidTreasury.
+  - The premine EOA key is one-shot and then effectively retired.
+
+------------------------------------------------------------
+[STEP 05] Fund OpsTreasury and validator(s)
+------------------------------------------------------------
+Dev:
+  - From VoidTreasury:
+      - Send the configured Ops slice to OpsTreasury.
+      - Send the validator bootstrap allocation(s) for dev-validator[0].
+  - This matches the dev rehearsal numbers:
+      - Treasury: 331,433,333 VOID
+      - Ops: 1,800,000 VOID
+      - Validator(dev): 100,000 VOID
+      - Reward: 0
+
+Mainnet:
+  - From VoidTreasury:
+      - Send OpsTreasury its initial operational slice.
+      - Send validator(s) their initial stake allocations for era 1.
+      - Exact amounts defined in the LIVE JSON.
+
+------------------------------------------------------------
+[STEP 06] RewardEngine wiring and validator claim()
+------------------------------------------------------------
+Dev:
+  - Ensure RewardEngine is fully wired:
+      - It is configured with VoidToken, VoidTreasury, and ValidatorSet(mainnet).
+      - It knows the validator reward params for dev.
+  - Run the end-to-end flow:
+      - Treasury -> Ops -> RewardEngine -> validator claim().
+
+Mainnet:
+  - Same logical flow, but:
+      - Carefully verify all parameters via cast call before any claim().
+      - Validators perform claim() from their own hardware-controlled EOAs.
+
+------------------------------------------------------------
+[STEP 07] Tokenomics invariants and final checks
+------------------------------------------------------------
+Dev:
+  - Run ops/void-mainnet-tokenomics-dev-invariants.sh.
+  - Confirm:
+      - totalSupply == premine (for dev rehearsal slice).
+      - Treasury / Ops / Validator / Reward balances match the spec.
+      - No stray balances on deployer or staging EOAs.
+
+Mainnet:
+  - Run the mainnet tokenomics invariants script (TBD name, same logic).
+  - Confirm:
+      - totalSupply == MAX_SUPPLY (666,666,666 VOID).
+      - Premine and emissions slices are correctly allocated.
+      - Treasury / OpsTreasury / validator balances match the mainnet plan.
+
+------------------------------------------------------------
+[STEP 08] Archive manifest and receipts
+------------------------------------------------------------
+Dev:
+  - Capture:
+      - All deployed addresses.
+      - All tx hashes from the dev rehearsal.
+      - The exact dev config JSON used.
+  - Store in docs/VOID-MAINNET-DEV-BOOTSTRAP-STATE.txt (already exists).
+
+Mainnet:
+  - Capture:
+      - All deployed addresses.
+      - All tx hashes / receipts for the live bootstrap.
+      - The exact LIVE JSON (or a hash of it) used for mainnet.
+  - Store in a “VOID Mainnet Genesis Manifest” file and off-chain backups.
+
