@@ -1,0 +1,178 @@
+VOID MAINNET BOOTSTRAP — LIVE JSON + HARDWARE FLOW
+==================================================
+
+Goal:
+  - Define the exact shape of config/void-mainnet-bootstrap-mainnet.live.json.
+  - Describe how we populate it using hardware wallets and air-gapped steps.
+  - Ensure STEP 01–08 (see VOID-MAINNET-BOOTSTRAP-STEPS.txt) map 1:1 to mainnet.
+
+Files
+-----
+
+In git:
+  - config/void-mainnet-bootstrap-mainnet.template.json
+      - Placeholder/template with zero addresses.
+  - docs/VOID-MAINNET-BOOTSTRAP-STEPS.txt
+  - docs/VOID-MAINNET-BOOTSTRAP-RUNBOOK.txt
+  - ops/void-mainnet-bootstrap-mainnet-plan.sh
+  - ops/void-mainnet-dev-bootstrap-full.sh
+
+NEVER in git:
+  - config/void-mainnet-bootstrap-mainnet.live.json
+      - Real chainId, real mainnet addresses, validator stakes.
+      - No private keys, no mnemonics, no seeds, no LUKS images.
+
+JSON Shape (LIVE)
+-----------------
+
+The LIVE JSON follows the same logical shape as the dev config:
+
+{
+  "chainId": 2050,
+  "networkName": "void-mainnet",
+  "roles": {
+    "adminGateOwner":    "0x...",
+    "updateGateOwner":   "0x...",
+    "configGateOwner":   "0x...",
+    "treasuryOwner":     "0x...",
+    "opsTreasuryOwner":  "0x...",
+    "rewardEngineOwner": "0x...",
+    "validatorSetOwner": "0x..."
+  },
+  "validators": [
+    {
+      "id":           "validator-0",
+      "rewardAddress":"0x...",
+      "stakeVOID":    "1000000",
+      "consensusKey": "0x..."
+    },
+    {
+      "id":           "validator-1",
+      "rewardAddress":"0x...",
+      "stakeVOID":    "500000",
+      "consensusKey": "0x..."
+    }
+  ]
+}
+
+Notes:
+
+  - chainId:
+      - Must be 2050 for VOID mainnet.
+  - networkName:
+      - Human label, e.g. "void-mainnet".
+  - roles.*:
+      - EOA addresses controlled by hardware wallets.
+      - All must be valid 0x-prefixed, 40-hex-byte addresses.
+      - These are control addresses for AdminGate, UpdateGate, ConfigGate,
+        treasury ownership, ops treasury, RewardEngine owner, ValidatorSet owner.
+  - validators[]:
+      - id:
+          - Human-readable label (no on-chain meaning), e.g. "validator-0".
+      - rewardAddress:
+          - EOA where this validator receives rewards / stake refunds.
+          - MUST be controlled by hardware wallet(s).
+      - stakeVOID:
+          - Stringified integer count of VOID tokens to allocate at bootstrap
+            to this validator (whole tokens, not wei).
+            Example: "1000000" means 1,000,000 VOID.
+      - consensusKey:
+          - Hex-encoded public key for the validator’s node (BLS or secp) in
+            whatever format the ValidatorSet expects.
+          - PUBLIC KEY ONLY. The private consensus key never goes into this file.
+
+Hardware Wallet / Live JSON Flow
+--------------------------------
+
+High-level picture, tied to STEP 01–08:
+
+[STEP 01] Environment sanity (pre-mainnet)
+------------------------------------------
+  - Choose the tagged commit / release for mainnet.
+  - Ensure all pillars (devnet, mainnet-core, lastmile, tokenomics, safeboot)
+    are green.
+  - Prepare:
+      - One or more hardware wallets for:
+          - AdminGate master roles.
+          - UpdateGate signers.
+          - ConfigGate owner.
+          - Treasury / OpsTreasury operators.
+          - Validator reward addresses.
+      - Separate storage (e.g. LUKS USB) for:
+          - Backups of seed phrases (offline).
+          - Backups of consensus keys (if not on HSM).
+
+[STEP 02] Prepare LIVE JSON (air-gapped)
+----------------------------------------
+  - On an air-gapped or tightly controlled "bootstrap laptop":
+      1) Copy config/void-mainnet-bootstrap-mainnet.template.json onto it.
+      2) On the hardware devices, generate / confirm:
+          - Owner addresses for each role (AdminGate/UpdateGate/ConfigGate/
+            Treasury/Ops/RewardEngine/ValidatorSet).
+          - Reward addresses for each validator.
+      3) Manually fill in:
+          - roles.* addresses from hardware wallet UIs.
+          - validators[].rewardAddress from hardware wallet UIs.
+          - validators[].stakeVOID per the mainnet tokenomics plan.
+          - validators[].consensusKey using each validator node’s PUBLIC key.
+
+  - Save as:
+      config/void-mainnet-bootstrap-mainnet.live.json
+    on that bootstrap machine.
+
+  - DO NOT:
+      - Store mnemonics or seeds in this JSON.
+      - Store private consensus keys in this JSON.
+      - Email or cloud-sync this file unencrypted.
+
+[STEP 03] Validate LIVE JSON (offline)
+--------------------------------------
+  - On the same bootstrap machine, run the validation helper:
+      - ops/void-mainnet-bootstrap-mainnet-live-validate.sh
+    to check:
+      - chainId == 2050
+      - roles.* are well-formed 0x... addresses.
+      - validators[].rewardAddress are well-formed.
+      - stakeVOID entries sum to the expected bootstrap stake.
+  - If validation fails:
+      - Fix the JSON manually.
+      - Re-run the validator until it passes.
+
+[STEP 04–06] Mainnet bootstrap (on-chain)
+-----------------------------------------
+  - The Foundry script (VoidMainnetBootstrap*.s.sol) will:
+      - Read the LIVE JSON.
+      - Deploy/wire:
+          - UpdateGate, AdminGate, ConfigGate, ValidatorSet(mainnet),
+            VoidToken, VoidTreasury, OpsTreasury, RewardEngine.
+      - Move premine into VoidTreasury.
+      - Fund OpsTreasury and validator(s).
+      - Wire RewardEngine and (optionally) exercise validator claim().
+
+  - All actual mainnet transactions are:
+      - Broadcast from a machine pointed at the real mainnet RPC.
+      - Signed on hardware wallets. No raw private keys on disk.
+
+[STEP 07] Tokenomics invariants and final checks
+------------------------------------------------
+  - A mainnet invariants script (similar to
+    ops/void-mainnet-tokenomics-dev-invariants.sh) will:
+      - Query totalSupply.
+      - Check Treasury, OpsTreasury, validator balances.
+      - Verify premine + emissions sums match MAX_SUPPLY (666,666,666 VOID).
+
+[STEP 08] Genesis manifest, receipts, and backups
+-------------------------------------------------
+  - Immediately after bootstrap:
+      - Collect all tx hashes and receipts.
+      - Collect all deployed addresses.
+      - Record:
+          - The hash of config/void-mainnet-bootstrap-mainnet.live.json.
+          - The exact commit/tag of the contracts repository.
+      - Store in a “VOID Mainnet Genesis Manifest” file.
+      - Back up:
+          - Manifest file.
+          - LIVE JSON.
+          - Any human-readable notes.
+      - On LUKS + offline backups as per keys/treasury plan.
+
