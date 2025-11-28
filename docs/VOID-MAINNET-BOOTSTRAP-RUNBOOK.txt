@@ -1,149 +1,390 @@
-VOID MAINNET BOOTSTRAP RUNBOOK (OUTLINE)
-=======================================
+VOID MAINNET BOOTSTRAP RUNBOOK
+==============================
 
-Scope
------
-This document describes the high-level procedure to bootstrap the REAL VOID
-mainnet (chainId 2050) using the contracts in this repository.
+Chain ID: 2050
+Network: VOID Mainnet 1
+Authors: ZoSo + Sol (Oren)
+Status: Draft, based on dev bootstrap pipeline proven on anvil.
 
-It is **addresses-only**. Never store private keys, mnemonics, or raw seeds
-in this repo. All signing for mainnet must happen on a hardened machine with
-hardware wallets and/or LUKS-encrypted key material.
 
-Roles and contracts (summary)
------------------------------
-Core contracts involved in mainnet bootstrap:
+GOAL
+----
 
-- UpdateGate       — controls protocol-level updates under a master key.
-- AdminGate        — central admin router for system contracts.
-- ConfigGate       — on-chain configuration registry.
-- ValidatorSet     — mainnet validator set (voting power, totalPower, etc.).
-- VoidToken        — VOID / VoidStones ERC20 with MAX_SUPPLY=333,333,333.
-- VoidTreasury     — holds the premine (333,333,333 VOID) at genesis.
-- OpsTreasury      — operational treasury used for emissions + ops spending.
-- RewardEngine     — stages emissions and credits validators.
+Bootstrap VOID Mainnet with:
 
-Key addresses (see config/void-mainnet-bootstrap-mainnet.template.json):
+- Locked tokenomics:
+  - MAX_SUPPLY = 666,666,666 VOID
+  - PREMINE    = 333,333,333 VOID (goes to VoidTreasury at genesis)
+  - EMISSIONS  = 333,333,333 VOID over 4 eras:
+    - Era 1: 177,777,777
+    - Era 2:  88,888,889
+    - Era 3:  44,444,444
+    - Era 4:  22,222,223
+- Premine held by VoidTreasury (contract), NOT an EOA.
+- OpsTreasury funded from Treasury (controlled leak).
+- RewardEngine wired and ready to stream emissions.
+- Initial ValidatorSet configured and funded.
+- UpdateGate/AdminGate/ConfigGate wired to fresh, hardware-protected keys.
+- No devnet keys reused. Genesis/premine key used once and effectively retired.
 
-- roles.deployer            — deploy-time operator (NOT a long-term treasury).
-- roles.treasuryAdmin       — controls VoidTreasury policy.
-- roles.opsTreasuryAdmin    — controls OpsTreasury policy.
-- roles.validatorAdmin      — controls ValidatorSet.
-- roles.adminGateOwner      — owner of AdminGate.
-- roles.updateGateOwner     — owner of UpdateGate (master key).
-- roles.configGateOwner     — owner of ConfigGate.
-- roles.treasuryOwner       — on-chain owner of Treasury contract.
-- roles.opsTreasuryOwner    — on-chain owner of OpsTreasury.
-- roles.rewardEngineOwner   — on-chain owner of RewardEngine.
-- roles.validatorSetOwner   — on-chain owner of ValidatorSet.
 
-- validator0.reward         — reward address for initial validator[0].
-- validator0.stakeVOID      — stake amount for validator[0] (VOID units).
-- validator0.consensusKey   — 32-byte consensus public key.
-
-Premine / supply model
-----------------------
-- MAX_SUPPLY      = 666,666,666 VOID
-- PREMINE         = 333,333,333 VOID  (into VoidTreasury at genesis)
-- EMISSIONS       = 333,333,333 VOID over 100 years in 4 eras:
-                    [177,777,777, 88,888,889, 44,444,444, 22,222,223]
-
-On REAL mainnet:
-
-- All 333,333,333 premine tokens MUST be minted directly into VoidTreasury.
-- No premine balance should ever sit on a hot EOA.
-- Emissions for validators flow: VoidTreasury -> OpsTreasury -> RewardEngine
-  -> validator reward addresses, enforced by RewardEngine + VoidEmissionsController.
-
-Phase A — Dev rehearsal (anvil)
+PHASE 0 — PRE-MAINNET CHECKLIST
 -------------------------------
-Goal: prove the entire bootstrap + tokenomics flow on an anvil devnet with
-chainId=2050 before touching real keys.
 
-1. Start anvil with chainId 2050.
-2. Export dev-only keys:
-     export RPC_URL=http://127.0.0.1:8545
-     export DEPLOYER_KEY=<anvil deployer key>
-     export OPS_KEY=<anvil ops key>
-3. Run the dev full pipeline orchestrator (current canonical helper):
-     /tmp/void-mainnet-dev-bootstrap-full.sh
-   This will:
-     - Deploy / reuse UpdateGate, AdminGate, ConfigGate, ValidatorSet,
-       VoidToken, VoidTreasury, OpsTreasury, RewardEngine.
-     - Run the premine -> Treasury flow.
-     - Run Treasury -> Ops -> RewardEngine -> validator[0] emission flow.
-4. Confirm invariants:
-     ./ops/void-mainnet-tokenomics-dev-invariants.sh
-   It must report:
-     - totalSupply = 333,333,333 VOID
-     - supply == treasury + ops + reward + validator
-5. Confirm the dev bootstrap state doc:
-     docs/VOID-MAINNET-DEV-BOOTSTRAP-STATE.txt
-   matches what you expect for dev rehearsal (addresses, roles, etc.).
+You DO NOT start mainnet until ALL of this is true:
 
-Phase B — Prepare REAL mainnet config (addresses only)
-------------------------------------------------------
-1. Copy the template to a LIVE, untracked config file on a hardened machine:
-     cp config/void-mainnet-bootstrap-mainnet.template.json \
-        config/void-mainnet-bootstrap-mainnet.live.json
-2. Ensure .gitignore (and any other tooling) is configured so that
-   *.live.json, private key files, and LUKS images are NEVER committed.
-3. Edit config/void-mainnet-bootstrap-mainnet.live.json and fill in:
-   - roles.* fields with REAL hardware wallet addresses (Treasury, Ops,
-     AdminGate, UpdateGate, ConfigGate, ValidatorSet admin/owner).
-   - validator0.reward with the first validator’s payout address.
-   - validator0.stakeVOID with the intended stake size in VOID units.
-   - validator0.consensusKey with the 32-byte consensus public key.
-4. Verify the file by inspection on the hardened box.
+1. Code & contracts
 
-Phase C — Bootstrap PLAN (read-only)
-------------------------------------
-1. On the hardened machine with the repo + live JSON:
-   - Optionally export RPC_URL pointing at the VOID mainnet RPC endpoint
-     (when it exists) or leave it unset to do an offline plan.
-2. Run the planning script:
-     ./ops/void-mainnet-bootstrap-mainnet-plan.sh \
-       [config/void-mainnet-bootstrap-mainnet.live.json]
-3. The script will:
-   - Print all roles from the JSON (deployer, admins, owners, validator0).
-   - Summarize the intended transaction sequence:
-       Phase 1: deploy + wire UpdateGate / AdminGate / ConfigGate
-       Phase 2: deploy ValidatorSet, register validator[0], deploy VoidToken,
-                VoidTreasury, OpsTreasury
-       Phase 3: deploy RewardEngine, mint premine into VoidTreasury, run a
-                small test emission flow
-       Phase 4: finalize UpdateGate + ConfigGate config and lock down keys
-   - Optionally, if RPC_URL and 'cast' are available, print the on-chain
-     chainId for sanity.
+   - On the mainnet-core branch (or successor), currently:
+       feat/mainnet-core-20251120
+   - `forge build` passes.
+   - All core test suites pass:
+     - TokenomicsSpec
+     - Treasury
+     - RewardEngine
+     - AdminGate
+     - ValidatorSet (L1 + mainnet)
+     - JobQueue* (core agent plumbing)
+   - No uncommitted changes that affect contracts or bootstrap scripts.
 
-This phase is READ-ONLY. It must not broadcast any transactions.
+2. Monitoring / pillars (on the dev stack)
 
-Phase D — REAL mainnet broadcast (future script)
-------------------------------------------------
-A future script (name TBD, e.g. ops/void-mainnet-bootstrap-mainnet-run.sh)
-will be responsible for actually broadcasting the real mainnet bootstrap
-transactions. It will:
+   Run:
 
-- Read config/void-mainnet-bootstrap-mainnet.live.json.
-- Execute the same sequence proven in dev:
-    1) Deploy/wire gates (UpdateGate, AdminGate, ConfigGate).
-    2) Deploy ValidatorSet and register validator[0].
-    3) Deploy VoidToken, VoidTreasury, OpsTreasury.
-    4) Deploy RewardEngine + emissions controller.
-    5) Mint 333,333,333 VOID premine directly into VoidTreasury.
-    6) Run a very small Treasury -> Ops -> RewardEngine -> validator[0]
-       emission test to verify the flow.
-    7) Finalize UpdateGate + ConfigGate config and lock down keys.
-- Use hardware wallets / offline signing for all sensitive roles.
+     ./ops/void-mainnet-health-all.sh
+     ./ops/void-mainnet-tokenomics-health-all.sh
+     ./ops/void-mainnet-pillars-health-all.sh
 
-Until that script is implemented and reviewed, this RUNBOOK and the PLAN
-script are the authoritative documentation for mainnet bootstrap design.
+   All must report RESULT: OK.
 
-Key management (high-level)
----------------------------
-- Premine / Treasury keys live on LUKS-encrypted USB and/or hardware wallets.
-- The premine key (if any) should be used once at genesis and effectively
-  retired; normal spending flows must go via VoidTreasury -> OpsTreasury.
-- AdminGate / UpdateGate / ConfigGate owners must be multi-sig or at least
-  rotatable keys with a documented emergency procedure.
+   In Prometheus, confirm:
 
+   - `void:mainnet_overall:health:last_5m_v2 == 1`
+   - `void:mainnet_pillars:health:last_5m == 1`
+   - `void_mainnet_tokenomics_health == 1`
+   - `void_mainnet_keys_health == 1`
+   - `void_mainnet_core_manifest_health == 1`
+   - `void:mainnet_core:manifest_days_left:last >= 365`
+
+3. Keys and storage model
+
+   Fresh MAINNET keys generated (never used on dev/test):
+
+   - Premine/Genesis key (ONE-SHOT use at bootstrap).
+   - VoidTreasury owner keys (multisig or equivalent).
+   - OpsTreasury owner keys (multisig or equivalent).
+   - AdminGate masterKey.
+   - UpdateGate signer set (M-of-N).
+   - ConfigGate owner.
+   - Initial validator reward/stake addresses.
+
+   Storage rules:
+
+   - All critical seeds live on:
+     - LUKS-encrypted USB(s) and/or
+     - Hardware wallets.
+   - Devnet keys are completely separate and are NEVER reused on mainnet.
+   - Premine/Genesis key is clearly labeled “ONE-SHOT → RETIRE after bootstrap.”
+
+4. Bootstrap configs exist and are wired
+
+   - `config/void-mainnet-bootstrap-mainnet.template.json` exists in git.
+   - `.gitignore` is already hardened so any `*.live.json` is ignored:
+     - e.g. `config/void-mainnet-bootstrap-mainnet.live.json` is NOT tracked.
+   - Dev config is still known-good:
+     - `config/void-mainnet-bootstrap-dev.json`
+   - Dev state doc exists:
+     - `docs/VOID-MAINNET-DEV-BOOTSTRAP-STATE.txt` (addresses, tx hashes).
+
+5. Dev bootstrap dry-run is still green
+
+   On dev/anvil (chainId 2050):
+
+     ./ops/void-mainnet-dev-bootstrap-full.sh
+
+   MUST complete with:
+
+   - All expected contracts deployed/wired on anvil.
+   - Tokenomics invariants script reporting OK.
+   - No regressions vs the documented dev state.
+
+
+PHASE 1 — PREP LIVE MAINNET CONFIG (OFFLINE)
+--------------------------------------------
+
+This happens OFFLINE, with the LUKS USB and/or hardware wallets, NO internet.
+
+1. Start from template
+
+   - Take `config/void-mainnet-bootstrap-mainnet.template.json`.
+   - Copy it to:
+       config/void-mainnet-bootstrap-mainnet.live.json
+   - Ensure `.live.json` is ignored by git:
+       git status
+     MUST NOT show the `.live.json`.
+
+2. Fill in live roles and validators
+
+   Fill addresses with real mainnet accounts (from hardware wallets / LUKS):
+
+   - `adminGateOwner`      = AdminGate masterKey address.
+   - `updateGateOwner`     = UpdateGate owner (or bootstrap address that later hands off to signer set).
+   - `configGateOwner`     = ConfigGate owner.
+   - `treasuryOwner`       = VoidTreasury owner (multisig or bootstrap address that later hands off).
+   - `opsTreasuryOwner`    = OpsTreasury owner.
+   - `rewardEngineOwner`   = RewardEngine owner.
+   - `validatorSetOwner`   = ValidatorSet owner.
+   - `validators[]`        = array of initial validators:
+       - `rewardAddress`
+       - `stakeVOID`
+       - `consensusKey` (BLS or whatever scheme you picked).
+
+3. Save and backup the live config
+
+   - Keep `config/void-mainnet-bootstrap-mainnet.live.json` on:
+     - LUKS USB (primary), and
+     - Encrypted offline backup (secondary).
+   - This file is NEVER committed to git.
+
+
+PHASE 2 — PLAN SCRIPT (DRY RUN, NO TX)
+--------------------------------------
+
+Next, you run a **PLAN** pass. This MUST NOT send any transactions, only read/print.
+
+1. On an ONLINE ops machine (but still cautious):
+
+   - Mount the LUKS USB (read-only if possible).
+   - Copy `config/void-mainnet-bootstrap-mainnet.live.json` into the repo working directory.
+
+2. Run PLAN against a “non-destructive” RPC
+
+   This can be an anvil fork or a planning RPC that you treat as read-only:
+
+     PLAN_RPC_URL=http://127.0.0.1:8545  # or your planning RPC
+
+     ./ops/void-mainnet-bootstrap-plan.sh \
+       --config config/void-mainnet-bootstrap-mainnet.live.json \
+       --rpc    "$PLAN_RPC_URL"
+
+3. What PLAN MUST do
+
+   PLAN should:
+
+   - Read the config.
+   - Query chainId from the RPC.
+   - Print:
+
+     - chainId and genesis hash.
+     - Expected deployment addresses for:
+       - UpdateGate
+       - AdminGate
+       - ConfigGate
+       - ValidatorSet
+       - VoidToken
+       - VoidTreasury
+       - OpsTreasury
+       - RewardEngine
+     - Tokenomics parameters:
+       - max supply
+       - premine
+       - emissions schedule
+     - Planned flows:
+       - Premine → VoidTreasury
+       - VoidTreasury → OpsTreasury
+       - OpsTreasury → validators / ops budgets
+
+   - Validate:
+
+     - ChainId == 2050.
+     - No known devnet addresses in owner roles.
+     - Tokenomics values match the locked VOID spec.
+
+4. Manual review
+
+   - You manually diff the PLAN output against:
+     - docs/VOID-MAINNET-BOOTSTRAP-STEPS.txt
+     - docs/VOID-MAINNET-DEV-BOOTSTRAP-STATE.txt
+   - If ANYTHING looks wrong, you STOP and fix config/scripts BEFORE touching real mainnet RPC.
+
+
+PHASE 3 — REAL MAINNET BOOTSTRAP (RUN)
+--------------------------------------
+
+Once you have a real mainnet network (height 0 or known-safe starting height) ready to accept transactions:
+
+1. Point MAINNET_RPC_URL to the real chain
+
+   - This RPC MUST be:
+     - Correct chainId (2050).
+     - Connected to the actual VOID mainnet nodes.
+
+2. Confirm chain parameters
+
+   Run your small inspector (or plain curl):
+
+     ./ops/void-mainnet-rpc-inspect-chainid.sh "$MAINNET_RPC_URL"
+
+   EXPECT:
+
+   - chainId 2050.
+   - genesis hash matches what you planned for VOID mainnet.
+
+3. Run PLAN against real mainnet (still read-only)
+
+   - Same PLAN script, but now:
+
+     ./ops/void-mainnet-bootstrap-plan.sh \
+       --config config/void-mainnet-bootstrap-mainnet.live.json \
+       --rpc    "$MAINNET_RPC_URL"
+
+   - Confirm output matches your expectations.
+
+4. Run RUN script with hardware wallets connected
+
+   This is the moment of truth.
+
+     ./ops/void-mainnet-bootstrap-run.sh \
+       --config config/void-mainnet-bootstrap-mainnet.live.json \
+       --rpc    "$MAINNET_RPC_URL"
+
+   RUN should:
+
+   1. Deploy gates (if not in genesis):
+      - UpdateGate
+      - AdminGate
+      - ConfigGate
+
+   2. Deploy mainnet contracts:
+      - ValidatorSet
+      - VoidToken
+      - VoidTreasury
+      - OpsTreasury
+      - RewardEngine
+
+   3. Move premine:
+      - From premine/Genesis key → VoidTreasury.
+
+   4. Fund OpsTreasury and validators:
+      - VoidTreasury → OpsTreasury (ops budget).
+      - Stake VOID to initial validators.
+
+   5. Wire RewardEngine:
+      - Set Treasury / Ops / emissions params.
+      - Connect RewardEngine to ValidatorSet.
+
+   6. Wire AdminGate / UpdateGate / ConfigGate:
+      - Assign owners and signer sets.
+      - Ensure core contracts are owned by gates, NOT raw EOAs.
+
+   For each step, RUN must:
+
+   - Print each tx hash.
+   - Save a summary (addresses + tx hashes) into a local JSON or text file under:
+       bootstrap/void-mainnet-bootstrap-<timestamp>.json
+   - Fail fast and abort on any revert or unexpected error.
+
+5. Backup bootstrap artifacts
+
+   - Copy the bootstrap summary file(s) onto:
+     - LUKS USB.
+     - At least one additional offline backup.
+
+
+PHASE 4 — POST-BOOTSTRAP VERIFICATION
+-------------------------------------
+
+Immediately after RUN finishes successfully:
+
+1. Tokenomics invariants on mainnet
+
+   Run the mainnet invariants script:
+
+     ./ops/void-mainnet-tokenomics-mainnet-invariants.sh \
+       --rpc "$MAINNET_RPC_URL"
+
+   EXPECT (VOID units):
+
+   - totalSupply = 333,333,333
+   - Treasury + Ops + Reward + staked validators = 333,333,333
+   - Premine/Genesis EOA (if it existed) holds 0 VOID.
+
+2. Gate wiring checks
+
+   For each core contract (VoidToken, VoidTreasury, OpsTreasury, RewardEngine, ValidatorSet, JobQueue, etc.):
+
+   - Owner MUST be:
+     - AdminGate, UpdateGate, ConfigGate, or Treasury/Ops contracts,
+     - NOT a bare EOA (except in temporary, well-documented cases with a migration plan).
+
+   Confirm:
+
+   - AdminGate owner == `adminGateOwner` from the `.live.json`.
+   - UpdateGate owner / signer set matches `.live.json`.
+   - ConfigGate owner matches `.live.json`.
+
+3. Monitoring on real mainnet
+
+   Once mainnet nodes + exporters are pointed at the live chain:
+
+   - Prometheus should show:
+
+     - `void_mainnet_tokenomics_health == 1`
+     - `void_mainnet_keys_health == 1`
+     - `void_mainnet_core_health == 1`
+     - `void:mainnet_overall:health:last_5m_v2 == 1`
+
+   - Any mainnet pillars dashboards should light up green.
+
+4. Premine key retirement
+
+   - Take the premine/Genesis key:
+     - Move it to deep cold storage (or destroy, depending on policy).
+     - Mark it explicitly as “RETIRED — NOT FOR NORMAL USE.”
+   - All future authority should flow via:
+     - VoidTreasury / OpsTreasury.
+     - AdminGate / UpdateGate / ConfigGate signer sets.
+
+PHASE 5 — CORE FREEZE & NORMAL OPERATIONS
+-----------------------------------------
+
+1. Declare core freeze (v99 or equivalent)
+
+   After bootstrap is verified:
+
+   - Core contracts are effectively frozen:
+     - VoidToken
+     - VoidTreasury
+     - OpsTreasury
+     - RewardEngine
+     - ValidatorSet (core behavior)
+   - Any future changes MUST:
+     - Go through UpdateGate / governance.
+     - Be documented with manifests and on-chain receipts.
+
+2. Document final mainnet addresses
+
+   Update docs:
+
+   - `docs/VOID-MAINNET-ADDRESSES.txt` with:
+     - All deployed contract addresses.
+     - Gate owner/signer info at a high level (no secrets).
+   - Any operator runbooks that refer to devnet addresses should be updated to mainnet addresses.
+
+3. Start standard validator onboarding
+
+   From this point forward:
+
+   - Validators onboard via normal, permissionless flows:
+     - Stake VOID through the validator/JobQueue flows you tested on dev.
+   - No more “bootstrap-only” shortcuts.
+
+END OF RUNBOOK (CURRENT DRAFT)
+------------------------------
+
+Notes:
+
+- Devnet keys are NEVER reused on mainnet.
+- Premine/Genesis key is ONE-SHOT for bootstrap, then effectively dead.
+- Treasury is contract-based; OpsTreasury handles spend.
+- All dangerous authority lives behind AdminGate/UpdateGate/ConfigGate with rotatable signer sets.
