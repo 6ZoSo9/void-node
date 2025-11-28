@@ -79,3 +79,7 @@ config/void-mainnet-bootstrap-*.live.json
 *.key.json
 *.mnemonic
 *.seed
+
+# Foundry broadcast + cache for dev bootstrap (ephemeral)
+broadcast/VoidMainnetBootstrapDevFromJsonDeploy.s.sol/
+cache/VoidMainnetBootstrapDevFromJsonDeploy.s.sol/

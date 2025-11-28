@@ -1,0 +1,20 @@
+{
+  "chainId": 2050,
+  "config": "config/void-mainnet-bootstrap-dev.json",
+  "addresses": {
+    "VoidToken": "0x68b1d87f95878fe05b998f19b66f4baba5de1aed",
+    "OpsTreasury": "0x3aa5ebb10dc797cac828524e59a333d0a371443c",
+    "VoidTreasury": "0xc6e7df5e7b4f2a278906862b61205850344d4e7d",
+    "AdminGate": "0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1",
+    "ConfigGate": "0x322813fd9a801c5507c9de605d63cea4f2ce6c44",
+    "ValidatorSet": "0xa85233c63b9ee964add6f2cffe00fd84eb32338f",
+    "VoidEmissionsController": "0x4a679253410272dd5232b3ff7cf5dbb88f295319",
+    "RewardEngine": "0x7a2088a1bfc9d81c55368ae168c2c02570cb814f"
+  },
+  "tokenomics": {
+    "premineWei": "333333333000000000000000000",
+    "totalSupplyWei": "333333333000000000000000000",
+    "emissionsBudgetWei": "333333333000000000000000000",
+    "maxSupplyWei": "666666666000000000000000000"
+  }
+}
