@@ -1,0 +1,130 @@
+Obelisk Wallet — VOID Mainnet Profile
+=====================================
+
+Purpose
+-------
+
+This document defines the canonical "Obelisk mainnet profile" shape for
+VOID networks. It tells Obelisk Wallet (Lite/Mobile/Titan) how to:
+
+  - Discover the underlying VOID network (RPC, chainId, explorer).
+  - Discover the VOID contract surface (core system contracts).
+  - Configure UI / UX bits per network (name, logos, EXPLORER links).
+  - Enable or disable dev-only features.
+
+The profile is a thin wrapper over:
+
+  - Network config:
+      config/void-mainnet-network.*.json
+
+  - Contract surface manifest:
+      config/void-mainnet-contract-surface.*.json
+
+
+1. Profile JSON Shape
+---------------------
+
+A generic Obelisk network profile JSON looks like:
+
+{
+  "id": "void-mainnet-dev",
+  "kind": "void-mainnet",
+  "name": "VOID Mainnet (dev/anvil)",
+  "networkConfig": "config/void-mainnet-network.dev.json",
+  "contractSurface": "config/void-mainnet-contract-surface.dev.json",
+  "ui": {
+    "theme": "dark",
+    "primaryColor": "#000000",
+    "accentColor": "#9b59b6",
+    "logo": {
+      "light": null,
+      "dark": null
+    }
+  },
+  "features": {
+    "enableUnsafeDevTools": true,
+    "showTestFaucet": true,
+    "allowContractDeploy": true,
+    "allowExperimentalAgents": true
+  },
+  "limits": {
+    "maxGasPriceGweiHint": 50,
+    "defaultGasLimitHint": 8000000
+  }
+}
+
+Field descriptions:
+
+  - id (string)
+      Unique ID for this profile inside Obelisk, e.g.:
+        "void-mainnet-dev"
+        "void-mainnet-stage"
+        "void-mainnet"
+
+  - kind (string)
+      High-level family, for grouping in the UI. For VOID mainnet and
+      its dev/stage siblings this SHOULD be "void-mainnet".
+
+  - name (string)
+      Human-readable display name in network switchers, etc.
+
+  - networkConfig (string)
+      Path or URL to the underlying VOID network config JSON.
+      For local/dev, this is usually a relative path in the repo:
+        "config/void-mainnet-network.dev.json"
+
+  - contractSurface (string)
+      Path or URL to the VOID contract surface manifest JSON.
+      For local/dev:
+        "config/void-mainnet-contract-surface.dev.json"
+
+  - ui (object)
+      Wallet-facing presentation hints.
+
+      ui.theme           — "dark" / "light" / "system".
+      ui.primaryColor    — hex color for top bars/buttons.
+      ui.accentColor     — hex color for highlights/selection.
+      ui.logo.light/dark — URLs or paths for logos; MAY be null in dev.
+
+  - features (object)
+      Network-level feature flags Obelisk may enable.
+
+      enableUnsafeDevTools    — controls raw RPC, impersonation, etc.
+      showTestFaucet          — show a "get test VOID" faucet widget.
+      allowContractDeploy     — allow direct user contract deployment.
+      allowExperimentalAgents — allow dev-only agent endpoints.
+
+  - limits (object)
+      Optional gas hints and soft limits; NOT enforced on-chain, just
+      defaults for the wallet.
+
+      maxGasPriceGweiHint — upper hint for default gas price displays.
+      defaultGasLimitHint — default gas limit for simple txs.
+
+
+2. Dev / Anvil Profile
+----------------------
+
+The canonical dev/anvil profile lives at:
+
+  config/obelisk-mainnet-profile.dev.json
+
+It is wired to:
+
+  - config/void-mainnet-network.dev.json
+  - config/void-mainnet-contract-surface.dev.json
+
+and turns on dev-only features like unsafe dev tools and test faucet.
+
+Real mainnet will use:
+
+  config/obelisk-mainnet-profile.mainnet.json
+
+with:
+
+  - networkConfig pointing at void-mainnet-network.mainnet.json
+  - contractSurface pointing at a stable HTTPS manifest
+  - features.enableUnsafeDevTools = false
+  - showTestFaucet = false
+  - allowExperimentalAgents = false (or heavily gated)
+
