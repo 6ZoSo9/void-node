@@ -242,3 +242,15 @@ prom-snap:
 .PHONY: prom-prune
 prom-prune:
 	./ops/prom-prune.sh
+
+# VOID mainnet bootstrap PLAN (no broadcast)
+mainnet-bootstrap-plan:
+	./ops/void-mainnet-bootstrap-mainnet-plan.sh config/void-mainnet-bootstrap-mainnet.live.json
+
+# VOID mainnet bootstrap PLAN health hammer
+mainnet-bootstrap-plan-health:
+	./ops/void-mainnet-bootstrap-mainnet-plan-health.sh
+
+# VOID mainnet bootstrap simulate (Forge dry-run, no broadcast)
+mainnet-bootstrap-sim:
+	./ops/void-mainnet-bootstrap-mainnet-sim.sh config/void-mainnet-bootstrap-mainnet.live.json
