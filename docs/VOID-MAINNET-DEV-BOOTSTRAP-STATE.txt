@@ -1,0 +1,53 @@
+# VOID mainnet dev bootstrap state (anvil rehearsal)
+#
+# This file captures the on-chain addresses and roles used during the
+# mainnet bootstrap *dev rehearsal* on anvil (chainId=2050).
+#
+# It is derived from /tmp/void-mainnet-bootstrap-dev-out.txt which is
+# written by /tmp/void-mainnet-bootstrap-dev-run.sh after deploying:
+#   - UpdateGate
+#   - AdminGate
+#   - ConfigGate
+#   - ValidatorSet (mainnet)
+#   - VoidToken (VoidStones)
+#   - VoidTreasury
+#   - OpsTreasury
+#   - RewardEngine
+#
+# NOTE: These are **dev** addresses on a local anvil instance.
+#       Do NOT reuse these keys or addresses for real mainnet.
+#
+# Fields:
+#   - chainId
+#   - deployer / admins / owners
+#   - validator0.* (dev validator)
+#   - updateGate / adminGate / configGate
+#   - validatorSet
+#   - voidToken / voidTreasury / opsTreasury / rewardEngine
+#
+# This doc is the canonical reference for the dev bootstrap rehearsal.
+
+[addresses]
+chainId=2050
+deployer=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+treasuryAdmin=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+opsTreasuryAdmin=0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+validatorAdmin=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+adminGateOwner=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+updateGateOwner=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+configGateOwner=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+treasuryOwner=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+opsTreasuryOwner=0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+rewardEngineOwner=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+validatorSetOwner=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+validator0.reward=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+validator0.stakeVOID=1000000
+validator0.consensusKey=0x0000000000000000000000000000000000000000000000000000000000000001
+updateGate=0x5fbdb2315678afecb367f032d93f642f64180aa3
+adminGate=0xe7f1725e7734ce288f8367e1bb143e90bb3f0512
+configGate=0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0
+validatorSet=0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9
+voidToken=0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+opsTreasury=0x5fc8d32690cc91d4c39d9d3abcbd16989f875707
+voidTreasury=0x0165878a594ca255338adfa4d48449f69242eb8f
+rewardEngine=0xa513e6e4b8f2a923d98304ec87f64353c4d5c853
