@@ -266,3 +266,13 @@ mainnet-bootstrap-sim-health:
 # VOID mainnet bootstrap SIM: health + export
 mainnet-bootstrap-sim-all:
 	./ops/void-mainnet-bootstrap-sim-all.sh
+
+.PHONY: mainnet-bootstrap-plan mainnet-bootstrap-plan-export mainnet-bootstrap-plan-all
+mainnet-bootstrap-plan:
+	./ops/void-mainnet-bootstrap-mainnet-plan.sh
+
+mainnet-bootstrap-plan-export:
+	sudo ./ops/void-mainnet-bootstrap-mainnet-plan-exporter.sh
+
+mainnet-bootstrap-plan-all: mainnet-bootstrap-plan mainnet-bootstrap-plan-export
+	@echo "[mainnet-bootstrap-plan-all] PLAN simulation + exporter done."
