@@ -1,240 +1,148 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# VOID mainnet bootstrap PLAN script (read-only)
+# PLAN-only mainnet bootstrap checker
 #
-# Usage:
-#   ./ops/void-mainnet-bootstrap-plan.sh \
-#     --config config/void-mainnet-bootstrap-mainnet.live.json \
-#     --rpc    https://your-mainnet-rpc
+# - Reads a *.live.json config
+# - Runs VoidMainnetBootstrapMainnet.s.sol in simulation mode (NO broadcast)
+# - Writes a Prometheus-style .prom file with plan status
 #
-# For dev/anvil testing:
-#   ./ops/void-mainnet-bootstrap-plan.sh \
-#     --config config/void-mainnet-bootstrap-dev.json \
-#     --rpc    http://127.0.0.1:8545
+# Env vars (optional):
+#   CONFIG_PATH : path to .live.json (default: config/void-mainnet-bootstrap-mainnet.live.json)
+#   RPC_URL     : RPC used for simulation (default: http://127.0.0.1:8545)
+#   OUT_DIR     : where to write .prom file (default: ops/out)
 
-CONFIG=""
-RPC_URL=""
+cd "$HOME/dev/void-node"
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --config)
-      CONFIG="$2"
-      shift 2
-      ;;
-    --rpc)
-      RPC_URL="$2"
-      shift 2
-      ;;
-    -h|--help)
-      echo "Usage: $0 --config <config.json> --rpc <rpc-url>"
-      echo
-      echo "This is a READ-ONLY inspection tool. It does not send any transactions."
-      exit 0
-      ;;
-    *)
-      echo "[ERROR] Unknown arg: $1" >&2
-      exit 1
-      ;;
-  esac
-done
+CONFIG_PATH="${CONFIG_PATH:-config/void-mainnet-bootstrap-mainnet.live.json}"
+RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+OUT_DIR="${OUT_DIR:-ops/out}"
+PROM_FILE="${OUT_DIR}/void-mainnet-bootstrap-plan.prom"
 
-if [[ -z "$CONFIG" ]]; then
-  echo "[ERROR] --config is required" >&2
-  exit 1
-fi
+echo "=== [plan] VOID mainnet bootstrap PLAN-only check ==="
+echo "[plan]  CONFIG_PATH = ${CONFIG_PATH}"
+echo "[plan]  RPC_URL     = ${RPC_URL}"
+echo "[plan]  OUT_DIR     = ${OUT_DIR}"
+echo "[plan]  PROM_FILE   = ${PROM_FILE}"
+echo
 
-if [[ -z "$RPC_URL" ]]; then
-  echo "[ERROR] --rpc is required" >&2
-  exit 1
-fi
+# --- [0] basic sanity checks -------------------------------------------------
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "[ERROR] jq not found on PATH; install jq first." >&2
+  echo "[plan] ERROR: jq not found; install jq first." >&2
   exit 1
 fi
 
-if ! command -v cast >/dev/null 2>&1; then
-  echo "[ERROR] cast (Foundry) not found on PATH; install Foundry first." >&2
+if ! command -v forge >/dev/null 2>&1; then
+  echo "[plan] ERROR: forge not found; install Foundry (forge)." >&2
   exit 1
 fi
 
-if [[ ! -f "$CONFIG" ]]; then
-  echo "[ERROR] config file not found: $CONFIG" >&2
+if [ ! -f "${CONFIG_PATH}" ]; then
+  echo "[plan] ERROR: config file not found: ${CONFIG_PATH}" >&2
   exit 1
 fi
 
-# Known anvil dev addresses (subset; enough to catch obvious mistakes)
-ANVIL_ADDRS=(
-  0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-  0x70997970C51812dc3A010C7d01b50e0d17dc79C8
-  0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
-  0x90F79bf6EB2c4f870365E785982E1f101E93b906
-  0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
-)
+mkdir -p "${OUT_DIR}"
 
-is_anvil_addr() {
-  local target="$1"
-  for a in "${ANVIL_ADDRS[@]}"; do
-    if [[ "${target,,}" == "${a,,}" ]]; then
-      return 0
-    fi
-  done
-  return 1
-}
+CONFIG_SHA=$(sha256sum "${CONFIG_PATH}" | awk '{print $1}')
+NOW_UNIX=$(date +%s)
 
-echo "=== VOID mainnet bootstrap PLAN ==="
-echo "[info] CONFIG = $CONFIG"
-echo "[info] RPC    = $RPC_URL"
+echo "[plan] config sha256 = ${CONFIG_SHA}"
 echo
 
-echo "=== [STEP 1] Read config JSON ==="
-CHAIN_ID_CFG=$(jq -r '.chainId // "null"' "$CONFIG")
-NETWORK_NAME=$(jq -r '.networkName // "null"' "$CONFIG")
+# --- [1] human-readable summary of config -----------------------------------
 
-ADMIN_GATE_OWNER=$(jq -r '.roles.adminGateOwner      // "null"' "$CONFIG")
-UPDATE_GATE_OWNER=$(jq -r '.roles.updateGateOwner     // "null"' "$CONFIG")
-CONFIG_GATE_OWNER=$(jq -r '.roles.configGateOwner     // "null"' "$CONFIG")
-TREASURY_OWNER=$(jq -r '.roles.treasuryOwner         // "null"' "$CONFIG")
-OPS_TREASURY_OWNER=$(jq -r '.roles.opsTreasuryOwner   // "null"' "$CONFIG")
-REWARD_OWNER=$(jq -r '.roles.rewardEngineOwner       // "null"' "$CONFIG")
-VALIDATOR_SET_OWNER=$(jq -r '.roles.validatorSetOwner // "null"' "$CONFIG")
+echo "=== [plan] config summary (best-effort jq) ==="
+# We keep this tolerant; missing fields are allowed.
 
-VALIDATOR_COUNT=$(jq -r '.validators | length' "$CONFIG" 2>/dev/null || echo "0")
+CHAIN_ID=$(jq -r '(.chainId // 0)' "${CONFIG_PATH}" 2>/dev/null || echo "0")
+NETWORK_NAME=$(jq -r '(.network // "unknown")' "${CONFIG_PATH}" 2>/dev/null || echo "unknown")
+TREASURY_ADDR=$(jq -r '(.treasury.address // "null")' "${CONFIG_PATH}" 2>/dev/null || echo "null")
+OPS_ADDR=$(jq -r '(.opsTreasury.address // "null")' "${CONFIG_PATH}" 2>/dev/null || echo "null")
+PREMINE_TOTAL=$(jq -r '(.premine.total // "null")' "${CONFIG_PATH}" 2>/dev/null || echo "null")
+VALIDATOR_COUNT=$(jq -r '((.validators | length) // 0)' "${CONFIG_PATH}" 2>/dev/null || echo "0")
 
-echo "config.chainId    = $CHAIN_ID_CFG"
-echo "config.network    = $NETWORK_NAME"
-echo
-echo "roles.adminGateOwner      = $ADMIN_GATE_OWNER"
-echo "roles.updateGateOwner     = $UPDATE_GATE_OWNER"
-echo "roles.configGateOwner     = $CONFIG_GATE_OWNER"
-echo "roles.treasuryOwner       = $TREASURY_OWNER"
-echo "roles.opsTreasuryOwner    = $OPS_TREASURY_OWNER"
-echo "roles.rewardEngineOwner   = $REWARD_OWNER"
-echo "roles.validatorSetOwner   = $VALIDATOR_SET_OWNER"
-echo
-echo "validators.length         = $VALIDATOR_COUNT"
+echo "[plan] network      = ${NETWORK_NAME}"
+echo "[plan] chainId      = ${CHAIN_ID}"
+echo "[plan] treasury     = ${TREASURY_ADDR}"
+echo "[plan] opsTreasury  = ${OPS_ADDR}"
+echo "[plan] premine.total= ${PREMINE_TOTAL}"
+echo "[plan] validators   = ${VALIDATOR_COUNT}"
 echo
 
-if [[ "$VALIDATOR_COUNT" -gt 0 ]]; then
-  echo "--- validators ---"
-  jq -r '.validators[]
-    | "id=\(.id // "unknown"), rewardAddress=\(.rewardAddress // "null"), stakeVOID=\(.stakeVOID // "null"), consensusKey=\(.consensusKey // "null")"
-  ' "$CONFIG"
-  echo
-fi
+echo "=== [plan] validators (if present) ==="
+# Non-fatal if this structure doesn't match; it's just for your eyeballs.
+jq -r '
+  (.validators // []) as $v
+  | if ($v | length) == 0 then
+      "[plan] (no validators array in config.validators)"
+    else
+      $v
+      | to_entries[]
+      | "[plan] validator[\(.key)]: addr=\(.value.address // "null") stake=\(.value.stake // "null")"
+    end
+' "${CONFIG_PATH}" 2>/dev/null || echo "[plan] (validators listing failed; non-fatal)"
 
-echo "=== [STEP 1b] Config sanity: dev/anvil address detection ==="
-
-check_role_addr() {
-  local role="$1"
-  local addr="$2"
-  if [[ "$addr" == "null" ]]; then
-    echo "[WARN] $role is null in config (did you forget to set it?)"
-    return
-  fi
-  if is_anvil_addr "$addr"; then
-    echo "[WARN] $role ($addr) matches a KNOWN ANVIL DEV ADDRESS. This is fine for dev, NOT for real mainnet."
-  else
-    echo "[OK]   $role looks non-anvil (not in known dev list)."
-  fi
-}
-
-check_role_addr "roles.adminGateOwner"      "$ADMIN_GATE_OWNER"
-check_role_addr "roles.updateGateOwner"     "$UPDATE_GATE_OWNER"
-check_role_addr "roles.configGateOwner"     "$CONFIG_GATE_OWNER"
-check_role_addr "roles.treasuryOwner"       "$TREASURY_OWNER"
-check_role_addr "roles.opsTreasuryOwner"    "$OPS_TREASURY_OWNER"
-check_role_addr "roles.rewardEngineOwner"   "$REWARD_OWNER"
-check_role_addr "roles.validatorSetOwner"   "$VALIDATOR_SET_OWNER"
 echo
+echo "=== [plan] running forge script (SIMULATION ONLY, no broadcast) ==="
 
-echo "=== [STEP 2] Inspect RPC chain ==="
+PLAN_OK=0
+
+# We rely on the existing VoidMainnetBootstrapMainnet.s.sol script.
+# By default, 'forge script' without --broadcast only simulates.
 set +e
-CHAIN_ID_RPC=$(cast chain-id --rpc-url "$RPC_URL" 2>/tmp/void-mainnet-plan-cast.err)
-CAST_RC=$?
+forge script \
+  script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \
+  --rpc-url "${RPC_URL}" \
+  --sig "run(string)" "${CONFIG_PATH}" \
+  -vvvv
+
+STATUS=$?
 set -e
 
-if [[ $CAST_RC -ne 0 ]]; then
-  echo "[ERROR] cast chain-id failed against RPC: $RPC_URL" >&2
-  echo "-------- cast stderr --------" >&2
-  cat /tmp/void-mainnet-plan-cast.err >&2 || true
-  echo "-----------------------------" >&2
-  exit 1
-fi
-
-BLOCK_NUMBER=$(cast block-number --rpc-url "$RPC_URL" 2>/dev/null || echo "unknown")
-
-echo "rpc.chainId      = $CHAIN_ID_RPC"
-echo "rpc.blockNumber  = $BLOCK_NUMBER"
-echo
-
-echo "=== [STEP 3] Basic consistency checks ==="
-
-if [[ "$CHAIN_ID_CFG" != "null" && "$CHAIN_ID_CFG" != "$CHAIN_ID_RPC" ]]; then
-  echo "[WARN] chainId mismatch: config=$CHAIN_ID_CFG, rpc=$CHAIN_ID_RPC" >&2
+if [ "${STATUS}" -eq 0 ]; then
+  echo
+  echo "[plan] forge script simulation succeeded."
+  PLAN_OK=1
 else
-  echo "[OK] chainId matches (config=$CHAIN_ID_CFG, rpc=$CHAIN_ID_RPC)"
+  echo
+  echo "[plan] forge script simulation FAILED (exit code ${STATUS})."
+  PLAN_OK=0
 fi
 
-if [[ "$CHAIN_ID_RPC" != "2050" ]]; then
-  echo "[WARN] rpc.chainId != 2050 (VOID mainnet id); current=$CHAIN_ID_RPC" >&2
-else
-  echo "[OK] rpc.chainId is 2050 (VOID chainId)."
-fi
+# --- [2] write Prometheus-style .prom file -----------------------------------
 
 echo
-echo "=== [STEP 4] High-level bootstrap PLAN summary ==="
-echo "This PLAN is READ-ONLY. No transactions are sent."
-echo
-echo "- Will deploy / wire (conceptually):"
-echo "    * UpdateGate, AdminGate, ConfigGate"
-echo "    * ValidatorSet"
-echo "    * VoidToken (VOID)"
-echo "    * VoidTreasury (premine vault)"
-echo "    * OpsTreasury (ops funds)"
-echo "    * RewardEngine (emissions controller)"
-echo
-echo "- Will assign owners / roles as per CONFIG:"
-echo "    AdminGate.owner      -> $ADMIN_GATE_OWNER"
-echo "    UpdateGate.owner     -> $UPDATE_GATE_OWNER"
-echo "    ConfigGate.owner     -> $CONFIG_GATE_OWNER"
-echo "    VoidTreasury.owner   -> $TREASURY_OWNER"
-echo "    OpsTreasury.owner    -> $OPS_TREASURY_OWNER"
-echo "    RewardEngine.owner   -> $REWARD_OWNER"
-echo "    ValidatorSet.owner   -> $VALIDATOR_SET_OWNER"
-echo
-echo "- Will fund / stake validators (conceptual):"
-if [[ "$VALIDATOR_COUNT" -eq 0 ]]; then
-  echo "    [WARN] no validators[] configured in $CONFIG"
-else
-  jq -r '.validators[]
-    | "    - \(.id // "unknown"): rewardAddress=\(.rewardAddress // "null"), stakeVOID=\(.stakeVOID // "null")"
-  ' "$CONFIG"
-fi
-echo
+echo "=== [plan] writing Prometheus file: ${PROM_FILE} ==="
 
-echo "=== [STEP 5] VOID tokenomics expectations (spec) ==="
-# These are SPEC values, not read from chain.
-MAX_SUPPLY="666,666,666"
-PREMINE="333,333,333"
-EMISSIONS_TOTAL="333,333,333"
-ERA1="177,777,777"
-ERA2="88,888,889"
-ERA3="44,444,444"
-ERA4="22,222,223"
+cat > "${PROM_FILE}.tmp" <<EOF
+# HELP void_mainnet_bootstrap_plan_ok VOID mainnet bootstrap PLAN check (0=bad, 1=ok)
+# TYPE void_mainnet_bootstrap_plan_ok gauge
+void_mainnet_bootstrap_plan_ok{config_sha="${CONFIG_SHA}",network="${NETWORK_NAME}"} ${PLAN_OK}
 
-echo "MAX_SUPPLY (VOID)         = $MAX_SUPPLY"
-echo "PREMINE (VoidTreasury)    = $PREMINE"
-echo "EMISSIONS (total)         = $EMISSIONS_TOTAL"
-echo "  Era1                    = $ERA1"
-echo "  Era2                    = $ERA2"
-echo "  Era3                    = $ERA3"
-echo "  Era4                    = $ERA4"
+# HELP void_mainnet_bootstrap_plan_last_run_unix Last time the PLAN check ran (unix seconds)
+# TYPE void_mainnet_bootstrap_plan_last_run_unix gauge
+void_mainnet_bootstrap_plan_last_run_unix ${NOW_UNIX}
+
+# HELP void_mainnet_bootstrap_plan_validators Number of validators in the plan config
+# TYPE void_mainnet_bootstrap_plan_validators gauge
+void_mainnet_bootstrap_plan_validators ${VALIDATOR_COUNT}
+
+# HELP void_mainnet_bootstrap_plan_chainid Planned chainId for VOID mainnet (0 if missing)
+# TYPE void_mainnet_bootstrap_plan_chainid gauge
+void_mainnet_bootstrap_plan_chainid ${CHAIN_ID}
+EOF
+
+mv "${PROM_FILE}.tmp" "${PROM_FILE}"
+
+echo "[plan] wrote ${PROM_FILE}"
 echo
-echo "NOTE: These are the locked VOID tokenomics constants."
-echo "      On real mainnet, invariants scripts must confirm that:"
-echo "        totalSupply == Treasury + Ops + Reward + staked validators"
-echo "      and equals PREMINE at bootstrap (pre-emissions)."
+echo "=== [plan] summary ==="
+echo "[plan] PLAN_OK      = ${PLAN_OK}"
+echo "[plan] CONFIG_SHA   = ${CONFIG_SHA}"
+echo "[plan] CHAIN_ID     = ${CHAIN_ID}"
+echo "[plan] VALIDATORS   = ${VALIDATOR_COUNT}"
+echo "[plan] PROM_FILE    = ${PROM_FILE}"
 echo
-echo "=== DONE: PLAN completed (read-only) ==="
+echo "[plan] done."

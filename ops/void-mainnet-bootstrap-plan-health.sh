@@ -1,58 +1,90 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
-PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
+# VOID mainnet bootstrap PLAN health wrapper
+#
+# - Runs ops/void-mainnet-bootstrap-plan.sh (PLAN-only, no broadcast)
+# - Reads the generated .prom file
+# - Prints a human-readable status
+# - Optionally exits non-zero if PLAN_OK==0 (controlled by EXIT_ON_FAIL)
+#
+# Env:
+#   CONFIG_PATH   : override config path (default: config/void-mainnet-bootstrap-mainnet.live.json)
+#   RPC_URL       : override RPC (default: http://127.0.0.1:8545)
+#   OUT_DIR       : override output dir (default: ops/out)
+#   EXIT_ON_FAIL  : if "1", exit 1 when PLAN_OK == 0 (default: 0 -> never hard-fail)
 
-cd "$REPO_ROOT"
+cd "$HOME/dev/void-node"
 
-echo "=== [mainnet-bootstrap-plan-health] VOID mainnet bootstrap PLAN health ==="
-echo "[info] REPO_ROOT = $REPO_ROOT"
-echo "[info] PROM_URL  = $PROM_URL"
+CONFIG_PATH="${CONFIG_PATH:-config/void-mainnet-bootstrap-mainnet.live.json}"
+RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+OUT_DIR="${OUT_DIR:-ops/out}"
+PROM_FILE="${OUT_DIR}/void-mainnet-bootstrap-plan.prom"
+EXIT_ON_FAIL="${EXIT_ON_FAIL:-0}"
+
+echo "=== [plan-health] VOID mainnet bootstrap PLAN health ==="
+echo "[plan-health] CONFIG_PATH  = ${CONFIG_PATH}"
+echo "[plan-health] RPC_URL      = ${RPC_URL}"
+echo "[plan-health] OUT_DIR      = ${OUT_DIR}"
+echo "[plan-health] PROM_FILE    = ${PROM_FILE}"
+echo "[plan-health] EXIT_ON_FAIL = ${EXIT_ON_FAIL}"
 echo
 
-QUERY='void_mainnet_bootstrap_plan_ready'
+# --- [0] run the underlying PLAN script (PLAN-only, no broadcast) -----------
 
-echo "[step 1] querying Prometheus for $QUERY..."
-RAW_JSON="$(curl -fsS "$PROM_URL/api/v1/query?query=$QUERY" || true)"
-
-if [[ -z "$RAW_JSON" ]]; then
-  echo "[error] empty response from Prometheus; is it running at $PROM_URL ?" >&2
+if [ ! -x ops/void-mainnet-bootstrap-plan.sh ]; then
+  echo "[plan-health] ERROR: ops/void-mainnet-bootstrap-plan.sh is missing or not executable." >&2
   exit 1
 fi
 
-echo "$RAW_JSON" | jq '.' || {
-  echo "[error] failed to pretty-print Prometheus response with jq" >&2
-  exit 1
-}
+CONFIG_PATH="${CONFIG_PATH}" RPC_URL="${RPC_URL}" OUT_DIR="${OUT_DIR}" \
+  ./ops/void-mainnet-bootstrap-plan.sh
 
-VALUE_STR="$(echo "$RAW_JSON" | jq -r '.data.result[0].value[1] // empty' || true)"
+echo
+echo "=== [plan-health] reading Prometheus plan file ==="
 
-if [[ -z "$VALUE_STR" ]]; then
-  echo
-  echo "[warn] metric $QUERY not found; treating PLAN as NOT ready (0)."
-  READY=0
+if [ ! -f "${PROM_FILE}" ]; then
+  echo "[plan-health] ERROR: expected Prom file not found: ${PROM_FILE}" >&2
+  if [ "${EXIT_ON_FAIL}" = "1" ]; then
+    exit 1
+  else
+    exit 0
+  fi
+fi
+
+PLAN_OK_RAW=$(grep '^void_mainnet_bootstrap_plan_ok' "${PROM_FILE}" | awk '{print $NF}' || echo "")
+CHAIN_ID_RAW=$(grep '^void_mainnet_bootstrap_plan_chainid' "${PROM_FILE}" | awk '{print $NF}' || echo "")
+VALIDATORS_RAW=$(grep '^void_mainnet_bootstrap_plan_validators' "${PROM_FILE}" | awk '{print $NF}' || echo "")
+CONFIG_SHA_RAW=$(grep '^void_mainnet_bootstrap_plan_ok' "${PROM_FILE}" | sed -n 's/.*config_sha="\([^"]*\)".*/\1/p' | head -n1 || echo "")
+
+PLAN_OK="${PLAN_OK_RAW:-0}"
+CHAIN_ID="${CHAIN_ID_RAW:-0}"
+VALIDATORS="${VALIDATORS_RAW:-0}"
+CONFIG_SHA="${CONFIG_SHA_RAW:-unknown}"
+
+echo "[plan-health] PLAN_OK     = ${PLAN_OK}"
+echo "[plan-health] CHAIN_ID    = ${CHAIN_ID}"
+echo "[plan-health] VALIDATORS  = ${VALIDATORS}"
+echo "[plan-health] CONFIG_SHA  = ${CONFIG_SHA}"
+echo
+
+# --- [1] human-readable verdict --------------------------------------------
+
+if [ "${PLAN_OK}" = "1" ]; then
+  echo "[plan-health] RESULT: OK (bootstrap PLAN is ready: PLAN_OK==1)"
+  echo "[plan-health]         You can now consider wiring this into pillars/pre-push as a hard gate."
+  EXIT_CODE=0
 else
-  READY="$VALUE_STR"
+  echo "[plan-health] RESULT: NOT READY (PLAN_OK==0)"
+  echo "[plan-health]         This is expected while the mainnet bootstrap script/config are still a stub."
+  echo "[plan-health]         Once you wire real addresses + tokenomics + validator stakes and"
+  echo "[plan-health]         remove the stub revert, this should flip to PLAN_OK==1."
+  EXIT_CODE=1
 fi
 
-echo
-echo "[result] $QUERY = $READY"
-
-case "$READY" in
-  1)
-    echo "[interpretation] PLAN is marked READY (sim passing, fork URL + live config presumably set)."
-    ;;
-  0)
-    echo "[interpretation] PLAN is NOT ready."
-    echo "                This is EXPECTED right now since MAINNET_FORK_URL and *.live.json"
-    echo "                are not configured yet. No action required until we get closer to mainnet."
-    ;;
-  *)
-    echo "[interpretation] unexpected value for $QUERY (expected 0 or 1)."
-    ;;
-esac
-
-# NOTE: Do NOT gate anything yet. Exit 0 always for now.
-echo
-echo "[mainnet-bootstrap-plan-health] RESULT: OK (informational only; no gate)"
+if [ "${EXIT_ON_FAIL}" = "1" ]; then
+  exit "${EXIT_CODE}"
+else
+  # Informational mode: never hard-fail by default.
+  exit 0
+fi
