@@ -1,0 +1,206 @@
+VOID MAINNET BOOTSTRAP HARNESS (DEV + MAINNET-STYLE REHEARSAL)
+=============================================================
+
+This doc captures the current end-to-end bootstrap harness for VOID mainnet.
+
+All commands are intended to be run from the repo root:
+
+    cd ~/dev/void-node
+
+-------------------------------------------------------------
+1. DEV BOOTSTRAP SMOKE (ANVIL / DEV CONFIG)
+-------------------------------------------------------------
+
+Script:
+
+    ./ops/void-mainnet-bootstrap-dev-smoke.sh
+
+This script:
+
+  - Verifies git branch + repo sanity.
+  - Runs the full dev bootstrap pipeline:
+      * config/void-mainnet-bootstrap-dev.json
+      * Deploys / reuses UpdateGate, AdminGate, ConfigGate, ValidatorSet,
+        VoidToken, VoidTreasury, OpsTreasury, RewardEngine on anvil (chainId 2050).
+      * Moves premine -> VoidTreasury, funds OpsTreasury and the dev validator,
+        wires RewardEngine, and runs validator claim().
+      * Runs dev tokenomics invariants:
+          - totalSupply == Treasury + Ops + Reward + staked validator
+          - Equals PREMINE (= 333,333,333 VOID) at bootstrap.
+  - Runs PLAN against the dev config (read-only).
+  - Runs SAFETY against Prometheus mainnet gauges using the dev config.
+  - Runs mainnet-core + tokenomics + lastmile health-all.
+  - Runs pillars-preflight and pre-push gates.
+
+Expected success signals:
+
+  - "[step 1] dev bootstrap pipeline completed."
+  - "[step 2] PLAN OK."
+  - "=== [RESULT] SAFETY CHECK PASSED ==="
+  - "[mainnet-health-all] RESULT: OK (pillars + lastmile 5m == 1; overall_v2 is informational only)"
+  - "[pillars] RESULT: OK ..."
+  - "[pillars-preflight] RESULT: OK ..."
+  - "[pre-push] RESULT: OK (gates passed)"
+
+
+-------------------------------------------------------------
+2. MAINNET-STYLE REHEARSAL (LIVE MAINNET CONFIG, DRYRUN ONLY)
+-------------------------------------------------------------
+
+Rehearsal script:
+
+    ./ops/void-mainnet-bootstrap-mainnet-rehearsal.sh
+
+This script performs:
+
+  STEP 0: Repo / branch sanity
+    - Confirms we are on feat/mainnet-core-20251120
+    - Confirms pwd == ~/dev/void-node
+
+  STEP 1: template-fill
+    - Reads environment variables:
+        VOID_ADMIN_GATE_OWNER
+        VOID_UPDATE_GATE_OWNER
+        VOID_CONFIG_GATE_OWNER
+        VOID_TREASURY_OWNER
+        VOID_OPS_TREASURY_OWNER
+        VOID_REWARD_ENGINE_OWNER
+        VOID_VALIDATORSET_OWNER
+        VOID_VALIDATOR_0_REWARD
+        VOID_VALIDATOR_0_STAKE
+        VOID_VALIDATOR_0_CONSKEY
+    - Validates they are present and non-empty.
+    - Writes:
+        config/void-mainnet-bootstrap-mainnet.live.json
+
+  STEP 2: MAINNET-LINT
+    - Runs ./ops/void-mainnet-bootstrap-mainnet-lint.sh against the live config.
+    - Verifies:
+        config.chainId == 2050
+        roles.* addresses are set and non-dev
+        validators.length >= 1, with sane stakeVOID
+
+  STEP 3: MAINNET-DRYRUN
+    - Runs ./ops/void-mainnet-bootstrap-mainnet-dryrun.sh
+      against the live config + RPC (e.g. http://127.0.0.1:8545).
+    - Re-runs MAINNET-LINT offline.
+    - Runs PLAN (read-only) to show:
+        - Conceptual deployment of UpdateGate, AdminGate, ConfigGate,
+          ValidatorSet, VoidToken, VoidTreasury, OpsTreasury, RewardEngine.
+        - Owner assignment as per CONFIG.
+        - Validator staking and rewardAddress as per CONFIG.
+        - Tokenomics spec:
+            MAX_SUPPLY = 666,666,666
+            PREMINE    = 333,333,333
+            EMISSIONS  = 333,333,333
+              Era1     = 177,777,777
+              Era2     = 88,888,889
+              Era3     = 44,444,444
+              Era4     = 22,222,223
+
+  STEP 4: SAFETY (dev-style)
+    - For rehearsal, calls the dev SAFETY script (CONFIG=dev) + Prometheus checks,
+      to confirm mainnet gauges remain green while rehearsal runs.
+      (The real mainnet gate is SAFETY-MAINNET below.)
+
+Expected success signals:
+
+  - "=== RESULT: MAINNET DRYRUN COMPLETED (LINT+PLAN, no txs) ==="
+  - "=== [RESULT] SAFETY CHECK PASSED ==="
+  - All printed Prometheus gauges == 1.
+
+
+-------------------------------------------------------------
+3. SAFETY-MAINNET (LIVE CONFIG + MAINNET GAUGES)
+-------------------------------------------------------------
+
+Final gate before any real mainnet broadcast:
+
+    ./ops/void-mainnet-bootstrap-safety-mainnet.sh \
+      --config config/void-mainnet-bootstrap-mainnet.live.json \
+      --rpc    http://127.0.0.1:8545 \
+      --prom   http://127.0.0.1:9090
+
+Steps:
+
+  1) MAINNET-LINT (offline)
+     - Same checks as above, but only on the live config.
+
+  2) MAINNET-DRYRUN (PLAN against RPC)
+     - Same LINT + PLAN run against the RPC to confirm chainId == 2050
+       and config matches the VOID chain.
+
+  3) Prometheus mainnet health gauges
+     - Queries (scalar):
+
+         void:mainnet_overall:health:last_5m_v2
+         void:mainnet_pillars:health:last_5m
+         void:mainnet_lastmile:health:last_5m
+         void_mainnet_tokenomics_health
+
+     - All four must be exactly "1", otherwise the script prints [FATAL]
+       lines and exits non-zero.
+
+Expected success signals:
+
+  - "=== RESULT: MAINNET DRYRUN COMPLETED (LINT+PLAN, no txs) ==="
+  - "void:mainnet_overall:health:last_5m_v2 = 1"
+  - "void:mainnet_pillars:health:last_5m     = 1"
+  - "void:mainnet_lastmile:health:last_5m    = 1"
+  - "void_mainnet_tokenomics_health          = 1"
+  - "=== [RESULT] SAFETY-MAINNET PASSED ==="
+    MAINNET-LINT + MAINNET-DRYRUN OK and all mainnet gauges == 1.
+
+
+-------------------------------------------------------------
+4. MAINNET-DAY SEQUENCE (HIGH-LEVEL)
+-------------------------------------------------------------
+
+On real mainnet day (future):
+
+  1) Ensure VOID mainnet contracts repo state:
+       - Branch: feat/mainnet-core-20251120 (or successor)
+       - All tests green (forge test)
+       - No dirty core files; only allowed, documented changes.
+
+  2) Ensure VOID node + Prometheus/Grafana:
+       - devnet_overall == 1
+       - mainnet_core_health == 1
+       - mainnet_lastmile_health == 1
+       - void_mainnet_tokenomics_health == 1
+       - void:mainnet_pillars:health:last_5m == 1
+       - void:mainnet_overall:health:last_5m_v2 == 1
+
+  3) Prepare mainnet keys (off-repo, on LUKS / hardware wallet):
+       - AdminGate owner key
+       - UpdateGate owner key
+       - ConfigGate owner key
+       - VoidTreasury owner key (premine vault)
+       - OpsTreasury owner key
+       - RewardEngine owner key
+       - ValidatorSet owner key
+       - Validator[0] rewardAddress key
+       - Validator[0] consensus key
+
+  4) Export addresses into environment variables and run template-fill:
+       - ops/void-mainnet-bootstrap-template-fill.sh
+       - Inspect config/void-mainnet-bootstrap-mainnet.live.json
+
+  5) Run MAINNET-LINT + MAINNET-DRYRUN:
+       - ops/void-mainnet-bootstrap-mainnet-lint.sh
+       - ops/void-mainnet-bootstrap-mainnet-dryrun.sh
+
+  6) Run SAFETY-MAINNET against the live config + real RPC:
+       - ops/void-mainnet-bootstrap-safety-mainnet.sh
+
+  7) ONLY IF ALL ABOVE ARE GREEN:
+       - Run the dedicated mainnet broadcast script (TBD) to actually
+         deploy and wire contracts using the live config and hardware /
+         LUKS-backed keys.
+
+The broadcast script is intentionally NOT implemented yet. It must:
+  - Read the same live config.
+  - Use hardware wallets / LUKS-backed keystores (no raw keys in env).
+  - Emit a manifest of tx hashes, addresses, and final state that can be
+    archived and verified.
+
