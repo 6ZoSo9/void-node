@@ -1,0 +1,178 @@
+VOID MAINNET KEYS & TREASURY PLAN
+==================================
+
+Goal
+----
+Describe how VOID mainnet keys and premine/treasury flows are handled so that:
+- No large balances ever sit on hot EOAs.
+- The premine key is effectively one-shot.
+- Treasury / Ops / Rewards can operate for 10–20+ years without chaos.
+
+Supply recap (locked spec)
+--------------------------
+- MAX_SUPPLY      = 666,666,666 VOID
+- PREMINE         = 333,333,333 VOID (genesis Treasury)
+- EMISSIONS       = 333,333,333 VOID over 100 years, 4 eras:
+                      [177,777,777, 88,888,889, 44,444,444, 22,222,223]
+
+On REAL mainnet:
+- The full 333,333,333 premine is minted directly into VoidTreasury.
+- No premine ever touches a hot EOA.
+- Spending flows: VoidTreasury -> OpsTreasury -> hot wallets / rewards.
+
+Key roles
+---------
+These are addresses / hardware wallets, not raw keys:
+
+1) Premine / Treasury authority
+   - Controls initial premine mint (once) and long-term Treasury policy.
+   - Should live behind:
+       - Hardware wallet (primary signing key).
+       - LUKS-encrypted backup (seed) stored offline (USB / encrypted disk).
+   - After premine minted to VoidTreasury, this authority is used rarely and
+     ideally via on-chain governance (AdminGate/UpdateGate) rather than manual
+     “random” transfers.
+
+2) OpsTreasury authority
+   - Owns OpsTreasury contract.
+   - Responsible for:
+       - Pulling chunks from VoidTreasury into OpsTreasury.
+       - Funding RewardEngine and other protocol-level spend flows.
+       - Funding operational hot wallets (in small, capped amounts).
+   - Should be a separate hardware wallet (or multi-sig), not the same as
+     TreasuryOwner or UpdateGateOwner.
+
+3) UpdateGate / AdminGate / ConfigGate masters
+   - UpdateGateOwner (master key) can approve protocol-level changes.
+   - AdminGateOwner controls assignment of admin roles for system contracts.
+   - ConfigGateOwner manages on-chain configuration.
+   - These must be:
+       - Hardware-backed.
+       - Rotatable (via on-chain governance or planned key rotation flow).
+       - Documented in a separate emergency procedure (how to rotate, how to
+         handle loss, etc.).
+
+4) ValidatorSet admin / owners
+   - validatorAdmin / validatorSetOwner control:
+       - Adding/removing validators.
+       - Updating voting power.
+   - They must not be the same hot operational keys used for, e.g., job posting
+     or agent operation.
+   - Prefer separate hardware wallet (or multi-sig) dedicated to validator
+     governance.
+
+5) Operator / hot wallets
+   - Used for:
+       - Day-to-day ops (paying infra, small ops payments).
+       - Validator payout addresses.
+       - Agent wallets interacting with JobQueue / Receipts.
+   - These can be “hotter” (desktop/mobile wallets) but must hold limited
+     balances topped up from OpsTreasury.
+
+Premine usage model
+-------------------
+1) At genesis:
+   - Mint exactly 333,333,333 VOID into VoidTreasury.
+   - No premine ever minted to deployer or any raw EOA.
+   - Premine authority is used once, then effectively retired.
+
+2) Normal operation:
+   - VoidTreasury holds the long-term “bank” supply.
+   - OpsTreasury receives periodic top-ups from VoidTreasury based on:
+       - Emissions schedule.
+       - Operational budgets.
+   - RewardEngine pulls from OpsTreasury under the emissions controller
+     (VoidEmissionsController) with strict era/global caps.
+   - Validator rewards are paid from RewardEngine to validator addresses.
+
+3) Spending flows (human expenses):
+   - Treasury -> OpsTreasury (large, rarely, using hardened key).
+   - OpsTreasury -> hot wallets (smaller, more frequent).
+   - Hot wallets -> vendors / team / grants.
+
+Key storage & operational rules
+-------------------------------
+- Hardware wallets:
+    - One hardware device per critical role where possible:
+        - TreasuryOwner
+        - OpsTreasuryOwner
+        - UpdateGateOwner
+        - AdminGateOwner
+        - ConfigGateOwner
+        - ValidatorSetOwner
+    - Each device’s seed written to paper and sealed, plus one encrypted digital
+      backup (LUKS image) stored offline.
+
+- LUKS-encrypted USB:
+    - Create a dedicated LUKS volume for:
+        - Seed backups (for hardware wallets).
+        - Any emergency one-shot keys used during genesis.
+    - USB stays offline except when:
+        - Rotating keys.
+        - Performing extremely rare emergency operations.
+
+- Premine key:
+    - If any direct premine authority key exists:
+        - Use it only at genesis to mint premine into VoidTreasury.
+        - Immediately rotate control to TreasuryOwner (if separate).
+        - Treat it as “burned” operationally (never used for day-to-day sends).
+        - Keep its seed only as a last-resort nuclear option, offline.
+
+- Access separation:
+    - Machines that run validators or agents should not have direct access to
+      premine / Treasury keys.
+    - Human operators should not mix:
+        - personal wallets,
+        - ops wallets,
+        - premine/treasury/admin keys on the same device.
+
+Rotation and emergency procedures (outline)
+-------------------------------------------
+- Ordinary rotation:
+    - Use AdminGate / UpdateGate to update admin/owner addresses for:
+        - Treasury, OpsTreasury, RewardEngine, ValidatorSet, etc.
+    - New hardware wallet prepared and tested with small test funds.
+    - Old hardware wallet kept offline as backup until new path is proven.
+
+- Emergency:
+    - Lost OpsTreasury key: use AdminGate to re-point OpsTreasuryOwner to a new
+      hardware wallet. Until then, OpsTreasury funds can be locked but remain
+      safe.
+    - Lost validator admin: use UpdateGate / AdminGate path to insert a new
+      validator admin via governance.
+    - Premine/Treasury compromise (worst case):
+        - Use whatever emergency hooks exist (to be defined in governance spec)
+          to quarantine or pause large transfers.
+        - Consider using UpdateGate to rotate pointers to a new Treasury
+          contract and deprecate the compromised one.
+
+Repo-level protections
+----------------------
+- config/void-mainnet-bootstrap-mainnet.live.json:
+    - Contains ONLY public addresses; never keys.
+    - Is still considered sensitive and MUST NOT be committed.
+    - .gitignore is hardened to prevent accidental add of:
+          config/void-mainnet-bootstrap-mainnet.live.json
+          config/void-mainnet-bootstrap-*.live.json
+
+- Generic key artifacts:
+    - .gitignore also blocks:
+          *.luks, *.luks.img, *.keys, *.key, *.key.json, *.mnemonic, *.seed
+    - Any serious key material must live:
+          - On LUKS-encrypted USB, and/or
+          - Inside hardware wallet devices.
+
+Relationship to bootstrap scripts
+---------------------------------
+- Dev scripts (anvil rehearsal) prove the flow with disposable keys.
+- Mainnet PLAN script reads the live JSON and shows:
+    - Which roles (addresses) will own what.
+    - The exact bootstrap phase sequence.
+- Future RUN script (mainnet) will:
+    - Use hardware wallets / offline signing.
+    - Execute the proven sequence:
+        - Deploy gates + ValidatorSet.
+        - Deploy token/treasuries/reward engine.
+        - Mint premine directly into VoidTreasury.
+        - Run a tiny test emission.
+        - Lock down keys via UpdateGate / AdminGate / ConfigGate.

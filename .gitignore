@@ -65,3 +65,17 @@ broadcast/VoidMainnetBootstrapMainnet.s.sol/
 cache/VoidMainnetBootstrapDev.s.sol/
 cache/VoidMainnetBootstrapMainnet.s.sol/
 ops/mainnet-bootstrap-addresses.mainnet.json
+
+# VOID mainnet sensitive configs (live, never commit)
+config/void-mainnet-bootstrap-mainnet.live.json
+config/void-mainnet-bootstrap-*.live.json
+
+# Generic sensitive artifacts (keys, LUKS images, seed dumps)
+*.luks
+*.luks.img
+*.luks.img.*
+*.key
+*.keys
+*.key.json
+*.mnemonic
+*.seed
