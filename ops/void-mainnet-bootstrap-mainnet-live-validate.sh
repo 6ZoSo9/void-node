@@ -57,12 +57,12 @@ fi
 echo "[live-json] roles OK."
 echo
 
-VAL_COUNT=$(jq '.validators | length' "$CFG")
+VAL_COUNT=$(jq '.validators | if . == null then 0 else length end' "$CFG")
 echo "[live-json] validators   = $VAL_COUNT"
 
 echo "[live-json] checking validator rewardAddress + stakeVOID..."
 BAD_VALS=$(jq -r '
-  .validators
+  (.validators // [])
   | to_entries
   | map(
       select(
@@ -81,8 +81,14 @@ if [ -n "$BAD_VALS" ]; then
   exit 1
 fi
 
+if [ "$VAL_COUNT" -eq 0 ]; then
+  echo "[live-json] WARNING: no validators configured (validators array empty or null)."
+  echo "            For REAL mainnet LIVE JSON, you must configure at least one validator."
+  echo
+fi
+
 TOTAL_STAKE=$(jq -r '
-  .validators
+  (.validators // [])
   | map(.stakeVOID | tonumber)
   | add // 0
 ' "$CFG")
@@ -93,7 +99,7 @@ echo
 echo "[live-json] basic validation PASSED."
 echo "  - chainId == 2050"
 echo "  - all roles have well-formed 0x addresses"
-echo "  - all validators have well-formed rewardAddress and numeric stakeVOID"
+echo "  - all validators (if any) have well-formed rewardAddress and numeric stakeVOID"
 echo
 echo "Next steps:"
 echo "  - Ensure totals match the mainnet tokenomics plan."
