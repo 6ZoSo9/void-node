@@ -276,3 +276,7 @@ mainnet-bootstrap-plan-export:
 
 mainnet-bootstrap-plan-all: mainnet-bootstrap-plan mainnet-bootstrap-plan-export
 	@echo "[mainnet-bootstrap-plan-all] PLAN simulation + exporter done."
+
+# VOID mainnet bootstrap PLAN health (Prometheus-only, non-gating)
+mainnet-bootstrap-plan-health:
+	./ops/void-mainnet-bootstrap-plan-health.sh
