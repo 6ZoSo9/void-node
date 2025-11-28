@@ -1,27 +1,70 @@
 {
-  "id": "void-mainnet-dev",
-  "kind": "void-mainnet",
-  "name": "VOID Mainnet (dev/anvil)",
-  "networkConfig": "config/void-mainnet-network.dev.json",
-  "contractSurface": "config/void-mainnet-contract-surface.dev.json",
-  "ui": {
-    "theme": "dark",
-    "primaryColor": "#000000",
-    "accentColor": "#9b59b6",
-    "logo": {
-      "light": null,
-      "dark": null
+  "name": "VOID Devnet (Local)",
+  "network": "void-devnet-local",
+  "description": "Local VOID devnet for mainnet-core work (chainId 2050).",
+  "chainId": 2050,
+
+  "nativeCurrency": {
+    "name": "VOID",
+    "symbol": "VOID",
+    "decimals": 18
+  },
+
+  "rpcs": [
+    {
+      "role": "main",
+      "label": "Main node (4100)",
+      "url": "http://127.0.0.1:4100"
+    },
+    {
+      "role": "safeboot",
+      "label": "Safeboot node (4104)",
+      "url": "http://127.0.0.1:4104"
+    }
+  ],
+
+  "explorers": [
+    {
+      "name": "void-node-main",
+      "url": "http://127.0.0.1:4100",
+      "standard": "none"
+    }
+  ],
+
+  "contracts": {
+    "updateGate": null,
+    "adminGate": null,
+    "configGate": null,
+    "validatorSet": null,
+    "voidToken": null,
+    "voidTreasury": null,
+    "opsTreasury": null,
+    "rewardEngine": null
+  },
+
+  "endpoints": {
+    "health": {
+      "main_head": "http://127.0.0.1:4100/head.txt",
+      "safeboot_head": "http://127.0.0.1:4104/head.txt",
+      "txroot3_main": "http://127.0.0.1:4100/health/txroot3?format=prom",
+      "txroot3_safeboot": "http://127.0.0.1:4104/health/txroot3?format=prom"
+    },
+    "metrics": {
+      "prometheus": "http://127.0.0.1:9090",
+      "node_exporter": "http://127.0.0.1:9100"
     }
   },
+
   "features": {
-    "enableUnsafeDevTools": true,
-    "showTestFaucet": true,
-    "allowContractDeploy": true,
-    "allowExperimentalAgents": true
+    "lightClient": true,
+    "safebootAvailable": true,
+    "txrootHealth": true,
+    "agentJobsPlanned": true
   },
-  "limits": {
-    "maxGasPriceGweiHint": 50,
-    "defaultGasLimitHint": 8000000
-  },
-  "chainId": 2050
+
+  "notes": [
+    "This is a DEV profile, not for real funds.",
+    "Contract addresses are intentionally null; they will be filled in after mainnet bootstrap LIVE is designed.",
+    "Obelisk wallets can use this profile to connect to local VOID devnet nodes and show basic health."
+  ]
 }
