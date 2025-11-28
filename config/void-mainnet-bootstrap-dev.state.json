@@ -2,14 +2,14 @@
   "chainId": 2050,
   "config": "config/void-mainnet-bootstrap-dev.json",
   "addresses": {
-    "VoidToken": "0x68b1d87f95878fe05b998f19b66f4baba5de1aed",
-    "OpsTreasury": "0x3aa5ebb10dc797cac828524e59a333d0a371443c",
-    "VoidTreasury": "0xc6e7df5e7b4f2a278906862b61205850344d4e7d",
-    "AdminGate": "0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1",
-    "ConfigGate": "0x322813fd9a801c5507c9de605d63cea4f2ce6c44",
-    "ValidatorSet": "0xa85233c63b9ee964add6f2cffe00fd84eb32338f",
-    "VoidEmissionsController": "0x4a679253410272dd5232b3ff7cf5dbb88f295319",
-    "RewardEngine": "0x7a2088a1bfc9d81c55368ae168c2c02570cb814f"
+    "VoidToken": "0x09635f643e140090a9a8dcd712ed6285858cebef",
+    "OpsTreasury": "0xc5a5c42992decbae36851359345fe25997f5c42d",
+    "VoidTreasury": "0x67d269191c92caf3cd7723f116c85e6e9bf55933",
+    "AdminGate": "0xc3e53f4d16ae77db1c982e75a937b9f60fe63690",
+    "ConfigGate": "0x84ea74d481ee0a5332c457a4d796187f6ba67feb",
+    "ValidatorSet": "0x9e545e3c0baab3e08cdfd552c960a1050f373042",
+    "VoidEmissionsController": "0xa82ff9afd8f496c3d6ac40e2a0f282e47488cfc9",
+    "RewardEngine": "0x1613beb3b2c4f22ee086b2b38c1476a3ce7f78e8"
   },
   "tokenomics": {
     "premineWei": "333333333000000000000000000",
