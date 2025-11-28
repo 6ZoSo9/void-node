@@ -254,3 +254,15 @@ mainnet-bootstrap-plan-health:
 # VOID mainnet bootstrap simulate (Forge dry-run, no broadcast)
 mainnet-bootstrap-sim:
 	./ops/void-mainnet-bootstrap-mainnet-sim.sh config/void-mainnet-bootstrap-mainnet.live.json
+
+# VOID mainnet bootstrap PLAN: health + export
+mainnet-bootstrap-plan-all:
+	./ops/void-mainnet-bootstrap-mainnet-plan-all.sh
+
+# VOID mainnet bootstrap SIM: health only
+mainnet-bootstrap-sim-health:
+	./ops/void-mainnet-bootstrap-mainnet-sim-health.sh
+
+# VOID mainnet bootstrap SIM: health + export
+mainnet-bootstrap-sim-all:
+	./ops/void-mainnet-bootstrap-sim-all.sh
