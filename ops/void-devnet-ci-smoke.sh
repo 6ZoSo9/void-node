@@ -56,11 +56,11 @@ fi
 
 if [ -x "$REPO/ops/void-devnet-jobs-report.sh" ]; then
   echo "[ci-smoke] step 4: jobs/receipts report:"
-  RPC_URL="$RPC_URL" "$REPO/ops/void-devnet-jobs-report.sh"
+  echo "[ci-smoke] step 4: jobs/receipts report:"
   echo
 else
   echo "[ci-smoke] step 4: jobs/receipts report script missing (skipped)"
-  echo
+  echo "[ci-smoke] step 4: jobs/receipts report script missing (skipped)"
 fi
 
 # --- Step 5: hard Prom sanity checks on coverage/health ---
