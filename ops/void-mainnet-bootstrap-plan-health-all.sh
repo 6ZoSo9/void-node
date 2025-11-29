@@ -1,61 +1,63 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$HOME/dev/void-node"
-
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
 
-echo "=== [bootstrap-plan-health-all] VOID mainnet bootstrap PLAN pillar ==="
-echo "[cfg] PROM_URL = $PROM_URL"
+echo "[plan-health] prom_url=${PROM_URL}"
+
+QUERY='void:mainnet_bootstrap_plan:health:last_5m'
+
 echo
+echo "[plan-health] checking PLAN structural health (last 5m)..."
 
-echo "=== [0] refresh exporter (sudo) ==="
-sudo ./ops/void-mainnet-bootstrap-plan-exporter.sh || {
-  echo "[bootstrap-plan-health-all] WARN: exporter failed; continuing with whatever metrics exist."
-}
-echo
+RAW_JSON="$(
+  curl -fsS "${PROM_URL}/api/v1/query" \
+    --data-urlencode "query=${QUERY}" \
+    || echo '{"status":"error","data":{"result":[]}}'
+)"
 
-echo "=== [1] raw gauges from Prometheus (textfile collector) ==="
+STATUS="$(echo "${RAW_JSON}" | jq -r '.status // "error"' 2>/dev/null || echo "error")"
 
-q_cfg='void_mainnet_bootstrap_plan_configured'
-q_health='void_mainnet_bootstrap_plan_health'
-q_chain='void_mainnet_bootstrap_plan_chainid'
-
-cfg=$(curl -fsS "${PROM_URL}/api/v1/query?query=${q_cfg}"    | jq -r '.data.result[0].value[1] // "NaN"' || echo "NaN")
-hth=$(curl -fsS "${PROM_URL}/api/v1/query?query=${q_health}" | jq -r '.data.result[0].value[1] // "NaN"' || echo "NaN")
-cid=$(curl -fsS "${PROM_URL}/api/v1/query?query=${q_chain}"  | jq -r '.data.result[0].value[1] // "NaN"' || echo "NaN")
-
-printf '  %-40s = %s\n' "$q_cfg"    "$cfg"
-printf '  %-40s = %s\n' "$q_health" "$hth"
-printf '  %-40s = %s\n' "$q_chain"  "$cid"
-echo
-
-echo "=== [2] interpretation ==="
-
-if [[ "$cfg" == "0" ]]; then
-  echo "  - No live mainnet bootstrap plan config found yet (configured=0)."
-elif [[ "$cfg" == "1" ]]; then
-  echo "  - Live mainnet bootstrap plan JSON is present (configured=1)."
-else
-  echo "  - Could not interpret configured gauge (cfg=$cfg)."
+if [ "${STATUS}" != "success" ]; then
+  echo "[plan-health] ERROR: Prometheus query failed (status=${STATUS})"
+  echo "${RAW_JSON}"
+  exit 1
 fi
 
-if [[ "$hth" == "1" ]]; then
-  echo "  - Basic structural checks passed (health=1) — chainId looks right and core addresses are non-zero."
-elif [[ "$hth" == "0" ]]; then
-  echo "  - Basic structural checks FAILED or are not ready yet (health=0)."
-  echo "    This is expected until we fill in real mainnet addresses in the *.live.json config."
-else
-  echo "  - Could not interpret health gauge (health=$hth)."
+RESULT_COUNT="$(echo "${RAW_JSON}" | jq -r '.data.result | length' 2>/dev/null || echo "0")"
+
+if [ "${RESULT_COUNT}" -eq 0 ]; then
+  echo "[plan-health] WARN: no time series for ${QUERY} (metric missing?)"
+  exit 1
 fi
 
-if [[ "$cid" == "2050" ]]; then
-  echo "  - chainId from config is 2050 (VOID mainnet)."
-elif [[ "$cid" == "0" ]]; then
-  echo "  - chainId from config is 0 or missing (no real mainnet plan yet)."
-else
-  echo "  - chainId from config is $cid (unexpected; should be 2050 for VOID mainnet)."
-fi
+VALUE_STR="$(echo "${RAW_JSON}" | jq -r '.data.result[0].value[1] // "NaN"' 2>/dev/null || echo "NaN")"
+
+echo "[plan-health]   ${QUERY} = ${VALUE_STR}"
+
+EXIT_CODE=1
+
+case "${VALUE_STR}" in
+  1|1.0)
+    echo
+    echo "[plan-health] RESULT: OK (bootstrap PLAN is structurally READY-ish in live.json)"
+    EXIT_CODE=0
+    ;;
+  0|0.0)
+    echo
+    echo "[plan-health] RESULT: NOT_READY (bootstrap PLAN missing critical fields)"
+    echo "  - This is EXPECTED until you fill in real mainnet roles, contracts, and validator0."
+    EXIT_CODE=1
+    ;;
+  *)
+    echo
+    echo "[plan-health] RESULT: UNKNOWN (non-binary value: ${VALUE_STR})"
+    EXIT_CODE=1
+    ;;
+esac
 
 echo
-echo "[bootstrap-plan-health-all] RESULT: OK (this is informational only; no gates wired yet)"
+echo "[plan-health] hint: for details, run:"
+echo "  ./ops/void-mainnet-bootstrap-plan-view.sh"
+
+exit "${EXIT_CODE}"

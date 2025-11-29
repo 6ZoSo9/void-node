@@ -1,272 +1,357 @@
-# VOID Mainnet Bootstrap PLAN
+# VOID Mainnet Bootstrap PLAN — JSON Semantics
 
-This doc describes the PLAN-only layer for VOID mainnet bootstrap. It does **not**
-perform any on-chain deployments or broadcasts. It exists to answer, ahead of time:
+File: config/void-mainnet-bootstrap-mainnet.live.json  
+Scope: ONE SPECIFIC live VOID mainnet chain (chainId 2050).
 
-- Which chain are we targeting?
-- Which contracts/addresses will exist after bootstrap?
-- Where does the premine go?
-- How are AdminGate / UpdateGate / ValidatorSet / Treasury / OpsTreasury / RewardEngine wired?
+This file answers three questions for real VOID mainnet:
 
-The PLAN must go green **before** we ever attempt a real mainnet broadcast.
+- Who owns what? (roles)
+- Where does the premine and emissions actually live? (contracts)
+- Who is the first validator, with which key and stake? (validator0)
 
----
+It is:
 
-## 1. Config file: config/void-mainnet-bootstrap-mainnet.live.json
+- Human-readable
+- Machine-validated (Solidity PLAN validator + Prometheus metrics)
+- Intended to stay meaningful for 10–20+ years
 
-This file is live mainnet config and is already gitignored. It must be created
-from the key ceremony (LUKS USB + hardware wallets).
+This is NOT for devnet/anvil. It is the truth for the real VOID mainnet chain.
 
-Shape:
 
-- Top-level:
-  - chainId: 2050 (NUMBER, required)
-  - addresses: OBJECT, required
+## 1. Top-level JSON shape
 
-- addresses fields (all required, non-zero addresses):
-  - addresses.voidToken
-  - addresses.voidTreasury
-  - addresses.opsTreasury
-  - addresses.adminGate
-  - addresses.updateGate
-  - addresses.validatorSet
-  - addresses.rewardEngine
+The JSON has this structure (commented here, but real file is pure JSON):
 
-Example (JSON-ish):
+{
+  "chainId": 2050,
+  "roles": {
+    "deployer": "0x...",
+    "premineOwner": "0x...",
+    "treasuryAdmin": "0x...",
+    "opsTreasuryAdmin": "0x...",
+    "validatorAdmin": "0x...",
+    "adminGateOwner": "0x...",
+    "updateGateOwner": "0x...",
+    "configGateOwner": "0x...",
+    "treasuryOwner": "0x...",
+    "opsTreasuryOwner": "0x...",
+    "rewardEngineOwner": "0x...",
+    "validatorSetOwner": "0x..."
+  },
+  "contracts": {
+    "updateGate": "0x...",
+    "adminGate": "0x...",
+    "configGate": "0x...",
+    "validatorSet": "0x...",
+    "voidToken": "0x...",
+    "premineVault": "0x...",
+    "treasury": "0x...",
+    "voidTreasury": "0x...",
+    "opsTreasury": "0x...",
+    "rewardEngine": "0x..."
+  },
+  "validator0": {
+    "reward": "0x...",
+    "consensusKey": "0x...",
+    "stakeVOID": "123456789"   // stringified integer
+  }
+}
 
-    {
-      "chainId": 2050,
-      "addresses": {
-        "voidToken":    "0x...",  // VOID ERC20 / mainnet token contract
-        "voidTreasury": "0x...",  // VoidTreasury (premine target, contract-based)
-        "opsTreasury":  "0x...",  // OpsTreasury (ops budgets)
-        "adminGate":    "0x...",  // AdminGate master key entry point
-        "updateGate":   "0x...",  // UpdateGate (M-of-N core upgrade gate)
-        "validatorSet": "0x...",  // ValidatorSet for mainnet (initial validators)
-        "rewardEngine": "0x..."   // RewardEngine (emissions + validator rewards)
-      }
-    }
+The exporter and checklist treat some fields as CRITICAL:
 
-Requirements:
+- chainId
+- roles.* (subset: deployer, treasuryAdmin, opsTreasuryAdmin, validatorAdmin, gate owners)
+- contracts.voidToken, contracts.premineVault, contracts.treasury, contracts.opsTreasury, contracts.rewardEngine
+- validator0.reward, validator0.consensusKey
 
-- chainId must be 2050.
-- All addresses.* must be present and non-zero (not empty, not null, not 0x0).
+These drive void_mainnet_bootstrap_plan_health.
 
-Anything else (premine splits, signer lists, etc.) lives inside the contracts
-and the Forge bootstrap scripts, not in this JSON.
 
----
+## 2. chainId
 
-## 2. PLAN harness: ops/void-mainnet-bootstrap-mainnet-plan.sh
+Field:
 
-PLAN-only script, no broadcast.
+- chainId: number
 
-Responsibilities:
+For real VOID mainnet:
 
-- Read the config JSON (default: config/void-mainnet-bootstrap-mainnet.live.json).
-- Verify:
-  - chainId exists and equals 2050.
-  - addresses.voidToken
-  - addresses.voidTreasury
-  - addresses.opsTreasury
-  - addresses.adminGate
-  - addresses.updateGate
-  - addresses.validatorSet
-  - addresses.rewardEngine
-    are all present and non-zero.
+- MUST be 2050
 
-- Write a textfile metric:
+The PLAN script compares:
 
-  - Path: ops/textfile/void_mainnet_bootstrap_plan.prom
-  - Metrics:
-    - void_mainnet_bootstrap_plan_ready {0|1}
-    - void_mainnet_bootstrap_plan_chainid {N}
+- chainId from config
+- chainId from RPC
 
-- Exit code:
-  - 0 if all checks pass (PLAN_OK = 1).
-  - 1 otherwise.
+Rules:
 
-Example usage:
+- If config != 2050 → PLAN invalid for VOID mainnet.
+- If RPC chainId != config → you pointed the PLAN at the wrong chain or wrong RPC.
 
-    ./ops/void-mainnet-bootstrap-mainnet-plan.sh \
-      config/void-mainnet-bootstrap-mainnet.live.json
+This prevents you from running a VOID mainnet bootstrap against some random fork.
 
----
 
-## 3. PLAN health hammer: ops/void-mainnet-bootstrap-mainnet-plan-health.sh
+## 3. roles — human authority layout
 
-This script wraps the PLAN harness into a health check.
+These are human-facing/ownership roles, not contracts. They are addresses that own or admin the core pieces.
 
-Behavior:
+### 3.1 High-level grouping
 
-- Runs ops/void-mainnet-bootstrap-mainnet-plan.sh with the given config
-  (default: config/void-mainnet-bootstrap-mainnet.live.json).
-- Captures the exit code from the PLAN harness.
-- Reads void_mainnet_bootstrap_plan_ready from
-  ops/textfile/void_mainnet_bootstrap_plan.prom.
-- Prints a summary.
-- Exit rules:
-  - GREEN only if:
-    - PLAN exit code == 0, and
-    - void_mainnet_bootstrap_plan_ready == 1.
-  - Otherwise WARN and exit 1.
+- Deployer:
+  - roles.deployer
 
-Example usage:
+- Human admins around Treasury/Validators:
+  - roles.premineOwner
+  - roles.treasuryAdmin
+  - roles.opsTreasuryAdmin
+  - roles.validatorAdmin
 
-    ./ops/void-mainnet-bootstrap-mainnet-plan-health.sh
+- Gate owners (master-key layer):
+  - roles.adminGateOwner
+  - roles.updateGateOwner
+  - roles.configGateOwner
 
-Current expected state (before real mainnet keys/addresses):
+- Contract owners:
+  - roles.treasuryOwner
+  - roles.opsTreasuryOwner
+  - roles.rewardEngineOwner
+  - roles.validatorSetOwner
+
+You can re-use the same human or HSM across multiple roles, but the PLAN keeps them logically separate so future eras can rewire without rewriting history.
+
+### 3.2 Field meanings
+
+roles.deployer
+- Address that submits the actual bootstrap transactions.
+- Does not need long-term power after bootstrap.
+- Should be hardware-protected / LUKS-gated when broadcasting.
+
+roles.premineOwner
+- Address that “owns” the premine vault contract while it does its one-time job.
+- In the intended design:
+  - premineVault receives the premine once
+  - then pushes it into VoidTreasury
+  - then becomes effectively inert
+
+roles.treasuryAdmin
+- Human/ops guardian around the main Treasury.
+- Not the hot wallet for day-to-day spending.
+- Very locked down.
+
+roles.opsTreasuryAdmin
+- Admin for Ops Treasury.
+- Approves flow from VoidTreasury into OpsTreasury under rules.
+
+roles.validatorAdmin
+- Admin for ValidatorSet.
+- Controls adding/removing validators and key parameters.
+- Abuse here = consensus capture. Must be strongly protected.
+
+roles.adminGateOwner
+- Owner of AdminGate contract.
+- AdminGate controls admin rights for core contracts via indirection.
+- This is part of the “god tier” – cold, rarely used.
+
+roles.updateGateOwner
+- Owner of UpdateGate.
+- Controls upgradeability / code updates of core components.
+- For v99 freeze, this key is either never used or only under extreme, governed conditions.
+
+roles.configGateOwner
+- Owner of ConfigGate.
+- Controls configuration-only changes (params, tuning knobs) but not code.
+- Also hardware/multi-party controlled.
+
+roles.treasuryOwner
+- Contract-level owner for VoidTreasury.
+- In practice probably a gate or multi-sig, but PLAN just records the address.
+
+roles.opsTreasuryOwner
+- Owner for OpsTreasury contract.
+- Controls its configuration, not arbitrary spend (spend should go via contract logic).
+
+roles.rewardEngineOwner
+- Owner for RewardEngine.
+- Controls reward/emission configuration within the constraints of the tokenomics spec.
 
-- void_mainnet_bootstrap_plan_ready = 0
-- Plan health exit code = 1 (WARN; PLAN not ready).
+roles.validatorSetOwner
+- Owner for ValidatorSet.
+- Controls meta-parameters (min stake, max validators, etc.).
+- Usually wired via AdminGate/ConfigGate in the actual contracts.
 
----
 
-## 4. Integration into mainnet health (soft for now)
+## 4. contracts — the chain’s “bones”
 
-ops/void-mainnet-health-all.sh includes a soft PLAN check:
+Once mainnet is live, these addresses are essentially fixed for that chain.
 
-- Calls ops/void-mainnet-bootstrap-mainnet-plan-health.sh.
-- Logs its output.
-- Currently ignores the non-zero exit code so that these remain the real gates:
+### 4.1 Gate layer contracts
 
-  - void:mainnet_overall:health:last_5m_v2
-  - void:mainnet_pillars:health:last_5m
-  - void:mainnet_lastmile:health:last_5m
-  - void_safeboot_overall_health
+contracts.updateGate
+- Address of UpdateGate contract.
+- Global choke point for code upgrades of core components.
+
+contracts.adminGate
+- Address of AdminGate contract.
+- Indirection for admin/owner rights for critical contracts.
+
+contracts.configGate
+- Address of ConfigGate contract.
+- Indirection for configuration changes.
+
+### 4.2 Consensus / validator layer
 
-Later, once the real mainnet config exists and the PLAN is green, this can be
-promoted to a hard gate (pillars + pre-push, plus Prometheus/alert wiring).
+contracts.validatorSet
+- Canonical ValidatorSet contract.
+- Validator membership and stake are read from here by nodes.
+- This address is sacred for that mainnet instance.
+
+### 4.3 Tokenomics / Treasury layer
+
+contracts.voidToken
+- VOID ERC-20 contract for chainId 2050.
+- Enforces:
+  - Max supply: 666,666,666 VOID
+  - Premine: 333,333,333 VOID
+  - Emissions: 333,333,333 VOID over 4 eras (25 years each)
+    - Era 1: 177,777,777
+    - Era 2: 88,888,889
+    - Era 3: 44,444,444
+    - Era 4: 22,222,223
 
----
+contracts.premineVault
+- Contract that receives premine once and then sends it to VoidTreasury.
+- After that, should be inert.
+- If this is empty or zero, the PLAN is incomplete.
 
-## 5. When is the PLAN considered "ready"?
+contracts.treasury and contracts.voidTreasury
+- Logical meaning:
+  - voidTreasury = canonical main Treasury contract holding premine and emissions.
+  - treasury = alias for the same thing in PLAN for explicitness.
+- In final, ready PLAN:
+  - contracts.treasury and contracts.voidTreasury should be the same non-zero address.
+
+contracts.opsTreasury
+- Ops Treasury contract.
+- Holds operational budget separate from main Treasury.
+- Typical flow:
+  - VoidToken → premineVault → VoidTreasury
+  - VoidTreasury → OpsTreasury
+  - OpsTreasury → on-chain spending (infra, salaries, etc.).
 
-PLAN is considered READY when all of the following are true:
+contracts.rewardEngine
+- RewardEngine contract.
+- Handles validator rewards and emission scheduling.
+- Must be non-zero and wired correctly into ValidatorSet and Tokenomics.
 
-1. config/void-mainnet-bootstrap-mainnet.live.json exists.
-2. chainId == 2050.
-3. addresses.{voidToken, voidTreasury, opsTreasury, adminGate, updateGate, validatorSet, rewardEngine}
-   are all valid non-zero addresses derived from the mainnet key ceremony.
-4. ./ops/void-mainnet-bootstrap-mainnet-plan-health.sh:
-   - Exits with code 0.
-   - Shows void_mainnet_bootstrap_plan_ready 1 in the metric file.
 
-Only after PLAN is READY should we:
+## 5. validator0 — first validator
 
-- Wire it as a hard gate in:
-  - ops/void-mainnet-health-all.sh
-  - pillars / pillars-preflight
-  - pre-push for mainnet-critical branches.
+Bootstrap needs at least one real validator.
 
-- Add Prometheus scrape + recording rules + alerts for bootstrap-plan readiness.
+Fields:
 
-- Consider moving from PLAN-only to any real broadcast path.
-
----
-
-## 6. Relation to the stub bootstrap script
-
-ops/void-mainnet-bootstrap-mainnet-stub-smoke.sh currently runs the Forge script
-VoidMainnetBootstrapMainnet.s.sol in dry-run mode:
-
-- Confirms that the runtime RPC chainId == 2050.
-- Confirms that the config JSON chainId == 2050.
-- Prints a banner and then reverts on purpose with:
-  "stub only; implement real wiring before broadcast".
-
-The stub is used to validate:
-
-- Foundry/Forge toolchain.
-- Script loading and config parsing.
-- chainId sanity.
-
-The PLAN layer (this doc) is orthogonal: it validates the intended wiring and
-addresses independently of Forge. Both must be green before we design the real
-mainnet bootstrap pipeline.
-
----
-
-## 7. Simulate harness (Forge dry-run, no broadcast)
-
-Once the PLAN is green and the Solidity script
-`script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet` is
-fully implemented, we will rely on a dedicated **simulate harness** to
-exercise the bootstrap logic against the live config without broadcasting.
-
-### 7.1. Script and Make target
-
-CLI entry points:
-
-- Direct script:
-
-      ./ops/void-mainnet-bootstrap-mainnet-sim.sh \
-        config/void-mainnet-bootstrap-mainnet.live.json
-
-- Makefile.ops shortcut:
-
-      make -f Makefile.ops mainnet-bootstrap-sim
-
-Both commands:
-
-- Change into the repo root.
-- Use `RPC_URL` (default: `http://127.0.0.1:8545`).
-- Call Forge:
-
-      forge script script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \
-        --rpc-url "$RPC_URL" \
-        --sig "run(string)" "$CONFIG_PATH"
-
-- Do **not** use `--broadcast` (pure dry-run).
-
-### 7.2. Expected behavior while the script is still a stub
-
-While `VoidMainnetBootstrapMainnet` is in its STUB phase, it is allowed
-(and expected) to revert on purpose after printing chainId sanity:
-
-- runtime chainId logged as 2050
-- config chainId logged as 2050
-- final revert reason:
-
-      VoidMainnetBootstrapMainnet: stub only; implement real wiring before broadcast
-
-In this phase:
-
-- `./ops/void-mainnet-bootstrap-mainnet-sim.sh` will show:
-
-      [step 1] forge script exit code = 1
-      [result] WARN – simulate run failed (this is expected while the script is still a STUB).
-
-- `make -f Makefile.ops mainnet-bootstrap-sim` will also exit non-zero,
-  and this is *not* treated as a gate yet.
-
-### 7.3. Target behavior once wiring is implemented
-
-After the bootstrap script is fully implemented and aligned with the PLAN:
-
-- Using a **valid** `config/void-mainnet-bootstrap-mainnet.live.json`:
-
-  - The simulate harness should complete without revert.
-  - Exit code from `forge script` should be 0.
-  - The script should *at minimum* log:
-
-    - chainId sanity OK (runtime and config both 2050),
-    - a summary of which addresses/contracts are being wired,
-    - key invariants (premine → VoidTreasury, OpsTreasury, RewardEngine,
-      AdminGate/UpdateGate/ValidatorSet wiring).
-
-- Using an **invalid** or inconsistent config:
-
-  - The simulate harness is allowed to revert with a clear reason
-    (e.g. mismatched addresses, chainId mismatch, missing roles).
-  - At that point, failure becomes a useful signal (not “expected”).
-
-Eventually, we may:
-
-- Add a `void_mainnet_bootstrap_sim_ok` gauge and wire it into Prometheus.
-- Include the simulate harness in a dedicated pre-flight script.
-- Promote simulate success to a soft or hard gate on mainnet-critical branches.
-
-Until then, the simulate harness exists as an operator tool to dry-run the
-bootstrap logic safely, using the same `.live.json` PLAN config, with
-**zero broadcast** behavior.
+validator0.reward
+- Payout address for validator0’s rewards.
+- EOA or wallet; can be different from consensus key.
+
+validator0.consensusKey
+- 32-byte consensus key for validator0 (hex string).
+- Node consensus uses this to verify the validator’s signatures.
+- Typically stored in hardware or locked infra, not reused as a hot wallet key.
+
+validator0.stakeVOID
+- Stringified integer amount of VOID staked by validator0 (in smallest units).
+- Must match constraints enforced by ValidatorSet and RewardEngine.
+
+For PLAN readiness later:
+
+- validator0.reward must be non-zero.
+- validator0.consensusKey must be a non-zero 32-byte value.
+- validator0.stakeVOID must be a real number, not a placeholder.
+
+
+## 6. PLAN health — how metrics interpret the JSON
+
+Exporter and checklist define:
+
+void_mainnet_bootstrap_plan_configured
+- 1 when the JSON exists and parses.
+- 0 otherwise.
+
+void_mainnet_bootstrap_plan_chainid
+- 2050 when config is for VOID mainnet.
+- 0 or wrong value means config is mis-targeted.
+
+void_mainnet_bootstrap_plan_health
+- 0 if any CRITICAL fields are zero/missing:
+  - contracts.voidToken
+  - contracts.premineVault
+  - contracts.treasury
+  - contracts.opsTreasury
+  - contracts.rewardEngine
+  - validator0.reward
+  - validator0.consensusKey
+- 1 once all of the above are non-zero and basic structural checks pass.
+
+Recording rules:
+
+- void:mainnet_bootstrap_plan:configured:last_5m
+- void:mainnet_bootstrap_plan:health:last_5m
+
+Alert:
+
+VoidMainnetBootstrapPlanNotReady
+- Fires when:
+  - configured:last_5m == 1 AND
+  - health:last_5m == 0 for at least 10 minutes.
+- Meaning:
+  - PLAN exists but still has placeholders or zeros in critical fields.
+
+
+## 7. Lifecycle of the PLAN
+
+1) Template (.template.json)
+- Obvious placeholders:
+  - 0x1111..., 0x2222..., etc. for owners.
+  - Zero or empty addresses for contracts.
+  - TODO_SET_STAKE_VOID for validator stake.
+- plan_health = 0 and that is expected.
+
+2) Dev/Anvil PLAN (for rehearsals)
+- Non-zero fake addresses and test validator keys.
+- Can reach plan_health = 1 on anvil, but this is not real mainnet.
+
+3) Mainnet live PLAN (.live.json)
+- Real addresses and keys for actual VOID mainnet.
+- plan_health must reach 1 before we allow any live broadcast script.
+- This file is never committed to git; guarded by .gitignore.
+
+4) Post-bootstrap
+- PLAN remains the single human-readable record for:
+  - Who the initial gate owners are.
+  - How premine, Treasury, OpsTreasury, RewardEngine were wired.
+  - Who the first validator was and how much they staked.
+- Governance and protocol docs can reference this PLAN as the original ground truth.
+
+
+## 8. Next steps tied to this doc (for future work)
+
+Not executed yet; this section is a to-do list for future changes:
+
+1) Turn VoidMainnetBootstrapMainnet.s.sol stub into a PLAN validator:
+   - Read the .live.json.
+   - Hard fail with explicit reasons if any critical field is missing/wrong.
+   - Succeed (rc=0) when PLAN is structurally valid (but still no real deployments).
+
+2) Tighten ops/void-mainnet-bootstrap-plan-dry-run.sh:
+   - Treat rc=0 from the PLAN validator as required for success.
+   - Fail the script if the stub/validator reverts.
+
+3) Later, design the live broadcast script:
+   - Gated by:
+     - void:mainnet_pillars:health:last_5m == 1
+     - void:obelisk_profile_health:last_5m == 1
+     - void:mainnet_bootstrap_plan:health:last_5m == 1
+     - Keys pillar health == 1
+     - Extra LUKS / hardware confirmations on the machine.
+
+Until then, PLAN stays visible, non-broadcasting, and safe to iterate.
