@@ -460,3 +460,93 @@ This section captures the 2025-11-28 PLAN tooling checkpoint, where:
 - PLAN exporter health is green.
 - Bootstrap remains PLAN-only (stubbed, no mainnet deployments).
 
+
+## Mainnet PLAN: role and contract mapping (concept only)
+
+This section is **conceptual**: it describes what each PLAN slot is supposed to represent on real mainnet.  
+Actual addresses and stakes will be filled into \`config/void-mainnet-bootstrap-mainnet.live.json\` later, using hardware/LUKS-backed keys.
+
+### .roles.*
+
+| Slot                    | Type at mainnet                          | Storage / safety                           | Notes |
+|-------------------------|-------------------------------------------|--------------------------------------------|-------|
+| roles.deployer          | Throwaway deployer EOA                    | Hardware or LUKS; tiny funded; one-shot    | Used only to broadcast bootstrap; not premine or treasury. |
+| roles.treasuryAdmin     | Treasury admin EOA / multisig             | Hardware / LUKS                            | Configures Treasury / premine flows; no arbitrary mint. |
+| roles.opsTreasuryAdmin  | OpsTreasury admin EOA / multisig          | Hardware / LUKS                            | Approves OpsTreasury → hot ops flows under policy. |
+| roles.validatorAdmin    | ValidatorSet admin EOA / multisig         | Hardware / LUKS                            | Seeds/updates validators under ValidatorSet rules. |
+| roles.adminGateOwner    | AdminGate master key (or multisig)        | LUKS / hardware only                       | Top of hierarchy; can alter UpdateGate/ConfigGate; extreme care. |
+| roles.updateGateOwner   | Governance owner of UpdateGate (multisig) | On-chain multisig; signers on hardware     | Controls protocol/core upgrades via UpdateGate. |
+| roles.configGateOwner   | Governance owner of ConfigGate (multisig) | On-chain multisig; signers on hardware     | Controls non-code config (params, limits, some validator config). |
+| roles.treasuryOwner     | Owner/governance of VoidTreasury          | On-chain gate/governance module            | Treasury must not be owned by a raw EOA. |
+| roles.opsTreasuryOwner  | Owner/governance of OpsTreasury           | On-chain gate/governance module            | Controls OpsTreasury policy and allowed drains. |
+| roles.rewardEngineOwner | Owner/governance of RewardEngine          | On-chain gate/governance module            | Adjusts emission/reward parameters under strict rules. |
+| roles.validatorSetOwner | Owner/governance of ValidatorSet          | On-chain gate/governance module            | Final authority on validator set rules and changes. |
+
+### .contracts.*
+
+| Slot                   | Contract at mainnet                    | Notes |
+|------------------------|----------------------------------------|-------|
+| contracts.updateGate   | UpdateGate contract                    | Protocol/core upgrade gate. |
+| contracts.adminGate    | AdminGate contract                     | Master-key gate; root of trust. |
+| contracts.configGate   | ConfigGate contract                    | Config/parameter gate (non-code). |
+| contracts.validatorSet | ValidatorSet contract                  | Canonical active validator set. |
+| contracts.voidToken    | VOID ERC20/main token                  | MAX_SUPPLY + eras as per locked tokenomics. |
+| contracts.premineVault | Premine vault contract                 | Receives premine; drains only to VoidTreasury under rules. |
+| contracts.treasury     | Treasury “router” contract             | Governance-controlled flows (e.g. Treasury → OpsTreasury). |
+| contracts.voidTreasury | Main VoidTreasury contract             | Holds premine and long-term funds. |
+| contracts.opsTreasury  | OpsTreasury contract                   | Holds operations budget funded from VoidTreasury. |
+| contracts.rewardEngine | RewardEngine contract                  | Drives emissions and validator rewards over 100 years. |
+
+### .validator0.*
+
+| Field                    | Meaning at mainnet                                       | Notes |
+|--------------------------|----------------------------------------------------------|-------|
+| validator0.reward        | Reward EOA/multisig for first validator                  | Hardware wallet or multisig; not premine/treasury keys. |
+| validator0.consensusKey  | Consensus key for first validator node                   | Lives on validator infra; dedicated to consensus only. |
+| validator0.stakeVOID     | VOID amount staked by validator0                         | To be set once final mainnet stake value is chosen; must respect tokenomics. |
+
+
+## Mainnet PLAN: role and contract mapping (concept only)
+
+This section is **conceptual**: it describes what each PLAN slot is supposed to represent on real mainnet.  
+Actual addresses and stakes will be filled into `config/void-mainnet-bootstrap-mainnet.live.json` later, using hardware/LUKS-backed keys.
+
+### .roles.*
+
+| Slot                    | Type at mainnet                          | Storage / safety                           | Notes |
+|-------------------------|-------------------------------------------|--------------------------------------------|-------|
+| roles.deployer          | Throwaway deployer EOA                    | Hardware or LUKS; tiny funded; one-shot    | Used only to broadcast bootstrap; not premine or treasury. |
+| roles.treasuryAdmin     | Treasury admin EOA / multisig             | Hardware / LUKS                            | Configures Treasury / premine flows; no arbitrary mint. |
+| roles.opsTreasuryAdmin  | OpsTreasury admin EOA / multisig          | Hardware / LUKS                            | Approves OpsTreasury → hot ops flows under policy. |
+| roles.validatorAdmin    | ValidatorSet admin EOA / multisig         | Hardware / LUKS                            | Seeds/updates validators under ValidatorSet rules. |
+| roles.adminGateOwner    | AdminGate master key (or multisig)        | LUKS / hardware only                       | Top of hierarchy; can alter UpdateGate/ConfigGate; extreme care. |
+| roles.updateGateOwner   | Governance owner of UpdateGate (multisig) | On-chain multisig; signers on hardware     | Controls protocol/core upgrades via UpdateGate. |
+| roles.configGateOwner   | Governance owner of ConfigGate (multisig) | On-chain multisig; signers on hardware     | Controls non-code config (params, limits, some validator config). |
+| roles.treasuryOwner     | Owner/governance of VoidTreasury          | On-chain gate/governance module            | Treasury must not be owned by a raw EOA. |
+| roles.opsTreasuryOwner  | Owner/governance of OpsTreasury           | On-chain gate/governance module            | Controls OpsTreasury policy and allowed drains. |
+| roles.rewardEngineOwner | Owner/governance of RewardEngine          | On-chain gate/governance module            | Adjusts emission/reward parameters under strict rules. |
+| roles.validatorSetOwner | Owner/governance of ValidatorSet          | On-chain gate/governance module            | Final authority on validator set rules and changes. |
+
+### .contracts.*
+
+| Slot                   | Contract at mainnet                    | Notes |
+|------------------------|----------------------------------------|-------|
+| contracts.updateGate   | UpdateGate contract                    | Protocol/core upgrade gate. |
+| contracts.adminGate    | AdminGate contract                     | Master-key gate; root of trust. |
+| contracts.configGate   | ConfigGate contract                    | Config/parameter gate (non-code). |
+| contracts.validatorSet | ValidatorSet contract                  | Canonical active validator set. |
+| contracts.voidToken    | VOID ERC20/main token                  | MAX_SUPPLY + eras as per locked tokenomics. |
+| contracts.premineVault | Premine vault contract                 | Receives premine; drains only to VoidTreasury under rules. |
+| contracts.treasury     | Treasury “router” contract             | Governance-controlled flows (e.g. Treasury → OpsTreasury). |
+| contracts.voidTreasury | Main VoidTreasury contract             | Holds premine and long-term funds. |
+| contracts.opsTreasury  | OpsTreasury contract                   | Holds operations budget funded from VoidTreasury. |
+| contracts.rewardEngine | RewardEngine contract                  | Drives emissions and validator rewards over 100 years. |
+
+### .validator0.*
+
+| Field                    | Meaning at mainnet                                       | Notes |
+|--------------------------|----------------------------------------------------------|-------|
+| validator0.reward        | Reward EOA/multisig for first validator                  | Hardware wallet or multisig; not premine/treasury keys. |
+| validator0.consensusKey  | Consensus key for first validator node                   | Lives on validator infra; dedicated to consensus only. |
+| validator0.stakeVOID     | VOID amount staked by validator0                         | To be set once final mainnet stake value is chosen; must respect tokenomics. |
+
