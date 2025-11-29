@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$HOME/dev/void-node"
+REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
+cd "$REPO_ROOT"
 
 CONFIG_PATH="${CONFIG_PATH:-config/void-mainnet-bootstrap-mainnet.live.json}"
-RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
 
-echo "=== [bootstrap-plan-checklist] VOID mainnet bootstrap PLAN checklist ==="
+echo "=== [bootstrap-plan-view] VOID mainnet bootstrap PLAN view ==="
 echo "[cfg] REPO_ROOT   = $PWD"
 echo "[cfg] CONFIG_PATH = $CONFIG_PATH"
-echo "[cfg] RPC_URL     = $RPC_URL"
 echo
 
 if [ ! -f "$CONFIG_PATH" ]; then
@@ -17,10 +16,9 @@ if [ ! -f "$CONFIG_PATH" ]; then
   exit 1
 fi
 
-# Helper: normalize address / treat null/"null" as empty
+# Helpers (mirrors checklist logic)
 norm_addr() {
   local raw="$1"
-  # strip quotes/null markers if any
   if [ "$raw" = "null" ] || [ "$raw" = "NULL" ]; then
     echo ""
   else
@@ -51,33 +49,12 @@ is_zero_bytes32() {
   return 1
 }
 
-echo "=== [0] chainId sanity ==="
+echo "=== [0] chainId ==="
 CHAIN_JSON="$(jq -r '.chainId // 0' "$CONFIG_PATH")"
-echo "  chainId (config) : $CHAIN_JSON"
-
-if command -v cast >/dev/null 2>&1; then
-  set +e
-  RUNTIME_CHAINID_RAW="$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null)"
-  RUNTIME_RC=$?
-  set -e
-  if [ $RUNTIME_RC -eq 0 ]; then
-    echo "  chainId (RPC)    : $RUNTIME_CHAINID_RAW"
-    if [ "$RUNTIME_CHAINID_RAW" = "$CHAIN_JSON" ]; then
-      echo "  -> chainId sanity: OK"
-    else
-      echo "  -> chainId sanity: MISMATCH (config=$CHAIN_JSON, rpc=$RUNTIME_CHAINID_RAW)"
-    fi
-  else
-    echo "  chainId (RPC)    : ERROR (cast chain-id failed; RPC down or not anvil-2050?)"
-  fi
-else
-  echo "  cast not found; skipping runtime chainId check."
-fi
+printf "  chainId (config) : %s\n" "$CHAIN_JSON"
 echo
 
-echo "=== [1] roles ==="
-
-# Roles we care about
+echo "=== [1] roles (PLAN view) ==="
 ROLE_KEYS=(
   "deployer"
   "treasuryAdmin"
@@ -104,15 +81,13 @@ for key in "${ROLE_KEYS[@]}"; do
 done
 
 if [ "${#MISSING_ROLES[@]}" -gt 0 ]; then
-  echo "  -> missing/zero roles: ${MISSING_ROLES[*]}"
+  echo "  -> PLAN missing/zero roles: ${MISSING_ROLES[*]}"
 else
-  echo "  -> all tracked roles non-zero."
+  echo "  -> All tracked PLAN roles are non-zero."
 fi
 echo
 
-echo "=== [2] contracts ==="
-
-# Contracts as per exporter warnings + extras
+echo "=== [2] contracts (PLAN view) ==="
 CONTRACT_KEYS=(
   "updateGate"
   "adminGate"
@@ -129,11 +104,9 @@ CONTRACT_KEYS=(
 MISSING_CONTRACTS=()
 
 for key in "${CONTRACT_KEYS[@]}"; do
-  # Some may not exist; jq will return empty
   val="$(jq -r --arg k "$key" '.contracts[$k] // ""' "$CONFIG_PATH")"
   val="$(norm_addr "$val")"
   printf "  %-14s : %s\n" "$key" "${val:-<empty>}"
-  # Only treat the critical ones as structural for now
   case "$key" in
     voidToken|premineVault|treasury|opsTreasury|rewardEngine)
       if is_zero_addr "$val"; then
@@ -144,14 +117,13 @@ for key in "${CONTRACT_KEYS[@]}"; do
 done
 
 if [ "${#MISSING_CONTRACTS[@]}" -gt 0 ]; then
-  echo "  -> missing/zero CRITICAL contracts (these gate plan_health): ${MISSING_CONTRACTS[*]}"
+  echo "  -> PLAN missing/zero CRITICAL contracts: ${MISSING_CONTRACTS[*]}"
 else
-  echo "  -> all CRITICAL contracts non-zero (voidToken/premineVault/treasury/opsTreasury/rewardEngine)."
+  echo "  -> All CRITICAL PLAN contracts non-zero (voidToken/premineVault/treasury/opsTreasury/rewardEngine)."
 fi
 echo
 
-echo "=== [3] validator0 ==="
-
+echo "=== [3] validator0 (PLAN view) ==="
 VAL_REWARD="$(jq -r '.validator0.reward // ""' "$CONFIG_PATH")"
 VAL_REWARD="$(norm_addr "$VAL_REWARD")"
 VAL_CONS_KEY="$(jq -r '.validator0.consensusKey // ""' "$CONFIG_PATH")"
@@ -174,14 +146,13 @@ if is_zero_bytes32 "$VAL_CONS_KEY"; then
 fi
 
 if [ "${#MISSING_VALIDATOR_CRIT[@]}" -gt 0 ]; then
-  echo "  -> missing/zero CRITICAL validator0 fields: ${MISSING_VALIDATOR_CRIT[*]}"
+  echo "  -> PLAN missing/zero validator0 critical fields: ${MISSING_VALIDATOR_CRIT[*]}"
 else
-  echo "  -> validator0 critical fields (reward + consensusKey) are non-zero."
+  echo "  -> validator0 critical PLAN fields (reward + consensusKey) are non-zero."
 fi
 echo
 
-echo "=== [4] structural summary (should roughly match exporter health) ==="
-
+echo "=== [4] PLAN structural verdict ==="
 STRUCT_HEALTH=1
 
 if [ "${#MISSING_CONTRACTS[@]}" -gt 0 ]; then
@@ -191,24 +162,22 @@ if [ "${#MISSING_VALIDATOR_CRIT[@]}" -gt 0 ]; then
   STRUCT_HEALTH=0
 fi
 
-echo "  plan_configured (from exporter)  : see void_mainnet_bootstrap_plan_configured gauge"
-echo "  plan_health (from exporter)      : see void_mainnet_bootstrap_plan_health gauge"
-echo "  plan_structural_health (local)   : $STRUCT_HEALTH  (1=READY-ish, 0=NOT_READY)"
-
-if [ "$STRUCT_HEALTH" -eq 0 ]; then
-  echo
-  echo "  INTERPRETATION:"
-  echo "    - One or more CRITICAL contracts or validator0 fields are still zero/missing."
-  echo "    - This matches plan_health=0 in the exporter right now."
-  echo "    - Before we flip plan_health to 1, we need real addresses for:"
-  echo "        * contracts: ${MISSING_CONTRACTS[*]:-<none>}"
-  echo "        * validator0: ${MISSING_VALIDATOR_CRIT[*]:-<none>}"
+if [ "$STRUCT_HEALTH" -eq 1 ]; then
+  echo "  PLAN_STATUS : READY-ish (all critical fields populated; contracts+validator0 look structurally OK)"
+  echo "  NOTE        : still need Prometheus plan_health wiring + human review before broadcast."
 else
-  echo
-  echo "  INTERPRETATION:"
-  echo "    - All CRITICAL contracts and validator0 fields are populated."
-  echo "    - Once exporter logic is aligned, plan_health should move to 1."
+  echo "  PLAN_STATUS : NOT_READY (one or more critical PLAN fields are missing/zero)"
+  echo "  DETAILS     :"
+  echo "    - Missing contracts : ${MISSING_CONTRACTS[*]:-<none>}"
+  echo "    - Missing validator : ${MISSING_VALIDATOR_CRIT[*]:-<none>}"
 fi
 
 echo
-echo "=== [bootstrap-plan-checklist] done ==="
+echo "=== [bootstrap-plan-view] done ==="
+
+# Exit code for CI/gates: 0 if structurally READY-ish, 1 if NOT_READY.
+if [ "$STRUCT_HEALTH" -eq 1 ]; then
+  exit 0
+else
+  exit 1
+fi
