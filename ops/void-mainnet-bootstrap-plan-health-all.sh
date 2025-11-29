@@ -1,63 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
+REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
+cd "$REPO_ROOT"
 
-echo "[plan-health] prom_url=${PROM_URL}"
-
-QUERY='void:mainnet_bootstrap_plan:health:last_5m'
-
+echo "=== [plan-health-all] VOID mainnet bootstrap PLAN health-all ==="
+echo "[cfg] REPO_ROOT = $REPO_ROOT"
 echo
-echo "[plan-health] checking PLAN structural health (last 5m)..."
 
-RAW_JSON="$(
-  curl -fsS "${PROM_URL}/api/v1/query" \
-    --data-urlencode "query=${QUERY}" \
-    || echo '{"status":"error","data":{"result":[]}}'
-)"
-
-STATUS="$(echo "${RAW_JSON}" | jq -r '.status // "error"' 2>/dev/null || echo "error")"
-
-if [ "${STATUS}" != "success" ]; then
-  echo "[plan-health] ERROR: Prometheus query failed (status=${STATUS})"
-  echo "${RAW_JSON}"
+echo "=== [1] run exporter (refresh metrics file) ==="
+if [ ! -x ops/void-mainnet-bootstrap-plan-exporter.sh ]; then
+  echo "[plan-health-all] ERROR: ops/void-mainnet-bootstrap-plan-exporter.sh missing or not executable." >&2
   exit 1
 fi
 
-RESULT_COUNT="$(echo "${RAW_JSON}" | jq -r '.data.result | length' 2>/dev/null || echo "0")"
+./ops/void-mainnet-bootstrap-plan-exporter.sh
+echo
 
-if [ "${RESULT_COUNT}" -eq 0 ]; then
-  echo "[plan-health] WARN: no time series for ${QUERY} (metric missing?)"
+echo "=== [2] show plan status (JSON view) ==="
+if [ ! -x ops/void-mainnet-bootstrap-plan-status.sh ]; then
+  echo "[plan-health-all] ERROR: ops/void-mainnet-bootstrap-plan-status.sh missing or not executable." >&2
   exit 1
 fi
 
-VALUE_STR="$(echo "${RAW_JSON}" | jq -r '.data.result[0].value[1] // "NaN"' 2>/dev/null || echo "NaN")"
-
-echo "[plan-health]   ${QUERY} = ${VALUE_STR}"
-
-EXIT_CODE=1
-
-case "${VALUE_STR}" in
-  1|1.0)
-    echo
-    echo "[plan-health] RESULT: OK (bootstrap PLAN is structurally READY-ish in live.json)"
-    EXIT_CODE=0
-    ;;
-  0|0.0)
-    echo
-    echo "[plan-health] RESULT: NOT_READY (bootstrap PLAN missing critical fields)"
-    echo "  - This is EXPECTED until you fill in real mainnet roles, contracts, and validator0."
-    EXIT_CODE=1
-    ;;
-  *)
-    echo
-    echo "[plan-health] RESULT: UNKNOWN (non-binary value: ${VALUE_STR})"
-    EXIT_CODE=1
-    ;;
-esac
-
+./ops/void-mainnet-bootstrap-plan-status.sh
 echo
-echo "[plan-health] hint: for details, run:"
-echo "  ./ops/void-mainnet-bootstrap-plan-view.sh"
 
-exit "${EXIT_CODE}"
+echo "=== [3] read gauges from metrics file ==="
+METRICS_FILE="ops/metrics/void_mainnet_bootstrap_plan.prom"
+if [ ! -f "$METRICS_FILE" ]; then
+  echo "[plan-health-all] ERROR: metrics file not found: $METRICS_FILE" >&2
+  exit 1
+fi
+
+CONFIG_OK=$(grep -E '^void_mainnet_bootstrap_plan_configured ' "$METRICS_FILE" | awk '{print $2}' || echo "0")
+STRUCT_OK=$(grep -E '^void_mainnet_bootstrap_plan_health ' "$METRICS_FILE" | awk '{print $2}' || echo "0")
+
+echo "=== [4] summary ==="
+echo "  CONFIG_OK  = $CONFIG_OK"
+echo "  STRUCT_OK  = $STRUCT_OK"
+
+if [ "$CONFIG_OK" != "1" ]; then
+  echo "  RESULT: NOT CONFIGURED (fix config JSON/chainId/structure)."
+elif [ "$STRUCT_OK" != "1" ]; then
+  echo "  RESULT: CONFIGURED BUT NOT READY (critical roles/contracts/validator0 still missing)."
+else
+  echo "  RESULT: PLAN READY (safe to consider broadcast wiring, subject to keys/ops checks)."
+fi
+
+echo "=== [plan-health-all] DONE ==="
