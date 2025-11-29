@@ -318,3 +318,145 @@ Prometheus now exports and gates:
 This section is intentionally high-level and non-sensitive. The actual addresses and keys will
 exist only in `*.live.json` and on physical encrypted media, not in this repo.
 
+
+## Bootstrap PLAN tooling (2025-11-28 checkpoint)
+
+This section describes the current PLAN-only tooling for VOID mainnet bootstrap.
+All of these operate on a *.live.json config file and do not broadcast transactions.
+
+### Config file
+
+Default mainnet PLAN config path:
+
+- config/void-mainnet-bootstrap-mainnet.live.json
+
+This file is never committed (guarded by .gitignore) and must live on an encrypted medium when it contains real mainnet keys or addresses.
+
+### PLAN scripts overview
+
+All scripts assume:
+
+- REPO_ROOT=$HOME/dev/void-node (by default)
+
+1) Checklist (local structural scan)
+
+    ./ops/void-mainnet-bootstrap-plan-checklist.sh
+
+Reads *.live.json and prints:
+
+- chainId (config) vs chainId (RPC)
+- roles view: deployer, treasuryAdmin, opsTreasuryAdmin, validatorAdmin, adminGateOwner, updateGateOwner, configGateOwner, treasuryOwner, opsTreasuryOwner, rewardEngineOwner, validatorSetOwner
+- contracts view: updateGate, adminGate, configGate, validatorSet, voidToken, premineVault, treasury, voidTreasury, opsTreasury, rewardEngine
+- validator0 view: reward, consensusKey, stakeVOID
+
+Computes a local plan_structural_health (1 or 0) based on missing or zero CRITICAL fields.
+This local verdict is advisory; Prometheus gating is handled via exporter metrics.
+
+2) PLAN structural view (pretty printer)
+
+    ./ops/void-mainnet-bootstrap-plan-view.sh
+
+Pretty-prints the same roles, contracts, and validator0 sections and summarizes:
+
+- PLAN_STATUS : READY or NOT_READY
+- DETAILS listing missing contracts and validator fields
+
+Use this to eyeball what still needs to be filled in the live.json file.
+
+3) PLAN PromQL health hammer
+
+    ./ops/void-mainnet-bootstrap-plan-all.sh
+
+Runs, in order:
+
+- void-mainnet-bootstrap-plan-checklist.sh
+- void-mainnet-bootstrap-plan-view.sh
+- void-mainnet-bootstrap-plan-health-all.sh
+- void-mainnet-bootstrap-mainnet-plan-sim.sh (forge script stub sim)
+
+PromQL part checks:
+
+- void:mainnet_bootstrap_plan:health:last_5m
+
+Current behavior:
+
+- Exporter plan_health is 1 when the PLAN lane is wired and the config is structurally coherent enough for planning.
+- The local structural verdict may still be NOT_READY while addresses are placeholders; that is acceptable for the current PLAN-ready stage.
+
+4) PLAN dry-run runner (jq-safe, no broadcast)
+
+    ./ops/void-mainnet-bootstrap-plan-run.sh
+
+Reads *.live.json and prints:
+
+- Basic config view: chainId
+- roles block with <missing> for unset fields
+- contracts block with <missing> for unset fields
+- validator0 block with <missing> for unset fields
+
+Also prints a human-readable conceptual bootstrap sequence:
+
+- Pre-flight checks
+- Governance and gates wiring (UpdateGate, AdminGate, ConfigGate)
+- Treasury and token wiring (VoidToken, VoidTreasury, OpsTreasury, RewardEngine)
+- Validator set initial wiring (validator0)
+- Post-bootstrap invariants and health checks
+
+This script is PLAN-only and never touches chain state.
+
+5) Forge PLAN simulation (stub)
+
+    ./ops/void-mainnet-bootstrap-mainnet-plan-sim.sh
+
+Calls the VoidMainnetBootstrapMainnet script against the PLAN config.
+
+Expected to revert with:
+
+- "VoidMainnetBootstrapMainnet: stub only; implement real wiring before broadcast"
+
+This confirms:
+
+- The script can parse the config.
+- Roles, contracts, and validator0 are visible to the Solidity side.
+- No real deployments are performed.
+
+### Prometheus gating
+
+The following metrics are now part of the mainnet gating story:
+
+- void:mainnet_pillars:health:last_5m
+- void:mainnet_lastmile:health:last_5m
+- void_safeboot_overall_health
+- void:mainnet_bootstrap_plan:health:last_5m
+- void:mainnet_overall:health:last_5m_v2 (informational only)
+
+The helper script:
+
+    ./ops/void-mainnet-health-all.sh
+
+now gates on:
+
+- void:mainnet_pillars:health:last_5m == 1
+- void:mainnet_lastmile:health:last_5m == 1
+- void:mainnet_bootstrap_plan:health:last_5m == 1
+
+This ensures we never advance towards real mainnet bootstrap unless:
+
+1) Devnet and mainnet-core pillars are green.
+2) Mainnet last-mile is healthy (non-empty blocks, txroot/header3/seals sane).
+3) Bootstrap PLAN lane is structurally ready from the exporter view.
+
+A future stage will introduce a separate, heavily audited broadcast script that:
+
+- Reads the same *.live.json file.
+- Prints a human-readable transaction plan.
+- Requires explicit confirmation and hardware-wallet signing.
+- Is never committed with real live configs or keys.
+
+This section captures the 2025-11-28 PLAN tooling checkpoint, where:
+
+- All mainnet pillars are green.
+- Safeboot is healthy.
+- PLAN exporter health is green.
+- Bootstrap remains PLAN-only (stubbed, no mainnet deployments).
+
