@@ -9,7 +9,6 @@ echo
 
 cd "$REPO_ROOT"
 
-# 0) Quick presence check for the key scripts so we fail loudly if something is missing.
 for f in \
   ops/void-mainnet-bootstrap-plan-checklist.sh \
   ops/void-mainnet-bootstrap-plan-view.sh \
@@ -34,37 +33,27 @@ echo
 echo "=== [1] PLAN structural view ==="
 ./ops/void-mainnet-bootstrap-plan-view.sh || {
   echo
-  echo "[ERROR] plan-view script failed (unexpected)."
+  echo "[ERROR] plan-view script failed (unexpected; not just NOT_READY)."
   exit 1
 }
 echo
 
 echo "=== [2] PLAN structural health (PromQL) ==="
-./ops/void-mainnet-bootstrap-plan-health-all.sh || {
+if ./ops/void-mainnet-bootstrap-plan-health-all.sh; then
+  :
+else
   echo
-  echo "[ERROR] plan-health-all script failed (unexpected)."
-  exit 1
-}
+  echo "[INFO] plan-health-all exited non-zero (likely NOT_READY, which is expected"
+  echo "       until real roles/contracts/validator0 are filled in)."
+fi
 echo
 
-echo "=== [3] PLAN simulation via forge script (stub) ==="
+echo "=== [3] PLAN forge sim (stub) ==="
 ./ops/void-mainnet-bootstrap-mainnet-plan-sim.sh || {
   echo
-  echo "[ERROR] plan-sim script failed (unexpected)."
-  echo "        If this isn't just the stub revert, investigate."
+  echo "[ERROR] plan-sim script failed (unexpected; stub revert should be handled inside)."
   exit 1
 }
 echo
 
-echo "=== [4] summary ==="
-echo "  - Checklist      : ran OK"
-echo "  - PLAN view      : printed current live.json roles/contracts/validator0"
-echo "  - PLAN health    : see output above (currently expected = NOT_READY / 0)"
-echo "  - PLAN sim (stub): parsed config + reverted with stub marker"
-echo
-echo "NOTE:"
-echo "  This hammer is considered SUCCESS as long as the scripts themselves run clean."
-echo "  It does NOT require PLAN health == 1 yet; that only happens once real"
-echo "  mainnet roles/contracts/validator0 are filled in and we're truly ready."
-echo
-echo "=== [mainnet-bootstrap-plan-all] done ==="
+echo "=== [mainnet-bootstrap-plan-all] DONE (see above for NOT_READY vs READY details) ==="

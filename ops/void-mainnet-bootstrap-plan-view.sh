@@ -13,11 +13,9 @@ cd "$REPO_ROOT"
 
 if [ ! -f "$CONFIG_PATH" ]; then
   echo "[FATAL] config file not found: $CONFIG_PATH" >&2
-  # This is a real error: missing config, so we *do* exit non-zero here.
   exit 1
 fi
 
-# Helper to safely jq a key (assumes structure is correct for our live.json template).
 jq_str() {
   jq -r "$1" "$CONFIG_PATH"
 }
@@ -53,10 +51,10 @@ echo "  rewardEngineOwner  : $REWARD_ENGINE_OWNER"
 echo "  validatorSetOwner  : $VALIDATOR_SET_OWNER"
 
 missing_roles=()
-[ "$DEPLOYER"         = "0x0000000000000000000000000000000000000000" ] && missing_roles+=("deployer")
-[ "$TREASURY_ADMIN"   = "0x0000000000000000000000000000000000000000" ] && missing_roles+=("treasuryAdmin")
-[ "$OPS_TREASURY_ADMIN" = "0x0000000000000000000000000000000000000000" ] && missing_roles+=("opsTreasuryAdmin")
-[ "$VALIDATOR_ADMIN"  = "0x0000000000000000000000000000000000000000" ] && missing_roles+=("validatorAdmin")
+[[ "$DEPLOYER"           == "0x0000000000000000000000000000000000000000" ]] && missing_roles+=("deployer")
+[[ "$TREASURY_ADMIN"     == "0x0000000000000000000000000000000000000000" ]] && missing_roles+=("treasuryAdmin")
+[[ "$OPS_TREASURY_ADMIN" == "0x0000000000000000000000000000000000000000" ]] && missing_roles+=("opsTreasuryAdmin")
+[[ "$VALIDATOR_ADMIN"    == "0x0000000000000000000000000000000000000000" ]] && missing_roles+=("validatorAdmin")
 
 if [ "${#missing_roles[@]}" -gt 0 ]; then
   echo "  -> PLAN missing/zero roles: ${missing_roles[*]}"
@@ -73,7 +71,6 @@ VOID_TREASURY_ADDR="$(jq_str '.contracts.voidTreasury')"
 OPS_TREASURY_ADDR="$(jq_str '.contracts.opsTreasury')"
 REWARD_ENGINE_ADDR="$(jq_str '.contracts.rewardEngine')"
 
-# premineVault/treasury might be absent or empty strings
 PREMINE_VAULT_ADDR="$(jq -r '.contracts.premineVault // ""' "$CONFIG_PATH")"
 TREASURY_ADDR="$(jq -r '.contracts.treasury // ""' "$CONFIG_PATH")"
 
@@ -89,11 +86,15 @@ echo "  opsTreasury    : $OPS_TREASURY_ADDR"
 echo "  rewardEngine   : $REWARD_ENGINE_ADDR"
 
 missing_contracts=()
-[ "$VOID_TOKEN_ADDR"   = "0x0000000000000000000000000000000000000000" ] && missing_contracts+=("voidToken")
-[ -z "${PREMINE_VAULT_ADDR:-}" ] && missing_contracts+=("premineVault")
-[ -z "${TREASURY_ADDR:-}" ] && missing_contracts+=("treasury")
-[ "$OPS_TREASURY_ADDR" = "0x0000000000000000000000000000000000000000" ] && missing_contracts+=("opsTreasury")
-[ "$REWARD_ENGINE_ADDR"= "0x0000000000000000000000000000000000000000" ] && missing_contracts+=("rewardEngine")
+[[ "$VOID_TOKEN_ADDR"   == "0x0000000000000000000000000000000000000000" ]] && missing_contracts+=("voidToken")
+if [[ -z "$PREMINE_VAULT_ADDR" || "$PREMINE_VAULT_ADDR" == "<empty>" ]]; then
+  missing_contracts+=("premineVault")
+fi
+if [[ -z "$TREASURY_ADDR" || "$TREASURY_ADDR" == "<empty>" ]]; then
+  missing_contracts+=("treasury")
+fi
+[[ "$OPS_TREASURY_ADDR"   == "0x0000000000000000000000000000000000000000" ]] && missing_contracts+=("opsTreasury")
+[[ "$REWARD_ENGINE_ADDR"  == "0x0000000000000000000000000000000000000000" ]] && missing_contracts+=("rewardEngine")
 
 if [ "${#missing_contracts[@]}" -gt 0 ]; then
   echo "  -> PLAN missing/zero CRITICAL contracts: ${missing_contracts[*]}"
@@ -110,8 +111,8 @@ echo "  consensusKey      : $VAL0_CONS_KEY"
 echo "  stakeVOID (raw)   : $VAL0_STAKE_RAW"
 
 missing_validator_fields=()
-[ "$VAL0_REWARD_ADDR" = "0x0000000000000000000000000000000000000000" ] && missing_validator_fields+=("reward")
-[ "$VAL0_CONS_KEY"    = "0x0000000000000000000000000000000000000000000000000000000000000000" ] && missing_validator_fields+=("consensusKey")
+[[ "$VAL0_REWARD_ADDR" == "0x0000000000000000000000000000000000000000" ]] && missing_validator_fields+=("reward")
+[[ "$VAL0_CONS_KEY"    == "0x0000000000000000000000000000000000000000000000000000000000000000" ]] && missing_validator_fields+=("consensusKey")
 
 if [ "${#missing_validator_fields[@]}" -gt 0 ]; then
   echo "  -> PLAN missing/zero validator0 critical fields: ${missing_validator_fields[*]}"
@@ -138,6 +139,4 @@ fi
 echo
 echo "=== [bootstrap-plan-view] done ==="
 
-# IMPORTANT: this script is *report-only*.
-# It should exit 0 even when PLAN_STATUS=NOT_READY.
 exit 0
