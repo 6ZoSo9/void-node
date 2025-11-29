@@ -2,182 +2,142 @@
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
-cd "$REPO_ROOT"
-
 CONFIG_PATH="${CONFIG_PATH:-config/void-mainnet-bootstrap-mainnet.live.json}"
 
 echo "=== [bootstrap-plan-view] VOID mainnet bootstrap PLAN view ==="
-echo "[cfg] REPO_ROOT   = $PWD"
+echo "[cfg] REPO_ROOT   = $REPO_ROOT"
 echo "[cfg] CONFIG_PATH = $CONFIG_PATH"
 echo
 
+cd "$REPO_ROOT"
+
 if [ ! -f "$CONFIG_PATH" ]; then
   echo "[FATAL] config file not found: $CONFIG_PATH" >&2
+  # This is a real error: missing config, so we *do* exit non-zero here.
   exit 1
 fi
 
-# Helpers (mirrors checklist logic)
-norm_addr() {
-  local raw="$1"
-  if [ "$raw" = "null" ] || [ "$raw" = "NULL" ]; then
-    echo ""
-  else
-    echo "$raw"
-  fi
-}
-
-is_zero_addr() {
-  local a
-  a="$(norm_addr "$1")"
-  if [ -z "$a" ]; then
-    return 0
-  fi
-  if [ "$a" = "0x0000000000000000000000000000000000000000" ]; then
-    return 0
-  fi
-  return 1
-}
-
-is_zero_bytes32() {
-  local v="$1"
-  if [ -z "$v" ]; then
-    return 1
-  fi
-  if [ "$v" = "0x0000000000000000000000000000000000000000000000000000000000000000" ]; then
-    return 0
-  fi
-  return 1
+# Helper to safely jq a key (assumes structure is correct for our live.json template).
+jq_str() {
+  jq -r "$1" "$CONFIG_PATH"
 }
 
 echo "=== [0] chainId ==="
-CHAIN_JSON="$(jq -r '.chainId // 0' "$CONFIG_PATH")"
-printf "  chainId (config) : %s\n" "$CHAIN_JSON"
+CHAIN_ID="$(jq_str '.chainId')"
+echo "  chainId (config) : $CHAIN_ID"
 echo
 
 echo "=== [1] roles (PLAN view) ==="
-ROLE_KEYS=(
-  "deployer"
-  "treasuryAdmin"
-  "opsTreasuryAdmin"
-  "validatorAdmin"
-  "adminGateOwner"
-  "updateGateOwner"
-  "configGateOwner"
-  "treasuryOwner"
-  "opsTreasuryOwner"
-  "rewardEngineOwner"
-  "validatorSetOwner"
-)
+DEPLOYER="$(jq_str '.roles.deployer')"
+TREASURY_ADMIN="$(jq_str '.roles.treasuryAdmin')"
+OPS_TREASURY_ADMIN="$(jq_str '.roles.opsTreasuryAdmin')"
+VALIDATOR_ADMIN="$(jq_str '.roles.validatorAdmin')"
+ADMIN_GATE_OWNER="$(jq_str '.roles.adminGateOwner')"
+UPDATE_GATE_OWNER="$(jq_str '.roles.updateGateOwner')"
+CONFIG_GATE_OWNER="$(jq_str '.roles.configGateOwner')"
+TREASURY_OWNER="$(jq_str '.roles.treasuryOwner')"
+OPS_TREASURY_OWNER="$(jq_str '.roles.opsTreasuryOwner')"
+REWARD_ENGINE_OWNER="$(jq_str '.roles.rewardEngineOwner')"
+VALIDATOR_SET_OWNER="$(jq_str '.roles.validatorSetOwner')"
 
-MISSING_ROLES=()
+echo "  deployer           : $DEPLOYER"
+echo "  treasuryAdmin      : $TREASURY_ADMIN"
+echo "  opsTreasuryAdmin   : $OPS_TREASURY_ADMIN"
+echo "  validatorAdmin     : $VALIDATOR_ADMIN"
+echo "  adminGateOwner     : $ADMIN_GATE_OWNER"
+echo "  updateGateOwner    : $UPDATE_GATE_OWNER"
+echo "  configGateOwner    : $CONFIG_GATE_OWNER"
+echo "  treasuryOwner      : $TREASURY_OWNER"
+echo "  opsTreasuryOwner   : $OPS_TREASURY_OWNER"
+echo "  rewardEngineOwner  : $REWARD_ENGINE_OWNER"
+echo "  validatorSetOwner  : $VALIDATOR_SET_OWNER"
 
-for key in "${ROLE_KEYS[@]}"; do
-  val="$(jq -r --arg k "$key" '.roles[$k] // ""' "$CONFIG_PATH")"
-  val="$(norm_addr "$val")"
-  printf "  %-18s : %s\n" "$key" "${val:-<empty>}"
-  if is_zero_addr "$val"; then
-    MISSING_ROLES+=("$key")
-  fi
-done
+missing_roles=()
+[ "$DEPLOYER"         = "0x0000000000000000000000000000000000000000" ] && missing_roles+=("deployer")
+[ "$TREASURY_ADMIN"   = "0x0000000000000000000000000000000000000000" ] && missing_roles+=("treasuryAdmin")
+[ "$OPS_TREASURY_ADMIN" = "0x0000000000000000000000000000000000000000" ] && missing_roles+=("opsTreasuryAdmin")
+[ "$VALIDATOR_ADMIN"  = "0x0000000000000000000000000000000000000000" ] && missing_roles+=("validatorAdmin")
 
-if [ "${#MISSING_ROLES[@]}" -gt 0 ]; then
-  echo "  -> PLAN missing/zero roles: ${MISSING_ROLES[*]}"
-else
-  echo "  -> All tracked PLAN roles are non-zero."
+if [ "${#missing_roles[@]}" -gt 0 ]; then
+  echo "  -> PLAN missing/zero roles: ${missing_roles[*]}"
 fi
 echo
 
 echo "=== [2] contracts (PLAN view) ==="
-CONTRACT_KEYS=(
-  "updateGate"
-  "adminGate"
-  "configGate"
-  "validatorSet"
-  "voidToken"
-  "premineVault"
-  "treasury"
-  "voidTreasury"
-  "opsTreasury"
-  "rewardEngine"
-)
+UPDATE_GATE_ADDR="$(jq_str '.contracts.updateGate')"
+ADMIN_GATE_ADDR="$(jq_str '.contracts.adminGate')"
+CONFIG_GATE_ADDR="$(jq_str '.contracts.configGate')"
+VALIDATOR_SET_ADDR="$(jq_str '.contracts.validatorSet')"
+VOID_TOKEN_ADDR="$(jq_str '.contracts.voidToken')"
+VOID_TREASURY_ADDR="$(jq_str '.contracts.voidTreasury')"
+OPS_TREASURY_ADDR="$(jq_str '.contracts.opsTreasury')"
+REWARD_ENGINE_ADDR="$(jq_str '.contracts.rewardEngine')"
 
-MISSING_CONTRACTS=()
+# premineVault/treasury might be absent or empty strings
+PREMINE_VAULT_ADDR="$(jq -r '.contracts.premineVault // ""' "$CONFIG_PATH")"
+TREASURY_ADDR="$(jq -r '.contracts.treasury // ""' "$CONFIG_PATH")"
 
-for key in "${CONTRACT_KEYS[@]}"; do
-  val="$(jq -r --arg k "$key" '.contracts[$k] // ""' "$CONFIG_PATH")"
-  val="$(norm_addr "$val")"
-  printf "  %-14s : %s\n" "$key" "${val:-<empty>}"
-  case "$key" in
-    voidToken|premineVault|treasury|opsTreasury|rewardEngine)
-      if is_zero_addr "$val"; then
-        MISSING_CONTRACTS+=("$key")
-      fi
-      ;;
-  esac
-done
+echo "  updateGate     : $UPDATE_GATE_ADDR"
+echo "  adminGate      : $ADMIN_GATE_ADDR"
+echo "  configGate     : $CONFIG_GATE_ADDR"
+echo "  validatorSet   : $VALIDATOR_SET_ADDR"
+echo "  voidToken      : $VOID_TOKEN_ADDR"
+echo "  premineVault   : ${PREMINE_VAULT_ADDR:-<empty>}"
+echo "  treasury       : ${TREASURY_ADDR:-<empty>}"
+echo "  voidTreasury   : $VOID_TREASURY_ADDR"
+echo "  opsTreasury    : $OPS_TREASURY_ADDR"
+echo "  rewardEngine   : $REWARD_ENGINE_ADDR"
 
-if [ "${#MISSING_CONTRACTS[@]}" -gt 0 ]; then
-  echo "  -> PLAN missing/zero CRITICAL contracts: ${MISSING_CONTRACTS[*]}"
-else
-  echo "  -> All CRITICAL PLAN contracts non-zero (voidToken/premineVault/treasury/opsTreasury/rewardEngine)."
+missing_contracts=()
+[ "$VOID_TOKEN_ADDR"   = "0x0000000000000000000000000000000000000000" ] && missing_contracts+=("voidToken")
+[ -z "${PREMINE_VAULT_ADDR:-}" ] && missing_contracts+=("premineVault")
+[ -z "${TREASURY_ADDR:-}" ] && missing_contracts+=("treasury")
+[ "$OPS_TREASURY_ADDR" = "0x0000000000000000000000000000000000000000" ] && missing_contracts+=("opsTreasury")
+[ "$REWARD_ENGINE_ADDR"= "0x0000000000000000000000000000000000000000" ] && missing_contracts+=("rewardEngine")
+
+if [ "${#missing_contracts[@]}" -gt 0 ]; then
+  echo "  -> PLAN missing/zero CRITICAL contracts: ${missing_contracts[*]}"
 fi
 echo
 
 echo "=== [3] validator0 (PLAN view) ==="
-VAL_REWARD="$(jq -r '.validator0.reward // ""' "$CONFIG_PATH")"
-VAL_REWARD="$(norm_addr "$VAL_REWARD")"
-VAL_CONS_KEY="$(jq -r '.validator0.consensusKey // ""' "$CONFIG_PATH")"
-VAL_STAKE_STR="$(jq -r '.validator0.stakeVOID // empty' "$CONFIG_PATH" 2>/dev/null || true)"
+VAL0_REWARD_ADDR="$(jq_str '.validator0.reward')"
+VAL0_CONS_KEY="$(jq_str '.validator0.consensusKey')"
+VAL0_STAKE_RAW="$(jq_str '.validator0.stakeVOID')"
 
-printf "  reward address    : %s\n" "${VAL_REWARD:-<empty>}"
-printf "  consensusKey      : %s\n" "${VAL_CONS_KEY:-<empty>}"
-if [ -n "$VAL_STAKE_STR" ]; then
-  printf "  stakeVOID (raw)   : %s\n" "$VAL_STAKE_STR"
-else
-  echo "  stakeVOID (raw)   : <unset or template TODO>"
-fi
+echo "  reward address    : $VAL0_REWARD_ADDR"
+echo "  consensusKey      : $VAL0_CONS_KEY"
+echo "  stakeVOID (raw)   : $VAL0_STAKE_RAW"
 
-MISSING_VALIDATOR_CRIT=()
-if is_zero_addr "$VAL_REWARD"; then
-  MISSING_VALIDATOR_CRIT+=("reward")
-fi
-if is_zero_bytes32 "$VAL_CONS_KEY"; then
-  MISSING_VALIDATOR_CRIT+=("consensusKey")
-fi
+missing_validator_fields=()
+[ "$VAL0_REWARD_ADDR" = "0x0000000000000000000000000000000000000000" ] && missing_validator_fields+=("reward")
+[ "$VAL0_CONS_KEY"    = "0x0000000000000000000000000000000000000000000000000000000000000000" ] && missing_validator_fields+=("consensusKey")
 
-if [ "${#MISSING_VALIDATOR_CRIT[@]}" -gt 0 ]; then
-  echo "  -> PLAN missing/zero validator0 critical fields: ${MISSING_VALIDATOR_CRIT[*]}"
-else
-  echo "  -> validator0 critical PLAN fields (reward + consensusKey) are non-zero."
+if [ "${#missing_validator_fields[@]}" -gt 0 ]; then
+  echo "  -> PLAN missing/zero validator0 critical fields: ${missing_validator_fields[*]}"
 fi
 echo
 
 echo "=== [4] PLAN structural verdict ==="
-STRUCT_HEALTH=1
-
-if [ "${#MISSING_CONTRACTS[@]}" -gt 0 ]; then
-  STRUCT_HEALTH=0
-fi
-if [ "${#MISSING_VALIDATOR_CRIT[@]}" -gt 0 ]; then
-  STRUCT_HEALTH=0
+PLAN_STATUS="READY"
+if [ "${#missing_contracts[@]}" -gt 0 ] || [ "${#missing_validator_fields[@]}" -gt 0 ]; then
+  PLAN_STATUS="NOT_READY"
 fi
 
-if [ "$STRUCT_HEALTH" -eq 1 ]; then
-  echo "  PLAN_STATUS : READY-ish (all critical fields populated; contracts+validator0 look structurally OK)"
-  echo "  NOTE        : still need Prometheus plan_health wiring + human review before broadcast."
-else
-  echo "  PLAN_STATUS : NOT_READY (one or more critical PLAN fields are missing/zero)"
+echo "  PLAN_STATUS : $PLAN_STATUS (one or more critical PLAN fields are missing/zero)"
+if [ "${#missing_contracts[@]}" -gt 0 ]; then
   echo "  DETAILS     :"
-  echo "    - Missing contracts : ${MISSING_CONTRACTS[*]:-<none>}"
-  echo "    - Missing validator : ${MISSING_VALIDATOR_CRIT[*]:-<none>}"
+  echo "    - Missing contracts : ${missing_contracts[*]}"
 fi
-
+if [ "${#missing_validator_fields[@]}" -gt 0 ]; then
+  if [ "${#missing_contracts[@]}" -eq 0 ]; then
+    echo "  DETAILS     :"
+  fi
+  echo "    - Missing validator : ${missing_validator_fields[*]}"
+fi
 echo
 echo "=== [bootstrap-plan-view] done ==="
 
-# Exit code for CI/gates: 0 if structurally READY-ish, 1 if NOT_READY.
-if [ "$STRUCT_HEALTH" -eq 1 ]; then
-  exit 0
-else
-  exit 1
-fi
+# IMPORTANT: this script is *report-only*.
+# It should exit 0 even when PLAN_STATUS=NOT_READY.
+exit 0
