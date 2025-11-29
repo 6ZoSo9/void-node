@@ -225,3 +225,114 @@ We still do not broadcast just because this turned green. Actual broadcast will 
    - Transition (we are actively wiring real mainnet values) -> edit the .live.json offline and re-run the health scripts until HEALTH_OK = 1.
 
 This alert is warning-level on purpose. It is a reminder that the PLAN is half-baked, not a production outage.
+
+---
+
+## 4. When is PLAN actually “READY”?
+
+Right now, PLAN is intentionally **NOT READY**:
+
+- `void_mainnet_bootstrap_plan_configured = 1`
+- `void_mainnet_bootstrap_plan_health     = 0`
+
+This is correct. We only flip `plan_health` to 1 when the **real live config** is filled in and cross-checked.
+
+The JSON fields that MUST be **non-zero / non-TODO** before `plan_health` is allowed to be 1:
+
+### 4.1 Roles (must be real mainnet keys)
+
+These come from your **real mainnet key plan** (LUKS / hardware wallets), NOT dev keys:
+
+- `.roles.deployer`
+- `.roles.treasuryAdmin`
+- `.roles.opsTreasuryAdmin`
+- `.roles.validatorAdmin`
+
+And the long-lived owners:
+
+- `.roles.adminGateOwner`
+- `.roles.updateGateOwner`
+- `.roles.configGateOwner`
+- `.roles.treasuryOwner`
+- `.roles.opsTreasuryOwner`
+- `.roles.rewardEngineOwner`
+- `.roles.validatorSetOwner`
+
+All of these:
+
+- MUST be real mainnet addresses.
+- MUST be derived from the correct hardware / LUKS-secured keys.
+- MUST be double-checked offline before going into the `.live.json`.
+
+### 4.2 Core contracts (must be deployed addresses, not zero)
+
+These MUST match the **actual** mainnet deployments you plan to broadcast:
+
+- `.contracts.updateGate`
+- `.contracts.adminGate`
+- `.contracts.configGate`
+- `.contracts.validatorSet`
+- `.contracts.voidToken`
+- `.contracts.premineVault`
+- `.contracts.treasury`
+- `.contracts.voidTreasury`
+- `.contracts.opsTreasury`
+- `.contracts.rewardEngine`
+
+All of these:
+
+- MUST be non-zero.
+- MUST come from the real deployment sequence (or pre-known addresses in a deterministic plan).
+- MUST be cross-checked (e.g. via `cast` / explorer) before we ever consider the PLAN “ready”.
+
+### 4.3 Validator 0 (bootstrap validator)
+
+The first validator entry in config must be fully wired:
+
+- `.validator0.reward`        — address that receives rewards
+- `.validator0.consensusKey`  — consensus pubkey (correct length/format)
+- `.validator0.stakeVOID`     — concrete numeric stake amount (NOT `"TODO_SET_STAKE_VOID"`)
+
+For PLAN to be READY:
+
+- `reward` MUST be non-zero and under your validator key plan.
+- `consensusKey` MUST be real and match the key that will actually sign.
+- `stakeVOID` MUST be a concrete integer amount that respects your tokenomics/validator rules.
+
+### 4.4 Health rules for flipping plan_health → 1
+
+Only when ALL of the following are true do we allow `plan_health = 1`:
+
+1. **Config is structurally sane**  
+   - `void_mainnet_bootstrap_plan_configured == 1`
+
+2. **All roles above are non-zero and match your mainnet key plan**  
+   - No placeholder ZERO addresses.
+   - Keys stored safely (LUKS / hardware) according to the keys & treasury doc.
+
+3. **All contracts above are non-zero and match the intended deployments**  
+   - Addresses verified out-of-band.
+   - Dev vs mainnet separation is clear.
+
+4. **Validator 0 is fully configured**  
+   - No zero reward address.
+   - No zero consensusKey.
+   - No `"TODO_*"` strings left.
+
+5. **Forge PLAN rehearsal passes**  
+   - `./ops/void-mainnet-bootstrap-plan-rehearse.sh` runs clean.
+   - Logs show `CONFIG_OK: true`, `planReady: true` (once we wire that path).
+   - No reverts parsing addresses / fields.
+
+6. **Prometheus view matches**  
+   - `void:mainnet_bootstrap_plan:configured:last_5m == 1`
+   - `void:mainnet_bootstrap_plan:health:last_5m == 1`
+   - Alert `VoidMainnetBootstrapPlanNotReady` is **NOT** firing.
+
+Until ALL of this is true, we keep:
+
+- `void_mainnet_bootstrap_plan_health = 0`
+- PLAN status: **CONFIGURED BUT NOT READY**
+
+This doc is the source of truth:  
+if any of the above is not satisfied, mainnet PLAN is **not** ready, no matter what the dashboards say.
