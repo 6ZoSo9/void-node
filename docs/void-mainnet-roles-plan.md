@@ -119,3 +119,202 @@ When ready for mainnet:
 5. Only then make PLAN a hard gating condition for mainnet readiness.
 
 This doc is design-only and must not contain actual mainnet addresses or secrets.
+
+---
+
+## VOID Mainnet Roles & Key Tiers — High-Level Plan (checkpoint 2025-11-28)
+
+This section captures the *intended* key / role layout for real VOID mainnet (chainId 2050).
+It does **not** contain real addresses or secrets. The actual values live only in the
+`config/void-mainnet-bootstrap-mainnet.live.json` file on an encrypted medium.
+
+### 1. Role groups (from live.json)
+
+These correspond to `.roles.*` in `void-mainnet-bootstrap-mainnet.live.json`:
+
+- `deployer`
+- `treasuryAdmin`
+- `opsTreasuryAdmin`
+- `validatorAdmin`
+- `adminGateOwner`
+- `updateGateOwner`
+- `configGateOwner`
+- `treasuryOwner`
+- `opsTreasuryOwner`
+- `rewardEngineOwner`
+- `validatorSetOwner`
+
+And these correspond to `.contracts.*` / `validator0.*`:
+
+- `contracts.updateGate`
+- `contracts.adminGate`
+- `contracts.configGate`
+- `contracts.validatorSet`
+- `contracts.voidToken`
+- `contracts.voidTreasury`        (main Treasury contract)
+- `contracts.opsTreasury`         (Ops Treasury hot/warm path)
+- `contracts.rewardEngine`
+- `validator0.reward`
+- `validator0.consensusKey`
+- `validator0.stakeVOID`          (numeric, wired later in ValidatorSet)
+
+The PLAN exporter and checklist scripts make sure all of these are structurally sane
+before `void:mainnet_bootstrap_plan:health:last_5m` can be 1.
+
+### 2. Key tiers (cold → hot)
+
+We split keys into tiers so we never mix “touch once in 20 years” with “used daily”.
+
+**Tier 0 — Genesis / Premine one-shot**
+
+- Purpose:
+  - Single-use key to *start* the chain and move the premine into `VoidTreasury`.
+  - After that, it is effectively retired and should never sign normal transactions.
+- Backing:
+  - Lives only on a **LUKS-encrypted USB** (and maybe a second, sealed backup).
+  - No hot wallet, no browser extension, no mobile app.
+- Usage rule:
+  - Used exactly once during bootstrap to fund the Treasury contract, then locked away.
+  - Any future “emergency” use would require a human ceremony and is treated as a last resort.
+
+**Tier 1 — Governance & Core Gates (AdminGate / UpdateGate / ConfigGate)**
+
+- Roles:
+  - `adminGateOwner`
+  - `updateGateOwner`
+  - `configGateOwner`
+- Purpose:
+  - Control over AdminGate master key, UpdateGate signer set, and config/param changes.
+  - These are the keys that can approve protocol-level changes to VOID core.
+- Backing:
+  - **Hardware wallets** for daily use.
+  - **LUKS USB** (offline) with seed/backup for recovery.
+- Usage rule:
+  - Multi-sig / M-of-N configuration via UpdateGate/AdminGate.
+  - No single party should be able to unilaterally push a dangerous upgrade.
+
+**Tier 2 — Treasury & Ops Treasury**
+
+- Roles:
+  - `treasuryAdmin`
+  - `opsTreasuryAdmin`
+  - `treasuryOwner`
+  - `opsTreasuryOwner`
+- Contracts:
+  - `contracts.voidTreasury`
+  - `contracts.opsTreasury`
+- Purpose:
+  - Long-term premine sits in `VoidTreasury` (cold).
+  - Funds for expenses/operations flow `VoidTreasury → OpsTreasury → hot wallets`.
+- Backing:
+  - Treasury side: hardware wallet + LUKS USB backup (cold/slow).
+  - Ops Treasury side: hardware wallet, possibly used more frequently, but still backed by offline seed.
+- Usage rule:
+  - Premine key is **not** used for day-to-day spends.
+  - Ops Treasury handles payouts, grants, and ongoing costs.
+  - Movement from Treasury to Ops Treasury is deliberate, infrequent, and requires policy review.
+
+**Tier 3 — Validators (Reward + Consensus)**
+
+- Roles / fields:
+  - `validatorAdmin`
+  - `validatorSetOwner`
+  - `validator0.reward`
+  - `validator0.consensusKey`
+- Purpose:
+  - `validatorAdmin` + `validatorSetOwner` manage validator set configuration and parameters.
+  - `validator0.reward` is the address that receives ongoing validator rewards.
+  - `validator0.consensusKey` is the key actually used by the validator node to sign blocks/attestations.
+- Backing:
+  - Reward address:
+    - Can be a hardware wallet or a well-secured software wallet with good backup.
+  - Consensus key:
+    - Often a key managed on the validator machine itself (or HSM), with backups stored offline.
+- Usage rule:
+  - Consensus keys are replaceable via admin / validator set flows.
+  - Reward address should not be a key that also controls governance or treasury.
+
+**Tier 4 — Normal user wallets (Obelisk / external)**
+
+- Not explicitly part of `void-mainnet-bootstrap-mainnet.live.json`.
+- Purpose:
+  - Regular holders, dApps, and validators’ “spending” wallets.
+- Backing:
+  - Obelisk Wallet (Lite/Mobile/Titan) and other compatible wallets.
+  - User education: encourage encrypted backups and write-down seed as a last resort.
+
+### 3. Contract-level flows we must respect
+
+**3.1 Premine & Treasury**
+
+- MAX_SUPPLY: 666,666,666 VOID
+- PREMINE:     333,333,333 VOID (goes into `VoidTreasury` at genesis)
+- EMISSIONS:   333,333,333 VOID over 100 years in 4 eras
+
+Rules:
+
+- Premine is minted to a **premine vault / genesis holder** and immediately moved into `VoidTreasury`.
+- The premine key is then effectively retired.
+- All long-term spending flows must go:
+  - `VoidTreasury → OpsTreasury → downstream hot wallets / reward flows`
+- There is no direct “Treasury → random hot wallet” path in normal operation.
+
+**3.2 Governance & upgrades**
+
+- UpdateGate / AdminGate / ConfigGate control:
+  - Core contract upgrades (where allowed).
+  - Param changes for reward engine, validator set, and other core knobs.
+- Design intent:
+  - VOID is permissionless for users and agents.
+  - Core is protected by a thin but strong UpdateGate + AdminGate layer.
+  - Any change to core goes through:
+    - On-chain proposal → off-chain human review → gated approval via UpdateGate/AdminGate signers.
+
+### 4. Bootstrap PLAN vs. live mainnet
+
+The **PLAN lane** and `void-mainnet-bootstrap-mainnet.live.json` are used to:
+
+- Describe which addresses map to:
+  - Governance roles (Tier 1)
+  - Treasury/Ops roles (Tier 2)
+  - Validator roles (Tier 3)
+- Provide the forge bootstrap script (`VoidMainnetBootstrapMainnet.s.sol`) with:
+  - ChainId (2050)
+  - Concrete addresses for UpdateGate/AdminGate/ConfigGate/ValidatorSet/VoidToken/VoidTreasury/OpsTreasury/RewardEngine
+  - Validator0 reward + consensus key + stake
+
+Prometheus now exports and gates:
+
+- `void:mainnet_bootstrap_plan:health:last_5m`
+- `void:mainnet_pillars:health:last_5m`
+- `void:mainnet_lastmile:health:last_5m`
+- `void:mainnet_overall:health:last_5m_v2` (informational)
+- `void_safeboot_overall_health`
+
+`ops/void-mainnet-health-all.sh` refuses to pass unless:
+
+- mainnet pillars are green,
+- lastmile is healthy,
+- **and** the bootstrap PLAN health is 1 (structurally READY-ish).
+
+### 5. What still needs to happen before real mainnet
+
+1. Generate fresh, never-used keys for:
+   - Premine one-shot (Tier 0).
+   - Treasury/OpsTreasury roles (Tier 2).
+   - Governance roles (Tier 1).
+   - Validator0 reward + consensus (Tier 3).
+2. Store all seeds and any JSON keystores on:
+   - LUKS-encrypted USB(s), plus hardware wallets where applicable.
+3. Fill those addresses into:
+   - `config/void-mainnet-bootstrap-mainnet.live.json` on the **encrypted medium only**.
+4. Run:
+   - PLAN checklist, PLAN view, PLAN health, PLAN sim (forge stub) and pillars/health hammers.
+5. Only after that:
+   - Implement real bootstrap wiring in `VoidMainnetBootstrapMainnet.s.sol` (replace stub revert),
+   - and design a PLAN-only “dry-run” mainnet script that prints the full human-readable sequence
+     before any broadcast actually happens.
+
+This section is intentionally high-level and non-sensitive. The actual addresses and keys will
+exist only in `*.live.json` and on physical encrypted media, not in this repo.
+
