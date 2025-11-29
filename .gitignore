@@ -83,3 +83,7 @@ config/void-mainnet-bootstrap-*.live.json
 # Foundry broadcast + cache for dev bootstrap (ephemeral)
 broadcast/VoidMainnetBootstrapDevFromJsonDeploy.s.sol/
 cache/VoidMainnetBootstrapDevFromJsonDeploy.s.sol/
+
+# VOID scratch snapshots (local only)
+config/obelisk-mainnet-profile.dev.json.pre-*
+src/index.ts.pre-*

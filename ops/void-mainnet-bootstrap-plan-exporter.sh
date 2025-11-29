@@ -1,74 +1,90 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Exporter for VOID mainnet bootstrap PLAN metrics into node_exporter textfile dir.
-#
-# Steps:
-#   1) Run ops/void-mainnet-bootstrap-plan-health.sh (PLAN-only, no broadcast)
-#   2) Copy ops/out/void-mainnet-bootstrap-plan.prom into TEXTFILE_DIR
-#
-# Env:
-#   CONFIG_PATH   : bootstrap config (default: config/void-mainnet-bootstrap-mainnet.live.json)
-#   RPC_URL       : RPC for simulation (default: http://127.0.0.1:8545)
-#   OUT_DIR       : plan output dir (default: ops/out)
-#   TEXTFILE_DIR  : node_exporter textfile dir
-#                   (default: /var/lib/node_exporter/textfile)
-#
-# NOTE:
-#   - This does NOT enforce PLAN_OK==1; it just exports whatever the plan file says.
-#   - Right now PLAN_OK will be 0 because the script/config are intentionally a stub.
+# VOID mainnet bootstrap PLAN textfile exporter (config-only, no broadcast).
+# Writes Prometheus metrics describing whether a live mainnet bootstrap
+# config exists and passes some basic structural sanity checks.
 
-cd "$HOME/dev/void-node"
+REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+cd "$REPO_ROOT"
 
-CONFIG_PATH="${CONFIG_PATH:-config/void-mainnet-bootstrap-mainnet.live.json}"
-RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
-OUT_DIR="${OUT_DIR:-ops/out}"
-TEXTFILE_DIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile}"
+CFG_PATH="${1:-config/void-mainnet-bootstrap-mainnet.live.json}"
+OUT_PATH="/var/lib/node_exporter/textfile_collector/void_mainnet_bootstrap_plan.prom"
 
-PLAN_PROM="${OUT_DIR}/void-mainnet-bootstrap-plan.prom"
-TEXTFILE_PROM="${TEXTFILE_DIR}/void_mainnet_bootstrap_plan.prom"
+echo "[bootstrap-plan-exporter] repo root: $REPO_ROOT"
+echo "[bootstrap-plan-exporter] config   : $CFG_PATH"
+echo "[bootstrap-plan-exporter] out path : $OUT_PATH"
 
-echo "=== [plan-exporter] VOID mainnet bootstrap PLAN → node_exporter textfile ==="
-echo "[plan-exporter] CONFIG_PATH   = ${CONFIG_PATH}"
-echo "[plan-exporter] RPC_URL       = ${RPC_URL}"
-echo "[plan-exporter] OUT_DIR       = ${OUT_DIR}"
-echo "[plan-exporter] PLAN_PROM     = ${PLAN_PROM}"
-echo "[plan-exporter] TEXTFILE_DIR  = ${TEXTFILE_DIR}"
-echo "[plan-exporter] TEXTFILE_PROM = ${TEXTFILE_PROM}"
-echo
+configured=0
+health=0
+chainid=0
 
-# --- [0] ensure textfile dir exists -----------------------------------------
-if [ ! -d "${TEXTFILE_DIR}" ]; then
-  echo "[plan-exporter] creating TEXTFILE_DIR: ${TEXTFILE_DIR}"
-  sudo mkdir -p "${TEXTFILE_DIR}"
-fi
-
-# --- [1] run the plan-health wrapper (PLAN-only, no broadcast) --------------
-CONFIG_PATH="${CONFIG_PATH}" RPC_URL="${RPC_URL}" OUT_DIR="${OUT_DIR}" \
-  ./ops/void-mainnet-bootstrap-plan-health.sh
-
-if [ ! -f "${PLAN_PROM}" ]; then
-  echo "[plan-exporter] ERROR: plan .prom file not found: ${PLAN_PROM}" >&2
-  exit 1
-fi
-
-# --- [2] copy into textfile dir with tmp→mv swap ----------------------------
-
-TMP_DEST="${TEXTFILE_PROM}.tmp"
-
-echo "[plan-exporter] copying ${PLAN_PROM} → ${TMP_DEST}"
-sudo cp "${PLAN_PROM}" "${TMP_DEST}"
-
-# best-effort chown; don't fail hard if user/group doesn't exist
-if id node_exporter >/dev/null 2>&1; then
-  echo "[plan-exporter] chown node_exporter:node_exporter ${TMP_DEST}"
-  sudo chown node_exporter:node_exporter "${TMP_DEST}" || true
+if [[ ! -f "$CFG_PATH" ]]; then
+  echo "[bootstrap-plan-exporter] WARNING: config file not found; exporting configured=0, health=0, chainid=0"
 else
-  echo "[plan-exporter] node_exporter user not found; skipping chown (non-fatal)"
+  configured=1
+
+  chainid_raw=$(jq -r '.chainId // 0' "$CFG_PATH" 2>/dev/null || echo 0)
+  # Normalize to a plain number if possible
+  if [[ "$chainid_raw" =~ ^[0-9]+$ ]]; then
+    chainid="$chainid_raw"
+  else
+    chainid=0
+  fi
+
+  echo "[bootstrap-plan-exporter] parsed chainId: $chainid"
+
+  health=1
+
+  # Basic contract address checks (non-empty, non-zero)
+  addr_paths=(
+    ".contracts.voidToken"
+    ".contracts.premineVault"
+    ".contracts.treasury"
+    ".contracts.opsTreasury"
+    ".contracts.rewardEngine"
+    ".validator0.reward"
+  )
+
+  for path in "${addr_paths[@]}"; do
+    addr=$(jq -r "${path} // \"\"" "$CFG_PATH" 2>/dev/null || echo "")
+    # normalize case for zero-address
+    addr_lc="${addr,,}"
+
+    if [[ -z "$addr_lc" || "$addr_lc" == "0x0000000000000000000000000000000000000000" ]]; then
+      echo "[bootstrap-plan-exporter] WARN: missing or zero address for ${path}"
+      health=0
+    fi
+  done
+
+  # Chain ID must be 2050 for real VOID mainnet
+  if [[ "$chainid" != "2050" ]]; then
+    echo "[bootstrap-plan-exporter] WARN: chainId != 2050 (got $chainid); marking health=0"
+    health=0
+  fi
 fi
 
-echo "[plan-exporter] moving ${TMP_DEST} → ${TEXTFILE_PROM}"
-sudo mv "${TMP_DEST}" "${TEXTFILE_PROM}"
+echo "[bootstrap-plan-exporter] configured=$configured health=$health chainId=$chainid"
 
-echo
-echo "[plan-exporter] done. node_exporter should now expose void_mainnet_bootstrap_plan_* metrics."
+tmp="${OUT_PATH}.tmp.$$"
+mkdir -p "$(dirname "$OUT_PATH")"
+
+cat > "$tmp" <<EOF
+# HELP void_mainnet_bootstrap_plan_configured Is a live VOID mainnet bootstrap plan config present (0/1)
+# TYPE void_mainnet_bootstrap_plan_configured gauge
+void_mainnet_bootstrap_plan_configured $configured
+
+# HELP void_mainnet_bootstrap_plan_health Basic structural health of the live mainnet bootstrap plan (1 ok, 0 not ready)
+# TYPE void_mainnet_bootstrap_plan_health gauge
+void_mainnet_bootstrap_plan_health $health
+
+# HELP void_mainnet_bootstrap_plan_chainid Chain ID from the live mainnet bootstrap plan (0 if missing/invalid)
+# TYPE void_mainnet_bootstrap_plan_chainid gauge
+void_mainnet_bootstrap_plan_chainid $chainid
+EOF
+
+mv "$tmp" "$OUT_PATH"
+chmod 0644 "$OUT_PATH"
+
+echo "[bootstrap-plan-exporter] wrote $OUT_PATH"
+echo "[bootstrap-plan-exporter] done"
