@@ -237,3 +237,75 @@ Later, when you’re actually preparing to hit real mainnet:
 This doc is the **blueprint**, not the execution.  
 Real key generation and address filling happen **offline**, with you in control.
 
+
+---
+
+## 7. Env-based PLAN fill helper (test-only for now)
+
+There is a helper script that can fill the PLAN config JSON from environment
+variables:
+
+- Script: ops/void-mainnet-bootstrap-plan-fill-from-env.sh
+- Typical target: config/void-mainnet-bootstrap-mainnet.live.json
+- Behavior:
+  - Reads a config JSON path (first argument; if omitted, defaults to the live file).
+  - Applies any VOID_MAINNET_PLAN_* env vars that are set.
+  - Leaves fields untouched when the corresponding env var is not set.
+  - Writes the updated JSON back to the same path.
+
+This is intended to be used AFTER you already know the exact mapping between
+roles/contracts/validator0 and their final mainnet addresses and keys.
+
+### 7.1 Test-only usage (recommended)
+
+For now, only use this helper against a copy of the live PLAN config, so you
+can verify the shape without touching the real .live.json:
+
+    cd ~/dev/void-node
+    cp config/void-mainnet-bootstrap-mainnet.live.json \
+       /tmp/void-mainnet-bootstrap-mainnet.test.json
+
+    # Example (dummy values):
+    VOID_MAINNET_PLAN_DEPLOYER=0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA \
+    VOID_MAINNET_PLAN_TREASURY_ADMIN=0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB \
+    VOID_MAINNET_PLAN_OPS_TREASURY_ADMIN=0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC \
+    VOID_MAINNET_PLAN_VALIDATOR_ADMIN=0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD \
+    VOID_MAINNET_PLAN_UPDATE_GATE_ADDR=0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA \
+    VOID_MAINNET_PLAN_ADMIN_GATE_ADDR=0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB \
+    VOID_MAINNET_PLAN_CONFIG_GATE_ADDR=0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC \
+    VOID_MAINNET_PLAN_VALIDATORSET_ADDR=0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD \
+    VOID_MAINNET_PLAN_VOID_TOKEN_ADDR=0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE \
+    VOID_MAINNET_PLAN_PREMINE_VAULT_ADDR=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF \
+    VOID_MAINNET_PLAN_TREASURY_ADDR=0x9999999999999999999999999999999999999999 \
+    VOID_MAINNET_PLAN_VOID_TREASURY_ADDR=0x8888888888888888888888888888888888888888 \
+    VOID_MAINNET_PLAN_OPS_TREASURY_ADDR=0x7777777777777777777777777777777777777777 \
+    VOID_MAINNET_PLAN_REWARD_ENGINE_ADDR=0x6666666666666666666666666666666666666666 \
+    VOID_MAINNET_PLAN_VALIDATOR0_REWARD_ADDR=0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA \
+    VOID_MAINNET_PLAN_VALIDATOR0_CONS_KEY=0x000000000000000000000000000000000000000000000000000000000000BEEF \
+    VOID_MAINNET_PLAN_VALIDATOR0_STAKE_VOID="1000000e18" \
+      ./ops/void-mainnet-bootstrap-plan-fill-from-env.sh \
+        /tmp/void-mainnet-bootstrap-mainnet.test.json
+
+Then inspect the result:
+
+    jq '{roles,contracts,validator0}' /tmp/void-mainnet-bootstrap-mainnet.test.json
+
+This should show the same structure you saw in the earlier env-fill test:
+dummy addresses filled in, correct fields, no surprises.
+
+### 7.2 Live usage (later, with real keys)
+
+Once real mainnet keys and contract addresses exist (on a LUKS-encrypted USB
+and/or hardware wallets), the intended flow is:
+
+1. Export the correct VOID_MAINNET_PLAN_* env vars from a secure source
+   (never hard-code them in the repo).
+2. Run the helper once against config/void-mainnet-bootstrap-mainnet.live.json.
+3. Re-run:
+       ./ops/void-mainnet-bootstrap-plan-all.sh
+       ./ops/void-mainnet-bootstrap-plan-prom-health.sh
+       ./ops/void-mainnet-health-all.sh
+   until PLAN health reflects the fully wired roles/contracts/validator0.
+
+Until then, keep the live PLAN at plan_health = 0 and DO NOT put real
+addresses into the .live.json.
