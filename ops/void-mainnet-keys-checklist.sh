@@ -1,92 +1,59 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
-echo "=== [VOID mainnet – keys & treasury checklist v0] ==="
-echo "[repo]    $REPO"
-echo "[branch]  \$(git symbolic-ref --short HEAD 2>/dev/null || echo 'UNKNOWN')"
+echo "=== [mainnet-keys-checklist] VOID mainnet keys/devices checklist ==="
+echo "[cfg] REPO_ROOT = $REPO_ROOT"
+echo
+echo "NOTE: This script is READ-ONLY."
+echo "      It does NOT run cryptsetup, mount, or touch any block devices."
 echo
 
-SPEC="docs/VOID-MAINNET-GENESIS-SPEC.md"
-if [ -f "$SPEC" ]; then
-  echo "Genesis/keys spec found:"
-  echo "  $SPEC"
-  echo "You can review it with:"
-  echo "  less $SPEC"
+EXIT=0
+
+check_file() {
+  local path="$1"
+  local label="$2"
+  if [[ -f "$path" ]]; then
+    echo "[OK ] $label present at $path"
+  else
+    echo "[MISS] $label MISSING (expected at $path)"
+    EXIT=1
+  fi
+}
+
+echo "=== [1] Required docs present? ==="
+check_file "ops/README-mainnet-keys-and-devices.md" "keys & devices layout doc"
+check_file "ops/README-mainnet-plan-roles-and-keys.md" "PLAN roles+keys blueprint"
+
+echo
+echo "=== [2] Ops LUKS section status (placeholders vs filled) ==="
+if grep -q 'TODO_FILL_OPS_LUKS_LABEL' ops/README-mainnet-keys-and-devices.md 2>/dev/null; then
+  echo "[WARN] ops LUKS identifiers are still TODO_ placeholders."
+  echo "       - When we are close to mainnet, edit ops/README-mainnet-keys-and-devices.md"
+  echo "         on THIS machine only and fill:"
+  echo "         * TODO_FILL_OPS_LUKS_LABEL"
+  echo "         * TODO_FILL_OPS_LUKS_DEVICE"
+  echo "         * TODO_FILL_OPS_LUKS_MOUNTPOINT"
 else
-  echo "WARNING: $SPEC not found – update path if the spec moved."
+  echo "[OK ] ops LUKS identifiers appear filled (no TODO_FILL_OPS_LUKS_ markers)."
 fi
 
 echo
-echo "=== 1. Separation of devnet vs mainnet keys ==="
-echo "  [ ] Confirm NO devnet/test keys are referenced in the mainnet genesis spec."
-echo "  [ ] Confirm all mainnet keys are marked as \"never used on-chain before\"."
-echo "  [ ] Document which machines are allowed to ever see raw mainnet seeds."
+echo "=== [3] Treasury / paper-only key reminder ==="
+echo " - VoidTreasury / premine mnemonic MUST remain paper-only."
+echo " - It must NOT be stored on the ops LUKS device or in this repo."
+echo " - If we ever wire a hardware wallet for Treasury, document it in:"
+echo "     ops/README-mainnet-keys-and-devices.md"
 
 echo
-echo "=== 2. Premine / genesis key plan ==="
-echo "  [ ] Define a one-shot premine key used ONLY to initialize VoidTreasury."
-echo "  [ ] Ensure premine key never becomes a long-lived treasury signer."
-echo "  [ ] Add a note in the spec: premine key is effectively retired after genesis tx."
-echo "  [ ] Verify premine allocation flows into a contract (VoidTreasury), not a hot EOA."
+echo "=== [4] Checklist summary ==="
+if [[ "$EXIT" -eq 0 ]]; then
+  echo "[OK ] mainnet keys/docs checklist passed (from this script's POV)."
+else
+  echo "[WARN] one or more items are missing; fix them before real mainnet bootstrap."
+fi
 
-echo
-echo "=== 3. Treasury structure (cold -> ops -> hot) ==="
-echo "  [ ] Confirm design: Premine -> VoidTreasury (cold, contract)."
-echo "  [ ] Define Ops Treasury contract/wallet that pulls from VoidTreasury with policies."
-echo "  [ ] Define hot wallets for day-to-day spend with SMALL, capped balances."
-echo "  [ ] Specify who/what signs for each layer (multisig, hardware, agents, etc.)."
-echo "  [ ] Write rules for how VOID moves: Treasury -> Ops -> hot, never the reverse without review."
-
-echo
-echo "=== 4. AdminGate / UpdateGate / ConfigGate keys ==="
-echo "  [ ] List AdminGate masterKey and any secondary admin sets."
-echo "  [ ] List UpdateGate signer set(s) for protocol upgrades."
-echo "  [ ] List ConfigGate signer set(s) for parameter changes (fees, limits, etc.)."
-echo "  [ ] Make sure no single device/USB holds ALL signer sets without redundancy planning."
-echo "  [ ] Document rotation procedure for each gate (how to add/remove signers safely)."
-
-echo
-echo "=== 5. LUKS-encrypted USB + backups ==="
-echo "  [ ] Prepare at least one LUKS-encrypted USB dedicated to VOID mainnet keys."
-echo "  [ ] Store on it (and only on it):"
-echo "        - Premine seed (once, for historical record)."
-echo "        - AdminGate/UpdateGate/ConfigGate master seeds."
-echo "        - VoidTreasury + Ops Treasury cold signer seeds."
-echo "        - Any one-shot genesis helper keys."
-echo "  [ ] Write down the LUKS passphrase in a separate, offline medium (paper/steel)."
-echo "  [ ] Verify you can unlock, read, and re-lock the USB from a clean machine."
-echo "  [ ] Decide if a second USB clone is required and document where it lives."
-
-echo
-echo "=== 6. Hardware wallet / device policy ==="
-echo "  [ ] Decide which keys MUST live on hardware wallets vs plain files."
-echo "  [ ] Ensure no key used for on-chain admin lives on an internet-exposed box in raw form."
-echo "  [ ] Document \"allowed operations\" for each device (sign-only, no browsing, etc.)."
-
-echo
-echo "=== 7. Mainnet launch runbook hooks ==="
-echo "  [ ] Add a section in the genesis spec that references this checklist."
-echo "  [ ] Before mainnet launch, re-run this script and manually tick off items."
-echo "  [ ] Add a TODO in the roadmap: implement VoidTreasury + Ops Treasury contracts"
-echo "        and wire them into the mainnet genesis + tokenomics layer."
-echo "  [ ] Add a TODO: implement a one-time \"premine->Treasury\" transaction script and archive it."
-
-echo
-echo "=== 8. Future AI/agent integration (for later) ==="
-echo "  [ ] Plan an AgentOps key set that can manage small, bounded hot wallets for NullFeed/jobs."
-echo "  [ ] Ensure agents NEVER hold or sign with Treasury-level keys."
-echo "  [ ] Add a note in the spec: \"AI/agents operate at the edge only (hot ops layer).\""
-
-echo
-echo "=== 9. Sanity checks ==="
-echo "  [ ] Confirm genesis spec, tokenomics spec, and NullFeed spec all agree on:"
-echo "        - ChainId (2050)."
-echo "        - Premine size and recipients."
-echo "        - Treasury structure and gates."
-echo "  [ ] Create or update a dedicated \"VOID-KEYS-RUNBOOK.md\" summarizing the above."
-echo
-echo "[DONE] This script is only a checklist. It does NOT generate keys or touch any secrets."
-echo "       Use it as a gate you must pass before we even think about flipping mainnet on."
+exit "$EXIT"
