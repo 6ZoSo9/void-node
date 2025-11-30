@@ -1,240 +1,219 @@
-# VOID Mainnet – Bootstrap Roles & Keys Matrix
+# VOID Mainnet Bootstrap — Roles and Keys
 
-This doc defines the **roles and keys layout** for the real VOID mainnet bootstrap.
-It is a **plan only** – no real addresses or secrets belong in this file.
+This document defines the **canonical roles and keys** used during the VOID mainnet bootstrap.
 
-The actual live config lives in:
+It is the source of truth for:
 
-- `config/void-mainnet-bootstrap-mainnet.live.json` (ignored by git)
+- Which addresses appear in `config/void-mainnet-bootstrap-mainnet.live.json`
+- Where the corresponding keys live (hardware wallet, LUKS USB, etc.)
+- Which scripts and metrics depend on them.
 
-and must be filled **later** using this doc as the blueprint.
-
----
-
-## 1. Roles overview
-
-These are the core roles referenced by the PLAN:
-
-- `roles.deployer`
-- `roles.treasuryAdmin`
-- `roles.opsTreasury`
-- `roles.updateGateAdmin`
-- `roles.configGateAdmin`
-- `roles.rewardAdmin`
-- `validator0` (initial validator: signer + reward address)
-
-Each of these maps to **one or more physical keys** (hardware wallets, validator keys, etc.).
+Note: This file is about **MAINNET** keys only. Devnet / anvil keys are separate and must never be reused for mainnet.
 
 ---
 
-## 2. Roles → responsibilities
+## 1. Roles in `void-mainnet-bootstrap-mainnet.live.json`
 
-### 2.1 `roles.deployer`
+The live mainnet config has a `roles` section of this shape (example only):
 
-- **Purpose:** One-shot deployer to run `VoidMainnetBootstrapMainnet.s.sol` on *real* mainnet.
-- **Usage pattern:** Single ceremony; should not be used after bootstrap completes.
-- **Authority:** Can deploy contracts and perform initial wiring, but long-term control
-  sits with the other admin roles (Treasury, UpdateGate, ConfigGate, RewardEngine).
-- **Funds:** Just enough ETH for bootstrap gas + small buffer.
-- **Post-bootstrap:** Drain remaining ETH to VoidTreasury or a burn address and treat
-  the key as **dead**.
+    {
+      "roles": {
+        "deployer":        "0x0000000000000000000000000000000000000000",
+        "treasuryAdmin":   "0x0000000000000000000000000000000000000000",
+        "opsTreasury":     "0x0000000000000000000000000000000000000000",
+        "updateGateAdmin": "0x0000000000000000000000000000000000000000",
+        "configGateAdmin": "0x0000000000000000000000000000000000000000",
+        "rewardAdmin":     "0x0000000000000000000000000000000000000000"
+      },
+      ...
+    }
 
-### 2.2 `roles.treasuryAdmin`
+These fields are the **only EOAs** allowed to do dangerous things during bootstrap.
 
-- **Purpose:** Ultimate owner/admin of `VoidTreasury` (holds the premine).
-- **Usage pattern:** Very rare, scheduled governance-level actions only.
-- **Authority:** Approves large fund movements, epoch budget changes, long-term
-  economic policy moves.
-- **Security level:** Highest. Hardware wallet only. Consider multi-sig later.
-- **Post-bootstrap:** Lives mostly offline; only comes online for scheduled
-  treasury operations with full ceremony and logging.
+Role meanings and high-level policy:
 
-### 2.3 `roles.opsTreasury`
+- `deployer`  
+  - EOA that actually sends the bootstrap transactions and deploys contracts.  
+  - Storage: hardware wallet (cold) + LUKS backup.  
+  - Usage: very rare after bootstrap.
 
-- **Purpose:** Controls `OpsTreasury` (operational funds).
-- **Usage pattern:** Medium-frequency – used to pay infra, grants, bounties,
-  short-term incentives.
-- **Authority:** Can spend from OpsTreasury; receives refills from VoidTreasury
-  under supervision of `treasuryAdmin`.
-- **Security level:** Hardware wallet, but “warmer” than `treasuryAdmin`.
-- **Post-bootstrap:** Active for many years; needs a clear budget and logging
-  discipline.
+- `treasuryAdmin`  
+  - Governs `VoidTreasury` (premine, long-term emission control).  
+  - Storage: hardware wallet; must not be the same key as `deployer`.  
+  - Usage: very infrequent, with a formal process.
 
-### 2.4 `roles.updateGateAdmin`
+- `opsTreasury`  
+  - Ops / runway wallet receiving controlled flows from Treasury.  
+  - Storage: hardware wallet or hardened hot wallet with strict discipline.  
+  - Usage: regular but governed by written policy (budget approvals, etc.).
 
-- **Purpose:** Owns/controls `UpdateGate` signer set (M-of-N keys for core upgrades).
-- **Usage pattern:** Extremely rare; only used during vetted upgrade ceremonies.
-- **Authority:** Can change critical core contracts / config via UpdateGate.
-- **Security level:** Nuclear. Keys must be:
-  - distributed across devices / locations / people,
-  - hardware wallets,
-  - guarded with strict process (multi-party approval, Prometheus checks, written plan).
-- **Post-bootstrap:** Mostly idle; existence of UpdateGate is the safety valve
-  against bugs, not an excuse for casual changes.
+- `updateGateAdmin`  
+  - Admin for `UpdateGate` (code upgrades, v99 rules, etc.).  
+  - Storage: hardware wallet, extremely protected.  
+  - Usage: only for well-documented, multi-party approved upgrades.
 
-### 2.5 `roles.configGateAdmin`
+- `configGateAdmin`  
+  - Admin for configuration parameters (non-code tuning knobs).  
+  - Storage: hardware wallet; can be distinct from `updateGateAdmin`.  
+  - Usage: rare but more acceptable than code upgrades (still gated).
 
-- **Purpose:** Owns/controls `ConfigGate` (parameters like limits, epochs, maybe JobQueue caps).
-- **Usage pattern:** Low-frequency but higher than UpdateGate (parameter tuning).
-- **Authority:** Can adjust protocol parameters exposed via ConfigGate.
-- **Security level:** Hardware wallet. Can be separate from or partially overlapping
-  with UpdateGate signers, but should be treated as an admin role, not an ops hot key.
-- **Post-bootstrap:** Used for controlled parameter changes; changes should be
-  driven by metrics and governance, not ad hoc whims.
+- `rewardAdmin`  
+  - Admin for `RewardEngine` parameters and reward schedules.  
+  - Storage: hardware wallet or LUKS-backed key.  
+  - Usage: occasional when tuning incentives.
 
-### 2.6 `roles.rewardAdmin`
+Conceptual invariants:
 
-- **Purpose:** Admin for `RewardEngine` (emissions schedule wiring, reward logic tweaks).
-- **Usage pattern:** Infrequent; mostly for fixes, parameter adjustments, or new
-  reward schemes.
-- **Authority:** Controls how emissions are actually paid out (within the locked
-  MAX_SUPPLY / era schedule).
-- **Security level:** Hardware wallet. Can be distinct from Treasury/Ops to
-  avoid conflict between “who spends tokens” and “who defines reward rules”.
+- All role addresses must be:
+  - Non-zero (`!= 0x0000...0000`).  
+  - Valid 20-byte EVM addresses.
 
-### 2.7 `validator0` (initial validator)
+- Roles must not all collapse to a single key. At minimum:
+  - `deployer` != `treasuryAdmin`  
+  - `deployer` != `opsTreasury`  
+  - `updateGateAdmin` and `configGateAdmin` should not be casual hot keys.
 
-- **Purpose:** First real validator on VOID mainnet.
-- **Fields:** At minimum:
-  - `validatorSigner` – key that actually signs blocks.
-  - `rewardAddress` – address receiving staking rewards.
-  - `stakeAmount` – initial stake.
-  - `commissionBps` – validator commission.
-- **Usage pattern:** High-frequency signer; lives on validator hardware or HSM.
-- **Security level:** Critical but different from the admin keys:
-  - Should NOT be the same key as any admin role.
-  - Needs redundancy / monitoring and a clear plan for rotation.
+The PLAN sim script (`./ops/void-mainnet-bootstrap-plan-sim.sh`) enforces some of these invariants and drives the PLAN metrics:
+
+- `void_mainnet_bootstrap_plan_health`
+- `void_mainnet_bootstrap_plan_health_info{reason="..."}`
+- `void:mainnet_bootstrap_plan:health:last_5m`
 
 ---
 
-## 3. Key grouping plan (no addresses, just structure)
+## 2. Validator bootstrap key (`validator0`)
 
-This section defines **how many physical keys** we expect and which roles they control.
-Actual addresses go into the `.live.json` later.
+The live config will also define a bootstrap validator, simplified as:
 
-> NOTE: This is a *proposed* grouping; it can be tightened or split further before mainnet.
+    {
+      "validator0": {
+        "address":       "0x0000000000000000000000000000000000000000",
+        "consensusKey":  "0x0000000000000000000000000000000000000000",
+        "rewardAddress": "0x0000000000000000000000000000000000000000"
+      }
+    }
 
-### 3.1 Proposed key groups
+Intent:
 
-#### Group A – Deployer (short-lived)
+- `validator0.address`  
+  - First validator that starts the chain.  
+  - Key must not be a random hot key; treat with similar care as admin keys while still allowing liveness.
 
-- **Key name:** `mainnet_deployer_key`
-- **Controls:** `roles.deployer`
-- **Device:** Hardware wallet dedicated to deployment.
-- **Lifecycle:** Created shortly before bootstrap. After deployment succeeds and final
-  checks pass, drain ETH and retire the key.
+- `validator0.consensusKey`  
+  - If separated from `address`, this is the key used in consensus.  
+  - Policy can mirror `validator0.address` or use an internal validator key scheme.
 
-#### Group B – Treasury Governance
+- `validator0.rewardAddress`  
+  - Where block rewards and emissions flow.  
+  - Typically a treasury / ops-controlled address (for example, `VoidTreasury` or `opsTreasury` path), not a private personal wallet.
 
-- **Key name:** `void_treasury_admin_key`
-- **Controls:** `roles.treasuryAdmin`
-- **Device:** Hardware wallet stored securely (LUKS-encrypted USB backups).
-- **Notes:** Only used for large, scheduled operations. Never used as an ops hotkey.
+PLAN sim expectations (conceptual):
 
-#### Group C – Ops Treasury
-
-- **Key name:** `void_ops_treasury_key`
-- **Controls:** `roles.opsTreasury`
-- **Device:** Hardware wallet with stricter-than-normal but more active use.
-- **Notes:** Used for day-to-day VOID Network expenses and incentives. Should have
-  strong logging and internal policy.
-
-#### Group D – UpdateGate Admin
-
-- **Key name(s):** `void_update_signer_1`, `void_update_signer_2`, `void_update_signer_3`, ...
-- **Controls:** `roles.updateGateAdmin` (i.e., controls the signer set).
-- **Device:** Multiple hardware wallets in different locations / people.
-- **Notes:** This is where we enforce M-of-N security for core updates.
-
-#### Group E – ConfigGate Admin
-
-- **Key name:** `void_config_admin_key`
-- **Controls:** `roles.configGateAdmin`
-- **Device:** Hardware wallet; may be operated by a “protocol config” operator.
-- **Notes:** Used for controlled parameter changes; tied to Prometheus SLOs and
-  a written change plan.
-
-#### Group F – Reward Engine Admin
-
-- **Key name:** `void_reward_admin_key`
-- **Controls:** `roles.rewardAdmin`
-- **Device:** Hardware wallet; extremely limited use.
-- **Notes:** Used when emissions scheduling / reward policies need adjustment or fixes.
-
-#### Group G – Validator 0
-
-- **Key name(s):** `validator0_signer_key`, `validator0_payout_key`
-- **Controls:**
-  - `validator0.validatorSigner`
-  - `validator0.rewardAddress` (can be same EOA or different)
-- **Device:** Validator server + HSM / hardware wallet, with monitoring.
-- **Notes:** Frequent use for signing. Has a separate backup and rotation plan
-  from admin keys.
+- `validator0.address` is non-zero and valid.  
+- `validator0.rewardAddress` is non-zero and consistent with treasury / ops policy.  
+- Optional checks that `rewardAddress` belongs to an allowed set derived from Treasury/Ops roles.
 
 ---
 
-## 4. PLAN sim invariants (what the script should enforce)
+## 3. Premine, Treasury, Ops flow (tokenomics alignment)
 
-`ops/void-mainnet-bootstrap-plan-sim.sh` should enforce at least:
+VOID mainnet tokenomics (locked):
 
-1. **Chain ID**
-   - `chainId == 2050` (VOID mainnet).
+- `MAX_SUPPLY = 666,666,666 VOID`
+- `PREMINE   = 333,333,333 VOID` (genesis treasury)
+- `EMISSIONS = 333,333,333 VOID` over 100 years in four eras.
 
-2. **Roles non-zero and non-placeholder**
-   - All `roles.*` are:
-     - valid `0x` addresses,
-     - non-zero,
-     - not obvious placeholders (`0x0000...`, `0x1111...`, etc.).
+Bootstrap rules:
 
-3. **Role distinctness (no pathological reuse)**
-   - `roles.deployer` MUST be distinct from:
-     - `treasuryAdmin`
-     - `opsTreasury`
-     - any admin / validator keys.
-   - `validator0.validatorSigner` MUST NOT equal any admin or treasury role.
+- Premine is held by `VoidTreasury` at genesis.  
+- `treasuryAdmin` controls `VoidTreasury`.  
+- `opsTreasury` receives controlled flows from `VoidTreasury` (for example, periodic budgets).  
+- `rewardAdmin` manages `RewardEngine` parameters but cannot bypass `VoidTreasury`.
 
-4. **Premine / tokenomics sanity**
-   - Premine config matches locked VOID spec:
-     - MAX_SUPPLY = 666,666,666 VOID
-     - PREMINE   = 333,333,333 VOID (VoidTreasury)
-   - Plan does not route premine directly to Ops or random addresses.
+Long-term critical keys:
 
-5. **Validator 0 sanity**
-   - Non-zero stake.
-   - Reward address is non-zero.
-   - Commission within sane bounds (e.g. 0–5000 bps for now).
-   - Signer key not reused as any admin role.
+- Treasury admin key (`treasuryAdmin`).  
+- Ops treasury key (`opsTreasury`).  
+- Reward admin key (`rewardAdmin`).  
+- UpdateGate and ConfigGate admin keys.  
+- Validator0 key(s).
 
-If any of these fail, PLAN exporter should set:
+Backups and storage:
 
-- `void_mainnet_bootstrap_plan_health = 0`
-- `void_mainnet_bootstrap_plan_health_info{reason="<some_reason>"}`
+- Each of these must have:
+  - At least one hardware-wallet representation where possible.  
+  - A LUKS-encrypted backup (for example, USB) stored physically separate.  
+  - A written retrieval and usage procedure (who, when, how).
 
-and Prometheus should keep `void:mainnet_bootstrap_plan:health:last_5m = 0`.
+Details of the exact backup and ceremony live in the separate keys plan document (not this file).
 
 ---
 
-## 5. PLAN readiness definition
+## 4. PLAN metrics and their relation to this doc
 
-The PLAN is considered **ready/green** when:
+Exporter + sim + Prometheus give the following signals:
 
-- All roles in the live JSON are:
-  - valid non-zero addresses,
-  - follow the grouping and distinctness rules above.
-- Premine configuration matches the locked tokenomics spec.
-- `validator0` fields are filled and pass invariants.
-- `ops/void-mainnet-bootstrap-plan-sim.sh` returns `OK`.
-- Exporter writes:
+- `void_mainnet_bootstrap_plan_configured`  
+  - Equals 1 if the live config JSON exists and parses structurally.
 
-  - `void_mainnet_bootstrap_plan_configured 1`
-  - `void_mainnet_bootstrap_plan_health 1`
-  - `void_mainnet_bootstrap_plan_health_info{reason="ok"}`
+- `void_mainnet_bootstrap_plan_health`  
+  - Equals 1 only when all required roles and fields pass the PLAN sim invariants (roles, validator0, premine mapping, etc.).
 
-and Prometheus shows:
+- `void_mainnet_bootstrap_plan_health_info{reason="<string>"}`  
+  - Gives the failure reason; examples:
+    - `bad_roles`
+    - `bad_validator0`
+    - `bad_premine`
+    - `ok`
 
-- `void:mainnet_bootstrap_plan:health:last_5m = 1`
+- `void:mainnet_bootstrap_plan:health:last_5m`  
+  - A 5-minute smoothed view from a recording rule, used for:
+    - Mainnet health gates (for example, `./ops/void-mainnet-health-all.sh`).  
+    - Alerts (`VoidMainnetBootstrapPlanNotReady`).
 
-When that happens, `./ops/void-mainnet-bootstrap-plan-health-all.sh` will flip
-to `RESULT: OK`, and `./ops/void-mainnet-health-all.sh` gates will pass the
-PLAN pillar as well.
+Current expected behavior (before real keys exist):
+
+- `void_mainnet_bootstrap_plan_health = 0`  
+- `void_mainnet_bootstrap_plan_health_info{reason="bad_roles"} = 1`  
+- `void:mainnet_bootstrap_plan:health:last_5m = 0`
+
+This is intentional. PLAN must remain red until real mainnet addresses and keys have been generated and filled in.
+
+---
+
+## 5. When we are actually close to mainnet
+
+When preparing for real mainnet launch:
+
+1. Generate **fresh, never-used mainnet keys** for each role:
+   - `deployer`
+   - `treasuryAdmin`
+   - `opsTreasury`
+   - `updateGateAdmin`
+   - `configGateAdmin`
+   - `rewardAdmin`
+   - `validator0` (and optionally a separate consensus key)
+
+2. Store them according to the keys plan:
+   - Hardware wallets for all feasible roles.  
+   - LUKS-encrypted USB backups.  
+   - Documented procedures for use and recovery.
+
+3. Fill `config/void-mainnet-bootstrap-mainnet.live.json` with the final addresses, matching the role matrix described here.
+
+4. Run the PLAN tools:
+
+       cd "$HOME/dev/void-node"
+       ./ops/void-mainnet-bootstrap-plan-sim.sh
+       ./ops/void-mainnet-bootstrap-plan-health-all.sh
+       ./ops/void-mainnet-bootstrap-plan-status.sh
+       ./ops/void-mainnet-health-all.sh
+
+5. Only when:
+
+   - `void_mainnet_bootstrap_plan_health = 1`  
+   - `void:mainnet_bootstrap_plan:health:last_5m = 1`  
+   - All mainnet pillars and safeboot metrics are green
+
+   do we proceed to the PLAN-only mainnet bootstrap rehearsal and, later, the real broadcast.
 
