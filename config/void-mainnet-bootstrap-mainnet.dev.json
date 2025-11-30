@@ -1,0 +1,48 @@
+{
+  "chainId": 2050,
+  "notes": [
+    "TEMPLATE for REAL VOID mainnet bootstrap.",
+    "Populate ONLY public addresses. NEVER paste private keys or mnemonics here.",
+    "Use separate hardware-backed keys for each role (Treasury, Ops, ValidatorAdmin, etc.).",
+    "For the actual launch, copy this template to a local, untracked file (e.g. void-mainnet-bootstrap-mainnet.live.json).",
+    "That live JSON should exist only on the air-gapped or hardened machine that signs the bootstrap transactions."
+  ],
+  "roles": {
+    "deployer": "0x8734FB98fE537f7cEc56B6179401C35fabFa4a2e",
+    "treasuryAdmin": "0xAe0f36fE1CfBC30e45bbbda924CFC65627CDa368",
+    "opsTreasuryAdmin": "0xb2eab6b7099F486932F08Ab13DB5572390C4D875",
+    "validatorAdmin": "0xe462edC10aC87559Aa4D68fd49d318B28085A857",
+    "adminGateOwner": "0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3",
+    "updateGateOwner": "0xA3Faa00cEE0ccC706eD7f4Da6422299c40217AED",
+    "configGateOwner": "0xcfa48eCb0a87C7DF74F5D295A19d86d6C1d49c01",
+    "treasuryOwner": "0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9",
+    "opsTreasuryOwner": "0x91285c825f5397f7a64d4F79127BC3f96c0BCfa3",
+    "rewardEngineOwner": "0xB6148C169f7CD73815bd65806d353dE274361eBe",
+    "validatorSetOwner": "0x07b6f37782D9F1EE5a28E90d3CbfCb7C90836a17"
+  },
+  "validator0": {
+    "reward": "0x8734FB98fE537f7cEc56B6179401C35fabFa4a2e",
+    "stakeVOID": "1000000",
+    "consensusKey": "0x0101010101010101010101010101010101010101010101010101010101010101"
+  },
+  "contracts": {
+    "updateGate": "0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3",
+    "adminGate": "0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3",
+    "configGate": "0xcfa48eCb0a87C7DF74F5D295A19d86d6C1d49c01",
+    "validatorSet": "0x07b6f37782D9F1EE5a28E90d3CbfCb7C90836a17",
+    "voidToken": "0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9",
+    "voidTreasury": "0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9",
+    "opsTreasury": "0x91285c825f5397f7a64d4F79127BC3f96c0BCfa3",
+    "rewardEngine": "0xB6148C169f7CD73815bd65806d353dE274361eBe",
+    "premineVault": "0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9",
+    "treasury": "0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9"
+  },
+  "validators": [
+    {
+      "id": "validator-0",
+      "rewardAddress": "0x8888888888888888888888888888888888888888",
+      "stakeVOID": "1000000",
+      "consensusKey": "0x9999999999999999999999999999999999999999999999999999999999999999"
+    }
+  ]
+}
