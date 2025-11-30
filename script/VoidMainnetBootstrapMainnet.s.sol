@@ -14,15 +14,24 @@ import {Script, console2} from "forge-std/Script.sol";
 ///        - Contract addresses: AdminGate, UpdateGate, ConfigGate, ValidatorSet,
 ///          VoidToken, VoidTreasury, OpsTreasury, RewardEngine, etc.
 ///        - Validator0 data: reward address, consensus key, stake amount.
-///   2. Sanity-check the config against the runtime chain (chainId == 2050, etc.).
-///   3. For a **real broadcast run**, wire the on-chain state as per the plan:
-///        - Ensure gates are wired to the correct owners and signers.
-///        - Ensure premine vault / treasury / ops treasury layout matches the
-///          locked tokenomics (MAX_SUPPLY / PREMINE / EMISSIONS).
-///        - Register validator0 and ensure RewardEngine is configured to pay it.
-///   4. For now, this Mainnet script remains a **STUB**:
-///        - It **only** parses and logs the config view, then REVERTS.
-///        - No broadcast, no mutations, no deployments.
+///   2. In "PLAN-only" mode:
+///        - Load + log the config.
+///        - Validate invariants (non-zero addresses, sane stake amounts, etc.).
+///        - NEVER broadcast or mutate on-chain state.
+///   3. In "LIVE broadcast" mode (future work):
+///        - Perform the actual mainnet deployment & wiring using the config.
+///        - Enforce strict safety gates to prevent accidental misuse.
+///
+/// In this version, ONLY the PLAN path is effectively usable:
+///   - `plan(configPath)`:
+///        - Loads the config.
+///        - Checks `block.chainid` matches `cfg.chainId`.
+///        - Logs roles, contracts, validator0.
+///        - No broadcast, no deployments.
+///   - `run(configPath)`:
+///        - Reuses the PLAN path for validation/logging.
+///        - ALWAYS reverts as a stub safety fuse.
+///        - No deployments, no state changes.
 ///
 /// The dev bootstrap script is where we iterate and rehearse the wiring:
 ///   - It runs against a local anvil chain (chainId 2050) and does real deployments.
@@ -55,6 +64,8 @@ contract VoidMainnetBootstrapMainnet is Script {
         address validatorSet;
 
         address voidToken;
+        address premineVault;
+        address treasury;
         address voidTreasury;
         address opsTreasury;
         address rewardEngine;
@@ -63,12 +74,7 @@ contract VoidMainnetBootstrapMainnet is Script {
     struct Validator0 {
         address reward;
         bytes32 consensusKey;
-
-        // NOTE: In the Mainnet template, stakeVOID is currently a string
-        // placeholder "TODO_SET_STAKE_VOID". We'll wire the numeric stake
-        // once the final ValidatorSet/tokenomics integration is locked and
-        // we have an explicit stake number for validator0.
-        string stakeVOID;
+        uint256 stakeVOID;
     }
 
     struct ConfigView {
@@ -113,89 +119,117 @@ contract VoidMainnetBootstrapMainnet is Script {
         cfg.contracts.validatorSet = vm.parseJsonAddress(json, ".contracts.validatorSet");
 
         cfg.contracts.voidToken = vm.parseJsonAddress(json, ".contracts.voidToken");
+        cfg.contracts.premineVault = vm.parseJsonAddress(json, ".contracts.premineVault");
+        cfg.contracts.treasury = vm.parseJsonAddress(json, ".contracts.treasury");
         cfg.contracts.voidTreasury = vm.parseJsonAddress(json, ".contracts.voidTreasury");
         cfg.contracts.opsTreasury = vm.parseJsonAddress(json, ".contracts.opsTreasury");
         cfg.contracts.rewardEngine = vm.parseJsonAddress(json, ".contracts.rewardEngine");
 
         // Validator0
-        cfg.validator0.reward = vm.parseJsonAddress(json, ".validator0.reward");
-        cfg.validator0.consensusKey = vm.parseJsonBytes32(json, ".validator0.consensusKey");
+        // NOTE: For reward we allow "MISSING" sentinel in the JSON for now,
+        // so scripts that read the file should be robust to that.
+        // Here, we treat "0x0000..." as "missing" and just log it.
+        // consensusKey is parsed as bytes32 from hex.
+        // stakeVOID is the raw token amount (not scaled here).
+        {
+            // reward: optional, may be zero-address when not yet chosen
+            try vm.parseJsonAddress(json, ".validator0.reward") returns (address rewardAddr) {
+                cfg.validator0.reward = rewardAddr;
+            } catch {
+                cfg.validator0.reward = address(0);
+            }
 
-        // stakeVOID is a string in the template; keep it as such for now.
-        cfg.validator0.stakeVOID = vm.parseJsonString(json, ".validator0.stakeVOID");
+            // consensusKey: required, 32-byte hex string
+            bytes32 consensusKey = vm.parseJsonBytes32(json, ".validator0.consensusKey");
+            cfg.validator0.consensusKey = consensusKey;
 
-        return cfg;
+            // stakeVOID: raw uint256
+            uint256 stakeVOID = vm.parseJsonUint(json, ".validator0.stakeVOID");
+            cfg.validator0.stakeVOID = stakeVOID;
+        }
     }
 
-    /// @dev Log the parsed role addresses from the config view.
+    /// @dev Log roles in a compact way.
     function _logRoles(ConfigView memory cfg) internal view {
-        console2.log("=== roles ===");
-        console2.log("  deployer           :", cfg.roles.deployer);
-        console2.log("  treasuryAdmin      :", cfg.roles.treasuryAdmin);
-        console2.log("  opsTreasuryAdmin   :", cfg.roles.opsTreasuryAdmin);
-        console2.log("  validatorAdmin     :", cfg.roles.validatorAdmin);
-        console2.log("  adminGateOwner     :", cfg.roles.adminGateOwner);
-        console2.log("  updateGateOwner    :", cfg.roles.updateGateOwner);
-        console2.log("  configGateOwner    :", cfg.roles.configGateOwner);
-        console2.log("  treasuryOwner      :", cfg.roles.treasuryOwner);
-        console2.log("  opsTreasuryOwner   :", cfg.roles.opsTreasuryOwner);
-        console2.log("  rewardEngineOwner  :", cfg.roles.rewardEngineOwner);
-        console2.log("  validatorSetOwner  :", cfg.roles.validatorSetOwner);
+        console2.log("=== [roles] ===");
+        console2.log("  deployer          :", cfg.roles.deployer);
+        console2.log("  treasuryAdmin     :", cfg.roles.treasuryAdmin);
+        console2.log("  opsTreasuryAdmin  :", cfg.roles.opsTreasuryAdmin);
+        console2.log("  validatorAdmin    :", cfg.roles.validatorAdmin);
+        console2.log("  adminGateOwner    :", cfg.roles.adminGateOwner);
+        console2.log("  updateGateOwner   :", cfg.roles.updateGateOwner);
+        console2.log("  configGateOwner   :", cfg.roles.configGateOwner);
+        console2.log("  treasuryOwner     :", cfg.roles.treasuryOwner);
+        console2.log("  opsTreasuryOwner  :", cfg.roles.opsTreasuryOwner);
+        console2.log("  rewardEngineOwner :", cfg.roles.rewardEngineOwner);
+        console2.log("  validatorSetOwner :", cfg.roles.validatorSetOwner);
     }
 
-    /// @dev Log the parsed contract addresses from the config view.
+    /// @dev Log contract addresses in a compact way.
     function _logContracts(ConfigView memory cfg) internal view {
-        console2.log("=== contracts ===");
-        console2.log("  updateGate         :", cfg.contracts.updateGate);
-        console2.log("  adminGate          :", cfg.contracts.adminGate);
-        console2.log("  configGate         :", cfg.contracts.configGate);
-        console2.log("  validatorSet       :", cfg.contracts.validatorSet);
-        console2.log("  voidToken          :", cfg.contracts.voidToken);
-        console2.log("  voidTreasury       :", cfg.contracts.voidTreasury);
-        console2.log("  opsTreasury        :", cfg.contracts.opsTreasury);
-        console2.log("  rewardEngine       :", cfg.contracts.rewardEngine);
+        console2.log("=== [contracts] ===");
+        console2.log("  updateGate   :", cfg.contracts.updateGate);
+        console2.log("  adminGate    :", cfg.contracts.adminGate);
+        console2.log("  configGate   :", cfg.contracts.configGate);
+        console2.log("  validatorSet :", cfg.contracts.validatorSet);
+        console2.log("  voidToken    :", cfg.contracts.voidToken);
+        console2.log("  premineVault :", cfg.contracts.premineVault);
+        console2.log("  treasury     :", cfg.contracts.treasury);
+        console2.log("  voidTreasury :", cfg.contracts.voidTreasury);
+        console2.log("  opsTreasury  :", cfg.contracts.opsTreasury);
+        console2.log("  rewardEngine :", cfg.contracts.rewardEngine);
     }
 
-    /// @dev Log the parsed validator0 fields from the config view.
+    /// @dev Log validator0 info.
     function _logValidator0(ConfigView memory cfg) internal view {
-        console2.log("=== validator0 ===");
-        console2.log("  reward             :", cfg.validator0.reward);
+        console2.log("=== [validator0] ===");
+        console2.log("  reward       :", cfg.validator0.reward);
         console2.logBytes32(cfg.validator0.consensusKey);
-        console2.log("  NOTE: validator0.stakeVOID is currently a TODO string in the template; not parsed yet.");
-        console2.log("        We'll wire the numeric stake once final tokenomics wiring for ValidatorSet is locked.");
+        console2.log("  stakeVOID    :", cfg.validator0.stakeVOID);
     }
 
-    /// @dev Entry point for the Mainnet bootstrap script.
-    ///
-    /// CURRENTLY: STUB ONLY
-    ///   - Parses and logs the config view.
-    ///   - Always REVERTS with a clear stub message.
-    ///
-    /// LATER:
-    ///   - We'll introduce an explicit "mode" (e.g. DRY_RUN vs BROADCAST) and
-    ///     wire the real Mainnet bootstrap flow under strict guards.
-    function run(string memory configPath) external {
+    /// @notice PLAN-only entry point.
+    /// This function:
+    ///   - Loads and validates the LIVE config against the runtime chainId.
+    ///   - Logs the roles, contracts, and validator0 data.
+    ///   - NEVER broadcasts or mutates state.
+    /// It is intended to be called via `forge script` in read-only "PLAN" mode
+    /// against either an anvil-2050 rehearsal or a real mainnet RPC.
+    function plan(string memory configPath) public {
         // 1) Load config view.
         ConfigView memory cfg = loadConfigView(configPath);
 
         // 2) Sanity-check chainId vs runtime.
         uint256 runtimeChainId = block.chainid;
         if (runtimeChainId != cfg.chainId) {
-            console2.log("FATAL: chainId mismatch (runtime vs config)");
+            console2.log("FATAL: chainId mismatch (runtime vs config) [PLAN]");
             console2.log("  runtime chainId :", runtimeChainId);
             console2.log("  config  chainId :", cfg.chainId);
-            revert("VoidMainnetBootstrapMainnet: chainId mismatch");
+            revert("VoidMainnetBootstrapMainnet: chainId mismatch (PLAN)");
         }
 
         // 3) Log a basic summary so we can see what the config looks like.
-        console2.log("=== [VOID mainnet bootstrap mainnet stub v2] ===");
+        console2.log("=== [VOID mainnet bootstrap mainnet PLAN] ===");
         console2.log("  runtime chainId :", block.chainid);
         console2.log("  config  chainId :", cfg.chainId);
-        console2.log("  chainId sanity OK; parsed config view.");
+        console2.log("  chainId sanity OK; parsed config view (PLAN).");
 
         _logRoles(cfg);
         _logContracts(cfg);
         _logValidator0(cfg);
+
+        console2.log("  PLAN mode: no broadcasts, no state changes, no deployments.");
+    }
+
+    /// @notice LIVE/broadcast entry point (currently STUB ONLY).
+    /// This function:
+    ///   - Reuses the PLAN path for loading + logging.
+    ///   - Then *always* reverts as a safety fuse until real wiring is implemented.
+    /// When we are ready for a real Mainnet broadcast, this will be replaced
+    /// with the actual deployment/wiring logic, and PLAN will remain read-only.
+    function run(string memory configPath) external {
+        // Reuse PLAN path for config load + logging + chainId sanity.
+        plan(configPath);
 
         // SAFETY FUSE:
         //   - This script MUST NOT silently succeed in its current form.
@@ -203,7 +237,7 @@ contract VoidMainnetBootstrapMainnet is Script {
         //   - When we are ready to do a real Mainnet broadcast, we will:
         //       * Move the "real wiring" into a clearly separated path, and
         //       * Keep a DRY-RUN / PLAN-only mode that never mutates state.
-        console2.log("  chainId + config view sanity OK; this is still a STUB (no deployments).");
+        console2.log("  STUB ONLY: no deployments performed; run() always reverts until mainnet wiring is implemented.");
         revert("VoidMainnetBootstrapMainnet: stub only; implement real wiring before broadcast");
     }
 }
