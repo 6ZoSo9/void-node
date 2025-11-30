@@ -24,7 +24,7 @@ set -euo pipefail
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
 
 jq_val() {
-  jq -r '.[0].value[1] // empty' 2>/dev/null || true
+  jq -r '.data.result[0].value[1] // empty' 2>/dev/null || true
 }
 
 echo "=== [mainnet-bootstrap-phase] VOID mainnet bootstrap phase inspector ==="
@@ -46,8 +46,8 @@ plan_hlt=$(curl -fsS "$PROM_URL/api/v1/query" \
   --data-urlencode 'query=void:mainnet_bootstrap_plan:health:last_5m' \
   | jq_val)
 
-echo "  void:mainnet_pillars:health:last_5m           = ${pillars:-<none>}"
-echo "  void:mainnet_lastmile:health:last_5m         = ${lastmile:-<none>}"
+echo "  void:mainnet_pillars:health:last_5m             = ${pillars:-<none>}"
+echo "  void:mainnet_lastmile:health:last_5m           = ${lastmile:-<none>}"
 echo "  void:mainnet_bootstrap_plan:configured:last_5m = ${plan_cfg:-<none>}"
 echo "  void:mainnet_bootstrap_plan:health:last_5m     = ${plan_hlt:-<none>}"
 echo
