@@ -1,152 +1,89 @@
-# VOID Mainnet Bootstrap PLAN – Live Config
+# VOID Mainnet Bootstrap PLAN (live) — README
 
-This file describes how the live PLAN config for VOID mainnet is handled.
+This README documents how to treat the *live* mainnet bootstrap PLAN config.
 
-It is tied to:
+- Live PLAN file (never committed):
+  - config/void-mainnet-bootstrap-mainnet.live.json
 
-- ops/README-mainnet-plan-roles-and-keys.md
-- ops/README-mainnet-keys-and-devices.md
+That JSON will eventually hold the **real** VOID mainnet bootstrap wiring:
+
+- Roles:
+  - deployer, treasuryAdmin, opsTreasuryAdmin, validatorAdmin
+  - adminGateOwner, updateGateOwner, configGateOwner
+  - treasuryOwner, opsTreasuryOwner, rewardEngineOwner, validatorSetOwner
+- Contracts:
+  - updateGate, adminGate, configGate, validatorSet
+  - voidToken, premineVault, treasury, voidTreasury, opsTreasury, rewardEngine
+- Validator 0:
+  - reward address
+  - consensusKey
+  - stakeVOID
+
+## Do NOT commit the live PLAN JSON
+
+The file:
+
+- MUST NOT be added to Git.
+- Is allowed to contain real **addresses** and stake amounts.
+- MUST NOT contain seeds, mnemonics, or private keys.
+
+We already guard it via .gitignore:
+
 - config/void-mainnet-bootstrap-mainnet.live.json
-- PLAN health tooling:
-  - ops/void-mainnet-bootstrap-plan-all.sh
-  - ops/void-mainnet-bootstrap-readiness.sh
-  - Prometheus metrics void_mainnet_bootstrap_plan_*
 
-Hard rule: any *.live.json mainnet config must never be committed or pushed. These files live on the LUKS sentinel device and offline backups, not in Git.
+Treat the live PLAN JSON as coming from your **sentinel / LUKS device** and offline notes, not from this repo.
 
----
+## Read-only health / readiness checks
 
-## 1. Live PLAN JSON overview
+From the repo root:
 
-Live PLAN JSON path:
+    cd ~/dev/void-node
+    ./ops/void-mainnet-bootstrap-readiness.sh
 
-- config/void-mainnet-bootstrap-mainnet.live.json
+That script does, in summary:
 
-Key fields that must be set for a real mainnet PLAN:
+1. Checks mainnet core / lastmile / safeboot health via Prometheus:
+   - void:mainnet_overall:health:last_5m_v2
+   - void:mainnet_pillars:health:last_5m
+   - void:mainnet_lastmile:health:last_5m
+   - void_safeboot_overall_health
 
-- chainId = 2050
-- roles.deployer
-- roles.treasuryAdmin
-- roles.opsTreasuryAdmin
-- roles.validatorAdmin
-- roles.adminGateOwner
-- roles.updateGateOwner
-- roles.configGateOwner
-- roles.treasuryOwner
-- roles.opsTreasuryOwner
-- roles.rewardEngineOwner
-- roles.validatorSetOwner
+2. Checks the bootstrap PLAN health:
+   - void:mainnet_bootstrap_plan:configured:last_5m
+   - void:mainnet_bootstrap_plan:health:last_5m
 
-Contracts section:
+3. Shows a summary like:
 
-- contracts.updateGate
-- contracts.adminGate
-- contracts.configGate
-- contracts.validatorSet
-- contracts.voidToken
-- contracts.premineVault
-- contracts.treasury
-- contracts.voidTreasury
-- contracts.opsTreasury
-- contracts.rewardEngine
+   - CONFIG_OK=1, STRUCT_OK=0 → PLAN is configured but NOT READY
+   - CONFIG_OK=1, STRUCT_OK=1 → PLAN is configured and structurally READY
 
-Validator 0 section:
+Right now, by design:
 
-- validator0.reward
-- validator0.consensusKey
-- validator0.stakeVOID (for example "1000000e18")
+- Mainnet pillars are green.
+- PLAN is "configured but NOT READY":
+  - void:mainnet_bootstrap_plan:configured:last_5m = 1
+  - void:mainnet_bootstrap_plan:health:last_5m     = 0
 
-The PLAN is considered structurally ready only when all of these are non-zero and correctly filled.
+We only flip PLAN health to 1 when:
 
----
+- Real roles, contracts, and validator0 are filled into the live JSON (from the sentinel plan).
+- The rehearsal script reports planReady = true.
+- We are actually preparing to talk to *real* VOID mainnet.
 
-## 2. PLAN tooling
+## High-level live PLAN workflow (later, with real keys/devices)
 
-Main PLAN check:
+1. Prepare real addresses and validator stake **offline** (sentinel / hardware + paper).
+2. Generate config/void-mainnet-bootstrap-mainnet.live.json from that offline source.
+3. Run:
 
-- Script: ops/void-mainnet-bootstrap-plan-all.sh
+       cd ~/dev/void-node
+       ./ops/void-mainnet-bootstrap-plan-all.sh
+       ./ops/void-mainnet-bootstrap-readiness.sh
 
-This script:
+4. Confirm:
+   - Pillars remain healthy.
+   - PLAN moves to STRUCT_OK=1 and planReady=true.
 
-- Shows ZERO vs SET for roles, contracts and validator0 from the live config.
-- Runs a Forge rehearsal (no broadcast).
-- Refreshes the PLAN textfile metrics:
-  - ops/metrics/void_mainnet_bootstrap_plan.prom
-- Prints CONFIG_OK and STRUCT_OK summary flags.
+5. Only after that do we design and run the real mainnet broadcast script.
 
-Meaning:
-
-- CONFIG_OK = 1 means the JSON is structurally valid.
-- STRUCT_OK = 1 means critical roles, contracts and validator0 are all filled.
-- void_mainnet_bootstrap_plan_health is derived from these flags.
-
----
-
-## 3. Readiness hammer
-
-Readiness snapshot script:
-
-- ops/void-mainnet-bootstrap-readiness.sh
-
-It reports:
-
-- Mainnet overall health
-- Mainnet pillars and lastmile
-- Safeboot overall health
-- PLAN metrics from Prometheus:
-  - void:mainnet_bootstrap_plan:configured:last_5m
-  - void:mainnet_bootstrap_plan:health:last_5m
-- Presence of the three key docs:
-  - ops/README-mainnet-bootstrap-plan-live.md
-  - ops/README-mainnet-plan-roles-and-keys.md
-  - ops/README-mainnet-keys-and-devices.md
-
-Current expected state:
-
-- Mainnet pillars and lastmile should be 1.
-- PLAN configured should be 1.
-- PLAN health should remain 0 until real addresses are decided and written into the live JSON.
-
----
-
-## 4. Relationship to roles and devices
-
-ops/README-mainnet-plan-roles-and-keys.md:
-
-- Describes which roles and owners exist and how they relate to AdminGate, UpdateGate, ConfigGate, ValidatorSet, Treasury and RewardEngine.
-
-ops/README-mainnet-keys-and-devices.md:
-
-- Describes which devices hold which keys (LUKS sentinel, hardware wallets, paper backups, etc).
-
-ops/README-mainnet-bootstrap-plan-live.md (this file):
-
-- Describes how those decisions are encoded into the live PLAN JSON and how we check readiness.
-
-Whenever roles, owners or device assignments change, all three must be kept in sync and the PLAN rehearsal must still pass.
-
----
-
-## 5. Prometheus gating
-
-Prometheus uses the following for gating:
-
-- void:mainnet_bootstrap_plan:configured:last_5m
-- void:mainnet_bootstrap_plan:health:last_5m
-
-These are fed by:
-
-- ops/void-mainnet-bootstrap-plan-all.sh
-- ops/metrics/void_mainnet_bootstrap_plan.prom (textfile exporter)
-
-For now:
-
-- configured = 1 and health = 0 means:
-  - The PLAN JSON is structurally sane.
-  - Critical fields are still placeholders and must not be used for a real mainnet launch.
-
-Before actual mainnet bootstrap:
-
-- configured must be 1.
-- health must move to 1.
-- All other mainnet pillars and lastmile checks must stay green.
+This README is documentation only and must never contain private keys, seeds, or mnemonics.
