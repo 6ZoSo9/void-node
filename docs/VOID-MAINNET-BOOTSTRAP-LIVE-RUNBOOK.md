@@ -1,183 +1,176 @@
-# VOID — Mainnet Bootstrap LIVE Runbook (DRAFT v0, DO NOT EXECUTE)
+# VOID Mainnet — LIVE Bootstrap Runbook (SKELETON, DO NOT USE YET)
 
-Status: DRAFT (structure only, NO live steps yet)  
-Scope: This doc will eventually describe the **real** VOID mainnet bootstrap
-(broadcasting transactions on the real network) using the locked PLAN and
-hardware wallets.
+> STATUS: SKELETON ONLY — this file is an outline.
+> It is **not** a complete or approved procedure for broadcasting the VOID mainnet bootstrap.
+> Do **NOT** run live mainnet actions based solely on this doc.
 
-**WARNING:**  
-Until this document is explicitly promoted to v1 and reviewed, it is
-**NOT** an instruction set. Treat it as a planning skeleton only.
+This runbook will eventually describe the **actual, irreversible** VOID mainnet bootstrap:
 
----
+- Deploying core contracts (VoidToken, VoidTreasury, OpsTreasury, RewardEngine, AdminGate, ConfigGate, UpdateGate, ValidatorSet, etc.).
+- Moving the premine into the Treasury and Ops paths.
+- Wiring validator set + reward engine.
+- Emitting any required receipts / events for observability.
 
-## 0. Terminology
+Right now it is just a structured outline to be filled in **after**:
 
-- **PLAN**: The locked configuration plus invariants for how mainnet should be
-  wired (roles, premine, treasuries, gates, reward engine, validator set).
-- **LIVE bootstrap**: The one-time sequence of on-chain transactions that turn
-  the PLAN into reality on chainId 2050.
-- **Safeboot**: Read-mostly lifeboat node that must be able to verify the
-  outcome of the bootstrap independently.
-- **Pillars**: Mainnet core, last-mile, safeboot, tokenomics, PLAN.
+- PLAN pillar is green.
+- Hardware-wallet keys are finalized and stored according to the keys plan.
+- We deliberately decide on a launch window.
 
----
+----------------------------------------------------------------------
+0. Scope, Warnings, and Assumptions
+----------------------------------------------------------------------
 
-## 1. Preconditions (hard gates before LIVE)
+- This runbook is for **real VOID mainnet** (chainId 2050), not devnet or anvil.
+- All actions here are **one-way** once broadcast.
+- All signers are assumed to be **hardware wallets or equivalent HSM**, never hot keys.
+- No .live.json, mnemonics, seeds, or key material should ever be committed to git.
 
-The LIVE bootstrap must **not** be attempted unless ALL of the following are
-true:
+**Hard rules:**
 
-1. **PLAN pillar GREEN**
+1. Do not run any "LIVE" step unless:
+   - PLAN runbook is fully satisfied.
+   - void:mainnet_bootstrap_plan:health:last_5m == 1
+   - void:mainnet_overall:health:last_5m_v2 == 1
+   - void:mainnet_pillars:health:last_5m == 1
 
-   - `./ops/void-mainnet-bootstrap-plan-all.sh` reports:
+2. Do not modify this file to add ad-hoc shortcuts; treat it as a controlled change:
+   - Changes must be reviewed and tagged as checkpoints (ckpt-mainnet-boot-...).
 
-        [plan-all] RESULT: OK (PLAN pillar GREEN — sim invariants + health-all both passed)
+----------------------------------------------------------------------
+1. Preconditions Checklist (to be enforced)
+----------------------------------------------------------------------
 
-   - Metrics:
+This section will be expanded into a strict checklist. For now, we record the items:
 
-        - `void_mainnet_bootstrap_plan_configured = 1`
-        - `void_mainnet_bootstrap_plan_health = 1`
-        - `void:mainnet_bootstrap_plan:health:last_5m = 1`
+- [ ] PLAN pillar:
+  - [ ] config/void-mainnet-bootstrap-mainnet.live.json exists only locally.
+  - [ ] ./ops/void-mainnet-bootstrap-plan-roles-dump.sh shows status=ok for all core roles.
+  - [ ] ./ops/void-mainnet-bootstrap-plan-sim.sh exits with code 0.
+  - [ ] ./ops/void-mainnet-bootstrap-plan-all.sh shows RESULT: OK (PLAN pillar GREEN).
+  - [ ] Prometheus:
+    - [ ] void_mainnet_bootstrap_plan_health = 1
+    - [ ] void:mainnet_bootstrap_plan:health:last_5m = 1
 
-   - The PLAN config `config/void-mainnet-bootstrap-mainnet.live.json` is:
+- [ ] Mainnet pillars:
+  - [ ] ./ops/void-mainnet-health-all.sh shows RESULT: OK.
+  - [ ] void:mainnet_overall:health:last_5m_v2 = 1
+  - [ ] void:mainnet_pillars:health:last_5m = 1
+  - [ ] void:mainnet_lastmile:health:last_5m = 1
+  - [ ] void_safeboot_overall_health = 1
 
-        - Stored only on secure machines.
-        - Reviewed against `docs/void-mainnet-bootstrap-roles-and-keys.md`.
-        - Matches the physical key/USB/LUKS plan.
+- [ ] Keys & roles:
+  - [ ] Roles in .live.json exactly match the keys plan doc:
+        docs/void-mainnet-bootstrap-roles-and-keys.md
+  - [ ] Premine / Treasury / Ops key handling matches:
+        docs/VOID-MAINNET-KEYS-AND-TREASURY-PLAN.md
+  - [ ] Hardware wallets have been tested on devnet/anvil with dry-run scripts.
 
-2. **All non-PLAN pillars GREEN**
+- [ ] Observability:
+  - [ ] All relevant VOID exporters are green (txroot, header3, seals, lastmile, pillars, plan).
+  - [ ] Prometheus + Grafana dashboards for mainnet bootstrap are present and show no red flags.
 
-   - `./ops/void-mainnet-health-all.sh` returns overall OK when PLAN gating is
-     enabled (i.e. it no longer fails on `plan_5m`):
+----------------------------------------------------------------------
+2. Dry-Run / Simulation Phase (Anvil + Dev Scripts)
+----------------------------------------------------------------------
 
-        - `void:mainnet_overall:health:last_5m_v2 = 1`
-        - `void:mainnet_pillars:health:last_5m = 1`
-        - `void:mainnet_lastmile:health:last_5m = 1`
-        - `void_safeboot_overall_health = 1`
+**Goal:** rehearse the exact sequence of actions against a local anvil chain (chainId 2050),
+using the same config JSON shape as mainnet, **without** touching real mainnet.
 
-3. **Core + contracts frozen**
+This phase is already partly covered by:
 
-   - The core node, consensus rules, and mainnet contracts (tokenomics,
-     Treasury, RewardEngine, AdminGate, UpdateGate, ValidatorSet, JobQueue, etc.)
-     are at a tagged, signed, documented release (e.g. `golden-mainnet-vX`).
-   - Governance doc for v99 freeze + update policy exists and is approved.
+- script/VoidMainnetBootstrapDev.s.sol
+- ops/void-mainnet-dev-bootstrap-full.sh
+- PLAN scripts (plan-sim, plan-all, roles-dump, etc.)
 
-4. **Keys plan finalized**
+***TODO:*** When this runbook is promoted from SKELETON to LIVE:
 
-   - Premine/Treasury key, AdminGate master key, UpdateGate signers, and any
-     other long-horizon keys are:
+- [ ] Document the exact commands to:
+  - Start an anvil chain with chainId 2050.
+  - Run the dev bootstrap script end-to-end.
+  - Verify tokenomics invariants and role wiring.
+  - Export a “dev rehearsal report” (JSON + text).
 
-        - Generated fresh (never used on devnet).
-        - Stored according to the long-term keys plan
-          (LUKS USB, hardware wallets, backups, off-site copy).
-        - Associated with human-readable labels and physical inventory.
+----------------------------------------------------------------------
+3. Live Bootstrap Overview (High-Level, No Commands Yet)
+----------------------------------------------------------------------
 
----
+This section will eventually be the **heart** of the runbook.
+For now, we only outline the phases:
 
-## 2. High-level phases of LIVE bootstrap
+1. **Freeze & Gate**
+   - Lock deploy branch.
+   - Ensure CI + pillars + plan gates are all green.
+   - Take Prometheus + git snapshots.
 
-The LIVE bootstrap is conceptually split into phases:
+2. **Pre-Broadcast Sanity**
+   - Re-verify roles/keys against .live.json and the keys plan.
+   - Re-run PLAN and mainnet-health scripts.
+   - Confirm exporters show expected “pre-bootstrap” state.
 
-1. **Freeze and announce**
+3. **Broadcast Phase**
+   - Use a dedicated script (e.g. ops/void-mainnet-bootstrap-mainnet-live.sh) that:
+     - Reads the .live.json.
+     - Performs each deployment / call in a deterministic order.
+     - Logs tx hashes, gas, and events.
+   - All signing done via hardware wallets / remote signers.
 
-   - Choose a bootstrap window and freeze any changes to core code and
-     contracts.
-   - Announce a maintenance window for devnet/test systems as needed.
+4. **Post-Broadcast Verification**
+   - Check contract addresses vs expected ones.
+   - Run tokenomics + validator + rewards invariant checks.
+   - Confirm Prometheus exporters switch to “post-bootstrap” state
+     (e.g. new gauges for “bootstrap_done = 1”).
 
-2. **Offline review and signing rehearsal**
+5. **Unfreeze**
+   - Once invariants + exporters + dashboards are clean for a grace window,
+     allow normal mainnet activity (validators, wallets, NullFeed, etc.).
 
-   - Load the locked PLAN JSON on an offline machine.
-   - Generate a human-readable description of what the bootstrap will do
-     (addresses, balances, roles, gates, validator set).
-   - Have multiple humans review and sign off on this description.
-   - Rehearse signing flows with hardware wallets on a test chain.
+***TODO:*** Fill in each phase with **exact commands** and **expected outputs** once the
+mainnet-live script and hardware signing flow are fully specified and tested.
 
-3. **Anvil / forked-chain dry-run**
+----------------------------------------------------------------------
+4. Observability and Rollback Strategy (Outline)
+----------------------------------------------------------------------
 
-   - Spin up an anvil / forked-chain instance at chainId 2050 using the same
-     PLAN.
-   - Run the exact same script that will be used for LIVE, but pointed at this
-     isolated environment.
-   - Verify invariants after the dry-run:
-        - Premine totals.
-        - Treasury + OpsTreasury balances.
-        - RewardEngine configuration.
-        - ValidatorSet contents and initial weights.
-        - AdminGate/UpdateGate wiring and signers.
+Even though bootstrap is mostly one-way, we still need clear behavior:
 
-4. **Mainnet LIVE broadcast**
+- Before bootstrap:
+  - bootstrap_done = 0
+  - plan_health = 1
+  - mainnet_overall_health = 1
 
-   - During the scheduled window, with all humans present:
-        - Confirm `PLAN` and all pillars are still GREEN.
-        - Confirm safeboot node is synced and healthy.
-        - Execute the bootstrap script(s) against the real mainnet RPC.
-        - Sign each transaction with the correct hardware wallet(s), with
-          out-of-band verification of:
-            - Nonce
-            - To address
-            - Value
-            - Data (function signature, key parameters)
+- During bootstrap:
+  - Temporary gauges / logs indicate “in progress”.
+  - Alerts are suppressed or put in “maintenance” mode where appropriate.
 
-5. **Post-bootstrap verification**
+- After bootstrap:
+  - bootstrap_done = 1
+  - All core health gauges remain 1.
+  - Additional post-bootstrap invariants are enforced by alerts.
 
-   - Run a dedicated post-bootstrap health script (to be written) that checks:
-        - On-chain balances and roles match the PLAN.
-        - RewardEngine and ValidatorSet match the PLAN.
-        - AdminGate/UpdateGate are correctly wired and locked.
-        - Safeboot sees the same state and can verify txroot/header3.
+Rollback in case of failure:
 
-   - Update Prometheus textfile exporters and gauges to reflect:
-        - `void_mainnet_bootstrap_done = 1`
-        - `void_mainnet_bootstrap_health = 1`
-        - Any additional “bootstrap receipts” metrics.
+- This will depend on the exact point of failure (early tx vs. deep into the sequence).
+- At minimum we must document:
+  - When to STOP and avoid “fixing” via ad-hoc txs.
+  - How to capture full logs, snapshots, and forensic data.
+  - Under what conditions a full chain restart / regenesis would be considered.
 
-6. **Unfreeze and move to normal operations**
+***TODO:*** Flesh this out when the bootstrap script and sequence are concrete.
 
-   - Once verification is complete and bootstrap health is GREEN, shift the
-     network into normal mode:
-        - Enable standard UpdateGate/ConfigGate policies.
-        - Enable validators onboarding, JobQueue usage, Obelisk wallet flows.
-        - Start regular operations SLOs and alerts.
+----------------------------------------------------------------------
+5. Change Control for This Runbook
+----------------------------------------------------------------------
 
----
+Because this file governs an extremely sensitive process:
 
-## 3. Artefacts to be defined later
+- Every change to this runbook should:
+  - Be committed with a clear message (e.g. "docs: refine mainnet LIVE bootstrap phase 2").
+  - Be tagged with a checkpoint tag (e.g. ckpt-mainnet-bootstrap-live-doc-YYYYMMDD-HHMMSS).
+- No one should run a LIVE bootstrap based on an unreviewed or untagged version.
 
-This DRAFT intentionally leaves the following as TODOs:
+Until then, treat this document as:
 
-- Concrete script filenames for LIVE bootstrap (likely new `ops/` helpers and a
-  dedicated Foundry script).
-- Exact CLI commands (forge, curl, jq, etc.) to be run during each phase.
-- Exact Prometheus metrics and textfile files for “bootstrap_done” and
-  “bootstrap_health”.
-- Specific time windows, notification channels, and human sign-off procedure.
+- A **skeleton outline**, not a procedure.
+- A place to gradually accumulate detail as we converge on mainnet readiness.
 
-These will be filled in once:
-
-- The PLAN pillar is GREEN.
-- The team has finalized the key inventory and human roles.
-- We have completed at least one full rehearsal on a forked chain.
-
----
-
-## 4. Non-goals
-
-This LIVE runbook will **not**:
-
-- Change or redefine the locked PLAN.
-- Cover devnet/testnet bootstraps (those are separate docs/scripts).
-- Replace the governance / update policy; it only references them.
-
----
-
-## 5. Next steps to move this from DRAFT to v1
-
-To promote this doc to a real v1 runbook, we will:
-
-1. Fill in the concrete command sequences for each phase.
-2. Add references to the exact tags/versions of contracts and node.
-3. Add references to the keys inventory and how to verify each address.
-4. Add a mandatory checklist at the end with sign-off fields.
-
-Until then, treat this document as **read-only planning**.
