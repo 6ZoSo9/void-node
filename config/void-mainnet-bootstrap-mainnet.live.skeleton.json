@@ -1,0 +1,42 @@
+{
+  "chainId": 2050,
+
+  "roles": {
+    "deployer":          "ADDRESS_HARDWARE_OPS_1",
+    "treasuryAdmin":     "ADDRESS_HARDWARE_OPS_1",
+    "opsTreasuryAdmin":  "ADDRESS_HARDWARE_OPS_1",
+    "validatorAdmin":    "ADDRESS_HARDWARE_VALIDATOR_1",
+
+    "adminGateOwner":    "ADDRESS_HARDWARE_CORE_1",
+    "updateGateOwner":   "ADDRESS_HARDWARE_CORE_1",
+    "configGateOwner":   "ADDRESS_HARDWARE_CORE_1",
+
+    "treasuryOwner":     "ADDRESS_HARDWARE_OPS_1",
+    "opsTreasuryOwner":  "ADDRESS_HARDWARE_OPS_1",
+    "rewardEngineOwner": "ADDRESS_HARDWARE_OPS_1",
+    "validatorSetOwner": "ADDRESS_HARDWARE_VALIDATOR_1"
+  },
+
+  "contracts": {
+    "updateGate":   "TODO_SET_UPDATEGATE_ADDRESS",
+    "adminGate":    "TODO_SET_ADMINGATE_ADDRESS",
+    "configGate":   "TODO_SET_CONFIGGATE_ADDRESS",
+    "validatorSet": "TODO_SET_VALIDATORSET_ADDRESS",
+
+    "voidToken":    "TODO_SET_VOIDTOKEN_ADDRESS",
+    "premineVault": "TODO_SET_PREMINEVAULT_ADDRESS",
+    "treasury":     "TODO_SET_TREASURY_ADDRESS",
+    "voidTreasury": "TODO_SET_VOIDTREASURY_ADDRESS",
+    "opsTreasury":  "TODO_SET_OPSTREASURY_ADDRESS",
+    "rewardEngine": "TODO_SET_REWARDENGINE_ADDRESS"
+  },
+
+  "validators": [
+    {
+      "index":        0,
+      "reward":       "ADDRESS_HARDWARE_VALIDATOR_1",
+      "consensusKey": "VALIDATOR0_CONSENSUS_KEY",
+      "stakeVOID":    "1000000"
+    }
+  ]
+}

@@ -87,3 +87,6 @@ cache/VoidMainnetBootstrapDevFromJsonDeploy.s.sol/
 # VOID scratch snapshots (local only)
 config/obelisk-mainnet-profile.dev.json.pre-*
 src/index.ts.pre-*
+
+# VOID mainnet PLAN env (local only, never commit)
+config/void-mainnet-plan.env
