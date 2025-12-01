@@ -1,0 +1,11 @@
+{
+  "chainId": 2050,
+  "roles": {
+    "adminGateOwner": "0x5F274dC9F8192e2D62395FA20733605C2A7cB630",
+    "configGateOwner": "0x811aBC026a731A556F14E14da6Cc57f20b740930",
+    "validatorSetOwner": "0x0053Ad9B7D0FA0Ff8249B3CbA5b98011d96Fa4E2",
+    "rewardEngineOwner": "0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7",
+    "treasuryOwner": "0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7",
+    "opsTreasuryOwner": "0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE"
+  }
+}
