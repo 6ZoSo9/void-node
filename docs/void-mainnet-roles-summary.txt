@@ -1,0 +1,39 @@
+# VOID mainnet — roles & validator0 summary
+# Source: config/void-mainnet-bootstrap-mainnet.live.json
+
+chainId = 2050
+
+[core roles]
+deployer            = 0x553dF3F66c43c178046529B5A0DCbe940200fea1
+treasuryAdmin       = 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+opsTreasuryAdmin    = 0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE
+validatorAdmin      = 0x0053Ad9B7D0FA0Ff8249B3CbA5b98011d96Fa4E2
+
+[gate owners]
+adminGateOwner      = 0x5F274dC9F8192e2D62395FA20733605C2A7cB630    # also updateGateOwner
+updateGateOwner     = 0x5F274dC9F8192e2D62395FA20733605C2A7cB630
+configGateOwner     = 0x811aBC026a731A556F14E14da6Cc57f20b740930
+
+[treasury / reward owners]
+treasuryOwner       = 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7     # also treasuryAdmin, rewardAdmin, rewardEngineOwner (per live.json)
+opsTreasuryOwner    = 0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE  # also opsTreasuryAdmin, opsTreasury role
+rewardEngineOwner   = 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+
+[set owners]
+validatorSetOwner   = 0x0053Ad9B7D0FA0Ff8249B3CbA5b98011d96Fa4E2
+
+[ops wiring]
+opsTreasury (role)  = 0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE
+updateGateAdmin     = 0x5F274dC9F8192e2D62395FA20733605C2A7cB630
+configGateAdmin     = 0x811aBC026a731A556F14E14da6Cc57f20b740930
+rewardAdmin         = 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+
+[validator0]
+validator0.reward       = 0xCD49f9AB33573d2067aE56c54D1D1eDF36c65855
+validator0.consensusKey = 0x0000000000000000000000000000000000000000000000000000000000000000
+validator0.stakeVOID    = 1000000
+
+# NOTE:
+# - consensusKey should be a real validator consensus pubkey (bytes32) from LUKS/airgapped flow.
+# - contract addresses (updateGate/adminGate/configGate/validatorSet/voidToken/treasury/etc.)
+#   are still zero at this phase and will be filled in AFTER broadcast.
