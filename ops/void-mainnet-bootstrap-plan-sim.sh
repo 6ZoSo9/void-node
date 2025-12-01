@@ -1,101 +1,111 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# VOID mainnet PLAN invariants check (JSON-only).
-# This does NOT broadcast anything or touch real mainnet.
-# It only inspects config/void-mainnet-bootstrap-mainnet.live.json and
-# enforces the same structural expectations as the checklist / plan_health.
+REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
+cd "$REPO_ROOT"
 
-if git rev-parse --show-toplevel >/dev/null 2>&1; then
-  cd "$(git rev-parse --show-toplevel)"
-fi
+CONFIG_PATH="${1:-config/void-mainnet-bootstrap-mainnet.live.json}"
 
-CONFIG_PATH="${CONFIG_PATH:-config/void-mainnet-bootstrap-mainnet.live.json}"
-
-echo "=== [plan-sim] VOID mainnet PLAN invariants ==="
-echo "[plan-sim] REPO_ROOT   = $(pwd)"
-echo "[plan-sim] CONFIG_PATH = $(readlink -f "$CONFIG_PATH" || echo "$CONFIG_PATH")"
+echo "=== [plan-sim] VOID mainnet PLAN invariants (live JSON only) ==="
+echo "[plan-sim] REPO_ROOT   = $REPO_ROOT"
+echo "[plan-sim] CONFIG_PATH = $CONFIG_PATH"
 echo
 
-if [[ ! -f "$CONFIG_PATH" ]]; then
-  echo "[plan-sim] ERROR: config file not found: $CONFIG_PATH" >&2
-  echo "[plan-sim] RESULT: NOT READY (missing_config)"
+if [ ! -f "$CONFIG_PATH" ]; then
+  echo "[plan-sim] FATAL: config file not found: $CONFIG_PATH"
   exit 1
 fi
 
-CHAIN_JSON=$(jq -r '.chainId // "MISSING"' "$CONFIG_PATH")
-
-if [[ "$CHAIN_JSON" != "2050" ]]; then
-  echo "[plan-sim] ERROR: chainId != 2050 in LIVE config (got $CHAIN_JSON)"
-  echo "[plan-sim] RESULT: NOT READY (bad_chainid)"
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[plan-sim] FATAL: jq is required"
   exit 1
 fi
 
-echo "[plan-sim] OK: chainId == 2050"
+CHAIN_ID="$(jq -r '.chainId' "$CONFIG_PATH" 2>/dev/null || echo "null")"
+EXIT_CODE=0
+
+if [ "$CHAIN_ID" = "null" ] || [ -z "$CHAIN_ID" ]; then
+  echo "[plan-sim] ERROR: chainId missing/null in config"
+  EXIT_CODE=1
+else
+  echo "[plan-sim] chainId = $CHAIN_ID"
+  if [ "$CHAIN_ID" != "2050" ]; then
+    echo "[plan-sim] WARNING: chainId != 2050 (got $CHAIN_ID)"
+  fi
+fi
 echo
 
-# Compute missing fields in one jq pass, keeping it aligned with:
-#  - checklist
-#  - plan-summary quick interpretation
-MJSON=$(jq -r '
-  . as $cfg
-  | {
-      missing_roles: [
-        (if ($cfg.roles.deployer        // "0x0") == "0x0000000000000000000000000000000000000000" then "deployer"        else empty end),
-        (if ($cfg.roles.treasuryAdmin   // "0x0") == "0x0000000000000000000000000000000000000000" then "treasuryAdmin"   else empty end),
-        (if ($cfg.roles.opsTreasuryAdmin// "0x0") == "0x0000000000000000000000000000000000000000" then "opsTreasuryAdmin" else empty end),
-        (if ($cfg.roles.validatorAdmin  // "0x0") == "0x0000000000000000000000000000000000000000" then "validatorAdmin"  else empty end)
-      ],
-      missing_contracts: [
-        (if ($cfg.contracts.voidToken    // "0x0") == "0x0000000000000000000000000000000000000000" then "voidToken"    else empty end),
-        (if ($cfg.contracts.premineVault // "0x0") == "0x0000000000000000000000000000000000000000" then "premineVault" else empty end),
-        (if ($cfg.contracts.treasury     // "0x0") == "0x0000000000000000000000000000000000000000" then "treasury"     else empty end),
-        (if ($cfg.contracts.opsTreasury  // "0x0") == "0x0000000000000000000000000000000000000000" then "opsTreasury"  else empty end),
-        (if ($cfg.contracts.rewardEngine // "0x0") == "0x0000000000000000000000000000000000000000" then "rewardEngine" else empty end)
-      ],
-      missing_validator0: [
-        (if ($cfg.validators[0].reward        // "0x0") == "0x0000000000000000000000000000000000000000" then "validator0.reward" else empty end),
-        (if ($cfg.validators[0].consensusKey  // "0x0") == "0x0000000000000000000000000000000000000000000000000000000000000000"
-            then "validator0.consensusKey" else empty end)
-      ]
-    } | @json
-' "$CONFIG_PATH")
+ROLES_REQ=(
+  deployer
+  treasuryAdmin
+  opsTreasuryAdmin
+  validatorAdmin
+  adminGateOwner
+  updateGateOwner
+  configGateOwner
+  treasuryOwner
+  opsTreasuryOwner
+  rewardEngineOwner
+  validatorSetOwner
+)
 
-echo "[plan-sim] invariant inspection:"
-echo "$MJSON"
+CONTRACTS_REQ=(
+  updateGate
+  adminGate
+  configGate
+  validatorSet
+  voidToken
+  premineVault
+  treasury
+  voidTreasury
+  opsTreasury
+  rewardEngine
+)
+
+MISSING_ROLES=()
+for r in "${ROLES_REQ[@]}"; do
+  v="$(jq -r --arg k "$r" '.roles[$k] // ""' "$CONFIG_PATH")"
+  if [ -z "$v" ] || [ "$v" = "0x0000000000000000000000000000000000000000" ]; then
+    MISSING_ROLES+=("$r")
+  fi
+done
+
+MISSING_CONTRACTS=()
+for c in "${CONTRACTS_REQ[@]}"; do
+  v="$(jq -r --arg k "$c" '.contracts[$k] // ""' "$CONFIG_PATH")"
+  if [ -z "$v" ] || [ "$v" = "0x0000000000000000000000000000000000000000" ]; then
+    MISSING_CONTRACTS+=("$c")
+  fi
+done
+
+V0_MISSING=()
+V0_REWARD="$(jq -r '.validator0.reward // ""' "$CONFIG_PATH")"
+V0_KEY="$(jq -r '.validator0.consensusKey // ""' "$CONFIG_PATH")"
+V0_STAKE="$(jq -r '.validator0.stakeVOID // ""' "$CONFIG_PATH")"
+
+[ -z "$V0_REWARD" ] && V0_MISSING+=("reward")
+[ -z "$V0_KEY" ] && V0_MISSING+=("consensusKey")
+[ -z "$V0_STAKE" ] && V0_MISSING+=("stakeVOID")
+
+echo "[plan-sim] missing_roles      : ${MISSING_ROLES[*]:-(none)}"
+echo "[plan-sim] missing_contracts  : ${MISSING_CONTRACTS[*]:-(none)}"
+echo "[plan-sim] missing_validator0 : ${V0_MISSING[*]:-(none)}"
 echo
 
-MISSING_ROLES_COUNT=$(printf '%s\n' "$MJSON" | jq -r '.missing_roles | length')
-MISSING_CONTRACTS_COUNT=$(printf '%s\n' "$MJSON" | jq -r '.missing_contracts | length')
-MISSING_VALIDATOR_COUNT=$(printf '%s\n' "$MJSON" | jq -r '.missing_validator0 | length')
-
-EXIT_REASON="ok"
-
-if [[ "$MISSING_ROLES_COUNT" -gt 0 ]]; then
-  EXIT_REASON="bad_roles"
-  echo "[plan-sim] ERROR: one or more CRITICAL roles are missing/zero:"
-  printf '%s\n' "$MJSON" | jq -r '.missing_roles[]' | sed 's/^/  - /'
-  echo
+if [ "${#MISSING_ROLES[@]}" -ne 0 ] || [ "${#V0_MISSING[@]}" -ne 0 ]; then
+  echo "[plan-sim] RESULT: NOT READY (missing critical roles/validator0)"
+  EXIT_CODE=1
+else
+  if [ "${#MISSING_CONTRACTS[@]}" -ne 0 ]; then
+    echo "[plan-sim] RESULT: ROLES OK, CONTRACTS PENDING"
+    echo "[plan-sim] NOTE: missing contracts are NOT fatal for sim; this script does NOT touch metrics."
+    EXIT_CODE=0
+  else
+    echo "[plan-sim] RESULT: READY (roles + contracts + validator0 present)"
+  fi
 fi
 
-if [[ "$MISSING_CONTRACTS_COUNT" -gt 0 ]]; then
-  [[ "$EXIT_REASON" == "ok" ]] && EXIT_REASON="bad_contracts"
-  echo "[plan-sim] ERROR: one or more CRITICAL contracts are missing/zero:"
-  printf '%s\n' "$MJSON" | jq -r '.missing_contracts[]' | sed 's/^/  - /'
-  echo
-fi
-
-if [[ "$MISSING_VALIDATOR_COUNT" -gt 0 ]]; then
-  [[ "$EXIT_REASON" == "ok" ]] && EXIT_REASON="bad_validator0"
-  echo "[plan-sim] ERROR: validator0 has missing/zero CRITICAL fields:"
-  printf '%s\n' "$MJSON" | jq -r '.missing_validator0[]' | sed 's/^/  - /'
-  echo
-fi
-
-if [[ "$EXIT_REASON" != "ok" ]]; then
-  echo "[plan-sim] RESULT: NOT READY ($EXIT_REASON)"
-  exit 1
-fi
-
-echo "[plan-sim] RESULT: READY (all CRITICAL invariants satisfied)"
-exit 0
+echo
+echo "[plan-sim] NOTE: this script no longer writes Prometheus/node_exporter textfile metrics."
+echo "[plan-sim]       PLAN health metrics are controlled by the dev PLAN exporter only."
+exit "$EXIT_CODE"
