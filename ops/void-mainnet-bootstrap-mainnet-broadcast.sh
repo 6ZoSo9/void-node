@@ -1,80 +1,113 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# VOID mainnet bootstrap broadcast harness
+# VOID mainnet bootstrap BROADCAST harness
 # Modes:
-#   default / "plan" : no broadcasts, just PLAN + readiness
-#   "run"            : re-check, prompt, then forge script --broadcast
+#   (no args) / plan  -> PLAN summary + readiness only, no txs
+#   run               -> re-check gates, then forge script --broadcast with keystore
 
-cd "$(dirname "$0")/.."
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
-REPO_ROOT="$(pwd)"
 LIVE_CFG="config/void-mainnet-bootstrap-mainnet.live.json"
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+
+# Default keystore location on LUKS USB (can override with VOID_MAINNET_KEYSTORE)
+KEYSTORE_DEFAULT="/media/zoso/VOIDKEY2/void-mainnet-keys/mainnet_deployer.json"
+KEYSTORE="${VOID_MAINNET_KEYSTORE:-$KEYSTORE_DEFAULT}"
+
 MODE="${1:-plan}"
 
 echo "=== [mainnet-broadcast] VOID mainnet bootstrap BROADCAST harness ==="
 echo "[cfg] REPO_ROOT = ${REPO_ROOT}"
 echo "[cfg] LIVE_CFG  = ${LIVE_CFG}"
 echo "[cfg] RPC_URL   = ${RPC_URL}"
+echo "[cfg] KEYSTORE  = ${KEYSTORE}"
 echo "[cfg] MODE      = ${MODE}"
 echo
 
-if [ ! -f "${LIVE_CFG}" ]; then
-  echo "[FATAL] LIVE config ${LIVE_CFG} not found" >&2
+# Basic sanity checks
+if [ ! -f "$LIVE_CFG" ]; then
+  echo "[FATAL] LIVE_CFG not found: $LIVE_CFG"
   exit 1
 fi
 
-# 1) Always show current PLAN summary
+if [ ! -f "$KEYSTORE" ]; then
+  echo "[FATAL] keystore not found: $KEYSTORE"
+  echo "        Is VOIDKEY2 LUKS mounted and void-mainnet-keys present?"
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[FATAL] jq is required but not found in PATH."
+  exit 1
+fi
+
+DEPLOYER="$(jq -r '.roles.deployer' "$LIVE_CFG")"
+if [ -z "${DEPLOYER}" ] || [ "${DEPLOYER}" = "null" ] || [ "${DEPLOYER}" = "0x0000000000000000000000000000000000000000" ]; then
+  echo "[FATAL] Invalid deployer in LIVE_CFG: ${DEPLOYER}"
+  exit 1
+fi
+
+echo "[cfg] DEPLOYER = ${DEPLOYER}"
+echo
+
 echo "---- [1] PLAN summary (live.json) ----"
-./ops/void-mainnet-bootstrap-plan-summary.sh
-echo
+./ops/void-mainnet-bootstrap-plan-summary.sh || {
+  echo
+  echo "[FATAL] plan-summary failed; see output above."
+  exit 1
+}
 
-# 2) Always run readiness gates (PLAN, pillars, lastmile, safeboot, broadcast-gates)
+echo
 echo "---- [2] Mainnet bootstrap readiness (gates) ----"
-./ops/void-mainnet-bootstrap-readiness.sh
-echo
+./ops/void-mainnet-bootstrap-readiness.sh || {
+  echo
+  echo "[FATAL] readiness script failed; see output above."
+  exit 1
+}
 
-if [ "${MODE}" != "run" ]; then
+if [ "$MODE" != "run" ]; then
+  echo
   echo "[broadcast] MODE != run -> PLAN/READINESS ONLY (no txs sent)."
   echo "[broadcast] To actually broadcast, run:"
-  echo "  ./ops/void-mainnet-bootstrap-mainnet-broadcast.sh run"
+  echo "  $0 run"
   exit 0
 fi
 
-echo "---- [3] FINAL CONFIRMATION ----"
-echo "You are about to broadcast VOID mainnet bootstrap transactions to:"
-echo "  RPC_URL = ${RPC_URL}"
 echo
-echo "Make sure:"
-echo "  - RPC_URL points at the REAL VOID mainnet endpoint you control."
-echo "  - VOID mainnet node is healthy and at the expected genesis/height."
-echo "  - VOIDKEY2 (or equivalent) is mounted ONLY on this trusted machine."
-echo "  - Foundry is configured so the deployer account matches:"
-echo "      deployer = 0x553dF3F66c43c178046529B5A0DCbe940200fea1"
+echo "==== [RUN MODE] LIVE BROADCAST ABOUT TO HAPPEN ==== "
+echo "Deployer address (from LIVE_CFG): ${DEPLOYER}"
+echo "RPC URL: ${RPC_URL}"
+echo "Keystore: ${KEYSTORE}"
 echo
-read -r -p "Type EXACTLY 'VOID-MAINNET' to confirm broadcast: " CONFIRM
-if [ "${CONFIRM}" != "VOID-MAINNET" ]; then
-  echo "[broadcast] Confirmation mismatch; aborting."
+echo "This will:"
+echo "  - Use forge script with --keystore (encrypted JSON on VOIDKEY2)"
+echo "  - Prompt you for the keystore password"
+echo "  - Send LIVE VOID mainnet bootstrap txs to chainId 2050 via ${RPC_URL}"
+echo
+echo "If ANY of this looks wrong: Ctrl-C NOW."
+echo
+
+read -r -p "Type 'VOID-ARMED' to continue with LIVE broadcast: " CONFIRM
+if [ "${CONFIRM}" != "VOID-ARMED" ]; then
+  echo "[broadcast] Confirmation failed; aborting."
   exit 1
 fi
 
 echo
-echo "---- [4] forge script broadcast ----"
-echo "[broadcast] Executing VoidMainnetBootstrapMainnet::run against ${RPC_URL}"
-echo
-
-# NOTE: This assumes Foundry is configured so that the correct deployer
-# key is used (via keystore, hardware wallet, or other secure method).
+echo "---- [3] forge script LIVE RUN (with keystore + broadcast) ----"
+set -x
 forge script script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \
   --rpc-url "${RPC_URL}" \
   --broadcast \
-  --slow \
+  --sender "${DEPLOYER}" \
+  --keystore "${KEYSTORE}" \
   --sig "run(string)" "${LIVE_CFG}"
+set +x
 
 echo
-echo "---- [5] POST-BROADCAST REMINDERS ----"
-echo "- Verify deployed contract addresses against the PLAN/dev rehearsal."
-echo "- Update your LIVE JSON with the actual on-chain addresses (if needed)."
-echo "- Re-run any post-boot health scripts and Prometheus checks."
-echo "- Unmount and remove VOIDKEY2 when finished."
+echo "==== [DONE] forge script exited successfully (no set -e abort) ===="
+echo "Next steps:"
+echo "  - Verify contracts on chain (AdminGate/UpdateGate/ConfigGate/VoidToken/Treasury/RewardEngine/etc.)"
+echo "  - Update docs with deployed addresses and tx hashes."
