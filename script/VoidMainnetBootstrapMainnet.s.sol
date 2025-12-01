@@ -208,7 +208,47 @@ contract VoidMainnetBootstrapMainnet is Script {
             revert("VoidMainnetBootstrapMainnet: chainId mismatch (PLAN)");
         }
 
-        // 3) Log a basic summary so we can see what the config looks like.
+        // 3) Validate critical invariants for PLAN.
+        {
+            bool anyZero =
+                cfg.roles.deployer == address(0) ||
+                cfg.roles.treasuryAdmin == address(0) ||
+                cfg.roles.opsTreasuryAdmin == address(0) ||
+                cfg.roles.validatorAdmin == address(0) ||
+                cfg.roles.adminGateOwner == address(0) ||
+                cfg.roles.updateGateOwner == address(0) ||
+                cfg.roles.configGateOwner == address(0) ||
+                cfg.roles.treasuryOwner == address(0) ||
+                cfg.roles.opsTreasuryOwner == address(0) ||
+                cfg.roles.rewardEngineOwner == address(0) ||
+                cfg.roles.validatorSetOwner == address(0);
+
+            if (anyZero) {
+                revert("VoidMainnetBootstrapMainnet: zero address in critical roles (PLAN)");
+            }
+
+            if (cfg.validator0.stakeVOID == 0) {
+                revert("VoidMainnetBootstrapMainnet: validator0 stakeVOID must be > 0 (PLAN)");
+            }
+
+            bool contractsPrefilled =
+                cfg.contracts.updateGate != address(0) ||
+                cfg.contracts.adminGate != address(0) ||
+                cfg.contracts.configGate != address(0) ||
+                cfg.contracts.validatorSet != address(0) ||
+                cfg.contracts.voidToken != address(0) ||
+                cfg.contracts.premineVault != address(0) ||
+                cfg.contracts.treasury != address(0) ||
+                cfg.contracts.voidTreasury != address(0) ||
+                cfg.contracts.opsTreasury != address(0) ||
+                cfg.contracts.rewardEngine != address(0);
+
+            if (contractsPrefilled) {
+                revert("VoidMainnetBootstrapMainnet: contracts.* must be zeroed pre-broadcast (PLAN)");
+            }
+        }
+
+        // 4) Log a basic summary so we can see what the config looks like.
         console2.log("=== [VOID mainnet bootstrap mainnet PLAN] ===");
         console2.log("  runtime chainId :", block.chainid);
         console2.log("  config  chainId :", cfg.chainId);
