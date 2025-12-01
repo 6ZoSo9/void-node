@@ -1,0 +1,395 @@
+[ceremony-sheet] === [ceremony-sheet] VOID mainnet bootstrap — ceremony sheet ===
+[ceremony-sheet] Generated: 2025-11-30T21:39:25-06:00
+[ceremony-sheet] 
+[ceremony-sheet] ---- [1] PLAN summary (live.json) ----
+[ceremony-sheet] === [VOID mainnet PLAN summary] live.json ===
+[ceremony-sheet] chainId: 2050
+[ceremony-sheet] 
+[ceremony-sheet] === [roles] ===
+[ceremony-sheet]   deployer : 0x553dF3F66c43c178046529B5A0DCbe940200fea1
+[ceremony-sheet]   treasuryAdmin : 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+[ceremony-sheet]   opsTreasuryAdmin : 0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE
+[ceremony-sheet]   validatorAdmin : 0x0053Ad9B7D0FA0Ff8249B3CbA5b98011d96Fa4E2
+[ceremony-sheet]   adminGateOwner : 0x5F274dC9F8192e2D62395FA20733605C2A7cB630
+[ceremony-sheet]   updateGateOwner : 0x5F274dC9F8192e2D62395FA20733605C2A7cB630
+[ceremony-sheet]   configGateOwner : 0x811aBC026a731A556F14E14da6Cc57f20b740930
+[ceremony-sheet]   treasuryOwner : 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+[ceremony-sheet]   opsTreasuryOwner : 0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE
+[ceremony-sheet]   rewardEngineOwner : 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+[ceremony-sheet]   validatorSetOwner : 0x0053Ad9B7D0FA0Ff8249B3CbA5b98011d96Fa4E2
+[ceremony-sheet]   opsTreasury : 0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE
+[ceremony-sheet]   updateGateAdmin : 0x5F274dC9F8192e2D62395FA20733605C2A7cB630
+[ceremony-sheet]   configGateAdmin : 0x811aBC026a731A556F14E14da6Cc57f20b740930
+[ceremony-sheet]   rewardAdmin : 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+[ceremony-sheet] 
+[ceremony-sheet] === [contracts] ===
+[ceremony-sheet]   updateGate : 0x0000000000000000000000000000000000000000
+[ceremony-sheet]   adminGate : 0x0000000000000000000000000000000000000000
+[ceremony-sheet]   configGate : 0x0000000000000000000000000000000000000000
+[ceremony-sheet]   validatorSet : 0x0000000000000000000000000000000000000000
+[ceremony-sheet]   voidToken : 0x0000000000000000000000000000000000000000
+[ceremony-sheet]   voidTreasury : 0x0000000000000000000000000000000000000000
+[ceremony-sheet]   opsTreasury : 0x0000000000000000000000000000000000000000
+[ceremony-sheet]   rewardEngine : 0x0000000000000000000000000000000000000000
+[ceremony-sheet]   premineVault : 0x0000000000000000000000000000000000000000
+[ceremony-sheet]   treasury : 0x0000000000000000000000000000000000000000
+[ceremony-sheet] 
+[ceremony-sheet] === [validator0] ===
+[ceremony-sheet]   reward       : 0xCD49f9AB33573d2067aE56c54D1D1eDF36c65855
+[ceremony-sheet]   consensusKey : 0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540
+[ceremony-sheet]   stakeVOID    : 1000000
+[ceremony-sheet] 
+[ceremony-sheet] ---- [2] Mainnet bootstrap readiness (gates) ----
+[ceremony-sheet] === [mainnet-bootstrap-readiness] VOID mainnet bootstrap readiness ===
+[ceremony-sheet] [cfg] REPO_ROOT = /home/zoso/dev/void-node
+[ceremony-sheet] [cfg] PROM_URL  = http://127.0.0.1:9090
+[ceremony-sheet] 
+[ceremony-sheet] === [1] LIVE PLAN invariants (plan-sim JSON-only) ===
+[ceremony-sheet] === [plan-sim] VOID mainnet PLAN invariants (live JSON only) ===
+[ceremony-sheet] [plan-sim] REPO_ROOT   = /home/zoso/dev/void-node
+[ceremony-sheet] [plan-sim] CONFIG_PATH = config/void-mainnet-bootstrap-mainnet.live.json
+[ceremony-sheet] 
+[ceremony-sheet] [plan-sim] chainId = 2050
+[ceremony-sheet] 
+[ceremony-sheet] [plan-sim] missing_roles      : (none)
+[ceremony-sheet] [plan-sim] missing_contracts  : updateGate adminGate configGate validatorSet voidToken premineVault treasury voidTreasury opsTreasury rewardEngine
+[ceremony-sheet] [plan-sim] missing_validator0 : (none)
+[ceremony-sheet] 
+[ceremony-sheet] [plan-sim] RESULT: ROLES OK, CONTRACTS PENDING
+[ceremony-sheet] [plan-sim] NOTE: missing contracts are NOT fatal for sim; this script does NOT touch metrics.
+[ceremony-sheet] 
+[ceremony-sheet] [plan-sim] NOTE: this script no longer writes Prometheus/node_exporter textfile metrics.
+[ceremony-sheet] [plan-sim]       PLAN health metrics are controlled by the dev PLAN exporter only.
+[ceremony-sheet] [readiness] plan-sim: OK
+[ceremony-sheet] 
+[ceremony-sheet] === [2] mainnet health gates (health-all) ===
+[ceremony-sheet] [mainnet-health-all] PROM_URL=http://127.0.0.1:9090
+[ceremony-sheet] 
+[ceremony-sheet] [mainnet-health-all] step 0: ensure PLAN textfile + dev rehearsal are fresh...
+[ceremony-sheet] === [plan-assert] VOID mainnet bootstrap PLAN assertion (textfile-based) ===
+[ceremony-sheet] 
+[ceremony-sheet] [1] running PLAN exporter (dev rehearsal + textfile write)...
+[ceremony-sheet] === [plan-health] VOID mainnet bootstrap PLAN exporter ===
+[ceremony-sheet] [plan-health] REPO         = /home/zoso/dev/void-node
+[ceremony-sheet] [plan-health] TEXTFILE_DIR = /var/lib/node_exporter/textfile_collector
+[ceremony-sheet] [plan-health] OUT          = /var/lib/node_exporter/textfile_collector/void_mainnet_bootstrap_plan.prom
+[ceremony-sheet] 
+[ceremony-sheet] [plan-health] running dev PLAN rehearsal (no broadcasts)...
+[ceremony-sheet] === [dev-plan] VOID mainnet DEV PLAN rehearsal ===
+[ceremony-sheet] [dev-plan] DEV_CFG = config/void-mainnet-bootstrap-mainnet.dev.json
+[ceremony-sheet] [dev-plan] RPC_URL = http://127.0.0.1:8545
+[ceremony-sheet] 
+[ceremony-sheet] [dev-plan] running forge script PLAN (no broadcasts)...
+[ceremony-sheet] No files changed, compilation skipped
+[ceremony-sheet] Traces:
+[ceremony-sheet]   [177930] VoidMainnetBootstrapMainnet::plan("config/void-mainnet-bootstrap-mainnet.dev.json")
+[ceremony-sheet]     ├─ [0] VM::readFile("config/void-mainnet-bootstrap-mainnet.dev.json") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] <file>
+[ceremony-sheet]     ├─ [0] VM::parseJsonUint("<stringified JSON>", ".chainId") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 2050
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.deployer") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0x8734FB98fE537f7cEc56B6179401C35fabFa4a2e
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.treasuryAdmin") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xAe0f36fE1CfBC30e45bbbda924CFC65627CDa368
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.opsTreasuryAdmin") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xb2eab6b7099F486932F08Ab13DB5572390C4D875
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.validatorAdmin") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xe462edC10aC87559Aa4D68fd49d318B28085A857
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.adminGateOwner") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.updateGateOwner") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xA3Faa00cEE0ccC706eD7f4Da6422299c40217AED
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.configGateOwner") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xcfa48eCb0a87C7DF74F5D295A19d86d6C1d49c01
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.treasuryOwner") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.opsTreasuryOwner") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0x91285c825f5397f7a64d4F79127BC3f96c0BCfa3
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.rewardEngineOwner") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xB6148C169f7CD73815bd65806d353dE274361eBe
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.validatorSetOwner") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0x07b6f37782D9F1EE5a28E90d3CbfCb7C90836a17
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.updateGate") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.adminGate") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.configGate") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xcfa48eCb0a87C7DF74F5D295A19d86d6C1d49c01
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.validatorSet") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0x07b6f37782D9F1EE5a28E90d3CbfCb7C90836a17
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.voidToken") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.premineVault") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.treasury") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.voidTreasury") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.opsTreasury") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0x91285c825f5397f7a64d4F79127BC3f96c0BCfa3
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.rewardEngine") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0xB6148C169f7CD73815bd65806d353dE274361eBe
+[ceremony-sheet]     ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".validator0.reward") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0x8734FB98fE537f7cEc56B6179401C35fabFa4a2e
+[ceremony-sheet]     ├─ [0] VM::parseJsonBytes32("<stringified JSON>", ".validator0.consensusKey") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 0x0101010101010101010101010101010101010101010101010101010101010101
+[ceremony-sheet]     ├─ [0] VM::parseJsonUint("<stringified JSON>", ".validator0.stakeVOID") [staticcall]
+[ceremony-sheet]     │   └─ ← [Return] 1000000 [1e6]
+[ceremony-sheet]     ├─ [0] console::log("=== [VOID mainnet bootstrap mainnet PLAN] ===") [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  runtime chainId :", 2050) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  config  chainId :", 2050) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  chainId sanity OK; parsed config view (PLAN).") [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("=== [roles] ===") [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  deployer          :", 0x8734FB98fE537f7cEc56B6179401C35fabFa4a2e) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  treasuryAdmin     :", 0xAe0f36fE1CfBC30e45bbbda924CFC65627CDa368) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  opsTreasuryAdmin  :", 0xb2eab6b7099F486932F08Ab13DB5572390C4D875) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  validatorAdmin    :", 0xe462edC10aC87559Aa4D68fd49d318B28085A857) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  adminGateOwner    :", 0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  updateGateOwner   :", 0xA3Faa00cEE0ccC706eD7f4Da6422299c40217AED) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  configGateOwner   :", 0xcfa48eCb0a87C7DF74F5D295A19d86d6C1d49c01) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  treasuryOwner     :", 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  opsTreasuryOwner  :", 0x91285c825f5397f7a64d4F79127BC3f96c0BCfa3) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  rewardEngineOwner :", 0xB6148C169f7CD73815bd65806d353dE274361eBe) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  validatorSetOwner :", 0x07b6f37782D9F1EE5a28E90d3CbfCb7C90836a17) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("=== [contracts] ===") [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  updateGate   :", 0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  adminGate    :", 0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  configGate   :", 0xcfa48eCb0a87C7DF74F5D295A19d86d6C1d49c01) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  validatorSet :", 0x07b6f37782D9F1EE5a28E90d3CbfCb7C90836a17) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  voidToken    :", 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  premineVault :", 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  treasury     :", 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  voidTreasury :", 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  opsTreasury  :", 0x91285c825f5397f7a64d4F79127BC3f96c0BCfa3) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  rewardEngine :", 0xB6148C169f7CD73815bd65806d353dE274361eBe) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("=== [validator0] ===") [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  reward       :", 0x8734FB98fE537f7cEc56B6179401C35fabFa4a2e) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log(0x0101010101010101010101010101010101010101010101010101010101010101) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  stakeVOID    :", 1000000 [1e6]) [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     ├─ [0] console::log("  PLAN mode: no broadcasts, no state changes, no deployments.") [staticcall]
+[ceremony-sheet]     │   └─ ← [Stop]
+[ceremony-sheet]     └─ ← [Return]
+[ceremony-sheet] 
+[ceremony-sheet] 
+[ceremony-sheet] Script ran successfully.
+[ceremony-sheet] 
+[ceremony-sheet] == Logs ==
+[ceremony-sheet]   === [VOID mainnet bootstrap mainnet PLAN] ===
+[ceremony-sheet]     runtime chainId : 2050
+[ceremony-sheet]     config  chainId : 2050
+[ceremony-sheet]     chainId sanity OK; parsed config view (PLAN).
+[ceremony-sheet]   === [roles] ===
+[ceremony-sheet]     deployer          : 0x8734FB98fE537f7cEc56B6179401C35fabFa4a2e
+[ceremony-sheet]     treasuryAdmin     : 0xAe0f36fE1CfBC30e45bbbda924CFC65627CDa368
+[ceremony-sheet]     opsTreasuryAdmin  : 0xb2eab6b7099F486932F08Ab13DB5572390C4D875
+[ceremony-sheet]     validatorAdmin    : 0xe462edC10aC87559Aa4D68fd49d318B28085A857
+[ceremony-sheet]     adminGateOwner    : 0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3
+[ceremony-sheet]     updateGateOwner   : 0xA3Faa00cEE0ccC706eD7f4Da6422299c40217AED
+[ceremony-sheet]     configGateOwner   : 0xcfa48eCb0a87C7DF74F5D295A19d86d6C1d49c01
+[ceremony-sheet]     treasuryOwner     : 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9
+[ceremony-sheet]     opsTreasuryOwner  : 0x91285c825f5397f7a64d4F79127BC3f96c0BCfa3
+[ceremony-sheet]     rewardEngineOwner : 0xB6148C169f7CD73815bd65806d353dE274361eBe
+[ceremony-sheet]     validatorSetOwner : 0x07b6f37782D9F1EE5a28E90d3CbfCb7C90836a17
+[ceremony-sheet]   === [contracts] ===
+[ceremony-sheet]     updateGate   : 0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3
+[ceremony-sheet]     adminGate    : 0xea7f2F94d5Ee324D2B746C640CCc7c9647F246e3
+[ceremony-sheet]     configGate   : 0xcfa48eCb0a87C7DF74F5D295A19d86d6C1d49c01
+[ceremony-sheet]     validatorSet : 0x07b6f37782D9F1EE5a28E90d3CbfCb7C90836a17
+[ceremony-sheet]     voidToken    : 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9
+[ceremony-sheet]     premineVault : 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9
+[ceremony-sheet]     treasury     : 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9
+[ceremony-sheet]     voidTreasury : 0xfcFD9F34FdC8179fFE7Fe23C4A572eBc52c1cDc9
+[ceremony-sheet]     opsTreasury  : 0x91285c825f5397f7a64d4F79127BC3f96c0BCfa3
+[ceremony-sheet]     rewardEngine : 0xB6148C169f7CD73815bd65806d353dE274361eBe
+[ceremony-sheet]   === [validator0] ===
+[ceremony-sheet]     reward       : 0x8734FB98fE537f7cEc56B6179401C35fabFa4a2e
+[ceremony-sheet]   0x0101010101010101010101010101010101010101010101010101010101010101
+[ceremony-sheet]     stakeVOID    : 1000000
+[ceremony-sheet]     PLAN mode: no broadcasts, no state changes, no deployments.
+[ceremony-sheet] 
+[ceremony-sheet] === [dev-plan] RESULT: PLAN rehearsal completed (no state changes) ===
+[ceremony-sheet] If this exits 0, your dev PLAN config is structurally sound.
+[ceremony-sheet] [plan-health] dev PLAN rehearsal OK (exit=0)
+[ceremony-sheet] 
+[ceremony-sheet] [plan-health] ensuring textfile dir exists (sudo may prompt)...
+[ceremony-sheet] [plan-health] writing metric to /var/lib/node_exporter/textfile_collector/void_mainnet_bootstrap_plan.prom (sudo tee)...
+[ceremony-sheet] [plan-health] done. Current value: 1 (reason=ok)
+[ceremony-sheet] [plan-health] You can inspect Prometheus via:
+[ceremony-sheet]   curl -fsS "http://127.0.0.1:9090/api/v1/query?query=void_mainnet_bootstrap_plan_health" | jq '.data.result'
+[ceremony-sheet] 
+[ceremony-sheet] [2] reading current textfile collector metric (sudo)...
+[ceremony-sheet] [plan-assert] contents of /var/lib/node_exporter/textfile_collector/void_mainnet_bootstrap_plan.prom:
+[ceremony-sheet] # HELP void_mainnet_bootstrap_plan_configured Is mainnet bootstrap plan structurally configured (config JSON sane)?
+[ceremony-sheet] # TYPE void_mainnet_bootstrap_plan_configured gauge
+[ceremony-sheet] void_mainnet_bootstrap_plan_configured 1
+[ceremony-sheet] 
+[ceremony-sheet] # HELP void_mainnet_bootstrap_plan_health Are all critical roles/contracts/validator0 fields wired for mainnet bootstrap?
+[ceremony-sheet] # TYPE void_mainnet_bootstrap_plan_health gauge
+[ceremony-sheet] void_mainnet_bootstrap_plan_health 1
+[ceremony-sheet] 
+[ceremony-sheet] # HELP void_mainnet_bootstrap_plan_health_info Info about VOID mainnet bootstrap PLAN readiness
+[ceremony-sheet] # TYPE void_mainnet_bootstrap_plan_health_info gauge
+[ceremony-sheet] void_mainnet_bootstrap_plan_health_info{reason="ok"} 1
+[ceremony-sheet] 
+[ceremony-sheet] [3] extracting void_mainnet_bootstrap_plan_health from textfile...
+[ceremony-sheet] [plan-assert] parsed value from textfile: 1
+[ceremony-sheet] 
+[ceremony-sheet] [plan-assert] RESULT: OK (dev PLAN + textfile metric both healthy)
+[ceremony-sheet] 
+[ceremony-sheet] [4] optional: node_exporter /metrics view (for info only, NOT a gate)...
+[ceremony-sheet] void_mainnet_bootstrap_plan_configured 1
+[ceremony-sheet] void_mainnet_bootstrap_plan_health 1
+[ceremony-sheet] void_mainnet_bootstrap_plan_health_info{reason="ok"} 1
+[ceremony-sheet] 
+[ceremony-sheet] [plan-assert] NOTE: /metrics values are informational only; gating uses the textfile.
+[ceremony-sheet] 
+[ceremony-sheet] [mainnet-health-all] step 1: pull core health scalars from Prometheus...
+[ceremony-sheet] 
+[ceremony-sheet] >>> void:mainnet_overall:health:last_5m_v2
+[ceremony-sheet] {"value": "1"}
+[ceremony-sheet] 
+[ceremony-sheet] >>> void:mainnet_pillars:health:last_5m
+[ceremony-sheet] {"value": "1"}
+[ceremony-sheet] 
+[ceremony-sheet] >>> void:mainnet_lastmile:health:last_5m
+[ceremony-sheet] {"value": "1"}
+[ceremony-sheet] 
+[ceremony-sheet] >>> void:mainnet_lastmile_health:last
+[ceremony-sheet] {"value": "1"}
+[ceremony-sheet] 
+[ceremony-sheet] >>> void_safeboot_overall_health
+[ceremony-sheet] {"value": "1"}
+[ceremony-sheet] 
+[ceremony-sheet] >>> void_mainnet_bootstrap_plan_health
+[ceremony-sheet] {"value": "1"}
+[ceremony-sheet] 
+[ceremony-sheet] >>> void:mainnet_bootstrap_plan:health:last_5m
+[ceremony-sheet] {"value": "1"}
+[ceremony-sheet] 
+[ceremony-sheet] [mainnet-health-all] step 2: derive PLAN raw from node_exporter /metrics (textfile truth)...
+[ceremony-sheet] 
+[ceremony-sheet] === [gating scalars] ===
+[ceremony-sheet] overall_5m=1
+[ceremony-sheet] pillars_5m=1
+[ceremony-sheet] lastmile_5m=1
+[ceremony-sheet] lastmile_raw=1
+[ceremony-sheet] safeboot_overall=1
+[ceremony-sheet] plan_raw=1
+[ceremony-sheet] plan_prom_raw=1
+[ceremony-sheet] plan_5m=1 (info-only)
+[ceremony-sheet] 
+[ceremony-sheet] [mainnet-health-all] RESULT: OK (all gates passed)
+[ceremony-sheet] [readiness] mainnet-health-all: OK
+[ceremony-sheet] 
+[ceremony-sheet] === [3] broadcast gates aggregator ===
+[ceremony-sheet] === [broadcast-gates] VOID mainnet bootstrap broadcast eligibility ===
+[ceremony-sheet] [cfg] PROM_URL    = http://127.0.0.1:9090
+[ceremony-sheet] [cfg] PHASE_FILE  = /var/lib/node_exporter/textfile_collector/void_mainnet_bootstrap_phase.prom
+[ceremony-sheet] [cfg] PLAN_FILE   = /var/lib/node_exporter/textfile_collector/void_mainnet_bootstrap_plan.prom
+[ceremony-sheet] 
+[ceremony-sheet] === [inputs] ===
+[ceremony-sheet] phase_code         = 2 (phase="B", reason="keys_locked_live_final")
+[ceremony-sheet] plan_raw           = 1   (reason="ok")
+[ceremony-sheet] overall_5m         = 1
+[ceremony-sheet] pillars_5m         = 1
+[ceremony-sheet] lastmile_5m        = 1
+[ceremony-sheet] safeboot_overall   = 1
+[ceremony-sheet] 
+[ceremony-sheet] === [checks] ===
+[ceremony-sheet] phase      (B / keys_locked_live_final) : 1
+[ceremony-sheet] plan       (textfile == 1, reason=ok)   : 1
+[ceremony-sheet] overall_5m (devnet+core+lastmile)       : 1
+[ceremony-sheet] pillars_5m (devnet+core+manifest+safe)  : 1
+[ceremony-sheet] lastmile_5m                              : 1
+[ceremony-sheet] safeboot_overall                         : 1
+[ceremony-sheet] 
+[ceremony-sheet] === [result] ===
+[ceremony-sheet] [broadcast-gates] ELIGIBLE_TO_ARM=1
+[ceremony-sheet] [broadcast-gates] All broadcast preconditions satisfied. This does NOT broadcast; it only says the gates are green.
+[ceremony-sheet] [readiness] broadcast-gates: OK (ELIGIBLE_TO_ARM should be 1)
+[ceremony-sheet] 
+[ceremony-sheet] === [4] PLAN textfile truth (/var/lib/node_exporter/textfile_collector/void_mainnet_bootstrap_plan.prom) ===
+[ceremony-sheet] # HELP void_mainnet_bootstrap_plan_configured Is mainnet bootstrap plan structurally configured (config JSON sane)?
+[ceremony-sheet] # TYPE void_mainnet_bootstrap_plan_configured gauge
+[ceremony-sheet] void_mainnet_bootstrap_plan_configured 1
+[ceremony-sheet] 
+[ceremony-sheet] # HELP void_mainnet_bootstrap_plan_health Are all critical roles/contracts/validator0 fields wired for mainnet bootstrap?
+[ceremony-sheet] # TYPE void_mainnet_bootstrap_plan_health gauge
+[ceremony-sheet] void_mainnet_bootstrap_plan_health 1
+[ceremony-sheet] 
+[ceremony-sheet] # HELP void_mainnet_bootstrap_plan_health_info Info about VOID mainnet bootstrap PLAN readiness
+[ceremony-sheet] # TYPE void_mainnet_bootstrap_plan_health_info gauge
+[ceremony-sheet] void_mainnet_bootstrap_plan_health_info{reason="ok"} 1
+[ceremony-sheet] 
+[ceremony-sheet] === [5] summary ===
+[ceremony-sheet]   plan-sim rc        = 0
+[ceremony-sheet]   mainnet-health rc  = 0
+[ceremony-sheet]   broadcast-gates rc = 0
+[ceremony-sheet] 
+[ceremony-sheet] [readiness] RESULT: READY-TO-ARM (all software gates green; broadcast script still hard-disabled)
+[ceremony-sheet] 
+[ceremony-sheet] ---- [3] Operator notes (keys & devices) ----
+[ceremony-sheet] Keys & devices (high-level; no secrets):
+[ceremony-sheet] 
+[ceremony-sheet] - Mainnet roles & validator0 come from:
+[ceremony-sheet]     LUKS device: VOIDKEY2
+[ceremony-sheet]     Mount path used during setup: /media/zoso/VOIDKEY2
+[ceremony-sheet]     Directory: /media/zoso/VOIDKEY2/void-mainnet-keys
+[ceremony-sheet] 
+[ceremony-sheet] - Files present on the LUKS stick (for reference):
+[ceremony-sheet]     void-mainnet-keys/mainnet_deployer.json
+[ceremony-sheet]     void-mainnet-keys/void_treasury_admin.json
+[ceremony-sheet]     void-mainnet-keys/void_ops_treasury_admin.json
+[ceremony-sheet]     void-mainnet-keys/void_update_master.json
+[ceremony-sheet]     void-mainnet-keys/void_update_signer_1.json
+[ceremony-sheet]     void-mainnet-keys/void_config_admin.json
+[ceremony-sheet]     void-mainnet-keys/void_validatorset_owner.json
+[ceremony-sheet]     void-mainnet-keys/void_validator0_reward.json
+[ceremony-sheet]     void-mainnet-keys/void_validator0_consensus_key.txt
+[ceremony-sheet] 
+[ceremony-sheet] - validator0 consensusKey wired into LIVE PLAN:
+[ceremony-sheet]     .validator0.consensusKey = 0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540
+[ceremony-sheet] 
+[ceremony-sheet] - USB state at end of setup:
+[ceremony-sheet]     - VOIDKEY2 filesystem unmounted on the laptop.
+[ceremony-sheet]     - LUKS volume closed after use.
+[ceremony-sheet]     - Stick removed and stored offline.
+[ceremony-sheet] 
+[ceremony-sheet] Safety notes for future mainnet broadcast:
+[ceremony-sheet] - Do NOT plug VOIDKEY2 into any untrusted machine.
+[ceremony-sheet] - Do NOT commit any *.json, *.key, *.mnemonic, *.seed from the stick into git.
+[ceremony-sheet] - Before broadcast day:
+[ceremony-sheet]     - Re-mount the LUKS only on a trusted machine.
+[ceremony-sheet]     - Re-run readiness scripts and compare to this sheet.
+[ceremony-sheet]     - Verify addresses on hardware wallets (if used) match live.json roles.
