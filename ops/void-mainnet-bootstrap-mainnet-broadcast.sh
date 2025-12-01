@@ -1,78 +1,80 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-#
-# ops/void-mainnet-bootstrap-mainnet-broadcast.sh
-#
-# HARD-DISABLED SKELETON for the REAL VOID mainnet bootstrap broadcast.
-#
-# This script must NOT be enabled or edited casually.
-# Only touch it after:
-#   - Real mainnet keys ceremony is complete (LUKS / hardware).
-#   - config/void-mainnet-bootstrap-mainnet.live.json is fully populated
-#     with FINAL public addresses (no 0x0000..., no 0x1111... sentinels).
-#   - You have double-checked the PLAN via:
-#         ops/void-mainnet-bootstrap-plan-dev.sh
-#         ops/void-mainnet-bootstrap-plan-live.sh
-#   - All mainnet health / pillars / plan gates are green.
-#
+# VOID mainnet bootstrap broadcast harness
+# Modes:
+#   default / "plan" : no broadcasts, just PLAN + readiness
+#   "run"            : re-check, prompt, then forge script --broadcast
 
-REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
-LIVE_CFG="${LIVE_CFG:-config/void-mainnet-bootstrap-mainnet.live.json}"
+cd "$(dirname "$0")/.."
+
+REPO_ROOT="$(pwd)"
+LIVE_CFG="config/void-mainnet-bootstrap-mainnet.live.json"
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+MODE="${1:-plan}"
 
-cd "$REPO_ROOT"
-
-echo "=== [mainnet-broadcast] VOID mainnet bootstrap BROADCAST skeleton ==="
-echo "[broadcast] REPO_ROOT = $REPO_ROOT"
-echo "[broadcast] LIVE_CFG  = $LIVE_CFG"
-echo "[broadcast] RPC_URL   = $RPC_URL"
+echo "=== [mainnet-broadcast] VOID mainnet bootstrap BROADCAST harness ==="
+echo "[cfg] REPO_ROOT = ${REPO_ROOT}"
+echo "[cfg] LIVE_CFG  = ${LIVE_CFG}"
+echo "[cfg] RPC_URL   = ${RPC_URL}"
+echo "[cfg] MODE      = ${MODE}"
 echo
 
-echo "[broadcast][FATAL] This script is intentionally DISABLED."
-echo "[broadcast][FATAL] Do NOT enable until:"
-echo "  - Real mainnet keys are generated and stored safely (LUKS / hardware)."
-echo "  - LIVE JSON has FINAL public addresses, no sentinels."
-echo "  - We have walked the PLAN (dev + live) and signed off on it."
-echo
-echo "[broadcast][FATAL] When the time comes, we will:"
-echo "  1) Rehearse with plan() (no broadcasts) against LIVE JSON."
-echo "  2) Print a human-readable step-by-step bootstrap plan."
-echo "  3) ONLY THEN wire in run() + --broadcast, with explicit flags."
-echo
-exit 1
+if [ ! -f "${LIVE_CFG}" ]; then
+  echo "[FATAL] LIVE config ${LIVE_CFG} not found" >&2
+  exit 1
+fi
 
-# ---------------------------------------------------------------------------
-# FUTURE-ONLY (commented) SKETCH — DO NOT UNCOMMENT YET
-# ---------------------------------------------------------------------------
-#
-# echo "[broadcast] sanity: reading chainId from RPC..."
-# if command -v cast >/dev/null 2>&1; then
-#   CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null || echo "ERR")"
-# else
-#   CHAIN_ID="ERR"
-# fi
-#
-# if [ "$CHAIN_ID" != "2050" ]; then
-#   echo "[broadcast][FATAL] RPC chainId is not 2050 (got: $CHAIN_ID)" >&2
-#   exit 1
-# fi
-#
-# echo "[broadcast] dry PLAN rehearsal against LIVE JSON (no broadcasts)..."
-# forge script \
-#   script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \
-#   --rpc-url "$RPC_URL" \
-#   --sig "plan(string)" "$LIVE_CFG"
-#
-# echo
-# echo "[broadcast] *** LAST CHANCE TO ABORT ***"
-# echo "[broadcast] When ready, the real broadcast step will look roughly like:"
-# echo
-# echo "  forge script \\"
-# echo "    script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \\"
-# echo "    --rpc-url \$RPC_URL \\"
-# echo "    --broadcast \\"
-# echo "    --sig \"run(string)\" \"\$LIVE_CFG\""
-# echo
-# echo "[broadcast] This block will only be enabled once we have FINAL keys + PLAN."
-# ---------------------------------------------------------------------------
+# 1) Always show current PLAN summary
+echo "---- [1] PLAN summary (live.json) ----"
+./ops/void-mainnet-bootstrap-plan-summary.sh
+echo
+
+# 2) Always run readiness gates (PLAN, pillars, lastmile, safeboot, broadcast-gates)
+echo "---- [2] Mainnet bootstrap readiness (gates) ----"
+./ops/void-mainnet-bootstrap-readiness.sh
+echo
+
+if [ "${MODE}" != "run" ]; then
+  echo "[broadcast] MODE != run -> PLAN/READINESS ONLY (no txs sent)."
+  echo "[broadcast] To actually broadcast, run:"
+  echo "  ./ops/void-mainnet-bootstrap-mainnet-broadcast.sh run"
+  exit 0
+fi
+
+echo "---- [3] FINAL CONFIRMATION ----"
+echo "You are about to broadcast VOID mainnet bootstrap transactions to:"
+echo "  RPC_URL = ${RPC_URL}"
+echo
+echo "Make sure:"
+echo "  - RPC_URL points at the REAL VOID mainnet endpoint you control."
+echo "  - VOID mainnet node is healthy and at the expected genesis/height."
+echo "  - VOIDKEY2 (or equivalent) is mounted ONLY on this trusted machine."
+echo "  - Foundry is configured so the deployer account matches:"
+echo "      deployer = 0x553dF3F66c43c178046529B5A0DCbe940200fea1"
+echo
+read -r -p "Type EXACTLY 'VOID-MAINNET' to confirm broadcast: " CONFIRM
+if [ "${CONFIRM}" != "VOID-MAINNET" ]; then
+  echo "[broadcast] Confirmation mismatch; aborting."
+  exit 1
+fi
+
+echo
+echo "---- [4] forge script broadcast ----"
+echo "[broadcast] Executing VoidMainnetBootstrapMainnet::run against ${RPC_URL}"
+echo
+
+# NOTE: This assumes Foundry is configured so that the correct deployer
+# key is used (via keystore, hardware wallet, or other secure method).
+forge script script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \
+  --rpc-url "${RPC_URL}" \
+  --broadcast \
+  --slow \
+  --sig "run(string)" "${LIVE_CFG}"
+
+echo
+echo "---- [5] POST-BROADCAST REMINDERS ----"
+echo "- Verify deployed contract addresses against the PLAN/dev rehearsal."
+echo "- Update your LIVE JSON with the actual on-chain addresses (if needed)."
+echo "- Re-run any post-boot health scripts and Prometheus checks."
+echo "- Unmount and remove VOIDKEY2 when finished."
