@@ -1,41 +1,58 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-cd "$ROOT"
+echo "=== [keys-exporter] VOID mainnet keys/roles exporter ==="
 
-TEXTFILE_DIR_DEFAULT="/var/lib/node_exporter/textfile_collector"
-TEXTFILE_DIR="${TEXTFILE_DIR:-$TEXTFILE_DIR_DEFAULT}"
-OUT_FILE="$TEXTFILE_DIR/void_mainnet_keys_health.prom"
+ROOT="$(git rev-parse --show-toplevel)"
+TEXT_DIR="${TEXT_DIR:-/var/lib/node_exporter/textfile_collector}"
+OUT="$TEXT_DIR/void-mainnet-keys.prom"
 
-mkdir -p "$TEXTFILE_DIR"
+echo "[keys-exporter] ROOT     = $ROOT"
+echo "[keys-exporter] TEXT_DIR = $TEXT_DIR"
+echo "[keys-exporter] OUT      = $OUT"
+echo
 
-TMP_LOG="$(mktemp /tmp/void-mainnet-keys-health-all.XXXXXX.log)"
-RC=0
-
-echo "[mainnet-keys-exporter] repo=$(pwd)" | tee "$TMP_LOG"
-echo "[mainnet-keys-exporter] TEXTFILE_DIR=$TEXTFILE_DIR" | tee -a "$TMP_LOG"
-echo "[mainnet-keys-exporter] OUT_FILE=$OUT_FILE" | tee -a "$TMP_LOG"
-echo "[mainnet-keys-exporter] running keys health-all..." | tee -a "$TMP_LOG"
-
-if ./ops/void-mainnet-keys-health-all.sh >>"$TMP_LOG" 2>&1; then
-  echo "[mainnet-keys-exporter] keys health-all OK" | tee -a "$TMP_LOG"
-  RC=0
-else
-  RC=$?
-  echo "[mainnet-keys-exporter] keys health-all FAILED with code $RC" | tee -a "$TMP_LOG"
+# Ensure textfile dir exists (safe even if it already exists)
+if [[ ! -d "$TEXT_DIR" ]]; then
+  echo "[keys-exporter] creating textfile collector dir: $TEXT_DIR"
+  mkdir -p "$TEXT_DIR"
 fi
 
-VALUE=0
-if [[ "$RC" -eq 0 ]]; then
-  VALUE=1
+TMP="$(mktemp)"
+trap 'rm -f "$TMP"' EXIT
+
+echo "[keys-exporter] running keys-health probe..."
+set +e
+"$ROOT/ops/void-mainnet-keys-health.sh" >"$TMP"
+RC=$?
+set -e
+
+if [[ $RC -ne 0 ]]; then
+  echo "[ERROR] keys-health failed (rc=$RC); not writing metric file."
+  cat "$TMP" || true
+  exit 1
 fi
+
+GAUGE_LINE="$(grep 'void_mainnet_keys_roles_ok' "$TMP" | tail -n1 || true)"
+
+if [[ -z "$GAUGE_LINE" ]]; then
+  echo "[ERROR] did not find void_mainnet_keys_roles_ok line in keys-health output"
+  cat "$TMP" || true
+  exit 1
+fi
+
+TMP_OUT="${OUT}.tmp.$$"
 
 {
-  echo "# HELP void_mainnet_keys_health Mainnet keys & treasury plan health (1=OK, 0=bad)"
-  echo "# TYPE void_mainnet_keys_health gauge"
-  echo "void_mainnet_keys_health $VALUE"
-} >"$OUT_FILE"
+  echo "# HELP void_mainnet_keys_roles_ok VOID mainnet keys/roles consistency (1 ok, 0 bad)"
+  echo "# TYPE void_mainnet_keys_roles_ok gauge"
+  echo "$GAUGE_LINE"
+} >"$TMP_OUT"
 
-echo "[mainnet-keys-exporter] wrote $OUT_FILE with value=$VALUE" | tee -a "$TMP_LOG"
-echo "[mainnet-keys-exporter] log: $TMP_LOG" | tee -a "$TMP_LOG"
+mv "$TMP_OUT" "$OUT"
+
+echo
+echo "[keys-exporter] wrote $OUT with:"
+cat "$OUT"
+echo
+echo "[keys-exporter] DONE."
