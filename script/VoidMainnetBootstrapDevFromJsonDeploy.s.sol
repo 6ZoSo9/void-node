@@ -33,8 +33,8 @@ contract VoidMainnetBootstrapDevFromJsonDeploy is VoidMainnetBootstrapDev {
         // 3) Map JSON roles into our Roles struct
         Roles memory R;
 
-        // Deployer: we use adminGateOwner for dev (first anvil address).
-        R.deployer = json.readAddress(".roles.adminGateOwner");
+                // Deployer: for dev we reuse treasuryOwner so premine owner == deployer.
+        R.deployer = json.readAddress(".roles.treasuryOwner");
 
         // Governance / admin
         R.masterKey      = json.readAddress(".roles.adminGateOwner");
