@@ -530,3 +530,89 @@ Later, when real RUN wiring is implemented, this helper will be extended to:
   `"NOT_STARTED"`, `"IN_PROGRESS"`, `"COMPLETED"`, `"ROLLBACK"`.
 - Feed a dedicated Prometheus textfile exporter + pillar for "mainnet RUN"
   so CI and pre-push gates can assert that RUN has not been armed prematurely.
+
+## Bootstrap sentinel (concept, pre-wiring)
+
+We treat RUN idempotency as a two-sided view:
+
+1. A local state file on the operator machine:
+   - `config/void-mainnet-bootstrap-mainnet.state.json`
+2. An on-chain sentinel view that will eventually live behind a small
+   contract or ConfigGate key.
+
+For now this is concept-only; the Solidity and wiring are intentionally
+left unimplemented.
+
+### Local RUN state file (planned shape)
+
+The local state file is the single source of truth for the operator's
+view of RUN progress. It will eventually look roughly like:
+
+    {
+      "status": "NOT_STARTED",   // NOT_STARTED | IN_PROGRESS | COMPLETED | ROLLBACK
+      "liveConfigPath": "config/void-mainnet-bootstrap-mainnet.live.json",
+      "liveConfigHash": "0x...", // keccak256 of the LIVE JSON at the time RUN is armed
+      "planVersion": "v1",
+      "runTxs": [],              // list of tx hashes or step markers once real wiring exists
+      "startedAt": null,
+      "completedAt": null
+    }
+
+During the current PLAN-only phase:
+
+- The file may be missing entirely (treated as UNKNOWN).
+- If present, `status` must *not* be set to `COMPLETED` and `runTxs` is
+  expected to be empty.
+- `liveConfigHash` is only advisory until we wire explicit hash checks.
+
+The `void-mainnet-bootstrap-run-status.sh` helper is responsible for:
+
+- Parsing this file if it exists.
+- Reporting the `status` and basic fields without making any changes.
+- Returning a non-zero code only if the file is malformed or the chainId
+  sanity check fails.
+
+### On-chain sentinel (planned)
+
+The on-chain sentinel is a minimal, canonical statement that:
+
+- "Void mainnet bootstrap RUN has been executed against config hash X."
+- "We consider this RUN completed and not to be repeated."
+
+We have two likely options:
+
+1. A tiny dedicated `VoidBootstrapSentinel` contract that stores:
+   - `bytes32 configHash`
+   - `uint8 status` (NOT_STARTED / COMPLETED / ROLLBACK)
+   - `uint256 chainId`
+   - events for transitions
+
+2. A reserved ConfigGate key whose value encodes:
+   - `configHash`
+   - `status`
+   - optional metadata (timestamp, tx hash, etc.)
+
+Both approaches share the same invariants:
+
+- The sentinel is only writable by the master key / AdminGate path.
+- Once `status = COMPLETED` for a given `configHash`, a second RUN with
+  a mismatched hash is treated as a misconfiguration.
+- A `ROLLBACK` state is allowed but requires explicit, manual action and
+  will be guarded by strong process and Prometheus alerts.
+
+### Local vs on-chain reconciliation (future work)
+
+When we later wire the full sentinel flow, the RUN status helper and
+preflight gate will:
+
+- Load the local state file and the on-chain sentinel.
+- Assert that:
+  - chainId(config) == chainId(RPC) == chainId(sentinel)
+  - liveConfigHash(local) == configHash(on-chain) for any non-UNKNOWN state
+  - status pairs are consistent (e.g. local COMPLETED + on-chain COMPLETED)
+- Export a dedicated RUN health gauge to Prometheus so CI and pre-push
+  gates can refuse to arm or re-run RUN when the sentinel says it has
+  already completed.
+
+Until that wiring exists, this section is purely design documentation and
+the `run-status` helper remains planning-only.
