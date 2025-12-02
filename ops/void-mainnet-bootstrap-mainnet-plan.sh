@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
+cd "$HOME/dev/void-node"
+
+CONFIG="config/void-mainnet-bootstrap-mainnet.live.json"
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
-CFG_PATH="${CFG_PATH:-config/void-mainnet-bootstrap-mainnet.live.json}"
-SCRIPT_NAME="script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet"
 
-cd "$REPO_ROOT"
-
-echo "=== [mainnet-bootstrap-plan] VOID mainnet PLAN narrative ==="
-echo "[cfg] REPO_ROOT   = $REPO_ROOT"
-echo "[cfg] RPC_URL     = $RPC_URL"
-echo "[cfg] CONFIG_PATH = $CFG_PATH"
+echo "=== [mainnet-plan] VOID mainnet bootstrap PLAN (no broadcast) ==="
+echo "[cfg] CONFIG  = $CONFIG"
+echo "[cfg] RPC_URL = $RPC_URL"
 echo
 
-forge script "$SCRIPT_NAME" \
-  --rpc-url "$RPC_URL" \
-  --sig "plan(string)" \
-  "$CFG_PATH" \
-  -vvvv
+if [ ! -f "$CONFIG" ]; then
+  echo "[FATAL] config file not found: $CONFIG" >&2
+  exit 1
+fi
+
+forge script script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \
+  --sig 'plan(string)' \
+  "$CONFIG" \
+  --rpc-url "$RPC_URL"
