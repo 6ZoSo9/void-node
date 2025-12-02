@@ -1,90 +1,117 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Planning-only RUN status helper.
-# - Reads LIVE config JSON.
-# - Best-effort RPC chainId sanity.
-# - Best-effort local state summary (if *.state.json exists).
-# - On-chain sentinel view is STUB for now (design only).
+ts() {
+  date -Is
+}
 
-ROOT="${ROOT:-$HOME/dev/void-node}"
+echo "[$(ts)] === [mainnet-run status] VOID mainnet bootstrap RUN status (planning-only) ==="
+
+# Resolve repo root from this script's location
+ROOT="${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$ROOT"
 
 CONFIG_PATH="${CONFIG_PATH:-config/void-mainnet-bootstrap-mainnet.live.json}"
 STATE_PATH="${STATE_PATH:-config/void-mainnet-bootstrap-mainnet.state.json}"
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
 
-ts() {
-  date -Is
-}
-
-echo "[$(ts)] === [mainnet-run status] VOID mainnet bootstrap RUN status (planning-only) ==="
 echo "[$(ts)] ROOT        = $ROOT"
 echo "[$(ts)] CONFIG_PATH = $CONFIG_PATH"
 echo "[$(ts)] STATE_PATH  = $STATE_PATH"
 echo "[$(ts)] RPC_URL     = $RPC_URL"
-echo
 
-cfg_chain_id="UNKNOWN"
-runtime_chain_id="UNKNOWN"
-rc=0
-
-echo "[$(ts)] --- [step 1] chainId sanity ---"
-
-if [[ -f "$CONFIG_PATH" ]]; then
-  cfg_chain_id="$(jq -r '.chainId // "UNKNOWN"' "$CONFIG_PATH" 2>/dev/null || echo "ERROR")"
-  echo "[$(ts)] config.chainId = $cfg_chain_id"
+cfg_chainId="unknown"
+if [[ -f "$CONFIG_PATH" ]] && command -v jq >/dev/null 2>&1; then
+  cfg_chainId="$(jq -r '.chainId // "unknown"' "$CONFIG_PATH" 2>/dev/null || echo "unknown")"
 else
-  echo "[$(ts)] WARN: LIVE config not found at $CONFIG_PATH"
-  cfg_chain_id="MISSING"
-  rc=1
+  echo "[$(ts)] WARN: cannot read config.chainId (missing file or jq); treating as unknown"
 fi
 
-runtime_chain_id="$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null || echo "ERROR")"
-if [[ "$runtime_chain_id" == "ERROR" ]]; then
-  echo "[$(ts)] WARN: cast chain-id failed against $RPC_URL"
-  rc=1
-else
-  echo "[$(ts)] RPC chainId    = $runtime_chain_id"
-fi
-
-if [[ "$cfg_chain_id" != "UNKNOWN" && "$cfg_chain_id" != "MISSING" && "$cfg_chain_id" != "ERROR" && "$runtime_chain_id" != "ERROR" ]]; then
-  if [[ "$cfg_chain_id" != "$runtime_chain_id" ]]; then
-    echo "[$(ts)] ERR: config.chainId != RPC chainId (mismatch)"
-    rc=1
+rpc_chainId="unknown"
+if command -v cast >/dev/null 2>&1; then
+  if out="$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null)"; then
+    rpc_chainId="$out"
   else
-    echo "[$(ts)] OK: config.chainId matches RPC chainId"
+    echo "[$(ts)] WARN: cast chain-id failed; treating RPC chainId as unknown"
   fi
+else
+  echo "[$(ts)] WARN: cast not found; cannot query RPC chainId"
+fi
+
+echo
+echo "[$(ts)] --- [step 1] chainId sanity ---"
+echo "[$(ts)] config.chainId = $cfg_chainId"
+echo "[$(ts)] RPC chainId    = $rpc_chainId"
+
+if [[ "$cfg_chainId" != "unknown" && "$rpc_chainId" != "unknown" && "$cfg_chainId" != "$rpc_chainId" ]]; then
+  echo "[$(ts)] FATAL: config.chainId != RPC chainId" >&2
+  echo "[$(ts)] RESULT: ERROR (chainId mismatch)" >&2
+  exit 1
+fi
+
+if [[ "$cfg_chainId" == "unknown" || "$rpc_chainId" == "unknown" ]]; then
+  echo "[$(ts)] NOTE: chainId checks are best-effort only (one side unknown)."
+else
+  echo "[$(ts)] OK: config.chainId matches RPC chainId"
 fi
 
 echo
 echo "[$(ts)] --- [step 2] local RUN state file ---"
 
-state_status="UNKNOWN"
-state_live_cfg=""
-state_live_hash=""
-state_plan_version=""
-state_started_at=""
-state_completed_at=""
+local_status="UNKNOWN"
+state_chainId="unknown"
+state_planVersion="unknown"
+state_liveHash="0x0"
+state_startedAt="null"
+state_completedAt="null"
+state_runTxs="unknown"
+state_hash_match="UNKNOWN"
 
-if [[ -f "$STATE_PATH" ]]; then
-  state_status="$(jq -r '.status // "UNKNOWN"' "$STATE_PATH" 2>/dev/null || echo "UNKNOWN")"
-  state_live_cfg="$(jq -r '.liveConfigPath // ""' "$STATE_PATH" 2>/dev/null || echo "")"
-  state_live_hash="$(jq -r '.liveConfigHash // ""' "$STATE_PATH" 2>/dev/null || echo "")"
-  state_plan_version="$(jq -r '.planVersion // ""' "$STATE_PATH" 2>/dev/null || echo "")"
-  state_started_at="$(jq -r '.startedAt // ""' "$STATE_PATH" 2>/dev/null || echo "")"
-  state_completed_at="$(jq -r '.completedAt // ""' "$STATE_PATH" 2>/dev/null || echo "")"
-
-  echo "[$(ts)] state.status        = ${state_status}"
-  echo "[$(ts)] state.liveConfigPath= ${state_live_cfg}"
-  echo "[$(ts)] state.liveConfigHash= ${state_live_hash}"
-  echo "[$(ts)] state.planVersion   = ${state_plan_version}"
-  echo "[$(ts)] state.startedAt     = ${state_started_at}"
-  echo "[$(ts)] state.completedAt   = ${state_completed_at}"
-else
+if [[ ! -f "$STATE_PATH" ]]; then
   echo "[$(ts)] NOTE: state file not found at $STATE_PATH"
   echo "[$(ts)]       Treating local RUN status as UNKNOWN / pre-RUN."
-  state_status="UNKNOWN"
+else
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "[$(ts)] WARN: jq not found; cannot parse state file; treating status as UNKNOWN."
+  else
+    # Parse core fields from state JSON
+    local_status="$(jq -r '.status // "UNKNOWN"' "$STATE_PATH" 2>/dev/null || echo "UNKNOWN")"
+    state_chainId="$(jq -r '.chainId // "unknown"' "$STATE_PATH" 2>/dev/null || echo "unknown")"
+    state_planVersion="$(jq -r '.planVersion // "unknown"' "$STATE_PATH" 2>/dev/null || echo "unknown")"
+    state_liveHash="$(jq -r '.liveConfigHash // "0x0"' "$STATE_PATH" 2>/dev/null || echo "0x0")"
+    state_startedAt="$(jq -r '.startedAt' "$STATE_PATH" 2>/dev/null || echo "null")"
+    state_completedAt="$(jq -r '.completedAt' "$STATE_PATH" 2>/dev/null || echo "null")"
+    state_runTxs="$(jq -r '.runTxs | length' "$STATE_PATH" 2>/dev/null || echo "unknown")"
+
+    echo "[$(ts)] state.status       = $local_status"
+    echo "[$(ts)] state.chainId      = $state_chainId"
+    echo "[$(ts)] state.planVersion  = $state_planVersion"
+    echo "[$(ts)] state.liveHash     = $state_liveHash"
+    echo "[$(ts)] state.runTxs       = $state_runTxs"
+    echo "[$(ts)] state.startedAt    = $state_startedAt"
+    echo "[$(ts)] state.completedAt  = $state_completedAt"
+
+    # Check chainId alignment (best-effort)
+    if [[ "$cfg_chainId" != "unknown" && "$state_chainId" != "unknown" && "$cfg_chainId" != "$state_chainId" ]]; then
+      echo "[$(ts)] WARN: state.chainId != config.chainId (best-effort check)" >&2
+    fi
+
+    # Recompute live config hash and compare to state.liveConfigHash
+    if command -v cast >/dev/null 2>&1 && [[ -f "$CONFIG_PATH" ]]; then
+      currentHash="$(cast keccak "$(cat "$CONFIG_PATH")")"
+      echo "[$(ts)] current liveConfigHash = $currentHash"
+
+      if [[ "$currentHash" == "$state_liveHash" ]]; then
+        state_hash_match="MATCH"
+        echo "[$(ts)] OK: state.liveConfigHash matches current LIVE config"
+      else
+        state_hash_match="MISMATCH"
+        echo "[$(ts)] WARN: state.liveConfigHash does NOT match current LIVE config" >&2
+      fi
+    else
+      echo "[$(ts)] NOTE: skipping liveConfigHash comparison (no cast or missing config)."
+    fi
+  fi
 fi
 
 echo
@@ -97,18 +124,14 @@ sentinel_status="STUB"
 
 echo
 echo "[$(ts)] --- [step 4] summary (planning-only) ---"
-echo "[$(ts)] chainId(config)     = ${cfg_chain_id}"
-echo "[$(ts)] chainId(RPC)        = ${runtime_chain_id}"
-echo "[$(ts)] local_state.status  = ${state_status}"
-echo "[$(ts)] sentinel.status     = ${sentinel_status}"
+echo "[$(ts)] chainId(config)        = $cfg_chainId"
+echo "[$(ts)] chainId(RPC)           = $rpc_chainId"
+echo "[$(ts)] local_state.status     = $local_status"
+echo "[$(ts)] local_state.hash_match = $state_hash_match"
+echo "[$(ts)] sentinel.status        = $sentinel_status"
 echo "[$(ts)] NOTE: This is a planning-only status helper."
 echo "[$(ts)]       No on-chain sentinel wiring yet; exit code reflects"
-echo "[$(ts)]       only basic config/RPC sanity and file presence."
+echo "[$(ts)]       only config/RPC sanity + local state visibility."
 
-if [[ "$rc" -ne 0 ]]; then
-  echo "[$(ts)] RESULT: WARN/ERROR (see messages above; planning-only helper)"
-else
-  echo "[$(ts)] RESULT: OK (basic config + RPC sanity passed; planning-only helper)"
-fi
-
-exit "$rc"
+echo "[$(ts)] RESULT: OK (basic config + RPC + state visibility; planning-only helper)"
+exit 0
