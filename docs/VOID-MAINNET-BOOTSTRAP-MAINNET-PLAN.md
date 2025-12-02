@@ -61,3 +61,30 @@ This state must remain green before we ever enable the real mainnet bootstrap
 `run()` path or broadcast transactions. Only after this PLAN+keys checklist is
 stable do we move on to designing and rehearsing the **real mainnet bootstrap**
 sequence.
+
+## Stub-only guard
+
+While we are still in the PLAN-only phase, all core contract addresses in the
+LIVE JSON should remain `0x0000000000000000000000000000000000000000`. To check
+that we have not accidentally populated any real addresses yet, run:
+
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-plan-stub-guard.sh
+
+By default this script:
+
+- Reads `config/void-mainnet-bootstrap-mainnet.live.json`.
+- Checks the following keys under `.contracts`:
+  - `updateGate`, `adminGate`, `configGate`, `validatorSet`,
+    `voidToken`, `premineVault`, `treasury`, `voidTreasury`,
+    `opsTreasury`, `rewardEngine`.
+- Logs `OK` if an entry is still zero, `WARN` if it is non-zero.
+
+If you want to make non-zero addresses a hard error (for example in CI), run:
+
+    REQUIRE_STUB_ZERO=1 ./ops/void-mainnet-plan-stub-guard.sh
+
+Once we are ready to move beyond the stub-only phase and start filling in
+real contract addresses, this guard should be treated as advisory (or run
+without `REQUIRE_STUB_ZERO=1`) so that it reports which keys have been
+populated instead of blocking the workflow.
