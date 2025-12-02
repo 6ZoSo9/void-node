@@ -95,3 +95,6 @@ config/void-mainnet-plan.env
 #/broadcast is noisy; ignore just the plan dir to be precise
 /broadcast/VoidMainnetBootstrapDevPlan.s.sol/
 /cache/VoidMainnetBootstrapDevPlan.s.sol/
+
+# VOID mainnet PLAN logs (local diagnostics, never commit)
+logs/mainnet-plan/
