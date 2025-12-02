@@ -1,0 +1,13 @@
+groups:
+  - name: void-mainnet-run-rules
+    rules:
+      # Last 5m view of the numeric RUN status:
+      #   0 = NOT_STARTED
+      #   1 = IN_PROGRESS
+      #   2 = COMPLETED
+      #  -1 = FAILED
+      #  -2 = UNKNOWN
+      #
+      # Right now we EXPECT this to stay at 0 (NOT_STARTED) in the stub-only phase.
+      - record: void:mainnet_run:status:last_5m
+        expr: max_over_time(void_mainnet_run_status[5m])
