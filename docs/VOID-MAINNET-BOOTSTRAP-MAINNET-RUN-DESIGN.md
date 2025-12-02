@@ -345,3 +345,157 @@ The combination of local state + on-chain sentinel handles:
 The detailed wiring (exact contract name, config key, and state schema) will be
 finalized before implementing the broadcast-capable RUN script, but this section
 captures the required behaviour and failure modes we must satisfy.
+
+---
+
+## 6. RUN status, reporting, and Prometheus metrics
+
+Once the real broadcast-capable RUN flow exists, operators and CI need a
+simple way to answer:
+
+- Has bootstrap run?
+- Did it succeed?
+- Do the local state file and on-chain sentinel agree?
+- Is this node pointed at the correct chain + config?
+
+This section defines the status/reporting surface. The actual scripts and
+Prometheus wiring will be implemented when RUN wiring is closer to final.
+
+### 6.1 CLI status helper (`ops/void-mainnet-bootstrap-run-status.sh`)
+
+We will add a CLI helper:
+
+- `ops/void-mainnet-bootstrap-run-status.sh`
+
+Responsibilities:
+
+1. Resolve config + RPC:
+   - Default LIVE config: `config/void-mainnet-bootstrap-mainnet.live.json`.
+   - Default RPC: `http://127.0.0.1:8545` (can be overridden via `RPC_URL`).
+
+2. Print chain + config summary:
+   - `chainId` from RPC (via `cast chain-id`).
+   - `chainId` from LIVE JSON.
+   - A short summary of the roles/owners (best-effort).
+
+3. Print local bootstrap state summary:
+   - Load `config/void-mainnet-bootstrap-mainnet.state.json` if present.
+   - Show:
+     - `status` (NOT_RUN | RUNNING | DONE | FAILED)
+     - `liveConfigPath`
+     - `liveConfigHash`
+     - `planVersion`
+     - `startedAt` / `completedAt` (if any)
+   - If the state file is missing, report `status = UNKNOWN` and exit with
+     a non-zero code (so automation knows we are “pre-state-file”).
+
+4. Print on-chain sentinel summary:
+   - Query the bootstrap sentinel (either a dedicated contract or a
+     `ConfigGate` key such as `VOID_MAINNET_BOOTSTRAP_STATUS`).
+   - Render the sentinel value as:
+     - `NOT_RUN` / `RUNNING` / `DONE` (or equivalent).
+   - Surface any RPC / call failures clearly.
+
+5. Compare local vs on-chain view:
+   - If both read as `NOT_RUN` and config hashes agree: report a clean
+     “pre-bootstrap” state.
+   - If both read as `DONE` and config hashes agree: report “bootstrap
+     completed” state.
+   - If they disagree (e.g. local DONE but on-chain NOT_RUN or vice versa):
+     highlight the mismatch and exit non-zero.
+
+Exit-code contract:
+
+- `0` when:
+  - Local + on-chain views are consistent AND
+  - State is one of the allowed modes (`NOT_RUN` or `DONE`).
+- Non-zero when:
+  - State file missing, or
+  - Sentinel missing/unreadable, or
+  - Local vs on-chain views disagree, or
+  - Status is `RUNNING` / `FAILED` / unknown.
+
+This script is intended for:
+
+- Manual operator inspection.
+- CI / automation hooks.
+- Feeding into the Prometheus textfile exporter.
+
+### 6.2 Textfile exporter (`ops/void-mainnet-bootstrap-run-exporter.sh`)
+
+We will add a root-owned textfile exporter:
+
+- `ops/void-mainnet-bootstrap-run-exporter.sh`
+- Managed by a systemd service + timer (similar to other VOID exporters).
+- Writes to:
+  - `/var/lib/node_exporter/textfile_collector/void_mainnet_bootstrap_run.prom`
+
+Intended metric shape (example):
+
+- Bootstrap status as mutually exclusive gauges:
+
+    # 0/1 gauges, exactly one should be 1
+    void_mainnet_bootstrap_run_status{status="NOT_RUN"}  0
+    void_mainnet_bootstrap_run_status{status="RUNNING"}  0
+    void_mainnet_bootstrap_run_status{status="DONE"}     1
+    void_mainnet_bootstrap_run_status{status="FAILED"}   0
+
+- Overall “OK” view:
+
+    # 1 when we are in an allowed state (pre- or post-bootstrap) and
+    # local/on-chain views agree.
+    void_mainnet_bootstrap_run_ok 1
+
+- Config fingerprint (best-effort):
+
+    # Encodes which LIVE JSON this exporter is bound to.
+    void_mainnet_bootstrap_run_config_hash{hash="0x..."} 1
+
+- Optional timing metrics (seconds since epoch):
+
+    # Can be used for dashboards / SLO-ish views.
+    void_mainnet_bootstrap_run_started_at   0
+    void_mainnet_bootstrap_run_completed_at 0
+
+Exporter rules of thumb:
+
+- Derive all values from:
+  - The local state file (`*.state.json`), and
+  - The on-chain sentinel view.
+- Never derive anything from Prometheus itself.
+- If either source is unreadable, set `run_ok = 0` and choose a clear status
+  (`FAILED` or `UNKNOWN`) so alerts can fire.
+
+### 6.3 Recording rules and alerts
+
+We will add Prometheus recording rules (names subject to finalization):
+
+- Smoothed OK view:
+
+    void:mainnet_bootstrap_run:ok:last_5m =
+      max_over_time(void_mainnet_bootstrap_run_ok[5m])
+
+- Last known status (by label):
+
+    void:mainnet_bootstrap_run:status:last_5m{status="DONE"} =
+      max_over_time(void_mainnet_bootstrap_run_status{status="DONE"}[5m])
+
+Alert sketch (examples):
+
+- `VoidMainnetBootstrapRunFailed`:
+  - Fires when:
+    - `void:mainnet_bootstrap_run:ok:last_5m == 0`
+  - Meaning:
+    - Either the exporter cannot read state/sentinel, or
+    - Local vs on-chain state disagrees, or
+    - Status is FAILED/UNKNOWN.
+
+- `VoidMainnetBootstrapRunUnexpectedState`:
+  - Fires when:
+    - Status is neither NOT_RUN nor DONE for a sustained period, *or*
+    - Multiple `status=*` gauges appear as `1` simultaneously.
+
+These metrics and alerts will be wired into the existing mainnet pillars once
+the real RUN wiring is implemented. For now they live as design targets that
+the exporter and systemd units must satisfy.
+
