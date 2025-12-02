@@ -85,6 +85,21 @@ contract VoidMainnetBootstrapMainnet is Script {
         Validator0 validator0;
     }
 
+    /// @dev Secrets / private key material used for LIVE broadcasts.
+    /// NOTE:
+    ///   - These values are NEVER logged.
+    ///   - They come from env vars (vm.envUint) backed by LUKS / hardware.
+    ///   - We always cross-check the derived address vs the public roles in cfg.
+    struct Secrets {
+        uint256 deployerKey;
+        // Later we can extend this with:
+        //   uint256 validatorAdminKey;
+        //   uint256 treasuryAdminKey;
+        //   uint256 opsTreasuryAdminKey;
+        //   uint256 rewardEngineOwnerKey;
+        // but we keep it minimal for now.
+    }
+
     /// @dev Load the config into a lightweight in-memory view.
     ///
     /// This is intentionally a "read-only" parsing pass:
@@ -262,6 +277,30 @@ contract VoidMainnetBootstrapMainnet is Script {
     ///
     /// It is intended to be called via `forge script` in read-only "PLAN" mode
     /// against either an anvil-2050 rehearsal or a real mainnet RPC.
+
+    /// @dev Load secrets (private key material) from env and cross-check
+    ///      against the public roles in the config.
+    ///
+    /// PLAN invariants:
+    ///   - VOID_MAINNET_DEPLOYER_KEY must be set in the environment.
+    ///   - vm.addr(VOID_MAINNET_DEPLOYER_KEY) must equal cfg.roles.deployer.
+    function loadSecrets(ConfigView memory cfg) internal view returns (Secrets memory s) {
+        // Pull the deployer private key from env. This must be a uint256.
+        uint256 deployerKey = vm.envUint("VOID_MAINNET_DEPLOYER_KEY");
+
+        // Derive the address and ensure it matches the planned deployer.
+        address deployerAddr = vm.addr(deployerKey);
+
+        if (deployerAddr != cfg.roles.deployer) {
+            console2.log("FATAL: deployer env key address mismatch vs config.roles.deployer");
+            console2.log("  env    deployerAddr:", deployerAddr);
+            console2.log("  config deployer    :", cfg.roles.deployer);
+            revert("VoidMainnetBootstrapMainnet: deployer env key mismatch");
+        }
+
+        s.deployerKey = deployerKey;
+    }
+
     function plan(string memory configPath) public {
         // 1) Load config view.
         ConfigView memory cfg = loadConfigView(configPath);
@@ -317,6 +356,25 @@ contract VoidMainnetBootstrapMainnet is Script {
         _logPlanNarrative(cfg);
 
         console2.log("  PLAN mode: no broadcasts, no state changes, no deployments.");
+    }
+
+    /// @notice PLAN-only entry point that also validates env-backed secrets.
+    ///
+    /// This:
+    ///   - Loads the config.
+    ///   - Ensures VOID_MAINNET_DEPLOYER_KEY is set and matches roles.deployer.
+    ///   - Reuses `plan(configPath)` for invariants + narrative logging.
+    ///   - NEVER broadcasts or mutates state.
+    function planWithSecrets(string memory configPath) external {
+        // 1) Load config view and secrets, and perform env vs JSON checks.
+        ConfigView memory cfg = loadConfigView(configPath);
+        loadSecrets(cfg);
+
+        // 2) Re-run the normal PLAN flow (chainId sanity + invariants + narrative).
+        //    This will re-parse the JSON, which is fine for PLAN mode.
+        plan(configPath);
+
+        console2.log("Secrets check: VOID_MAINNET_DEPLOYER_KEY matches roles.deployer (PLAN-only, no broadcasts).");
     }
 
     /// @notice LIVE/broadcast entry point (currently STUB ONLY).
