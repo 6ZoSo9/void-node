@@ -228,3 +228,120 @@ This will:
 
 As long as this preflight gate is green, we know the environment is healthy and
 we are still in the PLAN-only / stub-only phase for mainnet.
+
+---
+
+## 5. Bootstrap state, idempotency, and replay protection
+
+To prevent accidental re-running of the mainnet bootstrap on a live chain, the
+RUN implementation will use two layers of protection:
+
+1. A local bootstrap state file under \`config/\`.
+2. An on-chain sentinel that marks bootstrap as completed.
+
+The RUN script must treat either layer as authoritative to refuse a second run.
+
+### 5.1 Local bootstrap state file
+
+We will introduce a JSON file:
+
+- \`config/void-mainnet-bootstrap-mainnet.state.json\`
+
+Intended shape (example):
+
+    {
+      "version": 1,
+      "status": "NOT_RUN",     // NOT_RUN | RUNNING | DONE | FAILED
+      "liveConfigPath": "config/void-mainnet-bootstrap-mainnet.live.json",
+      "liveConfigHash": "0x...",   // e.g. keccak256 of the LIVE JSON
+      "planVersion": "ckpt-mainnet-plan-keys-stub-guard-YYYYMMDD-HHMMSS",
+      "startedAt": null,
+      "completedAt": null,
+      "txs": {
+        "updateGate": null,
+        "adminGate": null,
+        "configGate": null,
+        "validatorSet": null,
+        "voidToken": null,
+        "premineVault": null,
+        "treasury": null,
+        "voidTreasury": null,
+        "opsTreasury": null,
+        "rewardEngine": null
+      }
+    }
+
+RUN script responsibilities (local state perspective):
+
+- Before doing anything:
+  - If \`status == "DONE"\` and \`liveConfigHash\` matches the current LIVE JSON,
+    abort with a clear error: "bootstrap already completed for this config".
+  - If \`status == "RUNNING"\` and \`startedAt\` is recent, abort and require a
+    manual operator decision (to avoid concurrent or overlapping runs).
+- On first successful execution:
+  - Set \`status = "DONE"\`.
+  - Fill in \`startedAt\`, \`completedAt\`.
+  - Record transaction hashes / deployed addresses in \`txs\`.
+- On hard failure:
+  - Set \`status = "FAILED"\` with enough detail for an operator to decide
+    whether a retry is safe or whether a new chain / config is required.
+
+The local state file is used by:
+
+- The RUN script (to enforce idempotency).
+- A future \`ops/void-mainnet-bootstrap-run-status.sh\` helper.
+- A future Prometheus exporter (\`ops/void-mainnet-bootstrap-run-exporter.sh\`).
+
+### 5.2 On-chain sentinel (ConfigGate / bootstrap-contract)
+
+In addition to the local state, RUN must consult an on-chain sentinel before
+broadcasting anything. The exact mechanism can be:
+
+- A dedicated small \`VoidBootstrapState\` contract, or
+- A reserved config key inside \`ConfigGate\` (preferred, if the API is suitable).
+
+Intended behaviour (conceptual):
+
+- View function, for example:
+
+  - \`function bootstrapStatus() external view returns (uint8);\`
+    - \`0 = NOT_RUN\`
+    - \`1 = RUNNING\` (optional)
+    - \`2 = DONE\`
+
+Or equivalent using \`ConfigGate\` with a well-known key, such as:
+
+- \`bytes32("VOID_MAINNET_BOOTSTRAP_STATUS")\`
+
+RUN script responsibilities (on-chain sentinel perspective):
+
+- Before broadcasting:
+  - Query the sentinel:
+    - If status is \`DONE\`, abort immediately: bootstrap already completed.
+    - If status is anything other than \`NOT_RUN\`, abort and require operator
+      intervention.
+- During/after bootstrap:
+  - On the final, successful step, set the sentinel to \`DONE\`.
+  - This must be part of the same logical sequence as deploying the core
+    contracts, so any later observer can trust the sentinel.
+
+This sentinel is also the natural source for a Prometheus metric such as:
+
+- \`void_mainnet_bootstrap_run_ok\`
+- \`void_mainnet_bootstrap_run_status{status="DONE"}\`
+
+### 5.3 Replay / fork considerations
+
+The combination of local state + on-chain sentinel handles:
+
+- Double-run on the same \`chainId\` + RPC: both layers say "DONE", RUN aborts.
+- Config drift: if \`liveConfigHash\` changes but sentinel is still NOT_RUN,
+  RUN can refuse until there is a clear, documented migration path or a new
+  genesis.
+- Fork / wrong RPC: if local state says NOT_RUN but on-chain sentinel says
+  DONE, RUN must refuse and warn the operator they are pointed at an already
+  bootstrapped network.
+
+The detailed wiring (exact contract name, config key, and state schema) will be
+finalized before implementing the broadcast-capable RUN script, but this section
+captures the required behaviour and failure modes we must satisfy.
