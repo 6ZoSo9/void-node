@@ -616,3 +616,47 @@ preflight gate will:
 
 Until that wiring exists, this section is purely design documentation and
 the `run-status` helper remains planning-only.
+
+## RUN Prometheus exporter (planning-only)
+
+We expose the local RUN state file
+(config/void-mainnet-bootstrap-mainnet.state.json)
+to Prometheus via a planning-only textfile exporter:
+
+- Script: ops/void-mainnet-bootstrap-run-exporter.sh
+- Default textfile path (dev): /tmp/void_mainnet_run_state.prom
+- Can be overridden via TEXTFILE_PATH.
+
+The exporter:
+
+1. Reads status, chainId, planVersion, and liveConfigHash from the RUN state.
+2. Recomputes the current liveConfigHash from the LIVE JSON (best-effort via
+   cast keccak).
+3. Emits a textfile with the following metrics:
+
+    - void_mainnet_run_state{status="<STATUS>",plan_version="<PLAN>",hash_match="<MATCH|MISMATCH|UNKNOWN>"}
+      A labeled gauge representing the current RUN state view (value is always 1).
+
+    - void_mainnet_run_status (numeric code)
+      - 0  = NOT_STARTED
+      - 1  = IN_PROGRESS
+      - 2  = COMPLETED
+      - -1 = FAILED
+      - -2 = UNKNOWN
+
+    - void_mainnet_run_chainid
+      Numeric chainId associated with the RUN state (for VOID mainnet: 2050).
+
+Example dev invocation (no sudo, writes to /tmp):
+
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-bootstrap-run-exporter.sh
+    cat /tmp/void_mainnet_run_state.prom
+
+Once we are ready to wire this into node_exporter, we will point TEXTFILE_PATH
+at:
+
+    /var/lib/node_exporter/textfile_collector/void_mainnet_run_state.prom
+
+via a root wrapper script and/or a systemd timer. This remains PLANNING-ONLY;
+RUN itself stays stubbed until mainnet wiring is implemented.
