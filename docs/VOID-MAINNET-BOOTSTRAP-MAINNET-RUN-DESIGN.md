@@ -660,3 +660,43 @@ at:
 
 via a root wrapper script and/or a systemd timer. This remains PLANNING-ONLY;
 RUN itself stays stubbed until mainnet wiring is implemented.
+
+## RUN state root exporter wrapper (planning-only)
+
+To expose the planning-only RUN state metrics to Prometheus via node_exporter,
+we provide a small root wrapper:
+
+- Script: ops/void-mainnet-bootstrap-run-exporter-root.sh
+- Textfile target (default):
+  
+      /var/lib/node_exporter/textfile_collector/void_mainnet_run_state.prom
+
+The wrapper:
+
+1. Logs basic context (ROOT + TEXTFILE_PATH).
+2. Calls ops/void-mainnet-bootstrap-run-exporter.sh under sudo with
+   TEXTFILE_PATH pointing at the node_exporter textfile directory.
+3. Leaves ownership/permissions handling to the normal textfile collector
+   expectations.
+
+Example usage:
+
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-bootstrap-run-exporter-root.sh
+
+After running, you should see something like:
+
+    # HELP void_mainnet_run_state Planning-only view of VOID mainnet bootstrap RUN state
+    # TYPE void_mainnet_run_state gauge
+    void_mainnet_run_state{status="NOT_STARTED",plan_version="v1",hash_match="UNKNOWN"} 1
+
+    # HELP void_mainnet_run_status Numeric RUN status (0=NOT_STARTED,1=IN_PROGRESS,2=COMPLETED,-1=FAILED,-2=UNKNOWN)
+    # TYPE void_mainnet_run_status gauge
+    void_mainnet_run_status 0
+
+    # HELP void_mainnet_run_chainid Config chainId associated with RUN state
+    # TYPE void_mainnet_run_chainid gauge
+    void_mainnet_run_chainid 2050
+
+Note: This is still PLANNING-ONLY wiring. The RUN state remains
+`status="NOT_STARTED"` and the on-chain sentinel is not yet implemented.
