@@ -26,7 +26,8 @@ import {Script, console2} from "forge-std/Script.sol";
 ///   - `plan(configPath)`:
 ///        - Loads the config.
 ///        - Checks `block.chainid` matches `cfg.chainId`.
-///        - Logs roles, contracts, validator0.
+///        - Validates core invariants.
+///        - Logs roles, contracts, validator0, and a narrative step plan.
 ///        - No broadcast, no deployments.
 ///   - `run(configPath)`:
 ///        - Reuses the PLAN path for validation/logging.
@@ -188,11 +189,77 @@ contract VoidMainnetBootstrapMainnet is Script {
         console2.log("  stakeVOID    :", cfg.validator0.stakeVOID);
     }
 
+    /// @dev Log a high-level narrative of the intended mainnet bootstrap steps.
+    ///
+    /// This is derived from the dev bootstrap wiring (VoidMainnetBootstrapDev),
+    /// but kept descriptive-only here. It does not deploy or mutate anything;
+    /// it just prints the plan using the roles & validator0 fields from cfg.
+    function _logPlanNarrative(ConfigView memory cfg) internal view {
+        console2.log("=== [PLAN narrative] VOID mainnet bootstrap (high-level) ===");
+
+        console2.log("Step 0: Confirm we are on the correct chain.");
+        console2.log("  - runtime chainId :", block.chainid);
+        console2.log("  - config  chainId :", cfg.chainId);
+        console2.log("  - deployer        :", cfg.roles.deployer);
+
+        console2.log("Step 1: Deploy core token + treasury contracts (from deployer).");
+        console2.log("  - Deploy VoidToken with a premine owner key kept in cold storage.");
+        console2.log("  - Deploy OpsTreasury, admin       :", cfg.roles.opsTreasuryAdmin);
+        console2.log("  - Deploy VoidTreasury, admin      :", cfg.roles.treasuryAdmin);
+        console2.log("  - Plan: move the entire premine into VoidTreasury and leave zero balance on the premine key.");
+
+        console2.log("Step 2: Deploy governance gates.");
+        console2.log("  - Deploy AdminGate with master key (hardware/LUKS key, not from this JSON).");
+        console2.log("  - AdminGate owner            :", cfg.roles.adminGateOwner);
+        console2.log("  - UpdateGate owner           :", cfg.roles.updateGateOwner);
+        console2.log("  - Deploy ConfigGate, owner   :", cfg.roles.configGateOwner);
+        console2.log("  - ConfigGate.adminGate wired to AdminGate.");
+
+        console2.log("Step 3: Deploy validator + emissions + rewards stack.");
+        console2.log("  - Deploy ValidatorSet, owner :", cfg.roles.validatorSetOwner);
+        console2.log("  - Deploy emissions controller (VoidEmissionsController) with its admin.");
+        console2.log("  - Deploy RewardEngine, owner :", cfg.roles.rewardEngineOwner);
+        console2.log("  - RewardEngine wired to:");
+        console2.log("      * IVoidTokenLike(VoidToken)");
+        console2.log("      * IValidatorSetLike(ValidatorSet)");
+        console2.log("      * Emissions controller for budget.");
+
+        console2.log("Step 4: Register validator0 as the genesis validator.");
+        console2.log("  - validator0.reward address   :", cfg.validator0.reward);
+        console2.log("  - validator0.consensusKey     :");
+        console2.logBytes32(cfg.validator0.consensusKey);
+        console2.log("  - validator0.stakeVOID (raw)  :", cfg.validator0.stakeVOID);
+        console2.log("  - Plan: call into ValidatorSet with validator0 data and lock its stake.");
+
+        console2.log("Step 5: Wire ownership and permissions.");
+        console2.log("  - Transfer ownership of VoidTreasury to treasuryOwner      :", cfg.roles.treasuryOwner);
+        console2.log("  - Transfer ownership of OpsTreasury to opsTreasuryOwner    :", cfg.roles.opsTreasuryOwner);
+        console2.log("  - Ensure AdminGate/ConfigGate/ValidatorSet/RewardEngine/Treasury");
+        console2.log("    all have their owners/admins aligned with the roles in this config.");
+
+        console2.log("Step 6: Update plan file with deployed contract addresses.");
+        console2.log("  - After a real broadcast, write:");
+        console2.log("      contracts.updateGate");
+        console2.log("      contracts.adminGate");
+        console2.log("      contracts.configGate");
+        console2.log("      contracts.validatorSet");
+        console2.log("      contracts.voidToken");
+        console2.log("      contracts.premineVault (if used)");
+        console2.log("      contracts.treasury");
+        console2.log("      contracts.voidTreasury");
+        console2.log("      contracts.opsTreasury");
+        console2.log("      contracts.rewardEngine");
+        console2.log("    into config/void-mainnet-bootstrap-mainnet.live.json and flip");
+        console2.log("    the exporter plan_health -> 1 after verification.");
+    }
+
     /// @notice PLAN-only entry point.
     /// This function:
     ///   - Loads and validates the LIVE config against the runtime chainId.
-    ///   - Logs the roles, contracts, and validator0 data.
+    ///   - Enforces core invariants (roles non-zero, validator0 stake > 0, contracts zeroed).
+    ///   - Logs roles, contracts, validator0, and a high-level bootstrap narrative.
     ///   - NEVER broadcasts or mutates state.
+    ///
     /// It is intended to be called via `forge script` in read-only "PLAN" mode
     /// against either an anvil-2050 rehearsal or a real mainnet RPC.
     function plan(string memory configPath) public {
@@ -210,18 +277,12 @@ contract VoidMainnetBootstrapMainnet is Script {
 
         // 3) Validate critical invariants for PLAN.
         {
-            bool anyZero =
-                cfg.roles.deployer == address(0) ||
-                cfg.roles.treasuryAdmin == address(0) ||
-                cfg.roles.opsTreasuryAdmin == address(0) ||
-                cfg.roles.validatorAdmin == address(0) ||
-                cfg.roles.adminGateOwner == address(0) ||
-                cfg.roles.updateGateOwner == address(0) ||
-                cfg.roles.configGateOwner == address(0) ||
-                cfg.roles.treasuryOwner == address(0) ||
-                cfg.roles.opsTreasuryOwner == address(0) ||
-                cfg.roles.rewardEngineOwner == address(0) ||
-                cfg.roles.validatorSetOwner == address(0);
+            bool anyZero = cfg.roles.deployer == address(0) || cfg.roles.treasuryAdmin == address(0)
+                || cfg.roles.opsTreasuryAdmin == address(0) || cfg.roles.validatorAdmin == address(0)
+                || cfg.roles.adminGateOwner == address(0) || cfg.roles.updateGateOwner == address(0)
+                || cfg.roles.configGateOwner == address(0) || cfg.roles.treasuryOwner == address(0)
+                || cfg.roles.opsTreasuryOwner == address(0) || cfg.roles.rewardEngineOwner == address(0)
+                || cfg.roles.validatorSetOwner == address(0);
 
             if (anyZero) {
                 revert("VoidMainnetBootstrapMainnet: zero address in critical roles (PLAN)");
@@ -231,17 +292,11 @@ contract VoidMainnetBootstrapMainnet is Script {
                 revert("VoidMainnetBootstrapMainnet: validator0 stakeVOID must be > 0 (PLAN)");
             }
 
-            bool contractsPrefilled =
-                cfg.contracts.updateGate != address(0) ||
-                cfg.contracts.adminGate != address(0) ||
-                cfg.contracts.configGate != address(0) ||
-                cfg.contracts.validatorSet != address(0) ||
-                cfg.contracts.voidToken != address(0) ||
-                cfg.contracts.premineVault != address(0) ||
-                cfg.contracts.treasury != address(0) ||
-                cfg.contracts.voidTreasury != address(0) ||
-                cfg.contracts.opsTreasury != address(0) ||
-                cfg.contracts.rewardEngine != address(0);
+            bool contractsPrefilled = cfg.contracts.updateGate != address(0) || cfg.contracts.adminGate != address(0)
+                || cfg.contracts.configGate != address(0) || cfg.contracts.validatorSet != address(0)
+                || cfg.contracts.voidToken != address(0) || cfg.contracts.premineVault != address(0)
+                || cfg.contracts.treasury != address(0) || cfg.contracts.voidTreasury != address(0)
+                || cfg.contracts.opsTreasury != address(0) || cfg.contracts.rewardEngine != address(0);
 
             if (contractsPrefilled) {
                 revert("VoidMainnetBootstrapMainnet: contracts.* must be zeroed pre-broadcast (PLAN)");
@@ -257,6 +312,9 @@ contract VoidMainnetBootstrapMainnet is Script {
         _logRoles(cfg);
         _logContracts(cfg);
         _logValidator0(cfg);
+
+        // 5) Log the narrative plan derived from the dev bootstrap wiring.
+        _logPlanNarrative(cfg);
 
         console2.log("  PLAN mode: no broadcasts, no state changes, no deployments.");
     }
