@@ -90,3 +90,8 @@ src/index.ts.pre-*
 
 # VOID mainnet PLAN env (local only, never commit)
 config/void-mainnet-plan.env
+
+# VOID dev bootstrap plan artifacts (Foundry)
+#/broadcast is noisy; ignore just the plan dir to be precise
+/broadcast/VoidMainnetBootstrapDevPlan.s.sol/
+/cache/VoidMainnetBootstrapDevPlan.s.sol/
