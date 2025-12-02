@@ -163,3 +163,34 @@ This dev PLAN rehearsal proves:
 3. The premine → VoidTreasury path is enforced on-chain as designed.
 
 This doc is the canonical log for the first successful VOID mainnet dev PLAN bootstrap on anvil (chainId 2050).
+
+## Sanity checks: dev bootstrap plan
+
+After you’ve run the dev bootstrap plan script against Anvil-2050 (chainId 2050) and have your contracts deployed, run this sanity hammer:
+
+    cd "$HOME/dev/void-node"
+    ./ops/void-dev-plan-sanity.sh
+
+This script currently verifies that:
+
+- The RPC chainId is `2050`.
+- There is non-empty bytecode at:
+  - `VoidToken` (TOKEN)
+  - `VoidTreasury`
+  - `OpsTreasury`
+  - `AdminGate`
+- The token shape matches the expected VOID configuration:
+  - `name()       == "VoidStones"`
+  - `symbol()     == "VOID"`
+  - `decimals()   == 18`
+- `VoidTreasury` has a non-zero VOID balance (premine funded).
+- `OpsTreasury` is **allowed to be zero in DEV**; if it’s zero, the script logs a warning.
+  - If you want to enforce a non-zero ops balance in a particular dev run, you can set:
+
+        REQUIRE_OPS_NONZERO=1 ./ops/void-dev-plan-sanity.sh
+
+If the script exits with:
+
+    === [dev-plan sanity] ALL CHECKS PASSED ===
+
+your dev bootstrap rehearsal is wired correctly at this level. If it fails, fix the reported issue (wrong RPC, wrong address, missing code, bad balances) and rerun until it passes.
