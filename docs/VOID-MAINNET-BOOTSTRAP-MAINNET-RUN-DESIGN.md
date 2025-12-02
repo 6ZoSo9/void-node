@@ -499,3 +499,34 @@ These metrics and alerts will be wired into the existing mainnet pillars once
 the real RUN wiring is implemented. For now they live as design targets that
 the exporter and systemd units must satisfy.
 
+
+## RUN status helper (planning-only)
+
+Before we ever enable a real RUN/broadcast flow, we keep a lightweight
+planning-only status helper:
+
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-bootstrap-run-status.sh
+
+This script:
+
+- Confirms `config.chainId` matches the runtime chainId via `cast chain-id`.
+- Reports the local RUN state file (if present): `status`, `liveConfigPath`,
+  `liveConfigHash`, `planVersion`, `startedAt`, `completedAt`.
+- Shows a stubbed "sentinel" status for the future on-chain bootstrap sentinel
+  (e.g. dedicated contract or ConfigGate key).
+
+While we are still in the PLAN-only phase:
+
+- The state file `config/void-mainnet-bootstrap-mainnet.state.json` is expected
+  to be missing or have `status = "UNKNOWN"`.
+- The sentinel status is fixed to `"STUB"`.
+- The script's exit code only reflects config/RPC sanity and file presence.
+
+Later, when real RUN wiring is implemented, this helper will be extended to:
+
+- Read the on-chain bootstrap sentinel.
+- Cross-check local vs on-chain RUN status and surface clear states like
+  `"NOT_STARTED"`, `"IN_PROGRESS"`, `"COMPLETED"`, `"ROLLBACK"`.
+- Feed a dedicated Prometheus textfile exporter + pillar for "mainnet RUN"
+  so CI and pre-push gates can assert that RUN has not been armed prematurely.
