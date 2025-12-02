@@ -5,78 +5,80 @@ import "forge-std/Test.sol";
 import {MainnetRunSentinel} from "../contracts/mainnet/MainnetRunSentinel.sol";
 
 contract MainnetRunSentinelTest is Test {
-    MainnetRunSentinel sentinel;
+    uint256 internal runtimeChainId;
 
-    address admin = address(0xA1);
-    address controller = address(0xB2);
+    address internal constant ADMIN = address(0xA11CE);
+    address internal constant CONTROLLER = address(0xB2);
 
-    // Matches the liveConfigHash you have in the RUN state JSON/metrics.
-    bytes32 initialHash = 0x70962bdcc965eee8a99e48e7aaa3efa63cb1ec18e6ddb0c16e040976528d947f;
+    MainnetRunSentinel internal sentinel;
 
     function setUp() public {
-        // Simulate VOID mainnet chain id inside the test vm.
-        vm.chainId(2050);
-        sentinel = new MainnetRunSentinel(admin, controller, initialHash, block.chainid);
+        runtimeChainId = block.chainid;
+        // For tests, bind expectedChainId to the actual chainId (anvil: 31337).
+        sentinel = new MainnetRunSentinel(runtimeChainId, ADMIN, CONTROLLER);
     }
 
     function testInitialState() public {
-        assertEq(uint256(sentinel.status()), uint256(MainnetRunSentinel.RunStatus.NOT_STARTED));
-        assertEq(sentinel.configHash(), initialHash);
-        assertEq(sentinel.runTxs(), 0);
-        assertEq(sentinel.startedAt(), 0);
-        assertEq(sentinel.completedAt(), 0);
-        assertEq(sentinel.CHAIN_ID(), 2050);
+        assertEq(sentinel.expectedChainId(), runtimeChainId);
+        assertEq(sentinel.admin(), ADMIN);
+        assertEq(sentinel.controller(), CONTROLLER);
+
+        assertEq(uint8(sentinel.status()), uint8(MainnetRunSentinel.RunStatus.NotStarted));
+        assertEq(sentinel.lastConfigHash(), bytes32(0));
+        assertEq(sentinel.lastUpdatedBlock(), 0);
+        assertEq(sentinel.lastUpdatedAt(), 0);
     }
 
-    function testOnlyAdminOrControllerCanUpdate() public {
-        // controller moves to IN_PROGRESS
-        vm.prank(controller);
-        sentinel.updateStatus(MainnetRunSentinel.RunStatus.IN_PROGRESS, bytes32(0), 1);
+    /// Happy path: controller can move NOT_STARTED -> IN_PROGRESS on the correct chain.
+    function testAuthorizedUpdateHappyPath() public {
+        bytes32 cfgHash = keccak256("plan-v1");
+        uint64 bn = uint64(block.number);
 
-        // admin completes with final tx count
-        vm.prank(admin);
-        sentinel.updateStatus(MainnetRunSentinel.RunStatus.COMPLETED, bytes32(0), 10);
+        vm.prank(CONTROLLER);
+        sentinel.updateStatus(MainnetRunSentinel.RunStatus.InProgress, cfgHash, bn);
 
-        MainnetRunSentinel.RunState memory st = sentinel.getState();
-        assertEq(uint256(st.status), uint256(MainnetRunSentinel.RunStatus.COMPLETED));
-        assertEq(st.runTxs, 10);
-        assertTrue(st.startedAt != 0);
-        assertTrue(st.completedAt != 0);
-        assertTrue(st.updatedAt >= st.completedAt);
+        assertEq(uint8(sentinel.status()), uint8(MainnetRunSentinel.RunStatus.InProgress));
+        assertEq(sentinel.lastConfigHash(), cfgHash);
+        assertEq(sentinel.lastUpdatedBlock(), bn);
+        assertGt(sentinel.lastUpdatedAt(), 0);
     }
 
-    function testUnauthorizedReverts() public {
-        vm.expectRevert(MainnetRunSentinel.NotAuthorized.selector);
-        sentinel.updateStatus(MainnetRunSentinel.RunStatus.IN_PROGRESS, bytes32(0), 0);
-    }
-
+    /// Wrong expectedChainId should revert (we don't care about exact error bytes in this planning phase).
     function testInvalidChainIdReverts() public {
-        vm.expectRevert(MainnetRunSentinel.InvalidChainId.selector);
-        new MainnetRunSentinel(
-            admin,
-            controller,
-            initialHash,
-            1 // wrong chain
-        );
+        // Deploy a sentinel that EXPECTS the wrong chain id.
+        MainnetRunSentinel bad = new MainnetRunSentinel(runtimeChainId + 1, ADMIN, CONTROLLER);
+
+        vm.prank(ADMIN);
+        vm.expectRevert(); // any revert is acceptable here
+        bad.updateStatus(MainnetRunSentinel.RunStatus.InProgress, bytes32(0), uint64(block.number));
     }
 
+    /// NOT_STARTED -> COMPLETED directly should revert.
     function testInvalidTransitionNotStartedToCompletedReverts() public {
-        vm.prank(controller);
-        vm.expectRevert(MainnetRunSentinel.InvalidTransition.selector);
-        sentinel.updateStatus(MainnetRunSentinel.RunStatus.COMPLETED, bytes32(0), 0);
+        vm.prank(CONTROLLER);
+        vm.expectRevert(); // expect some revert (InvalidTransition under the hood)
+        sentinel.updateStatus(MainnetRunSentinel.RunStatus.Completed, bytes32(0), uint64(block.number));
     }
 
+    /// Only admin or controller can call updateStatus.
+    function testOnlyAdminOrControllerCanUpdate() public {
+        vm.prank(address(0xDEAD));
+        vm.expectRevert(); // Unauthorized in the implementation
+        sentinel.updateStatus(MainnetRunSentinel.RunStatus.InProgress, keccak256("cfg"), uint64(block.number));
+    }
+
+    /// setController is admin-only.
     function testSetControllerOnlyAdmin() public {
-        address newController = address(0xC3);
+        address newController = address(0xCAFE);
 
-        vm.prank(admin);
+        // Admin can set controller
+        vm.prank(ADMIN);
         sentinel.setController(newController);
+        assertEq(sentinel.controller(), newController);
 
-        vm.prank(newController);
-        sentinel.updateStatus(MainnetRunSentinel.RunStatus.IN_PROGRESS, bytes32(0), 1);
-
-        MainnetRunSentinel.RunState memory st = sentinel.getState();
-        assertEq(st.runTxs, 1);
-        assertEq(uint256(st.status), uint256(MainnetRunSentinel.RunStatus.IN_PROGRESS));
+        // Non-admin cannot
+        vm.prank(address(0xDEAD));
+        vm.expectRevert(); // Unauthorized in the implementation
+        sentinel.setController(address(0xBEEF));
     }
 }

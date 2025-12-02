@@ -1,175 +1,125 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title MainnetRunSentinel
-/// @notice On-chain bootstrap RUN sentinel for VOID mainnet (chainId 2050).
-///         Stores a minimal, verifiable view of the bootstrap run status and
-///         the hash of the live bootstrap config used for the run.
-/// @dev This is planning-first; wiring from the bootstrap script comes later.
+/// @notice Sentinel for VOID mainnet bootstrap run() wiring.
+///         Tracks an explicit RUN state and enforces:
+///           - chainId guard (must be 2050 on real VOID mainnet)
+///           - valid state transitions (no NOT_STARTED -> COMPLETED, etc.)
+///         Planning-only for now; will be wired into the real bootstrap
+///         flow when we move from PLAN phase to RUN phase.
 contract MainnetRunSentinel {
     enum RunStatus {
-        NOT_STARTED,
-        IN_PROGRESS,
-        COMPLETED,
-        FAILED
+        NotStarted, // 0
+        InProgress, // 1
+        Completed, // 2
+        Failed // 3
     }
 
-    struct RunState {
-        RunStatus status;
-        bytes32 configHash;
-        uint64 startedAt;
-        uint64 completedAt;
-        uint64 updatedAt;
-        uint32 runTxs;
-    }
+    error Unauthorized(address caller);
+    error InvalidChainId(uint256 runtimeChainId, uint256 expectedChainId);
+    error InvalidTransition(uint8 fromStatus, uint8 toStatus);
 
-    /// @notice Hard-coded chain id for VOID mainnet.
-    uint256 public constant CHAIN_ID = 2050;
+    /// @notice Chain id we expect to be running on (VOID mainnet: 2050).
+    uint256 public immutable expectedChainId;
 
-    /// @notice Admin account (typically AdminGate or a cold owner).
+    /// @notice Address allowed to configure the sentinel and set controller.
     address public immutable admin;
 
-    /// @notice Controller account (bootstrap script hot key).
+    /// @notice Optional controller (e.g. bootstrap script, ops-runner).
     address public controller;
 
-    RunState private _state;
+    /// @notice Current RUN status.
+    RunStatus public status;
 
-    event ControllerUpdated(address indexed oldController, address indexed newController);
-    event RunStatusUpdated(
-        RunStatus indexed oldStatus,
-        RunStatus indexed newStatus,
+    /// @notice Last config hash (e.g. keccak of LIVE JSON) the sentinel saw.
+    bytes32 public lastConfigHash;
+
+    /// @notice Block number at which the last update occurred (as reported).
+    uint64 public lastUpdatedBlock;
+
+    /// @notice Timestamp at which the last update occurred (block.timestamp).
+    uint64 public lastUpdatedAt;
+
+    event StatusUpdated(
+        RunStatus indexed previous,
+        RunStatus indexed current,
         bytes32 configHash,
-        uint64 startedAt,
-        uint64 completedAt,
-        uint64 updatedAt,
-        uint32 runTxs
+        uint64 blockNumber,
+        address indexed caller
     );
 
-    error NotAuthorized();
-    error InvalidChainId(uint256 expected, uint256 actual);
-    error InvalidTransition(RunStatus fromStatus, RunStatus toStatus);
+    event ControllerUpdated(address indexed previous, address indexed current);
+
+    constructor(uint256 _expectedChainId, address _admin, address _controller) {
+        expectedChainId = _expectedChainId;
+        admin = _admin;
+        controller = _controller;
+        status = RunStatus.NotStarted;
+        lastConfigHash = bytes32(0);
+        lastUpdatedBlock = 0;
+        lastUpdatedAt = 0;
+    }
 
     modifier onlyAdmin() {
-        if (msg.sender != admin) revert NotAuthorized();
+        if (msg.sender != admin) {
+            revert Unauthorized(msg.sender);
+        }
         _;
     }
 
     modifier onlyAdminOrController() {
-        if (msg.sender != admin && msg.sender != controller) revert NotAuthorized();
+        if (msg.sender != admin && msg.sender != controller) {
+            revert Unauthorized(msg.sender);
+        }
         _;
     }
 
-    constructor(address _admin, address _controller, bytes32 initialConfigHash, uint256 runtimeChainId) {
-        if (runtimeChainId != CHAIN_ID) {
-            revert InvalidChainId(CHAIN_ID, runtimeChainId);
-        }
-        require(_admin != address(0), "admin zero");
-        require(_controller != address(0), "controller zero");
-
-        admin = _admin;
-        controller = _controller;
-
-        _state = RunState({
-            status: RunStatus.NOT_STARTED,
-            configHash: initialConfigHash,
-            startedAt: 0,
-            completedAt: 0,
-            updatedAt: uint64(block.timestamp),
-            runTxs: 0
-        });
-
-        emit RunStatusUpdated(
-            RunStatus.NOT_STARTED, RunStatus.NOT_STARTED, initialConfigHash, 0, 0, _state.updatedAt, 0
-        );
-    }
-
-    /// @notice Returns the full current run state.
-    function getState() external view returns (RunState memory) {
-        return _state;
-    }
-
-    /// @notice Convenience view helpers.
-    function status() external view returns (RunStatus) {
-        return _state.status;
-    }
-
-    function configHash() external view returns (bytes32) {
-        return _state.configHash;
-    }
-
-    function startedAt() external view returns (uint64) {
-        return _state.startedAt;
-    }
-
-    function completedAt() external view returns (uint64) {
-        return _state.completedAt;
-    }
-
-    function updatedAt() external view returns (uint64) {
-        return _state.updatedAt;
-    }
-
-    function runTxs() external view returns (uint32) {
-        return _state.runTxs;
-    }
-
-    /// @notice Admin can change the controller (e.g. rotate bootstrap key).
+    /// @notice Admin-only: update the controller address.
     function setController(address newController) external onlyAdmin {
-        require(newController != address(0), "controller zero");
-        address old = controller;
+        emit ControllerUpdated(controller, newController);
         controller = newController;
-        emit ControllerUpdated(old, newController);
     }
 
-    /// @notice Update status + config hash + optional tx counter.
-    /// @dev Intended transitions:
-    ///      NOT_STARTED -> IN_PROGRESS -> COMPLETED
-    ///      NOT_STARTED -> FAILED
-    ///      IN_PROGRESS -> FAILED
-    function updateStatus(RunStatus newStatus, bytes32 newConfigHash, uint32 newRunTxs) external onlyAdminOrController {
-        RunStatus oldStatus = _state.status;
-
-        // Guard basic transition sanity.
-        if (oldStatus == RunStatus.COMPLETED) {
-            revert InvalidTransition(oldStatus, newStatus);
-        }
-        if (oldStatus == RunStatus.NOT_STARTED && newStatus == RunStatus.COMPLETED) {
-            // Must pass through IN_PROGRESS first.
-            revert InvalidTransition(oldStatus, newStatus);
+    /// @notice Admin or controller can advance RUN state, with guards:
+    ///         - chainId must match expectedChainId
+    ///         - transition must be valid
+    function updateStatus(RunStatus newStatus, bytes32 configHash, uint64 blockNumber) external onlyAdminOrController {
+        // Chain guard: if this ever trips on real mainnet, something is very wrong.
+        if (block.chainid != expectedChainId) {
+            revert InvalidChainId(block.chainid, expectedChainId);
         }
 
-        uint64 ts = uint64(block.timestamp);
+        RunStatus previous = status;
 
-        _state.status = newStatus;
-
-        if (newConfigHash != bytes32(0)) {
-            _state.configHash = newConfigHash;
+        if (!_isValidTransition(previous, newStatus)) {
+            revert InvalidTransition(uint8(previous), uint8(newStatus));
         }
 
-        if (oldStatus == RunStatus.NOT_STARTED && newStatus == RunStatus.IN_PROGRESS) {
-            if (_state.startedAt == 0) {
-                _state.startedAt = ts;
-            }
+        status = newStatus;
+        lastConfigHash = configHash;
+        lastUpdatedBlock = blockNumber;
+        lastUpdatedAt = uint64(block.timestamp);
+
+        emit StatusUpdated(previous, newStatus, configHash, blockNumber, msg.sender);
+    }
+
+    /// @notice Pure transition table to keep logic easy to audit.
+    function _isValidTransition(RunStatus from, RunStatus to) internal pure returns (bool) {
+        if (from == to) {
+            return true;
         }
 
-        if (newStatus == RunStatus.COMPLETED || newStatus == RunStatus.FAILED) {
-            _state.completedAt = ts;
+        // NOT_STARTED -> IN_PROGRESS only
+        if (from == RunStatus.NotStarted) {
+            return to == RunStatus.InProgress;
         }
 
-        if (newRunTxs != 0) {
-            _state.runTxs = newRunTxs;
+        // IN_PROGRESS -> COMPLETED or FAILED
+        if (from == RunStatus.InProgress) {
+            return to == RunStatus.Completed || to == RunStatus.Failed;
         }
 
-        _state.updatedAt = ts;
-
-        emit RunStatusUpdated(
-            oldStatus,
-            newStatus,
-            _state.configHash,
-            _state.startedAt,
-            _state.completedAt,
-            _state.updatedAt,
-            _state.runTxs
-        );
+        // COMPLETED / FAILED: terminal states, no further transitions.
+        return false;
     }
 }
