@@ -1,0 +1,10 @@
+{
+  "status": "NOT_STARTED",
+  "liveConfigPath": "config/void-mainnet-bootstrap-mainnet.live.json",
+  "liveConfigHash": "0x70962bdcc965eee8a99e48e7aaa3efa63cb1ec18e6ddb0c16e040976528d947f",
+  "chainId": 2050,
+  "planVersion": "v1",
+  "runTxs": [],
+  "startedAt": null,
+  "completedAt": null
+}
