@@ -1,232 +1,219 @@
-# VOID Mainnet Bootstrap RUNBOOK
+# VOID Mainnet Bootstrap Runbook (PLAN Phase)
 
-This is the canonical playbook for rehearsing and then executing the VOID mainnet
-bootstrap. It is intentionally conservative: every stage must be green before
-you touch real mainnet keys or broadcast anything on a live network.
+Status of this document:
+- Covers PLAN-only mainnet bootstrap (no broadcasts).
+- Assumes:
+  - config/void-mainnet-bootstrap-mainnet.live.json is filled with real mainnet roles.
+  - Roles mapping lives on the LUKS-encrypted voidkey drive at /mnt/voidkey.
+  - VoidMainnetBootstrapMainnet on branch feat/mainnet-core-20251120 is in stub-only state (run() always reverts).
 
-The high-level flow is:
-
-1. **Dev bootstrap on anvil (chainId 2050)** using throwaway keys.
-2. **Dev health-all verification** for wiring, tokenomics, and state snapshot.
-3. **PLAN** mainnet bootstrap with hardware-wallet keys and LUKS USB.
-4. **DRY-RUN** the exact JSON + script combo against an anvil chain (chainId 2050).
-5. **LIVE mainnet bootstrap** (one-shot), only when all gates and metrics are green.
+This is for rehearsals and final pre-flight checks before we ever enable live broadcast.
 
 ---
 
-## 0. Scope and assumptions
+## 0. Preconditions
 
-This RUNBOOK assumes:
+- You are on the correct branch:
+    git switch feat/mainnet-core-20251120
 
-- You are on the machine that controls `void-node` and the future mainnet bootstrap.
-- The repo lives at `~/dev/void-node`.
-- Devnet and Prometheus are already running and healthy.
-- All real mainnet keys will be **fresh**, never used on devnet, and stored behind:
-  - A **LUKS-encrypted USB** (for seeds / backups).
-  - **Hardware wallets** for any hot signing that must happen.
+- Prometheus and node_exporter are running and scraping VOID mainnet pillar + keys metrics.
+- LUKS key drive is mounted at /mnt/voidkey and contains:
+    meta/mainnet-roles-mapping.txt
 
-This document **does not** itself perform any live mainnet actions. It describes
-what must be true before we add the final LIVE command.
+- LIVE config file exists:
+    config/void-mainnet-bootstrap-mainnet.live.json
 
----
-
-## 1. Dev bootstrap on anvil (chainId 2050)
-
-The dev bootstrap uses throwaway keys and a local anvil chain with `chainId 2050`.
-It wires up:
-
-- `UpdateGate`
-- `AdminGate`
-- `ConfigGate`
-- `ValidatorSet`
-- `VoidToken`
-- `VoidTreasury` + `OpsTreasury`
-- `RewardEngine` + emissions controller
-
-Run:
-
-    cd ~/dev/void-node
-    ./ops/void-mainnet-dev-bootstrap-full.sh
-
-This should:
-
-- Start (or assume) a local anvil at `http://127.0.0.1:8545` with `chainId 2050`.
-- Deploy and wire the mainnet-core contracts using **dev** keys.
-- Produce a dev bootstrap config/state file under `config/`, for example:
-
-    config/void-mainnet-bootstrap-dev.state.json
-
-If this step fails, **stop here**. Fix the dev bootstrap script and contracts
-before touching anything in later steps.
+- Mainnet core, last-mile, safeboot pillars are already green.
 
 ---
 
-## 2. Step N: Dev bootstrap health-all verification (anvil rehearsal)
+## 1. Verify roles mapping vs LIVE JSON (keys pillar)
 
-Before finalizing any VOID mainnet bootstrap plan, run the dev bootstrap health-all
-script against the same local anvil chain with `chainId 2050`:
+This ensures the roles mapping on the encrypted USB matches the LIVE plan JSON.
 
-    cd ~/dev/void-node
-    ./ops/void-mainnet-dev-bootstrap-full.sh        # dev bootstrap on anvil
-    ./ops/void-mainnet-dev-bootstrap-health-all.sh  # verify wiring + tokenomics + state snapshot
+Commands:
 
-The `health-all` script performs:
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-roles-verify.sh
+    ./ops/void-mainnet-keys-health.sh
+    ./ops/void-mainnet-pillars-keys-health.sh
 
-- Core wiring + tokenomics sanity checks.
-- Emissions budget equality checks.
-- Gate wiring sanity:
-  - `AdminGate`
-  - `ConfigGate`
-  - `UpdateGate`
-  - `ValidatorSet`
-  - `RewardEngine` / emissions controller.
-- Writes a canonical dev state file:
+Expected:
 
-    config/void-mainnet-bootstrap-dev.state.json
+- roles-verify: all 11 roles show [ok] and "RESULT: OK".
+- keys-health: ends with
+    RESULT: OK (roles mapping matches live config)
+    void_mainnet_keys_roles_ok 1
+- mainnet-pillars-keys-health shows:
+    void:mainnet_pillars:health:last_5m = 1
+    void:mainnet_pillars:health_with_keys:last_5m = 1
 
-It must end with a line logically equivalent to:
-
-    RESULT: DEV BOOTSTRAP HEALTH-ALL OK (verify-core + state snapshot)
-
-If you do **not** see that result, or if the script reports any tokenomics /
-wiring mismatches, **do not proceed** to planning or mainnet.
+If any of those are 0, stop.
 
 ---
 
-## 3. Tokenomics invariants (must match dev state snapshot)
+## 2. Check mainnet pillars + last-mile + safeboot
 
-The dev state snapshot and health-all checks must agree with the locked VOID
-tokenomics. The invariants are:
+This is your global mainnet readiness bar (without contracts deployed).
 
-- **MAX_SUPPLY**
+Example commands (use the ones that exist in your tree):
 
-  - `MAX_SUPPLY = 666,666,666 VOID` (total).
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-pillars-health-all.sh
 
-- **Premine / Treasury**
+You should see something like:
 
-  - `PREMINE = 333,333,333 VOID` allocated at genesis.
-  - The premine must land in a contract-based `VoidTreasury`, **not** a hot EOA.
+- devnet_ok       = 1
+- mainnet_core_ok = 1
+- manifest_ok     = 1
+- safeboot_ok     = 1
+- mainnet-lastmile health == 1
+- pillars-preflight RESULT: OK
 
-- **Emissions over 100 years (4 eras)**
-
-  Over 100 years, emissions must sum to `333,333,333 VOID` split as:
-
-  - Era 1 (years 0–25):   `177,777,777 VOID`
-  - Era 2 (years 25–50):  `88,888,889 VOID`
-  - Era 3 (years 50–75):  `44,444,444 VOID`
-  - Era 4 (years 75–100): `22,222,223 VOID`
-
-- **Equality checks**
-
-  The dev bootstrap health-all script must confirm:
-
-  - `PREMINE + EMISSIONS_TOTAL == MAX_SUPPLY`
-  - Emissions schedule matches the on-chain configuration used by `RewardEngine`.
-  - The dev state snapshot reflects the same numbers you see in the Solidity
-    specs and Prometheus tokenomics exporters.
-
-Any mismatch here is a **hard error**. Fix the contracts / scripts before
-you even start planning mainnet.
+If anything is red, fix it before touching bootstrap.
 
 ---
 
-## 4. PLAN: Mainnet bootstrap design (hardware wallets + LUKS USB)
+## 3. PLAN checklist against LIVE JSON
 
-Once the dev bootstrap + health-all are green and the dev state snapshot matches
-the locked tokenomics, you can start designing the real mainnet bootstrap plan.
+Checks config structure and confirms we have NOT pretended to deploy yet.
 
-Principles:
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-bootstrap-plan-checklist.sh
 
-- **Fresh keys only**
+You should see:
 
-  - Devnet keys are NEVER reused for mainnet.
-  - Mainnet premine, AdminGate, UpdateGate, ValidatorSet, and Ops keys are
-    generated fresh and stored offline.
+- chainId (config) : 2050
+- chainId (RPC)    : 2050
+- all tracked roles non-zero
+- all contracts.* still zero with a line like:
+    -> missing/zero CRITICAL contracts (these gate plan_health): voidToken premineVault treasury opsTreasury rewardEngine
 
-- **VoidTreasury, not hot wallets**
+Structural summary should show:
 
-  - The premine lives in a contract-based `VoidTreasury` at genesis.
-  - Spending flows:
+    plan_structural_health (local)   : 0  (1=READY-ish, 0=NOT_READY)
 
-        VoidPremine (genesis) -> VoidTreasury -> OpsTreasury -> hot wallets
-
-  - The premine EOA (if any) is effectively burned after sending to `VoidTreasury`.
-
-- **Storage of critical secrets**
-
-  - Seeds and any one-shot genesis keys live on a **LUKS-encrypted USB** and/or
-    hardware wallets.
-  - No plain-text seeds on disk.
-  - No `.live` configs with secrets ever committed to git.
-
-- **Mainnet plan JSON**
-
-  - The human-readable plan will be stored in a file such as:
-
-        config/void-mainnet-bootstrap-mainnet.live.json
-
-  - `.gitignore` already ensures this file (and similar `*.live.json` files) is
-    never committed.
-
-This PLAN step is mostly human work: deciding which hardware wallets, which
-signers, and how many UpdateGate / AdminGate signers you want for mainnet.
+Interpretation right now:
+- Roles are real.
+- Contracts are not deployed (correct).
+- plan_structural_health = 0: still PLAN-only. Good.
 
 ---
 
-## 5. DRY-RUN: mainnet plan on anvil (no real keys, same JSON shape)
+## 4. PLAN simulation via forge (stub-only)
 
-Before touching a real network, you must dry-run the exact **shape** of the
-mainnet bootstrap using throwaway keys and an anvil chain with `chainId 2050`.
+Runs Mainnet script in PLAN mode against LIVE JSON and confirms:
 
-The goal of the dry-run:
+- config parses
+- invariants pass
+- narrative logs
+- then stub revert fires
 
-- Use the **same JSON structure** you will use for mainnet (roles, contract
-  wiring, emissions config, validator set, etc.).
-- Run the same style of bootstrap script you will later use for mainnet, but
-  against an anvil instance.
-- Confirm:
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-bootstrap-mainnet-plan-sim.sh
 
-  - All contracts deploy and wire correctly.
-  - Tokenomics invariants still hold.
-  - Prometheus exporters and health scripts see a healthy mainnet-core pillar.
-  - The resulting dry-run state snapshot matches what you expect for mainnet.
+Expected:
 
-The DRY-RUN should end with logs clearly indicating success, mirroring the dev
-health-all messaging but referencing the mainnet plan JSON.
+- Logs include:
+    === [VOID mainnet bootstrap mainnet PLAN] ===
+    runtime chainId : 2050
+    config  chainId : 2050
+    chainId sanity OK; parsed config view (PLAN).
+    === [roles] ===
+    === [contracts] ===
+    === [validator0] ===
 
-If the DRY-RUN fails, you fix the plan and repeat until it is fully clean.
+- End shows revert:
+    Error: script failed: VoidMainnetBootstrapMainnet: stub only; implement real wiring before broadcast
+
+- Helper summary:
+    [plan-sim] detected expected stub revert marker:
+      "stub only; implement real wiring before broadcast"
+    [plan-sim] RESULT: OK (PLAN sim path wired; still stub-only, no broadcast).
+
+If the revert reason ever changes or disappears, treat that as a red flag.
+
+---
+
+## 5. PLAN snapshot (human-readable plan file)
+
+Prints the narrative into a versioned text file under docs/ so you have a frozen human-readable plan.
+
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-bootstrap-mainnet-plan-print.sh
+    ls docs/VOID-MAINNET-BOOTSTRAP-PLAN-*.txt
+    head -40 docs/VOID-MAINNET-BOOTSTRAP-PLAN-*.txt
+
+Expected:
+
+- A file like:
+    docs/VOID-MAINNET-BOOTSTRAP-PLAN-20251201-232135.txt
+
+- Content starts with:
+    === [mainnet-plan] VOID mainnet bootstrap PLAN (no broadcast) ===
+    [cfg] CONFIG  = config/void-mainnet-bootstrap-mainnet.live.json
+    [cfg] RPC_URL = http://127.0.0.1:8545
+
+and includes:
+
+- roles table with your addresses
+- contracts table (all zero)
+- validator0 block (reward, consensusKey, stakeVOID)
+- high-level step narrative (Step 0–6)
+
+Current practice: keep these txt snapshots untracked or commit them later in a docs-only change.
 
 ---
 
-## 6. LIVE: One-shot VOID mainnet bootstrap (TBD final command)
+## 6. What is NOT implemented yet (by design)
 
-The LIVE step is a **one-shot** operation. It must not be run until ALL of the
-following are true:
+Right now, VoidMainnetBootstrapMainnet exposes:
 
-- Devnet pillars and coverage exporters are green.
-- Mainnet-core dev bootstrap and health-all are green.
-- Safeboot pillar is healthy and mirrors last-mile behavior.
-- The mainnet PLAN has been dry-run at least once on anvil with no errors.
-- All keys are confirmed and backed up on LUKS USB / hardware wallets.
-- You have physically verified which machine and which wallet will sign what.
+- plan(configPath)
+    PLAN-only, read-only, no broadcasts.
 
-Only then do you:
+- planWithSecrets(configPath)
+    PLAN-only, checks VOID_MAINNET_DEPLOYER_KEY matches roles.deployer, no broadcasts.
 
-1. Start from a clean, tagged repo checkpoint.
-2. Mount the LUKS USB and unlock any required hardware wallets.
-3. Run the final mainnet bootstrap script once, using the `*.live.json` plan.
-4. Immediately verify:
+- run(configPath)
+    Calls plan(configPath), logs narrative, then ALWAYS reverts with:
+    "VoidMainnetBootstrapMainnet: stub only; implement real wiring before broadcast"
 
-   - Genesis premine -> `VoidTreasury` balance.
-   - Initial validator set and config on-chain.
-   - Prometheus mainnet pillars exporters are all green.
+ops/void-mainnet-bootstrap-mainnet-broadcast.sh remains intentionally disabled and should stay that way until we explicitly design the live wiring.
 
-The exact LIVE command will be filled in once:
-
-- The final mainnet keys plan is frozen.
-- The UpdateGate / AdminGate / ValidatorSet wiring for production is locked.
-- The bootstrap script interface is 100% stable.
-
-Until then, treat this section as **reserved**: no ad-hoc CLI experiments here.
+There is no path that will accidentally deploy mainnet contracts in the current state.
 
 ---
+
+## 7. Future LIVE broadcast (outline only)
+
+When we are eventually ready to implement real broadcast:
+
+1. Ensure all pillars (devnet, mainnet-core, last-mile, safeboot, tokenomics, keys, PLAN) are green for a long window (for example 24h).
+2. Freeze void-mainnet-bootstrap-mainnet.live.json and roles mapping; tag the repo.
+3. Implement real wiring in run(configPath):
+   - env-backed keys from LUKS / hardware
+   - vm.addr(key) must match roles in config
+   - perform deployments and wiring exactly once
+4. Keep plan and planWithSecrets as read-only DRY-RUN paths.
+5. Update broadcast script to call real run(configPath) only behind an explicit enable flag.
+6. Add Prometheus metrics/alerts for "bootstrap broadcast done" and guard them in pre-push / pillars.
+
+None of that wiring exists yet. The repo is in PLAN locked, keys locked, stub-only state.
+
+---
+
+## 8. Minimal checklist before touching LIVE wiring
+
+Before you even think about changing run() or the broadcast script, all of the following should be true:
+
+- void:mainnet_pillars:health:last_5m == 1
+- void:mainnet_pillars:health_with_keys:last_5m == 1
+- void_mainnet_bootstrap_plan_health == 1
+- PLAN sim and PLAN print are green, with contracts.* still zero in JSON
+- Roles mapping and LIVE JSON are frozen and backed up
+- LUKS key image and hardware wallets are backed up and tested
+- Repo is tagged and protected
+- Broadcast script still contains loud warnings
+
+Only after that do we start converting the stub into a real run path.
