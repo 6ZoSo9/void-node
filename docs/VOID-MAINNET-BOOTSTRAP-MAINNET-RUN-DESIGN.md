@@ -145,3 +145,67 @@ These items must be resolved before any RUN implementation:
 This doc is the canonical place to evolve the RUN design. Implementation of
 any broadcast-capable scripts must reference this design and should not be
 written until the open questions above are answered and signed off.
+
+---
+
+## 4. Proposed script naming and boundaries
+
+To keep the RUN path understandable and auditable, we will split responsibilities
+across a small, clear set of scripts under `ops/`:
+
+1. Preflight gate (no broadcasts):
+
+    - `ops/void-mainnet-bootstrap-run-preflight.sh`
+    - Responsibilities:
+        - Run `./ops/pillars-preflight.sh`
+        - Run `./ops/void-dev-plan-checklist.sh`
+        - Run `./ops/void-mainnet-plan-checklist.sh`
+        - Optionally run `./ops/void-mainnet-plan-stub-guard.sh` in a mode that
+          expects non-zero contracts once LIVE JSON is populated.
+        - Fail fast if any of the above are not green.
+    - This script never broadcasts transactions.
+
+2. RUN (broadcast-capable, strictly gated):
+
+    - `ops/void-mainnet-bootstrap-run.sh`
+    - Responsibilities:
+        - Read `config/void-mainnet-bootstrap-mainnet.live.json`.
+        - Call the Forge script (e.g. `VoidMainnetBootstrapMainnet.run`) that
+          actually deploys and wires contracts on mainnet.
+        - Refuse to run if any on-chain or local sentinel indicates that RUN
+          has already been executed.
+    - This script will remain DISABLED until:
+        - The RUN design in this doc is complete.
+        - Keys and roles have been finalized and rehearsed.
+        - A separate review has signed off on the bootstrap plan.
+
+3. Post-deploy verification:
+
+    - `ops/void-mainnet-bootstrap-run-verify.sh`
+    - Responsibilities:
+        - Query on-chain state for:
+            - VoidToken, VoidTreasury, OpsTreasury
+            - AdminGate, UpdateGate, ConfigGate
+            - ValidatorSet, RewardEngine, EmissionsController
+        - Validate:
+            - Tokenomics (MAX_SUPPLY, premine, Treasury balances).
+            - Ownership / admin roles vs the roles mapping.
+            - Initial validator configuration vs expected.
+        - Emit:
+            - A machine-readable JSON summary.
+            - A human-readable log similar to the dev PLAN rehearsal doc.
+
+4. RUN status exporter:
+
+    - `ops/void-mainnet-bootstrap-run-exporter.sh`
+    - Responsibilities:
+        - Produce a textfile for node_exporter with gauges such as:
+            - `void_mainnet_bootstrap_run_ok`
+            - `void_mainnet_bootstrap_run_config_hash`
+            - `void_mainnet_bootstrap_run_livejson_hash`
+        - Allow Prometheus to gate overall mainnet health on RUN having
+          completed successfully, on top of the existing pillars and keys.
+
+The actual implementation of these scripts will follow once this design and
+the open questions in section 3 have been resolved. Until then, any existing
+broadcast skeletons must remain hard-disabled (exit with a clear FATAL message).
