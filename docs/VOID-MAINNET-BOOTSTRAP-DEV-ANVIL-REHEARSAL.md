@@ -194,3 +194,18 @@ If the script exits with:
     === [dev-plan sanity] ALL CHECKS PASSED ===
 
 your dev bootstrap rehearsal is wired correctly at this level. If it fails, fix the reported issue (wrong RPC, wrong address, missing code, bad balances) and rerun until it passes.
+
+### Quick checklist
+
+For a full dev PLAN rehearsal in one shot, run:
+
+    cd "$HOME/dev/void-node"
+    ./ops/void-dev-plan-checklist.sh
+
+This will:
+
+1. Check that `cast` is available and `ops/void-dev-plan-sanity.sh` exists.
+2. Verify the RPC chainId is `2050` (Anvil-2050 for the dev bootstrap plan).
+3. Run the sanity hammer (`ops/void-dev-plan-sanity.sh`) and fail fast if anything is miswired.
+
+Use this whenever you want to re-run the dev PLAN bootstrap rehearsal and confirm it’s still healthy.
