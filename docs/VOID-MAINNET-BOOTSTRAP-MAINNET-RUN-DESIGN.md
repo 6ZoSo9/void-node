@@ -209,3 +209,22 @@ across a small, clear set of scripts under `ops/`:
 The actual implementation of these scripts will follow once this design and
 the open questions in section 3 have been resolved. Until then, any existing
 broadcast skeletons must remain hard-disabled (exit with a clear FATAL message).
+
+## Quick RUN preflight hammer
+
+Before any discussion of enabling a real RUN/broadcast script, use:
+
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-bootstrap-run-preflight.sh
+
+This will:
+
+1. Call `ops/void-mainnet-pillars-health-all.sh` to confirm safeboot, devnet,
+   mainnet-core, manifest, and keys are all healthy.
+2. Run the dev PLAN checklist (`ops/void-dev-plan-checklist.sh`).
+3. Run the mainnet PLAN + keys checklist (`ops/void-mainnet-plan-checklist.sh`).
+4. Run the stub-only guard (`ops/void-mainnet-plan-stub-guard.sh`) and confirm
+   that all core contract addresses in the LIVE JSON are still zero.
+
+As long as this preflight gate is green, we know the environment is healthy and
+we are still in the PLAN-only / stub-only phase for mainnet.
