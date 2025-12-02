@@ -1,0 +1,89 @@
+=== [mainnet-plan] VOID mainnet bootstrap PLAN (no broadcast) ===
+[cfg] CONFIG  = config/void-mainnet-bootstrap-mainnet.live.json
+[cfg] RPC_URL = http://127.0.0.1:8545
+
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  === [VOID mainnet bootstrap mainnet PLAN] ===
+    runtime chainId : 2050
+    config  chainId : 2050
+    chainId sanity OK; parsed config view (PLAN).
+  === [roles] ===
+    deployer          : 0x7D493C395fC3636bEcac605f9CBc855b7fffE6f1
+    treasuryAdmin     : 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+    opsTreasuryAdmin  : 0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE
+    validatorAdmin    : 0x0053Ad9B7D0FA0Ff8249B3CbA5b98011d96Fa4E2
+    adminGateOwner    : 0x5F274dC9F8192e2D62395FA20733605C2A7cB630
+    updateGateOwner   : 0x5F274dC9F8192e2D62395FA20733605C2A7cB630
+    configGateOwner   : 0x811aBC026a731A556F14E14da6Cc57f20b740930
+    treasuryOwner     : 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+    opsTreasuryOwner  : 0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE
+    rewardEngineOwner : 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+    validatorSetOwner : 0x0053Ad9B7D0FA0Ff8249B3CbA5b98011d96Fa4E2
+  === [contracts] ===
+    updateGate   : 0x0000000000000000000000000000000000000000
+    adminGate    : 0x0000000000000000000000000000000000000000
+    configGate   : 0x0000000000000000000000000000000000000000
+    validatorSet : 0x0000000000000000000000000000000000000000
+    voidToken    : 0x0000000000000000000000000000000000000000
+    premineVault : 0x0000000000000000000000000000000000000000
+    treasury     : 0x0000000000000000000000000000000000000000
+    voidTreasury : 0x0000000000000000000000000000000000000000
+    opsTreasury  : 0x0000000000000000000000000000000000000000
+    rewardEngine : 0x0000000000000000000000000000000000000000
+  === [validator0] ===
+    reward       : 0xCD49f9AB33573d2067aE56c54D1D1eDF36c65855
+  0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540
+    stakeVOID    : 1000000
+  === [PLAN narrative] VOID mainnet bootstrap (high-level) ===
+  Step 0: Confirm we are on the correct chain.
+    - runtime chainId : 2050
+    - config  chainId : 2050
+    - deployer        : 0x7D493C395fC3636bEcac605f9CBc855b7fffE6f1
+  Step 1: Deploy core token + treasury contracts (from deployer).
+    - Deploy VoidToken with a premine owner key kept in cold storage.
+    - Deploy OpsTreasury, admin       : 0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE
+    - Deploy VoidTreasury, admin      : 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+    - Plan: move the entire premine into VoidTreasury and leave zero balance on the premine key.
+  Step 2: Deploy governance gates.
+    - Deploy AdminGate with master key (hardware/LUKS key, not from this JSON).
+    - AdminGate owner            : 0x5F274dC9F8192e2D62395FA20733605C2A7cB630
+    - UpdateGate owner           : 0x5F274dC9F8192e2D62395FA20733605C2A7cB630
+    - Deploy ConfigGate, owner   : 0x811aBC026a731A556F14E14da6Cc57f20b740930
+    - ConfigGate.adminGate wired to AdminGate.
+  Step 3: Deploy validator + emissions + rewards stack.
+    - Deploy ValidatorSet, owner : 0x0053Ad9B7D0FA0Ff8249B3CbA5b98011d96Fa4E2
+    - Deploy emissions controller (VoidEmissionsController) with its admin.
+    - Deploy RewardEngine, owner : 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+    - RewardEngine wired to:
+        * IVoidTokenLike(VoidToken)
+        * IValidatorSetLike(ValidatorSet)
+        * Emissions controller for budget.
+  Step 4: Register validator0 as the genesis validator.
+    - validator0.reward address   : 0xCD49f9AB33573d2067aE56c54D1D1eDF36c65855
+    - validator0.consensusKey     :
+  0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540
+    - validator0.stakeVOID (raw)  : 1000000
+    - Plan: call into ValidatorSet with validator0 data and lock its stake.
+  Step 5: Wire ownership and permissions.
+    - Transfer ownership of VoidTreasury to treasuryOwner      : 0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7
+    - Transfer ownership of OpsTreasury to opsTreasuryOwner    : 0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE
+    - Ensure AdminGate/ConfigGate/ValidatorSet/RewardEngine/Treasury
+      all have their owners/admins aligned with the roles in this config.
+  Step 6: Update plan file with deployed contract addresses.
+    - After a real broadcast, write:
+        contracts.updateGate
+        contracts.adminGate
+        contracts.configGate
+        contracts.validatorSet
+        contracts.voidToken
+        contracts.premineVault (if used)
+        contracts.treasury
+        contracts.voidTreasury
+        contracts.opsTreasury
+        contracts.rewardEngine
+      into config/void-mainnet-bootstrap-mainnet.live.json and flip
+      the exporter plan_health -> 1 after verification.
+    PLAN mode: no broadcasts, no state changes, no deployments.

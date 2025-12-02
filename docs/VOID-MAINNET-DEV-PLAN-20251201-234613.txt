@@ -1,0 +1,304 @@
+No files changed, compilation skipped
+Traces:
+  [181359] VoidMainnetBootstrapMainnet::plan("config/void-mainnet-bootstrap-dev.plan.json")
+    ├─ [0] VM::readFile("config/void-mainnet-bootstrap-dev.plan.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".chainId") [staticcall]
+    │   └─ ← [Return] 2050
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.deployer") [staticcall]
+    │   └─ ← [Return] 0x1000000000000000000000000000000000000001
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.treasuryAdmin") [staticcall]
+    │   └─ ← [Return] 0x2000000000000000000000000000000000000002
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.opsTreasuryAdmin") [staticcall]
+    │   └─ ← [Return] 0x3000000000000000000000000000000000000003
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.validatorAdmin") [staticcall]
+    │   └─ ← [Return] 0x4000000000000000000000000000000000000004
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.adminGateOwner") [staticcall]
+    │   └─ ← [Return] 0x5000000000000000000000000000000000000005
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.updateGateOwner") [staticcall]
+    │   └─ ← [Return] 0x5000000000000000000000000000000000000005
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.configGateOwner") [staticcall]
+    │   └─ ← [Return] 0x6000000000000000000000000000000000000006
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.treasuryOwner") [staticcall]
+    │   └─ ← [Return] 0x7000000000000000000000000000000000000007
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.opsTreasuryOwner") [staticcall]
+    │   └─ ← [Return] 0x8000000000000000000000000000000000000008
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.rewardEngineOwner") [staticcall]
+    │   └─ ← [Return] 0x9000000000000000000000000000000000000009
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".roles.validatorSetOwner") [staticcall]
+    │   └─ ← [Return] 0xA00000000000000000000000000000000000000A
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.updateGate") [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.adminGate") [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.configGate") [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.validatorSet") [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.voidToken") [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.premineVault") [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.treasury") [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.voidTreasury") [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.opsTreasury") [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.rewardEngine") [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".validator0.reward") [staticcall]
+    │   └─ ← [Return] 0xB00000000000000000000000000000000000000B
+    ├─ [0] VM::parseJsonBytes32("<stringified JSON>", ".validator0.consensusKey") [staticcall]
+    │   └─ ← [Return] 0x1111111111111111111111111111111111111111111111111111111111111111
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".validator0.stakeVOID") [staticcall]
+    │   └─ ← [Return] 1000000 [1e6]
+    ├─ [0] console::log("=== [VOID mainnet bootstrap mainnet PLAN] ===") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  runtime chainId :", 2050) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  config  chainId :", 2050) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  chainId sanity OK; parsed config view (PLAN).") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("=== [roles] ===") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  deployer          :", 0x1000000000000000000000000000000000000001) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  treasuryAdmin     :", 0x2000000000000000000000000000000000000002) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  opsTreasuryAdmin  :", 0x3000000000000000000000000000000000000003) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  validatorAdmin    :", 0x4000000000000000000000000000000000000004) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  adminGateOwner    :", 0x5000000000000000000000000000000000000005) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  updateGateOwner   :", 0x5000000000000000000000000000000000000005) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  configGateOwner   :", 0x6000000000000000000000000000000000000006) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  treasuryOwner     :", 0x7000000000000000000000000000000000000007) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  opsTreasuryOwner  :", 0x8000000000000000000000000000000000000008) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  rewardEngineOwner :", 0x9000000000000000000000000000000000000009) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  validatorSetOwner :", 0xA00000000000000000000000000000000000000A) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("=== [contracts] ===") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  updateGate   :", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  adminGate    :", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  configGate   :", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  validatorSet :", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  voidToken    :", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  premineVault :", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  treasury     :", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  voidTreasury :", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  opsTreasury  :", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  rewardEngine :", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("=== [validator0] ===") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  reward       :", 0xB00000000000000000000000000000000000000B) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log(0x1111111111111111111111111111111111111111111111111111111111111111) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  stakeVOID    :", 1000000 [1e6]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("=== [PLAN narrative] VOID mainnet bootstrap (high-level) ===") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Step 0: Confirm we are on the correct chain.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - runtime chainId :", 2050) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - config  chainId :", 2050) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - deployer        :", 0x1000000000000000000000000000000000000001) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Step 1: Deploy core token + treasury contracts (from deployer).") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Deploy VoidToken with a premine owner key kept in cold storage.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Deploy OpsTreasury, admin       :", 0x3000000000000000000000000000000000000003) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Deploy VoidTreasury, admin      :", 0x2000000000000000000000000000000000000002) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Plan: move the entire premine into VoidTreasury and leave zero balance on the premine key.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Step 2: Deploy governance gates.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Deploy AdminGate with master key (hardware/LUKS key, not from this JSON).") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - AdminGate owner            :", 0x5000000000000000000000000000000000000005) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - UpdateGate owner           :", 0x5000000000000000000000000000000000000005) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Deploy ConfigGate, owner   :", 0x6000000000000000000000000000000000000006) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - ConfigGate.adminGate wired to AdminGate.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Step 3: Deploy validator + emissions + rewards stack.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Deploy ValidatorSet, owner :", 0xA00000000000000000000000000000000000000A) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Deploy emissions controller (VoidEmissionsController) with its admin.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Deploy RewardEngine, owner :", 0x9000000000000000000000000000000000000009) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - RewardEngine wired to:") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      * IVoidTokenLike(VoidToken)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      * IValidatorSetLike(ValidatorSet)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      * Emissions controller for budget.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Step 4: Register validator0 as the genesis validator.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - validator0.reward address   :", 0xB00000000000000000000000000000000000000B) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - validator0.consensusKey     :") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log(0x1111111111111111111111111111111111111111111111111111111111111111) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - validator0.stakeVOID (raw)  :", 1000000 [1e6]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Plan: call into ValidatorSet with validator0 data and lock its stake.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Step 5: Wire ownership and permissions.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Transfer ownership of VoidTreasury to treasuryOwner      :", 0x7000000000000000000000000000000000000007) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Transfer ownership of OpsTreasury to opsTreasuryOwner    :", 0x8000000000000000000000000000000000000008) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - Ensure AdminGate/ConfigGate/ValidatorSet/RewardEngine/Treasury") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("    all have their owners/admins aligned with the roles in this config.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("Step 6: Update plan file with deployed contract addresses.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  - After a real broadcast, write:") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      contracts.updateGate") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      contracts.adminGate") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      contracts.configGate") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      contracts.validatorSet") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      contracts.voidToken") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      contracts.premineVault (if used)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      contracts.treasury") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      contracts.voidTreasury") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      contracts.opsTreasury") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("      contracts.rewardEngine") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("    into config/void-mainnet-bootstrap-mainnet.live.json and flip") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("    the exporter plan_health -> 1 after verification.") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("  PLAN mode: no broadcasts, no state changes, no deployments.") [staticcall]
+    │   └─ ← [Stop]
+    └─ ← [Return]
+
+
+Script ran successfully.
+
+== Logs ==
+  === [VOID mainnet bootstrap mainnet PLAN] ===
+    runtime chainId : 2050
+    config  chainId : 2050
+    chainId sanity OK; parsed config view (PLAN).
+  === [roles] ===
+    deployer          : 0x1000000000000000000000000000000000000001
+    treasuryAdmin     : 0x2000000000000000000000000000000000000002
+    opsTreasuryAdmin  : 0x3000000000000000000000000000000000000003
+    validatorAdmin    : 0x4000000000000000000000000000000000000004
+    adminGateOwner    : 0x5000000000000000000000000000000000000005
+    updateGateOwner   : 0x5000000000000000000000000000000000000005
+    configGateOwner   : 0x6000000000000000000000000000000000000006
+    treasuryOwner     : 0x7000000000000000000000000000000000000007
+    opsTreasuryOwner  : 0x8000000000000000000000000000000000000008
+    rewardEngineOwner : 0x9000000000000000000000000000000000000009
+    validatorSetOwner : 0xA00000000000000000000000000000000000000A
+  === [contracts] ===
+    updateGate   : 0x0000000000000000000000000000000000000000
+    adminGate    : 0x0000000000000000000000000000000000000000
+    configGate   : 0x0000000000000000000000000000000000000000
+    validatorSet : 0x0000000000000000000000000000000000000000
+    voidToken    : 0x0000000000000000000000000000000000000000
+    premineVault : 0x0000000000000000000000000000000000000000
+    treasury     : 0x0000000000000000000000000000000000000000
+    voidTreasury : 0x0000000000000000000000000000000000000000
+    opsTreasury  : 0x0000000000000000000000000000000000000000
+    rewardEngine : 0x0000000000000000000000000000000000000000
+  === [validator0] ===
+    reward       : 0xB00000000000000000000000000000000000000B
+  0x1111111111111111111111111111111111111111111111111111111111111111
+    stakeVOID    : 1000000
+  === [PLAN narrative] VOID mainnet bootstrap (high-level) ===
+  Step 0: Confirm we are on the correct chain.
+    - runtime chainId : 2050
+    - config  chainId : 2050
+    - deployer        : 0x1000000000000000000000000000000000000001
+  Step 1: Deploy core token + treasury contracts (from deployer).
+    - Deploy VoidToken with a premine owner key kept in cold storage.
+    - Deploy OpsTreasury, admin       : 0x3000000000000000000000000000000000000003
+    - Deploy VoidTreasury, admin      : 0x2000000000000000000000000000000000000002
+    - Plan: move the entire premine into VoidTreasury and leave zero balance on the premine key.
+  Step 2: Deploy governance gates.
+    - Deploy AdminGate with master key (hardware/LUKS key, not from this JSON).
+    - AdminGate owner            : 0x5000000000000000000000000000000000000005
+    - UpdateGate owner           : 0x5000000000000000000000000000000000000005
+    - Deploy ConfigGate, owner   : 0x6000000000000000000000000000000000000006
+    - ConfigGate.adminGate wired to AdminGate.
+  Step 3: Deploy validator + emissions + rewards stack.
+    - Deploy ValidatorSet, owner : 0xA00000000000000000000000000000000000000A
+    - Deploy emissions controller (VoidEmissionsController) with its admin.
+    - Deploy RewardEngine, owner : 0x9000000000000000000000000000000000000009
+    - RewardEngine wired to:
+        * IVoidTokenLike(VoidToken)
+        * IValidatorSetLike(ValidatorSet)
+        * Emissions controller for budget.
+  Step 4: Register validator0 as the genesis validator.
+    - validator0.reward address   : 0xB00000000000000000000000000000000000000B
+    - validator0.consensusKey     :
+  0x1111111111111111111111111111111111111111111111111111111111111111
+    - validator0.stakeVOID (raw)  : 1000000
+    - Plan: call into ValidatorSet with validator0 data and lock its stake.
+  Step 5: Wire ownership and permissions.
+    - Transfer ownership of VoidTreasury to treasuryOwner      : 0x7000000000000000000000000000000000000007
+    - Transfer ownership of OpsTreasury to opsTreasuryOwner    : 0x8000000000000000000000000000000000000008
+    - Ensure AdminGate/ConfigGate/ValidatorSet/RewardEngine/Treasury
+      all have their owners/admins aligned with the roles in this config.
+  Step 6: Update plan file with deployed contract addresses.
+    - After a real broadcast, write:
+        contracts.updateGate
+        contracts.adminGate
+        contracts.configGate
+        contracts.validatorSet
+        contracts.voidToken
+        contracts.premineVault (if used)
+        contracts.treasury
+        contracts.voidTreasury
+        contracts.opsTreasury
+        contracts.rewardEngine
+      into config/void-mainnet-bootstrap-mainnet.live.json and flip
+      the exporter plan_health -> 1 after verification.
+    PLAN mode: no broadcasts, no state changes, no deployments.
