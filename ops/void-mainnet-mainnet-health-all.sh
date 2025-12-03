@@ -1,25 +1,50 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$HOME/dev/void-node"
+ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
 
-echo "=== [mainnet-mainnet-health-all] VOID mainnet MAINNET health-all ==="
-
+echo "=== [mainnet-mainnet-health-all] VOID mainnet MAINNET bootstrap health ==="
+echo "[cfg] ROOT = $ROOT"
 echo
-echo "=== [A] contracts-zero guard (LIVE JSON must still be 0x0 pre-deploy) ==="
-./ops/void-mainnet-live-contracts-zero-guard.sh
 
-echo
-echo "=== [B] bootstrap MAINNET health-all (keys + PLAN + run() dry-run) ==="
-./ops/void-mainnet-bootstrap-mainnet-health-all.sh
+cd "$ROOT"
 
+echo "=== [1] keys pillar ==="
+keys_ok=0
+if ./ops/void-mainnet-keys-health-all.sh; then
+  keys_ok=0
+else
+  keys_ok=$?
+fi
 echo
-echo "=== [C] pillars + keys health-all (core + lastmile + tokenomics + keys) ==="
-./ops/void-mainnet-pillars-with-keys-health-all.sh
 
+echo "=== [2] PLAN pillar ==="
+plan_ok=0
+if ./ops/void-mainnet-plan-health-all.sh; then
+  plan_ok=0
+else
+  plan_ok=$?
+fi
 echo
-echo "=== [summary] mainnet MAINNET health-all completed ==="
-echo "  - LIVE .contracts.* still zero-address"
-echo "  - keys + PLAN + run() dry-run healthy"
-echo "  - mainnet core/lastmile/tokenomics pillars healthy"
-echo "  - pillars AND keys roles healthy over last 5m"
+
+echo "=== [3] run() dry-run harness ==="
+run_ok=0
+if ./ops/void-mainnet-mainnet-dry-run.sh; then
+  run_ok=0
+else
+  run_ok=$?
+fi
+echo
+
+echo "=== [summary] ==="
+echo "[summary] keys_ok = $keys_ok"
+echo "[summary] plan_ok = $plan_ok"
+echo "[summary] run_ok  = $run_ok"
+
+if [[ "$keys_ok" -eq 0 && "$plan_ok" -eq 0 && "$run_ok" -eq 0 ]]; then
+  echo "[mainnet-mainnet-bootstrap] OK"
+  exit 0
+else
+  echo "[mainnet-mainnet-bootstrap] ERROR"
+  exit 1
+fi
