@@ -45,7 +45,7 @@ and checked by the **keys pillar** (`void_mainnet_keys_roles_ok == 1`).
 
 ## 2. Phase 1 Governance: “Founding Operator Mode”
 
-In Phase 1 (early mainnet), VOID is effectively run by a **single operator (you)**, but:
+In Phase 1 (early mainnet), VOID is effectively run by a **single operator (the founder)**, but:
 
 - Critical keys live on **LUKS-encrypted storage and/or hardware wallets**.
 - Governance actions are constrained by:
@@ -76,14 +76,14 @@ From the LIVE JSON + keys mapping:
 
 - **adminGateOwner / updateGateOwner / configGateOwner**
   - Control AdminGate/UpdateGate/ConfigGate internals.
-  - In Phase 1, all of these are effectively under **your control** (same or related keys), but:
+  - In Phase 1, these are effectively under the founding operator’s control, but:
     - Critical masterKey lives on the LUKS “voidkey” / hardware wallet.
     - Operational owners live on separate hot/warm keys where needed.
 
 - **rewardEngineOwner**
   - Controls RewardEngine configuration (emission tap, validator reward logic params).
 
-In practice, in Phase 1, **you hold all of these roles**, but split across multiple keys
+In practice, in Phase 1, **one operator holds all of these roles**, split across multiple keys
 so a single compromised hot wallet does not own the entire chain.
 
 ---
@@ -92,7 +92,7 @@ so a single compromised hot wallet does not own the entire chain.
 
 There is **no external human committee**. The safeguards are:
 
-1. **Local metrics + scripts** (we already have):
+1. **Local metrics + scripts** (already implemented):
    - `./ops/void-mainnet-health-all.sh`
    - `./ops/void-mainnet-health-with-mainnet-all.sh`
    - `./ops/void-mainnet-planning-health-all.sh`
@@ -130,11 +130,10 @@ There is **no external human committee**. The safeguards are:
    - Broadcast transactions against the real RPC URL (VOID mainnet).
 6. **Post-change verification**:
    - Re-run all health scripts.
-   - Check alerts in Grafana “VOID — Command Center” and “VOID — Mainnet Pillars”.
+   - Check alerts in Grafana dashboards.
    - Confirm no new red gauges or alerts.
 
-This flow gives you **full autonomy** (no outside signatures), but forces you to respect
-a strict health & metrics discipline before and after each change.
+This gives full autonomy, with a strict health discipline before and after each change.
 
 ---
 
@@ -142,78 +141,71 @@ a strict health & metrics discipline before and after each change.
 
 Phase 1 is intentionally centralized. Later phases expand control.
 
-### Phase 1 — Founding operator, single signer (you)
+### Phase 1 — Founding operator, single signer
 
-- All governance roles are effectively your keys.
+- All governance roles are effectively one operator’s keys.
 - Premine is held by VoidTreasury, not by a hot EOA.
-- Upgrades are done by you via AdminGate/UpdateGate/ConfigGate.
-- Safeguards are:
+- Upgrades flow through AdminGate/UpdateGate/ConfigGate.
+- Safeguards:
   - LUKS / hardware key storage.
   - Pillars and SLO alerts.
   - Mainnet bootstrap & keys pillars.
 
 ### Phase 2 — Multi-sig & split authority
 
-- Convert **adminGateOwner**, **updateGateOwner**, and **configGateOwner**
+- Convert **adminGateOwner**, **updateGateOwner**, **configGateOwner**
   to multi-sig contracts (e.g. N-of-M signers).
 - Split responsibilities:
   - One signer set focused on protocol upgrades (AdminGate/UpdateGate).
   - Another focused on financial flows (Treasury/OpsTreasury).
-- Some signers can be additional trusted operators / entities if desired.
 
 ### Phase 3 — Community participation
 
 - Wider validator set:
   - Permissionless validator registration under the ValidatorSet rules.
-  - On-chain voting hooks could be added later (optional).
-- Community representation:
-  - You can introduce governance proposals routed via AdminGate/UpdateGate,
-    while still keeping an emergency override path for protocol safety.
+- Optional extensions:
+  - Governance proposals routed via AdminGate/UpdateGate.
+  - Community representation in signer sets.
 
 ---
 
 ## 5. Mainnet Bootstrap Ceremony & Governance
 
-The **bootstrap ceremony** (see `docs/VOID-MAINNET-BOOTSTRAP-CEREMONY.md`) is
-where we:
+The **bootstrap ceremony** (see `docs/VOID-MAINNET-BOOTSTRAP-CEREMONY.md`) is where we:
 
 - Confirm LIVE JSON roles.
 - Confirm keys mapping on the LUKS volume.
-- Walk through the PLAN narrative (VoidMainnetBootstrapMainnet.plan).
+- Walk through the PLAN narrative (`VoidMainnetBootstrapMainnet.plan`).
 - Run the MAINNET dry-run harness (stubbed `run()`).
-- Eventually, once everything is locked and keys are finalized:
-  - Enable the real `run()` path and broadcast the bootstrap.
 
-Governance “starts” at the moment of bootstrap:
+After the real bootstrap `run()` is wired and executed:
 
 - Premine moves into VoidTreasury.
 - OpsTreasury and RewardEngine are configured.
 - Validator0 is registered and begins staking & earning.
-- AdminGate/UpdateGate/ConfigGate and all owner roles are live.
+- AdminGate/UpdateGate/ConfigGate and all owners are live.
 
-From that point on, all changes should flow through the governance process above,
-under your control, with **no external human sign-off required**.
+From that point on, all changes should follow the governance process above.
 
 ---
 
 ## 6. Design Principles (Summary)
 
 1. **You can ship**  
-   Governance is designed so one determined operator can deploy and evolve VOID mainnet
-   without waiting on anyone.
+   One determined operator can deploy and evolve VOID mainnet without waiting on anyone.
 
 2. **Metrics and contracts are the “board”**  
    The only “approval process” is on-chain invariants + Prometheus health/pillars.
 
-3. **Keys are treated as dangerous but replaceable**  
-   We never rely on “perfect humans”; we rely on:
+3. **Keys are dangerous but replaceable**  
+   We rely on:
    - LUKS + hardware.
    - Rotatable AdminGate/UpdateGate/ConfigGate owners.
-   - Contracts that enforce the rules.
+   - Contracts that enforce rules.
 
 4. **Clear path to decentralization**  
    Nothing in Phase 1 blocks:
    - Introducing multi-sig.
-   - Handing out more validator slots.
+   - Expanding validator sets.
    - Adding more signers or even community-controlled upgrade flows later.
 
