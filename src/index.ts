@@ -27078,3 +27078,76 @@ import './tokenomics/reward_engine_exporter_v1';
 
   tick();
 })();
+
+// --- AI manifest HTTP discovery (additive, do not remove) ---
+;(function aiManifestRoutes(){
+  try {
+    const G: any = globalThis as any;
+    const app = (G && G.__void_http_app) || (G && G.app);
+    if (!app || app.__void_ai_manifest_bound) return;
+    app.__void_ai_manifest_bound = true;
+
+    const path = require("node:path");
+    const manifestPath = path.join(process.cwd(), "config", "void-ai-manifest.live.json");
+
+    app.get("/.well-known/void-ai.json", (_req, res) => {
+      res.type("application/json");
+      res.sendFile(manifestPath);
+    });
+
+    app.get("/__void/ai/manifest.v1.json", (_req, res) => {
+      res.type("application/json");
+      res.sendFile(manifestPath);
+    });
+  } catch (e: any) {
+    console.error("[void-ai-manifest] failed to bind routes", e?.message || e);
+  }
+})();
+
+// --- AI manifest HTTP discovery (polling binder, additive) ---
+;(function aiManifestRoutesPoll(){
+  function bind(app:any, pathMod:any){
+    try {
+      if (!app || app.__void_ai_manifest_poll_bound) return;
+      app.__void_ai_manifest_poll_bound = true;
+
+      const manifestPath = pathMod.join(process.cwd(), "config", "void-ai-manifest.live.json");
+
+      app.get("/.well-known/void-ai.json", (_req, res) => {
+        res.type("application/json");
+        res.sendFile(manifestPath);
+      });
+
+      app.get("/__void/ai/manifest.v1.json", (_req, res) => {
+        res.type("application/json");
+        res.sendFile(manifestPath);
+      });
+
+      console.error("[void-ai-manifest] bound AI manifest routes");
+    } catch (e: any) {
+      console.error("[void-ai-manifest] failed in bind()", e?.message || e);
+    }
+  }
+
+  function tick(retries:number){
+    try {
+      const G:any = globalThis as any;
+      const app = (G && G.__void_http_app) || (G && G.app);
+      if (!app) {
+        if (retries <= 0) {
+          console.error("[void-ai-manifest] app not found after retries, giving up");
+          return;
+        }
+        setTimeout(() => tick(retries - 1), 500);
+        return;
+      }
+      const pathMod = require("node:path");
+      bind(app, pathMod);
+    } catch (e:any) {
+      console.error("[void-ai-manifest] tick error", e?.message || e);
+    }
+  }
+
+  // Try for ~60 seconds total: 120 * 500ms
+  tick(120);
+})();

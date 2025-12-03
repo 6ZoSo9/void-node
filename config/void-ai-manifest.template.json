@@ -1,0 +1,95 @@
+{
+  "version": "void-ai-manifest-v1",
+  "chain": {
+    "name": "VOID Network",
+    "shortName": "VOID",
+    "chainId": 2050,
+    "rpc": {
+      "primary": "http://127.0.0.1:4100",
+      "type": "ethereum-json-rpc"
+    },
+    "nativeToken": {
+      "symbol": "VOID",
+      "decimals": 18
+    }
+  },
+  "systemContracts": {
+    "VoidToken": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "abiRef": "abi/VoidToken.json",
+      "role": ["token", "gas", "governance"]
+    },
+    "VoidTreasury": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "abiRef": "abi/VoidTreasury.json",
+      "role": ["treasury"]
+    },
+    "RewardEngine": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "abiRef": "abi/RewardEngine.json",
+      "role": ["rewards", "validators"]
+    },
+    "ValidatorSet": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "abiRef": "abi/ValidatorSet.json",
+      "role": ["validators", "staking"]
+    },
+    "JobQueue": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "abiRef": "abi/JobQueue.json",
+      "role": ["ai-jobs", "agents"]
+    }
+  },
+  "aiEndpoints": {
+    "http": {
+      "jobSubmit": {
+        "method": "POST",
+        "path": "/agent/v0/jobs",
+        "description": "Submit an AI job to the JobQueue via wallet/oracle.",
+        "inputSchema": {
+          "type": "object",
+          "required": ["taskType", "payload"],
+          "properties": {
+            "taskType": { "type": "string" },
+            "payload": { "type": "object" },
+            "maxFee": {
+              "type": "string",
+              "description": "Optional max fee in wei."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "required": ["jobId"],
+          "properties": {
+            "jobId": { "type": "string" }
+          }
+        }
+      },
+      "receiptSubmit": {
+        "method": "POST",
+        "path": "/agent/v0/receipt",
+        "description": "Submit an off-chain proof/receipt for a completed AI job.",
+        "inputSchemaRef": "schema/AgentReceiptV1.json"
+      }
+    }
+  },
+  "manifests": {
+    "cbor": {
+      "semanticManifestV2": {
+        "status": "planned",
+        "specRef": "docs/semantic-manifest-v2.md"
+      }
+    }
+  },
+  "metrics": {
+    "prometheus": {
+      "baseUrl": "http://127.0.0.1:9090",
+      "keySeries": [
+        "void_mainnet_core_health",
+        "void_mainnet_lastmile_health",
+        "void_agent_receipts_coverage"
+      ]
+    }
+  }
+}
