@@ -1,0 +1,49 @@
+{
+  "$schema": "https://void.network/schemas/nullfeed-channel-features-stub.json",
+  "version": 1,
+  "description": "Stub schema for per-channel feature toggles in NullFeed. This is a planning artifact, not active config.",
+  "defaults": {
+    "images_enabled": false,
+    "bots_allowed": false,
+    "ai_assist_enabled": false,
+    "visibility": "PUBLIC",
+    "password_required": false
+  },
+  "visibility_options": [
+    "PUBLIC",
+    "HIDDEN",
+    "PASSWORD"
+  ],
+  "example_channel_features": [
+    {
+      "name": "#general",
+      "visibility": "PUBLIC",
+      "images_enabled": true,
+      "bots_allowed": false,
+      "ai_assist_enabled": false,
+      "password_required": false
+    },
+    {
+      "name": "#void-dev",
+      "visibility": "PUBLIC",
+      "images_enabled": false,
+      "bots_allowed": true,
+      "ai_assist_enabled": true,
+      "password_required": false
+    },
+    {
+      "name": "#my-secret-hangout",
+      "visibility": "PASSWORD",
+      "images_enabled": true,
+      "bots_allowed": false,
+      "ai_assist_enabled": false,
+      "password_required": true
+    }
+  ],
+  "notes": [
+    "Real implementation will store channel state in a registry (on-chain or committed off-chain).",
+    "Passwords will never be stored here in plaintext; this stub only models the presence of a password gate.",
+    "Feature flags will eventually be enforced by NullFeed gateways and/or clients.",
+    "This file is a stub to keep the design future-proof without blocking mainnet."
+  ]
+}
