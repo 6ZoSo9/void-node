@@ -27151,3 +27151,76 @@ import './tokenomics/reward_engine_exporter_v1';
   // Try for ~60 seconds total: 120 * 500ms
   tick(120);
 })();
+
+// ========================================================================
+// [AI agent v0 HTTP stubs]
+// These are minimal, non-persistent stubs that match the AI manifest.
+// Later we will wire them into JobQueue + on-chain receipts.
+// ========================================================================
+
+interface VoidAgentJobSubmitBody {
+  jobId?: string;
+  kind?: string;
+  payload?: unknown;
+  meta?: Record<string, unknown>;
+}
+
+interface VoidAgentReceiptBody {
+  jobId?: string;
+  status?: string;
+  outputRef?: string;
+  error?: string;
+  meta?: Record<string, unknown>;
+}
+
+// POST /agent/v0/jobs
+// Accepts a job submission from a caller, returns a stub "queued" response.
+// Later this will enqueue into JobQueue and emit a receipt requirement.
+app.post('/agent/v0/jobs', express.json(), (req, res) => {
+  const body = (req as any).body as VoidAgentJobSubmitBody || {};
+  const jobId = body.jobId || `local-${Date.now()}`;
+
+  // TODO: enqueue into on-chain JobQueue and/or local scheduler
+  // For now, just log and return a stub.
+  console.log('[agent/jobs] stub accept', {
+    jobId,
+    kind: body.kind,
+  });
+
+  res.status(202).json({
+    ok: true,
+    status: 'queued-stub',
+    jobId,
+    manifestVersion: 'void-ai-manifest-v1',
+  });
+});
+
+// POST /agent/v0/receipt
+// Accepts a receipt from an off-chain agent for a previously submitted job.
+// Later this will verify against chain + update coverage metrics.
+app.post('/agent/v0/receipt', express.json(), (req, res) => {
+  const body = (req as any).body as VoidAgentReceiptBody || {};
+
+  if (!body.jobId) {
+    return res.status(400).json({
+      ok: false,
+      error: 'missing jobId',
+    });
+  }
+
+  console.log('[agent/receipt] stub accept', {
+    jobId: body.jobId,
+    status: body.status,
+    outputRef: body.outputRef,
+  });
+
+  res.json({
+    ok: true,
+    status: 'accepted-stub',
+    jobId: body.jobId,
+  });
+});
+
+// ========================================================================
+// [END AI agent v0 HTTP stubs]
+// ========================================================================
