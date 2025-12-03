@@ -1,0 +1,6 @@
+[
+  { "name": "#global",       "desc": "Global chat / posts" },
+  { "name": "#void-dev",     "desc": "Protocol / node development" },
+  { "name": "#ai-lab",       "desc": "AI, agents and models" },
+  { "name": "#nullfeed-meta","desc": "NullFeed feedback / meta discussion" }
+]
