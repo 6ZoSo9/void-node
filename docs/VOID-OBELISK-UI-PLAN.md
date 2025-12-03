@@ -15,75 +15,105 @@
 
 ## Layers
 
-1. **Operator layer (what exists now)**
-   - `ops/obelisk-console.sh` is the "operator TUI".
-   - Menus:
-     - **Devnet tools**
-       - View devnet protocol summary (JobQueue, AgentRegistry, etc.).
-       - Check balances (given token + address).
-       - Transfer VOID on devnet (best-effort, may revert until tokenomics wiring is final).
-       - Fund devnet caller with ETH (gas faucet).
-       - *(Later)* Deploy / upgrade devnet protocol stack.
-     - **Mainnet Phase 1 tools**
-       - Phase 1 launch health (docs + keys + PLAN + pillars).
-       - Dump roles mapping vs live JSON.
-       - run() stub dry-run (MAINNET bootstrap script).
-       - Inspect planned balances by role (once VoidToken live on mainnet).
+### 1. Operator layer (what exists now)
 
-2. **Wallet layer (future Obelisk Wallet UI)**
-   - Top-level sections:
-     - **[Node]** basic node status + health summary (read-only for most users).
-     - **[Wallet]** balances, transfers, and contract deploy/call helpers.
-     - **[NullFeed]** client for the on-chain/off-chain feed.
-   - For human users:
-     - Clear separation: "Network" selector (devnet, mainnet Phase 1, etc.).
-     - Simple flows:
-       - "Send VOID"
-       - "Deploy contract" (with gas estimate and confirmation).
-       - "View validators / staking" (later phases).
+- `ops/obelisk-console.sh` is the "operator TUI".
+- Menus:
 
-3. **NullFeed integration (concept)**
-   - NullFeed is treated as another module:
-     - **Read**: timeline / board view (per channel / board).
-     - **Write**: post / reply / image upload flow, using Obelisk Wallet keys.
-   - Wallet responsibilities:
-     - Sign posts / actions with the user’s key.
-     - Handle compression + encryption when needed (future).
-     - Route data either:
-       - Directly on-chain (short posts), or
-       - Via VOID’s off-chain storage + on-chain commitments.
-   - Integration must share the same navigation model:
-     - From the wallet UI:
-       - `[NullFeed] -> [Board List] -> [Thread] -> [Post]`
-     - From operator console:
-       - (Phase 1) Observability only (e.g., NullFeed contract address, post counts).
-       - (Later) Admin/maintenance flows (e.g., moderation hooks, repair jobs).
+  - **Devnet tools**
+    - View devnet protocol summary (JobQueue, AgentRegistry, ModelRegistry, DatasetRegistry).
+    - Check balances (given token + address).
+    - Transfer VOID on devnet (best-effort, may revert depending on devnet state).
+    - Fund devnet caller with ETH (gas faucet).
+    - *(Later)* Deploy / upgrade devnet protocol stack.
+
+  - **Mainnet Phase 1 tools**
+    - Phase 1 launch health (docs + keys + PLAN + pillars).
+    - Dump roles mapping vs live JSON.
+    - `run()` stub dry-run (MAINNET bootstrap script).
+    - Inspect planned balances by role (once VoidToken is live on mainnet).
+
+### 2. Wallet layer (future Obelisk Wallet UI)
+
+- Top-level sections:
+
+  - **[Node]**  
+    - Basic node status + health summary.  
+    - Mostly read-only for normal users.
+
+  - **[Wallet]**  
+    - Balances.  
+    - Transfers (VOID + future assets).  
+    - Contract deploy/call helpers.
+
+  - **[NullFeed]**  
+    - Embedded client for the on-chain/off-chain feed.
+
+- Network selector:
+  - devnet, safeboot (if exposed), mainnet Phase 1, future networks.
+- Simple user flows:
+  - “Send VOID”.
+  - “Deploy contract” (with gas estimate and confirmation).
+  - “View validators / staking” (later).
+
+### 3. NullFeed integration (concept phase)
+
+- NullFeed is treated as another module:
+
+  - **Read**: board / channel / thread view.
+  - **Write**: post / reply / image upload flow using Obelisk Wallet keys.
+
+- Wallet responsibilities:
+
+  - Sign posts/actions with the user’s key.
+  - Handle compression + encryption when needed.
+  - Route data either:
+    - Directly on-chain (short posts), or
+    - Via VOID’s off-chain storage + on-chain commitments.
+
+- Navigation model:
+
+  - From wallet UI:
+    - `[NullFeed] -> [Board List] -> [Thread] -> [Post]`
+  - From operator console:
+    - Phase 1: diagnostics only (addresses, health, basic counts).
+    - Later: admin/maintenance flows (moderation, repair jobs, etc.).
 
 ## Menu structure constraints
 
-- All menus should be:
-  - Nested, never flat “wall of options”.
-  - Easy to extend: each new feature == new submenu item, not a redesign.
-- Console and wallet should mirror each other conceptually:
-  - Operator console: text-only, keyboard-driven.
-  - Wallet UI: same sections, but with buttons and panels instead of numbered prompts.
+- All menus:
+
+  - Nested, not a flat wall of options.
+  - Extensible: new features come in as new menu entries, not redesigns.
+  - Consistent between operator console and wallet UI:
+    - Operator console: numbers + keyboard.
+    - Wallet UI: panels + buttons, same conceptual grouping.
 
 ## Phase 1 scope
 
-- Lock in the operator console structure we have now:
-  - `ops/obelisk-console.sh` as the canonical “TUI shell”.
+- Lock in operator console structure:
+
+  - `ops/obelisk-console.sh` is canonical “TUI shell”.
   - Devnet + Mainnet Phase 1 menus stable and additive.
+
 - Do **not** overbuild NullFeed UI yet:
-  - Keep it as a defined module in the plan.
+
+  - Keep it as a defined module in this plan.
   - Implement real client views after VOID mainnet Phase 1 is live and stable.
 
 ## Future additions (after mainnet Phase 1)
 
-- Add "Deploy contract" flows to:
-  - Devnet menu (for testing deployments).
+- Add “Deploy contract” flows to:
+
+  - Devnet menu (for rehearsal / testing).
   - Wallet UI (for mainnet users).
-- Add NullFeed menu to Obelisk console:
-  - At first: diagnostics + meta (addresses, health).
-  - Later: basic posting tools for power users.
+
+- Add NullFeed menu entries:
+
+  - Operator console: diagnostics first, posting tools later.
+  - Wallet UI: full client experience.
+
 - Add Obelisk Wallet GUI:
+
   - Reuse the same structure and scripts under the hood where possible.
+  - Keep retro feel (nested menus, clear sections) even in graphical form.
