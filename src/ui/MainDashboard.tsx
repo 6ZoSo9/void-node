@@ -1,663 +1,663 @@
-import React, { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Activity,
-  Cpu,
-  MessageCircle,
-  Wallet,
-  ArrowRightLeft,
-  Radio,
-  ShieldCheck,
-  BarChart3,
-  Grid3X3,
-} from "lucide-react";
+import React from "react";
 
-type Channel = {
-  id: string;
-  name: string;
-  isDefault: boolean;
+const containerStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  display: "flex",
+  background: "radial-gradient(circle at top, #111827 0, #020617 55%, #000000 100%)",
+  color: "#e5e7eb",
+  fontFamily:
+    'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 };
 
-type ChatMessage = {
-  id: number;
-  channel: string;
-  author: string;
-  text: string;
-  ts: string;
+const sidebarStyle: React.CSSProperties = {
+  width: "260px",
+  padding: "20px 18px",
+  borderRight: "1px solid rgba(148, 163, 184, 0.35)",
+  background:
+    "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.92) 60%, rgba(15,23,42,0.9) 100%)",
+  boxShadow: "0 0 40px rgba(15,23,42,0.9)",
+  display: "flex",
+  flexDirection: "column",
+  gap: "24px",
 };
 
-const DEFAULT_CHANNELS: Channel[] = [
-  { id: "general", name: "#general", isDefault: true },
-  { id: "tech", name: "#tech", isDefault: true },
-  { id: "crypto", name: "#crypto", isDefault: true },
-  { id: "sports", name: "#sports", isDefault: true },
-  { id: "music", name: "#music", isDefault: true },
-  { id: "tv", name: "#tv", isDefault: true },
-  { id: "movies", name: "#movies", isDefault: true },
-  { id: "games", name: "#games", isDefault: true },
-  { id: "religion", name: "#religion", isDefault: true },
-  { id: "void-dev", name: "#void-dev", isDefault: true },
-  { id: "ai-lab", name: "#ai-lab", isDefault: true },
-  { id: "nullfeed-meta", name: "#nullfeed-meta", isDefault: true },
-];
+const logoRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+};
 
-const MOCK_MESSAGES: ChatMessage[] = [
-  {
-    id: 1,
-    channel: "general",
-    author: "system",
-    text: "Welcome to NullFeed v0 on VOID.",
-    ts: "now",
-  },
-  {
-    id: 2,
-    channel: "void-dev",
-    author: "system",
-    text: "Mainnet pillars: GREEN. Work Credits v0: GREEN.",
-    ts: "now",
-  },
-];
+const logoMarkStyle: React.CSSProperties = {
+  width: "28px",
+  height: "28px",
+  borderRadius: "999px",
+  background:
+    "conic-gradient(from 180deg, #22c55e, #22d3ee, #a855f7, #22c55e)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxShadow: "0 0 25px rgba(56,189,248,0.8)",
+};
+
+const logoInnerStyle: React.CSSProperties = {
+  width: "14px",
+  height: "14px",
+  borderRadius: "999px",
+  background: "#020617",
+};
+
+const logoTextStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+};
+
+const logoTitleStyle: React.CSSProperties = {
+  fontSize: "15px",
+  fontWeight: 600,
+  letterSpacing: "0.18em",
+  textTransform: "uppercase",
+};
+
+const logoSubStyle: React.CSSProperties = {
+  fontSize: "10px",
+  textTransform: "uppercase",
+  color: "#9ca3af",
+  letterSpacing: "0.14em",
+};
+
+const pillRowStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "6px",
+};
+
+const pillStyle: React.CSSProperties = {
+  fontSize: "10px",
+  padding: "4px 8px",
+  borderRadius: "999px",
+  border: "1px solid rgba(148,163,184,0.5)",
+  background:
+    "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(15,23,42,0.7))",
+  color: "#e5e7eb",
+};
+
+const navSectionTitleStyle: React.CSSProperties = {
+  fontSize: "11px",
+  textTransform: "uppercase",
+  letterSpacing: "0.14em",
+  color: "#6b7280",
+  marginBottom: "4px",
+};
+
+const navListStyle: React.CSSProperties = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+};
+
+const navItemStyle: React.CSSProperties = {
+  fontSize: "13px",
+  padding: "6px 9px",
+  borderRadius: "999px",
+  cursor: "default",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+};
+
+const navItemActiveStyle: React.CSSProperties = {
+  ...navItemStyle,
+  background:
+    "linear-gradient(135deg, rgba(59,130,246,0.35), rgba(34,197,94,0.35))",
+  border: "1px solid rgba(191,219,254,0.7)",
+  boxShadow: "0 0 18px rgba(37,99,235,0.6)",
+};
+
+const navBadgeStyle: React.CSSProperties = {
+  fontSize: "10px",
+  padding: "2px 7px",
+  borderRadius: "999px",
+  border: "1px solid rgba(148,163,184,0.7)",
+  color: "#9ca3af",
+};
+
+const mainStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "18px 20px 24px 20px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "16px",
+};
+
+const headerRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: "16px",
+};
+
+const headerTitleBlockStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+};
+
+const headerTitleStyle: React.CSSProperties = {
+  fontSize: "20px",
+  fontWeight: 600,
+};
+
+const headerSubtitleStyle: React.CSSProperties = {
+  fontSize: "12px",
+  color: "#9ca3af",
+};
+
+const headerBadgeRowStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+};
+
+const badgeStyle: React.CSSProperties = {
+  fontSize: "11px",
+  padding: "4px 9px",
+  borderRadius: "999px",
+  border: "1px solid rgba(148,163,184,0.6)",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+};
+
+const badgeDotOkStyle: React.CSSProperties = {
+  width: "8px",
+  height: "8px",
+  borderRadius: "999px",
+  background: "#22c55e",
+  boxShadow: "0 0 12px rgba(34,197,94,0.9)",
+};
+
+const badgeDotWarnStyle: React.CSSProperties = {
+  width: "8px",
+  height: "8px",
+  borderRadius: "999px",
+  background: "#f97316",
+  boxShadow: "0 0 10px rgba(249,115,22,0.9)",
+};
+
+const badgeLabelStyle: React.CSSProperties = {
+  textTransform: "uppercase",
+  letterSpacing: "0.14em",
+  fontSize: "10px",
+};
+
+const layoutRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1.1fr)",
+  gap: "14px",
+  alignItems: "stretch",
+};
+
+const columnStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "10px",
+};
+
+const cardStyle: React.CSSProperties = {
+  borderRadius: "18px",
+  padding: "14px 14px 12px 14px",
+  background:
+    "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(15,23,42,0.92))",
+  border: "1px solid rgba(55,65,81,0.85)",
+  boxShadow:
+    "0 18px 50px rgba(15,23,42,0.9), inset 0 0 0 1px rgba(15,23,42,0.9)",
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px",
+};
+
+const cardTitleRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+
+const cardTitleStyle: React.CSSProperties = {
+  fontSize: "13px",
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+  color: "#9ca3af",
+};
+
+const cardTagStyle: React.CSSProperties = {
+  fontSize: "11px",
+  padding: "2px 7px",
+  borderRadius: "999px",
+  border: "1px solid rgba(55,65,81,0.9)",
+  color: "#e5e7eb",
+};
+
+const metricRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px",
+};
+
+const metricPrimaryStyle: React.CSSProperties = {
+  fontSize: "24px",
+  fontWeight: 600,
+};
+
+const metricLabelStyle: React.CSSProperties = {
+  fontSize: "11px",
+  color: "#9ca3af",
+};
+
+const metricMetaStyle: React.CSSProperties = {
+  fontSize: "11px",
+  color: "#6b7280",
+};
+
+const miniGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0,1fr))",
+  gap: "6px",
+  marginTop: "4px",
+};
+
+const miniChipStyle: React.CSSProperties = {
+  fontSize: "10px",
+  padding: "4px 6px",
+  borderRadius: "999px",
+  border: "1px dashed rgba(55,65,81,0.9)",
+  color: "#9ca3af",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "4px",
+};
+
+const bottomRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0,1.3fr) minmax(0,1.1fr)",
+  gap: "14px",
+  marginTop: "4px",
+};
+
+const listStyle: React.CSSProperties = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+};
+
+const listItemStyle: React.CSSProperties = {
+  fontSize: "12px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "4px 0",
+};
+
+const listLabelStyle: React.CSSProperties = {
+  color: "#9ca3af",
+};
+
+const listValueStyle: React.CSSProperties = {
+  color: "#e5e7eb",
+};
+
+const badgeSoonStyle: React.CSSProperties = {
+  fontSize: "10px",
+  padding: "2px 7px",
+  borderRadius: "999px",
+  border: "1px dashed rgba(148,163,184,0.7)",
+  color: "#9ca3af",
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+};
+
+const footerStyle: React.CSSProperties = {
+  marginTop: "8px",
+  fontSize: "10px",
+  color: "#6b7280",
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "8px",
+};
+
+const footerRightStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "8px",
+};
+
+const footerKbdStyle: React.CSSProperties = {
+  borderRadius: "6px",
+  border: "1px solid rgba(55,65,81,0.9)",
+  padding: "2px 6px",
+  fontSize: "10px",
+  color: "#9ca3af",
+};
 
 const MainDashboard: React.FC = () => {
-  const [activeNav, setActiveNav] = useState<"overview" | "wallet" | "nullfeed">(
-    "overview"
-  );
-  const [channels, setChannels] = useState<Channel[]>(DEFAULT_CHANNELS);
-  const [activeChannel, setActiveChannel] = useState<string>("general");
-  const [messages, setMessages] = useState<ChatMessage[]>(MOCK_MESSAGES);
-  const [chatInput, setChatInput] = useState("");
-  const [joinInput, setJoinInput] = useState("");
-
-  // Stub data – replace with real node/wallet hooks later
-  const nodeStatus = {
-    chainId: 2050,
-    network: "VOID mainnet (plan-ready)",
-    head: 1_717_588,
-    safebootHead: 231_260,
-    safebootGap: 1_486_328,
-    txrootHealthy: true,
-    lastmileHealthy: true,
-  };
-
-  const walletSummary = {
-    address: "0x7D49...E6f1",
-    voidBalance: "0.00",
-    wcBalance: "0",
-  };
-
-  const wcHealth = {
-    ciHealth: 1,
-    policyProfile: "dev",
-  };
-
-  const handleSendChat = () => {
-    const text = chatInput.trim();
-    if (!text) return;
-    const next: ChatMessage = {
-      id: messages.length + 1,
-      channel: activeChannel,
-      author: "you",
-      text,
-      ts: new Date().toLocaleTimeString(),
-    };
-    setMessages([...messages, next]);
-    setChatInput("");
-  };
-
-  const handleJoinChannel = () => {
-    const raw = joinInput.trim();
-    if (!raw) return;
-
-    let name = raw;
-    if (!name.startsWith("#")) {
-      name = `#${name}`;
-    }
-    const id = name.replace(/^#/, "");
-
-    if (!channels.find((c) => c.id === id)) {
-      setChannels([
-        ...channels,
-        { id, name, isDefault: false },
-      ]);
-    }
-    setActiveChannel(id);
-    setJoinInput("");
-  };
-
-  const filteredMessages = messages.filter(
-    (m) => m.channel === activeChannel
-  );
+  // All values here are placeholders; they just mirror our existing pillars layout.
+  const mainnetHealth = "OK";
+  const last5m = "Green";
+  const uiPillars = "OK";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-slate-100">
-      {/* Top nav */}
-      <header className="border-b border-slate-800 bg-black/40 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-xs font-semibold tracking-[0.2em]">
-              Φ
+    <div style={containerStyle}>
+      {/* Sidebar */}
+      <aside style={sidebarStyle}>
+        <div>
+          <div style={logoRowStyle}>
+            <div style={logoMarkStyle}>
+              <div style={logoInnerStyle} />
             </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold text-slate-50">
-                VOID / Obelisk
-              </span>
-              <span className="text-xs text-slate-400">
-                Node · Wallet · NullFeed
-              </span>
+            <div style={logoTextStyle}>
+              <div style={logoTitleStyle}>VOID</div>
+              <div style={logoSubStyle}>Node · Obelisk · NullFeed</div>
             </div>
           </div>
-
-          <nav className="flex items-center gap-2 text-xs">
-            <Button
-              size="sm"
-              variant={activeNav === "overview" ? "default" : "ghost"}
-              onClick={() => setActiveNav("overview")}
-            >
-              Overview
-            </Button>
-            <Button
-              size="sm"
-              variant={activeNav === "wallet" ? "default" : "ghost"}
-              onClick={() => setActiveNav("wallet")}
-            >
-              Wallet
-            </Button>
-            <Button
-              size="sm"
-              variant={activeNav === "nullfeed" ? "default" : "ghost"}
-              onClick={() => setActiveNav("nullfeed")}
-            >
-              NullFeed
-            </Button>
-            <Button size="sm" variant="ghost" disabled>
-              Marketplace (soon)
-            </Button>
-            <Button size="sm" variant="ghost" disabled>
-              Tradeview (soon)
-            </Button>
-          </nav>
-
-          <div className="flex items-center gap-4 text-xs">
-            <div className="hidden items-center gap-2 rounded-full border border-emerald-600/40 bg-emerald-900/20 px-3 py-1 sm:flex">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_theme(colors.emerald.400)]" />
-              <span className="font-medium text-emerald-300">Pillars: GREEN</span>
-            </div>
-            <div className="flex flex-col text-right">
-              <span className="font-mono text-xs text-slate-300">
-                {walletSummary.address}
-              </span>
-              <span className="text-[11px] text-slate-500">
-                VOID {walletSummary.voidBalance} · WC {walletSummary.wcBalance}
-              </span>
+          <div style={{ marginTop: 14 }}>
+            <div style={pillRowStyle}>
+              <span style={pillStyle}>CHAIN · 2050</span>
+              <span style={pillStyle}>MAINNET PLAN · PHASE A</span>
+              <span style={pillStyle}>AI-FIRST</span>
             </div>
           </div>
         </div>
-      </header>
 
-      {/* Main content */}
-      <main className="mx-auto max-w-7xl px-4 py-4">
-        {activeNav === "overview" && (
-          <div className="grid gap-4 lg:grid-cols-3">
-            {/* Left: Node / system */}
-            <div className="space-y-4">
-              <Card className="border-slate-800 bg-slate-950/60">
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-lg bg-slate-900 p-2">
-                        <Activity className="h-4 w-4 text-emerald-400" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Node
-                        </div>
-                        <div className="text-sm font-medium text-slate-50">
-                          Chain {nodeStatus.chainId} — {nodeStatus.network}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="rounded-full bg-emerald-900/40 px-3 py-1 text-[11px] font-medium text-emerald-300">
-                      Healthy
-                    </span>
-                  </div>
+        <div>
+          <div style={navSectionTitleStyle}>Overview</div>
+          <ul style={navListStyle}>
+            <li style={navItemActiveStyle}>
+              <span>Command Center</span>
+              <span style={navBadgeStyle}>LIVE</span>
+            </li>
+          </ul>
+        </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-lg bg-slate-900/70 p-2">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                        Head (main)
-                      </div>
-                      <div className="font-mono text-sm text-slate-50">
-                        {nodeStatus.head.toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-slate-900/70 p-2">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                        Head (safeboot)
-                      </div>
-                      <div className="font-mono text-sm text-slate-50">
-                        {nodeStatus.safebootHead.toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-slate-900/70 p-2">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                        Safeboot gap
-                      </div>
-                      <div className="font-mono text-sm text-amber-300">
-                        {nodeStatus.safebootGap.toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-slate-900/70 p-2">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                        Last-mile
-                      </div>
-                      <div className="text-sm font-medium text-emerald-300">
-                        Non-empty & healthy
-                      </div>
-                    </div>
-                  </div>
+        <div>
+          <div style={navSectionTitleStyle}>Layers</div>
+          <ul style={navListStyle}>
+            <li style={navItemStyle}>
+              <span>Mainnet Core</span>
+              <span style={navBadgeStyle}>healthy</span>
+            </li>
+            <li style={navItemStyle}>
+              <span>Last-mile / Jobs</span>
+              <span style={navBadgeStyle}>healthy</span>
+            </li>
+            <li style={navItemStyle}>
+              <span>Safeboot</span>
+              <span style={navBadgeStyle}>ready</span>
+            </li>
+            <li style={navItemStyle}>
+              <span>Work Credits</span>
+              <span style={navBadgeStyle}>v0</span>
+            </li>
+            <li style={navItemStyle}>
+              <span>UI Pillars</span>
+              <span style={navBadgeStyle}>stub</span>
+            </li>
+          </ul>
+        </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <div className="flex items-center gap-1.5">
-                      <ShieldCheck className="h-3 w-3 text-emerald-400" />
-                      <span>TxRoot health: {nodeStatus.txrootHealthy ? "OK" : "BAD"}</span>
-                    </div>
-                    <Button size="xs" variant="outline" className="border-slate-700">
-                      View metrics
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+        <div>
+          <div style={navSectionTitleStyle}>NullFeed Channels</div>
+          <ul style={navListStyle}>
+            <li style={navItemStyle}>
+              <span>#general</span>
+              <span style={navBadgeStyle}>default</span>
+            </li>
+            <li style={navItemStyle}>
+              <span>#void-dev</span>
+              <span style={navBadgeStyle}>dev</span>
+            </li>
+            <li style={navItemStyle}>
+              <span>#ai-lab</span>
+              <span style={navBadgeStyle}>agents</span>
+            </li>
+          </ul>
+        </div>
 
-              <Card className="border-slate-800 bg-slate-950/60">
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-lg bg-slate-900 p-2">
-                        <Cpu className="h-4 w-4 text-sky-400" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Work Credits
-                        </div>
-                        <div className="text-sm font-medium text-slate-50">
-                          v0 — dev policy: {wcHealth.policyProfile}
-                        </div>
-                      </div>
-                    </div>
-                    <span
-                      className={`rounded-full px-3 py-1 text-[11px] font-medium ${
-                        wcHealth.ciHealth === 1
-                          ? "bg-emerald-900/40 text-emerald-300"
-                          : "bg-rose-900/40 text-rose-300"
-                      }`}
-                    >
-                      CI: {wcHealth.ciHealth === 1 ? "PASS" : "FAIL"}
-                    </span>
-                  </div>
+        <div>
+          <div style={navSectionTitleStyle}>Future</div>
+          <ul style={navListStyle}>
+            <li style={navItemStyle}>
+              <span>NFT Avatars</span>
+              <span style={badgeSoonStyle}>planned</span>
+            </li>
+            <li style={navItemStyle}>
+              <span>DEX / TradeView</span>
+              <span style={badgeSoonStyle}>planned</span>
+            </li>
+          </ul>
+        </div>
+      </aside>
 
-                  <p className="text-xs text-slate-400">
-                    Work Credits (WC) represent off-chain/AI work. v0 wiring:
-                    contracts + sinks + relayer helper are green. Dashboard
-                    shows high-level status here; detailed charts later.
-                  </p>
-
-                  <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <span>Relayer: WC → VOID swap path online (dev).</span>
-                    <Button size="xs" variant="outline" className="border-slate-700">
-                      View WC spec
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-dashed border-slate-800 bg-slate-950/40">
-                <CardContent className="space-y-2 p-4">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-slate-400" />
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Metrics & Pillars
-                      </div>
-                      <div className="text-sm text-slate-200">
-                        Hook to Prometheus dashboards later.
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    This tile will show mainnet-core, last-mile, safeboot, keys,
-                    and WC pillar gauges at a glance. For now, it’s just a
-                    placeholder so the layout is ready.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Middle: Wallet / actions */}
-            <div className="space-y-4">
-              <Card className="border-slate-800 bg-slate-950/60">
-                <CardContent className="space-y-4 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-lg bg-slate-900 p-2">
-                        <Wallet className="h-4 w-4 text-violet-300" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Wallet
-                        </div>
-                        <div className="text-sm font-mono text-slate-50">
-                          {walletSummary.address}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right text-xs">
-                      <div className="text-slate-400">VOID</div>
-                      <div className="font-mono text-sm text-slate-50">
-                        {walletSummary.voidBalance}
-                      </div>
-                      <div className="mt-1 text-slate-400">WC</div>
-                      <div className="font-mono text-sm text-slate-50">
-                        {walletSummary.wcBalance}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <Button
-                      variant="outline"
-                      className="h-9 justify-start border-slate-700 bg-slate-950/80"
-                    >
-                      <ArrowRightLeft className="mr-2 h-3 w-3" />
-                      Send VOID
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-9 justify-start border-slate-700 bg-slate-950/80"
-                    >
-                      <ArrowRightLeft className="mr-2 h-3 w-3" />
-                      Swap WC → VOID
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-9 justify-start border-slate-700 bg-slate-950/80"
-                    >
-                      <Radio className="mr-2 h-3 w-3" />
-                      Stake / Validate
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-9 justify-start border-slate-700 bg-slate-950/80"
-                    >
-                      <Grid3X3 className="mr-2 h-3 w-3" />
-                      Advanced wallet
-                    </Button>
-                  </div>
-
-                  <div className="rounded-lg bg-slate-900/70 p-3 text-[11px] text-slate-400">
-                    This panel will eventually read live balances from VOID
-                    mainnet, show validator status, and let users route WC →
-                    VOID through the relayer in a single click.
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-dashed border-violet-700/50 bg-violet-950/20">
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-violet-300">
-                        NFT Marketplace (soon)
-                      </div>
-                      <div className="text-sm text-violet-100">
-                        VOID avatars, AI artifacts, and WC-powered items.
-                      </div>
-                    </div>
-                    <span className="rounded-full border border-violet-600/40 px-3 py-1 text-[11px] text-violet-200">
-                      Planned
-                    </span>
-                  </div>
-                  <p className="text-xs text-violet-200/70">
-                    This tile will become the entry to the on-chain NFT
-                    marketplace using Work Credits as the primary “earnable”
-                    budget and VOID as settlement.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-violet-700 bg-violet-900/40 text-violet-100"
-                    disabled
-                  >
-                    Open marketplace (after mainnet)
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right: NullFeed */}
-            <div className="space-y-4">
-              <Card className="border-slate-800 bg-slate-950/60">
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-lg bg-slate-900 p-2">
-                        <MessageCircle className="h-4 w-4 text-cyan-300" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          NullFeed
-                        </div>
-                        <div className="text-sm text-slate-50">
-                          mIRC-style channel switching
-                        </div>
-                      </div>
-                    </div>
-                    <span className="rounded-full bg-slate-900/80 px-3 py-1 text-[11px] text-slate-300">
-                      Channel: #{activeChannel}
-                    </span>
-                  </div>
-
-                  {/* Channel list */}
-                  <div className="flex flex-wrap gap-1">
-                    {channels.map((ch) => (
-                      <button
-                        key={ch.id}
-                        onClick={() => setActiveChannel(ch.id)}
-                        className={`rounded-full border px-2 py-1 text-[11px] ${
-                          activeChannel === ch.id
-                            ? "border-cyan-400 bg-cyan-900/30 text-cyan-100"
-                            : "border-slate-700 bg-slate-900/70 text-slate-300"
-                        }`}
-                      >
-                        {ch.name}
-                        {!ch.isDefault && (
-                          <span className="ml-1 text-[9px] text-slate-400">
-                            (hidden)
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Join/create channel */}
-                  <div className="flex items-center gap-2">
-                    <Input
-                      placeholder="#channel or channel"
-                      value={joinInput}
-                      onChange={(e) => setJoinInput(e.target.value)}
-                      className="h-8 border-slate-700 bg-slate-950 text-xs"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 border-slate-700 text-xs"
-                      onClick={handleJoinChannel}
-                    >
-                      Join / create
-                    </Button>
-                  </div>
-
-                  {/* Chat window */}
-                  <div className="flex h-64 flex-col rounded-lg border border-slate-800 bg-slate-950/80">
-                    <div className="flex-1 space-y-1 overflow-y-auto p-2 text-[11px]">
-                      {filteredMessages.length === 0 ? (
-                        <div className="mt-2 text-center text-slate-500">
-                          No messages yet in #{activeChannel}. Say something.
-                        </div>
-                      ) : (
-                        filteredMessages.map((m) => (
-                          <div key={m.id} className="flex gap-2">
-                            <span className="font-mono text-slate-500">
-                              [{m.ts}]
-                            </span>
-                            <span className="font-medium text-slate-200">
-                              {m.author}:
-                            </span>
-                            <span className="text-slate-100">{m.text}</span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <div className="border-t border-slate-800 p-2">
-                      <div className="flex items-center gap-2">
-                        <Textarea
-                          value={chatInput}
-                          onChange={(e) => setChatInput(e.target.value)}
-                          rows={2}
-                          placeholder="Type a message…"
-                          className="flex-1 resize-none border-slate-700 bg-slate-950 text-xs"
-                        />
-                        <Button
-                          size="sm"
-                          className="h-full bg-cyan-700 text-xs hover:bg-cyan-600"
-                          onClick={handleSendChat}
-                        >
-                          Send
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-[11px] text-slate-500">
-                    v0 is off-chain, node-hosted chat. In the future, channel
-                    creators get admin powers (ban, delete, bots, images),
-                    anchored to VOID chain for discovery and moderation.
-                  </p>
-                </CardContent>
-              </Card>
+      {/* Main area */}
+      <main style={mainStyle}>
+        {/* Header */}
+        <div style={headerRowStyle}>
+          <div style={headerTitleBlockStyle}>
+            <div style={headerTitleStyle}>Mainnet Command Center</div>
+            <div style={headerSubtitleStyle}>
+              Snapshot of VOID Chain · Obelisk Wallet · NullFeed layer,
+              wired for AI and humans.
             </div>
           </div>
-        )}
-
-        {activeNav === "wallet" && (
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <Card className="border-slate-800 bg-slate-950/60">
-              <CardContent className="space-y-4 p-4">
-                <div className="flex items-center gap-2">
-                  <Wallet className="h-4 w-4 text-violet-300" />
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Wallet overview
-                    </div>
-                    <div className="text-sm font-mono text-slate-50">
-                      {walletSummary.address}
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3 text-xs">
-                  <div className="rounded-lg bg-slate-900/80 p-3">
-                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                      VOID
-                    </div>
-                    <div className="mt-1 font-mono text-sm text-slate-50">
-                      {walletSummary.voidBalance}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-slate-900/80 p-3">
-                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                      Work Credits
-                    </div>
-                    <div className="mt-1 font-mono text-sm text-slate-50">
-                      {walletSummary.wcBalance}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-slate-900/80 p-3">
-                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                      Validator status
-                    </div>
-                    <div className="mt-1 text-sm text-emerald-300">
-                      Coming soon
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-400">
-                  This page will eventually show validator earnings, node
-                  uptime, WC earn/burn flows, and a full transaction history.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-slate-800 bg-slate-950/60">
-              <CardContent className="space-y-3 p-4">
-                <div className="flex items-center gap-2">
-                  <ArrowRightLeft className="h-4 w-4 text-emerald-300" />
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Quick actions
-                    </div>
-                    <div className="text-sm text-slate-50">
-                      Basic sends and WC ⇄ VOID flow.
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <Button
-                    variant="outline"
-                    className="h-9 justify-start border-slate-700 bg-slate-950/80"
-                  >
-                    Send VOID
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-9 justify-start border-slate-700 bg-slate-950/80"
-                  >
-                    Swap WC → VOID
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-9 justify-start border-slate-700 bg-slate-950/80"
-                  >
-                    Receive
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-9 justify-start border-slate-700 bg-slate-950/80"
-                  >
-                    Export history
-                  </Button>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Hook these buttons directly into your existing API routes
-                  (/tx/submit, WC relayer helper, etc.). The dashboard should
-                  be the “one click” face of the deep machinery we already
-                  wired.
-                </p>
-              </CardContent>
-            </Card>
+          <div style={headerBadgeRowStyle}>
+            <div style={badgeStyle}>
+              <span style={badgeDotOkStyle} />
+              <span style={badgeLabelStyle}>Mainnet core</span>
+              <span>OK</span>
+            </div>
+            <div style={badgeStyle}>
+              <span style={badgeDotOkStyle} />
+              <span style={badgeLabelStyle}>Pillars + UI</span>
+              <span>{uiPillars}</span>
+            </div>
+            <div style={badgeStyle}>
+              <span style={badgeDotWarnStyle} />
+              <span style={badgeLabelStyle}>Live data</span>
+              <span>stub only</span>
+            </div>
           </div>
-        )}
+        </div>
 
-        {activeNav === "nullfeed" && (
-          <div className="mt-4">
-            <p className="mb-2 text-xs text-slate-400">
-              Full-screen NullFeed view will eventually live here (multi-channel
-              layout, private channels, image/bot toggles). For now, use the
-              Overview tab’s NullFeed panel as the v0 implementation.
-            </p>
+        {/* Top row: high-level status */}
+        <div style={layoutRowStyle}>
+          <section style={columnStyle}>
+            <div style={cardStyle}>
+              <div style={cardTitleRowStyle}>
+                <div style={cardTitleStyle}>Mainnet Health</div>
+                <div style={cardTagStyle}>pillars · v2</div>
+              </div>
+              <div style={metricRowStyle}>
+                <div>
+                  <div style={metricPrimaryStyle}>{mainnetHealth}</div>
+                  <div style={metricLabelStyle}>overall status</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={metricMetaStyle}>last 5 minutes</div>
+                  <div style={{ fontSize: "11px", color: "#e5e7eb" }}>
+                    {last5m}
+                  </div>
+                </div>
+              </div>
+              <div style={miniGridStyle}>
+                <div style={miniChipStyle}>
+                  <span>core</span>
+                  <span>green</span>
+                </div>
+                <div style={miniChipStyle}>
+                  <span>last-mile</span>
+                  <span>green</span>
+                </div>
+                <div style={miniChipStyle}>
+                  <span>safeboot</span>
+                  <span>ready</span>
+                </div>
+                <div style={miniChipStyle}>
+                  <span>tokenomics</span>
+                  <span>locked</span>
+                </div>
+                <div style={miniChipStyle}>
+                  <span>keys</span>
+                  <span>verified</span>
+                </div>
+                <div style={miniChipStyle}>
+                  <span>ui pillars</span>
+                  <span>stub</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={cardTitleRowStyle}>
+                <div style={cardTitleStyle}>Work Credits</div>
+                <div style={cardTagStyle}>v0 · dev policy</div>
+              </div>
+              <p style={{ fontSize: "12px", color: "#9ca3af", margin: 0 }}>
+                Simple, test-backed Work Credits flow hooked into RewardEngine.
+                This view will later show live WC balances, sinks, and relayer
+                swaps.
+              </p>
+              <ul style={listStyle}>
+                <li style={listItemStyle}>
+                  <span style={listLabelStyle}>Spec / tests</span>
+                  <span style={listValueStyle}>green (all passing)</span>
+                </li>
+                <li style={listItemStyle}>
+                  <span style={listLabelStyle}>Relayer helper</span>
+                  <span style={listValueStyle}>stub wired</span>
+                </li>
+                <li style={listItemStyle}>
+                  <span style={listLabelStyle}>Mainnet usage</span>
+                  <span style={listValueStyle}>planned</span>
+                </li>
+              </ul>
+            </div>
+          </section>
+
+          <section style={columnStyle}>
+            <div style={cardStyle}>
+              <div style={cardTitleRowStyle}>
+                <div style={cardTitleStyle}>Wallet · Obelisk</div>
+                <div style={cardTagStyle}>validators · later</div>
+              </div>
+              <p style={{ fontSize: "12px", color: "#9ca3af", margin: 0 }}>
+                Obelisk will ship as the primary way humans and agents talk to
+                VOID: wallet, validator console, and NullFeed dock in one
+                nested UI.
+              </p>
+              <ul style={listStyle}>
+                <li style={listItemStyle}>
+                  <span style={listLabelStyle}>Validator mode</span>
+                  <span style={listValueStyle}>planned (mobile + desktop)</span>
+                </li>
+                <li style={listItemStyle}>
+                  <span style={listLabelStyle}>Work Credits panel</span>
+                  <span style={listValueStyle}>v0 design only</span>
+                </li>
+                <li style={listItemStyle}>
+                  <span style={listLabelStyle}>NFT / avatar market</span>
+                  <span style={listValueStyle}>roadmap</span>
+                </li>
+              </ul>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={cardTitleRowStyle}>
+                <div style={cardTitleStyle}>NullFeed</div>
+                <div style={cardTagStyle}>off-chain · encrypted</div>
+              </div>
+              <p style={{ fontSize: "12px", color: "#9ca3af", margin: 0 }}>
+                mIRC-style channels mapped to VOID, hosted across nodes.
+                Messages off-chain for now; mapping and channel controls live on
+                chain later.
+              </p>
+              <ul style={listStyle}>
+                <li style={listItemStyle}>
+                  <span style={listLabelStyle}>Default channels</span>
+                  <span style={listValueStyle}>
+                    #general · #tech · #void-dev · #ai-lab
+                  </span>
+                </li>
+                <li style={listItemStyle}>
+                  <span style={listLabelStyle}>Hidden channels</span>
+                  <span style={listValueStyle}>planned (#&lt;name&gt;)</span>
+                </li>
+                <li style={listItemStyle}>
+                  <span style={listLabelStyle}>Per-channel controls</span>
+                  <span style={listValueStyle}>future (images · bots)</span>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </div>
+
+        {/* Bottom row */}
+        <div style={bottomRowStyle}>
+          <section style={cardStyle}>
+            <div style={cardTitleRowStyle}>
+              <div style={cardTitleStyle}>Mainnet Runbook Hooks</div>
+              <div style={cardTagStyle}>read-only snapshot</div>
+            </div>
+            <ul style={listStyle}>
+              <li style={listItemStyle}>
+                <span style={listLabelStyle}>Bootstrap plan</span>
+                <span style={listValueStyle}>locked · metrics-gated</span>
+              </li>
+              <li style={listItemStyle}>
+                <span style={listLabelStyle}>Keys & roles</span>
+                <span style={listValueStyle}>LUKS + mapping verified</span>
+              </li>
+              <li style={listItemStyle}>
+                <span style={listLabelStyle}>Broadcast script</span>
+                <span style={listValueStyle}>stub (intentionally disabled)</span>
+              </li>
+            </ul>
+          </section>
+
+          <section style={cardStyle}>
+            <div style={cardTitleRowStyle}>
+              <div style={cardTitleStyle}>Coming Online Next</div>
+              <div style={cardTagStyle}>roadmap · v0</div>
+            </div>
+            <ul style={listStyle}>
+              <li style={listItemStyle}>
+                <span style={listLabelStyle}>Live metrics overlay</span>
+                <span style={listValueStyle}>hook Prom / node endpoints</span>
+              </li>
+              <li style={listItemStyle}>
+                <span style={listLabelStyle}>Validator earnings view</span>
+                <span style={listValueStyle}>VOID + Work Credits</span>
+              </li>
+              <li style={listItemStyle}>
+                <span style={listLabelStyle}>Trading / NFT widgets</span>
+                <span style={listValueStyle}>after mainnet launch</span>
+              </li>
+            </ul>
+          </section>
+        </div>
+
+        {/* Footer */}
+        <div style={footerStyle}>
+          <span>v0 dashboard · layout + wording only · no live controls yet.</span>
+          <div style={footerRightStyle}>
+            <span style={footerKbdStyle}>[DEV] localhost:4305</span>
+            <span style={footerKbdStyle}>[PLAN] metrics-gated mainnet</span>
           </div>
-        )}
+        </div>
       </main>
     </div>
   );
