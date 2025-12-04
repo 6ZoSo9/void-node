@@ -98,3 +98,6 @@ config/void-mainnet-plan.env
 
 # VOID mainnet PLAN logs (local diagnostics, never commit)
 logs/mainnet-plan/
+
+# Local React UI playground (not part of core void-node)
+react/
