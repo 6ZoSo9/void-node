@@ -27153,6 +27153,9 @@ import './tokenomics/reward_engine_exporter_v1';
 })();
 
 // ========================================================================
+/* [void] DISABLED agent v0 HTTP stubs
+   These legacy HTTP stubs are superseded by the WAL-backed agentV0() block above.
+   Keeping code for reference but preventing it from executing to avoid app-scope bugs.
 // [AI agent v0 HTTP stubs]
 // These are minimal, non-persistent stubs that match the AI manifest.
 // Later we will wire them into JobQueue + on-chain receipts.
@@ -27223,4 +27226,5 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
 
 // ========================================================================
 // [END AI agent v0 HTTP stubs]
+*/ // [void] END disabled agent v0 HTTP stubs
 // ========================================================================
