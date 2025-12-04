@@ -1,0 +1,23 @@
+{
+  "version": "0.1.0",
+  "epochLengthSeconds": 3600,
+  "roles": {
+    "validator": {
+      "wcPerEpoch": 10
+    },
+    "full_node": {
+      "wcPerEpoch": 5
+    },
+    "safeboot": {
+      "wcPerEpoch": 7
+    },
+    "agent": {
+      "wcPerEpoch": 8
+    }
+  },
+  "relayer": {
+    "defaultFeeBps": 100,
+    "suggestedMinClaimWC": 50,
+    "minRelayerClaimWC": 25
+  }
+}
