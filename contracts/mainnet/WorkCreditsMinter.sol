@@ -31,11 +31,7 @@ contract WorkCreditsMinter {
     /// @param agent worker label (e.g. "zoso", "ai", "validator-1")
     /// @param category more granular category (e.g. "design", "bootstrap", "agent-jobs")
     event WorkCreditsAwarded(
-        address indexed to,
-        uint256 amount,
-        bytes32 indexed pillar,
-        bytes32 indexed agent,
-        bytes32 category
+        address indexed to, uint256 amount, bytes32 indexed pillar, bytes32 indexed agent, bytes32 category
     );
 
     modifier onlyAdmin() {
@@ -84,13 +80,10 @@ contract WorkCreditsMinter {
     /// @param pillar pillar label (bytes32-encoded string, e.g. "mainnet-core")
     /// @param agent agent label (bytes32-encoded string, e.g. "ai" or "zoso")
     /// @param category category label (bytes32-encoded string, e.g. "design")
-    function award(
-        address to,
-        uint256 amount,
-        bytes32 pillar,
-        bytes32 agent,
-        bytes32 category
-    ) external onlyRewardEngine {
+    function award(address to, uint256 amount, bytes32 pillar, bytes32 agent, bytes32 category)
+        external
+        onlyRewardEngine
+    {
         require(to != address(0), "WCMinter: to zero");
         require(amount > 0, "WCMinter: zero amount");
 
