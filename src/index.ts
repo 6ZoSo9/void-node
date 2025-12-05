@@ -22,6 +22,7 @@ var autoMs: any;
 // Copyright (c) 2025 6ZoSo9
 
 import { registerDevRoutes } from "./http/dev_routes.js";              // ok if present; safely wrapped
+import { registerWorkCreditsRoutes } from "./http/workcredits_routes.js";
 import { globalEnqueueTx } from "./node_core.js";
 import express from "express";
 import * as fs from "node:fs";
@@ -290,6 +291,9 @@ console.log("[shim] published global node (post-construct)");
 
   // Dev routes (safe if not present)
   try { if (typeof registerDevRoutes === "function") registerDevRoutes(app as any, node as any); } catch {}
+
+  // WorkCredits routes (safe if not present)
+  try { if (typeof registerWorkCreditsRoutes === "function") registerWorkCreditsRoutes(app as any); } catch {}
 
   // --- minimal mempool-backed tx submit route (dev only) ---
   const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
