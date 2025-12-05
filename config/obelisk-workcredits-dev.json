@@ -1,0 +1,31 @@
+{
+  "network": {
+    "name": "VOID Devnet",
+    "chainId": 2050,
+    "rpcUrl": "http://127.0.0.1:8545"
+  },
+  "contracts": {
+    "VoidToken": "0x...",
+    "WorkCreditsToken": "0x...",
+    "UptimeVaultLLP": "0x...",
+    "WorkCreditsRelayerV1": "0x...",
+    "WorkCreditsRelayerQuoteHelper": "0x..."
+  },
+  "relayer": {
+    "baseUrl": "http://127.0.0.1:4311/api/wc-relayer/v1",
+    "maxSlippageBpsDefault": 50,
+    "timeoutMs": 8000
+  },
+  "ui": {
+    "tabs": {
+      "home": true,
+      "wallet": true,
+      "trading": true,
+      "nullfeed": true,
+      "nfts": true,
+      "dashboard": true
+    },
+    "defaultGasMode": "relayer",
+    "showAdvancedIntents": false
+  }
+}
