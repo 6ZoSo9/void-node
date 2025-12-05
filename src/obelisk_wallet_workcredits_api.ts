@@ -298,3 +298,65 @@ export async function signAndSubmitSendVoidDevDemo(options: {
     submitResponse: submitJson,
   };
 }
+
+// === High-level Obelisk Wallet helpers =======================================
+//
+// NOTE: These wrappers sit *on top* of the lower-level dev demo functions
+// (quoteSendVoidDevDemo / signAndSubmitSendVoidDevDemo) so the UI can use
+// simple, stable types without caring about the raw relayer JSON.
+
+import type {
+  WalletSendVoidQuoteInput,
+  WalletSendVoidQuoteResult,
+  WalletSendVoidSubmitResult,
+} from "./obelisk_wallet_workcredits_schema";
+
+/**
+ * Wallet-friendly "quote SEND_VOID" helper for devnet.
+ *
+ * Internally calls quoteSendVoidDevDemo and normalizes the result into
+ * WalletSendVoidQuoteResult so the UI only deals with VOID/WC amounts.
+ */
+export async function walletQuoteSendVoidDev(
+  input: WalletSendVoidQuoteInput,
+): Promise<WalletSendVoidQuoteResult> {
+  const { user, to } = input;
+
+  const quoteCtx = await quoteSendVoidDevDemo({
+    user,
+    to,
+  });
+
+  const voidNeededWei = quoteCtx.quoteResponse.quote.voidNeeded;
+  const wcFeeWei = quoteCtx.quoteResponse.quote.wcFee;
+
+  return {
+    intent: "SEND_VOID",
+    voidNeededWei,
+    wcFeeWei,
+  };
+}
+
+/**
+ * Wallet-friendly "sign + submit SEND_VOID" helper for devnet.
+ *
+ * Internally calls signAndSubmitSendVoidDevDemo and normalizes the result into
+ * WalletSendVoidSubmitResult for the UI.
+ */
+export async function walletSignAndSubmitSendVoidDev(
+  input: { privateKey: string; to: string; valueWei?: string },
+): Promise<WalletSendVoidSubmitResult> {
+  const { privateKey, to } = input;
+
+  const res = await signAndSubmitSendVoidDevDemo({
+    privateKey,
+    to,
+  });
+
+  return {
+    intent: "SEND_VOID",
+    signerAddress: res.signerAddress,
+    txHash: res.submitResponse.tx.hash,
+    txStatus: res.submitResponse.tx.status,
+  };
+}
