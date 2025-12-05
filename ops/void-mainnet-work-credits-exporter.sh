@@ -33,8 +33,7 @@ echo "[2] ensuring textfile dir exists (sudo may prompt)..."
 sudo mkdir -p "$TEXTFILE_DIR"
 
 echo "[3] writing metric to $OUT (sudo tee)..."
-tmp="$(mktemp)"
-cat > "$tmp" <<EOF2
+sudo tee "$OUT" >/dev/null <<EOF2
 # HELP void_mainnet_work_credits_health Is VOID mainnet Work Credits pillar healthy (tests + PLAN)?
 # TYPE void_mainnet_work_credits_health gauge
 void_mainnet_work_credits_health $health
@@ -44,7 +43,6 @@ void_mainnet_work_credits_health $health
 void_mainnet_work_credits_health_info{reason="$reason"} 1
 EOF2
 
-sudo mv "$tmp" "$OUT"
 echo "[exporter] wrote $OUT with health=$health reason=$reason"
 
 echo
