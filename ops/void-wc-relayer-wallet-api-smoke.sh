@@ -27,7 +27,10 @@ echo " ${#WC_RELAYER_DEMO_PK}"
 
 echo
 echo "=== [health] checking wc-relayer-dev on :4311 ==="
-curl -fsS "http://127.0.0.1:4311/api/wc-relayer/v1/health" | jq '.'
+if ! curl -fsS "http://127.0.0.1:4311/api/wc-relayer/v1/health" | jq '.'; then
+  echo "[warn] /api/wc-relayer/v1/health failed; trying /health"
+  curl -fsS "http://127.0.0.1:4311/health" | jq '.'
+fi
 
 echo
 echo "=== [wallet-dev] quote + sign+submit SEND_VOID ==="
