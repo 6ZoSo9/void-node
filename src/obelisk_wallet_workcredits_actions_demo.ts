@@ -35,8 +35,13 @@ async function main() {
   console.log();
   console.log("=== [wallet-actions-demo] quote SEND_WC (dev stub) ===");
   const amountWCWei = "500000000000000000"; // 0.5 WC
+
+  // For dev demo, just use a fixed valid EVM-style address as the WC sender.
+  const userAddress = "0x0000000000000000000000000000000000000004";
+  console.log("Using dev user address for SEND_WC quote:", userAddress);
+
   const quoteRes: WalletSendWCQuoteResult = await walletQuoteSendWCDev({
-    user: collectRes.signerAddress,
+    user: userAddress,
     to,
     amountWCWei,
   });
