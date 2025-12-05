@@ -1,234 +1,179 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { Wallet, TypedDataEncoder } from "ethers";
+/**
+ * WorkCredits Relayer EIP-712 signing demo (TypeScript, no external deps)
+ *
+ * This script DOES NOT send any transactions.
+ * It just constructs the typed-data (domain, types, message) that the
+ * WorkCreditsRelayerV1 Solidity code expects, and prints it.
+ *
+ * Run with:
+ *   npx tsx src/workcredits_relayer_sign_demo.ts
+ *
+ * You can tweak parameters via environment variables:
+ *   CHAIN_ID        - chain id (default: 2050)
+ *   RELAYER_ADDR    - verifyingContract (relayer) address
+ *   USER_ADDR       - user address (from)
+ *   TARGET_ADDR     - target contract to call (to)
+ *   CALL_DATA       - hex-encoded call data for target (default: 0x)
+ *   NONCE           - nonce for this relayed call (default: 0)
+ *   MAX_VOID_FEE    - max VOID fee in wei (default: 0.01 VOID)
+ *   GAS_LIMIT       - gas limit for the relayed call (default: 500000)
+ *   DEADLINE_SECONDS - validity window from now in seconds (default: 3600)
+ */
 
-type ObeliskWcConfig = {
-  network: {
-    name: string;
-    chainId: number;
-    rpcUrl: string;
-  };
-  contracts: {
-    VoidToken: string;
-    WorkCreditsToken: string;
-    UptimeVaultLLP: string;
-    WorkCreditsRelayerV1: string;
-    WorkCreditsRelayerQuoteHelper: string;
-  };
-  relayer: {
-    baseUrl: string;
-    maxSlippageBpsDefault: number;
-    timeoutMs: number;
-  };
-};
+type Hex = `0x${string}`;
 
-type RelayedCall = {
-  user: string;
-  to: string;
-  data: string;
-  value: bigint;
-  nonce: bigint;
-  maxWCFee: bigint;
-  deadline: bigint;
-};
+interface RelayedCall {
+  from: Hex;
+  to: Hex;
+  value: string;
+  gas: string;
+  nonce: string;
+  data: Hex;
+  maxVoidFee: string;
+  deadline: string;
+}
 
-function getEnvPk(): string {
-  const pk = process.env.WC_RELAYER_DEMO_PK;
-  if (!pk || !/^0x[0-9a-fA-F]{64}$/.test(pk)) {
+interface EIP712Domain {
+  name: string;
+  version: string;
+  chainId: number;
+  verifyingContract: Hex;
+}
+
+// Minimal runtime helpers (no external libs)
+function env(name: string, fallback: string): string {
+  return process.env[name] && process.env[name]!.trim() !== ""
+    ? process.env[name]!
+    : fallback;
+}
+
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+function pretty(obj: unknown): string {
+  return JSON.stringify(obj, null, 2);
+}
+
+function ensureHexAddress(raw: string, label: string): Hex {
+  const v = raw.trim();
+  if (!v.startsWith("0x") || v.length !== 42) {
     throw new Error(
-      "WC_RELAYER_DEMO_PK must be a 32-byte hex private key (0x + 64 hex chars)"
+      `Invalid ${label} address: "${raw}". Expected 0x + 40 hex chars.`,
     );
   }
-  return pk;
+  return v as Hex;
 }
 
-async function loadConfig(): Promise<ObeliskWcConfig> {
-  const cfgPath = path.join(process.cwd(), "config", "obelisk-workcredits-dev.json");
-  const raw = await readFile(cfgPath, "utf8");
-  return JSON.parse(raw) as ObeliskWcConfig;
+function ensureHexData(raw: string, label: string): Hex {
+  const v = raw.trim();
+  if (!v.startsWith("0x")) {
+    throw new Error(`Invalid ${label} data: "${raw}". Expected hex starting with 0x.`);
+  }
+  return v as Hex;
 }
 
-function isStubAddress(addr: string | undefined): boolean {
-  if (!addr) return true;
-  if (addr === "0x...") return true;
-  if (/^0x0{40}$/i.test(addr)) return true;
-  return false;
-}
-
-function buildRelayedCall(user: string): RelayedCall {
-  // Demo payload – in real Obelisk we’ll fill this from an actual user action.
-  return {
-    user,
-    to: "0x0000000000000000000000000000000000000002",
-    data: "0x",
-    value: 0n,
-    nonce: 0n,
-    maxWCFee: 1000000000000000000n, // 1 WC (assuming 18 decimals)
-    deadline: 2000000000n, // far in the future
-  };
-}
-
-function buildDomain(chainId: number, verifyingContract: string) {
-  return {
-    name: "VoidWorkCreditsRelayer",
-    version: "1",
-    chainId,
-    verifyingContract,
-  };
-}
-
-const relayedCallTypes = {
-  RelayedCall: [
-    { name: "user", type: "address" },
-    { name: "to", type: "address" },
-    { name: "data", type: "bytes" },
-    { name: "value", type: "uint256" },
-    { name: "nonce", type: "uint256" },
-    { name: "maxWCFee", type: "uint256" },
-    { name: "deadline", type: "uint256" },
-  ],
-};
-
-function serializeRelayedCall(c: RelayedCall) {
-  return {
-    user: c.user,
-    to: c.to,
-    data: c.data,
-    value: c.value.toString(),
-    nonce: c.nonce.toString(),
-    maxWCFee: c.maxWCFee.toString(),
-    deadline: c.deadline.toString(),
-  };
-}
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
 
 async function main() {
-  try {
-    const pk = getEnvPk();
-    const cfg = await loadConfig();
+  const chainId = envInt("CHAIN_ID", 2050);
 
-    const relayerAddr = cfg.contracts?.WorkCreditsRelayerV1;
-    const chainId = cfg.network?.chainId ?? 2050;
+  const relayerAddrRaw = env("RELAYER_ADDR", "0x0000000000000000000000000000000000000000");
+  const userAddrRaw = env("USER_ADDR", "0x0000000000000000000000000000000000000001");
+  const targetAddrRaw = env("TARGET_ADDR", "0x0000000000000000000000000000000000000002");
 
-    const devConfig = isStubAddress(relayerAddr);
-    const verifyingContract = devConfig
-      ? "0x0000000000000000000000000000000000000000"
-      : relayerAddr!;
+  const relayerAddr = ensureHexAddress(relayerAddrRaw, "RELAYER_ADDR");
+  const userAddr = ensureHexAddress(userAddrRaw, "USER_ADDR");
+  const targetAddr = ensureHexAddress(targetAddrRaw, "TARGET_ADDR");
 
-    if (devConfig) {
-      console.warn(
-        "[warn] WorkCreditsRelayerV1 address in config looks like a stub (0x... or zero)."
-      );
-      console.warn(
-        "[warn] Proceeding in DEV_CONFIG mode. Signatures are ONLY for local testing."
-      );
-      console.warn(
-        "[warn] Once you deploy a real WorkCreditsRelayerV1, update config/obelisk-workcredits-dev.json."
-      );
-    }
+  const callData = ensureHexData(env("CALL_DATA", "0x"), "CALL_DATA");
 
-    console.log("=== [config] obelisk-workcredits-dev.json ===");
-    console.log(JSON.stringify(cfg, null, 2));
+  const nonce = env("NONCE", "0");
+  const maxVoidFee = env("MAX_VOID_FEE", "10000000000000000"); // 0.01 VOID assuming 18 decimals
+  const gasLimit = env("GAS_LIMIT", "500000");
 
-    const wallet = new Wallet(pk);
-    console.log();
-    console.log("=== [signer] ===");
-    console.log(" address:", wallet.address);
+  const deadlineSeconds = envInt("DEADLINE_SECONDS", 3600);
+  const deadline = String(nowSeconds() + deadlineSeconds);
 
-    const relayedCall = buildRelayedCall(wallet.address);
+  const domain: EIP712Domain = {
+    name: "VOID-WorkCredits-Relayer",
+    version: "1",
+    chainId,
+    verifyingContract: relayerAddr,
+  };
 
-    const domain = buildDomain(chainId, verifyingContract);
-    const types = relayedCallTypes;
+  // NOTE: This MUST match the Solidity struct and type hash in
+  // contracts/workcredits/WorkCreditsRelayerTypes.sol
+  const types = {
+    RelayedCall: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "gas", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "data", type: "bytes" },
+      { name: "maxVoidFee", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
+  } as const;
 
-    console.log();
-    console.log("=== [typed data] domain ===");
-    console.log(JSON.stringify(domain, null, 2));
+  const message: RelayedCall = {
+    from: userAddr,
+    to: targetAddr,
+    value: "0",
+    gas: String(gasLimit),
+    nonce: String(nonce),
+    data: callData,
+    maxVoidFee: String(maxVoidFee),
+    deadline,
+  };
 
-    console.log();
-    console.log("=== [typed data] message (RelayedCall) ===");
-    console.log(JSON.stringify(serializeRelayedCall(relayedCall), null, 2));
+  // This is the payload MetaMask (and similar) expects for eth_signTypedData_v4
+  const signTypedDataPayload = {
+    domain,
+    types,
+    primaryType: "RelayedCall",
+    message,
+  };
 
-    const digest = TypedDataEncoder.hash(domain as any, types as any, {
-      user: relayedCall.user,
-      to: relayedCall.to,
-      data: relayedCall.data,
-      value: relayedCall.value,
-      nonce: relayedCall.nonce,
-      maxWCFee: relayedCall.maxWCFee,
-      deadline: relayedCall.deadline,
-    });
+  // -------------------------------------------------------------------------
+  // Output
+  // -------------------------------------------------------------------------
 
-    console.log();
-    console.log("=== [digest] ===");
-    console.log(digest);
+  console.log("=== WorkCredits Relayer EIP-712 Demo ===");
+  console.log();
+  console.log("Domain:");
+  console.log(pretty(domain));
+  console.log();
+  console.log("Types:");
+  console.log(pretty(types));
+  console.log();
+  console.log("Message:");
+  console.log(pretty(message));
+  console.log();
+  console.log("eth_signTypedData_v4 payload (JSON):");
+  console.log(pretty(signTypedDataPayload));
 
-    const signature = await wallet.signTypedData(
-      domain as any,
-      types as any,
-      {
-        user: relayedCall.user,
-        to: relayedCall.to,
-        data: relayedCall.data,
-        value: relayedCall.value,
-        nonce: relayedCall.nonce,
-        maxWCFee: relayedCall.maxWCFee,
-        deadline: relayedCall.deadline,
-      } as any
-    );
-
-    console.log();
-    console.log("=== [signature] ===");
-    console.log(signature);
-
-    const submitPayload = {
-      relayedCall: serializeRelayedCall(relayedCall),
-      signature,
-    };
-
-    console.log();
-    console.log("=== [/submit payload] ===");
-    console.log(JSON.stringify(submitPayload, null, 2));
-
-    const baseUrl = cfg.relayer?.baseUrl;
-    if (!baseUrl) {
-      console.warn(
-        "[warn] relayer.baseUrl is missing in config; skipping HTTP /submit call."
-      );
-      return;
-    }
-
-    const url = baseUrl.replace(/\/+$/, "") + "/submit";
-    console.log();
-    console.log("=== [POST] " + url + " ===");
-
-    const fetchFn: any = (globalThis as any).fetch;
-    if (!fetchFn) {
-      console.warn(
-        "[warn] global fetch not available in this Node runtime; skipping HTTP call."
-      );
-      return;
-    }
-
-    const resp = await fetchFn(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(submitPayload),
-    });
-
-    const text = await resp.text();
-    console.log("[status]", resp.status);
-    try {
-      const json = JSON.parse(text);
-      console.log(JSON.stringify(json, null, 2));
-    } catch {
-      console.log(text);
-    }
-
-    console.log();
-    console.log("=== [done] wc-relayer sign demo ===");
-  } catch (err: any) {
-    console.error(String(err?.message ?? err));
-    process.exit(1);
-  }
+  console.log();
+  console.log("You can use this payload with a signer library, e.g. (pseudocode):");
+  console.log();
+  console.log("  // ethers v6 style (NOT included as a dependency here)");
+  console.log("  // await wallet.signTypedData(domain, types, message);");
+  console.log();
+  console.log("Or with a wallet that supports eth_signTypedData_v4 by passing the");
+  console.log("JSON above as the typed-data payload.");
 }
 
-main();
+main().catch((err) => {
+  console.error("[wc-relayer-demo] ERROR:", err);
+  process.exitCode = 1;
+});
