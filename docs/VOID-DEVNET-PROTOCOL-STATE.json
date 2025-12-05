@@ -25,5 +25,8 @@
     "address": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
     "deployedBlock": 5084,
     "chainId": 2050
-  }
+  },
+  "workCreditsToken": "0xa126c14307fcbd56a94c3dd89e4151f573a27a83",
+  "workCreditsPoolV1": "0xab8a04eca81bbc6936e190a5e2ebdb54f030a46b",
+  "workCreditsRelayerV1": "0x11fa8aad59fdd11dce2b4a6e2bab2bf742040a86"
 }
