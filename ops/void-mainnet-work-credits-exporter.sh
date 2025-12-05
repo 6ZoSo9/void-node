@@ -48,3 +48,6 @@ echo "[exporter] wrote $OUT with health=$health reason=$reason"
 echo
 echo "[4] done. You can check via Prometheus:"
 echo "    curl -fsS \"http://127.0.0.1:9090/api/v1/query?query=void_mainnet_work_credits_health\" | jq '.data.result'"
+echo
+echo "[5] normalize permissions on $OUT..."
+sudo chmod 644 "$OUT" || true
