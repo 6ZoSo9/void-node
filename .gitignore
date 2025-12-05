@@ -101,3 +101,6 @@ logs/mainnet-plan/
 
 # Local React UI playground (not part of core void-node)
 react/
+
+# Local React UI playground (stray file)
+react
