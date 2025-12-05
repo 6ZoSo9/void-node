@@ -360,3 +360,120 @@ export async function walletSignAndSubmitSendVoidDev(
     txStatus: res.submitResponse.tx.status,
   };
 }
+
+// === Work Credits: wallet-level dev helpers for COLLECT_PENDING_WC + SEND_WC ===
+
+/**
+ * Dev-only stub: simulate "collect pending WC".
+ * In real mainnet wiring, this will call the on-chain WC faucet / vault.
+ */
+export async function walletCollectPendingWCDev(opts: {
+  privateKey: string;
+}): Promise<{
+  intent: "COLLECT_PENDING_WC";
+  signerAddress: string;
+  collectedWCWei: string;
+  txHash: string;
+  txStatus: "SIMULATED";
+}> {
+  const pk = opts.privateKey;
+  if (!pk || typeof pk !== "string" || !pk.startsWith("0x") || pk.length !== 66) {
+    throw new Error("walletCollectPendingWCDev: privateKey must be 0x + 64 hex chars");
+  }
+
+  // Dev stub: derive a fake-but-stable address-like string from the PK suffix.
+  const suffix = pk.slice(-8);
+  const signerAddress = `0xDEMO_COLLECT_${suffix.padStart(8, "0")}`.slice(0, 42);
+
+  // For now, pretend we collected 1 WC (1e18) in dev.
+  const collectedWCWei = "1000000000000000000";
+
+  const txHash = `0xwc_collect_dev_stub_${suffix}`;
+  const txStatus: "SIMULATED" = "SIMULATED";
+
+  return {
+    intent: "COLLECT_PENDING_WC",
+    signerAddress,
+    collectedWCWei,
+    txHash,
+    txStatus,
+  };
+}
+
+/**
+ * Dev-only stub: quote sending WC directly.
+ * Real implementation will depend on WorkCreditsToken + relayer / direct send rules.
+ */
+export async function walletQuoteSendWCDev(opts: {
+  user: string;
+  to: string;
+  amountWCWei: string;
+}): Promise<{
+  intent: "SEND_WC";
+  wcAmountWei: string;
+  wcFeeWei: string;
+}> {
+  const { user, to, amountWCWei } = opts;
+
+  if (!user || !user.startsWith("0x") || user.length !== 42) {
+    throw new Error("walletQuoteSendWCDev: user must be a 20-byte hex address");
+  }
+  if (!to || !to.startsWith("0x") || to.length !== 42) {
+    throw new Error("walletQuoteSendWCDev: to must be a 20-byte hex address");
+  }
+  if (!amountWCWei || !/^[0-9]+$/.test(amountWCWei)) {
+    throw new Error("walletQuoteSendWCDev: amountWCWei must be a decimal string");
+  }
+
+  // Dev stub: flat 1 WC fee (1e18) regardless of amount.
+  const wcFeeWei = "1000000000000000000";
+
+  return {
+    intent: "SEND_WC",
+    wcAmountWei: amountWCWei,
+    wcFeeWei,
+  };
+}
+
+/**
+ * Dev-only stub: simulate sending WC directly.
+ * No on-chain call; just produce a fake tx hash + status.
+ */
+export async function walletSignAndSubmitSendWCDev(opts: {
+  privateKey: string;
+  to: string;
+  amountWCWei: string;
+}): Promise<{
+  intent: "SEND_WC";
+  signerAddress: string;
+  to: string;
+  wcAmountWei: string;
+  txHash: string;
+  txStatus: "SIMULATED";
+}> {
+  const { privateKey, to, amountWCWei } = opts;
+
+  if (!privateKey || !privateKey.startsWith("0x") || privateKey.length !== 66) {
+    throw new Error("walletSignAndSubmitSendWCDev: privateKey must be 0x + 64 hex chars");
+  }
+  if (!to || !to.startsWith("0x") || to.length !== 42) {
+    throw new Error("walletSignAndSubmitSendWCDev: to must be a 20-byte hex address");
+  }
+  if (!amountWCWei || !/^[0-9]+$/.test(amountWCWei)) {
+    throw new Error("walletSignAndSubmitSendWCDev: amountWCWei must be a decimal string");
+  }
+
+  const suffix = privateKey.slice(-8);
+  const signerAddress = `0xDEMO_SENDWC_${suffix.padStart(8, "0")}`.slice(0, 42);
+  const txHash = `0xwc_send_dev_stub_${suffix}`;
+  const txStatus: "SIMULATED" = "SIMULATED";
+
+  return {
+    intent: "SEND_WC",
+    signerAddress,
+    to,
+    wcAmountWei: amountWCWei,
+    txHash,
+    txStatus,
+  };
+}

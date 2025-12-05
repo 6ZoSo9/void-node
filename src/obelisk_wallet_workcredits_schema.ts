@@ -43,3 +43,34 @@ export interface WalletSendVoidSubmitResult {
   txHash: string;
   txStatus: string;
 }
+/**
+ * Wallet-level result for collecting pending Work Credits (dev stub).
+ */
+export type WalletCollectPendingWCResult = {
+  intent: "COLLECT_PENDING_WC";
+  signerAddress: string;
+  collectedWCWei: string;
+  txHash: string;
+  txStatus: "SIMULATED" | "PENDING" | "SUCCESS" | "FAILED";
+};
+
+/**
+ * Wallet-level quote for sending WC directly (dev stub).
+ */
+export type WalletSendWCQuoteResult = {
+  intent: "SEND_WC";
+  wcAmountWei: string;
+  wcFeeWei: string;
+};
+
+/**
+ * Wallet-level submit result for sending WC directly (dev stub).
+ */
+export type WalletSendWCSubmitResult = {
+  intent: "SEND_WC";
+  signerAddress: string;
+  to: string;
+  wcAmountWei: string;
+  txHash: string;
+  txStatus: "SIMULATED" | "PENDING" | "SUCCESS" | "FAILED";
+};
