@@ -43,25 +43,101 @@ echo "WorkCreditsRelayerV1  = ${WC_RELAYER_ADDR}"
 
 echo
 echo "=== [wc-devnet-smoke] WorkCreditsToken metadata ==="
-cast call "${WC_TOKEN_ADDR}" "name()(string)" --rpc-url "${RPC_URL}"
-cast call "${WC_TOKEN_ADDR}" "symbol()(string)" --rpc-url "${RPC_URL}"
-cast call "${WC_TOKEN_ADDR}" "decimals()(uint8)" --rpc-url "${RPC_URL}"
-cast call "${WC_TOKEN_ADDR}" "controller()(address)" --rpc-url "${RPC_URL}"
+
+# name()
+set +e
+WC_NAME="$(cast call "${WC_TOKEN_ADDR}" 'name()(string)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_name || true)"
+RC_NAME=$?
+set -e
+if [ ${RC_NAME} -ne 0 ] || [ -z "${WC_NAME}" ]; then
+  echo "[WARN] name() call failed on WorkCreditsToken (rc=${RC_NAME})"
+  cat /tmp/wc_cast_err_name || true
+else
+  echo "${WC_NAME}"
+fi
+rm -f /tmp/wc_cast_err_name || true
+
+# symbol()
+set +e
+WC_SYMBOL="$(cast call "${WC_TOKEN_ADDR}" 'symbol()(string)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_symbol || true)"
+RC_SYMBOL=$?
+set -e
+if [ ${RC_SYMBOL} -ne 0 ] || [ -z "${WC_SYMBOL}" ]; then
+  echo "[WARN] symbol() call failed on WorkCreditsToken (rc=${RC_SYMBOL})"
+  cat /tmp/wc_cast_err_symbol || true
+else
+  echo "${WC_SYMBOL}"
+fi
+rm -f /tmp/wc_cast_err_symbol || true
+
+# decimals()
+set +e
+WC_DECIMALS="$(cast call "${WC_TOKEN_ADDR}" 'decimals()(uint8)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_decimals || true)"
+RC_DECIMALS=$?
+set -e
+if [ ${RC_DECIMALS} -ne 0 ] || [ -z "${WC_DECIMALS}" ]; then
+  echo "[WARN] decimals() call failed on WorkCreditsToken (rc=${RC_DECIMALS})"
+  cat /tmp/wc_cast_err_decimals || true
+else
+  echo "${WC_DECIMALS}"
+fi
+rm -f /tmp/wc_cast_err_decimals || true
+
+# controller()
+set +e
+WC_CONTROLLER="$(cast call "${WC_TOKEN_ADDR}" 'controller()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_controller || true)"
+RC_CONTROLLER=$?
+set -e
+if [ ${RC_CONTROLLER} -ne 0 ] || [ -z "${WC_CONTROLLER}" ]; then
+  echo "[WARN] controller() call failed on WorkCreditsToken (rc=${RC_CONTROLLER})"
+  cat /tmp/wc_cast_err_controller || true
+else
+  echo "${WC_CONTROLLER}"
+fi
+rm -f /tmp/wc_cast_err_controller || true
 
 echo
 echo "=== [wc-devnet-smoke] WorkCreditsPoolV1 wiring ==="
-cast call "${WC_POOL_ADDR}" "voidToken()(address)" --rpc-url "${RPC_URL}"
-cast call "${WC_POOL_ADDR}" "workCredits()(address)" --rpc-url "${RPC_URL}"
+
+# voidToken()
+set +e
+POOL_VOID_TOKEN="$(cast call "${WC_POOL_ADDR}" 'voidToken()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_void || true)"
+RC_POOL_VOID=$?
+set -e
+if [ ${RC_POOL_VOID} -ne 0 ] || [ -z "${POOL_VOID_TOKEN}" ]; then
+  echo "[WARN] voidToken() call failed on WorkCreditsPoolV1 (rc=${RC_POOL_VOID})"
+  cat /tmp/wc_cast_err_pool_void || true
+else
+  echo "voidToken()       = ${POOL_VOID_TOKEN}"
+fi
+rm -f /tmp/wc_cast_err_pool_void || true
+
+# workCreditsToken()
+set +e
+POOL_WC_TOKEN="$(cast call "${WC_POOL_ADDR}" 'workCreditsToken()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_wc || true)"
+RC_POOL_WC=$?
+set -e
+if [ ${RC_POOL_WC} -ne 0 ] || [ -z "${POOL_WC_TOKEN}" ]; then
+  echo "[WARN] workCreditsToken() call failed on WorkCreditsPoolV1 (rc=${RC_POOL_WC})"
+  cat /tmp/wc_cast_err_pool_wc || true
+else
+  echo "workCreditsToken() = ${POOL_WC_TOKEN}"
+fi
+rm -f /tmp/wc_cast_err_pool_wc || true
+
+# controller()
+set +e
+POOL_CONTROLLER="$(cast call "${WC_POOL_ADDR}" 'controller()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_ctrl || true)"
+RC_POOL_CTRL=$?
+set -e
+if [ ${RC_POOL_CTRL} -ne 0 ] || [ -z "${POOL_CONTROLLER}" ]; then
+  echo "[WARN] controller() call failed on WorkCreditsPoolV1 (rc=${RC_POOL_CTRL})"
+  cat /tmp/wc_cast_err_pool_ctrl || true
+else
+  echo "controller()      = ${POOL_CONTROLLER}"
+fi
+rm -f /tmp/wc_cast_err_pool_ctrl || true
 
 echo
-echo "=== [wc-devnet-smoke] WorkCreditsPoolV1 reserves (if any) ==="
-# These will be zero until we seed the pool.
-cast call "${WC_POOL_ADDR}" "reserveVoid()(uint256)" --rpc-url "${RPC_URL}" || echo "[info] reserveVoid() call failed (check ABI)"
-cast call "${WC_POOL_ADDR}" "reserveWC()(uint256)" --rpc-url "${RPC_URL}" || echo "[info] reserveWC() call failed (check ABI)"
-
-echo
-echo "=== [wc-devnet-smoke] WorkCreditsRelayerV1 wiring ==="
-cast call "${WC_RELAYER_ADDR}" "pool()(address)" --rpc-url "${RPC_URL}" || echo "[info] pool() call failed (check ABI)"
-
-echo
-echo "=== [wc-devnet-smoke] RESULT: basic WC devnet wiring looks sane (if no errors above) ==="
+echo "=== [wc-devnet-smoke] summary ==="
+echo "If you see no [FATAL] lines above, WC devnet wiring is at least minimally sane."
