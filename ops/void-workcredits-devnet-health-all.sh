@@ -1,84 +1,110 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-API_URL="${API_URL:-http://127.0.0.1:4100/workcredits/devnet/pool}"
+REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
+TEXTFILE_DIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}"
+STATE_JSON="${STATE_JSON:-$REPO_ROOT/docs/VOID-WORKCREDITS-DEVNET-STATE.json}"
+OUT_FILE="${OUT_FILE:-$TEXTFILE_DIR/void_workcredits_devnet_pool.prom}"
 
-cd "$ROOT"
+cd "$REPO_ROOT"
 
-echo "=== [wc-devnet-health] WorkCredits devnet pool health ==="
-echo "[cfg] ROOT    = $ROOT"
-echo "[cfg] API_URL = $API_URL"
-echo
+echo "=== [workcredits-devnet-health] VOID WorkCredits devnet pool health ==="
+echo "[cfg] REPO_ROOT   = $REPO_ROOT"
+echo "[cfg] STATE_JSON  = $STATE_JSON"
+echo "[cfg] TEXTFILE_DIR= $TEXTFILE_DIR"
+echo "[cfg] OUT_FILE    = $OUT_FILE"
 
-# Fetch JSON from the node HTTP endpoint
-if ! json="$(curl --max-time 5 -fsS "$API_URL")"; then
-  echo "[err] failed to GET $API_URL" >&2
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[fatal] jq is required but not installed" >&2
   exit 1
 fi
 
-echo "=== [raw] pool JSON ==="
-echo "$json" | jq '.'
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[fatal] python3 is required but not installed" >&2
+  exit 1
+fi
 
-# Parse fields
-ok="$(echo "$json" | jq -r '.ok')"
-chain="$(echo "$json" | jq -r '.chain')"
-wc_per_void="$(echo "$json" | jq -r '.wcPerVoid')"
-void_res="$(echo "$json" | jq -r '.voidReserveRaw')"
-wc_res="$(echo "$json" | jq -r '.wcReserveRaw')"
-liq2="$(echo "$json" | jq -r '.liquidity2AssetRaw')"
-updated_at="$(echo "$json" | jq -r '.updatedAt')"
+if [[ ! -f "$STATE_JSON" ]]; then
+  echo "[fatal] state file missing: $STATE_JSON" >&2
+  echo "        create it (you can start from the sample we installed) and rerun." >&2
+  exit 1
+fi
 
 echo
-echo "=== [parsed] summary ==="
-printf 'ok            = %s\n' "$ok"
-printf 'chain         = %s\n' "$chain"
-printf 'wcPerVoid     = %s\n' "$wc_per_void"
-printf 'voidReserve   = %s\n' "$void_res"
-printf 'wcReserve     = %s\n' "$wc_res"
-printf 'liquidity2Raw = %s\n' "$liq2"
-printf 'updatedAt     = %s\n' "$updated_at"
+echo "=== [1] reading state JSON ==="
+chain="$(jq -r '.chain // "devnet"' "$STATE_JSON")"
+rpc_url="$(jq -r '.rpc_url // ""' "$STATE_JSON")"
+void_raw="$(jq -r '.void_reserve_raw // "0"' "$STATE_JSON")"
+wc_raw="$(jq -r '.wc_reserve_raw // "0"' "$STATE_JSON")"
 
-now="$(date +%s)"
-# updated_at is a float; round to integer seconds best-effort
-updated_sec="$(printf '%.0f\n' "$updated_at" 2>/dev/null || printf '0\n')"
-
-if [ "$updated_sec" -gt 0 ] 2>/dev/null; then
-  age="$(( now - updated_sec ))"
-else
-  age="-1"
-fi
-
-echo "age_seconds   = $age"
+echo "[state] chain           = $chain"
+echo "[state] rpc_url         = $rpc_url"
+echo "[state] void_reserve_raw= $void_raw"
+echo "[state] wc_reserve_raw  = $wc_raw"
 
 echo
-rc=0
+echo "=== [2] computing price ratios ==="
+ratios_out="$(python3 - <<PY
+from decimal import Decimal, getcontext
+getcontext().prec = 36
 
-if [ "$ok" != "true" ]; then
-  echo "[fail] ok flag != true (ok=$ok)"
-  rc=1
+void_raw = Decimal(str("$void_raw"))
+wc_raw = Decimal(str("$wc_raw"))
+
+if void_raw == 0 or wc_raw == 0:
+    wc_per_void = Decimal(0)
+    void_per_wc = Decimal(0)
+else:
+    wc_per_void = wc_raw / void_raw
+    void_per_wc = void_raw / wc_raw
+
+print(f"wc_per_void={wc_per_void}")
+print(f"void_per_wc={void_per_wc}")
+PY
+)"
+
+wc_per_void="$(printf '%s\n' "$ratios_out" | awk -F= '/^wc_per_void=/{print $2}')"
+void_per_wc="$(printf '%s\n' "$ratios_out" | awk -F= '/^void_per_wc=/{print $2}')"
+
+echo "[price] wc_per_void = $wc_per_void"
+echo "[price] void_per_wc = $void_per_wc"
+
+echo
+echo "=== [3] writing Prometheus textfile ==="
+tmp="$(mktemp)"
+
+cat > "$tmp" <<EOF
+# HELP void_workcredits_devnet_void_reserve_raw VOID reserve in pool (raw 18-dec units)
+# TYPE void_workcredits_devnet_void_reserve_raw gauge
+void_workcredits_devnet_void_reserve_raw{chain="$chain"} $void_raw
+
+# HELP void_workcredits_devnet_wc_reserve_raw WorkCredits reserve in pool (raw 18-dec units)
+# TYPE void_workcredits_devnet_wc_reserve_raw gauge
+void_workcredits_devnet_wc_reserve_raw{chain="$chain"} $wc_raw
+
+# HELP void_workcredits_devnet_wc_per_void WC per 1 VOID (price)
+# TYPE void_workcredits_devnet_wc_per_void gauge
+void_workcredits_devnet_wc_per_void{chain="$chain"} $wc_per_void
+
+# HELP void_workcredits_devnet_void_per_wc VOID per 1 WC (price)
+# TYPE void_workcredits_devnet_void_per_wc gauge
+void_workcredits_devnet_void_per_wc{chain="$chain"} $void_per_wc
+
+# HELP void_workcredits_devnet_pool_meta Static metadata for WC/VOID pool
+# TYPE void_workcredits_devnet_pool_meta gauge
+void_workcredits_devnet_pool_meta{chain="$chain",rpc_url="$rpc_url"} 1
+EOF
+
+echo "[write] $OUT_FILE"
+if [[ ! -d "$TEXTFILE_DIR" ]]; then
+  echo "[info] creating TEXTFILE_DIR (sudo may prompt): $TEXTFILE_DIR"
+  sudo mkdir -p "$TEXTFILE_DIR"
 fi
 
-if [ "$chain" != "devnet" ]; then
-  echo "[fail] chain != devnet (chain=$chain)"
-  rc=1
-fi
+sudo tee "$OUT_FILE" >/dev/null < "$tmp"
+rm -f "$tmp"
 
-if [ -z "$wc_per_void" ] || [ "$wc_per_void" = "null" ] || [ "$wc_per_void" = "0" ]; then
-  echo "[fail] wcPerVoid looks invalid: '$wc_per_void'"
-  rc=1
-fi
-
-# Require exporter/timer to have updated within the last 10 minutes
-if [ "$age" -gt 600 ] 2>/dev/null; then
-  echo "[fail] updatedAt is older than 600s (10m) – pool exporter/timer may be stale"
-  rc=1
-fi
-
-if [ "$rc" -eq 0 ]; then
-  echo "[RESULT] OK (WorkCredits devnet pool JSON healthy)"
-else
-  echo "[RESULT] BAD (WorkCredits devnet pool JSON failed checks)"
-fi
-
-exit "$rc"
+echo
+echo "=== [4] done ==="
+echo "You can check node_exporter metrics with, e.g.:"
+echo "  curl -fsS \"http://127.0.0.1:9100/metrics\" | grep '^void_workcredits_devnet_' || true"

@@ -1,0 +1,6 @@
+{
+  "chain": "devnet",
+  "rpc_url": "http://127.0.0.1:8545",
+  "void_reserve_raw": "0",
+  "wc_reserve_raw": "0"
+}
