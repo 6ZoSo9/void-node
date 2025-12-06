@@ -3,14 +3,11 @@
   "chainId": 2050,
   "network": "devnet",
   "rpcUrl": "http://127.0.0.1:8545",
-
-  "voidToken": "0x0000000000000000000000000000000000000000",
-  "workCreditsToken": "0x0000000000000000000000000000000000000000",
-  "lpPool": "0x0000000000000000000000000000000000000000",
-
+  "voidToken": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "workCreditsToken": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+  "lpPool": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
   "treasury": "0x0000000000000000000000000000000000000000",
   "opsTreasury": "0x0000000000000000000000000000000000000000",
-
   "notes": [
     "This is a TEMPLATE for WorkCredits devnet.",
     "Do NOT point production systems at this file.",
