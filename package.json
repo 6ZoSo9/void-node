@@ -28,6 +28,7 @@
     "@types/node": "^22.7.5",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "ethers": "^6.16.0",
     "tsx": "^4.19.0",
     "typescript": "^5.1.6"
   },

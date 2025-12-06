@@ -1,1 +1,1 @@
-testAddLockedLiquidity|testSeedLockedLiquidityOnce|testSwapVoidForWc|testSwapWcForVoid
+testRevertsIfTooMuchOfPool|testRevertsIfTooMuchOfPool

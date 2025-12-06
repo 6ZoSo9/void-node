@@ -198,6 +198,48 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
+  // [http-debug] ultra-simple ping to detect HTTP liveness without touching core routes
+  app.get("/__dev/http-debug/ping", (_req, res) => {
+    try {
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    } catch {}
+    res.status(200).send("pong\\n");
+  });
+
+
+if (process.env.VOID_HTTP_SAFE === "1") {
+  console.error("[http-safe] VOID_HTTP_SAFE=1: installing early harness for /head.txt, /health/summary.json, /workcredits/devnet/pool, /metrics/void/head");
+  app.use((req, res, next) => {
+    console.error("[http-safe] got request", req.method, req.url);
+    try {
+      if (req.url === "/head.txt") {
+        res.type("text/plain").send("0\n");
+        return;
+      }
+      if (req.url === "/health/summary.json") {
+        res.json({ ok: true, safeHarness: true, endpoint: "/health/summary.json", ts: Date.now() });
+        return;
+      }
+      if (req.url.startsWith("/metrics/void/head")) {
+        res.type("text/plain").send("void_head_number 0\n");
+        return;
+      }
+      if (req.url === "/workcredits/devnet/pool") {
+        res.status(503).json({ ok: false, reason: "WorkCredits HTTP disabled in VOID_HTTP_SAFE mode" });
+        return;
+      }
+    } catch (e) {
+      try {
+        res.status(500).json({ ok: false, harnessError: String(e) });
+        return;
+      } catch (_) {
+        // ignore
+      }
+    }
+    next();
+  });
+}
+
  
 
 
@@ -293,7 +335,7 @@ console.log("[shim] published global node (post-construct)");
   try { if (typeof registerDevRoutes === "function") registerDevRoutes(app as any, node as any); } catch {}
 
   // WorkCredits routes (safe if not present)
-  try { if (typeof registerWorkCreditsRoutes === "function") registerWorkCreditsRoutes(app as any); } catch {}
+  try { if (typeof registerWorkCreditsRoutes === "function") if (process.env.VOID_DISABLE_WORKCREDITS === "1") { console.error("[workcredits] routes disabled via VOID_DISABLE_WORKCREDITS=1"); } else { registerWorkCreditsRoutes(app as any); } } catch {}
 
   // --- minimal mempool-backed tx submit route (dev only) ---
   const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");

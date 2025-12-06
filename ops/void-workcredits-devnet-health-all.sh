@@ -12,7 +12,7 @@ echo "[cfg] API_URL = $API_URL"
 echo
 
 # Fetch JSON from the node HTTP endpoint
-if ! json="$(curl -fsS "$API_URL")"; then
+if ! json="$(curl --max-time 5 -fsS "$API_URL")"; then
   echo "[err] failed to GET $API_URL" >&2
   exit 1
 fi
