@@ -1,0 +1,213 @@
+VOID Network — WorkCredits Devnet Plan
+======================================
+
+Status as of 2025-12-05
+-----------------------
+
+- Chain: devnet (anvil-style, chainId 2050 in our rehearsals).
+- Node: main proposer at http://127.0.0.1:4100.
+- WorkCredits HTTP:
+  - /workcredits/devnet/health
+  - /workcredits/devnet/pool
+- WorkCredits Prometheus exporter:
+  - /metrics/void/workcredits-devnet.prom
+
+- Exporter metrics (raw gauges):
+  - void_workcredits_devnet_up{chain="devnet"} 1/0
+  - void_workcredits_devnet_void_reserve_raw{chain="devnet"} <uint256>
+  - void_workcredits_devnet_wc_reserve_raw{chain="devnet"} <uint256>
+  - void_workcredits_devnet_wc_per_void{chain="devnet"} <float>
+  - void_workcredits_devnet_void_per_wc{chain="devnet"} <float>
+
+- Recording rules (1m views):
+  - void:workcredits_devnet:up:last_1m
+  - void:workcredits_devnet:has_liquidity:last_1m
+
+Current state (devnet):
+- pool_address = null (no LLP deployed yet)
+- VOID reserve = 0
+- WC reserve   = 0
+- exporter up  = 1 (healthy)
+- has_liquidity = 0 (by definition when both reserves are zero)
+
+
+Conceptual model
+----------------
+
+WorkCredits (WC) are the "work token" for VOID Network:
+
+- Users earn WC by running useful VOID infrastructure (validators, relayers, other jobs).
+- WC is paired against VOID in a WC/VOID liquidity pool (LLP).
+- There is a one-time 10M VOID seed for this LLP on real mainnet.
+- After the initial seed, the pool should be sustained by:
+  - market trading activity,
+  - emissions from the RewardEngine,
+  - and usage of the network (fees, WC sinks, etc.).
+
+For devnet we want a faithful rehearsal of that design without committing to exact numbers yet. The devnet plan should:
+
+- Use realistic 18-decimal ERC-20-style balances.
+- Use the same math as mainnet for WC/VOID pricing.
+- Exercise the same exporters and health rules that mainnet will rely on.
+- Make it easy to plug the data into Obelisk Wallet UI and the Trading View tab.
+
+
+Devnet LLP / pool shape (high-level)
+------------------------------------
+
+On devnet, we expect the following roles/contracts (addresses TBD):
+
+- VOID token (devnet deployment, 18 decimals).
+- WorkCredits token (WC) (devnet deployment, 18 decimals).
+- WC/VOID LP pool contract:
+  - Holds VOID and WC reserves.
+  - Exposes the usual x * y = k style AMM invariants (or our chosen variant).
+  - Provides a read-only view that our exporter can query:
+    - VOID reserve (raw uint256, 18 dec).
+    - WC reserve (raw uint256, 18 dec).
+
+- Treasury / Ops roles (devnet stand-ins for mainnet):
+  - Devnet Treasury: holds initial test VOID.
+  - Devnet Ops: used to seed the devnet pool and run experiments.
+
+
+One-time 10M VOID seed (mainnet) vs devnet
+------------------------------------------
+
+Mainnet intent (locked conceptually, but not wired yet):
+
+- A one-time 10,000,000 VOID allocation from the premine goes into the WC/VOID LLP.
+- That seed is held/controlled by contracts (VoidTreasury/OpsTreasury), not EOAs.
+- After that deposit, the system relies on:
+  - RewardEngine emissions over 100 years,
+  - users providing liquidity,
+  - and fees / sinks.
+
+Devnet intent:
+
+- We DO NOT need to perfectly mirror the exact 10M number, but we should:
+  - Use a clearly documented devnet seed (e.g., 1M or 10M VOID equivalent in dev tokens).
+  - Seed both VOID and WC into the LP so:
+    - void_workcredits_devnet_void_reserve_raw > 0
+    - void_workcredits_devnet_wc_reserve_raw > 0
+  - Observe:
+    - wc_per_void > 0
+    - void_per_wc > 0
+    - void:workcredits_devnet:has_liquidity:last_1m == 1
+
+- The exporter + Prom rules do not currently know or care about the exact numbers.
+  - They only care if the reserves are non-zero.
+  - The precise ratios will matter for the Wallet UI and trading logic.
+
+
+Exporter + Prometheus expectations
+----------------------------------
+
+Exporter invariants (once pool is live on devnet):
+
+- void_workcredits_devnet_up == 1 as long as:
+  - The node can talk to devnet RPC, AND
+  - It can read the WC/VOID pool contract without errors.
+
+- void_workcredits_devnet_void_reserve_raw > 0
+- void_workcredits_devnet_wc_reserve_raw > 0
+
+- wc_per_void:
+  - Interpreted as: "how many WC you get for 1 VOID", as a float.
+- void_per_wc:
+  - Interpreted as: "how many VOID you get for 1 WC", as a float.
+
+Recording rule invariants:
+
+- void:workcredits_devnet:up:last_1m:
+  - Should be 1 under normal operation.
+  - Should go 0 if the exporter breaks or the node is down.
+
+- void:workcredits_devnet:has_liquidity:last_1m:
+  - 1 if either reserve is > 0 in the last minute.
+  - 0 if both reserves have been 0 for the whole lookback window.
+
+Alert expectations (high level only):
+
+- "WorkCreditsDevnetDown":
+  - Fires if up:last_1m == 0.
+- "WorkCreditsDevnetNoLiquidity":
+  - Fires if up:last_1m == 1 AND has_liquidity:last_1m == 0
+    for some configured duration once we actually care about liquidity.
+
+
+UI / Obelisk Wallet consumers
+-----------------------------
+
+Obelisk Wallet and future dashboards should treat WorkCredits as follows:
+
+- Data sources:
+  - /workcredits/devnet/pool (node JSON)
+  - /workcredits/devnet/health (node JSON)
+  - void:workcredits_devnet:up:last_1m (Prom)
+  - void:workcredits_devnet:has_liquidity:last_1m (Prom)
+
+- Wallet "Work Credits" / Trading View needs:
+  - Current WC per VOID price.
+  - Current VOID per WC price.
+  - Reserves (so we can show depth / rough liquidity).
+  - A simple "is this market live?" check:
+    - exporter up == 1
+    - has_liquidity:last_1m == 1
+
+- Wallet should also show:
+  - Relayer toggle (on/off).
+  - "Collect pending WC" button (driven by separate RewardEngine plumbing).
+  - Simple buy/sell panels using the WC/VOID pair,
+    using the same math as the LLP contract.
+
+All of that can be driven off the JSON and Prometheus metrics already described, plus future
+RewardEngine + WorkCredits contract integrations.
+
+
+Next steps (TODO list)
+----------------------
+
+1) Devnet config + addresses
+   - Create a config JSON for WorkCredits devnet that records:
+     - devnet chain info,
+     - VOID token address,
+     - WC token address,
+     - WC/VOID LLP pool address,
+     - devnet Treasury/Ops stand-ins.
+
+   - This config should be under config/ and treated like the other PLAN/LIVE JSONs,
+     but scoped purely to WorkCredits + LLP.
+
+2) Devnet LLP deployment script
+   - Implement a forge script (or ops shell wrapper around it) that:
+     - Deploys a WC/VOID LLP contract on devnet.
+     - Seeds it with initial VOID and WC balances.
+     - Emits or prints addresses for the config JSON.
+
+3) Wire exporter to real pool
+   - Update the node WorkCredits route/exporter to:
+     - Read the LLP address from config.
+     - Query real on-chain reserves.
+     - Populate pool_address in the JSON and exporter labels.
+
+4) Obelisk UI shim
+   - Add a UI-friendly JSON endpoint (e.g. /workcredits/devnet/ui_summary) that merges:
+     - health JSON
+     - pool JSON
+     - Prom recordings for up/liquidity
+
+   - Obelisk Wallet will consume that ui_summary to fill:
+     - Trading View tab,
+     - Work Credits / balances,
+     - simple status badges.
+
+5) Mainnet alignment
+   - Once devnet design is stable:
+     - Mirror the same structure into the mainnet PLAN docs and config,
+       with the locked one-time 10M VOID seed.
+     - Ensure RewardEngine / emissions and WorkCredits supply are consistent with
+       the mainnet tokenomics spec.
+
+This document is the canonical high-level plan for WorkCredits on devnet. Any changes
+to WorkCredits behavior or LLP mechanics should be reconciled against this file.

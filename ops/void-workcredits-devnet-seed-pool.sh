@@ -1,104 +1,70 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
-cd "$REPO_ROOT"
+# VOID WorkCredits devnet pool seed stub
+#
+# This script DOES NOT broadcast any transactions yet.
+# It reads the devnet WorkCredits state JSON and prints a human-readable plan.
+#
+# Later, we will wire this into:
+#   - WorkCreditsDevnetDeploy.s.sol
+#   - Or direct pool contract calls via cast/forge
+#
+# For now, it is a stub with a clear fatal exit, similar to the mainnet broadcast skeleton.
 
-RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
-STATE_FILE="docs/VOID-DEVNET-PROTOCOL-STATE.json"
+ROOT="${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+STATE_JSON="${STATE_JSON:-"$ROOT/docs/VOID-WORKCREDITS-DEVNET-STATE.json"}"
 
-# Devnet VoidToken on anvil-2050
-DEVNET_VOID_TOKEN="0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
+echo "=== [workcredits-devnet-seed] VOID WorkCredits devnet pool seed stub ==="
+echo "[cfg] ROOT       = $ROOT"
+echo "[cfg] STATE_JSON = $STATE_JSON"
 
-echo "=== [wc-devnet-seed-pool] repo ==="
-pwd
-echo
-echo "=== [wc-devnet-seed-pool] RPC_URL ==="
-echo "RPC_URL=${RPC_URL}"
-echo
-
-if [ ! -f "${STATE_FILE}" ]; then
-  echo "[FATAL] ${STATE_FILE} not found; run devnet bootstrap + WC deploy first."
+if [[ ! -f "$STATE_JSON" ]]; then
+  echo "[fatal] state JSON not found at $STATE_JSON" >&2
+  echo "        Create it via docs/VOID-WORKCREDITS-DEVNET-STATE.json first." >&2
   exit 1
 fi
 
-echo "=== [wc-devnet-seed-pool] reading WC + pool addresses from ${STATE_FILE} ==="
-WC_TOKEN_ADDR="$(jq -r '.workCreditsToken // empty' "${STATE_FILE}")"
-POOL_ADDR="$(jq -r '.workCreditsPoolV1 // empty' "${STATE_FILE}")"
+# jq is already in use elsewhere in this repo; assume it's available.
+chain=$(jq -r '.chain' "$STATE_JSON")
+rpc_url=$(jq -r '.rpc_url' "$STATE_JSON")
+void_reserve_raw=$(jq -r '.void_reserve_raw' "$STATE_JSON")
+wc_reserve_raw=$(jq -r '.wc_reserve_raw' "$STATE_JSON")
+pool_address=$(jq -r '.pool_address // empty' "$STATE_JSON")
 
-if [ -z "${WC_TOKEN_ADDR}" ] || [ "${WC_TOKEN_ADDR}" = "null" ]; then
-  echo "[FATAL] workCreditsToken missing in ${STATE_FILE}"
-  exit 1
-fi
-if [ -z "${POOL_ADDR}" ] || [ "${POOL_ADDR}" = "null" ]; then
-  echo "[FATAL] workCreditsPoolV1 missing in ${STATE_FILE}"
-  exit 1
-fi
-
-echo "VoidToken          = ${DEVNET_VOID_TOKEN}"
-echo "WorkCreditsToken   = ${WC_TOKEN_ADDR}"
-echo "WorkCreditsPoolV1  = ${POOL_ADDR}"
 echo
+echo "=== [1] parsed state JSON ==="
+echo "[state] chain            = ${chain:-<unset>}"
+echo "[state] rpc_url          = ${rpc_url:-<unset>}"
+echo "[state] pool_address     = ${pool_address:-<unset>}"
+echo "[state] void_reserve_raw = ${void_reserve_raw:-<unset>}"
+echo "[state] wc_reserve_raw   = ${wc_reserve_raw:-<unset>}"
 
-KEY_FILE="${KEY_FILE:-$REPO_ROOT/.secrets/devnet-caller.key}"
-
-echo "=== [wc-devnet-seed-pool] loading devnet caller key ==="
-if [ ! -f "${KEY_FILE}" ]; then
-  echo "[FATAL] devnet caller key not found at ${KEY_FILE}"
-  exit 1
+if [[ -z "$pool_address" || "$pool_address" == "0x0000000000000000000000000000000000000000" ]]; then
+  echo
+  echo "[warn] pool_address is empty or zero in $STATE_JSON"
+  echo "       - For now, this script is a stub. When the WC/VOID pool is deployed on devnet,"
+  echo "         add its address under .pool_address in the JSON."
 fi
 
-KEY_HEX="$(cat "${KEY_FILE}")"
-CALLER_ADDR="$(cast wallet address --private-key "${KEY_HEX}")"
-
-echo "CALLER_ADDR (from key) = ${CALLER_ADDR}"
 echo
-
-# Defaults: 100 VOID + 100 WC (18 decimals)
-SEED_VOID="${SEED_VOID:-100000000000000000000}"
-SEED_WC="${SEED_WC:-100000000000000000000}"
-
-echo "=== [wc-devnet-seed-pool] parameters ==="
-echo "SEED_VOID (VOID, 18-dec) = ${SEED_VOID}"
-echo "SEED_WC   (WC,   18-dec) = ${SEED_WC}"
-echo "DRY_RUN                  = ${DRY_RUN:-0}"
+echo "=== [2] planned seed action (conceptual) ==="
+echo "  - Network   : $chain"
+echo "  - RPC URL   : $rpc_url"
+echo "  - Pool      : ${pool_address:-<unknown>}"
+echo "  - Seed VOID : $void_reserve_raw (raw 18-dec)"
+echo "  - Seed WC   : $wc_reserve_raw (raw 18-dec)"
 echo
-
-echo "=== [wc-devnet-seed-pool] planned actions ==="
-echo "1) transfer SEED_VOID from ${CALLER_ADDR} -> pool (${POOL_ADDR}) via VoidToken.transfer"
-echo "2) transfer SEED_WC   from ${CALLER_ADDR} -> pool (${POOL_ADDR}) via WorkCreditsToken.transfer"
+echo "In the future, this script will:"
+echo "  1) Ensure devnet is running at \$rpc_url (chainId 2050)."
+echo "  2) Ensure the WC/VOID pool contract is deployed at pool_address."
+echo "  3) Use a funded devnet key to:"
+echo "       - Approve the pool to move the seed VOID/WC."
+echo "       - Call the pool's add-liquidity/seed function."
+echo "  4) Update docs/VOID-WORKCREDITS-DEVNET-STATE.json and metrics accordingly."
 echo
-
-if [ "${DRY_RUN:-0}" != "0" ]; then
-  echo "[DRY_RUN] skipping on-chain sends; showing commands only:"
-  cat <<EOF
-cast send ${DEVNET_VOID_TOKEN} "transfer(address,uint256)" \\
-    ${POOL_ADDR} ${SEED_VOID} \\
-    --private-key <hidden> --rpc-url ${RPC_URL}
-
-cast send ${WC_TOKEN_ADDR} "transfer(address,uint256)" \\
-    ${POOL_ADDR} ${SEED_WC} \\
-    --private-key <hidden> --rpc-url ${RPC_URL}
-EOF
-  exit 0
-fi
-
-echo "=== [wc-devnet-seed-pool] ACTION: seed VOID into pool ==="
-cast send "${DEVNET_VOID_TOKEN}" \
-  "transfer(address,uint256)" \
-  "${POOL_ADDR}" "${SEED_VOID}" \
-  --private-key "${KEY_HEX}" \
-  --rpc-url "${RPC_URL}"
+echo "For now, this is a NO-OP stub. No transactions will be sent."
 
 echo
-echo "=== [wc-devnet-seed-pool] ACTION: seed WC into pool ==="
-cast send "${WC_TOKEN_ADDR}" \
-  "transfer(address,uint256)" \
-  "${POOL_ADDR}" "${SEED_WC}" \
-  --private-key "${KEY_HEX}" \
-  --rpc-url "${RPC_URL}"
-
-echo
-echo "=== [wc-devnet-seed-pool] DONE ==="
-echo "You can now inspect pool reserves with:"
-echo "  ./ops/void-workcredits-devnet-pool-state.sh"
+echo "[fatal] NOT_IMPLEMENTED_DEVNET_STUB: seeding logic is not wired yet." >&2
+exit 1
