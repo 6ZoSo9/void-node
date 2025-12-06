@@ -198,6 +198,7 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
+require("./http/workcredits-devnet"); // WorkCredits devnet HTTP routes
   // [http-debug] ultra-simple ping to detect HTTP liveness without touching core routes
   app.get("/__dev/http-debug/ping", (_req, res) => {
     try {

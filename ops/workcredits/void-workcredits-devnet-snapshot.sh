@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
+NODE_EXPORTER_URL="${NODE_EXPORTER_URL:-http://127.0.0.1:9100}"
 
 q() {
   local expr="$1"
@@ -16,13 +17,24 @@ q() {
     '
 }
 
+node_metric() {
+  local name="$1"
+  curl -fsS "$NODE_EXPORTER_URL/metrics" \
+  | awk -v n="$name" '
+      $1 ~ "^" n "{chain=\"devnet\"}" {
+        print $2;
+        exit
+      }
+    '
+}
+
 up_last_1m="$(q "void:workcredits_devnet:up:last_1m")"
 has_liq_last_1m="$(q "void:workcredits_devnet:has_liquidity:last_1m")"
 
-void_raw="$(q "void_workcredits_devnet_void_reserve_raw{chain=\"devnet\"}")"
-wc_raw="$(q   "void_workcredits_devnet_wc_reserve_raw{chain=\"devnet\"}")"
-wc_per_void="$(q  "void_workcredits_devnet_wc_per_void{chain=\"devnet\"}")"
-void_per_wc="$(q  "void_workcredits_devnet_void_per_wc{chain=\"devnet\"}")"
+void_raw="$(node_metric "void_workcredits_devnet_void_reserve_raw")"
+wc_raw="$(node_metric   "void_workcredits_devnet_wc_reserve_raw")"
+wc_per_void="$(node_metric  "void_workcredits_devnet_wc_per_void")"
+void_per_wc="$(node_metric  "void_workcredits_devnet_void_per_wc")"
 
 echo "=== WorkCredits devnet snapshot ==="
 echo "up_last_1m           : ${up_last_1m}"
