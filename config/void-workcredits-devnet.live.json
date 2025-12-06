@@ -1,0 +1,20 @@
+{
+  "//": "VOID Network — WorkCredits devnet config template (NOT LIVE)",
+  "chainId": 2050,
+  "network": "devnet",
+  "rpcUrl": "http://127.0.0.1:8545",
+
+  "voidToken": "0x0000000000000000000000000000000000000000",
+  "workCreditsToken": "0x0000000000000000000000000000000000000000",
+  "lpPool": "0x0000000000000000000000000000000000000000",
+
+  "treasury": "0x0000000000000000000000000000000000000000",
+  "opsTreasury": "0x0000000000000000000000000000000000000000",
+
+  "notes": [
+    "This is a TEMPLATE for WorkCredits devnet.",
+    "Do NOT point production systems at this file.",
+    "Once devnet VOID/WC tokens and LP pool are deployed,",
+    "copy this to void-workcredits-devnet.live.json and fill real addresses."
+  ]
+}
