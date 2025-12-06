@@ -285,3 +285,7 @@ mainnet-bootstrap-plan-health:
 # WorkCredits devnet PLAN health
 workcredits-devnet-plan:
 	./ops/void-workcredits-devnet-plan.sh
+
+# WorkCredits devnet health + PLAN
+workcredits-devnet-health-all:
+	./ops/void-workcredits-devnet-health-all.sh
