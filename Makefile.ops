@@ -280,3 +280,8 @@ mainnet-bootstrap-plan-all: mainnet-bootstrap-plan mainnet-bootstrap-plan-export
 # VOID mainnet bootstrap PLAN health (Prometheus-only, non-gating)
 mainnet-bootstrap-plan-health:
 	./ops/void-mainnet-bootstrap-plan-health.sh
+
+
+# WorkCredits devnet PLAN health
+workcredits-devnet-plan:
+	./ops/void-workcredits-devnet-plan.sh
