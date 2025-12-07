@@ -338,50 +338,25 @@ if (process.env.VOID_HTTP_SAFE === "1") {
   // WorkCredits routes (safe if not present)
   try { if (typeof registerWorkCreditsRoutes === "function") if (process.env.VOID_DISABLE_WORKCREDITS === "1") { console.error("[workcredits] routes disabled via VOID_DISABLE_WORKCREDITS=1"); } else { registerWorkCreditsRoutes(app as any); } } catch {}
 
-  
-// --- tx submit route (wired into last-mile acceptTx, with dev mempool log) ---
-const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
-
-app.post("/tx/submit", async (req, res) => {
+  // --- minimal mempool-backed tx submit route (dev only) ---
+  const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
+  app.post("/tx/submit", async (req, res) => {
+    
+    
+    try { globalEnqueueTx(req.body ?? {}); const q=(globalThis as any).__void_tx_queue; console.log("[route] /tx/submit enq size=%s", Array.isArray(q)?q.length:-1); } catch {}
+  try { globalEnqueueTx(req.body ?? {}); } catch {}
   try {
-    const tx = req.body && typeof req.body === "object" ? req.body : null;
-    if (!tx || typeof tx.data !== "string" || tx.data.length === 0) {
-      return res.status(400).json({ ok: false, error: "expected {data:string}" });
-    }
-
-    const hex = tx.data.startsWith("0x") ? tx.data.slice(2) : tx.data;
-    if (hex.length === 0 || hex.length % 2 !== 0) {
-      return res.status(400).json({ ok: false, error: "invalid hex in data" });
-    }
-
-    const buf = Buffer.from(hex, "hex");
-
-    const liveNode = (((globalThis as any).__void_node || (globalThis as any).node) as any);
-    if (!liveNode || typeof liveNode.acceptTx !== "function") {
-      return res.status(500).json({ ok: false, error: "acceptTx not available on node" });
-    }
-
-    await liveNode.acceptTx(tx as any);
-
-    // Best-effort dev log: keep writing a simple mempool trace, but don't fail the request if it breaks.
-    try {
+      const tx = req.body && typeof req.body === "object" ? req.body : null;
+      if (!tx || typeof tx.data !== "string" || !tx.data.length)
+        return res.status(400).json({ ok:false, error:"expected {data:string}" });
       await fs.promises.mkdir(path.dirname(MEMPOOL), { recursive: true });
-      await fs.promises.appendFile(
-        MEMPOOL,
-        JSON.stringify({ data: tx.data, ts: Date.now() }) + "\\n",
-      );
-    } catch {
-      // ignore mempool logging errors
+      await fs.promises.appendFile(MEMPOOL, JSON.stringify({ data: tx.data, ts: Date.now() }) + "\n");
+      return res.json({ ok:true });
+    } catch (err) {
+      return res.status(500).json({ ok:false, error: String((err as any)?.message ?? err) });
     }
+  });
 
-    return res.json({ ok: true });
-  } catch (err: any) {
-    console.error("[/tx/submit] error", err);
-    return res.status(500).json({ ok: false, error: String(err?.message ?? err) });
-  }
-});
-
-// Mount follower + P2P + KIDX-extra routes
   // Mount follower + P2P + KIDX-extra routes
   registerFollowerRoutes(app, node, metrics);
 // DUPLICATE DISABLED ->   registerTxRoutes(app);
@@ -6206,7 +6181,7 @@ void_txroot_v4_errors_total ${X.errors}
       const comp = await rComp.json();
       const computed = comp.root || comp.txRoot || null;
 
-      const rHdr = await fetch(`${base}/blocks/${n}/header3`);
+      const rHdr = await fetch(`${base}/blocks/${n}/header`);
       if (!rHdr.ok) { C.errors++; return { ok:false, number:n, error:`header ${rHdr.status}` }; }
       const hdr = await rHdr.json();
       const headerTxRoot = hdr && (hdr.txRoot ?? hdr.header?.txRoot ?? null);
@@ -8128,7 +8103,7 @@ void_txroot_health 1
                 const u = base + "/blocks/" + head + "/header3";
                 const h3 = await j(u);
                 const h3Root = (h3 && (h3.txRoot || (h3.header && h3.header.txRoot))) || null;
-                if (!h3Root) ok = true;
+                if (!h3Root) ok = 1;
               } catch {}
             }
 
@@ -11194,71 +11169,46 @@ void_ready_exporter_timestamp_ms ${now}
   async function sealOnce(): Promise<{ok:boolean; number?:number; taken:number; reason?:string}> {
     try {
       const n = getNode(); const s = getStore(); const app = getApp();
-      if (!n || !s || !app) return { ok:false, taken:0, reason: "node/store/app not ready" };
+      if (!n || !s || !app) return { ok:false, taken:0, reason:'node/store/app not ready' };
 
-      // Diagnostics only: try to read a mempool-like array for logging/metrics, but
-      // never gate sealing on it. The real last-mile queue lives inside Node.acceptTx().
-      let memSize = 0;
-      try {
-        const anyNode: any = n as any;
-        const mem = (anyNode.mempool && Array.isArray(anyNode.mempool.txs))
-          ? anyNode.mempool.txs
-          : (Array.isArray(anyNode.txs) ? anyNode.txs : null);
-        if (mem) memSize = mem.length;
-      } catch {
-        // ignore mempool inspection errors; they are non-fatal
-      }
+      const mem = (n.mempool && Array.isArray(n.mempool.txs)) ? n.mempool.txs : (Array.isArray(n.txs) ? n.txs : null);
+      if (!mem) return { ok:false, taken:0, reason:'no mempool array found' };
 
+      // Don’t create empty blocks unless policy says fill=true (your wrappers handle it)
+      const memSize = mem.length;
       const head = await getLatestNumberViaLocal();
       const nextNum = head + 1;
 
-      // Build a minimal block envelope; your saveBlock wrappers add txs + txroot + policies.
+      // Build a minimal block "envelope"; your saveBlock wrappers add txs + txroot + policies.
       const block: any = {
         number: nextNum,
         timestamp: Date.now(),
+        // parentHash may be added/normalized by your wrappers, so we keep it minimal.
       };
 
-      // Call your patched SegStore.saveBlock (already wrapped with tx merge + counters and
-      // the no-empty-when-queued / empty-policy logic).
+      // Call your patched SegStore.saveBlock (already wrapped with tx merge + counters)
       await s.saveBlock(block);
 
       lastSeal = { number: nextNum, at: Date.now() };
-      return {
-        ok: true,
-        number: nextNum,
-        taken: memSize > 0 ? Math.min(memSize, 1 /* real tx selection happens in wrappers */) : 0,
-      };
+      return { ok:true, number: nextNum, taken: Math.min(memSize, 1 /* real tx selection happens in wrappers */) };
     } catch (e:any) {
       return { ok:false, taken:0, reason: String(e && e.message || e) };
     }
   }
 
-  
-let startAutoLoop = function(ms:number) {
-  // Always run sealOnce() on a timer.
-  // Smart behavior (no-empty-when-queued, empty-policy, etc.)
-  // is enforced inside sealOnce() / saveBlock wrappers.
-  stopAutoLoop();
-  const tickMs = Math.max(500, (ms | 0) || 2000);
-  autoTimer = setInterval(async () => {
-    try {
-      await sealOnce();
-    } catch (err) {
-      // Swallow here; txroot/seal metrics and logs handle visibility.
-    }
-  }, tickMs);
-}
-function stopAutoLoop(){ if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
-
-  // Proposer auto-loop V2 override: always tick sealOnce; wrappers handle empties/no-empty-when-queued.
-  const startAutoLoopOrig = startAutoLoop;
-  startAutoLoop = function(ms:number){
+  function startAutoLoop(ms:number) {
     stopAutoLoop();
     autoTimer = setInterval(async ()=>{
-      try { await sealOnce(); } catch {}
+      try {
+        const n = getNode();
+        const mem = n && n.mempool && Array.isArray(n.mempool.txs) ? n.mempool.txs : [];
+        // Only try if we have pending txs OR your "fillInsteadOfSkip" policy will create non-empty
+        // (your saveBlock wrappers enforce no-empty-if-queued anyway)
+        if (mem.length > 0) await sealOnce();
+      } catch {}
     }, Math.max(500, ms|0 || 2000));
-  };
-
+  }
+  function stopAutoLoop(){ if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
 
   async function attach(){
     if (attached) return;
@@ -17064,7 +17014,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
         await ensure();
         const t = String(req.query.t||"block.save");
         const payload = req.body || { note:"dev" };
-        const n = await (wal as any).append(t, payload);
+        const n = await wal.append(t, payload);
         lastSeq = n;
         const inf = wal.info();
         unflushedBytes = inf.bytes;
@@ -17115,11 +17065,11 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 
     async function wrappedSaveBlock(block:any){
       // 1) write intent to WAL
-      await (wal as any).append("block.save", { number: block?.number, txCount: block?.txs?.length ?? 0 });
+      await wal.append("block.save", { number: block?.number, txCount: block?.txs?.length ?? 0 });
       // 2) call real save
       const out = await original(block);
       // 3) optionally mark commit (not required, CRC guards already)
-      // await (wal as any).append("block.commit", { number: block?.number });
+      // await wal.append("block.commit", { number: block?.number });
       return out;
     }
 
@@ -17237,13 +17187,13 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
       const n = Number(block?.number ?? -1);
       const txCount = block?.txs?.length ?? 0;
       // 1) intent — always before touching disk
-      await (wal as any).append("block.intent", { number:n, txCount });
+      await wal.append("block.intent", { number:n, txCount });
 
       // 2) real save
       const out = await original(block);
 
       // 3) commit — only after successful save
-      await (wal as any).append("block.commit", { number:n });
+      await wal.append("block.commit", { number:n });
 
       return out;
     }
@@ -17456,12 +17406,11 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 
     // Wrap fs.promises.open to ensure explicit .close() or log on GC
     const origOpen = fsp.open;
-    const FinalizationRegistryCtor = (globalThis as any).FinalizationRegistry;
-    const reg = FinalizationRegistryCtor ? new FinalizationRegistryCtor((info:any)=>{
+    const reg = new (globalThis as any).FinalizationRegistry?.((info:any)=>{
       try {
         console.error("[fs-guard] GC closed FileHandle (missing .close) at", info?.stack || info);
       } catch {}
-    }) : { register(){} };
+    }) || { register(){} };
 
     fsp.open = async function(...args:any[]){
       const err = new Error();
@@ -18801,7 +18750,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
 
     // Exporter
     app.get("/__void/metrics/wal.prom", (_req:any, res:any)=>{
-      try { res.type("text/plain").send((wal as any).metricsProm()); }
+      try { res.type("text/plain").send(wal.metricsProm()); }
       catch(e){ res.type("text/plain").send(`# wal exporter error\nvoid_wal_exporter_error 1\n`); }
     });
 
@@ -18814,12 +18763,12 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
           const n = Number(block?.number ?? block?.header?.number ?? -1);
           const txRoot = block?.header?.txRoot || block?.txRoot;
           const hash = (block?.hash) || (block?.header && (await (await import("./chain/block.js")).blockHash(block.header)));
-          if (Number.isFinite(n) && n>=0) (wal as any).append(n, txRoot, hash);
+          if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
         }catch(_e){ /* best-effort */ }
         const out = await origSave.apply(this, arguments as any);
         try{
           const n = Number(block?.number ?? block?.header?.number ?? -1);
-          if (Number.isFinite(n) && n>=0) (wal as any).commit(n);
+          if (Number.isFinite(n) && n>=0) wal.commit(n);
         }catch(_e){ /* best-effort */ }
         return out;
       };
@@ -18827,7 +18776,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     }
 
     // Minimal boot replay: just recount inflight; do not mutate store
-    (wal as any).counters.replays_total++;
+    wal.counters.replays_total++;
   }
   mount();
 })();
@@ -18853,7 +18802,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     if (!(app as any).__void_wal_v1_exporter){
       (app as any).__void_wal_v1_exporter = true;
       app.get("/__void/metrics/wal.prom", (_req:any, res:any)=>{
-        try { res.type("text/plain").send((wal as any).metricsProm()); }
+        try { res.type("text/plain").send(wal.metricsProm()); }
         catch { res.type("text/plain").send("# wal exporter error\nvoid_wal_exporter_error 1\n"); }
       });
     }
@@ -18874,12 +18823,12 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
                 hash = await bh.blockHash(block.header);
               }
             }catch{}
-            if (Number.isFinite(n) && n>=0) (wal as any).append(n, txRoot, hash);
+            if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
           }catch{}
           const out = await origSave.apply(this, arguments as any);
           try{
             const n = Number(block?.number ?? block?.header?.number ?? -1);
-            if (Number.isFinite(n) && n>=0) (wal as any).commit(n);
+            if (Number.isFinite(n) && n>=0) wal.commit(n);
           }catch{}
           return out;
         };
@@ -18933,7 +18882,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     if (!(app as any).__void_wal_v1_exporter2){
       (app as any).__void_wal_v1_exporter2 = true;
       app.get("/__void/metrics/wal.prom", (_:any, res:any)=>{
-        try { res.type("text/plain").send((wal as any).metricsProm()); }
+        try { res.type("text/plain").send(wal.metricsProm()); }
         catch { res.type("text/plain").send("# wal exporter error\nvoid_wal_exporter_error 1\n"); }
       });
     }
@@ -18957,13 +18906,13 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
               hash = await bh.blockHash(block.header);
             }
           } catch {}
-          if (Number.isFinite(n) && n>=0) (wal as any).append(n, txRoot, hash);
+          if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
         }catch{}
         const out = await origSave.apply(this, arguments as any);
         try{
           // commit to the real latest after save
           const latest = await getHeadNumber();
-          if (Number.isFinite(latest) && latest>=0) (wal as any).commit(latest);
+          if (Number.isFinite(latest) && latest>=0) wal.commit(latest);
         }catch{}
         return out;
       };
@@ -18995,7 +18944,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       (app as any).__void_wal_v1_exporter3 = true;
       app.get("/__void/metrics/wal.prom", (_:any, res:any)=>{
         try {
-          const base = (wal as any).metricsProm();
+          const base = wal.metricsProm();
           const extra = "\n# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq " + ((wal as any).__synthetic_seq||0) + "\n";
           res.type("text/plain").send(base + extra);
         } catch {
@@ -19006,8 +18955,8 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       app.get("/__void/wal/debug.json", (_:any, res:any)=>{
         res.json({
           synthetic_seq: (wal as any).__synthetic_seq||0,
-          inflight: (wal as any).counters.inflight_gauge,
-          last_uncommitted: (wal as any).counters.last_uncommitted_number
+          inflight: wal.counters.inflight_gauge,
+          last_uncommitted: wal.counters.last_uncommitted_number
         });
       });
     }
@@ -19035,12 +18984,12 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
           }
         } catch {}
 
-        try { (wal as any).append(n, txRoot, hash); } catch {}
+        try { wal.append(n, txRoot, hash); } catch {}
 
         const out = await origSave.apply(this, arguments as any);
 
         // commit same number we appended (synthetic-safe)
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
 
         return out;
       };
@@ -19066,7 +19015,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
 
       const { WALv1 } = await import("./wal/wal_v1.js");
       const wal = (G.__void_wal_v1 ||= new WALv1(dataDir()));
-      (wal as any).counters.replays_total++; // harmless tick
+      wal.counters.replays_total++; // harmless tick
       wal.__synthetic_seq ||= 0;
 
       // New exporter path so we know THIS code is serving it
@@ -19074,12 +19023,12 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
         app.__void_wal_v2_exporter = true;
         app.get("/__void/metrics/wal.v2.prom", (_:any, res:any)=>{
           let base = "# HELP void_wal_exporter_v2 1 if this v2 exporter is active\n# TYPE void_wal_exporter_v2 gauge\nvoid_wal_exporter_v2 1\n";
-          try { base += (wal as any).metricsProm(); } catch { base += "void_wal_exporter_error 1\n"; }
+          try { base += wal.metricsProm(); } catch { base += "void_wal_exporter_error 1\n"; }
           base += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
           res.type("text/plain").send(base);
         });
         app.get("/__void/wal/debug2.json", (_:any,res:any)=>{
-          res.json({tag, synthetic_seq: wal.__synthetic_seq||0, inflight: (wal as any).counters.inflight_gauge, last_uncommitted: (wal as any).counters.last_uncommitted_number});
+          res.json({tag, synthetic_seq: wal.__synthetic_seq||0, inflight: wal.counters.inflight_gauge, last_uncommitted: wal.counters.last_uncommitted_number});
         });
       }
 
@@ -19101,9 +19050,9 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
         let hash:any = block?.hash;
         try{ if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); } }catch{}
 
-        try{ (wal as any).append(n, txRoot, hash); }catch{}
+        try{ wal.append(n, txRoot, hash); }catch{}
         const out = await current.apply(this, arguments as any);
-        try{ (wal as any).commit(n); }catch{}
+        try{ wal.commit(n); }catch{}
         return out;
       };
       wrapped[WRAP_FLAG] = true;
@@ -19144,7 +19093,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     app.__void_wal_v3_exporter = true;
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
       out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${G.__wal_setter_events_total||0}\n`;
       res.type("text/plain").send(out);
@@ -19210,14 +19159,14 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
           const txRoot = block?.header?.txRoot || block?.txRoot;
           let hash:any = block?.hash;
           if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); }
-          try { (wal as any).append(n, txRoot, hash); } catch {}
+          try { wal.append(n, txRoot, hash); } catch {}
           const out = await fn.apply(this, arguments as any);
-          try { (wal as any).commit(n); } catch {}
+          try { wal.commit(n); } catch {}
           return out;
         }catch(e){
-          try { (wal as any).append(n, null, null); } catch {}
+          try { wal.append(n, null, null); } catch {}
           const out = await fn.apply(this, arguments as any);
-          try { (wal as any).commit(n); } catch {}
+          try { wal.commit(n); } catch {}
           return out;
         }
       };
@@ -19256,14 +19205,14 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
         const txRoot = block?.header?.txRoot || block?.txRoot;
         let hash:any = block?.hash;
         if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); }
-        try { (wal as any).append(n, txRoot, hash); } catch {}
+        try { wal.append(n, txRoot, hash); } catch {}
         const out = await fn.apply(this, arguments as any);
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         return out;
       }catch(e){
-        try { (wal as any).append(n, null, null); } catch {}
+        try { wal.append(n, null, null); } catch {}
         const out = await fn.apply(this, arguments as any);
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         return out;
       }
     };
@@ -19276,7 +19225,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     app.__void_wal_v3_exporter = true;
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
       out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${G.__wal_setter_events_total||0}\n`;
       res.type("text/plain").send(out);
@@ -19361,9 +19310,9 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       let hash:any = block?.hash;
       if (!hash && block?.header){ const m = await import("./chain/block.js"); hash = await m.blockHash(block.header); }
       const txRoot = block?.header?.txRoot || block?.txRoot || null;
-      try { (wal as any).append(n, txRoot, hash); } catch {}
-      try { const out = await fn.apply(this, arguments as any); try { (wal as any).commit(n); } catch {}; return out; }
-      catch(e){ try { (wal as any).commit(n); } catch {}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await fn.apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
     };
     (wrapped as any)[FLAG] = true;
     return wrapped;
@@ -19374,7 +19323,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     app.__void_wal_v4_exporter = true;
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
       out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${(G.__wal_setter_events_total||0)}\n`;
       res.type("text/plain").send(out);
@@ -19433,9 +19382,9 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       let hash:any = block?.hash;
       if (!hash && block?.header){ const m = await import("./chain/block.js"); hash = await m.blockHash(block.header); }
       const txRoot = block?.header?.txRoot || block?.txRoot || null;
-      try { (wal as any).append(n, txRoot, hash); } catch {}
-      try { const out = await (fn as any).apply(this, arguments as any); try { (wal as any).commit(n); } catch {}; return out; }
-      catch(e){ try { (wal as any).commit(n); } catch {}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await (fn as any).apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
     };
     (wrapped as any)[FLAG] = true;
     return wrapped;
@@ -19445,7 +19394,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     if (app.__void_wal_v5_exporter) return; app.__void_wal_v5_exporter = true;
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
       out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${(G.__wal_setter_events_total||0)}\n`;
       res.type("text/plain").send(out);
@@ -19545,9 +19494,9 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       let hash:any = block?.hash;
       if (!hash && block?.header){ const m = await import("./chain/block.js"); try { hash = await m.blockHash(block.header); } catch {} }
       const txRoot = block?.header?.txRoot || block?.txRoot || null;
-      try { (wal as any).append(n, txRoot, hash); } catch {}
-      try { const out = await (fn as any).apply(this, arguments as any); try { (wal as any).commit(n); } catch {}; return out; }
-      catch(e){ try { (wal as any).commit(n); } catch {}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await (fn as any).apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
     };
     (wrapped as any)[FLAG] = true;
     return wrapped;
@@ -19558,7 +19507,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     // prom exporter (v3 path)
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
       res.type("text/plain").send(out);
     });
@@ -19627,13 +19576,13 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
       let hash:any = block?.hash;
       if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
       const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
-      try { (wal as any).append(n, txRoot, hash); } catch {}
+      try { wal.append(n, txRoot, hash); } catch {}
       try {
         const out = await (fn as any).apply(this, arguments as any);
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         return out;
       } catch(e){
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         throw e;
       }
     };
@@ -19647,7 +19596,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     // Prom exporter (v3 path) – allowed under safe-boot
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       out += `# TYPE void_wal_synthetic_seq gauge
 void_wal_synthetic_seq ${wal.__synthetic_seq||0}
 # TYPE void_wal_overwrites_total counter
@@ -19730,13 +19679,13 @@ void_wal_wrapped ${((G.__void_store_instance?.saveBlock && G.__void_store_instan
       let hash:any = block?.hash;
       if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
       const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
-      try { (wal as any).append(n, txRoot, hash); } catch {}
+      try { wal.append(n, txRoot, hash); } catch {}
       try {
         const out = await (fn as any).apply(this, arguments as any);
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         return out;
       } catch(e){
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         throw e;
       }
     };
@@ -19750,7 +19699,7 @@ void_wal_wrapped ${((G.__void_store_instance?.saveBlock && G.__void_store_instan
     // Prom exporter: allowed under safeboot
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       const wrapped = !!(G.__void_store_instance?.saveBlock && G.__void_store_instance.saveBlock[FLAG]);
       out += `# TYPE void_wal_synthetic_seq gauge
 void_wal_synthetic_seq ${wal.__synthetic_seq||0}
@@ -19845,13 +19794,13 @@ void_wal_wrapped ${wrapped?1:0}
       let hash:any = block?.hash;
       if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
       const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
-      try { (wal as any).append(n, txRoot, hash); } catch {}
+      try { wal.append(n, txRoot, hash); } catch {}
       try {
         const out = await (fn as any).apply(this, arguments as any);
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         return out;
       } catch(e){
-        try { (wal as any).commit(n); } catch {}
+        try { wal.commit(n); } catch {}
         throw e;
       }
     };
@@ -19864,7 +19813,7 @@ void_wal_wrapped ${wrapped?1:0}
 
     app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
       let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += (wal as any).metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
       const store = (app.locals && app.locals.store) || G.__void_store_instance;
       const wrapped = !!(store?.saveBlock && store.saveBlock[FLAG]);
       out += `# TYPE void_wal_synthetic_seq gauge
@@ -19958,9 +19907,9 @@ void_wal_wrapped ${wrapped?1:0}
       let hash = block?.hash;
       if (!hash && block?.header){ try{ hash = await blockHash(block.header);}catch{} }
       const txRoot = block?.header?.txRoot ?? block?.txRoot ?? null;
-      try { (wal as any).append(n, txRoot, hash); } catch {}
-      try { const out = await fn.apply(this, arguments as any); try{ (wal as any).commit(n);}catch{}; return out; }
-      catch(e){ try{ (wal as any).commit(n);}catch{}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await fn.apply(this, arguments as any); try{ wal.commit(n);}catch{}; return out; }
+      catch(e){ try{ wal.commit(n);}catch{}; throw e; }
     };
     (wrapped as any)[FLAG]=true;
     return wrapped;
@@ -20070,9 +20019,9 @@ void_wal_wrapped ${wrapped?1:0}
       if (!hash && block?.header) { try { hash = await blockHash(block.header); } catch {} }
       const txRoot = block?.header?.txRoot ?? block?.txRoot ?? null;
 
-      try { (wal as any).append(n, txRoot, hash); } catch {}
-      try { const out = await orig.apply(this, arguments as any); try { (wal as any).commit(n); } catch {}; return out; }
-      catch(e){ try { (wal as any).commit(n); } catch {}; throw e; }
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await orig.apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
     };
     (wrapped as any)[FLAG] = true;
     return wrapped;
@@ -20700,7 +20649,7 @@ void_wal_wrapped ${isWrapped?1:0}
             return;
           }
           const body = req.body ?? {};
-          await (wal as any).append("tx", { body });
+          await wal.append("tx", { body });
         }catch(_){}
         next();
       });
@@ -20713,7 +20662,7 @@ void_wal_wrapped ${isWrapped?1:0}
             return;
           }
           const body = req.body ?? {};
-          await (wal as any).append("tx", { dev:true, body, path:req.path, qs:req.query });
+          await wal.append("tx", { dev:true, body, path:req.path, qs:req.query });
         }catch(_){}
         next();
       });
@@ -20736,7 +20685,7 @@ void_wal_wrapped ${isWrapped?1:0}
             txCount: Array.isArray(blk?.txs) ? blk.txs.length : (blk?.txCount ?? null),
             txRoot: (blk?.header?.txRoot ?? blk?.txRoot ?? null),
           };
-          await (wal as any).append("block", meta);
+          await wal.append("block", meta);
         }catch(_){}
         return await orig(...args);
       }
@@ -20904,7 +20853,7 @@ void_wal_wrapped ${isWrapped?1:0}
         const n = Math.max(1, Math.min(100000, Number(req.query.n||1)));
         const bytes = Math.max(1, Math.min(1<<20, Number(req.query.bytes||256)));
         const buf = new Uint8Array(bytes).fill(0xAB); // synthetic payload
-        for(let i=0;i<n;i++) await (wal as any).append(buf);
+        for(let i=0;i<n;i++) await wal.append(buf);
         return res.json({ok:true, appended:n, bytes});
       }catch(e:any){
         return res.status(500).json({ok:false, error:String(e?.message||e)});
@@ -21024,7 +20973,7 @@ void_wal_wrapped ${isWrapped?1:0}
     const wal:any = (G.__void_wal);
     if (!wal || typeof wal.append !== "function") throw new Error("WAL unavailable");
     const enc = new TextEncoder().encode(JSON.stringify({kind:"agent.job", payload:obj}));
-    await (wal as any).append(enc);
+    await wal.append(enc);
   }
 
   function mount(){
@@ -23895,7 +23844,7 @@ void_wal_wrapped ${isWrapped?1:0}
       lines.push("# TYPE void_agent_core_kind_err_total counter");
       lines.push("# HELP void_agent_core_kind_last_ts_millis last job ts per kind");
       lines.push("# TYPE void_agent_core_kind_last_ts_millis gauge");
-      for(const [k,v] of Object.entries(state.metrics.kinds as any as Record<string, any>)){
+      for(const [k,v] of Object.entries(state.metrics.kinds)){
         const esc = k.replace(/["\\]/g, "\\$&");
         lines.push(`void_agent_core_kind_ok_total{kind="${esc}"} ${v.ok}`);
         lines.push(`void_agent_core_kind_err_total{kind="${esc}"} ${v.err}`);
@@ -25099,7 +25048,7 @@ void_wal_wrapped ${isWrapped?1:0}
 // [pcert-old]       if (!policyRaw) return {ok:false, reason:"policy-pub-bad-format"};
 // [pcert-old] 
 // [pcert-old]       // Node crypto supports ed25519 verify with raw key via KeyObject
-// [pcert-old]       let keyObj:any;
+// [pcert-old]       let keyObj:crypto.KeyObject;
 // [pcert-old]       try { keyObj = crypto.createPublicKey({key: Buffer.concat([
 // [pcert-old]                     Buffer.from([0x30,0x2A,0x30,0x05,0x06,0x03,0x2B,0x65,0x70,0x03,0x21,0x00]), // ASN.1 header for ed25519
 // [pcert-old]                     policyRaw
@@ -25227,7 +25176,7 @@ void_wal_wrapped ${isWrapped?1:0}
       const pcert = parseJSON(pcertBuf); if (!pcert) return {ok:false, reason:"pcert-bad-json"};
       const sigB64 = pcert.sig; if (typeof sigB64!=="string" || sigB64.length<8) return {ok:false, reason:"pcert-missing-sig"};
       const canon  = canonicalNoSig(pcert);
-      let keyObj:any;
+      let keyObj:crypto.KeyObject;
       const policyRaw = toRawKey(pubBuf); if (!policyRaw) return {ok:false, reason:"policy-pub-bad-format"};
       try {
         keyObj = crypto.createPublicKey({
@@ -25818,7 +25767,7 @@ void_wal_wrapped ${isWrapped?1:0}
   function getApp(){return (globalThis as any).__void_http_app || (globalThis as any).app;}
   async function latestHeader(){
     try{
-      const fetch = (globalThis as any).fetch;
+      const fetch = (globalThis as any).fetch || (await import('node:node-fetch').then((m:any)=>m.default || m));
       const n = await fetch('http://127.0.0.1:4100/blocks/latest/number').then((r:any)=>r.text()).then((t:string)=>Number(t.trim()));
       const h = await fetch(`http://127.0.0.1:4100/blocks/${n}/header`).then((r:any)=>r.json());
       return {n, root:(h?.txRoot?.root||'').toString()};
@@ -27326,363 +27275,3 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
 // [END AI agent v0 HTTP stubs]
 */ // [void] END disabled agent v0 HTTP stubs
 // ========================================================================
-/**
- * Dev-only WorkCredits devnet HTTP API shim.
- *
- * Endpoints (enabled only when WORKCREDITS_DEVNET_API=1):
- *   GET /api/workcredits/devnet/market
- *   GET /api/workcredits/devnet/quote?side=void|wc&amount=...
- *
- * These wrap the ops scripts:
- *   ops/void-workcredits-devnet-market-json.sh
- *   ops/void-workcredits-devnet-trade-preview.sh
- *
- * Both scripts are expected to print a single JSON payload to stdout.
- */
-
-(() => {
-  const flag = process.env.WORKCREDITS_DEVNET_API;
-  if (flag !== "1") {
-    return;
-  }
-
-  try {
-    const anyGlobal: any = globalThis as any;
-    const app = anyGlobal.__void_http_app as import("express").Express | undefined;
-
-    if (!app) {
-      // If this fires, it means the global hook moved or broke.
-      // We keep it loud in logs but fail closed (no routes mounted).
-      console.error("[workcredits-devnet-api] __void_http_app missing; not mounting endpoints");
-      return;
-    }
-
-    const cp = require("child_process") as typeof import("child_process");
-    const path = require("path") as typeof import("path");
-
-    const repoRoot = path.resolve(__dirname, "..");
-    const marketScript = path.join(repoRoot, "ops", "void-workcredits-devnet-market-json.sh");
-    const quoteScript = path.join(repoRoot, "ops", "void-workcredits-devnet-trade-preview.sh");
-
-    type ScriptResult = {
-      code: number;
-      stdout: string;
-      stderr: string;
-    };
-
-    function runScript(scriptPath: string, args: string[]): Promise<ScriptResult> {
-      return new Promise((resolve) => {
-        cp.execFile(
-          scriptPath,
-          args,
-          {
-            cwd: repoRoot,
-            maxBuffer: 1024 * 1024,
-            timeout: 10_000,
-          },
-          (err: any, stdout: Buffer | string, stderr: Buffer | string) => {
-            if (err) {
-              const code = typeof err.code === "number" ? err.code : 1;
-              return resolve({
-                code,
-                stdout: stdout?.toString?.() ?? "",
-                stderr: stderr?.toString?.() ?? String(err),
-              });
-            }
-            return resolve({
-              code: 0,
-              stdout: stdout?.toString?.() ?? "",
-              stderr: stderr?.toString?.() ?? "",
-            });
-          }
-        );
-      });
-    }
-
-    app.get("/api/workcredits/devnet/market", async (req, res) => {
-      try {
-        const { code, stdout, stderr } = await runScript(marketScript, []);
-        if (code !== 0) {
-          console.error("[workcredits-devnet-api][market] non-zero exit", { code, stderr });
-          return res.status(503).json({
-            ok: false,
-            error: "market_unavailable",
-            detail: "devnet market script failed",
-          });
-        }
-
-        let payload: any;
-        try {
-          payload = JSON.parse(stdout);
-        } catch (e) {
-          console.error("[workcredits-devnet-api][market] invalid JSON from script", e);
-          return res.status(502).json({
-            ok: false,
-            error: "market_bad_payload",
-            detail: "devnet market script did not return valid JSON",
-          });
-        }
-
-        // For now we just pass through the script payload as-is.
-        return res.json(payload);
-      } catch (e) {
-        console.error("[workcredits-devnet-api][market] unexpected error", e);
-        return res.status(500).json({
-          ok: false,
-          error: "market_internal_error",
-        });
-      }
-    });
-
-    app.get("/api/workcredits/devnet/quote", async (req, res) => {
-      try {
-        const sideRaw = (req.query.side ?? "").toString().toLowerCase();
-        const amountRaw = (req.query.amount ?? "").toString();
-
-        if (sideRaw !== "void" && sideRaw !== "wc") {
-          return res.status(400).json({
-            ok: false,
-            error: "invalid_side",
-            detail: "side must be 'void' or 'wc'",
-          });
-        }
-
-        if (!amountRaw || !/^[0-9]+(\.[0-9]+)?$/.test(amountRaw)) {
-          return res.status(400).json({
-            ok: false,
-            error: "invalid_amount",
-            detail: "amount must be a positive decimal string (e.g. '1', '0.5', '123.45')",
-          });
-        }
-
-        const { code, stdout, stderr } = await runScript(quoteScript, [sideRaw, amountRaw]);
-        if (code !== 0) {
-          console.error("[workcredits-devnet-api][quote] non-zero exit", { code, stderr });
-          return res.status(503).json({
-            ok: false,
-            error: "quote_unavailable",
-            detail: "devnet quote script failed",
-          });
-        }
-
-        let payload: any;
-        try {
-          payload = JSON.parse(stdout);
-        } catch (e) {
-          console.error("[workcredits-devnet-api][quote] invalid JSON from script", e);
-          return res.status(502).json({
-            ok: false,
-            error: "quote_bad_payload",
-            detail: "devnet quote script did not return valid JSON",
-          });
-        }
-
-        // Pass through script payload as-is for now.
-        return res.json(payload);
-      } catch (e) {
-        console.error("[workcredits-devnet-api][quote] unexpected error", e);
-        return res.status(500).json({
-          ok: false,
-          error: "quote_internal_error",
-        });
-      }
-    });
-
-    console.log("[workcredits-devnet-api] mounted: GET /api/workcredits/devnet/market, /api/workcredits/devnet/quote");
-  } catch (e) {
-    console.error("[workcredits-devnet-api] top-level error", e);
-  }
-})();
-
-// Proposer auto-loop v4 (node-native) — additive shim
-(function ProposerAutoLoopNodeV4() {
-  try {
-    const G: any = globalThis as any;
-
-    function getNode(): any {
-      return G.__void_node || null;
-    }
-
-    function getState() {
-      const s = (G.__void_proposer_auto || {}) as any;
-      return {
-        enabled: s.enabled ?? 0,
-        ms: s.ms ?? 0,
-        source: s.source ?? "node.v4",
-      };
-    }
-
-    function setState(partial: any) {
-      const prev = getState();
-      const next = { ...prev, ...partial, source: "node.v4" };
-      G.__void_proposer_auto = next;
-      return next;
-    }
-
-    function startLoop(ms: number) {
-      const node = getNode();
-      if (!node || typeof node.startProposerLoop !== "function") {
-        console.warn("[proposer-auto-v4] no node.startProposerLoop()");
-        return { ok: false, reason: "no-node" };
-      }
-      try {
-        node.startProposerLoop(ms);
-        const st = setState({ enabled: 1, ms });
-        return { ok: true, ms: st.ms, source: st.source };
-      } catch (err) {
-        console.error("[proposer-auto-v4] start error", err);
-        return { ok: false, error: String(err ?? "unknown") };
-      }
-    }
-
-    function stopLoop() {
-      const node = getNode();
-      if (node && typeof node.stopProposer === "function") {
-        try {
-          node.stopProposer();
-        } catch (err) {
-          console.error("[proposer-auto-v4] stop error", err);
-        }
-      }
-      const st = setState({ enabled: 0 });
-      return { ok: true, ms: st.ms, source: st.source };
-    }
-
-    function attachHttp() {
-      const app: any = G.__void_http_app || G.app || undefined;
-      if (!app) {
-        setTimeout(attachHttp, 250);
-        return;
-      }
-
-      app.post("/__void/proposer/auto/v4/start", (req: any, res: any) => {
-        const q: any = (req && req.query) || {};
-        const msRaw =
-          (q.ms as string | undefined) ||
-          process.env.PROPOSER_TICK_MS ||
-          "2000";
-        const ms = Number.parseInt(msRaw, 10) || 2000;
-        res.json(startLoop(ms));
-      });
-
-      app.post("/__void/proposer/auto/v4/stop", (_req: any, res: any) => {
-        res.json(stopLoop());
-      });
-
-      app.get("/__void/proposer/auto/v4/status", (_req: any, res: any) => {
-        res.json({ ok: true, ...getState() });
-      });
-
-      const auto = (process.env.PROPOSER_AUTO || "").toLowerCase();
-      const shouldAuto =
-        auto === "1" || auto === "true" || auto === "yes" || auto === "on";
-
-      if (shouldAuto) {
-        const msEnv = Number.parseInt(
-          process.env.PROPOSER_TICK_MS || "2000",
-          10,
-        );
-        startLoop(msEnv || 2000);
-      }
-    }
-
-    attachHttp();
-  } catch (err) {
-    console.error("[proposer-auto-v4] init error", err);
-  }
-})();
-
-// === ProposerAutoLoopNodeV5: Node-native proposer auto loop using __void_node ===
-//
-// This shim avoids the old "no-node" problem by resolving the Node instance
-// lazily on every request instead of capturing it too early at module init.
-(function ProposerAutoLoopNodeV5() {
-  try {
-    const g: any = (globalThis as any);
-    const app: any = (g.__void_http_app || (g.app as any));
-
-    if (!app || typeof app.get !== "function") {
-      // HTTP app not ready; nothing to wire.
-      return;
-    }
-
-    type NodeLike = {
-      startProposer: (intervalMs?: number) => void;
-      stopProposer: () => void;
-    };
-
-    function findNode(): NodeLike | null {
-      const cand: any =
-        (g.__void_node) ||
-        (app.locals && (app.locals as any).node);
-
-      if (
-        cand &&
-        typeof cand.startProposer === "function" &&
-        typeof cand.stopProposer === "function"
-      ) {
-        return cand as NodeLike;
-      }
-
-      return null;
-    }
-
-    const state = {
-      running: 0,
-      intervalMs: 0,
-      source: "node.v5",
-    };
-
-    app.get("/__void/proposer/auto/v5/status", (_req: any, res: any) => {
-      const node = findNode();
-      res.json({
-        ok: !!node,
-        nodePresent: !!node,
-        enabled: state.running,
-        ms: state.intervalMs,
-        source: state.source,
-      });
-    });
-
-    app.post("/__void/proposer/auto/v5/start", (req: any, res: any) => {
-      const node = findNode();
-      const msRaw = (req.query && (req.query as any).ms) ?? 2000;
-      const ms = Number(msRaw) || 2000;
-
-      if (!node) {
-        return res.json({ ok: false, reason: "no-node" });
-      }
-
-      try {
-        node.startProposer(ms);
-        state.running = 1;
-        state.intervalMs = ms;
-        return res.json({ ok: true, ms, source: state.source });
-      } catch (err: any) {
-        const msg = err && err.stack ? String(err.stack) : String(err);
-        return res.status(500).json({ ok: false, error: msg });
-      }
-    });
-
-    app.post("/__void/proposer/auto/v5/stop", (_req: any, res: any) => {
-      const node = findNode();
-
-      if (!node) {
-        return res.json({ ok: false, reason: "no-node" });
-      }
-
-      try {
-        node.stopProposer();
-        state.running = 0;
-        return res.json({ ok: true });
-      } catch (err: any) {
-        const msg = err && err.stack ? String(err.stack) : String(err);
-        return res.status(500).json({ ok: false, error: msg });
-      }
-    });
-  } catch (err) {
-    // Best-effort shim; never crash the node on failure.
-    // eslint-disable-next-line no-console
-    console.error("[ProposerAutoLoopNodeV5] init error", err);
-  }
-})();
