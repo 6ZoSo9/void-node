@@ -1,12 +1,12 @@
-import { loadWorkCreditsConfig } from "./workcredits_relayer_client";
+import { loadWorkCreditsConfig } from "./workcredits_relayer_client.js";
 import {
   walletQuoteSendVoidDev,
   walletSignAndSubmitSendVoidDev,
-} from "./obelisk_wallet_workcredits_api";
+} from "./obelisk_wallet_workcredits_api.js";
 import type {
   WalletSendVoidQuoteResult,
   WalletSendVoidSubmitResult,
-} from "./obelisk_wallet_workcredits_schema";
+} from "./obelisk_wallet_workcredits_schema.js";
 
 /**
  * How the Obelisk Wallet thinks about gas mode.

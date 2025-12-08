@@ -1,4 +1,4 @@
-import { DevWorkCreditsTradingTabModel } from "./obelisk_wallet_workcredits_trading_tab_model_dev";
+import { DevWorkCreditsTradingTabModel } from "./obelisk_wallet_workcredits_trading_tab_model_dev.js";
 
 async function main() {
   const model = new DevWorkCreditsTradingTabModel();

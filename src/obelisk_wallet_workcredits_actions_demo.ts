@@ -7,12 +7,12 @@ import {
   WalletCollectPendingWCResult,
   WalletSendWCQuoteResult,
   WalletSendWCSubmitResult,
-} from "./obelisk_wallet_workcredits_schema";
+} from "./obelisk_wallet_workcredits_schema.js";
 import {
   walletCollectPendingWCDev,
   walletQuoteSendWCDev,
   walletSignAndSubmitSendWCDev,
-} from "./obelisk_wallet_workcredits_api";
+} from "./obelisk_wallet_workcredits_api.js";
 
 async function main() {
   const pk = process.env.WC_RELAYER_DEMO_PK;

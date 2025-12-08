@@ -11,7 +11,7 @@
  * It expects WC_RELAYER_DEMO_PK in the environment.
  */
 
-import { previewSendVoidWithRelayerDev, executeSendVoidWithRelayerDev, getWalletBalancesDev } from "./obelisk_wallet_workcredits_wallet";
+import { previewSendVoidWithRelayerDev, executeSendVoidWithRelayerDev, getWalletBalancesDev } from "./obelisk_wallet_workcredits_wallet.js";
 import { ethers } from "ethers";
 
 async function main() {

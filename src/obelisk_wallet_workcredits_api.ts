@@ -1,4 +1,4 @@
-import { loadWorkCreditsConfig } from "./workcredits_relayer_client";
+import { loadWorkCreditsConfig } from "./workcredits_relayer_client.js";
 import { Wallet, TypedDataDomain, TypedDataField } from "ethers";
 
 /**
@@ -309,7 +309,7 @@ import type {
   WalletSendVoidQuoteInput,
   WalletSendVoidQuoteResult,
   WalletSendVoidSubmitResult,
-} from "./obelisk_wallet_workcredits_schema";
+} from "./obelisk_wallet_workcredits_schema.js";
 
 /**
  * Wallet-friendly "quote SEND_VOID" helper for devnet.

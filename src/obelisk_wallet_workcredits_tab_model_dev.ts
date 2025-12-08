@@ -7,7 +7,7 @@ import {
   WorkCreditsWalletSendWCPreview,
   WorkCreditsWalletSendWCResult,
   WorkCreditsWalletTabModel,
-} from "./obelisk_wallet_workcredits_tab_model";
+} from "./obelisk_wallet_workcredits_tab_model.js";
 
 /**
  * Pure dev stub implementation for Obelisk Wallet "Wallet" tab.

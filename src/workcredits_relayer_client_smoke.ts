@@ -5,7 +5,7 @@ import {
   signRelayedCall,
   submitRelayedCall,
   WorkCreditsConfig,
-} from "./workcredits_relayer_client.ts";
+} from "./workcredits_relayer_client.js";
 
 type QuoteRequest = {
   user: string;
