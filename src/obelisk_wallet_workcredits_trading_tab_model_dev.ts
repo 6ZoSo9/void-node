@@ -1,11 +1,11 @@
-import { WeiString } from "./obelisk_wallet_workcredits_schema";
+type WeiString = string;
 import {
   WorkCreditsTradeSide,
   WorkCreditsTradingSummary,
   WorkCreditsTradingPreview,
   WorkCreditsTradingResult,
   WorkCreditsTradingTabModel,
-} from "./obelisk_wallet_workcredits_trading_tab_model";
+} from "./obelisk_wallet_workcredits_trading_tab_model.js";
 
 /**
  * Pure dev stub for the WC/VOID Trading tab.

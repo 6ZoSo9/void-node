@@ -1,4 +1,4 @@
-import { WeiString } from "./obelisk_wallet_workcredits_schema";
+type WeiString = string;
 
 export type WorkCreditsTradeSide = "BUY_WC" | "SELL_WC";
 
