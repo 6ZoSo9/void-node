@@ -2920,6 +2920,12 @@ import type {} from "express"; // type-only safety; no runtime impact
         if (!s || typeof s.saveBlock !== "function") return false;
         if (s.__void_save_tapped) return true; // idempotent
         const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
         s.saveBlock = function tappedSaveBlock(b:any){
           try{
             const txsLen = Array.isArray(b?.txs) ? b.txs.length : 0;
@@ -3032,6 +3038,12 @@ import type {} from "express"; // type-only safety; no runtime impact
       if (s.__void_force_inject_wrapped) return true;
 
       const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
       s.saveBlock = function saveBlockForced(b:any){
         try{
           if (!b || typeof b !== "object") return orig(b);
@@ -3286,6 +3298,12 @@ import type {} from "express"; // type-only safety; no runtime impact
       state.active = true;
 
       const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
       s.saveBlock = function mergedSaveBlock(b:any){
         try{
           if (b && Array.isArray(b.txs) && b.txs.length===0){
@@ -3451,6 +3469,12 @@ import type {} from "express"; // type-only safety; no runtime impact
       if (typeof s.saveBlock !== "function") return false;
       if (s.__void_cap_enforced) return true;
       const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
 
       s.saveBlock = function saveBlockWithCap(b:any){
         try{
@@ -3550,6 +3574,12 @@ import type {} from "express"; // type-only safety; no runtime impact
       if (s.__void_no_empty_policy_applied) return true;
 
       const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
       s.saveBlock = function saveBlockNoEmpty(b:any){
         try{
           if (!cfg.enabled) return orig(b);
@@ -9978,6 +10008,11 @@ void_seal_rate_1m ${rate1m()}
     if ((store as any).__lastMileWrapped) { attached = true; return; }
     const inner = store.saveBlock.bind(store);
 
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { console.log("[lastMileWrapper] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
     store.saveBlock = async function lastMileWrapper(block:any){
       try {
         ensureArrays(block);
@@ -15196,6 +15231,11 @@ void_header3_last_mismatch ${lastMismatch}
 
 // -------------------- txroot/forensics v7 (ESM-safe, additive) --------------------
 (function txrootForensicsV7(){
+  if (typeof process !== "undefined" && process.env && process.env.VOID_TXROOT_FORENSICS_V7 !== "1") {
+    try { (console?.log || (() => {}))("[txroot/forensics:v7] disabled via VOID_TXROOT_FORENSICS_V7"); } catch {}
+    return;
+  }
+
   const TICK_MS = 250;
   const FLAG = Symbol.for("void.txroot.forensics.v7.wrapped");
 
@@ -22788,6 +22828,10 @@ void_wal_wrapped ${isWrapped?1:0}
 
     const orig = SegStore.prototype.saveBlock;
     SegStore.prototype.saveBlock = async function(block:any, ...rest:any[]){
+      if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+        try { console.log("[lastmile-safe-v1] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+        return await orig.apply(this, [block, ...rest]);
+      }
       try{
         const q:any[] = (node.txQueue && Array.isArray(node.txQueue)) ? node.txQueue : (node.txQueue = []);
         if (!Array.isArray(block.txs)) block.txs = [];
@@ -23207,6 +23251,12 @@ void_wal_wrapped ${isWrapped?1:0}
     if ((s as any)[FLAG]) return;
 
     const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
     s.saveBlock = async function(block:any, ...rest:any[]){
       try{
         const q:any[] = ensureQ(n);
@@ -23321,6 +23371,12 @@ void_wal_wrapped ${isWrapped?1:0}
     if ((s as any).__void_forensics_v7b) return;
 
     const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
     (s as any).__void_forensics_v7b = true;
     MET.binds_inst++;
 
@@ -23366,6 +23422,12 @@ void_wal_wrapped ${isWrapped?1:0}
     const s:any = store(); if (!s || typeof s.saveBlock!=="function") return setTimeout(mount, TICK);
     if ((s as any).__void_head_probe_bound) return;
     const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
     (s as any).__void_head_probe_bound = true;
     s.saveBlock = async function(block:any, ...rest:any[]){
       const n:any = node();
@@ -23409,6 +23471,12 @@ void_wal_wrapped ${isWrapped?1:0}
     if (!s || !S || typeof s.saveBlock!=="function") return setTimeout(patch, TICK);
     if ((s as any).__void_lastmile_v123b_probe) return;
     const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
     (s as any).__void_lastmile_v123b_probe = true;
 
     s.saveBlock = async function(block:any, ...rest:any[]){
@@ -23638,6 +23706,12 @@ void_wal_wrapped ${isWrapped?1:0}
     if ((s as any).__void_chain_latch_wrapped_v11 === s.saveBlock) return true;
 
     const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
     s.saveBlock = async function(block:any, ...rest:any[]){
       S.calls++; const t0 = Date.now();
 
@@ -27871,6 +27945,11 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
 
     const orig = store.saveBlock.bind(store);
 
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      console.log("[lastmile-bridge] disabled via VOID_LASTMILE_EXPERIMENTAL");
+      return;
+    }
+
     store.saveBlock = async function bridgedSaveBlock(blk: any){
       try {
         const node: any = getNode();
@@ -27951,6 +28030,11 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
     (store as any).__lastmileTxqueueWrappedV2 = true;
 
     const origSave = store.saveBlock.bind(store);
+
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { console.log("[lastmile-txqueue-wrap] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
 
     store.saveBlock = async function wrappedSaveBlock(block: any) {
       try {
@@ -28050,6 +28134,11 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
       const cap = capFromEnv();
 
       store.saveBlock = async function lastmileCoreInjectedSave(block: any) {
+      if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+        try { console.log("[lastmile-coreinject] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+        return await origSave(block);
+      }
+
         let injected: any[] = [];
         try {
           const nodeAny: any = getNode();
@@ -28170,3 +28259,318 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
   mount();
 })();;
 
+
+// ---------------- [ADD] lastmile-v4: txQueue -> block.txs saveBlock wrapper ----------------
+/**
+ * lastmile-v4:
+ *   - Activated only when VOID_LASTMILE_FORCE_QUEUE=1
+ *   - Waits for global node + store.saveBlock + node.txQueue to exist
+ *   - On every saveBlock, drains up to a small cap of txs from node.txQueue into block.txs
+ *   - Does NOT change /tx/submit or acceptTx intake logic at all.
+ */
+(function installLastmileV4() {
+  try {
+    const g: any = globalThis as any;
+
+    function node(): any {
+      return g.__void_node || g.node || null;
+    }
+
+    function tryAttach(attempt: number): void {
+      try {
+        const n = node();
+        if (!n) {
+          if (attempt < 60) {
+            return void setTimeout(() => tryAttach(attempt + 1), 1000);
+          }
+          console.log("[lastmile-v4] giving up attach (no node) after", attempt, "tries");
+          return;
+        }
+        const store: any = n.store;
+        if (!store || typeof store.saveBlock !== "function") {
+          if (attempt < 60) {
+            return void setTimeout(() => tryAttach(attempt + 1), 1000);
+          }
+          console.log("[lastmile-v4] giving up attach (no store.saveBlock) after", attempt, "tries");
+          return;
+        }
+        if (!Array.isArray(n.txQueue)) {
+          if (attempt < 60) {
+            return void setTimeout(() => tryAttach(attempt + 1), 1000);
+          }
+          console.log("[lastmile-v4] giving up attach (no txQueue array) after", attempt, "tries");
+          return;
+        }
+
+        const orig = store.saveBlock.bind(store);
+        if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+          console.log("[lastmile-v4] disabled via VOID_LASTMILE_EXPERIMENTAL");
+          return;
+        }
+
+        store.saveBlock = async function saveBlockLastmileV4(b: any){
+          try {
+            const nd: any = node();
+            const q: any[] = (nd && Array.isArray(nd.txQueue)) ? nd.txQueue : [];
+            if (Array.isArray(q) && q.length > 0) {
+              const cap = 128;
+              const txs: any[] = Array.isArray(b?.txs) ? b.txs : (b.txs = []);
+              let moved = 0;
+              while (q.length && moved < cap) {
+                const t = q.shift();
+                if (t) {
+                  txs.push(t);
+                  moved++;
+                }
+              }
+              if (moved > 0) {
+                const num = (b && (b.number ?? b.header?.number)) ?? "?";
+                console.log(`[lastmile-v4] injected ${moved} tx from txQueue into block #${num}`);
+              }
+            }
+          } catch (err) {
+            console.error("[lastmile-v4] error during inject", err);
+          }
+          return orig(b);
+        };
+
+        console.log("[lastmile-v4] attached saveBlock wrapper (txQueue -> block.txs)");
+      } catch (err) {
+        console.error("[lastmile-v4] attach error", err);
+      }
+    }
+
+    const envOn =
+      (typeof process !== "undefined") &&
+      (process as any).env &&
+      (process as any).env.VOID_LASTMILE_FORCE_QUEUE === "1";
+
+    if (envOn) {
+      console.log("[lastmile-v4] VOID_LASTMILE_FORCE_QUEUE=1; scheduling attach");
+      tryAttach(0);
+    } else {
+      console.log("[lastmile-v4] VOID_LASTMILE_FORCE_QUEUE!=1; not attaching");
+    }
+  } catch (err) {
+    console.error("[lastmile-v4] top-level error", err);
+  }
+})();
+
+
+// ---------------- [ADD] lastmile txQueue -> block saveBlock hard wrapper (v5) ----------------
+// Dev-only: drains node.txQueue into block.txs on saveBlock when VOID_LASTMILE_HARDWRAP=1
+(() => {
+  try {
+    const env =
+      (globalThis as any).process?.env ||
+      (typeof process !== "undefined" ? (process as any).env : undefined);
+
+    if (!env || env.VOID_LASTMILE_HARDWRAP !== "1") {
+      // Silent by default to avoid log spam in prod/mainnet
+      return;
+    }
+
+    const g: any = globalThis as any;
+    const getNode = () => (g.__void_node || g.node) as any;
+    const getStore = () => getNode()?.store as any;
+
+    let tries = 0;
+
+    const attach = () => {
+      const n = getNode();
+      const s = getStore();
+
+      if (!n || !s || typeof s.saveBlock !== "function") {
+        if (++tries < 120) {
+          setTimeout(attach, 500);
+        } else {
+          console.warn("[lastmile-v5] giving up; store/saveBlock not ready");
+        }
+        return;
+      }
+
+      const orig = s.saveBlock.bind(s);
+    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
+      return;
+    }
+
+
+
+      if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
+        console.log("[lastmile-v5] disabled via VOID_LASTMILE_EXPERIMENTAL");
+        return;
+      }
+
+      s.saveBlock = async function lastmileV5SaveBlock(b: any){
+        try {
+          const nd = getNode();
+          const q: any[] = Array.isArray(nd?.txQueue) ? nd.txQueue : [];
+
+          if (q.length) {
+            const cap = 128;
+            const before = Array.isArray(b?.txs) ? b.txs.length : 0;
+            const take = q.splice(0, cap);
+
+            const base = Array.isArray(b?.txs) ? b.txs : [];
+            b.txs = base.concat(take);
+
+            console.log(
+              `[lastmile-v5] injected ${take.length} tx(s) into block #${
+                (b as any)?.header?.number ?? "?"
+              } (before=${before}, after=${
+                Array.isArray(b.txs) ? b.txs.length : "n/a"
+              }, remainingQ=${q.length})`
+            );
+          }
+        } catch (err) {
+          console.error("[lastmile-v5] error during saveBlock", err);
+        }
+
+        return orig(b);
+      };
+
+      console.log("[lastmile-v5] attached to store.saveBlock (dev hardwrap)");
+    };
+
+    attach();
+  } catch (err) {
+    console.error("[lastmile-v5] top-level error", err);
+  }
+})();
+
+// ---------------- [ADD] header3 fix via dev helpers (last-wins) ----------------
+(() => {
+  try {
+    const g: any = globalThis as any;
+    const app: any = (g.__void_http_app || g.app);
+
+    if (!app || typeof app.get !== "function") {
+      console.log("[header3-fix] __void_http_app missing; skipping");
+      return;
+    }
+
+    const env: any =
+      (g.process && g.process.env) ||
+      (typeof process !== "undefined" ? process.env : {}) ||
+      {};
+
+    const port = env.HTTP_PORT || env.PORT || "4100";
+    const base = `http://127.0.0.1:${port}`;
+
+    app.get("/blocks/:n/header3", async (req: any, res: any) => {
+      try {
+        const raw = req.params?.n;
+        const n = typeof raw === "string" ? parseInt(raw, 10) : NaN;
+        if (!Number.isFinite(n) || n < 0) {
+          return res
+            .status(400)
+            .json({ ok: false, error: "bad block number", n: raw });
+        }
+
+        const result: any = { number: n };
+
+        // 1) Fetch persisted txs from dev helper
+        let persisted: any = null;
+        try {
+          const r = await fetch(`${base}/dev/blocks/${n}/txs/persisted`);
+          if (r.ok) persisted = await r.json();
+        } catch (e) {
+          console.warn("[header3-fix] dev/blocks persisted fetch failed", e);
+        }
+
+        const txs = Array.isArray(persisted?.txs) ? persisted.txs : [];
+        result.txCount = txs.length;
+
+        // 2) Fetch dev txroot from helper
+        let devRoot: any = null;
+        try {
+          const r2 = await fetch(`${base}/dev/txroot/${n}`);
+          if (r2.ok) devRoot = await r2.json();
+        } catch (e) {
+          console.warn("[header3-fix] dev/txroot fetch failed", e);
+        }
+
+        if (devRoot && typeof devRoot.root === "string") {
+          result.txRoot = devRoot.root;
+        }
+
+        // We don't try to reconstruct the full header here; reuse any header if present
+        result.header = persisted?.header || {};
+
+        result.source = {
+          devRoot: !!devRoot,
+          persisted: !!persisted,
+          via: "header3-fix-v1"
+        };
+
+        return res.json(result);
+      } catch (err) {
+        console.error("[header3-fix] handler error", err);
+        return res
+          .status(500)
+          .json({ ok: false, error: "header3-fix handler error" });
+      }
+    });
+
+    console.log(
+      "[header3-fix] installed last-wins /blocks/:n/header3 route (dev helpers)"
+    );
+  } catch (err) {
+    console.error("[header3-fix] top-level error", err);
+  }
+})();
+
+// ===== Dev Tx Submit Raw v1 (node.acceptTx) =====
+(function DevTxSubmitRawV1(){
+  const TICK = 400;
+
+  function app(): any {
+    return (globalThis as any).__void_http_app || (globalThis as any).app;
+  }
+  function node(): any {
+    return (globalThis as any).__void_node || (globalThis as any).node;
+  }
+
+  function mount(){
+    const a: any = app();
+    const n: any = node();
+
+    if (!a || !n || typeof n.acceptTx !== "function") {
+      return setTimeout(mount, TICK);
+    }
+
+    if ((a as any).__void_dev_tx_submit_raw_v1) return;
+    (a as any).__void_dev_tx_submit_raw_v1 = true;
+
+    const json = require("express").json({ limit: "256kb" });
+
+    a.post("/dev/tx/submit/raw", json, (req: any, res: any) => {
+      try {
+        const body = req.body || {};
+        const ok = n.acceptTx(body);
+        const mpLen =
+          n.mempool && Array.isArray(n.mempool.txs)
+            ? n.mempool.txs.length
+            : null;
+        const qLen = Array.isArray(n.txQueue) ? n.txQueue.length : null;
+
+        res.json({
+          ok,
+          used: "acceptTx",
+          mempoolSize: mpLen,
+          queueLen: qLen,
+        });
+      } catch (e: any) {
+        res.status(500).json({
+          ok: false,
+          error: String(e?.message || e),
+        });
+      }
+    });
+
+    console.log("[dev-tx-submit-raw] /dev/tx/submit/raw -> node.acceptTx");
+  }
+
+  mount();
+})();
