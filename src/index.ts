@@ -2170,6 +2170,7 @@ import type {} from "express"; // type-only safety; no runtime impact
     let movedTotalPQ = 0, ticks = 0;
     (function loop(){
       try{
+        return; // [pq] disabled
         const n  = getNode();
         const mp = getMP(n);
         const pq = ensurePQ(n);
@@ -2375,6 +2376,7 @@ import type {} from "express"; // type-only safety; no runtime impact
     let movedFromPQ = 0, rebinds = 0, ticks = 0;
     (function loop(){
       try{
+        return; // [alias] disabled
         const n  = getNode();
         const mp = mpEnsureAPI(getMP(n));
         if (n && mp){
@@ -3436,11 +3438,9 @@ import type {} from "express"; // type-only safety; no runtime impact
 
     // Canonical source: mempool.txs (we aliased pending/pendingTxs to this earlier)
     function mempoolTxs(n:any){
-      const mp = n?.mempool ?? n?.mPool ?? n?.txPool ?? null;
-      if (!mp) return null;
-      return Array.isArray(mp.txs) ? mp.txs :
-             Array.isArray(mp.queue) ? mp.queue :
-             (Array.isArray(mp) ? mp : null);
+      const q:any = (n as any)?.txQueue ?? (n as any)?.queue ?? null;
+      if (!q || !Array.isArray(q)) return null;
+      return q as any[];
     }
 
     const state = { enforcedBlocks:0, moved:0, lastBlock:-1, lastUsed:0 };
@@ -3536,11 +3536,9 @@ import type {} from "express"; // type-only safety; no runtime impact
     }
 
     function mempoolTxs(n:any){
-      const mp = n?.mempool ?? n?.mPool ?? n?.txPool ?? null;
-      if (!mp) return null;
-      return Array.isArray(mp.txs) ? mp.txs :
-             Array.isArray(mp.queue) ? mp.queue :
-             (Array.isArray(mp) ? mp : null);
+      const q:any = (n as any)?.txQueue ?? (n as any)?.queue ?? null;
+      if (!q || !Array.isArray(q)) return null;
+      return q as any[];
     }
 
     const state = { enforced:0, skipped:0, filled:0, lastBlock:-1, lastFill:0 };
@@ -11077,7 +11075,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
         const base = `http://127.0.0.1:${port}`;
         let j:any = null;
         try {
-          const r = await fetch(`${base}/__void/ready.json`, { cache: "no-store" } as any);
+          const r = await fetch(`${base}/__void/ready.json`, { cache: "no-store" } as any as any);
           if (r.ok) j = await r.json();
         } catch {}
         const head  = Number(j?.head ?? -1);
@@ -24138,7 +24136,7 @@ void_wal_wrapped ${isWrapped?1:0}
 
   async function getHead(): Promise<number> {
     try {
-      const r = await fetch(`${URL_BASE}/head.txt`, { cache: "no-store" });
+      const r = await fetch(`${URL_BASE}/head.txt`, { cache: "no-store" } as any);
       const t = await r.text();
       const n = Number(String(t).trim().split(/\s+/)[0]);
       return Number.isFinite(n) ? n : -1;
@@ -24146,7 +24144,7 @@ void_wal_wrapped ${isWrapped?1:0}
   }
   async function getMempoolSize(): Promise<number> {
     try {
-      const r = await fetch(`${URL_BASE}/mempool/global/size.json`, { cache: "no-store" });
+      const r = await fetch(`${URL_BASE}/mempool/global/size.json`, { cache: "no-store" } as any);
       const j:any = await r.json();
       return Number(j?.size ?? 0);
     } catch { return 0; }
@@ -24264,7 +24262,7 @@ void_wal_wrapped ${isWrapped?1:0}
 
   async function getHead(): Promise<number> {
     try {
-      const r = await fetch(`${URL_BASE}/head.txt`, { cache: "no-store" });
+      const r = await fetch(`${URL_BASE}/head.txt`, { cache: "no-store" } as any);
       const t = await r.text();
       const n = Number(String(t).trim().split(/\s+/)[0]);
       return Number.isFinite(n) ? n : -1;
@@ -24273,7 +24271,7 @@ void_wal_wrapped ${isWrapped?1:0}
 
   async function getMempoolSize(): Promise<number> {
     try {
-      const r = await fetch(`${URL_BASE}/mempool/global/size.json`, { cache: "no-store" });
+      const r = await fetch(`${URL_BASE}/mempool/global/size.json`, { cache: "no-store" } as any);
       const j:any = await r.json();
       return Number(j?.size ?? 0);
     } catch { return 0; }
@@ -27686,3 +27684,489 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
     console.error("[ProposerAutoLoopNodeV5] init error", err);
   }
 })();
+
+// ---------------- [ADD] dev last-mile shim: drain mempool buffer -> node.acceptTx ----------------
+;(function devLastmileShimV1(){
+  const g: any = globalThis as any;
+  let attached = false;
+  let tries = 0;
+
+  function getNode(): any {
+    return (g.__void_node || g.node) ?? null;
+  }
+
+  function getPort(): number {
+    return Number(process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || 4100);
+  }
+
+  async function tick() {
+    try {
+      const node: any = getNode();
+      if (!node || typeof node.acceptTx !== "function") {
+        if (process.env.DEBUG_TX) {
+          console.log("[lastmile-shim] no node.acceptTx; skipping tick");
+        }
+        return;
+      }
+
+      const port = getPort();
+      const url = `http://127.0.0.1:${port}/mempool/buffer/pop?max=64`;
+
+      const r = await fetch(url);
+      if (!r || !r.ok) {
+        if (process.env.DEBUG_TX) {
+          console.log("[lastmile-shim] pop failed", { status: r?.status });
+        }
+        return;
+      }
+
+      const body: any = await r.json().catch(() => null);
+      const txs: any[] = body && Array.isArray(body.txs) ? body.txs : [];
+      if (!txs.length) {
+        return;
+      }
+
+      let accepted = 0;
+      for (const t of txs) {
+        try {
+          // Minimal object: id + data; acceptTx can enrich/validate as needed.
+          const candidate: any = {
+            id: t.id || `tx-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            data: t.data ?? t,
+          };
+
+          const res = node.acceptTx(candidate);
+          if (res && typeof res.then === "function") {
+            await res;
+            accepted++;
+          } else if (res !== false) {
+            accepted++;
+          }
+        } catch (e: any) {
+          if (process.env.DEBUG_TX) {
+            console.error("[lastmile-shim] acceptTx error", e?.message || e);
+          }
+        }
+      }
+
+      if (process.env.DEBUG_TX) {
+        console.log("[lastmile-shim] drained txBuffer", {
+          drained: txs.length,
+          accepted,
+        });
+      }
+    } catch (e: any) {
+      if (process.env.DEBUG_TX) {
+        console.error("[lastmile-shim] tick error", e?.message || e);
+      }
+    }
+  }
+
+  function schedule() {
+    const interval = Number(process.env.VOID_LASTMILE_SHIM_MS || 1000);
+    const h: any = setInterval(tick, interval);
+    if (typeof h.unref === "function") h.unref();
+    if (process.env.DEBUG_TX) {
+      console.log("[lastmile-shim] installed", { interval });
+    }
+  }
+
+  function tryAttach() {
+    const node = getNode();
+    if (!node) {
+      if (++tries < 60) {
+        return setTimeout(tryAttach, 1000);
+      }
+      if (process.env.DEBUG_TX) {
+        console.log("[lastmile-shim] gave up waiting for node");
+      }
+      return;
+    }
+
+    if (attached) return;
+    attached = true;
+    schedule();
+  }
+
+  try {
+    tryAttach();
+  } catch (e: any) {
+    if (process.env.DEBUG_TX) {
+      console.error("[lastmile-shim] fatal attach error", e?.message || e);
+    }
+  }
+})();
+
+
+// ---------------- [ADD] dev node-intake diag route ----------------
+;(function devNodeIntakeDiag(){
+  let tries = 0, attached = false;
+  function getApp(){
+    return (globalThis as any).__void_http_app || (globalThis as any).app || undefined;
+  }
+  function attach(){
+    const app: any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 60) return setTimeout(attach, 500);
+      return;
+    }
+    if (attached) return; attached = true;
+
+    app.get("/__void/dev/node-intake/v1/diag", (_req: any, res: any) => {
+      try {
+        const node: any = (globalThis as any).__void_node || (globalThis as any).node || null;
+        const mp: any = node?.mempool ?? null;
+        const q: any = (node as any)?.txQueue;
+
+        let memSize: any = null;
+        try {
+          if (mp && typeof mp.size === "function") memSize = mp.size();
+          else if (Array.isArray(mp)) memSize = mp.length;
+          else if (Array.isArray((mp as any)?.txs)) memSize = (mp as any).txs.length;
+        } catch {}
+
+        let qLen: any = null;
+        try {
+          if (Array.isArray(q)) qLen = q.length;
+        } catch {}
+
+        res.json({
+          ok: true,
+          hasNode: !!node,
+          mempoolSize: Number(memSize ?? 0),
+          queueLen: qLen,
+        });
+      } catch(e: any) {
+        res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    console.log("[dev] node-intake diag route attached");
+  }
+  attach();
+})();
+
+
+// ---------------- [ADD] dev last-mile queue->block bridge ----------------
+;(function devLastmileQueueToBlock(){
+  let tries = 0, attached = false;
+
+  function getNode(){
+    const g: any = globalThis as any;
+    return g.__void_node || g.node || null;
+  }
+
+  function attach(){
+    const node: any = getNode();
+    const store: any = (node as any)?.store || (globalThis as any).__void_store || null;
+
+    if (!store || typeof store.saveBlock !== "function") {
+      if (++tries < 120) return setTimeout(attach, 500);
+      try {
+        console.warn?.("[dev] lastmile-bridge: no store.saveBlock found after retries");
+      } catch {}
+      return;
+    }
+    if (attached) return; attached = true;
+
+    const orig = store.saveBlock.bind(store);
+
+    store.saveBlock = async function bridgedSaveBlock(blk: any){
+      try {
+        const node: any = getNode();
+        const q: any = (node as any)?.txQueue;
+
+        if (Array.isArray(q) && q.length > 0) {
+          // existing txs array (if any)
+          let txs: any[] = Array.isArray((blk as any).txs)
+            ? (blk as any).txs.slice()
+            : [];
+
+          // cap: prefer env, fall back to 3 txs per block
+          const capRaw = Number(process.env.VOID_LASTMILE_CAP || process.env.TX_MERGE_CAP || 3);
+          const cap = (Number.isFinite(capRaw) && capRaw > 0) ? capRaw : 3;
+
+          let moved = 0;
+          while (q.length > 0 && txs.length < cap) {
+            const t = q.shift();
+            if (!t) break;
+            txs.push(t);
+            moved++;
+          }
+
+          (blk as any).txs = txs;
+
+          try {
+            console.log("[dev] lastmile-bridge: injecting txs into block", {
+              number: blk?.number,
+              moved,
+              remainingQueue: q.length,
+              txsLen: txs.length,
+            });
+          } catch {}
+        }
+      } catch (e: any) {
+        try {
+          console.error?.("[dev] lastmile-bridge error", e?.message || e);
+        } catch {}
+      }
+
+      return await orig(blk);
+    };
+
+    try {
+      console.log("[dev] lastmile-bridge attached to store.saveBlock");
+    } catch {}
+  }
+
+  attach();
+})();
+
+// ---------------- [ADD] dev last-mile txQueue->block save wrapper (v2) ----------------
+;(function lastmileTxqueueSaveWrapV2() {
+  try {
+    const g: any = globalThis as any;
+
+    // Try to find the live node instance
+    const node: any = g.__void_node || (g.node ?? null);
+    if (!node) {
+      console.log("[lastmile-txqueue-wrap] no global node; bail");
+      return;
+    }
+
+    // Find the store that the node is actually sealing into
+    const store: any =
+      node.store ||
+      (g.__void_segstore || (g.__apiSegStore || (globalThis as any).__apiSegStore));
+
+    if (!store || typeof store.saveBlock !== "function") {
+      console.log("[lastmile-txqueue-wrap] no store.saveBlock; bail");
+      return;
+    }
+
+    if ((store as any).__lastmileTxqueueWrappedV2) {
+      console.log("[lastmile-txqueue-wrap] already wrapped; skip");
+      return;
+    }
+    (store as any).__lastmileTxqueueWrappedV2 = true;
+
+    const origSave = store.saveBlock.bind(store);
+
+    store.saveBlock = async function wrappedSaveBlock(block: any) {
+      try {
+        const q: any = (node as any).txQueue;
+        let injected: any[] = [];
+
+        if (Array.isArray(q) && q.length > 0) {
+          const capRaw = process.env.LASTMILE_TXQUEUE_CAP || "16";
+          let cap = Number(capRaw);
+          if (!Number.isFinite(cap) || cap <= 0) cap = 16;
+
+          const take = Math.min(cap, q.length);
+          injected = q.splice(0, take);
+
+          const existing = Array.isArray(block?.txs) ? block.txs : [];
+          const merged = existing.concat(injected);
+
+          block = Object.assign({}, block, { txs: merged });
+
+          try {
+            console.log(
+              "[lastmile-txqueue-wrap] block #%s injected=%s existing=%s final=%s",
+              (block as any)?.number ?? "?",
+              injected.length,
+              existing.length,
+              Array.isArray((block as any)?.txs) ? (block as any).txs.length : -1
+            );
+          } catch {}
+        } else {
+          // No queued txs; keep block as-is
+        }
+      } catch (e: any) {
+        console.error("[lastmile-txqueue-wrap] error", e?.message || e);
+      }
+
+      // Always call underlying saveBlock (which still has txroot, latch, etc.)
+      return await origSave(block);
+    };
+
+    console.log("[lastmile-txqueue-wrap] attached to store.saveBlock");
+  } catch (e: any) {
+    console.error("[lastmile-txqueue-wrap] top-level error", e?.message || e);
+  }
+})();
+// -----------------------------------------------------------------------------
+// lastmileCoreInjectV1: simple, robust queue -> block injector on saveBlock
+// -----------------------------------------------------------------------------
+// This does NOT change the intake path at all. It just looks at node.txQueue
+// right before saving a block and, if there are queued txs, splices some into
+// block.txs and then calls the original saveBlock.
+//
+// It retries a few times on boot until app.locals.node && node.store.saveBlock
+// are present, then installs exactly once.
+// -----------------------------------------------------------------------------
+;(function lastmileCoreInjectV1() {
+  try {
+    const g: any = globalThis as any;
+    const FLAG = "__void_lastmile_coreinject_v1";
+    if (g[FLAG]) return;
+    g[FLAG] = true;
+
+    function getNode(): any {
+      const app: any = (g.__void_http_app || g.__void_app || null);
+      const fromApp = app?.locals?.node;
+      const fromGlobal = g.__void_node || g.__void_node_main || null;
+      return fromApp || fromGlobal || null;
+    }
+
+    function capFromEnv(): number {
+      const raw = process.env.LASTMILE_TXQUEUE_CAP || "16";
+      let n = Number(raw);
+      if (!Number.isFinite(n) || n <= 0) n = 16;
+      return n;
+    }
+
+    function tryAttach(): boolean {
+      const node: any = getNode();
+      if (!node) {
+        console.log("[lastmile-coreinject] waiting for node...");
+        return false;
+      }
+
+      const store: any = node.store ||
+        (g.__void_segstore || (g.__apiSegStore || (globalThis as any).__apiSegStore));
+      if (!store || typeof store.saveBlock !== "function") {
+        console.log("[lastmile-coreinject] waiting for store.saveBlock...");
+        return false;
+      }
+
+      if ((store as any).__lastmileCoreInjectV1) {
+        console.log("[lastmile-coreinject] already wrapped; skip");
+        return true;
+      }
+      (store as any).__lastmileCoreInjectV1 = true;
+
+      const origSave = store.saveBlock.bind(store);
+      const cap = capFromEnv();
+
+      store.saveBlock = async function lastmileCoreInjectedSave(block: any) {
+        let injected: any[] = [];
+        try {
+          const nodeAny: any = getNode();
+          const q: any = nodeAny?.txQueue;
+          if (Array.isArray(q) && q.length > 0) {
+            let limit = cap;
+            if (!Number.isFinite(limit) || limit <= 0) limit = 16;
+            const take = Math.min(limit, q.length);
+            injected = q.splice(0, take);
+
+            const existing = Array.isArray(block?.txs) ? block.txs : [];
+            const merged = existing.concat(injected);
+            block = Object.assign({}, block, { txs: merged });
+
+            try {
+              console.log(
+                "[lastmile-coreinject] block #%s injected=%s existing=%s final=%s queue_after=%s",
+                (block as any)?.number ?? "?",
+                injected.length,
+                existing.length,
+                Array.isArray((block as any)?.txs) ? (block as any).txs.length : -1,
+                Array.isArray(q) ? q.length : -1
+              );
+            } catch {}
+          }
+        } catch (e: any) {
+          console.error("[lastmile-coreinject] error", e?.message || e);
+        }
+        return await origSave(block);
+      };
+
+      console.log("[lastmile-coreinject] attached to store.saveBlock (cap=%s)", cap);
+      return true;
+    }
+
+    let tries = 0;
+    const maxTries = 300; // ~60s at 200ms
+    const interval = 200;
+
+    const timer = setInterval(() => {
+      try {
+        if (tryAttach()) {
+          clearInterval(timer);
+          return;
+        }
+        tries++;
+        if (tries >= maxTries) {
+          console.warn("[lastmile-coreinject] gave up waiting for node/store after %s tries", tries);
+          clearInterval(timer);
+        }
+      } catch (e: any) {
+        console.error("[lastmile-coreinject] fatal tick error", e?.message || e);
+        clearInterval(timer);
+      }
+    }, interval);
+
+    console.log("[lastmile-coreinject] bootstrapped (interval=%s ms, maxTries=%s)", interval, maxTries);
+  } catch (e: any) {
+    console.error("[lastmile-coreinject] fatal top-level error", e?.message || e);
+  }
+})();
+
+
+// ---------- Proposer debug: single proposeBlock() call (additive, dev only) ----------
+(function ProposerDebugOnceV1(){
+  const TICK = 400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node || (globalThis as any).VOID_NODE; }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_proposer_debug_once_mounted) return; (app as any).__void_proposer_debug_once_mounted = true;
+
+    app.post("/__void/dev/proposer/once", async (_req:any, res:any)=>{
+      try{
+        const node:any = getNode();
+        if (!node) return res.status(503).json({ok:false, error:"node not ready"});
+
+        const hasProposeBlock = typeof node.proposeBlock === "function";
+        const hasProposerTick = typeof (node as any).proposerTick === "function";
+        const hasSealOnce     = typeof (node as any).sealOnce === "function";
+
+        let used = "none";
+        let out:any = null;
+        let err:any = null;
+
+        try{
+          if (hasProposeBlock){
+            used = "node.proposeBlock";
+            out = await node.proposeBlock();
+          } else if (hasProposerTick){
+            used = "node.proposerTick";
+            out = await (node as any).proposerTick();
+          } else if (hasSealOnce){
+            used = "node.sealOnce";
+            out = await (node as any).sealOnce();
+          } else {
+            err = "no known proposer method (proposeBlock/proposerTick/sealOnce) on node";
+          }
+        }catch(e:any){
+          err = String(e?.stack || e?.message || e);
+        }
+
+        res.json({
+          ok: !err,
+          used,
+          result: (typeof out !== "undefined") ? out : null,
+          error: err,
+          typeofNode: typeof node,
+          keys: node && typeof node === "object" ? Object.keys(node) : null
+        });
+      }catch(e:any){
+        res.status(500).json({ok:false, error:String(e?.stack||e?.message||e)});
+      }
+    });
+  }
+
+  mount();
+})();;
+
