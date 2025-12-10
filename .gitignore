@@ -104,3 +104,5 @@ react/
 
 # Local React UI playground (stray file)
 react
+snapshots_20*/
+src/index.ts.lastmile-coreinject-backup-*
