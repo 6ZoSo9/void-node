@@ -19674,3 +19674,203 @@ var txroot_js_1 = require("./util/txroot.js");
     }
     boot();
 })();
+// ============================================================================
+// [ADD] lastmile txQueue -> saveBlock instance wrapper v3b (compiled JS)
+//  - Hooks the live store instance (g.__void_store_instance / __void_store / node().store)
+//  - On every saveBlock, drains node.txQueue into block.txs up to a small cap
+//  - Logs loudly so we can see it in journalctl
+// ============================================================================
+;(function lastmileTxqueueSaveWrapV3b(){
+  var g = globalThis;
+  var F = g.__void_flags || (g.__void_flags = {});
+  if (F.lastmile_txqueue_v3b_installed) return;
+  F.lastmile_txqueue_v3b_installed = true;
+
+  function node() {
+    return g.__void_node_core || g.__void_node || g.node || null;
+  }
+
+  function getStore() {
+    var app = g.__void_http_app || null;
+    return (g.__void_store_instance)
+      || (app && app.locals && app.locals.store)
+      || g.__void_store
+      || (node() && node().store)
+      || null;
+  }
+
+  function attachOnce(){
+    var n = node();
+    var s = getStore();
+    if (!n || !Array.isArray(n.txQueue)) {
+      console.log("[lastmile-v3b-js] no node.txQueue; skip attach");
+      return;
+    }
+    if (!s || typeof s.saveBlock !== "function") {
+      console.log("[lastmile-v3b-js] no store.saveBlock; skip attach");
+      return;
+    }
+    if (s.__lastmileTxqueueV3b) {
+      console.log("[lastmile-v3b-js] already wrapped; skip");
+      return;
+    }
+    s.__lastmileTxqueueV3b = true;
+
+    function makeWrapper(orig) {
+      return async function(b){
+        try {
+          var nd = node();
+          var q = (nd && Array.isArray(nd.txQueue)) ? nd.txQueue : [];
+          if (!Array.isArray(b.txs)) b.txs = [];
+
+          var cap = 3; // small safety cap; enough for our test
+          var injected = 0;
+
+          while (q.length > 0 && b.txs.length < cap) {
+            var tx = q.shift();
+            if (!tx) break;
+            b.txs.push(tx);
+            injected++;
+          }
+
+          if (injected > 0) {
+            console.log(
+              "[lastmile-v3b-js] block #%s injected=%s finalLen=%s queueAfter=%s",
+              (b && (b.number != null ? b.number : (b.header && b.header.number))),
+              injected,
+              Array.isArray(b.txs) ? b.txs.length : -1,
+              (nd && Array.isArray(nd.txQueue)) ? nd.txQueue.length : -1
+            );
+          }
+        } catch (e) {
+          console.error("[lastmile-v3b-js] error in wrapper", (e && e.message) || e);
+        }
+        return await orig(b);
+      };
+    }
+
+    try {
+      if (typeof wrapOnce === "function") {
+        wrapOnce(s, "saveBlock", makeWrapper);
+        console.log("[lastmile-v3b-js] attached via wrapOnce to store.saveBlock");
+      } else {
+        var orig = s.saveBlock.bind(s);
+        s.saveBlock = makeWrapper(orig);
+        console.log("[lastmile-v3b-js] attached directly to store.saveBlock");
+      }
+    } catch (e) {
+      console.error("[lastmile-v3b-js] attach error", (e && e.message) || e);
+    }
+  }
+
+  var tries = 0;
+  (function tick(){
+    tries++;
+    try { attachOnce(); } catch (e) {
+      console.error("[lastmile-v3b-js] tick error", (e && e.message) || e);
+    }
+    if (tries < 40 && (!getStore() || !node() || !Array.isArray((node() || {}).txQueue))) {
+      setTimeout(tick, 500);
+    }
+  })();
+})();
+// ============================================================================
+// [ADD] lastmile txQueue -> saveBlock instance wrapper v3b (compiled JS)
+//  - Hooks the live store instance (g.__void_store_instance / __void_store / node().store)
+//  - On every saveBlock, drains node.txQueue into block.txs up to a small cap
+//  - Logs loudly so we can see it in journalctl
+// ============================================================================
+;(function lastmileTxqueueSaveWrapV3b(){
+  var g = globalThis;
+  var F = g.__void_flags || (g.__void_flags = {});
+  if (F.lastmile_txqueue_v3b_installed) return;
+  F.lastmile_txqueue_v3b_installed = true;
+
+  function node() {
+    return g.__void_node_core || g.__void_node || g.node || null;
+  }
+
+  function getStore() {
+    var app = g.__void_http_app || null;
+    return (g.__void_store_instance)
+      || (app && app.locals && app.locals.store)
+      || g.__void_store
+      || (node() && node().store)
+      || null;
+  }
+
+  function attachOnce(){
+    var n = node();
+    var s = getStore();
+    if (!n || !Array.isArray(n.txQueue)) {
+      console.log("[lastmile-v3b-js] no node.txQueue; skip attach");
+      return;
+    }
+    if (!s || typeof s.saveBlock !== "function") {
+      console.log("[lastmile-v3b-js] no store.saveBlock; skip attach");
+      return;
+    }
+    if (s.__lastmileTxqueueV3b) {
+      console.log("[lastmile-v3b-js] already wrapped; skip");
+      return;
+    }
+    s.__lastmileTxqueueV3b = true;
+
+    function makeWrapper(orig) {
+      return async function(b){
+        try {
+          var nd = node();
+          var q = (nd && Array.isArray(nd.txQueue)) ? nd.txQueue : [];
+          if (!Array.isArray(b.txs)) b.txs = [];
+
+          var cap = 3; // small safety cap for testing
+          var injected = 0;
+
+          while (q.length > 0 && b.txs.length < cap) {
+            var tx = q.shift();
+            if (!tx) break;
+            b.txs.push(tx);
+            injected++;
+          }
+
+          if (injected > 0) {
+            console.log(
+              "[lastmile-v3b-js] block #%s injected=%s finalLen=%s queueAfter=%s",
+              (b && (b.number != null ? b.number : (b.header && b.header.number))),
+              injected,
+              Array.isArray(b.txs) ? b.txs.length : -1,
+              (nd && Array.isArray(nd.txQueue)) ? nd.txQueue.length : -1
+            );
+          }
+        } catch (e) {
+          console.error("[lastmile-v3b-js] error in wrapper", (e && e.message) || e);
+        }
+        return await orig(b);
+      };
+    }
+
+    try {
+      if (typeof wrapOnce === "function") {
+        wrapOnce(s, "saveBlock", makeWrapper);
+        console.log("[lastmile-v3b-js] attached via wrapOnce to store.saveBlock");
+      } else {
+        var orig = s.saveBlock.bind(s);
+        s.saveBlock = makeWrapper(orig);
+        console.log("[lastmile-v3b-js] attached directly to store.saveBlock");
+      }
+    } catch (e) {
+      console.error("[lastmile-v3b-js] attach error", (e && e.message) || e);
+    }
+  }
+
+  var tries = 0;
+  (function tick(){
+    tries++;
+    try { attachOnce(); } catch (e) {
+      console.error("[lastmile-v3b-js] tick error", (e && e.message) || e);
+    }
+    if (tries < 40 && (!getStore() || !node() || !Array.isArray((node() || {}).txQueue))) {
+      setTimeout(tick, 500);
+    }
+  })();
+})();

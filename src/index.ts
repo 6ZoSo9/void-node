@@ -11224,49 +11224,41 @@ void_ready_exporter_timestamp_ms ${now}
 
   // Pull up to "cap" txs from node.mempool; we rely on existing saveBlock wrappers
   // you already installed (tx-merge-all, cap-enforce, empty-policy) to finalize txs.
+  
   async function sealOnce(): Promise<{ok:boolean; number?:number; taken:number; reason?:string}> {
     try {
-      const n = getNode(); const s = getStore(); const app = getApp();
-      if (!n || !s || !app) return { ok:false, taken:0, reason: "node/store/app not ready" };
-
-      // Diagnostics only: try to read a mempool-like array for logging/metrics, but
-      // never gate sealing on it. The real last-mile queue lives inside Node.acceptTx().
-      let memSize = 0;
-      try {
-        const anyNode: any = n as any;
-        const mem = (anyNode.mempool && Array.isArray(anyNode.mempool.txs))
-          ? anyNode.mempool.txs
-          : (Array.isArray(anyNode.txs) ? anyNode.txs : null);
-        if (mem) memSize = mem.length;
-      } catch {
-        // ignore mempool inspection errors; they are non-fatal
+      const node: any = getNode();
+      if (!node || typeof node.sealBlock !== "function") {
+        return { ok: false, taken: 0, reason: "node.sealBlock missing" };
       }
 
-      const head = await getLatestNumberViaLocal();
-      const nextNum = head + 1;
+      // Best-effort visibility into how many txs are waiting.
+      let queued = 0;
+      try {
+        const q =
+          (node as any).txQueue ||
+          (node as any).pendingTxs ||
+          (node as any).pending?.txs ||
+          (node as any).mempool?.txs;
+        if (Array.isArray(q)) queued = q.length;
+      } catch {}
 
-      // Build a minimal block envelope; your saveBlock wrappers add txs + txroot + policies.
-      const block: any = {
-        number: nextNum,
-        timestamp: Date.now(),
-      };
+      // Canonical path: use Node.sealBlock, which builds header/roots and calls store.saveBlock().
+      const result = await node.sealBlock({ allowEmptyOnce: false });
 
-      // Call your patched SegStore.saveBlock (already wrapped with tx merge + counters and
-      // the no-empty-when-queued / empty-policy logic).
-      await s.saveBlock(block);
+      if (!result || typeof result.number !== "number") {
+        return { ok: false, taken: 0, reason: "sealBlock() returned no number" };
+      }
 
-      lastSeal = { number: nextNum, at: Date.now() };
-      return {
-        ok: true,
-        number: nextNum,
-        taken: memSize > 0 ? Math.min(memSize, 1 /* real tx selection happens in wrappers */) : 0,
-      };
-    } catch (e:any) {
-      return { ok:false, taken:0, reason: String(e && e.message || e) };
+      lastSeal = { number: result.number, at: Date.now() };
+
+      const taken = typeof (result as any).txs === "number" ? (result as any).txs : queued;
+      return { ok: true, number: result.number, taken };
+    } catch (e: any) {
+      return { ok: false, taken: 0, reason: String(e && e.message || e) };
     }
   }
 
-  
 let startAutoLoop = function(ms:number) {
   // Always run sealOnce() on a timer.
   // Smart behavior (no-empty-when-queued, empty-policy, etc.)

@@ -399,22 +399,44 @@ export class Node {
     }
   }
 
-  /** canonical tx intake (validation + dedupe) */
+    /** canonical tx intake (validation + dedupe) */
   acceptTx(raw: any): boolean {
     if (!raw || typeof raw !== "object") return false;
-    const h = String(raw.hash || "").toLowerCase();
+
+    let body: any = (raw as any).body;
+    let h: string = typeof (raw as any).hash === "string"
+      ? String((raw as any).hash).toLowerCase()
+      : "";
+
+    // Dev/ingress compatibility: allow {data: "..."} or arbitrary objects without a hash.
+    if (!/^[0-9a-f]{64}$/.test(h)) {
+      if (body === undefined) {
+        if ((raw as any).data !== undefined) {
+          body = { data: (raw as any).data };
+        } else {
+          body = { ...(raw as any) };
+        }
+      }
+      try {
+        const json = JSON.stringify(body ?? {});
+        h = crypto.createHash("sha256").update(json).digest("hex");
+      } catch {
+        return false;
+      }
+    }
+
     if (!/^[0-9a-f]{64}$/.test(h)) return false;
     if (this.txSeen.has(h)) return false;      // de-dupe globally
-    const tx = { hash: h, body: raw.body ?? {} };
+
+    const tx = { hash: h, body: body ?? {} };
     this.txSeen.set(h, Date.now());
+
     try { (this.mempool as any).push?.(tx); } catch {}
 
     // [void] acceptTx mirrors into txQueue if present
     try {
       const q: any = (this as any).txQueue;
-      if (Array.isArray(q)) {
-        q.push(tx);
-      }
+      if (Array.isArray(q)) q.push(tx);
     } catch (e) {
       // best-effort only; ignore errors
     }
