@@ -17,3 +17,7 @@ else
   echo "[pillars-preflight] RESULT: FAILED (see ops/void-mainnet-pillars-health-all.sh output above)"
   exit "$STATUS"
 fi
+
+echo
+echo "[pillars-preflight] === step: workcredits health-all (soft, not gating yet) ==="
+./ops/void-mainnet-workcredits-health-all.sh || echo "[workcredits-health] NON-ZERO EXIT (ignored for now; pillar is allowed to be red while spec is stubbed)"
