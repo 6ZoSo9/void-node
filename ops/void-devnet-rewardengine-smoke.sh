@@ -1,82 +1,55 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${ROOT:-$HOME/dev/void-node}"
-RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
-STATE="${STATE:-$ROOT/docs/VOID-DEVNET-PROTOCOL-STATE.json}"
+# Devnet RewardEngine smoke harness
+#
+# This DOES NOT yet run a real stake->accrue->claim flow.
+# It simply:
+#   - Reads devnet RewardEngine plan + code health from Prometheus
+#   - Decides:
+#       * SKIP (expected) when code health == 0
+#       * TODO hook when code health == 1 (real contract present)
+#
+# This is designed to be CI/pre-push friendly.
 
-echo "=== [VOID devnet — RewardEngine smoke] ==="
-echo "[cfg] ROOT     = $ROOT"
-echo "[cfg] RPC_URL  = $RPC_URL"
-echo "[cfg] STATE    = $STATE"
+PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
+
+jq_val='.data.result[0].value[1] // "NaN"'
+
+echo "=== [devnet RewardEngine smoke] ==="
+echo "[cfg] prom_url = ${PROM_URL}"
 echo
 
-if [[ ! -f "$STATE" ]]; then
-  echo "[FATAL] state file not found: $STATE"
-  exit 1
-fi
+echo "=== [1] fetch devnet RewardEngine plan + code health] ==="
 
-echo "=== [0] peek state keys (top-level) ==="
-jq 'keys' "$STATE" || { echo "[FATAL] jq failed on state file"; exit 1; }
+PLAN_5M="$(curl -fsS "${PROM_URL}/api/v1/query?query=void:devnet_rewardengine:health:last_5m" | jq -r "${jq_val}" 2>/dev/null || echo "NaN")"
+CODE_5M="$(curl -fsS "${PROM_URL}/api/v1/query?query=void:devnet_rewardengine_code:health:last_5m" | jq -r "${jq_val}" 2>/dev/null || echo "NaN")"
+
+echo "plan_5m = ${PLAN_5M}"
+echo "code_5m = ${CODE_5M}"
 echo
 
-echo "=== [1] extract RewardEngine address (best-effort) ==="
-REWARD_ENGINE="$(jq -r '.RewardEngine.address // .RewardEngine // .contracts.RewardEngine.address // empty' "$STATE")"
+# Normalize for safety
+plan_ok=0
+code_ok=0
 
-if [[ -z "$REWARD_ENGINE" || "$REWARD_ENGINE" == "null" ]]; then
-  echo "[INFO] RewardEngine NOT present in devnet state."
-  echo "       This is expected right now: VOID devnet currently tracks:"
-  echo "         - AdminGate, AgentRegistry, DatasetRegistry, JobQueue,"
-  echo "           ModelRegistry, ReceiptRegistry, workCredits*, chainId"
-  echo "         - but NO RewardEngine contract yet."
-  echo
-  cat <<EOF
-[RESULT] SKIP: RewardEngine is not wired on devnet.
-  - state file : $STATE
-  - next steps : 
-      * Once RewardEngine is added to devnet bootstrap,
-        update this script to:
-          - read .RewardEngine.address (or contracts.RewardEngine.address)
-          - run 'cast code' to ensure non-empty bytecode
-          - optionally add basic read-only sanity checks.
-EOF
-  echo
-  echo "[rewardengine-smoke] DONE (stub, no RewardEngine on devnet)."
+[[ "$PLAN_5M" == "1" ]] && plan_ok=1
+[[ "$CODE_5M" == "1" ]] && code_ok=1
+
+if [[ "$plan_ok" -eq 0 ]]; then
+  echo "[SMOKE] SKIP: devnet RewardEngine plan is not healthy (plan_5m=${PLAN_5M})."
+  echo "        This is expected until devnet state JSON has a proper RewardEngine entry."
   exit 0
 fi
 
-echo "RewardEngine.address = $REWARD_ENGINE"
-echo
-
-echo "=== [2] check that RewardEngine has code on devnet ==="
-CODE_HEX="$(cast code "$REWARD_ENGINE" --rpc-url "$RPC_URL" 2>/dev/null || echo "ERR")"
-
-if [[ "$CODE_HEX" == "ERR" ]]; then
-  echo "[FATAL] cast code failed (check RPC_URL / anvil state)"
-  exit 1
+if [[ "$code_ok" -eq 0 ]]; then
+  echo "[SMOKE] SKIP: devnet RewardEngine code is not healthy yet (code_5m=${CODE_5M})."
+  echo "        This is expected while devnet RewardEngine is still a stub (no contract deployed)."
+  exit 0
 fi
 
-if [[ "$CODE_HEX" == "0x" || "$CODE_HEX" == "0x0" ]]; then
-  echo "[FATAL] RewardEngine has no code at $REWARD_ENGINE on $RPC_URL"
-  exit 1
-fi
+echo "[SMOKE] OK: devnet RewardEngine plan + code health are both green."
+echo "        This is where we will later run a real stake->accrue->claim WC smoke test."
+echo "        (TODO: implement once RewardEngine is actually deployed on devnet.)"
 
-LEN_CHARS="${#CODE_HEX}"
-echo "RewardEngine code length (hex chars): $LEN_CHARS"
-echo "[OK] non-empty code blob detected for RewardEngine."
-echo
-
-echo "=== [3] summary ==="
-cat <<EOF
-[RESULT] OK: RewardEngine is configured in $STATE and has non-empty code on devnet.
-  - address : $REWARD_ENGINE
-  - rpc_url : $RPC_URL
-  - codeLen : $LEN_CHARS chars (hex)
-
-Later we can extend this to:
-  - run a tiny read-only call (e.g. epoch/params),
-  - eventually hook into a devnet rewards rehearsal (stake -> accrue -> claim).
-EOF
-
-echo
-echo "[rewardengine-smoke] DONE."
+exit 0

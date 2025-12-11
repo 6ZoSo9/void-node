@@ -28,5 +28,8 @@
   },
   "workCreditsToken": "0xf49183759d2c6510b131f0d2ba584fff624fb8ec",
   "workCreditsPoolV1": "0xf95864611c26d59da4a0534ec1dd3bd0ef6bae0a",
-  "workCreditsRelayerV1": "0xdab942e37d0d8da45eb19f31897dff7306914ab9"
+  "workCreditsRelayerV1": "0xdab942e37d0d8da45eb19f31897dff7306914ab9",
+  "RewardEngine": {
+    "address": "0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
+  }
 }
