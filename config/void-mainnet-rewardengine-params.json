@@ -1,0 +1,18 @@
+{
+  "epochLengthBlocks": 3600,
+  "epochsPerDay": 12,
+  "wcDailyEmissionStart": "100000000000000000000000",
+  "wcPerEpochStart": "8333333333333333333333",
+  "wcEmissionDecayBpsPerYear": 500,
+  "weightFormula": "sqrt(stake) * uptime * performance",
+  "weightComponents": {
+    "stake": "sqrt(staked VOID)",
+    "uptime": "fraction of duties performed in epoch (0.0–1.0)",
+    "performance": "0 or 1 (slashed vs healthy) in v1"
+  },
+  "notes": [
+    "wcDailyEmissionStart is in 18-decimal units (100,000e18).",
+    "wcPerEpochStart is floor(wcDailyEmissionStart / epochsPerDay) in 18-decimal units.",
+    "wcEmissionDecayBpsPerYear = 500 means 5.00% annual decay (optional, off-chain controlled)."
+  ]
+}
