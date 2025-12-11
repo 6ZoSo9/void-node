@@ -14,24 +14,22 @@ import {OpsTreasury} from "../contracts/mainnet/OpsTreasury.sol";
 import {IVoidTokenLike} from "../contracts/mainnet/IVoidTokenLike.sol";
 import {IValidatorSetLike} from "../contracts/mainnet/IValidatorSetLike.sol";
 
-/// @notice VOID mainnet bootstrap (Mainnet) script.
+/// @notice VOID mainnet bootstrap (MAINNET) script.
 ///
-/// PLAN-only version:
+/// PLAN-first, RUN-stub version:
 ///   - Reads a JSON config (the *.live.json plan file).
-///   - Validates core invariants (chainId, roles, validator0).
-///   - Logs roles, contracts, validator0, and a narrative plan.
+///   - Validates basic invariants (chainId).
+///   - Logs roles, contracts, validator0, and a narrative "real wiring" plan.
 ///   - NEVER broadcasts or mutates state.
 ///
-/// The dev bootstrap script is where real deployments are rehearsed:
-///   - script/VoidMainnetBootstrapDev.s.sol
+/// Current behavior:
+///   - `plan(configPath)`  -> PLAN-only, view-ish, no broadcast.
+///   - `run(configPath)`   -> runs the same PLAN and ALWAYS reverts
+///                            with "RUN_STUB_ONLY" (pre-push gate depends on this).
 ///
-/// This script is wired for:
-///   - `plan(configPath)`  -> PLAN-only, view, no broadcast.
-///   - `run(configPath)`   -> calls `plan()` then ALWAYS reverts (safety fuse).
-///
-/// It also contains an internal `_runPlanRealSkeleton` helper that describes the
-/// real mainnet wiring using actual contract types, but it is NEVER called and
-/// does not broadcast. It is documentation / future wiring guidance only.
+/// Later, when we are truly ready for mainnet, we will:
+///   - Introduce a separate "real run" entrypoint (or sentinel-protected path).
+///   - Keep this script's safety behavior until we deliberately flip it.
 contract VoidMainnetBootstrapMainnet is Script {
     uint256 internal constant VOID_CHAIN_ID = 2050;
 
@@ -78,20 +76,19 @@ contract VoidMainnetBootstrapMainnet is Script {
         Validator0 validator0;
     }
 
-    /// @dev Secrets / env-driven values that will be wired later for real mainnet.
-    ///      Currently unused; kept as a placeholder for future runReal-style entrypoint.
+    /// @dev Secrets / env-driven values for future real-mainnet wiring.
+    ///      Currently unused; kept as a placeholder.
     struct Secrets {
-        uint256 deployerKey;     // e.g. vm.envUint("VOID_MAINNET_DEPLOYER_KEY")
-        // Future extension:
-        //   address premineOwner;   // cold premine owner address
-        //   address masterKey;      // AdminGate master key
-        //   uint256 validatorAdminKey;
-        //   uint256 treasuryAdminKey;
-        //   uint256 opsTreasuryAdminKey;
-        //   uint256 rewardEngineOwnerKey;
+        uint256 deployerKey; // e.g. vm.envUint("VOID_MAINNET_DEPLOYER_KEY");
+        // Future:
+        // uint256 validatorAdminKey;
+        // uint256 treasuryAdminKey;
+        // uint256 opsTreasuryAdminKey;
+        // uint256 rewardEngineOwnerKey;
     }
 
     /// @dev For the skeleton "real" wiring, we mirror the dev script structure.
+    ///      This is documentation only; we DO NOT call this in run().
     struct Deployed {
         VoidToken token;
         VoidEmissionsController emissions;
@@ -198,289 +195,125 @@ contract VoidMainnetBootstrapMainnet is Script {
 
         console2.log("Step 0: Confirm we are on the correct chain.");
         console2.log("  - runtime chainId :", block.chainid);
-        console2.log("  - config  chainId :", cfg.chainId);
-        console2.log("  - deployer        :", cfg.roles.deployer);
+        console2.log("  - cfg.chainId     :", cfg.chainId);
 
-        console2.log("Step 1: Deploy core token + treasury contracts (from deployer).");
-        console2.log("  - Deploy VoidToken with a premine owner key kept in cold storage.");
-        console2.log("  - Deploy OpsTreasury, admin       :", cfg.roles.opsTreasuryAdmin);
-        console2.log("  - Deploy VoidTreasury, admin      :", cfg.roles.treasuryAdmin);
-        console2.log("  - Plan: move the entire premine into VoidTreasury and leave zero balance on the premine key.");
+        console2.log("Step 1: Roles + keys sanity (keys pillar).");
+        console2.log("  - roles mapping has already been checked off-chain by the keys pillar.");
+        console2.log("  - this script just echoes the roles to match what Prom / voidkey expect.");
 
-        console2.log("Step 2: Deploy governance gates.");
-        console2.log("  - Deploy AdminGate with master key (hardware/LUKS key, not from this JSON).");
-        console2.log("  - AdminGate owner            :", cfg.roles.adminGateOwner);
-        console2.log("  - UpdateGate owner           :", cfg.roles.updateGateOwner);
-        console2.log("  - Deploy ConfigGate, owner   :", cfg.roles.configGateOwner);
-        console2.log("  - ConfigGate.adminGate wired to AdminGate.");
+        console2.log("Step 2: Gate ownership wiring (AdminGate/UpdateGate/ConfigGate).");
+        console2.log("  - AdminGate.owner    ->", cfg.roles.adminGateOwner);
+        console2.log("  - UpdateGate.owner   ->", cfg.roles.updateGateOwner);
+        console2.log("  - ConfigGate.owner   ->", cfg.roles.configGateOwner);
 
-        console2.log("Step 3: Deploy validator + emissions + rewards stack.");
-        console2.log("  - Deploy ValidatorSet, owner :", cfg.roles.validatorSetOwner);
-        console2.log("  - Deploy emissions controller (VoidEmissionsController).");
-        console2.log("  - Deploy RewardEngine, owner :", cfg.roles.rewardEngineOwner);
-        console2.log("  - RewardEngine wired to:");
-        console2.log("      * IVoidTokenLike(VoidToken)");
-        console2.log("      * IValidatorSetLike(ValidatorSet)");
-        console2.log("      * Emissions controller budget (via RewardEngine/Emissions wiring).");
+        console2.log("Step 3: Treasury layout.");
+        console2.log("  - PremineVault       ->", cfg.contracts.premineVault);
+        console2.log("  - VoidTreasury       ->", cfg.contracts.voidTreasury);
+        console2.log("  - OpsTreasury        ->", cfg.contracts.opsTreasury);
+        console2.log("  - Treasury admin     ->", cfg.roles.treasuryAdmin);
+        console2.log("  - OpsTreasury admin  ->", cfg.roles.opsTreasuryAdmin);
 
-        console2.log("Step 4: Register validator0 as the genesis validator.");
-        console2.log("  - validator0.reward address   :", cfg.validator0.reward);
-        console2.log("  - validator0.consensusKey     :");
+        console2.log("Step 4: RewardEngine + emissions wiring.");
+        console2.log("  - RewardEngine       ->", cfg.contracts.rewardEngine);
+        console2.log("  - RewardEngine owner ->", cfg.roles.rewardEngineOwner);
+        console2.log("  - In real wiring, RewardEngine pulls from OpsTreasury and pays validators.");
+
+        console2.log("Step 5: ValidatorSet mainnet.");
+        console2.log("  - ValidatorSet       ->", cfg.contracts.validatorSet);
+        console2.log("  - validatorSetOwner  ->", cfg.roles.validatorSetOwner);
+        console2.log("  - validator0.reward  ->", cfg.validator0.reward);
+        console2.log("  - validator0.stakeVOID (raw 18-dec) :", cfg.validator0.stakeVOID);
+        console2.log("  - validator0.consensusKey:");
         console2.logBytes32(cfg.validator0.consensusKey);
-        console2.log("  - validator0.stakeVOID (raw)  :", cfg.validator0.stakeVOID);
-        console2.log("  - Plan: call into ValidatorSet with validator0 data and lock its stake.");
 
-        console2.log("Step 5: Wire ownership and permissions.");
-        console2.log("  - Transfer ownership of VoidTreasury to treasuryOwner      :", cfg.roles.treasuryOwner);
-        console2.log("  - Transfer ownership of OpsTreasury to opsTreasuryOwner    :", cfg.roles.opsTreasuryOwner);
-        console2.log("  - Ensure AdminGate/ConfigGate/ValidatorSet/RewardEngine/Treasury");
-        console2.log("    all have their owners/admins aligned with the roles in this config.");
+        console2.log("Step 6: WorkCredits / econ layer (separate scripts).");
+        console2.log("  - WorkCredits contracts are planned by VoidWorkCreditsMainnetPlan and friends.");
+        console2.log("  - This script just ensures mainnet core + RewardEngine + validator econ are sane.");
 
-        console2.log("Step 6: Update plan file with deployed contract addresses.");
-        console2.log("  - After a real broadcast, write:");
-        console2.log("      contracts.updateGate");
-        console2.log("      contracts.adminGate");
-        console2.log("      contracts.configGate");
-        console2.log("      contracts.validatorSet");
-        console2.log("      contracts.voidToken");
-        console2.log("      contracts.voidTreasury");
-        console2.log("      contracts.opsTreasury");
-        console2.log("      contracts.rewardEngine");
-        console2.log("      contracts.premineVault");
-        console2.log("      contracts.treasury");
-        console2.log("  - Plan: keep this JSON as the public wiring manifest (no secrets).");
+        console2.log("Step 7: Final gate posture.");
+        console2.log("  - After real bootstrap, control paths are via AdminGate/UpdateGate/ConfigGate.");
+        console2.log("  - Premine key is retired; Treasury/OpsTreasury/RewardEngine/ValidatorSet are governed");
+        console2.log("    via the mapped roles (treasuryAdmin, opsTreasuryAdmin, validatorAdmin, etc.).");
     }
 
-    function _checkCoreInvariants(ConfigView memory cfg) internal view {
-        if (cfg.chainId == 0) {
-            revert("VoidMainnetBootstrapMainnet: cfg.chainId is zero");
-        }
+    /// @dev Skeleton of what the REAL mainnet run() would do, using typed contracts.
+    ///      This is **documentation only** and NEVER called from run().
+    function _describeRealWiringSkeleton(ConfigView memory cfg) internal view {
+        console2.log("=== [REAL wiring skeleton (documentation only)] ===");
 
-        if (cfg.chainId != block.chainid) {
-            console2.log("FATAL: chainId mismatch.");
-            console2.log("  runtime chainId =", block.chainid);
-            console2.log("  config  chainId =", cfg.chainId);
-            revert("VoidMainnetBootstrapMainnet: chainId mismatch");
-        }
+        Deployed memory d;
+        d.token       = VoidToken(cfg.contracts.voidToken);
+        d.adminGate   = AdminGate(cfg.contracts.adminGate);
+        d.configGate  = ConfigGate(cfg.contracts.configGate);
+        d.validatorSet = ValidatorSet(cfg.contracts.validatorSet);
+        d.opsTreasury = OpsTreasury(cfg.contracts.opsTreasury);
+        d.voidTreasury = VoidTreasury(cfg.contracts.voidTreasury);
+        d.rewardEngine = RewardEngine(cfg.contracts.rewardEngine);
+        // d.emissions could be wired later once the final address is in the live JSON.
 
-        // Roles: all MUST be non-zero.
-        address[11] memory addrs = [
-            cfg.roles.deployer,
-            cfg.roles.treasuryAdmin,
-            cfg.roles.opsTreasuryAdmin,
-            cfg.roles.validatorAdmin,
-            cfg.roles.adminGateOwner,
-            cfg.roles.updateGateOwner,
-            cfg.roles.configGateOwner,
-            cfg.roles.treasuryOwner,
-            cfg.roles.opsTreasuryOwner,
-            cfg.roles.rewardEngineOwner,
-            cfg.roles.validatorSetOwner
-        ];
-
-        for (uint256 i = 0; i < addrs.length; i++) {
-            if (addrs[i] == address(0)) {
-                revert("VoidMainnetBootstrapMainnet: zero address in roles");
-            }
-        }
-
-        // validator0.consensusKey must be non-zero.
-        if (cfg.validator0.consensusKey == bytes32(0)) {
-            revert("VoidMainnetBootstrapMainnet: validator0.consensusKey is zero");
-        }
-
-        // validator0.reward may be zero (not yet chosen) -> warn only.
-        if (cfg.validator0.reward == address(0)) {
-            console2.log("WARN: validator0.reward is zero; choose a reward address before real mainnet bootstrap.");
-        }
-
-        // But stake must be non-zero: otherwise no initial validator stake.
-        if (cfg.validator0.stakeVOID == 0) {
-            revert("VoidMainnetBootstrapMainnet: validator0.stakeVOID is zero");
-        }
+        console2.log("This is NOT executed today. It is a typed sketch for future wiring:");
+        console2.log("  - Step A: Ensure premine is parked in a premine vault / treasury contract.");
+        console2.log("  - Step B: Move operational slice into OpsTreasury (for RewardEngine).");
+        console2.log("  - Step C: Configure RewardEngine with:");
+        console2.log("      * VoidToken interface (IVoidTokenLike)");
+        console2.log("      * OpsTreasury funding source");
+        console2.log("      * ValidatorSet mainnet handle");
+        console2.log("  - Step D: Configure ValidatorSet with validator0 + RewardEngine linkage.");
+        console2.log("  - Step E: Lock AdminGate/UpdateGate/ConfigGate owners to the on-disk roles.");
     }
 
-    /// @notice PLAN-only entrypoint. Reads config, checks invariants, and logs plan.
-    ///         No broadcast, no state changes.
-    function plan(string memory configPath) public view {
-        console2.log("=== [VoidMainnetBootstrapMainnet.plan] BEGIN ===");
-        console2.log("  configPath =", configPath);
+    /// @dev Shared PLAN implementation used by both plan() and run().
+    function _plan(ConfigView memory cfg, string memory configPath) internal view {
+        console2.log("=== [VOID mainnet bootstrap PLAN (MAINNET)] ===");
+        console2.log("configPath:", configPath);
 
-        ConfigView memory cfg = loadConfigView(configPath);
+        // Minimal invariants that are already true in your setup.
+        if (cfg.chainId != VOID_CHAIN_ID) {
+            console2.log("FATAL: cfg.chainId does not match VOID_CHAIN_ID.");
+            revert("CFG_CHAIN_ID_MISMATCH");
+        }
 
-        console2.log("=== [config] core ===");
-        console2.log("  cfg.chainId =", cfg.chainId);
+        if (block.chainid != VOID_CHAIN_ID) {
+            console2.log("FATAL: runtime chainId does not match VOID_CHAIN_ID.");
+            revert("RUNTIME_CHAIN_ID_MISMATCH");
+        }
 
-        _checkCoreInvariants(cfg);
         _logRoles(cfg);
         _logContracts(cfg);
         _logValidator0(cfg);
         _logPlanNarrative(cfg);
 
-        console2.log("=== [VoidMainnetBootstrapMainnet.plan] END ===");
+        // Also echo the typed wiring skeleton for humans (and future AI) to read.
+        _describeRealWiringSkeleton(cfg);
+
+        console2.log("=== [PLAN summary] ===");
+        console2.log("  - Keys pillar       : handled by ops/void-mainnet-keys-*.sh");
+        console2.log("  - PLAN pillar       : handled by PLAN exporter + Prom rules.");
+        console2.log("  - This script       : confirms chainId + echoes roles/contracts/validator0.");
+        console2.log("  - run(configPath)   : STILL STUB-ONLY and will revert with RUN_STUB_ONLY.");
     }
 
-    /// @notice Safety-fused run(): for now, this just calls plan() and always reverts.
-    ///         This is what all current shells/scripts expect (RUN_STUB_ONLY).
-    function run(string memory configPath) external {
-        plan(configPath);
-        revert("VoidMainnetBootstrapMainnet: RUN_STUB_ONLY");
-    }
-
-    /// @dev Skeleton of the real mainnet bootstrap wiring using actual contract
-    ///      types and the dev bootstrap pattern. This function is NEVER called
-    ///      and does NOT broadcast. It exists purely as a strongly-typed,
-    ///      compiler-checked blueprint of what the real mainnet run will do.
-    ///
-    ///      When we are ready for a true mainnet bootstrap:
-    ///        - We will add a new external `runReal(string)` that:
-    ///             * loads Secrets from env / LUKS / hardware,
-    ///             * calls vm.startBroadcast(secrets.deployerKey),
-    ///             * calls this helper,
-    ///             * vm.stopBroadcast(),
-    ///             * and is gated behind our Prometheus pillars.
-    ///        - Until then, this remains dead code.
-    function _runPlanRealSkeleton(string memory configPath, Secrets memory /*secrets*/) internal view returns (Deployed memory d) {
+    /// @notice PLAN-only entrypoint (no broadcast).
+    function plan(string memory configPath) external {
         ConfigView memory cfg = loadConfigView(configPath);
-        _checkCoreInvariants(cfg);
+        _plan(cfg, configPath);
+    }
 
-        console2.log("=== [REAL PLAN] VOID mainnet bootstrap wiring skeleton ===");
-        console2.log("  chainId         :", cfg.chainId);
-        console2.log("  deployer        :", cfg.roles.deployer);
-        console2.log("  treasuryAdmin   :", cfg.roles.treasuryAdmin);
-        console2.log("  opsTreasuryAdmin:", cfg.roles.opsTreasuryAdmin);
-        console2.log("  validatorAdmin  :", cfg.roles.validatorAdmin);
+    /// @notice RUN entrypoint (MAINNET).
+    ///
+    /// For now, this is intentionally **stub-only**:
+    ///   - It calls the same PLAN logic as plan().
+    ///   - It ALWAYS reverts with "RUN_STUB_ONLY".
+    ///
+    /// The pre-push / health scripts expect this revert reason. Do not change it
+    /// until we introduce a new, explicitly opt-in broadcast path.
+    function run(string memory configPath) external {
+        ConfigView memory cfg = loadConfigView(configPath);
 
-        console2.log("NOTE: This is a skeleton only. It is NOT called and does NOT");
-        console2.log("      broadcast. It documents the real wiring using concrete");
-        console2.log("      contract types so we cannot drift from the dev bootstrap.");
+        console2.log("=== [VOID mainnet bootstrap RUN (MAINNET) - STUB-ONLY] ===");
+        _plan(cfg, configPath);
+        console2.log("=== [RUN stub complete] About to revert with RUN_STUB_ONLY ===");
 
-        // ---------------------------------------------------------------------
-        // Step 1: Deploy VoidToken and treasuries (skeleton)
-        // ---------------------------------------------------------------------
-        //
-        // On real mainnet, the VoidToken premine owner will be a cold-storage
-        // address not present in this JSON. Here we simply show the pattern.
-        //
-        // PSEUDO:
-        //
-        //   address premineOwner = <cold-storage address>;
-        //   d.token = new VoidToken(premineOwner);
-        //   uint256 premine = d.token.PREMINE();
-        //
-        //   d.opsTreasury = new OpsTreasury(
-        //       IVoidTokenLike(address(d.token)),
-        //       cfg.roles.opsTreasuryAdmin
-        //   );
-        //
-        //   d.voidTreasury = new VoidTreasury(
-        //       IVoidTokenLike(address(d.token)),
-        //       address(d.opsTreasury),
-        //       cfg.roles.treasuryAdmin
-        //   );
-        //
-        //   // Move entire premine into VoidTreasury; premineOwner ends at 0.
-        //   bool ok = d.token.transfer(address(d.voidTreasury), premine);
-        //   require(ok, "premine transfer failed");
-        //
-        // In this skeleton we do NOT execute the above; we just log the intent.
-        console2.log("Step 1 (skeleton):");
-        console2.log("  - new VoidToken(<premineOwner>)");
-        console2.log("  - new OpsTreasury(IVoidTokenLike(token), opsTreasuryAdmin)");
-        console2.log("  - new VoidTreasury(IVoidTokenLike(token), opsTreasury, treasuryAdmin)");
-        console2.log("  - transfer premine -> VoidTreasury, zero premineOwner balance");
-
-        // ---------------------------------------------------------------------
-        // Step 2: Deploy AdminGate + ConfigGate (skeleton)
-        // ---------------------------------------------------------------------
-        //
-        // PSEUDO:
-        //
-        //   AdminGate adminGate = new AdminGate(
-        //       VOID_CHAIN_ID,
-        //       <masterKey>,        // from LUKS / hardware
-        //       address(0)          // UpdateGate to be wired later
-        //   );
-        //
-        //   ConfigGate configGate = new ConfigGate(
-        //       VOID_CHAIN_ID,
-        //       address(adminGate)
-        //   );
-        //
-        console2.log("Step 2 (skeleton):");
-        console2.log("  - new AdminGate(VOID_CHAIN_ID, <masterKey>, address(0))");
-        console2.log("  - new ConfigGate(VOID_CHAIN_ID, adminGate)");
-
-        // ---------------------------------------------------------------------
-        // Step 3: Deploy ValidatorSet + Emissions + RewardEngine (skeleton)
-        // ---------------------------------------------------------------------
-        //
-        // PSEUDO:
-        //
-        //   ValidatorSet validatorSet = new ValidatorSet(cfg.roles.validatorAdmin);
-        //
-        //   VoidEmissionsController emissions =
-        //       new VoidEmissionsController(cfg.roles.validatorAdmin /* or emissionsAdmin */);
-        //
-        //   RewardEngine rewardEngine = new RewardEngine(
-        //       IVoidTokenLike(address(token)),
-        //       IValidatorSetLike(address(validatorSet)),
-        //       cfg.roles.rewardEngineOwner
-        //   );
-        //
-        console2.log("Step 3 (skeleton):");
-        console2.log("  - new ValidatorSet(validatorAdmin)");
-        console2.log("  - new VoidEmissionsController(<emissionsAdmin>)");
-        console2.log("  - new RewardEngine(IVoidTokenLike(token), IValidatorSetLike(validatorSet), rewardEngineOwner)");
-
-        // ---------------------------------------------------------------------
-        // Step 4: Register validator0 (skeleton)
-        // ---------------------------------------------------------------------
-        //
-        // PSEUDO:
-        //
-        //   // Move stake from VoidTreasury into the staking flow.
-        //   // Exact calls depend on final Treasury/RewardEngine API.
-        //   // Then:
-        //   // validatorSet.registerGenesisValidator(
-        //   //     cfg.validator0.reward,
-        //   //     cfg.validator0.consensusKey,
-        //   //     cfg.validator0.stakeVOID
-        //   // );
-        //
-        console2.log("Step 4 (skeleton):");
-        console2.log("  - move stake from VoidTreasury into validator0");
-        console2.log("  - validatorSet.registerGenesisValidator(reward, consensusKey, stakeVOID)");
-
-        // ---------------------------------------------------------------------
-        // Step 5: Ownership and permissions (skeleton)
-        // ---------------------------------------------------------------------
-        //
-        // PSEUDO:
-        //
-        //   voidTreasury.transferOwnership(cfg.roles.treasuryOwner);
-        //   opsTreasury.transferOwnership(cfg.roles.opsTreasuryOwner);
-        //   rewardEngine.transferOwnership(cfg.roles.rewardEngineOwner);
-        //   validatorSet.transferOwnership(cfg.roles.validatorSetOwner);
-        //   adminGate.transferOwnership(cfg.roles.adminGateOwner);
-        //   // updateGate/configGate wiring and ownership as needed.
-        //
-        console2.log("Step 5 (skeleton):");
-        console2.log("  - transferOwnership(VoidTreasury -> treasuryOwner)");
-        console2.log("  - transferOwnership(OpsTreasury  -> opsTreasuryOwner)");
-        console2.log("  - transferOwnership(RewardEngine -> rewardEngineOwner)");
-        console2.log("  - transferOwnership(ValidatorSet -> validatorSetOwner)");
-        console2.log("  - transferOwnership(AdminGate   -> adminGateOwner)");
-        console2.log("  - wire UpdateGate/ConfigGate as per final design");
-
-        // ---------------------------------------------------------------------
-        // Step 6: Update plan JSON with deployed addresses (off-chain)
-        // ---------------------------------------------------------------------
-        console2.log("Step 6 (skeleton):");
-        console2.log("  - update config JSON .contracts.* with deployed addresses");
-        console2.log("  - re-run PLAN + Prometheus hammers to confirm wiring");
-
-        // No actual state changes in this skeleton.
-        return d;
+        revert("RUN_STUB_ONLY");
     }
 }
