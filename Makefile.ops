@@ -292,3 +292,6 @@ workcredits-devnet-health-all:
 mainnet-rewardengine-workcredits-health:
 	./ops/void-mainnet-rewardengine-workcredits-health-all.sh
 
+workcredits-rewardengine-health:
+	./ops/void-workcredits-rewardengine-health-all.sh
+
