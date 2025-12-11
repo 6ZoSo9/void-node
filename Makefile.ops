@@ -289,3 +289,6 @@ workcredits-devnet-plan:
 # WorkCredits devnet health + PLAN
 workcredits-devnet-health-all:
 	./ops/void-workcredits-devnet-health-all.sh
+mainnet-rewardengine-workcredits-health:
+	./ops/void-mainnet-rewardengine-workcredits-health-all.sh
+
