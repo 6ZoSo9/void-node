@@ -200,3 +200,21 @@ Until we lock actual percentages, this doc is the structural contract with Futur
 - Emissions caps are respected.
 - Monitoring tells us when we’ve screwed up.
 
+
+---
+
+## 7. Relationship to other WC earning paths
+
+This document is ONLY about the validator slice of WC.
+
+Other users can and should earn WC via:
+
+- Agent / AI job execution
+- Dataset / model contributions
+- NullFeed / app / infra activity
+- Future ecosystem programs
+
+See `docs/VOID-WORKCREDITS-EARNING-SURFACES-V1.md` for the global picture of
+who can earn WC and how.
+
+Validators are one faucet in a larger WC economy, not the only path.
