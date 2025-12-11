@@ -299,3 +299,15 @@ workcredits-rewardengine-health:
 devnet-rewardengine-health:
 	./ops/void-devnet-rewardengine-health-all.sh
 
+
+# Mainnet econ dashboard (RewardEngine + WorkCredits PLAN + pillars/validators)
+mainnet-econ-dashboard:
+	./ops/void-mainnet-econ-dashboard.sh
+
+# WorkCredits devnet dashboard (pool reserves + prices)
+workcredits-devnet-dashboard:
+	./ops/void-workcredits-devnet-dashboard.sh
+
+# WorkCredits devnet pool seed (one-time)
+workcredits-devnet-pool-seed:
+	./ops/void-workcredits-devnet-pool-seed.sh
