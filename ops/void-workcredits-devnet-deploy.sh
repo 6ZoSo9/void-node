@@ -1,129 +1,109 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$HOME/dev/void-node}"
-cd "$REPO_ROOT"
-
+ROOT="${ROOT:-$HOME/dev/void-node}"
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+STATE="${STATE:-$ROOT/docs/VOID-DEVNET-PROTOCOL-STATE.json}"
+KEY_FILE="${KEY_FILE:-$ROOT/.secrets/devnet-deployer.key}"
 
-echo "=== [wc-devnet-deploy] repo ==="
-pwd
+cd "$ROOT"
+
+echo "=== [VOID WorkCredits DEVNET deploy] ==="
+echo "[cfg] ROOT     = $ROOT"
+echo "[cfg] RPC_URL  = $RPC_URL"
+echo "[cfg] STATE    = $STATE"
+echo "[cfg] KEY_FILE = $KEY_FILE"
 echo
-echo "=== [wc-devnet-deploy] RPC_URL ==="
-echo "RPC_URL=${RPC_URL}"
 
-echo
-echo "=== [wc-devnet-deploy] locating devnet deployer key ==="
-KEY_FILE_DEFAULT="${REPO_ROOT}/.secrets/devnet-deployer.key"
-KEY_FILE_FALLBACK="${REPO_ROOT}/.secrets/devnet-caller.key"
+# --- tool sanity -------------------------------------------------------------
 
-KEY_FILE="${DEVNET_DEPLOYER_KEY_PATH:-$KEY_FILE_DEFAULT}"
+for bin in jq forge cast; do
+  if ! command -v "$bin" >/dev/null 2>&1; then
+    echo "[ERROR] missing required tool: $bin (add to PATH or install)" >&2
+    exit 1
+  fi
+done
 
-if [ ! -f "$KEY_FILE" ] && [ -f "$KEY_FILE_FALLBACK" ]; then
-  echo "[info] ${KEY_FILE} not found, falling back to ${KEY_FILE_FALLBACK}"
-  KEY_FILE="$KEY_FILE_FALLBACK"
+# --- file sanity -------------------------------------------------------------
+
+if [ ! -f "$STATE" ]; then
+  echo "[ERROR] state file not found: $STATE" >&2
+  exit 1
 fi
 
 if [ ! -f "$KEY_FILE" ]; then
-  echo "[FATAL] devnet deployer key file not found."
-  echo "  Tried:"
-  echo "    ${KEY_FILE_DEFAULT}"
-  echo "    ${KEY_FILE_FALLBACK}"
-  echo "  You can override with DEVNET_DEPLOYER_KEY_PATH=/path/to/key"
+  echo "[ERROR] devnet deployer key file not found: $KEY_FILE" >&2
+  echo "        expected a hex private key for DEVNET_DEPLOYER_KEY." >&2
   exit 1
 fi
 
 DEVNET_DEPLOYER_KEY="$(tr -d ' \n\r' < "$KEY_FILE")"
 if [ -z "$DEVNET_DEPLOYER_KEY" ]; then
-  echo "[FATAL] DEVNET_DEPLOYER_KEY is empty (file: ${KEY_FILE})"
+  echo "[ERROR] devnet deployer key file is empty: $KEY_FILE" >&2
   exit 1
 fi
 
-echo "[ok] using deployer key from: ${KEY_FILE}"
+export DEVNET_DEPLOYER_KEY
 
+echo "=== [1] forge script broadcast (WorkCreditsDevnetDeploy.run) ] ==="
+LOG="$(mktemp /tmp/void-wc-devnet-deploy.XXXXXX)"
+echo "[info] logging forge output to: $LOG"
 echo
-echo "=== [wc-devnet-deploy] running forge script (broadcast) ==="
-DEVNET_DEPLOYER_KEY="${DEVNET_DEPLOYER_KEY}" \
-forge script script/WorkCreditsDevnetDeploy.s.sol:WorkCreditsDevnetDeploy \
-  --rpc-url "${RPC_URL}" \
+
+forge script \
+  script/WorkCreditsDevnetDeploy.s.sol:WorkCreditsDevnetDeploy \
+  --rpc-url "$RPC_URL" \
   --broadcast \
-  -vvv
+  --slow \
+  2>&1 | tee "$LOG"
 
 echo
-echo "=== [wc-devnet-deploy] reading broadcast JSON ==="
-BROADCAST_DIR="broadcast/WorkCreditsDevnetDeploy.s.sol/2050"
-LATEST_JSON="${BROADCAST_DIR}/run-latest.json"
+echo "=== [2] parse addresses from script output] ==="
 
-if [ ! -f "${LATEST_JSON}" ]; then
-  echo "[FATAL] broadcast JSON not found at ${LATEST_JSON}"
-  exit 1
-fi
+CLEAN_LOG="$(mktemp /tmp/void-wc-devnet-deploy.clean.XXXXXX)"
+# strip ANSI color codes just in case
+sed -r 's/\x1B\[[0-9;]*[mK]//g' "$LOG" > "$CLEAN_LOG"
 
-echo "[info] using broadcast file: ${LATEST_JSON}"
+WC_ADDR="$(grep -E 'WorkCreditsToken:' "$CLEAN_LOG" | tail -n1 | awk '{print $2}')"
+POOL_ADDR="$(grep -E 'WorkCreditsPoolV1:' "$CLEAN_LOG" | tail -n1 | awk '{print $2}')"
+RELAYER_ADDR="$(grep -E 'WorkCreditsRelayerV1:' "$CLEAN_LOG" | tail -n1 | awk '{print $2}')"
 
-WC_TOKEN_ADDR="$(
-  jq -r '.transactions[] | select(.contractName=="WorkCreditsToken") | .contractAddress' "${LATEST_JSON}"
-)"
-WC_POOL_ADDR="$(
-  jq -r '.transactions[] | select(.contractName=="WorkCreditsPoolV1") | .contractAddress' "${LATEST_JSON}"
-)"
-WC_RELAYER_ADDR="$(
-  jq -r '.transactions[] | select(.contractName=="WorkCreditsRelayerV1") | .contractAddress' "${LATEST_JSON}"
-)"
+echo "  WorkCreditsToken     = ${WC_ADDR:-<missing>}"
+echo "  WorkCreditsPoolV1    = ${POOL_ADDR:-<missing>}"
+echo "  WorkCreditsRelayerV1 = ${RELAYER_ADDR:-<missing>}"
 
-if [ -z "${WC_TOKEN_ADDR}" ] || [ "${WC_TOKEN_ADDR}" = "null" ]; then
-  echo "[FATAL] WorkCreditsToken address not found in broadcast JSON"
-  exit 1
-fi
-if [ -z "${WC_POOL_ADDR}" ] || [ "${WC_POOL_ADDR}" = "null" ]; then
-  echo "[FATAL] WorkCreditsPoolV1 address not found in broadcast JSON"
-  exit 1
-fi
-if [ -z "${WC_RELAYER_ADDR}" ] || [ "${WC_RELAYER_ADDR}" = "null" ]; then
-  echo "[FATAL] WorkCreditsRelayerV1 address not found in broadcast JSON"
-  exit 1
-fi
+for name in WC_ADDR POOL_ADDR RELAYER_ADDR; do
+  val="${!name:-}"
+  if [ -z "$val" ] || ! [[ "$val" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+    echo "[ERROR] failed to parse $name from forge output (got: '$val')" >&2
+    echo "        inspect log: $LOG" >&2
+    exit 1
+  fi
+done
 
 echo
-echo "=== [wc-devnet-deploy] deployed addresses ==="
-echo "WorkCreditsToken      = ${WC_TOKEN_ADDR}"
-echo "WorkCreditsPoolV1     = ${WC_POOL_ADDR}"
-echo "WorkCreditsRelayerV1  = ${WC_RELAYER_ADDR}"
+echo "=== [3] backup + update devnet state JSON] ==="
+BACKUP="${STATE}.bak.$(date +%s)"
+cp "$STATE" "$BACKUP"
+echo "[info] backup written: $BACKUP"
 
-STATE_FILE="docs/VOID-DEVNET-PROTOCOL-STATE.json"
-
-if [ ! -f "${STATE_FILE}" ]; then
-  echo
-  echo "[warn] ${STATE_FILE} not found; printing JSON snippet to add manually:"
-  cat <<EOF
-
-{
-  "workCreditsToken":    "${WC_TOKEN_ADDR}",
-  "workCreditsPoolV1":   "${WC_POOL_ADDR}",
-  "workCreditsRelayerV1":"${WC_RELAYER_ADDR}"
-}
-
-EOF
-  echo "[warn] you can merge the above into ${STATE_FILE} when ready."
-  exit 0
-fi
-
-echo
-echo "=== [wc-devnet-deploy] updating ${STATE_FILE} ==="
-TMP="$(mktemp)"
-
+TMP="${STATE}.tmp.$$"
 jq \
-  --arg wcToken "${WC_TOKEN_ADDR}" \
-  --arg wcPool "${WC_POOL_ADDR}" \
-  --arg wcRelayer "${WC_RELAYER_ADDR}" \
-  '.workCreditsToken = $wcToken
-   | .workCreditsPoolV1 = $wcPool
-   | .workCreditsRelayerV1 = $wcRelayer' \
-  "${STATE_FILE}" > "${TMP}"
+  --arg wc "$WC_ADDR" \
+  --arg pool "$POOL_ADDR" \
+  --arg relayer "$RELAYER_ADDR" \
+  '.workCreditsToken     = $wc
+   | .workCreditsPoolV1  = $pool
+   | .workCreditsRelayerV1 = $relayer' \
+  "$STATE" > "$TMP"
 
-mv "${TMP}" "${STATE_FILE}"
-
-echo "[ok] updated ${STATE_FILE} with WorkCredits addresses"
-
+mv "$TMP" "$STATE"
+echo "[info] updated $STATE with new WorkCredits addresses"
 echo
-echo "=== [wc-devnet-deploy] done ==="
+echo "=== [4] summary] ==="
+echo "  workCreditsToken     -> $WC_ADDR"
+echo "  workCreditsPoolV1    -> $POOL_ADDR"
+echo "  workCreditsRelayerV1 -> $RELAYER_ADDR"
+echo
+echo "=== [done] VOID WorkCredits DEVNET deploy ==="
+echo "Next: ./ops/void-workcredits-devnet-onchain-diag.sh | sed -n '1,160p'"

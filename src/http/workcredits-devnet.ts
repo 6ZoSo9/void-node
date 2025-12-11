@@ -16,6 +16,8 @@ function readWorkcreditsDevnetState(): WorkCreditsDevnetState | null {
     const raw = fs.readFileSync(p, "utf8");
     const parsed = JSON.parse(raw);
 
+    // Normalize to simple strings; if something sneaks in like "123 [1e24]" we still store it,
+    // but computePrices() will sanitize before using it.
     return {
       chain: String(parsed.chain ?? "devnet"),
       rpc_url: String(parsed.rpc_url ?? ""),
@@ -29,13 +31,27 @@ function readWorkcreditsDevnetState(): WorkCreditsDevnetState | null {
   }
 }
 
+// Parse a BigInt-ish value from a string or number, tolerating human hints like "1000 [1e3]"
+function parseBigIntLike(raw: string | number | null | undefined): bigint {
+  try {
+    if (raw === null || raw === undefined) return 0n;
+    const s = String(raw);
+    // Grab the first run of digits, ignore everything else (spaces, brackets, etc.)
+    const m = s.match(/^\s*([0-9]+)/);
+    if (!m) return 0n;
+    return BigInt(m[1]);
+  } catch {
+    return 0n;
+  }
+}
+
 function computePrices(state: WorkCreditsDevnetState): {
   wcPerVoid: number;
   voidPerWc: number;
 } {
   try {
-    const voidRaw = BigInt(state.void_reserve_raw || "0");
-    const wcRaw = BigInt(state.wc_reserve_raw || "0");
+    const voidRaw = parseBigIntLike(state.void_reserve_raw);
+    const wcRaw = parseBigIntLike(state.wc_reserve_raw);
 
     if (voidRaw === 0n || wcRaw === 0n) {
       return { wcPerVoid: 0, voidPerWc: 0 };
@@ -133,8 +149,8 @@ function register(app: Application) {
       state.rpc_url || ""
     )}",pool_address="${escapeLabel(state.pool_address ?? "")}"}`;
 
-    const voidRaw = state.void_reserve_raw || "0";
-    const wcRaw = state.wc_reserve_raw || "0";
+    const voidRawStr = String(parseBigIntLike(state.void_reserve_raw));
+    const wcRawStr = String(parseBigIntLike(state.wc_reserve_raw));
 
     const wcPerVoid = Number.isFinite(prices.wcPerVoid) ? prices.wcPerVoid : 0;
     const voidPerWc = Number.isFinite(prices.voidPerWc) ? prices.voidPerWc : 0;
@@ -147,11 +163,11 @@ function register(app: Application) {
 
     chunks.push("# HELP void_workcredits_devnet_void_reserve_raw VOID reserve in pool (raw 18-dec units)");
     chunks.push("# TYPE void_workcredits_devnet_void_reserve_raw gauge");
-    chunks.push(`void_workcredits_devnet_void_reserve_raw${labels} ${voidRaw}`);
+    chunks.push(`void_workcredits_devnet_void_reserve_raw${labels} ${voidRawStr}`);
 
     chunks.push("# HELP void_workcredits_devnet_wc_reserve_raw WorkCredits reserve in pool (raw 18-dec units)");
     chunks.push("# TYPE void_workcredits_devnet_wc_reserve_raw gauge");
-    chunks.push(`void_workcredits_devnet_wc_reserve_raw${labels} ${wcRaw}`);
+    chunks.push(`void_workcredits_devnet_wc_reserve_raw${labels} ${wcRawStr}`);
 
     chunks.push("# HELP void_workcredits_devnet_wc_per_void WC per 1 VOID (price)");
     chunks.push("# TYPE void_workcredits_devnet_wc_per_void gauge");
