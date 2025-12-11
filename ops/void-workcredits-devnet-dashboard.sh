@@ -70,14 +70,17 @@ if [ "${META_COUNT:-0}" -eq 0 ]; then
 else
   echo "[info] found $META_COUNT meta series:"
   echo
-  echo "$META_JSON" | jq -r '
+
+  echo "$META_JSON" | jq '
     .data.result[]
-    | "  job=\(.metric.job // \"n/a\") " +
-      "instance=\(.metric.instance // \"n/a\") " +
-      "mode=\(.metric.mode // \"n/a\") " +
-      "lp_pool=\(.metric.lp_pool // \"n/a\") " +
-      "rpc_url=\(.metric.rpc_url // \"n/a\") " +
-      "value=\(.value[1])"
+    | {
+        job:      (.metric.job      // "n/a"),
+        instance: (.metric.instance // "n/a"),
+        mode:     (.metric.mode     // "n/a"),
+        lp_pool:  (.metric.lp_pool  // "n/a"),
+        rpc_url:  (.metric.rpc_url  // "n/a"),
+        value:    .value[1]
+      }
   '
 
   STUB_COUNT="$(echo "$META_JSON" | jq '[.data.result[] | select(.metric.mode == "stub-no-code")] | length')"
