@@ -26,9 +26,9 @@
     "deployedBlock": 5084,
     "chainId": 2050
   },
-  "workCreditsToken": "0xf49183759d2c6510b131f0d2ba584fff624fb8ec",
-  "workCreditsPoolV1": "0xf95864611c26d59da4a0534ec1dd3bd0ef6bae0a",
-  "workCreditsRelayerV1": "0xdab942e37d0d8da45eb19f31897dff7306914ab9",
+  "workCreditsToken": "0xF95864611C26D59DA4A0534ec1Dd3BD0EF6bae0a",
+  "workCreditsPoolV1": "0xdab942e37D0D8da45eB19f31897dff7306914Ab9",
+  "workCreditsRelayerV1": "0x2e62B62C17857ce3893E008ac712407Dad6e7C2d",
   "RewardEngine": {
     "address": "0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
   }
