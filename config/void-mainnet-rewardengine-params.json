@@ -7,7 +7,7 @@
   "weightFormula": "sqrt(stake) * uptime * performance",
   "weightComponents": {
     "stake": "sqrt(staked VOID)",
-    "uptime": "fraction of duties performed in epoch (0.0–1.0)",
+    "uptime": "fraction of duties performed in epoch (0.0-1.0)",
     "performance": "0 or 1 (slashed vs healthy) in v1"
   },
   "notes": [
