@@ -1,211 +1,184 @@
-import React, { useState } from "react";
-import { executeDevnetTransfer, TransferToken } from "./devnetTransferExecutor";
+import React, { useMemo, useState } from "react";
+import { isValidHexAddress, parsePositiveAmount } from "./validation";
+import * as TransferExec from "./devnetTransferExecutor";
 
-interface Props {
-  fromAddress?: string | null;
-  voidBalance?: number;
-  wcBalance?: number;
-  onAfterTransfer?: () => void;
+type AssetKind = "void" | "wc";
+
+interface WorkCreditsTransferWidgetProps {
+  fromAddress?: string;
 }
 
-export const WorkCreditsTransferWidget: React.FC<Props> = ({
+type TransferParams = {
+  asset: AssetKind;
+  to: string;
+  amountRaw: string;
+  fromOverride?: string;
+};
+
+async function callTransferExecutor(params: TransferParams): Promise<void> {
+  const m: any = TransferExec as any;
+  if (typeof m.executeDevnetTransfer === "function") {
+    return m.executeDevnetTransfer(params);
+  }
+  if (typeof m.execDevnetTransfer === "function") {
+    return m.execDevnetTransfer(params);
+  }
+  if (typeof m.default === "function") {
+    return m.default(params);
+  }
+  throw new Error("No compatible devnet transfer executor export found");
+}
+
+const WorkCreditsTransferWidget: React.FC<WorkCreditsTransferWidgetProps> = ({
   fromAddress,
-  voidBalance,
-  wcBalance,
-  onAfterTransfer,
 }) => {
-  const [token, setToken] = useState<TransferToken>("void");
+  const [asset, setAsset] = useState<AssetKind>("void");
   const [to, setTo] = useState<string>("");
   const [amount, setAmount] = useState<string>("0");
-  const [pending, setPending] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const normalizedFrom = (fromAddress ?? "").trim();
+  const from = useMemo(
+    () => (fromAddress || "").trim(),
+    [fromAddress]
+  );
 
-  const handleSubmit = async () => {
-    setError(null);
-    const amt = Number(amount);
+  const hasFrom = !from || isValidHexAddress(from);
+  const hasTo = isValidHexAddress(to);
+  const amountNum = parsePositiveAmount(amount);
+  const hasAmount = amountNum > 0;
 
-    if (!to.trim()) {
-      setError("Recipient address is required.");
-      return;
-    }
-    if (!to.startsWith("0x") || to.length !== 42) {
-      setError("Recipient must be a 0x... address.");
-      return;
-    }
-    if (!Number.isFinite(amt) || amt <= 0) {
-      setError("Enter a positive amount.");
-      return;
-    }
+  const canSend = hasFrom && hasTo && hasAmount && !busy;
 
-    if (token === "void" && voidBalance !== undefined) {
-      if (amt > voidBalance) {
-        setError("Amount exceeds your VOID balance.");
-        return;
-      }
-    }
-    if (token === "wc" && wcBalance !== undefined) {
-      if (amt > wcBalance) {
-        setError("Amount exceeds your WC balance.");
-        return;
-      }
-    }
-
-    const symbol = token === "void" ? "VOID" : "WC";
-
-    const confirmLines = [
-      `Send ${amt} ${symbol}`,
-      `From: ${normalizedFrom || "(current MetaMask account)"}`,
-      `To:   ${to}`,
-      "",
-      "This is a DEVNET-only transfer.",
-      "Continue?",
-    ];
-    const ok = window.confirm(confirmLines.join("\n"));
-    if (!ok) return;
+  const handleSend = async () => {
+    if (!canSend) return;
 
     try {
-      setPending(true);
-      await executeDevnetTransfer({ token, to, amount: amt });
-      if (onAfterTransfer) {
-        onAfterTransfer();
-      }
-      window.alert(
-        "Transfer submitted. Reload the dashboard to see updated balances."
-      );
-      setAmount("0");
-    } catch (err: any) {
-      console.error("executeDevnetTransfer failed", err);
-      setError(err?.message ?? "Transfer failed");
+      setBusy(true);
+      setError(null);
+
+      await callTransferExecutor({
+        asset,
+        to: to.trim(),
+        amountRaw: amount.trim(),
+        fromOverride: from || undefined,
+      });
+    } catch (e: any) {
+      console.error("[WorkCreditsTransferWidget] transfer failed", e);
+      setError(e?.message ?? "Transfer failed");
     } finally {
-      setPending(false);
+      setBusy(false);
     }
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-      <div style={{ fontSize: "0.8rem", color: "#9bb" }}>
-        From:{" "}
-        <span style={{ fontFamily: "monospace" }}>
-          {normalizedFrom || "(MetaMask active account)"}
-        </span>
+    <div className="wc-card wc-card-transfer">
+      <div className="wc-card-header">
+        <div className="wc-card-title">
+          SEND (VOID / WC) — DEVNET HELPER
+        </div>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
+      <div className="wc-card-body space-y-3">
+        <div className="wc-field">
+          <div className="wc-label">From</div>
+          <div className="wc-readonly-input">
+            {from && isValidHexAddress(from)
+              ? from
+              : "(current connected wallet)"}
+          </div>
+          <div className="wc-subtle">
+            This helper sends from your currently connected wallet, unless an
+            explicit fromAddress is provided.
+          </div>
+        </div>
+
+        <div className="wc-toggle-row">
+          <button
+            type="button"
+            className={
+              "wc-toggle" +
+              (asset === "void" ? " wc-toggle-active" : "") +
+              (busy ? " wc-toggle-disabled" : "")
+            }
+            onClick={() => !busy && setAsset("void")}
+            disabled={busy}
+          >
+            VOID
+          </button>
+          <button
+            type="button"
+            className={
+              "wc-toggle" +
+              (asset === "wc" ? " wc-toggle-active" : "") +
+              (busy ? " wc-toggle-disabled" : "")
+            }
+            onClick={() => !busy && setAsset("wc")}
+            disabled={busy}
+          >
+            WC
+          </button>
+        </div>
+
+        <div className="wc-field">
+          <div className="wc-label">To address</div>
+          <input
+            type="text"
+            value={to}
+            onChange={(e) => {
+              setTo(e.target.value);
+              setError(null);
+            }}
+            className="wc-input"
+            placeholder="0x recipient…"
+          />
+        </div>
+
+        <div className="wc-field">
+          <div className="wc-label">Amount</div>
+          <input
+            type="number"
+            min="0"
+            step="0.000000000000000001"
+            value={amount}
+            onChange={(e) => {
+              setAmount(e.target.value);
+              setError(null);
+            }}
+            className="wc-input"
+            placeholder="0.0"
+          />
+          <div className="wc-subtle">
+            UNIT: {asset === "void" ? "VOID" : "WC"} (18-decimal; devnet only).
+          </div>
+        </div>
+
         <button
           type="button"
-          onClick={() => setToken("void")}
-          style={{
-            padding: "0.25rem 0.6rem",
-            borderRadius: "999px",
-            border: "1px solid #555",
-            background: token === "void" ? "#1b2838" : "#050509",
-            color: "#e0f7ff",
-            fontSize: "0.8rem",
-            cursor: "pointer",
-          }}
+          className={
+            "wc-primary-btn wc-btn-full" +
+            (!canSend ? " wc-btn-disabled" : "") +
+            (busy ? " wc-btn-busy" : "")
+          }
+          onClick={handleSend}
+          disabled={!canSend}
         >
-          VOID
-          {voidBalance !== undefined && (
-            <span style={{ opacity: 0.8, marginLeft: 6 }}>
-              ({voidBalance.toFixed(3)})
-            </span>
-          )}
+          {busy ? "Sending…" : "Send (devnet helper)"}
         </button>
-        <button
-          type="button"
-          onClick={() => setToken("wc")}
-          style={{
-            padding: "0.25rem 0.6rem",
-            borderRadius: "999px",
-            border: "1px solid #555",
-            background: token === "wc" ? "#1b2838" : "#050509",
-            color: "#e0f7ff",
-            fontSize: "0.8rem",
-            cursor: "pointer",
-          }}
-        >
-          WC
-          {wcBalance !== undefined && (
-            <span style={{ opacity: 0.8, marginLeft: 6 }}>
-              ({wcBalance.toFixed(1)})
-            </span>
-          )}
-        </button>
+
+        <div className="wc-status-row">
+          <div className="wc-status-label">Preconditions</div>
+          <ul className="wc-status-list">
+            <li className={hasFrom ? "ok" : "bad"}>From address / wallet OK</li>
+            <li className={hasTo ? "ok" : "bad"}>Valid recipient address</li>
+            <li className={hasAmount ? "ok" : "bad"}>Positive amount</li>
+          </ul>
+        </div>
+
+        {error && <div className="wc-error">{error}</div>}
       </div>
-
-      <label style={{ fontSize: "0.8rem" }}>
-        To address
-        <input
-          type="text"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          placeholder="0x recipient..."
-          style={{
-            width: "100%",
-            marginTop: "0.2rem",
-            padding: "0.35rem 0.5rem",
-            borderRadius: "0.5rem",
-            border: "1px solid #444",
-            background: "#050509",
-            color: "#e0f7ff",
-            fontFamily: "monospace",
-            fontSize: "0.8rem",
-          }}
-        />
-      </label>
-
-      <label style={{ fontSize: "0.8rem" }}>
-        Amount
-        <input
-          type="number"
-          min="0"
-          step="0.0001"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          style={{
-            width: "100%",
-            marginTop: "0.2rem",
-            padding: "0.35rem 0.5rem",
-            borderRadius: "0.5rem",
-            border: "1px solid #444",
-            background: "#050509",
-            color: "#e0f7ff",
-            fontSize: "0.8rem",
-          }}
-        />
-      </label>
-
-      {error && (
-        <div style={{ color: "#ff8080", fontSize: "0.75rem" }}>{error}</div>
-      )}
-
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={pending}
-        style={{
-          marginTop: "0.25rem",
-          padding: "0.4rem 0.8rem",
-          borderRadius: "0.6rem",
-          border: "1px solid #66e",
-          background: pending ? "#111728" : "#191f3a",
-          color: "#e0f7ff",
-          fontSize: "0.85rem",
-          fontWeight: 600,
-          cursor: pending ? "default" : "pointer",
-        }}
-      >
-        {pending ? "Sending..." : "Send"}
-      </button>
     </div>
   );
 };
+
+export default WorkCreditsTransferWidget;
