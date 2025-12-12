@@ -156,3 +156,80 @@ Alert:
 
 - VoidMainnetWorkCreditsUnhealthy
     - Fires when void_mainnet_workcredits_health = 0 for >= 10 minutes.
+
+## WorkCredits devnet helper UI and health exporter
+
+### Helper HTTP/UI
+
+- Helper HTTP server: ops/void-workcredits-devnet-http.js
+- UI launcher script: ops/void-workcredits-devnet-ui-open.sh
+- When the launcher is running, the UI is available at:
+  - http://127.0.0.1:4312/workcredits/devnet/ui
+
+The UI shows:
+
+- VOID / WorkCredits devnet pool reserves and prices
+- Per-address dashboard data (balances, pending WC, pool share)
+- Raw JSON from the helper endpoint:
+  - /workcredits/devnet/dashboard/<address>.json
+
+Typical workflow:
+
+- Start the helper + UI:
+
+      cd $HOME/dev/void-node
+      ./ops/void-workcredits-devnet-ui-open.sh
+
+- Visit the UI in a browser:
+
+      http://127.0.0.1:4312/workcredits/devnet/ui
+
+### Node-exporter textfile helper exporter
+
+The helper exporter probes the UI/JSON endpoint and emits a simple health gauge
+for Prometheus via node_exporter textfile:
+
+- Script:
+
+      ops/void-workcredits-devnet-helper-exporter.sh
+
+- Output file:
+
+      /var/lib/node_exporter/textfile_collector/void_workcredits_devnet_helper.prom
+
+- Required environment variables:
+
+  - BASE: base URL of the helper (for example http://127.0.0.1:4312)
+  - ADDR: the devnet address to probe (for example 0x1111...1111)
+
+Example invocation (run as root):
+
+      sudo BASE="http://127.0.0.1:4312" \
+           ADDR="0x1111111111111111111111111111111111111111" \
+           /home/zoso/dev/void-node/ops/void-workcredits-devnet-helper-exporter.sh
+
+The exporter writes a metric like:
+
+- void_workcredits_devnet_helper_health{chain="devnet"}
+
+Semantics:
+
+- 1 = helper HTTP endpoint reachable and dashboard JSON load OK
+- 0 = probe failed (helper not running, HTTP error, or JSON parse failure)
+
+### Quick health checks
+
+From node_exporter directly:
+
+- Scrape node_exporter and grep for the helper metric:
+
+      curl -fsS "http://127.0.0.1:9100/metrics" \
+        | grep void_workcredits_devnet_helper_health || true
+
+From Prometheus:
+
+- Query the metric via the HTTP API:
+
+      curl -fsS "http://127.0.0.1:9090/api/v1/query?query=void_workcredits_devnet_helper_health" \
+        | jq '.data.result'
+
