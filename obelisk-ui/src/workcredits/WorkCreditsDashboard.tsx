@@ -1,18 +1,12 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useWorkCreditsDashboard } from "./useWorkCreditsDashboard";
-import type { WorkCreditsPool, WorkCreditsAccount } from "./devnetApi";
+import {
+  buildSwapExecutionPlan,
+  executeDevnetSwap,
+  SwapSide,
+} from "./devnetSwapExecutor";
 
 const DEMO_ADDRESS = "0x1111111111111111111111111111111111111111";
-
-function fmt(val: any): string {
-  if (val === undefined || val === null) return "—";
-  if (typeof val === "number") {
-    if (!Number.isFinite(val)) return String(val);
-    if (Math.abs(val) >= 1_000_000_000_000) return val.toExponential(2);
-    return val.toLocaleString();
-  }
-  return String(val);
-}
 
 function SectionCard(props: { title: string; children: React.ReactNode }) {
   return (
@@ -21,16 +15,16 @@ function SectionCard(props: { title: string; children: React.ReactNode }) {
         borderRadius: "0.75rem",
         border: "1px solid #333",
         padding: "1rem",
-        background: "#111",
-        boxShadow: "0 0 10px rgba(0,0,0,0.6)",
+        background: "#050509",
+        boxShadow: "0 0 12px rgba(0,0,0,0.7)",
       }}
     >
       <h2
         style={{
           margin: "0 0 0.75rem",
-          fontSize: "1rem",
+          fontSize: "0.9rem",
           textTransform: "uppercase",
-          letterSpacing: "0.12em",
+          letterSpacing: "0.16em",
           color: "#9ee6ff",
         }}
       >
@@ -41,11 +35,36 @@ function SectionCard(props: { title: string; children: React.ReactNode }) {
   );
 }
 
-interface Props {
-  initialAddress?: string;
+function formatNumber(n: number | null | undefined, decimals = 2): string {
+  if (n === null || n === undefined || !Number.isFinite(n)) return "—";
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }
 
-export const WorkCreditsDashboard: React.FC<Props> = ({ initialAddress }) => {
+function recomputeEstimate(
+  rawSend: string,
+  side: SwapSide,
+  prices: { wcPerVoid: number; voidPerWc: number },
+  setRecvEstimate: (value: string) => void
+) {
+  const send = Number(rawSend);
+  if (!Number.isFinite(send) || send <= 0) {
+    setRecvEstimate("");
+    return;
+  }
+
+  if (side === "buy_wc") {
+    const recv = send * (Number.isFinite(prices.wcPerVoid) ? prices.wcPerVoid : 0);
+    setRecvEstimate(recv.toString());
+  } else {
+    const recv = send * (Number.isFinite(prices.voidPerWc) ? prices.voidPerWc : 0);
+    setRecvEstimate(recv.toString());
+  }
+}
+
+export const WorkCreditsDashboard: React.FC = () => {
   const {
     address,
     setAddress,
@@ -54,369 +73,516 @@ export const WorkCreditsDashboard: React.FC<Props> = ({ initialAddress }) => {
     error,
     lastUpdated,
     load,
-  } = useWorkCreditsDashboard(initialAddress ?? "");
+  } = useWorkCreditsDashboard(DEMO_ADDRESS);
 
-  const pool: WorkCreditsPool | null = data?.pool ?? null;
-  const account: WorkCreditsAccount | null = data?.account ?? null;
+  const [side, setSide] = useState<SwapSide>("buy_wc");
+  const [sendValue, setSendValue] = useState<string>("100");
+  const [recvEstimate, setRecvEstimate] = useState<string>("9999");
 
-  // The helper JSON is nested like:
-  // pool.reserves.{void,wc,void_raw,wc_raw}
-  // pool.price.{wc_per_void,void_per_wc}
-  // account.balances.{void,wc,lp,...}
-  // account.pending.{wc,wc_raw,...}
-  const reserves = (pool as any)?.reserves ?? {};
-  const price = (pool as any)?.price ?? {};
-  const balances = (account as any)?.balances ?? {};
-  const pending = (account as any)?.pending ?? {};
-
-  const wcPerVoid = fmt(
-    price.wc_per_void ?? price.wcPerVoid ?? price["wc/void"]
-  );
-  const voidPerWc = fmt(
-    price.void_per_wc ?? price.voidPerWc ?? price["void/wc"]
-  );
-
-  const voidReserve = fmt(
-    reserves.void ?? reserves.void_human ?? reserves.void_raw
-  );
-  const wcReserve = fmt(reserves.wc ?? reserves.wc_human ?? reserves.wc_raw);
-
-  const voidBalance = fmt(
-    balances.void ?? balances.void_human ?? balances.void_raw
-  );
-  const wcBalance = fmt(balances.wc ?? balances.wc_human ?? balances.wc_raw);
-  const lpBalance = fmt(balances.lp ?? balances.lp_human ?? balances.lp_raw);
-
-  const pendingWc = fmt(
-    pending.wc ?? pending.wc_human ?? pending.wc_raw ?? pending.pending_wc
-  );
-
-  // For debugging: log whenever data changes
-  useEffect(() => {
-    if (data) {
-      // eslint-disable-next-line no-console
-      console.log("[WorkCreditsDashboard] loaded dashboard", data);
-    }
+  // Derive simple prices from pool JSON (fallbacks for safety).
+  const prices = useMemo(() => {
+    const p: any = (data as any)?.pool?.prices ?? {};
+    const wcPerVoid = Number(p.wc_per_void ?? 100);
+    const voidPerWc = Number(p.void_per_wc ?? 0.01);
+    return { wcPerVoid, voidPerWc };
   }, [data]);
 
-  const handleSubmit: React.FormEventHandler = (e) => {
-    e.preventDefault();
-    void load();
+  // On load / side change, recompute preview.
+  useEffect(() => {
+    recomputeEstimate(sendValue, side, prices, setRecvEstimate);
+  }, [side, prices.wcPerVoid, prices.voidPerWc]);
+
+  const handleAddressInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setAddress(e.target.value);
   };
 
-  const handleUseDemo = () => {
-    setAddress(DEMO_ADDRESS);
-    void load(DEMO_ADDRESS);
+  const handleLoadClick = () => {
+    load();
   };
+
+  const handleUseDemoClick = () => {
+    setAddress(DEMO_ADDRESS);
+    load(DEMO_ADDRESS);
+  };
+
+  const handleUseWalletClick = async () => {
+    try {
+      const w = window as any;
+      const ethereum = w.ethereum;
+      if (!ethereum) {
+        window.alert("No injected wallet found (MetaMask).");
+        return;
+      }
+      const accounts: string[] = await ethereum.request({
+        method: "eth_requestAccounts",
+      });
+      const acct = (accounts?.[0] ?? "").toString();
+      if (!acct) {
+        window.alert("No wallet account available.");
+        return;
+      }
+      setAddress(acct);
+      load(acct);
+    } catch (err: any) {
+      console.error("Use wallet failed", err);
+      window.alert(err?.message ?? "Failed to use wallet");
+    }
+  };
+
+  const handleSendChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setSendValue(v);
+    recomputeEstimate(v, side, prices, setRecvEstimate);
+  };
+
+  const handleSideChange = (next: SwapSide) => {
+    setSide(next);
+    recomputeEstimate(sendValue, next, prices, setRecvEstimate);
+  };
+
+  const handleSubmitTrade = async () => {
+    const send = Number(sendValue);
+    const recv = Number(recvEstimate);
+
+    if (!data) {
+      window.alert("Load a devnet dashboard first.");
+      return;
+    }
+    if (!Number.isFinite(send) || send <= 0) {
+      window.alert("Enter a valid send amount.");
+      return;
+    }
+    if (!Number.isFinite(recv) || recv <= 0) {
+      window.alert("Receive estimate is invalid.");
+      return;
+    }
+
+    let plan;
+    try {
+      plan = buildSwapExecutionPlan({
+        side,
+        from: "", // let executor use wallet address
+        sendAmount: send,
+        recvAmount: recv,
+        slippagePct: 0.5,
+      });
+    } catch (err: any) {
+      console.error("buildSwapExecutionPlan failed", err);
+      window.alert(err?.message ?? "Failed to build swap plan");
+      return;
+    }
+
+    (window as any).__void_workcredits_lastSwapPlan = plan;
+
+    const sideLabel =
+      side === "buy_wc" ? "BUY WC (send VOID)" : "SELL WC (receive VOID)";
+
+    const confirmText = [
+      `Side: ${sideLabel}`,
+      `From wallet: (current MetaMask account)`,
+      "",
+      `Send: ${plan.sendAmount} ${side === "buy_wc" ? "VOID" : "WC"}`,
+      `Recv est: ${plan.recvAmount} ${side === "buy_wc" ? "WC" : "VOID"}`,
+      `Min recv (with slippage): ${plan.minRecvAmount}`,
+      "",
+      "This is a DEVNET-only trade via the helper.",
+      "On mainnet we'll rewire this with real keys and contracts.",
+      "",
+      "Continue with this devnet swap?",
+    ].join("\n");
+
+    const ok = window.confirm(confirmText);
+    if (!ok) return;
+
+    try {
+      await executeDevnetSwap(plan);
+      window.alert(
+        "Swap submitted. After the tx confirms, click LOAD to refresh balances."
+      );
+    } catch (err: any) {
+      console.error("executeDevnetSwap failed", err);
+      window.alert(err?.message ?? "Swap failed");
+    }
+  };
+
+  // Pool + account mapping
+  const poolReserves =
+    (data as any)?.reserves ?? (data as any)?.pool?.reserves ?? {};
+
+  const voidReserve = Number(
+    poolReserves.void ??
+      poolReserves.void_decoded ??
+      poolReserves.VOID ??
+      poolReserves["void_reserve"] ??
+      0
+  );
+  const wcReserve = Number(
+    poolReserves.wc ??
+      poolReserves.wc_decoded ??
+      poolReserves.WC ??
+      poolReserves["wc_reserve"] ??
+      0
+  );
+
+  const accountInfo: any = (data as any)?.account ?? {};
+
+  const voidBalance = Number(
+    accountInfo.void ??
+      accountInfo.void_human ??
+      accountInfo.VOID ??
+      accountInfo["void_balance"] ??
+      0
+  );
+  const wcBalance = Number(
+    accountInfo.wc ??
+      accountInfo.wc_human ??
+      accountInfo.WC ??
+      accountInfo["wc_balance"] ??
+      0
+  );
+
+  const wcPerVoid = prices.wcPerVoid;
+  const voidPerWc = prices.voidPerWc;
 
   return (
     <div
       style={{
-        maxWidth: "1100px",
-        margin: "0 auto",
-        color: "#eee",
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
+        color: "#e0f7ff",
         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        background: "radial-gradient(circle at top, #101020 0, #020308 55%)",
+        minHeight: "100vh",
+        padding: "1.5rem",
       }}
     >
-      {/* Header */}
-      <header
+      {/* Top bar */}
+      <div
         style={{
-          marginBottom: "1.25rem",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          gap: "0.5rem",
-          flexWrap: "wrap",
+          marginBottom: "0.5rem",
         }}
       >
-        <div>
-          <div
-            style={{
-              fontSize: "0.75rem",
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "#9ee6ff",
-            }}
-          >
-            VOID / Obelisk
-          </div>
-          <div
-            style={{
-              fontSize: "0.75rem",
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "#7cf5c9",
-            }}
-          >
-            Devnet · WorkCredits
-          </div>
-          <div
-            style={{
-              marginTop: "0.25rem",
-              fontSize: "0.75rem",
-              color: "#888",
-            }}
-          >
-            Live WC/VOID pool + devnet account balances via helper on :4312
-          </div>
+        <div
+          style={{
+            fontSize: "0.85rem",
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            color: "#d5f3ff",
+          }}
+        >
+          VOID / OBELISK ·{" "}
+          <span style={{ color: "#7de9ff" }}>DEVNET · WORKCREDITS</span>
         </div>
         <div
           style={{
             fontSize: "0.75rem",
-            color: "#6dffb1",
+            color: "#ffc857",
             textTransform: "uppercase",
             letterSpacing: "0.12em",
           }}
         >
-          Helper Connected
+          Devnet · View-Only
         </div>
-      </header>
-
-      {/* Account bar */}
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "0.5rem",
-          marginBottom: "1rem",
-          alignItems: "center",
-        }}
-      >
-        <label
-          style={{
-            fontSize: "0.8rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.14em",
-            color: "#aaa",
-          }}
-        >
-          Account
-        </label>
-        <div style={{ flex: "1 1 auto", minWidth: "260px" }}>
-          <input
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder={DEMO_ADDRESS}
-            spellCheck={false}
-            style={{
-              width: "100%",
-              padding: "0.5rem 0.75rem",
-              borderRadius: "999px",
-              border: "1px solid #444",
-              background: "#050505",
-              color: "#eee",
-              fontFamily: "monospace",
-              fontSize: "0.85rem",
-            }}
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={loading || !address.trim()}
-          style={{
-            padding: "0.5rem 1.2rem",
-            borderRadius: "999px",
-            border: "1px solid #8b5cff",
-            background: loading ? "#24124b" : "#5a2bd9",
-            color: "#f6f0ff",
-            fontSize: "0.85rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-            cursor: loading || !address.trim() ? "default" : "pointer",
-            opacity: loading || !address.trim() ? 0.6 : 1,
-          }}
-        >
-          {loading ? "Loading..." : "Load"}
-        </button>
-        <button
-          type="button"
-          onClick={handleUseDemo}
-          disabled={loading}
-          style={{
-            padding: "0.5rem 1.2rem",
-            borderRadius: "999px",
-            border: "1px solid #666",
-            background: "#151515",
-            color: "#ddd",
-            fontSize: "0.8rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-            cursor: loading ? "default" : "pointer",
-            opacity: loading ? 0.6 : 1,
-          }}
-        >
-          Use demo
-        </button>
-      </form>
-
-      {/* Status line */}
-      <div
-        style={{
-          fontSize: "0.75rem",
-          color: "#999",
-          marginBottom: "1rem",
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "0.5rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <span>
-          Endpoint:{" "}
-          <code>
-            http://127.0.0.1:4312/workcredits/devnet/dashboard/&lt;address&gt;.json
-          </code>
-        </span>
-        {lastUpdated && (
-          <span>
-            Last updated:{" "}
-            {lastUpdated.toLocaleTimeString(undefined, { hour12: false })}
-          </span>
-        )}
       </div>
 
-      {error && (
+      {/* Account row */}
+      <SectionCard title="WorkCredits Devnet Dashboard">
         <div
           style={{
-            marginBottom: "1rem",
-            padding: "0.75rem 1rem",
-            borderRadius: "0.5rem",
-            border: "1px solid #a33",
-            background: "#220909",
-            color: "#ffb3b3",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "0.75rem",
+            alignItems: "center",
+            marginBottom: "0.75rem",
+          }}
+        >
+          <div style={{ fontSize: "0.75rem", color: "#aaa" }}>Account</div>
+          <input
+            style={{
+              flex: "1 1 260px",
+              minWidth: "260px",
+              padding: "0.45rem 0.6rem",
+              borderRadius: "999px",
+              border: "1px solid #444",
+              background: "#020308",
+              color: "#f0fbff",
+              fontSize: "0.8rem",
+            }}
+            value={address}
+            onChange={handleAddressInputChange}
+            placeholder="0x… address (devnet)"
+          />
+          <button
+            type="button"
+            style={{
+              padding: "0.4rem 0.8rem",
+              borderRadius: "999px",
+              border: "1px solid #444",
+              background: "#0b1723",
+              color: "#dff9ff",
+              fontSize: "0.75rem",
+            }}
+            onClick={handleUseDemoClick}
+          >
+            Use Demo
+          </button>
+          <button
+            type="button"
+            style={{
+              padding: "0.4rem 0.8rem",
+              borderRadius: "999px",
+              border: "1px solid #444",
+              background: "#071824",
+              color: "#9fffe0",
+              fontSize: "0.75rem",
+            }}
+            onClick={handleUseWalletClick}
+          >
+            Use Wallet
+          </button>
+          <button
+            type="button"
+            style={{
+              padding: "0.4rem 0.8rem",
+              borderRadius: "999px",
+              border: "1px solid #3aa3ff",
+              background: "#0b2235",
+              color: "#e7f6ff",
+              fontSize: "0.75rem",
+            }}
+            onClick={handleLoadClick}
+          >
+            Load
+          </button>
+        </div>
+
+        <div
+          style={{
+            fontSize: "0.75rem",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "0.75rem",
+            color: "#9cbdd0",
+          }}
+        >
+          {loading && <span>Loading devnet helper…</span>}
+          {error && (
+            <span style={{ color: "#ff9090" }}>
+              Error: {error}
+            </span>
+          )}
+          {lastUpdated && !loading && !error && (
+            <span>
+              Last updated:{" "}
+              {lastUpdated.toLocaleTimeString(undefined, {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </span>
+          )}
+        </div>
+      </SectionCard>
+
+      {/* Pool + prices */}
+      <SectionCard title="Pool Reserves & Price">
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "1.5rem",
             fontSize: "0.8rem",
           }}
         >
-          {error}
+          <div>
+            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>VOID reserve</div>
+            <div style={{ fontSize: "1rem" }}>
+              {formatNumber(voidReserve, 0)} <span style={{ opacity: 0.7 }}>VOID</span>
+            </div>
+          </div>
+          <div>
+            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>WC reserve</div>
+            <div style={{ fontSize: "1rem" }}>
+              {formatNumber(wcReserve, 0)} <span style={{ opacity: 0.7 }}>WC</span>
+            </div>
+          </div>
+          <div>
+            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>WC per 1 VOID</div>
+            <div style={{ fontSize: "1rem" }}>
+              {formatNumber(wcPerVoid, 4)}
+            </div>
+          </div>
+          <div>
+            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>VOID per 1 WC</div>
+            <div style={{ fontSize: "1rem" }}>
+              {formatNumber(voidPerWc, 6)}
+            </div>
+          </div>
         </div>
-      )}
+      </SectionCard>
 
-      {/* Main grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
-          gap: "1rem",
-          marginBottom: "1rem",
-        }}
-      >
-        {/* Pool & price */}
-        <SectionCard title="Pool & Price">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: "0.75rem",
-              fontSize: "0.85rem",
-            }}
-          >
-            <div>
-              <div style={{ color: "#aaa", marginBottom: "0.15rem" }}>
-                Price · WC per 1 VOID
-              </div>
-              <div style={{ fontFamily: "monospace" }}>{wcPerVoid}</div>
-            </div>
-            <div>
-              <div style={{ color: "#aaa", marginBottom: "0.15rem" }}>
-                Price · VOID per 1 WC
-              </div>
-              <div style={{ fontFamily: "monospace" }}>{voidPerWc}</div>
-            </div>
-            <div>
-              <div style={{ color: "#aaa", marginBottom: "0.15rem" }}>
-                VOID Reserve
-              </div>
-              <div style={{ fontFamily: "monospace" }}>{voidReserve}</div>
-            </div>
-            <div>
-              <div style={{ color: "#aaa", marginBottom: "0.15rem" }}>
-                WC Reserve
-              </div>
-              <div style={{ fontFamily: "monospace" }}>{wcReserve}</div>
-            </div>
-          </div>
-        </SectionCard>
-
-        {/* Account balances */}
-        <SectionCard title="Account Balances">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr)",
-              gap: "0.5rem",
-              fontSize: "0.85rem",
-            }}
-          >
-            <div>
-              <div style={{ color: "#aaa", marginBottom: "0.15rem" }}>
-                VOID
-              </div>
-              <div style={{ fontFamily: "monospace" }}>{voidBalance}</div>
-            </div>
-            <div>
-              <div style={{ color: "#aaa", marginBottom: "0.15rem" }}>
-                WorkCredits (WC)
-              </div>
-              <div style={{ fontFamily: "monospace" }}>{wcBalance}</div>
-            </div>
-            <div>
-              <div style={{ color: "#aaa", marginBottom: "0.15rem" }}>
-                LP Tokens
-              </div>
-              <div style={{ fontFamily: "monospace" }}>{lpBalance}</div>
-            </div>
-            <div>
-              <div style={{ color: "#aaa", marginBottom: "0.15rem" }}>
-                Pending WC (claimable)
-              </div>
-              <div style={{ fontFamily: "monospace" }}>{pendingWc}</div>
-            </div>
-
-            {/* Stub – wire to RewardEngine claim endpoint later */}
-            <button
-              type="button"
-              disabled={true}
-              style={{
-                marginTop: "0.5rem",
-                padding: "0.5rem 0.75rem",
-                borderRadius: "0.5rem",
-                border: "1px dashed #555",
-                background: "#151515",
-                color: "#777",
-                fontSize: "0.8rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-              }}
-              title="Wire this to RewardEngine / WorkCredits claim endpoint later"
-            >
-              Collect Pending WC (stub)
-            </button>
-          </div>
-        </SectionCard>
-      </div>
-
-      {/* Raw JSON */}
-      <SectionCard title="Raw Devnet Dashboard JSON">
-        <pre
+      {/* Wallet balances */}
+      <SectionCard title="Wallet Balances (View-Only, Devnet)">
+        <div
           style={{
-            margin: 0,
-            maxHeight: "260px",
-            overflow: "auto",
-            fontSize: "0.75rem",
-            background: "#050505",
-            borderRadius: "0.5rem",
-            padding: "0.75rem",
-            border: "1px solid #222",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "1.5rem",
+            fontSize: "0.8rem",
           }}
         >
-          {JSON.stringify(
-            data ?? { note: "Load a dashboard to see raw JSON here." },
-            null,
-            2
-          )}
-        </pre>
+          <div>
+            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>VOID balance</div>
+            <div style={{ fontSize: "1rem" }}>
+              {formatNumber(voidBalance, 4)}{" "}
+              <span style={{ opacity: 0.7 }}>VOID</span>
+            </div>
+          </div>
+          <div>
+            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>WC balance</div>
+            <div style={{ fontSize: "1rem" }}>
+              {formatNumber(wcBalance, 4)}{" "}
+              <span style={{ opacity: 0.7 }}>WC</span>
+            </div>
+          </div>
+        </div>
+        <p
+          style={{
+            marginTop: "0.75rem",
+            fontSize: "0.7rem",
+            color: "#9cbdd0",
+            maxWidth: "480px",
+          }}
+        >
+          This is a devnet-only view. The on-chain owner for the WorkCredits
+          pool is a separate dev key; this UI will not mint/faucet to your
+          wallet. For mainnet we will rotate to fresh keys and wire a real
+          funding/earn path.
+        </p>
+      </SectionCard>
+
+      {/* Trade widget (devnet) */}
+      <SectionCard title="Swap Preview (Devnet Helper)">
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.75rem",
+            fontSize: "0.8rem",
+          }}
+        >
+          <div
+            style={{
+              display: "inline-flex",
+              borderRadius: "999px",
+              border: "1px solid #444",
+              overflow: "hidden",
+              marginBottom: "0.5rem",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => handleSideChange("buy_wc")}
+              style={{
+                padding: "0.35rem 0.9rem",
+                fontSize: "0.75rem",
+                border: "none",
+                background:
+                  side === "buy_wc" ? "#0c304a" : "transparent",
+                color: side === "buy_wc" ? "#dff9ff" : "#9db1c0",
+              }}
+            >
+              Buy WC (send VOID)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSideChange("sell_wc")}
+              style={{
+                padding: "0.35rem 0.9rem",
+                fontSize: "0.75rem",
+                border: "none",
+                background:
+                  side === "sell_wc" ? "#0c304a" : "transparent",
+                color: side === "sell_wc" ? "#dff9ff" : "#9db1c0",
+              }}
+            >
+              Sell WC (receive VOID)
+            </button>
+          </div>
+
+          <label
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.25rem",
+            }}
+          >
+            <span style={{ opacity: 0.75 }}>
+              You send ({side === "buy_wc" ? "VOID" : "WC"})
+            </span>
+            <input
+              value={sendValue}
+              onChange={handleSendChange}
+              style={{
+                maxWidth: "220px",
+                padding: "0.4rem 0.6rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #444",
+                background: "#020308",
+                color: "#f0fbff",
+                fontSize: "0.8rem",
+              }}
+            />
+          </label>
+
+          <div>
+            <div style={{ opacity: 0.75, marginBottom: "0.15rem" }}>
+              You receive (estimate)
+            </div>
+            <div style={{ fontSize: "1rem" }}>
+              {recvEstimate ? recvEstimate : "—"}{" "}
+              <span style={{ opacity: 0.7 }}>
+                {side === "buy_wc" ? "WC" : "VOID"}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSubmitTrade}
+            style={{
+              marginTop: "0.5rem",
+              alignSelf: "flex-start",
+              padding: "0.45rem 1.1rem",
+              borderRadius: "999px",
+              border: "1px solid #3aa3ff",
+              background: "#0b2235",
+              color: "#e7f6ff",
+              fontSize: "0.8rem",
+            }}
+          >
+            Execute Devnet Swap (via Wallet)
+          </button>
+
+          <p
+            style={{
+              fontSize: "0.7rem",
+              color: "#9cbdd0",
+              maxWidth: "520px",
+              marginTop: "0.5rem",
+            }}
+          >
+            This uses the current MetaMask account and the WorkCredits devnet
+            pool. It is purely for testing pricing logic and UI; mainnet will
+            use a fresh key / contract set and a real earn/spend loop.
+          </p>
+        </div>
       </SectionCard>
     </div>
   );
