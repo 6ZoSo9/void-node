@@ -74,7 +74,6 @@ resolve_from_broadcast() {
   if [[ "$mode" == "token" ]]; then
     addr="$(jq -r '
       [
-        # transactions and receipts can both carry contractName/contractAddress
         (.transactions // [] | .[]),
         (.receipts     // [] | .[])
       ]
@@ -109,10 +108,9 @@ resolve_from_broadcast() {
   printf '%s\n' "${addr:-}"
 }
 
-# --- resolve WorkCreditsToken address ---
+# --- resolve WorkCreditsToken + pool addresses ---
 
 WC_ADDR="$(resolve_from_state "workCreditsToken")"
-
 SRC="state"
 if [[ -z "$WC_ADDR" || "$WC_ADDR" == "null" ]]; then
   WC_ADDR="$(resolve_from_broadcast "token")"
@@ -124,8 +122,6 @@ if [[ -z "$WC_ADDR" || "$WC_ADDR" == "null" ]]; then
   echo "[HINT] check $STATE_JSON and $BCAST_FILE for workCredits token address" >&2
   exit 1
 fi
-
-# --- resolve Pool address (optional meta) ---
 
 POOL_ADDR="$(resolve_from_state "workCreditsPoolV1")"
 POOL_SRC="state"
@@ -140,32 +136,82 @@ if [[ -z "$POOL_ADDR" || "$POOL_ADDR" == "null" ]]; then
   POOL_SRC="stub"
 fi
 
-echo "[info] WorkCreditsToken=$WC_ADDR (source=$SRC), Pool=$POOL_ADDR (source=$POOL_SRC)" >&2
+# --- resolve VoidToken address via pool (with fallback) ---
 
-# --- query balance ---
+VOID_ADDR=""
+if [[ "$POOL_ADDR" != "0x0000000000000000000000000000000000000000" ]]; then
+  VOID_ADDR="$(cast call --rpc-url "$RPC_URL" "$POOL_ADDR" \
+    "voidToken()(address)" 2>/dev/null || echo "")"
+fi
 
-WC_RAW="$(cast call --rpc-url "$RPC_URL" "$WC_ADDR" "balanceOf(address)(uint256)" "$ACCOUNT" 2>/dev/null || echo "0")"
+if [[ -z "$VOID_ADDR" || "$VOID_ADDR" == "null" || "$VOID_ADDR" == "0x0000000000000000000000000000000000000000" ]]; then
+  # very soft fallback: try to read some voidToken-ish field from state
+  if [[ -f "$STATE_JSON" ]]; then
+    VOID_ADDR="$(jq -r '
+      .voidTokenWorkCredits // .voidToken // .VoidToken // ""
+    ' "$STATE_JSON" 2>/dev/null || echo "")"
+  fi
+fi
 
-WC_HUMAN="$(python3 - <<PY
+echo "[info] WorkCreditsToken=$WC_ADDR (source=$SRC), Pool=$POOL_ADDR (source=$POOL_SRC), VoidToken=$VOID_ADDR" >&2
+
+# --- query balances ---
+
+WC_RAW="$(cast call --rpc-url "$RPC_URL" "$WC_ADDR" \
+  "balanceOf(address)(uint256)" "$ACCOUNT" 2>/dev/null || echo "0")"
+
+VOID_RAW="0"
+if [[ -n "$VOID_ADDR" && "$VOID_ADDR" != "0x0000000000000000000000000000000000000000" && "$VOID_ADDR" != "null" ]]; then
+  VOID_RAW="$(cast call --rpc-url "$RPC_URL" "$VOID_ADDR" \
+    "balanceOf(address)(uint256)" "$ACCOUNT" 2>/dev/null || echo "0")"
+fi
+
+LP_RAW="0"
+
+# --- scale to human (18-dec) ---
+
+WC_HUMAN="$(
+  WC_RAW="$WC_RAW" python3 - <<'PY'
+import os
 from decimal import Decimal, getcontext
 getcontext().prec = 40
 
-raw_str = "$WC_RAW".strip()
-if raw_str.startswith(("0x", "0X")):
+raw_str = os.environ.get("WC_RAW","").strip()
+raw_str = raw_str.split()[0]  # drop any debug suffix like "[1e23]"
+if not raw_str:
+    raw = Decimal(0)
+elif raw_str.startswith(("0x","0X")):
     raw = Decimal(int(raw_str, 16))
 else:
-    raw = Decimal(raw_str or "0")
+    raw = Decimal(raw_str)
 
 scale = Decimal(10) ** 18
-val = raw / scale
-val = val.normalize()
+val = (raw / scale).normalize()
 print(val)
 PY
 )"
 
-VOID_RAW="0"
-VOID_HUMAN="0.0"
-LP_RAW="0"
+VOID_HUMAN="$(
+  VOID_RAW="$VOID_RAW" python3 - <<'PY'
+import os
+from decimal import Decimal, getcontext
+getcontext().prec = 40
+
+raw_str = os.environ.get("VOID_RAW","").strip()
+raw_str = raw_str.split()[0]
+if not raw_str:
+    raw = Decimal(0)
+elif raw_str.startswith(("0x","0X")):
+    raw = Decimal(int(raw_str, 16))
+else:
+    raw = Decimal(raw_str)
+
+scale = Decimal(10) ** 18
+val = (raw / scale).normalize()
+print(val)
+PY
+)"
+
 LP_HUMAN="0.0"
 PENDING_WC_RAW="0"
 PENDING_WC_HUMAN="0.0"
@@ -192,6 +238,7 @@ cat <<JSON
   "meta": {
     "pool_address": "$POOL_ADDR",
     "workcredits_token": "$WC_ADDR",
+    "void_token": "$VOID_ADDR",
     "rpc_url": "$RPC_URL",
     "state_json": "$STATE_JSON",
     "broadcast_file": "$BCAST_FILE",
