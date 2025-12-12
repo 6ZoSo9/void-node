@@ -311,3 +311,7 @@ workcredits-devnet-dashboard:
 # WorkCredits devnet pool seed (one-time)
 workcredits-devnet-pool-seed:
 	./ops/void-workcredits-devnet-pool-seed.sh
+
+.PHONY: workcredits-devnet-health
+workcredits-devnet-health:
+	./ops/void-workcredits-devnet-health.sh

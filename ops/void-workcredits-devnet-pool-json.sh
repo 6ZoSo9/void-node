@@ -1,58 +1,65 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT="${ROOT:-$HOME/dev/void-node}"
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
 
-query_instant() {
-  local q="$1"
-  curl -fsS "${PROM_URL}/api/v1/query" \
-    --data-urlencode "query=${q}"
+q_val() {
+  local expr="$1"
+  curl -fsS "$PROM_URL/api/v1/query" \
+    --data-urlencode "query=$expr" \
+    | jq -r '.data.result[0].value[1] // empty'
 }
 
-extract_value() {
-  jq -r '.data.result[0].value[1] // empty'
-}
+echo "=== [cfg] workcredits-devnet pool JSON ===" 1>&2
+echo "  ROOT     = $ROOT" 1>&2
+echo "  PROM_URL = $PROM_URL" 1>&2
+echo 1>&2
 
-extract_ts() {
-  jq -r '.data.result[0].value[0] // empty'
-}
+UP="$(q_val 'void_workcredits_devnet_up{chain="devnet"}')"
+VOID_RAW="$(q_val 'void_workcredits_devnet_void_reserve_raw{chain="devnet"}')"
+WC_RAW="$(q_val 'void_workcredits_devnet_wc_reserve_raw{chain="devnet"}')"
+WC_PER_VOID="$(q_val 'void_workcredits_devnet_wc_per_void{chain="devnet"}')"
+VOID_PER_WC="$(q_val 'void_workcredits_devnet_void_per_wc{chain="devnet"}')"
 
-# Query our 5m-smoothed recording rules
-wc_per_void_json="$(query_instant 'void:workcredits_devnet:wc_per_void:last_5m')"
-void_res_json="$(query_instant 'void:workcredits_devnet:void_reserve_raw:last_5m')"
-wc_res_json="$(query_instant 'void:workcredits_devnet:wc_reserve_raw:last_5m')"
-liq_json="$(query_instant 'void:workcredits_devnet:pool_liquidity_2asset_raw:last_5m')"
+HEALTH="$(q_val 'void_workcredits_devnet_pool_health{chain="devnet"}')"
+HEALTH_5M="$(q_val 'void:workcredits_devnet_pool_health:last_5m{chain="devnet"}')"
 
-wc_per_void_val="$(printf '%s\n' "$wc_per_void_json" | extract_value)"
-void_res_val="$(printf '%s\n' "$void_res_json" | extract_value)"
-wc_res_val="$(printf '%s\n' "$wc_res_json" | extract_value)"
-liq_val="$(printf '%s\n' "$liq_json" | extract_value)"
+POOL_META_JSON="$(curl -fsS "$PROM_URL/api/v1/query" \
+  --data-urlencode 'query=void_workcredits_devnet_pool_meta{chain="devnet"}')"
 
-# Prefer timestamp from wc_per_void (they all share same scrape window)
-ts_val="$(printf '%s\n' "$wc_per_void_json" | extract_ts)"
+POOL_ADDR="$(echo "$POOL_META_JSON" | jq -r '.data.result[0].metric.pool_address // ""')"
+RPC_URL="$(echo "$POOL_META_JSON" | jq -r '.data.result[0].metric.rpc_url // ""')"
 
-if [[ -z "$wc_per_void_val" || -z "$void_res_val" || -z "$wc_res_val" || -z "$liq_val" ]]; then
-  echo "{
-  \"ok\": false,
-  \"error\": \"missing WorkCredits devnet metrics from Prometheus\"
-}"
-  exit 1
-fi
-
-if [[ -z "$ts_val" ]]; then
-  ts_val="0"
-fi
-
-# Emit JSON suitable for Obelisk / Trading View
-cat <<EOF
-{
-  "ok": true,
-  "chain": "devnet",
-  "wcPerVoid": "$wc_per_void_val",
-  "voidReserveRaw": "$void_res_val",
-  "wcReserveRaw": "$wc_res_val",
-  "liquidity2AssetRaw": "$liq_val",
-  "updatedAt": $ts_val,
-  "source": "prometheus:void-workcredits-devnet"
-}
-EOF
+jq -n \
+  --arg chain "devnet" \
+  --arg up "$UP" \
+  --arg voidRaw "$VOID_RAW" \
+  --arg wcRaw "$WC_RAW" \
+  --arg wcPerVoid "$WC_PER_VOID" \
+  --arg voidPerWc "$VOID_PER_WC" \
+  --arg health "$HEALTH" \
+  --arg health5m "$HEALTH_5M" \
+  --arg poolAddress "$POOL_ADDR" \
+  --arg rpcUrl "$RPC_URL" '
+  {
+    chain: $chain,
+    up: ( ($up | select(. != "") | tonumber) // 0 ),
+    health: ( ($health | select(. != "") | tonumber) // 0 ),
+    health_5m: ( ($health5m | select(. != "") | tonumber) // 0 ),
+    pool: {
+      address: $poolAddress,
+      rpcUrl: $rpcUrl
+    },
+    reserves: {
+      void_raw: ( ($voidRaw | select(. != "") | tonumber) // 0 ),
+      wc_raw: ( ($wcRaw | select(. != "") | tonumber) // 0 )
+    },
+    price: {
+      wc_per_void: ( ($wcPerVoid | select(. != "") | tonumber) // 0 ),
+      void_per_wc: ( ($voidPerWc | select(. != "") | tonumber) // 0 )
+    }
+  }
+  | .reserves.void = (.reserves.void_raw / 1e18)
+  | .reserves.wc   = (.reserves.wc_raw   / 1e18)
+'
