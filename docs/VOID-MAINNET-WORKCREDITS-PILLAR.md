@@ -1,215 +1,277 @@
-# VOID Mainnet — WorkCredits Pillar (v0)
+# VOID Mainnet — WorkCredits Pillar (v1, stub era)
 
-## 1. Scope
+This doc tracks the WorkCredits pillar for VOID mainnet and how we monitor it.
 
-This document tracks the WorkCredits pillar for VOID mainnet.
+Right now this pillar is stubbed: there are no real mainnet WorkCredits contracts,
+so the pillar is expected to be red. We just want clean metrics, alerts, and a
+composite health signal.
 
-- This is a meta / ops pillar, not the full economic spec.
-- Goal: ensure mainnet has a clean, checkable signal for:
-  - “Do we have a WorkCredits mainnet spec JSON?”
-  - “Does it have non-zero addresses for the WorkCredits token and pool?”
-  - “Is the WorkCredits pillar health gauge green?”
-- For now, this is non-gating (soft pass) in ops/void-mainnet-pillars-preflight.sh.
-  - We can flip it to hard-gating later when WorkCredits mainnet wiring is real.
+---
 
-## 2. Config: live WorkCredits spec JSON
+## 1. Config JSON (stub spec)
 
 File:
 
 - config/void-mainnet-workcredits.live.json
 
-Structure (conceptual):
+Current stub contents (conceptual):
 
-    {
-      "chainId": 2050,
-      "workCreditsToken": "0x0000000000000000000000000000000000000000",
-      "workCreditsPool":  "0x0000000000000000000000000000000000000000"
-    }
+- chainId: 2050
+- workCreditsToken: 0x0000000000000000000000000000000000000000
+- workCreditsPool:  0x0000000000000000000000000000000000000000
 
 Rules:
 
-1. chainId must be 2050 (VOID mainnet).
-2. workCreditsToken:
-   - Zero address (0x0000...0000) means “not wired yet”.
-   - Non-zero address means “this is the canonical WorkCredits mainnet token”.
-3. workCreditsPool:
-   - Zero address: “no mainnet WC/VOID pool yet”.
-   - Non-zero: canonical mainnet WC/VOID AMM pool (WorkCreditsPoolV1 or successor).
+1) chainId must be 2050 for mainnet.
+2) workCreditsToken:
+   - 0x0000…0000 → not wired yet (stub).
+   - non-zero → canonical mainnet WorkCredits token address.
+3) workCreditsPool:
+   - 0x0000…0000 → no WC/VOID mainnet pool yet.
+   - non-zero → canonical mainnet WC/VOID AMM pool.
 
-We update this JSON only when:
-- WorkCredits token is actually deployed on mainnet.
-- WorkCredits pool (WC/VOID) is actually live on mainnet.
-- We are ready to treat non-zero addresses as production truth.
+During the stub era we intentionally keep both zero.
+We only flip them to real addresses when mainnet WorkCredits is live.
 
-Until then, workCreditsToken / workCreditsPool stay at zero and the pillar is allowed to be red.
+---
 
-## 3. Exporter: textfile collector
+## 2. Exporter: ops/void-mainnet-workcredits-exporter.sh
 
 Script:
 
 - ops/void-mainnet-workcredits-exporter.sh
 
-Key behavior:
+Config input:
 
-- Reads CFG (default: config/void-mainnet-workcredits.live.json).
-- Emits Prometheus textfile metrics to:
+- config/void-mainnet-workcredits.live.json
 
-    /var/lib/node_exporter/textfile_collector/void_mainnet_workcredits.prom
+Textfile output:
 
-Internal checks:
+- /var/lib/node_exporter/textfile_collector/void_mainnet_workcredits.prom
 
-- spec_present = 1 if the JSON exists.
-- spec_nonempty = 1 if both workCreditsToken and workCreditsPool are non-zero addresses.
-- health = 1 if spec_present == 1 and spec_nonempty == 1.
+Behavior (summary):
 
-Non-zero address check:
+1) If config JSON is missing:
+   - void_mainnet_workcredits_health = 0
+   - void_mainnet_workcredits_info{mode="stub",reason="missing_config",...} 1
 
-- Anything not equal to lowercase zero address is treated as non-zero:
+2) If jq is missing:
+   - void_mainnet_workcredits_health = 0
+   - void_mainnet_workcredits_info{mode="stub",reason="jq_missing",...} 1
 
-    0x0000000000000000000000000000000000000000  -> zero
-    anything else                               -> non-zero
+3) If chainId != 2050:
+   - void_mainnet_workcredits_health = 0
+   - void_mainnet_workcredits_info{mode="stub",reason="bad_chainId",chainId="...",...} 1
 
-This mirrors the patterns used by other pillars.
+4) If chainId == 2050 and JSON parses:
+   - It inspects workCreditsToken and workCreditsPool.
+   - Zero vs non-zero are encoded into labels:
+       token_zero = "true" | "false"
+       pool_zero  = "true" | "false"
+   - Current stub semantics:
+       both zero → pillar unhealthy (expected right now)
+       both non-zero → pillar healthy once mainnet WC is wired.
 
-## 4. Metrics: gauges and 5m view
-
-Exporter emits:
+Key metrics (logical meaning):
 
 - void_mainnet_workcredits_spec_present
-- void_mainnet_workcredits_spec_nonempty
-- void_mainnet_workcredits_health
+    1 → JSON file exists and parsed
+    0 → file missing or unreadable
 
-Recording rule (5m smoothed view):
+- void_mainnet_workcredits_spec_nonempty
+    1 → token and pool are both non-zero
+    0 → at least one is zero
+
+- void_mainnet_workcredits_health
+    1 → spec present and non-zero addresses (real mainnet wiring)
+    0 → missing spec, bad chainId, or stub/zero-addr state
+
+---
+
+## 3. Recording rule (5-minute view)
+
+Recording rule:
 
 - void:mainnet_workcredits:health:last_5m
 
-Intended semantics:
+This rolls void_mainnet_workcredits_health into a 5-minute view
+(max_over_time style) so brief exporter blips do not cause noisy alerts.
 
-- spec_present:
-  - 1 → spec JSON exists.
-  - 0 → file missing; WorkCredits pillar not configured.
-- spec_nonempty:
-  - 1 → token + pool both non-zero.
-  - 0 → at least one is zero (pre-wiring / misconfigured).
-- health:
-  - 1 → pillar is happy: spec exists and non-zero addresses.
-  - 0 → pillar is not healthy yet (stub/partial).
+Right now (stub era):
 
-## 5. Pillars-preflight behavior
+- void_mainnet_workcredits_health = 0
+- void:mainnet_workcredits:health:last_5m = 0
 
-Script:
+---
 
-- ops/void-mainnet-pillars-preflight.sh
+## 4. Alert: VoidMainnetWorkCreditsUnhealthy
 
-Current behavior (v0):
+Alert name:
 
-- Runs the usual pillars:
-  - safeboot
-  - devnet
-  - mainnet-core
-  - lastmile
-  - keys
-  - plan
-  - validators
-  - etc.
+- VoidMainnetWorkCreditsUnhealthy
 
-- Then runs WorkCredits health as a soft step:
+Condition (conceptual):
 
-    ./ops/void-mainnet-workcredits-health-all.sh || echo "[workcredits-health] NON-ZERO EXIT (ignored for now; pillar is allowed to be red while spec is stubbed)"
+- Fires when void_mainnet_workcredits_health == 0 for at least 10m.
 
-Interpretation:
+Annotation (summary):
 
-- If WorkCredits pillar is red (expected while addresses are zero), pre-push still passes.
-- Output clearly labels this as “allowed to be red while spec is stubbed”.
+- Says the WorkCredits mainnet pillar is UNHEALTHY.
+- Common causes:
+    * spec JSON missing or still stubbed
+    * textfile not updating
+- Tells you to check:
+    1) sudo sed -n '1,40p' /var/lib/node_exporter/textfile_collector/void_mainnet_workcredits.prom
+    2) config/void-mainnet-workcredits.live.json
+    3) sudo ops/void-mainnet-workcredits-exporter.sh
 
-This keeps WorkCredits on the radar without blocking mainnet work.
+During the stub era this alert is expected to be pending/warning,
+because WorkCredits is not wired on mainnet yet.
 
-## 6. Health-all helper
+---
 
-Script:
+## 5. Composite health with pillars + validators + WorkCredits
 
-- ops/void-mainnet-workcredits-health-all.sh
+Base composite (already green):
 
-Behavior:
+- void_mainnet_pillars_with_validators_health
+- void:mainnet_pillars_with_validators:health:last_5m
 
-- Queries Prometheus for:
+These combine:
+- safeboot
+- devnet
+- mainnet-core
+- lastmile
+- keys
+- plan
+- validators RUN
 
-    void_mainnet_workcredits_spec_present
-    void_mainnet_workcredits_spec_nonempty
-    void_mainnet_workcredits_health
+Current value: 1 (healthy).
 
-- Prints raw gauges and a summary:
-  - spec_ok = 1 if spec_present == 1 and spec_nonempty == 1.
-  - Healthy if spec_ok == 1 and health == 1.
+Extended composite including WorkCredits:
 
-- Exit codes:
-  - 0 → pillar is fully healthy.
-  - 1 → pillar not healthy yet (expected while mainnet WC is not wired).
+- void_mainnet_pillars_with_validators_and_workcredits_health
+- void:mainnet_pillars_with_validators_and_workcredits:health:last_5m
 
-For now, pillars-preflight ignores this non-zero exit (soft gate).
+Conceptual formula:
 
-## 7. Implementation status (this checkpoint)
+    composite =
+      void_mainnet_pillars_with_validators_health
+      * void_mainnet_workcredits_health
 
-At this checkpoint:
+Today:
 
-- Spec JSON exists:
+- pillars_with_validators_health = 1
+- void_mainnet_workcredits_health = 0
+- composite = 0 (by design, because WC is stubbed).
 
-    config/void-mainnet-workcredits.live.json
+We treat the WorkCredits-extended composite as informational for now.
+Pre-push gating still uses the base pillars+validators metric that is 1.
 
-- Exporter works:
+---
 
-  - ops/void-mainnet-workcredits-exporter.sh writes void_mainnet_workcredits.prom.
-  - spec_present=1, spec_nonempty=0, health=0 (as expected for zero addresses).
+## 6. Future TODOs for this pillar
 
-- Prometheus sees:
+When we actually wire WorkCredits on mainnet:
 
-    void_mainnet_workcredits_spec_present = 1
-    void_mainnet_workcredits_spec_nonempty = 0
-    void_mainnet_workcredits_health = 0
-    void:mainnet_workcredits:health:last_5m = 0
+1) Update config/void-mainnet-workcredits.live.json with:
+   - real workCreditsToken address
+   - real workCreditsPool address
 
-- ops/void-mainnet-workcredits-health-all.sh prints
-  “RESULT: BAD (WorkCredits pillar not healthy yet)” and exits 1.
-- ops/void-mainnet-pillars-preflight.sh runs the WorkCredits health-all step but does not gate on it.
+2) Confirm exporter output:
+   - spec_present = 1
+   - spec_nonempty = 1
+   - health = 1
+   - info{reason="ok_live",...} 1 (we can refine this reason later)
 
-Tags associated with this state (for reference):
+3) Ensure:
+   - void:mainnet_workcredits:health:last_5m == 1
+   - void_mainnet_pillars_with_validators_and_workcredits_health == 1
 
-- ckpt-mainnet-workcredits-pillar-stub-...
-- ckpt-mainnet-workcredits-spec-...
-- ckpt-mainnet-workcredits-pillar-stub-v2-...
+4) Decide when to:
+   - make WorkCredits a hard part of ops/void-mainnet-pillars-preflight.sh
+   - bump alert severity from warning to critical once WC is required
+     for mainnet operation.
 
-(Exact timestamps via: git tag -l 'ckpt-mainnet-workcredits-*'.)
+Until then, this doc is the canonical reference for:
+- what the WorkCredits mainnet pillar is,
+- what metrics to look at,
+- why the composite including WorkCredits is 0 while the rest of the
+  pillars are fully green.
 
-## 8. Future work (post-mainnet / later phases)
+## Mainnet WorkCredits pillar: metrics and health
 
-Once VOID mainnet is live and stable, we will:
+The VOID mainnet WorkCredits pillar is monitored via a textfile exporter and
+Prometheus gauges. These are the canonical signals:
 
-1. Deploy WorkCredits contracts on mainnet:
-   - WorkCreditsToken mainnet instance.
-   - WorkCreditsPoolV1 (or successor) WC/VOID pool.
+### Core gauges
 
-2. Update the live JSON with real addresses:
-   - Set workCreditsToken to mainnet WC token address.
-   - Set workCreditsPool to mainnet pool address.
-   - Re-run the exporter; expect spec_nonempty=1, health=1.
+- void_mainnet_workcredits_health
+  - 1 = WorkCredits mainnet pillar is healthy.
+  - 0 = pillar failing (config/exporter problem).
 
-3. Tighten the gate (optional future change):
-   - Turn WorkCredits pillar into a hard gate in ops/void-mainnet-pillars-preflight.sh.
-   - Add composite metrics if needed, such as:
-     - void_mainnet_pillars_with_workcredits_health
-     - void:mainnet_pillars_with_workcredits:health:last_5m
+- void_mainnet_workcredits_config{chain_id="2050",reason="ok"}
+  - Confirms the live JSON config:
+    - config/void-workcredits-mainnet.live.json
+  - Labels:
+    - chain_id — expected to be "2050".
+    - reason   — "ok" when config passes internal checks.
 
-4. Wire into Obelisk / dashboard:
-   - Show WorkCredits pillar state (red/amber/green) in the “Work Credits” / “Dashboard” tabs.
-   - Later tie into more detailed metrics: pool liquidity, price, on-chain volume.
+- void_mainnet_workcredits_checks{check="..."}
+  - Individual config checks (1=pass, 0=fail).
+  - Expected checks:
+    - check="chain_id_2050"
+    - check="void_token_nonzero"
+    - check="wc_token_nonzero"
+    - check="pool_nonzero"
+    - check="decimals_18"
 
-## 9. Design principle
+If any of these checks drop to 0, void_mainnet_workcredits_health should
+eventually expose the failure and the pillar should be treated as unhealthy.
 
-- Keep WorkCredits as a separate, explicit pillar:
-  - It should not silently break mainnet if WC is misconfigured.
-  - Ops, dashboards, and AI agents should immediately know if WorkCredits is wired and healthy.
-- Early phase (now):
-  - Pillar is visible but soft.
-- Later phases:
-  - Pillar becomes part of the full “economic health” view once mainnet WC contracts exist.
+### Composite pillars + validators + WorkCredits
+
+WorkCredits is also included in the composite mainnet pillar:
+
+- void:mainnet_pillars_with_validators_and_workcredits:health:last_5m
+
+Semantics:
+
+- 1 = all of the following are healthy:
+  - mainnet keys pillar
+  - PLAN pillar
+  - safeboot pillar
+  - devnet pillar
+  - mainnet core pillar
+  - mainnet lastmile pillar
+  - validators RUN pillar
+  - WorkCredits mainnet pillar
+- 0 = at least one of those components is unhealthy.
+
+This composite is used by higher-level health gates (pillars-preflight,
+pre-push, etc.) to ensure WorkCredits is wired into the overall mainnet
+readiness story.
+
+### Quick CLI smoke: mainnet health summary
+
+Use the helper script to check the full mainnet bootstrap + pillars state in
+one shot:
+
+    cd "$HOME/dev/void-node"
+    ./ops/void-mainnet-health-summary.sh
+
+You should see lines like:
+
+- void_mainnet_workcredits_health 1
+- void:mainnet_pillars_with_validators_and_workcredits:health:last_5m 1
+
+And a final summary similar to:
+
+    [RESULT] OK (keys + PLAN + safeboot + devnet + mainnet-core + lastmile + workcredits + composite all healthy)
+
+This script is the preferred way to quickly confirm that:
+
+- WorkCredits mainnet pillar is healthy, and
+- It is fully included in the composite mainnet pillars + validators +
+  WorkCredits health check.
 
