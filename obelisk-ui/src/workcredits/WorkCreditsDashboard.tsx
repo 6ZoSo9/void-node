@@ -35,7 +35,7 @@ function SectionCard(props: { title: string; children: React.ReactNode }) {
   );
 }
 
-function formatNumber(n: number | null | undefined, decimals = 2): string {
+function formatNumber(n: number | null | undefined, decimals = 4): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return "—";
   return n.toLocaleString(undefined, {
     minimumFractionDigits: decimals,
@@ -64,6 +64,81 @@ function recomputeEstimate(
   }
 }
 
+// Simple decimal string -> 18-decimals bigint (DEVNET ONLY, not production-grade)
+function toWei(amountStr: string): bigint | null {
+  const trimmed = amountStr.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("-")) return null;
+
+  const parts = trimmed.split(".");
+  if (parts.length > 2) return null;
+
+  const whole = parts[0] || "0";
+  const frac = parts[1] || "";
+
+  if (!/^[0-9]+$/.test(whole) || (frac && !/^[0-9]+$/.test(frac))) {
+    return null;
+  }
+
+  const fracPadded = (frac + "000000000000000000").slice(0, 18);
+  try {
+    const wholeBig = BigInt(whole);
+    const fracBig = BigInt(fracPadded || "0");
+    return wholeBig * 10n ** 18n + fracBig;
+  } catch {
+    return null;
+  }
+}
+
+function buildErc20TransferData(to: string, amount: bigint): string {
+  const clean = to.trim().toLowerCase().replace(/^0x/, "");
+  if (!/^[0-9a-f]{40}$/.test(clean)) {
+    throw new Error("Recipient must be a 20-byte hex address");
+  }
+  const toPadded = clean.padStart(64, "0");
+  const amtHex = amount.toString(16);
+  const amtPadded = amtHex.padStart(64, "0");
+  // transfer(address,uint256)
+  return "0xa9059cbb" + toPadded + amtPadded;
+}
+
+async function sendErc20ViaMetamask(params: {
+  tokenAddress: string;
+  to: string;
+  amountWei: bigint;
+}) {
+  const { tokenAddress, to, amountWei } = params;
+  const w = window as any;
+  const ethereum = w.ethereum;
+  if (!ethereum) {
+    throw new Error("No injected wallet found (MetaMask).");
+  }
+
+  const accounts: string[] = await ethereum.request({
+    method: "eth_requestAccounts",
+  });
+  const from = (accounts?.[0] ?? "").toString();
+  if (!from) {
+    throw new Error("No wallet account available.");
+  }
+
+  const data = buildErc20TransferData(to, amountWei);
+
+  const txParams = {
+    from,
+    to: tokenAddress,
+    data,
+    value: "0x0",
+  };
+
+  const txHash: string = await ethereum.request({
+    method: "eth_sendTransaction",
+    params: [txParams],
+  });
+
+  return { from, txHash };
+}
+
 export const WorkCreditsDashboard: React.FC = () => {
   const {
     address,
@@ -75,22 +150,37 @@ export const WorkCreditsDashboard: React.FC = () => {
     load,
   } = useWorkCreditsDashboard(DEMO_ADDRESS);
 
+  // Swap side + preview
   const [side, setSide] = useState<SwapSide>("buy_wc");
   const [sendValue, setSendValue] = useState<string>("100");
-  const [recvEstimate, setRecvEstimate] = useState<string>("9999");
+  const [recvEstimate, setRecvEstimate] = useState<string>("");
+
+  // Send (VOID / WC) panel state
+  const [sendToken, setSendToken] = useState<"VOID" | "WC">("VOID");
+  const [sendTo, setSendTo] = useState<string>("");
+  const [sendAmount, setSendAmount] = useState<string>("");
+  const [sendBusy, setSendBusy] = useState(false);
 
   // Derive simple prices from pool JSON (fallbacks for safety).
   const prices = useMemo(() => {
-    const p: any = (data as any)?.pool?.prices ?? {};
-    const wcPerVoid = Number(p.wc_per_void ?? 100);
-    const voidPerWc = Number(p.void_per_wc ?? 0.01);
+    const p: any =
+      (data as any)?.pool?.prices ??
+      (data as any)?.pool?.price ??
+      (data as any)?.pool?.priceInfo ??
+      {};
+    const wcPerVoid = Number(
+      p.wc_per_void ?? p.wcPerVoid ?? p["WC_PER_VOID"] ?? 100
+    );
+    const voidPerWc = Number(
+      p.void_per_wc ?? p.voidPerWc ?? p["VOID_PER_WC"] ?? 0.01
+    );
     return { wcPerVoid, voidPerWc };
   }, [data]);
 
   // On load / side change, recompute preview.
   useEffect(() => {
     recomputeEstimate(sendValue, side, prices, setRecvEstimate);
-  }, [side, prices.wcPerVoid, prices.voidPerWc]);
+  }, [side, prices.wcPerVoid, prices.voidPerWc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddressInputChange = (
     e: React.ChangeEvent<HTMLInputElement>
@@ -131,7 +221,7 @@ export const WorkCreditsDashboard: React.FC = () => {
     }
   };
 
-  const handleSendChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSwapSendChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
     setSendValue(v);
     recomputeEstimate(v, side, prices, setRecvEstimate);
@@ -208,8 +298,13 @@ export const WorkCreditsDashboard: React.FC = () => {
   };
 
   // Pool + account mapping
-  const poolReserves =
-    (data as any)?.reserves ?? (data as any)?.pool?.reserves ?? {};
+  const pool: any = (data as any)?.pool ?? {};
+  const poolReserves: any =
+    pool.reserves ??
+    pool.pool ??
+    pool.reserveInfo ??
+    pool["reserves"] ??
+    {};
 
   const voidReserve = Number(
     poolReserves.void ??
@@ -227,24 +322,111 @@ export const WorkCreditsDashboard: React.FC = () => {
   );
 
   const accountInfo: any = (data as any)?.account ?? {};
+  const balancesInfo: any =
+    accountInfo.balances ?? accountInfo.Balances ?? {};
+  const accountMeta: any = accountInfo.meta ?? {};
 
   const voidBalance = Number(
-    accountInfo.void ??
-      accountInfo.void_human ??
-      accountInfo.VOID ??
-      accountInfo["void_balance"] ??
+    balancesInfo.void ??
+      balancesInfo.void_human ??
+      balancesInfo.VOID ??
+      balancesInfo["void_balance"] ??
+      accountInfo.void ??
       0
   );
   const wcBalance = Number(
-    accountInfo.wc ??
-      accountInfo.wc_human ??
-      accountInfo.WC ??
-      accountInfo["wc_balance"] ??
+    balancesInfo.wc ??
+      balancesInfo.wc_human ??
+      balancesInfo.WC ??
+      balancesInfo["wc_balance"] ??
+      accountInfo.wc ??
       0
   );
 
+  const voidTokenAddress: string =
+    (accountMeta.void_token ??
+      accountMeta.voidToken ??
+      accountMeta.VOID_TOKEN ??
+      "")?.toString() ?? "";
+  const wcTokenAddress: string =
+    (accountMeta.workcredits_token ??
+      accountMeta.workcreditsToken ??
+      accountMeta.WORKCREDITS_TOKEN ??
+      "")?.toString() ?? "";
+
   const wcPerVoid = prices.wcPerVoid;
   const voidPerWc = prices.voidPerWc;
+
+  const handleSendSubmit = async () => {
+    if (!data) {
+      window.alert("Load a devnet dashboard first.");
+      return;
+    }
+
+    const to = sendTo.trim();
+    if (!to) {
+      window.alert("Recipient address is required.");
+      return;
+    }
+
+    const amtWei = toWei(sendAmount);
+    if (amtWei === null || amtWei <= 0n) {
+      window.alert("Enter a valid positive amount.");
+      return;
+    }
+
+    const tokenAddr =
+      sendToken === "VOID" ? voidTokenAddress : wcTokenAddress;
+
+    if (!tokenAddr || tokenAddr === "0x0000000000000000000000000000000000000000") {
+      window.alert("Token address not available from dashboard meta.");
+      return;
+    }
+
+    const tokenLabel = sendToken === "VOID" ? "VOID" : "WC";
+
+    const confirmText = [
+      `Send token: ${tokenLabel}`,
+      `From: current MetaMask account`,
+      `To  : ${to}`,
+      "",
+      `Amount (approx): ${sendAmount} ${tokenLabel}`,
+      "",
+      "This is a DEVNET-only helper using ERC-20 transfer().",
+      "",
+      "Continue with this devnet send?",
+    ].join("\n");
+
+    const ok = window.confirm(confirmText);
+    if (!ok) return;
+
+    try {
+      setSendBusy(true);
+      const { from, txHash } = await sendErc20ViaMetamask({
+        tokenAddress: tokenAddr,
+        to,
+        amountWei: amtWei,
+      });
+      console.log("devnet send tx", { from, txHash });
+      window.alert(
+        [
+          "Send submitted via MetaMask.",
+          "",
+          `From : ${from}`,
+          `Token: ${tokenLabel}`,
+          `To   : ${to}`,
+          `Tx   : ${txHash}`,
+          "",
+          "After the tx confirms, click LOAD to refresh balances.",
+        ].join("\n")
+      );
+    } catch (err: any) {
+      console.error("sendErc20ViaMetamask failed", err);
+      window.alert(err?.message ?? "Send failed");
+    } finally {
+      setSendBusy(false);
+    }
+  };
 
   return (
     <div
@@ -259,331 +441,521 @@ export const WorkCreditsDashboard: React.FC = () => {
         padding: "1.5rem",
       }}
     >
-      {/* Top bar */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "0.5rem",
-        }}
-      >
+      <header style={{ marginBottom: "0.5rem" }}>
         <div
           style={{
-            fontSize: "0.85rem",
+            fontSize: "0.8rem",
             letterSpacing: "0.18em",
             textTransform: "uppercase",
-            color: "#d5f3ff",
+            color: "#7dd3fc",
           }}
         >
-          VOID / OBELISK ·{" "}
-          <span style={{ color: "#7de9ff" }}>DEVNET · WORKCREDITS</span>
+          VOID / OBELISK
         </div>
-        <div
+        <h1
           style={{
-            fontSize: "0.75rem",
-            color: "#ffc857",
-            textTransform: "uppercase",
+            margin: "0.25rem 0 0.5rem",
+            fontSize: "1.25rem",
             letterSpacing: "0.12em",
+            textTransform: "uppercase",
           }}
         >
-          Devnet · View-Only
-        </div>
-      </div>
-
-      {/* Account row */}
-      <SectionCard title="WorkCredits Devnet Dashboard">
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0.75rem",
-            alignItems: "center",
-            marginBottom: "0.75rem",
-          }}
-        >
-          <div style={{ fontSize: "0.75rem", color: "#aaa" }}>Account</div>
-          <input
-            style={{
-              flex: "1 1 260px",
-              minWidth: "260px",
-              padding: "0.45rem 0.6rem",
-              borderRadius: "999px",
-              border: "1px solid #444",
-              background: "#020308",
-              color: "#f0fbff",
-              fontSize: "0.8rem",
-            }}
-            value={address}
-            onChange={handleAddressInputChange}
-            placeholder="0x… address (devnet)"
-          />
-          <button
-            type="button"
-            style={{
-              padding: "0.4rem 0.8rem",
-              borderRadius: "999px",
-              border: "1px solid #444",
-              background: "#0b1723",
-              color: "#dff9ff",
-              fontSize: "0.75rem",
-            }}
-            onClick={handleUseDemoClick}
-          >
-            Use Demo
-          </button>
-          <button
-            type="button"
-            style={{
-              padding: "0.4rem 0.8rem",
-              borderRadius: "999px",
-              border: "1px solid #444",
-              background: "#071824",
-              color: "#9fffe0",
-              fontSize: "0.75rem",
-            }}
-            onClick={handleUseWalletClick}
-          >
-            Use Wallet
-          </button>
-          <button
-            type="button"
-            style={{
-              padding: "0.4rem 0.8rem",
-              borderRadius: "999px",
-              border: "1px solid #3aa3ff",
-              background: "#0b2235",
-              color: "#e7f6ff",
-              fontSize: "0.75rem",
-            }}
-            onClick={handleLoadClick}
-          >
-            Load
-          </button>
-        </div>
-
+          WorkCredits Devnet
+        </h1>
         <div
           style={{
             fontSize: "0.75rem",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0.75rem",
-            color: "#9cbdd0",
+            color: "#9ca3af",
           }}
         >
-          {loading && <span>Loading devnet helper…</span>}
-          {error && (
-            <span style={{ color: "#ff9090" }}>
-              Error: {error}
-            </span>
-          )}
-          {lastUpdated && !loading && !error && (
-            <span>
-              Last updated:{" "}
-              {lastUpdated.toLocaleTimeString(undefined, {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              })}
-            </span>
-          )}
+          VOID ⇄ WC pool, balances, and devnet-only trading/sending.
         </div>
-      </SectionCard>
+      </header>
 
-      {/* Pool + prices */}
-      <SectionCard title="Pool Reserves & Price">
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "1.5rem",
-            fontSize: "0.8rem",
-          }}
-        >
-          <div>
-            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>VOID reserve</div>
-            <div style={{ fontSize: "1rem" }}>
-              {formatNumber(voidReserve, 0)} <span style={{ opacity: 0.7 }}>VOID</span>
-            </div>
-          </div>
-          <div>
-            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>WC reserve</div>
-            <div style={{ fontSize: "1rem" }}>
-              {formatNumber(wcReserve, 0)} <span style={{ opacity: 0.7 }}>WC</span>
-            </div>
-          </div>
-          <div>
-            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>WC per 1 VOID</div>
-            <div style={{ fontSize: "1rem" }}>
-              {formatNumber(wcPerVoid, 4)}
-            </div>
-          </div>
-          <div>
-            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>VOID per 1 WC</div>
-            <div style={{ fontSize: "1rem" }}>
-              {formatNumber(voidPerWc, 6)}
-            </div>
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* Wallet balances */}
-      <SectionCard title="Wallet Balances (View-Only, Devnet)">
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "1.5rem",
-            fontSize: "0.8rem",
-          }}
-        >
-          <div>
-            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>VOID balance</div>
-            <div style={{ fontSize: "1rem" }}>
-              {formatNumber(voidBalance, 4)}{" "}
-              <span style={{ opacity: 0.7 }}>VOID</span>
-            </div>
-          </div>
-          <div>
-            <div style={{ opacity: 0.7, marginBottom: "0.15rem" }}>WC balance</div>
-            <div style={{ fontSize: "1rem" }}>
-              {formatNumber(wcBalance, 4)}{" "}
-              <span style={{ opacity: 0.7 }}>WC</span>
-            </div>
-          </div>
-        </div>
-        <p
-          style={{
-            marginTop: "0.75rem",
-            fontSize: "0.7rem",
-            color: "#9cbdd0",
-            maxWidth: "480px",
-          }}
-        >
-          This is a devnet-only view. The on-chain owner for the WorkCredits
-          pool is a separate dev key; this UI will not mint/faucet to your
-          wallet. For mainnet we will rotate to fresh keys and wire a real
-          funding/earn path.
-        </p>
-      </SectionCard>
-
-      {/* Trade widget (devnet) */}
-      <SectionCard title="Swap Preview (Devnet Helper)">
+      {/* Address + status */}
+      <SectionCard title="Address & Status">
         <div
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: "0.75rem",
-            fontSize: "0.8rem",
+            gap: "0.5rem",
           }}
         >
-          <div
-            style={{
-              display: "inline-flex",
-              borderRadius: "999px",
-              border: "1px solid #444",
-              overflow: "hidden",
-              marginBottom: "0.5rem",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => handleSideChange("buy_wc")}
-              style={{
-                padding: "0.35rem 0.9rem",
-                fontSize: "0.75rem",
-                border: "none",
-                background:
-                  side === "buy_wc" ? "#0c304a" : "transparent",
-                color: side === "buy_wc" ? "#dff9ff" : "#9db1c0",
-              }}
-            >
-              Buy WC (send VOID)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSideChange("sell_wc")}
-              style={{
-                padding: "0.35rem 0.9rem",
-                fontSize: "0.75rem",
-                border: "none",
-                background:
-                  side === "sell_wc" ? "#0c304a" : "transparent",
-                color: side === "sell_wc" ? "#dff9ff" : "#9db1c0",
-              }}
-            >
-              Sell WC (receive VOID)
-            </button>
-          </div>
-
           <label
             style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.25rem",
+              fontSize: "0.8rem",
+              color: "#9ca3af",
             }}
           >
-            <span style={{ opacity: 0.75 }}>
-              You send ({side === "buy_wc" ? "VOID" : "WC"})
-            </span>
+            Address
+          </label>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
             <input
-              value={sendValue}
-              onChange={handleSendChange}
+              type="text"
+              value={address}
+              onChange={handleAddressInputChange}
               style={{
-                maxWidth: "220px",
+                flex: 1,
                 padding: "0.4rem 0.6rem",
                 borderRadius: "0.5rem",
-                border: "1px solid #444",
-                background: "#020308",
-                color: "#f0fbff",
+                border: "1px solid #374151",
+                background: "#020617",
+                color: "#e5e7eb",
                 fontSize: "0.8rem",
               }}
+              spellCheck={false}
             />
-          </label>
-
-          <div>
-            <div style={{ opacity: 0.75, marginBottom: "0.15rem" }}>
-              You receive (estimate)
-            </div>
-            <div style={{ fontSize: "1rem" }}>
-              {recvEstimate ? recvEstimate : "—"}{" "}
-              <span style={{ opacity: 0.7 }}>
-                {side === "buy_wc" ? "WC" : "VOID"}
-              </span>
-            </div>
+            <button
+              onClick={handleUseWalletClick}
+              style={{
+                padding: "0.4rem 0.7rem",
+                borderRadius: "999px",
+                border: "1px solid #4b5563",
+                background: "#020617",
+                color: "#e5e7eb",
+                fontSize: "0.75rem",
+                cursor: "pointer",
+              }}
+            >
+              Use wallet
+            </button>
+            <button
+              onClick={handleUseDemoClick}
+              style={{
+                padding: "0.4rem 0.7rem",
+                borderRadius: "999px",
+                border: "1px solid #4b5563",
+                background: "#020617",
+                color: "#e5e7eb",
+                fontSize: "0.75rem",
+                cursor: "pointer",
+              }}
+            >
+              Use demo
+            </button>
+            <button
+              onClick={handleLoadClick}
+              disabled={loading}
+              style={{
+                padding: "0.4rem 0.9rem",
+                borderRadius: "999px",
+                border: "1px solid #0ea5e9",
+                background: loading ? "#0f172a" : "#020617",
+                color: loading ? "#6b7280" : "#e0f7ff",
+                fontSize: "0.75rem",
+                cursor: loading ? "default" : "pointer",
+              }}
+            >
+              {loading ? "Loading…" : "Load"}
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={handleSubmitTrade}
+          <div
             style={{
-              marginTop: "0.5rem",
-              alignSelf: "flex-start",
-              padding: "0.45rem 1.1rem",
-              borderRadius: "999px",
-              border: "1px solid #3aa3ff",
-              background: "#0b2235",
-              color: "#e7f6ff",
-              fontSize: "0.8rem",
-            }}
-          >
-            Execute Devnet Swap (via Wallet)
-          </button>
-
-          <p
-            style={{
+              display: "flex",
+              justifyContent: "space-between",
               fontSize: "0.7rem",
-              color: "#9cbdd0",
-              maxWidth: "520px",
-              marginTop: "0.5rem",
+              color: "#6b7280",
+              marginTop: "0.25rem",
             }}
           >
-            This uses the current MetaMask account and the WorkCredits devnet
-            pool. It is purely for testing pricing logic and UI; mainnet will
-            use a fresh key / contract set and a real earn/spend loop.
-          </p>
+            <span>
+              Last updated:{" "}
+              {lastUpdated
+                ? lastUpdated.toLocaleTimeString(undefined, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })
+                : "—"}
+            </span>
+            <span>
+              Status:{" "}
+              {error
+                ? "Error loading dashboard"
+                : data
+                ? "OK"
+                : loading
+                ? "Loading…"
+                : "Idle"}
+            </span>
+          </div>
+          {error && (
+            <div
+              style={{
+                marginTop: "0.4rem",
+                fontSize: "0.75rem",
+                color: "#fecaca",
+              }}
+            >
+              Error: {error}
+            </div>
+          )}
         </div>
       </SectionCard>
+
+      {/* Pool + balances row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
+          gap: "1rem",
+        }}
+      >
+        <SectionCard title="Pool (VOID ⇄ WC)">
+          <div style={{ fontSize: "0.8rem" }}>
+            <div style={{ marginBottom: "0.4rem" }}>
+              <div>Price</div>
+              <div style={{ color: "#9ca3af", marginTop: "0.1rem" }}>
+                1 VOID ≈ {formatNumber(wcPerVoid, 4)} WC
+              </div>
+              <div style={{ color: "#9ca3af" }}>
+                1 WC ≈ {formatNumber(voidPerWc, 6)} VOID
+              </div>
+            </div>
+            <div style={{ marginTop: "0.5rem" }}>
+              <div>Reserves</div>
+              <div style={{ color: "#9ca3af", marginTop: "0.1rem" }}>
+                VOID: {formatNumber(voidReserve, 3)} VOID
+              </div>
+              <div style={{ color: "#9ca3af" }}>
+                WC: {formatNumber(wcReserve, 3)} WC
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Your balances (devnet)">
+          <div style={{ fontSize: "0.8rem" }}>
+            <div style={{ marginBottom: "0.4rem" }}>
+              <div>Address</div>
+              <div
+                style={{
+                  color: "#9ca3af",
+                  marginTop: "0.1rem",
+                  fontFamily: "monospace",
+                  fontSize: "0.7rem",
+                }}
+              >
+                {address || "—"}
+              </div>
+            </div>
+            <div style={{ marginTop: "0.5rem" }}>
+              <div>Balances</div>
+              <div style={{ color: "#9ca3af", marginTop: "0.1rem" }}>
+                VOID: {formatNumber(voidBalance, 6)} VOID
+              </div>
+              <div style={{ color: "#9ca3af" }}>
+                WC: {formatNumber(wcBalance, 6)} WC
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+      </div>
+
+      {/* Trade + Send row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 1fr)",
+          gap: "1rem",
+        }}
+      >
+        {/* Trade card */}
+        <SectionCard title="Trade (VOID ⇄ WC) – devnet helper">
+          <div style={{ fontSize: "0.8rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+            <div
+              style={{
+                display: "inline-flex",
+                padding: "0.2rem",
+                borderRadius: "999px",
+                border: "1px solid #374151",
+                background: "#020617",
+              }}
+            >
+              <button
+                onClick={() => handleSideChange("buy_wc")}
+                style={{
+                  flex: 1,
+                  padding: "0.3rem 0.6rem",
+                  borderRadius: "999px",
+                  border: "none",
+                  background:
+                    side === "buy_wc" ? "#0ea5e9" : "transparent",
+                  color:
+                    side === "buy_wc" ? "#020617" : "#9ca3af",
+                  fontSize: "0.75rem",
+                  cursor: "pointer",
+                }}
+              >
+                Buy WC (send VOID)
+              </button>
+              <button
+                onClick={() => handleSideChange("sell_wc")}
+                style={{
+                  flex: 1,
+                  padding: "0.3rem 0.6rem",
+                  borderRadius: "999px",
+                  border: "none",
+                  background:
+                    side === "sell_wc" ? "#0ea5e9" : "transparent",
+                  color:
+                    side === "sell_wc" ? "#020617" : "#9ca3af",
+                  fontSize: "0.75rem",
+                  cursor: "pointer",
+                }}
+              >
+                Sell WC (receive VOID)
+              </button>
+            </div>
+
+            <div>
+              <div style={{ marginBottom: "0.2rem" }}>You send</div>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={sendValue}
+                onChange={handleSwapSendChange}
+                style={{
+                  width: "100%",
+                  padding: "0.4rem 0.6rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #374151",
+                  background: "#020617",
+                  color: "#e5e7eb",
+                  fontSize: "0.8rem",
+                }}
+              />
+              <div
+                style={{
+                  marginTop: "0.2rem",
+                  fontSize: "0.7rem",
+                  color: "#6b7280",
+                }}
+              >
+                {side === "buy_wc"
+                  ? "UNIT: VOID (debited from your wallet)"
+                  : "UNIT: WC (debited from your wallet)"}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ marginBottom: "0.2rem" }}>Estimated receive</div>
+              <input
+                type="text"
+                readOnly
+                value={recvEstimate}
+                style={{
+                  width: "100%",
+                  padding: "0.4rem 0.6rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #111827",
+                  background: "#020617",
+                  color: "#9ca3af",
+                  fontSize: "0.8rem",
+                }}
+              />
+              <div
+                style={{
+                  marginTop: "0.2rem",
+                  fontSize: "0.7rem",
+                  color: "#6b7280",
+                }}
+              >
+                {side === "buy_wc"
+                  ? "You receive WC (approximate; devnet only)."
+                  : "You receive VOID (approximate; devnet only)."}
+              </div>
+            </div>
+
+            <div style={{ marginTop: "0.4rem" }}>
+              <button
+                onClick={handleSubmitTrade}
+                style={{
+                  width: "100%",
+                  padding: "0.55rem 0.8rem",
+                  borderRadius: "999px",
+                  border: "1px solid #0ea5e9",
+                  background: "#020617",
+                  color: "#e0f7ff",
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                }}
+              >
+                Execute devnet swap (via wallet)
+              </button>
+              <div
+                style={{
+                  marginTop: "0.3rem",
+                  fontSize: "0.7rem",
+                  color: "#6b7280",
+                }}
+              >
+                Uses the current MetaMask account and the WorkCredits devnet
+                pool. This is purely for testing pricing logic and UI; mainnet
+                will use a fresh key / contract set and a real earn/spend loop.
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* Send card */}
+        <SectionCard title="Send (VOID / WC) – devnet helper">
+          <div style={{ fontSize: "0.8rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+            <div>
+              <div style={{ marginBottom: "0.2rem" }}>From</div>
+              <div
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: "0.7rem",
+                  color: "#9ca3af",
+                  wordBreak: "break-all",
+                }}
+              >
+                {address || "(current MetaMask account)"}
+              </div>
+              <div
+                style={{
+                  marginTop: "0.2rem",
+                  fontSize: "0.7rem",
+                  color: "#6b7280",
+                }}
+              >
+                This helper always sends from your currently connected wallet.
+              </div>
+            </div>
+
+            <div>
+              <div style={{ marginBottom: "0.25rem" }}>Asset</div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  padding: "0.2rem",
+                  borderRadius: "999px",
+                  border: "1px solid #374151",
+                  background: "#020617",
+                }}
+              >
+                <button
+                  onClick={() => setSendToken("VOID")}
+                  style={{
+                    flex: 1,
+                    padding: "0.3rem 0.6rem",
+                    borderRadius: "999px",
+                    border: "none",
+                    background:
+                      sendToken === "VOID" ? "#0ea5e9" : "transparent",
+                    color:
+                      sendToken === "VOID" ? "#020617" : "#9ca3af",
+                    fontSize: "0.75rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  VOID ({formatNumber(voidBalance, 6)})
+                </button>
+                <button
+                  onClick={() => setSendToken("WC")}
+                  style={{
+                    flex: 1,
+                    padding: "0.3rem 0.6rem",
+                    borderRadius: "999px",
+                    border: "none",
+                    background:
+                      sendToken === "WC" ? "#0ea5e9" : "transparent",
+                    color:
+                      sendToken === "WC" ? "#020617" : "#9ca3af",
+                    fontSize: "0.75rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  WC ({formatNumber(wcBalance, 6)})
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ marginBottom: "0.2rem" }}>To address</div>
+              <input
+                type="text"
+                value={sendTo}
+                onChange={(e) => setSendTo(e.target.value)}
+                placeholder="0x recipient..."
+                style={{
+                  width: "100%",
+                  padding: "0.4rem 0.6rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #374151",
+                  background: "#020617",
+                  color: "#e5e7eb",
+                  fontSize: "0.8rem",
+                }}
+                spellCheck={false}
+              />
+            </div>
+
+            <div>
+              <div style={{ marginBottom: "0.2rem" }}>Amount</div>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={sendAmount}
+                onChange={(e) => setSendAmount(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.4rem 0.6rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #374151",
+                  background: "#020617",
+                  color: "#e5e7eb",
+                  fontSize: "0.8rem",
+                }}
+              />
+              <div
+                style={{
+                  marginTop: "0.2rem",
+                  fontSize: "0.7rem",
+                  color: "#6b7280",
+                }}
+              >
+                UNIT: {sendToken} (18-decimal; devnet helper only).
+              </div>
+            </div>
+
+            <div style={{ marginTop: "0.4rem" }}>
+              <button
+                onClick={handleSendSubmit}
+                disabled={sendBusy}
+                style={{
+                  width: "100%",
+                  padding: "0.55rem 0.8rem",
+                  borderRadius: "999px",
+                  border: "1px solid #22c55e",
+                  background: sendBusy ? "#022c22" : "#020617",
+                  color: sendBusy ? "#6b7280" : "#bbf7d0",
+                  fontSize: "0.85rem",
+                  cursor: sendBusy ? "default" : "pointer",
+                }}
+              >
+                {sendBusy ? "Sending…" : "Send (devnet ERC-20 transfer)"}
+              </button>
+              <div
+                style={{
+                  marginTop: "0.3rem",
+                  fontSize: "0.7rem",
+                  color: "#6b7280",
+                }}
+              >
+                Uses ERC-20 <code style={{ fontFamily: "monospace" }}>transfer()</code>{" "}
+                on the devnet VOID / WorkCredits tokens, via MetaMask. After the
+                transaction confirms, click{" "}
+                <span style={{ fontWeight: 600 }}>LOAD</span> above to refresh
+                balances.
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+      </div>
     </div>
   );
 };

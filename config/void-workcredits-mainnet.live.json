@@ -1,0 +1,11 @@
+{
+  "chainId": 2050,
+  "rpcUrl": "http://127.0.0.1:8545",
+
+  "voidToken": "0xF49183759D2C6510b131F0D2Ba584fff624fb8ec",
+  "workCreditsToken": "0xF95864611C26D59DA4A0534ec1Dd3BD0EF6bae0a",
+  "workCreditsPoolV1": "0xdab942e37D0D8da45eB19f31897dff7306914Ab9",
+
+  "decimals": 18,
+  "notes": "DEVNET ADDRESSES ONLY FOR PIPELINE SMOKE. Replace with real mainnet addresses before launch."
+}
