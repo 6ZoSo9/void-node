@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { WalletProvider } from "./wallet/WalletContext";
 import { WorkCreditsDashboard } from "./workcredits/WorkCreditsDashboard";
+import { WalletDashboard } from "./wallet/WalletDashboard";
 
 type TabId = "wallet" | "workcredits" | "nullfeed";
 
@@ -58,53 +59,12 @@ function AppShell() {
         style={{
           borderRadius: "0.75rem",
           border: "1px solid #333",
-          padding: "1.25rem",
+          padding: "1.1rem 1.1rem 1.25rem",
           background: "#050509",
           boxShadow: "0 0 14px rgba(0,0,0,0.7)",
         }}
       >
-        <h2
-          style={{
-            margin: "0 0 0.75rem",
-            fontSize: "0.95rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.16em",
-            color: "#b3f0ff",
-          }}
-        >
-          Wallet (Devnet Stub)
-        </h2>
-        <p
-          style={{
-            margin: "0 0 0.5rem",
-            fontSize: "0.85rem",
-            color: "#d0e6ff",
-          }}
-        >
-          This will become the primary wallet view for VOID and WorkCredits:
-        </p>
-        <ul
-          style={{
-            margin: "0.25rem 0 0.75rem 1.1rem",
-            padding: 0,
-            fontSize: "0.8rem",
-            color: "#99b7ff",
-          }}
-        >
-          <li>View balances for VOID, WC, and LP tokens.</li>
-          <li>Send / receive VOID and WorkCredits.</li>
-          <li>Toggle relayer options and claim pending WC.</li>
-        </ul>
-        <p
-          style={{
-            margin: 0,
-            fontSize: "0.8rem",
-            color: "#7bffb7",
-          }}
-        >
-          For now, use the <strong>WorkCredits</strong> tab to interact with the
-          devnet pool and pricing helper.
-        </p>
+        <WalletDashboard />
       </section>
     );
   } else if (activeTab === "workcredits") {
@@ -149,7 +109,9 @@ function AppShell() {
           }}
         >
           <li>Channel list (#general, #tech, #crypto, #void-dev, …).</li>
-          <li>Hidden channels via <code>#&lt;name&gt;</code> and per-channel admins.</li>
+          <li>
+            Hidden channels via <code>#&lt;name&gt;</code> and per-channel admins.
+          </li>
           <li>Later: images, bots, and per-channel settings.</li>
         </ul>
         <p
@@ -199,47 +161,37 @@ function AppShell() {
               color: "#b3f0ff",
             }}
           >
-            VOID / Obelisk
+            VOID / Obelisk Wallet
           </div>
           <div
             style={{
-              fontSize: "0.7rem",
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "#7cf5c9",
+              marginTop: "0.1rem",
+              fontSize: "0.8rem",
+              color: "#9aa0c2",
             }}
           >
-            Devnet Wallet Shell
+            Devnet snapshot: WorkCredits, wallet shell, and NullFeed stubs.
           </div>
         </div>
-        <div
+        <nav
           style={{
-            fontSize: "0.7rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.14em",
-            color: "#6dffb1",
+            display: "flex",
+            gap: "0.4rem",
+            alignItems: "center",
+            flexWrap: "wrap",
           }}
         >
-          Network: <span style={{ color: "#9ee6ff" }}>Devnet</span>
-        </div>
+          {renderTabButton("wallet", "Wallet", "balances / relayer / WC")}
+          {renderTabButton(
+            "workcredits",
+            "WorkCredits",
+            "pool / swaps / helper"
+          )}
+          {renderTabButton("nullfeed", "NullFeed", "chat layer (stub)")}
+        </nav>
       </header>
 
-      {/* Tabs */}
-      <nav
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto 1rem",
-          display: "flex",
-          gap: "0.5rem",
-          flexWrap: "wrap",
-        }}
-      >
-        {renderTabButton("wallet", "Wallet")}
-        {renderTabButton("workcredits", "WorkCredits")}
-        {renderTabButton("nullfeed", "NullFeed")}
-      </nav>
-
-      {/* Active tab content */}
+      {/* Main content */}
       <main
         style={{
           maxWidth: "1100px",
