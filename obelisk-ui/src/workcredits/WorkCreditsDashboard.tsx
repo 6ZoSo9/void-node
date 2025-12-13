@@ -1,10 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
+import { getStoredAddress, setStoredAddress, isHexAddress, subscribeStoredAddress } from "../shared/addrStore";
 import { useWorkCreditsDashboard } from "./useWorkCreditsDashboard";
-import {
-  buildSwapExecutionPlan,
-  executeDevnetSwap,
-  SwapSide,
-} from "./devnetSwapExecutor";
+import { buildSwapExecutionPlan, executeDevnetSwap } from "./devnetSwapExecutor";
+import type { SwapSide } from "./devnetSwapExecutor";
 
 const DEMO_ADDRESS = "0x1111111111111111111111111111111111111111";
 
@@ -150,7 +148,53 @@ export const WorkCreditsDashboard: React.FC = () => {
     load,
   } = useWorkCreditsDashboard(DEMO_ADDRESS);
 
-  // Swap side + preview
+  
+
+  /* WC_AUTOLOAD_V1 */
+  const __wcAutoLoadOnce = useRef(false);
+  useEffect(() => {
+    if (__wcAutoLoadOnce.current) return;
+    __wcAutoLoadOnce.current = true;
+    try {
+      const stored = getStoredAddress();
+      const a = (stored && isHexAddress(stored)) ? stored : String(address || "");
+      if (a && isHexAddress(a)) load(a);
+      else load();
+    } catch {
+      try { load(); } catch {}
+    }
+  }, []);
+/* ADDR_PERSIST_WC_V4 */
+  // Keep address consistent across tabs + reloads (shared store).
+  useEffect(() => {
+    try {
+      const stored = getStoredAddress();
+      if (stored && isHexAddress(stored)) {
+        if (String(address || "").toLowerCase() !== String(stored).toLowerCase()) {
+          setAddress(stored);
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  
+  /* ADDR_SYNC_WC_V1 */
+  useEffect(() => {
+    const unsub = subscribeStoredAddress((a) => {
+      const n = String(a || "").trim();
+      if (!n) return;
+      if (!isHexAddress(n)) return;
+      try { setAddress(n); } catch {}
+    });
+    return () => { try { unsub(); } catch {} };
+  }, []);
+useEffect(() => {
+    try {
+      if (isHexAddress(address)) setStoredAddress(String(address));
+    } catch {}
+  }, [address]);
+// Swap side + preview
   const [side, setSide] = useState<SwapSide>("buy_wc");
   const [sendValue, setSendValue] = useState<string>("100");
   const [recvEstimate, setRecvEstimate] = useState<string>("");

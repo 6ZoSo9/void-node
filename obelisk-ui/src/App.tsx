@@ -20,6 +20,17 @@ function AppShell() {
     cursor: "pointer",
     outline: "none",
   };
+  
+  /* LAST_ADDR_SEED_V1 */
+  const getLastAddr = (): string | undefined => {
+    try {
+      const v = localStorage.getItem("obelisk_wallet_addr") || "";
+      return /^0x[0-9a-fA-F]{40}$/.test(v.trim()) ? v.trim() : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
 
   const renderTabButton = (id: TabId, label: string, subtitle?: string) => {
     const isActive = activeTab === id;
@@ -54,21 +65,9 @@ function AppShell() {
   let activeContent: React.ReactNode = null;
 
   if (activeTab === "wallet") {
-    activeContent = (
-      <section
-        style={{
-          borderRadius: "0.75rem",
-          border: "1px solid #333",
-          padding: "1.1rem 1.1rem 1.25rem",
-          background: "#050509",
-          boxShadow: "0 0 14px rgba(0,0,0,0.7)",
-        }}
-      >
-        <WalletDashboard />
-      </section>
-    );
+    activeContent = <WalletDashboard />;
   } else if (activeTab === "workcredits") {
-    activeContent = <WorkCreditsDashboard />;
+    activeContent = <WorkCreditsDashboard initialAddress={getLastAddr()} />;
   } else if (activeTab === "nullfeed") {
     activeContent = (
       <section
@@ -131,7 +130,7 @@ function AppShell() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        /* APP_FRAME_FULLBLEED_BG_V1 */ width: "100%", minHeight: "100vh", margin: 0, maxWidth: "none",
         padding: "1.75rem 1.5rem",
         background:
           "radial-gradient(circle at top, #15151f 0, #050509 45%, #000 100%)",
