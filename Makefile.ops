@@ -315,3 +315,7 @@ workcredits-devnet-pool-seed:
 .PHONY: workcredits-devnet-health
 workcredits-devnet-health:
 	./ops/void-workcredits-devnet-health.sh
+
+# --- guards ---
+guard-no-stray-tsx:
+	@./ops/guard-no-stray-tsx.sh
