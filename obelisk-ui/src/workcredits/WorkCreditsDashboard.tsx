@@ -150,20 +150,39 @@ export const WorkCreditsDashboard: React.FC = () => {
 
   
 
+  
   /* WC_AUTOLOAD_V1 */
   const __wcAutoLoadOnce = useRef(false);
   useEffect(() => {
     if (__wcAutoLoadOnce.current) return;
     __wcAutoLoadOnce.current = true;
+
     try {
-      const stored = getStoredAddress();
-      const a = (stored && isHexAddress(stored)) ? stored : String(address || "");
-      if (a && isHexAddress(a)) load(a);
-      else load();
+      // Priority: shared addrStore -> wallet localStorage -> current hook address
+      const storedA = getStoredAddress();
+      const storedB = (localStorage.getItem("obelisk_wallet_addr") || "").trim();
+
+      const a =
+        (storedA && isHexAddress(storedA)) ? storedA :
+        (storedB && isHexAddress(storedB)) ? storedB :
+        String(address || "");
+
+      // If we have a wallet-localStorage addr, push it into the shared store so tabs stay consistent.
+      if (storedB && isHexAddress(storedB)) {
+        try { setStoredAddress(storedB); } catch {}
+      }
+
+      if (a && isHexAddress(a)) {
+        try { setAddress(a); } catch {}
+        load(a);
+      } else {
+        load();
+      }
     } catch {
       try { load(); } catch {}
     }
   }, []);
+
 /* ADDR_PERSIST_WC_V4 */
   // Keep address consistent across tabs + reloads (shared store).
   useEffect(() => {
@@ -186,12 +205,17 @@ export const WorkCreditsDashboard: React.FC = () => {
       if (!n) return;
       if (!isHexAddress(n)) return;
       try { setAddress(n); } catch {}
+      try { load(n); } catch {}
     });
     return () => { try { unsub(); } catch {} };
   }, []);
 useEffect(() => {
     try {
-      if (isHexAddress(address)) setStoredAddress(String(address));
+      const a = String(address || "").trim();
+      if (!isHexAddress(a)) return;
+      // Never let the demo placeholder overwrite the shared store.
+      if (a.toLowerCase() === DEMO_ADDRESS.toLowerCase()) return;
+      setStoredAddress(a);
     } catch {}
   }, [address]);
 // Swap side + preview
@@ -204,6 +228,10 @@ useEffect(() => {
   const [sendTo, setSendTo] = useState<string>("");
   const [sendAmount, setSendAmount] = useState<string>("");
   const [sendBusy, setSendBusy] = useState(false);
+
+  // [removed] bad ADDR_SYNC_FROM_WALLET_V2 block (was using sendBusy as address)
+
+
 
   // Derive simple prices from pool JSON (fallbacks for safety).
   const prices = useMemo(() => {
