@@ -3,7 +3,7 @@ import { getStoredAddress, setStoredAddress } from "../shared/addrStore";
 
 type AnyObj = Record<string, any>;
 
-const DEFAULT_ADDR = "0x1111111111111111111111111111111111111111";
+const DEFAULT_ADDR = ""; // NOTE: no demo default; user must choose an address
 const WALLET_DASHBOARD_BUILD = "walletdash-v4-2025-12-12";
 
 function isObj(x: any): x is AnyObj {
@@ -63,7 +63,11 @@ function shortAddr(a: string): string {
 
 function helperUrl(addr: string): string {
   // Vite proxy avoids CORS:
-  return "/workcredits/devnet/dashboard/" + addr.trim() + ".json";
+    const a = addr.trim();
+  // Vite dev: proxy avoids CORS; non-dev: served by the node/helper directly.
+  if (import.meta && import.meta.env && import.meta.env.DEV) return `/__void_helper/workcredits/devnet/dashboard/${a}.json`;
+  return `/workcredits/devnet/dashboard/${a}.json`;
+
 }
 
 function healthLabel(h: any): string {
@@ -199,7 +203,7 @@ export function WalletDashboard() {
   const [addr, setAddr] = useState<string>(() => {
     const stored = getStoredAddress();
     if (stored && looksLikeAddress(stored)) return stored;
-    return DEFAULT_ADDR;
+    return "";
   });
 const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -279,8 +283,7 @@ const [loading, setLoading] = useState(false);
       setDash(d);
       saveCache(addr, d);
       /* ADDR_PERSIST_WALLET_V1 */
-      try { setStoredAddress(addr.trim()); } catch {}
-      try { localStorage.setItem("obelisk_wallet_addr", addr.trim()); } catch {}
+      // addr persistence handled by ADDR_PERSIST_WALLET_INPUT_V1 effect
     } catch (e: any) {
       if (String(e?.name) === "AbortError") return;
       const cached = loadCache(addr);
