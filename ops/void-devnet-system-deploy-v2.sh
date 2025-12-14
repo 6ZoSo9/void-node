@@ -44,14 +44,14 @@ deploy_contract() {
 
   local forge_json
   if ! forge_json=$(
-    forge create "${path}:${name}" \
+    forge create --json --broadcast "${path}:${name}" \
       --rpc-url "$RPC_URL" \
       --private-key "$DEVNET_PRIVKEY" \
       --constructor-args "${ctor_args[@]}" \
       --broadcast \
       --json
   ); then
-    echo "[ERR] forge create failed for ${name}"
+    echo "[ERR] forge create --json --broadcast failed for ${name}"
     exit 1
   fi
 

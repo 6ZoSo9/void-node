@@ -1,3 +1,4 @@
+# SCHEMAFIX_v1: state entries may be string OR {address}
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -14,8 +15,8 @@ if [[ ! -f "$STATE" ]]; then
   exit 1
 fi
 
-JOBQUEUE=$(jq -r '.JobQueue.address' "$STATE")
-RECEIPTS=$(jq -r '.ReceiptRegistry.address' "$STATE")
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
+RECEIPTS=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 
 echo "[coverage-smoke] JobQueue=$JOBQUEUE"
 echo "[coverage-smoke] ReceiptRegistry=$RECEIPTS"

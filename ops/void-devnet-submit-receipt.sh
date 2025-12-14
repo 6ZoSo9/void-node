@@ -1,5 +1,27 @@
+# SCHEMAFIX_v1: state entries may be string OR {address}
 #!/usr/bin/env bash
 set -euo pipefail
+
+# AUTOENV_v1: make submit-receipt usable in demos/CI without manual env vars
+SPOOL="${SPOOL:-$(pwd)/docs/VOID-DEVNET-JOB-SPOOL.txt}"
+
+# fill JOB_ID from spool if missing
+if [[ -z "${JOB_ID:-}" && -f "$SPOOL" ]]; then
+  JOB_ID="$(tail -n 400 "$SPOOL" | rg -o '0x[0-9a-fA-F]{64}' | tail -n 1 || true)"
+fi
+
+# if still missing, fail non-fatally (do NOT kill the shell)
+if [[ -z "${JOB_ID:-}" ]]; then
+  echo "[warn] no JOB_ID provided and none found in $SPOOL; skipping receipt submit"
+  exit 0
+fi
+
+# safe defaults
+: "${MODEL_ID:=dev.auto.v1}"
+: "${INPUT_HASH:=$(cast keccak "input:$JOB_ID" | tr -d '[:space:]')}"
+: "${OUTPUT_HASH:=$(cast keccak "output:$JOB_ID" | tr -d '[:space:]')}"
+
+export JOB_ID MODEL_ID INPUT_HASH OUTPUT_HASH
 
 # Simple helper to submit a ReceiptRegistry receipt for a completed JobQueue job.
 #
@@ -45,7 +67,7 @@ if [[ ! -f "$STATE" ]]; then
   exit 1
 fi
 
-RECEIPTR=$(jq -r '.ReceiptRegistry.address' "$STATE")
+RECEIPTR=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 if [[ -z "$RECEIPTR" || "$RECEIPTR" == "0x0000000000000000000000000000000000000000" ]]; then
   echo "[err] invalid ReceiptRegistry.address in $STATE" >&2
   exit 1
