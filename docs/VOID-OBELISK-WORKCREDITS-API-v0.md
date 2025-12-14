@@ -57,8 +57,8 @@ Returns the current WC/VOID pool state and prices on devnet.
         "rpcUrl": "http://127.0.0.1:8545"
       },
       "reserves": {
-        "void_raw": 1e24,
-        "wc_raw": 1e26,
+        "void_raw": "1000000000000000000000000",
+        "wc_raw": "100000000000000000000000000",
         "void": 1000000,
         "wc": 100000000
       },
@@ -346,8 +346,8 @@ Example response (shape):
           "rpcUrl": "http://127.0.0.1:8545"
         },
         "reserves": {
-          "void_raw": 1e24,
-          "wc_raw": 1e26,
+          "void_raw": "1000000000000000000000000",
+          "wc_raw": "100000000000000000000000000",
           "void": 1000000,
           "wc": 100000000
         },

@@ -10,8 +10,8 @@ export interface WorkCreditsPoolResponse {
     rpcUrl: string;
   };
   reserves: {
-    void_raw: number;
-    wc_raw: number;
+    void_raw: string;
+    wc_raw: string;
     void: number;
     wc: number;
   };

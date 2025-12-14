@@ -19,6 +19,25 @@ echo 1>&2
 UP="$(q_val 'void_workcredits_devnet_up{chain="devnet"}')"
 VOID_RAW="$(q_val 'void_workcredits_devnet_void_reserve_raw{chain="devnet"}')"
 WC_RAW="$(q_val 'void_workcredits_devnet_wc_reserve_raw{chain="devnet"}')"
+# --- bigint-safe human formatting (no jq tonumber / float) ---
+fmt_18() {
+  python3 - <<'PYFMT'
+import os
+raw = os.environ.get("RAW","0").strip()
+raw = "".join([c for c in raw if c.isdigit()]) or "0"
+d = 18
+if len(raw) <= d:
+  out = "0." + ("0"*(d-len(raw))) + raw
+else:
+  out = raw[:-d] + "." + raw[-d:]
+out = out.rstrip("0").rstrip(".")
+print(out if out else "0")
+PYFMT
+}
+VOID_HUMAN="$(RAW="$VOID_RAW" fmt_18)"
+WC_HUMAN="$(RAW="$WC_RAW" fmt_18)"
+
+
 WC_PER_VOID="$(q_val 'void_workcredits_devnet_wc_per_void{chain="devnet"}')"
 VOID_PER_WC="$(q_val 'void_workcredits_devnet_void_per_wc{chain="devnet"}')"
 
@@ -36,6 +55,8 @@ jq -n \
   --arg up "$UP" \
   --arg voidRaw "$VOID_RAW" \
   --arg wcRaw "$WC_RAW" \
+  --arg voidHuman "$VOID_HUMAN" \
+  --arg wcHuman "$WC_HUMAN" \
   --arg wcPerVoid "$WC_PER_VOID" \
   --arg voidPerWc "$VOID_PER_WC" \
   --arg health "$HEALTH" \
@@ -60,6 +81,6 @@ jq -n \
       void_per_wc: ( ($voidPerWc | select(. != "") | tonumber) // 0 )
     }
   }
-  | .reserves.void = (.reserves.void_raw / 1e18)
-  | .reserves.wc   = (.reserves.wc_raw   / 1e18)
+  | .reserves.void = $voidHuman
+  | .reserves.wc   = $wcHuman
 '
