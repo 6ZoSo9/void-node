@@ -63,7 +63,7 @@ function shortAddr(a: string): string {
 
 function helperUrl(addr: string): string {
   // Vite proxy avoids CORS:
-  return `/__void_helper/workcredits/devnet/dashboard/${addr.trim()}.json`;
+  return "/workcredits/devnet/dashboard/" + addr.trim() + ".json";
 }
 
 function healthLabel(h: any): string {
@@ -296,7 +296,16 @@ const [loading, setLoading] = useState(false);
     }
   }
 
+    // ADDR_PERSIST_WALLET_INPUT_V1
   useEffect(() => {
+    try {
+      const a = addr.trim();
+      try { setStoredAddress(String(a).trim()); } catch {}
+      if (/^0x[0-9a-fA-F]{40}$/.test(a)) localStorage.setItem("obelisk_wallet_addr", a);
+    } catch {}
+  }, [addr]);
+
+useEffect(() => {
     const cached = loadCache(addr);
     if (cached) setDash(cached);
     refresh();
