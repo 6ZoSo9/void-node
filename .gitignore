@@ -125,3 +125,8 @@ ops/*.jqfixbak.*
 ops/*.admincleanbak.*
 ops/*.catguardbak.*
 ops/*.jqfixbak.*
+
+# local ops patch backups
+ops/*.admincleanbak.*
+ops/*.catguardbak.*
+ops/*.jqfixbak.*
