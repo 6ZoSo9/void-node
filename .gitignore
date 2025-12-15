@@ -136,3 +136,4 @@ broadcast/**/run-latest.json
 cache/solidity-files-cache.json
 cache/**/solidity-files-cache.json
 ops/*.silencebak.*
+ops/*.mmfixbak.*
