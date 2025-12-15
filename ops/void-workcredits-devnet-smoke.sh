@@ -132,7 +132,7 @@ RC_POOL_CTRL=$?
 set -e
 if [ ${RC_POOL_CTRL} -ne 0 ] || [ -z "${POOL_CONTROLLER}" ]; then
   echo "[INFO] pool admin getter missing; OK (rc=${RC_POOL_CTRL})"
-  cat /tmp/wc_cast_err_pool_ctrl || true
+  test -f /tmp/wc_cast_err_pool_ctrl && cat /tmp/wc_cast_err_pool_ctrl || true
 else
   echo "controller()      = ${POOL_CONTROLLER}"
 fi
