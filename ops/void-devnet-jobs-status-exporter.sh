@@ -87,6 +87,14 @@ write_prom_file() {
   sudo chmod 664 "$OUT_FILE" || true
 
   echo "[jobs-status] wrote metrics to $OUT_FILE"
+
+# --- jobs-status v2 exporter (wired) ---
+# v2 writes a separate prom file so v1 can remain legacy + unclobbered.
+# It derives v2_gap + v2_health from the v1 prom snapshot.
+if [ -x "ops/void-devnet-jobs-status-v2-exporter.sh" ]; then
+  (REPO="$ROOT" bash "ops/void-devnet-jobs-status-v2-exporter.sh" "$out_file") || echo "[jobs-status] WARN: v2 exporter failed (non-fatal)" >&2
+fi
+
 }
 
 if [ ! -f "$STATE_FILE" ]; then
