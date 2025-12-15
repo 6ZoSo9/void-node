@@ -17,8 +17,8 @@ if [[ ! -f "$STATE_FILE" ]]; then
   exit 1
 fi
 
-JOBQUEUE=$(jq -r '.JobQueue.address' "$STATE_FILE")
-RECEIPT_REG=$(jq -r '.ReceiptRegistry.address' "$STATE_FILE")
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE_FILE")
+RECEIPT_REG=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE_FILE")
 
 echo "[job-debug] RPC_URL=$RPC_URL"
 echo "[job-debug] STATE_FILE=$STATE_FILE"

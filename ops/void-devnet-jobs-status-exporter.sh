@@ -86,8 +86,8 @@ if [ ! -f "$STATE_FILE" ]; then
   exit 0
 fi
 
-JOBQUEUE=$(jq -r '.JobQueue.address' "$STATE_FILE")
-RECEIPTS=$(jq -r '.ReceiptRegistry.address' "$STATE_FILE")
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE_FILE")
+RECEIPTS=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE_FILE")
 
 echo "[jobs-status] JobQueue=$JOBQUEUE"
 echo "[jobs-status] ReceiptRegistry=$RECEIPTS"

@@ -34,8 +34,8 @@ if [ ! -f "$STATE" ]; then
   exit 1
 fi
 
-JOBQUEUE_ADDR=$(jq -r '.JobQueue.address' "$STATE")
-RECEIPT_ADDR=$(jq -r '.ReceiptRegistry.address' "$STATE")
+JOBQUEUE_ADDR=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
+RECEIPT_ADDR=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 
 if [ -z "$JOBQUEUE_ADDR" ] || [ "$JOBQUEUE_ADDR" = "null" ]; then
   echo "[ERR] JobQueue.address missing in $STATE" >&2

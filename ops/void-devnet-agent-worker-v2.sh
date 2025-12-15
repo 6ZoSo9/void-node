@@ -22,7 +22,7 @@ if ! [ -f "$STATE" ]; then
   exit 0
 fi
 
-JOBQUEUE_ADDR=$(jq -r '.JobQueue.address' "$STATE")
+JOBQUEUE_ADDR=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 MODELREGISTRY_ADDR=$(jq -r '.ModelRegistry.address' "$STATE")
 
 echo "[agent-worker-v2] repo:   $REPO"

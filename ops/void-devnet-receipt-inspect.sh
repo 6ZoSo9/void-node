@@ -38,7 +38,7 @@ if [[ ! -f "$STATE" ]]; then
   exit 1
 fi
 
-RECEIPTS="$(jq -r '.ReceiptRegistry.address' "$STATE")"
+RECEIPTS="$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")"
 if [[ -z "$RECEIPTS" || "$RECEIPTS" == "null" ]]; then
   echo "[error] ReceiptRegistry.address missing in $STATE" >&2
   exit 1

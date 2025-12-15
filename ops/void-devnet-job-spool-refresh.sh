@@ -15,7 +15,7 @@ if [ ! -f "$STATE_FILE" ]; then
   exit 1
 fi
 
-JOBQUEUE=$(jq -r '.JobQueue.address // empty' "$STATE_FILE")
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) // empty' "$STATE_FILE")
 if [ -z "$JOBQUEUE" ] || [ "$JOBQUEUE" = "0x0000000000000000000000000000000000000000" ]; then
   echo "[spool-refresh] ERROR: JobQueue.address missing/zero in $STATE_FILE" >&2
   exit 1

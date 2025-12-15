@@ -97,9 +97,9 @@ cp "$STATE" "$BACKUP"
 echo "[redeploy] backup -> $BACKUP"
 
 jq --arg jq "$JQ_ADDR" --arg rr "$RR_ADDR" '
-  .JobQueue.address = $jq
+  .JobQueue = {"address": }
   | .JobQueue.chainId = (.chainId // 2050)
-  | .ReceiptRegistry.address = $rr
+  | .ReceiptRegistry = {"address": }
   | .ReceiptRegistry.chainId = (.chainId // 2050)
 ' "$BACKUP" > "$STATE.tmp"
 

@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 
 : "${RPC_URL:=http://127.0.0.1:8545}"
 
-JOBQUEUE=$(jq -r '.JobQueue.address' docs/VOID-DEVNET-PROTOCOL-STATE.json)
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' docs/VOID-DEVNET-PROTOCOL-STATE.json)
 if [[ -z "$JOBQUEUE" || "$JOBQUEUE" == "null" ]]; then
   echo "[ERR] missing JobQueue.address in docs/VOID-DEVNET-PROTOCOL-STATE.json" >&2
   exit 1

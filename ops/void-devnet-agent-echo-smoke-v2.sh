@@ -35,8 +35,8 @@ if [[ "$len" -ne 66 || "${DEVNET_CALLER_KEY:0:2}" != "0x" ]]; then
   exit 1
 fi
 
-JOBQUEUE_ADDR="$(jq -r '.JobQueue.address' "$STATE")"
-RECEIPTS_ADDR="$(jq -r '.ReceiptRegistry.address' "$STATE")"
+JOBQUEUE_ADDR="$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")"
+RECEIPTS_ADDR="$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")"
 
 echo "[echo-smoke-v2] JobQueue       = $JOBQUEUE_ADDR"
 echo "[echo-smoke-v2] ReceiptRegistry = $RECEIPTS_ADDR"

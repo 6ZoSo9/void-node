@@ -8,8 +8,8 @@ RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
 TEXTFILE_DIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}"
 OUT="$TEXTFILE_DIR/void_devnet_coverage.prom"
 
-JOBQUEUE="$(jq -r '.JobQueue.address' "$STATE")"
-RECEIPT_REG="$(jq -r '.ReceiptRegistry.address' "$STATE")"
+JOBQUEUE="$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")"
+RECEIPT_REG="$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")"
 
 echo "[heal] repo=$REPO"
 echo "[heal] rpc_url=$RPC_URL"

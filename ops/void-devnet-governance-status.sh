@@ -34,8 +34,8 @@ chainId="$(jq -r '(.chainId // .ChainId // .network.chainId // empty)' "$STATE_F
 # Core contract addresses (best-effort)
 adminGate_addr="$(jq -r '.AdminGate.address // .AdminGate // empty' "$STATE_FILE")"
 updateGate_addr="$(jq -r '.UpdateGate.address // .UpdateGate // empty' "$STATE_FILE")"
-jobQueue_addr="$(jq -r '.JobQueue.address // .JobQueue // empty' "$STATE_FILE")"
-receipts_addr="$(jq -r '.ReceiptRegistry.address // .ReceiptRegistry // empty' "$STATE_FILE")"
+jobQueue_addr="$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) // .JobQueue // empty' "$STATE_FILE")"
+receipts_addr="$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) // .ReceiptRegistry // empty' "$STATE_FILE")"
 models_addr="$(jq -r '.ModelRegistry.address // .ModelRegistry // empty' "$STATE_FILE")"
 datasets_addr="$(jq -r '.DatasetRegistry.address // .DatasetRegistry // empty' "$STATE_FILE")"
 agents_addr="$(jq -r '.AgentRegistry.address // .AgentRegistry // empty' "$STATE_FILE")"

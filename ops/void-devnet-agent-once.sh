@@ -5,7 +5,7 @@ REPO="${REPO:-$HOME/dev/void-node}"
 cd "$REPO"
 
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
-JOBQUEUE=$(jq -r '.JobQueue.address' docs/VOID-DEVNET-PROTOCOL-STATE.json)
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' docs/VOID-DEVNET-PROTOCOL-STATE.json)
 WORKER_PRIVKEY="${WORKER_PRIVKEY:?set WORKER_PRIVKEY}"
 
 echo "[info] RPC_URL=$RPC_URL"

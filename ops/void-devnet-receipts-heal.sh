@@ -12,8 +12,8 @@ if [[ ! -f "$STATE" ]]; then
   exit 1
 fi
 
-JOBQUEUE=$(jq -r '.JobQueue.address' "$STATE")
-RECEIPT_REG=$(jq -r '.ReceiptRegistry.address' "$STATE")
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
+RECEIPT_REG=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 
 echo "[receipts-heal] REPO        = $REPO"
 echo "[receipts-heal] RPC_URL     = $RPC_URL"

@@ -43,8 +43,8 @@ if [[ ! -f "$STATE" ]]; then
   exit 1
 fi
 
-JOBQUEUE=$(jq -r '.JobQueue.address' "$STATE")
-RECEIPTS=$(jq -r '.ReceiptRegistry.address' "$STATE")
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
+RECEIPTS=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 
 echo "[echo-smoke] JobQueue       = $JOBQUEUE"
 echo "[echo-smoke] ReceiptRegistry = $RECEIPTS"

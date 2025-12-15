@@ -31,7 +31,7 @@ if [ ! -f "$STATE_FILE" ]; then
   exit 1
 fi
 
-JOBQUEUE_ADDR="$(jq -r '.JobQueue.address' "$STATE_FILE")"
+JOBQUEUE_ADDR="$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE_FILE")"
 if [ -z "$JOBQUEUE_ADDR" ] || [ "$JOBQUEUE_ADDR" = "null" ]; then
   echo "[ERR] JobQueue.address missing from $STATE_FILE" >&2
   exit 1

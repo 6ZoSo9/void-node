@@ -11,9 +11,9 @@ DEVNET_PRIVKEY="${DEVNET_PRIVKEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed
 cd "$REPO"
 
 echo "=== [load devnet addresses from state] ==="
-JOBQUEUE_ADDR=$(jq -r '.JobQueue.address        // ""' "$STATE_FILE")
+JOBQUEUE_ADDR=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))        // ""' "$STATE_FILE")
 AGENT_REG_ADDR=$(jq -r '.AgentRegistry.address  // ""' "$STATE_FILE")
-RECEIPT_REG_ADDR=$(jq -r '.ReceiptRegistry.address // ""' "$STATE_FILE")
+RECEIPT_REG_ADDR=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) // ""' "$STATE_FILE")
 
 echo "[JobQueue]        ${JOBQUEUE_ADDR:-<missing>}"
 echo "[AgentRegistry]   ${AGENT_REG_ADDR:-<missing>}"

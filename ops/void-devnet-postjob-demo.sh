@@ -16,7 +16,7 @@ if [ -z "${DEVNET_PRIVKEY}" ]; then
   exit 1
 fi
 
-JOBQ_ADDR=$(jq -r '.JobQueue.address // .JobQueue // empty' "$STATE")
+JOBQ_ADDR=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) // .JobQueue // empty' "$STATE")
 if [ -z "$JOBQ_ADDR" ] || [ "$JOBQ_ADDR" = "null" ]; then
   echo "[ERR] JobQueue address not found in $STATE" >&2
   exit 1

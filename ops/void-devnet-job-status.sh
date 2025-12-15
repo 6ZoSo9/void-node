@@ -12,9 +12,9 @@ if [ ! -f "$STATE" ]; then
   exit 1
 fi
 
-JOBQUEUE=$(jq -r '.JobQueue.address' "$STATE")
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 if [ -z "$JOBQUEUE" ] || [ "$JOBQUEUE" = "null" ]; then
-  echo "[ERR] .JobQueue.address missing in $STATE"
+  echo "[ERR] (.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) missing in $STATE"
   exit 1
 fi
 

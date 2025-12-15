@@ -23,7 +23,7 @@ if [ ! -f "$STATE_FILE" ]; then
   exit 1
 fi
 
-RECEIPT_REG_ADDR="$(jq -r '.ReceiptRegistry.address' "$STATE_FILE")"
+RECEIPT_REG_ADDR="$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE_FILE")"
 if [ -z "$RECEIPT_REG_ADDR" ] || [ "$RECEIPT_REG_ADDR" = "null" ]; then
   echo "$SCRIPT_NAME ERROR: ReceiptRegistry.address missing in $STATE_FILE" >&2
   exit 1

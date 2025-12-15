@@ -5,8 +5,8 @@ REPO="${REPO:-$(pwd)}"
 STATE="$REPO/docs/VOID-DEVNET-PROTOCOL-STATE.json"
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
 
-JOBQUEUE="$(jq -r '.JobQueue.address' "$STATE")"
-RECEIPT_REG="$(jq -r '.ReceiptRegistry.address' "$STATE")"
+JOBQUEUE="$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")"
+RECEIPT_REG="$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")"
 
 echo "=== [void-devnet jobs/receipts report] ==="
 echo "[repo]      $REPO"

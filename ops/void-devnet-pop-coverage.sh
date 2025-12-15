@@ -21,8 +21,8 @@ if ! command -v cast >/dev/null 2>&1; then
   exit 1
 fi
 
-JOBQUEUE=$(jq -r '.JobQueue.address' "$STATE")
-RECEIPTREG=$(jq -r '.ReceiptRegistry.address' "$STATE")
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
+RECEIPTREG=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 
 echo "[info] REPO=$REPO"
 echo "[info] RPC_URL=$RPC_URL"

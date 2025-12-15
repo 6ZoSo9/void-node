@@ -9,7 +9,7 @@ if [[ ! -f "$STATE" ]]; then
   exit 1
 fi
 
-JOBQUEUE=$(jq -r '.JobQueue.address' "$STATE")
+JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 
 # Hard-coded JobPosted event signature from logs:
 # 0x9cc10673c0632147a123f5845fae256a875a506bf49adc87e47e69ffd69f088c
