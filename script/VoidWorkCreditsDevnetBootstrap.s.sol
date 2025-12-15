@@ -37,10 +37,12 @@ contract VoidWorkCreditsDevnetBootstrap is Script {
 
         // 3) Seed with some arbitrary devnet liquidity.
         // Adjust these if your devnet balances differ.
-        uint256 initialVoid = 1_000 ether;
-        uint256 initialWc = 100_000 ether;
-
-        // Mint WC to deployer via controller.
+        // [wc-big-seed-v1] optional big-seed toggle (default: small seed)
+        bool bigSeed = false;
+        try vm.envBool("WC_BIG_SEED") returns (bool v) { bigSeed = v; } catch {}
+        uint256 initialVoid = bigSeed ? 10_000_000e18 : 1_000e18;
+        uint256 initialWc   = bigSeed ? 10_000_000e18 : 100_000e18;
+// Mint WC to deployer via controller.
         wc.mint(deployer, initialWc);
 
         // Approve pool to pull VOID + WC from deployer.
