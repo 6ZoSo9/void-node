@@ -110,7 +110,7 @@ POSTED=0
 DONE=0
 OTHER=0
 
-while read -r jobId; do
+while IFS=$' 	' read -r jobId _rest; do
   [ -z "$jobId" ] && continue
   case "$jobId" in
     0x*) ;;
