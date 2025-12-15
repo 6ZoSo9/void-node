@@ -90,9 +90,10 @@ write_prom_file() {
 
 # --- jobs-status v2 exporter (wired) ---
 # v2 writes a separate prom file so v1 can remain legacy + unclobbered.
-# It derives v2_gap + v2_health from the v1 prom snapshot.
+# Derive the v1 prom path *safely* under set -u (never touch an unset var).
+V1_PROM_PATH="${OUT_FILE:-${out_file:-/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v1.prom}}"
 if [ -x "ops/void-devnet-jobs-status-v2-exporter.sh" ]; then
-  (REPO="$ROOT" bash "ops/void-devnet-jobs-status-v2-exporter.sh" "$out_file") || echo "[jobs-status] WARN: v2 exporter failed (non-fatal)" >&2
+  (REPO="$ROOT" bash "ops/void-devnet-jobs-status-v2-exporter.sh" "$V1_PROM_PATH") || echo "[jobs-status] WARN: v2 exporter failed (non-fatal)" >&2
 fi
 
 }
