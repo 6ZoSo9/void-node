@@ -130,3 +130,9 @@ ops/*.jqfixbak.*
 ops/*.admincleanbak.*
 ops/*.catguardbak.*
 ops/*.jqfixbak.*
+
+# foundry artifacts (local)
+broadcast/**/run-latest.json
+cache/solidity-files-cache.json
+cache/**/solidity-files-cache.json
+ops/*.silencebak.*
