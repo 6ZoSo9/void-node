@@ -98,25 +98,10 @@ rm -f /tmp/wc_cast_err_controller || true
 
 echo
 echo "=== [wc-devnet-smoke] WorkCreditsPoolV1 wiring ==="
-# --- [pool admin/owner probe] ---
-POOL_ADMIN_OR_OWNER=""
-tmp="$(cast call "${WC_POOL_ADDR}" 'owner()(address)' --rpc-url "${RPC_URL}" 2>/dev/null || true)"
-if [[ "${tmp}" =~ ^0x[0-9a-fA-F]{40}$ ]]; then POOL_ADMIN_OR_OWNER="${tmp}"; fi
-if [ -z "${POOL_ADMIN_OR_OWNER}" ]; then
-  tmp="$(cast call "${WC_POOL_ADDR}" 'admin()(address)' --rpc-url "${RPC_URL}" 2>/dev/null || true)"
-  if [[ "${tmp}" =~ ^0x[0-9a-fA-F]{40}$ ]]; then POOL_ADMIN_OR_OWNER="${tmp}"; fi
-fi
-if [ -n "${POOL_ADMIN_OR_OWNER}" ]; then
-  echo "owner/admin      = ${POOL_ADMIN_OR_OWNER}"
-else
-  echo "owner/admin      = <n/a> (pool has no admin/owner getter; OK)"
-fi
-# --- [/pool admin/owner probe] ---
-
 
 # voidToken()
 set +e
-POOL_VOID_TOKEN="$(cast call "${WC_POOL_ADDR}" 'voidToken()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_void || true)"
+POOL_VOID_TOKEN="$(cast call "${WC_POOL_ADDR}" 'voidToken()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_void || true)" 2>/dev/null
 RC_POOL_VOID=$?
 set -e
 if [ ${RC_POOL_VOID} -ne 0 ] || [ -z "${POOL_VOID_TOKEN}" ]; then
@@ -129,7 +114,7 @@ rm -f /tmp/wc_cast_err_pool_void || true
 
 # workCreditsToken()
 set +e
-POOL_WC_TOKEN="$(cast call "${WC_POOL_ADDR}" 'wcToken()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_wc || true)"
+POOL_WC_TOKEN="$(cast call "${WC_POOL_ADDR}" 'wcToken()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_wc || true)" 2>/dev/null
 RC_POOL_WC=$?
 set -e
 if [ ${RC_POOL_WC} -ne 0 ] || [ -z "${POOL_WC_TOKEN}" ]; then
@@ -142,10 +127,15 @@ rm -f /tmp/wc_cast_err_pool_wc || true
 
 # controller()
 set +e
-POOL_CONTROLLER="$(cast call "${WC_POOL_ADDR}" 'owner()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_ctrl || true)"
+POOL_CONTROLLER="$(cast call "${WC_POOL_ADDR}" 'owner()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_ctrl || true)" 2>/dev/null
 RC_POOL_CTRL=$?
 set -e
 if [ ${RC_POOL_CTRL} -ne 0 ] || [ -z "${POOL_CONTROLLER}" ]; then
+  echo "[INFO] pool admin getter missing; OK (rc=${RC_POOL_CTRL})"
+  cat /tmp/wc_cast_err_pool_ctrl || true
+else
+  echo "controller()      = ${POOL_CONTROLLER}"
+fi
 rm -f /tmp/wc_cast_err_pool_ctrl || true
 
 echo
