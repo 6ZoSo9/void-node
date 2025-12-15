@@ -1,35 +1,27 @@
 {
-  "chainId": 2050,
-  "AdminGate": {
-    "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-  },
-  "ModelRegistry": {
-    "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-    "chainId": 2050,
-    "demoModelId": "void-demo-llm-1"
+  "AdminGate": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+  "AgentRegistry": {
+    "address": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"
   },
   "DatasetRegistry": {
-    "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
-    "chainId": 2050
-  },
-  "AgentRegistry": {
-    "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
-    "chainId": 2050
+    "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
   },
   "JobQueue": {
-    "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
-    "deployedBlock": 3031,
-    "chainId": 2050
+    "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F"
   },
-  "ReceiptRegistry": {
-    "address": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
-    "deployedBlock": 5084,
-    "chainId": 2050
+  "ModelRegistry": {
+    "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
   },
-  "workCreditsToken": "0xF95864611C26D59DA4A0534ec1Dd3BD0EF6bae0a",
-  "workCreditsPoolV1": "0xdab942e37D0D8da45eB19f31897dff7306914Ab9",
-  "workCreditsRelayerV1": "0x2e62B62C17857ce3893E008ac712407Dad6e7C2d",
-  "RewardEngine": {
-    "address": "0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
-  }
+  "ReceiptRegistry": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+  "VoidToken": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+  "chainId": 2050,
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "rpcUrl": "http://127.0.0.1:8545",
+  "voidToken": "0x04c89607413713ec9775e14b954286519d836fef",
+  "workCreditsPool": {
+    "address": "0xdab942e37d0d8da45eb19f31897dff7306914ab9"
+  },
+  "workCreditsPoolV1": "0x21df544947ba3e8b3c32561399e88b52dc8b2823",
+  "workCreditsRelayerV1": "0x2e2ed0cfd3ad2f1d34481277b3204d807ca2f8c2",
+  "workCreditsToken": "0x4c4a2f8c81640e47606d3fd77b353e87ba015584"
 }

@@ -24,7 +24,8 @@ contract WorkCreditsDevnetDeploy is Script {
         require(DEVNET_VOID_TOKEN != address(0), "DEVNET_VOID_TOKEN not set");
 
         console2.log("devnet deployer:", deployer);
-        console2.log("devnet VoidToken:", DEVNET_VOID_TOKEN);
+        address devVoidToken = vm.envAddress("DEVNET_VOID_TOKEN");
+        console2.log("devnet VoidToken:", devVoidToken);
 
         vm.startBroadcast(deployerKey);
 
@@ -34,7 +35,7 @@ contract WorkCreditsDevnetDeploy is Script {
 
         // 2) Deploy pool bound to devnet VoidToken + WorkCreditsToken.
         WorkCreditsPoolV1 pool = new WorkCreditsPoolV1(
-            DEVNET_VOID_TOKEN,
+            devVoidToken,
             address(wc),
             deployer
         );
@@ -43,7 +44,7 @@ contract WorkCreditsDevnetDeploy is Script {
         // 3) Deploy relayer bound to the pool + tokens.
         WorkCreditsRelayerV1 relayer = new WorkCreditsRelayerV1(
             address(pool),
-            DEVNET_VOID_TOKEN,
+            devVoidToken,
             address(wc)
         );
         console2.log("WorkCreditsRelayerV1:", address(relayer));
