@@ -1,90 +1,117 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
 cd "${REPO:-$HOME/dev/void-node}"
 
-OUT_DIR="${OUT_DIR:-/var/lib/node_exporter/textfile_collector}"
-V1_PROM="${1:-$OUT_DIR/void_devnet_jobs_status_v1.prom}"
-OUT_PROM="${OUT_FILE:-$OUT_DIR/void_devnet_jobs_status_v2.prom}"
-# --- v2 cache default (no-prompt) ---
-V2_TEXTFILE_REAL_DEFAULT="/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v2.prom"
-V2_TEXTFILE_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/node-exporter-textfile"
-V2_TEXTFILE_CACHE="$V2_TEXTFILE_CACHE_DIR/void_devnet_jobs_status_v2.prom"
-mkdir -p "$V2_TEXTFILE_CACHE_DIR"
-# Keep a real target for optional install (caller can override OUT_PROM_REAL).
-OUT_PROM_REAL="${OUT_PROM_REAL:-$V2_TEXTFILE_REAL_DEFAULT}"
-# If script defaulted OUT_PROM to the real path, redirect writes to cache.
-if [ "${OUT_PROM:-}" = "$V2_TEXTFILE_REAL_DEFAULT" ]; then
-  OUT_PROM="$V2_TEXTFILE_CACHE"
+OUT_PROM="${OUT_PROM:-/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v2.prom}"
+V1_PROM="${V1_PROM:-/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v1.prom}"
+CHAIN="${CHAIN:-devnet}"
+
+RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+STATE_FILE="${STATE_FILE:-docs/VOID-DEVNET-PROTOCOL-STATE.json}"
+SPOOL_FILE="${SPOOL_FILE:-docs/VOID-DEVNET-JOB-SPOOL.txt}"
+
+metric_last_value() {
+  local name="$1" file="$2"
+  awk -v n="$name" '
+    $1 ~ ("^" n "\\{") || $1 == n { v=$NF }
+    END { if (v == "") exit 2; print v }
+  ' "$file" 2>/dev/null || return 2
+}
+
+intify() { printf '%s\n' "$1" | awk '{printf "%.0f\n",$1}' 2>/dev/null || echo -1; }
+
+SPOOL="-1"
+CHAIN_TOTAL="-1"
+BAD_FLAGS="-1"
+
+# --- parse from v1 prom (best-effort) ---
+if [ -f "$V1_PROM" ]; then
+  SPOOL="$(metric_last_value "void_devnet_jobs_status_v1_jobs_in_spool" "$V1_PROM" 2>/dev/null || echo -1)"
+  CHAIN_TOTAL="$(metric_last_value "void_devnet_jobs_status_v1_total_chain_jobs" "$V1_PROM" 2>/dev/null || echo -1)"
+  BAD_FLAGS="$(metric_last_value "void_devnet_jobs_status_v1_bad_flags" "$V1_PROM" 2>/dev/null || echo -1)"
 fi
 
-
-
-TMP_PROM="$(mktemp /tmp/void_devnet_jobs_status_v2.prom.XXXXXX)"
-SUDO_CMD=""
-if [ ! -w "$(dirname "$OUT_PROM")" ] || [ -f "$OUT_PROM" -a ! -w "$OUT_PROM" ]; then
-  SUDO_CMD="sudo -n"
+# --- fallback spool from file ---
+if [ "$SPOOL" = "-1" ] && [ -f "$SPOOL_FILE" ]; then
+  # count non-empty lines
+  SPOOL="$(awk 'NF{c++} END{print (c==""?0:c)}' "$SPOOL_FILE" 2>/dev/null || echo -1)"
 fi
 
-
-if [ ! -f "$V1_PROM" ]; then
-  echo "[jobs-status-v2] ERR: v1 prom not found: $V1_PROM" >&2
-  exit 1
-fi
-
-read -r SPOOL_TOTAL CHAIN_TOTAL BAD_FLAGS < <(awk '
-  BEGIN{st=-1; ct=-1; bf=-1;}
-  $1 ~ /^void_devnet_jobs_status_v1_total/ {st=$2}
-  $1 ~ /^void_devnet_jobs_status_v1_chain_total/ {ct=$2}
-  $1 ~ /^void_devnet_jobs_status_v1_bad_flags/ {bf=$2}
-  END{
-    if(st<0) st=0;
-    if(ct<0) ct=0;
-    if(bf<0) bf=0;
-    printf "%d %d %d\n", st, ct, bf;
-  }
-' "$V1_PROM")
-
-GAP=$(( CHAIN_TOTAL - SPOOL_TOTAL ))
-if [ "$GAP" -lt 0 ]; then GAP=0; fi
-
-HEALTH=1
-if [ "$BAD_FLAGS" -ne 0 ]; then HEALTH=0; fi
-
-TS="$(date +%s)"
-TMP="/tmp/void_devnet_jobs_status_v2.prom.$$"
-
-{
-  echo "# HELP void_devnet_jobs_status_v2_gap chain_totalJobs() - spool_total (0 if spool exceeds chain total)"
-  echo "# TYPE void_devnet_jobs_status_v2_gap gauge"
-  printf "void_devnet_jobs_status_v2_gap{chain=\"devnet\"} %s\n" "$GAP"
-
-  echo "# HELP void_devnet_jobs_status_v2_health 1 if no bad flag combos observed among scanned spool jobs, else 0"
-  echo "# TYPE void_devnet_jobs_status_v2_health gauge"
-  printf "void_devnet_jobs_status_v2_health{chain=\"devnet\"} %s\n" "$HEALTH"
-
-  echo "# HELP void_devnet_jobs_status_v2_run_timestamp_seconds exporter run timestamp"
-  echo "# TYPE void_devnet_jobs_status_v2_run_timestamp_seconds gauge"
-  printf "void_devnet_jobs_status_v2_run_timestamp_seconds{chain=\"devnet\"} %s\n" "$TS"
-} > "$TMP"
-
-if install -m 0644 "$TMP" "$OUT_PROM" 2>/dev/null; then
-  :
-else
-  echo "[jobs-status-v2] note: need sudo -n to write $OUT_PROM"
-  sudo -n install -m 0644 "$TMP" "$OUT_PROM"
-fi
-
-rm -f "$TMP"
-echo "[jobs-status-v2] wrote $OUT_PROM (gap=$GAP health=$HEALTH from v1: spool=$SPOOL_TOTAL chain=$CHAIN_TOTAL bad_flags=$BAD_FLAGS)"
-
-# --- v2 best-effort install (no-prompt) ---
-if [ -n "${OUT_PROM_REAL:-}" ] && [ -n "${OUT_PROM:-}" ] && [ "$OUT_PROM" != "$OUT_PROM_REAL" ] && [ -f "$OUT_PROM" ]; then
-  if [ -w "$(dirname "$OUT_PROM_REAL")" ] && { [ ! -f "$OUT_PROM_REAL" ] || [ -w "$OUT_PROM_REAL" ]; }; then
-    install -m 0644 "$OUT_PROM" "$OUT_PROM_REAL" || true
-  elif sudo -n true 2>/dev/null; then
-    sudo -n install -m 0644 "$OUT_PROM" "$OUT_PROM_REAL" || true
-  else
-    echo "[jobs-status-v2] NOTE: cannot install v2 prom to $OUT_PROM_REAL (no sudo -n). cache at $OUT_PROM" >&2
+# --- fallback chain total from contract ---
+if [ "$CHAIN_TOTAL" = "-1" ] && command -v jq >/dev/null 2>&1 && command -v cast >/dev/null 2>&1 && [ -f "$STATE_FILE" ]; then
+  JOBQ="$(jq -r '..|.JobQueue? // empty | .address? // empty' "$STATE_FILE" 2>/dev/null | head -n 1 || true)"
+  if [ -z "${JOBQ:-}" ] || [ "$JOBQ" = "null" ]; then
+    # alternate common layouts
+    JOBQ="$(jq -r '.JobQueue.address // .contracts.JobQueue.address // empty' "$STATE_FILE" 2>/dev/null || true)"
+  fi
+  if [ -n "${JOBQ:-}" ]; then
+    # totalJobs()(uint256)
+    CT="$(cast call "$JOBQ" "totalJobs()(uint256)" --rpc-url "$RPC_URL" 2>/dev/null || true)"
+    if [ -n "${CT:-}" ]; then CHAIN_TOTAL="$CT"; fi
   fi
 fi
 
+# If bad_flags wasn't parseable, default to 0? No: be strict.
+HEALTH="0"
+if [ "$BAD_FLAGS" != "-1" ]; then
+  bi="$(intify "$BAD_FLAGS")"
+  if [ "$bi" -eq 0 ]; then HEALTH="1"; else HEALTH="0"; fi
+fi
+
+# Compute gap if we have both spool and chain total
+GAP="0"
+si="$(intify "$SPOOL")"
+ci="$(intify "$CHAIN_TOTAL")"
+if [ "$si" -ge 0 ] && [ "$ci" -ge 0 ]; then
+  if [ "$ci" -ge "$si" ]; then GAP="$((ci - si))"; else GAP="0"; fi
+fi
+
+RUN_TS="$(date +%s)"
+TMP="/tmp/void_devnet_jobs_status_v2.prom.$$"
+{
+  echo '# HELP void_devnet_jobs_status_v2_gap chain_totalJobs() - spool_total (0 if spool exceeds chain total)'
+  echo '# TYPE void_devnet_jobs_status_v2_gap gauge'
+  printf 'void_devnet_jobs_status_v2_gap{chain="%s"} %s\n' "$CHAIN" "$GAP"
+
+  echo '# HELP void_devnet_jobs_status_v2_health 1 if bad_flags==0 (from v1), else 0; if unknown then 0'
+  echo '# TYPE void_devnet_jobs_status_v2_health gauge'
+  printf 'void_devnet_jobs_status_v2_health{chain="%s"} %s\n' "$CHAIN" "$HEALTH"
+
+  echo '# HELP void_devnet_jobs_status_v2_run_timestamp_seconds exporter run timestamp'
+  echo '# TYPE void_devnet_jobs_status_v2_run_timestamp_seconds gauge'
+  printf 'void_devnet_jobs_status_v2_run_timestamp_seconds{chain="%s"} %s\n' "$CHAIN" "$RUN_TS"
+
+  echo '# HELP void_devnet_jobs_status_v2_diag_spool parsed spool count (v1 metric or fallback file)'
+  echo '# TYPE void_devnet_jobs_status_v2_diag_spool gauge'
+  printf 'void_devnet_jobs_status_v2_diag_spool{chain="%s"} %s\n' "$CHAIN" "$SPOOL"
+
+  echo '# HELP void_devnet_jobs_status_v2_diag_chain_total parsed chain total (v1 metric or fallback cast)'
+  echo '# TYPE void_devnet_jobs_status_v2_diag_chain_total gauge'
+  printf 'void_devnet_jobs_status_v2_diag_chain_total{chain="%s"} %s\n' "$CHAIN" "$CHAIN_TOTAL"
+
+  echo '# HELP void_devnet_jobs_status_v2_diag_bad_flags_from_v1 parsed bad_flags from v1 (or -1 if missing)'
+  echo '# TYPE void_devnet_jobs_status_v2_diag_bad_flags_from_v1 gauge'
+  printf 'void_devnet_jobs_status_v2_diag_bad_flags_from_v1{chain="%s"} %s\n' "$CHAIN" "$BAD_FLAGS"
+} > "$TMP"
+
+# write IN-PLACE to OUT_PROM; do not require /var dir write
+WRITE_OK=0
+if [ -e "$OUT_PROM" ] && [ -w "$OUT_PROM" ]; then
+  cat "$TMP" > "$OUT_PROM" 2>/dev/null && WRITE_OK=1 || WRITE_OK=0
+else
+  : > "$OUT_PROM" 2>/dev/null || true
+  if [ -w "$OUT_PROM" ]; then
+    cat "$TMP" > "$OUT_PROM" 2>/dev/null && WRITE_OK=1 || WRITE_OK=0
+  fi
+fi
+
+rm -f "$TMP" 2>/dev/null || true
+
+if [ "$WRITE_OK" -ne 1 ]; then
+  echo "[jobs-status-v2] ERR: failed to write $OUT_PROM (needs existing writable file)." >&2
+  exit 0
+fi
+
+echo "[jobs-status-v2] wrote $OUT_PROM (gap=$GAP health=$HEALTH spool=$SPOOL chain=$CHAIN_TOTAL bad_flags=$BAD_FLAGS)"
+exit 0
