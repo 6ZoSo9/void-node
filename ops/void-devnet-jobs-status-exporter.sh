@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- v1 cache default (no-prompt) ---
+# Pre-push/CI must never block on sudo -n. Default OUT_FILE to a user cache path.
+V1_TEXTFILE_REAL_DEFAULT="/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v1.prom"
+V1_TEXTFILE_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/node-exporter-textfile"
+V1_TEXTFILE_CACHE="$V1_TEXTFILE_CACHE_DIR/void_devnet_jobs_status_v1.prom"
+mkdir -p "$V1_TEXTFILE_CACHE_DIR"
+# If caller didn't choose OUT_FILE, force cache.
+if [ -z "${OUT_FILE:-}" ]; then
+  OUT_FILE="$V1_TEXTFILE_CACHE"
+fi
+# Remember the real target for optional install (caller can override OUT_FILE_REAL).
+OUT_FILE_REAL="${OUT_FILE_REAL:-$V1_TEXTFILE_REAL_DEFAULT}"
+
+
 # VOID devnet JobQueue/ReceiptRegistry flag sanity (v1 historic)
 # NOTE: devnet v1 has known bad flag combos (hasResult/status) for some jobs.
 # We expose bad_flags but do NOT make them fail health; health just checks that
@@ -44,7 +58,7 @@ GAP_JOBS=0
 write_prom_file() {
   local tmp out_dir
   out_dir=$(dirname "$OUT_FILE")
-  sudo mkdir -p "$out_dir"
+  sudo -n mkdir -p "$out_dir"
 
   tmp=$(mktemp /tmp/void_devnet_jobs_status_v1.prom.XXXXXX)
 
@@ -82,9 +96,9 @@ write_prom_file() {
     printf 'void_devnet_jobs_status_v1_health{chain="devnet"} %s\n' "${HEALTH:-0}"
   } > "$tmp"
 
-  sudo mv "$tmp" "$OUT_FILE"
-  sudo chown zoso:zoso "$OUT_FILE" || true
-  sudo chmod 664 "$OUT_FILE" || true
+  sudo -n mv "$tmp" "$OUT_FILE"
+  sudo -n chown zoso:zoso "$OUT_FILE" || true
+  sudo -n chmod 664 "$OUT_FILE" || true
 
   echo "[jobs-status] wrote metrics to $OUT_FILE"
 
@@ -226,4 +240,17 @@ if [ "${BAD_FLAGS:-0}" -ne 0 ]; then HEALTH_V2=0; fi
 } >> "$OUT_PROM"
 # --- /v2 metrics (tail) ---
 
+
+
+# --- v1 best-effort install (no-prompt) ---
+# Install OUT_FILE -> OUT_FILE_REAL only if possible without prompting.
+if [ -n "${OUT_FILE_REAL:-}" ] && [ -n "${OUT_FILE:-}" ] && [ "$OUT_FILE" != "$OUT_FILE_REAL" ] && [ -f "$OUT_FILE" ]; then
+  if [ -w "$(dirname "$OUT_FILE_REAL")" ] && { [ ! -f "$OUT_FILE_REAL" ] || [ -w "$OUT_FILE_REAL" ]; }; then
+    install -m 0644 "$OUT_FILE" "$OUT_FILE_REAL" || true
+  elif sudo -n true 2>/dev/null; then
+    sudo -n install -m 0644 "$OUT_FILE" "$OUT_FILE_REAL" || true
+  else
+    echo "[jobs-status] NOTE: cannot install v1 prom to $OUT_FILE_REAL (no sudo -n). cache at $OUT_FILE" >&2
+  fi
+fi
 
