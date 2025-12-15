@@ -8,8 +8,8 @@ RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
 STATE="${STATE:-docs/VOID-DEVNET-PROTOCOL-STATE.json}"
 JOB_SPOOL="${JOB_SPOOL:-docs/VOID-DEVNET-JOB-SPOOL.txt}"
 
-JOBQUEUE_ADDR="$(jq -r '.JobQueue.address' "$STATE")"
-RECEIPT_ADDR="$(jq -r '.ReceiptRegistry.address' "$STATE")"
+JOBQUEUE_ADDR="$(jq -r '(.JobQueue.address // .JobQueue // .contracts.JobQueue.address // .contracts.JobQueue // empty)' "$STATE")"
+RECEIPT_ADDR="$(jq -r '(.ReceiptRegistry.address // .ReceiptRegistry // .contracts.ReceiptRegistry.address // .contracts.ReceiptRegistry // empty)' "$STATE")"
 
 echo "[receipt-smoke-v1] JobQueue        = $JOBQUEUE_ADDR"
 echo "[receipt-smoke-v1] ReceiptRegistry = $RECEIPT_ADDR"
