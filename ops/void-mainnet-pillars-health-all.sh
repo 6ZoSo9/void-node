@@ -34,7 +34,7 @@ print_line() {
 # --- raw metric pulls ---
 
 safeboot_val="$(query_scalar 'safeboot_overall or void:safeboot:overall')"
-devnet_val="$(query_scalar 'void_devnet_overall_health')"
+devnet_val="$(query_scalar 'void:devnet_overall_with_jobs_v2:health:last_5m')"
 core_val="$(query_scalar 'void_mainnet_core_health')"
 manifest_val="$(query_scalar 'void_mainnet_core_manifest_health or void_mainnet_core_manifest')"
 manifest_days_val="$(query_scalar 'void_mainnet_core_manifest_days')"
@@ -46,7 +46,7 @@ lastmile_val="$(query_scalar 'void_mainnet_lastmile_overall or void_mainnet_last
 
 echo
 print_line "safeboot_overall"                 "${safeboot_val}"
-print_line "void_devnet_overall_health"       "${devnet_val}"
+print_line "void:devnet_overall_with_jobs_v2:health:last_5m"       "${devnet_val}"
 print_line "void_mainnet_core_health"         "${core_val}"
 print_line "void_mainnet_core_manifest"       "${manifest_val}"
 print_line "void_mainnet_core_manifest_days"  "${manifest_days_val}"

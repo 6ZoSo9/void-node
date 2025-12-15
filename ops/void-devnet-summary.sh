@@ -14,7 +14,7 @@ q() {
 }
 
 echo "=== [VOID devnet summary] ==="
-q "devnet overall health" 'void_devnet_overall_health'
+q "devnet overall health" 'void:devnet_overall_with_jobs_v2:health:last_5m'
 q "devnet contracts health" 'void_devnet_contracts_healthy'
 
 echo "=== [coverage] ==="

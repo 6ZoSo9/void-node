@@ -27,7 +27,7 @@ echo
 
 echo "=== [2] Devnet v1 + v2 (core + coverage + agents) ==="
 q_scalar "void:devnet_overall:max_5m"            'void:devnet_overall:max_5m'
-q_scalar "void:devnet_overall_v2:health:last_5m" 'void:devnet_overall_v2:health:last_5m'
+q_scalar "void:devnet_overall_with_jobs_v2:health:last_5m" 'void:devnet_overall_with_jobs_v2:health:last_5m'
 q_scalar "void:devnet_coverage:last_5m"          'void:devnet_coverage:last_5m'
 q_scalar "void:agent_receipts_coverage:last_5m"  'void:agent_receipts_coverage:last_5m'
 echo
@@ -45,7 +45,7 @@ echo
 echo "[pillars-v2] RESULT:"
 CORE=$(curl -fsS "${PROM_URL}/api/v1/query?query=max(void:mainnet_core:health:last_5m)" \
   | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
-DEV_V2=$(curl -fsS "${PROM_URL}/api/v1/query?query=max(void:devnet_overall_v2:health:last_5m)" \
+DEV_V2=$(curl -fsS "${PROM_URL}/api/v1/query?query=max(void:devnet_overall_with_jobs_v2:health:last_5m)" \
   | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
 SAFE=$(curl -fsS "${PROM_URL}/api/v1/query?query=max(void:safeboot:overall)" \
   | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")

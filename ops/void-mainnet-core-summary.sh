@@ -25,4 +25,4 @@ q "safeboot health_ok" 'void:safeboot:health_ok'
 q "safeboot head_ok" 'void:safeboot:head_ok'
 
 echo "=== [VOID devnet overall (source)] ==="
-q "devnet overall health" 'void_devnet_overall_health'
+q "devnet overall health" 'void:devnet_overall_with_jobs_v2:health:last_5m'

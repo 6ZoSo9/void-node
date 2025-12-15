@@ -21,7 +21,7 @@ coverage=$(query_scalar 'void_devnet_coverage')
 coverage_health=$(query_scalar 'void_devnet_coverage_health')
 receipts_cov=$(query_scalar 'void_devnet_receipts_coverage_v2')
 receipts_health=$(query_scalar 'void_devnet_receipts_health_v2')
-devnet_overall=$(query_scalar 'void_devnet_overall_health')
+devnet_overall=$(query_scalar 'void:devnet_overall_with_jobs_v2:health:last_5m')
 devnet_overall_5m=$(query_scalar 'max(void:devnet_overall:max_5m)')
 
 jobs_total=$(query_scalar 'void_devnet_jobs_total')

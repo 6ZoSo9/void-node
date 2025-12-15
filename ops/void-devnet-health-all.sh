@@ -128,12 +128,12 @@ log "  (missing Prom gauges are NOT fatal; exporter is the source of truth)"
 
 # --------------------------------------------------------------------
 # STEP 3: Overall devnet health gauge sanity
-#   - void_devnet_overall_health == 1
+#   - void:devnet_overall_with_jobs_v2:health:last_5m == 1
 #   - void:devnet_overall:max_5m == 1
 # --------------------------------------------------------------------
 log "step 3: Prometheus overall devnet health sanity..."
 
-overall_q='void_devnet_overall_health'
+overall_q='void:devnet_overall_with_jobs_v2:health:last_5m'
 max5_q='void:devnet_overall:max_5m'
 
 overall="$(prom_query "$overall_q" || true)"
@@ -144,12 +144,12 @@ log "  $overall_q          = ${overall:-<empty>}"
 log "  $max5_q = ${max5m:-<empty>}"
 
 if [[ -z "${overall:-}" || -z "${max5m:-}" ]]; then
-  log "ERROR: overall health gauges missing (void_devnet_overall_health / void:devnet_overall:max_5m)."
+  log "ERROR: overall health gauges missing (void:devnet_overall_with_jobs_v2:health:last_5m / void:devnet_overall:max_5m)."
   exit 1
 fi
 
 if [[ "$overall" != "1" ]]; then
-  log "ERROR: void_devnet_overall_health != 1 (got: $overall)"
+  log "ERROR: void:devnet_overall_with_jobs_v2:health:last_5m != 1 (got: $overall)"
   exit 1
 fi
 

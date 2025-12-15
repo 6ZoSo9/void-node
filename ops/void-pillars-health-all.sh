@@ -16,14 +16,14 @@ prom_scalar() {
 }
 
 safeboot_overall=$(prom_scalar 'void:safeboot:overall')
-devnet_overall=$(prom_scalar 'void_devnet_overall_health')
+devnet_overall=$(prom_scalar 'void:devnet_overall_with_jobs_v2:health:last_5m')
 mainnet_core=$(prom_scalar 'void_mainnet_core_health')
 manifest_days_raw=$(prom_scalar 'void_mainnet_core_manifest_days_left')
 manifest_health=$(prom_scalar 'void_mainnet_core_manifest_health')
 
 echo "[pillars] checking VOID safeboot + devnet + mainnet-core..."
 echo "  safeboot_overall                 = ${safeboot_overall}"
-echo "  void_devnet_overall_health       = ${devnet_overall}"
+echo "  void:devnet_overall_with_jobs_v2:health:last_5m       = ${devnet_overall}"
 echo "  void_mainnet_core_health         = ${mainnet_core}"
 echo "  void_mainnet_core_manifest_health= ${manifest_health}"
 echo "  void_mainnet_core_manifest_days  = ${manifest_days_raw}"

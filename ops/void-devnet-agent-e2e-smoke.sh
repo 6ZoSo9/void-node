@@ -57,10 +57,10 @@ fi
 echo
 echo "[agent-e2e] step 3: overall devnet health gauges..."
 
-overall_raw=$(get_gauge 'void_devnet_overall_health{chain="devnet"}')
+overall_raw=$(get_gauge 'void:devnet_overall_with_jobs_v2:health:last_5m{chain="devnet"}')
 overall_5m=$(get_gauge 'void:devnet_overall:max_5m{chain="devnet"}')
 
-echo "[agent-e2e] void_devnet_overall_health   = $overall_raw"
+echo "[agent-e2e] void:devnet_overall_with_jobs_v2:health:last_5m   = $overall_raw"
 echo "[agent-e2e] void:devnet_overall:max_5m   = $overall_5m"
 
 if [[ "$overall_raw" != "1" || "$overall_5m" != "1" ]]; then

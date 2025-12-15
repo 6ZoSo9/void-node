@@ -50,9 +50,9 @@ for v in "$models_health" "$datasets_health" "$agentreg_health" "$coverage_healt
 done
 
 {
-  echo "# HELP void_devnet_overall_health Overall VOID devnet health (1=ok,0=bad)"
-  echo "# TYPE void_devnet_overall_health gauge"
-  printf 'void_devnet_overall_health{chain="devnet"} %d\n' "$overall"
+  echo "# HELP void:devnet_overall_with_jobs_v2:health:last_5m Overall VOID devnet health (1=ok,0=bad)"
+  echo "# TYPE void:devnet_overall_with_jobs_v2:health:last_5m gauge"
+  printf 'void:devnet_overall_with_jobs_v2:health:last_5m{chain="devnet"} %d\n' "$overall"
 } > "$HOME_TMP"
 
 mv "$HOME_TMP" "$HOME_OUT"

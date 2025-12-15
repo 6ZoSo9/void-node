@@ -21,9 +21,9 @@ q "void:devnet_coverage:last_5m"        'void:devnet_coverage:last_5m'
 q "void:agent_receipts_coverage:last_5m" 'void:agent_receipts_coverage:last_5m'
 q "void:devnet_coverage_ok:last_5m"     'void:devnet_coverage_ok:last_5m'
 q "void:agent_receipts_coverage_ok:last_5m" 'void:agent_receipts_coverage_ok:last_5m'
-q "void:devnet_overall_v2:health:last_5m" 'void:devnet_overall_v2:health:last_5m'
+q "void:devnet_overall_with_jobs_v2:health:last_5m" 'void:devnet_overall_with_jobs_v2:health:last_5m'
 
 echo "[devnet-v2-health] RESULT:"
-curl -fsS "${PROM_URL}/api/v1/query?query=void:devnet_overall_v2:health:last_5m" \
+curl -fsS "${PROM_URL}/api/v1/query?query=void:devnet_overall_with_jobs_v2:health:last_5m" \
   | jq -r '.data.result[0].value[1] // "null"' \
   | awk '{ if ($1 == "1") print "  OK (v2==1)"; else print "  BAD (v2!=1: " $1 ")"; }'

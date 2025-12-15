@@ -18,7 +18,7 @@ echo "[pillars-dashboard] PROM_URL=${PROM_URL}"
 echo
 
 echo "=== Devnet ==="
-q 'void_devnet_overall_health'              'devnet_overall'
+q 'void:devnet_overall_with_jobs_v2:health:last_5m'              'devnet_overall'
 q 'void:devnet_overall:max_5m'              'devnet_overall_5m'
 
 echo
