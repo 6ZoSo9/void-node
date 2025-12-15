@@ -94,6 +94,34 @@ if [ ! -f "$STATE_FILE" ]; then
   HEALTH=0
   if [ "$BAD_FLAGS" -ne 0 ]; then HEALTH_V2=0; fi
 write_prom_file
+
+
+# --- v2 metrics (appended) ---
+# v2 semantics: exporter sanity = "no bad flags among scanned spool jobs"
+# (legacy v1 health remains: spool_count == chain_totalJobs)
+OUT_PROM="${OUT_FILE:-/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v1.prom}"
+
+GAP_JOBS=$(( ${TOTAL_CHAIN_JOBS:-0} - ${SPOOL_COUNT:-0} ))
+if [ "$GAP_JOBS" -lt 0 ]; then GAP_JOBS=0; fi
+
+HEALTH_V2=1
+if [ "${BAD_FLAGS:-0}" -ne 0 ]; then HEALTH_V2=0; fi
+
+{
+  echo "# HELP void_devnet_jobs_status_v2_gap chain_totalJobs() - spool_total (0 if spool exceeds chain total)"
+  echo "# TYPE void_devnet_jobs_status_v2_gap gauge"
+  printf "void_devnet_jobs_status_v2_gap{chain=\"devnet\"} %s\n" "$GAP_JOBS"
+
+  echo "# HELP void_devnet_jobs_status_v2_health 1 if exporter ran and no bad flag combos observed in scanned spool jobs, else 0"
+  echo "# TYPE void_devnet_jobs_status_v2_health gauge"
+  printf "void_devnet_jobs_status_v2_health{chain=\"devnet\"} %s\n" "$HEALTH_V2"
+
+  echo "# HELP void_devnet_jobs_status_v2_run_timestamp_seconds exporter run timestamp"
+  echo "# TYPE void_devnet_jobs_status_v2_run_timestamp_seconds gauge"
+  printf "void_devnet_jobs_status_v2_run_timestamp_seconds{chain=\"devnet\"} %s\n" "$(date +%s)"
+} >> "$OUT_PROM"
+
+
   exit 0
 fi
 
