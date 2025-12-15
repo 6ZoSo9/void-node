@@ -24,12 +24,22 @@ echo "[jobs-status] out_file=$OUT_FILE"
 # Defaults
 SPOOL_COUNT=0
 TOTAL_CHAIN_JOBS=0
+
 TOTAL_CHAIN_RECEIPTS=0
+
+# v2 semantics: exporter sanity = "no bad flags among scanned spool jobs"
+# (legacy v1 health remains: spool_count == chain_totalJobs)
+GAP_JOBS=$(( TOTAL_CHAIN_JOBS - SPOOL_COUNT ))
+if [ "$GAP_JOBS" -lt 0 ]; then GAP_JOBS=0; fi
+HEALTH_V2=1
 POSTED=0
 DONE=0
 OTHER=0
 BAD_FLAGS=0
+# if any bad flags are observed during spool scan, v2 health becomes 0
 HEALTH=0
+HEALTH_V2=0
+GAP_JOBS=0
 
 write_prom_file() {
   local tmp out_dir
@@ -82,7 +92,8 @@ write_prom_file() {
 if [ ! -f "$STATE_FILE" ]; then
   echo "[jobs-status] ERROR: missing state file $STATE_FILE" >&2
   HEALTH=0
-  write_prom_file
+  if [ "$BAD_FLAGS" -ne 0 ]; then HEALTH_V2=0; fi
+write_prom_file
   exit 0
 fi
 
