@@ -6,6 +6,13 @@ OUT_DIR="${OUT_DIR:-/var/lib/node_exporter/textfile_collector}"
 V1_PROM="${1:-$OUT_DIR/void_devnet_jobs_status_v1.prom}"
 OUT_PROM="${OUT_FILE:-$OUT_DIR/void_devnet_jobs_status_v2.prom}"
 
+TMP_PROM="$(mktemp /tmp/void_devnet_jobs_status_v2.prom.XXXXXX)"
+SUDO_CMD=""
+if [ ! -w "$(dirname "$OUT_PROM")" ] || [ -f "$OUT_PROM" -a ! -w "$OUT_PROM" ]; then
+  SUDO_CMD="sudo"
+fi
+
+
 if [ ! -f "$V1_PROM" ]; then
   echo "[jobs-status-v2] ERR: v1 prom not found: $V1_PROM" >&2
   exit 1
