@@ -4,10 +4,12 @@
   "manifestVersion": 1,
   "protocolVersion": "devnet-mainnet-core-2025-11-20",
   "description": "VOID devnet test update manifest for mainnet-core pipeline.",
-  "expiresAt": "2025-12-20T19:26:25Z",
+  "expiresAt": "2026-12-15T11:31:09Z",
   "notes": [
     "Devnet-only manifest; safe to regenerate any time.",
     "Used for update-manifest exporter + Prometheus wiring.",
     "Does NOT control real mainnet behaviour."
-  ]
+  ],
+  "createdAt": "2025-12-15T11:31:09Z",
+  "updatedAt": "2025-12-15T11:31:09Z"
 }
