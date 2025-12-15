@@ -22,9 +22,8 @@ need_addr() {
   echo "$a"
 }
 
-JOBQ="$(need_addr "JobQueue" '(.JobQueue.address // .JobQueue // .contracts.JobQueue.address // .contracts.JobQueue // empty)')"
-RR="$(need_addr "ReceiptRegistry" '(.ReceiptRegistry.address // .ReceiptRegistry // .contracts.ReceiptRegistry.address // .contracts.ReceiptRegistry // empty)')"
-
+JOBQ="$(need_addr "JobQueue" '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) // (.contracts.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) // empty')"
+RR="$(need_addr "ReceiptRegistry" '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) // (.contracts.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) // empty')"
 echo
 echo "JobQueue       = $JOBQ"
 echo "ReceiptRegistry= $RR"

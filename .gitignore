@@ -137,3 +137,4 @@ cache/solidity-files-cache.json
 cache/**/solidity-files-cache.json
 ops/*.silencebak.*
 ops/*.mmfixbak.*
+ops/void-devnet-agent-receipt-smoke-v1.sh.bak.*
