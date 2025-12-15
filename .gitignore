@@ -115,3 +115,8 @@ docs/VOID-DEVNET-JOB-SPOOL.STALE.txt.*
 ops/*.broken.*
 ops/*.repairbak.*
 ops/*.bak.*
+
+# local ops patch backups
+ops/*.admincleanbak.*
+ops/*.catguardbak.*
+ops/*.jqfixbak.*
