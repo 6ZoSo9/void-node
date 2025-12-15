@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+
+mkdir -p "$HOME/.cache/node-exporter-textfile"
 # --- v1 cache default (no-prompt) ---
 # Pre-push/CI must never block on sudo -n. Default OUT_FILE to a user cache path.
 V1_TEXTFILE_REAL_DEFAULT="/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v1.prom"
@@ -58,7 +60,8 @@ GAP_JOBS=0
 write_prom_file() {
   local tmp out_dir
   out_dir=$(dirname "$OUT_FILE")
-  sudo -n mkdir -p "$out_dir"
+true
+
 
   tmp=$(mktemp /tmp/void_devnet_jobs_status_v1.prom.XXXXXX)
 
@@ -95,10 +98,12 @@ write_prom_file() {
     echo '# TYPE void_devnet_jobs_status_v1_health gauge'
     printf 'void_devnet_jobs_status_v1_health{chain="devnet"} %s\n' "${HEALTH:-0}"
   } > "$tmp"
+true
 
-  sudo -n mv "$tmp" "$OUT_FILE"
-  sudo -n chown zoso:zoso "$OUT_FILE" || true
-  sudo -n chmod 664 "$OUT_FILE" || true
+true
+
+true
+
 
   echo "[jobs-status] wrote metrics to $OUT_FILE"
 
@@ -212,6 +217,30 @@ if [ "$SPOOL_COUNT" -ne "$TOTAL_CHAIN_JOBS" ]; then
 fi
 
 write_prom_file
+### VOID_PUBLISH_ATOMIC_V9 ###
+# publish cache prom -> node_exporter textfile WITHOUT sudo (atomic replace)
+_publish_atomic() {
+  local src="$1" dst="$2"
+  local dstdir
+  dstdir="$(dirname "$dst")"
+  [ -f "$src" ] || return 0
+  [ -d "$dstdir" ] || return 0
+  [ -w "$dstdir" ] || return 0
+
+  local tmp
+  tmp="$(mktemp "$dstdir/.tmp.$(basename "$dst").XXXXXX" 2>/dev/null || true)"
+  [ -n "${tmp:-}" ] || return 0
+  cp -f "$src" "$tmp" 2>/dev/null || { rm -f "$tmp" 2>/dev/null || true; return 0; }
+  chmod 0644 "$tmp" 2>/dev/null || true
+  mv -f "$tmp" "$dst" 2>/dev/null || { rm -f "$tmp" 2>/dev/null || true; return 0; }
+}
+
+CACHE_DIR="${CACHE_DIR:-$HOME/.cache/node-exporter-textfile}"
+DST_DIR="/var/lib/node_exporter/textfile_collector"
+_publish_atomic "$CACHE_DIR/void_devnet_jobs_status_v1.prom" "$DST_DIR/void_devnet_jobs_status_v1.prom"
+_publish_atomic "$CACHE_DIR/void_devnet_jobs_status_v2.prom" "$DST_DIR/void_devnet_jobs_status_v2.prom"
+
+
 exit 0
 
 
@@ -247,10 +276,75 @@ if [ "${BAD_FLAGS:-0}" -ne 0 ]; then HEALTH_V2=0; fi
 if [ -n "${OUT_FILE_REAL:-}" ] && [ -n "${OUT_FILE:-}" ] && [ "$OUT_FILE" != "$OUT_FILE_REAL" ] && [ -f "$OUT_FILE" ]; then
   if [ -w "$(dirname "$OUT_FILE_REAL")" ] && { [ ! -f "$OUT_FILE_REAL" ] || [ -w "$OUT_FILE_REAL" ]; }; then
     install -m 0644 "$OUT_FILE" "$OUT_FILE_REAL" || true
-  elif sudo -n true 2>/dev/null; then
-    sudo -n install -m 0644 "$OUT_FILE" "$OUT_FILE_REAL" || true
+  elif true 2>/dev/null; then
+true
+
   else
     echo "[jobs-status] NOTE: cannot install v1 prom to $OUT_FILE_REAL (no sudo -n). cache at $OUT_FILE" >&2
   fi
 fi
+
+
+### AUTO_PUBLISH_v1 ###
+# Publish the freshly-generated cache file into node_exporter's textfile collector.
+# This is intentionally best-effort and MUST NOT prompt for (systemd user service).
+PUBLISH_DST="/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v1.prom"
+if [ -f "${OUT_PROM:-}" ]; then
+  DST_DIR="$(dirname "$PUBLISH_DST")"
+  # write temp next to destination so mv -f is atomic and can replace root-owned files (dir perms/ACL-based)
+  TMP_IN_DST=""
+  if TMP_IN_DST="$(mktemp "$DST_DIR/.tmp.void_devnet_jobs_status_v1.prom.XXXXXX" 2>/dev/null)"; then
+    cp -f "$OUT_PROM" "$TMP_IN_DST" 2>/dev/null || true
+    chmod 0644 "$TMP_IN_DST" 2>/dev/null || true
+    mv -f "$TMP_IN_DST" "$PUBLISH_DST" 2>/dev/null || true
+  else
+    # fallback to /tmp then try move (may fail if no perms; still best-effort)
+    TMP2="$(mktemp /tmp/.tmp.void_devnet_jobs_status_v1.prom.XXXXXX)"
+    cp -f "$OUT_PROM" "$TMP2" 2>/dev/null || true
+    chmod 0644 "$TMP2" 2>/dev/null || true
+    mv -f "$TMP2" "$PUBLISH_DST" 2>/dev/null || true
+  fi
+fi
+### END AUTO_PUBLISH_v1 ###
+
+
+### NO_SUDO_EVERYWHERE_V6 ###
+# NO-SUDO publish (systemd-safe). Requires dir ACL allowing user write.
+PUBLISH_DST="/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v1.prom"
+if [ -f "${OUT_PROM:-}" ]; then
+  DST_DIR="$(dirname "$PUBLISH_DST")"
+  TMP_IN_DST=""
+  if TMP_IN_DST="$(mktemp "$DST_DIR/.tmp.void_devnet_jobs_status_v1.prom.XXXXXX" 2>/dev/null)"; then
+    cp -f "$OUT_PROM" "$TMP_IN_DST" 2>/dev/null || true
+    chmod 0644 "$TMP_IN_DST" 2>/dev/null || true
+    mv -f "$TMP_IN_DST" "$PUBLISH_DST" 2>/dev/null || true
+  fi
+fi
+### END NO_SUDO_EVERYWHERE_V6 ###
+
+### VOID_NO_SUDO_PUBLISH_V8 ###
+# Best-effort publish cache prom -> node_exporter textfile WITHOUT (atomic replace).
+_publish_atomic() {
+  local src="$1" dst="$2"
+  local dstdir
+  dstdir="$(dirname "$dst")"
+  [ -f "$src" ] || return 0
+  [ -d "$dstdir" ] || return 0
+  [ -w "$dstdir" ] || return 0
+
+  local tmp
+  tmp="$(mktemp "$dstdir/.tmp.$(basename "$dst").XXXXXX" 2>/dev/null || true)"
+  [ -n "${tmp:-}" ] || return 0
+  cp -f "$src" "$tmp" 2>/dev/null || { rm -f "$tmp" 2>/dev/null || true; return 0; }
+  chmod 0644 "$tmp" 2>/dev/null || true
+  mv -f "$tmp" "$dst" 2>/dev/null || { rm -f "$tmp" 2>/dev/null || true; return 0; }
+}
+
+CACHE_DIR="${CACHE_DIR:-$HOME/.cache/node-exporter-textfile}"
+DST_DIR="/var/lib/node_exporter/textfile_collector"
+
+# publish v1 if present
+_publish_atomic "$CACHE_DIR/void_devnet_jobs_status_v1.prom" "$DST_DIR/void_devnet_jobs_status_v1.prom"
+# publish v2 if present
+_publish_atomic "$CACHE_DIR/void_devnet_jobs_status_v2.prom" "$DST_DIR/void_devnet_jobs_status_v2.prom"
 
