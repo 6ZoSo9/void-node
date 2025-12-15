@@ -1,117 +1,144 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "${REPO:-$HOME/dev/void-node}"
-
-OUT_PROM="${OUT_PROM:-/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v2.prom}"
-V1_PROM="${V1_PROM:-/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v1.prom}"
-CHAIN="${CHAIN:-devnet}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
 
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
 STATE_FILE="${STATE_FILE:-docs/VOID-DEVNET-PROTOCOL-STATE.json}"
 SPOOL_FILE="${SPOOL_FILE:-docs/VOID-DEVNET-JOB-SPOOL.txt}"
+JOBQ_SOL="${JOBQ_SOL:-contracts/JobQueue.sol}"
+EVENT_NAME="${EVENT_NAME:-JobPosted}"
+CHAIN="${CHAIN:-devnet}"
 
-metric_last_value() {
-  local name="$1" file="$2"
-  awk -v n="$name" '
-    $1 ~ ("^" n "\\{") || $1 == n { v=$NF }
-    END { if (v == "") exit 2; print v }
-  ' "$file" 2>/dev/null || return 2
-}
+OUT_DIR="${OUT_DIR:-/var/lib/node_exporter/textfile_collector}"
+OUT_FILE="${OUT_FILE:-$OUT_DIR/void_devnet_jobs_status_v2.prom}"
 
-intify() { printf '%s\n' "$1" | awk '{printf "%.0f\n",$1}' 2>/dev/null || echo -1; }
+need() { command -v "$1" >/dev/null 2>&1 || { echo "[ERR] missing $1"; exit 1; }; }
+need jq
+need awk
+need sed
+need date
+need stat || true
 
-SPOOL="-1"
-CHAIN_TOTAL="-1"
-BAD_FLAGS="-1"
-
-# --- parse from v1 prom (best-effort) ---
-if [ -f "$V1_PROM" ]; then
-  SPOOL="$(metric_last_value "void_devnet_jobs_status_v1_jobs_in_spool" "$V1_PROM" 2>/dev/null || echo -1)"
-  CHAIN_TOTAL="$(metric_last_value "void_devnet_jobs_status_v1_total_chain_jobs" "$V1_PROM" 2>/dev/null || echo -1)"
-  BAD_FLAGS="$(metric_last_value "void_devnet_jobs_status_v1_bad_flags" "$V1_PROM" 2>/dev/null || echo -1)"
-fi
-
-# --- fallback spool from file ---
-if [ "$SPOOL" = "-1" ] && [ -f "$SPOOL_FILE" ]; then
-  # count non-empty lines
-  SPOOL="$(awk 'NF{c++} END{print (c==""?0:c)}' "$SPOOL_FILE" 2>/dev/null || echo -1)"
-fi
-
-# --- fallback chain total from contract ---
-if [ "$CHAIN_TOTAL" = "-1" ] && command -v jq >/dev/null 2>&1 && command -v cast >/dev/null 2>&1 && [ -f "$STATE_FILE" ]; then
-  JOBQ="$(jq -r '..|.JobQueue? // empty | .address? // empty' "$STATE_FILE" 2>/dev/null | head -n 1 || true)"
-  if [ -z "${JOBQ:-}" ] || [ "$JOBQ" = "null" ]; then
-    # alternate common layouts
-    JOBQ="$(jq -r '.JobQueue.address // .contracts.JobQueue.address // empty' "$STATE_FILE" 2>/dev/null || true)"
-  fi
-  if [ -n "${JOBQ:-}" ]; then
-    # totalJobs()(uint256)
-    CT="$(cast call "$JOBQ" "totalJobs()(uint256)" --rpc-url "$RPC_URL" 2>/dev/null || true)"
-    if [ -n "${CT:-}" ]; then CHAIN_TOTAL="$CT"; fi
+# Ensure we can run cast as *this* user (Foundry is usually in ~/.foundry/bin)
+if ! command -v cast >/dev/null 2>&1; then
+  if [ -x "$HOME/.foundry/bin/cast" ]; then
+    export PATH="$HOME/.foundry/bin:$PATH"
   fi
 fi
+need cast
 
-# If bad_flags wasn't parseable, default to 0? No: be strict.
-HEALTH="0"
-if [ "$BAD_FLAGS" != "-1" ]; then
-  bi="$(intify "$BAD_FLAGS")"
-  if [ "$bi" -eq 0 ]; then HEALTH="1"; else HEALTH="0"; fi
+# Extract JobQueue address
+JOBQ="$(jq -r '
+  (
+    .JobQueue
+    | if type=="string" then .
+      elif type=="object" then (.address // empty)
+      else empty end
+  ) // (.contracts.JobQueue.address // empty) // (.addresses.JobQueue // empty)
+' "$STATE_FILE" 2>/dev/null | head -n1)"
+
+if [ -z "${JOBQ:-}" ] || [ "$JOBQ" = "null" ]; then
+  JOBQ="$(jq -r '
+    (.. | objects | .JobQueue? // empty)
+    | if type=="string" then .
+      elif type=="object" then (.address // empty)
+      else empty end
+  ' "$STATE_FILE" 2>/dev/null | head -n1)"
 fi
 
-# Compute gap if we have both spool and chain total
-GAP="0"
-si="$(intify "$SPOOL")"
-ci="$(intify "$CHAIN_TOTAL")"
-if [ "$si" -ge 0 ] && [ "$ci" -ge 0 ]; then
-  if [ "$ci" -ge "$si" ]; then GAP="$((ci - si))"; else GAP="0"; fi
+if ! [[ "${JOBQ:-}" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+  echo "[ERR] could not extract a valid JobQueue address from $STATE_FILE"
+  echo "[ERR] extracted JOBQ='$JOBQ'"
+  exit 1
 fi
 
-RUN_TS="$(date +%s)"
-TMP="/tmp/void_devnet_jobs_status_v2.prom.$$"
+# Derive JobPosted signature from solidity
+EVENT_BLOCK="$(awk -v ev="$EVENT_NAME" '
+  $0 ~ "event[[:space:]]+" ev "[[:space:]]*\\(" {cap=1}
+  cap {print}
+  cap && $0 ~ /\\);/ {exit}
+' "$JOBQ_SOL")"
+
+EVENT_ONE="$(echo "$EVENT_BLOCK" | sed 's,//.*,,' | tr '\n' ' ')"
+INSIDE="$(echo "$EVENT_ONE" | sed -E "s/^.*event[[:space:]]+$EVENT_NAME[[:space:]]*\\(//; s/\\)[[:space:]]*;.*$//")"
+TYPES="$(echo "$INSIDE" | awk -v RS=',' '
 {
-  echo '# HELP void_devnet_jobs_status_v2_gap chain_totalJobs() - spool_total (0 if spool exceeds chain total)'
-  echo '# TYPE void_devnet_jobs_status_v2_gap gauge'
-  printf 'void_devnet_jobs_status_v2_gap{chain="%s"} %s\n' "$CHAIN" "$GAP"
+  gsub(/indexed/,"");
+  gsub(/\b(memory|calldata|storage)\b/,"");
+  gsub(/^[ \t]+|[ \t]+$/,"");
+  split($0,a,/[ \t]+/);
+  if (a[1] != "") {
+    printf "%s%s", (out++ ? "," : ""), a[1];
+  }
+}')"
+SIG="$EVENT_NAME($TYPES)"
+TOPIC0="$(cast keccak "$SIG" 2>/dev/null || true)"
+if [ -z "${TOPIC0:-}" ]; then
+  echo "[ERR] failed to derive topic0"
+  exit 1
+fi
 
-  echo '# HELP void_devnet_jobs_status_v2_health 1 if bad_flags==0 (from v1), else 0; if unknown then 0'
-  echo '# TYPE void_devnet_jobs_status_v2_health gauge'
-  printf 'void_devnet_jobs_status_v2_health{chain="%s"} %s\n' "$CHAIN" "$HEALTH"
-
-  echo '# HELP void_devnet_jobs_status_v2_run_timestamp_seconds exporter run timestamp'
-  echo '# TYPE void_devnet_jobs_status_v2_run_timestamp_seconds gauge'
-  printf 'void_devnet_jobs_status_v2_run_timestamp_seconds{chain="%s"} %s\n' "$CHAIN" "$RUN_TS"
-
-  echo '# HELP void_devnet_jobs_status_v2_diag_spool parsed spool count (v1 metric or fallback file)'
-  echo '# TYPE void_devnet_jobs_status_v2_diag_spool gauge'
-  printf 'void_devnet_jobs_status_v2_diag_spool{chain="%s"} %s\n' "$CHAIN" "$SPOOL"
-
-  echo '# HELP void_devnet_jobs_status_v2_diag_chain_total parsed chain total (v1 metric or fallback cast)'
-  echo '# TYPE void_devnet_jobs_status_v2_diag_chain_total gauge'
-  printf 'void_devnet_jobs_status_v2_diag_chain_total{chain="%s"} %s\n' "$CHAIN" "$CHAIN_TOTAL"
-
-  echo '# HELP void_devnet_jobs_status_v2_diag_bad_flags_from_v1 parsed bad_flags from v1 (or -1 if missing)'
-  echo '# TYPE void_devnet_jobs_status_v2_diag_bad_flags_from_v1 gauge'
-  printf 'void_devnet_jobs_status_v2_diag_bad_flags_from_v1{chain="%s"} %s\n' "$CHAIN" "$BAD_FLAGS"
-} > "$TMP"
-
-# write IN-PLACE to OUT_PROM; do not require /var dir write
-WRITE_OK=0
-if [ -e "$OUT_PROM" ] && [ -w "$OUT_PROM" ]; then
-  cat "$TMP" > "$OUT_PROM" 2>/dev/null && WRITE_OK=1 || WRITE_OK=0
-else
-  : > "$OUT_PROM" 2>/dev/null || true
-  if [ -w "$OUT_PROM" ]; then
-    cat "$TMP" > "$OUT_PROM" 2>/dev/null && WRITE_OK=1 || WRITE_OK=0
+# Read jobId_topic_index from spool header if present; default 1
+JOBID_TOPIC_INDEX=1
+if [ -f "$SPOOL_FILE" ]; then
+  idx_line="$(grep -E '^# jobId_topic_index=' "$SPOOL_FILE" 2>/dev/null | tail -n1 || true)"
+  if echo "$idx_line" | grep -Eq '[0-9]+'; then
+    JOBID_TOPIC_INDEX="$(echo "$idx_line" | sed -E 's/^# jobId_topic_index=([0-9]+).*/\1/' | head -n1)"
   fi
 fi
 
-rm -f "$TMP" 2>/dev/null || true
+LOGS="$(cast rpc eth_getLogs "{\"fromBlock\":\"0x0\",\"toBlock\":\"latest\",\"address\":\"$JOBQ\",\"topics\":[\"$TOPIC0\"]}" --rpc-url "$RPC_URL" 2>/dev/null || echo "[]")"
+CHAIN_TOTAL="$(echo "$LOGS" | jq -r --argjson idx "$JOBID_TOPIC_INDEX" '
+  [ .[] | (.topics // []) as $t | if ($t|length) > $idx then $t[$idx] else empty end ] | unique | length
+' 2>/dev/null || echo 0)"
 
-if [ "$WRITE_OK" -ne 1 ]; then
-  echo "[jobs-status-v2] ERR: failed to write $OUT_PROM (needs existing writable file)." >&2
-  exit 0
+NOW="$(date +%s)"
+SPOOL_TOTAL=0
+AGE_SECONDS=0
+if [ -f "$SPOOL_FILE" ]; then
+  SPOOL_TOTAL="$(awk 'NF && $1 !~ /^#/' "$SPOOL_FILE" | wc -l | tr -d " ")"
+  MTIME="$(stat -c %Y "$SPOOL_FILE" 2>/dev/null || echo "$NOW")"
+  AGE_SECONDS="$((NOW - MTIME))"
 fi
 
-echo "[jobs-status-v2] wrote $OUT_PROM (gap=$GAP health=$HEALTH spool=$SPOOL chain=$CHAIN_TOTAL bad_flags=$BAD_FLAGS)"
-exit 0
+GAP=$((CHAIN_TOTAL - SPOOL_TOTAL))
+HEALTH=1
+if [ "$AGE_SECONDS" -gt 600 ]; then HEALTH=0; fi
+
+tmp="$(mktemp)"
+{
+  echo "# HELP void_devnet_jobs_status_v2_chain_total Total jobs observed on-chain via JobPosted logs"
+  echo "# TYPE void_devnet_jobs_status_v2_chain_total gauge"
+  echo "void_devnet_jobs_status_v2_chain_total{chain=\"$CHAIN\"} $CHAIN_TOTAL"
+  echo "# HELP void_devnet_jobs_status_v2_spool_total Total jobs listed in local spool"
+  echo "# TYPE void_devnet_jobs_status_v2_spool_total gauge"
+  echo "void_devnet_jobs_status_v2_spool_total{chain=\"$CHAIN\"} $SPOOL_TOTAL"
+  echo "# HELP void_devnet_jobs_status_v2_gap chain_total - spool_total"
+  echo "# TYPE void_devnet_jobs_status_v2_gap gauge"
+  echo "void_devnet_jobs_status_v2_gap{chain=\"$CHAIN\"} $GAP"
+  echo "# HELP void_devnet_jobs_status_v2_age_seconds Age of spool file in seconds"
+  echo "# TYPE void_devnet_jobs_status_v2_age_seconds gauge"
+  echo "void_devnet_jobs_status_v2_age_seconds{chain=\"$CHAIN\"} $AGE_SECONDS"
+  echo "# HELP void_devnet_jobs_status_v2_health 1 if exporter OK and spool not too stale"
+  echo "# TYPE void_devnet_jobs_status_v2_health gauge"
+  echo "void_devnet_jobs_status_v2_health{chain=\"$CHAIN\"} $HEALTH"
+  echo "# HELP void_devnet_jobs_status_v2_sig_info 1-labeled info gauge about derived signature/topic"
+  echo "# TYPE void_devnet_jobs_status_v2_sig_info gauge"
+  echo "void_devnet_jobs_status_v2_sig_info{chain=\"$CHAIN\",jobqueue=\"$JOBQ\",sig=\"$SIG\",topic0=\"$TOPIC0\",jobId_topic_index=\"$JOBID_TOPIC_INDEX\"} 1"
+} > "$tmp"
+
+# Install into node_exporter textfile dir (needs root). We only sudo this part.
+if sudo -n true >/dev/null 2>&1; then
+  sudo mkdir -p "$OUT_DIR"
+  sudo mv -f "$tmp" "$OUT_FILE"
+  sudo chmod 0644 "$OUT_FILE" || true
+  echo "[exporter] wrote $OUT_FILE"
+else
+  echo "[WARN] sudo needs password (or no sudo). Writing to stdout instead:"
+  cat "$tmp"
+  rm -f "$tmp"
+fi
+
+echo "[exporter] chain_total=$CHAIN_TOTAL spool_total=$SPOOL_TOTAL gap=$GAP age_seconds=$AGE_SECONDS health=$HEALTH"
