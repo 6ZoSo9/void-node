@@ -127,7 +127,7 @@ rm -f /tmp/wc_cast_err_pool_wc || true
 
 # controller()
 set +e
-POOL_CONTROLLER="$(cast call "${WC_POOL_ADDR}" 'owner()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_ctrl || true)" 2>/dev/null
+POOL_CONTROLLER="$(cast call "${WC_POOL_ADDR}" 'owner()(address)' 2>/dev/null | grep -Eo '0x[0-9a-fA-F]{40}' | head -n1 || true|| true)" 2>/dev/null
 RC_POOL_CTRL=$?
 set -e
 if [ ${RC_POOL_CTRL} -ne 0 ] || [ -z "${POOL_CONTROLLER}" ]; then
