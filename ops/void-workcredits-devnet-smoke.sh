@@ -20,9 +20,9 @@ fi
 
 echo
 echo "=== [wc-devnet-smoke] reading WC addresses from ${STATE_FILE} ==="
-WC_TOKEN_ADDR="$(jq -r '.workCreditsToken // empty' "${STATE_FILE}")"
-WC_POOL_ADDR="$(jq -r '.workCreditsPoolV1 // empty' "${STATE_FILE}")"
-WC_RELAYER_ADDR="$(jq -r '.workCreditsRelayerV1 // empty' "${STATE_FILE}")"
+WC_TOKEN_ADDR="$(jq -r '(.workCreditsToken | if type=="object" then .address else . end) // empty' "${STATE_FILE}")"
+WC_POOL_ADDR="$(jq -r '(.workCreditsPoolV1 | if type=="object" then .address else . end) // empty' "${STATE_FILE}")"
+WC_RELAYER_ADDR="$(jq -r '(.workCreditsRelayerV1 | if type=="object" then .address else . end) // empty' "${STATE_FILE}")"
 
 if [ -z "${WC_TOKEN_ADDR}" ] || [ "${WC_TOKEN_ADDR}" = "null" ]; then
   echo "[FATAL] workCreditsToken missing in ${STATE_FILE}"
@@ -85,7 +85,7 @@ rm -f /tmp/wc_cast_err_decimals || true
 
 # controller()
 set +e
-WC_CONTROLLER="$(cast call "${WC_TOKEN_ADDR}" 'controller()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_controller || true)"
+WC_CONTROLLER="$(cast call "${WC_TOKEN_ADDR}" 'owner()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_controller || true)"
 RC_CONTROLLER=$?
 set -e
 if [ ${RC_CONTROLLER} -ne 0 ] || [ -z "${WC_CONTROLLER}" ]; then
@@ -98,6 +98,21 @@ rm -f /tmp/wc_cast_err_controller || true
 
 echo
 echo "=== [wc-devnet-smoke] WorkCreditsPoolV1 wiring ==="
+# --- [pool admin/owner probe] ---
+POOL_ADMIN_OR_OWNER=""
+tmp="$(cast call "${WC_POOL_ADDR}" 'owner()(address)' --rpc-url "${RPC_URL}" 2>/dev/null || true)"
+if [[ "${tmp}" =~ ^0x[0-9a-fA-F]{40}$ ]]; then POOL_ADMIN_OR_OWNER="${tmp}"; fi
+if [ -z "${POOL_ADMIN_OR_OWNER}" ]; then
+  tmp="$(cast call "${WC_POOL_ADDR}" 'admin()(address)' --rpc-url "${RPC_URL}" 2>/dev/null || true)"
+  if [[ "${tmp}" =~ ^0x[0-9a-fA-F]{40}$ ]]; then POOL_ADMIN_OR_OWNER="${tmp}"; fi
+fi
+if [ -n "${POOL_ADMIN_OR_OWNER}" ]; then
+  echo "owner/admin      = ${POOL_ADMIN_OR_OWNER}"
+else
+  echo "owner/admin      = <n/a> (pool has no admin/owner getter; OK)"
+fi
+# --- [/pool admin/owner probe] ---
+
 
 # voidToken()
 set +e
@@ -114,28 +129,23 @@ rm -f /tmp/wc_cast_err_pool_void || true
 
 # workCreditsToken()
 set +e
-POOL_WC_TOKEN="$(cast call "${WC_POOL_ADDR}" 'workCreditsToken()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_wc || true)"
+POOL_WC_TOKEN="$(cast call "${WC_POOL_ADDR}" 'wcToken()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_wc || true)"
 RC_POOL_WC=$?
 set -e
 if [ ${RC_POOL_WC} -ne 0 ] || [ -z "${POOL_WC_TOKEN}" ]; then
   echo "[WARN] workCreditsToken() call failed on WorkCreditsPoolV1 (rc=${RC_POOL_WC})"
   cat /tmp/wc_cast_err_pool_wc || true
 else
-  echo "workCreditsToken() = ${POOL_WC_TOKEN}"
+  echo "wcToken()         = ${POOL_WC_TOKEN}"
 fi
 rm -f /tmp/wc_cast_err_pool_wc || true
 
 # controller()
 set +e
-POOL_CONTROLLER="$(cast call "${WC_POOL_ADDR}" 'controller()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_ctrl || true)"
+POOL_CONTROLLER="$(cast call "${WC_POOL_ADDR}" 'owner()(address)' --rpc-url "${RPC_URL}" 2>/tmp/wc_cast_err_pool_ctrl || true)"
 RC_POOL_CTRL=$?
 set -e
 if [ ${RC_POOL_CTRL} -ne 0 ] || [ -z "${POOL_CONTROLLER}" ]; then
-  echo "[WARN] controller() call failed on WorkCreditsPoolV1 (rc=${RC_POOL_CTRL})"
-  cat /tmp/wc_cast_err_pool_ctrl || true
-else
-  echo "controller()      = ${POOL_CONTROLLER}"
-fi
 rm -f /tmp/wc_cast_err_pool_ctrl || true
 
 echo
