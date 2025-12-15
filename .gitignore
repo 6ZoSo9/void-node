@@ -110,3 +110,8 @@ src/index.ts.lastmile-coreinject-backup-*
 # devnet job spool artifacts (generated)
 docs/VOID-DEVNET-JOB-SPOOL.tsv
 docs/VOID-DEVNET-JOB-SPOOL.STALE.txt.*
+
+# local ops backups
+ops/*.broken.*
+ops/*.repairbak.*
+ops/*.bak.*
