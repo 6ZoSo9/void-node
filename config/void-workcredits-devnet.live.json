@@ -1,17 +1,12 @@
 {
-  "//": "VOID Network — WorkCredits devnet config template (NOT LIVE)",
   "chainId": 2050,
-  "network": "devnet",
-  "rpcUrl": "http://127.0.0.1:8545",
-  "voidToken": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "workCreditsToken": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
-  "lpPool": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
-  "treasury": "0x0000000000000000000000000000000000000000",
-  "opsTreasury": "0x0000000000000000000000000000000000000000",
-  "notes": [
-    "This is a TEMPLATE for WorkCredits devnet.",
-    "Do NOT point production systems at this file.",
-    "Once devnet VOID/WC tokens and LP pool are deployed,",
-    "copy this to void-workcredits-devnet.live.json and fill real addresses."
-  ]
+  "opsTreasury": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "treasury": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "voidToken": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  "workCreditsPool": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+  "workCreditsPoolV1": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+  "workCreditsRelayerHelper": "0x9a676e781a523b5d0c0e43731313a708cb607508",
+  "workCreditsRelayerOperator": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "workCreditsRelayerV1": "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82",
+  "workCreditsToken": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
 }

@@ -7,13 +7,34 @@ libs = ["lib"]
 solc_version    = "0.8.20"
 optimizer       = true
 optimizer_runs  = 200
-via_ir          = true
+fs_permissions = [
+  { access = "read-write", path = "./config" },
+  { access = "read-write", path = "./docs" },
+  { access = "read-write", path = "./broadcast" },
+  { access = "read-write", path = "./cache" },
+]
 
+via_ir          = true
 # added by void-ensure-forge-std-v2.sh
 remappings = ["forge-std/=lib/forge-std/src/"]
 
 # VOID mainnet bootstrap – allow scripts to read local config files
-fs_permissions = [
-  { access = "read", path = "./ops" },
-  { access = "read", path = "./" }
-]
+# --- Dev-only profile to avoid "stack too deep" in big scripts ---
+
+[profile.viair]
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+
+
+
+# keep defaults otherwise
+
+# --- Dev-only escape hatch for scripts hitting Yul "stack too deep" ---
+[profile.stackfix]
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+
+
+# keep defaults otherwise
