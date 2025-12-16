@@ -147,3 +147,10 @@ ops/**/*~
 ops/**/__pycache__/
 ops/**/.pytest_cache/
 # === /ops backup churn ===
+
+# --- auto: ignore foundry + scratch (wc schema v2) ---
+broadcast/
+cache/
+script/_scratch/
+.bak/
+obelisk-ui/src/.bak.*/

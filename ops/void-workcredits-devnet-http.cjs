@@ -1,9 +1,96 @@
 'use strict';
 
+// __WC_HELPER_SCHEMA_V2_STABLE_DASH_V1__
+// Canonicalize helper JSON:
+// - schemaVersion=2
+// - poolState always exists (object)
+// - pool always forced to object (if old code sets it to a string address)
+// - preserve any string pool address as poolAddress
+function __wcNormalizeDashboardV2(o) {
+  try {
+    if (!o || typeof o !== 'object') return o;
+    if (o.schemaVersion == null) o.schemaVersion = 2;
+
+    const poolState = (o.poolState && typeof o.poolState === 'object') ? o.poolState : {};
+    o.poolState = poolState;
+
+    const poolVal = o.pool;
+    const poolObj = (poolVal && typeof poolVal === 'object') ? poolVal : {};
+
+    if (typeof poolVal === 'string' && poolVal) {
+      if (o.poolAddress == null) o.poolAddress = poolVal;
+      if (poolObj.address == null) poolObj.address = poolVal;
+    }
+    if (poolObj.address == null && poolState.address != null) poolObj.address = poolState.address;
+
+    if (!poolState.reserves || typeof poolState.reserves !== 'object') poolState.reserves = {};
+    if (!poolState.price || typeof poolState.price !== 'object') poolState.price = {};
+
+    const pRes = (poolObj.reserves && typeof poolObj.reserves === 'object') ? poolObj.reserves : {};
+    const pPrice = (poolObj.price && typeof poolObj.price === 'object') ? poolObj.price : {};
+
+    for (const k of Object.keys(pRes)) {
+      if (poolState.reserves[k] == null) poolState.reserves[k] = pRes[k];
+    }
+    for (const k of Object.keys(pPrice)) {
+      if (poolState.price[k] == null) poolState.price[k] = pPrice[k];
+    }
+
+    if (!poolObj.reserves || typeof poolObj.reserves !== 'object') poolObj.reserves = {};
+    if (!poolObj.price || typeof poolObj.price !== 'object') poolObj.price = {};
+
+    for (const k of Object.keys(poolState.reserves)) {
+      if (poolObj.reserves[k] == null) poolObj.reserves[k] = poolState.reserves[k];
+    }
+    for (const k of Object.keys(poolState.price)) {
+      if (poolObj.price[k] == null) poolObj.price[k] = poolState.price[k];
+    }
+
+    o.pool = poolObj;
+    return o;
+  } catch (e) {
+    return o;
+  }
+}
+
+// __WC_HELPER_SCHEMA_V2_MAYBE_NORM_V1__
+function __wcMaybeNormalizeV2(obj) {
+  try {
+    if (!obj) return obj;
+
+    // If someone passed a JSON string to sendJson(), parse it.
+    if (typeof obj === 'string') {
+      const t = obj.trim();
+      if (t.startsWith('{') || t.startsWith('[')) {
+        try { obj = JSON.parse(t); } catch (e) { return obj; }
+      } else {
+        return obj;
+      }
+    }
+
+    if (!obj || typeof obj !== 'object') return obj;
+
+    // Only normalize dashboard-ish responses.
+    const looksDashboard =
+      ('poolState' in obj) ||
+      ('balances' in obj) ||
+      ('account' in obj) ||
+      (typeof obj.pool === 'string' && (('balances' in obj) || ('account' in obj)));
+
+    if (!looksDashboard) return obj;
+
+    return __wcNormalizeDashboardV2(obj);
+  } catch (e) {
+    return obj;
+  }
+}
+
 const http = require('http');
 const url = require('url');
 const { execFile } = require('child_process');
 const path = require('path');
+const fs = require('fs');
+const https = require('https');
 
 const ROOT = process.env.ROOT || process.cwd();
 const PORT = Number(process.env.WC_HTTP_PORT || '4312');
@@ -28,6 +115,16 @@ function runScript(scriptRelPath, args, cb) {
 }
 
 function sendJson(res, status, obj) {
+
+
+  // __WC_HELPER_SCHEMA_V2_SENDJSON_WRAP_V2__ (sendJson)
+
+  try { obj = __wcMaybeNormalizeV2(obj); } catch (e) {}
+
+  // __WC_HELPER_SCHEMA_V2_SENDJSON_WRAP_V1__
+
+  try { status = __wcNormalizeDashboardV2(status); } catch (e) {}
+
   const body = JSON.stringify(obj, null, 2);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -53,6 +150,218 @@ function sendHtml(res, status, html) {
   });
   res.end(body);
 }
+
+
+// === [workcredits devnet] dashboard interceptor v2 ===
+function __wc_sendJson(res, status, obj) {
+  // __WC_HELPER_SCHEMA_V2_SENDJSON_WRAP_V2__ (__wc_sendJson)
+  try { obj = __wcMaybeNormalizeV2(obj); } catch (e) {}
+
+  const body = JSON.stringify(obj, null, 2);
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+  });
+  res.end(body);
+}
+
+function __wc_readJson(absOrRelPath) {
+  try {
+    const pth = absOrRelPath.startsWith('/') ? absOrRelPath : path.join(ROOT, absOrRelPath);
+    return JSON.parse(fs.readFileSync(pth, 'utf8'));
+  } catch (e) {
+    return {};
+  }
+}
+
+function __wc_hexToBI(hex) {
+  if (!hex || hex === '0x') return 0n;
+  try { return BigInt(hex); } catch (e) { return 0n; }
+}
+
+function __wc_pad64(h) { return String(h || '').padStart(64, '0'); }
+function __wc_addrTo32(addr) { return __wc_pad64(String(addr).slice(2).toLowerCase()); }
+
+function __wc_fmtUnits(v, dec) {
+  dec = Number(dec || 0);
+  if (dec <= 0) return v.toString();
+  const base = 10n ** BigInt(dec);
+  const whole = v / base;
+  const frac = v % base;
+  const frac6 = frac.toString().padStart(dec, '0').slice(0, 6);
+  return `${whole.toString()}.${frac6}`;
+}
+
+function __wc_ratio6(num, den) {
+  if (!den || den === 0n) return "0";
+  const scaled = (num * 1000000n) / den;
+  const whole = scaled / 1000000n;
+  const frac = (scaled % 1000000n).toString().padStart(6, '0');
+  return `${whole.toString()}.${frac}`;
+}
+
+function __wc_rpcRequest(rpcUrl, payload, cb) {
+  try {
+    const u = url.parse(rpcUrl);
+    const isHttps = (u.protocol || '') === 'https:';
+    const mod = isHttps ? https : http;
+
+    const data = Buffer.from(JSON.stringify(payload));
+    const opts = {
+      method: 'POST',
+      hostname: u.hostname || '127.0.0.1',
+      port: u.port ? Number(u.port) : (isHttps ? 443 : 80),
+      path: u.path || '/',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': String(data.length) },
+    };
+
+    const req = mod.request(opts, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        let j = null;
+        try { j = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch (e) {}
+        cb(null, j);
+      });
+    });
+    req.on('error', (e) => cb(e));
+    req.write(data);
+    req.end();
+  } catch (e) { cb(e); }
+}
+
+function __wc_rpcCall(rpcUrl, method, params, cb) {
+  __wc_rpcRequest(rpcUrl, { jsonrpc: '2.0', id: 1, method, params: params || [] }, (err, j) => {
+    if (err) return cb(err);
+    if (!j) return cb(new Error('bad_rpc_json'));
+    if (j.error) return cb(new Error(String(j.error.message || 'rpc_error')));
+    cb(null, j.result);
+  });
+}
+
+function __wc_ethCall(rpcUrl, to, data, cb) {
+  __wc_rpcCall(rpcUrl, 'eth_call', [{ to, data }, 'latest'], cb);
+}
+
+const __WC_SEL_BAL = '70a08231'; // balanceOf(address)
+const __WC_SEL_DEC = '313ce567'; // decimals()
+
+function __wc_getDecimals(rpcUrl, token, cb) {
+  __wc_ethCall(rpcUrl, token, '0x' + __WC_SEL_DEC, (err, out) => {
+    if (err) return cb(null, 18);
+    const n = Number(__wc_hexToBI(out));
+    if (!Number.isFinite(n) || n <= 0) return cb(null, 18);
+    cb(null, n);
+  });
+}
+
+function __wc_balanceOf(rpcUrl, token, who, cb) {
+  const data = '0x' + __WC_SEL_BAL + __wc_addrTo32(who);
+  __wc_ethCall(rpcUrl, token, data, (err, out) => {
+    if (err) return cb(err);
+    cb(null, __wc_hexToBI(out));
+  });
+}
+
+function __wc_loadAddrs() {
+  const CFG_PATH = process.env.WC_DEVNET_CFG || 'config/void-workcredits-devnet.live.json';
+  const DOC_PATH = process.env.WC_DEVNET_DOC || 'docs/VOID-DEVNET-PROTOCOL-STATE.json';
+  const cfg = __wc_readJson(CFG_PATH);
+  const doc = __wc_readJson(DOC_PATH);
+  return {
+    cfg_path: path.join(ROOT, CFG_PATH),
+    doc_path: path.join(ROOT, DOC_PATH),
+    voidToken: cfg.voidToken || doc.voidToken || null,
+    wcToken: cfg.workCreditsToken || doc.workCreditsToken || null,
+    pool: cfg.workCreditsPoolV1 || doc.workCreditsPoolV1 || null,
+    relayer: cfg.workCreditsRelayerV1 || doc.workCreditsRelayerV1 || null,
+  };
+}
+
+function __wc_serveDashboard(addr, res) {
+  const RPC = String(process.env.RPC || 'http://127.0.0.1:8545');
+  const addrs = __wc_loadAddrs();
+
+  const out = {
+    ok: true,
+    addr,
+    chainId: null,
+    voidToken: addrs.voidToken,
+    wcToken: addrs.wcToken,
+    pool: addrs.pool,
+    relayer: addrs.relayer,
+    balances: null,
+    poolState: null,
+    quote: null,
+  };
+
+  __wc_rpcCall(RPC, 'eth_chainId', [], (e0, cidHex) => {
+    if (!e0 && cidHex) {
+      try { out.chainId = parseInt(String(cidHex), 16); } catch (e) {}
+    }
+
+    const vt = addrs.voidToken, wt = addrs.wcToken, pl = addrs.pool;
+    if (!vt || !wt || !pl) {
+      return __wc_sendJson(res, 200, out);
+    }
+
+    __wc_getDecimals(RPC, vt, (e1, vdec) => {
+      __wc_getDecimals(RPC, wt, (e2, wdec) => {
+        __wc_balanceOf(RPC, vt, addr, (e3, bVoid) => {
+          if (e3) return __wc_sendJson(res, 500, { ok:false, err:'balance_void_failed', msg:String(e3.message||e3) });
+          __wc_balanceOf(RPC, wt, addr, (e4, bWc) => {
+            if (e4) return __wc_sendJson(res, 500, { ok:false, err:'balance_wc_failed', msg:String(e4.message||e4) });
+
+            out.balances = {
+              void_raw: bVoid.toString(),
+              wc_raw: bWc.toString(),
+              void: __wc_fmtUnits(bVoid, vdec),
+              wc: __wc_fmtUnits(bWc, wdec),
+              void_decimals: vdec,
+              wc_decimals: wdec,
+            };
+
+            __wc_balanceOf(RPC, vt, pl, (e5, rVoid) => {
+              if (e5) return __wc_sendJson(res, 500, { ok:false, err:'reserve_void_failed', msg:String(e5.message||e5) });
+              __wc_balanceOf(RPC, wt, pl, (e6, rWc) => {
+                if (e6) return __wc_sendJson(res, 500, { ok:false, err:'reserve_wc_failed', msg:String(e6.message||e6) });
+
+                out.poolState = {
+                  up: 1,
+                  pool: { address: pl },
+                  tokens: {
+                    void: { address: vt, decimals: vdec },
+                    wc: { address: wt, decimals: wdec },
+                  },
+                  reserves: {
+                    void_raw: rVoid.toString(),
+                    wc_raw: rWc.toString(),
+                    void: __wc_fmtUnits(rVoid, vdec),
+                    wc: __wc_fmtUnits(rWc, wdec),
+                  },
+                  price: {
+                    wc_per_void: __wc_ratio6(rWc, rVoid),
+                    void_per_wc: __wc_ratio6(rVoid, rWc),
+                  },
+                  meta: {
+                    rpc_url: RPC,
+                    cfg_file: addrs.cfg_path,
+                    state_file: addrs.doc_path,
+                    ts: Math.floor(Date.now()/1000),
+                  },
+                };
+
+                return __wc_sendJson(res, 200, out);
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+}
+// === [end workcredits devnet] dashboard interceptor v2 ===
+
 
 function renderHtmlUi() {
   return `<!doctype html>
@@ -527,15 +836,17 @@ function renderHtmlUi() {
         }
         const data = await resp.json();
         jsonBox.textContent = JSON.stringify(data, null, 2);
-
-        const pool = data.pool || {};
-        const reserves = pool.reserves || {};
-        const price = pool.price || {};
+        // __WC_UI_POOLSTATE_PARSE_V4__
+        // Always read pool/price/reserves/meta from poolState (data.pool is a string address).
+        const poolState = (data.poolState && typeof data.poolState === 'object') ? data.poolState : {};
+        const pool = poolState;
+        const reserves = (poolState.reserves && typeof poolState.reserves === 'object') ? poolState.reserves : {};
+        const price = (poolState.price && typeof poolState.price === 'object') ? poolState.price : {};
         const account = data.account || {};
-        const balances = account.balances || {};
+        const balances = (data.balances && typeof data.balances === 'object') ? data.balances : (account.balances || {});
         const earnings = account.earnings || {};
-        const meta = account.meta || {};
-        const chain = data.chain || pool.chain || account.chain || 'devnet';
+        const meta = (poolState.meta && typeof poolState.meta === 'object') ? poolState.meta : (account.meta || {});
+        const chain = data.chain || account.chain || 'devnet';
 
         setText('chain-name', chain);
         setText('acc-address', data.address || account.address || addrRaw);
@@ -549,7 +860,7 @@ function renderHtmlUi() {
         setText('pool-void', reserves.void != null ? formatNum(reserves.void) : '0');
         setText('pool-wc', reserves.wc != null ? formatNum(reserves.wc) : '0');
         setText('pool-address', pool.pool && pool.pool.address ? pool.pool.address : (pool.address || '–'));
-        setText('pool-rpc', pool.pool && pool.pool.rpcUrl ? 'rpc: ' + pool.pool.rpcUrl : 'rpc: –');
+        setText('pool-rpc', (meta && meta.rpc_url) ? ('rpc: ' + meta.rpc_url) : 'rpc: –');
 
         setText('acc-void', balances.void != null ? formatNum(balances.void) : '0');
         setText('acc-void-raw', 'raw: ' + (balances.void_raw ?? '0'));
@@ -590,6 +901,17 @@ function renderHtmlUi() {
 }
 
 const server = http.createServer((req, res) => {
+
+  // [workcredits devnet] intercept legacy + v2 dashboard routes
+  try {
+    const __u = url.parse(req.url || '/', true);
+    const __p = __u.pathname || '/';
+    const __m = /^\/workcredits\/devnet\/dashboard(?:_v2)?\/(0x[0-9a-fA-F]{40})\.json$/.exec(__p);
+    if (__m) {
+      return __wc_serveDashboard(__m[1], res);
+    }
+  } catch (e) {}
+
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname || '/';
 
