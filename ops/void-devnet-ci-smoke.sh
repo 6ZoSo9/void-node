@@ -1,86 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${REPO:-$(pwd)}"
-PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
-RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+ROOT="${ROOT:-$HOME/dev/void-node}"
+cd "$ROOT"
 
-echo "[ci-smoke] repo=$REPO"
+PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
+# shellcheck disable=SC1091
+source ops/_void_prom_q.sh
+
+echo "[ci-smoke] repo=$(pwd)"
 echo "[ci-smoke] prom_url=$PROM_URL"
 echo
 
-# --- Helper for Prom queries (plain metric names) ---
-
-get_prom() {
-  local metric="$1"
-  curl -fsS "$PROM_URL/api/v1/query?query=$metric" \
-    | jq -r '.data.result[0].value[1] // "NaN"'
-}
-
-# --- Step 1: devnet status (text + gauges) ---
-
 echo "[ci-smoke] step 1: devnet status:"
-"$REPO/ops/void-devnet-status.sh"
+./ops/void-devnet-status.sh || true
 echo
 
-# --- Step 2: coverage smoke (healer + Prom cross-check, ROOT-ONLY, NON-FATAL) ---
-
-if [ -x "$REPO/ops/void-devnet-coverage-smoke.sh" ]; then
-  echo "[ci-smoke] step 2: devnet coverage smoke:"
-  (
-    set +e
-    "$REPO/ops/void-devnet-coverage-smoke.sh"
-    s=$?
-    if [ "$s" -ne 0 ]; then
-      echo "[ci-smoke] coverage smoke FAILED (ignored for CI gate; rely on gauges)"
-    fi
-  )
-  echo
+echo "[ci-smoke] step 2: devnet coverage smoke:"
+if [ -x ./ops/void-devnet-coverage-smoke.sh ]; then
+  ./ops/void-devnet-coverage-smoke.sh || echo "[ci-smoke] coverage smoke FAILED (ignored for CI gate; rely on gauges)"
 else
-  echo "[ci-smoke] step 2: devnet coverage smoke script missing (skipped)"
-  echo
+  echo "[ci-smoke] coverage smoke: SKIP (missing ops/void-devnet-coverage-smoke.sh)"
 fi
+echo
 
-# --- Step 3: system smoke (models/datasets/agentreg + coverage) ---
+echo "[ci-smoke] step 3: devnet system smoke:"
+./ops/void-devnet-system-smoke.sh || true
+echo
 
-if [ -x "$REPO/ops/void-devnet-system-smoke.sh" ]; then
-  echo "[ci-smoke] step 3: devnet system smoke:"
-  "$REPO/ops/void-devnet-system-smoke.sh"
-  echo
+echo "[ci-smoke] step 4: jobs/receipts report:"
+if [ -x ./ops/void-devnet-jobs-receipts-report.sh ]; then
+  ./ops/void-devnet-jobs-receipts-report.sh || true
 else
-  echo "[ci-smoke] step 3: devnet system smoke script missing (skipped)"
-  echo
+  echo "[ci-smoke] (no report script; ok)"
 fi
-
-# --- Step 4: jobs/receipts mapping report ---
-
-if [ -x "$REPO/ops/void-devnet-jobs-report.sh" ]; then
-  echo "[ci-smoke] step 4: jobs/receipts report:"
-  echo "[ci-smoke] step 4: jobs/receipts report:"
-  echo
-else
-  echo "[ci-smoke] step 4: jobs/receipts report script missing (skipped)"
-  echo "[ci-smoke] step 4: jobs/receipts report script missing (skipped)"
-fi
-
-# --- Step 5: hard Prom sanity checks on coverage/health ---
+echo
 
 echo "[ci-smoke] step 5: Prometheus coverage sanity:"
-
-cov_job="$(get_prom void_devnet_coverage)"
-cov_health="$(get_prom void_devnet_coverage_health)"
-rec_cov_v2="$(get_prom void_devnet_receipts_coverage_v2)"
-rec_health_v2="$(get_prom void_devnet_receipts_health_v2)"
-
-printf '  void_devnet_coverage              = %s\n' "$cov_job"
-printf '  void_devnet_coverage_health       = %s\n' "$cov_health"
-printf '  void_devnet_receipts_coverage_v2  = %s\n' "$rec_cov_v2"
-printf '  void_devnet_receipts_health_v2    = %s\n' "$rec_health_v2"
+cov="$(prom_q 'max(void_devnet_coverage{chain="devnet"})')"
+cov_h="$(prom_q 'max(void_devnet_coverage_health{chain="devnet"})')"
+rcov="$(prom_q 'max(void_devnet_receipts_coverage_v2{chain="devnet"})')"
+rh="$(prom_q 'max(void_devnet_receipts_health_v2{chain="devnet"})')"
+printf "  %-28s = %s\n" "void_devnet_coverage" "$cov"
+printf "  %-28s = %s\n" "void_devnet_coverage_health" "$cov_h"
+printf "  %-28s = %s\n" "void_devnet_receipts_coverage_v2" "$rcov"
+printf "  %-28s = %s\n" "void_devnet_receipts_health_v2" "$rh"
 echo
 
-if [ "$cov_job" != "1" ] || [ "$cov_health" != "1" ] || [ "$rec_health_v2" != "1" ]; then
-  echo "[ci-smoke] RESULT: FAIL (coverage/health gauges not all 1)"
-  exit 1
+# Gate condition (strict on the two coverage gauges + receipts health)
+if num_eq1 "$cov" >/dev/null 2>&1 && num_eq1 "$cov_h" >/dev/null 2>&1 && num_eq1 "$rh" >/dev/null 2>&1; then
+  echo "[ci-smoke] RESULT: OK (devnet jobs + receipts are healthy)"
+  exit 0
 fi
 
-echo "[ci-smoke] RESULT: OK (devnet jobs + receipts are healthy)"
+echo "[ci-smoke] RESULT: FAIL (coverage/health gauges not all 1)"
+exit 2

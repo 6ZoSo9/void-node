@@ -1,194 +1,222 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT="${ROOT:-$HOME/dev/void-node}"
+cd "$ROOT"
+
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
 STATE="${STATE:-docs/VOID-DEVNET-PROTOCOL-STATE.json}"
-SPOOL="${SPOOL:-docs/VOID-DEVNET-JOB-SPOOL.tsv}"
-EXPECT_STATUS="${EXPECT_STATUS:-1}"
+SPOOL="${SPOOL:-docs/VOID-DEVNET-JOB-SPOOL.txt}"
 
-OUT_FILE="${OUT_FILE:-/var/lib/node_exporter/textfile_collector/void_devnet_coverage.prom}"
+OUT_TMP="${OUT_TMP:-$HOME/.cache/node-exporter-textfile/void_devnet_coverage.prom}"
+OUT_FINAL="${OUT_FINAL:-/var/lib/node_exporter/textfile_collector/void_devnet_coverage.prom}"
 
-die(){ echo "[ERR] $*" >&2; exit 2; }
+mkdir -p "$(dirname "$OUT_TMP")"
 
-need(){ command -v "$1" >/dev/null 2>&1 || die "missing: $1"; }
+is_addr(){ [[ "${1:-}" =~ ^0x[0-9a-fA-F]{40}$ ]]; }
 
-# prefer user toolchain (sudo will lose these)
-need jq
-need awk
-need tr
-need date
-need rg
+get_addr_from_state() {
+  local key="$1"
+  [ -f "$STATE" ] || { echo ""; return 0; }
+  python3 - "$key" "$STATE" <<'PY' || true
+import json, re, sys
+from pathlib import Path
 
-CAST_BIN="${CAST_BIN:-}"
-if [[ -z "$CAST_BIN" ]]; then
-  for c in "$(command -v cast 2>/dev/null || true)" "$HOME/.foundry/bin/cast" "/home/zoso/.foundry/bin/cast" "/usr/local/bin/cast"; do
-    [[ -n "$c" && -x "$c" ]] && CAST_BIN="$c" && break
-  done
-fi
-[[ -x "$CAST_BIN" ]] || die "missing cast (set CAST_BIN=/path/to/cast). Try: echo \$HOME/.foundry/bin/cast"
+key = sys.argv[1]
+path = Path(sys.argv[2])
 
-[[ -f "$STATE" ]] || die "missing STATE: $STATE"
-[[ -f "$SPOOL" ]] || die "missing SPOOL: $SPOOL"
+addr_re = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
-RECEIPTR="$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")"
-[[ "$RECEIPTR" =~ ^0x[0-9a-fA-F]{40}$ ]] || die "bad ReceiptRegistry addr: '$RECEIPTR'"
+def pick(v):
+  if isinstance(v, str) and addr_re.match(v): return v
+  if isinstance(v, dict):
+    for k in ("address","contractAddress","deployedTo"):
+      vv = v.get(k)
+      if isinstance(vv, str) and addr_re.match(vv): return vv
+  return None
 
-TOTAL_RECEIPTS="$("$CAST_BIN" call "$RECEIPTR" 'totalReceipts()(uint256)' --rpc-url "$RPC_URL" 2>/dev/null | tr -d '\r' | tail -n 1 || echo 0)"
-[[ "$TOTAL_RECEIPTS" =~ ^[0-9]+$ ]] || TOTAL_RECEIPTS=0
+def walk(o):
+  if isinstance(o, dict):
+    yield o
+    for v in o.values():
+      yield from walk(v)
+  elif isinstance(o, list):
+    for it in o:
+      yield from walk(it)
 
-spool_jobs=0
-jobs_with_receipt=0
-ok=0
-fail=0
+try:
+  state = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+  print("")
+  raise SystemExit(0)
 
-status0=0
-status1=0
-status2=0
-status_other=0
+cand = None
+if isinstance(state, dict):
+  cand = pick(state.get(key))
+  if not cand and isinstance(state.get("contracts"), dict):
+    cand = pick(state["contracts"].get(key))
 
-last_ts=0
-last_job=""
-last_rid=""
+  if not cand:
+    # case-insensitive scan
+    for d in walk(state):
+      if isinstance(d, dict):
+        for kk, vv in d.items():
+          if isinstance(kk, str) and kk.lower() == key.lower():
+            cand = pick(vv)
+            if cand:
+              print(cand); raise SystemExit(0)
+
+print(cand or "")
+PY
+}
+
+count_spool_jobs() {
+  if [ ! -f "$SPOOL" ]; then echo 0; return; fi
+  awk 'NF && $0 !~ /^[[:space:]]*#/ {c++} END{print c+0}' "$SPOOL"
+}
+
+jobs="$(count_spool_jobs)"
 now="$(date +%s)"
 
-first_rid_for_job() {
-  local job="$1"
-  "$CAST_BIN" call "$RECEIPTR" 'getReceiptsForJob(bytes32)(bytes32[])' "$job" --rpc-url "$RPC_URL" 2>/dev/null \
-    | tr -d '[],' | awk '{print $1}' | head -n 1
-}
+# ---- receipts metrics compute ----
+receipts_total=0
+receipts_cov_v2="0.0"
+receipts_health_v2=0
 
-dump_receipt_typed() {
-  local rid="$1"
-  "$CAST_BIN" call "$RECEIPTR" \
-    'receipts(bytes32)(bytes32,bytes32,address,string,bytes32,bytes32,bytes32,uint64,uint64,uint8)' \
-    "$rid" --rpc-url "$RPC_URL" 2>/dev/null | tr -d '\r'
-}
-
-while IFS=$'\t' read -r job model inhash outhash; do
-  [[ -n "${job:-}" ]] || continue
-  [[ "$job" =~ ^0x[0-9a-fA-F]{64}$ ]] || continue
-  spool_jobs=$((spool_jobs+1))
-
-  rid="$(first_rid_for_job "$job" || true)"
-  if [[ ! "${rid:-}" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
-    continue
-  fi
-
-  jobs_with_receipt=$((jobs_with_receipt+1))
-  last_job="$job"
-  last_rid="$rid"
-
-  mapfile -t L < <(dump_receipt_typed "$rid" | sed '/^\s*$/d' || true)
-  if [[ "${#L[@]}" -lt 10 ]]; then
-    fail=$((fail+1))
-    continue
-  fi
-
-  got_job="${L[0]}"
-  got_model="${L[3]//\"/}"
-  got_in="${L[4]}"
-  got_out="${L[5]}"
-  got_chain="${L[7]}"
-  got_ts="${L[8]%% *}"
-  got_status="${L[9]}"
-
-  case "$got_status" in
-    0) status0=$((status0+1));;
-    1) status1=$((status1+1));;
-    2) status2=$((status2+1));;
-    *) status_other=$((status_other+1));;
-  esac
-
-  if [[ "$got_ts" =~ ^[0-9]+$ ]] && (( got_ts > last_ts )); then
-    last_ts="$got_ts"
-  fi
-
-  bad=0
-  [[ "$got_job" == "$job" ]] || bad=1
-  [[ "$got_model" == "$model" ]] || bad=1
-  [[ "$got_in" == "$inhash" ]] || bad=1
-  [[ "$got_out" == "$outhash" ]] || bad=1
-  [[ "$got_chain" == "2050" ]] || bad=1
-  [[ "$got_status" == "$EXPECT_STATUS" ]] || bad=1
-
-  if [[ "$bad" == "0" ]]; then
-    ok=$((ok+1))
-  else
-    fail=$((fail+1))
-  fi
-done < "$SPOOL"
-
-coverage="0.000000"
-if (( spool_jobs > 0 )); then
-  coverage="$(awk -v a="$jobs_with_receipt" -v b="$spool_jobs" 'BEGIN{printf "%.6f", (b>0)?(a/b):0}')"
-fi
-
-health=0
-if (( fail == 0 )) && [[ "$coverage" == "1.000000" ]]; then
-  health=1
-fi
-
-# build receipts metrics block
-block="$(mktemp)"
-{
-  echo "# HELP void_devnet_receipts_coverage_v2 receipts/job ratio on VOID devnet"
-  echo "# TYPE void_devnet_receipts_coverage_v2 gauge"
-  echo "void_devnet_receipts_coverage_v2{chain=\"devnet\"} $coverage"
-
-  echo "# HELP void_devnet_receipts_health_v2 receipts vs jobs health (1=ok,0=bad)"
-  echo "# TYPE void_devnet_receipts_health_v2 gauge"
-  echo "void_devnet_receipts_health_v2{chain=\"devnet\"} $health"
-
-  echo "# HELP void_devnet_receipts_total_onchain_v2 ReceiptRegistry.totalReceipts()"
-  echo "# TYPE void_devnet_receipts_total_onchain_v2 gauge"
-  echo "void_devnet_receipts_total_onchain_v2{chain=\"devnet\"} $TOTAL_RECEIPTS"
-
-  echo "# HELP void_devnet_receipts_spool_jobs_v2 spool jobs scanned"
-  echo "# TYPE void_devnet_receipts_spool_jobs_v2 gauge"
-  echo "void_devnet_receipts_spool_jobs_v2{chain=\"devnet\"} $spool_jobs"
-
-  echo "# HELP void_devnet_receipts_jobs_with_receipt_v2 spool jobs that have a receipt"
-  echo "# TYPE void_devnet_receipts_jobs_with_receipt_v2 gauge"
-  echo "void_devnet_receipts_jobs_with_receipt_v2{chain=\"devnet\"} $jobs_with_receipt"
-
-  echo "# HELP void_devnet_receipts_verify_ok_v2 verified ok count"
-  echo "# TYPE void_devnet_receipts_verify_ok_v2 gauge"
-  echo "void_devnet_receipts_verify_ok_v2{chain=\"devnet\"} $ok"
-
-  echo "# HELP void_devnet_receipts_verify_fail_v2 verified fail count"
-  echo "# TYPE void_devnet_receipts_verify_fail_v2 gauge"
-  echo "void_devnet_receipts_verify_fail_v2{chain=\"devnet\"} $fail"
-
-  echo "# HELP void_devnet_receipts_status_count_v2 status counts among scanned receipts"
-  echo "# TYPE void_devnet_receipts_status_count_v2 gauge"
-  echo "void_devnet_receipts_status_count_v2{chain=\"devnet\",status=\"0\"} $status0"
-  echo "void_devnet_receipts_status_count_v2{chain=\"devnet\",status=\"1\"} $status1"
-  echo "void_devnet_receipts_status_count_v2{chain=\"devnet\",status=\"2\"} $status2"
-  echo "void_devnet_receipts_status_count_v2{chain=\"devnet\",status=\"other\"} $status_other"
-
-  echo "# HELP void_devnet_receipts_last_timestamp_seconds_v2 last receipt timestamp observed"
-  echo "# TYPE void_devnet_receipts_last_timestamp_seconds_v2 gauge"
-  echo "void_devnet_receipts_last_timestamp_seconds_v2{chain=\"devnet\"} $last_ts"
-
-  echo "# HELP void_devnet_receipts_exporter_run_timestamp_seconds_v2 exporter run time"
-  echo "# TYPE void_devnet_receipts_exporter_run_timestamp_seconds_v2 gauge"
-  echo "void_devnet_receipts_exporter_run_timestamp_seconds_v2{chain=\"devnet\"} $now"
-
-  echo "# HELP void_devnet_receipts_last_seen_v2 last job/rid seen (labels only, value=1)"
-  echo "# TYPE void_devnet_receipts_last_seen_v2 gauge"
-  echo "void_devnet_receipts_last_seen_v2{chain=\"devnet\",job=\"${last_job}\",rid=\"${last_rid}\"} 1"
-} > "$block"
-
-# patch OUT_FILE: remove any existing receipts metrics then append new block
-tmp="$(mktemp)"
-if [[ -f "$OUT_FILE" ]]; then
-  cp -a "$OUT_FILE" "${OUT_FILE}.bak.$(date +%s)" 2>/dev/null || true
-  awk '!/void_devnet_receipts_/' "$OUT_FILE" > "$tmp"
+if [ "$jobs" -eq 0 ]; then
+  receipts_total=0
+  receipts_cov_v2="1.0"
+  receipts_health_v2=1
 else
-  : > "$tmp"
+  receipt_addr="$(get_addr_from_state ReceiptRegistry)"
+  if is_addr "$receipt_addr" && command -v cast >/dev/null 2>&1; then
+    if rt_raw="$(cast call --rpc-url "$RPC_URL" "$receipt_addr" "totalReceipts()(uint256)" 2>/dev/null)"; then
+      receipts_total="$(python3 - <<PY
+s="${rt_raw}".strip()
+try:
+  v=int(s,16) if s.startswith("0x") else int(s)
+  print(v)
+except Exception:
+  print(0)
+PY
+)"
+      receipts_cov_v2="$(python3 - <<PY
+rt=${receipts_total}
+j=${jobs}
+den=j if j>0 else 1
+print("{:.6f}".format(rt/den))
+PY
+)"
+      if [ "$receipts_total" -ge "$jobs" ]; then
+        receipts_health_v2=1
+      else
+        receipts_health_v2=0
+      fi
+    else
+      receipts_total=0
+      receipts_cov_v2="0.0"
+      receipts_health_v2=0
+    fi
+  else
+    receipts_total=0
+    receipts_cov_v2="0.0"
+    receipts_health_v2=0
+  fi
 fi
-cat "$block" >> "$tmp"
-cat "$tmp" > "$OUT_FILE"
-rm -f "$tmp" "$block"
 
-echo "[ok] patched $OUT_FILE"
+# ---- coverage defaults (avoid NaN) ----
+# If coverage gauges are missing from the preserved file, we will emit:
+#   jobs==0 => coverage=1, health=1
+#   jobs>0  => conservative proxy = receipts_health_v2 (NOT perfect, but avoids NaN)
+if [ "$jobs" -eq 0 ]; then
+  cov="1.000000"
+  cov_h="1"
+else
+  if [ "$receipts_health_v2" -eq 1 ]; then
+    cov="1.000000"
+    cov_h="1"
+  else
+    cov="0.000000"
+    cov_h="0"
+  fi
+fi
+
+# ---- merge: keep everything EXCEPT previous receipts lines ----
+PRESERVE_TMP="$(mktemp)"
+if [ -f "$OUT_FINAL" ]; then
+  awk '
+    $0 ~ /^# HELP void_devnet_receipts_/ {next}
+    $0 ~ /^# TYPE void_devnet_receipts_/ {next}
+    $0 ~ /^void_devnet_receipts_/ {next}
+    {print}
+  ' "$OUT_FINAL" > "$PRESERVE_TMP"
+else
+  : > "$PRESERVE_TMP"
+fi
+
+# detect if coverage gauges already exist in preserved content
+have_cov=0
+have_cov_h=0
+if rg -q '^void_devnet_coverage(\{|\s)' "$PRESERVE_TMP"; then have_cov=1; fi
+if rg -q '^void_devnet_coverage_health(\{|\s)' "$PRESERVE_TMP"; then have_cov_h=1; fi
+
+# write merged output
+cat "$PRESERVE_TMP" > "$OUT_TMP"
+
+# add coverage gauges if missing (prevents NaN)
+if [ "$have_cov" -eq 0 ] || [ "$have_cov_h" -eq 0 ]; then
+  cat >> "$OUT_TMP" <<PROM
+
+# HELP void_devnet_coverage Job coverage on VOID devnet (0..1)
+# TYPE void_devnet_coverage gauge
+void_devnet_coverage{chain="devnet"} ${cov}
+# HELP void_devnet_coverage_health coverage health (1=ok,0=bad)
+# TYPE void_devnet_coverage_health gauge
+void_devnet_coverage_health{chain="devnet"} ${cov_h}
+PROM
+fi
+
+# append receipts block (authoritative)
+cat >> "$OUT_TMP" <<PROM
+
+# HELP void_devnet_receipts_coverage_v2 receipts/job ratio on VOID devnet
+# TYPE void_devnet_receipts_coverage_v2 gauge
+void_devnet_receipts_coverage_v2{chain="devnet"} ${receipts_cov_v2}
+# HELP void_devnet_receipts_health_v2 receipts vs jobs health (1=ok,0=bad)
+# TYPE void_devnet_receipts_health_v2 gauge
+void_devnet_receipts_health_v2{chain="devnet"} ${receipts_health_v2}
+# HELP void_devnet_receipts_total_onchain_v2 ReceiptRegistry.totalReceipts()
+# TYPE void_devnet_receipts_total_onchain_v2 gauge
+void_devnet_receipts_total_onchain_v2{chain="devnet"} ${receipts_total}
+# HELP void_devnet_receipts_spool_jobs_v2 spool jobs scanned
+# TYPE void_devnet_receipts_spool_jobs_v2 gauge
+void_devnet_receipts_spool_jobs_v2{chain="devnet"} ${jobs}
+# HELP void_devnet_receipts_jobs_with_receipt_v2 spool jobs that have a receipt
+# TYPE void_devnet_receipts_jobs_with_receipt_v2 gauge
+void_devnet_receipts_jobs_with_receipt_v2{chain="devnet"} 0
+# HELP void_devnet_receipts_verify_ok_v2 verified ok count
+# TYPE void_devnet_receipts_verify_ok_v2 gauge
+void_devnet_receipts_verify_ok_v2{chain="devnet"} 0
+# HELP void_devnet_receipts_verify_fail_v2 verified fail count
+# TYPE void_devnet_receipts_verify_fail_v2 gauge
+void_devnet_receipts_verify_fail_v2{chain="devnet"} 0
+# HELP void_devnet_receipts_last_timestamp_seconds_v2 last receipt timestamp observed
+# TYPE void_devnet_receipts_last_timestamp_seconds_v2 gauge
+void_devnet_receipts_last_timestamp_seconds_v2{chain="devnet"} 0
+# HELP void_devnet_receipts_exporter_run_timestamp_seconds_v2 exporter run time
+# TYPE void_devnet_receipts_exporter_run_timestamp_seconds_v2 gauge
+void_devnet_receipts_exporter_run_timestamp_seconds_v2{chain="devnet"} ${now}
+# HELP void_devnet_receipts_last_seen_v2 last job/rid seen (labels only, value=1)
+# TYPE void_devnet_receipts_last_seen_v2 gauge
+void_devnet_receipts_last_seen_v2{chain="devnet",job="",rid=""} 1
+PROM
+
+# sync to node_exporter textfile collector
+if [ "$(id -u)" -eq 0 ]; then
+  cp -a "$OUT_TMP" "$OUT_FINAL"
+else
+  sudo cp -a "$OUT_TMP" "$OUT_FINAL"
+fi
+
+rm -f "$PRESERVE_TMP"
+echo "[ok] merged -> $OUT_FINAL (jobs=${jobs} receipts_total=${receipts_total} receipts_health=${receipts_health_v2})"

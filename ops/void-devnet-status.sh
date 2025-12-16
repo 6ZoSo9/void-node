@@ -1,72 +1,53 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${REPO:-$(pwd)}"
-RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+ROOT="${ROOT:-$HOME/dev/void-node}"
+cd "$ROOT"
+
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
+RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
+SPOOL="${SPOOL:-docs/VOID-DEVNET-JOB-SPOOL.txt}"
+TEXTFILE="${TEXTFILE:-/var/lib/node_exporter/textfile_collector/void_devnet_coverage.prom}"
 
-STATE="$REPO/docs/VOID-DEVNET-PROTOCOL-STATE.json"
-SPOOL="$REPO/docs/VOID-DEVNET-JOB-SPOOL.txt"
-TEXTFILE="/var/lib/node_exporter/textfile_collector/void_devnet_coverage.prom"
+# shellcheck disable=SC1091
+source ops/_void_prom_q.sh
 
-echo "[status] repo=$REPO"
+echo "[status] repo=$(pwd)"
 echo "[status] RPC_URL=$RPC_URL"
 echo "[status] PROM_URL=$PROM_URL"
 echo
-
-# --- Job spool info (just a quick signal) ---
-
+echo "[status] job spool: $(realpath -m "$SPOOL")"
+jobs_in_spool=0
 if [ -f "$SPOOL" ]; then
-  jobs_in_spool="$(wc -l < "$SPOOL" || echo 0)"
-else
-  jobs_in_spool=0
+  jobs_in_spool="$(awk 'NF && $0 !~ /^[[:space:]]*#/ {c++} END{print c+0}' "$SPOOL")"
 fi
-
-echo "[status] job spool: $SPOOL"
 echo "[status] jobs_in_spool=$jobs_in_spool"
 echo
-
-# --- NOTE: coverage recompute is now a root-only op via void-devnet-coverage-smoke.sh ---
 echo "[status] coverage recompute: SKIPPED (run ops/void-devnet-coverage-smoke.sh for root-only heal)"
 echo
-
-# --- Show current textfile snapshot if present ---
-
+echo "[status] textfile snapshot ($TEXTFILE):"
 if [ -f "$TEXTFILE" ]; then
-  echo "[status] textfile snapshot ($TEXTFILE):"
-  sed -n '1,40p' "$TEXTFILE"
-  echo
+  sudo sed -n '1,220p' "$TEXTFILE" || sed -n '1,220p' "$TEXTFILE" || true
 else
-  echo "[status] textfile snapshot missing: $TEXTFILE"
-  echo
+  echo "[WARN] missing textfile: $TEXTFILE"
 fi
 
-# --- Helper to pull a Prom value safely (no label filters here) ---
+# IMPORTANT: use max() to avoid NaN from scalar() / multi-series
+cov="$(prom_q 'max(void_devnet_coverage{chain="devnet"})')"
+cov_h="$(prom_q 'max(void_devnet_coverage_health{chain="devnet"})')"
+rcov="$(prom_q 'max(void_devnet_receipts_coverage_v2{chain="devnet"})')"
+rh="$(prom_q 'max(void_devnet_receipts_health_v2{chain="devnet"})')"
 
-get_prom() {
-  local metric="$1"
-  curl -fsS "$PROM_URL/api/v1/query?query=$metric" \
-    | jq -r '.data.result[0].value[1] // "NaN"'
-}
-
-# --- Raw gauges ---
-
-cov_job="$(get_prom void_devnet_coverage)"
-cov_health="$(get_prom void_devnet_coverage_health)"
-rec_cov_v2="$(get_prom void_devnet_receipts_coverage_v2)"
-rec_health_v2="$(get_prom void_devnet_receipts_health_v2)"
-
-echo "[status] raw devnet coverage gauges:"
-printf '  void_devnet_coverage              = %s\n' "$cov_job"
-printf '  void_devnet_coverage_health       = %s\n' "$cov_health"
-printf '  void_devnet_receipts_coverage_v2  = %s\n' "$rec_cov_v2"
-printf '  void_devnet_receipts_health_v2    = %s\n' "$rec_health_v2"
 echo
+echo "[status] raw devnet coverage gauges (Prom max()):"
+printf "  %-28s = %s\n" "void_devnet_coverage" "$cov"
+printf "  %-28s = %s\n" "void_devnet_coverage_health" "$cov_h"
+printf "  %-28s = %s\n" "void_devnet_receipts_coverage_v2" "$rcov"
+printf "  %-28s = %s\n" "void_devnet_receipts_health_v2" "$rh"
 
-cat <<'EOT'
-[status] interpretation:
-  - void_devnet_coverage == 1 means every JobQueue job has >=1 receipt.
-  - void_devnet_coverage_health == 1 means no uncovered jobs.
-  - void_devnet_receipts_health_v2 == 1 means receipts_total >= jobs_total.
-  - void_devnet_receipts_coverage_v2 > 1 just means multiple receipts per job (fine on devnet).
-EOT
+echo
+echo "[status] interpretation:"
+echo "  - void_devnet_coverage == 1 means every JobQueue job has >=1 receipt."
+echo "  - void_devnet_coverage_health == 1 means no uncovered jobs."
+echo "  - void_devnet_receipts_health_v2 == 1 means receipts_total >= jobs_total."
+echo "  - void_devnet_receipts_coverage_v2 > 1 just means multiple receipts per job (fine on devnet)."

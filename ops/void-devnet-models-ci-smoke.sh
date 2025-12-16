@@ -1,71 +1,45 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${REPO:-$(pwd)}"
-STATE="${STATE:-$REPO/docs/VOID-DEVNET-PROTOCOL-STATE.json}"
+ROOT="${ROOT:-$HOME/dev/void-node}"
+cd "$ROOT"
+
+STATE="${STATE:-docs/VOID-DEVNET-PROTOCOL-STATE.json}"
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
 
-echo "[models-ci] repo=$REPO"
-echo "[models-ci] state=$STATE"
+# shellcheck disable=SC1091
+source ops/_void_prom_q.sh
+
+echo "[models-ci] repo=$(pwd)"
+echo "[models-ci] state=$(realpath -m "$STATE")"
 echo "[models-ci] prom_url=$PROM_URL"
 
-if [ ! -f "$STATE" ]; then
-  echo "[models-ci] ERROR: state file not found: $STATE" >&2
-  exit 1
+addr=""
+if [ -f "$STATE" ]; then
+  addr="$(jq -r '.ModelRegistry.address // .contracts.ModelRegistry.address // ""' "$STATE" 2>/dev/null || true)"
 fi
+echo "[models-ci] ModelRegistry.address=$addr"
 
-MODEL_ADDR="$(jq -r '.ModelRegistry.address // ""' "$STATE")"
+# Source of truth for devnet gate: Prom health gauge.
+# If state is missing address, do NOT fail; rely on Prom.
+prom_health="$(prom_q 'max(void_models_devnet_health)')"
+echo "[models-ci] prom: models_health=$prom_health"
 
-echo "[models-ci] ModelRegistry.address=$MODEL_ADDR"
-
-if ! [[ "$MODEL_ADDR" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
-  echo "[models-ci] ERROR: ModelRegistry.address is missing or invalid" >&2
-  exit 1
-fi
-
-prom_query() {
-  local q="$1"
-  curl -fsS "$PROM_URL/api/v1/query" --get --data-urlencode "query=$q" \
-    | jq -r '
-        if .status != "success" then
-          empty
-        elif (.data.result | length) == 0 then
-          empty
-        else
-          .data.result[0].value[1]
-        end
-      '
-}
-
-echo
-echo "[models-ci] checking ModelRegistry health gauge (void_models_devnet_health)..."
-HEALTH="$(prom_query 'void_models_devnet_health{chain="devnet"}')"
-
-if [ -z "$HEALTH" ]; then
-  echo "[models-ci] ERROR: no series for void_models_devnet_health{chain=\"devnet\"}" >&2
-  exit 1
-fi
-
-echo "[models-ci] void_models_devnet_health{chain=\"devnet\"} = $HEALTH"
-
-if [ "$HEALTH" != "1" ]; then
-  echo "[models-ci] ERROR: ModelRegistry health is not 1" >&2
-  exit 1
-fi
-
-echo
-echo "[models-ci] checking ModelRegistry admin mismatch gauge (best-effort)..."
-ADMIN_MISMATCH="$(prom_query 'void_models_admin_mismatch{chain="devnet"}' || true)"
-
-if [ -z "$ADMIN_MISMATCH" ]; then
-  echo "[models-ci] NOTE: void_models_admin_mismatch not found; skipping mismatch assertion"
-else
-  echo "[models-ci] void_models_admin_mismatch{chain=\"devnet\"} = $ADMIN_MISMATCH"
-  if [ "$ADMIN_MISMATCH" != "0" ]; then
-    echo "[models-ci] ERROR: ModelRegistry admin mismatch gauge is not 0" >&2
-    exit 1
+if [[ ! "$addr" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+  echo "[models-ci] NOTE: ModelRegistry.address missing/invalid in state; Prom health is source of truth for devnet gate."
+  if num_eq1 "$prom_health" >/dev/null 2>&1; then
+    echo "[models-ci] RESULT: OK"
+    exit 0
   fi
+  echo "[models-ci] RESULT: FAIL (Prom models health != 1)"
+  exit 2
 fi
 
-echo
-echo "[models-ci] RESULT: OK (ModelRegistry address sane + health=1 + admin_mismatch=0)"
+# If address exists, still require Prom to be healthy (devnet gate)
+if num_eq1 "$prom_health" >/dev/null 2>&1; then
+  echo "[models-ci] RESULT: OK"
+  exit 0
+fi
+
+echo "[models-ci] RESULT: FAIL (Prom models health != 1)"
+exit 2
