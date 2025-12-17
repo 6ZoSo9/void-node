@@ -2920,12 +2920,6 @@ import type {} from "express"; // type-only safety; no runtime impact
         if (!s || typeof s.saveBlock !== "function") return false;
         if (s.__void_save_tapped) return true; // idempotent
         const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
         s.saveBlock = function tappedSaveBlock(b:any){
           try{
             const txsLen = Array.isArray(b?.txs) ? b.txs.length : 0;
@@ -3038,12 +3032,6 @@ import type {} from "express"; // type-only safety; no runtime impact
       if (s.__void_force_inject_wrapped) return true;
 
       const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
       s.saveBlock = function saveBlockForced(b:any){
         try{
           if (!b || typeof b !== "object") return orig(b);
@@ -3298,12 +3286,6 @@ import type {} from "express"; // type-only safety; no runtime impact
       state.active = true;
 
       const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
       s.saveBlock = function mergedSaveBlock(b:any){
         try{
           if (b && Array.isArray(b.txs) && b.txs.length===0){
@@ -3469,12 +3451,6 @@ import type {} from "express"; // type-only safety; no runtime impact
       if (typeof s.saveBlock !== "function") return false;
       if (s.__void_cap_enforced) return true;
       const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
 
       s.saveBlock = function saveBlockWithCap(b:any){
         try{
@@ -3574,12 +3550,6 @@ import type {} from "express"; // type-only safety; no runtime impact
       if (s.__void_no_empty_policy_applied) return true;
 
       const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
       s.saveBlock = function saveBlockNoEmpty(b:any){
         try{
           if (!cfg.enabled) return orig(b);
@@ -10008,11 +9978,6 @@ void_seal_rate_1m ${rate1m()}
     if ((store as any).__lastMileWrapped) { attached = true; return; }
     const inner = store.saveBlock.bind(store);
 
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { console.log("[lastMileWrapper] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
     store.saveBlock = async function lastMileWrapper(block:any){
       try {
         ensureArrays(block);
@@ -11224,41 +11189,49 @@ void_ready_exporter_timestamp_ms ${now}
 
   // Pull up to "cap" txs from node.mempool; we rely on existing saveBlock wrappers
   // you already installed (tx-merge-all, cap-enforce, empty-policy) to finalize txs.
-  
   async function sealOnce(): Promise<{ok:boolean; number?:number; taken:number; reason?:string}> {
     try {
-      const node: any = getNode();
-      if (!node || typeof node.sealBlock !== "function") {
-        return { ok: false, taken: 0, reason: "node.sealBlock missing" };
-      }
+      const n = getNode(); const s = getStore(); const app = getApp();
+      if (!n || !s || !app) return { ok:false, taken:0, reason: "node/store/app not ready" };
 
-      // Best-effort visibility into how many txs are waiting.
-      let queued = 0;
+      // Diagnostics only: try to read a mempool-like array for logging/metrics, but
+      // never gate sealing on it. The real last-mile queue lives inside Node.acceptTx().
+      let memSize = 0;
       try {
-        const q =
-          (node as any).txQueue ||
-          (node as any).pendingTxs ||
-          (node as any).pending?.txs ||
-          (node as any).mempool?.txs;
-        if (Array.isArray(q)) queued = q.length;
-      } catch {}
-
-      // Canonical path: use Node.sealBlock, which builds header/roots and calls store.saveBlock().
-      const result = await node.sealBlock({ allowEmptyOnce: false });
-
-      if (!result || typeof result.number !== "number") {
-        return { ok: false, taken: 0, reason: "sealBlock() returned no number" };
+        const anyNode: any = n as any;
+        const mem = (anyNode.mempool && Array.isArray(anyNode.mempool.txs))
+          ? anyNode.mempool.txs
+          : (Array.isArray(anyNode.txs) ? anyNode.txs : null);
+        if (mem) memSize = mem.length;
+      } catch {
+        // ignore mempool inspection errors; they are non-fatal
       }
 
-      lastSeal = { number: result.number, at: Date.now() };
+      const head = await getLatestNumberViaLocal();
+      const nextNum = head + 1;
 
-      const taken = typeof (result as any).txs === "number" ? (result as any).txs : queued;
-      return { ok: true, number: result.number, taken };
-    } catch (e: any) {
-      return { ok: false, taken: 0, reason: String(e && e.message || e) };
+      // Build a minimal block envelope; your saveBlock wrappers add txs + txroot + policies.
+      const block: any = {
+        number: nextNum,
+        timestamp: Date.now(),
+      };
+
+      // Call your patched SegStore.saveBlock (already wrapped with tx merge + counters and
+      // the no-empty-when-queued / empty-policy logic).
+      await s.saveBlock(block);
+
+      lastSeal = { number: nextNum, at: Date.now() };
+      return {
+        ok: true,
+        number: nextNum,
+        taken: memSize > 0 ? Math.min(memSize, 1 /* real tx selection happens in wrappers */) : 0,
+      };
+    } catch (e:any) {
+      return { ok:false, taken:0, reason: String(e && e.message || e) };
     }
   }
 
+  
 let startAutoLoop = function(ms:number) {
   // Always run sealOnce() on a timer.
   // Smart behavior (no-empty-when-queued, empty-policy, etc.)
@@ -15223,11 +15196,6 @@ void_header3_last_mismatch ${lastMismatch}
 
 // -------------------- txroot/forensics v7 (ESM-safe, additive) --------------------
 (function txrootForensicsV7(){
-  if (typeof process !== "undefined" && process.env && process.env.VOID_TXROOT_FORENSICS_V7 !== "1") {
-    try { (console?.log || (() => {}))("[txroot/forensics:v7] disabled via VOID_TXROOT_FORENSICS_V7"); } catch {}
-    return;
-  }
-
   const TICK_MS = 250;
   const FLAG = Symbol.for("void.txroot.forensics.v7.wrapped");
 
@@ -22820,10 +22788,6 @@ void_wal_wrapped ${isWrapped?1:0}
 
     const orig = SegStore.prototype.saveBlock;
     SegStore.prototype.saveBlock = async function(block:any, ...rest:any[]){
-      if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-        try { console.log("[lastmile-safe-v1] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-        return await orig.apply(this, [block, ...rest]);
-      }
       try{
         const q:any[] = (node.txQueue && Array.isArray(node.txQueue)) ? node.txQueue : (node.txQueue = []);
         if (!Array.isArray(block.txs)) block.txs = [];
@@ -23243,12 +23207,6 @@ void_wal_wrapped ${isWrapped?1:0}
     if ((s as any)[FLAG]) return;
 
     const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
     s.saveBlock = async function(block:any, ...rest:any[]){
       try{
         const q:any[] = ensureQ(n);
@@ -23363,12 +23321,6 @@ void_wal_wrapped ${isWrapped?1:0}
     if ((s as any).__void_forensics_v7b) return;
 
     const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
     (s as any).__void_forensics_v7b = true;
     MET.binds_inst++;
 
@@ -23414,12 +23366,6 @@ void_wal_wrapped ${isWrapped?1:0}
     const s:any = store(); if (!s || typeof s.saveBlock!=="function") return setTimeout(mount, TICK);
     if ((s as any).__void_head_probe_bound) return;
     const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
     (s as any).__void_head_probe_bound = true;
     s.saveBlock = async function(block:any, ...rest:any[]){
       const n:any = node();
@@ -23463,12 +23409,6 @@ void_wal_wrapped ${isWrapped?1:0}
     if (!s || !S || typeof s.saveBlock!=="function") return setTimeout(patch, TICK);
     if ((s as any).__void_lastmile_v123b_probe) return;
     const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
     (s as any).__void_lastmile_v123b_probe = true;
 
     s.saveBlock = async function(block:any, ...rest:any[]){
@@ -23698,12 +23638,6 @@ void_wal_wrapped ${isWrapped?1:0}
     if ((s as any).__void_chain_latch_wrapped_v11 === s.saveBlock) return true;
 
     const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
     s.saveBlock = async function(block:any, ...rest:any[]){
       S.calls++; const t0 = Date.now();
 
@@ -27937,11 +27871,6 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
 
     const orig = store.saveBlock.bind(store);
 
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      console.log("[lastmile-bridge] disabled via VOID_LASTMILE_EXPERIMENTAL");
-      return;
-    }
-
     store.saveBlock = async function bridgedSaveBlock(blk: any){
       try {
         const node: any = getNode();
@@ -28022,11 +27951,6 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
     (store as any).__lastmileTxqueueWrappedV2 = true;
 
     const origSave = store.saveBlock.bind(store);
-
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { console.log("[lastmile-txqueue-wrap] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
 
     store.saveBlock = async function wrappedSaveBlock(block: any) {
       try {
@@ -28126,11 +28050,6 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
       const cap = capFromEnv();
 
       store.saveBlock = async function lastmileCoreInjectedSave(block: any) {
-      if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-        try { console.log("[lastmile-coreinject] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-        return await origSave(block);
-      }
-
         let injected: any[] = [];
         try {
           const nodeAny: any = getNode();
@@ -28252,317 +28171,744 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
 })();;
 
 
-// ---------------- [ADD] lastmile-v4: txQueue -> block.txs saveBlock wrapper ----------------
-/**
- * lastmile-v4:
- *   - Activated only when VOID_LASTMILE_FORCE_QUEUE=1
- *   - Waits for global node + store.saveBlock + node.txQueue to exist
- *   - On every saveBlock, drains up to a small cap of txs from node.txQueue into block.txs
- *   - Does NOT change /tx/submit or acceptTx intake logic at all.
- */
-(function installLastmileV4() {
-  try {
-    const g: any = globalThis as any;
 
-    function node(): any {
-      return g.__void_node || g.node || null;
+// --------------- [ADD] cap SPY2 v1 (observe only; find real persist path) ----
+;(function capSpy2V1(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_cap_spy2_v1_installed) return;
+    g.__void_cap_spy2_v1_installed = true;
+
+    function capNow(){
+      try{
+        const a = Number(process.env.TXS_PER_BLOCK_MAX || 0) || 0;
+        const b = Number(process.env.TX_CAP || 0) || 0;
+        const c = Number(process.env.TX_CAP_MAX || 0) || 0;
+        return Math.max(a||0, b||0, c||0);
+      }catch{ return 0; }
     }
 
-    function tryAttach(attempt: number): void {
-      try {
-        const n = node();
-        if (!n) {
-          if (attempt < 60) {
-            return void setTimeout(() => tryAttach(attempt + 1), 1000);
-          }
-          console.log("[lastmile-v4] giving up attach (no node) after", attempt, "tries");
-          return;
-        }
-        const store: any = n.store;
-        if (!store || typeof store.saveBlock !== "function") {
-          if (attempt < 60) {
-            return void setTimeout(() => tryAttach(attempt + 1), 1000);
-          }
-          console.log("[lastmile-v4] giving up attach (no store.saveBlock) after", attempt, "tries");
-          return;
-        }
-        if (!Array.isArray(n.txQueue)) {
-          if (attempt < 60) {
-            return void setTimeout(() => tryAttach(attempt + 1), 1000);
-          }
-          console.log("[lastmile-v4] giving up attach (no txQueue array) after", attempt, "tries");
-          return;
-        }
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
 
-        const orig = store.saveBlock.bind(store);
-        if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-          console.log("[lastmile-v4] disabled via VOID_LASTMILE_EXPERIMENTAL");
-          return;
-        }
+    const st:any = (g.__void_cap_spy2_v1_state ||= {
+      ok:true,
+      cap: 0,
+      wrapped: [] as string[],
+      wrappedCount: 0,
+      calls: 0,
+      lastNonEmpty: null as any,
+      seen: {} as Record<string, any>,
+    });
 
-        store.saveBlock = async function saveBlockLastmileV4(b: any){
-          try {
-            const nd: any = node();
-            const q: any[] = (nd && Array.isArray(nd.txQueue)) ? nd.txQueue : [];
-            if (Array.isArray(q) && q.length > 0) {
-              const cap = 128;
-              const txs: any[] = Array.isArray(b?.txs) ? b.txs : (b.txs = []);
-              let moved = 0;
-              while (q.length && moved < cap) {
-                const t = q.shift();
-                if (t) {
-                  txs.push(t);
-                  moved++;
+    function noteSeen(name:string, info:any){
+      try{
+        const e = (st.seen[name] ||= { calls:0, maxLen:0, lastLen:0, lastPath:null, lastArgIndex:-1, lastBlock:-1, lastTs:0 });
+        e.calls++;
+        if ((info.len ?? 0) > (e.maxLen ?? 0)) e.maxLen = info.len;
+        e.lastLen = info.len;
+        e.lastPath = info.path;
+        e.lastArgIndex = info.argIndex;
+        e.lastBlock = info.block;
+        e.lastTs = info.ts;
+        if ((info.len ?? 0) > 0){
+          st.lastNonEmpty = { method:name, len:info.len, path:info.path, argIndex:info.argIndex, block:info.block, ts:info.ts };
+        }
+      }catch{}
+    }
+
+    function blockNumber(x:any){
+      try{
+        return Number(
+          x?.number ?? x?.block?.number ?? x?.body?.number ?? x?.header?.number ??
+          x?.payload?.number ?? x?.data?.number ?? -1
+        );
+      }catch{ return -1; }
+    }
+
+    function findTxArrays(obj:any){
+      const out:any[] = [];
+      const add = (path:string, parent:any, key:string)=>{
+        try{
+          const arr = parent?.[key];
+          if (Array.isArray(arr)) out.push({ path, arr, parent, key });
+        }catch{}
+      };
+      try{
+        if (!obj) return out;
+        if (Array.isArray(obj)) { out.push({ path:"(arg is array)", arr:obj, parent:null, key:null }); return out; }
+        if (typeof obj !== "object") return out;
+
+        add("txs", obj, "txs");
+        add("transactions", obj, "transactions");
+        if (obj.body && typeof obj.body==="object"){
+          add("body.txs", obj.body, "txs");
+          add("body.transactions", obj.body, "transactions");
+        }
+        if (obj.block && typeof obj.block==="object"){
+          add("block.txs", obj.block, "txs");
+          add("block.transactions", obj.block, "transactions");
+        }
+        if (obj.payload && typeof obj.payload==="object"){
+          add("payload.txs", obj.payload, "txs");
+          add("payload.transactions", obj.payload, "transactions");
+        }
+        if (obj.data && typeof obj.data==="object"){
+          add("data.txs", obj.data, "txs");
+          add("data.transactions", obj.data, "transactions");
+        }
+        for (const k of ["b","blk","blockData","value","record","res","result","out"]){
+          const v:any = (obj as any)[k];
+          if (v && typeof v==="object"){
+            add(`${k}.txs`, v, "txs");
+            add(`${k}.transactions`, v, "transactions");
+            if (v.body && typeof v.body==="object") add(`${k}.body.txs`, v.body, "txs");
+          }
+        }
+      }catch{}
+      // dedupe by array identity
+      try{
+        const seen = new Set<any>();
+        return out.filter(x => x && x.arr && !seen.has(x.arr) && (seen.add(x.arr), true));
+      }catch{}
+      return out;
+    }
+
+    function wrapFn(obj:any, key:string, label:string){
+      try{
+        const mark = `__void_cap_spy2_v1_wrapped_${label}`;
+        if (!obj || obj[mark]) return false;
+        const cur:any = obj[key];
+        if (typeof cur !== "function") return false;
+
+        const wrapped = function(this:any){
+          try{
+            st.calls++;
+            st.cap = capNow();
+            const args:any[] = Array.from(arguments as any);
+            let best:any = null;
+            for (let i=0;i<args.length;i++){
+              const arrs = findTxArrays(args[i]);
+              for (const a of arrs){
+                const L = a.arr?.length ?? 0;
+                if (!best || L > best.len){
+                  best = { len:L, path:a.path, argIndex:i, block:blockNumber(args[i]), ts:Date.now() };
                 }
               }
-              if (moved > 0) {
-                const num = (b && (b.number ?? b.header?.number)) ?? "?";
-                console.log(`[lastmile-v4] injected ${moved} tx from txQueue into block #${num}`);
+            }
+            if (best) noteSeen(label, best);
+          }catch{}
+          return cur.apply(this, arguments as any);
+        } as any;
+
+        obj[key] = wrapped;
+        obj[mark] = true;
+        st.wrapped.push(label);
+        st.wrappedCount = st.wrapped.length;
+        return true;
+      }catch{}
+      return false;
+    }
+
+    function install(){
+      const n:any = getNode();
+      if (!n) return false;
+
+      const objs:any[] = [];
+      try{ if (n) objs.push({ o:n, p:"node" }); }catch{}
+      try{ if (n.store) objs.push({ o:n.store, p:"store" }); }catch{}
+      try{ if (n.chain) objs.push({ o:n.chain, p:"chain" }); }catch{}
+      try{ if (n.core) objs.push({ o:n.core, p:"core" }); }catch{}
+      try{ if (n.sealer) objs.push({ o:n.sealer, p:"sealer" }); }catch{}
+      try{ if ((n as any).segStore) objs.push({ o:(n as any).segStore, p:"segStore" }); }catch{}
+      try{ if ((n as any).segstore) objs.push({ o:(n as any).segstore, p:"segstore" }); }catch{}
+      try{ if ((n as any).db) objs.push({ o:(n as any).db, p:"db" }); }catch{}
+
+      const allow = /^(saveBlock|saveBlockV2|__orig_saveBlock_v2|persistBlock|putBlock|writeBlock|appendBlock|commitBlock|sealBlock|seal|finalizeBlock|flush|put)$/i;
+
+      let ok = false;
+      let wrapped = 0;
+      for (const it of objs){
+        const o = it.o, pfx = it.p;
+        if (!o || typeof o !== "object") continue;
+        for (const k of Object.keys(o)){
+          if (!allow.test(k)) continue;
+          if (wrapFn(o, k, `${pfx}.${k}`)){ ok = true; wrapped++; }
+          if (wrapped >= 40) break;
+        }
+      }
+      return ok;
+    }
+
+    // keep trying for a bit
+    let tries=0;(function tick(){
+      try{ install(); }catch{}
+      if (++tries < 600) setTimeout(tick, 250);
+    })();
+
+    // routes
+    let rtries=0;(function rloop(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function"){ if (++rtries<600) return setTimeout(rloop, 250); else return; }
+      try{
+        app.get("/tx/cap/spy2/status", (_:any,res:any)=>{
+          const entries = Object.entries(st.seen||{}).sort((a:any,b:any)=> (b[1]?.maxLen||0)-(a[1]?.maxLen||0));
+          res.json({
+            cap: st.cap, calls: st.calls, wrappedCount: st.wrappedCount, wrapped: st.wrapped,
+            lastNonEmpty: st.lastNonEmpty,
+            topSeen: entries.slice(0, 12).map(([k,v]:any)=>({ key:k, value:v }))
+          });
+        });
+        app.post("/tx/cap/spy2/reset", (_:any,res:any)=>{
+          st.calls = 0; st.lastNonEmpty = null; st.seen = {};
+          res.json({ ok:true });
+        });
+      }catch{}
+    })();
+
+    try{ console.log("[cap.spy2.v1] installed; diag at /tx/cap/spy2/status"); }catch{}
+  }catch(e){ try{ console.warn("[cap.spy2.v1] install failed:", e); }catch{} }
+})();
+// NOTE: cap SPY2 v1 marker: __void_cap_spy2_v1
+// --------------------------------------------------------------------------------
+
+
+
+// --------------- [ADD] cap SPY3 v1 (own+proto wrap; find REAL persist path) ----
+;(function capSpy3V1(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_cap_spy3_v1_installed) return;
+    g.__void_cap_spy3_v1_installed = true;
+
+    function capNow(){
+      try{
+        const a = Number(process.env.TXS_PER_BLOCK_MAX || 0) || 0;
+        const b = Number(process.env.TX_CAP || 0) || 0;
+        const c = Number(process.env.TX_CAP_MAX || 0) || 0;
+        const d = Number(process.env.LASTMILE_TXQUEUE_CAP || 0) || 0;
+        return Math.max(a||0, b||0, c||0, d||0);
+      }catch{ return 0; }
+    }
+
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+
+    const st:any = (g.__void_cap_spy3_v1_state ||= {
+      ok:true,
+      cap: 0,
+      wrapped: [] as string[],
+      wrappedCount: 0,
+      calls: 0,
+      lastNonEmpty: null as any,
+      seen: {} as Record<string, any>,
+      protoSeen: {} as Record<string, any>,
+    });
+
+    function noteSeen(map:any, name:string, info:any){
+      try{
+        const e = (map[name] ||= { calls:0, maxLen:0, lastLen:0, lastPath:null, lastArgIndex:-1, lastBlock:-1, lastTs:0, lastStack:[] as string[] });
+        e.calls++;
+        if ((info.len ?? 0) > (e.maxLen ?? 0)) e.maxLen = info.len;
+        e.lastLen = info.len;
+        e.lastPath = info.path;
+        e.lastArgIndex = info.argIndex;
+        e.lastBlock = info.block;
+        e.lastTs = info.ts;
+        if (info.stack && info.stack.length) e.lastStack = info.stack;
+        if ((info.len ?? 0) > 0){
+          st.lastNonEmpty = { method:name, len:info.len, path:info.path, argIndex:info.argIndex, block:info.block, ts:info.ts };
+        }
+      }catch{}
+    }
+
+    function blockNumber(x:any){
+      try{
+        return Number(
+          x?.number ?? x?.block?.number ?? x?.body?.number ?? x?.header?.number ??
+          x?.payload?.number ?? x?.data?.number ?? -1
+        );
+      }catch{ return -1; }
+    }
+
+    function findTxArrays(obj:any){
+      const out:any[] = [];
+      const add = (path:string, parent:any, key:string)=>{
+        try{
+          const arr = parent?.[key];
+          if (Array.isArray(arr)) out.push({ path, arr, parent, key });
+        }catch{}
+      };
+      try{
+        if (!obj) return out;
+        if (Array.isArray(obj)) { out.push({ path:"(arg is array)", arr:obj, parent:null, key:null }); return out; }
+        if (typeof obj !== "object") return out;
+
+        add("txs", obj, "txs");
+        add("transactions", obj, "transactions");
+        if (obj.body && typeof obj.body==="object"){
+          add("body.txs", obj.body, "txs");
+          add("body.transactions", obj.body, "transactions");
+        }
+        if (obj.block && typeof obj.block==="object"){
+          add("block.txs", obj.block, "txs");
+          add("block.transactions", obj.block, "transactions");
+        }
+        if (obj.payload && typeof obj.payload==="object"){
+          add("payload.txs", obj.payload, "txs");
+          add("payload.transactions", obj.payload, "transactions");
+        }
+        if (obj.data && typeof obj.data==="object"){
+          add("data.txs", obj.data, "txs");
+          add("data.transactions", obj.data, "transactions");
+        }
+        for (const k of ["b","blk","blockData","value","record","res","result","out"]){
+          const v:any = (obj as any)[k];
+          if (v && typeof v==="object"){
+            add(`${k}.txs`, v, "txs");
+            add(`${k}.transactions`, v, "transactions");
+            if (v.body && typeof v.body==="object") add(`${k}.body.txs`, v.body, "txs");
+          }
+        }
+      }catch{}
+      // dedupe by array identity
+      try{
+        const seen = new Set<any>();
+        return out.filter(x => x && x.arr && !seen.has(x.arr) && (seen.add(x.arr), true));
+      }catch{}
+      return out;
+    }
+
+    function bestFromArgs(args:any[]){
+      try{
+        let best:any = null;
+        for (let i=0;i<args.length;i++){
+          const arrs = findTxArrays(args[i]);
+          for (const a of arrs){
+            const L = a.arr?.length ?? 0;
+            if (!best || L > best.len){
+              best = { len:L, path:a.path, argIndex:i, block:blockNumber(args[i]), ts:Date.now() };
+            }
+          }
+        }
+        if (!best) return null;
+        if (best.len > 0){
+          try{
+            const raw = (new Error("spy3")).stack || "";
+            const lines = String(raw).split("\n").slice(0, 8).map(s=>s.trim()).filter(Boolean);
+            best.stack = lines;
+          }catch{ best.stack = []; }
+        } else best.stack = [];
+        return best;
+      }catch{ return null; }
+    }
+
+    function canWrapDescriptor(obj:any, key:string){
+      try{
+        const d = Object.getOwnPropertyDescriptor(obj, key);
+        if (!d) return false;
+        if (typeof d.value !== "function") return false;
+        if (d.writable === false && d.configurable === false) return false;
+        return true;
+      }catch{ return false; }
+    }
+
+    function wrapOn(obj:any, key:string, label:string, map:any){
+      try{
+        const mark = `__void_cap_spy3_v1_wrapped_${label.replace(/[^a-zA-Z0-9_.:-]/g,"_")}`;
+        if (!obj || (obj as any)[mark]) return false;
+
+        // pick function even if non-enumerable
+        const cur:any = (obj as any)[key];
+        if (typeof cur !== "function") return false;
+
+        const wrapped = function(this:any){
+          try{
+            st.calls++;
+            st.cap = capNow();
+            const args:any[] = Array.from(arguments as any);
+            const best = bestFromArgs(args);
+            if (best) noteSeen(map, label, best);
+          }catch{}
+          return cur.apply(this, arguments as any);
+        } as any;
+
+        // install safely (prefer assignment; fallback defineProperty if needed)
+        try{
+          (obj as any)[key] = wrapped;
+        }catch{
+          try{
+            const d = Object.getOwnPropertyDescriptor(obj, key) || { configurable:true, writable:true };
+            if (d.configurable !== false){
+              Object.defineProperty(obj, key, { value: wrapped, writable:true, configurable:true });
+            } else {
+              return false;
+            }
+          }catch{ return false; }
+        }
+
+        try{ (obj as any)[mark] = true; }catch{}
+        st.wrapped.push(label);
+        st.wrappedCount = st.wrapped.length;
+        return true;
+      }catch{}
+      return false;
+    }
+
+    function install(){
+      const n:any = getNode();
+      if (!n) return false;
+
+      const objs:any[] = [];
+      try{ objs.push({ o:n, p:"node" }); }catch{}
+      try{ if (n.store) objs.push({ o:n.store, p:"store" }); }catch{}
+      try{ if ((n as any).segStore) objs.push({ o:(n as any).segStore, p:"segStore" }); }catch{}
+      try{ if ((n as any).segstore) objs.push({ o:(n as any).segstore, p:"segstore" }); }catch{}
+      try{ if ((n as any).db) objs.push({ o:(n as any).db, p:"db" }); }catch{}
+      try{ if (n.chain) objs.push({ o:n.chain, p:"chain" }); }catch{}
+      try{ if (n.core) objs.push({ o:n.core, p:"core" }); }catch{}
+      try{ if ((n as any).sealer) objs.push({ o:(n as any).sealer, p:"sealer" }); }catch{}
+
+      const keys = [
+        "saveBlock","saveBlockV2","__orig_saveBlock_v2","persistBlock","putBlock","writeBlock","appendBlock",
+        "commitBlock","sealBlock","seal","finalizeBlock","flush","put","write","append"
+      ];
+
+      let ok = false;
+
+      for (const it of objs){
+        const o = it.o, pfx = it.p;
+        if (!o || typeof o !== "object") continue;
+
+        for (const k of keys){
+          if (typeof (o as any)[k] === "function"){
+            if (wrapOn(o, k, `${pfx}.${k}`, st.seen)) ok = true;
+          }
+        }
+
+        // also try prototype methods (non-enumerable)
+        try{
+          const proto = Object.getPrototypeOf(o);
+          if (proto && proto !== Object.prototype){
+            for (const k of keys){
+              if (typeof (proto as any)[k] === "function"){
+                // wrap via instance shadowing so we actually intercept calls
+                if (wrapOn(o, k, `${pfx}.__proto__.${k}`, st.protoSeen)) ok = true;
               }
             }
-          } catch (err) {
-            console.error("[lastmile-v4] error during inject", err);
           }
-          return orig(b);
-        };
-
-        console.log("[lastmile-v4] attached saveBlock wrapper (txQueue -> block.txs)");
-      } catch (err) {
-        console.error("[lastmile-v4] attach error", err);
+        }catch{}
       }
+
+      return ok;
     }
 
-    const envOn =
-      (typeof process !== "undefined") &&
-      (process as any).env &&
-      (process as any).env.VOID_LASTMILE_FORCE_QUEUE === "1";
+    let tries=0;(function tick(){
+      try{ install(); }catch{}
+      if (++tries < 600) setTimeout(tick, 250);
+    })();
 
-    if (envOn) {
-      console.log("[lastmile-v4] VOID_LASTMILE_FORCE_QUEUE=1; scheduling attach");
-      tryAttach(0);
-    } else {
-      console.log("[lastmile-v4] VOID_LASTMILE_FORCE_QUEUE!=1; not attaching");
-    }
-  } catch (err) {
-    console.error("[lastmile-v4] top-level error", err);
-  }
+    let rtries=0;(function rloop(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function"){ if (++rtries<600) return setTimeout(rloop, 250); else return; }
+      try{
+        app.get("/tx/cap/spy3/status", (_:any,res:any)=>{
+          const sortMap = (m:any)=> Object.entries(m||{}).sort((a:any,b:any)=> (b[1]?.maxLen||0)-(a[1]?.maxLen||0)).slice(0, 14).map(([k,v]:any)=>({ key:k, value:v }));
+          res.json({
+            cap: st.cap,
+            calls: st.calls,
+            wrappedCount: st.wrappedCount,
+            wrapped: st.wrapped.slice(0, 60),
+            lastNonEmpty: st.lastNonEmpty,
+            topSeen: sortMap(st.seen),
+            topProto: sortMap(st.protoSeen),
+          });
+        });
+        app.post("/tx/cap/spy3/reset", (_:any,res:any)=>{
+          st.calls = 0; st.lastNonEmpty = null; st.seen = {}; st.protoSeen = {};
+          res.json({ ok:true });
+        });
+      }catch{}
+    })();
+
+    try{ console.log("[cap.spy3.v1] installed; diag at /tx/cap/spy3/status"); }catch{}
+  }catch(e){ try{ console.warn("[cap.spy3.v1] install failed:", e); }catch{} }
 })();
+// NOTE: cap SPY3 v1 marker: __void_cap_spy3_v1
+// --------------------------------------------------------------------------------
 
 
-// ---------------- [ADD] lastmile txQueue -> block saveBlock hard wrapper (v5) ----------------
-// Dev-only: drains node.txQueue into block.txs on saveBlock when VOID_LASTMILE_HARDWRAP=1
-(() => {
-  try {
-    const env =
-      (globalThis as any).process?.env ||
-      (typeof process !== "undefined" ? (process as any).env : undefined);
 
-    if (!env || env.VOID_LASTMILE_HARDWRAP !== "1") {
-      // Silent by default to avoid log spam in prod/mainnet
-      return;
+// --------------- [ADD] cap FINAL7 v1 (array-guard: prevent post-cap tx growth) ----
+;(function capFinal7V1(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_cap_final7_v1_installed) return;
+    g.__void_cap_final7_v1_installed = true;
+
+    function capNow(){
+      try{
+        const a = Number(process.env.TXS_PER_BLOCK_MAX || 0) || 0;
+        const b = Number(process.env.TX_CAP || 0) || 0;
+        const c = Number(process.env.TX_CAP_MAX || 0) || 0;
+        const d = Number(process.env.LASTMILE_TXQUEUE_CAP || 0) || 0;
+        return Math.max(a||0, b||0, c||0, d||0);
+      }catch{ return 0; }
     }
 
-    const g: any = globalThis as any;
-    const getNode = () => (g.__void_node || g.node) as any;
-    const getStore = () => getNode()?.store as any;
+    function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
 
-    let tries = 0;
-
-    const attach = () => {
-      const n = getNode();
-      const s = getStore();
-
-      if (!n || !s || typeof s.saveBlock !== "function") {
-        if (++tries < 120) {
-          setTimeout(attach, 500);
-        } else {
-          console.warn("[lastmile-v5] giving up; store/saveBlock not ready");
-        }
-        return;
-      }
-
-      const orig = s.saveBlock.bind(s);
-    if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-      try { (console?.log||(()=>{}))("[lastmile.v123b] disabled via VOID_LASTMILE_EXPERIMENTAL"); } catch {}
-      return;
-    }
-
-
-
-      if (!process.env.VOID_LASTMILE_EXPERIMENTAL) {
-        console.log("[lastmile-v5] disabled via VOID_LASTMILE_EXPERIMENTAL");
-        return;
-      }
-
-      s.saveBlock = async function lastmileV5SaveBlock(b: any){
-        try {
-          const nd = getNode();
-          const q: any[] = Array.isArray(nd?.txQueue) ? nd.txQueue : [];
-
-          if (q.length) {
-            const cap = 128;
-            const before = Array.isArray(b?.txs) ? b.txs.length : 0;
-            const take = q.splice(0, cap);
-
-            const base = Array.isArray(b?.txs) ? b.txs : [];
-            b.txs = base.concat(take);
-
-            console.log(
-              `[lastmile-v5] injected ${take.length} tx(s) into block #${
-                (b as any)?.header?.number ?? "?"
-              } (before=${before}, after=${
-                Array.isArray(b.txs) ? b.txs.length : "n/a"
-              }, remainingQ=${q.length})`
-            );
-          }
-        } catch (err) {
-          console.error("[lastmile-v5] error during saveBlock", err);
-        }
-
-        return orig(b);
-      };
-
-      console.log("[lastmile-v5] attached to store.saveBlock (dev hardwrap)");
-    };
-
-    attach();
-  } catch (err) {
-    console.error("[lastmile-v5] top-level error", err);
-  }
-})();
-
-// ---------------- [ADD] header3 fix via dev helpers (last-wins) ----------------
-(() => {
-  try {
-    const g: any = globalThis as any;
-    const app: any = (g.__void_http_app || g.app);
-
-    if (!app || typeof app.get !== "function") {
-      console.log("[header3-fix] __void_http_app missing; skipping");
-      return;
-    }
-
-    const env: any =
-      (g.process && g.process.env) ||
-      (typeof process !== "undefined" ? process.env : {}) ||
-      {};
-
-    const port = env.HTTP_PORT || env.PORT || "4100";
-    const base = `http://127.0.0.1:${port}`;
-
-    app.get("/blocks/:n/header3", async (req: any, res: any) => {
-      try {
-        const raw = req.params?.n;
-        const n = typeof raw === "string" ? parseInt(raw, 10) : NaN;
-        if (!Number.isFinite(n) || n < 0) {
-          return res
-            .status(400)
-            .json({ ok: false, error: "bad block number", n: raw });
-        }
-
-        const result: any = { number: n };
-
-        // 1) Fetch persisted txs from dev helper
-        let persisted: any = null;
-        try {
-          const r = await fetch(`${base}/dev/blocks/${n}/txs/persisted`);
-          if (r.ok) persisted = await r.json();
-        } catch (e) {
-          console.warn("[header3-fix] dev/blocks persisted fetch failed", e);
-        }
-
-        const txs = Array.isArray(persisted?.txs) ? persisted.txs : [];
-        result.txCount = txs.length;
-
-        // 2) Fetch dev txroot from helper
-        let devRoot: any = null;
-        try {
-          const r2 = await fetch(`${base}/dev/txroot/${n}`);
-          if (r2.ok) devRoot = await r2.json();
-        } catch (e) {
-          console.warn("[header3-fix] dev/txroot fetch failed", e);
-        }
-
-        if (devRoot && typeof devRoot.root === "string") {
-          result.txRoot = devRoot.root;
-        }
-
-        // We don't try to reconstruct the full header here; reuse any header if present
-        result.header = persisted?.header || {};
-
-        result.source = {
-          devRoot: !!devRoot,
-          persisted: !!persisted,
-          via: "header3-fix-v1"
-        };
-
-        return res.json(result);
-      } catch (err) {
-        console.error("[header3-fix] handler error", err);
-        return res
-          .status(500)
-          .json({ ok: false, error: "header3-fix handler error" });
-      }
+    const st:any = (g.__void_cap_final7_v1_stats ||= {
+      ok:true,
+      cap: 0,
+      wrapped: [] as string[],
+      wrappedCount: 0,
+      calls: 0,
+      enforcedCalls: 0,
+      lastMethod: null as any,
+      lastBlock: -1,
+      lastPaths: [] as any[],
+      lastLens: {} as any,
+      lastTrim: 0,
+      topCalls: [] as any[]
     });
 
-    console.log(
-      "[header3-fix] installed last-wins /blocks/:n/header3 route (dev helpers)"
-    );
-  } catch (err) {
-    console.error("[header3-fix] top-level error", err);
-  }
-})();
-
-// ===== Dev Tx Submit Raw v1 (node.acceptTx) =====
-(function DevTxSubmitRawV1(){
-  const TICK = 400;
-
-  function app(): any {
-    return (globalThis as any).__void_http_app || (globalThis as any).app;
-  }
-  function node(): any {
-    return (globalThis as any).__void_node || (globalThis as any).node;
-  }
-
-  function mount(){
-    const a: any = app();
-    const n: any = node();
-
-    if (!a || !n || typeof n.acceptTx !== "function") {
-      return setTimeout(mount, TICK);
+    function note(name:string){
+      try{
+        st.topCalls.push({ t: Date.now(), name });
+        if (st.topCalls.length > 50) st.topCalls.splice(0, st.topCalls.length - 50);
+      }catch{}
     }
 
-    if ((a as any).__void_dev_tx_submit_raw_v1) return;
-    (a as any).__void_dev_tx_submit_raw_v1 = true;
+    function blockNumber(obj:any){
+      try { return Number(obj?.number ?? obj?.block?.number ?? obj?.body?.number ?? obj?.header?.number ?? -1); } catch { return -1; }
+    }
 
-    const json = require("express").json({ limit: "256kb" });
+    function collectTxArrs(obj:any){
+      const out:any[] = [];
+      try{
+        if (!obj || typeof obj !== "object") return out;
+        const add = (path:string, parent:any, key:string)=>{
+          try{
+            const arr = parent?.[key];
+            if (Array.isArray(arr)) out.push({ path, parent, key, arr });
+          }catch{}
+        };
 
-    a.post("/dev/tx/submit/raw", json, (req: any, res: any) => {
-      try {
-        const body = req.body || {};
-        const ok = n.acceptTx(body);
-        const mpLen =
-          n.mempool && Array.isArray(n.mempool.txs)
-            ? n.mempool.txs.length
-            : null;
-        const qLen = Array.isArray(n.txQueue) ? n.txQueue.length : null;
+        add("txs", obj, "txs");
+        add("transactions", obj, "transactions");
+        if (obj.body && typeof obj.body==="object"){ add("body.txs", obj.body, "txs"); add("body.transactions", obj.body, "transactions"); }
+        if (obj.block && typeof obj.block==="object"){ add("block.txs", obj.block, "txs"); add("block.transactions", obj.block, "transactions"); }
+        if (obj.payload && typeof obj.payload==="object"){ add("payload.txs", obj.payload, "txs"); add("payload.transactions", obj.payload, "transactions"); }
+        if (obj.data && typeof obj.data==="object"){ add("data.txs", obj.data, "txs"); add("data.transactions", obj.data, "transactions"); }
 
-        res.json({
-          ok,
-          used: "acceptTx",
-          mempoolSize: mpLen,
-          queueLen: qLen,
-        });
-      } catch (e: any) {
-        res.status(500).json({
-          ok: false,
-          error: String(e?.message || e),
-        });
+        for (const k of ["b","blk","blockData","value","record","res","result","out"]){
+          const v:any = (obj as any)[k];
+          if (v && typeof v==="object"){
+            add(`${k}.txs`, v, "txs");
+            add(`${k}.transactions`, v, "transactions");
+            if (v.body && typeof v.body==="object") add(`${k}.body.txs`, v.body, "txs");
+          }
+        }
+      }catch{}
+      try{
+        const seen = new Set<any>();
+        return out.filter(x => x && x.arr && !seen.has(x.arr) && (seen.add(x.arr), true));
+      }catch{}
+      return out;
+    }
+
+    function hardCapArray(arr:any[], cap:number){
+      try{
+        if (!Array.isArray(arr) || cap <= 0) return { capped:false, trim:0 };
+        const before = arr.length;
+        if (before > cap) arr.length = cap;
+        const clampPush = (orig:any)=>function(this:any, ...xs:any[]){
+          const room = cap - this.length;
+          if (room <= 0) return this.length;
+          return orig.apply(this, xs.slice(0, room));
+        };
+        const clampUnshift = (orig:any)=>function(this:any, ...xs:any[]){
+          const room = cap - this.length;
+          if (room <= 0) return this.length;
+          return orig.apply(this, xs.slice(0, room));
+        };
+        const clampSplice = (orig:any)=>function(this:any, start:any, del:any, ...ins:any[]){
+          try{
+            const curLen = this.length;
+            const s = Number(start||0);
+            const d = (del===undefined) ? (curLen - s) : Number(del||0);
+            const maxIns = Math.max(0, cap - (curLen - d));
+            const ins2 = ins.slice(0, maxIns);
+            return orig.apply(this, [start, del, ...ins2] as any);
+          }catch{
+            return orig.apply(this, arguments as any);
+          }
+        };
+
+        // patch instance mutators (local to this array only)
+        try{
+          if (!arr.__void_cap_final7_patched){
+            (arr as any).push = clampPush(Array.prototype.push);
+            (arr as any).unshift = clampUnshift(Array.prototype.unshift);
+            (arr as any).splice = clampSplice(Array.prototype.splice);
+            (arr as any).concat = function(this:any, ...xs:any[]){
+              try{
+                const tmp = Array.prototype.concat.apply(this, xs);
+                if (Array.isArray(tmp) && tmp.length > cap) tmp.length = cap;
+                return tmp;
+              }catch{ return Array.prototype.concat.apply(this, xs); }
+            };
+            (arr as any).__void_cap_final7_patched = true;
+          }
+        }catch{}
+        const after = arr.length;
+        return { capped:true, trim: Math.max(0, before - after) };
+      }catch{}
+      return { capped:false, trim:0 };
+    }
+
+    function enforce(name:string, obj:any){
+      st.calls++;
+      st.lastMethod = name;
+
+      const cap = capNow(); st.cap = cap;
+      if (cap <= 0 || !obj || typeof obj !== "object") return;
+
+      const arrs = collectTxArrs(obj);
+      st.lastPaths = arrs.map(a=>a.path);
+      const lens:any = {};
+      for (const a of arrs) lens[a.path] = (a.arr?.length ?? 0);
+      st.lastLens = lens;
+
+      let trimmed = 0;
+      for (const a of arrs){
+        const r = hardCapArray(a.arr, cap);
+        if (r.capped && r.trim) trimmed += r.trim;
+        // also cap on assignment to parent[key]
+        try{
+          const parent = a.parent, key = a.key;
+          if (parent && key){
+            const mark = `__void_cap_final7_guard_${key}`;
+            if (!(parent as any)[mark]){
+              let cur:any = parent[key];
+              Object.defineProperty(parent, key, {
+                configurable:true,
+                enumerable:true,
+                get(){ return cur; },
+                set(v:any){
+                  cur = v;
+                  try{
+                    if (Array.isArray(cur)){
+                      hardCapArray(cur, capNow());
+                      if (cur.length > capNow()) cur.length = capNow();
+                    }
+                  }catch{}
+                }
+              });
+              (parent as any)[mark] = true;
+            }
+          }
+        }catch{}
       }
-    });
 
-    console.log("[dev-tx-submit-raw] /dev/tx/submit/raw -> node.acceptTx");
-  }
+      st.lastBlock = blockNumber(obj);
+      if (trimmed > 0){
+        st.enforcedCalls++;
+        st.lastTrim = trimmed;
+        note(`${name} paths=${st.lastPaths.join(",")} cap=${cap} trim=${trimmed}`);
+      }else{
+        st.lastTrim = 0;
+      }
+    }
 
-  mount();
+    function wrap(store:any, key:string, label:string){
+      try{
+        const mark = `__void_cap_final7_wrapped_${key}`;
+        if (store[mark]) return true;
+        const cur:any = store[key];
+        if (typeof cur !== "function") return false;
+
+        const wrapped = function(this:any, a:any, b:any, c:any){
+          try{ enforce(label, a); }catch{}
+          return cur.apply(this, arguments as any);
+        } as any;
+
+        store[key] = wrapped;
+        store[mark] = true;
+
+        st.wrapped.push(label);
+        st.wrappedCount = st.wrapped.length;
+        return true;
+      }catch{}
+      return false;
+    }
+
+    function install(){
+      const n:any = getNode();
+      const s:any = n?.store;
+      if (!n || !s) return false;
+      let ok = false;
+      ok = wrap(s, "saveBlock", "store.saveBlock") || ok;
+      ok = wrap(s, "__orig_saveBlock_v2", "store.__orig_saveBlock_v2") || ok;
+      ok = wrap(s, "saveBlockV2", "store.saveBlockV2") || ok;
+      ok = wrap(s, "persistBlock", "store.persistBlock") || ok;
+      ok = wrap(s, "putBlock", "store.putBlock") || ok;
+      ok = wrap(s, "writeBlock", "store.writeBlock") || ok;
+      ok = wrap(s, "appendBlock", "store.appendBlock") || ok;
+      return ok;
+    }
+
+    let tries=0;(function tick(){
+      try{ install(); }catch{}
+      if (++tries < 600) setTimeout(tick, 250);
+    })();
+
+    let rtries=0;(function rloop(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function"){ if (++rtries<600) return setTimeout(rloop, 250); else return; }
+      try{
+        app.get("/tx/merge/cap/final7/status", (_:any,res:any)=>res.json(st));
+        app.post("/tx/merge/cap/final7/reset", (_:any,res:any)=>{
+          st.calls=0; st.enforcedCalls=0; st.lastMethod=null; st.lastBlock=-1; st.lastPaths=[]; st.lastLens={}; st.lastTrim=0; st.topCalls=[];
+          res.json({ ok:true });
+        });
+      }catch{}
+    })();
+
+    try{ console.log("[cap.final7.v1] installed; diag at /tx/merge/cap/final7/status"); }catch{}
+  }catch(e){ try{ console.warn("[cap.final7.v1] install failed:", e); }catch{} }
 })();
+// NOTE: cap FINAL7 v1 marker: __void_cap_final7_v1
+// --------------------------------------------------------------------------------
+
+
+
+// --------------- [ADD] cap FINAL7 status alias (stable endpoint) -----------------
+;(function capFinal7StatusAliasV1(){
+  try{
+    const g:any = globalThis as any;
+    if (g.__void_cap_final7_status2_alias_v1_installed) return;
+    g.__void_cap_final7_status2_alias_v1_installed = true;
+
+    function getApp(){ return g.__void_http_app || g.app || undefined; }
+
+    let tries=0;(function tick(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function"){ if (++tries<600) return setTimeout(tick, 250); else return; }
+      try{
+        app.get("/tx/merge/cap/status2", (_:any,res:any)=>{
+          try{
+            const st:any = (g as any).__void_cap_final7_v1_stats || null;
+            res.json(st || { ok:false, reason:"no_final7_stats" });
+          }catch(e){ res.json({ ok:false, error:String(e) }); }
+        });
+        console.log("[cap.final7] status alias at /tx/merge/cap/status2");
+      }catch{}
+    })();
+  }catch(e){ try{ console.warn("[cap.final7] status alias init failed:", e); }catch{} }
+})();
+// NOTE: cap FINAL7 status2 alias marker: __void_cap_final7_status2_alias_v1
+// --------------------------------------------------------------------------------
+
