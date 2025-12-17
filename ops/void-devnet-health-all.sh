@@ -165,3 +165,8 @@ log "RESULT: OK (FULL CI smoke + update-manifest exporter healthy + devnet overa
 echo
 echo "[health-all] step 4: devnet agent health-all (AgentRegistry + ReceiptRegistry)..."
 ops/void-devnet-agent-health-all.sh
+
+echo
+echo "=== [gate] devnet receipts e2e (must be ok=1) ==="
+./ops/void-devnet-receipts-e2e-gate.sh
+

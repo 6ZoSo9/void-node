@@ -1,6 +1,45 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- devnet-state-shim-v2: supports docs/VOID-DEVNET-PROTOCOL-STATE.json contracts.*.address ---
+STATE="${STATE:-docs/VOID-DEVNET-PROTOCOL-STATE.json}"
+
+void_addr_v2() {
+  local name="$1"
+  local st="${STATE}"
+  if [ ! -f "$st" ]; then
+    echo ""
+    return 0
+  fi
+
+  local v
+  v="$(jq -r --arg k "$name" '
+    (
+      .contracts[$k].address //
+      .contracts[$k] //
+      .[$k].address //
+      .[$k] //
+      empty
+    ) | tostring
+  ' "$st" 2>/dev/null || true)"
+
+  if [ -z "$v" ] || [ "$v" = "null" ] || [ "$v" = "NULL" ]; then
+    echo ""
+    return 0
+  fi
+  if ! [[ "$v" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+    echo ""
+    return 0
+  fi
+  if [[ "$v" =~ ^0x0+$ ]]; then
+    echo ""
+    return 0
+  fi
+  echo "$v"
+}
+# --- end devnet-state-shim-v2 ---
+
+
 ROOT="${ROOT:-$HOME/dev/void-node}"
 cd "$ROOT"
 
@@ -50,8 +89,22 @@ echo
 # Gate condition (strict on the two coverage gauges + receipts health)
 if num_eq1 "$cov" >/dev/null 2>&1 && num_eq1 "$cov_h" >/dev/null 2>&1 && num_eq1 "$rh" >/dev/null 2>&1; then
   echo "[ci-smoke] RESULT: OK (devnet jobs + receipts are healthy)"
+echo
+echo "=== [gate] devnet receipts e2e (must be ok=1) ==="
+./ops/void-devnet-receipts-e2e-gate.sh
+
   exit 0
 fi
 
 echo "[ci-smoke] RESULT: FAIL (coverage/health gauges not all 1)"
 exit 2
+
+# --- devnet-state-shim-v2 usage: prefer contracts.*.address if vars are empty ---
+if [ -z "${JOBQ:-}" ] || [ "${JOBQ:-}" = "null" ] || [[ "${JOBQ:-}" =~ ^0x0+$ ]]; then
+  JOBQ="$(void_addr_v2 JobQueue)"
+fi
+if [ -z "${RR:-}" ] || [ "${RR:-}" = "null" ] || [[ "${RR:-}" =~ ^0x0+$ ]]; then
+  RR="$(void_addr_v2 ReceiptRegistry)"
+fi
+# --- end shim ---
+
