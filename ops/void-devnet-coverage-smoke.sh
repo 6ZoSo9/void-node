@@ -83,6 +83,26 @@ fi
 
 JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 RECEIPTS=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
+# --- COVERAGE_EFFECTIVE_ADDRS_V4B: normalize legacy vars to effective vars ---
+# Prefer effective vars if present (JOBQ/RR), otherwise fall back to state JSON (contracts.*.address).
+if [ -z "${STATE:-}" ]; then STATE="docs/VOID-DEVNET-PROTOCOL-STATE.json"; fi
+
+# Prefer JOBQ/RR if already computed by newer shims.
+if [ -n "${JOBQ:-}" ] && [ "${JOBQ:-}" != "null" ] && ! [[ "${JOBQ:-}" =~ ^0x0+$ ]]; then
+  JOBQUEUE="$JOBQ"
+fi
+if [ -n "${RR:-}" ] && [ "${RR:-}" != "null" ] && ! [[ "${RR:-}" =~ ^0x0+$ ]]; then
+  RECEIPTS="$RR"
+fi
+
+# If still empty, pull from .contracts.*
+if [ -z "${JOBQUEUE:-}" ] || [ "${JOBQUEUE:-}" = "null" ] || [[ "${JOBQUEUE:-}" =~ ^0x0+$ ]]; then
+  JOBQUEUE="$(jq -r '(.contracts.JobQueue.address // empty) | tostring' "$STATE" 2>/dev/null | head -n1 | tr -d "[:space:]")"
+fi
+if [ -z "${RECEIPTS:-}" ] || [ "${RECEIPTS:-}" = "null" ] || [[ "${RECEIPTS:-}" =~ ^0x0+$ ]]; then
+  RECEIPTS="$(jq -r '(.contracts.ReceiptRegistry.address // empty) | tostring' "$STATE" 2>/dev/null | head -n1 | tr -d "[:space:]")"
+fi
+# --- end COVERAGE_EFFECTIVE_ADDRS_V4B ---
 # --- COVERAGE_ADDRS_V3 shim (post-assign override) ---
 if [ -z "${STATE:-}" ]; then STATE="docs/VOID-DEVNET-PROTOCOL-STATE.json"; fi
 
@@ -103,7 +123,15 @@ fi
 echo "[coverage-smoke] JobQueue=${JOBQ:-$JOBQUEUE}"  # COVERAGE_PRINT_V1
 echo "[coverage-smoke] ReceiptRegistry=${RR:-$RECEIPTS}"  # COVERAGE_PRINT_V1
 if [[ "$JOBQUEUE" == "null" || -z "$JOBQUEUE" ]]; then
-  echo "[coverage-smoke] ERROR: JobQueue.address missing in state JSON" >&2
+  # --- COVERAGE_EFFECTIVE_V4: prefer JOBQ/RR (new contracts.*.address) but keep legacy vars for downstream checks/calls ---
+if [ -z "${JOBQUEUE:-}" ] || [ "${JOBQUEUE:-}" = "null" ] || [[ "${JOBQUEUE:-}" =~ ^0x0+$ ]]; then
+  JOBQUEUE="${JOBQ:-$JOBQUEUE}"
+fi
+if [ -z "${RECEIPTS:-}" ] || [ "${RECEIPTS:-}" = "null" ] || [[ "${RECEIPTS:-}" =~ ^0x0+$ ]]; then
+  RECEIPTS="${RR:-$RECEIPTS}"
+fi
+# --- end COVERAGE_EFFECTIVE_V4 ---
+echo "[coverage-smoke] ERROR: JobQueue.address missing in state JSON" >&2
   exit 1
 fi
 
