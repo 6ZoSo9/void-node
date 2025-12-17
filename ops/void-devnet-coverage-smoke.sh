@@ -130,9 +130,7 @@ fi
 if [ -z "${RECEIPTS:-}" ] || [ "${RECEIPTS:-}" = "null" ] || [[ "${RECEIPTS:-}" =~ ^0x0+$ ]]; then
   RECEIPTS="${RR:-$RECEIPTS}"
 fi
-# --- end COVERAGE_EFFECTIVE_V4 ---
-echo "[coverage-smoke] ERROR: JobQueue.address missing in state JSON" >&2
-  exit 1
+# --- end COVERAGE_EFFECTIVE_V4 ---  exit 1
 fi
 
 if [[ "$RECEIPTS" == "null" || -z "$RECEIPTS" ]]; then
