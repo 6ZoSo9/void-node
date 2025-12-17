@@ -32,7 +32,7 @@ printf "  %-30s = %s\n" "receipts_health_v2" "$rh"
 
 echo
 echo "[system-smoke] 5m smoothed coverage (recording rules):"
-c5="$(prom_q 'max(void_devnet_coverage_last_5m)')"
+c5="$(prom_q 'max(void:devnet_coverage:last_5m)')"
 r5="$(prom_q 'max(void:devnet_receipts_health_v2:last_5m)')"
 printf "  %-30s = %s\n" "coverage_v2_last_5m" "$c5"
 printf "  %-30s = %s\n" "receipts_health_v2_5m" "$r5"
