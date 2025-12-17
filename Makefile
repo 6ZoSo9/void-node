@@ -13,3 +13,7 @@ workcredits-devnet-health:
 
 workcredits-devnet-config-dump:
 	./ops/void-workcredits-devnet-config-dump.sh
+
+.PHONY: pillars-preflight
+pillars-preflight:
+	./ops/pre-push.sh
