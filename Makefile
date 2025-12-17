@@ -8,8 +8,8 @@ mainnet-bootstrap-dev-check:
 # WorkCredits (devnet)
 # =========================
 
-workcredits-devnet-health:
-	./ops/void-workcredits-devnet-health.sh
+# [disabled-dupe] workcredits-devnet-health:
+# [disabled-dupe] 	./ops/void-workcredits-devnet-health.sh
 
 workcredits-devnet-config-dump:
 	./ops/void-workcredits-devnet-config-dump.sh
