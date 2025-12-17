@@ -21,53 +21,53 @@ ops-kickbrake-uninstall:
 	@sudo systemctl daemon-reload
 	@echo "[ok] kick/brake timers removed"
 
-ops-node-user-units-uninstall:
-	@systemctl --user disable --now void-node@safe-4102.service 2>/dev/null || true
-	@systemctl --user disable --now void-node@bootstrap-1.service 2>/dev/null || true
-	@systemctl --user disable --now void-node.service 2>/dev/null || true
-	@echo "[ok] user units disabled; files still on disk"
-
-ops-node-user-units-status:
-	@systemctl --user status --no-pager void-node.service           2>/dev/null | sed -n "1,60p" || true
-	@systemctl --user status --no-pager void-node@bootstrap-1.service 2>/dev/null | sed -n "1,60p" || true
-	@systemctl --user status --no-pager void-node@safe-4102.service   2>/dev/null | sed -n "1,60p" || true
-
-ops-node-user-units-backup:
-	@mkdir -p ops/backups
-	@tar -C ~/.config/systemd/user -czf ops/backups/user-units-$(shell date +%Y%m%d-%H%M%S).tgz \
-		void-node.service void-node@.service \
-		void-node.service.d void-node@.service.d \
-		void-node@safe-4102.service.d 2>/dev/null || true
-ops-node-user-units-install:
-	@mkdir -p ~/.config/systemd/user
-	@rsync -av ops/systemd-user/units/ ~/.config/systemd/user/ || true
-	@rsync -av ops/systemd-user/dropins/ ~/.config/systemd/user/ || true
-	@systemctl --user daemon-reload
-	# Enable only if the unit actually exists:
-	@test -f ~/.config/systemd/user/void-node.service && systemctl --user enable --now void-node.service || true
-	# Enable follower if desired and template exists:
-	@test -f ~/.config/systemd/user/void-node@.service && systemctl --user enable --now void-node@bootstrap-1.service || true
-	@echo "[ok] user units installed & enabled (where present)"
-
-ops-node-user-units-uninstall:
-	@systemctl --user disable --now void-node@bootstrap-1.service 2>/dev/null || true
-	@systemctl --user disable --now void-node.service 2>/dev/null || true
-	@echo "[ok] user units disabled; files still on disk"
-
-ops-node-user-units-status:
-	@systemctl --user status --no-pager void-node.service 2>/dev/null | sed -n 1,60p || true
-	@systemctl --user status --no-pager void-node@bootstrap-1.service 2>/dev/null | sed -n 1,60p || true
-	@systemctl --user status --no-pager void-node@safe-* 2>/dev/null | sed -n 1,40p || true
-
-ops-node-user-units-backup:
-	@mkdir -p ops/backups
-	@tar -C ~/.config/systemd/user -czf ops/backups/user-units-$(shell date +%Y%m%d-%H%M%S).tgz \
-		void-node.service void-node@.service \
-		void-node.service.d void-node@.service.d \
-		void-node@safe-4102.service.d 2>/dev/null || true
-
-.PHONY: ops-node-user-units-install ops-node-user-units-uninstall ops-node-user-units-status ops-node-user-units-backup
-
+# DUPLICATE DISABLED: ops-node-user-units-uninstall:
+# DUPLICATE DISABLED: 	@systemctl --user disable --now void-node@safe-4102.service 2>/dev/null || true
+# DUPLICATE DISABLED: 	@systemctl --user disable --now void-node@bootstrap-1.service 2>/dev/null || true
+# DUPLICATE DISABLED: 	@systemctl --user disable --now void-node.service 2>/dev/null || true
+# DUPLICATE DISABLED: 	@echo "[ok] user units disabled; files still on disk"
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: ops-node-user-units-status:
+# DUPLICATE DISABLED: 	@systemctl --user status --no-pager void-node.service           2>/dev/null | sed -n "1,60p" || true
+# DUPLICATE DISABLED: 	@systemctl --user status --no-pager void-node@bootstrap-1.service 2>/dev/null | sed -n "1,60p" || true
+# DUPLICATE DISABLED: 	@systemctl --user status --no-pager void-node@safe-4102.service   2>/dev/null | sed -n "1,60p" || true
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: ops-node-user-units-backup:
+# DUPLICATE DISABLED: 	@mkdir -p ops/backups
+# DUPLICATE DISABLED: 	@tar -C ~/.config/systemd/user -czf ops/backups/user-units-$(shell date +%Y%m%d-%H%M%S).tgz \
+# DUPLICATE DISABLED: 		void-node.service void-node@.service \
+# DUPLICATE DISABLED: 		void-node.service.d void-node@.service.d \
+# DUPLICATE DISABLED: 		void-node@safe-4102.service.d 2>/dev/null || true
+# DUPLICATE DISABLED: ops-node-user-units-install:
+# DUPLICATE DISABLED: 	@mkdir -p ~/.config/systemd/user
+# DUPLICATE DISABLED: 	@rsync -av ops/systemd-user/units/ ~/.config/systemd/user/ || true
+# DUPLICATE DISABLED: 	@rsync -av ops/systemd-user/dropins/ ~/.config/systemd/user/ || true
+# DUPLICATE DISABLED: 	@systemctl --user daemon-reload
+# DUPLICATE DISABLED: 	# Enable only if the unit actually exists:
+# DUPLICATE DISABLED: 	@test -f ~/.config/systemd/user/void-node.service && systemctl --user enable --now void-node.service || true
+# DUPLICATE DISABLED: 	# Enable follower if desired and template exists:
+# DUPLICATE DISABLED: 	@test -f ~/.config/systemd/user/void-node@.service && systemctl --user enable --now void-node@bootstrap-1.service || true
+# DUPLICATE DISABLED: 	@echo "[ok] user units installed & enabled (where present)"
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: ops-node-user-units-uninstall:
+# DUPLICATE DISABLED: 	@systemctl --user disable --now void-node@bootstrap-1.service 2>/dev/null || true
+# DUPLICATE DISABLED: 	@systemctl --user disable --now void-node.service 2>/dev/null || true
+# DUPLICATE DISABLED: 	@echo "[ok] user units disabled; files still on disk"
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: ops-node-user-units-status:
+# DUPLICATE DISABLED: 	@systemctl --user status --no-pager void-node.service 2>/dev/null | sed -n 1,60p || true
+# DUPLICATE DISABLED: 	@systemctl --user status --no-pager void-node@bootstrap-1.service 2>/dev/null | sed -n 1,60p || true
+# DUPLICATE DISABLED: 	@systemctl --user status --no-pager void-node@safe-* 2>/dev/null | sed -n 1,40p || true
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: ops-node-user-units-backup:
+# DUPLICATE DISABLED: 	@mkdir -p ops/backups
+# DUPLICATE DISABLED: 	@tar -C ~/.config/systemd/user -czf ops/backups/user-units-$(shell date +%Y%m%d-%H%M%S).tgz \
+# DUPLICATE DISABLED: 		void-node.service void-node@.service \
+# DUPLICATE DISABLED: 		void-node.service.d void-node@.service.d \
+# DUPLICATE DISABLED: 		void-node@safe-4102.service.d 2>/dev/null || true
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: .PHONY: ops-node-user-units-install ops-node-user-units-uninstall ops-node-user-units-status ops-node-user-units-backup
+# DUPLICATE DISABLED: 
 ops-node-user-units-install:
 	@mkdir -p ~/.config/systemd/user
 	@rsync -av ops/systemd-user/units/ ~/.config/systemd/user/ || true
@@ -118,10 +118,10 @@ devnet-overall-health-export:
 	./ops/void-devnet-overall-health-exporter.sh
 
 # Devnet full health hammer: CI smokes + overall health check
-devnet-health-all:
-	./ops/void-devnet-health-all.sh
-
-# Agent-focused devnet E2E sanity (registries + coverage + overall health)
+# DUPLICATE DISABLED: devnet-health-all:
+# DUPLICATE DISABLED: 	./ops/void-devnet-health-all.sh
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: # Agent-focused devnet E2E sanity (registries + coverage + overall health)
 devnet-agent-e2e-smoke:
 	./ops/void-devnet-agent-e2e-smoke.sh
 
@@ -160,12 +160,12 @@ mainnet-core-ci-smoke:
 	./ops/void-mainnet-core-ci-smoke.sh
 
 .PHONY: mainnet-core-health-all
-mainnet-core-health-all:
-	./ops/void-mainnet-core-ci-smoke.sh
-	./ops/void-mainnet-core-summary.sh
-
-.PHONY: devnet-health-all mainnet-core-health-all pillars-health-all
-
+# DUPLICATE DISABLED: mainnet-core-health-all:
+# DUPLICATE DISABLED: 	./ops/void-mainnet-core-ci-smoke.sh
+# DUPLICATE DISABLED: 	./ops/void-mainnet-core-summary.sh
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: .PHONY: devnet-health-all mainnet-core-health-all pillars-health-all
+# DUPLICATE DISABLED: 
 devnet-health-all:
 	./ops/void-devnet-health-all.sh
 
@@ -175,10 +175,10 @@ mainnet-core-health-all:
 pillars-health-all:
 	./ops/void-pillars-preflight.sh
 
-pillars-health-export:
-	@echo "[pillars-export] repo=$(PWD)"
-	@./ops/void-pillars-health-exporter.sh
-
+# DUPLICATE DISABLED: pillars-health-export:
+# DUPLICATE DISABLED: 	@echo "[pillars-export] repo=$(PWD)"
+# DUPLICATE DISABLED: 	@./ops/void-pillars-health-exporter.sh
+# DUPLICATE DISABLED: 
 pillars-health-export:
 	@echo "[pillars-export] repo=$(PWD)"
 	@sudo PROM_URL=http://127.0.0.1:9090 \
@@ -244,22 +244,22 @@ prom-prune:
 	./ops/prom-prune.sh
 
 # VOID mainnet bootstrap PLAN (no broadcast)
-mainnet-bootstrap-plan:
-	./ops/void-mainnet-bootstrap-mainnet-plan.sh config/void-mainnet-bootstrap-mainnet.live.json
-
-# VOID mainnet bootstrap PLAN health hammer
-mainnet-bootstrap-plan-health:
-	./ops/void-mainnet-bootstrap-mainnet-plan-health.sh
-
-# VOID mainnet bootstrap simulate (Forge dry-run, no broadcast)
+# DUPLICATE DISABLED: mainnet-bootstrap-plan:
+# DUPLICATE DISABLED: 	./ops/void-mainnet-bootstrap-mainnet-plan.sh config/void-mainnet-bootstrap-mainnet.live.json
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: # VOID mainnet bootstrap PLAN health hammer
+# DUPLICATE DISABLED: mainnet-bootstrap-plan-health:
+# DUPLICATE DISABLED: 	./ops/void-mainnet-bootstrap-mainnet-plan-health.sh
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: # VOID mainnet bootstrap simulate (Forge dry-run, no broadcast)
 mainnet-bootstrap-sim:
 	./ops/void-mainnet-bootstrap-mainnet-sim.sh config/void-mainnet-bootstrap-mainnet.live.json
 
 # VOID mainnet bootstrap PLAN: health + export
-mainnet-bootstrap-plan-all:
-	./ops/void-mainnet-bootstrap-mainnet-plan-all.sh
-
-# VOID mainnet bootstrap SIM: health only
+# DUPLICATE DISABLED: mainnet-bootstrap-plan-all:
+# DUPLICATE DISABLED: 	./ops/void-mainnet-bootstrap-mainnet-plan-all.sh
+# DUPLICATE DISABLED: 
+# DUPLICATE DISABLED: # VOID mainnet bootstrap SIM: health only
 mainnet-bootstrap-sim-health:
 	./ops/void-mainnet-bootstrap-mainnet-sim-health.sh
 
