@@ -100,9 +100,8 @@ fi
 # --- end COVERAGE_ADDRS_V3 shim ---
 
 
-echo "[coverage-smoke] JobQueue=$JOBQUEUE"
-echo "[coverage-smoke] ReceiptRegistry=$RECEIPTS"
-
+echo "[coverage-smoke] JobQueue=${JOBQ:-$JOBQUEUE}"  # COVERAGE_PRINT_V1
+echo "[coverage-smoke] ReceiptRegistry=${RR:-$RECEIPTS}"  # COVERAGE_PRINT_V1
 if [[ "$JOBQUEUE" == "null" || -z "$JOBQUEUE" ]]; then
   echo "[coverage-smoke] ERROR: JobQueue.address missing in state JSON" >&2
   exit 1
