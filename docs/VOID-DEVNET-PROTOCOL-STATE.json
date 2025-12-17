@@ -1,5 +1,28 @@
 {
   "chainId": 2050,
+  "contracts": {
+    "AgentRegistry": {
+      "address": "0x36c02da8a0983159322a80ffe9f24b1acff8b570"
+    },
+    "DatasetRegistry": {
+      "address": "0x4c5859f0f772848b2d91f1d83e2fe57935348029"
+    },
+    "JobQueue": {
+      "address": "0x5eb3bc0a489c5a8288765d2336659ebca68fcd00"
+    },
+    "ModelRegistry": {
+      "address": "0x809d550fca64d94bd9f66e60752a544199cfac3d"
+    },
+    "ReceiptRegistry": {
+      "address": "0xb7278a61aa25c888815afc32ad3cc52ff24fe575"
+    },
+    "workCreditsRelayerHelper": {
+      "address": "0x9a676e781a523b5d0c0e43731313a708cb607508"
+    },
+    "workCreditsRelayerOperator": {
+      "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+    }
+  },
   "rpc_url": "http://127.0.0.1:8545",
   "voidToken": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
   "workCreditsPoolV1": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
