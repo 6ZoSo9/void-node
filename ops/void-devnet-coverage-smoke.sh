@@ -2,6 +2,72 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- COVERAGE_ADDRS_V2: prefer docs state contracts.*.address ---
+void_state_addr_v2() {
+  local name="$1"
+  local st="${STATE:-docs/VOID-DEVNET-PROTOCOL-STATE.json}"
+  jq -r --arg k "$name" '
+    (
+      .contracts[$k].address //
+      .contracts[$k] //
+      .[$k].address //
+      .[$k] //
+      empty
+    ) | tostring
+  ' "$st" 2>/dev/null | head -n1
+}
+# --- end COVERAGE_ADDRS_V2 ---
+
+
+# --- devnet-state-shim-v2: supports docs/VOID-DEVNET-PROTOCOL-STATE.json contracts.*.address ---
+STATE="${STATE:-docs/VOID-DEVNET-PROTOCOL-STATE.json}"
+
+# --- COVERAGE_ADDRS_V2 shim ---
+if [ -z "${JOBQ:-}" ] || [ "${JOBQ:-}" = "null" ] || [[ "${JOBQ:-}" =~ ^0x0+$ ]]; then
+  JOBQ="$(void_state_addr_v2 JobQueue | tr -d '[:space:]')"
+fi
+if [ -z "${RR:-}" ] || [ "${RR:-}" = "null" ] || [[ "${RR:-}" =~ ^0x0+$ ]]; then
+  RR="$(void_state_addr_v2 ReceiptRegistry | tr -d '[:space:]')"
+fi
+# --- end shim ---
+
+
+void_addr_v2() {
+  local name="$1"
+  local st="${STATE}"
+  if [ ! -f "$st" ]; then
+    echo ""
+    return 0
+  fi
+
+  local v
+  v="$(jq -r --arg k "$name" '
+    (
+      .contracts[$k].address //
+      .contracts[$k] //
+      .[$k].address //
+      .[$k] //
+      empty
+    ) | tostring
+  ' "$st" 2>/dev/null || true)"
+
+  if [ -z "$v" ] || [ "$v" = "null" ] || [ "$v" = "NULL" ]; then
+    echo ""
+    return 0
+  fi
+  if ! [[ "$v" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+    echo ""
+    return 0
+  fi
+  if [[ "$v" =~ ^0x0+$ ]]; then
+    echo ""
+    return 0
+  fi
+  echo "$v"
+}
+# --- end devnet-state-shim-v2 ---
+
+
 echo "[coverage-smoke] repo=$(pwd)"
 
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
@@ -17,6 +83,22 @@ fi
 
 JOBQUEUE=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
 RECEIPTS=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))' "$STATE")
+# --- COVERAGE_ADDRS_V3 shim (post-assign override) ---
+if [ -z "${STATE:-}" ]; then STATE="docs/VOID-DEVNET-PROTOCOL-STATE.json"; fi
+
+if [ -z "${JOBQ:-}" ] || [ "${JOBQ:-}" = "null" ] || [[ "${JOBQ:-}" =~ ^0x0+$ ]]; then
+  JOBQ="$(jq -r '
+    (.contracts.JobQueue.address // .contracts.JobQueue // empty) | tostring
+  ' "$STATE" 2>/dev/null | head -n1 | tr -d '[:space:]' || true)"
+fi
+
+if [ -z "${RR:-}" ] || [ "${RR:-}" = "null" ] || [[ "${RR:-}" =~ ^0x0+$ ]]; then
+  RR="$(jq -r '
+    (.contracts.ReceiptRegistry.address // .contracts.ReceiptRegistry // empty) | tostring
+  ' "$STATE" 2>/dev/null | head -n1 | tr -d '[:space:]' || true)"
+fi
+# --- end COVERAGE_ADDRS_V3 shim ---
+
 
 echo "[coverage-smoke] JobQueue=$JOBQUEUE"
 echo "[coverage-smoke] ReceiptRegistry=$RECEIPTS"
@@ -125,3 +207,13 @@ fi
 
 cp "$src" "$dst"
 echo "[coverage-smoke] installed into $dst"
+
+# --- devnet-state-shim-v2 usage: prefer contracts.*.address if vars are empty ---
+if [ -z "${JOBQ:-}" ] || [ "${JOBQ:-}" = "null" ] || [[ "${JOBQ:-}" =~ ^0x0+$ ]]; then
+  JOBQ="$(void_addr_v2 JobQueue)"
+fi
+if [ -z "${RR:-}" ] || [ "${RR:-}" = "null" ] || [[ "${RR:-}" =~ ^0x0+$ ]]; then
+  RR="$(void_addr_v2 ReceiptRegistry)"
+fi
+# --- end shim ---
+
