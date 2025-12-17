@@ -154,3 +154,6 @@ cache/
 script/_scratch/
 .bak/
 obelisk-ui/src/.bak.*/
+# local backups
+Makefile.bak.*
+Makefile.ops.bak.*
