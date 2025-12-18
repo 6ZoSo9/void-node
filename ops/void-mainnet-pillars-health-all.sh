@@ -42,7 +42,7 @@ chosen_days_val="$(query_scalar 'chosen_manifest_days')"
 keys_val="$(query_scalar 'void_mainnet_keys_health')"
 plan_val="$(query_scalar 'void_mainnet_bootstrap_plan_health')"
 run_val="$(query_scalar 'void_mainnet_run_pillar_status')"
-lastmile_val="$(query_scalar 'void_mainnet_pillars_lastmile_ok or void:mainnet_lastmile:health:last_5m or void_mainnet_lastmile_health or void_mainnet_lastmile_nonempty_ratio')"
+lastmile_val="$(query_scalar 'void_mainnet_pillars_lastmile_ok or void:mainnet_lastmile:health:last_5m or void_mainnet_lastmile_nonempty_ratio')"
 
 echo
 print_line "safeboot_overall"                 "${safeboot_val}"

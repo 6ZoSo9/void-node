@@ -15,7 +15,7 @@ q() {
 
 ts_now=$(date +%s)
 
-nonempty_recent_raw=$(q 'void_mainnet_lastmile_nonempty_recent')
+nonempty_recent_raw=$(q 'void_mainnet_pillars_lastmile_ok or void:mainnet_lastmile:health:last_5m or void_mainnet_lastmile_nonempty_ratio')
 gap_raw=$(q 'void:mainnet_lastmile:last_nonempty_gap')
 
 nonempty_recent="$nonempty_recent_raw"

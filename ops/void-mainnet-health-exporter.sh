@@ -40,7 +40,7 @@ core_health_raw="$(query_scalar 'void_mainnet_core_health')"
 tokenomics_health_raw="$(query_scalar 'void_mainnet_tokenomics_health')"
 # New: spec health SLO, 5m-smoothed
 tokenomics_spec_health_raw="$(query_scalar 'void:mainnet_tokenomics:spec_health:last_5m')"
-lastmile_health_raw="$(query_scalar 'void_mainnet_lastmile_nonempty_recent')"
+lastmile_health_raw="$(query_scalar 'void_mainnet_pillars_lastmile_ok or void:mainnet_lastmile:health:last_5m or void_mainnet_lastmile_nonempty_ratio')"
 usage_health_raw="$(query_scalar 'void_mainnet_usage_health')"
 
 echo "[pillars-exporter] core_health_raw=${core_health_raw}"

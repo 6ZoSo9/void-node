@@ -43,9 +43,9 @@ fi
 TMP=$(mktemp)
 
 {
-  echo "# HELP void_mainnet_lastmile_nonempty_recent Mainnet core last-mile health (1=at least one non-empty block in recent window, 0=none)"
-  echo "# TYPE void_mainnet_lastmile_nonempty_recent gauge"
-  echo "void_mainnet_lastmile_nonempty_recent{chain=\"mainnet-core\"} $NONEMPTY_RECENT"
+  echo "# HELP void_mainnet_lastmile_health Mainnet last-mile health (1=healthy, 0=unhealthy)"
+  echo "# TYPE void_mainnet_lastmile_health gauge"
+  echo "void_mainnet_lastmile_health{chain=\"mainnet-core\"} $NONEMPTY_RECENT"
 
   echo
   echo "# HELP void_mainnet_lastmile_nonempty_count_recent Number of non-empty blocks in the recent window"
@@ -70,9 +70,10 @@ TMP=$(mktemp)
 
 CACHE_DIR="$HOME/.cache/node-exporter-textfile"
 mkdir -p "$CACHE_DIR"
-OUT_LOCAL="$CACHE_DIR/void_mainnet_lastmile.prom"
+OUT_LOCAL="$CACHE_DIR/void_mainnet_lastmile.local.prom"
 mv "$TMP" "$OUT_LOCAL"
 
-if [ -d /var/lib/node_exporter/textfile_collector ]; then
-  install -m 0644 "$OUT_LOCAL" /var/lib/node_exporter/textfile_collector/void_mainnet_lastmile.prom 2>/dev/null || true
-fi
+# NOTE: disabled local install-to-/var/lib (root/systemd owns canonical textfile)
+# if [ -d /var/lib/node_exporter/textfile_collector ]; then
+# # NOTE: (disabled) was installing to /var/lib/node_exporter/textfile_collector/void_mainnet_lastmile.prom
+# fi
