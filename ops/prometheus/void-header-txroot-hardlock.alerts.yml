@@ -1,0 +1,11 @@
+groups:
+- name: void-header-txroot-hardlock.alerts
+  rules:
+  - alert: VoidHeaderTxRootHardlockDown
+    expr: (void:header_txroot_hardlock:ok:last_5m < 1) OR (void:header_txroot_hardlock:mounted:last_5m < 1)
+    for: 2m
+    labels:
+      severity: page
+    annotations:
+      summary: "header txRoot hardlock is down"
+      description: "Hardlock v11 not OK/mounted in last 5m. Check /__void/diag/header-txroot-hardlock.v11 and node logs."

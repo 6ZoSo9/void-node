@@ -1,0 +1,17 @@
+groups:
+- name: void-header-txroot-hardlock.rules
+  interval: 5s
+  rules:
+  - record: void:header_txroot_hardlock:ok:last_5m
+    expr: max_over_time(void_header_txroot_hardlock_ok[5m])
+  - record: void:header_txroot_hardlock:mounted:last_5m
+    expr: max_over_time(void_header_txroot_hardlock_mounted[5m])
+  - record: void:header_txroot_hardlock:version:last_5m
+    expr: max_over_time(void_header_txroot_hardlock_version[5m])
+
+  # optional: fold into mainnet-lastmile health (non-breaking; scripts can adopt later)
+  - record: void:mainnet_lastmile:health_with_header_txroot_hardlock:last_5m
+    expr: |
+      scalar(void:mainnet_lastmile:health:last_5m)
+      * scalar(void:header_txroot_hardlock:ok:last_5m)
+      * scalar(void:header_txroot_hardlock:mounted:last_5m)
