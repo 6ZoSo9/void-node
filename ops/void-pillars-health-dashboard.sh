@@ -35,7 +35,7 @@ q 'void:mainnet_tokenomics:health:last_5m'  'tokenomics_5m'
 
 echo
 echo "=== Last-mile ==="
-q 'void_mainnet_lastmile_health'            'lastmile_health'
+q 'void:mainnet_lastmile:health:last_5m or void_mainnet_lastmile_nonempty_ratio' 'lastmile'
 q 'void:mainnet_lastmile:health:last_5m'    'lastmile_5m'
 
 echo

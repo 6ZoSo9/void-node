@@ -23,8 +23,8 @@ q "last_block_nonempty (void_mainnet_last_block_nonempty)" \
 
 echo
 # Last-mile health gauges we already wired
-q "lastmile_raw (void_mainnet_lastmile_health)" \
-  'max(void_mainnet_lastmile_health)'
+q "lastmile_raw (void_mainnet_lastmile_nonempty_ratio)" \
+  'max(void_mainnet_lastmile_nonempty_ratio)'
 
 q "lastmile_last (void:mainnet_lastmile_health:last)" \
   'max(void:mainnet_lastmile_health:last)'

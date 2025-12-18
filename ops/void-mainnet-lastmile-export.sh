@@ -43,29 +43,29 @@ fi
 TMP=$(mktemp)
 
 {
-  echo "# HELP void_mainnet_lastmile_health Mainnet last-mile health (1=healthy, 0=unhealthy)"
-  echo "# TYPE void_mainnet_lastmile_health gauge"
-  echo "void_mainnet_lastmile_health{chain=\"mainnet-core\"} $NONEMPTY_RECENT"
+  echo "# HELP void_mainnet_lastmile_health_local Mainnet last-mile health (1=healthy, 0=unhealthy)"
+  echo "# TYPE void_mainnet_lastmile_health_local gauge"
+  echo "void_mainnet_lastmile_health_local{chain=\"mainnet-core\"} $NONEMPTY_RECENT"
 
   echo
-  echo "# HELP void_mainnet_lastmile_nonempty_count_recent Number of non-empty blocks in the recent window"
-  echo "# TYPE void_mainnet_lastmile_nonempty_count_recent gauge"
-  echo "void_mainnet_lastmile_nonempty_count_recent{chain=\"mainnet-core\"} $COUNT"
+  echo "# HELP void_mainnet_lastmile_nonempty_count_recent_local Number of non-empty blocks in the recent window"
+  echo "# TYPE void_mainnet_lastmile_nonempty_count_recent_local gauge"
+  echo "void_mainnet_lastmile_nonempty_count_recent_local{chain=\"mainnet-core\"} $COUNT"
 
   echo
-  echo "# HELP void_mainnet_lastmile_window Size of the last-mile window (blocks)"
-  echo "# TYPE void_mainnet_lastmile_window gauge"
-  echo "void_mainnet_lastmile_window{chain=\"mainnet-core\"} $WINDOW"
+  echo "# HELP void_mainnet_lastmile_window_local Size of the last-mile window (blocks)"
+  echo "# TYPE void_mainnet_lastmile_window_local gauge"
+  echo "void_mainnet_lastmile_window_local{chain=\"mainnet-core\"} $WINDOW"
 
   echo
-  echo "# HELP void_mainnet_lastmile_head_number Last observed head number on mainnet-core"
-  echo "# TYPE void_mainnet_lastmile_head_number gauge"
-  echo "void_mainnet_lastmile_head_number{chain=\"mainnet-core\"} $HEAD"
+  echo "# HELP void_mainnet_lastmile_head_number_local Last observed head number on mainnet-core"
+  echo "# TYPE void_mainnet_lastmile_head_number_local gauge"
+  echo "void_mainnet_lastmile_head_number_local{chain=\"mainnet-core\"} $HEAD"
 
   echo
-  echo "# HELP void_mainnet_lastmile_last_nonempty_number Highest block number in window with txs>0 (-1 if none)"
-  echo "# TYPE void_mainnet_lastmile_last_nonempty_number gauge"
-  echo "void_mainnet_lastmile_last_nonempty_number{chain=\"mainnet-core\"} $LAST_NONEMPTY"
+  echo "# HELP void_mainnet_lastmile_last_nonempty_number_local Highest block number in window with txs>0 (-1 if none)"
+  echo "# TYPE void_mainnet_lastmile_last_nonempty_number_local gauge"
+  echo "void_mainnet_lastmile_last_nonempty_number_local{chain=\"mainnet-core\"} $LAST_NONEMPTY"
 } >"$TMP"
 
 CACHE_DIR="$HOME/.cache/node-exporter-textfile"
