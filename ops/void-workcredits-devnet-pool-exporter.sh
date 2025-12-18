@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+
+umask 022
+
 # Make sure foundry (cast) is visible even under sudo.
 export PATH="/home/zoso/.foundry/bin:$PATH"
 
@@ -214,3 +217,13 @@ TMP_FILE="$(mktemp)"
 mv "$TMP_FILE" "$OUT_FILE"
 
 echo "[INFO] wrote metrics to $OUT_FILE (MODE=$MODE)" >&2
+# === [permfix] ensure node_exporter can read textfile outputs ===
+if [ "${VOID_TEXTFILE_PERMFIX_DISABLE:-0}" = "1" ]; then
+  :
+else
+  if [ "$(id -u)" -eq 0 ]; then
+    for f in "/var/lib/node_exporter/textfile_collector/void_workcredits_devnet_pool.prom" "/var/lib/node_exporter/textfile_collector/void-mainnet-keys.prom" "/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v2.prom"; do [ -f "$f" ] && chmod 644 "$f" || true; done
+  else
+    for f in "/var/lib/node_exporter/textfile_collector/void_workcredits_devnet_pool.prom" "/var/lib/node_exporter/textfile_collector/void-mainnet-keys.prom" "/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v2.prom"; do [ -f "$f" ] && sudo chmod 644 "$f" || true; done
+  fi
+fi

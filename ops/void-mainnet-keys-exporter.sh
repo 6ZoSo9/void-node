@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+
+umask 022
+
 # VOID mainnet keys/roles → Prometheus textfile exporter
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -61,3 +64,13 @@ trap - EXIT
 ls -l "${OUT}" || true
 echo "[keys-exporter] wrote metric file (sudo) ${OUT}"
 echo "[keys-exporter] done (sudo path)."
+# === [permfix] ensure node_exporter can read textfile outputs ===
+if [ "${VOID_TEXTFILE_PERMFIX_DISABLE:-0}" = "1" ]; then
+  :
+else
+  if [ "$(id -u)" -eq 0 ]; then
+    for f in "/var/lib/node_exporter/textfile_collector/void_workcredits_devnet_pool.prom" "/var/lib/node_exporter/textfile_collector/void-mainnet-keys.prom" "/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v2.prom"; do [ -f "$f" ] && chmod 644 "$f" || true; done
+  else
+    for f in "/var/lib/node_exporter/textfile_collector/void_workcredits_devnet_pool.prom" "/var/lib/node_exporter/textfile_collector/void-mainnet-keys.prom" "/var/lib/node_exporter/textfile_collector/void_devnet_jobs_status_v2.prom"; do [ -f "$f" ] && sudo chmod 644 "$f" || true; done
+  fi
+fi
