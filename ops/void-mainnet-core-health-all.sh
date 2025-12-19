@@ -23,7 +23,7 @@ core_v2=$(prom_scalar 'void:mainnet_core_v2:health:last_5m')
 overall_v2=$(prom_scalar 'void:mainnet_overall:health:last_5m')
 
 # Safeboot pillar (may be missing)
-safeboot_overall=$(prom_scalar 'void:safeboot:overall')
+safeboot_overall=$(prom_scalar 'void:safeboot:overall_bool')
 
 # Manifest dimensions
 manifest_days_v2=$(prom_scalar 'void:mainnet_core:manifest_days_left:last')

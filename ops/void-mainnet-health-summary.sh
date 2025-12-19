@@ -20,7 +20,7 @@ echo
 # Core gauges
 keys_roles_ok="$(q 'void_mainnet_keys_roles_ok')"
 plan_health="$(q 'void_mainnet_bootstrap_plan_health')"
-safeboot_overall="$(q 'void:safeboot:overall')"
+safeboot_overall="$(q 'void:safeboot:overall_bool')"
 devnet_overall="$(q 'void:devnet_overall:max_5m')"
 mainnet_core_health="$(q 'void_mainnet_core_health')"
 lastmile_health_5m="$(q 'void:mainnet_lastmile:health:last_5m')"
@@ -29,7 +29,7 @@ pillars_with_validators_and_wc_5m="$(q "void:mainnet_pillars_with_validators_and
 
 printf "%-45s %s\n" "void_mainnet_keys_roles_ok" "$keys_roles_ok"
 printf "%-45s %s\n" "void_mainnet_bootstrap_plan_health" "$plan_health"
-printf "%-45s %s\n" "void:safeboot:overall" "$safeboot_overall"
+printf "%-45s %s\n" "void:safeboot:overall_bool" "$safeboot_overall"
 printf "%-45s %s\n" "void:devnet_overall:max_5m" "$devnet_overall"
 printf "%-45s %s\n" "void_mainnet_core_health" "$mainnet_core_health"
 printf "%-45s %s\n" "void:mainnet_lastmile:health:last_5m" "$lastmile_health_5m"

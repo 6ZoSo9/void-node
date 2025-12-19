@@ -33,7 +33,7 @@ print_line() {
 
 # --- raw metric pulls ---
 
-safeboot_val="$(query_scalar 'safeboot_overall or void:safeboot:overall')"
+safeboot_val="$(query_scalar 'safeboot_overall or void:safeboot:overall_bool')"
 devnet_val="$(query_scalar 'void:devnet_overall_with_jobs_v2:health:last_5m')"
 core_val="$(query_scalar 'void_mainnet_core_health')"
 manifest_val="$(query_scalar 'void_mainnet_core_manifest_health or void_mainnet_core_manifest')"

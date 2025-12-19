@@ -20,7 +20,7 @@ q "mainnet-core devnet overall" 'void_mainnet_core_devnet_overall'
 q "mainnet-core manifest health/days_left" '{__name__=~"void_mainnet_core_manifest_.*"}'
 
 echo "=== [VOID safeboot summary (recordings)] ==="
-q "safeboot overall" 'void:safeboot:overall'
+q "safeboot overall" 'void:safeboot:overall_bool'
 q "safeboot health_ok" 'void:safeboot:health_ok'
 q "safeboot head_ok" 'void:safeboot:head_ok'
 

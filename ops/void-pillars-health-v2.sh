@@ -35,7 +35,7 @@ echo
 echo "=== [3] Safeboot pillar gauges (textfile + overall) ==="
 q_scalar "void_pillars_safeboot_ok"              'void_pillars_safeboot_ok'
 q_scalar "void_safeboot_overall_health"          'void_safeboot_overall_health'
-q_scalar "void:safeboot:overall"                 'void:safeboot:overall'
+q_scalar "void:safeboot:overall_bool"                 'void:safeboot:overall_bool'
 echo
 
 echo "=== [4] Global pillars scalar ==="
@@ -47,7 +47,7 @@ CORE=$(curl -fsS "${PROM_URL}/api/v1/query?query=max(void:mainnet_core:health:la
   | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
 DEV_V2=$(curl -fsS "${PROM_URL}/api/v1/query?query=max(void:devnet_overall_with_jobs_v2:health:last_5m)" \
   | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
-SAFE=$(curl -fsS "${PROM_URL}/api/v1/query?query=max(void:safeboot:overall)" \
+SAFE=$(curl -fsS "${PROM_URL}/api/v1/query?query=max(void:safeboot:overall_bool)" \
   | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")
 GLOBAL=$(curl -fsS "${PROM_URL}/api/v1/query?query=max(void:pillars:health:last_5m)" \
   | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo "0")

@@ -15,7 +15,7 @@ prom_scalar() {
   || echo "error"
 }
 
-safeboot_overall=$(prom_scalar 'void:safeboot:overall')
+safeboot_overall=$(prom_scalar 'void:safeboot:overall_bool')
 devnet_overall=$(prom_scalar 'void:devnet_overall_with_jobs_v2:health:last_5m')
 mainnet_core=$(prom_scalar 'void_mainnet_core_health')
 manifest_days_raw=$(prom_scalar 'void_mainnet_core_manifest_days_left')
