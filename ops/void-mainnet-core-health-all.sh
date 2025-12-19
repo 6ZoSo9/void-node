@@ -26,8 +26,8 @@ overall_v2=$(prom_scalar 'void:mainnet_overall:health:last_5m')
 safeboot_overall=$(prom_scalar 'void:safeboot:overall_bool')
 
 # Manifest dimensions
-manifest_days_v2=$(prom_scalar 'void:mainnet_core:manifest_days_left:last')
-manifest_days_raw=$(prom_scalar 'void_mainnet_core_manifest_days_left')
+manifest_days_v2=$(prom_scalar 'chosen_manifest_days')
+manifest_days_raw=$(prom_scalar 'void_mainnet_core_manifest_days')
 manifest_health=$(prom_scalar 'void_mainnet_core_manifest_health')
 
 echo "[mainnet-core-health] core_raw                          = ${core_raw}"
@@ -60,10 +60,10 @@ fi
 
 # Manifest OK if we have days >= 7, or if we have no days metrics at all (soft pass)
 if [ "${chosen_manifest_days}" != "-1" ]; then
-  if [ "${chosen_manifest_days}" -ge 7 ] 2>/dev/null; then
+  if [ "${chosen_manifest_days}" -ge 365 ] 2>/dev/null; then
     manifest_ok=1
   else
-    echo "[mainnet-core-health] ERROR: manifest_days too low (${chosen_manifest_days} < 7)"
+    echo "[mainnet-core-health] ERROR: manifest_days too low (${chosen_manifest_days} < 365)"
   fi
 else
   echo "[mainnet-core-health] NOTE: no manifest_days metrics; treating manifest as SOFT PASS."
