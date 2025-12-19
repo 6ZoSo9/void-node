@@ -4162,7 +4162,24 @@ import { computeTxRoot } from "./util/txroot.js";
           if (blk.txRoot) res.setHeader("x-void-txroot", blk.txRoot);
           return res.json(body);
         } catch(e:any){
-          return res.status(500).json({ok:false, error:String(e?.message||e)});
+          try{
+          const body:any = {ok:false, error:String(e?.message||e)};
+          if (res && typeof (res as any).status === "function" && typeof (res as any).json === "function") {
+            return (res as any).status(500).json(body);
+          }
+          if (res && typeof (res as any).writeHead === "function" && typeof (res as any).end === "function") {
+            (res as any).writeHead(500, {"content-type":"application/json"});
+            (res as any).end(JSON.stringify(body));
+            return;
+          }
+          if (res && typeof (res as any).setHeader === "function" && typeof (res as any).end === "function") {
+            try{ (res as any).statusCode = 500; }catch{}
+            try{ (res as any).setHeader("content-type","application/json"); }catch{}
+            (res as any).end(JSON.stringify(body));
+            return;
+          }
+        }catch{}
+        return;
         }
       });
     })();
