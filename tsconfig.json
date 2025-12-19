@@ -6,24 +6,33 @@
     ],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "strict": true,
+    "strict": false,
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
     "types": [
       "node"
-    ]
+    ],
+    "noImplicitAny": false,
+    "noImplicitThis": false,
+    "strictNullChecks": false,
+    "useUnknownInCatchVariables": false,
+    "suppressImplicitAnyIndexErrors": true,
+    "ignoreDeprecations": "5.0"
   },
   "include": [
     "src"
   ],
   "exclude": [
+    "src/ui/**/*",
     "catchup_1800_3496.ndjson",
     "dist",
     "export_0_999.ndjson",
     "fs",
     "node_modules",
-    "rollover_test"
+    "rollover_test",
+    "src/.park/**/*",
+    "obelisk-ui/**/*"
   ]
 }

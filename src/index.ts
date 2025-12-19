@@ -28751,7 +28751,7 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
 
         // patch instance mutators (local to this array only)
         try{
-          if (!arr.__void_cap_final7_patched){
+          if (!(arr as any).__void_cap_final7_patched){
             (arr as any).push = clampPush(Array.prototype.push);
             (arr as any).unshift = clampUnshift(Array.prototype.unshift);
             (arr as any).splice = clampSplice(Array.prototype.splice);
