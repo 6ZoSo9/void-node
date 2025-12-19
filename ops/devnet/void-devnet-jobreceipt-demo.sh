@@ -12,7 +12,7 @@ cd "$REPO"
 
 echo "=== [load devnet addresses from state] ==="
 JOBQUEUE_ADDR=$(jq -r '(.JobQueue | (if type=="object" then (.address // empty) elif type=="string" then . else empty end))        // ""' "$STATE_FILE")
-AGENT_REG_ADDR=$(jq -r '.AgentRegistry.address  // ""' "$STATE_FILE")
+AGENT_REG_ADDR=$(jq -r '(.AgentRegistry | if type=="object" then (.address // empty) elif type=="string" then . else empty end)  // ""' "$STATE_FILE")
 RECEIPT_REG_ADDR=$(jq -r '(.ReceiptRegistry | (if type=="object" then (.address // empty) elif type=="string" then . else empty end)) // ""' "$STATE_FILE")
 
 echo "[JobQueue]        ${JOBQUEUE_ADDR:-<missing>}"
