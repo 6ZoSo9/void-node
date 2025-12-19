@@ -1,37 +1,35 @@
 {
   "chainId": 2050,
+  "AdminGate": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "ModelRegistry": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+  "DatasetRegistry": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+  "JobQueue": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+  "AgentRegistry": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+  "rpc_url": "http://127.0.0.1:8545",
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "voidToken": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
   "contracts": {
-    "AgentRegistry": {
-      "address": "0x36c02da8a0983159322a80ffe9f24b1acff8b570"
+    "AdminGate": {
+      "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
     },
-    "DatasetRegistry": {
-      "address": "0x4c5859f0f772848b2d91f1d83e2fe57935348029"
-    },
-    "JobQueue": {
-      "address": "0x5eb3bc0a489c5a8288765d2336659ebca68fcd00"
+    "VoidToken": {
+      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
     },
     "ModelRegistry": {
-      "address": "0x809d550fca64d94bd9f66e60752a544199cfac3d"
+      "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+    },
+    "DatasetRegistry": {
+      "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
+    },
+    "JobQueue": {
+      "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+    },
+    "AgentRegistry": {
+      "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
     },
     "ReceiptRegistry": {
-      "address": "0xb7278a61aa25c888815afc32ad3cc52ff24fe575"
-    },
-    "workCreditsRelayerHelper": {
-      "address": "0x9a676e781a523b5d0c0e43731313a708cb607508"
-    },
-    "workCreditsRelayerOperator": {
-      "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+      "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F"
     }
   },
-  "rpc_url": "http://127.0.0.1:8545",
-  "voidToken": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
-  "workCreditsPoolV1": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
-  "workCreditsRelayerHelper": {
-    "address": "0x9a676e781a523b5d0c0e43731313a708cb607508"
-  },
-  "workCreditsRelayerOperator": {
-    "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
-  },
-  "workCreditsRelayerV1": "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82",
-  "workCreditsToken": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
+  "ReceiptRegistry": "0x0165878A594ca255338adfa4d48449f69242Eb8F"
 }

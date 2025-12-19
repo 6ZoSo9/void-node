@@ -157,3 +157,6 @@ obelisk-ui/src/.bak.*/
 # local backups
 Makefile.bak.*
 Makefile.ops.bak.*
+
+# local runtime logs
+logs/*
