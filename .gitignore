@@ -160,3 +160,7 @@ Makefile.ops.bak.*
 
 # local runtime logs
 logs/*
+logs/
+logs/**
+logs/
+logs/**
