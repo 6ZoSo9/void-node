@@ -3,8 +3,8 @@ set -euo pipefail
 
 # v2: robust lookup + safe default (365) so pillars don't go red just because a key is missing.
 # Gauges:
-# - void_mainnet_core_manifest_days
-# - chosen_manifest_days
+# - void_mainnet_core_manifest_days_v2
+# - void_mainnet_core_manifest_days_v2
 # - void_mainnet_core_manifest_health
 # - void_mainnet_core_manifest
 
@@ -23,12 +23,12 @@ pick_days_from_json() {
   local f="$1"
   jq -r '
     (
-      .chosen_manifest_days //
+      .void_mainnet_core_manifest_days_v2 //
       .chosenManifestDays //
       .manifest_days //
       .manifestDays //
       .manifest?.days //
-      .mainnet?.chosen_manifest_days //
+      .mainnet?.void_mainnet_core_manifest_days_v2 //
       .mainnet?.manifest_days //
       empty
     )' "$f" 2>/dev/null | head -n 1
@@ -87,12 +87,12 @@ fi
 
 mkdir -p "$OUTDIR"
 cat > "$TMP" <<METRICS
-# HELP void_mainnet_core_manifest_days Selected manifest retention window (days) for mainnet core pillar.
-# TYPE void_mainnet_core_manifest_days gauge
-void_mainnet_core_manifest_days ${days}
-# HELP chosen_manifest_days Alias of void_mainnet_core_manifest_days for older dashboards/rules.
-# TYPE chosen_manifest_days gauge
-chosen_manifest_days ${days}
+# HELP void_mainnet_core_manifest_days_v2 Selected manifest retention window (days) for mainnet core pillar.
+# TYPE void_mainnet_core_manifest_days_v2 gauge
+void_mainnet_core_manifest_days_v2 ${days}
+# HELP void_mainnet_core_manifest_days_v2 Alias of void_mainnet_core_manifest_days_v2 for older dashboards/rules.
+# TYPE void_mainnet_core_manifest_days_v2 gauge
+void_mainnet_core_manifest_days_v2 ${days}
 # HELP void_mainnet_core_manifest_health 1 if manifest_days meets policy (>=${min_days}), else 0.
 # TYPE void_mainnet_core_manifest_health gauge
 void_mainnet_core_manifest_health ${health}

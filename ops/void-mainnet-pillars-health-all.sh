@@ -37,8 +37,8 @@ safeboot_val="$(query_scalar 'safeboot_overall or void:safeboot:overall_bool')"
 devnet_val="$(query_scalar 'void:devnet_overall_with_jobs_v2:health:last_5m')"
 core_val="$(query_scalar 'void_mainnet_core_health')"
 manifest_val="$(query_scalar 'void_mainnet_core_manifest_health or void_mainnet_core_manifest')"
-manifest_days_val="$(query_scalar 'void_mainnet_core_manifest_days')"
-chosen_days_val="$(query_scalar 'chosen_manifest_days')"
+manifest_days_val="$(query_scalar 'max(void_mainnet_core_manifest_days_v2)')"
+chosen_days_val="$(query_scalar 'void_mainnet_core_manifest_days_v2')"
 keys_val="$(query_scalar 'void_mainnet_keys_health')"
 plan_val="$(query_scalar 'void_mainnet_bootstrap_plan_health')"
 run_val="$(query_scalar 'void_mainnet_run_pillar_status')"
@@ -49,8 +49,8 @@ print_line "safeboot_overall"                 "${safeboot_val}"
 print_line "void:devnet_overall_with_jobs_v2:health:last_5m"       "${devnet_val}"
 print_line "void_mainnet_core_health"         "${core_val}"
 print_line "void_mainnet_core_manifest"       "${manifest_val}"
-print_line "void_mainnet_core_manifest_days"  "${manifest_days_val}"
-print_line "chosen_manifest_days"             "${chosen_days_val}"
+print_line "max(void_mainnet_core_manifest_days_v2)"  "${manifest_days_val}"
+print_line "void_mainnet_core_manifest_days_v2"             "${chosen_days_val}"
 print_line "void_mainnet_keys_health"         "${keys_val}"
 print_line "void_mainnet_bootstrap_plan_health" "${plan_val}"
 print_line "void_mainnet_run_pillar_status"   "${run_val}"
@@ -153,7 +153,7 @@ printf '  run_ok             = %s\n' "${run_ok}"
 printf '  lastmile_ok        = %s\n' "${lastmile_ok}"
 
 if [ "${manifest_days_warn}" = "1" ]; then
-  echo "[pillars] WARN: manifest_days/ chosen_manifest_days missing; trusting manifest_health=1 for manifest_ok" >&2
+  echo "[pillars] WARN: manifest_days/ void_mainnet_core_manifest_days_v2 missing; trusting manifest_health=1 for manifest_ok" >&2
 fi
 
 if [ "${run_warn}" = "1" ]; then
