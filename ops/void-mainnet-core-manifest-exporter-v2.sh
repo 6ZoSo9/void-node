@@ -104,3 +104,58 @@ METRICS
 mv -f "$TMP" "$OUTFILE"
 chmod 0644 "$OUTFILE"
 echo "[ok] wrote $OUTFILE (days=$days health=$health cfg=$CFG min_days=$min_days)"
+
+# --- SANITIZE_TEXTFILE_V1: ensure node_exporter textfile parses cleanly (no duplicate HELP/TYPE for same name)
+MANIFEST_PROM="${MANIFEST_PROM:-/var/lib/node_exporter/textfile_collector/void_mainnet_core_manifest.prom}"
+MIN_DAYS_SAN="${MIN_DAYS:-365}"
+python3 - <<'PY_SAN' || true
+import os, re
+p = os.environ.get("MANIFEST_PROM","/var/lib/node_exporter/textfile_collector/void_mainnet_core_manifest.prom")
+min_days = int(os.environ.get("MIN_DAYS_SAN","365") or "365")
+try:
+    src = open(p, "r", encoding="utf-8").read()
+except Exception as e:
+    print(f"[WARN] {os.path.basename(p)} sanitize read failed: {e}")
+    raise SystemExit(0)
+
+def pick(name: str):
+    m = re.search(r'(?m)^\s*' + re.escape(name) + r'\s+([0-9]+(?:\.[0-9]+)?)\s*$', src)
+    return m.group(1) if m else None
+
+days = pick("void_mainnet_core_manifest_days") or pick("void_mainnet_core_manifest_days_v2") or pick("chosen_manifest_days")
+health = pick("void_mainnet_core_manifest_health") or pick("void_mainnet_core_manifest_health_v2") or pick("void_mainnet_core_manifest")
+
+if days is None:
+    days = str(min_days)
+if health is None:
+    try:
+        health = "1" if float(days) >= float(min_days) else "0"
+    except Exception:
+        health = "0"
+
+out = []
+out += [
+    "# HELP void_mainnet_core_manifest_days Selected manifest retention window (days) for mainnet core pillar.",
+    "# TYPE void_mainnet_core_manifest_days gauge",
+    f"void_mainnet_core_manifest_days {days}",
+    "# HELP void_mainnet_core_manifest_days_v2 Alias of void_mainnet_core_manifest_days for older dashboards/rules.",
+    "# TYPE void_mainnet_core_manifest_days_v2 gauge",
+    f"void_mainnet_core_manifest_days_v2 {days}",
+    f"# HELP void_mainnet_core_manifest_health 1 if manifest_days meets policy (>= {min_days}), else 0.",
+    "# TYPE void_mainnet_core_manifest_health gauge",
+    f"void_mainnet_core_manifest_health {health}",
+    "# HELP void_mainnet_core_manifest_health_v2 Alias of void_mainnet_core_manifest_health for older dashboards/rules.",
+    "# TYPE void_mainnet_core_manifest_health_v2 gauge",
+    f"void_mainnet_core_manifest_health_v2 {health}",
+    "# HELP void_mainnet_core_manifest Legacy composite alias of manifest health (1 ok, 0 bad).",
+    "# TYPE void_mainnet_core_manifest gauge",
+    f"void_mainnet_core_manifest {health}",
+    "",
+]
+try:
+    open(p, "w", encoding="utf-8").write("\n".join(out))
+    print(f"[ok] sanitized {p} (days={days} health={health} min_days={min_days})")
+except Exception as e:
+    print(f"[WARN] sanitize write failed: {e}")
+PY_SAN
+# --- end SANITIZE_TEXTFILE_V1
