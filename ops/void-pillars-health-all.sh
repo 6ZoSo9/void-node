@@ -18,7 +18,7 @@ prom_scalar() {
 safeboot_overall=$(prom_scalar 'void:safeboot:overall_bool')
 devnet_overall=$(prom_scalar 'void:devnet_overall_with_jobs_v2:health:last_5m')
 mainnet_core=$(prom_scalar 'void_mainnet_core_health')
-manifest_days_raw=$(prom_scalar 'void_mainnet_core_manifest_days_left')
+manifest_days_raw=$(prom_scalar 'max(void_mainnet_core_manifest_days)')
 manifest_health=$(prom_scalar 'void_mainnet_core_manifest_health')
 
 echo "[pillars] checking VOID safeboot + devnet + mainnet-core..."
@@ -35,6 +35,34 @@ if [ -z "${void_mainnet_core_manifest_days}" ] || [ "${void_mainnet_core_manifes
 fi
 
 echo "  void_mainnet_core_manifest_days             = ${void_mainnet_core_manifest_days}"
+
+
+# --- PILLARS_MANIFEST_DAYS_V3: prefer retention-window gauges over legacy days_left
+# NOTE: legacy Prom rules still track void_mainnet_core_manifest_days_left (update-manifest days left).
+#       For the "manifest_days" pillar print, we want retention window gauges exported via node_exporter:
+#         - void_mainnet_core_manifest_days
+#         - void_mainnet_core_manifest_days_v2 (compat)
+#         - chosen_manifest_days (optional)
+manifest_days_v2="$(prom_scalar 'max(void_mainnet_core_manifest_days_v2)')"
+manifest_days_chosen="$(prom_scalar 'max(chosen_manifest_days)')"
+manifest_days_left_raw="$(prom_scalar 'void_mainnet_core_manifest_days_left')"
+
+# If the earlier logic produced -1/unknown, try v2 then chosen.
+if [ -z "${void_mainnet_core_manifest_days}" ] || [ "${void_mainnet_core_manifest_days}" = "null" ] || [ "${void_mainnet_core_manifest_days}" = "error" ] || [ "${void_mainnet_core_manifest_days}" = "-1" ]; then
+  cand="${manifest_days_v2}"
+  if [ -z "${cand}" ] || [ "${cand}" = "null" ] || [ "${cand}" = "error" ]; then
+    cand="${manifest_days_chosen}"
+  fi
+  if [ -n "${cand}" ] && [ "${cand}" != "null" ] && [ "${cand}" != "error" ]; then
+    void_mainnet_core_manifest_days="${cand}"
+  fi
+fi
+
+# Extra visibility (non-gating):
+echo "  void_mainnet_core_manifest_days_v2          = ${manifest_days_v2}"
+echo "  chosen_manifest_days                        = ${manifest_days_chosen}"
+echo "  void_mainnet_core_manifest_days_left        = ${manifest_days_left_raw}"
+# --- end PILLARS_MANIFEST_DAYS_V3
 
 devnet_ok=0
 mainnet_core_ok=0
@@ -60,10 +88,10 @@ fi
 #  - If we know days and it's <7  => FAIL
 #  - If we don't know days at all => SOFT PASS (exporter / CI is source of truth)
 if [ "${void_mainnet_core_manifest_days}" != "-1" ]; then
-  if [ "${void_mainnet_core_manifest_days}" -ge 7 ] 2>/dev/null; then
+  if [ "${void_mainnet_core_manifest_days}" -ge 365 ] 2>/dev/null; then
     manifest_ok=1
   else
-    echo "[pillars] ERROR: manifest_days too low (${void_mainnet_core_manifest_days} < 7)"
+    echo "[pillars] ERROR: manifest_days too low (${void_mainnet_core_manifest_days} < 365)"
   fi
 else
   echo "[pillars] NOTE: no manifest_days metric; treating manifest pillar as SOFT PASS."
