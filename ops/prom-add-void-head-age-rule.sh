@@ -47,3 +47,8 @@ echo "=== [3] verify ==="
 curl -fsS --max-time 4 -G 'http://127.0.0.1:9090/api/v1/query' \
   --data-urlencode 'query=void:head_age_seconds:primary{env="dev"}' \
 | jq -r '.data.result[] | "\(.metric|tostring) age_s=\(.value[1])"'
+
+echo
+echo "=== [4] extra sanity ==="
+curl -fsS --max-time 4 -G 'http://127.0.0.1:9090/api/v1/query' \
+  --data-urlencode 'query=count(void:head_age_seconds:primary{env="dev"})' | jq .
