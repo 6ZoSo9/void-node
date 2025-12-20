@@ -26923,6 +26923,78 @@ import './tokenomics/reward_engine_exporter_v1';
               }
             }
           })();
+
+
+// [void-headtxt-metrics-override:v1]
+// Purpose: /head.txt and /metrics/void/head were stuck at 0 while /blocks/latest/number2.json is correct.
+// This override makes head probes reflect the real persisted head, without touching core store logic.
+(() => {
+  const TICK = 350;
+  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
+  const base = () => "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
+
+  async function resolveHeadNumber(): Promise<number> {
+    try {
+      const g: any = globalThis as any;
+      const n = g.__void_node || g.node || g.__node;
+      if (n) {
+        // prefer node.head() if it exists
+        if (typeof n.head === "function") {
+          const v = await n.head();
+          const x = Number(v);
+          if (Number.isFinite(x) && x >= 0) return x;
+        }
+        // or node.store.head()
+        const st = (n.store || n.segStore || n._store || null) as any;
+        if (st && typeof st.head === "function") {
+          const v = await st.head();
+          const x = Number(v);
+          if (Number.isFinite(x) && x >= 0) return x;
+        }
+      }
+    } catch (_e) {}
+
+    // fallback: use canonical HTTP endpoint already known good
+    try {
+      const r = await fetch(base() + "/blocks/latest/number2.json");
+      if (r.ok) {
+        const j: any = await r.json();
+        const x = Number(j && j.number);
+        if (Number.isFinite(x) && x >= 0) return x;
+      }
+    } catch (_e) {}
+
+    return 0;
+  }
+
+  function install() {
+    const app: any = getApp();
+    if (!app || typeof app.get !== "function") return void setTimeout(install, TICK);
+    if ((app as any).__void_headtxt_metrics_override_v1) return;
+    (app as any).__void_headtxt_metrics_override_v1 = true;
+
+    app.get("/head.txt", async (_req: any, res: any) => {
+      const h = await resolveHeadNumber();
+      res.type("text/plain");
+      return res.send(String(h) + "\n");
+    });
+
+    app.get("/metrics/void/head", async (_req: any, res: any) => {
+      const h = await resolveHeadNumber();
+      res.type("text/plain; version=0.0.4");
+      res.write("# HELP void_head_number Latest persisted block number\n");
+      res.write("# TYPE void_head_number gauge\n");
+      res.write("void_head_number " + h + "\n");
+      return void res.end();
+    });
+
+    console.log("[headtxt-metrics-override:v1] installed (/head.txt + /metrics/void/head)");
+  }
+
+  install();
+})();
+
+
           return;
         }
       }catch(_e){

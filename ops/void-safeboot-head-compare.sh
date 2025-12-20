@@ -17,9 +17,19 @@ echo
 
 get_head() {
   local url="$1"
-  curl -fsS "${url}/head.txt" 2>/dev/null \
-    | awk 'NR==1 {print $1}' \
-    || echo "NaN"
+
+  # __prefer_number2: prefer canonical JSON head when available
+  local n2=""
+  n2="$(curl -fsS --max-time 2 "${url}/blocks/latest/number2.json" 2>/dev/null | jq -r '.number // empty' 2>/dev/null || true)"
+  if [[ "$n2" =~ ^[0-9]+$ ]]; then
+    echo "$n2"
+    return 0
+  fi
+
+  # fallback: head.txt
+  curl -fsS --max-time 2 "${url}/head.txt" 2>/dev/null \
+    | tr -d '\r' \
+    | rg -o '^-?[0-9]+' || true
 }
 
 main_head=$(get_head "${MAIN_URL}")
