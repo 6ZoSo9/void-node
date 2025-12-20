@@ -88,6 +88,24 @@ process.env.DATA_DIR  = process.env.DATA_DIR  || process.env.VOID_DATA_DIR  || "
   G.__void_getCreateHash().catch(()=>{});
 })();
 // [ADDON-END:esm-crypto-shim.v2 early]
+// === [SAFE BOOT HARD GUARD] ===
+/**
+ * When VOID_HTTP_SAFE=1 we MUST avoid any self-wrapping/trampoline/forensics installers.
+ * This guard hard-forces all known disable flags EARLY (before any installers run).
+ */
+if (process.env.VOID_HTTP_SAFE === "1") {
+  process.env.VOID_DISABLE_TXROOT_FORENSICS = "1";
+  process.env.VOID_TXROOT_FORENSICS_V7_DISABLED = "1";
+  process.env.VOID_DISABLE_SAVEBlock_FORENSICS = "1";
+  process.env.VOID_DISABLE_HEAD_PROBE = "1";
+  process.env.VOID_DISABLE_LASTMILE_PROBE = "1";
+  process.env.VOID_DISABLE_CHAIN_LATCH = "1";
+  process.env.VOID_DISABLE_LATCH = "1";
+  process.env.VOID_DISABLE_CHAIN_LATCH_V11 = "1";
+  process.env.VOID_DISABLE_LATCH_V11 = "1";
+  process.env.VOID_ENABLE_DANGEROUS_FORENSICS = "0";
+}
+
 process.env.HTTP_PORT = process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100";
 process.env.P2P_PORT  = process.env.P2P_PORT  || process.env.VOID_P2P_PORT  || "4700";
 
@@ -199,6 +217,99 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
+// [void-latest-full2-override:v1]
+// Purpose: /blocks/latest/full2 currently returns {ok,hasBlock,number} only.
+// This early override makes it return a real block payload + injects txRoot (string)
+// using the already-working /dev/txroot/:n endpoint.
+(() => {
+  try {
+    const __VOID_BASE = () => {
+      const port = Number(process.env.HTTP_PORT || 4100);
+      return `http://127.0.0.1:${port}`;
+    };
+
+    const __VOID_fetchJson = async (path: string, timeoutMs = 1800): Promise<any | null> => {
+      const url = __VOID_BASE() + path;
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        // Node 18+ has global fetch
+        const r = await fetch(url, { signal: ctrl.signal } as any);
+        if (!r.ok) return null;
+        return await r.json();
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(t);
+      }
+    };
+
+    const __VOID_injectTxRoot = (obj: any, root: string) => {
+      if (!obj || typeof obj !== "object") return;
+      try {
+        if (obj.header && typeof obj.header === "object") {
+          obj.header.txRoot = root;
+          // keep legacy spelling too, harmless:
+          obj.header.txroot = root;
+        }
+        if (obj.full && typeof obj.full === "object") __VOID_injectTxRoot(obj.full, root);
+        if (obj.block && typeof obj.block === "object") __VOID_injectTxRoot(obj.block, root);
+      } catch {}
+    };
+
+    // IMPORTANT: this must be defined EARLY so it shadows any later full2 shim.
+    (app as any).get("/blocks/latest/full2", async (req: any, res: any) => {
+      try {
+        const head =
+          (await __VOID_fetchJson("/blocks/latest/number2.json")) ||
+          (await __VOID_fetchJson("/blocks/latest/number2")) ||
+          (await __VOID_fetchJson("/blocks/latest/number")) ||
+          {};
+        const n = Number(head?.number ?? head?.n ?? -1);
+
+        // Prefer per-number full2/full; do NOT call /blocks/latest/full2 internally (would recurse).
+        let blk =
+          (n >= 0 ? await __VOID_fetchJson(`/blocks/${n}/full2`) : null) ||
+          (n >= 0 ? await __VOID_fetchJson(`/blocks/${n}/full`) : null);
+
+        // If the per-number endpoint already wraps, unwrap best-effort.
+        // Common patterns: { ok, block }, or direct block.
+        const blockObj = (blk && typeof blk === "object" && (blk.block || blk.full || blk.header)) ? blk : null;
+        const rawBlock = (blockObj && blockObj.block) ? blockObj.block : blk;
+
+        const txr = (n >= 0 ? await __VOID_fetchJson(`/dev/txroot/${n}`) : null) || {};
+        const root = typeof txr?.root === "string" ? txr.root : undefined;
+
+        // Inject txRoot into any plausible shapes we’re returning.
+        if (root) {
+          __VOID_injectTxRoot(blk, root);
+          __VOID_injectTxRoot(rawBlock, root);
+        }
+
+        const hasBlock = !!rawBlock && typeof rawBlock === "object";
+
+        // Preserve the old minimal contract while adding useful fields.
+        const out: any = {
+          ok: true,
+          hasBlock,
+          number: hasBlock ? n : -1,
+        };
+
+        if (hasBlock) out.block = rawBlock;
+        if (root) out.txRoot = root;
+
+        return res.json(out);
+      } catch (e: any) {
+        return res.json({ ok: false, hasBlock: false, number: -1, error: String(e?.message || e) });
+      }
+    });
+
+    console.log("[latest-full2-override:v1] installed (/blocks/latest/full2 returns block + txRoot)");
+  } catch (e) {
+    console.log("[latest-full2-override:v1] failed to install:", e);
+  }
+})();
+
 require("./http/workcredits-devnet"); // WorkCredits devnet HTTP routes
   // [http-debug] ultra-simple ping to detect HTTP liveness without touching core routes
   app.get("/__dev/http-debug/ping", (_req, res) => {
@@ -14096,6 +14207,8 @@ void_header3_last_mismatch ${lastMismatch}
 })();
 // -------- Forensics: observe SegStore.saveBlock argument shapes (additive) -----------
 (function segstoreSaveBlockForensicsV1(){
+  if (process.env.VOID_DISABLE_SAVEBlock_FORENSICS === "1") return;
+
   const TICK=400;
   function once(fn:Function){ let done=false; return (...a:any[])=>{ if(done) return; done=true; return fn(...a);} }
   const start = once(async function(){
@@ -14146,6 +14259,8 @@ void_header3_last_mismatch ${lastMismatch}
 })();
 // ---------------- txroot forensics + observer (pure-additive) -----------------
 (function txrootForensicsAndObserver(){
+  if (process.env.VOID_DISABLE_TXROOT_FORENSICS === "1") return;
+
   const TICK = 1000;
 
   // lazy app getter (keeps our additive pattern)
@@ -15215,6 +15330,8 @@ void_header3_last_mismatch ${lastMismatch}
 
 // -------------------- txroot/forensics v7 (ESM-safe, additive) --------------------
 (function txrootForensicsV7(){
+  if (process.env.VOID_DISABLE_TXROOT_FORENSICS === "1") return;
+
   const TICK_MS = 250;
   const FLAG = Symbol.for("void.txroot.forensics.v7.wrapped");
 
@@ -23364,6 +23481,8 @@ void_wal_wrapped ${isWrapped?1:0}
 })();
 // ===== HeadNumberProbe v1 (belt-and-suspenders) =====
 (function HeadNumberProbeV1(){
+  if (process.env.VOID_DISABLE_HEAD_PROBE === "1") return;
+
   const TICK=200;
   function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
   function store(){ return (globalThis as any).__void_store; }
@@ -23418,6 +23537,8 @@ void_wal_wrapped ${isWrapped?1:0}
 
 // ===== Last-mile v123b: read the head guess if block lacks number =====
 (function LastmileV123b_UseProbe(){
+  if (process.env.VOID_DISABLE_LASTMILE_PROBE === "1") return;
+
   const TICK=200;
   function store(){ return (globalThis as any).__void_store; }
   function hasS(){ return (globalThis as any).__void_lastmile_v123b_S; }
