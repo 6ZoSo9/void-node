@@ -33,7 +33,23 @@ printf "  %-30s = %s\n" "receipts_health_v2" "$rh"
 echo
 echo "[system-smoke] 5m smoothed coverage (recording rules):"
 c5="$(prom_q 'max(void:devnet_coverage:last_5m)')"
+
+# --- compat 5m smoothers (robust; env=dev + raw fallback) ---
+if [[ "$c5" == "NaN" || -z "$c5" ]]; then
+  c5="$(prom_q 'max(void:devnet_coverage_v2:last_5m{env="dev"})')"
+fi
+if [[ "$c5" == "NaN" || -z "$c5" ]]; then
+  c5="$(prom_q 'max(avg_over_time(void_devnet_coverage{chain="devnet"}[5m]))')"
+fi
 r5="$(prom_q 'max(void:devnet_receipts_health_v2:last_5m)')"
+
+# --- compat 5m smoothers (robust; env=dev + raw fallback) ---
+if [[ "$r5" == "NaN" || -z "$r5" ]]; then
+  r5="$(prom_q 'max(void:devnet_receipts_health_v2:last_5m{env="dev"})')"
+fi
+if [[ "$r5" == "NaN" || -z "$r5" ]]; then
+  r5="$(prom_q 'min(min_over_time(void_devnet_receipts_health_v2{chain="devnet"}[5m]))')"
+fi
 printf "  %-30s = %s\n" "coverage_v2_last_5m" "$c5"
 printf "  %-30s = %s\n" "receipts_health_v2_5m" "$r5"
 
