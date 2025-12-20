@@ -26,8 +26,8 @@ overall_v2=$(prom_scalar 'void:mainnet_overall:health:last_5m')
 safeboot_overall=$(prom_scalar 'void:safeboot:overall_bool')
 
 # Manifest dimensions
-manifest_days_v2=$(prom_scalar 'void_mainnet_core_manifest_days_v2')
-manifest_days_raw=$(prom_scalar 'max(void_mainnet_core_manifest_days_v2)')
+manifest_days_v2=$(prom_scalar 'void_mainnet_core_manifest_days')
+manifest_days_raw=$(prom_scalar 'max(void_mainnet_core_manifest_days or chosen_manifest_days or void_mainnet_core_manifest_days)')
 manifest_health=$(prom_scalar 'void_mainnet_core_manifest_health')
 
 echo "[mainnet-core-health] core_raw                          = ${core_raw}"
@@ -39,15 +39,15 @@ echo "[mainnet-core-health] manifest_days_raw                 = ${manifest_days_
 echo "[mainnet-core-health] manifest_health                   = ${manifest_health}"
 
 # Choose manifest_days: prefer v2, then raw, else -1 (unknown)
-void_mainnet_core_manifest_days_v2="${manifest_days_v2}"
-if [ "${void_mainnet_core_manifest_days_v2}" = "null" ] || [ "${void_mainnet_core_manifest_days_v2}" = "error" ]; then
-  void_mainnet_core_manifest_days_v2="${manifest_days_raw}"
+void_mainnet_core_manifest_days="${manifest_days_v2}"
+if [ "${void_mainnet_core_manifest_days}" = "null" ] || [ "${void_mainnet_core_manifest_days}" = "error" ]; then
+  void_mainnet_core_manifest_days="${manifest_days_raw}"
 fi
-if [ "${void_mainnet_core_manifest_days_v2}" = "null" ] || [ "${void_mainnet_core_manifest_days_v2}" = "error" ] || [ -z "${void_mainnet_core_manifest_days_v2}" ]; then
-  void_mainnet_core_manifest_days_v2="-1"
+if [ "${void_mainnet_core_manifest_days}" = "null" ] || [ "${void_mainnet_core_manifest_days}" = "error" ] || [ -z "${void_mainnet_core_manifest_days}" ]; then
+  void_mainnet_core_manifest_days="-1"
 fi
 
-echo "[mainnet-core-health] void_mainnet_core_manifest_days_v2              = ${void_mainnet_core_manifest_days_v2}"
+echo "[mainnet-core-health] void_mainnet_core_manifest_days              = ${void_mainnet_core_manifest_days}"
 
 core_ok=0
 manifest_ok=0
@@ -59,11 +59,11 @@ if [ "${core_raw}" = "1" ] || [ "${core_v2}" = "1" ]; then
 fi
 
 # Manifest OK if we have days >= 7, or if we have no days metrics at all (soft pass)
-if [ "${void_mainnet_core_manifest_days_v2}" != "-1" ]; then
-  if [ "${void_mainnet_core_manifest_days_v2}" -ge 365 ] 2>/dev/null; then
+if [ "${void_mainnet_core_manifest_days}" != "-1" ]; then
+  if [ "${void_mainnet_core_manifest_days}" -ge 365 ] 2>/dev/null; then
     manifest_ok=1
   else
-    echo "[mainnet-core-health] ERROR: manifest_days too low (${void_mainnet_core_manifest_days_v2} < 365)"
+    echo "[mainnet-core-health] ERROR: manifest_days too low (${void_mainnet_core_manifest_days} < 365)"
   fi
 else
   echo "[mainnet-core-health] NOTE: no manifest_days metrics; treating manifest as SOFT PASS."
@@ -112,4 +112,4 @@ if [ "${safeboot_ok}" -ne 1 ]; then
   exit 1
 fi
 
-echo "[mainnet-core-health] RESULT: OK (pillar healthy; void_mainnet_core_manifest_days_v2=${void_mainnet_core_manifest_days_v2})"
+echo "[mainnet-core-health] RESULT: OK (pillar healthy; void_mainnet_core_manifest_days=${void_mainnet_core_manifest_days})"

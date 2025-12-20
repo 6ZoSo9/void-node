@@ -18,7 +18,7 @@ prom_scalar() {
 safeboot_overall=$(prom_scalar 'void:safeboot:overall_bool')
 devnet_overall=$(prom_scalar 'void:devnet_overall_with_jobs_v2:health:last_5m')
 mainnet_core=$(prom_scalar 'void_mainnet_core_health')
-manifest_days_raw=$(prom_scalar 'void_mainnet_core_manifest_days_v2_left')
+manifest_days_raw=$(prom_scalar 'void_mainnet_core_manifest_days_left')
 manifest_health=$(prom_scalar 'void_mainnet_core_manifest_health')
 
 echo "[pillars] checking VOID safeboot + devnet + mainnet-core..."
@@ -26,15 +26,15 @@ echo "  safeboot_overall                 = ${safeboot_overall}"
 echo "  void:devnet_overall_with_jobs_v2:health:last_5m       = ${devnet_overall}"
 echo "  void_mainnet_core_health         = ${mainnet_core}"
 echo "  void_mainnet_core_manifest_health= ${manifest_health}"
-echo "  void_mainnet_core_manifest_days_v2  = ${manifest_days_raw}"
+echo "  void_mainnet_core_manifest_days  = ${manifest_days_raw}"
 
 # Choose manifest_days; if missing, -1 means "unknown"
-void_mainnet_core_manifest_days_v2="${manifest_days_raw}"
-if [ -z "${void_mainnet_core_manifest_days_v2}" ] || [ "${void_mainnet_core_manifest_days_v2}" = "null" ] || [ "${void_mainnet_core_manifest_days_v2}" = "error" ]; then
-  void_mainnet_core_manifest_days_v2="-1"
+void_mainnet_core_manifest_days="${manifest_days_raw}"
+if [ -z "${void_mainnet_core_manifest_days}" ] || [ "${void_mainnet_core_manifest_days}" = "null" ] || [ "${void_mainnet_core_manifest_days}" = "error" ]; then
+  void_mainnet_core_manifest_days="-1"
 fi
 
-echo "  void_mainnet_core_manifest_days_v2             = ${void_mainnet_core_manifest_days_v2}"
+echo "  void_mainnet_core_manifest_days             = ${void_mainnet_core_manifest_days}"
 
 devnet_ok=0
 mainnet_core_ok=0
@@ -59,11 +59,11 @@ fi
 #  - If we know days and it's >=7 => OK
 #  - If we know days and it's <7  => FAIL
 #  - If we don't know days at all => SOFT PASS (exporter / CI is source of truth)
-if [ "${void_mainnet_core_manifest_days_v2}" != "-1" ]; then
-  if [ "${void_mainnet_core_manifest_days_v2}" -ge 7 ] 2>/dev/null; then
+if [ "${void_mainnet_core_manifest_days}" != "-1" ]; then
+  if [ "${void_mainnet_core_manifest_days}" -ge 7 ] 2>/dev/null; then
     manifest_ok=1
   else
-    echo "[pillars] ERROR: manifest_days too low (${void_mainnet_core_manifest_days_v2} < 7)"
+    echo "[pillars] ERROR: manifest_days too low (${void_mainnet_core_manifest_days} < 7)"
   fi
 else
   echo "[pillars] NOTE: no manifest_days metric; treating manifest pillar as SOFT PASS."
@@ -124,4 +124,4 @@ if [ "${safeboot_ok}" -ne 1 ]; then
 fi
 
 echo
-echo "[pillars] RESULT: OK (safeboot+devnet+mainnet-core healthy; void_mainnet_core_manifest_days_v2=${void_mainnet_core_manifest_days_v2})"
+echo "[pillars] RESULT: OK (safeboot+devnet+mainnet-core healthy; void_mainnet_core_manifest_days=${void_mainnet_core_manifest_days})"
