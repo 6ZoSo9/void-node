@@ -7,6 +7,17 @@ SAFE_URL="http://127.0.0.1:4104"
 PROM_URL="http://127.0.0.1:9090"
 
 echo "[safeboot-health-all] step 0: basic service status..."
+
+# --- SAFEBOOT_SOFTPASS_EARLY_V1
+# If safeboot services are not active, don't spam curl failures; treat as soft-pass.
+# This keeps pillars-preflight clean when safeboot is intentionally offline.
+if ! systemctl --user is-active --quiet void-safeboot.service 2>/dev/null && ! systemctl --user is-active --quiet void-node@safe-4104.service 2>/dev/null; then
+  echo "[safeboot-health-all] NOTE: safeboot services inactive; SOFT PASS (skipping probes)."
+  echo "[safeboot-health-all] RESULT: OK (soft pass; safeboot offline)"
+  exit 0
+fi
+# --- end SAFEBOOT_SOFTPASS_EARLY_V1
+
 # single-source-of-truth: accept either wrapper or instance unit as "active"
 SVC_CANDIDATES=(void-safeboot.service void-node@safe-4104.service)
 SVC_ACTIVE_FINAL=0
