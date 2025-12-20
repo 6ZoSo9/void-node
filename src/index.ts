@@ -217,6 +217,73 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
+
+// [void-head-forcefront:v5-middleware]
+// Fix /head.txt + /metrics/void/head returning 0 while number2 is correct.
+// Strategy: install an EARLY middleware override (runs before any route handlers).
+(() => {
+  const TAG = "[void-head-forcefront:v5-middleware]";
+  function bestHead(): number {
+    try {
+      const node: any = (globalThis as any).__void_node || (globalThis as any).node;
+      const stores: any[] = [];
+      const push = (x: any) => { if (x && stores.indexOf(x) < 0) stores.push(x); };
+      push(node?.store);
+      push(node?.chain?.store);
+      push(node?.store?.store);
+      push(node?.chain?.store?.store);
+
+      let best = -1;
+
+      for (const st of stores) {
+        const tryNum = (v: any) => {
+          const n = Number(v);
+          if (Number.isFinite(n) && n >= 0 && n > best) best = n;
+        };
+
+        try { if (typeof st?.loadHeadNumber2 === "function") tryNum(st.loadHeadNumber2()); } catch {}
+        try { if (typeof st?.loadHeadNumberV2 === "function") tryNum(st.loadHeadNumberV2()); } catch {}
+        try { if (typeof st?.latestNumber === "function") tryNum(st.latestNumber()); } catch {}
+        try { if (typeof st?.getLatestNumber === "function") tryNum(st.getLatestNumber()); } catch {}
+        try { if (typeof st?.loadHeadNumber === "function") tryNum(st.loadHeadNumber()); } catch {}
+        try { if (typeof st?.headNumber === "number") tryNum(st.headNumber); } catch {}
+        try { if (typeof st?.head === "object" && typeof st.head?.number === "number") tryNum(st.head.number); } catch {}
+        try { if (typeof st?.loadHead === "function") { const h: any = st.loadHead(); tryNum(h?.number); } } catch {}
+        try { if (typeof st?.getHead === "function") { const h: any = st.getHead(); tryNum(h?.number); } } catch {}
+      }
+
+      return best >= 0 ? best : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  try {
+    app.use((req: any, res: any, next: any) => {
+      const url = String(req?.originalUrl || req?.url || "");
+      if (url === "/head.txt" || url.startsWith("/head.txt?")) {
+        const n = bestHead();
+        res.setHeader("X-Void-Head-Forcefront", "v5-middleware");
+        res.type("text/plain").status(200).send(String(n) + "\n");
+        return;
+      }
+      if (url === "/metrics/void/head" || url.startsWith("/metrics/void/head?")) {
+        const n = bestHead();
+        res.setHeader("X-Void-Head-Forcefront", "v5-middleware");
+        res.type("text/plain").status(200).send(
+          "# HELP void_head_number Latest persisted block number\n" +
+          "# TYPE void_head_number gauge\n" +
+          "void_head_number " + String(n) + "\n"
+        );
+        return;
+      }
+      return next();
+    });
+    console.log(TAG, "installed");
+  } catch (e: any) {
+    console.error(TAG, "failed", e?.message || e);
+  }
+})();
 // [void-latest-full2-override:v1]
 // Purpose: /blocks/latest/full2 currently returns {ok,hasBlock,number} only.
 // This early override makes it return a real block payload + injects txRoot (string)
