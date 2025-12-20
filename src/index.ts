@@ -30307,3 +30307,164 @@ app.post('/agent/v0/receipt', express.json(), (req, res) => {
   try { attach(); } catch {}
 })();
 // ================== end HEADER_TXROOT_HARDLOCK_V11__2025_12_17 ===================
+
+
+
+// [void-headtxt-metrics-gate:v2]
+// Reason: Express route order. Earlier /head.txt + /metrics/void/head handlers still win.
+// Fix: intercept at app.handle so probes return canonical persisted head (number2.json).
+(() => {
+  const TICK = 400;
+  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
+  const base = () => "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
+
+  async function headNumber(): Promise<number> {
+    try {
+      const r = await fetch(base() + "/blocks/latest/number2.json");
+      if (!r.ok) return 0;
+      const j: any = await r.json();
+      const n = Number(j && j.number);
+      return (Number.isFinite(n) && n >= 0) ? n : 0;
+    } catch (_e) {
+      return 0;
+    }
+  }
+
+  function ensure() {
+    const app: any = getApp();
+    if (!app || typeof app.handle !== "function") return void setTimeout(ensure, TICK);
+    if ((app as any).__void_headtxt_metrics_gate_v2) return;
+    (app as any).__void_headtxt_metrics_gate_v2 = true;
+
+    const origHandle = app.handle.bind(app);
+
+    app.handle = function(req: any, res: any, out: any) {
+      try {
+        const method = String((req && req.method) || "GET");
+        const origUrl = String((req && (req.originalUrl || req.url)) || "");
+        const path = origUrl.split("?")[0];
+
+        if (method === "GET" && (path === "/head.txt" || path === "/metrics/void/head")) {
+          (async () => {
+            const h = await headNumber();
+            if (res.headersSent) return;
+
+            if (path === "/head.txt") {
+              res.type("text/plain");
+              res.status(200);
+              return void res.end(String(h) + "\n");
+            }
+
+            // /metrics/void/head
+            res.type("text/plain; version=0.0.4");
+            res.status(200);
+            res.write("# HELP void_head_number Latest persisted block number\n");
+            res.write("# TYPE void_head_number gauge\n");
+            res.write("void_head_number " + h + "\n");
+            return void res.end();
+          })().catch((_e) => {
+            try { return origHandle(req, res, out); } catch (__e) { try { return out && out(__e); } catch (___e) {} }
+          });
+          return;
+        }
+      } catch (_e) {}
+      return origHandle(req, res, out);
+    };
+
+    console.log("[headtxt-metrics-gate:v2] installed (intercepts /head.txt + /metrics/void/head)");
+  }
+
+  ensure();
+})();
+
+
+
+
+// [void-headtxt-metrics-routerpatch:v1]
+// Reason: app.handle wrapping can be superseded by later wrappers in this big file.
+// Fix: patch the actual Express router layer handlers for /head.txt and /metrics/void/head in-place.
+(() => {
+  const TICK = 250;
+  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
+  const base = () => "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
+
+  async function headNumber(): Promise<number> {
+    try {
+      const r = await fetch(base() + "/blocks/latest/number2.json");
+      if (!r.ok) return 0;
+      const j: any = await r.json();
+      const n = Number(j && j.number);
+      return (Number.isFinite(n) && n >= 0) ? n : 0;
+    } catch (_e) {
+      return 0;
+    }
+  }
+
+  function mkHeadTxtHandler(){
+    return async function(req: any, res: any){
+      const h = await headNumber();
+      try { res.setHeader("X-Void-HeadPatch", "routerpatch-v1"); } catch(_e){}
+      res.type("text/plain");
+      res.status(200);
+      return void res.end(String(h) + "\n");
+    };
+  }
+
+  function mkMetricsHeadHandler(){
+    return async function(req: any, res: any){
+      const h = await headNumber();
+      try { res.setHeader("X-Void-HeadPatch", "routerpatch-v1"); } catch(_e){}
+      res.type("text/plain; version=0.0.4");
+      res.status(200);
+      res.write("# HELP void_head_number Latest persisted block number\n");
+      res.write("# TYPE void_head_number gauge\n");
+      res.write("void_head_number " + h + "\n");
+      return void res.end();
+    };
+  }
+
+  function patchRoute(app: any, path: string, handler: any): number {
+    let patched = 0;
+    try{
+      const r = (app && (app as any)._router) || null;
+      const stack = r && (r as any).stack;
+      if (!Array.isArray(stack)) return 0;
+
+      for (const layer of stack){
+        const route = layer && layer.route;
+        if (!route || route.path !== path) continue;
+        if (!(route.methods && route.methods.get)) continue;
+
+        const rs = route.stack;
+        if (Array.isArray(rs)){
+          for (const rl of rs){
+            if (rl && typeof rl.handle === "function"){
+              rl.handle = handler;
+              patched++;
+            }
+          }
+        }
+      }
+    }catch(_e){}
+    return patched;
+  }
+
+  function ensure(){
+    const app: any = getApp();
+    if (!app || typeof app.get !== "function") return void setTimeout(ensure, TICK);
+    if ((app as any).__void_headtxt_metrics_routerpatch_v1) return;
+    (app as any).__void_headtxt_metrics_routerpatch_v1 = true;
+
+    const n1 = patchRoute(app, "/head.txt", mkHeadTxtHandler());
+    const n2 = patchRoute(app, "/metrics/void/head", mkMetricsHeadHandler());
+
+    // If routes didn't exist (unexpected), still add them.
+    if (n1 === 0) app.get("/head.txt", mkHeadTxtHandler());
+    if (n2 === 0) app.get("/metrics/void/head", mkMetricsHeadHandler());
+
+    console.log(`[headtxt-metrics-routerpatch:v1] patched head.txt=${n1} metrics/void/head=${n2} (0 means route added)`);
+  }
+
+  ensure();
+})();
+
