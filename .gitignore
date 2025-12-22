@@ -187,3 +187,7 @@ Heap*.heapsnapshot
 scripts/*.pre-recover.*
 src/index.ts.bad.*
 # === /VOID: recovery junk (auto) ===
+
+# park (local recovery + heaps + archives)
+#/src/.park/ is never committed (archives can be huge)
+src/.park/
