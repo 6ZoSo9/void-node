@@ -182,3 +182,8 @@ src/.park/
 Heap*.heapsnapshot
 *.heapsnapshot
 # === /VOID: local backups + heap snapshots ===
+
+# === VOID: recovery junk (auto) ===
+scripts/*.pre-recover.*
+src/index.ts.bad.*
+# === /VOID: recovery junk (auto) ===
