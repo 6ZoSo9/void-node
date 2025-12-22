@@ -191,3 +191,32 @@ src/index.ts.bad.*
 # park (local recovery + heaps + archives)
 #/src/.park/ is never committed (archives can be huge)
 src/.park/
+
+### VOID: ignore backup junk (auto)
+# common backup suffixes / timestamped backups
+*.bak
+*.bak.*
+*.bak-*
+*.bak*
+**/*.bak
+**/*.bak.*
+**/*.bak-*
+**/*.bak*
+
+# common "bak directory" conventions
+.bak-*/
+**/.bak-*/
+**/.bak*/   # e.g. .bak-zoo-2025...
+
+# local env files never committed
+.env
+.env.*
+.env.disabled
+proposer.env.bak*
+void.env.bak*
+
+# core/heap dumps (global ignore should catch too, but belt+suspenders)
+*.heapsnapshot
+Heap*.heapsnapshot
+core
+core.*
