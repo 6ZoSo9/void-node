@@ -165,3 +165,20 @@ logs/
 logs/**
 logs/
 logs/**
+
+# === VOID: local backups + heap snapshots ===
+# Backups created during safe patching / recovery
+src/index.ts.bak*
+src/index.ts.*.bak
+src/index.ts.pre-*.bak
+src/index.ts.recover*.bak
+src/*.bak
+src/*.bak.*
+
+# Parking lot (we keep these out of git)
+src/.park/
+
+# Heap snapshots (node/v8)
+Heap*.heapsnapshot
+*.heapsnapshot
+# === /VOID: local backups + heap snapshots ===
