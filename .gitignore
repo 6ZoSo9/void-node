@@ -35,3 +35,7 @@ ops/prom-snap/
 
 ops/prom-snap/**
 !ops/prom-snap/README.md
+
+# local junk
+.park/
+react
