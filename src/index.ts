@@ -5898,7 +5898,20 @@ import { computeTxRoot } from "./util/txroot.js";
         const body = await r.text();
         res.status(r.status);
         res.set("Content-Type", r.headers.get("content-type") || "application/json; charset=utf-8");
-        res.send(body);
+        
+      // --- WAL replay metrics (SegStore; v1) ---
+      try {
+        const n = ((globalThis as any).__void_node || (globalThis as any).node) as any;
+        const m = n?.store?.getWalReplayMetrics?.();
+        if (m) {
+          out += `void_wal_replay_runs_total ${Number(m.replay_runs_total)||0}\n`;
+          out += `void_wal_replay_entries_applied_total ${Number(m.replay_entries_applied_total)||0}\n`;
+          out += `void_wal_replay_ms_last ${Number(m.replay_ms_last)||0}\n`;
+          out += `void_wal_replay_ms_max ${Number(m.replay_ms_max)||0}\n`;
+          out += `void_wal_replay_last_ok ${Number(m.replay_last_ok)||0}\n`;
+        }
+      } catch {}
+res.send(body);
       } catch (e:any) {
         res.status(500).json({ ok:false, error:String(e) });
       }
