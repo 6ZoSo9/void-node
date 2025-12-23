@@ -5899,19 +5899,21 @@ import { computeTxRoot } from "./util/txroot.js";
         res.status(r.status);
         res.set("Content-Type", r.headers.get("content-type") || "application/json; charset=utf-8");
         
+      
       // --- WAL replay metrics (SegStore; v1) ---
+      let __wal_extra = "";
       try {
         const n = ((globalThis as any).__void_node || (globalThis as any).node) as any;
         const m = n?.store?.getWalReplayMetrics?.();
         if (m) {
-          body += `void_wal_replay_runs_total ${Number(m.replay_runs_total)||0}\n`;
-          body += `void_wal_replay_entries_applied_total ${Number(m.replay_entries_applied_total)||0}\n`;
-          body += `void_wal_replay_ms_last ${Number(m.replay_ms_last)||0}\n`;
-          body += `void_wal_replay_ms_max ${Number(m.replay_ms_max)||0}\n`;
-          body += `void_wal_replay_last_ok ${Number(m.replay_last_ok)||0}\n`;
+          __wal_extra += `void_wal_replay_runs_total ${Number(m.replay_runs_total) || 0}\n`;
+          __wal_extra += `void_wal_replay_entries_applied_total ${Number(m.replay_entries_applied_total) || 0}\n`;
+          __wal_extra += `void_wal_replay_ms_last ${Number(m.replay_ms_last) || 0}\n`;
+          __wal_extra += `void_wal_replay_ms_max ${Number(m.replay_ms_max) || 0}\n`;
+          __wal_extra += `void_wal_replay_last_ok ${Number(m.replay_last_ok) || 0}\n`;
         }
       } catch {}
-res.send(body);
+res.send((body) + __wal_extra);
       } catch (e:any) {
         res.status(500).json({ ok:false, error:String(e) });
       }
