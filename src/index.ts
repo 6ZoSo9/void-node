@@ -5904,11 +5904,11 @@ import { computeTxRoot } from "./util/txroot.js";
         const n = ((globalThis as any).__void_node || (globalThis as any).node) as any;
         const m = n?.store?.getWalReplayMetrics?.();
         if (m) {
-          out += `void_wal_replay_runs_total ${Number(m.replay_runs_total)||0}\n`;
-          out += `void_wal_replay_entries_applied_total ${Number(m.replay_entries_applied_total)||0}\n`;
-          out += `void_wal_replay_ms_last ${Number(m.replay_ms_last)||0}\n`;
-          out += `void_wal_replay_ms_max ${Number(m.replay_ms_max)||0}\n`;
-          out += `void_wal_replay_last_ok ${Number(m.replay_last_ok)||0}\n`;
+          body += `void_wal_replay_runs_total ${Number(m.replay_runs_total)||0}\n`;
+          body += `void_wal_replay_entries_applied_total ${Number(m.replay_entries_applied_total)||0}\n`;
+          body += `void_wal_replay_ms_last ${Number(m.replay_ms_last)||0}\n`;
+          body += `void_wal_replay_ms_max ${Number(m.replay_ms_max)||0}\n`;
+          body += `void_wal_replay_last_ok ${Number(m.replay_last_ok)||0}\n`;
         }
       } catch {}
 res.send(body);
