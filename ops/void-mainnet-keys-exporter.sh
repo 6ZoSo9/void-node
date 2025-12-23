@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+
+# [void-root-autodetect]
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="${REPO_ROOT:-$DEFAULT_ROOT}"
+ROOT="${ROOT:-$REPO_ROOT}"
+
+#!/usr/bin/env bash
 set -euo pipefail
 
 
