@@ -4858,6 +4858,36 @@ import { computeTxRoot } from "./util/txroot.js";
     if(attached) return; attached=true;
 
     app.get("/metrics/void", async (_req: any, res: any) =>{
+
+      // --- WAL replay metrics append hook (v2; safe) ---
+      const __void_wal_append_v2 = (txt: any) => {
+        try {
+          const n = ((globalThis as any).__void_node || (globalThis as any).node) as any;
+          const m = n?.store?.getWalReplayMetrics?.();
+          if (!m) return String(txt ?? "");
+          let extra = "";
+          extra += `void_wal_replay_runs_total ${Number(m.replay_runs_total)||0}\n`;
+          extra += `void_wal_replay_entries_applied_total ${Number(m.replay_entries_applied_total)||0}\n`;
+          extra += `void_wal_replay_ms_last ${Number(m.replay_ms_last)||0}\n`;
+          extra += `void_wal_replay_ms_max ${Number(m.replay_ms_max)||0}\n`;
+          extra += `void_wal_replay_last_ok ${Number(m.replay_last_ok)||0}\n`;
+          if (m.replay_last_error) {
+            const esc = String(m.replay_last_error).replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/"/g,'\\"');
+            extra += `void_wal_replay_last_error{msg="${esc}"} 1\n`;
+          }
+          const base = String(txt ?? "");
+          return base + (base.endsWith("\n") ? "" : "\n") + extra;
+        } catch {
+          return String(txt ?? "");
+        }
+      };
+      try {
+        const __send0 = (res as any).send?.bind(res);
+        if (__send0 && !(res as any).__void_wal_send_wrapped_v2) {
+          (res as any).__void_wal_send_wrapped_v2 = 1;
+          (res as any).send = (body: any) => __send0(__void_wal_append_v2(body));
+        }
+      } catch {}
       const [m4,m3,ml] = await Promise.all([
         fetchText("/metrics/txroot4"),
         fetchText("/metrics/txroot3"),
