@@ -7,25 +7,46 @@ import * as path from "node:path";
 import { Block } from "./block.js";
 
 type Meta = { from: number; to: number; bytes: number; createdAt: number; updatedAt: number };
-type SegOpts = { segmentMaxBytes?: number;
-sparseEvery?: number };
+type SegOpts = { segmentMaxBytes?: number; sparseEvery?: number };
 
 const SEG_SPAN = 10_000;
 
-export class SegStore {
+// Simple, dependency-free WAL v1:
+// - One WAL file per segment: <root>/wal/<seg>.wal (JSONL, base64 payloads)
+// - On startup, replay WAL entries > current head, idempotently.
+// - We do NOT try to guarantee perfect pruning; replay prunes best-effort.
+type WalRecV1 = { v: 1; n: number; b64: string; ts: number };
 
-  // [ADD] Compatibility alias: saveBlock -> writeBlock (non-breaking)
-  // @ts-ignore - back-compat: legacy signature kept; real impl below
-  public saveBlock(b: any){
-    // If writeBlock exists, use it; otherwise surface a clear error
-    // (keeps Node.sealBlock() happy while we stabilize APIs)
-    // @ts-ignore
-    const fn:any = (this as any).writeBlock || (this as any).persistBlock || (this as any).appendBlock;
-    if (typeof fn !== "function") throw new Error("SegStore.saveBlock not implemented");
-    return fn.call(this, b);
-  }
+function mkdirp(p: string) {
+  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+}
+
+function safeReadJson(p: string): any | null {
+  try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; }
+}
+
+function atomicWriteJson(p: string, obj: any) {
+  const dir = path.dirname(p);
+  mkdirp(dir);
+  const tmp = p + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2));
+  // Best-effort durability: fsync(tmp) then rename
+  try {
+    const fd = fs.openSync(tmp, "r");
+    try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch {} }
+  } catch {}
+  fs.renameSync(tmp, p);
+  // Best-effort dir fsync so rename is durable
+  try {
+    const dfd = fs.openSync(dir, "r");
+    try { fs.fsyncSync(dfd); } finally { try { fs.closeSync(dfd); } catch {} }
+  } catch {}
+}
+
+export class SegStore {
   private root: string;
   private segDir: string;
+  private walDir: string;
   private headsFile: string;
   private sparseEvery: number;
   private metaCache = new Map<string, Meta>();
@@ -33,35 +54,36 @@ export class SegStore {
   constructor(root: string, opts: SegOpts = {}) {
     this.root = root;
     this.segDir = path.join(root, "segments");
+    this.walDir = path.join(root, "wal");
     this.headsFile = path.join(root, "heads.json");
     this.sparseEvery = Math.max(1, Number(opts.sparseEvery ?? 256));
-    if (!fs.existsSync(this.segDir)) fs.mkdirSync(this.segDir, { recursive: true });
+
+    mkdirp(this.segDir);
+    mkdirp(this.walDir);
+
     if (!fs.existsSync(this.headsFile)) {
-      fs.writeFileSync(this.headsFile, JSON.stringify({ head: -1, hash: "0x0" }, null, 2));
+      atomicWriteJson(this.headsFile, { head: -1, hash: "0x0" });
     }
+
+    // Replay WAL best-effort on boot (keeps prior behavior if WAL absent).
+    try { this.replayWalAllBestEffort(); } catch {}
   }
 
   loadHeadNumber(): number {
-    try {
-      const j = JSON.parse(fs.readFileSync(this.headsFile, "utf8"));
-      return Number.isFinite(j.head) ? j.head : -1;
-    } catch {
-      return -1;
-    }
+    const j = safeReadJson(this.headsFile);
+    const n = Number(j?.head);
+    return Number.isFinite(n) ? n : -1;
   }
 
-  private persistHead(n: number) {
-    try {
-      const j = JSON.parse(fs.readFileSync(this.headsFile, "utf8"));
-      j.head = n;
-      fs.writeFileSync(this.headsFile, JSON.stringify(j, null, 2));
-    } catch {
-      fs.writeFileSync(this.headsFile, JSON.stringify({ head: n, hash: "0x0" }, null, 2));
-    }
+  private persistHeadAtomic(n: number) {
+    const j = safeReadJson(this.headsFile) || { head: -1, hash: "0x0" };
+    j.head = n;
+    atomicWriteJson(this.headsFile, j);
   }
 
   private segBase(n: number) { return Math.floor(n / SEG_SPAN) * SEG_SPAN; }
   private segName(n: number) { return String(this.segBase(n)).padStart(8, "0"); }
+
   private segPaths(seg: string) {
     const dir = path.join(this.segDir, seg);
     return {
@@ -72,9 +94,13 @@ export class SegStore {
     };
   }
 
+  private walPath(seg: string) {
+    return path.join(this.walDir, `${seg}.wal`);
+  }
+
   private ensureSeg(seg: string) {
     const { dir, bin, idx, meta } = this.segPaths(seg);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    mkdirp(dir);
     if (!fs.existsSync(bin)) fs.writeFileSync(bin, Buffer.alloc(0));
     if (!fs.existsSync(idx)) fs.writeFileSync(idx, "");
     if (!fs.existsSync(meta)) {
@@ -107,8 +133,47 @@ export class SegStore {
     this.metaCache.set(seg, m);
   }
 
-  // @ts-ignore - back-compat: second impl retained for runtime; TS ignore
-  saveBlock(b: Block) {
+  // TS overload signatures (single implementation)
+  public saveBlock(b: any): any;
+  public saveBlock(b: Block): void;
+  public saveBlock(b: any) {
+    // Idempotence guard: if we already have it, don't double-append.
+    // (This keeps WAL replay safe if head.json lags behind blocks.bin.)
+    const n = Number(b?.number);
+    if (!Number.isFinite(n) || n < 0) throw new Error("SegStore.saveBlock: invalid block.number");
+    const head = this.loadHeadNumber();
+    if (head >= n) {
+      const existing = this.loadBlock(n);
+      if (existing) return; // already persisted
+    }
+
+    const seg = this.segName(n);
+    this.ensureSeg(seg);
+
+    // WAL intent (best-effort): append record BEFORE writing blocks.bin
+    this.walAppendBestEffort(seg, b);
+
+    // Commit to segment store
+    this.saveBlockCommit(b);
+
+    // Head bump (atomic rename)
+    this.persistHeadAtomic(n);
+  }
+
+  private walAppendBestEffort(seg: string, b: any) {
+    try {
+      const body = Buffer.from(JSON.stringify(b));
+      const rec: WalRecV1 = { v: 1, n: Number(b.number), b64: body.toString("base64"), ts: Date.now() };
+      fs.appendFileSync(this.walPath(seg), JSON.stringify(rec) + "\n");
+      // Best-effort fsync for WAL (don’t die if it fails)
+      try {
+        const fd = fs.openSync(this.walPath(seg), "r");
+        try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch {} }
+      } catch {}
+    } catch {}
+  }
+
+  private saveBlockCommit(b: Block) {
     const seg = this.segName(b.number);
     this.ensureSeg(seg);
     const { bin, idx } = this.segPaths(seg);
@@ -117,6 +182,7 @@ export class SegStore {
     const body = Buffer.from(JSON.stringify(b));
     const len = Buffer.alloc(4);
     len.writeUInt32BE(body.length, 0);
+
     const off = fs.statSync(bin).size;
     fs.appendFileSync(bin, Buffer.concat([len, body]));
 
@@ -127,7 +193,12 @@ export class SegStore {
     m.to = Math.max(m.to, b.number);
     m.bytes += 4 + body.length;
     this.putMeta(seg, m);
-    this.persistHead(b.number);
+
+    // Best-effort durability: fsync blocks.bin and index/meta
+    try {
+      const fd = fs.openSync(bin, "r");
+      try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch {} }
+    } catch {}
   }
 
   loadBlock(n: number): Block | null {
@@ -169,5 +240,90 @@ export class SegStore {
     }
     return null;
   }
-}
 
+  // ---- WAL replay ----
+
+  private replayWalAllBestEffort() {
+    // Replay each existing wal/<seg>.wal
+    if (!fs.existsSync(this.walDir)) return;
+    const files = fs.readdirSync(this.walDir).filter((f) => f.endsWith(".wal"));
+    if (!files.length) return;
+
+    for (const f of files) {
+      const seg = f.replace(/\.wal$/, "");
+      try { this.replayWalSegBestEffort(seg); } catch {}
+    }
+  }
+
+  private replayWalSegBestEffort(seg: string) {
+    const wp = this.walPath(seg);
+    if (!fs.existsSync(wp)) return;
+
+    const head0 = this.loadHeadNumber();
+    const lines = fs.readFileSync(wp, "utf8").split("\n").filter(Boolean);
+
+    let maxApplied = head0;
+    const keep: string[] = [];
+
+    for (const line of lines) {
+      let rec: WalRecV1 | null = null;
+      try { rec = JSON.parse(line); } catch { rec = null; }
+      if (!rec || rec.v !== 1) continue;
+
+      const n = Number(rec.n);
+      if (!Number.isFinite(n)) continue;
+
+      // Keep anything > current head AFTER replay attempt (we’ll decide later)
+      if (n <= this.loadHeadNumber()) continue;
+
+      // Decode block
+      let blk: any = null;
+      try {
+        const buf = Buffer.from(String(rec.b64 || ""), "base64");
+        blk = JSON.parse(buf.toString("utf8"));
+      } catch { blk = null; }
+
+      if (!blk || Number(blk.number) !== n) {
+        // malformed; keep it so we don't accidentally destroy evidence
+        keep.push(line);
+        continue;
+      }
+
+      // If block already exists on disk, just bump head to n
+      const existing = this.loadBlock(n);
+      if (existing) {
+        this.persistHeadAtomic(n);
+        maxApplied = Math.max(maxApplied, n);
+        continue;
+      }
+
+      // Commit missing block, bump head
+      try {
+        this.saveBlockCommit(blk as Block);
+        this.persistHeadAtomic(n);
+        maxApplied = Math.max(maxApplied, n);
+      } catch {
+        // couldn't apply; keep for next boot
+        keep.push(line);
+      }
+    }
+
+    // Prune WAL best-effort:
+    // - If everything <= head got applied, WAL can be deleted.
+    // - Otherwise rewrite only the kept lines.
+    try {
+      if (keep.length === 0) {
+        fs.unlinkSync(wp);
+      } else {
+        fs.writeFileSync(wp, keep.join("\n") + "\n");
+        try {
+          const fd = fs.openSync(wp, "r");
+          try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch {} }
+        } catch {}
+      }
+    } catch {}
+
+    // Noisy logging avoided; callers can inspect head themselves.
+    void maxApplied;
+  }
+}
