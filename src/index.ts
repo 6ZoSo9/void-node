@@ -191,12 +191,13 @@ console.log("[shim] published global node (post-construct)");
 
 // --- info exporter (Prometheus text) ---
 ;(function infoExporter(){
-  const G = globalThis;
+const G: any = globalThis as any;
+
   const app = (G && G.__void_http_app) || (G && G.app);
   if (!app || app.__void_info_bound) return; app.__void_info_bound = true;
   const started = Date.now();
 
-  app.get("/__void/info.prom", (_req, res) => {
+  app.get("/__void/info.prom", (_req: any, res: any) => {
     try {
       const rss = (process.memoryUsage && process.memoryUsage().rss) || 0;
       const up = (typeof process.uptime === "function") ? process.uptime() : Math.max(0, (Date.now()-started)/1000);
@@ -277,7 +278,7 @@ console.log("[shim] published global node (post-construct)");
 
   // --- minimal mempool-backed tx submit route (dev only) ---
   const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
-  app.post("/tx/submit", async (req, res) => {
+  app.post("/tx/submit", async (req: any, res: any) => {
     
     
     try { globalEnqueueTx(req.body ?? {}); const q=(globalThis as any).__void_tx_queue; console.log("[route] /tx/submit enq size=%s", Array.isArray(q)?q.length:-1); } catch {}
@@ -305,7 +306,7 @@ console.log("[shim] published global node (post-construct)");
 
   /* ===================== MAINTENANCE ===================== */
   // Convenience: full latest block JSON (robust for jq etc.)
-  app.get("/blocks/latest/full", (_req, res) => {
+  app.get("/blocks/latest/full", (_req: any, res: any) => {
     try {
       const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store?.loadHeadNumber?.() ?? -1;
       if (n < 0) return res.status(404).json({ ok:false, error:"no blocks" });
@@ -317,7 +318,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.get("/maintenance/verify", async (_req, res) => {
+  app.get("/maintenance/verify", async (_req: any, res: any) => {
     try {
       const r = await runTsxScript("scripts/check_store.ts", {
         env: { DATA_DIR: process.env.DATA_DIR || "data" },
@@ -336,7 +337,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.post("/maintenance/auto-repair", async (req, res) => {
+  app.post("/maintenance/auto-repair", async (req: any, res: any) => {
     try {
       const remote = String(req.socket.remoteAddress || "");
       const allowRemote = process.env.ALLOW_REMOTE_REPAIR === "1";
@@ -372,7 +373,7 @@ console.log("[shim] published global node (post-construct)");
   });
 
   /* ===================== INDEX MAINTENANCE ===================== */
-  app.post("/index/rebuild", async (_req, res) => {
+  app.post("/index/rebuild", async (_req: any, res: any) => {
     try {
       res.json(await (((globalThis as any).__void_node || (globalThis as any).node) as any).rebuildTxIndex());
     } catch (e: any) {
@@ -380,7 +381,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.post("/index/build", async (_req, res) => {
+  app.post("/index/build", async (_req: any, res: any) => {
     try {
       res.json(await buildAllKidx(DATA_DIR));
     } catch (e: any) {
@@ -388,7 +389,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.post("/index/kidx/build", async (_req, res) => {
+  app.post("/index/kidx/build", async (_req: any, res: any) => {
     try {
       const shards = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.listShards();
       let baseDir = DATA_DIR;
@@ -403,7 +404,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.get("/index/stats", (_req, res) => {
+  app.get("/index/stats", (_req: any, res: any) => {
     const shards = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.listShards().map((s: any) => {
       const jsonlStat = fs.existsSync(s.path) ? fs.statSync(s.path) : null;
       const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
@@ -419,7 +420,7 @@ console.log("[shim] published global node (post-construct)");
     res.json({ ok: true, shards });
   });
 
-  app.post("/index/gc", (req, res) => {
+  app.post("/index/gc", (req: any, res: any) => {
     const keepLast = Number(req.query.keepLast || 1);
     try {
       res.json((((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.gc(keepLast));
@@ -428,7 +429,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.post("/index/kidx/rebuild-shard", async (req, res) => {
+  app.post("/index/kidx/rebuild-shard", async (req: any, res: any) => {
     const blockParam = req.query.block;
     const hashParam = req.query.hash;
     try {
@@ -483,7 +484,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.post("/index/kidx/rebuild-hash", async (req, res) => {
+  app.post("/index/kidx/rebuild-hash", async (req: any, res: any) => {
     try {
       const hash = String(req.query.hash || "").toLowerCase();
       if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
@@ -527,10 +528,10 @@ console.log("[shim] published global node (post-construct)");
     res.json({ ok: true, head: (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber() });
   });
 
-  app.get("/peers", (_req, res) => res.json({ ok: true, ...(((globalThis as any).__void_node || (globalThis as any).node) as any).peersSnapshot?.() }));
+  app.get("/peers", (_req: any, res: any) => res.json({ ok: true, ...(((globalThis as any).__void_node || (globalThis as any).node) as any).peersSnapshot?.() }));
 
   /* Peer registry QoL */
-  app.get("/peers/registry", (_req, res) => {
+  app.get("/peers/registry", (_req: any, res: any) => {
     try {
       res.json({ ok: true, peers: peersReg.all() });
     } catch (e: any) {
@@ -538,7 +539,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.post("/peers/registry/upsert", (req, res) => {
+  app.post("/peers/registry/upsert", (req: any, res: any) => {
     try {
       const id = String(req.body?.id || "");
       if (!id) return res.json({ ok: false, error: "missing id" });
@@ -553,7 +554,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.post("/peers/registry/announce-self", async (_req, res) => {
+  app.post("/peers/registry/announce-self", async (_req: any, res: any) => {
     try {
       const peers = peersReg.all();
       let sent = 0;
@@ -568,7 +569,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.post("/peers/registry/purge", (req, res) => {
+  app.post("/peers/registry/purge", (req: any, res: any) => {
     try {
       const maxAgeSec = Number(req.query.maxAgeSec || 600);
       const r = peersReg.purgeStale(Math.max(1, maxAgeSec) * 1000);
@@ -579,7 +580,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.get("/peers/registry/ids", (_req, res) => {
+  app.get("/peers/registry/ids", (_req: any, res: any) => {
     try {
       res.json(peersReg.all().map((p) => p.id));
     } catch (e: any) {
@@ -587,7 +588,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.delete("/peers/registry/:id", (req, res) => {
+  app.delete("/peers/registry/:id", (req: any, res: any) => {
     try {
       const id = String(req.params.id || "");
       const r = peersReg.remove(id);
@@ -598,14 +599,14 @@ console.log("[shim] published global node (post-construct)");
   });
 
   /* ===================== BLOCKS ===================== */
-  app.get("/blocks/head", (_req, res) => {
+  app.get("/blocks/head", (_req: any, res: any) => {
     const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
     const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(n);
     if (!b) return res.json({ ok: true, head: -1 });
     res.json({ ok: true, head: n, hash: blockHash(b) });
   });
 
-  app.get("/blocks/get/:number", (req, res) => {
+  app.get("/blocks/get/:number", (req: any, res: any) => {
     const n = Number(req.params.number);
     if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, error: "bad number" });
     const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(n);
@@ -613,7 +614,7 @@ console.log("[shim] published global node (post-construct)");
     res.json(b);
   });
 
-  app.get("/blocks/range", (req, res) => {
+  app.get("/blocks/range", (req: any, res: any) => {
     const from = Number(req.query.from ?? 0);
     const to = Number(req.query.to ?? (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber());
     if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
@@ -632,7 +633,7 @@ console.log("[shim] published global node (post-construct)");
   });
 
   /* Bulk block import (follower) */
-  app.post("/blocks/import", async (req, res) => {
+  app.post("/blocks/import", async (req: any, res: any) => {
     try {
       const arr = Array.isArray(req.body) ? req.body : [];
       if (!arr.length) return res.json({ ok: true, imported: 0, alreadyHad: 0, filled: 0, kidxRebuilt: 0 });
@@ -702,7 +703,7 @@ console.log("[shim] published global node (post-construct)");
   });
 
   /* -------- Proposer controls -------- */
-  app.post("/blocks/stop", (_req, res) => {
+  app.post("/blocks/stop", (_req: any, res: any) => {
     try {
       const r = ( (((globalThis as any).__void_node || (globalThis as any).node) as any).stopProposer?.() ) ?? ({ ok: true, note: "no stopProposer(), noop" } as any);
       res.json(r || { ok: true });
@@ -711,7 +712,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.post("/blocks/once", async (req, res) => {
+  app.post("/blocks/once", async (req: any, res: any) => {
     try {
       const t0 = Date.now();
       const allowEmptyOnce = String(req.query.allowEmpty || req.query.empty || "0") === "1";
@@ -759,7 +760,7 @@ console.log("[shim] published global node (post-construct)");
     }
   }
 
-  app.get("/tx/lookup", async (req, res) => {
+  app.get("/tx/lookup", async (req: any, res: any) => {
     const hash = String(req.query.hash || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
 
@@ -798,7 +799,7 @@ console.log("[shim] published global node (post-construct)");
     return res.json({ ok: true, found: false });
   });
 
-  app.get("/tx/receipt", (req, res) => {
+  app.get("/tx/receipt", (req: any, res: any) => {
     const hash = String(req.query.hash || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
     const r: any = (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts.get(hash);
@@ -807,7 +808,7 @@ console.log("[shim] published global node (post-construct)");
     res.json({ ok: true, found: true, n, o, ts });
   });
 
-  app.get("/tx/status", (req, res) => {
+  app.get("/tx/status", (req: any, res: any) => {
     const hash = String(req.query.hash || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
     try {
@@ -824,12 +825,12 @@ console.log("[shim] published global node (post-construct)");
     return res.json({ ok: true, status: "unknown" });
   });
 
-  app.get("/receipts/stats", (_req, res) => {
+  app.get("/receipts/stats", (_req: any, res: any) => {
     const s = ( (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts?.stats?.() ) ?? ({ shards: [], totalBytes: 0, totalLines: 0 } as any);
     res.json({ ok: true, ...s });
   });
 
-  app.post("/receipts/gc", (req, res) => {
+  app.post("/receipts/gc", (req: any, res: any) => {
     const keepLast = Number(req.query.keepLast || 1);
     try {
       const r =
@@ -842,7 +843,7 @@ console.log("[shim] published global node (post-construct)");
   });
 
   /* ===================== MEMPOOL / TX SUBMIT ===================== */
-  app.get("/mempool/count", (_req, res) => {
+  app.get("/mempool/count", (_req: any, res: any) => {
     try {
       const txs = (((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ?? [];
       res.json({ ok: true, count: Array.isArray(txs) ? txs.length : 0 });
@@ -851,7 +852,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.post("/tx", (req, res) => {
+  app.post("/tx", (req: any, res: any) => {
     const tx = req.body;
     if (!tx || typeof tx !== "object") {
       return res.status(400).json({ ok: false, error: "validation failed: not an object" });
@@ -870,13 +871,13 @@ console.log("[shim] published global node (post-construct)");
     res.json({ ok: true });
   });
 
-  app.get("/mempool", (_req, res) => {
+  app.get("/mempool", (_req: any, res: any) => {
     const txs = (((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ?? [];
     res.json({ ok: true, size: Array.isArray(txs) ? txs.length : 0, txs });
   });
 
   /* ===================== BLOBS ===================== */
-  app.post("/blob/put", async (req, res) => {
+  app.post("/blob/put", async (req: any, res: any) => {
     const MAX = MAX_BLOB_MB * 1024 * 1024;
     if (typeof (req.body as any)?.text === "string") {
       const buf = Buffer.from((req.body as any).text, "utf8");
@@ -893,7 +894,7 @@ console.log("[shim] published global node (post-construct)");
     return res.json({ ok: false, error: "send {text} or {base64} JSON" });
   });
 
-  app.get("/blob/stat/:cid", (req, res) => {
+  app.get("/blob/stat/:cid", (req: any, res: any) => {
     try {
       const cid = String(req.params.cid || "").trim();
       if (!cid) return res.json({ ok: false, error: "missing cid" });
@@ -905,7 +906,7 @@ console.log("[shim] published global node (post-construct)");
     }
   });
 
-  app.get("/blob/stats", (_req, res) => {
+  app.get("/blob/stats", (_req: any, res: any) => {
     try {
       const dir = path.join(DATA_DIR, "blobs");
       if (!fs.existsSync(dir))
@@ -937,7 +938,7 @@ console.log("[shim] published global node (post-construct)");
   });
 
   /* ===================== METRICS TEXT ===================== */
-  app.get("/metrics", (_req, res) => {
+  app.get("/metrics", (_req: any, res: any) => {
     const head = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
     const peers = [...(((globalThis as any).__void_node || (globalThis as any).node) as any).peers.keys()].filter((k: string) => !k.startsWith("?-")).length;
     const mempool = (((((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ) || []).length;
@@ -4578,7 +4579,7 @@ import { computeTxRoot } from "./util/txroot.js";
   let tries = 0, attached = false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
 
-  async function getHead(base){
+  async function getHead(base: string){
     try {
       const r = await fetch(String(base).replace(/\/+$/,'') + "/blocks/latest/number2.json");
       if (!r.ok) throw new Error("bad " + r.status);
@@ -4593,7 +4594,7 @@ import { computeTxRoot } from "./util/txroot.js";
     if (attached) return; attached = true;
 
     // GET /follower/status?peer=http://127.0.0.1:4100
-    app.get("/follower/status", async (req, res) => {
+    app.get("/follower/status", async (req: any, res: any) => {
       const peer = String(req.query.peer || "http://127.0.0.1:4100");
       const self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
 
@@ -4603,7 +4604,7 @@ import { computeTxRoot } from "./util/txroot.js";
     });
 
     // Compat alias
-    app.get("/follower/status2", async (req, res) => {
+    app.get("/follower/status2", async (req: any, res: any) => {
       const peer = String(req.query.peer || "http://127.0.0.1:4100");
       const self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
       const [head_local, head_peer] = await Promise.all([getHead(self), getHead(peer)]);
@@ -4824,7 +4825,7 @@ import { computeTxRoot } from "./util/txroot.js";
     const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
     if(attached) return; attached=true;
 
-    app.get("/metrics/lastblock", async(_req,res)=>{
+    app.get("/metrics/lastblock", async (_req: any, res: any) =>{
       const n=await getHead();
       let txCount=0;
       if(n>=0){
@@ -4856,7 +4857,7 @@ import { computeTxRoot } from "./util/txroot.js";
     const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
     if(attached) return; attached=true;
 
-    app.get("/metrics/void", async (_req,res)=>{
+    app.get("/metrics/void", async (_req: any, res: any) =>{
       const [m4,m3,ml] = await Promise.all([
         fetchText("/metrics/txroot4"),
         fetchText("/metrics/txroot3"),
@@ -4873,11 +4874,11 @@ import { computeTxRoot } from "./util/txroot.js";
 ;(function opsTxrootState(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function t(path){ try{ const r=await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100")+path); return await r.text(); }catch{ return ""; } }
+  async function t(path: string){ try{ const r=await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100")+path); return await r.text(); }catch{ return ""; } }
   async function attach(){
     const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
     if(attached) return; attached=true;
-    app.get("/ops/txroot-state.json", async (_req,res)=>{
+    app.get("/ops/txroot-state.json", async (_req: any, res: any) =>{
       const [m4,m3,ml] = await Promise.all([t("/metrics/txroot4"), t("/metrics/txroot3"), t("/metrics/lastblock")]);
       res.json({ ok:true, metrics:{ txroot4:m4, txroot3:m3, lastblock:ml } });
     });
@@ -4900,7 +4901,7 @@ import { computeTxRoot } from "./util/txroot.js";
     const selfPort = String(process.env.HTTP_PORT || "4100");
     const peer = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
 
-    app.get("/metrics/drift", async (_req,res)=>{
+    app.get("/metrics/drift", async (_req: any, res: any) =>{
       let drift = NaN, head_local = NaN, head_peer = NaN;
       try {
         const url = `http://127.0.0.1:${selfPort}/follower/status?peer=${encodeURIComponent(peer)}`;
@@ -4935,7 +4936,7 @@ import { computeTxRoot } from "./util/txroot.js";
     const selfPort = String(process.env.HTTP_PORT || "4100");
     const peer = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
 
-    app.get("/metrics/drift", async (_req,res)=>{
+    app.get("/metrics/drift", async (_req: any, res: any) =>{
       let drift=0, head_local=0, head_peer=0;
       const url = `http://127.0.0.1:${selfPort}/follower/status?peer=${encodeURIComponent(peer)}`;
       const d = await getJSON(url);
@@ -7567,7 +7568,7 @@ void_txroot_v4_errors_total ${X.errors}
 
     // Lazy import to avoid top-level churn
     const { attachTxrootSetter } = await import("./hooks/txroot_setter.js");
-try { /* ok */ } catch (e) { console.warn("[boot.txroot-setter] dynamic import warning:", String(e?.message||e)); }
+try { /* ok */ } catch (e: any) { console.warn("[boot.txroot-setter] dynamic import warning:", String(e?.message||e)); }
 
     if (app && store2 && typeof attachTxrootSetter === "function") {
       attachTxrootSetter({ app, store: store2, log: (...a:any[])=>console.log("[boot.txroot-setter]", ...a) });
@@ -9052,7 +9053,7 @@ void_seal_rate_1m ${rate1m()}
     } catch {}
     // Fallback: hash JSON of each tx (stable stringify) → sha256 → merkle(sha256 hex)
     const txs = Array.isArray(block?.txs) ? block.txs : [];
-    const leaves = txs.map(tx => sha256Hex(JSON.stringify(tx)));
+    const leaves = txs.map((tx: any) => sha256Hex(JSON.stringify(tx)));
     return merkleRootHex(leaves);
   }
 
@@ -9912,7 +9913,7 @@ void_seal_rate_1m ${rate1m()}
         }
       } catch (e) {
         // Non-fatal: never block persistence
-        (globalThis as any).__lastMile_error = String(e && (e.stack || e));
+        (globalThis as any).__lastMile_error = String(e && ((e as any).stack || e));
       }
       return inner(block);
     };
@@ -10861,7 +10862,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
   let tries=0, attached=false;
   const RETRY=250, MAX_TRIES=600; // ~150s
 
-  async function fetchText(url, timeoutMs){
+  async function fetchText(url: string, timeoutMs: number){
     const timer = timeoutMs ? setTimeout(()=>{}, timeoutMs) : null; // noop timeout placeholder
     try{
       const r = await fetch(url);
@@ -10870,7 +10871,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
     finally{ if (timer) clearTimeout(timer); }
   }
 
-  function parseGauge(src, name){
+  function parseGauge(src: string, name: string){
     const m = src && src.match(new RegExp(`^${name}\\s+(-?\\d+(?:\\.\\d+)?)$`, "m"));
     return m ? Number(m[1]) : null;
   }
@@ -10893,26 +10894,26 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
   }
 
   function attach(){
-    const g = globalThis; const app = g.__void_http_app || g.app;
+    const g: any = globalThis as any; const app = g.__void_http_app || g.app;
     if (!app || typeof app.get !== "function"){ if(++tries<MAX_TRIES) return setTimeout(attach, RETRY); return; }
     if (attached) return; attached = true;
 
-    app.get("/__void/ready.json", async (_req,res)=>{
+    app.get("/__void/ready.json", async (_req: any, res: any) =>{
       const {head, live, seen} = await readInputs();
       const okHead = Number.isFinite(head), okSeen = Number.isFinite(seen), okLive = (live===1);
-      const gap = (okHead && okSeen) ? (head - seen) : null;
+      const gap = (typeof head === "number" && typeof seen === "number") ? (head - seen) : null;
       const reasons = [];
       if(!okHead) reasons.push("no_head");
       if(!okSeen) reasons.push("no_lastmile_seen");
       if(!okLive) reasons.push("txroot_live!=1");
-      if(okHead && okSeen && gap>10) reasons.push(`gap>10 (gap=${gap})`);
+      if(typeof gap === "number" && gap>10) reasons.push(`gap>10 (gap=${gap})`);
       res.json({ready: reasons.length===0, head: okHead?head:null, lastmile_seen: okSeen?seen:null, gap: (typeof gap_clamped!=="undefined"? gap_clamped : Math.max(0,(gap ?? -1))), txroot_live: okLive?1:0, reasons});
     });
 
-    app.get("/__void/ready.prom", async (_req,res)=>{
+    app.get("/__void/ready.prom", async (_req: any, res: any) =>{
       const {head, live, seen} = await readInputs();
       const okHead = Number.isFinite(head), okSeen = Number.isFinite(seen), okLive = (live===1);
-      const gap = (okHead&&okSeen) ? (head - seen) : -1;
+      const gap = (typeof head === "number" && typeof seen === "number") ? (head - seen) : -1;
       const ready = okLive && okHead && okSeen && gap<=10;
       res.type("text/plain").send(
         `# HELP void_ready Node readiness (1 ready, 0 not ready)\n` +
@@ -14114,6 +14115,7 @@ void_header3_last_mismatch ${lastMismatch}
         forensic.last_shape = typeof a0;
       }
       try {
+        // @ts-ignore - noImplicitThis shim for wrapper preserve-this
         const ret = await fn.apply(this, args);
         forensic.last_duration_ms = Date.now() - t0;
         return ret;
@@ -14209,6 +14211,7 @@ void_header3_last_mismatch ${lastMismatch}
         forensic.last_shape = typeof a0;
       }
       try {
+        // @ts-ignore - noImplicitThis shim for wrapper preserve-this
         const ret = await fn.apply(this, args);
         forensic.last_duration_ms = Date.now() - t0;
         return ret;
@@ -14347,6 +14350,7 @@ void_header3_last_mismatch ${lastMismatch}
         forensic.last_shape = 'n/a';
       }
       try {
+        // @ts-ignore - noImplicitThis shim for wrapper preserve-this
         const ret = fn.apply(this, args);
         if (ret && typeof ret.then === 'function') {
           return (ret as Promise<any>).finally(()=>{ forensic.last_duration_ms = Date.now()-t0; });
@@ -14513,6 +14517,7 @@ void_header3_last_mismatch ${lastMismatch}
         STATE.last_kind = typeof a0; STATE.last_shape = 'n/a';
       }
       try {
+        // @ts-ignore - noImplicitThis shim for wrapper preserve-this
         const out = fn.apply(this, args);
         if (out && typeof out.then === 'function') {
           return (out as Promise<any>).finally(()=>{ STATE.last_duration_ms = Date.now()-t0; });
@@ -15408,7 +15413,7 @@ void_txroot_forensics_last_ms_v7 ${state.last_ms}
     last_ms: 0,
   };
 
-  function wait(fn){ setTimeout(fn, TICK); }
+  function wait(fn: ()=>void){ setTimeout(fn, TICK); }
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
 
   try {
