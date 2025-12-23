@@ -6,6 +6,28 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { Block } from "./block.js";
 
+
+// --- WAL replay metrics (v1; additive) ---
+export type WalReplayMetrics = {
+  replay_runs_total: number;
+  replay_entries_applied_total: number;
+  replay_ms_last: number;
+  replay_ms_max: number;
+  replay_last_ok: 0 | 1;
+  replay_last_error: string;
+};
+
+function _walReplayMetricsInit(): WalReplayMetrics {
+  return {
+    replay_runs_total: 0,
+    replay_entries_applied_total: 0,
+    replay_ms_last: 0,
+    replay_ms_max: 0,
+    replay_last_ok: 1,
+    replay_last_error: "",
+  };
+}
+
 type Meta = { from: number; to: number; bytes: number; createdAt: number; updatedAt: number };
 type SegOpts = { segmentMaxBytes?: number; sparseEvery?: number };
 
@@ -44,6 +66,10 @@ function atomicWriteJson(p: string, obj: any) {
 }
 
 export class SegStore {
+  // --- WAL replay metrics (v1) ---
+  private _walReplayMetrics: WalReplayMetrics = _walReplayMetricsInit();
+  public getWalReplayMetrics(): WalReplayMetrics { return this._walReplayMetrics; }
+
   private root: string;
   private segDir: string;
   private walDir: string;
@@ -244,6 +270,11 @@ export class SegStore {
   // ---- WAL replay ----
 
   private replayWalAllBestEffort() {
+    const __wal_t0 = Date.now();
+    this._walReplayMetrics.replay_runs_total++;
+    this._walReplayMetrics.replay_last_ok = 1;
+    this._walReplayMetrics.replay_last_error = "";
+
     // Replay each existing wal/<seg>.wal
     if (!fs.existsSync(this.walDir)) return;
     const files = fs.readdirSync(this.walDir).filter((f) => f.endsWith(".wal"));
@@ -253,9 +284,14 @@ export class SegStore {
       const seg = f.replace(/\.wal$/, "");
       try { this.replayWalSegBestEffort(seg); } catch {}
     }
-  }
+  
+    this._walReplayMetrics.replay_ms_last = Math.max(0, Date.now() - __wal_t0);
+    this._walReplayMetrics.replay_ms_max = Math.max(this._walReplayMetrics.replay_ms_max, this._walReplayMetrics.replay_ms_last);
+}
 
   private replayWalSegBestEffort(seg: string) {
+    let __wal_applied = 0;
+
     const wp = this.walPath(seg);
     if (!fs.existsSync(wp)) return;
 
@@ -266,6 +302,8 @@ export class SegStore {
     const keep: string[] = [];
 
     for (const line of lines) {
+      __wal_applied++;
+
       let rec: WalRecV1 | null = null;
       try { rec = JSON.parse(line); } catch { rec = null; }
       if (!rec || rec.v !== 1) continue;
@@ -325,5 +363,7 @@ export class SegStore {
 
     // Noisy logging avoided; callers can inspect head themselves.
     void maxApplied;
-  }
+  
+    if (__wal_applied > 0) this._walReplayMetrics.replay_entries_applied_total += __wal_applied;
+}
 }
