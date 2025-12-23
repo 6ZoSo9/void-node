@@ -218,6 +218,75 @@ console.log("[shim] published global node (post-construct)");
   const app = express();
   (globalThis as any).__void_http_app = app;
 
+/* VOID_SELFHTTP_KEEPALIVE_V1
+   Mitigation: reduce localhost self-HTTP socket churn (TIME-WAIT storms)
+   - Force pooled keep-alive for global fetch (undici dispatcher) when available
+   - Extend server keep-alive timeouts by wrapping app.listen()
+   Notes:
+   - This is a mitigation, not the “true fix”. The real fix is to delete self-HTTP loops.
+*/
+(() => {
+  try {
+    const keepAliveMs = Number(process.env.VOID_SELFHTTP_KEEPALIVE_TIMEOUT_MS || "60000");
+    const srvKeepAliveMs = Number(process.env.VOID_SERVER_KEEPALIVE_TIMEOUT_MS || "65000");
+    const srvHeadersMs   = Number(process.env.VOID_SERVER_HEADERS_TIMEOUT_MS || "70000");
+
+    // ---- [A] patch app.listen to widen keep-alive / headers timeouts ----
+    try {
+      const anyApp: any = (app as any);
+      if (!anyApp.__void_keepalive_listen_patched) {
+        const orig = anyApp.listen?.bind(app);
+        if (typeof orig === "function") {
+          anyApp.listen = (...args: any[]) => {
+            const server: any = orig(...args);
+            try {
+              // Node http.Server / https.Server (best-effort)
+              server.keepAliveTimeout = srvKeepAliveMs;
+              server.headersTimeout   = srvHeadersMs;
+              if ("requestTimeout" in server) {
+                // requestTimeout must be >= headersTimeout on newer Node
+                server.requestTimeout = Math.max(srvHeadersMs + 5000, 75000);
+              }
+              if (server.setTimeout) server.setTimeout(Math.max(srvKeepAliveMs, 60000));
+            } catch {}
+            return server;
+          };
+          anyApp.__void_keepalive_listen_patched = 1;
+          try { console.log(`[keepalive] patched app.listen (srvKeepAliveMs=${srvKeepAliveMs} headersMs=${srvHeadersMs})`); } catch {}
+        }
+      }
+    } catch {}
+
+    // ---- [B] set undici global dispatcher for pooled keep-alive fetch ----
+    try {
+      if (!(globalThis as any).__void_keepalive_undici_set) {
+        (async () => {
+          try {
+            const u: any = await import("undici");
+            if (!u?.Agent || !u?.setGlobalDispatcher) return;
+
+            const agent = new u.Agent({
+              keepAliveTimeout: keepAliveMs,
+              keepAliveMaxTimeout: keepAliveMs,
+              connect: { timeout: 3000 },
+            });
+
+            u.setGlobalDispatcher(agent);
+            (globalThis as any).__void_keepalive_undici_set = 1;
+            try { console.log(`[keepalive] undici dispatcher set (keepAliveMs=${keepAliveMs})`); } catch {}
+          } catch (e: any) {
+            try { console.log("[keepalive] undici import failed:", String(e?.message || e)); } catch {}
+          }
+        })();
+      }
+    } catch {}
+  } catch (e: any) {
+    try { console.log("[keepalive] failed:", String(e?.message || e)); } catch {}
+  }
+})();
+/* /VOID_SELFHTTP_KEEPALIVE_V1 */
+
+
 // [void-head-forcefront:v5-middleware]
 // Fix /head.txt + /metrics/void/head returning 0 while number2 is correct.
 // Strategy: install an EARLY middleware override (runs before any route handlers).
