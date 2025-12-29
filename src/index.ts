@@ -615,6 +615,28 @@ const G: any = globalThis as any;
   /* ===================== BLOCKS ===================== */
 
   // [blocks/range:guard:v1]
+
+  // [blocks/range:version:v1]
+  // Runtime introspection for debugging deployments.
+  app.get("/__void/routes/blocks-range", (_req: any, res: any) => {
+    try {
+      const maxSpan = Number(process.env.VOID_BLOCKS_RANGE_MAX || 2000);
+      res.json({
+        ok: true,
+        route: "/blocks/range",
+        canonical: "guard:v1",
+        aliases: ["from/to", "start/end"],
+        maxSpan,
+        legacy: {
+          present: true,
+          disabled: "legacy-hardoff:v1 (410)",
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  });
+
   // Harden /blocks/range to prevent accidental "0..head" scans that freeze the event loop.
   // Accept aliases (?start/?end) and cap response size. Defaults to a single block if "to" missing.
   app.get("/blocks/range", async (req: any, res: any) => {
