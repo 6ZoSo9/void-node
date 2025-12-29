@@ -696,7 +696,10 @@ const G: any = globalThis as any;
 
 
 
-  // [blocks/range:legacy-disabled:v1]
+  
+  // [blocks/range:legacy-disabled:note:v1]
+  // NOTE: This middleware is a no-op (calls next). The real disable is legacy-hardoff (410).
+// [blocks/range:legacy-disabled:v1]
   // The hardened async /blocks/range handler above is canonical.
   // Keep the legacy handler in-file (additive-only rule) but make it unreachable.
   app.use("/blocks/range", (_req:any, _res:any, next:any) => next());
