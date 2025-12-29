@@ -1,3 +1,19 @@
+import { createRequire as __voidCreateRequire } from "node:module";
+(globalThis as any).require = (globalThis as any).require || __voidCreateRequire(import.meta.url);
+// [esm-sync-bridge] installed global require early
+// ---- ESM bridge (early, additive) ----
+(function esmBridgeEarly(){
+  try {
+    const G = globalThis;
+    if (typeof (G as any).require !== "function") {
+      // no await: install quickly without blocking module init
+      import("node:module").then(m => {
+        (G as any).require = m.createRequire(import.meta.url);
+        console.error("[esm-bridge] early installed global require");
+      }).catch(e => console.error("[esm-bridge] install failed", e?.message||e));
+    }
+  } catch(e) { console.error("[esm-bridge] early error", e?.message||e); }
+})();
 // --- shim: legacy proposer exporter free identifiers (additive, safe) ---
 var autoTimer: any;
 var autoMs: any;
@@ -181,20 +197,6 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
-
-// [datanet-http/v1] attach DataNet routes (safe; dynamic import; no-throw)
-try {
-  import("./http/datanet_routes.js")
-    .then((m: any) => {
-      if (m && typeof m.registerDataNetRoutes === "function") {
-        m.registerDataNetRoutes(app);
-        console.log("[datanet-http] routes attached");
-      } else {
-        console.warn("[datanet-http] module missing registerDataNetRoutes");
-      }
-    })
-    .catch((e: any) => console.warn("[datanet-http] import failed", e?.message || e));
-} catch {}
  
 
 
@@ -205,13 +207,12 @@ try {
 
 // --- info exporter (Prometheus text) ---
 ;(function infoExporter(){
-const G: any = globalThis as any;
-
+  const G = globalThis;
   const app = (G && G.__void_http_app) || (G && G.app);
   if (!app || app.__void_info_bound) return; app.__void_info_bound = true;
   const started = Date.now();
 
-  app.get("/__void/info.prom", (_req: any, res: any) => {
+  app.get("/__void/info.prom", (_req, res) => {
     try {
       const rss = (process.memoryUsage && process.memoryUsage().rss) || 0;
       const up = (typeof process.uptime === "function") ? process.uptime() : Math.max(0, (Date.now()-started)/1000);
@@ -292,7 +293,7 @@ const G: any = globalThis as any;
 
   // --- minimal mempool-backed tx submit route (dev only) ---
   const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
-  app.post("/tx/submit", async (req: any, res: any) => {
+  app.post("/tx/submit", async (req, res) => {
     
     
     try { globalEnqueueTx(req.body ?? {}); const q=(globalThis as any).__void_tx_queue; console.log("[route] /tx/submit enq size=%s", Array.isArray(q)?q.length:-1); } catch {}
@@ -320,7 +321,7 @@ const G: any = globalThis as any;
 
   /* ===================== MAINTENANCE ===================== */
   // Convenience: full latest block JSON (robust for jq etc.)
-  app.get("/blocks/latest/full", (_req: any, res: any) => {
+  app.get("/blocks/latest/full", (_req, res) => {
     try {
       const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store?.loadHeadNumber?.() ?? -1;
       if (n < 0) return res.status(404).json({ ok:false, error:"no blocks" });
@@ -332,7 +333,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.get("/maintenance/verify", async (_req: any, res: any) => {
+  app.get("/maintenance/verify", async (_req, res) => {
     try {
       const r = await runTsxScript("scripts/check_store.ts", {
         env: { DATA_DIR: process.env.DATA_DIR || "data" },
@@ -351,7 +352,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.post("/maintenance/auto-repair", async (req: any, res: any) => {
+  app.post("/maintenance/auto-repair", async (req, res) => {
     try {
       const remote = String(req.socket.remoteAddress || "");
       const allowRemote = process.env.ALLOW_REMOTE_REPAIR === "1";
@@ -387,7 +388,7 @@ const G: any = globalThis as any;
   });
 
   /* ===================== INDEX MAINTENANCE ===================== */
-  app.post("/index/rebuild", async (_req: any, res: any) => {
+  app.post("/index/rebuild", async (_req, res) => {
     try {
       res.json(await (((globalThis as any).__void_node || (globalThis as any).node) as any).rebuildTxIndex());
     } catch (e: any) {
@@ -395,7 +396,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.post("/index/build", async (_req: any, res: any) => {
+  app.post("/index/build", async (_req, res) => {
     try {
       res.json(await buildAllKidx(DATA_DIR));
     } catch (e: any) {
@@ -403,7 +404,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.post("/index/kidx/build", async (_req: any, res: any) => {
+  app.post("/index/kidx/build", async (_req, res) => {
     try {
       const shards = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.listShards();
       let baseDir = DATA_DIR;
@@ -418,7 +419,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.get("/index/stats", (_req: any, res: any) => {
+  app.get("/index/stats", (_req, res) => {
     const shards = (((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.listShards().map((s: any) => {
       const jsonlStat = fs.existsSync(s.path) ? fs.statSync(s.path) : null;
       const kidxPath = s.path.replace(/\.jsonl$/, ".kidx");
@@ -434,7 +435,7 @@ const G: any = globalThis as any;
     res.json({ ok: true, shards });
   });
 
-  app.post("/index/gc", (req: any, res: any) => {
+  app.post("/index/gc", (req, res) => {
     const keepLast = Number(req.query.keepLast || 1);
     try {
       res.json((((globalThis as any).__void_node || (globalThis as any).node) as any).txIndex.gc(keepLast));
@@ -443,7 +444,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.post("/index/kidx/rebuild-shard", async (req: any, res: any) => {
+  app.post("/index/kidx/rebuild-shard", async (req, res) => {
     const blockParam = req.query.block;
     const hashParam = req.query.hash;
     try {
@@ -498,7 +499,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.post("/index/kidx/rebuild-hash", async (req: any, res: any) => {
+  app.post("/index/kidx/rebuild-hash", async (req, res) => {
     try {
       const hash = String(req.query.hash || "").toLowerCase();
       if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
@@ -542,10 +543,10 @@ const G: any = globalThis as any;
     res.json({ ok: true, head: (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber() });
   });
 
-  app.get("/peers", (_req: any, res: any) => res.json({ ok: true, ...(((globalThis as any).__void_node || (globalThis as any).node) as any).peersSnapshot?.() }));
+  app.get("/peers", (_req, res) => res.json({ ok: true, ...(((globalThis as any).__void_node || (globalThis as any).node) as any).peersSnapshot?.() }));
 
   /* Peer registry QoL */
-  app.get("/peers/registry", (_req: any, res: any) => {
+  app.get("/peers/registry", (_req, res) => {
     try {
       res.json({ ok: true, peers: peersReg.all() });
     } catch (e: any) {
@@ -553,7 +554,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.post("/peers/registry/upsert", (req: any, res: any) => {
+  app.post("/peers/registry/upsert", (req, res) => {
     try {
       const id = String(req.body?.id || "");
       if (!id) return res.json({ ok: false, error: "missing id" });
@@ -568,7 +569,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.post("/peers/registry/announce-self", async (_req: any, res: any) => {
+  app.post("/peers/registry/announce-self", async (_req, res) => {
     try {
       const peers = peersReg.all();
       let sent = 0;
@@ -583,7 +584,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.post("/peers/registry/purge", (req: any, res: any) => {
+  app.post("/peers/registry/purge", (req, res) => {
     try {
       const maxAgeSec = Number(req.query.maxAgeSec || 600);
       const r = peersReg.purgeStale(Math.max(1, maxAgeSec) * 1000);
@@ -594,7 +595,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.get("/peers/registry/ids", (_req: any, res: any) => {
+  app.get("/peers/registry/ids", (_req, res) => {
     try {
       res.json(peersReg.all().map((p) => p.id));
     } catch (e: any) {
@@ -602,7 +603,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.delete("/peers/registry/:id", (req: any, res: any) => {
+  app.delete("/peers/registry/:id", (req, res) => {
     try {
       const id = String(req.params.id || "");
       const r = peersReg.remove(id);
@@ -613,103 +614,14 @@ const G: any = globalThis as any;
   });
 
   /* ===================== BLOCKS ===================== */
-
-  // [blocks/range:guard:v1]
-
-  // [blocks/range:version:v1]
-  // Runtime introspection for debugging deployments.
-  app.get("/__void/routes/blocks-range", (_req: any, res: any) => {
-    try {
-      const maxSpan = Number(process.env.VOID_BLOCKS_RANGE_MAX || 2000);
-      res.json({
-        ok: true,
-        route: "/blocks/range",
-        canonical: "guard:v1",
-        aliases: ["from/to", "start/end"],
-        maxSpan,
-        legacy: { present: true, disabled: "legacy-hardoff:v1 (410)" },
-      });
-    } catch (e: any) {
-      res.status(500).json({ ok: false, error: String(e?.message || e) });
-    }
-  });
-    } catch (e: any) {
-      res.status(500).json({ ok: false, error: String(e?.message || e) });
-    }
-  });
-
-  // Harden /blocks/range to prevent accidental "0..head" scans that freeze the event loop.
-  // Accept aliases (?start/?end) and cap response size. Defaults to a single block if "to" missing.
-  app.get("/blocks/range", async (req: any, res: any) => {
-    try {
-      const q = (req && req.query) ? req.query : {};
-
-      const rawFrom = (q.from ?? q.start ?? 0);
-      const rawTo = (q.to ?? q.end ?? undefined);
-
-      const from = Number(rawFrom);
-      if (!Number.isFinite(from) || from < 0) {
-        return res.status(400).json({ ok: false, error: "bad from" });
-      }
-
-      // Interpret "to"
-      let to: number;
-      const toStr = (rawTo === undefined || rawTo === null) ? "" : String(rawTo).trim().toLowerCase();
-
-      if (toStr === "" || toStr === "same") {
-        to = from; // safe default: single block
-      } else if (toStr === "head" || toStr === "latest") {
-        to = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
-      } else {
-        to = Number(rawTo);
-      }
-
-      if (!Number.isFinite(to) || to < from) {
-        return res.status(400).json({ ok: false, error: "bad to" });
-      }
-
-      const maxSpan = Math.max(1, Number(process.env.VOID_BLOCKS_RANGE_MAX || 2000));
-      const span = (to - from + 1);
-
-      if (span > maxSpan) {
-        return res.status(413).json({
-          ok: false,
-          error: "range too large",
-          from, to, span, maxSpan,
-          hint: "Use smaller ranges. /blocks/range supports ?from=&to= and aliases ?start=&end=. Default when 'to' missing is a single block."
-        });
-      }
-
-      res.setHeader("X-VOID-Blocks-Range-Guard", "v1");
-
-      const blocks: any[] = [];
-      const store = (((globalThis as any).__void_node || (globalThis as any).node) as any).store;
-
-      // Yield periodically so the server stays responsive even on slower disks.
-      for (let n = from; n <= to; n++) {
-        const b = store.loadBlock(n);
-        if (b) blocks.push(b);
-
-        if (((n - from) % 200) === 199) {
-          await new Promise<void>((r) => setImmediate(r));
-        }
-      }
-
-      return res.json(blocks);
-    } catch (e: any) {
-      return res.status(500).json({ ok: false, error: String(e?.message || e) });
-    }
-  });
-
-
-  app.get("/blocks/head", (_req: any, res: any) => {
+  app.get("/blocks/head", (_req, res) => {
     const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
     const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(n);
     if (!b) return res.json({ ok: true, head: -1 });
     res.json({ ok: true, head: n, hash: blockHash(b) });
   });
 
-  app.get("/blocks/get/:number", (req: any, res: any) => {
+  app.get("/blocks/get/:number", (req, res) => {
     const n = Number(req.params.number);
     if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, error: "bad number" });
     const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(n);
@@ -717,26 +629,7 @@ const G: any = globalThis as any;
     res.json(b);
   });
 
-
-
-  
-  // [blocks/range:legacy-disabled:note:v1]
-  // NOTE: This middleware is a no-op (calls next). The real disable is legacy-hardoff (410).
-// [blocks/range:legacy-disabled:v1]
-  // The hardened async /blocks/range handler above is canonical.
-  // Keep the legacy handler in-file (additive-only rule) but make it unreachable.
-  app.use("/blocks/range", (_req:any, _res:any, next:any) => next());
-
-  app.get("/blocks/range", (req: any, res: any) => {
-
-    // [blocks/range:legacy-hardoff:v1]
-    // Hard-disable legacy handler. The hardened async /blocks/range above is canonical.
-    return res.status(410).json({
-      ok: false,
-      error: "legacy /blocks/range disabled",
-      hint: "Use the guarded /blocks/range handler (supports ?from/?to and ?start/?end).",
-    });
-
+  app.get("/blocks/range", (req, res) => {
     const from = Number(req.query.from ?? 0);
     const to = Number(req.query.to ?? (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber());
     if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
@@ -755,7 +648,7 @@ const G: any = globalThis as any;
   });
 
   /* Bulk block import (follower) */
-  app.post("/blocks/import", async (req: any, res: any) => {
+  app.post("/blocks/import", async (req, res) => {
     try {
       const arr = Array.isArray(req.body) ? req.body : [];
       if (!arr.length) return res.json({ ok: true, imported: 0, alreadyHad: 0, filled: 0, kidxRebuilt: 0 });
@@ -825,7 +718,7 @@ const G: any = globalThis as any;
   });
 
   /* -------- Proposer controls -------- */
-  app.post("/blocks/stop", (_req: any, res: any) => {
+  app.post("/blocks/stop", (_req, res) => {
     try {
       const r = ( (((globalThis as any).__void_node || (globalThis as any).node) as any).stopProposer?.() ) ?? ({ ok: true, note: "no stopProposer(), noop" } as any);
       res.json(r || { ok: true });
@@ -834,7 +727,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.post("/blocks/once", async (req: any, res: any) => {
+  app.post("/blocks/once", async (req, res) => {
     try {
       const t0 = Date.now();
       const allowEmptyOnce = String(req.query.allowEmpty || req.query.empty || "0") === "1";
@@ -882,7 +775,7 @@ const G: any = globalThis as any;
     }
   }
 
-  app.get("/tx/lookup", async (req: any, res: any) => {
+  app.get("/tx/lookup", async (req, res) => {
     const hash = String(req.query.hash || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
 
@@ -921,7 +814,7 @@ const G: any = globalThis as any;
     return res.json({ ok: true, found: false });
   });
 
-  app.get("/tx/receipt", (req: any, res: any) => {
+  app.get("/tx/receipt", (req, res) => {
     const hash = String(req.query.hash || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
     const r: any = (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts.get(hash);
@@ -930,7 +823,7 @@ const G: any = globalThis as any;
     res.json({ ok: true, found: true, n, o, ts });
   });
 
-  app.get("/tx/status", (req: any, res: any) => {
+  app.get("/tx/status", (req, res) => {
     const hash = String(req.query.hash || "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(hash)) return res.json({ ok: false, error: "bad hash" });
     try {
@@ -947,12 +840,12 @@ const G: any = globalThis as any;
     return res.json({ ok: true, status: "unknown" });
   });
 
-  app.get("/receipts/stats", (_req: any, res: any) => {
+  app.get("/receipts/stats", (_req, res) => {
     const s = ( (((globalThis as any).__void_node || (globalThis as any).node) as any).receipts?.stats?.() ) ?? ({ shards: [], totalBytes: 0, totalLines: 0 } as any);
     res.json({ ok: true, ...s });
   });
 
-  app.post("/receipts/gc", (req: any, res: any) => {
+  app.post("/receipts/gc", (req, res) => {
     const keepLast = Number(req.query.keepLast || 1);
     try {
       const r =
@@ -965,7 +858,7 @@ const G: any = globalThis as any;
   });
 
   /* ===================== MEMPOOL / TX SUBMIT ===================== */
-  app.get("/mempool/count", (_req: any, res: any) => {
+  app.get("/mempool/count", (_req, res) => {
     try {
       const txs = (((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ?? [];
       res.json({ ok: true, count: Array.isArray(txs) ? txs.length : 0 });
@@ -974,7 +867,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.post("/tx", (req: any, res: any) => {
+  app.post("/tx", (req, res) => {
     const tx = req.body;
     if (!tx || typeof tx !== "object") {
       return res.status(400).json({ ok: false, error: "validation failed: not an object" });
@@ -993,13 +886,13 @@ const G: any = globalThis as any;
     res.json({ ok: true });
   });
 
-  app.get("/mempool", (_req: any, res: any) => {
+  app.get("/mempool", (_req, res) => {
     const txs = (((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ?? [];
     res.json({ ok: true, size: Array.isArray(txs) ? txs.length : 0, txs });
   });
 
   /* ===================== BLOBS ===================== */
-  app.post("/blob/put", async (req: any, res: any) => {
+  app.post("/blob/put", async (req, res) => {
     const MAX = MAX_BLOB_MB * 1024 * 1024;
     if (typeof (req.body as any)?.text === "string") {
       const buf = Buffer.from((req.body as any).text, "utf8");
@@ -1016,7 +909,7 @@ const G: any = globalThis as any;
     return res.json({ ok: false, error: "send {text} or {base64} JSON" });
   });
 
-  app.get("/blob/stat/:cid", (req: any, res: any) => {
+  app.get("/blob/stat/:cid", (req, res) => {
     try {
       const cid = String(req.params.cid || "").trim();
       if (!cid) return res.json({ ok: false, error: "missing cid" });
@@ -1028,7 +921,7 @@ const G: any = globalThis as any;
     }
   });
 
-  app.get("/blob/stats", (_req: any, res: any) => {
+  app.get("/blob/stats", (_req, res) => {
     try {
       const dir = path.join(DATA_DIR, "blobs");
       if (!fs.existsSync(dir))
@@ -1060,7 +953,7 @@ const G: any = globalThis as any;
   });
 
   /* ===================== METRICS TEXT ===================== */
-  app.get("/metrics", (_req: any, res: any) => {
+  app.get("/metrics", (_req, res) => {
     const head = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
     const peers = [...(((globalThis as any).__void_node || (globalThis as any).node) as any).peers.keys()].filter((k: string) => !k.startsWith("?-")).length;
     const mempool = (((((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ) || []).length;
@@ -4701,7 +4594,7 @@ import { computeTxRoot } from "./util/txroot.js";
   let tries = 0, attached = false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
 
-  async function getHead(base: string){
+  async function getHead(base){
     try {
       const r = await fetch(String(base).replace(/\/+$/,'') + "/blocks/latest/number2.json");
       if (!r.ok) throw new Error("bad " + r.status);
@@ -4716,7 +4609,7 @@ import { computeTxRoot } from "./util/txroot.js";
     if (attached) return; attached = true;
 
     // GET /follower/status?peer=http://127.0.0.1:4100
-    app.get("/follower/status", async (req: any, res: any) => {
+    app.get("/follower/status", async (req, res) => {
       const peer = String(req.query.peer || "http://127.0.0.1:4100");
       const self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
 
@@ -4726,7 +4619,7 @@ import { computeTxRoot } from "./util/txroot.js";
     });
 
     // Compat alias
-    app.get("/follower/status2", async (req: any, res: any) => {
+    app.get("/follower/status2", async (req, res) => {
       const peer = String(req.query.peer || "http://127.0.0.1:4100");
       const self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
       const [head_local, head_peer] = await Promise.all([getHead(self), getHead(peer)]);
@@ -4947,7 +4840,7 @@ import { computeTxRoot } from "./util/txroot.js";
     const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
     if(attached) return; attached=true;
 
-    app.get("/metrics/lastblock", async (_req: any, res: any) =>{
+    app.get("/metrics/lastblock", async(_req,res)=>{
       const n=await getHead();
       let txCount=0;
       if(n>=0){
@@ -4979,37 +4872,7 @@ import { computeTxRoot } from "./util/txroot.js";
     const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
     if(attached) return; attached=true;
 
-    app.get("/metrics/void", async (_req: any, res: any) =>{
-
-      // --- WAL replay metrics append hook (v2; safe) ---
-      const __void_wal_append_v2 = (txt: any) => {
-        try {
-          const n = ((globalThis as any).__void_node || (globalThis as any).node) as any;
-          const m = n?.store?.getWalReplayMetrics?.();
-          if (!m) return String(txt ?? "");
-          let extra = "";
-          extra += `void_wal_replay_runs_total ${Number(m.replay_runs_total)||0}\n`;
-          extra += `void_wal_replay_entries_applied_total ${Number(m.replay_entries_applied_total)||0}\n`;
-          extra += `void_wal_replay_ms_last ${Number(m.replay_ms_last)||0}\n`;
-          extra += `void_wal_replay_ms_max ${Number(m.replay_ms_max)||0}\n`;
-          extra += `void_wal_replay_last_ok ${Number(m.replay_last_ok)||0}\n`;
-          if (m.replay_last_error) {
-            const esc = String(m.replay_last_error).replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/"/g,'\\"');
-            extra += `void_wal_replay_last_error{msg="${esc}"} 1\n`;
-          }
-          const base = String(txt ?? "");
-          return base + (base.endsWith("\n") ? "" : "\n") + extra;
-        } catch {
-          return String(txt ?? "");
-        }
-      };
-      try {
-        const __send0 = (res as any).send?.bind(res);
-        if (__send0 && !(res as any).__void_wal_send_wrapped_v2) {
-          (res as any).__void_wal_send_wrapped_v2 = 1;
-          (res as any).send = (body: any) => __send0(__void_wal_append_v2(body));
-        }
-      } catch {}
+    app.get("/metrics/void", async (_req,res)=>{
       const [m4,m3,ml] = await Promise.all([
         fetchText("/metrics/txroot4"),
         fetchText("/metrics/txroot3"),
@@ -5026,11 +4889,11 @@ import { computeTxRoot } from "./util/txroot.js";
 ;(function opsTxrootState(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function t(path: string){ try{ const r=await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100")+path); return await r.text(); }catch{ return ""; } }
+  async function t(path){ try{ const r=await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100")+path); return await r.text(); }catch{ return ""; } }
   async function attach(){
     const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
     if(attached) return; attached=true;
-    app.get("/ops/txroot-state.json", async (_req: any, res: any) =>{
+    app.get("/ops/txroot-state.json", async (_req,res)=>{
       const [m4,m3,ml] = await Promise.all([t("/metrics/txroot4"), t("/metrics/txroot3"), t("/metrics/lastblock")]);
       res.json({ ok:true, metrics:{ txroot4:m4, txroot3:m3, lastblock:ml } });
     });
@@ -5053,7 +4916,7 @@ import { computeTxRoot } from "./util/txroot.js";
     const selfPort = String(process.env.HTTP_PORT || "4100");
     const peer = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
 
-    app.get("/metrics/drift", async (_req: any, res: any) =>{
+    app.get("/metrics/drift", async (_req,res)=>{
       let drift = NaN, head_local = NaN, head_peer = NaN;
       try {
         const url = `http://127.0.0.1:${selfPort}/follower/status?peer=${encodeURIComponent(peer)}`;
@@ -5088,7 +4951,7 @@ import { computeTxRoot } from "./util/txroot.js";
     const selfPort = String(process.env.HTTP_PORT || "4100");
     const peer = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
 
-    app.get("/metrics/drift", async (_req: any, res: any) =>{
+    app.get("/metrics/drift", async (_req,res)=>{
       let drift=0, head_local=0, head_peer=0;
       const url = `http://127.0.0.1:${selfPort}/follower/status?peer=${encodeURIComponent(peer)}`;
       const d = await getJSON(url);
@@ -6050,22 +5913,7 @@ import { computeTxRoot } from "./util/txroot.js";
         const body = await r.text();
         res.status(r.status);
         res.set("Content-Type", r.headers.get("content-type") || "application/json; charset=utf-8");
-        
-      
-      // --- WAL replay metrics (SegStore; v1) ---
-      let __wal_extra = "";
-      try {
-        const n = ((globalThis as any).__void_node || (globalThis as any).node) as any;
-        const m = n?.store?.getWalReplayMetrics?.();
-        if (m) {
-          __wal_extra += `void_wal_replay_runs_total ${Number(m.replay_runs_total) || 0}\n`;
-          __wal_extra += `void_wal_replay_entries_applied_total ${Number(m.replay_entries_applied_total) || 0}\n`;
-          __wal_extra += `void_wal_replay_ms_last ${Number(m.replay_ms_last) || 0}\n`;
-          __wal_extra += `void_wal_replay_ms_max ${Number(m.replay_ms_max) || 0}\n`;
-          __wal_extra += `void_wal_replay_last_ok ${Number(m.replay_last_ok) || 0}\n`;
-        }
-      } catch {}
-res.send((body) + __wal_extra);
+        res.send(body);
       } catch (e:any) {
         res.status(500).json({ ok:false, error:String(e) });
       }
@@ -7735,7 +7583,7 @@ void_txroot_v4_errors_total ${X.errors}
 
     // Lazy import to avoid top-level churn
     const { attachTxrootSetter } = await import("./hooks/txroot_setter.js");
-try { /* ok */ } catch (e: any) { console.warn("[boot.txroot-setter] dynamic import warning:", String(e?.message||e)); }
+try { /* ok */ } catch (e) { console.warn("[boot.txroot-setter] dynamic import warning:", String(e?.message||e)); }
 
     if (app && store2 && typeof attachTxrootSetter === "function") {
       attachTxrootSetter({ app, store: store2, log: (...a:any[])=>console.log("[boot.txroot-setter]", ...a) });
@@ -9220,7 +9068,7 @@ void_seal_rate_1m ${rate1m()}
     } catch {}
     // Fallback: hash JSON of each tx (stable stringify) → sha256 → merkle(sha256 hex)
     const txs = Array.isArray(block?.txs) ? block.txs : [];
-    const leaves = txs.map((tx: any) => sha256Hex(JSON.stringify(tx)));
+    const leaves = txs.map(tx => sha256Hex(JSON.stringify(tx)));
     return merkleRootHex(leaves);
   }
 
@@ -10080,7 +9928,7 @@ void_seal_rate_1m ${rate1m()}
         }
       } catch (e) {
         // Non-fatal: never block persistence
-        (globalThis as any).__lastMile_error = String(e && ((e as any).stack || e));
+        (globalThis as any).__lastMile_error = String(e && (e.stack || e));
       }
       return inner(block);
     };
@@ -11029,7 +10877,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
   let tries=0, attached=false;
   const RETRY=250, MAX_TRIES=600; // ~150s
 
-  async function fetchText(url: string, timeoutMs: number){
+  async function fetchText(url, timeoutMs){
     const timer = timeoutMs ? setTimeout(()=>{}, timeoutMs) : null; // noop timeout placeholder
     try{
       const r = await fetch(url);
@@ -11038,7 +10886,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
     finally{ if (timer) clearTimeout(timer); }
   }
 
-  function parseGauge(src: string, name: string){
+  function parseGauge(src, name){
     const m = src && src.match(new RegExp(`^${name}\\s+(-?\\d+(?:\\.\\d+)?)$`, "m"));
     return m ? Number(m[1]) : null;
   }
@@ -11061,26 +10909,26 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
   }
 
   function attach(){
-    const g: any = globalThis as any; const app = g.__void_http_app || g.app;
+    const g = globalThis; const app = g.__void_http_app || g.app;
     if (!app || typeof app.get !== "function"){ if(++tries<MAX_TRIES) return setTimeout(attach, RETRY); return; }
     if (attached) return; attached = true;
 
-    app.get("/__void/ready.json", async (_req: any, res: any) =>{
+    app.get("/__void/ready.json", async (_req,res)=>{
       const {head, live, seen} = await readInputs();
       const okHead = Number.isFinite(head), okSeen = Number.isFinite(seen), okLive = (live===1);
-      const gap = (typeof head === "number" && typeof seen === "number") ? (head - seen) : null;
+      const gap = (okHead && okSeen) ? (head - seen) : null;
       const reasons = [];
       if(!okHead) reasons.push("no_head");
       if(!okSeen) reasons.push("no_lastmile_seen");
       if(!okLive) reasons.push("txroot_live!=1");
-      if(typeof gap === "number" && gap>10) reasons.push(`gap>10 (gap=${gap})`);
+      if(okHead && okSeen && gap>10) reasons.push(`gap>10 (gap=${gap})`);
       res.json({ready: reasons.length===0, head: okHead?head:null, lastmile_seen: okSeen?seen:null, gap: (typeof gap_clamped!=="undefined"? gap_clamped : Math.max(0,(gap ?? -1))), txroot_live: okLive?1:0, reasons});
     });
 
-    app.get("/__void/ready.prom", async (_req: any, res: any) =>{
+    app.get("/__void/ready.prom", async (_req,res)=>{
       const {head, live, seen} = await readInputs();
       const okHead = Number.isFinite(head), okSeen = Number.isFinite(seen), okLive = (live===1);
-      const gap = (typeof head === "number" && typeof seen === "number") ? (head - seen) : -1;
+      const gap = (okHead&&okSeen) ? (head - seen) : -1;
       const ready = okLive && okHead && okSeen && gap<=10;
       res.type("text/plain").send(
         `# HELP void_ready Node readiness (1 ready, 0 not ready)\n` +
@@ -11210,7 +11058,7 @@ void_ready_exporter_timestamp_ms ${now}
           return setTimeout(tick, 150);
         }
         // Other transient issues: retry a few times with a softer backoff
-        if (tries < 20) return setTimeout(tick, 300);
+        if (tries < 20) return setTimeout(tick,120);
         console.warn("[boot.txroot-setter] bootsafe gave up after", tries, "tries:", msg);
         return;
       }
@@ -14282,7 +14130,6 @@ void_header3_last_mismatch ${lastMismatch}
         forensic.last_shape = typeof a0;
       }
       try {
-        // @ts-ignore - noImplicitThis shim for wrapper preserve-this
         const ret = await fn.apply(this, args);
         forensic.last_duration_ms = Date.now() - t0;
         return ret;
@@ -14378,7 +14225,6 @@ void_header3_last_mismatch ${lastMismatch}
         forensic.last_shape = typeof a0;
       }
       try {
-        // @ts-ignore - noImplicitThis shim for wrapper preserve-this
         const ret = await fn.apply(this, args);
         forensic.last_duration_ms = Date.now() - t0;
         return ret;
@@ -14517,7 +14363,6 @@ void_header3_last_mismatch ${lastMismatch}
         forensic.last_shape = 'n/a';
       }
       try {
-        // @ts-ignore - noImplicitThis shim for wrapper preserve-this
         const ret = fn.apply(this, args);
         if (ret && typeof ret.then === 'function') {
           return (ret as Promise<any>).finally(()=>{ forensic.last_duration_ms = Date.now()-t0; });
@@ -14684,7 +14529,6 @@ void_header3_last_mismatch ${lastMismatch}
         STATE.last_kind = typeof a0; STATE.last_shape = 'n/a';
       }
       try {
-        // @ts-ignore - noImplicitThis shim for wrapper preserve-this
         const out = fn.apply(this, args);
         if (out && typeof out.then === 'function') {
           return (out as Promise<any>).finally(()=>{ STATE.last_duration_ms = Date.now()-t0; });
@@ -15580,7 +15424,7 @@ void_txroot_forensics_last_ms_v7 ${state.last_ms}
     last_ms: 0,
   };
 
-  function wait(fn: ()=>void){ setTimeout(fn, TICK); }
+  function wait(fn){ setTimeout(fn, TICK); }
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
 
   try {
@@ -16971,4 +16815,6649 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
     });
   }
   attach();
+})();
+
+// ---------------- WAL v1 bootsafe + endpoints + metrics (additive) ----------------
+(async function walV1Bootsafe(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getDataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"; }
+
+  async function attach(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+    if ((app as any).__void_wal_v1_mounted) return; (app as any).__void_wal_v1_mounted = true;
+
+    let wal:any = null, info:any = null, replayNeeded = 0, lastSeq = 0, unflushedBytes = 0;
+
+    async function ensure(){
+      if (!wal) {
+        const mod = await import("./wal/journal.js");
+        wal = await mod.Journal.open(getDataDir());
+        info = wal.info();
+      }
+      return wal;
+    }
+
+    // health: shows meta + whether replay is needed (we detect valid tail)
+    app.get("/wal/health", async (_req:any, res:any)=>{
+      try{
+        await ensure();
+        // quick scan: validate until torn frame; if torn → replayNeeded=1
+        replayNeeded = 0;
+        let seq=0, count=0;
+        for await (const rec of wal.replay({fromSeq:1})) { seq = rec.n; count++; }
+        lastSeq = seq;
+        const inf = wal.info();
+        unflushedBytes = inf.bytes;
+        res.json({ ok:true, lastSeq, bytes: inf.bytes, createdAt: inf.createdAt, updatedAt: inf.updatedAt, replayNeeded });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error: String(e?.message||e) });
+      }
+    });
+
+    // dry-run preview: returns first N records without applying
+    app.get("/wal/replay/preview", async (req:any, res:any)=>{
+      try{
+        await ensure();
+        const limit = Math.max(1, Math.min(100, Number(req.query.limit||10)));
+        const out:any[]=[];
+        for await (const rec of wal.replay({fromSeq:1})) { out.push(rec); if (out.length>=limit) break; }
+        res.json({ ok:true, records: out });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error: String(e?.message||e) });
+      }
+    });
+
+    // dev-only append hook (safe to keep; guarded by env in frontends)
+    app.post("/wal/dev/append", async (req:any, res:any)=>{
+      try{
+        await ensure();
+        const t = String(req.query.t||"block.save");
+        const payload = req.body || { note:"dev" };
+        const n = await wal.append(t, payload);
+        lastSeq = n;
+        const inf = wal.info();
+        unflushedBytes = inf.bytes;
+        res.json({ ok:true, n });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error: String(e?.message||e) });
+      }
+    });
+
+    // Prom exporter
+    app.get("/metrics/void/wal.prom", async (_req:any, res:any)=>{
+      try{
+        await ensure();
+        const inf = wal.info();
+        res.type("text/plain; version=0.0.4");
+        res.write(`# HELP void_wal_last_seq Last WAL sequence number\n# TYPE void_wal_last_seq gauge\nvoid_wal_last_seq ${lastSeq||0}\n`);
+        res.write(`# HELP void_wal_bytes WAL file size in bytes\n# TYPE void_wal_bytes gauge\nvoid_wal_bytes ${inf.bytes||0}\n`);
+        res.write(`# HELP void_wal_replay_needed 1 if replay needed\n# TYPE void_wal_replay_needed gauge\nvoid_wal_replay_needed ${replayNeeded||0}\n`);
+        res.end();
+      }catch(e:any){
+        res.type("text/plain").send(`# ERROR ${String(e?.message||e)}\n`);
+      }
+    });
+  }
+  attach();
+})();
+
+// ------------- WAL v1: hook block saves (additive wrapper) -------------
+(function walV1SaveHook(){
+  const TICK=500;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getWal(){
+    const mod = await import("./wal/journal.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    return await mod.Journal.open(dir);
+  }
+  async function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_wal_save_hook) return; (app as any).__void_wal_save_hook = true;
+
+    // expect global nodeCore/saveBlock via existing exports
+    const g:any = globalThis as any;
+    const core = g.__void_core || g.core || {};
+    const original = core.saveBlock || g.saveBlock;
+    if (typeof original !== "function") return; // no-op if not present
+
+    const wal = await getWal();
+
+    async function wrappedSaveBlock(block:any){
+      // 1) write intent to WAL
+      await wal.append("block.save", { number: block?.number, txCount: block?.txs?.length ?? 0 });
+      // 2) call real save
+      const out = await original(block);
+      // 3) optionally mark commit (not required, CRC guards already)
+      // await wal.append("block.commit", { number: block?.number });
+      return out;
+    }
+
+    // patch in-place
+    core.saveBlock = wrappedSaveBlock;
+    g.saveBlock = wrappedSaveBlock;
+  }
+  mount();
+})();
+
+// ---------------- WAL v1: replay preview + run (additive) ----------------
+;(function walV1Replay(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getWal(){
+    const mod = await import("./wal/journal.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    return await mod.Journal.open(dir);
+  }
+  async function attach(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+    if ((app as any).__void_wal_replay_mounted) return; (app as any).__void_wal_replay_mounted = true;
+
+    let replayed = 0, lastApplied = 0, lastMs = 0;
+
+    app.get("/wal/replay/status", (_req:any, res:any)=>{
+      res.json({ ok:true, replayed, lastApplied, lastMs });
+    });
+
+    app.post("/wal/replay/run", async (_req:any, res:any)=>{
+      const t0 = Date.now();
+      try{
+        const wal = await getWal();
+        replayed = 0; lastApplied = 0;
+        for await (const rec of wal.replay({fromSeq:1})) {
+          // TODO: apply(rec) once we define handlers; for now count
+          replayed++; lastApplied = rec.n;
+        }
+        lastMs = Date.now()-t0;
+        res.json({ ok:true, replayed, lastApplied, ms:lastMs });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+  }
+  attach();
+})();
+
+// ---------------- WAL v1: stricter health flag (additive) ----------------
+;(function walV1Health2(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getWal(){
+    const mod = await import("./wal/journal.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    return await mod.Journal.open(dir);
+  }
+  async function attach(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+    if ((app as any).__void_wal_health2) return; (app as any).__void_wal_health2 = true;
+
+    app.get("/wal/health2", async (_req:any, res:any)=>{
+      let replayNeeded = 0, lastSeq = 0, bytes = 0, createdAt=0, updatedAt=0;
+      try{
+        const wal = await getWal();
+        const inf = wal.info(); bytes = inf.bytes; createdAt = inf.createdAt; updatedAt = inf.updatedAt;
+        try {
+          for await (const rec of wal.replay({fromSeq:1})) lastSeq = rec.n;
+        } catch { replayNeeded = 1; }
+        if (bytes>0 && lastSeq===0) replayNeeded = 1;
+        res.json({ ok:true, lastSeq, bytes, createdAt, updatedAt, replayNeeded });
+      }catch(e:any){
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    app.get("/metrics/void/wal2.prom", async (_req:any, res:any)=>{
+      try{
+        const r = await fetch("http://127.0.0.1:4100/wal/health2");
+        const j:any = await r.json();
+        res.type("text/plain; version=0.0.4");
+        res.write(`# HELP void_wal_last_seq Last WAL sequence number\n# TYPE void_wal_last_seq gauge\nvoid_wal_last_seq ${j.lastSeq||0}\n`);
+        res.write(`# HELP void_wal_bytes WAL file size in bytes\n# TYPE void_wal_bytes gauge\nvoid_wal_bytes ${j.bytes||0}\n`);
+        res.write(`# HELP void_wal_replay_needed 1 if replay needed\n# TYPE void_wal_replay_needed gauge\nvoid_wal_replay_needed ${j.replayNeeded||0}\n`);
+        res.end();
+      }catch(e:any){
+        res.type("text/plain").send(`# ERROR ${String(e?.message||e)}\n`);
+      }
+    });
+  }
+  attach();
+})();
+
+// ---------------- WAL v1.1: intent+commit wrapper (additive, idempotent) ----------------
+;(function walV11IntentCommit(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function getWal(){
+    const mod = await import("./wal/journal.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    return await mod.Journal.open(dir);
+  }
+  async function attach(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+    if ((app as any).__void_wal_v11_wrapper) return; (app as any).__void_wal_v11_wrapper = true;
+
+    const g:any = globalThis as any;
+    const core = g.__void_core || g.core || {};
+    const original = core.saveBlock || g.saveBlock;
+    if (typeof original !== "function") return;
+
+    const wal = await getWal();
+
+    async function wrapped(block:any){
+      const n = Number(block?.number ?? -1);
+      const txCount = block?.txs?.length ?? 0;
+      // 1) intent — always before touching disk
+      await wal.append("block.intent", { number:n, txCount });
+
+      // 2) real save
+      const out = await original(block);
+
+      // 3) commit — only after successful save
+      await wal.append("block.commit", { number:n });
+
+      return out;
+    }
+
+    // supersede previous v1 hook safely
+    core.saveBlock = wrapped;
+    g.saveBlock = wrapped;
+    (globalThis as any).__void_wal_v11 = "installed";
+  }
+  attach();
+})();
+
+// ---------------- WAL Safe-Mode (read-only gate + Prom) ----------------
+;(function walSafeMode(){
+  const TICK=400;
+  let forced = 0, auto = 0, lastCheckMs = 0;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+
+  async function checkAuto(){
+    try{
+      const r = await fetch("http://127.0.0.1:4100/wal/health2");
+      const j:any = await r.json();
+      auto = (j && j.replayNeeded) ? 1 : 0;
+      lastCheckMs = Date.now();
+    }catch{ /* keep previous */ }
+    setTimeout(checkAuto, 2000);
+  }
+
+  function isOn(){ return forced || auto; }
+
+  function blockIfUnsafe(req:any, res:any, next:any){
+    if (!isOn()) return next();
+    // deny obvious mutators (keep additive; extend as we add more POSTs)
+    const m = (req.method||'GET').toUpperCase();
+    if (m === "POST" || m === "PUT" || m === "PATCH" || m === "DELETE") {
+      return res.status(503).json({ ok:false, safeMode:true, reason: auto? "auto-replay-needed":"forced" });
+    }
+    next();
+  }
+
+  async function attach(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(attach, TICK);
+    if ((app as any).__void_wal_safemode) return; (app as any).__void_wal_safemode = true;
+
+    // middleware first, before route handlers see mutating calls
+    app.use(blockIfUnsafe);
+
+    // control + status
+    app.post("/wal/safe-mode/force", (req:any,res:any)=>{ forced = 1; res.json({ ok:true, forced }); });
+    app.post("/wal/safe-mode/clear", (req:any,res:any)=>{ forced = 0; res.json({ ok:true, forced }); });
+    app.get("/wal/safe-mode/status", (_req:any,res:any)=>{
+      res.json({ ok:true, forced, auto, on:isOn(), lastCheckMs });
+    });
+
+    // minimal Prom exporter
+    app.get("/metrics/void/safemode.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4");
+      res.write(`# HELP void_safe_mode 1 when read-only is active\n# TYPE void_safe_mode gauge\nvoid_safe_mode ${isOn()?1:0}\n`);
+      res.end();
+    });
+
+    // kick off auto monitor
+    checkAuto();
+  }
+  attach();
+})();
+
+//[autodrain-corrupt] // -------------------- FETCH AUTODRAIN (additive, safe) -----------------------
+//[autodrain-corrupt] (function FetchAutoDrain(){
+//[autodrain-corrupt]   try{
+//[autodrain-corrupt]     // only when explicitly enabled
+//[autodrain-corrupt]     const ENABLED = (process.env.VOID_FETCH_AUTODRAIN || "0") === "1";
+//[autodrain-corrupt]     if (!ENABLED) return;
+//[autodrain-corrupt]     // don't double-install
+//[autodrain-corrupt]     if ((globalThis as any).__void_fetch_autodrain_installed) return;
+//[autodrain-corrupt]     (globalThis as any).__void_fetch_autodrain_installed = true;
+//[autodrain-corrupt] 
+//[autodrain-corrupt]     const origFetch: any = (globalThis as any).fetch;
+//[autodrain-corrupt]     if (typeof origFetch !== "function") return;
+//[autodrain-corrupt] 
+//[autodrain-corrupt]     (globalThis as any).fetch = async function(...args:any[]){
+//[autodrain-corrupt]       const res = await origFetch.apply(this, args);
+//[autodrain-corrupt]       try {
+//[autodrain-corrupt]         // If there is a body, tee & drain in background so the socket closes cleanly.
+//[autodrain-corrupt]         if (res && res.body && typeof res.clone === "function") {
+//[autodrain-corrupt]           const clone = res.clone();
+//[autodrain-corrupt]           // Kick off a best-effort drain; ignore outcome
+//[autodrain-corrupt]           clone.arrayBuffer()
+//[autodrain-corrupt]             .catch(()=>{})
+//[autodrain-corrupt]             .finally(()=>{ try { (clone as any).body?.cancel?.(); } catch {} });
+//[autodrain-corrupt]         }
+//[autodrain-corrupt]       } catch {}
+//[autodrain-corrupt]       return res;
+//[autodrain-corrupt]     };
+//[autodrain-corrupt] 
+//[autodrain-corrupt]     // bonus: print stack for FD GC warnings so we can pinpoint future offenders
+//[autodrain-corrupt]     process.on("warning", (w:any)=>{
+//[autodrain-corrupt]       const msg = String(w?.message||"");
+//[autodrain-corrupt]       if (msg.includes("Closing file descriptor")) {
+//[autodrain-corrupt]         const stack = (w && w.stack) ? w.stack : new Error(String(w.message||"fd")).stack;
+//[autodrain-corrupt]         console.error("[fd-gc]", stack);
+//[autodrain-corrupt]       }
+//[autodrain-corrupt]     });
+//[autodrain-corrupt]     console.error("[fetch-autodrain] enabled");
+//[autodrain-corrupt]   }catch(e){ try{ console.error("[fetch-autodrain] failed", e); }catch{} }
+//[autodrain-corrupt] })();
+
+// -------------------- FETCH AUTODRAIN (additive, safe, v2) -------------------
+(function FetchAutoDrainV2(){
+  try{
+    const ENABLED = (process.env.VOID_FETCH_AUTODRAIN || "0") === "1";
+    if (!ENABLED) return;
+    if ((globalThis as any).__void_fetch_autodrain_installed_v2) return;
+    (globalThis as any).__void_fetch_autodrain_installed_v2 = true;
+
+    const g:any = globalThis as any;
+    const origFetch:any = g.fetch;
+    if (typeof origFetch !== "function") { console.error("[fetch-autodrain] no fetch present"); return; }
+
+    g.fetch = async function(...args:any[]){
+      const res:any = await origFetch.apply(this, args);
+      try {
+        // Drain clone in background so sockets close promptly; DO NOT cancel after read.
+        if (res && typeof res.clone === "function" && res.body) {
+          const c:any = res.clone();
+          if (typeof c.arrayBuffer === "function") { c.arrayBuffer().then(()=>{}).catch(()=>{}); }
+          else if (c.body && typeof c.body.getReader === "function") {
+            // Fallback: stream reader drain
+            (async () => { try {
+              const reader = c.body.getReader();
+              for (;;) { const r = await reader.read(); if (r.done) break; }
+              try { reader.releaseLock && reader.releaseLock(); } catch {}
+            } catch {} })();
+          }
+        }
+      } catch {}
+      return res;
+    };
+
+    // If Node emits the FD-GC warning, also print a stack so we can pinpoint callers.
+    process.on("warning", (w:any)=>{
+      const msg = String(w?.message || "");
+      if (msg.includes("Closing file descriptor")) {
+        const stack = (w && w.stack) ? w.stack : new Error(msg).stack;
+        console.error("[fd-gc]", stack);
+      }
+    });
+
+    console.error("[fetch-autodrain] enabled");
+  }catch(e){ try{ console.error("[fetch-autodrain] failed", e); }catch{} }
+})();
+
+// -------------------- HTTP AUTODRAIN (client sockets, v1) --------------------
+(async function HttpAutoDrainV1(){
+  try{
+    if ((globalThis as any).__void_http_autodrain_v1) return;
+    (globalThis as any).__void_http_autodrain_v1 = true;
+
+    const http  = await import('node:http');
+    const https = await import('node:https');
+
+    function tuneAgent(agent:any){
+      try{
+        if (!agent) return;
+        // Keep-alive but retire idle sockets quickly to avoid FD churn
+        agent.keepAlive = true;
+        if (agent.maxSockets && agent.maxSockets < 64) agent.maxSockets = 64;
+        // Node >=18: freeSocketTimeout exists; otherwise harmless
+        (agent as any).freeSocketTimeout = 2000;
+      }catch{}
+    }
+    tuneAgent((http as any).globalAgent);
+    tuneAgent((https as any).globalAgent);
+
+    function wrapRequest(mod:any, label:string){
+      const orig = mod.request;
+      mod.request = function(...args:any[]){
+        const req = orig.apply(this, args);
+        req.on('response', (res:any)=>{
+          // If nobody attaches a data/readable listener, drain quietly
+          const t = setImmediate(()=>{
+            if (res.destroyed) return;
+            const hasConsumer = res.listenerCount('data') > 0 || res.listenerCount('readable') > 0;
+            if (!hasConsumer){
+              res.on('error', ()=>{});
+              try { res.resume(); } catch {}
+            }
+          });
+          res.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        });
+        return req;
+      };
+    }
+    wrapRequest(http,  'http');
+    wrapRequest(https, 'https');
+
+    console.error("[http-autodrain] installed");
+  }catch(e){ try{ console.error("[http-autodrain] failed", e); }catch{} }
+})();
+
+// -------------------- FS AUTOCLOSE GUARD (v1, additive) ----------------------
+(function FsAutoCloseGuardV1(){
+  try {
+    if ((globalThis as any).__void_fs_guard_v1) return;
+    (globalThis as any).__void_fs_guard_v1 = true;
+
+    const fs = require('node:fs');
+    const fsp = require('node:fs/promises');
+
+    // Wrap fs.promises.open to ensure explicit .close() or log on GC
+    const origOpen = fsp.open;
+    const reg = new (globalThis as any).FinalizationRegistry?.((info:any)=>{
+      try {
+        console.error("[fs-guard] GC closed FileHandle (missing .close) at", info?.stack || info);
+      } catch {}
+    }) || { register(){} };
+
+    fsp.open = async function(...args:any[]){
+      const err = new Error();
+      // limit stack noise
+      const stack = (err.stack||"").split("\n").slice(2,8).join("\n");
+      const fh = await origOpen.apply(this, args);
+      let closed = false;
+      const oclose = fh.close.bind(fh);
+      fh.close = async (...cargs:any[]) => { try { closed = true; } catch {}; return oclose(...cargs); };
+      reg.register(fh, { stack }, fh);
+      // safety: auto-close on process exit hooks (best-effort)
+      process.on('beforeExit', ()=>{ if (!closed) try{ oclose(); }catch{} });
+      return fh;
+    };
+
+    // Wrap createRead/WriteStream: auto .destroy() if nobody consumes
+    function wrapStreamFactory(name:string){
+      const orig = (fs as any)[name];
+      (fs as any)[name] = function(...args:any[]){
+        const s = orig.apply(this, args);
+        // If no consumer attaches within a tick, drain/destroy to free FD
+        const t = setImmediate(()=>{
+          const hasListener = s.listenerCount('data') + s.listenerCount('readable') + s.listenerCount('pipe') > 0;
+          if (!hasListener && !s.destroyed){
+            try { s.resume && s.resume(); } catch {}
+            try { s.destroy && s.destroy(); } catch {}
+          }
+        });
+        s.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        return s;
+      };
+    }
+    wrapStreamFactory('createReadStream');
+    wrapStreamFactory('createWriteStream');
+
+    console.error("[fs-autoclose] installed");
+  } catch(e) { try{ console.error("[fs-autoclose] failed", e); }catch{} }
+})();
+
+// -------------------- HTTP AUTODRAIN (client sockets, v1) --------------------
+(function HttpAutoDrainV1(){
+  try{
+    if ((globalThis as any).__void_http_autodrain_v1) return;
+    (globalThis as any).__void_http_autodrain_v1 = true;
+
+    const http  = require('node:http');
+    const https = require('node:https');
+
+    function tuneAgent(agent:any){
+      try{
+        if (!agent) return;
+        agent.keepAlive = true;
+        if (agent.maxSockets && agent.maxSockets < 64) agent.maxSockets = 64;
+        (agent as any).freeSocketTimeout = 2000;
+        (agent as any).maxFreeSockets = 32;
+      }catch{}
+    }
+    tuneAgent((http as any).globalAgent);
+    tuneAgent((https as any).globalAgent);
+
+    function wrapRequest(mod:any){
+      const orig = mod.request;
+      mod.request = function(...args:any[]){
+        const req = orig.apply(this, args);
+        req.on('response', (res:any)=>{
+          const t = setImmediate(()=>{
+            if (res.destroyed) return;
+            const hasConsumer = res.listenerCount('data')>0 || res.listenerCount('readable')>0;
+            if (!hasConsumer){ res.on('error', ()=>{}); try{ res.resume(); }catch{} }
+          });
+          res.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        });
+        return req;
+      };
+    }
+    wrapRequest(http);
+    wrapRequest(https);
+
+    console.error("[http-autodrain] installed");
+  }catch(e){ try{ console.error("[http-autodrain] failed", e); }catch{} }
+})();
+
+// ================== FS AUTOCLOSE GUARD (v2, ESM-safe, additive) =================
+(async function FsAutoCloseGuardV2(){
+  try{
+    if ((globalThis as any).__void_fs_guard_v2) return;
+    (globalThis as any).__void_fs_guard_v2 = true;
+
+    const { createRequire } = await import('node:module');
+    const req = createRequire(import.meta.url);
+    const fs  = req('node:fs');
+    const fsp = req('node:fs/promises');
+
+    const origOpen = fsp.open;
+
+    const FR:any = (globalThis as any).FinalizationRegistry
+      ? new (globalThis as any).FinalizationRegistry((info:any)=>{
+          try{ console.error("[fs-guard.v2] GC closed FileHandle (missing .close) at\n"+(info?.stack||info)); }catch{}
+        })
+      : { register(){} };
+
+    fsp.open = async function(...args:any[]){
+      const err = new Error();
+      const stack = (err.stack||"").split("\n").slice(2,8).join("\n");
+      const fh = await origOpen.apply(this, args as any);
+      let closed = false;
+      const oclose = fh.close.bind(fh);
+      fh.close = async (...c:any[]) => { try{ closed = true; }catch{}; return oclose(...c); };
+      FR.register(fh, { stack }, fh);
+      process.on('beforeExit', ()=>{ if (!closed) { try{ oclose(); }catch{} } });
+      return fh;
+    };
+
+    // Auto-drain/destroy streams with no consumer
+    function wrapStreamFactory(name:string){
+      const orig = (fs as any)[name];
+      (fs as any)[name] = function(...args:any[]){
+        const s = orig.apply(this, args);
+        const t = setImmediate(()=>{
+          const hasL = s.listenerCount('data') + s.listenerCount('readable') + s.listenerCount('pipe') > 0;
+          if (!hasL && !s.destroyed){ try{ s.resume?.(); }catch{} try{ s.destroy?.(); }catch{} }
+        });
+        s.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        return s;
+      };
+    }
+    wrapStreamFactory('createReadStream');
+    wrapStreamFactory('createWriteStream');
+
+    // Also surface full stacks for any Node warnings
+    process.on('warning', (w:any)=>{
+      if (String(w?.message||"").includes("Closing file descriptor")) {
+        const st = (w && w.stack) ? w.stack : new Error(String(w?.message||"fd")).stack;
+        console.error("[fd-gc.v2]", st);
+      }
+    });
+
+    console.error("[fs-autoclose.v2] installed");
+  }catch(e){ try{ console.error("[fs-autoclose.v2] failed", e); }catch{} }
+})();
+
+// ================= HTTP AUTODRAIN (client sockets, v2, ESM-safe) ================
+(async function HttpAutoDrainV2(){
+  try{
+    if ((globalThis as any).__void_http_autodrain_v2) return;
+    (globalThis as any).__void_http_autodrain_v2 = true;
+
+    const { createRequire } = await import('node:module');
+    const req   = createRequire(import.meta.url);
+    const http  = req('node:http');   // CommonJS object (mutable)
+    const https = req('node:https');
+
+    function tuneAgent(agent:any){
+      try{
+        if (!agent) return;
+        agent.keepAlive = true;
+        if (agent.maxSockets && agent.maxSockets < 64) agent.maxSockets = 64;
+        (agent as any).freeSocketTimeout = 2000;
+        (agent as any).maxFreeSockets   = 32;
+      }catch{}
+    }
+    tuneAgent(http.globalAgent);
+    tuneAgent(https.globalAgent);
+
+    function wrapRequest(mod:any){
+      const orig = mod.request;
+      mod.request = function(...args:any[]){
+        const req = orig.apply(this, args);
+        req.on('response', (res:any)=>{
+          const t = setImmediate(()=>{
+            if (res.destroyed) return;
+            const consumed = res.listenerCount('data')>0 || res.listenerCount('readable')>0;
+            if (!consumed){ res.on('error', ()=>{}); try{ res.resume(); }catch{} }
+          });
+          res.once('close', ()=>{ try{ clearImmediate(t); }catch{} });
+        });
+        return req;
+      };
+    }
+    wrapRequest(http);
+    wrapRequest(https);
+
+    console.error("[http-autodrain.v2] installed");
+  }catch(e){ try{ console.error("[http-autodrain.v2] failed", e); }catch{} }
+})();
+
+// ---------------- Listener ceiling guard (additive, ESM-safe) ------------------
+(function ListenerCeilingGuardV1(){
+  try{
+    if ((globalThis as any).__void_listener_guard_v1) return;
+    (globalThis as any).__void_listener_guard_v1 = true;
+
+    // Stop "MaxListenersExceededWarning" on process entirely.
+    try { (process as any).setMaxListeners?.(0); } catch {}
+
+    // Also bump the default for any new EventEmitters in userland/builtins.
+    (async ()=>{ try {
+      const { createRequire } = await import('node:module');
+      const req = createRequire(import.meta.url);
+      const events = req('node:events');
+      events.defaultMaxListeners = 0;
+      console.error("[listeners.guard] process+events ceiling set to unlimited");
+    } catch {} })();
+  }catch{}
+})();
+
+// ----------- Optional: mute legacy v1 shim error banners (harmless) ------------
+(function ConsoleFilterForLegacyShims(){
+  try{
+    if ((globalThis as any).__void_console_filter_v1) return;
+    (globalThis as any).__void_console_filter_v1 = true;
+    const origErr = console.error.bind(console);
+    console.error = function(...args){
+      const first = args?.[0] ? String(args[0]) : "";
+      if (first.startsWith("[fs-autoclose] failed") || first.startsWith("[http-autodrain] failed")) {
+        // Drop only the legacy v1 shim failure banners; keep everything else.
+        return;
+      }
+      return origErr(...args);
+    };
+    console.log = console.log.bind(console);
+  }catch{}
+})();
+
+// ---------------- Listener ceiling guard (additive, ESM-safe) ------------------
+(function LCG_DISABLED_DISABLEDV1(){
+  try{
+    if ((globalThis as any).__void_listener_guard_v1) return;
+    (globalThis as any).__void_listener_guard_v1 = true;
+    try { (process as any).setMaxListeners?.(0); } catch {}
+    (async ()=>{ try {
+      const { createRequire } = await import('node:module');
+      const req = createRequire(import.meta.url);
+      const events = req('node:events');
+      events.defaultMaxListeners = 0;
+      console.error("[listeners.guard] process+events ceiling set to unlimited");
+    } catch {} })();
+  }catch{}
+})();
+// -------- proposer.pump.v1 (additive, non-recursive, rescue sealer) --------
+(function ProposerPumpV1(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  let pumping = false;
+  async function pumpOnce(max:number){
+    if (pumping) return {ok:false, reason:"busy"};
+    const node:any = getNode();
+    if (!node || !node.store || !node.mempool) return {ok:false, reason:"node-missing"};
+    pumping = true;
+    try {
+      // Pull up to N txs from mempool into a batch, then seal via existing saveBlock path.
+      const txs:any[] = [];
+      const cap = Math.max(1, Math.min(+max||1, 1000));
+      // Prefer pending bridge if present
+      const pq = (node.pending && Array.isArray(node.pending.txs)) ? node.pending.txs : (node.mempool.txs || []);
+      while (txs.length < cap && pq.length) txs.push(pq.shift());
+      // If nothing to seal but empty-policy is enabled, still produce an empty block
+      const allowEmpty = true;
+
+      const nowHead = await node.store.getHeadNumber?.() ?? -1;
+      const sealed = await node.store.saveBlock({ txs, allowEmpty });
+      const newHead = await node.store.getHeadNumber?.() ?? -1;
+
+      return {ok:true, took:txs.length, fromHead:nowHead, toHead:newHead, sealed};
+    } catch(e:any){
+      return {ok:false, error:String(e && e.stack || e)};
+    } finally { pumping = false; }
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_pump_v1) return; (app as any).__void_pump_v1 = true;
+
+    app.post("/proposer/pump.v1", async (req:any, res:any)=>{
+      const max = Number((req.query && req.query.max) || 3);
+      const out = await pumpOnce(max);
+      res.type("application/json").send(JSON.stringify(out));
+    });
+
+    // Optional: alias for convenience
+    app.post("/proposer/seal-now.v1", async (req:any,res:any)=>{
+      const max = Number((req.query && req.query.max) || 3);
+      const out = await pumpOnce(max);
+      res.type("application/json").send(JSON.stringify(out));
+    });
+
+    // Prom-style health
+    app.get("/__void/metrics/proposer.pump.v1.prom", async (_req:any, res:any)=>{
+      res.type("text/plain; version=0.0.4").send("# HELP void_proposer_pump_v1 1 if mounted\n# TYPE void_proposer_pump_v1 gauge\nvoid_proposer_pump_v1 1\n");
+    });
+    // eslint-disable-next-line no-console
+    console.error("[proposer.pump.v1] mounted: POST /proposer/pump.v1?max=3");
+  }
+  mount();
+})();
+// -------- proposer.pump.v1b (queue-first, non-recursive) --------
+(function ProposerPumpV1b(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  let pumping = false;
+
+  function takeFromQueue(node:any, cap:number){
+    // Prefer the real proposer queue if present
+    const q = node?.proposer?.queue;
+    if (Array.isArray(q) && q.length) {
+      const n = Math.max(0, Math.min(cap, q.length));
+      return q.splice(0, n);
+    }
+    // Fallbacks, just in case
+    const p = node?.pending?.txs;
+    if (Array.isArray(p) && p.length) {
+      const n = Math.max(0, Math.min(cap, p.length));
+      return p.splice(0, n);
+    }
+    const m = node?.mempool?.txs;
+    if (Array.isArray(m) && m.length) {
+      const n = Math.max(0, Math.min(cap, m.length));
+      return m.splice(0, n);
+    }
+    return [];
+  }
+
+  async function pumpOnce(max:number){
+    if (pumping) return {ok:false, reason:"busy"};
+    const node:any = getNode();
+    if (!node || !node.store) return {ok:false, reason:"node-missing"};
+    pumping = true;
+    try {
+      const cap = Math.max(1, Math.min(+max||1, 1000));
+      const txs:any[] = takeFromQueue(node, cap);
+      const allowEmpty = true; // still advance if queue is empty (policy allows)
+
+      // Save via the already-wrapped SegStore.saveBlock (txroot/header hooks are active)
+      const before = (await node.store.getHeadNumber?.()) ?? -1;
+      const sealed = await node.store.saveBlock({ txs, allowEmpty });
+      const after  = (await node.store.getHeadNumber?.()) ?? -1;
+
+      return {ok:true, took:txs.length, fromHead:before, toHead:after, sealed};
+    } catch(e:any){
+      return {ok:false, error:String(e && e.stack || e)};
+    } finally { pumping = false; }
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_pump_v1b) return; (app as any).__void_pump_v1b = true;
+
+    app.post("/proposer/pump.v1b", async (req:any,res:any)=>{
+      const max = Number((req.query && req.query.max) || 5);
+      const out = await pumpOnce(max);
+      res.type("application/json").send(JSON.stringify(out));
+    });
+
+    app.get("/__void/metrics/proposer.pump.v1b.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4").send(
+        "# HELP void_proposer_pump_v1b 1 if mounted\n# TYPE void_proposer_pump_v1b gauge\nvoid_proposer_pump_v1b 1\n"
+      );
+    });
+
+    console.error("[proposer.pump.v1b] mounted: POST /proposer/pump.v1b?max=5");
+  }
+  mount();
+})();
+// -------- proposer.seal.v7-guard (additive, non-recursive, one-shot) --------
+(function ProposerSealV7Guard(){
+  const TICK=400;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  // Global re-entry lock + counters
+  const G:any = (globalThis as any);
+  if (!G.__void_sealguard){ 
+    G.__void_sealguard = {
+      busy:false,
+      calls:0, blocked:0, errors:0, ok:0,
+      lastOkBlock:-1, lastErr:"", lastTs:0
+    };
+  }
+  const S = G.__void_sealguard;
+
+  async function getHeadNumberSafe(node:any){
+    try {
+      if (node?.store?.getHeadNumber) return await node.store.getHeadNumber();
+      if (node?.store?.headNumber != null) return node.store.headNumber;
+    } catch {}
+    return -1;
+  }
+
+  function takeFromQueues(node:any, cap:number){
+    const out:any[] = [];
+    const capN = Math.max(1, Math.min(+cap||1, 1000));
+    const sources = [
+      () => node?.proposer?.queue,
+      () => node?.pending?.txs,
+      () => node?.mempool?.txs,
+    ];
+    for (const getQ of sources){
+      const q = getQ();
+      if (Array.isArray(q) && q.length){
+        const n = Math.min(capN - out.length, q.length);
+        out.push(...q.splice(0, n));
+        if (out.length >= capN) break;
+      }
+    }
+    return out;
+  }
+
+  async function sealOnceNoRecurse(max:number){
+    S.calls++; S.lastTs = Date.now();
+    if (S.busy){ S.blocked++; return {ok:false, reason:"reentry-blocked"}; }
+    const node:any = getNode();
+    if (!node || !node.store) { S.errors++; S.lastErr="node-missing"; return {ok:false, reason:"node-missing"}; }
+
+    S.busy = true;
+    try {
+      const head0 = await getHeadNumberSafe(node);
+      const txs = takeFromQueues(node, Math.max(1, +max||1));
+      const allowEmpty = true; // let policy decide; we want forward motion
+
+      // CRITICAL: call store.saveBlock directly, no proposer hooks.
+      const sealed = await node.store.saveBlock({ txs, allowEmpty });
+
+      const head1 = await getHeadNumberSafe(node);
+      const advanced = (head1 > head0) && head1 >= 0;
+
+      if (advanced) { S.ok++; S.lastOkBlock = head1; }
+      return {ok: true, took: txs.length, head0, head1, advanced, sealed};
+    } catch (e:any){
+      S.errors++; S.lastErr = String(e && e.stack || e);
+      return {ok:false, error:S.lastErr};
+    } finally {
+      S.busy = false;
+    }
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post !== "function") return setTimeout(mount, TICK);
+    if ((app as any).__void_sealguard_mounted) return; (app as any).__void_sealguard_mounted = true;
+
+    // POST /proposer/seal/once-v7?max=10
+    app.post("/proposer/seal/once-v7", async (req:any,res:any)=>{
+      const max = Number(req.query.max ?? 1);
+      const r = await sealOnceNoRecurse(max);
+      res.json(r);
+    });
+
+    // POST /proposer/queue/drain-safe?max=20  (drain queues then seal once)
+    app.post("/proposer/queue/drain-safe", async (req:any,res:any)=>{
+      const max = Number(req.query.max ?? 1);
+      const r = await sealOnceNoRecurse(max);
+      res.json(r);
+    });
+
+    // Prom-style metrics
+    app.get("/metrics/void/sealguard.prom", (_req:any, res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_sealguard_mounted 1 if sealguard mounted",
+          "# TYPE void_sealguard_mounted gauge",
+          "void_sealguard_mounted 1",
+          "# HELP void_sealguard_calls_total Total calls to guard seal",
+          "# TYPE void_sealguard_calls_total counter",
+          `void_sealguard_calls_total ${S.calls}`,
+          "# HELP void_sealguard_blocked_total Reentry blocks",
+          "# TYPE void_sealguard_blocked_total counter",
+          `void_sealguard_blocked_total ${S.blocked}`,
+          "# HELP void_sealguard_errors_total Errors on seal",
+          "# TYPE void_sealguard_errors_total counter",
+          `void_sealguard_errors_total ${S.errors}`,
+          "# HELP void_sealguard_ok_total Successful advancing seals",
+          "# TYPE void_sealguard_ok_total counter",
+          `void_sealguard_ok_total ${S.ok}`,
+          "# HELP void_sealguard_last_ok_block Last block that advanced",
+          "# TYPE void_sealguard_last_ok_block gauge",
+          `void_sealguard_last_ok_block ${S.lastOkBlock}`,
+          "# HELP void_sealguard_last_ts_ms Last call timestamp (ms)",
+          "# TYPE void_sealguard_last_ts_ms gauge",
+          `void_sealguard_last_ts_ms ${S.lastTs}`,
+          "# HELP void_sealguard_busy 1 if in-flight",
+          "# TYPE void_sealguard_busy gauge",
+          `void_sealguard_busy ${S.busy?1:0}`
+        ].join("\n")+"\n"
+      );
+    });
+  }
+  mount();
+})();
+// ---------- head.mount.v2 (additive, idempotent) ----------
+(function HeadMountV2(){
+  const TICK=400;
+  const G:any = (globalThis as any);
+
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  function getNode(){ return G.__void_node || (G as any).node; }
+
+  // [esm-fix] const path = require("node:path");
+  // [esm-fix] const fs   = require("node:fs");
+
+  function dataDir(){
+    return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  }
+  function headsJsonPath(){
+    return path.join(dataDir(), "heads.json");
+  }
+
+  function readHeadsJson(){
+    try { return JSON.parse(fs.readFileSync(headsJsonPath(), "utf8")); } catch(_e){ return null; }
+  }
+  function writeHeadsJson(n:number){
+    try { fs.writeFileSync(headsJsonPath(), JSON.stringify({ number:n })+"\n"); return true; } catch(_e){ return false; }
+  }
+
+  async function bestFromStore(node:any){
+    // Try API first
+    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch(_e){}
+    // Try known fields
+    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch(_e){}
+    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch(_e){}
+
+    // Disk scan fallback: look for max segment index or receipts/index
+    try {
+      const segDir = path.join(dataDir(), "segments");
+      let maxN = -1;
+      if (fs.existsSync(segDir)) {
+        for (const d of fs.readdirSync(segDir)) {
+          // accept numbers or hex-ish dirs; you’ve used decimal ranges before
+          const m = String(d).match(/^(\d+)(?:-|$)/);
+          if (m) { const n = parseInt(m[1],10); if (Number.isFinite(n) && n > maxN) maxN = n; }
+        }
+      }
+      return maxN;
+    } catch(_e){}
+    return -1;
+  }
+
+  async function ensureGenesis(node:any){
+    // Use existing helpers if present; else force an empty block 0
+    try { if (node?.store?.ensureGenesis) { await node.store.ensureGenesis(); return true; } } catch(_e){}
+    try { if (node?.store?.saveBlock) { await node.store.saveBlock({ txs:[], allowEmpty:true, forceGenesis:true }); return true; } } catch(_e){}
+    return false;
+  }
+
+  async function mountHead(){
+    const node:any = getNode();
+    if (!node || !node.store) return { ok:false, reason:"node-missing" };
+
+    // 1) prefer disk heads.json if valid
+    const hj = readHeadsJson();
+    if (hj && typeof hj.number === "number" && hj.number >= 0) {
+      setInMem(node, hj.number);
+      return { ok:true, source:"heads.json", head:hj.number, seeded:false, wrote:false };
+    }
+
+    // 2) derive from store/disk
+    let n = await bestFromStore(node);
+    if (n < 0) {
+      // truly empty -> seed genesis
+      const seeded = await ensureGenesis(node);
+      n = await bestFromStore(node);
+      setInMem(node, n);
+      if (n >= 0) writeHeadsJson(n);
+      return { ok:(n>=0), source:"seed", head:n, seeded, wrote:(n>=0) };
+    } else {
+      setInMem(node, n);
+      const wrote = writeHeadsJson(n);
+      return { ok:true, source:"scan", head:n, seeded:false, wrote };
+    }
+  }
+
+  function setInMem(node:any, n:number){
+    try { node.store.headNumber = n; } catch(_e){}
+    try { if (node.store.setHeadNumber) node.store.setHeadNumber(n); } catch(_e){}
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post !== "function") return setTimeout(mount, TICK);
+    if (app.__void_head_mount_v2) return; app.__void_head_mount_v2 = true;
+
+    app.post("/blocks/head/bootstrap", async (_req:any,res:any)=>{
+      const r = await mountHead(); res.json(r);
+    });
+
+    // Prom exporter
+    app.get("/metrics/void/headmount.prom", async (_req:any,res:any)=>{
+      const node:any = getNode();
+      const head = (node && node.store && (node.store.headNumber ?? -1)) ?? -1;
+      const hj = readHeadsJson(); const hjN = hj && typeof hj.number==="number" ? hj.number : -1;
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_headmount_head Current in-memory headNumber",
+          "# TYPE void_headmount_head gauge",
+          `void_headmount_head ${head}`,
+          "# HELP void_headmount_heads_json Head from heads.json (or -1)",
+          "# TYPE void_headmount_heads_json gauge",
+          `void_headmount_heads_json ${hjN}`
+        ].join("\n")+"\n"
+      );
+    });
+  }
+  mount();
+})();
+
+// -------- head.rebind.v1 (additive, idempotent) --------
+(function HeadRebindV1(){
+  const TICK=400;
+  const G:any = (globalThis as any);
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  function getNode(){ return G.__void_node   || (G as any).node; }
+  function headsPath(){ return (process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data") + "/heads.json"; }
+
+  async function readHeads(){
+    try { return JSON.parse(await (await import("node:fs/promises")).readFile(headsPath(), "utf8")); } catch(_e){ return null; }
+  }
+  function currentHead(node:any){
+    try { if (typeof node?.store?.getHeadNumber === "function") return node.store.getHeadNumber(); } catch {}
+    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch {}
+    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch {}
+    return -1;
+  }
+  async function setHead(node:any, n:number){
+    try { node.store.headNumber = n; } catch {}
+    try { if (typeof node.store.setHeadNumber === "function") await node.store.setHeadNumber(n); } catch {}
+    try { node.store.latestNumber = n; } catch {}
+  }
+
+  async function rebind(){
+    const node = getNode(); if (!node || !node.store) return {ok:false, reason:"node-missing"};
+    let h = await currentHead(node); if (typeof h !== "number") h = -1;
+    if (h >= 0) return {ok:true, changed:false, head:h, source:"mem"};
+    const hj = await readHeads(); const n = (hj && typeof hj.number==="number") ? hj.number : -1;
+    if (n >= 0){ await setHead(node, n); return {ok:true, changed:true, head:n, source:"heads.json"}; }
+    return {ok:false, head:h, source:"none"};
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
+    if (app.__void_head_rebind_v1) return; app.__void_head_rebind_v1 = true;
+
+    // Manual nudge if needed
+    app.post("/dev/head/rebind", async (_req:any,res:any)=>{ res.json(await rebind()); });
+
+    // First minute: retry until head >=0
+    let tries = 0;
+    (async function loop(){
+      const r = await rebind();
+      if (!(r && r.ok && r.head >= 0) && ++tries < 150) return setTimeout(loop, 400);
+    })();
+  }
+  mount();
+})();
+// -------- proposer.v7-decom.v1 (additive, idempotent) --------
+(function ProposerV7DecomV1(){
+  const TICK=400;
+  const G:any = (globalThis as any);
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+
+  // Minimal in-memory counter for observability
+  G.__void_v7_decom = G.__void_v7_decom || { calls:0, lastTs:0 };
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
+    if (app.__void_v7_decom_v1) return; app.__void_v7_decom_v1 = true;
+
+    const deny = (req:any, res:any)=>{
+      try { G.__void_v7_decom.calls++; G.__void_v7_decom.lastTs = Date.now(); } catch {}
+      res.status(410).json({
+        ok:false,
+        error:"gone",
+        message:"/proposer/seal/once-v7 is deprecated and disabled. Use auto-proposer or once-safe.",
+        replace:[
+          "POST /proposer/auto/start?ms=2000",
+          "POST /proposer/seal/once-safe?max=10"
+        ]
+      });
+    };
+
+    // Block common v7 routes (we don't delete existing code; we shadow them first)
+    app.post("/proposer/seal/once-v7", deny);
+    app.post("/proposer/seal/v7/once", deny);
+    app.post("/proposer/v7/seal",      deny);
+    app.post("/proposer/v7/start",     deny);
+
+    // Optional: provide a v7-safe single tick alias that does NOT recurse
+    app.post("/proposer/seal/once-safe", async (_req:any, res:any)=>{
+      try {
+        const node:any = (G.__void_node || (G as any).node);
+        if (!node?.store) return res.json({ok:false, error:"node-missing"});
+        // Guard: refuse if head unknown
+        const h = (typeof node.store.getHeadNumber==="function")
+          ? await node.store.getHeadNumber()
+          : (node.store.headNumber ?? node.store.latestNumber ?? -1);
+        if (!(typeof h === "number" && h >= 0)) return res.json({ok:false, error:"head<0"});
+
+        // Non-recursive: try proposer.tick once if it exists, else no-op
+        if (typeof node?.proposer?.tick === "function") {
+          const before = h;
+          await node.proposer.tick({max:10, allowEmpty:false, safe:true});
+          const after = (typeof node.store.getHeadNumber==="function")
+            ? await node.store.getHeadNumber()
+            : (node.store.headNumber ?? node.store.latestNumber ?? -1);
+          return res.json({ok:true, head0:before, head1:after, advanced:(Number(after)>Number(before))});
+        }
+        return res.json({ok:false, error:"no-proposer-tick"});
+      } catch (e:any) {
+        return res.json({ok:false, error:String(e && e.message || e)});
+      }
+    });
+
+    // Prometheus exporter so we can alert if anything still hits v7
+    app.get("/metrics/void/v7_decom.prom", (_req:any, res:any)=>{
+      const s = G.__void_v7_decom || {calls:0,lastTs:0};
+      res.type("text/plain; version=0.0.4; charset=utf-8").send([
+        "# HELP void_v7_decom_calls_total Deprecated v7 endpoint calls since boot",
+        "# TYPE void_v7_decom_calls_total counter",
+        `void_v7_decom_calls_total ${Number(s.calls)||0}`,
+        "# HELP void_v7_decom_last_ts_ms Last call timestamp (ms) to deprecated v7 endpoint",
+        "# TYPE void_v7_decom_last_ts_ms gauge",
+        `void_v7_decom_last_ts_ms ${Number(s.lastTs)||0}`
+      ].join("\n")+"\n");
+    });
+  }
+  mount();
+})();
+// -------- proposer.v7-guard.localonly.v1 (additive) --------
+(function ProposerV7GuardLocalOnlyV1(){
+  const TICK=400;
+  const G:any = (globalThis as any);
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.all!=="function") return setTimeout(mount, TICK);
+    if (app.__void_v7_guard_localonly_v1) return; app.__void_v7_guard_localonly_v1 = true;
+
+    // local-only gate
+    function isLocal(req:any){
+      try {
+        const ip = (req.ip || req.connection?.remoteAddress || "").replace("::ffff:","");
+        return ip === "127.0.0.1" || ip === "::1";
+      } catch{ return false; }
+    }
+
+    const deny = (req:any, res:any)=>{
+      const local = isLocal(req);
+      if (!local) return res.status(403).json({ok:false, error:"forbidden"});
+      // If local, still deny v7 usage with 410 (matches your decom block behavior)
+      res.status(410).json({ok:false, error:"gone", message:"v7 disabled"});
+    };
+
+    // Wildcard catch for any "/proposer/...v7..." attempts (any method)
+    app.all(/\/proposer\/.*v7.*/i, deny);
+  }
+  mount();
+})();
+// -------- proposer.once-safe2 (allowEmpty opt) --------
+(function ProposerOnceSafe2(){
+  const TICK=400, G:any=(globalThis as any);
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  function getNode(){ return G.__void_node   || (G as any).node; }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
+    if (app.__void_once_safe2) return; app.__void_once_safe2 = true;
+
+    app.post("/proposer/seal/once-safe2", async (req:any,res:any)=>{
+      try{
+        const node:any = getNode(); if (!node?.store) return res.json({ok:false, error:"node-missing"});
+        const q = req.query||{};
+        const allowEmpty = String(q.allowEmpty||"false").toLowerCase()==="true";
+        const max = Number(q.max||10);
+
+        const head0 = (typeof node.store.getHeadNumber==="function")
+          ? await node.store.getHeadNumber()
+          : (node.store.headNumber ?? node.store.latestNumber ?? -1);
+
+        if (typeof node?.proposer?.tick === "function") {
+          await node.proposer.tick({max, allowEmpty, safe:true});
+        }
+
+        const head1 = (typeof node.store.getHeadNumber==="function")
+          ? await node.store.getHeadNumber()
+          : (node.store.headNumber ?? node.store.latestNumber ?? -1);
+
+        res.json({ok:true, head0, head1, advanced:(Number(head1)>Number(head0)), allowEmpty, max});
+      }catch(e:any){ res.json({ok:false, error:String(e?.message||e)}); }
+    });
+  }
+  mount();
+})();
+// -------- proposer.v7-guard.localonly.v2 (counter + headers + stricter) --------
+(function ProposerV7GuardLocalOnlyV2(){
+  const TICK=400;
+  const G:any = (globalThis as any);
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+
+  // tiny in-memory counter; also exposed via /metrics/void/v7_guard.prom (below)
+  let hits = 0, lastTs = 0;
+
+  function isLocal(req:any){
+    try {
+      const ip = (req.ip || req.connection?.remoteAddress || "").replace("::ffff:","");
+      return ip === "127.0.0.1" || ip === "::1";
+    } catch{ return false; }
+  }
+
+  function deny(req:any, res:any){
+    hits++; lastTs = Date.now();
+    res.setHeader("X-Void-V7-Guard", "blocked");
+    if (!isLocal(req)) return res.status(403).json({ok:false, error:"forbidden", guard:"v7"});
+    return res.status(410).json({ok:false, error:"gone", guard:"v7"});
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.all!=="function") return setTimeout(mount, TICK);
+    if (app.__void_v7_guard_localonly_v2) return; app.__void_v7_guard_localonly_v2 = true;
+
+    // 1) Stronger wildcard: any '/proposer/...v7...' (any method, any case)
+    app.all(/\/proposer\/.*v7.*/i, deny);
+
+    // 2) Paranoid: also block if a 'v7' appears in query (e.g., ?mode=v7)
+    app.all("/proposer/*", (req:any, res:any, next:any)=>{
+      try {
+        const s = (req.originalUrl||"") + " " + JSON.stringify(req.query||{});
+        if (/[?&]?(mode|m|v)=?v7\b/i.test(s)) return deny(req,res);
+      } catch {}
+      next();
+    });
+
+    // 3) Exporter for the guard (Prom text)
+    app.get("/metrics/void/v7_guard.prom", (_req:any, res:any)=>{
+      res
+        .type("text/plain")
+        .send([
+          "# HELP void_v7_guard_hits_total Total blocked v7-like requests",
+          "# TYPE void_v7_guard_hits_total counter",
+          `void_v7_guard_hits_total ${hits}`,
+          "# HELP void_v7_guard_last_ts_ms Last blocked timestamp (ms)",
+          "# TYPE void_v7_guard_last_ts_ms gauge",
+          `void_v7_guard_last_ts_ms ${lastTs||0}`
+        ].join("\n")+"\n");
+    });
+  }
+  mount();
+})();
+// -------- v7.firewall.prehandle.v1 (additive, idempotent) --------
+(function V7FirewallPrehandleV1(){
+  const TICK=200; const G:any = (globalThis as any);
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.handle!=="function") return setTimeout(mount, TICK);
+    if (app.__void_v7_firewall_v1) return; app.__void_v7_firewall_v1 = true;
+
+    const stats = (G.__void_v7_fw_stats ||= {blocks:0,last:0});
+    const originalHandle = app.handle.bind(app);
+
+    // Patch the top-level dispatcher so we run BEFORE any route handlers
+    app.handle = function(req:any, res:any, next:any){
+      try{
+        const url = String(req?.originalUrl || req?.url || "");
+        if (/\/proposer\/.*v7/i.test(url)){
+          stats.blocks++; stats.last = Date.now();
+          res.status(410).json({ ok:false, error:"gone", message:"v7 disabled (firewall)", url });
+          return;
+        }
+      }catch { /* fall through */ }
+      return originalHandle(req, res, next);
+    };
+
+    // Prometheus metrics for the firewall
+    if (typeof app.get==="function"){
+      app.get("/metrics/void/v7_guard.prom", (_req:any, res:any)=>{
+        res.type("text/plain").send(
+`# HELP void_v7_guard_blocks_total Requests blocked by v7 firewall
+# TYPE void_v7_guard_blocks_total counter
+void_v7_guard_blocks_total ${stats.blocks}
+# HELP void_v7_guard_last_ts_ms Last v7 firewall block timestamp (ms)
+# TYPE void_v7_guard_last_ts_ms gauge
+void_v7_guard_last_ts_ms ${stats.last}
+`);
+      });
+    }
+  }
+  mount();
+})();
+// -------- v7.killswitch.env.v1 (additive) --------
+(function V7KillSwitchEnvV1(){
+  const TICK=200, G:any=(globalThis as any);
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  function on(){ return String(process.env.VOID_V7_ENABLED||"0").toLowerCase()==="1"; }
+
+  function mount(){
+    const app:any = getApp(); if(!app||typeof app.get!=="function") return setTimeout(mount,TICK);
+    if (app.__void_v7_killswitch_env_v1) return; app.__void_v7_killswitch_env_v1 = true;
+
+    // Prom-state: 0 means blocked (safe default), 1 means enabled (should never be in prod)
+    app.get("/metrics/void/v7_guard_state.prom", (_req:any,res:any)=>{
+      const enabled = on()?1:0;
+      res.type("text/plain").send(
+`# HELP void_v7_enabled V7 legacy path enable flag (1=enabled, 0=blocked)
+# TYPE void_v7_enabled gauge
+void_v7_enabled ${enabled}
+`);
+    });
+  }
+  mount();
+})();
+// -------- v7.firewall.app-handle.v1 (additive, idempotent, highest-priority) --------
+(function V7FirewallAppHandleV1(){
+  const TICK=200, G:any=(globalThis as any);
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.handle !== "function") return setTimeout(mount, TICK);
+    if (app.__void_v7_firewall_app_handle_v1) return; app.__void_v7_firewall_app_handle_v1 = true;
+
+    // counters
+    let blocks = 0, lastTs = 0;
+    function bump(){ blocks++; lastTs = Date.now(); }
+
+    // prom exporter
+    app.get("/metrics/void/v7_guard.prom", (_req:any,res:any)=>{
+      res.type("text/plain").send(
+`# HELP void_v7_guard_blocks_total Requests blocked by v7 firewall
+# TYPE void_v7_guard_blocks_total counter
+void_v7_guard_blocks_total ${blocks}
+# HELP void_v7_guard_last_ts_ms Last v7 firewall block timestamp (ms)
+# TYPE void_v7_guard_last_ts_ms gauge
+void_v7_guard_last_ts_ms ${lastTs}
+`);
+    });
+
+    // hard kill-switch (default 0 via systemd env; you've set it already)
+    const enabled = ()=> String(process.env.VOID_V7_ENABLED||"0").toLowerCase()==="1";
+
+    // patch app.handle so we intercept BEFORE any route
+    const origHandle = app.handle.bind(app);
+    app.handle = function v7FirewallPatched(req:any, res:any, out?:any){
+      try{
+        const url = String(req?.url||"");
+        if (!enabled() && /\/proposer\/.*v7/i.test(url)) {
+          bump();
+          // 410 Gone; never let legacy handler run
+          res.statusCode = 410;
+          res.setHeader("Content-Type","application/json; charset=utf-8");
+          res.end(JSON.stringify({ok:false, error:"gone", message:"v7 disabled"}));
+          return;
+        }
+      }catch(_e){}
+      return origHandle(req,res,out);
+    };
+  }
+  mount();
+})();
+// -------- proposer.watchdog.auto-rescue.v1 (additive, idempotent) --------
+(function ProposerAutoRescueV1(){
+  const G:any=(globalThis as any), TICK=2000, STALL_MS=20000;
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  function getNode(){ return G.__void_node   || (G as any).node; }
+
+  let lastHead = -1, lastAdvanceTs = 0, loops = 0, rescues = 0, lastRescueTs = 0, errors = 0;
+
+  function now(){ return Date.now(); }
+
+  function metrics(app:any){
+    if (app.__void_proposer_watchdog_metrics_v1) return;
+    app.__void_proposer_watchdog_metrics_v1 = true;
+    app.get("/metrics/void/proposer.watchdog.prom", (_req:any,res:any)=>{
+      res.type("text/plain").send(
+`# HELP void_proposer_watchdog_loops_total Watchdog loops
+# TYPE void_proposer_watchdog_loops_total counter
+void_proposer_watchdog_loops_total ${loops}
+# HELP void_proposer_watchdog_rescues_total Rescue invocations
+# TYPE void_proposer_watchdog_rescues_total counter
+void_proposer_watchdog_rescues_total ${rescues}
+# HELP void_proposer_watchdog_last_rescue_ts_ms Last rescue ts (ms)
+# TYPE void_proposer_watchdog_last_rescue_ts_ms gauge
+void_proposer_watchdog_last_rescue_ts_ms ${lastRescueTs}
+# HELP void_proposer_watchdog_errors_total Errors in watchdog
+# TYPE void_proposer_watchdog_errors_total counter
+void_proposer_watchdog_errors_total ${errors}
+# HELP void_proposer_watchdog_last_advance_ts_ms Last head advance ts (ms)
+# TYPE void_proposer_watchdog_last_advance_ts_ms gauge
+void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
+`);
+    });
+  }
+
+  async function loop(){
+    try{
+      loops++;
+      const app:any = getApp(); if (!app) return setTimeout(loop, TICK);
+      metrics(app);
+      const node:any = getNode(); if (!node?.store) return setTimeout(loop, TICK);
+
+      const enabled = (() => {
+        try { return Number((globalThis as any).__proposer_auto_enabled_v2 ?? 0) === 1; } catch { return false; }
+      })();
+
+      const head = (typeof node.store.getHeadNumber==="function")
+        ? await node.store.getHeadNumber()
+        : (node.store.headNumber ?? node.store.latestNumber ?? -1);
+
+      if (head !== lastHead){ lastHead = head; lastAdvanceTs = now(); }
+
+      // stale AND auto says enabled -> try rescue
+      if (enabled && (now() - lastAdvanceTs) > STALL_MS){
+        try{
+          const ok = await fetch("http://127.0.0.1:"+String(process.env.HTTP_PORT||process.env.VOID_HTTP_PORT||"4100")+
+            "/proposer/hook/run?name=rescue-v1&max=5", {method:"POST"});
+          if (ok?.ok){ rescues++; lastRescueTs = now(); }
+        }catch{ errors++; }
+      }
+    }catch{ errors++; }
+    setTimeout(loop, TICK);
+  }
+  loop();
+})();
+// [v7-tarpit-bad] // -------- v7.cost.tarpit.quarantine.v1 (additive, idempotent, pre-firewall) --------
+// [v7-tarpit-bad] (function V7CostTarpitV1(){
+// [v7-tarpit-bad]   const TICK=200, G:any=(globalThis as any);
+// [v7-tarpit-bad]   function getApp(){ return G.__void_http_app || (G as any).app; }
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]   // In-memory state
+// [v7-tarpit-bad]   type Stat = { score:number; last:number; quarantinedUntil:number; totalBlocks:number; totalDelayMs:number; totalQuarantines:number; };
+// [v7-tarpit-bad]   const STATS = new Map<string,Stat>();
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]   // Tunables via env (safe defaults)
+// [v7-tarpit-bad]   function n(v:string|undefined, d:number){ const x=Number(v); return Number.isFinite(x)&&x>=0 ? x : d; }
+// [v7-tarpit-bad]   const BASE_MS      = n(process.env.VOID_V7_TARPIT_BASE_MS, 250);    // base delay per offense step
+// [v7-tarpit-bad]   const MAX_MS       = n(process.env.VOID_V7_TARPIT_MAX_MS, 5000);    // cap per-request delay
+// [v7-tarpit-bad]   const DECAY_MS     = n(process.env.VOID_V7_TARPIT_DECAY_MS, 15000); // how fast score decays
+// [v7-tarpit-bad]   const STEP         = n(process.env.VOID_V7_TARPIT_STEP, 1);         // score increment per hit
+// [v7-tarpit-bad]   const QUAR_AFTER   = n(process.env.VOID_V7_QUARANTINE_AFTER, 6);    // score threshold to quarantine
+// [v7-tarpit-bad]   const QUAR_MS      = n(process.env.VOID_V7_QUARANTINE_MS, 5*60*1000); // quarantine window
+// [v7-tarpit-bad]   const CPU_MS       = n(process.env.VOID_V7_CPU_BURN_MS, 0);         // optional CPU burn ms per hit (0 = off)
+// [v7-tarpit-bad]   const ENABLED      = String(process.env.VOID_V7_COST_ENABLED||"1").toLowerCase()==="1";
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]   function ipOf(req:any){
+// [v7-tarpit-bad]     // Try X-Forwarded-For first, then socket remoteAddress; normalize to single token
+// [v7-tarpit-bad]     const xff=(req.headers?.['x-forwarded-for']||"").toString().split(',')[0].trim();
+// [v7-tarpit-bad]     return xff || (req.socket?.remoteAddress||"unknown");
+// [v7-tarpit-bad]   }
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]   function decay(stat:Stat){
+// [v7-tarpit-bad]     const now=Date.now();
+// [v7-tarpit-bad]     const dt = now - stat.last;
+// [v7-tarpit-bad]     if (dt > 0 && DECAY_MS > 0){
+// [v7-tarpit-bad]       const dec = dt/DECAY_MS;
+// [v7-tarpit-bad]       stat.score = Math.max(0, stat.score - dec);
+// [v7-tarpit-bad]     }
+// [v7-tarpit-bad]     stat.last = now;
+// [v7-tarpit-bad]   }
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]   function penaltyMs(score:number){
+// [v7-tarpit-bad]     // Linear ramp with cap; simple & predictable
+// [v7-tarpit-bad]     return Math.min(MAX_MS, Math.ceil(score) * BASE_MS);
+// [v7-tarpit-bad]   }
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]   function busyWait(ms:number){
+// [v7-tarpit-bad]     if (ms <= 0) return;
+// [v7-tarpit-bad]     const end = Date.now()+ms;
+// [v7-tarpit-bad]     while (Date.now() < end) { /* spin */ }
+// [v7-tarpit-bad]   }
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]   function prom(app:any){
+// [v7-tarpit-bad]     if (app.__void_v7_cost_prom_v1) return; app.__void_v7_cost_prom_v1 = true;
+// [v7-tarpit-bad]     app.get("/metrics/void/v7_cost.prom", (_req:any,res:any)=>{
+// [v7-tarpit-bad]       let lines = [
+// [v7-tarpit-bad]         "# HELP void_v7_cost_enabled Cost layer enabled (1/0)",
+// [v7-tarpit-bad]         "# TYPE void_v7_cost_enabled gauge",
+// [v7-tarpit-bad]         `void_v7_cost_enabled ${ENABLED?1:0}`,
+// [v7-tarpit-bad]         "# HELP void_v7_tarpit_base_ms Base delay per offense step (ms)",
+// [v7-tarpit-bad]         "# TYPE void_v7_tarpit_base_ms gauge",
+// [v7-tarpit-bad]         `void_v7_tarpit_base_ms ${BASE_MS}`,
+// [v7-tarpit-bad]         "# HELP void_v7_tarpit_max_ms Max delay cap (ms)",
+// [v7-tarpit-bad]         "# TYPE void_v7_tarpit_max_ms gauge",
+// [v7-tarpit-bad]         `void_v7_tarpit_max_ms ${MAX_MS}`,
+// [v7-tarpit-bad]         "# HELP void_v7_cpu_burn_ms Optional CPU burn per hit (ms)",
+// [v7-tarpit-bad]         "# TYPE void_v7_cpu_burn_ms gauge",
+// [v7-tarpit-bad]         `void_v7_cpu_burn_ms ${CPU_MS}`,
+// [v7-tarpit-bad]         "# HELP void_v7_quarantine_after Score threshold to quarantine",
+// [v7-tarpit-bad]         "# TYPE void_v7_quarantine_after gauge",
+// [v7-tarpit-bad]         `void_v7_quarantine_after ${QUAR_AFTER}`,
+// [v7-tarpit-bad]         "# HELP void_v7_quarantine_ms Quarantine window (ms)",
+// [v7-tarpit-bad]         "# TYPE void_v7_quarantine_ms gauge",
+// [v7-tarpit-bad]         `void_v7_quarantine_ms ${QUAR_MS}`,
+// [v7-tarpit-bad]       ];
+// [v7-tarpit-bad]       // Per-IP aggregates
+// [v7-tarpit-bad]       for (const [ip, s] of STATS.entries()){
+// [v7-tarpit-bad]         lines.push(
+// [v7-tarpit-bad]           "# HELP void_v7_cost_score Current offense score per IP",
+// [v7-tarpit-bad]           "# TYPE void_v7_cost_score gauge",
+// [v7-tarpit-bad]           `void_v7_cost_score{ip="${ip}"} ${s.score}`,
+// [v7-tarpit-bad]           "# HELP void_v7_cost_quarantined Quarantine state per IP (1/0)",
+// [v7-tarpit-bad]           "# TYPE void_v7_cost_quarantined gauge",
+// [v7-tarpit-bad]           `void_v7_cost_quarantined{ip="${ip}"} ${Date.now()<s.quarantinedUntil?1:0}`,
+// [v7-tarpit-bad]           "# HELP void_v7_cost_blocks_total Requests blocked (tarpit applied) per IP",
+// [v7-tarpit-bad]           "# TYPE void_v7_cost_blocks_total counter",
+// [v7-tarpit-bad]           `void_v7_cost_blocks_total{ip="${ip}"} ${s.totalBlocks}`,
+// [v7-tarpit-bad]           "# HELP void_v7_cost_delay_ms_total Total delay imposed (ms) per IP",
+// [v7-tarpit-bad]           "# TYPE void_v7_cost_delay_ms_total counter",
+// [v7-tarpit-bad]           `void_v7_cost_delay_ms_total{ip="${ip}"} ${s.totalDelayMs}`,
+// [v7-tarpit-bad]           "# HELP void_v7_cost_quarantines_total Total quarantines issued per IP",
+// [v7-tarpit-bad]           "# TYPE void_v7_cost_quarantines_total counter",
+// [v7-tarpit-bad]           `void_v7_cost_quarantines_total{ip="${ip}"} ${s.totalQuarantines}`,
+// [v7-tarpit-bad]         );
+// [v7-tarpit-bad]       }
+// [v7-tarpit-bad]       res.type("text/plain").send(lines.join("\n")+"\n");
+// [v7-tarpit-bad]     });
+// [v7-tarpit-bad]   }
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]   function mount(){
+// [v7-tarpit-bad]     const app:any = getApp(); if (!app || typeof app.handle!=="function") return setTimeout(mount, TICK);
+// [v7-tarpit-bad]     prom(app);
+// [v7-tarpit-bad]     if (app.__void_v7_cost_tarpit_v1) return; app.__void_v7_cost_tarpit_v1 = true;
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]     const prev = app.handle.bind(app);
+// [v7-tarpit-bad]     app.handle = function v7CostWrapper(req:any, res:any, out?:any){
+// [v7-tarpit-bad]       try{
+// [v7-tarpit-bad]         if (!ENABLED) return prev(req,res,out);
+// [v7-tarpit-bad]         const url = String(req?.url||"");
+// [v7-tarpit-bad]         // Only trigger on v7 attempts (same match as firewall), BEFORE firewall sends 410
+// [v7-tarpit-bad]         if (/\/proposer\/.*v7/i.test(url)) {
+// [v7-tarpit-bad]           const ip = ipOf(req);
+// [v7-tarpit-bad]           const s = STATS.get(ip) || {score:0,last:Date.now(),quarantinedUntil:0,totalBlocks:0,totalDelayMs:0,totalQuarantines:0};
+// [v7-tarpit-bad]           decay(s);
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]           // escalate score
+// [v7-tarpit-bad]           s.score += STEP;
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]           // quarantine if too many hits
+// [v7-tarpit-bad]           const now = Date.now();
+// [v7-tarpit-bad]           if (s.score >= QUAR_AFTER && now >= s.quarantinedUntil){
+// [v7-tarpit-bad]             s.quarantinedUntil = now + QUAR_MS;
+// [v7-tarpit-bad]             s.totalQuarantines++;
+// [v7-tarpit-bad]           }
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]           // compute delay (longer if quarantined)
+// [v7-tarpit-bad]           let delay = penaltyMs(s.score);
+// [v7-tarpit-bad]           if (now < s.quarantinedUntil) delay = Math.max(delay, Math.min(MAX_MS, Math.floor(MAX_MS*0.9)));
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]           // optional CPU burn (small, capped by config)
+// [v7-tarpit-bad]           if (CPU_MS > 0) busyWait(Math.min(CPU_MS, 500)); // hard cap to avoid self-DOS
+// [v7-tarpit-bad] 
+// [v7-tarpit-bad]           // impose tarpit before handing to firewall (which will still 410)
+// [v7-tarpit-bad]           if (delay > 0){
+// [v7-tarpit-bad]             s.totalBlocks++;
+// [v7-tarpit-bad]             s.totalDelayMs += delay;
+// [v7-tarpit-bad]             // block the event loop for delay using a timed promise; keep it simple
+// [v7-tarpit-bad]             const start = Date.now();
+// [v7-tarpit-bad]             const wait = (ms:number)=>new Promise(r=>setTimeout(r,ms));
+// [v7-tarpit-bad]             return wait(delay).then(()=>{ STATS.set(ip,s); return prev(req,res,out); });
+// [v7-tarpit-bad]           } else {
+// [v7-tarpit-bad]             STATS.set(ip,s);
+// [v7-tarpit-bad]             return prev(req,res,out);
+// [v7-tarpit-bad]           }
+// [v7-tarpit-bad]         } else {
+// [v7-tarpit-bad]           return prev(req,res,out);
+// [v7-tarpit-bad]         }
+// [v7-tarpit-bad]       } catch(e){
+// [v7-tarpit-bad]         try { return prev(req,res,out); } catch(_) { throw e; }
+// [v7-tarpit-bad]       }
+// [v7-tarpit-bad]     };
+// [v7-tarpit-bad]   }
+// [v7-tarpit-bad]   mount();
+// [v7-tarpit-bad] })();
+// -------- v7.cost.tarpit.quarantine.v2 (additive, idempotent, pre-firewall) --------
+(function V7CostTarpitV2(){
+  const TICK=250, G:any=(globalThis as any);
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+
+  type Stat = { score:number; last:number; quarantinedUntil:number;
+                totalBlocks:number; totalDelayMs:number; totalQuarantines:number; };
+  const STATS = new Map<string,Stat>();
+
+  function n(v:string|undefined, d:number){ const x=Number(v); return Number.isFinite(x)&&x>=0?x:d; }
+  const BASE_MS    = n(process.env.VOID_V7_TARPIT_BASE_MS, 250);
+  const MAX_MS     = n(process.env.VOID_V7_TARPIT_MAX_MS, 8000);
+  const DECAY_MS   = n(process.env.VOID_V7_TARPIT_DECAY_MS, 15000);
+  const STEP       = n(process.env.VOID_V7_TARPIT_STEP, 1);
+  const QUAR_AFTER = n(process.env.VOID_V7_QUARANTINE_AFTER, 6);
+  const QUAR_MS    = n(process.env.VOID_V7_QUARANTINE_MS, 5*60*1000);
+  const CPU_MS     = n(process.env.VOID_V7_CPU_BURN_MS, 0);
+  const ENABLED    = String(process.env.VOID_V7_COST_ENABLED||"1").toLowerCase()==="1";
+  const CANARY     = (process.env.VOID_CANARY_TOKEN||"").trim();
+
+  function ipOf(req:any){
+    const xff=(req.headers?.['x-forwarded-for']||"").toString().split(',')[0].trim();
+    return xff || (req.socket?.remoteAddress||"unknown");
+  }
+  function decay(stat:Stat, now:number){
+    if (!stat.last) return;
+    const dt = Math.max(0, now - stat.last);
+    if (dt<=0) return;
+    const drop = dt/DECAY_MS;
+    stat.score = Math.max(0, stat.score - drop);
+  }
+  function randInt(a:number,b:number){ return Math.floor(a + Math.random()*(b-a+1)); }
+
+  function delayMsFor(score:number){
+    // smooth/exponential-ish + jitter
+    const core = Math.pow(Math.ceil(score), 1.25) * BASE_MS;
+    const jitter = randInt(0, BASE_MS);
+    return Math.min(MAX_MS, Math.ceil(core + jitter));
+  }
+
+  async function busyWait(ms:number){
+    if (ms<=0) return;
+    const end = Date.now()+ms;
+    while (Date.now()<end) { /* burn */ }
+  }
+
+  async function tarpit(req:any, res:any, next:any){
+    if (!ENABLED) return next();
+    // canary bypass for ops/canaries
+    if (CANARY && req.headers && String(req.headers['x-void-canary']||"")===CANARY) return next();
+
+    const now = Date.now(), ip = ipOf(req);
+    let s = STATS.get(ip); if (!s) { s={score:0,last:0,quarantinedUntil:0,totalBlocks:0,totalDelayMs:0,totalQuarantines:0}; STATS.set(ip,s); }
+    decay(s, now);
+    s.score += STEP; s.last = now;
+
+    // quarantine
+    if (s.score >= QUAR_AFTER) {
+      if (now < s.quarantinedUntil) {
+        const d = delayMsFor(s.score);
+        if (CPU_MS>0) await busyWait(Math.min(CPU_MS,d));
+        await new Promise(r=>setTimeout(r,d));
+        s.totalBlocks++; s.totalDelayMs+=d;
+        res.status(410).end(); return;
+      } else {
+        s.quarantinedUntil = now + QUAR_MS;
+        s.totalQuarantines++;
+      }
+    }
+
+    // tarpit delay (even before firewall 410)
+    const d = delayMsFor(s.score);
+    if (CPU_MS>0) await busyWait(Math.min(CPU_MS,d));
+    await new Promise(r=>setTimeout(r,d));
+    s.totalBlocks++; s.totalDelayMs+=d;
+    return next();
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, TICK);
+    if ((app as any).__void_v7_tarpit_mounted_v2) return; (app as any).__void_v7_tarpit_mounted_v2 = true;
+
+    // Pre-firewall middleware on the legacy path
+    try { app.use("/proposer/seal/once-v7", tarpit); } catch {}
+
+    (globalThis as any).__void_v7_cost_stats = () => STATS;
+    // Prom-style metrics exporter
+    app.get("/metrics/void/v7_cost.prom", (_:any, res:any)=>{
+      res.setHeader("Content-Type","text/plain; version=0.0.4");
+      let out = "";
+      out += "# HELP void_v7_cost_enabled Cost layer enabled (1/0)\n# TYPE void_v7_cost_enabled gauge\n";
+      out += `void_v7_cost_enabled ${ENABLED?1:0}\n`;
+      out += "# HELP void_v7_tarpit_base_ms Base delay per offense step (ms)\n# TYPE void_v7_tarpit_base_ms gauge\n";
+      out += `void_v7_tarpit_base_ms ${BASE_MS}\n`;
+      out += "# HELP void_v7_tarpit_max_ms Max delay cap (ms)\n# TYPE void_v7_tarpit_max_ms gauge\n";
+      out += `void_v7_tarpit_max_ms ${MAX_MS}\n`;
+      out += "# HELP void_v7_cpu_burn_ms Optional CPU burn per hit (ms)\n# TYPE void_v7_cpu_burn_ms gauge\n";
+      out += `void_v7_cpu_burn_ms ${CPU_MS}\n`;
+      out += "# HELP void_v7_quarantine_after Score threshold to quarantine\n# TYPE void_v7_quarantine_after gauge\n";
+      out += `void_v7_quarantine_after ${QUAR_AFTER}\n`;
+      out += "# HELP void_v7_quarantine_ms Quarantine window (ms)\n# TYPE void_v7_quarantine_ms gauge\n";
+      out += `void_v7_quarantine_ms ${QUAR_MS}\n`;
+
+      out += "# HELP void_v7_cost_score Current offense score per IP\n# TYPE void_v7_cost_score gauge\n";
+      out += "# HELP void_v7_cost_quarantined Quarantine state per IP (1/0)\n# TYPE void_v7_cost_quarantined gauge\n";
+      out += "# HELP void_v7_cost_blocks_total Requests blocked (tarpit applied) per IP\n# TYPE void_v7_cost_blocks_total counter\n";
+      out += "# HELP void_v7_cost_delay_ms_total Total delay imposed (ms) per IP\n# TYPE void_v7_cost_delay_ms_total counter\n";
+      out += "# HELP void_v7_cost_quarantines_total Total quarantines issued per IP\n# TYPE void_v7_cost_quarantines_total counter\n";
+      for (const [ip,s] of STATS.entries()){
+        const q = Date.now() < s.quarantinedUntil ? 1 : 0;
+        out += `void_v7_cost_score{ip="${ip}"} ${s.score}\n`;
+        out += `void_v7_cost_quarantined{ip="${ip}"} ${q}\n`;
+        out += `void_v7_cost_blocks_total{ip="${ip}"} ${s.totalBlocks}\n`;
+        out += `void_v7_cost_delay_ms_total{ip="${ip}"} ${s.totalDelayMs}\n`;
+        out += `void_v7_cost_quarantines_total{ip="${ip}"} ${s.totalQuarantines}\n`;
+      }
+      res.status(200).end(out);
+    });
+  }
+  mount();
+})();
+// --- v7.cost.admin.reset (additive, tiny) ---
+// NOTE: This requires the v7 tarpit block to expose a getter like:
+//   (globalThis as any).__void_v7_cost_stats = () => STATS;
+// If you didn't add that inside v7 tarpit v2, skip this route and just restart the service to clear scores.
+(function V7CostAdminReset(){
+  const G:any=(globalThis as any);
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  const TICK=300;
+  function mount(){
+    const app:any=getApp(); if(!app||typeof app.get!=="function") return setTimeout(mount,TICK);
+    if ((app as any).__void_v7_cost_admin_reset) return; (app as any).__void_v7_cost_admin_reset = true;
+    app.post("/ops/v7-cost/reset", (req:any,res:any)=>{
+      try{
+        const ip=(req.query.ip||"").toString().trim();
+        const getter = (G as any).__void_v7_cost_stats;
+        const map = typeof getter==="function" ? getter() : null;
+        if(!ip || !map || !map.delete) return res.status(400).json({ok:false,err:"bad ip or map"});
+        map.delete(ip); return res.json({ok:true,ip});
+      }catch(e){ return res.status(500).json({ok:false,err:String(e)}); }
+    });
+  }
+  setTimeout(mount,TICK);
+})();
+
+// ---------------- WAL v1 (additive, safe boot compatible) -----------------
+(function walV1Mount(){
+  const TICK=400;
+  let mounted=false;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getStore(){ try{ return (globalThis as any).__void_store || (globalThis as any).store; }catch{ return undefined; } }
+  function getDataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
+
+  async function mount(){
+    if (mounted) return;
+    const app:any = getApp();
+    const store:any = getStore();
+    if (!app || typeof app.get!=="function" || !store || !store.SegStore || !store.SegStore.prototype?.saveBlock){
+      return setTimeout(mount, TICK);
+    }
+    mounted = true;
+
+    // Lazy import to avoid early ESM churn
+    const mod = await import("./wal/wal_v1.js");
+    const wal = new mod.WALv1(getDataDir());
+
+    // Exporter
+    app.get("/__void/metrics/wal.prom", (_req:any, res:any)=>{
+      try { res.type("text/plain").send(wal.metricsProm()); }
+      catch(e){ res.type("text/plain").send(`# wal exporter error\nvoid_wal_exporter_error 1\n`); }
+    });
+
+    // Wrap SegStore.saveBlock (pre-intent, post-commit)
+    const SegStore = store.SegStore || require("./chain/seg_store.js").SegStore; // keep legacy fallback
+    const origSave = SegStore.prototype.saveBlock;
+    if (!(SegStore as any).__wal_v1_wrapped){
+      SegStore.prototype.saveBlock = async function(block:any){
+        try{
+          const n = Number(block?.number ?? block?.header?.number ?? -1);
+          const txRoot = block?.header?.txRoot || block?.txRoot;
+          const hash = (block?.hash) || (block?.header && (await (await import("./chain/block.js")).blockHash(block.header)));
+          if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
+        }catch(_e){ /* best-effort */ }
+        const out = await origSave.apply(this, arguments as any);
+        try{
+          const n = Number(block?.number ?? block?.header?.number ?? -1);
+          if (Number.isFinite(n) && n>=0) wal.commit(n);
+        }catch(_e){ /* best-effort */ }
+        return out;
+      };
+      (SegStore as any).__wal_v1_wrapped = true;
+    }
+
+    // Minimal boot replay: just recount inflight; do not mutate store
+    wal.counters.replays_total++;
+  }
+  mount();
+})();
+
+// ---------------- WAL v1 FIX MOUNT (additive, no store dependency) -----------------
+(function walV1FixMount(){
+  const TICK=300;
+  let mounted=false;
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
+
+  async function attach(){
+    if (mounted) return;
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+
+    mounted = true;
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const wal = new WALv1(dataDir());
+
+    // Exporter (idempotent)
+    if (!(app as any).__void_wal_v1_exporter){
+      (app as any).__void_wal_v1_exporter = true;
+      app.get("/__void/metrics/wal.prom", (_req:any, res:any)=>{
+        try { res.type("text/plain").send(wal.metricsProm()); }
+        catch { res.type("text/plain").send("# wal exporter error\nvoid_wal_exporter_error 1\n"); }
+      });
+    }
+
+    // Wrap SegStore.saveBlock directly (idempotent)
+    try{
+      const { SegStore } = await import("./chain/seg_store.js");
+      if (SegStore && !((SegStore as any).__wal_v1_wrapped)){
+        const origSave = SegStore.prototype.saveBlock;
+        SegStore.prototype.saveBlock = async function(block:any){
+          try{
+            const n = Number(block?.number ?? block?.header?.number ?? -1);
+            const txRoot = block?.header?.txRoot || block?.txRoot;
+            let hash:any = (block?.hash);
+            try{
+              if (!hash && block?.header){
+                const bh = await import("./chain/block.js");
+                hash = await bh.blockHash(block.header);
+              }
+            }catch{}
+            if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
+          }catch{}
+          const out = await origSave.apply(this, arguments as any);
+          try{
+            const n = Number(block?.number ?? block?.header?.number ?? -1);
+            if (Number.isFinite(n) && n>=0) wal.commit(n);
+          }catch{}
+          return out;
+        };
+        (SegStore as any).__wal_v1_wrapped = true;
+      }
+    }catch(e){
+      // If seg_store import fails for some reason, exporter still works; wrapper can retry later if needed.
+      setTimeout(()=>{ mounted=false; attach(); }, 1000);
+      return;
+    }
+
+    // Count a replay pass (we don't mutate store on boot)
+    // Safe even if exporter only
+    try{ (wal as any).counters.replays_total++; }catch{}
+  }
+  attach();
+})();
+
+// ---------------- WAL v1 HEAD-FALLBACK (additive) -----------------
+(function walV1HeadFallback(){
+  const TICK=300;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
+
+  async function getHeadNumber(): Promise<number>{
+    try {
+      // fastest local path (already in your build)
+      const r = await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/blocks/latest/number2.json");
+      if (r.ok) { const j:any = await r.json(); const n = Number(j?.number ?? j); if (Number.isFinite(n)) return n; }
+    } catch {}
+    try {
+      // fallback to text exporter void_head_number if present
+      const r2 = await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/metrics/void/head");
+      if (r2.ok) {
+        const t = await r2.text();
+        const m = t.match(/void_head_number(?:{[^}]*})?\s+([0-9]+)/);
+        if (m) return Number(m[1]);
+      }
+    } catch {}
+    return -1;
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const wal = new WALv1(dataDir());
+
+    // exporter idempotent
+    if (!(app as any).__void_wal_v1_exporter2){
+      (app as any).__void_wal_v1_exporter2 = true;
+      app.get("/__void/metrics/wal.prom", (_:any, res:any)=>{
+        try { res.type("text/plain").send(wal.metricsProm()); }
+        catch { res.type("text/plain").send("# wal exporter error\nvoid_wal_exporter_error 1\n"); }
+      });
+    }
+
+    // wrap SegStore.saveBlock with head-fallback (idempotent)
+    const { SegStore } = await import("./chain/seg_store.js");
+    if (SegStore && !((SegStore as any).__wal_v1_wrapped_headfb)){
+      const origSave = SegStore.prototype.saveBlock;
+      SegStore.prototype.saveBlock = async function(block:any){
+        let n = Number(block?.number ?? block?.header?.number ?? -1);
+        try{
+          if (!(Number.isFinite(n) && n>=0)) {
+            const head = await getHeadNumber();
+            if (Number.isFinite(head) && head>=0) n = head + 1; // assume next
+          }
+          const txRoot = block?.header?.txRoot || block?.txRoot;
+          let hash:any = block?.hash;
+          try {
+            if (!hash && block?.header){
+              const bh = await import("./chain/block.js");
+              hash = await bh.blockHash(block.header);
+            }
+          } catch {}
+          if (Number.isFinite(n) && n>=0) wal.append(n, txRoot, hash);
+        }catch{}
+        const out = await origSave.apply(this, arguments as any);
+        try{
+          // commit to the real latest after save
+          const latest = await getHeadNumber();
+          if (Number.isFinite(latest) && latest>=0) wal.commit(latest);
+        }catch{}
+        return out;
+      };
+      (SegStore as any).__wal_v1_wrapped_headfb = true;
+      try{ (wal as any).counters.replays_total++; }catch{}
+    }
+  }
+  attach();
+})();
+
+// ---------------- WAL v1 SYNTHETIC-SEQUENCE (additive) -----------------
+(function walV1SyntheticSeq(){
+  const TICK=300;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function") return setTimeout(attach, TICK);
+
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const wal = new WALv1(dataDir());
+
+    // mark that synthetic mode is present
+    (wal as any).__synthetic_seq = (wal as any).__synthetic_seq || 0;
+
+    // exporter (with a tiny gauge so we can see this wrapper is live)
+    if (!(app as any).__void_wal_v1_exporter3){
+      (app as any).__void_wal_v1_exporter3 = true;
+      app.get("/__void/metrics/wal.prom", (_:any, res:any)=>{
+        try {
+          const base = wal.metricsProm();
+          const extra = "\n# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq " + ((wal as any).__synthetic_seq||0) + "\n";
+          res.type("text/plain").send(base + extra);
+        } catch {
+          res.type("text/plain").send("# wal exporter error\nvoid_wal_exporter_error 1\n");
+        }
+      });
+      // quick debug JSON
+      app.get("/__void/wal/debug.json", (_:any, res:any)=>{
+        res.json({
+          synthetic_seq: (wal as any).__synthetic_seq||0,
+          inflight: wal.counters.inflight_gauge,
+          last_uncommitted: wal.counters.last_uncommitted_number
+        });
+      });
+    }
+
+    // wrap SegStore.saveBlock; use synthetic sequence when n<0
+    const { SegStore } = await import("./chain/seg_store.js");
+    if (SegStore && !((SegStore as any).__wal_v1_wrapped_synth)){
+      const origSave = SegStore.prototype.saveBlock;
+      SegStore.prototype.saveBlock = async function(block:any){
+        let n = Number(block?.number ?? block?.header?.number ?? -1);
+
+        // synthetic numbering if the node is in safe-boot index (n<0)
+        if (!(Number.isFinite(n) && n>=0)) {
+          (wal as any).__synthetic_seq = ((wal as any).__synthetic_seq||0) + 1;
+          n = (wal as any).__synthetic_seq;
+        }
+
+        // txRoot/hash best-effort
+        const txRoot = block?.header?.txRoot || block?.txRoot;
+        let hash:any = block?.hash;
+        try {
+          if (!hash && block?.header){
+            const bh = await import("./chain/block.js");
+            hash = await bh.blockHash(block.header);
+          }
+        } catch {}
+
+        try { wal.append(n, txRoot, hash); } catch {}
+
+        const out = await origSave.apply(this, arguments as any);
+
+        // commit same number we appended (synthetic-safe)
+        try { wal.commit(n); } catch {}
+
+        return out;
+      };
+      (SegStore as any).__wal_v1_wrapped_synth = true;
+      try{ (wal as any).counters.replays_total++; }catch{}
+    }
+  }
+  attach();
+})();
+// ---------------- WAL v1 SYNTHETIC-SEQUENCE v2 (self-healing, new exporter) -----------
+(function walV1SyntheticSeqV2(){
+  const TICK=350;
+  const ENFORCE_MS=1500; // re-assert our wrapper once after startup
+  const G:any = (globalThis as any);
+
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
+
+  async function installOnce(tag:string){
+    try{
+      const app:any = getApp();
+      if (!app || typeof app.get!=="function") return false;
+
+      const { WALv1 } = await import("./wal/wal_v1.js");
+      const wal = (G.__void_wal_v1 ||= new WALv1(dataDir()));
+      wal.counters.replays_total++; // harmless tick
+      wal.__synthetic_seq ||= 0;
+
+      // New exporter path so we know THIS code is serving it
+      if (!app.__void_wal_v2_exporter){
+        app.__void_wal_v2_exporter = true;
+        app.get("/__void/metrics/wal.v2.prom", (_:any, res:any)=>{
+          let base = "# HELP void_wal_exporter_v2 1 if this v2 exporter is active\n# TYPE void_wal_exporter_v2 gauge\nvoid_wal_exporter_v2 1\n";
+          try { base += wal.metricsProm(); } catch { base += "void_wal_exporter_error 1\n"; }
+          base += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
+          res.type("text/plain").send(base);
+        });
+        app.get("/__void/wal/debug2.json", (_:any,res:any)=>{
+          res.json({tag, synthetic_seq: wal.__synthetic_seq||0, inflight: wal.counters.inflight_gauge, last_uncommitted: wal.counters.last_uncommitted_number});
+        });
+      }
+
+      // Always (re)wrap current saveBlock; last wrapper wins
+      const mod = await import("./chain/seg_store.js");
+      const SegStore:any = mod.SegStore;
+      if (!SegStore || !SegStore.prototype?.saveBlock) return false;
+
+      const current = SegStore.prototype.saveBlock;
+      const WRAP_FLAG = "__wal_v1_wrapped_synth_v2";
+      if (current[WRAP_FLAG]) return true; // already ours
+
+      const wrapped = async function saveBlock_WALv2(this:any, block:any){
+        let n = Number(block?.number ?? block?.header?.number ?? -1);
+        if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
+
+        // best-effort txRoot/hash
+        const txRoot = block?.header?.txRoot || block?.txRoot;
+        let hash:any = block?.hash;
+        try{ if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); } }catch{}
+
+        try{ wal.append(n, txRoot, hash); }catch{}
+        const out = await current.apply(this, arguments as any);
+        try{ wal.commit(n); }catch{}
+        return out;
+      };
+      wrapped[WRAP_FLAG] = true;
+      SegStore.prototype.saveBlock = wrapped;
+      return true;
+    }catch{ return false; }
+  }
+
+  // First mount, then enforce once after other boot wrappers attach
+  (function boot(){
+    const tryMount = async ()=>{
+      const ok = await installOnce("boot");
+      if (!ok) setTimeout(tryMount, TICK);
+    };
+    tryMount();
+
+    setTimeout(()=>{ installOnce("enforce"); }, ENFORCE_MS);
+  })();
+})();
+// ---------------- WAL v1 sticky wrapper v3 (can't be overwritten) ----------------
+(function walV1StickyWrapV3(){
+  const G:any = (globalThis as any);
+  const TICK=300;
+  const ENFORCE_EVERY_MS=2000;     // keep asserting periodically
+  const WRAP_FLAG="__wal_v1_wrapped_synth_v3";
+  const SEEN_KEY="__wal_v1_seen_setter_v3";
+
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
+
+  async function ensureWal(){
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    return (G.__void_wal_v1 ||= new WALv1(dataDir()));
+  }
+
+  function mountExporter(app:any, wal:any){
+    if (app.__void_wal_v3_exporter) return;
+    app.__void_wal_v3_exporter = true;
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
+      out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${G.__wal_setter_events_total||0}\n`;
+      res.type("text/plain").send(out);
+    });
+    app.get("/__void/wal/hook.status", (_:any,res:any)=>{
+      const store = (G.__void_store_class)||null;
+      const proto = store?.prototype || (G.__void_store_proto)||null;
+      const fn = proto?.saveBlock;
+      res.json({
+        sticky:true, wrap_flag: WRAP_FLAG,
+        active: !!(fn && (fn as any)[WRAP_FLAG]),
+        has_setter: !!(proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.set),
+        seen_setter_events: G.__wal_setter_events_total||0,
+      });
+    });
+  }
+
+  async function installSticky(){
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function") return false;
+
+    const mod = await import("./chain/seg_store.js");
+    const SegStore:any = mod.SegStore;
+    if (!SegStore || !SegStore.prototype) return false;
+    G.__void_store_class = SegStore; G.__void_store_proto = SegStore.prototype;
+
+    const wal = await ensureWal();
+    wal.__synthetic_seq ||= 0;
+
+    // 1) Define a sticky accessor on prototype.saveBlock
+    const desc = Object.getOwnPropertyDescriptor(SegStore.prototype, "saveBlock");
+    if (!desc || ("value" in desc)) {
+      // convert to accessor with our current function as backing field
+      const real = SegStore.prototype.saveBlock;
+      let _real = typeof real==="function" ? real : async function(){};
+      Object.defineProperty(SegStore.prototype, "saveBlock", {
+        configurable: true, enumerable: false,
+        get(){ return wrapIfNeeded(_real); },
+        set(fn:any){
+          G.__wal_setter_events_total = (G.__wal_setter_events_total||0) + 1;
+          _real = typeof fn==="function" ? fn : _real;
+        },
+      });
+    }
+
+    // 2) Replace current backing impl by calling the setter once with itself
+    const cur = SegStore.prototype.saveBlock;
+    SegStore.prototype.saveBlock = cur;
+
+    // 3) exporter
+    mountExporter(app, wal);
+    return true;
+
+    function wrapIfNeeded(fn:any){
+      if (fn && fn[WRAP_FLAG]) return fn; // already ours
+      const wrapped = async function saveBlock_WALv3(this:any, block:any){
+        // derive n or synthesize monotonically
+        let n = Number(block?.number ?? block?.header?.number ?? -1);
+        if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
+
+        // best-effort roots/hashes (non-fatal)
+        try{
+          const txRoot = block?.header?.txRoot || block?.txRoot;
+          let hash:any = block?.hash;
+          if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); }
+          try { wal.append(n, txRoot, hash); } catch {}
+          const out = await fn.apply(this, arguments as any);
+          try { wal.commit(n); } catch {}
+          return out;
+        }catch(e){
+          try { wal.append(n, null, null); } catch {}
+          const out = await fn.apply(this, arguments as any);
+          try { wal.commit(n); } catch {}
+          return out;
+        }
+      };
+      wrapped[WRAP_FLAG] = true;
+      return wrapped;
+    }
+  }
+
+  // Retry until app/store exist, then keep enforcing periodically
+  (function boot(){
+    const tryMount = async ()=>{ const ok = await installSticky(); if (!ok) setTimeout(tryMount, TICK); };
+    tryMount();
+    setInterval(()=>{ installSticky(); }, ENFORCE_EVERY_MS);
+  })();
+})();
+// ---------------- WAL v1 sticky wrapper v3b (proxy existing accessor) ----------------
+(function walV1StickyWrapV3b(){
+  const G:any = (globalThis as any);
+  const TICK=300, ENFORCE_MS=2000;
+  const WRAP_FLAG="__wal_v1_wrapped_synth_v3";
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
+
+  async function ensureWal(){
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    return (G.__void_wal_v1 ||= new WALv1(dataDir()));
+  }
+
+  function wrapIfNeeded(fn:any, wal:any){
+    if (!fn) return fn;
+    if ((fn as any)[WRAP_FLAG]) return fn;
+    const wrapped = async function saveBlock_WALv3(this:any, block:any){
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
+      try{
+        const txRoot = block?.header?.txRoot || block?.txRoot;
+        let hash:any = block?.hash;
+        if (!hash && block?.header){ const bh = await import("./chain/block.js"); hash = await bh.blockHash(block.header); }
+        try { wal.append(n, txRoot, hash); } catch {}
+        const out = await fn.apply(this, arguments as any);
+        try { wal.commit(n); } catch {}
+        return out;
+      }catch(e){
+        try { wal.append(n, null, null); } catch {}
+        const out = await fn.apply(this, arguments as any);
+        try { wal.commit(n); } catch {}
+        return out;
+      }
+    };
+    (wrapped as any)[WRAP_FLAG] = true;
+    return wrapped;
+  }
+
+  function mountExporter(app:any, wal:any){
+    if (app.__void_wal_v3_exporter) return;
+    app.__void_wal_v3_exporter = true;
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
+      out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${G.__wal_setter_events_total||0}\n`;
+      res.type("text/plain").send(out);
+    });
+    app.get("/__void/wal/hook.status", (_:any,res:any)=>{
+      // read the currently returned function to judge "active"
+      const SegStore = G.__void_store_class;
+      const proto = SegStore?.prototype || G.__void_store_proto || null;
+      let cur:any = undefined;
+      try { cur = proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.get?.call(proto) || proto?.saveBlock; } catch {}
+      res.json({
+        sticky:true, wrap_flag: WRAP_FLAG,
+        active: !!(cur && cur[WRAP_FLAG]),
+        has_setter: !!(proto && Object.getOwnPropertyDescriptor(proto,"saveBlock")?.set),
+        seen_setter_events: G.__wal_setter_events_total||0,
+      });
+    });
+  }
+
+  async function installSticky(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return false;
+    const mod = await import("./chain/seg_store.js");
+    const SegStore:any = mod.SegStore;
+    if (!SegStore || !SegStore.prototype) return false;
+    G.__void_store_class = SegStore; G.__void_store_proto = SegStore.prototype;
+
+    const wal = await ensureWal(); wal.__synthetic_seq ||= 0;
+
+    const desc = Object.getOwnPropertyDescriptor(SegStore.prototype, "saveBlock");
+    // Always replace with our proxy accessor that wraps-through
+    const prevGet = desc?.get;
+    const prevSet = desc?.set;
+    let prevValue:any = (desc && "value" in desc) ? desc.value : undefined;
+
+    Object.defineProperty(SegStore.prototype, "saveBlock", {
+      configurable: true, enumerable: false,
+      get: function(){
+        let fn:any;
+        if (prevGet) { try { fn = prevGet.call(this); } catch { fn = undefined; } }
+        else { fn = prevValue ?? (SegStore.prototype as any).__sb_fallback_value; }
+        return wrapIfNeeded(fn, wal);
+      },
+      set: function(fn:any){
+        G.__wal_setter_events_total = (G.__wal_setter_events_total||0) + 1;
+        if (prevSet) { try { prevSet.call(this, fn); } catch {} }
+        else { prevValue = fn; (SegStore.prototype as any).__sb_fallback_value = fn; }
+      },
+    });
+
+    // Touch setter once to flow current impl through our setter, then wrapping occurs on next get()
+    try { const cur = (prevGet ? prevGet.call(SegStore.prototype) : (prevValue||SegStore.prototype.saveBlock)); SegStore.prototype.saveBlock = cur; } catch {}
+
+    mountExporter(app, wal);
+    return true;
+  }
+
+  (function boot(){
+    const tryMount = async ()=>{ const ok = await installSticky(); if (!ok) setTimeout(tryMount, TICK); };
+    tryMount();
+    setInterval(()=>{ installSticky(); }, ENFORCE_MS);
+  })();
+})();
+// ---------------- WAL v4 (instance-level, reasserting) ----------------
+(function walV4InstanceWrap(){
+  const G:any = globalThis as any;
+  const TICK=350, REASSERT_MS=1500, FLAG="__wal_v4_wrapped";
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a"; }
+
+  async function ensureWal(){
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    return (G.__void_wal_v1 ||= new WALv1(dataDir()));
+  }
+
+  function wrapSaveBlock(fn:any, wal:any){
+    if (!fn) return fn;
+    if ((fn as any)[FLAG]) return fn;
+    const wrapped = async function saveBlock_WALv4(this:any, block:any){
+      // derive n (fallback to synthetic)
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
+      let hash:any = block?.hash;
+      if (!hash && block?.header){ const m = await import("./chain/block.js"); hash = await m.blockHash(block.header); }
+      const txRoot = block?.header?.txRoot || block?.txRoot || null;
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await fn.apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
+    };
+    (wrapped as any)[FLAG] = true;
+    return wrapped;
+  }
+
+  function mountExporter(app:any, wal:any){
+    if (app.__void_wal_v4_exporter) return;
+    app.__void_wal_v4_exporter = true;
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
+      out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${(G.__wal_setter_events_total||0)}\n`;
+      res.type("text/plain").send(out);
+    });
+    app.get("/__void/wal/hook.status", (_:any,res:any)=>{
+      const app2:any = getApp();
+      const store:any = app2?.locals?.store || G.__void_store_instance;
+      const cur = store?.saveBlock;
+      res.json({ sticky:true, wrap_flag: FLAG, active: !!(cur && cur[FLAG]), has_setter: true, seen_setter_events: (G.__wal_setter_events_total||0) });
+    });
+  }
+
+  async function install(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return false;
+    // stash instance once available
+    const store:any = app.locals?.store || G.__void_store_instance;
+    if (!store || typeof store.saveBlock!=="function"){ setTimeout(install, TICK); return false; }
+    G.__void_store_instance = store;
+
+    const wal = await ensureWal(); wal.__synthetic_seq ||= 0;
+    // wrap once now …
+    store.saveBlock = wrapSaveBlock(store.saveBlock, wal);
+    // …and reassert periodically in case other patches replace it
+    if (!G.__void_wal_v4_timer){
+      G.__void_wal_v4_timer = setInterval(()=>{ 
+        if (!G.__void_store_instance) return;
+        const s = G.__void_store_instance;
+        s.saveBlock = wrapSaveBlock(s.saveBlock, wal);
+      }, REASSERT_MS);
+    }
+    mountExporter(app, wal);
+    return true;
+  }
+
+  (function boot(){ const t = ()=>install().then(ok=>{ if (!ok) setTimeout(t, TICK); }); t(); })();
+})();
+// ---------------- WAL v5 (instance trap: property setter + rewrap) ----------------
+(function walV5Trap(){
+  const G:any = globalThis as any;
+  const FLAG="__wal_v5_wrapped", RAW="__wal_v5_raw";
+  const TICK=300, REASSERT_MS=1500;
+
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  async function ensureWal(){
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
+    return (G.__void_wal_v1 ||= new WALv1(dir));
+  }
+
+  function wrap(fn:any, wal:any){
+    if (!fn) return fn;
+    if ((fn as any)[FLAG]) return fn;
+    const wrapped = async function saveBlock_WALv5(this:any, block:any){
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
+      let hash:any = block?.hash;
+      if (!hash && block?.header){ const m = await import("./chain/block.js"); hash = await m.blockHash(block.header); }
+      const txRoot = block?.header?.txRoot || block?.txRoot || null;
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await (fn as any).apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
+    };
+    (wrapped as any)[FLAG] = true;
+    return wrapped;
+  }
+
+  function mountExporter(app:any, wal:any){
+    if (app.__void_wal_v5_exporter) return; app.__void_wal_v5_exporter = true;
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
+      out += `# TYPE void_wal_setter_events_total counter\nvoid_wal_setter_events_total ${(G.__wal_setter_events_total||0)}\n`;
+      res.type("text/plain").send(out);
+    });
+    app.get("/__void/wal/hook.status", (_:any,res:any)=>{
+      const s:any = (getApp()?.locals?.store) || G.__void_store_instance;
+      const cur = s?.saveBlock;
+      res.json({ sticky:true, wrap_flag: FLAG, active: !!(cur && cur[FLAG]), has_setter: true, seen_setter_events: (G.__wal_setter_events_total||0) });
+    });
+    app.get("/__void/wal/fn.status", (_:any,res:any)=>{
+      const s:any = (getApp()?.locals?.store) || G.__void_store_instance;
+      res.json({
+        has_store: !!s,
+        typeof_saveBlock: typeof s?.saveBlock,
+        wrapped: !!(s?.saveBlock && s.saveBlock[FLAG]),
+        has_raw: !!s?.[RAW],
+        fn_name: (s?.saveBlock && s.saveBlock.name) || null
+      });
+    });
+  }
+
+  function installTrapOnStore(store:any, wal:any){
+    if (!store) return false;
+    // Keep current function as raw
+    if (!store[RAW] && typeof store.saveBlock === "function") store[RAW] = store.saveBlock;
+
+    // Define a trapping accessor on saveBlock
+    const desc = Object.getOwnPropertyDescriptor(store, "saveBlock");
+    const currentGetter = desc && (desc.get || desc.set) ? desc.get : null;
+    if (currentGetter && (currentGetter as any)[FLAG]) return true; // already trapped
+
+    let _raw = store[RAW] || store.saveBlock;
+    Object.defineProperty(store, "saveBlock", {
+      configurable: true,
+      enumerable: false,
+      get: function(){
+        // Always return wrapped version
+        return wrap(_raw, wal);
+      },
+      set: function(v:any){
+        // Every replacement becomes our new raw; callers still get wrapped
+        _raw = v;
+      }
+    });
+    // mark getter so we know it's ours
+    (Object.getOwnPropertyDescriptor(store, "saveBlock")!.get as any)[FLAG] = true;
+    return true;
+  }
+
+  async function boot(){
+    const tryOnce = async()=>{
+      const app:any = getApp(); if (!app || typeof app.get!=="function") return false;
+      const store:any = app.locals?.store || G.__void_store_instance;
+      if (!store || typeof store.saveBlock!=="function") return false;
+      G.__void_store_instance = store;
+      const wal = await ensureWal(); wal.__synthetic_seq ||= 0;
+      installTrapOnStore(store, wal);
+      mountExporter(app, wal);
+      // Reassert periodically (in case store object is swapped entirely)
+      if (!G.__void_wal_v5_timer){
+        G.__void_wal_v5_timer = setInterval(()=>{
+          const s:any = getApp()?.locals?.store || G.__void_store_instance;
+          if (!s) return;
+          if (!Object.getOwnPropertyDescriptor(s, "saveBlock")?.get?.[FLAG]){
+            const w = G.__void_wal_v1 || wal;
+            installTrapOnStore(s, w);
+          }
+        }, REASSERT_MS);
+      }
+      return true;
+    };
+    (async function loop(){ if (!(await tryOnce())) setTimeout(loop, TICK); })();
+  }
+  boot();
+})();
+// ---------------- WAL v6 (reassert loop + status routes, pure-additive) ----------------
+(function walV6Reassert(){
+  const G:any = globalThis as any;
+  const FLAG="__wal_v6_wrapped";
+  const RAW ="__wal_v6_raw";
+  const TICK=500;
+
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+  async function getWal(){
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
+    return (G.__void_wal_v1 ||= new WALv1(dir));
+  }
+  function wrap(fn:any, wal:any){
+    if (!fn) return fn;
+    if ((fn as any)[FLAG]) return fn;
+    const wrapped = async function saveBlock_WALv6(this:any, block:any){
+      // number / synthetic fallback
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0) + 1; n = wal.__synthetic_seq; }
+      // txRoot/hash best-effort
+      let hash:any = block?.hash;
+      if (!hash && block?.header){ const m = await import("./chain/block.js"); try { hash = await m.blockHash(block.header); } catch {} }
+      const txRoot = block?.header?.txRoot || block?.txRoot || null;
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await (fn as any).apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
+    };
+    (wrapped as any)[FLAG] = true;
+    return wrapped;
+  }
+
+  function mountRoutes(app:any, wal:any){
+    if (app.__void_wal_v6_routes) return; app.__void_wal_v6_routes = true;
+    // prom exporter (v3 path)
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${wal.__synthetic_seq||0}\n`;
+      res.type("text/plain").send(out);
+    });
+    // hook + fn status
+    app.get("/__void/wal/hook.status", (_:any,res:any)=>{
+      const s:any = app.locals?.store || G.__void_store_instance;
+      res.json({ sticky:true, wrap_flag:FLAG, active: !!(s?.saveBlock && s.saveBlock[FLAG]) , has_setter:true, seen_setter_events: (G.__wal_setter_events_total||0) });
+    });
+    app.get("/__void/wal/fn.status", (_:any,res:any)=>{
+      const s:any = app.locals?.store || G.__void_store_instance;
+      const d = s ? Object.getOwnPropertyDescriptor(s,"saveBlock") : null;
+      res.json({
+        has_store: !!s,
+        typeof_saveBlock: s ? typeof s.saveBlock : null,
+        wrapped: !!(s?.saveBlock && s.saveBlock[FLAG]),
+        has_raw: !!s?.[RAW],
+        own_prop: !!d,
+        getter: !!d?.get,
+        setter: !!d?.set,
+        fn_name: (s?.saveBlock && s.saveBlock.name) || null
+      });
+    });
+  }
+
+  async function reassert(){
+    const app:any = getApp(); if (!app || typeof app.get !== "function") return;
+    const wal = await getWal(); wal.__synthetic_seq ||= 0;
+    const store:any = app.locals?.store || G.__void_store_instance;
+    if (!store || typeof store.saveBlock!=="function") return;
+    G.__void_store_instance = store;
+    if (!store[RAW]) store[RAW] = store.saveBlock;
+    if (!store.saveBlock[FLAG]) store.saveBlock = wrap(store.saveBlock, wal);
+    mountRoutes(app, wal);
+  }
+
+  (function loop(){
+    reassert().catch(()=>{}); setTimeout(loop, TICK);
+  })();
+})();
+// ---------------- WAL v7 (Vector-7): proto+instance wrap, safe-boot paths, reassert ----------------
+(function walV7Vector(){
+  const G:any = globalThis as any;
+  const FLAG="__wal_v7_wrapped";
+  const RAW ="__wal_v7_raw";
+  const TICK=400;
+  let overwrites = 0;
+
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+
+  async function getMods(){
+    const seg = await import("./chain/seg_store.js");
+    const blk = await import("./chain/block.js");
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
+    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
+    wal.__synthetic_seq ||= 0;
+    return {SegStore: seg.SegStore, blockHash: blk.blockHash, wal};
+  }
+
+  function mkWrapped(fn:any, wal:any, blockHash:any){
+    if (!fn) return fn;
+    if ((fn as any)[FLAG]) return fn;
+    const wrapped = async function saveBlock_WALv7(this:any, block:any){
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0)+1; n = wal.__synthetic_seq; }
+      let hash:any = block?.hash;
+      if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
+      const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
+      try { wal.append(n, txRoot, hash); } catch {}
+      try {
+        const out = await (fn as any).apply(this, arguments as any);
+        try { wal.commit(n); } catch {}
+        return out;
+      } catch(e){
+        try { wal.commit(n); } catch {}
+        throw e;
+      }
+    };
+    (wrapped as any)[FLAG] = true;
+    return wrapped;
+  }
+
+  function mountStatus(app:any, wal:any){
+    if (app.__void_wal_v7_routes) return; app.__void_wal_v7_routes = true;
+
+    // Prom exporter (v3 path) – allowed under safe-boot
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      out += `# TYPE void_wal_synthetic_seq gauge
+void_wal_synthetic_seq ${wal.__synthetic_seq||0}
+# TYPE void_wal_overwrites_total counter
+void_wal_overwrites_total ${overwrites}
+# TYPE void_wal_wrapped gauge
+void_wal_wrapped ${((G.__void_store_instance?.saveBlock && G.__void_store_instance.saveBlock[FLAG])?1:0)}
+`;
+      res.type("text/plain").send(out);
+    });
+
+    // JSON status also under __void/metrics (safe-boot-friendly)
+    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
+      const s:any = G.__void_store_instance;
+      res.json({
+        wrapped: !!(s?.saveBlock && s.saveBlock[FLAG]),
+        overwrites,
+        synthetic_seq: (G.__void_wal_v1?.__synthetic_seq)||0
+      });
+    });
+  }
+
+  async function reassert(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return;
+    const {SegStore, blockHash, wal} = await getMods();
+
+    // 1) Prototype guard: hook setter so any reassignment is auto-wrapped
+    const pd = Object.getOwnPropertyDescriptor(SegStore.prototype, "saveBlock") || {};
+    if (!G.__wal_v7_proto_guard){
+      let current = (pd.value || SegStore.prototype.saveBlock);
+      const getter = function(){ return current; };
+      const setter = function(v:any){ current = mkWrapped(v, wal, blockHash); overwrites++; };
+      try {
+        Object.defineProperty(SegStore.prototype, "saveBlock", { configurable: true, enumerable: false, get: getter, set: setter });
+        // initialize via setter once
+        SegStore.prototype.saveBlock = current;
+        G.__wal_v7_proto_guard = true;
+      } catch {}
+    }
+
+    // 2) Instance guard: wrap live store if present
+    const store:any = app.locals?.store || G.__void_store_instance;
+    if (store && typeof store.saveBlock === "function"){
+      G.__void_store_instance = store;
+      if (!store[RAW]) store[RAW] = store.saveBlock;
+      if (!store.saveBlock[FLAG]) store.saveBlock = mkWrapped(store.saveBlock, wal, blockHash);
+    }
+
+    // 3) Routes
+    mountStatus(app, wal);
+  }
+
+  (function loop(){ reassert().catch(()=>{}); setTimeout(loop, TICK); })();
+})();
+// ---------------- WAL v7.2 (Vector-7): value-hook + defineProperty trap + instance reseat ----------------
+(function walV72Vector(){
+  const G:any = globalThis as any;
+  const FLAG="__wal_v72_wrapped";
+  const RAW ="__wal_v72_raw";
+  const TICK=400;
+  let overwrites = 0;
+
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+
+  async function getMods(){
+    const seg = await import("./chain/seg_store.js");
+    const blk = await import("./chain/block.js");
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
+    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
+    wal.__synthetic_seq ||= 0;
+    return {SegStore: seg.SegStore, blockHash: blk.blockHash, wal};
+  }
+
+  function mkWrapped(fn:any, wal:any, blockHash:any){
+    if (!fn) return fn;
+    if ((fn as any)[FLAG]) return fn;
+    const wrapped = async function saveBlock_WALv72(this:any, block:any){
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0)+1; n = wal.__synthetic_seq; }
+      let hash:any = block?.hash;
+      if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
+      const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
+      try { wal.append(n, txRoot, hash); } catch {}
+      try {
+        const out = await (fn as any).apply(this, arguments as any);
+        try { wal.commit(n); } catch {}
+        return out;
+      } catch(e){
+        try { wal.commit(n); } catch {}
+        throw e;
+      }
+    };
+    (wrapped as any)[FLAG] = true;
+    return wrapped;
+  }
+
+  function mountStatus(app:any, wal:any){
+    if (app.__void_wal_v72_routes) return; app.__void_wal_v72_routes = true;
+
+    // Prom exporter: allowed under safeboot
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      const wrapped = !!(G.__void_store_instance?.saveBlock && G.__void_store_instance.saveBlock[FLAG]);
+      out += `# TYPE void_wal_synthetic_seq gauge
+void_wal_synthetic_seq ${wal.__synthetic_seq||0}
+# TYPE void_wal_overwrites_total counter
+void_wal_overwrites_total ${overwrites}
+# TYPE void_wal_wrapped gauge
+void_wal_wrapped ${wrapped?1:0}
+`;
+      res.type("text/plain").send(out);
+    });
+
+    // Safe JSON status
+    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
+      const wrapped = !!(G.__void_store_instance?.saveBlock && G.__void_store_instance.saveBlock[FLAG]);
+      res.json({ wrapped, overwrites, synthetic_seq: (G.__void_wal_v1?.__synthetic_seq)||0 });
+    });
+  }
+
+  async function arm(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return;
+    const {SegStore, blockHash, wal} = await getMods();
+
+    // (A) Wrap current prototype value (plain function → wrapped)
+    try {
+      const cur = SegStore.prototype.saveBlock;
+      if (typeof cur === "function" && !cur[FLAG]) {
+        SegStore.prototype.saveBlock = mkWrapped(cur, wal, blockHash);
+        overwrites++;
+      }
+    } catch {}
+
+    // (B) Trap future defineProperty writes to SegStore.prototype.saveBlock
+    if (!G.__wal_v72_define_trap){
+      const origDefine = Object.defineProperty;
+      Object.defineProperty = function(target:any, prop:any, desc:any){
+        try{
+          const isSeg = target && prop==="saveBlock" && (
+            // target === SegStore.prototype (best-effort id check)
+            (target === SegStore.prototype) ||
+            // or stringy class name match fallback
+            (target?.constructor?.name === "SegStore" && target?.saveBlock)
+          );
+          if (isSeg && typeof desc?.value === "function" && !desc.value[FLAG]){
+            desc = { ...desc, value: mkWrapped(desc.value, (G.__void_wal_v1), (G.__void_blockHash||(()=>{}))) };
+            overwrites++;
+          }
+        }catch{}
+        return (origDefine as any).call(Object, target, prop, desc);
+      };
+      G.__wal_v72_define_trap = true;
+    }
+
+    // (C) Reseat live instance if present
+    const store:any = app.locals?.store || G.__void_store_instance;
+    if (store && typeof store.saveBlock === "function"){
+      G.__void_store_instance = store;
+      if (!store[RAW]) store[RAW] = store.saveBlock;
+      if (!store.saveBlock[FLAG]) { store.saveBlock = mkWrapped(store.saveBlock, (G.__void_wal_v1), (G.__void_blockHash||(()=>{}))); overwrites++; }
+    }
+
+    mountStatus(app, (G.__void_wal_v1));
+  }
+
+  (function loop(){ arm().catch(()=>{}); setTimeout(loop, TICK); })();
+})();
+// --------------- WAL v7.4 (Vector-7): INSTANCE ACCESSOR GUARD (last-wins) ---------------
+(function walV74InstanceAccessor(){
+  const G:any = globalThis as any;
+  const FLAG   = "__wal_v74_wrapped";
+  const RAWKEY = "__wal_v74_raw";
+  const TICK   = 250;
+  let overwrites = 0;
+
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+
+  async function getMods(){
+    const seg = await import("./chain/seg_store.js");
+    const blk = await import("./chain/block.js");
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
+    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
+    wal.__synthetic_seq ||= 0;
+    G.__void_blockHash ||= blk.blockHash;
+    return {SegStore: seg.SegStore, blockHash: blk.blockHash, wal};
+  }
+
+  function mkWrapped(fn:any, wal:any, blockHash:any){
+    if (!fn || (fn as any)[FLAG]) return fn;
+    const wrapped = async function saveBlock_WALv74(this:any, block:any){
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq = (wal.__synthetic_seq||0)+1; n = wal.__synthetic_seq; }
+      let hash:any = block?.hash;
+      if (!hash && block?.header){ try{ hash = await blockHash(block.header); }catch{} }
+      const txRoot = block?.header?.txRoot || (block?.txRoot ?? null);
+      try { wal.append(n, txRoot, hash); } catch {}
+      try {
+        const out = await (fn as any).apply(this, arguments as any);
+        try { wal.commit(n); } catch {}
+        return out;
+      } catch(e){
+        try { wal.commit(n); } catch {}
+        throw e;
+      }
+    };
+    (wrapped as any)[FLAG] = true;
+    return wrapped;
+  }
+
+  function mountStatus(app:any, wal:any){
+    if (app.__void_wal_v74_routes) return; app.__void_wal_v74_routes = true;
+
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      try { out += wal.metricsProm(); } catch { out += "void_wal_exporter_error 1\n"; }
+      const store = (app.locals && app.locals.store) || G.__void_store_instance;
+      const wrapped = !!(store?.saveBlock && store.saveBlock[FLAG]);
+      out += `# TYPE void_wal_synthetic_seq gauge
+void_wal_synthetic_seq ${wal.__synthetic_seq||0}
+# TYPE void_wal_overwrites_total counter
+void_wal_overwrites_total ${overwrites}
+# TYPE void_wal_wrapped gauge
+void_wal_wrapped ${wrapped?1:0}
+`;
+      res.type("text/plain").send(out);
+    });
+
+    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
+      const store = (app.locals && app.locals.store) || G.__void_store_instance;
+      const wrapped = !!(store?.saveBlock && store.saveBlock[FLAG]);
+      res.json({ wrapped, overwrites, synthetic_seq: (G.__void_wal_v1?.__synthetic_seq)||0 });
+    });
+  }
+
+  async function arm(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return;
+    const {SegStore, wal} = await getMods();
+
+    // Bind once the live store exists
+    const store:any = app.locals?.store || G.__void_store_instance;
+    if (!store) return;
+
+    // (A) Remember store (used by status)
+    G.__void_store_instance = store;
+
+    // (B) Install an *instance-level accessor* that intercepts *all* future sets.
+    // This shadows the prototype prop, so direct assigns go through our setter.
+    const pd = Object.getOwnPropertyDescriptor(store, "saveBlock");
+    if (!pd || (!pd.get && !pd.set)) {
+      let _wrapped:any = (typeof store.saveBlock === "function")
+        ? mkWrapped(store.saveBlock, G.__void_wal_v1, G.__void_blockHash)
+        : store.saveBlock;
+
+      Object.defineProperty(store, "saveBlock", {
+        configurable: true,
+        enumerable: false,
+        get(){ return _wrapped; },
+        set(v:any){
+          _wrapped = (typeof v === "function")
+            ? mkWrapped(v, G.__void_wal_v1, G.__void_blockHash)
+            : v;
+          overwrites++;
+        }
+      });
+
+      // ensure the very first value is wrapped
+      store.saveBlock = store[RAWKEY] || SegStore.prototype.saveBlock;
+    } else {
+      // already accessorized by someone else — still force a wrap of current value
+      if (typeof store.saveBlock === "function" && !store.saveBlock[FLAG]) {
+        (store as any).saveBlock = store.saveBlock;
+        overwrites++;
+      }
+    }
+
+    // (C) If prototype gets stomped later, our instance accessor still wins.
+    mountStatus(app, G.__void_wal_v1);
+  }
+
+  (function loop(){ arm().catch(()=>{}); setTimeout(loop, TICK); })();
+})();
+// -------- WAL v7.6 (Vector-7): trap app.locals.store assignment + manual arm --------
+(function walV76Trap(){
+  const G:any = globalThis as any;
+  const FLAG="__wal_v76_wrapped"; let overwrites=0;
+
+  function getApp(){ return G.__void_http_app || (G as any).app; }
+
+  async function getWalCtx(){
+    const seg = await import("./chain/seg_store.js");
+    const blk = await import("./chain/block.js");
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
+    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
+    wal.__synthetic_seq ||= 0;
+    G.__void_blockHash ||= blk.blockHash;
+    return { SegStore: seg.SegStore, blockHash: blk.blockHash, wal };
+  }
+
+  function mkWrapped(fn:any, wal:any, blockHash:any){
+    if (fn && fn[FLAG]) return fn;
+    if (typeof fn!=="function") return fn;
+    const wrapped = async function saveBlock_WALv76(this:any, block:any){
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq=(wal.__synthetic_seq||0)+1; n=wal.__synthetic_seq; }
+      let hash = block?.hash;
+      if (!hash && block?.header){ try{ hash = await blockHash(block.header);}catch{} }
+      const txRoot = block?.header?.txRoot ?? block?.txRoot ?? null;
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await fn.apply(this, arguments as any); try{ wal.commit(n);}catch{}; return out; }
+      catch(e){ try{ wal.commit(n);}catch{}; throw e; }
+    };
+    (wrapped as any)[FLAG]=true;
+    return wrapped;
+  }
+
+  async function accessorizeStore(store:any){
+    if (!store) return false;
+    const { SegStore, blockHash, wal } = await getWalCtx();
+
+    // Instance-level accessor that shadows prototype forever.
+    const pd = Object.getOwnPropertyDescriptor(store, "saveBlock");
+    if (!pd || (!pd.get && !pd.set)) {
+      let _wrapped = mkWrapped(
+        typeof store.saveBlock==="function" ? store.saveBlock : SegStore.prototype.saveBlock,
+        wal, blockHash
+      );
+      Object.defineProperty(store, "saveBlock", {
+        configurable:true, enumerable:false,
+        get(){ return _wrapped; },
+        set(v:any){ _wrapped = mkWrapped(v, wal, blockHash); overwrites++; }
+      });
+      // force initial wrap path through setter once
+      store.saveBlock = store.saveBlock;
+    } else {
+      // Already accessorized by someone — force one pass through setter anyway
+      store.saveBlock = store.saveBlock;
+      overwrites++;
+    }
+    G.__void_store_instance = store;
+    return true;
+  }
+
+  function mountStatus(app:any){
+    if (app.__void_wal_v76_routes) return; app.__void_wal_v76_routes=true;
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      const wal = G.__void_wal_v1;
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      try { out += wal?.metricsProm?.() ?? ""; } catch {}
+      const s = (app.locals && app.locals.store) || G.__void_store_instance;
+      const wrapped = !!(s?.saveBlock && s.saveBlock[FLAG]);
+      out += `# TYPE void_wal_synthetic_seq gauge
+void_wal_synthetic_seq ${wal?.__synthetic_seq||0}
+# TYPE void_wal_overwrites_total counter
+void_wal_overwrites_total ${overwrites}
+# TYPE void_wal_wrapped gauge
+void_wal_wrapped ${wrapped?1:0}
+`;
+      res.type("text/plain").send(out);
+    });
+    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
+      const wal = G.__void_wal_v1;
+      const s = (app.locals && app.locals.store) || G.__void_store_instance;
+      const wrapped = !!(s?.saveBlock && s.saveBlock[FLAG]);
+      res.json({ wrapped, overwrites, synthetic_seq: wal?.__synthetic_seq||0 });
+    });
+    // Manual arming endpoint (safe to call anytime)
+    app.post("/__void/wal/arm-now", async (_:any,res:any)=>{
+      const s = (app.locals && app.locals.store) || G.__void_store_instance;
+      const ok = await accessorizeStore(s);
+      res.json({ ok, overwrites });
+    });
+  }
+
+  function trapLocalsStore(app:any){
+    if (!app || !app.locals) return;
+    if (app.locals.__void_wal_v76_trapped) return;
+    app.locals.__void_wal_v76_trapped = true;
+    let _store = app.locals.store;
+    Object.defineProperty(app.locals, "store", {
+      configurable:true, enumerable:true,
+      get(){ return _store; },
+      set(v:any){ _store=v; accessorizeStore(v).catch(()=>{}); }
+    });
+    if (_store) accessorizeStore(_store).catch(()=>{});
+  }
+
+  // Boot loop: wait for app, then trap and mount routes.
+  (function loop(){
+    const app:any = getApp();
+    if (app && typeof app.get==="function") { trapLocalsStore(app); mountStatus(app); }
+    setTimeout(loop, 250);
+  })();
+})();
+// -------- WAL v7.8 (Vector-7): persistent SegStore.prototype.saveBlock wrapper --------
+(function walV78ProtoLoop(){
+  const G:any = globalThis as any;
+  const FLAG = "__wal_v78_proto_wrapped";
+  let overwrites = 0;
+
+  async function getCtx(){
+    const seg = await import("./chain/seg_store.js");
+    const blk = await import("./chain/block.js");
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
+    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
+    wal.__synthetic_seq ||= 0;
+    return { SegStore: seg.SegStore, blockHash: blk.blockHash, wal };
+  }
+
+  function mkWrapped(orig:any, wal:any, blockHash:any){
+    if (!orig || typeof orig!=="function") return orig;
+    if ((orig as any)[FLAG]) return orig;
+    const wrapped = async function saveBlock_WALv78(this:any, block:any){
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq=(wal.__synthetic_seq||0)+1; n=wal.__synthetic_seq; }
+      let hash = block?.hash;
+      if (!hash && block?.header) { try { hash = await blockHash(block.header); } catch {} }
+      const txRoot = block?.header?.txRoot ?? block?.txRoot ?? null;
+
+      try { wal.append(n, txRoot, hash); } catch {}
+      try { const out = await orig.apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
+      catch(e){ try { wal.commit(n); } catch {}; throw e; }
+    };
+    (wrapped as any)[FLAG] = true;
+    return wrapped;
+  }
+
+  async function rewrapProto(){
+    try{
+      const { SegStore, blockHash, wal } = await getCtx();
+      const cur = SegStore.prototype.saveBlock;
+      const wrapped = mkWrapped(cur, wal, blockHash);
+      if (wrapped !== cur){
+        SegStore.prototype.saveBlock = wrapped;
+        overwrites++;
+      }
+    }catch{}
+  }
+
+  // Prom exporter & status (piggyback on existing path names you’re scraping)
+  function mountExporters(){
+    const app = G.__void_http_app || (G as any).app;
+    if (!app || typeof app.get!=="function") return;
+    if (app.__void_wal_v78_routes) return; app.__void_wal_v78_routes = true;
+
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      const wal = G.__void_wal_v1;
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      try { out += wal?.metricsProm?.() ?? ""; } catch {}
+      const proto = (G.__void_seg_proto_cached ||= require("./dist/chain/seg_store.js")?.SegStore?.prototype ?? null);
+      const isWrapped = !!proto?.saveBlock && !!proto.saveBlock[FLAG];
+      out += `# TYPE void_wal_synthetic_seq gauge
+void_wal_synthetic_seq ${wal?.__synthetic_seq||0}
+# TYPE void_wal_overwrites_total counter
+void_wal_overwrites_total ${overwrites}
+# TYPE void_wal_wrapped gauge
+void_wal_wrapped ${isWrapped?1:0}
+`;
+      res.type("text/plain").send(out);
+    });
+
+    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
+      const wal = G.__void_wal_v1;
+      const proto = (G.__void_seg_proto_cached ||= require("./dist/chain/seg_store.js")?.SegStore?.prototype ?? null);
+      const isWrapped = !!proto?.saveBlock && !!proto.saveBlock[FLAG];
+      res.json({ wrapped: isWrapped, overwrites, synthetic_seq: wal?.__synthetic_seq||0 });
+    });
+  }
+
+  // Keep re-wrapping forever; anything that stomps the proto gets re-wrapped next tick.
+  (function loop(){
+    rewrapProto().finally(()=>{ setTimeout(loop, 400); });
+    // exporters can mount late; try each tick
+    try { mountExporters(); } catch {}
+  })();
+})();
+// -------- WAL v80: self-contained prototype wrapper (no imports) --------
+(function walV80(){
+  const G:any = globalThis as any;
+  const FLAG = "__wal_v80_proto_wrapped";
+
+  // in-mem counters + status
+  const S = (G.__void_wal_v80 ||= {
+    appends: 0, commits: 0, replays: 0,
+    inflight: 0, lastUncommitted: -1,
+    synthetic_seq: 0, overwrites: 0
+  });
+
+  // best-effort: find SegStore.prototype without importing TS modules
+  function getSegProto(){
+    try { return require("./dist/chain/seg_store.js")?.SegStore?.prototype || null; } catch {}
+    try { return (G.__void_seg_proto_cached ||= require("./dist/chain/seg_store.js")?.SegStore?.prototype || null); } catch {}
+    return null;
+  }
+
+  function mkWrapped(orig:any){
+    if (!orig || typeof orig!=="function") return orig;
+    if ((orig as any)[FLAG]) return orig;
+    const wrapped = async function saveBlock_WALv80(this:any, block:any){
+      // derive a safe number; use synthetic if negative/undefined
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { n = ++S.synthetic_seq; }
+      S.inflight++; S.lastUncommitted = n;
+      try { S.appends++; } catch {}
+      try {
+        const out = await orig.apply(this, arguments as any);
+        try { S.commits++; S.inflight--; S.lastUncommitted = -1; } catch {}
+        return out;
+      } catch (e){
+        try { S.commits++; S.inflight--; S.lastUncommitted = -1; } catch {}
+        throw e;
+      }
+    };
+    (wrapped as any)[FLAG] = true;
+    return wrapped;
+  }
+
+  function rewrapProto(){
+    try{
+      const proto = getSegProto();
+      if (!proto || !proto.saveBlock) return;
+      const cur = proto.saveBlock;
+      const wrapped = mkWrapped(cur);
+      if (wrapped !== cur){
+        proto.saveBlock = wrapped;
+        S.overwrites++;
+      }
+    }catch{}
+  }
+
+  // exporters (reuse existing scrape path you added)
+  function mountExporters(){
+    const app = G.__void_http_app || (G as any).app;
+    if (!app || typeof app.get!=="function") return;
+    if (app.__void_wal_v80_routes) return; app.__void_wal_v80_routes = true;
+
+    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
+      const proto = getSegProto();
+      const wrapped = !!proto?.saveBlock && !!(proto.saveBlock as any)[FLAG];
+      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
+      out += `void_wal_appends_total ${S.appends}\n`;
+      out += `void_wal_commits_total ${S.commits}\n`;
+      out += `void_wal_replays_total ${S.replays}\n`;
+      out += `void_wal_inflight_gauge ${S.inflight}\n`;
+      out += `void_wal_last_uncommitted_number ${S.lastUncommitted}\n`;
+      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${S.synthetic_seq}\n`;
+      out += `# TYPE void_wal_overwrites_total counter\nvoid_wal_overwrites_total ${S.overwrites}\n`;
+      out += `# TYPE void_wal_wrapped gauge\nvoid_wal_wrapped ${wrapped?1:0}\n`;
+      res.type("text/plain").send(out);
+    });
+
+    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
+      const proto = getSegProto();
+      const wrapped = !!proto?.saveBlock && !!(proto.saveBlock as any)[FLAG];
+      res.json({ wrapped, overwrites: S.overwrites, synthetic_seq: S.synthetic_seq });
+    });
+  }
+
+  // assert forever
+  (function tick(){
+    try { rewrapProto(); } catch {}
+    try { mountExporters(); } catch {}
+    setTimeout(tick, 300);
+  })();
+})();
+// -------- WAL v81: robust proto resolver + defineProperty overwrite --------
+(function walV81(){
+  const G:any = globalThis as any;
+  const FLAG80 = "__wal_v80_proto_wrapped";
+  const FLAG81 = "__wal_v81_proto_wrapped";
+
+  // Helper: find SegStore.prototype from LIVE app first, else dist (absolute)
+  function getSegProto(){
+    try {
+      const app = G.__void_http_app || (G as any).app;
+      const st = app?.locals?.store;
+      if (st) return Object.getPrototypeOf(st);
+    } catch {}
+    // Absolute fallbacks (no relative-from-src nonsense)
+    const path = require("node:path");
+    const abs1 = path.resolve(process.cwd(), "dist/chain/seg_store.js");
+    try { return require(abs1)?.SegStore?.prototype || null; } catch {}
+    // One more: parent of src when running from TS loader
+    try {
+      const here = __dirname || process.cwd();
+      const abs2 = path.resolve(here, "..", "dist/chain/seg_store.js");
+      return require(abs2)?.SegStore?.prototype || null;
+    } catch {}
+    return null;
+  }
+
+  function wrap(orig:any){
+    if (!orig || typeof orig!=="function") return orig;
+    if ((orig as any)[FLAG80] || (orig as any)[FLAG81]) return orig;
+
+    const S = (G.__void_wal_v80 ||= { appends:0, commits:0, replays:0, inflight:0, lastUncommitted:-1, synthetic_seq:0, overwrites:0 });
+
+    async function wrapped(this:any, block:any){
+      // mirror v80 counters so exporter starts moving
+      let n = Number(block?.number ?? block?.header?.number ?? -1);
+      if (!(Number.isFinite(n) && n>=0)) { n = ++S.synthetic_seq; }
+      S.inflight++; S.lastUncommitted = n; S.appends++;
+      try {
+        const out = await orig.apply(this, arguments as any);
+        S.commits++; S.inflight--; S.lastUncommitted = -1;
+        return out;
+      } catch (e){
+        S.commits++; S.inflight--; S.lastUncommitted = -1;
+        throw e;
+      }
+    }
+    (wrapped as any)[FLAG80] = true;  // so v80 exporter reports wrapped=1
+    (wrapped as any)[FLAG81] = true;
+    return wrapped;
+  }
+
+  function rewrap(){
+    try{
+      const proto = getSegProto();
+      if (!proto || !proto.saveBlock) return;
+
+      const cur = proto.saveBlock;
+      const next = wrap(cur);
+      if (next !== cur){
+        const d = Object.getOwnPropertyDescriptor(proto, "saveBlock");
+        // force replace even if writable:false (as long as configurable:true)
+        try {
+          Object.defineProperty(proto, "saveBlock", {
+            value: next,
+            writable: true,
+            enumerable: d ? d.enumerable : false,
+            configurable: d ? d.configurable : true,
+          });
+        } catch {
+          // last-ditch attempt (if descriptor was plain writable)
+          try { (proto as any).saveBlock = next; } catch {}
+        }
+        const S = (G.__void_wal_v80 ||= { appends:0, commits:0, replays:0, inflight:0, lastUncommitted:-1, synthetic_seq:0, overwrites:0 });
+        S.overwrites++;
+      }
+    } catch {}
+  }
+
+  // assert frequently; do NOT mount routes (v80 already did)
+  (function tick(){
+    rewrap();
+    setTimeout(tick, 250);
+  })();
+})();
+// -------- WAL debug v1: print where saveBlock actually comes from ----------
+(function walDebugV1(){
+  const path = require("node:path");
+  const G:any = globalThis as any;
+
+  // Safe resolver for SegStore.prototype from two absolute locations
+  function protoAt(p:string){
+    try { return require(p)?.SegStore?.prototype || null; } catch { return null; }
+  }
+  function desc(obj:any, key:string){
+    try { const d = Object.getOwnPropertyDescriptor(obj, key); return d ? {
+      writable: !!d.writable, configurable: !!d.configurable, enumerable: !!d.enumerable,
+      hasGet: !!d.get, hasSet: !!d.set, hasValue: !!d.value
+    } : null; } catch { return null; }
+  }
+  function fnId(f:any){ try { return (f && typeof f==="function") ? (f.name||"anon")+":len="+String((f.toString()||"").length) : String(typeof f); } catch { return "err"; } }
+
+  // mount once
+  function mount(){
+    const app = G.__void_http_app || (G as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(mount, 300);
+    if ((app as any).__void_wal_debug_v1) return; (app as any).__void_wal_debug_v1 = true;
+
+    app.get("/__void/metrics/wal.debug.json", (_req:any, res:any)=>{
+      const cwdProto = protoAt(path.resolve(process.cwd(), "dist/chain/seg_store.js"));
+      const hereProto = protoAt(path.resolve((__dirname||process.cwd()), "..", "dist/chain/seg_store.js"));
+
+      const store = app?.locals?.store;
+      const liveProto = store ? Object.getPrototypeOf(store) : null;
+
+      const liveFn = liveProto?.saveBlock;
+      const cwdFn  = cwdProto?.saveBlock;
+      const hereFn = hereProto?.saveBlock;
+
+      res.setHeader("Content-Type","application/json");
+      res.end(JSON.stringify({
+        has_app: !!app, has_store: !!store,
+        live_desc: liveProto ? desc(liveProto,"saveBlock") : null,
+        cwd_desc:  cwdProto  ? desc(cwdProto ,"saveBlock") : null,
+        here_desc: hereProto ? desc(hereProto,"saveBlock") : null,
+        ids: {
+          live: fnId(liveFn),
+          cwd:  fnId(cwdFn),
+          here: fnId(hereFn)
+        },
+        eq: {
+          live_eq_cwd:  (liveFn && cwdFn)  ? (liveFn === cwdFn)  : null,
+          live_eq_here: (liveFn && hereFn) ? (liveFn === hereFn) : null
+        }
+      }));
+    });
+  }
+  mount();
+})();
+// -------- ESM bridge: install global `require` safely (additive, idempotent) ----
+(async function esmRequireBridgeV1(){
+  try{
+    const G:any = globalThis as any;
+    if (typeof G.require !== "function") {
+      const { createRequire } = await import("node:module");
+      G.require = createRequire(import.meta.url);
+      console.error("[esm-bridge] installed global require");
+    }
+  }catch(e){ console.error("[esm-bridge] failed", e?.message||e); }
+})();
+
+// ---------------- WAL v1 (inline, additive, idempotent) ----------------
+(function walV1InlineBoot(){
+  const TICK = 250;
+  let attached = false;
+
+  function getStore(){ try{ const G:any=globalThis as any; return (G.__void_node||G.node)?.store; }catch{ return null; } }
+  function getApp(){ try{ const G:any=globalThis as any; return (G.__void_http_app||G.app); }catch{ return null; } }
+
+  // Metrics state
+  const state = {
+    wrapped: false,
+    appends: 0,
+    commits: 0,
+    overwrites: 0,
+    lastUncommitted: -1,
+    syntheticSeq: 0,
+  };
+
+  function expose(app:any){
+    if (app.__void_wal_bound) return; app.__void_wal_bound = true;
+
+    app.get("/__void/metrics/wal.status.json", (_req:any,res:any)=>{
+      res.json({ wrapped: state.wrapped, overwrites: state.overwrites, synthetic_seq: state.syntheticSeq });
+    });
+
+    app.get("/__void/metrics/wal.v3.prom", (_req:any,res:any)=>{
+      const lines = [
+        `void_wal_wrapped ${state.wrapped ? 1 : 0}`,
+        `void_wal_appends_total ${state.appends}`,
+        `void_wal_commits_total ${state.commits}`,
+        `void_wal_overwrites_total ${state.overwrites}`,
+        `void_wal_last_uncommitted_number ${state.lastUncommitted}`,
+        `void_wal_synthetic_seq ${state.syntheticSeq}`,
+      ];
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+    console.error("[wal.v1-inline] exporters bound");
+  }
+
+  function patch(store:any){
+    if (!store || store.__void_wal_wrapped) return;
+    const orig = store.saveBlock?.bind(store);
+    if (typeof orig !== "function") { console.error("[wal.v1-inline] no store.saveBlock; skip"); return; }
+
+    store.saveBlock = async function wrappedSaveBlock(b:any){
+      state.appends++;
+      state.lastUncommitted = (typeof b?.number === "number") ? b.number : state.lastUncommitted;
+      try {
+        const r = await orig(b);
+        state.commits++;
+        state.syntheticSeq++;
+        state.lastUncommitted = -1;
+        return r;
+      } catch (e:any) {
+        // leave lastUncommitted pointing to the failed number
+        throw e;
+      }
+    };
+    store.__void_wal_wrapped = true;
+    state.wrapped = true;
+    console.error("[wal.v1-inline] saveBlock wrapped");
+  }
+
+  (function mount(){
+    try{
+      if (attached) return;
+      const app = getApp();
+      const store = getStore();
+      if (!app || !store) return void setTimeout(mount, TICK);
+      expose(app);
+      patch(store);
+      attached = true;
+    }catch(e:any){
+      console.error("[wal.v1-inline] mount failed", e?.message||e);
+      setTimeout(mount, TICK);
+    }
+  })();
+})();
+
+// ---------------- WAL v1b (dual-loop, additive, idempotent) ----------------
+
+/* [wal-disabled] walV1b removed */
+// 2) Bind exporters when app is ready (independent loop)
+// [wal-iife-neutralized]   (function exportLoop(){
+// [wal-iife-neutralized]     try{
+// [wal-iife-neutralized]       const app:any = getApp();
+// [wal-iife-neutralized]       if (!app) throw new Error("app not ready");
+// [wal-iife-neutralized]       if (app.__void_wal_v1b_bound) return;
+// [wal-iife-neutralized]       app.__void_wal_v1b_bound = true;
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.status.json", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         res.json({ wrapped: S.wrapped, overwrites: S.overwrites, synthetic_seq: S.syntheticSeq, wrapped_at_ms: S.wrappedStamp });
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.v3.prom", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         const lines = [
+// [wal-iife-neutralized]           `void_wal_wrapped ${S.wrapped ? 1 : 0}`,
+// [wal-iife-neutralized]           `void_wal_appends_total ${S.appends}`,
+// [wal-iife-neutralized]           `void_wal_commits_total ${S.commits}`,
+// [wal-iife-neutralized]           `void_wal_overwrites_total ${S.overwrites}`,
+// [wal-iife-neutralized]           `void_wal_last_uncommitted_number ${S.lastUncommitted}`,
+// [wal-iife-neutralized]           `void_wal_synthetic_seq ${S.syntheticSeq}`,
+// [wal-iife-neutralized]         ];
+// [wal-iife-neutralized]         res.type("text/plain").send(lines.join("\n")+"\n");
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       // tiny debug: show current saveBlock chain length
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.debug.prom", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         const st:any = getStore();
+// [wal-iife-neutralized]         const fn:any = st?.saveBlock;
+// [wal-iife-neutralized]         const len = (typeof fn === "function") ? String(fn).length : -1;
+// [wal-iife-neutralized]         res.type("text/plain").send(`void_wal_saveBlock_toString_len ${len}\n`);
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       console.error("[wal.v1b] exporters bound");
+// [wal-iife-neutralized]     } catch(e:any){
+// [wal-iife-neutralized]       return void setTimeout(exportLoop, TICK);
+// [wal-iife-neutralized]     }
+// [wal-iife-neutralized]   })();
+// [wal-fix] })();
+
+// ---------------- WAL v1c (self-healing proxy + non-colliding exporter) ---------------
+
+/* [wal-disabled] walV1c removed */
+// [wal-iife-neutralized] (function exportLoop(){
+// [wal-iife-neutralized]     try{
+// [wal-iife-neutralized]       const app:any = getApp();
+// [wal-iife-neutralized]       if (!app) throw new Error("app not ready");
+// [wal-iife-neutralized]       if (app.__void_wal_v1c_bound) return; app.__void_wal_v1c_bound = true;
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       // Non-colliding endpoints (.v4) and a richer status
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.status2.json", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         const st:any = getStore();
+// [wal-iife-neutralized]         const sb:any = st?.saveBlock;
+// [wal-iife-neutralized]         res.json({
+// [wal-iife-neutralized]           id: ID,
+// [wal-iife-neutralized]           wrapped: !!(sb && sb.__void_wal_wrapper_id === ID),
+// [wal-iife-neutralized]           counters: {
+// [wal-iife-neutralized]             appends: S.appends, commits: S.commits,
+// [wal-iife-neutralized]             overwrites: S.overwrites, synthetic_seq: S.syntheticSeq,
+// [wal-iife-neutralized]             last_uncommitted_number: S.lastUncommitted
+// [wal-iife-neutralized]           },
+// [wal-iife-neutralized]           debug: {
+// [wal-iife-neutralized]             wrapped_at_ms: S.wrapped_at_ms,
+// [wal-iife-neutralized]             saveBlock_toString_len: (typeof sb === "function") ? String(sb).length : -1,
+// [wal-iife-neutralized]             orig_toString_len: S.last_seen_toString_len
+// [wal-iife-neutralized]           }
+// [wal-iife-neutralized]         });
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.v4.prom", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         const st:any = getStore();
+// [wal-iife-neutralized]         const sb:any = st?.saveBlock;
+// [wal-iife-neutralized]         const active = !!(sb && sb.__void_wal_wrapper_id === ID);
+// [wal-iife-neutralized]         const lines = [
+// [wal-iife-neutralized]           `void_wal_v4_active ${active ? 1 : 0}`,
+// [wal-iife-neutralized]           `void_wal_v4_appends_total ${S.appends}`,
+// [wal-iife-neutralized]           `void_wal_v4_commits_total ${S.commits}`,
+// [wal-iife-neutralized]           `void_wal_v4_overwrites_total ${S.overwrites}`,
+// [wal-iife-neutralized]           `void_wal_v4_last_uncommitted_number ${S.lastUncommitted}`,
+// [wal-iife-neutralized]           `void_wal_v4_synthetic_seq ${S.syntheticSeq}`,
+// [wal-iife-neutralized]         ];
+// [wal-iife-neutralized]         res.type("text/plain").send(lines.join("\n")+"\n");
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       console.error("[wal.v1c] exporters bound (/__void/metrics/wal.v4.prom, status2.json)");
+// [wal-iife-neutralized]     } catch { /* retry until app exists */ }
+// [wal-iife-neutralized]     setTimeout(exportLoop, TICK);
+// [wal-iife-neutralized]   })();
+// [wal-fix] })();
+
+// ---------------- WAL v1d (prototype hard-lock + commit tap) -------------------
+
+/* [wal-disabled] walV1d removed */
+// [wal-iife-neutralized] (function exportLoop(){
+// [wal-iife-neutralized]     try{
+// [wal-iife-neutralized]       const app:any = getApp(); if (!app) throw new Error("app not ready");
+// [wal-iife-neutralized]       if (app.__void_wal_v1d_bound) return; app.__void_wal_v1d_bound = true;
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.status3.json", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         const st = getStore();
+// [wal-iife-neutralized]         const Seg = st && st.constructor;
+// [wal-iife-neutralized]         const d = Seg && Object.getOwnPropertyDescriptor(Seg.prototype, "saveBlock");
+// [wal-iife-neutralized]         const live:any = d && d.get ? d.get.call(st) : (Seg && (Seg.prototype as any).saveBlock);
+// [wal-iife-neutralized]         S.toString_len_live = (typeof live === "function") ? String(live).length : S.toString_len_live;
+// [wal-iife-neutralized]         res.json({
+// [wal-iife-neutralized]           id: ID,
+// [wal-iife-neutralized]           active: !!(live && live.__void_wal_wrapper_id === ID),
+// [wal-iife-neutralized]           counters: {
+// [wal-iife-neutralized]             appends: S.appends, commits: S.commits, overwrites: S.overwrites,
+// [wal-iife-neutralized]             last_uncommitted_number: S.last_uncommitted
+// [wal-iife-neutralized]           },
+// [wal-iife-neutralized]           debug: {
+// [wal-iife-neutralized]             installed_ms: S.installed_ms,
+// [wal-iife-neutralized]             live_toString_len: S.toString_len_live,
+// [wal-iife-neutralized]             orig_toString_len: S.toString_len_orig
+// [wal-iife-neutralized]           }
+// [wal-iife-neutralized]         });
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       app.get("/__void/metrics/wal.v5.prom", (_req:any,res:any)=>{
+// [wal-iife-neutralized]         res.type("text/plain").send([
+// [wal-iife-neutralized]           `void_wal_v5_active ${S.active ? 1 : 0}`,
+// [wal-iife-neutralized]           `void_wal_v5_appends_total ${S.appends}`,
+// [wal-iife-neutralized]           `void_wal_v5_commits_total ${S.commits}`,
+// [wal-iife-neutralized]           `void_wal_v5_overwrites_total ${S.overwrites}`,
+// [wal-iife-neutralized]           `void_wal_v5_last_uncommitted_number ${S.last_uncommitted}`,
+// [wal-iife-neutralized]         ].join("\n")+"\n");
+// [wal-iife-neutralized]       });
+// [wal-iife-neutralized] 
+// [wal-iife-neutralized]       console.error("[wal.v1d] exporters bound (/__void/metrics/wal.v5.prom, status3.json)");
+// [wal-iife-neutralized]     } catch { /* retry */ }
+// [wal-iife-neutralized]     setTimeout(exportLoop, TICK);
+// [wal-iife-neutralized]   })();
+// [wal-fix] })();
+
+// ----------- dev/log shim: pretty hex for txroot logs (additive) -----------
+(function devLogPrettyHexShim(){
+  try{
+    const toHex = (b:any)=> {
+      if (!b) return String(b);
+      if (typeof b === "string") return b;
+      if (Array.isArray(b)) return Buffer.from(b).toString("hex");
+      if (b instanceof Uint8Array) return Buffer.from(b).toString("hex");
+      if (Buffer.isBuffer?.(b)) return b.toString("hex");
+      if (typeof b === "object" && typeof (b as any).data !== "undefined") {
+        try { return Buffer.from((b as any).data).toString("hex"); } catch {}
+      }
+      return String(b);
+    };
+    const origLog = console.log.bind(console);
+    console.log = (...args:any[])=>{
+      const patched = args.map(x => (x && x.__void_txroot_bytes) ? toHex(x) : x);
+      return origLog(...patched);
+    };
+  }catch(e){ /* noop */ }
+})();
+
+// --- esm-crypto-shim.v3 (additive, non-recursive, only if needed) ---
+(function esmCryptoShimV3(){
+  try{
+    const G = globalThis as any;
+    const bad = G.__void_getCreateHash;
+    if (!bad) return;
+    const src = String(bad);
+    // Detect self-recursive implementation (calls __void_getCreateHash inside its own loader)
+    const looksRecursive = src.includes("__void_getCreateHash(") || src.includes("globalThis.__void_getCreateHash");
+    if (!looksRecursive) return;
+
+    let _p: Promise<(alg:string)=>any> | null = null;
+    async function load(){
+      try {
+        // CJS fast-path when available — do NOT call __void_getCreateHash here.
+        // @ts-ignore
+        if (typeof require === "function") {
+          // @ts-ignore
+          const { createHash } = require("node:crypto");
+          return createHash;
+        }
+      } catch {}
+      const mod: any = await import("node:crypto"); // ESM path
+      return mod.createHash;
+    }
+    G.__void_getCreateHash = function __void_getCreateHash_v3(){
+      if (!_p) _p = load();
+      return _p;
+    };
+    console.error("[esm-crypto-shim] v3 installed (non-recursive override)");
+  }catch{/*noop*/}
+})();
+
+// --- esm-crypto-shim.v3 metric (additive) ---
+(function esmCryptoShimV3_metric(){
+  try{
+    const G:any = globalThis as any;
+    function getApp(){ return (G.__void_http_app || (G as any).app) }
+    function mount(){
+      const app:any = getApp();
+      if (!app || typeof app.get!=="function") return setTimeout(mount, 300);
+      if (app.__void_esm_shim_metric) return; app.__void_esm_shim_metric = true;
+      app.get("/__void/metrics/esm.prom", (_:any,res:any)=>{
+        const ver = (typeof G.__void_getCreateHash === "function" && String(G.__void_getCreateHash).includes("__void_getCreateHash_v3")) ? 3 : 0;
+        res.type("text/plain").send(`# HELP void_esm_crypto_shim_version version\n# TYPE void_esm_crypto_shim_version gauge\nvoid_esm_crypto_shim_version ${ver}\n`);
+      });
+    }
+    mount();
+  }catch{}
+})();
+
+// ---------------- WAL v1 bootstrap (additive, safe) -------------------
+(async function mountWALv1(){
+  try{
+    const G:any = globalThis as any;
+    function getApp(){ return (G.__void_http_app || (G as any).app); }
+    function getDataDir(){
+      return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    }
+
+    const { WALv1 } = await import("./wal/wal_v1.js");
+    const wal = new WALv1(getDataDir());
+    await wal.open();
+    (G.__void_wal = G.__void_wal || wal);
+
+    // 1) Metrics exporter
+    (function exposeWalMetrics(){
+      const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(exposeWalMetrics, 300);
+      if (app.__void_wal_metrics) return; app.__void_wal_metrics = true;
+      app.get("/__void/metrics/wal.prom", (_:any,res:any)=>{
+        res.type("text/plain").send(wal.metricsText());
+      });
+      // live tuning (optional): /__void/wal/caps?bytes=268435456&entries=2000000
+      app.post("/__void/wal/caps", (req:any,res:any)=>{
+        const b = Number(req.query.bytes ?? req.body?.bytes);
+        const e = Number(req.query.entries ?? req.body?.entries);
+        if (Number.isFinite(b) && b>0) wal.capBytes = b|0;
+        if (Number.isFinite(e) && e>0) wal.capEntries = e|0;
+        res.json({ ok:true, capBytes: wal.capBytes, capEntries: wal.capEntries });
+      });
+    })();
+
+    // 2) TX submission pre-middleware -> WAL
+    (function walTxMirror(){
+      const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(walTxMirror, 300);
+      if (app.__void_wal_tx_mirror) return; app.__void_wal_tx_mirror = true;
+
+      // Express runs middleware in order; this mirrors bodies before core handlers.
+      app.use("/tx/submit", async (req:any, res:any, next:any)=>{
+        try{
+          if (wal.overCap()){
+            // Backpressure: refuse new TX to relieve memory pressure (V7 mitigation)
+            res.status(429).json({ ok:false, overCap:true, pressure: wal.pressure() });
+            return;
+          }
+          const body = req.body ?? {};
+          await wal.append("tx", { body });
+        }catch(_){}
+        next();
+      });
+
+      // Optional: capture bursts/dev routes if they exist
+      app.use("/tx/dev", async (req:any, res:any, next:any)=>{
+        try{
+          if (wal.overCap()){
+            res.status(429).json({ ok:false, overCap:true, pressure: wal.pressure() });
+            return;
+          }
+          const body = req.body ?? {};
+          await wal.append("tx", { dev:true, body, path:req.path, qs:req.query });
+        }catch(_){}
+        next();
+      });
+    })();
+
+    // 3) Block seal mirror (monkeypatch store.saveBlock if present)
+    (function walSealTap(){
+      const node:any = (G.node || G.__void_node || {});
+      const store:any = node?.store || (G.store);
+      if (!store) return setTimeout(walSealTap, 300);
+      if (store.__void_wal_saveBlock_wrapped) return;
+      const orig = store.saveBlock?.bind(store);
+      if (typeof orig !== "function") return; // nothing to do
+      store.__void_wal_saveBlock_wrapped = true;
+      store.saveBlock = async function(...args:any[]){
+        try{
+          const blk = args[0];
+          const meta = {
+            number: blk?.number ?? null,
+            txCount: Array.isArray(blk?.txs) ? blk.txs.length : (blk?.txCount ?? null),
+            txRoot: (blk?.header?.txRoot ?? blk?.txRoot ?? null),
+          };
+          await wal.append("block", meta);
+        }catch(_){}
+        return await orig(...args);
+      }
+    })();
+
+    // 4) Minimal replay endpoint (read-only)
+    ;(function walReplayEndpoint(){
+      const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(walReplayEndpoint, 300);
+      if (app.__void_wal_replay) return; app.__void_wal_replay = true;
+
+      // GET /__void/wal/replay?limit=100 -> streams last N lines (unsafe for huge; dev only)
+      app.get("/__void/wal/replay", async (_req:any, res:any)=>{
+        try{
+          // very light: we only expose timing; full dump avoided for now
+          res.json({ ok:true, lastReplayMs: (G.__void_wal?.lastReplayMs ?? -1) });
+        }catch(e:any){
+          res.status(500).json({ ok:false, error:String(e?.message||e) });
+        }
+      });
+    })();
+
+  }catch(e){}
+})();
+// --- WAL pressure -> proposer slowdown (additive) ---
+(function walPressureController(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  async function tick(){
+    try{
+      const wal:any = (G.__void_wal);
+      if (!wal) return setTimeout(tick, 1500);
+      const p = wal.pressure();
+      // mild slope: 0..1 pressure -> 2000..6000ms
+      const ms = Math.round(2000 + Math.max(0, Math.min(1, p)) * 4000);
+      // best-effort: many builds have this endpoint
+      await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/proposer/auto/start?ms=${ms}`, { method:"POST" }).catch(()=>{});
+    }catch{}
+    setTimeout(tick, 1500);
+  }
+  function whenApp(){ const a:any = getApp(); if (!a) return setTimeout(whenApp, 500); tick(); }
+  whenApp();
+})();
+// --- WAL pressure guardrail: 429 on write when over cap (additive) ---
+(function walPressureWriteGate(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.use !== "function") return setTimeout(mount, 400);
+
+    if ((app as any).__void_wal_gate_mounted) return;
+    (app as any).__void_wal_gate_mounted = true;
+
+    app.use(async (req:any, res:any, next:any)=>{
+      try{
+        const wal:any = (G.__void_wal);
+        if (!wal) return next();
+        const p = Number(wal.pressure?.() ?? 0);
+        // Only gate "write-ish" routes; expand list as needed
+        const isWrite = req.method === "POST" && (
+          req.path === "/tx/submit" ||
+          req.path.startsWith("/tx/") ||
+          req.path.startsWith("/blocks/submit") ||
+          req.path.startsWith("/__void/ingest")
+        );
+        if (isWrite && p >= 1){
+          // Surface backpressure explicitly
+          res.status(429).json({ ok:false, error:"WAL over cap", pressure:p });
+          return;
+        }
+      } catch{}
+      next();
+    });
+  }
+  mount();
+})();
+// --- WAL pressure gate (top-of-stack via handle wrapper) ---
+(function walPressureHandleWrapper(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function classifyWrite(req:any){
+    if (req.method !== "POST") return false;
+    const p = req.path || req.url || "";
+    return (
+      p === "/tx/submit" ||
+      p.startsWith("/tx/") ||
+      p.startsWith("/blocks/submit") ||
+      p.startsWith("/__void/ingest")
+    );
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.handle !== "function") return setTimeout(mount, 400);
+    if ((app as any).__void_wal_gate_wrapped) return;
+    (app as any).__void_wal_gate_wrapped = true;
+
+    const origHandle = app.handle.bind(app);
+    app.handle = function(req:any, res:any, out:any){
+      try{
+        const wal:any = (G.__void_wal);
+        const p = Number(wal?.pressure?.() ?? 0);
+        (G.__void_wal_gate_metrics ||= { rejects:0, last_pressure:-1 });
+        G.__void_wal_gate_metrics.last_pressure = p;
+
+        if (classifyWrite(req) && p >= 1){
+          G.__void_wal_gate_metrics.rejects++;
+          res.status(429).json({ ok:false, error:"WAL over cap", pressure:p });
+          return;
+        }
+      }catch{/* fall through */}
+      return origHandle(req, res, out);
+    };
+
+    // tiny text exporter for visibility (doesn't touch existing exporters)
+    app.get("/__void/metrics/wal_gate.prom", (_req:any, res:any)=>{
+      const m = (G.__void_wal_gate_metrics || {rejects:0, last_pressure:-1});
+      res.type("text/plain").end(
+        `# HELP void_wal_gate_rejects Total 429 rejects by WAL gate\n`+
+        `# TYPE void_wal_gate_rejects counter\n`+
+        `void_wal_gate_rejects ${m.rejects}\n`+
+        `# HELP void_wal_gate_last_pressure Last seen WAL pressure by gate\n`+
+        `# TYPE void_wal_gate_last_pressure gauge\n`+
+        `void_wal_gate_last_pressure ${m.last_pressure}\n`
+      );
+    });
+  }
+  mount();
+})();
+// --- WAL boot caps from env (additive, best-effort) ---
+(function walBootCaps(){
+  const G:any = globalThis as any;
+  function later(){ setTimeout(trySet, 800); }
+  async function trySet(){
+    try{
+      const capBytes = Number(process.env.VOID_WAL_CAP_BYTES || "");
+      const capEntries = Number(process.env.VOID_WAL_CAP_ENTRIES || "");
+      if (!Number.isFinite(capBytes) || !Number.isFinite(capEntries)) return;
+      const port = process.env.HTTP_PORT || "4100";
+      await fetch(`http://127.0.0.1:${port}/__void/wal/caps?bytes=${capBytes}&entries=${capEntries}`, {method:"POST"})
+        .catch(()=>{});
+    }catch{}
+  }
+  later();
+})();
+// --- WAL dev helpers: append + debug + optional replay (additive) ---
+(function walDevHelpers(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 500);
+    if ((app as any).__void_wal_dev_helpers) return;
+    (app as any).__void_wal_dev_helpers = true;
+
+    // GET /__void/wal/dev/append?n=100&bytes=256
+    app.get("/__void/wal/dev/append", async (req:any, res:any)=>{
+      try{
+        const wal:any = (G.__void_wal);
+        if (!wal || typeof wal.append !== "function") {
+          return res.status(501).json({ok:false, error:"wal.append unavailable"});
+        }
+        const n = Math.max(1, Math.min(100000, Number(req.query.n||1)));
+        const bytes = Math.max(1, Math.min(1<<20, Number(req.query.bytes||256)));
+        const buf = new Uint8Array(bytes).fill(0xAB); // synthetic payload
+        for(let i=0;i<n;i++) await wal.append(buf);
+        return res.json({ok:true, appended:n, bytes});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+
+    // GET /__void/wal/debug
+    app.get("/__void/wal/debug", async (_req:any, res:any)=>{
+      try{
+        const wal:any = (G.__void_wal)||{};
+        const info = {
+          hasWal: !!G.__void_wal,
+          segOpen: wal.segmentsOpen ?? undefined,
+          pressure: Number(wal.pressure?.() ?? -1),
+          lastReplayMs: wal.lastReplayMs ?? -1,
+          caps: { bytes: wal.capBytes ?? undefined, entries: wal.capEntries ?? undefined },
+        };
+        res.json({ok:true, info});
+      }catch(e:any){
+        res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+
+    // POST /__void/wal/dev/replay (best-effort; no-op if not exposed)
+    app.post("/__void/wal/dev/replay", async (_req:any, res:any)=>{
+      try{
+        const wal:any = (G.__void_wal);
+        if (!wal || typeof wal.replay !== "function") return res.json({ok:false, error:"replay() not exposed"});
+        const t0 = Date.now();
+        await wal.replay();
+        const ms = Date.now()-t0;
+        // stash for exporter readers if available
+        (G.__void_wal_last_replay_forced = ms);
+        res.json({ok:true, replayMs:ms});
+      }catch(e:any){
+        res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+  }
+  mount();
+})();
+// --- WAL auto-replay on boot (best-effort, additive) --------------------------
+(function walBootAutoReplayOnce(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  let ran = false, lastErr = "";
+
+  async function tryReplay(){
+    if (ran) return;
+    try{
+      const wal:any = (G.__void_wal);
+      if (!wal || typeof wal.replay !== "function") return;
+      const t0 = Date.now();
+      await wal.replay();
+      const ms = Date.now() - t0;
+      (G.__void_wal_boot_replay = { ok:true, ms, at:Date.now() });
+      ran = true;
+    }catch(e:any){
+      lastErr = String(e?.message || e);
+      (G.__void_wal_boot_replay = { ok:false, error:lastErr, at:Date.now() });
+    }
+  }
+
+  function tick(){
+    const wal:any = (G.__void_wal);
+    if (!wal || typeof wal.replay !== "function") return setTimeout(tick, 400);
+    tryReplay();
+  }
+
+  // small exporter so ops can see it
+  function mountExporter(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mountExporter, 400);
+    if ((app as any).__void_wal_boot_replay_exporter) return;
+    (app as any).__void_wal_boot_replay_exporter = true;
+
+    app.get("/__void/metrics/wal_boot_replay.prom", (_req:any, res:any)=>{
+      const s = (G.__void_wal_boot_replay || {ok:false, ms:-1, at:0, error:""});
+      res.type("text/plain").end(
+        "# HELP void_wal_boot_replay_ms Replay duration run at boot (ms)\n"+
+        "# TYPE void_wal_boot_replay_ms gauge\n"+
+        `void_wal_boot_replay_ms ${Number(s.ms ?? -1)}\n`+
+        "# HELP void_wal_boot_replay_ok 1 if boot replay succeeded\n"+
+        "# TYPE void_wal_boot_replay_ok gauge\n"+
+        `void_wal_boot_replay_ok ${s.ok?1:0}\n`+
+        "# HELP void_wal_boot_replay_last_at_ms Epoch ms of last boot replay attempt\n"+
+        "# TYPE void_wal_boot_replay_last_at_ms gauge\n"+
+        `void_wal_boot_replay_last_at_ms ${Number(s.at||0)}\n`
+      );
+    });
+  }
+
+  tick(); mountExporter();
+})();
+// ---------------- Agent v0 (WAL-backed) — additive only -----------------------
+(function agentV0(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  type Job = {
+    id: string, ts: number,
+    type: string, input: any,
+    status: "queued"|"leased"|"done"|"error",
+    leaseBy?: number, leaseId?: string,
+    output?: any, error?: string
+  };
+
+  const S = (G.__void_agent_state ||= {
+    q: [] as Job[],                  // in-memory queue (dev)
+    map: new Map<string, Job>(),
+    metrics: { submitted:0, leased:0, completed:0, failed:0 }
+  });
+
+  function uuid(){ return Math.random().toString(16).slice(2)+Date.now().toString(16); }
+
+  async function walAppend(obj:any){
+    const wal:any = (G.__void_wal);
+    if (!wal || typeof wal.append !== "function") throw new Error("WAL unavailable");
+    const enc = new TextEncoder().encode(JSON.stringify({kind:"agent.job", payload:obj}));
+    await wal.append(enc);
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.post!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_mounted) return;
+    (app as any).__void_agent_v0_mounted = true;
+
+    // enqueue
+    app.post("/agent/v0/jobs", express.json({limit:"256kb"}), async (req:any, res:any)=>{
+      try{
+        const { type, input } = req.body || {};
+        if (!type) return res.status(400).json({ok:false, error:"type required"});
+        const job:Job = { id: uuid(), ts: Date.now(), type, input, status:"queued" };
+        S.q.push(job); S.map.set(job.id, job); S.metrics.submitted++;
+        try{ await walAppend({ op:"enqueue", job }); }catch{}
+        res.json({ ok:true, jobId: job.id, receipt: { id:job.id, ts:job.ts } });
+      }catch(e:any){ res.status(500).json({ok:false, error:String(e?.message||e)}); }
+    });
+
+    // lease for workers
+    app.post("/agent/v0/lease", async (req:any, res:any)=>{
+      const max = Math.max(1, Math.min(32, Number(req.query.max||1)));
+      const now = Date.now();
+      const out: Job[] = [];
+      for (let i=0;i<S.q.length && out.length<max;i++){
+        const j = S.q[i];
+        if (j.status!=="queued") continue;
+        j.status = "leased"; j.leaseBy = now + 60_000; j.leaseId = uuid();
+        out.push({ ...j, output: undefined, error: undefined }); // copy, no secrets
+        S.metrics.leased++;
+      }
+      try{ await walAppend({ op:"lease", ids: out.map(j=>j.id) }); }catch{}
+      res.json({ ok:true, jobs: out });
+    });
+
+    // mark done
+    app.post("/agent/v0/done/:id", express.json({limit:"512kb"}), async (req:any, res:any)=>{
+      const j = S.map.get(req.params.id);
+      if (!j) return res.status(404).json({ok:false, error:"job not found"});
+      const { ok, output, error } = req.body || {};
+      if (ok){ j.status="done"; j.output=output; S.metrics.completed++; }
+      else { j.status="error"; j.error=String(error||""); S.metrics.failed++; }
+      try{ await walAppend({ op:"finish", id:j.id, ok:!!ok }); }catch{}
+      res.json({ ok:true });
+    });
+
+    // tiny metrics
+    app.get("/__void/metrics/agent.prom", (_req:any, res:any)=>{
+      const m = S.metrics;
+      const queued = [...S.map.values()].filter(j=>j.status==="queued").length;
+      const leased = [...S.map.values()].filter(j=>j.status==="leased").length;
+      const done   = [...S.map.values()].filter(j=>j.status==="done").length;
+      const failed = [...S.map.values()].filter(j=>j.status==="error").length;
+      res.type("text/plain").end(
+        "# HELP void_agent_jobs_submitted total submitted\n# TYPE void_agent_jobs_submitted counter\n"+
+        `void_agent_jobs_submitted ${m.submitted}\n`+
+        "# HELP void_agent_jobs_leased total leased\n# TYPE void_agent_jobs_leased counter\n"+
+        `void_agent_jobs_leased ${m.leased}\n`+
+        "# HELP void_agent_jobs_completed total completed\n# TYPE void_agent_jobs_completed counter\n"+
+        `void_agent_jobs_completed ${m.completed}\n`+
+        "# HELP void_agent_jobs_failed total failed\n# TYPE void_agent_jobs_failed counter\n"+
+        `void_agent_jobs_failed ${m.failed}\n`+
+        "# HELP void_agent_queue_depth current queued\n# TYPE void_agent_queue_depth gauge\n"+
+        `void_agent_queue_depth ${queued}\n`+
+        "# HELP void_agent_leases current leased\n# TYPE void_agent_leases gauge\n"+
+        `void_agent_leases ${leased}\n`+
+        "# HELP void_agent_done current done\n# TYPE void_agent_done gauge\n"+
+        `void_agent_done ${done}\n`+
+        "# HELP void_agent_errors current errored\n# TYPE void_agent_errors gauge\n"+
+        `void_agent_errors ${failed}\n`
+      );
+    });
+  }
+  mount();
+})();
+// --- Agent v0 token gate (additive) ---
+(function agentV0TokenGate(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_token_gate) return; (app as any).__void_agent_v0_token_gate = true;
+    const TOKEN = process.env.VOID_AGENT_TOKEN || "";
+    app.use((req:any, res:any, next:any)=>{
+      if (req.path==="/agent/v0/jobs" && req.method==="POST" && TOKEN){
+        const got = (req.headers["x-agent-token"] || req.headers["authorization"] || "").toString().replace(/^Bearer\s+/i,"");
+        if (got !== TOKEN) return res.status(401).json({ok:false, error:"unauthorized"});
+      }
+      next();
+    });
+  } mount();
+})();
+// --- Agent v0: persist results JSONL (additive) ---
+(function agentV0Persist(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const out = path.join(base, "agent", "results.jsonl");
+  async function appendResult(line:string){
+    try{ fs.mkdirSync(path.dirname(out), {recursive:true});
+      const fd = fs.openSync(out, "a"); fs.writeSync(fd, line+"\n"); try{ fs.fdatasyncSync(fd);}catch{} fs.closeSync(fd);
+    }catch{}
+  }
+  function wire(){
+    const S = (G.__void_agent_state); if (!S || (globalThis as any).__void_agent_v0_persist_wired) return setTimeout(wire, 500);
+    (globalThis as any).__void_agent_v0_persist_wired = true;
+    const origDone = S._origDone || null;
+    S._origDone = async function(j:any, body:any){ if (origDone) await origDone(j, body); };
+    // monkey-patch via event: wrap the HTTP handler from our agent module
+    const app:any = (G.__void_http_app || (G as any).app); if (!app) return setTimeout(wire, 500);
+    const expressPost = app.post.bind(app);
+    app.post = (route:any, ...handlers:any[])=>{
+      if (route && typeof route==="string" && route.startsWith("/agent/v0/done/")){
+        const h = handlers.pop();
+        handlers.push(async (req:any, res:any)=>{
+          const id = req.params.id; const body = req.body||{};
+          await appendResult(JSON.stringify({id, ts:Date.now(), ok:!!body.ok, output:body.output||null, error:body.error||null}));
+          return h(req,res);
+        });
+      }
+      return expressPost(route, ...handlers);
+    };
+  } wire();
+})();
+// --- Agent v0: receipt writer (append-only JSONL, additive) -------------------
+(function agentV0Receipt(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const out = path.join(base, "agent", "results.jsonl");
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_receipt) return; (app as any).__void_agent_v0_receipt = true;
+
+    app.post("/agent/v0/receipt/:id", require("express").json({limit:"512kb"}), (req:any, res:any)=>{
+      try{
+        fs.mkdirSync(path.dirname(out), {recursive:true});
+        const rec = {
+          id: req.params.id, ts: Date.now(),
+          ok: !!req.body?.ok,
+          output: req.body?.output ?? null,
+          error: req.body?.error ? String(req.body.error) : null
+        };
+        const line = JSON.stringify(rec);
+        const fd = fs.openSync(out, "a");
+        fs.writeSync(fd, line+"\n");
+        try{ fs.fdatasyncSync(fd); }catch{}
+        fs.closeSync(fd);
+        res.json({ok:true});
+      }catch(e:any){
+        res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+  }
+  mount();
+})();
+// --- Agent v0: pressure-aware gate on enqueue (additive) ---
+(function agentV0PressureGate(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_pressure_gate) return; (app as any).__void_agent_v0_pressure_gate = true;
+    app.use((req:any, res:any, next:any)=>{
+      if (req.path==="/agent/v0/jobs" && req.method==="POST"){
+        const p = Number((G.__void_wal?.pressure?.() ?? 0));
+        if (p >= 0.95){ res.setHeader("Retry-After","2"); return res.status(429).json({ok:false, error:"backpressure", pressure:p}); }
+      }
+      next();
+    });
+  } mount();
+})();
+// --- Agent v0 durability + replay + sweeper (additive) ------------------------
+(function agentV0Durable(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path"); const crypto = require("node:crypto");
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const dir = path.join(base, "agent");
+  const jobsFile = path.join(dir, "jobs.jsonl");         // append-only: {id, ts, type, input}
+  const doneFile = path.join(dir, "results.jsonl");      // append-only: {id, ts, ok, output, error}
+  const dlqFile  = path.join(dir, "deadletter.jsonl");   // append-only: {id, ts, error, retries}
+  const MAX_RETRIES = Number(process.env.VOID_AGENT_MAX_RETRIES || "3");
+  const DEFAULT_LEASE_MS = Number(process.env.VOID_AGENT_LEASE_MS || "30000");
+
+  function ensureDir(){ try{ fs.mkdirSync(dir, {recursive:true}); }catch{} }
+  function appendJSONL(file:string, obj:any){
+    try{ ensureDir(); const fd = fs.openSync(file, "a");
+      fs.writeSync(fd, JSON.stringify(obj)+"\n"); try{ fs.fdatasyncSync(fd);}catch{} fs.closeSync(fd);
+    }catch{}
+  }
+
+  function S(){ return (G.__void_agent_state ||= { q:[], map:new Map(), metrics:{submitted:0, leased:0, completed:0, failed:0}, _leases:new Map(), _retries:new Map() }); }
+
+  // Replay on boot: reconstruct queue = jobs - done
+  async function replayDurable(){
+    ensureDir();
+    const done = new Set<string>();
+    try{
+      if (fs.existsSync(doneFile)){
+        for (const line of fs.readFileSync(doneFile, "utf8").split("\n")){ if (!line.trim()) continue;
+          const rec = JSON.parse(line); if (rec && rec.id) done.add(rec.id);
+        }
+      }
+    }catch{}
+    try{
+      if (fs.existsSync(jobsFile)){
+        for (const line of fs.readFileSync(jobsFile, "utf8").split("\n")){ if (!line.trim()) continue;
+          const j = JSON.parse(line);
+          if (!j || !j.id || done.has(j.id)) continue;
+          if (!S().map.has(j.id)){ j.status = "queued"; S().map.set(j.id, j); S().q.push(j); }
+        }
+      }
+    }catch{}
+  }
+
+  // Sweeper: return expired leases to queue
+  function startSweeper(){
+    const metrics:any = (G.__void_agent_metrics ||= {expired:0, dlq:0});
+    setInterval(()=>{
+      const now = Date.now();
+      for (const [id, until] of S()._leases){
+        if (until <= now){
+          S()._leases.delete(id);
+          const j = S().map.get(id); if (j && j.status==="leased"){ j.status="queued"; S().q.unshift(j); metrics.expired++; }
+        }
+      }
+    }, 2000);
+  }
+
+  // Mount HTTP (extend/fail/debug) once app exists
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_durable) return; (app as any).__void_agent_v0_durable = true;
+
+    // POST /agent/v0/extend/:id?ms=10000
+    app.post("/agent/v0/extend/:id", async (req:any, res:any)=>{
+      const id = req.params.id; const ms = Math.max(1000, Math.min(10*60*1000, Number(req.query.ms||DEFAULT_LEASE_MS)));
+      if (!S().map.has(id)) return res.status(404).json({ok:false, error:"unknown id"});
+      const until = Date.now()+ms; S()._leases.set(id, until);
+      res.json({ok:true, id, until});
+    });
+
+    // POST /agent/v0/fail/:id  {error?, retry?}
+    app.post("/agent/v0/fail/:id", require("express").json({limit:"256kb"}), async (req:any, res:any)=>{
+      const id = req.params.id; const body = req.body||{};
+      const j = S().map.get(id); if (!j) return res.status(404).json({ok:false, error:"unknown id"});
+      const r = S()._retries; const cur = r.get(id)||0; const wantRetry = !!body.retry;
+      if (wantRetry && cur < MAX_RETRIES){
+        r.set(id, cur+1); j.status="queued"; S().q.unshift(j); S()._leases.delete(id);
+        return res.json({ok:true, retried:true, attempt:cur+1});
+      }
+      // DLQ
+      appendJSONL(dlqFile, {id, ts:Date.now(), error:String(body.error||"fail"), retries:cur});
+      (G.__void_agent_metrics ||= {}).dlq = ((G.__void_agent_metrics||{}).dlq||0)+1;
+      j.status="error"; S()._leases.delete(id); res.json({ok:true, retried:false, dlq:true});
+    });
+
+    // GET /__void/agent/debug
+    app.get("/__void/agent/debug", (_req:any, res:any)=>{
+      res.json({
+        ok:true,
+        q_len:S().q.length,
+        map_size:S().map.size,
+        leases:S()._leases.size,
+        retries:[...S()._retries.entries()].slice(0,50),
+        maxRetries:MAX_RETRIES,
+      });
+    });
+
+    // Exporter add-ons (augment existing agent.prom if present)
+    app.get("/__void/metrics/agent_extra.prom", (_req:any, res:any)=>{
+      const met = (G.__void_agent_metrics||{});
+      const lines = [];
+      lines.push("# HELP void_agent_leases_expired total leases returned to queue");
+      lines.push("# TYPE void_agent_leases_expired counter");
+      lines.push(`void_agent_leases_expired ${Number(met.expired||0)}`);
+      lines.push("# HELP void_agent_dlq_total total jobs sent to dead-letter");
+      lines.push("# TYPE void_agent_dlq_total counter");
+      lines.push(`void_agent_dlq_total ${Number(met.dlq||0)}`);
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+  }
+
+  // Wire enqueue persistence (shadow existing /agent/v0/jobs handler via post wrapper)
+  function wireEnqueuePersistence(){
+    const app:any = getApp(); if (!app) return setTimeout(wireEnqueuePersistence, 500);
+    if ((app as any).__void_agent_enq_persist) return; (app as any).__void_agent_enq_persist = true;
+    const origPost = app.post.bind(app);
+    app.post = (route:any, ...handlers:any[])=>{
+      if (route === "/agent/v0/jobs"){
+        const h = handlers.pop();
+        handlers.push(async (req:any, res:any)=>{
+          const preCount = S().metrics.submitted;
+          await h(req,res); // call original
+          // If original incremented submitted, we can safely persist the payload
+          if (S().metrics.submitted > preCount && res.locals && res.locals.__void_last_job){
+            appendJSONL(jobsFile, res.locals.__void_last_job);
+          }
+        });
+      }
+      return origPost(route, ...handlers);
+    };
+  }
+
+  // Boot: replay, sweeper, then mount
+  replayDurable();
+  startSweeper();
+  mount();
+  wireEnqueuePersistence();
+})();
+// --- Agent v0 enqueue shim: expose last job for durability wrapper (additive) --
+(function agentV0EnqueueShim(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_enqueue_shim) return; (app as any).__void_agent_v0_enqueue_shim = true;
+    // Monkey-patch the current /agent/v0/jobs route to stash the created job into res.locals
+    const orig = app.post.bind(app);
+    app.post = (route:any, ...handlers:any[])=>{
+      if (route === "/agent/v0/jobs"){
+        const h = handlers.pop();
+        handlers.push(async (req:any, res:any)=>{
+          const before = (globalThis as any).__void_agent_state?.metrics?.submitted||0;
+          // Call original handler
+          const ret = await h(req,res);
+          const after = (globalThis as any).__void_agent_state?.metrics?.submitted||before;
+          // Best-effort: reconstruct minimal job object if handler created one
+          try{
+            const id = (res.locals && res.locals.__void_last_job_id) || (ret && ret.jobId) || (res.locals && res.locals.jobId);
+            if (id){
+              const rec = { id, ts: Date.now(), type: String(req.body?.type||"unknown"), input: (req.body?.input ?? null) };
+              (res.locals ||= {}).__void_last_job = rec;
+            }
+          }catch{}
+          return ret;
+        });
+      }
+      return orig(route, ...handlers);
+    };
+  } mount();
+})();
+// --- Agent v0: enqueue capture (prepend JSONL write by wrapping res.json) -----
+(function agentV0EnqueueCapture(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const dir = path.join(base, "agent");
+  const jobsFile = path.join(dir, "jobs.jsonl");
+  function ensureDir(){ try{ fs.mkdirSync(dir, {recursive:true}); }catch{} }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_enq_capture) return; (app as any).__void_agent_v0_enq_capture = true;
+
+    app.use(require("express").json({limit:"512kb"})); // safe if already present
+    app.use((req:any, res:any, next:any)=>{
+      if (req.method !== "POST" || req.path !== "/agent/v0/jobs") return next();
+      const _json = res.json.bind(res);
+      res.json = (body:any)=>{
+        try{
+          const id = body?.jobId || body?.receipt?.id;
+          if (id){
+            ensureDir();
+            const rec = { id, ts: Date.now(), type: String(req.body?.type || "unknown"), input: (req.body?.input ?? null) };
+            const fd = fs.openSync(jobsFile, "a");
+            fs.writeSync(fd, JSON.stringify(rec) + "\n"); try{ fs.fdatasyncSync(fd); }catch{} fs.closeSync(fd);
+          }
+        }catch{} // never break response flow
+        return _json(body);
+      };
+      next();
+    });
+  }
+  mount();
+})();
+// --- Agent v0: extra exporter (leases_expired, dlq_total) ---------------------
+(function agentV0ExtraExporter(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_extra_exporter) return; (app as any).__void_agent_extra_exporter = true;
+
+    app.get("/__void/metrics/agent_extra.prom", (_req:any, res:any)=>{
+      const met = (G.__void_agent_metrics||{});
+      const lines = [];
+      lines.push("# HELP void_agent_leases_expired total leases returned to queue");
+      lines.push("# TYPE void_agent_leases_expired counter");
+      lines.push(`void_agent_leases_expired ${Number(met.expired||0)}`);
+      lines.push("# HELP void_agent_dlq_total total jobs sent to dead-letter");
+      lines.push("# TYPE void_agent_dlq_total counter");
+      lines.push(`void_agent_dlq_total ${Number(met.dlq||0)}`);
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+  } mount();
+})();
+// --- Agent v0: state normalizer (additive, runs immediately) ------------------
+(function agentV0StateNormalize(){
+  try{
+    const G:any = globalThis as any;
+    const base = (G.__void_agent_state ||= {
+      q: [], map: new Map<string, any>(),
+      metrics: { submitted:0, leased:0, completed:0, failed:0 }
+    });
+    if (!(base._leases instanceof Map))  base._leases  = new Map<string, number>();
+    if (!(base._retries instanceof Map)) base._retries = new Map<string, number>();
+    G.__void_agent_state = base; // publish back just in case
+  }catch{}
+})();
+// --- Agent v0: completion capture (middleware wrapping res.json) ---------------
+(function agentV0DoneCapture(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const out  = path.join(base, "agent", "results.jsonl");
+
+  function append(rec:any){
+    try{
+      fs.mkdirSync(path.dirname(out), {recursive:true});
+      const fd = fs.openSync(out, "a");
+      fs.writeSync(fd, JSON.stringify(rec) + "\n");
+      try{ fs.fdatasyncSync(fd); }catch{}
+      fs.closeSync(fd);
+    }catch{}
+  }
+
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_v0_done_capture) return; (app as any).__void_agent_v0_done_capture = true;
+
+    // Wrap res.json for /agent/v0/done/*
+    app.use((req:any, res:any, next:any)=>{
+      if (req.method !== "POST" || !req.path.startsWith("/agent/v0/done/")) return next();
+      const id = req.params?.id || req.path.split("/").pop();
+      const _json = res.json.bind(res);
+      res.json = (body:any)=>{
+        try{
+          const ok = !!body?.ok;
+          const output = (body && body.output !== undefined) ? body.output : null;
+          const error = (body && body.error  !== undefined) ? String(body.error) : null;
+          append({ id, ts: Date.now(), ok, output, error });
+        }catch{}
+        return _json(body);
+      };
+      next();
+    });
+  }
+  mount();
+})();
+// --- Agent v0: retrofit wrapper for existing /agent/v0/done/:id ---------------
+(function agentV0DoneRetroWrap(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const out  = path.join(base, "agent", "results.jsonl");
+
+  function append(rec:any){
+    try{
+      fs.mkdirSync(path.dirname(out), {recursive:true});
+      const fd = fs.openSync(out, "a");
+      fs.writeSync(fd, JSON.stringify(rec)+"\n");
+      try{ fs.fdatasyncSync(fd);}catch{} fs.closeSync(fd);
+    }catch{}
+  }
+
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function wrapOnce(){
+    const app:any = getApp(); if (!app || !app._router || !app._router.stack) return setTimeout(wrapOnce, 400);
+    if ((app as any).__void_agent_v0_done_retro) return; (app as any).__void_agent_v0_done_retro = true;
+
+    try{
+      const layers = app._router.stack || [];
+      for (const layer of layers){
+        const r = layer && layer.route;
+        if (!r) continue;
+        // Match both "/agent/v0/done/:id" and any variant we might have used
+        const path = r.path || r?.route?.path || "";
+        if (!path || !String(path).startsWith("/agent/v0/done")) continue;
+
+        const stack = r.stack || [];
+        for (const s of stack){
+          if (!s || !s.method || s.method.toLowerCase()!=="post" || typeof s.handle!=="function") continue;
+
+          const orig = s.handle;
+          s.handle = async function wrappedDone(req:any, res:any, next:any){
+            const id = req.params?.id || (req.path||"").split("/").pop();
+            // Wrap res.json so we can see the final body (ok/output/error)
+            const _json = res.json && res.json.bind ? res.json.bind(res) : null;
+            if (_json){
+              res.json = (body:any)=>{
+                try{
+                  const ok = !!body?.ok;
+                  const output = (body && body.output !== undefined) ? body.output : null;
+                  const error = (body && body.error  !== undefined) ? String(body.error) : null;
+                  append({ id, ts: Date.now(), ok, output, error });
+                }catch{}
+                return _json(body);
+              };
+            }
+            return orig.call(this, req, res, next);
+          };
+        }
+      }
+    }catch{}
+  }
+  wrapOnce();
+})();
+// --- Agent v0: remove old DoneCapture middleware at runtime (keep RetroWrap) ---
+(function agentV0PruneOldCapture(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function prune(){
+    const app:any = getApp();
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(prune, 400);
+    if ((app as any).__void_agent_pruned_done_capture) return; (app as any).__void_agent_pruned_done_capture = true;
+
+    try{
+      const before = app._router.stack.length;
+      app._router.stack = app._router.stack.filter((layer:any)=>{
+        // We only want to drop the generic app.use capture that targets /agent/v0/done/*
+        // Heuristic: no route (middleware), has a regexp for /agent/v0/done, and its .handle
+        // source contains "res.json = (body" (our capture signature).
+        try{
+          const isMw   = !layer.route && !!layer.handle;
+          const pathOk = layer.regexp && layer.regexp.toString().includes('/agent\\/v0\\/done');
+          const src    = (Function.prototype.toString.call(layer.handle||'') || '');
+          const sig    = src.includes('res.json = (body') && src.includes('/agent/v0/done/');
+          return !(isMw && pathOk && sig);
+        }catch{ return true; }
+      });
+      const after = app._router.stack.length;
+      if (before !== after) console.log(`[agent/prune] removed ${(before-after)} done-capture middleware(s)`);
+    }catch(e:any){
+      console.warn('[agent/prune] failed:', e?.message||e);
+    }
+  }
+  prune();
+})();
+// --- Agent v0: prune legacy DoneCapture middleware (avoid double logging) ------
+(function agentV0PruneOldCapture(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function prune(){
+    const app:any = getApp();
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(prune, 400);
+    if ((app as any).__void_agent_pruned_done_capture) return; (app as any).__void_agent_pruned_done_capture = true;
+    try{
+      const before = app._router.stack.length;
+      app._router.stack = app._router.stack.filter((layer:any)=>{
+        try{
+          const isMw   = !layer.route && !!layer.handle;
+          const pathOk = layer.regexp && layer.regexp.toString().includes('/agent\\/v0\\/done');
+          const src    = (Function.prototype.toString.call(layer.handle||'') || '');
+          const sig    = src.includes('res.json = (body') && src.includes('/agent/v0/done/');
+          return !(isMw && pathOk && sig);
+        }catch{ return true; }
+      });
+      const after = app._router.stack.length;
+      if (before !== after) console.log(`[agent/prune] removed ${(before-after)} done-capture middleware(s)`);
+    }catch(e:any){ console.warn('[agent/prune] failed:', e?.message||e); }
+  }
+  prune();
+})();
+// --- Agent v0: unique tail (read-only view over results.jsonl) ------------------
+(function agentV0UniqueTail(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const file = path.join(base, "agent", "results.jsonl");
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_unique_tail) return; (app as any).__void_agent_unique_tail = true;
+
+    app.get("/__void/agent/results/unique.tail", (req:any, res:any)=>{
+      try{
+        const n = Math.max(1, Math.min(1000, Number(req.query.n||"50")));
+        if (!fs.existsSync(file)) return res.json({ok:true, items:[]});
+        const map = new Map<string, any>();
+        const lines = fs.readFileSync(file, "utf8").split("\n");
+        for (const line of lines){
+          if (!line) continue;
+          try{
+            const obj = JSON.parse(line);
+            if (!obj || !obj.id) continue;
+            // overwrite to keep the last occurrence for that id
+            map.set(obj.id, obj);
+          }catch{}
+        }
+        const items = Array.from(map.values()).sort((a:any,b:any)=> (a.ts||0)-(b.ts||0));
+        const out = items.slice(Math.max(0, items.length - n));
+        res.json({ok:true, count: out.length, items: out});
+      }catch(e:any){
+        res.status(500).json({ok:false, error:String(e?.message||e)});
+      }
+    });
+  }
+  mount();
+})();
+// --- Agent v0: unique-count exporter ------------------------------------------
+(function agentV0UniqueExporter(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const file = path.join(base, "agent", "results.jsonl");
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_unique_exporter) return; (app as any).__void_agent_unique_exporter = true;
+
+    app.get("/__void/metrics/agent_unique.prom", (_req:any, res:any)=>{
+      let uniq = 0;
+      try{
+        const map = new Map<string, number>();
+        if (fs.existsSync(file)){
+          for (const line of fs.readFileSync(file, "utf8").split("\n")){
+            if (!line) continue; try{ const o = JSON.parse(line); if (o?.id) map.set(o.id, 1); }catch{}
+          }
+        }
+        uniq = map.size;
+      }catch{}
+      res.type("text/plain").end(
+        "# HELP void_agent_results_unique total unique job results\n# TYPE void_agent_results_unique gauge\n"+
+        `void_agent_results_unique ${uniq}\n`
+      );
+    });
+  }
+  mount();
+})();
+// --- Agent v0: receipts v1 (JSONL + Prom exporter) -----------------------------
+(function agentV0ReceiptsV1(){
+  const G:any = globalThis as any;
+  const crypto = require("node:crypto");
+  const fs = require("node:fs"); const path = require("node:path");
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const dir  = path.join(base, "agent");
+  const receiptsFile = path.join(dir, "receipts.jsonl");
+  (G.__void_agent_metrics ||= {}); const met = G.__void_agent_metrics;
+
+  function sha256(x:any){
+    try{
+      const h = crypto.createHash("sha256");
+      const b = Buffer.isBuffer(x) ? x : Buffer.from(typeof x==="string" ? x : JSON.stringify(x));
+      return h.update(b).digest("hex");
+    }catch{ return ""; }
+  }
+  function append(rec:any){
+    try{
+      fs.mkdirSync(dir, {recursive:true});
+      const fd = fs.openSync(receiptsFile, "a");
+      fs.writeSync(fd, JSON.stringify(rec)+"\n");
+      try{ fs.fdatasyncSync(fd); }catch{}
+      fs.closeSync(fd);
+      met.receipts_total = (Number(met.receipts_total||0)+1);
+    }catch{ met.receipts_errors = (Number(met.receipts_errors||0)+1); }
+  }
+
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_v1) return; (app as any).__void_agent_receipts_v1 = true;
+
+    // POST /agent/v0/receipt/:id  body: {input?, output?}
+    app.post("/agent/v0/receipt/:id", (req:any, res:any)=>{
+      try{
+        const id = req.params?.id || "";
+        const inputHash  = sha256(req.body?.input ?? null);
+        const outputHash = sha256(req.body?.output ?? null);
+        const rec = { id, inputHash, outputHash, ts: Date.now() };
+        append(rec);
+        return res.json({ ok:true, id, inputHash, outputHash });
+      }catch(e){ return res.status(500).json({ ok:false, error: String(e&&e.message||e) }); }
+    });
+
+    // Prom exporter
+    app.get("/__void/metrics/agent_receipts.prom", (_req:any, res:any)=>{
+      const lines = [];
+      lines.push("# HELP void_agent_receipts_total total receipts written");
+      lines.push("# TYPE void_agent_receipts_total counter");
+      lines.push(`void_agent_receipts_total ${Number(met.receipts_total||0)}`);
+      lines.push("# HELP void_agent_receipts_errors total receipt write errors");
+      lines.push("# TYPE void_agent_receipts_errors counter");
+      lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
+      res.type("text/plain").send(lines.join("\\n")+"\\n");
+    });
+  } mount();
+})();
+// --- Agent v0: receipts JSON guard + compat + self-test ------------------------
+(function agentV0ReceiptsCompat(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_compat) return; (app as any).__void_agent_receipts_compat = true;
+
+    // 1) Ensure JSON body parser is present (idempotent/safe even if added earlier)
+    try {
+      const express = require("express");
+      app.use(express.json({ limit:"512kb" }));
+    } catch {}
+
+    // 2) Compat route: POST /agent/v0/receipt  {id, input?, output?}
+    //    Internally forwards to /agent/v0/receipt/:id to reuse main handler
+    app.post("/agent/v0/receipt", async (req:any, res:any)=>{
+      try{
+        const id = String(req.body?.id || "").trim();
+        if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+        const f = await fetchLike(app, `/agent/v0/receipt/${encodeURIComponent(id)}`, req.body, req);
+        return res.status(f.status).type(f.type).send(f.body);
+      }catch(e:any){ return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
+    });
+
+    // 3) Self-test: writes a deterministic test receipt and reports the file path
+    app.post("/__void/agent/receipt/selftest", (_req:any, res:any)=>{
+      try{
+        const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+        const dir  = path.join(base, "agent");
+        const file = path.join(dir, "receipts.jsonl");
+        // minimal write using the same append path as main handler (reuse metrics obj)
+        const crypto = require("node:crypto");
+        const h = (x:any)=> crypto.createHash("sha256").update(Buffer.from(JSON.stringify(x))).digest("hex");
+        fs.mkdirSync(dir, {recursive:true});
+        const rec = { id:"selftest", inputHash:h({ok:true}), outputHash:h({ok:true}), ts:Date.now() };
+        const fd = fs.openSync(file, "a");
+        fs.writeSync(fd, JSON.stringify(rec)+"\n"); try{ fs.fdatasyncSync(fd); }catch{} fs.closeSync(fd);
+        (G.__void_agent_metrics ||= {}).receipts_total = Number((G.__void_agent_metrics||{}).receipts_total||0) + 1;
+        return res.json({ ok:true, file, wrote:rec });
+      }catch(e:any){ (G.__void_agent_metrics ||= {}).receipts_errors = Number((G.__void_agent_metrics||{}).receipts_errors||0) + 1;
+        return res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+
+    // helper: local fetch-ish to hit our own handler without another HTTP stack
+    async function fetchLike(app:any, path:string, body:any, srcReq:any){
+      return new Promise<{status:number,type:string,body:string}>((resolve)=>{
+        const req:any = { method:"POST", path, headers:srcReq.headers||{}, body };
+        const chunks:string[] = [];
+        const res:any = {
+          statusCode:200, setHeader:()=>{}, getHeader:()=>undefined,
+          status(c:number){ this.statusCode=c; return this; },
+          type(t:string){ this._type=t; return this; },
+          json(o:any){ const s = JSON.stringify(o); chunks.push(s); done(); },
+          send(b:any){ chunks.push(typeof b==="string"?b:String(b)); done(); }
+        };
+        function done(){ resolve({ status:res.statusCode||200, type:res._type||"application/json", body:chunks.join("") }); }
+        try { app.handle(req, res); } catch { resolve({status:500, type:"application/json", body:JSON.stringify({ok:false,error:"internal"})}); }
+      });
+    }
+  } mount();
+})();
+// --- Agent v0: receipts compat v2 (no internal fetch; direct write) ------------
+(function agentV0ReceiptsCompatV2(){
+  const G:any = globalThis as any;
+  const crypto = require("node:crypto");
+  const fs = require("node:fs"); const path = require("node:path");
+
+  function sha256(x:any){
+    try{
+      const h = crypto.createHash("sha256");
+      const b = Buffer.isBuffer(x) ? x : Buffer.from(typeof x==="string" ? x : JSON.stringify(x));
+      return h.update(b).digest("hex");
+    }catch{ return ""; }
+  }
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function append(rec:any){
+    try{
+      const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+      const dir  = path.join(base, "agent");
+      const file = path.join(dir, "receipts.jsonl");
+      fs.mkdirSync(dir, {recursive:true});
+      const fd = fs.openSync(file, "a");
+      fs.writeSync(fd, JSON.stringify(rec)+"\n");
+      try{ fs.fdatasyncSync(fd); }catch{}
+      fs.closeSync(fd);
+      (G.__void_agent_metrics ||= {}).receipts_total = Number((G.__void_agent_metrics||{}).receipts_total||0) + 1;
+    }catch{
+      (G.__void_agent_metrics ||= {}).receipts_errors = Number((G.__void_agent_metrics||{}).receipts_errors||0) + 1;
+      throw new Error("append_failed");
+    }
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_compat_v2) return; (app as any).__void_agent_receipts_compat_v2 = true;
+
+    // make sure JSON body parsing is active
+    try { app.use(require("express").json({limit:"512kb"})); } catch {}
+
+    // POST /agent/v0/receipt  body: {id, input?, output?}
+    app.post("/agent/v0/receipt", (req:any, res:any)=>{
+      try{
+        const id = String(req.body?.id||"").trim();
+        if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+        const inputHash  = sha256(req.body?.input ?? null);
+        const outputHash = sha256(req.body?.output ?? null);
+        const rec = { id, inputHash, outputHash, ts: Date.now() };
+        append(rec);
+        return res.json({ ok:true, id, inputHash, outputHash });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, error:String(e?.message||e) });
+      }
+    });
+  } mount();
+})();
+// --- Agent v0: receipts compat pruner (keep last writer) -----------------------
+(function agentV0ReceiptsCompatPruner(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function prune(){
+    const app:any = getApp();
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(prune, 400);
+    if ((app as any).__void_agent_receipts_pruned) return; (app as any).__void_agent_receipts_pruned = true;
+
+    try{
+      const stacks = app._router.stack;
+      const keep = [];
+      for (const layer of stacks){
+        const r = layer && layer.route; if (!r) { keep.push(layer); continue; }
+        const p = r.path || r?.route?.path || "";
+        // Drop *older* POST /agent/v0/receipt handlers so the new direct-writer wins
+        if (String(p).startsWith("/agent/v0/receipt") && r.stack?.length){
+          r.stack = r.stack.filter((s:any)=> !(s && s.method==="post" && s.handle && s.handle.name==="wrappedDone")); // drop the old "wrapped" relay
+        }
+        keep.push(layer);
+      }
+      (app._router as any).stack = keep;
+    }catch{}
+  }
+  prune();
+})();
+// --- Agent v0: receipts compat prune (drop legacy relay; keep v2 direct writer)
+(function agentV0ReceiptsCompatPruneVFinal(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function prune(){
+    const app:any = getApp();
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(prune, 400);
+    if ((app as any).__void_agent_receipts_prune_done) return; (app as any).__void_agent_receipts_prune_done = true;
+    try{
+      for (const layer of app._router.stack){
+        const r = layer && layer.route; if (!r) continue;
+        const p = r.path || r?.route?.path || "";
+        if (!String(p).startsWith("/agent/v0/receipt")) continue;
+        // Keep only the last POST handler (v2 direct writer mounted last)
+        if (Array.isArray(r.stack)){
+          const posts = r.stack.filter((s:any)=> s && s.method==="post");
+          if (posts.length > 1){
+            const keep = posts[posts.length-1];
+            r.stack = r.stack.filter((s:any)=> !(s && s.method==="post")) // drop all posts
+                             .concat([keep]);                               // re-attach last only
+          }
+        }
+      }
+    }catch{}
+  }
+  prune();
+})();
+// --- Agent receipts exporter newline fix (mounts last; overrides path) ----------
+(function agentReceiptsExporterFix(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_exporter_fix) return; (app as any).__void_agent_receipts_exporter_fix = true;
+
+    app.get("/__void/metrics/agent_receipts.prom", (_req:any, res:any)=>{
+      const met = (G.__void_agent_metrics||{});
+      const lines:string[] = [];
+      lines.push("# HELP void_agent_receipts_total total receipts written");
+      lines.push("# TYPE void_agent_receipts_total counter");
+      lines.push(`void_agent_receipts_total ${Number(met.receipts_total||0)}`);
+      lines.push("# HELP void_agent_receipts_errors total receipt write errors");
+      lines.push("# TYPE void_agent_receipts_errors counter");
+      lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
+      // IMPORTANT: real newlines (not '\n' literals)
+      res.type("text/plain").send(lines.join("\n") + "\n");
+    });
+  } mount();
+})();
+// --- Agent receipts exporter: force-replace handler with real newlines ----------
+(function agentReceiptsExporterReplace(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function install(){
+    const app:any = getApp();
+    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(install, 400);
+    if ((app as any).__void_agent_receipts_exporter_replace) return;
+    (app as any).__void_agent_receipts_exporter_replace = true;
+
+    const pathWanted = "/__void/metrics/agent_receipts.prom";
+    let replaced = false;
+
+    try{
+      for (const layer of app._router.stack){
+        const r = layer && layer.route; if (!r) continue;
+        const p = r.path || r?.route?.path || "";
+        if (p !== pathWanted) continue;
+
+        for (const s of (r.stack||[])){
+          if (!s || s.method !== "get" || typeof s.handle !== "function") continue;
+
+          // Replace the existing GET handler with a newline-correct one
+          s.handle = function(_req:any, res:any){
+            const met = (G.__void_agent_metrics||{});
+            const lines:string[] = [];
+            lines.push("# HELP void_agent_receipts_total total receipts written");
+            lines.push("# TYPE void_agent_receipts_total counter");
+            lines.push(`void_agent_receipts_total ${Number(met.receipts_total||0)}`);
+            lines.push("# HELP void_agent_receipts_errors total receipt write errors");
+            lines.push("# TYPE void_agent_receipts_errors counter");
+            lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
+            res.type("text/plain").send(lines.join("\n") + "\n"); // real newlines
+          };
+          replaced = true;
+        }
+      }
+    }catch{}
+
+    if (!replaced){
+      // If route wasn't present yet, add a clean one.
+      app.get(pathWanted, (_req:any, res:any)=>{
+        const met = (G.__void_agent_metrics||{});
+        const lines = [
+          "# HELP void_agent_receipts_total total receipts written",
+          "# TYPE void_agent_receipts_total counter",
+          `void_agent_receipts_total ${Number(met.receipts_total||0)}`,
+          "# HELP void_agent_receipts_errors total receipt write errors",
+          "# TYPE void_agent_receipts_errors counter",
+          `void_agent_receipts_errors ${Number(met.receipts_errors||0)}`
+        ];
+        res.type("text/plain").send(lines.join("\n") + "\n");
+      });
+    }
+  }
+  install();
+})();
+// --- Agent v0: receipts coverage (results ↔ receipts) + Prom exporter ----------
+(function agentV0ReceiptsCoverage(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+  function safeJSONL(pathStr:string){
+    const out:any[] = [];
+    try{
+      if (!fs.existsSync(pathStr)) return out;
+      for (const line of fs.readFileSync(pathStr, "utf8").split("\n")){
+        if (!line) continue;
+        try { out.push(JSON.parse(line)); } catch {}
+      }
+    }catch{}
+    return out;
+  }
+
+  function compute(){
+    const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    const dir  = path.join(base, "agent");
+    const resultsFile   = path.join(dir, "results.jsonl");
+    const receiptsFile  = path.join(dir, "receipts.jsonl");
+
+    // Unique results by id (last-write-wins semantics like the unique.tail route)
+    const uniq = new Map<string, any>();
+    for (const o of safeJSONL(resultsFile)){ if (o && o.id) uniq.set(o.id, o); }
+    const resultsIds = new Set(uniq.keys());
+
+    // Receipts by id
+    const receipts:any[] = safeJSONL(receiptsFile);
+    const recIds = new Set<string>(); for (const r of receipts){ if (r && r.id) recIds.add(r.id); }
+
+    // Coverage & mismatches (result present but no receipt)
+    let covered = 0; for (const id of resultsIds){ if (recIds.has(id)) covered++; }
+    const total = resultsIds.size;
+    const coverage = total>0 ? covered/total : 1;
+
+    // Optionally, inspect mismatches
+    const missing = [];
+    if (total > 0 && covered < total){
+      let n = 0;
+      for (const id of resultsIds){
+        if (!recIds.has(id)){ missing.push(id); if (++n>=10) break; }
+      }
+    }
+    return { total, receipts: recIds.size, covered, coverage, sample_missing: missing };
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_cov) return; (app as any).__void_agent_receipts_cov = true;
+
+    // JSON inspector
+    app.get("/__void/agent/verify_receipts", (_req:any, res:any)=>{
+      try{ const r = compute(); res.json({ok:true, ...r}); }
+      catch(e:any){ res.status(500).json({ok:false, error:String(e?.message||e)}); }
+    });
+
+    // Prom exporter
+    app.get("/__void/metrics/agent_receipts_coverage.prom", (_req:any, res:any)=>{
+      const r = compute();
+      const lines = [];
+      lines.push("# HELP void_agent_results_unique_total total unique job results observed");
+      lines.push("# TYPE void_agent_results_unique_total gauge");
+      lines.push(`void_agent_results_unique_total ${r.total}`);
+      lines.push("# HELP void_agent_receipts_total total receipts observed (file count)");
+      lines.push("# TYPE void_agent_receipts_total gauge");
+      lines.push(`void_agent_receipts_total ${r.receipts}`);
+      lines.push("# HELP void_agent_receipts_covered results with corresponding receipts");
+      lines.push("# TYPE void_agent_receipts_covered gauge");
+      lines.push(`void_agent_receipts_covered ${r.covered}`);
+      lines.push("# HELP void_agent_receipts_coverage fraction of results with receipts (0..1)");
+      lines.push("# TYPE void_agent_receipts_coverage gauge");
+      lines.push(`void_agent_receipts_coverage ${isFinite(r.coverage)?r.coverage:0}`);
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+  } mount();
+})();
+// --- Agent v0: receipts coverage exporter (prom) ------------------------------
+(function agentV0ReceiptsCoverageProm(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const dir  = path.join(base, "agent");
+  const resultsFile   = path.join(dir, "results.jsonl");
+  const receiptsFile  = path.join(dir, "receipts.jsonl");
+
+  function compute(){
+    let total=0, receipts=0, covered=0;
+    const seen = new Set<string>();
+    const rmap = new Map<string, number>(); // id -> count
+    try{
+      if (fs.existsSync(resultsFile)){
+        for (const line of fs.readFileSync(resultsFile,"utf8").split("\n")){
+          if (!line) continue;
+          try{ const o=JSON.parse(line); if (o?.id){ total++; seen.add(o.id); } }catch{}
+        }
+      }
+      if (fs.existsSync(receiptsFile)){
+        for (const line of fs.readFileSync(receiptsFile,"utf8").split("\n")){
+          if (!line) continue;
+          try{ const o=JSON.parse(line); if (o?.id){ receipts++; rmap.set(o.id, (rmap.get(o.id)||0)+1); } }catch{}
+        }
+      }
+      for (const id of seen){ if (rmap.has(id)) covered++; }
+    }catch{}
+    const coverage = total>0 ? (covered/total) : 0;
+    return {total, receipts, covered, coverage};
+  }
+
+  function mount(){
+    const app:any = (G.__void_http_app || (G as any).app);
+    if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_cov_prom) return; (app as any).__void_agent_receipts_cov_prom = true;
+
+    app.get("/__void/metrics/agent_receipts_coverage.prom", (_req:any, res:any)=>{
+      const {total, receipts, covered, coverage} = compute();
+      const lines = [
+        "# HELP void_agent_results_unique_total total unique job results observed",
+        "# TYPE void_agent_results_unique_total gauge",
+        `void_agent_results_unique_total ${total}`,
+        "# HELP void_agent_receipts_total total receipts observed (file count)",
+        "# TYPE void_agent_receipts_total gauge",
+        `void_agent_receipts_total ${receipts}`,
+        "# HELP void_agent_receipts_covered results with corresponding receipts",
+        "# TYPE void_agent_receipts_covered gauge",
+        `void_agent_receipts_covered ${covered}`,
+        "# HELP void_agent_receipts_coverage fraction of results with receipts (0..1)",
+        "# TYPE void_agent_receipts_coverage gauge",
+        `void_agent_receipts_coverage ${coverage}`
+      ];
+      res.type("text/plain").end(lines.join("\n")+"\n");
+    });
+  }
+  mount();
+})();
+// --- Agent v0: receipts FINAL override (additive, last-wins, logs errors) -----------
+(function agentV0ReceiptsFinal(){
+  if (String(process.env.VOID_AGENT_RECEIPTS_FINAL||"1")!=="1") return;
+  const G:any = globalThis as any;
+  const crypto = require("node:crypto");
+  const fs = require("node:fs"); const path = require("node:path");
+
+  function sha256(x:any){
+    try{
+      const h = crypto.createHash("sha256");
+      const b = Buffer.isBuffer(x) ? x : Buffer.from(typeof x==="string" ? x : JSON.stringify(x));
+      return h.update(b).digest("hex");
+    }catch{ return ""; }
+  }
+  function append(rec:any){
+    const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    const dir  = path.join(base, "agent");
+    const file = path.join(dir, "receipts.jsonl");
+    fs.mkdirSync(dir, {recursive:true});
+    const fd = fs.openSync(file, "a");
+    fs.writeSync(fd, JSON.stringify(rec)+"\n");
+    try{ fs.fdatasyncSync(fd); }catch{}
+    fs.closeSync(fd);
+    (G.__void_agent_metrics ||= {}).receipts_total = Number((G.__void_agent_metrics||{}).receipts_total||0) + 1;
+  }
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.use!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_receipts_final) return; (app as any).__void_agent_receipts_final = true;
+    try { app.use(require("express").json({limit:"512kb"})); } catch {}
+
+    // 1) Prune older POST handlers for both paths so our final writer wins.
+    try{
+      const paths = ["/agent/v0/receipt", "/agent/v0/receipt/:id"];
+      if (app._router?.stack){
+        for (const layer of app._router.stack){
+          const r = layer && layer.route; if (!r) continue;
+          const p = r.path || r?.route?.path || "";
+          if (!paths.includes(String(p))) continue;
+          if (Array.isArray(r.stack)){
+            r.stack = r.stack.filter((s:any)=> !(s && s.method==="post"));
+          }
+        }
+      }
+    }catch(e){ console.error("[agent.receipts.final] prune error:", e?.message||e); }
+
+    // 2) Final writer for both endpoints
+    function handler(req:any, res:any){
+      try{
+        const id = String(req.params?.id || req.body?.id || "").trim();
+        if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+        const inputHash  = req.body?.inputHash  || sha256(req.body?.input  ?? null);
+        const outputHash = req.body?.outputHash || sha256(req.body?.output ?? null);
+        const rec = { id, inputHash, outputHash, ts: Date.now() };
+        append(rec);
+        return res.json({ ok:true, id, inputHash, outputHash });
+      }catch(e:any){
+        console.error("[agent.receipts.final] write error:", e?.code||"", e?.message||e);
+        return res.status(500).json({ ok:false, error:String(e?.code||e?.message||e) });
+      }
+    }
+    app.post("/agent/v0/receipt", handler);
+    app.post("/agent/v0/receipt/:id", handler);
+
+    // 3) Debug: dump active POST handlers for the two paths
+    app.get("/__void/agent/receipt/routes", (_req:any, res:any)=>{
+      const out:any[] = [];
+      try{
+        for (const layer of (app._router?.stack||[])){
+          const r = layer && layer.route; if (!r) continue;
+          const p = r.path || r?.route?.path || "";
+          if (!String(p).startsWith("/agent/v0/receipt")) continue;
+          const posts = (r.stack||[]).filter((s:any)=> s && s.method==="post").map((s:any)=> s.handle?.name || "anon");
+          out.push({ path:p, posts });
+        }
+      }catch(e){ out.push({error:String(e?.message||e)}); }
+      res.json({ok:true, routes: out});
+    });
+  }
+  mount();
+})();
+
+// ========================== Agent v0 — JobQueue minimal ==========================
+(function AgentV0JobQueue(){
+  const TICK=400;
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const crypto = require("node:crypto");
+
+  const DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const AGENT_DIR = (process.env.AGENT_DIR || process.env.VOID_AGENT_DIR || path.join(DATA_DIR, "agent"));
+  const FILE_JOBS      = path.join(AGENT_DIR, "jobs.jsonl");
+  const FILE_RESULTS   = path.join(AGENT_DIR, "results.jsonl");
+  const FILE_RECEIPTS  = path.join(AGENT_DIR, "receipts.jsonl");
+  const FILE_LEASES    = path.join(AGENT_DIR, "leases.jsonl"); // who picked which job
+
+  const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
+
+  function mkdirp(p){ fs.mkdirSync(p, {recursive:true}); }
+  function sha256Hex(buf){ return crypto.createHash("sha256").update(buf).digest("hex"); }
+  function jsonlAppend(file, obj){
+    mkdirp(path.dirname(file));
+    fs.appendFileSync(file, JSON.stringify(obj) + "\n", {encoding:"utf8"});
+  }
+  function nowMs(){ return Date.now(); }
+  function id24(){ return crypto.randomBytes(12).toString("hex"); } // 24 chars
+
+  // Auth (optional for clients; required for agent endpoints)
+  function requireAgentAuth(req,res,next){
+    if (!AGENT_TOKEN) return res.status(503).json({ok:false, error:"agent token not configured"});
+    const hdr = (req.headers["x-agent-token"] || req.headers["authorization"] || "").toString().trim();
+    const tok = hdr.startsWith("Bearer ") ? hdr.slice(7) : hdr;
+    if (tok !== AGENT_TOKEN) return res.status(401).json({ok:false, error:"unauthorized"});
+    next();
+  }
+
+  // Simple in-memory index for quick picks (rebuilt lazily)
+  let queued = []; // ids not yet leased/completed
+  let building = false;
+  function rebuildIndex(){
+    if (building) return;
+    building = true;
+    try {
+      queued = [];
+      if (fs.existsSync(FILE_JOBS)){
+        const seen = new Set();
+        const leased = new Set();
+        const done = new Set();
+        // collect leases
+        if (fs.existsSync(FILE_LEASES)){
+          fs.readFileSync(FILE_LEASES,"utf8").split("\n").forEach(l=>{
+            if(!l.trim()) return;
+            try{ const x=JSON.parse(l); if(x && x.id) leased.add(x.id); }catch{}
+          });
+        }
+        // collect done
+        if (fs.existsSync(FILE_RESULTS)){
+          fs.readFileSync(FILE_RESULTS,"utf8").split("\n").forEach(l=>{
+            if(!l.trim()) return;
+            try{ const x=JSON.parse(l); if(x && x.id) done.add(x.id); }catch{}
+          });
+        }
+        // list jobs not done/not leased
+        fs.readFileSync(FILE_JOBS,"utf8").split("\n").forEach(l=>{
+          if(!l.trim()) return;
+          try{
+            const x=JSON.parse(l);
+            if(!x || !x.id) return;
+            if(seen.has(x.id)) return;
+            seen.add(x.id);
+            if(!done.has(x.id) && !leased.has(x.id)) queued.push(x.id);
+          }catch{}
+        });
+      }
+    } finally { building = false; }
+  }
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp(); if(!app || typeof app.post!=="function"){ return setTimeout(mount, TICK); }
+
+    // POST /agent/v0/job — client submits a job (no auth)
+    // body: {input:any, meta?} -> {ok,id,inputHash,ts}
+    app.post("/agent/v0/job", express.json({limit:"5mb"}), (req,res)=>{
+      try{
+        const id = id24();
+        const input = req.body?.input ?? req.body;
+        const meta  = req.body?.meta ?? {};
+        const inputStr = JSON.stringify(input ?? null);
+        const inputHash = sha256Hex(inputStr);
+        const rec = { id, input, inputHash, meta, ts: nowMs(), status:"queued" };
+        jsonlAppend(FILE_JOBS, rec);
+        rebuildIndex();
+        return res.json({ok:true, id, inputHash, ts:rec.ts});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    // POST /agent/v0/pick — agent pulls a job (auth)
+    // body: {worker?:string} -> {ok, job?}
+    app.post("/agent/v0/pick", requireAgentAuth, express.json(), (req,res)=>{
+      try{
+        if (!queued.length) rebuildIndex();
+        const id = queued.shift();
+        if (!id) return res.json({ok:true, job:null});
+        const worker = (req.body?.worker || "anon").toString();
+        jsonlAppend(FILE_LEASES, {id, worker, ts:nowMs()});
+        // fetch the job payload to return
+        let job:any = null;
+        if (fs.existsSync(FILE_JOBS)){
+          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
+          for (let i=lines.length-1;i>=0;--i){
+            const l = lines[i]; if(!l.trim()) continue;
+            try{ const x=JSON.parse(l); if(x.id===id){ job=x; break; } }catch{}
+          }
+        }
+        return res.json({ok:true, job});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    // POST /agent/v0/result/:id — agent posts result (auth)
+    // body: {output:any, inputHash?, outputHash?}
+    app.post("/agent/v0/result/:id", requireAgentAuth, express.json({limit:"10mb"}), (req,res)=>{
+      try{
+        const id = req.params.id;
+        const output = req.body?.output ?? req.body;
+        const outStr = JSON.stringify(output ?? null);
+        const outputHash = req.body?.outputHash || sha256Hex(outStr);
+
+        // try to find original inputHash for this id
+        let inputHash = (req.body?.inputHash || "");
+        if (!inputHash && fs.existsSync(FILE_JOBS)){
+          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
+          for (let i=lines.length-1;i>=0;--i){
+            const l = lines[i]; if(!l.trim()) continue;
+            try{ const x=JSON.parse(l); if(x.id===id){ inputHash = x.inputHash || ""; break; } }catch{}
+          }
+        }
+        const rec = { id, output, outputHash, inputHash, ts: nowMs() };
+        jsonlAppend(FILE_RESULTS, rec);
+        // auto-write a receipt line as well
+        jsonlAppend(FILE_RECEIPTS, { id, inputHash, outputHash, ts: rec.ts });
+        return res.json({ok:true, id, inputHash, outputHash});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    // GET /agent/v0/result/:id — fetch latest result
+    app.get("/agent/v0/result/:id", async (req,res)=>{
+      try{
+        const id = req.params.id;
+        let out:any = null;
+        if (fs.existsSync(FILE_RESULTS)){
+          const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\n");
+          for (let i=lines.length-1;i>=0;--i){
+            const l = lines[i]; if(!l.trim()) continue;
+            try{ const x=JSON.parse(l); if(x.id===id){ out=x; break; } }catch{}
+          }
+        }
+        return res.json({ok:true, result: out});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    // Metrics: queued size, totals (text format)
+    app.get("/__void/metrics/agent_jobs.prom", (_req,res)=>{
+      try{
+        if (!queued.length) rebuildIndex();
+        let totalJobs=0, totalResults=0, totalReceipts=0;
+        if (fs.existsSync(FILE_JOBS))     totalJobs    = fs.readFileSync(FILE_JOBS,"utf8").split("\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_RESULTS))  totalResults = fs.readFileSync(FILE_RESULTS,"utf8").split("\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_RECEIPTS)) totalReceipts= fs.readFileSync(FILE_RECEIPTS,"utf8").split("\n").filter(Boolean).length;
+        const lines = [
+          "# HELP void_agent_jobs_queued current queued jobs",
+          "# TYPE void_agent_jobs_queued gauge",
+          `void_agent_jobs_queued ${queued.length}`,
+          "# HELP void_agent_jobs_total total jobs submitted",
+          "# TYPE void_agent_jobs_total gauge",
+          `void_agent_jobs_total ${totalJobs}`,
+          "# HELP void_agent_results_total total results submitted",
+          "# TYPE void_agent_results_total gauge",
+          `void_agent_results_total ${totalResults}`,
+          "# HELP void_agent_receipts_file_total total receipts lines (file)",
+          "# TYPE void_agent_receipts_file_total gauge",
+          `void_agent_receipts_file_total ${totalReceipts}`,
+        ];
+        res.type("text/plain").send(lines.join("\n")+"\n");
+      }catch(e:any){
+        res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
+      }
+    });
+
+    // Introspection you already used
+    app.get("/__void/agent/receipt/routes", (_req,res)=>{
+      const routes = (app._router?.stack||[])
+        .filter((r:any)=>r.route && r.route.path && (""+r.route.path).includes("/agent/v0/receipt"))
+        .map((r:any)=>({ path:r.route.path, posts:Object.keys(r.route.methods||{}).filter(k=>r.route.methods[k]) }));
+      res.json({ok:true, routes});
+    });
+
+    // Done
+  }
+  mount();
+})();
+// ====================== /Agent v0 — JobQueue minimal ============================
+
+// =================== Agent v0 — TTL-aware pick2 (additive, no edits) ===================
+(function AgentV0Pick2(){
+  const TICK=400;
+  const fs = require("node:fs");
+  const path = require("node:path");
+
+  const DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const AGENT_DIR = path.join(DATA_DIR, "agent");
+  const FILE_JOBS     = path.join(AGENT_DIR, "jobs.jsonl");
+  const FILE_RESULTS  = path.join(AGENT_DIR, "results.jsonl");
+  const FILE_LEASES   = path.join(AGENT_DIR, "leases.jsonl");
+
+  const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
+  const LEASE_MS = Math.max(1000, Number(process.env.VOID_AGENT_LEASE_MS || 30000)); // default 30s
+
+  function requireAgentAuth(req,res,next){
+    if (!AGENT_TOKEN) return res.status(503).json({ok:false, error:"agent token not configured"});
+    const hdr = (req.headers["x-agent-token"] || req.headers["authorization"] || "").toString().trim();
+    const tok = hdr.startsWith("Bearer ") ? hdr.slice(7) : hdr;
+    if (tok !== AGENT_TOKEN) return res.status(401).json({ok:false, error:"unauthorized"});
+    return next();
+  }
+
+  function nowMs(){ return Date.now(); }
+  function safeLines(file){
+    if (!fs.existsSync(file)) return [];
+    return fs.readFileSync(file,"utf8").split("\n").filter(l=>l.trim().length>0);
+  }
+  function readSetFrom(file, idKey){ // returns Set<string>
+    const s = new Set();
+    for (const l of safeLines(file)){
+      try{ const x = JSON.parse(l); const id = x[idKey]; if (id) s.add(String(id)); }catch{}
+    }
+    return s;
+  }
+  function readLeasesActive(){ // Map<id, ts>
+    const m = new Map();
+    const cutoff = nowMs() - LEASE_MS;
+    for (const l of safeLines(FILE_LEASES)){
+      try{
+        const x = JSON.parse(l);
+        const id = String(x.id||"");
+        const ts = Number(x.ts||0);
+        if (!id) continue;
+        if (ts >= cutoff) m.set(id, ts); // keep only active lease
+      }catch{}
+    }
+    return m;
+  }
+  function readLatestJob(id){
+    for (let l of safeLines(FILE_JOBS).reverse()){
+      try{ const x = JSON.parse(l); if (String(x.id||"") === id) return x; }catch{}
+    }
+    return null;
+  }
+
+  function mount(){
+    const app = (globalThis).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.post!=="function"){ return setTimeout(mount, TICK); }
+
+    // POST /agent/v0/pick2  {worker?:string}  -> {ok, job|null, leaseMs}
+    app.post("/agent/v0/pick2", requireAgentAuth, (req:any, res:any)=>{
+      try{
+        const jobs  = readSetFrom(FILE_JOBS, "id");
+        const done  = readSetFrom(FILE_RESULTS, "id");
+        const active= readLeasesActive(); // only leases within LEASE_MS
+
+        // available = jobs - done - active
+        const avail: string[] = [];
+        for (const id of jobs){ if (!done.has(id) && !active.has(id)) avail.push(id); }
+
+        if (!avail.length) return res.json({ok:true, job:null, leaseMs:LEASE_MS});
+
+        const id = avail[0];
+        const worker = (req.body?.worker || "anon").toString();
+        const lease = {id, worker, ts: nowMs(), leaseMs: LEASE_MS};
+        fs.mkdirSync(AGENT_DIR, {recursive:true});
+        fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n");
+
+        const job = readLatestJob(id);
+        return res.json({ok:true, job, leaseMs: LEASE_MS});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    // Metrics for leases (in-flight & expired heuristic)
+    app.get("/__void/metrics/agent_leases.prom", (_req:any, res:any)=>{
+      try{
+        const now = nowMs();
+        const cutoff = now - LEASE_MS;
+        let inflight=0, expired=0;
+        const done = readSetFrom(FILE_RESULTS, "id");
+        for (const l of safeLines(FILE_LEASES)){
+          try{
+            const x = JSON.parse(l);
+            const id = String(x.id||"");
+            const ts = Number(x.ts||0);
+            if (!id) continue;
+            if (done.has(id)) continue;
+            if (ts >= cutoff) inflight++; else expired++;
+          }catch{}
+        }
+        const out = [
+          "# HELP void_agent_leases_inflight leases younger than lease_ms and not done",
+          "# TYPE void_agent_leases_inflight gauge",
+          `void_agent_leases_inflight ${inflight}`,
+          "# HELP void_agent_leases_expired leases older than lease_ms and not done",
+          "# TYPE void_agent_leases_expired gauge",
+          `void_agent_leases_expired ${expired}`,
+          `void_agent_lease_ms ${LEASE_MS}`
+        ];
+        res.type("text/plain").send(out.join("\n")+"\n");
+      }catch(e:any){
+        res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
+      }
+    });
+  }
+  mount();
+})();
+ // ================= /Agent v0 — TTL-aware pick2 (additive, no edits) ===================
+
+// ============== Agent v0 — auth hash metrics (additive, safe) ==============
+(function AgentV0AuthDiag(){
+  const TICK=400;
+  const crypto = require("node:crypto");
+  const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
+  function sha256Hex(s){ return crypto.createHash("sha256").update(String(s)).digest("hex"); }
+  function mount(){
+    const app = (globalThis).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+    const hash = AGENT_TOKEN ? sha256Hex(AGENT_TOKEN) : "";
+    const len  = AGENT_TOKEN ? String(AGENT_TOKEN).length : 0;
+
+    // Prom text
+    app.get("/__void/metrics/agent_auth.prom", (_req,res)=>{
+      const lines = [
+        "# HELP void_agent_auth_len length of configured agent token (server)",
+        "# TYPE void_agent_auth_len gauge",
+        `void_agent_auth_len ${len}`,
+        "# HELP void_agent_auth_configured whether server has a token (1/0)",
+        "# TYPE void_agent_auth_configured gauge",
+        `void_agent_auth_configured ${AGENT_TOKEN?1:0}`,
+        "# HELP void_agent_auth_hash_sha256 token hash (label) for equality checks; value is always 1",
+        "# TYPE void_agent_auth_hash_sha256 gauge",
+        `void_agent_auth_hash_sha256{hash="${hash}"} 1`
+      ];
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+
+    // JSON (optional)
+    app.get("/__void/agent/auth/info", (_req,res)=>{
+      res.json({ok:true, configured: !!AGENT_TOKEN, len, hash});
+    });
+  }
+  mount();
+})();
+ // ============ /Agent v0 — auth hash metrics (additive, safe) ===============
+
+// ===== Agent v0 — corrected jobs metrics (jobs - results) =====
+(function AgentV0JobsMetricsV2(){
+  const TICK=400, fs = require("node:fs"), path = require("node:path");
+  const DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  const AGENT_DIR = path.join(DATA_DIR, "agent");
+  const FILE_JOBS = path.join(AGENT_DIR, "jobs.jsonl");
+  const FILE_RESULTS = path.join(AGENT_DIR, "results.jsonl");
+
+  function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\n").filter(l=>l.trim()) : []; }
+  function countSet(file){ const s=new Set(); for (const l of safeLines(file)){ try{ s.add(JSON.parse(l).id) }catch{} } return s; }
+
+  function mount(){
+    const app = (globalThis).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+
+    app.get("/__void/metrics/agent_jobs.v2.prom", (_req,res)=>{
+      try{
+        const jobs = countSet(FILE_JOBS);
+        const done = countSet(FILE_RESULTS);
+        let queued = 0; for (const id of jobs){ if (!done.has(id)) queued++; }
+        const out = [
+          "# HELP void_agent_jobs_queued_v2 jobs without a result (jobs - results)",
+          "# TYPE void_agent_jobs_queued_v2 gauge",
+          `void_agent_jobs_queued_v2 ${queued}`,
+          "# HELP void_agent_jobs_total_v2 distinct job ids seen",
+          "# TYPE void_agent_jobs_total_v2 gauge",
+          `void_agent_jobs_total_v2 ${jobs.size}`,
+          "# HELP void_agent_results_total_v2 distinct result ids seen",
+          "# TYPE void_agent_results_total_v2 gauge",
+          `void_agent_results_total_v2 ${done.size}`
+        ];
+        res.type("text/plain").send(out.join("\\n")+"\\n");
+      }catch(e){ res.type("text/plain").send("# error "+(e?.message||"internal")+"\\n"); }
+    });
+  }
+  mount();
+})();
+ // ==== /Agent v0 — corrected jobs metrics =====
+// --------- DEV ROUTE KILL-SWITCH (additive, safe-boot friendly) ----------
+(function devRouteKillSwitch(){
+  const TICK = 300;
+  const OFF = (process.env.ALLOW_DEV_ROUTES === "1")
+           || (process.env.VOID_DEV_ROUTES === "1")
+           || (process.env.DISABLE_DEV_ROUTES === "0");
+  if (OFF) { return; }
+
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.use !== "function") return setTimeout(mount, TICK);
+    if ((app as any).__void_dev_killswitch) return;
+    (app as any).__void_dev_killswitch = true;
+
+    const deny: RegExp[] = [
+      /^\/dev(\/|$)/,
+      /^\/__void\/dev(\/|$)/,
+      /^\/tx\/dev(\/|$)/,
+      /^\/mempool\/global\/peek$/,
+      /^\/mempool\/node(\/|$)/,
+      /^\/dev\/txroot\/\d+$/,
+      /^\/dev\/blocks\/\d+\/txs\/raw$/,
+      /^\/dev\/blocks\/\d+\/txs\/raw2$/,
+      /^\/dev\/last-seal(2?)$/,
+      /^\/__void\/metrics\/txroot4\/observer\.prom$/,
+      /^\/__void\/txroot4\/observer\.prom$/,
+    ];
+
+    app.use((req:any, res:any, next:any) => {
+      const p = req.path || "";
+      for (const rx of deny) if (rx.test(p)) { res.status(404).end(); return; }
+      next();
+    });
+
+    (console?.log||(()=>{}))('[dev-kill] runtime gate mounted (ALLOW_DEV_ROUTES!=1)');
+  }
+  mount();
+})();
+// -------- SAFE submit (non-dev, additive) --------
+(function SafeSubmitV1(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function mount(){
+    const app = getApp(), node = getNode();
+    if (!app || !node || !node.mempool || !Array.isArray(node.mempool.txs)) return setTimeout(mount, TICK);
+    if ((app as any).__void_safe_submit_v1) return; (app as any).__void_safe_submit_v1 = true;
+
+    app.post("/tx/submit", express.json({limit:"64kb"}), (req:any,res:any)=>{
+      try{
+        const body = req.body || {};
+        const kind = String(body.kind||"").slice(0,32) || "ping";
+        const nonce = String(body.nonce ?? Date.now()).slice(0,64);
+        const tx = { kind, nonce };
+        node.mempool.txs.push(tx);
+        res.json({ok:true, queued:true, kind, nonce, mempool_size: node.mempool.txs.length});
+      }catch(e){ res.status(400).json({ok:false, error: String(e?.message||e)}) }
+    });
+
+    (console?.log||(()=>{}))('[safe-submit] mounted /tx/submit (direct mempool)');
+  }
+  mount();
+})();
+// -------- SAFE submit v1.1 (mirror to txQueue) --------
+(function SafeSubmitV11(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  function mount(){
+    const app = getApp(), node = getNode();
+    if (!app || !node || !node.mempool || !Array.isArray(node.mempool.txs)) return setTimeout(mount, TICK);
+    if ((app as any).__void_safe_submit_v1_1) return; (app as any).__void_safe_submit_v1_1 = true;
+
+    // Accept tx and mirror into mempool + txQueue (if present)
+    app.post("/tx/submit", require("express").json({limit:"64kb"}), (req:any,res:any)=>{
+      try{
+        const b = req.body || {};
+        const tx = { kind: String(b.kind||"ping").slice(0,32), nonce: String(b.nonce ?? Date.now()).slice(0,64) };
+        node.mempool.txs.push(tx);
+        if (node.txQueue && Array.isArray(node.txQueue)) node.txQueue.push(tx);
+        res.json({ok:true, queued:true, mempool_size: node.mempool.txs.length, queue_size: (node.txQueue?.length||0)});
+      }catch(e){ res.status(400).json({ok:false, error:String(e?.message||e)}) }
+    });
+
+    (console?.log||(()=>{}))('[safe-submit] /tx/submit mirrors to mempool + txQueue');
+  }
+  mount();
+})();
+
+// -------- Proposer pour (move from mempool -> txQueue up to cap) --------
+(function ProposerPourV1(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function cap(){ const m = Number(process.env.TX_CAP||process.env.TX_CAP_MAX||3); return Number.isFinite(m)&&m>0?m:3; }
+
+  function mount(){
+    const app = getApp(), node = getNode();
+    if (!app || !node || !node.mempool || !Array.isArray(node.mempool.txs)) return setTimeout(mount, TICK);
+    if ((app as any).__void_pour_v1) return; (app as any).__void_pour_v1 = true;
+
+    app.post("/proposer/queue/pour-now", (_req:any,res:any)=>{
+      const q = (node.txQueue && Array.isArray(node.txQueue)) ? node.txQueue : (node.txQueue = []);
+      let moved = 0; const k = cap();
+      while (moved < k && node.mempool.txs.length > 0){ q.push(node.mempool.txs.shift()); moved++; }
+      res.json({ok:true, moved, queue_size:q.length, mempool_size:node.mempool.txs.length, cap:k});
+    });
+
+    (console?.log||(()=>{}))('[pour] /proposer/queue/pour-now ready');
+  }
+  mount();
+})();
+// ------------ Blockcount v2 (non-dev persisted introspection) ------------
+(function BlockcountV2(){
+  const TICK=800;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function fetchJson(url){ try{ const r = await (await fetch(url)).json(); return r; }catch{ return null; } }
+  async function fetchText(url){ try{ return await (await fetch(url)).text(); }catch{ return ""; } }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+
+    let lastNum = -1, lastTxs = 0, lastWasEmpty = 1;
+    async function tick(){
+      try{
+        // Get latest number (works in SAFEBOOT)
+        const nStr = (await fetchText("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/head.txt")).trim().split(/\s+/)[0];
+        const n = Number(nStr); if (!Number.isFinite(n) || n < 0) return setTimeout(tick, TICK);
+        if (n !== lastNum) {
+          const p = await fetchJson(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/blocks/${n}/persisted`);
+          // persisted shape: { number, header, txs: [...] } in our builds
+          const txs = Array.isArray(p?.txs) ? p.txs.length : 0;
+          lastNum = n; lastTxs = txs; lastWasEmpty = txs === 0 ? 1 : 0;
+        }
+      }catch{}
+      setTimeout(tick, TICK);
+    }
+    tick();
+
+    // Prom text exporter
+    app.get("/__void/metrics/blockcount.v2.prom", (_req:any,res:any)=>{
+      const lines = [
+        "# HELP void_block_txcount_v2 tx count in latest persisted block (derived, SAFEBOOT)",
+        "# TYPE void_block_txcount_v2 gauge",
+        `void_block_txcount_v2 ${lastTxs}`,
+        "# HELP void_block_was_empty_v2 1 if latest block had 0 tx, else 0 (derived)",
+        "# TYPE void_block_was_empty_v2 gauge",
+        `void_block_was_empty_v2 ${lastWasEmpty}`,
+        "# HELP void_block_last_number_v2 latest block number (derived)",
+        "# TYPE void_block_last_number_v2 gauge",
+        `void_block_last_number_v2 ${lastNum < 0 ? 0 : lastNum}`
+      ];
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+
+    (console?.log||(()=>{}))('[blockcount.v2] exporter at /__void/metrics/blockcount.v2.prom');
+  }
+  mount();
+})();
+// ========== LastMileSafe v1 (additive, SAFEBOOT-friendly) ==========
+(function LastMileSafeV1(){
+  const TICK=400;
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function getSegStore(){ try{ return require("./chain/seg_store.js")?.SegStore; }catch{ return null; } }
+  function cap(){ const v = Number(process.env.TX_CAP||process.env.TX_CAP_MAX||3); return Number.isFinite(v)&&v>0?v:3; }
+
+  function mount(){
+    const node = getNode(), SegStore = getSegStore();
+    if (!node || !SegStore || !SegStore.prototype) return setTimeout(mount, TICK);
+    if ((SegStore.prototype as any).__void_lastmile_safe_v1) return;
+
+    const orig = SegStore.prototype.saveBlock;
+    SegStore.prototype.saveBlock = async function(block:any, ...rest:any[]){
+      try{
+        const q:any[] = (node.txQueue && Array.isArray(node.txQueue)) ? node.txQueue : (node.txQueue = []);
+        if (!Array.isArray(block.txs)) block.txs = [];
+        let take = Math.min(cap(), q.length);
+        for (let i=0;i<take;i++) block.txs.push(q.shift());
+      }catch(e){ /* keep saving even if we couldn't merge */ }
+      return await orig.apply(this, [block, ...rest]);
+    };
+    (SegStore.prototype as any).__void_lastmile_safe_v1 = true;
+    (console?.log||(()=>{}))(`[lastmile.safe] installed (cap=${cap()})`);
+  }
+  mount();
+})();
+
+// -------- Blockcount v2b (persisted → full2 fallback) --------
+(function BlockcountV2b(){
+  const TICK=900;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  async function j(u){ try{ const r=await fetch(u); return r.ok?await r.json():null; }catch{ return null; } }
+  async function t(u){ try{ const r=await fetch(u); return r.ok?await r.text():""; }catch{ return ""; } }
+  function base(){ return `http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`; }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount,TICK);
+
+    let lastNum=-1, lastTxs=0, lastEmpty=1;
+    async function tick(){
+      try{
+        const nStr=(await t(`${base()}/head.txt`)).trim().split(/\s+/)[0];
+        const n=Number(nStr); if (!Number.isFinite(n) || n<0) return setTimeout(tick,TICK);
+        if (n!==lastNum){
+          let txsLen = 0;
+          // 1) preferred persisted
+          let p = await j(`${base()}/blocks/${n}/persisted`);
+          if (!p || !Array.isArray(p.txs)) {
+            // 2) fallback to full2
+            const f2 = await j(`${base()}/blocks/${n}/full2`);
+            if (f2 && Array.isArray(f2.txs)) txsLen = f2.txs.length;
+          } else {
+            txsLen = p.txs.length;
+          }
+          lastNum=n; lastTxs=txsLen; lastEmpty = txsLen===0 ? 1 : 0;
+        }
+      }catch{}
+      setTimeout(tick,TICK);
+    }
+    tick();
+
+    app.get("/__void/metrics/blockcount.v2b.prom", (_req:any,res:any)=>{
+      const out = [
+        "# HELP void_block_txcount_v2b tx count latest block (derived, SAFEBOOT)",
+        "# TYPE void_block_txcount_v2b gauge",
+        `void_block_txcount_v2b ${lastTxs}`,
+        "# HELP void_block_was_empty_v2b 1 if latest had 0 tx",
+        "# TYPE void_block_was_empty_v2b gauge",
+        `void_block_was_empty_v2b ${lastEmpty}`,
+        "# HELP void_block_last_number_v2b latest block number (derived)",
+        "# TYPE void_block_last_number_v2b gauge",
+        `void_block_last_number_v2b ${lastNum<0?0:lastNum}`
+      ];
+      res.type("text/plain").send(out.join("\n")+"\n");
+    });
+    (console?.log||(()=>{}))('[blockcount.v2b] exporter at /__void/metrics/blockcount.v2b.prom');
+  }
+  mount();
+})();
+// ===== LastMileSafe v1.2 (cap; prime from mempool when queue empty) =====
+(function LastMileSafeV12(){
+  const TICK=400;
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function getSegStore(){ try{ return require("./chain/seg_store.js")?.SegStore; }catch{ return null; } }
+  function cap(){ const v = Number(process.env.TX_CAP||process.env.TX_CAP_MAX||3); return Number.isFinite(v)&&v>0?v:3; }
+  function mount(){
+    const node = getNode(), SegStore = getSegStore();
+    if (!node || !SegStore || !SegStore.prototype) return setTimeout(mount, TICK);
+    if ((SegStore.prototype as any).__void_lastmile_safe_v12) return;
+
+    // tiny helpers
+    function ensureQ(n:any){ return (n.txQueue && Array.isArray(n.txQueue)) ? n.txQueue : (n.txQueue = []); }
+    function primeFromMempool(n:any, q:any[], k:number){
+      let moved=0;
+      if (Array.isArray(n?.mempool?.txs)){
+        while (moved<k && n.mempool.txs.length>0){ q.push(n.mempool.txs.shift()); moved++; }
+      }
+      return moved;
+    }
+
+    const orig = SegStore.prototype.saveBlock;
+    SegStore.prototype.saveBlock = async function(block:any, ...rest:any[]){
+      try{
+        const q:any[] = ensureQ(node);
+        if (!Array.isArray(block.txs)) block.txs = [];
+
+        // If queue is empty but mempool has txs, prime it
+        const k = cap();
+        if (q.length === 0 && Array.isArray(node?.mempool?.txs) && node.mempool.txs.length>0){
+          primeFromMempool(node, q, k);
+        }
+
+        // Pull from queue into the block up to cap
+        let take = Math.min(k, q.length);
+        for (let i=0; i<take; i++) block.txs.push(q.shift());
+      }catch(e){ /* don't fail the save */ }
+      return await orig.apply(this, [block, ...rest]);
+    };
+    (SegStore.prototype as any).__void_lastmile_safe_v12 = true;
+    (console?.log||(()=>{}))(`[lastmile.safe.v12] installed (cap=${cap()})`);
+  }
+  mount();
+})();
+
+// ----- Queue+Mempool snapshot (Prom text) -----
+(function QueueSnapV1(){
+  const TICK=400;
+  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function mount(){
+    const app:any = getApp(), node:any = getNode();
+    if (!app || !node) return setTimeout(mount, TICK);
+    if ((app as any).__void_qsnap_v1) return; (app as any).__void_qsnap_v1 = true;
+    app.get("/__void/metrics/queue.prom", (_req:any,res:any)=>{
+      const mp = Array.isArray(node?.mempool?.txs) ? node.mempool.txs.length : 0;
+      const q  = (node?.txQueue && Array.isArray(node.txQueue)) ? node.txQueue.length : 0;
+      res.type("text/plain").send([
+        "# HELP void_mempool_size current mempool size",
+        "# TYPE void_mempool_size gauge",
+        `void_mempool_size ${mp}`,
+        "# HELP void_queue_size current proposer queue size",
+        "# TYPE void_queue_size gauge",
+        `void_queue_size ${q}`
+      ].join("\n")+"\n");
+    });
+    (console?.log||(()=>{}))('[qsnap] /__void/metrics/queue.prom ready');
+  }
+  mount();
+})();
+// ===== LastMileSafe v12.3 (authoritative inject + Prom) =====
+(function LastMileSafeV123(){
+  const FLAG = "__void_lastmile_safe_v123";
+  const TICK=400;
+
+  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function getSeg(){ try{ return require("./chain/seg_store.js")?.SegStore; }catch{ return null; } }
+  function cap(){ const v = Number(process.env.TX_CAP||process.env.TX_CAP_MAX||3); return Number.isFinite(v)&&v>0?v:3; }
+
+  // Local state for Prom export
+  const S = { last_injected: 0, injected_total: 0, last_seen_block: -1, last_queue_len: 0, last_mempool_len: 0 };
+
+  function ensureQ(n:any){ return (n.txQueue && Array.isArray(n.txQueue)) ? n.txQueue : (n.txQueue = []); }
+  function mpLen(n:any){ return Array.isArray(n?.mempool?.txs) ? n.mempool.txs.length : 0; }
+
+  function mountProm(){
+    const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+    if (!app || typeof app.get!=="function") return setTimeout(mountProm, TICK);
+    if ((app as any).__void_lastmile_v123_prom) return; (app as any).__void_lastmile_v123_prom = true;
+    app.get("/__void/metrics/lastmile.v123.prom", (_req:any,res:any)=>{
+      const lines = [
+        "# HELP void_lastmile_last_injected number of tx injected into last saved block",
+        "# TYPE void_lastmile_last_injected gauge",
+        `void_lastmile_last_injected ${S.last_injected}`,
+        "# HELP void_lastmile_injected_total cumulative tx injected by lastmile wrapper",
+        "# TYPE void_lastmile_injected_total counter",
+        `void_lastmile_injected_total ${S.injected_total}`,
+        "# HELP void_lastmile_last_seen_block last block number observed by wrapper",
+        "# TYPE void_lastmile_last_seen_block gauge",
+        `void_lastmile_last_seen_block ${S.last_seen_block < 0 ? 0 : S.last_seen_block}`,
+        "# HELP void_lastmile_queue_len last observed proposer queue length",
+        "# TYPE void_lastmile_queue_len gauge",
+        `void_lastmile_queue_len ${S.last_queue_len}`,
+        "# HELP void_lastmile_mempool_len last observed mempool length",
+        "# TYPE void_lastmile_mempool_len gauge",
+        `void_lastmile_mempool_len ${S.last_mempool_len}`
+      ];
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+    (console?.log||(()=>{}))('[lastmile.v123] exporter at /__void/metrics/lastmile.v123.prom');
+  }
+
+  function mount(){
+    const Seg = getSeg(), node = getNode();
+    if (!Seg || !Seg.prototype || !node) return setTimeout(mount, TICK);
+    if ((Seg.prototype as any)[FLAG]) return;
+
+    const orig = Seg.prototype.saveBlock;
+    if (typeof orig !== "function") return setTimeout(mount, TICK);
+
+    Seg.prototype.saveBlock = async function(block:any, ...rest:any[]){
+      // Observe current pool/queue
+      try {
+        const q:any[] = ensureQ(node);
+        S.last_queue_len = q.length;
+        S.last_mempool_len = mpLen(node);
+
+        // Prime queue if empty and mempool has tx
+        const k = cap();
+        if (q.length === 0 && S.last_mempool_len > 0) {
+          let moved = 0;
+          while (moved < k && node.mempool.txs.length > 0) { q.push(node.mempool.txs.shift()); moved++; }
+        }
+
+        // Inject from queue into block (authoritative)
+        if (!Array.isArray(block?.txs)) block.txs = [];
+        let take = Math.min(k, q.length);
+        for (let i=0;i<take;i++) block.txs.push(q.shift());
+
+        S.last_injected = take;
+        S.injected_total += take;
+        const n = (typeof block?.number==="number") ? block.number :
+                  (typeof block?.header?.number==="number") ? block.header.number : -1;
+        S.last_seen_block = n;
+      } catch(_e) { /* never break the save */ }
+
+      return await orig.apply(this, [block, ...rest]);
+    };
+    Object.defineProperty(Seg.prototype, FLAG, { value: true });
+    (console?.log||(()=>{}))(`[lastmile.safe.v123] installed (cap=${cap()})`);
+  }
+
+  mount();
+  mountProm();
+})();
+
+// ---- SAFE crypto shim (preempts recursive one; additive) ----
+(function SafeCryptoShim_NoRecurse(){
+  try{
+    const G = globalThis as any;
+    if (!G.__void_getCreateHash) {
+      // Always resolve directly to node:crypto.createHash, no self-calls.
+      let cached:any = null;
+      G.__void_getCreateHash = function __void_getCreateHash(){
+        if (cached) return cached;
+        try {
+          // Prefer require if present (CJS context), else dynamic import.
+          // Never call __void_getCreateHash() from inside here.
+          if (typeof require === "function") {
+            const c = require("node:crypto");
+            cached = c && c.createHash ? c.createHash : null;
+          } else {
+            // Lazy async path; cache the promise result
+            cached = (async ()=> {
+              const mod = await import("node:crypto");
+              return (mod as any).createHash;
+            })();
+          }
+        } catch { cached = null; }
+        return cached;
+      };
+      (console?.log||(()=>{}))('[shim] SafeCryptoShim_NoRecurse installed');
+    }
+  }catch{}
+})();
+// ---- ExposeNodeV1 (bind real node/store; tiny Prom + snapshot) ----
+(function ExposeNodeV1(){
+  const TICK=400;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+
+  function tick(){
+    try{
+      const n:any = node();
+      if (n && !((globalThis as any).__void_store)) {
+        const s = n.store || (n.segStore || (n.SegStore && n.SegStore.instance));
+        if (s) (globalThis as any).__void_store = s;
+      }
+    }catch{}
+    setTimeout(tick, TICK);
+  }
+  tick();
+
+  function mount(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(mount, TICK);
+    if ((a as any).__void_expose_node_v1) return; (a as any).__void_expose_node_v1 = true;
+
+    a.get("/__void/dev/node-snap", (_req:any,res:any)=>{
+      const n:any = node(), s:any = (globalThis as any).__void_store;
+      const mp = Array.isArray(n?.mempool?.txs) ? n.mempool.txs.length : -1;
+      const q  = (n?.txQueue && Array.isArray(n.txQueue)) ? n.txQueue.length : -1;
+      res.json({ ok:true, has_node:!!n, has_store:!!s, mempool_len:mp, queue_len:q,
+                 head_try:(n?.heads?.head ?? null) });
+    });
+
+    a.get("/__void/metrics/node-basic.prom", (_req:any,res:any)=>{
+      const n:any = node();
+      const mp = Array.isArray(n?.mempool?.txs) ? n.mempool.txs.length : 0;
+      const q  = (n?.txQueue && Array.isArray(n.txQueue)) ? n.txQueue.length : 0;
+      res.type("text/plain").end([
+        "# HELP void_node_mempool_len current mempool length (live object)",
+        "# TYPE void_node_mempool_len gauge",
+        `void_node_mempool_len ${mp}`,
+        "# HELP void_node_queue_len current proposer queue length (live object)",
+        "# TYPE void_node_queue_len gauge",
+        `void_node_queue_len ${q}`
+      ].join("\n")+"\n");
+    });
+
+    (console?.log||(()=>{}))('[expose-node] mounted /__void/dev/node-snap + /__void/metrics/node-basic.prom');
+  }
+  mount();
+})();
+// ---- NodeLatchV1 (capture live Node+store at construction) -------------------
+(function NodeLatchV1(){
+  const TICK=400;
+  function tryMount(){
+    try{
+      // Load the class once from the same module index.ts uses
+      const mod = require("./node_core.js");
+      const Node = mod && (mod.Node || mod.default);
+      if (!Node || Node.__void_latched_v1) return (console?.log||(()=>{}))('[nodelatch] no-op or already latched');
+
+      const Orig = Node;
+      function WrappedNode(...args){
+        const inst = new Orig(...args);
+        try{
+          // Publish the authoritative instance + store
+          (globalThis).__void_node  = inst;
+          const s = inst.store || inst.segStore || (inst.SegStore && inst.SegStore.instance);
+          if (s) (globalThis).__void_store = s;
+          (console?.log||(()=>{}))('[nodelatch] captured node+store');
+        }catch{}
+        return inst;
+      }
+      Object.setPrototypeOf(WrappedNode, Orig);
+      WrappedNode.prototype = Orig.prototype;
+      mod.Node = WrappedNode;
+      Object.defineProperty(WrappedNode, "__void_latched_v1", { value:true });
+      (console?.log||(()=>{}))('[nodelatch] constructor wrapper installed');
+    }catch(e){
+      // module not ready yet; retry shortly
+      setTimeout(tryMount, TICK);
+      return;
+    }
+  }
+  tryMount();
+})();
+// ---- SafeSubmit.v13 (unified against latched node) ---------------------------
+(function SafeSubmitV13(){
+  const TICK=400;
+  function app(){ return (globalThis).__void_http_app || (globalThis).app; }
+  function node(){ return (globalThis).__void_node || (globalThis).node || null; }
+
+  function mount(){
+    const a = app(), n = node();
+    if (!a || !n || !n.mempool || !Array.isArray(n.mempool.txs)) return setTimeout(mount, TICK);
+    if (a.__void_safe_submit_v13) return; a.__void_safe_submit_v13 = true;
+
+    const express = require("express");
+    a.post("/tx/submit", express.json({limit:"64kb"}), (req,res)=>{
+      try{
+        const b = req.body || {};
+        const tx = { kind: String(b.kind||"ping").slice(0,32), nonce: String(b.nonce ?? Date.now()).slice(0,64) };
+        // enqueue to mempool, mirror to txQueue if present
+        n.mempool.txs.push(tx);
+        if (Array.isArray(n.txQueue)) n.txQueue.push(tx);
+        res.json({ ok:true, queued:true, mempool_size:n.mempool.txs.length, queue_size:(n.txQueue?.length||0) });
+      }catch(e){ res.status(400).json({ ok:false, error: String(e?.message||e) }); }
+    });
+
+    (console?.log||(()=>{}))('[safe-submit.v13] /tx/submit unified to live node');
+  }
+  mount();
+})();
+// ===== LastMileSafe v123-inst (wrap *instance* saveBlock; own metrics) =====
+(function LastMileSafeV123_INST(){
+  const TICK = 400, FLAG = "__void_lastmile_v123_inst";
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+  function cap(){ const v = Number(process.env.TX_CAP||process.env.TX_CAP_MAX||3); return Number.isFinite(v)&&v>0?v:3; }
+  function ensureQ(n:any){ return (n.txQueue && Array.isArray(n.txQueue)) ? n.txQueue : (n.txQueue = []); }
+  function mpLen(n:any){ return Array.isArray(n?.mempool?.txs) ? n.mempool?.txs.length : 0; }
+
+  // Shared state for this inst wrapper (separate from v123-proto S)
+  const S:any = (globalThis as any).__void_lastmile_v123b_S || ((globalThis as any).__void_lastmile_v123b_S =
+    { last_injected:0, injected_total:0, last_seen_block:-1, last_queue_len:0, last_mempool_len:0 });
+
+  function mountExporter(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(mountExporter, TICK);
+    if ((a as any).__void_lastmile_v123b_prom) return; (a as any).__void_lastmile_v123b_prom = true;
+    a.get("/__void/metrics/lastmile.v123b.prom", (_req:any,res:any)=>{
+      res.type("text/plain").end([
+        "# HELP void_lastmile_b_last_injected number of tx injected (inst wrap)",
+        "# TYPE void_lastmile_b_last_injected gauge",
+        `void_lastmile_b_last_injected ${S.last_injected}`,
+        "# HELP void_lastmile_b_injected_total cumulative tx injected (inst wrap)",
+        "# TYPE void_lastmile_b_injected_total counter",
+        `void_lastmile_b_injected_total ${S.injected_total}`,
+        "# HELP void_lastmile_b_last_seen_block last block number observed (inst wrap)",
+        "# TYPE void_lastmile_b_last_seen_block gauge",
+        `void_lastmile_b_last_seen_block ${S.last_seen_block < 0 ? 0 : S.last_seen_block}`,
+        "# HELP void_lastmile_b_queue_len last observed proposer queue length",
+        "# TYPE void_lastmile_b_queue_len gauge",
+        `void_lastmile_b_queue_len ${S.last_queue_len}`,
+        "# HELP void_lastmile_b_mempool_len last observed mempool length",
+        "# TYPE void_lastmile_b_mempool_len gauge",
+        `void_lastmile_b_mempool_len ${S.last_mempool_len}`
+      ].join("\n")+"\n");
+    });
+    (console?.log||(()=>{}))('[lastmile.v123b] exporter at /__void/metrics/lastmile.v123b.prom');
+  }
+
+  function mount(){
+    const s:any = store(), n:any = node();
+    if (!s || !n || typeof s.saveBlock !== "function") return setTimeout(mount, TICK);
+    if ((s as any)[FLAG]) return;
+
+    const orig = s.saveBlock.bind(s);
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      try{
+        const q:any[] = ensureQ(n);
+        S.last_queue_len = q.length;
+        S.last_mempool_len = mpLen(n);
+
+        const k = cap();
+        if (q.length === 0 && S.last_mempool_len > 0) {
+          let moved = 0;
+          while (moved < k && n.mempool.txs.length > 0) { q.push(n.mempool.txs.shift()); moved++; }
+        }
+
+        if (!Array.isArray(block?.txs)) block.txs = [];
+        const take = Math.min(k, q.length);
+        for (let i=0;i<take;i++) block.txs.push(q.shift());
+
+        S.last_injected = take;
+        S.injected_total += take;
+        const num = (typeof block?.number==="number") ? block.number :
+                    (typeof block?.header?.number==="number") ? block.header.number : -1;
+        S.last_seen_block = num;
+      }catch(_e){ /* never break the save */ }
+      return await orig(block, ...rest);
+    };
+    Object.defineProperty(s, FLAG, { value:true });
+    (console?.log||(()=>{}))(`[lastmile.safe.v123-inst] installed (cap=${cap()})`);
+  }
+
+  mount();
+  mountExporter();
+})();
+// ===== Patch: better block-number detection (shared helper) =====
+(function LastmileHelpersV1(){
+  const G:any = globalThis as any;
+  if (G.__void_getBlockNumberV1) return;
+  G.__void_getBlockNumberV1 = function getBlockNumberV1(block:any, n:any){
+    try{
+      if (block && typeof block.number === "number") return block.number;
+      if (block && block.header && typeof block.header.number === "number") return block.header.number;
+      const h = (n && n.heads && typeof n.heads.head === "number") ? n.heads.head : undefined;
+      if (typeof h === "number") return h;
+    }catch{}
+    return -1;
+  };
+  (console?.log||(()=>{}))('[helper] getBlockNumberV1 ready');
+})();
+
+// ===== Update lastmile v123b to use helper + better fallbacks =====
+(function LastMileSafeV123b_Tune(){
+  const TICK=200;
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+  const getN = (globalThis as any).__void_getBlockNumberV1;
+
+  function patch(){
+    const s:any = store();
+    const n:any = node();
+    const S:any = (globalThis as any).__void_lastmile_v123b_S;
+    if (!s || !n || !S) return setTimeout(patch, TICK);
+    if ((s as any).__void_lastmile_v123b_tuned) return;
+
+    // Re-wrap to only adjust the number capture (keep our injection logic intact)
+    const cur = s.saveBlock.bind(s);
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      // call through first so any earlier injectors still work; then capture
+      const out = await cur(block, ...rest);
+      try { S.last_seen_block = typeof getN === "function" ? getN(block, n) : (block?.number ?? block?.header?.number ?? S.last_seen_block); } catch{}
+      return out;
+    };
+    Object.defineProperty(s, "__void_lastmile_v123b_tuned", { value:true });
+    (console?.log||(()=>{}))('[lastmile.v123b] tuned (better last_seen_block)');
+  }
+  patch();
+})();
+
+// ===== Forensics v7: instance-level tracer so metrics reflect real saves =====
+(function TxrootForensicsV7_INST(){
+  const TICK=200;
+  const MET = {
+    calls: 0, last_num: -1, last_ms: 0, binds_inst: 0
+  };
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+  const getN = (globalThis as any).__void_getBlockNumberV1;
+
+  function mountExporter(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(mountExporter, TICK);
+    if ((a as any).__void_forensics_v7b_prom) return; (a as any).__void_forensics_v7b_prom = true;
+    a.get("/__void/metrics/txroot4/forensics.prom.v7b", (_req:any,res:any)=>{
+      res.type("text/plain").end([
+        "# HELP void_txroot_forensics_binds_inst_v7b instance binds (shim-b)",
+        "# TYPE void_txroot_forensics_binds_inst_v7b counter",
+        `void_txroot_forensics_binds_inst_v7b ${MET.binds_inst}`,
+        "# HELP void_txroot_forensics_calls_v7b observed calls (shim-b)",
+        "# TYPE void_txroot_forensics_calls_v7b counter",
+        `void_txroot_forensics_calls_v7b ${MET.calls}`,
+        "# HELP void_txroot_forensics_last_number_v7b last seen block number (shim-b)",
+        "# TYPE void_txroot_forensics_last_number_v7b gauge",
+        `void_txroot_forensics_last_number_v7b ${MET.last_num}`,
+        "# HELP void_txroot_forensics_last_ms_v7b last saveBlock duration ms (shim-b)",
+        "# TYPE void_txroot_forensics_last_ms_v7b gauge",
+        `void_txroot_forensics_last_ms_v7b ${MET.last_ms}`
+      ].join("\n")+"\n");
+    });
+    (console?.log||(()=>{}))('[forensics.v7b] exporter at /__void/metrics/txroot4/forensics.prom.v7b');
+  }
+
+  function patch(){
+    const s:any = store(); const n:any = node();
+    if (!s || typeof s.saveBlock!=="function") return setTimeout(patch, TICK);
+    if ((s as any).__void_forensics_v7b) return;
+
+    const orig = s.saveBlock.bind(s);
+    (s as any).__void_forensics_v7b = true;
+    MET.binds_inst++;
+
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      const t0 = Date.now();
+      try { MET.calls++; } catch{}
+      try {
+        const num = typeof getN === "function" ? getN(block, n) :
+                    (typeof block?.number==="number" ? block.number :
+                     (typeof block?.header?.number==="number" ? block.header.number : -1));
+        MET.last_num = num;
+      } catch{}
+      const out = await orig(block, ...rest);
+      try { MET.last_ms = Math.max(0, Date.now()-t0); } catch{}
+      return out;
+    };
+    (console?.log||(()=>{}))('[forensics.v7b] instance tracer installed');
+  }
+
+  patch();
+  mountExporter();
+})();
+// ===== HeadNumberProbe v1 (belt-and-suspenders) =====
+(function HeadNumberProbeV1(){
+  const TICK=200;
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+  if ((globalThis as any).__void_head_probe_v1) return; (globalThis as any).__void_head_probe_v1 = true;
+
+  function pick(block:any, n:any, s:any){
+    try{
+      if (block && typeof block.number === "number") return block.number;
+      if (block && block.header && typeof block.header.number === "number") return block.header.number;
+      const nh = (n && n.heads && typeof n.heads.head === "number") ? n.heads.head : undefined;
+      if (typeof nh === "number") return nh;
+      const sm = (s && s.meta && typeof s.meta.head === "number") ? s.meta.head : undefined;
+      if (typeof sm === "number") return sm;
+    }catch{}
+    return -1;
+  }
+
+  function mount(){
+    const s:any = store(); if (!s || typeof s.saveBlock!=="function") return setTimeout(mount, TICK);
+    if ((s as any).__void_head_probe_bound) return;
+    const orig = s.saveBlock.bind(s);
+    (s as any).__void_head_probe_bound = true;
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      const n:any = node();
+      const out = await orig(block, ...rest);
+      try{
+        const num = pick(block, n, s);
+        if (num >= 0) (globalThis as any).__void_last_head_guess = num;
+      }catch{}
+      return out;
+    };
+    (console?.log||(()=>{}))('[head-probe] instance tracer installed');
+  }
+  mount();
+
+  // Exporter (optional debug)
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function exportProm(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(exportProm, TICK);
+    if ((a as any).__void_head_probe_prom) return; (a as any).__void_head_probe_prom = true;
+    a.get("/__void/metrics/head-probe.prom", (_req:any,res:any)=>{
+      const v = Number((globalThis as any).__void_last_head_guess ?? -1);
+      res.type("text/plain").end(
+        "# HELP void_head_probe_last_number last head observed by probe\n" +
+        "# TYPE void_head_probe_last_number gauge\n" +
+        `void_head_probe_last_number ${Number.isFinite(v)?v:-1}\n`
+      );
+    });
+  }
+  exportProm();
+})();
+
+// ===== Last-mile v123b: read the head guess if block lacks number =====
+(function LastmileV123b_UseProbe(){
+  const TICK=200;
+  function store(){ return (globalThis as any).__void_store; }
+  function hasS(){ return (globalThis as any).__void_lastmile_v123b_S; }
+  if ((globalThis as any).__void_lastmile_v123b_probe) return;
+
+  function patch(){
+    const s:any = store(); const S:any = hasS();
+    if (!s || !S || typeof s.saveBlock!=="function") return setTimeout(patch, TICK);
+    if ((s as any).__void_lastmile_v123b_probe) return;
+    const orig = s.saveBlock.bind(s);
+    (s as any).__void_lastmile_v123b_probe = true;
+
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      const out = await orig(block, ...rest);
+      try{
+        // Prefer real numbers from block/header; else use the probe’s last guess.
+        let num = -1;
+        if (block && typeof block.number === "number") num = block.number;
+        else if (block && block.header && typeof block.header.number === "number") num = block.header.number;
+        if (num < 0) {
+          const g = (globalThis as any).__void_last_head_guess;
+          if (typeof g === "number" && g >= 0) num = g;
+        }
+        if (num >= 0) S.last_seen_block = num;
+      }catch{}
+      return out;
+    };
+    (console?.log||(()=>{}))('[lastmile.v123b] now uses head-probe fallback');
+  }
+  (globalThis as any).__void_lastmile_v123b_probe = true;
+  patch();
+})();
+// ===== SaveBlockChainLatchV1 (self-healing, counts + numbers) =====
+(function SaveBlockChainLatchV1(){
+  const TICK = 300;
+
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+
+  // Shared state for v7b + lastmile.v123b
+  const S:any = (globalThis as any).__void_chain_latch_S ||= {
+    binds: 0,
+    calls: 0,
+    last_ms: 0,
+    last_number: -1,
+    last_injected: 0,
+    injected_total: 0
+  };
+
+  function pickNumber(block:any, n:any, s:any){
+    try{
+      if (block && typeof block.number === "number") return block.number;
+      if (block?.header && typeof block.header.number === "number") return block.header.number;
+      const nh = (n && n.heads && typeof n.heads.head === "number") ? n.heads.head : undefined;
+      if (typeof nh === "number") return nh;
+      const sm = (s && s.meta && typeof s.meta.head === "number") ? s.meta.head : undefined;
+      if (typeof sm === "number") return sm;
+    }catch{}
+    return -1;
+  }
+
+  function ensureExporter(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(ensureExporter, TICK);
+    if ((a as any).__void_chain_latch_exporter) return;
+    (a as any).__void_chain_latch_exporter = true;
+
+    // v7b forensics (instance-focused)
+    a.get("/__void/metrics/txroot4/forensics.prom.v7b", (_req:any,res:any)=>{
+      res.type("text/plain").end([
+        "# HELP void_txroot_forensics_binds_inst_v7b instance binds (shim-b)",
+        "# TYPE void_txroot_forensics_binds_inst_v7b counter",
+        `void_txroot_forensics_binds_inst_v7b ${S.binds}`,
+        "# HELP void_txroot_forensics_calls_v7b observed calls (shim-b)",
+        "# TYPE void_txroot_forensics_calls_v7b counter",
+        `void_txroot_forensics_calls_v7b ${S.calls}`,
+        "# HELP void_txroot_forensics_last_number_v7b last seen block number (shim-b)",
+        "# TYPE void_txroot_forensics_last_number_v7b gauge",
+        `void_txroot_forensics_last_number_v7b ${S.last_number}`,
+        "# HELP void_txroot_forensics_last_ms_v7b last saveBlock duration ms (shim-b)",
+        "# TYPE void_txroot_forensics_last_ms_v7b gauge",
+        `void_txroot_forensics_last_ms_v7b ${S.last_ms}`
+      ].join("\n")+"\n");
+    });
+
+    // last-mile v123b metrics (count what finally ended up in the block)
+    a.get("/__void/metrics/lastmile.v123b.prom", (_req:any,res:any)=>{
+      res.type("text/plain").end([
+        "# HELP void_lastmile_b_last_injected number of tx injected (inst wrap)",
+        "# TYPE void_lastmile_b_last_injected gauge",
+        `void_lastmile_b_last_injected ${S.last_injected}`,
+        "# HELP void_lastmile_b_injected_total cumulative tx injected (inst wrap)",
+        "# TYPE void_lastmile_b_injected_total counter",
+        `void_lastmile_b_injected_total ${S.injected_total}`,
+        "# HELP void_lastmile_b_last_seen_block last block number observed (inst wrap)",
+        "# TYPE void_lastmile_b_last_seen_block gauge",
+        `void_lastmile_b_last_seen_block ${S.last_number}`,
+        "# HELP void_lastmile_b_queue_len last observed proposer queue length",
+        "# TYPE void_lastmile_b_queue_len gauge",
+        `void_lastmile_b_queue_len ${Array.isArray((node()||{}).txQueue)?(node() as any).txQueue.length:0}`,
+        "# HELP void_lastmile_b_mempool_len last observed mempool length",
+        "# TYPE void_lastmile_b_mempool_len gauge",
+        `void_lastmile_b_mempool_len ${Array.isArray((node()||{}).mempool?.txs)?(node() as any).mempool.txs.length:0}`
+      ].join("\n")+"\n");
+    });
+  }
+
+  // Watch for saveBlock changes and re-wrap the latest function.
+  function bindOnce(){
+    const s:any = store(); if (!s || typeof s.saveBlock!=="function") return false;
+    const cur = s.saveBlock;
+    if ((s as any).__void_chain_latch_wrapped === cur) return true; // already wrapped this identity
+
+    const orig = cur.bind(s);
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      const t0 = Date.now(); S.calls++;
+      // snapshot pre-stats
+      let preTxs = Array.isArray(block?.txs) ? block.txs.length : 0;
+
+      const out = await orig(block, ...rest);
+
+      try{
+        // after final injector ran, measure txs and pick number
+        const n:any = node(), st:any = store();
+        const postTxs = Array.isArray(block?.txs) ? block.txs.length : 0;
+        const injected = Math.max(0, postTxs - preTxs);
+        S.last_injected = injected;
+        S.injected_total += injected;
+
+        const num = pickNumber(block, n, st);
+        if (num >= 0) {
+          S.last_number = num;
+          (globalThis as any).__void_last_head_guess = num; // keep the global in sync too
+        }
+        S.last_ms = Math.max(0, Date.now() - t0);
+      }catch{}
+      return out;
+    };
+    (s as any).__void_chain_latch_wrapped = s.saveBlock;
+    S.binds++;
+    (console?.log||(()=>{}))('[chain-latch] bound to store.saveBlock (self-healing)');
+    return true;
+  }
+
+  function healLoop(){
+    try { bindOnce(); } catch {}
+    setTimeout(healLoop, TICK);
+  }
+
+  ensureExporter();
+  healLoop();
+})();
+// ===== SaveBlockChainLatchV1.1 (deferred head sampling) =====
+(function SaveBlockChainLatchV1_1(){
+  const TICK = 300;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
+  function store(){ return (globalThis as any).__void_store; }
+
+  const S:any = (globalThis as any).__void_chain_latch_S ||= {
+    binds: 0, calls: 0, last_ms: 0,
+    last_number: -1, last_injected: 0, injected_total: 0
+  };
+
+  function pickNumberNow(block:any, n:any, s:any){
+    try{
+      if (block && typeof block.number === "number") return block.number;
+      if (block?.header && typeof block.header.number === "number") return block.header.number;
+      if (n?.heads && typeof n.heads.head === "number") return n.heads.head;
+      if (s?.meta && typeof s.meta.head === "number") return s.meta.head;
+    }catch{}
+    return -1;
+  }
+
+  function mountExporters(){
+    const a:any = app(); if (!a || typeof a.get!=="function") return setTimeout(mountExporters, TICK);
+    if ((a as any).__void_chain_latch_exporter_v11) return; (a as any).__void_chain_latch_exporter_v11 = true;
+
+    a.get("/__void/metrics/txroot4/forensics.prom.v7b", (_q:any,res:any)=>{
+      res.type("text/plain").end(
+        [
+          "# HELP void_txroot_forensics_binds_inst_v7b instance binds (shim-b)",
+          "# TYPE void_txroot_forensics_binds_inst_v7b counter",
+          `void_txroot_forensics_binds_inst_v7b ${S.binds}`,
+          "# HELP void_txroot_forensics_calls_v7b observed calls (shim-b)",
+          "# TYPE void_txroot_forensics_calls_v7b counter",
+          `void_txroot_forensics_calls_v7b ${S.calls}`,
+          "# HELP void_txroot_forensics_last_number_v7b last seen block number (shim-b)",
+          "# TYPE void_txroot_forensics_last_number_v7b gauge",
+          `void_txroot_forensics_last_number_v7b ${S.last_number}`,
+          "# HELP void_txroot_forensics_last_ms_v7b last saveBlock duration ms (shim-b)",
+          "# TYPE void_txroot_forensics_last_ms_v7b gauge",
+          `void_txroot_forensics_last_ms_v7b ${S.last_ms}`
+        ].join("\n")+"\n"
+      );
+    });
+
+    a.get("/__void/metrics/lastmile.v123b.prom", (_q:any,res:any)=>{
+      res.type("text/plain").end(
+        [
+          "# HELP void_lastmile_b_last_injected number of tx injected (inst wrap)",
+          "# TYPE void_lastmile_b_last_injected gauge",
+          `void_lastmile_b_last_injected ${S.last_injected}`,
+          "# HELP void_lastmile_b_injected_total cumulative tx injected (inst wrap)",
+          "# TYPE void_lastmile_b_injected_total counter",
+          `void_lastmile_b_injected_total ${S.injected_total}`,
+          "# HELP void_lastmile_b_last_seen_block last block number observed (inst wrap)",
+          "# TYPE void_lastmile_b_last_seen_block gauge",
+          `void_lastmile_b_last_seen_block ${S.last_number}`,
+          "# HELP void_lastmile_b_queue_len last observed proposer queue length",
+          "# TYPE void_lastmile_b_queue_len gauge",
+          `${Array.isArray((node()||{}).txQueue)?(node() as any).txQueue.length:0}`,
+          "# HELP void_lastmile_b_mempool_len last observed mempool length",
+          "# TYPE void_lastmile_b_mempool_len gauge",
+          `${Array.isArray((node()||{}).mempool?.txs)?(node() as any).mempool.txs.length:0}`
+        ].join("\n")+"\n"
+      );
+    });
+
+    // Optional head probe for Prom
+    if (!(a as any).__void_head_probe_prom_v11){
+      (a as any).__void_head_probe_prom_v11 = true;
+      a.get("/__void/metrics/head-probe.prom", (_q:any,res:any)=>{
+        const n:any = node(), s:any = store();
+        const num = pickNumberNow(null, n, s);
+        res.type("text/plain").end([
+          "# HELP void_head_probe_last_number last head observed by probe",
+          "# TYPE void_head_probe_last_number gauge",
+          `void_head_probe_last_number ${num}`
+        ].join("\n")+"\n");
+      });
+    }
+  }
+
+  function bindOuterMost(){
+    const s:any = store(); if (!s || typeof s.saveBlock!=="function") return false;
+    if ((s as any).__void_chain_latch_wrapped_v11 === s.saveBlock) return true;
+
+    const orig = s.saveBlock.bind(s);
+    s.saveBlock = async function(block:any, ...rest:any[]){
+      S.calls++; const t0 = Date.now();
+
+      // Measure pre
+      const pre = Array.isArray(block?.txs) ? block.txs.length : 0;
+
+      // Run the whole chain (all inner wrappers)
+      const out = await orig(block, ...rest);
+
+      try{
+        // Immediate post (still same tick)
+        const post = Array.isArray(block?.txs) ? block.txs.length : 0;
+        const injected = Math.max(0, post - pre);
+        S.last_injected = injected;
+        S.injected_total += injected;
+
+        // Defer head sampling so we see the bumped head AFTER persistence
+        queueMicrotask(()=> {
+          try{
+            const n2 = pickNumberNow(block, node(), store());
+            if (n2 >= 0) (S.last_number = n2, (globalThis as any).__void_last_head_guess = n2);
+          }catch{}
+        });
+        S.last_ms = Math.max(0, Date.now() - t0);
+      }catch{}
+      return out;
+    };
+    (s as any).__void_chain_latch_wrapped_v11 = s.saveBlock;
+    S.binds++;
+    (console?.log||(()=>{}))('[chain-latch.v11] bound outermost (deferred sampling)');
+    return true;
+  }
+
+  function heal(){ try{ bindOuterMost(); }catch{} setTimeout(heal, TICK); }
+
+  mountExporters();
+  heal();
 })();
