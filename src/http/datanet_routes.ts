@@ -23,9 +23,25 @@ function readJsonSafe(p: string): any | null {
   }
 }
 
-// Scan any object/array for the first hex64 string. This makes us resilient to manifest schema changes.
+function normalizeHex64(x: any): string | null {
+  try {
+    if (typeof x === "string") {
+      const s = x.startsWith("0x") ? x.slice(2) : x;
+      return isHex64(s) ? s.toLowerCase() : null;
+    }
+    if (Buffer.isBuffer(x)) return x.toString("hex").toLowerCase();
+    if (x && typeof x === "object" && x.constructor && x.constructor.name === "Uint8Array") {
+      return Buffer.from(x as Uint8Array).toString("hex").toLowerCase();
+    }
+  } catch {}
+  return null;
+}
+
+// Scan any object/array for the first hex64 string (schema-agnostic).
 function firstHex64Deep(x: any): string | null {
-  if (typeof x === "string") return isHex64(x) ? x.toLowerCase() : null;
+  const direct = normalizeHex64(x);
+  if (direct) return direct;
+
   if (!x || typeof x !== "object") return null;
   if (Array.isArray(x)) {
     for (const v of x) {
@@ -98,19 +114,41 @@ function merkleProofFallback(leavesHex: string[], index: number): { index: numbe
 async function merkleRootMaybeFromModule(leavesHex: string[]) {
   try {
     const m: any = await import("../datanet/merkle.js");
-    if (typeof m?.merkleRootHex === "function") return String(m.merkleRootHex(leavesHex)).toLowerCase();
-    if (typeof m?.rootHex === "function") return String(m.rootHex(leavesHex)).toLowerCase();
-    if (typeof m?.merkleRoot === "function") return String(m.merkleRoot(leavesHex)).toLowerCase();
+
+    const fns = [
+      m?.merkleRootHex,
+      m?.rootHex,
+      m?.merkleRoot,
+      m?.root,
+    ].filter((f: any) => typeof f === "function");
+
+    for (const fn of fns) {
+      const r = fn(leavesHex);
+      const hex = normalizeHex64(r);
+      if (hex && isHex64(hex)) return hex;
+    }
   } catch {}
   return merkleRootHexFallback(leavesHex).toLowerCase();
+}
+
+function normalizeSiblingList(x: any): string[] {
+  if (!Array.isArray(x)) return [];
+  const out: string[] = [];
+  for (const v of x) {
+    const h = normalizeHex64(v);
+    if (h && isHex64(h)) out.push(h);
+  }
+  return out;
 }
 
 async function merkleProofMaybeFromModule(leavesHex: string[], index: number) {
   try {
     const m: any = await import("../datanet/merkle.js");
-    if (typeof m?.buildProof === "function") return m.buildProof(leavesHex, index);
-    if (typeof m?.proof === "function") return m.proof(leavesHex, index);
-    if (typeof m?.merkleProof === "function") return m.merkleProof(leavesHex, index);
+    const fns = [m?.buildProof, m?.proof, m?.merkleProof].filter((f: any) => typeof f === "function");
+    for (const fn of fns) {
+      const p = fn(leavesHex, index);
+      if (p) return p;
+    }
   } catch {}
   return merkleProofFallback(leavesHex, index);
 }
@@ -125,7 +163,6 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
 
   const router = express.Router();
 
-  // Store manifest under :rootHex. We TRY to verify root; if mismatch, we store anyway but return a warn.
   router.put(
     "/datanet/v1/manifests/:rootHex",
     express.json({ limit: "8mb" }),
@@ -138,11 +175,15 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
       if (!leaves.length) return res.status(400).json({ ok: false, err: "manifest has no hex64 leaves in chunks[]" });
 
       const computed = await merkleRootMaybeFromModule(leaves);
-      const warn = computed !== rootHex ? { warn: "root_mismatch_stored_anyway", want: rootHex, got: computed } : undefined;
+      if (!isHex64(computed)) return res.status(500).json({ ok: false, err: "merkle root compute returned non-hex" });
+
+      if (computed !== rootHex) {
+        return res.status(400).json({ ok: false, err: "root_mismatch", want: rootHex, got: computed, leaves: leaves.length });
+      }
 
       const p = path.join(manifestsDir, `${rootHex}.json`);
       fs.writeFileSync(p, JSON.stringify(man, null, 2) + "\n");
-      return res.json({ ok: true, root: rootHex, leaves: leaves.length, ...(warn || {}) });
+      return res.json({ ok: true, root: rootHex, leaves: leaves.length });
     }
   );
 
@@ -155,7 +196,6 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
     return res.send(fs.readFileSync(p));
   });
 
-  // Store chunk by leaf hash = sha256(content). (URL must match computed.)
   router.put(
     "/datanet/v1/chunks/:leafHex",
     express.raw({ type: "*/*", limit: process.env.DATANET_MAX_CHUNK_MB ? `${process.env.DATANET_MAX_CHUNK_MB}mb` : "32mb" }),
@@ -197,7 +237,9 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
     if (index >= leaves.length) return res.status(400).json({ ok: false, err: "index out of range", leaves: leaves.length });
 
     const proof: any = await merkleProofMaybeFromModule(leaves, index);
-    const siblings = proof?.siblings || proof?.path || proof?.proof || [];
+    const sibRaw = proof?.siblings ?? proof?.path ?? proof?.proof ?? [];
+    const siblings = normalizeSiblingList(sibRaw);
+
     return res.json({ ok: true, root: rootHex, leaves: leaves.length, index, leaf: leaves[index], siblings });
   });
 
