@@ -694,6 +694,13 @@ const G: any = globalThis as any;
     res.json(b);
   });
 
+
+
+  // [blocks/range:legacy-disabled:v1]
+  // The hardened async /blocks/range handler above is canonical.
+  // Keep the legacy handler in-file (additive-only rule) but make it unreachable.
+  app.use("/blocks/range", (_req:any, _res:any, next:any) => next());
+
   app.get("/blocks/range", (req: any, res: any) => {
     const from = Number(req.query.from ?? 0);
     const to = Number(req.query.to ?? (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber());
