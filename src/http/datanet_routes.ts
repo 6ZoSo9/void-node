@@ -154,6 +154,7 @@ async function merkleProofMaybeFromModule(leavesHex: string[], index: number) {
 }
 
 export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: string }) {
+  const strictManifest = (process.env.DATANET_STRICT_MANIFEST || "").trim() === "1";
   const dataDir = opts?.dataDir || process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
   const base = path.resolve(dataDir, "datanet");
   const chunksDir = path.join(base, "chunks");
@@ -178,7 +179,14 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
       if (!isHex64(computed)) return res.status(500).json({ ok: false, err: "merkle root compute returned non-hex" });
 
       if (computed !== rootHex) {
-        return res.status(400).json({ ok: false, err: "root_mismatch", want: rootHex, got: computed, leaves: leaves.length });
+        if (strictManifest) {
+          return res.status(400).json({ ok: false, err: "root_mismatch", want: rootHex, got: computed, leaves: leaves.length });
+        }
+        // non-strict mode: store anyway but warn (default while we align algorithms)
+        const p = path.join(manifestsDir, `${rootHex}.json`);
+        fs.writeFileSync(p, JSON.stringify(man, null, 2) + "
+");
+        return res.json({ ok: true, root: rootHex, leaves: leaves.length, warn: "root_mismatch_stored_anyway", want: rootHex, got: computed });
       }
 
       const p = path.join(manifestsDir, `${rootHex}.json`);
