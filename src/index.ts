@@ -627,11 +627,12 @@ const G: any = globalThis as any;
         canonical: "guard:v1",
         aliases: ["from/to", "start/end"],
         maxSpan,
-        legacy: {
-          present: true,
-          disabled: "legacy-hardoff:v1 (410)",
-        },
+        legacy: { present: true, disabled: "legacy-hardoff:v1 (410)" },
       });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
