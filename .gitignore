@@ -39,3 +39,7 @@ ops/prom-snap/**
 # local junk
 .park/
 react
+
+# allow committed DataNet + voidctl sources
+!/src/datanet/
+!/src/voidctl/
