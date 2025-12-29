@@ -613,6 +613,72 @@ const G: any = globalThis as any;
   });
 
   /* ===================== BLOCKS ===================== */
+
+  // [blocks/range:guard:v1]
+  // Harden /blocks/range to prevent accidental "0..head" scans that freeze the event loop.
+  // Accept aliases (?start/?end) and cap response size. Defaults to a single block if "to" missing.
+  app.get("/blocks/range", async (req: any, res: any) => {
+    try {
+      const q = (req && req.query) ? req.query : {};
+
+      const rawFrom = (q.from ?? q.start ?? 0);
+      const rawTo = (q.to ?? q.end ?? undefined);
+
+      const from = Number(rawFrom);
+      if (!Number.isFinite(from) || from < 0) {
+        return res.status(400).json({ ok: false, error: "bad from" });
+      }
+
+      // Interpret "to"
+      let to: number;
+      const toStr = (rawTo === undefined || rawTo === null) ? "" : String(rawTo).trim().toLowerCase();
+
+      if (toStr === "" || toStr === "same") {
+        to = from; // safe default: single block
+      } else if (toStr === "head" || toStr === "latest") {
+        to = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
+      } else {
+        to = Number(rawTo);
+      }
+
+      if (!Number.isFinite(to) || to < from) {
+        return res.status(400).json({ ok: false, error: "bad to" });
+      }
+
+      const maxSpan = Math.max(1, Number(process.env.VOID_BLOCKS_RANGE_MAX || 2000));
+      const span = (to - from + 1);
+
+      if (span > maxSpan) {
+        return res.status(413).json({
+          ok: false,
+          error: "range too large",
+          from, to, span, maxSpan,
+          hint: "Use smaller ranges. /blocks/range supports ?from=&to= and aliases ?start=&end=. Default when 'to' missing is a single block."
+        });
+      }
+
+      res.setHeader("X-VOID-Blocks-Range-Guard", "v1");
+
+      const blocks: any[] = [];
+      const store = (((globalThis as any).__void_node || (globalThis as any).node) as any).store;
+
+      // Yield periodically so the server stays responsive even on slower disks.
+      for (let n = from; n <= to; n++) {
+        const b = store.loadBlock(n);
+        if (b) blocks.push(b);
+
+        if (((n - from) % 200) === 199) {
+          await new Promise<void>((r) => setImmediate(r));
+        }
+      }
+
+      return res.json(blocks);
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  });
+
+
   app.get("/blocks/head", (_req: any, res: any) => {
     const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
     const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(n);
