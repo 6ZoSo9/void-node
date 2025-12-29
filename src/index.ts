@@ -181,6 +181,20 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
+
+// [datanet-http/v1] attach DataNet routes (safe; dynamic import; no-throw)
+try {
+  import("./http/datanet_routes.js")
+    .then((m: any) => {
+      if (m && typeof m.registerDataNetRoutes === "function") {
+        m.registerDataNetRoutes(app);
+        console.log("[datanet-http] routes attached");
+      } else {
+        console.warn("[datanet-http] module missing registerDataNetRoutes");
+      }
+    })
+    .catch((e: any) => console.warn("[datanet-http] import failed", e?.message || e));
+} catch {}
  
 
 
