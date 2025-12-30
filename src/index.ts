@@ -23865,4 +23865,38 @@ void_wal_wrapped ${isWrapped?1:0}
   loop();
 })();
 // ===== /DevTxRootShimsV1 =====
+// === [BEGIN DataNetMountV1] ===
+// Additive mount for DataNet HTTP routes (bind-once, safe in CJS/ESM).
+(() => {
+  const g: any = globalThis as any;
+  if (g.__void_datanet_mount_v1_done) return;
+  g.__void_datanet_mount_v1_done = true;
 
+  const app: any = g.__void_http_app;
+  if (!app) {
+    try { console.log("[datanet.mount.v1] no app handle"); } catch {}
+    return;
+  }
+
+  const dataDir = (process.env.DATA_DIR || "data").toString();
+
+  // Avoid top-level await; dynamic import works in both CJS and ESM.
+  import("./http/datanet_routes")
+    .then((m: any) => {
+      const fn = (m && (m.registerDataNetRoutes || m.default)) as any;
+      if (typeof fn !== "function") {
+        console.log("[datanet.mount.v1] registerDataNetRoutes missing");
+        return;
+      }
+      try {
+        fn(app, { dataDir });
+        console.log(`[datanet.mount.v1] attached /datanet/v1 (dataDir=${dataDir})`);
+      } catch (e: any) {
+        console.log("[datanet.mount.v1] attach threw:", e?.message || String(e));
+      }
+    })
+    .catch((e: any) => {
+      console.log("[datanet.mount.v1] import failed:", e?.message || String(e));
+    });
+})();
+// === [END DataNetMountV1] ===
