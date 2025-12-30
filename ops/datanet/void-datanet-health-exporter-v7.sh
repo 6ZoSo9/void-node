@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- paths / defaults ---
 REPO_DEFAULT_1="$HOME/dev/void-node"
 REPO_DEFAULT_2="/home/zoso/dev/void-node"
 if [[ -d "${REPO:-}" ]]; then
@@ -15,7 +16,9 @@ TRUTH="${TRUTH:-/tmp/void-datanet-smoke.last.json}"
 TEXTFILE="${TEXTFILE:-/var/lib/node_exporter/textfile_collector/void_datanet_health.prom}"
 SMOKE7="${SMOKE7:-ops/datanet/void-datanet-smoke-v7.sh}"
 
-# run smoke as the repo user
+now_ms(){ python3 -c 'import time; print(int(time.time()*1000))'; }
+
+# run smoke as the repo user (so tsx/paths match your node runtime)
 run_smoke_as_user() {
   if [[ $EUID -ne 0 ]]; then
     (cd "$REPO" && REPO="$REPO" TRUTH="$TRUTH" bash "$SMOKE7")
@@ -26,23 +29,21 @@ run_smoke_as_user() {
   sudo -u "$u" bash -lc "cd \"$REPO\" && REPO=\"$REPO\" TRUTH=\"$TRUTH\" bash \"$SMOKE7\""
 }
 
-# write textfile (root)
-write_textfile_root() {
-  if [[ $EUID -eq 0 ]]; then
-    cat > "$TEXTFILE"
-    return
-  fi
-  sudo -n bash -lc "cat > \"$TEXTFILE\""
+hash_u64_hi() {
+  H="${1:-}" python3 -c 'import os; h=os.environ.get("H","").strip().lower(); print(int(h[:16],16) if len(h)>=16 else 0)'
+}
+hash_u64_lo() {
+  H="${1:-}" python3 -c 'import os; h=os.environ.get("H","").strip().lower(); print(int(h[-16:],16) if len(h)>=16 else 0)'
 }
 
 echo "=== [exporter.v7] run smoke ==="
-t0_ms="$(python3 - <<'PY';import time;print(int(time.time()*1000));PY)"
+t0="$(now_ms)"
 set +e
 run_smoke_as_user
 rc="$?"
 set -e
-t1_ms="$(python3 - <<'PY';import time;print(int(time.time()*1000));PY)"
-dur_ms="$((t1_ms - t0_ms))"
+t1="$(now_ms)"
+dur_ms="$((t1 - t0))"
 
 echo "=== [exporter.v7] read truth JSON ==="
 if [[ ! -f "$TRUTH" ]]; then
@@ -57,44 +58,30 @@ if [[ ! -f "$TRUTH" ]]; then
   chunks_count=0
 else
   read -r truth_ts truth_ok truth_rc root leaf size_bytes chunk_bytes chunks_count < <(
-    python3 - <<'PY'
-import json
-d=json.load(open("${TRUTH}"))
+    TRUTH="$TRUTH" python3 -c '
+import os, json
+d=json.load(open(os.environ["TRUTH"],"r"))
 print(d.get("ts",0), d.get("ok",0), d.get("rc",0),
-      d.get("dataset_root","") or "",
-      d.get("leaf","") or "",
+      (d.get("dataset_root","") or "").strip(),
+      (d.get("leaf","") or "").strip(),
       int(d.get("size_bytes",0) or 0),
       int(d.get("chunk_bytes",0) or 0),
       int(d.get("chunks_count",0) or 0))
-PY
+'
   )
 fi
 
-# helper: convert hex hash -> u64 hi/lo (first/last 16 hex chars)
-hash_to_u64_hi() { python3 - <<PY
-h="${1:-}".strip().lower()
-if len(h)<16: print(0); raise SystemExit
-print(int(h[:16],16))
-PY
-}
-hash_to_u64_lo() { python3 - <<PY
-h="${1:-}".strip().lower()
-if len(h)<16: print(0); raise SystemExit
-print(int(h[-16:],16))
-PY
-}
-
-root_hi="$(hash_to_u64_hi "$root" || echo 0)"
-root_lo="$(hash_to_u64_lo "$root" || echo 0)"
-leaf_hi="$(hash_to_u64_hi "$leaf" || echo 0)"
-leaf_lo="$(hash_to_u64_lo "$leaf" || echo 0)"
+root_hi="$(hash_u64_hi "$root")"
+root_lo="$(hash_u64_lo "$root")"
+leaf_hi="$(hash_u64_hi "$leaf")"
+leaf_lo="$(hash_u64_lo "$leaf")"
 
 last_ok_ts=0
 if [[ "${truth_ok:-0}" == "1" ]]; then last_ok_ts="$truth_ts"; fi
 
 echo "=== [exporter.v7] write textfile ($TEXTFILE) ==="
-TMP_METRICS="/tmp/void_datanet_health.prom.$$"
-cat > "$TMP_METRICS" <<EOF
+tmp="/tmp/void_datanet_health.prom.$$"
+cat > "$tmp" <<EOF
 # HELP void_datanet_smoke_ok 1 if publish->fetch->roundtrip smoke passed.
 # TYPE void_datanet_smoke_ok gauge
 void_datanet_smoke_ok ${truth_ok:-0}
@@ -142,11 +129,10 @@ void_datanet_last_leaf_hash_lo_u64 ${leaf_lo:-0}
 EOF
 
 if [[ $EUID -eq 0 ]]; then
-  cp -f "$TMP_METRICS" "$TEXTFILE"
+  cp -f "$tmp" "$TEXTFILE"
 else
-  sudo -n cp -f "$TMP_METRICS" "$TEXTFILE"
+  sudo cp -f "$tmp" "$TEXTFILE"
 fi
-rm -f "$TMP_METRICS" 2>/dev/null || true
-
+rm -f "$tmp" 2>/dev/null || true
 echo "[ok] wrote $TEXTFILE"
 echo "[ok] truth_json=$TRUTH"
