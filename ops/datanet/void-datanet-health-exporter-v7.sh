@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "${HOME:=/root}"
 set -euo pipefail
 
 REPO="${REPO:-$HOME/dev/void-node}"
