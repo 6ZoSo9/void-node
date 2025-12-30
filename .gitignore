@@ -49,3 +49,9 @@ react
 # ops/datanet: ignore local backup noise
 ops/datanet/*.bak
 ops/datanet/*.bak.*
+
+# local backups / patch artifacts
+*.bak
+*.bak.*
+*.bak-*
+*.bakshebang.*
