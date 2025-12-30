@@ -9,8 +9,9 @@ SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 REPO_DIR="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
 
 PROMYML="/etc/prometheus/prometheus.yml"
-LINE='- /etc/prometheus/*.yml'
-MARK='# DISABLED (caused duplicate alert/record names): - /etc/prometheus/*.yml'
+ACTIVE_RE='^\s*-\s*/etc/prometheus/\*\.yml\s*$'
+DISABLED_TXT='DISABLED (caused duplicate alert/record names): - /etc/prometheus/*.yml'
+DISABLED_LINE="# ${DISABLED_TXT}\n"
 
 echo "=== [1] repo_dir ==="
 echo "[repo] $REPO_DIR"
@@ -25,40 +26,50 @@ else
 fi
 
 echo
-echo "=== [3] patch prometheus.yml (idempotent) ==="
-if rg -n --fixed-strings "$MARK" "$PROMYML" >/dev/null 2>&1; then
-  echo "[ok] already disabled"
-else
-  python3 - <<'PY'
+echo "=== [3] patch prometheus.yml (idempotent: disable if active; OK if already disabled/absent) ==="
+python3 - <<'PY'
 from pathlib import Path
-import re
+import re, sys
 
 p = Path("/etc/prometheus/prometheus.yml")
 s = p.read_text(encoding="utf-8").splitlines(True)
 
-target = r'^\s*-\s*/etc/prometheus/\*\.yml\s*$'
-mark   = '# DISABLED (caused duplicate alert/record names): - /etc/prometheus/*.yml\n'
+active_re = re.compile(r'^\s*-\s*/etc/prometheus/\*\.yml\s*$')
+disabled_txt = "DISABLED (caused duplicate alert/record names): - /etc/prometheus/*.yml"
 
-out = []
+# If an active line exists, replace it with the disabled comment.
 changed = False
+out = []
 for ln in s:
-    if re.match(target, ln) and not ln.lstrip().startswith("#"):
-        out.append(mark)
+    if active_re.match(ln) and not ln.lstrip().startswith("#"):
+        out.append("# " + disabled_txt + "\n")
         changed = True
     else:
         out.append(ln)
 
-if not changed:
-    raise SystemExit("[ERR] did not find an active line to disable: - /etc/prometheus/*.yml")
+if changed:
+    p.write_text("".join(out), encoding="utf-8")
+    print("[ok] disabled active line: - /etc/prometheus/*.yml")
+    sys.exit(0)
 
-p.write_text("".join(out), encoding="utf-8")
-print("[ok] disabled: /etc/prometheus/*.yml")
+# No active line: treat as OK if (a) already disabled comment exists, or (b) the line is absent.
+already = any(disabled_txt in ln for ln in s)
+if already:
+    print("[ok] already disabled (comment present)")
+    sys.exit(0)
+
+# No active line and no disabled comment: still OK if the target line is simply absent.
+# (We don't want to fail; just report.)
+print("[ok] target line not present (nothing to disable)")
+sys.exit(0)
 PY
-fi
 
 echo
-echo "=== [4] proof line present ==="
-rg -n --fixed-strings "DISABLED (caused duplicate alert/record names): - /etc/prometheus/*.yml" "$PROMYML" || true
+echo "=== [4] proof (show any active + disabled matches) ==="
+echo "--- active matches (should be empty) ---"
+rg -n "^[[:space:]]*-[[:space:]]*/etc/prometheus/\\*\\.yml[[:space:]]*$" "$PROMYML" || true
+echo "--- disabled matches ---"
+rg -n --fixed-strings "$DISABLED_TXT" "$PROMYML" || true
 
 echo
 echo "=== [5] promtool check ==="
