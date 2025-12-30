@@ -1,138 +1,121 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- paths / defaults ---
-REPO_DEFAULT_1="$HOME/dev/void-node"
-REPO_DEFAULT_2="/home/zoso/dev/void-node"
-if [[ -d "${REPO:-}" ]]; then
-  REPO="$REPO"
-elif [[ -d "$REPO_DEFAULT_1" ]]; then
-  REPO="$REPO_DEFAULT_1"
-else
-  REPO="$REPO_DEFAULT_2"
-fi
+REPO="${REPO:-$HOME/dev/void-node}"
+cd "$REPO" 2>/dev/null || cd "$HOME/dev/void-node" || exit 1
 
+SMOKE7="${SMOKE7:-ops/datanet/void-datanet-smoke-v7.sh}"
 TRUTH="${TRUTH:-/tmp/void-datanet-smoke.last.json}"
 TEXTFILE="${TEXTFILE:-/var/lib/node_exporter/textfile_collector/void_datanet_health.prom}"
-SMOKE7="${SMOKE7:-ops/datanet/void-datanet-smoke-v7.sh}"
-
-now_ms(){ python3 -c 'import time; print(int(time.time()*1000))'; }
-
-# run smoke as the repo user (so tsx/paths match your node runtime)
-run_smoke_as_user() {
-  if [[ $EUID -ne 0 ]]; then
-    (cd "$REPO" && REPO="$REPO" TRUTH="$TRUTH" bash "$SMOKE7")
-    return
-  fi
-  u="${SUDO_USER:-}"
-  [[ -n "$u" ]] || u="zoso"
-  sudo -u "$u" bash -lc "cd \"$REPO\" && REPO=\"$REPO\" TRUTH=\"$TRUTH\" bash \"$SMOKE7\""
-}
-
-hash_u64_hi() {
-  H="${1:-}" python3 -c 'import os; h=os.environ.get("H","").strip().lower(); print(int(h[:16],16) if len(h)>=16 else 0)'
-}
-hash_u64_lo() {
-  H="${1:-}" python3 -c 'import os; h=os.environ.get("H","").strip().lower(); print(int(h[-16:],16) if len(h)>=16 else 0)'
-}
 
 echo "=== [exporter.v7] run smoke ==="
-t0="$(now_ms)"
-set +e
-run_smoke_as_user
-rc="$?"
-set -e
-t1="$(now_ms)"
-dur_ms="$((t1 - t0))"
+bash "$SMOKE7" >/dev/null
 
 echo "=== [exporter.v7] read truth JSON ==="
-if [[ ! -f "$TRUTH" ]]; then
-  echo "[WARN] missing truth JSON ($TRUTH) -> exporting minimal failure metrics"
-  truth_ts="$(date +%s)"
-  truth_ok=0
-  truth_rc="$rc"
-  root=""
-  leaf=""
-  size_bytes=0
-  chunk_bytes=0
-  chunks_count=0
-else
-  read -r truth_ts truth_ok truth_rc root leaf size_bytes chunk_bytes chunks_count < <(
-    TRUTH="$TRUTH" python3 -c '
-import os, json
-d=json.load(open(os.environ["TRUTH"],"r"))
-print(d.get("ts",0), d.get("ok",0), d.get("rc",0),
-      (d.get("dataset_root","") or "").strip(),
-      (d.get("leaf","") or "").strip(),
-      int(d.get("size_bytes",0) or 0),
-      int(d.get("chunk_bytes",0) or 0),
-      int(d.get("chunks_count",0) or 0))
-'
-  )
-fi
+[[ -f "$TRUTH" ]] || { echo "[ERR] missing truth json: $TRUTH"; exit 10; }
 
-root_hi="$(hash_u64_hi "$root")"
-root_lo="$(hash_u64_lo "$root")"
-leaf_hi="$(hash_u64_hi "$leaf")"
-leaf_lo="$(hash_u64_lo "$leaf")"
+# extract fields with python (no jq dependency)
+py_get() {
+  local key="$1"
+  python3 - "$key" "$TRUTH" <<'PY'
+import json,sys
+k=sys.argv[1]
+p=sys.argv[2]
+j=json.load(open(p,"r"))
+v=j.get(k,"")
+if isinstance(v,(int,float)):
+  print(v)
+else:
+  print(str(v))
+PY
+}
 
+ts="$(py_get ts)"
+ok="$(py_get ok)"
+rc="$(py_get rc)"
+dataset_root="$(py_get dataset_root)"
+leaf="$(py_get leaf)"
+status_code="$(py_get status_code)"
+chunk_put_code="$(py_get chunk_put_code)"
+manifest_put_code="$(py_get manifest_put_code)"
+fetch_chunk_code="$(py_get fetch_chunk_code)"
+size_bytes="$(py_get size_bytes)"
+chunk_bytes="$(py_get chunk_bytes)"
+chunks_count="$(py_get chunks_count)"
+
+# normalize numerics
+ts="${ts:-0}"
+ok="${ok:-0}"
+rc="${rc:-1}"
+status_code="${status_code:-0}"
+chunk_put_code="${chunk_put_code:-0}"
+manifest_put_code="${manifest_put_code:-0}"
+fetch_chunk_code="${fetch_chunk_code:-0}"
+size_bytes="${size_bytes:-0}"
+chunk_bytes="${chunk_bytes:-0}"
+chunks_count="${chunks_count:-0}"
+
+not_mounted=0
+if [[ "$status_code" == "404" || "$status_code" == "0" ]]; then not_mounted=1; fi
+
+now="$(date +%s)"
 last_ok_ts=0
-if [[ "${truth_ok:-0}" == "1" ]]; then last_ok_ts="$truth_ts"; fi
+if [[ "$ok" == "1" ]]; then last_ok_ts="$ts"; fi
 
-echo "=== [exporter.v7] write textfile ($TEXTFILE) ==="
-tmp="/tmp/void_datanet_health.prom.$$"
-cat > "$tmp" <<EOF
+TMP="/tmp/void_datanet_health.prom.$$"
+cat > "$TMP" <<PROM
 # HELP void_datanet_smoke_ok 1 if publish->fetch->roundtrip smoke passed.
 # TYPE void_datanet_smoke_ok gauge
-void_datanet_smoke_ok ${truth_ok:-0}
-# HELP void_datanet_smoke_ms Duration of last smoke run in ms.
-# TYPE void_datanet_smoke_ms gauge
-void_datanet_smoke_ms ${dur_ms:-0}
-# HELP void_datanet_last_rc Last smoke process exit code.
-# TYPE void_datanet_last_rc gauge
-void_datanet_last_rc ${truth_rc:-0}
+void_datanet_smoke_ok $ok
+# HELP void_datanet_smoke_rc Exit code from last smoke run.
+# TYPE void_datanet_smoke_rc gauge
+void_datanet_smoke_rc $rc
+# HELP void_datanet_smoke_status_code HTTP status from /status probe.
+# TYPE void_datanet_smoke_status_code gauge
+void_datanet_smoke_status_code $status_code
+# HELP void_datanet_put_chunk_ok 1 if chunk PUT succeeded in last run.
+# TYPE void_datanet_put_chunk_ok gauge
+void_datanet_put_chunk_ok $([[ "$chunk_put_code" == "200" ]] && echo 1 || echo 0)
+# HELP void_datanet_put_manifest_ok 1 if manifest PUT succeeded in last run.
+# TYPE void_datanet_put_manifest_ok gauge
+void_datanet_put_manifest_ok $([[ "$manifest_put_code" == "200" ]] && echo 1 || echo 0)
+# HELP void_datanet_get_chunk_ok 1 if chunk GET succeeded in last run.
+# TYPE void_datanet_get_chunk_ok gauge
+void_datanet_get_chunk_ok $([[ "$fetch_chunk_code" == "200" ]] && echo 1 || echo 0)
+# HELP void_datanet_not_mounted 1 if status/PUT indicates routes missing or filtered to 404.
+# TYPE void_datanet_not_mounted gauge
+void_datanet_not_mounted $not_mounted
 # HELP void_datanet_last_run_timestamp_seconds Unix timestamp of last smoke attempt.
 # TYPE void_datanet_last_run_timestamp_seconds gauge
-void_datanet_last_run_timestamp_seconds ${truth_ts:-0}
+void_datanet_last_run_timestamp_seconds $ts
 # HELP void_datanet_last_ok_timestamp_seconds Unix timestamp of last successful smoke.
 # TYPE void_datanet_last_ok_timestamp_seconds gauge
-void_datanet_last_ok_timestamp_seconds ${last_ok_ts:-0}
-# HELP void_datanet_last_size_bytes Size of last dataset used in smoke.
-# TYPE void_datanet_last_size_bytes gauge
-void_datanet_last_size_bytes ${size_bytes:-0}
-# HELP void_datanet_last_chunk_bytes Chunk size used in smoke.
-# TYPE void_datanet_last_chunk_bytes gauge
-void_datanet_last_chunk_bytes ${chunk_bytes:-0}
-# HELP void_datanet_last_chunks_count Number of chunks in last smoke dataset.
-# TYPE void_datanet_last_chunks_count gauge
-void_datanet_last_chunks_count ${chunks_count:-0}
-
+void_datanet_last_ok_timestamp_seconds $last_ok_ts
 # HELP void_datanet_last_root_info Last dataset root observed.
 # TYPE void_datanet_last_root_info gauge
-void_datanet_last_root_info{root="${root:-}"} 1
+void_datanet_last_root_info{root="$dataset_root"} 1
 # HELP void_datanet_last_leaf_info Last chunk leaf observed.
 # TYPE void_datanet_last_leaf_info gauge
-void_datanet_last_leaf_info{leaf="${leaf:-}"} 1
+void_datanet_last_leaf_info{leaf="$leaf"} 1
+# HELP void_datanet_last_size_bytes Last dataset size in bytes observed.
+# TYPE void_datanet_last_size_bytes gauge
+void_datanet_last_size_bytes $size_bytes
+# HELP void_datanet_last_chunk_bytes Last chunk size setting observed.
+# TYPE void_datanet_last_chunk_bytes gauge
+void_datanet_last_chunk_bytes $chunk_bytes
+# HELP void_datanet_last_chunks_count Last chunk count observed.
+# TYPE void_datanet_last_chunks_count gauge
+void_datanet_last_chunks_count $chunks_count
+PROM
 
-# HELP void_datanet_last_root_hash_hi_u64 First 16 hex chars of root as u64.
-# TYPE void_datanet_last_root_hash_hi_u64 gauge
-void_datanet_last_root_hash_hi_u64 ${root_hi:-0}
-# HELP void_datanet_last_root_hash_lo_u64 Last 16 hex chars of root as u64.
-# TYPE void_datanet_last_root_hash_lo_u64 gauge
-void_datanet_last_root_hash_lo_u64 ${root_lo:-0}
-# HELP void_datanet_last_leaf_hash_hi_u64 First 16 hex chars of leaf as u64.
-# TYPE void_datanet_last_leaf_hash_hi_u64 gauge
-void_datanet_last_leaf_hash_hi_u64 ${leaf_hi:-0}
-# HELP void_datanet_last_leaf_hash_lo_u64 Last 16 hex chars of leaf as u64.
-# TYPE void_datanet_last_leaf_hash_lo_u64 gauge
-void_datanet_last_leaf_hash_lo_u64 ${leaf_lo:-0}
-EOF
-
-if [[ $EUID -eq 0 ]]; then
-  cp -f "$tmp" "$TEXTFILE"
+echo "=== [exporter.v7] write textfile ($TEXTFILE) ==="
+if [[ "$(id -u)" == "0" ]]; then
+  install -d "$(dirname "$TEXTFILE")"
+  install -m 0644 "$TMP" "$TEXTFILE"
 else
-  sudo cp -f "$tmp" "$TEXTFILE"
+  sudo install -d "$(dirname "$TEXTFILE")"
+  sudo install -m 0644 "$TMP" "$TEXTFILE"
 fi
-rm -f "$tmp" 2>/dev/null || true
+rm -f "$TMP" || true
 echo "[ok] wrote $TEXTFILE"
 echo "[ok] truth_json=$TRUTH"
