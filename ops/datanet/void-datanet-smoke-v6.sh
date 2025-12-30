@@ -109,6 +109,64 @@ if not leaf:
 print(leaf or "")
 PY
 )"
+
+# === [BEGIN PACK MANIFEST PARSE V8E] ===
+# If ROOT/LEAF were not extracted from console output, parse them from the pack manifest JSON in PACKDIR.
+if [[ -z "${ROOT:-}" || -z "${LEAF:-}" ]]; then
+  if [[ -z "${PACKDIR:-}" || ! -d "${PACKDIR:-}" ]]; then
+    echo "[ERR] PACKDIR missing/invalid; cannot parse manifest"
+    echo "PACKDIR=${PACKDIR:-}"
+    exit 31
+  fi
+  MANIFEST_JSON=""
+  if [[ -f "$PACKDIR/manifest.json" ]]; then
+    MANIFEST_JSON="$PACKDIR/manifest.json"
+  elif [[ -f "$PACKDIR/manifest.cbor.json" ]]; then
+    MANIFEST_JSON="$PACKDIR/manifest.cbor.json"
+  else
+    MANIFEST_JSON="$(ls -1 "$PACKDIR"/*.json 2>/dev/null | head -n 1 || true)"
+  fi
+  if [[ -z "${MANIFEST_JSON:-}" || ! -f "$MANIFEST_JSON" ]]; then
+    echo "[ERR] could not locate manifest JSON in $PACKDIR"
+    ls -la "$PACKDIR" || true
+    exit 32
+  fi
+  ROOT="$(MANIFEST_JSON="$MANIFEST_JSON" python3 - <<'PY'
+import json,os
+p=os.environ["MANIFEST_JSON"]
+m=json.load(open(p,"r"))
+root = m.get("root") or m.get("merkleRoot") or m.get("datasetRoot") or m.get("datasetId") or m.get("dataset_id") or ""
+print(root)
+PY
+)"
+  LEAF="$(MANIFEST_JSON="$MANIFEST_JSON" python3 - <<'PY'
+import json,os
+p=os.environ["MANIFEST_JSON"]
+m=json.load(open(p,"r"))
+leaf=""
+if isinstance(m.get("leaves"), list) and m["leaves"]:
+    leaf = m["leaves"][0]
+elif isinstance(m.get("chunks"), list) and m["chunks"]:
+    c=m["chunks"][0]
+    if isinstance(c, dict):
+        leaf = c.get("leaf") or c.get("hash") or c.get("id") or ""
+print(leaf)
+PY
+)"
+  if [[ -z "${ROOT:-}" || -z "${LEAF:-}" ]]; then
+    echo "[ERR] manifest JSON missing ROOT/LEAF (file=$MANIFEST_JSON)"
+    python3 - <<PY
+import json
+print(json.dumps(json.load(open(r"$MANIFEST_JSON","r")), indent=2)[:2500])
+PY
+    exit 33
+  fi
+  echo "[ok] manifest=$MANIFEST_JSON"
+  echo "[ok] ROOT=$ROOT"
+  echo "[ok] LEAF=$LEAF"
+fi
+# === [END PACK MANIFEST PARSE V8E] ===
+
 [[ -n "$ROOT" && -n "$LEAF" ]] || { echo "[ERR] could not extract ROOT/LEAF"; echo "ROOT=$ROOT LEAF=$LEAF"; exit 12; }
 
 echo "[ok] ROOT=$ROOT"
