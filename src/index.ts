@@ -23960,3 +23960,74 @@ void_wal_wrapped ${isWrapped?1:0}
     });
 })();
 // === [END DataNetMountV2] ===
+// === [BEGIN DataNetMountV3] ===
+// Retry-mount DataNet until the global Express app hook exists.
+// This fixes cases where mount blocks run before the app hook is initialized.
+(() => {
+  const g: any = globalThis as any;
+  if (g.__void_datanet_mount_v3_done) return;
+  g.__void_datanet_mount_v3_done = true;
+
+  const dataDir = (process.env.DATA_DIR || "data").toString();
+  const t0 = Date.now();
+  const maxMs = Number(process.env.VOID_DATANET_MOUNT_RETRY_MS || 15000);
+
+  const log = (msg: string) => { try { console.log(msg); } catch {} };
+
+  const tick = () => {
+    const app: any = g.__void_http_app;
+    if (!app) {
+      const age = Date.now() - t0;
+      if (age > maxMs) {
+        log(`[datanet.mount.v3] timeout after ${age}ms (no app hook) dataDir=${dataDir}`);
+        return;
+      }
+      log(`[datanet.mount.v3] waiting for app hook... age=${age}ms dataDir=${dataDir}`);
+      setTimeout(tick, 500);
+      return;
+    }
+
+    const attach = (m: any) => {
+      const fn = (m && (m.registerDataNetRoutes || m.default)) as any;
+      if (typeof fn !== "function") {
+        log("[datanet.mount.v3] registerDataNetRoutes missing");
+        return;
+      }
+      try {
+        fn(app, { dataDir });
+        log(`[datanet.mount.v3] attached /datanet/v1 (dataDir=${dataDir})`);
+      } catch (e: any) {
+        log("[datanet.mount.v3] attach threw: " + (e?.message || String(e)));
+        return;
+      }
+
+      // self-probe best-effort
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const http = require("http");
+        http.get("http://127.0.0.1:4100/datanet/v1/status", (res: any) => {
+          log(`[datanet.mount.v3] selfprobe /datanet/v1/status -> ${res.statusCode}`);
+          res.resume();
+        }).on("error", (err: any) => {
+          log("[datanet.mount.v3] selfprobe error: " + (err?.message || String(err)));
+        });
+      } catch (e: any) {
+        log("[datanet.mount.v3] selfprobe setup failed: " + (e?.message || String(e)));
+      }
+    };
+
+    import("./http/datanet_routes")
+      .then(attach)
+      .catch((e1: any) => {
+        log("[datanet.mount.v3] import ./http/datanet_routes failed: " + (e1?.message || String(e1)));
+        import("./http/datanet_routes.ts")
+          .then(attach)
+          .catch((e2: any) => {
+            log("[datanet.mount.v3] import ./http/datanet_routes.ts failed: " + (e2?.message || String(e2)));
+          });
+      });
+  };
+
+  tick();
+})();
+// === [END DataNetMountV3] ===
