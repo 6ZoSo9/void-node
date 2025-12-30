@@ -23900,3 +23900,63 @@ void_wal_wrapped ${isWrapped?1:0}
     });
 })();
 // === [END DataNetMountV1] ===
+// === [BEGIN DataNetMountV2] ===
+// Debug-first DataNet mount: loud logs + multi-import fallback + self-probe.
+(() => {
+  const g: any = globalThis as any;
+  if (g.__void_datanet_mount_v2_done) return;
+  g.__void_datanet_mount_v2_done = true;
+
+  const app: any = g.__void_http_app;
+  const dataDir = (process.env.DATA_DIR || "data").toString();
+  try {
+    console.log(`[datanet.mount.v2] begin app=${!!app} dataDir=${dataDir}`);
+  } catch {}
+
+  if (!app) {
+    try { console.log("[datanet.mount.v2] no app handle -> abort"); } catch {}
+    return;
+  }
+
+  const attach = (m: any) => {
+    const fn = (m && (m.registerDataNetRoutes || m.default)) as any;
+    if (typeof fn !== "function") {
+      console.log("[datanet.mount.v2] registerDataNetRoutes missing");
+      return;
+    }
+    try {
+      fn(app, { dataDir });
+      console.log(`[datanet.mount.v2] attached /datanet/v1 (dataDir=${dataDir})`);
+    } catch (e: any) {
+      console.log("[datanet.mount.v2] attach threw:", e?.message || String(e));
+      return;
+    }
+
+    // self-probe (best-effort)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const http = require("http");
+      http.get("http://127.0.0.1:4100/datanet/v1/status", (res: any) => {
+        console.log(`[datanet.mount.v2] selfprobe /datanet/v1/status -> ${res.statusCode}`);
+        res.resume();
+      }).on("error", (err: any) => {
+        console.log("[datanet.mount.v2] selfprobe error:", err?.message || String(err));
+      });
+    } catch (e: any) {
+      console.log("[datanet.mount.v2] selfprobe setup failed:", e?.message || String(e));
+    }
+  };
+
+  // try a few import shapes; tsx should resolve at least one
+  import("./http/datanet_routes")
+    .then(attach)
+    .catch((e1: any) => {
+      console.log("[datanet.mount.v2] import ./http/datanet_routes failed:", e1?.message || String(e1));
+      import("./http/datanet_routes.ts")
+        .then(attach)
+        .catch((e2: any) => {
+          console.log("[datanet.mount.v2] import ./http/datanet_routes.ts failed:", e2?.message || String(e2));
+        });
+    });
+})();
+// === [END DataNetMountV2] ===
