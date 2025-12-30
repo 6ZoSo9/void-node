@@ -23799,3 +23799,70 @@ void_wal_wrapped ${isWrapped?1:0}
     patch().catch(()=>{});
   }catch{}
 })();
+
+// ===== DevTxRootShimsV1 (compat: /dev/txroot/:n.root and :n.json) =====
+;(function DevTxRootShimsV1(){
+  const TICK = 300;
+  function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+  function mounted(){ return !!(globalThis as any).__void_dev_txroot_shims_v1_mounted; }
+
+  function httpGetJson(req:any, path:string, cb:(err:any, j:any)=>void){
+    try{
+      const host = (req && req.headers && req.headers.host) ? String(req.headers.host) : "127.0.0.1:4100";
+      // http only (local); if user hits via https reverse proxy, they can still reach node via http on localhost
+      const http = require("http");
+      const opts = { host: host.split(":")[0], port: Number(host.split(":")[1] || 4100), path, method:"GET", headers:{ "accept":"application/json" } };
+      const r = http.request(opts, (res:any)=>{
+        let data=""; res.setEncoding("utf8");
+        res.on("data",(c:any)=> data += c);
+        res.on("end",()=>{
+          try{
+            const j = JSON.parse(data || "{}");
+            cb(null, j);
+          }catch(e){ cb(e, null); }
+        });
+      });
+      r.on("error",(e:any)=> cb(e,null));
+      r.end();
+    }catch(e){ cb(e,null); }
+  }
+
+  function mountOnce(){
+    try{
+      const a:any = app();
+      if (!a || mounted()) return false;
+
+      // plain-root: pulls JSON from /dev/txroot/:n and returns just root hex + newline
+      a.get("/dev/txroot/:n.root", (req:any, res:any)=>{
+        const n = String(req.params?.n ?? "");
+        if (!n || !/^\d+$/.test(n)) return res.status(400).type("text/plain").send("bad n\n");
+        httpGetJson(req, "/dev/txroot/"+n, (err, j)=>{
+          if (err || !j || typeof j.root !== "string") {
+            return res.status(502).type("text/plain").send("proxy_error\n");
+          }
+          res.status(200).type("text/plain").send(String(j.root)+"\n");
+        });
+      });
+
+      // .json alias: 307 -> canonical JSON route
+      a.get("/dev/txroot/:n.json", (req:any, res:any)=>{
+        const n = String(req.params?.n ?? "");
+        if (!n || !/^\d+$/.test(n)) return res.status(400).json({ ok:false, err:"bad n" });
+        res.redirect(307, "/dev/txroot/"+n);
+      });
+
+      (globalThis as any).__void_dev_txroot_shims_v1_mounted = true;
+      (console?.log||(()=>{}))("[dev/txroot.shims.v1] mounted (/dev/txroot/:n.root + :n.json)");
+      return true;
+    }catch{ return false; }
+  }
+
+  function loop(){
+    if (mounted()) return;
+    const ok = mountOnce();
+    if (!ok) setTimeout(loop, TICK);
+  }
+  loop();
+})();
+// ===== /DevTxRootShimsV1 =====
+
