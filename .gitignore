@@ -43,3 +43,6 @@ react
 # allow committed DataNet + voidctl sources
 !/src/datanet/
 !/src/voidctl/
+# allow ops/datanet scripts (smoke + exporter)
+!ops/datanet/
+!ops/datanet/**
