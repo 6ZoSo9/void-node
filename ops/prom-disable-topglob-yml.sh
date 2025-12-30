@@ -4,18 +4,16 @@ set -euo pipefail
 echo "=== [0] require root ==="
 if [[ "$(id -u)" != "0" ]]; then echo "[ERR] run as root"; exit 2; fi
 
-# Resolve repo root relative to this script (works under sudo where $HOME=/root)
 SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 REPO_DIR="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
+cd "$REPO_DIR" || { echo "[ERR] cannot cd repo dir"; exit 3; }
 
 PROMYML="/etc/prometheus/prometheus.yml"
 ACTIVE_RE='^\s*-\s*/etc/prometheus/\*\.yml\s*$'
 DISABLED_TXT='DISABLED (caused duplicate alert/record names): - /etc/prometheus/*.yml'
-DISABLED_LINE="# ${DISABLED_TXT}\n"
 
 echo "=== [1] repo_dir ==="
 echo "[repo] $REPO_DIR"
-cd "$REPO_DIR" || { echo "[ERR] cannot cd repo dir"; exit 3; }
 
 echo
 echo "=== [2] snapshot (your convention, if present) ==="
@@ -26,7 +24,7 @@ else
 fi
 
 echo
-echo "=== [3] patch prometheus.yml (idempotent: disable if active; OK if already disabled/absent) ==="
+echo "=== [3] patch prometheus.yml (idempotent) ==="
 python3 - <<'PY'
 from pathlib import Path
 import re, sys
@@ -37,7 +35,7 @@ s = p.read_text(encoding="utf-8").splitlines(True)
 active_re = re.compile(r'^\s*-\s*/etc/prometheus/\*\.yml\s*$')
 disabled_txt = "DISABLED (caused duplicate alert/record names): - /etc/prometheus/*.yml"
 
-# If an active line exists, replace it with the disabled comment.
+# 1) If active glob exists, comment it out (replace line)
 changed = False
 out = []
 for ln in s:
@@ -46,29 +44,41 @@ for ln in s:
         changed = True
     else:
         out.append(ln)
+s = out
+
+# 2) Ensure the disabled comment exists under rule_files: even if glob already removed
+if not any(disabled_txt in ln for ln in s):
+    # find rule_files: block start
+    i_rule = None
+    for i, ln in enumerate(s):
+        if re.match(r'^\s*rule_files\s*:\s*$', ln):
+            i_rule = i
+            break
+
+    if i_rule is not None:
+        # insert right after rule_files: line
+        indent = re.match(r'^(\s*)', s[i_rule]).group(1)
+        insert_line = indent + "  # " + disabled_txt + "\n"
+        s.insert(i_rule + 1, insert_line)
+        changed = True
+    else:
+        # if no rule_files: found, just append at end (still OK)
+        s.append("\n# " + disabled_txt + "\n")
+        changed = True
 
 if changed:
-    p.write_text("".join(out), encoding="utf-8")
-    print("[ok] disabled active line: - /etc/prometheus/*.yml")
-    sys.exit(0)
+    p.write_text("".join(s), encoding="utf-8")
+    print("[ok] patched prometheus.yml (disabled glob and/or inserted proof comment)")
+else:
+    print("[ok] no changes needed")
 
-# No active line: treat as OK if (a) already disabled comment exists, or (b) the line is absent.
-already = any(disabled_txt in ln for ln in s)
-if already:
-    print("[ok] already disabled (comment present)")
-    sys.exit(0)
-
-# No active line and no disabled comment: still OK if the target line is simply absent.
-# (We don't want to fail; just report.)
-print("[ok] target line not present (nothing to disable)")
-sys.exit(0)
 PY
 
 echo
-echo "=== [4] proof (show any active + disabled matches) ==="
+echo "=== [4] proof (active glob should be empty; disabled comment should exist) ==="
 echo "--- active matches (should be empty) ---"
 rg -n "^[[:space:]]*-[[:space:]]*/etc/prometheus/\\*\\.yml[[:space:]]*$" "$PROMYML" || true
-echo "--- disabled matches ---"
+echo "--- disabled matches (should exist) ---"
 rg -n --fixed-strings "$DISABLED_TXT" "$PROMYML" || true
 
 echo
