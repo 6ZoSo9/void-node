@@ -135,7 +135,12 @@ if [[ -z "${ROOT:-}" || -z "${LEAF:-}" ]]; then
 import json,os
 p=os.environ["MANIFEST_JSON"]
 m=json.load(open(p,"r"))
-root = m.get("root") or m.get("merkleRoot") or m.get("datasetRoot") or m.get("datasetId") or m.get("dataset_id") or ""
+# prefer the canonical v1 keys used by voidctl pack
+root = (
+    m.get("merkleRootHex") or m.get("merkle_root_hex") or
+    m.get("merkleRoot") or m.get("root") or
+    m.get("datasetRoot") or m.get("datasetId") or m.get("dataset_id") or ""
+)
 print(root)
 PY
 )"
@@ -144,12 +149,18 @@ import json,os
 p=os.environ["MANIFEST_JSON"]
 m=json.load(open(p,"r"))
 leaf=""
-if isinstance(m.get("leaves"), list) and m["leaves"]:
-    leaf = m["leaves"][0]
-elif isinstance(m.get("chunks"), list) and m["chunks"]:
-    c=m["chunks"][0]
+# v1 manifest: chunks[0].leafHashHex
+chs = m.get("chunks")
+if isinstance(chs, list) and chs:
+    c = chs[0]
     if isinstance(c, dict):
-        leaf = c.get("leaf") or c.get("hash") or c.get("id") or ""
+        leaf = (
+            c.get("leafHashHex") or c.get("leaf_hash_hex") or
+            c.get("leaf") or c.get("hash") or c.get("id") or ""
+        )
+# older shapes: leaves[0]
+if not leaf and isinstance(m.get("leaves"), list) and m["leaves"]:
+    leaf = m["leaves"][0]
 print(leaf)
 PY
 )"

@@ -46,3 +46,6 @@ react
 # allow ops/datanet scripts (smoke + exporter)
 !ops/datanet/
 !ops/datanet/**
+# ops/datanet: ignore local backup noise
+ops/datanet/*.bak
+ops/datanet/*.bak.*
