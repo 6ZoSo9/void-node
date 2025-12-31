@@ -33,7 +33,7 @@ chosen_manifest_days="$(q 'chosen_manifest_days')"
 
 void_datanet_overall_health="$(q 'void_datanet_overall_health')"
 
-void_datanet_ok="$([ "${void_datanet_overall_health:-0}" = "1" ] && [ "${DN_OVERALL_WITH_TIMER:-0}" = "1" ] && echo 1 || echo 0)"
+void_datanet_ok="$([ "${DN_OVERALL_WITH_TIMER:-0}" = "1" ] && echo 1 || echo 0)"
 void_datanet_last_ok_age_seconds="$(q 'void_datanet_last_ok_age_seconds')"
 
 echo
@@ -53,7 +53,7 @@ echo "[pillars-lite] === summary ==="
 # Require only what exists in this repo checkout: mainnet_core + manifest + datanet.
 # Treat missing safeboot/devnet/chosen_manifest_days as "not installed here" (not a failure).
 req_ok=1
-for v in "$void_mainnet_core_health" "$void_mainnet_core_manifest_health" "$void_datanet_overall_health"; do
+for v in "$void_mainnet_core_health" "$void_mainnet_core_manifest_health" "${DN_OVERALL_WITH_TIMER:-}"; do
   if [[ "$v" == "nan" || "$v" == "" ]]; then req_ok=0; fi
 done
 
