@@ -3,10 +3,12 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 OUT="/tmp/void-pre-push.$(date +%Y%m%d-%H%M%S).log"
-# 90s hard cap; output only to file
 if ! timeout 90s ./ops/void-pillars-preflight.sh >"$OUT" 2>&1; then
-  echo "[ERR] pre-push failed. Showing last 120 lines from $OUT:"
-  tail -n 120 "$OUT" || true
+  echo "[ERR] pre-push failed. Showing last 120 lines from $OUT:" >&2
+  tail -n 120 "$OUT" >&2 || true
   exit 1
 fi
+
+# one-line success marker (no spam)
+echo "[ok] pre-push: pillars-preflight passed (log: $OUT)" >&2
 exit 0
