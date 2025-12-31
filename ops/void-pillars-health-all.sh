@@ -32,6 +32,8 @@ void_mainnet_core_manifest_days="$(q 'void_mainnet_core_manifest_days')"
 chosen_manifest_days="$(q 'chosen_manifest_days')"
 
 void_datanet_overall_health="$(q 'void_datanet_overall_health')"
+
+void_datanet_ok="$([ "${void_datanet_overall_health:-0}" = "1" ] && [ "${DN_OVERALL_WITH_TIMER:-0}" = "1" ] && echo 1 || echo 0)"
 void_datanet_last_ok_age_seconds="$(q 'void_datanet_last_ok_age_seconds')"
 
 echo
@@ -57,7 +59,7 @@ done
 
 echo "  mainnet_core_ok  = $void_mainnet_core_health"
 echo "  manifest_ok      = $void_mainnet_core_manifest_health"
-echo "  datanet_ok       = $void_datanet_overall_health"
+echo "  datanet_ok       = $void_datanet_ok"
 echo
 if [[ "$req_ok" == "1" ]]; then
   echo "[pillars-lite] RESULT: OK (mainnet-core + datanet present)"
