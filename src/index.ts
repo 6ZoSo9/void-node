@@ -8175,6 +8175,129 @@ void_head_number ${head}
   setTimeout(mount, 0);
 })();
 
+// ---------------- void_head_number exporter v2 (cached, constant-time) ----------------
+(function addHeadGaugeExporterV2(){
+  const g:any = (globalThis as any);
+  let tries = 0, mounted = false;
+
+  // shared cache (polled); the HTTP handler never awaits
+  g.__void_head_v2 = g.__void_head_v2 || {
+    head: -1,
+    ts_ms: 0,
+    last_poll_ms: 0,
+    poll_errors_total: 0,
+    poll_slow_total: 0,
+    poll_last_err: "",
+  };
+
+  const HTTP_PORT = process.env.HTTP_PORT || process.env.VOID_HTTP_PORT || "4100";
+  function getApp(){ return g.__void_http_app || g.app; }
+
+  function pickCandidate(): number {
+    const cands:any[] = [
+      g.__void_head_number,
+      g.__void_head?.number,
+      g.__void_head?.head,
+      g.__void_seals_state?.last_number,
+      g.__void_seal_last_number,
+      g.__void_seals?.last_number,
+      g.__void_header3_state?.last_number,
+      g.__void_header3_last_number,
+      g.__void_head_last_number,
+    ];
+    for (const v of cands) {
+      const n = typeof v === "string" ? Number.parseInt(v,10) : Number(v);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    return -1;
+  }
+
+  async function pollOnce(){
+    const st = g.__void_head_v2;
+    const t0 = Date.now();
+    try {
+      // 0) best: use any in-process candidate
+      const c = pickCandidate();
+      if (c >= 0) {
+        st.head = c;
+        st.ts_ms = Date.now();
+        st.last_poll_ms = Date.now() - t0;
+        st.poll_last_err = "";
+        return;
+      }
+
+      // 1) last resort: tiny-timeout fetch of /head.txt (never blocks handler)
+      const url = `http://127.0.0.1:${HTTP_PORT}/head.txt`;
+      const ac = new AbortController();
+      const to = setTimeout(()=>ac.abort(), 250);
+      let txt = "";
+      try {
+        const r:any = await fetch(url as any, { signal: ac.signal } as any);
+        txt = String(await r.text());
+      } finally {
+        clearTimeout(to);
+      }
+      const n = Number.parseInt((txt||"").trim(),10);
+      if (Number.isFinite(n) && n >= 0) {
+        st.head = n;
+        st.ts_ms = Date.now();
+        st.poll_last_err = "";
+      }
+      st.last_poll_ms = Date.now() - t0;
+      if (st.last_poll_ms > 250) st.poll_slow_total++;
+    } catch (e:any) {
+      st.poll_errors_total++;
+      st.poll_last_err = String(e?.name || "") + ":" + String(e?.message || e);
+      st.last_poll_ms = Date.now() - t0;
+    }
+  }
+
+  // poll loop (cheap)
+  setInterval(()=>{ pollOnce().catch(()=>{}); }, 500);
+  setTimeout(()=>{ pollOnce().catch(()=>{}); }, 0);
+
+  const mount = async () => {
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") {
+      if (++tries < 120) return setTimeout(mount, 500);
+      return;
+    }
+    if (mounted) return; mounted = true;
+
+    app.get("/metrics/void/head.v2", (_req:any, res:any) => {
+      const st = g.__void_head_v2 || {};
+      const head = Number.isFinite(Number(st.head)) ? Number(st.head) : -1;
+      const age = (Number.isFinite(Number(st.ts_ms)) && Number(st.ts_ms) > 0) ? (Date.now() - Number(st.ts_ms)) : -1;
+      const lastms = Number.isFinite(Number(st.last_poll_ms)) ? Number(st.last_poll_ms) : -1;
+      const errt = Number.isFinite(Number(st.poll_errors_total)) ? Number(st.poll_errors_total) : 0;
+      const slowt = Number.isFinite(Number(st.poll_slow_total)) ? Number(st.poll_slow_total) : 0;
+
+      res.setHeader("Content-Type","text/plain; version=0.0.4; charset=utf-8");
+      res.end(
+`# HELP void_head_number Latest persisted block number
+# TYPE void_head_number gauge
+void_head_number ${head}
+# HELP void_head_v2_age_ms Age of cached head value in ms
+# TYPE void_head_v2_age_ms gauge
+void_head_v2_age_ms ${age}
+# HELP void_head_v2_last_poll_ms Duration of last poll in ms
+# TYPE void_head_v2_last_poll_ms gauge
+void_head_v2_last_poll_ms ${lastms}
+# HELP void_head_v2_poll_errors_total Poll errors total
+# TYPE void_head_v2_poll_errors_total counter
+void_head_v2_poll_errors_total ${errt}
+# HELP void_head_v2_poll_slow_total Polls exceeding timeout budget
+# TYPE void_head_v2_poll_slow_total counter
+void_head_v2_poll_slow_total ${slowt}
+`);
+    });
+
+    console.log("[metrics.head.v2] wired (/metrics/void/head.v2)");
+  };
+
+  setTimeout(mount, 0);
+})();
+
 // ---------------- txroot core v2 exporter shim (additive, safe) ----------------
 (function txrootCoreV2Shim(){
   let tries = 0, attached = false;
@@ -18782,7 +18905,7 @@ void_proposer_watchdog_last_advance_ts_ms ${lastAdvanceTs}
     } catch {}
     try {
       // fallback to text exporter void_head_number if present
-      const r2 = await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/metrics/void/head");
+      const r2 = await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100") +"/metrics/void/head.v2");
       if (r2.ok) {
         const t = await r2.text();
         const m = t.match(/void_head_number(?:{[^}]*})?\s+([0-9]+)/);
