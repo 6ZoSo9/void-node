@@ -265,6 +265,34 @@ console.log("[shim] published global node (post-construct)");
 
 
 
+// __void_safe_gate_proposer_metrics_v1
+// If SAFE is enabled, hard-block the proposer metrics endpoint even if it is mounted before SAFE middleware.
+(() => {
+  try {
+    const safe =
+      String(process.env.VOID_HTTP_SAFE || "") === "1" ||
+      String(process.env.HTTP_SAFE || "") === "1";
+    const allow =
+      String(process.env.VOID_HTTP_SAFE_ALLOW_PROPOSER_METRICS || "") === "1";
+    if (!safe || allow) return;
+
+    const deny = (_req: any, res: any) => {
+      try {
+        res.status(404).setHeader("content-type", "text/plain; charset=utf-8");
+      } catch {}
+      return res.end("not found");
+    };
+
+    // Block the known proposer metrics path(s).
+    app.use("/metrics/void/proposer.v3b.prom", deny);
+    app.use("/metrics/void/proposer.v3.prom", deny);
+    app.use("/metrics/void/proposer.prom", deny);
+    console.log("[safe] proposer metrics hard-block enabled (SAFE=1)");
+  } catch (e) {
+    console.log("[safe] proposer metrics hard-block error:", (e as any)?.message || e);
+  }
+})();
+
 // --- info exporter (Prometheus text) ---
 ;(function infoExporter(){
   const G = globalThis;
@@ -4029,6 +4057,30 @@ import type {} from "express"; // type-only safety; no runtime impact
   }
 
   function wrapOnce(obj:any, fnName:string, wrapper:(orig:Function)=>Function){
+  // [wrapOnce/sticky.v1] if called with the accessor-based sticky saveBlock wrapper,
+  // wrap the *inner* implementation and return the wrapper (avoids wrapper<->wrapped recursion).
+  try {
+    const __fn:any = obj as any;
+    if (typeof __fn === "function" && __fn.__void_sticky_saveBlock &&
+        typeof __fn.__void_sticky_getInner === "function" &&
+        typeof __fn.__void_sticky_setInner === "function") {
+      const __inner:any = __fn.__void_sticky_getInner();
+      if (typeof __inner === "function") {
+        if (!(__inner as any).__void_wrapOnce_v1) {
+          const __origInner:any = __inner;
+          const __wrappedInner:any = function wrapped(...args:any[]) {
+            return __origInner.apply(this, args as any);
+          };
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_v1", { value: true }); } catch {}
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_orig", { value: __origInner }); } catch {}
+          __fn.__void_sticky_setInner(__wrappedInner);
+        }
+      }
+      return __fn;
+    }
+  } catch {}
+
+
     if (!obj || typeof obj[fnName] !== "function") return false;
     const orig = obj[fnName].__void_wrapped_orig || obj[fnName];
     if (obj[fnName].__void_wrapped) return true;
@@ -7302,6 +7354,18 @@ void_txroot_v4_errors_total ${X.errors}
         }
       }
 
+      // [sticky-meta.v1] expose inner setter/getter so wrappers can decorate without recursion
+      try {
+        Object.defineProperty(wrapper, "__void_sticky_saveBlock", { value: true });
+        Object.defineProperty(wrapper, "__void_sticky_getInner", { value: () => inner });
+        Object.defineProperty(wrapper, "__void_sticky_setInner", { value: (fn:any) => {
+          try {
+            if (typeof fn === "function" && fn !== wrapper) inner = fn;
+          } catch {}
+        }});
+      } catch {}
+
+
       // Make saveBlock "sticky": any future assignment updates `inner`,
       // but calls still go through our wrapper.
       Object.defineProperty(proto, "saveBlock", {
@@ -7309,6 +7373,7 @@ void_txroot_v4_errors_total ${X.errors}
         enumerable: false,
         get(){ return wrapper; },
         set(fn:any){
+          if (fn === wrapper) return;
           if (typeof fn === "function") inner = fn;
         },
       });
@@ -14287,6 +14352,30 @@ void_header3_last_mismatch ${lastMismatch}
   };
 
   function wrapOnce(fn:any){
+  // [wrapOnce/sticky.v1] if called with the accessor-based sticky saveBlock wrapper,
+  // wrap the *inner* implementation and return the wrapper (avoids wrapper<->wrapped recursion).
+  try {
+    const __fn:any = fn as any;
+    if (typeof __fn === "function" && (__fn as any).__void_sticky_saveBlock &&
+        typeof (__fn as any).__void_sticky_getInner === "function" &&
+        typeof (__fn as any).__void_sticky_setInner === "function") {
+      const __inner:any = (__fn as any).__void_sticky_getInner();
+      if (typeof __inner === "function") {
+        if (!(__inner as any).__void_wrapOnce_v1) {
+          const __origInner:any = __inner;
+          const __wrappedInner:any = function wrapped(...args:any[]) {
+            return __origInner.apply(this, args as any);
+          };
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_v1", { value: true }); } catch {}
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_orig", { value: __origInner }); } catch {}
+          (__fn as any).__void_sticky_setInner(__wrappedInner);
+        }
+      }
+      return __fn;
+    }
+  } catch {}
+
+
     if (typeof fn !== 'function') return fn;
     if ((fn as any)[sym]) return fn;
     const forensic = (globalThis as any).__void_txroot_forensic_state || ((globalThis as any).__void_txroot_forensic_state = {
@@ -14336,7 +14425,17 @@ void_header3_last_mismatch ${lastMismatch}
       const cur = SegStore.prototype.saveBlock;
       const isWrapped = cur && (cur as any)[sym] === true;
       if (typeof cur === 'function' && !isWrapped){
-        SegStore.prototype.saveBlock = wrapOnce(cur);
+try {
+          const __d = Object.getOwnPropertyDescriptor(SegStore.prototype, "saveBlock");
+          const __isAcc = !!(__d && (typeof (__d as any).get === "function" || typeof (__d as any).set === "function") && !("value" in (__d as any)));
+          if (__isAcc) {
+            // skip: saveBlock is accessor (sticky wrapper present) -> avoid recursion
+          } else {
+            SegStore.prototype.saveBlock = wrapOnce(cur);
+          }
+        } catch {
+          SegStore.prototype.saveBlock = wrapOnce(cur);
+        }
         if (!(globalThis as any).__void_forensics_route_mounted) {
           // mount/refresh the prom route once (uses shared state on global)
           const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
@@ -14390,6 +14489,30 @@ void_header3_last_mismatch ${lastMismatch}
   });
 
   function wrapOnce(fn:any){
+  // [wrapOnce/sticky.v1] if called with the accessor-based sticky saveBlock wrapper,
+  // wrap the *inner* implementation and return the wrapper (avoids wrapper<->wrapped recursion).
+  try {
+    const __fn:any = fn as any;
+    if (typeof __fn === "function" && (__fn as any).__void_sticky_saveBlock &&
+        typeof (__fn as any).__void_sticky_getInner === "function" &&
+        typeof (__fn as any).__void_sticky_setInner === "function") {
+      const __inner:any = (__fn as any).__void_sticky_getInner();
+      if (typeof __inner === "function") {
+        if (!(__inner as any).__void_wrapOnce_v1) {
+          const __origInner:any = __inner;
+          const __wrappedInner:any = function wrapped(...args:any[]) {
+            return __origInner.apply(this, args as any);
+          };
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_v1", { value: true }); } catch {}
+          try { Object.defineProperty(__wrappedInner, "__void_wrapOnce_orig", { value: __origInner }); } catch {}
+          (__fn as any).__void_sticky_setInner(__wrappedInner);
+        }
+      }
+      return __fn;
+    }
+  } catch {}
+
+
     if (typeof fn !== 'function') return fn;
     if ((fn as any)[sym]) return fn;
     const wrapped = async function(...args:any[]){
@@ -14486,7 +14609,17 @@ void_header3_last_mismatch ${lastMismatch}
       // 1) Prefer prototype wrapping (covers all instances)
       const proto = await getSegStoreProto();
       if (proto && typeof proto.saveBlock === 'function' && !(proto.saveBlock as any)[sym]) {
-        proto.saveBlock = wrapOnce(proto.saveBlock);
+try {
+          const __d = Object.getOwnPropertyDescriptor(proto, "saveBlock");
+          const __isAcc = !!(__d && (typeof (__d as any).get === "function" || typeof (__d as any).set === "function") && !("value" in (__d as any)));
+          if (__isAcc) {
+            // skip: saveBlock is accessor (sticky wrapper present) -> avoid recursion
+          } else {
+            proto.saveBlock = wrapOnce(proto.saveBlock);
+          }
+        } catch {
+          proto.saveBlock = wrapOnce(proto.saveBlock);
+        }
         // console.log('[txroot/forensics/sticky-v2] bound SegStore.prototype.saveBlock');
       }
 
@@ -14872,6 +15005,15 @@ void_header3_last_mismatch ${lastMismatch}
       const Seg = g.SegStore || null;
       if (!Seg?.prototype) return;
 
+      // If saveBlock is an accessor (sticky wrapper via getter/setter),
+      // DO NOT trampoline by assigning Seg.prototype.saveBlock = tramp.
+      // That pattern creates wrapper<->tramp recursion (stack overflow).
+      try{
+        const desc = Object.getOwnPropertyDescriptor(Seg.prototype, "saveBlock");
+        const isAccessor = !!(desc && (desc.get || desc.set) && !("value" in desc));
+        if (isAccessor) { S.bound = false; S.note = "skip trampoline: saveBlock is accessor (sticky wrapper present)"; return; }
+      }catch{}
+
       // Capture the *current* callable used by callers right now
       const current = Seg.prototype.saveBlock;
       if (typeof current !== 'function') { S.note = 'no saveBlock fn yet'; return; }
@@ -14899,9 +15041,9 @@ void_header3_last_mismatch ${lastMismatch}
         } else { S.last_duration_ms = Date.now()-t0; return out; }
       }
       Object.defineProperty(tramp, '__void_trampoline_v5', { value: true });
-      // Replace the method in-place so any *previously captured* references
-      // still point to `orig`, but callers using `instance.saveBlock(...)`
-      // now hit `tramp`, guaranteeing our counter increments.
+
+      // Replace the method in-place so callers using `instance.saveBlock(...)`
+      // now hit `tramp` (ONLY when saveBlock is a normal value property).
       Seg.prototype.saveBlock = tramp as any;
       S.bound = true;
       S.note = 'trampoline installed on SegStore.prototype.saveBlock';
@@ -17752,22 +17894,47 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
   }
   mount();
 })();
-// -------- proposer.pump.v1b (queue-first, non-recursive) --------
+// -------- proposer.pump.v1b (queue-first, background, no-empty-by-default, non-recursive) --------
 (function ProposerPumpV1b(){
   const TICK=400;
+  const SAVE_TIMEOUT_MS=30000;
+
+  const G:any = (globalThis as any);
+  function now(){ return Date.now(); }
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
 
-  let pumping = false;
+  if (!G.__void_pump_v1b_state){
+    G.__void_pump_v1b_state = {
+      busy:false,
+      in_flight:false,
+      job_id:0,
+
+      calls:0,
+      started:0,
+      noop:0,
+      ok:0,
+      errors:0,
+      timeouts:0,
+
+      last_job_id:0,
+      last_ms:0,
+      last_err:"",
+      last_ts:0,
+      last_from:-1,
+      last_to:-1,
+      last_took:0,
+      last_allow_empty:false,
+    };
+  }
+  const S:any = G.__void_pump_v1b_state;
 
   function takeFromQueue(node:any, cap:number){
-    // Prefer the real proposer queue if present
     const q = node?.proposer?.queue;
     if (Array.isArray(q) && q.length) {
       const n = Math.max(0, Math.min(cap, q.length));
       return q.splice(0, n);
     }
-    // Fallbacks, just in case
     const p = node?.pending?.txs;
     if (Array.isArray(p) && p.length) {
       const n = Math.max(0, Math.min(cap, p.length));
@@ -17781,47 +17948,137 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
     return [];
   }
 
-  async function pumpOnce(max:number){
-    if (pumping) return {ok:false, reason:"busy"};
+  async function withTimeout<T>(promise:Promise<T>, ms:number): Promise<T>{
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, rej)=>setTimeout(()=>rej(new Error(`timeout ${ms}ms`)), ms)),
+    ]);
+  }
+
+  async function getHeadBestEffort(store:any){
+    try{
+      if (typeof store?.getHeadNumber === "function") return await store.getHeadNumber();
+      if (typeof store?.getHead === "function") return await store.getHead();
+      const h = (store && (store.head ?? store._head ?? store.lastNumber));
+      if (typeof h === "number") return h;
+      return -1;
+    }catch{ return -1; }
+  }
+
+  function startPump(max:number, allowEmpty:boolean){
+    S.calls++;
+
+    if (S.busy || S.in_flight) {
+      return {ok:false, reason:"busy", state:S};
+    }
+
     const node:any = getNode();
     if (!node || !node.store) return {ok:false, reason:"node-missing"};
-    pumping = true;
-    try {
-      const cap = Math.max(1, Math.min(+max||1, 1000));
-      const txs:any[] = takeFromQueue(node, cap);
-      const allowEmpty = true; // still advance if queue is empty (policy allows)
 
-      // Save via the already-wrapped SegStore.saveBlock (txroot/header hooks are active)
-      const before = (await node.store.getHeadNumber?.()) ?? -1;
-      const sealed = await node.store.saveBlock({ txs, allowEmpty });
-      const after  = (await node.store.getHeadNumber?.()) ?? -1;
+    const cap = Math.max(1, Math.min(+max||1, 1000));
+    const txs:any[] = takeFromQueue(node, cap);
 
-      return {ok:true, took:txs.length, fromHead:before, toHead:after, sealed};
-    } catch(e:any){
-      return {ok:false, error:String(e && e.stack || e)};
-    } finally { pumping = false; }
+    // IMPORTANT: do NOT attempt empty seals by default (they can be slow / pointless)
+    if (!allowEmpty && txs.length === 0) {
+      S.noop++;
+      S.last_took = 0;
+      S.last_allow_empty = false;
+      S.last_ts = now();
+      return {ok:true, noop:true, took:0, allowEmpty:false, state:S};
+    }
+
+    const jobId = (S.job_id = (S.job_id||0) + 1);
+    S.started++;
+    S.busy = true;
+    S.in_flight = true;
+    S.last_job_id = jobId;
+    S.last_took = txs.length;
+    S.last_allow_empty = !!allowEmpty;
+    S.last_err = "";
+    S.last_ms = 0;
+    S.last_ts = now();
+
+    // Fire in background so HTTP never waits on saveBlock.
+    setImmediate(async ()=>{
+      const t0 = now();
+      try{
+        const before = await getHeadBestEffort(node.store);
+        const sealed = await withTimeout(Promise.resolve(node.store.saveBlock({ txs, allowEmpty })), SAVE_TIMEOUT_MS);
+        const after  = await getHeadBestEffort(node.store);
+
+        const ms = now() - t0;
+        S.ok++;
+        S.last_ms = ms;
+        S.last_ts = now();
+        S.last_err = "";
+        S.last_from = Number(before ?? -1);
+        S.last_to   = Number(after ?? -1);
+
+        (G.__void_pump_v1b_last_result ||= {});
+        G.__void_pump_v1b_last_result = {ok:true, jobId, took:txs.length, fromHead:before, toHead:after, sealed, ms};
+      }catch(e:any){
+        const ms = now() - t0;
+        const err = String((e && (e.stack || e)) || e);
+        if (err.includes("timeout")) S.timeouts++;
+        S.errors++;
+        S.last_ms = ms;
+        S.last_ts = now();
+        S.last_err = err;
+        (G.__void_pump_v1b_last_result ||= {});
+        G.__void_pump_v1b_last_result = {ok:false, jobId, took:txs.length, error:err, ms};
+      }finally{
+        S.in_flight = false;
+        S.busy = false;
+      }
+    });
+
+    return {ok:true, started:true, jobId, took:txs.length, allowEmpty, state:S};
   }
 
   function mount(){
     const app:any = getApp(); if (!app || typeof app.post!=="function") return setTimeout(mount, TICK);
     if ((app as any).__void_pump_v1b) return; (app as any).__void_pump_v1b = true;
 
+    // default: empty=0 (NO empty seals)
     app.post("/proposer/pump.v1b", async (req:any,res:any)=>{
       const max = Number((req.query && req.query.max) || 5);
-      const out = await pumpOnce(max);
+      const empty = String((req.query && req.query.empty) || "0") === "1";
+      const out = startPump(max, empty);
       res.type("application/json").send(JSON.stringify(out));
+    });
+
+    app.get("/proposer/pump.v1b/status", (_req:any,res:any)=>{
+      res.type("application/json").send(JSON.stringify({
+        ok:true,
+        state:S,
+        last_result: (globalThis as any).__void_pump_v1b_last_result || null
+      }));
     });
 
     app.get("/__void/metrics/proposer.pump.v1b.prom", (_req:any,res:any)=>{
       res.type("text/plain; version=0.0.4").send(
-        "# HELP void_proposer_pump_v1b 1 if mounted\n# TYPE void_proposer_pump_v1b gauge\nvoid_proposer_pump_v1b 1\n"
+        "# HELP void_proposer_pump_v1b 1 if mounted\n# TYPE void_proposer_pump_v1b gauge\nvoid_proposer_pump_v1b 1\n" +
+        "# HELP void_proposer_pump_v1b_busy 1 if busy\n# TYPE void_proposer_pump_v1b_busy gauge\nvoid_proposer_pump_v1b_busy " + (S.busy?1:0) + "\n" +
+        "# HELP void_proposer_pump_v1b_in_flight 1 if background seal running\n# TYPE void_proposer_pump_v1b_in_flight gauge\nvoid_proposer_pump_v1b_in_flight " + (S.in_flight?1:0) + "\n" +
+        "# HELP void_proposer_pump_v1b_calls_total calls\n# TYPE void_proposer_pump_v1b_calls_total counter\nvoid_proposer_pump_v1b_calls_total " + (S.calls||0) + "\n" +
+        "# HELP void_proposer_pump_v1b_started_total started\n# TYPE void_proposer_pump_v1b_started_total counter\nvoid_proposer_pump_v1b_started_total " + (S.started||0) + "\n" +
+        "# HELP void_proposer_pump_v1b_noop_total noop (no empty seals)\n# TYPE void_proposer_pump_v1b_noop_total counter\nvoid_proposer_pump_v1b_noop_total " + (S.noop||0) + "\n" +
+        "# HELP void_proposer_pump_v1b_ok_total ok\n# TYPE void_proposer_pump_v1b_ok_total counter\nvoid_proposer_pump_v1b_ok_total " + (S.ok||0) + "\n" +
+        "# HELP void_proposer_pump_v1b_errors_total errors\n# TYPE void_proposer_pump_v1b_errors_total counter\nvoid_proposer_pump_v1b_errors_total " + (S.errors||0) + "\n" +
+        "# HELP void_proposer_pump_v1b_timeouts_total timeouts\n# TYPE void_proposer_pump_v1b_timeouts_total counter\nvoid_proposer_pump_v1b_timeouts_total " + (S.timeouts||0) + "\n" +
+        "# HELP void_proposer_pump_v1b_last_ms last duration\n# TYPE void_proposer_pump_v1b_last_ms gauge\nvoid_proposer_pump_v1b_last_ms " + (S.last_ms||0) + "\n" +
+        "# HELP void_proposer_pump_v1b_last_ts_ms last timestamp ms\n# TYPE void_proposer_pump_v1b_last_ts_ms gauge\nvoid_proposer_pump_v1b_last_ts_ms " + (S.last_ts||0) + "\n" +
+        "# HELP void_proposer_pump_v1b_last_from head before\n# TYPE void_proposer_pump_v1b_last_from gauge\nvoid_proposer_pump_v1b_last_from " + (S.last_from??-1) + "\n" +
+        "# HELP void_proposer_pump_v1b_last_to head after\n# TYPE void_proposer_pump_v1b_last_to gauge\nvoid_proposer_pump_v1b_last_to " + (S.last_to??-1) + "\n" +
+        "# HELP void_proposer_pump_v1b_last_took last txs\n# TYPE void_proposer_pump_v1b_last_took gauge\nvoid_proposer_pump_v1b_last_took " + (S.last_took??0) + "\n"
       );
     });
 
-    console.error("[proposer.pump.v1b] mounted: POST /proposer/pump.v1b?max=5");
+    console.error("[proposer.pump.v1b] mounted: POST /proposer/pump.v1b?max=5&empty=0 (background; empty seals off by default)");
   }
   mount();
 })();
+
 // -------- proposer.seal.v7-guard (additive, non-recursive, one-shot) --------
 (function ProposerSealV7Guard(){
   const TICK=400;
@@ -24154,3 +24411,2623 @@ void_wal_wrapped ${isWrapped?1:0}
   tick();
 })();
 // === [END DataNetMountV3] ===
+
+// ===== [ADD] V7 recursion fix: de-proxy + stable saveBlock rebind (v1) =====
+;(function v7RecursionFixSaveBlockV1(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_v7_recursion_fix_v1) return;
+    G.__void_v7_recursion_fix_v1 = 1;
+
+    function isBadFn(fn:any){
+      try{
+        if (typeof fn !== 'function') return true;
+        const nm = String(fn.name || '');
+        if (nm.includes('saveBlock_v7_inst_proxy')) return true;
+        if ((fn as any).__void_trampoline_v7) return true; // accessor-tramp v7
+        if ((fn as any).__void_trampoline_v6) return true;
+        if ((fn as any).__void_trampoline_v5) return true;
+        return false;
+      } catch { return true; }
+    }
+
+    function tick(){
+      try{
+        const node:any = G.__void_node || (G as any).node || (G as any).void?.node;
+        const store:any = node?.store || (G as any).__void_store || (G as any).void?.store;
+        if (!node || !store) return;
+
+        // 1) if node.store was proxied, prefer the real store instance we can see.
+        // (If node.store already points at the real thing, this is a no-op.)
+        try{ node.store = store; } catch {}
+
+        // 2) if saveBlock looks like a v7 trampoline/proxy, hard-rebind to the class prototype implementation.
+        const cur:any = (store as any).saveBlock;
+        if (!cur || isBadFn(cur)) {
+          const Ctor:any = store?.constructor;
+          const protoFn:any = Ctor?.prototype?.saveBlock;
+          if (typeof protoFn === 'function') {
+            const bound = protoFn.bind(store);
+            (bound as any).__void_v7_recursion_fix_bound = true;
+            (store as any).saveBlock = bound;
+          }
+        }
+      } catch {}
+    }
+
+    // run immediately + keep repairing if later wrappers stomp saveBlock
+    tick();
+    setInterval(tick, 1000);
+  } catch {}
+})();
+
+// [saveblock.finalize.v1] stamp SegStore.prototype.saveBlock to avoid wrap storms / recursion loops
+;(function saveBlockFinalizeV1(){
+  try {
+    const g:any = globalThis as any;
+    if (g.__void_saveblock_finalize_v1) return;
+    g.__void_saveblock_finalize_v1 = true;
+
+    const delay = Number((process as any)?.env?.VOID_SAVEBLOCK_FINALIZE_DELAY_MS || 2500);
+
+    setTimeout(async ()=>{
+      try {
+        const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
+        const SegStore:any = (seg as any).SegStore;
+        const proto:any = SegStore && SegStore.prototype;
+        if (!proto) return;
+
+        const d:any = Object.getOwnPropertyDescriptor(proto, "saveBlock");
+        const fn:any = (d && ("value" in d) ? d.value : undefined) ?? proto.saveBlock;
+        if (typeof fn !== "function") return;
+
+        // Mark as "already wrapped" for known binder loops.
+        const syms = [
+          Symbol.for("__void_forensics_wrapped"),
+          Symbol.for("__void_forensics_wrapped_v3"),
+          Symbol.for("void.txrootCountersWrapped.v2"),
+          // (extras tolerated)
+          Symbol.for("__void_forensics_wrapped_v2"),
+          Symbol.for("__void_forensics_wrapped_v5"),
+          Symbol.for("__void_forensics_wrapped_v6"),
+          Symbol.for("__void_forensics_wrapped_v7"),
+        ];
+        for (const s of syms){
+          try { (fn as any)[s] = true; } catch {}
+        }
+
+        // Common flags used by trampolines/wrappers (best-effort; harmless if unused)
+        const props = [
+          "__void_trampoline_v5",
+          "__void_trampoline_v6",
+          "__void_trampoline_v7",
+          "__void_wrapOnce_v1",
+          "__void_saveblock_finalized_v1",
+        ];
+        for (const k of props){
+          try { Object.defineProperty(fn, k, { value: true, configurable: true }); }
+          catch { try { (fn as any)[k] = true; } catch {} }
+        }
+
+        // Also block re-attach attempts that key off prototype flags.
+        try { (proto as any).__void_txroot_metrics_sticky = true; } catch {}
+
+        g.__void_saveblock_finalize_v1_done = {
+          ts: Date.now(),
+          has_desc: !!d,
+          is_accessor: !!(d && (typeof d.get === "function" || typeof d.set === "function") && !("value" in d)),
+          name: fn?.name || "(anon)",
+          writable: !!(d && d.writable),
+          configurable: !!(d && d.configurable),
+        };
+
+        console.log("[saveblock.finalize.v1] stamped SegStore.prototype.saveBlock (wrap storms mitigated)");
+      } catch (e:any){
+        try { console.warn("[saveblock.finalize.v1] error", e?.message||e); } catch {}
+      }
+    }, delay);
+  } catch {}
+})();
+
+// [saveblock.finalize.inspector.v1] expose in-process finalize state + saveBlock flags (safe under /__void/metrics/*)
+;(function saveBlockFinalizeInspectorV1(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_saveblock_finalize_inspector_v1) return;
+    G.__void_saveblock_finalize_inspector_v1 = true;
+
+    function getApp(){ return (G.__void_http_app || G.app); }
+
+    async function getProtoFn(){
+      try{
+        const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
+        const SegStore:any = (seg as any).SegStore;
+        const proto:any = SegStore && SegStore.prototype;
+        if (!proto) return { ok:false, err:"no proto" };
+        const d:any = Object.getOwnPropertyDescriptor(proto, "saveBlock");
+        const fn:any = (d && ("value" in d) ? d.value : undefined) ?? proto.saveBlock;
+        return { ok:true, d, fn, proto };
+      } catch(e:any){
+        return { ok:false, err: (e?.message||String(e)) };
+      }
+    }
+
+    function mountOnce(){
+      const app:any = getApp();
+      if (!app || !app.get) return false;
+      if (app.__void_saveblock_finalize_inspector_v1_mounted) return true;
+      app.__void_saveblock_finalize_inspector_v1_mounted = true;
+
+      app.get("/__void/metrics/saveblock.finalize.v1.json", async (_req:any, res:any)=>{
+        const r:any = await getProtoFn();
+        if (!r.ok) return res.json({ ok:false, err:r.err||"unknown" });
+
+        const d:any = r.d;
+        const fn:any = r.fn;
+
+        const out:any = {
+          ok: true,
+          now_ms: Date.now(),
+          finalize_state: (G.__void_saveblock_finalize_v1_done || null),
+          has_desc: !!d,
+          desc_keys: d ? Object.keys(d) : [],
+          is_accessor: !!(d && (typeof d.get === "function" || typeof d.set === "function") && !("value" in d)),
+          writable: d ? !!d.writable : null,
+          configurable: d ? !!d.configurable : null,
+          enumerable: d ? !!d.enumerable : null,
+          fn_name: (typeof fn === "function") ? (fn.name || "(anon)") : typeof fn,
+          flags: {
+            sym_wrapped: !!(fn && fn[Symbol.for("__void_forensics_wrapped")]),
+            sym_wrapped_v3: !!(fn && fn[Symbol.for("__void_forensics_wrapped_v3")]),
+            sym_txrootCounters: !!(fn && fn[Symbol.for("void.txrootCountersWrapped.v2")]),
+            prop_tramp_v5: !!(fn && fn.__void_trampoline_v5),
+            prop_tramp_v6: !!(fn && fn.__void_trampoline_v6),
+            prop_tramp_v7: !!(fn && fn.__void_trampoline_v7),
+            prop_wrapOnce_v1: !!(fn && fn.__void_wrapOnce_v1),
+            prop_final: !!(fn && fn.__void_saveblock_finalized_v1),
+          },
+        };
+        res.json(out);
+      });
+
+      app.get("/__void/metrics/saveblock.finalize.v1.prom", async (_req:any, res:any)=>{
+        const r:any = await getProtoFn();
+        let ok=0, isAcc=0, final=0, sym1=0, sym3=0, symC=0;
+        if (r.ok){
+          ok=1;
+          const d:any = r.d;
+          const fn:any = r.fn;
+          isAcc = (d && (typeof d.get==="function" || typeof d.set==="function") && !("value" in d)) ? 1 : 0;
+          final = (fn && fn.__void_saveblock_finalized_v1) ? 1 : 0;
+          sym1 = (fn && fn[Symbol.for("__void_forensics_wrapped")]) ? 1 : 0;
+          sym3 = (fn && fn[Symbol.for("__void_forensics_wrapped_v3")]) ? 1 : 0;
+          symC = (fn && fn[Symbol.for("void.txrootCountersWrapped.v2")]) ? 1 : 0;
+        }
+        res.type("text/plain; version=0.0.4").send(
+          "# HELP void_saveblock_finalize_inspector_v1 1 if mounted\n# TYPE void_saveblock_finalize_inspector_v1 gauge\nvoid_saveblock_finalize_inspector_v1 1\n" +
+          "# HELP void_saveblock_finalize_proto_ok 1 if SegStore.prototype resolved\n# TYPE void_saveblock_finalize_proto_ok gauge\nvoid_saveblock_finalize_proto_ok " + ok + "\n" +
+          "# HELP void_saveblock_finalize_is_accessor 1 if saveBlock is accessor\n# TYPE void_saveblock_finalize_is_accessor gauge\nvoid_saveblock_finalize_is_accessor " + isAcc + "\n" +
+          "# HELP void_saveblock_finalize_flag_final 1 if __void_saveblock_finalized_v1 set on function\n# TYPE void_saveblock_finalize_flag_final gauge\nvoid_saveblock_finalize_flag_final " + final + "\n" +
+          "# HELP void_saveblock_finalize_sym_wrapped 1 if __void_forensics_wrapped symbol set\n# TYPE void_saveblock_finalize_sym_wrapped gauge\nvoid_saveblock_finalize_sym_wrapped " + sym1 + "\n" +
+          "# HELP void_saveblock_finalize_sym_wrapped_v3 1 if __void_forensics_wrapped_v3 symbol set\n# TYPE void_saveblock_finalize_sym_wrapped_v3 gauge\nvoid_saveblock_finalize_sym_wrapped_v3 " + sym3 + "\n" +
+          "# HELP void_saveblock_finalize_sym_txrootCounters 1 if txrootCounters symbol set\n# TYPE void_saveblock_finalize_sym_txrootCounters gauge\nvoid_saveblock_finalize_sym_txrootCounters " + symC + "\n"
+        );
+      });
+
+      try { console.error("[saveblock.finalize.inspector.v1] mounted: /__void/metrics/saveblock.finalize.v1.(json|prom)"); } catch {}
+      return true;
+    }
+
+    (function poll(){
+      try{ if (mountOnce()) return; } catch {}
+      setTimeout(poll, 300);
+    })();
+  }catch{}
+})();
+
+// [saveblock.finalize.v2.lastwins] outermost sticky accessor wrapper for SegStore.prototype.saveBlock (last-wins; avoids recursion storms)
+;(function saveBlockFinalizeV2LastWins(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_saveblock_finalize_v2_lastwins) return;
+    G.__void_saveblock_finalize_v2_lastwins = { ts: Date.now(), installed:false, note:"init" };
+
+    async function installOnce(){
+      try{
+        const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
+        const SegStore:any = (seg as any).SegStore;
+        const proto:any = SegStore && SegStore.prototype;
+        if (!proto) { G.__void_saveblock_finalize_v2_lastwins = { ts: Date.now(), installed:false, note:"no SegStore.prototype" }; return false; }
+
+        const d0:any = Object.getOwnPropertyDescriptor(proto, "saveBlock");
+        if (d0 && typeof d0.get === "function" && (d0.get as any).__void_saveblock_final_get_v2) {
+          G.__void_saveblock_finalize_v2_lastwins = { ts: Date.now(), installed:true, note:"already installed" };
+          return true;
+        }
+
+        let curFn:any = null;
+        try{
+          if (d0 && ("value" in d0) && typeof d0.value === "function") curFn = d0.value;
+          else curFn = proto.saveBlock; // may invoke getter
+        }catch{ try{ curFn = proto.saveBlock; }catch{} }
+
+        if (typeof curFn !== "function") {
+          G.__void_saveblock_finalize_v2_lastwins = { ts: Date.now(), installed:false, note:"saveBlock not a function yet" };
+          return false;
+        }
+
+        // inner points at "whatever is currently installed"; setter updates it
+        let inner:any = curFn;
+
+        async function saveBlockFinalV2(this:any, b:any, ...rest:any[]){
+          // normalize block.number/header.number if parseable
+          try{
+            const n0:any = (b && (b.number ?? b?.header?.number));
+            const n = Number(n0);
+            if (Number.isFinite(n) && n >= 0) {
+              if (b && typeof b === "object") {
+                try { if (typeof b.number !== "number" || b.number !== n) b.number = n; } catch {}
+                try {
+                  if (b.header && typeof b.header === "object") {
+                    if (typeof b.header.number !== "number" || b.header.number !== n) b.header.number = n;
+                  }
+                } catch {}
+              }
+            }
+          }catch{}
+
+          const fn:any = inner;
+          if (fn === saveBlockFinalV2) return undefined; // hard recursion guard
+          return await fn.apply(this, [b, ...rest]);
+        }
+
+        // flags for inspectors/guards
+        try{ Object.defineProperty(saveBlockFinalV2, "__void_saveblock_finalized_v1", { value: true }); }catch{}
+        // expose sticky meta so wrapOnce() can safely wrap inner without wrapper<->wrapped recursion
+        try{ Object.defineProperty(saveBlockFinalV2, "__void_sticky_saveBlock", { value: true }); }catch{}
+        try{ Object.defineProperty(saveBlockFinalV2, "__void_sticky_getInner", { value: () => inner }); }catch{}
+        try{ Object.defineProperty(saveBlockFinalV2, "__void_sticky_setInner", { value: (fn:any) => {
+          try{ if (typeof fn === "function" && fn !== saveBlockFinalV2) inner = fn; }catch{}
+        }}); }catch{}
+
+        function get(){ return saveBlockFinalV2; }
+        try{ (get as any).__void_saveblock_final_get_v2 = true; }catch{}
+
+        function set(fn:any){
+          try{
+            if (typeof fn === "function" && fn !== saveBlockFinalV2) inner = fn;
+          }catch{}
+        }
+
+        Object.defineProperty(proto, "saveBlock", {
+          configurable: true,
+          enumerable: false,
+          get,
+          set,
+        });
+
+        G.__void_saveblock_finalize_v2_lastwins = {
+          ts: Date.now(),
+          installed: true,
+          note: "installed accessor v2 (outermost last-wins)",
+          was_accessor: !!(d0 && (typeof d0.get === "function" || typeof d0.set === "function") && !("value" in d0)),
+          prev_name: (curFn && curFn.name) ? curFn.name : "(anon)",
+        };
+        try{ console.error("[saveblock.finalize.v2] installed accessor last-wins; prev="+(curFn?.name||"(anon)")); }catch{}
+        return true;
+      }catch(e:any){
+        G.__void_saveblock_finalize_v2_lastwins = { ts: Date.now(), installed:false, note: "err: " + (e?.message||String(e)) };
+        return false;
+      }
+    }
+
+    // keepalive: only re-install if someone overwrites the accessor
+    let slow = 0;
+    (function tick(){
+      try{ installOnce().catch(()=>{}); }catch{}
+      slow++;
+      setTimeout(tick, slow < 1200 ? 500 : 2000); // 10m fast then 2s
+    })();
+  }catch{}
+})();
+
+// [saveblock.finalize.v2b.adapter] adapt current saveBlock trampoline (v7/v6/v5) into a sticky+final wrapper (prevents recursion storms)
+;(function saveBlockFinalizeV2bAdapter(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_saveblock_finalize_v2b_adapter) return;
+    G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"init" };
+
+    async function install(){
+      try{
+        const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
+        const SegStore:any = (seg as any).SegStore;
+        const proto:any = SegStore && SegStore.prototype;
+        if (!proto) { G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"no SegStore.prototype" }; return false; }
+
+        // We *expect* accessor here (your inspector shows it). If it isn't, bail.
+        const d:any = Object.getOwnPropertyDescriptor(proto, "saveBlock");
+        const isAcc = !!(d && (typeof d.get === "function" || typeof d.set === "function") && !("value" in d));
+        if (!isAcc) {
+          G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"not accessor (skip)" };
+          return false;
+        }
+
+        let cur:any = null;
+        try{ cur = proto.saveBlock; }catch{ cur = null; }
+        if (typeof cur !== "function") {
+          G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"cur not function" };
+          return false;
+        }
+
+        // If already finalized (by us), nothing to do.
+        if ((cur as any).__void_saveblock_finalized_v1 && (cur as any).__void_sticky_saveBlock) {
+          G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:true, note:"already finalized", name: cur.name||"(anon)" };
+          return true;
+        }
+
+        // Only adapt if it looks like a trampoline/proxy we’ve seen.
+        const tag =
+          (cur as any).__void_trampoline_v7 ||
+          (cur as any).__void_trampoline_v6 ||
+          (cur as any).__void_trampoline_v5 ||
+          null;
+
+        const looksLikeTramp = !!tag || (cur && String(cur.name||"").toLowerCase().includes("tramp"));
+        if (!looksLikeTramp) {
+          G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"cur not tramp-like", name: cur.name||"(anon)" };
+          return false;
+        }
+
+        // Inner is "whatever current getter returns". Setter writes will update this.
+        let inner:any = cur;
+
+        async function saveBlockFinalV2b(this:any, b:any, ...rest:any[]){
+          // normalize block.number/header.number if parseable
+          try{
+            const n0:any = (b && (b.number ?? b?.header?.number));
+            const n = Number(n0);
+            if (Number.isFinite(n) && n >= 0) {
+              if (b && typeof b === "object") {
+                try { if (typeof b.number !== "number" || b.number !== n) b.number = n; } catch {}
+                try {
+                  if (b.header && typeof b.header === "object") {
+                    if (typeof b.header.number !== "number" || b.header.number !== n) b.header.number = n;
+                  }
+                } catch {}
+              }
+            }
+          }catch{}
+
+          const fn:any = inner;
+          if (fn === saveBlockFinalV2b) return undefined; // hard recursion guard
+          return await fn.apply(this, [b, ...rest]);
+        }
+
+        // flags for inspectors/guards
+        try{ Object.defineProperty(saveBlockFinalV2b, "__void_saveblock_finalized_v1", { value: true }); }catch{}
+        // expose sticky meta so wrapOnce() can safely wrap inner without wrapper<->wrapped recursion
+        try{ Object.defineProperty(saveBlockFinalV2b, "__void_sticky_saveBlock", { value: true }); }catch{}
+        try{ Object.defineProperty(saveBlockFinalV2b, "__void_sticky_getInner", { value: () => inner }); }catch{}
+        try{ Object.defineProperty(saveBlockFinalV2b, "__void_sticky_setInner", { value: (fn:any) => {
+          try{ if (typeof fn === "function" && fn !== saveBlockFinalV2b) inner = fn; }catch{}
+        }}); }catch{}
+
+        // Make v7/v6 setters treat us as "already tramp" so we become the getter-returned function.
+        try{
+          if ((cur as any).__void_trampoline_v7) Object.defineProperty(saveBlockFinalV2b, "__void_trampoline_v7", { value: (cur as any).__void_trampoline_v7 });
+          else if ((cur as any).__void_trampoline_v6) Object.defineProperty(saveBlockFinalV2b, "__void_trampoline_v6", { value: (cur as any).__void_trampoline_v6 });
+          else if ((cur as any).__void_trampoline_v5) Object.defineProperty(saveBlockFinalV2b, "__void_trampoline_v5", { value: (cur as any).__void_trampoline_v5 });
+          else Object.defineProperty(saveBlockFinalV2b, "__void_trampoline_v7", { value: "saveblock.finalize.v2b" });
+        }catch{}
+
+        // Install by assigning through accessor setter.
+        try{ proto.saveBlock = saveBlockFinalV2b; }catch{}
+
+        // Verify what getter returns now.
+        let nowFn:any = null;
+        try{ nowFn = proto.saveBlock; }catch{}
+        const ok = (nowFn === saveBlockFinalV2b) || !!(nowFn && (nowFn as any).__void_saveblock_finalized_v1);
+
+        G.__void_saveblock_finalize_v2b_adapter = {
+          ts: Date.now(),
+          installed: !!ok,
+          note: ok ? "installed (setter accepted final tramp)" : "install attempted (setter did not accept)",
+          prev_name: cur.name||"(anon)",
+          now_name: nowFn?.name||"(anon)",
+          had_tag: !!tag,
+        };
+        try{ if (ok) console.error("[saveblock.finalize.v2b] installed adapter; now="+(nowFn?.name||"(anon)")); }catch{}
+        return !!ok;
+      }catch(e:any){
+        G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"err: "+(e?.message||String(e)) };
+        return false;
+      }
+    }
+
+    // keep trying (last-wins); low frequency to avoid noise
+    (function tick(){
+      try{ install().catch(()=>{}); }catch{}
+      setTimeout(tick, 750);
+    })();
+  }catch{}
+})();
+
+// [saveblock.finalize.v2c.outer_accessor] outermost accessor shim for SegStore.prototype.saveBlock (wraps existing accessor latch; adds sticky+final flags; self-healing)
+;(function saveBlockFinalizeV2cOuterAccessor(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_saveblock_finalize_v2c_outer) return;
+    G.__void_saveblock_finalize_v2c_outer = { ts: Date.now(), installed:false, note:"init" };
+
+    const OUTER_SYM = Symbol.for("__void_saveblock_finalize_v2c_outer_acc");
+
+    async function install(){
+      try{
+        const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
+        const SegStore:any = (seg as any).SegStore;
+        const proto:any = SegStore && SegStore.prototype;
+        if (!proto) { G.__void_saveblock_finalize_v2c_outer = { ts: Date.now(), installed:false, note:"no SegStore.prototype" }; return false; }
+
+        // Only layer over an accessor (your current state).
+        const d:any = Object.getOwnPropertyDescriptor(proto, "saveBlock");
+        const isAcc = !!(d && (typeof d.get === "function" || typeof d.set === "function") && !("value" in d));
+        if (!isAcc) { G.__void_saveblock_finalize_v2c_outer = { ts: Date.now(), installed:false, note:"not accessor (skip)" }; return false; }
+
+        // Idempotence: if current getter already marked, stop.
+        const curGet:any = d.get;
+        if (curGet && (curGet as any)[OUTER_SYM]) {
+          G.__void_saveblock_finalize_v2c_outer = { ts: Date.now(), installed:true, note:"already outer", name: (proto.saveBlock && proto.saveBlock.name) || "(anon)" };
+          return true;
+        }
+
+        const oldGet:any = d.get;
+        const oldSet:any = d.set;
+
+        // Outer "stable" function returned by our getter.
+        async function saveBlockFinalV2c(this:any, b:any, ...rest:any[]){
+          // normalize block.number/header.number if parseable (best-effort)
+          try{
+            const n0:any = (b && (b.number ?? b?.header?.number));
+            const n = Number(n0);
+            if (Number.isFinite(n) && n >= 0) {
+              if (b && typeof b === "object") {
+                try { if (typeof b.number !== "number" || b.number !== n) b.number = n; } catch {}
+                try {
+                  if (b.header && typeof b.header === "object") {
+                    if (typeof b.header.number !== "number" || b.header.number !== n) b.header.number = n;
+                  }
+                } catch {}
+              }
+            }
+          }catch{}
+
+          // Call through to the *previous* accessor getter result (tramp/latch), not proto.saveBlock (would recurse).
+          let fn:any = null;
+          try{ fn = (typeof oldGet === "function") ? oldGet.call(proto) : null; }catch{ fn = null; }
+          if (typeof fn !== "function" || fn === saveBlockFinalV2c) return undefined;
+          return await fn.apply(this, [b, ...rest]);
+        }
+
+        // Mark outer-get so we can detect "already layered"
+        function outerGet(){
+          return saveBlockFinalV2c;
+        }
+        try{ Object.defineProperty(outerGet, OUTER_SYM, { value: true }); }catch{}
+
+        // Expose sticky meta so your various wrapOnce/sticky.v1 helpers can safely wrap INNER via oldSet
+        try{ Object.defineProperty(saveBlockFinalV2c, "__void_saveblock_finalized_v1", { value: true }); }catch{}
+        try{ Object.defineProperty(saveBlockFinalV2c, "__void_sticky_saveBlock", { value: true }); }catch{}
+        try{ Object.defineProperty(saveBlockFinalV2c, "__void_sticky_getInner", { value: () => {
+          try{ return (typeof oldGet === "function") ? oldGet.call(proto) : null; }catch{ return null; }
+        }}); }catch{}
+        try{ Object.defineProperty(saveBlockFinalV2c, "__void_sticky_setInner", { value: (fn:any) => {
+          try{ if (typeof oldSet === "function" && typeof fn === "function" && fn !== saveBlockFinalV2c) oldSet.call(proto, fn); }catch{}
+        }}); }catch{}
+
+        // Keep tramp binders happy: pretend we're already a trampoline so they don't wrap us into recursion.
+        try{ Object.defineProperty(saveBlockFinalV2c, "__void_trampoline_v7", { value: "saveblock.finalize.v2c" }); }catch{}
+
+        // Define OUTER accessor that delegates sets into the previous setter.
+        Object.defineProperty(proto, "saveBlock", {
+          configurable: true,
+          enumerable: false,
+          get: outerGet,
+          set: function(fn:any){
+            try{
+              if (typeof oldSet === "function") return oldSet.call(proto, fn);
+            }catch{}
+            // best-effort fallback: ignore
+          },
+        });
+
+        // Verify
+        let nowFn:any = null;
+        try{ nowFn = proto.saveBlock; }catch{}
+        const ok = !!(nowFn && (nowFn as any).__void_saveblock_finalized_v1);
+        G.__void_saveblock_finalize_v2c_outer = {
+          ts: Date.now(),
+          installed: ok,
+          note: ok ? "installed outer accessor" : "install attempted (verify failed)",
+          now_name: nowFn?.name || "(anon)",
+          old_get_name: oldGet?.name || "(anon)",
+          old_set_name: oldSet?.name || "(anon)",
+        };
+        try{ if (ok) console.error("[saveblock.finalize.v2c] installed outer accessor"); }catch{}
+        return ok;
+      }catch(e:any){
+        G.__void_saveblock_finalize_v2c_outer = { ts: Date.now(), installed:false, note:"err: "+(e?.message||String(e)) };
+        return false;
+      }
+    }
+
+    (function tick(){
+      try{ install().catch(()=>{}); }catch{}
+      setTimeout(tick, 750);
+    })();
+  }catch{}
+})();
+
+// -------- saveBlock.finalize.v3.norecurse (data-property lock; breaks wrapper recursion) --------
+(function SaveBlockFinalizeV3NoRecurse(){
+  const TICK = 350;
+  const G:any = (globalThis as any);
+  const KEY = "__void_saveblock_finalize_v3_state";
+  if (!G[KEY]) G[KEY] = { ts:0, ok:false, why:"", baseName:"", busy:false, asserts:0, lastAssert:0, lastErr:"" };
+  const S:any = G[KEY];
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function getNode(){ return G.__void_node || G.node; }
+
+  function pickBaseFn(store:any){
+    try {
+      if (store && typeof store.saveBlock_WALv3 === "function") return store.saveBlock_WALv3;
+    } catch {}
+    try {
+      // pick any "saveBlock*" function that's not the current accessor/tramp
+      const names = Object.getOwnPropertyNames(store || {}).filter((n)=>/^saveBlock/.test(n));
+      for (const n of names){
+        const fn = (store as any)[n];
+        if (typeof fn === "function" && n !== "saveBlock") return fn;
+      }
+    } catch {}
+    try {
+      // scan prototype for a concrete function (not accessor)
+      const p = Object.getPrototypeOf(store);
+      if (p){
+        for (const n of Object.getOwnPropertyNames(p)){
+          if (!/^saveBlock/.test(n) || n === "saveBlock") continue;
+          const d = Object.getOwnPropertyDescriptor(p, n);
+          if (d && typeof d.value === "function") return d.value;
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  function assertLock(){
+    S.asserts++; S.lastAssert = Date.now();
+    const node:any = getNode();
+    const store:any = node && (node.store || node._store || node.segStore);
+    if (!store){
+      S.ok=false; S.why="no-store"; return;
+    }
+
+    const base = pickBaseFn(store);
+    if (!base){
+      S.ok=false; S.why="no-basefn"; return;
+    }
+
+    // Define a DATA PROPERTY (not accessor) to avoid tramp/proxy recursion.
+    const proto = Object.getPrototypeOf(store);
+    if (!proto){
+      S.ok=false; S.why="no-proto"; return;
+    }
+
+    const wrapped = async function saveBlockFinalV3(block:any){
+      if (S.busy) throw new Error("saveBlockFinalV3: reentry-blocked");
+      S.busy = true;
+      try {
+        return await base.call(this, block);
+      } finally {
+        S.busy = false;
+      }
+    } as any;
+
+    try { (wrapped as any).__void_saveblock_finalized_v3 = true; } catch {}
+    try { Object.defineProperty(wrapped, "name", { value: "saveBlockFinalV3", configurable: true }); } catch {}
+    try { (wrapped as any).__void_saveblock_base_name = String((base as any).name || ""); } catch {}
+
+    try {
+      Object.defineProperty(proto, "saveBlock", {
+        value: wrapped,
+        writable: true,
+        enumerable: false,
+        configurable: true,
+      });
+      S.ok = true;
+      S.ts = Date.now();
+      S.why = "locked";
+      S.baseName = String((base as any).name || "");
+    } catch (e:any){
+      S.ok=false;
+      S.why="define-failed";
+      S.lastErr = String(e && (e.stack || e) || e);
+    }
+  }
+
+  function mount(){
+    try { assertLock(); } catch(e:any){ S.ok=false; S.why="assert-throw"; S.lastErr=String(e&&e.stack||e); }
+
+    const app:any = getApp();
+    if (app && typeof app.get === "function"){
+      if (!(app as any).__void_saveblock_finalize_v3_inspector){
+        (app as any).__void_saveblock_finalize_v3_inspector = true;
+
+        app.get("/__void/metrics/saveblock.finalize.v3.json", (_req:any,res:any)=>{
+          const node:any = getNode();
+          const store:any = node && node.store;
+          const proto = store ? Object.getPrototypeOf(store) : null;
+          const d = proto ? Object.getOwnPropertyDescriptor(proto, "saveBlock") : null;
+          res.json({
+            ok:true,
+            now_ms: Date.now(),
+            state: S,
+            desc: d ? { keys: Object.keys(d), is_accessor: !!(d.get||d.set), writable: (d as any).writable ?? null, configurable: (d as any).configurable ?? null } : null,
+            fn_name: d && typeof (d as any).value === "function" ? String(((d as any).value as any).name || "") : null,
+            fn_final_v3: d && typeof (d as any).value === "function" ? !!(((d as any).value as any).__void_saveblock_finalized_v3) : false,
+            base_name: d && typeof (d as any).value === "function" ? String((((d as any).value as any).__void_saveblock_base_name)||"") : "",
+          });
+        });
+
+        app.get("/__void/metrics/saveblock.finalize.v3.prom", (_req:any,res:any)=>{
+          const node:any = getNode();
+          const store:any = node && node.store;
+          const proto = store ? Object.getPrototypeOf(store) : null;
+          const d = proto ? Object.getOwnPropertyDescriptor(proto, "saveBlock") : null;
+          const isAccessor = d ? ((d as any).get || (d as any).set ? 1 : 0) : 0;
+          const isDataFn = d && typeof (d as any).value === "function" ? 1 : 0;
+          const isFinal = d && typeof (d as any).value === "function" && !!(((d as any).value as any).__void_saveblock_finalized_v3) ? 1 : 0;
+          res.type("text/plain; version=0.0.4; charset=utf-8").send(
+            [
+              "# HELP void_saveblock_finalize_v3_inspector 1 if mounted",
+              "# TYPE void_saveblock_finalize_v3_inspector gauge",
+              "void_saveblock_finalize_v3_inspector 1",
+              "# HELP void_saveblock_finalize_v3_ok 1 if lock ok",
+              "# TYPE void_saveblock_finalize_v3_ok gauge",
+              `void_saveblock_finalize_v3_ok ${S.ok?1:0}`,
+              "# HELP void_saveblock_finalize_v3_is_accessor 1 if proto.saveBlock is accessor",
+              "# TYPE void_saveblock_finalize_v3_is_accessor gauge",
+              `void_saveblock_finalize_v3_is_accessor ${isAccessor}`,
+              "# HELP void_saveblock_finalize_v3_is_data_fn 1 if proto.saveBlock is data function",
+              "# TYPE void_saveblock_finalize_v3_is_data_fn gauge",
+              `void_saveblock_finalize_v3_is_data_fn ${isDataFn}`,
+              "# HELP void_saveblock_finalize_v3_flag_final 1 if function has finalized flag",
+              "# TYPE void_saveblock_finalize_v3_flag_final gauge",
+              `void_saveblock_finalize_v3_flag_final ${isFinal}`,
+              "# HELP void_saveblock_finalize_v3_asserts_total asserts",
+              "# TYPE void_saveblock_finalize_v3_asserts_total counter",
+              `void_saveblock_finalize_v3_asserts_total ${S.asserts||0}`,
+              "# HELP void_saveblock_finalize_v3_last_assert_ts_ms last assert ts",
+              "# TYPE void_saveblock_finalize_v3_last_assert_ts_ms gauge",
+              `void_saveblock_finalize_v3_last_assert_ts_ms ${S.lastAssert||0}`,
+              "# HELP void_saveblock_finalize_v3_ts_ms last successful lock ts",
+              "# TYPE void_saveblock_finalize_v3_ts_ms gauge",
+              `void_saveblock_finalize_v3_ts_ms ${S.ts||0}`
+            ].join("\n") + "\n"
+          );
+        });
+
+        console.error("[saveBlock.finalize.v3] mounted: /__void/metrics/saveblock.finalize.v3.(json|prom)");
+      }
+    }
+
+    // keep asserting for a bit (in case other installers fight us)
+    setTimeout(mount, 2500);
+  }
+
+  setTimeout(mount, TICK);
+})();
+
+// -------- saveBlock.finalize.v3b.ownprop (shadow accessor by defining OWN data prop; last-wins) --------
+(function SaveBlockFinalizeV3bOwnProp(){
+  const TICK = 450;
+  const REASSERT_MS = 1000;
+  const G:any = (globalThis as any);
+  const KEY = "__void_saveblock_finalize_v3b_state";
+  if (!G[KEY]) G[KEY] = {
+    ts:0, ok:false, why:"",
+    basePick:"", baseFnName:"",
+    own_has:false, own_is_accessor:false, own_is_data_fn:false,
+    proto_has:false, proto_is_accessor:false, proto_is_data_fn:false,
+    effective_name:"", effective_final:false,
+    asserts:0, lastAssert:0, lastErr:"",
+  };
+  const S:any = G[KEY];
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function getNode(){ return G.__void_node || G.node; }
+
+  function descInfo(obj:any, prop:string){
+    try {
+      const d = Object.getOwnPropertyDescriptor(obj, prop);
+      if (!d) return { has:false };
+      const isAcc = !!((d as any).get || (d as any).set);
+      const isFn  = typeof (d as any).value === "function";
+      return {
+        has:true,
+        keys:Object.keys(d),
+        is_accessor:isAcc,
+        is_data_fn:isFn,
+        configurable: !!(d as any).configurable,
+        enumerable: !!(d as any).enumerable,
+        writable: (d as any).writable ?? null,
+        fn_name: isFn ? String(((d as any).value as any).name || "") : "",
+        value: (d as any).value,
+      };
+    } catch {
+      return { has:false, err:"desc-throw" };
+    }
+  }
+
+  function pickBase(store:any){
+    // Prefer a concrete commit method that should not call back into saveBlock wrappers.
+    try { if (store && typeof store.saveBlockCommit === "function") return { pick:"saveBlockCommit", fn: store.saveBlockCommit }; } catch {}
+    try { if (store && typeof store.saveBlock_WALv3 === "function") return { pick:"saveBlock_WALv3", fn: store.saveBlock_WALv3 }; } catch {}
+    // Best-effort: find any other saveBlock* function on instance
+    try {
+      const names = Object.getOwnPropertyNames(store || {}).filter((n)=>/^saveBlock/.test(n) && n !== "saveBlock");
+      for (const n of names){
+        const fn = (store as any)[n];
+        if (typeof fn === "function") return { pick:`own:${n}`, fn };
+      }
+    } catch {}
+    // Prototype scan
+    try {
+      const p = Object.getPrototypeOf(store);
+      if (p){
+        for (const n of Object.getOwnPropertyNames(p)){
+          if (!/^saveBlock/.test(n) || n === "saveBlock") continue;
+          const d = Object.getOwnPropertyDescriptor(p, n);
+          if (d && typeof (d as any).value === "function") return { pick:`proto:${n}`, fn: (d as any).value };
+        }
+      }
+    } catch {}
+    return { pick:"", fn:null };
+  }
+
+  function install(){
+    S.asserts++; S.lastAssert = Date.now();
+    const node:any = getNode();
+    const store:any = node && (node.store || node._store || node.segStore);
+    if (!store){ S.ok=false; S.why="no-store"; return; }
+
+    const base = pickBase(store);
+    const baseFn:any = base.fn;
+    if (!baseFn){ S.ok=false; S.why="no-basefn"; return; }
+
+    const wrapped = async function saveBlockFinalV3b(block:any){
+      return await baseFn.call(this, block);
+    } as any;
+
+    try { (wrapped as any).__void_saveblock_finalized_v3b = true; } catch {}
+    try { (wrapped as any).__void_saveblock_base_pick = String(base.pick||""); } catch {}
+    try { (wrapped as any).__void_saveblock_base_name = String((baseFn as any).name||""); } catch {}
+    try { Object.defineProperty(wrapped, "name", { value: "saveBlockFinalV3b", configurable: true }); } catch {}
+
+    // CRITICAL: define on the STORE OBJECT (own prop) to SHADOW any prototype accessor/tramp.
+    let ownOk = false;
+    try {
+      Object.defineProperty(store, "saveBlock", {
+        value: wrapped,
+        writable: true,
+        enumerable: false,
+        configurable: true,
+      });
+      ownOk = true;
+    } catch (e:any){
+      // If Proxy defineProperty is blocked, try assignment (may hit set trap but often works).
+      try {
+        (store as any).saveBlock = wrapped;
+        ownOk = true;
+      } catch (e2:any){
+        S.lastErr = String(e2 && (e2.stack || e2) || e2);
+        ownOk = false;
+      }
+    }
+
+    // Optional: also try proto (may still show accessor if other installers reapply; OWN prop is what matters).
+    try {
+      const p = Object.getPrototypeOf(store);
+      if (p && ownOk){
+        // don't fight if proto is non-configurable
+        const d0 = Object.getOwnPropertyDescriptor(p, "saveBlock");
+        if (!d0 || d0.configurable){
+          Object.defineProperty(p, "saveBlock", {
+            value: wrapped,
+            writable: true,
+            enumerable: false,
+            configurable: true,
+          });
+        }
+      }
+    } catch {}
+
+    // Snapshot descriptors + effective function
+    const ownD:any = descInfo(store, "saveBlock");
+    const proto:any = Object.getPrototypeOf(store);
+    const protoD:any = proto ? descInfo(proto, "saveBlock") : { has:false };
+
+    let effName = "";
+    let effFinal = false;
+    try {
+      const eff:any = (store as any).saveBlock;
+      if (typeof eff === "function"){
+        effName = String(eff.name || "");
+        effFinal = !!(eff.__void_saveblock_finalized_v3b);
+      }
+    } catch {}
+
+    S.basePick = String(base.pick||"");
+    S.baseFnName = String((baseFn as any).name || "");
+    S.own_has = !!ownD.has;
+    S.own_is_accessor = !!ownD.is_accessor;
+    S.own_is_data_fn = !!ownD.is_data_fn;
+    S.proto_has = !!protoD.has;
+    S.proto_is_accessor = !!protoD.is_accessor;
+    S.proto_is_data_fn = !!protoD.is_data_fn;
+    S.effective_name = effName;
+    S.effective_final = effFinal;
+
+    S.ok = !!ownOk && !!S.own_is_data_fn;
+    S.ts = Date.now();
+    S.why = ownOk ? "own-shadowed" : "own-failed";
+  }
+
+  function mount(){
+    try { install(); } catch(e:any){ S.ok=false; S.why="install-throw"; S.lastErr=String(e&&e.stack||e); }
+
+    const app:any = getApp();
+    if (app && typeof app.get === "function"){
+      if (!(app as any).__void_saveblock_finalize_v3b_inspector){
+        (app as any).__void_saveblock_finalize_v3b_inspector = true;
+
+        app.get("/__void/metrics/saveblock.finalize.v3b.json", (_req:any,res:any)=>{
+          const node:any = getNode();
+          const store:any = node && node.store;
+          const proto = store ? Object.getPrototypeOf(store) : null;
+          const ownD:any = store ? Object.getOwnPropertyDescriptor(store, "saveBlock") : null;
+          const protoD:any = proto ? Object.getOwnPropertyDescriptor(proto, "saveBlock") : null;
+          const eff:any = store ? (store as any).saveBlock : null;
+          res.json({
+            ok:true,
+            now_ms: Date.now(),
+            state:S,
+            own: ownD ? { keys:Object.keys(ownD), is_accessor:!!((ownD as any).get||(ownD as any).set), is_data_fn:typeof (ownD as any).value==="function" } : null,
+            proto: protoD ? { keys:Object.keys(protoD), is_accessor:!!((protoD as any).get||(protoD as any).set), is_data_fn:typeof (protoD as any).value==="function" } : null,
+            effective: { type: typeof eff, name: (typeof eff==="function" ? String(eff.name||"") : ""), final_v3b: (typeof eff==="function" ? !!(eff.__void_saveblock_finalized_v3b) : false) },
+          });
+        });
+
+        app.get("/__void/metrics/saveblock.finalize.v3b.prom", (_req:any,res:any)=>{
+          res.type("text/plain; version=0.0.4; charset=utf-8").send(
+            [
+              "# HELP void_saveblock_finalize_v3b_inspector 1 if mounted",
+              "# TYPE void_saveblock_finalize_v3b_inspector gauge",
+              "void_saveblock_finalize_v3b_inspector 1",
+              "# HELP void_saveblock_finalize_v3b_ok 1 if own-shadow lock ok",
+              "# TYPE void_saveblock_finalize_v3b_ok gauge",
+              `void_saveblock_finalize_v3b_ok ${S.ok?1:0}`,
+              "# HELP void_saveblock_finalize_v3b_own_is_accessor 1 if OWN saveBlock is accessor",
+              "# TYPE void_saveblock_finalize_v3b_own_is_accessor gauge",
+              `void_saveblock_finalize_v3b_own_is_accessor ${S.own_is_accessor?1:0}`,
+              "# HELP void_saveblock_finalize_v3b_own_is_data_fn 1 if OWN saveBlock is data function",
+              "# TYPE void_saveblock_finalize_v3b_own_is_data_fn gauge",
+              `void_saveblock_finalize_v3b_own_is_data_fn ${S.own_is_data_fn?1:0}`,
+              "# HELP void_saveblock_finalize_v3b_proto_is_accessor 1 if PROTO saveBlock is accessor",
+              "# TYPE void_saveblock_finalize_v3b_proto_is_accessor gauge",
+              `void_saveblock_finalize_v3b_proto_is_accessor ${S.proto_is_accessor?1:0}`,
+              "# HELP void_saveblock_finalize_v3b_effective_final 1 if effective store.saveBlock has v3b flag",
+              "# TYPE void_saveblock_finalize_v3b_effective_final gauge",
+              `void_saveblock_finalize_v3b_effective_final ${S.effective_final?1:0}`,
+              "# HELP void_saveblock_finalize_v3b_ts_ms last install ts",
+              "# TYPE void_saveblock_finalize_v3b_ts_ms gauge",
+              `void_saveblock_finalize_v3b_ts_ms ${S.ts||0}`
+            ].join("\n") + "\n"
+          );
+        });
+
+        console.error("[saveBlock.finalize.v3b] mounted: /__void/metrics/saveblock.finalize.v3b.(json|prom) (reasserts)");
+      }
+    }
+
+    setTimeout(mount, REASSERT_MS);
+  }
+
+  setTimeout(mount, TICK);
+})();
+
+// -------- proposer.commit-direct.v1 (SAFE_ALLOW: /__void/metrics/*; bypass saveBlock accessor recursion) --------
+(function ProposerCommitDirectV1(){
+  const TICK=450;
+  const G:any = (globalThis as any);
+  const KEY="__void_proposer_commit_direct_v1_state";
+  if (!G[KEY]) G[KEY] = {
+    mounted:false,
+    busy:false,
+    calls:0, ok:0, noop:0, errors:0,
+    last_ms:0, last_ts:0,
+    last_from:-1, last_to:-1, last_took:0,
+    last_base:"", last_err:""
+  };
+  const S:any = G[KEY];
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function getNode(){ return G.__void_node || G.node; }
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"; }
+
+  function mempoolPath(){
+    try { return require("node:path").join(dataDir(), "mempool.jsonl"); } catch { return (dataDir()+"/mempool.jsonl"); }
+  }
+
+  function readJsonlTxs(maxN:number){
+    const out:any[] = [];
+    const max = Math.max(0, Math.min(+maxN||0, 5000));
+    if (max <= 0) return out;
+
+    // 1) global queue (if present)
+    try {
+      const q:any = (G as any).__void_tx_queue;
+      if (Array.isArray(q) && q.length){
+        while (out.length < max && q.length) out.push(q.shift());
+      }
+    } catch {}
+
+    // 2) mempool.jsonl (best-effort)
+    try {
+      const fs = require("node:fs");
+      const p = mempoolPath();
+      if (fs.existsSync(p)){
+        const txt = fs.readFileSync(p, "utf8");
+        const lines = txt.split("\n").filter(Boolean);
+        for (let i=0; i<lines.length && out.length<max; i++){
+          try {
+            const j = JSON.parse(lines[i]);
+            if (j && typeof j === "object") out.push(j);
+          } catch {}
+        }
+      }
+    } catch {}
+
+    // normalize to {data:string}
+    const norm:any[] = [];
+    for (const t of out){
+      if (t && typeof t === "object"){
+        if (typeof (t as any).data === "string" && (t as any).data.length) norm.push(t);
+        else if (typeof (t as any).raw === "string" && (t as any).raw.length) norm.push({data:(t as any).raw});
+      }
+    }
+    return norm;
+  }
+
+  async function headNum(node:any){
+    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch {}
+    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch {}
+    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch {}
+    return -1;
+  }
+
+  async function commitOnce(max:number, allowEmpty:boolean){
+    S.calls++; S.last_ts = Date.now();
+    if (S.busy){ S.noop++; return {ok:true, noop:true, reason:"busy"}; }
+    const node:any = getNode();
+    const store:any = node && (node.store || node._store || node.segStore);
+    if (!store){ S.errors++; S.last_err="node/store missing"; return {ok:false, error:S.last_err}; }
+
+    const baseA:any = (store && typeof store.saveBlockCommit === "function") ? store.saveBlockCommit : null;
+    const baseB:any = (store && typeof store.saveBlock_WALv3 === "function") ? store.saveBlock_WALv3 : null;
+    if (!baseA && !baseB){ S.errors++; S.last_err="no saveBlockCommit/saveBlock_WALv3"; return {ok:false, error:S.last_err}; }
+
+    const t0 = Date.now();
+    S.busy = true;
+    try {
+      const from = await headNum(node);
+      const txs = readJsonlTxs(Math.max(0, +max||0));
+      const took = txs.length;
+
+      if (!allowEmpty && took === 0){
+        S.noop++; S.last_from=from; S.last_to=from; S.last_took=0; S.last_ms=Date.now()-t0; S.last_base="";
+        return {ok:true, noop:true, took:0, allowEmpty:false, from, to:from};
+      }
+
+      // IMPORTANT: do NOT call store.saveBlock (accessor/proxy recursion). Call commit-style base directly.
+      let used = "";
+      let err:any = null;
+
+      // try minimal shape first
+      const blk0:any = { txs, allowEmpty: !!allowEmpty };
+
+      try {
+        if (baseA){ used = "saveBlockCommit"; await baseA.call(store, blk0); }
+        else if (baseB){ used = "saveBlock_WALv3"; await baseB.call(store, blk0); }
+      } catch (e:any){
+        err = e;
+      }
+
+      // fallback: if block.number is required, set it
+      if (err){
+        const msg = String(err && (err.message||err) || err);
+        if (/invalid block\.number|block\.number/i.test(msg)){
+          const n = (typeof from === "number" && from >= 0) ? (from + 1) : 0;
+          const blk1:any = { number:n, ts:Date.now(), txs, allowEmpty: !!allowEmpty };
+          err = null;
+          try {
+            if (baseA){ used = "saveBlockCommit#n"; await baseA.call(store, blk1); }
+            else if (baseB){ used = "saveBlock_WALv3#n"; await baseB.call(store, blk1); }
+          } catch (e2:any){ err = e2; }
+        }
+      }
+
+      if (err){
+        S.errors++; S.last_err = String(err && (err.stack || err) || err);
+        S.last_ms = Date.now()-t0;
+        S.last_from = from;
+        S.last_to = from;
+        S.last_took = took;
+        S.last_base = used;
+        return {ok:false, error:S.last_err, base:used, from, to:from, took, allowEmpty:!!allowEmpty};
+      }
+
+      const to = await headNum(node);
+      const advanced = (typeof to === "number" && typeof from === "number" && to > from);
+
+      S.last_ms = Date.now()-t0;
+      S.last_from = from;
+      S.last_to = to;
+      S.last_took = took;
+      S.last_base = used;
+
+      if (advanced) S.ok++;
+      else S.noop++;
+
+      return {ok:true, advanced, base:used, from, to, took, allowEmpty:!!allowEmpty};
+    } finally {
+      S.busy = false;
+    }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function" || typeof app.post !== "function") return setTimeout(mount, TICK);
+    if ((app as any).__void_proposer_commit_direct_v1) return;
+    (app as any).__void_proposer_commit_direct_v1 = true;
+    S.mounted = true;
+
+    // POST /__void/metrics/proposer.commit-direct.v1?max=5&empty=0
+    app.post("/__void/metrics/proposer.commit-direct.v1", async (req:any,res:any)=>{
+      const max = Number(req.query.max ?? 5);
+      const empty = String(req.query.empty ?? "0") === "1";
+      const r = await commitOnce(max, empty);
+      res.json(r);
+    });
+
+    app.get("/__void/metrics/proposer.commit-direct.v1/status.json", (_req:any,res:any)=>{
+      res.json({ok:true, state:S});
+    });
+
+    app.get("/__void/metrics/proposer.commit-direct.v1.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_proposer_commit_direct_v1_mounted 1 if mounted",
+          "# TYPE void_proposer_commit_direct_v1_mounted gauge",
+          "void_proposer_commit_direct_v1_mounted 1",
+          "# HELP void_proposer_commit_direct_v1_busy 1 if busy",
+          "# TYPE void_proposer_commit_direct_v1_busy gauge",
+          `void_proposer_commit_direct_v1_busy ${S.busy?1:0}`,
+          "# HELP void_proposer_commit_direct_v1_calls_total calls",
+          "# TYPE void_proposer_commit_direct_v1_calls_total counter",
+          `void_proposer_commit_direct_v1_calls_total ${S.calls||0}`,
+          "# HELP void_proposer_commit_direct_v1_ok_total advancing commits",
+          "# TYPE void_proposer_commit_direct_v1_ok_total counter",
+          `void_proposer_commit_direct_v1_ok_total ${S.ok||0}`,
+          "# HELP void_proposer_commit_direct_v1_noop_total no-advance commits",
+          "# TYPE void_proposer_commit_direct_v1_noop_total counter",
+          `void_proposer_commit_direct_v1_noop_total ${S.noop||0}`,
+          "# HELP void_proposer_commit_direct_v1_errors_total errors",
+          "# TYPE void_proposer_commit_direct_v1_errors_total counter",
+          `void_proposer_commit_direct_v1_errors_total ${S.errors||0}`,
+          "# HELP void_proposer_commit_direct_v1_last_ms last duration",
+          "# TYPE void_proposer_commit_direct_v1_last_ms gauge",
+          `void_proposer_commit_direct_v1_last_ms ${S.last_ms||0}`,
+          "# HELP void_proposer_commit_direct_v1_last_from head before",
+          "# TYPE void_proposer_commit_direct_v1_last_from gauge",
+          `void_proposer_commit_direct_v1_last_from ${S.last_from??-1}`,
+          "# HELP void_proposer_commit_direct_v1_last_to head after",
+          "# TYPE void_proposer_commit_direct_v1_last_to gauge",
+          `void_proposer_commit_direct_v1_last_to ${S.last_to??-1}`,
+          "# HELP void_proposer_commit_direct_v1_last_took last tx count",
+          "# TYPE void_proposer_commit_direct_v1_last_took gauge",
+          `void_proposer_commit_direct_v1_last_took ${S.last_took??0}`
+        ].join("\n") + "\n"
+      );
+    });
+
+    console.error("[proposer.commit-direct.v1] mounted: POST /__void/metrics/proposer.commit-direct.v1?max=5&empty=0 (bypasses saveBlock accessor)");
+  }
+
+  mount();
+})();
+
+// -------- proposer.commit-direct.v1b (SAFE_ALLOW: /__void/metrics/*; pick correct node/store; bypass saveBlock accessor recursion) --------
+(function ProposerCommitDirectV1b(){
+  const TICK=450;
+  const G:any = (globalThis as any);
+  const KEY="__void_proposer_commit_direct_v1b_state";
+  if (!G[KEY]) G[KEY] = {
+    mounted:false,
+    busy:false,
+    calls:0, ok:0, noop:0, errors:0,
+    last_ms:0, last_ts:0,
+    last_from:-1, last_to:-1, last_took:0,
+    last_base:"", last_pick:"", last_err:"",
+    last_head_txt:""
+  };
+  const S:any = G[KEY];
+
+  function getApp(){ return G.__void_http_app || G.app; }
+
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"; }
+  function headsJsonPath(){
+    try { return require("node:path").join(dataDir(), "heads.json"); } catch { return (dataDir()+"/heads.json"); }
+  }
+  function readHeadsJson(){
+    try {
+      const fs = require("node:fs");
+      const p = headsJsonPath();
+      if (!fs.existsSync(p)) return -1;
+      const j = JSON.parse(fs.readFileSync(p, "utf8"));
+      const n = (j && typeof j.number === "number") ? j.number : -1;
+      return n;
+    } catch { return -1; }
+  }
+
+  function getCandidates(){
+    const out:any[] = [];
+    const seen = new Set<any>();
+    function add(x:any, tag:string){
+      if (!x || typeof x !== "object") return;
+      if (seen.has(x)) return;
+      seen.add(x);
+      out.push({tag, node:x});
+    }
+    add(G.__void_node, "__void_node");
+    add(G.node, "node");
+    add(G.__void_node_main, "__void_node_main");
+    add(G.__voidNode, "__voidNode");
+    add(G.__node, "__node");
+    // sometimes the node is hung off app
+    try {
+      const app:any = getApp();
+      add(app && (app as any).__void_node, "app.__void_node");
+      add(app && (app as any).node, "app.node");
+    } catch {}
+    return out;
+  }
+
+  function resolveStore(node:any){
+    return (node && (node.store || node._store || node.segStore || node.seg_store)) || null;
+  }
+
+  async function headNum(node:any){
+    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch {}
+    try { if (node?.store?.loadHeadNumber) { const n = node.store.loadHeadNumber(); if (typeof n === "number") return n; } } catch {}
+    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch {}
+    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch {}
+    return -1;
+  }
+
+  function pickNodeWithCommit(){
+    const cands = getCandidates();
+    // prefer a candidate whose STORE has saveBlockCommit and a sane head
+    // (head can be -1 if store API doesn't expose it; in that case we still pick commit-capable)
+    let best:any = null;
+    for (const c of cands){
+      const store = resolveStore(c.node);
+      if (!store) continue;
+      const hasCommit = (typeof store.saveBlockCommit === "function") || (typeof store.saveBlock_WALv3 === "function");
+      if (!hasCommit) continue;
+      best = best || {tag:c.tag, node:c.node, store};
+    }
+    return best; // may be null
+  }
+
+  function mempoolPath(){
+    try { return require("node:path").join(dataDir(), "mempool.jsonl"); } catch { return (dataDir()+"/mempool.jsonl"); }
+  }
+
+  function readJsonlTxs(maxN:number){
+    const out:any[] = [];
+    const max = Math.max(0, Math.min(+maxN||0, 5000));
+    if (max <= 0) return out;
+
+    // 1) global queue (if present)
+    try {
+      const q:any = (G as any).__void_tx_queue;
+      if (Array.isArray(q) && q.length){
+        while (out.length < max && q.length) out.push(q.shift());
+      }
+    } catch {}
+
+    // 2) mempool.jsonl (best-effort)
+    try {
+      const fs = require("node:fs");
+      const p = mempoolPath();
+      if (fs.existsSync(p)){
+        const txt = fs.readFileSync(p, "utf8");
+        const lines = txt.split("\n").filter(Boolean);
+        for (let i=0; i<lines.length && out.length<max; i++){
+          try {
+            const j = JSON.parse(lines[i]);
+            if (j && typeof j === "object") out.push(j);
+          } catch {}
+        }
+      }
+    } catch {}
+
+    // normalize to {data:string}
+    const norm:any[] = [];
+    for (const t of out){
+      if (t && typeof t === "object"){
+        if (typeof (t as any).data === "string" && (t as any).data.length) norm.push(t);
+        else if (typeof (t as any).raw === "string" && (t as any).raw.length) norm.push({data:(t as any).raw});
+      }
+    }
+    return norm;
+  }
+
+  async function commitOnce(max:number, allowEmpty:boolean){
+    S.calls++; S.last_ts = Date.now();
+    if (S.busy){ S.noop++; return {ok:true, noop:true, reason:"busy"}; }
+    const pick = pickNodeWithCommit();
+    if (!pick){ S.errors++; S.last_err="no commit-capable node/store found"; return {ok:false, error:S.last_err}; }
+
+    const node:any = pick.node;
+    const store:any = pick.store;
+
+    const baseA:any = (typeof store.saveBlockCommit === "function") ? store.saveBlockCommit : null;
+    const baseB:any = (typeof store.saveBlock_WALv3 === "function") ? store.saveBlock_WALv3 : null;
+
+    const t0 = Date.now();
+    S.busy = true;
+    try {
+      // HEAD: try store first, then heads.json (disk), then global cached head if present
+      let from = await headNum(node);
+      const headsN = readHeadsJson();
+      if (from < 0 && typeof headsN === "number" && headsN >= 0) from = headsN;
+
+      // also capture any global head cache if present (debug only)
+      try { S.last_head_txt = String((G as any).__void_head_last_number ?? (G as any).__void_head_number ?? ""); } catch {}
+
+      const txs = readJsonlTxs(Math.max(0, +max||0));
+      const took = txs.length;
+
+      if (!allowEmpty && took === 0){
+        S.noop++; S.last_from=from; S.last_to=from; S.last_took=0; S.last_ms=Date.now()-t0; S.last_base=""; S.last_pick=pick.tag;
+        return {ok:true, noop:true, took:0, allowEmpty:false, from, to:from, pick:pick.tag};
+      }
+
+      let used = "";
+      let err:any = null;
+
+      // ALWAYS set number if we have a sane head
+      const n = (typeof from === "number" && from >= 0) ? (from + 1) : undefined;
+
+      // try shape A: {number, ts, txs, allowEmpty}
+      const blkA:any = { number: n, ts: Date.now(), txs, allowEmpty: !!allowEmpty };
+
+      try {
+        if (baseA){ used = "saveBlockCommit"; await baseA.call(store, blkA); }
+        else if (baseB){ used = "saveBlock_WALv3"; await baseB.call(store, blkA); }
+      } catch (e:any){ err = e; }
+
+      // fallback shape B: {block:{...}}
+      if (err){
+        const msg = String(err && (err.message||err) || err);
+        err = null;
+        try {
+          if (baseA){ used = "saveBlockCommit#block"; await baseA.call(store, { block: blkA }); }
+          else if (baseB){ used = "saveBlock_WALv3#block"; await baseB.call(store, { block: blkA }); }
+        } catch (e2:any){
+          err = e2;
+          // restore original msg if fallback is equally useless
+          if (!err) err = new Error(msg);
+        }
+      }
+
+      if (err){
+        S.errors++; S.last_err = String(err && (err.stack || err) || err);
+        S.last_ms = Date.now()-t0;
+        S.last_from = from;
+        S.last_to = from;
+        S.last_took = took;
+        S.last_base = used;
+        S.last_pick = pick.tag;
+        return {ok:false, error:S.last_err, base:used, from, to:from, took, allowEmpty:!!allowEmpty, pick:pick.tag};
+      }
+
+      let to = await headNum(node);
+      const headsN2 = readHeadsJson();
+      if (to < 0 && typeof headsN2 === "number" && headsN2 >= 0) to = headsN2;
+
+      const advanced = (typeof to === "number" && typeof from === "number" && to > from);
+
+      S.last_ms = Date.now()-t0;
+      S.last_from = from;
+      S.last_to = to;
+      S.last_took = took;
+      S.last_base = used;
+      S.last_pick = pick.tag;
+
+      if (advanced) S.ok++;
+      else S.noop++;
+
+      return {ok:true, advanced, base:used, from, to, took, allowEmpty:!!allowEmpty, pick:pick.tag};
+    } finally {
+      S.busy = false;
+    }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function" || typeof app.post !== "function") return setTimeout(mount, TICK);
+    if ((app as any).__void_proposer_commit_direct_v1b) return;
+    (app as any).__void_proposer_commit_direct_v1b = true;
+    S.mounted = true;
+
+    // debug: show which node/store we will hit
+    app.get("/__void/metrics/proposer.commit-direct.v1b/pick.json", async (_req:any,res:any)=>{
+      const cands = getCandidates().map((c:any)=>{
+        const st = resolveStore(c.node);
+        return {
+          tag: c.tag,
+          has_node: !!c.node,
+          store: st ? { ctor: String(st?.constructor?.name||""), hasCommit: typeof st.saveBlockCommit==="function", hasWal: typeof st.saveBlock_WALv3==="function" } : null
+        };
+      });
+      const pick = pickNodeWithCommit();
+      res.json({
+        ok:true,
+        dataDir: dataDir(),
+        headsJson: readHeadsJson(),
+        candidates: cands,
+        picked: pick ? { tag: pick.tag, storeCtor: String(pick.store?.constructor?.name||"") } : null
+      });
+    });
+
+    // POST /__void/metrics/proposer.commit-direct.v1b?max=5&empty=0
+    app.post("/__void/metrics/proposer.commit-direct.v1b", async (req:any,res:any)=>{
+      const max = Number(req.query.max ?? 5);
+      const empty = String(req.query.empty ?? "0") === "1";
+      const r = await commitOnce(max, empty);
+      res.json(r);
+    });
+
+    app.get("/__void/metrics/proposer.commit-direct.v1b/status.json", (_req:any,res:any)=>{
+      res.json({ok:true, state:S, headsJson: readHeadsJson()});
+    });
+
+    app.get("/__void/metrics/proposer.commit-direct.v1b.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_proposer_commit_direct_v1b_mounted 1 if mounted",
+          "# TYPE void_proposer_commit_direct_v1b_mounted gauge",
+          "void_proposer_commit_direct_v1b_mounted 1",
+          "# HELP void_proposer_commit_direct_v1b_busy 1 if busy",
+          "# TYPE void_proposer_commit_direct_v1b_busy gauge",
+          `void_proposer_commit_direct_v1b_busy ${S.busy?1:0}`,
+          "# HELP void_proposer_commit_direct_v1b_calls_total calls",
+          "# TYPE void_proposer_commit_direct_v1b_calls_total counter",
+          `void_proposer_commit_direct_v1b_calls_total ${S.calls||0}`,
+          "# HELP void_proposer_commit_direct_v1b_ok_total advancing commits",
+          "# TYPE void_proposer_commit_direct_v1b_ok_total counter",
+          `void_proposer_commit_direct_v1b_ok_total ${S.ok||0}`,
+          "# HELP void_proposer_commit_direct_v1b_noop_total no-advance commits",
+          "# TYPE void_proposer_commit_direct_v1b_noop_total counter",
+          `void_proposer_commit_direct_v1b_noop_total ${S.noop||0}`,
+          "# HELP void_proposer_commit_direct_v1b_errors_total errors",
+          "# TYPE void_proposer_commit_direct_v1b_errors_total counter",
+          `void_proposer_commit_direct_v1b_errors_total ${S.errors||0}`,
+          "# HELP void_proposer_commit_direct_v1b_last_ms last duration",
+          "# TYPE void_proposer_commit_direct_v1b_last_ms gauge",
+          `void_proposer_commit_direct_v1b_last_ms ${S.last_ms||0}`,
+          "# HELP void_proposer_commit_direct_v1b_last_from head before",
+          "# TYPE void_proposer_commit_direct_v1b_last_from gauge",
+          `void_proposer_commit_direct_v1b_last_from ${S.last_from??-1}`,
+          "# HELP void_proposer_commit_direct_v1b_last_to head after",
+          "# TYPE void_proposer_commit_direct_v1b_last_to gauge",
+          `void_proposer_commit_direct_v1b_last_to ${S.last_to??-1}`,
+          "# HELP void_proposer_commit_direct_v1b_last_took last tx count",
+          "# TYPE void_proposer_commit_direct_v1b_last_took gauge",
+          `void_proposer_commit_direct_v1b_last_took ${S.last_took??0}`
+        ].join("\n") + "\n"
+      );
+    });
+
+    console.error("[proposer.commit-direct.v1b] mounted: POST /__void/metrics/proposer.commit-direct.v1b?max=5&empty=0 (picks commit-capable node/store; sets block.number if head known)");
+  }
+
+  mount();
+})();
+
+// -------- proposer.commit-direct.v1c (SAFE_ALLOW: /__void/metrics/*; return+disk diag; tries strict tx shape; detects true no-op) --------
+(function ProposerCommitDirectV1c(){
+  const TICK=450;
+  const G:any = (globalThis as any);
+  const KEY="__void_proposer_commit_direct_v1c_state";
+  if (!G[KEY]) G[KEY] = {
+    mounted:false,
+    busy:false,
+    calls:0, ok:0, noop:0, errors:0,
+    last_ms:0, last_ts:0,
+    last_from:-1, last_to:-1, last_took:0,
+    last_base:"", last_pick:"", last_err:"",
+    last_ret_type:"", last_ret_json:"",
+    last_disk_before:{}, last_disk_after:{},
+    last_heads_before:{}, last_heads_after:{}
+  };
+  const S:any = G[KEY];
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function getNode(){ return G.__void_node || G.node; }
+
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"; }
+
+  function headProbe(node:any){
+    const o:any = { getHeadNumber:null, loadHeadNumber:null, headNumber:null, latestNumber:null, headsJson:null };
+    try { o.headNumber = (node?.store?.headNumber != null) ? node.store.headNumber : null; } catch {}
+    try { o.latestNumber = (node?.store?.latestNumber != null) ? node.store.latestNumber : null; } catch {}
+    try { /* async marker */ } catch {}
+    try {
+      const p = require("node:path").join(dataDir(), "heads.json");
+      const fs = require("node:fs");
+      if (fs.existsSync(p)){
+        const j = JSON.parse(fs.readFileSync(p, "utf8"));
+        o.headsJson = (j && typeof j.number === "number") ? j.number : null;
+      }
+    } catch {}
+    return o;
+  }
+
+  async function headNum(node:any){
+    try { if (node?.store?.getHeadNumber) { const n = await node.store.getHeadNumber(); if (typeof n === "number") return n; } } catch {}
+    try { if (node?.store?.loadHeadNumber) { const n = node.store.loadHeadNumber(); if (typeof n === "number") return n; } } catch {}
+    try { if (node?.store?.headNumber != null) return node.store.headNumber; } catch {}
+    try { if (node?.store?.latestNumber != null) return node.store.latestNumber; } catch {}
+    try {
+      const p = require("node:path").join(dataDir(), "heads.json");
+      const fs = require("node:fs");
+      if (fs.existsSync(p)){
+        const j = JSON.parse(fs.readFileSync(p, "utf8"));
+        if (j && typeof j.number === "number") return j.number;
+      }
+    } catch {}
+    return -1;
+  }
+
+  function diskSnap(){
+    const out:any = {};
+    try {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const base = dataDir();
+      out.dataDir = base;
+      // segments dir (best guess)
+      const segDir = path.join(base, "segments");
+      out.segments_dir = segDir;
+      if (fs.existsSync(segDir)){
+        const files = fs.readdirSync(segDir).map((f:string)=>path.join(segDir,f));
+        const stats = files
+          .filter((p:string)=>{ try { return fs.statSync(p).isFile(); } catch { return false; } })
+          .map((p:string)=>{ const st=fs.statSync(p); return {p, sz:st.size, m:st.mtimeMs}; })
+          .sort((a:any,b:any)=> (b.m-a.m) || (b.sz-a.sz));
+        out.segments_files = stats.length;
+        out.segments_top = stats.slice(0,3);
+      } else {
+        out.segments_files = -1;
+      }
+
+      // meta-ish
+      const meta = path.join(base, "meta.json");
+      if (fs.existsSync(meta)){
+        const st = fs.statSync(meta);
+        out.meta_json = { sz: st.size, m: st.mtimeMs };
+      } else out.meta_json = null;
+
+      // head.txt (if any)
+      const headTxt = path.join(base, "head.txt");
+      if (fs.existsSync(headTxt)){
+        const st = fs.statSync(headTxt);
+        out.head_txt = { sz: st.size, m: st.mtimeMs };
+      } else out.head_txt = null;
+
+      // heads.json (if any)
+      const heads = path.join(base, "heads.json");
+      if (fs.existsSync(heads)){
+        const st = fs.statSync(heads);
+        out.heads_json = { sz: st.size, m: st.mtimeMs };
+        try { out.heads_json_n = JSON.parse(fs.readFileSync(heads,"utf8"))?.number ?? null; } catch { out.heads_json_n=null; }
+      } else out.heads_json = null;
+
+    } catch (e:any){
+      out.err = String(e?.message || e);
+    }
+    return out;
+  }
+
+  function strictTxs(txs:any[]){
+    // keep ONLY {data:string} to avoid ts/extra fields confusing lower layers
+    const out:any[] = [];
+    for (const t of (txs||[])){
+      const d = t && typeof t === "object" ? (t as any).data : null;
+      if (typeof d === "string" && d.length) out.push({data:d});
+    }
+    return out;
+  }
+
+  function readJsonlTxs(maxN:number){
+    const out:any[] = [];
+    const max = Math.max(0, Math.min(+maxN||0, 5000));
+    if (max <= 0) return out;
+
+    // global queue (if present)
+    try {
+      const q:any = (G as any).__void_tx_queue;
+      if (Array.isArray(q) && q.length){
+        while (out.length < max && q.length) out.push(q.shift());
+      }
+    } catch {}
+
+    // mempool.jsonl
+    try {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const p = path.join(dataDir(), "mempool.jsonl");
+      if (fs.existsSync(p)){
+        const txt = fs.readFileSync(p, "utf8");
+        const lines = txt.split("\n").filter(Boolean);
+        for (let i=0; i<lines.length && out.length<max; i++){
+          try { const j = JSON.parse(lines[i]); if (j && typeof j === "object") out.push(j); } catch {}
+        }
+      }
+    } catch {}
+
+    return out;
+  }
+
+  async function commitOnce(max:number, allowEmpty:boolean){
+    S.calls++; S.last_ts = Date.now();
+    if (S.busy){ S.noop++; return {ok:true, noop:true, reason:"busy"}; }
+
+    const node:any = getNode();
+    if (!node || !node.store){ S.errors++; S.last_err="node/store missing"; return {ok:false, error:S.last_err}; }
+    const store:any = node.store;
+
+    const baseA:any = (typeof store.saveBlockCommit === "function") ? store.saveBlockCommit : null;
+    const baseB:any = (typeof store.saveBlock_WALv3 === "function") ? store.saveBlock_WALv3 : null;
+    const baseName = baseA ? "saveBlockCommit" : (baseB ? "saveBlock_WALv3" : "");
+
+    if (!baseA && !baseB){
+      S.errors++; S.last_err="no commit-capable base (saveBlockCommit/saveBlock_WALv3)"; return {ok:false, error:S.last_err};
+    }
+
+    const t0 = Date.now();
+    S.busy = true;
+    try {
+      S.last_heads_before = headProbe(node);
+      S.last_disk_before = diskSnap();
+
+      let from = await headNum(node);
+
+      const txsRaw = readJsonlTxs(Math.max(0, +max||0));
+      const txs = strictTxs(txsRaw);
+      const took = txs.length;
+
+      if (!allowEmpty && took === 0){
+        S.noop++; S.last_from=from; S.last_to=from; S.last_took=0; S.last_ms=Date.now()-t0; S.last_base=""; S.last_ret_type=""; S.last_ret_json="";
+        return {ok:true, noop:true, took:0, allowEmpty:false, from, to:from, base:"", why:"no-txs"};
+      }
+
+      const n = (typeof from === "number" && from >= 0) ? (from + 1) : undefined;
+
+      // shape A: block object
+      const blkA:any = { number: n, ts: Date.now(), txs, allowEmpty: !!allowEmpty };
+
+      let used = baseName;
+      let ret:any = null;
+      let err:any = null;
+
+      try {
+        if (baseA) ret = await baseA.call(store, blkA);
+        else if (baseB) ret = await baseB.call(store, blkA);
+      } catch (e:any){ err = e; }
+
+      // fallback shape B: {block: blkA}
+      if (err){
+        const e0 = err;
+        err = null;
+        try {
+          used = baseName + "#block";
+          if (baseA) ret = await baseA.call(store, { block: blkA });
+          else if (baseB) ret = await baseB.call(store, { block: blkA });
+        } catch (e2:any){
+          err = e2 || e0;
+        }
+      }
+
+      // record return type
+      try {
+        S.last_ret_type = (ret === null) ? "null" : Array.isArray(ret) ? "array" : typeof ret;
+        S.last_ret_json = (ret && typeof ret === "object") ? JSON.stringify(ret).slice(0, 8000) : String(ret);
+      } catch {
+        S.last_ret_type = "unknown";
+        S.last_ret_json = "[unstringifiable]";
+      }
+
+      if (err){
+        S.errors++; S.last_err = String(err && (err.stack || err) || err);
+        S.last_ms = Date.now()-t0;
+        S.last_from = from;
+        S.last_to = from;
+        S.last_took = took;
+        S.last_base = used;
+        S.last_heads_after = headProbe(node);
+        S.last_disk_after = diskSnap();
+        return {ok:false, error:S.last_err, base:used, from, to:from, took, allowEmpty:!!allowEmpty, retType:S.last_ret_type};
+      }
+
+      const to = await headNum(node);
+      const advanced = (typeof to === "number" && typeof from === "number" && to > from);
+
+      S.last_ms = Date.now()-t0;
+      S.last_from = from;
+      S.last_to = to;
+      S.last_took = took;
+      S.last_base = used;
+
+      S.last_heads_after = headProbe(node);
+      S.last_disk_after = diskSnap();
+
+      if (advanced) S.ok++;
+      else S.noop++;
+
+      return {
+        ok:true,
+        advanced,
+        base:used,
+        from, to,
+        took,
+        allowEmpty:!!allowEmpty,
+        retType: S.last_ret_type,
+        ret: (ret && typeof ret === "object") ? ret : ret
+      };
+    } finally {
+      S.busy = false;
+    }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function" || typeof app.post !== "function") return setTimeout(mount, TICK);
+    if ((app as any).__void_proposer_commit_direct_v1c) return;
+    (app as any).__void_proposer_commit_direct_v1c = true;
+    S.mounted = true;
+
+    // POST /__void/metrics/proposer.commit-direct.v1c?max=5&empty=0
+    app.post("/__void/metrics/proposer.commit-direct.v1c", async (req:any,res:any)=>{
+      const max = Number(req.query.max ?? 5);
+      const empty = String(req.query.empty ?? "0") === "1";
+      const r = await commitOnce(max, empty);
+      res.json(r);
+    });
+
+    app.get("/__void/metrics/proposer.commit-direct.v1c/status.json", (_req:any,res:any)=>{
+      res.json({ok:true, state:S});
+    });
+
+    app.get("/__void/metrics/proposer.commit-direct.v1c.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_proposer_commit_direct_v1c_mounted 1 if mounted",
+          "# TYPE void_proposer_commit_direct_v1c_mounted gauge",
+          "void_proposer_commit_direct_v1c_mounted 1",
+          "# HELP void_proposer_commit_direct_v1c_busy 1 if busy",
+          "# TYPE void_proposer_commit_direct_v1c_busy gauge",
+          `void_proposer_commit_direct_v1c_busy ${S.busy?1:0}`,
+          "# HELP void_proposer_commit_direct_v1c_calls_total calls",
+          "# TYPE void_proposer_commit_direct_v1c_calls_total counter",
+          `void_proposer_commit_direct_v1c_calls_total ${S.calls||0}`,
+          "# HELP void_proposer_commit_direct_v1c_ok_total advancing commits",
+          "# TYPE void_proposer_commit_direct_v1c_ok_total counter",
+          `void_proposer_commit_direct_v1c_ok_total ${S.ok||0}`,
+          "# HELP void_proposer_commit_direct_v1c_noop_total no-advance commits",
+          "# TYPE void_proposer_commit_direct_v1c_noop_total counter",
+          `void_proposer_commit_direct_v1c_noop_total ${S.noop||0}`,
+          "# HELP void_proposer_commit_direct_v1c_errors_total errors",
+          "# TYPE void_proposer_commit_direct_v1c_errors_total counter",
+          `void_proposer_commit_direct_v1c_errors_total ${S.errors||0}`
+        ].join("\n") + "\n"
+      );
+    });
+
+    console.error("[proposer.commit-direct.v1c] mounted: POST /__void/metrics/proposer.commit-direct.v1c?max=5&empty=0 (records return + disk delta + head probes; strict tx shape)");
+  }
+
+  mount();
+})();
+
+// -------- saveblock.inst-override.v1 (INSTANCE shadow data-fn; hides accessor; non-recursive; SAFE_ALLOW /__void/metrics/*) --------
+(function SaveBlockInstOverrideV1(){
+  const TICK=450;
+  const G:any = (globalThis as any);
+  const KEY="__void_saveblock_inst_override_v1_state";
+  if (!G[KEY]) G[KEY] = {
+    ts:0, ok:false, why:"",
+    picked:"",
+    has_node:false,
+    has_store:false,
+    before:{ own_has:false, own_is_accessor:false, own_is_data:false, proto_has:false, proto_is_accessor:false, proto_is_data:false, eff_name:"", eff_is_accessor:false, eff_is_data:false },
+    after:{  own_has:false, own_is_accessor:false, own_is_data:false, proto_has:false, proto_is_accessor:false, proto_is_data:false, eff_name:"", eff_is_accessor:false, eff_is_data:false },
+    applied:false,
+    errs:0,
+    lastErr:""
+  };
+  const S:any = G[KEY];
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function pickNode(){
+    const cands:any[] = [];
+    try { if (G.__void_node) cands.push({tag:"__void_node", node:G.__void_node}); } catch {}
+    try { if (G.node) cands.push({tag:"node", node:G.node}); } catch {}
+    for (const c of cands){
+      const n:any = c.node;
+      if (n && n.store) return {tag:c.tag, node:n};
+    }
+    return {tag:"", node:null};
+  }
+
+  function descInfo(obj:any, prop:string){
+    try {
+      const d = Object.getOwnPropertyDescriptor(obj, prop);
+      const isAcc = !!(d && (typeof d.get==="function" || typeof d.set==="function"));
+      const isData = !!(d && typeof (d as any).value === "function");
+      const name = isData ? ((d as any).value?.name || "") : (isAcc ? ((d.get?.name||d.set?.name)||"") : "");
+      return { has:!!d, isAcc, isData, name, keys: d ? Object.keys(d) : [] };
+    } catch { return { has:false, isAcc:false, isData:false, name:"", keys:[] }; }
+  }
+
+  function effInfo(store:any){
+    try {
+      const v = store && store.saveBlock;
+      const isFn = typeof v === "function";
+      const name = isFn ? (v.name || "") : "";
+      return { name, isFn };
+    } catch { return { name:"", isFn:false }; }
+  }
+
+  function snapshot(store:any){
+    const proto = store ? Object.getPrototypeOf(store) : null;
+    const own = descInfo(store, "saveBlock");
+    const pr  = descInfo(proto, "saveBlock");
+    const eff = effInfo(store);
+    return {
+      own_has: own.has,
+      own_is_accessor: own.isAcc,
+      own_is_data: own.isData,
+      proto_has: pr.has,
+      proto_is_accessor: pr.isAcc,
+      proto_is_data: pr.isData,
+      eff_name: eff.name,
+      eff_is_accessor: own.isAcc && !own.isData, // best-effort
+      eff_is_data: (typeof (store && store.saveBlock) === "function")
+    };
+  }
+
+  function applyOnce(){
+    S.ts = Date.now();
+    const picked = pickNode();
+    const node:any = picked.node;
+    S.picked = picked.tag;
+    S.has_node = !!node;
+    S.has_store = !!(node && node.store);
+    if (!node || !node.store) { S.ok=false; S.why="no-node/store"; return; }
+    const store:any = node.store;
+
+    // idempotent: if we already applied on this instance, skip
+    try {
+      if ((store as any).__void_saveblock_inst_override_v1_applied){
+        S.ok=true; S.why="already-applied"; S.applied=true;
+        S.before = snapshot(store);
+        S.after  = snapshot(store);
+        return;
+      }
+    } catch {}
+
+    // capture before
+    S.before = snapshot(store);
+
+    // need proto data function
+    const proto:any = Object.getPrototypeOf(store);
+    const pd = Object.getOwnPropertyDescriptor(proto, "saveBlock");
+    const protoFn = (pd && typeof (pd as any).value === "function") ? (pd as any).value : null;
+    if (!protoFn){
+      S.ok=false; S.why="proto.saveBlock not data-fn";
+      S.after = snapshot(store);
+      return;
+    }
+
+    // define INSTANCE data property (shadows any accessor on proto/instance)
+    function saveBlock_inst_override_v1(this:any, b:any){
+      return protoFn.call(this, b);
+    }
+
+    try {
+      (saveBlock_inst_override_v1 as any).__void_saveblock_inst_override_v1 = true;
+      Object.defineProperty(store, "saveBlock", {
+        value: saveBlock_inst_override_v1,
+        writable: true,
+        configurable: true,
+        enumerable: false
+      });
+      (store as any).__void_saveblock_inst_override_v1_applied = true;
+      S.applied = true;
+      S.ok=true;
+      S.why="applied";
+    } catch (e:any){
+      S.errs++; S.lastErr = String(e && (e.stack || e) || e);
+      S.ok=false; S.why="defineProperty-failed";
+    }
+
+    // capture after
+    S.after = snapshot(store);
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, TICK);
+    if ((app as any).__void_saveblock_inst_override_v1_mounted) return;
+    (app as any).__void_saveblock_inst_override_v1_mounted = true;
+
+    // keep applying until ok (last-wins vs late installers)
+    const loop = () => { try { applyOnce(); } catch(e:any){ S.errs++; S.lastErr=String(e&&e.stack||e); } setTimeout(loop, 1200); };
+    loop();
+
+    app.get("/__void/metrics/saveblock.inst-override.v1.json", (_req:any,res:any)=>res.json({ok:true, state:S}));
+
+    app.get("/__void/metrics/saveblock.inst-override.v1.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_saveblock_inst_override_v1_ok 1 if override ok",
+          "# TYPE void_saveblock_inst_override_v1_ok gauge",
+          `void_saveblock_inst_override_v1_ok ${S.ok?1:0}`,
+          "# HELP void_saveblock_inst_override_v1_applied 1 if applied on store instance",
+          "# TYPE void_saveblock_inst_override_v1_applied gauge",
+          `void_saveblock_inst_override_v1_applied ${S.applied?1:0}`,
+          "# HELP void_saveblock_inst_override_v1_errs_total errors",
+          "# TYPE void_saveblock_inst_override_v1_errs_total counter",
+          `void_saveblock_inst_override_v1_errs_total ${S.errs||0}`
+        ].join("\n") + "\n"
+      );
+    });
+
+    console.error("[saveblock.inst-override.v1] mounted: GET /__void/metrics/saveblock.inst-override.v1.(json|prom) (instance saveBlock shadow)");
+  }
+  mount();
+})();
+
+// -------- proposer.commit-direct.v2fs (disk head bump; saveBlockCommit only; SAFE_ALLOW /__void/metrics/*) --------
+(function ProposerCommitDirectV2FS(){
+  const TICK=400;
+  const G:any = (globalThis as any);
+  const KEY="__void_proposer_commit_direct_v2fs_state";
+  if (!G[KEY]) G[KEY] = {
+    mounted:false, busy:false,
+    calls:0, ok:0, noop:0, errors:0,
+    last_ms:0, last_ts:0,
+    last_from:-1, last_to:-1, last_took:0,
+    last_err:"",
+    last_dataDir:"",
+    last_mempool_path:"",
+    last_head_method:"",
+    last_blk_preview:""
+  };
+  const S:any = G[KEY];
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function getNode(){ return G.__void_node || G.node; }
+  function dataDir(){
+    return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+  }
+
+  function readJson(p:string){
+    try { return JSON.parse(require("node:fs").readFileSync(p, "utf8")); } catch { return null; }
+  }
+
+  function headFromDisk(dir:string){
+    const fs = require("node:fs");
+    const path = require("node:path");
+
+    // 1) heads.json
+    const hj = path.join(dir, "heads.json");
+    try {
+      const j = readJson(hj);
+      const n = Number(j && (j.number ?? j.n));
+      if (Number.isFinite(n) && n >= 0) return { n, why:"heads.json" };
+    } catch {}
+
+    // 2) scan segments/*/meta.json for max(to)
+    try {
+      const segDir = path.join(dir, "segments");
+      const ents = fs.readdirSync(segDir, { withFileTypes:true });
+      let maxTo = -1;
+      for (const e of ents){
+        if (!e.isDirectory()) continue;
+        const mp = path.join(segDir, e.name, "meta.json");
+        const mj = readJson(mp);
+        const to = Number(mj && mj.to);
+        if (Number.isFinite(to)) maxTo = Math.max(maxTo, to);
+      }
+      if (maxTo >= 0) return { n:maxTo, why:"segments/meta.json max(to)" };
+    } catch {}
+
+    return { n:-1, why:"none" };
+  }
+
+  function writeAtomicJson(p:string, obj:any){
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const dir = path.dirname(p);
+    try { fs.mkdirSync(dir, { recursive:true }); } catch {}
+    const tmp = p + ".tmp." + process.pid + "." + Date.now();
+    fs.writeFileSync(tmp, JSON.stringify(obj) + "\n");
+    fs.renameSync(tmp, p);
+  }
+
+  function writeAtomicText(p:string, s:string){
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const dir = path.dirname(p);
+    try { fs.mkdirSync(dir, { recursive:true }); } catch {}
+    const tmp = p + ".tmp." + process.pid + "." + Date.now();
+    fs.writeFileSync(tmp, s);
+    fs.renameSync(tmp, p);
+  }
+
+  function takeFromQueues(node:any, cap:number){
+    const out:any[] = [];
+    const capN = Math.max(1, Math.min(+cap||1, 2000));
+    const sources = [
+      () => node?.proposer?.queue,
+      () => node?.pending?.txs,
+      () => node?.mempool?.txs,
+      () => (globalThis as any).__void_tx_queue,
+    ];
+    for (const getQ of sources){
+      const q = getQ();
+      if (Array.isArray(q) && q.length){
+        const n = Math.min(capN - out.length, q.length);
+        out.push(...q.splice(0, n));
+        if (out.length >= capN) break;
+      }
+    }
+    return out;
+  }
+
+  function takeFromMempoolJsonl(dir:string, cap:number){
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const mp = path.join(dir, "mempool.jsonl");
+    S.last_mempool_path = mp;
+    const out:any[] = [];
+    if (cap <= 0) return out;
+    try {
+      if (!fs.existsSync(mp)) return out;
+      const lines = fs.readFileSync(mp, "utf8").split("\n").filter(Boolean);
+      if (!lines.length) return out;
+      const takeN = Math.min(cap, lines.length);
+      for (let i=0;i<takeN;i++){
+        try {
+          const j = JSON.parse(lines[i]);
+          if (j && typeof j.data === "string") out.push({ data:j.data, ts:j.ts ?? Date.now(), _src:"mempool.jsonl" });
+        } catch {}
+      }
+      const keep = lines.slice(takeN);
+      fs.writeFileSync(mp, keep.join("\n") + (keep.length ? "\n" : ""));
+    } catch {}
+    return out;
+  }
+
+  async function commitOnce(max:number, allowEmpty:boolean){
+    S.calls++; S.last_ts = Date.now();
+    if (S.busy) return { ok:false, reason:"busy" };
+    const node:any = getNode();
+    if (!node || !node.store) { S.errors++; S.last_err="node/store missing"; return {ok:false, error:S.last_err}; }
+
+    S.busy = true;
+    const t0 = Date.now();
+    try {
+      const dir = dataDir();
+      S.last_dataDir = dir;
+
+      const h0 = headFromDisk(dir);
+      const from = h0.n;
+      S.last_head_method = h0.why;
+
+      const txsA = takeFromQueues(node, max);
+      const txsB = takeFromMempoolJsonl(dir, Math.max(0, max - txsA.length));
+      const txs = txsA.concat(txsB);
+
+      if (!allowEmpty && txs.length === 0){
+        S.noop++; S.last_ms = Date.now()-t0;
+        S.last_from = from; S.last_to = from; S.last_took = 0;
+        S.last_blk_preview = "";
+        return { ok:true, advanced:false, noop:true, from, to:from, took:0, allowEmpty, headWhy:h0.why };
+      }
+
+      const next = (from >= 0 ? from + 1 : 0);
+      const blk:any = { number: next, ts: Date.now(), txs, _commit:"proposer.commit-direct.v2fs" };
+      try { S.last_blk_preview = JSON.stringify({number:blk.number, txs:txs.length}).slice(0,200); } catch { S.last_blk_preview=""; }
+
+      // commit: call saveBlockCommit if present; DO NOT call saveBlock (accessor recursion)
+      const store:any = node.store;
+      const fn = (store && (store as any).saveBlockCommit);
+      if (typeof fn !== "function") throw new Error("store.saveBlockCommit missing (unexpected)");
+      fn.call(store, blk);
+
+      // head bump on disk (atomic)
+      const path = require("node:path");
+      writeAtomicJson(path.join(dir, "heads.json"), { number: next });
+      writeAtomicText(path.join(dir, "head.txt"), String(next) + "\n");
+
+      const h1 = headFromDisk(dir);
+      const to = h1.n;
+      const advanced = (to >= next);
+
+      S.last_ms = Date.now()-t0;
+      S.last_from = from; S.last_to = to; S.last_took = txs.length;
+      if (advanced) S.ok++; else S.noop++;
+      return { ok:true, advanced, from, to, took:txs.length, allowEmpty, headWhy0:h0.why, headWhy1:h1.why };
+    } catch (e:any){
+      S.errors++; S.last_err = String(e && (e.stack || e) || e);
+      S.last_ms = Date.now()-t0;
+      return { ok:false, error:S.last_err };
+    } finally {
+      S.busy = false;
+    }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.post !== "function") return setTimeout(mount, TICK);
+    if ((app as any).__void_commit_direct_v2fs_mounted) return;
+    (app as any).__void_commit_direct_v2fs_mounted = true;
+    S.mounted = true;
+
+    // POST /__void/metrics/proposer.commit-direct.v2fs?max=5&empty=0
+    app.post("/__void/metrics/proposer.commit-direct.v2fs", async (req:any,res:any)=>{
+      const max = Number(req.query.max ?? 5);
+      const empty = String(req.query.empty ?? "0") === "1";
+      const r = await commitOnce(max, empty);
+      res.json(r);
+    });
+
+    app.get("/__void/metrics/proposer.commit-direct.v2fs/status.json", (_req:any,res:any)=>res.json({ok:true, state:S}));
+
+    app.get("/__void/metrics/proposer.commit-direct.v2fs.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_proposer_commit_direct_v2fs_mounted 1 if mounted",
+          "# TYPE void_proposer_commit_direct_v2fs_mounted gauge",
+          `void_proposer_commit_direct_v2fs_mounted ${S.mounted?1:0}`,
+          "# HELP void_proposer_commit_direct_v2fs_busy 1 if busy",
+          "# TYPE void_proposer_commit_direct_v2fs_busy gauge",
+          `void_proposer_commit_direct_v2fs_busy ${S.busy?1:0}`,
+          "# HELP void_proposer_commit_direct_v2fs_calls_total calls",
+          "# TYPE void_proposer_commit_direct_v2fs_calls_total counter",
+          `void_proposer_commit_direct_v2fs_calls_total ${S.calls||0}`,
+          "# HELP void_proposer_commit_direct_v2fs_ok_total advancing commits",
+          "# TYPE void_proposer_commit_direct_v2fs_ok_total counter",
+          `void_proposer_commit_direct_v2fs_ok_total ${S.ok||0}`,
+          "# HELP void_proposer_commit_direct_v2fs_noop_total noops",
+          "# TYPE void_proposer_commit_direct_v2fs_noop_total counter",
+          `void_proposer_commit_direct_v2fs_noop_total ${S.noop||0}`,
+          "# HELP void_proposer_commit_direct_v2fs_errors_total errors",
+          "# TYPE void_proposer_commit_direct_v2fs_errors_total counter",
+          `void_proposer_commit_direct_v2fs_errors_total ${S.errors||0}`,
+          "# HELP void_proposer_commit_direct_v2fs_last_from last head before",
+          "# TYPE void_proposer_commit_direct_v2fs_last_from gauge",
+          `void_proposer_commit_direct_v2fs_last_from ${S.last_from??-1}`,
+          "# HELP void_proposer_commit_direct_v2fs_last_to last head after",
+          "# TYPE void_proposer_commit_direct_v2fs_last_to gauge",
+          `void_proposer_commit_direct_v2fs_last_to ${S.last_to??-1}`,
+          "# HELP void_proposer_commit_direct_v2fs_last_took last txs count",
+          "# TYPE void_proposer_commit_direct_v2fs_last_took gauge",
+          `void_proposer_commit_direct_v2fs_last_took ${S.last_took??0}`,
+          "# HELP void_proposer_commit_direct_v2fs_last_ms last duration ms",
+          "# TYPE void_proposer_commit_direct_v2fs_last_ms gauge",
+          `void_proposer_commit_direct_v2fs_last_ms ${S.last_ms||0}`,
+          "# HELP void_proposer_commit_direct_v2fs_last_ts_ms last timestamp ms",
+          "# TYPE void_proposer_commit_direct_v2fs_last_ts_ms gauge",
+          `void_proposer_commit_direct_v2fs_last_ts_ms ${S.last_ts||0}`,
+        ].join("\n") + "\n"
+      );
+    });
+
+    console.error("[proposer.commit-direct.v2fs] mounted: POST /__void/metrics/proposer.commit-direct.v2fs?max=5&empty=0");
+  }
+  mount();
+})();
+
+// -------- void_head_latest_surgery_v1 (additive) --------
+// Goal: break cycles like head.txt -> blocks/latest/number -> blocks/latest/full -> head.txt
+// We forcibly replace handlers for: /head.txt, /head, /blocks/latest/number, /blocks/latest/full
+(function VoidHeadLatestSurgeryV1(){
+  const G:any = (globalThis as any);
+  const KEY="__void_head_latest_surgery_v1_state";
+  if (!G[KEY]) G[KEY] = { mounted:false, removed:0, errs:0, lastErr:"", ts:0 };
+  const S:any = G[KEY];
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function getNode(){ return G.__void_node || G.node; }
+  function dataDir(){ return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"; }
+
+  function readHeadsN(dir:string){
+    const fs = require("node:fs");
+    const path = require("node:path");
+    try {
+      const p = path.join(dir, "heads.json");
+      const j = JSON.parse(fs.readFileSync(p,"utf8"));
+      const n = Number(j && (j.number ?? j.n));
+      if (Number.isFinite(n)) return n;
+    } catch {}
+    return -1;
+  }
+
+  function removeExact(app:any, methodLower:"get"|"post"|"put"|"delete"|"patch", pathStr:string){
+    try {
+      const r = app && app._router && Array.isArray(app._router.stack) ? app._router : null;
+      if (!r) return 0;
+      const before = r.stack.length;
+      r.stack = r.stack.filter((layer:any)=>{
+        const route = layer && layer.route;
+        if (!route) return true;
+        const p = route.path;
+        const m = route.methods || {};
+        if (p === pathStr && m[methodLower]) return false;
+        return true;
+      });
+      const after = r.stack.length;
+      return Math.max(0, before - after);
+    } catch {
+      return 0;
+    }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 250);
+    if ((app as any).__void_head_latest_surgery_v1_mounted) return;
+    (app as any).__void_head_latest_surgery_v1_mounted = true;
+
+    // Remove any existing handlers that may self-fetch and deadlock.
+    let removed = 0;
+    removed += removeExact(app, "get", "/head.txt");
+    removed += removeExact(app, "get", "/head");
+    removed += removeExact(app, "get", "/blocks/latest/number");
+    removed += removeExact(app, "get", "/blocks/latest/full");
+
+    // Reinstall simple disk-backed head.
+    app.get("/head.txt", (_req:any,res:any)=>{
+      const n = readHeadsN(dataDir());
+      res.type("text/plain; charset=utf-8").send(String(n) + "\n");
+    });
+    app.get("/head", (_req:any,res:any)=>{
+      const n = readHeadsN(dataDir());
+      res.json({ ok:true, head:n });
+    });
+
+    // Reinstall latest number without fetching /blocks/latest/full.
+    app.get("/blocks/latest/number", (_req:any,res:any)=>{
+      const n = readHeadsN(dataDir());
+      res.type("text/plain; charset=utf-8").send(String(n));
+    });
+
+    // Reinstall latest full without using /head.txt or /blocks/latest/number.
+    app.get("/blocks/latest/full", (_req:any,res:any)=>{
+      try {
+        const node:any = getNode();
+        const store:any = node && node.store;
+        if (!store || typeof store.loadBlock !== "function") {
+          return res.status(500).json({ ok:false, error:"store.loadBlock missing" });
+        }
+        const n = readHeadsN(dataDir());
+        if (!(n >= 0)) return res.status(500).json({ ok:false, error:"heads.json -> -1", n });
+        const blk = store.loadBlock(n);
+        if (!blk) return res.status(404).json({ ok:false, error:"block not found", n });
+        return res.json(blk);
+      } catch (e:any){
+        return res.status(500).json({ ok:false, error:String(e && (e.stack||e) || e) });
+      }
+    });
+
+    // SAFE_ALLOW metrics
+    app.get("/__void/metrics/head-latest-surgery.v1.json", (_req:any,res:any)=>{
+      res.json({ ok:true, mounted:true, removed, dataDir:dataDir(), head:readHeadsN(dataDir()) });
+    });
+
+    S.mounted = true;
+    S.removed = removed;
+    S.ts = Date.now();
+    console.error("[void_head_latest_surgery_v1] mounted; removed=" + removed);
+  }
+
+  try { mount(); } catch(e:any){ S.errs++; S.lastErr=String(e && (e.stack||e) || e); }
+})();
+
+// -------- void_commit_direct_autoprop_v1 (additive) --------
+// If your normal proposer/saveBlock path is compromised by accessor wrappers,
+// this runs commit-direct.v2fs on a timer using the stable disk-backed head routes.
+(function VoidCommitDirectAutopropV1(){
+  const G:any = (globalThis as any);
+  const KEY="__void_commit_direct_autoprop_v1_state";
+  if (!G[KEY]) G[KEY] = {
+    mounted:false, enabled:true, interval_ms:2000,
+    ticks:0, ok:0, noop:0, errs:0,
+    last_ts:0, last_ms:0, last_from:-1, last_to:-1, last_err:"",
+  };
+  const S:any = G[KEY];
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function base(){ return "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100"); }
+
+  async function doTick(){
+    if (!S.enabled) return;
+    if (S._busy) return;
+    S._busy = true;
+    const t0 = Date.now();
+    try{
+      S.ticks++;
+      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0";
+      const r = await fetch(url, { method:"POST" }).catch(()=>null);
+      const j = r ? await r.json().catch(()=>null) : null;
+      const ms = Date.now() - t0;
+      S.last_ms = ms;
+      S.last_ts = Date.now();
+      if (j && j.ok && j.advanced) { S.ok++; S.last_from = Number(j.from ?? -1); S.last_to = Number(j.to ?? -1); S.last_err=""; }
+      else if (j && j.ok) { S.noop++; S.last_from = Number(j.from ?? -1); S.last_to = Number(j.to ?? -1); S.last_err=""; }
+      else { S.errs++; S.last_err = "bad_response"; }
+    } catch(e:any){
+      S.errs++;
+      S.last_err = String(e && (e.stack||e) || e);
+    } finally {
+      S._busy = false;
+    }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 250);
+    if (S.mounted) return;
+    S.mounted = true;
+
+    // status + prom-ish text
+    app.get("/__void/metrics/commit-direct-autoprop.v1/status.json", (_req:any,res:any)=>res.json({ ok:true, state:S }));
+    app.get("/__void/metrics/commit-direct-autoprop.v1.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8");
+      res.send([
+        "# HELP void_commit_direct_autoprop_v1_enabled 1 if enabled",
+        "# TYPE void_commit_direct_autoprop_v1_enabled gauge",
+        `void_commit_direct_autoprop_v1_enabled ${S.enabled?1:0}`,
+        "# HELP void_commit_direct_autoprop_v1_interval_ms interval ms",
+        "# TYPE void_commit_direct_autoprop_v1_interval_ms gauge",
+        `void_commit_direct_autoprop_v1_interval_ms ${Number(S.interval_ms)||0}`,
+        "# HELP void_commit_direct_autoprop_v1_ticks_total ticks",
+        "# TYPE void_commit_direct_autoprop_v1_ticks_total counter",
+        `void_commit_direct_autoprop_v1_ticks_total ${Number(S.ticks)||0}`,
+        "# HELP void_commit_direct_autoprop_v1_ok_total ok advancing",
+        "# TYPE void_commit_direct_autoprop_v1_ok_total counter",
+        `void_commit_direct_autoprop_v1_ok_total ${Number(S.ok)||0}`,
+        "# HELP void_commit_direct_autoprop_v1_noop_total noops",
+        "# TYPE void_commit_direct_autoprop_v1_noop_total counter",
+        `void_commit_direct_autoprop_v1_noop_total ${Number(S.noop)||0}`,
+        "# HELP void_commit_direct_autoprop_v1_errs_total errors",
+        "# TYPE void_commit_direct_autoprop_v1_errs_total counter",
+        `void_commit_direct_autoprop_v1_errs_total ${Number(S.errs)||0}`,
+        "# HELP void_commit_direct_autoprop_v1_last_from last head before",
+        "# TYPE void_commit_direct_autoprop_v1_last_from gauge",
+        `void_commit_direct_autoprop_v1_last_from ${Number(S.last_from)||-1}`,
+        "# HELP void_commit_direct_autoprop_v1_last_to last head after",
+        "# TYPE void_commit_direct_autoprop_v1_last_to gauge",
+        `void_commit_direct_autoprop_v1_last_to ${Number(S.last_to)||-1}`,
+        "# HELP void_commit_direct_autoprop_v1_last_ms last duration ms",
+        "# TYPE void_commit_direct_autoprop_v1_last_ms gauge",
+        `void_commit_direct_autoprop_v1_last_ms ${Number(S.last_ms)||0}`,
+        "# HELP void_commit_direct_autoprop_v1_last_ts_ms last timestamp ms",
+        "# TYPE void_commit_direct_autoprop_v1_last_ts_ms gauge",
+        `void_commit_direct_autoprop_v1_last_ts_ms ${Number(S.last_ts)||0}`,
+      ].join("\n") + "\n");
+    });
+
+    // controls
+    app.post("/__void/metrics/commit-direct-autoprop.v1/enable", async (req:any,res:any)=>{
+      try{
+        const on = String(req.query.on ?? "1");
+        S.enabled = !(on === "0" || on === "false");
+      }catch{}
+      res.json({ ok:true, enabled:S.enabled });
+    });
+    app.post("/__void/metrics/commit-direct-autoprop.v1/interval", async (req:any,res:any)=>{
+      try{
+        const ms = Number(req.query.ms ?? "2000");
+        if (Number.isFinite(ms) && ms >= 200 && ms <= 60000) S.interval_ms = ms;
+      }catch{}
+      res.json({ ok:true, interval_ms:S.interval_ms });
+    });
+
+    // timer
+    setInterval(()=>{ void doTick(); }, Number(S.interval_ms)||2000);
+    console.error("[void_commit_direct_autoprop_v1] mounted interval_ms=" + S.interval_ms);
+  }
+
+  try{ mount(); }catch(e:any){ S.errs++; S.last_err=String(e && (e.stack||e) || e); }
+})();
+
+// ---------------- [ADD] alias route for v2fs autoprop: /.../commit -> POST base ----------------
+(function ProposerCommitDirectV2FSCommitAlias(){
+  const G:any = (globalThis as any);
+  const KEY="__void_proposer_commit_direct_v2fs_commit_alias_state";
+  if (!G[KEY]) G[KEY] = { mounted:false, calls:0, ok:0, errors:0, last_ms:0, last_ts:0, last_status:0, last_err:"" };
+  const S:any = G[KEY];
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function port(){ return Number(process.env.HTTP_PORT || 4100); }
+
+  async function proxy(req:any, res:any){
+    S.calls++; S.last_ts = Date.now();
+    const t0 = Date.now();
+    try {
+      const qs = String(req?.originalUrl || req?.url || "").split("?")[1] || "";
+      const target = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs` + (qs ? `?${qs}` : "");
+      const hasBody = req && req.body && typeof req.body === "object" && Object.keys(req.body).length > 0;
+
+      const r = await fetch(target, {
+        method: "POST",
+        headers: hasBody ? { "content-type": "application/json" } : undefined,
+        body: hasBody ? JSON.stringify(req.body) : undefined,
+      });
+
+      S.last_status = r.status;
+      const text = await r.text();
+      let j:any = null;
+      try { j = JSON.parse(text); } catch { j = null; }
+      if (j && typeof j === "object") {
+        S.ok++; S.last_ms = Date.now() - t0; S.last_err = "";
+        return res.status(r.status).json(j);
+      }
+      S.ok++; S.last_ms = Date.now() - t0; S.last_err = "";
+      res.status(r.status).type(r.headers.get("content-type") || "text/plain").send(text);
+    } catch(e:any){
+      S.errors++; S.last_ms = Date.now() - t0; S.last_err = String(e && (e.stack||e) || e);
+      res.status(500).json({ ok:false, error:"v2fs_commit_alias_failed", msg:S.last_err });
+    }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 350);
+
+    if ((app as any).__void_commit_direct_v2fs_commit_alias_mounted) { S.mounted = true; return; }
+    (app as any).__void_commit_direct_v2fs_commit_alias_mounted = true;
+    S.mounted = true;
+
+    // This is the path autoprop was calling (but it didn't exist). Now it proxies to the real POST base route.
+    app.post("/__void/metrics/proposer.commit-direct.v2fs/commit", proxy);
+    app.get("/__void/metrics/proposer.commit-direct.v2fs/commit", (_req:any,res:any)=>res.status(405).json({ ok:false, error:"method_not_allowed", want:"POST" }));
+
+    app.get("/__void/metrics/proposer.commit-direct.v2fs/commit.alias.status.json", (_req:any,res:any)=>res.json({ ok:true, state:S }));
+    app.get("/__void/metrics/proposer.commit-direct.v2fs/commit.alias.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_proposer_commit_direct_v2fs_commit_alias_mounted 1 if mounted",
+          "# TYPE void_proposer_commit_direct_v2fs_commit_alias_mounted gauge",
+          `void_proposer_commit_direct_v2fs_commit_alias_mounted ${S.mounted?1:0}`,
+          "# HELP void_proposer_commit_direct_v2fs_commit_alias_calls_total calls",
+          "# TYPE void_proposer_commit_direct_v2fs_commit_alias_calls_total counter",
+          `void_proposer_commit_direct_v2fs_commit_alias_calls_total ${S.calls||0}`,
+          "# HELP void_proposer_commit_direct_v2fs_commit_alias_ok_total ok",
+          "# TYPE void_proposer_commit_direct_v2fs_commit_alias_ok_total counter",
+          `void_proposer_commit_direct_v2fs_commit_alias_ok_total ${S.ok||0}`,
+          "# HELP void_proposer_commit_direct_v2fs_commit_alias_errors_total errors",
+          "# TYPE void_proposer_commit_direct_v2fs_commit_alias_errors_total counter",
+          `void_proposer_commit_direct_v2fs_commit_alias_errors_total ${S.errors||0}`,
+          "# HELP void_proposer_commit_direct_v2fs_commit_alias_last_status last upstream HTTP status",
+          "# TYPE void_proposer_commit_direct_v2fs_commit_alias_last_status gauge",
+          `void_proposer_commit_direct_v2fs_commit_alias_last_status ${Number.isFinite(S.last_status)?S.last_status:0}`,
+          "# HELP void_proposer_commit_direct_v2fs_commit_alias_last_ms last duration ms",
+          "# TYPE void_proposer_commit_direct_v2fs_commit_alias_last_ms gauge",
+          `void_proposer_commit_direct_v2fs_commit_alias_last_ms ${S.last_ms||0}`,
+          "# HELP void_proposer_commit_direct_v2fs_commit_alias_last_ts_ms last timestamp ms",
+          "# TYPE void_proposer_commit_direct_v2fs_commit_alias_last_ts_ms gauge",
+          `void_proposer_commit_direct_v2fs_commit_alias_last_ts_ms ${S.last_ts||0}`,
+        ].join("\n") + "\n"
+      );
+    });
+
+    console.error("[v2fs.commit-alias] mounted: POST /__void/metrics/proposer.commit-direct.v2fs/commit  -> proxies to POST /__void/metrics/proposer.commit-direct.v2fs");
+  }
+
+  mount();
+})();
+
+// ---------------- [ADD] autoprop v1 kicker: ensure timer loop starts (idempotent) ----------------
+(function AutopropV1Kicker(){
+  const G:any = (globalThis as any);
+  const KEY="__void_commit_direct_autoprop_v1_kicker";
+  if (G[KEY]) return;
+  G[KEY] = { mounted:false, kicks:0, last_ts:0 };
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function getState(){
+    // best-effort: find the state object by scanning globals for the known shape
+    for (const k of Object.keys(G)){
+      if (!k.includes("commit") || !k.includes("autoprop")) continue;
+      const v:any = G[k];
+      if (v && typeof v === "object" && "enabled" in v && "interval_ms" in v && "ticks" in v && "errs" in v) return v;
+    }
+    return null;
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 400);
+    if ((app as any).__void_commit_direct_autoprop_v1_kicker_mounted) { (G[KEY].mounted=true); return; }
+    (app as any).__void_commit_direct_autoprop_v1_kicker_mounted = true;
+    G[KEY].mounted = true;
+
+    app.post("/__void/metrics/commit-direct-autoprop.v1/kick", (_req:any,res:any)=>{
+      G[KEY].kicks++; G[KEY].last_ts = Date.now();
+      const S:any = getState();
+      if (S && typeof S === "object") {
+        S.enabled = true;
+        if (!Number.isFinite(+S.interval_ms) || +S.interval_ms <= 0) S.interval_ms = 2000;
+      }
+      res.json({ ok:true, kicked:true, found: !!S, state: S ? { enabled:S.enabled, interval_ms:S.interval_ms, ticks:S.ticks, errs:S.errs, last_err:S.last_err } : null });
+    });
+
+    app.get("/__void/metrics/commit-direct-autoprop.v1/kicker.status.json", (_req:any,res:any)=>res.json({ ok:true, state:G[KEY] }));
+    console.error("[autoprop.v1.kicker] mounted: POST /__void/metrics/commit-direct-autoprop.v1/kick");
+  }
+
+  mount();
+})();
+// ---------------- [ADD] autoprop prom2 (source of truth: status.json; no global scanning) ----------------
+(function CommitDirectAutopropV1Prom2(){
+  const G:any = (globalThis as any);
+  const KEY="__void_commit_direct_autoprop_v1_prom2_mounted";
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function port(){ return Number(process.env.HTTP_PORT || 4100); }
+
+  async function fetchJsonT(url:string, ms:number){
+    const ac = new AbortController();
+    const t = setTimeout(()=>ac.abort(), ms);
+    try {
+      const r = await fetch(url, { signal: ac.signal } as any);
+      if (!r.ok) return null;
+      return await r.json();
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 400);
+    if (G[KEY]) return;
+    G[KEY] = true;
+
+    app.get("/__void/metrics/commit-direct-autoprop.v1.prom2", async (_req:any, res:any)=>{
+      const now = Date.now();
+      const p = port();
+      const j:any = await fetchJsonT(`http://127.0.0.1:${p}/__void/metrics/commit-direct-autoprop.v1/status.json`, 250);
+      const S:any = (j && j.state) ? j.state : {};
+
+      const enabled = S.enabled ? 1 : 0;
+      const interval = Number(S.interval_ms || 0);
+      const ticks = Number(S.ticks || 0);
+      const ok = Number(S.ok || 0);
+      const noop = Number(S.noop || 0);
+      const errs = Number(S.errs || 0);
+      const last = Number(S.last_ts || 0);
+      const age = (last > 0) ? Math.max(0, now - last) : 1e15;
+
+      const healthy = (enabled === 1 && errs === 0 && age < Math.max(10_000, (interval > 0 ? interval*6 : 12_000))) ? 1 : 0;
+
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(
+        [
+          "# HELP void_commit_direct_autoprop_v1_enabled autoprop enabled (1/0)",
+          "# TYPE void_commit_direct_autoprop_v1_enabled gauge",
+          `void_commit_direct_autoprop_v1_enabled ${enabled}`,
+
+          "# HELP void_commit_direct_autoprop_v1_interval_ms autoprop interval ms",
+          "# TYPE void_commit_direct_autoprop_v1_interval_ms gauge",
+          `void_commit_direct_autoprop_v1_interval_ms ${Number.isFinite(interval)?interval:-1}`,
+
+          "# HELP void_commit_direct_autoprop_v1_ticks_total ticks",
+          "# TYPE void_commit_direct_autoprop_v1_ticks_total counter",
+          `void_commit_direct_autoprop_v1_ticks_total ${ticks}`,
+
+          "# HELP void_commit_direct_autoprop_v1_ok_total advancing commits",
+          "# TYPE void_commit_direct_autoprop_v1_ok_total counter",
+          `void_commit_direct_autoprop_v1_ok_total ${ok}`,
+
+          "# HELP void_commit_direct_autoprop_v1_noop_total noops",
+          "# TYPE void_commit_direct_autoprop_v1_noop_total counter",
+          `void_commit_direct_autoprop_v1_noop_total ${noop}`,
+
+          "# HELP void_commit_direct_autoprop_v1_errs_total errors",
+          "# TYPE void_commit_direct_autoprop_v1_errs_total counter",
+          `void_commit_direct_autoprop_v1_errs_total ${errs}`,
+
+          "# HELP void_commit_direct_autoprop_v1_last_ts_ms last tick timestamp (ms)",
+          "# TYPE void_commit_direct_autoprop_v1_last_ts_ms gauge",
+          `void_commit_direct_autoprop_v1_last_ts_ms ${Number.isFinite(last)?last:0}`,
+
+          "# HELP void_commit_direct_autoprop_v1_age_ms age since last tick (ms)",
+          "# TYPE void_commit_direct_autoprop_v1_age_ms gauge",
+          `void_commit_direct_autoprop_v1_age_ms ${Number.isFinite(age)?age:1e15}`,
+
+          "# HELP void_commit_direct_autoprop_v1_health healthy heuristic (1/0)",
+          "# TYPE void_commit_direct_autoprop_v1_health gauge",
+          `void_commit_direct_autoprop_v1_health ${healthy}`,
+        ].join("\n") + "\n"
+      );
+    });
+
+    console.error("[autoprop.v1.prom2] mounted: GET /__void/metrics/commit-direct-autoprop.v1.prom2");
+  }
+
+  mount();
+})();
+// ---------------- [ADD] autoprop prom2 warmkick (fire one tick right after mount) ----------------
+(function CommitDirectAutopropV1Prom2WarmKick(){
+  const G:any = (globalThis as any);
+  const KEY="__void_commit_direct_autoprop_v1_prom2_warmkick_mounted";
+  if (G[KEY]) return; G[KEY]=true;
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function port(){ return Number(process.env.HTTP_PORT || 4100); }
+
+  async function postT(url:string, ms:number){
+    const ac = new AbortController();
+    const t = setTimeout(()=>ac.abort(), ms);
+    try { await fetch(url, { method:"POST", signal: ac.signal } as any); } catch {}
+    finally { clearTimeout(t); }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 400);
+
+    // Warm kick once after a short delay so the autoprop loop has time to attach.
+    setTimeout(()=>{
+      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0`;
+      postT(url, 300).then(()=>{});
+    }, 600);
+
+    console.error("[autoprop.v1.prom2.warmkick] armed (one POST commit after boot)");
+  }
+
+  mount();
+})();
