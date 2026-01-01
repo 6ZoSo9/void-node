@@ -257,6 +257,72 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
+
+/* __void_seals_rate_clamp_pre_v2 (additive, EARLY)
+   Why: the /metrics/void/seals route is registered BEFORE later middleware, so post-route patching never runs.
+   Fix: install a pre-route hook right after the global app export; wraps res.send + res.end for this path.
+   Adds:
+     - void_seal_rate_1m_clamped (0 if now-last_ts_ms > 60s else equals void_seal_rate_1m)
+*/
+(function __void_seals_rate_clamp_pre_v2() {
+  try {
+    app.use((req, res, next) => {
+      try {
+        const p = (req as any).path || "";
+        if (p !== "/metrics/void/seals") return next();
+
+        const origSend = (res as any).send?.bind(res);
+        const origEnd = (res as any).end?.bind(res);
+
+        function patchBody(body: any) {
+          try {
+            if (typeof body !== "string") return body;
+            if (!body.includes("void_seal_last_ts_ms") || !body.includes("void_seal_rate_1m")) return body;
+            if (body.includes("void_seal_rate_1m_clamped")) return body;
+
+            const mTs = body.match(/^void_seal_last_ts_ms\s+([0-9.]+)/m);
+            const mRate = body.match(/^void_seal_rate_1m\s+([0-9.]+)/m);
+            if (!mTs || !mRate) return body;
+
+            const lastTs = Number(mTs[1]);
+            const rate = Number(mRate[1]);
+            const now = Date.now();
+            const clamped = (Number.isFinite(lastTs) && lastTs > 0 && now - lastTs > 60_000) ? 0 : rate;
+
+            body +=
+              "\n# HELP void_seal_rate_1m_clamped Seal rate_1m forced to 0 if last_ts_ms older than 60s (derived)\n" +
+              "# TYPE void_seal_rate_1m_clamped gauge\n" +
+              "void_seal_rate_1m_clamped " + String(clamped) + "\n";
+            return body;
+          } catch {
+            return body;
+          }
+        }
+
+        if (typeof origSend === "function") {
+          (res as any).send = (body: any) => origSend(patchBody(body));
+        }
+
+        if (typeof origEnd === "function") {
+          (res as any).end = (chunk?: any, encoding?: any, cb?: any) => {
+            try {
+              if (typeof chunk === "string") chunk = patchBody(chunk);
+              else if (Buffer.isBuffer(chunk)) {
+                const s = chunk.toString(typeof encoding === "string" ? encoding : "utf8");
+                const out = patchBody(s);
+                chunk = Buffer.from(out, "utf8");
+              }
+            } catch {}
+            return origEnd(chunk as any, encoding as any, cb as any);
+          };
+        }
+
+        try { console.log("[seals.rate.clamp.pre.v2] armed for /metrics/void/seals"); } catch {}
+      } catch {}
+      return next();
+    });
+  } catch {}
+})();
  
 
 
@@ -266,6 +332,48 @@ console.log("[shim] published global node (post-construct)");
 
 
 // __void_safe_gate_proposer_metrics_v1
+
+/* __void_seals_rate_clamp_v1 (additive)
+   Purpose: expose a reliable seal activity signal even if legacy void_seal_rate_1m is sticky.
+   Behavior: leaves existing metrics untouched; appends:
+     - void_seal_rate_1m_clamped (0 if last_ts_ms older than 60s; else equals void_seal_rate_1m)
+*/
+(function __void_seals_rate_clamp_v1() {{
+  try {{
+    app.use((req, res, next) => {{
+      try {{
+        if (req.path !== "/metrics/void/seals") return next();
+
+        const origSend = (res as any).send?.bind(res);
+        if (typeof origSend !== "function") return next();
+
+        (res as any).send = (body: any) => {{
+          try {{
+            if (typeof body === "string" && body.includes("void_seal_last_ts_ms") && body.includes("void_seal_rate_1m")) {{
+              const mTs = body.match(/^void_seal_last_ts_ms\\s+([0-9.]+)/m);
+              const mRate = body.match(/^void_seal_rate_1m\\s+([0-9.]+)/m);
+              if (mTs && mRate) {{
+                const lastTs = Number(mTs[1]);
+                const rate = Number(mRate[1]);
+                const now = Date.now();
+                const clamped = (Number.isFinite(lastTs) && lastTs > 0 && now - lastTs > 60_000) ? 0 : rate;
+
+                body +=
+                  "\\n# HELP void_seal_rate_1m_clamped Seal rate_1m forced to 0 if last_ts_ms older than 60s (derived)\\n" +
+                  "# TYPE void_seal_rate_1m_clamped gauge\\n" +
+                  "void_seal_rate_1m_clamped " + String(clamped) + "\\n";
+              }}
+            }}
+          }} catch {{}}
+          return origSend(body);
+        }};
+      }} catch {{}}
+      return next();
+    }});
+    // log once on boot
+    try {{ console.log("[seals.rate.clamp] installed: appends void_seal_rate_1m_clamped on /metrics/void/seals"); }} catch {{}}
+  }} catch {{}}
+}})();
 // If SAFE is enabled, hard-block the proposer metrics endpoint even if it is mounted before SAFE middleware.
 (() => {
   try {
