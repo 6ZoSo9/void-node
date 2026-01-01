@@ -55,3 +55,4 @@ ops/datanet/*.bak.*
 *.bak.*
 *.bak-*
 *.bakshebang.*
+*.heapsnapshot
