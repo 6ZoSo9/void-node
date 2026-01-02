@@ -258,6 +258,147 @@ console.log("[shim] published global node (post-construct)");
   const app = express();
   (globalThis as any).__void_http_app = app;
 
+// -------- TX SUBMIT EARLY SINGLETON v1 --------
+// Goal: make /tx/submit run EXACTLY ONCE (no dup mounts, no mirror-to-two-queues surprises).
+// Strategy: install an EARLY handler that enqueues into ONE canonical queue (__void_tx_queue)
+// and ends the request (no next()), so later duplicate mounts never run.
+// This fixes: 1 submit => mempoolSize=2.
+try {
+  const g: any = (globalThis as any);
+  if (!g.__void_tx_submit_early_singleton_v1_installed) {
+    g.__void_tx_submit_early_singleton_v1_installed = true;
+
+    // Ensure the tx queue exists (canonical for proposer pipeline)
+    if (!Array.isArray(g.__void_tx_queue)) g.__void_tx_queue = [];
+
+    const expressAny: any = require("express");
+    const jsonMid = (expressAny && expressAny.json) ? expressAny.json({ limit: "64kb" }) : require("express").json({ limit: "64kb" });
+
+    app.post("/tx/submit", jsonMid, (req: any, res: any) => {
+      try {
+        const body = (req && req.body) ?? {};
+        const tx = (body && typeof body === "object") ? body : { raw: body };
+
+        // optional: minimal stamp (helps debugging)
+        if (tx && typeof tx === "object") {
+          if ((tx as any)._rx_ts == null) (tx as any)._rx_ts = Date.now();
+          if ((tx as any)._rx_src == null) (tx as any)._rx_src = "early_singleton_v1";
+        }
+
+        // Enqueue EXACTLY ONCE into the canonical queue
+        try { (g.__void_tx_queue as any[]).push(tx); } catch {}
+
+        // Respond immediately: prevents all later /tx/submit mounts from running
+                // -------- TX SUBMIT EARLY HITS FIX v1 --------
+        try { g.__void_tx_submit_early_hits_total = Number(g.__void_tx_submit_early_hits_total || 0) + 1; } catch {}
+        // -------- /TX SUBMIT EARLY HITS FIX v1 --------
+return res.json({ ok: true, early: true });
+      } catch {
+        return res.status(500).json({ ok: false, err: "tx_submit_early_failed" });
+      }
+    });
+
+    (console?.log || (()=>{}))("[guard] installed early /tx/submit singleton v1 (queue-only)");
+  }
+} catch {}
+// -------- /TX SUBMIT EARLY SINGLETON v1 --------
+
+// -------- TX SUBMIT EARLY METRICS v1 --------
+try {
+  const g: any = (globalThis as any);
+  if (!g.__void_tx_submit_early_metrics_v1_installed) {
+    g.__void_tx_submit_early_metrics_v1_installed = true;
+    if (g.__void_tx_submit_early_hits_total == null) g.__void_tx_submit_early_hits_total = 0;
+
+    // Wrap the early handler hit counter by monkeypatching res.json in the early route only is messy,
+    // so we increment inside the early handler: look for _rx_src == early_singleton_v1 during queue push.
+    // As a fallback, we also bump on any POST /tx/submit seen early via a lightweight middleware.
+    app.use("/tx/submit", (req: any, _res: any, next: any) => {
+      try { if ((req?.method || "").toUpperCase() === "POST") g.__void_tx_submit_early_hits_total++; } catch {}
+      return next();
+    });
+
+    app.get("/__void/metrics/txsubmit_early.prom", (_req: any, res: any) => {
+      try {
+        res.setHeader("content-type", "text/plain; version=0.0.4");
+        const hits = Number(g.__void_tx_submit_early_hits_total || 0);
+        const installed = g.__void_tx_submit_early_singleton_v1_installed ? 1 : 0;
+        res.end(
+          "# HELP void_tx_submit_early_singleton_installed Early /tx/submit singleton installed (1/0)\n" +
+          "# TYPE void_tx_submit_early_singleton_installed gauge\n" +
+          `void_tx_submit_early_singleton_installed ${installed}\n` +
+          "# HELP void_tx_submit_early_hits_total Count of POST /tx/submit seen (best-effort)\n" +
+          "# TYPE void_tx_submit_early_hits_total counter\n" +
+          `void_tx_submit_early_hits_total ${hits}\n`
+        );
+      } catch {
+        try { res.status(500).end("err\n"); } catch {}
+      }
+    });
+
+    (console?.log || (()=>{}))("[guard] installed txsubmit early metrics v1 at /__void/metrics/txsubmit_early.prom");
+  }
+} catch {}
+// -------- /TX SUBMIT EARLY METRICS v1 --------
+
+
+// -------- TX SUBMIT MOUNT GUARD v1 --------
+// Purpose: enforce EXACTLY ONE /tx/submit mount across the huge index.ts.
+// Fixes: double-enqueue (1 submit => mempoolSize=2) caused by duplicate route mounts.
+// NOTE: additive-only; does not delete any existing mounts; it simply skips duplicates at mount-time.
+try {
+  // Express' shared application prototype
+  const expressAny: any = require("express");
+  const appProto: any = (expressAny && (expressAny.application || expressAny?.default?.application)) || (expressAny && expressAny?.application);
+  const onceKey = "__void_tx_submit_mount_guard_v1_installed";
+  if (appProto && !appProto[onceKey]) {
+    appProto[onceKey] = true;
+
+    const origPost = appProto.post;
+    const origUse  = appProto.use;
+
+    const g: any = (globalThis as any);
+    const mountedKey = "__void_tx_submit_mounted_v1";
+
+    const isTxSubmit = (p: any) => p === "/tx/submit";
+
+    appProto.post = function(p: any, ...handlers: any[]) {
+      try {
+        if (isTxSubmit(p)) {
+          if (g[mountedKey]) {
+            if (!g.__void_tx_submit_dupe_log_once_v1) {
+              g.__void_tx_submit_dupe_log_once_v1 = true;
+              (console?.log || (()=>{}))("[guard] skip duplicate app.post(/tx/submit) mount");
+            }
+            return this;
+          }
+          g[mountedKey] = true;
+        }
+      } catch {}
+      return origPost.call(this, p, ...handlers);
+    };
+
+    appProto.use = function(p: any, ...handlers: any[]) {
+      try {
+        if (isTxSubmit(p)) {
+          if (g[mountedKey]) {
+            if (!g.__void_tx_submit_dupe_log_once2_v1) {
+              g.__void_tx_submit_dupe_log_once2_v1 = true;
+              (console?.log || (()=>{}))("[guard] skip duplicate app.use(/tx/submit) mount");
+            }
+            return this;
+          }
+          g[mountedKey] = true;
+        }
+      } catch {}
+      return origUse.call(this, p, ...handlers);
+    };
+
+    (console?.log || (()=>{}))("[guard] installed /tx/submit mount-guard v1");
+  }
+} catch {}
+// -------- /TX SUBMIT MOUNT GUARD v1 --------
+
 /* __void_seals_rate_clamp_pre_v2 (additive, EARLY)
    Why: the /metrics/void/seals route is registered BEFORE later middleware, so post-route patching never runs.
    Fix: install a pre-route hook right after the global app export; wraps res.send + res.end for this path.
@@ -317,7 +458,14 @@ console.log("[shim] published global node (post-construct)");
           };
         }
 
-        try { console.log("[seals.rate.clamp.pre.v2] armed for /metrics/void/seals"); } catch {}
+        try {
+  const G:any = (globalThis as any);
+  if (!G.__void_seals_rate_clamp_pre_v2_logged) {
+    G.__void_seals_rate_clamp_pre_v2_logged = 1;
+    /* hot-path log removed (accept-queue wedge) */
+  }
+} catch {}
+
       } catch {}
       return next();
     });
