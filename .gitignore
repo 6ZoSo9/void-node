@@ -56,3 +56,6 @@ ops/datanet/*.bak.*
 *.bak-*
 *.bakshebang.*
 *.heapsnapshot
+# stray curl output files
+/200
+/404
