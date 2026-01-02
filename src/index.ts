@@ -19801,7 +19801,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
     try { return JSON.parse(fs.readFileSync(headsJsonPath(), "utf8")); } catch(_e){ return null; }
   }
   function writeHeadsJson(n:number){
-    try { fs.writeFileSync(headsJsonPath(), JSON.stringify({ number:n })+"\n"); return true; } catch(_e){ return false; }
+    try { fs.writeFileSync(headsJsonPath(), JSON.stringify({ head:n, number:n, hash:"0x0" })+"\n"); return true; } catch(_e){ return false; }
   }
 
   async function bestFromStore(node:any){
