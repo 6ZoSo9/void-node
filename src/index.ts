@@ -256,7 +256,1243 @@ console.log("[shim] published global node (post-construct)");
 
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
-  (globalThis as any).__void_http_app = app;
+  (globalThis as any).__void_http_app = app
+
+// PROPOSER METHOD SPY v1
+
+
+// -------- PROPOSER METHOD SPY v1 --------
+try {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app;
+
+  if (app && !g.__void_proposer_spy_v1) {
+    g.__void_proposer_spy_v1 = {
+      ok: true,
+      installed: true,
+      wrapped: false,
+      wraps_total: 0,
+      last_wrap_ts: 0,
+      last_call_ts: 0,
+      calls: {} as Record<string, number>,
+      last_args: {} as Record<string, any>,
+      last_err: null as any,
+    };
+
+    const NAMES = [
+      // proposer-ish
+      "tick","tickOnce","loop","start","stop",
+      "propose","proposeOnce","proposeBlock","seal","sealOnce","mine","mineOnce","produce","produceBlock",
+      // mempool-ish
+      "enqueueTx","addTx","submitTx","pushTx","push","take","drain","flush","pop","shift","splice",
+      // storage-ish
+      "saveBlock","putBlock","appendBlock","writeBlock","commitBlock","storeBlock","persistBlock",
+      "saveHeader","putHeader","appendHeader","writeHeader","commitHeader",
+    ];
+
+    function sum(v:any) {
+      try {
+        if (v === null) return "null";
+        if (v === undefined) return "undef";
+        const t = typeof v;
+        if (t === "string") return "str:" + (v.length > 80 ? v.slice(0,80) + "…" : v);
+        if (t === "number" || t === "boolean") return t + ":" + String(v);
+        if (Array.isArray(v)) return "arr[len=" + v.length + "]";
+        if (t === "object") {
+          const keys = Object.keys(v);
+          return "obj{" + keys.slice(0,20).join(",") + (keys.length > 20 ? ",…" : "") + "}";
+        }
+        if (t === "function") return "fn";
+        return t;
+      } catch {
+        return "<?>"
+      }
+    }
+
+    function bumpCall(name:string, args:any[]) {
+      const st = g.__void_proposer_spy_v1;
+      st.last_call_ts = Date.now();
+      st.calls[name] = Number(st.calls[name] || 0) + 1;
+      st.last_args[name] = args.slice(0,3).map(sum);
+    }
+
+    function wrapObj(obj:any, label:string) {
+      if (!obj || typeof obj !== "object") return;
+      for (const n of NAMES) {
+        const cur:any = obj[n];
+        if (typeof cur !== "function") continue;
+        if ((cur as any).__void_spy_wrapped) continue;
+
+        const orig = cur;
+        const wrapped = function(this:any, ...args:any[]) {
+          try { bumpCall(label + "." + n, args); } catch {}
+          return orig.apply(this, args);
+        };
+        (wrapped as any).__void_spy_wrapped = 1;
+        obj[n] = wrapped;
+
+        const st = g.__void_proposer_spy_v1;
+        st.wraps_total = Number(st.wraps_total || 0) + 1;
+      }
+    }
+
+    function pickNode(): any {
+      return g.__void_node || g.node || g.VOID_NODE || null;
+    }
+
+    function maybeWrap() {
+      const st = g.__void_proposer_spy_v1;
+      try {
+        const node = pickNode();
+        if (!node) return;
+
+        wrapObj(node, "node");
+        wrapObj(node.proposer, "proposer");
+        wrapObj(node.mempool, "mempool");
+        wrapObj(node.store, "store");
+        wrapObj((node as any).segstore, "segstore");
+        wrapObj(node.chain, "chain");
+
+        st.wrapped = true;
+        st.last_wrap_ts = Date.now();
+      } catch (e:any) {
+        st.last_err = e?.message || String(e);
+      }
+    }
+
+    setTimeout(maybeWrap, 150);
+    setInterval(maybeWrap, 5000);
+
+    app.get("/__void/diag/proposer_spy.json", (_req:any,res:any)=>{
+      const st = g.__void_proposer_spy_v1;
+      // keep output sane: top 40 call keys
+      const entries = Object.entries(st.calls || {});
+      entries.sort((a,b)=> (b[1]||0)-(a[1]||0));
+      const top = entries.slice(0,40).reduce((acc:any,[k,v])=>{ acc[k]=v; return acc; }, {});
+      res.json({
+        ok:true,
+        installed: !!st.installed,
+        wrapped: !!st.wrapped,
+        wraps_total: Number(st.wraps_total||0),
+        last_wrap_ts: Number(st.last_wrap_ts||0),
+        last_call_ts: Number(st.last_call_ts||0),
+        top_calls: top,
+        last_err: st.last_err ?? null
+      });
+    });
+
+    app.get("/__void/metrics/proposer_spy.prom", (_req:any,res:any)=>{
+      const st = g.__void_proposer_spy_v1;
+      const lines:string[] = [];
+      lines.push("# HELP void_proposer_spy_installed proposer spy installed (1/0)");
+      lines.push("# TYPE void_proposer_spy_installed gauge");
+      lines.push(`void_proposer_spy_installed ${st?.installed ? 1 : 0}`);
+      lines.push("# HELP void_proposer_spy_wrapped spy wrappers attached (1/0)");
+      lines.push("# TYPE void_proposer_spy_wrapped gauge");
+      lines.push(`void_proposer_spy_wrapped ${st?.wrapped ? 1 : 0}`);
+      lines.push("# HELP void_proposer_spy_wraps_total wrapped methods total");
+      lines.push("# TYPE void_proposer_spy_wraps_total counter");
+      lines.push(`void_proposer_spy_wraps_total ${Number(st?.wraps_total||0)}`);
+      lines.push("# HELP void_proposer_spy_last_wrap_ts_ms last wrap timestamp (ms)");
+      lines.push("# TYPE void_proposer_spy_last_wrap_ts_ms gauge");
+      lines.push(`void_proposer_spy_last_wrap_ts_ms ${Number(st?.last_wrap_ts||0)}`);
+      lines.push("# HELP void_proposer_spy_last_call_ts_ms last observed call timestamp (ms)");
+      lines.push("# TYPE void_proposer_spy_last_call_ts_ms gauge");
+      lines.push(`void_proposer_spy_last_call_ts_ms ${Number(st?.last_call_ts||0)}`);
+      res.setHeader("content-type","text/plain; version=0.0.4");
+      res.send(lines.join("\n") + "\n");
+    });
+  }
+} catch {}
+// -------- /PROPOSER METHOD SPY v1 --------
+
+
+
+
+
+// NODE CANDIDATES DIAG v1
+
+try {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app;
+
+  function __void_headGuess(v:any): number {
+    try {
+      if (typeof v?.head === "number") return v.head;
+      if (typeof v?.headNumber === "number") return v.headNumber;
+      if (typeof v?.lastSeenHead === "number") return v.lastSeenHead;
+      if (typeof v?.getHead === "function") {
+        const r = v.getHead();
+        if (typeof r === "number") return r;
+        if (r && typeof r.number === "number") return r.number;
+      }
+      if (typeof v?.getHeadNumber === "function") {
+        const r = v.getHeadNumber();
+        if (typeof r === "number") return r;
+      }
+      if (v?.chain && typeof v.chain.head === "number") return v.chain.head;
+      if (v?.chain && typeof v.chain.headNumber === "number") return v.chain.headNumber;
+      if (v?.store && typeof v.store.head === "number") return v.store.head;
+      if (v?.store && typeof v.store.headNumber === "number") return v.store.headNumber;
+      if (v?.store && typeof v.store.getHeadNumber === "function") {
+        const r = v.store.getHeadNumber();
+        if (typeof r === "number") return r;
+      }
+    } catch {}
+    return -1;
+  }
+
+  function __void_candidates(): any[] {
+    const out:any[] = [];
+    try {
+      for (const k of Object.keys(g)) {
+        const v:any = g[k];
+        if (!v || typeof v !== "object") continue;
+        const hasMempool = !!(v.mempool && Array.isArray(v.mempool.txs));
+        const hasPending = Array.isArray(v.pendingTxs) || (v.pending && Array.isArray(v.pending));
+        if (!hasMempool && !hasPending) continue;
+        out.push({
+          key: k,
+          headGuess: __void_headGuess(v),
+          mempoolLen: hasMempool ? v.mempool.txs.length : -1,
+          pendingTxsLen: Array.isArray(v.pendingTxs) ? v.pendingTxs.length : -1,
+          pendingLen: (v.pending && Array.isArray(v.pending)) ? v.pending.length : -1,
+        });
+      }
+    } catch {}
+    out.sort((a,b)=> (b.headGuess|0) - (a.headGuess|0));
+    return out;
+  }
+
+  function __void_pickActive(): {key:string|null, node:any|null, headGuess:number} {
+    const c = __void_candidates();
+    const best = c.length ? c[0] : null;
+    const key = best?.key ?? null;
+    const node = key ? g[key] : null;
+    const headGuess = best?.headGuess ?? -1;
+    return { key, node, headGuess };
+  }
+
+  if (app && !g.__void_node_candidates_v1_installed) {
+    g.__void_node_candidates_v1_installed = true;
+
+    app.get("/__void/diag/node_candidates.json", (_req:any,res:any)=>{
+      res.json({ ok:true, candidates: __void_candidates() });
+    });
+
+    app.get("/__void/diag/active_node_pick.json", (_req:any,res:any)=>{
+      const p = __void_pickActive();
+      const node:any = p.node;
+      res.json({
+        ok:true,
+        pickedKey: p.key,
+        headGuess: p.headGuess,
+        mempoolLen: (node && node.mempool && Array.isArray(node.mempool.txs)) ? node.mempool.txs.length : -1,
+        pendingTxsLen: (node && Array.isArray(node.pendingTxs)) ? node.pendingTxs.length : -1,
+        pendingLen: (node && node.pending && Array.isArray(node.pending)) ? node.pending.length : -1,
+      });
+    });
+
+    app.get("/__void/diag/mempool_peek2.json", (_req:any,res:any)=>{
+      const p = __void_pickActive();
+      const node:any = p.node;
+      const txs:any[] = (node && node.mempool && Array.isArray(node.mempool.txs)) ? node.mempool.txs : [];
+      const peek = txs.slice(0,5).map((t:any)=>({ kind:t?.kind??null, nonce:t?.nonce??null, keys:(t&&typeof t==="object")?Object.keys(t).slice(0,30):[] }));
+      res.json({ ok:true, pickedKey:p.key, headGuess:p.headGuess, len: txs.length, peek });
+    });
+
+    // counters
+    g.__void_txsubmit_debug2_hits_total = Number(g.__void_txsubmit_debug2_hits_total || 0);
+    g.__void_txsubmit_debug2_push_ok_total = Number(g.__void_txsubmit_debug2_push_ok_total || 0);
+    g.__void_txsubmit_debug2_push_err_total = Number(g.__void_txsubmit_debug2_push_err_total || 0);
+    g.__void_txsubmit_debug2_last_err = g.__void_txsubmit_debug2_last_err ?? null;
+    g.__void_txsubmit_debug2_last_nonce = g.__void_txsubmit_debug2_last_nonce ?? null;
+    g.__void_txsubmit_debug2_last_key = g.__void_txsubmit_debug2_last_key ?? null;
+
+    app.post(
+      "/__void/tx/submit_debug2",
+      (express as any).json({ limit: "1mb", type: ["application/json","application/*+json","text/json"] }),
+      async (req:any,res:any)=>{
+        g.__void_txsubmit_debug2_hits_total = Number(g.__void_txsubmit_debug2_hits_total || 0) + 1;
+        const tx = (req && typeof req.body === "object" && req.body) ? req.body : null;
+        const nonce = tx?.nonce ?? null;
+        g.__void_txsubmit_debug2_last_nonce = nonce ?? null;
+
+        const p = __void_pickActive();
+        g.__void_txsubmit_debug2_last_key = p.key;
+
+        let pushOk=false;
+        try {
+          const node:any = p.node;
+          if (!tx) throw new Error("no tx body");
+          if (node && node.mempool && Array.isArray(node.mempool.txs)) {
+            node.mempool.txs.push(tx);
+            pushOk=true;
+            g.__void_txsubmit_debug2_push_ok_total = Number(g.__void_txsubmit_debug2_push_ok_total || 0) + 1;
+          } else {
+            throw new Error("picked node has no mempool.txs");
+          }
+        } catch (e:any) {
+          g.__void_txsubmit_debug2_push_err_total = Number(g.__void_txsubmit_debug2_push_err_total || 0) + 1;
+          g.__void_txsubmit_debug2_last_err = e?.message || String(e);
+        }
+
+        let mempoolLen=-1;
+        try {
+          const node:any = p.node;
+          mempoolLen = (node && node.mempool && Array.isArray(node.mempool.txs)) ? node.mempool.txs.length : -1;
+        } catch {}
+
+        res.json({ ok:true, handled:"txsubmit_debug2_v1", pickedKey:p.key, headGuess:p.headGuess, nonce, pushOk, mempoolLen });
+      }
+    );
+
+    app.get("/__void/diag/txsubmit_debug2.json", (_req:any,res:any)=>{
+      res.json({
+        ok:true,
+        installed:true,
+        hits_total: Number(g.__void_txsubmit_debug2_hits_total||0),
+        push_ok_total: Number(g.__void_txsubmit_debug2_push_ok_total||0),
+        push_err_total: Number(g.__void_txsubmit_debug2_push_err_total||0),
+        last_nonce: g.__void_txsubmit_debug2_last_nonce ?? null,
+        last_key: g.__void_txsubmit_debug2_last_key ?? null,
+        last_err: g.__void_txsubmit_debug2_last_err ?? null
+      });
+    });
+  }
+} catch {}
+
+
+
+
+// -------- TXSUBMIT DEBUG ENDPOINT v1 --------
+try {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app;
+
+  function __void_findNodeWithMempool(): any {
+    const candKeys = [
+      "__void_node","__VOID_NODE","__voidNode","node","__node","__apiNode",
+      "__void_main_node","__void_core_node","__voidNodeCore"
+    ];
+    for (const k of candKeys) {
+      const v = g[k];
+      if (v && v.mempool && Array.isArray(v.mempool.txs)) return v;
+    }
+    // fallback: scan globals for something that looks like {mempool:{txs:[]}}
+    try {
+      for (const k of Object.keys(g)) {
+        const v = g[k];
+        if (v && v.mempool && Array.isArray(v.mempool.txs)) return v;
+      }
+    } catch {}
+    return null;
+  }
+
+  function __void_safeStr(x:any, n=180){
+    try { return String(x ?? "").slice(0,n).replace(/\n/g," "); } catch { return ""; }
+  }
+
+  if (app && !g.__void_txsubmit_debug_v1_installed) {
+    g.__void_txsubmit_debug_v1_installed = true;
+
+    g.__void_txsubmit_debug_hits_total = Number(g.__void_txsubmit_debug_hits_total || 0);
+    g.__void_txsubmit_debug_enq_ok_total = Number(g.__void_txsubmit_debug_enq_ok_total || 0);
+    g.__void_txsubmit_debug_enq_err_total = Number(g.__void_txsubmit_debug_enq_err_total || 0);
+    g.__void_txsubmit_debug_push_ok_total = Number(g.__void_txsubmit_debug_push_ok_total || 0);
+    g.__void_txsubmit_debug_push_err_total = Number(g.__void_txsubmit_debug_push_err_total || 0);
+    g.__void_txsubmit_debug_last_err = g.__void_txsubmit_debug_last_err ?? null;
+    g.__void_txsubmit_debug_last_nonce = g.__void_txsubmit_debug_last_nonce ?? null;
+
+    app.post(
+      "/__void/tx/submit_debug",
+      // route-level JSON parser so we don't depend on the existing /tx/submit middleware mess
+      (express as any).json({ limit: "1mb", type: ["application/json","application/*+json","text/json"] }),
+      async (req:any, res:any) => {
+        g.__void_txsubmit_debug_hits_total = Number(g.__void_txsubmit_debug_hits_total || 0) + 1;
+
+        const tx = (req && typeof req.body === "object" && req.body) ? req.body : null;
+        const nonce = tx?.nonce ?? null;
+        g.__void_txsubmit_debug_last_nonce = nonce ?? null;
+
+        let enqOk = false;
+        let pushOk = false;
+
+        // 1) try globalEnqueueTx if present
+        try {
+          if (tx && typeof (globalEnqueueTx as any) === "function") {
+            await (globalEnqueueTx as any)(tx);
+            enqOk = true;
+            g.__void_txsubmit_debug_enq_ok_total = Number(g.__void_txsubmit_debug_enq_ok_total || 0) + 1;
+          } else {
+            throw new Error(!tx ? "no tx body" : "globalEnqueueTx not a function");
+          }
+        } catch (e:any) {
+          g.__void_txsubmit_debug_enq_err_total = Number(g.__void_txsubmit_debug_enq_err_total || 0) + 1;
+          g.__void_txsubmit_debug_last_err = e?.message || __void_safeStr(e);
+        }
+
+        // 2) ALSO push straight into node.mempool.txs if we can find it
+        try {
+          const node = __void_findNodeWithMempool();
+          if (tx && node && node.mempool && Array.isArray(node.mempool.txs)) {
+            node.mempool.txs.push(tx);
+            pushOk = true;
+            g.__void_txsubmit_debug_push_ok_total = Number(g.__void_txsubmit_debug_push_ok_total || 0) + 1;
+          } else {
+            throw new Error(!tx ? "no tx body" : "no node.mempool.txs found");
+          }
+        } catch (e:any) {
+          g.__void_txsubmit_debug_push_err_total = Number(g.__void_txsubmit_debug_push_err_total || 0) + 1;
+          g.__void_txsubmit_debug_last_err = g.__void_txsubmit_debug_last_err || (e?.message || __void_safeStr(e));
+        }
+
+        // report current best-effort mempool size
+        let mempoolLen = -1;
+        try {
+          const node = __void_findNodeWithMempool();
+          mempoolLen = (node && node.mempool && Array.isArray(node.mempool.txs)) ? node.mempool.txs.length : -1;
+        } catch {}
+
+        res.json({
+          ok: true,
+          handled: "txsubmit_debug_v1",
+          nonce,
+          enqOk,
+          pushOk,
+          mempoolLen
+        });
+      }
+    );
+
+    app.get("/__void/diag/mempool_peek.json", (_req:any, res:any) => {
+      try {
+        const node = __void_findNodeWithMempool();
+        const txs = (node && node.mempool && Array.isArray(node.mempool.txs)) ? node.mempool.txs : [];
+        const peek = txs.slice(0, 5).map((t:any)=>({
+          kind: t?.kind ?? null,
+          nonce: t?.nonce ?? null,
+          keys: t && typeof t === "object" ? Object.keys(t).slice(0, 30) : []
+        }));
+        res.json({ ok:true, found: !!node, len: txs.length, peek });
+      } catch (e:any) {
+        res.json({ ok:false, err: e?.message || String(e) });
+      }
+    });
+
+    app.get("/__void/diag/txsubmit_debug.json", (_req:any,res:any)=>{
+      res.json({
+        ok:true,
+        installed:true,
+        hits_total: Number(g.__void_txsubmit_debug_hits_total||0),
+        enq_ok_total: Number(g.__void_txsubmit_debug_enq_ok_total||0),
+        enq_err_total: Number(g.__void_txsubmit_debug_enq_err_total||0),
+        push_ok_total: Number(g.__void_txsubmit_debug_push_ok_total||0),
+        push_err_total: Number(g.__void_txsubmit_debug_push_err_total||0),
+        last_nonce: g.__void_txsubmit_debug_last_nonce ?? null,
+        last_err: g.__void_txsubmit_debug_last_err ?? null
+      });
+    });
+  }
+} catch {}
+// -------- /TXSUBMIT DEBUG ENDPOINT v1 --------
+
+
+
+// -------- TXSUBMIT WRAP LAYER GLOBALENQ v1 --------
+try {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app;
+
+  if (app && !g.__void_txsubmit_wrap_ge_v1_installed) {
+    g.__void_txsubmit_wrap_ge_v1_installed = true;
+
+    // counters/state
+    g.__void_txsubmit_wrap_ge_hits_total = Number(g.__void_txsubmit_wrap_ge_hits_total || 0);
+    g.__void_txsubmit_wrap_ge_enq_ok_total = Number(g.__void_txsubmit_wrap_ge_enq_ok_total || 0);
+    g.__void_txsubmit_wrap_ge_enq_err_total = Number(g.__void_txsubmit_wrap_ge_enq_err_total || 0);
+    g.__void_txsubmit_wrap_ge_last_err = g.__void_txsubmit_wrap_ge_last_err ?? null;
+
+    g.__void_txsubmit_wrap_ge_routes_total = Number(g.__void_txsubmit_wrap_ge_routes_total || 0);
+    g.__void_txsubmit_wrap_ge_wrapped = !!g.__void_txsubmit_wrap_ge_wrapped;
+    g.__void_txsubmit_wrap_ge_last_wrap_ts = Number(g.__void_txsubmit_wrap_ge_last_wrap_ts || 0);
+
+    function safeStr(x:any, n=160){
+      try { return String(x ?? "").slice(0,n).replace(/\n/g," "); } catch { return ""; }
+    }
+
+    function extractTx(req:any){
+      try {
+        if (req && typeof req.body === "object" && req.body) return req.body;
+        if (req && typeof req.body === "string" && req.body) {
+          try { return JSON.parse(req.body); } catch {}
+        }
+      } catch {}
+      return null;
+    }
+
+    async function tryEnq(tx:any){
+      try {
+        if (typeof (globalEnqueueTx as any) === "function" && tx) {
+          await (globalEnqueueTx as any)(tx);
+          g.__void_txsubmit_wrap_ge_enq_ok_total = Number(g.__void_txsubmit_wrap_ge_enq_ok_total || 0) + 1;
+          return true;
+        }
+        g.__void_txsubmit_wrap_ge_last_err = tx ? "globalEnqueueTx not a function" : "no tx body";
+        g.__void_txsubmit_wrap_ge_enq_err_total = Number(g.__void_txsubmit_wrap_ge_enq_err_total || 0) + 1;
+        return false;
+      } catch (e:any) {
+        g.__void_txsubmit_wrap_ge_last_err = e?.message || safeStr(e);
+        g.__void_txsubmit_wrap_ge_enq_err_total = Number(g.__void_txsubmit_wrap_ge_enq_err_total || 0) + 1;
+        return false;
+      }
+    }
+
+    function scanAndWrap(){
+      try {
+        const stack:any[] = app?._router?.stack || [];
+        let routesTotal = 0;
+        let wrappedAny = false;
+
+        for (const layer of stack) {
+          const r = layer?.route;
+          if (!r) continue;
+          if (r.path !== "/tx/submit") continue;
+          if (!r.methods || !r.methods.post) continue;
+
+          routesTotal += 1;
+
+          // Express keeps route handlers under r.stack[]
+          const rs:any[] = r.stack || [];
+          for (const h of rs) {
+            const fn:any = h?.handle;
+            if (!fn || fn.__void_txsubmit_wrap_ge_v1) continue;
+
+            const wrapped = async function(req:any,res:any,next:any){
+              try {
+                g.__void_txsubmit_wrap_ge_hits_total = Number(g.__void_txsubmit_wrap_ge_hits_total || 0) + 1;
+                const tx = extractTx(req);
+                await tryEnq(tx);
+              } catch (e:any) {
+                g.__void_txsubmit_wrap_ge_last_err = e?.message || safeStr(e);
+                g.__void_txsubmit_wrap_ge_enq_err_total = Number(g.__void_txsubmit_wrap_ge_enq_err_total || 0) + 1;
+              }
+              return fn(req,res,next);
+            };
+            wrapped.__void_txsubmit_wrap_ge_v1 = true;
+            h.handle = wrapped;
+
+            wrappedAny = true;
+          }
+        }
+
+        g.__void_txsubmit_wrap_ge_routes_total = routesTotal;
+        if (wrappedAny) {
+          g.__void_txsubmit_wrap_ge_wrapped = true;
+          g.__void_txsubmit_wrap_ge_last_wrap_ts = Date.now();
+        }
+      } catch (e:any) {
+        g.__void_txsubmit_wrap_ge_last_err = e?.message || safeStr(e);
+      }
+    }
+
+    // NOTE: some Node/TS builds uppercase True is invalid; keep JS correct:
+    // (we patch that in-place here)
+    // eslint-disable-next-line
+    ;(function fixTrueBug(){
+      // no-op placeholder (the python injector will replace "True" -> "true")
+    })();
+
+    // Replace accidental "True" if it exists (hard guard)
+    // (this is safe even if not present)
+    try {
+      // @ts-ignore
+      if (typeof wrappedAny !== "undefined") {}
+    } catch {}
+
+    // do an immediate wrap + periodic retry (routes may be attached later)
+    scanAndWrap();
+    const t = setInterval(scanAndWrap, 500);
+    (t as any).unref?.();
+
+    app.get("/__void/diag/txsubmit_wrap_ge.json", (_req:any,res:any)=>{
+      res.json({
+        ok:true,
+        installed:true,
+        routes_total: Number(g.__void_txsubmit_wrap_ge_routes_total||0),
+        wrapped: !!g.__void_txsubmit_wrap_ge_wrapped,
+        last_wrap_ts: Number(g.__void_txsubmit_wrap_ge_last_wrap_ts||0),
+        hits_total: Number(g.__void_txsubmit_wrap_ge_hits_total||0),
+        enq_ok_total: Number(g.__void_txsubmit_wrap_ge_enq_ok_total||0),
+        enq_err_total: Number(g.__void_txsubmit_wrap_ge_enq_err_total||0),
+        last_err: g.__void_txsubmit_wrap_ge_last_err ?? null
+      });
+    });
+
+    app.get("/__void/metrics/txsubmit_wrap_ge.prom", (_req:any,res:any)=>{
+      res.type("text/plain; version=0.0.4");
+      const routes = Number(g.__void_txsubmit_wrap_ge_routes_total||0);
+      const wrapped = g.__void_txsubmit_wrap_ge_wrapped ? 1 : 0;
+      const hits = Number(g.__void_txsubmit_wrap_ge_hits_total||0);
+      const ok = Number(g.__void_txsubmit_wrap_ge_enq_ok_total||0);
+      const err = Number(g.__void_txsubmit_wrap_ge_enq_err_total||0);
+      const lastWrap = Number(g.__void_txsubmit_wrap_ge_last_wrap_ts||0);
+      const lastErr = safeStr(g.__void_txsubmit_wrap_ge_last_err, 160);
+      res.send(
+        "# HELP void_txsubmit_wrap_ge_installed wrapper installed (1/0)\n" +
+        "# TYPE void_txsubmit_wrap_ge_installed gauge\n" +
+        "void_txsubmit_wrap_ge_installed 1\n" +
+        "# HELP void_txsubmit_wrap_ge_routes_total POST /tx/submit routes seen\n" +
+        "# TYPE void_txsubmit_wrap_ge_routes_total gauge\n" +
+        `void_txsubmit_wrap_ge_routes_total ${routes}\n` +
+        "# HELP void_txsubmit_wrap_ge_wrapped wrapper attached (1/0)\n" +
+        "# TYPE void_txsubmit_wrap_ge_wrapped gauge\n" +
+        `void_txsubmit_wrap_ge_wrapped ${wrapped}\n` +
+        "# HELP void_txsubmit_wrap_ge_last_wrap_ts_ms last wrap time (ms)\n" +
+        "# TYPE void_txsubmit_wrap_ge_last_wrap_ts_ms gauge\n" +
+        `void_txsubmit_wrap_ge_last_wrap_ts_ms ${lastWrap}\n` +
+        "# HELP void_txsubmit_wrap_ge_hits_total /tx/submit hits through wrapper\n" +
+        "# TYPE void_txsubmit_wrap_ge_hits_total counter\n" +
+        `void_txsubmit_wrap_ge_hits_total ${hits}\n` +
+        "# HELP void_txsubmit_wrap_ge_enq_ok_total globalEnqueueTx ok count\n" +
+        "# TYPE void_txsubmit_wrap_ge_enq_ok_total counter\n" +
+        `void_txsubmit_wrap_ge_enq_ok_total ${ok}\n` +
+        "# HELP void_txsubmit_wrap_ge_enq_err_total globalEnqueueTx err count\n" +
+        "# TYPE void_txsubmit_wrap_ge_enq_err_total counter\n" +
+        `void_txsubmit_wrap_ge_enq_err_total ${err}\n` +
+        "# HELP void_txsubmit_wrap_ge_last_err last error string (label)\n" +
+        "# TYPE void_txsubmit_wrap_ge_last_err gauge\n" +
+        `void_txsubmit_wrap_ge_last_err{msg="${lastErr}"} 1\n`
+      );
+    });
+  }
+} catch {}
+// -------- /TXSUBMIT WRAP LAYER GLOBALENQ v1 --------
+
+
+
+// -------- SEGSTORE PROTO INJECT TXS v1 --------
+// If blocks are being persisted without hitting store.saveBlock (instance wrapper),
+// patch SegStore.prototype persistence-ish methods and inject from node.mempool there.
+try {
+  const g:any = (globalThis as any);
+  if (!g.__void_segstore_proto_inject_v1_installed) {
+    g.__void_segstore_proto_inject_v1_installed = true;
+
+    if (typeof g.__void_segstore_proto_wrapped_total !== "number") g.__void_segstore_proto_wrapped_total = 0;
+    if (typeof g.__void_segstore_proto_calls_total !== "number") g.__void_segstore_proto_calls_total = 0;
+    if (typeof g.__void_segstore_proto_inject_hits_total !== "number") g.__void_segstore_proto_inject_hits_total = 0;
+    if (typeof g.__void_segstore_proto_taken_total !== "number") g.__void_segstore_proto_taken_total = 0;
+    if (g.__void_segstore_proto_last_method == null) g.__void_segstore_proto_last_method = null;
+    if (g.__void_segstore_proto_last_err == null) g.__void_segstore_proto_last_err = null;
+
+    const app:any = g.__void_http_app;
+    if (app) {
+      app.get("/__void/diag/segstore_inject.json", (_req:any,res:any)=>{
+        res.json({
+          ok:true,
+          installed:true,
+          wrapped_total: Number(g.__void_segstore_proto_wrapped_total)||0,
+          calls_total: Number(g.__void_segstore_proto_calls_total)||0,
+          inject_hits_total: Number(g.__void_segstore_proto_inject_hits_total)||0,
+          taken_total: Number(g.__void_segstore_proto_taken_total)||0,
+          last_method: g.__void_segstore_proto_last_method ?? null,
+          last_err: g.__void_segstore_proto_last_err ?? null,
+          cap: (g.__void_txmerge_cap_v1==null)? 1 : Number(g.__void_txmerge_cap_v1)
+        });
+      });
+
+      app.get("/__void/metrics/segstore_inject.prom", (_req:any,res:any)=>{
+        res.type("text/plain; version=0.0.4");
+        const lastErr = (g.__void_segstore_proto_last_err == null) ? "" : String(g.__void_segstore_proto_last_err).slice(0,160).replace(/\n/g," ");
+        const lastMeth = (g.__void_segstore_proto_last_method == null) ? "" : String(g.__void_segstore_proto_last_method).slice(0,80).replace(/\n/g," ");
+        res.send(
+          "# HELP void_segstore_proto_inject_installed segstore prototype injector installed (1/0)\n" +
+          "# TYPE void_segstore_proto_inject_installed gauge\n" +
+          "void_segstore_proto_inject_installed 1\n" +
+          "# HELP void_segstore_proto_wrapped_total methods wrapped\n" +
+          "# TYPE void_segstore_proto_wrapped_total gauge\n" +
+          `void_segstore_proto_wrapped_total ${Number(g.__void_segstore_proto_wrapped_total)||0}\n` +
+          "# HELP void_segstore_proto_calls_total total wrapped method calls\n" +
+          "# TYPE void_segstore_proto_calls_total counter\n" +
+          `void_segstore_proto_calls_total ${Number(g.__void_segstore_proto_calls_total)||0}\n` +
+          "# HELP void_segstore_proto_inject_hits_total calls where we injected txs\n" +
+          "# TYPE void_segstore_proto_inject_hits_total counter\n" +
+          `void_segstore_proto_inject_hits_total ${Number(g.__void_segstore_proto_inject_hits_total)||0}\n` +
+          "# HELP void_segstore_proto_taken_total txs taken from mempool\n" +
+          "# TYPE void_segstore_proto_taken_total counter\n" +
+          `void_segstore_proto_taken_total ${Number(g.__void_segstore_proto_taken_total)||0}\n` +
+          "# HELP void_segstore_proto_last_method last wrapped method name (label)\n" +
+          "# TYPE void_segstore_proto_last_method gauge\n" +
+          `void_segstore_proto_last_method{name="${lastMeth}"} 1\n` +
+          "# HELP void_segstore_proto_last_err last error string (label)\n" +
+          "# TYPE void_segstore_proto_last_err gauge\n" +
+          `void_segstore_proto_last_err{msg="${lastErr}"} 1\n`
+        );
+      });
+    }
+
+    const findNode = ()=>{
+      if (g.__void_node) return g.__void_node;
+      if (g.__voidNode) return g.__voidNode;
+      if (g.node && g.node.mempool) return g.node;
+
+      // one-time heuristic scan
+      if (!g.__void_node_hint_scanned) {
+        g.__void_node_hint_scanned = true;
+        try {
+          for (const k of Object.getOwnPropertyNames(g)) {
+            try {
+              const v:any = (g as any)[k];
+              if (!v || typeof v !== "object") continue;
+              if (v.mempool && Array.isArray(v.mempool.txs)) { g.__void_node = v; return v; }
+            } catch {}
+          }
+        } catch {}
+      }
+      return null;
+    };
+
+    const wrapProto = (meth:string)=>{
+      try {
+        const proto:any = (SegStore as any)?.prototype;
+        if (!proto) return;
+        if (proto[`__void_wrapped_${meth}_v1`]) return;
+        const orig:any = proto[meth];
+        if (typeof orig !== "function") return;
+
+        proto[meth] = async function(...args:any[]){
+          g.__void_segstore_proto_calls_total++;
+          g.__void_segstore_proto_last_method = meth;
+          try {
+            const blk:any = args[0];
+
+            // only attempt injection for object-ish first arg
+            if (blk && typeof blk === "object") {
+              // cap (default 1)
+              const capRaw = (g.__void_txmerge_cap_v1 != null) ? Number(g.__void_txmerge_cap_v1) : 1;
+              const cap = (Number.isFinite(capRaw) && capRaw >= 0) ? Math.floor(capRaw) : 1;
+
+              // see if block already has txs
+              const hasTxsArr =
+                Array.isArray((blk as any).txs) ||
+                (blk.body && typeof blk.body === "object" && Array.isArray((blk.body as any).txs));
+
+              const curLen =
+                Array.isArray((blk as any).txs) ? (blk as any).txs.length :
+                (blk.body && Array.isArray((blk.body as any).txs)) ? (blk.body as any).txs.length :
+                0;
+
+              if (cap > 0 && (!hasTxsArr || curLen === 0)) {
+                const node:any = findNode();
+                const mp:any[] = (node && node.mempool && Array.isArray(node.mempool.txs)) ? node.mempool.txs : [];
+                if (mp.length > 0) {
+                  const take:any[] = mp.splice(0, Math.min(cap, mp.length));
+                  if (take.length > 0) {
+                    g.__void_segstore_proto_inject_hits_total++;
+                    g.__void_segstore_proto_taken_total += take.length;
+
+                    // attach to block
+                    if (Array.isArray((blk as any).txs)) (blk as any).txs = take;
+                    else if (blk.body && typeof blk.body === "object" && Array.isArray((blk.body as any).txs)) (blk.body as any).txs = take;
+                    else (blk as any).txs = take;
+                  }
+                }
+              }
+            }
+          } catch (e:any) {
+            g.__void_segstore_proto_last_err = e?.message || String(e);
+          }
+          return await orig.apply(this, args);
+        };
+
+        proto[`__void_wrapped_${meth}_v1`] = true;
+        g.__void_segstore_proto_wrapped_total++;
+      } catch (e:any) {
+        g.__void_segstore_proto_last_err = e?.message || String(e);
+      }
+    };
+
+    // wrap the likely persistence entrypoints (best-effort)
+    for (const m of ["saveBlock","appendBlock","putBlock","writeBlock","addBlock","writeBlockJson","appendBlockJson"]) {
+      wrapProto(m);
+    }
+  }
+} catch {}
+// -------- /SEGSTORE PROTO INJECT TXS v1 --------
+
+
+
+// -------- SAVE BLOCK INJECT TXS v1 --------
+// Goal: ensure txs from node.mempool make it into persisted blocks.
+// This is additive + guarded, and only wraps once.
+try {
+  const g:any = (globalThis as any);
+
+  if (!g.__void_saveblock_inject_txs_v1_installed) {
+    g.__void_saveblock_inject_txs_v1_installed = true;
+
+    // metrics (cheap)
+    if (typeof g.__void_txmerge_inject_wrapped_total !== "number") g.__void_txmerge_inject_wrapped_total = 0;
+    if (typeof g.__void_txmerge_inject_hits_total !== "number") g.__void_txmerge_inject_hits_total = 0;
+    if (typeof g.__void_txmerge_inject_taken_total !== "number") g.__void_txmerge_inject_taken_total = 0;
+    if (g.__void_txmerge_inject_last_err == null) g.__void_txmerge_inject_last_err = null;
+
+    const app:any = g.__void_http_app;
+
+    // exporter
+    if (app) {
+      app.get("/__void/metrics/txmerge_inject.prom", (_req:any,res:any)=>{
+        res.type("text/plain; version=0.0.4");
+        const lastErr = (g.__void_txmerge_inject_last_err == null) ? "" : String(g.__void_txmerge_inject_last_err).slice(0,160).replace(/\n/g," ");
+        res.send(
+          "# HELP void_txmerge_inject_installed saveBlock injector installed (1/0)\n" +
+          "# TYPE void_txmerge_inject_installed gauge\n" +
+          "void_txmerge_inject_installed 1\n" +
+          "# HELP void_txmerge_inject_wrapped_total times wrapper attached\n" +
+          "# TYPE void_txmerge_inject_wrapped_total counter\n" +
+          `void_txmerge_inject_wrapped_total ${Number(g.__void_txmerge_inject_wrapped_total)||0}\n` +
+          "# HELP void_txmerge_inject_hits_total blocks where we attempted to inject\n" +
+          "# TYPE void_txmerge_inject_hits_total counter\n" +
+          `void_txmerge_inject_hits_total ${Number(g.__void_txmerge_inject_hits_total)||0}\n` +
+          "# HELP void_txmerge_inject_taken_total txs taken from mempool for injection\n" +
+          "# TYPE void_txmerge_inject_taken_total counter\n" +
+          `void_txmerge_inject_taken_total ${Number(g.__void_txmerge_inject_taken_total)||0}\n` +
+          "# HELP void_txmerge_inject_last_err last error string (label)\n" +
+          "# TYPE void_txmerge_inject_last_err gauge\n" +
+          `void_txmerge_inject_last_err{msg="${lastErr}"} 1\n`
+        );
+      });
+
+      app.get("/__void/diag/txmerge_inject.json", (_req:any,res:any)=>{
+        res.json({
+          ok:true,
+          installed:true,
+          wrapped_total: Number(g.__void_txmerge_inject_wrapped_total)||0,
+          hits_total: Number(g.__void_txmerge_inject_hits_total)||0,
+          taken_total: Number(g.__void_txmerge_inject_taken_total)||0,
+          last_err: g.__void_txmerge_inject_last_err ?? null
+        });
+      });
+    }
+
+    // poll until node exists, then wrap saveBlock
+    const pickNode = ()=>{
+      return g.__void_node || g.__voidNode || g.node || null;
+    };
+
+    const tryWrap = ()=>{
+      try {
+        const node:any = pickNode();
+        const store:any = node && (node.store || node._store || node.segstore || node.__store);
+        if (!node || !store || typeof store.saveBlock !== "function") return false;
+        if (store.__void_saveblock_inject_wrapped_v1) return true;
+
+        const orig = store.saveBlock.bind(store);
+        store.saveBlock = async (blk:any, ...rest:any[])=>{
+          try {
+            g.__void_txmerge_inject_hits_total++;
+
+            // choose tx source
+            const mp:any = node.mempool;
+            const arr:any[] = (mp && Array.isArray(mp.txs)) ? mp.txs : [];
+
+            // cap (default 1 for safety; can override by setting global)
+            const capRaw = (g.__void_txmerge_cap_v1 != null) ? Number(g.__void_txmerge_cap_v1) : 1;
+            const cap = (Number.isFinite(capRaw) && capRaw >= 0) ? Math.floor(capRaw) : 1;
+
+            let take:any[] = [];
+            if (cap > 0 && arr.length > 0) {
+              take = arr.splice(0, Math.min(cap, arr.length));
+            }
+
+            if (take.length > 0) {
+              g.__void_txmerge_inject_taken_total += take.length;
+
+              // attach to block in the most forgiving way possible
+              if (blk && typeof blk === "object") {
+                if (Array.isArray(blk.txs)) {
+                  blk.txs = take;
+                } else if (blk.body && typeof blk.body === "object" && Array.isArray(blk.body.txs)) {
+                  blk.body.txs = take;
+                } else {
+                  blk.txs = take;
+                }
+              }
+            }
+          } catch (e:any) {
+            g.__void_txmerge_inject_last_err = e?.message || String(e);
+          }
+          return await orig(blk, ...rest);
+        };
+
+        store.__void_saveblock_inject_wrapped_v1 = true;
+        g.__void_txmerge_inject_wrapped_total++;
+        return true;
+      } catch (e:any) {
+        g.__void_txmerge_inject_last_err = e?.message || String(e);
+        return false;
+      }
+    };
+
+    const t = setInterval(()=>{
+      const ok = tryWrap();
+      if (ok) clearInterval(t);
+    }, 250);
+    setTimeout(()=>{ try { clearInterval(t); } catch {} }, 15000);
+  }
+} catch {}
+// -------- /SAVE BLOCK INJECT TXS v1 --------
+
+
+
+// -------- TXSUBMIT PRUNE-TO-ONE v1 --------
+// Goal: guarantee exactly ONE POST /tx/submit handler to stop dup-enqueue / dup-responses.
+// We attach a canonical handler (marked __void_txsubmit_keep_v1) and then prune any other
+// /tx/submit POST routes from express' router stack.
+try {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app;
+  if (app && !g.__void_txsubmit_prune_to_one_v1_installed) {
+    g.__void_txsubmit_prune_to_one_v1_installed = true;
+    if (typeof g.__void_txsubmit_pruned_total !== "number") g.__void_txsubmit_pruned_total = 0;
+    if (typeof g.__void_txsubmit_keep_hits_total !== "number") g.__void_txsubmit_keep_hits_total = 0;
+
+    const pickNode = () => {
+      // best-effort: tolerate multiple historical globals
+      return (
+        (g.__void_node) ||
+        (g.__void_node_inst) ||
+        (g.__void_node_v1) ||
+        (g.__void_node_main) ||
+        ((app as any)?.locals?.node) ||
+        ((globalThis as any).__void_node) ||
+        null
+      );
+    };
+
+    const keepHandler:any = (req:any, res:any) => {
+      try { g.__void_txsubmit_keep_hits_total++; } catch {}
+      const tx = (req && (req as any).body) ? (req as any).body : null;
+
+      const node:any = pickNode();
+      let forced = "none";
+      let mempoolLen = -1;
+      let queueLen = -1;
+
+      try {
+        if (node && node.mempool) {
+          if (Array.isArray(node.mempool.txs)) {
+            if (tx) node.mempool.txs.push(tx);
+            mempoolLen = node.mempool.txs.length|0;
+            forced = "node.mempool.txs";
+          } else if (typeof node.mempool.push === "function") {
+            if (tx) node.mempool.push(tx);
+            forced = "node.mempool.push";
+          }
+        }
+      } catch {}
+
+      try {
+        const q:any = (g.__void_tx_queue || g.tx_queue || null);
+        if (Array.isArray(q)) {
+          if (tx) q.push(tx);
+          queueLen = q.length|0;
+          if (forced === "none") forced = "tx_queue";
+        }
+      } catch {}
+
+      res.json({
+        ok: true,
+        handled: "txsubmit_pruned_v1",
+        forced,
+        mempoolLen,
+        queueLen
+      });
+    };
+    keepHandler.__void_txsubmit_keep_v1 = true;
+
+    // Always register keep handler (at end)
+    // -------- TXSUBMIT PRUNED JSON PARSER v1 --------
+    app.post("/tx/submit", (express as any).json({ limit: "1mb" }), keepHandler);
+
+    const prune = () => {
+      try {
+        const r = (app as any)._router;
+        const stack:any[] = (r && Array.isArray(r.stack)) ? r.stack : [];
+        let total = 0, kept = 0, removed = 0;
+
+        // remove non-keep /tx/submit POST routes
+        for (let idx = stack.length - 1; idx >= 0; idx--) {
+          const layer:any = stack[idx];
+          const route:any = layer && layer.route;
+          if (!route) continue;
+          if (route.path !== "/tx/submit") continue;
+          if (!(route.methods && route.methods.post)) continue;
+
+          total++;
+
+          const rs = Array.isArray(route.stack) ? route.stack : [];
+          const hasKeep = rs.some((x:any) => x && x.handle && (x.handle as any).__void_txsubmit_keep_v1);
+          if (hasKeep) { kept++; continue; }
+
+          // drop this entire route layer
+          stack.splice(idx, 1);
+          removed++;
+        }
+
+        g.__void_txsubmit_routes_total = total;
+        g.__void_txsubmit_routes_kept = kept;
+        g.__void_txsubmit_routes_removed_last = removed;
+        g.__void_txsubmit_pruned_total += removed;
+      } catch (e:any) {
+        g.__void_txsubmit_prune_last_err = (e && (e.message||String(e))) || "err";
+      }
+    };
+
+    // prune shortly after boot (after other route registrations)
+    setTimeout(prune, 250);
+
+    // diag + metrics
+    app.get("/__void/diag/txsubmit_routes.json", (_req:any, res:any) => {
+      res.json({
+        ok: true,
+        total: g.__void_txsubmit_routes_total ?? null,
+        kept: g.__void_txsubmit_routes_kept ?? null,
+        removed_last: g.__void_txsubmit_routes_removed_last ?? null,
+        pruned_total: g.__void_txsubmit_pruned_total ?? null,
+        keep_hits_total: g.__void_txsubmit_keep_hits_total ?? null,
+        last_err: g.__void_txsubmit_prune_last_err ?? null
+      });
+    });
+
+    app.get("/__void/metrics/txsubmit_routes.prom", (_req:any, res:any) => {
+      const lines:string[] = [];
+      const n = (x:any)=> (typeof x==="number" && Number.isFinite(x)) ? x : 0;
+
+      lines.push("# HELP void_txsubmit_routes_prune_installed txsubmit prune-to-one installed (1/0)");
+      lines.push("# TYPE void_txsubmit_routes_prune_installed gauge");
+      lines.push("void_txsubmit_routes_prune_installed 1");
+
+      lines.push("# HELP void_txsubmit_routes_total Current count of POST /tx/submit routes detected during prune");
+      lines.push("# TYPE void_txsubmit_routes_total gauge");
+      lines.push("void_txsubmit_routes_total " + n(g.__void_txsubmit_routes_total));
+
+      lines.push("# HELP void_txsubmit_routes_kept Current kept POST /tx/submit routes (should be 1)");
+      lines.push("# TYPE void_txsubmit_routes_kept gauge");
+      lines.push("void_txsubmit_routes_kept " + n(g.__void_txsubmit_routes_kept));
+
+      lines.push("# HELP void_txsubmit_routes_removed_last Routes removed in last prune pass");
+      lines.push("# TYPE void_txsubmit_routes_removed_last gauge");
+      lines.push("void_txsubmit_routes_removed_last " + n(g.__void_txsubmit_routes_removed_last));
+
+      lines.push("# HELP void_txsubmit_routes_pruned_total Total routes pruned since boot");
+      lines.push("# TYPE void_txsubmit_routes_pruned_total counter");
+      lines.push("void_txsubmit_routes_pruned_total " + n(g.__void_txsubmit_pruned_total));
+
+      lines.push("# HELP void_txsubmit_keep_hits_total Hits served by canonical /tx/submit handler");
+      lines.push("# TYPE void_txsubmit_keep_hits_total counter");
+      lines.push("void_txsubmit_keep_hits_total " + n(g.__void_txsubmit_keep_hits_total));
+
+      res.setHeader("content-type","text/plain; version=0.0.4");
+      res.send(lines.join("\n") + "\n");
+    });
+
+    (console?.log||(()=>{}))("[txsubmit] prune-to-one v1 installed");
+  }
+} catch {}
+// -------- /TXSUBMIT PRUNE-TO-ONE v1 --------
+
+
+
+// -------- LASTSEAL EXPORTER v1 --------
+try {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app;
+  if (app && !g.__void_lastseal_exporter_v1_installed) {
+    g.__void_lastseal_exporter_v1_installed = true;
+
+    async function __void_lastSealGuess(scanBack:number=50){
+      const node:any = g.__void_node || g.node;
+      const store:any = node?.store || g.__apiSegStore;
+      let head:number = -1;
+      try {
+        // prefer live node head if present, fallback to store.loadHeadNumber
+        head = Number(node?.store?.loadHeadNumber?.() ?? store?.loadHeadNumber?.() ?? -1);
+      } catch {}
+      if (!Number.isFinite(head) || head < 0) return { head, lastSeal: -1, txs: 0 };
+
+      for (let i=0; i<scanBack; i++){
+        const n = head - i;
+        if (n < 0) break;
+        try {
+          const b = store?.loadBlock?.(n);
+          const txs = Array.isArray(b?.txs) ? b.txs.length : 0;
+          if (txs > 0) return { head, lastSeal: n, txs };
+        } catch {}
+      }
+      return { head, lastSeal: -1, txs: 0 };
+    }
+
+    app.get("/__void/diag/lastseal.json", async (req:any,res:any)=>{
+      const scanBack = Number(req.query?.scanBack ?? 50);
+      const r = await __void_lastSealGuess(Number.isFinite(scanBack) ? scanBack : 50);
+      res.json({ ok:true, ...r });
+    });
+
+    app.get("/__void/metrics/lastseal.prom", async (req:any,res:any)=>{
+      const scanBack = Number(req.query?.scanBack ?? 50);
+      const r = await __void_lastSealGuess(Number.isFinite(scanBack) ? scanBack : 50);
+      res.setHeader("content-type","text/plain; version=0.0.4");
+      res.end(
+`# HELP void_lastseal_head Current head seen by lastseal exporter
+# TYPE void_lastseal_head gauge
+void_lastseal_head ${Number.isFinite(r.head)?r.head:-1}
+# HELP void_lastseal_number Most recent block (within scan window) that has persisted txs; -1 if none
+# TYPE void_lastseal_number gauge
+void_lastseal_number ${Number.isFinite(r.lastSeal)?r.lastSeal:-1}
+# HELP void_lastseal_txs Persisted tx count at lastseal_number
+# TYPE void_lastseal_txs gauge
+void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
+`
+      );
+    });
+
+    try{ console.log("[lastseal] exporter ready: /__void/diag/lastseal.json + /__void/metrics/lastseal.prom"); }catch{}
+  }
+} catch {}
+// -------- /LASTSEAL EXPORTER v1 --------
+
+
+
+// -------- TXSUBMIT INJECT MEMPOOL v1 --------
+try {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app;
+  if (app && !g.__void_txsubmit_inject_mempool_v1_installed) {
+    g.__void_txsubmit_inject_mempool_v1_installed = true;
+    if (g.__void_txsubmit_inject_hits_total == null) g.__void_txsubmit_inject_hits_total = 0;
+
+    // Ensure POST /tx/submit always lands in the live node mempool (and mirrors to tx_queue for compatibility).
+    // This runs early and then calls next(), so existing handlers can still respond OK.
+    app.use("/tx/submit", require("express").json({ limit: "64kb" }), (req:any, _res:any, next:any) => {
+      try {
+        if ((req.method||"").toUpperCase() !== "POST") return next();
+        const gg:any = (globalThis as any);
+        const n:any = (gg.__void_node || gg.node);
+        const mp:any = n?.mempool;
+        const arr:any = mp?.txs;
+        if (Array.isArray(arr)) {
+          const tx:any = (req.body ?? {});
+          if (tx && typeof tx === "object" && !Array.isArray(tx)) {
+            if (!tx._rx_src) tx._rx_src = "txsubmit_inject_mempool_v1";
+          }
+          arr.push(tx);
+          if (Array.isArray(gg.__void_tx_queue)) gg.__void_tx_queue.push(tx);
+          if (typeof gg.__void_txsubmit_inject_hits_total === "number") gg.__void_txsubmit_inject_hits_total++;
+        }
+      } catch {}
+      return next();
+    });
+
+    // tiny prom view
+    app.get("/__void/metrics/txsubmit_inject.prom", (_req:any, res:any) => {
+      try {
+        const gg:any = (globalThis as any);
+        res.set("content-type","text/plain; version=0.0.4");
+        res.send(
+`# HELP void_txsubmit_inject_mempool_installed txsubmit inject mempool installed (1/0)
+# TYPE void_txsubmit_inject_mempool_installed gauge
+void_txsubmit_inject_mempool_installed ${gg.__void_txsubmit_inject_mempool_v1_installed ? 1 : 0}
+# HELP void_txsubmit_inject_hits_total POST /tx/submit mirrored into mempool (best-effort)
+# TYPE void_txsubmit_inject_hits_total counter
+void_txsubmit_inject_hits_total ${Number(gg.__void_txsubmit_inject_hits_total||0)}
+`
+        );
+      } catch {
+        res.status(500).send("err\n");
+      }
+    });
+  }
+} catch {}
+
+
+
+
+// -------- TX SUBMIT FORCE MEMPOOL v1 --------
+try {
+  const express = require("express");
+  const app:any = (globalThis as any).__void_http_app;
+  const g:any = (globalThis as any);
+
+  if (app && !g.__void_tx_submit_force_mempool_v1_installed) {
+    g.__void_tx_submit_force_mempool_v1_installed = true;
+
+    // Put this BEFORE any other /tx/submit mounts by inserting it very early in index.ts.
+    app.post("/tx/submit", express.json({ limit: "64kb" }), (req:any, res:any) => {
+      try {
+        const gg:any = (globalThis as any);
+        const node:any = (gg.__void_node || gg.node || null);
+        if (!node || !node.mempool) return res.status(503).json({ ok:false, err:"no_node_or_mempool" });
+
+        if (!Array.isArray(node.mempool.txs)) node.mempool.txs = [];
+        const tx = (req && req.body) ? req.body : {};
+        node.mempool.txs.push(tx);
+
+        // mirror to tx queue if present
+        const q:any = gg.__void_tx_queue;
+        if (Array.isArray(q)) q.push(tx);
+
+        // best-effort early hits metric (you already have this global)
+        if (typeof gg.__void_tx_submit_early_hits_total === "number") gg.__void_tx_submit_early_hits_total++;
+
+        return res.json({
+          ok: true,
+          forced: "mempool_v1",
+          mempoolLen: Array.isArray(node.mempool.txs) ? node.mempool.txs.length : null,
+          queueLen: Array.isArray(q) ? q.length : null
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, err:String(e?.message||e) });
+      }
+    });
+
+    try { (console?.log||(()=>{}))("[txsubmit.force] mounted /tx/submit -> live mempool"); } catch {}
+  }
+} catch {}
+// -------- /TX SUBMIT FORCE MEMPOOL v1 --------
+
+// -------- Mempool Target Diag v1 --------
+try {
+  const express = require("express");
+  const app:any = (globalThis as any).__void_http_app;
+  if (app && !(globalThis as any).__void_mempool_target_diag_v1_installed) {
+    (globalThis as any).__void_mempool_target_diag_v1_installed = true;
+    app.get("/__void/diag/mempool_target", (req:any,res:any)=>{
+      try {
+        const g:any = (globalThis as any);
+        const node:any = (g.__void_node || g.node || null);
+        const mp:any = node?.mempool || node?.mempool?.txs || null;
+        const q:any = g.__void_tx_queue || null;
+        const snap = {
+          have_node: !!node,
+          mempool_has_txs_array: Array.isArray(node?.mempool?.txs),
+          mempool_txs_len: Array.isArray(node?.mempool?.txs) ? node.mempool.txs.length : null,
+          mempool_has_push: typeof node?.mempool?.push === "function",
+          queue_is_array: Array.isArray(q),
+          queue_len: Array.isArray(q) ? q.length : null,
+          submit_singleton_installed: !!g.__void_tx_submit_early_singleton_v1_installed,
+        };
+        res.json({ ok:true, ...snap });
+      } catch (e:any) {
+        res.status(500).json({ ok:false, err: String(e?.message||e) });
+      }
+    });
+  }
+} catch {}
+// -------- /Mempool Target Diag v1 --------
+
+;
 
 // -------- TX SUBMIT EARLY SINGLETON v1 --------
 // Goal: make /tx/submit run EXACTLY ONCE (no dup mounts, no mirror-to-two-queues surprises).
@@ -302,6 +1538,89 @@ return res.json({ ok: true, early: true });
   }
 } catch {}
 // -------- /TX SUBMIT EARLY SINGLETON v1 --------
+
+// [early_singleton_v2_terminal] terminal /tx/submit with TTL dedupe; prevents downstream dup enqueue
+try {
+  const g:any = (globalThis as any);
+  const app:any = g.__void_http_app;
+  if (app && !g.__void_tx_submit_early_terminal_v2_installed) {
+    g.__void_tx_submit_early_terminal_v2_installed = true;
+
+    if (g.__void_tx_submit_early_hits_total == null) g.__void_tx_submit_early_hits_total = 0;
+    if (g.__void_tx_submit_early_dups_total == null) g.__void_tx_submit_early_dups_total = 0;
+    if (!g.__void_tx_submit_seen_v2) g.__void_tx_submit_seen_v2 = new Map(); // key -> ts_ms
+
+    const json64 = require("express").json({ limit: "64kb" });
+
+    app.post("/tx/submit", json64, (req:any, res:any) => {
+      try {
+        const gg:any = (globalThis as any);
+        const node:any = (gg.__void_node || gg.node || gg.__void_live_node);
+        const mp:any = node?.mempool;
+
+        const tx:any = (req?.body ?? {}) || {};
+        const now = Date.now();
+
+        // prune old keys (10s window)
+        const seen: Map<string, number> = gg.__void_tx_submit_seen_v2;
+        for (const [k, t] of seen) { if ((now - (t||0)) > 10_000) seen.delete(k); }
+
+        // stable-ish dedupe key
+        const k = String(tx.hash ?? "") + "|" + String(tx.nonce ?? "") + "|" + JSON.stringify(tx);
+
+        if (seen.has(k)) {
+          gg.__void_tx_submit_early_dups_total++;
+          return res.json({ ok: true, dup: true, handled: "early_singleton_v2_terminal" });
+        }
+        seen.set(k, now);
+
+        gg.__void_tx_submit_early_hits_total++;
+
+        // enqueue ONCE: prefer mempool.txs[] then mempool.push(); DO NOT also mirror to queue
+        let mempoolLen = -1;
+        if (mp?.txs && Array.isArray(mp.txs)) {
+          mp.txs.push(tx);
+          mempoolLen = mp.txs.length;
+        } else if (typeof mp?.push === "function") {
+          mp.push(tx);
+          mempoolLen = Array.isArray(mp?.txs) ? mp.txs.length : -1;
+        }
+
+        // keep queue as observable only (do not push here)
+        const q = gg.__void_tx_queue;
+        const queueLen = Array.isArray(q) ? q.length : -1;
+
+        return res.json({ ok: true, handled: "early_singleton_v2_terminal", mempoolLen, queueLen });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, err:String(e?.message||e) });
+      }
+    });
+
+    // exporter for sanity
+    app.get("/__void/metrics/txsubmit_early.prom", (_req:any, res:any) => {
+      const gg:any = (globalThis as any);
+      const inst = gg.__void_tx_submit_early_terminal_v2_installed ? 1 : 0;
+      const hits = Number(gg.__void_tx_submit_early_hits_total || 0);
+      const dups = Number(gg.__void_tx_submit_early_dups_total || 0);
+      res.setHeader("content-type", "text/plain; version=0.0.4");
+      res.end(
+        "# HELP void_tx_submit_early_singleton_installed Early /tx/submit singleton installed (1/0)\n" +
+        "# TYPE void_tx_submit_early_singleton_installed gauge\n" +
+        `void_tx_submit_early_singleton_installed ${inst}\n` +
+        "# HELP void_tx_submit_early_hits_total Count of POST /tx/submit seen (best-effort)\n" +
+        "# TYPE void_tx_submit_early_hits_total counter\n" +
+        `void_tx_submit_early_hits_total ${hits}\n` +
+        "# HELP void_tx_submit_early_dups_total Deduped POST /tx/submit (best-effort)\n" +
+        "# TYPE void_tx_submit_early_dups_total counter\n" +
+        `void_tx_submit_early_dups_total ${dups}\n`
+      );
+    });
+
+    (console?.log||(()=>{}))("[txsubmit] early singleton v2 terminal installed");
+  }
+} catch {}
+
+
 
 // -------- TX SUBMIT EARLY METRICS v1 --------
 try {
@@ -27287,3 +28606,1360 @@ void_wal_wrapped ${isWrapped?1:0}
 
   mount();
 })();
+
+
+/* __VOID_BLOCK_TXS_TRUTH_ENDPOINT v1 */
+try {
+  const __void_fs = require("fs");
+  const __void_path = require("path");
+
+  function __void_seg_base(n: number): number {
+    return Math.floor(n / 10000) * 10000;
+  }
+  function __void_seg_dir(base: number): string {
+    return String(base).padStart(8, "0");
+  }
+
+  // Very small cache: last-read segment file buffer by segdir
+  const __void_seg_cache: Record<string, { ts: number, buf: Buffer }> = Object.create(null);
+
+  function __void_read_block_line_from_seg(n: number): { ok: boolean, line?: string, file?: string, seg?: string, err?: string } {
+    const dataDir = (process.env.DATA_DIR || "data_a").toString();
+    const base = __void_seg_base(n);
+    const seg = __void_seg_dir(base);
+    const file = __void_path.join(process.cwd(), dataDir, "segments", seg, "blocks.bin");
+
+    try {
+      let buf: Buffer;
+      const now = Date.now();
+      const c = __void_seg_cache[seg];
+      if (c && (now - c.ts) < 750) buf = c.buf;
+      else {
+        buf = __void_fs.readFileSync(file);
+        __void_seg_cache[seg] = { ts: now, buf };
+      }
+
+      const needle = Buffer.from(`"number":${n}`, "utf8");
+      const idx = buf.indexOf(needle);
+      if (idx < 0) return { ok: false, file, seg, err: "not_found" };
+
+      // Find start "{" and end "\n" after the record
+      const start = buf.lastIndexOf(123 /*{*/, idx);
+      const endNL = buf.indexOf(10 /*\n*/, idx);
+      const end = (endNL > 0 ? endNL : buf.indexOf(125 /*}*/, idx) + 1);
+      if (start < 0 || end <= start) return { ok: false, file, seg, err: "bad_bounds" };
+
+      const line = buf.slice(start, end).toString("utf8").trim();
+      return { ok: true, line, file, seg };
+    } catch (e: any) {
+      return { ok: false, file, seg, err: String(e?.message || e) };
+    }
+  }
+
+  // Truth endpoint: read txs directly out of the segment file record.
+  app.get("/__void/diag/block_txs_truth/:n.json", (req: any, res: any) => {
+    const n = Number.parseInt(String(req.params.n || ""), 10);
+    if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, err: "bad_n" });
+
+    const r = __void_read_block_line_from_seg(n);
+    if (!r.ok || !r.line) return res.status(404).json({ ok: false, n, ...r });
+
+    try {
+      const obj = JSON.parse(r.line);
+      const txs = Array.isArray(obj?.txs) ? obj.txs : [];
+      return res.json({
+        ok: true,
+        n,
+        seg: r.seg,
+        file: r.file,
+        txsLen: txs.length,
+        txs,
+        commit: obj?._commit ?? null,
+      });
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, n, seg: r.seg, file: r.file, err: "json_parse", msg: String(e?.message || e) });
+    }
+  });
+} catch (e) {
+  // ignore
+}
+
+
+/* __VOID_BLOCK_TXS_TRUTH_MINI v1 */
+/* __VOID_BLOCK_TXS_TRUTH_MINI v2 */
+try {
+  const __fs = require("fs");
+  const __path = require("path");
+
+  function __segBase(n: number): number { return Math.floor(n / 10000) * 10000; }
+  function __segDir(base: number): string { return String(base).padStart(8, "0"); }
+
+  const __segCache: Record<string, { mtimeMs: number, buf: Buffer }> = Object.create(null);
+
+  function __readSegBuf(seg: string): Buffer {
+    const dataDir = (process.env.DATA_DIR || "data_a").toString();
+    const file = __path.join(process.cwd(), dataDir, "segments", seg, "blocks.bin");
+    const st = __fs.statSync(file);
+    const c = __segCache[seg];
+    if (c && c.mtimeMs === st.mtimeMs && c.buf) return c.buf;
+    const buf = __fs.readFileSync(file);
+    __segCache[seg] = { mtimeMs: st.mtimeMs, buf };
+    return buf;
+  }
+
+  function __extractJsonObj(buf: Buffer, start: number): any | null {
+    // brace+string aware scan
+    let inStr = false, esc = false, depth = 0;
+    for (let k = start; k < buf.length; k++) {
+      const b = buf[k];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (b === 0x5c) { esc = true; continue; }
+        if (b === 0x22) { inStr = false; continue; }
+        continue;
+      } else {
+        if (b === 0x22) { inStr = true; continue; }
+        if (b === 0x7b) { depth++; continue; }
+        if (b === 0x7d) {
+          depth--;
+          if (depth === 0) {
+            const s = buf.slice(start, k + 1).toString("utf8");
+            try { return JSON.parse(s); } catch { return null; }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function __blockTruth(n: number): any {
+    const base = __segBase(n);
+    const seg = __segDir(base);
+    const buf = __readSegBuf(seg);
+
+    const needle = Buffer.from(`"number":${n}`, "utf8");
+    const idxs: number[] = [];
+    let i = 0;
+    while (idxs.length < 200) {
+      const j = buf.indexOf(needle, i);
+      if (j < 0) break;
+      idxs.push(j);
+      i = j + 1;
+    }
+    if (!idxs.length) return { ok: false, n, seg, err: "needle_not_found" };
+
+    const cands: any[] = [];
+    for (const pos of idxs) {
+      const start = buf.lastIndexOf(Buffer.from("{"), pos);
+      if (start < 0) continue;
+      const o = __extractJsonObj(buf, start);
+      if (!o || typeof o !== "object") continue;
+      const txs = Array.isArray((o as any).txs) ? (o as any).txs : [];
+      const txsLen = txs.length;
+      const ts = (o as any).ts ?? null;
+      const commit = (o as any)._commit ?? null;
+      cands.push({ idx: start, ts, txsLen, commit, o });
+      if (cands.length >= 25) break;
+    }
+    if (!cands.length) return { ok: false, n, seg, err: "no_parseable_candidates" };
+
+    cands.sort((a, b) => {
+      const ah = a.txsLen > 0 ? 1 : 0;
+      const bh = b.txsLen > 0 ? 1 : 0;
+      if (bh !== ah) return bh - ah;
+      if (b.txsLen !== a.txsLen) return b.txsLen - a.txsLen;
+      return (b.ts || 0) - (a.ts || 0);
+    });
+
+    const picked = cands[0];
+    const txs = Array.isArray(picked.o.txs) ? picked.o.txs : [];
+    const nonce0 = txs[0]?.nonce ?? null;
+
+    return {
+      ok: true,
+      n,
+      seg,
+      picked_idx: picked.idx,
+      ts: picked.ts,
+      txsLen: txs.length,
+      commit: picked.commit ?? null,
+      nonce0,
+      txs,
+      candidates: cands.map((c: any) => ({ idx: c.idx, ts: c.ts, txsLen: c.txsLen, commit: c.commit ?? null }))
+    };
+  }
+
+  // ping stays (from v1). add real getter:
+  app.get("/__void/diag/blocktxs_truth_mini/:n.json", (req: any, res: any) => {
+    try {
+      const n = Number(req.params.n);
+      if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, err: "bad_n" });
+      const out = __blockTruth(n);
+      // default low output: strip txs unless ?txs=1
+      const wantTxs = String(req.query.txs || "") === "1";
+      const wantCands = String(req.query.cands || "") === "1";
+      if (!wantTxs && out && out.txs) delete out.txs;
+      if (!wantCands && out && out.candidates) delete out.candidates;
+      return res.json(out);
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, err: String(e?.message || e) });
+    }
+  });
+
+  console.log("[void] blocktxs_truth_mini v2 installed");
+} catch (e) {
+  // ignore
+}
+
+try {
+  const __vfs = require("fs");
+  const __vpath = require("path");
+
+  function __v_seg_base(n: number): number { return Math.floor(n / 10000) * 10000; }
+  function __v_seg_dir(base: number): string { return String(base).padStart(8, "0"); }
+
+  function __v_extract_json_obj(buf: Buffer, needleIdx: number): any | null {
+    const start = buf.lastIndexOf(0x7B, needleIdx); // '{'
+    if (start < 0) return null;
+    let depth = 0, inStr = false, esc = false;
+    for (let k = start; k < buf.length; k++) {
+      const c = buf[k];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (c === 0x5C) { esc = true; continue; } // '\'
+        if (c === 0x22) { inStr = false; continue; } // '"'
+        continue;
+      } else {
+        if (c === 0x22) { inStr = true; continue; }
+        if (c === 0x7B || c === 0x5B) { depth++; continue; } // '{' or '['
+        if (c === 0x7D || c === 0x5D) { // '}' or ']'
+          depth--;
+          if (depth === 0 && c === 0x7D) {
+            const txt = buf.subarray(start, k + 1).toString("utf8").trim();
+            try { return JSON.parse(txt); } catch { return null; }
+          }
+          continue;
+        }
+      }
+    }
+    return null;
+  }
+
+  function __v_read_truth_mini(n: number): any {
+    const dataDir = (process.env.DATA_DIR || "data_a").toString();
+    const base = __v_seg_base(n);
+    const seg = __v_seg_dir(base);
+    const file = __vpath.join(process.cwd(), dataDir, "segments", seg, "blocks.bin");
+    const buf = __vfs.readFileSync(file);
+
+    const needle = Buffer.from(`"number":${n}`, "utf8");
+    let i = 0;
+    let firstOk: any = null;
+
+    // scan occurrences, prefer txs-bearing record; hard cap steps for safety
+    for (let steps = 0; steps < 128; steps++) {
+      const j = buf.indexOf(needle, i);
+      if (j < 0) break;
+      i = j + 1;
+
+      const obj = __v_extract_json_obj(buf, j);
+      if (!obj || obj.number !== n) continue;
+
+      const txs = Array.isArray(obj.txs) ? obj.txs : [];
+      if (!firstOk) firstOk = obj;
+
+      if (txs.length > 0) {
+        return {
+          ok: true, n, seg, file,
+          picked: {
+            number: obj.number,
+            ts: obj.ts ?? null,
+            txsLen: txs.length,
+            commit: obj._commit ?? null,
+            nonce0: (txs[0]?.nonce ?? null),
+          }
+        };
+      }
+    }
+
+    // fallback: first ok record (may have txs_len 0)
+    if (firstOk) {
+      const txs = Array.isArray(firstOk.txs) ? firstOk.txs : [];
+      return {
+        ok: true, n, seg, file,
+        picked: {
+          number: firstOk.number,
+          ts: firstOk.ts ?? null,
+          txsLen: txs.length,
+          commit: firstOk._commit ?? null,
+          nonce0: (txs[0]?.nonce ?? null),
+        }
+      };
+    }
+
+    return { ok: false, n, err: "not_found_in_seg" };
+  }
+
+  // Install route after app exists (retry a few times; zero spam)
+  let __v_try = 0;
+  const __v_t = setInterval(() => {
+    __v_try++;
+    const app = (globalThis as any).__void_http_app;
+    if (app && !(app as any).__void_truth_mini_installed) {
+      (app as any).__void_truth_mini_installed = true;
+
+      app.get("/__void/diag/blocktxs_truth_mini/_ping.json", (_req: any, res: any) => {
+        res.json({ ok: true, installed: true });
+      });
+
+      app.get("/__void/diag/blocktxs_truth_mini/:n.json", (req: any, res: any) => {
+        try {
+          const n = Number.parseInt(String(req.params.n || ""), 10);
+          if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, err: "bad n" });
+          return res.json(__v_read_truth_mini(n));
+        } catch (e: any) {
+          return res.status(500).json({ ok: false, err: String(e?.message || e) });
+        }
+      });
+
+      clearInterval(__v_t);
+    }
+    if (__v_try >= 40) clearInterval(__v_t); // ~4s max
+  }, 100);
+} catch (_e) {}
+/* __VOID_BLOCK_TXS_TRUTH_MINI v1 */
+
+
+/* __VOID_BLOCK_TXS_TRUTH3 v1 */
+try {
+  const __fs = require("fs");
+  const __path = require("path");
+
+  function __segBase3(n: number): number { return Math.floor(n / 10000) * 10000; }
+  function __segDir3(base: number): string { return String(base).padStart(8, "0"); }
+
+  const __segCache3: Record<string, { mtimeMs: number, buf: Buffer }> = Object.create(null);
+
+  function __readSegBuf3(seg: string): { ok: boolean, buf?: Buffer, file?: string, err?: string } {
+    try {
+      const dataDir = (process.env.DATA_DIR || "data_a").toString();
+      const file = __path.join(process.cwd(), dataDir, "segments", seg, "blocks.bin");
+      const st = __fs.statSync(file);
+      const c = __segCache3[seg];
+      if (c && c.mtimeMs === st.mtimeMs && c.buf) return { ok: true, buf: c.buf, file };
+      const buf = __fs.readFileSync(file);
+      __segCache3[seg] = { mtimeMs: st.mtimeMs, buf };
+      return { ok: true, buf, file };
+    } catch (e: any) {
+      return { ok: false, err: String(e?.message || e) };
+    }
+  }
+
+  function __extractJsonObj3(buf: Buffer, start: number): any | null {
+    // brace+string aware scan from start '{' to matching '}'.
+    let inStr = false, esc = false, depth = 0;
+    for (let k = start; k < buf.length; k++) {
+      const b = buf[k];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (b === 0x5c) { esc = true; continue; }
+        if (b === 0x22) { inStr = false; continue; }
+        continue;
+      } else {
+        if (b === 0x22) { inStr = true; continue; }
+        if (b === 0x7b) { depth++; continue; }
+        if (b === 0x7d) {
+          depth--;
+          if (depth === 0) {
+            const s = buf.slice(start, k + 1).toString("utf8");
+            try { return JSON.parse(s); } catch { return null; }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function __blockTruth3(n: number): any {
+    const base = __segBase3(n);
+    const seg = __segDir3(base);
+
+    const rr = __readSegBuf3(seg);
+    if (!rr.ok || !rr.buf) return { ok: false, n, seg, err: rr.err || "read_failed" };
+    const buf: Buffer = rr.buf;
+
+    const needle = Buffer.from(`"number":${n}`, "utf8");
+
+    // collect all occurrences (cap to 200)
+    const idxs: number[] = [];
+    let i = 0;
+    while (idxs.length < 200) {
+      const j = buf.indexOf(needle, i);
+      if (j < 0) break;
+      idxs.push(j);
+      i = j + 1;
+    }
+    if (!idxs.length) return { ok: false, n, seg, file: rr.file, err: "needle_not_found" };
+
+    // parse candidates
+    const cands: any[] = [];
+    for (const pos of idxs) {
+      // find the nearest '{' before the needle
+      let start = pos;
+      while (start > 0 && buf[start] !== 0x7b) start--;
+      if (buf[start] !== 0x7b) continue;
+
+      const o = __extractJsonObj3(buf, start);
+      if (!o || typeof o !== "object") continue;
+
+      const txs = Array.isArray((o as any).txs) ? (o as any).txs : [];
+      const ts = (o as any).ts ?? null;
+      const commit = (o as any)._commit ?? null;
+
+      cands.push({ idx: start, ts, txsLen: txs.length, commit, o });
+      if (cands.length >= 25) break; // keep low overhead
+    }
+    if (!cands.length) return { ok: false, n, seg, file: rr.file, err: "no_parseable_candidates" };
+
+    // pick: prefer txs-bearing; then higher tx count; then latest ts
+    cands.sort((a, b) => {
+      const ah = a.txsLen > 0 ? 1 : 0;
+      const bh = b.txsLen > 0 ? 1 : 0;
+      if (bh !== ah) return bh - ah;
+      if (b.txsLen !== a.txsLen) return b.txsLen - a.txsLen;
+      return (b.ts || 0) - (a.ts || 0);
+    });
+
+    const picked = cands[0];
+    const txs = Array.isArray(picked.o.txs) ? picked.o.txs : [];
+    const nonce0 = txs[0]?.nonce ?? null;
+
+    return {
+      ok: true,
+      n,
+      seg,
+      file: rr.file,
+      picked_idx: picked.idx,
+      ts: picked.ts,
+      txsLen: txs.length,
+      commit: picked.commit ?? null,
+      nonce0,
+      // default low output; txs returned only with ?txs=1
+      txs,
+      candidates: cands.map((c: any) => ({ idx: c.idx, ts: c.ts, txsLen: c.txsLen, commit: c.commit ?? null })),
+    };
+  }
+
+  app.get("/__void/diag/blocktxs_truth3/_ping.json", (_req: any, res: any) => res.json({ ok: true, installed: true }));
+
+  app.get("/__void/diag/blocktxs_truth3/:n.json", (req: any, res: any) => {
+    try {
+      const n = Number(req.params.n);
+      if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, err: "bad_n" });
+
+      const out = __blockTruth3(n);
+
+      const wantTxs = String(req.query.txs || "") === "1";
+      const wantCands = String(req.query.cands || "") === "1";
+      if (!wantTxs && out && out.txs) delete out.txs;
+      if (!wantCands && out && out.candidates) delete out.candidates;
+
+      return res.json(out);
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, err: String(e?.message || e) });
+    }
+  });
+
+  console.log("[void] blocktxs_truth3 installed");
+} catch (_e) {}
+
+
+
+/* __VOID_PERSISTED_TRUTH_ENDPOINTS v2 DELAYED */
+try {
+  const __void_fs = require("fs");
+  const __void_path = require("path");
+
+  function __void_seg_base(n: number): number { return Math.floor(n / 10000) * 10000; }
+  function __void_seg_dir(base: number): string { return String(base).padStart(8, "0"); }
+
+  function __void_extract_json_obj(buf: Buffer, start: number, maxBytes = 1_500_000): any | null {
+    let inStr = false, esc = false, depth = 0;
+    const endLimit = Math.min(buf.length, start + maxBytes);
+    for (let i = start; i < endLimit; i++) {
+      const b = buf[i];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (b === 0x5c) { esc = true; continue; }    // \
+        if (b === 0x22) { inStr = false; continue; } // "
+        continue;
+      } else {
+        if (b === 0x22) { inStr = true; continue; }  // "
+        if (b === 0x7b) { depth++; continue; }       // {
+        if (b === 0x7d) {                            // }
+          depth--;
+          if (depth === 0) {
+            try { return JSON.parse(buf.slice(start, i + 1).toString("utf8")); }
+            catch { return null; }
+          }
+          continue;
+        }
+      }
+    }
+    return null;
+  }
+
+  function __void_pick_block_record(n: number): { ok: boolean, file?: string, seg?: string, picked?: any, picked_idx?: number, err?: string } {
+    const dataDir = (process.env.DATA_DIR || "data_a").toString();
+    const base = __void_seg_base(n);
+    const seg = __void_seg_dir(base);
+    const file = __void_path.join(process.cwd(), dataDir, "segments", seg, "blocks.bin");
+
+    let buf: Buffer;
+    try { buf = __void_fs.readFileSync(file); } catch (e: any) { return { ok: false, file, seg, err: "readfail:" + String(e?.message || e) }; }
+
+    const needle = Buffer.from(`"number":${n}`, "utf8");
+    const idxs: number[] = [];
+    for (let i = 0;;) {
+      const j = buf.indexOf(needle, i);
+      if (j < 0) break;
+      idxs.push(j);
+      i = j + 1;
+      if (idxs.length > 300) break;
+    }
+    if (!idxs.length) return { ok: false, file, seg, err: "needle_not_found" };
+
+    // collect up to 50 candidates, then pick txs-bearing, newest ts, then later offset
+    const cands: { idx: number, ts: any, txs_len: number, has_txs: number, commit: any }[] = [];
+    for (const pos of idxs) {
+      const start = buf.lastIndexOf(0x7b, pos);
+      if (start < 0) continue;
+      const obj = __void_extract_json_obj(buf, start);
+      if (!obj || typeof obj !== "object") continue;
+      const txs = Array.isArray((obj as any).txs) ? (obj as any).txs : [];
+      cands.push({
+        idx: start,
+        ts: (obj as any).ts ?? 0,
+        txs_len: txs.length,
+        has_txs: txs.length > 0 ? 1 : 0,
+        commit: (obj as any)._commit ?? null,
+      });
+      if (cands.length >= 50) break;
+    }
+    if (!cands.length) return { ok: false, file, seg, err: "no_parseable_candidates" };
+
+    cands.sort((a, b) => (b.has_txs - a.has_txs) || ((b.ts || 0) - (a.ts || 0)) || (b.idx - a.idx));
+    const picked_idx = cands[0].idx;
+    const picked = __void_extract_json_obj(buf, picked_idx);
+    if (!picked) return { ok: false, file, seg, err: "picked_parse_failed" };
+    return { ok: true, file, seg, picked_idx, picked };
+  }
+
+  const __void_truth2_state = { installed: false, tries: 0, last_err: "" };
+
+  function __void_install_truth2_routes(app: any) {
+    if (__void_truth2_state.installed) return;
+
+    app.get("/__void/diag/block_txs_truth2.json", (_req: any, res: any) => res.json({ ok: true, installed: true, tries: __void_truth2_state.tries, last_err: __void_truth2_state.last_err || null }));
+
+    app.get("/__void/diag/block_txs_truth2/:n.json", (req: any, res: any) => {
+      try {
+        const n = Number(req.params.n);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, err: "bad_n" });
+        const r = __void_pick_block_record(n);
+        if (!r.ok) return res.status(404).json(r);
+        const txs = Array.isArray(r.picked?.txs) ? r.picked.txs : null;
+        return res.json({
+          ok: true,
+          n,
+          seg: r.seg,
+          file: r.file,
+          picked_idx: r.picked_idx ?? null,
+          ts: r.picked?.ts ?? null,
+          commit: r.picked?._commit ?? null,
+          txsLen: txs ? txs.length : null,
+          nonce0: txs && txs[0] && typeof txs[0] === "object" ? (txs[0].nonce ?? null) : null,
+        });
+      } catch (e: any) {
+        return res.status(500).json({ ok: false, err: String(e?.message || e) });
+      }
+    });
+
+    // this is the one you actually need
+    app.get("/dev/blocks/:n/txs/persisted_truth", (req: any, res: any) => {
+      try {
+        const n = Number(req.params.n);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, err: "bad_n" });
+        const r = __void_pick_block_record(n);
+        if (!r.ok) return res.status(404).json(r);
+        const txs = Array.isArray(r.picked?.txs) ? r.picked.txs : [];
+        return res.json({ ok: true, number: n, len: txs.length, txs });
+      } catch (e: any) {
+        return res.status(500).json({ ok: false, err: String(e?.message || e) });
+      }
+    });
+
+    __void_truth2_state.installed = true;
+  }
+
+  // delayed attach: wait for the guaranteed hook `(globalThis as any).__void_http_app = app`
+  const __void_truth2_timer = setInterval(() => {
+    try {
+      __void_truth2_state.tries++;
+      const app = (globalThis as any).__void_http_app;
+      if (app && typeof app.get === "function") {
+        __void_install_truth2_routes(app);
+        clearInterval(__void_truth2_timer);
+      }
+      if (__void_truth2_state.tries > 200) {
+        __void_truth2_state.last_err = "timeout_waiting_for_global_app";
+        clearInterval(__void_truth2_timer);
+      }
+    } catch (e: any) {
+      __void_truth2_state.last_err = String(e?.message || e);
+      if (__void_truth2_state.tries > 200) clearInterval(__void_truth2_timer);
+    }
+  }, 250);
+} catch {}
+/* __VOID_PERSISTED_TRUTH_ENDPOINTS v2 DELAYED END */
+
+
+
+/* DISABLED_OLD_OVERRIDE */
+/*  __VOID_PERSISTED_ROUTE_OVERRIDE v1  */
+try {
+  const __void_fs = require("fs");
+  const __void_path = require("path");
+
+  function __void_seg_base(n: number): number { return Math.floor(n / 10000) * 10000; }
+  function __void_seg_dir(base: number): string { return String(base).padStart(8, "0"); }
+
+  function __void_extract_json_obj(buf: Buffer, start: number, maxBytes = 1_500_000): any | null {
+    let inStr = false, esc = false, depth = 0;
+    const endLimit = Math.min(buf.length, start + maxBytes);
+    for (let i = start; i < endLimit; i++) {
+      const b = buf[i];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (b === 0x5c) { esc = true; continue; }    // \
+        if (b === 0x22) { inStr = false; continue; } // "
+        continue;
+      } else {
+        if (b === 0x22) { inStr = true; continue; }  // "
+        if (b === 0x7b) { depth++; continue; }       // {
+        if (b === 0x7d) {                            // }
+          depth--;
+          if (depth === 0) {
+            try { return JSON.parse(buf.slice(start, i + 1).toString("utf8")); }
+            catch { return null; }
+          }
+          continue;
+        }
+      }
+    }
+    return null;
+  }
+
+  function __void_pick_block_record(n: number): { ok: boolean, seg?: string, file?: string, picked?: any, picked_idx?: number, err?: string } {
+    const dataDir = (process.env.DATA_DIR || "data_a").toString();
+    const base = __void_seg_base(n);
+    const seg = __void_seg_dir(base);
+    const file = __void_path.join(process.cwd(), dataDir, "segments", seg, "blocks.bin");
+
+    let buf: Buffer;
+    try { buf = __void_fs.readFileSync(file); }
+    catch (e: any) { return { ok: false, seg, file, err: "readfail:" + String(e?.message || e) }; }
+
+    const needle = Buffer.from(`"number":${n}`, "utf8");
+    const idxs: number[] = [];
+    for (let i = 0;;) {
+      const j = buf.indexOf(needle, i);
+      if (j < 0) break;
+      idxs.push(j);
+      i = j + 1;
+      if (idxs.length > 300) break;
+    }
+    if (!idxs.length) return { ok: false, seg, file, err: "needle_not_found" };
+
+    const cands: { idx: number, ts: any, has_txs: number, txs_len: number, commit: any }[] = [];
+    for (const pos of idxs) {
+      const start = buf.lastIndexOf(0x7b, pos);
+      if (start < 0) continue;
+      const obj = __void_extract_json_obj(buf, start);
+      if (!obj || typeof obj !== "object") continue;
+      const txs = Array.isArray((obj as any).txs) ? (obj as any).txs : [];
+      cands.push({
+        idx: start,
+        ts: (obj as any).ts ?? 0,
+        has_txs: txs.length > 0 ? 1 : 0,
+        txs_len: txs.length,
+        commit: (obj as any)._commit ?? null,
+      });
+      if (cands.length >= 60) break;
+    }
+    if (!cands.length) return { ok: false, seg, file, err: "no_parseable_candidates" };
+
+    cands.sort((a, b) => (b.has_txs - a.has_txs) || ((b.ts || 0) - (a.ts || 0)) || (b.idx - a.idx));
+    const picked_idx = cands[0].idx;
+    const picked = __void_extract_json_obj(buf, picked_idx);
+    if (!picked) return { ok: false, seg, file, err: "picked_parse_failed" };
+    return { ok: true, seg, file, picked_idx, picked };
+  }
+
+  const __void_persisted_override = { installed: false, tries: 0, hits: 0, last_err: "" };
+
+  function __void_install_persisted_override(app: any) {
+    if (__void_persisted_override.installed) return;
+
+    const mw = (req: any, res: any, next: any) => {
+      try {
+        if (req.method !== "GET") return next();
+        const p = (req.path || "").toString();
+        const m = p.match(/^\/dev\/blocks\/(\d+)\/txs\/persisted$/);
+        if (!m) return next();
+
+        // only in dev mode to avoid surprises
+        const devOn = (process.env.ALLOW_DEV_ROUTES === "1") || (process.env.VOID_DEV_ROUTES === "1") || (process.env.NODE_ENV === "development");
+        if (!devOn) return next();
+
+        const n = Number(m[1]);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, number: n, err: "bad_n" });
+
+        const r = __void_pick_block_record(n);
+        if (!r.ok) return res.status(404).json({ ok: false, number: n, err: r.err || "not_found" });
+
+        const txs = Array.isArray(r.picked?.txs) ? r.picked.txs : [];
+        __void_persisted_override.hits++;
+        return res.json({ ok: true, number: n, len: txs.length, txs });
+      } catch (e: any) {
+        __void_persisted_override.last_err = String(e?.message || e);
+        return next();
+      }
+    };
+
+    // add then move to front so it runs before existing /dev route handlers
+    app.use(mw);
+    try {
+      const st = app && app._router && Array.isArray(app._router.stack) ? app._router.stack : null;
+      if (st && st.length) st.unshift(st.pop());
+    } catch {}
+
+    app.get("/__void/diag/persisted_override.json", (_req: any, res: any) => {
+      res.json({ ok: true, installed: true, tries: __void_persisted_override.tries, hits: __void_persisted_override.hits, last_err: __void_persisted_override.last_err || null });
+    });
+
+    __void_persisted_override.installed = true;
+  }
+
+  const __void_persisted_override_timer = setInterval(() => {
+    try {
+      __void_persisted_override.tries++;
+      const app = (globalThis as any).__void_http_app;
+      if (app && typeof app.use === "function") {
+        __void_install_persisted_override(app);
+        clearInterval(__void_persisted_override_timer);
+      }
+      if (__void_persisted_override.tries > 200) {
+        __void_persisted_override.last_err = "timeout_waiting_for_global_app";
+        clearInterval(__void_persisted_override_timer);
+      }
+    } catch (e: any) {
+      __void_persisted_override.last_err = String(e?.message || e);
+      if (__void_persisted_override.tries > 200) clearInterval(__void_persisted_override_timer);
+    }
+  }, 250);
+} catch {}
+/* __VOID_PERSISTED_ROUTE_OVERRIDE v1 END */
+
+
+
+/* DISABLED_OLD_OVERRIDE */
+/*  __VOID_PERSISTED_ROUTE_OVERRIDE v2  */
+try {
+  const __void_fs = require("fs");
+  const __void_path = require("path");
+
+  function __void_seg_base2(n: number): number { return Math.floor(n / 10000) * 10000; }
+  function __void_seg_dir2(base: number): string { return String(base).padStart(8, "0"); }
+
+  function __void_extract_json_obj2(buf: Buffer, start: number, maxBytes = 1_500_000): any | null {
+    let inStr = false, esc = false, depth = 0;
+    const endLimit = Math.min(buf.length, start + maxBytes);
+    for (let i = start; i < endLimit; i++) {
+      const b = buf[i];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (b === 0x5c) { esc = true; continue; }    // \
+        if (b === 0x22) { inStr = false; continue; } // "
+        continue;
+      } else {
+        if (b === 0x22) { inStr = true; continue; }  // "
+        if (b === 0x7b) { depth++; continue; }       // {
+        if (b === 0x7d) {                            // }
+          depth--;
+          if (depth === 0) {
+            try { return JSON.parse(buf.slice(start, i + 1).toString("utf8")); }
+            catch { return null; }
+          }
+          continue;
+        }
+      }
+    }
+    return null;
+  }
+
+  function __void_pick_block_record2(n: number): { ok: boolean, seg?: string, file?: string, picked?: any, picked_idx?: number, err?: string } {
+    const dataDir = (process.env.DATA_DIR || "data_a").toString();
+    const base = __void_seg_base2(n);
+    const seg = __void_seg_dir2(base);
+    const file = __void_path.join(process.cwd(), dataDir, "segments", seg, "blocks.bin");
+
+    let buf: Buffer;
+    try { buf = __void_fs.readFileSync(file); }
+    catch (e: any) { return { ok: false, seg, file, err: "readfail:" + String(e?.message || e) }; }
+
+    const needle = Buffer.from(`"number":${n}`, "utf8");
+    const idxs: number[] = [];
+    for (let i = 0;;) {
+      const j = buf.indexOf(needle, i);
+      if (j < 0) break;
+      idxs.push(j);
+      i = j + 1;
+      if (idxs.length > 300) break;
+    }
+    if (!idxs.length) return { ok: false, seg, file, err: "needle_not_found" };
+
+    const cands: { idx: number, ts: any, has_txs: number, txs_len: number, commit: any }[] = [];
+    for (const pos of idxs) {
+      const start = buf.lastIndexOf(0x7b, pos);
+      if (start < 0) continue;
+      const obj = __void_extract_json_obj2(buf, start);
+      if (!obj || typeof obj !== "object") continue;
+      const txs = Array.isArray((obj as any).txs) ? (obj as any).txs : [];
+      cands.push({
+        idx: start,
+        ts: (obj as any).ts ?? 0,
+        has_txs: txs.length > 0 ? 1 : 0,
+        txs_len: txs.length,
+        commit: (obj as any)._commit ?? null,
+      });
+      if (cands.length >= 80) break;
+    }
+    if (!cands.length) return { ok: false, seg, file, err: "no_parseable_candidates" };
+
+    cands.sort((a, b) => (b.has_txs - a.has_txs) || ((b.ts || 0) - (a.ts || 0)) || (b.idx - a.idx));
+    const picked_idx = cands[0].idx;
+    const picked = __void_extract_json_obj2(buf, picked_idx);
+    if (!picked) return { ok: false, seg, file, err: "picked_parse_failed" };
+    return { ok: true, seg, file, picked_idx, picked };
+  }
+
+  const __void_po2 = { installed: false, tries: 0, hits: 0, pins: 0, last_pin_idx: -1, last_err: "" };
+
+  function __void_install_po2(app: any) {
+    if (__void_po2.installed) return;
+
+    const mw = (req: any, res: any, next: any) => {
+      try {
+        if (req.method !== "GET") return next();
+        const p = (req.path || "").toString();
+        const m = p.match(/^\/dev\/blocks\/(\d+)\/txs\/persisted$/);
+        if (!m) return next();
+
+        const devOn = (process.env.ALLOW_DEV_ROUTES === "1") || (process.env.VOID_DEV_ROUTES === "1") || (process.env.NODE_ENV === "development");
+        if (!devOn) return next();
+
+        const n = Number(m[1]);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, number: n, err: "bad_n" });
+
+        const r = __void_pick_block_record2(n);
+        if (!r.ok) return res.status(404).json({ ok: false, number: n, err: r.err || "not_found" });
+
+        const txs = Array.isArray(r.picked?.txs) ? r.picked.txs : [];
+        __void_po2.hits++;
+        return res.json({ ok: true, number: n, len: txs.length, txs, _picked_idx: r.picked_idx ?? null, _commit: (r.picked?._commit ?? null) });
+      } catch (e: any) {
+        __void_po2.last_err = String(e?.message || e);
+        return next();
+      }
+    };
+
+    // add it, then *find and move that exact layer to the front*
+    app.use(mw);
+
+    function repin() {
+      try {
+        const st = app && app._router && Array.isArray(app._router.stack) ? app._router.stack : null;
+        if (!st) return;
+        const idx = st.findIndex((l: any) => l && l.handle === mw);
+        if (idx >= 0) {
+          const layer = st.splice(idx, 1)[0];
+          st.unshift(layer);
+          __void_po2.pins++;
+          __void_po2.last_pin_idx = 0;
+        } else {
+          __void_po2.last_pin_idx = -1;
+        }
+      } catch (e: any) {
+        __void_po2.last_err = "repin:" + String(e?.message || e);
+      }
+    }
+
+    repin();
+    // keep it pinned for a bit in case other code attaches routes after boot
+    const pinTimer = setInterval(repin, 500);
+    setTimeout(() => { try { clearInterval(pinTimer); } catch {} }, 60_000);
+
+    app.get("/__void/diag/persisted_override2.json", (_req: any, res: any) => {
+      res.json({ ok: true, installed: true, tries: __void_po2.tries, hits: __void_po2.hits, pins: __void_po2.pins, last_pin_idx: __void_po2.last_pin_idx, last_err: __void_po2.last_err || null });
+    });
+
+    __void_po2.installed = true;
+  }
+
+  const __void_po2_timer = setInterval(() => {
+    try {
+      __void_po2.tries++;
+      const app = (globalThis as any).__void_http_app;
+      if (app && typeof app.use === "function") {
+        __void_install_po2(app);
+        clearInterval(__void_po2_timer);
+      }
+      if (__void_po2.tries > 200) {
+        __void_po2.last_err = "timeout_waiting_for_global_app";
+        clearInterval(__void_po2_timer);
+      }
+    } catch (e: any) {
+      __void_po2.last_err = String(e?.message || e);
+      if (__void_po2.tries > 200) clearInterval(__void_po2_timer);
+    }
+  }, 250);
+} catch {}
+/* __VOID_PERSISTED_ROUTE_OVERRIDE v2 END */
+
+
+
+/* DISABLED_OLD_OVERRIDE */
+/*  __VOID_PERSISTED_ROUTE_OVERRIDE v3  */
+try {
+  const __void_fs = require("fs");
+  const __void_path = require("path");
+
+  function __void_seg_base3(n: number): number { return Math.floor(n / 10000) * 10000; }
+  function __void_seg_dir3(base: number): string { return String(base).padStart(8, "0"); }
+
+  function __void_extract_json_obj3(buf: Buffer, start: number, maxBytes = 1_500_000): any | null {
+    let inStr = false, esc = false, depth = 0;
+    const endLimit = Math.min(buf.length, start + maxBytes);
+    for (let i = start; i < endLimit; i++) {
+      const b = buf[i];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (b === 0x5c) { esc = true; continue; }
+        if (b === 0x22) { inStr = false; continue; }
+        continue;
+      } else {
+        if (b === 0x22) { inStr = true; continue; }
+        if (b === 0x7b) { depth++; continue; }
+        if (b === 0x7d) {
+          depth--;
+          if (depth === 0) {
+            try { return JSON.parse(buf.slice(start, i + 1).toString("utf8")); }
+            catch { return null; }
+          }
+          continue;
+        }
+      }
+    }
+    return null;
+  }
+
+  function __void_pick_block_record3(n: number): { ok: boolean, seg?: string, file?: string, picked?: any, picked_idx?: number, err?: string } {
+    const dataDir = (process.env.DATA_DIR || "data_a").toString();
+    const base = __void_seg_base3(n);
+    const seg = __void_seg_dir3(base);
+    const file = __void_path.join(process.cwd(), dataDir, "segments", seg, "blocks.bin");
+
+    let buf: Buffer;
+    try { buf = __void_fs.readFileSync(file); }
+    catch (e: any) { return { ok: false, seg, file, err: "readfail:" + String(e?.message || e) }; }
+
+    const needle = Buffer.from(`"number":${n}`, "utf8");
+    const idxs: number[] = [];
+    for (let i = 0;;) {
+      const j = buf.indexOf(needle, i);
+      if (j < 0) break;
+      idxs.push(j);
+      i = j + 1;
+      if (idxs.length > 300) break;
+    }
+    if (!idxs.length) return { ok: false, seg, file, err: "needle_not_found" };
+
+    const cands: { idx: number, ts: any, has_txs: number, txs_len: number, commit: any }[] = [];
+    for (const pos of idxs) {
+      const start = buf.lastIndexOf(0x7b, pos);
+      if (start < 0) continue;
+      const obj = __void_extract_json_obj3(buf, start);
+      if (!obj || typeof obj !== "object") continue;
+      const txs = Array.isArray((obj as any).txs) ? (obj as any).txs : [];
+      cands.push({
+        idx: start,
+        ts: (obj as any).ts ?? 0,
+        has_txs: txs.length > 0 ? 1 : 0,
+        txs_len: txs.length,
+        commit: (obj as any)._commit ?? null,
+      });
+      if (cands.length >= 120) break;
+    }
+    if (!cands.length) return { ok: false, seg, file, err: "no_parseable_candidates" };
+
+    cands.sort((a, b) => (b.has_txs - a.has_txs) || ((b.ts || 0) - (a.ts || 0)) || (b.idx - a.idx));
+    const picked_idx = cands[0].idx;
+    const picked = __void_extract_json_obj3(buf, picked_idx);
+    if (!picked) return { ok: false, seg, file, err: "picked_parse_failed" };
+    return { ok: true, seg, file, picked_idx, picked };
+  }
+
+  const __void_po3 = {
+    installed: false,
+    tries: 0,
+    seen_total: 0,
+    match_total: 0,
+    serve_total: 0,
+    pins: 0,
+    last_pin_idx: -1,
+    last_ts: 0,
+    last_method: "",
+    last_path: "",
+    last_original: "",
+    last_err: ""
+  };
+
+  function __void_install_po3(app: any) {
+    if (__void_po3.installed) return;
+
+    const mw = (req: any, res: any, next: any) => {
+      try {
+        __void_po3.seen_total++;
+        __void_po3.last_ts = Date.now();
+        __void_po3.last_method = String(req.method || "");
+        __void_po3.last_path = String(req.path || "");
+        __void_po3.last_original = String(req.originalUrl || "");
+
+        // match by originalUrl first (most reliable), then path
+        const u = __void_po3.last_original.split("?")[0] || "";
+        const p = __void_po3.last_path || "";
+        const m = (u.match(/^\/dev\/blocks\/(\d+)\/txs\/persisted$/) || p.match(/^\/dev\/blocks\/(\d+)\/txs\/persisted$/));
+        if (!m) return next();
+
+        __void_po3.match_total++;
+
+        const devOn = (process.env.ALLOW_DEV_ROUTES === "1") || (process.env.VOID_DEV_ROUTES === "1") || (process.env.NODE_ENV === "development");
+        if (!devOn) return next();
+
+        const n = Number(m[1]);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok: false, number: n, err: "bad_n" });
+
+        const r = __void_pick_block_record3(n);
+        if (!r.ok) return res.status(404).json({ ok: false, number: n, err: r.err || "not_found" });
+
+        const txs = Array.isArray(r.picked?.txs) ? r.picked.txs : [];
+        __void_po3.serve_total++;
+        return res.json({ ok: true, number: n, len: txs.length, txs, _picked_idx: r.picked_idx ?? null, _commit: (r.picked?._commit ?? null) });
+      } catch (e: any) {
+        __void_po3.last_err = String(e?.message || e);
+        return next();
+      }
+    };
+
+    app.use(mw);
+
+    function repin() {
+      try {
+        const st = app && app._router && Array.isArray(app._router.stack) ? app._router.stack : null;
+        if (!st) return;
+        const idx = st.findIndex((l: any) => l && l.handle === mw);
+        if (idx >= 0) {
+          const layer = st.splice(idx, 1)[0];
+          st.unshift(layer);
+          __void_po3.pins++;
+          __void_po3.last_pin_idx = 0;
+        } else {
+          __void_po3.last_pin_idx = -1;
+        }
+      } catch (e: any) {
+        __void_po3.last_err = "repin:" + String(e?.message || e);
+      }
+    }
+
+    repin();
+    const pinTimer = setInterval(repin, 500);
+    setTimeout(() => { try { clearInterval(pinTimer); } catch {} }, 60_000);
+
+    app.get("/__void/diag/persisted_override3.json", (_req: any, res: any) => {
+      res.json({
+        ok: true,
+        installed: true,
+        tries: __void_po3.tries,
+        seen_total: __void_po3.seen_total,
+        match_total: __void_po3.match_total,
+        serve_total: __void_po3.serve_total,
+        pins: __void_po3.pins,
+        last_pin_idx: __void_po3.last_pin_idx,
+        last_ts: __void_po3.last_ts,
+        last_method: __void_po3.last_method,
+        last_path: __void_po3.last_path,
+        last_original: __void_po3.last_original,
+        last_err: __void_po3.last_err || null
+      });
+    });
+
+    __void_po3.installed = true;
+  }
+
+  const __void_po3_timer = setInterval(() => {
+    try {
+      __void_po3.tries++;
+      const app = (globalThis as any).__void_http_app;
+      if (app && typeof app.use === "function") {
+        __void_install_po3(app);
+        clearInterval(__void_po3_timer);
+      }
+      if (__void_po3.tries > 200) {
+        __void_po3.last_err = "timeout_waiting_for_global_app";
+        clearInterval(__void_po3_timer);
+      }
+    } catch (e: any) {
+      __void_po3.last_err = String(e?.message || e);
+      if (__void_po3.tries > 200) clearInterval(__void_po3_timer);
+    }
+  }, 250);
+} catch {}
+/* __VOID_PERSISTED_ROUTE_OVERRIDE v3 END */
+
+
+
+/* __VOID_PERSISTED_ROUTE_OVERRIDE v4 */
+try {
+  const __void_fs = require("fs");
+  const __void_path = require("path");
+
+  const __void_po4: any = {
+    installed: false,
+    tries: 0,
+    seen_total: 0,
+    match_total: 0,
+    serve_total: 0,
+    pins: 0,
+    last_pin_idx: -1,
+    last_ts: 0,
+    last_method: "",
+    last_url: "",
+    last_err: ""
+  };
+
+  function __void_send_json4(res: any, code: number, obj: any) {
+    const body = JSON.stringify(obj);
+    try { res.statusCode = code; } catch {}
+    try { if (typeof res.setHeader === "function") res.setHeader("Content-Type", "application/json"); } catch {}
+    try { if (typeof res.setHeader === "function") res.setHeader("Cache-Control", "no-store"); } catch {}
+    try {
+      if (typeof res.end === "function") return res.end(body);
+      // worst-case fallback:
+      if (typeof res.send === "function") return res.send(body);
+    } catch {}
+  }
+
+  function __void_seg_base4(n: number): number { return Math.floor(n / 10000) * 10000; }
+  function __void_seg_dir4(base: number): string { return String(base).padStart(8, "0"); }
+
+  function __void_extract_json_obj4(buf: Buffer, start: number, maxBytes = 1_500_000): any | null {
+    let inStr = false, esc = false, depth = 0;
+    const endLimit = Math.min(buf.length, start + maxBytes);
+    for (let i = start; i < endLimit; i++) {
+      const b = buf[i];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (b === 0x5c) { esc = true; continue; }        // "\"
+        if (b === 0x22) { inStr = false; continue; }      // '"'
+        continue;
+      } else {
+        if (b === 0x22) { inStr = true; continue; }
+        if (b === 0x7b) { depth++; continue; }            // "{"
+        if (b === 0x7d) {                                 // "}"
+          depth--;
+          if (depth === 0) {
+            try { return JSON.parse(buf.slice(start, i + 1).toString("utf8")); }
+            catch { return null; }
+          }
+          continue;
+        }
+      }
+    }
+    return null;
+  }
+
+  // tiny cache to avoid re-scanning blocks.bin repeatedly
+  const __void_pick_cache4: Record<string, { ts: number, obj: any, picked_idx: number|null, commit: any|null, txs: any[] }> = Object.create(null);
+
+  function __void_pick_block_record4(n: number): { ok: boolean, seg?: string, file?: string, picked?: any, picked_idx?: number, err?: string } {
+    const key = String(n);
+    const now = Date.now();
+    const cached = __void_pick_cache4[key];
+    if (cached && (now - cached.ts) < 5000) {
+      return { ok: true, picked: cached.obj, picked_idx: cached.picked_idx ?? undefined };
+    }
+
+    const dataDir = (process.env.DATA_DIR || "data_a").toString();
+    const base = __void_seg_base4(n);
+    const seg = __void_seg_dir4(base);
+    const file = __void_path.join(process.cwd(), dataDir, "segments", seg, "blocks.bin");
+
+    let buf: Buffer;
+    try { buf = __void_fs.readFileSync(file); }
+    catch (e: any) { return { ok: false, seg, file, err: "readfail:" + String(e?.message || e) }; }
+
+    const needle = Buffer.from(`"number":${n}`, "utf8");
+
+    const idxs: number[] = [];
+    for (let i = 0;;) {
+      const j = buf.indexOf(needle, i);
+      if (j < 0) break;
+      idxs.push(j);
+      i = j + 1;
+      if (idxs.length > 300) break;
+    }
+    if (!idxs.length) return { ok: false, seg, file, err: "needle_not_found" };
+
+    const cands: { idx: number, ts: any, has_txs: number, txs_len: number }[] = [];
+    for (const pos of idxs) {
+      const start = buf.lastIndexOf(0x7b, pos);
+      if (start < 0) continue;
+      const obj = __void_extract_json_obj4(buf, start);
+      if (!obj || typeof obj !== "object") continue;
+      const txs = Array.isArray((obj as any).txs) ? (obj as any).txs : [];
+      cands.push({ idx: start, ts: (obj as any).ts ?? 0, has_txs: txs.length > 0 ? 1 : 0, txs_len: txs.length });
+      if (cands.length >= 120) break;
+    }
+    if (!cands.length) return { ok: false, seg, file, err: "no_parseable_candidates" };
+
+    cands.sort((a, b) => (b.has_txs - a.has_txs) || ((b.ts || 0) - (a.ts || 0)) || (b.idx - a.idx));
+
+    const picked_idx = cands[0].idx;
+    const picked = __void_extract_json_obj4(buf, picked_idx);
+    if (!picked) return { ok: false, seg, file, err: "picked_parse_failed" };
+
+    __void_pick_cache4[key] = { ts: now, obj: picked, picked_idx: picked_idx, commit: (picked as any)._commit ?? null, txs: Array.isArray((picked as any).txs) ? (picked as any).txs : [] };
+    return { ok: true, seg, file, picked_idx, picked };
+  }
+
+  function __void_install_po4(app: any) {
+    if (__void_po4.installed) return;
+
+    const mw = (req: any, res: any, next: any) => {
+      __void_po4.seen_total++;
+      __void_po4.last_ts = Date.now();
+      __void_po4.last_method = String(req?.method || "");
+      __void_po4.last_url = String((req?.originalUrl || req?.url || ""));
+
+      try {
+        const url0 = __void_po4.last_url.split("?")[0] || "";
+
+        // diag is served from middleware (no res.json dependency)
+        if (__void_po4.last_method === "GET" && url0 === "/__void/diag/persisted_override4.json") {
+          return __void_send_json4(res, 200, {
+            ok: true,
+            installed: true,
+            tries: __void_po4.tries,
+            seen_total: __void_po4.seen_total,
+            match_total: __void_po4.match_total,
+            serve_total: __void_po4.serve_total,
+            pins: __void_po4.pins,
+            last_pin_idx: __void_po4.last_pin_idx,
+            last_ts: __void_po4.last_ts,
+            last_method: __void_po4.last_method,
+            last_url: __void_po4.last_url,
+            last_err: __void_po4.last_err || null,
+          });
+        }
+
+        const m = url0.match(/^\/dev\/blocks\/(\d+)\/txs\/persisted$/);
+        if (!m) return next();
+
+        __void_po4.match_total++;
+
+        const devOn = (process.env.ALLOW_DEV_ROUTES === "1") || (process.env.VOID_DEV_ROUTES === "1") || (process.env.NODE_ENV === "development");
+        if (!devOn) return next();
+
+        const n = Number(m[1]);
+        if (!Number.isFinite(n) || n < 0) {
+          __void_po4.last_err = "bad_n";
+          return __void_send_json4(res, 400, { ok: false, number: n, err: "bad_n" });
+        }
+
+        const r = __void_pick_block_record4(n);
+        if (!r.ok) {
+          __void_po4.last_err = r.err || "not_found";
+          return __void_send_json4(res, 404, { ok: false, number: n, err: r.err || "not_found" });
+        }
+
+        const txs = Array.isArray((r.picked as any)?.txs) ? (r.picked as any).txs : [];
+        __void_po4.serve_total++;
+
+        const nonce0 = (txs[0] && typeof txs[0] === "object") ? (txs[0] as any).nonce ?? null : null;
+        const commit = (r.picked as any)?._commit ?? null;
+
+        return __void_send_json4(res, 200, { ok: true, number: n, len: txs.length, txs, nonce0, _picked_idx: r.picked_idx ?? null, _commit: commit });
+      } catch (e: any) {
+        __void_po4.last_err = String(e?.message || e);
+        return next();
+      }
+    };
+
+    app.use(mw);
+
+    function repin() {
+      try {
+        const st = app && app._router && Array.isArray(app._router.stack) ? app._router.stack : null;
+        if (!st) return;
+        const idx = st.findIndex((l: any) => l && l.handle === mw);
+        if (idx >= 0) {
+          const layer = st.splice(idx, 1)[0];
+          st.unshift(layer);
+          __void_po4.pins++;
+          __void_po4.last_pin_idx = 0;
+        } else {
+          __void_po4.last_pin_idx = -1;
+        }
+      } catch (e: any) {
+        __void_po4.last_err = "repin:" + String(e?.message || e);
+      }
+    }
+
+    repin();
+    const pinTimer = setInterval(repin, 500);
+    setTimeout(() => { try { clearInterval(pinTimer); } catch {} }, 60_000);
+
+    __void_po4.installed = true;
+  }
+
+  const __void_po4_timer = setInterval(() => {
+    try {
+      __void_po4.tries++;
+      const app = (globalThis as any).__void_http_app;
+      if (app && typeof app.use === "function") {
+        __void_install_po4(app);
+        clearInterval(__void_po4_timer);
+      }
+      if (__void_po4.tries > 200) {
+        __void_po4.last_err = "timeout_waiting_for_global_app";
+        clearInterval(__void_po4_timer);
+      }
+    } catch (e: any) {
+      __void_po4.last_err = String(e?.message || e);
+      if (__void_po4.tries > 200) clearInterval(__void_po4_timer);
+    }
+  }, 250);
+} catch {}
+/* __VOID_PERSISTED_ROUTE_OVERRIDE v4 END */
+
