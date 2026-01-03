@@ -1,3 +1,11 @@
+// [__void_diag_preamble_v1] runtime deps + relaxed typecheck for extracted bundle
+// @ts-nocheck
+const __G:any = (globalThis as any);
+const express:any = (()=>{ try { return require('express'); } catch { return (__G as any).express; } })();
+const path:any = (()=>{ try { return require('node:path'); } catch { return require('path'); } })();
+const fs:any = (()=>{ try { return require('node:fs'); } catch { return require('fs'); } })();
+const SegStore:any = (__G as any).SegStore;
+
 // [extracted:txroot_forensics_bundle_v5_v73]
 // Extracted from src/index.ts to reduce blob size. Behavior should be identical.
 // NOTE: relative imports were rewritten for src/diag/*.
