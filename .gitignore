@@ -59,3 +59,5 @@ ops/datanet/*.bak.*
 # stray curl output files
 /200
 /404
+perf.data
+perf.data.*
