@@ -17240,13 +17240,22 @@ try {
   const G:any = (globalThis as any);
   if (G.__void_loaded_txroot_bundle_v5_v73) return;
   G.__void_loaded_txroot_bundle_v5_v73 = true;
-  try {
-    await import('./diag/txroot_forensics_bundle_v5_v73.js');
-    try { console.error('[diag-load] txroot_forensics_bundle_v5_v73 loaded'); } catch {}
-  } catch (e:any) {
-    try { console.error('[diag-load] txroot_forensics_bundle_v5_v73 import failed', e?.message||e); } catch {}
+  const tries = [
+    './diag/txroot_forensics_bundle_v5_v73.js',
+    './diag/txroot_forensics_bundle_v5_v73.ts',
+    './diag/txroot_forensics_bundle_v5_v73',
+  ];
+  for (const spec of tries) {
+    try {
+      await import(spec as any);
+      try { console.error('[diag-load] txroot bundle loaded via', spec); } catch {}
+      return;
+    } catch (e:any) {
+      try { console.error('[diag-load] txroot bundle import failed via', spec, (e?.message||e)); } catch {}
+    }
   }
 })();
+
 try { require('./diag/txroot_forensics_bundle_v5_v73'); } catch (e:any) {
   try { console.error('[txroot-forensics.bundle] require failed', e?.message || e); } catch {}
 }
@@ -30944,3 +30953,4 @@ try {
   }, 25);
 
 })();
+
