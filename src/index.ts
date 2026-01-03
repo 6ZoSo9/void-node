@@ -258,6 +258,68 @@ console.log("[shim] published global node (post-construct)");
   const app = express();
   (globalThis as any).__void_http_app = app
 
+
+  // [__void_txroot_bundle_lazy_loader_after_app_hook_v1]
+  ;(function __voidTxrootBundleLazyLoaderAfterAppHookV1(){
+    try {
+      const G:any = (globalThis as any);
+      const appAny:any = (G.__void_http_app as any);
+      if (!appAny || typeof appAny.get !== "function") return;
+
+      if ((appAny as any).__voidTxrootBundleLazyLoaderInstalledV1) return;
+      (appAny as any).__voidTxrootBundleLazyLoaderInstalledV1 = true;
+
+      const state:any = (G.__void_txroot_bundle_lazy_state ||= {
+        installed:true, loaded:false, loading:false, ok:false, okSpec:"",
+        tries:[], ts_install: Date.now(), ts_load:0
+      });
+
+      // enable only if explicitly turned on (default OFF)
+      const enabled = (process.env.VOID_TXROOT_BUNDLE_LAZY || "").trim() === "1";
+      state.enabled = enabled;
+
+      appAny.get("/__void/diag/txroot_bundle_lazy/state.json", (_:any,res:any) => {
+        res.json({ ok:true, state });
+      });
+
+      appAny.post("/__void/diag/txroot_bundle_lazy/load", async (_:any,res:any) => {
+        if (!enabled) return res.status(403).json({ ok:false, err:"disabled (set VOID_TXROOT_BUNDLE_LAZY=1)" });
+        if (state.loaded) return res.json({ ok:true, already:true, state });
+        if (state.loading) return res.status(409).json({ ok:false, err:"already loading", state });
+
+        state.loading = true;
+        state.ts_load = Date.now();
+
+        const tries = [
+          "./diag/txroot_forensics_bundle_v5_v73.js",
+          "./diag/txroot_forensics_bundle_v5_v73.ts",
+          "./diag/txroot_forensics_bundle_v5_v73",
+        ];
+
+        for (const spec of tries) {
+          try {
+            await import(spec as any);
+            state.loaded = true;
+            state.ok = true;
+            state.okSpec = spec;
+            state.tries.push({ spec, ok:true, at: Date.now() });
+            state.loading = false;
+            return res.json({ ok:true, state });
+          } catch (e:any) {
+            const msg = (e?.message || e);
+            state.tries.push({ spec, ok:false, at: Date.now(), err: String(msg) });
+          }
+        }
+
+        state.loading = false;
+        state.ok = false;
+        return res.status(500).json({ ok:false, err:"all attempts failed", state });
+      });
+
+      try { console.log("[lazy-load] txroot bundle loader installed enabled=" + String(enabled)); } catch {}
+    } catch {}
+  })();
+
 // === [jsonparse-diag.v1c] forced gate (anchor2) ===
 try {
   const on = (process.env.VOID_DIAG_JSONPARSE || "").trim() === "1";
@@ -17238,7 +17300,11 @@ try {
 // [__void_loaded_txroot_bundle_v5_v73] ensure extracted bundle executes (side-effects)
 (async function __voidLoadTxrootBundleV5V73(){
   const G:any = (globalThis as any);
-  if (G.__void_loaded_txroot_bundle_v5_v73) return;
+  const S:any = (G.__void_txroot_bundle_load_state ||= { entered:0, ok:false, okSpec:'', tries:[], ts:0 });
+  S.entered = (S.entered||0) + 1;
+  S.ts = Date.now();
+  try { console.error('[diag-load] loader ENTER v5_v73 entered=', S.entered, 'ts=', S.ts); } catch {}
+  if (G.__void_loaded_txroot_bundle_v5_v73) { try{ console.error('[diag-load] loader already-latched ok=', S.ok, 'spec=', S.okSpec||''); }catch{}; return; }
   G.__void_loaded_txroot_bundle_v5_v73 = true;
   const tries = [
     './diag/txroot_forensics_bundle_v5_v73.js',
@@ -17248,13 +17314,19 @@ try {
   for (const spec of tries) {
     try {
       await import(spec as any);
-      try { console.error('[diag-load] txroot bundle loaded via', spec); } catch {}
+      S.ok = true; S.okSpec = spec;
+      S.tries.push({ spec, ok:true, at: Date.now() });
+      try { console.error('[diag-load] loader SUCCESS via', spec); } catch {}
       return;
     } catch (e:any) {
-      try { console.error('[diag-load] txroot bundle import failed via', spec, (e?.message||e)); } catch {}
+      const msg = (e?.message||e);
+      S.tries.push({ spec, ok:false, at: Date.now(), err: String(msg) });
+      try { console.error('[diag-load] loader FAIL via', spec, msg); } catch {}
     }
   }
+  try { console.error('[diag-load] loader DONE: all attempts failed'); } catch {}
 })();
+
 
 try { require('./diag/txroot_forensics_bundle_v5_v73'); } catch (e:any) {
   try { console.error('[txroot-forensics.bundle] require failed', e?.message || e); } catch {}
@@ -22758,7 +22830,9 @@ void_wal_wrapped ${isWrapped?1:0}
     // POST /__void/metrics/proposer.commit-direct.v1?max=5&empty=0
     app.post("/__void/metrics/proposer.commit-direct.v1", async (req:any,res:any)=>{
       const max = Number(req.query.max ?? 5);
-      const empty = String(req.query.empty ?? "0") === "1";
+      const _q:any = (req && req.query) ? req.query : {};
+      const _ae = (_q.allowEmpty ?? _q.empty ?? _q.emptyOnce ?? "0");
+      const empty = (String(_ae) === "1") || (String(_ae).toLowerCase() === "true");
       const r = await commitOnce(max, empty);
       res.json(r);
     });
@@ -23766,9 +23840,12 @@ void_wal_wrapped ${isWrapped?1:0}
 
     // POST /__void/metrics/proposer.commit-direct.v2fs?max=5&empty=0
     app.post("/__void/metrics/proposer.commit-direct.v2fs", async (req:any,res:any)=>{
-      const max = Number(req.query.max ?? 5);
-      const empty = String(req.query.empty ?? "0") === "1";
+      const max = Number((req?.query as any)?.max ?? 5);
+      const _q:any = (req && (req as any).query) ? (req as any).query : {};
+      const _ae = (_q.empty ?? _q.allowEmpty ?? _q.allow_empty ?? _q.emptyOnce ?? _q.allowEmptyOnce ?? "0");
+      const empty = (String(_ae) === "1") || (String(_ae).toLowerCase() === "true");
       const r = await commitOnce(max, empty);
+      res.json(r);
       res.json(r);
     });
 
@@ -23948,7 +24025,8 @@ void_wal_wrapped ${isWrapped?1:0}
     const t0 = Date.now();
     try{
       S.ticks++;
-      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0";
+      const AUTO_EMPTY = (String(process.env.VOID_V2FS_AUTO_EMPTY ?? process.env.ALLOW_EMPTY_BLOCKS ?? "0") === "1") ? 1 : 0;
+      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=" + AUTO_EMPTY;
       const r = await fetch(url, { method:"POST" }).catch(()=>null);
       const j = r ? await r.json().catch(()=>null) : null;
       const ms = Date.now() - t0;
@@ -24274,7 +24352,8 @@ void_wal_wrapped ${isWrapped?1:0}
 
     // Warm kick once after a short delay so the autoprop loop has time to attach.
     setTimeout(()=>{
-      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0`;
+      const AUTO_EMPTY2 = (String(process.env.VOID_V2FS_AUTO_EMPTY ?? process.env.ALLOW_EMPTY_BLOCKS ?? "0") === "1") ? 1 : 0;
+      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=${AUTO_EMPTY2}`;
       postT(url, 300).then(()=>{});
     }, 600);
 
@@ -30953,4 +31032,5 @@ try {
   }, 25);
 
 })();
+
 
