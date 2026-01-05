@@ -61,3 +61,4 @@ ops/datanet/*.bak.*
 /404
 perf.data
 perf.data.*
+src/index.ts.crashbak.*
