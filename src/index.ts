@@ -23846,7 +23846,6 @@ void_wal_wrapped ${isWrapped?1:0}
       const empty = (String(_ae) === "1") || (String(_ae).toLowerCase() === "true");
       const r = await commitOnce(max, empty);
       res.json(r);
-      res.json(r);
     });
 
     app.get("/__void/metrics/proposer.commit-direct.v2fs/status.json", (_req:any,res:any)=>res.json({ok:true, state:S}));
