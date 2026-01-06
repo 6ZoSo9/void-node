@@ -42,9 +42,27 @@ mkdir -p "$OUT"
 ok1=skip ok2=skip ok3=skip
 copy_cfg /etc/prometheus/prometheus.yml "$OUT" && ok1=ok
 copy_cfg /etc/prometheus/rules.d        "$OUT" && ok2=ok
-copy_cfg /etc/prometheus/alerts         "$OUT" && ok3=ok
+copy_cfg /etc/prometheus/alerts.d               "$OUT" && ok3=ok
 
 printf 'config copies: prometheus.yml=%s rules.d=%s alerts=%s\n' "$ok1" "$ok2" "$ok3" \
   | tee "$OUT/copy-status.$TS.txt"
+
+echo
+
+# 3) validate snapshot prometheus.yml (if present) and stamp status
+if command -v promtool >/dev/null 2>&1; then
+  if [ -f "$OUT/prometheus.yml" ]; then
+    if promtool check config "$OUT/prometheus.yml" >/dev/null 2>&1; then
+      : > "$OUT/PROM_YML_OK"
+      rm -f "$OUT/PROM_YML_BROKEN" "$OUT/PROM_YML_BROKEN.txt" 2>/dev/null || true
+      echo "snapshot prometheus.yml: OK" | tee "$OUT/prometheus-yml-status.$TS.txt"
+    else
+      : > "$OUT/PROM_YML_BROKEN"
+      rm -f "$OUT/PROM_YML_OK" 2>/dev/null || true
+      promtool check config "$OUT/prometheus.yml" > "$OUT/PROM_YML_BROKEN.txt" 2>&1 || true
+      echo "snapshot prometheus.yml: BROKEN (see $OUT/PROM_YML_BROKEN.txt)" | tee "$OUT/prometheus-yml-status.$TS.txt"
+    fi
+  fi
+fi
 
 echo "snapshot: $OUT"
