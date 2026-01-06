@@ -1,6 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+
+wait_active_targets_v1() {
+  local url="${1:-http://127.0.0.1:9090}"
+  local secs="${2:-30}"
+  local want="${3:-1}"
+  echo "=== wait active targets (>=${want}, up to ${secs}s) ==="
+  for i in $(seq 1 "$secs"); do
+    local n
+    n="$(curl -fsS --max-time 2 "${url}/api/v1/targets?state=active" 2>/dev/null \
+      | jq -r ".data.activeTargets | length" 2>/dev/null || echo 0)"
+    printf "t=%s activeTargets=%s\n" "$i" "$n"
+    if [ "${n:-0}" -ge "$want" ]; then
+      echo "[ok] targets present"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "[WARN] active targets still <${want} after ${secs}s" >&2
+  return 1
+}
+
+
 TS="$(date +%Y%m%d-%H%M%S)"
 OUT="/tmp/void-prom-restore-from-ops-snap-v4.$TS.out.txt"
 exec > >(tee -a "$OUT") 2>&1
@@ -116,6 +138,9 @@ echo "[ok] rules parse"
 echo
 echo "=== [6] restart Prometheus + wait ready (90s) ==="
 systemctl restart prometheus
+# v4+: avoid false 0 targets right after restart
+wait_active_targets_v1 "${PROM:-http://127.0.0.1:9090}" 30 1 || true
+
 
 PROM="http://127.0.0.1:9090"
 for i in $(seq 1 90); do
