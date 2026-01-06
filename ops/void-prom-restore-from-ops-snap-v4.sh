@@ -141,15 +141,36 @@ systemctl restart prometheus
 # v4+: avoid false 0 targets right after restart
 wait_active_targets_v1 "${PROM:-http://127.0.0.1:9090}" 30 1
 PROM="http://127.0.0.1:9090"
+READY=0
 for i in $(seq 1 90); do
-  if curl -fsS --max-time 2 "$PROM/-/ready" >/dev/null; then
+  # connection refused / 503 are normal during restart; keep stderr quiet
+  if curl -fsS --max-time 2 "$PROM/-/ready" >/dev/null 2>/dev/null; then
     echo "[ok] /-/ready"
-    curl -fsS --max-time 2 "$PROM/-/healthy" >/dev/null && echo "[ok] /-/healthy" || echo "[warn] /-/healthy not OK"
-    echo
-echo "=== [7] active targets count ==="
-AT="$(curl -fsS "${PROM:-http://127.0.0.1:9090}/api/v1/targets?state=active" | jq '.data.activeTargets | length' 2>/dev/null || echo 0)"
-echo "$AT"
-if [ "${AT}" -lt 1 ]; then
-  echo "[FAIL] activeTargets=0 after restart (something is still broken)" >&2
-  exit 9
+    if curl -fsS --max-time 2 "$PROM/-/healthy" >/dev/null 2>/dev/null; then
+      echo "[ok] /-/healthy"
+    else
+      echo "[warn] /-/healthy not OK"
+    fi
+    READY=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "${READY:-0}" != "1" ]; then
+  echo "[FAIL] Prometheus did not become ready within 90s: $PROM" >&2
+  exit 2
 fi
+
+echo
+echo "=== [7] active targets count ==="
+PROM_URL="${PROM:-http://127.0.0.1:9090}"
+N="$(curl -fsS "${PROM_URL}/api/v1/targets?state=active" | jq '.data.activeTargets | length')"
+echo "$N"
+if [ "${N:-0}" -lt 1 ]; then
+  echo "[FAIL] activeTargets=0 after restart (something is still broken)" >&2
+  exit 7
+fi
+
+echo
+echo "[ok] restore complete"
