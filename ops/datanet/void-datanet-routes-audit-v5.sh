@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 FILE="src/http/datanet_routes.ts"
-BASE="${BASE:-http://127.0.0.1:4100}"
+BASE="${BASE:-http://localhost:4100}"
 [[ -f "$FILE" ]] || { echo "[ERR] missing $FILE"; exit 2; }
 
 PREFIX="$(python3 - <<'PY' "$FILE"

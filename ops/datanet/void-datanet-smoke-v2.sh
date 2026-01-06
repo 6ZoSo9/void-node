@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="${BASE:-http://127.0.0.1:4100}"
+BASE="${BASE:-http://localhost:4100}"
 SIZE_BYTES="${SIZE_BYTES:-1024}"
 
 TMPDIR="${TMPDIR:-/tmp}"

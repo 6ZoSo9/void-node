@@ -31,7 +31,7 @@
     }
     if (attached) return; attached = true;
 
-    // GET /follower/status2?peer=http://127.0.0.1:4100
+    // GET /follower/status2?peer=http://localhost:4100
     // -> { ok, peer, head_local, head_peer, drift }
     app.get("/follower/status2", async (req: any, res: any) => {
       try {

@@ -6598,13 +6598,13 @@ var txroot_js_1 = require("./util/txroot.js");
                 if (attached)
                     return [2 /*return*/];
                 attached = true;
-                // GET /follower/status?peer=http://127.0.0.1:4100
+                // GET /follower/status?peer=http://localhost:4100
                 app.get("/follower/status", function (req, res) { return __awaiter(_this, void 0, void 0, function () {
                     var peer, self, _b, head_local, head_peer, drift;
                     return __generator(this, function (_c) {
                         switch (_c.label) {
                             case 0:
-                                peer = String(req.query.peer || "http://127.0.0.1:4100");
+                                peer = String(req.query.peer || "http://localhost:4100");
                                 self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
                                 return [4 /*yield*/, Promise.all([getHead(self), getHead(peer)])];
                             case 1:
@@ -6621,7 +6621,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     return __generator(this, function (_c) {
                         switch (_c.label) {
                             case 0:
-                                peer = String(req.query.peer || "http://127.0.0.1:4100");
+                                peer = String(req.query.peer || "http://localhost:4100");
                                 self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
                                 return [4 /*yield*/, Promise.all([getHead(self), getHead(peer)])];
                             case 1:
@@ -7152,7 +7152,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     return [2 /*return*/];
                 attached = true;
                 selfPort = String(process.env.HTTP_PORT || "4100");
-                peer = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+                peer = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
                 app.get("/metrics/drift", function (_req, res) { return __awaiter(_this, void 0, void 0, function () {
                     var drift, head_local, head_peer, url, d, _b;
                     return __generator(this, function (_c) {
@@ -7231,7 +7231,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     return [2 /*return*/];
                 attached = true;
                 selfPort = String(process.env.HTTP_PORT || "4100");
-                peer = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+                peer = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
                 app.get("/metrics/drift", function (_req, res) { return __awaiter(_this, void 0, void 0, function () {
                     var drift, head_local, head_peer, url, d;
                     return __generator(this, function (_b) {
@@ -7286,7 +7286,7 @@ var txroot_js_1 = require("./util/txroot.js");
             }
         }); });
     }
-    var PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    var PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
     function num(x, d) {
         if (d === void 0) { d = 0; }
         var n = Number(x);
@@ -7363,7 +7363,7 @@ var txroot_js_1 = require("./util/txroot.js");
             }
         }); });
     }
-    var PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    var PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
     var num = function (x, d) {
         if (d === void 0) { d = 0; }
         var n = Number(x);
@@ -7440,7 +7440,7 @@ var txroot_js_1 = require("./util/txroot.js");
             }
         }); });
     }
-    var PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    var PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
     var num = function (x, d) {
         if (d === void 0) { d = 0; }
         var n = Number(x);
@@ -7499,7 +7499,7 @@ var txroot_js_1 = require("./util/txroot.js");
 ;
 (function driftExporterV4() {
     var tries = 0, attached = false;
-    var PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    var PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
     var getApp = function () { return globalThis.__void_http_app || globalThis.app; };
     var num = function (x, d) {
         if (d === void 0) { d = 0; }
@@ -7589,7 +7589,7 @@ var txroot_js_1 = require("./util/txroot.js");
 ;
 (function driftExporterV4b() {
     var tries = 0, attached = false;
-    var PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    var PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
     var getApp = function () { return globalThis.__void_http_app || globalThis.app; };
     var num = function (x, d) {
         if (d === void 0) { d = 0; }
@@ -7680,7 +7680,7 @@ var txroot_js_1 = require("./util/txroot.js");
 ;
 (function driftExporterV4b() {
     var tries = 0, attached = false;
-    var PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    var PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
     var getApp = function () { return globalThis.__void_http_app || globalThis.app; };
     var num = function (x, d) {
         if (d === void 0) { d = 0; }
@@ -7771,7 +7771,7 @@ var txroot_js_1 = require("./util/txroot.js");
 ;
 (function driftExporterV4c() {
     var tries = 0, attached = false;
-    var PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    var PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
     var getApp = function () { return globalThis.__void_http_app || globalThis.app; };
     var num = function (x, d) {
         if (d === void 0) { d = 0; }
@@ -7974,7 +7974,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     var n = Number(x);
                     return Number.isFinite(n) ? n : d;
                 };
-                PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+                PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
                 app.get("/metrics/drift5", function (req, res) { return __awaiter(_this, void 0, void 0, function () {
                     var host, selfBase, url, drift, head_local, head_peer, d;
                     return __generator(this, function (_b) {
@@ -8013,7 +8013,7 @@ var txroot_js_1 = require("./util/txroot.js");
 ;
 (function driftExporterV6() {
     var tries = 0, attached = false;
-    var PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    var PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
     var getApp = function () { return globalThis.__void_http_app || globalThis.app; };
     var wait = function (ms) { return new Promise(function (r) { return setTimeout(r, ms); }); };
     function getHeadTxt(base) {
@@ -11043,7 +11043,7 @@ var txroot_js_1 = require("./util/txroot.js");
                 switch (_c.label) {
                     case 0:
                         _c.trys.push([0, 5, , 6]);
-                        return [4 /*yield*/, fetch("http://127.0.0.1:4100".concat(path))];
+                        return [4 /*yield*/, fetch("http://localhost:4100".concat(path))];
                     case 1:
                         res = _c.sent();
                         if (!res.ok)
@@ -14941,7 +14941,7 @@ var txroot_js_1 = require("./util/txroot.js");
         return __awaiter(this, arguments, void 0, function (base) {
             var nText, latest, added, from, k, j, txc, _e_3, f, txc, e2_2;
             var _b;
-            if (base === void 0) { base = "http://127.0.0.1:4100"; }
+            if (base === void 0) { base = "http://localhost:4100"; }
             return __generator(this, function (_c) {
                 switch (_c.label) {
                     case 0: return [4 /*yield*/, fetch("".concat(base, "/blocks/latest/number"))];
@@ -15047,7 +15047,7 @@ var txroot_js_1 = require("./util/txroot.js");
     g.__lm_v4_total = g.__lm_v4_total || 0;
     g.__lm_v4_last = g.__lm_v4_last || { n: -1, txs: 0 };
     g.__lm_v4_errs = g.__lm_v4_errs || 0;
-    var BASE = "http://127.0.0.1:4100";
+    var BASE = "http://localhost:4100";
     var INTERVAL_MS = 1000;
     var ticking = false;
     function getText(u_1) {
@@ -15327,18 +15327,18 @@ var txroot_js_1 = require("./util/txroot.js");
             var headTxt, head, healthProm, txrootHealth, lm, lastmile_total, lastmile_latest, lastmile_last_block, lastmile_errors, m;
             return __generator(this, function (_b) {
                 switch (_b.label) {
-                    case 0: return [4 /*yield*/, fetchText("http://127.0.0.1:4100/blocks/latest/number")];
+                    case 0: return [4 /*yield*/, fetchText("http://localhost:4100/blocks/latest/number")];
                     case 1:
                         headTxt = _b.sent();
                         head = headTxt ? Number(headTxt) : null;
-                        return [4 /*yield*/, fetchText("http://127.0.0.1:4100/health/txroot3/live.prom")];
+                        return [4 /*yield*/, fetchText("http://localhost:4100/health/txroot3/live.prom")];
                     case 2:
                         healthProm = _b.sent();
                         txrootHealth = null;
                         if (healthProm && /void_txroot_health\s+([01])/.test(healthProm)) {
                             txrootHealth = Number(RegExp.$1);
                         }
-                        return [4 /*yield*/, fetchText("http://127.0.0.1:4100/__void/metrics/lastmile.v4b.prom")];
+                        return [4 /*yield*/, fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom")];
                     case 3:
                         lm = _b.sent();
                         lastmile_total = null, lastmile_latest = null, lastmile_last_block = null, lastmile_errors = null;
@@ -15571,7 +15571,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     case 0:
                         _d.trys.push([0, 2, , 3]);
                         _b = parseNumber;
-                        return [4 /*yield*/, fetchText("http://127.0.0.1:4100/blocks/latest/number", 300)];
+                        return [4 /*yield*/, fetchText("http://localhost:4100/blocks/latest/number", 300)];
                     case 1: return [2 /*return*/, _b.apply(void 0, [_d.sent()])];
                     case 2:
                         _c = _d.sent();
@@ -15588,7 +15588,7 @@ var txroot_js_1 = require("./util/txroot.js");
                 switch (_c.label) {
                     case 0:
                         _c.trys.push([0, 2, , 3]);
-                        return [4 /*yield*/, fetchText("http://127.0.0.1:4100/health/txroot3/live.prom", 300)];
+                        return [4 /*yield*/, fetchText("http://localhost:4100/health/txroot3/live.prom", 300)];
                     case 1:
                         t = _c.sent();
                         return [2 /*return*/, parsePromMetric(t, "void_txroot_health", g.__void_basics_cache.txroot_health_live)];
@@ -15610,7 +15610,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         _c.label = 1;
                     case 1:
                         _c.trys.push([1, 3, , 4]);
-                        return [4 /*yield*/, fetchText("http://127.0.0.1:4100/__void/metrics/lastmile.v4b.prom", 300)];
+                        return [4 /*yield*/, fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom", 300)];
                     case 2:
                         t = _c.sent();
                         return [2 /*return*/, {
@@ -15792,7 +15792,7 @@ var txroot_js_1 = require("./util/txroot.js");
                 case 0:
                     _d.trys.push([0, 2, , 3]);
                     _b = num;
-                    return [4 /*yield*/, fetchText("http://127.0.0.1:4100/blocks/latest/number", 300)];
+                    return [4 /*yield*/, fetchText("http://localhost:4100/blocks/latest/number", 300)];
                 case 1: return [2 /*return*/, _b.apply(void 0, [_d.sent(), g.__void_basics_cache.head])];
                 case 2:
                     _c = _d.sent();
@@ -15806,7 +15806,7 @@ var txroot_js_1 = require("./util/txroot.js");
             switch (_c.label) {
                 case 0:
                     _c.trys.push([0, 2, , 3]);
-                    return [4 /*yield*/, fetchText("http://127.0.0.1:4100/health/txroot3/live.prom", 300)];
+                    return [4 /*yield*/, fetchText("http://localhost:4100/health/txroot3/live.prom", 300)];
                 case 1:
                     t = _c.sent();
                     return [2 /*return*/, prom(t, "void_txroot_health", g.__void_basics_cache.txroot_health_live)];
@@ -15827,7 +15827,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         _c.label = 1;
                     case 1:
                         _c.trys.push([1, 3, , 4]);
-                        return [4 /*yield*/, fetchText("http://127.0.0.1:4100/__void/metrics/lastmile.v4b.prom", 300)];
+                        return [4 /*yield*/, fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom", 300)];
                     case 2:
                         t = _c.sent();
                         return [2 /*return*/, {
@@ -15997,7 +15997,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         _g.label = 1;
                     case 1:
                         _g.trys.push([1, 3, , 4]);
-                        return [4 /*yield*/, fetchText("http://127.0.0.1:4100/__void/metrics/void.basics.v2.prom", 500)];
+                        return [4 /*yield*/, fetchText("http://localhost:4100/__void/metrics/void.basics.v2.prom", 500)];
                     case 2:
                         t = _g.sent();
                         head = parseGauge(t, "void_head_number");
@@ -16012,7 +16012,7 @@ var txroot_js_1 = require("./util/txroot.js");
                     case 5:
                         _g.trys.push([5, 7, , 8]);
                         _c = Number;
-                        return [4 /*yield*/, fetchText("http://127.0.0.1:4100/blocks/latest/number", 400)];
+                        return [4 /*yield*/, fetchText("http://localhost:4100/blocks/latest/number", 400)];
                     case 6:
                         head = _c.apply(void 0, [_g.sent()]);
                         return [3 /*break*/, 8];
@@ -16021,7 +16021,7 @@ var txroot_js_1 = require("./util/txroot.js");
                         return [3 /*break*/, 8];
                     case 8:
                         _g.trys.push([8, 10, , 11]);
-                        return [4 /*yield*/, fetchText("http://127.0.0.1:4100/__void/metrics/lastmile.v4b.prom", 500)];
+                        return [4 /*yield*/, fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom", 500)];
                     case 9:
                         lm = _g.sent();
                         seen = parseGauge(lm, "void_lastmile_last_seen_block");

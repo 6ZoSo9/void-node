@@ -19,7 +19,7 @@ trap 'rm -f "$TMP"' EXIT
 
 mkdir -p "$OUTDIR"
 
-MAIN="http://127.0.0.1:4100"
+MAIN="http://localhost:4100"
 ok=1
 reason="ok"
 

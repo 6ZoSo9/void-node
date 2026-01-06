@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-BASE="${BASE:-http://127.0.0.1:4100}"
+BASE="${BASE:-http://localhost:4100}"
 cmd="${1:-health}"; shift || true
 case "$cmd" in
   health) curl -sS "$BASE/api/health" | jq . ;;

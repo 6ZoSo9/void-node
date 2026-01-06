@@ -149,9 +149,9 @@ journalctl --user-unit void-node.service --since "2 min ago" --no-pager -o cat \
 echo
 
 echo "=== [6] quick health ==="
-curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:4100/api/health || true
+curl -fsS --connect-timeout 1 --max-time 2 http://localhost:4100/api/health || true
 echo
-curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:4100/head.txt || true
+curl -fsS --connect-timeout 1 --max-time 2 http://localhost:4100/head.txt || true
 echo
 
 echo "=== [7] start proposer ==="

@@ -2182,7 +2182,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 
     app.get("/proposer/auto/status2", async (_req:any, res:any) => {
       try {
-        const r = await fetch("http://127.0.0.1:4100/metrics/void/proposer.v3b.prom");
+        const r = await fetch("http://localhost:4100/metrics/void/proposer.v3b.prom");
         const txt = await r.text();
         const enabled = /void_proposer_auto_enabled(?:_v2)?\s+(\d+)/.exec(txt)?.[1];
         const ms      = /void_proposer_auto_ms(?:_v2)?\s+(\d+)/.exec(txt)?.[1];
@@ -2387,7 +2387,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 
     app.get("/metrics/void/wal2.prom", async (_req:any, res:any)=>{
       try{
-        const r = await fetch("http://127.0.0.1:4100/wal/health2");
+        const r = await fetch("http://localhost:4100/wal/health2");
         const j:any = await r.json();
         res.type("text/plain; version=0.0.4");
         res.write(`# HELP void_wal_last_seq Last WAL sequence number\n# TYPE void_wal_last_seq gauge\nvoid_wal_last_seq ${j.lastSeq||0}\n`);
@@ -2454,7 +2454,7 @@ void_txroot_forensics_last_ms_v7 ${c.last_ms}
 
   async function checkAuto(){
     try{
-      const r = await fetch("http://127.0.0.1:4100/wal/health2");
+      const r = await fetch("http://localhost:4100/wal/health2");
       const j:any = await r.json();
       auto = (j && j.replayNeeded) ? 1 : 0;
       lastCheckMs = Date.now();

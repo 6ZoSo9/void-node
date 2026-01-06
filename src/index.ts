@@ -6978,9 +6978,9 @@ import { computeTxRoot } from "./util/txroot.js";
     if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
     if (attached) return; attached = true;
 
-    // GET /follower/status?peer=http://127.0.0.1:4100
+    // GET /follower/status?peer=http://localhost:4100
     app.get("/follower/status", async (req, res) => {
-      const peer = String(req.query.peer || "http://127.0.0.1:4100");
+      const peer = String(req.query.peer || "http://localhost:4100");
       const self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
 
       const [head_local, head_peer] = await Promise.all([getHead(self), getHead(peer)]);
@@ -6990,7 +6990,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
     // Compat alias
     app.get("/follower/status2", async (req, res) => {
-      const peer = String(req.query.peer || "http://127.0.0.1:4100");
+      const peer = String(req.query.peer || "http://localhost:4100");
       const self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
       const [head_local, head_peer] = await Promise.all([getHead(self), getHead(peer)]);
       const drift = (head_peer >= 0 && head_local >= 0) ? (head_peer - head_local) : null;
@@ -7284,7 +7284,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
     // On the FOLLOWER (HTTP_PORT=4101), query its own /follower/status against the main (4100).
     const selfPort = String(process.env.HTTP_PORT || "4100");
-    const peer = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    const peer = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
 
     app.get("/metrics/drift", async (_req,res)=>{
       let drift = NaN, head_local = NaN, head_peer = NaN;
@@ -7319,7 +7319,7 @@ import { computeTxRoot } from "./util/txroot.js";
     if(attached) return; attached=true;
 
     const selfPort = String(process.env.HTTP_PORT || "4100");
-    const peer = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    const peer = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
 
     app.get("/metrics/drift", async (_req,res)=>{
       let drift=0, head_local=0, head_peer=0;
@@ -7349,7 +7349,7 @@ import { computeTxRoot } from "./util/txroot.js";
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
-  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
 
   function num(x:any, d=0){ const n=Number(x); return Number.isFinite(n)? n : d; }
 
@@ -7390,7 +7390,7 @@ import { computeTxRoot } from "./util/txroot.js";
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
-  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
 
   async function attach(){
@@ -7429,7 +7429,7 @@ import { computeTxRoot } from "./util/txroot.js";
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
-  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
 
   async function attach(){
@@ -7466,7 +7466,7 @@ import { computeTxRoot } from "./util/txroot.js";
 // ---- follower drift exporter v4 (hot-attach, loud logs, health) -------------
 ;(function driftExporterV4(){
   let tries = 0, attached = false;
-  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
   const wait = (ms:number)=>new Promise(r=>setTimeout(r,ms));
@@ -7519,7 +7519,7 @@ import { computeTxRoot } from "./util/txroot.js";
 // ---- follower drift exporter v4b (reads head from /metrics/void) -----------
 ;(function driftExporterV4b(){
   let tries = 0, attached = false;
-  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
 
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
@@ -7574,7 +7574,7 @@ import { computeTxRoot } from "./util/txroot.js";
 // ---- follower drift exporter v4b (reads head from /metrics/void) -----------
 ;(function driftExporterV4b(){
   let tries = 0, attached = false;
-  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
 
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
@@ -7629,7 +7629,7 @@ import { computeTxRoot } from "./util/txroot.js";
 // ---- follower drift exporter v4c (status→status; no metrics/void needed) ----
 ;(function driftExporterV4c(){
   let tries = 0, attached = false;
-  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
   const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
   async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); } catch { return null; } }
@@ -7725,7 +7725,7 @@ import { computeTxRoot } from "./util/txroot.js";
     // (Duplicate the small body to avoid grabbing internal handler references)
     const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
     async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); } catch { return null; } }
-    const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+    const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
 
     app.get("/metrics/drift5", async (req:any, res:any)=>{
       const host = req.get("host") || "127.0.0.1:4101";
@@ -7756,7 +7756,7 @@ import { computeTxRoot } from "./util/txroot.js";
 // ---- follower drift exporter v6 (direct heads: self vs real peer) ----------
 ;(function driftExporterV6(){
   let tries = 0, attached = false;
-  const PEER = process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100";
+  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
   const wait = (ms:number)=>new Promise(r=>setTimeout(r,ms));
 
@@ -9831,7 +9831,7 @@ void_txroot_v4_errors_total ${X.errors}
   // We poll the local API so we don't depend on internal class names
   async function getJSON<T=any>(path:string):Promise<T|null>{
     try {
-      const res = await fetch(`http://127.0.0.1:4100${path}`);
+      const res = await fetch(`http://localhost:4100${path}`);
       if (!res.ok) return null;
       const ct = res.headers.get("content-type")||"";
       if (ct.includes("application/json")) return await res.json();
@@ -10248,7 +10248,7 @@ void_txroot_health ${ok ? 1 : 0}
       if (!app.__void_txroot_health_v2){
         app.get("/health/txroot2", async (req:any, res:any) => {
           try {
-            // Build absolute base from the request (e.g., http://127.0.0.1:4100)
+            // Build absolute base from the request (e.g., http://localhost:4100)
             const base = `${req.protocol}://${req.headers.host}`;
             // Pull current head
             const headText = await fetchText(`${base}/head.txt`);
@@ -12796,7 +12796,7 @@ void_seal_rate_1m ${rate1m()}
     return r.json();
   }
 
-  async function advanceToLatest(base="http://127.0.0.1:4100"){
+  async function advanceToLatest(base="http://localhost:4100"){
     // latest number
     const nText = await (await fetch(`${base}/blocks/latest/number`)).text();
     const latest = parseInt(nText, 10);
@@ -12866,7 +12866,7 @@ void_seal_rate_1m ${rate1m()}
   g.__lm_v4_last  = g.__lm_v4_last  || { n:-1, txs:0 };
   g.__lm_v4_errs  = g.__lm_v4_errs  || 0;
 
-  const BASE = "http://127.0.0.1:4100";
+  const BASE = "http://localhost:4100";
   const INTERVAL_MS = 1000;
   let ticking = false;
 
@@ -13024,18 +13024,18 @@ void_seal_rate_1m ${rate1m()}
   }
 
   async function snapshot(){
-    const headTxt = await fetchText("http://127.0.0.1:4100/blocks/latest/number");
+    const headTxt = await fetchText("http://localhost:4100/blocks/latest/number");
     const head = headTxt ? Number(headTxt) : null;
 
     // live health (authoritative)
-    const healthProm = await fetchText("http://127.0.0.1:4100/health/txroot3/live.prom");
+    const healthProm = await fetchText("http://localhost:4100/health/txroot3/live.prom");
     let txrootHealth:number|null = null;
     if (healthProm && /void_txroot_health\s+([01])/.test(healthProm)) {
       txrootHealth = Number(RegExp.$1);
     }
 
     // lastmile v4b counters if present
-    const lm = await fetchText("http://127.0.0.1:4100/__void/metrics/lastmile.v4b.prom");
+    const lm = await fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom");
     let lastmile_total:number|null=null, lastmile_latest:number|null=null, lastmile_last_block:number|null=null, lastmile_errors:number|null=null;
     if (lm){
       const m = (name:string) => {
@@ -13178,13 +13178,13 @@ void_seal_rate_1m ${rate1m()}
   }
 
   async function readHead(){
-    try { return parseNumber(await fetchText("http://127.0.0.1:4100/blocks/latest/number", 300)); }
+    try { return parseNumber(await fetchText("http://localhost:4100/blocks/latest/number", 300)); }
     catch { return g.__void_basics_cache.head; }
   }
 
   async function readTxrootHealthLive(){
     try {
-      const t = await fetchText("http://127.0.0.1:4100/health/txroot3/live.prom", 300);
+      const t = await fetchText("http://localhost:4100/health/txroot3/live.prom", 300);
       return parsePromMetric(t, "void_txroot_health", g.__void_basics_cache.txroot_health_live);
     } catch {
       return g.__void_basics_cache.txroot_health_live;
@@ -13194,7 +13194,7 @@ void_seal_rate_1m ${rate1m()}
   async function readLastmileV4b(){
     const prev = g.__void_basics_cache.lastmile;
     try {
-      const t = await fetchText("http://127.0.0.1:4100/__void/metrics/lastmile.v4b.prom", 300);
+      const t = await fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom", 300);
       return {
         total:           parsePromMetric(t, "void_lastmile_block_txs_total", prev.total),
         latest_txs:      parsePromMetric(t, "void_lastmile_latest_txs", prev.latest_txs),
@@ -13301,9 +13301,9 @@ void_seal_rate_1m ${rate1m()}
     const re = new RegExp(`^${name}\\s+([0-9eE+\\.-]+)\\s*$`,"m"); const m=text.match(re);
     return m?num(m[1],d):d;
   }
-  async function readHead(){ try{ return num(await fetchText("http://127.0.0.1:4100/blocks/latest/number",300), g.__void_basics_cache.head);}catch{ return g.__void_basics_cache.head; } }
-  async function readTxrootHealthLive(){ try{ const t=await fetchText("http://127.0.0.1:4100/health/txroot3/live.prom",300); return prom(t,"void_txroot_health",g.__void_basics_cache.txroot_health_live);}catch{ return g.__void_basics_cache.txroot_health_live; } }
-  async function readLastmile(){ const prev=g.__void_basics_cache.lastmile; try{ const t=await fetchText("http://127.0.0.1:4100/__void/metrics/lastmile.v4b.prom",300); return {
+  async function readHead(){ try{ return num(await fetchText("http://localhost:4100/blocks/latest/number",300), g.__void_basics_cache.head);}catch{ return g.__void_basics_cache.head; } }
+  async function readTxrootHealthLive(){ try{ const t=await fetchText("http://localhost:4100/health/txroot3/live.prom",300); return prom(t,"void_txroot_health",g.__void_basics_cache.txroot_health_live);}catch{ return g.__void_basics_cache.txroot_health_live; } }
+  async function readLastmile(){ const prev=g.__void_basics_cache.lastmile; try{ const t=await fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom",300); return {
       total: prom(t,"void_lastmile_block_txs_total",prev.total),
       latest_txs: prom(t,"void_lastmile_latest_txs",prev.latest_txs),
       last_seen_block: prom(t,"void_lastmile_last_seen_block",prev.last_seen_block),
@@ -13399,15 +13399,15 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
   async function readInputs(){
     let head=null, live=null, seen=null;
     try{
-      const t = await fetchText("http://127.0.0.1:4100/__void/metrics/void.basics.v2.prom", 500);
+      const t = await fetchText("http://localhost:4100/__void/metrics/void.basics.v2.prom", 500);
       head = parseGauge(t, "void_head_number");
       live = parseGauge(t, "void_txroot_health_live");
     }catch{}
     if (head==null){
-      try{ head = Number(await fetchText("http://127.0.0.1:4100/blocks/latest/number", 400)); }catch{}
+      try{ head = Number(await fetchText("http://localhost:4100/blocks/latest/number", 400)); }catch{}
     }
     try{
-      const lm = await fetchText("http://127.0.0.1:4100/__void/metrics/lastmile.v4b.prom", 500);
+      const lm = await fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom", 500);
       seen = parseGauge(lm, "void_lastmile_last_seen_block");
     }catch{}
     return {head, live, seen};
@@ -21582,7 +21582,7 @@ void_wal_wrapped ${isWrapped?1:0}
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const http = require("http");
-      http.get("http://127.0.0.1:4100/datanet/v1/status", (res: any) => {
+      http.get("http://localhost:4100/datanet/v1/status", (res: any) => {
         console.log(`[datanet.mount.v2] selfprobe /datanet/v1/status -> ${res.statusCode}`);
         res.resume();
       }).on("error", (err: any) => {
@@ -21651,7 +21651,7 @@ void_wal_wrapped ${isWrapped?1:0}
       try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const http = require("http");
-        http.get("http://127.0.0.1:4100/datanet/v1/status", (res: any) => {
+        http.get("http://localhost:4100/datanet/v1/status", (res: any) => {
           log(`[datanet.mount.v3] selfprobe /datanet/v1/status -> ${res.statusCode}`);
           res.resume();
         }).on("error", (err: any) => {
@@ -28922,7 +28922,7 @@ try {
     // - If persisted has txs array, use it as truth.
     // - Else, fall back to full2.txs.
     // Adds: txsSource + persisted_len + merged flag
-    const BASE = process.env.VOID_BASE_HTTP || "http://127.0.0.1:4100";
+    const BASE = process.env.VOID_BASE_HTTP || "http://localhost:4100";
 
     app.get("/blocks/:n/full3", async (req: any, res: any) => {
       const nRaw = String(req.params.n || "").replace(/[^0-9]/g, "");

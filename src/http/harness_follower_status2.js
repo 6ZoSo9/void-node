@@ -81,7 +81,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
                 if (attached)
                     return [2 /*return*/];
                 attached = true;
-                // GET /follower/status2?peer=http://127.0.0.1:4100
+                // GET /follower/status2?peer=http://localhost:4100
                 // -> { ok, peer, head_local, head_peer, drift }
                 app.get("/follower/status2", function (req, res) { return __awaiter(_this, void 0, void 0, function () {
                     var peer, myPort, myBase, _a, localHead, peerHead, drift, err_1, msg;

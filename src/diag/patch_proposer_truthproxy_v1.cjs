@@ -8,7 +8,7 @@
        proxies v3b if present else auto4
 */
 
-const BASE = process.env.VOID_HTTP_BASE || 'http://127.0.0.1:4100';
+const BASE = process.env.VOID_HTTP_BASE || 'http://localhost:4100';
 
 function once(fn) {
   let done = false;

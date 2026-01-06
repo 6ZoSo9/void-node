@@ -1106,7 +1106,7 @@ var Node = /** @class */ (function () {
     Node.prototype.startFollower = function (peerHttp, intervalMs, opts) {
         var _this = this;
         var _a, _b;
-        if (peerHttp === void 0) { peerHttp = "http://127.0.0.1:4100"; }
+        if (peerHttp === void 0) { peerHttp = "http://localhost:4100"; }
         if (intervalMs === void 0) { intervalMs = 2000; }
         var running = false;
         var tick = function () { return __awaiter(_this, void 0, void 0, function () {

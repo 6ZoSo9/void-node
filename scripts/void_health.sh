@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-BASE=${BASE:-http://127.0.0.1:4100}
+BASE=${BASE:-http://localhost:4100}
 
 echo "== ports =="; ss -ltnp | egrep ':4100|:4700' || true
 

@@ -5,7 +5,7 @@ Minimal block node with segmented storage, pubsub, and HTTP APIs.
 ```bash
 npm ci
 npm run build
-BASE=http://127.0.0.1:4100 npm run cli -- health
+BASE=http://localhost:4100 npm run cli -- health
 ```
 
 ## Environment

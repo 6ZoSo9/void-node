@@ -74,15 +74,15 @@ sudo systemctl restart "void-node@bootstrap-1"
 ## 4) Verify
 ```bash
 # Health (existing)
-curl -sS http://127.0.0.1:4100/api/health | jq .
+curl -sS http://localhost:4100/api/health | jq .
 curl -sS http://127.0.0.1:4101/api/health | jq .
 
 # New: peers list
-curl -sS http://127.0.0.1:4100/p2p/peers | jq .
+curl -sS http://localhost:4100/p2p/peers | jq .
 curl -sS http://127.0.0.1:4101/p2p/peers | jq .
 
 # New: metrics
-curl -sS http://127.0.0.1:4100/metrics | head -n 20
+curl -sS http://localhost:4100/metrics | head -n 20
 curl -sS http://127.0.0.1:4101/metrics | head -n 20
 ```
 

@@ -39,7 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.VoidClient = void 0;
 var VoidClient = /** @class */ (function () {
     function VoidClient(base) {
-        if (base === void 0) { base = 'http://127.0.0.1:4100'; }
+        if (base === void 0) { base = 'http://localhost:4100'; }
         this.base = base;
     }
     VoidClient.prototype.health = function () {

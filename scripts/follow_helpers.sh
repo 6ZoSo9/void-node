@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 FOLLOW_HOST="${1:-127.0.0.1:4101}"
-PEER_URL="${2:-http://127.0.0.1:4100}"
+PEER_URL="${2:-http://localhost:4100}"
 INTERVAL="${3:-1000}"
 
 base="http://$FOLLOW_HOST"

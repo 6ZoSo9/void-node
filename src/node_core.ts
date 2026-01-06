@@ -821,7 +821,7 @@ export class Node {
   }
 
   /** follower periodic */
-  startFollower(peerHttp = "http://127.0.0.1:4100", intervalMs = 2000, opts?: { onImportBlock?: (b: Block) => void }) {
+  startFollower(peerHttp = "http://localhost:4100", intervalMs = 2000, opts?: { onImportBlock?: (b: Block) => void }) {
     let running = false;
     const tick = async () => {
       if (running) return;

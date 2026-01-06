@@ -7,7 +7,7 @@ prom-snap:
 .PHONY: prom-prune
 prom-prune:
 	./ops/prom-prune.sh 12
-PROPOSER ?= http://127.0.0.1:4100
+PROPOSER ?= http://localhost:4100
 FOLLOWER ?= http://127.0.0.1:4101
 
 .PHONY: build up proposer follower seal follow-once tx lookup status receipts kidx-all kidx-block kidx-hash hello-now stop

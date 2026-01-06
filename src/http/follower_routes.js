@@ -59,7 +59,7 @@ function registerFollowerRoutes(app, node, metrics) {
         return __generator(this, function (_e) {
             switch (_e.label) {
                 case 0:
-                    peer = String(req.query.peer || ((_a = req.body) === null || _a === void 0 ? void 0 : _a.peer) || "http://127.0.0.1:4100");
+                    peer = String(req.query.peer || ((_a = req.body) === null || _a === void 0 ? void 0 : _a.peer) || "http://localhost:4100");
                     _e.label = 1;
                 case 1:
                     _e.trys.push([1, 3, , 4]);
@@ -83,7 +83,7 @@ function registerFollowerRoutes(app, node, metrics) {
     // Continuous follow loop
     app.post("/follower/start", function (req, res) {
         var _a, _b, _c;
-        var peer = String(req.query.peer || ((_a = req.body) === null || _a === void 0 ? void 0 : _a.peer) || "http://127.0.0.1:4100");
+        var peer = String(req.query.peer || ((_a = req.body) === null || _a === void 0 ? void 0 : _a.peer) || "http://localhost:4100");
         var intervalMs = Number(req.query.intervalMs || ((_b = req.body) === null || _b === void 0 ? void 0 : _b.intervalMs) || 2000);
         try {
             var r = (_c = node.startFollower) === null || _c === void 0 ? void 0 : _c.call(node, peer, intervalMs);

@@ -41,7 +41,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // src/diag-identify.ts
 /* Prints local environment info + probes common endpoints for quick diagnostics. */
 var os = require("node:os");
-var BASE = process.env.BASE || "http://127.0.0.1:4100";
+var BASE = process.env.BASE || "http://localhost:4100";
 function safeJson(url) {
     return __awaiter(this, void 0, void 0, function () {
         var r, t, e_1;

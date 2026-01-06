@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="${BASE:-http://127.0.0.1:4100}"
+BASE="${BASE:-http://localhost:4100}"
 OUTDIR="${OUTDIR:-/var/lib/node_exporter/textfile_collector}"
 OUTFILE="${OUTFILE:-$OUTDIR/void_datanet_health.prom}"
 SIZE_BYTES="${SIZE_BYTES:-1024}"
