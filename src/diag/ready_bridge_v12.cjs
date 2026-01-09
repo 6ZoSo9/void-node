@@ -14,7 +14,6 @@
    - ALWAYS emits valid JSON; recomputes reasons from scratch
 */
 
-
 // --- rb12 mainthread+dedupe guard ---
 (()=>{
   let wt=null;
@@ -24,10 +23,10 @@
   const KEY = Symbol.for("void.ready_bridge_v12.installed");
   const G = globalThis;
   try{
-    if (!isMain) { console.error("[ready_bridge_v12] skip (worker) tid="+tid); return; }
-    if (G[KEY]) { console.error("[ready_bridge_v12] skip (dup) tid="+tid); return; }
+    if (!isMain) { return; }
+    if (G[KEY]) { return; }
     G[KEY] = true;
-    console.error("[ready_bridge_v12] guard ok (main) tid="+tid);
+
   } catch {}
 })();
 // --- rb12 mainthread+dedupe guard end ---

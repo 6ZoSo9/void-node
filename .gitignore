@@ -68,3 +68,8 @@ src/index.ts.crashbak.*
 report.*.json
 src/diag/_bak_*/
 src/diag/_trash_*/
+
+# local scratch + broken artifacts
+src/diag/_scratch/
+src/index.ts.BROKEN.*
+src/diag/*.DISABLED.*
