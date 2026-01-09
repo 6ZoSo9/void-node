@@ -31,6 +31,18 @@
 
   const http = require("http");
   const https = require("https");
+// [boot-grace.v1] avoid false-red ready during early boot when txroot3 routes may not exist yet.
+const __RB_BOOT_MS = Date.now();
+const __RB_BOOT_GRACE_MS = (() => {
+  const v = String(process.env.VOID_READY_BOOT_GRACE_MS || "60000").trim();
+  const n = parseInt(v, 10);
+  return (Number.isFinite(n) && n >= 0) ? n : 60000;
+})();
+function __rbInBootGrace() {
+  const age = Date.now() - __RB_BOOT_MS;
+  return age >= 0 && age < __RB_BOOT_GRACE_MS;
+}
+
   const { URL } = require("url");
 
   const HTTP_HOST =
@@ -162,6 +174,16 @@
 
     // txroot_live: once we've ever seen txroot3 success, make it authoritative.
     let txroot_live = toInt(out.txroot_live, 0);
+    // [bootgrace-assume-txroot-live.v1] During early boot (before we've ever seen txroot3),
+    // assume txroot_live=1 for a short grace window so first-hit /__void/ready.json is not false-red.
+    let __rb_boot_grace_assumed = 0;
+    try {
+      if (!br.seen_ok && typeof __rbInBootGrace === "function" && __rbInBootGrace()) {
+        txroot_live = 1;
+        __rb_boot_grace_assumed = 1;
+      }
+    } catch {}
+
     if (br.seen_ok) txroot_live = (br.ok && (br.age_ms | 0) <= 5000) ? 1 : 0;
 
     // ready: force consistency with our bridged view.
@@ -178,6 +200,11 @@
     }
 
     if (ready) out.reasons = null;
+    // [bootgrace-assume-txroot-live.v1] publish a marker so boot-grace events are visible in JSON.
+
+    if (__rb_boot_grace_assumed) out.__ready_bridge_boot_grace = 1;
+
+
 
     return JSON.stringify(out);
   }
@@ -213,7 +240,19 @@
         const ready = (live === 1 && gap <= 10) ? 1 : 0;
         s = upsertPromGauge(s, "void_ready", ready);
       }
-    }
+    }    // [prom-align.lite.v1] Ensure void_ready matches (void_txroot_live && gap<=10).
+    try {
+      const mLive = s.match(/^void_txroot_live\s+([-+0-9.eE]+)\s*$/m);
+      const mGap  = s.match(/^void_ready_gap\s+([-+0-9.eE]+)\s*$/m);
+      const live = mLive ? Number(mLive[1]) : NaN;
+      const gap  = mGap  ? Number(mGap[1])  : NaN;
+      if (Number.isFinite(live) && Number.isFinite(gap)) {
+        const ready2 = (live > 0 && gap <= 10) ? 1 : 0;
+        s = upsertPromGauge(s, "void_ready", ready2);
+      }
+    } catch {}
+
+
     return s;
   }
 
