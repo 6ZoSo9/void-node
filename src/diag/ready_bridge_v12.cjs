@@ -1,9 +1,36 @@
+;(function(){
+  'use strict';
+  const { isMainThread, threadId } = require('worker_threads');
+  if (!isMainThread) { try { console.error('[ready_bridge_v12] skip (worker) tid='+threadId); } catch {} ; return; }
+  const __K = Symbol.for('VOID.ready_bridge_v12.HARDGUARD');
+  const __G = globalThis;
+  if (__G[__K]) { try { console.error('[ready_bridge_v12] already installed (hardguard)'); } catch {} ; return; }
+  __G[__K] = 1;
+  try { console.error('[ready_bridge_v12] hardguard ok (main) tid='+threadId); } catch {}
 /* ready_bridge_v12.cjs (v12b fix)
    - hooks http.createServer once
    - polls /health/txroot3?format=json
    - patches /__void/ready.json and /__void/ready.prom AFTER handler generates body
    - ALWAYS emits valid JSON; recomputes reasons from scratch
 */
+
+
+// --- rb12 mainthread+dedupe guard ---
+(()=>{
+  let wt=null;
+  try{ wt=require("worker_threads"); }catch{}
+  const isMain = wt ? !!wt.isMainThread : true;
+  const tid = wt && typeof wt.threadId === "number" ? wt.threadId : 0;
+  const KEY = Symbol.for("void.ready_bridge_v12.installed");
+  const G = globalThis;
+  try{
+    if (!isMain) { console.error("[ready_bridge_v12] skip (worker) tid="+tid); return; }
+    if (G[KEY]) { console.error("[ready_bridge_v12] skip (dup) tid="+tid); return; }
+    G[KEY] = true;
+    console.error("[ready_bridge_v12] guard ok (main) tid="+tid);
+  } catch {}
+})();
+// --- rb12 mainthread+dedupe guard end ---
 const http = require("http");
 
 const G = globalThis;
@@ -275,3 +302,4 @@ function hookHttpCreateServer() {
 hookHttpCreateServer();
 try { console.error("[ready_bridge_v12] installed (http.createServer hooked)"); } catch {}
 try { console.error("[ready_bridge_v12] txroot3 poller started (1s)"); } catch {}
+})();

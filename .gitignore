@@ -62,3 +62,9 @@ ops/datanet/*.bak.*
 perf.data
 perf.data.*
 src/index.ts.crashbak.*
+
+# diag artifacts
+.node-reports/
+report.*.json
+src/diag/_bak_*/
+src/diag/_trash_*/
