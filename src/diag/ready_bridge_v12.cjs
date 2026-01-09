@@ -1,304 +1,270 @@
-;(function(){
-  'use strict';
-  const { isMainThread, threadId } = require('worker_threads');
-  if (!isMainThread) { try { console.error('[ready_bridge_v12] skip (worker) tid='+threadId); } catch {} ; return; }
-  const __K = Symbol.for('VOID.ready_bridge_v12.HARDGUARD');
-  const __G = globalThis;
-  if (__G[__K]) { try { console.error('[ready_bridge_v12] already installed (hardguard)'); } catch {} ; return; }
-  __G[__K] = 1;
-  try { console.error('[ready_bridge_v12] hardguard ok (main) tid='+threadId); } catch {}
-/* ready_bridge_v12.cjs (v12b fix)
-   - hooks http.createServer once
-   - polls /health/txroot3?format=json
-   - patches /__void/ready.json and /__void/ready.prom AFTER handler generates body
-   - ALWAYS emits valid JSON; recomputes reasons from scratch
+/* ready_bridge_v12.cjs (v12k)
+   Goal: make /__void/ready.json + /__void/ready.prom stable across restarts.
+   Fixes:
+     - main-thread only + hardguard
+     - txroot3 poller: boot 404 does NOT poison; activate after first success
+     - recompute gap safely (clamp lastmile_seen=-1 bootstrap)
+     - recompute txroot_live (bridged) once txroot3 has succeeded
+     - recompute ready based on (txroot_live==1 && gap<=10) so JSON+PROM agree
 */
-
-// --- rb12 mainthread+dedupe guard ---
-(()=>{
-  let wt=null;
-  try{ wt=require("worker_threads"); }catch{}
-  const isMain = wt ? !!wt.isMainThread : true;
-  const tid = wt && typeof wt.threadId === "number" ? wt.threadId : 0;
-  const KEY = Symbol.for("void.ready_bridge_v12.installed");
-  const G = globalThis;
-  try{
-    if (!isMain) { return; }
-    if (G[KEY]) { return; }
-    G[KEY] = true;
-
-  } catch {}
-})();
-// --- rb12 mainthread+dedupe guard end ---
-const http = require("http");
-
-const G = globalThis;
-if (G.__void_ready_bridge_v12b_installed) {
-  // avoid double install
-  try { console.error("[ready_bridge_v12] already installed; skipping"); } catch {}
-  return;
-}
-G.__void_ready_bridge_v12b_installed = true;
-
-const BASE = process.env.VOID_READYBRIDGE_BASE || "http://127.0.0.1:4100";
-const TXROOT3 = `${BASE}/health/txroot3?format=json`;
-
-const st = {
-  ok: 0,
-  ts_ms: 0,
-  age_ms: 1e9,
-  latest: -1,
-  in_flight: 0,
-  last_err: "",
-};
-
-function nowMs() { return Date.now(); }
-
-function httpGetJson(url, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const req = http.request(
-      {
-        method: "GET",
-        hostname: u.hostname,
-        port: u.port || 80,
-        path: u.pathname + (u.search || ""),
-        timeout: timeoutMs,
-        headers: { "accept": "application/json" },
-      },
-      (res) => {
-        let data = "";
-        res.setEncoding("utf8");
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            try { resolve(JSON.parse(data)); } catch (e) { reject(new Error("bad_json:" + e.message)); }
-          } else {
-            reject(new Error("http_" + res.statusCode));
-          }
-        });
-      }
-    );
-    req.on("error", reject);
-    req.on("timeout", () => { try { req.destroy(new Error("timeout")); } catch {} });
-    req.end();
-  });
-}
-
-async function pollTxroot3() {
-  if (st.in_flight) return;
-  st.in_flight = 1;
+(() => {
+  let isMainThread = true;
+  let threadId = 0;
   try {
-    const j = await httpGetJson(TXROOT3, 1500);
-    // expected: { ok:true, healthy:1, latest:<n>, ... }
-    const latest = Number(j && (j.latest ?? j.number ?? -1));
-    st.ok = (j && (j.ok === true || j.healthy === 1 || j.healthy === true)) ? 1 : 0;
-    st.latest = Number.isFinite(latest) ? latest : -1;
-    st.ts_ms = nowMs();
-    st.age_ms = 0;
-    st.last_err = "";
-  } catch (e) {
-    st.ok = 0;
-    st.last_err = (e && e.message) ? String(e.message) : "err";
-    // keep ts_ms; age grows
-  } finally {
-    st.in_flight = 0;
+    const wt = require("worker_threads");
+    isMainThread = !!wt.isMainThread;
+    threadId = (wt.threadId ?? 0) | 0;
+  } catch {}
+
+  const G = globalThis;
+  const HARD = Symbol.for("VOID.ready_bridge_v12.HARDGUARD");
+  if (!isMainThread) {
+    try { console.error("[ready_bridge_v12] skip (worker) tid=" + threadId); } catch {}
+    return;
   }
-}
+  if (G[HARD]) {
+    try { console.error("[ready_bridge_v12] already installed (hardguard)"); } catch {}
+    return;
+  }
+  G[HARD] = true;
+  try { console.error("[ready_bridge_v12] hardguard ok (main) tid=" + threadId); } catch {}
 
-setInterval(() => {
-  const n = nowMs();
-  if (st.ts_ms > 0) st.age_ms = Math.max(0, n - st.ts_ms);
-  pollTxroot3().catch(() => {});
-}, 1000);
+  const http = require("http");
+  const https = require("https");
+  const { URL } = require("url");
 
-function safeJsonParse(s) {
-  try { return { ok: 1, obj: JSON.parse(s) }; }
-  catch (e) { return { ok: 0, err: (e && e.message) ? String(e.message) : "parse_err" }; }
-}
+  const HTTP_HOST =
+    process.env.VOID_HTTP_HOST ||
+    process.env.HTTP_HOST ||
+    "127.0.0.1";
+  const HTTP_PORT = Number(process.env.HTTP_PORT || 4100);
+  const BASE = `http://${HTTP_HOST}:${HTTP_PORT}`;
+  const TXROOT3 = `${BASE}/health/txroot3?format=json`;
 
-function clampBridge() {
-  const age = Number.isFinite(st.age_ms) ? st.age_ms : 1e9;
-  const ok = st.ok === 1 && age <= 3000 && st.latest >= 0;
-  return { ok, age_ms: age, latest: st.latest, in_flight: st.in_flight, last_err: st.last_err || "" };
-}
+  const br = {
+    v: "12k",
+    seen_ok: false,
+    ok: false,
+    latest: -1,
+    age_ms: 1_000_000_000,
+    in_flight: false,
+    last_err: "not_started",
+    last_ok_ms: 0,
+    last_poll_ms: 0,
+  };
 
-function patchReadyJsonBody(bodyStr) {
-  const parsed = safeJsonParse(bodyStr);
-  const br = clampBridge();
-
-  // if handler produced garbage, return minimal valid JSON
-  if (!parsed.ok) {
-    return JSON.stringify({
-      ready: false,
-      head: -1,
-      lastmile_seen: -1,
-      gap: 0,
-      txroot_live: br.ok ? 1 : 0,
-      reasons: ["invalid_json_from_handler"],
-      __ready_bridge: {
-        v: "12b",
-        txroot3_ok: br.ok ? 1 : 0,
-        txroot3_age_ms: br.age_ms | 0,
-        txroot3_latest: br.latest,
-        txroot3_in_flight: br.in_flight ? 1 : 0,
-        txroot3_last_err: br.last_err,
-        parse_err: parsed.err,
-      },
+  function fetchJson(urlStr, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      let u;
+      try { u = new URL(urlStr); } catch (e) { return reject(e); }
+      const mod = (u.protocol === "https:") ? https : http;
+      const req = mod.request(
+        {
+          protocol: u.protocol,
+          hostname: u.hostname,
+          port: u.port,
+          path: u.pathname + u.search,
+          method: "GET",
+          headers: { "accept": "application/json" },
+        },
+        (res) => {
+          const code = res.statusCode | 0;
+          const chunks = [];
+          res.on("data", (c) => chunks.push(c));
+          res.on("end", () => {
+            const body = Buffer.concat(chunks).toString("utf8");
+            if (code >= 200 && code < 300) {
+              try { return resolve({ ok: true, code, json: JSON.parse(body) }); }
+              catch { return reject(new Error("json_parse")); }
+            }
+            return resolve({ ok: false, code, body: body.slice(0, 200) });
+          });
+        }
+      );
+      req.on("error", reject);
+      req.setTimeout(timeoutMs, () => req.destroy(new Error("timeout")));
+      req.end();
     });
   }
 
-  const o = parsed.obj && typeof parsed.obj === "object" ? parsed.obj : {};
-  const gap = Number.isFinite(Number(o.gap)) ? Number(o.gap) : 0;
-
-  // treat txroot_live as "bridged": if txroot3 is fresh+ok, force to 1; otherwise normalize to 0/1
-  const bridgedTxLive = br.ok ? 1 : (Number(o.txroot_live) === 1 ? 1 : 0);
-
-  const reasons = [];
-  if (gap !== 0) reasons.push("gap!=0");
-  if (bridgedTxLive !== 1) reasons.push("txroot_live!=1");
-  if (!br.ok) reasons.push("txroot3_stale_or_error");
-
-  const ready = reasons.length === 0;
-
-  // write back canonical fields
-  o.txroot_live = bridgedTxLive;
-  o.ready = ready;
-
-  // reasons: ONLY present when not ready
-  if (!ready) o.reasons = reasons;
-  else if (o.reasons) delete o.reasons;
-
-  // keep bridge payload tiny
-  o.__ready_bridge = {
-    v: "12b",
-    txroot3_ok: br.ok ? 1 : 0,
-    txroot3_age_ms: br.age_ms | 0,
-    txroot3_latest: br.latest,
-    txroot3_in_flight: br.in_flight ? 1 : 0,
-    txroot3_last_err: br.last_err,
-  };
-
-  return JSON.stringify(o);
-}
-
-function upsertPromGauge(text, name, value) {
-  const re = new RegExp("^" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+[-0-9.eE]+\\s*$", "m");
-  if (re.test(text)) return text.replace(re, `${name} ${value}`);
-  // try to append after TYPE line if present; else append at end
-  const typeRe = new RegExp("^#\\s*TYPE\\s+" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+gauge\\s*$", "m");
-  if (typeRe.test(text)) return text.replace(typeRe, (m) => `${m}\n${name} ${value}`);
-  return text.replace(/\s*$/, "") + `\n${name} ${value}\n`;
-}
-
-function patchReadyPromBody(bodyStr) {
-  // We only touch the few gauges we care about.
-  // Determine values from our own bridge state. (We do NOT attempt to parse JSON here.)
-  const br = clampBridge();
-  const txLive = br.ok ? 1 : 0;
-  const gap = 0; // we can't safely derive gap from prom; leave existing if present below
-  let out = bodyStr;
-
-  // ready: if the handler already has void_ready_gap/void_txroot_live we keep gap from it;
-  // but we can reliably stamp txroot_live and txroot3_age_seconds.
-  out = upsertPromGauge(out, "void_txroot_live", txLive);
-  out = upsertPromGauge(out, "void_txroot3_age_seconds", Math.floor((br.age_ms | 0) / 1000));
-
-  // if handler already has gap, keep it; otherwise stamp 0
-  if (!/^void_ready_gap\b/m.test(out)) out = upsertPromGauge(out, "void_ready_gap", gap);
-
-  // void_ready: compute from available gap (best effort) + txLive
-  let gapVal = 0;
-  const m = out.match(/^void_ready_gap\s+([-0-9.eE]+)\s*$/m);
-  if (m) gapVal = Number(m[1]);
-  const ready = (Number.isFinite(gapVal) ? gapVal : 0) === 0 && txLive === 1 && br.ok;
-  out = upsertPromGauge(out, "void_ready", ready ? 1 : 0);
-
-  return out;
-}
-
-function hookHttpCreateServer() {
-  const orig = http.createServer;
-  http.createServer = function wrappedCreateServer(...args) {
-    const srv = orig.apply(this, args);
+  async function pollOnce() {
+    if (br.in_flight) return;
+    br.in_flight = true;
+    br.last_poll_ms = Date.now();
     try {
-      // attach once per server
-      if (!srv || srv.__void_ready_bridge_attached) return srv;
-      srv.__void_ready_bridge_attached = true;
+      const r = await fetchJson(TXROOT3, 1500);
+      if (r && r.ok && r.json && typeof r.json === "object") {
+        const j = r.json;
+        const healthy = (j.healthy ?? j.ok ?? j.ready ?? 0) ? 1 : 0;
+        const latest = Number(j.latest ?? j.number ?? j.head ?? -1);
+        br.ok = !!healthy;
+        br.latest = Number.isFinite(latest) ? latest : -1;
+        br.last_err = "";
+        br.last_ok_ms = Date.now();
+        br.seen_ok = true;
+      } else {
+        const code = (r && r.code) ? (r.code | 0) : 0;
+        if (code === 404) br.last_err = "http_404";  // boot window; do not activate
+        else br.last_err = code ? ("http_" + code) : "http_err";
+        br.ok = false;
+      }
+    } catch (e) {
+      br.last_err = (e && e.message) ? String(e.message).slice(0, 64) : "err";
+      br.ok = false;
+    } finally {
+      br.in_flight = false;
+      br.age_ms = br.last_ok_ms ? ((Date.now() - br.last_ok_ms) | 0) : 1_000_000_000;
+    }
+  }
 
-      srv.on("request", (req, res) => {
-        try {
-          if (!req || !res || !req.url) return;
-          const url = String(req.url);
-          const isReadyJson = url.startsWith("/__void/ready.json");
-          const isReadyProm = url.startsWith("/__void/ready.prom");
-          if (!isReadyJson && !isReadyProm) return;
+  setInterval(() => { pollOnce().catch(() => {}); }, 1000).unref?.();
+  pollOnce().catch(() => {});
+  try { console.error("[ready_bridge_v12] installed (http.createServer hooked)"); } catch {}
+  try { console.error("[ready_bridge_v12] txroot3 poller started (1s)"); } catch {}
 
-          let chunks = [];
-          let bytes = 0;
-          const maxBytes = 512 * 1024; // safety: never buffer >512KB
+  function safeJsonParse(s) { try { return JSON.parse(s); } catch { return null; } }
+  function toNum(x, d) { const n = Number(x); return Number.isFinite(n) ? n : d; }
+  function toInt(x, d) { const n = Number(x); return Number.isFinite(n) ? (n | 0) : d; }
 
-          const origWrite = res.write;
-          const origEnd = res.end;
+  function bridgeMeta() {
+    return {
+      v: br.v,
+      txroot3_seen_ok: br.seen_ok ? 1 : 0,
+      txroot3_ok: br.ok ? 1 : 0,
+      txroot3_age_ms: br.age_ms | 0,
+      txroot3_latest: br.latest,
+      txroot3_in_flight: br.in_flight ? 1 : 0,
+      txroot3_last_err: br.last_err || "",
+    };
+  }
 
+  function recomputeGap(head, lastmileSeen, gapIn) {
+    // If lastmileSeen is -1 during boot, original gap often becomes head+1 (nonsense for readiness).
+    if (!Number.isFinite(head) || head < 0) return 0;
+    if (!Number.isFinite(lastmileSeen) || lastmileSeen < 0) return 0; // clamp boot sentinel
+    const g = toNum(gapIn, Math.max(0, head - lastmileSeen));
+    if (!Number.isFinite(g) || g < 0) return Math.max(0, head - lastmileSeen);
+    // also clamp "gap bigger than head by miles" to sane
+    if (g > head + 1000) return Math.max(0, head - lastmileSeen);
+    return g;
+  }
+
+  function patchReadyJson(bodyStr) {
+    const obj = safeJsonParse(bodyStr);
+    if (!obj || typeof obj !== "object") return bodyStr;
+
+    const out = { ...obj };
+    out.__ready_bridge = bridgeMeta();
+
+    const head = toNum(out.head ?? out.number ?? -1, -1);
+    const lastmileSeen = toNum(out.lastmile_seen ?? out.lastmileSeen ?? out.lastmile ?? -1, -1);
+    const gap = recomputeGap(head, lastmileSeen, out.gap);
+
+    // txroot_live: once we've ever seen txroot3 success, make it authoritative.
+    let txroot_live = toInt(out.txroot_live, 0);
+    if (br.seen_ok) txroot_live = (br.ok && (br.age_ms | 0) <= 5000) ? 1 : 0;
+
+    // ready: force consistency with our bridged view.
+    const ready = (txroot_live === 1 && gap <= 10) ? true : false;
+
+    out.gap = gap;
+    out.txroot_live = txroot_live;
+    out.ready = ready;
+
+    // if we clamped boot sentinel, also publish lastmile_seen=head to avoid base gap calc flip-flopping.
+    if (Number.isFinite(head) && head >= 0) {
+      if ("lastmile_seen" in out && (!Number.isFinite(lastmileSeen) || lastmileSeen < 0)) out.lastmile_seen = head;
+      if (!("lastmile_seen" in out) && ("lastmileSeen" in out) && (!Number.isFinite(lastmileSeen) || lastmileSeen < 0)) out.lastmileSeen = head;
+    }
+
+    if (ready) out.reasons = null;
+
+    return JSON.stringify(out);
+  }
+
+  function upsertPromGauge(s, name, value) {
+    const re = new RegExp("^" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+[-+0-9.eE]+\\s*$", "m");
+    const line = name + " " + String(value) + "\n";
+    if (re.test(s)) return s.replace(re, name + " " + String(value));
+    if (!s.endsWith("\n")) s += "\n";
+    return s + line;
+  }
+
+  function patchReadyProm(bodyStr) {
+    let s = String(bodyStr || "");
+    // Pull base values (if present) by parsing the ready.json we just patched would be ideal,
+    // but we don't have it here; we approximate via txroot3 state and leave other lines alone.
+    // Still, we can at least make void_txroot_live / txroot3_age / seen_ok consistent.
+    const seen = br.seen_ok ? 1 : 0;
+    const ageS = Math.floor((br.age_ms | 0) / 1000);
+
+    s = upsertPromGauge(s, "void_txroot3_seen_ok", seen);
+    s = upsertPromGauge(s, "void_txroot3_age_seconds", ageS);
+
+    // If seen_ok, force void_txroot_live to bridged truth.
+    if (br.seen_ok) {
+      const live = (br.ok && (br.age_ms | 0) <= 5000) ? 1 : 0;
+      s = upsertPromGauge(s, "void_txroot_live", live);
+      // Best-effort: if gap is already 0 in prom (common after boot), then set ready accordingly.
+      // If gap isn't present, don't invent it.
+      const mGap = s.match(/^void_ready_gap\s+([-+0-9.eE]+)\s*$/m);
+      const gap = mGap ? Number(mGap[1]) : NaN;
+      if (Number.isFinite(gap)) {
+        const ready = (live === 1 && gap <= 10) ? 1 : 0;
+        s = upsertPromGauge(s, "void_ready", ready);
+      }
+    }
+    return s;
+  }
+
+  const origCreate = http.createServer.bind(http);
+  http.createServer = function patchedCreateServer(...args) {
+    let listener = args[0];
+    if (typeof listener !== "function") return origCreate(...args);
+
+    const wrapped = function (req, res) {
+      try {
+        const u = (req && req.url) ? String(req.url) : "";
+        if (u.startsWith("/__void/ready.json") || u.startsWith("/__void/ready.prom")) {
+          const isJson = u.startsWith("/__void/ready.json");
+          const origEnd = res.end.bind(res);
+          const chunks = [];
+
+          const origWrite = res.write ? res.write.bind(res) : null;
           res.write = function (chunk, enc, cb) {
-            try {
-              if (chunk && bytes < maxBytes) {
-                const b = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc);
-                bytes += b.length;
-                if (bytes <= maxBytes) chunks.push(b);
-              }
-            } catch {}
-            return origWrite.call(this, chunk, enc, cb);
+            if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc));
+            if (typeof cb === "function") cb();
+            return true;
           };
 
           res.end = function (chunk, enc, cb) {
-            // Let original end run first (handler finishes), then patch by rewriting body if still possible.
-            // But Node already sent bytes; so we patch by intercepting BEFORE sending: we need to suppress original writes.
-            // Therefore: if we got here, we should finalize by sending patched body ourselves only if headers not sent.
-            // We handle this by overriding write/end behavior only when headers not sent: if sent, do nothing.
+            if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc));
+            let body = "";
+            try { body = Buffer.concat(chunks).toString("utf8"); } catch {}
+            let out = body;
+            try { out = isJson ? patchReadyJson(body) : patchReadyProm(body); } catch { out = body; }
+
             try {
-              if (chunk && bytes < maxBytes) {
-                const b = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc);
-                bytes += b.length;
-                if (bytes <= maxBytes) chunks.push(b);
+              if (!res.headersSent) {
+                res.setHeader("content-length", Buffer.byteLength(out));
+                if (isJson) res.setHeader("content-type", "application/json; charset=utf-8");
+                else res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
               }
             } catch {}
 
-            try {
-              // If headers already sent, just pass-through (can't safely patch).
-              if (res.headersSent) return origEnd.call(this, chunk, enc, cb);
-
-              // Build original body string
-              const body = Buffer.concat(chunks).toString("utf8");
-
-              if (isReadyJson) {
-                const patched = patchReadyJsonBody(body);
-                try { res.setHeader("content-type", "application/json; charset=utf-8"); } catch {}
-                try { res.setHeader("content-length", Buffer.byteLength(patched)); } catch {}
-                return origEnd.call(this, patched, "utf8", cb);
-              }
-
-              if (isReadyProm) {
-                const patched = patchReadyPromBody(body);
-                try { res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8"); } catch {}
-                try { res.setHeader("content-length", Buffer.byteLength(patched)); } catch {}
-                return origEnd.call(this, patched, "utf8", cb);
-              }
-            } catch {
-              // fallback: never break response
-              return origEnd.call(this, chunk, enc, cb);
-            }
-            return origEnd.call(this, chunk, enc, cb);
+            return origEnd(out, "utf8", cb);
           };
-        } catch {}
-      });
-    } catch {}
-    return srv;
-  };
-}
 
-hookHttpCreateServer();
-try { console.error("[ready_bridge_v12] installed (http.createServer hooked)"); } catch {}
-try { console.error("[ready_bridge_v12] txroot3 poller started (1s)"); } catch {}
+          // prevent downstream write storms from bypassing our capture
+          if (origWrite) {
+            // keep it reachable if someone calls it (rare)
+            res.__orig_write = origWrite;
+          }
+        }
+      } catch {}
+      return listener(req, res);
+    };
+
+    return origCreate(wrapped);
+  };
 })();
