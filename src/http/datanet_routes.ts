@@ -43,14 +43,93 @@ function firstHex64Deep(x: any): string | null {
 }
 
 function normalizeLeavesFromManifest(man: any): string[] {
-  const chunks = man?.chunks;
-  if (!Array.isArray(chunks)) return [];
-  const out: string[] = [];
-  for (const c of chunks) {
-    const h = firstHex64Deep(c);
-    if (h) out.push(h);
+  // Accept common manifest shapes:
+  //  - { leaves: ["hex64", ...] }
+  //  - { leavesHex: ["hex64", ...] }
+  //  - { leaves_hex: ["hex64", ...] }
+  //  - { manifest: { leaves/leavesHex/leaves_hex: ... } }
+  //  - { chunks: [{leaf|hash|sha256|id: hex64}, ...] }  (your current shape)
+  //  - string lists: "hex64,hex64 ..." (comma/space separated)
+  function normHex64(x: any): string | null {
+    try {
+      if (typeof x === "string") {
+        const t = x.toLowerCase().replace(/^0x/, "").trim();
+        if (isHex64(t)) return t;
+      }
+      const d = (typeof firstHex64Deep === "function") ? firstHex64Deep(x) : null;
+      if (d && typeof d === "string") {
+        const t = d.toLowerCase().replace(/^0x/, "").trim();
+        if (isHex64(t)) return t;
+      }
+    } catch {}
+    return null;
   }
-  return out;
+
+  function pushFrom(v: any, out: string[]) {
+    if (!v) return;
+
+    if (typeof v === "string") {
+      const parts = v.split(/[,\s]+/).map(x => x.trim()).filter(Boolean);
+      for (const it of parts) {
+        const t = String(it).toLowerCase().replace(/^0x/, "").trim();
+        if (isHex64(t)) out.push(t);
+      }
+      return;
+    }
+
+    if (Array.isArray(v)) {
+      for (const it of v) {
+        const one = normHex64(it);
+        if (one) out.push(one);
+        else if (it && typeof it === "object") {
+          for (const k of ["leaf","hash","sha256","id"]) {
+            const vv = (it as any)[k];
+            if (typeof vv !== "string") continue;
+            const t = vv.toLowerCase().replace(/^0x/, "").trim();
+            if (isHex64(t)) out.push(t);
+          }
+        }
+      }
+      return;
+    }
+
+    if (typeof v === "object") {
+      try {
+        for (const vv of Object.values(v)) {
+          const one = normHex64(vv);
+          if (one) out.push(one);
+        }
+      } catch {}
+    }
+  }
+
+  const out: string[] = [];
+
+  // direct keys
+  pushFrom(man?.leaves, out);
+  pushFrom(man?.leavesHex, out);
+  pushFrom(man?.leaves_hex, out);
+
+  // nested common wrapper
+  pushFrom(man?.manifest?.leaves, out);
+  pushFrom(man?.manifest?.leavesHex, out);
+  pushFrom(man?.manifest?.leaves_hex, out);
+
+  // keep supporting your existing current behavior
+  pushFrom(man?.chunks, out);
+  pushFrom(man?.manifest?.chunks, out);
+
+  // de-dupe preserving order
+  const seen = new Set<string>();
+  const uniq: string[] = [];
+  for (const x of out) {
+    const t = String(x || "").toLowerCase().replace(/^0x/, "").trim();
+    if (!t || !isHex64(t)) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    uniq.push(t);
+  }
+  return uniq;
 }
 
 function leafHexToBuf(h: string): Buffer {
@@ -73,7 +152,7 @@ function sha256Hex(buf: Buffer) {
 
 
 function isHexLike(s: string) {
-  return /^[0-9a-fA-F]+.test(s);
+  return /^[0-9a-fA-F]+$/.test(s);
 }
 
 function appendJsonl(file: string, obj: any) {
@@ -226,8 +305,22 @@ const router = express.Router();
   router.post("/receipt", (req, res) => {
     try {
       const b: any = req.body || {};
-      const idRaw = String(b.id || "").trim();
-      if (!idRaw) return res.status(400).json({ ok: false, err: "missing_id" });
+      let idRaw = String(b.id || "").trim();
+      // If caller didn't provide id, derive a stable one from core fields.
+      // This keeps clients simple and preserves append-only receipts.jsonl semantics.
+      if (!idRaw) {
+        try {
+          const root0 = String(b?.root || "").toLowerCase().replace(/^0x/, "");
+          const leaf0 = String(b?.leaf || "").toLowerCase().replace(/^0x/, "");
+          const idx0 = Number(b?.index);
+          const bytes0 = Number(b?.bytes);
+          const ts0 = Number(b?.ts_ms || Date.now());
+          const src = `${root0}:${leaf0}:${idx0}:${bytes0}:${ts0}`;
+          idRaw = createHash("sha256").update(src).digest("hex");
+          try { b.id = idRaw; } catch {}
+          if (!b.ts_ms) { try { b.ts_ms = ts0; } catch {} }
+        } catch {}
+      }
       const id = idRaw.replace(/^0x/, "");
       // accept hex-ish ids (publish ids have been 32-hex; roots are 64-hex)
       if (!(id.length >= 16 && id.length <= 128 && isHexLike(id))) {

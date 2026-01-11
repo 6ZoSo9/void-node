@@ -257,6 +257,38 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
+/* === DATANET MVP mount (v1) ===
+   Gate: DATANET_MVP=1
+   Goal: ensure DataNet routes register even if preloads/drop-ins drift.
+   Safe: lazy import + once-guard + non-fatal on failure.
+*/
+try {
+  const G: any = globalThis as any;
+  if (!G.__void_datanet_mvp_mount_v1) {
+    G.__void_datanet_mvp_mount_v1 = true;
+    const on = (process.env.DATANET_MVP || "").trim() === "1";
+    if (on) {
+      import("./http/datanet_routes.ts")
+        .then((m: any) => {
+          const fn =
+            m && (m.registerDataNetRoutes || (m.default && m.default.registerDataNetRoutes));
+          if (typeof fn === "function") {
+            fn((globalThis as any).__void_http_app, { dataDir: process.env.DATA_DIR || "data" });
+            try { console.error("[datanet.mvp.v1] mounted"); } catch {}
+          } else {
+            try { console.error("[datanet.mvp.v1] missing registerDataNetRoutes export"); } catch {}
+          }
+        })
+        .catch((e: any) => {
+          try { console.error("[datanet.mvp.v1] mount failed", e && (e.stack || e)); } catch {}
+        });
+    }
+  }
+} catch (e: any) {
+  try { console.error("[datanet.mvp.v1] mount threw", e && (e.stack || e)); } catch {}
+}
+/* === end DATANET MVP mount (v1) === */
+
 /* headfix.early.v1 */
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
