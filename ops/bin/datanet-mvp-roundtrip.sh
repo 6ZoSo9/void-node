@@ -85,12 +85,12 @@ console.log("[ok] decrypt+verify OK");
 NODE
 
 echo
-echo "# === [receipt] tell node we verified decrypt client-side ===
+
+echo
+echo "# === [receipt] tell node we verified decrypt client-side ==="
+RJSON=$(jq -cn --arg id "$ID" --arg plain "$PLAIN_SHA" --arg who "roundtrip-smoke" --arg mime "text/plain" --arg name "mvp.txt" --argjson ok 1 --argjson wc_award 1 '{id:$id, plain_sha256:$plain, who:$who, mime:$mime, name:$name, ok:$ok, wc_award:$wc_award}')
 set +e
-curl -fsS --max-time 3 \
-  -H 'content-type: application/json' \
-  -d "1000 4 24 27 30 46 100 114 125 992 1000jq -cn --arg id "" --arg plain "" --arg who "roundtrip-smoke" --arg mime "text/plain" --arg name "mvp.txt" --argjson ok 1 --argjson wc_award 1 '{ id:, plain_sha256:, who:, mime:, name:, ok:, wc_award: }')" \
-  "/datanet/v1/receipt" >/dev/null 2>&1
+curl -fsS --max-time 3 -H "content-type: application/json" -d "$RJSON" "$BASE/datanet/v1/receipt" >/dev/null 2>&1
 set -e
 
-[done] DataNet MVP v1 roundtrip succeeded"
+echo "[done] DataNet MVP v1 roundtrip succeeded"
