@@ -85,4 +85,11 @@ console.log("[ok] decrypt+verify OK");
 NODE
 
 echo
-echo "[done] DataNet MVP v1 roundtrip succeeded"
+echo "# === [receipt] tell node we verified decrypt client-side ===
+RJSON="1000 4 24 27 30 46 100 114 125 992 1000jq -n --arg id "" --arg plain "" --arg who "roundtrip-smoke" --arg mime "text/plain" --arg name "mvp.txt" --argjson ok 1 --argjson wc_award 1 '{ id:, plain_sha256:, who:, mime:, name:, ok:, wc_award: }')"
+# best-effort (do not fail the smoke if receipt write fails)
+set +e
+curl -fsS --max-time 3 -H 'content-type: application/json' -d "" "/datanet/v1/receipt" >/dev/null 2>&1
+set -e
+
+[done] DataNet MVP v1 roundtrip succeeded"

@@ -71,6 +71,17 @@ function sha256Hex(buf: Buffer) {
   return createHash("sha256").update(buf).digest("hex");
 }
 
+
+function isHexLike(s: string) {
+  return /^[0-9a-fA-F]+.test(s);
+}
+
+function appendJsonl(file: string, obj: any) {
+  const line = JSON.stringify(obj);
+  // cheap DoS guard: cap line size
+  if (line.length > 32_000) throw new Error("receipt_too_large");
+  fs.appendFileSync(file, line + "\n");
+}
 export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: string }) {
   const strictManifest = (process.env.DATANET_STRICT_MANIFEST || "").trim() === "1";
 
@@ -81,7 +92,11 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
   ensureDir(chunksDir);
   ensureDir(manifestsDir);
 
-  const router = express.Router();
+  
+  const receiptsDir = path.join(dnDir, "receipts");
+  const receiptsFile = path.join(receiptsDir, "datanet.jsonl");
+  ensureDir(receiptsDir);
+const router = express.Router();
   router.use(express.json({ limit: "10mb", type: ["application/json", "text/json", "application/*+json"] }));
 
   router.get("/status", (req, res) => {
@@ -203,6 +218,81 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
     }
 
     res.json({ ok: true, root, leaves: leavesHex.length, index: idx, leaf: leavesHex[idx], siblings });
+  });
+
+    // === receipts: client-verified decrypt/roundtrip ===
+  // POST /datanet/v1/receipt
+  // Body: { id, plain_sha256?, bytes?, mime?, name?, who?, wc_award?, ok? }
+  router.post("/receipt", (req, res) => {
+    try {
+      const b: any = req.body || {};
+      const idRaw = String(b.id || "").trim();
+      if (!idRaw) return res.status(400).json({ ok: false, err: "missing_id" });
+      const id = idRaw.replace(/^0x/, "");
+      // accept hex-ish ids (publish ids have been 32-hex; roots are 64-hex)
+      if (!(id.length >= 16 && id.length <= 128 && isHexLike(id))) {
+        return res.status(400).json({ ok: false, err: "bad_id" });
+      }
+
+      const plain_sha = String(b.plain_sha256 || "").trim().replace(/^0x/, "");
+      if (plain_sha && !isHex64(plain_sha)) return res.status(400).json({ ok: false, err: "bad_plain_sha256" });
+
+      const who = String(b.who || "").slice(0, 96);
+      const mime = String(b.mime || "").slice(0, 96);
+      const name = String(b.name || "").slice(0, 96);
+
+      const bytesIn = Number(b.bytes || 0);
+      const bytes = Number.isFinite(bytesIn) && bytesIn >= 0 ? Math.floor(bytesIn) : 0;
+
+      const ok = (b.ok === false) ? 0 : 1;
+
+      const wcIn = Number(b.wc_award || 0);
+      const wc_award = Number.isFinite(wcIn) && wcIn >= 0 && wcIn <= 1_000_000 ? Math.floor(wcIn) : 0;
+
+      const now = Date.now();
+      const rec = {
+        ts_ms: now,
+        ok,
+        id: id.toLowerCase(),
+        plain_sha256: plain_sha ? plain_sha.toLowerCase() : "",
+        bytes,
+        mime,
+        name,
+        who,
+        wc_award,
+      };
+
+      appendJsonl(receiptsFile, rec);
+      return res.json({ ok: true, wrote: true, file: receiptsFile });
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, err: "receipt_write_failed", msg: e?.message || String(e) });
+    }
+  });
+
+  // GET /datanet/v1/receipts/status (ultralow)
+  router.get("/receipts/status", (req, res) => {
+    try {
+      let total = 0;
+      let last_ts_ms = 0;
+      let last_ok_ts_ms = 0;
+      if (fs.existsSync(receiptsFile)) {
+        const s = fs.readFileSync(receiptsFile, "utf8");
+        const lines = s.split(/\n/).filter(Boolean);
+        total = lines.length;
+        // scan last ~50 for timestamps
+        for (let i = Math.max(0, lines.length - 50); i < lines.length; i++) {
+          try {
+            const j = JSON.parse(lines[i]);
+            const t = Number(j?.ts_ms || 0);
+            if (Number.isFinite(t) && t > last_ts_ms) last_ts_ms = t;
+            if ((j?.ok|0) === 1 && Number.isFinite(t) && t > last_ok_ts_ms) last_ok_ts_ms = t;
+          } catch {}
+        }
+      }
+      res.json({ ok: true, file: receiptsFile, total, last_ts_ms, last_ok_ts_ms });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, err: "status_failed", msg: e?.message || String(e) });
+    }
   });
 
   app.use("/datanet/v1", router);

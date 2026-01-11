@@ -18,3 +18,7 @@ echo "datanet_composite_last5m=$comp"
 
 [[ "$comp" == "1" ]] || { echo "[FAIL] datanet composite not OK"; exit 2; }
 echo "[ok] datanet mvp pillar OK"
+
+# --- receipts composite (added 2026-01-11) ---
+r_comp="$(q 'void:mainnet_pillars_with_validators_and_datanet_mvp_and_receipts:health:last_5m')"
+echo "datanet_receipts_composite_last5m=$r_comp"
