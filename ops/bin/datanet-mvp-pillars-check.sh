@@ -16,7 +16,7 @@ echo "datanet_ok_now=$now"
 echo "datanet_ok_last5m=$last5"
 echo "datanet_composite_last5m=$comp"
 
-[[ "$comp" == "1" ]] || { echo "[FAIL] datanet composite not OK"; exit 2; }
+[[ "" == "1" ]] || { echo "[FAIL] datanet composite+receipts not OK"; exit 2; }
 echo "[ok] datanet mvp pillar OK"
 
 # --- receipts composite (added 2026-01-11) ---
