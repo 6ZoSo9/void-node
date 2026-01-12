@@ -161,6 +161,30 @@ function appendJsonl(file: string, obj: any) {
   if (line.length > 32_000) throw new Error("receipt_too_large");
   fs.appendFileSync(file, line + "\n");
 }
+
+// --- DataNet receipts metrics (v1) ---
+// Stored on globalThis so it survives route remounts; no deps.
+function __datanetReceiptsMetricsV1() {
+  const G: any = globalThis as any;
+  if (G.__void_datanet_receipts_metrics_v1) return G.__void_datanet_receipts_metrics_v1;
+  const m = {
+    post_total: 0,
+    ok_total: 0,
+    bad_total: 0,
+    bytes_total: 0,
+    wc_total: 0,
+    last_ok_ts_ms: 0,
+  };
+  G.__void_datanet_receipts_metrics_v1 = m;
+  return m;
+}
+
+function __datanetPromLine(name: string, value: number, labels?: Record<string,string>) {
+  const ls = labels && Object.keys(labels).length
+    ? "{" + Object.entries(labels).map(([k,v]) => `${k}="${String(v).replace(/"/g,'\"')}"`).join(",") + "}"
+    : "";
+  return `${name}${ls} ${Number.isFinite(value) ? value : 0}\n`;
+}
 export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: string }) {
   const strictManifest = (process.env.DATANET_STRICT_MANIFEST || "").trim() === "1";
 
@@ -327,6 +351,60 @@ const router = express.Router();
         return res.status(400).json({ ok: false, err: "bad_id" });
       }
 
+      // --- DataNet MVP receipt validation (v1) ---
+      const rootIn = String(b.root || "").toLowerCase().replace(/^0x/, "");
+      const leafIn = String(b.leaf || "").toLowerCase().replace(/^0x/, "");
+      const idxIn = Number(b.index);
+      const bytesClaim = Number(b.bytes || 0);
+
+      if (!isHex64(rootIn)) return res.status(400).json({ ok: false, err: "bad_root" });
+      if (!isHex64(leafIn)) return res.status(400).json({ ok: false, err: "bad_leaf" });
+      if (!Number.isInteger(idxIn) || idxIn < 0) return res.status(400).json({ ok: false, err: "bad_index" });
+
+      // Load manifest for root and confirm leaf at index.
+      const mp2 = path.join(manifestsDir, `${rootIn}.json`);
+      const man2 = readJsonSafe(mp2);
+      if (!man2) return res.status(400).json({ ok: false, err: "manifest_missing" });
+
+      const leaves2 = normalizeLeavesFromManifest(man2);
+      if (!leaves2.length) return res.status(400).json({ ok: false, err: "manifest_no_leaves" });
+      if (idxIn >= leaves2.length) return res.status(400).json({ ok: false, err: "index_oob", leaves: leaves2.length });
+
+      const leafAtIdx = String(leaves2[idxIn] || "").toLowerCase().replace(/^0x/, "");
+      if (leafAtIdx !== leafIn) {
+        return res.status(400).json({
+          ok: false,
+          err: "leaf_mismatch_at_index",
+          want: leafAtIdx,
+          got: leafIn,
+          index: idxIn,
+          leaves: leaves2.length,
+        });
+      }
+
+      // Confirm chunk exists and matches leaf hash.
+      const cp2 = path.join(chunksDir, `${leafIn}.bin`);
+      if (!fs.existsSync(cp2)) return res.status(400).json({ ok: false, err: "chunk_missing" });
+
+      let bytes_actual = 0;
+      try {
+        const buf = fs.readFileSync(cp2);
+        bytes_actual = buf.length;
+        const gotLeaf = sha256Hex(buf);
+        if (gotLeaf !== leafIn) {
+          return res.status(400).json({ ok: false, err: "chunk_hash_mismatch", want: leafIn, got: gotLeaf });
+        }
+      } catch (e: any) {
+        return res.status(400).json({ ok: false, err: "chunk_read_failed", msg: e?.message || String(e) });
+      }
+
+      // Prefer actual bytes; claim is informational only.
+      if (Number.isFinite(bytesClaim) && bytesClaim > 0 && bytesClaim !== bytes_actual) {
+        // non-fatal: client bytes mismatched; we record actual bytes.
+      }
+      // --- end validation (v1) ---
+
+
       const plain_sha = String(b.plain_sha256 || "").trim().replace(/^0x/, "");
       if (plain_sha && !isHex64(plain_sha)) return res.status(400).json({ ok: false, err: "bad_plain_sha256" });
 
@@ -334,19 +412,40 @@ const router = express.Router();
       const mime = String(b.mime || "").slice(0, 96);
       const name = String(b.name || "").slice(0, 96);
 
-      const bytesIn = Number(b.bytes || 0);
-      const bytes = Number.isFinite(bytesIn) && bytesIn >= 0 ? Math.floor(bytesIn) : 0;
+      const bytesClaimIn = Number(b.bytes || 0);
 
+      const bytes_claim = Number.isFinite(bytesClaimIn) && bytesClaimIn >= 0 ? Math.floor(bytesClaimIn) : 0;
+
+      // Prefer validated on-disk size when available.
+
+      const bytes_actual = (typeof (bytes_actual as any) === "number" && (bytes_actual as any) >= 0)
+
+        ? Math.floor(bytes_actual as any)
+
+        : bytes_claim;
+
+      const bytes = bytes_actual;
       const ok = (b.ok === false) ? 0 : 1;
 
-      const wcIn = Number(b.wc_award || 0);
-      const wc_award = Number.isFinite(wcIn) && wcIn >= 0 && wcIn <= 1_000_000 ? Math.floor(wcIn) : 0;
+      // WC award policy (v1): if caller didn't provide wc_award, award 1 WC per 4KiB (cap).
+      const wcIn0 = Number(b.wc_award || 0);
+      let wc_award = (Number.isFinite(wcIn0) && wcIn0 >= 0 && wcIn0 <= 1_000_000) ? Math.floor(wcIn0) : 0;
+      if (!wc_award) {
+        const base = Math.floor((bytes_actual || 0) / 4096);
+        wc_award = Math.min(1_000_000, Math.max(0, base));
+      }
 
       const now = Date.now();
       const rec = {
         ts_ms: now,
         ok,
         id: id.toLowerCase(),
+        root: rootIn,
+        leaf: leafIn,
+        index: idxIn,
+        bytes_claim,
+        bytes_actual,
+
         plain_sha256: plain_sha ? plain_sha.toLowerCase() : "",
         bytes,
         mime,
@@ -355,15 +454,52 @@ const router = express.Router();
         wc_award,
       };
 
+      const __m = __datanetReceiptsMetricsV1();
+      __m.post_total++;
+      if (ok) { __m.ok_total++; __m.last_ok_ts_ms = now; } else { __m.bad_total++; }
+      __m.bytes_total += (bytes || 0);
+      __m.wc_total += (wc_award || 0);
+
       appendJsonl(receiptsFile, rec);
-      return res.json({ ok: true, wrote: true, file: receiptsFile });
+      return res.json({ ok: true, wrote: true, id: rec.id, bytes: rec.bytes, file: receiptsFile });
     } catch (e: any) {
       return res.status(500).json({ ok: false, err: "receipt_write_failed", msg: e?.message || String(e) });
     }
   });
 
   // GET /datanet/v1/receipts/status (ultralow)
-  router.get("/receipts/status", (req, res) => {
+  
+  // GET /datanet/v1/metrics/receipts.prom
+  router.get("/metrics/receipts.prom", (_req, res) => {
+    try {
+      const m = __datanetReceiptsMetricsV1();
+      res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
+      let out = "";
+      out += "# HELP void_datanet_receipts_post_total DataNet receipt POST attempts\n";
+      out += "# TYPE void_datanet_receipts_post_total counter\n";
+      out += __datanetPromLine("void_datanet_receipts_post_total", m.post_total);
+      out += "# HELP void_datanet_receipts_ok_total DataNet receipt OK appended\n";
+      out += "# TYPE void_datanet_receipts_ok_total counter\n";
+      out += __datanetPromLine("void_datanet_receipts_ok_total", m.ok_total);
+      out += "# HELP void_datanet_receipts_bad_total DataNet receipt rejected/bad\n";
+      out += "# TYPE void_datanet_receipts_bad_total counter\n";
+      out += __datanetPromLine("void_datanet_receipts_bad_total", m.bad_total);
+      out += "# HELP void_datanet_receipts_bytes_total Total bytes recorded from receipts\n";
+      out += "# TYPE void_datanet_receipts_bytes_total counter\n";
+      out += __datanetPromLine("void_datanet_receipts_bytes_total", m.bytes_total);
+      out += "# HELP void_datanet_receipts_wc_total Total WC awarded\n";
+      out += "# TYPE void_datanet_receipts_wc_total counter\n";
+      out += __datanetPromLine("void_datanet_receipts_wc_total", m.wc_total);
+      out += "# HELP void_datanet_receipts_last_ok_ts_ms Last OK receipt timestamp (ms)\n";
+      out += "# TYPE void_datanet_receipts_last_ok_ts_ms gauge\n";
+      out += __datanetPromLine("void_datanet_receipts_last_ok_ts_ms", m.last_ok_ts_ms);
+      return res.send(out);
+    } catch (e: any) {
+      return res.status(500).send("error\n");
+    }
+  });
+
+router.get("/receipts/status", (req, res) => {
     try {
       let total = 0;
       let last_ts_ms = 0;
