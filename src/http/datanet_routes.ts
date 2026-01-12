@@ -181,7 +181,7 @@ function __datanetReceiptsMetricsV1() {
 
 function __datanetPromLine(name: string, value: number, labels?: Record<string,string>) {
   const ls = labels && Object.keys(labels).length
-    ? "{" + Object.entries(labels).map(([k,v]) => `${k}="${String(v).replace(/"/g,'\"')}"`).join(",") + "}"
+    ? "{" + Object.entries(labels).map(([k,v]) => `${k}="${String(v).replace(/"/g,'\\"')}"`).join(",") + "}"
     : "";
   return `${name}${ls} ${Number.isFinite(value) ? value : 0}\n`;
 }
@@ -386,10 +386,10 @@ const router = express.Router();
       const cp2 = path.join(chunksDir, `${leafIn}.bin`);
       if (!fs.existsSync(cp2)) return res.status(400).json({ ok: false, err: "chunk_missing" });
 
-      let bytes_actual = 0;
+      let bytes_on_disk = 0;
       try {
         const buf = fs.readFileSync(cp2);
-        bytes_actual = buf.length;
+        bytes_on_disk = buf.length;
         const gotLeaf = sha256Hex(buf);
         if (gotLeaf !== leafIn) {
           return res.status(400).json({ ok: false, err: "chunk_hash_mismatch", want: leafIn, got: gotLeaf });
@@ -399,7 +399,7 @@ const router = express.Router();
       }
 
       // Prefer actual bytes; claim is informational only.
-      if (Number.isFinite(bytesClaim) && bytesClaim > 0 && bytesClaim !== bytes_actual) {
+      if (Number.isFinite(bytesClaim) && bytesClaim > 0 && bytesClaim !== bytes_on_disk) {
         // non-fatal: client bytes mismatched; we record actual bytes.
       }
       // --- end validation (v1) ---
@@ -418,10 +418,8 @@ const router = express.Router();
 
       // Prefer validated on-disk size when available.
 
-      const bytes_actual = (typeof (bytes_actual as any) === "number" && (bytes_actual as any) >= 0)
-
-        ? Math.floor(bytes_actual as any)
-
+      const bytes_actual = (Number.isFinite(bytes_on_disk) && bytes_on_disk >= 0)
+        ? Math.floor(bytes_on_disk)
         : bytes_claim;
 
       const bytes = bytes_actual;
