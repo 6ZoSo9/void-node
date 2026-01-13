@@ -2,10 +2,39 @@
 set -euo pipefail
 
 BASE="${BASE:-http://localhost:4100}"
+# VOID_DN_SMOKE_KNOWN_GOOD_JSON_V1
+BASE="${BASE/http://localhost/http://127.0.0.1}"
+WHO="${WHO:-${USER:-zoso}}"
+# VOID_DN_SMOKE_WHO_BODY_V1
+WHO="${WHO:-${USER:-zoso}}"
+
 SIZE_BYTES="${SIZE_BYTES:-1024}"
 
 TMPDIR="${TMPDIR:-/tmp}"
 BIN="$TMPDIR/void-datanet-smoke.bin.$$"
+
+publish_known_good_json_v1() {
+  local URL="$BASE/datanet/v1/publish"
+  local B64
+  B64="$(base64 -w0 "$BIN" 2>/dev/null || base64 "$BIN" | tr -d '\n')"
+  # must be JSON with plaintext_b64, and who must be in BODY (headers/query do not count)
+  local BODY
+  BODY="$(printf '{"who":"%s","plaintext_b64":"%s","name":"mvp.bin","mime":"application/octet-stream"}' "$WHO" "$B64")"
+  local RESP HTTP
+  RESP="$(mktemp /tmp/void-dn-smoke.publish.XXXXXX.json)"
+  HTTP="$(curl -sS -o "$RESP" -w '%{http_code}' \
+    -H 'content-type: application/json' \
+    --data-binary "$BODY" \
+    "$URL" || true)"
+  if [ "$HTTP" = "200" ] && grep -q '"ok":[[:space:]]*true' "$RESP" 2>/dev/null; then
+    echo "[ok] known-good publish worked (HTTP=200) url=$URL"
+    return 0
+  fi
+  echo "[warn] known-good publish failed HTTP=$HTTP url=$URL (first 160 chars):"
+  head -c 160 "$RESP" || true
+  echo
+  return 1
+}
 RESP="$TMPDIR/void-datanet-smoke.resp.$$"
 FETCH="$TMPDIR/void-datanet-smoke.fetch.$$"
 
@@ -228,3 +257,5 @@ echo
 echo "=== [done] datanet smoke OK ==="
 echo "dataset_id=$PUB_ID"
 echo "publish=$PUB_MODE $PUB_URL"
+
+if publish_known_good_json_v1; then echo "[ok] publish stage satisfied via known-good JSON"; exit 0; fi

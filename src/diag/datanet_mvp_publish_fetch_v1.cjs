@@ -23,6 +23,26 @@ function writeFileAtomic(p, data) {
   fs.renameSync(tmp, p);
 }
 
+function receiptsFilePath() {
+  const f = (process.env.DATANET_RECEIPTS_FILE || "").trim();
+  if (f) return f;
+  // default under DATA_DIR
+  const dd = getDataDir();
+  return path.join(dd, "datanet", "receipts", "datanet.jsonl");
+}
+
+function appendReceiptLine(rec) {
+  try {
+    const fp = receiptsFilePath();
+    mkdirp(path.dirname(fp));
+    fs.appendFileSync(fp, JSON.stringify(rec) + "\n");
+    return true;
+  } catch (e) {
+    try { console.error("[datanet.mvp.publish_fetch.v1] receipt append failed:", e && e.message ? e.message : String(e)); } catch {}
+    return false;
+  }
+}
+
 function getDataDir() {
   const dd = (process.env.DATA_DIR || "").trim();
   if (dd) return dd;
@@ -94,6 +114,22 @@ function tryMount(app) {
         };
         writeFileAtomic(manifestPath, Buffer.from(JSON.stringify(manifest)));
 
+
+        /*__VOID_DN_MVP_RECEIPT_V1__*/
+        const who = (body && body.who) ? String(body.who) : "";
+        const requireWho = (process.env.DATANET_RECEIPTS_REQUIRE_WHO || "").trim() === "1";
+        const ts_ms = nowMs();
+        const baseRec = {
+          ts_ms,
+          ts: Math.floor(ts_ms / 1000),
+          ok: (requireWho && !who) ? 0 : 1,
+          who,
+          op: "datanet_mvp_publish",
+          id,
+          bytes: cipherAll.length,
+          wc: ((requireWho && !who)) ? 0 : 1
+        };
+        appendReceiptLine(baseRec);
         return res.json({
           ok: true,
           id,
