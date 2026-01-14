@@ -116,7 +116,11 @@ function tryMount(app) {
 
 
         /*__VOID_DN_MVP_RECEIPT_V1__*/
-        const who = (body && body.who) ? String(body.who) : "";
+        const who =
+          (body && body.who) ? String(body.who) :
+          (req && req.query && (req.query.who || req.query.WHO)) ? String(req.query.who || req.query.WHO) :
+          (req && req.headers && (req.headers["x-void-who"] || req.headers["x-VOID-who"] || req.headers["x-void-WHO"])) ? String(req.headers["x-void-who"] || req.headers["x-VOID-who"] || req.headers["x-void-WHO"]) :
+          "";
         const requireWho = (process.env.DATANET_RECEIPTS_REQUIRE_WHO || "").trim() === "1";
         const ts_ms = nowMs();
         const baseRec = {
@@ -129,7 +133,7 @@ function tryMount(app) {
           bytes: cipherAll.length,
           wc: ((requireWho && !who)) ? 0 : 1
         };
-        appendReceiptLine(baseRec);
+        if ((process.env.DATANET_MVP_NO_LOCAL_RECEIPTS || "").trim() !== "1") appendReceiptLine(baseRec);
         return res.json({
           ok: true,
           id,
@@ -194,3 +198,101 @@ function tryMount(app) {
     }
   }, 200);
 })();
+
+// __VOID_RECEIPTS_SAFE_MOUNT_V1__
+// Goal: attempt to load receipts modules WITHOUT ever bricking the node.
+// - catches require() failures
+// - optionally mounts a tiny status endpoint once express app exists
+(() => {
+  const path = require("path");
+
+  const G = globalThis;
+  if (G.__void_receipts_safemount_v1) return;
+  G.__void_receipts_safemount_v1 = true;
+
+  const state = {
+    ok: true,
+    tried: false,
+    loaded_real: 0,
+    loaded_persist: 0,
+    err_real: "",
+    err_persist: "",
+    file: process.env.DATANET_RECEIPTS_FILE || "",
+    require_who: process.env.DATANET_RECEIPTS_REQUIRE_WHO || "",
+    ts_ms: Date.now(),
+    mounted: 0,
+  };
+
+  function oneLineErr(e) {
+    try {
+      const msg = (e && (e.stack || e.message || String(e))) || "unknown";
+      return String(msg).split("\n")[0].slice(0, 400);
+    } catch {
+      return "unknown";
+    }
+  }
+
+  // Only attempt if receipts file is configured (keeps behavior explicit)
+  if (!state.file) {
+    state.ok = true;
+    state.tried = false;
+  } else {
+    state.tried = true;
+
+    const real = path.join(__dirname, "datanet_receipts_real_v1.cjs");
+    const persist = path.join(__dirname, "datanet_receipts_persist_v1.cjs");
+
+    try {
+      require(real);
+      state.loaded_real = 1;
+    } catch (e) {
+      state.loaded_real = 0;
+      state.err_real = oneLineErr(e);
+      // DO NOT throw.
+      try { console.error("[receipts.safemount.v1] require(real) failed:", state.err_real); } catch {}
+    }
+
+    try {
+      require(persist);
+      state.loaded_persist = 1;
+    } catch (e) {
+      state.loaded_persist = 0;
+      state.err_persist = oneLineErr(e);
+      // DO NOT throw.
+      try { console.error("[receipts.safemount.v1] require(persist) failed:", state.err_persist); } catch {}
+    }
+  }
+
+  // Mount a tiny status endpoint once the express app exists.
+  // Many of our diags rely on (globalThis as any).__void_http_app set in src/index.ts.
+  const WANT_PATH = "/__void/datanet/receipts/safemount.v1/status.json";
+  let tries = 0;
+  const t = setInterval(() => {
+    tries++;
+    const app = G.__void_http_app;
+    if (app && typeof app.get === "function") {
+      try {
+        app.get(WANT_PATH, (_req, res) => {
+          let stat = null;
+          try {
+            if (state.file) {
+              const fs = require("fs");
+              const st = fs.statSync(state.file);
+              stat = { size: st.size, mtimeMs: st.mtimeMs };
+            }
+          } catch {}
+          res.json({ ok: true, state, fileStat: stat });
+        });
+        state.mounted = 1;
+        try { console.error("[receipts.safemount.v1] mounted:", WANT_PATH); } catch {}
+      } catch (e) {
+        state.mounted = 0;
+        try { console.error("[receipts.safemount.v1] mount failed:", oneLineErr(e)); } catch {}
+      }
+      clearInterval(t);
+      return;
+    }
+    if (tries >= 40) { clearInterval(t); }
+  }, 250);
+})();
+
