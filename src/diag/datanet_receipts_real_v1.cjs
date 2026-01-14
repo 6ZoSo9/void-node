@@ -67,22 +67,44 @@ function parseJsonlCounters(file){
       rk = rk.replace(/[^a-z0-9_:\-]/g, "_").slice(0, 32);
       if (!__ALLOW.has(rk)) rk = "other";
       out.denied_reason_totals[rk] = (out.denied_reason_totals[rk] || 0) + 1;
-      // reason2: low-cardinality classification (sanitized + allowlisted)
+      // reason2: prefer explicit reason2, else reason, else err, else missing_reason (DO NOT infer missing_who from absent who)
+
       const __ALLOW2 = new Set([
-        "missing_who","missing_reason",
-        "missing_sig","bad_sig","bad_shape","bad_json","bad_hash","bad_proof",
+
+        "missing_who","missing_sig","bad_sig","bad_shape","bad_json","bad_hash","bad_proof",
+
         "rate_limited","budget","duplicate","expired","too_large","too_many","forbidden",
-        "bad_root","mismatch","invalid","other","unknown","empty"
+
+        "mismatch","invalid","other","empty","missing_reason","unknown",
+
+        "bad_id","bad_root","manifest_missing","missing_manifest","missing_leaf","missing_root"
+
       ]);
-      const _r0 = (typeof j.reason === "string" ? j.reason.trim() : "");
-      const _who0 = (typeof j.who === "string" ? j.who.trim() : "");
-      let rk2 = (_r0 ? _r0 : (_who0 ? "missing_reason" : "missing_who"));
+
+      let rk2 = "";
+
+      try {
+
+        if (typeof j.reason2 === "string" && j.reason2.trim()) rk2 = String(j.reason2);
+
+        else if (typeof j.reason === "string" && j.reason.trim()) rk2 = String(j.reason);
+
+        else if (typeof j.err === "string" && j.err.trim()) rk2 = String(j.err);
+
+        else rk2 = "missing_reason";
+
+      } catch { rk2 = "unknown"; }
+
       rk2 = String(rk2 || "").trim().toLowerCase();
+
       if (!rk2) rk2 = "empty";
+
       rk2 = rk2.replace(/[^a-z0-9_:\-]/g, "_").slice(0, 32);
+
       if (!__ALLOW2.has(rk2)) rk2 = "other";
+
       out.denied_reason2_totals[rk2] = (out.denied_reason2_totals[rk2] || 0) + 1;
-      if (rk === "missing_who") out.denied_missing_who_total++;
+      if (rk === "missing_who" || rk2 === "missing_who") out.denied_missing_who_total++;
     }
     const b = Number(j.bytes);
     const wc = Number(j.wc_award);
@@ -192,7 +214,70 @@ function attachOnce(){
   }
 
   try {
-    app.use(function datanetReceiptsRequireWho(req, res, next){
+    
+  // (B0) Deny tap: persist *all* /datanet/v1/receipt denials into jsonl so exporter can classify reasons.
+  // This runs before the core handler; it wraps res.json/res.send and appends ok:0 when response has ok:false.
+  try {
+    app.use(function datanetReceiptDenyTap(req, res, next){
+      try {
+        const m = String(req && req.method || "");
+        if (m !== "POST") return next();
+        const u = String(req && req.url || "");
+        if (!(u === "/datanet/v1/receipt" || u.startsWith("/datanet/v1/receipt?"))) return next();
+
+        const body = (req && req.body) || {};
+        let pick = { who:"", src:"" };
+        try { pick = (_pickWho(req, body) || pick); } catch {}
+
+        // If who was provided via header/query, inject it into body so downstream validation can see it
+        try {
+          const bw = String(body.who || "");
+          const pw = (pick && pick.who) ? String(pick.who) : "";
+          if ((!bw || !bw.trim()) && pw && pw.trim()) {
+            body.who = pw.trim();
+            try { req.body = body; } catch {}
+          }
+        } catch {}
+
+        const _origJson = res.json;
+        const _origSend = res.send;
+
+        function _tap(payload){
+          try {
+            let j = payload;
+            if (typeof payload === "string") {
+              try { j = JSON.parse(payload); } catch { j = null; }
+            }
+            if (!j || typeof j !== "object") return;
+
+            const okv = (j.ok === false) ? 0 : Number(j.ok);
+            if (okv !== 0) return;
+
+            appendJsonlLine(receiptsFile, {
+              ts_ms: nowMs(),
+              ok: 0,
+              err: (j.err !== undefined && j.err !== null) ? String(j.err) : "",
+              reason: (j.reason !== undefined) ? j.reason : null,
+              reason2: (j.reason2 !== undefined) ? j.reason2 : null,
+              who: String(body.who || (pick && pick.who) || ""),
+              who_src: String((pick && pick.src) || ""),
+              id: String(body.id || ""),
+              root: String(body.root || ""),
+              leaf: String(body.leaf || ""),
+              index: Number(body.index || 0) || 0,
+              bytes: Number(body.bytes || 0) || 0,
+            });
+          } catch {}
+        }
+
+        res.json = function(x){ _tap(x); return _origJson.call(this, x); };
+        res.send = function(x){ _tap(x); return _origSend.call(this, x); };
+      } catch {}
+      return next();
+    });
+  } catch {}
+
+app.use(function datanetReceiptsRequireWho(req, res, next){
       try {
         if (String(process.env.DATANET_RECEIPTS_REQUIRE_WHO||"") !== "1") return next();
 
@@ -206,6 +291,16 @@ function attachOnce(){
 
         const body = (req && req.body) || {};
         const pick = _pickWho(req, body);
+        // If who was provided via header/query, inject it into body so downstream validation can see it
+        try {
+          const bw = String(body.who || "");
+          const pw = (pick && pick.who) ? String(pick.who) : "";
+          if ((!bw || !bw.trim()) && pw && pw.trim()) {
+            body.who = pw.trim();
+            try { req.body = body; } catch {}
+          }
+        } catch {}
+
 
         // inject who into body if missing but present via hdr/query
         try {
