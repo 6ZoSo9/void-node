@@ -40,6 +40,8 @@ function parseJsonlCounters(file){
     wc_total: 0,
     denied_total: 0,
     denied_missing_who_total: 0,
+    denied_reason_totals: Object.create(null),
+    denied_reason2_totals: Object.create(null),
     last_ts_ms: 0,
   };
   let s = "";
@@ -52,7 +54,36 @@ function parseJsonlCounters(file){
     try { j = JSON.parse(line); } catch { out.bad_total++; continue; }
     const ok = Number(j.ok) === 1;
     if (ok) out.ok_total++; else out.denied_total++;
-    if (!ok && String(j.reason||"") === "missing_who") out.denied_missing_who_total++;
+    if (!ok) {
+      const __ALLOW = new Set([
+        "missing_who","missing_sig","bad_sig","bad_shape","bad_json","bad_hash","bad_proof",
+        "rate_limited","budget","duplicate","expired","too_large","too_many","forbidden",
+        "mismatch","invalid","other","empty"
+      ]);
+      let rk = "";
+      try { rk = String(j.reason || ""); } catch { rk = ""; }
+      rk = rk.trim().toLowerCase();
+      if (!rk) rk = "empty";
+      rk = rk.replace(/[^a-z0-9_:\-]/g, "_").slice(0, 32);
+      if (!__ALLOW.has(rk)) rk = "other";
+      out.denied_reason_totals[rk] = (out.denied_reason_totals[rk] || 0) + 1;
+      // reason2: low-cardinality classification (sanitized + allowlisted)
+      const __ALLOW2 = new Set([
+        "missing_who","missing_reason",
+        "missing_sig","bad_sig","bad_shape","bad_json","bad_hash","bad_proof",
+        "rate_limited","budget","duplicate","expired","too_large","too_many","forbidden",
+        "bad_root","mismatch","invalid","other","unknown","empty"
+      ]);
+      const _r0 = (typeof j.reason === "string" ? j.reason.trim() : "");
+      const _who0 = (typeof j.who === "string" ? j.who.trim() : "");
+      let rk2 = (_r0 ? _r0 : (_who0 ? "missing_reason" : "missing_who"));
+      rk2 = String(rk2 || "").trim().toLowerCase();
+      if (!rk2) rk2 = "empty";
+      rk2 = rk2.replace(/[^a-z0-9_:\-]/g, "_").slice(0, 32);
+      if (!__ALLOW2.has(rk2)) rk2 = "other";
+      out.denied_reason2_totals[rk2] = (out.denied_reason2_totals[rk2] || 0) + 1;
+      if (rk === "missing_who") out.denied_missing_who_total++;
+    }
     const b = Number(j.bytes);
     const wc = Number(j.wc_award);
     if (Number.isFinite(b) && b > 0) out.bytes_total += b;
@@ -98,6 +129,16 @@ function toProm(c){
     "# HELP void_datanet_receipts_denied_missing_who_total Denied receipts missing who",
     "# TYPE void_datanet_receipts_denied_missing_who_total counter",
     `void_datanet_receipts_denied_missing_who_total ${c.denied_missing_who_total}`,
+    "# HELP void_datanet_receipts_denied_reason_total Denied receipts by normalized reason (derived from jsonl; allowlisted)",
+    "# TYPE void_datanet_receipts_denied_reason_total counter",
+    ...Object.keys(c.denied_reason_totals || {})
+      .sort()
+      .map((k) => `void_datanet_receipts_denied_reason_total{reason="${k}"} ${c.denied_reason_totals[k]}`),
+    "# HELP void_datanet_receipts_denied_reason2_total Denied receipts by derived reason2 (fills missing reason via who presence)",
+    "# TYPE void_datanet_receipts_denied_reason2_total counter",
+    ...Object.keys(c.denied_reason2_totals || {})
+      .sort()
+      .map((k) => `void_datanet_receipts_denied_reason2_total{reason2="${k}"} ${c.denied_reason2_totals[k]}`),
     "",
   ].join("\n");
 }
@@ -129,31 +170,66 @@ function attachOnce(){
   } catch {}
 
   // (B) Optional enforcement shim: require who (does NOT try to fully revalidate receipt)
-  // Important: mounted early so it runs before the real route handler.
+  // Supports supplying who via:
+  //   - JSON body: {"who":"..."}  (preferred)
+  //   - Header:   X-VOID-WHO: ...
+  //   - Query:    ?who=...
+  // If who is provided via header/query, we inject it into req.body.who so downstream code sees it.
+  function _pickWho(req, body){
+    let who_body = "";
+    let who_hdr = "";
+    let who_q = "";
+    try { who_body = String((body||{}).who || "").trim(); } catch {}
+    try {
+      const h = (req && req.headers) || {};
+      who_hdr = String(h["x-void-who"] || h["x-void-who-id"] || h["x-void-signer"] || h["x-void-nodeid"] || "").trim();
+    } catch {}
+    try { who_q = String((req && req.query && req.query.who) || "").trim(); } catch {}
+    if (who_body) return { who: who_body, src: "body" };
+    if (who_hdr)  return { who: who_hdr,  src: "hdr"  };
+    if (who_q)    return { who: who_q,    src: "query"};
+    return { who: "", src: "none" };
+  }
+
   try {
-    app.use("/datanet/v1/receipt", function datanetReceiptEnforce(req, res, next){
+    app.use(function datanetReceiptsRequireWho(req, res, next){
       try {
+        if (String(process.env.DATANET_RECEIPTS_REQUIRE_WHO||"") !== "1") return next();
+
         const m = String(req && req.method || "");
         if (m !== "POST") return next();
 
-        const requireWho = String(process.env.DATANET_RECEIPTS_REQUIRE_WHO || "0") === "1";
-        if (!requireWho) return next();
+        const u = String(req && req.url || "");
+        const isReceipt = (u === "/datanet/v1/receipt" || u.startsWith("/datanet/v1/receipt?"));
+        const isReceipts = (u === "/datanet/v1/receipts" || u.startsWith("/datanet/v1/receipts?"));
+        if (!isReceipt && !isReceipts) return next();
 
         const body = (req && req.body) || {};
-        const who = String(body.who || "");
-        if (!who.trim()) {
-          // append deny line so metrics reflect it
+        const pick = _pickWho(req, body);
+
+        // inject who into body if missing but present via hdr/query
+        try {
+          const cur = String(body.who || "").trim();
+          if (!cur && pick.who) {
+            body.who = pick.who;
+            req.body = body;
+          }
+        } catch {}
+
+        const who = String((req && req.body && req.body.who) || "").trim();
+        if (!who) {
           appendJsonlLine(receiptsFile, {
-            ts_ms: nowMs(),
             ok: 0,
             reason: "missing_who",
+            reason2: "missing_who",
+            who: "",
+            who_src: pick.src,
             id: String(body.id || ""),
             root: String(body.root || ""),
             leaf: String(body.leaf || ""),
             index: Number(body.index || 0) || 0,
             bytes: Number(body.bytes || 0) || 0,
-            who: "",
-            wc_award: 0,
+            ts_ms: nowMs(),
           });
           res.status(400).json({ ok:false, err:"missing_who" });
           return;
