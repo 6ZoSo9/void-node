@@ -24,7 +24,8 @@ q() {
 
 echo "[pillars-lite] prom_url=$PROM"
 
-safeboot_overall="$(q 'safeboot_overall')"
+safeboot_overall_raw="$(q 'safeboot_overall')"
+safeboot_overall="$(q 'safeboot_overall_effective')"
 void_devnet_overall_health="$(q 'void_devnet_overall_health')"
 void_mainnet_core_health="$(q 'void_mainnet_core_health')"
 void_mainnet_core_manifest_health="$(q 'void_mainnet_core_manifest_health')"
@@ -39,6 +40,7 @@ void_datanet_last_ok_age_seconds="$(q 'void_datanet_last_ok_age_seconds')"
 echo
 echo "[pillars] === key ==="
 printf "  %-34s = %s\n" "safeboot_overall" "$safeboot_overall"
+printf "  %-34s = %s\n" "safeboot_overall_raw" "$safeboot_overall_raw"
 printf "  %-34s = %s\n" "void_devnet_overall_health" "$void_devnet_overall_health"
 printf "  %-34s = %s\n" "void_mainnet_core_health" "$void_mainnet_core_health"
 printf "  %-34s = %s\n" "void_mainnet_core_manifest_health" "$void_mainnet_core_manifest_health"
