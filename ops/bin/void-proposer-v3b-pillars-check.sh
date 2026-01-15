@@ -24,18 +24,31 @@ echo "alert_state=$(
 
 # === agent receipts split pillar addon (auto) BEGIN ===
 # Fail pre-push / preflight if the agent receipts split pillar is not OK.
-# This gates on:
-#   void_pillars_health_with_agent_receipts_split_scalar == 1
-# which itself is built from:
-#   base pillars metric AND agent receipts split pillar (up * writes_ok with NaN-safe gate)
-if command -v q >/dev/null 2>&1; then
-  __ars_v=""
-  echo "agent_receipts_split_ok_scalar=<empty>"
-  case "" in
+# Metric is expected to be a strict scalar 0/1:
+#   void_pillars_health_with_agent_receipts_split_scalar
+#
+# Hard policy: if q is missing or the metric is empty, FAIL (no silent skip).
+if [ "${VOID_SKIP_AGENT_RECEIPTS_SPLIT:-0}" = "1" ]; then
+  echo "agent_receipts_split_ok_scalar=<skipped>"
+else
+  if ! command -v q >/dev/null 2>&1; then
+    echo "[FAIL] q helper missing; cannot verify agent receipts split pillar."
+    exit 1
+  fi
+
+  __ars_v="$(q 'void_pillars_health_with_agent_receipts_split_scalar' 2>/dev/null || true)"
+  echo "agent_receipts_split_ok_scalar=${__ars_v:-<empty>}"
+
+  if [ -z "${__ars_v:-}" ]; then
+    echo "[FAIL] void_pillars_health_with_agent_receipts_split_scalar returned empty."
+    exit 1
+  fi
+
+  case "${__ars_v:-}" in
     1|1.0|1.00|1.000) : ;;
     *)
       echo "[FAIL] agent receipts split pillar not OK (expected 1)."
-      echo "       Fix: write a receipt (or wait until your receipt-write timer runs), then retry."
+      echo "       Fix: write a receipt (or wait for your receipt-write timer), then retry."
       exit 1
       ;;
   esac
