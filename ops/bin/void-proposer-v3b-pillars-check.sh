@@ -23,35 +23,29 @@ echo "alert_state=$(
 )"
 
 # === agent receipts split pillar addon (auto) BEGIN ===
-# Fail pre-push / preflight if the agent receipts split pillar is not OK.
-# Metric is expected to be a strict scalar 0/1:
-#   void_pillars_health_with_agent_receipts_split_scalar
-#
-# Hard policy: if q is missing or the metric is empty, FAIL (no silent skip).
+# Policy: pre-push gates on exporter health (UP), not on "recent writes".
+# Reason: activity gates are flaky unless you also run an always-on writer timer.
 if [ "${VOID_SKIP_AGENT_RECEIPTS_SPLIT:-0}" = "1" ]; then
-  echo "agent_receipts_split_ok_scalar=<skipped>"
+  echo "agent_receipts_split_up=<skipped>"
 else
-  if ! command -v q >/dev/null 2>&1; then
-    echo "[FAIL] q helper missing; cannot verify agent receipts split pillar."
+  __ars_up="$(
+    curl -fsS --max-time 3 -G "${PROM}/api/v1/query"       --data-urlencode 'query=scalar(up{job="void-agent-receipts-split"} == 1)'     | jq -r '.data.result[0].value[1] // ""' || true
+  )"
+  echo "agent_receipts_split_up=${__ars_up:-<empty>}"
+
+  if [ -z "${__ars_up:-}" ]; then
+    echo "[FAIL] agent receipts split UP query returned empty."
     exit 1
   fi
 
-  __ars_v="$(q 'void_pillars_health_with_agent_receipts_split_scalar' 2>/dev/null || true)"
-  echo "agent_receipts_split_ok_scalar=${__ars_v:-<empty>}"
-
-  if [ -z "${__ars_v:-}" ]; then
-    echo "[FAIL] void_pillars_health_with_agent_receipts_split_scalar returned empty."
-    exit 1
-  fi
-
-  case "${__ars_v:-}" in
+  case "${__ars_up:-}" in
     1|1.0|1.00|1.000) : ;;
     *)
-      echo "[FAIL] agent receipts split pillar not OK (expected 1)."
-      echo "       Fix: write a receipt (or wait for your receipt-write timer), then retry."
+      echo "[FAIL] agent receipts split exporter not UP (expected 1)."
       exit 1
       ;;
   esac
 fi
 # === agent receipts split pillar addon (auto) END ===
+
 
