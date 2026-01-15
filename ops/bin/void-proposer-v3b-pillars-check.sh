@@ -52,5 +52,38 @@ else
 fi
 # === agent receipts split pillar addon (auto) END ===
 
+# === pillars addons composite gate (optional) BEGIN ===
+# Default: OFF (do not enforce). Enable with:
+#   VOID_ENFORCE_PILLARS_ADDONS=1
+# Skip explicitly with:
+#   VOID_SKIP_PILLARS_ADDONS=1
+if [ "${VOID_ENFORCE_PILLARS_ADDONS:-0}" = "1" ] && [ "${VOID_SKIP_PILLARS_ADDONS:-0}" != "1" ]; then
+  __addons="$(
+    curl -fsS --max-time 3 -G "${PROM}/api/v1/query" \
+      --data-urlencode 'query=void_pillars_addons_health_scalar' \
+    | jq -r '.data.result[0].value[1] // ""' 2>/dev/null || true
+  )"
+  echo "pillars_addons_health_scalar=${__addons:-<empty>}"
+
+  if [ -z "${__addons:-}" ]; then
+    echo "[FAIL] void_pillars_addons_health_scalar returned empty."
+    exit 1
+  fi
+
+  case "${__addons:-}" in
+    1|1.0|1.00|1.000) : ;;
+    *)
+      echo "[FAIL] pillars addons composite not OK (expected 1)."
+      echo "       Fix: ensure addon exporters are UP (agent receipts split), then retry."
+      exit 1
+      ;;
+  esac
+else
+  echo "pillars_addons_health_scalar=<not_enforced>"
+fi
+# === pillars addons composite gate (optional) END ===
+
+
+
 
 
