@@ -29,7 +29,11 @@ if [ "${VOID_SKIP_AGENT_RECEIPTS_SPLIT:-0}" = "1" ]; then
   echo "agent_receipts_split_up=<skipped>"
 else
   __ars_up="$(
-    curl -fsS --max-time 3 -G "${PROM}/api/v1/query"       --data-urlencode 'query=scalar(up{job="void-agent-receipts-split"} == 1)'     | jq -r '.data.result[0].value[1] // ""' || true
+    curl -fsS --max-time 3 -G "${PROM}/api/v1/query"       --data-urlencode 'query=scalar(up{job="void-agent-receipts-split"} == 1)'     | jq -r '
+        if .data.resultType=="scalar" then (.data.result[1] // "")
+        elif .data.resultType=="vector" then (.data.result[0].value[1] // "")
+        else "" end
+      ' 2>/dev/null || true
   )"
   echo "agent_receipts_split_up=${__ars_up:-<empty>}"
 
@@ -47,5 +51,6 @@ else
   esac
 fi
 # === agent receipts split pillar addon (auto) END ===
+
 
 
