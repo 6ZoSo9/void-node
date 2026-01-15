@@ -19,7 +19,5 @@ cd "${HOME}/dev/void-node"
 export PROM
 
 export VOID_ENFORCE_PILLARS_ADDONS="${VOID_ENFORCE_PILLARS_ADDONS:-1}"
-
-exec bash ops/bin/void-proposer-v3b-pillars-check.sh
-
 echo "[ok] prepush-strict $(date -Is) rev=$(git rev-parse --short HEAD)"
+exec bash ops/bin/void-proposer-v3b-pillars-check.sh
