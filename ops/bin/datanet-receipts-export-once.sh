@@ -82,3 +82,11 @@ EOF
 mv "$tmp" "$TEXTFILE_DIR/$PROM_OUT_NAME"
 chmod 0644 "$TEXTFILE_DIR/$PROM_OUT_NAME"
 echo "[ok] exported receipts metrics -> $TEXTFILE_DIR/$PROM_OUT_NAME"
+
+# __STRIP_BAD_TOTAL_V1__
+# Safety net: ensure node_exporter textfile never carries void_datanet_receipts_bad_total
+# (prevents Prom rule confusion + alert false positives from job="node")
+if [[ -x /usr/local/bin/void-strip-textfile-metric.sh ]]; then
+  _OUT="${OUTFILE:-/var/lib/node_exporter/textfile_collector/void_datanet_receipts.prom}"
+  /usr/local/bin/void-strip-textfile-metric.sh "$_OUT" "void_datanet_receipts_bad_total" || true
+fi

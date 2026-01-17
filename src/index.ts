@@ -257,6 +257,91 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
+
+
+  // === [BEGIN DataNetPublishMvpIndexShimV1] ===
+  // Emergency shim: provides POST /datanet/v1/publish even if src/http/datanet_routes.ts fails to mount.
+  // Writes plaintext -> temp file -> packFile(temp, {chunkBytes,outDir}) -> returns {id,root,...}.
+  try {
+    app.post("/datanet/v1/publish", express.json({ limit: "12mb" }), async (req: any, res: any) => {
+      try {
+        const who = String((req?.query?.who ?? "") || "").trim();
+        if (!who) return res.status(400).json({ ok: false, error: "missing_who" });
+
+        const b = (req && req.body) ? req.body : {};
+        const plaintext_b64 = String(b.plaintext_b64 || "");
+        const name = String(b.name || "mvp.txt");
+        const mime = String(b.mime || "application/octet-stream");
+        if (!plaintext_b64) return res.status(400).json({ ok: false, error: "missing_plaintext_b64" });
+
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const crypto = await import("node:crypto");
+
+        const dataDir = String((process.env.DATA_DIR || "data") || "data");
+        const baseDir = path.join(dataDir, "datanet", "publish_shim_v1");
+        const upDir = path.join(baseDir, "uploads");
+        const outRoot = path.join(baseDir, "packed");
+        fs.mkdirSync(upDir, { recursive: true });
+        fs.mkdirSync(outRoot, { recursive: true });
+
+        const plaintext = Buffer.from(plaintext_b64, "base64");
+        const maxBytes = Number(process.env.DATANET_PUBLISH_MAX_BYTES || (5 * 1024 * 1024));
+        const cap = (Number.isFinite(maxBytes) && maxBytes > 0) ? maxBytes : (5 * 1024 * 1024);
+        if (plaintext.length > cap) return res.status(413).json({ ok:false, error:"too_large" });
+
+        const id = crypto.createHash("sha256")
+          .update(Buffer.from(who))
+          .update(Buffer.from("|"))
+          .update(plaintext)
+          .update(Buffer.from("|"))
+          .update(Buffer.from(String(Date.now())))
+          .digest("hex")
+          .slice(0, 32);
+
+        const inFile = path.join(upDir, `${id}.bin`);
+        fs.writeFileSync(inFile, plaintext);
+
+        const chunkBytes = Math.max(1024, Math.min(1024 * 1024, Number(process.env.DATANET_CHUNK_BYTES || 65536) || 65536));
+        const outDir = path.join(outRoot, id);
+        fs.mkdirSync(outDir, { recursive: true });
+
+        // dynamic import packFile (tsx-friendly)
+        let m: any = null;
+        try { m = await import("./datanet/pack.ts" as any); } catch {}
+        if (!m) { try { m = await import("./datanet/pack.js" as any); } catch {} }
+        const packFile = (m && (m.packFile || m.default)) ? (m.packFile || m.default) : null;
+        if (typeof packFile !== "function") {
+          return res.status(500).json({ ok: false, error: "packFile_missing" });
+        }
+
+        const man = packFile(inFile, { chunkBytes, outDir });
+
+        const meta = {
+          ok: true,
+          id,
+          who,
+          name,
+          mime,
+          createdAt: new Date().toISOString(),
+          dataDir,
+          sizeBytes: man?.sizeBytes,
+          chunkBytes: man?.chunkBytes,
+          chunks: Array.isArray(man?.chunks) ? man.chunks.length : 0,
+          merkleRootHex: man?.merkleRootHex,
+          outDir,
+        };
+        fs.writeFileSync(path.join(outDir, "meta.publish_shim.v1.json"), JSON.stringify(meta, null, 2));
+
+        return res.status(200).json(meta);
+      } catch (e: any) {
+        return res.status(500).json({ ok:false, error:"publish_throw", msg: e?.message || String(e) });
+      }
+    });
+    try { console.error("[datanet.publish_shim.v1] mounted: POST /datanet/v1/publish"); } catch {}
+  } catch {}
+  // === [END DataNetPublishMvpIndexShimV1] ===
+
 /* === DATANET MVP mount (v1) ===
    Gate: DATANET_MVP=1
    Goal: ensure DataNet routes register even if preloads/drop-ins drift.
@@ -31195,5 +31280,248 @@ try {
   }, 25);
 
 })();
+
+
+
+
+// === [BEGIN DataNetFetchShimV1] ===
+(() => {
+  const G: any = globalThis as any;
+  if (G.__void_datanet_fetch_shim_v1) return;
+  G.__void_datanet_fetch_shim_v1 = true;
+
+  const app = G.__void_http_app; // must exist (we keep the global app hook)
+  if (!app) {
+    try { console.error("[datanet.fetch_shim.v1] no global app hook (__void_http_app)"); } catch {}
+    return;
+  }
+
+  Promise.all([
+    import("node:fs"),
+    import("node:path"),
+    import("node:crypto"),
+    import("./datanet/merkle.js"),
+  ]).then(([fsMod, pathMod, cryptoMod, merkleMod]) => {
+    const fs: any = (fsMod as any);
+    const path: any = (pathMod as any);
+    const crypto: any = (cryptoMod as any);
+    const sha256: any = (merkleMod as any).sha256;
+    const merkleRoot: any = (merkleMod as any).merkleRoot;
+    const hex: any = (merkleMod as any).hex;
+
+    const dataDir = String((process.env.DATA_DIR || "data") || "data");
+    const baseDir = path.join(dataDir, "datanet", "publish_shim_v1", "packed");
+
+    function safeReadJson(pth: string): any | null {
+      try { return JSON.parse(fs.readFileSync(pth, "utf8")); } catch { return null; }
+    }
+
+    // GET /datanet/v1/manifest/:id
+    app.get("/datanet/v1/manifest/:id", (req: any, res: any) => {
+      try {
+        const id = String(req?.params?.id || "").trim();
+        if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+        const dir = path.join(baseDir, id);
+        const manPath = path.join(dir, "manifest.v1.json");
+        if (!fs.existsSync(manPath)) return res.status(404).json({ ok:false, error:"not_found" });
+        const man = safeReadJson(manPath);
+        if (!man) return res.status(500).json({ ok:false, error:"manifest_parse_failed" });
+        return res.status(200).json({ ok:true, id, manifest: man });
+      } catch (e: any) {
+        return res.status(500).json({ ok:false, error:"manifest_throw", msg: e?.message || String(e) });
+      }
+    });
+
+    // GET /datanet/v1/chunk/:id/:index  (binary by default; ?b64=1 to return JSON)
+    app.get("/datanet/v1/chunk/:id/:index", (req: any, res: any) => {
+      try {
+        const id = String(req?.params?.id || "").trim();
+        const idx = Number(req?.params?.index);
+        if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+        if (!Number.isFinite(idx) || idx < 0) return res.status(400).json({ ok:false, error:"bad_index" });
+
+        const dir = path.join(baseDir, id);
+        const manPath = path.join(dir, "manifest.v1.json");
+        if (!fs.existsSync(manPath)) return res.status(404).json({ ok:false, error:"not_found" });
+        const man = safeReadJson(manPath);
+        const chunks = Array.isArray(man?.chunks) ? man.chunks : [];
+        if (idx >= chunks.length) return res.status(404).json({ ok:false, error:"index_oob" });
+
+        const fname = String(chunks[idx]?.file || "");
+        if (!fname) return res.status(500).json({ ok:false, error:"bad_manifest_chunk" });
+        const fpath = path.join(dir, fname);
+        if (!fs.existsSync(fpath)) return res.status(404).json({ ok:false, error:"chunk_missing" });
+
+        const buf = fs.readFileSync(fpath);
+        const b64 = String(req?.query?.b64 || "").trim();
+        if (b64 === "1" || b64 === "true") {
+          return res.status(200).json({ ok:true, id, index: idx, file: fname, size: buf.length, chunk_b64: buf.toString("base64") });
+        }
+        res.setHeader("content-type", "application/octet-stream");
+        return res.status(200).send(buf);
+      } catch (e: any) {
+        return res.status(500).json({ ok:false, error:"chunk_throw", msg: e?.message || String(e) });
+      }
+    });
+
+    // GET /datanet/v1/fetch/:id  (reconstruct plaintext; verify merkle)
+    app.get("/datanet/v1/fetch/:id", (req: any, res: any) => {
+      try {
+        const id = String(req?.params?.id || "").trim();
+        if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+
+        const dir = path.join(baseDir, id);
+        const manPath = path.join(dir, "manifest.v1.json");
+        if (!fs.existsSync(manPath)) return res.status(404).json({ ok:false, error:"not_found" });
+
+        const man = safeReadJson(manPath);
+        const chunks = Array.isArray(man?.chunks) ? man.chunks : [];
+
+        const parts: any[] = [];
+        const leaves: any[] = [];
+        for (const c of chunks) {
+          const fname = String(c?.file || "");
+          const wantHex = String(c?.leafHashHex || "");
+          if (!fname || !wantHex) return res.status(500).json({ ok:false, error:"bad_manifest_chunk" });
+          const buf = fs.readFileSync(path.join(dir, fname));
+          parts.push(buf);
+          const leaf = sha256(buf);
+          const gotHex = hex(leaf);
+          if (gotHex !== wantHex) return res.status(500).json({ ok:false, error:"leaf_mismatch", file: fname });
+          leaves.push(leaf);
+        }
+
+        const rootHex = hex(merkleRoot(leaves));
+        const verify_ok = (rootHex === String(man?.merkleRootHex || "")) && (rootHex === id);
+
+        const plain = Buffer.concat(parts);
+        const plain_sha256 = crypto.createHash("sha256").update(plain).digest("hex");
+
+        return res.status(200).json({
+          ok: true,
+          id,
+          verify_ok: !!verify_ok,
+          merkleRootHex: rootHex,
+          sizeBytes: plain.length,
+          plain_sha256,
+          plaintext_b64: plain.toString("base64"),
+        });
+      } catch (e: any) {
+        return res.status(500).json({ ok:false, error:"fetch_throw", msg: e?.message || String(e) });
+      }
+    });
+
+    try { console.error("[datanet.fetch_shim.v1] mounted: GET /datanet/v1/(manifest|chunk|fetch)/:id"); } catch {}
+  }).catch((e: any) => {
+    try { console.error("[datanet.fetch_shim.v1] import failed:", e?.message || String(e)); } catch {}
+  });
+})();
+// === [END DataNetFetchShimV1] ===
+
+
+
+// === [BEGIN DataNetFetchShimV2] ===
+// DataNet fetch shim V2c
+// GET /datanet/v1/fetch?id=...&who=...   OR   GET /datanet/v1/fetch/:id?who=...
+// Reads from DATA_DIR/datanet/publish_shim_v1/packed/<id>/ (manifest.v1.json + chunk files)
+// NOTE: waits for globalThis.__void_http_app to exist, then mounts.
+try {
+  const G: any = globalThis as any;
+  if (!G.__void_datanet_fetch_shim_v2c_installed) {
+    G.__void_datanet_fetch_shim_v2c_installed = true;
+
+    const __dn_fetch_attach_v2c = () => {
+      const app: any = G.__void_http_app;
+      if (!app) return false;
+      if (G.__void_datanet_fetch_shim_v2c_attached) return true;
+      G.__void_datanet_fetch_shim_v2c_attached = true;
+
+      const __dn_fetch_impl_v2c = async (req: any, res: any) => {
+        try {
+          const who = String((req?.query?.who ?? "") || "").trim();
+          if (!who) return res.status(400).json({ ok: false, error: "missing_who" });
+
+          const id = String((req?.params?.id ?? req?.query?.id ?? "") || "").trim();
+          if (!id) return res.status(400).json({ ok: false, error: "missing_id" });
+
+          const fsMod: any = await import("node:fs");
+          const pathMod: any = await import("node:path");
+          const fs: any = fsMod.default || fsMod;
+          const path: any = pathMod.default || pathMod;
+
+          const dataDir = String((process.env.DATA_DIR || "data") || "data");
+          const baseDir = path.join(dataDir, "datanet", "publish_shim_v1", "packed", id);
+
+          if (!fs.existsSync(baseDir)) return res.status(404).json({ ok: false, error: "not_found", id });
+
+          const manPath = path.join(baseDir, "manifest.v1.json");
+          const metaPath = path.join(baseDir, "meta.publish_shim.v1.json");
+          const rootPath = path.join(baseDir, "root.txt");
+
+          const meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, "utf8")) : {};
+          const rootTxt = fs.existsSync(rootPath) ? String(fs.readFileSync(rootPath, "utf8") || "").trim() : "";
+
+          let manifest: any = {};
+          let blob: Buffer;
+
+          if (fs.existsSync(manPath)) {
+            manifest = JSON.parse(fs.readFileSync(manPath, "utf8"));
+            const chunks = Array.isArray(manifest?.chunks) ? manifest.chunks : [];
+            const parts: Buffer[] = [];
+            for (const c of chunks) {
+              const fname = String(c?.file || "");
+              if (!fname) continue;
+              const fp = path.join(baseDir, fname);
+              if (!fs.existsSync(fp)) throw new Error("missing_chunk_file");
+              parts.push(fs.readFileSync(fp));
+            }
+            blob = Buffer.concat(parts);
+          } else {
+            const cipherPath = path.join(baseDir, "cipher.bin");
+            if (!fs.existsSync(cipherPath)) return res.status(404).json({ ok: false, error: "no_manifest_or_cipher", id });
+            blob = fs.readFileSync(cipherPath);
+          }
+
+          const MAX = Number(process.env.VOID_DATANET_FETCH_MAX_BYTES || (8 * 1024 * 1024));
+          if (blob.length > MAX) {
+            return res.status(413).json({ ok: false, error: "too_large", sizeBytes: blob.length, maxBytes: MAX, id });
+          }
+
+          return res.status(200).json({
+            ok: true,
+            who,
+            id,
+            outDir: baseDir,
+            sizeBytes: blob.length,
+            rootTxt,
+            manifest,
+            meta,
+            cipher_b64: blob.toString("base64"),
+          });
+        } catch (e: any) {
+          return res.status(500).json({ ok: false, error: "fetch_shim_throw", msg: e?.message || String(e) });
+        }
+      };
+
+      app.get("/datanet/v1/fetch", __dn_fetch_impl_v2c);
+      app.get("/datanet/v1/fetch/:id", __dn_fetch_impl_v2c);
+      try { console.error("[datanet.fetch_shim.v2c] mounted: GET /datanet/v1/fetch and /datanet/v1/fetch/:id"); } catch {}
+      return true;
+    };
+
+    if (!__dn_fetch_attach_v2c()) {
+      const t0 = Date.now();
+      const iv = setInterval(() => {
+        try {
+          if (__dn_fetch_attach_v2c()) { clearInterval(iv); return; }
+          if (Date.now() - t0 > 15000) { clearInterval(iv); try{ console.error("[datanet.fetch_shim.v2c] attach timeout"); } catch{} }
+        } catch {
+          // keep trying until timeout
+        }
+      }, 50);
+    }
+  }
+} catch {}
+// === [END DataNetFetchShimV2] ===
 
 

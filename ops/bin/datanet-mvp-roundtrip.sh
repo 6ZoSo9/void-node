@@ -1,3 +1,4 @@
+WHO="${WHO:-$(hostname)-$USER}"
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -20,7 +21,7 @@ PJSON="$(jq -n \
 PUB="$(curl -fsS --max-time 5 \
   -H 'content-type: application/json' \
   --data-binary "$PJSON" \
-  "$BASE/datanet/v1/publish")"
+  "$BASE/datanet/v1/publish?who=$WHO")"
 
 echo "$PUB" | jq -r '.ok, .id, .plain_sha256' >/dev/null
 
@@ -34,7 +35,7 @@ echo "[ok] plain_sha256=$PLAIN_SHA"
 
 echo
 echo "=== [2] fetch ==="
-F="$(curl -fsS --max-time 5 "$BASE/datanet/v1/fetch/$ID")"
+F="$(curl -fsS --max-time 5 "$BASE/datanet/v1/fetch/$ID?who=$WHO")"
 echo "$F" | jq -r '.ok, .verify_ok, .cipher_sha256_server' >/dev/null
 
 CIPHER="$(echo "$F" | jq -r '.cipher_b64')"

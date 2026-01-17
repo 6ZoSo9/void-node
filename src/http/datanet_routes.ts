@@ -3,6 +3,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
 import { merkleRoot } from "../datanet/merkle.js";
+import * as crypto from "node:crypto";
+import { packFile } from "../datanet/pack";
 
 function isHex64(s: string) {
   return /^[0-9a-fA-F]{64}$/.test(s);
@@ -522,5 +524,88 @@ router.get("/receipts/status", (req, res) => {
     }
   });
 
-  app.use("/datanet/v1", router);
+
+  // POST /datanet/v1/publish (MVP v2: encrypt -> pack(cipherFile) -> meta.json)
+
+  // GET /datanet/v1/fetch2/:id (MVP v2: reads mvp2/<id>/cipher.bin or chunks)
+  router.get("/fetch2/:id", async (req: any, res: any) => {
+    try {
+      const who = String((req?.query?.who ?? "") || "").trim();
+      if (!who) return res.status(400).json({ ok:false, error:"missing_who" });
+      const id = String(req?.params?.id || "").trim();
+      if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const crypto = await import("node:crypto");
+      const dataDir = String((process.env.DATA_DIR || "data") || "data");
+      const dir = path.join(dataDir, "datanet", "mvp2", id);
+      const manPath = path.join(dir, "manifest.v1.json");
+      const metaPath = path.join(dir, "meta.json");
+      if (!fs.existsSync(dir) || !fs.existsSync(manPath)) return res.status(404).json({ ok:false, error:"not_found" });
+
+      const man = JSON.parse(fs.readFileSync(manPath, "utf8"));
+      const meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, "utf8")) : {};
+
+      let cipherAll: Buffer | null = null;
+      const cipherPath = path.join(dir, "cipher.bin");
+      if (fs.existsSync(cipherPath)) {
+        cipherAll = fs.readFileSync(cipherPath);
+      } else {
+        // reconstruct from chunk files in manifest order
+        const chunks = Array.isArray(man.chunks) ? man.chunks : [];
+        const parts: Buffer[] = [];
+        for (const c of chunks) {
+          const fname = String(c.file || "");
+          if (!fname) continue;
+          parts.push(fs.readFileSync(path.join(dir, fname)));
+        }
+        cipherAll = Buffer.concat(parts);
+      }
+
+      const cipher_sha256_server = crypto.createHash("sha256").update(cipherAll).digest("hex");
+
+      // verify: chunk hashes match manifest + merkle root matches id
+      let verify_ok = false;
+      try {
+        const mm = await import("../datanet/merkle.js");
+        const sha256 = (mm as any).sha256;
+        const merkleRoot = (mm as any).merkleRoot;
+        const hex = (mm as any).hex;
+        const chunks = Array.isArray(man.chunks) ? man.chunks : [];
+        const leaves: Buffer[] = [];
+        for (const c of chunks) {
+          const fname = String(c.file || "");
+          const wantHex = String(c.leafHashHex || "");
+          if (!fname || !wantHex) throw new Error("bad_manifest_chunk");
+          const buf = fs.readFileSync(path.join(dir, fname));
+          const leaf = sha256(buf);
+          const gotHex = hex(leaf);
+          if (gotHex !== wantHex) throw new Error("leaf_mismatch");
+          leaves.push(leaf);
+        }
+        const root = merkleRoot(leaves);
+        const rootHex = hex(root);
+        verify_ok = (rootHex === String(man.merkleRootHex || "")) && (rootHex === id);
+      } catch {
+        verify_ok = false;
+      }
+
+      return res.status(200).json({
+        ok: true,
+        id,
+        verify_ok,
+        cipher_sha256_server,
+        cipher_b64: cipherAll.toString("base64"),
+        plain_sha256: String(meta.plain_sha256 || ""),
+      });
+    } catch (e:any) {
+      return res.status(500).json({ ok:false, error:"fetch2_throw", msg: e?.message || String(e) });
+    }
+  });
+
+
+
+// [repair_eof_v2] truncated tail starting at marker containing: // === [BEGIN DataNetPublishMvpV3] ===
+
 }

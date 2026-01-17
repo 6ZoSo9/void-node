@@ -14,7 +14,7 @@ TMPDIR="${TMPDIR:-/tmp}"
 BIN="$TMPDIR/void-datanet-smoke.bin.$$"
 
 publish_known_good_json_v1() {
-  local URL="$BASE/datanet/v1/publish"
+  local URL="$BASE/datanet/v1/publish?who=$WHO"
   local B64
   B64="$(base64 -w0 "$BIN" 2>/dev/null || base64 "$BIN" | tr -d '\n')"
   # must be JSON with plaintext_b64, and who must be in BODY (headers/query do not count)
@@ -62,7 +62,7 @@ echo "BIN=$BIN bytes=$SIZE_BYTES sha256=$SHA"
 echo
 
 PUBLISH_EP=(
-  "/datanet/v1/publish"
+  "/datanet/v1/publish?who=$WHO"
   "/datanet/publish"
   "/api/datanet/publish"
   "/datanet/v0/publish"
@@ -70,7 +70,7 @@ PUBLISH_EP=(
 )
 
 FETCH_EP_TPL=(
-  "/datanet/v1/fetch/{id}"
+  "/datanet/v1/fetch/{id}?who=$WHO"
   "/datanet/v1/dataset/{id}"
   "/datanet/v1/dataset/{id}/raw"
   "/datanet/fetch/{id}"
