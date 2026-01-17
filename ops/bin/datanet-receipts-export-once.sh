@@ -79,7 +79,7 @@ void_datanet_receipts_parse_errors_total $(cat "$PARSE_ERR_FILE" 2>/dev/null || 
 void_datanet_receipts_export_last_run_ts_seconds $now_epoch
 EOF
 
-mv "$tmp" "$TEXTFILE_DIR/$PROM_OUT_NAME"
+/bin/mv -f "$tmp" "$TEXTFILE_DIR/$PROM_OUT_NAME"
 chmod 0644 "$TEXTFILE_DIR/$PROM_OUT_NAME"
 echo "[ok] exported receipts metrics -> $TEXTFILE_DIR/$PROM_OUT_NAME"
 
