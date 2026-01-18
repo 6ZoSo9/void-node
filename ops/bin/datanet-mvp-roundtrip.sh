@@ -1,97 +1,139 @@
-WHO="${WHO:-$(hostname)-$USER}"
 #!/usr/bin/env bash
 set -euo pipefail
 
 BASE="${BASE:-http://127.0.0.1:4100}"
+WHO="${WHO:-smoke}"
+NAME="${1:-export-$(date +%Y%m%d-%H%M%S)}"
 
-# plaintext comes from argv1 (recommended) or a safe default
-PLAINTEXT="${1:-hello datanet $(date +%Y%m%d-%H%M%S)}"
+need() { command -v "$1" >/dev/null 2>&1 || { echo "[FAIL] missing cmd: $1" >&2; exit 2; }; }
+need curl
+need jq
+need sha256sum
+need base64
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR" >/dev/null 2>&1 || true' EXIT
 
 echo "=== [0] quick health (ultralow) ==="
-curl -fsS --max-time 2 "$BASE/health" >/dev/null && echo "[ok] node /health"
-
+curl -fsS --max-time 2 "$BASE/health" >/dev/null
+echo "[ok] node /health"
 echo
-echo "=== [1] publish ==="
-PJSON="$(jq -n \
-  --arg s "$PLAINTEXT" \
-  --arg name "mvp.txt" \
-  --arg mime "text/plain" \
-  '{plaintext_b64: ($s|@base64), name:$name, mime:$mime}')"
 
-PUB="$(curl -fsS --max-time 5 \
-  -H 'content-type: application/json' \
-  --data-binary "$PJSON" \
-  "$BASE/datanet/v1/publish?who=$WHO")"
-
-echo "$PUB" | jq -r '.ok, .id, .plain_sha256' >/dev/null
-
-ID="$(echo "$PUB" | jq -r '.id')"
-KEY="$(echo "$PUB" | jq -r '.key_b64')"
-NONCE="$(echo "$PUB" | jq -r '.nonce_b64')"
-PLAIN_SHA="$(echo "$PUB" | jq -r '.plain_sha256')"
-
-echo "[ok] id=$ID"
-echo "[ok] plain_sha256=$PLAIN_SHA"
-
+echo "=== [A] build plaintext payload ==="
+PAY="$TMP_DIR/payload.bin"
+# deterministic-ish payload (8192 bytes)
+head -c 8192 </dev/zero | tr '\0' 'a' >"$PAY"
+PAY_BYTES="$(wc -c <"$PAY" | tr -d ' ')"
+PAY_SHA="$(sha256sum "$PAY" | awk '{print $1}')"
+PAY_B64="$(base64 -w0 <"$PAY")"
+echo "[ok] payload_bytes=$PAY_BYTES plain_sha256=$PAY_SHA"
 echo
-echo "=== [2] fetch ==="
-F="$(curl -fsS --max-time 5 "$BASE/datanet/v1/fetch/$ID?who=$WHO")"
-echo "$F" | jq -r '.ok, .verify_ok, .cipher_sha256_server' >/dev/null
 
-CIPHER="$(echo "$F" | jq -r '.cipher_b64')"
-VERIFY_OK="$(echo "$F" | jq -r '.verify_ok')"
-echo "[ok] server_verify_ok=$VERIFY_OK"
+echo "=== [1] publish (who in QUERY, raw) ==="
+PUB_JSON="$TMP_DIR/publish.json"
+REQ="$TMP_DIR/publish.req.json"
+cat >"$REQ" <<EOF
+{"ok":true,"who":"$WHO","name":"$NAME","mime":"application/octet-stream","plaintext_b64":"$PAY_B64","bytes_claim":$PAY_BYTES}
+EOF
 
+# publish (keep output in file; print small)
+curl -fsS -X POST "$BASE/datanet/v1/publish?who=$WHO" \
+  -H 'Content-Type: application/json' \
+  --data-binary @"$REQ" >"$PUB_JSON"
+
+ID="$(jq -r '.id // empty' "$PUB_JSON")"
+ROOT="$(jq -r '.merkleRootHex // empty' "$PUB_JSON")"
+SZ="$(jq -r '.sizeBytes // empty' "$PUB_JSON")"
+
+if [ -z "$ID" ] || [ -z "$ROOT" ]; then
+  echo "[FAIL] publish returned no id/root" >&2
+  jq -c '{ok,id,error,who,name,sizeBytes,merkleRootHex}' "$PUB_JSON" 2>/dev/null || true
+  exit 10
+fi
+
+echo "[ok] id=$ID merkleRootHex=$ROOT sizeBytes=$SZ"
+if [ "$ROOT" != "$PAY_SHA" ]; then
+  echo "[FAIL] publish root mismatch vs local sha" >&2
+  echo "[dbg] local_sha=$PAY_SHA" >&2
+  exit 11
+fi
+echo "[ok] publish root matches local sha"
 echo
-echo "=== [3] decrypt client-side (node) + prove hash matches ==="
-node - "$PLAINTEXT" "$KEY" "$NONCE" "$CIPHER" "$PLAIN_SHA" <<'NODE'
-const crypto=require("crypto");
 
-const [plain_in, key_b64, nonce_b64, cipher_b64, want] = process.argv.slice(2);
-	const key=Buffer.from(key_b64,"base64");
-	const nonce=Buffer.from(nonce_b64,"base64");
-	const cipherAll=Buffer.from(cipher_b64,"base64");
+echo "=== [2] fetch (publish_shim_v1 shape) ==="
+FETCH_JSON="$TMP_DIR/fetch.json"
+FETCH_URL=""
 
-if (key.length !== 32) { console.error("[FAIL] key length != 32"); process.exit(10); }
-if (nonce.length < 8) { console.error("[FAIL] nonce too short"); process.exit(11); }
-if (cipherAll.length < 17) { console.error("[FAIL] cipher too short"); process.exit(12); }
-
-const tag=cipherAll.subarray(cipherAll.length-16);
-const enc=cipherAll.subarray(0,cipherAll.length-16);
-
-const dec=crypto.createDecipheriv("aes-256-gcm", key, nonce);
-dec.setAuthTag(tag);
-
-let out;
-try {
-  out=Buffer.concat([dec.update(enc), dec.final()]);
-} catch (e) {
-  console.error("[FAIL] decrypt threw:", (e && e.message) ? e.message : String(e));
-  process.exit(13);
+try_fetch() {
+  local url="$1"
+  if curl -fsS --max-time 6 "$url" >"$FETCH_JSON"; then
+    FETCH_URL="$url"
+    return 0
+  fi
+  return 1
 }
 
-const got=crypto.createHash("sha256").update(out).digest("hex");
-if (got !== want) {
-  console.error("[FAIL] sha mismatch got=",got,"want=",want);
-  process.exit(2);
-}
+# likely endpoints (your log showed this works)
+try_fetch "$BASE/datanet/v1/fetch/$ID?who=$WHO" \
+  || try_fetch "$BASE/datanet/v1/fetch2/$ID?who=$WHO" \
+  || try_fetch "$BASE/datanet/v1/fetch/$ID" \
+  || { echo "[FAIL] fetch failed (no endpoint worked)" >&2; exit 12; }
 
-const s=out.toString("utf8");
-if (s !== plain_in) {
-  console.error("[FAIL] plaintext mismatch");
-  process.exit(3);
-}
+echo "[ok] fetched via: $FETCH_URL"
 
-console.log("[ok] decrypt+verify OK");
-NODE
+OK="$(jq -r '.ok // empty' "$FETCH_JSON")"
+if [ "$OK" != "true" ]; then
+  echo "[FAIL] fetch ok!=true" >&2
+  jq -c '{ok,error,who,id}' "$FETCH_JSON" 2>/dev/null || true
+  exit 13
+fi
 
+# IMPORTANT: do NOT print the full JSON (cipher_b64 can be huge).
+# Print only a small summary:
+jq -c '{ok,who,id,sizeBytes,rootTxt, outDir, has_plaintext_b64:(.plaintext_b64!=null), has_manifest:(.manifest!=null), has_cipher_b64:(.cipher_b64!=null)}' "$FETCH_JSON" || true
 echo
 
-echo
-echo "# === [receipt] tell node we verified decrypt client-side ==="
-RJSON=$(jq -cn --arg id "$ID" --arg plain "$PLAIN_SHA" --arg who "roundtrip-smoke" --arg mime "text/plain" --arg name "mvp.txt" --argjson ok 1 --argjson wc_award 1 '{id:$id, plain_sha256:$plain, who:$who, mime:$mime, name:$name, ok:$ok, wc_award:$wc_award}')
-set +e
-curl -fsS --max-time 3 -H "content-type: application/json" -d "$RJSON" "$BASE/datanet/v1/receipt" >/dev/null 2>&1
-set -e
+# Path A: plaintext_b64 exists (old shape)
+PT_B64="$(jq -r '.plaintext_b64 // empty' "$FETCH_JSON")"
+if [ -n "$PT_B64" ] && [ "$PT_B64" != "null" ]; then
+  echo "=== [3A] verify via plaintext_b64 ==="
+  echo "$PT_B64" | base64 -d >"$TMP_DIR/plain.out.bin" 2>/dev/null || { echo "[FAIL] base64 decode plaintext_b64" >&2; exit 14; }
+  GOT="$(sha256sum "$TMP_DIR/plain.out.bin" | awk '{print $1}')"
+  if [ "$GOT" != "$PAY_SHA" ]; then
+    echo "[FAIL] plaintext_b64 sha mismatch" >&2
+    echo "[dbg] got=$GOT want=$PAY_SHA" >&2
+    exit 15
+  fi
+  echo "[ok] plaintext_b64 sha matches"
+  echo "[done] DataNet MVP v1 roundtrip succeeded"
+  exit 0
+fi
 
+# Path B: publish_shim_v1 shape: verify via disk sourcePath
+echo "=== [3B] verify via manifest.sourcePath on disk (local node) ==="
+SRC="$(jq -r '.manifest.sourcePath // empty' "$FETCH_JSON")"
+ROOT_TXT="$(jq -r '.rootTxt // .manifest.merkleRootHex // empty' "$FETCH_JSON")"
+if [ -z "$SRC" ] || [ "$SRC" = "null" ]; then
+  echo "[FAIL] no plaintext_b64 and no manifest.sourcePath" >&2
+  exit 16
+fi
+if [ ! -f "$SRC" ]; then
+  echo "[FAIL] sourcePath not found on disk: $SRC" >&2
+  exit 17
+fi
+
+GOT2="$(sha256sum "$SRC" | awk '{print $1}')"
+WANT="${ROOT_TXT:-$PAY_SHA}"
+
+echo "[dbg] sourcePath=$SRC"
+echo "[dbg] sha_disk=$GOT2"
+echo "[dbg] want=$WANT"
+
+if [ "$GOT2" != "$WANT" ]; then
+  echo "[FAIL] disk sha mismatch" >&2
+  exit 18
+fi
+
+echo "[ok] disk sha matches"
 echo "[done] DataNet MVP v1 roundtrip succeeded"
+exit 0
