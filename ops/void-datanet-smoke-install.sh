@@ -33,9 +33,9 @@ fi
 
 ts="$(date +%s)"
 {
-  echo "# HELP void_datanet_smoke_ok 1 if datanet smoke succeeded"
-  echo "# TYPE void_datanet_smoke_ok gauge"
-  echo "void_datanet_smoke_ok $ok"
+  echo "# HELP void_datanet_smoke_ok_v0 1 if datanet smoke succeeded"
+  echo "# TYPE void_datanet_smoke_ok_v0 gauge"
+  echo "void_datanet_smoke_ok_v0 $ok"
   echo "# HELP void_datanet_smoke_last_run_seconds Last run unix time"
   echo "# TYPE void_datanet_smoke_last_run_seconds gauge"
   echo "void_datanet_smoke_last_run_seconds $ts"

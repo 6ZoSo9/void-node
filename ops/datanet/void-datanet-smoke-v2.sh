@@ -129,9 +129,9 @@ tmp1="$(mktemp)"; tmp2="$(mktemp)"
 
 # --- SMOKE (legacy + new) ---
 cat > "$tmp1" <<EOF
-# HELP void_datanet_smoke_ok 1 if publish+fetch succeeded
-# TYPE void_datanet_smoke_ok gauge
-void_datanet_smoke_ok $OK_FAST
+# HELP void_datanet_smoke_ok_v0 1 if publish+fetch succeeded
+# TYPE void_datanet_smoke_ok_v0 gauge
+void_datanet_smoke_ok_v0 $OK_FAST
 # HELP void_datanet_smoke_last_ok_ts_seconds unix ts of last success
 # TYPE void_datanet_smoke_last_ok_ts_seconds gauge
 void_datanet_smoke_last_ok_ts_seconds $([ "$OK_FAST" = "1" ] && echo "$NOW_S" || echo 0)
