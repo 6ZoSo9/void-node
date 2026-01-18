@@ -263,6 +263,19 @@ console.log("[shim] published global node (post-construct)");
   // Emergency shim: provides POST /datanet/v1/publish even if src/http/datanet_routes.ts fails to mount.
   // Writes plaintext -> temp file -> packFile(temp, {chunkBytes,outDir}) -> returns {id,root,...}.
   try {
+  // __VOID_DN_PUBLISH_SHIM_ENCRYPT_V2__
+  function dnEncryptV2(plain: Buffer){
+    const crypto = require("node:crypto");
+    const key = crypto.randomBytes(32);
+    const nonce = crypto.randomBytes(12);
+    const enc = crypto.createCipheriv("aes-256-gcm", key, nonce);
+    const c1 = enc.update(plain);
+    const c2 = enc.final();
+    const tag = enc.getAuthTag();
+    const cipher = Buffer.concat([c1, c2, tag]);
+    return { cipher, key, nonce };
+  }
+
     app.post("/datanet/v1/publish", express.json({ limit: "12mb" }), async (req: any, res: any) => {
       try {
         const who = String((req?.query?.who ?? "") || "").trim();
@@ -286,6 +299,11 @@ console.log("[shim] published global node (post-construct)");
         fs.mkdirSync(outRoot, { recursive: true });
 
         const plaintext = Buffer.from(plaintext_b64, "base64");
+        const plain: Buffer = plaintext;
+        const encOut = dnEncryptV2(plain);
+        const cipher: Buffer = encOut.cipher;
+        const key: Buffer = encOut.key;
+        const nonce: Buffer = encOut.nonce;
         const maxBytes = Number(process.env.DATANET_PUBLISH_MAX_BYTES || (5 * 1024 * 1024));
         const cap = (Number.isFinite(maxBytes) && maxBytes > 0) ? maxBytes : (5 * 1024 * 1024);
         if (plaintext.length > cap) return res.status(413).json({ ok:false, error:"too_large" });
@@ -525,7 +543,9 @@ try {
 
       appAny.post("/__void/diag/txroot_bundle_lazy/load", async (_:any,res:any) => {
         if (!enabled) return res.status(403).json({ ok:false, err:"disabled (set VOID_TXROOT_BUNDLE_LAZY=1)" });
-        if (state.loaded) return res.json({ ok:true, already:true, state });
+        if (state.loaded) return res.json({ ok:true,
+          key_b64: b64(key),
+          nonce_b64: b64(nonce), already:true, state });
         if (state.loading) return res.status(409).json({ ok:false, err:"already loading", state });
 
         state.loading = true;
