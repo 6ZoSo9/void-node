@@ -14,3 +14,14 @@ To rehydrate on a fresh host:
   sudo systemctl enable --now void-dn-enc-e2e.timer
   # restart node_exporter if needed:
   sudo systemctl restart prometheus-node-exporter
+
+## WC expected toggle (manual arm/disarm for WC-award alert)
+
+This host can explicitly arm/disarm the "WC awards should be increasing" alert gate.
+
+- Tool: `/usr/local/bin/void-datanet-wc-expected [0|1]`
+- Textfile: `/var/lib/node_exporter/textfile_collector/void_datanet_wc_expected.prom`
+
+Rehydrate:
+  sudo cp -a ops/bin/void-datanet-wc-expected /usr/local/bin/
+  sudo /usr/local/bin/void-datanet-wc-expected 0
