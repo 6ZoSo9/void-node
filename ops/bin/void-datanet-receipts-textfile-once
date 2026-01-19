@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TEXTDIR="${TEXTDIR:-${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}}"
+DATA_DIR="${DATA_DIR:-$HOME/dev/void-node/data_a}"
+RF="$DATA_DIR/datanet/receipts/datanet.jsonl"
+
+OUTF="$TEXTDIR/void_datanet_receipts.prom"
+TMP="$TEXTDIR/.tmp.void_datanet_receipts.$$.$RANDOM.prom"
+
+STATE="$TEXTDIR/.void_datanet_receipts_wc_state.json"
+STATE_TMP="$TEXTDIR/.tmp.void_datanet_receipts_wc_state.$$.$RANDOM.json"
+
+mkdir -p "$TEXTDIR"
+
+# load state (best-effort)
+LAST_TS_MS=0
+WC_COUNTER=0
+if [ -s "$STATE" ]; then
+  LAST_TS_MS="$(python3 - <<PY 2>/dev/null || echo 0
+import json,sys
+p="$STATE"
+try:
+  j=json.load(open(p,"r"))
+  print(int(j.get("last_ts_ms",0)))
+except Exception:
+  print(0)
+PY
+)"
+  WC_COUNTER="$(python3 - <<PY 2>/dev/null || echo 0
+import json,sys
+p="$STATE"
+try:
+  j=json.load(open(p,"r"))
+  v=j.get("wc_counter",0)
+  if isinstance(v,(int,float)): print(int(v))
+  else: print(0)
+except Exception:
+  print(0)
+PY
+)"
+fi
+
+# analyze tail window via python (robust JSON parsing)
+python3 - "$RF" "$LAST_TS_MS" "$WC_COUNTER" > "$TMP" <<'PY'
+import sys, json, time, math, os
+
+rf = sys.argv[1]
+last_ts_ms = int(sys.argv[2])
+wc_counter = int(sys.argv[3])
+
+now = int(time.time())
+lines = 0
+parse_errors = 0
+
+last_any_ts_s = 0
+last_ok_ts_s = 0
+last_ok_ts_ms = 0
+
+wc_sum_window = 0.0
+delta_wc = 0.0
+max_ok_ts_ms_seen = last_ts_ms
+
+# read last N lines
+N = 4000
+tail = []
+try:
+  # cheap tail without spawning subprocesses repeatedly
+  with open(rf, "rb") as f:
+    f.seek(0, os.SEEK_END)
+    size = f.tell()
+    block = 1024 * 1024
+    data = b""
+    pos = size
+    while pos > 0 and data.count(b"\n") <= N + 5:
+      read_sz = block if pos >= block else pos
+      pos -= read_sz
+      f.seek(pos)
+      data = f.read(read_sz) + data
+    tail = data.splitlines()[-N:]
+except Exception:
+  tail = []
+
+for raw in tail:
+  try:
+    s = raw.decode("utf-8", "replace").strip()
+    if not s:
+      continue
+    j = json.loads(s)
+    lines += 1
+
+    ts_s = int(j.get("ts", 0) or 0)
+    ts_ms = int(j.get("ts_ms", 0) or 0)
+    ok = int(j.get("ok", 0) or 0)
+
+    if ts_s > 0:
+      last_any_ts_s = max(last_any_ts_s, ts_s)
+
+    if ok == 1:
+      if ts_s > 0:
+        last_ok_ts_s = max(last_ok_ts_s, ts_s)
+      if ts_ms > 0:
+        last_ok_ts_ms = max(last_ok_ts_ms, ts_ms)
+        max_ok_ts_ms_seen = max(max_ok_ts_ms_seen, ts_ms)
+
+      wc = j.get("wc", 0)
+      try:
+        wc_f = float(wc)
+      except Exception:
+        wc_f = 0.0
+
+      if wc_f > 0:
+        wc_sum_window += wc_f
+        if ts_ms > last_ts_ms:
+          delta_wc += wc_f
+
+  except Exception:
+    parse_errors += 1
+
+# advance last_ts_ms to max OK ts_ms seen, even if wc=0 (prevents re-processing)
+new_last_ts_ms = max(last_ts_ms, max_ok_ts_ms_seen)
+
+# update counter monotonically
+wc_counter_new = wc_counter + int(math.floor(delta_wc + 1e-9))
+
+age_ok = (now - last_ok_ts_s) if last_ok_ts_s > 0 else 0
+age_any = (now - last_any_ts_s) if last_any_ts_s > 0 else 0
+
+# emit metrics
+print("# HELP void_datanet_receipts_file_present 1 if receipts jsonl exists")
+print("# TYPE void_datanet_receipts_file_present gauge")
+print(f"void_datanet_receipts_file_present {1 if tail else 0}")
+
+print("# HELP void_datanet_receipts_lines Total parsed lines in tail window")
+print("# TYPE void_datanet_receipts_lines gauge")
+print(f"void_datanet_receipts_lines {lines}")
+
+print("# HELP void_datanet_receipts_last_ts_seconds Last receipt timestamp (epoch seconds; 0 if none)")
+print("# TYPE void_datanet_receipts_last_ts_seconds gauge")
+print(f"void_datanet_receipts_last_ts_seconds {last_any_ts_s}")
+
+print("# HELP void_datanet_receipts_last_ok_ts_seconds Last OK receipt timestamp (epoch seconds; 0 if none)")
+print("# TYPE void_datanet_receipts_last_ok_ts_seconds gauge")
+print(f"void_datanet_receipts_last_ok_ts_seconds {last_ok_ts_s}")
+
+print("# HELP void_datanet_receipts_age_seconds Age since last OK receipt (seconds; 0 if none)")
+print("# TYPE void_datanet_receipts_age_seconds gauge")
+print(f"void_datanet_receipts_age_seconds {age_ok}")
+
+print("# HELP void_datanet_receipts_any_age_seconds Age since last receipt of any kind (seconds; 0 if none)")
+print("# TYPE void_datanet_receipts_any_age_seconds gauge")
+print(f"void_datanet_receipts_any_age_seconds {age_any}")
+
+print("# HELP void_datanet_receipts_parse_errors_total Parse errors observed in tail window")
+print("# TYPE void_datanet_receipts_parse_errors_total counter")
+print(f"void_datanet_receipts_parse_errors_total {parse_errors}")
+
+print("# HELP void_datanet_receipts_wc_awarded_total Sum of wc in tail window (non-monotonic; debug)")
+print("# TYPE void_datanet_receipts_wc_awarded_total gauge")
+print(f"void_datanet_receipts_wc_awarded_total {int(wc_sum_window)}")
+
+print("# HELP void_datanet_receipts_wc_awarded_total_counter Monotonic WC counter since first run (stateful)")
+print("# TYPE void_datanet_receipts_wc_awarded_total_counter counter")
+print(f"void_datanet_receipts_wc_awarded_total_counter {wc_counter_new}")
+
+print("# HELP void_datanet_receipts_wc_awarded_delta_wc Delta WC observed since last run (stateful)")
+print("# TYPE void_datanet_receipts_wc_awarded_delta_wc gauge")
+print(f"void_datanet_receipts_wc_awarded_delta_wc {int(math.floor(delta_wc + 1e-9))}")
+
+print("# HELP void_datanet_receipts_wc_state_last_ts_ms Last processed OK ts_ms (state)")
+print("# TYPE void_datanet_receipts_wc_state_last_ts_ms gauge")
+print(f"void_datanet_receipts_wc_state_last_ts_ms {new_last_ts_ms}")
+
+# write state to a sidecar file path printed to stderr by wrapper bash (we’ll do it there)
+sys.stderr.write(json.dumps({"last_ts_ms": new_last_ts_ms, "wc_counter": wc_counter_new}) + "\n")
+PY
