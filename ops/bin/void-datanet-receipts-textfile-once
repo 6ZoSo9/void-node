@@ -6,12 +6,18 @@ DATA_DIR="${DATA_DIR:-$HOME/dev/void-node/data_a}"
 RF="$DATA_DIR/datanet/receipts/datanet.jsonl"
 
 OUTF="$TEXTDIR/void_datanet_receipts.prom"
-TMP="$TEXTDIR/.tmp.void_datanet_receipts.$$.$RANDOM.prom"
+TMP="$TEXTDIR/.tmp.void_datanet_receipts.$$.$RANDOM.part"
 
 STATE="$TEXTDIR/.void_datanet_receipts_wc_state.json"
 STATE_TMP="$TEXTDIR/.tmp.void_datanet_receipts_wc_state.$$.$RANDOM.json"
 
 mkdir -p "$TEXTDIR"
+
+cleanup() {
+  rm -f -- "$TMP" "$STATE_TMP" 2>/dev/null || true
+}
+trap cleanup EXIT
+
 
 # load state (best-effort)
 LAST_TS_MS=0
