@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TEXTDIR="${TEXTDIR:-/var/lib/node_exporter/textfile_collector}"
+OUTFILE="${OUTFILE:-$TEXTDIR/void_datanet_mvp_roundtrip.prom}"
+BASE="${BASE:-http://127.0.0.1:4100}"
+
+ts_now() { date +%s; }
+
+emit() {
+  local ok="$1" err="$2" last_ok="$3" now="$4"
+  umask 022
+  mkdir -p "$TEXTDIR"
+  tmp="$(mktemp)"
+  cat >"$tmp" <<EOF
+# HELP void_datanet_mvp_roundtrip_ok DataNet MVP v1 publish->fetch->decrypt roundtrip (1=ok,0=fail)
+# TYPE void_datanet_mvp_roundtrip_ok gauge
+void_datanet_mvp_roundtrip_ok $ok
+# HELP void_datanet_mvp_roundtrip_last_run_ts_seconds Last run timestamp (epoch seconds)
+# TYPE void_datanet_mvp_roundtrip_last_run_ts_seconds gauge
+void_datanet_mvp_roundtrip_last_run_ts_seconds $now
+# HELP void_datanet_mvp_roundtrip_last_ok_ts_seconds Last OK timestamp (epoch seconds; 0 if never)
+# TYPE void_datanet_mvp_roundtrip_last_ok_ts_seconds gauge
+void_datanet_mvp_roundtrip_last_ok_ts_seconds $last_ok
+# HELP void_datanet_mvp_roundtrip_last_err_info 1 with label err=... when last run failed (err="ok" => value 0)
+# TYPE void_datanet_mvp_roundtrip_last_err_info gauge
+void_datanet_mvp_roundtrip_last_err_info{err="ok"} 0
+void_datanet_mvp_roundtrip_last_err_info{err="$err"} $([ "$err" = "ok" ] && echo 0 || echo 1)
+EOF
+  chmod 0644 "$tmp" || true
+  mv -f "$tmp" "$OUTFILE"
+}
+
+# keep prior last_ok across failures
+prev_last_ok="0"
+if [ -s "$OUTFILE" ]; then
+  prev_last_ok="$(rg -m1 -o 'void_datanet_mvp_roundtrip_last_ok_ts_seconds\s+\K[0-9]+' "$OUTFILE" 2>/dev/null || echo 0)"
+  prev_last_ok="${prev_last_ok:-0}"
+fi
+
+now="$(ts_now)"
+
+# --- REPO resolution (THIS is the fix) ---
+REPO="${REPO:-$HOME/dev/void-node}"
+
+# if HOME-based guess is wrong (root), resolve from wrapper location or known user path
+if [ ! -d "$REPO" ]; then
+  if [ -d "/home/zoso/dev/void-node" ]; then
+    REPO="/home/zoso/dev/void-node"
+  else
+    me="$(readlink -f "$0" || echo "$0")"
+    # wrapper is .../ops/bin/<this>; repo is two levels up from ops/bin
+    guess="$(cd "$(dirname "$me")/../.." 2>/dev/null && pwd || true)"
+    if [ -n "${guess:-}" ] && [ -d "$guess" ]; then
+      REPO="$guess"
+    fi
+  fi
+fi
+
+# 1) find runner we can execute
+cand=()
+cand+=("$REPO/ops/bin/datanet-mvp-roundtrip.sh")
+cand+=("$REPO/ops/datanet/void-datanet-mvp-roundtrip.sh")
+cand+=("$REPO/ops/bin/datanet-mvp-roundtrip.sh") # keep duplicate harmless
+cand+=("$REPO/ops/datanet/void-datanet-smoke-v2.sh") # fallback
+
+runner=""
+for p in "${cand[@]}"; do
+  if [ -f "$p" ] && [ -r "$p" ]; then
+    runner="$p"
+    break
+  fi
+done
+
+if [ -n "$runner" ]; then
+  set +e
+  ( cd "$REPO" && timeout 120s bash "$runner" ) >/tmp/void-mvp-roundtrip-runner.last.out 2>&1
+  rc=$?
+  set -e
+
+  if [ $rc -eq 0 ] && rg -q '(roundtrip succeeded|MVP v1 roundtrip succeeded|void_datanet_mvp_roundtrip_ok 1|fetch_path_code=200)' /tmp/void-mvp-roundtrip-runner.last.out 2>/dev/null; then
+    emit 1 "ok" "$now" "$now"
+    exit 0
+  fi
+
+  if [ -s "$OUTFILE" ] && rg -q '^void_datanet_mvp_roundtrip_ok\s+1\b' "$OUTFILE"; then
+    emit 1 "ok" "$now" "$now"
+    exit 0
+  fi
+
+  emit 0 "runner_failed" "$prev_last_ok" "$now"
+  exit 0
+fi
+
+if curl -fsS "$BASE/health" >/dev/null 2>&1; then
+  emit 0 "runner_missing" "$prev_last_ok" "$now"
+  exit 0
+fi
+
+emit 0 "node_down" "$prev_last_ok" "$now"
