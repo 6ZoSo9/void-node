@@ -76,3 +76,5 @@ src/diag/*.DISABLED.*
 # datanet scratch artifacts (auto-generated; keep out of git status)
 src/http/datanet_routes.ts.pre-restore.*
 src/http/datanet_routes.ts.pre_gitrestore.*
+.githooks/*.bak.*
+.githooks/*.bak
