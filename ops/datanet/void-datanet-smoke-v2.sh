@@ -11,6 +11,11 @@ BASE="${BASE%/}"
 
 WHO="${WHO:-$(hostname)-$USER}"
 TF="${TF:-/var/lib/node_exporter/textfile_collector}"
+WRITE_TEXTFILE="${WRITE_TEXTFILE:-0}"  # default 0; root textfile pipeline owns /var/lib/node_exporter
+if [ "$WRITE_TEXTFILE" != "1" ]; then
+  # still run publish+fetch, but do NOT write node_exporter textfile metrics from user runs
+  TF=""
+fi
 
 SMOKE_PROM="$TF/void_datanet_smoke.prom"
 MVP_PROM="$TF/void_datanet_mvp_smoke.prom"
