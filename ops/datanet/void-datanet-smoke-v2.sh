@@ -176,21 +176,27 @@ void_datanet_mvp_smoke_duration_seconds $DUR
 void_datanet_mvp_smoke_failures_total $MVP_FAIL_TOTAL
 EOF
 
-# move into place
-if /bin/mv -f "$tmp1" "$SMOKE_PROM"; then
-  :
+if [ "${WRITE_TEXTFILE:-0}" = "1" ]; then
+  # BEGIN TEXTFILE WRITE (guarded)
+  # move into place
+  if /bin/mv -f "$tmp1" "$SMOKE_PROM"; then
+    :
+  else
+    echo "WARN: could not write textfile metric (permission?)" >&2
+    echo "WARN: continuing; publish+fetch already succeeded" >&2
+  fi
+  chmod 0644 "$SMOKE_PROM" 2>/dev/null || true
+  if /bin/mv -f "$tmp2" "$MVP_PROM"; then
+    :
+  else
+    echo "WARN: could not write textfile metric (permission?)" >&2
+    echo "WARN: continuing; publish+fetch already succeeded" >&2
+  fi
+  chmod 0644 "$MVP_PROM" 2>/dev/null || true
+  
+  echo "[ok] wrote:"
+  ls -l "$MVP_PROM" "$SMOKE_PROM" || true
+  # END TEXTFILE WRITE (guarded)
 else
-  echo "WARN: could not write textfile metric (permission?)" >&2
-  echo "WARN: continuing; publish+fetch already succeeded" >&2
+  : # textfile disabled for user runs
 fi
-chmod 0644 "$SMOKE_PROM" 2>/dev/null || true
-if /bin/mv -f "$tmp2" "$MVP_PROM"; then
-  :
-else
-  echo "WARN: could not write textfile metric (permission?)" >&2
-  echo "WARN: continuing; publish+fetch already succeeded" >&2
-fi
-chmod 0644 "$MVP_PROM" 2>/dev/null || true
-
-echo "[ok] wrote:"
-ls -l "$MVP_PROM" "$SMOKE_PROM" || true
