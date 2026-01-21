@@ -172,9 +172,19 @@ void_datanet_mvp_smoke_failures_total $MVP_FAIL_TOTAL
 EOF
 
 # move into place
-/bin/mv -f "$tmp1" "$SMOKE_PROM"
+if /bin/mv -f "$tmp1" "$SMOKE_PROM"; then
+  :
+else
+  echo "WARN: could not write textfile metric (permission?)" >&2
+  echo "WARN: continuing; publish+fetch already succeeded" >&2
+fi
 chmod 0644 "$SMOKE_PROM" 2>/dev/null || true
-/bin/mv -f "$tmp2" "$MVP_PROM"
+if /bin/mv -f "$tmp2" "$MVP_PROM"; then
+  :
+else
+  echo "WARN: could not write textfile metric (permission?)" >&2
+  echo "WARN: continuing; publish+fetch already succeeded" >&2
+fi
 chmod 0644 "$MVP_PROM" 2>/dev/null || true
 
 echo "[ok] wrote:"
