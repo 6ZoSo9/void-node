@@ -78,3 +78,15 @@ src/http/datanet_routes.ts.pre-restore.*
 src/http/datanet_routes.ts.pre_gitrestore.*
 .githooks/*.bak.*
 .githooks/*.bak
+
+# === VOID_NATIVE_FETCH_RECEIPTS_GUARDS_V1 ===
+# temp files produced by patch scripts
+src/index.ts.tmp.*
+# local script backups / experiments
+ops/bin/node-options-tripwire-v4.sh.bak*
+ops/bin/node-options-tripwire-v3.sh
+# old fetch-wrapper experiments (native mode replaced these)
+src/diag/datanet_receipts_persist_wrap_fetch_v1*.cjs
+src/diag/datanet_receipts_persist_wrap_fetch_v2*.cjs
+src/diag/datanet_receipts_persist_wrap_fetch_v3*.cjs
+# === /VOID_NATIVE_FETCH_RECEIPTS_GUARDS_V1 ===

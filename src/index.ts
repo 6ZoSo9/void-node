@@ -258,6 +258,287 @@ console.log("[shim] published global node (post-construct)");
   const app = express();
   (globalThis as any).__void_http_app = app;
 
+;(() => {
+  // __void_datanet_fetch_receipts_native_v1
+  // Native fetch receipts logger (OFF by default).
+  // Enable by setting: DATANET_RECEIPTS_FETCH_NATIVE=1
+  // Safety: if NODE_OPTIONS still pins wrap_fetch_v4, this native logger will self-disable to avoid duplicates.
+  const G: any = globalThis as any;
+  if (G.__void_datanet_fetch_receipts_native_v1) return;
+  G.__void_datanet_fetch_receipts_native_v1 = true;
+
+  const on = String(process.env.DATANET_RECEIPTS_FETCH_NATIVE || "0") === "1";
+  if (!on) return;
+
+  const nodeopts = String(process.env.NODE_OPTIONS || "");
+  if (nodeopts.includes("datanet_receipts_persist_wrap_fetch_v4")) {
+    try { console.error("[fetch_receipts_native_v1] wrapper v4 detected in NODE_OPTIONS; native logger disabled"); } catch {}
+    return;
+  }
+
+  const file0 = String(process.env.DATANET_RECEIPTS_FILE || "");
+  if (!file0) {
+    try { console.error("[fetch_receipts_native_v1] DATANET_RECEIPTS_FILE empty; disabled"); } catch {}
+    return;
+  }
+
+  (async () => {
+    let fsMod: any = null;
+    try { fsMod = await import("node:fs"); } catch { return; }
+    const fs: any = (fsMod && (fsMod.default || fsMod)) || fsMod;
+
+    const nowMs = () => { try { return Date.now(); } catch { return 0; } };
+
+    const appendLine = (obj: any) => {
+      try {
+        fs.appendFile(file0, JSON.stringify(obj) + "\n", () => {});
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const parseId = (req: any) => {
+      try {
+        const u = String(req?.originalUrl || req?.url || "");
+        const m = u.match(/\/datanet\/v1\/fetch\/([0-9a-f]{16,64})/i);
+        if (m && m[1]) return m[1];
+      } catch {}
+      try {
+        const q = req?.query || {};
+        if (q && typeof q.id === "string" && q.id.length) return q.id;
+      } catch {}
+      return "";
+    };
+
+    const parseWho = (req: any) => {
+      try {
+        const q = req?.query || {};
+        if (q && typeof q.who === "string" && q.who.length) return q.who;
+      } catch {}
+      try {
+        const u = String(req?.originalUrl || req?.url || "");
+        const m = u.match(/[?&]who=([^&]+)/);
+        if (m && m[1]) return decodeURIComponent(m[1]);
+      } catch {}
+      return "";
+    };
+
+    if (!G.__void_datanet_fetch_receipts_native_v1_stats) {
+      G.__void_datanet_fetch_receipts_native_v1_stats = { mounted: 0, appends_ok: 0, appends_fail: 0, last_ts_ms: 0 };
+    }
+    const S = G.__void_datanet_fetch_receipts_native_v1_stats;
+
+    if (S.mounted) return;
+    S.mounted = 1;
+
+    try {
+      app.use((req: any, res: any, next: any) => {
+        try {
+          const url = String(req?.originalUrl || req?.url || "");
+          if (!url.startsWith("/datanet/v1/fetch")) return next();
+
+          const who = parseWho(req);
+          if (!who) return next();
+
+          const id = parseId(req);
+          const t0 = nowMs();
+
+          if (res && typeof res.on === "function") {
+            res.on("finish", () => {
+              try {
+                const status = (res && res.statusCode) ? Number(res.statusCode) : 0;
+                const ok = status >= 200 && status < 400 ? 1 : 0;
+
+                let bytes = 0;
+                try {
+                  const h = res.getHeader && res.getHeader("content-length");
+                  if (h) bytes = parseInt(String(h), 10) || 0;
+                } catch {}
+
+                const did = appendLine({
+                  ts_ms: nowMs(),
+                  ts: Math.floor(nowMs() / 1000),
+                  ok,
+                  who,
+                  op: "datanet_mvp_fetch",
+                  id: id || "",
+                  bytes,
+                  wc: 1,
+                  status,
+                  ms: Math.max(0, nowMs() - t0),
+                  method: String(req?.method || ""),
+                  url,
+                  reason2: ""
+                });
+
+                S.last_ts_ms = nowMs();
+                if (did) S.appends_ok++; else S.appends_fail++;
+              } catch {
+                try { S.appends_fail++; } catch {}
+              }
+            });
+          }
+
+          return next();
+        } catch {
+          return next();
+        }
+      });
+
+      app.get("/__void/metrics/datanet_receipts_fetch_native_v1.prom", (_req: any, res: any) => {
+        try {
+          const s = (globalThis as any).__void_datanet_fetch_receipts_native_v1_stats || {};
+          const lines = [
+            "# HELP void_datanet_fetch_receipts_native_v1_mounted 1 if native fetch receipts logger mounted",
+            "# TYPE void_datanet_fetch_receipts_native_v1_mounted gauge",
+            "void_datanet_fetch_receipts_native_v1_mounted " + (s.mounted ? 1 : 0),
+            "# HELP void_datanet_fetch_receipts_native_v1_appends_ok_total successful receipt appends",
+            "# TYPE void_datanet_fetch_receipts_native_v1_appends_ok_total counter",
+            "void_datanet_fetch_receipts_native_v1_appends_ok_total " + Number(s.appends_ok || 0),
+            "# HELP void_datanet_fetch_receipts_native_v1_appends_fail_total failed receipt appends",
+            "# TYPE void_datanet_fetch_receipts_native_v1_appends_fail_total counter",
+            "void_datanet_fetch_receipts_native_v1_appends_fail_total " + Number(s.appends_fail || 0),
+            "# HELP void_datanet_fetch_receipts_native_v1_last_ts_ms last append timestamp ms (0 if never)",
+            "# TYPE void_datanet_fetch_receipts_native_v1_last_ts_ms gauge",
+            "void_datanet_fetch_receipts_native_v1_last_ts_ms " + Number(s.last_ts_ms || 0)
+          ];
+          res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
+          res.status(200).send(lines.join("\n") + "\n");
+        } catch {
+          try { res.status(200).send(""); } catch {}
+        }
+      });
+
+      try { console.error("[fetch_receipts_native_v1] mounted (file=" + file0 + ")"); } catch {}
+    } catch {}
+  })().catch(() => {});
+})();
+
+// ===== VoidFix_HeadMempoolSurfaces_V1 (shadow legacy endpoints early; keep surfaces consistent) =====
+(function VoidFix_HeadMempoolSurfaces_V1(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_fix_head_mempool_surfaces_v1) return;
+    G.__void_fix_head_mempool_surfaces_v1 = 1;
+
+    const app:any = G.__void_http_app;
+    if (!app || typeof app.get !== "function"){
+      try{ console.error("[VoidFix_HeadMempoolSurfaces_V1] missing __void_http_app; not mounted"); }catch{}
+      return;
+    }
+
+    // Optional: kill specific known log spam without touching the original blocks.
+    // Set VOID_LOG_FILTER_PQ=0 to disable.
+    try{
+      if (process.env.VOID_LOG_FILTER_PQ !== "0"){
+        const orig = console.log.bind(console);
+        console.log = (...args:any[]) => {
+          const s = args.map(a => (typeof a === "string" ? a : "")).join(" ");
+          if (s.includes("[pq] mirrored") || s.includes("[alias] moved")) return;
+          return orig(...args);
+        };
+      }
+    }catch{}
+
+    const PORT = Number(process.env.HTTP_PORT || 4100);
+
+    function fetchJson(path:string, ms:number){
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), ms);
+      return fetch(`http://127.0.0.1:${PORT}${path}`, { signal: ctrl.signal })
+        .then(r => r.json())
+        .finally(()=>clearTimeout(t));
+    }
+
+    // Head truth: always derive legacy /blocks/latest/number from number2.json (no off-by-one drift).
+    app.get("/blocks/latest/number", async (req:any, res:any) => {
+      try{
+        const j:any = await fetchJson("/blocks/latest/number2.json", 1500);
+        const n = Number(j?.number);
+        if (!Number.isFinite(n)) return res.status(502).send("-1\n");
+        res.set("content-type", "text/plain; charset=utf-8");
+        return res.status(200).send(String(n) + "\n");
+      }catch(e:any){
+        return res.status(502).send("-1\n");
+      }
+    });
+
+    // Mempool truth: make /mempool/count derive from /mempool/global/size.json so both surfaces agree.
+  // ---- MEMPOOL_CANONFIX_V1: make /mempool/count reflect the real canonical mempool ----
+  app.get("/mempool/count", async (_req:any, res:any) => {
+      const g:any = globalThis as any;
+      const pickCanon = (): { mp:any, src:string } => {
+        try{
+          const n = g.__void_node || g.__voidNode || g.node || g.__node || g.__void_node_instance;
+          const mp1 = n?.mempool?.txs;
+          if (mp1) return { mp: mp1, src: "node.mempool.txs" };
+          const mp1b = n?.mempool?.pendingTxs;
+          if (mp1b) return { mp: mp1b, src: "node.mempool.pendingTxs" };
+        }catch{}
+        try{
+          const mp2 = g.__void_mempool_global?.txs || g.__void_mempool?.txs || g.__void_mempool_global;
+          if (mp2) return { mp: mp2, src: "global.mempool" };
+        }catch{}
+        try{
+          g.__void_dev_mempool_canonfix_v1 = g.__void_dev_mempool_canonfix_v1 || [];
+          return { mp: g.__void_dev_mempool_canonfix_v1, src: "dev.fallback" };
+        }catch{
+          return { mp: [], src: "none" };
+        }
+      };
+      const mpSize = (mp:any): number => {
+        try{
+          if (!mp) return 0;
+          if (typeof mp.size === "function") return Number(mp.size()) || 0;   // Set/Map
+          if (typeof mp.length === "number") return Number(mp.length) || 0;  // Array
+          return 0;
+        }catch{ return 0; }
+      };
+      const mpPeek = (mp:any, k:number): any[] => {
+        try{
+          if (!mp) return [];
+          if (Array.isArray(mp)) return mp.slice(0, k);
+          if (typeof mp.values === "function") {
+            const a:any[] = [];
+            for (const v of mp.values()) { a.push(v); if (a.length >= k) break; }
+            return a;
+          }
+          return [];
+        }catch{ return []; }
+      };
+      const mpClear = (mp:any): number => {
+        try{
+          const before = mpSize(mp);
+          if (!mp) return 0;
+          if (typeof mp.clear === "function") { mp.clear(); return before; }
+          if (Array.isArray(mp)) { mp.length = 0; return before; }
+          if (typeof mp.splice === "function") { mp.splice(0, before); return before; }
+          return 0;
+        }catch{ return 0; }
+      };
+      const { mp, src } = pickCanon();
+      const count = mpSize(mp);
+      res.json({ ok:true, count, src, __patch:"MEMPOOL_CANONFIX_V1" });
+  });
+
+    // Debug surface: instant visibility if anything diverges again.
+    app.get("/mempool/truth.json", async (req:any, res:any) => {
+      const out:any = { ok: true, ts_ms: Date.now() };
+      try{ out.count = await fetchJson("/mempool/count", 1500); }catch(e:any){ out.count_err = String(e?.message || e); }
+      try{ out.global = await fetchJson("/mempool/global/size.json", 1500); }catch(e:any){ out.global_err = String(e?.message || e); }
+      try{
+        const c = Number(out?.count?.count);
+        const g = Number(out?.global?.size);
+        out.agree = (Number.isFinite(c) && Number.isFinite(g) && c === g) ? 1 : 0;
+      }catch{}
+      return res.json(out);
+    });
+
+    try{ console.error("[VoidFix_HeadMempoolSurfaces_V1] mounted: /blocks/latest/number (truth), /mempool/count (truth), /mempool/truth.json; log filter pq/alias="+(process.env.VOID_LOG_FILTER_PQ !== "0")); }catch{}
+  }catch(e){}
+})();
+
 
   // === [BEGIN DataNetPublishMvpIndexShimV1] ===
   // Emergency shim: provides POST /datanet/v1/publish even if src/http/datanet_routes.ts fails to mount.
@@ -3465,13 +3746,61 @@ try {
   });
 
   /* ===================== MEMPOOL / TX SUBMIT ===================== */
-  app.get("/mempool/count", (_req, res) => {
-    try {
-      const txs = (((globalThis as any).__void_node || (globalThis as any).node) as any).mempool?.peekAll?.() ?? [];
-      res.json({ ok: true, count: Array.isArray(txs) ? txs.length : 0 });
-    } catch (e: any) {
-      res.status(500).json({ ok: false, error: String(e?.message || e) });
-    }
+  // ---- MEMPOOL_CANONFIX_V1: make /mempool/count reflect the real canonical mempool ----
+  app.get("/mempool/count", async (_req:any, res:any) => {
+      const g:any = globalThis as any;
+      const pickCanon = (): { mp:any, src:string } => {
+        try{
+          const n = g.__void_node || g.__voidNode || g.node || g.__node || g.__void_node_instance;
+          const mp1 = n?.mempool?.txs;
+          if (mp1) return { mp: mp1, src: "node.mempool.txs" };
+          const mp1b = n?.mempool?.pendingTxs;
+          if (mp1b) return { mp: mp1b, src: "node.mempool.pendingTxs" };
+        }catch{}
+        try{
+          const mp2 = g.__void_mempool_global?.txs || g.__void_mempool?.txs || g.__void_mempool_global;
+          if (mp2) return { mp: mp2, src: "global.mempool" };
+        }catch{}
+        try{
+          g.__void_dev_mempool_canonfix_v1 = g.__void_dev_mempool_canonfix_v1 || [];
+          return { mp: g.__void_dev_mempool_canonfix_v1, src: "dev.fallback" };
+        }catch{
+          return { mp: [], src: "none" };
+        }
+      };
+      const mpSize = (mp:any): number => {
+        try{
+          if (!mp) return 0;
+          if (typeof mp.size === "function") return Number(mp.size()) || 0;   // Set/Map
+          if (typeof mp.length === "number") return Number(mp.length) || 0;  // Array
+          return 0;
+        }catch{ return 0; }
+      };
+      const mpPeek = (mp:any, k:number): any[] => {
+        try{
+          if (!mp) return [];
+          if (Array.isArray(mp)) return mp.slice(0, k);
+          if (typeof mp.values === "function") {
+            const a:any[] = [];
+            for (const v of mp.values()) { a.push(v); if (a.length >= k) break; }
+            return a;
+          }
+          return [];
+        }catch{ return []; }
+      };
+      const mpClear = (mp:any): number => {
+        try{
+          const before = mpSize(mp);
+          if (!mp) return 0;
+          if (typeof mp.clear === "function") { mp.clear(); return before; }
+          if (Array.isArray(mp)) { mp.length = 0; return before; }
+          if (typeof mp.splice === "function") { mp.splice(0, before); return before; }
+          return 0;
+        }catch{ return 0; }
+      };
+      const { mp, src } = pickCanon();
+      const count = mpSize(mp);
+      res.json({ ok:true, count, src, __patch:"MEMPOOL_CANONFIX_V1" });
   });
 
   app.post("/tx", (req, res) => {
@@ -3714,6 +4043,22 @@ import type {} from "express"; // type-only safety; no runtime impact
     });
 
     appAny.get("/mempool/global/size.json", (_req: any, res: any) => {
+      try {
+        const G: any = globalThis as any;
+        const node =
+          G.__void_node ||
+          G.__voidNode ||
+          G.__node ||
+          G.node ||
+          (typeof G.__void_getNode === "function" ? G.__void_getNode() : null);
+
+        const txs = node?.mempool?.txs;
+        const size = Array.isArray(txs) ? txs.length : 0;
+        return res.json({ size, ok: true, src: "node.mempool.txs", __patch: "MEMPOOL_GLOBAL_SIZE_CANON_V5" });
+      } catch (e: any) {
+        return res.status(200).json({ size: 0, ok: false, err: String(e?.message || e), __patch: "MEMPOOL_GLOBAL_SIZE_CANON_V5" });
+      }
+
       res.json({ size: getSize() });
     });
 
@@ -3799,6 +4144,22 @@ import type {} from "express"; // type-only safety; no runtime impact
     });
 
     appAny.get("/mempool/global/size.json", (_req: any, res: any) => {
+      try {
+        const G: any = globalThis as any;
+        const node =
+          G.__void_node ||
+          G.__voidNode ||
+          G.__node ||
+          G.node ||
+          (typeof G.__void_getNode === "function" ? G.__void_getNode() : null);
+
+        const txs = node?.mempool?.txs;
+        const size = Array.isArray(txs) ? txs.length : 0;
+        return res.json({ size, ok: true, src: "node.mempool.txs", __patch: "MEMPOOL_GLOBAL_SIZE_CANON_V5" });
+      } catch (e: any) {
+        return res.status(200).json({ size: 0, ok: false, err: String(e?.message || e), __patch: "MEMPOOL_GLOBAL_SIZE_CANON_V5" });
+      }
+
       res.json({ size: getSize() });
     });
 
@@ -3868,6 +4229,26 @@ import type {} from "express"; // type-only safety; no runtime impact
 
     // --- /mempool/global/peek?max=10 (read-only)
     appAny.get("/mempool/global/peek", (req: any, res: any) => {
+      try {
+        const G: any = globalThis as any;
+        const node =
+          G.__void_node ||
+          G.__voidNode ||
+          G.__node ||
+          G.node ||
+          (typeof G.__void_getNode === "function" ? G.__void_getNode() : null);
+
+        const txs = (node?.mempool?.txs);
+        const maxQ = Number((req?.query?.max ?? req?.query?.n ?? 10));
+        const max = (Number.isFinite(maxQ) && maxQ > 0) ? Math.min(200, Math.floor(maxQ)) : 10;
+
+        const arr = Array.isArray(txs) ? txs : [];
+        const out = arr.slice(0, max);
+        return res.json({ ok: true, size: arr.length, max, items: out, src: "node.mempool.txs", __patch: "MEMPOOL_GLOBAL_PEEK_CANON_V5" });
+      } catch (e: any) {
+        return res.status(200).json({ ok: false, size: 0, items: [], err: String(e?.message || e), __patch: "MEMPOOL_GLOBAL_PEEK_CANON_V5" });
+      }
+
       const max = Math.max(0, Math.min(+(req.query?.max ?? 10), 100));
       const q = (globalThis as any).__void_tx_queue;
       const arr = Array.isArray(q) ? q.slice(0, max) : [];
@@ -4663,18 +5044,62 @@ import type {} from "express"; // type-only safety; no runtime impact
                       Array.isArray(mp) ? mp.length : 0) : null;
         res.json({ qSize, mpSize, movedTotal, ticks });
       });
-      app.post("/mempool/global/drain-now", (_:any, res:any) => {
-        const q = ensureGlobalQueue();
-        const { mp } = resolveNodeMP();
-        let moved = 0;
-        if (mp) {
-          const batch = q.drain();
-          for (const t of batch) mp.enqueue ? mp.enqueue(t) : mp.push(t);
-          moved = batch.length;
-          movedTotal += moved;
+  // ---- MEMPOOL_CANONFIX_V1: make /mempool/global/drain-now drain the real canonical mempool ----
+  app.post("/mempool/global/drain-now", async (_req:any, res:any) => {
+      const g:any = globalThis as any;
+      const pickCanon = (): { mp:any, src:string } => {
+        try{
+          const n = g.__void_node || g.__voidNode || g.node || g.__node || g.__void_node_instance;
+          const mp1 = n?.mempool?.txs;
+          if (mp1) return { mp: mp1, src: "node.mempool.txs" };
+          const mp1b = n?.mempool?.pendingTxs;
+          if (mp1b) return { mp: mp1b, src: "node.mempool.pendingTxs" };
+        }catch{}
+        try{
+          const mp2 = g.__void_mempool_global?.txs || g.__void_mempool?.txs || g.__void_mempool_global;
+          if (mp2) return { mp: mp2, src: "global.mempool" };
+        }catch{}
+        try{
+          g.__void_dev_mempool_canonfix_v1 = g.__void_dev_mempool_canonfix_v1 || [];
+          return { mp: g.__void_dev_mempool_canonfix_v1, src: "dev.fallback" };
+        }catch{
+          return { mp: [], src: "none" };
         }
-        res.json({ moved, movedTotal });
-      });
+      };
+      const mpSize = (mp:any): number => {
+        try{
+          if (!mp) return 0;
+          if (typeof mp.size === "function") return Number(mp.size()) || 0;   // Set/Map
+          if (typeof mp.length === "number") return Number(mp.length) || 0;  // Array
+          return 0;
+        }catch{ return 0; }
+      };
+      const mpPeek = (mp:any, k:number): any[] => {
+        try{
+          if (!mp) return [];
+          if (Array.isArray(mp)) return mp.slice(0, k);
+          if (typeof mp.values === "function") {
+            const a:any[] = [];
+            for (const v of mp.values()) { a.push(v); if (a.length >= k) break; }
+            return a;
+          }
+          return [];
+        }catch{ return []; }
+      };
+      const mpClear = (mp:any): number => {
+        try{
+          const before = mpSize(mp);
+          if (!mp) return 0;
+          if (typeof mp.clear === "function") { mp.clear(); return before; }
+          if (Array.isArray(mp)) { mp.length = 0; return before; }
+          if (typeof mp.splice === "function") { mp.splice(0, before); return before; }
+          return 0;
+        }catch{ return 0; }
+      };
+      const { mp, src } = pickCanon();
+      const removed = mpClear(mp);
+      res.json({ moved: 0, movedTotal: removed, src, __patch:"MEMPOOL_CANONFIX_V1" });
+  });
       console.log("[diag] attached /mempool/bridge/status and /mempool/global/drain-now");
     })();
   }catch(e){ console.warn("[bridge] init failed:", e); }
@@ -31544,4 +31969,107 @@ try {
 } catch {}
 // === [END DataNetFetchShimV2] ===
 
+
+
+// ===== MEMPOOL_UNIFY_BURST2_V1 (2026-01-22) ==================================
+// Goal: make /tx/dev/burst2 feed the *canonical* mempool surfaces by proxying to
+// /tx/dev/enqueue (which is documented to push into node.mempool.txs).
+// Also override /tx/dev/size to report canonical truth instead of dev-buffer.
+// Additive, last-wins, no internal variable assumptions.
+(function MEMPOOL_UNIFY_BURST2_V1(){
+  const g:any = (globalThis as any);
+  if (g.__void_mempool_unify_burst2_v1) return;
+  g.__void_mempool_unify_burst2_v1 = true;
+
+  try{
+    const app:any = (g.__void_http_app || (typeof (globalThis as any).__void_http_app !== "undefined" ? (globalThis as any).__void_http_app : null));
+    // If we can't find the app hook, still try to use in-scope `app` if present.
+    const a:any = app || (typeof (globalThis as any).app !== "undefined" ? (globalThis as any).app : null) || (typeof (eval as any) === "function" ? null : null);
+
+    // Prefer the real in-scope `app` if it exists (this file’s scope), else fall back.
+    const APP:any = (typeof (globalThis as any).__void_http_app !== "undefined" && (globalThis as any).__void_http_app) ? (globalThis as any).__void_http_app : (typeof (app as any) !== "undefined" ? (app as any) : a);
+    if (!APP || typeof APP.post !== "function") {
+      try{ console.warn("[mempool.unify.burst2.v1] no APP; not mounted"); }catch{}
+      return;
+    }
+
+    const port = Number(process.env.HTTP_PORT || 4100);
+    const base = `http://127.0.0.1:${port}`;
+
+    async function jGET(path:string){
+      const r = await fetch(base + path, { method:"GET" });
+      const txt = await r.text();
+      let json:any = null;
+      try{ json = JSON.parse(txt); }catch{}
+      return { ok:r.ok, status:r.status, text:txt, json };
+    }
+    async function jPOST(path:string){
+      const r = await fetch(base + path, { method:"POST" });
+      const txt = await r.text();
+      let json:any = null;
+      try{ json = JSON.parse(txt); }catch{}
+      return { ok:r.ok, status:r.status, text:txt, json };
+    }
+
+    // LAST-WINS override: /tx/dev/burst2 now proxies to /tx/dev/enqueue
+    APP.post("/tx/dev/burst2", async (req:any, res:any) => {
+      try{
+        const nRaw = (req?.query?.n ?? req?.query?.count ?? req?.query?.num ?? "7");
+        const n = Math.max(0, Math.min(10000, parseInt(String(nRaw), 10) || 7));
+        const tag = String(req?.query?.tag ?? req?.query?.run ?? "unify-v1");
+        const enq = await jPOST(`/tx/dev/enqueue?n=${encodeURIComponent(String(n))}&tag=${encodeURIComponent(tag)}`);
+        const mp  = await jGET("/mempool/count");
+        const gp  = await jGET("/mempool/global/size.json");
+        res.json({
+          ok:true,
+          handled:"mempool_unify_burst2_v1",
+          n, tag,
+          enqueue: { ok:enq.ok, status:enq.status, json:enq.json ?? null },
+          mempool_count: mp.json ?? mp.text,
+          global_size: gp.json ?? gp.text,
+          ts_ms: Date.now()
+        });
+      }catch(e:any){
+        res.status(500).json({ ok:false, handled:"mempool_unify_burst2_v1", err: (e?.message || String(e)), ts_ms: Date.now() });
+      }
+    });
+
+    // LAST-WINS override: /tx/dev/size reports canonical truth, not dev-buffer.
+    APP.get("/tx/dev/size", async (_req:any, res:any) => {
+      try{
+        const mp  = await jGET("/mempool/count");
+        const gp  = await jGET("/mempool/global/size.json");
+        const c = Number(mp?.json?.count ?? 0);
+        const s = Number(gp?.json?.size ?? 0);
+        res.json({ ok:true, size: Math.max(c,s), mempool_count:c, global_size:s, handled:"tx_dev_size_truth_v1", ts_ms: Date.now() });
+      }catch(e:any){
+        res.status(500).json({ ok:false, err:(e?.message||String(e)), handled:"tx_dev_size_truth_v1", ts_ms: Date.now() });
+      }
+    });
+
+    // Helpful truth surface (new)
+    APP.get("/mempool/truth2.json", async (_req:any, res:any) => {
+      try{
+        const mp  = await jGET("/mempool/count");
+        const gp  = await jGET("/mempool/global/size.json");
+        const pq  = await jGET("/proposer/queue/size");
+        res.json({
+          ok:true,
+          mempool_count: mp.json ?? mp.text,
+          global_size: gp.json ?? gp.text,
+          proposer_queue: pq.json ?? pq.text,
+          agree: (Number(mp?.json?.count ?? 0) === Number(gp?.json?.size ?? 0)) ? 1 : 0,
+          ts_ms: Date.now()
+        });
+      }catch(e:any){
+        res.status(500).json({ ok:false, err:(e?.message||String(e)), ts_ms: Date.now() });
+      }
+    });
+
+    try{ console.log("[mempool.unify.burst2.v1] mounted overrides: POST /tx/dev/burst2, GET /tx/dev/size, GET /mempool/truth2.json"); }catch{}
+  }catch(e:any){
+    try{ console.warn("[mempool.unify.burst2.v1] mount failed:", e?.message||String(e)); }catch{}
+  }
+})();
+// ==============================================================================
 

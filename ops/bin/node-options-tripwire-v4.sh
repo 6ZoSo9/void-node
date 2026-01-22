@@ -30,6 +30,19 @@ if [ -n "${PID:-}" ] && [ "$PID" != "0" ] && [ -r "/proc/$PID/environ" ]; then
   NODEOPTS_PROC="$(tr '\0' '\n' < "/proc/$PID/environ" | sed -n 's/^NODE_OPTIONS=//p' | head -n 1 || true)"
   if [ -n "${NODEOPTS_PROC:-}" ]; then
     echo "NODE_OPTIONS(proc)=$NODEOPTS_PROC"
+
+# native receipts logger flag (best-effort)
+NATIVE_FLAG=""
+if [ -r "/proc/$PID/environ" ]; then
+  NATIVE_FLAG="$(tr '\0' '\n' < "/proc/$PID/environ" | grep -F 'DATANET_RECEIPTS_FETCH_NATIVE=' || true)"
+fi
+[ -n "$NATIVE_FLAG" ] && echo "$NATIVE_FLAG" || true
+
+# if native is ON, NODE_OPTIONS should generally be empty (wrapper disabled) to avoid dup logging
+if echo "$NATIVE_FLAG" | grep -q 'DATANET_RECEIPTS_FETCH_NATIVE=1'; then
+  echo "[info] native fetch receipts logging is ON; ensure wrapper NODE_OPTIONS pin is OFF"
+fi
+
   else
     warn "NODE_OPTIONS not found in /proc/$PID/environ"
   fi
