@@ -76,6 +76,8 @@ import { Metrics } from "./metrics.js";
 ;(function(){
   try{
     const g:any = globalThis as any;
+const REQUIRE_TXROOT_LIVE = (process.env.VOID_READY_REQUIRE_TXROOT_LIVE || "").trim() === "1";
+// If txroot_live is 0, we keep the reason, but only fail readiness when REQUIRE_TXROOT_LIVE=1.
     if (!g.__VOID_asArr) {
       g.__VOID_asArr = function(x:any){
         return Array.isArray(x)
@@ -19426,7 +19428,18 @@ void_wal_wrapped ${isWrapped?1:0}
   function ensureDir(){ try{ fs.mkdirSync(dir, {recursive:true}); }catch{} }
   function appendJSONL(file:string, obj:any){
     try{ ensureDir(); const fd = fs.openSync(file, "a");
-      fs.writeSync(fd, JSON.stringify(obj)+"\n"); try{ fs.fdatasyncSync(fd);}catch{} fs.closeSync(fd);
+// === agent receipt persist who (v1) ===
+  // Persist who (if provided) into receipts.jsonl lines for WC attribution.
+  // Sources (in order): job.who (if present), req.body.who, req.query.who, x-void-who header.
+  const __who = (() => {
+    try { const v:any = (typeof (job as any)?.who === "string" ? (job as any).who : undefined); if (typeof v === "string") return v; } catch {}
+    try { const b:any = (req as any)?.body; const v:any = (b && typeof b.who === "string") ? b.who : undefined; if (typeof v === "string") return v; } catch {}
+    try { const q:any = (req as any)?.query; const v:any = (q && typeof q.who === "string") ? q.who : undefined; if (typeof v === "string") return v; } catch {}
+    try { const h:any = (req as any)?.headers; const v:any = (h && typeof h['x-void-who'] === "string") ? h['x-void-who'] : undefined; if (typeof v === "string") return v; } catch {}
+    return undefined as any;
+  })() as any;
+  const __lineObj = (__who ? ({ ...(obj as any), who: __who }) : (obj as any));
+      fs.writeSync(fd, JSON.stringify(__lineObj)+"\n"); try{ fs.fdatasyncSync(fd);}catch{} fs.closeSync(fd);
     }catch{}
   }
 
@@ -19971,7 +19984,17 @@ void_wal_wrapped ${isWrapped?1:0}
         fs.mkdirSync(dir, {recursive:true});
         const rec = { id:"selftest", inputHash:h({ok:true}), outputHash:h({ok:true}), ts:Date.now() };
         const fd = fs.openSync(file, "a");
-        fs.writeSync(fd, JSON.stringify(rec)+"\n"); try{ fs.fdatasyncSync(fd); }catch{} fs.closeSync(fd);
+
+// === agent receipt include who (v1) ===
+  // Persist who into agent receipts.jsonl (sources: body.who, query.who, x-void-who).
+  const __who = (() => {
+    try { const b:any = (req as any)?.body; const v:any = (b && typeof b.who === "string") ? b.who : undefined; if (typeof v === "string" && v.length) return v; } catch {}
+    try { const q:any = (req as any)?.query; const v:any = (q && typeof q.who === "string") ? q.who : undefined; if (typeof v === "string" && v.length) return v; } catch {}
+    try { const h:any = (req as any)?.headers; const v:any = (h && typeof h['x-void-who'] === "string") ? h['x-void-who'] : undefined; if (typeof v === "string" && v.length) return v; } catch {}
+    return undefined;
+  })();
+  const __lineObj = (__who ? ({ ...(rec as any), who: __who }) : (rec as any));
+        fs.writeSync(fd, JSON.stringify(__lineObj)+"\n"); try{ fs.fdatasyncSync(fd); }catch{} fs.closeSync(fd);
         (G.__void_agent_metrics ||= {}).receipts_total = Number((G.__void_agent_metrics||{}).receipts_total||0) + 1;
         return res.json({ ok:true, file, wrote:rec });
       }catch(e:any){ (G.__void_agent_metrics ||= {}).receipts_errors = Number((G.__void_agent_metrics||{}).receipts_errors||0) + 1;
