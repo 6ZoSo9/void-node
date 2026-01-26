@@ -1,181 +1,156 @@
-/*
-  datanet_receipts_persist_wrap_fetch_v4_finalrunner_quiet.cjs
-  - runs ONLY in the final tsx runner process (filters out the parent "tsx" launcher process)
-  - requires existing receipts persist preload
-  - mounts fetch-only receipts logger
-  - quiet: no "waiting/gave up" spam; logs only on successful mount (once)
+/* datanet_receipts_persist_wrap_fetch_v4_finalrunner_quiet.cjs  (SAFE v1)
+   Goal: never wedge HTTP (event-loop starvation) while still allowing lightweight fetch logging.
+   Changes:
+   - NO background runner / polling.
+   - Wrap global fetch ONLY; no response body reads, no JSON.parse.
+   - Async append queue with caps; drops on overload.
 */
+"use strict";
 
 const fs = require("fs");
 const path = require("path");
 
-function nowMs(){ try { return Date.now(); } catch { return 0; } }
+(function install() {
+  const G = globalThis;
+  if (G.__void_wrap_fetch_v4_safe_v1_installed) return;
+  G.__void_wrap_fetch_v4_safe_v1_installed = true;
 
-function isFinalTsxRunner() {
-  try {
-    const argv = (process && process.execArgv) ? process.execArgv : [];
-    // The real runner created by tsx includes loader/preflight in execArgv.
-    for (const a of argv) {
-      const s = String(a || "");
-      if (s.includes("tsx/dist/loader.mjs")) return true;
-      if (s.includes("tsx/dist/preflight.cjs")) return true;
-    }
-  } catch {}
-  return false;
-}
-
-function getReceiptsFile() {
-  try {
-    const env = process.env.DATANET_RECEIPTS_FILE;
-    if (env && typeof env === "string" && env.length > 0) return env;
-  } catch {}
-  return "";
-}
-
-function appendLine(file, obj) {
-  try {
-    if (!file) return false;
-    fs.appendFile(file, JSON.stringify(obj) + "\n", () => {});
-    return true;
-  } catch {
-    return false;
+  const origFetch = G.fetch;
+  if (typeof origFetch !== "function") {
+    try { console.error("[wrap_fetch_v4_safe_v1] no global fetch; skipping"); } catch {}
+    return;
   }
-}
 
-function tryRequireExisting() {
+  const dataDir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "";
+  const receiptsFile =
+    process.env.VOID_DATANET_RECEIPTS_FILE ||
+    (dataDir ? path.join(dataDir, "datanet", "receipts", "datanet.jsonl") : "");
+
+  // best-effort ensure parent dir exists
   try {
-    require(path.join(process.env.HOME || "", "dev/void-node/src/diag/datanet_receipts_persist_v1.cjs"));
+    if (receiptsFile) fs.mkdirSync(path.dirname(receiptsFile), { recursive: true });
   } catch {}
-}
 
-function parseId(req) {
-  try {
-    const u = (req.originalUrl || req.url || "").toString();
-    const m = u.match(/\/datanet\/v1\/fetch\/([0-9a-f]{16,64})/i);
-    if (m && m[1]) return m[1];
-  } catch {}
-  try {
-    const q = req.query || {};
-    if (q && typeof q.id === "string" && q.id.length) return q.id;
-  } catch {}
-  return "";
-}
+  // async append queue (never appendFileSync)
+  const q = [];
+  let flushing = false;
+  let dropped = 0;
 
-function parseWho(req) {
-  try {
-    const q = req.query || {};
-    if (q && typeof q.who === "string" && q.who.length) return q.who;
-  } catch {}
-  try {
-    const u = (req.originalUrl || req.url || "").toString();
-    const m = u.match(/[?&]who=([^&]+)/);
-    if (m && m[1]) return decodeURIComponent(m[1]);
-  } catch {}
-  return "";
-}
-
-function mountFetchLogger(app) {
-  const G = globalThis;
-
-  if (!app || typeof app.use !== "function") return false;
-
-  // hard global gate: never mount twice (in THIS process)
-  if (G.__void_datanet_fetch_receipts_wrap_v4_mounted) return true;
-  G.__void_datanet_fetch_receipts_wrap_v4_mounted = true;
-
-  const fileAtMount = getReceiptsFile();
-  try { console.error("[wrap_fetch_v4] mounted fetch receipts logger (file=" + (fileAtMount || "<empty>") + ")"); } catch {}
-
-  app.use((req, res, next) => {
+  async function flush() {
+    if (flushing) return;
+    flushing = true;
     try {
-      const url = (req.originalUrl || req.url || "").toString();
-      if (!url.startsWith("/datanet/v1/fetch")) return next();
+      if (!receiptsFile) return;
+      if (q.length === 0) return;
+      const chunk = q.splice(0, 200).join("");
+      await fs.promises.appendFile(receiptsFile, chunk, "utf8");
+    } catch (e) {
+      try { console.error("[wrap_fetch_v4_safe_v1] append failed:", (e && e.message) ? e.message : e); } catch {}
+    } finally {
+      flushing = false;
+    }
+  }
 
-      const who = parseWho(req);
-      if (!who) return next();
+  setInterval(() => { flush().catch(()=>{}); }, 250).unref?.();
 
-      const id = parseId(req);
-      const t0 = nowMs();
+  function enqueue(obj) {
+    try {
+      const line = JSON.stringify(obj) + "\n";
+      // hard cap: 10k pending lines
+      if (q.length >= 10000) { dropped++; return; }
+      q.push(line);
+    } catch {}
+  }
 
-      res.on("finish", () => {
-        try {
-          const file = getReceiptsFile();
-          if (!file) return;
+  function safeWhoFromHeaders(h) {
+    try {
+      if (!h) return null;
+      const k = (name) => {
+        if (typeof h.get === "function") return h.get(name) || h.get(name.toLowerCase());
+        if (typeof h === "object") return h[name] || h[name.toLowerCase()];
+        return null;
+      };
+      return k("x-void-who") || k("x-void-agent") || k("x-who") || null;
+    } catch { return null; }
+  }
 
-          const status = res.statusCode || 0;
-          const ok = status >= 200 && status < 400 ? 1 : 0;
-
-          let bytes = 0;
-          try {
-            const h = res.getHeader && res.getHeader("content-length");
-            if (h) bytes = parseInt(String(h), 10) || 0;
-          } catch {}
-
-          appendLine(file, {
-            ts_ms: nowMs(),
-            ts: Math.floor(nowMs() / 1000),
-            ok,
-            who,
-            op: "datanet_mvp_fetch",
-            id: id || "",
-            bytes,
-            wc: 1,
-            status,
-            ms: Math.max(0, nowMs() - t0),
-            method: (req.method || "").toString(),
-            url,
-            reason2: ""
-          });
-        } catch {}
-      });
-
-      return next();
+  function safePath(u) {
+    try {
+      const U = new URL(u, "http://localhost");
+      return { path: U.pathname || "", qs: U.search || "" };
     } catch {
-      return next();
+      return { path: String(u || ""), qs: "" };
     }
-  });
+  }
 
-  return true;
-}
+  // Wrap fetch (lightweight)
+  G.fetch = async function wrappedFetch(input, init) {
+    const t0 = Date.now();
+    let url = "";
+    let method = "GET";
+    let headers = null;
 
-function waitMountQuiet() {
-  const G = globalThis;
+    try {
+      if (typeof input === "string") url = input;
+      else if (input && typeof input.url === "string") url = input.url;
+      else url = String(input || "");
 
-  // avoid duplicate timers in the same process
-  if (G.__void_datanet_fetch_receipts_wrap_v4_started) return;
-  G.__void_datanet_fetch_receipts_wrap_v4_started = true;
+      if (init && init.method) method = String(init.method).toUpperCase();
+      else if (input && input.method) method = String(input.method).toUpperCase();
 
-  const maxMs = 60000;
-  const stepMs = 125;
-  const tStart = nowMs();
+      headers = (init && init.headers) ? init.headers : (input && input.headers) ? input.headers : null;
+    } catch {}
 
-  // mount immediately if already present
+    const { path: p } = safePath(url);
+
+    // only care about datanet fetch surfaces
+    const isDatanetFetch = typeof p === "string" && /\/datanet\/v1\/fetch\b/.test(p);
+    const who = safeWhoFromHeaders(headers);
+
+    let res;
+    try {
+      res = await origFetch.apply(this, arguments);
+    } catch (e) {
+      if (isDatanetFetch) {
+        enqueue({
+          ts_ms: Date.now(),
+          ts: Math.floor(Date.now()/1000),
+          ok: 0,
+          op: "datanet_fetch_http",
+          who: who || "unknown",
+          method,
+          path: p,
+          status: -1,
+          ms: Date.now() - t0,
+          err: (e && e.message) ? String(e.message).slice(0, 200) : "fetch_error"
+        });
+      }
+      throw e;
+    }
+
+    if (isDatanetFetch) {
+      const st = (res && typeof res.status === "number") ? res.status : 0;
+      // schedule enqueue off the critical path
+      setImmediate(() => {
+        enqueue({
+          ts_ms: Date.now(),
+          ts: Math.floor(Date.now()/1000),
+          ok: (st >= 200 && st < 400) ? 1 : 0,
+          op: "datanet_fetch_http",
+          who: who || "unknown",
+          method,
+          path: p,
+          status: st,
+          ms: Date.now() - t0,
+          dropped
+        });
+      });
+    }
+
+    return res;
+  };
+
   try {
-    const app0 = G.__void_http_app;
-    if (app0) { mountFetchLogger(app0); return; }
+    console.error("[wrap_fetch_v4_safe_v1] installed (lightweight). file=" + (receiptsFile || "<none>"));
   } catch {}
-
-  const iv = setInterval(() => {
-    let app = null;
-    try { app = G.__void_http_app; } catch {}
-
-    if (app) {
-      try { clearInterval(iv); } catch {}
-      mountFetchLogger(app);
-      return;
-    }
-
-    if ((nowMs() - tStart) >= maxMs) {
-      try { clearInterval(iv); } catch {}
-      // quiet give-up: no log spam
-      return;
-    }
-  }, stepMs);
-}
-
-(function main(){
-  // Only run in the real runner. Parent "tsx" launcher process will do nothing.
-  if (!isFinalTsxRunner()) return;
-  tryRequireExisting();
-  waitMountQuiet();
 })();
