@@ -1,97 +1,128 @@
-/* preload_gate_bundle_afterapp_v3.cjs (v3j fs-lock singleton)
-   Fix: we still saw double "armed" in v3i => two loop instances in same pid.
-   Solution: OS-level lockfile per PID using O_EXCL to guarantee singleton even across realms.
+/* preload_gate_bundle_afterapp_v3.cjs (v3l)
+   Goals:
+   - load AFTER app exists (global gate key)
+   - singleton per pid via fs-lock file
+   - skip tsx wrapper pid
+   - on timeout: STOP polling, DO NOT load
 */
 const fs = require("fs");
-const G = globalThis;
-const P = process;
-const pid = P.pid;
-const argv = (P.argv || []).join(" ");
 
-function log(msg){ try{ console.error(msg); } catch {} }
-function readText(p){ try{ return fs.readFileSync(p, "utf8"); } catch { return ""; } }
-
-function isTsxWrapper(){
-  return /tsx\/dist\/preflight\.cjs|tsx\/dist\/loader\.mjs/.test(argv);
-}
-if (isTsxWrapper()) {
-  log(`[after-app-gate:v3k] skip (tsx wrapper pid=${pid})`);
-  return;
+function log(msg) {
+  try { console.error(msg); } catch {}
 }
 
-// fs lock => singleton per pid
-const lock = `/tmp/void-afterapp-gate.v3j.${pid}.lock`;
-try {
-  const fd = fs.openSync(lock, "wx"); // O_EXCL
-  fs.closeSync(fd);
-} catch {
-  // already running in this pid (or no perms) => do nothing
-  return;
-}
+(function main() {
+  const pid = process.pid;
 
-function readWaitMs(){
-  const raw = readText(__dirname + "/afterapp_waitms.txt").trim();
-  const n = parseInt(raw, 10);
-  if (Number.isFinite(n) && n > 0 && n <= 120000) return n;
-  return 15000;
-}
+  // hard singleton in-process
+  const G = globalThis;
+  if (G.__void_afterapp_gate_v3l) return;
+  G.__void_afterapp_gate_v3l = true;
 
-function parseList(raw){
-  raw = (raw || "").replace(/\r/g, "");
-  let lines = raw.split("\n").map(s => s.trim()).filter(Boolean).filter(s => !s.startsWith("#"));
-  if (lines.length === 1) {
-    const one = lines[0];
-    const hits = (one.match(/\/home\//g) || []).length;
-    if (hits >= 2) lines = one.split(/(?=\/home\/)/g).map(s => s.trim()).filter(Boolean);
-  }
-  const out = [];
-  for (let s of lines) {
-    s = s.replace(/["'\s]+$/g, "");
-    s = s.replace(/,+$/g, "");
-    s = s.trim();
-    if (s) out.push(s);
-  }
-  return out;
-}
-
-function getApp(){
-  try { return G.__void_http_app || G.__void_http_app2 || G.__void_http_app_ref || null; }
-  catch { return null; }
-}
-
-let loaded = false;
-function loadModulesOnce(tag){
-  if (loaded) return;
-  loaded = true;
+  // skip the tsx wrapper process (preflight/loader pid)
   try {
-    const listPath = __dirname + "/afterapp_requires.list";
-    const mods = parseList(readText(listPath));
-    let ok = 0, bad = 0;
-    for (const p of mods) {
-      try { require(p); ok++; log(`[after-app-gate:v3k] ok require: ${p}`); }
-      catch (e) { bad++; log(`[after-app-gate:v3k] FAIL require: ${p}, ${e && e.message ? e.message : String(e)}`); }
+    const argv = process.argv || [];
+    const s = argv.join(" ");
+    const isTsxWrapper =
+      s.includes("tsx/dist/preflight.cjs") ||
+      s.includes("tsx/dist/loader.mjs") ||
+      s.includes("node_modules/.bin/tsx");
+    if (isTsxWrapper) {
+      log(`[after-app-gate:v3l] skip (tsx wrapper pid=${pid})`);
+      return;
     }
-    log(`[after-app-gate:v3k] loaded modules ok=${ok} bad=${bad} pid=${pid} (${tag})`);
-  } catch (e) {
-    log(`[after-app-gate:v3k] loadModulesOnce error: ${e && e.message ? e.message : String(e)}`);
-  }
-}
+  } catch {}
 
-const waitMs = readWaitMs();
-const start = Date.now();
-log(`[after-app-gate:v3k] armed pid=${pid}`);
-
-(function loop(){
+  // fs-lock singleton per pid (stale lockfiles are harmless; your prune script can clean them)
+  const lock = `/tmp/void-afterapp-gate.v3l.${pid}.lock`;
   try {
-    const app = getApp();
-    if (app) { loadModulesOnce("app-seen"); log(`[after-app-gate:v3k] done (stop polling) pid=${pid}`); return; }
-    const dt = Date.now() - start;
-    if (dt >= waitMs) { if (process.env.VOID_AFTERAPP_LOAD_ON_TIMEOUT === "1") { loadModulesOnce("timeout-noapp"); } else { try { log(`[after-app-gate:v3k] skip load on timeout pid=`); } catch {} }
-log(`[after-app-gate:v3k] done (stop polling) pid=${pid}`); return; }
-    if (dt < 2000) log(`[after-app-gate:v3k] waiting for __void_http_app (soft) pid=${pid} ...`);
-    setTimeout(loop, 2000);
-  } catch {
-    loadModulesOnce("exception-fallback");
-    log(`[after-app-gate:v3k] done (stop polling) pid=${pid}`);
+    const fd = fs.openSync(lock, "wx");
+    fs.closeSync(fd);
+  } catch (e) {
+    // already running for this pid
+    log(`[after-app-gate:v3l] skip (lock exists pid=${pid})`);
+    return;
   }
+
+  // config
+  const gateKey = process.env.VOID_APP_GATE_KEY || "__void_http_app";
+  const waitMsEnv = Number(process.env.VOID_APP_WAIT_MS || "60000") || 60000;
+  const waitMsFile = process.env.VOID_APP_WAIT_MS_FILE || "";
+  const requiresFile = process.env.VOID_AFTER_APP_REQUIRES_FILE || "";
+
+  function readWaitMs() {
+    if (!waitMsFile) return waitMsEnv;
+    try {
+      const t = fs.readFileSync(waitMsFile, "utf8").trim();
+      const n = Number(t);
+      if (Number.isFinite(n) && n > 0) return n;
+    } catch {}
+    return waitMsEnv;
+  }
+
+  function readRequiresList() {
+    const list = [];
+    if (!requiresFile) return list;
+    try {
+      const raw = fs.readFileSync(requiresFile, "utf8");
+      raw.split(/\r?\n/).forEach((line) => {
+        const s = (line || "").trim();
+        if (!s) return;
+        if (s.startsWith("#")) return;
+        list.push(s);
+      });
+    } catch (e) {
+      log(`[after-app-gate:v3l] WARN cannot read requires file: ${requiresFile}`);
+    }
+    return list;
+  }
+
+  let loaded = false;
+  function loadModulesOnce(tag) {
+    if (loaded) return;
+    loaded = true;
+
+    const reqs = readRequiresList();
+    let ok = 0, bad = 0;
+
+    for (const p of reqs) {
+      try { require(p); ok++; log(`[after-app-gate:v3l] ok require: ${p}`); }
+      catch (e) { bad++; log(`[after-app-gate:v3l] FAIL require: ${p}, ${e && e.message ? e.message : String(e)}`); }
+    }
+
+    log(`[after-app-gate:v3l] loaded modules ok=${ok} bad=${bad} pid=${pid} (${tag})`);
+  }
+
+  log(`[after-app-gate:v3l] armed pid=${pid}`);
+
+  const start = Date.now();
+  const timer = setInterval(() => {
+    const dt = Date.now() - start;
+    const waitMs = readWaitMs();
+
+    let app = null;
+    try { app = (globalThis && globalThis[gateKey]) ? globalThis[gateKey] : null; } catch {}
+
+    if (app) {
+      try { loadModulesOnce("app-seen"); } catch (e) { log(`[after-app-gate:v3l] loadModulesOnce error: ${e && e.message ? e.message : String(e)}`); }
+      log(`[after-app-gate:v3l] done (stop polling) pid=${pid}`);
+      clearInterval(timer);
+      return;
+    }
+
+    if (dt >= waitMs) {
+      // IMPORTANT: do NOT load on timeout
+      try { log(`[after-app-gate:v3l] timeout waiting for ${gateKey}; skip load pid=${pid} waitMs=${waitMs}`); } catch {}
+      log(`[after-app-gate:v3l] done (stop polling) pid=${pid}`);
+      clearInterval(timer);
+      return;
+    }
+
+    if (dt < 2000) {
+      log(`[after-app-gate:v3l] waiting for ${gateKey} (soft) pid=${pid} ...`);
+    }
+  }, 250);
+
+  // don't keep the process alive for this timer alone
+  try { timer.unref && timer.unref(); } catch {}
 })();
