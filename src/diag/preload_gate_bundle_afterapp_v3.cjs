@@ -1,8 +1,6 @@
-/* preload_gate_bundle_afterapp_v3.cjs (v3i)
-   - Skip tsx wrapper processes.
-   - Singleton anchored on `process` (survives vm/realm weirdness better than globalThis alone).
-   - Wait for __void_http_app up to waitMs; then require afterapp list ONCE; then STOP.
-   - Never throws.
+/* preload_gate_bundle_afterapp_v3.cjs (v3j fs-lock singleton)
+   Fix: we still saw double "armed" in v3i => two loop instances in same pid.
+   Solution: OS-level lockfile per PID using O_EXCL to guarantee singleton even across realms.
 */
 const fs = require("fs");
 const G = globalThis;
@@ -17,17 +15,19 @@ function isTsxWrapper(){
   return /tsx\/dist\/preflight\.cjs|tsx\/dist\/loader\.mjs/.test(argv);
 }
 if (isTsxWrapper()) {
-  log(`[after-app-gate:v3i] skip (tsx wrapper pid=${pid})`);
+  log(`[after-app-gate:v3j] skip (tsx wrapper pid=${pid})`);
   return;
 }
 
-// hard singleton (process-scoped)
-if (P.__void_afterapp_gate_v3i_ran) return;
-P.__void_afterapp_gate_v3i_ran = true;
-
-// soft singleton (extra belt)
-if (G.__void_afterapp_gate_v3i_ran) return;
-G.__void_afterapp_gate_v3i_ran = true;
+// fs lock => singleton per pid
+const lock = `/tmp/void-afterapp-gate.v3j.${pid}.lock`;
+try {
+  const fd = fs.openSync(lock, "wx"); // O_EXCL
+  fs.closeSync(fd);
+} catch {
+  // already running in this pid (or no perms) => do nothing
+  return;
+}
 
 function readWaitMs(){
   const raw = readText(__dirname + "/afterapp_waitms.txt").trim();
@@ -59,41 +59,38 @@ function getApp(){
   catch { return null; }
 }
 
+let loaded = false;
 function loadModulesOnce(tag){
+  if (loaded) return;
+  loaded = true;
   try {
-    if (P.__void_afterapp_loaded_v3i) return;
-    P.__void_afterapp_loaded_v3i = true;
-    if (G.__void_afterapp_loaded_v3i) return;
-    G.__void_afterapp_loaded_v3i = true;
-
     const listPath = __dirname + "/afterapp_requires.list";
     const mods = parseList(readText(listPath));
-
     let ok = 0, bad = 0;
     for (const p of mods) {
-      try { require(p); ok++; log(`[after-app-gate:v3i] ok require: ${p}`); }
-      catch (e) { bad++; log(`[after-app-gate:v3i] FAIL require: ${p}, ${e && e.message ? e.message : String(e)}`); }
+      try { require(p); ok++; log(`[after-app-gate:v3j] ok require: ${p}`); }
+      catch (e) { bad++; log(`[after-app-gate:v3j] FAIL require: ${p}, ${e && e.message ? e.message : String(e)}`); }
     }
-    log(`[after-app-gate:v3i] loaded modules ok=${ok} bad=${bad} pid=${pid} (${tag})`);
+    log(`[after-app-gate:v3j] loaded modules ok=${ok} bad=${bad} pid=${pid} (${tag})`);
   } catch (e) {
-    log(`[after-app-gate:v3i] loadModulesOnce error: ${e && e.message ? e.message : String(e)}`);
+    log(`[after-app-gate:v3j] loadModulesOnce error: ${e && e.message ? e.message : String(e)}`);
   }
 }
 
 const waitMs = readWaitMs();
 const start = Date.now();
-log(`[after-app-gate:v3i] armed pid=${pid}`);
+log(`[after-app-gate:v3j] armed pid=${pid}`);
 
 (function loop(){
   try {
     const app = getApp();
-    if (app) { loadModulesOnce("app-seen"); log(`[after-app-gate:v3i] done (stop polling) pid=${pid}`); return; }
+    if (app) { loadModulesOnce("app-seen"); log(`[after-app-gate:v3j] done (stop polling) pid=${pid}`); return; }
     const dt = Date.now() - start;
-    if (dt >= waitMs) { loadModulesOnce("timeout-noapp"); log(`[after-app-gate:v3i] done (stop polling) pid=${pid}`); return; }
-    if (dt < 2000) log(`[after-app-gate:v3i] waiting for __void_http_app (soft) pid=${pid} ...`);
+    if (dt >= waitMs) { loadModulesOnce("timeout-noapp"); log(`[after-app-gate:v3j] done (stop polling) pid=${pid}`); return; }
+    if (dt < 2000) log(`[after-app-gate:v3j] waiting for __void_http_app (soft) pid=${pid} ...`);
     setTimeout(loop, 2000);
   } catch {
     loadModulesOnce("exception-fallback");
-    log(`[after-app-gate:v3i] done (stop polling) pid=${pid}`);
+    log(`[after-app-gate:v3j] done (stop polling) pid=${pid}`);
   }
 })();
