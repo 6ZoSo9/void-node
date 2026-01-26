@@ -1,117 +1,99 @@
-/* afterapp_skip_tsx_wrapper_v1
-   Reason: systemd launches a tsx *wrapper* PID (node ... node_modules/.bin/tsx ...)
-   that never creates express app, causing noisy after-app-gate timeouts.
-   We skip ONLY that wrapper process.
+/* preload_gate_bundle_afterapp_v3.cjs (v3i)
+   - Skip tsx wrapper processes.
+   - Singleton anchored on `process` (survives vm/realm weirdness better than globalThis alone).
+   - Wait for __void_http_app up to waitMs; then require afterapp list ONCE; then STOP.
+   - Never throws.
 */
-try {
-  const argv = (process && process.argv) ? process.argv.join(" ") : "";
-  if (argv.includes("node_modules/.bin/tsx")) {
-    try { console.error("[after-app-gate:v3] skip (tsx wrapper pid)"); } catch {}
-    module.exports = module.exports || {};
-    return;
+const fs = require("fs");
+const G = globalThis;
+const P = process;
+const pid = P.pid;
+const argv = (P.argv || []).join(" ");
+
+function log(msg){ try{ console.error(msg); } catch {} }
+function readText(p){ try{ return fs.readFileSync(p, "utf8"); } catch { return ""; } }
+
+function isTsxWrapper(){
+  return /tsx\/dist\/preflight\.cjs|tsx\/dist\/loader\.mjs/.test(argv);
+}
+if (isTsxWrapper()) {
+  log(`[after-app-gate:v3i] skip (tsx wrapper pid=${pid})`);
+  return;
+}
+
+// hard singleton (process-scoped)
+if (P.__void_afterapp_gate_v3i_ran) return;
+P.__void_afterapp_gate_v3i_ran = true;
+
+// soft singleton (extra belt)
+if (G.__void_afterapp_gate_v3i_ran) return;
+G.__void_afterapp_gate_v3i_ran = true;
+
+function readWaitMs(){
+  const raw = readText(__dirname + "/afterapp_waitms.txt").trim();
+  const n = parseInt(raw, 10);
+  if (Number.isFinite(n) && n > 0 && n <= 120000) return n;
+  return 15000;
+}
+
+function parseList(raw){
+  raw = (raw || "").replace(/\r/g, "");
+  let lines = raw.split("\n").map(s => s.trim()).filter(Boolean).filter(s => !s.startsWith("#"));
+  if (lines.length === 1) {
+    const one = lines[0];
+    const hits = (one.match(/\/home\//g) || []).length;
+    if (hits >= 2) lines = one.split(/(?=\/home\/)/g).map(s => s.trim()).filter(Boolean);
   }
-} catch {}
-
-/* preload_gate_bundle_afterapp_v3.cjs
-   Goal: require modules only AFTER express app hook exists (globalThis.__void_http_app).
-   v3+: self-proving, supports requires list file, supports waitMs file.
-*/
-(function(){
-  const fs = require("fs");
-
-  const KEY = process.env.VOID_APP_GATE_KEY || "__void_http_app";
-
-  const waitFile = process.env.VOID_APP_WAIT_MS_FILE || process.env.VOID_AFTERAPP_WAIT_MS_FILE || "";
-  function readWaitMsFile(p){
-    try{
-      const s = String(fs.readFileSync(p, "utf8") || "").trim();
-      const n = parseInt(s, 10);
-      if (Number.isFinite(n) && n >= 0) return n;
-    }catch{}
-    return null;
+  const out = [];
+  for (let s of lines) {
+    s = s.replace(/["'\s]+$/g, "");
+    s = s.replace(/,+$/g, "");
+    s = s.trim();
+    if (s) out.push(s);
   }
+  return out;
+}
 
-  const envWait = parseInt(process.env.VOID_APP_WAIT_MS || "", 10);
-  let waitMs = (Number.isFinite(envWait) && envWait >= 0) ? envWait : 12000;
-  if (!Number.isFinite(envWait) && waitFile) {
-    const f = readWaitMsFile(waitFile);
-    if (typeof f === "number") waitMs = f;
-  }
+function getApp(){
+  try { return G.__void_http_app || G.__void_http_app2 || G.__void_http_app_ref || null; }
+  catch { return null; }
+}
 
-  const reqFile =
-    process.env.VOID_AFTER_APP_REQUIRES_FILE ||
-    process.env.VOID_AFTERAPP_REQUIRES_FILE ||
-    "";
+function loadModulesOnce(tag){
+  try {
+    if (P.__void_afterapp_loaded_v3i) return;
+    P.__void_afterapp_loaded_v3i = true;
+    if (G.__void_afterapp_loaded_v3i) return;
+    G.__void_afterapp_loaded_v3i = true;
 
-  const listEnv = (process.env.VOID_AFTER_APP_REQUIRES || "")
-    .split(",")
-    .map(s => (s || "").trim())
-    .filter(Boolean);
+    const listPath = __dirname + "/afterapp_requires.list";
+    const mods = parseList(readText(listPath));
 
-  function readListFile(p){
-    try{
-      const raw = String(fs.readFileSync(p, "utf8") || "");
-      return raw
-        .split(/\r?\n/g)
-        .map(s => (s || "").trim())
-        .filter(Boolean)
-        .map(s => s.replace(/[,]+$/g, "").trim())
-        .filter(Boolean);
-    }catch{
-      return [];
+    let ok = 0, bad = 0;
+    for (const p of mods) {
+      try { require(p); ok++; log(`[after-app-gate:v3i] ok require: ${p}`); }
+      catch (e) { bad++; log(`[after-app-gate:v3i] FAIL require: ${p}, ${e && e.message ? e.message : String(e)}`); }
     }
+    log(`[after-app-gate:v3i] loaded modules ok=${ok} bad=${bad} pid=${pid} (${tag})`);
+  } catch (e) {
+    log(`[after-app-gate:v3i] loadModulesOnce error: ${e && e.message ? e.message : String(e)}`);
   }
+}
 
-  const list = (reqFile ? readListFile(reqFile) : []).concat(listEnv);
+const waitMs = readWaitMs();
+const start = Date.now();
+log(`[after-app-gate:v3i] armed pid=${pid}`);
 
-  function log(msg){ try{ console.error(msg); }catch{} }
-  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-
-  function writeLoaded(){
-    try{
-      const p = `/tmp/void-afterapp.gate.loaded.${process.pid}`;
-      fs.appendFileSync(p, `afterapp_gate_v3 loaded ts_ms=${Date.now()} pid=${process.pid}\n`);
-    }catch{}
+(function loop(){
+  try {
+    const app = getApp();
+    if (app) { loadModulesOnce("app-seen"); log(`[after-app-gate:v3i] done (stop polling) pid=${pid}`); return; }
+    const dt = Date.now() - start;
+    if (dt >= waitMs) { loadModulesOnce("timeout-noapp"); log(`[after-app-gate:v3i] done (stop polling) pid=${pid}`); return; }
+    if (dt < 2000) log(`[after-app-gate:v3i] waiting for __void_http_app (soft) pid=${pid} ...`);
+    setTimeout(loop, 2000);
+  } catch {
+    loadModulesOnce("exception-fallback");
+    log(`[after-app-gate:v3i] done (stop polling) pid=${pid}`);
   }
-
-  async function main(){
-    writeLoaded();
-
-    const t0 = Date.now();
-    while (!globalThis[KEY]) {
-      const dt = Date.now() - t0;
-      if (dt >= waitMs) break;
-      await sleep(50);
-    }
-
-    const p = `/tmp/void-afterapp.gate.loaded.${process.pid}`;
-    try{
-      fs.appendFileSync(p, `timeout key=${KEY} waitMs=${waitMs}\n`);
-    }catch{}
-
-    if (!globalThis[KEY]) {
-      log(`[after-app-gate:v3] timeout waiting for ${KEY} (waitMs=${waitMs}); not loading after-app modules`);
-      return;
-    }
-
-    try{
-      fs.appendFileSync(p, `saw key=${KEY} list_len=${list.length}\n`);
-      if (reqFile) fs.appendFileSync(p, `requires_file=${reqFile}\n`);
-      if (waitFile) fs.appendFileSync(p, `waitms_file=${waitFile}\n`);
-    }catch{}
-
-    for (const m of list) {
-      try {
-        require(m);
-        try{ fs.appendFileSync(p, `ok ${m}\n`); }catch{}
-        log(`[after-app-gate:v3] ok require: ${m}`);
-      } catch (e) {
-        const msg = (e && e.message) ? e.message : String(e);
-        try{ fs.appendFileSync(p, `ERR ${m} :: ${msg}\n`); }catch{}
-        log(`[after-app-gate:v3][ERR] require failed: ${m} :: ${msg}`);
-      }
-    }
-  }
-
-  main().catch(e => log(`[after-app-gate:v3][FATAL] ${(e&&e.stack)||String(e)}`));
 })();

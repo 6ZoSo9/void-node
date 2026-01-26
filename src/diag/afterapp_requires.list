@@ -1,0 +1,4 @@
+/home/zoso/dev/void-node/src/diag/afterapp_tripwire_v1.cjs
+/home/zoso/dev/void-node/src/diag/deny_self_tcp_4100_v1.cjs
+/home/zoso/dev/void-node/src/diag/deny_self_http_4100_v1.cjs
+/home/zoso/dev/void-node/src/diag/selfcall_probe_v1.cjs
