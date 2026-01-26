@@ -15,7 +15,7 @@ function isTsxWrapper(){
   return /tsx\/dist\/preflight\.cjs|tsx\/dist\/loader\.mjs/.test(argv);
 }
 if (isTsxWrapper()) {
-  log(`[after-app-gate:v3j] skip (tsx wrapper pid=${pid})`);
+  log(`[after-app-gate:v3k] skip (tsx wrapper pid=${pid})`);
   return;
 }
 
@@ -68,29 +68,30 @@ function loadModulesOnce(tag){
     const mods = parseList(readText(listPath));
     let ok = 0, bad = 0;
     for (const p of mods) {
-      try { require(p); ok++; log(`[after-app-gate:v3j] ok require: ${p}`); }
-      catch (e) { bad++; log(`[after-app-gate:v3j] FAIL require: ${p}, ${e && e.message ? e.message : String(e)}`); }
+      try { require(p); ok++; log(`[after-app-gate:v3k] ok require: ${p}`); }
+      catch (e) { bad++; log(`[after-app-gate:v3k] FAIL require: ${p}, ${e && e.message ? e.message : String(e)}`); }
     }
-    log(`[after-app-gate:v3j] loaded modules ok=${ok} bad=${bad} pid=${pid} (${tag})`);
+    log(`[after-app-gate:v3k] loaded modules ok=${ok} bad=${bad} pid=${pid} (${tag})`);
   } catch (e) {
-    log(`[after-app-gate:v3j] loadModulesOnce error: ${e && e.message ? e.message : String(e)}`);
+    log(`[after-app-gate:v3k] loadModulesOnce error: ${e && e.message ? e.message : String(e)}`);
   }
 }
 
 const waitMs = readWaitMs();
 const start = Date.now();
-log(`[after-app-gate:v3j] armed pid=${pid}`);
+log(`[after-app-gate:v3k] armed pid=${pid}`);
 
 (function loop(){
   try {
     const app = getApp();
-    if (app) { loadModulesOnce("app-seen"); log(`[after-app-gate:v3j] done (stop polling) pid=${pid}`); return; }
+    if (app) { loadModulesOnce("app-seen"); log(`[after-app-gate:v3k] done (stop polling) pid=${pid}`); return; }
     const dt = Date.now() - start;
-    if (dt >= waitMs) { loadModulesOnce("timeout-noapp"); log(`[after-app-gate:v3j] done (stop polling) pid=${pid}`); return; }
-    if (dt < 2000) log(`[after-app-gate:v3j] waiting for __void_http_app (soft) pid=${pid} ...`);
+    if (dt >= waitMs) { if (process.env.VOID_AFTERAPP_LOAD_ON_TIMEOUT === "1") { loadModulesOnce("timeout-noapp"); } else { try { log(`[after-app-gate:v3k] skip load on timeout pid=`); } catch {} }
+log(`[after-app-gate:v3k] done (stop polling) pid=${pid}`); return; }
+    if (dt < 2000) log(`[after-app-gate:v3k] waiting for __void_http_app (soft) pid=${pid} ...`);
     setTimeout(loop, 2000);
   } catch {
     loadModulesOnce("exception-fallback");
-    log(`[after-app-gate:v3j] done (stop polling) pid=${pid}`);
+    log(`[after-app-gate:v3k] done (stop polling) pid=${pid}`);
   }
 })();
