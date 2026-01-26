@@ -10,9 +10,15 @@ fi
 
 PROM="${PROM:-http://127.0.0.1:9090}"
 
-# If Prom isn’t reachable, don’t block pushes (ops guard, not dev blocker).
+# If Prom isn’t reachable, don’t block pushes (this is an ops guard, not a dev blocker).
 if ! curl -fsS --max-time 1 "$PROM/-/ready" >/dev/null 2>&1; then
   echo "[ok] pre-push: Prom not reachable at $PROM (skipping dup-rule guard)"
+  exit 0
+fi
+
+# If jq is missing, don’t block pushes.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[ok] pre-push: jq missing (skipping dup-rule guard)"
   exit 0
 fi
 
