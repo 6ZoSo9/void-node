@@ -1988,3 +1988,108 @@ function log(msg) {
     if (tries >= 80) { clearInterval(t); try{ console.error("[ready-prom-txroot-live-from-textfile:v10] gave up waiting for app"); }catch(_){} }
   }, 250);
 })();
+
+/* === ready-bridge-killswitch:v11 (idempotent) ==========================
+   Goal: prevent legacy ready-bridge STATUS endpoints from misleading ops or
+         reintroducing confusing “truth” sources.
+   Strategy: TOP-OF-STACK middleware returns 410 for deprecated paths, while
+             allowing canonical endpoints to remain.
+   Safe: additive only; does not unregister/delete routes.
+======================================================================== */
+;(function readyBridgeKillswitchV11(){
+  const G = globalThis;
+  if (G.__void_ready_bridge_killswitch_v11) return;
+  G.__void_ready_bridge_killswitch_v11 = true;
+
+  const ALLOW = new Set([
+    "/__void/ready.bridge2e.readyprom_cachedpoll.status.json",
+    "/__void/ready.prom.txroot_live_textfile.v10.status.json",
+    "/__void/ready.prom",
+  ]);
+
+  // Park anything that looks like a legacy ready bridge status endpoint
+  function shouldPark(path){
+    if (!path || typeof path !== "string") return false;
+    if (ALLOW.has(path)) return false;
+    // legacy status endpoints you’ve accumulated
+    if (/^\/__void\/ready\.bridge2[a-z0-9]*\..*status\.json$/i.test(path)) return true;
+    if (/^\/__void\/ready\.bridge2[a-z0-9]*\.status\.json$/i.test(path)) return true;
+    if (/^\/__void\/ready\.gatefix\.status\.json$/i.test(path)) return true;
+    // legacy rewrite metrics endpoints (optional park)
+    if (/^\/__void\/metrics\/readyprom_rewrite\./i.test(path)) return true;
+    return false;
+  }
+
+  const COUNTS = { parked: 0, passed: 0 };
+
+  function getApp(){
+    const app = (G && (G.__void_http_app || (G.__void_http && G.__void_http.app))) || null;
+    if (!app) return null;
+    if (typeof app.use !== "function") return null;
+    return app;
+  }
+
+  function mount(){
+    const app = getApp();
+    if (!app) return false;
+
+    // Install truly top-of-stack: unshift onto router stack if possible.
+    const mw = function(req, res, next){
+      try{
+        const p = (req && (req.path || req.url)) ? String(req.path || req.url).split("?")[0] : "";
+        if (shouldPark(p)){
+          COUNTS.parked++;
+          res.status(410);
+          res.setHeader("content-type", "application/json; charset=utf-8");
+          res.end(JSON.stringify({
+            ok: false,
+            parked: true,
+            path: p,
+            hint: "Use /__void/ready.prom or v10/v2e status endpoints",
+            allow: Array.from(ALLOW)
+          }));
+          return;
+        }
+        COUNTS.passed++;
+      }catch(_){}
+      return next();
+    };
+
+    try{
+      app.use(mw);
+      // try to move to front of stack (best-effort)
+      try{
+        const r = app._router;
+        if (r && Array.isArray(r.stack)) {
+          const idx = r.stack.findIndex(x => x && x.handle === mw);
+          if (idx > 0) {
+            const layer = r.stack.splice(idx, 1)[0];
+            r.stack.unshift(layer);
+          }
+        }
+      }catch(_){}
+    }catch(_){}
+
+    // status endpoint
+    try{
+      app.get("/__void/ready.bridge.killswitch.v11.status.json", (req, res) => {
+        res.json({
+          ok: true,
+          ts_ms: Date.now(),
+          allow: Array.from(ALLOW),
+          counts: COUNTS
+        });
+      });
+    }catch(_){}
+
+    try{ console.error("[ready-bridge-killswitch:v11] active"); }catch(_){}
+    return true;
+  }
+
+  let tries = 0;
+  const t = setInterval(() => {
+    tries++;
+    if (mount()) { clearInterval(t); return; }
+    if (tries >= 80) { clearInterval(t); try{ console.error("[ready-bridge-killswitch:v11] gave up waiting for app"); }catch(_){} }
+  }, 250);
+})();
