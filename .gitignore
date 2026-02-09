@@ -90,3 +90,12 @@ src/diag/datanet_receipts_persist_wrap_fetch_v1*.cjs
 src/diag/datanet_receipts_persist_wrap_fetch_v2*.cjs
 src/diag/datanet_receipts_persist_wrap_fetch_v3*.cjs
 # === /VOID_NATIVE_FETCH_RECEIPTS_GUARDS_V1 ===
+
+# allow mainnet live config (no secrets)
+!config/*.live.json
+
+# BEGIN VOID LIVEJSON ALLOW (no secrets)
+!config/
+!config/*.live.json
+!config/void-mainnet-bootstrap-mainnet.live.json
+# END VOID LIVEJSON ALLOW

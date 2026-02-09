@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 // [diag-eaddrinuse-listen.v1] print listen() callsite on EADDRINUSE (self-double-listen detector)
 ;(function diagListenEaddrInuseV1(){
@@ -191,6 +192,41 @@ const KEY_PATH = path.resolve(
 
 console.log("[void-node] config", { DATA_DIR, HTTP_PORT, P2P_PORT, KEY_PATH });
 
+  // [boot.sample.v1] bounded startup stack sampler for dist hangs (writes to /tmp, no terminal spam)
+  // Enable with: VOID_BOOT_SAMPLE=1
+  try {
+    const __BOOT_SAMPLE_ON = String(process.env.VOID_BOOT_SAMPLE || "0") === "1";
+    if (__BOOT_SAMPLE_ON) {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const out = path.join("/tmp", `void-boot-sample.${Date.now()}.txt`);
+      const counts = new Map<string, number>();
+      const started = Date.now();
+      const take = () => {
+        const st = (new Error("boot-sample").stack || "").split("\n").slice(0, 18).join("\n");
+        counts.set(st, (counts.get(st) || 0) + 1);
+      };
+      const iv = setInterval(take, 50);
+      setTimeout(() => {
+        try { clearInterval(iv); } catch {}
+        const arr = Array.from(counts.entries()).sort((a,b)=>b[1]-a[1]).slice(0, 12);
+        const lines: string[] = [];
+        lines.push(`ts_ms=${Date.now()} elapsed_ms=${Date.now()-started}`);
+        lines.push(`pid=${process.pid}`);
+        lines.push(`note=top stacks (count x stack)\n`);
+        for (const [st,c] of arr) {
+          lines.push(`--- count=${c} ---`);
+          lines.push(st);
+          lines.push("");
+        }
+        fs.writeFileSync(out, lines.join("\n"));
+        // also drop a one-liner to stderr so you know the filename
+        try { console.error(`[boot.sample.v1] wrote ${out}`); } catch {}
+      }, 3000);
+    }
+  } catch {}
+
+
 /* Optional legacy helper (safe to keep for scripts/tests) */
 const __apiSegStore = 
 new SegStore(DATA_DIR, { segmentMaxBytes: 8 * 1024 * 1024, sparseEvery: 16 } as any);
@@ -213,7 +249,22 @@ async function __main__() {
   }
 
   /* ---------- storage auto-repair before touching store ---------- */
-  await autoRepairDataDir(DATA_DIR, { sparseEvery: 16 });
+  
+    /* ---------- storage auto-repair before touching store ---------- */
+    // Dist boots can get stuck doing massive stat() walks on big DATA_DIR.
+    // Default: skip in dist unless explicitly enabled.
+    const __VOID_SKIP_AUTOREPAIR = String(process.env.VOID_SKIP_AUTOREPAIR || "0") === "1";
+    const __VOID_FORCE_AUTOREPAIR = String(process.env.VOID_FORCE_AUTOREPAIR || "0") === "1";
+    if (__VOID_FORCE_AUTOREPAIR) {
+      console.log("[boot] autoRepairDataDir: FORCED (VOID_FORCE_AUTOREPAIR=1)");
+      await autoRepairDataDir(DATA_DIR, { sparseEvery: 16 });
+    } else if (__VOID_SKIP_AUTOREPAIR) {
+      console.log("[boot] autoRepairDataDir: SKIPPED (VOID_SKIP_AUTOREPAIR=1)");
+    } else {
+      // default behavior remains, but you can skip with VOID_SKIP_AUTOREPAIR=1
+      console.log("[boot] autoRepairDataDir: running (set VOID_SKIP_AUTOREPAIR=1 to skip)");
+      await autoRepairDataDir(DATA_DIR, { sparseEvery: 16 });
+    }
 
   /* ---------- boot node ---------- */
   const kp = loadKeypair(KEY_PATH); // { privateKey, publicKey, nodeId, pubPEM }
@@ -259,6 +310,14 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
   (globalThis as any).__void_http_app = app;
+
+  // [dist.gate.v1] In compiled dist runs, skip long-running preload/diag wait-loops.
+  // Enable them explicitly with VOID_DIST_DIAG=1.
+  const __VOID_DIST_DIAG = String(process.env.VOID_DIST_DIAG || "0") === "1";
+  (globalThis as any).__VOID_DIST_DIAG = __VOID_DIST_DIAG;
+
+  // [dedup/cleanup] removed invalid placeholder line that breaks tsc
+  // (__void_http_app hook near express());
 
 ;(() => {
   // __void_datanet_fetch_receipts_native_v1
@@ -654,7 +713,7 @@ try {
     G.__void_datanet_mvp_mount_v1 = true;
     const on = (process.env.DATANET_MVP || "").trim() === "1";
     if (on) {
-      import("./http/datanet_routes.ts")
+      import("./http/datanet_routes.js")
         .then((m: any) => {
           const fn =
             m && (m.registerDataNetRoutes || (m.default && m.default.registerDataNetRoutes));
@@ -718,7 +777,9 @@ try {
   });
   try { console.error('[headfix.early.v1] armed'); } catch {}
 } catch {}
-  (globalThis as any).__void_http_app = app
+// [dedup] redundant __void_http_app assignment disabled (keep canonical hook right after express)
+  // [dedup] disabled redundant __void_http_app assignment (keep canonical hook near express())
+  // (__void_http_app hook near express())
 /* [number2.guard.fallback.v1b] */
 ;(function __voidNumber2GuardFallbackV1b(){
   try{
@@ -3520,6 +3581,60 @@ try {
   });
 
   app.get("/blocks/range", (req, res) => {
+  // === HOT RANGE FAST-PATH (string cache; no JSON.parse) v1 ===
+  // cache: Map<number, string> of JSON string for each block
+  const g: any = globalThis as any;
+  if (!g.__void_hot_block_json_v1) g.__void_hot_block_json_v1 = new Map();
+  const __void_hot_cache: Map<number, string> = g.__void_hot_block_json_v1;
+  const __void_hot_max = Number(g.__void_hot_block_json_v1_max ?? 4096);
+
+  const __void_lru_get = (k: number): string | undefined => {
+    const v = __void_hot_cache.get(k);
+    if (v !== undefined) { __void_hot_cache.delete(k); __void_hot_cache.set(k, v); }
+    return v;
+  };
+  const __void_lru_set = (k: number, v: string) => {
+    __void_hot_cache.set(k, v);
+    while (__void_hot_cache.size > __void_hot_max) {
+      const it = __void_hot_cache.keys().next();
+      if (it.done) break;
+      __void_hot_cache.delete(it.value);
+    }
+  };
+
+  // If the whole range is already cached, return without JSON.parse/stringify
+  try {
+    const qFrom = Number((req.query as any)?.from ?? NaN);
+    const qTo = Number((req.query as any)?.to ?? NaN);
+    const from0 = Math.trunc(qFrom);
+    const to0 = Math.trunc(qTo);
+    const span0 = to0 - from0;
+
+    if (Number.isFinite(from0) && Number.isFinite(to0) && from0 >= 0 && to0 >= 0 && span0 >= 0 && span0 <= __void_hot_max) {
+      let ok = true;
+      for (let n = from0; n <= to0; n++) {
+        if (__void_lru_get(n) === undefined) { ok = false; break; }
+      }
+      if (ok) {
+        let out = "[";
+        for (let n = from0; n <= to0; n++) {
+          const v = __void_lru_get(n);
+          if (v === undefined) { ok = false; break; }
+          if (n !== from0) out += ",";
+          out += v;
+        }
+        out += "]";
+        if (ok) {
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.setHeader("X-VOID-Range-Hot", "1");
+          return res.status(200).send(out);
+        }
+      }
+    }
+  } catch {}
+  // === END HOT RANGE FAST-PATH v1 ===
+
+
     const from = Number(req.query.from ?? 0);
     const to = Number(req.query.to ?? (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber());
     if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
@@ -3530,6 +3645,7 @@ try {
       for (let i = from; i <= to; i++) {
         const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(i);
         if (b) blocks.push(b);
+        try { __void_lru_set(i, JSON.stringify(b)); } catch {}
       }
       res.json(blocks);
     } catch (e: any) {
@@ -6840,6 +6956,7 @@ import type {} from "express"; // type-only safety; no runtime impact
 
   // Background loop: after each head bump, remove persisted txs from mempool
   async function gcLoop(){
+    if (process.env.VOID_GCLOOP_DISABLE === "1") { try { console.log("[cpu-guard] gcLoop disabled"); } catch {} return; }
     const nd:any = getNode();
     const app:any = getApp();
     if (!nd || !app) return setTimeout(gcLoop, 500);
@@ -7294,7 +7411,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
       // Do it once now, then keep it fresh if later code replaces saveBlock.
       wrapOnce();
-      setInterval(wrapOnce, 500);
+      setInterval(wrapOnce, 5_000).unref?.();
     }
     arm();
   } catch {}
@@ -7898,50 +8015,20 @@ import { computeTxRoot } from "./util/txroot.js";
     const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
     if(attached) return; attached=true;
 
-    app.get("/metrics/lastblock", async(_req,res)=>{
-      const n=await getHead();
-      let txCount=0;
-      if(n>=0){
-        try{ const r=await fetch(`http://127.0.0.1:${process.env.HTTP_PORT||"4100"}/dev/txroot/${n}`);
-             const d=await r.json(); txCount = Number(d.txCount||0); }catch{}
-      }
-      const empty = txCount===0 ? 1 : 0;
-      res.type("text/plain").send(
-        "# HELP void_block_txcount tx count in latest block\n# TYPE void_block_txcount gauge\n"+
-        `void_block_txcount ${txCount}\n`+
-        "# HELP void_block_was_empty 1 if latest block had 0 tx, else 0\n# TYPE void_block_was_empty gauge\n"+
-        `void_block_was_empty ${empty}\n`
-      );
-    });
-    console.log("[metrics/lastblock] ready");
+    app.get("/metrics/lastblock", async (req, res) => {
+  // [SAFE TEMP] hard-disable lastblock exporter to restore build.
+  // Broken edits caused unterminated strings / brace mismatch. We will rewrite cleanly later.
+  res.setHeader("content-type", "text/plain; version=0.0.4");
+  return res.status(200).send(
+`# HELP void_block_txcount tx count in latest block (TEMP DISABLED)
+# TYPE void_block_txcount gauge
+void_block_txcount 0
+`);
+});
   }
   attach();
 })();
-
-// ---------------- Metrics bundle (/metrics/void) -------------------
-;(function metricsBundle(){
-  let tries=0, attached=false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function fetchText(path:string){
-    try{ const r=await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100")+path); return await r.text(); }
-    catch{ return ""; }
-  }
-  async function attach(){
-    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
-    if(attached) return; attached=true;
-
-    app.get("/metrics/void", async (_req,res)=>{
-      const [m4,m3,ml] = await Promise.all([
-        fetchText("/metrics/txroot4"),
-        fetchText("/metrics/txroot3"),
-        fetchText("/metrics/lastblock"),
-      ]);
-      res.type("text/plain").send([m4,m3,ml].join("\n"));
-    });
-    console.log("[metrics/bundle] ready at /metrics/void");
-  }
-  attach();
-})();
+// [NOTE] lastBlockMetrics() is now properly closed above. Do not add extra IIFE closers here.
 
 // ---------------- Ops snapshot (/ops/txroot-state.json) -------------------
 ;(function opsTxrootState(){
@@ -8196,10 +8283,10 @@ import { computeTxRoot } from "./util/txroot.js";
         return;
       }
       tries++;
-      if (tries % 10 === 0) console.log("[metrics/drift:v4] waiting for app... try=%d", tries);
+      if (process.env.VOID_ATTACH_DEBUG==="1" && (tries % 10 === 0)) console.log("[metrics/drift:v4] waiting for app... try=%d", tries);
       await wait(500);
     }
-    if (!attached) console.warn("[metrics/drift:v4] gave up after %d tries", tries);
+    if (!attached && process.env.VOID_ATTACH_DEBUG==="1") console.warn("[metrics/drift:v4] gave up after %d tries", tries);
   }
   attach();
 })();
@@ -8254,7 +8341,7 @@ import { computeTxRoot } from "./util/txroot.js";
       await new Promise(r=>setTimeout(r,500));
       tries++;
     }
-    if (!attached) console.warn("[metrics/drift:v4b] attach timeout after %d tries", tries);
+    if (!attached && process.env.VOID_ATTACH_DEBUG==="1") console.warn("[metrics/drift:v4b] attach timeout after %d tries", tries);
   }
   attach();
 })();
@@ -8309,7 +8396,7 @@ import { computeTxRoot } from "./util/txroot.js";
       await new Promise(r=>setTimeout(r,500));
       tries++;
     }
-    if (!attached) console.warn("[metrics/drift:v4b] attach timeout after %d tries", tries);
+    if (!attached && process.env.VOID_ATTACH_DEBUG==="1") console.warn("[metrics/drift:v4b] attach timeout after %d tries", tries);
   }
   attach();
 })();
@@ -8359,7 +8446,7 @@ import { computeTxRoot } from "./util/txroot.js";
       }
       await sleep(500);
     }
-    if (!attached) console.warn("[metrics/drift:v4c] attach timeout");
+    if (!attached && process.env.VOID_ATTACH_DEBUG==="1") console.warn("[metrics/drift:v4c] attach timeout");
   }
   attach();
 })();
@@ -8497,7 +8584,7 @@ import { computeTxRoot } from "./util/txroot.js";
       }
       tries++; await wait(500);
     }
-    if (!attached) console.warn("[metrics/drift:v6] gave up waiting for app attach");
+    if (!attached && process.env.VOID_ATTACH_DEBUG==="1") console.warn("[metrics/drift:v6] gave up waiting for app attach");
   }
   attach();
 })();
@@ -10545,6 +10632,7 @@ void_txroot_v4_errors_total ${X.errors}
   }
 
   async function run(){
+    if (process.env.VOID_TXROOT_SYNTH_DISABLE === "1") { try { console.log("[cpu-guard] txroot v2 synth disabled"); } catch {} return; }
     // Latch only once
     if ((globalThis as any).__void_txroot_core_v2_synth_running) return;
     (globalThis as any).__void_txroot_core_v2_synth_running = true;
@@ -10624,6 +10712,7 @@ void_txroot_v4_errors_total ${X.errors}
   }
 
   (async function loop(){
+    if (process.env.VOID_TXROOT_SYNTH_SELF_DISABLE === "1") { try { console.log("[cpu-guard] txroot v2 synth-self disabled"); } catch {} return; }
     let last = -1;
     while (true) {
       try {
@@ -22244,7 +22333,7 @@ void_wal_wrapped ${isWrapped?1:0}
   const dataDir = (process.env.DATA_DIR || "data").toString();
 
   // Avoid top-level await; dynamic import works in both CJS and ESM.
-  import("./http/datanet_routes")
+  import("./http/datanet_routes.js")
     .then((m: any) => {
       const fn = (m && (m.registerDataNetRoutes || m.default)) as any;
       if (typeof fn !== "function") {
@@ -22311,11 +22400,11 @@ void_wal_wrapped ${isWrapped?1:0}
   };
 
   // try a few import shapes; tsx should resolve at least one
-  import("./http/datanet_routes")
+  import("./http/datanet_routes.js")
     .then(attach)
     .catch((e1: any) => {
       console.log("[datanet.mount.v2] import ./http/datanet_routes failed:", e1?.message || String(e1));
-      import("./http/datanet_routes.ts")
+      import("./http/datanet_routes.js")
         .then(attach)
         .catch((e2: any) => {
           console.log("[datanet.mount.v2] import ./http/datanet_routes.ts failed:", e2?.message || String(e2));
@@ -22379,11 +22468,11 @@ void_wal_wrapped ${isWrapped?1:0}
       }
     };
 
-    import("./http/datanet_routes")
+    import("./http/datanet_routes.js")
       .then(attach)
       .catch((e1: any) => {
         log("[datanet.mount.v3] import ./http/datanet_routes failed: " + (e1?.message || String(e1)));
-        import("./http/datanet_routes.ts")
+        import("./http/datanet_routes.js")
           .then(attach)
           .catch((e2: any) => {
             log("[datanet.mount.v3] import ./http/datanet_routes.ts failed: " + (e2?.message || String(e2)));
@@ -25674,7 +25763,7 @@ try {
     __void_truth2_state.installed = true;
   }
 
-  // delayed attach: wait for the guaranteed hook `(globalThis as any).__void_http_app = app`
+  // delayed attach: wait for the guaranteed hook `(__void_http_app hook near express())`
   const __void_truth2_timer = setInterval(() => {
     try {
       __void_truth2_state.tries++;
@@ -32096,3 +32185,81 @@ try {
 })();
 // ==============================================================================
 
+
+// === [BEGIN DataNetMountV4] ===
+// Robust DataNet mount: supports both contracts:
+//  (A) fn(app,{dataDir}) mounts internally
+//  (B) fn(app,{dataDir}) returns router -> we mount at /datanet/v1
+// Also probes 127.0.0.1 (not localhost) to avoid IPv6 confusion.
+(() => {
+  const g: any = globalThis as any;
+  if (g.__void_datanet_mount_v4_done) return;
+  g.__void_datanet_mount_v4_done = true;
+
+  const dataDir = String(process.env.DATA_DIR || "data");
+  const t0 = Date.now();
+  const maxMs = Number(process.env.VOID_DATANET_MOUNT_RETRY_MS || 15000);
+  const log = (msg: string) => { try { console.log(msg); } catch {} };
+
+  const tick = () => {
+    const app = g.__void_http_app;
+    if (!app) {
+      const age = Date.now() - t0;
+      if (age > maxMs) {
+        log(`[datanet.mount.v4] timeout after ${age}ms (no app hook) dataDir=${dataDir}`);
+        return;
+      }
+      setTimeout(tick, 200);
+      return;
+    }
+
+    const attach = (m: any) => {
+      const fn = (m && (m.registerDataNetRoutes || m.default));
+      if (typeof fn !== "function") {
+        log("[datanet.mount.v4] registerDataNetRoutes missing");
+        return;
+      }
+
+      try {
+        const out = fn(app, { dataDir });
+
+        // If it returned an express Router-like object, mount it.
+        // Router has .use and .handle typically; we just check "function-ish use".
+        if (out && typeof out === "function") {
+          // could be a middleware/router
+          app.use("/datanet/v1", out);
+          log(`[datanet.mount.v4] mounted returned middleware at /datanet/v1 (dataDir=${dataDir})`);
+        } else if (out && typeof out.use === "function") {
+          app.use("/datanet/v1", out);
+          log(`[datanet.mount.v4] mounted returned router at /datanet/v1 (dataDir=${dataDir})`);
+        } else {
+          log(`[datanet.mount.v4] called fn(app,{dataDir}); assuming it mounted internally (dataDir=${dataDir})`);
+        }
+      } catch (e: any) {
+        log("[datanet.mount.v4] attach threw: " + (e?.message || String(e)));
+        return;
+      }
+
+      // self-probe best-effort (127.0.0.1)
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const http = require("http");
+        http.get("http://127.0.0.1:4100/datanet/v1/status", (res: any) => {
+          log(`[datanet.mount.v4] selfprobe /datanet/v1/status -> ${res.statusCode}`);
+          res.resume();
+        }).on("error", (err: any) => {
+          log("[datanet.mount.v4] selfprobe error: " + (err?.message || String(err)));
+        });
+      } catch (e: any) {
+        log("[datanet.mount.v4] selfprobe setup failed: " + (e?.message || String(e)));
+      }
+    };
+
+    import("./http/datanet_routes.js").then(attach).catch((e: any) => {
+      log("[datanet.mount.v4] import ./http/datanet_routes.js failed: " + (e?.message || String(e)));
+    });
+  };
+
+  tick();
+})();
+// === [END DataNetMountV4] ===

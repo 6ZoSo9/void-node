@@ -8,11 +8,12 @@
     "dev:follower": "DATA_DIR=data_b HTTP_PORT=4101 P2P_PORT=4701 NODE_PRIVKEY_PATH=$HOME/.secrets/nodeB.key tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/index.js",
+    "start": "DATA_DIR=${DATA_DIR:-data_a} HTTP_PORT=${HTTP_PORT:-4100} P2P_PORT=${P2P_PORT:-4700} NODE_PRIVKEY_PATH=${NODE_PRIVKEY_PATH:-$HOME/.secrets/nodeA.key} node dist/index.js",
     "lint:braces": "node -e \"const fs=require(\"fs\");const s=fs.readFileSync(\"src/index.ts\",\"utf8\");let c=0,l=1;for(const ch of s){if(ch===\"\\n\")l++;if(ch===\"{\")c++;else if(ch===\"}\")c--;if(c<0){console.error(`extra } at line ${l}`);process.exit(1)}}if(c!==0){console.error(`brace imbalance ${c}`);process.exit(1)}\"",
     "build:loose": "tsc -p tsconfig.build.json || echo \"[loose build] TS errors ignored for CI\"",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
-    "voidctl": "tsx src/voidctl/index.ts"
+    "voidctl": "tsx src/voidctl/index.ts",
+    "postbuild": "mkdir -p dist/wal && cp -a src/wal/*.js dist/wal/ 2>/dev/null || true"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -21,6 +22,9 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.7.5",
+    "@typescript-eslint/eslint-plugin": "^8.49.0",
+    "@typescript-eslint/parser": "^8.49.0",
+    "eslint": "^9.39.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.3"
   },

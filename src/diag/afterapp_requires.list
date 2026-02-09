@@ -1,11 +1,14 @@
 /home/zoso/dev/void-node/src/diag/afterapp_tripwire_v1.cjs
-/home/zoso/dev/void-node/src/diag/deny_self_tcp_4100_v1.cjs
-/home/zoso/dev/void-node/src/diag/deny_self_http_4100_v1.cjs
-/home/zoso/dev/void-node/src/diag/selfcall_probe_v1.cjs
+# DISABLED_SELFTCP /home/zoso/dev/void-node/src/diag/deny_self_tcp_4100_v1.cjs
+# disabled-by-triage: # disabled-by-triage: # DISABLED_SELFHTTP /home/zoso/dev/void-node/src/diag/deny_self_http_4100_v1.cjs
+# disabled-by-cpu-triage: /home/zoso/dev/void-node/src/diag/selfcall_probe_v1.cjs
 /home/zoso/dev/void-node/src/diag/deny_self_log_quiet_v1.cjs
-/home/zoso/dev/void-node/src/diag/self_http_fallback_shim_v2h.cjs
-/home/zoso/dev/void-node/src/diag/self_http_fallback_shim_v2i.cjs
-/home/zoso/dev/void-node/src/diag/self_http_fallback_shim_v2j.cjs
+# disabled-by-triage: # disabled-by-triage: /home/zoso/dev/void-node/src/diag/self_http_fallback_shim_v2h.cjs
+# disabled-by-triage: # disabled-by-triage: /home/zoso/dev/void-node/src/diag/self_http_fallback_shim_v2i.cjs
+# disabled-by-triage: # disabled-by-triage: /home/zoso/dev/void-node/src/diag/self_http_fallback_shim_v2j.cjs
 /home/zoso/dev/void-node/src/diag/wal_caps_stub_v1.cjs
 /home/zoso/dev/void-node/src/diag/afterapp_sentinel_v1.cjs
 /home/zoso/dev/void-node/src/diag/afterapp_wal_caps_stub_v1.cjs
+/home/zoso/dev/void-node/src/diag/datanet_http_fetch_receipts_logger_v1.cjs
+/home/zoso/dev/void-node/src/diag/strip_legacy_proposer_metric_v1.cjs
+# disabled-by-cpu-triage: /home/zoso/dev/void-node/src/diag/cpu_triage_active_handles_v1.cjs

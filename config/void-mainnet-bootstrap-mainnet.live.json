@@ -1,0 +1,69 @@
+{
+  "chainId": 2050,
+  "notes": [
+    "TEMPLATE for REAL VOID mainnet bootstrap.",
+    "Populate ONLY public addresses. NEVER paste private keys or mnemonics here.",
+    "Use separate hardware-backed keys for each role (Treasury, Ops, ValidatorAdmin, etc.).",
+    "For the actual launch, copy this template to a local, untracked file (e.g. void-mainnet-bootstrap-mainnet.live.json).",
+    "That live JSON should exist only on the air-gapped or hardened machine that signs the bootstrap transactions."
+  ],
+  "roles": {
+    "deployer": "0x7D493C395fC3636bEcac605f9CBc855b7fffE6f1",
+    "treasuryAdmin": "0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7",
+    "opsTreasuryAdmin": "0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE",
+    "validatorAdmin": "0x0053Ad9B7D0FA0Ff8249B3CbA5b98011d96Fa4E2",
+    "adminGateOwner": "0x5F274dC9F8192e2D62395FA20733605C2A7cB630",
+    "updateGateOwner": "0x5F274dC9F8192e2D62395FA20733605C2A7cB630",
+    "configGateOwner": "0x811aBC026a731A556F14E14da6Cc57f20b740930",
+    "treasuryOwner": "0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7",
+    "opsTreasuryOwner": "0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE",
+    "rewardEngineOwner": "0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7",
+    "validatorSetOwner": "0x0053Ad9B7D0FA0Ff8249B3CbA5b98011d96Fa4E2",
+    "opsTreasury": "0x6bd80926BF344d97f439883bA02DfCd50b1fEFdE",
+    "updateGateAdmin": "0x5F274dC9F8192e2D62395FA20733605C2A7cB630",
+    "configGateAdmin": "0x811aBC026a731A556F14E14da6Cc57f20b740930",
+    "rewardAdmin": "0x775289E8Ec2f4c4b5EFD71f9C218e464155c49a7",
+    "wcGovernance": "0x0000000000000000000000000000000000000000",
+    "wcMinterAdmin": "0x0000000000000000000000000000000000000000",
+    "lpTreasury": "0x0000000000000000000000000000000000000000",
+    "relayerAdmin": "0x0000000000000000000000000000000000000000"
+  },
+  "validator0": {
+    "reward": "0xCD49f9AB33573d2067aE56c54D1D1eDF36c65855",
+    "stakeVOID": "1000000",
+    "consensusKey": "0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540"
+  },
+  "contracts": {
+    "updateGate": "0x0000000000000000000000000000000000000000",
+    "adminGate": "0x0000000000000000000000000000000000000000",
+    "configGate": "0x0000000000000000000000000000000000000000",
+    "validatorSet": "0x0000000000000000000000000000000000000000",
+    "voidToken": "0x0000000000000000000000000000000000000000",
+    "voidTreasury": "0x0000000000000000000000000000000000000000",
+    "opsTreasury": "0x0000000000000000000000000000000000000000",
+    "rewardEngine": "0x0000000000000000000000000000000000000000",
+    "premineVault": "0x0000000000000000000000000000000000000000",
+    "treasury": "0x0000000000000000000000000000000000000000",
+    "workCreditsToken": "0x0000000000000000000000000000000000000000",
+    "workCreditsMinter": "0x0000000000000000000000000000000000000000",
+    "workCreditsRelayerHelper": "0x0000000000000000000000000000000000000000",
+    "RewardEngine": {
+      "address": "0x0000000000000000000000000000000000000000"
+    }
+  },
+  "validators": [
+    {
+      "id": "validator-0",
+      "rewardAddress": "0xCD49f9AB33573d2067aE56c54D1D1eDF36c65855",
+      "stakeVOID": "1000000",
+      "consensusKey": "0x9999999999999999999999999999999999999999999999999999999999999999"
+    }
+  ],
+  "relayers": [
+    {
+      "name": "relayer-1",
+      "address": "0x0000000000000000000000000000000000000000"
+    }
+  ],
+  "bootstrapMode": "stub"
+}

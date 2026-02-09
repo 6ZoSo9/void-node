@@ -14,7 +14,7 @@ HOME_DIR="${HOME}"
 UNITFILE="$HOME_DIR/.config/systemd/user/$UNIT"
 DROP="$HOME_DIR/.config/systemd/user/${UNIT}.d"
 
-EXPECTED_REQUIRE="/home/zoso/dev/void-node/src/diag/datanet_receipts_persist_wrap_fetch_v4_finalrunner_quiet.cjs"
+EXPECTED_REQUIRE="/home/zoso/dev/void-node/src/diag/preload_gate_bundle_afterapp_v3.cjs"
 
 warn(){ echo "[WARN] $*" >&2; }
 info(){ echo "[info] $*" >&2; }

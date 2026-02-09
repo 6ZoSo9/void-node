@@ -1,0 +1,26 @@
+{
+  "id": "void-mainnet-dev",
+  "kind": "void-mainnet",
+  "name": "VOID Mainnet (dev/anvil)",
+  "networkConfig": "config/void-mainnet-network.dev.json",
+  "contractSurface": "config/void-mainnet-contract-surface.dev.json",
+  "ui": {
+    "theme": "dark",
+    "primaryColor": "#000000",
+    "accentColor": "#9b59b6",
+    "logo": {
+      "light": null,
+      "dark": null
+    }
+  },
+  "features": {
+    "enableUnsafeDevTools": true,
+    "showTestFaucet": true,
+    "allowContractDeploy": true,
+    "allowExperimentalAgents": true
+  },
+  "limits": {
+    "maxGasPriceGweiHint": 50,
+    "defaultGasLimitHint": 8000000
+  }
+}

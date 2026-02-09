@@ -1,3 +1,14 @@
+// __void_afterapp_once_latch_v1
+try {
+  const G = globalThis;
+  const KEY = "__void_afterapp_once_latch_v1_installed";
+  if (G[KEY]) {
+    try { console.error("[afterapp.once] already installed; skipping"); } catch {}
+    module.exports = module.exports || {};
+  } else {
+    Object.defineProperty(G, KEY, { value: 1, writable: false, configurable: false });
+  }
+} catch {}
 /* preload_gate_bundle_afterapp_v3.cjs (v3l)
    Goals:
    - load AFTER app exists (global gate key)
@@ -191,6 +202,7 @@ function log(msg) {
 })();
 
 /* === [ready-txroot-gatefix:v1] =============================================
+  if (String(process.env.VOID_AFTERAPP_MINIMAL||"").trim()==="1") { try{console.error("[afterapp:minimal] skip heavy block");}catch(_){ } return; } // __VOID_AFTERAPP_MINIMAL_GUARD
    Problem: /__void/ready.json hard-fails when txroot_live!=1, despite comment stating
             readiness should only fail on txroot_live when REQUIRE_TXROOT_LIVE=1.
    Fix: If ONLY reason is "txroot_live!=1" and REQUIRE_TXROOT_LIVE!=1, force ready=true
@@ -271,6 +283,7 @@ function log(msg) {
 })();
 
 /* === [ready-bridge-txroot3-lastmile-soft:v1] ================================
+  if (String(process.env.VOID_AFTERAPP_MINIMAL||"").trim()==="1") { try{console.error("[afterapp:minimal] skip heavy block");}catch(_){ } return; } // __VOID_AFTERAPP_MINIMAL_GUARD
    Goals:
      - Make /__void/ready.json reflect txroot3 health (if /health/txroot3.json says healthy=1)
      - Soft-ignore lastmile gap when lastmile_seen is missing/invalid (<=-1), unless REQUIRE_LASTMILE=1
@@ -509,6 +522,7 @@ function log(msg) {
 })();
 
 /* === [ready-bridge-txroot3-lastmile-soft:v2] ================================
+  if (String(process.env.VOID_AFTERAPP_MINIMAL||"").trim()==="1") { try{console.error("[afterapp:minimal] skip heavy block");}catch(_){ } return; } // __VOID_AFTERAPP_MINIMAL_GUARD
    Fix v1 bug: txroot3 probe path.
      - Prefer GET /health/txroot3?format=json  (known-good)
      - Fallback to /health/txroot3.json        (if present)
@@ -738,6 +752,7 @@ function log(msg) {
 })();
 
 /* === [ready-bridge-txroot3-lastmile-soft:v3-promfirst] =======================
+  if (String(process.env.VOID_AFTERAPP_MINIMAL||"").trim()==="1") { try{console.error("[afterapp:minimal] skip heavy block");}catch(_){ } return; } // __VOID_AFTERAPP_MINIMAL_GUARD
    Symptom: /__void/ready.prom missing void_txroot_live even though v2 computes it.
    Root: Express ordering; our wrapper sometimes lands after the terminal handler.
    Fix: install a tiny prom wrapper + forcibly move it to the TOP of app._router.stack.
@@ -1882,6 +1897,7 @@ function log(msg) {
 })();
 
 /* === ready-prom-txroot-live-from-textfile:v10 ==========================
+  if (String(process.env.VOID_AFTERAPP_MINIMAL||"").trim()==="1") { try{console.error("[afterapp:minimal] skip heavy block");}catch(_){ } return; } // __VOID_AFTERAPP_MINIMAL_GUARD
    Goal: make void_txroot_live in /__void/ready.prom robust.
    Strategy: read the node_exporter textfile metric we already generate:
      /var/lib/node_exporter/textfile_collector/void_ready_txroot_live.prom
@@ -1990,6 +2006,7 @@ function log(msg) {
 })();
 
 /* === ready-bridge-killswitch:v11 (idempotent) ==========================
+  if (String(process.env.VOID_AFTERAPP_MINIMAL||"").trim()==="1") { try{console.error("[afterapp:minimal] skip heavy block");}catch(_){ } return; } // __VOID_AFTERAPP_MINIMAL_GUARD
    Goal: prevent legacy ready-bridge STATUS endpoints from misleading ops or
          reintroducing confusing “truth” sources.
    Strategy: TOP-OF-STACK middleware returns 410 for deprecated paths, while

@@ -1,20 +1,33 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "allowSyntheticDefaultImports": true,
+    "declaration": false,
+    "downlevelIteration": true,
+    "esModuleInterop": true,
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022", "DOM"],
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "downlevelIteration": true,
-    "skipLibCheck": true,
     "noEmitOnError": false,
-    "resolveJsonModule": true,
     "outDir": "dist",
-    "typeRoots": ["./src/types", "./node_modules/@types"],
-    "declaration": false,
-    "sourceMap": false
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "sourceMap": false,
+    "target": "ES2022",
+    "typeRoots": [
+      "./src/types",
+      "./node_modules/@types"
+    ]
   },
-  "include": ["src/**/*"],
-  "exclude": ["scripts/**", "node_modules", "dist", "**/*.test.ts"]
+  "exclude": [
+    "scripts/**",
+    "node_modules",
+    "dist",
+    "**/*.test.ts"
+  ],
+  "include": [
+    "src/**/*"
+  ]
 }

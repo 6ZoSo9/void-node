@@ -1,0 +1,6 @@
+{
+  "note": "stub; replace with real RewardEngine econ params when ready",
+  "perEpochVoid": null,
+  "epochsPerYear": null,
+  "annualVoidToValidators": null
+}

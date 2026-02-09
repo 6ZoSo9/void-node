@@ -1,173 +1,383 @@
-"use strict";
 // VOID Community License (VCL) v1.0 — see LICENSE
 // Copyright (c) 2025 6ZoSo9
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SegStore = void 0;
 // src/chain/seg_store.ts
-var fs = require("node:fs");
-var path = require("node:path");
-var SEG_SPAN = 10000;
-var SegStore = /** @class */ (function () {
-    function SegStore(root, opts) {
-        if (opts === void 0) { opts = {}; }
-        var _a;
-        this.metaCache = new Map();
-        this.root = root;
-        this.segDir = path.join(root, "segments");
-        this.headsFile = path.join(root, "heads.json");
-        this.sparseEvery = Math.max(1, Number((_a = opts.sparseEvery) !== null && _a !== void 0 ? _a : 256));
-        if (!fs.existsSync(this.segDir))
-            fs.mkdirSync(this.segDir, { recursive: true });
-        if (!fs.existsSync(this.headsFile)) {
-            fs.writeFileSync(this.headsFile, JSON.stringify({ head: -1, hash: "0x0" }, null, 2));
+import * as fs from "node:fs";
+import * as path from "node:path";
+function _walReplayMetricsInit() {
+    return {
+        replay_runs_total: 0,
+        replay_entries_applied_total: 0,
+        replay_ms_last: 0,
+        replay_ms_max: 0,
+        replay_last_ok: 1,
+        replay_last_error: "",
+    };
+}
+const SEG_SPAN = 10_000;
+function mkdirp(p) {
+    if (!fs.existsSync(p))
+        fs.mkdirSync(p, { recursive: true });
+}
+function safeReadJson(p) {
+    try {
+        return JSON.parse(fs.readFileSync(p, "utf8"));
+    }
+    catch {
+        return null;
+    }
+}
+function atomicWriteJson(p, obj) {
+    const dir = path.dirname(p);
+    mkdirp(dir);
+    const tmp = p + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(obj, null, 2));
+    // Best-effort durability: fsync(tmp) then rename
+    try {
+        const fd = fs.openSync(tmp, "r");
+        try {
+            fs.fsyncSync(fd);
+        }
+        finally {
+            try {
+                fs.closeSync(fd);
+            }
+            catch { }
         }
     }
-    // [ADD] Compatibility alias: saveBlock -> writeBlock (non-breaking)
-    // @ts-ignore - back-compat: legacy signature kept; real impl below
-    SegStore.prototype.saveBlock = function (b) {
-        // If writeBlock exists, use it; otherwise surface a clear error
-        // (keeps Node.sealBlock() happy while we stabilize APIs)
-        // @ts-ignore
-        var fn = this.writeBlock || this.persistBlock || this.appendBlock;
-        if (typeof fn !== "function")
-            throw new Error("SegStore.saveBlock not implemented");
-        return fn.call(this, b);
-    };
-    SegStore.prototype.loadHeadNumber = function () {
+    catch { }
+    fs.renameSync(tmp, p);
+    // Best-effort dir fsync so rename is durable
+    try {
+        const dfd = fs.openSync(dir, "r");
         try {
-            var j = JSON.parse(fs.readFileSync(this.headsFile, "utf8"));
-            return Number.isFinite(j.head) ? j.head : -1;
+            fs.fsyncSync(dfd);
         }
-        catch (_a) {
-            return -1;
+        finally {
+            try {
+                fs.closeSync(dfd);
+            }
+            catch { }
         }
-    };
-    SegStore.prototype.persistHead = function (n) {
+    }
+    catch { }
+}
+export class SegStore {
+    // --- WAL replay metrics (v1) ---
+    _walReplayMetrics = _walReplayMetricsInit();
+    getWalReplayMetrics() { return this._walReplayMetrics; }
+    root;
+    segDir;
+    walDir;
+    headsFile;
+    sparseEvery;
+    metaCache = new Map();
+    constructor(root, opts = {}) {
+        this.root = root;
+        this.segDir = path.join(root, "segments");
+        this.walDir = path.join(root, "wal");
+        this.headsFile = path.join(root, "heads.json");
+        this.sparseEvery = Math.max(1, Number(opts.sparseEvery ?? 256));
+        mkdirp(this.segDir);
+        mkdirp(this.walDir);
+        if (!fs.existsSync(this.headsFile)) {
+            atomicWriteJson(this.headsFile, { head: -1, hash: "0x0" });
+        }
+        // Replay WAL best-effort on boot (keeps prior behavior if WAL absent).
         try {
-            var j = JSON.parse(fs.readFileSync(this.headsFile, "utf8"));
-            j.head = n;
-            fs.writeFileSync(this.headsFile, JSON.stringify(j, null, 2));
+            this.replayWalAllBestEffort();
         }
-        catch (_a) {
-            fs.writeFileSync(this.headsFile, JSON.stringify({ head: n, hash: "0x0" }, null, 2));
-        }
-    };
-    SegStore.prototype.segBase = function (n) { return Math.floor(n / SEG_SPAN) * SEG_SPAN; };
-    SegStore.prototype.segName = function (n) { return String(this.segBase(n)).padStart(8, "0"); };
-    SegStore.prototype.segPaths = function (seg) {
-        var dir = path.join(this.segDir, seg);
+        catch { }
+    }
+    loadHeadNumber() {
+        const j = safeReadJson(this.headsFile);
+        const n = Number(j?.head);
+        return Number.isFinite(n) ? n : -1;
+    }
+    persistHeadAtomic(n) {
+        const j = safeReadJson(this.headsFile) || { head: -1, hash: "0x0" };
+        j.head = n;
+        atomicWriteJson(this.headsFile, j);
+    }
+    segBase(n) { return Math.floor(n / SEG_SPAN) * SEG_SPAN; }
+    segName(n) { return String(this.segBase(n)).padStart(8, "0"); }
+    segPaths(seg) {
+        const dir = path.join(this.segDir, seg);
         return {
-            dir: dir,
+            dir,
             bin: path.join(dir, "blocks.bin"),
             idx: path.join(dir, "index.sparse"),
             meta: path.join(dir, "meta.json"),
         };
-    };
-    SegStore.prototype.ensureSeg = function (seg) {
-        var _a = this.segPaths(seg), dir = _a.dir, bin = _a.bin, idx = _a.idx, meta = _a.meta;
-        if (!fs.existsSync(dir))
-            fs.mkdirSync(dir, { recursive: true });
+    }
+    walPath(seg) {
+        return path.join(this.walDir, `${seg}.wal`);
+    }
+    ensureSeg(seg) {
+        const { dir, bin, idx, meta } = this.segPaths(seg);
+        mkdirp(dir);
         if (!fs.existsSync(bin))
             fs.writeFileSync(bin, Buffer.alloc(0));
         if (!fs.existsSync(idx))
             fs.writeFileSync(idx, "");
         if (!fs.existsSync(meta)) {
-            var from = Number(seg);
-            var m = { from: from, to: from - 1, bytes: 0, createdAt: Date.now(), updatedAt: Date.now() };
+            const from = Number(seg);
+            const m = { from, to: from - 1, bytes: 0, createdAt: Date.now(), updatedAt: Date.now() };
             fs.writeFileSync(meta, JSON.stringify(m, null, 2));
             this.metaCache.set(seg, m);
         }
-    };
-    SegStore.prototype.meta = function (seg) {
+    }
+    meta(seg) {
         if (this.metaCache.has(seg))
             return this.metaCache.get(seg);
-        var meta = this.segPaths(seg).meta;
+        const { meta } = this.segPaths(seg);
         try {
-            var m = JSON.parse(fs.readFileSync(meta, "utf8"));
+            const m = JSON.parse(fs.readFileSync(meta, "utf8"));
             this.metaCache.set(seg, m);
             return m;
         }
-        catch (_a) {
-            var from = Number(seg);
-            var m = { from: from, to: from - 1, bytes: 0, createdAt: Date.now(), updatedAt: Date.now() };
+        catch {
+            const from = Number(seg);
+            const m = { from, to: from - 1, bytes: 0, createdAt: Date.now(), updatedAt: Date.now() };
             this.metaCache.set(seg, m);
             return m;
         }
-    };
-    SegStore.prototype.putMeta = function (seg, m) {
-        var meta = this.segPaths(seg).meta;
+    }
+    putMeta(seg, m) {
+        const { meta } = this.segPaths(seg);
         m.updatedAt = Date.now();
         fs.writeFileSync(meta, JSON.stringify(m, null, 2));
         this.metaCache.set(seg, m);
-    };
-    // @ts-ignore - back-compat: second impl retained for runtime; TS ignore
-    SegStore.prototype.saveBlock = function (b) {
-        var seg = this.segName(b.number);
+    }
+    saveBlock(b) {
+        // Idempotence guard: if we already have it, don't double-append.
+        // (This keeps WAL replay safe if head.json lags behind blocks.bin.)
+        const n = Number(b?.number);
+        if (!Number.isFinite(n) || n < 0)
+            throw new Error("SegStore.saveBlock: invalid block.number");
+        const head = this.loadHeadNumber();
+        if (head >= n) {
+            const existing = this.loadBlock(n);
+            if (existing)
+                return; // already persisted
+        }
+        const seg = this.segName(n);
         this.ensureSeg(seg);
-        var _a = this.segPaths(seg), bin = _a.bin, idx = _a.idx;
-        var m = this.meta(seg);
-        var body = Buffer.from(JSON.stringify(b));
-        var len = Buffer.alloc(4);
+        // WAL intent (best-effort): append record BEFORE writing blocks.bin
+        this.walAppendBestEffort(seg, b);
+        // Commit to segment store
+        this.saveBlockCommit(b);
+        // Head bump (atomic rename)
+        this.persistHeadAtomic(n);
+    }
+    walAppendBestEffort(seg, b) {
+        try {
+            const body = Buffer.from(JSON.stringify(b));
+            const rec = { v: 1, n: Number(b.number), b64: body.toString("base64"), ts: Date.now() };
+            fs.appendFileSync(this.walPath(seg), JSON.stringify(rec) + "\n");
+            // Best-effort fsync for WAL (don’t die if it fails)
+            try {
+                const fd = fs.openSync(this.walPath(seg), "r");
+                try {
+                    fs.fsyncSync(fd);
+                }
+                finally {
+                    try {
+                        fs.closeSync(fd);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+        catch { }
+    }
+    saveBlockCommit(b) {
+        const seg = this.segName(b.number);
+        this.ensureSeg(seg);
+        const { bin, idx } = this.segPaths(seg);
+        const m = this.meta(seg);
+        const body = Buffer.from(JSON.stringify(b));
+        const len = Buffer.alloc(4);
         len.writeUInt32BE(body.length, 0);
-        var off = fs.statSync(bin).size;
+        const off = fs.statSync(bin).size;
         fs.appendFileSync(bin, Buffer.concat([len, body]));
         if (b.number % this.sparseEvery === 0) {
-            fs.appendFileSync(idx, JSON.stringify({ n: b.number, off: off }) + "\n");
+            fs.appendFileSync(idx, JSON.stringify({ n: b.number, off }) + "\n");
         }
         m.to = Math.max(m.to, b.number);
         m.bytes += 4 + body.length;
         this.putMeta(seg, m);
-        this.persistHead(b.number);
-    };
-    SegStore.prototype.loadBlock = function (n) {
-        var seg = this.segName(n);
-        var _a = this.segPaths(seg), bin = _a.bin, idx = _a.idx;
+        // Best-effort durability: fsync blocks.bin and index/meta
+        try {
+            const fd = fs.openSync(bin, "r");
+            try {
+                fs.fsyncSync(fd);
+            }
+            finally {
+                try {
+                    fs.closeSync(fd);
+                }
+                catch { }
+            }
+        }
+        catch { }
+    }
+    loadBlock(n) {
+        const seg = this.segName(n);
+        const { bin, idx } = this.segPaths(seg);
         if (!fs.existsSync(bin))
             return null;
         // Find nearest index offset <= n
-        var nearestOff = 0;
+        let nearestOff = 0;
         try {
-            var lines = fs.readFileSync(idx, "utf8").split("\n");
-            for (var _i = 0, lines_1 = lines; _i < lines_1.length; _i++) {
-                var line = lines_1[_i];
+            const lines = fs.readFileSync(idx, "utf8").split("\n");
+            for (const line of lines) {
                 if (!line)
                     continue;
-                var ent = JSON.parse(line);
+                const ent = JSON.parse(line);
                 if (Number.isFinite(ent.n) && ent.n <= n && ent.off >= 0)
                     nearestOff = Math.max(nearestOff, ent.off);
             }
         }
-        catch (_b) { }
-        var fd = fs.openSync(bin, "r");
+        catch { }
+        const fd = fs.openSync(bin, "r");
         try {
-            var st = fs.fstatSync(fd);
-            var off = nearestOff;
-            var lenBuf = Buffer.alloc(4);
+            const st = fs.fstatSync(fd);
+            let off = nearestOff;
+            const lenBuf = Buffer.alloc(4);
             while (off + 4 <= st.size) {
                 fs.readSync(fd, lenBuf, 0, 4, off);
-                var len = lenBuf.readUInt32BE(0);
-                var start = off + 4;
+                const len = lenBuf.readUInt32BE(0);
+                const start = off + 4;
                 if (start + len > st.size)
                     break;
-                var buf = Buffer.alloc(len);
+                const buf = Buffer.alloc(len);
                 fs.readSync(fd, buf, 0, len, start);
-                var blk = JSON.parse(buf.toString("utf8"));
+                const blk = JSON.parse(buf.toString("utf8"));
                 if (blk.number === n)
                     return blk;
                 off = start + len;
             }
         }
-        catch (_c) {
+        catch {
             /* ignore */
         }
         finally {
             try {
                 fs.closeSync(fd);
             }
-            catch (_d) { }
+            catch { }
         }
         return null;
-    };
-    return SegStore;
-}());
-exports.SegStore = SegStore;
+    }
+    // ---- WAL replay ----
+    replayWalAllBestEffort() {
+        const __wal_t0 = Date.now();
+        this._walReplayMetrics.replay_runs_total++;
+        this._walReplayMetrics.replay_last_ok = 1;
+        this._walReplayMetrics.replay_last_error = "";
+        // Replay each existing wal/<seg>.wal
+        if (!fs.existsSync(this.walDir))
+            return;
+        const files = fs.readdirSync(this.walDir).filter((f) => f.endsWith(".wal"));
+        if (!files.length)
+            return;
+        for (const f of files) {
+            const seg = f.replace(/\.wal$/, "");
+            try {
+                this.replayWalSegBestEffort(seg);
+            }
+            catch { }
+        }
+        this._walReplayMetrics.replay_ms_last = Math.max(0, Date.now() - __wal_t0);
+        this._walReplayMetrics.replay_ms_max = Math.max(this._walReplayMetrics.replay_ms_max, this._walReplayMetrics.replay_ms_last);
+    }
+    replayWalSegBestEffort(seg) {
+        let __wal_applied = 0;
+        const wp = this.walPath(seg);
+        if (!fs.existsSync(wp))
+            return;
+        const head0 = this.loadHeadNumber();
+        const lines = fs.readFileSync(wp, "utf8").split("\n").filter(Boolean);
+        let maxApplied = head0;
+        const keep = [];
+        for (const line of lines) {
+            __wal_applied++;
+            let rec = null;
+            try {
+                rec = JSON.parse(line);
+            }
+            catch {
+                rec = null;
+            }
+            if (!rec || rec.v !== 1)
+                continue;
+            const n = Number(rec.n);
+            if (!Number.isFinite(n))
+                continue;
+            // Keep anything > current head AFTER replay attempt (we’ll decide later)
+            if (n <= this.loadHeadNumber())
+                continue;
+            // Decode block
+            let blk = null;
+            try {
+                const buf = Buffer.from(String(rec.b64 || ""), "base64");
+                blk = JSON.parse(buf.toString("utf8"));
+            }
+            catch {
+                blk = null;
+            }
+            if (!blk || Number(blk.number) !== n) {
+                // malformed; keep it so we don't accidentally destroy evidence
+                keep.push(line);
+                continue;
+            }
+            // If block already exists on disk, just bump head to n
+            const existing = this.loadBlock(n);
+            if (existing) {
+                this.persistHeadAtomic(n);
+                maxApplied = Math.max(maxApplied, n);
+                continue;
+            }
+            // Commit missing block, bump head
+            try {
+                this.saveBlockCommit(blk);
+                this.persistHeadAtomic(n);
+                maxApplied = Math.max(maxApplied, n);
+            }
+            catch {
+                // couldn't apply; keep for next boot
+                keep.push(line);
+            }
+        }
+        // Prune WAL best-effort:
+        // - If everything <= head got applied, WAL can be deleted.
+        // - Otherwise rewrite only the kept lines.
+        try {
+            if (keep.length === 0) {
+                fs.unlinkSync(wp);
+            }
+            else {
+                fs.writeFileSync(wp, keep.join("\n") + "\n");
+                try {
+                    const fd = fs.openSync(wp, "r");
+                    try {
+                        fs.fsyncSync(fd);
+                    }
+                    finally {
+                        try {
+                            fs.closeSync(fd);
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
+        // Noisy logging avoided; callers can inspect head themselves.
+        void maxApplied;
+        if (__wal_applied > 0)
+            this._walReplayMetrics.replay_entries_applied_total += __wal_applied;
+    }
+}
