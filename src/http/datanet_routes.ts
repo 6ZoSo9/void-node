@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 import { merkleRoot } from "../datanet/merkle.js";
 import * as crypto from "node:crypto";
-import { packFile } from "../datanet/pack";
+import { packFile } from "../datanet/pack.js";
 
 function isHex64(s: string) {
   return /^[0-9a-fA-F]{64}$/.test(s);
@@ -202,6 +202,18 @@ export function registerDataNetRoutes(app: express.Express, opts?: { dataDir?: s
   const receiptsFile = path.join(receiptsDir, "datanet.jsonl");
   ensureDir(receiptsDir);
 const router = express.Router();
+
+  // [routermount.v1] mount router at /datanet/v1 (required so /datanet/v1/status works)
+  try {
+    const a: any = app as any;
+    if (!a.__void_datanet_router_mounted_v1) {
+      a.__void_datanet_router_mounted_v1 = true;
+      app.use("/datanet/v1", router);
+      try { console.log("[datanet_routes] mounted at /datanet/v1"); } catch {}
+    }
+  } catch (e: any) {
+    try { console.log("[datanet_routes] mount failed:", e?.message || String(e)); } catch {}
+  }
   router.use(express.json({ limit: "10mb", type: ["application/json", "text/json", "application/*+json"] }));
 
   router.get("/status", (req, res) => {
