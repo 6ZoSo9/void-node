@@ -28,7 +28,7 @@
 })(); 
 
 import { createRequire as __voidCreateRequire } from "node:module";
-(globalThis as any).require = (globalThis as any).require || __voidCreateRequire(import.meta.url);
+(globalThis as any).require = (globalThis as any).require || __voidCreateRequire(__filename);
 // [esm-sync-bridge] installed global require early
 // ---- ESM bridge (early, additive) ----
 (function esmBridgeEarly(){
@@ -37,7 +37,7 @@ import { createRequire as __voidCreateRequire } from "node:module";
     if (typeof (G as any).require !== "function") {
       // no await: install quickly without blocking module init
       import("node:module").then(m => {
-        (G as any).require = m.createRequire(import.meta.url);
+        (G as any).require = m.createRequire(__filename);
         console.error("[esm-bridge] early installed global require");
       }).catch(e => console.error("[esm-bridge] install failed", e?.message||e));
     }
@@ -56,11 +56,20 @@ import express from "express";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { execFile } from "node:child_process";
-
-import { autoRepairDataDir } from "./chain/auto_repair.js";
-import { SegStore } from "./chain/seg_store.js";
+import * as __autoRepairMod from "./chain/auto_repair.js";
+// compat: auto_repair.js may be default-wrapped; extract callable
+const autoRepairDataDir: any = (
+  (__autoRepairMod as any).autoRepairDataDir ||
+  (((__autoRepairMod as any).default) && ((__autoRepairMod as any).default.autoRepairDataDir)) ||
+  (((__autoRepairMod as any).default) && ((__autoRepairMod as any).default.default)) ||
+  (__autoRepairMod as any).default
+);
+import __SegStoreMod from "./chain/seg_store.js";
+// compat: tsx is exposing seg_store.ts as default-only; pull ctor from default object
+const SegStore: any = ((__SegStoreMod as any).SegStore || (__SegStoreMod as any).default || __SegStoreMod);
 import { Node } from "./node_core.js";
-import { blockHash } from "./chain/block.js";
+import * as __blockMod from "./chain/block.js";
+const blockHash: any = ((__blockMod as any).blockHash || ((__blockMod as any).default && (__blockMod as any).default.blockHash));
 import { buildAllKidx, buildKidxForJsonl, queryKidx } from "./util/kidx.js";
 import { PeerRegistry } from "./node_peer_registry.js";
 import { loadKeypair } from "./crypto/keypair.js";
@@ -72,6 +81,16 @@ import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
 import { registerBlockExtras } from "./http/blocks_extras.js";
 import { Metrics } from "./metrics.js";
 
+
+// __VOID_TS_DECLARES_V1__
+declare const app: any;
+declare const store: any;
+declare const node: any;
+declare const req: any;
+declare const job: any;
+declare const key: any;
+declare const nonce: any;
+declare function b64(x: any): string;
 // [ADD] global __VOID_asArr (idempotent)
 ;(function(){
   try{
@@ -213,7 +232,24 @@ async function __main__() {
   }
 
   /* ---------- storage auto-repair before touching store ---------- */
-  await autoRepairDataDir(DATA_DIR, { sparseEvery: 16 });
+  if (process.env.VOID_SKIP_AUTOREPAIR === "1") {
+    console.log("[boot] VOID_SKIP_AUTOREPAIR=1 -> skipping autoRepairDataDir");
+  } else {
+    const __t0 = Date.now();
+    console.log("[boot] autoRepairDataDir scheduled");// boot: run auto-repair asynchronously so HTTP can bind first
+  if (process.env.VOID_SKIP_AUTOREPAIR === "1") {
+    console.log("[boot] VOID_SKIP_AUTOREPAIR=1 -> skipping autoRepairDataDir");
+  } else {
+    setTimeout(() => {
+      const __t0 = Date.now();
+      console.log("[boot] autoRepairDataDir async begin");
+      Promise.resolve(autoRepairDataDir(DATA_DIR, { sparseEvery: 16 }))
+        .then(() => console.log("[boot] autoRepairDataDir async done ms=" + (Date.now() - __t0)))
+        .catch((e:any) => console.error("[boot] autoRepairDataDir async FAIL", e));
+    }, 1);
+  }
+
+    console.log("[boot] autoRepairDataDir scheduled (async)");}
 
   /* ---------- boot node ---------- */
   const kp = loadKeypair(KEY_PATH); // { privateKey, publicKey, nodeId, pubPEM }
@@ -258,7 +294,55 @@ console.log("[shim] published global node (post-construct)");
 
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
-  (globalThis as any).__void_http_app = app;
+(globalThis as any).__void_http_app = app;
+
+/* [latest-number-json.safe.v1] */
+;(function __voidLatestNumberJsonSafeV1(){
+  try{
+    const g:any = (globalThis as any);
+    const app:any = g.__void_http_app;
+    if (!app || typeof app.get !== "function") return;
+    if ((app as any).__void_latest_number_json_safe_v1) return;
+    (app as any).__void_latest_number_json_safe_v1 = true;
+
+    const fs = require("fs");
+    const path = require("path");
+    const dataDir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    const headFile = path.join(process.cwd(), dataDir, "head.txt");
+    const readHead = (): number | null => {
+      try{
+        const t = String(fs.readFileSync(headFile, "utf8") || "").trim();
+        const n = parseInt(t, 10);
+        return Number.isFinite(n) ? n : null;
+      }catch{ return null; }
+    };
+
+    app.get("/blocks/latest/number.json", (_req:any, res:any) => {
+      try{
+        const n0 = readHead();
+        if (typeof n0 === "number") return res.json({ number: n0, __hardfix: "latest-number-json.safe.v1/head.txt" });
+
+        const cands:any[] = [
+          (g as any).__void_head_number,
+          (g as any).__void_head_last,
+          (g as any).__void_head,
+          (g as any).__void_last_head,
+          (g as any).__void_seals_last_number,
+        ];
+        for (const v of cands){
+          const x = Number(v);
+          if (Number.isFinite(x) && x >= 0) return res.json({ number: x, __hardfix: "latest-number-json.safe.v1/inproc" });
+        }
+        return res.json({ number: -1, __hardfix: "latest-number-json.safe.v1/none" });
+      }catch{
+        return res.json({ number: -1, __hardfix: "latest-number-json.safe.v1/error" });
+      }
+    });
+
+    try{ console.error("[latest-number-json.safe.v1] installed"); }catch{}
+  }catch{}
+})();
+/* [latest-number-json.safe.v1] */
 
 ;(() => {
   // __void_datanet_fetch_receipts_native_v1
@@ -654,7 +738,7 @@ try {
     G.__void_datanet_mvp_mount_v1 = true;
     const on = (process.env.DATANET_MVP || "").trim() === "1";
     if (on) {
-      import("./http/datanet_routes.ts")
+      import("./http/datanet_routes.js")
         .then((m: any) => {
           const fn =
             m && (m.registerDataNetRoutes || (m.default && m.default.registerDataNetRoutes));
@@ -870,7 +954,7 @@ try {
   if (on) {
     console.log("[jsonparse-diag.v1c] gate=ON sampleEvery=" + (process.env.VOID_DIAG_JSONPARSE_SAMPLE_EVERY||"") + " maxKeys=" + (process.env.VOID_DIAG_JSONPARSE_MAX_KEYS||""));
     Promise.resolve()
-      .then(() => import("./diag/jsonparse_diag"))
+      .then(() => import("./diag/jsonparse_diag.js"))
       .then(() => console.log("[jsonparse-diag.v1c] import=OK"))
       .catch((e:any) => console.warn("[jsonparse-diag.v1c] import=ERR", e && (e.stack||e)));
   } else {
@@ -884,7 +968,7 @@ try {
 
 /* void-diag-jsonparse-v1 */
 if (process.env.VOID_DIAG_JSONPARSE === "1") {
-  import("./diag/jsonparse_diag")
+  import("./diag/jsonparse_diag.js")
     .then((m) => m.installJsonParseDiag?.(app as any))
     .catch((e) => console.error("[jsonparse-diag] import failed", e));
 }
@@ -1594,8 +1678,8 @@ try {
       const st = g.__void_proposer_spy_v1;
       // keep output sane: top 40 call keys
       const entries = Object.entries(st.calls || {});
-      entries.sort((a,b)=> (b[1]||0)-(a[1]||0));
-      const top = entries.slice(0,40).reduce((acc:any,[k,v])=>{ acc[k]=v; return acc; }, {});
+      entries.sort((a,b)=> (Number(b[1]||0) - Number(a[1]||0)));
+const top = entries.slice(0,40).reduce((acc:any,[k,v])=>{ acc[k]=v; return acc; }, {});
       res.json({
         ok:true,
         installed: !!st.installed,
@@ -2995,7 +3079,7 @@ try {
             try {
               if (typeof chunk === "string") chunk = patchBody(chunk);
               else if (Buffer.isBuffer(chunk)) {
-                const s = chunk.toString(typeof encoding === "string" ? encoding : "utf8");
+                const s = chunk.toString(((typeof encoding === "string" ? encoding : "utf8") as any));
                 const out = patchBody(s);
                 chunk = Buffer.from(out, "utf8");
               }
@@ -3898,6 +3982,36 @@ try {
     res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
     res.send(metrics.renderText({ peers, mempool, head, peers_known: peersReg.count() }));
   });
+
+
+  // ---- DEBUG: wrap app.listen to prove bind/address/errors (additive, safe) ----
+  try {
+    const __g:any = (globalThis as any);
+    const __app:any = app as any;
+    if (!__g.__void_listen_wrap_v1 && __app && typeof __app.listen === "function") {
+      __g.__void_listen_wrap_v1 = true;
+      const __orig = __app.listen.bind(__app);
+      __app.listen = (...args:any[]) => {
+        try {
+          const port = args?.[0];
+          const host = args?.[1];
+          console.log(`[listenwrap.v1] call port=${String(port)} host=${String(host)} env.HTTP_PORT=${String(process.env.HTTP_PORT)} env.HTTP_HOST=${String(process.env.HTTP_HOST)}`);
+        } catch {}
+        const srv:any = __orig(...args);
+        try {
+          __g.__void_http_server = srv;
+          srv.on?.("error", (e:any)=>console.log(`[listenwrap.v1] server error: ${String(e?.code||"")} ${String(e?.message||e)}`));
+          srv.on?.("close", ()=>console.log(`[listenwrap.v1] server CLOSE event`));
+          setTimeout(() => {
+            try { console.log(`[listenwrap.v1] server.address()=${JSON.stringify(srv.address?.()||null)}`); } catch (e:any) { console.log(`[listenwrap.v1] address() err ${String(e?.message||e)}`); }
+          }, 50).unref?.();
+        } catch {}
+        return srv;
+      };
+      console.log("[listenwrap.v1] installed");
+    }
+  } catch {}
+  // ---- /DEBUG ----
 
   app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.1"),()=>{
   console.log(
@@ -18041,8 +18155,9 @@ try { require('./diag/txroot_forensics_bundle_v5_v73'); } catch (e:any) {
   async function getMods(){
     const seg = await import("./chain/seg_store.js");
     const blk = await import("./chain/block.js");
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
+    const __wal_any:any = await import("./wal/wal_v1.js");
+    const WALv1:any = __wal_any?.WALv1 ?? __wal_any?.default?.WALv1;
+const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
     const wal = (G.__void_wal_v1 ||= new WALv1(dir));
     wal.__synthetic_seq ||= 0;
     G.__void_blockHash ||= blk.blockHash;
@@ -18153,8 +18268,9 @@ void_wal_wrapped ${wrapped?1:0}
   async function getWalCtx(){
     const seg = await import("./chain/seg_store.js");
     const blk = await import("./chain/block.js");
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
+    const __wal_any:any = await import("./wal/wal_v1.js");
+    const WALv1:any = __wal_any?.WALv1 ?? __wal_any?.default?.WALv1;
+const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
     const wal = (G.__void_wal_v1 ||= new WALv1(dir));
     wal.__synthetic_seq ||= 0;
     G.__void_blockHash ||= blk.blockHash;
@@ -18265,8 +18381,9 @@ void_wal_wrapped ${wrapped?1:0}
   async function getCtx(){
     const seg = await import("./chain/seg_store.js");
     const blk = await import("./chain/block.js");
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
+    const __wal_any:any = await import("./wal/wal_v1.js");
+    const WALv1:any = __wal_any?.WALv1 ?? __wal_any?.default?.WALv1;
+const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
     const wal = (G.__void_wal_v1 ||= new WALv1(dir));
     wal.__synthetic_seq ||= 0;
     return { SegStore: seg.SegStore, blockHash: blk.blockHash, wal };
@@ -18508,10 +18625,11 @@ void_wal_wrapped ${isWrapped?1:0}
 
   // assert frequently; do NOT mount routes (v80 already did)
   (function tick(){
+    // [cpu.guard.wal_rewrap_tick_safe_src_v3] disable churn in SAFE/SAFEBOOT
+    if (process.env.VOID_HTTP_SAFE==="1" || process.env.VOID_SAFEBOOT==="1") return;
     rewrap();
     setTimeout(tick, 250);
   })();
-})();
 // -------- WAL debug v1: print where saveBlock actually comes from ----------
 (function walDebugV1(){
   const path = require("node:path");
@@ -18572,7 +18690,7 @@ void_wal_wrapped ${isWrapped?1:0}
     const G:any = globalThis as any;
     if (typeof G.require !== "function") {
       const { createRequire } = await import("node:module");
-      G.require = createRequire(import.meta.url);
+      G.require = createRequire(__filename);
       console.error("[esm-bridge] installed global require");
     }
   }catch(e){ console.error("[esm-bridge] failed", e?.message||e); }
@@ -18876,8 +18994,9 @@ void_wal_wrapped ${isWrapped?1:0}
       return process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
     }
 
-    const { WALv1 } = await import("./wal/wal_v1.js");
-    const wal = new WALv1(getDataDir());
+    const __wal_any:any = await import("./wal/wal_v1.js");
+    const WALv1:any = __wal_any?.WALv1 ?? __wal_any?.default?.WALv1;
+const wal = new WALv1(getDataDir());
     await wal.open();
     (G.__void_wal = G.__void_wal || wal);
 
@@ -22130,7 +22249,7 @@ void_wal_wrapped ${isWrapped?1:0}
 
     const patch = async () => {
       let mod:any = null;
-      try{ mod = await import("./chain/seg_store.ts"); }catch{}
+      try{ mod = await import("./chain/seg_store.js"); }catch{}
       if (!mod) { try{ mod = await import("./chain/seg_store.js"); }catch{} }
       const SegStore:any = mod?.SegStore || mod?.default?.SegStore || mod?.default;
       if (!SegStore || !SegStore.prototype) {
@@ -22244,7 +22363,7 @@ void_wal_wrapped ${isWrapped?1:0}
   const dataDir = (process.env.DATA_DIR || "data").toString();
 
   // Avoid top-level await; dynamic import works in both CJS and ESM.
-  import("./http/datanet_routes")
+  import("./http/datanet_routes.js")
     .then((m: any) => {
       const fn = (m && (m.registerDataNetRoutes || m.default)) as any;
       if (typeof fn !== "function") {
@@ -22266,6 +22385,13 @@ void_wal_wrapped ${isWrapped?1:0}
 // === [BEGIN DataNetMountV2] ===
 // Debug-first DataNet mount: loud logs + multi-import fallback + self-probe.
 (() => {
+  try {
+    const want = String(process.env.VOID_DATANET_MOUNT_V2 || "0") === "1";
+    if (!want) {
+      try { console.log("[datanet.mount.v2] gated off (set VOID_DATANET_MOUNT_V2=1 to enable)"); } catch {}
+      return;
+    }
+  } catch {}
   const g: any = globalThis as any;
   if (g.__void_datanet_mount_v2_done) return;
   g.__void_datanet_mount_v2_done = true;
@@ -22311,11 +22437,11 @@ void_wal_wrapped ${isWrapped?1:0}
   };
 
   // try a few import shapes; tsx should resolve at least one
-  import("./http/datanet_routes")
+  import("./http/datanet_routes.js")
     .then(attach)
     .catch((e1: any) => {
       console.log("[datanet.mount.v2] import ./http/datanet_routes failed:", e1?.message || String(e1));
-      import("./http/datanet_routes.ts")
+      import("./http/datanet_routes.js")
         .then(attach)
         .catch((e2: any) => {
           console.log("[datanet.mount.v2] import ./http/datanet_routes.ts failed:", e2?.message || String(e2));
@@ -22363,12 +22489,20 @@ void_wal_wrapped ${isWrapped?1:0}
         log("[datanet.mount.v3] attach threw: " + (e?.message || String(e)));
         return;
       }
-
-      // self-probe best-effort
+      // self-probe best-effort (GATED; default OFF)
       try {
+        const want =
+          String(process.env.VOID_DATANET_MOUNT_SELFPROBE || process.env.VOID_DATANET_SELFPROBE || "0") === "1";
+        if (!want) {
+          // keep quiet by default (avoid self-http in hardened mode)
+          return;
+        }
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const http = require("http");
-        http.get("http://localhost:4100/datanet/v1/status", (res: any) => {
+        const host = String(process.env.HTTP_HOST || "127.0.0.1");
+        const port = Number(process.env.HTTP_PORT || 4100);
+        const url = `http://${host}:${port}/datanet/v1/status`;
+        http.get(url, (res: any) => {
           log(`[datanet.mount.v3] selfprobe /datanet/v1/status -> ${res.statusCode}`);
           res.resume();
         }).on("error", (err: any) => {
@@ -22379,18 +22513,17 @@ void_wal_wrapped ${isWrapped?1:0}
       }
     };
 
-    import("./http/datanet_routes")
+    import("./http/datanet_routes.js")
       .then(attach)
       .catch((e1: any) => {
         log("[datanet.mount.v3] import ./http/datanet_routes failed: " + (e1?.message || String(e1)));
-        import("./http/datanet_routes.ts")
+        import("./http/datanet_routes.js")
           .then(attach)
           .catch((e2: any) => {
             log("[datanet.mount.v3] import ./http/datanet_routes.ts failed: " + (e2?.message || String(e2)));
           });
       });
   };
-
   tick();
 })();
 // === [END DataNetMountV3] ===
@@ -29366,7 +29499,7 @@ try {
 
       // 2) SegStore prototype (most likely actual writer)
       try {
-        const mod: any = await import("./chain/seg_store.ts");
+        const mod: any = await import("./chain/seg_store.js");
         const SegStore = mod?.SegStore || mod?.default || mod;
         if (SegStore?.prototype) wrapSaveBlock(SegStore.prototype, "SegStore.prototype");
       } catch (e: any) {
@@ -32096,3 +32229,5 @@ try {
 })();
 // ==============================================================================
 
+}
+)();
