@@ -90,3 +90,23 @@ src/diag/datanet_receipts_persist_wrap_fetch_v1*.cjs
 src/diag/datanet_receipts_persist_wrap_fetch_v2*.cjs
 src/diag/datanet_receipts_persist_wrap_fetch_v3*.cjs
 # === /VOID_NATIVE_FETCH_RECEIPTS_GUARDS_V1 ===
+
+# ---- local junk / debug backups ----
+_quarantine_untracked.*/
+*.bak_dbg.*
+*.bak_direct.*
+*.bak_noscript.*
+*.bak_rebuild.*
+*.bak_rewrite.*
+*.bak_v*
+*.fixbak.*
+*.pinbak.*
+*.BROKEN.*
+*.broken.*
+*.tmp.*
+/src/_graveyard/
+/src/index.ts.broken.*
+/wal_v1.js
+
+# ---- NEVER COMMIT LIVE MAINNET FILES ----
+/ops/mainnet/
