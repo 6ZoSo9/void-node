@@ -110,3 +110,10 @@ _quarantine_untracked.*/
 
 # ---- NEVER COMMIT LIVE MAINNET FILES ----
 /ops/mainnet/
+
+# runtime scratch (keep agent bridge tracked)
+runtime/*
+!runtime/agent_bridge.mjs
+
+# ops scratch / generated helpers (commit explicitly when promoted)
+ops/preload/*
