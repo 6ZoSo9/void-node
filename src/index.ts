@@ -28,7 +28,9 @@
 })(); 
 
 import { createRequire as __voidCreateRequire } from "node:module";
-(globalThis as any).require = (globalThis as any).require || __voidCreateRequire(__filename);
+import { fileURLToPath as __voidFileURLToPath } from "node:url";
+const __void_filename = __voidFileURLToPath(import.meta.url);
+(globalThis as any).require = (globalThis as any).require || __voidCreateRequire(__void_filename);
 // [esm-sync-bridge] installed global require early
 // ---- ESM bridge (early, additive) ----
 (function esmBridgeEarly(){
@@ -37,7 +39,7 @@ import { createRequire as __voidCreateRequire } from "node:module";
     if (typeof (G as any).require !== "function") {
       // no await: install quickly without blocking module init
       import("node:module").then(m => {
-        (G as any).require = m.createRequire(__filename);
+        (G as any).require = m.createRequire(__void_filename);
         console.error("[esm-bridge] early installed global require");
       }).catch(e => console.error("[esm-bridge] install failed", e?.message||e));
     }
@@ -64,7 +66,7 @@ const autoRepairDataDir: any = (
   (((__autoRepairMod as any).default) && ((__autoRepairMod as any).default.default)) ||
   (__autoRepairMod as any).default
 );
-import __SegStoreMod from "./chain/seg_store.js";
+import * as __SegStoreMod from "./chain/seg_store.js";
 // compat: tsx is exposing seg_store.ts as default-only; pull ctor from default object
 const SegStore: any = ((__SegStoreMod as any).SegStore || (__SegStoreMod as any).default || __SegStoreMod);
 import { Node } from "./node_core.js";
@@ -18690,7 +18692,7 @@ void_wal_wrapped ${isWrapped?1:0}
     const G:any = globalThis as any;
     if (typeof G.require !== "function") {
       const { createRequire } = await import("node:module");
-      G.require = createRequire(__filename);
+      G.require = createRequire(__void_filename);
       console.error("[esm-bridge] installed global require");
     }
   }catch(e){ console.error("[esm-bridge] failed", e?.message||e); }
