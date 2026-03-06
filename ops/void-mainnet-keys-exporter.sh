@@ -109,12 +109,6 @@ health=$(( up * live_present * live_tracked * roles_ok ))
   echo "# TYPE void_mainnet_keys_health gauge"
   echo "void_mainnet_keys_health $health"
 
-  if [ -n "${LIVE:-}" ] && [ -f "$LIVE" ]; then
-    echo "# HELP void_mainnet_keys_livejson_path_hash Hash of the json path for debugging (not reversible)"
-    echo "# TYPE void_mainnet_keys_livejson_path_hash gauge"
-    h="$(printf "%s" "$LIVE" | sha256sum | awk "{print \$1}")"
-    echo "void_mainnet_keys_livejson_path_hash 0x${h:0:16}"
-  fi
 } >"$TMP"
 
 mv -f "$TMP" "$OUT"
