@@ -124,8 +124,3 @@ ops/preload/*
 /\{number:*.json\}
 /\{number:*\}
 
-# --- junk output accidentally created by copy/paste ---
-/void-node@0.1.0
-/3361318
-/\{number:*.json\}
-/\{number:*\}
