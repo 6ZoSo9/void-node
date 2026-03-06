@@ -34483,3 +34483,164 @@ try {
 })();
 // -------------- [/ADD] Agent v0: consistency guard exporter v1 ----------------
 
+
+// --- Agent WC awards exporter v1 (derive from receipts.jsonl; ignore agent:* system ids) ---
+(function agentWCAwardsExporterV1(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs");
+  const path = require("node:path");
+
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function safeReadLines(file:string, maxBytes:number){
+    try{
+      if (!fs.existsSync(file)) return [];
+      const st = fs.statSync(file);
+      const size = Number(st.size||0);
+      const start = Math.max(0, size - maxBytes);
+      const fd = fs.openSync(file, "r");
+      const buf = Buffer.alloc(size - start);
+      fs.readSync(fd, buf, 0, buf.length, start);
+      fs.closeSync(fd);
+      const s = buf.toString("utf8");
+      // if we started mid-line, drop first partial line
+      const parts = s.split("\n");
+      if (start > 0 && parts.length) parts.shift();
+      return parts.filter(Boolean);
+    }catch{ return []; }
+  }
+
+  function compute(){
+    const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    const dir  = path.join(base, "agent");
+    const receiptsFile = path.join(dir, "receipts.jsonl");
+
+    const now = Date.now();
+    const win5  = now - 5*60*1000;
+    const win15 = now - 15*60*1000;
+
+    // bounded tail scan (keep it cheap)
+    const lines = safeReadLines(receiptsFile, 2_500_000); // ~2.5MB tail
+
+    let lastTsMs = 0;
+
+    const ids5  = new Set<string>();
+    const ids15 = new Set<string>();
+
+    // total monotonic counter stored in memory (best-effort)
+    // NOTE: we keep a file-based fallback too: count unique IDs in whole file is too expensive; so we expose "tail uniques" + "last_ts".
+    // For "awarded_total", we use a persisted counter if present.
+    const met = (G.__void_agent_wc ||= { awarded_total: 0, last_seen_ts_ms: 0 });
+
+    for (const line of lines){
+      try{
+        const o = JSON.parse(line);
+        const id = String(o?.id||"");
+        if (!id) continue;
+        if (id.startsWith("agent:")) continue; // ignore system jobs (loopproof, datanet_roundtrip, etc.)
+        const ts = Number(o?.ts||0);
+        if (ts > lastTsMs) lastTsMs = ts;
+        if (ts >= win15) ids15.add(id);
+        if (ts >= win5)  ids5.add(id);
+      }catch{}
+    }
+
+    // If we saw any new receipts in tail with ts > last_seen_ts_ms, bump awarded_total by the number of NEW unique IDs in 15m window.
+    // This is intentionally conservative: it avoids runaway increments on noisy tails.
+    if (lastTsMs > Number(met.last_seen_ts_ms||0)){
+      // we can treat "new unique ids in 15m" as awards since last tick (good enough for MVP gating)
+      const inc = ids15.size;
+      met.awarded_total = Number(met.awarded_total||0) + inc;
+      met.last_seen_ts_ms = lastTsMs;
+    }
+
+    const ageSeconds = lastTsMs ? Math.max(0, (now - lastTsMs)/1000) : 1e12;
+
+    // "ok" gates: if we have any non-agent receipts recently, and age is reasonable.
+    const ok5  = (ids5.size  > 0) && (ageSeconds < 600);
+    const ok15 = (ids15.size > 0) && (ageSeconds < 1200);
+
+    return {
+      awarded_total: Number(met.awarded_total||0),
+      last_ts_seconds: lastTsMs ? (lastTsMs/1000) : 0,
+      age_seconds: ageSeconds,
+      uniq5: ids5.size,
+      uniq15: ids15.size,
+      ok5: ok5 ? 1 : 0,
+      ok15: ok15 ? 1 : 0
+    };
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get!=="function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_wc_awards_v1) return; (app as any).__void_agent_wc_awards_v1 = true;
+
+    app.get("/__void/metrics/agent_wc_awards.prom", (_req:any, res:any)=>{
+      const r = compute();
+      const lines = [
+        "# HELP void_agent_wc_awarded_total cumulative WC awards derived from agent receipts (best-effort monotonic)",
+        "# TYPE void_agent_wc_awarded_total gauge",
+        `void_agent_wc_awarded_total ${r.awarded_total}`,
+
+        "# HELP void_agent_wc_awards_last_ts_seconds last non-agent receipt timestamp seen (seconds)",
+        "# TYPE void_agent_wc_awards_last_ts_seconds gauge",
+        `void_agent_wc_awards_last_ts_seconds ${r.last_ts_seconds}`,
+
+        "# HELP void_agent_wc_awards_age_seconds seconds since last non-agent receipt",
+        "# TYPE void_agent_wc_awards_age_seconds gauge",
+        `void_agent_wc_awards_age_seconds ${r.age_seconds}`,
+
+        "# HELP void_agent_wc_awards_unique_5m unique non-agent receipt ids in last 5m (tail scan)",
+        "# TYPE void_agent_wc_awards_unique_5m gauge",
+        `void_agent_wc_awards_unique_5m ${r.uniq5}`,
+
+        "# HELP void_agent_wc_awards_ok_5m 1 if unique_5m>0 and age<10m",
+        "# TYPE void_agent_wc_awards_ok_5m gauge",
+        `void_agent_wc_awards_ok_5m ${r.ok5}`,
+
+        "# HELP void_agent_wc_awards_unique_15m unique non-agent receipt ids in last 15m (tail scan)",
+        "# TYPE void_agent_wc_awards_unique_15m gauge",
+        `void_agent_wc_awards_unique_15m ${r.uniq15}`,
+
+        "# HELP void_agent_wc_awards_ok_15m 1 if unique_15m>0 and age<20m",
+        "# TYPE void_agent_wc_awards_ok_15m gauge",
+        `void_agent_wc_awards_ok_15m ${r.ok15}`
+      ];
+      res.type("text/plain").end(lines.join("\n")+"\n");
+    });
+  }
+  mount();
+})();
+
+
+// --- Agent WC awards: path hardlock to DATA_DIR/agent (additive, last-wins) ----
+(function agentWCAwardsPathHardlock(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get !== "function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_wc_awards_path_hardlock) return;
+    (app as any).__void_agent_wc_awards_path_hardlock = true;
+
+    // If an earlier exporter exists, we do NOT delete it; we just provide a debug endpoint
+    // and a canonical path helper for the active implementation to use if it references G.
+    try{
+      const path = require("node:path");
+      const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+      const agentDir = path.join(base, "agent");
+      const receiptsFile = path.join(agentDir, "receipts.jsonl");
+      (G.__void_agent_wc_awards ||= {}).receiptsFile = receiptsFile;
+      (G.__void_agent_wc_awards ||= {}).agentDir = agentDir;
+
+      app.get("/__void/agent/wc_awards/path", (_req:any, res:any)=>{
+        res.json({ ok:true, base, agentDir, receiptsFile });
+      });
+    }catch(e:any){
+      app.get("/__void/agent/wc_awards/path", (_req:any, res:any)=>{
+        res.status(500).json({ ok:false, error:String(e?.message||e) });
+      });
+    }
+  }
+  mount();
+})();

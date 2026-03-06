@@ -27,7 +27,7 @@ post(){ local p="$1" body="$2"
 
 # one iteration: pick2 -> run -> result -> receipt
 step(){
-  pick="$(post /agent/v0/pick2 "{\"worker\":\"$WORKER\"}")" || return 0
+  pick="1000 4 24 27 30 46 100 114 125 992 1000 1001post /agent/v0/pick2 "{\"worker\":\"\"}" 2>/dev/null)" || { backoff; return 0; }
   ok="$(printf "%s" "$pick" | jq -r ".ok // false")"
   [ "$ok" = "true" ] || return 0
 
