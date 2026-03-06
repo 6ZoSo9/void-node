@@ -32233,3 +32233,382 @@ try {
 
 }
 )();
+
+
+// ---------------- [ADD] /blocks/latest/number2.json v3 (prefer head.txt + tolerant heads.json) ----------------
+(function installLatestNumberJsonV3(){
+  try{
+    const g:any = globalThis as any;
+    let tries = 0;
+    (function arm(){
+      const app:any  = g.__void_http_app || g.app;
+      const node:any = g.__void_node || (g as any).node;
+      if (!app || typeof app.get !== "function") { if (++tries < 200) return setTimeout(arm, 50); return; }
+      if ((app as any).__latest_number_json_v3) return;
+      (app as any).__latest_number_json_v3 = true;
+
+      async function readHeadFromDiskV3(): Promise<number>{
+        try{
+          const fs:any   = await import("node:fs");
+          const path:any = await import("node:path");
+          const root  = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+
+          // 1) head.txt (canonical in your current build)
+          try{
+            const ht = path.join(root, "head.txt");
+            if (fs.existsSync(ht)) {
+              const t = String(fs.readFileSync(ht, "utf8")||"").trim();
+              const n = Number(t);
+              if (Number.isFinite(n) && n >= 0) return n;
+            }
+          }catch{}
+
+          // 2) heads.json (tolerant schema)
+          try{
+            const hj = path.join(root, "heads.json");
+            if (fs.existsSync(hj)) {
+              const raw = fs.readFileSync(hj, "utf8");
+              const j:any = JSON.parse(raw || "{}");
+              const cand = [
+                j?.head, j?.headNumber, j?.latest, j?.latestNumber,
+                j?.main?.head, j?.main?.headNumber
+              ];
+              for (const v of cand) {
+                if (typeof v === "number" && Number.isFinite(v) && v >= 0) return v;
+              }
+            }
+          }catch{}
+
+          return -1;
+        }catch{ return -1; }
+      }
+
+      // NOTE: this intentionally re-registers the same path later, so it wins over older handlers.
+      app.get("/blocks/latest/number2.json", async (_req:any, res:any)=>{
+        try{
+          let n = -1;
+
+          // 1) store.getHead()?.number (if available)
+          try{
+            const head = await node?.store?.getHead?.();
+            if (typeof head?.number === "number" && head.number >= 0) n = head.number;
+          }catch{}
+
+          // 2) node.headNumber
+          if (n < 0 && typeof node?.headNumber === "number" && node.headNumber >= 0) n = node.headNumber;
+
+          // 3) disk fallbacks: head.txt / tolerant heads.json
+          if (n < 0) n = await readHeadFromDiskV3();
+
+          res.json({ number: n, __v: 3 });
+        }catch(e){
+          res.status(500).json({ ok:false, error: String(e), __v: 3 });
+        }
+      });
+
+      try{ console.log("[compat] endpoint /blocks/latest/number2.json v3 ready"); }catch{}
+    })();
+  }catch{}
+})();
+
+
+
+// ---------------- [ADD] /blocks/latest/number2.json v4 (disk + localhost head.txt fallback) ----------------
+(function installLatestNumberJsonV4(){
+  try{
+    const g:any = globalThis as any;
+    let tries = 0;
+    (function arm(){
+      const app:any  = g.__void_http_app || g.app;
+      const node:any = g.__void_node || (g as any).node;
+      if (!app || typeof app.get !== "function") { if (++tries < 200) return setTimeout(arm, 50); return; }
+      if ((app as any).__latest_number_json_v4) return;
+      (app as any).__latest_number_json_v4 = true;
+
+      async function tryReadHeadTxt(rootDir:string): Promise<number>{
+        try{
+          const fs:any   = await import("node:fs");
+          const path:any = await import("node:path");
+          const ht = path.join(rootDir, "head.txt");
+          if (!fs.existsSync(ht)) return -1;
+          const t = String(fs.readFileSync(ht, "utf8")||"").trim();
+          const n = Number(t);
+          return (Number.isFinite(n) && n >= 0) ? n : -1;
+        }catch{ return -1; }
+      }
+
+      async function readHeadFromDiskV4(): Promise<number>{
+        try{
+          const root = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+          for (const d of [root, "data_a", "data_b"]) {
+            const n = await tryReadHeadTxt(d);
+            if (n >= 0) return n;
+          }
+          return -1;
+        }catch{ return -1; }
+      }
+
+      async function readHeadFromLocalhost(): Promise<number>{
+        try{
+          const port = Number(process.env.HTTP_PORT || 4100);
+          const url = "http://127.0.0.1:" + port + "/head.txt";
+          const ac = new AbortController();
+          const to = setTimeout(()=>ac.abort(), 1200);
+          try{
+            const r:any = await fetch(url, { signal: ac.signal } as any);
+            if (!r || !r.ok) return -1;
+            const t = String(await r.text() || "").trim();
+            const n = Number(t);
+            return (Number.isFinite(n) && n >= 0) ? n : -1;
+          } finally { clearTimeout(to); }
+        }catch{ return -1; }
+      }
+
+      app.get("/blocks/latest/number2.json", async (_req:any, res:any)=>{
+        try{
+          let n = -1;
+
+          // 1) store.getHead()
+          try{
+            const head = await node?.store?.getHead?.();
+            if (typeof head?.number === "number" && head.number >= 0) n = head.number;
+          }catch{}
+
+          // 2) disk
+          if (n < 0) n = await readHeadFromDiskV4();
+
+          // 3) localhost /head.txt
+          if (n < 0) n = await readHeadFromLocalhost();
+
+          res.json({ number: n, __v: 4 });
+        }catch(e){
+          res.status(500).json({ ok:false, error: String(e), __v: 4 });
+        }
+      });
+
+      try{ console.log("[compat] endpoint /blocks/latest/number2.json v4 ready"); }catch{}
+    })();
+  }catch{}
+})();
+
+
+// ---------------- [ADD] /blocks/latest/number2.json v5b (steal route; NEVER res.status) ----------------
+(function installLatestNumberJsonV5b(){
+  try{
+    const g:any = globalThis as any;
+    let tries = 0;
+    (function arm(){
+      const app:any  = g.__void_http_app || g.app;
+      const node:any = g.__void_node || (g as any).node;
+      if (!app || typeof app.get !== "function") { if (++tries < 400) return setTimeout(arm, 50); return; }
+      if ((app as any).__latest_number_json_v5b) return;
+      (app as any).__latest_number_json_v5b = true;
+
+      async function tryReadHeadTxtAbs(absPath:string): Promise<number>{
+        try{
+          const fs:any = await import("node:fs");
+          if (!fs.existsSync(absPath)) return -1;
+          const t = String(fs.readFileSync(absPath, "utf8")||"").trim();
+          const n = Number(t);
+          return (Number.isFinite(n) && n >= 0) ? n : -1;
+        }catch{ return -1; }
+      }
+
+      async function tryReadHeadsJson(rootDir:string): Promise<number>{
+        try{
+          const fs:any   = await import("node:fs");
+          const path:any = await import("node:path");
+          const file = path.join(rootDir, "heads.json");
+          if (!fs.existsSync(file)) return -1;
+          const raw = String(fs.readFileSync(file, "utf8")||"").trim();
+          if (!raw) return -1;
+          const j:any = JSON.parse(raw);
+          if (typeof j?.head === "number") return j.head;
+          if (typeof j?.latest === "number") return j.latest;
+          if (typeof j?.head?.number === "number") return j.head.number;
+          return -1;
+        }catch{ return -1; }
+      }
+
+      async function deriveNumberV5b(): Promise<number>{
+        try{
+          const h = await node?.store?.getHead?.();
+          if (typeof h?.number === "number" && h.number >= 0) return h.number;
+        }catch{}
+        try{
+          const n = Number(node?.headNumber);
+          if (Number.isFinite(n) && n >= 0) return n;
+        }catch{}
+        try{
+          const n = Number((g.__void_metrics||{}).headNumber);
+          if (Number.isFinite(n) && n >= 0) return n;
+        }catch{}
+
+        try{
+          const path:any = await import("node:path");
+          const cwd = process.cwd();
+          const data = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+          const candidates = [
+            data,
+            path.join(cwd, data),
+            "data", path.join(cwd,"data"),
+            "data_a", path.join(cwd,"data_a"),
+            "data_b", path.join(cwd,"data_b"),
+          ];
+          for (const d of candidates){
+            const n1 = await tryReadHeadTxtAbs(path.join(d, "head.txt"));
+            if (n1 >= 0) return n1;
+          }
+          for (const d of candidates){
+            const n2 = await tryReadHeadsJson(d);
+            if (n2 >= 0) return n2;
+          }
+        }catch{}
+        return -1;
+      }
+
+      function safeSendJson(res:any, obj:any){
+        try{
+          if (res && typeof res.json === "function") return res.json(obj);
+        }catch{}
+        try{
+          const body = JSON.stringify(obj);
+          if (res && typeof res.setHeader === "function") res.setHeader("content-type","application/json; charset=utf-8");
+          if (res && typeof res.end === "function") return res.end(body);
+        }catch{}
+        try{
+          if (res && typeof res.send === "function") return res.send(obj);
+        }catch{}
+      }
+
+      const PATH = "/blocks/latest/number2.json";
+      app.get(PATH, async (_req:any, res:any)=>{
+        try{
+          const n = await deriveNumberV5b();
+          return safeSendJson(res, { number: n });
+        }catch(e){
+          return safeSendJson(res, { ok:false, error: String(e), number: -1 });
+        }
+      });
+
+      // steal: move our newest GET handler for PATH to the front
+      try{
+        const stack:any[] = app?._router?.stack;
+        if (Array.isArray(stack)) {
+          let idx = -1;
+          for (let i=stack.length-1; i>=0; i--){
+            const layer:any = stack[i];
+            const route:any = layer?.route;
+            if (!route) continue;
+            if (route?.path !== PATH) continue;
+            const methods = route?.methods || {};
+            if (methods.get || methods["get"]) { idx = i; break; }
+          }
+          if (idx >= 0) {
+            const layer = stack.splice(idx, 1)[0];
+            stack.unshift(layer);
+            try{ console.log("[compat] number2.json v5b stole route (moved to front)"); }catch{}
+          }
+        }
+      }catch{}
+    })();
+  }catch{}
+})();
+
+// ---------------- [ADD] /blocks/latest/number2.json v5c (prefer head.txt disk first to match /head.txt) ----------------
+(function installLatestNumberJsonV5c(){
+  try{
+    const g:any = globalThis as any;
+    let tries = 0;
+    (function arm(){
+      const app:any  = g.__void_http_app || g.app;
+      const node:any = g.__void_node || (g as any).node;
+      if (!app || typeof app.get !== "function") { if (++tries < 400) return setTimeout(arm, 50); return; }
+      if ((app as any).__latest_number_json_v5c) return;
+      (app as any).__latest_number_json_v5c = true;
+
+      function safeSendJson(res:any, obj:any){
+        try{ if (res && typeof res.json === "function") return res.json(obj); }catch{}
+        try{
+          const body = JSON.stringify(obj);
+          if (res && typeof res.setHeader === "function") res.setHeader("content-type","application/json; charset=utf-8");
+          if (res && typeof res.end === "function") return res.end(body);
+        }catch{}
+        try{ if (res && typeof res.send === "function") return res.send(obj); }catch{}
+      }
+
+      async function readHeadTxtFromCandidates(): Promise<number>{
+        try{
+          const fs:any   = await import("node:fs");
+          const path:any = await import("node:path");
+          const cwd = process.cwd();
+          const data = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+          const candidates = [
+            data,
+            path.join(cwd, data),
+            "data", path.join(cwd,"data"),
+            "data_a", path.join(cwd,"data_a"),
+            "data_b", path.join(cwd,"data_b"),
+          ];
+          for (const d of candidates){
+            const ht = path.join(d, "head.txt");
+            if (!fs.existsSync(ht)) continue;
+            const t = String(fs.readFileSync(ht, "utf8")||"").trim();
+            const n = Number(t);
+            if (Number.isFinite(n) && n >= 0) return n;
+          }
+        }catch{}
+        return -1;
+      }
+
+      async function deriveNumberV5c(): Promise<number>{
+        // 1) DISK FIRST (match /head.txt)
+        const disk = await readHeadTxtFromCandidates();
+        if (disk >= 0) return disk;
+
+        // 2) fallback: store head
+        try{
+          const h = await node?.store?.getHead?.();
+          if (typeof h?.number === "number" && h.number >= 0) return h.number;
+        }catch{}
+        // 3) fallback: node memory
+        try{
+          const n = Number(node?.headNumber);
+          if (Number.isFinite(n) && n >= 0) return n;
+        }catch{}
+        return -1;
+      }
+
+      const PATH="/blocks/latest/number2.json";
+      app.get(PATH, async (_req:any, res:any)=>{
+        try{
+          const n = await deriveNumberV5c();
+          return safeSendJson(res, { number: n });
+        }catch(e){
+          return safeSendJson(res, { ok:false, error:String(e), number:-1 });
+        }
+      });
+
+      // steal: move newest handler for PATH to front
+      try{
+        const stack:any[] = app?._router?.stack;
+        if (Array.isArray(stack)) {
+          let idx=-1;
+          for (let i=stack.length-1; i>=0; i--){
+            const layer:any = stack[i];
+            const route:any = layer?.route;
+            if (!route) continue;
+            if (route?.path !== PATH) continue;
+            const methods = route?.methods || {};
+            if (methods.get || methods["get"]) { idx=i; break; }
+          }
+          if (idx>=0) {
+            const layer = stack.splice(idx,1)[0];
+            stack.unshift(layer);
+            try{ console.log("[compat] number2.json v5c stole route (disk-first)"); }catch{}
+          }
+        }
+      }catch{}
+    })();
+  }catch{}
+})();
