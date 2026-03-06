@@ -34372,3 +34372,114 @@ try {
 })();
 // -------------- [/ADD] Agent v0: pillar exporter (prom) v4 REALNL fresh path ----------------
 
+
+
+// ---------------- [ADD] Agent v0: consistency guard exporter v1 ----------------
+(function AgentV0ConsistencyGuardV1(){
+  try{
+    const TICK=400;
+    function mount(){
+      const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+      if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+      if ((app as any).__void_agent_consistency_guard_v1__) return;
+      (app as any).__void_agent_consistency_guard_v1__ = true;
+
+      const fs = require("node:fs");
+      const path = require("node:path");
+
+      function readJsonl(file:string){
+        const out:any[] = [];
+        try{
+          if (!fs.existsSync(file)) return out;
+          const txt = String(fs.readFileSync(file, "utf8") || "");
+          if (!txt) return out;
+          for (const line of txt.split(/\r?\n/)){
+            if (!line || !line.trim()) continue;
+            try{ out.push(JSON.parse(line)); }catch{}
+          }
+        }catch{}
+        return out;
+      }
+
+      function countSinceByUniqueId(file:string, sinceMs:number){
+        const seen = new Set<string>();
+        for (const x of readJsonl(file)){
+          const id = String(x?.id || "");
+          const ts = Number(x?.ts || 0);
+          if (!id) continue;
+          if (Number.isFinite(ts) && ts >= sinceMs) seen.add(id);
+        }
+        return seen.size;
+      }
+
+      app.get("/__void/metrics/agent_consistency.prom", (_req:any, res:any)=>{
+        try{
+          const root = String(process.env.AGENT_DIR || process.env.VOID_AGENT_DIR || process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+          const agentDir = path.join(root, "agent");
+          const resultsFile = path.join(agentDir, "results.jsonl");
+          const receiptsFile = path.join(agentDir, "receipts.jsonl");
+
+          const now = Date.now();
+          const since5m = now - 5*60*1000;
+          const since15m = now - 15*60*1000;
+
+          const results5m  = countSinceByUniqueId(resultsFile,  since5m);
+          const receipts5m = countSinceByUniqueId(receiptsFile, since5m);
+          const results15m  = countSinceByUniqueId(resultsFile,  since15m);
+          const receipts15m = countSinceByUniqueId(receiptsFile, since15m);
+
+          const gap5m = receipts5m - results5m;
+          const gap15m = receipts15m - results15m;
+
+          const ok5m = Math.abs(gap5m) <= 1 ? 1 : 0;
+          const ok15m = Math.abs(gap15m) <= 2 ? 1 : 0;
+
+          const lines = [
+            "# HELP void_agent_results_unique_5m unique result ids seen in last 5m",
+            "# TYPE void_agent_results_unique_5m gauge",
+            `void_agent_results_unique_5m ${results5m}`,
+
+            "# HELP void_agent_receipts_unique_5m unique receipt ids seen in last 5m",
+            "# TYPE void_agent_receipts_unique_5m gauge",
+            `void_agent_receipts_unique_5m ${receipts5m}`,
+
+            "# HELP void_agent_receipts_results_gap_5m receipts_unique_5m - results_unique_5m",
+            "# TYPE void_agent_receipts_results_gap_5m gauge",
+            `void_agent_receipts_results_gap_5m ${gap5m}`,
+
+            "# HELP void_agent_consistency_ok_5m 1 if |gap_5m| <= 1",
+            "# TYPE void_agent_consistency_ok_5m gauge",
+            `void_agent_consistency_ok_5m ${ok5m}`,
+
+            "# HELP void_agent_results_unique_15m unique result ids seen in last 15m",
+            "# TYPE void_agent_results_unique_15m gauge",
+            `void_agent_results_unique_15m ${results15m}`,
+
+            "# HELP void_agent_receipts_unique_15m unique receipt ids seen in last 15m",
+            "# TYPE void_agent_receipts_unique_15m gauge",
+            `void_agent_receipts_unique_15m ${receipts15m}`,
+
+            "# HELP void_agent_receipts_results_gap_15m receipts_unique_15m - results_unique_15m",
+            "# TYPE void_agent_receipts_results_gap_15m gauge",
+            `void_agent_receipts_results_gap_15m ${gap15m}`,
+
+            "# HELP void_agent_consistency_ok_15m 1 if |gap_15m| <= 2",
+            "# TYPE void_agent_consistency_ok_15m gauge",
+            `void_agent_consistency_ok_15m ${ok15m}`
+          ];
+
+          res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+          res.status(200).send(lines.join("\n") + "\n");
+        }catch(e:any){
+          res.set("Content-Type", "text/plain; charset=utf-8");
+          res.status(200).send("# error " + String(e?.message || "internal") + "\n");
+        }
+      });
+
+      console.log("[agent] consistency guard mounted at /__void/metrics/agent_consistency.prom");
+    }
+    mount();
+  }catch{}
+})();
+// -------------- [/ADD] Agent v0: consistency guard exporter v1 ----------------
+
