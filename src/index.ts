@@ -33658,3 +33658,717 @@ try {
     mount();
   }catch{}
 })();
+
+
+// ---------------- [ADD] Agent v0: pillar exporter (prom) v3 (post-epoch gauges, new path) ----------------
+(function AgentV0PillarPromV3PostEpoch(){
+  try{
+    const TICK=400;
+    function mount(){
+      const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+      if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+      if ((app as any).__void_agent_pillar3_postepoch_v1__) return;
+      (app as any).__void_agent_pillar3_postepoch_v1__ = true;
+
+      const fs = require("node:fs");
+      const path = require("node:path");
+
+      const LEASE_MS = Math.max(1000, Number(process.env.VOID_AGENT_LEASE_MS || 30000));
+      const SCAN_MAX = Math.max(100, Number(process.env.VOID_AGENT_PICK2_SCAN_MAX || 5000));
+      const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
+
+      function nowMs(){ return Date.now(); }
+
+      function readLines(file:string, maxLines:number){
+        try{
+          if (!fs.existsSync(file)) return [];
+          const txt = String(fs.readFileSync(file,"utf8")||"");
+          if (!txt) return [];
+          const lines = txt.split("\n").filter((l:string)=>l.trim().length>0);
+          if (lines.length <= maxLines) return lines;
+          return lines.slice(-maxLines);
+        }catch{ return []; }
+      }
+
+      function readEpochMs(agentDir:string){
+        try{
+          const f = path.join(agentDir, "epoch.txt");
+          if (!fs.existsSync(f)) return 0;
+          const raw = String(fs.readFileSync(f,"utf8")||"").trim();
+          const sec = Number(raw);
+          if (!Number.isFinite(sec) || sec<=0) return 0;
+          return Math.floor(sec*1000);
+        }catch{ return 0; }
+      }
+
+      function countUniqueIds(file:string, maxLines:number){
+        const seen = new Set<string>();
+        for (const l of readLines(file, maxLines)){
+          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch{}
+        }
+        return seen.size;
+      }
+
+      function countUniqueIdsPostEpoch(file:string, maxLines:number, epochMs:number){
+        const seen = new Set<string>();
+        for (const l of readLines(file, maxLines)){
+          try{
+            const x=JSON.parse(l);
+            const id=String(x.id||"");
+            if (!id) return;
+            const ts=Number(x.ts||0);
+            if (epochMs>0 && ts>0 && ts < epochMs) return;
+            seen.add(id);
+          }catch{}
+        }
+        return seen.size;
+      }
+
+      function leasesActive(file:string, leaseMs:number, maxLines:number){
+        const cutoff = nowMs() - leaseMs;
+        let n=0;
+        for (const l of readLines(file, maxLines)){
+          try{
+            const x=JSON.parse(l);
+            const ts=Number(x.ts||0);
+            const id=String(x.id||"");
+            if (id && ts>=cutoff) n++;
+          }catch{}
+        }
+        return n;
+      }
+
+      app.get("/__void/metrics/agent_pillar3.prom", (_req:any, res:any)=>{
+        try{
+          const root = String(process.env.AGENT_DIR || process.env.VOID_AGENT_DIR || process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+          const agentDir = path.join(root, "agent");
+          const FILE_JOBS     = path.join(agentDir, "jobs.jsonl");
+          const FILE_RESULTS  = path.join(agentDir, "results.jsonl");
+          const FILE_RECEIPTS = path.join(agentDir, "receipts.jsonl");
+          const FILE_LEASES   = path.join(agentDir, "leases.jsonl");
+
+          const epochMs = readEpochMs(agentDir);
+
+          const jobs_u = countUniqueIds(FILE_JOBS, SCAN_MAX);
+          const res_u  = countUniqueIds(FILE_RESULTS, SCAN_MAX);
+          const rec_u  = countUniqueIds(FILE_RECEIPTS, SCAN_MAX);
+          const pending = Math.max(0, jobs_u - res_u);
+          const active  = leasesActive(FILE_LEASES, LEASE_MS, SCAN_MAX);
+
+          const jobs_post = countUniqueIdsPostEpoch(FILE_JOBS, SCAN_MAX, epochMs);
+          const res_post  = countUniqueIdsPostEpoch(FILE_RESULTS, SCAN_MAX, epochMs);
+          const pending_post = Math.max(0, jobs_post - res_post);
+
+          const fifoV2 = ((app as any).__agent_v0_pick2_fifo_v2__ ? 1 : 0);
+
+          const lines = [
+            "# HELP void_agent_auth_configured whether server has agent token configured",
+            "# TYPE void_agent_auth_configured gauge",
+            `void_agent_auth_configured ${AGENT_TOKEN?1:0}`,
+
+            "# HELP void_agent_jobs_total unique job ids observed in jobs.jsonl (bounded)",
+            "# TYPE void_agent_jobs_total gauge",
+            `void_agent_jobs_total ${jobs_u}`,
+
+            "# HELP void_agent_results_total unique job ids observed in results.jsonl (bounded)",
+            "# TYPE void_agent_results_total gauge",
+            `void_agent_results_total ${res_u}`,
+
+            "# HELP void_agent_receipts_total unique job ids observed in receipts.jsonl (bounded)",
+            "# TYPE void_agent_receipts_total gauge",
+            `void_agent_receipts_total ${rec_u}`,
+
+            "# HELP void_agent_queue_pending jobs_total - results_total (unique, bounded)",
+            "# TYPE void_agent_queue_pending gauge",
+            `void_agent_queue_pending ${pending}`,
+
+            "# HELP void_agent_leases_active leases within lease window (bounded, not deduped)",
+            "# TYPE void_agent_leases_active gauge",
+            `void_agent_leases_active ${active}`,
+
+            "# HELP void_agent_pick2_fifo_v2 whether fifo v2 pick2 override is installed",
+            "# TYPE void_agent_pick2_fifo_v2 gauge",
+            `void_agent_pick2_fifo_v2 ${fifoV2}`,
+
+            "# HELP void_agent_epoch_ms epoch cutoff for post-epoch gauges (0 means disabled)",
+            "# TYPE void_agent_epoch_ms gauge",
+            `void_agent_epoch_ms ${epochMs}`,
+
+            "# HELP void_agent_jobs_post_epoch_total unique job ids with ts>=epoch_ms (bounded)",
+            "# TYPE void_agent_jobs_post_epoch_total gauge",
+            `void_agent_jobs_post_epoch_total ${jobs_post}`,
+
+            "# HELP void_agent_results_post_epoch_total unique result ids with ts>=epoch_ms (bounded)",
+            "# TYPE void_agent_results_post_epoch_total gauge",
+            `void_agent_results_post_epoch_total ${res_post}`,
+
+            "# HELP void_agent_queue_pending_post_epoch max(0, jobs_post_epoch - results_post_epoch)",
+            "# TYPE void_agent_queue_pending_post_epoch gauge",
+            `void_agent_queue_pending_post_epoch ${pending_post}`,
+
+            "# HELP void_agent_lease_ms configured lease duration",
+            "# TYPE void_agent_lease_ms gauge",
+            `void_agent_lease_ms ${LEASE_MS}`,
+
+            "# HELP void_agent_scan_max configured scan cap",
+            "# TYPE void_agent_scan_max gauge",
+            `void_agent_scan_max ${SCAN_MAX}`
+          ];
+
+          res.type("text/plain").send(lines.join("\n") + "\n");
+        }catch(e:any){
+          res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
+        }
+      });
+
+      console.log("[agent] pillar exporter v3 mounted at /__void/metrics/agent_pillar3.prom");
+    }
+    mount();
+  }catch{}
+})();
+// -------------- [/ADD] Agent v0: pillar exporter (prom) v3 ----------------
+
+
+
+// ---------------- [ADD] Agent v0: pillar exporter v3 post-epoch FIX (v1, last-wins same path) ----------------
+(function AgentV0PillarPromV3PostEpochFixV1(){
+  try{
+    const TICK=400;
+    function mount(){
+      const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+      if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+      if ((app as any).__void_agent_pillar3_postepoch_fix_v1__) return;
+      (app as any).__void_agent_pillar3_postepoch_fix_v1__ = true;
+
+      const fs = require("node:fs");
+      const path = require("node:path");
+
+      const LEASE_MS = Math.max(1000, Number(process.env.VOID_AGENT_LEASE_MS || 30000));
+      const SCAN_MAX = Math.max(100, Number(process.env.VOID_AGENT_PICK2_SCAN_MAX || 5000));
+      const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
+
+      function nowMs(){ return Date.now(); }
+
+      function readLines(file:string, maxLines:number){
+        try{
+          if (!fs.existsSync(file)) return [];
+          const txt = String(fs.readFileSync(file,"utf8")||"");
+          if (!txt) return [];
+          const lines = txt.split("\n").filter((l:string)=>l.trim().length>0);
+          if (lines.length <= maxLines) return lines;
+          return lines.slice(-maxLines);
+        }catch{ return []; }
+      }
+
+      function readEpochMs(agentDir:string){
+        try{
+          const f = path.join(agentDir, "epoch.txt");
+          if (!fs.existsSync(f)) return 0;
+          const raw = String(fs.readFileSync(f,"utf8")||"").trim();
+          const sec = Number(raw);
+          if (!Number.isFinite(sec) || sec<=0) return 0;
+          return Math.floor(sec*1000);
+        }catch{ return 0; }
+      }
+
+      function countUniqueIds(file:string, maxLines:number){
+        const seen = new Set<string>();
+        for (const l of readLines(file, maxLines)){
+          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch{}
+        }
+        return seen.size;
+      }
+
+      function countUniqueIdsPostEpoch(file:string, maxLines:number, epochMs:number){
+        const seen = new Set<string>();
+        for (const l of readLines(file, maxLines)){
+          try{
+            const x=JSON.parse(l);
+            const id=String(x.id||"");
+            if (!id) continue; // FIX: do NOT return
+            const ts=Number(x.ts||0);
+            // Drop strictly pre-epoch if both epoch and ts are present
+            if (epochMs>0 && ts>0 && ts < epochMs) continue;
+            seen.add(id);
+          }catch{}
+        }
+        return seen.size;
+      }
+
+      function leasesActive(file:string, leaseMs:number, maxLines:number){
+        const cutoff = nowMs() - leaseMs;
+        let n=0;
+        for (const l of readLines(file, maxLines)){
+          try{
+            const x=JSON.parse(l);
+            const ts=Number(x.ts||0);
+            const id=String(x.id||"");
+            if (id && ts>=cutoff) n++;
+          }catch{}
+        }
+        return n;
+      }
+
+      // Re-register SAME path; later registration wins in Express
+      app.get("/__void/metrics/agent_pillar3.prom", (_req:any, res:any)=>{
+        try{
+          const root = String(process.env.AGENT_DIR || process.env.VOID_AGENT_DIR || process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+          const agentDir = path.join(root, "agent");
+          const FILE_JOBS     = path.join(agentDir, "jobs.jsonl");
+          const FILE_RESULTS  = path.join(agentDir, "results.jsonl");
+          const FILE_RECEIPTS = path.join(agentDir, "receipts.jsonl");
+          const FILE_LEASES   = path.join(agentDir, "leases.jsonl");
+
+          const epochMs = readEpochMs(agentDir);
+
+          const jobs_u = countUniqueIds(FILE_JOBS, SCAN_MAX);
+          const res_u  = countUniqueIds(FILE_RESULTS, SCAN_MAX);
+          const rec_u  = countUniqueIds(FILE_RECEIPTS, SCAN_MAX);
+          const pending = Math.max(0, jobs_u - res_u);
+          const active  = leasesActive(FILE_LEASES, LEASE_MS, SCAN_MAX);
+
+          const jobs_post = countUniqueIdsPostEpoch(FILE_JOBS, SCAN_MAX, epochMs);
+          const res_post  = countUniqueIdsPostEpoch(FILE_RESULTS, SCAN_MAX, epochMs);
+          const pending_post = Math.max(0, jobs_post - res_post);
+
+          const fifoV2 = ((app as any).__agent_v0_pick2_fifo_v2__ ? 1 : 0);
+
+          const lines = [
+            "# HELP void_agent_auth_configured whether server has agent token configured",
+            "# TYPE void_agent_auth_configured gauge",
+            `void_agent_auth_configured ${AGENT_TOKEN?1:0}`,
+
+            "# HELP void_agent_jobs_total unique job ids observed in jobs.jsonl (bounded)",
+            "# TYPE void_agent_jobs_total gauge",
+            `void_agent_jobs_total ${jobs_u}`,
+
+            "# HELP void_agent_results_total unique job ids observed in results.jsonl (bounded)",
+            "# TYPE void_agent_results_total gauge",
+            `void_agent_results_total ${res_u}`,
+
+            "# HELP void_agent_receipts_total unique job ids observed in receipts.jsonl (bounded)",
+            "# TYPE void_agent_receipts_total gauge",
+            `void_agent_receipts_total ${rec_u}`,
+
+            "# HELP void_agent_queue_pending jobs_total - results_total (unique, bounded)",
+            "# TYPE void_agent_queue_pending gauge",
+            `void_agent_queue_pending ${pending}`,
+
+            "# HELP void_agent_leases_active leases within lease window (bounded, not deduped)",
+            "# TYPE void_agent_leases_active gauge",
+            `void_agent_leases_active ${active}`,
+
+            "# HELP void_agent_pick2_fifo_v2 whether fifo v2 pick2 override is installed",
+            "# TYPE void_agent_pick2_fifo_v2 gauge",
+            `void_agent_pick2_fifo_v2 ${fifoV2}`,
+
+            "# HELP void_agent_epoch_ms epoch cutoff for post-epoch gauges (0 means disabled)",
+            "# TYPE void_agent_epoch_ms gauge",
+            `void_agent_epoch_ms ${epochMs}`,
+
+            "# HELP void_agent_jobs_post_epoch_total unique job ids with ts>=epoch_ms (bounded)",
+            "# TYPE void_agent_jobs_post_epoch_total gauge",
+            `void_agent_jobs_post_epoch_total ${jobs_post}`,
+
+            "# HELP void_agent_results_post_epoch_total unique result ids with ts>=epoch_ms (bounded)",
+            "# TYPE void_agent_results_post_epoch_total gauge",
+            `void_agent_results_post_epoch_total ${res_post}`,
+
+            "# HELP void_agent_queue_pending_post_epoch max(0, jobs_post_epoch - results_post_epoch)",
+            "# TYPE void_agent_queue_pending_post_epoch gauge",
+            `void_agent_queue_pending_post_epoch ${pending_post}`,
+
+            "# HELP void_agent_lease_ms configured lease duration",
+            "# TYPE void_agent_lease_ms gauge",
+            `void_agent_lease_ms ${LEASE_MS}`,
+
+            "# HELP void_agent_scan_max configured scan cap",
+            "# TYPE void_agent_scan_max gauge",
+            `void_agent_scan_max ${SCAN_MAX}`
+          ];
+
+          res.type("text/plain").send(lines.join("\\n") + "\\n");
+        }catch(e:any){
+          res.type("text/plain").send(`# error ${e?.message||"internal"}\\n`);
+        }
+      });
+
+      console.log("[agent] pillar exporter v3 FIX mounted (same path /__void/metrics/agent_pillar3.prom)");
+    }
+    mount();
+  }catch{}
+})();
+// -------------- [/ADD] Agent v0: pillar exporter v3 post-epoch FIX (v1) ----------------
+
+
+
+// ---------------- [ADD] Agent v0: prune + reinstall agent_pillar3.prom (v1, guaranteed) ----------------
+(function AgentV0Pillar3PruneReinstallV1(){
+  try{
+    const TICK=400;
+    function mount(){
+      const g:any = globalThis as any;
+      const app:any = g.__void_http_app || g.app;
+      if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+      if ((app as any).__void_agent_pillar3_prune_reinstall_v1__) return;
+      (app as any).__void_agent_pillar3_prune_reinstall_v1__ = true;
+
+      const fs = require("node:fs");
+      const path = require("node:path");
+
+      const LEASE_MS = Math.max(1000, Number(process.env.VOID_AGENT_LEASE_MS || 30000));
+      const SCAN_MAX = Math.max(100, Number(process.env.VOID_AGENT_PICK2_SCAN_MAX || 5000));
+      const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
+
+      function nowMs(){ return Date.now(); }
+
+      function readLines(file:string, maxLines:number){
+        try{
+          if (!fs.existsSync(file)) return [];
+          const txt = String(fs.readFileSync(file,"utf8")||"");
+          if (!txt) return [];
+          const lines = txt.split("\n").filter((l:string)=>l.trim().length>0);
+          if (lines.length <= maxLines) return lines;
+          return lines.slice(-maxLines);
+        }catch{ return []; }
+      }
+
+      function readEpochMs(agentDir:string){
+        try{
+          const f = path.join(agentDir, "epoch.txt");
+          if (!fs.existsSync(f)) return 0;
+          const raw = String(fs.readFileSync(f,"utf8")||"").trim();
+          const sec = Number(raw);
+          if (!Number.isFinite(sec) || sec<=0) return 0;
+          return Math.floor(sec*1000);
+        }catch{ return 0; }
+      }
+
+      function countUniqueIds(file:string, maxLines:number){
+        const seen = new Set<string>();
+        for (const l of readLines(file, maxLines)){
+          try{ const x=JSON.parse(l); const id=String(x.id||""); if (id) seen.add(id); }catch{}
+        }
+        return seen.size;
+      }
+
+      function countUniqueIdsPostEpoch(file:string, maxLines:number, epochMs:number){
+        const seen = new Set<string>();
+        for (const l of readLines(file, maxLines)){
+          try{
+            const x=JSON.parse(l);
+            const id=String(x.id||"");
+            if (!id) continue; // CRITICAL: continue, never return
+            const ts=Number(x.ts||0);
+            if (epochMs>0 && ts>0 && ts < epochMs) continue;
+            seen.add(id);
+          }catch{}
+        }
+        return seen.size;
+      }
+
+      function leasesActive(file:string, leaseMs:number, maxLines:number){
+        const cutoff = nowMs() - leaseMs;
+        let n=0;
+        for (const l of readLines(file, maxLines)){
+          try{
+            const x=JSON.parse(l);
+            const ts=Number(x.ts||0);
+            const id=String(x.id||"");
+            if (id && ts>=cutoff) n++;
+          }catch{}
+        }
+        return n;
+      }
+
+      // ---- PRUNE any existing GET route(s) for this path ----
+      try{
+        const r = (app as any)._router;
+        const stack = r && Array.isArray(r.stack) ? r.stack : [];
+        const before = stack.length;
+        const keep:any[] = [];
+        let dropped = 0;
+
+        for (const layer of stack){
+          try{
+            const route = layer && layer.route;
+            const pth = route && route.path;
+            const m = route && route.methods;
+            const isGet = !!(m && (m.get || m.GET));
+            if (route && pth === "/__void/metrics/agent_pillar3.prom" && isGet){
+              dropped++;
+              continue;
+            }
+          }catch{}
+          keep.push(layer);
+        }
+        if (dropped && r) r.stack = keep;
+        console.log(`[agent] pruned agent_pillar3 routes: dropped=${dropped} before=${before} after=${keep.length}`);
+      }catch(e:any){
+        console.log("[agent] prune agent_pillar3 failed:", e?.message||String(e));
+      }
+
+      // ---- REINSTALL fixed handler (now it will be the first/only match) ----
+      app.get("/__void/metrics/agent_pillar3.prom", (_req:any, res:any)=>{
+        try{
+          const root = String(process.env.AGENT_DIR || process.env.VOID_AGENT_DIR || process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+          const agentDir = path.join(root, "agent");
+          const FILE_JOBS     = path.join(agentDir, "jobs.jsonl");
+          const FILE_RESULTS  = path.join(agentDir, "results.jsonl");
+          const FILE_RECEIPTS = path.join(agentDir, "receipts.jsonl");
+          const FILE_LEASES   = path.join(agentDir, "leases.jsonl");
+
+          const epochMs = readEpochMs(agentDir);
+
+          const jobs_u = countUniqueIds(FILE_JOBS, SCAN_MAX);
+          const res_u  = countUniqueIds(FILE_RESULTS, SCAN_MAX);
+          const rec_u  = countUniqueIds(FILE_RECEIPTS, SCAN_MAX);
+          const pending = Math.max(0, jobs_u - res_u);
+          const active  = leasesActive(FILE_LEASES, LEASE_MS, SCAN_MAX);
+
+          const jobs_post = countUniqueIdsPostEpoch(FILE_JOBS, SCAN_MAX, epochMs);
+          const res_post  = countUniqueIdsPostEpoch(FILE_RESULTS, SCAN_MAX, epochMs);
+          const pending_post = Math.max(0, jobs_post - res_post);
+
+          const fifoV2 = ((app as any).__agent_v0_pick2_fifo_v2__ ? 1 : 0);
+
+          const lines = [
+            "# HELP void_agent_auth_configured whether server has agent token configured",
+            "# TYPE void_agent_auth_configured gauge",
+            `void_agent_auth_configured ${AGENT_TOKEN?1:0}`,
+
+            "# HELP void_agent_jobs_total unique job ids observed in jobs.jsonl (bounded)",
+            "# TYPE void_agent_jobs_total gauge",
+            `void_agent_jobs_total ${jobs_u}`,
+
+            "# HELP void_agent_results_total unique job ids observed in results.jsonl (bounded)",
+            "# TYPE void_agent_results_total gauge",
+            `void_agent_results_total ${res_u}`,
+
+            "# HELP void_agent_receipts_total unique job ids observed in receipts.jsonl (bounded)",
+            "# TYPE void_agent_receipts_total gauge",
+            `void_agent_receipts_total ${rec_u}`,
+
+            "# HELP void_agent_queue_pending jobs_total - results_total (unique, bounded)",
+            "# TYPE void_agent_queue_pending gauge",
+            `void_agent_queue_pending ${pending}`,
+
+            "# HELP void_agent_leases_active leases within lease window (bounded, not deduped)",
+            "# TYPE void_agent_leases_active gauge",
+            `void_agent_leases_active ${active}`,
+
+            "# HELP void_agent_pick2_fifo_v2 whether fifo v2 pick2 override is installed",
+            "# TYPE void_agent_pick2_fifo_v2 gauge",
+            `void_agent_pick2_fifo_v2 ${fifoV2}`,
+
+            "# HELP void_agent_epoch_ms epoch cutoff for post-epoch gauges (0 means disabled)",
+            "# TYPE void_agent_epoch_ms gauge",
+            `void_agent_epoch_ms ${epochMs}`,
+
+            "# HELP void_agent_jobs_post_epoch_total unique job ids with ts>=epoch_ms (bounded)",
+            "# TYPE void_agent_jobs_post_epoch_total gauge",
+            `void_agent_jobs_post_epoch_total ${jobs_post}`,
+
+            "# HELP void_agent_results_post_epoch_total unique result ids with ts>=epoch_ms (bounded)",
+            "# TYPE void_agent_results_post_epoch_total gauge",
+            `void_agent_results_post_epoch_total ${res_post}`,
+
+            "# HELP void_agent_queue_pending_post_epoch max(0, jobs_post_epoch - results_post_epoch)",
+            "# TYPE void_agent_queue_pending_post_epoch gauge",
+            `void_agent_queue_pending_post_epoch ${pending_post}`,
+
+            "# HELP void_agent_lease_ms configured lease duration",
+            "# TYPE void_agent_lease_ms gauge",
+            `void_agent_lease_ms ${LEASE_MS}`,
+
+            "# HELP void_agent_scan_max configured scan cap",
+            "# TYPE void_agent_scan_max gauge",
+            `void_agent_scan_max ${SCAN_MAX}`
+          ];
+
+          res.type("text/plain").send(lines.join("\\n") + "\\n");
+        }catch(e:any){
+          res.type("text/plain").send(`# error ${e?.message||"internal"}\\n`);
+        }
+      });
+
+      console.log("[agent] agent_pillar3.prom reinstalled (fixed post-epoch counters)");
+    }
+    mount();
+  }catch{}
+})();
+// -------------- [/ADD] Agent v0: prune + reinstall agent_pillar3.prom (v1) ----------------
+
+
+
+// ---------------- [ADD] Agent v0: pillar exporter (prom) v4 REALNL fresh path ----------------
+(function AgentV0PillarPromV4RealNL(){
+  try{
+    const TICK=400;
+    function mount(){
+      const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
+      if (!app || typeof app.get!=="function") return setTimeout(mount, TICK);
+      if ((app as any).__void_agent_pillar4_realnl_v1__) return;
+      (app as any).__void_agent_pillar4_realnl_v1__ = true;
+
+      const fs = require("node:fs");
+      const path = require("node:path");
+
+      const LEASE_MS = Math.max(1000, Number(process.env.VOID_AGENT_LEASE_MS || 30000));
+      const SCAN_MAX = Math.max(100, Number(process.env.VOID_AGENT_PICK2_SCAN_MAX || 5000));
+      const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
+
+      function nowMs(){ return Date.now(); }
+
+      function readLines(file:string, maxLines:number){
+        try{
+          if (!fs.existsSync(file)) return [];
+          const txt = String(fs.readFileSync(file, "utf8") || "");
+          if (!txt) return [];
+          const lines = txt.split(/\r?\n/).filter((l:string)=>l.trim().length>0);
+          if (lines.length <= maxLines) return lines;
+          return lines.slice(-maxLines);
+        }catch{ return []; }
+      }
+
+      function countUniqueIds(file:string, maxLines:number){
+        const seen = new Set<string>();
+        for (const l of readLines(file, maxLines)){
+          try{
+            const x:any = JSON.parse(l);
+            const id = String(x?.id || "");
+            if (id) seen.add(id);
+          }catch{}
+        }
+        return seen.size;
+      }
+
+      function leasesActive(file:string, leaseMs:number, maxLines:number){
+        const cutoff = nowMs() - leaseMs;
+        let n = 0;
+        for (const l of readLines(file, maxLines)){
+          try{
+            const x:any = JSON.parse(l);
+            const ts = Number(x?.ts || 0);
+            const id = String(x?.id || "");
+            if (id && Number.isFinite(ts) && ts >= cutoff) n++;
+          }catch{}
+        }
+        return n;
+      }
+
+      function readEpochMs(agentDir:string){
+        try{
+          const f = path.join(agentDir, "epoch.txt");
+          if (!fs.existsSync(f)) return 0;
+          const raw = String(fs.readFileSync(f, "utf8") || "").trim();
+          const sec = Number(raw);
+          if (!Number.isFinite(sec) || sec <= 0) return 0;
+          return Math.floor(sec * 1000);
+        }catch{ return 0; }
+      }
+
+      function countUniqueIdsPostEpoch(file:string, maxLines:number, epochMs:number){
+        const seen = new Set<string>();
+        for (const l of readLines(file, maxLines)){
+          try{
+            const x:any = JSON.parse(l);
+            const id = String(x?.id || "");
+            const ts = Number(x?.ts || 0);
+            if (!id) continue;
+            if (epochMs > 0 && Number.isFinite(ts) && ts >= epochMs) seen.add(id);
+          }catch{}
+        }
+        return seen.size;
+      }
+
+      app.get("/__void/metrics/agent_pillar4.prom", (_req:any, res:any)=>{
+        try{
+          const root = String(process.env.AGENT_DIR || process.env.VOID_AGENT_DIR || process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+          const AGENT_DIR = path.join(root, "agent");
+          const FILE_JOBS     = path.join(AGENT_DIR, "jobs.jsonl");
+          const FILE_RESULTS  = path.join(AGENT_DIR, "results.jsonl");
+          const FILE_RECEIPTS = path.join(AGENT_DIR, "receipts.jsonl");
+          const FILE_LEASES   = path.join(AGENT_DIR, "leases.jsonl");
+
+          const jobs_u = countUniqueIds(FILE_JOBS, SCAN_MAX);
+          const res_u  = countUniqueIds(FILE_RESULTS, SCAN_MAX);
+          const rec_u  = countUniqueIds(FILE_RECEIPTS, SCAN_MAX);
+          const pending = Math.max(0, jobs_u - res_u);
+          const active  = leasesActive(FILE_LEASES, LEASE_MS, SCAN_MAX);
+          const fifoV2 = ((app as any).__agent_v0_pick2_fifo_v2__ ? 1 : 0);
+
+          const epochMs = readEpochMs(AGENT_DIR);
+          const jobsPost = countUniqueIdsPostEpoch(FILE_JOBS, SCAN_MAX, epochMs);
+          const resPost  = countUniqueIdsPostEpoch(FILE_RESULTS, SCAN_MAX, epochMs);
+          const pendingPost = Math.max(0, jobsPost - resPost);
+
+          const lines = [
+            "# HELP void_agent_auth_configured whether server has agent token configured",
+            "# TYPE void_agent_auth_configured gauge",
+            `void_agent_auth_configured ${AGENT_TOKEN ? 1 : 0}`,
+
+            "# HELP void_agent_jobs_total unique job ids observed in jobs.jsonl (bounded)",
+            "# TYPE void_agent_jobs_total gauge",
+            `void_agent_jobs_total ${jobs_u}`,
+
+            "# HELP void_agent_results_total unique job ids observed in results.jsonl (bounded)",
+            "# TYPE void_agent_results_total gauge",
+            `void_agent_results_total ${res_u}`,
+
+            "# HELP void_agent_receipts_total unique job ids observed in receipts.jsonl (bounded)",
+            "# TYPE void_agent_receipts_total gauge",
+            `void_agent_receipts_total ${rec_u}`,
+
+            "# HELP void_agent_queue_pending jobs_total - results_total (unique, bounded)",
+            "# TYPE void_agent_queue_pending gauge",
+            `void_agent_queue_pending ${pending}`,
+
+            "# HELP void_agent_leases_active leases within lease window (bounded, not deduped)",
+            "# TYPE void_agent_leases_active gauge",
+            `void_agent_leases_active ${active}`,
+
+            "# HELP void_agent_pick2_fifo_v2 whether fifo v2 pick2 override is installed",
+            "# TYPE void_agent_pick2_fifo_v2 gauge",
+            `void_agent_pick2_fifo_v2 ${fifoV2}`,
+
+            "# HELP void_agent_epoch_ms epoch cutoff for post-epoch gauges (0 means disabled)",
+            "# TYPE void_agent_epoch_ms gauge",
+            `void_agent_epoch_ms ${epochMs}`,
+
+            "# HELP void_agent_jobs_post_epoch_total unique job ids with ts>=epoch_ms (bounded)",
+            "# TYPE void_agent_jobs_post_epoch_total gauge",
+            `void_agent_jobs_post_epoch_total ${jobsPost}`,
+
+            "# HELP void_agent_results_post_epoch_total unique result ids with ts>=epoch_ms (bounded)",
+            "# TYPE void_agent_results_post_epoch_total gauge",
+            `void_agent_results_post_epoch_total ${resPost}`,
+
+            "# HELP void_agent_queue_pending_post_epoch max(0, jobs_post_epoch - results_post_epoch)",
+            "# TYPE void_agent_queue_pending_post_epoch gauge",
+            `void_agent_queue_pending_post_epoch ${pendingPost}`,
+
+            "# HELP void_agent_lease_ms configured lease duration",
+            "# TYPE void_agent_lease_ms gauge",
+            `void_agent_lease_ms ${LEASE_MS}`,
+
+            "# HELP void_agent_scan_max configured scan cap",
+            "# TYPE void_agent_scan_max gauge",
+            `void_agent_scan_max ${SCAN_MAX}`
+          ];
+
+          res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+          res.status(200).send(lines.join("\n") + "\n");
+        }catch(e:any){
+          res.set("Content-Type", "text/plain; charset=utf-8");
+          res.status(200).send("# error " + String(e?.message || "internal") + "\n");
+        }
+      });
+
+      console.log("[agent] pillar exporter v4 mounted at /__void/metrics/agent_pillar4.prom");
+    }
+    mount();
+  }catch{}
+})();
+// -------------- [/ADD] Agent v0: pillar exporter (prom) v4 REALNL fresh path ----------------
+
