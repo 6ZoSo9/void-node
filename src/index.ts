@@ -34644,3 +34644,350 @@ try {
   }
   mount();
 })();
+
+// --- Agent WC awards gate v2: count ANY receipts (agent:* included) -------------
+// Rationale: DataNet/agent receipts are real work; gate should reflect real activity.
+// Keeps legacy "non-agent" notion only as debug, not as the gate.
+(function agentWCAwardsGateAnyReceiptsV2(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function safeReadLines(file:string, maxLines:number){
+    const fs = require("node:fs");
+    try{
+      if (!fs.existsSync(file)) return [];
+      const s = fs.readFileSync(file, "utf8");
+      const lines = s.split("\n").filter(Boolean);
+      return lines.slice(Math.max(0, lines.length - maxLines));
+    }catch{ return []; }
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get !== "function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_wc_awards_gate_any_v2) return;
+    (app as any).__void_agent_wc_awards_gate_any_v2 = true;
+
+    app.get("/__void/metrics/agent_wc_awards.prom", (_req:any, res:any)=>{
+      try{
+        const path = require("node:path");
+        const nowMs = Date.now();
+        const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+        const agentDir = path.join(base, "agent");
+        const receiptsFile = (G.__void_agent_wc_awards && G.__void_agent_wc_awards.receiptsFile) || path.join(agentDir, "receipts.jsonl");
+
+        // Tail scan: bounded so we don’t melt the node
+        const tail = safeReadLines(receiptsFile, 5000);
+
+        // Windows
+        const w5  = 5*60*1000;
+        const w15 = 15*60*1000;
+
+        let lastTsMs = 0;
+        const seen5  = new Set<string>();
+        const seen15 = new Set<string>();
+
+        for (const line of tail){
+          let o:any; try{ o = JSON.parse(line); }catch{ continue; }
+          if (!o || !o.id) continue;
+          const ts = Number(o.ts||0);
+          if (ts > lastTsMs) lastTsMs = ts;
+
+          const age = nowMs - ts;
+          // COUNT ALL receipts (agent:* included)
+          if (age <= w5)  seen5.add(String(o.id));
+          if (age <= w15) seen15.add(String(o.id));
+        }
+
+        const last_ts_seconds = lastTsMs ? (lastTsMs/1000) : 0;
+        const age_seconds = lastTsMs ? ((nowMs - lastTsMs)/1000) : 1e12;
+
+        const uniq5  = seen5.size;
+        const uniq15 = seen15.size;
+
+        const ok5  = (uniq5  > 0 && age_seconds < 10*60) ? 1 : 0;
+        const ok15 = (uniq15 > 0 && age_seconds < 20*60) ? 1 : 0;
+
+        // Keep the running “awarded_total” best-effort monotonic if present
+        const awarded = Number((G.__void_agent_wc_awarded_total||0));
+
+        const lines = [
+          "# HELP void_agent_wc_awarded_total cumulative WC awards derived from agent receipts (best-effort monotonic)",
+          "# TYPE void_agent_wc_awarded_total gauge",
+          `void_agent_wc_awarded_total ${isFinite(awarded)?awarded:0}`,
+
+          "# HELP void_agent_wc_awards_last_ts_seconds last receipt timestamp seen (seconds)",
+          "# TYPE void_agent_wc_awards_last_ts_seconds gauge",
+          `void_agent_wc_awards_last_ts_seconds ${isFinite(last_ts_seconds)?last_ts_seconds:0}`,
+
+          "# HELP void_agent_wc_awards_age_seconds seconds since last receipt",
+          "# TYPE void_agent_wc_awards_age_seconds gauge",
+          `void_agent_wc_awards_age_seconds ${isFinite(age_seconds)?age_seconds:1e12}`,
+
+          "# HELP void_agent_wc_awards_unique_5m unique receipt ids in last 5m (tail scan)",
+          "# TYPE void_agent_wc_awards_unique_5m gauge",
+          `void_agent_wc_awards_unique_5m ${uniq5}`,
+
+          "# HELP void_agent_wc_awards_ok_5m 1 if unique_5m>0 and age<10m",
+          "# TYPE void_agent_wc_awards_ok_5m gauge",
+          `void_agent_wc_awards_ok_5m ${ok5}`,
+
+          "# HELP void_agent_wc_awards_unique_15m unique receipt ids in last 15m (tail scan)",
+          "# TYPE void_agent_wc_awards_unique_15m gauge",
+          `void_agent_wc_awards_unique_15m ${uniq15}`,
+
+          "# HELP void_agent_wc_awards_ok_15m 1 if unique_15m>0 and age<20m",
+          "# TYPE void_agent_wc_awards_ok_15m gauge",
+          `void_agent_wc_awards_ok_15m ${ok15}`
+        ];
+
+        res.type("text/plain").send(lines.join("\n") + "\n");
+      }catch(e:any){
+        res.status(500).type("text/plain").send("# ERROR agent_wc_awards exporter failed\n");
+      }
+    });
+  }
+
+  mount();
+})();
+
+// --- Agent WC awards exporter SAFE override v3 (ANY receipts; last-wins; prune legacy GETs) ---
+(function agentWCAwardsSafeOverrideAnyV3(){
+  const G:any = globalThis as any;
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function safeReadLines(file:string, maxLines:number){
+    const fs = require("node:fs");
+    try{
+      if (!fs.existsSync(file)) return [];
+      const s = fs.readFileSync(file, "utf8");
+      const lines = s.split("\n").filter(Boolean);
+      return lines.slice(Math.max(0, lines.length - maxLines));
+    }catch{ return []; }
+  }
+
+  function compute(){
+    const path = require("node:path");
+    const nowMs = Date.now();
+    const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    const agentDir = path.join(base, "agent");
+    const receiptsFile =
+      (G.__void_agent_wc_awards && G.__void_agent_wc_awards.receiptsFile) ||
+      path.join(agentDir, "receipts.jsonl");
+
+    const tail = safeReadLines(receiptsFile, 8000);
+
+    const w5  = 5*60*1000;
+    const w15 = 15*60*1000;
+
+    let lastTsMs = 0;
+    const seen5  = new Set<string>();
+    const seen15 = new Set<string>();
+
+    for (const line of tail){
+      let o:any; try{ o = JSON.parse(line); }catch{ continue; }
+      if (!o || !o.id) continue;
+      const ts = Number(o.ts||0);
+      if (ts > lastTsMs) lastTsMs = ts;
+
+      const age = nowMs - ts;
+      // count ALL receipts (including agent:*)
+      if (age <= w5)  seen5.add(String(o.id));
+      if (age <= w15) seen15.add(String(o.id));
+    }
+
+    const last_ts_seconds = lastTsMs ? (lastTsMs/1000) : 0;
+    const age_seconds = lastTsMs ? ((nowMs - lastTsMs)/1000) : 1e12;
+
+    const uniq5  = seen5.size;
+    const uniq15 = seen15.size;
+
+    const ok5  = (uniq5  > 0 && age_seconds < 10*60) ? 1 : 0;
+    const ok15 = (uniq15 > 0 && age_seconds < 20*60) ? 1 : 0;
+
+    const awarded = Number((G.__void_agent_wc_awarded_total||0));
+    return { base, agentDir, receiptsFile, awarded, last_ts_seconds, age_seconds, uniq5, ok5, uniq15, ok15 };
+  }
+
+  function handler(_req:any, res:any){
+    try{
+      const r = compute();
+      const lines = [
+        "# HELP void_agent_wc_awards_impl_version exporter implementation version (safe override any receipts)",
+        "# TYPE void_agent_wc_awards_impl_version gauge",
+        "void_agent_wc_awards_impl_version 3",
+
+        "# HELP void_agent_wc_awarded_total cumulative WC awards derived from agent receipts (best-effort monotonic)",
+        "# TYPE void_agent_wc_awarded_total gauge",
+        `void_agent_wc_awarded_total ${isFinite(r.awarded)?r.awarded:0}`,
+
+        "# HELP void_agent_wc_awards_last_ts_seconds last receipt timestamp seen (seconds)",
+        "# TYPE void_agent_wc_awards_last_ts_seconds gauge",
+        `void_agent_wc_awards_last_ts_seconds ${isFinite(r.last_ts_seconds)?r.last_ts_seconds:0}`,
+
+        "# HELP void_agent_wc_awards_age_seconds seconds since last receipt",
+        "# TYPE void_agent_wc_awards_age_seconds gauge",
+        `void_agent_wc_awards_age_seconds ${isFinite(r.age_seconds)?r.age_seconds:1e12}`,
+
+        "# HELP void_agent_wc_awards_unique_5m unique receipt ids in last 5m (tail scan; ANY receipts)",
+        "# TYPE void_agent_wc_awards_unique_5m gauge",
+        `void_agent_wc_awards_unique_5m ${r.uniq5}`,
+
+        "# HELP void_agent_wc_awards_ok_5m 1 if unique_5m>0 and age<10m",
+        "# TYPE void_agent_wc_awards_ok_5m gauge",
+        `void_agent_wc_awards_ok_5m ${r.ok5}`,
+
+        "# HELP void_agent_wc_awards_unique_15m unique receipt ids in last 15m (tail scan; ANY receipts)",
+        "# TYPE void_agent_wc_awards_unique_15m gauge",
+        `void_agent_wc_awards_unique_15m ${r.uniq15}`,
+
+        "# HELP void_agent_wc_awards_ok_15m 1 if unique_15m>0 and age<20m",
+        "# TYPE void_agent_wc_awards_ok_15m gauge",
+        `void_agent_wc_awards_ok_15m ${r.ok15}`
+      ];
+      res.type("text/plain").send(lines.join("\n") + "\n");
+    }catch(e:any){
+      res.status(500).type("text/plain").send("# ERROR agent_wc_awards exporter failed\n");
+    }
+  }
+
+  function pruneLegacyGets(app:any){
+    // keep ONLY the LAST GET handler for the path (the one we mount below)
+    const want = "/__void/metrics/agent_wc_awards.prom";
+    try{
+      const stack = app?._router?.stack;
+      if (!Array.isArray(stack)) return;
+      for (const layer of stack){
+        const r = layer && layer.route; if (!r) continue;
+        const p = r.path || r?.route?.path || "";
+        if (String(p) !== want) continue;
+        if (!Array.isArray(r.stack)) continue;
+
+        const gets = r.stack.filter((s:any)=> s && s.method==="get");
+        if (gets.length <= 1) continue;
+        const keep = gets[gets.length-1];
+        r.stack = r.stack.filter((s:any)=> !(s && s.method==="get")).concat([keep]);
+      }
+    }catch{}
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get !== "function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_wc_awards_safe_override_any_v3) return;
+    (app as any).__void_agent_wc_awards_safe_override_any_v3 = true;
+
+    const want = "/__void/metrics/agent_wc_awards.prom";
+    app.get(want, handler);
+    pruneLegacyGets(app);
+
+    // Debug: show which file we are reading
+    app.get("/__void/agent/wc_awards/which", (_req:any, res:any)=>{
+      const r = compute();
+      res.json({ ok:true, impl:3, base:r.base, agentDir:r.agentDir, receiptsFile:r.receiptsFile });
+    });
+  }
+  mount();
+})();
+
+// --- Agent WC awards v2: ANY receipts activity (new path, no router surgery) ---
+(function agentWCAwardsV2Any(){
+  const G:any = globalThis as any;
+  const fs = require("node:fs"); const path = require("node:path");
+
+  function getApp(){ return (G.__void_http_app || (G as any).app); }
+
+  function nowSec(){ return Date.now()/1000; }
+
+  // tail-scan helper (bounded, cheap)
+  function tailLines(file:string, maxLines:number){
+    try{
+      const s = fs.readFileSync(file, "utf8");
+      const lines = s.split("\n").filter(Boolean);
+      return lines.slice(Math.max(0, lines.length - maxLines));
+    }catch{ return []; }
+  }
+
+  function parseJSONLines(lines:string[]){
+    const out:any[] = [];
+    for (const l of lines){
+      try{ out.push(JSON.parse(l)); }catch{}
+    }
+    return out;
+  }
+
+  function compute(){
+    const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+    const agentDir = path.join(base, "agent");
+    const receiptsFile = path.join(agentDir, "receipts.jsonl");
+
+    const lines = parseJSONLines(tailLines(receiptsFile, 20000)); // bounded tail
+    const now = nowSec();
+
+    let lastTs = 0;
+    const ids5 = new Set<string>();
+    const ids15 = new Set<string>();
+
+    for (const r of lines){
+      const id = String(r?.id||"");
+      if (!id) continue;
+      const ts = Number(r?.ts||0)/1000;
+      if (ts>lastTs) lastTs = ts;
+      const age = now - ts;
+      if (age <= 300) ids5.add(id);
+      if (age <= 900) ids15.add(id);
+    }
+
+    const ageSec = (lastTs>0) ? (now - lastTs) : 1e12;
+    const uniq5 = ids5.size;
+    const uniq15 = ids15.size;
+
+    // For MVP: gate on ANY recent receipts (not “non-agent” only)
+    const ok5  = (uniq5  > 0 && ageSec < 600)  ? 1 : 0;
+    const ok15 = (uniq15 > 0 && ageSec < 1200) ? 1 : 0;
+
+    // simple “awarded_total”: monotonic best-effort = count distinct ids seen in tail
+    const allIds = new Set<string>();
+    for (const r of lines){ const id=String(r?.id||""); if (id) allIds.add(id); }
+    const awarded = allIds.size;
+
+    return { base, agentDir, receiptsFile, awarded, lastTs, ageSec, uniq5, ok5, uniq15, ok15 };
+  }
+
+  function mount(){
+    const app:any = getApp(); if (!app || typeof app.get !== "function") return setTimeout(mount, 400);
+    if ((app as any).__void_agent_wc_awards_v2_any) return;
+    (app as any).__void_agent_wc_awards_v2_any = true;
+
+    app.get("/__void/metrics/agent_wc_awards_v2.prom", (_req:any, res:any)=>{
+      const r = compute();
+      const lines:string[] = [];
+      lines.push("# HELP void_agent_wc_awarded_total cumulative WC awards derived from agent receipts (best-effort monotonic)");
+      lines.push("# TYPE void_agent_wc_awarded_total gauge");
+      lines.push(`void_agent_wc_awarded_total ${r.awarded}`);
+      lines.push("# HELP void_agent_wc_awards_last_ts_seconds last receipt timestamp seen (seconds)");
+      lines.push("# TYPE void_agent_wc_awards_last_ts_seconds gauge");
+      lines.push(`void_agent_wc_awards_last_ts_seconds ${r.lastTs}`);
+      lines.push("# HELP void_agent_wc_awards_age_seconds seconds since last receipt");
+      lines.push("# TYPE void_agent_wc_awards_age_seconds gauge");
+      lines.push(`void_agent_wc_awards_age_seconds ${r.ageSec}`);
+      lines.push("# HELP void_agent_wc_awards_unique_5m unique receipt ids in last 5m (tail scan)");
+      lines.push("# TYPE void_agent_wc_awards_unique_5m gauge");
+      lines.push(`void_agent_wc_awards_unique_5m ${r.uniq5}`);
+      lines.push("# HELP void_agent_wc_awards_ok_5m 1 if unique_5m>0 and age<10m");
+      lines.push("# TYPE void_agent_wc_awards_ok_5m gauge");
+      lines.push(`void_agent_wc_awards_ok_5m ${r.ok5}`);
+      lines.push("# HELP void_agent_wc_awards_unique_15m unique receipt ids in last 15m (tail scan)");
+      lines.push("# TYPE void_agent_wc_awards_unique_15m gauge");
+      lines.push(`void_agent_wc_awards_unique_15m ${r.uniq15}`);
+      lines.push("# HELP void_agent_wc_awards_ok_15m 1 if unique_15m>0 and age<20m");
+      lines.push("# TYPE void_agent_wc_awards_ok_15m gauge");
+      lines.push(`void_agent_wc_awards_ok_15m ${r.ok15}`);
+      res.type("text/plain").send(lines.join("\n")+"\n");
+    });
+
+    app.get("/__void/agent/wc_awards_v2/which", (_req:any, res:any)=>{
+      const r = compute();
+      res.json({ ok:true, impl: "v2_any", base:r.base, agentDir:r.agentDir, receiptsFile:r.receiptsFile });
+    });
+  }
+  mount();
+})();
