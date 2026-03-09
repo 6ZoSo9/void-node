@@ -220,3 +220,4 @@ void.env.bak*
 Heap*.heapsnapshot
 core
 core.*
+ops/mainnet/filled-*.txt
