@@ -20656,6 +20656,36 @@ const wal = new WALv1(getDataDir());
 
     // POST /agent/v0/job — client submits a job (no auth)
     // body: {input:any, meta?} -> {ok,id,inputHash,ts}
+    app.post("/agent/job", express.json({limit:"5mb"}), (req,res)=>{
+      try{
+        const g:any = globalThis as any;
+        const jobs = require("node:fs");
+        const crypto = require("node:crypto");
+        const path = require("node:path");
+
+        const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+        const agentDir = path.join(base, "agent");
+        jobs.mkdirSync(agentDir, { recursive: true });
+
+        const body:any = req.body || {};
+        const kind = String(body?.kind || "").trim();
+        if (!kind) return res.status(400).json({ok:false, error:"kind required"});
+
+        const input = body?.input ?? {};
+        const inputStr = JSON.stringify(input);
+        const inputHash = crypto.createHash("sha256").update(inputStr).digest("hex");
+        const id = crypto.randomBytes(12).toString("hex");
+        const ts = Date.now();
+
+        const rec = { id, kind, input, inputHash, meta: body?.meta || {}, ts, status: "queued" };
+        jobs.appendFileSync(path.join(agentDir, "jobs.jsonl"), JSON.stringify(rec) + "\n");
+
+        return res.json({ ok:true, id, inputHash, ts });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
     app.post("/agent/v0/job", express.json({limit:"5mb"}), (req,res)=>{
       try{
         const id = id24();
