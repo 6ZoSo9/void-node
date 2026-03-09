@@ -6948,10 +6948,32 @@ import type {} from "express"; // type-only safety; no runtime impact
     return await merkleRoot(leaves);
   }
 
-  async function fetchJson(url:string){
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
-    return await r.json();
+  async function fetchJson(url:string, ms=1200){
+    try{
+      const AC:any = (globalThis as any).AbortController;
+      const ctrl = AC ? new AC() : null;
+      const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch{} }, ms);
+      const r:any = await (globalThis as any).fetch(url, ctrl ? { signal: ctrl.signal } : undefined).catch(()=>null);
+      clearTimeout(t);
+      if (!r || !r.ok) return null;
+      return await r.json().catch(()=>null);
+    }catch{
+      return null;
+    }
+  }
+
+  async function fetchText(url:string, ms=1200){
+    try{
+      const AC:any = (globalThis as any).AbortController;
+      const ctrl = AC ? new AC() : null;
+      const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch{} }, ms);
+      const r:any = await (globalThis as any).fetch(url, ctrl ? { signal: ctrl.signal } : undefined).catch(()=>null);
+      clearTimeout(t);
+      if (!r || !r.ok) return null;
+      return String(await r.text().catch(()=>"" ));
+    }catch{
+      return null;
+    }
   }
 
   // Background loop: after each head bump, remove persisted txs from mempool
@@ -6960,14 +6982,18 @@ import type {} from "express"; // type-only safety; no runtime impact
     const app:any = getApp();
     if (!nd || !app) return setTimeout(gcLoop, 500);
 
-    const getHead = async ()=> Number(await (await fetch(`http://127.0.0.1:${port}/blocks/latest/number`)).text());
+    const getHead = async ()=>{
+      const t = await fetchText(`http://127.0.0.1:${port}/blocks/latest/number`, 1200);
+      const n = Number(String(t ?? "").trim());
+      return Number.isFinite(n) ? n : -1;
+    };
     let last = -1;
     while (true){
       try{
         const head = await getHead();
         if (Number.isFinite(head) && head > last){
           // pull persisted txs for this block
-          const persisted = await fetchJson(`http://127.0.0.1:${port}/dev/blocks/${head}/txs/persisted`);
+          const persisted = await fetchJson(`http://127.0.0.1:${port}/dev/blocks/${head}/txs/persisted`, 1200);
           const sealed:any[] = persisted?.txs || [];
           if (sealed.length){
             // choose mempool array reference
