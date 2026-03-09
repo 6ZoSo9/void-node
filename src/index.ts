@@ -34604,7 +34604,7 @@ try {
     app.get("/__void/metrics/agent_wc_awards.prom", (_req:any, res:any)=>{
       const r = compute();
       const lines = [
-        "# HELP void_agent_wc_awarded_total cumulative WC awards derived from agent receipts (best-effort monotonic)",
+        "# HELP void_agent_wc_awarded_total cumulative receipt-event counter derived from agent receipts (best-effort monotonic; not true WC sum)",
         "# TYPE void_agent_wc_awarded_total gauge",
         `void_agent_wc_awarded_total ${r.awarded_total}`,
 
@@ -34737,7 +34737,7 @@ try {
         const awarded = Number((G.__void_agent_wc_awarded_total||0));
 
         const lines = [
-          "# HELP void_agent_wc_awarded_total cumulative WC awards derived from agent receipts (best-effort monotonic)",
+          "# HELP void_agent_wc_awarded_total cumulative receipt-event counter derived from agent receipts (best-effort monotonic; not true WC sum)",
           "# TYPE void_agent_wc_awarded_total gauge",
           `void_agent_wc_awarded_total ${isFinite(awarded)?awarded:0}`,
 
@@ -34842,7 +34842,7 @@ try {
         "# TYPE void_agent_wc_awards_impl_version gauge",
         "void_agent_wc_awards_impl_version 3",
 
-        "# HELP void_agent_wc_awarded_total cumulative WC awards derived from agent receipts (best-effort monotonic)",
+        "# HELP void_agent_wc_awarded_total cumulative receipt-event counter derived from agent receipts (best-effort monotonic; not true WC sum)",
         "# TYPE void_agent_wc_awarded_total gauge",
         `void_agent_wc_awarded_total ${isFinite(r.awarded)?r.awarded:0}`,
 
@@ -34996,7 +34996,7 @@ try {
     app.get("/__void/metrics/agent_wc_awards_v2.prom", (_req:any, res:any)=>{
       const r = compute();
       const lines:string[] = [];
-      lines.push("# HELP void_agent_wc_awarded_total cumulative WC awards derived from agent receipts (best-effort monotonic)");
+      lines.push("# HELP void_agent_wc_awarded_total cumulative receipt-event counter derived from agent receipts (best-effort monotonic; not true WC sum)");
       lines.push("# TYPE void_agent_wc_awarded_total gauge");
       lines.push(`void_agent_wc_awarded_total ${r.awarded}`);
       lines.push("# HELP void_agent_wc_awards_last_ts_seconds last receipt timestamp seen (seconds)");
