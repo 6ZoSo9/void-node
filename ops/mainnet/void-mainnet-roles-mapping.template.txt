@@ -1,0 +1,18 @@
+# VOID mainnet roles mapping template
+# Fill with fresh mainnet values only. No devnet reuse.
+
+deployer=TBD
+treasuryAdmin=TBD
+opsTreasuryAdmin=TBD
+validatorAdmin=TBD
+adminGateOwner=TBD
+updateGateOwner=TBD
+configGateOwner=TBD
+treasuryOwner=TBD
+opsTreasuryOwner=TBD
+rewardEngineOwner=TBD
+validatorSetOwner=TBD
+
+validator0.reward=TBD
+validator0.consensusKey=TBD
+validator0.stakeVOID=TBD
