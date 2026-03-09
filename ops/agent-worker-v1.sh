@@ -3,63 +3,48 @@ set -euo pipefail
 set +H; set +o histexpand || true
 
 ROOT="${ROOT:-$HOME/dev/void-node}"
-TOKF="${TOKF:-$ROOT/.secrets/agent.token}"
 BASE="${BASE:-http://127.0.0.1:4100}"
+TOKF="${TOKF:-$ROOT/.secrets/agent.token}"
 WORKER="${WORKER:-local-worker-v1}"
-SLEEP_MS="${SLEEP_MS:-2000}"
+SLEEP_MS="${SLEEP_MS:-1500}"
 
-tok="$(cat "$TOKF" 2>/dev/null || true)"
-if [ -z "${tok:-}" ]; then
-  echo "[FAIL] empty token in $TOKF" >&2
-  exit 2
-fi
-H="x-agent-token: $tok"
+[ -s "$TOKF" ] || { echo "[FAIL] missing token file: $TOKF" >&2; exit 1; }
+H="authorization: Bearer $(cat "$TOKF")"
 
-msleep(){ python3 - <<PY
-import time
-time.sleep(${SLEEP_MS}/1000.0)
-PY
+sleep_ms(){ python3 -c "import time; time.sleep(float(\"$1\")/1000.0)"; }
+
+# POST JSON; return 0 iff HTTP 2xx (swallow stdout/stderr; this worker is quiet)
+post_json_ok(){
+  local path="$1"
+  local body="$2"
+  local out code
+  out="$(mktemp -t agentw.out.XXXXXX)"
+  code="$(curl -sS --max-time 6 -o "$out" -w "%{http_code}" \
+    -X POST "$BASE$path" -H "$H" -H "content-type: application/json" -d "$body" || true)"
+  rm -f "$out" 2>/dev/null || true
+  [[ "$code" =~ ^2 ]]
 }
 
-post(){ local p="$1" body="$2"
-  curl -fsS --max-time 3 -X POST "$BASE$p" -H "$H" -H "content-type: application/json" -d "$body"
-}
-
-# one iteration: pick2 -> run -> result -> receipt
-step(){
-  pick="1000 4 24 27 30 46 100 114 125 992 1000 1001post /agent/v0/pick2 "{\"worker\":\"\"}" 2>/dev/null)" || { backoff; return 0; }
-  ok="$(printf "%s" "$pick" | jq -r ".ok // false")"
-  [ "$ok" = "true" ] || return 0
-
-  jid="$(printf "%s" "$pick" | jq -r ".job.id // empty")"
-  [ -n "$jid" ] || return 0
-
-  kind="$(printf "%s" "$pick" | jq -r ".job.kind // empty")"
-  input="$(printf "%s" "$pick" | jq -c ".job.input // {}")"
-
-  # minimal built-ins
-  out="{}"
-  if [ "$kind" = "echo" ]; then
-    msg="$(printf "%s" "$input" | jq -r ".msg // \"\"")"
-    out="$(jq -cn --arg msg "$msg" --arg worker "$WORKER" --arg ts "$(date -Is)" "{msg:\$msg, worker:\$worker, ts:\$ts}")"
-  elif [ "$kind" = "noop" ] || [ -z "$kind" ]; then
-    out="$(jq -cn --arg worker "$WORKER" --arg ts "$(date -Is)" "{ok:true, worker:\$worker, ts:\$ts}")"
-  else
-    # unknown job kind: mark failed (so it doesn’t jam the queue)
-    curl -fsS --max-time 3 -X POST "$BASE/agent/v0/fail/$jid" -H "$H" -H "content-type: application/json" \
-      -d "$(jq -cn --arg e "unsupported kind: $kind" "{error:\$e}")" >/dev/null 2>&1 || true
-    return 0
-  fi
-
-  # post result (NOTE: no bash expansion inside jq program)
-  body_result="$(jq -cn --argjson outj "$out" "{ok:true, output:\$outj}")"
-  post "/agent/v0/result/$jid" "$body_result" >/dev/null 2>&1 || true
-
-  # receipt is now canonicalized server-side by POST /agent/v0/result/:id
-  # do NOT post a second explicit /agent/v0/receipt here, or receipts.jsonl duplicates per job.
-}
+echo "[ok] worker start: BASE=$BASE WORKER=$WORKER SLEEP_MS=$SLEEP_MS"
 
 while true; do
-  step || true
-  msleep
+  pick="$(curl -fsS --max-time 5 -X POST "$BASE/agent/v0/pick2" -H "$H" -H "content-type: application/json" \
+    -d "{\"worker\":\"$WORKER\"}" 2>/dev/null || true)"
+
+  ok="$(printf "%s" "$pick" | jq -er "if type==\"object\" then (.ok // false) else false end" 2>/dev/null || echo false)"
+  jid="$(printf "%s" "$pick" | jq -er "if type==\"object\" then (.job.id // \"\") else \"\" end" 2>/dev/null || echo "")"
+  msg="$(printf "%s" "$pick" | jq -er "if type==\"object\" then (.job.input.msg // \"\") else \"\" end" 2>/dev/null || echo "")"
+
+  if [ "$ok" != "true" ] || [ -z "$jid" ]; then
+    sleep_ms "$SLEEP_MS"
+    continue
+  fi
+
+  body_result="$(jq -cn --arg m "$msg" --arg w "$WORKER" --arg ts "$(date -Is)" \
+    "{ok:true, output:{ok:true, kind:\"echo\", msg:\$m, worker:\$w, ts:\$ts}}")"
+
+  # IMPORTANT: only hit /result/:id once; do NOT call /done, /fail, or /receipt
+  post_json_ok "/agent/v0/result/$jid" "$body_result" >/dev/null 2>&1 || true
+
+  sleep_ms "$SLEEP_MS"
 done
