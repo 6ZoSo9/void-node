@@ -20781,21 +20781,43 @@ const wal = new WALv1(getDataDir());
             receiptAgeSec = null;
           }
 
+          async function promInstant(expr:string){
+            try{
+              const u = `http://127.0.0.1:9090/api/v1/query?query=${encodeURIComponent(expr)}`;
+              const r = await fetch(u);
+              if (!r.ok) return 0;
+              const j = await r.json();
+              const v = j?.data?.result?.[0]?.value?.[1];
+              const n = Number(v);
+              return Number.isFinite(n) ? n : 0;
+            }catch{ return 0; }
+          }
+
+          const gateAgentAdvance30m = await promInstant("void:agent_wc_awards:adv_30m:last");
+          const gateDatanetPersistOk = await promInstant("void:datanet_receipts:persist:ok:last_5m");
+          const gateAiPillarOk = await promInstant("void:mainnet_ai_pillar_ok:last_5m");
+
           res.json({
             ok: true,
             health: !!health?.ok,
-            node: health || null,
+            node: {
+              ok: !!health?.ok,
+              nodeId: health?.nodeId || null,
+              http: health?.http || null,
+              p2p: health?.p2p || null
+            },
             agent: {
-              jobs,
-              results,
-              receipts,
-              queuePending,
-              lastReceiptAgeSec: receiptAgeSec
+              queuePending
             },
             wc: {
               awardedTotal: promNum("void_agent_wc_awarded_total", wcText),
               unique5m: promNum("void_agent_wc_awards_unique_5m", wcText),
               ok5m: promNum("void_agent_wc_awards_ok_5m", wcText)
+            },
+            gates: {
+              agentAdvance30m: gateAgentAdvance30m,
+              datanetPersistOk: gateDatanetPersistOk,
+              aiPillarOk: gateAiPillarOk
             }
           });
         }catch(e:any){
