@@ -34983,7 +34983,16 @@ try {
       ].join("|");
       if (key !== "|||") allEvents.add(key);
     }
-    const awarded = allEvents.size;
+    let awarded = 0;
+    try{
+      const fs = require("node:fs");
+      if (fs.existsSync(receiptsFile)){
+        const raw = String(fs.readFileSync(receiptsFile, "utf8") || "");
+        awarded = raw ? raw.split("\n").filter(Boolean).length : 0;
+      }
+    }catch{
+      awarded = 0;
+    }
 
     return { base, agentDir, receiptsFile, awarded, lastTs, ageSec, uniq5, ok5, uniq15, ok15 };
   }
