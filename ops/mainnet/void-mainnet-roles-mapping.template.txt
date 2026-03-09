@@ -1,5 +1,6 @@
-# VOID mainnet roles mapping template
-# Fill with fresh mainnet values only. No devnet reuse.
+# VOID MAINNET ROLES MAPPING TEMPLATE
+# Fill ONLY with fresh mainnet ceremony values.
+# Never reuse dev/devnet/anvil keys.
 
 deployer=TBD
 treasuryAdmin=TBD
