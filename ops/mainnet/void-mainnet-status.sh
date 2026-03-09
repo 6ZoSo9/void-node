@@ -51,34 +51,52 @@ else
 fi
 
 echo
-echo "=== stub-only proof ==="
-set +e
-forge script script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \
-  --chain-id 2050 \
-  --sig "run(string)" \
-  "$LIVE" \
-  -vvv >/tmp/void-mainnet-status.run.log 2>&1
-RC=$?
-set -e
-if rg -n "RUN_STUB_ONLY" /tmp/void-mainnet-status.run.log >/dev/null 2>&1; then
-  echo "[ok] run(string) still guarded by RUN_STUB_ONLY (rc=$RC)"
-else
-  echo "[warn] RUN_STUB_ONLY not observed (rc=$RC)"
-  tail -n 80 /tmp/void-mainnet-status.run.log || true
-fi
+echo "=== plan/run status ==="
+if [ -f "$LIVE" ]; then
+  set +e
+  ops/mainnet/void-mainnet-config-lint.sh "$LIVE" >/tmp/void-mainnet-status.lint.log 2>&1
+  LRC=$?
+  set -e
 
-echo
-echo "=== plan path ==="
-set +e
-forge script script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \
-  --chain-id 2050 \
-  --sig "plan(string)" \
-  "$LIVE" \
-  -vvv >/tmp/void-mainnet-status.plan.log 2>&1
-RC=$?
-set -e
-echo "[plan rc]=$RC"
-tail -n 40 /tmp/void-mainnet-status.plan.log || true
+  if [ "$LRC" -ne 0 ]; then
+    echo "[status] PLACEHOLDER_CONFIG (lint rc=$LRC)"
+    tail -n 40 /tmp/void-mainnet-status.lint.log || true
+  else
+    echo "[status] FILLED_CONFIG"
+
+    echo
+    echo "--- plan(string) ---"
+    set +e
+    forge script script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \
+      --chain-id 2050 \
+      --sig "plan(string)" \
+      "$LIVE" \
+      -vvv >/tmp/void-mainnet-status.plan.log 2>&1
+    PRC=$?
+    set -e
+    echo "[plan rc]=$PRC"
+    tail -n 40 /tmp/void-mainnet-status.plan.log || true
+
+    echo
+    echo "--- run(string) ---"
+    set +e
+    forge script script/VoidMainnetBootstrapMainnet.s.sol:VoidMainnetBootstrapMainnet \
+      --chain-id 2050 \
+      --sig "run(string)" \
+      "$LIVE" \
+      -vvv >/tmp/void-mainnet-status.run.log 2>&1
+    RRC=$?
+    set -e
+    if rg -n "RUN_STUB_ONLY" /tmp/void-mainnet-status.run.log >/dev/null 2>&1; then
+      echo "[ok] run(string) still guarded by RUN_STUB_ONLY (rc=$RRC)"
+    else
+      echo "[warn] run(string) did not show RUN_STUB_ONLY (rc=$RRC)"
+      tail -n 80 /tmp/void-mainnet-status.run.log || true
+    fi
+  fi
+else
+  echo "[skip] no live json yet"
+fi
 
 echo
 echo "=== done ==="
