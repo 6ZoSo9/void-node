@@ -34944,10 +34944,20 @@ try {
     const ok5  = (uniq5  > 0 && ageSec < 600)  ? 1 : 0;
     const ok15 = (uniq15 > 0 && ageSec < 1200) ? 1 : 0;
 
-    // simple “awarded_total”: monotonic best-effort = count distinct ids seen in tail
-    const allIds = new Set<string>();
-    for (const r of lines){ const id=String(r?.id||""); if (id) allIds.add(id); }
-    const awarded = allIds.size;
+    // simple “awarded_total”: monotonic best-effort = count distinct receipt events seen in tail
+    // Use a composite event key so repeated fixed ids (e.g. agent:datanet_roundtrip:v0)
+    // still advance when a new receipt event is appended.
+    const allEvents = new Set<string>();
+    for (const r of lines){
+      const key = [
+        String(r?.id || ""),
+        String(r?.inputHash || ""),
+        String(r?.outputHash || ""),
+        String(r?.ts || "")
+      ].join("|");
+      if (key !== "|||") allEvents.add(key);
+    }
+    const awarded = allEvents.size;
 
     return { base, agentDir, receiptsFile, awarded, lastTs, ageSec, uniq5, ok5, uniq15, ok15 };
   }
