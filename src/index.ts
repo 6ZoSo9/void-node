@@ -20686,6 +20686,130 @@ const wal = new WALv1(getDataDir());
       }
     });
 
+
+;(function demoAIStatusRoute(){
+  try{
+    const G:any = globalThis as any;
+    const getApp = ()=> (G.__void_http_app || G.app);
+    let tries = 0;
+
+    (function attach(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function"){
+        if (++tries < 120) return setTimeout(attach, 500);
+        return;
+      }
+      if ((app as any).__void_demo_ai_status_v1) return;
+      (app as any).__void_demo_ai_status_v1 = true;
+
+      app.get("/__void/demo/ai-status", async (_req:any, res:any)=>{
+        try{
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
+          const agentDir = path.join(base, "agent");
+          const receiptsFile = path.join(agentDir, "receipts.jsonl");
+          const jobsFile = path.join(agentDir, "jobs.jsonl");
+          const resultsFile = path.join(agentDir, "results.jsonl");
+
+          function countLines(file:string){
+            try{
+              if (!fs.existsSync(file)) return 0;
+              const raw = String(fs.readFileSync(file, "utf8") || "");
+              return raw ? raw.split("\\n").filter(Boolean).length : 0;
+            }catch{ return 0; }
+          }
+
+          function lastReceiptAgeSec(file:string){
+            try{
+              if (!fs.existsSync(file)) return 1e12;
+              const raw = String(fs.readFileSync(file, "utf8") || "");
+              const lines = raw.split("\\n").filter(Boolean);
+              const last = lines.length ? JSON.parse(lines[lines.length - 1]) : null;
+              const ts = Number(last?.ts || 0);
+              return ts > 0 ? Math.max(0, (Date.now() - ts)/1000) : 1e12;
+            }catch{ return 1e12; }
+          }
+
+          async function j(url:string){
+            try{
+              const r = await fetch(url);
+              if (!r.ok) return null;
+              return await r.json();
+            }catch{ return null; }
+          }
+
+          const port = String(process.env.HTTP_PORT || "4100");
+          const health = await j(`http://127.0.0.1:${port}/health`);
+
+          let wcText = "";
+          try{
+            const r = await fetch(`http://127.0.0.1:${port}/__void/metrics/agent_wc_awards_v2.prom`);
+            wcText = r.ok ? await r.text() : "";
+          }catch{}
+
+          function promNum(name:string, txt:string){
+            try{
+              const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const m = txt.match(new RegExp("^" + esc + "\\s+([^\\s]+)", "m"));
+              return m ? Number(m[1]) : 0;
+            }catch{ return 0; }
+          }
+
+          let pillarText = "";
+          try{
+            const r = await fetch(`http://127.0.0.1:${port}/__void/metrics/agent_pillar4.prom`);
+            pillarText = r.ok ? await r.text() : "";
+          }catch{}
+
+          const jobs = promNum("void_agent_jobs_total", pillarText);
+          const results = promNum("void_agent_results_total", pillarText);
+          const receipts = promNum("void_agent_receipts_total", pillarText);
+          const queuePending = promNum("void_agent_queue_pending", pillarText);
+
+          let receiptAgeSec:any = null;
+          try{
+            if (fs.existsSync(receiptsFile)){
+              const raw = String(fs.readFileSync(receiptsFile, "utf8") || "");
+              const lines = raw.split("\\n").filter(Boolean);
+              const last = lines.length ? JSON.parse(lines[lines.length - 1]) : null;
+              const ts = Number(last?.ts || 0);
+              receiptAgeSec = ts > 0 ? Math.max(0, (Date.now() - ts)/1000) : null;
+            }
+          }catch{
+            receiptAgeSec = null;
+          }
+
+          res.json({
+            ok: true,
+            health: !!health?.ok,
+            node: health || null,
+            agent: {
+              jobs,
+              results,
+              receipts,
+              queuePending,
+              lastReceiptAgeSec: receiptAgeSec
+            },
+            wc: {
+              awardedTotal: promNum("void_agent_wc_awarded_total", wcText),
+              unique5m: promNum("void_agent_wc_awards_unique_5m", wcText),
+              ok5m: promNum("void_agent_wc_awards_ok_5m", wcText)
+            }
+          });
+        }catch(e:any){
+          res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      console.log("[demo] /__void/demo/ai-status ready");
+    })();
+  }catch(e:any){
+    try{ console.warn("[demo] ai-status attach failed:", e?.message || e); }catch{}
+  }
+})();
+
     app.post("/agent/v0/job", express.json({limit:"5mb"}), (req,res)=>{
       try{
         const id = id24();
