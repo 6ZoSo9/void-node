@@ -221,3 +221,5 @@ Heap*.heapsnapshot
 core
 core.*
 ops/mainnet/filled-*.txt
+config/void-mainnet-bootstrap-mainnet.rehearsal.json
+ops/mainnet/void-mainnet-roles-mapping.rehearsal.txt
