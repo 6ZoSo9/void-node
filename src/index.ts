@@ -36207,6 +36207,291 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 })();
 
 
+// [ADD] agent mini loop v1
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_agent_mini_loop_v1_installed) return;
+  g.__void_agent_mini_loop_v1_installed = true;
+
+  const fs = require("fs");
+  const fsp = fs.promises;
+  const path = require("path");
+  const expressMod = require("express");
+  const crypto = require("crypto");
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function getDataDir(){
+    return process.env.DATA_DIR || "data";
+  }
+
+  function rootDir(){
+    return path.join(getDataDir(), "agent_v1");
+  }
+
+  function jobsDir(){
+    return path.join(rootDir(), "jobs");
+  }
+
+  function receiptsFile(){
+    return path.join(rootDir(), "receipts.jsonl");
+  }
+
+  async function ensureDirs(){
+    await fsp.mkdir(jobsDir(), { recursive: true });
+  }
+
+  function sha256Hex(x:any){
+    return crypto.createHash("sha256").update(x).digest("hex");
+  }
+
+  function randHex(n:number){
+    return crypto.randomBytes(n).toString("hex");
+  }
+
+  function safeId(v:any){
+    const s = String(v || "");
+    if (!/^[A-Za-z0-9._:-]+$/.test(s)) throw new Error("bad id");
+    return s;
+  }
+
+  function jobPath(id:string){
+    return path.join(jobsDir(), `${id}.json`);
+  }
+
+  async function writeJson(file:string, obj:any){
+    await fsp.writeFile(file, JSON.stringify(obj, null, 2));
+  }
+
+  async function readJson(file:string){
+    return JSON.parse(await fsp.readFile(file, "utf8"));
+  }
+
+  async function appendReceipt(kind:string, obj:any){
+    try{
+      await ensureDirs();
+      const rec = { ts: Date.now(), kind, ...obj };
+      await fsp.appendFile(receiptsFile(), JSON.stringify(rec) + "\n");
+    }catch{}
+  }
+
+  async function listJobs(){
+    await ensureDirs();
+    let names:string[] = [];
+    try{
+      names = await fsp.readdir(jobsDir());
+    }catch{
+      return [];
+    }
+    const out:any[] = [];
+    for (const name of names.filter((x:string)=>x.endsWith(".json")).sort().reverse()){
+      try{
+        out.push(await readJson(path.join(jobsDir(), name)));
+      }catch{}
+    }
+    out.sort((a:any,b:any)=> Number(a?.created_at_ms||0) - Number(b?.created_at_ms||0));
+    return out;
+  }
+
+  function summarizeJob(j:any){
+    return {
+      id: j?.id ?? null,
+      created_at_ms: j?.created_at_ms ?? null,
+      updated_at_ms: j?.updated_at_ms ?? null,
+      type: j?.type ?? null,
+      status: j?.status ?? null,
+      priority: j?.priority ?? null,
+      assigned_to: j?.assigned_to ?? null,
+      result_hash: j?.result_hash ?? null
+    };
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_agent_mini_loop_v1_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    const json64 = expressMod.json({ limit: "256kb" });
+
+    app.get("/__void/diag/agent-mini-loop-v1.json", async (_req:any, res:any) => {
+      try{
+        await ensureDirs();
+        let receipts_size = 0;
+        try{
+          const st = await fsp.stat(receiptsFile());
+          receipts_size = st.size;
+        }catch{}
+        return res.json({
+          ok: true,
+          installed: true,
+          mounted: true,
+          root: rootDir(),
+          jobs: jobsDir(),
+          receipts_file: receiptsFile(),
+          receipts_size
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.post("/agent/v1/job/submit", json64, async (req:any, res:any) => {
+      try{
+        await ensureDirs();
+        const type = String(req?.body?.type || "generic");
+        const payload = (req?.body?.payload && typeof req.body.payload === "object") ? req.body.payload : {};
+        const priority = Number(req?.body?.priority ?? 100) || 100;
+        const created = Date.now();
+        const bodyHash = sha256Hex(Buffer.from(JSON.stringify({ type, payload, priority })));
+        const id = `job_${created}_${bodyHash.slice(0,16)}_${randHex(4)}`;
+
+        const job = {
+          id,
+          created_at_ms: created,
+          updated_at_ms: created,
+          type,
+          priority,
+          status: "queued",
+          payload,
+          assigned_to: null,
+          picked_at_ms: null,
+          completed_at_ms: null,
+          result: null,
+          result_hash: null,
+          body_hash: bodyHash
+        };
+
+        await writeJson(jobPath(id), job);
+        await appendReceipt("job_submit", { id, type, priority, body_hash: bodyHash });
+
+        return res.json({
+          ok: true,
+          job: summarizeJob(job),
+          body_hash: bodyHash
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.post("/agent/v1/job/pick", json64, async (req:any, res:any) => {
+      try{
+        const worker_id = String(req?.body?.worker_id || "demo-worker");
+        const jobs = await listJobs();
+        const queued = jobs
+          .filter((j:any)=> String(j?.status||"") === "queued")
+          .sort((a:any,b:any)=>{
+            const pa = Number(a?.priority ?? 100);
+            const pb = Number(b?.priority ?? 100);
+            if (pa !== pb) return pa - pb;
+            return Number(a?.created_at_ms||0) - Number(b?.created_at_ms||0);
+          });
+
+        const picked = queued[0];
+        if (!picked) return res.json({ ok:true, picked:false, reason:"no_queued_jobs" });
+
+        picked.status = "picked";
+        picked.assigned_to = worker_id;
+        picked.picked_at_ms = Date.now();
+        picked.updated_at_ms = picked.picked_at_ms;
+
+        await writeJson(jobPath(safeId(picked.id)), picked);
+        await appendReceipt("job_pick", { id: picked.id, worker_id });
+
+        return res.json({
+          ok: true,
+          picked: true,
+          job: picked
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.post("/agent/v1/job/:id/complete", json64, async (req:any, res:any) => {
+      try{
+        const id = safeId(req.params.id);
+        const job = await readJson(jobPath(id));
+        const result = (req?.body?.result && typeof req.body.result === "object") ? req.body.result : { value: req?.body?.result ?? null };
+        const resultHash = sha256Hex(Buffer.from(JSON.stringify(result)));
+
+        job.status = "completed";
+        job.result = result;
+        job.result_hash = resultHash;
+        job.completed_at_ms = Date.now();
+        job.updated_at_ms = job.completed_at_ms;
+
+        await writeJson(jobPath(id), job);
+        await appendReceipt("job_complete", { id, result_hash: resultHash, assigned_to: job.assigned_to || null });
+
+        return res.json({
+          ok: true,
+          job: summarizeJob(job),
+          result_hash: resultHash
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/agent/v1/jobs/:id", async (req:any, res:any) => {
+      try{
+        const id = safeId(req.params.id);
+        const job = await readJson(jobPath(id));
+        return res.json({ ok:true, job });
+      }catch(e:any){
+        return res.status(404).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/agent/v1/receipts", async (_req:any, res:any) => {
+      try{
+        await ensureDirs();
+        let txt = "";
+        try{ txt = await fsp.readFile(receiptsFile(), "utf8"); }catch{}
+        const lines = txt.trim() ? txt.trim().split(/\n+/).slice(-100) : [];
+        const items = lines.map((x:string)=>{ try{ return JSON.parse(x); }catch{ return { raw:x }; } });
+        return res.json({ ok:true, count: items.length, items });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/agent/summary.json", async (_req:any, res:any) => {
+      try{
+        const jobs = await listJobs();
+        const queued = jobs.filter((j:any)=> j?.status === "queued").length;
+        const picked = jobs.filter((j:any)=> j?.status === "picked").length;
+        const completed = jobs.filter((j:any)=> j?.status === "completed").length;
+        const latest = jobs.length ? summarizeJob(jobs[jobs.length - 1]) : null;
+        return res.json({
+          ok: true,
+          ts_ms: Date.now(),
+          counts: {
+            total: jobs.length,
+            queued,
+            picked,
+            completed
+          },
+          latest_job: latest
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    g.__void_agent_mini_loop_v1_mounted = true;
+    try{ console.log("[agent.mini-loop] mounted submit/pick/complete/receipts/summary"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
+
+
 
 
 
