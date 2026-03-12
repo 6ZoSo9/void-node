@@ -86,6 +86,8 @@
           <div class="stat"><div class="k">Protocol / Channel</div><div id="protocol" class="v"></div></div>
           <div class="stat"><div class="k">Loopproof</div><div id="loopproof" class="v"></div></div>
           <div class="stat"><div class="k">Receipts</div><div id="receipts" class="v"></div></div>
+          <div class="stat"><div class="k">Manifest signature</div><div id="sigState" class="v"></div></div>
+          <div class="stat"><div class="k">Verification reason</div><div id="sigReason" class="v"></div></div>
         </div>
       </div>
 
@@ -159,6 +161,12 @@ ops/voidctl update-apply</pre>
       setText("protocol", String((s.update || {}).protocol_version ?? "") + " / " + String((s.update || {}).channel ?? ""));
       setText("loopproof", String((s.datanet || {}).loopproof_ok ?? ""));
       setText("receipts", String((s.datanet || {}).receipts_count ?? ""));
+
+      const u = await jfetch("/upgrade/check");
+      if (u.signature_present && u.signature_valid) setText("sigState", "signed + valid");
+      else if (u.signature_present && !u.signature_valid) setText("sigState", "signed + not yet verified");
+      else setText("sigState", "unsigned / missing");
+      setText("sigReason", String(u.verification_reason ?? ""));
 
       const ds = ((s.datanet || {}).latest_dataset || null);
       document.getElementById("latestDataset").innerHTML = ds ? `
