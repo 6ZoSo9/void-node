@@ -35,6 +35,8 @@ Usage:
   ops/voidctl status
   ops/voidctl doctor
   ops/voidctl update-check
+  ops/voidctl update-plan
+  ops/voidctl update-apply
   ops/voidctl demo-summary
   ops/voidctl agent-summary
 
@@ -127,6 +129,61 @@ cmd_update_check() {
   j /upgrade/check | print_json_pretty
 }
 
+cmd_update_plan() {
+  local U
+  U="$(j /upgrade/check)"
+  python3 -c 'import json,sys
+u=json.loads(sys.argv[1])
+local=u.get("local") or {}
+manifest=u.get("manifest") or {}
+print("VOID update plan")
+print("----------------")
+print("local_version:", local.get("version"))
+print("local_protocol:", local.get("protocol_version"))
+print("manifest_found:", u.get("manifest_found"))
+print("manifest_version:", manifest.get("version"))
+print("manifest_protocol:", manifest.get("protocol_version"))
+print("manifest_min_protocol:", manifest.get("min_protocol_version"))
+print("channel:", manifest.get("channel"))
+print("compatible:", u.get("compatible"))
+print("update_available:", u.get("update_available"))
+print("reason:", u.get("reason"))
+print("")
+print("planned_steps:")
+print("  1. stop service:", "void-node.service")
+print("  2. back up ops/voidctl, config, and current install state")
+print("  3. verify manifest/signature (stub today)")
+print("  4. apply new files/binaries (stub today)")
+print("  5. restart service")
+print("  6. run ops/voidctl doctor")' "$U"
+}
+
+cmd_update_apply() {
+  local U
+  U="$(j /upgrade/check)"
+  python3 -c 'import json,sys
+u=json.loads(sys.argv[1])
+local=u.get("local") or {}
+manifest=u.get("manifest") or {}
+print("VOID update apply (dry-run)")
+print("---------------------------")
+print("mode: dry-run")
+print("service:", "void-node.service")
+print("local_version:", local.get("version"))
+print("target_version:", manifest.get("version"))
+print("compatible:", u.get("compatible"))
+print("update_available:", u.get("update_available"))
+print("reason:", u.get("reason"))
+print("")
+print("would_run:")
+print("  systemctl --user stop void-node.service")
+print("  backup current install/config")
+print("  verify signed manifest")
+print("  stage replacement artifacts")
+print("  systemctl --user start void-node.service")
+print("  ops/voidctl doctor")' "$U"
+}
+
 cmd_demo_summary() {
   j /__void/demo/summary.json | print_json_pretty
 }
@@ -200,6 +257,8 @@ main() {
     status) shift; cmd_status "$@" ;;
     doctor) shift; cmd_doctor "$@" ;;
     update-check) shift; cmd_update_check "$@" ;;
+    update-plan) shift; cmd_update_plan "$@" ;;
+    update-apply) shift; cmd_update_apply "$@" ;;
     demo-summary) shift; cmd_demo_summary "$@" ;;
     agent-summary) shift; cmd_agent_summary "$@" ;;
     ""|-h|--help|help) usage ;;
