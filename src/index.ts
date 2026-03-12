@@ -36491,6 +36491,242 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 })();
 
 
+// [ADD] agent datanet link v1
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_agent_datanet_link_v1_installed) return;
+  g.__void_agent_datanet_link_v1_installed = true;
+
+  const fs = require("fs");
+  const fsp = fs.promises;
+  const path = require("path");
+  const expressMod = require("express");
+  const crypto = require("crypto");
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function getDataDir(){
+    return process.env.DATA_DIR || "data";
+  }
+
+  function datanetObjectsDir(){
+    return path.join(getDataDir(), "datanet_v1", "objects");
+  }
+
+  function agentJobsDir(){
+    return path.join(getDataDir(), "agent_v1", "jobs");
+  }
+
+  function safeId(v:any){
+    const s = String(v || "");
+    if (!/^[A-Za-z0-9._:-]+$/.test(s)) throw new Error("bad id");
+    return s;
+  }
+
+  async function readJson(file:string){
+    return JSON.parse(await fsp.readFile(file, "utf8"));
+  }
+
+  async function writeJson(file:string, obj:any){
+    await fsp.writeFile(file, JSON.stringify(obj, null, 2));
+  }
+
+  function sha256Hex(x:any){
+    return crypto.createHash("sha256").update(x).digest("hex");
+  }
+
+  function randHex(n:number){
+    return crypto.randomBytes(n).toString("hex");
+  }
+
+  async function datasetMeta(datasetIdRaw:any){
+    const id = safeId(datasetIdRaw);
+    const file = path.join(datanetObjectsDir(), `${id}.json`);
+    return await readJson(file);
+  }
+
+  async function jobById(jobIdRaw:any){
+    const id = safeId(jobIdRaw);
+    const file = path.join(agentJobsDir(), `${id}.json`);
+    return await readJson(file);
+  }
+
+  async function listJobFiles(limitRaw:any){
+    let names:string[] = [];
+    try{
+      names = await fsp.readdir(agentJobsDir());
+    }catch{
+      return [];
+    }
+    const limit = Math.max(1, Math.min(100, Number(limitRaw || 20) || 20));
+    return names.filter((x:string)=>x.endsWith(".json")).sort().reverse().slice(0, limit);
+  }
+
+  async function latestLinkedJob(){
+    const names = await listJobFiles(50);
+    for (const name of names){
+      try{
+        const job:any = await readJson(path.join(agentJobsDir(), name));
+        const datasetId = job?.payload?.dataset_id || null;
+        if (!datasetId) continue;
+        let meta = null;
+        try{ meta = await datasetMeta(datasetId); }catch{}
+        return { job, dataset: meta };
+      }catch{}
+    }
+    return null;
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_agent_datanet_link_v1_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    const json64 = expressMod.json({ limit: "256kb" });
+
+    app.get("/__void/diag/agent-datanet-link-v1.json", async (_req:any, res:any) => {
+      try{
+        return res.json({
+          ok: true,
+          installed: true,
+          mounted: true,
+          datanet_objects_dir: datanetObjectsDir(),
+          agent_jobs_dir: agentJobsDir()
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.post("/agent/v1/job/submit-for-dataset", json64, async (req:any, res:any) => {
+      try{
+        const dataset_id = safeId(req?.body?.dataset_id || "");
+        const worker_hint = String(req?.body?.worker_hint || "");
+        const action = String(req?.body?.action || "datanet.verify");
+        const priority = Number(req?.body?.priority ?? 20) || 20;
+
+        const meta:any = await datasetMeta(dataset_id);
+        const created = Date.now();
+        const payload = {
+          dataset_id,
+          dataset_sha256: meta?.sha256 ?? null,
+          dataset_ciphertext_len: meta?.ciphertext_len ?? null,
+          worker_hint: worker_hint || null,
+          action
+        };
+
+        const bodyHash = sha256Hex(Buffer.from(JSON.stringify({ action, payload, priority })));
+        const id = `job_${created}_${bodyHash.slice(0,16)}_${randHex(4)}`;
+
+        const job = {
+          id,
+          created_at_ms: created,
+          updated_at_ms: created,
+          type: action,
+          priority,
+          status: "queued",
+          payload,
+          assigned_to: null,
+          picked_at_ms: null,
+          completed_at_ms: null,
+          result: null,
+          result_hash: null,
+          body_hash: bodyHash
+        };
+
+        await writeJson(path.join(agentJobsDir(), `${id}.json`), job);
+
+        return res.json({
+          ok: true,
+          linked: true,
+          dataset: {
+            id: meta?.id ?? dataset_id,
+            sha256: meta?.sha256 ?? null,
+            ciphertext_len: meta?.ciphertext_len ?? null,
+            plaintext_len: meta?.plaintext_len ?? null
+          },
+          job: {
+            id: job.id,
+            type: job.type,
+            status: job.status,
+            priority: job.priority,
+            created_at_ms: job.created_at_ms
+          }
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/integration/dataset-job/:jobId", async (req:any, res:any) => {
+      try{
+        const job:any = await jobById(req.params.jobId);
+        const datasetId = job?.payload?.dataset_id || null;
+        let meta = null;
+        if (datasetId) {
+          try{ meta = await datasetMeta(datasetId); }catch{}
+        }
+        return res.json({
+          ok: true,
+          linked: !!datasetId,
+          job,
+          dataset: meta ? {
+            id: meta?.id ?? null,
+            created_at_ms: meta?.created_at_ms ?? null,
+            kind: meta?.kind ?? null,
+            mime: meta?.mime ?? null,
+            plaintext_len: meta?.plaintext_len ?? null,
+            ciphertext_len: meta?.ciphertext_len ?? null,
+            sha256: meta?.sha256 ?? null
+          } : null
+        });
+      }catch(e:any){
+        return res.status(404).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/integration/latest-dataset-job.json", async (_req:any, res:any) => {
+      try{
+        const out:any = await latestLinkedJob();
+        if (!out) return res.json({ ok:true, found:false });
+        const job:any = out.job;
+        const meta:any = out.dataset;
+        return res.json({
+          ok: true,
+          found: true,
+          job: {
+            id: job?.id ?? null,
+            type: job?.type ?? null,
+            status: job?.status ?? null,
+            priority: job?.priority ?? null,
+            assigned_to: job?.assigned_to ?? null,
+            result_hash: job?.result_hash ?? null,
+            dataset_id: job?.payload?.dataset_id ?? null
+          },
+          dataset: meta ? {
+            id: meta?.id ?? null,
+            sha256: meta?.sha256 ?? null,
+            plaintext_len: meta?.plaintext_len ?? null,
+            ciphertext_len: meta?.ciphertext_len ?? null
+          } : null
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    g.__void_agent_datanet_link_v1_mounted = true;
+    try{ console.log("[agent.datanet.link] mounted submit-for-dataset + integration routes"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
+
+
 
 
 
