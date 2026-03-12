@@ -35906,5 +35906,33 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 })();
 
 
+// [ADD] datanet demo ui alias v1
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_datanet_demo_ui_alias_v1_installed) return;
+  g.__void_datanet_demo_ui_alias_v1_installed = true;
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_datanet_demo_ui_alias_v1_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    app.get("/demo/datanet", (_req:any, res:any) => res.redirect(302, "/demo/datanet/"));
+    app.get("/__void/demo/datanet", (_req:any, res:any) => res.redirect(302, "/demo/datanet/"));
+
+    g.__void_datanet_demo_ui_alias_v1_mounted = true;
+    try{ console.log("[datanet.demo.ui] aliases mounted at /demo/datanet and /__void/demo/datanet"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
+
+
 
 
