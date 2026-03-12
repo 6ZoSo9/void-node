@@ -169,20 +169,46 @@ cmd_update_apply() {
 u=json.loads(sys.argv[1])
 local=u.get("local") or {}
 manifest=u.get("manifest") or {}
+
+manifest_found = bool(u.get("manifest_found"))
+compatible = bool(u.get("compatible"))
+signature_valid = bool(u.get("signature_valid"))
+signature_present = bool(u.get("signature_present"))
+reason = u.get("reason")
+verification_reason = u.get("verification_reason")
+trust_state = "verified" if signature_valid else ("signed-unverified" if signature_present else "unsigned")
+
 print("VOID update apply (dry-run)")
 print("---------------------------")
-print("mode: dry-run")
+print("mode:", "dry-run")
 print("service:", "void-node.service")
 print("local_version:", local.get("version"))
 print("target_version:", manifest.get("version"))
-print("compatible:", u.get("compatible"))
+print("compatible:", compatible)
 print("update_available:", u.get("update_available"))
-print("reason:", u.get("reason"))
-print("signature_present:", u.get("signature_present"))
-print("signature_valid:", u.get("signature_valid"))
-print("verification_reason:", u.get("verification_reason"))
-print("trust_state:", "verified" if u.get("signature_valid") else ("signed-unverified" if u.get("signature_present") else "unsigned"))
+print("reason:", reason)
+print("signature_present:", signature_present)
+print("signature_valid:", signature_valid)
+print("verification_reason:", verification_reason)
+print("trust_state:", trust_state)
 print("")
+
+failures = []
+if not manifest_found:
+    failures.append("manifest_missing")
+if not compatible:
+    failures.append("incompatible_protocol")
+if not signature_valid:
+    failures.append("signature_not_valid")
+
+if failures:
+    print("blocked:")
+    for f in failures:
+        print("  -", f)
+    print("")
+    print("refusing apply plan because trust checks failed")
+    raise SystemExit(1)
+
 print("would_run:")
 print("  systemctl --user stop void-node.service")
 print("  backup current install/config")
