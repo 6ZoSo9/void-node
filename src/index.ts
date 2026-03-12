@@ -35912,8 +35912,15 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
   if (g.__void_datanet_demo_ui_alias_v1_installed) return;
   g.__void_datanet_demo_ui_alias_v1_installed = true;
 
+  const path = require("path");
+
   function getApp(){
     return g.__void_http_app || g.app || null;
+  }
+
+  function sendDemo(res:any){
+    const file = path.join(process.cwd(), "public", "demo", "datanet", "index.html");
+    return res.sendFile(file);
   }
 
   function attach(){
@@ -35922,11 +35929,13 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
       return setTimeout(attach, 500).unref?.();
     }
 
-    app.get("/demo/datanet", (_req:any, res:any) => res.redirect(302, "/demo/datanet/"));
-    app.get("/__void/demo/datanet", (_req:any, res:any) => res.redirect(302, "/demo/datanet/"));
+    app.get("/demo/datanet", (_req:any, res:any) => sendDemo(res));
+    app.get("/demo/datanet/", (_req:any, res:any) => sendDemo(res));
+    app.get("/__void/demo/datanet", (_req:any, res:any) => sendDemo(res));
+    app.get("/__void/demo/datanet/", (_req:any, res:any) => sendDemo(res));
 
     g.__void_datanet_demo_ui_alias_v1_mounted = true;
-    try{ console.log("[datanet.demo.ui] aliases mounted at /demo/datanet and /__void/demo/datanet"); }catch{}
+    try{ console.log("[datanet.demo.ui] direct file routes mounted at /demo/datanet"); }catch{}
   }
 
   setTimeout(attach, 250);
