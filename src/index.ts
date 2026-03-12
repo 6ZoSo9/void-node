@@ -35788,4 +35788,123 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 })();
 
 
+// [ADD] datanet list v1
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_datanet_list_v1_installed) return;
+  g.__void_datanet_list_v1_installed = true;
+
+  const fs = require("fs");
+  const fsp = fs.promises;
+  const path = require("path");
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function getDataDir(){
+    return process.env.DATA_DIR || "data";
+  }
+
+  function rootDir(){
+    return path.join(getDataDir(), "datanet_v1");
+  }
+
+  function objectsDir(){
+    return path.join(rootDir(), "objects");
+  }
+
+  async function readJson(file:string){
+    return JSON.parse(await fsp.readFile(file, "utf8"));
+  }
+
+  async function listMetaFiles(limitRaw:any){
+    const dir = objectsDir();
+    let names:string[] = [];
+    try{
+      names = await fsp.readdir(dir);
+    }catch{
+      return [];
+    }
+    const metas = names.filter((x:string)=>x.endsWith(".json")).sort().reverse();
+    const limit = Math.max(1, Math.min(200, Number(limitRaw || 20) || 20));
+    return metas.slice(0, limit);
+  }
+
+  function summarize(meta:any){
+    return {
+      id: meta?.id ?? null,
+      created_at_ms: meta?.created_at_ms ?? null,
+      kind: meta?.kind ?? null,
+      mime: meta?.mime ?? null,
+      plaintext_len: meta?.plaintext_len ?? null,
+      ciphertext_len: meta?.ciphertext_len ?? null,
+      sha256: meta?.sha256 ?? null
+    };
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_datanet_list_v1_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    app.get("/datanet/list", async (req:any, res:any) => {
+      try{
+        const metas = await listMetaFiles(req?.query?.limit);
+        const items:any[] = [];
+        for (const name of metas){
+          try{
+            const meta = await readJson(path.join(objectsDir(), name));
+            items.push(summarize(meta));
+          }catch{}
+        }
+        items.sort((a:any,b:any)=>(Number(b?.created_at_ms||0)-Number(a?.created_at_ms||0)));
+        return res.json({
+          ok: true,
+          count: items.length,
+          root: rootDir(),
+          items
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/datanet/meta/:id", async (req:any, res:any) => {
+      try{
+        const id = String(req.params.id || "");
+        if (!/^[A-Za-z0-9._:-]+$/.test(id)) return res.status(400).json({ ok:false, err:"bad id" });
+        const meta = await readJson(path.join(objectsDir(), `${id}.json`));
+        return res.json({ ok:true, meta });
+      }catch(e:any){
+        return res.status(404).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/diag/datanet-list-v1.json", async (_req:any, res:any) => {
+      try{
+        const metas = await listMetaFiles(10);
+        return res.json({
+          ok: true,
+          installed: true,
+          mounted: true,
+          root: rootDir(),
+          objects: objectsDir(),
+          recent_meta_files: metas
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    g.__void_datanet_list_v1_mounted = true;
+    try{ console.log("[datanet.list.v1] mounted /datanet/list and /datanet/meta/:id"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
+
+
 
