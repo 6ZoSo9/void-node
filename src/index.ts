@@ -35978,6 +35978,197 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 })();
 
 
+// [ADD] demo summary v1
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_demo_summary_v1_installed) return;
+  g.__void_demo_summary_v1_installed = true;
+
+  const fs = require("fs");
+  const fsp = fs.promises;
+  const path = require("path");
+  const http = require("http");
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function getNode(){
+    const app:any = getApp();
+    return g.__void_node || g.node || app?.locals?.__void_node || null;
+  }
+
+  function getDataDir(){
+    return process.env.DATA_DIR || "data";
+  }
+
+  function datanetRoot(){
+    return path.join(getDataDir(), "datanet_v1");
+  }
+
+  function datanetObjectsDir(){
+    return path.join(datanetRoot(), "objects");
+  }
+
+  function receiptsFile(){
+    return path.join(datanetRoot(), "receipts.jsonl");
+  }
+
+  async function readJson(file:string){
+    return JSON.parse(await fsp.readFile(file, "utf8"));
+  }
+
+  async function listMetaFiles(limitRaw:any){
+    let names:string[] = [];
+    try{
+      names = await fsp.readdir(datanetObjectsDir());
+    }catch{
+      return [];
+    }
+    const metas = names.filter((x:string)=>x.endsWith(".json")).sort().reverse();
+    const limit = Math.max(1, Math.min(50, Number(limitRaw || 5) || 5));
+    return metas.slice(0, limit);
+  }
+
+  async function latestDataset(){
+    const files = await listMetaFiles(1);
+    if (!files.length) return null;
+    try{
+      const meta = await readJson(path.join(datanetObjectsDir(), files[0]));
+      return {
+        id: meta?.id ?? null,
+        created_at_ms: meta?.created_at_ms ?? null,
+        kind: meta?.kind ?? null,
+        mime: meta?.mime ?? null,
+        plaintext_len: meta?.plaintext_len ?? null,
+        ciphertext_len: meta?.ciphertext_len ?? null,
+        sha256: meta?.sha256 ?? null
+      };
+    }catch{
+      return null;
+    }
+  }
+
+  async function receiptsCount(){
+    try{
+      const txt = await fsp.readFile(receiptsFile(), "utf8");
+      const trimmed = txt.trim();
+      if (!trimmed) return 0;
+      return trimmed.split(/\n+/).length;
+    }catch{
+      return 0;
+    }
+  }
+
+  function mempoolCount(){
+    try{
+      const n:any = getNode();
+      const mp1:any = n?.mempool?.txs;
+      if (Array.isArray(mp1)) return mp1.length;
+      const mp1b:any = n?.mempool?.pendingTxs;
+      if (Array.isArray(mp1b)) return mp1b.length;
+      const mp2:any = g.__void_mempool_global?.txs || g.__void_mempool?.txs || g.__void_mempool_global;
+      if (Array.isArray(mp2)) return mp2.length;
+    }catch{}
+    return 0;
+  }
+
+  function currentHead(){
+    const candidates = [
+      g.__void_head_number,
+      g.__void_latest_number,
+      g.__void_last_block_number,
+      g.__void_head,
+      g.__void_latest_block_number
+    ];
+    for (const v of candidates){
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    try{
+      const n:any = getNode();
+      const cands = [
+        n?.head?.number,
+        n?.chain?.head?.number,
+        n?.latestBlock?.number,
+        n?.lastBlock?.number
+      ];
+      for (const v of cands){
+        const x = Number(v);
+        if (Number.isFinite(x) && x >= 0) return x;
+      }
+    }catch{}
+    return null;
+  }
+
+  async function loopproofOk(){
+    try{
+      const txt = await fsp.readFile("/var/lib/node_exporter/textfile_collector/void_datanet_loopproof.prom", "utf8");
+      const m = txt.match(/void_datanet_loopproof_ok\s+([0-9.]+)/);
+      if (!m) return null;
+      return Number(m[1] || 0);
+    }catch{
+      return null;
+    }
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_demo_summary_v1_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    app.get("/__void/demo/summary.json", async (_req:any, res:any) => {
+      try{
+        const latest = await latestDataset();
+        const receipts = await receiptsCount();
+        const loopOk = await loopproofOk();
+        return res.json({
+          ok: true,
+          ts_ms: Date.now(),
+          health: {
+            http_port: Number(process.env.HTTP_PORT || 4100),
+            p2p_port: Number(process.env.P2P_PORT || 4700),
+            node_id: String(getNode()?.id || getNode()?.nodeId || g.__void_node_id || "")
+          },
+          chain: {
+            head: currentHead(),
+            mempool_count: mempoolCount()
+          },
+          datanet: {
+            root: datanetRoot(),
+            latest_dataset: latest,
+            receipts_count: receipts,
+            loopproof_ok: loopOk
+          }
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/diag/demo-summary-v1.json", async (_req:any, res:any) => {
+      try{
+        return res.json({
+          ok: true,
+          installed: true,
+          mounted: true,
+          datanet_root: datanetRoot()
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    g.__void_demo_summary_v1_mounted = true;
+    try{ console.log("[demo.summary.v1] mounted /__void/demo/summary.json"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
+
+
 
 
 
