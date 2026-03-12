@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOST="${VOID_HTTP_HOST:-127.0.0.1}"
+PORT="${VOID_HTTP_PORT:-4100}"
+BASE="http://${HOST}:${PORT}"
+
+j() { curl -fsS --max-time 4 "${BASE}$1"; }
+
+case "${1:-help}" in
+  version)
+    j /version | python3 -m json.tool
+    ;;
+  update-check)
+    j /upgrade/check | python3 -m json.tool
+    ;;
+  demo-summary)
+    j /__void/demo/summary.json | python3 -m json.tool
+    ;;
+  agent-summary)
+    j /__void/agent/summary.json | python3 -m json.tool
+    ;;
+  status)
+    echo "VOID status"
+    echo "-----------"
+    H="$(j /health)"
+    D="$(j /__void/demo/summary.json)"
+    A="$(j /__void/agent/summary.json)"
+    python3 -c 'import json,sys
+h=json.loads(sys.argv[1]); d=json.loads(sys.argv[2]); a=json.loads(sys.argv[3])
+c=d.get("chain") or {}
+dn=d.get("datanet") or {}
+u=d.get("update") or {}
+latest=dn.get("latest_dataset") or {}
+counts=a.get("counts") or {}
+print("node_id:", h.get("nodeId"))
+print("http:", h.get("http"))
+print("p2p:", h.get("p2p"))
+print("listen:", ", ".join(h.get("listen") or []))
+print("head:", c.get("head"))
+print("mempool:", c.get("mempool_count"))
+print("loopproof:", dn.get("loopproof_ok"))
+print("latest_ds:", latest.get("id"))
+print("receipts:", dn.get("receipts_count"))
+print("version:", u.get("version"))
+print("protocol:", u.get("protocol_version"))
+print("channel:", u.get("channel"))
+print("agent_total:", counts.get("total"))
+print("agent_queued:", counts.get("queued"))
+print("agent_picked:", counts.get("picked"))
+print("agent_done:", counts.get("completed"))' "$H" "$D" "$A"
+    ;;
+  doctor)
+    ok(){ curl -fsS --max-time 3 "${BASE}$1" >/dev/null && echo "[ok] $2" || echo "[FAIL] $2"; }
+    echo "VOID doctor"
+    echo "-----------"
+    ok /health health
+    ok /version version
+    ok /upgrade/check upgrade-check
+    ok /__void/demo/summary.json demo-summary
+    ok /__void/agent/summary.json agent-summary
+    ok "/datanet/list?limit=1" datanet-list
+    ;;
+  *)
+    echo "usage: ops/voidctl {version|update-check|demo-summary|agent-summary|status|doctor}"
+    exit 1
+    ;;
+esac
