@@ -36179,7 +36179,15 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
             latest_dataset: latest,
             receipts_count: receipts,
             loopproof_ok: loopOk
-          }
+          },
+          update: (() => {
+            const vv:any = {
+              version: String(process.env.VOID_VERSION || "0.1.0-demo"),
+              protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || 1),
+              channel: String(process.env.VOID_UPDATE_CHANNEL || "stable")
+            };
+            return vv;
+          })()
         });
       }catch(e:any){
         return res.status(500).json({ ok:false, err:String(e?.message || e) });
@@ -36724,6 +36732,202 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 
   setTimeout(attach, 250);
 })();
+
+
+// [ADD] version + upgrade foundation v0
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_version_upgrade_v0_installed) return;
+  g.__void_version_upgrade_v0_installed = true;
+
+  const fs = require("fs");
+  const fsp = fs.promises;
+  const path = require("path");
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function localVersion(){
+    return {
+      version: String(process.env.VOID_VERSION || "0.1.0-demo"),
+      protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || 1),
+      channel: String(process.env.VOID_UPDATE_CHANNEL || "stable"),
+      build_time: String(process.env.VOID_BUILD_TIME || ""),
+      git_commit: String(process.env.VOID_GIT_COMMIT || "")
+    };
+  }
+
+  function manifestPath(){
+    return path.join(process.cwd(), "config", "update-manifest.v0.json");
+  }
+
+  async function readManifest(){
+    try{
+      const txt = await fsp.readFile(manifestPath(), "utf8");
+      const j = JSON.parse(txt);
+      return j && typeof j === "object" ? j : null;
+    }catch{
+      return null;
+    }
+  }
+
+  async function sha256FileIfPresent(file:string){
+    try{
+      const crypto = require("crypto");
+      const buf = await fsp.readFile(file);
+      return crypto.createHash("sha256").update(buf).digest("hex");
+    }catch{
+      return null;
+    }
+  }
+
+  function compareSemverish(aRaw:any, bRaw:any){
+    const norm = (v:any) => String(v || "0")
+      .replace(/^[^0-9]*/, "")
+      .split(/[^0-9]+/)
+      .filter(Boolean)
+      .map((x:string)=>parseInt(x,10));
+    const a = norm(aRaw);
+    const b = norm(bRaw);
+    const n = Math.max(a.length, b.length, 3);
+    for (let i=0;i<n;i++){
+      const av = Number.isFinite(a[i]) ? a[i] : 0;
+      const bv = Number.isFinite(b[i]) ? b[i] : 0;
+      if (av > bv) return 1;
+      if (av < bv) return -1;
+    }
+    return 0;
+  }
+
+  async function computeUpgradeStatus(){
+    const local = localVersion();
+    const manifest:any = await readManifest();
+
+    if (!manifest) {
+      return {
+        ok: true,
+        local,
+        manifest_found: false,
+        update_available: false,
+        compatible: true,
+        reason: "no_manifest"
+      };
+    }
+
+    const localProtocol = Number(local.protocol_version || 0);
+    const remoteProtocol = Number(manifest.protocol_version || 0);
+    const minProtocol = Number(manifest.min_protocol_version || remoteProtocol || 0);
+    const versionCmp = compareSemverish(manifest.version, local.version);
+
+    const compatible = localProtocol >= minProtocol;
+    const update_available = versionCmp > 0;
+
+    return {
+      ok: true,
+      local,
+      manifest_found: true,
+      manifest: {
+        version: String(manifest.version || ""),
+        protocol_version: remoteProtocol,
+        min_protocol_version: minProtocol,
+        channel: String(manifest.channel || ""),
+        published_at: String(manifest.published_at || ""),
+        notes: String(manifest.notes || ""),
+        signature: manifest.signature || null
+      },
+      update_available,
+      compatible,
+      reason:
+        !compatible ? "protocol_too_old" :
+        update_available ? "newer_version_available" :
+        "up_to_date"
+    };
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_version_upgrade_v0_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    app.get("/version", async (_req:any, res:any) => {
+      try{
+        const local = localVersion();
+        const manifest = await readManifest();
+        const pkgSha = await sha256FileIfPresent(path.join(process.cwd(), "package.json"));
+        return res.json({
+          ok: true,
+          ...local,
+          manifest_path: manifestPath(),
+          manifest_present: !!manifest,
+          package_json_sha256: pkgSha
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/upgrade/check", async (_req:any, res:any) => {
+      try{
+        const out = await computeUpgradeStatus();
+        return res.json(out);
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/diag/version-upgrade-v0.json", async (_req:any, res:any) => {
+      try{
+        return res.json({
+          ok: true,
+          installed: true,
+          mounted: true,
+          manifest_path: manifestPath()
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    g.__void_version_upgrade_v0_mounted = true;
+    try{ console.log("[version.upgrade.v0] mounted /version and /upgrade/check"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
+
+// [ADD] participant page clean path v1
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_participant_page_cleanpath_v1_installed) return;
+  g.__void_participant_page_cleanpath_v1_installed = true;
+
+  const pathMod = require("path");
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_participant_page_cleanpath_v1_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    const participantFile = pathMod.join(process.cwd(), "public", "demo", "participant", "index.html");
+    app.get("/participant", (_req:any, res:any) => res.sendFile(participantFile));
+    app.get("/welcome", (_req:any, res:any) => res.sendFile(participantFile));
+
+    g.__void_participant_page_cleanpath_v1_mounted = true;
+    try{ console.log("[participant.page] mounted /participant and /welcome"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
+
 
 
 
