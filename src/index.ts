@@ -35212,3 +35212,150 @@ try {
   }
   mount();
 })();
+
+
+// [ADD] txsubmit late repair v1
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_txsubmit_late_repair_v1_installed) return;
+  g.__void_txsubmit_late_repair_v1_installed = true;
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function getNode(){
+    const app:any = getApp();
+    return g.__void_node || g.node || app?.locals?.__void_node || null;
+  }
+
+  function getQueue(node:any){
+    if (Array.isArray(node?.txQueue)) return node.txQueue;
+    if (Array.isArray(g.__void_tx_queue)) return g.__void_tx_queue;
+    if (!Array.isArray(g.__void_tx_queue)) g.__void_tx_queue = [];
+    return g.__void_tx_queue;
+  }
+
+  function ensureMempool(node:any){
+    if (!node) return null;
+    let mp:any = node.mempool ?? node.mPool ?? node.txPool ?? null;
+
+    if (!mp) {
+      mp = [];
+      node.mempool = mp;
+    }
+
+    if (Array.isArray(mp)) {
+      const arr:any[] = mp;
+      if (typeof (mp as any).push !== "function") (mp as any).push = Array.prototype.push.bind(arr);
+      if (typeof (mp as any).peekAll !== "function") (mp as any).peekAll = ()=>arr.slice();
+      if (typeof (mp as any).size !== "function") (mp as any).size = ()=>arr.length;
+      if (!Array.isArray((mp as any).txs)) (mp as any).txs = arr;
+      return mp;
+    }
+
+    if (!Array.isArray(mp.txs)) mp.txs = [];
+    if (typeof mp.push !== "function") mp.push = (tx:any)=> mp.txs.push(tx);
+    if (typeof mp.peekAll !== "function") mp.peekAll = ()=> mp.txs.slice();
+    if (typeof mp.size !== "function") mp.size = ()=> mp.txs.length;
+    return mp;
+  }
+
+  function enqueueIntoLiveMempool(tx:any){
+    const node:any = getNode();
+    const mp:any = ensureMempool(node);
+    const q:any[] = getQueue(node);
+    const body:any = (tx && typeof tx === "object") ? { ...tx } : { value: tx };
+
+    if (body && typeof body === "object") {
+      if (body._rx_src == null) body._rx_src = "txsubmit_late_repair_v1";
+      if (body.ts == null) body.ts = Date.now();
+      if (body.nonce == null) body.nonce = Math.floor(Math.random() * 1e9);
+    }
+
+    let mempoolLen:number|null = null;
+    let queueLen:number|null = null;
+    let forced = "none";
+
+    if (mp) {
+      if (Array.isArray(mp.txs)) {
+        mp.txs.push(body);
+        mempoolLen = mp.txs.length;
+        forced = "node.mempool.txs";
+      } else if (typeof mp.push === "function") {
+        mp.push(body);
+        mempoolLen = Array.isArray(mp.txs) ? mp.txs.length : null;
+        forced = "node.mempool.push";
+      }
+    }
+
+    if (Array.isArray(q)) {
+      queueLen = q.length;
+    }
+
+    g.__void_txsubmit_late_repair_v1_hits = (g.__void_txsubmit_late_repair_v1_hits || 0) + 1;
+    g.__void_txsubmit_late_repair_v1_last = {
+      when: Date.now(),
+      forced,
+      mempoolLen,
+      queueLen
+    };
+
+    return { ok:true, forced, mempoolLen, queueLen };
+  }
+
+  function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_txsubmit_late_repair_v1_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    app.post("/tx/submit", require("express").json({ limit: "64kb" }), (req:any, res:any) => {
+      try{
+        const out = enqueueIntoLiveMempool(req?.body ?? {});
+        return res.json({ ...out, handled: "txsubmit_late_repair_v1" });
+      }catch(e:any){
+        g.__void_txsubmit_late_repair_v1_err = String(e?.message || e);
+        return res.status(500).json({ ok:false, err:String(e?.message || e), handled:"txsubmit_late_repair_v1" });
+      }
+    });
+
+    app.get("/__void/diag/txsubmit_late_repair_v1.json", (_req:any, res:any) => {
+      res.json({
+        ok: true,
+        installed: true,
+        mounted: true,
+        hits: g.__void_txsubmit_late_repair_v1_hits || 0,
+        last: g.__void_txsubmit_late_repair_v1_last || null,
+        last_err: g.__void_txsubmit_late_repair_v1_err || null
+      });
+    });
+
+    app.get("/__void/metrics/txsubmit_late_repair_v1.prom", (_req:any, res:any) => {
+      const hits = Number(g.__void_txsubmit_late_repair_v1_hits || 0);
+      const lastWhen = Number(g.__void_txsubmit_late_repair_v1_last?.when || 0);
+      const lastErr = String(g.__void_txsubmit_late_repair_v1_err || "");
+      const txt =
+`# HELP void_txsubmit_late_repair_v1_installed late txsubmit repair installed
+# TYPE void_txsubmit_late_repair_v1_installed gauge
+void_txsubmit_late_repair_v1_installed 1
+# HELP void_txsubmit_late_repair_v1_hits_total late txsubmit repair hits
+# TYPE void_txsubmit_late_repair_v1_hits_total counter
+void_txsubmit_late_repair_v1_hits_total ${hits}
+# HELP void_txsubmit_late_repair_v1_last_when_ms last hit timestamp ms
+# TYPE void_txsubmit_late_repair_v1_last_when_ms gauge
+void_txsubmit_late_repair_v1_last_when_ms ${lastWhen}
+# HELP void_txsubmit_late_repair_v1_last_err last error string
+# TYPE void_txsubmit_late_repair_v1_last_err gauge
+void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").replace(/"/g,"\\\"")}"} 1
+`;
+      res.type("text/plain; version=0.0.4").send(txt);
+    });
+
+    g.__void_txsubmit_late_repair_v1_mounted = true;
+    try{ console.log("[txsubmit.late-repair] mounted /tx/submit + diag + metrics"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
