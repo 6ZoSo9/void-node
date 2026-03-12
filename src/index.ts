@@ -36112,6 +36112,45 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
     }
   }
 
+  async function headFromHttp(){
+    try{
+      const port = Number(process.env.HTTP_PORT || 4100);
+      const data:any = await new Promise((resolve, reject) => {
+        const req = http.get({
+          host: "127.0.0.1",
+          port,
+          path: "/blocks/latest/number2.json",
+          timeout: 1500
+        }, (resp:any) => {
+          let body = "";
+          resp.setEncoding("utf8");
+          resp.on("data", (c:any)=> body += c);
+          resp.on("end", ()=> {
+            try{
+              resolve(JSON.parse(body || "{}"));
+            }catch(e){
+              reject(e);
+            }
+          });
+        });
+        req.on("timeout", ()=> req.destroy(new Error("timeout")));
+        req.on("error", reject);
+      });
+
+      const raw =
+        data?.number ??
+        data?.n ??
+        data?.head ??
+        data?.latest ??
+        null;
+
+      const n = Number(raw);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    }catch{
+      return null;
+    }
+  }
+
   async function attach(){
     const app:any = getApp();
     if (!app || g.__void_demo_summary_v1_mounted) {
@@ -36132,7 +36171,7 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
             node_id: String(getNode()?.id || getNode()?.nodeId || g.__void_node_id || "")
           },
           chain: {
-            head: currentHead(),
+            head: (currentHead() ?? await headFromHttp()),
             mempool_count: mempoolCount()
           },
           datanet: {
