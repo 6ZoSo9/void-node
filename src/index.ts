@@ -35942,6 +35942,43 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 })();
 
 
+// [ADD] datanet demo clean path v1
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_datanet_demo_clean_path_v1_installed) return;
+  g.__void_datanet_demo_clean_path_v1_installed = true;
+
+  const path = require("path");
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function sendDemo(res:any){
+    const file = path.join(process.cwd(), "public", "demo", "datanet", "index.html");
+    return res.sendFile(file);
+  }
+
+  function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_datanet_demo_clean_path_v1_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    app.get("/datanet-demo", (_req:any, res:any) => sendDemo(res));
+    app.get("/datanet-demo/", (_req:any, res:any) => sendDemo(res));
+    app.get("/__void/datanet-demo", (_req:any, res:any) => sendDemo(res));
+    app.get("/__void/datanet-demo/", (_req:any, res:any) => sendDemo(res));
+
+    g.__void_datanet_demo_clean_path_v1_mounted = true;
+    try{ console.log("[datanet.demo.cleanpath] mounted at /datanet-demo"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
+
+
 
 
 
