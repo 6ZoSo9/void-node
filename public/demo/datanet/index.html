@@ -25,7 +25,7 @@
       color: var(--text);
     }
     .wrap {
-      max-width: 1180px;
+      max-width: 1240px;
       margin: 0 auto;
       padding: 24px;
     }
@@ -53,7 +53,7 @@
       padding: 10px 12px;
     }
     textarea { width: 100%; min-height: 120px; resize: vertical; }
-    input[type="text"] { width: 100%; }
+    input[type="text"], input[type="number"] { width: 100%; }
     button {
       cursor: pointer;
       background: #17305f;
@@ -74,7 +74,7 @@
     .list {
       display: grid;
       gap: 10px;
-      max-height: 460px;
+      max-height: 420px;
       overflow: auto;
       padding-right: 4px;
     }
@@ -122,8 +122,8 @@
   <div class="wrap">
     <div class="row toolbar" style="justify-content:space-between;">
       <div>
-        <h1>VOID DataNet Demo</h1>
-        <p>Publish → fetch → verify → decrypt on the live node.</p>
+        <h1>VOID DataNet + Agent Demo</h1>
+        <p>Publish → fetch → verify → decrypt → submit linked agent job → pick → complete.</p>
       </div>
       <div class="row">
         <span id="healthPill" class="pill">health: checking…</span>
@@ -206,14 +206,61 @@
         <pre id="receiptsOut">[]</pre>
       </div>
     </div>
+
+    <div class="grid" style="margin-top:16px;">
+      <div class="card">
+        <h2>Linked agent job</h2>
+        <div class="row">
+          <input id="workerHint" class="full" type="text" value="demo-worker-2" placeholder="Worker hint" />
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <input id="jobPriority" class="full" type="number" value="5" placeholder="Priority" />
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button onclick="submitLinkedJob()">Submit linked job</button>
+          <button onclick="pickJob()">Pick job</button>
+          <button onclick="completeJob()">Complete job</button>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button onclick="loadLatestIntegration()">Load latest integration</button>
+          <span id="agentStatus" class="muted small"></span>
+        </div>
+        <div class="selectedBox" style="margin-top:12px;">
+          <div class="small muted">Selected job id</div>
+          <div id="selectedJobId" class="mono small">(none)</div>
+        </div>
+        <div class="stack" style="margin-top:12px;">
+          <div>
+            <div class="small muted" style="margin-bottom:6px;">Agent submit/pick/complete output</div>
+            <pre id="agentActionOut">{}</pre>
+          </div>
+          <div>
+            <div class="small muted" style="margin-bottom:6px;">Integrated dataset ↔ job view</div>
+            <pre id="agentIntegrationOut">{}</pre>
+          </div>
+          <div>
+            <div class="small muted" style="margin-bottom:6px;">Agent summary</div>
+            <pre id="agentSummaryOut">{}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Demo summary</h2>
+        <div class="row" style="margin-bottom:10px;">
+          <button onclick="loadDemoSummary()">Reload summary</button>
+          <span id="demoSummaryStatus" class="muted small"></span>
+        </div>
+        <pre id="demoSummaryOut">{}</pre>
+      </div>
+    </div>
   </div>
 
   <script>
     let selectedId = "";
+    let selectedJobId = "";
 
-    function pretty(x) {
-      return JSON.stringify(x, null, 2);
-    }
+    function pretty(x) { return JSON.stringify(x, null, 2); }
 
     async function jfetch(url, opts) {
       const r = await fetch(url, opts);
@@ -224,14 +271,8 @@
       return data;
     }
 
-    function setText(id, text) {
-      document.getElementById(id).textContent = text;
-    }
-
-    function setJSON(id, obj) {
-      document.getElementById(id).textContent = pretty(obj);
-    }
-
+    function setText(id, text) { document.getElementById(id).textContent = text; }
+    function setJSON(id, obj) { document.getElementById(id).textContent = pretty(obj); }
     function setPill(id, text, kind) {
       const el = document.getElementById(id);
       el.textContent = text;
@@ -249,12 +290,11 @@
 
     async function loadLoopproof() {
       try {
-        const txt = await (await fetch("/metrics")).text();
-        const m = txt.match(/void_datanet_loopproof_ok\s+([0-9.]+)/);
-        if (!m) return setPill("loopproofPill", "loopproof: unknown", "warn");
-        const ok = Number(m[1] || 0);
+        const j = await jfetch("/__void/demo/summary.json");
+        const ok = Number(j?.datanet?.loopproof_ok ?? -1);
         if (ok >= 1) setPill("loopproofPill", "loopproof: green", "ok");
-        else setPill("loopproofPill", "loopproof: red", "err");
+        else if (ok === 0) setPill("loopproofPill", "loopproof: red", "err");
+        else setPill("loopproofPill", "loopproof: unknown", "warn");
       } catch (e) {
         setPill("loopproofPill", "loopproof: error", "err");
       }
@@ -350,6 +390,7 @@
         await loadList();
         await loadReceipts();
         await fetchSelected();
+        await loadDemoSummary();
       } catch (e) {
         setText("publishStatus", String(e.message || e));
       }
@@ -399,13 +440,124 @@
       }
     }
 
+    async function submitLinkedJob() {
+      if (!selectedId) return setText("agentStatus", "no dataset selected");
+      setText("agentStatus", "submitting linked job…");
+      try {
+        const worker_hint = document.getElementById("workerHint").value || "demo-worker-2";
+        const priority = Number(document.getElementById("jobPriority").value || 5);
+        const j = await jfetch("/agent/v1/job/submit-for-dataset", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            dataset_id: selectedId,
+            action: "datanet.verify",
+            priority,
+            worker_hint
+          })
+        });
+        selectedJobId = j?.job?.id || "";
+        setText("selectedJobId", selectedJobId || "(none)");
+        setJSON("agentActionOut", j);
+        setText("agentStatus", "linked job submitted");
+        await loadAgentSummary();
+      } catch (e) {
+        setText("agentStatus", String(e.message || e));
+      }
+    }
+
+    async function pickJob() {
+      setText("agentStatus", "picking job…");
+      try {
+        const worker_id = document.getElementById("workerHint").value || "demo-worker-2";
+        const j = await jfetch("/agent/v1/job/pick", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ worker_id })
+        });
+        if (j?.job?.id) {
+          selectedJobId = j.job.id;
+          setText("selectedJobId", selectedJobId);
+        }
+        setJSON("agentActionOut", j);
+        setText("agentStatus", "pick ok");
+        await loadAgentSummary();
+      } catch (e) {
+        setText("agentStatus", String(e.message || e));
+      }
+    }
+
+    async function completeJob() {
+      if (!selectedJobId) return setText("agentStatus", "no selected job");
+      setText("agentStatus", "completing job…");
+      try {
+        const j = await jfetch(`/agent/v1/job/${selectedJobId}/complete`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            result: {
+              ok: true,
+              checked_dataset_id: selectedId || null,
+              note: "completed from demo UI"
+            }
+          })
+        });
+        setJSON("agentActionOut", j);
+        setText("agentStatus", "complete ok");
+        await loadLatestIntegration();
+        await loadAgentSummary();
+      } catch (e) {
+        setText("agentStatus", String(e.message || e));
+      }
+    }
+
+    async function loadLatestIntegration() {
+      setText("agentStatus", "loading integration…");
+      try {
+        let j;
+        if (selectedJobId) j = await jfetch(`/__void/integration/dataset-job/${selectedJobId}`);
+        else j = await jfetch("/__void/integration/latest-dataset-job.json");
+        setJSON("agentIntegrationOut", j);
+        if (!selectedJobId && j?.job?.id) {
+          selectedJobId = j.job.id;
+          setText("selectedJobId", selectedJobId);
+        }
+        setText("agentStatus", "integration loaded");
+      } catch (e) {
+        setText("agentStatus", String(e.message || e));
+      }
+    }
+
+    async function loadAgentSummary() {
+      try {
+        const j = await jfetch("/__void/agent/summary.json");
+        setJSON("agentSummaryOut", j);
+      } catch (e) {
+        setJSON("agentSummaryOut", { ok: false, err: String(e.message || e) });
+      }
+    }
+
+    async function loadDemoSummary() {
+      setText("demoSummaryStatus", "loading…");
+      try {
+        const j = await jfetch("/__void/demo/summary.json");
+        setJSON("demoSummaryOut", j);
+        setText("demoSummaryStatus", "summary loaded");
+      } catch (e) {
+        setText("demoSummaryStatus", String(e.message || e));
+      }
+    }
+
     async function refreshAll() {
       await loadHealth();
       await loadLoopproof();
       await loadList();
       await loadReceipts();
+      await loadDemoSummary();
+      await loadAgentSummary();
       if (!selectedId) await useLatest();
       else await fetchSelected();
+      if (selectedJobId) await loadLatestIntegration();
     }
 
     refreshAll();
