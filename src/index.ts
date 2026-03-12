@@ -12527,9 +12527,9 @@ void_seal_rate_1m ${rate1m()}
           const cap = getCap();
           const take:number = Math.min(cap, q.length||0);
           if (take > 0) {
-            // ensure payload.txs array
-            block.payload = block.payload || {};
-            const arr = (block.payload.txs = block.payload.txs || []);
+            // canonical write path: block.txs
+            block.txs = Array.isArray(block.txs) ? block.txs : [];
+            const arr = block.txs;
             for (let i=0;i<take;i++){
               // pop from queue; prefer shift() semantics (FIFO)
               const tx = typeof q.shift === "function" ? q.shift() : null;
@@ -12540,9 +12540,9 @@ void_seal_rate_1m ${rate1m()}
               }
             }
             // simple uniqueness guard to avoid duping if caller also stuffed txs
-            if (Array.isArray(block.payload.txs)) {
+            if (Array.isArray(block.txs)) {
               const seen = new Set<string>();
-              block.payload.txs = block.payload.txs.filter((t:any)=>{
+              block.txs = block.txs.filter((t:any)=>{
                 const k = typeof t === "string" ? t : JSON.stringify(t);
                 if (seen.has(k)) return false; seen.add(k); return true;
               });
@@ -12619,10 +12619,8 @@ void_seal_rate_1m ${rate1m()}
           return out;
         };
 
-        // create both placements for maximum compatibility
-        block.payload = block.payload || {};
-        block.payload.txs = block.payload.txs || [];
-        block.txs = block.txs || [];
+        // canonical placement
+        block.txs = Array.isArray(block.txs) ? block.txs : [];
 
         for (const q of sources){
           if (poured >= cap) break;
@@ -12630,24 +12628,16 @@ void_seal_rate_1m ${rate1m()}
           const pulled = takeFrom(q, need, true); // FIFO
           if (pulled.length){
             poured += pulled.length;
-            block.payload.txs.push(...pulled);
             block.txs.push(...pulled);
           }
         }
 
-        // dedupe (stringify-safe)
-        if (Array.isArray(block.payload.txs)){
-          const seen = new Set<string>();
-          block.payload.txs = block.payload.txs.filter((t:any)=>{
-            const k = typeof t === "string" ? t : JSON.stringify(t);
-            if (seen.has(k)) return false; seen.add(k); return true;
-          });
-        }
+        // dedupe canonical tx array only
         if (Array.isArray(block.txs)){
-          const seen2 = new Set<string>();
+          const seen = new Set<string>();
           block.txs = block.txs.filter((t:any)=>{
             const k = typeof t === "string" ? t : JSON.stringify(t);
-            if (seen2.has(k)) return false; seen2.add(k); return true;
+            if (seen.has(k)) return false; seen.add(k); return true;
           });
         }
 
@@ -12856,13 +12846,12 @@ void_seal_rate_1m ${rate1m()}
           skipped_total++;
           return await orig(block);
         }
-        // ensure payload.txs array
+        // canonical write path: block.txs
         block = block || {};
-        block.payload = block.payload || {};
-        block.payload.txs = Array.isArray(block.payload.txs) ? block.payload.txs : [];
+        block.txs = Array.isArray(block.txs) ? block.txs : [];
 
         const picked = mp.splice(0, take);
-        for (const tx of picked) block.payload.txs.push(tx);
+        for (const tx of picked) block.txs.push(tx);
         merged_total += picked.length;
         last_merged_block = block.number ?? -1;
 
@@ -13216,8 +13205,6 @@ void_seal_rate_1m ${rate1m()}
   function ensureArrays(block:any){
     if (!block) return;
     if (!Array.isArray(block.txs)) block.txs = [];
-    if (!block.payload || typeof block.payload !== "object") block.payload = {};
-    if (!Array.isArray(block.payload.txs)) block.payload.txs = [];
   }
 
   async function attach(){
@@ -13238,20 +13225,17 @@ void_seal_rate_1m ${rate1m()}
         const cap = getCap();
 
         const have =
-          (Array.isArray(block.txs) ? block.txs.length : 0) +
+          Array.isArray(block.txs) ? block.txs.length :
           (Array.isArray(block.payload?.txs) ? block.payload.txs.length : 0);
 
         if (have === 0) {
           const picked = popFromMempool(cap);
           if (picked.length > 0) {
-            // Write to BOTH paths to avoid reader/writer mismatches
+            // Canonical write path: block.txs
             block.txs = Array.isArray(block.txs) ? block.txs : [];
-            block.payload = block.payload || {};
-            block.payload.txs = Array.isArray(block.payload.txs) ? block.payload.txs : [];
 
             for (const tx of picked) {
               block.txs.push(tx);
-              block.payload.txs.push(tx);
             }
             (globalThis as any).__lastMile_info = {
               when: Date.now(),
@@ -13486,19 +13470,17 @@ void_seal_rate_1m ${rate1m()}
     const orig = target.saveBlock.bind(target);
     target.saveBlock = async function patchedSaveBlock(block:any){
       try {
-        const before = Array.isArray(block?.txs) ? block.txs.length : 0;
-        const beforePayload = Array.isArray(block?.payload?.txs) ? block.payload.txs.length : 0;
+        const before = Array.isArray(block?.txs) ? block.txs.length :
+          (Array.isArray(block?.payload?.txs) ? block.payload.txs.length : 0);
 
         const res = await orig(block);
 
-        const after = Array.isArray(block?.txs) ? block.txs.length : 0;
-        const afterPayload = Array.isArray(block?.payload?.txs) ? block.payload.txs.length : 0;
+        const after = Array.isArray(block?.txs) ? block.txs.length :
+          (Array.isArray(block?.payload?.txs) ? block.payload.txs.length : 0);
 
-        // Count txs that actually ended up in the block; prefer block.txs, fallback to payload.txs
-        const used = Math.max(after, afterPayload);
-        // If there were none before and some after, assume they were injected this cycle
-        if (used > Math.max(before, beforePayload)) {
-          const delta = used - Math.max(before, beforePayload);
+        // Count txs that actually ended up in the block; prefer block.txs, fallback only if absent
+        if (after > before) {
+          const delta = after - before;
           g.__lastMile_injected_total = (g.__lastMile_injected_total || 0) + Math.max(delta, 0);
         }
         return res;
@@ -20826,6 +20808,24 @@ const wal = new WALv1(getDataDir());
       });
 
       console.log("[demo] /__void/demo/ai-status ready");
+
+  // [ADD] Built-in demo web UI (static)
+  ;(()=>{
+    try{
+      const pathMod = require("path");
+      const demoDir = pathMod.join(process.cwd(), "public", "demo");
+      app.use("/demo", express.static(demoDir, {
+        index: "index.html",
+        maxAge: 0,
+        etag: false
+      }));
+      app.get("/demoz", (_req:any,res:any)=> res.redirect(302, "/demo/"));
+      console.log("[demo] /demo static ui ready");
+    }catch(e:any){
+      console.log("[demo] /demo static ui failed:", e?.message || String(e));
+    }
+  })();
+
     })();
   }catch(e:any){
     try{ console.warn("[demo] ai-status attach failed:", e?.message || e); }catch{}
