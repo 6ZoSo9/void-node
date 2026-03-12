@@ -5,34 +5,150 @@ HOST="${VOID_HTTP_HOST:-127.0.0.1}"
 PORT="${VOID_HTTP_PORT:-4100}"
 BASE="http://${HOST}:${PORT}"
 
+CTL_DIR="${HOME}/.config/void"
+CTL_ENV="${CTL_DIR}/voidctl.env"
+KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key"
+DATA_DIR_DEFAULT="${HOME}/void-data"
+SERVICE_NAME="${VOID_SYSTEMD_UNIT:-void-node.service}"
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "[FAIL] missing dependency: $1" >&2
+    exit 1
+  }
+}
+
+need curl
+need python3
+
 j() { curl -fsS --max-time 4 "${BASE}$1"; }
 
-case "${1:-help}" in
-  version)
-    j /version | python3 -m json.tool
-    ;;
-  update-check)
-    j /upgrade/check | python3 -m json.tool
-    ;;
-  demo-summary)
-    j /__void/demo/summary.json | python3 -m json.tool
-    ;;
-  agent-summary)
-    j /__void/agent/summary.json | python3 -m json.tool
-    ;;
-  status)
-    echo "VOID status"
-    echo "-----------"
-    H="$(j /health)"
-    D="$(j /__void/demo/summary.json)"
-    A="$(j /__void/agent/summary.json)"
-    python3 -c 'import json,sys
+usage() {
+  cat <<EOF
+VOIDCTL v0
+
+Usage:
+  ops/voidctl init
+  ops/voidctl start
+  ops/voidctl stop
+  ops/voidctl version
+  ops/voidctl status
+  ops/voidctl doctor
+  ops/voidctl update-check
+  ops/voidctl demo-summary
+  ops/voidctl agent-summary
+
+Env:
+  VOID_HTTP_HOST     default: 127.0.0.1
+  VOID_HTTP_PORT     default: 4100
+  VOID_SYSTEMD_UNIT  default: void-node.service
+EOF
+}
+
+ensure_dirs() {
+  mkdir -p "${CTL_DIR}"
+  mkdir -p "${HOME}/.secrets"
+  mkdir -p "${DATA_DIR_DEFAULT}"
+}
+
+load_env_if_present() {
+  if [ -f "${CTL_ENV}" ]; then
+    # shellcheck disable=SC1090
+    . "${CTL_ENV}"
+  fi
+}
+
+cmd_init() {
+  ensure_dirs
+
+  local key_path="${KEY_PATH_DEFAULT}"
+  local data_dir="${DATA_DIR_DEFAULT}"
+
+  if [ ! -f "${key_path}" ]; then
+    python3 - <<PY
+from pathlib import Path
+import secrets
+p = Path("${key_path}")
+p.write_text(secrets.token_hex(32) + "\\n", encoding="utf-8")
+p.chmod(0o600)
+print("[ok] generated key:", str(p))
+PY
+  else
+    chmod 600 "${key_path}" || true
+    echo "[ok] key exists: ${key_path}"
+  fi
+
+  cat > "${CTL_ENV}" <<EOF
+# VOIDCTL local config v0
+VOID_HTTP_HOST=127.0.0.1
+VOID_HTTP_PORT=4100
+VOID_SYSTEMD_UNIT=${SERVICE_NAME}
+VOID_KEY_PATH=${key_path}
+VOID_DATA_DIR=${data_dir}
+EOF
+
+  chmod 600 "${CTL_ENV}" || true
+
+  echo "[ok] wrote ${CTL_ENV}"
+  echo
+  echo "=== config ==="
+  sed -n "1,120p" "${CTL_ENV}"
+  echo
+  echo "[ok] init complete"
+  echo "next:"
+  echo "  ops/voidctl start"
+  echo "  ops/voidctl status"
+}
+
+cmd_start() {
+  load_env_if_present
+  systemctl --user daemon-reload
+  systemctl --user start "${SERVICE_NAME}"
+  sleep 2
+  echo "[ok] started ${SERVICE_NAME}"
+  systemctl --user --no-pager --full status "${SERVICE_NAME}" -n 20 || true
+}
+
+cmd_stop() {
+  load_env_if_present
+  systemctl --user stop "${SERVICE_NAME}"
+  echo "[ok] stopped ${SERVICE_NAME}"
+}
+
+print_json_pretty() {
+  python3 -m json.tool
+}
+
+cmd_version() {
+  j /version | print_json_pretty
+}
+
+cmd_update_check() {
+  j /upgrade/check | print_json_pretty
+}
+
+cmd_demo_summary() {
+  j /__void/demo/summary.json | print_json_pretty
+}
+
+cmd_agent_summary() {
+  j /__void/agent/summary.json | print_json_pretty
+}
+
+cmd_status() {
+  local health demo agent
+  health="$(j /health)"
+  demo="$(j /__void/demo/summary.json)"
+  agent="$(j /__void/agent/summary.json)"
+  python3 -c 'import json,sys
 h=json.loads(sys.argv[1]); d=json.loads(sys.argv[2]); a=json.loads(sys.argv[3])
 c=d.get("chain") or {}
 dn=d.get("datanet") or {}
 u=d.get("update") or {}
 latest=dn.get("latest_dataset") or {}
 counts=a.get("counts") or {}
+print("VOID status")
+print("-----------")
 print("node_id:", h.get("nodeId"))
 print("http:", h.get("http"))
 print("p2p:", h.get("p2p"))
@@ -48,21 +164,52 @@ print("channel:", u.get("channel"))
 print("agent_total:", counts.get("total"))
 print("agent_queued:", counts.get("queued"))
 print("agent_picked:", counts.get("picked"))
-print("agent_done:", counts.get("completed"))' "$H" "$D" "$A"
-    ;;
-  doctor)
-    ok(){ curl -fsS --max-time 3 "${BASE}$1" >/dev/null && echo "[ok] $2" || echo "[FAIL] $2"; }
-    echo "VOID doctor"
-    echo "-----------"
-    ok /health health
-    ok /version version
-    ok /upgrade/check upgrade-check
-    ok /__void/demo/summary.json demo-summary
-    ok /__void/agent/summary.json agent-summary
-    ok "/datanet/list?limit=1" datanet-list
-    ;;
-  *)
-    echo "usage: ops/voidctl {version|update-check|demo-summary|agent-summary|status|doctor}"
+print("agent_done:", counts.get("completed"))' "$health" "$demo" "$agent"
+}
+
+cmd_doctor() {
+  local fails=0
+  ok(){ curl -fsS --max-time 3 "${BASE}$1" >/dev/null && echo "[ok] $2" || { echo "[FAIL] $2"; fails=$((fails+1)); }; }
+
+  echo "VOID doctor"
+  echo "-----------"
+  echo "[info] base=${BASE}"
+
+  ok /health health
+  ok /version version
+  ok /upgrade/check upgrade-check
+  ok /__void/demo/summary.json demo-summary
+  ok /__void/agent/summary.json agent-summary
+  ok "/datanet/list?limit=1" datanet-list
+
+  echo
+  if [ "$fails" -eq 0 ]; then
+    echo "[ok] doctor passed"
+  else
+    echo "[FAIL] doctor found ${fails} issue(s)"
     exit 1
-    ;;
-esac
+  fi
+}
+
+main() {
+  case "${1:-help}" in
+    init) shift; cmd_init "$@" ;;
+    start) shift; cmd_start "$@" ;;
+    stop) shift; cmd_stop "$@" ;;
+    version) shift; cmd_version "$@" ;;
+    status) shift; cmd_status "$@" ;;
+    doctor) shift; cmd_doctor "$@" ;;
+    update-check) shift; cmd_update_check "$@" ;;
+    demo-summary) shift; cmd_demo_summary "$@" ;;
+    agent-summary) shift; cmd_agent_summary "$@" ;;
+    ""|-h|--help|help) usage ;;
+    *)
+      echo "[FAIL] unknown command: ${1:-}" >&2
+      echo >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
