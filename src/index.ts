@@ -36811,7 +36811,10 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
         manifest_found: false,
         update_available: false,
         compatible: true,
-        reason: "no_manifest"
+        reason: "no_manifest",
+        signature_present: false,
+        signature_valid: false,
+        verification_reason: "manifest_missing"
       };
     }
 
@@ -36822,6 +36825,15 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 
     const compatible = localProtocol >= minProtocol;
     const update_available = versionCmp > 0;
+    const sig:any = manifest.signature || null;
+    const signature_present = !!(sig && sig.alg && sig.key_id && typeof sig.sig === "string" && sig.sig.length > 0);
+    const signature_valid = false;
+    const verification_reason =
+      !sig ? "signature_block_missing" :
+      !sig.alg ? "signature_alg_missing" :
+      !sig.key_id ? "signature_key_id_missing" :
+      !sig.sig ? "signature_empty" :
+      "verification_stub_not_implemented";
 
     return {
       ok: true,
@@ -36841,7 +36853,10 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
       reason:
         !compatible ? "protocol_too_old" :
         update_available ? "newer_version_available" :
-        "up_to_date"
+        "up_to_date",
+      signature_present,
+      signature_valid,
+      verification_reason
     };
   }
 
