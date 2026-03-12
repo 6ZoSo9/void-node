@@ -29,7 +29,7 @@
       margin: 0 auto;
       padding: 24px;
     }
-    h1, h2 { margin: 0 0 12px; }
+    h1, h2, h3 { margin: 0 0 12px; }
     p { color: var(--muted); }
     .grid {
       display: grid;
@@ -44,7 +44,7 @@
       box-shadow: 0 8px 24px rgba(0,0,0,.24);
     }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    input, textarea, button, select {
+    input, textarea, button {
       font: inherit;
       border-radius: 10px;
       border: 1px solid var(--border);
@@ -68,6 +68,9 @@
       color: var(--muted);
       font-size: 12px;
     }
+    .pill.ok { color: var(--ok); border-color: #2f6f3b; }
+    .pill.err { color: var(--err); border-color: #7a2f2f; }
+    .pill.warn { color: var(--warn); border-color: #7a5a2f; }
     .list {
       display: grid;
       gap: 10px;
@@ -99,13 +102,17 @@
       max-height: 260px;
       overflow: auto;
     }
-    .status-ok { color: var(--ok); }
-    .status-err { color: var(--err); }
-    .status-warn { color: var(--warn); }
     .muted { color: var(--muted); }
-    .toolbar { margin-bottom: 12px; }
     .small { font-size: 12px; }
+    .toolbar { margin-bottom: 12px; }
     .full { width: 100%; }
+    .stack { display: grid; gap: 12px; }
+    .selectedBox {
+      background: #0a1228;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
     @media (max-width: 900px) {
       .grid { grid-template-columns: 1fr; }
     }
@@ -120,6 +127,7 @@
       </div>
       <div class="row">
         <span id="healthPill" class="pill">health: checking…</span>
+        <span id="loopproofPill" class="pill">loopproof: checking…</span>
         <button onclick="refreshAll()">Refresh</button>
       </div>
     </div>
@@ -127,7 +135,7 @@
     <div class="grid">
       <div class="card">
         <h2>Publish plaintext</h2>
-        <p class="small">This demo encrypts on the server-side demo route for now. Good enough for proof, not final product shape.</p>
+        <p class="small">Server-side demo encryption for proof. Good enough for demos, not final product shape.</p>
         <div class="row">
           <input id="passphrase" class="full" type="text" value="void-demo-pass" placeholder="Passphrase" />
         </div>
@@ -136,6 +144,7 @@
         </div>
         <div class="row" style="margin-top:10px;">
           <button onclick="publishPlaintext()">Publish</button>
+          <button onclick="useLatest()">Use latest dataset</button>
           <span id="publishStatus" class="muted small"></span>
         </div>
         <div style="margin-top:12px;">
@@ -156,12 +165,13 @@
     <div class="grid" style="margin-top:16px;">
       <div class="card">
         <h2>Selected dataset</h2>
-        <div class="row" style="margin-bottom:10px;">
-          <span class="pill">selected id</span>
-          <span id="selectedId" class="mono small muted">(none)</span>
+        <div class="selectedBox">
+          <div class="small muted">Selected dataset id</div>
+          <div id="selectedId" class="mono small">(none)</div>
         </div>
-        <div class="row" style="margin-bottom:10px;">
-          <button onclick="fetchSelected()">Fetch</button>
+        <div class="row" style="margin:12px 0 10px;">
+          <button onclick="copySelectedId()">Copy id</button>
+          <button onclick="fetchSelected()">Fetch meta</button>
           <button onclick="verifySelected()">Verify</button>
           <button onclick="decryptSelected()">Decrypt</button>
         </div>
@@ -171,7 +181,7 @@
         <div class="row" style="margin-bottom:10px;">
           <input id="decryptPassphrase" class="full" type="text" value="void-demo-pass" placeholder="Decrypt passphrase" />
         </div>
-        <div style="display:grid; gap:12px;">
+        <div class="stack">
           <div>
             <div class="small muted" style="margin-bottom:6px;">Meta</div>
             <pre id="metaOut">{}</pre>
@@ -222,15 +232,31 @@
       document.getElementById(id).textContent = pretty(obj);
     }
 
+    function setPill(id, text, kind) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = `pill ${kind || ""}`.trim();
+    }
+
     async function loadHealth() {
-      const pill = document.getElementById("healthPill");
       try {
         const j = await jfetch("/health");
-        pill.textContent = `health: ok http=${j.http} p2p=${j.p2p}`;
-        pill.className = "pill status-ok";
+        setPill("healthPill", `health: ok http=${j.http} p2p=${j.p2p}`, "ok");
       } catch (e) {
-        pill.textContent = "health: error";
-        pill.className = "pill status-err";
+        setPill("healthPill", "health: error", "err");
+      }
+    }
+
+    async function loadLoopproof() {
+      try {
+        const txt = await (await fetch("/metrics")).text();
+        const m = txt.match(/void_datanet_loopproof_ok\s+([0-9.]+)/);
+        if (!m) return setPill("loopproofPill", "loopproof: unknown", "warn");
+        const ok = Number(m[1] || 0);
+        if (ok >= 1) setPill("loopproofPill", "loopproof: green", "ok");
+        else setPill("loopproofPill", "loopproof: red", "err");
+      } catch (e) {
+        setPill("loopproofPill", "loopproof: error", "err");
       }
     }
 
@@ -281,6 +307,27 @@
       fetchSelected();
     }
 
+    async function useLatest() {
+      try {
+        const j = await jfetch("/datanet/list?limit=1");
+        const item = (j.items || [])[0];
+        if (!item) return setText("selectedStatus", "no datasets available");
+        selectDataset(item.id);
+      } catch (e) {
+        setText("selectedStatus", String(e.message || e));
+      }
+    }
+
+    async function copySelectedId() {
+      if (!selectedId) return setText("selectedStatus", "no dataset selected");
+      try {
+        await navigator.clipboard.writeText(selectedId);
+        setText("selectedStatus", "dataset id copied");
+      } catch {
+        setText("selectedStatus", "copy failed");
+      }
+    }
+
     async function publishPlaintext() {
       const text = document.getElementById("plaintext").value;
       const passphrase = document.getElementById("passphrase").value;
@@ -302,6 +349,7 @@
         setText("selectedId", selectedId);
         await loadList();
         await loadReceipts();
+        await fetchSelected();
       } catch (e) {
         setText("publishStatus", String(e.message || e));
       }
@@ -327,6 +375,7 @@
         setJSON("verifyOut", j);
         setText("selectedStatus", "verify ok");
         await loadReceipts();
+        await loadLoopproof();
       } catch (e) {
         setText("selectedStatus", String(e.message || e));
       }
@@ -352,9 +401,11 @@
 
     async function refreshAll() {
       await loadHealth();
+      await loadLoopproof();
       await loadList();
       await loadReceipts();
-      if (selectedId) await fetchSelected();
+      if (!selectedId) await useLatest();
+      else await fetchSelected();
     }
 
     refreshAll();
