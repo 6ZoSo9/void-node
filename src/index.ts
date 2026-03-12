@@ -35522,3 +35522,270 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 })();
 
 
+// [ADD] datanet mini loop v1
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_datanet_mini_loop_v1_installed) return;
+  g.__void_datanet_mini_loop_v1_installed = true;
+
+  const fs = require("fs");
+  const fsp = fs.promises;
+  const path = require("path");
+  const crypto = require("crypto");
+  const expressMod = require("express");
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function getDataDir(){
+    return process.env.DATA_DIR || "data";
+  }
+
+  function rootDir(){
+    return path.join(getDataDir(), "datanet_v1");
+  }
+
+  function objectsDir(){
+    return path.join(rootDir(), "objects");
+  }
+
+  function receiptsFile(){
+    return path.join(rootDir(), "receipts.jsonl");
+  }
+
+  async function ensureDirs(){
+    await fsp.mkdir(objectsDir(), { recursive: true });
+  }
+
+  function sha256Hex(buf:any){
+    return crypto.createHash("sha256").update(buf).digest("hex");
+  }
+
+  function randHex(n:number){
+    return crypto.randomBytes(n).toString("hex");
+  }
+
+  function safeId(v:any){
+    const s = String(v || "");
+    if (!/^[A-Za-z0-9._:-]+$/.test(s)) throw new Error("bad id");
+    return s;
+  }
+
+  function objectBinPath(id:string){
+    return path.join(objectsDir(), `${id}.bin`);
+  }
+
+  function objectMetaPath(id:string){
+    return path.join(objectsDir(), `${id}.json`);
+  }
+
+  async function writeJson(file:string, obj:any){
+    await fsp.writeFile(file, JSON.stringify(obj, null, 2));
+  }
+
+  async function readJson(file:string){
+    return JSON.parse(await fsp.readFile(file, "utf8"));
+  }
+
+  async function appendReceipt(kind:string, obj:any){
+    try{
+      await ensureDirs();
+      const rec = {
+        ts: Date.now(),
+        kind,
+        ...obj
+      };
+      await fsp.appendFile(receiptsFile(), JSON.stringify(rec) + "\n");
+    }catch{}
+  }
+
+  function encryptTextWithPassphrase(text:string, passphrase:string){
+    const salt = crypto.randomBytes(16);
+    const iv = crypto.randomBytes(12);
+    const key = crypto.scryptSync(passphrase, salt, 32);
+    const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+    const ciphertext = Buffer.concat([cipher.update(Buffer.from(text, "utf8")), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return {
+      ciphertext,
+      envelope: {
+        alg: "aes-256-gcm+scrypt",
+        salt_b64: salt.toString("base64"),
+        iv_b64: iv.toString("base64"),
+        tag_b64: tag.toString("base64"),
+        encoding: "utf8"
+      }
+    };
+  }
+
+  function decryptTextWithPassphrase(ciphertext:any, envelope:any, passphrase:string){
+    const salt = Buffer.from(String(envelope?.salt_b64 || ""), "base64");
+    const iv = Buffer.from(String(envelope?.iv_b64 || ""), "base64");
+    const tag = Buffer.from(String(envelope?.tag_b64 || ""), "base64");
+    const key = crypto.scryptSync(passphrase, salt, 32);
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    return plaintext.toString("utf8");
+  }
+
+  async function loadObject(idRaw:any){
+    const id = safeId(idRaw);
+    const meta = await readJson(objectMetaPath(id));
+    const ciphertext = await fsp.readFile(objectBinPath(id));
+    return { id, meta, ciphertext };
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_datanet_mini_loop_v1_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    const json64 = expressMod.json({ limit: "256kb" });
+
+    app.get("/__void/diag/datanet-mini-loop-v1.json", async (_req:any, res:any) => {
+      try{
+        await ensureDirs();
+        let receipts_size = 0;
+        try{
+          const st = await fsp.stat(receiptsFile());
+          receipts_size = st.size;
+        }catch{}
+        return res.json({
+          ok: true,
+          installed: true,
+          mounted: true,
+          root: rootDir(),
+          objects: objectsDir(),
+          receipts_file: receiptsFile(),
+          receipts_size
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.post("/datanet/dev/publish-plaintext", json64, async (req:any, res:any) => {
+      try{
+        await ensureDirs();
+        const text = String(req?.body?.text ?? "");
+        const passphrase = String(req?.body?.passphrase ?? "");
+        const mime = String(req?.body?.mime || "text/plain");
+        const metaIn = (req?.body?.meta && typeof req.body.meta === "object") ? req.body.meta : {};
+
+        if (!text) return res.status(400).json({ ok:false, err:"missing text" });
+        if (!passphrase) return res.status(400).json({ ok:false, err:"missing passphrase" });
+
+        const enc = encryptTextWithPassphrase(text, passphrase);
+        const hash = sha256Hex(enc.ciphertext);
+        const id = `ds_${Date.now()}_${hash.slice(0,16)}_${randHex(4)}`;
+
+        const meta = {
+          id,
+          created_at_ms: Date.now(),
+          kind: "dev-encrypted-plaintext",
+          mime,
+          plaintext_len: Buffer.byteLength(text, "utf8"),
+          ciphertext_len: enc.ciphertext.length,
+          sha256: hash,
+          envelope: enc.envelope,
+          meta: metaIn
+        };
+
+        await fsp.writeFile(objectBinPath(id), enc.ciphertext);
+        await writeJson(objectMetaPath(id), meta);
+        await appendReceipt("publish", { id, sha256: hash, ciphertext_len: enc.ciphertext.length, mime });
+
+        return res.json({
+          ok: true,
+          id,
+          sha256: hash,
+          ciphertext_len: enc.ciphertext.length,
+          plaintext_len: meta.plaintext_len,
+          mime,
+          envelope: enc.envelope
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/datanet/fetch/:id", async (req:any, res:any) => {
+      try{
+        const { id, meta, ciphertext } = await loadObject(req.params.id);
+        await appendReceipt("fetch", { id, sha256: meta.sha256, ciphertext_len: ciphertext.length });
+        return res.json({
+          ok: true,
+          id,
+          meta,
+          ciphertext_b64: ciphertext.toString("base64")
+        });
+      }catch(e:any){
+        return res.status(404).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/datanet/verify/:id", async (req:any, res:any) => {
+      try{
+        const { id, meta, ciphertext } = await loadObject(req.params.id);
+        const sha256_now = sha256Hex(ciphertext);
+        const size_now = ciphertext.length;
+        const ok = (sha256_now === String(meta.sha256 || "")) && (size_now === Number(meta.ciphertext_len || -1));
+        await appendReceipt("verify", { id, ok, sha256_now, size_now });
+        return res.json({
+          ok,
+          id,
+          sha256_expected: meta.sha256,
+          sha256_now,
+          ciphertext_len_expected: meta.ciphertext_len,
+          ciphertext_len_now: size_now
+        });
+      }catch(e:any){
+        return res.status(404).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.post("/datanet/dev/decrypt/:id", json64, async (req:any, res:any) => {
+      try{
+        const passphrase = String(req?.body?.passphrase ?? "");
+        if (!passphrase) return res.status(400).json({ ok:false, err:"missing passphrase" });
+
+        const { id, meta, ciphertext } = await loadObject(req.params.id);
+        const text = decryptTextWithPassphrase(ciphertext, meta.envelope || {}, passphrase);
+        await appendReceipt("decrypt", { id, plaintext_len: Buffer.byteLength(text, "utf8") });
+
+        return res.json({
+          ok: true,
+          id,
+          text,
+          plaintext_len: Buffer.byteLength(text, "utf8")
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/datanet/receipts", async (_req:any, res:any) => {
+      try{
+        await ensureDirs();
+        let txt = "";
+        try{ txt = await fsp.readFile(receiptsFile(), "utf8"); }catch{}
+        const lines = txt.trim() ? txt.trim().split(/\n+/).slice(-50) : [];
+        const items = lines.map((x:string)=>{ try{ return JSON.parse(x); }catch{ return { raw:x }; } });
+        return res.json({ ok:true, count: items.length, items });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    g.__void_datanet_mini_loop_v1_mounted = true;
+    try{ console.log("[datanet.mini-loop] mounted publish/fetch/verify/decrypt/receipts"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
+
+
