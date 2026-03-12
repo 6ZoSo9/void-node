@@ -36762,6 +36762,47 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
     return path.join(process.cwd(), "config", "update-manifest.v0.json");
   }
 
+
+  async function readPubkeyPem(){
+    try{
+      const p = path.join(process.cwd(), "config", "update-pubkey.v1.pem");
+      return await fsp.readFile(p, "utf8");
+    }catch{
+      return null;
+    }
+  }
+
+  function stableManifestPayload(manifest:any){
+    const m = {
+      version: String(manifest?.version || ""),
+      protocol_version: Number(manifest?.protocol_version || 0),
+      min_protocol_version: Number(manifest?.min_protocol_version || 0),
+      channel: String(manifest?.channel || ""),
+      published_at: String(manifest?.published_at || ""),
+      notes: String(manifest?.notes || "")
+    };
+    return JSON.stringify(m);
+  }
+
+  function verifyManifestSignature(pubkeyPem:string, manifest:any){
+    try{
+      const sig = manifest?.signature || null;
+      if (!sig) return { ok:false, reason:"signature_block_missing" };
+      if (!sig.alg) return { ok:false, reason:"signature_alg_missing" };
+      if (String(sig.alg).toLowerCase() !== "ed25519") return { ok:false, reason:"signature_alg_unsupported" };
+      if (!sig.key_id) return { ok:false, reason:"signature_key_id_missing" };
+      if (!sig.sig) return { ok:false, reason:"signature_empty" };
+      if (!pubkeyPem) return { ok:false, reason:"pubkey_missing" };
+
+      const msg = stableManifestPayload(manifest);
+      const sigBuf = Buffer.from(String(sig.sig), "base64");
+      const ok = crypto.verify(null, Buffer.from(msg), pubkeyPem, sigBuf);
+      return { ok, reason: ok ? "signature_valid" : "signature_invalid" };
+    }catch(e:any){
+      return { ok:false, reason:String(e?.message || e || "verification_error") };
+    }
+  }
+
   async function readManifest(){
     try{
       const txt = await fsp.readFile(manifestPath(), "utf8");
@@ -36827,13 +36868,10 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
     const update_available = versionCmp > 0;
     const sig:any = manifest.signature || null;
     const signature_present = !!(sig && sig.alg && sig.key_id && typeof sig.sig === "string" && sig.sig.length > 0);
-    const signature_valid = false;
-    const verification_reason =
-      !sig ? "signature_block_missing" :
-      !sig.alg ? "signature_alg_missing" :
-      !sig.key_id ? "signature_key_id_missing" :
-      !sig.sig ? "signature_empty" :
-      "verification_stub_not_implemented";
+    const pubkeyPem = await readPubkeyPem();
+    const verified = verifyManifestSignature(pubkeyPem || "", manifest);
+    const signature_valid = !!verified.ok;
+    const verification_reason = verified.reason;
 
     return {
       ok: true,
