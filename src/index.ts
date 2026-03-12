@@ -35359,3 +35359,166 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
   setTimeout(attach, 250);
 })();
 
+
+// [ADD] reader truthfix v1
+;(()=>{
+  const g:any = globalThis as any;
+  if (g.__void_reader_truthfix_v1_installed) return;
+  g.__void_reader_truthfix_v1_installed = true;
+
+  function getApp(){
+    return g.__void_http_app || g.app || null;
+  }
+
+  function getNode(){
+    const app:any = getApp();
+    return g.__void_node || g.node || app?.locals?.__void_node || null;
+  }
+
+  function getCanonicalMempoolInfo(){
+    try{
+      const n:any = getNode();
+      const mp1:any = n?.mempool?.txs;
+      if (Array.isArray(mp1)) return { arr: mp1, src: "node.mempool.txs" };
+      const mp1b:any = n?.mempool?.pendingTxs;
+      if (Array.isArray(mp1b)) return { arr: mp1b, src: "node.mempool.pendingTxs" };
+      const mp2:any = g.__void_mempool_global?.txs || g.__void_mempool?.txs || g.__void_mempool_global;
+      if (Array.isArray(mp2)) return { arr: mp2, src: "global.mempool" };
+    }catch{}
+    g.__void_dev_mempool_canonfix_v1 = g.__void_dev_mempool_canonfix_v1 || [];
+    return { arr: g.__void_dev_mempool_canonfix_v1, src: "dev.fallback" };
+  }
+
+  async function findPersistedBlockLike(nRaw:any){
+    const n = Number(nRaw);
+    if (!Number.isFinite(n) || n < 0) return null;
+
+    const candidates:any[] = [];
+
+    try{
+      const store:any = g.__void_store || null;
+      if (store) candidates.push(store);
+    }catch{}
+
+    try{
+      const node:any = getNode();
+      if (node?.store) candidates.push(node.store);
+      if (node?.segStore) candidates.push(node.segStore);
+      if (node?.chain?.store) candidates.push(node.chain.store);
+    }catch{}
+
+    for (const st of candidates){
+      try{
+        if (!st) continue;
+        if (typeof st.getBlockByNumber === "function") {
+          const b = await st.getBlockByNumber(n);
+          if (b) return b;
+        }
+      }catch{}
+      try{
+        if (typeof st.getBlock === "function") {
+          const b = await st.getBlock(n);
+          if (b) return b;
+        }
+      }catch{}
+      try{
+        if (typeof st.readBlock === "function") {
+          const b = await st.readBlock(n);
+          if (b) return b;
+        }
+      }catch{}
+      try{
+        if (typeof st.loadBlock === "function") {
+          const b = await st.loadBlock(n);
+          if (b) return b;
+        }
+      }catch{}
+    }
+
+    return null;
+  }
+
+  function normalizeTxArrayFromBlock(b:any){
+    if (!b || typeof b !== "object") return [];
+    if (Array.isArray(b.txs)) return b.txs;
+    if (Array.isArray(b.payload?.txs)) return b.payload.txs;
+    if (Array.isArray(b.pendingTxs)) return b.pendingTxs;
+    return [];
+  }
+
+  async function attach(){
+    const app:any = getApp();
+    if (!app || g.__void_reader_truthfix_v1_mounted) {
+      return setTimeout(attach, 500).unref?.();
+    }
+
+    app.get("/mempool", (_req:any, res:any) => {
+      try{
+        const info = getCanonicalMempoolInfo();
+        return res.json({ ok:true, size: info.arr.length, txs: info.arr, src: info.src, __patch: "READER_TRUTHFIX_V1" });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e), __patch: "READER_TRUTHFIX_V1" });
+      }
+    });
+
+    app.get("/__void/diag/reader_truthfix_v1.json", async (_req:any, res:any) => {
+      try{
+        const info = getCanonicalMempoolInfo();
+        return res.json({
+          ok: true,
+          installed: true,
+          mounted: true,
+          mempool_src: info.src,
+          mempool_len: info.arr.length
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/diag/full2_truthfix/:n.json", async (req:any, res:any) => {
+      try{
+        const b:any = await findPersistedBlockLike(req.params.n);
+        const txs = normalizeTxArrayFromBlock(b);
+        return res.json({
+          ok: true,
+          number: Number(req.params.n),
+          found: !!b,
+          txsLen: txs.length,
+          txsSample: txs.slice(0, 3),
+          inferred_from: b ? (Array.isArray(b.txs) ? "block.txs" : (Array.isArray(b.payload?.txs) ? "block.payload.txs" : "other")) : "none"
+        });
+      }catch(e:any){
+        return res.status(500).json({ ok:false, err:String(e?.message || e) });
+      }
+    });
+
+    app.get("/blocks/:n/full2", async (req:any, res:any, next:any) => {
+      try{
+        const n = Number(req.params.n);
+        const b:any = await findPersistedBlockLike(n);
+        if (!b) return next();
+
+        const txs = normalizeTxArrayFromBlock(b);
+        const out:any = { ...(b || {}) };
+
+        if (out.number == null) out.number = n;
+        if (!Array.isArray(out.txs)) out.txs = txs;
+        if (out.n == null) out.n = out.number;
+        if (out.ts == null && out.timestamp != null) out.ts = out.timestamp;
+        if (out.timestamp == null && out.ts != null) out.timestamp = out.ts;
+
+        return res.json(out);
+      }catch(e){
+        return next();
+      }
+    });
+
+    g.__void_reader_truthfix_v1_mounted = true;
+    try{ console.log("[reader.truthfix] mounted /mempool and /blocks/:n/full2 overrides"); }catch{}
+  }
+
+  setTimeout(attach, 250);
+})();
+
+
