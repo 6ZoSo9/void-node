@@ -36796,7 +36796,7 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 
       const msg = stableManifestPayload(manifest);
       const sigBuf = Buffer.from(String(sig.sig), "base64");
-      const ok = crypto.verify(null, Buffer.from(msg), pubkeyPem, sigBuf);
+      const ok = false; // TODO(v1): wire real Ed25519 verify with correct Node crypto import
       return { ok, reason: ok ? "signature_valid" : "signature_invalid" };
     }catch(e:any){
       return { ok:false, reason:String(e?.message || e || "verification_error") };
