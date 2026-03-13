@@ -166,6 +166,12 @@ raise SystemExit(0 if ok else 1)' "$U"
 }
 
 cmd_update_plan() {
+  load_env_if_present
+
+  local TS BACKUP_DIR
+  TS="$(date +%Y%m%d-%H%M%S)"
+  BACKUP_DIR="${HOME}/.config/void/backups/update-apply-${TS}"
+
   local U
   U="$(j /upgrade/check)"
   python3 -c 'import json,sys
@@ -190,6 +196,7 @@ print("verification_reason:", u.get("verification_reason"))
 print("trust_state:", "verified" if u.get("signature_valid") else ("signed-unverified" if u.get("signature_present") else "unsigned"))
 print("")
 print("service:", sys.argv[2])
+print("backup_dir:", sys.argv[3])
 print("")
 print("planned_steps:")
 print("  1. stop service:", sys.argv[2])
@@ -197,7 +204,7 @@ print("  2. back up ops/voidctl, config, and current install state")
 print("  3. verify manifest/signature (stub today)")
 print("  4. apply new files/binaries (stub today)")
 print("  5. start service: " + sys.argv[2])
-print("  6. run ops/voidctl doctor")' "$U" "$SERVICE_NAME"
+print("  6. run ops/voidctl doctor")' "$U" "$SERVICE_NAME" "$BACKUP_DIR"
 }
 
 cmd_update_apply() {
