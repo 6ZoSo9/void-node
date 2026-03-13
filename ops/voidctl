@@ -142,13 +142,13 @@ cmd_update_check() {
 cmd_update_verify() {
   local U
   U="$(j /upgrade/check)"
-  python3 -c 'import json,sys
+  python3 -c 'import json,sys\nfrom pathlib import Path
 u=json.loads(sys.argv[1])
 
 manifest_found = bool(u.get("manifest_found"))
 compatible = bool(u.get("compatible"))
-signature_present = bool(u.get("signature_present"))
 signature_valid = bool(u.get("signature_valid"))
+signature_present = bool(u.get("signature_present"))
 verification_reason = u.get("verification_reason")
 trust_state = "verified" if signature_valid else ("signed-unverified" if signature_present else "unsigned")
 
