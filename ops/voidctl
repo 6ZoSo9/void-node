@@ -45,6 +45,7 @@ Usage:
   ops/voidctl update-verify
   ops/voidctl update-plan
   ops/voidctl update-apply
+  ops/voidctl rollback-latest
   ops/voidctl demo-summary
   ops/voidctl agent-summary
 
@@ -292,6 +293,58 @@ print("  systemctl --user start " + sys.argv[3])
 print("  ops/voidctl doctor")' "$U" "$BACKUP_DIR" "$SERVICE_NAME" "$HOME"
 }
 
+cmd_rollback_latest() {
+  load_env_if_present
+
+  local BACKUP_DIR UNIT_PATH
+  BACKUP_DIR="$(ls -1dt "${HOME}/.config/void/backups"/update-apply-* 2>/dev/null | head -n 1 || true)"
+  UNIT_PATH="${HOME}/.config/systemd/user/${SERVICE_NAME}"
+
+  if [ -z "${BACKUP_DIR}" ]; then
+    echo "[FAIL] no update-apply backup bundles found"
+    exit 1
+  fi
+
+  echo "[info] using backup_dir=${BACKUP_DIR}"
+  echo "[info] restoring service=${SERVICE_NAME}"
+
+  [ -f "${BACKUP_DIR}/voidctl.env" ] || { echo "[FAIL] missing ${BACKUP_DIR}/voidctl.env"; exit 1; }
+  [ -f "${BACKUP_DIR}/update-manifest.v0.json" ] || { echo "[FAIL] missing ${BACKUP_DIR}/update-manifest.v0.json"; exit 1; }
+
+  systemctl --user stop "${SERVICE_NAME}" || true
+
+  mkdir -p "${HOME}/.config/void"
+  mkdir -p "${HOME}/.config/systemd/user"
+  mkdir -p config
+
+  cp -a "${BACKUP_DIR}/voidctl.env" "${HOME}/.config/void/voidctl.env"
+  if [ -f "${BACKUP_DIR}/$(basename "${UNIT_PATH}")" ]; then
+    cp -a "${BACKUP_DIR}/$(basename "${UNIT_PATH}")" "${UNIT_PATH}"
+  fi
+  cp -a "${BACKUP_DIR}/update-manifest.v0.json" "config/update-manifest.v0.json"
+  if [ -f "${BACKUP_DIR}/update-pubkey.v1.pem" ]; then
+    cp -a "${BACKUP_DIR}/update-pubkey.v1.pem" "config/update-pubkey.v1.pem"
+  fi
+
+  echo "[info] leaving ops/voidctl in place (no self-overwrite)"
+
+  systemctl --user daemon-reload
+  systemctl --user start "${SERVICE_NAME}"
+
+  echo "[ok] rollback restored from ${BACKUP_DIR}"
+  echo "[info] waiting for ${SERVICE_NAME} on ${BASE}"
+
+  local i
+  for i in 1 2 3 4 5 6 7 8; do
+    if curl -fsS --max-time 2 "${BASE}/health" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+
+  cmd_doctor
+}
+
 cmd_demo_summary() {
   j /__void/demo/summary.json | print_json_pretty
 }
@@ -434,6 +487,7 @@ main() {
     update-verify) shift; cmd_update_verify "$@" ;;
     update-plan) shift; cmd_update_plan "$@" ;;
     update-apply) shift; cmd_update_apply "$@" ;;
+    rollback-latest) shift; cmd_rollback_latest "$@" ;;
     demo-summary) shift; cmd_demo_summary "$@" ;;
     agent-summary) shift; cmd_agent_summary "$@" ;;
     ""|-h|--help|help) usage ;;
