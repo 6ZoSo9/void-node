@@ -36990,6 +36990,100 @@ try {
 } catch {}
 /* === /__void/update/plan-status.json === */
 
+/* === __void peer main status v1 (additive) === */
+try {
+  const http = require("http");
+
+  function __voidFetchJson(url:string, timeoutMs:number=1500):Promise<any>{
+    return new Promise((resolve, reject) => {
+      const req = http.get(url, { timeout: timeoutMs }, (res:any) => {
+        let data = "";
+        res.setEncoding("utf8");
+        res.on("data", (c:string) => data += c);
+        res.on("end", () => {
+          try { resolve(JSON.parse(data || "{}")); }
+          catch (e:any) { reject(e); }
+        });
+      });
+      req.on("timeout", () => {
+        try { req.destroy(new Error("timeout")); } catch {}
+      });
+      req.on("error", reject);
+    });
+  }
+
+  app.get("/__void/peer-main-status.json", async (_req:any, res:any) => {
+    const mainBase = "http://127.0.0.1:4100";
+    const localBase = `http://127.0.0.1:${process.env.HTTP_PORT || 4100}`;
+
+    let localHealth:any = null;
+    let mainHealth:any = null;
+    let localOk = false;
+    let mainOk = false;
+    let sameNode = null;
+    let localHead:any = null;
+    let mainHead:any = null;
+    let headGap:any = null;
+
+    try {
+      localHealth = await __voidFetchJson(`${localBase}/health`);
+      localOk = !!(localHealth && localHealth.ok);
+    } catch {}
+
+    try {
+      mainHealth = await __voidFetchJson(`${mainBase}/health`);
+      mainOk = !!(mainHealth && mainHealth.ok);
+    } catch {}
+
+    try {
+      const localDemo = await __voidFetchJson(`${localBase}/__void/demo/summary.json`);
+      localHead = (((localDemo || {}).chain || {}).head ?? null);
+    } catch {}
+
+    try {
+      const mainDemo = await __voidFetchJson(`${mainBase}/__void/demo/summary.json`);
+      mainHead = (((mainDemo || {}).chain || {}).head ?? null);
+    } catch {}
+
+    if (localHealth && mainHealth && localHealth.nodeId && mainHealth.nodeId) {
+      sameNode = String(localHealth.nodeId) === String(mainHealth.nodeId);
+    }
+
+    if (typeof localHead === "number" && typeof mainHead === "number") {
+      headGap = mainHead - localHead;
+    }
+
+    return res.status(200).json({
+      ok: true,
+      local_base: localBase,
+      main_base: mainBase,
+      local_ok: localOk,
+      main_ok: mainOk,
+      same_node: sameNode,
+      local: localHealth ? {
+        nodeId: localHealth.nodeId ?? null,
+        http: localHealth.http ?? null,
+        p2p: localHealth.p2p ?? null,
+        peers: localHealth.peers ?? null,
+        listen: localHealth.listen ?? null,
+      } : null,
+      main: mainHealth ? {
+        nodeId: mainHealth.nodeId ?? null,
+        http: mainHealth.http ?? null,
+        p2p: mainHealth.p2p ?? null,
+        peers: mainHealth.peers ?? null,
+        listen: mainHealth.listen ?? null,
+      } : null,
+      local_head: localHead,
+      main_head: mainHead,
+      head_gap: headGap,
+    });
+  });
+} catch {}
+/* === /__void/peer-main-status.json === */
+
+
+
 app.get("/upgrade/check", async (_req:any, res:any) => {
       try{
         const out = await computeUpgradeStatus();
