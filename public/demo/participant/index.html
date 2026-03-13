@@ -110,6 +110,22 @@ ops/voidctl install-service
 ops/voidctl update-verify
 ops/voidctl doctor</pre>
       </div>
+
+      <div class="card">
+        <h2>Pending update plan</h2>
+        <p class="muted">This shows whether a local pending update plan exists for this participant node.</p>
+        <div class="stats">
+          <div class="stat"><div class="k">Plan present</div><div id="planPresent" class="v">checking…</div></div>
+          <div class="stat"><div class="k">Parse ok</div><div id="planParseOk" class="v">checking…</div></div>
+          <div class="stat"><div class="k">Plan service</div><div id="planService" class="v">checking…</div></div>
+          <div class="stat"><div class="k">Service match</div><div id="planServiceMatch" class="v">checking…</div></div>
+        </div>
+        <div class="list" style="margin-top:12px;">
+          <div><strong>Plan file:</strong> <span id="planFile">checking…</span></div>
+          <div><strong>Backup dir:</strong> <span id="planBackupDir">checking…</span></div>
+          <div><strong>Plan base:</strong> <span id="planBase">checking…</span></div>
+        </div>
+      </div>
     </div>
 
     <div class="grid" style="margin-top:16px;">

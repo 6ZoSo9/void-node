@@ -36922,7 +36922,75 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
       }
     });
 
-    app.get("/upgrade/check", async (_req:any, res:any) => {
+    
+
+/* === __void update plan status v1 (additive) === */
+try {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+
+  app.get("/__void/update/plan-status.json", async (_req:any, res:any) => {
+    try {
+      const home = os.homedir();
+      const planPath = path.join(home, ".config", "void", "update-plan.json");
+
+      let present = false;
+      let plan: any = null;
+      let parse_ok = false;
+      let service_match: boolean | null = null;
+
+      let current_service = "void-node.service";
+      try {
+        const envPath = path.join(home, ".config", "void", "voidctl.env");
+        if (fs.existsSync(envPath)) {
+          const envRaw = fs.readFileSync(envPath, "utf8");
+          const m = envRaw.match(/^VOID_SYSTEMD_UNIT=(.+)$/m);
+          if (m && m[1]) current_service = String(m[1]).trim();
+        } else if (process.env.VOID_SYSTEMD_UNIT) {
+          current_service = String(process.env.VOID_SYSTEMD_UNIT);
+        }
+      } catch {}
+
+      if (fs.existsSync(planPath)) {
+        present = true;
+        try {
+          const raw = fs.readFileSync(planPath, "utf8");
+          plan = JSON.parse(raw);
+          parse_ok = true;
+          if (plan && typeof plan === "object" && typeof plan.service === "string") {
+            service_match = plan.service === current_service;
+          }
+        } catch {
+          parse_ok = false;
+        }
+      }
+
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      return res.status(200).send(JSON.stringify({
+        ok: true,
+        plan_present: present,
+        parse_ok,
+        plan_file: planPath,
+        current_service,
+        service_match,
+        plan: plan && typeof plan === "object" ? {
+          service: plan.service ?? null,
+          backup_dir: plan.backup_dir ?? null,
+          base: plan.base ?? null,
+        } : null,
+      }, null, 2));
+    } catch (err:any) {
+      return res.status(500).json({
+        ok: false,
+        error: String(err?.message || err || "unknown_error")
+      });
+    }
+  });
+} catch {}
+/* === /__void/update/plan-status.json === */
+
+app.get("/upgrade/check", async (_req:any, res:any) => {
       try{
         const out = await computeUpgradeStatus();
         return res.json(out);
