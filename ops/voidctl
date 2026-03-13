@@ -310,6 +310,48 @@ cmd_doctor() {
   fi
 }
 
+cmd_install_service() {
+  load_env
+  mkdir -p "${HOME}/.config/systemd/user"
+
+  local UNIT_PATH="${HOME}/.config/systemd/user/${SERVICE_NAME}"
+  local REPO_DIR
+  REPO_DIR="$(pwd)"
+
+  cat > "${UNIT_PATH}" <<EOF
+[Unit]
+Description=VOID Node (installed by voidctl)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=${REPO_DIR}
+Environment=NODE_ENV=production
+Environment=HTTP_PORT=${VOID_HTTP_PORT}
+Environment=P2P_PORT=4700
+Environment=HOST=0.0.0.0
+Environment=DATA_DIR=${VOID_DATA_DIR}
+Environment=KEY_PATH=${VOID_KEY_PATH}
+ExecStart=/usr/bin/env npx tsx src/index.ts
+Restart=always
+RestartSec=2
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target
+EOF
+
+  systemctl --user daemon-reload
+  systemctl --user enable --now "${SERVICE_NAME}"
+
+  echo "[ok] wrote ${UNIT_PATH}"
+  echo "[ok] enabled+started ${SERVICE_NAME}"
+  sleep 3
+  cmd_doctor
+}
+
+
 main() {
   case "${1:-help}" in
     init) shift; cmd_init "$@" ;;
@@ -336,3 +378,71 @@ main() {
 }
 
 main "$@"
+
+main() {
+  case "${1:-help}" in
+    init) shift; cmd_init "$@" ;;
+    install-service) shift; cmd_install_service "$@" ;;
+    start) shift; cmd_start "$@" ;;
+    stop) shift; cmd_stop "$@" ;;
+    version) shift; cmd_version "$@" ;;
+    status) shift; cmd_status "$@" ;;
+    doctor) shift; cmd_doctor "$@" ;;
+    update-check) shift; cmd_update_check "$@" ;;
+    update-verify) shift; cmd_update_verify "$@" ;;
+    update-plan) shift; cmd_update_plan "$@" ;;
+    update-apply) shift; cmd_update_apply "$@" ;;
+    demo-summary) shift; cmd_demo_summary "$@" ;;
+    agent-summary) shift; cmd_agent_summary "$@" ;;
+    ""|-h|--help|help) usage ;;
+    *)
+      echo "[FAIL] unknown command: ${1:-}" >&2
+      echo >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
+
+cmd_install_service() {
+  load_env
+  mkdir -p "${HOME}/.config/systemd/user"
+
+  local UNIT_PATH="${HOME}/.config/systemd/user/${SERVICE_NAME}"
+  local REPO_DIR
+  REPO_DIR="$(pwd)"
+
+  cat > "${UNIT_PATH}" <<EOF
+[Unit]
+Description=VOID Node (installed by voidctl)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=${REPO_DIR}
+Environment=NODE_ENV=production
+Environment=HTTP_PORT=${VOID_HTTP_PORT}
+Environment=P2P_PORT=4700
+Environment=HOST=0.0.0.0
+Environment=DATA_DIR=${VOID_DATA_DIR}
+Environment=KEY_PATH=${VOID_KEY_PATH}
+ExecStart=/usr/bin/env npx tsx src/index.ts
+Restart=always
+RestartSec=2
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target
+EOF
+
+  systemctl --user daemon-reload
+  systemctl --user enable --now "${SERVICE_NAME}"
+
+  echo "[ok] wrote ${UNIT_PATH}"
+  echo "[ok] enabled+started ${SERVICE_NAME}"
+  sleep 3
+  cmd_doctor
+}
