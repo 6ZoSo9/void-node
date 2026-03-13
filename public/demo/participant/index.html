@@ -93,6 +93,10 @@
 
       <div class="card">
         <h2>Quick start</h2>
+        <div class="row" style="margin-bottom:12px;">
+          <button class="btn" id="copyCommandsBtn" type="button">Copy commands</button>
+          <span class="muted" id="copyCommandsMsg">ready</span>
+        </div>
         <p class="muted">This local participant setup runs beside your main node with its own service, ports, data directory, and PKCS8 PEM key.</p>
         <div class="stats">
           <div class="stat"><div class="k">Service</div><div class="v">void-node-local.service</div></div>
@@ -103,6 +107,10 @@
         <div class="row" style="margin-bottom:12px;">
           <a class="btn" href="/datanet-demo">Open DataNet demo</a>
           <a class="btn secondary" href="/demo/datanet/">Open legacy demo path</a>
+        </div>
+        <div class="list" style="margin-bottom:12px;">
+          <div><strong>Live base:</strong> <span id="liveBase">http://127.0.0.1:4110</span></div>
+          <div><strong>Service:</strong> <span>void-node-local.service</span></div>
         </div>
         <pre id="commands">cd ~/dev/void-node
 ops/voidctl init
@@ -223,6 +231,49 @@ ops/voidctl doctor</pre>
       }
     }
 
+    async function loadPlanStatus(){
+      try {
+        const p = await jfetch("/__void/update/plan-status.json");
+        setText("planPresent", String(!!p.plan_present));
+        setText("planParseOk", String(!!p.parse_ok));
+        setText("planService", (p.plan && p.plan.service) ? String(p.plan.service) : "none");
+        setText("planServiceMatch", p.service_match === null ? "n/a" : String(!!p.service_match));
+        setText("planFile", p.plan_file || "unknown");
+        setText("planBackupDir", (p.plan && p.plan.backup_dir) ? String(p.plan.backup_dir) : "none");
+        setText("planBase", (p.plan && p.plan.base) ? String(p.plan.base) : "none");
+      } catch(e) {
+        setText("planPresent", "unavailable");
+        setText("planParseOk", "unavailable");
+        setText("planService", "unavailable");
+        setText("planServiceMatch", "unavailable");
+        setText("planFile", "fetch_failed");
+        setText("planBackupDir", "fetch_failed");
+        setText("planBase", "fetch_failed");
+      }
+    }
+
+    function wireQuickStart(){
+      const commandsEl = document.getElementById("commands");
+      const copyCommandsBtn = document.getElementById("copyCommandsBtn");
+      const copyCommandsMsg = document.getElementById("copyCommandsMsg");
+      const liveBase = document.getElementById("liveBase");
+
+      const httpText = document.getElementById("listen")?.textContent || "";
+      const m = httpText.match(/http:(\d+)/);
+      if (liveBase && m && m[1]) liveBase.textContent = "http://127.0.0.1:" + m[1];
+
+      if (copyCommandsBtn && commandsEl) {
+        copyCommandsBtn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(commandsEl.textContent || "");
+            if (copyCommandsMsg) copyCommandsMsg.textContent = "copied";
+          } catch {
+            if (copyCommandsMsg) copyCommandsMsg.textContent = "copy_failed";
+          }
+        });
+      }
+    }
+
     async function refreshAll(){
       try { await loadSummary(); }
       catch(e){
@@ -230,6 +281,8 @@ ops/voidctl doctor</pre>
         setJSON("summaryOut", { ok:false, err:String(e.message || e) });
       }
       await loadUpdate();
+      await loadPlanStatus();
+      wireQuickStart();
     }
 
     refreshAll();
