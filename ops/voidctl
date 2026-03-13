@@ -329,10 +329,12 @@ Type=simple
 WorkingDirectory=${REPO_DIR}
 Environment=NODE_ENV=production
 Environment=HTTP_PORT=${VOID_HTTP_PORT}
-Environment=P2P_PORT=4700
+Environment=P2P_PORT=${VOID_P2P_PORT}
 Environment=HOST=0.0.0.0
 Environment=DATA_DIR=${VOID_DATA_DIR}
 Environment=KEY_PATH=${VOID_KEY_PATH}
+Environment=NODE_PRIVKEY_PATH=${VOID_KEY_PATH}
+Environment=VOID_NODE_KEY_A=${VOID_KEY_PATH}
 ExecStart=/usr/bin/env npx tsx src/index.ts
 Restart=always
 RestartSec=2
@@ -364,6 +366,7 @@ load_env() {
   SERVICE_NAME="${VOID_SYSTEMD_UNIT:-void-node.service}"
   KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key"
   DATA_DIR_DEFAULT="${HOME}/void-data"
+  VOID_P2P_PORT="${VOID_P2P_PORT:-4710}"
 }
 
 
