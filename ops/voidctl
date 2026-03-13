@@ -232,7 +232,7 @@ trust_state = "verified" if signature_valid else ("signed-unverified" if signatu
 print("VOID update apply (dry-run)")
 print("---------------------------")
 print("mode:", "dry-run")
-print("service:", "void-node.service")
+print("service:", sys.argv[3])
 print("local_version:", local.get("version"))
 print("target_version:", manifest.get("version"))
 print("compatible:", compatible)
@@ -263,12 +263,12 @@ if failures:
 print("backup_dir:", sys.argv[2])
 print("")
 print("would_run:")
-print("  systemctl --user stop void-node.service")
+print("  systemctl --user stop " + sys.argv[3])
 print("  backup current install/config")
 print("  verify signed manifest")
 print("  stage replacement artifacts")
-print("  systemctl --user start void-node.service")
-print("  ops/voidctl doctor")' "$U" "$BACKUP_DIR"
+print("  systemctl --user start " + sys.argv[3])
+print("  ops/voidctl doctor")' "$U" "$BACKUP_DIR" "$SERVICE_NAME"
 }
 
 cmd_demo_summary() {
