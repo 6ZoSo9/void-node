@@ -224,9 +224,10 @@ print("  6. run ops/voidctl doctor")' "$U" "$SERVICE_NAME" "$BACKUP_DIR" "$PLAN_
 cmd_update_apply() {
   load_env_if_present
 
-  local TS BACKUP_DIR UNIT_PATH HOME_DIR
+  local TS BACKUP_DIR PLAN_SERVICE UNIT_PATH HOME_DIR
   UNIT_PATH="${HOME}/.config/systemd/user/${SERVICE_NAME}"
   HOME_DIR="${HOME}"
+  PLAN_SERVICE=""
 
   if [ -f "${PLAN_FILE}" ]; then
     BACKUP_DIR="$(python3 - <<PY
@@ -236,8 +237,23 @@ j=json.loads(Path("${PLAN_FILE}").read_text(encoding="utf-8"))
 print(j.get("backup_dir",""))
 PY
 )"
+    PLAN_SERVICE="$(python3 - <<PY
+import json
+from pathlib import Path
+j=json.loads(Path("${PLAN_FILE}").read_text(encoding="utf-8"))
+print(j.get("service",""))
+PY
+)"
   else
     BACKUP_DIR=""
+  fi
+
+  if [ -n "${PLAN_SERVICE}" ] && [ "${PLAN_SERVICE}" != "${SERVICE_NAME}" ]; then
+    echo "[FAIL] pending plan service mismatch"
+    echo "[FAIL] plan_file=${PLAN_FILE}"
+    echo "[FAIL] plan_service=${PLAN_SERVICE}"
+    echo "[FAIL] current_service=${SERVICE_NAME}"
+    exit 1
   fi
 
   if [ -z "${BACKUP_DIR}" ]; then
