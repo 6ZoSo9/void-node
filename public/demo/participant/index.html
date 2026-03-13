@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>VOID Participant</title>
+  <title>VOID Participant Local Node</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root {
@@ -64,12 +64,12 @@
   <div class="wrap">
     <div class="hero">
       <div>
-        <h1>VOID Participant</h1>
+        <h1>VOID Participant Local Node</h1>
         <p>This page is the newcomer view: node health, chain head, update status, latest DataNet object, latest agent job, and exact commands to get started.</p>
       </div>
       <div class="row">
         <span id="healthPill" class="pill">health: checking…</span>
-        <span id="updatePill" class="pill">update: checking…</span>
+        <span id="updatePill" class="pill">update trust: checking…</span>
         <button class="btn secondary" onclick="refreshAll()">Refresh</button>
       </div>
     </div>
@@ -86,13 +86,13 @@
           <div class="stat"><div class="k">Protocol / Channel</div><div id="protocol" class="v"></div></div>
           <div class="stat"><div class="k">Loopproof</div><div id="loopproof" class="v"></div></div>
           <div class="stat"><div class="k">Receipts</div><div id="receipts" class="v"></div></div>
-          <div class="stat"><div class="k">Manifest signature</div><div id="sigState" class="v"></div></div>
-          <div class="stat"><div class="k">Verification reason</div><div id="sigReason" class="v"></div></div>
+          <div class="stat"><div class="k">Update trust</div><div id="sigState" class="v"></div></div>
+          <div class="stat"><div class="k">Trust detail</div><div id="sigReason" class="v"></div></div>
         </div>
       </div>
 
       <div class="card">
-        <h2>Quick actions</h2>
+        <h2>Quick start</h2>
         <div class="row" style="margin-bottom:12px;">
           <a class="btn" href="/datanet-demo">Open DataNet demo</a>
           <a class="btn secondary" href="/demo/datanet/">Open legacy demo path</a>
@@ -101,9 +101,7 @@
 ops/voidctl init
 ops/voidctl doctor
 ops/voidctl status
-ops/voidctl update-check
-ops/voidctl update-plan
-ops/voidctl update-apply</pre>
+ops/voidctl update-verify</pre>
       </div>
     </div>
 
