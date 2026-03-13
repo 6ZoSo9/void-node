@@ -357,6 +357,11 @@ EOF
 
   echo "[ok] wrote ${UNIT_PATH}"
   echo "[ok] enabled+started ${SERVICE_NAME}"
+  echo "[info] service=${SERVICE_NAME}"
+  echo "[info] http=${VOID_HTTP_PORT}"
+  echo "[info] p2p=${VOID_P2P_PORT}"
+  echo "[info] data_dir=${VOID_DATA_DIR}"
+  echo "[info] key_path=${VOID_KEY_PATH}"
   sleep 3
   cmd_doctor
 }
