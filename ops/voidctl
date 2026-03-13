@@ -189,13 +189,15 @@ print("signature_valid:", u.get("signature_valid"))
 print("verification_reason:", u.get("verification_reason"))
 print("trust_state:", "verified" if u.get("signature_valid") else ("signed-unverified" if u.get("signature_present") else "unsigned"))
 print("")
+print("service:", sys.argv[2])
+print("")
 print("planned_steps:")
 print("  1. stop service:", "void-node.service")
 print("  2. back up ops/voidctl, config, and current install state")
 print("  3. verify manifest/signature (stub today)")
 print("  4. apply new files/binaries (stub today)")
 print("  5. restart service")
-print("  6. run ops/voidctl doctor")' "$U"
+print("  6. run ops/voidctl doctor")' "$U" "$SERVICE_NAME"
 }
 
 cmd_update_apply() {
