@@ -199,6 +199,21 @@ print("  6. run ops/voidctl doctor")' "$U"
 }
 
 cmd_update_apply() {
+  load_env_if_present
+
+  local TS BACKUP_DIR UNIT_PATH
+  TS="$(date +%Y%m%d-%H%M%S)"
+  BACKUP_DIR="${HOME}/.config/void/backups/update-apply-${TS}"
+  UNIT_PATH="${HOME}/.config/systemd/user/${SERVICE_NAME}"
+
+  mkdir -p "${BACKUP_DIR}"
+
+  [ -f "${CTL_ENV}" ] && cp -a "${CTL_ENV}" "${BACKUP_DIR}/voidctl.env" || true
+  [ -f "${UNIT_PATH}" ] && cp -a "${UNIT_PATH}" "${BACKUP_DIR}/$(basename "${UNIT_PATH}")" || true
+  [ -f "config/update-manifest.v0.json" ] && cp -a "config/update-manifest.v0.json" "${BACKUP_DIR}/update-manifest.v0.json" || true
+  [ -f "config/update-pubkey.v1.pem" ] && cp -a "config/update-pubkey.v1.pem" "${BACKUP_DIR}/update-pubkey.v1.pem" || true
+  [ -f "ops/voidctl" ] && cp -a "ops/voidctl" "${BACKUP_DIR}/voidctl" || true
+
   local U
   U="$(j /upgrade/check)"
   python3 -c 'import json,sys
@@ -245,13 +260,15 @@ if failures:
     print("refusing apply plan because trust checks failed")
     raise SystemExit(1)
 
+print("backup_dir:", sys.argv[2])
+print("")
 print("would_run:")
 print("  systemctl --user stop void-node.service")
 print("  backup current install/config")
 print("  verify signed manifest")
 print("  stage replacement artifacts")
 print("  systemctl --user start void-node.service")
-print("  ops/voidctl doctor")' "$U"
+print("  ops/voidctl doctor")' "$U" "$BACKUP_DIR"
 }
 
 cmd_demo_summary() {
