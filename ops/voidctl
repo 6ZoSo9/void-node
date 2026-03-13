@@ -16,6 +16,7 @@ BASE="http://${HOST}:${PORT}"
 KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key.pkcs8.pem"
 DATA_DIR_DEFAULT="${HOME}/void-data"
 SERVICE_NAME="${VOID_SYSTEMD_UNIT:-void-node.service}"
+PLAN_FILE="${CTL_DIR}/update-plan.json"
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -271,6 +272,7 @@ if failures:
     raise SystemExit(1)
 
 print("backup_dir:", sys.argv[2])
+print("plan_file:", sys.argv[4])
 print("")
 print("would_run:")
 print("  systemctl --user stop " + sys.argv[3])
@@ -290,7 +292,7 @@ print("  cp -a " + sys.argv[2] + "/voidctl ops/voidctl")
 print("  chmod +x ops/voidctl")
 print("  systemctl --user daemon-reload")
 print("  systemctl --user start " + sys.argv[3])
-print("  ops/voidctl doctor")' "$U" "$BACKUP_DIR" "$SERVICE_NAME" "$HOME"
+print("  ops/voidctl doctor")' "$U" "$BACKUP_DIR" "$SERVICE_NAME" "$PLAN_FILE" "$HOME"
 }
 
 cmd_rollback_latest() {
