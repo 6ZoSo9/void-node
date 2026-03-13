@@ -352,6 +352,21 @@ EOF
 }
 
 
+load_env() {
+  mkdir -p "${HOME}/.config/void"
+  if [ -f "${CTL_ENV}" ]; then
+    # shellcheck disable=SC1090
+    . "${CTL_ENV}"
+  fi
+  HOST="${VOID_HTTP_HOST:-127.0.0.1}"
+  PORT="${VOID_HTTP_PORT:-4100}"
+  BASE="http://${HOST}:${PORT}"
+  SERVICE_NAME="${VOID_SYSTEMD_UNIT:-void-node.service}"
+  KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key"
+  DATA_DIR_DEFAULT="${HOME}/void-data"
+}
+
+
 main() {
   case "${1:-help}" in
     init) shift; cmd_init "$@" ;;
