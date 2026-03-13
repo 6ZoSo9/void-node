@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+CTL_DIR="${HOME}/.config/void"
+CTL_ENV="${CTL_DIR}/voidctl.env"
+
+if [ -f "${CTL_ENV}" ]; then
+  # shellcheck disable=SC1090
+  . "${CTL_ENV}"
+fi
+
 HOST="${VOID_HTTP_HOST:-127.0.0.1}"
 PORT="${VOID_HTTP_PORT:-4100}"
 BASE="http://${HOST}:${PORT}"
 
-CTL_DIR="${HOME}/.config/void"
-CTL_ENV="${CTL_DIR}/voidctl.env"
 KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key.pkcs8.pem"
 DATA_DIR_DEFAULT="${HOME}/void-data"
 SERVICE_NAME="${VOID_SYSTEMD_UNIT:-void-node.service}"
