@@ -7,7 +7,7 @@ BASE="http://${HOST}:${PORT}"
 
 CTL_DIR="${HOME}/.config/void"
 CTL_ENV="${CTL_DIR}/voidctl.env"
-KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key"
+KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key.pkcs8.pem"
 DATA_DIR_DEFAULT="${HOME}/void-data"
 SERVICE_NAME="${VOID_SYSTEMD_UNIT:-void-node.service}"
 
@@ -364,7 +364,7 @@ load_env() {
   PORT="${VOID_HTTP_PORT:-4100}"
   BASE="http://${HOST}:${PORT}"
   SERVICE_NAME="${VOID_SYSTEMD_UNIT:-void-node.service}"
-  KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key"
+  KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key.pkcs8.pem"
   DATA_DIR_DEFAULT="${HOME}/void-data"
   VOID_P2P_PORT="${VOID_P2P_PORT:-4710}"
 }
