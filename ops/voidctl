@@ -171,8 +171,20 @@ cmd_update_plan() {
   load_env_if_present
 
   local TS BACKUP_DIR
+  mkdir -p "${CTL_DIR}"
   TS="$(date +%Y%m%d-%H%M%S)"
   BACKUP_DIR="${HOME}/.config/void/backups/update-apply-${TS}"
+
+  python3 - <<PY
+import json
+from pathlib import Path
+Path("${PLAN_FILE}").write_text(json.dumps({
+  "service": "${SERVICE_NAME}",
+  "backup_dir": "${BACKUP_DIR}",
+  "base": "${BASE}"
+}, indent=2) + "\n", encoding="utf-8")
+print("[ok] wrote pending plan:", "${PLAN_FILE}")
+PY
 
   local U
   U="$(j /upgrade/check)"
@@ -199,23 +211,39 @@ print("trust_state:", "verified" if u.get("signature_valid") else ("signed-unver
 print("")
 print("service:", sys.argv[2])
 print("backup_dir:", sys.argv[3])
+print("plan_file:", sys.argv[4])
 print("")
 print("planned_steps:")
 print("  1. stop service:", sys.argv[2])
 print("  2. back up ops/voidctl, config, and current install state")
 print("  3. verify manifest/signature (stub today)")
 print("  4. apply new files/binaries (stub today)")
-print("  5. start service: " + sys.argv[2])
-print("  6. run ops/voidctl doctor")' "$U" "$SERVICE_NAME" "$BACKUP_DIR"
+print("  5. start service:", sys.argv[2])
+print("  6. run ops/voidctl doctor")' "$U" "$SERVICE_NAME" "$BACKUP_DIR" "$PLAN_FILE"
 }
-
 cmd_update_apply() {
   load_env_if_present
 
-  local TS BACKUP_DIR UNIT_PATH
-  TS="$(date +%Y%m%d-%H%M%S)"
-  BACKUP_DIR="${HOME}/.config/void/backups/update-apply-${TS}"
+  local TS BACKUP_DIR UNIT_PATH HOME_DIR
   UNIT_PATH="${HOME}/.config/systemd/user/${SERVICE_NAME}"
+  HOME_DIR="${HOME}"
+
+  if [ -f "${PLAN_FILE}" ]; then
+    BACKUP_DIR="$(python3 - <<PY
+import json
+from pathlib import Path
+j=json.loads(Path("${PLAN_FILE}").read_text(encoding="utf-8"))
+print(j.get("backup_dir",""))
+PY
+)"
+  else
+    BACKUP_DIR=""
+  fi
+
+  if [ -z "${BACKUP_DIR}" ]; then
+    TS="$(date +%Y%m%d-%H%M%S)"
+    BACKUP_DIR="${HOME}/.config/void/backups/update-apply-${TS}"
+  fi
 
   mkdir -p "${BACKUP_DIR}"
 
@@ -284,17 +312,16 @@ print("  ops/voidctl doctor")
 print("")
 print("rollback_commands:")
 print("  systemctl --user stop " + sys.argv[3])
-print("  cp -a " + sys.argv[2] + "/voidctl.env " + sys.argv[4] + "/.config/void/voidctl.env")
-print("  cp -a " + sys.argv[2] + "/" + sys.argv[3] + " " + sys.argv[4] + "/.config/systemd/user/" + sys.argv[3])
+print("  cp -a " + sys.argv[2] + "/voidctl.env " + sys.argv[5] + "/.config/void/voidctl.env")
+print("  cp -a " + sys.argv[2] + "/" + sys.argv[3] + " " + sys.argv[5] + "/.config/systemd/user/" + sys.argv[3])
 print("  cp -a " + sys.argv[2] + "/update-manifest.v0.json config/update-manifest.v0.json")
 print("  test ! -f " + sys.argv[2] + "/update-pubkey.v1.pem || cp -a " + sys.argv[2] + "/update-pubkey.v1.pem config/update-pubkey.v1.pem")
 print("  cp -a " + sys.argv[2] + "/voidctl ops/voidctl")
 print("  chmod +x ops/voidctl")
 print("  systemctl --user daemon-reload")
 print("  systemctl --user start " + sys.argv[3])
-print("  ops/voidctl doctor")' "$U" "$BACKUP_DIR" "$SERVICE_NAME" "$PLAN_FILE" "$HOME"
+print("  ops/voidctl doctor")' "$U" "$BACKUP_DIR" "$SERVICE_NAME" "$PLAN_FILE" "$HOME_DIR"
 }
-
 cmd_rollback_latest() {
   load_env_if_present
 
