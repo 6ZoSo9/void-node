@@ -277,6 +277,18 @@ print("  backup current install/config")
 print("  verify signed manifest")
 print("  stage replacement artifacts")
 print("  systemctl --user start " + sys.argv[3])
+print("  ops/voidctl doctor")
+print("")
+print("rollback_commands:")
+print("  systemctl --user stop " + sys.argv[3])
+print("  cp -a " + sys.argv[2] + "/voidctl.env " + str(Path.home()) + "/.config/void/voidctl.env")
+print("  cp -a " + sys.argv[2] + "/" + sys.argv[3] + " " + str(Path.home()) + "/.config/systemd/user/" + sys.argv[3])
+print("  cp -a " + sys.argv[2] + "/update-manifest.v0.json config/update-manifest.v0.json")
+print("  test ! -f " + sys.argv[2] + "/update-pubkey.v1.pem || cp -a " + sys.argv[2] + "/update-pubkey.v1.pem config/update-pubkey.v1.pem")
+print("  cp -a " + sys.argv[2] + "/voidctl ops/voidctl")
+print("  chmod +x ops/voidctl")
+print("  systemctl --user daemon-reload")
+print("  systemctl --user start " + sys.argv[3])
 print("  ops/voidctl doctor")' "$U" "$BACKUP_DIR" "$SERVICE_NAME"
 }
 
