@@ -45,6 +45,8 @@ Usage:
   ops/voidctl update-check
   ops/voidctl update-verify
   ops/voidctl update-plan
+  ops/voidctl update-plan-show
+  ops/voidctl update-plan-clear
   ops/voidctl update-apply
   ops/voidctl rollback-latest
   ops/voidctl demo-summary
@@ -221,6 +223,25 @@ print("  4. apply new files/binaries (stub today)")
 print("  5. start service:", sys.argv[2])
 print("  6. run ops/voidctl doctor")' "$U" "$SERVICE_NAME" "$BACKUP_DIR" "$PLAN_FILE"
 }
+cmd_update_plan_show() {
+  load_env_if_present
+  if [ ! -f "${PLAN_FILE}" ]; then
+    echo "[FAIL] no pending plan file: ${PLAN_FILE}"
+    exit 1
+  fi
+  cat "${PLAN_FILE}" | print_json_pretty
+}
+
+cmd_update_plan_clear() {
+  load_env_if_present
+  if [ -f "${PLAN_FILE}" ]; then
+    rm -f "${PLAN_FILE}"
+    echo "[ok] removed ${PLAN_FILE}"
+  else
+    echo "[ok] no pending plan file to remove"
+  fi
+}
+
 cmd_update_apply() {
   load_env_if_present
 
@@ -531,6 +552,8 @@ main() {
     update-check) shift; cmd_update_check "$@" ;;
     update-verify) shift; cmd_update_verify "$@" ;;
     update-plan) shift; cmd_update_plan "$@" ;;
+    update-plan-show) shift; cmd_update_plan_show "$@" ;;
+    update-plan-clear) shift; cmd_update_plan_clear "$@" ;;
     update-apply) shift; cmd_update_apply "$@" ;;
     rollback-latest) shift; cmd_rollback_latest "$@" ;;
     demo-summary) shift; cmd_demo_summary "$@" ;;
