@@ -64,19 +64,20 @@ load_env_if_present() {
 
 cmd_init() {
   ensure_dirs
+  load_env_if_present
 
-  local key_path="${KEY_PATH_DEFAULT}"
-  local data_dir="${DATA_DIR_DEFAULT}"
+  local http_host="${VOID_HTTP_HOST:-127.0.0.1}"
+  local http_port="${VOID_HTTP_PORT:-4110}"
+  local p2p_port="${VOID_P2P_PORT:-4710}"
+  local service_name="${VOID_SYSTEMD_UNIT:-void-node-local.service}"
+  local key_path="${VOID_KEY_PATH:-${KEY_PATH_DEFAULT}}"
+  local data_dir="${VOID_DATA_DIR:-${DATA_DIR_DEFAULT}}"
 
   if [ ! -f "${key_path}" ]; then
-    python3 - <<PY
-from pathlib import Path
-import secrets
-p = Path("${key_path}")
-p.write_text(secrets.token_hex(32) + "\\n", encoding="utf-8")
-p.chmod(0o600)
-print("[ok] generated key:", str(p))
-PY
+    mkdir -p "$(dirname "${key_path}")"
+    openssl genpkey -algorithm ed25519 -out "${key_path}"
+    chmod 600 "${key_path}" || true
+    echo "[ok] generated pkcs8 ed25519 key: ${key_path}"
   else
     chmod 600 "${key_path}" || true
     echo "[ok] key exists: ${key_path}"
@@ -84,9 +85,10 @@ PY
 
   cat > "${CTL_ENV}" <<EOF
 # VOIDCTL local config v0
-VOID_HTTP_HOST=127.0.0.1
-VOID_HTTP_PORT=4100
-VOID_SYSTEMD_UNIT=${SERVICE_NAME}
+VOID_HTTP_HOST=${http_host}
+VOID_HTTP_PORT=${http_port}
+VOID_P2P_PORT=${p2p_port}
+VOID_SYSTEMD_UNIT=${service_name}
 VOID_KEY_PATH=${key_path}
 VOID_DATA_DIR=${data_dir}
 EOF
