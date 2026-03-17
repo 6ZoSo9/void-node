@@ -78,3 +78,18 @@ wc-stack-up:
 
 wc-stack-restart:
 	@$(MAKE) --no-print-directory wc-stack-up
+
+wc-stack-down:
+	@bash -lc 'set -euo pipefail; \
+	echo "=== stop wc relayer ==="; \
+	systemctl --user stop void-wc-relayer.service || true; \
+	echo; \
+	echo "=== stop helper http ==="; \
+	systemctl --user stop void-workcredits-devnet-http.service || true; \
+	echo; \
+	echo "=== stop main node ==="; \
+	systemctl --user stop void-node.service || true; \
+	echo; \
+	echo "=== remaining listeners ==="; \
+	ss -Htanlp "sport = :4100 or sport = :4312 or sport = :4313 or sport = :4700" 2>/dev/null || true; \
+	'
