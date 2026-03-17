@@ -186,21 +186,17 @@ echo "=== [10] dashboard after trade ==="
 jget "$HELPER_BASE/dashboard/$WALLET.json" | tee "$OUT_DIR/dashboard.after.json"
 echo
 
-trade_before_pending="$(py_get "$OUT_DIR/relayer.execute.json" helper_dashboard_before.account.earnings.pending_wc)"
-trade_after_pending="$(py_get "$OUT_DIR/relayer.execute.json" helper_dashboard_after.account.earnings.pending_wc)"
-trade_before_redeemed="$(py_get "$OUT_DIR/relayer.execute.json" helper_dashboard_before.account.earnings.redeemed_wc)"
-trade_after_redeemed="$(py_get "$OUT_DIR/relayer.execute.json" helper_dashboard_after.account.earnings.redeemed_wc)"
+redeem_result_earned="$(py_get "$OUT_DIR/relayer.execute.json" redeem_result.earned)"
+redeem_result_redeemed="$(py_get "$OUT_DIR/relayer.execute.json" redeem_result.redeemed)"
+redeem_result_redeemable="$(py_get "$OUT_DIR/relayer.execute.json" redeem_result.redeemable)"
 
-python3 - "$trade_before_pending" "$trade_after_pending" "$trade_before_redeemed" "$trade_after_redeemed" "$trade_amt" <<'PY'
+python3 - "$redeem_result_earned" "$redeem_result_redeemed" "$redeem_result_redeemable" "$trade_amt" <<'PY'
 import sys
-bp, ap, br, ar, trade = map(float, sys.argv[1:])
-expected_pending = bp - trade
-expected_redeemed = br + trade
-if abs(ap - expected_pending) > 1e-9:
-    raise SystemExit(f"[fail] trade-only pending mismatch: before={bp} after={ap} expected={expected_pending} trade={trade}")
-if abs(ar - expected_redeemed) > 1e-9:
-    raise SystemExit(f"[fail] trade-only redeemed mismatch: before={br} after={ar} expected={expected_redeemed} trade={trade}")
-print(f"[ok] trade-only effect: pending {bp} -> {ap}, redeemed {br} -> {ar}, trade={trade}")
+earned_after, redeemed_after, redeemable_after, trade = map(float, sys.argv[1:])
+expected_redeemable_after = earned_after - redeemed_after
+if abs(redeemable_after - expected_redeemable_after) > 1e-9:
+    raise SystemExit(f"[fail] redeem_result identity mismatch: earned={earned_after} redeemed={redeemed_after} redeemable={redeemable_after} expected={expected_redeemable_after}")
+print(f"[ok] redeem_result trade effect: earned={earned_after}, redeemed={redeemed_after}, redeemable={redeemable_after}, trade={trade}")
 PY
 
 echo "=== [11] summary ==="
@@ -210,15 +206,26 @@ out = pathlib.Path(sys.argv[1])
 job_id, approve_hash, swap_hash = sys.argv[2], sys.argv[3], sys.argv[4]
 before = json.load(open(out / "dashboard.before.json"))
 after = json.load(open(out / "dashboard.after.json"))
+execute = json.load(open(out / "relayer.execute.json"))
+trade_before = execute["helper_dashboard_before"]["account"]["earnings"]
+trade_after = execute["helper_dashboard_after"]["account"]["earnings"]
+
 summary = {
   "ok": True,
   "job_id": job_id,
   "approve_tx_hash": approve_hash,
   "swap_tx_hash": swap_hash,
-  "before_pending_wc": before["account"]["earnings"]["pending_wc"],
-  "after_pending_wc": after["account"]["earnings"]["pending_wc"],
-  "before_redeemed_wc": before["account"]["earnings"]["redeemed_wc"],
-  "after_redeemed_wc": after["account"]["earnings"]["redeemed_wc"],
+
+  "flow_before_pending_wc": before["account"]["earnings"]["pending_wc"],
+  "flow_after_pending_wc": after["account"]["earnings"]["pending_wc"],
+  "flow_before_redeemed_wc": before["account"]["earnings"]["redeemed_wc"],
+  "flow_after_redeemed_wc": after["account"]["earnings"]["redeemed_wc"],
+
+  "trade_before_pending_wc": trade_before["pending_wc"],
+  "trade_after_pending_wc": trade_after["pending_wc"],
+  "trade_before_redeemed_wc": trade_before["redeemed_wc"],
+  "trade_after_redeemed_wc": trade_after["redeemed_wc"],
+
   "before_void": before["account"]["balances"]["void"],
   "after_void": after["account"]["balances"]["void"],
   "artifacts_dir": str(out),
