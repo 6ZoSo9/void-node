@@ -57,7 +57,7 @@ wc-stack-up:
 	systemctl --user restart void-wc-relayer.service; \
 	echo; \
 	echo "=== restart helper on :4312 if unit exists, else keep current process ==="; \
-	if systemctl --user list-unit-files | rg -q "^void-workcredits-devnet-http\\.service"; then \
+	if [[ -f "$$HOME/.config/systemd/user/void-workcredits-devnet-http.service" ]]; then \
 	  systemctl --user restart void-workcredits-devnet-http.service; \
 	else \
 	  echo "[info] no systemd helper unit found; assuming helper already managed separately"; \
