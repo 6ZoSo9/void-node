@@ -93,7 +93,6 @@ wc-stack-down:
 	echo "=== remaining listeners ==="; \
 	ss -Htanlp "sport = :4100 or sport = :4312 or sport = :4313 or sport = :4700" 2>/dev/null || true; \
 	'
-\n
 wc-stack-doctor:
 	@bash -lc 'set -euo pipefail; \
 	echo "=== systemd status: node ==="; \
