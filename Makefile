@@ -125,3 +125,9 @@ wc-stack-doctor:
 	echo "=== relayer recent journal ==="; \
 	journalctl --user -u void-wc-relayer.service --no-pager -n 40 || true; \
 	'
+
+wc-demo-e2e:
+	@bash ops/wc-demo-e2e.sh
+
+wc-demo:
+	@bash ops/wc-demo-e2e.sh
