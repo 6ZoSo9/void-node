@@ -47,3 +47,34 @@ wc-stack-status:
 
 wc-stack-exec-smoke:
 	@bash ops/wc-relayer-smoke.sh
+
+wc-stack-up:
+	@bash -lc 'set -euo pipefail; \
+	echo "=== restart main node ==="; \
+	systemctl --user restart void-node.service; \
+	echo; \
+	echo "=== restart wc relayer ==="; \
+	systemctl --user restart void-wc-relayer.service; \
+	echo; \
+	echo "=== restart helper on :4312 if unit exists, else keep current process ==="; \
+	if systemctl --user list-unit-files | rg -q "^void-workcredits-devnet-http\\.service"; then \
+	  systemctl --user restart void-workcredits-devnet-http.service; \
+	else \
+	  echo "[info] no systemd helper unit found; assuming helper already managed separately"; \
+	fi; \
+	echo; \
+	echo "=== wait for node ==="; \
+	for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
+	  curl -fsS --max-time 3 http://127.0.0.1:4100/health >/dev/null 2>&1 && break; \
+	  sleep 1; \
+	done; \
+	echo "=== wait for relayer ==="; \
+	for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
+	  curl -fsS --max-time 3 http://127.0.0.1:4313/api/wc-relayer/v1/health >/dev/null 2>&1 && break; \
+	  sleep 1; \
+	done; \
+	$(MAKE) --no-print-directory wc-stack-status; \
+	'
+
+wc-stack-restart:
+	@$(MAKE) --no-print-directory wc-stack-up
