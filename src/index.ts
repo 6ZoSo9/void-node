@@ -39661,6 +39661,91 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     }
   }
 
+  if ($("tradeExecuteBtn")) $("tradeExecuteBtn").addEventListener("click", async () => {
+    const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+    const amount = $("tradeInputWc") ? Number(($("tradeInputWc").value || "").trim() || "0") : 0;
+    const wallet = wcAddr;
+    const btn = $("tradeExecuteBtn");
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPre("tradeStateOut", { ok:false, error:"invalid_amount", amount });
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Executing Trade...";
+    }
+
+    setPre("tradeStateOut", {
+      ok: true,
+      submitting: true,
+      side: "wc_to_void",
+      account,
+      wallet,
+      requested_wc: amount,
+      quote_endpoint: "http://127.0.0.1:4313/api/wc-relayer/v1/quote",
+      execute_endpoint: "http://127.0.0.1:4313/api/wc-relayer/v1/execute",
+      note: "Submitting WC → VOID trade through relayer."
+    });
+
+    try {
+      const out = await j("http://127.0.0.1:4313/api/wc-relayer/v1/execute", {
+        method: "POST",
+        headers: { "content-type":"application/json" },
+        body: JSON.stringify({
+          side: "wc_to_void",
+          amount,
+          account,
+          wallet
+        })
+      });
+
+      const approveHash = out && out.approve_tx ? out.approve_tx.tx_hash : null;
+      const swapHash = out && out.swap_tx ? out.swap_tx.tx_hash : null;
+
+      setPre("tradeStateOut", {
+        ok: !!(out && out.ok),
+        accepted: out && out.accepted || false,
+        execute: out && out.execute || false,
+        side: out && out.side || "wc_to_void",
+        account: out && out.account || account,
+        wallet: out && out.wallet || wallet,
+        requested_wc: out && out.requested_wc != null ? out.requested_wc : amount,
+        requested_wc_raw: out && out.requested_wc_raw != null ? out.requested_wc_raw : null,
+        quoted_void: out && out.quoted_void != null ? out.quoted_void : null,
+        quoted_void_raw: out && out.quoted_void_raw != null ? out.quoted_void_raw : null,
+        min_void_raw: out && out.min_void_raw != null ? out.min_void_raw : null,
+        max_slippage_bps: out && out.max_slippage_bps != null ? out.max_slippage_bps : null,
+        approve_tx_hash: approveHash,
+        swap_tx_hash: swapHash,
+        tx_summary: {
+          approve: approveHash ? ("https://example.invalid/tx/" + approveHash) : null,
+          swap: swapHash ? ("https://example.invalid/tx/" + swapHash) : null
+        },
+        redeem_result: out && out.redeem_result || null,
+        helper_dashboard_after: out && out.helper_dashboard_after || null,
+        note: out && out.ok
+          ? "Trade executed successfully. Approve + swap tx hashes recorded below."
+          : "Trade request returned a non-ok response.",
+        raw: out || null
+      });
+
+      await refresh();
+    } catch (e) {
+      setPre("tradeStateOut", {
+        ok:false,
+        execute:false,
+        error:String(e)
+      });
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Execute Trade";
+      }
+    }
+  });
+
   document.querySelectorAll(".tabbtn").forEach(btn => {
     btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
   });
