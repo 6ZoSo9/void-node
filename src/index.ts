@@ -39529,8 +39529,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     setText("tradeRelayerState", relayerUp ? "online" : "offline");
 
     if ($("tradeExecuteBtn")) {
-      $("tradeExecuteBtn").disabled = !relayerUp;
-      $("tradeExecuteBtn").textContent = relayerUp ? "Execute Trade" : "Execute Trade (Relayer Offline)";
+      const tradeBlocked = !relayerUp || !(Number.isFinite(redeemableTotal) && redeemableTotal > 0);
+      $("tradeExecuteBtn").disabled = tradeBlocked;
+      $("tradeExecuteBtn").textContent = !relayerUp
+        ? "Execute Trade (Relayer Offline)"
+        : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
+            ? "Execute Trade (No Redeemable WC)"
+            : "Execute Trade");
     }
 
     if (health && health.ok) {
@@ -39622,9 +39627,15 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       relayer_quote: relayerQuote,
       relayer_health: relayerHealth || null,
       pool_price: wcPool && wcPool.price ? wcPool.price : null,
-      note: relayerUp
-        ? "Relayer is live for quote and execution."
-        : "Relayer is offline."
+      trade_execute_enabled: !!(relayerUp && Number.isFinite(redeemableTotal) && redeemableTotal > 0),
+      trade_block_reason: !relayerUp
+        ? "relayer_offline"
+        : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0) ? "no_redeemable_wc" : null),
+      note: !relayerUp
+        ? "Relayer is offline."
+        : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
+            ? "No redeemable WC available. Earn or redeem WC before executing a trade."
+            : "Relayer is live for quote and execution.")
     });
     setPre("summaryOut", summaryWrapped);
   }
@@ -39663,12 +39674,82 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
   if ($("tradeExecuteBtn")) $("tradeExecuteBtn").addEventListener("click", async () => {
     const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
-    const amount = $("tradeInputWc") ? Number(($("tradeInputWc").value || "").trim() || "0") : 0;
-    const wallet = wcAddr;
-    const btn = $("tradeExecuteBtn");
+    const amount = $("tradeInputWc") ? Number((($("tradeInputWc").value || "").trim() || "0")) : 0;
+    const wallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
+    const btn:any = $("tradeExecuteBtn");
+    const prevText = btn ? btn.textContent : "Execute Trade";
 
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setPre("tradeStateOut", { ok:false, error:"invalid_amount", amount });
+    let redeemableNow:any = null;
+    let relayerHealthNow:any = null;
+    try {
+      redeemableNow = await j("/wc/redeemable?account=" + encodeURIComponent(account));
+    } catch {}
+    try {
+      relayerHealthNow = await j("http://127.0.0.1:4313/api/wc-relayer/v1/health");
+    } catch {}
+
+    const redeemableAmt = redeemableNow && redeemableNow.ok ? Number(redeemableNow.redeemable || 0) : 0;
+    const relayerLive = !!(relayerHealthNow && relayerHealthNow.ok);
+
+    if (!relayerLive) {
+      setPre("tradeStateOut", {
+        ok:false,
+        execute:false,
+        blocked:true,
+        reason:"relayer_offline",
+        account,
+        amount,
+        wallet,
+        relayer_health: relayerHealthNow || null,
+        note:"Relayer is offline."
+      });
+      await refresh();
+      return;
+    }
+
+    if (!(Number.isFinite(redeemableAmt) && redeemableAmt > 0)) {
+      setPre("tradeStateOut", {
+        ok:false,
+        execute:false,
+        blocked:true,
+        reason:"no_redeemable_wc",
+        account,
+        amount,
+        wallet,
+        redeemable_state: redeemableNow || null,
+        note:"No redeemable WC available. Earn or redeem WC before executing a trade."
+      });
+      await refresh();
+      return;
+    }
+
+    if (!(Number.isFinite(amount) && amount > 0)) {
+      setPre("tradeStateOut", {
+        ok:false,
+        execute:false,
+        blocked:true,
+        reason:"invalid_amount",
+        account,
+        amount,
+        wallet,
+        note:"Enter a WC amount greater than zero."
+      });
+      return;
+    }
+
+    if (amount > redeemableAmt) {
+      setPre("tradeStateOut", {
+        ok:false,
+        execute:false,
+        blocked:true,
+        reason:"amount_exceeds_redeemable",
+        account,
+        amount,
+        wallet,
+        redeemable_wc: redeemableAmt,
+        note:"Requested WC exceeds currently redeemable WC."
+      });
+      await refresh();
       return;
     }
 
@@ -39678,70 +39759,53 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     }
 
     setPre("tradeStateOut", {
-      ok: true,
-      submitting: true,
-      side: "wc_to_void",
+      ok:true,
+      execute:true,
+      submitting:true,
+      side:"wc_to_void",
       account,
+      amount,
       wallet,
-      requested_wc: amount,
+      redeemable_wc: redeemableAmt,
       quote_endpoint: "http://127.0.0.1:4313/api/wc-relayer/v1/quote",
-      execute_endpoint: "http://127.0.0.1:4313/api/wc-relayer/v1/execute",
-      note: "Submitting WC → VOID trade through relayer."
+      execute_endpoint: "http://127.0.0.1:4313/api/wc-relayer/v1/execute"
     });
 
     try {
       const out = await j("http://127.0.0.1:4313/api/wc-relayer/v1/execute", {
-        method: "POST",
-        headers: { "content-type":"application/json" },
+        method:"POST",
+        headers:{ "content-type":"application/json" },
         body: JSON.stringify({
-          side: "wc_to_void",
+          side:"wc_to_void",
           amount,
           account,
           wallet
         })
       });
 
-      const approveHash = out && out.approve_tx ? out.approve_tx.tx_hash : null;
-      const swapHash = out && out.swap_tx ? out.swap_tx.tx_hash : null;
+      const approveHash = out && out.approve_tx ? (out.approve_tx.tx_hash || null) : null;
+      const swapHash = out && out.swap_tx ? (out.swap_tx.tx_hash || null) : null;
 
       setPre("tradeStateOut", {
-        ok: !!(out && out.ok),
-        accepted: out && out.accepted || false,
-        execute: out && out.execute || false,
-        side: out && out.side || "wc_to_void",
-        account: out && out.account || account,
-        wallet: out && out.wallet || wallet,
-        requested_wc: out && out.requested_wc != null ? out.requested_wc : amount,
-        requested_wc_raw: out && out.requested_wc_raw != null ? out.requested_wc_raw : null,
-        quoted_void: out && out.quoted_void != null ? out.quoted_void : null,
-        quoted_void_raw: out && out.quoted_void_raw != null ? out.quoted_void_raw : null,
-        min_void_raw: out && out.min_void_raw != null ? out.min_void_raw : null,
-        max_slippage_bps: out && out.max_slippage_bps != null ? out.max_slippage_bps : null,
+        ...out,
         approve_tx_hash: approveHash,
         swap_tx_hash: swapHash,
-        tx_summary: {
-          approve: approveHash ? ("https://example.invalid/tx/" + approveHash) : null,
-          swap: swapHash ? ("https://example.invalid/tx/" + swapHash) : null
+        explorer_hint: {
+          network: "anvil/devnet",
+          txs: [approveHash, swapHash].filter(Boolean)
         },
-        redeem_result: out && out.redeem_result || null,
-        helper_dashboard_after: out && out.helper_dashboard_after || null,
         note: out && out.ok
           ? "Trade executed successfully. Approve + swap tx hashes recorded below."
-          : "Trade request returned a non-ok response.",
-        raw: out || null
+          : ((out && out.note) || "Trade execution failed.")
       });
 
       await refresh();
     } catch (e) {
-      setPre("tradeStateOut", {
-        ok:false,
-        execute:false,
-        error:String(e)
-      });
+      setPre("tradeStateOut", { ok:false, execute:false, error:String(e) });
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = "Execute Trade";
+        btn.textContent = prevText || "Execute Trade";
       }
     }
   });
