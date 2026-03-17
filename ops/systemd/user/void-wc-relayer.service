@@ -1,0 +1,23 @@
+[Unit]
+Description=VOID WC Relayer v1
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+Environment=WC_RELAYER_PORT=4313
+Environment=WC_HELPER_BASE=http://127.0.0.1:4312/workcredits/devnet
+Environment=NODE_BASE=http://127.0.0.1:4100
+Environment=RPC_URL=http://127.0.0.1:8545
+Environment=WC_RELAYER_WALLET=0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+ExecStartPre=/usr/bin/test -f %h/dev/void-node/ops/wc-relayer-v1.cjs
+ExecStart=/usr/bin/node %h/dev/void-node/ops/wc-relayer-v1.cjs
+Restart=always
+RestartSec=2
+TimeoutStartSec=20
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
