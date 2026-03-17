@@ -93,3 +93,36 @@ wc-stack-down:
 	echo "=== remaining listeners ==="; \
 	ss -Htanlp "sport = :4100 or sport = :4312 or sport = :4313 or sport = :4700" 2>/dev/null || true; \
 	'
+\n
+wc-stack-doctor:
+	@bash -lc 'set -euo pipefail; \
+	echo "=== systemd status: node ==="; \
+	systemctl --user --no-pager --full status void-node.service | sed -n "1,80p" || true; \
+	echo; \
+	echo "=== systemd status: helper ==="; \
+	systemctl --user --no-pager --full status void-workcredits-devnet-http.service | sed -n "1,80p" || true; \
+	echo; \
+	echo "=== systemd status: relayer ==="; \
+	systemctl --user --no-pager --full status void-wc-relayer.service | sed -n "1,80p" || true; \
+	echo; \
+	echo "=== listeners ==="; \
+	ss -Htanlp "sport = :4100 or sport = :4312 or sport = :4313 or sport = :4700" 2>/dev/null || true; \
+	echo; \
+	echo "=== http probe: node /health ==="; \
+	curl -fsS --max-time 3 http://127.0.0.1:4100/health | sed -n "1,120p" || echo "[fail] node health"; \
+	echo; \
+	echo "=== http probe: helper /pool.json ==="; \
+	curl -fsS --max-time 3 http://127.0.0.1:4312/workcredits/devnet/pool.json | sed -n "1,160p" || echo "[fail] helper pool"; \
+	echo; \
+	echo "=== http probe: relayer /health ==="; \
+	curl -fsS --max-time 3 http://127.0.0.1:4313/api/wc-relayer/v1/health | sed -n "1,160p" || echo "[fail] relayer health"; \
+	echo; \
+	echo "=== participant wiring snapshot ==="; \
+	curl -fsS --max-time 5 http://127.0.0.1:4100/participant | rg -n "api/wc-relayer/v1/quote|api/wc-relayer/v1/execute|approve_tx_hash|swap_tx_hash|No Redeemable WC|Relayer is live for quote and execution" | sed -n "1,200p" || echo "[fail] participant page"; \
+	echo; \
+	echo "=== helper recent journal ==="; \
+	journalctl --user -u void-workcredits-devnet-http.service --no-pager -n 40 || true; \
+	echo; \
+	echo "=== relayer recent journal ==="; \
+	journalctl --user -u void-wc-relayer.service --no-pager -n 40 || true; \
+	'
