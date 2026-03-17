@@ -186,23 +186,23 @@ echo "=== [10] dashboard after trade ==="
 jget "$HELPER_BASE/dashboard/$WALLET.json" | tee "$OUT_DIR/dashboard.after.json"
 echo
 
-after_dashboard_pending="$(py_get "$OUT_DIR/dashboard.after.json" account.earnings.pending_wc)"
-after_dashboard_redeemed="$(py_get "$OUT_DIR/dashboard.after.json" account.earnings.redeemed_wc)"
+trade_before_pending="$(py_get "$OUT_DIR/relayer.execute.json" helper_dashboard_before.account.earnings.pending_wc)"
+trade_after_pending="$(py_get "$OUT_DIR/relayer.execute.json" helper_dashboard_after.account.earnings.pending_wc)"
+trade_before_redeemed="$(py_get "$OUT_DIR/relayer.execute.json" helper_dashboard_before.account.earnings.redeemed_wc)"
+trade_after_redeemed="$(py_get "$OUT_DIR/relayer.execute.json" helper_dashboard_after.account.earnings.redeemed_wc)"
 
-python3 - "$before_dashboard_pending" "$after_dashboard_pending" "$before_dashboard_redeemed" "$after_dashboard_redeemed" "$trade_amt" <<'PY'
+python3 - "$trade_before_pending" "$trade_after_pending" "$trade_before_redeemed" "$trade_after_redeemed" "$trade_amt" <<'PY'
 import sys
 bp, ap, br, ar, trade = map(float, sys.argv[1:])
-expected_pending_max = bp - trade
-if ap > bp:
-    raise SystemExit("[fail] pending WC increased after trade")
-if ap > expected_pending_max:
-    raise SystemExit(f"[fail] pending WC did not drop by trade amount: before={bp} after={ap} trade={trade}")
-if ar < br + trade:
-    raise SystemExit(f"[fail] redeemed WC did not increase by trade amount: before={br} after={ar} trade={trade}")
-print(f"[ok] dashboard trade effect: pending {bp} -> {ap}, redeemed {br} -> {ar}, trade={trade}")
+expected_pending = bp - trade
+expected_redeemed = br + trade
+if abs(ap - expected_pending) > 1e-9:
+    raise SystemExit(f"[fail] trade-only pending mismatch: before={bp} after={ap} expected={expected_pending} trade={trade}")
+if abs(ar - expected_redeemed) > 1e-9:
+    raise SystemExit(f"[fail] trade-only redeemed mismatch: before={br} after={ar} expected={expected_redeemed} trade={trade}")
+print(f"[ok] trade-only effect: pending {bp} -> {ap}, redeemed {br} -> {ar}, trade={trade}")
 PY
 
-echo
 echo "=== [11] summary ==="
 python3 - "$OUT_DIR" "$job_id" "$approve_hash" "$swap_hash" <<'PY'
 import json, pathlib, sys
