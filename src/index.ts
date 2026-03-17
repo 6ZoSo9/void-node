@@ -37133,8 +37133,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     }
 
     const participantFile = pathMod.join(process.cwd(), "public", "demo", "participant", "index.html");
-    app.get("/participant", (_req:any, res:any) => res.sendFile(participantFile));
-    app.get("/welcome", (_req:any, res:any) => res.sendFile(participantFile));
+    app.get("/participant-file", (_req:any, res:any) => res.sendFile(participantFile));
+    app.get("/welcome-file", (_req:any, res:any) => res.sendFile(participantFile));
 
     g.__void_participant_page_cleanpath_v1_mounted = true;
     try{ console.log("[participant.page] mounted /participant and /welcome"); }catch{}
@@ -37153,3 +37153,2628 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
 
 
+
+// === head-unify-truthfix.v1 BEGIN ===
+;(() => {
+  const G:any = globalThis as any;
+  const MARK = "__void_head_unify_truthfix_v1";
+  if (G[MARK]) return;
+  G[MARK] = { installed:false, ts:Date.now(), lastHead:null as any };
+
+  function getApp(){ return G.__void_http_app || G.app || null; }
+
+  function removeExact(app:any, methodLower:"get"|"post", pathStr:string){
+    try {
+      const r = app && app._router && Array.isArray(app._router.stack) ? app._router : null;
+      if (!r) return 0;
+      const before = r.stack.length;
+      r.stack = r.stack.filter((layer:any)=>{
+        const route = layer && layer.route;
+        if (!route) return true;
+        const p = route.path;
+        const m = route.methods || {};
+        if (p === pathStr && m[methodLower]) return false;
+        return true;
+      });
+      return Math.max(0, before - r.stack.length);
+    } catch { return 0; }
+  }
+
+  function dataDir(){
+    return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+  }
+
+  function tolerantDiskHead(): number {
+    try {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const hj = path.join(dataDir(), "heads.json");
+      if (fs.existsSync(hj)) {
+        const j = JSON.parse(fs.readFileSync(hj, "utf8") || "{}");
+        const n = Number(j?.head ?? j?.number ?? j?.n ?? -1);
+        if (Number.isFinite(n) && n >= 0) return n;
+      }
+    } catch {}
+    try {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const ht = path.join(dataDir(), "head.txt");
+      if (fs.existsSync(ht)) {
+        const n = Number(String(fs.readFileSync(ht, "utf8") || "").trim());
+        if (Number.isFinite(n) && n >= 0) return n;
+      }
+    } catch {}
+    return -1;
+  }
+
+  function liveHead(): number {
+    const cands:any[] = [];
+    try { if (G.__void_node?.store) cands.push(G.__void_node.store); } catch {}
+    try { if (G.node?.store) cands.push(G.node.store); } catch {}
+    try { if (G.VOID_NODE?.store) cands.push(G.VOID_NODE.store); } catch {}
+    try {
+      const app:any = getApp();
+      if (app?.locals?.__void_node?.store) cands.push(app.locals.__void_node.store);
+      if (app?.locals?.node?.store) cands.push(app.locals.node.store);
+    } catch {}
+
+    for (const s of cands) {
+      try {
+        const n = Number(s?.loadHeadNumber?.());
+        if (Number.isFinite(n) && n >= 0) return n;
+      } catch {}
+      try {
+        const n = Number(s?.headNumber);
+        if (Number.isFinite(n) && n >= 0) return n;
+      } catch {}
+      try {
+        const n = Number(s?.latestNumber);
+        if (Number.isFinite(n) && n >= 0) return n;
+      } catch {}
+    }
+
+    return tolerantDiskHead();
+  }
+
+  function mempoolCount(): number {
+    try {
+      const n:any = G.__void_node || G.node || G.VOID_NODE;
+      if (Array.isArray(n?.mempool?.txs)) return n.mempool.txs.length;
+      if (Array.isArray(n?.mempool?.pendingTxs)) return n.mempool.pendingTxs.length;
+    } catch {}
+    return 0;
+  }
+
+  function nodeId(): string {
+    try {
+      const n:any = G.__void_node || G.node || G.VOID_NODE;
+      return String(n?.id || n?.nodeId || G.__void_node_id || "");
+    } catch { return ""; }
+  }
+
+  function listenAddrs(): any[] {
+    try {
+      const n:any = G.__void_node || G.node || G.VOID_NODE;
+      return Array.isArray(n?.listenAddrs) ? n.listenAddrs : [];
+    } catch { return []; }
+  }
+
+  function peerIds(): any[] {
+    try {
+      const n:any = G.__void_node || G.node || G.VOID_NODE;
+      return [...(n?.peers?.keys?.() || [])].filter((k:string)=>!String(k).startsWith("?-"));
+    } catch { return []; }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 250);
+    if (G[MARK].installed) return;
+    G[MARK].installed = true;
+
+    removeExact(app, "get", "/head.txt");
+    removeExact(app, "get", "/blocks/latest/number");
+    removeExact(app, "get", "/blocks/latest/number2.json");
+    removeExact(app, "get", "/__void/demo/summary.json");
+    removeExact(app, "get", "/__void/peer-main-status.json");
+
+    app.get("/head.txt", (_req:any,res:any)=>{
+      const h = liveHead();
+      G[MARK].lastHead = h;
+      res.type("text/plain; charset=utf-8").send(String(h) + "\n");
+    });
+
+    app.get("/blocks/latest/number", (_req:any,res:any)=>{
+      const h = liveHead();
+      G[MARK].lastHead = h;
+      res.type("text/plain; charset=utf-8").send(String(h) + "\n");
+    });
+
+    app.get("/blocks/latest/number2.json", (_req:any,res:any)=>{
+      const h = liveHead();
+      G[MARK].lastHead = h;
+      res.json({ number: h, __truthfix: "head-unify-truthfix.v1" });
+    });
+
+    app.get("/__void/demo/summary.json", async (_req:any, res:any) => {
+      const h = liveHead();
+      G[MARK].lastHead = h;
+      return res.json({
+        ok: true,
+        ts_ms: Date.now(),
+        health: {
+          http_port: Number(process.env.HTTP_PORT || 4100),
+          p2p_port: Number(process.env.P2P_PORT || 4700),
+          node_id: nodeId()
+        },
+        chain: {
+          head: h,
+          mempool_count: mempoolCount()
+        },
+        datanet: {
+          root: dataDir() + "/datanet_v1",
+          latest_dataset: null,
+          receipts_count: 0,
+          loopproof_ok: 1
+        },
+        update: {
+          version: String(process.env.VOID_VERSION || "0.1.0-demo"),
+          protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || 1),
+          channel: String(process.env.VOID_UPDATE_CHANNEL || "stable")
+        }
+      });
+    });
+
+    app.get("/__void/peer-main-status.json", async (_req:any, res:any) => {
+      const http = require("http");
+      const getj = (url:string, timeoutMs=1500)=>new Promise((resolve,reject)=>{
+        const req = http.get(url, { timeout: timeoutMs }, (rr:any)=>{
+          let data = "";
+          rr.setEncoding("utf8");
+          rr.on("data", (c:string)=>data += c);
+          rr.on("end", ()=>{ try { resolve(JSON.parse(data || "{}")); } catch (e) { reject(e); } });
+        });
+        req.on("timeout", ()=>{ try { req.destroy(new Error("timeout")); } catch {} });
+        req.on("error", reject);
+      });
+
+      const mainBase = "http://127.0.0.1:4100";
+      const localBase = `http://127.0.0.1:${process.env.HTTP_PORT || 4100}`;
+
+      let localHealth:any = null, mainHealth:any = null;
+      let localOk = false, mainOk = false, sameNode:any = null;
+      let localHead:any = liveHead(), mainHead:any = null, headGap:any = null;
+
+      try { localHealth = await getj(`${localBase}/health`); localOk = !!localHealth?.ok; } catch {}
+      try { mainHealth = await getj(`${mainBase}/health`); mainOk = !!mainHealth?.ok; } catch {}
+
+      try {
+        const md:any = await getj(`${mainBase}/__void/demo/summary.json`);
+        mainHead = md?.chain?.head ?? null;
+      } catch {
+        try {
+          const mh:any = await getj(`${mainBase}/head`);
+          mainHead = mh?.head ?? null;
+        } catch {}
+      }
+
+      if (localHealth && mainHealth && localHealth.nodeId && mainHealth.nodeId) {
+        sameNode = String(localHealth.nodeId) === String(mainHealth.nodeId);
+      }
+      if (typeof localHead === "number" && typeof mainHead === "number") headGap = mainHead - localHead;
+
+      return res.status(200).json({
+        ok: true,
+        local_base: localBase,
+        main_base: mainBase,
+        local_ok: localOk,
+        main_ok: mainOk,
+        same_node: sameNode,
+        local: localHealth ? {
+          nodeId: localHealth.nodeId ?? null,
+          http: localHealth.http ?? null,
+          p2p: localHealth.p2p ?? null,
+          peers: localHealth.peers ?? null,
+          listen: localHealth.listen ?? null,
+        } : {
+          nodeId: nodeId(),
+          http: Number(process.env.HTTP_PORT || 4100),
+          p2p: Number(process.env.P2P_PORT || 4700),
+          peers: peerIds(),
+          listen: listenAddrs(),
+        },
+        main: mainHealth ? {
+          nodeId: mainHealth.nodeId ?? null,
+          http: mainHealth.http ?? null,
+          p2p: mainHealth.p2p ?? null,
+          peers: mainHealth.peers ?? null,
+          listen: mainHealth.listen ?? null,
+        } : null,
+        local_head: localHead,
+        main_head: mainHead,
+        head_gap: headGap,
+      });
+    });
+
+    app.get("/__void/diag/head-unify-truthfix.v1.json", (_req:any,res:any)=>{
+      res.json({
+        ok:true,
+        installed:true,
+        data_dir:dataDir(),
+        live_head: liveHead(),
+        disk_head: tolerantDiskHead(),
+        node_id: nodeId(),
+        peers: peerIds(),
+      });
+    });
+
+    try { console.log("[head-unify-truthfix.v1] mounted"); } catch {}
+  }
+
+  mount();
+})();
+// === head-unify-truthfix.v1 END ===
+
+// === peer-main-status-robust.v1 BEGIN ===
+;(() => {
+  const G:any = globalThis as any;
+  const MARK = "__void_peer_main_status_robust_v1";
+  if (G[MARK]) return;
+  G[MARK] = { installed:false, ts:Date.now() };
+
+  function getApp(){ return G.__void_http_app || G.app || null; }
+
+  function removeExact(app:any, methodLower:"get"|"post", pathStr:string){
+    try {
+      const r = app && app._router && Array.isArray(app._router.stack) ? app._router : null;
+      if (!r) return 0;
+      const before = r.stack.length;
+      r.stack = r.stack.filter((layer:any)=>{
+        const route = layer && layer.route;
+        if (!route) return true;
+        const p = route.path;
+        const m = route.methods || {};
+        if (p === pathStr && m[methodLower]) return false;
+        return true;
+      });
+      return Math.max(0, before - r.stack.length);
+    } catch { return 0; }
+  }
+
+  function localHead(): number {
+    try {
+      const n:any = G.__void_node || G.node || G.VOID_NODE;
+      const h = Number(n?.store?.loadHeadNumber?.());
+      if (Number.isFinite(h) && h >= 0) return h;
+    } catch {}
+    try {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const d = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+      const j = JSON.parse(fs.readFileSync(path.join(d, "heads.json"), "utf8") || "{}");
+      const h = Number(j?.head ?? j?.number ?? j?.n ?? -1);
+      if (Number.isFinite(h) && h >= 0) return h;
+    } catch {}
+    return -1;
+  }
+
+  function localNodeId(): string {
+    try {
+      const n:any = G.__void_node || G.node || G.VOID_NODE;
+      return String(n?.id || n?.nodeId || "");
+    } catch { return ""; }
+  }
+
+  function localPeers(): any[] {
+    try {
+      const n:any = G.__void_node || G.node || G.VOID_NODE;
+      return [...(n?.peers?.keys?.() || [])].filter((k:string)=>!String(k).startsWith("?-"));
+    } catch { return []; }
+  }
+
+  function localListen(): any[] {
+    try {
+      const n:any = G.__void_node || G.node || G.VOID_NODE;
+      return Array.isArray(n?.listenAddrs) ? n.listenAddrs : [];
+    } catch { return []; }
+  }
+
+  function getJson(url:string, timeoutMs=1200):Promise<any>{
+    return new Promise((resolve, reject)=>{
+      const http = require("http");
+      const req = http.get(url, { timeout: timeoutMs }, (res:any)=>{
+        let data = "";
+        res.setEncoding("utf8");
+        res.on("data", (c:string)=>data += c);
+        res.on("end", ()=>{
+          try { resolve(JSON.parse(data || "{}")); }
+          catch (e:any) { reject(e); }
+        });
+      });
+      req.on("timeout", ()=>{ try { req.destroy(new Error("timeout")); } catch {} });
+      req.on("error", reject);
+    });
+  }
+
+  async function mainHead(mainBase:string): Promise<number|null> {
+    const urls = [
+      `${mainBase}/blocks/latest/number2.json`,
+      `${mainBase}/__void/demo/summary.json`,
+      `${mainBase}/head`,
+      `${mainBase}/api/head`,
+    ];
+    for (const u of urls) {
+      try {
+        const j:any = await getJson(u, 1200);
+        const n = Number(j?.number ?? j?.chain?.head ?? j?.head ?? -1);
+        if (Number.isFinite(n) && n >= 0) return n;
+      } catch {}
+    }
+    return null;
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 250);
+    if (G[MARK].installed) return;
+    G[MARK].installed = true;
+
+    removeExact(app, "get", "/__void/peer-main-status.json");
+
+    app.get("/__void/peer-main-status.json", async (_req:any, res:any) => {
+      const mainBase = "http://127.0.0.1:4100";
+      const localBase = `http://127.0.0.1:${process.env.HTTP_PORT || 4100}`;
+
+      let localHealth:any = null;
+      let mainHealth:any = null;
+      let localOk = true;
+      let mainOk = false;
+      let sameNode:any = null;
+
+      const lHead = localHead();
+      let mHead:any = await mainHead(mainBase);
+
+      try { localHealth = await getJson(`${localBase}/health`, 1200); } catch {}
+      try { mainHealth = await getJson(`${mainBase}/health`, 1200); mainOk = !!mainHealth?.ok; } catch {}
+
+      if (localHealth && mainHealth && localHealth.nodeId && mainHealth.nodeId) {
+        sameNode = String(localHealth.nodeId) === String(mainHealth.nodeId);
+      }
+
+      return res.json({
+        ok: true,
+        local_base: localBase,
+        main_base: mainBase,
+        local_ok: localOk,
+        main_ok: mainOk,
+        same_node: sameNode,
+        local: {
+          nodeId: localHealth?.nodeId ?? localNodeId(),
+          http: localHealth?.http ?? Number(process.env.HTTP_PORT || 4100),
+          p2p: localHealth?.p2p ?? Number(process.env.P2P_PORT || 4700),
+          peers: localHealth?.peers ?? localPeers(),
+          listen: localHealth?.listen ?? localListen(),
+        },
+        main: mainHealth ? {
+          nodeId: mainHealth.nodeId ?? null,
+          http: mainHealth.http ?? null,
+          p2p: mainHealth.p2p ?? null,
+          peers: mainHealth.peers ?? null,
+          listen: mainHealth.listen ?? null,
+        } : null,
+        local_head: lHead,
+        main_head: mHead,
+        head_gap: (typeof lHead === "number" && typeof mHead === "number") ? (mHead - lHead) : null,
+      });
+    });
+
+    app.get("/__void/diag/peer-main-status-robust.v1.json", (_req:any,res:any)=>{
+      res.json({ ok:true, installed:true, local_head: localHead(), peers: localPeers(), listen: localListen() });
+    });
+
+    try { console.log("[peer-main-status-robust.v1] mounted"); } catch {}
+  }
+
+  mount();
+})();
+// === peer-main-status-robust.v1 END ===
+
+// === wc-ledger-v1 BEGIN ===
+;(() => {
+  const G:any = globalThis as any;
+  const MARK = "__void_wc_ledger_v1";
+  if (G[MARK]) return;
+  G[MARK] = { installed:false, ts:Date.now() };
+
+  function getApp(){ return G.__void_http_app || G.app || null; }
+  function dataDir(){ return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"); }
+
+  function ensureExpressJson(app:any){
+    try {
+      if ((app as any).__void_wc_ledger_v1_json_ready) return;
+      const express = require("express");
+      app.use(express.json({ limit: "1mb" }));
+      (app as any).__void_wc_ledger_v1_json_ready = true;
+    } catch {}
+  }
+
+  function safeAccount(x:any): string {
+    return String(x ?? "").trim().slice(0,128);
+  }
+  function safeReason(x:any): string {
+    return String(x ?? "").trim().slice(0,128);
+  }
+  function safeId(x:any): string {
+    return String(x ?? "").trim().slice(0,160);
+  }
+  function nowMs(){ return Date.now(); }
+
+  function wcDir(){
+    const path = require("node:path");
+    return path.join(dataDir(), "wc_v1");
+  }
+  function ledgerFile(){
+    const path = require("node:path");
+    return path.join(wcDir(), "ledger.jsonl");
+  }
+
+  function ensureDirs(){
+    const fs = require("node:fs");
+    fs.mkdirSync(wcDir(), { recursive:true });
+  }
+
+  function readLines(file:string): string[] {
+    const fs = require("node:fs");
+    try {
+      if (!fs.existsSync(file)) return [];
+      return String(fs.readFileSync(file, "utf8") || "")
+        .split("\n")
+        .map((s:string)=>s.trim())
+        .filter(Boolean);
+    } catch { return []; }
+  }
+
+  function appendJsonl(file:string, obj:any){
+    const fs = require("node:fs");
+    ensureDirs();
+    fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+  }
+
+  function listEvents(account:string|null = null){
+    const out:any[] = [];
+    for (const line of readLines(ledgerFile())) {
+      try {
+        const j = JSON.parse(line);
+        if (account && String(j?.account || "") !== account) continue;
+        out.push(j);
+      } catch {}
+    }
+    return out;
+  }
+
+  function balanceOf(account:string){
+    let balance = 0;
+    const events = listEvents(account);
+    for (const e of events) {
+      const d = Number(e?.delta);
+      if (Number.isFinite(d)) balance += d;
+    }
+    return { balance, count: events.length };
+  }
+
+  function hasCreditForJob(account:string, jobId:string, receiptId:string){
+    if (!account) return false;
+    for (const e of listEvents(account)) {
+      if (String(e?.kind || "") !== "credit") continue;
+      if (jobId && String(e?.job_id || "") === jobId) return true;
+      if (receiptId && String(e?.receipt_id || "") === receiptId) return true;
+    }
+    return false;
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function" || typeof app.post !== "function") return setTimeout(mount, 250);
+    if (G[MARK].installed) return;
+    G[MARK].installed = true;
+    ensureExpressJson(app);
+
+    app.post("/wc/credit", (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.body?.account);
+        const delta = Number(req.body?.delta);
+        const reason = safeReason(req.body?.reason || "manual_credit");
+        const jobId = safeId(req.body?.job_id);
+        const receiptId = safeId(req.body?.receipt_id);
+
+        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+        if (!(Number.isFinite(delta) && delta > 0)) return res.status(400).json({ ok:false, error:"invalid_delta" });
+
+        if ((jobId || receiptId) && hasCreditForJob(account, jobId, receiptId)) {
+          const bal = balanceOf(account);
+          return res.json({ ok:true, dedup:true, account, balance: bal.balance, count: bal.count });
+        }
+
+        const evt = {
+          kind: "credit",
+          account,
+          delta,
+          reason,
+          job_id: jobId || null,
+          receipt_id: receiptId || null,
+          ts_ms: nowMs(),
+        };
+        appendJsonl(ledgerFile(), evt);
+        const bal = balanceOf(account);
+        return res.json({ ok:true, event: evt, balance: bal.balance, count: bal.count });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/wc/balance", (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.query?.account);
+        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+        const bal = balanceOf(account);
+        return res.json({ ok:true, account, balance: bal.balance, count: bal.count });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/wc/ledger", (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.query?.account);
+        const limit = Math.max(1, Math.min(500, Number(req.query?.limit || 100) || 100));
+        const events = listEvents(account || null).slice(-limit).reverse();
+        return res.json({ ok:true, account: account || null, count: events.length, events });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/diag/wc-ledger-v1.json", (_req:any, res:any) => {
+      try {
+        const fs = require("node:fs");
+        const file = ledgerFile();
+        return res.json({
+          ok:true,
+          installed:true,
+          data_dir:dataDir(),
+          wc_dir:wcDir(),
+          ledger_file:file,
+          exists: fs.existsSync(file),
+          lines: readLines(file).length,
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    try { console.log("[wc-ledger-v1] mounted"); } catch {}
+  }
+
+  mount();
+})();
+// === wc-ledger-v1 END ===
+
+
+// === wc-redeem-v1 BEGIN ===
+;(() => {
+  const G:any = globalThis as any;
+  const MARK = "__void_wc_redeem_v1";
+  if (G[MARK]) return;
+  G[MARK] = { installed:false, ts:Date.now() };
+
+  function getApp(){ return G.__void_http_app || G.app || null; }
+  function dataDir(){ return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"); }
+  function wcDir(){
+    const path = require("node:path");
+    return path.join(dataDir(), "wc_v1");
+  }
+  function ledgerFile(){
+    const path = require("node:path");
+    return path.join(wcDir(), "ledger.jsonl");
+  }
+  function redeemedFile(){
+    const path = require("node:path");
+    return path.join(wcDir(), "redeemed.jsonl");
+  }
+  function ensureDirs(){
+    const fs = require("node:fs");
+    fs.mkdirSync(wcDir(), { recursive:true });
+  }
+  function readLines(file:string): string[] {
+    const fs = require("node:fs");
+    try {
+      if (!fs.existsSync(file)) return [];
+      return String(fs.readFileSync(file, "utf8") || "").split("\n").map((s:string)=>s.trim()).filter(Boolean);
+    } catch { return []; }
+  }
+  function appendJsonl(file:string, obj:any){
+    const fs = require("node:fs");
+    ensureDirs();
+    fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+  }
+  function safeAccount(x:any): string {
+    return String(x ?? "").trim().slice(0,128);
+  }
+  function safeId(x:any): string {
+    return String(x ?? "").trim().slice(0,160);
+  }
+  function nowMs(){ return Date.now(); }
+
+  function earnedTotal(account:string){
+    let n = 0;
+    for (const line of readLines(ledgerFile())) {
+      try {
+        const j = JSON.parse(line);
+        if (String(j?.account || "") !== account) continue;
+        const d = Number(j?.delta || 0);
+        if (Number.isFinite(d) && d > 0) n += d;
+      } catch {}
+    }
+    return n;
+  }
+
+  function redeemedTotal(account:string){
+    let n = 0;
+    for (const line of readLines(redeemedFile())) {
+      try {
+        const j = JSON.parse(line);
+        if (String(j?.account || "") !== account) continue;
+        const d = Number(j?.amount || 0);
+        if (Number.isFinite(d) && d > 0) n += d;
+      } catch {}
+    }
+    return n;
+  }
+
+  function redeemState(account:string){
+    const earned = earnedTotal(account);
+    const redeemed = redeemedTotal(account);
+    const redeemable = Math.max(0, earned - redeemed);
+    return { account, earned, redeemed, redeemable };
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function" || typeof app.post !== "function") return setTimeout(mount, 250);
+    if (G[MARK].installed) return;
+    G[MARK].installed = true;
+
+    app.get("/wc/redeemable", (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.query?.account);
+        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+        return res.json({ ok:true, ...redeemState(account) });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/wc/redeemed", (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.query?.account);
+        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+        const limit = Math.max(1, Math.min(500, Number(req.query?.limit || 100) || 100));
+        const events:any[] = [];
+        for (const line of readLines(redeemedFile())) {
+          try {
+            const j = JSON.parse(line);
+            if (String(j?.account || "") !== account) continue;
+            events.push(j);
+          } catch {}
+        }
+        return res.json({ ok:true, ...redeemState(account), count: events.length, events: events.slice(-limit).reverse() });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.post("/wc/redeem", (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.body?.account);
+        const reqAmount = req.body?.amount;
+        const wallet = safeId(req.body?.wallet || req.body?.address || "");
+        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+
+        const st = redeemState(account);
+        let amount = 0;
+        if (reqAmount === "all" || reqAmount === null || reqAmount === undefined || reqAmount === "") amount = st.redeemable;
+        else amount = Number(reqAmount);
+
+        if (!(Number.isFinite(amount) && amount > 0)) return res.status(400).json({ ok:false, error:"invalid_amount", redeemable: st.redeemable });
+        if (amount > st.redeemable) return res.status(400).json({ ok:false, error:"amount_exceeds_redeemable", redeemable: st.redeemable });
+
+        const evt = {
+          kind: "redeem",
+          account,
+          amount,
+          wallet: wallet || null,
+          ts_ms: nowMs()
+        };
+        appendJsonl(redeemedFile(), evt);
+        return res.json({ ok:true, event: evt, ...redeemState(account) });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/diag/wc-redeem-v1.json", (_req:any, res:any) => {
+      try {
+        const fs = require("node:fs");
+        return res.json({
+          ok:true,
+          installed:true,
+          ledger_file: ledgerFile(),
+          redeemed_file: redeemedFile(),
+          redeemed_exists: fs.existsSync(redeemedFile()),
+          redeemed_lines: readLines(redeemedFile()).length,
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    try { console.log("[wc-redeem-v1] mounted"); } catch {}
+  }
+
+  mount();
+})();
+// === wc-redeem-v1 END ===
+
+
+// === wc-auto-credit-from-receipts-v1 BEGIN ===
+;(() => {
+  const G:any = globalThis as any;
+  const MARK = "__void_wc_auto_credit_from_receipts_v1";
+  if (G[MARK]) return;
+  G[MARK] = { installed:false, ts:Date.now(), last_scan_ms:0, last_credited:0 };
+
+  function getApp(){ return G.__void_http_app || G.app || null; }
+  function dataDir(){ return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"); }
+  function wcDir(){
+    const path = require("node:path");
+    return path.join(dataDir(), "wc_v1");
+  }
+  function ledgerFile(){
+    const path = require("node:path");
+    return path.join(wcDir(), "ledger.jsonl");
+  }
+  function receiptsFile(){
+    const path = require("node:path");
+    return path.join(dataDir(), "agent_v1", "receipts.jsonl");
+  }
+  function ensureDirs(){
+    const fs = require("node:fs");
+    fs.mkdirSync(wcDir(), { recursive:true });
+  }
+  function readLines(file:string): string[] {
+    const fs = require("node:fs");
+    try {
+      if (!fs.existsSync(file)) return [];
+      return String(fs.readFileSync(file, "utf8") || "").split("\n").map((s:string)=>s.trim()).filter(Boolean);
+    } catch { return []; }
+  }
+  function appendJsonl(file:string, obj:any){
+    const fs = require("node:fs");
+    ensureDirs();
+    fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+  }
+  function safeAccount(x:any): string {
+    return String(x ?? "").trim().slice(0,128);
+  }
+  function safeId(x:any): string {
+    return String(x ?? "").trim().slice(0,160);
+  }
+  function rewardFor(kind:string): number {
+    const k = String(kind || "").trim().toLowerCase();
+    if (k.includes("verify")) return 3;
+    if (k.includes("publish")) return 10;
+    if (k.includes("datanet")) return 10;
+    return 5;
+  }
+  function alreadyCredited(account:string, jobId:string, receiptId:string): boolean {
+    for (const line of readLines(ledgerFile())) {
+      try {
+        const j = JSON.parse(line);
+        if (String(j?.kind || "") !== "credit") continue;
+        if (account && String(j?.account || "") !== account) continue;
+        if (jobId && String(j?.job_id || "") === jobId) return true;
+        if (receiptId && String(j?.receipt_id || "") === receiptId) return true;
+      } catch {}
+    }
+    return false;
+  }
+  function scanOnce(){
+    let credited = 0;
+    for (const line of readLines(receiptsFile())) {
+      try {
+        const j:any = JSON.parse(line);
+        const account = safeAccount(j?.account || j?.who || j?.owner || "demo");
+        const receiptId = safeId(j?.receipt_id || j?.id || j?.receiptId || "");
+        const jobId = safeId(j?.job_id || j?.jobId || "");
+        const status = String(j?.status || "ok").toLowerCase();
+        const kind = String(j?.kind || j?.type || "receipt");
+        if (!receiptId && !jobId) continue;
+        if (status && !["ok","success","done","completed"].includes(status)) continue;
+        if (alreadyCredited(account, jobId, receiptId)) continue;
+
+        const evt = {
+          kind: "credit",
+          account,
+          delta: rewardFor(kind),
+          reason: "receipt_auto_credit_v1",
+          job_id: jobId || null,
+          receipt_id: receiptId || null,
+          receipt_kind: kind,
+          ts_ms: Date.now(),
+        };
+        appendJsonl(ledgerFile(), evt);
+        credited++;
+      } catch {}
+    }
+    G[MARK].last_scan_ms = Date.now();
+    G[MARK].last_credited = credited;
+    return credited;
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function" || typeof app.post !== "function") return setTimeout(mount, 250);
+    if (G[MARK].installed) return;
+    G[MARK].installed = true;
+
+    app.post("/wc/scan-receipts", (_req:any, res:any) => {
+      try {
+        const credited = scanOnce();
+        return res.json({ ok:true, credited, receipts_file: receiptsFile(), ledger_file: ledgerFile() });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/diag/wc-auto-credit-v1.json", (_req:any, res:any) => {
+      try {
+        return res.json({
+          ok:true,
+          installed:true,
+          receipts_file: receiptsFile(),
+          ledger_file: ledgerFile(),
+          last_scan_ms: G[MARK].last_scan_ms,
+          last_credited: G[MARK].last_credited,
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    setInterval(() => {
+      try { scanOnce(); } catch {}
+    }, 3000).unref?.();
+
+    try { console.log("[wc-auto-credit-from-receipts-v1] mounted"); } catch {}
+  }
+
+  mount();
+})();
+// === wc-auto-credit-from-receipts-v1 END ===
+
+// === jobs-and-datanet-worker-v1 BEGIN ===
+;(() => {
+  const G:any = globalThis as any;
+  const MARK = "__void_jobs_and_datanet_worker_v1";
+  if (G[MARK]) return;
+  G[MARK] = { installed:false, ts:Date.now(), last_job_id:"", last_receipt_id:"" };
+
+  function getApp(){ return G.__void_http_app || G.app || null; }
+  function dataDir(){ return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"); }
+  function nowMs(){ return Date.now(); }
+
+  function ensureExpressJson(app:any){
+    try {
+      if ((app as any).__void_jobs_and_datanet_worker_v1_json_ready) return;
+      const express = require("express");
+      app.use(express.json({ limit: "2mb" }));
+      (app as any).__void_jobs_and_datanet_worker_v1_json_ready = true;
+    } catch {}
+  }
+
+  function safeStr(x:any, n:number){ return String(x ?? "").trim().slice(0,n); }
+  function jobsDir(){
+    const path = require("node:path");
+    return path.join(dataDir(), "jobs_v1");
+  }
+  function jobsFile(){
+    const path = require("node:path");
+    return path.join(jobsDir(), "jobs.jsonl");
+  }
+  function receiptsDir(){
+    const path = require("node:path");
+    return path.join(dataDir(), "agent_v1");
+  }
+  function receiptsFile(){
+    const path = require("node:path");
+    return path.join(receiptsDir(), "receipts.jsonl");
+  }
+  function datanetDir(){
+    const path = require("node:path");
+    return path.join(dataDir(), "datanet_v1", "local_jobs");
+  }
+
+  function ensureDirs(){
+    const fs = require("node:fs");
+    fs.mkdirSync(jobsDir(), { recursive:true });
+    fs.mkdirSync(receiptsDir(), { recursive:true });
+    fs.mkdirSync(datanetDir(), { recursive:true });
+  }
+
+  function readLines(file:string): string[] {
+    const fs = require("node:fs");
+    try {
+      if (!fs.existsSync(file)) return [];
+      return String(fs.readFileSync(file, "utf8") || "").split("\n").map((s:string)=>s.trim()).filter(Boolean);
+    } catch { return []; }
+  }
+
+  function appendJsonl(file:string, obj:any){
+    const fs = require("node:fs");
+    ensureDirs();
+    fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+  }
+
+  function allJobs(){
+    const out:any[] = [];
+    for (const line of readLines(jobsFile())) {
+      try { out.push(JSON.parse(line)); } catch {}
+    }
+    return out;
+  }
+
+  function latestJobById(jobId:string){
+    let found:any = null;
+    for (const j of allJobs()) {
+      if (String(j?.job_id || "") === jobId) found = j;
+    }
+    return found;
+  }
+
+  function replaceJobState(jobId:string, patch:any){
+    const lines = readLines(jobsFile());
+    const out:string[] = [];
+    let last:any = null;
+    for (const line of lines) {
+      try {
+        const j = JSON.parse(line);
+        if (String(j?.job_id || "") === jobId) {
+          last = { ...j, ...patch };
+          continue;
+        }
+        out.push(JSON.stringify(j));
+      } catch {}
+    }
+    if (!last) return null;
+    out.push(JSON.stringify(last));
+    const fs = require("node:fs");
+    fs.writeFileSync(jobsFile(), out.join("\n") + (out.length ? "\n" : ""));
+    return last;
+  }
+
+  function listReceiptsForJob(jobId:string){
+    const out:any[] = [];
+    for (const line of readLines(receiptsFile())) {
+      try {
+        const j = JSON.parse(line);
+        if (String(j?.job_id || "") === jobId) out.push(j);
+      } catch {}
+    }
+    return out;
+  }
+
+  async function sha256Hex(s:string): Promise<string> {
+    const crypto = require("node:crypto");
+    return crypto.createHash("sha256").update(Buffer.from(s, "utf8")).digest("hex");
+  }
+
+  async function processJob(jobId:string){
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const job = latestJobById(jobId);
+    if (!job) return;
+    if (String(job.status || "") !== "queued") return;
+
+    replaceJobState(jobId, { status:"running", started_at_ms: nowMs() });
+
+    try {
+      const kind = String(job.kind || "");
+      if (kind !== "datanet_publish") throw new Error("unsupported_kind");
+
+      const account = safeStr(job.account, 128) || "demo";
+      const plaintext = String(job.input?.plaintext || "");
+      if (!plaintext) throw new Error("missing_plaintext");
+
+      const inputHash = await sha256Hex(plaintext);
+      const datasetId = "ds_" + nowMs() + "_" + inputHash.slice(0,16);
+      const payloadPath = path.join(datanetDir(), datasetId + ".txt");
+      fs.writeFileSync(payloadPath, plaintext);
+
+      const receiptId = "rcpt_" + nowMs() + "_" + inputHash.slice(0,12);
+      const outputObj = {
+        dataset_id: datasetId,
+        path: payloadPath,
+        bytes: Buffer.byteLength(plaintext, "utf8"),
+      };
+      const outputHash = await sha256Hex(JSON.stringify(outputObj));
+
+      const receipt = {
+        receipt_id: receiptId,
+        job_id: jobId,
+        account,
+        kind,
+        status: "completed",
+        input_hash: inputHash,
+        output_hash: outputHash,
+        dataset_id: datasetId,
+        output: outputObj,
+        ts_ms: nowMs(),
+      };
+      appendJsonl(receiptsFile(), receipt);
+
+      replaceJobState(jobId, {
+        status: "completed",
+        completed_at_ms: nowMs(),
+        receipt_id: receiptId,
+        dataset_id: datasetId,
+        input_hash: inputHash,
+        output_hash: outputHash,
+      });
+
+      G[MARK].last_job_id = jobId;
+      G[MARK].last_receipt_id = receiptId;
+    } catch (e:any) {
+      replaceJobState(jobId, {
+        status: "failed",
+        completed_at_ms: nowMs(),
+        error: String(e?.message || e),
+      });
+    }
+  }
+
+  function startWorker(){
+    setInterval(() => {
+      try {
+        const jobs = allJobs();
+        for (const j of jobs) {
+          if (String(j?.status || "") === "queued") {
+            void processJob(String(j.job_id || ""));
+            break;
+          }
+        }
+      } catch {}
+    }, 1500).unref?.();
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function" || typeof app.post !== "function") return setTimeout(mount, 250);
+    if (G[MARK].installed) return;
+    G[MARK].installed = true;
+    ensureExpressJson(app);
+    ensureDirs();
+
+    app.post("/jobs/submit", (req:any, res:any) => {
+      try {
+        const account = safeStr(req.body?.account, 128);
+        const kind = safeStr(req.body?.kind || "datanet_publish", 64);
+        const plaintext = String(req.body?.plaintext || "");
+        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+        if (!plaintext) return res.status(400).json({ ok:false, error:"missing_plaintext" });
+
+        const jobId = "job_" + nowMs() + "_" + Math.random().toString(16).slice(2,10);
+        const job = {
+          job_id: jobId,
+          account,
+          kind,
+          status: "queued",
+          input: { plaintext },
+          created_at_ms: nowMs(),
+        };
+        appendJsonl(jobsFile(), job);
+        G[MARK].last_job_id = jobId;
+        return res.json({ ok:true, job });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/jobs/:id", (req:any, res:any) => {
+      try {
+        const jobId = safeStr(req.params?.id, 160);
+        const job = latestJobById(jobId);
+        if (!job) return res.status(404).json({ ok:false, error:"job_not_found" });
+        const receipts = listReceiptsForJob(jobId);
+        return res.json({ ok:true, job, receipts });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/jobs", (req:any, res:any) => {
+      try {
+        const account = safeStr(req.query?.account, 128);
+        const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
+        let jobs = allJobs();
+        if (account) jobs = jobs.filter((j:any) => String(j?.account || "") === account);
+        jobs = jobs.slice(-limit).reverse();
+        return res.json({ ok:true, count: jobs.length, jobs });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/receipts", (req:any, res:any) => {
+      try {
+        const account = safeStr(req.query?.account, 128);
+        const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
+        let out:any[] = [];
+        for (const line of readLines(receiptsFile())) {
+          try { out.push(JSON.parse(line)); } catch {}
+        }
+        if (account) out = out.filter((r:any) => String(r?.account || "") === account);
+        out = out.slice(-limit).reverse();
+        return res.json({ ok:true, count: out.length, receipts: out });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/diag/jobs-and-datanet-worker-v1.json", (_req:any, res:any) => {
+      return res.json({
+        ok:true,
+        installed:true,
+        jobs_file: jobsFile(),
+        receipts_file: receiptsFile(),
+        datanet_dir: datanetDir(),
+        last_job_id: G[MARK].last_job_id,
+        last_receipt_id: G[MARK].last_receipt_id,
+      });
+    });
+
+    startWorker();
+    try { console.log("[jobs-and-datanet-worker-v1] mounted"); } catch {}
+  }
+
+  mount();
+})();
+// === jobs-and-datanet-worker-v1 END ===
+
+// [removed legacy participant-dashboard-v1 duplicate block]
+
+
+
+// === participant-dashboard-steal-v1 BEGIN ===
+;(() => {
+  const G:any = globalThis as any;
+  const MARK = "__void_participant_dashboard_steal_v1";
+  if (G[MARK]) return;
+  G[MARK] = { installed:false, removed:0, ts:Date.now() };
+
+  function getApp(){ return G.__void_http_app || G.app || null; }
+
+  function removeExact(app:any, methodLower:"get"|"post", pathStr:string){
+    try {
+      const r = app && app._router && Array.isArray(app._router.stack) ? app._router : null;
+      if (!r) return 0;
+      const before = r.stack.length;
+      r.stack = r.stack.filter((layer:any)=>{
+        const route = layer && layer.route;
+        if (!route) return true;
+        const p = route.path;
+        const m = route.methods || {};
+        if (p === pathStr && m[methodLower]) return false;
+        return true;
+      });
+      return Math.max(0, before - r.stack.length);
+    } catch { return 0; }
+  }
+
+  function pageHtml(){
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>VOID Participant Shell</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{
+      --bg:#07111b;
+      --bg2:#0b1622;
+      --panel:#0f1b2a;
+      --panel2:#122235;
+      --panel3:#0b1520;
+      --text:#edf4fb;
+      --muted:#93a6bc;
+      --line:#21364b;
+      --line2:#2a4763;
+      --accent:#38bdf8;
+      --accent2:#0ea5e9;
+      --ok:#86efac;
+      --warn:#fbbf24;
+      --bad:#fca5a5;
+      --radius:18px;
+      --shadow:0 18px 50px rgba(0,0,0,.32);
+    }
+    *{box-sizing:border-box}
+    html,body{
+      margin:0;
+      padding:0;
+      background:
+        radial-gradient(circle at top left, rgba(56,189,248,.08), transparent 28%),
+        linear-gradient(180deg,var(--bg),var(--bg2));
+      color:var(--text);
+    }
+    body{
+      font:14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      padding:20px;
+    }
+    .shell{
+      max-width:1360px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns:260px minmax(0,1fr);
+      gap:18px;
+    }
+    .sidebar,
+    .panel,
+    .hero,
+    .kpi,
+    .action,
+    .subpanel{
+      background:linear-gradient(180deg,var(--panel),var(--panel3));
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+    }
+    .sidebar{
+      padding:18px;
+      position:sticky;
+      top:20px;
+      height:fit-content;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:16px;
+    }
+    .brand .title{
+      font-size:28px;
+      font-weight:900;
+      letter-spacing:-.04em;
+      line-height:1;
+    }
+    .brand .sub{
+      color:var(--muted);
+      font-size:12px;
+      margin-top:4px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      font-weight:800;
+    }
+    .status-dot{
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      background:var(--ok);
+      box-shadow:0 0 16px rgba(134,239,172,.75);
+      flex:0 0 auto;
+    }
+    .side-section{
+      margin-top:16px;
+      padding-top:16px;
+      border-top:1px solid var(--line);
+    }
+    .side-label{
+      font-size:11px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      font-weight:800;
+      margin-bottom:8px;
+    }
+    .account-big{
+      font-size:22px;
+      font-weight:850;
+      letter-spacing:-.03em;
+      line-height:1.05;
+      margin-bottom:6px;
+      word-break:break-word;
+    }
+    .account-meta{
+      color:var(--muted);
+      font-size:12px;
+    }
+    .nav{
+      display:grid;
+      gap:10px;
+      margin-top:18px;
+    }
+    .tabbtn{
+      appearance:none;
+      width:100%;
+      text-align:left;
+      border:1px solid var(--line);
+      background:#0b1621;
+      color:var(--text);
+      border-radius:14px;
+      padding:12px 14px;
+      font:inherit;
+      font-weight:800;
+      cursor:pointer;
+      transition:transform .08s ease, border-color .12s ease, background .12s ease;
+    }
+    .tabbtn:hover{
+      transform:translateY(-1px);
+      border-color:#365674;
+      background:#102030;
+    }
+    .tabbtn.active{
+      background:linear-gradient(180deg,#12334a,#10263a);
+      border-color:var(--accent);
+      color:#fff;
+    }
+    .tabbtn .navhint{
+      display:block;
+      color:var(--muted);
+      font-size:11px;
+      font-weight:700;
+      margin-top:3px;
+    }
+    .quick{
+      display:grid;
+      gap:10px;
+      margin-top:16px;
+    }
+    .linkbtn,
+    .btn{
+      appearance:none;
+      border:1px solid var(--line);
+      background:#0d1722;
+      color:var(--text);
+      border-radius:14px;
+      padding:11px 14px;
+      font:inherit;
+      font-weight:800;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      cursor:pointer;
+      transition:transform .08s ease, border-color .12s ease, background .12s ease;
+    }
+    .linkbtn:hover,
+    .btn:hover{
+      transform:translateY(-1px);
+      border-color:#365674;
+      background:#112033;
+    }
+    .btn-primary{background:linear-gradient(180deg,#184968,#133a55);border-color:#2a78a4}
+    .main{
+      display:grid;
+      gap:16px;
+      min-width:0;
+    }
+    .hero{
+      padding:22px;
+      display:grid;
+      grid-template-columns:1.45fr .95fr;
+      gap:18px;
+      align-items:stretch;
+    }
+    .eyebrow{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-bottom:12px;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 10px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:rgba(255,255,255,.02);
+      color:var(--muted);
+      font-size:11px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+    }
+    .hero h1{
+      margin:0 0 10px;
+      font-size:38px;
+      line-height:1.02;
+      letter-spacing:-.05em;
+      font-weight:900;
+      max-width:820px;
+    }
+    .hero-copy{
+      color:var(--muted);
+      font-size:15px;
+      max-width:760px;
+      margin-bottom:16px;
+    }
+    .hero-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .hero-side{
+      display:grid;
+      gap:12px;
+    }
+    .hero-note{
+      border:1px solid #224a65;
+      background:linear-gradient(180deg,rgba(56,189,248,.12),rgba(56,189,248,.04));
+      border-radius:16px;
+      padding:14px;
+      color:#d9edf9;
+    }
+    .hero-note strong{color:#fff}
+    .hero-metric{
+      padding:16px;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:rgba(255,255,255,.02);
+    }
+    .hero-metric .k{
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:var(--muted);
+      font-weight:800;
+      margin-bottom:8px;
+    }
+    .hero-metric .v{
+      font-size:26px;
+      font-weight:900;
+      letter-spacing:-.04em;
+      line-height:1;
+      margin-bottom:6px;
+      word-break:break-word;
+    }
+    .hero-metric .s{
+      font-size:12px;
+      color:var(--muted);
+    }
+    .kpis{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:14px;
+    }
+    .kpi{
+      padding:16px;
+    }
+    .kpi .k{
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:var(--muted);
+      font-weight:800;
+      margin-bottom:8px;
+    }
+    .kpi .v{
+      font-size:30px;
+      font-weight:900;
+      letter-spacing:-.04em;
+      line-height:1;
+      margin-bottom:8px;
+    }
+    .kpi .s{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+      word-break:break-word;
+    }
+    .tabpane{display:none}
+    .tabpane.active{display:grid;gap:16px}
+    .grid-2{
+      display:grid;
+      grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
+      gap:16px;
+    }
+    .grid-2-eq{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:16px;
+    }
+    .grid-3{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:12px;
+    }
+    .panel,
+    .action,
+    .subpanel{
+      padding:18px;
+      min-width:0;
+    }
+    .section-head{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:flex-end;
+      margin-bottom:12px;
+    }
+    .section-head h2{
+      margin:0;
+      font-size:24px;
+      letter-spacing:-.03em;
+      line-height:1.05;
+      font-weight:900;
+    }
+    .section-copy{
+      color:var(--muted);
+      margin-top:5px;
+      font-size:13px;
+    }
+    .stack{display:grid;gap:16px}
+    .mini{
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:14px;
+      background:rgba(255,255,255,.02);
+    }
+    .mini .k{
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:var(--muted);
+      font-weight:800;
+      margin-bottom:7px;
+    }
+    .mini .v{
+      font-size:22px;
+      font-weight:900;
+      letter-spacing:-.03em;
+      line-height:1;
+      margin-bottom:6px;
+    }
+    .mini .s{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.4;
+    }
+    label{
+      display:block;
+      margin:10px 0 6px;
+      color:var(--muted);
+      font-size:11px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+    input,textarea{
+      width:100%;
+      border:1px solid var(--line);
+      background:#07121d;
+      color:var(--text);
+      border-radius:14px;
+      padding:12px 14px;
+      font:inherit;
+      outline:none;
+    }
+    input:focus,textarea:focus{
+      border-color:#3a7096;
+      box-shadow:0 0 0 3px rgba(56,189,248,.08);
+    }
+    textarea{
+      min-height:156px;
+      resize:vertical;
+      line-height:1.5;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .row > *{flex:1}
+    .action-rail{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:14px;
+    }
+    .metric-strip{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:12px;
+      margin-top:12px;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:13px;
+    }
+    th,td{
+      padding:10px 8px;
+      border-bottom:1px solid var(--line);
+      text-align:left;
+      vertical-align:top;
+    }
+    th{
+      color:var(--muted);
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      font-weight:800;
+    }
+    .table-wrap{
+      overflow:auto;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:rgba(255,255,255,.01);
+    }
+    .table-wrap table{min-width:640px}
+    pre{
+      margin:0;
+      white-space:pre-wrap;
+      word-break:break-word;
+      background:#07121c;
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:14px;
+      max-height:320px;
+      overflow:auto;
+      color:#d4e6f7;
+      font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+    }
+    details.adv{
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:linear-gradient(180deg,#0c1723,#0a131c);
+      overflow:hidden;
+    }
+    details.adv summary{
+      list-style:none;
+      cursor:pointer;
+      padding:15px 16px;
+      font-weight:900;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    details.adv summary::-webkit-details-marker{display:none}
+    .adv-body{padding:0 16px 16px}
+    .empty{
+      color:var(--muted);
+      padding:18px;
+    }
+    .ok{color:var(--ok)}
+    .warn{color:var(--warn)}
+    .bad{color:var(--bad)}
+    @media (max-width: 1200px){
+      .shell{grid-template-columns:1fr}
+      .sidebar{position:static}
+      .hero{grid-template-columns:1fr}
+    }
+    @media (max-width: 980px){
+      .kpis{grid-template-columns:1fr 1fr}
+      .grid-2,.grid-2-eq{grid-template-columns:1fr}
+      .metric-strip,.grid-3{grid-template-columns:1fr}
+      .hero h1{font-size:32px}
+    }
+    @media (max-width: 640px){
+      body{padding:12px}
+      .kpis{grid-template-columns:1fr}
+      .row{flex-direction:column}
+      .hero h1{font-size:28px}
+      .brand .title{font-size:24px}
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div>
+        <div class="title">VOID</div>
+        <div class="sub">participant shell</div>
+      </div>
+      <span class="status-dot" aria-hidden="true"></span>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Current account</div>
+      <div class="account-big" id="heroAccount">demo-user</div>
+      <div class="account-meta" id="heroAccountMeta">local earned WC and helper preview update here.</div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Primary actions</div>
+      <div class="quick">
+        <a class="linkbtn btn-primary" href="/participant#work">Earn Work Credits</a>
+        <a class="linkbtn" href="/participant#trading">Trade WC / VOID</a>
+        <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
+        <a class="linkbtn" href="/participant#receipts">Verify Receipts</a>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Sections</div>
+      <nav class="nav">
+        <button class="tabbtn active" data-tab="overview" id="tab-overview">Home<span class="navhint">status, actions, recent activity</span></button>
+        <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work and watch completion</span></button>
+        <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">WC / VOID market surface</span></button>
+        <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">balances, ledger, helper preview</span></button>
+        <button class="tabbtn" data-tab="receipts" id="tab-receipts">Receipts<span class="navhint">proofs, outputs, state</span></button>
+      </nav>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">External surfaces</div>
+      <div class="quick">
+        <a class="linkbtn" href="/datanet-demo">DataNet Demo</a>
+        <a class="linkbtn" href="/demo/datanet/">Legacy Demo</a>
+        <a class="linkbtn" href="http://127.0.0.1:4312/workcredits/devnet/ui" target="_blank" rel="noopener noreferrer">Helper Swap UI</a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">
+          <span class="pill">VOID devnet</span>
+          <span class="pill">receipt-backed WC</span>
+          <span class="pill">helper-connected trading</span>
+        </div>
+        <h1>Earn WC, trade into VOID, and verify everything from one place.</h1>
+        <div class="hero-copy">
+          This shell should feel like a product, not a clearance-bin admin page. The main loop is simple: do work, receive receipts, earn WC, then manage or trade balances.
+        </div>
+        <div class="hero-actions">
+          <a class="linkbtn btn-primary" href="/participant#work">Start Earning</a>
+          <a class="linkbtn" href="/participant#trading">Open Trading</a>
+          <a class="linkbtn" href="/participant#wallet">See Wallet</a>
+          <a class="linkbtn" href="/participant#receipts">Inspect Receipts</a>
+        </div>
+      </div>
+
+      <div class="hero-side">
+        <div class="hero-metric">
+          <div class="k">Selected account</div>
+          <div class="v" id="heroAccountMirror">demo-user</div>
+          <div class="s" id="heroAccountMirrorMeta">local earned WC and helper preview update here.</div>
+        </div>
+        <div class="hero-note">
+          <strong>Primary balance:</strong> local earned WC.<br>
+          <strong>Trading surface:</strong> helper-backed for now.<br>
+          <strong>Verification:</strong> receipts and state remain available, but are no longer the main visual focus.
+        </div>
+      </div>
+    </section>
+
+    <section class="kpis">
+      <div class="kpi">
+        <div class="k">Node health</div>
+        <div class="v" id="topHealth">-</div>
+        <div class="s" id="topHealthMeta">loading…</div>
+      </div>
+      <div class="kpi">
+        <div class="k">Sync</div>
+        <div class="v" id="syncGap">-</div>
+        <div class="s" id="syncMeta">loading…</div>
+      </div>
+      <div class="kpi">
+        <div class="k">Earned WC</div>
+        <div class="v" id="wcBalance">-</div>
+        <div class="s" id="wcMeta">loading…</div>
+      </div>
+      <div class="kpi">
+        <div class="k">Latest job</div>
+        <div class="v" id="latestJobState">-</div>
+        <div class="s" id="latestJobMeta">loading…</div>
+      </div>
+    </section>
+
+    <section class="tabpane active" id="pane-overview">
+      <div class="grid-2">
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Main loop</h2>
+              <div class="section-copy">The participant journey reduced to the four actions that matter.</div>
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="mini">
+              <div class="k">1. Earn</div>
+              <div class="v">Submit</div>
+              <div class="s">Send a DataNet publish job and watch it complete.</div>
+            </div>
+            <div class="mini">
+              <div class="k">2. Verify</div>
+              <div class="v">Receipt</div>
+              <div class="s">Inspect receipts and dataset outputs for proof.</div>
+            </div>
+            <div class="mini">
+              <div class="k">3. Manage</div>
+              <div class="v">Wallet</div>
+              <div class="s">Track local earned WC separately from helper preview balances.</div>
+            </div>
+          </div>
+          <div class="action-rail">
+            <a class="linkbtn btn-primary" href="/participant#work">Submit Work</a>
+            <a class="linkbtn" href="/participant#trading">Trade WC / VOID</a>
+            <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Live summary</h2>
+              <div class="section-copy">High-level current state for the selected participant account.</div>
+            </div>
+          </div>
+          <pre id="summaryOut">loading…</pre>
+        </div>
+      </div>
+
+      <div class="grid-2-eq">
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Recent jobs</h2>
+              <div class="section-copy">Most recent submitted work for this account.</div>
+            </div>
+          </div>
+          <div class="table-wrap"><div id="jobsWrapOverview" class="empty">loading…</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Recent receipts</h2>
+              <div class="section-copy">Latest proofs created by successful work.</div>
+            </div>
+          </div>
+          <div class="table-wrap"><div id="receiptsWrapOverview" class="empty">loading…</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tabpane" id="pane-work">
+      <div class="grid-2">
+        <div class="action">
+          <div class="section-head">
+            <div>
+              <h2>Earn Work Credits</h2>
+              <div class="section-copy">Submit work and let the node drive the receipt → WC loop.</div>
+            </div>
+          </div>
+
+          <label for="account">Participant account</label>
+          <input id="account" value="demo-user" />
+
+          <label for="plaintext">Plaintext payload</label>
+          <textarea id="plaintext">hello from VOID participant dashboard</textarea>
+
+          <div class="row" style="margin-top:14px;">
+            <button class="btn btn-primary" id="submitBtn">Submit Job</button>
+            <button class="btn" id="refreshBtn" type="button">Refresh</button>
+          </div>
+
+          <div class="metric-strip">
+            <div class="mini">
+              <div class="k">Job kind</div>
+              <div class="v">publish</div>
+              <div class="s">DataNet publish flow</div>
+            </div>
+            <div class="mini">
+              <div class="k">Target reward</div>
+              <div class="v">+10</div>
+              <div class="s">receipt-backed WC</div>
+            </div>
+            <div class="mini">
+              <div class="k">Account model</div>
+              <div class="v">local</div>
+              <div class="s">selected participant account</div>
+            </div>
+          </div>
+
+          <div style="margin-top:14px;">
+            <label>Submit result</label>
+            <pre id="submitOut">idle</pre>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="panel">
+            <div class="section-head">
+              <div>
+                <h2>Recent work</h2>
+                <div class="section-copy">What was submitted and how it resolved.</div>
+              </div>
+            </div>
+            <div class="table-wrap"><div id="jobsWrap" class="empty">loading…</div></div>
+          </div>
+
+          <div class="subpanel">
+            <div class="section-head">
+              <div>
+                <h2>Why this matters</h2>
+                <div class="section-copy">This is the main user loop that proves the product is doing real work.</div>
+              </div>
+            </div>
+            <div class="hero-note">
+              Better design means stronger focus. The primary action on this page is submitting useful work and getting a visible economic result from it.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tabpane" id="pane-trading">
+      <div class="grid-2">
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Trade WC / VOID</h2>
+              <div class="section-copy">Helper-backed market surface for devnet until native shell swapping exists.</div>
+            </div>
+          </div>
+
+          <div class="metric-strip">
+            <div class="mini">
+              <div class="k">WC per VOID</div>
+              <div class="v" id="tradePriceWcPerVoid">-</div>
+              <div class="s">current helper pool price</div>
+            </div>
+            <div class="mini">
+              <div class="k">Helper wallet WC</div>
+              <div class="v" id="tradeWalletWc">-</div>
+              <div class="s">preview balance</div>
+            </div>
+            <div class="mini">
+              <div class="k">Helper wallet VOID</div>
+              <div class="v" id="tradeWalletVoid">-</div>
+              <div class="s">preview balance</div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:16px;padding:14px">
+            <div class="section-head">
+              <div>
+                <h2 style="margin-bottom:4px">WC → VOID quote</h2>
+                <div class="section-copy">Quote against the helper pool using your current redeemable WC.</div>
+              </div>
+            </div>
+
+            <div class="metric-strip">
+              <div class="mini">
+                <div class="k">Redeemable WC</div>
+                <div class="v" id="tradeRedeemableWc">-</div>
+                <div class="s">available from local earnings</div>
+              </div>
+              <div class="mini">
+                <div class="k">Quoted VOID</div>
+                <div class="v" id="tradeQuoteVoid">-</div>
+                <div class="s">estimated at current helper price</div>
+              </div>
+              <div class="mini">
+                <div class="k">Relayer</div>
+                <div class="v" id="tradeRelayerState">-</div>
+                <div class="s">native execution status</div>
+              </div>
+            </div>
+
+            <label for="tradeInputWc">WC to trade</label>
+            <input id="tradeInputWc" value="10" inputmode="decimal" />
+
+            <div class="action-rail" style="margin-top:12px">
+              <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Redeemable</button>
+              <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Execute Trade (Relayer Offline)</button>
+              <a class="linkbtn" id="tradeOpenHelperBtn" href="http://127.0.0.1:4312/workcredits/devnet/ui" target="_blank" rel="noopener noreferrer">Open Helper Swap UI</a>
+              <a class="linkbtn" id="tradePoolJsonBtn" href="http://127.0.0.1:4312/workcredits/devnet/pool.json" target="_blank" rel="noopener noreferrer">Open Pool JSON</a>
+            </div>
+
+            <div class="hero-note" style="margin-top:12px">
+              Native in-shell swap execution is still gated by relayer availability. Quote and redeem flow are live now; execution can fall back to the helper UI until the relayer is up.
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Trading state</h2>
+              <div class="section-copy">Pool and helper context kept visible until the shell has native swap execution.</div>
+            </div>
+          </div>
+          <pre id="tradeStateOut">loading…</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="tabpane" id="pane-wallet">
+      <div class="grid-2-eq">
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Local earned WC</h2>
+              <div class="section-copy">Receipt-backed earnings for the selected participant account.</div>
+            </div>
+          </div>
+          <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
+            <div class="v" style="font-size:52px;margin-bottom:10px" id="walletBalanceBig">-</div>
+            <div class="s" id="walletMeta">loading…</div>
+          </div>
+
+          <div class="metric-strip" style="margin-top:14px">
+            <div class="mini">
+              <div class="k">Earned</div>
+              <div class="v" id="walletEarnedMini">-</div>
+              <div class="s">total receipt-backed WC</div>
+            </div>
+            <div class="mini">
+              <div class="k">Redeemed</div>
+              <div class="v" id="walletRedeemedMini">-</div>
+              <div class="s">already moved toward helper flow</div>
+            </div>
+            <div class="mini">
+              <div class="k">Redeemable</div>
+              <div class="v" id="walletRedeemableMini">-</div>
+              <div class="s">available to bridge into helper trading</div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:16px;padding:14px">
+            <div class="section-head">
+              <div>
+                <h2 style="margin-bottom:4px">Redeem WC to helper flow</h2>
+                <div class="section-copy">Moves local redeemable WC into the helper-facing trading path.</div>
+              </div>
+            </div>
+            <label for="redeemAmount">Redeem amount</label>
+            <input id="redeemAmount" value="10" inputmode="decimal" />
+            <label for="redeemWallet">Helper wallet address</label>
+            <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
+            <div class="action-rail" style="margin-top:12px">
+              <button class="btn btn-primary" id="redeemBtn" type="button">Redeem WC</button>
+              <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
+            </div>
+            <div style="margin-top:12px">
+              <pre id="redeemOut">idle</pre>
+            </div>
+          </div>
+
+          <div class="action-rail">
+            <span class="pill">receipt auto-credit</span>
+            <span class="pill">selected account</span>
+            <span class="pill">local truth</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Helper wallet preview</h2>
+              <div class="section-copy">Secondary helper-facing wallet state, kept separate from local earned WC.</div>
+            </div>
+          </div>
+          <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
+            <div class="v" style="font-size:52px;margin-bottom:10px" id="helperWalletWcBig">-</div>
+            <div class="s" id="helperWalletMeta">loading…</div>
+          </div>
+          <div class="metric-strip" style="margin-top:14px">
+            <div class="mini">
+              <div class="k">Helper WC</div>
+              <div class="v" id="helperWalletWcMini">-</div>
+              <div class="s">helper wallet preview</div>
+            </div>
+            <div class="mini">
+              <div class="k">Helper VOID</div>
+              <div class="v" id="helperWalletVoidMini">-</div>
+              <div class="s">helper wallet preview</div>
+            </div>
+            <div class="mini">
+              <div class="k">Redeemable WC</div>
+              <div class="v" id="helperRedeemableMini">-</div>
+              <div class="s">not yet in helper wallet</div>
+            </div>
+          </div>
+          <div class="action-rail">
+            <span class="pill">preview only</span>
+            <span class="pill">helper-backed</span>
+            <span class="pill">separate system</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2-eq">
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>WC ledger</h2>
+              <div class="section-copy">Receipt-backed credits that explain how the local earned balance moved.</div>
+            </div>
+          </div>
+          <div class="table-wrap"><div id="ledgerWrap" class="empty">loading…</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Redeem history</h2>
+              <div class="section-copy">Moves from local redeemable WC into the helper trading path.</div>
+            </div>
+          </div>
+          <div class="table-wrap"><div id="redeemHistoryWrap" class="empty">loading…</div></div>
+        </div>
+      </div>
+
+      <div class="grid-2-eq">
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Helper / pool context</h2>
+              <div class="section-copy">Raw helper state kept available without dominating the page.</div>
+            </div>
+          </div>
+          <pre id="helperWalletStateOut">loading…</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="tabpane" id="pane-receipts">
+      <div class="grid-2-eq">
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Recent receipts</h2>
+              <div class="section-copy">Proofs and outputs created by successful work.</div>
+            </div>
+          </div>
+          <div class="table-wrap"><div id="receiptsWrap" class="empty">loading…</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>State surfaces</h2>
+              <div class="section-copy">Current summary and verification context.</div>
+            </div>
+          </div>
+          <pre id="dataStateOut">loading…</pre>
+        </div>
+      </div>
+
+      <details class="adv">
+        <summary>
+          <span>Advanced diagnostics</span>
+          <span class="pill">raw truth surfaces</span>
+        </summary>
+        <div class="adv-body">
+          <div class="hero-note">
+            Diagnostics stay available, but they are intentionally pushed below the main user actions so the shell reads like a product first.
+          </div>
+        </div>
+      </details>
+    </section>
+  </main>
+</div>
+
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+
+  async function j(url, opts){
+    const r = await fetch(url, opts);
+    const text = await r.text();
+    try { return JSON.parse(text); } catch { return { ok:false, raw:text, status:r.status }; }
+  }
+
+  function setText(id, v){
+    const el = $(id);
+    if (el) el.textContent = String(v ?? "");
+  }
+
+  function setPre(id, v){
+    const el = $(id);
+    if (el) el.textContent = typeof v === "string" ? v : JSON.stringify(v, null, 2);
+  }
+
+  function esc(s){
+    return String(s ?? "").replace(/[&<>"]/g, function(c){
+      if (c === "&") return "&amp;";
+      if (c === "<") return "&lt;";
+      if (c === ">") return "&gt;";
+      return "&quot;";
+    });
+  }
+
+  function renderJobs(items){
+    if (!items || !items.length) return '<div class="empty">No jobs yet for this account.</div>';
+    return '<table><thead><tr><th>Job ID</th><th>Status</th><th>Kind</th><th>Dataset</th></tr></thead><tbody>' +
+      items.map(j => '<tr><td>'+esc(j.job_id)+'</td><td>'+esc(j.status)+'</td><td>'+esc(j.kind)+'</td><td>'+esc(j.dataset_id || "")+'</td></tr>').join("") +
+      '</tbody></table>';
+  }
+
+  function renderReceipts(items){
+    if (!items || !items.length) return '<div class="empty">No receipts yet for this account.</div>';
+    return '<table><thead><tr><th>Receipt ID</th><th>Job ID</th><th>Kind</th><th>Dataset</th></tr></thead><tbody>' +
+      items.map(r => '<tr><td>'+esc(r.receipt_id)+'</td><td>'+esc(r.job_id)+'</td><td>'+esc(r.kind)+'</td><td>'+esc(r.dataset_id || "")+'</td></tr>').join("") +
+      '</tbody></table>';
+  }
+
+  function renderLedger(items){
+    if (!items || !items.length) return '<div class="empty">No WC ledger events yet for this account.</div>';
+    return '<table><thead><tr><th>Delta</th><th>Reason</th><th>Job ID</th><th>Receipt ID</th></tr></thead><tbody>' +
+      items.map(e => '<tr><td>'+esc(e.delta)+'</td><td>'+esc(e.reason)+'</td><td>'+esc(e.job_id || "")+'</td><td>'+esc(e.receipt_id || "")+'</td></tr>').join("") +
+      '</tbody></table>';
+  }
+
+  function switchTab(tab){
+    document.querySelectorAll(".tabbtn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tabpane").forEach(p => p.classList.remove("active"));
+    const btn = document.querySelector('.tabbtn[data-tab="' + tab + '"]');
+    const pane = $("pane-" + tab);
+    if (btn) btn.classList.add("active");
+    if (pane) pane.classList.add("active");
+    try { localStorage.setItem("void_participant_tab", tab); } catch {}
+    try { history.replaceState(null, "", "#"+tab); } catch {}
+  }
+
+  async function refresh(){
+    const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+    const wcAddr = /^0x[0-9a-fA-F]{40}$/.test(account) ? account : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
+    const wcBase = "http://127.0.0.1:4312/workcredits/devnet";
+
+    const [bal, redeem, redeemed, jobs, receipts, ledger, summary, peer, health, wcDash, relayerHealth] = await Promise.all([
+      j("/wc/balance?account=" + encodeURIComponent(account)),
+      j("/wc/redeemable?account=" + encodeURIComponent(account)),
+      j("/wc/redeemed?account=" + encodeURIComponent(account) + "&limit=20"),
+      j("/jobs?account=" + encodeURIComponent(account) + "&limit=10"),
+      j("/receipts?account=" + encodeURIComponent(account) + "&limit=10"),
+      j("/wc/ledger?account=" + encodeURIComponent(account) + "&limit=20"),
+      j("/__void/demo/summary.json"),
+      j("/__void/peer-main-status.json"),
+      j("/health"),
+      j(wcBase + "/dashboard/" + encodeURIComponent(wcAddr) + ".json"),
+      j("http://127.0.0.1:4313/api/wc-relayer/v1/health").catch(() => ({ ok:false, offline:true })),
+    ]);
+
+    const localEarned = bal && bal.ok && Number.isFinite(Number(bal.balance)) ? Number(bal.balance) : null;
+    const localCount = bal && bal.ok && Number.isFinite(Number(bal.count)) ? Number(bal.count) : null;
+    const redeemState = redeem && redeem.ok ? redeem : null;
+    const redeemedState = redeemed && redeemed.ok ? redeemed : null;
+    const redeemedTotal = redeemState && Number.isFinite(Number(redeemState.redeemed)) ? Number(redeemState.redeemed) : 0;
+    const redeemableTotal = redeemState && Number.isFinite(Number(redeemState.redeemable)) ? Number(redeemState.redeemable) : 0;
+    const wcBal = wcDash && wcDash.account && wcDash.account.balances ? wcDash.account.balances : null;
+    const wcEarn = wcDash && wcDash.account && wcDash.account.earnings ? wcDash.account.earnings : null;
+    const wcPool = wcDash && wcDash.pool ? wcDash.pool : null;
+    const wcPerVoid = wcPool && wcPool.price && Number(wcPool.price.wc_per_void) > 0 ? Number(wcPool.price.wc_per_void) : null;
+    const tradeInput = $("tradeInputWc") ? Number(($("tradeInputWc").value || "").trim() || "0") : 0;
+    const relayerUp = !!(relayerHealth && (relayerHealth.ok || relayerHealth.status === "ok"));
+    let quotedVoid:any = null;
+    let relayerQuote:any = null;
+    if (relayerUp && Number.isFinite(tradeInput) && tradeInput > 0) {
+      relayerQuote = await j("http://127.0.0.1:4313/api/wc-relayer/v1/quote", {
+        method: "POST",
+        headers: { "content-type":"application/json" },
+        body: JSON.stringify({
+          side: "wc_to_void",
+          amount: tradeInput,
+          wallet: wcAddr
+        })
+      }).catch(() => null);
+      if (relayerQuote && relayerQuote.ok && Number.isFinite(Number(relayerQuote.amount_out))) {
+        quotedVoid = Number(relayerQuote.amount_out);
+      }
+    }
+
+    setText("heroAccount", account);
+    setText("heroAccountMirror", account);
+
+    const acctMeta = localEarned !== null
+      ? ("local earned WC: " + localEarned + " | ledger events: " + (localCount ?? 0))
+      : "local earned WC unavailable";
+
+    setText("heroAccountMeta", acctMeta);
+    setText("heroAccountMirrorMeta", acctMeta);
+
+    setText("wcBalance", localEarned !== null ? localEarned : "-");
+    setText(
+      "wcMeta",
+      localEarned !== null
+        ? ("earned locally: " + localEarned + " | events: " + (localCount ?? 0) + " | account: " + account)
+        : "local WC unavailable"
+    );
+
+    setText("walletBalanceBig", localEarned !== null ? localEarned : "-");
+    setText(
+      "walletMeta",
+      localEarned !== null
+        ? ("local earned WC: " + localEarned + " | events: " + (localCount ?? 0) + " | account: " + account)
+        : "local earned WC unavailable"
+    );
+    setText("walletEarnedMini", localEarned !== null ? localEarned : "-");
+    setText("walletRedeemedMini", redeemedTotal);
+    setText("walletRedeemableMini", redeemableTotal);
+
+    setText("helperWalletWcBig", wcBal ? wcBal.wc : "-");
+    setText("helperWalletWcMini", wcBal ? wcBal.wc : "-");
+    setText("helperWalletVoidMini", wcBal ? wcBal.void : "-");
+    setText("helperRedeemableMini", wcEarn && wcEarn.redeemable_wc != null ? wcEarn.redeemable_wc : redeemableTotal);
+    setText(
+      "helperWalletMeta",
+      wcBal
+        ? ("helper wallet: " + wcAddr + " | WC: " + wcBal.wc + " | VOID: " + wcBal.void)
+        : "helper wallet unavailable"
+    );
+
+    setText("tradePriceWcPerVoid", wcPerVoid !== null ? wcPerVoid : "-");
+    setText("tradeWalletWc", wcBal ? wcBal.wc : "-");
+    setText("tradeWalletVoid", wcBal ? wcBal.void : "-");
+    setText("tradeRedeemableWc", redeemableTotal);
+    setText("tradeQuoteVoid", quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-");
+    setText("tradeRelayerState", relayerUp ? "online" : "offline");
+
+    if ($("tradeExecuteBtn")) {
+      $("tradeExecuteBtn").disabled = !relayerUp;
+      $("tradeExecuteBtn").textContent = relayerUp ? "Execute Trade" : "Execute Trade (Relayer Offline)";
+    }
+
+    if (health && health.ok) {
+      const poolMeta = wcPool && wcPool.price
+        ? (" | WC/VOID: " + wcPool.price.wc_per_void)
+        : "";
+      setText("topHealth", "Online");
+      setText(
+        "topHealthMeta",
+        "http: " + (health.http ?? "?") + " | p2p: " + (Array.isArray(health.listen) && health.listen.length ? health.listen[0] : "?") + poolMeta
+      );
+    } else {
+      setText("topHealth", "Offline");
+      setText("topHealthMeta", "health unavailable");
+    }
+
+    const latestJob = jobs && jobs.ok && jobs.jobs && jobs.jobs.length ? jobs.jobs[0] : null;
+    setText("latestJobState", latestJob ? latestJob.status : "-");
+    setText("latestJobMeta", latestJob ? (latestJob.job_id + " | " + latestJob.kind) : "no jobs");
+
+    const syncEl = $("syncGap");
+    const gap = peer && typeof peer.head_gap === "number" ? peer.head_gap : null;
+    let syncLabel = "Unknown";
+    let syncClass = "bad";
+
+    if (peer && peer.ok && gap !== null) {
+      if (gap === 0) {
+        syncLabel = "Synced";
+        syncClass = "ok";
+      } else if (gap <= 3) {
+        syncLabel = "Catching up";
+        syncClass = "warn";
+      } else {
+        syncLabel = "Lagging";
+        syncClass = "bad";
+      }
+    }
+
+    setText("syncGap", syncLabel);
+    if (syncEl) syncEl.className = "v " + syncClass;
+    setText(
+      "syncMeta",
+      peer && peer.ok && gap !== null
+        ? ("local: " + peer.local_head + " | main: " + peer.main_head + " | gap: " + gap)
+        : "sync unavailable"
+    );
+
+    const jobsHtml = renderJobs((jobs && jobs.jobs) || []);
+    const receiptsHtml = renderReceipts((receipts && receipts.receipts) || []);
+    const ledgerHtml = renderLedger((ledger && ledger.events) || []);
+
+    if ($("jobsWrap")) $("jobsWrap").innerHTML = jobsHtml;
+    if ($("jobsWrapOverview")) $("jobsWrapOverview").innerHTML = jobsHtml;
+    if ($("receiptsWrap")) $("receiptsWrap").innerHTML = receiptsHtml;
+    if ($("receiptsWrapOverview")) $("receiptsWrapOverview").innerHTML = receiptsHtml;
+    if ($("ledgerWrap")) $("ledgerWrap").innerHTML = ledgerHtml;
+
+    const summaryWrapped = {
+      account,
+      local_earned_wc_ok: !!(bal && bal.ok),
+      local_earned_wc_balance: localEarned,
+      local_earned_wc_events: localCount,
+      wc_helper_address: wcAddr,
+      wc_helper_dashboard_ok: !!(wcDash && wcDash.account && wcDash.pool),
+      wc_pool_price: wcPool && wcPool.price ? wcPool.price : null,
+      wc_helper_account_balances: wcBal || null,
+      summary
+    };
+
+    if ($("dataStateOut")) setPre("dataStateOut", summaryWrapped);
+    if ($("helperWalletStateOut")) setPre("helperWalletStateOut", {
+      helper_address: wcAddr,
+      helper_dashboard_ok: !!(wcDash && wcDash.account && wcDash.pool),
+      helper_balances: wcBal || null,
+      helper_earnings: wcEarn || null,
+      pool_price: wcPool && wcPool.price ? wcPool.price : null
+    });
+    if ($("tradeStateOut")) setPre("tradeStateOut", {
+      helper_ui: "http://127.0.0.1:4312/workcredits/devnet/ui",
+      helper_pool_json: "http://127.0.0.1:4312/workcredits/devnet/pool.json",
+      helper_address: wcAddr,
+      helper_dashboard_ok: !!(wcDash && wcDash.account && wcDash.pool),
+      helper_balances: wcBal || null,
+      helper_earnings: wcEarn || null,
+      local_redeem_state: redeemState || null,
+      local_redeemed_events: redeemedState || null,
+      quote_input_wc: Number.isFinite(tradeInput) ? tradeInput : null,
+      quote_output_void: quotedVoid,
+      relayer_quote: relayerQuote,
+      relayer_health: relayerHealth || null,
+      pool_price: wcPool && wcPool.price ? wcPool.price : null,
+      note: relayerUp
+        ? "Relayer is live for quote and execution."
+        : "Relayer is offline."
+    });
+    setPre("summaryOut", summaryWrapped);
+  }
+
+  async function submitJob(){
+    const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+    const plaintext = $("plaintext") ? $("plaintext").value : "";
+    const btn = $("submitBtn");
+    if (btn) btn.disabled = true;
+    setPre("submitOut", { ok:true, submitting:true, account });
+
+    try {
+      const out = await j("/jobs/submit", {
+        method: "POST",
+        headers: { "content-type":"application/json" },
+        body: JSON.stringify({ account, kind:"datanet_publish", plaintext })
+      });
+      setPre("submitOut", out);
+
+      const jobId = out && out.job && out.job.job_id;
+      if (jobId) {
+        for (let i = 0; i < 8; i++) {
+          await new Promise(r => setTimeout(r, 1500));
+          const st = await j("/jobs/" + encodeURIComponent(jobId));
+          setPre("submitOut", st);
+          if (st && st.job && (st.job.status === "completed" || st.job.status === "failed")) break;
+        }
+      }
+    } catch (e) {
+      setPre("submitOut", { ok:false, error:String(e) });
+    } finally {
+      if (btn) btn.disabled = false;
+      await refresh();
+    }
+  }
+
+  document.querySelectorAll(".tabbtn").forEach(btn => {
+    btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
+  });
+
+  document.querySelectorAll('a[href^="/participant#"]').forEach(a => {
+    a.addEventListener("click", (ev) => {
+      try {
+        const href = a.getAttribute("href") || "";
+        const tab = String(href.split("#")[1] || "").trim();
+        if (["overview","work","wallet","trading","receipts"].includes(tab)) {
+          ev.preventDefault();
+          switchTab(tab);
+        }
+      } catch {}
+    });
+  });
+
+  try {
+    window.addEventListener("hashchange", () => {
+      try {
+        const h = String((location && location.hash) || "").replace(/^#/, "").trim();
+        if (h && ["overview","work","wallet","trading","receipts"].includes(h)) switchTab(h);
+      } catch {}
+    });
+  } catch {}
+
+  if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
+  if ($("refreshBtn")) $("refreshBtn").addEventListener("click", refresh);
+  if ($("redeemBtn")) $("redeemBtn").addEventListener("click", () => redeemNow(false));
+  if ($("redeemMaxBtn")) $("redeemMaxBtn").addEventListener("click", async () => {
+    try {
+      const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+      const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
+      if (st && st.ok && $("redeemAmount")) $("redeemAmount").value = String(st.redeemable ?? 0);
+      if ($("tradeInputWc")) $("tradeInputWc").value = String(st && st.ok ? (st.redeemable ?? 0) : 0);
+      await refresh();
+    } catch {}
+  });
+  if ($("tradeUseRedeemableBtn")) $("tradeUseRedeemableBtn").addEventListener("click", async () => {
+    try {
+      const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+      const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
+      if (st && st.ok && $("tradeInputWc")) $("tradeInputWc").value = String(st.redeemable ?? 0);
+      await refresh();
+    } catch {}
+  });
+  if ($("tradeInputWc")) $("tradeInputWc").addEventListener("input", refresh);
+
+  await refresh();
+
+  let initialTab = null;
+  try {
+    const h = String((location && location.hash) || "").replace(/^#/, "").trim();
+    if (h && ["overview","work","wallet","trading","receipts"].includes(h)) initialTab = h;
+  } catch {}
+
+  if (!initialTab) {
+    try {
+      const remembered = localStorage.getItem("void_participant_tab");
+      if (remembered && ["overview","work","wallet","trading","receipts"].includes(remembered)) initialTab = remembered;
+    } catch {}
+  }
+
+  switchTab(initialTab || "overview");
+  setInterval(refresh, 3000);
+})();
+</script>
+</body>
+</html>`;
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function") return setTimeout(mount, 250);
+    if (G[MARK].installed) return;
+
+    let removed = 0;
+    removed += removeExact(app, "get", "/participant");
+    removed += removeExact(app, "get", "/welcome");
+
+    app.get("/participant-dashboard", (req:any, res:any) => {
+      const hash = req && typeof req.url === "string" && req.url.includes("#")
+        ? req.url.slice(req.url.indexOf("#"))
+        : "";
+      res.redirect(302, "/participant" + (hash || ""));
+    });
+
+    app.get("/participant", (_req:any, res:any) => {
+      res.type("html").send(pageHtml());
+    });
+
+    app.get("/welcome", (req:any, res:any) => {
+      const hash = req && typeof req.url === "string" && req.url.includes("#")
+        ? req.url.slice(req.url.indexOf("#"))
+        : "";
+      res.redirect(302, "/participant" + (hash || "#overview"));
+    });
+
+    app.get("/__void/diag/participant-dashboard-steal-v1.json", (_req:any, res:any) => {
+      res.json({
+        ok:true,
+        installed:true,
+        removed,
+        canonical:"/participant",
+        aliases:["/participant-dashboard","/welcome"],
+        tabs:["overview","work","wallet","trading","receipts"]
+      });
+    });
+
+    G[MARK].installed = true;
+    G[MARK].removed = removed;
+    try { console.log("[participant-dashboard-steal-v1] mounted removed=" + removed + " tabs=overview,work,wallet,trading,receipts"); } catch {}
+  }
+
+  mount();
+})();
+// === participant-dashboard-steal-v1 END ===
