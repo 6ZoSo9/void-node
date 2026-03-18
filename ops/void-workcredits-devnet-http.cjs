@@ -316,7 +316,19 @@ async function buildAccountJsonNative(addr) {
   const lpRaw = "0";
 
   const earnedWhole = Math.max(0, Number(localEarned.earned || 0));
-  const earnedRaw = String(BigInt(earnedWhole) * (10n ** 18n));
+  const redeemedWhole = Math.max(0, Number(localEarned.redeemed || 0));
+  const redeemableWhole = Math.max(0, Number(localEarned.redeemable || 0));
+
+  function humanToRaw18(v) {
+    const n = Math.max(0, Number(v || 0));
+    const s = String(n);
+    if (!/^\d+(\.\d+)?$/.test(s)) return "0";
+    const [whole, frac0 = ""] = s.split(".");
+    const frac = (frac0 + "000000000000000000").slice(0, 18);
+    return (BigInt(whole) * (10n ** 18n) + BigInt(frac)).toString();
+  }
+
+  const earnedRaw = humanToRaw18(earnedWhole);
 
   return {
     chain: "devnet",
@@ -331,14 +343,14 @@ async function buildAccountJsonNative(addr) {
       lp: format18(lpRaw),
     },
     earnings: {
-      pending_wc_raw: String(BigInt(Math.max(0, Number(localEarned.redeemable || 0))) * (10n ** 18n)),
-      pending_wc: Math.max(0, Number(localEarned.redeemable || 0)),
+      pending_wc_raw: humanToRaw18(redeemableWhole),
+      pending_wc: redeemableWhole,
       local_earned_wc_raw: earnedRaw,
       local_earned_wc: earnedWhole,
-      redeemed_wc_raw: String(BigInt(Math.max(0, Number(localEarned.redeemed || 0))) * (10n ** 18n)),
-      redeemed_wc: Math.max(0, Number(localEarned.redeemed || 0)),
-      redeemable_wc_raw: String(BigInt(Math.max(0, Number(localEarned.redeemable || 0))) * (10n ** 18n)),
-      redeemable_wc: Math.max(0, Number(localEarned.redeemable || 0)),
+      redeemed_wc_raw: humanToRaw18(redeemedWhole),
+      redeemed_wc: redeemedWhole,
+      redeemable_wc_raw: humanToRaw18(redeemableWhole),
+      redeemable_wc: redeemableWhole,
       local_ledger_events: Math.max(0, Number(localEarned.count || 0)),
       source: "local_receipt_ledger_v1",
     },
