@@ -37356,11 +37356,18 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     if (G[MARK].installed) return;
     G[MARK].installed = true;
 
+    removeExact(app, "get", "/head");
     removeExact(app, "get", "/head.txt");
     removeExact(app, "get", "/blocks/latest/number");
     removeExact(app, "get", "/blocks/latest/number2.json");
     removeExact(app, "get", "/__void/demo/summary.json");
     removeExact(app, "get", "/__void/peer-main-status.json");
+
+    app.get("/head", (_req:any,res:any)=>{
+      const h = liveHead();
+      G[MARK].lastHead = h;
+      res.type("application/json; charset=utf-8").send(JSON.stringify({ number: h, ok: true }));
+    });
 
     app.get("/head.txt", (_req:any,res:any)=>{
       const h = liveHead();
