@@ -233,10 +233,13 @@ async function buildAccountJsonNative(addr) {
         } catch {}
       }
 
+      const earnedRounded = wcRound(earned);
+      const redeemedRounded = wcRound(redeemedAmt);
+      const redeemableRounded = wcRound(Math.max(0, earnedRounded - redeemedRounded));
       return {
-        earned,
-        redeemed: redeemedAmt,
-        redeemable: Math.max(0, earned - redeemedAmt),
+        earned: earnedRounded,
+        redeemed: redeemedRounded,
+        redeemable: redeemableRounded,
         count,
         ledger_file: ledger,
         redeemed_file: redeemed
@@ -247,6 +250,12 @@ async function buildAccountJsonNative(addr) {
   }
 
   const localEarned = readLocalLedgerBalanceForAccount("demo-user");
+
+  function wcRound(n) {
+    const x = Number(n || 0);
+    if (!Number.isFinite(x)) return 0;
+    return Math.round(x * 1e9) / 1e9;
+  }
 
   function format18(v) {
     const s = String(v ?? "0").trim();
