@@ -51,6 +51,7 @@ Usage:
   ops/voidctl rollback-latest
   ops/voidctl demo-summary
   ops/voidctl wc-ready
+  ops/voidctl wc-doctor
   ops/voidctl wc-demo
   ops/voidctl agent-summary
 
@@ -428,6 +429,118 @@ cmd_wc_demo() {
 }
 
 
+
+cmd_wc_doctor() {
+  local node_base="${BASE}"
+  local helper_base="${WC_HELPER_BASE:-http://127.0.0.1:4312}"
+  local relayer_base="${WC_RELAYER_BASE:-http://127.0.0.1:4313}"
+  local wallet="${WC_WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
+  local ledger_jsonl="${HOME}/dev/void-node/data_a/wc_v1/ledger.jsonl"
+  local redeemed_jsonl="${HOME}/dev/void-node/data_a/wc_v1/redeemed.jsonl"
+
+  python3 - "$node_base" "$helper_base" "$relayer_base" "$wallet" "$ledger_jsonl" "$redeemed_jsonl" <<'PY2'
+import json, sys, urllib.request, os, math
+
+node_base, helper_base, relayer_base, wallet, ledger_jsonl, redeemed_jsonl = sys.argv[1:7]
+
+def get_json(url, timeout=4):
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            raw = r.read().decode("utf-8", "replace")
+        return True, json.loads(raw)
+    except Exception as e:
+        return False, {"ok": False, "error": str(e), "url": url}
+
+def parse_local_wc(ledger_file, redeemed_file):
+    earned = 0.0
+    redeemed = 0.0
+    count = 0
+    if os.path.exists(ledger_file):
+        with open(ledger_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line=line.strip()
+                if not line:
+                    continue
+                try:
+                    j=json.loads(line)
+                except:
+                    continue
+                count += 1
+                earned += float(j.get("delta", 0) or 0)
+    if os.path.exists(redeemed_file):
+        with open(redeemed_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line=line.strip()
+                if not line:
+                    continue
+                try:
+                    j=json.loads(line)
+                except:
+                    continue
+                redeemed += float(j.get("amount", 0) or 0)
+    return {
+        "earned": earned,
+        "redeemed": redeemed,
+        "redeemable": earned - redeemed,
+        "count": count,
+    }
+
+node_ok, node = get_json(node_base + "/health")
+helper_ok, helper = get_json(helper_base + "/workcredits/devnet/dashboard/" + wallet + ".json")
+relayer_ok, relayer = get_json(relayer_base + "/api/wc-relayer/v1/health")
+local_wc = parse_local_wc(ledger_jsonl, redeemed_jsonl)
+
+helper_earned = float(helper.get("account", {}).get("earnings", {}).get("local_earned_wc", 0) or 0)
+helper_redeemed = float(helper.get("account", {}).get("earnings", {}).get("redeemed_wc", 0) or 0)
+helper_redeemable = float(helper.get("account", {}).get("earnings", {}).get("redeemable_wc", 0) or 0)
+
+diff_earned = local_wc["earned"] - helper_earned
+diff_redeemed = local_wc["redeemed"] - helper_redeemed
+diff_redeemable = local_wc["redeemable"] - helper_redeemable
+
+warn = []
+if not (node_ok and node.get("ok")):
+    warn.append("node_unhealthy")
+if not relayer_ok:
+    warn.append("relayer_unhealthy")
+if not helper_ok:
+    warn.append("helper_unhealthy")
+if "127.0.0.1:4100" in str(relayer.get("node_base", "")) and "127.0.0.1:4100" not in node_base:
+    warn.append("node_base_differs_from_relayer_node_base")
+if abs(diff_earned) > 0.000001:
+    warn.append("earned_mismatch")
+if abs(diff_redeemed) > 0.000001:
+    warn.append("redeemed_mismatch")
+if abs(diff_redeemable) > 0.000001:
+    warn.append("redeemable_mismatch")
+
+out = {
+    "ok": True,
+    "healthy": len(warn) == 0,
+    "node_base": node_base,
+    "relayer_node_base": relayer.get("node_base"),
+    "helper_base": helper_base,
+    "wallet": wallet,
+    "node_ok": bool(node_ok and node.get("ok")),
+    "helper_ok": bool(helper_ok and helper.get("account", {}).get("up", 0)),
+    "relayer_ok": bool(relayer_ok and relayer.get("ok")),
+    "local_wc": local_wc,
+    "helper_wc": {
+        "earned": helper_earned,
+        "redeemed": helper_redeemed,
+        "redeemable": helper_redeemable,
+    },
+    "diff": {
+        "earned": diff_earned,
+        "redeemed": diff_redeemed,
+        "redeemable": diff_redeemable,
+    },
+    "warnings": warn,
+}
+print(json.dumps(out, indent=2))
+raise SystemExit(0 if len(warn) == 0 else 1)
+PY2
+}
 cmd_wc_ready() {
   local node_base="${BASE}"
   local helper_base="${WC_HELPER_BASE:-http://127.0.0.1:4312}"
@@ -702,6 +815,7 @@ main() {
     rollback-latest) shift; cmd_rollback_latest "$@" ;;
     demo-summary) shift; cmd_demo_summary "$@" ;;
     wc-ready) shift; cmd_wc_ready "$@" ;;
+    wc-doctor) shift; cmd_wc_doctor "$@" ;;
     wc-demo) shift; cmd_wc_demo "$@" ;;
     agent-summary) shift; cmd_agent_summary "$@" ;;
     ""|-h|--help|help) usage ;;
