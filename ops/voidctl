@@ -434,8 +434,6 @@ cmd_wc_demo() {
   bash "$runner"
 }
 
-
-
 cmd_wc_doctor() {
   local node_base="${BASE}"
   local helper_base="${WC_HELPER_BASE:-http://127.0.0.1:4312}"
@@ -444,11 +442,12 @@ cmd_wc_doctor() {
   local wc_account="${WC_ACCOUNT:-demo-user}"
   local ledger_jsonl="${HOME}/dev/void-node/data_a/wc_v1/ledger.jsonl"
   local redeemed_jsonl="${HOME}/dev/void-node/data_a/wc_v1/redeemed.jsonl"
+  local json_mode="${1:-}"
 
-  python3 - "$node_base" "$helper_base" "$relayer_base" "$wallet" "$wc_account" "$ledger_jsonl" "$redeemed_jsonl" <<'PY2'
+  python3 - "$node_base" "$helper_base" "$relayer_base" "$wallet" "$wc_account" "$ledger_jsonl" "$redeemed_jsonl" "$json_mode" <<'PY2'
 import json, sys, urllib.request, os
 
-node_base, helper_base, relayer_base, wallet, wc_account, ledger_jsonl, redeemed_jsonl = sys.argv[1:8]
+node_base, helper_base, relayer_base, wallet, wc_account, ledger_jsonl, redeemed_jsonl, json_mode = sys.argv[1:9]
 
 def get_json(url, timeout=4):
     try:
@@ -550,10 +549,41 @@ out = {
     },
     "warnings": warn,
 }
-print(json.dumps(out, indent=2))
+
+if json_mode == "--json":
+    print(json.dumps(out, indent=2))
+else:
+    print("wc-doctor")
+    print("---------")
+    print("node:", "OK" if out["node_ok"] else "FAIL")
+    print("helper:", "OK" if out["helper_ok"] else "FAIL")
+    print("relayer:", "OK" if out["relayer_ok"] else "FAIL")
+    print("node_base:", out["node_base"])
+    print("relayer_node_base:", out["relayer_node_base"])
+    print("account:", out["wc_account"])
+    print("earned/redeemed/redeemable:",
+          f'{local_wc["earned"]:.6f}',
+          "/",
+          f'{local_wc["redeemed"]:.6f}',
+          "/",
+          f'{local_wc["redeemable"]:.6f}')
+    print("diff earned/redeemed/redeemable:",
+          f'{diff_earned:.6f}',
+          "/",
+          f'{diff_redeemed:.6f}',
+          "/",
+          f'{diff_redeemable:.6f}')
+    if warn:
+        print("warnings:", ", ".join(warn))
+        print("result: NOT_READY")
+    else:
+        print("warnings: none")
+        print("result: HEALTHY")
+
 raise SystemExit(0 if len(warn) == 0 else 1)
 PY2
 }
+
 cmd_wc_ready() {
   local node_base="${BASE}"
   local helper_base="${WC_HELPER_BASE:-http://127.0.0.1:4312}"
@@ -565,11 +595,12 @@ cmd_wc_ready() {
   local broadcast_json="${HOME}/dev/void-node/broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json"
   local ledger_jsonl="${HOME}/dev/void-node/data_a/wc_v1/ledger.jsonl"
   local redeemed_jsonl="${HOME}/dev/void-node/data_a/wc_v1/redeemed.jsonl"
+  local json_mode="${1:-}"
 
-  python3 - "$node_base" "$helper_base" "$relayer_base" "$rpc_url" "$wallet" "$wc_account" "$state_json" "$broadcast_json" "$ledger_jsonl" "$redeemed_jsonl" <<'PY2'
-import json, sys, urllib.request, urllib.error, os
+  python3 - "$node_base" "$helper_base" "$relayer_base" "$rpc_url" "$wallet" "$wc_account" "$state_json" "$broadcast_json" "$ledger_jsonl" "$redeemed_jsonl" "$json_mode" <<'PY2'
+import json, sys, urllib.request, os
 
-node_base, helper_base, relayer_base, rpc_url, wallet, wc_account, state_json, broadcast_json, ledger_jsonl, redeemed_jsonl = sys.argv[1:11]
+node_base, helper_base, relayer_base, rpc_url, wallet, wc_account, state_json, broadcast_json, ledger_jsonl, redeemed_jsonl, json_mode = sys.argv[1:12]
 
 def get_json(url, timeout=4):
     try:
@@ -675,7 +706,25 @@ out = {
     "local_wc": local_wc,
     "files": files
 }
-print(json.dumps(out, indent=2))
+
+if json_mode == "--json":
+    print(json.dumps(out, indent=2))
+else:
+    print("wc-ready")
+    print("--------")
+    print("node:", "OK" if out["node"]["ok"] else "FAIL")
+    print("helper:", "OK" if out["helper"]["ok"] else "FAIL")
+    print("relayer:", "OK" if out["relayer"]["ok"] else "FAIL")
+    print("pool:", "OK" if out["pool"]["ok"] else "FAIL")
+    print("account:", wc_account)
+    print("earned/redeemed/redeemable:",
+          f'{local_wc["earned"]:.6f}',
+          "/",
+          f'{local_wc["redeemed"]:.6f}',
+          "/",
+          f'{local_wc["redeemable"]:.6f}')
+    print("result:", "READY" if ready else "NOT_READY")
+
 raise SystemExit(0 if ready else 1)
 PY2
 }

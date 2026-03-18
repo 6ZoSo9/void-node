@@ -141,3 +141,8 @@ wc-check:
 
 wc-demo:
 	@bash ops/voidctl wc-demo
+
+wc-golden:
+	@$(MAKE) --no-print-directory wc-check
+	@$(MAKE) --no-print-directory wc-demo
+	@$(MAKE) --no-print-directory wc-check
