@@ -50,6 +50,7 @@ Usage:
   ops/voidctl update-apply
   ops/voidctl rollback-latest
   ops/voidctl demo-summary
+  ops/voidctl wc-demo
   ops/voidctl agent-summary
 
 Env:
@@ -415,6 +416,16 @@ cmd_demo_summary() {
   j /__void/demo/summary.json | print_json_pretty
 }
 
+
+cmd_wc_demo() {
+  local runner="${HOME}/dev/void-node/ops/wc-demo-run.sh"
+  if [ ! -x "$runner" ]; then
+    echo "[FAIL] missing executable runner: $runner" >&2
+    exit 1
+  fi
+  bash "$runner"
+}
+
 cmd_agent_summary() {
   j /__void/agent/summary.json | print_json_pretty
 }
@@ -500,7 +511,18 @@ Environment=DATA_DIR=${VOID_DATA_DIR}
 Environment=KEY_PATH=${VOID_KEY_PATH}
 Environment=NODE_PRIVKEY_PATH=${VOID_KEY_PATH}
 Environment=VOID_NODE_KEY_A=${VOID_KEY_PATH}
+Environment=BOOTSTRAP_ADDRS=127.0.0.1:4700
+Environment=VOID_DRIFT_PEER=http://127.0.0.1:4100
+Environment=PROPOSER_AUTO=0
+Environment=VOID_PROPOSER_AUTO=0
+Environment=PROPOSER_TICK_MS=0
+Environment=VOID_PROPOSER_TICK_MS=0
+Environment=VOID_AUTOPROP=0
+Environment=VOID_COMMIT_DIRECT_AUTOPROP=0
+Environment=VOID_COMMIT_DIRECT_AUTOPROP_ENABLED=0
+Environment=VOID_AUTOPROP_ENABLED=0
 ExecStart=/usr/bin/env npx tsx src/index.ts
+ExecStartPost=/usr/bin/env bash -lc 'for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS -X POST "http://127.0.0.1:${VOID_HTTP_PORT}/follower/start?peer=http://127.0.0.1:4100&intervalMs=1000" && exit 0; sleep 2; done; exit 1'
 Restart=always
 RestartSec=2
 TimeoutStopSec=20
@@ -557,6 +579,7 @@ main() {
     update-apply) shift; cmd_update_apply "$@" ;;
     rollback-latest) shift; cmd_rollback_latest "$@" ;;
     demo-summary) shift; cmd_demo_summary "$@" ;;
+    wc-demo) shift; cmd_wc_demo "$@" ;;
     agent-summary) shift; cmd_agent_summary "$@" ;;
     ""|-h|--help|help) usage ;;
     *)
