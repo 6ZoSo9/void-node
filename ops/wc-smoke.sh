@@ -35,9 +35,20 @@ trap 'rm -rf "$tmp"' EXIT
 jpost(){
   local url="$1"
   local body="${2:-{}}"
-  curl -fsS -X POST "$url" \
+  local tmp_body
+  local code
+  tmp_body="$(mktemp /tmp/wc-smoke-post.XXXXXX.json)"
+  code="$(curl -sS -o "$tmp_body" -w "%{http_code}" -X POST "$url" \
     -H "content-type: application/json" \
-    --data "$body"
+    --data "$body")"
+  cat "$tmp_body"
+  if [[ "$code" -ge 400 ]]; then
+    echo >&2
+    echo "[fail] POST $url -> HTTP $code" >&2
+    rm -f "$tmp_body"
+    return 22
+  fi
+  rm -f "$tmp_body"
 }
 
 echo "=== [1] health ==="
@@ -60,7 +71,14 @@ trade_amt="${TRADE_WC:-1}"
 OUT_DIR="${tmp}"
 
 echo "=== [3] quote ==="
-jpost "$RELAYER_BASE/quote" "{\"side\":\"wc_to_void\",\"amount\":$trade_amt,\"wallet\":\"$WALLET\"}" | tee "$OUT_DIR/relayer.quote.json"
+quote_body_file="$OUT_DIR/relayer.quote.body.json"
+cat > "$quote_body_file" <<JSON
+{"side":"wc_to_void","amount":1,"wallet":"$WALLET"}
+JSON
+cat "$quote_body_file" | tee "$OUT_DIR/relayer.quote.body.seen.json" >/dev/null
+curl -sS -X POST "$RELAYER_BASE/api/wc-relayer/v1/quote" \
+  -H "content-type: application/json" \
+  --data-binary @"$quote_body_file" | tee "$OUT_DIR/relayer.quote.json"
 echo
 quote_ok="$(py_get "$OUT_DIR/relayer.quote.json" ok)"
 if [[ "$quote_ok" != "True" && "$quote_ok" != "true" ]]; then
