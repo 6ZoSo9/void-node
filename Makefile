@@ -146,3 +146,6 @@ wc-golden:
 	@$(MAKE) --no-print-directory wc-check
 	@$(MAKE) --no-print-directory wc-demo
 	@$(MAKE) --no-print-directory wc-check
+
+install-hooks:
+	@bash ops/install-hooks.sh
