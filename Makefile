@@ -127,7 +127,10 @@ wc-stack-doctor:
 	'
 
 wc-demo-e2e:
-	@bash ops/wc-demo-e2e.sh
+	@bash ops/wc-demo-run.sh
+
+wc-smoke:
+	@bash ops/wc-smoke.sh
 
 wc-demo:
-	@bash ops/wc-demo-e2e.sh
+	@bash ops/voidctl wc-demo

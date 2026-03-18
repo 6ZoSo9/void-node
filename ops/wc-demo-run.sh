@@ -382,25 +382,49 @@ done
 [ "$DONE" = "1" ] || { echo "[fail] job did not complete in time" >&2; exit 1; }
 
 echo "=== [5] verify WC increased after job ==="
-read_local_wc_state "$ACCOUNT" "$ART/local-after-job.json" "$LEDGER_JSONL" "$REDEEMED_JSONL"
-cp -f "$ART/local-after-job.json" "$ART/redeemable-after-job.json"
-fetch_json "$HELPER_BASE/workcredits/devnet/dashboard/$WALLET.json" "$ART/dashboard-after-job.json"
-fetch_json "$NODE_BASE/receipts?account=$ACCOUNT&limit=20" "$ART/receipts-after-job.json"
+WC_ADVANCED=0
+for i in $(seq 1 "$MAX_POLLS"); do
+  echo "--- wc poll $i/$MAX_POLLS"
+  read_local_wc_state "$ACCOUNT" "$ART/local-after-job.json" "$LEDGER_JSONL" "$REDEEMED_JSONL"
+  cp -f "$ART/local-after-job.json" "$ART/redeemable-after-job.json"
+  fetch_json "$HELPER_BASE/workcredits/devnet/dashboard/$WALLET.json" "$ART/dashboard-after-job.json"
+  fetch_json "$NODE_BASE/receipts?account=$ACCOUNT&limit=20" "$ART/receipts-after-job.json"
 
-cat "$ART/local-after-job.json"
-echo
-cat "$ART/redeemable-after-job.json"
-echo
-cat "$ART/dashboard-after-job.json"
-echo
-cat "$ART/receipts-after-job.json"
+  AFTER_JOB_BALANCE="$(json_get "$ART/local-after-job.json" "balance")"
+  AFTER_JOB_COUNT="$(json_get "$ART/local-after-job.json" "count")"
+  AFTER_JOB_EARNED="$(json_get "$ART/redeemable-after-job.json" "earned")"
+  AFTER_JOB_REDEEMED="$(json_get "$ART/redeemable-after-job.json" "redeemed")"
+  AFTER_JOB_REDEEMABLE="$(json_get "$ART/redeemable-after-job.json" "redeemable")"
+  AFTER_JOB_PENDING="$(json_get "$ART/dashboard-after-job.json" "account.earnings.pending_wc")"
 
-AFTER_JOB_BALANCE="$(json_get "$ART/local-after-job.json" "balance")"
-AFTER_JOB_COUNT="$(json_get "$ART/local-after-job.json" "count")"
-AFTER_JOB_EARNED="$(json_get "$ART/redeemable-after-job.json" "earned")"
-AFTER_JOB_REDEEMED="$(json_get "$ART/redeemable-after-job.json" "redeemed")"
-AFTER_JOB_REDEEMABLE="$(json_get "$ART/redeemable-after-job.json" "redeemable")"
-AFTER_JOB_PENDING="$(json_get "$ART/dashboard-after-job.json" "account.earnings.pending_wc")"
+  cat "$ART/local-after-job.json"
+  echo
+  cat "$ART/redeemable-after-job.json"
+  echo
+  cat "$ART/dashboard-after-job.json"
+  echo
+  cat "$ART/receipts-after-job.json"
+
+  if python3 - "$BEFORE_COUNT" "$AFTER_JOB_COUNT" "$BEFORE_EARNED" "$AFTER_JOB_EARNED" "$BEFORE_PENDING" "$AFTER_JOB_PENDING" <<'PY2'
+import sys
+before_count=float(sys.argv[1] or 0)
+after_count=float(sys.argv[2] or 0)
+before_earned=float(sys.argv[3] or 0)
+after_earned=float(sys.argv[4] or 0)
+before_pending=float(sys.argv[5] or 0)
+after_pending=float(sys.argv[6] or 0)
+ok = (after_count > before_count) or (after_earned > before_earned) or (after_pending > before_pending)
+raise SystemExit(0 if ok else 1)
+PY2
+  then
+    WC_ADVANCED=1
+    break
+  fi
+
+  sleep "$POLL_SLEEP"
+done
+
+[ "$WC_ADVANCED" = "1" ] || { echo "[fail] WC did not advance in time after completed job" >&2; exit 1; }
 
 num_assert_gt "${AFTER_JOB_BALANCE:-0}" "${BEFORE_BALANCE:-0}" "WC balance increased after job"
 num_assert_gt "${AFTER_JOB_COUNT:-0}" "${BEFORE_COUNT:-0}" "ledger event count increased after job"
