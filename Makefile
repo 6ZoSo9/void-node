@@ -132,5 +132,8 @@ wc-demo-e2e:
 wc-smoke:
 	@bash ops/wc-smoke.sh
 
+wc-doctor:
+	@bash ops/voidctl wc-doctor
+
 wc-demo:
 	@bash ops/voidctl wc-demo

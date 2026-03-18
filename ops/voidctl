@@ -425,6 +425,12 @@ cmd_wc_demo() {
     echo "[FAIL] missing executable runner: $runner" >&2
     exit 1
   fi
+
+  echo "=== wc-doctor precheck ==="
+  cmd_wc_doctor
+
+  echo
+  echo "=== wc-demo run ==="
   bash "$runner"
 }
 
