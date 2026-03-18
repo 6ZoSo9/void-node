@@ -296,6 +296,35 @@ console.log("[shim] published global node (post-construct)");
 
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
+;(() => {
+  try {
+    const g:any = globalThis as any;
+    if (g.__void_inbound_path_tap_v1_installed) return;
+    g.__void_inbound_path_tap_v1_installed = true;
+    const fs = require("fs");
+    const path = require("path");
+    const LOG = process.env.VOID_INBOUND_PATH_TAP_LOG || "/tmp/void-inbound-path-tap.4100.log";
+    let lastFlush = 0;
+    const counts:any = {};
+    app.use((req:any, _res:any, next:any) => {
+      try {
+        const k = `${req.method} ${req.originalUrl || req.url || ""}`;
+        counts[k] = (counts[k] || 0) + 1;
+        const now = Date.now();
+        if (now - lastFlush > 2000) {
+          lastFlush = now;
+          const top = Object.entries(counts).sort((a:any,b:any)=>b[1]-a[1]).slice(0,40);
+          const lines = top.map((x:any)=>`${x[1]} ${x[0]}`).join("\n") + "\n";
+          fs.writeFileSync(LOG, lines, "utf8");
+        }
+      } catch {}
+      next();
+    });
+    console.log("[inbound-path-tap.v1] installed log=%s", LOG);
+  } catch (e:any) {
+    try { console.log("[inbound-path-tap.v1] failed:", e?.message || String(e)); } catch {}
+  }
+})();
 (globalThis as any).__void_http_app = app;
 
 /* [latest-number-json.safe.v1] */
@@ -541,6 +570,17 @@ console.log("[shim] published global node (post-construct)");
 
     // Head truth: always derive legacy /blocks/latest/number from number2.json (no off-by-one drift).
     app.get("/blocks/latest/number", async (req:any, res:any) => {
+      if (String(process.env.VOID_DISABLE_LATEST_NUMBER_VIA_NUMBER2||"0")==="1") {
+        try {
+          const g:any = (globalThis as any);
+          const cands:any[] = [g.__void_head_number, g.__void_head_last, g.__void_head, g.__void_last_head, g.__void_seals_last_number];
+          for (const v of cands) {
+            const x = Number(v);
+            if (Number.isFinite(x) && x >= 0) return res.status(200).type("text/plain").send(String(x));
+          }
+        } catch {}
+      }
+      if (String(process.env.VOID_DISABLE_LATEST_NUMBER_TRUTH_ROUTE||"0")==="1") return res.status(503).type("text/plain").send("-1");
       try{
         const j:any = await fetchJson("/blocks/latest/number2.json", 1500);
         const n = Number(j?.number);
@@ -842,6 +882,22 @@ try {
       const base = "http://127.0.0.1:" + String(process.env.HTTP_PORT || "4100");
       let n = -1;
 
+        if (String(process.env.VOID_NUMBER2_GUARD_PREFER_LOCAL_ONLY||"1")==="1") {
+          try{
+            const cands:any[] = [
+              (g as any).__void_head_number,
+              (g as any).__void_head_last,
+              (g as any).__void_head,
+              (g as any).__void_last_head,
+              (g as any).__void_seals_last_number,
+            ];
+            for (const v of cands){
+              const x = Number(v);
+              if (Number.isFinite(x) && x >= 0) { n = x; break; }
+            }
+          }catch{}
+        }
+
       // 1) best-effort in-proc cached head values
       try{
         const cands:any[] = [
@@ -859,6 +915,8 @@ try {
 
       // 2) lastseal (in-proc truth) — avoid number.json loops
       if (!(Number.isFinite(n) && n >= 0)){
+        if (String(process.env.VOID_DISABLE_NUMBER2_GUARD_SELFHTTP_CHAIN||"0")==="1") { /* skip self-http fallback chain */ }
+        else {
         const j2:any = await fetchJson(base + "/__void/diag/lastseal.json", 250);
         const x = Number(j2 && (j2.head ?? j2.lastSeal));
         if (Number.isFinite(x) && x >= 0) n = x;
@@ -877,6 +935,7 @@ try {
         const x = Number(String(t||"").trim());
         if (Number.isFinite(x) && x >= 0) n = x;
       }
+        }
 
       res.json({ number: (Number.isFinite(n) ? n : -1), __hardfix: "number2_guard_fallback_v1c_lite" });
     });
@@ -8295,6 +8354,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
 // ---- follower drift exporter v4 (hot-attach, loud logs, health) -------------
 ;(function driftExporterV4(){
+  if (String(process.env.VOID_DRIFT_DISABLE||process.env.VOID_DISABLE_DRIFT||"0")==="1") { console.log("[driftExporterV4] disabled by env"); return; }
   let tries = 0, attached = false;
   const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
@@ -8348,6 +8408,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
 // ---- follower drift exporter v4b (reads head from /metrics/void) -----------
 ;(function driftExporterV4b(){
+  if (String(process.env.VOID_DRIFT_DISABLE||process.env.VOID_DISABLE_DRIFT||"0")==="1") { console.log("[driftExporterV4b] disabled by env"); return; }
   let tries = 0, attached = false;
   const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
 
@@ -8458,6 +8519,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
 // ---- follower drift exporter v4c (status→status; no metrics/void needed) ----
 ;(function driftExporterV4c(){
+  if (String(process.env.VOID_DRIFT_DISABLE||process.env.VOID_DISABLE_DRIFT||"0")==="1") { console.log("[driftExporterV4c] disabled by env"); return; }
   let tries = 0, attached = false;
   const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
@@ -8544,6 +8606,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
 // ---- exporter alias: /metrics/drift5 mirrors /metrics/drift3 ---------------
 ;(function driftExporterAlias(){
+  if (String(process.env.VOID_DRIFT_DISABLE||process.env.VOID_DISABLE_DRIFT||"0")==="1") { console.log("[driftExporterAlias] disabled by env"); return; }
   let tries=0, attached=false;
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
   async function attach(){
@@ -8585,6 +8648,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
 // ---- follower drift exporter v6 (direct heads: self vs real peer) ----------
 ;(function driftExporterV6(){
+  if (String(process.env.VOID_DRIFT_DISABLE||process.env.VOID_DISABLE_DRIFT||"0")==="1") { console.log("[driftExporterV6] disabled by env"); return; }
   let tries = 0, attached = false;
   const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
   const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
@@ -10646,6 +10710,8 @@ void_txroot_v4_errors_total ${X.errors}
 
 // ===== TXROOT CORE v2-synth (head watcher; additive, non-intrusive) =====
 (function txrootCoreV2Synth(){
+  if (String(process.env.VOID_TXROOT_CORE_V2_SYNTH_DISABLE||"0")==="1") { try{ console.log("[txrootCoreV2Synth] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_TXROOT_CORE_V2_SYNTH_DISABLE||"0")==="1") { console.log("[txrootCoreV2Synth] disabled by env"); return; }
   // Share the same v2 counters
   const ctr = (globalThis as any).__void_txroot_core_counters_v2 ||= {
     saves_total: 0,
@@ -12278,6 +12344,7 @@ void_seal_rate_1m ${rate1m()}
 
   async function getHeadNumber(): Promise<number> {
     // Use ultra-stable /head.txt first; fallback to /blocks/latest/number
+    if (String(process.env.VOID_DISABLE_HEADTXT_PRIMARY_POLLER||"0")==="1") return -1;
     try {
       const t = await httpText(`${BASE}/head.txt`);
       const n = parseInt(t.trim(), 10);
@@ -13594,6 +13661,8 @@ void_seal_rate_1m ${rate1m()}
 
 // ---- LASTMILE v4: scrape-driven accumulator using local HTTP endpoints ----
 (function lastMileV4(){
+  if (String(process.env.VOID_LASTMILE_V4_DISABLE||"0")==="1") { try{ console.log("[lastMileV4] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_LASTMILE_V4_DISABLE||"0")==="1") { console.log("[lastMileV4] disabled by env"); return; }
   const g:any = (globalThis as any);
   g.__lm_v4_total = g.__lm_v4_total || 0;
   g.__lm_v4_last = g.__lm_v4_last || { n: -1, txs: 0 };
@@ -13813,6 +13882,8 @@ void_seal_rate_1m ${rate1m()}
 
 // ---- ABOUT + BASICS PROM (pure-additive, safe) ------------------------------
 (function voidAboutAndBasics(){
+  if (String(process.env.VOID_ABOUT_BASICS_DISABLE||"0")==="1") { try{ console.log("[voidAboutAndBasics] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_ABOUT_BASICS_DISABLE||"0")==="1") { console.log("[voidAboutAndBasics] disabled by env"); return; }
   let tries=0, attached=false;
   const RETRY=250, MAX=15000;
   const g:any = (globalThis as any);
@@ -13960,6 +14031,8 @@ void_seal_rate_1m ${rate1m()}
 })();
 // ---- BASICS exporter v2 (head + live txroot health + lastmile v4b), self-warming ----
 (function basicsExporterV2(){
+  if (String(process.env.VOID_BASICS_EXPORTER_V2_DISABLE||"0")==="1") { try{ console.log("[basicsExporterV2] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_BASICS_V2_DISABLE||"0")==="1") { console.log("[basicsExporterV2] disabled by env"); return; }
   let tries=0, attached=false; const RETRY=250, MAX=20000;
   const g:any = (globalThis as any);
   g.__void_basics_cache = g.__void_basics_cache || {
@@ -14092,6 +14165,8 @@ void_seal_rate_1m ${rate1m()}
 })();
 // ---- BASICS exporter v2b (new paths; leaves old ones intact) ----
 (function basicsExporterV2b(){
+  if (String(process.env.VOID_BASICS_EXPORTER_V2B_DISABLE||"0")==="1") { try{ console.log("[basicsExporterV2b] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_BASICS_V2B_DISABLE||"0")==="1") { console.log("[basicsExporterV2b] disabled by env"); return; }
   let tries=0, attached=false; const RETRY=250, MAX=20000;
   const g:any = (globalThis as any);
   g.__void_basics_cache = g.__void_basics_cache || {
@@ -14191,6 +14266,8 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
 })();
 // [DEV-ONLY-BEGIN:ready-endpoints-v1]
 (function readyEndpointsV1_1(){
+  if (String(process.env.VOID_READY_ENDPOINTS_V1_DISABLE||"0")==="1") { try{ console.log("[readyEndpointsV1_1] disabled by env"); }catch{} return; }
+  if (String(process.env.VOID_READY_ENDPOINTS_V1_DISABLE||"0")==="1") { console.log("[readyEndpointsV1_1] disabled by env"); return; }
   let tries=0, attached=false;
   const RETRY=250, MAX_TRIES=600; // ~150s
 
@@ -15329,6 +15406,7 @@ void_header3_last_mismatch ${lastMismatch}
 
   function observeHead(){
     // Poll /blocks/latest/number2.json if the app provides a fetch helper
+    if (String(process.env.VOID_DISABLE_NUMBER2_POLLER||"0")==="1") return;
     // Otherwise we leave lastSeenHead as whatever other parts set.
     // Many builds already update this via existing tickers; this is best-effort.
   }
@@ -17900,6 +17978,7 @@ try {
   // Observer fallback: check head and bump observed counter when it advances
   async function observeHeadTick(){
     try {
+      if (String(process.env.VOID_FORENSIC_OBSERVE_HEAD_DISABLE||"0")==="1") return;
       const base = 'http://127.0.0.1:'+ (process.env.HTTP_PORT || '4100');
       const url = base + '/blocks/latest/number2.json';
       const res = await fetch(url).catch(()=>null);
@@ -18089,6 +18168,7 @@ try {
   // Head observer (fallback stays as in v3)
   async function observeHeadTick(){
     try {
+      if (String(process.env.VOID_FORENSIC_OBSERVE_HEAD_DISABLE||"0")==="1") return;
       const base = 'http://127.0.0.1:'+ (process.env.HTTP_PORT || '4100');
       const res = await fetch(base + '/blocks/latest/number2.json').catch(()=>null);
       if (res?.ok) {
@@ -22488,6 +22568,7 @@ const wal = new WALv1(getDataDir());
 
 // ===== DevTxRootShimsV1 (compat: /dev/txroot/:n.root and :n.json) =====
 ;(function DevTxRootShimsV1(){
+  if (String(process.env.VOID_DEV_TXROOT_SHIMS_DISABLE||"0")==="1") { console.log("[DevTxRootShimsV1] disabled by env"); return; }
   const TICK = 300;
   function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   function mounted(){ return !!(globalThis as any).__void_dev_txroot_shims_v1_mounted; }
@@ -27404,6 +27485,7 @@ try {
 
     // 2) fallback: self-HTTP to a known “truthy” endpoint
     try {
+      if (String(process.env.VOID_DISABLE_LASTSEAL_SELFHTTP_FALLBACK||"0")==="1") return null;
       const port = Number(process.env.HTTP_PORT || 4100);
       const base = `http://127.0.0.1:${port}`;
 
@@ -27625,6 +27707,7 @@ try {
     }
 
     // (B) self-HTTP truth surfaces (take MAX of valid)
+      if (String(process.env.VOID_DISABLE_LASTSEAL_TRUTH_SURFACES||"0")==="1") return 0;
     const port = Number(process.env.HTTP_PORT || 4100);
     const base = `http://127.0.0.1:${port}`;
 
@@ -29977,6 +30060,7 @@ try {
     // - Else, fall back to full2.txs.
     // Adds: txsSource + persisted_len + merged flag
     const BASE = process.env.VOID_BASE_HTTP || "http://localhost:4100";
+    if (String(process.env.VOID_FULL3_DISABLE||"0")==="1") return;
 
     app.get("/blocks/:n/full3", async (req: any, res: any) => {
       const nRaw = String(req.params.n || "").replace(/[^0-9]/g, "");
