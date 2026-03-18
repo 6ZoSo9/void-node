@@ -50,6 +50,7 @@ Usage:
   ops/voidctl update-apply
   ops/voidctl rollback-latest
   ops/voidctl demo-summary
+  ops/voidctl wc-ready
   ops/voidctl wc-demo
   ops/voidctl agent-summary
 
@@ -426,6 +427,127 @@ cmd_wc_demo() {
   bash "$runner"
 }
 
+
+cmd_wc_ready() {
+  local node_base="${BASE}"
+  local helper_base="${WC_HELPER_BASE:-http://127.0.0.1:4312}"
+  local relayer_base="${WC_RELAYER_BASE:-http://127.0.0.1:4313}"
+  local rpc_url="${WC_RPC_URL:-http://127.0.0.1:8545}"
+  local wallet="${WC_WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
+  local state_json="${HOME}/dev/void-node/docs/VOID-DEVNET-PROTOCOL-STATE.json"
+  local broadcast_json="${HOME}/dev/void-node/broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json"
+  local ledger_jsonl="${HOME}/dev/void-node/data_a/wc_v1/ledger.jsonl"
+  local redeemed_jsonl="${HOME}/dev/void-node/data_a/wc_v1/redeemed.jsonl"
+
+  python3 - "$node_base" "$helper_base" "$relayer_base" "$rpc_url" "$wallet" "$state_json" "$broadcast_json" "$ledger_jsonl" "$redeemed_jsonl" <<'PY2'
+import json, sys, urllib.request, urllib.error, os
+
+node_base, helper_base, relayer_base, rpc_url, wallet, state_json, broadcast_json, ledger_jsonl, redeemed_jsonl = sys.argv[1:10]
+
+def get_json(url, timeout=4):
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            raw = r.read().decode("utf-8", "replace")
+        return True, json.loads(raw)
+    except Exception as e:
+        return False, {"ok": False, "error": str(e), "url": url}
+
+def parse_local_wc(ledger_file, redeemed_file):
+    earned = 0.0
+    redeemed = 0.0
+    count = 0
+    try:
+        if os.path.exists(ledger_file):
+            with open(ledger_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line=line.strip()
+                    if not line:
+                        continue
+                    try:
+                        j=json.loads(line)
+                    except:
+                        continue
+                    count += 1
+                    earned += float(j.get("delta", 0) or 0)
+    except:
+        pass
+    try:
+        if os.path.exists(redeemed_file):
+            with open(redeemed_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line=line.strip()
+                    if not line:
+                        continue
+                    try:
+                        j=json.loads(line)
+                    except:
+                        continue
+                    redeemed += float(j.get("amount", 0) or 0)
+    except:
+        pass
+    return {
+        "earned": earned,
+        "redeemed": redeemed,
+        "redeemable": earned - redeemed,
+        "count": count
+    }
+
+node_ok, node = get_json(node_base + "/health")
+helper_ok, helper = get_json(helper_base + "/workcredits/devnet/dashboard/" + wallet + ".json")
+relayer_ok, relayer = get_json(relayer_base + "/api/wc-relayer/v1/health")
+pool_ok, pool = get_json(helper_base + "/workcredits/devnet/pool.json")
+local_wc = parse_local_wc(ledger_jsonl, redeemed_jsonl)
+
+files = {
+    "state_json": {"path": state_json, "exists": os.path.exists(state_json)},
+    "broadcast_json": {"path": broadcast_json, "exists": os.path.exists(broadcast_json)},
+    "ledger_jsonl": {"path": ledger_jsonl, "exists": os.path.exists(ledger_jsonl)},
+    "redeemed_jsonl": {"path": redeemed_jsonl, "exists": os.path.exists(redeemed_jsonl)},
+}
+
+ready = bool(
+    node_ok and bool(node.get("ok")) and
+    helper_ok and bool(helper.get("account", {}).get("up", 0)) and
+    relayer_ok and bool(relayer.get("ok", False)) and
+    pool_ok and bool(pool.get("up", 0)) and
+    all(v["exists"] for v in files.values())
+)
+
+out = {
+    "ok": True,
+    "ready": ready,
+    "node": {
+        "ok": bool(node_ok and node.get("ok")),
+        "base": node_base,
+        "http": node.get("http"),
+        "p2p": node.get("p2p"),
+        "nodeId": node.get("nodeId"),
+    },
+    "helper": {
+        "ok": bool(helper_ok and helper.get("account", {}).get("up", 0)),
+        "base": helper_base,
+        "wallet": wallet,
+        "pending_wc": helper.get("account", {}).get("earnings", {}).get("pending_wc"),
+        "redeemable_wc": helper.get("account", {}).get("earnings", {}).get("redeemable_wc"),
+        "earned_wc": helper.get("account", {}).get("earnings", {}).get("local_earned_wc"),
+    },
+    "relayer": {
+        "ok": bool(relayer_ok and relayer.get("ok", False)),
+        "base": relayer_base,
+    },
+    "pool": {
+        "ok": bool(pool_ok and pool.get("up", 0)),
+        "wc_per_void": pool.get("price", {}).get("wc_per_void"),
+        "void_per_wc": pool.get("price", {}).get("void_per_wc"),
+    },
+    "local_wc": local_wc,
+    "files": files
+}
+print(json.dumps(out, indent=2))
+raise SystemExit(0 if ready else 1)
+PY2
+}
+
 cmd_agent_summary() {
   j /__void/agent/summary.json | print_json_pretty
 }
@@ -579,6 +701,7 @@ main() {
     update-apply) shift; cmd_update_apply "$@" ;;
     rollback-latest) shift; cmd_rollback_latest "$@" ;;
     demo-summary) shift; cmd_demo_summary "$@" ;;
+    wc-ready) shift; cmd_wc_ready "$@" ;;
     wc-demo) shift; cmd_wc_demo "$@" ;;
     agent-summary) shift; cmd_agent_summary "$@" ;;
     ""|-h|--help|help) usage ;;
