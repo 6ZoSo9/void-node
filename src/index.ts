@@ -37831,10 +37831,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     return n;
   }
 
+  function wcRound(n:number){
+    const x = Number(n || 0);
+    if (!Number.isFinite(x)) return 0;
+    return Math.round(x * 1e9) / 1e9;
+  }
+
   function redeemState(account:string){
-    const earned = earnedTotal(account);
-    const redeemed = redeemedTotal(account);
-    const redeemable = Math.max(0, earned - redeemed);
+    const earned = wcRound(earnedTotal(account));
+    const redeemed = wcRound(redeemedTotal(account));
+    const redeemable = wcRound(Math.max(0, earned - redeemed));
     return { account, earned, redeemed, redeemable };
   }
 
@@ -37883,7 +37889,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         const st = redeemState(account);
         let amount = 0;
         if (reqAmount === "all" || reqAmount === null || reqAmount === undefined || reqAmount === "") amount = st.redeemable;
-        else amount = Number(reqAmount);
+        else amount = wcRound(Number(reqAmount));
 
         if (!(Number.isFinite(amount) && amount > 0)) return res.status(400).json({ ok:false, error:"invalid_amount", redeemable: st.redeemable });
         if (amount > st.redeemable) return res.status(400).json({ ok:false, error:"amount_exceeds_redeemable", redeemable: st.redeemable });
@@ -37891,7 +37897,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         const evt = {
           kind: "redeem",
           account,
-          amount,
+          amount: wcRound(amount),
           wallet: wallet || null,
           ts_ms: nowMs()
         };

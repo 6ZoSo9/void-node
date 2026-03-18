@@ -22,23 +22,56 @@ async function getJSON<T>(url: string, tries = RETRIES): Promise<T> {
   throw new Error("unreachable")
 }
 
+async function getSourceHead(src: string): Promise<number> {
+  // 1) Preferred live shape
+  try {
+    const demo = await getJSON<any>(`${src}/__void/demo/summary.json`)
+    const head = demo?.chain?.head
+    if (Number.isFinite(head)) return Number(head)
+  } catch {}
+
+  // 2) Fallback legacy helper
+  try {
+    const h = await getJSON<any>(`${src}/api/health`)
+    const head = h?.head
+    if (Number.isFinite(head)) return Number(head)
+  } catch {}
+
+  // 3) Fallback current /health if a future build adds head there
+  try {
+    const h = await getJSON<any>(`${src}/health`)
+    const head = h?.head
+    if (Number.isFinite(head)) return Number(head)
+  } catch {}
+
+  throw new Error(`could not resolve source head from ${src}`)
+}
+
 async function main() {
   const store = new SegStore(DATA_DIR, { segmentMaxBytes: 8*1024*1024, sparseEvery: 16 })
-  const health = await getJSON<{ ok:boolean; head:number }>(`${SRC}/api/health`)
-  if (!health.ok) { console.log(`[follower_once] source not ok`); return }
 
   const myHead = store.loadHeadNumber()
-  const theirHead = health.head
-  const start = myHead + 1
-  if (theirHead < start) { console.log(`[follower_once] up to date (mine=${myHead}, theirs=${theirHead})`); return }
+  const theirHead = await getSourceHead(SRC)
+  const start = Math.max(0, myHead + 1)
+
+  if (theirHead < start) {
+    console.log(`[follower_once] up to date (mine=${myHead}, theirs=${theirHead})`)
+    return
+  }
 
   console.log(`[follower_once] syncing ${start}..${theirHead} from ${SRC} -> ${DATA_DIR} (chunk=${CHUNK})`)
+
   for (let from = start; from <= theirHead; from += CHUNK) {
     const to = Math.min(from + CHUNK - 1, theirHead)
     const blocks = await getJSON<Block[]>(`${SRC}/blocks/range?from=${from}&to=${to}`)
     for (const b of blocks) store.saveBlock(b as any)
-        process.stdout.write(` imported ${from}..${to}\r`);
+    process.stdout.write(` imported ${from}..${to}\r`)
   }
-    console.log(`\n[follower_once] done. head=${store.loadHeadNumber()}`);
+
+  console.log(`\n[follower_once] done. head=${store.loadHeadNumber()}`)
 }
-main().catch(e => { console.error("[follower_once] error:", e) })
+
+main().catch(e => {
+  console.error("[follower_once] error:", e)
+  process.exit(1)
+})
