@@ -81,6 +81,29 @@ curl -sS -X POST "$RELAYER_BASE/api/wc-relayer/v1/quote" \
   --data-binary @"$quote_body_file" | tee "$OUT_DIR/relayer.quote.json"
 echo
 quote_ok="$(py_get "$OUT_DIR/relayer.quote.json" ok)"
+quote_amount_out="$(py_get "$OUT_DIR/relayer.quote.json" amount_out)"
+quote_price_wc_per_void="$(py_get "$OUT_DIR/relayer.quote.json" pool_price.wc_per_void)"
+
+python3 - "$quote_ok" "$quote_amount_out" "$quote_price_wc_per_void" <<'PY'
+import sys
+ok_raw, amount_out_raw, price_raw = sys.argv[1:]
+ok = str(ok_raw).lower() == "true"
+try:
+    amount_out = float(amount_out_raw)
+except Exception:
+    raise SystemExit(f"[fail] quote amount_out not numeric: {amount_out_raw!r}")
+try:
+    price = float(price_raw)
+except Exception:
+    raise SystemExit(f"[fail] quote pool_price.wc_per_void not numeric: {price_raw!r}")
+if not ok:
+    raise SystemExit("[fail] quote ok != true")
+if amount_out <= 0:
+    raise SystemExit(f"[fail] quote amount_out must be > 0, got {amount_out}")
+if abs(price - 100.0) > 1e-9:
+    raise SystemExit(f"[fail] expected wc_per_void=100 on devnet, got {price}")
+print(f"[ok] quote validated: amount_out={amount_out}, wc_per_void={price}")
+PY
 if [[ "$quote_ok" != "True" && "$quote_ok" != "true" ]]; then
   echo "[fail] relayer quote failed" >&2
   exit 1
