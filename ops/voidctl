@@ -560,15 +560,16 @@ cmd_wc_ready() {
   local relayer_base="${WC_RELAYER_BASE:-http://127.0.0.1:4313}"
   local rpc_url="${WC_RPC_URL:-http://127.0.0.1:8545}"
   local wallet="${WC_WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
+  local wc_account="${WC_ACCOUNT:-demo-user}"
   local state_json="${HOME}/dev/void-node/docs/VOID-DEVNET-PROTOCOL-STATE.json"
   local broadcast_json="${HOME}/dev/void-node/broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json"
   local ledger_jsonl="${HOME}/dev/void-node/data_a/wc_v1/ledger.jsonl"
   local redeemed_jsonl="${HOME}/dev/void-node/data_a/wc_v1/redeemed.jsonl"
 
-  python3 - "$node_base" "$helper_base" "$relayer_base" "$rpc_url" "$wallet" "$state_json" "$broadcast_json" "$ledger_jsonl" "$redeemed_jsonl" <<'PY2'
+  python3 - "$node_base" "$helper_base" "$relayer_base" "$rpc_url" "$wallet" "$wc_account" "$state_json" "$broadcast_json" "$ledger_jsonl" "$redeemed_jsonl" <<'PY2'
 import json, sys, urllib.request, urllib.error, os
 
-node_base, helper_base, relayer_base, rpc_url, wallet, state_json, broadcast_json, ledger_jsonl, redeemed_jsonl = sys.argv[1:10]
+node_base, helper_base, relayer_base, rpc_url, wallet, wc_account, state_json, broadcast_json, ledger_jsonl, redeemed_jsonl = sys.argv[1:11]
 
 def get_json(url, timeout=4):
     try:
@@ -578,7 +579,7 @@ def get_json(url, timeout=4):
     except Exception as e:
         return False, {"ok": False, "error": str(e), "url": url}
 
-def parse_local_wc(ledger_file, redeemed_file):
+def parse_local_wc(ledger_file, redeemed_file, account):
     earned = 0.0
     redeemed = 0.0
     count = 0
@@ -592,6 +593,8 @@ def parse_local_wc(ledger_file, redeemed_file):
                     try:
                         j=json.loads(line)
                     except:
+                        continue
+                    if str(j.get("account", "")) != account:
                         continue
                     count += 1
                     earned += float(j.get("delta", 0) or 0)
@@ -608,10 +611,13 @@ def parse_local_wc(ledger_file, redeemed_file):
                         j=json.loads(line)
                     except:
                         continue
+                    if str(j.get("account", "")) != account:
+                        continue
                     redeemed += float(j.get("amount", 0) or 0)
     except:
         pass
     return {
+        "account": account,
         "earned": earned,
         "redeemed": redeemed,
         "redeemable": earned - redeemed,
@@ -622,7 +628,7 @@ node_ok, node = get_json(node_base + "/health")
 helper_ok, helper = get_json(helper_base + "/workcredits/devnet/dashboard/" + wallet + ".json")
 relayer_ok, relayer = get_json(relayer_base + "/api/wc-relayer/v1/health")
 pool_ok, pool = get_json(helper_base + "/workcredits/devnet/pool.json")
-local_wc = parse_local_wc(ledger_jsonl, redeemed_jsonl)
+local_wc = parse_local_wc(ledger_jsonl, redeemed_jsonl, wc_account)
 
 files = {
     "state_json": {"path": state_json, "exists": os.path.exists(state_json)},
