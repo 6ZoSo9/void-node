@@ -104,6 +104,44 @@ if abs(price - 100.0) > 1e-9:
     raise SystemExit(f"[fail] expected wc_per_void=100 on devnet, got {price}")
 print(f"[ok] quote validated: amount_out={amount_out}, wc_per_void={price}")
 PY
+echo
+echo "=== [4] execute tiny trade ==="
+execute_body_file="$OUT_DIR/relayer.execute.body.json"
+cat > "$execute_body_file" <<JSON
+{"side":"wc_to_void","amount":0.1,"wallet":"$WALLET","account":"$ACCOUNT","execute":true}
+JSON
+cat "$execute_body_file" | tee "$OUT_DIR/relayer.execute.body.seen.json" >/dev/null
+curl -sS -X POST "$RELAYER_BASE/api/wc-relayer/v1/execute" \
+  -H "content-type: application/json" \
+  --data-binary @"$execute_body_file" | tee "$OUT_DIR/relayer.execute.json"
+echo
+execute_ok="$(py_get "$OUT_DIR/relayer.execute.json" ok)"
+execute_accepted="$(py_get "$OUT_DIR/relayer.execute.json" accepted)"
+approve_hash="$(py_get "$OUT_DIR/relayer.execute.json" approve_tx.tx_hash)"
+swap_hash="$(py_get "$OUT_DIR/relayer.execute.json" swap_tx.tx_hash)"
+redeemable_after="$(py_get "$OUT_DIR/relayer.execute.json" redeem_result.redeemable)"
+
+python3 - "$execute_ok" "$execute_accepted" "$approve_hash" "$swap_hash" "$redeemable_after" <<'PY'
+import sys
+ok_raw, accepted_raw, approve_hash, swap_hash, redeemable_after = sys.argv[1:]
+ok = str(ok_raw).lower() == "true"
+accepted = str(accepted_raw).lower() == "true"
+if not ok:
+    raise SystemExit("[fail] execute ok != true")
+if not accepted:
+    raise SystemExit("[fail] execute accepted != true")
+if not approve_hash or approve_hash == "None":
+    raise SystemExit("[fail] missing approve tx hash")
+if not swap_hash or swap_hash == "None":
+    raise SystemExit("[fail] missing swap tx hash")
+try:
+    ra = float(redeemable_after)
+except Exception:
+    raise SystemExit(f"[fail] redeem_result.redeemable not numeric: {redeemable_after!r}")
+if ra < 0:
+    raise SystemExit(f"[fail] redeem_result.redeemable negative: {ra}")
+print(f"[ok] execute validated: approve={approve_hash}, swap={swap_hash}, redeemable_after={ra}")
+PY
 if [[ "$quote_ok" != "True" && "$quote_ok" != "true" ]]; then
   echo "[fail] relayer quote failed" >&2
   exit 1
