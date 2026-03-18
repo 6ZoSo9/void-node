@@ -135,5 +135,9 @@ wc-smoke:
 wc-doctor:
 	@bash ops/voidctl wc-doctor
 
+wc-check:
+	@bash ops/voidctl wc-ready
+	@bash ops/voidctl wc-doctor
+
 wc-demo:
 	@bash ops/voidctl wc-demo
