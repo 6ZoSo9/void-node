@@ -25065,7 +25065,10 @@ const wal = new WALv1(getDataDir());
         if (!route) return true;
         const p = route.path;
         const m = route.methods || {};
-        if (p === pathStr && m[methodLower]) return false;
+        const hit =
+          p === pathStr ||
+          (Array.isArray(p) && p.includes(pathStr));
+        if (hit && m[methodLower]) return false;
         return true;
       });
       const after = r.stack.length;
@@ -27801,14 +27804,24 @@ try {
     app.use(async (req: any, res: any, next: any) => {
       try {
         if (req.method === "GET" && req.path === "/head.txt") {
-          const h = await headTruth();
-          if (h === null) {
-            G[MARK].errors++; G[MARK].lastErr = "headTruth=null";
-            res.status(503).type("text/plain").send("0");
-            return;
+          let h:any = await headTruth();
+          if (!(Number.isFinite(h) && h >= 0)) {
+            try {
+              const fs = require("node:fs");
+              const path = require("node:path");
+              const f = path.join(process.cwd(), String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"), "head.txt");
+              const t = String(fs.readFileSync(f, "utf8") || "").trim();
+              const n = Number(t);
+              if (Number.isFinite(n) && n >= 0) h = n;
+            } catch {}
           }
-          G[MARK].ok++;
-          G[MARK].lastTruth = h;
+          if (!(Number.isFinite(h) && h >= 0)) {
+            G[MARK].errors++; G[MARK].lastErr = "headTruth/headtxt invalid";
+            h = 0;
+          } else {
+            G[MARK].ok++;
+            G[MARK].lastTruth = h;
+          }
           res.type("text/plain").send(String(h));
           return;
         }
