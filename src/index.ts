@@ -37677,30 +37677,40 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     G[KEY].calls++;
     G[KEY].last_ts = Date.now();
     try{
-      const truth = await fetchJson(`http://127.0.0.1:${port()}/__void/metrics/proposer.truth2.json`);
-      const hook  = await fetchJson(`http://127.0.0.1:${port()}/proposer/hook/status2`);
-      const auto4 = await fetchJson(`http://127.0.0.1:${port()}/proposer/auto4/status`);
+      const auto = await fetchJson(`http://127.0.0.1:${port()}/__void/metrics/commit-direct-autoprop.v1/status.json`);
+      const v2fs = await fetchJson(`http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/status.json`);
 
-      const tj = (truth.json && truth.json.truth) ? truth.json.truth : {};
-      const hj = hook.json || {};
-      const aj = auto4.json || {};
+      const aj = (auto.json && auto.json.state) ? auto.json.state : {};
+      const vj = (v2fs.json && v2fs.json.state) ? v2fs.json.state : {};
 
       return res.json({
         ok:true,
-        source:"proposer_compat_shim_v1",
-        enabled: Number(tj.enabled || 0) === 1,
-        ms: Number.isFinite(Number(tj.ms)) ? Number(tj.ms) : null,
-        hook: hj.hooked || [],
-        mempoolSize: Number(hj.mempoolSize || 0),
-        lastSeal: hj.lastSeal || null,
+        source:"proposer_compat_shim_v2",
+        enabled: !!aj.enabled,
+        ms: Number(aj.interval_ms || 0),
+        hook: ["commit-direct-autoprop.v1","proposer.commit-direct.v2fs"],
+        mempoolSize: 0,
+        lastSeal: (Number(vj.last_to ?? -1) >= 0)
+          ? { number: Number(vj.last_to), ts: Number(vj.last_ts || 0), took: Number(vj.last_took || 0) }
+          : null,
         auto4: {
           enabled: !!aj.enabled,
-          ms: Number(aj.ms || 0),
+          ms: Number(aj.interval_ms || 0),
           ticks: Number(aj.ticks || 0),
-          errors: Number(aj.errors || 0),
-          lastTickTs: Number(aj.lastTickTs || 0),
-          lastOk: Number(aj.lastOk || 0),
-          lastHttp: Number(aj.lastHttp || 0),
+          errors: Number(aj.errs || 0),
+          lastTickTs: Number(aj.last_ts || 0),
+          lastOk: Number(aj.ok || 0),
+          lastHttp: Number(vj.last_ts || 0),
+        },
+        v2fs: {
+          mounted: !!vj.mounted,
+          calls: Number(vj.calls || 0),
+          ok: Number(vj.ok || 0),
+          noop: Number(vj.noop || 0),
+          errors: Number(vj.errors || 0),
+          last_from: Number(vj.last_from ?? -1),
+          last_to: Number(vj.last_to ?? -1),
+          last_took: Number(vj.last_took ?? 0)
         }
       });
     }catch(e:any){
