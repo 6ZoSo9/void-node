@@ -149,3 +149,17 @@ wc-golden:
 
 install-hooks:
 	@bash ops/install-hooks.sh
+
+.PHONY: void-main-commit void-follow-once void-follower-status void-dev-cycle
+
+void-main-commit:
+	./ops/void-main-commit.sh
+
+void-follow-once:
+	./ops/void-follow-once.sh
+
+void-follower-status:
+	./ops/void-follower-status.sh
+
+void-dev-cycle:
+	./ops/void-dev-cycle.sh

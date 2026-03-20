@@ -1453,180 +1453,11 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
 
 
 // ===== __void dev: sealOnce route v4b (after app hook) =====
-;(function __voidDevSealOnceRouteV4b(){
-  try{
-    const g:any = globalThis as any;
-    const app:any = g.__void_http_app || g.app;
-    if (!app || typeof app.get !== "function") return;
-    if ((app as any).__void_dev_sealonce_v4b) return;
-    (app as any).__void_dev_sealonce_v4b = true;
+;// [DISABLED proposer spy / wrapper churn block]
 
-    async function callMaybe(obj:any, key:string, args:any[]){
-      if (!obj) return { ok:false, err:"no obj" };
-      const fn:any = obj[key];
-      if (typeof fn !== "function") return { ok:false, err:`no fn ${key}` };
-      try{
-        const out = fn.apply(obj, args);
-        const ret = (out && typeof out.then === "function") ? await out : out;
-        return { ok:true, ret };
-      }catch(e:any){
-        return { ok:false, err:String(e?.message||e) };
-      }
-    }
-
-    function discoverNodes(){
-      const cand:any[] = [];
-      for (const k of ["__void_node","__voidNode","node","VOID_NODE","__voidChain","__void_chain","chain","CHAIN"]) {
-        const v = (g as any)[k];
-        if (v && typeof v === "object") cand.push(v);
-      }
-      try{
-        for (const k of Object.keys(g)) {
-          const v = (g as any)[k];
-          if (!v || typeof v !== "object") continue;
-          if (typeof (v as any).sealOnce === "function" || typeof (v as any).proposeOnce === "function") cand.push(v);
-          const pr = (v as any).proposer;
-          if (pr && (typeof pr.sealOnce === "function" || typeof pr.proposeOnce === "function" || typeof pr.tickOnce === "function" || typeof pr.tick === "function" || typeof pr.step === "function")) cand.push(v);
-        }
-      }catch{}
-      const seen = new Set<any>();
-      const out:any[] = [];
-      for (const v of cand) { if (v && !seen.has(v)) { seen.add(v); out.push(v); } }
-      return out;
-    }
-
-    async function handler(_req:any, res:any){
-      const tried:any[] = [];
-      const nodes = discoverNodes();
-
-      const patterns:[string,(n:any)=>any,string,any[]][] = [
-        ["node.sealOnce()", (n)=>n, "sealOnce", []],
-        ["node.proposeOnce()", (n)=>n, "proposeOnce", []],
-        ["node.tickOnce()", (n)=>n, "tickOnce", []],
-        ["node.seal()", (n)=>n, "seal", []],
-        ["node.propose()", (n)=>n, "propose", []],
-        ["node.proposer.sealOnce()", (n)=>n?.proposer, "sealOnce", []],
-        ["node.proposer.proposeOnce()", (n)=>n?.proposer, "proposeOnce", []],
-        ["node.proposer.tickOnce()", (n)=>n?.proposer, "tickOnce", []],
-        ["node.proposer.tick()", (n)=>n?.proposer, "tick", []],
-        ["node.proposer.step()", (n)=>n?.proposer, "step", []],
-      ];
-
-      for (const n of nodes){
-        for (const [label, sel, key, args] of patterns){
-          const target = sel(n);
-          const r = await callMaybe(target, key, args);
-          if (r.ok) return res.json({ ok:true, via: label, ret: r.ret ?? null, tried: tried.slice(0,24) });
-          tried.push({ via: label, err: r.err });
-          if (tried.length > 96) tried.shift();
-        }
-      }
-
-      return res.status(500).json({ ok:false, err:"no callable seal/propose fn found on discovered globals", tried: tried.slice(0,24) });
-    }
-
-    app.get("/__void/dev/inspect/sealOnce", handler);
-    app.get("/__void/dev/inspect/sealOnce.json", handler);
-    try{
-      if (typeof (app as any).post === "function") {
-        (app as any).post("/__void/dev/inspect/sealOnce", handler);
-        (app as any).post("/__void/dev/inspect/sealOnce.json", handler);
-      }
-    }catch{}
-
-    try{ console.error("[__void/dev/inspect/sealOnce.v4b] mounted"); }catch{}
-  }catch{}
-})();
 // ===== __void dev: proposer scan route v1 (runtime discovery) =====
-;(function __voidDevProposerScanRouteV1(){
-  try{
-    const g:any = globalThis as any;
-    const app:any = g.__void_http_app || g.app;
-    if (!app || typeof app.get !== "function") return;
-    if ((app as any).__void_dev_propscan_v1) return;
-    (app as any).__void_dev_propscan_v1 = true;
+;// [DISABLED proposer spy / wrapper churn block]
 
-    function isObj(x:any){ return !!x && (typeof x === "object" || typeof x === "function"); }
-    function safeKeys(x:any){
-      try { return Object.keys(x||{}); } catch { return []; }
-    }
-
-    function fnSummary(fn:any){
-      try{
-        if (typeof fn !== "function") return null;
-        const src = Function.prototype.toString.call(fn);
-        const head = src.slice(0,140).replace(/\s+/g,' ');
-        return { name: fn.name || "(anon)", arity: fn.length, head };
-      }catch{ return { name:"(uninspectable)", arity:-1, head:"" }; }
-    }
-
-    function scanObject(label:string, obj:any){
-      const out:any = { label, type: typeof obj, has: {}, methods: {} };
-      if (!isObj(obj)) return out;
-
-      // common nested shapes
-      for (const k of ["proposer","miner","engine","consensus","chain","core","node","store"]) {
-        try { out.has[k] = !!(obj as any)[k]; } catch { out.has[k] = false; }
-      }
-
-      // methods containing these substrings
-      const want = /seal|propos|tick|step|mine|produce|block/i;
-      const keys = safeKeys(obj).slice(0, 400);
-      const hits:any[] = [];
-      for (const k of keys){
-        if (!want.test(k)) continue;
-        let v:any = null;
-        try { v = (obj as any)[k]; } catch { v = null; }
-        if (typeof v === "function") {
-          hits.push({ key: k, ...fnSummary(v) });
-        }
-      }
-      out.methods = hits.slice(0, 80);
-
-      // also scan nested proposer-ish objects shallowly
-      const nested:any[] = [];
-      for (const nk of ["proposer","miner","engine","consensus"]) {
-        let nv:any = null;
-        try { nv = (obj as any)[nk]; } catch { nv = null; }
-        if (isObj(nv)) {
-          const nkeys = safeKeys(nv).slice(0, 200);
-          const nhits:any[] = [];
-          for (const k of nkeys){
-            if (!want.test(k)) continue;
-            let v:any = null;
-            try { v = (nv as any)[k]; } catch { v = null; }
-            if (typeof v === "function") nhits.push({ key: k, ...fnSummary(v) });
-          }
-          nested.push({ nested: nk, methods: nhits.slice(0, 80) });
-        }
-      }
-      out.nested = nested;
-      return out;
-    }
-
-    function discoverCandidates(){
-      const wantKey = /void|node|chain|prop|seal|mine|engine|consensus/i;
-      const out:any[] = [];
-      const keys = Object.keys(g).slice(0, 2000);
-      for (const k of keys){
-        if (!wantKey.test(k)) continue;
-        let v:any = null;
-        try { v = (g as any)[k]; } catch { v = null; }
-        if (!isObj(v)) continue;
-        out.push(scanObject(k, v));
-        if (out.length >= 60) break;
-      }
-      return out;
-    }
-
-    app.get("/__void/dev/inspect/proposerScan", (_req:any, res:any)=>{
-      const data = discoverCandidates();
-      res.json({ ok:true, count: data.length, data });
-    });
-
-    try{ console.error("[__void/dev/inspect/proposerScan.v1] mounted"); }catch{}
-  }catch{}
-})();
 
 
 
@@ -4842,445 +4673,8 @@ import type {} from "express"; // type-only safety; no runtime impact
 })();
 
 // ---------------- Dev-only: guard legacy /dev/blocks/:n/txs/raw -----------------
-(function devRawLegacyGuard(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  async function attach(){
-    const app: any = getApp();
-    if (!app || typeof app.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
-    if (attached) return; attached = true;
+// [DISABLED noisy proposer queue mirror loop]
 
-    // Add a second endpoint that mirrors /dev/blocks/:n/txs/raw but with a strict JSON guard,
-    // so older tools can flip over with only a path change if needed.
-    app.get("/dev/blocks/:n/txs/raw-guard", async (req: any, res: any) => {
-      try {
-        const n = Number(req.params.n);
-        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:"bad_number" });
-        const port = Number(process.env.HTTP_PORT || 4100);
-        const url = `http://127.0.0.1:${port}/blocks/range?from=${n}&to=${n}`;
-
-        const r = await fetch(url);
-        if (!r.ok) {
-          const peek = await r.text().catch(()=>"(no-body)");
-          return res.status(502).json({ ok:false, upstream:url, status:r.status, preview:peek.slice(0,200) });
-        }
-
-        let arr: any;
-        try {
-          arr = await r.json();
-        } catch(e:any){
-          const peek = await r.text().catch(()=>"(no-body)");
-          return res.status(500).json({ ok:false, error:`json_parse_failed: ${String(e)}`, preview:peek.slice(0,200) });
-        }
-
-        const b = Array.isArray(arr) ? arr[0] : null;
-        if (!b) return res.status(404).json({ ok:false, error:"block_not_found", number:n });
-
-        const txs = Array.isArray(b?.txs) ? b.txs : [];
-        return res.json({
-          ok: true,
-          number: b?.number ?? n,
-          tx_count: txs.length,
-          types: txs.map((t:any)=> typeof t),
-          sample: txs.slice(0,5)
-        });
-      } catch(e:any){
-        return res.status(500).json({ ok:false, error:String(e?.message||e) });
-      }
-    });
-
-    console.log("[diag] attached /dev/blocks/:n/txs/raw-guard");
-  }
-  attach();
-})();
-
-// ---- mark /blocks/:n/full as legacy so clients can migrate gracefully
-(function compatBlocksFullHeaders(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  function attach(){
-    const app: any = getApp();
-    if (!app || typeof app.get !== "function") { if(++tries<60) return setTimeout(attach,500); return; }
-    if (attached) return; attached = true;
-
-    app.use("/blocks/:n/full", (_req:any, res:any, next:any) => {
-      try {
-        res.set("Deprecation", "true");
-        res.set("Link", '</blocks/:n/txs/raw2>; rel="alternate"');
-      } catch {}
-      next();
-    });
-    console.log("[diag] set legacy headers for /blocks/:n/full");
-  }
-  attach();
-})();
-
-
-// ---------------- [ADD] bridge global tx-queue -> node.mempool (best-effort) ----------------
-;(function bridgeGlobalQueueToNode(){
-  try{
-    const g:any = globalThis as any;
-
-    function tryAddToMempool(t:any): boolean {
-      try {
-        // @ts-ignore - resolve at runtime via globalThis.__void_node || globalThis.node
-        // @ts-ignore - resolve at runtime via globalThis.__void_node || globalThis.node
-        // runtime alias for global node handle (additive shim)
-        const node:any = (globalThis as any).__void_node || (globalThis as any).node || null;
-        const mp:any = (((globalThis as any).__void_node || (globalThis as any).node) as any)?.mempool ?? (((globalThis as any).__void_node || (globalThis as any).node) as any)?.mPool ?? (((globalThis as any).__void_node || (globalThis as any).node) as any)?.txPool ?? null;
-        if (!mp) return false;
-        if (typeof mp.enqueue === "function") { mp.enqueue(t); return true; }
-        if (typeof mp.add === "function")     { mp.add(t);     return true; }
-        if (typeof mp.push === "function")    { mp.push(t);    return true; }
-        if (Array.isArray(mp.txs))            { mp.txs.push(t); return true; }
-        if (Array.isArray(mp.queue))          { mp.queue.push(t); return true; }
-        if (Array.isArray(mp))                { mp.push(t);     return true; }
-        return false;
-      } catch { return false; }
-    }
-
-    function sizeOfMempool(): number | null {
-      try {
-        const mp:any = (((globalThis as any).__void_node || (globalThis as any).node) as any)?.mempool ?? (((globalThis as any).__void_node || (globalThis as any).node) as any)?.mPool ?? (((globalThis as any).__void_node || (globalThis as any).node) as any)?.txPool ?? null;
-        if (!mp) return null;
-        if (typeof mp.size === "function") return Number(mp.size()) || 0;
-        if (Array.isArray(mp?.txs))   return mp.txs.length;
-        if (Array.isArray(mp?.queue)) return mp.queue.length;
-        if (Array.isArray(mp))        return mp.length;
-        return null;
-      } catch { return null; }
-    }
-
-    // drain every 500ms
-    setInterval(()=>{
-      try{
-        const q:any = g.__void_tx_queue;
-        if (!Array.isArray(q) || q.length === 0) return;
-        const batch = q.splice(0, q.length);
-        let ok=0; for (const t of batch) if (tryAddToMempool(t)) ok++;
-        if (ok) console.log("[bridge] moved %d tx(s) into node.mempool (size≈%s)", ok, String(sizeOfMempool()));
-      }catch{}
-    }, 500);
-
-    // late-diag routes: attach once app exists
-    (function attachDiag(){
-      try{
-        const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
-        if (!app || typeof app.get !== "function") return setTimeout(attachDiag, 500);
-        app.get("/mempool/node/size", (_req:any, res:any)=>{
-          const n = sizeOfMempool();
-          res.json({ size: n });
-        });
-        app.post("/mempool/node/ingest-now", (_req:any, res:any)=>{
-          try{
-            const q:any = (globalThis as any).__void_tx_queue;
-            let moved=0;
-            if (Array.isArray(q) && q.length){
-              const batch = q.splice(0, q.length);
-              for (const t of batch) if (tryAddToMempool(t)) moved++;
-            }
-            res.json({ ok:true, moved, nodeSize: sizeOfMempool() });
-          }catch(e:any){ res.status(500).json({ ok:false, error: String(e?.message||e) }); }
-        });
-        console.log("[diag] attached /mempool/node/size and /mempool/node/ingest-now");
-      }catch{}
-    })();
-
-  }catch(e){ console.warn("[bridge] init failed:", e); }
-})();
-// -------------------------------------------------------------------------------
-
-// ---------------- [ADD] node.mempool shim (array-backed) ----------------
-;(function ensureNodeMempoolShim(){
-  let tries = 0, attached = false;
-  function getNode(): any {
-    try {
-      // common globals we set/see in our index harnesses
-      if (typeof (globalThis as any).node !== "undefined") return (globalThis as any).node;
-      if (typeof (globalThis as any).__void_node !== "undefined") return (globalThis as any).__void_node;
-      if (typeof (globalThis as any).VOID_NODE !== "undefined") return (globalThis as any).VOID_NODE;
-      // last resort: the local 'node' symbol (if closure can see it)
-      // @ts-ignore
-      return (typeof node !== "undefined") ? (((globalThis as any).__void_node || (globalThis as any).node) as any) : undefined;
-    } catch { return undefined; }
-  }
-  function tick(){
-    try {
-      const n:any = getNode();
-      if (!n) { if (++tries < 120) return setTimeout(tick, 500); return; }
-      if (attached) return;
-
-      let mp:any = n.mempool ?? n.mPool ?? n.txPool ?? null;
-      if (!mp) {
-        const buf:any[] = [];
-        mp = {
-          __buf: buf,
-          txs: buf,          // so Array.isArray(mp.txs) works
-          queue: buf,        // and Array.isArray(mp.queue) works
-          enqueue(t:any){ buf.push(t); },
-          add(t:any){ buf.push(t); },
-          push(t:any){ buf.push(t); },
-          size(){ return buf.length; },
-          drain(k?:number){ return buf.splice(0, (typeof k === "number" && k>=0) ? k : buf.length); },
-        };
-        n.mempool = mp;
-        (globalThis as any).__void_node_mempool = mp;
-        console.log("[shim] created node.mempool shim (array-backed)");
-      } else {
-        // normalize: ensure size()/txs exist for our bridge’s probes
-        if (typeof mp.size !== "function") mp.size = function(){ try {
-          if (Array.isArray(mp.txs)) return mp.txs.length;
-          if (Array.isArray(mp.queue)) return mp.queue.length;
-          if (Array.isArray(mp)) return mp.length;
-          return 0;
-        } catch { return 0; } };
-        if (!Array.isArray(mp.txs)) mp.txs = Array.isArray(mp.queue) ? mp.queue : (Array.isArray(mp) ? mp : []);
-      }
-      attached = true;
-    } catch {/*noop*/} finally { if (!attached) setTimeout(tick, 500); }
-  }
-  tick();
-})();
-// -----------------------------------------------------------------------
-
-// ---------------- [ADD] expose node handle to globalThis (for shims/bridges) -----------
-;(function exposeNodeGlobal(){
-  try{
-    const g:any = globalThis as any;
-    // If not already published, try immediate bind; otherwise poll briefly.
-    function bindNow(){
-      try {
-        // @ts-ignore access module-scoped symbol (exists in this file)
-        if (typeof node !== "undefined" && node) {
-          // @ts-ignore
-          g.__void_node = node; g.node = node; g.VOID_NODE = node;
-          console.log("[shim] exposed global node handle");
-          return true;
-        }
-      } catch {}
-      return false;
-    }
-    if (!bindNow()) {
-      let tries = 0;
-      (function tick(){
-        if (bindNow()) return;
-        if (++tries < 120) setTimeout(tick, 500);
-      })();
-    }
-  } catch {}
-})();
-// ---------------------------------------------------------------------------------------
-
-// ---------------- [ADD] robust mempool size probe (no assumptions) --------------
-;(function attachMempoolSize2(){
-  try{
-    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-    function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node || (globalThis as any).VOID_NODE; }
-
-    let tries = 0; (function tick(){
-      const app:any = getApp(); const n:any = getNode();
-      if (!app || !n) { if (++tries < 120) return setTimeout(tick, 500); else return; }
-
-      app.get("/mempool/node/size2", (_req:any, res:any) => {
-        const mp:any = n?.mempool ?? n?.mPool ?? n?.txPool ?? null;
-        let size:number|null = null;
-        try {
-          if (!mp) size = null;
-          else if (typeof mp.size === "function") size = Number(mp.size()) || 0;
-          else if (Array.isArray(mp.txs)) size = mp.txs.length;
-          else if (Array.isArray(mp.queue)) size = mp.queue.length;
-          else if (Array.isArray(mp)) size = mp.length;
-          else size = 0;
-        } catch { size = null; }
-        res.json({ size });
-      });
-
-      console.log("[diag] attached /mempool/node/size2 (robust)");
-    })();
-  }catch{}
-})();
-// -------------------------------------------------------------------------------
-
-// ---------------- [ADD] global → node.mempool drain bridge + diags --------------
-;(function globalToNodeMempoolBridge(){
-  try{
-    const g:any = globalThis as any;
-
-    // 1) Normalize a global queue container we can drain
-    //    We support several shapes (array or object with {txs|queue|push|enqueue}).
-    function ensureGlobalQueue(){
-      if (!g.__void_txq) g.__void_txq = [];
-      const q:any = g.__void_txq;
-
-      // Give it a consistent API if it doesn't already have one
-      if (typeof q.size !== "function") {
-        q.size = function size(){
-          try {
-            if (Array.isArray(q)) return q.length;
-            if (Array.isArray(q.txs)) return q.txs.length;
-            if (Array.isArray(q.queue)) return q.queue.length;
-            return Number(q.length ?? 0) || 0;
-          } catch { return 0; }
-        };
-      }
-      if (typeof q.enqueue !== "function") {
-        q.enqueue = function enqueue(t:any){
-          if (Array.isArray(q)) q.push(t);
-          else if (Array.isArray(q.txs)) q.txs.push(t);
-          else if (Array.isArray(q.queue)) q.queue.push(t);
-          else {
-            if (!Array.isArray(q.items)) q.items = [];
-            q.items.push(t);
-          }
-        };
-      }
-      if (typeof q.drain !== "function") {
-        q.drain = function drain(k?:number){
-          const take = (arr:any[]) => arr.splice(0, (typeof k==='number' && k>=0) ? k : arr.length);
-          if (Array.isArray(q)) return take(q);
-          if (Array.isArray(q.txs)) return take(q.txs);
-          if (Array.isArray(q.queue)) return take(q.queue);
-          if (Array.isArray(q.items)) return take(q.items);
-          return [];
-        };
-      }
-      return q;
-    }
-
-    // 2) Resolve the live node + mempool with a light normalization (size/push)
-    function resolveNodeMP(){
-      const n:any = g.__void_node || g.node || g.VOID_NODE;
-      if (!n) return { n:null, mp:null };
-
-      let mp:any = n.mempool ?? n.mPool ?? n.txPool ?? null;
-      if (!mp) {
-        const buf:any[] = [];
-        mp = {
-          __buf: buf,
-          txs: buf,
-          enqueue(t:any){ buf.push(t); },
-          add(t:any){ buf.push(t); },
-          push(t:any){ buf.push(t); },
-          size(){ return buf.length; },
-          drain(k?:number){ return buf.splice(0, (typeof k==='number' && k>=0)?k:buf.length); },
-        };
-        n.mempool = mp;
-        g.__void_node_mempool = mp;
-        console.log("[bridge] created fallback array-backed node.mempool");
-      } else {
-        if (typeof mp.size !== "function") mp.size = function(){ 
-          try{
-            if (Array.isArray(mp.txs)) return mp.txs.length;
-            if (Array.isArray(mp.queue)) return mp.queue.length;
-            if (Array.isArray(mp)) return mp.length;
-            return Number(mp.length ?? 0) || 0;
-          }catch{ return 0; }
-        };
-        if (typeof mp.enqueue !== "function") mp.enqueue = function(t:any){
-          if (Array.isArray(mp.txs)) return mp.txs.push(t);
-          if (Array.isArray(mp.queue)) return mp.queue.push(t);
-          if (Array.isArray(mp)) return mp.push(t);
-          if (typeof mp.add === "function") return mp.add(t);
-        };
-      }
-      return { n, mp };
-    }
-
-    // 3) Drain loop
-    let ticks = 0, movedTotal = 0;
-    (function loop(){
-      try{
-        const q = ensureGlobalQueue();
-        const { n, mp } = resolveNodeMP();
-        if (n && mp && q.size() > 0) {
-          const batch = q.drain(1000);        // drain up to 1000 per tick
-          for (const t of batch) mp.enqueue ? mp.enqueue(t) : mp.push(t);
-          movedTotal += batch.length;
-          if (batch.length) console.log(`[bridge] moved ${batch.length} tx -> node.mempool (total ${movedTotal})`);
-        }
-      }catch{/* noop */}
-      setTimeout(loop, 250);
-    })();
-
-    // 4) Diags
-    function getApp(){ return g.__void_http_app || g.app || undefined; }
-    let tries = 0; (function attachDiag(){
-      const app:any = getApp();
-      if (!app) { if (++tries < 120) return setTimeout(attachDiag, 500); else return; }
-      app.get("/mempool/bridge/status", (_:any, res:any) => {
-        const q:any = g.__void_txq || [];
-        const n:any = g.__void_node || g.node || g.VOID_NODE;
-        const mp:any = n ? (n.mempool ?? n.mPool ?? n.txPool ?? null) : null;
-        const qSize = (typeof q.size === "function") ? q.size() :
-                      Array.isArray(q) ? q.length :
-                      Array.isArray(q?.txs) ? q.txs.length :
-                      Array.isArray(q?.queue) ? q.queue.length : 0;
-        const mpSize = mp ? (typeof mp.size === "function" ? Number(mp.size())||0 :
-                      Array.isArray(mp?.txs) ? mp.txs.length :
-                      Array.isArray(mp?.queue) ? mp.queue.length :
-                      Array.isArray(mp) ? mp.length : 0) : null;
-        res.json({ qSize, mpSize, movedTotal, ticks });
-      });
-  // ---- MEMPOOL_CANONFIX_V1: make /mempool/global/drain-now drain the real canonical mempool ----
-  app.post("/mempool/global/drain-now", async (_req:any, res:any) => {
-      const g:any = globalThis as any;
-      const pickCanon = (): { mp:any, src:string } => {
-        try{
-          const n = g.__void_node || g.__voidNode || g.node || g.__node || g.__void_node_instance;
-          const mp1 = n?.mempool?.txs;
-          if (mp1) return { mp: mp1, src: "node.mempool.txs" };
-          const mp1b = n?.mempool?.pendingTxs;
-          if (mp1b) return { mp: mp1b, src: "node.mempool.pendingTxs" };
-        }catch{}
-        try{
-          const mp2 = g.__void_mempool_global?.txs || g.__void_mempool?.txs || g.__void_mempool_global;
-          if (mp2) return { mp: mp2, src: "global.mempool" };
-        }catch{}
-        try{
-          g.__void_dev_mempool_canonfix_v1 = g.__void_dev_mempool_canonfix_v1 || [];
-          return { mp: g.__void_dev_mempool_canonfix_v1, src: "dev.fallback" };
-        }catch{
-          return { mp: [], src: "none" };
-        }
-      };
-      const mpSize = (mp:any): number => {
-        try{
-          if (!mp) return 0;
-          if (typeof mp.size === "function") return Number(mp.size()) || 0;   // Set/Map
-          if (typeof mp.length === "number") return Number(mp.length) || 0;  // Array
-          return 0;
-        }catch{ return 0; }
-      };
-      const mpPeek = (mp:any, k:number): any[] => {
-        try{
-          if (!mp) return [];
-          if (Array.isArray(mp)) return mp.slice(0, k);
-          if (typeof mp.values === "function") {
-            const a:any[] = [];
-            for (const v of mp.values()) { a.push(v); if (a.length >= k) break; }
-            return a;
-          }
-          return [];
-        }catch{ return []; }
-      };
-      const mpClear = (mp:any): number => {
-        try{
-          const before = mpSize(mp);
-          if (!mp) return 0;
-          if (typeof mp.clear === "function") { mp.clear(); return before; }
-          if (Array.isArray(mp)) { mp.length = 0; return before; }
-          if (typeof mp.splice === "function") { mp.splice(0, before); return before; }
-          return 0;
-        }catch{ return 0; }
-      };
-      const { mp, src } = pickCanon();
-      const removed = mpClear(mp);
-      res.json({ moved: 0, movedTotal: removed, src, __patch:"MEMPOOL_CANONFIX_V1" });
-  });
-      console.log("[diag] attached /mempool/bridge/status and /mempool/global/drain-now");
-    })();
-  }catch(e){ console.warn("[bridge] init failed:", e); }
-})();
 // -------------------------------------------------------------------------------
 
 // ---------------- [ADD] proposer queue mirror + diags ---------------------------
@@ -7848,132 +7242,12 @@ import { computeTxRoot } from "./util/txroot.js";
   attach();
 })();
 
-// ---------------- Follower drift status (additive, no imports) --------------------
-;(function followerStatusRoute(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
+// [DISABLED fetch-based follower/status block]
 
-  async function getHead(base){
-    try {
-      const r = await fetch(String(base).replace(/\/+$/,'') + "/blocks/latest/number2.json");
-      if (!r.ok) throw new Error("bad " + r.status);
-      const d = await r.json();
-      return (typeof d.n === "number" ? d.n : (typeof d.number === "number" ? d.number : -1));
-    } catch { return -1; }
-  }
-
-  async function attach(){
-    const app = getApp();
-    if (!app || typeof app.get !== "function") { if (++tries < 60) return setTimeout(attach, 500); return; }
-    if (attached) return; attached = true;
-
-    // GET /follower/status?peer=http://localhost:4100
-    app.get("/follower/status", async (req, res) => {
-      const peer = String(req.query.peer || "http://localhost:4100");
-      const self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
-
-      const [head_local, head_peer] = await Promise.all([getHead(self), getHead(peer)]);
-      const drift = (head_peer >= 0 && head_local >= 0) ? (head_peer - head_local) : null;
-      res.json({ ok: true, peer, head_local, head_peer, drift });
-    });
-
-    // Compat alias
-    app.get("/follower/status2", async (req, res) => {
-      const peer = String(req.query.peer || "http://localhost:4100");
-      const self = "http://127.0.0.1:" + (process.env.HTTP_PORT || "4100");
-      const [head_local, head_peer] = await Promise.all([getHead(self), getHead(peer)]);
-      const drift = (head_peer >= 0 && head_local >= 0) ? (head_peer - head_local) : null;
-      res.json({ ok: true, peer, head_local, head_peer, drift });
-    });
-
-    try { console.log("[follower/status] route ready"); } catch {}
-  }
-  attach();
-})();
 
 // ---------------- TxRoot header + metrics (additive, no import edits) -------------------
-;(function txrootHeaderAndMetrics(){
-  let tries = 0, attached = false;
-  const state:any = {
-    lastRoot: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    lastCount: 0,
-    byNumber: new Map<number,string>(),
-  };
+// [DISABLED txrootHeaderAndMetrics self-http block]
 
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
-
-  async function attach(){
-    const app = getApp(); const node = getNode();
-    if (!app || !node || !node.store || typeof node.store.saveBlock !== "function") {
-      if (++tries < 60) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    // Wrap saveBlock to compute txroot after persistence
-    const orig = node.store.saveBlock.bind(node.store);
-    node.store.saveBlock = async (blk:any) => {
-      const saved = await orig(blk);
-      try {
-        const { computeTxRoot } = await import("./util/txroot.js");
-        const txs:any[] = Array.isArray(saved?.txs) ? saved.txs : (Array.isArray(blk?.txs) ? blk.txs : []);
-        const { root } = computeTxRoot(txs);
-        // Best-effort: set header field in-memory (persistence untouched)
-        if (saved && typeof saved === "object") {
-          saved.header = saved.header || {};
-          if (!saved.header.txRoot) saved.header.txRoot = root;
-          if (typeof saved.number === "number") state.byNumber.set(saved.number, root);
-        }
-        state.lastRoot = root; state.lastCount = txs.length;
-        console.log(`[txroot/header] #${saved?.number ?? "?"} txs=${txs.length} root=${root}`);
-      } catch (e:any) {
-        console.warn("[txroot/header] compute failed:", e?.message || e);
-      }
-      return saved;
-    };
-
-    // Read path: expose per-block txroot (from cache if known; else compute live)
-    app.get("/blocks/:n/txroot", async (req:any, res:any) => {
-      const n = Number(req.params.n);
-      if (!Number.isFinite(n) || n < 0) return res.status(400).json({ ok:false, error:"bad number" });
-
-      const cached = state.byNumber.get(n);
-      if (cached) return res.json({ ok:true, number:n, root: cached, source:"cache" });
-
-      try {
-        const r = await fetch(`http://127.0.0.1:${process.env.HTTP_PORT || "4100"}/dev/blocks/${n}/txs/persisted`);
-        if (!r.ok) throw new Error("persisted tx fetch failed");
-        const d = await r.json();
-        const txs = Array.isArray(d?.txs) ? d.txs : [];
-        const { computeTxRoot } = await import("./util/txroot.js");
-        const { root } = computeTxRoot(txs);
-        return res.json({ ok:true, number:n, root, source:"live" });
-      } catch (e:any) {
-        return res.status(500).json({ ok:false, error:String(e?.message || e) });
-      }
-    });
-
-    // Minimal metrics (text and JSON)
-    app.get("/metrics/txroot3", (_req:any, res:any) => {
-      res.type("text/plain").send([
-        "# HELP void_last_txroot_count number of txs used in last txroot",
-        "# TYPE void_last_txroot_count gauge",
-        `void_last_txroot_count ${state.lastCount}`,
-        "# HELP void_last_txroot_info last txroot hex (info string)",
-        "# TYPE void_last_txroot_info gauge",
-        `void_last_txroot_info{root="${state.lastRoot}"} 1`,
-      ].join("\n"));
-    });
-    app.get("/metrics/txroot3.json", (_req:any, res:any) => {
-      res.json({ ok:true, lastRoot: state.lastRoot, lastCount: state.lastCount });
-    });
-
-    console.log("[txroot/header] wrapper + endpoints ready (/blocks/:n/txroot, /metrics/txroot3(.json))");
-  }
-
-  setTimeout(attach, 250); // [cpu.guard.timeout0.v1]
-})();
 
 // ---------------- TxRoot pre-persist header (feature-flagged) -------------------
 ;(function txrootPrePersist(){
@@ -8162,156 +7436,20 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---------------- Follower drift metric (/metrics/drift) -------------------
-;(function followerDriftMetric(){
-  let tries=0, attached=false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
+// [DISABLED duplicate drift exporter v1]
 
-  async function attach(){
-    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
-    if(attached) return; attached=true;
-
-    // On the FOLLOWER (HTTP_PORT=4101), query its own /follower/status against the main (4100).
-    const selfPort = String(process.env.HTTP_PORT || "4100");
-    const peer = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
-
-    app.get("/metrics/drift", async (_req,res)=>{
-      let drift = NaN, head_local = NaN, head_peer = NaN;
-      try {
-        const url = `http://127.0.0.1:${selfPort}/follower/status?peer=${encodeURIComponent(peer)}`;
-        const d = await getJSON(url);
-        if (d && d.ok) { drift = Number(d.drift); head_local = Number(d.head_local); head_peer = Number(d.head_peer); }
-      } catch {}
-      res.type("text/plain").send(
-        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
-        `void_follower_drift${Number.isFinite(drift)?` ${drift}`:" NaN"}\n`+
-        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
-        `void_follower_head_local${Number.isFinite(head_local)?` ${head_local}`:" NaN"}\n`+
-        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
-        `void_follower_head_peer${Number.isFinite(head_peer)?` ${head_peer}`:" NaN"}\n`
-      );
-    });
-    console.log("[metrics/drift] ready (peer=%s, selfPort=%s)", peer, selfPort);
-  }
-  attach();
-})();
 
 // ---- follower drift metric: always numeric (no NaN) -----------------------
-;(function followerDriftMetric_v2(){
-  let tries=0, attached=false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
-  function numOr0(x:any){ const n=Number(x); return Number.isFinite(n)? n : 0; }
+// [DISABLED duplicate drift exporter v2]
 
-  async function attach(){
-    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
-    if(attached) return; attached=true;
-
-    const selfPort = String(process.env.HTTP_PORT || "4100");
-    const peer = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
-
-    app.get("/metrics/drift", async (_req,res)=>{
-      let drift=0, head_local=0, head_peer=0;
-      const url = `http://127.0.0.1:${selfPort}/follower/status?peer=${encodeURIComponent(peer)}`;
-      const d = await getJSON(url);
-      if (d && d.ok) {
-        drift = numOr0(d.drift);
-        head_local = numOr0(d.head_local);
-        head_peer = numOr0(d.head_peer);
-      }
-      res.type("text/plain").send(
-        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
-        `void_follower_drift ${drift}\n`+
-        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
-        `void_follower_head_local ${head_local}\n`+
-        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
-        `void_follower_head_peer ${head_peer}\n`
-      );
-    });
-    console.log("[metrics/drift:v2] ready (peer=%s, selfPort=%s)", peer, selfPort);
-  }
-  attach();
-})();
 
 // ---- follower drift metric v3: derive selfBase from request Host (no env) ---
-;(function followerDriftMetric_v3(){
-  let tries=0, attached=false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
-  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
+// [DISABLED duplicate drift exporter v3]
 
-  function num(x:any, d=0){ const n=Number(x); return Number.isFinite(n)? n : d; }
-
-  async function attach(){
-    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
-    if(attached) return; attached=true;
-
-    // GET /metrics/drift2  (uses Host header to hit this same instance's /follower/status)
-    app.get("/metrics/drift2", async (req:any, res:any)=>{
-      // e.g. Host: 127.0.0.1:4101  -> http://127.0.0.1:4101
-      const host = req.get("host") || "127.0.0.1:4100";
-      const selfBase = `http://${host}`;
-      const url = `${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`;
-
-      let drift=0, head_local=0, head_peer=0;
-      const d = await getJSON(url);
-      if (d && d.ok) {
-        drift      = num(d.drift, 0);
-        head_local = num(d.head_local, 0);
-        head_peer  = num(d.head_peer, 0);
-      }
-      res.type("text/plain").send(
-        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
-        `void_follower_drift ${drift}\n`+
-        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
-        `void_follower_head_local ${head_local}\n`+
-        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
-        `void_follower_head_peer ${head_peer}\n`
-      );
-    });
-    console.log("[metrics/drift:v3] ready peer=%s", PEER);
-  }
-  attach();
-})();
 
 // ---- follower drift metric v3b: selfBase from Host; clean closure -----------
-;(function followerDriftMetric_v3b(){
-  let tries=0, attached=false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
-  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
-  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
+// [DISABLED duplicate drift exporter v3b]
 
-  async function attach(){
-    const app:any=getApp(); if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
-    if(attached) return; attached=true;
-
-    // GET /metrics/drift3
-    app.get("/metrics/drift3", async (req:any, res:any)=>{
-      const host = req.get("host") || "127.0.0.1:4101";        // expect follower host:port
-      const selfBase = `http://${host}`;
-      const url = `${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`;
-
-      let drift=0, head_local=0, head_peer=0;
-      const d = await getJSON(url);
-      if (d && d.ok) {
-        drift      = num(d.drift, 0);
-        head_local = num(d.head_local, 0);
-        head_peer  = num(d.head_peer, 0);
-      }
-      res.type("text/plain").send(
-        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
-        `void_follower_drift ${drift}\n`+
-        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
-        `void_follower_head_local ${head_local}\n`+
-        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
-        `void_follower_head_peer ${head_peer}\n`
-      );
-    });
-    console.log("[metrics/drift:v3b] ready peer=%s", PEER);
-  }
-  attach();
-})();
 
 // ---- follower drift metric v3b: selfBase from Host; clean closure -----------
 ;(function followerDriftMetric_v3b(){
@@ -8353,58 +7491,8 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---- follower drift exporter v4 (hot-attach, loud logs, health) -------------
-;(function driftExporterV4(){
-  if (String(process.env.VOID_DRIFT_DISABLE||process.env.VOID_DISABLE_DRIFT||"0")==="1") { console.log("[driftExporterV4] disabled by env"); return; }
-  let tries = 0, attached = false;
-  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
-  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
-  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
-  const wait = (ms:number)=>new Promise(r=>setTimeout(r,ms));
+// [DISABLED duplicate drift exporter v4]
 
-  async function getJSON(u:string){ try{ const r=await fetch(u, {headers:{'cache-control':'no-cache'}}); return await r.json(); } catch { return null; } }
-
-  async function attach() {
-    while (!attached && tries < 1200) {       // 1200 * 500ms = 10 minutes
-      const app:any = getApp();
-      if (app && typeof app.get === "function") {
-        // health
-        app.get("/metrics/drift3/health", (_req:any,res:any)=>res.type("text/plain").send("ok\n"));
-
-        // exporter
-        app.get("/metrics/drift3", async (req:any, res:any)=>{
-          const host = req.get("host") || "127.0.0.1:4101";
-          const selfBase = `http://${host}`;
-          const url = `${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`;
-
-          let drift=0, head_local=0, head_peer=0;
-          const d = await getJSON(url);
-          if (d && d.ok) {
-            drift      = num(d.drift, 0);
-            head_local = num(d.head_local, 0);
-            head_peer  = num(d.head_peer, 0);
-          }
-          res.type("text/plain").send(
-            "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
-            `void_follower_drift ${drift}\n`+
-            "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
-            `void_follower_head_local ${head_local}\n`+
-            "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
-            `void_follower_head_peer ${head_peer}\n`
-          );
-        });
-
-        attached = true;
-        console.log("[metrics/drift:v4] ready (peer=%s)", PEER);
-        return;
-      }
-      tries++;
-      if (tries % 10 === 0) console.log("[metrics/drift:v4] waiting for app... try=%d", tries);
-      await wait(500);
-    }
-    if (!attached) console.warn("[metrics/drift:v4] gave up after %d tries", tries);
-  }
-  attach();
-})();
 
 // ---- follower drift exporter v4b (reads head from /metrics/void) -----------
 ;(function driftExporterV4b(){
@@ -8518,302 +7606,18 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---- follower drift exporter v4c (status→status; no metrics/void needed) ----
-;(function driftExporterV4c(){
-  if (String(process.env.VOID_DRIFT_DISABLE||process.env.VOID_DISABLE_DRIFT||"0")==="1") { console.log("[driftExporterV4c] disabled by env"); return; }
-  let tries = 0, attached = false;
-  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
-  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
-  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
-  async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); } catch { return null; } }
-  const sleep = (ms:number)=>new Promise(r=>setTimeout(r,ms));
+// [DISABLED duplicate drift exporter v4c]
 
-  async function attach(){
-    while(!attached && ++tries<=1200){
-      const app:any = getApp();
-      if (app && typeof app.get === "function") {
-        app.get("/metrics/drift5/health", (_req:any,res:any)=>res.type("text/plain").send("ok\n"));
 
-        app.get("/metrics/drift5", async (req:any, res:any)=>{
-          const host = req.get("host") || "127.0.0.1:4101";
-          const selfBase = `http://${host}`;
+// [DISABLED expensive head shim using follower/status]
 
-          // 1) Local status against true peer → reliable head_local
-          const selfStatus = await getJSON(`${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`);
 
-          // 2) Peer status against itself → take its head_local as peer head
-          const peerStatus = await getJSON(`${PEER}/follower/status?peer=${encodeURIComponent(PEER)}`);
+// [already handled / left disabled marker]
 
-          const head_local = num(selfStatus?.head_local, 0);
-          const head_peer  = num(peerStatus?.head_local ?? peerStatus?.head_peer, 0);
-          const drift = Math.max(0, head_peer - head_local);
-
-          res.type("text/plain").send(
-            "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
-            `void_follower_drift ${drift}\n`+
-            "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
-            `void_follower_head_local ${head_local}\n`+
-            "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
-            `void_follower_head_peer ${head_peer}\n`
-          );
-        });
-
-        attached = true;
-        console.log("[metrics/drift:v4c] ready (peer=%s)", PEER);
-        break;
-      }
-      await sleep(500);
-    }
-    if (!attached) console.warn("[metrics/drift:v4c] attach timeout");
-  }
-  attach();
-})();
-
-// ---- head shim: /head (JSON) and /head.txt (plain) -------------------------
-;(function headShim(){
-  let tries=0, attached=false;
-  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
-  const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
-
-  async function j(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); } catch { return null; } }
-
-  async function attach(){
-    const app:any = getApp();
-    if(!app){ if(++tries<60) return setTimeout(attach,500); return; }
-    if(attached) return; attached = true;
-
-    // GET /head -> { number }, GET /head.txt -> "number\n"
-    app.get("/head", async (req:any,res:any)=>{
-      const host = req.get("host") || "127.0.0.1:4100";
-      const selfBase = `http://${host}`;
-      // ask our own follower/status for a canonical local head
-      const d = await j(`${selfBase}/follower/status?peer=${encodeURIComponent(selfBase)}`);
-      const number = d && d.ok ? num(d.head_local, 0) : 0;
-      res.json({ number });
-    });
-
-    app.get("/head.txt", async (req:any,res:any)=>{
-      const host = req.get("host") || "127.0.0.1:4100";
-      const selfBase = `http://${host}`;
-      const d = await j(`${selfBase}/follower/status?peer=${encodeURIComponent(selfBase)}`);
-      const number = d && d.ok ? num(d.head_local, 0) : 0;
-      res.type("text/plain").send(String(number) + "\n");
-    });
-
-    console.log("[head-shim] ready");
-  }
-  attach();
-})();
-
-// ---- exporter alias: /metrics/drift5 mirrors /metrics/drift3 ---------------
-;(function driftExporterAlias(){
-  if (String(process.env.VOID_DRIFT_DISABLE||process.env.VOID_DISABLE_DRIFT||"0")==="1") { console.log("[driftExporterAlias] disabled by env"); return; }
-  let tries=0, attached=false;
-  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
-  async function attach(){
-    const app:any = getApp();
-    if (!app) { if (++tries < 60) return setTimeout(attach,500); return; }
-    if (attached) return; attached = true;
-
-    // If drift3 exists, create a simple alias at drift5 that uses same logic
-    // (Duplicate the small body to avoid grabbing internal handler references)
-    const num = (x:any, d=0)=>{ const n=Number(x); return Number.isFinite(n)? n : d; };
-    async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); } catch { return null; } }
-    const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
-
-    app.get("/metrics/drift5", async (req:any, res:any)=>{
-      const host = req.get("host") || "127.0.0.1:4101";
-      const selfBase = `http://${host}`;
-      const url = `${selfBase}/follower/status?peer=${encodeURIComponent(PEER)}`;
-
-      let drift=0, head_local=0, head_peer=0;
-      const d = await getJSON(url);
-      if (d && d.ok) {
-        drift      = num(d.drift, 0);
-        head_local = num(d.head_local, 0);
-        head_peer  = num(d.head_peer, 0);
-      }
-      res.type("text/plain").send(
-        "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
-        `void_follower_drift ${drift}\n`+
-        "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
-        `void_follower_head_local ${head_local}\n`+
-        "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
-        `void_follower_head_peer ${head_peer}\n`
-      );
-    });
-    console.log("[metrics/drift:alias] /metrics/drift5 ready (alias of drift3)");
-  }
-  attach();
-})();
-
-// ---- follower drift exporter v6 (direct heads: self vs real peer) ----------
-;(function driftExporterV6(){
-  if (String(process.env.VOID_DRIFT_DISABLE||process.env.VOID_DISABLE_DRIFT||"0")==="1") { console.log("[driftExporterV6] disabled by env"); return; }
-  let tries = 0, attached = false;
-  const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
-  const getApp = () => (globalThis as any).__void_http_app || (globalThis as any).app;
-  const wait = (ms:number)=>new Promise(r=>setTimeout(r,ms));
-
-  async function getHeadTxt(base:string): Promise<number|null> {
-    try {
-      const r = await fetch(`${base}/head.txt`, { headers: {'cache-control':'no-cache'} });
-      if (!r.ok) return null;
-      const t = (await r.text()).trim();
-      const n = Number(t);
-      return Number.isFinite(n) ? n : null;
-    } catch { return null; }
-  }
-
-  async function attach() {
-    while (!attached && tries < 1200) { // up to 10 minutes, 500ms steps
-      const app:any = getApp();
-      if (app && typeof app.get === "function") {
-        attached = true;
-
-        app.get("/metrics/drift6/health", (_req:any,res:any)=>res.type("text/plain").send("ok\n"));
-
-        // exporter: reads self and peer heads directly
-        app.get("/metrics/drift6", async (req:any, res:any)=>{
-          const host = req.get("host") || "127.0.0.1:4101";       // follower instance host:port
-          const selfBase = `http://${host}`;
-          const peerBase = PEER;
-
-          const [hSelf, hPeer] = await Promise.all([
-            getHeadTxt(selfBase),
-            getHeadTxt(peerBase),
-          ]);
-
-          const head_local = (hSelf ?? 0);
-          const head_peer  = (hPeer ?? head_local); // if peer fails, drift=0 so we don't flap
-
-          const drift = Math.max(0, head_peer - head_local);
-
-          res.type("text/plain").send(
-            "# HELP void_follower_drift latest head difference (peer - local)\n# TYPE void_follower_drift gauge\n"+
-            `void_follower_drift ${drift}\n`+
-            "# HELP void_follower_head_local local head number on follower\n# TYPE void_follower_head_local gauge\n"+
-            `void_follower_head_local ${head_local}\n`+
-            "# HELP void_follower_head_peer peer head number from follower POV\n# TYPE void_follower_head_peer gauge\n"+
-            `void_follower_head_peer ${head_peer}\n`
-          );
-        });
-
-        console.log("[metrics/drift:v6] ready (peer=%s)", PEER);
-        return;
-      }
-      tries++; await wait(500);
-    }
-    if (!attached) console.warn("[metrics/drift:v6] gave up waiting for app attach");
-  }
-  attach();
-})();
 
 // ---------------- txRoot header integration (pure-additive) ------------------
-(async function installTxRootHeaderIntegration(){
-  try {
-    // NOTE: SegStore is already imported at top of index.ts
-    const anySeg: any = SegStore as any;
-    const proto = anySeg?.prototype;
-    if (!proto || typeof proto.saveBlock !== "function") return;
+// [DISABLED installTxRootHeaderIntegration self-http block]
 
-    const origSave = proto.saveBlock;
-    const { txRootOf } = await import("./util/txroot.js");
-
-    // Global counters for ad-hoc Prom scrape
-    (globalThis as any).__void_txroot_set_total = (globalThis as any).__void_txroot_set_total || 0;
-    (globalThis as any).__void_txroot_empty_blocks_total = (globalThis as any).__void_txroot_empty_blocks_total || 0;
-    (globalThis as any).__void_txroot_errors_total = (globalThis as any).__void_txroot_errors_total || 0;
-
-    // Monkey-patch SegStore.saveBlock to set header.txRoot before persist
-    proto.saveBlock = async function(block: any){
-      try {
-        if (block && Array.isArray(block.txs)) {
-          if (block.txs.length > 0) {
-            const res = txRootOf(block.txs);
-            const root = res?.root || res; // helper returns {root, leaves}
-            block.header = block.header || {};
-            if (block.header.txRoot !== root) {
-              block.header.txRoot = root;
-              (globalThis as any).__void_txroot_set_total++;
-            }
-          } else {
-            // empty block persisted
-            (globalThis as any).__void_txroot_empty_blocks_total++;
-          }
-        }
-      } catch (e) {
-        (globalThis as any).__void_txroot_errors_total++;
-      }
-      return await origSave.call(this, block);
-    };
-
-    // Defer until app is mounted (keep the global app hook intact!)
-    function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-    let tries = 0;
-    (function attachRoutes(){
-      const app: any = getApp();
-      if (!app || typeof app.get !== "function") {
-        if (++tries < 60) return setTimeout(attachRoutes, 500);
-        return;
-      }
-
-      // GET /blocks/:n/header  -> returns only the header (including txRoot)
-      app.get("/blocks/:n/header", async (req: any, res: any) => {
-        const n = String(req.params.n);
-        try {
-          // Use our own HTTP shim endpoint to fetch persisted block JSON
-          const port = process.env.HTTP_PORT || "4100";
-          const resp = await fetch(`http://127.0.0.1:${port}/blocks/${n}/full2`);
-          if (!resp.ok) throw new Error(`upstream status ${resp.status}`);
-          const block = await resp.json();
-          res.json(block?.header || {});
-        } catch (e:any) {
-          res.status(500).json({ error: String(e?.message || e) });
-        }
-      });
-
-      // GET /blocks/:n/txroot/verify -> {number, expected, headerTxRoot, match}
-      app.get("/blocks/:n/txroot/verify", async (req: any, res: any) => {
-        const n = String(req.params.n);
-        try {
-          const port = process.env.HTTP_PORT || "4100";
-          const resp = await fetch(`http://127.0.0.1:${port}/blocks/${n}/full2`);
-          if (!resp.ok) throw new Error(`upstream status ${resp.status}`);
-          const block = await resp.json();
-
-          const { txRootOf } = await import("./util/txroot.js");
-          const expected = txRootOf(block?.txs || [])?.root ?? txRootOf(block?.txs || []);
-          const headerTxRoot = block?.header?.txRoot ?? null;
-          res.json({ number: Number(n), expected, headerTxRoot, match: expected && headerTxRoot ? expected === headerTxRoot : false });
-        } catch (e:any) {
-          res.status(500).json({ number: Number(n), error: String(e?.message || e) });
-        }
-      });
-
-      // Lightweight Prom scrape for txroot activity
-      app.get("/metrics/txroot", (_req: any, res: any) => {
-        const set = (globalThis as any).__void_txroot_set_total || 0;
-        const empty = (globalThis as any).__void_txroot_empty_blocks_total || 0;
-        const errs = (globalThis as any).__void_txroot_errors_total || 0;
-        res.type("text/plain").send(
-          [
-            "# HELP void_txroot_set_total blocks where header.txRoot was (re)set before persist",
-            "# TYPE void_txroot_set_total counter",
-            `void_txroot_set_total ${set}`,
-            "# HELP void_txroot_empty_blocks_total empty blocks observed at persist time",
-            "# TYPE void_txroot_empty_blocks_total counter",
-            `void_txroot_empty_blocks_total ${empty}`,
-            "# HELP void_txroot_errors_total errors thrown while computing txRoot during persist",
-            "# TYPE void_txroot_errors_total counter",
-            `void_txroot_errors_total ${errs}`,
-            ""
-          ].join("\n")
-        );
-      });
-    })();
-
-  } catch {}
-})();
 
 // --------------- txRoot normalization + verify v2 (pure-additive) ---------------
 ;(async function installTxRootNormalizationV2(){
@@ -8928,200 +7732,13 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---------------------- txRoot verifier v3 (JSON-safe) -----------------------
-;(function installTxRootVerifierV3(){
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function normRoot(v:any): string|null {
-    if (!v) return null;
-    if (typeof v === "string") return v;
-    if (typeof v === "object" && typeof v.root === "string") return v.root;
-    return String(v);
-  }
+// [DISABLED installTxRootVerifierV3 self-http block]
 
-  // counters
-  (globalThis as any).__void_txroot_v3_ok_total = (globalThis as any).__void_txroot_v3_ok_total || 0;
-  (globalThis as any).__void_txroot_v3_mismatch_total = (globalThis as any).__void_txroot_v3_mismatch_total || 0;
-  (globalThis as any).__void_txroot_v3_errors_total = (globalThis as any).__void_txroot_v3_errors_total || 0;
-
-  async function jget(path:string){
-    const port = process.env.HTTP_PORT || "4100";
-    const resp = await fetch(`http://127.0.0.1:${port}${path}`, { headers: { "accept":"application/json" }});
-    if (!resp.ok) throw new Error(`GET ${path} -> ${resp.status}`);
-    // Some of our dev routes return text/json; force JSON parse
-    const text = await resp.text();
-    try { return JSON.parse(text); } catch(e){ throw new Error(`non-JSON at ${path}: ${text.slice(0,120)}`); }
-  }
-
-  let tries = 0;
-  (function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") {
-      if (++tries < 60) return setTimeout(attach, 500);
-      return;
-    }
-
-    // GET /dev/txroot/verify/:n  -> always JSON
-    app.get("/dev/txroot/verify/:n", async (req:any, res:any) => {
-      const n = Number(req.params.n);
-      try {
-        const [{ header }, persisted] = await Promise.all([
-          jget(`/blocks/${n}/header`),           // { header: {... txRoot? ...} }
-          jget(`/dev/blocks/${n}/txs/persisted`) // { txs: [...] }
-        ]);
-
-        const { txRootOf } = await import("./util/txroot.js");
-        const txs = Array.isArray(persisted?.txs) ? persisted.txs : [];
-        const expected = normRoot(txRootOf(txs));
-        const headerTxRoot = normRoot(header?.txRoot ?? null);
-        const match = !!(expected && headerTxRoot && expected === headerTxRoot);
-
-        if (match) (globalThis as any).__void_txroot_v3_ok_total++;
-        else       (globalThis as any).__void_txroot_v3_mismatch_total++;
-
-        res.type("application/json").send(JSON.stringify({
-          number: n,
-          txCount: txs.length,
-          expected,
-          headerTxRoot,
-          match
-        }));
-      } catch (e:any) {
-        (globalThis as any).__void_txroot_v3_errors_total++;
-        res.status(500).type("application/json").send(JSON.stringify({
-          number: Number(req.params.n),
-          error: String(e?.message || e)
-        }));
-      }
-    });
-
-    // GET /metrics/txroot2  (keep name from earlier suggestion, but v3 counters)
-    app.get("/metrics/txroot2", (_req:any, res:any) => {
-      const ok  = (globalThis as any).__void_txroot_v3_ok_total || 0;
-      const mm  = (globalThis as any).__void_txroot_v3_mismatch_total || 0;
-      const err = (globalThis as any).__void_txroot_v3_errors_total || 0;
-      res.type("text/plain").send(
-        [
-          "# HELP void_txroot_v3_ok_total header.txRoot equals computed persisted txRoot",
-          "# TYPE void_txroot_v3_ok_total counter",
-          `void_txroot_v3_ok_total ${ok}`,
-          "# HELP void_txroot_v3_mismatch_total header.txRoot != computed persisted txRoot",
-          "# TYPE void_txroot_v3_mismatch_total counter",
-          `void_txroot_v3_mismatch_total ${mm}`,
-          "# HELP void_txroot_v3_errors_total errors while verifying txRoot",
-          "# TYPE void_txroot_v3_errors_total counter",
-          `void_txroot_v3_errors_total ${err}`,
-          ""
-        ].join("\n")
-      );
-    });
-  })();
-})();
 // ---------------------------------------------------------------------------
 
 // ===================== VOID diag + txroot v4 (collision-proof) =====================
-;(function voidTxRootV4(){
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
-  function normRoot(v:any): string|null {
-    if (!v) return null;
-    if (typeof v === "string") return v;
-    if (typeof v === "object" && typeof v.root === "string") return v.root;
-    try { return String(v); } catch { return null; }
-  }
+// [DISABLED voidTxRootV4 self-http block]
 
-  // counters (prom-friendly)
-  (globalThis as any).__void_txroot_v4_ok_total = (globalThis as any).__void_txroot_v4_ok_total || 0;
-  (globalThis as any).__void_txroot_v4_mismatch_total = (globalThis as any).__void_txroot_v4_mismatch_total || 0;
-  (globalThis as any).__void_txroot_v4_errors_total = (globalThis as any).__void_txroot_v4_errors_total || 0;
-
-  async function jget(path:string){
-    const port = process.env.HTTP_PORT || "4100";
-    const resp = await fetch(`http://127.0.0.1:${port}${path}`, { headers: { "accept":"application/json" }});
-    if (!resp.ok) throw new Error(`GET ${path} -> ${resp.status}`);
-    const text = await resp.text();
-    try { return JSON.parse(text); } catch(e){ throw new Error(`non-JSON at ${path}: ${text.slice(0,160)}`); }
-  }
-
-  let tries = 0;
-  (function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") {
-      if (++tries < 80) return setTimeout(attach, 250);
-      return;
-    }
-
-    // 0) Ping
-    app.get("/__void/ping", (_req:any, res:any) => res.type("application/json").send('{"ok":true,"who":"txroot-v4"}'));
-
-    // 1) Route lister (quick sanity of collisions)
-    try {
-      app.get("/__void/routes", (_req:any, res:any) => {
-        try {
-          const stack = (app._router && app._router.stack) ? app._router.stack : [];
-          const routes = stack
-            .filter((l:any) => l && l.route && l.route.path && l.route.methods)
-            .map((l:any) => ({ path: l.route.path, methods: Object.keys(l.route.methods) }));
-          res.type("application/json").send(JSON.stringify({ count: routes.length, routes }, null, 2));
-        } catch (e:any) {
-          res.status(500).type("application/json").send(JSON.stringify({ error: String(e?.message||e) }));
-        }
-      });
-    } catch {}
-
-    // 2) Collision-proof verifier (unique path)
-    app.get("/__void/txroot/v4/verify/:n", async (req:any, res:any) => {
-      const n = Number(req.params.n);
-      try {
-        const [{ header }, persisted] = await Promise.all([
-          jget(`/blocks/${n}/header`),           // -> { header: {..., txRoot?} (JSON)
-          jget(`/dev/blocks/${n}/txs/persisted`) // -> { txs: [...] } (JSON)
-        ]);
-
-        const { txRootOf } = await import("./util/txroot.js");
-        const txs = Array.isArray(persisted?.txs) ? persisted.txs : [];
-        const expected = normRoot(txRootOf(txs));
-        const headerTxRoot = normRoot(header?.txRoot ?? null);
-        const match = !!(expected && headerTxRoot && expected === headerTxRoot);
-
-        if (match) (globalThis as any).__void_txroot_v4_ok_total++;
-        else       (globalThis as any).__void_txroot_v4_mismatch_total++;
-
-        res.type("application/json").send(JSON.stringify({
-          number: n,
-          txCount: txs.length,
-          expected,
-          headerTxRoot,
-          match
-        }));
-      } catch (e:any) {
-        (globalThis as any).__void_txroot_v4_errors_total++;
-        res.status(500).type("application/json").send(JSON.stringify({
-          number: Number(req.params.n),
-          error: String(e?.message || e)
-        }));
-      }
-    });
-
-    // 3) Metrics (text/plain, Prom-friendly)
-    app.get("/__void/metrics/txroot4", (_req:any, res:any) => {
-      const ok  = (globalThis as any).__void_txroot_v4_ok_total || 0;
-      const mm  = (globalThis as any).__void_txroot_v4_mismatch_total || 0;
-      const err = (globalThis as any).__void_txroot_v4_errors_total || 0;
-      res.type("text/plain").send(
-        [
-          "# HELP void_txroot_v4_ok_total header.txRoot equals computed persisted txRoot",
-          "# TYPE void_txroot_v4_ok_total counter",
-          `void_txroot_v4_ok_total ${ok}`,
-          "# HELP void_txroot_v4_mismatch_total header.txRoot != computed persisted txRoot",
-          "# TYPE void_txroot_v4_mismatch_total counter",
-          `void_txroot_v4_mismatch_total ${mm}`,
-          "# HELP void_txroot_v4_errors_total errors while verifying txRoot",
-          "# TYPE void_txroot_v4_errors_total counter",
-          `void_txroot_v4_errors_total ${err}`,
-          ""
-        ].join("\n")
-      );
-    });
-  })();
-})();
 // =============================================================================
 
 // ------------------------------ __void diag + txroot v4 (additive) ------------------------------
@@ -9208,394 +7825,24 @@ __void_txroot4_up 0
 })();
 
 // ------------------------------ __void txroot v4 verifier (self-contained) ------------------------------
-(function __void_txroot_v4_verify2() {
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+// [DISABLED txroot v4 verify2 block]
 
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") {
-      if (++tries < 120) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    const LOCAL = `http://${process.env.HTTP_HOST || '127.0.0.1'}:${process.env.HTTP_PORT || '4100'}`;
-    const C = (globalThis as any).__void_txroot_v4 ||= { ok:0, mismatch:0, errors:0 };
-
-    // GET /__void/txroot/v4/verify2/:n   (JSON)
-    app.get("/__void/txroot/v4/verify2/:n", async (req:any, res:any) => {
-      const n = String(req.params.n ?? "").trim();
-      if (!/^\d+$/.test(n)) return res.status(400).json({ ok:false, error:"bad block number" });
-      try {
-        // 1) Compute persisted root using the existing dev endpoint
-        const rComp = await fetch(`${LOCAL}/dev/txroot/${n}`);
-        if (!rComp.ok) {
-          C.errors++; return res.status(rComp.status).json({ ok:false, number:+n, error:`compute failed ${rComp.status}` });
-        }
-        const comp = await rComp.json(); // { number, root, leaves? }
-        const computedRoot = comp.root || comp.txRoot || null;
-
-        // 2) Read header.txRoot
-        const rHdr = await fetch(`${LOCAL}/blocks/${n}/header`);
-        if (!rHdr.ok) {
-          C.errors++; return res.status(rHdr.status).json({ ok:false, number:+n, error:`header failed ${rHdr.status}` });
-        }
-        const hdr = await rHdr.json();
-        const headerRoot = (hdr && (hdr.txRoot || (hdr.header && hdr.header.txRoot))) || null;
-
-        const match = !!computedRoot && !!headerRoot && (String(computedRoot).toLowerCase() === String(headerRoot).toLowerCase());
-        if (match) C.ok++; else C.mismatch++;
-
-        return res.json({
-          ok:true, number:+n,
-          headerTxRoot: headerRoot || null,
-          computedTxRoot: computedRoot || null,
-          match
-        });
-      } catch (e:any) {
-        C.errors++;
-        return res.status(500).json({ ok:false, number:+n, error:String(e) });
-      }
-    });
-
-    // GET /__void/metrics/txroot4/quick  (text/plain one-liners for quick greps)
-    app.get("/__void/metrics/txroot4/quick", (req:any, res:any) => {
-      const C = (globalThis as any).__void_txroot_v4 || { ok:0, mismatch:0, errors:0 };
-      res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-      res.send(
-`# quick counters (local-only)
-void_txroot_v4_ok_total ${C.ok}
-void_txroot_v4_mismatch_total ${C.mismatch}
-void_txroot_v4_errors_total ${C.errors}
-`);
-    });
-  }
-
-  attach();
-})();
 
 // ------------------------------ __void txroot v4 verify2 RANGE + metrics ------------------------------
-(function __void_txroot_v4_verify2_range_and_metrics() {
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
+// [DISABLED txroot v4 verify2 range block]
 
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") {
-      if (++tries < 120) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    const LOCAL = `http://${process.env.HTTP_HOST || '127.0.0.1'}:${process.env.HTTP_PORT || '4100'}`;
-    const C = (globalThis as any).__void_txroot_v4 ||= { ok:0, mismatch:0, errors:0 };
-
-    async function verifyOne(n:number){
-      try {
-        const rComp = await fetch(`${LOCAL}/dev/txroot/${n}`);
-        if (!rComp.ok) { C.errors++; return { ok:false, number:n, error:`compute ${rComp.status}` }; }
-        const comp = await rComp.json();
-        const computedRoot = comp.root || comp.txRoot || null;
-
-        const rHdr = await fetch(`${LOCAL}/blocks/${n}/header`);
-        if (!rHdr.ok) { C.errors++; return { ok:false, number:n, error:`header ${rHdr.status}` }; }
-        const hdr = await rHdr.json();
-        const headerRoot = (hdr && (hdr.txRoot || (hdr.header && hdr.header.txRoot))) || null;
-
-        const match = !!computedRoot && !!headerRoot && (String(computedRoot).toLowerCase() === String(headerRoot).toLowerCase());
-        if (match) C.ok++; else C.mismatch++;
-        return { ok:true, number:n, headerTxRoot: headerRoot || null, computedTxRoot: computedRoot || null, match };
-      } catch (e:any) {
-        C.errors++;
-        return { ok:false, number:n, error:String(e) };
-      }
-    }
-
-    // JSON: /__void/txroot/v4/verify2/range?from=N&to=M
-    app.get("/__void/txroot/v4/verify2/range", async (req:any, res:any) => {
-      const from = Number(req.query.from), to = Number(req.query.to);
-      if (!Number.isFinite(from) || !Number.isFinite(to) || from<0 || to<from || (to-from)>1000) {
-        return res.status(400).json({ ok:false, error:"bad range (0<=from<=to, max span=1000)" });
-      }
-      const results:any[] = [];
-      for (let n=from; n<=to; n++) results.push(await verifyOne(n));
-      const summary = {
-        ok: results.filter(r=>r.ok && r.match).length,
-        mismatch: results.filter(r=>r.ok && !r.match).length,
-        errors: results.filter(r=>!r.ok).length,
-        total: results.length
-      };
-      res.json({ ok:true, from, to, summary, results });
-    });
-
-    // Prometheus text metrics: /__void/metrics/txroot4
-    app.get("/__void/metrics/txroot4", (req:any, res:any) => {
-      const X = (globalThis as any).__void_txroot_v4 || { ok:0, mismatch:0, errors:0 };
-      res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-      res.send(
-`# HELP void_txroot_v4_ok_total header.txRoot equals computed persisted txRoot
-# TYPE void_txroot_v4_ok_total counter
-void_txroot_v4_ok_total ${X.ok}
-# HELP void_txroot_v4_mismatch_total header.txRoot != computed persisted txRoot
-# TYPE void_txroot_v4_mismatch_total counter
-void_txroot_v4_mismatch_total ${X.mismatch}
-# HELP void_txroot_v4_errors_total errors while verifying txRoot
-# TYPE void_txroot_v4_errors_total counter
-void_txroot_v4_errors_total ${X.errors}
-`);
-    });
-  }
-
-  attach();
-})();
 
 // ------------------------------ __void txroot v4 counters debug (additive) ------------------------------
-(function __void_txroot_v4_counters_debug(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  function getC(){ return (globalThis as any).__void_txroot_v4 ||= { ok:0, mismatch:0, errors:0 }; }
+// [DISABLED txroot v4 counters debug block]
 
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
-    if (attached) return; attached = true;
-
-    // JSON dump of in-proc counters
-    app.get("/__void/txroot/v4/counters.json", (req:any, res:any) => {
-      const C = getC();
-      res.json({ ok:true, counters: { ok:C.ok, mismatch:C.mismatch, errors:C.errors }, pid:process.pid, now:Date.now() });
-    });
-
-    // Reset counters (manual)
-    app.post("/__void/txroot/v4/counters/reset", (req:any, res:any) => {
-      const C = getC(); C.ok=0; C.mismatch=0; C.errors=0;
-      res.json({ ok:true, reset:true, counters:C, pid:process.pid, now:Date.now() });
-    });
-  }
-  attach();
-})();
 
 // ------------------------------ __void txroot v4 verify3 + metrics bridge (additive) ------------------------------
-(function __void_txroot_v4_verify3(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  function getC(){ return (globalThis as any).__void_txroot_v4 ||= { ok:0, mismatch:0, errors:0, last:{} as any }; }
-  function asHex(x:any){ 
-    if (!x) return null;
-    if (typeof x === "string") return x;
-    if (x.type === "Buffer" && Array.isArray(x.data)) return Buffer.from(x.data).toString("hex");
-    if (x instanceof Uint8Array) return Buffer.from(x).toString("hex");
-    if (typeof x === "object" && x.hex) return String(x.hex);
-    return String(x);
-  }
+// [DISABLED txroot v4 verify3 block]
 
-  async function verifyOnce(n:number, base:string){
-    const C = getC();
-    try {
-      const rComp = await fetch(`${base}/dev/txroot/${n}`);
-      if (!rComp.ok) { C.errors++; return { ok:false, number:n, error:`compute ${rComp.status}` }; }
-      const comp = await rComp.json();
-      const computed = comp.root || comp.txRoot || null;
-
-      const rHdr = await fetch(`${base}/blocks/${n}/header`);
-      if (!rHdr.ok) { C.errors++; return { ok:false, number:n, error:`header ${rHdr.status}` }; }
-      const hdr = await rHdr.json();
-      const headerTxRoot = hdr && (hdr.txRoot ?? hdr.header?.txRoot ?? null);
-
-      const computedHex = asHex(computed);
-      const headerHex   = asHex(headerTxRoot);
-
-      const match = (computedHex && headerHex && computedHex.toLowerCase() === headerHex.toLowerCase()) || false;
-      if (match) C.ok++; else C.mismatch++;
-      const out = { ok:true, number:n, headerTxRoot: headerHex, computedTxRoot: computedHex, match };
-      C.last = out;
-      return out;
-    } catch (e:any) {
-      getC().errors++;
-      return { ok:false, number:n, error:String(e) };
-    }
-  }
-
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") {
-      if (++tries < 120) return setTimeout(attach, 500);
-      return;
-    }
-    if (attached) return; attached = true;
-
-    const LOCAL = `http://${process.env.HTTP_HOST || '127.0.0.1'}:${process.env.HTTP_PORT || '4100'}`;
-
-    // Single verify (verify3) — independent of earlier verify2
-    app.get("/__void/txroot/v4/verify3/:n", async (req:any, res:any) => {
-      const nStr = String(req.params.n||"");
-      if (!/^\d+$/.test(nStr)) return res.status(400).json({ ok:false, error:"bad number" });
-      const r = await verifyOnce(+nStr, LOCAL);
-      res.status(r.ok?200:500).json(r);
-    });
-
-    // Range verify (inclusive): /__void/txroot/v4/verify3/range?from&to
-    app.get("/__void/txroot/v4/verify3/range", async (req:any, res:any) => {
-      const from = Number(req.query.from);
-      const to   = Number(req.query.to);
-      if (!Number.isFinite(from) || !Number.isFinite(to) || from<0 || to<from || (to-from)>2000) {
-        return res.status(400).json({ ok:false, error:"bad range; require 0<=from<=to and span<=2000" });
-      }
-      const results:any[] = [];
-      let ok=0, mismatch=0, errors=0;
-      for (let n=from; n<=to; n++){
-        const r = await verifyOnce(n, LOCAL);
-        results.push(r);
-        if (!r.ok) errors++; else if ((r as any).match) ok++; else mismatch++;
-      }
-      res.json({ ok:true, from, to, summary:{count: results.length, ok, mismatch, errors}, results });
-    });
-
-    // Header inspect: /__void/txroot/v4/header/:n (shows txRoot normalized)
-    app.get("/__void/txroot/v4/header/:n", async (req:any, res:any) => {
-      const nStr = String(req.params.n||"");
-      if (!/^\d+$/.test(nStr)) return res.status(400).json({ ok:false, error:"bad number" });
-      const rHdr = await fetch(`${LOCAL}/blocks/${nStr}/header`);
-      if (!rHdr.ok) return res.status(rHdr.status).json({ ok:false, error:`header ${rHdr.status}` });
-      const hdr = await rHdr.json();
-      const raw = hdr && (hdr.txRoot ?? hdr.header?.txRoot ?? null);
-      res.json({ ok:true, number:+nStr, txRoot_raw: raw, txRoot_hex: asHex(raw) });
-    });
-
-    // Prometheus bridge (text) — mirrors in-proc counters
-    app.get("/__void/metrics/txroot4/bridge", (req:any, res:any) => {
-      const C = getC();
-      res.setHeader("Content-Type","text/plain; version=0.0.4");
-      res.end([
-        "# HELP void_txroot_v4_ok_total header.txRoot equals computed persisted txRoot",
-        "# TYPE void_txroot_v4_ok_total counter",
-        `void_txroot_v4_ok_total ${C.ok}`,
-        "# HELP void_txroot_v4_mismatch_total header.txRoot != computed persisted txRoot",
-        "# TYPE void_txroot_v4_mismatch_total counter",
-        `void_txroot_v4_mismatch_total ${C.mismatch}`,
-        "# HELP void_txroot_v4_errors_total errors while verifying txRoot",
-        "# TYPE void_txroot_v4_errors_total counter",
-        `void_txroot_v4_errors_total ${C.errors}`,
-        ""
-      ].join("\n"));
-    });
-
-    // JSON mirror for quick checks
-    app.get("/__void/metrics/txroot4.json", (req:any, res:any) => {
-      const C = getC();
-      res.json({ ok:true, counters:{ ok:C.ok, mismatch:C.mismatch, errors:C.errors }, last:C.last||null, pid:process.pid, now:Date.now() });
-    });
-  }
-
-  attach();
-})();
 
 // ------------------------------ __void txroot v4 verify3: range hardening (additive) ------------------------------
-(function __void_txroot_v4_verify3_range_hardening(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  function toInt(x:any){ const n = Number(x); return Number.isFinite(n) ? n : NaN; }
+// [DISABLED txroot v4 verify3 range hardening self-http block]
 
-  async function latestNumber(base:string){
-    try {
-      // Prefer fetch-free compat if present:
-      let r = await fetch(`${base}/blocks/latest/number2.json`);
-      if (r.ok) { const j = await r.json(); return Number(j?.number ?? j); }
-      // Fallback:
-      r = await fetch(`${base}/blocks/latest/number.json`);
-      if (r.ok) { const j = await r.json(); return Number(j?.number ?? j); }
-      // Last resort: /head.txt
-      const r2 = await fetch(`${base}/head.txt`);
-      if (r2.ok) return Number(await r2.text());
-    } catch {}
-    return NaN;
-  }
-
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function") { if (++tries < 120) return setTimeout(attach, 500); return; }
-    if (attached) return; attached = true;
-
-    const BASE = `http://${process.env.HTTP_HOST || '127.0.0.1'}:${process.env.HTTP_PORT || '4100'}`;
-    // Import the verifyOnce from the earlier verify3 closure, if available:
-    const verifyOnce = (globalThis as any).__void_txroot_v4_verify3_verifyOnce;
-
-    // If not exported yet, synthesize a local minimal one by calling the public single endpoint:
-    async function verifyOnceShim(n:number){
-      const r = await fetch(`${BASE}/__void/txroot/v4/verify3/${n}`);
-      const j = await r.json().catch(()=>({ok:false,error:`bad json ${r.status}`}));
-      return j;
-    }
-    const vOnce = typeof verifyOnce === "function" ? verifyOnce : verifyOnceShim;
-
-    function parseRange(req:any){
-      // Accept many names: from/to, start/end, a/b
-      const q = req.query||{};
-      const candFrom = [q.from, q.start, q.a];
-      const candTo   = [q.to,   q.end,   q.b];
-      const F = toInt(candFrom.find((x:any)=>x!==undefined));
-      const T = toInt(candTo.find((x:any)=>x!==undefined));
-      return { F, T };
-    }
-
-    // Upgrade GET /verify3/range to auto-fill and be lenient
-    app.get("/__void/txroot/v4/verify3/range", async (req:any, res:any) => {
-      let { F, T } = parseRange(req);
-
-      if (!Number.isFinite(F) || !Number.isFinite(T)) {
-        // Auto-fill if missing: last 16 blocks ending at head
-        const head = await latestNumber(BASE);
-        if (!Number.isFinite(F)) F = Math.max(0, head - 15);
-        if (!Number.isFinite(T)) T = head;
-      }
-
-      if (!Number.isFinite(F) || !Number.isFinite(T)) {
-        return res.status(400).json({ ok:false, error:"cannot determine head; provide ?from&to" });
-      }
-      if (F < 0 || T < F) return res.status(400).json({ ok:false, error:"bad range: require 0<=from<=to" });
-      if ((T - F) > 5000) return res.status(400).json({ ok:false, error:"range too large; max span=5000" });
-
-      let ok=0, mismatch=0, errors=0; const results:any[]=[];
-      for (let n=F; n<=T; n++){
-        const r = await vOnce(n);
-        results.push(r);
-        if (!r.ok) errors++; else if ((r as any).match) ok++; else mismatch++;
-      }
-      res.json({ ok:true, from:F, to:T, summary:{ count: results.length, ok, mismatch, errors }, results });
-    });
-
-    // POST variant with JSON body {from, to}
-    app.post("/__void/txroot/v4/verify3/range2", express.json({limit:"64kb"}), async (req:any, res:any) => {
-      const body = req.body || {};
-      let F = toInt(body.from), T = toInt(body.to);
-      if (!Number.isFinite(F) || !Number.isFinite(T)) {
-        const head = await latestNumber(BASE);
-        if (!Number.isFinite(F)) F = Math.max(0, head - 15);
-        if (!Number.isFinite(T)) T = head;
-      }
-      if (!Number.isFinite(F) || !Number.isFinite(T)) return res.status(400).json({ ok:false, error:"need from/to" });
-      if (F<0 || T<F) return res.status(400).json({ ok:false, error:"bad range" });
-      if ((T-F)>5000) return res.status(400).json({ ok:false, error:"range too large" });
-
-      let ok=0, mismatch=0, errors=0; const results:any[]=[];
-      for (let n=F; n<=T; n++){
-        const r = await vOnce(n);
-        results.push(r);
-        if (!r.ok) errors++; else if ((r as any).match) ok++; else mismatch++;
-      }
-      res.json({ ok:true, from:F, to:T, summary:{ count: results.length, ok, mismatch, errors }, results });
-    });
-
-    // Param echo to debug parser quickly
-    app.get("/__void/txroot/v4/verify3/range/echo", async (req:any, res:any) => {
-      const { F, T } = parseRange(req);
-      res.json({ ok:true, parsed:{ from: Number.isFinite(F)?F:null, to: Number.isFinite(T)?T:null }, raw:req.query||{} });
-    });
-  }
-
-  attach();
-})();
 
 // ------------------------------ txroot v4 verify3: unshadowed aliases + nicer logs ------------------------------
 (function __void_txroot_v4_verify3_aliases_and_logs(){
@@ -9905,68 +8152,8 @@ void_txroot_v4_errors_total ${X.errors}
 })();
 
 // ------------------------------ txroot v4: agg -> metrics bridge ------------------------------
-(function __void_txroot_v4_agg_metrics_bridge(){
-  let tries = 0, attached = false;
-  function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
-  const state = { last:{ from:null as any, to:null as any, count:0, ok:0, mismatch:0, errors:0, ts:0 } };
-  async function attach(){
-    const app:any = getApp();
-    if (!app || typeof app.get !== "function"){ if (++tries<120) return setTimeout(attach,500); return; }
-    if (attached) return; attached = true;
+// [DISABLED txroot v4 agg metrics bridge self-http block]
 
-    // Wrap the existing /agg2 handler results by intercepting res.json (non-invasive)
-    app.post("/__void/txroot/v4/agg2/metrics", async (req:any, res:any) => {
-      try{
-        const base = `http://127.0.0.1:${process.env.HTTP_PORT||"4100"}`;
-        const body = req.body||{};
-        const from = Number(body.from), to = Number(body.to);
-        const r = await fetch(`${base}/__void/txroot/v4/agg2`, {
-          method:"POST", headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify({from, to})
-        });
-        const j = await r.json();
-        const sum = j?.summary||{};
-        state.last = {
-          from: j?.from ?? null, to: j?.to ?? null,
-          count: Number(sum.count||0), ok: Number(sum.ok||0),
-          mismatch: Number(sum.mismatch||0), errors: Number(sum.errors||0),
-          ts: Date.now()
-        };
-        res.json(j);
-      }catch(e:any){ res.status(500).json({ok:false, error:String(e?.message||e)}); }
-    });
-
-    // GET /__void/metrics/txroot4/agg  (Prometheus text)
-    app.get("/__void/metrics/txroot4/agg", (_req:any, res:any) => {
-      res.type("text/plain; version=0.0.4");
-      const s = state.last;
-      res.send([
-        "# HELP void_txroot_v4_agg_count Last aggregation range size",
-        "# TYPE void_txroot_v4_agg_count gauge",
-        `void_txroot_v4_agg_count ${s.count}`,
-        "# HELP void_txroot_v4_agg_ok Last aggregation ok count",
-        "# TYPE void_txroot_v4_agg_ok gauge",
-        `void_txroot_v4_agg_ok ${s.ok}`,
-        "# HELP void_txroot_v4_agg_mismatch Last aggregation mismatch count",
-        "# TYPE void_txroot_v4_agg_mismatch gauge",
-        `void_txroot_v4_agg_mismatch ${s.mismatch}`,
-        "# HELP void_txroot_v4_agg_errors Last aggregation error count",
-        "# TYPE void_txroot_v4_agg_errors gauge",
-        `void_txroot_v4_agg_errors ${s.errors}`,
-        "# HELP void_txroot_v4_agg_from Last aggregation start block",
-        "# TYPE void_txroot_v4_agg_from gauge",
-        `void_txroot_v4_agg_from ${Number(s.from||0)}`,
-        "# HELP void_txroot_v4_agg_to Last aggregation end block",
-        "# TYPE void_txroot_v4_agg_to gauge",
-        `void_txroot_v4_agg_to ${Number(s.to||0)}`,
-        "# HELP void_txroot_v4_agg_timestamp_ms Timestamp of last aggregation (ms)",
-        "# TYPE void_txroot_v4_agg_timestamp_ms gauge",
-        `void_txroot_v4_agg_timestamp_ms ${s.ts}`
-      ].join("\n"));
-    });
-  }
-  attach();
-})();
 
 // ---------------- txroot v4: background scheduler + gauges (additive) -------------------
 (function txrootV4Scheduler(){
@@ -18463,317 +16650,14 @@ void_wal_wrapped ${wrapped?1:0}
   })();
 })();
 // -------- WAL v7.8 (Vector-7): persistent SegStore.prototype.saveBlock wrapper --------
-(function walV78ProtoLoop(){
-  const G:any = globalThis as any;
-  const FLAG = "__wal_v78_proto_wrapped";
-  let overwrites = 0;
+// [DISABLED walV78 proto rewrap loop]
 
-  async function getCtx(){
-    const seg = await import("./chain/seg_store.js");
-    const blk = await import("./chain/block.js");
-    const __wal_any:any = await import("./wal/wal_v1.js");
-    const WALv1:any = __wal_any?.WALv1 ?? __wal_any?.default?.WALv1;
-const dir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a";
-    const wal = (G.__void_wal_v1 ||= new WALv1(dir));
-    wal.__synthetic_seq ||= 0;
-    return { SegStore: seg.SegStore, blockHash: blk.blockHash, wal };
-  }
-
-  function mkWrapped(orig:any, wal:any, blockHash:any){
-    if (!orig || typeof orig!=="function") return orig;
-    if ((orig as any)[FLAG]) return orig;
-    const wrapped = async function saveBlock_WALv78(this:any, block:any){
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { wal.__synthetic_seq=(wal.__synthetic_seq||0)+1; n=wal.__synthetic_seq; }
-      let hash = block?.hash;
-      if (!hash && block?.header) { try { hash = await blockHash(block.header); } catch {} }
-      const txRoot = block?.header?.txRoot ?? block?.txRoot ?? null;
-
-      try { wal.append(n, txRoot, hash); } catch {}
-      try { const out = await orig.apply(this, arguments as any); try { wal.commit(n); } catch {}; return out; }
-      catch(e){ try { wal.commit(n); } catch {}; throw e; }
-    };
-    (wrapped as any)[FLAG] = true;
-    return wrapped;
-  }
-
-  async function rewrapProto(){
-    try{
-      const { SegStore, blockHash, wal } = await getCtx();
-      const cur = SegStore.prototype.saveBlock;
-      const wrapped = mkWrapped(cur, wal, blockHash);
-      if (wrapped !== cur){
-        SegStore.prototype.saveBlock = wrapped;
-        overwrites++;
-      }
-    }catch{}
-  }
-
-  // Prom exporter & status (piggyback on existing path names you’re scraping)
-  function mountExporters(){
-    const app = G.__void_http_app || (G as any).app;
-    if (!app || typeof app.get!=="function") return;
-    if (app.__void_wal_v78_routes) return; app.__void_wal_v78_routes = true;
-
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      const wal = G.__void_wal_v1;
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      try { out += wal?.metricsProm?.() ?? ""; } catch {}
-      const proto = (G.__void_seg_proto_cached ||= require("./dist/chain/seg_store.js")?.SegStore?.prototype ?? null);
-      const isWrapped = !!proto?.saveBlock && !!proto.saveBlock[FLAG];
-      out += `# TYPE void_wal_synthetic_seq gauge
-void_wal_synthetic_seq ${wal?.__synthetic_seq||0}
-# TYPE void_wal_overwrites_total counter
-void_wal_overwrites_total ${overwrites}
-# TYPE void_wal_wrapped gauge
-void_wal_wrapped ${isWrapped?1:0}
-`;
-      res.type("text/plain").send(out);
-    });
-
-    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
-      const wal = G.__void_wal_v1;
-      const proto = (G.__void_seg_proto_cached ||= require("./dist/chain/seg_store.js")?.SegStore?.prototype ?? null);
-      const isWrapped = !!proto?.saveBlock && !!proto.saveBlock[FLAG];
-      res.json({ wrapped: isWrapped, overwrites, synthetic_seq: wal?.__synthetic_seq||0 });
-    });
-  }
-
-  // Keep re-wrapping forever; anything that stomps the proto gets re-wrapped next tick.
-  (function loop(){
-    rewrapProto().finally(()=>{ setTimeout(loop, 400); });
-    // exporters can mount late; try each tick
-    try { mountExporters(); } catch {}
-  })();
-})();
 // -------- WAL v80: self-contained prototype wrapper (no imports) --------
-(function walV80(){
-  const G:any = globalThis as any;
-  const FLAG = "__wal_v80_proto_wrapped";
+// [DISABLED walV80 proto rewrap loop]
 
-  // in-mem counters + status
-  const S = (G.__void_wal_v80 ||= {
-    appends: 0, commits: 0, replays: 0,
-    inflight: 0, lastUncommitted: -1,
-    synthetic_seq: 0, overwrites: 0
-  });
-
-  // best-effort: find SegStore.prototype without importing TS modules
-  function getSegProto(){
-    try { return require("./dist/chain/seg_store.js")?.SegStore?.prototype || null; } catch {}
-    try { return (G.__void_seg_proto_cached ||= require("./dist/chain/seg_store.js")?.SegStore?.prototype || null); } catch {}
-    return null;
-  }
-
-  function mkWrapped(orig:any){
-    if (!orig || typeof orig!=="function") return orig;
-    if ((orig as any)[FLAG]) return orig;
-    const wrapped = async function saveBlock_WALv80(this:any, block:any){
-      // derive a safe number; use synthetic if negative/undefined
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { n = ++S.synthetic_seq; }
-      S.inflight++; S.lastUncommitted = n;
-      try { S.appends++; } catch {}
-      try {
-        const out = await orig.apply(this, arguments as any);
-        try { S.commits++; S.inflight--; S.lastUncommitted = -1; } catch {}
-        return out;
-      } catch (e){
-        try { S.commits++; S.inflight--; S.lastUncommitted = -1; } catch {}
-        throw e;
-      }
-    };
-    (wrapped as any)[FLAG] = true;
-    return wrapped;
-  }
-
-  function rewrapProto(){
-    try{
-      const proto = getSegProto();
-      if (!proto || !proto.saveBlock) return;
-      const cur = proto.saveBlock;
-      const wrapped = mkWrapped(cur);
-      if (wrapped !== cur){
-        proto.saveBlock = wrapped;
-        S.overwrites++;
-      }
-    }catch{}
-  }
-
-  // exporters (reuse existing scrape path you added)
-  function mountExporters(){
-    const app = G.__void_http_app || (G as any).app;
-    if (!app || typeof app.get!=="function") return;
-    if (app.__void_wal_v80_routes) return; app.__void_wal_v80_routes = true;
-
-    app.get("/__void/metrics/wal.v3.prom", (_:any,res:any)=>{
-      const proto = getSegProto();
-      const wrapped = !!proto?.saveBlock && !!(proto.saveBlock as any)[FLAG];
-      let out = "# HELP void_wal_exporter_v3 1 if v3 exporter active\n# TYPE void_wal_exporter_v3 gauge\nvoid_wal_exporter_v3 1\n";
-      out += `void_wal_appends_total ${S.appends}\n`;
-      out += `void_wal_commits_total ${S.commits}\n`;
-      out += `void_wal_replays_total ${S.replays}\n`;
-      out += `void_wal_inflight_gauge ${S.inflight}\n`;
-      out += `void_wal_last_uncommitted_number ${S.lastUncommitted}\n`;
-      out += `# TYPE void_wal_synthetic_seq gauge\nvoid_wal_synthetic_seq ${S.synthetic_seq}\n`;
-      out += `# TYPE void_wal_overwrites_total counter\nvoid_wal_overwrites_total ${S.overwrites}\n`;
-      out += `# TYPE void_wal_wrapped gauge\nvoid_wal_wrapped ${wrapped?1:0}\n`;
-      res.type("text/plain").send(out);
-    });
-
-    app.get("/__void/metrics/wal.status.json", (_:any,res:any)=>{
-      const proto = getSegProto();
-      const wrapped = !!proto?.saveBlock && !!(proto.saveBlock as any)[FLAG];
-      res.json({ wrapped, overwrites: S.overwrites, synthetic_seq: S.synthetic_seq });
-    });
-  }
-
-  // assert forever
-  (function tick(){
-    try { rewrapProto(); } catch {}
-    try { mountExporters(); } catch {}
-    setTimeout(tick, 300);
-  })();
-})();
 // -------- WAL v81: robust proto resolver + defineProperty overwrite --------
-(function walV81(){
-  const G:any = globalThis as any;
-  const FLAG80 = "__wal_v80_proto_wrapped";
-  const FLAG81 = "__wal_v81_proto_wrapped";
+// [DISABLED walV81 proto rewrap loop]
 
-  // Helper: find SegStore.prototype from LIVE app first, else dist (absolute)
-  function getSegProto(){
-    try {
-      const app = G.__void_http_app || (G as any).app;
-      const st = app?.locals?.store;
-      if (st) return Object.getPrototypeOf(st);
-    } catch {}
-    // Absolute fallbacks (no relative-from-src nonsense)
-    const path = require("node:path");
-    const abs1 = path.resolve(process.cwd(), "dist/chain/seg_store.js");
-    try { return require(abs1)?.SegStore?.prototype || null; } catch {}
-    // One more: parent of src when running from TS loader
-    try {
-      const here = __dirname || process.cwd();
-      const abs2 = path.resolve(here, "..", "dist/chain/seg_store.js");
-      return require(abs2)?.SegStore?.prototype || null;
-    } catch {}
-    return null;
-  }
-
-  function wrap(orig:any){
-    if (!orig || typeof orig!=="function") return orig;
-    if ((orig as any)[FLAG80] || (orig as any)[FLAG81]) return orig;
-
-    const S = (G.__void_wal_v80 ||= { appends:0, commits:0, replays:0, inflight:0, lastUncommitted:-1, synthetic_seq:0, overwrites:0 });
-
-    async function wrapped(this:any, block:any){
-      // mirror v80 counters so exporter starts moving
-      let n = Number(block?.number ?? block?.header?.number ?? -1);
-      if (!(Number.isFinite(n) && n>=0)) { n = ++S.synthetic_seq; }
-      S.inflight++; S.lastUncommitted = n; S.appends++;
-      try {
-        const out = await orig.apply(this, arguments as any);
-        S.commits++; S.inflight--; S.lastUncommitted = -1;
-        return out;
-      } catch (e){
-        S.commits++; S.inflight--; S.lastUncommitted = -1;
-        throw e;
-      }
-    }
-    (wrapped as any)[FLAG80] = true;  // so v80 exporter reports wrapped=1
-    (wrapped as any)[FLAG81] = true;
-    return wrapped;
-  }
-
-  function rewrap(){
-    try{
-      const proto = getSegProto();
-      if (!proto || !proto.saveBlock) return;
-
-      const cur = proto.saveBlock;
-      const next = wrap(cur);
-      if (next !== cur){
-        const d = Object.getOwnPropertyDescriptor(proto, "saveBlock");
-        // force replace even if writable:false (as long as configurable:true)
-        try {
-          Object.defineProperty(proto, "saveBlock", {
-            value: next,
-            writable: true,
-            enumerable: d ? d.enumerable : false,
-            configurable: d ? d.configurable : true,
-          });
-        } catch {
-          // last-ditch attempt (if descriptor was plain writable)
-          try { (proto as any).saveBlock = next; } catch {}
-        }
-        const S = (G.__void_wal_v80 ||= { appends:0, commits:0, replays:0, inflight:0, lastUncommitted:-1, synthetic_seq:0, overwrites:0 });
-        S.overwrites++;
-      }
-    } catch {}
-  }
-
-  // assert frequently; do NOT mount routes (v80 already did)
-  (function tick(){
-    // [cpu.guard.wal_rewrap_tick_safe_src_v3] disable churn in SAFE/SAFEBOOT
-    if (process.env.VOID_HTTP_SAFE==="1" || process.env.VOID_SAFEBOOT==="1") return;
-    rewrap();
-    setTimeout(tick, 250);
-  })();
-// -------- WAL debug v1: print where saveBlock actually comes from ----------
-(function walDebugV1(){
-  const path = require("node:path");
-  const G:any = globalThis as any;
-
-  // Safe resolver for SegStore.prototype from two absolute locations
-  function protoAt(p:string){
-    try { return require(p)?.SegStore?.prototype || null; } catch { return null; }
-  }
-  function desc(obj:any, key:string){
-    try { const d = Object.getOwnPropertyDescriptor(obj, key); return d ? {
-      writable: !!d.writable, configurable: !!d.configurable, enumerable: !!d.enumerable,
-      hasGet: !!d.get, hasSet: !!d.set, hasValue: !!d.value
-    } : null; } catch { return null; }
-  }
-  function fnId(f:any){ try { return (f && typeof f==="function") ? (f.name||"anon")+":len="+String((f.toString()||"").length) : String(typeof f); } catch { return "err"; } }
-
-  // mount once
-  function mount(){
-    const app = G.__void_http_app || (G as any).app;
-    if (!app || typeof app.get!=="function") return setTimeout(mount, 300);
-    if ((app as any).__void_wal_debug_v1) return; (app as any).__void_wal_debug_v1 = true;
-
-    app.get("/__void/metrics/wal.debug.json", (_req:any, res:any)=>{
-      const cwdProto = protoAt(path.resolve(process.cwd(), "dist/chain/seg_store.js"));
-      const hereProto = protoAt(path.resolve((__dirname||process.cwd()), "..", "dist/chain/seg_store.js"));
-
-      const store = app?.locals?.store;
-      const liveProto = store ? Object.getPrototypeOf(store) : null;
-
-      const liveFn = liveProto?.saveBlock;
-      const cwdFn  = cwdProto?.saveBlock;
-      const hereFn = hereProto?.saveBlock;
-
-      res.setHeader("Content-Type","application/json");
-      res.end(JSON.stringify({
-        has_app: !!app, has_store: !!store,
-        live_desc: liveProto ? desc(liveProto,"saveBlock") : null,
-        cwd_desc:  cwdProto  ? desc(cwdProto ,"saveBlock") : null,
-        here_desc: hereProto ? desc(hereProto,"saveBlock") : null,
-        ids: {
-          live: fnId(liveFn),
-          cwd:  fnId(cwdFn),
-          here: fnId(hereFn)
-        },
-        eq: {
-          live_eq_cwd:  (liveFn && cwdFn)  ? (liveFn === cwdFn)  : null,
-          live_eq_here: (liveFn && hereFn) ? (liveFn === hereFn) : null
-        }
-      }));
-    });
-  }
-  mount();
-})();
 // -------- ESM bridge: install global `require` safely (additive, idempotent) ----
 (async function esmRequireBridgeV1(){
   try{
@@ -19914,94 +17798,11 @@ const wal = new WALv1(getDataDir());
   mount();
 })();
 // --- Agent v0: retrofit wrapper for existing /agent/v0/done/:id ---------------
-(function agentV0DoneRetroWrap(){
-  const G:any = globalThis as any;
-  const fs = require("node:fs"); const path = require("node:path");
-  const base = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
-  const out  = path.join(base, "agent", "results.jsonl");
+// [DISABLED router-stack churn block] 
 
-  function append(rec:any){
-    try{
-      fs.mkdirSync(path.dirname(out), {recursive:true});
-      const fd = fs.openSync(out, "a");
-      fs.writeSync(fd, JSON.stringify(rec)+"\n");
-      try{ fs.fdatasyncSync(fd);}catch{} fs.closeSync(fd);
-    }catch{}
-  }
-
-  function getApp(){ return (G.__void_http_app || (G as any).app); }
-  function wrapOnce(){
-    const app:any = getApp(); if (!app || !app._router || !app._router.stack) return setTimeout(wrapOnce, 400);
-    if ((app as any).__void_agent_v0_done_retro) return; (app as any).__void_agent_v0_done_retro = true;
-
-    try{
-      const layers = app._router.stack || [];
-      for (const layer of layers){
-        const r = layer && layer.route;
-        if (!r) continue;
-        // Match both "/agent/v0/done/:id" and any variant we might have used
-        const path = r.path || r?.route?.path || "";
-        if (!path || !String(path).startsWith("/agent/v0/done")) continue;
-
-        const stack = r.stack || [];
-        for (const s of stack){
-          if (!s || !s.method || s.method.toLowerCase()!=="post" || typeof s.handle!=="function") continue;
-
-          const orig = s.handle;
-          s.handle = async function wrappedDone(req:any, res:any, next:any){
-            const id = req.params?.id || (req.path||"").split("/").pop();
-            // Wrap res.json so we can see the final body (ok/output/error)
-            const _json = res.json && res.json.bind ? res.json.bind(res) : null;
-            if (_json){
-              res.json = (body:any)=>{
-                try{
-                  const ok = !!body?.ok;
-                  const output = (body && body.output !== undefined) ? body.output : null;
-                  const error = (body && body.error  !== undefined) ? String(body.error) : null;
-                  append({ id, ts: Date.now(), ok, output, error });
-                }catch{}
-                return _json(body);
-              };
-            }
-            return orig.call(this, req, res, next);
-          };
-        }
-      }
-    }catch{}
-  }
-  wrapOnce();
-})();
 // --- Agent v0: remove old DoneCapture middleware at runtime (keep RetroWrap) ---
-(function agentV0PruneOldCapture(){
-  const G:any = globalThis as any;
-  function getApp(){ return (G.__void_http_app || (G as any).app); }
-  function prune(){
-    const app:any = getApp();
-    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(prune, 400);
-    if ((app as any).__void_agent_pruned_done_capture) return; (app as any).__void_agent_pruned_done_capture = true;
+// [DISABLED router-stack churn block] 
 
-    try{
-      const before = app._router.stack.length;
-      app._router.stack = app._router.stack.filter((layer:any)=>{
-        // We only want to drop the generic app.use capture that targets /agent/v0/done/*
-        // Heuristic: no route (middleware), has a regexp for /agent/v0/done, and its .handle
-        // source contains "res.json = (body" (our capture signature).
-        try{
-          const isMw   = !layer.route && !!layer.handle;
-          const pathOk = layer.regexp && layer.regexp.toString().includes('/agent\\/v0\\/done');
-          const src    = (Function.prototype.toString.call(layer.handle||'') || '');
-          const sig    = src.includes('res.json = (body') && src.includes('/agent/v0/done/');
-          return !(isMw && pathOk && sig);
-        }catch{ return true; }
-      });
-      const after = app._router.stack.length;
-      if (before !== after) console.log(`[agent/prune] removed ${(before-after)} done-capture middleware(s)`);
-    }catch(e:any){
-      console.warn('[agent/prune] failed:', e?.message||e);
-    }
-  }
-  prune();
-})();
 // --- Agent v0: prune legacy DoneCapture middleware (avoid double logging) ------
 (function agentV0PruneOldCapture(){
   const G:any = globalThis as any;
@@ -20285,31 +18086,8 @@ const wal = new WALv1(getDataDir());
   } mount();
 })();
 // --- Agent v0: receipts compat pruner (keep last writer) -----------------------
-(function agentV0ReceiptsCompatPruner(){
-  const G:any = globalThis as any;
-  function getApp(){ return (G.__void_http_app || (G as any).app); }
-  function prune(){
-    const app:any = getApp();
-    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(prune, 400);
-    if ((app as any).__void_agent_receipts_pruned) return; (app as any).__void_agent_receipts_pruned = true;
+// [DISABLED router-stack churn block] 
 
-    try{
-      const stacks = app._router.stack;
-      const keep = [];
-      for (const layer of stacks){
-        const r = layer && layer.route; if (!r) { keep.push(layer); continue; }
-        const p = r.path || r?.route?.path || "";
-        // Drop *older* POST /agent/v0/receipt handlers so the new direct-writer wins
-        if (String(p).startsWith("/agent/v0/receipt") && r.stack?.length){
-          r.stack = r.stack.filter((s:any)=> !(s && s.method==="post" && s.handle && s.handle.name==="wrappedDone")); // drop the old "wrapped" relay
-        }
-        keep.push(layer);
-      }
-      (app._router as any).stack = keep;
-    }catch{}
-  }
-  prune();
-})();
 // --- Agent v0: receipts compat prune (drop legacy relay; keep v2 direct writer)
 (function agentV0ReceiptsCompatPruneVFinal(){
   const G:any = globalThis as any;
@@ -20360,63 +18138,8 @@ const wal = new WALv1(getDataDir());
   } mount();
 })();
 // --- Agent receipts exporter: force-replace handler with real newlines ----------
-(function agentReceiptsExporterReplace(){
-  const G:any = globalThis as any;
-  function getApp(){ return (G.__void_http_app || (G as any).app); }
+// [DISABLED router-stack churn block] 
 
-  function install(){
-    const app:any = getApp();
-    if (!app || !app._router || !Array.isArray(app._router.stack)) return setTimeout(install, 400);
-    if ((app as any).__void_agent_receipts_exporter_replace) return;
-    (app as any).__void_agent_receipts_exporter_replace = true;
-
-    const pathWanted = "/__void/metrics/agent_receipts.prom";
-    let replaced = false;
-
-    try{
-      for (const layer of app._router.stack){
-        const r = layer && layer.route; if (!r) continue;
-        const p = r.path || r?.route?.path || "";
-        if (p !== pathWanted) continue;
-
-        for (const s of (r.stack||[])){
-          if (!s || s.method !== "get" || typeof s.handle !== "function") continue;
-
-          // Replace the existing GET handler with a newline-correct one
-          s.handle = function(_req:any, res:any){
-            const met = (G.__void_agent_metrics||{});
-            const lines:string[] = [];
-            lines.push("# HELP void_agent_receipts_total total receipts written");
-            lines.push("# TYPE void_agent_receipts_total counter");
-            lines.push(`void_agent_receipts_total ${Number(met.receipts_total||0)}`);
-            lines.push("# HELP void_agent_receipts_errors total receipt write errors");
-            lines.push("# TYPE void_agent_receipts_errors counter");
-            lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
-            res.type("text/plain").send(lines.join("\n") + "\n"); // real newlines
-          };
-          replaced = true;
-        }
-      }
-    }catch{}
-
-    if (!replaced){
-      // If route wasn't present yet, add a clean one.
-      app.get(pathWanted, (_req:any, res:any)=>{
-        const met = (G.__void_agent_metrics||{});
-        const lines = [
-          "# HELP void_agent_receipts_total total receipts written",
-          "# TYPE void_agent_receipts_total counter",
-          `void_agent_receipts_total ${Number(met.receipts_total||0)}`,
-          "# HELP void_agent_receipts_errors total receipt write errors",
-          "# TYPE void_agent_receipts_errors counter",
-          `void_agent_receipts_errors ${Number(met.receipts_errors||0)}`
-        ];
-        res.type("text/plain").send(lines.join("\n") + "\n");
-      });
-    }
-  }
-  install();
-})();
 // --- Agent v0: receipts coverage (results ↔ receipts) + Prom exporter ----------
 (function agentV0ReceiptsCoverage(){
   const G:any = globalThis as any;
@@ -23027,280 +20750,12 @@ const wal = new WALv1(getDataDir());
 })();
 
 // [saveblock.finalize.v2.lastwins] outermost sticky accessor wrapper for SegStore.prototype.saveBlock (last-wins; avoids recursion storms)
-;(function saveBlockFinalizeV2LastWins(){
-  try{
-    const G:any = globalThis as any;
-    if (G.__void_saveblock_finalize_v2_lastwins) return;
-    G.__void_saveblock_finalize_v2_lastwins = { ts: Date.now(), installed:false, note:"init" };
+// [DISABLED noisy saveblock finalize loop v2]
 
-    async function installOnce(){
-      try{
-        const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
-        const SegStore:any = (seg as any).SegStore;
-        const proto:any = SegStore && SegStore.prototype;
-        if (!proto) { G.__void_saveblock_finalize_v2_lastwins = { ts: Date.now(), installed:false, note:"no SegStore.prototype" }; return false; }
-
-        const d0:any = Object.getOwnPropertyDescriptor(proto, "saveBlock");
-        if (d0 && typeof d0.get === "function" && (d0.get as any).__void_saveblock_final_get_v2) {
-          G.__void_saveblock_finalize_v2_lastwins = { ts: Date.now(), installed:true, note:"already installed" };
-          return true;
-        }
-
-        let curFn:any = null;
-        try{
-          if (d0 && ("value" in d0) && typeof d0.value === "function") curFn = d0.value;
-          else curFn = proto.saveBlock; // may invoke getter
-        }catch{ try{ curFn = proto.saveBlock; }catch{} }
-
-        if (typeof curFn !== "function") {
-          G.__void_saveblock_finalize_v2_lastwins = { ts: Date.now(), installed:false, note:"saveBlock not a function yet" };
-          return false;
-        }
-
-        // inner points at "whatever is currently installed"; setter updates it
-        let inner:any = curFn;
-
-        async function saveBlockFinalV2(this:any, b:any, ...rest:any[]){
-/* [saveblock.recursion.guard.v1.final] */
-  const __G:any = (globalThis as any);
-  __G.__void_sbfinal_depth_v1 = (Number(__G.__void_sbfinal_depth_v1||0) + 1);
-  try {
-    if (Number(__G.__void_sbfinal_depth_v1||0) > 1) {
-      // recursion detected: bypass wrapper loop by calling a base proto saveBlock
-      const self:any = (this as any);
-      let base:any = null;
-      try {
-        let proto:any = self;
-        let steps = 0;
-        while (proto && steps < 25) {
-          proto = Object.getPrototypeOf(proto);
-          const fn:any = proto && proto.saveBlock;
-          if (typeof fn === "function") {
-            const nm = String(fn.name || "");
-            if (nm !== "saveBlockFinalV2" && nm !== "saveBlockFinalV2" && nm !== "saveBlock_WALv72") {
-              base = fn.bind(self);
-              break;
-            }
-          }
-          steps++;
-        }
-      } catch {}
-      if (typeof base === "function") {
-        return base.apply(self, arguments as any);
-      }
-    }
-  } finally {
-    __G.__void_sbfinal_depth_v1 = Math.max(0, Number(__G.__void_sbfinal_depth_v1||1) - 1);
-  }
-/* [saveblock.recursion.guard.v1.final] */ // end
-
-          // normalize block.number/header.number if parseable
-          try{
-            const n0:any = (b && (b.number ?? b?.header?.number));
-            const n = Number(n0);
-            if (Number.isFinite(n) && n >= 0) {
-              if (b && typeof b === "object") {
-                try { if (typeof b.number !== "number" || b.number !== n) b.number = n; } catch {}
-                try {
-                  if (b.header && typeof b.header === "object") {
-                    if (typeof b.header.number !== "number" || b.header.number !== n) b.header.number = n;
-                  }
-                } catch {}
-              }
-            }
-          }catch{}
-
-          const fn:any = inner;
-          if (fn === saveBlockFinalV2) return undefined; // hard recursion guard
-          return await fn.apply(this, [b, ...rest]);
-        }
-
-        // flags for inspectors/guards
-        try{ Object.defineProperty(saveBlockFinalV2, "__void_saveblock_finalized_v1", { value: true }); }catch{}
-        // expose sticky meta so wrapOnce() can safely wrap inner without wrapper<->wrapped recursion
-        try{ Object.defineProperty(saveBlockFinalV2, "__void_sticky_saveBlock", { value: true }); }catch{}
-        try{ Object.defineProperty(saveBlockFinalV2, "__void_sticky_getInner", { value: () => inner }); }catch{}
-        try{ Object.defineProperty(saveBlockFinalV2, "__void_sticky_setInner", { value: (fn:any) => {
-          try{ if (typeof fn === "function" && fn !== saveBlockFinalV2) inner = fn; }catch{}
-        }}); }catch{}
-
-        function get(){ return saveBlockFinalV2; }
-        try{ (get as any).__void_saveblock_final_get_v2 = true; }catch{}
-
-        function set(fn:any){
-          try{
-            if (typeof fn === "function" && fn !== saveBlockFinalV2) inner = fn;
-          }catch{}
-        }
-
-        Object.defineProperty(proto, "saveBlock", {
-          configurable: true,
-          enumerable: false,
-          get,
-          set,
-        });
-
-        G.__void_saveblock_finalize_v2_lastwins = {
-          ts: Date.now(),
-          installed: true,
-          note: "installed accessor v2 (outermost last-wins)",
-          was_accessor: !!(d0 && (typeof d0.get === "function" || typeof d0.set === "function") && !("value" in d0)),
-          prev_name: (curFn && curFn.name) ? curFn.name : "(anon)",
-        };
-        try{
-  /* [saveblock.finalize.once.v1]
-     HARD GATE: prevent rebind storms / recursive wrapper stacking.
-     If this block runs more than once, it will brick the process (stack overflow / OOM). */
-  try {
-    const G: any = globalThis as any;
-    if (G.__void_saveblock_finalize_once_v1) {
-      try { (function(){ try{ const GG:any=(globalThis as any); const t=Date.now(); const k="__void_sbfinal_v2_log_ts"; const last=(GG as any)[k]||0; if (t-last>60000){ (GG as any)[k]=t; console.error("[saveblock.finalize.v2] already installed; skipping"); } }catch{} })(); } catch {}
-      return;
-    }
-    G.__void_saveblock_finalize_once_v1 = Date.now();
-  } catch {}
- console.error("[saveblock.finalize.v2] installed accessor last-wins; prev="+(curFn?.name||"(anon)")); }catch{}
-        return true;
-      }catch(e:any){
-        G.__void_saveblock_finalize_v2_lastwins = { ts: Date.now(), installed:false, note: "err: " + (e?.message||String(e)) };
-        return false;
-      }
-    }
-
-    // keepalive: only re-install if someone overwrites the accessor
-    let slow = 0;
-    (function tick(){
-      try{ installOnce().catch(()=>{}); }catch{}
-      slow++;
-      setTimeout(tick, slow < 1200 ? 500 : 2000); // 10m fast then 2s
-    })();
-  }catch{}
-})();
 
 // [saveblock.finalize.v2b.adapter] adapt current saveBlock trampoline (v7/v6/v5) into a sticky+final wrapper (prevents recursion storms)
-;(function saveBlockFinalizeV2bAdapter(){
-  try{
-    const G:any = globalThis as any;
-    if (G.__void_saveblock_finalize_v2b_adapter) return;
-    G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"init" };
+// [DISABLED noisy saveblock finalize loop v2b]
 
-    async function install(){
-      try{
-        const seg = await import("./chain/seg_store.js").catch(()=>import("./chain/seg_store.js"));
-        const SegStore:any = (seg as any).SegStore;
-        const proto:any = SegStore && SegStore.prototype;
-        if (!proto) { G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"no SegStore.prototype" }; return false; }
-
-        // We *expect* accessor here (your inspector shows it). If it isn't, bail.
-        const d:any = Object.getOwnPropertyDescriptor(proto, "saveBlock");
-        const isAcc = !!(d && (typeof d.get === "function" || typeof d.set === "function") && !("value" in d));
-        if (!isAcc) {
-          G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"not accessor (skip)" };
-          return false;
-        }
-
-        let cur:any = null;
-        try{ cur = proto.saveBlock; }catch{ cur = null; }
-        if (typeof cur !== "function") {
-          G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"cur not function" };
-          return false;
-        }
-
-        // If already finalized (by us), nothing to do.
-        if ((cur as any).__void_saveblock_finalized_v1 && (cur as any).__void_sticky_saveBlock) {
-          G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:true, note:"already finalized", name: cur.name||"(anon)" };
-          return true;
-        }
-
-        // Only adapt if it looks like a trampoline/proxy we’ve seen.
-        const tag =
-          (cur as any).__void_trampoline_v7 ||
-          (cur as any).__void_trampoline_v6 ||
-          (cur as any).__void_trampoline_v5 ||
-          null;
-
-        const looksLikeTramp = !!tag || (cur && String(cur.name||"").toLowerCase().includes("tramp"));
-        if (!looksLikeTramp) {
-          G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"cur not tramp-like", name: cur.name||"(anon)" };
-          return false;
-        }
-
-        // Inner is "whatever current getter returns". Setter writes will update this.
-        let inner:any = cur;
-
-        async function saveBlockFinalV2b(this:any, b:any, ...rest:any[]){
-          // normalize block.number/header.number if parseable
-          try{
-            const n0:any = (b && (b.number ?? b?.header?.number));
-            const n = Number(n0);
-            if (Number.isFinite(n) && n >= 0) {
-              if (b && typeof b === "object") {
-                try { if (typeof b.number !== "number" || b.number !== n) b.number = n; } catch {}
-                try {
-                  if (b.header && typeof b.header === "object") {
-                    if (typeof b.header.number !== "number" || b.header.number !== n) b.header.number = n;
-                  }
-                } catch {}
-              }
-            }
-          }catch{}
-
-          const fn:any = inner;
-          if (fn === saveBlockFinalV2b) return undefined; // hard recursion guard
-          return await fn.apply(this, [b, ...rest]);
-        }
-
-        // flags for inspectors/guards
-        try{ Object.defineProperty(saveBlockFinalV2b, "__void_saveblock_finalized_v1", { value: true }); }catch{}
-        // expose sticky meta so wrapOnce() can safely wrap inner without wrapper<->wrapped recursion
-        try{ Object.defineProperty(saveBlockFinalV2b, "__void_sticky_saveBlock", { value: true }); }catch{}
-        try{ Object.defineProperty(saveBlockFinalV2b, "__void_sticky_getInner", { value: () => inner }); }catch{}
-        try{ Object.defineProperty(saveBlockFinalV2b, "__void_sticky_setInner", { value: (fn:any) => {
-          try{ if (typeof fn === "function" && fn !== saveBlockFinalV2b) inner = fn; }catch{}
-        }}); }catch{}
-
-        // Make v7/v6 setters treat us as "already tramp" so we become the getter-returned function.
-        try{
-          if ((cur as any).__void_trampoline_v7) Object.defineProperty(saveBlockFinalV2b, "__void_trampoline_v7", { value: (cur as any).__void_trampoline_v7 });
-          else if ((cur as any).__void_trampoline_v6) Object.defineProperty(saveBlockFinalV2b, "__void_trampoline_v6", { value: (cur as any).__void_trampoline_v6 });
-          else if ((cur as any).__void_trampoline_v5) Object.defineProperty(saveBlockFinalV2b, "__void_trampoline_v5", { value: (cur as any).__void_trampoline_v5 });
-          else Object.defineProperty(saveBlockFinalV2b, "__void_trampoline_v7", { value: "saveblock.finalize.v2b" });
-        }catch{}
-
-        // Install by assigning through accessor setter.
-        try{ proto.saveBlock = saveBlockFinalV2b; }catch{}
-
-        // Verify what getter returns now.
-        let nowFn:any = null;
-        try{ nowFn = proto.saveBlock; }catch{}
-        const ok = (nowFn === saveBlockFinalV2b) || !!(nowFn && (nowFn as any).__void_saveblock_finalized_v1);
-        // v2b: mark installed_once on success so the adapter stops hammering
-        try{ if (ok) (G as any).__void_saveblock_finalize_v2b_installed_once = true; }catch{}
-
-
-        G.__void_saveblock_finalize_v2b_adapter = {
-          ts: Date.now(),
-          installed: !!ok,
-          note: ok ? "installed (setter accepted final tramp)" : "install attempted (setter did not accept)",
-          prev_name: cur.name||"(anon)",
-          now_name: nowFn?.name||"(anon)",
-          had_tag: !!tag,
-        };
-        try{ if (ok) try{ if (ok) { const t=Date.now(); const k="__void_sbfinal_v2b_log_ts"; const last=(G as any)[k]||0; if (t-last>60000){ (G as any)[k]=t; console.error("[saveblock.finalize.v2b] installed adapter; now="+(nowFn?.name||"(anon)")); } } }catch{} }catch{}
-        return !!ok;
-      }catch(e:any){
-        G.__void_saveblock_finalize_v2b_adapter = { ts: Date.now(), installed:false, note:"err: "+(e?.message||String(e)) };
-        return false;
-      }
-    }
-
-    // keep trying (last-wins); low frequency to avoid noise
-    (function tick(){
-      try{ install().catch(()=>{}); }catch{}
-      setTimeout(tick, ((G as any).__void_saveblock_finalize_v2b_installed_once ? 5000 : 750));
-    })();
-  }catch{}
-})();
 
 // [saveblock.finalize.v2c.outer_accessor] outermost accessor shim for SegStore.prototype.saveBlock (wraps existing accessor latch; adds sticky+final flags; self-healing)
 ;(function saveBlockFinalizeV2cOuterAccessor(){
@@ -23420,8 +20875,14 @@ const wal = new WALv1(getDataDir());
       }
     }
 
+    let stableHits = 0;
     (function tick(){
       try{ install().catch(()=>{}); }catch{}
+      try{
+        if ((G as any).__void_saveblock_finalize_v2c_installed_once) stableHits++;
+        else stableHits = 0;
+      }catch{}
+      if (stableHits >= 3) return; // stop after a few confirmed stable passes
       setTimeout(tick, 750);
     })();
   }catch{}
@@ -25143,6 +22604,21 @@ const wal = new WALv1(getDataDir());
 // If your normal proposer/saveBlock path is compromised by accessor wrappers,
 // this runs commit-direct.v2fs on a timer using the stable disk-backed head routes.
 (function VoidCommitDirectAutopropV1(){
+  if (
+    String(process.env.VOID_DISABLE_COMMIT_DIRECT_AUTOPROP || "0") === "1" ||
+    String(process.env.VOID_DISABLE_COMMIT_DIRECT_AUTOPROP_V1 || "0") === "1" ||
+    String(process.env.VOID_COMMIT_DIRECT_AUTOPROP || "1") === "0" ||
+    String(process.env.VOID_COMMIT_DIRECT_AUTOPROP_V1 || "1") === "0" ||
+    String(process.env.VOID_AUTOPROP || "1") === "0" ||
+    String(process.env.VOID_DISABLE_AUTOPROP || "0") === "1" ||
+    String(process.env.VOID_DISABLE_PROPOSER_AUTOPROP || "0") === "1" ||
+    String(process.env.VOID_COMMIT_DIRECT_V2FS_AUTORUN || "1") === "0" ||
+    String(process.env.VOID_DISABLE_COMMIT_DIRECT_V2FS_AUTORUN || "0") === "1" ||
+    String(process.env.PROPOSER_AUTO || "0") === "0"
+  ) {
+    try { console.error("[void_commit_direct_autoprop_v1] disabled by env"); } catch {}
+    return;
+  }
   const G:any = (globalThis as any);
   const KEY="__void_commit_direct_autoprop_v1_state";
   if (!G[KEY]) G[KEY] = {
@@ -25337,6 +22813,21 @@ const wal = new WALv1(getDataDir());
 
 // ---------------- [ADD] autoprop v1 kicker: ensure timer loop starts (idempotent) ----------------
 (function AutopropV1Kicker(){
+  if (
+    String(process.env.VOID_DISABLE_COMMIT_DIRECT_AUTOPROP || "0") === "1" ||
+    String(process.env.VOID_DISABLE_COMMIT_DIRECT_AUTOPROP_V1 || "0") === "1" ||
+    String(process.env.VOID_COMMIT_DIRECT_AUTOPROP || "1") === "0" ||
+    String(process.env.VOID_COMMIT_DIRECT_AUTOPROP_V1 || "1") === "0" ||
+    String(process.env.VOID_AUTOPROP || "1") === "0" ||
+    String(process.env.VOID_DISABLE_AUTOPROP || "0") === "1" ||
+    String(process.env.VOID_DISABLE_PROPOSER_AUTOPROP || "0") === "1" ||
+    String(process.env.VOID_COMMIT_DIRECT_V2FS_AUTORUN || "1") === "0" ||
+    String(process.env.VOID_DISABLE_COMMIT_DIRECT_V2FS_AUTORUN || "0") === "1" ||
+    String(process.env.PROPOSER_AUTO || "0") === "0"
+  ) {
+    try { console.error("[autoprop.v1.kicker] disabled by env"); } catch {}
+    return;
+  }
   const G:any = (globalThis as any);
   const KEY="__void_commit_direct_autoprop_v1_kicker";
   if (G[KEY]) return;
@@ -25469,6 +22960,21 @@ const wal = new WALv1(getDataDir());
 })();
 // ---------------- [ADD] autoprop prom2 warmkick (fire one tick right after mount) ----------------
 (function CommitDirectAutopropV1Prom2WarmKick(){
+  if (
+    String(process.env.VOID_DISABLE_COMMIT_DIRECT_AUTOPROP || "0") === "1" ||
+    String(process.env.VOID_DISABLE_COMMIT_DIRECT_AUTOPROP_V1 || "0") === "1" ||
+    String(process.env.VOID_COMMIT_DIRECT_AUTOPROP || "1") === "0" ||
+    String(process.env.VOID_COMMIT_DIRECT_AUTOPROP_V1 || "1") === "0" ||
+    String(process.env.VOID_AUTOPROP || "1") === "0" ||
+    String(process.env.VOID_DISABLE_AUTOPROP || "0") === "1" ||
+    String(process.env.VOID_DISABLE_PROPOSER_AUTOPROP || "0") === "1" ||
+    String(process.env.VOID_COMMIT_DIRECT_V2FS_AUTORUN || "1") === "0" ||
+    String(process.env.VOID_DISABLE_COMMIT_DIRECT_V2FS_AUTORUN || "0") === "1" ||
+    String(process.env.PROPOSER_AUTO || "0") === "0"
+  ) {
+    try { console.error("[autoprop.v1.prom2.warmkick] disabled by env"); } catch {}
+    return;
+  }
   const G:any = (globalThis as any);
   const KEY="__void_commit_direct_autoprop_v1_prom2_warmkick_mounted";
   if (G[KEY]) return; G[KEY]=true;
@@ -32530,8 +30036,6 @@ try {
 })();
 // ==============================================================================
 
-}
-)();
 
 
 // ---------------- [ADD] /blocks/latest/number2.json v3 (prefer head.txt + tolerant heads.json) ----------------
@@ -40037,3 +37541,101 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
   mount();
 })();
 // === participant-dashboard-steal-v1 END ===
+
+
+// ---------------- [ADD] proposer compat shim: /proposer/status + /proposer/commit ----------------
+(function ProposerCompatShimV1(){
+  const G:any = (globalThis as any);
+  const KEY="__void_proposer_compat_shim_v1";
+  if (G[KEY]) return;
+  G[KEY] = { mounted:false, calls:0, errors:0, last_ts:0, last_err:"" };
+
+  function getApp(){ return G.__void_http_app || G.app; }
+  function port(){ return Number(process.env.HTTP_PORT || 4100); }
+
+  async function fetchJson(url:string, init?:any){
+    const r = await fetch(url, init);
+    const t = await r.text();
+    let j:any = null;
+    try { j = JSON.parse(t); } catch {}
+    return { ok:r.ok, status:r.status, text:t, json:j, headers:r.headers };
+  }
+
+  async function proxyCommit(req:any, res:any){
+    G[KEY].calls++;
+    G[KEY].last_ts = Date.now();
+    try{
+      const qs = String(req?.originalUrl || req?.url || "").split("?")[1] || "";
+      const target = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs` + (qs ? `?${qs}` : "");
+      const hasBody = !!(req && req.body && typeof req.body === "object" && Object.keys(req.body).length > 0);
+
+      const out = await fetchJson(target, {
+        method: "POST",
+        headers: hasBody ? { "content-type":"application/json" } : undefined,
+        body: hasBody ? JSON.stringify(req.body) : undefined,
+      });
+
+      if (out.json && typeof out.json === "object") return res.status(out.status).json(out.json);
+      return res.status(out.status).type(out.headers.get("content-type") || "text/plain").send(out.text);
+    }catch(e:any){
+      G[KEY].errors++;
+      G[KEY].last_err = String(e?.stack || e?.message || e);
+      return res.status(500).json({ ok:false, error:"proposer_commit_proxy_failed", msg:String(e?.message||e) });
+    }
+  }
+
+  async function proxyStatus(_req:any, res:any){
+    G[KEY].calls++;
+    G[KEY].last_ts = Date.now();
+    try{
+      const truth = await fetchJson(`http://127.0.0.1:${port()}/__void/metrics/proposer.truth2.json`);
+      const hook  = await fetchJson(`http://127.0.0.1:${port()}/proposer/hook/status2`);
+      const auto4 = await fetchJson(`http://127.0.0.1:${port()}/proposer/auto4/status`);
+
+      const tj = (truth.json && truth.json.truth) ? truth.json.truth : {};
+      const hj = hook.json || {};
+      const aj = auto4.json || {};
+
+      return res.json({
+        ok:true,
+        source:"proposer_compat_shim_v1",
+        enabled: Number(tj.enabled || 0) === 1,
+        ms: Number.isFinite(Number(tj.ms)) ? Number(tj.ms) : null,
+        hook: hj.hooked || [],
+        mempoolSize: Number(hj.mempoolSize || 0),
+        lastSeal: hj.lastSeal || null,
+        auto4: {
+          enabled: !!aj.enabled,
+          ms: Number(aj.ms || 0),
+          ticks: Number(aj.ticks || 0),
+          errors: Number(aj.errors || 0),
+          lastTickTs: Number(aj.lastTickTs || 0),
+          lastOk: Number(aj.lastOk || 0),
+          lastHttp: Number(aj.lastHttp || 0),
+        }
+      });
+    }catch(e:any){
+      G[KEY].errors++;
+      G[KEY].last_err = String(e?.stack || e?.message || e);
+      return res.status(500).json({ ok:false, error:"proposer_status_proxy_failed", msg:String(e?.message||e) });
+    }
+  }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.get !== "function" || typeof app.post !== "function") return setTimeout(mount, 400);
+    if ((app as any).__void_proposer_compat_shim_v1_mounted) { G[KEY].mounted = true; return; }
+    (app as any).__void_proposer_compat_shim_v1_mounted = true;
+    G[KEY].mounted = true;
+
+    app.get("/proposer/status", proxyStatus);
+    app.post("/proposer/commit", proxyCommit);
+    app.post("/proposer/commit-now", proxyCommit);
+
+    app.get("/__void/metrics/proposer.compat.status.json", (_req:any,res:any)=>res.json({ ok:true, state:G[KEY] }));
+
+    try{ console.error("[proposer.compat.v1] mounted: GET /proposer/status ; POST /proposer/commit ; POST /proposer/commit-now"); }catch{}
+  }
+
+  mount();
+})();
