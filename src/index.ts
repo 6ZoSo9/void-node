@@ -19036,14 +19036,8 @@ const wal = new WALv1(getDataDir());
     if ((app as any).__void_safe_submit_v1_1) return; (app as any).__void_safe_submit_v1_1 = true;
 
     // Accept tx and mirror into mempool + txQueue (if present)
-    app.post("/tx/submit", require("express").json({limit:"64kb"}), (req:any,res:any)=>{
-      try{
-        const b = req.body || {};
-        const tx = { kind: String(b.kind||"ping").slice(0,32), nonce: String(b.nonce ?? Date.now()).slice(0,64) };
-        node.mempool.txs.push(tx);
-        if (node.txQueue && Array.isArray(node.txQueue)) node.txQueue.push(tx);
-        res.json({ok:true, queued:true, mempool_size: node.mempool.txs.length, queue_size: (node.txQueue?.length||0)});
-      }catch(e){ res.status(400).json({ok:false, error:String(e?.message||e)}) }
+    app.post("/tx/submit", require("express").json({limit:"64kb"}), (_req:any,res:any)=>{
+      return res.status(410).json({ ok:false, disabled:true, handler:"safe_submit_v1_1_disabled", use:"txsubmit_late_repair_v1" });
     });
 
     (console?.log||(()=>{}))('[safe-submit] /tx/submit mirrors to mempool + txQueue');
@@ -19482,15 +19476,8 @@ const wal = new WALv1(getDataDir());
     if (a.__void_safe_submit_v13) return; a.__void_safe_submit_v13 = true;
 
     const express = require("express");
-    a.post("/tx/submit", express.json({limit:"64kb"}), (req,res)=>{
-      try{
-        const b = req.body || {};
-        const tx = { kind: String(b.kind||"ping").slice(0,32), nonce: String(b.nonce ?? Date.now()).slice(0,64) };
-        // enqueue to mempool, mirror to txQueue if present
-        n.mempool.txs.push(tx);
-        if (Array.isArray(n.txQueue)) n.txQueue.push(tx);
-        res.json({ ok:true, queued:true, mempool_size:n.mempool.txs.length, queue_size:(n.txQueue?.length||0) });
-      }catch(e){ res.status(400).json({ ok:false, error: String(e?.message||e) }); }
+    a.post("/tx/submit", express.json({limit:"64kb"}), (_req,res)=>{
+      return res.status(410).json({ ok:false, disabled:true, handler:"safe_submit_v13_disabled", use:"txsubmit_late_repair_v1" });
     });
 
     (console?.log||(()=>{}))('[safe-submit.v13] /tx/submit unified to live node');
