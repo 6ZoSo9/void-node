@@ -2579,22 +2579,6 @@ try {
     // Ensure POST /tx/submit always lands in the live node mempool (and mirrors to tx_queue for compatibility).
     // This runs early and then calls next(), so existing handlers can still respond OK.
     app.use("/tx/submit", require("express").json({ limit: "64kb" }), (req:any, _res:any, next:any) => {
-      try {
-        if ((req.method||"").toUpperCase() !== "POST") return next();
-        const gg:any = (globalThis as any);
-        const n:any = (gg.__void_node || gg.node);
-        const mp:any = n?.mempool;
-        const arr:any = mp?.txs;
-        if (Array.isArray(arr)) {
-          const tx:any = (req.body ?? {});
-          if (tx && typeof tx === "object" && !Array.isArray(tx)) {
-            if (!tx._rx_src) tx._rx_src = "txsubmit_inject_mempool_v1";
-          }
-          arr.push(tx);
-          if (Array.isArray(gg.__void_tx_queue)) gg.__void_tx_queue.push(tx);
-          if (typeof gg.__void_txsubmit_inject_hits_total === "number") gg.__void_txsubmit_inject_hits_total++;
-        }
-      } catch {}
       return next();
     });
 
