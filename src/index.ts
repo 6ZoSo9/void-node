@@ -22325,22 +22325,57 @@ const wal = new WALv1(getDataDir());
   }
 
   function takeFromQueues(node:any, cap:number){
+    // v2fs canonical source ONLY: live node.mempool.txs
+    // Do NOT consume pending/queue/global mirrors here; those aliases caused
+    // empty/lost/duplicate seals when mixed together.
     const out:any[] = [];
     const capN = Math.max(1, Math.min(+cap||1, 2000));
-    const sources = [
-      () => node?.proposer?.queue,
-      () => node?.pending?.txs,
-      () => node?.mempool?.txs,
-      () => (globalThis as any).__void_tx_queue,
-    ];
-    for (const getQ of sources){
-      const q = getQ();
-      if (Array.isArray(q) && q.length){
-        const n = Math.min(capN - out.length, q.length);
-        out.push(...q.splice(0, n));
-        if (out.length >= capN) break;
+
+    const q = node?.mempool?.txs;
+    if (!Array.isArray(q) || q.length <= 0) return out;
+
+    const n = Math.min(capN, q.length);
+    const picked = q.splice(0, n);
+
+    function stable(v:any):string{
+      try{
+        if (v === null || typeof v !== "object") return JSON.stringify(v);
+        if (Array.isArray(v)) return "[" + v.map(stable).join(",") + "]";
+        const ks = Object.keys(v).sort();
+        return "{" + ks.map((k)=>JSON.stringify(k)+":"+stable(v[k])).join(",") + "}";
+      }catch{
+        try{ return JSON.stringify(v); }catch{ return String(v); }
       }
     }
+
+    function sha256hex(s:any):string{
+      try{
+        const crypto = require("crypto");
+        return crypto.createHash("sha256").update(String(s)).digest("hex");
+      }catch{
+        return String(Date.now()) + String(Math.random()).slice(2);
+      }
+    }
+
+    for (const raw of picked){
+      if (raw && typeof raw === "object" && raw.body && typeof raw.body === "object" && typeof raw.hash === "string") {
+        out.push(raw);
+        continue;
+      }
+
+      const body = (raw && typeof raw === "object")
+        ? (raw.body && typeof raw.body === "object" ? { ...raw.body } : { ...raw })
+        : { value: raw };
+
+      out.push({
+        body,
+        hash: sha256hex(stable(body)),
+        ts: body?.ts ?? Date.now(),
+        nonce: String(body?.nonce ?? Date.now()),
+        _src: "v2fs.canonicalized"
+      });
+    }
+
     return out;
   }
 
@@ -22403,7 +22438,7 @@ const wal = new WALv1(getDataDir());
       const store:any = node.store;
       const fn = (store && (store as any).saveBlockCommit);
       if (typeof fn !== "function") throw new Error("store.saveBlockCommit missing (unexpected)");
-      fn.call(store, blk);
+      await fn.call(store, blk);
 
       // head bump on disk (atomic)
       const path = require("node:path");
@@ -32866,13 +32901,54 @@ try {
     const node:any = getNode();
     const mp:any = ensureMempool(node);
     const q:any[] = getQueue(node);
-    const body:any = (tx && typeof tx === "object") ? { ...tx } : { value: tx };
+    const raw:any = (tx && typeof tx === "object") ? { ...tx } : { value: tx };
+
+    const now = Date.now();
+    if (raw && typeof raw === "object") {
+      if (raw._rx_src == null) raw._rx_src = "txsubmit_late_repair_v2";
+      if (raw.ts == null) raw.ts = now;
+      if (raw.nonce == null) raw.nonce = Math.floor(Math.random() * 1e9);
+    }
+
+    function stable(v:any):string{
+      try{
+        if (v === null || typeof v !== "object") return JSON.stringify(v);
+        if (Array.isArray(v)) return "[" + v.map(stable).join(",") + "]";
+        const ks = Object.keys(v).sort();
+        return "{" + ks.map((k)=>JSON.stringify(k)+":"+stable(v[k])).join(",") + "}";
+      }catch{
+        try{ return JSON.stringify(v); }catch{ return String(v); }
+      }
+    }
+
+    function sha256hex(s:any):string{
+      try{
+        const crypto = require("crypto");
+        return crypto.createHash("sha256").update(String(s)).digest("hex");
+      }catch{
+        return String(now) + String(Math.random()).slice(2);
+      }
+    }
+
+    const body:any =
+      (raw && typeof raw.body === "object" && raw.body !== null)
+        ? { ...raw.body }
+        : { ...raw };
 
     if (body && typeof body === "object") {
-      if (body._rx_src == null) body._rx_src = "txsubmit_late_repair_v1";
-      if (body.ts == null) body.ts = Date.now();
-      if (body.nonce == null) body.nonce = Math.floor(Math.random() * 1e9);
+      if (body.ts == null) body.ts = raw.ts ?? now;
+      if (body.nonce == null) body.nonce = raw.nonce ?? Math.floor(Math.random() * 1e9);
     }
+
+    const txObj:any = {
+      body,
+      hash: (typeof raw?.hash === "string" && /^[0-9a-fA-F]{64}$/.test(raw.hash))
+        ? String(raw.hash).toLowerCase()
+        : sha256hex(stable(body)),
+      ts: raw.ts ?? now,
+      nonce: String(raw.nonce ?? body?.nonce ?? now),
+      _rx_src: "txsubmit_late_repair_v2"
+    };
 
     let mempoolLen:number|null = null;
     let queueLen:number|null = null;
@@ -32880,11 +32956,11 @@ try {
 
     if (mp) {
       if (Array.isArray(mp.txs)) {
-        mp.txs.push(body);
+        mp.txs.push(txObj);
         mempoolLen = mp.txs.length;
         forced = "node.mempool.txs";
       } else if (typeof mp.push === "function") {
-        mp.push(body);
+        mp.push(txObj);
         mempoolLen = Array.isArray(mp.txs) ? mp.txs.length : null;
         forced = "node.mempool.push";
       }
@@ -32899,10 +32975,23 @@ try {
       when: Date.now(),
       forced,
       mempoolLen,
-      queueLen
+      queueLen,
+      shape: {
+        has_body: !!txObj?.body,
+        has_hash: typeof txObj?.hash === "string",
+        hash_len: typeof txObj?.hash === "string" ? txObj.hash.length : 0
+      }
     };
 
-    return { ok:true, forced, mempoolLen, queueLen };
+    return {
+      ok:true,
+      forced,
+      mempoolLen,
+      queueLen,
+      canonical: true,
+      hasBody: !!txObj?.body,
+      hasHash: typeof txObj?.hash === "string"
+    };
   }
 
   function attach(){
