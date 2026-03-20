@@ -2627,8 +2627,7 @@ try {
         node.mempool.txs.push(tx);
 
         // mirror to tx queue if present
-        const q:any = gg.__void_tx_queue;
-        if (Array.isArray(q)) q.push(tx);
+        const qn:any = Array.isArray(node?.txQueue) ? node.txQueue : null;
 
         // best-effort early hits metric (you already have this global)
         if (typeof gg.__void_tx_submit_early_hits_total === "number") gg.__void_tx_submit_early_hits_total++;
@@ -2637,7 +2636,7 @@ try {
           ok: true,
           forced: "mempool_v1",
           mempoolLen: Array.isArray(node.mempool.txs) ? node.mempool.txs.length : null,
-          queueLen: Array.isArray(q) ? q.length : null
+          queueLen: Array.isArray(qn) ? qn.length : 0
         });
       } catch (e:any) {
         return res.status(500).json({ ok:false, err:String(e?.message||e) });
@@ -2773,9 +2772,9 @@ try {
           mempoolLen = Array.isArray(mp?.txs) ? mp.txs.length : -1;
         }
 
-        // keep queue as observable only (do not push here)
-        const q = gg.__void_tx_queue;
-        const queueLen = Array.isArray(q) ? q.length : -1;
+        // keep queue reporting truthful: use live node.txQueue only, not legacy global noise
+        const qn:any = Array.isArray(node?.txQueue) ? node.txQueue : null;
+        const queueLen = Array.isArray(qn) ? qn.length : 0;
 
         return res.json({ ok: true, handled: "early_singleton_v2_terminal", mempoolLen, queueLen });
       } catch (e:any) {
@@ -32871,7 +32870,7 @@ try {
   function enqueueIntoLiveMempool(tx:any){
     const node:any = getNode();
     const mp:any = ensureMempool(node);
-    const q:any[] = getQueue(node);
+    const q:any[] = Array.isArray(node?.txQueue) ? node.txQueue : [];
     const raw:any = (tx && typeof tx === "object") ? { ...tx } : { value: tx };
 
     const now = Date.now();
@@ -37709,3 +37708,229 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
   mount();
 })();
+
+// -------- submit path truth surface v1 (additive, read-only) --------
+;(function submitPathTruthSurfaceV1(){
+  try{
+    const G:any = (globalThis as any);
+    if (G.__void_submit_path_truth_surface_v1_installed) return;
+    G.__void_submit_path_truth_surface_v1_installed = true;
+
+    function getApp(){ return G.__void_http_app || G.app; }
+    function getNode(){ return G.__void_node || G.node || G.__void_live_node || null; }
+
+    function queueSizeOf(x:any){
+      return Array.isArray(x) ? x.length : -1;
+    }
+
+    function mount(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") return setTimeout(mount, 500).unref?.();
+
+      if ((app as any).__void_submit_path_truth_surface_v1_mounted) return;
+      (app as any).__void_submit_path_truth_surface_v1_mounted = true;
+
+      app.get("/__void/diag/submit_path_truth.json", (_req:any, res:any) => {
+        try{
+          const node:any = getNode();
+          const mp:any = node?.mempool ?? null;
+          const mpTxs:any = mp?.txs;
+
+          const nodeTxQueue:any = node?.txQueue;
+          const globalTxQueue:any = G.__void_tx_queue;
+
+          const autoprop:any = G.__void_commit_direct_autoprop_v1_state || G.__void_commit_direct_autoprop_v1 || null;
+          const v2fs:any = G.__void_proposer_commit_direct_v2fs_state || G.__void_proposer_commit_direct_v2fs || null;
+
+          res.json({
+            ok: true,
+            installed: true,
+            ts: Date.now(),
+            mempool: {
+              has_object: !!mp,
+              has_txs_array: Array.isArray(mpTxs),
+              size: Array.isArray(mpTxs) ? mpTxs.length : -1,
+              sample_keys: Array.isArray(mpTxs) && mpTxs[0] && typeof mpTxs[0] === "object"
+                ? Object.keys(mpTxs[0]).slice(0, 20)
+                : []
+            },
+            queues: {
+              node_txQueue_size: queueSizeOf(nodeTxQueue),
+              global___void_tx_queue_size: queueSizeOf(globalTxQueue),
+              same_object: !!(Array.isArray(nodeTxQueue) && Array.isArray(globalTxQueue) && nodeTxQueue === globalTxQueue),
+              legacy_global_queue_is_noise: true
+            },
+            proposer: {
+              auto_enabled_env: String(process.env.PROPOSER_AUTO ?? ""),
+              void_auto_enabled_env: String(process.env.VOID_PROPOSER_AUTO ?? ""),
+              tick_ms_env: String(process.env.VOID_PROPOSER_TICK_MS ?? process.env.PROPOSER_TICK_MS ?? "")
+            },
+            autoprop: autoprop ? {
+              enabled: !!autoprop.enabled,
+              interval_ms: Number(autoprop.interval_ms ?? autoprop.ms ?? 0),
+              ticks: Number(autoprop.ticks ?? 0),
+              ok: Number(autoprop.ok ?? 0),
+              noop: Number(autoprop.noop ?? 0),
+              errs: Number(autoprop.errs ?? autoprop.errors ?? 0),
+              last_from: Number(autoprop.last_from ?? -1),
+              last_to: Number(autoprop.last_to ?? -1),
+              last_ts: Number(autoprop.last_ts ?? 0)
+            } : null,
+            v2fs: v2fs ? {
+              mounted: !!v2fs.mounted,
+              calls: Number(v2fs.calls ?? 0),
+              ok: Number(v2fs.ok ?? 0),
+              noop: Number(v2fs.noop ?? 0),
+              errors: Number(v2fs.errors ?? 0),
+              last_from: Number(v2fs.last_from ?? -1),
+              last_to: Number(v2fs.last_to ?? -1),
+              last_took: Number(v2fs.last_took ?? 0),
+              last_ts: Number(v2fs.last_ts ?? 0)
+            } : null
+          });
+        }catch(e:any){
+          res.status(500).json({ ok:false, err:String(e?.message || e) });
+        }
+      });
+
+      app.get("/__void/metrics/submit_path_truth.prom", (_req:any, res:any) => {
+        try{
+          const node:any = getNode();
+          const mp:any = node?.mempool ?? null;
+          const mpTxs:any = mp?.txs;
+          const nodeTxQueue:any = node?.txQueue;
+          const globalTxQueue:any = G.__void_tx_queue;
+
+          res.type("text/plain; version=0.0.4; charset=utf-8").send(
+            [
+              "# HELP void_submit_path_truth_installed submit path truth surface installed",
+              "# TYPE void_submit_path_truth_installed gauge",
+              "void_submit_path_truth_installed 1",
+              "# HELP void_submit_path_truth_mempool_size live node.mempool.txs size",
+              "# TYPE void_submit_path_truth_mempool_size gauge",
+              `void_submit_path_truth_mempool_size ${Array.isArray(mpTxs) ? mpTxs.length : -1}`,
+              "# HELP void_submit_path_truth_node_txqueue_size live node.txQueue size",
+              "# TYPE void_submit_path_truth_node_txqueue_size gauge",
+              `void_submit_path_truth_node_txqueue_size ${Array.isArray(nodeTxQueue) ? nodeTxQueue.length : -1}`,
+              "# HELP void_submit_path_truth_global_txqueue_size live global __void_tx_queue size",
+              "# TYPE void_submit_path_truth_global_txqueue_size gauge",
+              `void_submit_path_truth_global_txqueue_size ${Array.isArray(globalTxQueue) ? globalTxQueue.length : -1}`,
+              "# HELP void_submit_path_truth_queue_same_object 1 if node.txQueue === __void_tx_queue",
+              "# TYPE void_submit_path_truth_queue_same_object gauge",
+              `void_submit_path_truth_queue_same_object ${(Array.isArray(nodeTxQueue) && Array.isArray(globalTxQueue) && nodeTxQueue === globalTxQueue) ? 1 : 0}`,
+              "# HELP void_submit_path_truth_legacy_global_queue_is_noise 1 if global __void_tx_queue is legacy noise only",
+              "# TYPE void_submit_path_truth_legacy_global_queue_is_noise gauge",
+              "void_submit_path_truth_legacy_global_queue_is_noise 1"
+            ].join("\n") + "\n"
+          );
+        }catch(e:any){
+          res.status(500).type("text/plain").send(`# err ${String(e?.message || e)}\n`);
+        }
+      });
+
+      try{ console.log("[diag] attached /__void/diag/submit_path_truth.json + /__void/metrics/submit_path_truth.prom"); }catch{}
+    }
+
+    mount();
+  }catch{}
+})();
+// -------- /submit path truth surface v1 --------
+
+
+
+// -------- LEGACY GLOBAL TX QUEUE NOISE CLEANER v1 --------
+;(function LegacyGlobalTxQueueNoiseCleanerV1(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_legacy_global_tx_queue_noise_cleaner_v1_installed) return;
+    G.__void_legacy_global_tx_queue_noise_cleaner_v1_installed = true;
+
+    const S:any = (G.__void_legacy_global_tx_queue_noise_cleaner_v1_state ||= {
+      ticks: 0,
+      cleared_total: 0,
+      last_before: 0,
+      last_after: 0,
+      last_ts: 0
+    });
+
+    function getNode(){
+      try { return G.__void_node || G.node || G.__void_live_node || null; } catch { return null; }
+    }
+
+    function tick(){
+      try{
+        S.ticks++;
+        S.last_ts = Date.now();
+
+        const n:any = getNode();
+        const qg:any = G.__void_tx_queue;
+        const qn:any = n?.txQueue;
+
+        if (!Array.isArray(qg)) return;
+        if (Array.isArray(qn) && qg === qn) return; // real shared queue, leave it alone
+
+        const before = qg.length|0;
+        S.last_before = before;
+        if (before > 0){
+          qg.length = 0;
+          S.cleared_total += before;
+        }
+        S.last_after = Array.isArray(qg) ? (qg.length|0) : 0;
+      }catch{}
+    }
+
+    setInterval(tick, 1000);
+
+    const app:any = G.__void_http_app || G.app;
+    if (app && !app.__void_legacy_global_tx_queue_noise_cleaner_v1_routes){
+      app.__void_legacy_global_tx_queue_noise_cleaner_v1_routes = true;
+
+      app.get("/__void/diag/legacy-global-txqueue-noise.json", (_req:any,res:any)=>{
+        const n:any = getNode();
+        const qg:any = G.__void_tx_queue;
+        const qn:any = n?.txQueue;
+        res.json({
+          ok:true,
+          installed:true,
+          state:S,
+          global_queue_size: Array.isArray(qg) ? qg.length : null,
+          node_txQueue_size: Array.isArray(qn) ? qn.length : null,
+          same_object: !!(Array.isArray(qg) && Array.isArray(qn) && qg === qn),
+          legacy_noise_only: true
+        });
+      });
+
+      app.get("/__void/metrics/legacy-global-txqueue-noise.prom", (_req:any,res:any)=>{
+        const n:any = getNode();
+        const qg:any = G.__void_tx_queue;
+        const qn:any = n?.txQueue;
+        const same = (Array.isArray(qg) && Array.isArray(qn) && qg === qn) ? 1 : 0;
+        const gsz = Array.isArray(qg) ? qg.length : 0;
+        const nsz = Array.isArray(qn) ? qn.length : 0;
+        res.type("text/plain; version=0.0.4; charset=utf-8").send(
+          "# HELP void_legacy_global_tx_queue_noise_cleaner_installed 1 if installed\n" +
+          "# TYPE void_legacy_global_tx_queue_noise_cleaner_installed gauge\n" +
+          "void_legacy_global_tx_queue_noise_cleaner_installed 1\n" +
+          "# HELP void_legacy_global_tx_queue_noise_cleaner_ticks_total cleaner ticks\n" +
+          "# TYPE void_legacy_global_tx_queue_noise_cleaner_ticks_total counter\n" +
+          `void_legacy_global_tx_queue_noise_cleaner_ticks_total ${Number(S.ticks||0)}\n` +
+          "# HELP void_legacy_global_tx_queue_noise_cleaner_cleared_total entries cleared from legacy global queue\n" +
+          "# TYPE void_legacy_global_tx_queue_noise_cleaner_cleared_total counter\n" +
+          `void_legacy_global_tx_queue_noise_cleaner_cleared_total ${Number(S.cleared_total||0)}\n` +
+          "# HELP void_legacy_global_tx_queue_noise_cleaner_global_size current global __void_tx_queue size\n" +
+          "# TYPE void_legacy_global_tx_queue_noise_cleaner_global_size gauge\n" +
+          `void_legacy_global_tx_queue_noise_cleaner_global_size ${gsz}\n` +
+          "# HELP void_legacy_global_tx_queue_noise_cleaner_node_txqueue_size current node.txQueue size\n" +
+          "# TYPE void_legacy_global_tx_queue_noise_cleaner_node_txqueue_size gauge\n" +
+          `void_legacy_global_tx_queue_noise_cleaner_node_txqueue_size ${nsz}\n` +
+          "# HELP void_legacy_global_tx_queue_noise_cleaner_same_object 1 if node.txQueue === __void_tx_queue\n" +
+          "# TYPE void_legacy_global_tx_queue_noise_cleaner_same_object gauge\n" +
+          `void_legacy_global_tx_queue_noise_cleaner_same_object ${same}\n`
+        );
+      });
+    }
+
+    try{ console.log("[legacy-global-txqueue-noise] cleaner v1 installed"); }catch{}
+  }catch{}
+})();
+// -------- /LEGACY GLOBAL TX QUEUE NOISE CLEANER v1 --------
