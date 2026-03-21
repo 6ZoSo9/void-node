@@ -2,6 +2,14 @@
 Minimal block node with segmented storage, pubsub, and HTTP APIs.
 
 ## Quick start
+## Quick install (thin path)
+
+For the current Ubuntu devbox/user-unit path:
+
+    cd "$HOME/dev/void-node"
+    ./ops/install-all.sh
+    ./ops/install-path-status.sh
+
 ```bash
 npm ci
 npm run build
