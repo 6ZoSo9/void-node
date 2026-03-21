@@ -49,9 +49,8 @@ For the current Ubuntu devbox/user-unit path:
 ### Extra verification
 
     cd "$HOME/dev/void-node"
-    ./ops/submit-path-truth-smoke.sh
-    ./ops/void-follower-status.sh
     ./ops/install-path-status.sh
+    ./ops/post-install-demo.sh
 
 ### Notes
 - `ops/install-all.sh` runs install/build, installs user units, and runs first-run smoke
