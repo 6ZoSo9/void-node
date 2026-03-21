@@ -445,6 +445,7 @@ const router = express.Router();
       if (!wc_award) {
         const base = Math.floor((bytes_actual || 0) / 4096);
         wc_award = Math.min(1_000_000, Math.max(0, base));
+        if (ok === 1 && (bytes_actual || 0) > 0 && wc_award < 1) wc_award = 1;
       }
 
       const now = Date.now();
@@ -465,6 +466,69 @@ const router = express.Router();
         who,
         wc_award,
       };
+
+      // Bridge DataNet receipt WC into the canonical wc_v1 ledger consumed by /wc/*
+      try {
+        if (ok === 1 && Number.isFinite(wc_award) && wc_award > 0 && who) {
+          const wcDir2 = path.join(baseDir, "wc_v1");
+          const ledgerFile2 = path.join(wcDir2, "ledger.jsonl");
+          fs.mkdirSync(wcDir2, { recursive: true });
+
+          const dedupeKey = [
+            String(who),
+            String(rootIn),
+            String(leafIn),
+            String(idxIn),
+            String(plain_sha ? plain_sha.toLowerCase() : "")
+          ].join(":");
+
+          let alreadyCredited = false;
+          try {
+            if (fs.existsSync(ledgerFile2)) {
+              const prior = String(fs.readFileSync(ledgerFile2, "utf8") || "").split("\n");
+              for (const line of prior) {
+                const t = String(line || "").trim();
+                if (!t) continue;
+                try {
+                  const j = JSON.parse(t);
+                  if (String(j?.kind || "") !== "credit") continue;
+                  if (String(j?.account || "") !== String(who)) continue;
+
+                  const priorKey = String(
+                    j?.dedupe_key || [
+                      String(j?.account || ""),
+                      String(j?.root || ""),
+                      String(j?.leaf || ""),
+                      String(j?.index ?? ""),
+                      String(j?.plain_sha256 || "")
+                    ].join(":")
+                  );
+
+                  if (priorKey === dedupeKey) { alreadyCredited = true; break; }
+                } catch {}
+              }
+            }
+          } catch {}
+
+          if (!alreadyCredited) {
+            const evt = {
+              kind: "credit",
+              account: String(who),
+              delta: Math.floor(Number(wc_award) || 0),
+              reason: "datanet_receipt",
+              job_id: null,
+              receipt_id: String(rec.id),
+              root: String(rootIn),
+              leaf: String(leafIn),
+              index: Number(idxIn),
+              plain_sha256: String(plain_sha ? plain_sha.toLowerCase() : ""),
+              dedupe_key: dedupeKey,
+              ts_ms: now,
+            };
+            fs.appendFileSync(ledgerFile2, JSON.stringify(evt) + "\n");
+          }
+        }
+      } catch {}
 
       const __m = __datanetReceiptsMetricsV1();
       __m.post_total++;
