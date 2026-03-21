@@ -167,3 +167,7 @@ void-dev-cycle:
 autoprop-smoke:
 	./ops/autoprop-smoke.sh
 
+
+.PHONY: full-demo-smoke
+full-demo-smoke:
+	./ops/full-demo-smoke.sh
