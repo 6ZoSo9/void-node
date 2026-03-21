@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
-A=void-node
-B=void-node-b
+
+A=void-node.service
+B=void-node@bootstrap-1.service
 
 case "${1:-}" in
-  start)  systemctl --user start  "$A" "$B" ;;
-  stop)   systemctl --user stop   "$A" "$B" ;;
-  restart|bounce) systemctl --user restart "$A" "$B" ;;
-  status)
-    systemctl --user --no-pager status "$A" "$B"
-    echo; echo "Ports:"
-    ss -ltnp | grep -E ':(4100|4101)\b' || echo "no listeners on 4100/4101"
-    ;;
-  logs-a) journalctl --user -u "$A" -f ;;
-  logs-b) journalctl --user -u "$B" -f ;;
+  start)   systemctl --user start  "$A" ;;
+  stop)    systemctl --user stop   "$A" ;;
+  restart) systemctl --user restart "$A" ;;
+  status)  systemctl --user status "$A" --no-pager -l ;;
+  logs-a)  journalctl --user -u "$A" -f ;;
+  logs-b)  journalctl --user -u "$B" -f ;;
   head)
-    echo "A:" && curl -fsS http://127.0.0.1:4100/head | jq -r '.head'
-    echo "B:" && curl -fsS http://127.0.0.1:4101/head | jq -r '.head'
+    echo -n "A: "
+    curl -fsS --max-time 1.0 http://127.0.0.1:4100/head.txt | tr -d '\r' | awk '{print $1}'
+    echo -n "B: "
+    curl -fsS --max-time 1.0 http://127.0.0.1:4101/head.txt | tr -d '\r' | awk '{print $1}'
     ;;
   *)
     echo "Usage: $0 {start|stop|restart|status|logs-a|logs-b|head}" >&2
-    exit 1 ;;
+    exit 2
+    ;;
 esac

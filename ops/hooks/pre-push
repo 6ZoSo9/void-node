@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Skip knob:
+#   PROM_SKIP_DUP_GUARD=1 git push
+if [ "${PROM_SKIP_DUP_GUARD:-}" = "1" ]; then
+  echo "[ok] pre-push: PROM_SKIP_DUP_GUARD=1 (skipping dup-rule guard)"
+  exit 0
+fi
+
+PROM="${PROM:-http://127.0.0.1:9090}"
+
+# If Prom isn’t reachable, don’t block pushes (this is an ops guard, not a dev blocker).
+if ! curl -fsS --max-time 1 "$PROM/-/ready" >/dev/null 2>&1; then
+  echo "[ok] pre-push: Prom not reachable at $PROM (skipping dup-rule guard)"
+  exit 0
+fi
+
+# If jq is missing, don’t block pushes.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[ok] pre-push: jq missing (skipping dup-rule guard)"
+  exit 0
+fi
+
+json="$(curl -fsS "$PROM/api/v1/rules")"
+dups="$(jq -c '
+  [ .data.groups[]?.rules[]? | (.name // .record) ]
+  | map(select(. != null))
+  | sort
+  | group_by(.)
+  | map(select(length>1) | {name:.[0], count:length})
+' <<<"$json")"
+
+if [ "$(jq -r 'length' <<<"$dups")" = "0" ]; then
+  echo "[ok] pre-push: no duplicate rule names (Prom rules API)"
+  exit 0
+fi
+
+echo "[FAIL] pre-push: duplicate rule names detected in loaded Prom rules:"
+jq -r '.[] | "  DUP x\(.count) \(.name)"' <<<"$dups"
+echo
+echo "Fix: disable/move the offending files, then run:"
+echo "  /usr/local/bin/prom-guard-no-duprules.sh && /usr/local/bin/prom-safe-reload-guarded.sh"
+exit 2

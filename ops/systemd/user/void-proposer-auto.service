@@ -1,0 +1,15 @@
+[Unit]
+Description=Force-enable VOID proposer auto loop via HTTP
+After=void-node.service
+Wants=void-node.service
+PartOf=void-node.service
+
+[Service]
+Type=oneshot
+Environment=HTTP_PORT=4100
+Environment=PROPOSER_TICK_MS=2000
+ExecStart=%h/.local/bin/void-proposer-auto.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target

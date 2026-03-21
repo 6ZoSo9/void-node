@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+F="/var/lib/node_exporter/textfile_collector/void_datanet_wc_expected.prom"
+v="${1:-}"
+case "$v" in
+  0|1) ;;
+  *) echo "usage: void-datanet-wc-expected 0|1" >&2; exit 2 ;;
+esac
+
+sudo perl -i -pe "s/^(void_datanet_wc_expected\\s+)\\d+\$/\${1}$v/" "$F" || true
+sudo systemctl restart prometheus-node-exporter || true
+echo "[ok] set void_datanet_wc_expected=$v"

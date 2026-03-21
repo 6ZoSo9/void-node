@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-BASE='http://127.0.0.1:4100'
+BASE='http://localhost:4100'
 PROM='http://127.0.0.1:9090/api/v1/query'
 
 # Head increase over 2m

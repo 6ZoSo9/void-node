@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# fast scan of staged changes
+if [[ -x ops/void-secrets-guard.sh ]]; then
+  ops/void-secrets-guard.sh staged
+else
+  echo "[pre-commit] WARNING: ops/void-secrets-guard.sh missing; skipping secrets scan"
+fi

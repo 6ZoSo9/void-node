@@ -1,0 +1,61 @@
+/* eslint-disable */
+(function () {
+  const tag = `[listen-trace.v2 pid=${process.pid}]`;
+  const log = (...a) => { try { console.error(tag, ...a); } catch (_) {} };
+
+  try {
+    const net = require("net");
+    const http = require("http");
+
+    let seen = 0;
+
+    function onceHook(obj, name) {
+      if (!obj || typeof obj[name] !== "function") return;
+      const orig = obj[name];
+      if (orig.__void_listen_trace_v2) return;
+
+      function wrapped() {
+        seen++;
+        const args = Array.prototype.slice.call(arguments);
+        let host = null;
+        let port = null;
+        for (const a of args) {
+          if (typeof a === "number") { port = a; break; }
+          if (typeof a === "string" && !host && a.includes(".")) host = a;
+        }
+        log(`${name} called`, { port, host, args0: args[0] });
+        try { log("stack", (new Error("listen-trace")).stack); } catch (_) {}
+        return orig.apply(this, arguments);
+      }
+      try { Object.defineProperty(wrapped, "__void_listen_trace_v2", { value: 1 }); } catch (_) {}
+      obj[name] = wrapped;
+      log(`hooked ${name}`);
+    }
+
+    onceHook(net.Server.prototype, "listen");
+    onceHook(http.Server.prototype, "listen");
+
+    // After 2s, attempt a bind+close probe to show whether 4100 is free.
+    setTimeout(() => {
+      const host = process.env.HTTP_HOST || "127.0.0.1";
+      const port = Number(process.env.HTTP_PORT || 4100);
+      const s = net.createServer(() => {});
+      s.once("error", (e) => {
+        log("port-probe error", { host, port, code: e && e.code, msg: String(e) });
+      });
+      s.listen({ host, port }, () => {
+        log("port-probe OK (port is free + bind works)", { host, port });
+        try { s.close(); } catch (_) {}
+      });
+    }, 2000);
+
+    // After 6s, if no listen seen, scream once.
+    setTimeout(() => {
+      if (!seen) log("NO listen() observed after 6s (node never attempted to bind)");
+    }, 6000);
+
+    log("installed");
+  } catch (e) {
+    log("install failed", (e && e.stack) ? e.stack : e);
+  }
+})();

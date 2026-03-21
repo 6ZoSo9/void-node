@@ -72,10 +72,10 @@ bash scripts/p2p_helpers.sh 127.0.0.1:4100
 bash scripts/p2p_helpers.sh 127.0.0.1:4101
 
 # Dial main from follower, then start follower loop
-bash scripts/follow_helpers.sh 127.0.0.1:4101 http://127.0.0.1:4100 1000
+bash scripts/follow_helpers.sh 127.0.0.1:4101 http://localhost:4100 1000
 
 # Check metrics
-curl -sS http://127.0.0.1:4100/metrics | grep -E '(void_head_number|void_peers_connected|void_follow_errors_total)'
+curl -sS http://localhost:4100/metrics | grep -E '(void_head_number|void_peers_connected|void_follow_errors_total)'
 curl -sS http://127.0.0.1:4101/metrics | grep -E '(void_head_number|void_peers_connected|void_follow_errors_total)'
 ```
 

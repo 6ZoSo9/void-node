@@ -1,0 +1,47 @@
+{
+  "network": {
+    "name": "VOID Devnet",
+    "chainId": 2050,
+    "rpcUrl": "http://127.0.0.1:8545"
+  },
+  "contracts": {
+    "VoidToken": "0x...",
+    "WorkCreditsToken": "0x...",
+    "UptimeVaultLLP": "0x...",
+    "WorkCreditsRelayerV1": "0x...",
+    "WorkCreditsRelayerQuoteHelper": "0x..."
+  },
+  "relayer": {
+    "baseUrl": "http://127.0.0.1:4313/api/wc-relayer/v1",
+    "maxSlippageBpsDefault": 50,
+    "timeoutMs": 8000
+  },
+  "ui": {
+    "tabs": {
+      "home": true,
+      "wallet": true,
+      "trading": true,
+      "nullfeed": true,
+      "nfts": true,
+      "dashboard": true
+    },
+    "defaultGasMode": "relayer",
+    "showAdvancedIntents": false
+  },
+  "services": {
+    "workcredits": {
+      "baseUrl": "http://127.0.0.1:4312/workcredits/devnet",
+      "uiUrl": "http://127.0.0.1:4312/workcredits/devnet/ui",
+      "poolUrl": "http://127.0.0.1:4312/workcredits/devnet/pool.json",
+      "dashboardUrlTemplate": "http://127.0.0.1:4312/workcredits/devnet/dashboard/{address}.json",
+      "accountUrlTemplate": "http://127.0.0.1:4312/workcredits/devnet/account/{address}.json",
+      "helperPort": 4312,
+      "helperMode": "native-json",
+      "notes": [
+        "Revived WC helper now serves native JSON on :4312",
+        "Old 4311 wc-relayer path was stale for wallet dashboard use",
+        "Use dashboardUrlTemplate/accountUrlTemplate with {address} substitution"
+      ]
+    }
+  }
+}

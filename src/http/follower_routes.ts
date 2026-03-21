@@ -7,7 +7,7 @@ import type { Express } from "express";
 export function registerFollowerRoutes(app: Express, node: any, metrics?: any) {
   // One-shot pull
   app.post("/follower/once", async (req, res) => {
-    const peer = String(req.query.peer || req.body?.peer || "http://127.0.0.1:4100");
+    const peer = String(req.query.peer || req.body?.peer || "http://localhost:4100");
     try {
       const r = await node.pullOnce?.(peer);
       if (metrics && r?.imported) metrics.inc?.("follower_imported", r.imported);
@@ -20,7 +20,7 @@ export function registerFollowerRoutes(app: Express, node: any, metrics?: any) {
 
   // Continuous follow loop
   app.post("/follower/start", (req, res) => {
-    const peer = String(req.query.peer || req.body?.peer || "http://127.0.0.1:4100");
+    const peer = String(req.query.peer || req.body?.peer || "http://localhost:4100");
     const intervalMs = Number(req.query.intervalMs || req.body?.intervalMs || 2000);
     try {
       const r = node.startFollower?.(peer, intervalMs);

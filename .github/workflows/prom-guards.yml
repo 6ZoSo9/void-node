@@ -1,0 +1,16 @@
+name: prom-guards
+on:
+  push:
+  pull_request:
+jobs:
+  forbid-legacy-healthjob:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block forbidden job_name (void-txroot-health-prom)
+        run: |
+          set -euo pipefail
+          if git ls-files | xargs -r grep -RIn --color=never -E '^[[:space:]]*- job_name:[[:space:]]*(")?void-txroot-health-prom(")?[[:space:]]*$' >/dev/null; then
+            echo "BLOCK: forbidden job_name void-txroot-health-prom found in repo."
+            exit 1
+          fi

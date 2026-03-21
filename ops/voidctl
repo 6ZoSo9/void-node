@@ -1,0 +1,899 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CTL_DIR="${HOME}/.config/void"
+CTL_ENV="${CTL_DIR}/voidctl.env"
+
+if [ -f "${CTL_ENV}" ]; then
+  # shellcheck disable=SC1090
+  . "${CTL_ENV}"
+fi
+
+HOST="${VOID_HTTP_HOST:-127.0.0.1}"
+PORT="${VOID_HTTP_PORT:-4100}"
+BASE="http://${HOST}:${PORT}"
+
+KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key.pkcs8.pem"
+DATA_DIR_DEFAULT="${HOME}/void-data"
+SERVICE_NAME="${VOID_SYSTEMD_UNIT:-void-node.service}"
+PLAN_FILE="${CTL_DIR}/update-plan.json"
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "[FAIL] missing dependency: $1" >&2
+    exit 1
+  }
+}
+
+need curl
+need python3
+
+j() { curl -fsS --max-time 4 "${BASE}$1"; }
+
+usage() {
+  cat <<EOF
+VOIDCTL v0
+
+Usage:
+  ops/voidctl init
+  ops/voidctl install-service
+  ops/voidctl start
+  ops/voidctl stop
+  ops/voidctl version
+  ops/voidctl status
+  ops/voidctl doctor
+  ops/voidctl update-check
+  ops/voidctl update-verify
+  ops/voidctl update-plan
+  ops/voidctl update-plan-show
+  ops/voidctl update-plan-clear
+  ops/voidctl update-apply
+  ops/voidctl rollback-latest
+  ops/voidctl demo-summary
+  ops/voidctl wc-ready
+  ops/voidctl wc-doctor
+  ops/voidctl wc-demo
+  ops/voidctl agent-summary
+
+Env:
+  VOID_HTTP_HOST     default: 127.0.0.1
+  VOID_HTTP_PORT     default: 4100
+  VOID_SYSTEMD_UNIT  default: void-node.service
+EOF
+}
+
+ensure_dirs() {
+  mkdir -p "${CTL_DIR}"
+  mkdir -p "${HOME}/.secrets"
+  mkdir -p "${DATA_DIR_DEFAULT}"
+}
+
+load_env_if_present() {
+  if [ -f "${CTL_ENV}" ]; then
+    # shellcheck disable=SC1090
+    . "${CTL_ENV}"
+  fi
+}
+
+cmd_init() {
+  ensure_dirs
+  load_env_if_present
+
+  local http_host="${VOID_HTTP_HOST:-127.0.0.1}"
+  local http_port="${VOID_HTTP_PORT:-4110}"
+  local p2p_port="${VOID_P2P_PORT:-4710}"
+  local service_name="${VOID_SYSTEMD_UNIT:-void-node-local.service}"
+  local key_path="${VOID_KEY_PATH:-${KEY_PATH_DEFAULT}}"
+  local data_dir="${VOID_DATA_DIR:-${DATA_DIR_DEFAULT}}"
+
+  if [ ! -f "${key_path}" ]; then
+    mkdir -p "$(dirname "${key_path}")"
+    openssl genpkey -algorithm ed25519 -out "${key_path}"
+    chmod 600 "${key_path}" || true
+    echo "[ok] generated pkcs8 ed25519 key: ${key_path}"
+  else
+    chmod 600 "${key_path}" || true
+    echo "[ok] key exists: ${key_path}"
+  fi
+
+  cat > "${CTL_ENV}" <<EOF
+# VOIDCTL local config v0
+VOID_HTTP_HOST=${http_host}
+VOID_HTTP_PORT=${http_port}
+VOID_P2P_PORT=${p2p_port}
+VOID_SYSTEMD_UNIT=${service_name}
+VOID_KEY_PATH=${key_path}
+VOID_DATA_DIR=${data_dir}
+EOF
+
+  chmod 600 "${CTL_ENV}" || true
+
+  echo "[ok] wrote ${CTL_ENV}"
+  echo
+  echo "=== config ==="
+  sed -n "1,120p" "${CTL_ENV}"
+  echo
+  echo "[ok] init complete"
+  echo "next:"
+  echo "  ops/voidctl start"
+  echo "  ops/voidctl status"
+}
+
+cmd_start() {
+  load_env_if_present
+  systemctl --user daemon-reload
+  systemctl --user start "${SERVICE_NAME}"
+  sleep 2
+  echo "[ok] started ${SERVICE_NAME}"
+  systemctl --user --no-pager --full status "${SERVICE_NAME}" -n 20 || true
+}
+
+cmd_stop() {
+  load_env_if_present
+  systemctl --user stop "${SERVICE_NAME}"
+  echo "[ok] stopped ${SERVICE_NAME}"
+}
+
+print_json_pretty() {
+  python3 -m json.tool
+}
+
+cmd_version() {
+  j /version | print_json_pretty
+}
+
+cmd_update_check() {
+  j /upgrade/check | print_json_pretty
+}
+
+cmd_update_verify() {
+  local U
+  U="$(j /upgrade/check)"
+  python3 -c 'import json,sys\nfrom pathlib import Path
+u=json.loads(sys.argv[1])
+
+manifest_found = bool(u.get("manifest_found"))
+compatible = bool(u.get("compatible"))
+signature_valid = bool(u.get("signature_valid"))
+signature_present = bool(u.get("signature_present"))
+verification_reason = u.get("verification_reason")
+trust_state = "verified" if signature_valid else ("signed-unverified" if signature_present else "unsigned")
+
+print("VOID update verify")
+print("------------------")
+print("manifest_found:", manifest_found)
+print("compatible:", compatible)
+print("signature_present:", signature_present)
+print("signature_valid:", signature_valid)
+print("verification_reason:", verification_reason)
+print("trust_state:", trust_state)
+
+ok = manifest_found and compatible and signature_valid
+raise SystemExit(0 if ok else 1)' "$U"
+}
+
+cmd_update_plan() {
+  load_env_if_present
+
+  local TS BACKUP_DIR
+  mkdir -p "${CTL_DIR}"
+  TS="$(date +%Y%m%d-%H%M%S)"
+  BACKUP_DIR="${HOME}/.config/void/backups/update-apply-${TS}"
+
+  python3 - <<PY
+import json
+from pathlib import Path
+Path("${PLAN_FILE}").write_text(json.dumps({
+  "service": "${SERVICE_NAME}",
+  "backup_dir": "${BACKUP_DIR}",
+  "base": "${BASE}"
+}, indent=2) + "\n", encoding="utf-8")
+print("[ok] wrote pending plan:", "${PLAN_FILE}")
+PY
+
+  local U
+  U="$(j /upgrade/check)"
+  python3 -c 'import json,sys
+u=json.loads(sys.argv[1])
+local=u.get("local") or {}
+manifest=u.get("manifest") or {}
+print("VOID update plan")
+print("----------------")
+print("local_version:", local.get("version"))
+print("local_protocol:", local.get("protocol_version"))
+print("manifest_found:", u.get("manifest_found"))
+print("manifest_version:", manifest.get("version"))
+print("manifest_protocol:", manifest.get("protocol_version"))
+print("manifest_min_protocol:", manifest.get("min_protocol_version"))
+print("channel:", manifest.get("channel"))
+print("compatible:", u.get("compatible"))
+print("update_available:", u.get("update_available"))
+print("reason:", u.get("reason"))
+print("signature_present:", u.get("signature_present"))
+print("signature_valid:", u.get("signature_valid"))
+print("verification_reason:", u.get("verification_reason"))
+print("trust_state:", "verified" if u.get("signature_valid") else ("signed-unverified" if u.get("signature_present") else "unsigned"))
+print("")
+print("service:", sys.argv[2])
+print("backup_dir:", sys.argv[3])
+print("plan_file:", sys.argv[4])
+print("")
+print("planned_steps:")
+print("  1. stop service:", sys.argv[2])
+print("  2. back up ops/voidctl, config, and current install state")
+print("  3. verify manifest/signature (stub today)")
+print("  4. apply new files/binaries (stub today)")
+print("  5. start service:", sys.argv[2])
+print("  6. run ops/voidctl doctor")' "$U" "$SERVICE_NAME" "$BACKUP_DIR" "$PLAN_FILE"
+}
+cmd_update_plan_show() {
+  load_env_if_present
+  if [ ! -f "${PLAN_FILE}" ]; then
+    echo "[FAIL] no pending plan file: ${PLAN_FILE}"
+    exit 1
+  fi
+  cat "${PLAN_FILE}" | print_json_pretty
+}
+
+cmd_update_plan_clear() {
+  load_env_if_present
+  if [ -f "${PLAN_FILE}" ]; then
+    rm -f "${PLAN_FILE}"
+    echo "[ok] removed ${PLAN_FILE}"
+  else
+    echo "[ok] no pending plan file to remove"
+  fi
+}
+
+cmd_update_apply() {
+  load_env_if_present
+
+  local TS BACKUP_DIR PLAN_SERVICE UNIT_PATH HOME_DIR
+  UNIT_PATH="${HOME}/.config/systemd/user/${SERVICE_NAME}"
+  HOME_DIR="${HOME}"
+  PLAN_SERVICE=""
+
+  if [ -f "${PLAN_FILE}" ]; then
+    BACKUP_DIR="$(python3 - <<PY
+import json
+from pathlib import Path
+j=json.loads(Path("${PLAN_FILE}").read_text(encoding="utf-8"))
+print(j.get("backup_dir",""))
+PY
+)"
+    PLAN_SERVICE="$(python3 - <<PY
+import json
+from pathlib import Path
+j=json.loads(Path("${PLAN_FILE}").read_text(encoding="utf-8"))
+print(j.get("service",""))
+PY
+)"
+  else
+    BACKUP_DIR=""
+  fi
+
+  if [ -n "${PLAN_SERVICE}" ] && [ "${PLAN_SERVICE}" != "${SERVICE_NAME}" ]; then
+    echo "[FAIL] pending plan service mismatch"
+    echo "[FAIL] plan_file=${PLAN_FILE}"
+    echo "[FAIL] plan_service=${PLAN_SERVICE}"
+    echo "[FAIL] current_service=${SERVICE_NAME}"
+    exit 1
+  fi
+
+  if [ -z "${BACKUP_DIR}" ]; then
+    TS="$(date +%Y%m%d-%H%M%S)"
+    BACKUP_DIR="${HOME}/.config/void/backups/update-apply-${TS}"
+  fi
+
+  mkdir -p "${BACKUP_DIR}"
+
+  [ -f "${CTL_ENV}" ] && cp -a "${CTL_ENV}" "${BACKUP_DIR}/voidctl.env" || true
+  [ -f "${UNIT_PATH}" ] && cp -a "${UNIT_PATH}" "${BACKUP_DIR}/$(basename "${UNIT_PATH}")" || true
+  [ -f "config/update-manifest.v0.json" ] && cp -a "config/update-manifest.v0.json" "${BACKUP_DIR}/update-manifest.v0.json" || true
+  [ -f "config/update-pubkey.v1.pem" ] && cp -a "config/update-pubkey.v1.pem" "${BACKUP_DIR}/update-pubkey.v1.pem" || true
+  [ -f "ops/voidctl" ] && cp -a "ops/voidctl" "${BACKUP_DIR}/voidctl" || true
+
+  local U
+  U="$(j /upgrade/check)"
+  python3 -c 'import json,sys
+u=json.loads(sys.argv[1])
+local=u.get("local") or {}
+manifest=u.get("manifest") or {}
+
+manifest_found = bool(u.get("manifest_found"))
+compatible = bool(u.get("compatible"))
+signature_valid = bool(u.get("signature_valid"))
+signature_present = bool(u.get("signature_present"))
+reason = u.get("reason")
+verification_reason = u.get("verification_reason")
+trust_state = "verified" if signature_valid else ("signed-unverified" if signature_present else "unsigned")
+
+print("VOID update apply (dry-run)")
+print("---------------------------")
+print("mode:", "dry-run")
+print("service:", sys.argv[3])
+print("local_version:", local.get("version"))
+print("target_version:", manifest.get("version"))
+print("compatible:", compatible)
+print("update_available:", u.get("update_available"))
+print("reason:", reason)
+print("signature_present:", signature_present)
+print("signature_valid:", signature_valid)
+print("verification_reason:", verification_reason)
+print("trust_state:", trust_state)
+print("")
+
+failures = []
+if not manifest_found:
+    failures.append("manifest_missing")
+if not compatible:
+    failures.append("incompatible_protocol")
+if not signature_valid:
+    failures.append("signature_not_valid")
+
+if failures:
+    print("blocked:")
+    for f in failures:
+        print("  -", f)
+    print("")
+    print("refusing apply plan because trust checks failed")
+    raise SystemExit(1)
+
+print("backup_dir:", sys.argv[2])
+print("plan_file:", sys.argv[4])
+print("")
+print("would_run:")
+print("  systemctl --user stop " + sys.argv[3])
+print("  backup current install/config")
+print("  verify signed manifest")
+print("  stage replacement artifacts")
+print("  systemctl --user start " + sys.argv[3])
+print("  ops/voidctl doctor")
+print("")
+print("rollback_commands:")
+print("  systemctl --user stop " + sys.argv[3])
+print("  cp -a " + sys.argv[2] + "/voidctl.env " + sys.argv[5] + "/.config/void/voidctl.env")
+print("  cp -a " + sys.argv[2] + "/" + sys.argv[3] + " " + sys.argv[5] + "/.config/systemd/user/" + sys.argv[3])
+print("  cp -a " + sys.argv[2] + "/update-manifest.v0.json config/update-manifest.v0.json")
+print("  test ! -f " + sys.argv[2] + "/update-pubkey.v1.pem || cp -a " + sys.argv[2] + "/update-pubkey.v1.pem config/update-pubkey.v1.pem")
+print("  cp -a " + sys.argv[2] + "/voidctl ops/voidctl")
+print("  chmod +x ops/voidctl")
+print("  systemctl --user daemon-reload")
+print("  systemctl --user start " + sys.argv[3])
+print("  ops/voidctl doctor")' "$U" "$BACKUP_DIR" "$SERVICE_NAME" "$PLAN_FILE" "$HOME_DIR"
+}
+cmd_rollback_latest() {
+  load_env_if_present
+
+  local BACKUP_DIR UNIT_PATH
+  BACKUP_DIR="$(ls -1dt "${HOME}/.config/void/backups"/update-apply-* 2>/dev/null | head -n 1 || true)"
+  UNIT_PATH="${HOME}/.config/systemd/user/${SERVICE_NAME}"
+
+  if [ -z "${BACKUP_DIR}" ]; then
+    echo "[FAIL] no update-apply backup bundles found"
+    exit 1
+  fi
+
+  echo "[info] using backup_dir=${BACKUP_DIR}"
+  echo "[info] restoring service=${SERVICE_NAME}"
+
+  [ -f "${BACKUP_DIR}/voidctl.env" ] || { echo "[FAIL] missing ${BACKUP_DIR}/voidctl.env"; exit 1; }
+  [ -f "${BACKUP_DIR}/update-manifest.v0.json" ] || { echo "[FAIL] missing ${BACKUP_DIR}/update-manifest.v0.json"; exit 1; }
+
+  systemctl --user stop "${SERVICE_NAME}" || true
+
+  mkdir -p "${HOME}/.config/void"
+  mkdir -p "${HOME}/.config/systemd/user"
+  mkdir -p config
+
+  cp -a "${BACKUP_DIR}/voidctl.env" "${HOME}/.config/void/voidctl.env"
+  if [ -f "${BACKUP_DIR}/$(basename "${UNIT_PATH}")" ]; then
+    cp -a "${BACKUP_DIR}/$(basename "${UNIT_PATH}")" "${UNIT_PATH}"
+  fi
+  cp -a "${BACKUP_DIR}/update-manifest.v0.json" "config/update-manifest.v0.json"
+  if [ -f "${BACKUP_DIR}/update-pubkey.v1.pem" ]; then
+    cp -a "${BACKUP_DIR}/update-pubkey.v1.pem" "config/update-pubkey.v1.pem"
+  fi
+
+  echo "[info] leaving ops/voidctl in place (no self-overwrite)"
+
+  systemctl --user daemon-reload
+  systemctl --user start "${SERVICE_NAME}"
+
+  echo "[ok] rollback restored from ${BACKUP_DIR}"
+  echo "[info] waiting for ${SERVICE_NAME} on ${BASE}"
+
+  local i
+  for i in 1 2 3 4 5 6 7 8; do
+    if curl -fsS --max-time 2 "${BASE}/health" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+
+  cmd_doctor
+}
+
+cmd_demo_summary() {
+  j /__void/demo/summary.json | print_json_pretty
+}
+
+
+cmd_wc_demo() {
+  local runner="${HOME}/dev/void-node/ops/wc-demo-run.sh"
+  if [ ! -x "$runner" ]; then
+    echo "[FAIL] missing executable runner: $runner" >&2
+    exit 1
+  fi
+
+  echo "=== wc-doctor precheck ==="
+  cmd_wc_doctor
+
+  echo
+  echo "=== wc-demo run ==="
+  bash "$runner"
+}
+
+cmd_wc_doctor() {
+  local node_base="${BASE}"
+  local helper_base="${WC_HELPER_BASE:-http://127.0.0.1:4312}"
+  local relayer_base="${WC_RELAYER_BASE:-http://127.0.0.1:4313}"
+  local wallet="${WC_WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
+  local wc_account="${WC_ACCOUNT:-demo-user}"
+  local ledger_jsonl="${HOME}/dev/void-node/data_a/wc_v1/ledger.jsonl"
+  local redeemed_jsonl="${HOME}/dev/void-node/data_a/wc_v1/redeemed.jsonl"
+  local json_mode="${1:-}"
+
+  python3 - "$node_base" "$helper_base" "$relayer_base" "$wallet" "$wc_account" "$ledger_jsonl" "$redeemed_jsonl" "$json_mode" <<'PY2'
+import json, sys, urllib.request, os
+
+node_base, helper_base, relayer_base, wallet, wc_account, ledger_jsonl, redeemed_jsonl, json_mode = sys.argv[1:9]
+
+def get_json(url, timeout=4):
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            raw = r.read().decode("utf-8", "replace")
+        return True, json.loads(raw)
+    except Exception as e:
+        return False, {"ok": False, "error": str(e), "url": url}
+
+def parse_local_wc(ledger_file, redeemed_file, account):
+    earned = 0.0
+    redeemed = 0.0
+    count = 0
+    if os.path.exists(ledger_file):
+        with open(ledger_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line=line.strip()
+                if not line:
+                    continue
+                try:
+                    j=json.loads(line)
+                except:
+                    continue
+                if str(j.get("account","")) != account:
+                    continue
+                count += 1
+                earned += float(j.get("delta", 0) or 0)
+    if os.path.exists(redeemed_file):
+        with open(redeemed_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line=line.strip()
+                if not line:
+                    continue
+                try:
+                    j=json.loads(line)
+                except:
+                    continue
+                if str(j.get("account","")) != account:
+                    continue
+                redeemed += float(j.get("amount", 0) or 0)
+    return {
+        "account": account,
+        "earned": earned,
+        "redeemed": redeemed,
+        "redeemable": earned - redeemed,
+        "count": count,
+    }
+
+node_ok, node = get_json(node_base + "/health")
+helper_ok, helper = get_json(helper_base + "/workcredits/devnet/dashboard/" + wallet + ".json")
+relayer_ok, relayer = get_json(relayer_base + "/api/wc-relayer/v1/health")
+local_wc = parse_local_wc(ledger_jsonl, redeemed_jsonl, wc_account)
+
+helper_earned = float(helper.get("account", {}).get("earnings", {}).get("local_earned_wc", 0) or 0)
+helper_redeemed = float(helper.get("account", {}).get("earnings", {}).get("redeemed_wc", 0) or 0)
+helper_redeemable = float(helper.get("account", {}).get("earnings", {}).get("redeemable_wc", 0) or 0)
+
+diff_earned = local_wc["earned"] - helper_earned
+diff_redeemed = local_wc["redeemed"] - helper_redeemed
+diff_redeemable = local_wc["redeemable"] - helper_redeemable
+
+warn = []
+if not (node_ok and node.get("ok")):
+    warn.append("node_unhealthy")
+if not relayer_ok or not relayer.get("ok"):
+    warn.append("relayer_unhealthy")
+if not helper_ok or not helper.get("account", {}).get("up", 0):
+    warn.append("helper_unhealthy")
+if "127.0.0.1:4100" in str(relayer.get("node_base", "")) and "127.0.0.1:4100" not in node_base:
+    warn.append("node_base_differs_from_relayer_node_base")
+if abs(diff_earned) > 0.000001:
+    warn.append("earned_mismatch")
+if abs(diff_redeemed) > 0.000001:
+    warn.append("redeemed_mismatch")
+if abs(diff_redeemable) > 0.000001:
+    warn.append("redeemable_mismatch")
+
+out = {
+    "ok": True,
+    "healthy": len(warn) == 0,
+    "node_base": node_base,
+    "relayer_node_base": relayer.get("node_base"),
+    "helper_base": helper_base,
+    "wallet": wallet,
+    "wc_account": wc_account,
+    "node_ok": bool(node_ok and node.get("ok")),
+    "helper_ok": bool(helper_ok and helper.get("account", {}).get("up", 0)),
+    "relayer_ok": bool(relayer_ok and relayer.get("ok")),
+    "local_wc": local_wc,
+    "helper_wc": {
+        "earned": helper_earned,
+        "redeemed": helper_redeemed,
+        "redeemable": helper_redeemable,
+    },
+    "diff": {
+        "earned": diff_earned,
+        "redeemed": diff_redeemed,
+        "redeemable": diff_redeemable,
+    },
+    "warnings": warn,
+}
+
+if json_mode == "--json":
+    print(json.dumps(out, indent=2))
+else:
+    print("wc-doctor")
+    print("---------")
+    print("node:", "OK" if out["node_ok"] else "FAIL")
+    print("helper:", "OK" if out["helper_ok"] else "FAIL")
+    print("relayer:", "OK" if out["relayer_ok"] else "FAIL")
+    print("node_base:", out["node_base"])
+    print("relayer_node_base:", out["relayer_node_base"])
+    print("account:", out["wc_account"])
+    print("earned/redeemed/redeemable:",
+          f'{local_wc["earned"]:.6f}',
+          "/",
+          f'{local_wc["redeemed"]:.6f}',
+          "/",
+          f'{local_wc["redeemable"]:.6f}')
+    print("diff earned/redeemed/redeemable:",
+          f'{diff_earned:.6f}',
+          "/",
+          f'{diff_redeemed:.6f}',
+          "/",
+          f'{diff_redeemable:.6f}')
+    if warn:
+        print("warnings:", ", ".join(warn))
+        print("result: NOT_READY")
+    else:
+        print("warnings: none")
+        print("result: HEALTHY")
+
+raise SystemExit(0 if len(warn) == 0 else 1)
+PY2
+}
+
+cmd_wc_ready() {
+  local node_base="${BASE}"
+  local helper_base="${WC_HELPER_BASE:-http://127.0.0.1:4312}"
+  local relayer_base="${WC_RELAYER_BASE:-http://127.0.0.1:4313}"
+  local rpc_url="${WC_RPC_URL:-http://127.0.0.1:8545}"
+  local wallet="${WC_WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
+  local wc_account="${WC_ACCOUNT:-demo-user}"
+  local state_json="${HOME}/dev/void-node/docs/VOID-DEVNET-PROTOCOL-STATE.json"
+  local broadcast_json="${HOME}/dev/void-node/broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json"
+  local ledger_jsonl="${HOME}/dev/void-node/data_a/wc_v1/ledger.jsonl"
+  local redeemed_jsonl="${HOME}/dev/void-node/data_a/wc_v1/redeemed.jsonl"
+  local json_mode="${1:-}"
+
+  python3 - "$node_base" "$helper_base" "$relayer_base" "$rpc_url" "$wallet" "$wc_account" "$state_json" "$broadcast_json" "$ledger_jsonl" "$redeemed_jsonl" "$json_mode" <<'PY2'
+import json, sys, urllib.request, os
+
+node_base, helper_base, relayer_base, rpc_url, wallet, wc_account, state_json, broadcast_json, ledger_jsonl, redeemed_jsonl, json_mode = sys.argv[1:12]
+
+def get_json(url, timeout=4):
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            raw = r.read().decode("utf-8", "replace")
+        return True, json.loads(raw)
+    except Exception as e:
+        return False, {"ok": False, "error": str(e), "url": url}
+
+def parse_local_wc(ledger_file, redeemed_file, account):
+    earned = 0.0
+    redeemed = 0.0
+    count = 0
+    try:
+        if os.path.exists(ledger_file):
+            with open(ledger_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line=line.strip()
+                    if not line:
+                        continue
+                    try:
+                        j=json.loads(line)
+                    except:
+                        continue
+                    if str(j.get("account", "")) != account:
+                        continue
+                    count += 1
+                    earned += float(j.get("delta", 0) or 0)
+    except:
+        pass
+    try:
+        if os.path.exists(redeemed_file):
+            with open(redeemed_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line=line.strip()
+                    if not line:
+                        continue
+                    try:
+                        j=json.loads(line)
+                    except:
+                        continue
+                    if str(j.get("account", "")) != account:
+                        continue
+                    redeemed += float(j.get("amount", 0) or 0)
+    except:
+        pass
+    return {
+        "account": account,
+        "earned": earned,
+        "redeemed": redeemed,
+        "redeemable": earned - redeemed,
+        "count": count
+    }
+
+node_ok, node = get_json(node_base + "/health")
+helper_ok, helper = get_json(helper_base + "/workcredits/devnet/dashboard/" + wallet + ".json")
+relayer_ok, relayer = get_json(relayer_base + "/api/wc-relayer/v1/health")
+pool_ok, pool = get_json(helper_base + "/workcredits/devnet/pool.json")
+local_wc = parse_local_wc(ledger_jsonl, redeemed_jsonl, wc_account)
+
+files = {
+    "state_json": {"path": state_json, "exists": os.path.exists(state_json)},
+    "broadcast_json": {"path": broadcast_json, "exists": os.path.exists(broadcast_json)},
+    "ledger_jsonl": {"path": ledger_jsonl, "exists": os.path.exists(ledger_jsonl)},
+    "redeemed_jsonl": {"path": redeemed_jsonl, "exists": os.path.exists(redeemed_jsonl)},
+}
+
+ready = bool(
+    node_ok and bool(node.get("ok")) and
+    helper_ok and bool(helper.get("account", {}).get("up", 0)) and
+    relayer_ok and bool(relayer.get("ok", False)) and
+    pool_ok and bool(pool.get("up", 0)) and
+    all(v["exists"] for v in files.values())
+)
+
+out = {
+    "ok": True,
+    "ready": ready,
+    "node": {
+        "ok": bool(node_ok and node.get("ok")),
+        "base": node_base,
+        "http": node.get("http"),
+        "p2p": node.get("p2p"),
+        "nodeId": node.get("nodeId"),
+    },
+    "helper": {
+        "ok": bool(helper_ok and helper.get("account", {}).get("up", 0)),
+        "base": helper_base,
+        "wallet": wallet,
+        "pending_wc": helper.get("account", {}).get("earnings", {}).get("pending_wc"),
+        "redeemable_wc": helper.get("account", {}).get("earnings", {}).get("redeemable_wc"),
+        "earned_wc": helper.get("account", {}).get("earnings", {}).get("local_earned_wc"),
+    },
+    "relayer": {
+        "ok": bool(relayer_ok and relayer.get("ok", False)),
+        "base": relayer_base,
+    },
+    "pool": {
+        "ok": bool(pool_ok and pool.get("up", 0)),
+        "wc_per_void": pool.get("price", {}).get("wc_per_void"),
+        "void_per_wc": pool.get("price", {}).get("void_per_wc"),
+    },
+    "local_wc": local_wc,
+    "files": files
+}
+
+if json_mode == "--json":
+    print(json.dumps(out, indent=2))
+else:
+    print("wc-ready")
+    print("--------")
+    print("node:", "OK" if out["node"]["ok"] else "FAIL")
+    print("helper:", "OK" if out["helper"]["ok"] else "FAIL")
+    print("relayer:", "OK" if out["relayer"]["ok"] else "FAIL")
+    print("pool:", "OK" if out["pool"]["ok"] else "FAIL")
+    print("account:", wc_account)
+    print("earned/redeemed/redeemable:",
+          f'{local_wc["earned"]:.6f}',
+          "/",
+          f'{local_wc["redeemed"]:.6f}',
+          "/",
+          f'{local_wc["redeemable"]:.6f}')
+    print("result:", "READY" if ready else "NOT_READY")
+
+raise SystemExit(0 if ready else 1)
+PY2
+}
+
+cmd_agent_summary() {
+  j /__void/agent/summary.json | print_json_pretty
+}
+
+cmd_status() {
+  local health demo agent
+  health="$(j /health)"
+  demo="$(j /__void/demo/summary.json)"
+  agent="$(j /__void/agent/summary.json)"
+  python3 -c 'import json,sys
+h=json.loads(sys.argv[1]); d=json.loads(sys.argv[2]); a=json.loads(sys.argv[3])
+c=d.get("chain") or {}
+dn=d.get("datanet") or {}
+u=d.get("update") or {}
+latest=dn.get("latest_dataset") or {}
+counts=a.get("counts") or {}
+print("VOID status")
+print("-----------")
+print("node_id:", h.get("nodeId"))
+print("http:", h.get("http"))
+print("p2p:", h.get("p2p"))
+print("listen:", ", ".join(h.get("listen") or []))
+print("head:", c.get("head"))
+print("mempool:", c.get("mempool_count"))
+print("loopproof:", dn.get("loopproof_ok"))
+print("latest_ds:", latest.get("id"))
+print("receipts:", dn.get("receipts_count"))
+print("version:", u.get("version"))
+print("protocol:", u.get("protocol_version"))
+print("channel:", u.get("channel"))
+print("agent_total:", counts.get("total"))
+print("agent_queued:", counts.get("queued"))
+print("agent_picked:", counts.get("picked"))
+print("agent_done:", counts.get("completed"))' "$health" "$demo" "$agent"
+}
+
+cmd_doctor() {
+  local fails=0
+  ok(){ curl -fsS --max-time 3 "${BASE}$1" >/dev/null && echo "[ok] $2" || { echo "[FAIL] $2"; fails=$((fails+1)); }; }
+
+  echo "VOID doctor"
+  echo "-----------"
+  echo "[info] base=${BASE}"
+
+  ok /health health
+  ok /version version
+  ok /upgrade/check upgrade-check
+  ok /__void/demo/summary.json demo-summary
+  ok /__void/agent/summary.json agent-summary
+  ok "/datanet/list?limit=1" datanet-list
+
+  echo
+  if [ "$fails" -eq 0 ]; then
+    echo "[ok] doctor passed"
+  else
+    echo "[FAIL] doctor found ${fails} issue(s)"
+    exit 1
+  fi
+}
+
+cmd_install_service() {
+  load_env
+  mkdir -p "${HOME}/.config/systemd/user"
+
+  local UNIT_PATH="${HOME}/.config/systemd/user/${SERVICE_NAME}"
+  local REPO_DIR
+  REPO_DIR="$(pwd)"
+
+  cat > "${UNIT_PATH}" <<EOF
+[Unit]
+Description=VOID Node (installed by voidctl)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=${REPO_DIR}
+Environment=NODE_ENV=production
+Environment=HTTP_PORT=${VOID_HTTP_PORT}
+Environment=P2P_PORT=${VOID_P2P_PORT}
+Environment=HOST=0.0.0.0
+Environment=DATA_DIR=${VOID_DATA_DIR}
+Environment=KEY_PATH=${VOID_KEY_PATH}
+Environment=NODE_PRIVKEY_PATH=${VOID_KEY_PATH}
+Environment=VOID_NODE_KEY_A=${VOID_KEY_PATH}
+Environment=BOOTSTRAP_ADDRS=127.0.0.1:4700
+Environment=VOID_DRIFT_PEER=http://127.0.0.1:4100
+Environment=PROPOSER_AUTO=0
+Environment=VOID_PROPOSER_AUTO=0
+Environment=PROPOSER_TICK_MS=0
+Environment=VOID_PROPOSER_TICK_MS=0
+Environment=VOID_AUTOPROP=0
+Environment=VOID_COMMIT_DIRECT_AUTOPROP=0
+Environment=VOID_COMMIT_DIRECT_AUTOPROP_ENABLED=0
+Environment=VOID_AUTOPROP_ENABLED=0
+ExecStart=/usr/bin/env npx tsx src/index.ts
+ExecStartPost=/usr/bin/env bash -lc 'for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS -X POST "http://127.0.0.1:${VOID_HTTP_PORT}/follower/start?peer=http://127.0.0.1:4100&intervalMs=1000" && exit 0; sleep 2; done; exit 1'
+Restart=always
+RestartSec=2
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target
+EOF
+
+  systemctl --user daemon-reload
+  systemctl --user enable --now "${SERVICE_NAME}"
+
+  echo "[ok] wrote ${UNIT_PATH}"
+  echo "[ok] enabled+started ${SERVICE_NAME}"
+  echo "[info] service=${SERVICE_NAME}"
+  echo "[info] http=${VOID_HTTP_PORT}"
+  echo "[info] p2p=${VOID_P2P_PORT}"
+  echo "[info] data_dir=${VOID_DATA_DIR}"
+  echo "[info] key_path=${VOID_KEY_PATH}"
+  sleep 3
+  cmd_doctor
+}
+
+
+load_env() {
+  mkdir -p "${HOME}/.config/void"
+  if [ -f "${CTL_ENV}" ]; then
+    # shellcheck disable=SC1090
+    . "${CTL_ENV}"
+  fi
+  HOST="${VOID_HTTP_HOST:-127.0.0.1}"
+  PORT="${VOID_HTTP_PORT:-4100}"
+  BASE="http://${HOST}:${PORT}"
+  SERVICE_NAME="${VOID_SYSTEMD_UNIT:-void-node.service}"
+  KEY_PATH_DEFAULT="${HOME}/.secrets/void-node-demo.key.pkcs8.pem"
+  DATA_DIR_DEFAULT="${HOME}/void-data"
+  VOID_P2P_PORT="${VOID_P2P_PORT:-4710}"
+}
+
+
+main() {
+  case "${1:-help}" in
+    init) shift; cmd_init "$@" ;;
+    install-service) shift; cmd_install_service "$@" ;;
+    start) shift; cmd_start "$@" ;;
+    stop) shift; cmd_stop "$@" ;;
+    version) shift; cmd_version "$@" ;;
+    status) shift; cmd_status "$@" ;;
+    doctor) shift; cmd_doctor "$@" ;;
+    update-check) shift; cmd_update_check "$@" ;;
+    update-verify) shift; cmd_update_verify "$@" ;;
+    update-plan) shift; cmd_update_plan "$@" ;;
+    update-plan-show) shift; cmd_update_plan_show "$@" ;;
+    update-plan-clear) shift; cmd_update_plan_clear "$@" ;;
+    update-apply) shift; cmd_update_apply "$@" ;;
+    rollback-latest) shift; cmd_rollback_latest "$@" ;;
+    demo-summary) shift; cmd_demo_summary "$@" ;;
+    wc-ready) shift; cmd_wc_ready "$@" ;;
+    wc-doctor) shift; cmd_wc_doctor "$@" ;;
+    wc-demo) shift; cmd_wc_demo "$@" ;;
+    agent-summary) shift; cmd_agent_summary "$@" ;;
+    ""|-h|--help|help) usage ;;
+    *)
+      echo "[FAIL] unknown command: ${1:-}" >&2
+      echo >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

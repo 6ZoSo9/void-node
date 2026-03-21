@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="${BASE:-http://127.0.0.1:4100}"
+BASE="${BASE:-http://localhost:4100}"
 
 head1=$(curl -fsS "$BASE/blocks/latest/number2.json" | jq -r .number)
 sleep 10

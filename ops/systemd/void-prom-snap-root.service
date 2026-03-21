@@ -1,0 +1,9 @@
+[Unit]
+Description=VOID Prometheus snapshot + prune (root)
+[Service]
+Type=oneshot
+WorkingDirectory=/home/zoso/dev/void-node
+ExecStart=/home/zoso/dev/void-node/ops/prom-snap.sh
+ExecStartPost=/home/zoso/dev/void-node/ops/prom-prune.sh 12
+User=root
+Group=root

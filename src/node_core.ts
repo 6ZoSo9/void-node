@@ -204,8 +204,34 @@ export class Node {
   /** lifecycle */
   async start() {
     // bind to loopback by default to avoid accidental multi-binding conflicts
-    await new Promise<void>((resolve) => this.server.listen(this.tcpPort, "127.0.0.1", resolve));
-    const addr = `127.0.0.1:${(this.server.address() as net.AddressInfo).port}`;
+    const bindHost =
+      process.env.P2P_BIND_HOST ||
+      process.env.VOID_P2P_BIND_HOST ||
+      "0.0.0.0";
+
+    const advertHost =
+      process.env.P2P_ADVERTISE_HOST ||
+      process.env.VOID_P2P_ADVERTISE_HOST ||
+      (() => {
+        const raw = String(process.env.VOID_LAN_IP || process.env.LAN_IP || "").trim();
+        if (raw) return raw;
+        try {
+          const os = require("os");
+          const ifaces = (os.networkInterfaces?.() || {}) as Record<string, Array<any> | undefined>;
+          for (const arr of Object.values(ifaces) as Array<Array<any> | undefined>) {
+            for (const info of (arr || [])) {
+              if (!info) continue;
+              if (info.family === "IPv4" && !info.internal && info.address && !String(info.address).startsWith("127.")) {
+                return String(info.address);
+              }
+            }
+          }
+        } catch {}
+        return "127.0.0.1";
+      })();
+
+    await new Promise<void>((resolve) => this.server.listen(this.tcpPort, bindHost, resolve));
+    const addr = `${advertHost}:${(this.server.address() as net.AddressInfo).port}`;
     this.listenAddrs.push(addr);
     this.knownAddrs.add(addr);
     console.log(`[void-node] started TCP on ${addr}, id=${this.id}`);
@@ -709,11 +735,56 @@ export class Node {
   async pullOnce(peerHttp: string, hooks?: { onImportBlock?: (b: any) => void }) {
     const myHead = this.store.loadHeadNumber();
 
-    const headRes: any = await fetch(`${peerHttp}/head`).then((r) => r.json()).catch(() => null);
-    const theirHead = Number((headRes as any)?.head ?? -1);
+    const readPeerHead = async (): Promise<number> => {
+      const base = String(peerHttp || "").replace(/\/+$/, "");
 
-    if (!Number.isFinite(theirHead)) {
-      return { ok: false, imported: 0, alreadyHad: 0, filled: 0, reason: "peer head unavailable" };
+      // 1) Preferred current surface
+      try {
+        const r: any = await fetch(`${base}/blocks/latest/number2.json`).catch(() => null);
+        if (r && r.ok) {
+          const j: any = await r.json().catch(() => null);
+          const n = Number(j?.number);
+          if (Number.isFinite(n) && n >= 0) return n;
+        }
+      } catch {}
+
+      // 2) Fallback to /head
+      try {
+        const r: any = await fetch(`${base}/head`).catch(() => null);
+        if (r && r.ok) {
+          const j: any = await r.json().catch(() => null);
+          const n = Number(j?.head);
+          if (Number.isFinite(n) && n >= 0) return n;
+        }
+      } catch {}
+
+      // 3) Fallback demo summary
+      try {
+        const r: any = await fetch(`${base}/__void/demo/summary.json`).catch(() => null);
+        if (r && r.ok) {
+          const j: any = await r.json().catch(() => null);
+          const n = Number(j?.chain?.head);
+          if (Number.isFinite(n) && n >= 0) return n;
+        }
+      } catch {}
+
+      // 4) Last resort legacy helper
+      try {
+        const r: any = await fetch(`${base}/api/health`).catch(() => null);
+        if (r && r.ok) {
+          const j: any = await r.json().catch(() => null);
+          const n = Number(j?.head);
+          if (Number.isFinite(n) && n >= 0) return n;
+        }
+      } catch {}
+
+      return -1;
+    };
+
+    const theirHead = await readPeerHead();
+
+    if (!(Number.isFinite(theirHead) && theirHead >= 0)) {
+      return { ok: false, imported: 0, alreadyHad: 0, filled: 0, reason: "peer head unavailable", myHead, theirHead };
     }
     if (theirHead <= myHead) {
       return { ok: true, imported: 0, alreadyHad: 0, filled: 0, reason: "no new blocks", myHead, theirHead };
@@ -740,6 +811,51 @@ export class Node {
     let alreadyHad = 0;
     let filled = 0;
     const importedNums: number[] = [];
+
+    const persistHeadIfPossible = (n: number) => {
+      try {
+        const st: any = this.store as any;
+        if (!Number.isFinite(n) || n < 0) return;
+        if (typeof st?.persistHeadAtomic === "function") {
+          st.persistHeadAtomic(n);
+          return;
+        }
+      } catch {}
+      try {
+        const fs = require("node:fs");
+        const path = require("node:path");
+        const base = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+        const hj = path.join(base, "heads.json");
+        const ht = path.join(base, "head.txt");
+        fs.writeFileSync(hj + ".tmp", JSON.stringify({ head: n, hash: "0x0" }) + "\n");
+        fs.renameSync(hj + ".tmp", hj);
+        fs.writeFileSync(ht + ".tmp", String(n) + "\n");
+        fs.renameSync(ht + ".tmp", ht);
+      } catch {}
+    };
+
+    const advanceContiguousHead = (startHead: number, maxSeen: number): number => {
+      let h = Number(startHead);
+      const maxN = Number(maxSeen);
+      if (!(Number.isFinite(h) && h >= -1)) h = -1;
+      if (!(Number.isFinite(maxN) && maxN >= 0)) return h;
+      while (h < maxN) {
+        const nxt = h + 1;
+        let blk: any = null;
+        try { blk = this.store.loadBlock(nxt); } catch {}
+        if (!blk || Number(blk?.number) !== nxt) break;
+        h = nxt;
+      }
+      if (h > startHead) {
+        persistHeadIfPossible(h);
+        try {
+          const st: any = this.store as any;
+          if (typeof st.headNumber === "number" || st.headNumber == null) st.headNumber = h;
+          if (typeof st.latestNumber === "number" || st.latestNumber == null) st.latestNumber = h;
+        } catch {}
+      }
+      return h;
+    };
 
     for (const b of arr) {
       const n = Number(b?.number);
@@ -805,12 +921,19 @@ export class Node {
       alreadyHad++;
     }
 
+    const maxSeen = Math.max(
+      Number.isFinite(theirHead) ? theirHead : -1,
+      ...((Array.isArray(arr) ? arr : []).map((x:any) => Number(x?.number)).filter((n:any) => Number.isFinite(n)))
+    );
+    const advancedHead = advanceContiguousHead(myHead, maxSeen);
+
     return {
       ok: true,
       imported,
       alreadyHad,
       filled,
       myHead,
+      advancedHead,
       theirHead,
       from,
       to,
@@ -821,7 +944,7 @@ export class Node {
   }
 
   /** follower periodic */
-  startFollower(peerHttp = "http://127.0.0.1:4100", intervalMs = 2000, opts?: { onImportBlock?: (b: Block) => void }) {
+  startFollower(peerHttp = "http://localhost:4100", intervalMs = 2000, opts?: { onImportBlock?: (b: Block) => void }) {
     let running = false;
     const tick = async () => {
       if (running) return;

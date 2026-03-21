@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VOID Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#111826;
+      --panel2:#0f1722;
+      --text:#e6edf3;
+      --muted:#98a6b3;
+      --ok:#22c55e;
+      --bad:#ef4444;
+      --accent:#60a5fa;
+      --border:#243244;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      background:linear-gradient(180deg,var(--bg),#0e131b 50%, #0b0f14);
+      color:var(--text);
+    }
+    .wrap{
+      max-width:980px;
+      margin:0 auto;
+      padding:24px;
+    }
+    h1,h2{margin:0 0 12px}
+    h1{font-size:28px}
+    h2{font-size:18px;color:var(--accent)}
+    .sub{color:var(--muted);margin:0 0 20px}
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+      gap:16px;
+    }
+    .card{
+      background:linear-gradient(180deg,var(--panel),var(--panel2));
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:16px;
+      box-shadow:0 10px 30px rgba(0,0,0,.25);
+    }
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:13px;
+      color:var(--muted);
+      background:#0b1320;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:999px;background:var(--muted);
+      display:inline-block;
+    }
+    .dot.ok{background:var(--ok)}
+    .dot.bad{background:var(--bad)}
+    .btn{
+      appearance:none;
+      border:1px solid var(--border);
+      background:#132033;
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 14px;
+      cursor:pointer;
+      font-weight:600;
+    }
+    .btn:hover{filter:brightness(1.08)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    textarea,input{
+      width:100%;
+      border:1px solid var(--border);
+      background:#0b1320;
+      color:var(--text);
+      border-radius:12px;
+      padding:12px;
+      font:inherit;
+    }
+    textarea{min-height:120px;resize:vertical}
+    pre{
+      white-space:pre-wrap;
+      word-break:break-word;
+      background:#08101b;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:12px;
+      overflow:auto;
+      color:#dbe7f3;
+      margin:0;
+    }
+    .kv{display:grid;grid-template-columns:160px 1fr;gap:8px;font-size:14px}
+    .k{color:var(--muted)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .mt{margin-top:16px}
+    .mb{margin-bottom:12px}
+    .good{color:var(--ok)}
+    .bad{color:var(--bad)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>VOID Demo</h1>
+    <p class="sub">Live node health, AI status, job submit, and result polling from this node.</p>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Node Health</h2>
+        <div class="row mb">
+          <span class="pill"><span id="healthDot" class="dot"></span><span id="healthLabel">unknown</span></span>
+          <button id="refreshAll" class="btn">Refresh</button>
+        </div>
+        <div class="kv">
+          <div class="k">nodeId</div><div id="nodeId" class="mono">-</div>
+          <div class="k">http</div><div id="nodeHttp" class="mono">-</div>
+          <div class="k">p2p</div><div id="nodeP2p" class="mono">-</div>
+          <div class="k">listen</div><div id="nodeListen" class="mono">-</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>AI Status</h2>
+        <div class="kv">
+          <div class="k">queuePending</div><div id="queuePending" class="mono">-</div>
+          <div class="k">awardedTotal</div><div id="awardedTotal" class="mono">-</div>
+          <div class="k">unique5m</div><div id="unique5m" class="mono">-</div>
+          <div class="k">ok5m</div><div id="ok5m" class="mono">-</div>
+          <div class="k">agentAdvance30m</div><div id="gateAdv" class="mono">-</div>
+          <div class="k">datanetPersistOk</div><div id="gatePersist" class="mono">-</div>
+          <div class="k">aiPillarOk</div><div id="gateAi" class="mono">-</div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card mt">
+      <h2>Submit Job</h2>
+      <div class="mb">
+        <textarea id="jobMsg">hello from VOID demo</textarea>
+      </div>
+      <div class="row">
+        <button id="submitBtn" class="btn">Submit Demo Job</button>
+        <span id="submitState" class="pill"><span id="submitDot" class="dot"></span><span id="submitLabel">idle</span></span>
+      </div>
+      <div class="kv mt">
+        <div class="k">job id</div><div id="jobId" class="mono">-</div>
+        <div class="k">inputHash</div><div id="inputHash" class="mono">-</div>
+        <div class="k">result route</div><div id="resultRoute" class="mono">-</div>
+      </div>
+    </section>
+
+    <section class="card mt">
+      <h2>Latest Result</h2>
+      <pre id="resultBox">No result yet.</pre>
+    </section>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function setDot(dotEl, labelEl, ok, text){
+      dotEl.className = "dot " + (ok ? "ok" : "bad");
+      labelEl.textContent = text;
+    }
+
+    function fmt(v){
+      if (v === null || v === undefined) return "-";
+      if (typeof v === "object") return JSON.stringify(v);
+      return String(v);
+    }
+
+    async function getJson(url){
+      const r = await fetch(url, {cache:"no-store"});
+      if (!r.ok) throw new Error(url + " -> HTTP " + r.status);
+      return await r.json();
+    }
+
+    async function refreshHealth(){
+      const j = await getJson("/health");
+      setDot($("healthDot"), $("healthLabel"), !!j.ok, j.ok ? "healthy" : "unhealthy");
+      $("nodeId").textContent = fmt(j.nodeId);
+      $("nodeHttp").textContent = fmt(j.http);
+      $("nodeP2p").textContent = fmt(j.p2p);
+      $("nodeListen").textContent = Array.isArray(j.listen) ? j.listen.join(", ") : fmt(j.listen);
+      return j;
+    }
+
+    async function refreshAi(){
+      const j = await getJson("/__void/demo/ai-status");
+      $("queuePending").textContent = fmt(j.agent?.queuePending);
+      $("awardedTotal").textContent = fmt(j.wc?.awardedTotal);
+      $("unique5m").textContent = fmt(j.wc?.unique5m);
+      $("ok5m").textContent = fmt(j.wc?.ok5m);
+      $("gateAdv").textContent = fmt(j.gates?.agentAdvance30m);
+      $("gatePersist").textContent = fmt(j.gates?.datanetPersistOk);
+      $("gateAi").textContent = fmt(j.gates?.aiPillarOk);
+      return j;
+    }
+
+    async function refreshAll(){
+      try {
+        await Promise.all([refreshHealth(), refreshAi()]);
+      } catch (e) {
+        setDot($("healthDot"), $("healthLabel"), false, "error");
+        console.error(e);
+      }
+    }
+
+    async function pollResult(id){
+      const candidates = [
+        "/agent/result/" + encodeURIComponent(id),
+        "/agent/v0/result/" + encodeURIComponent(id),
+        "/agent/results/" + encodeURIComponent(id),
+        "/agent/v0/results/" + encodeURIComponent(id)
+      ];
+
+      for (let i = 0; i < 45; i++) {
+        for (const url of candidates) {
+          try {
+            const j = await getJson(url);
+            if (j && j.ok && j.result) {
+              $("resultRoute").textContent = url;
+              $("resultBox").textContent = JSON.stringify(j, null, 2);
+              return true;
+            }
+          } catch (_) {}
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      $("resultBox").textContent = "Timed out waiting for result.";
+      return false;
+    }
+
+    async function submitJob(){
+      const msg = $("jobMsg").value.trim() || "hello from VOID demo";
+      $("submitBtn").disabled = true;
+      setDot($("submitDot"), $("submitLabel"), false, "submitting");
+      $("resultBox").textContent = "Submitting...";
+      $("jobId").textContent = "-";
+      $("inputHash").textContent = "-";
+      $("resultRoute").textContent = "-";
+
+      try {
+        const r = await fetch("/agent/job", {
+          method: "POST",
+          headers: {"content-type":"application/json"},
+          body: JSON.stringify({
+            kind: "echo",
+            input: { msg }
+          })
+        });
+
+        const j = await r.json();
+        if (!r.ok || !j.ok || !j.id) {
+          throw new Error(JSON.stringify(j));
+        }
+
+        $("jobId").textContent = j.id;
+        $("inputHash").textContent = fmt(j.inputHash);
+        setDot($("submitDot"), $("submitLabel"), true, "queued");
+
+        const ok = await pollResult(j.id);
+        setDot($("submitDot"), $("submitLabel"), ok, ok ? "done" : "timeout");
+        await refreshAi();
+      } catch (e) {
+        setDot($("submitDot"), $("submitLabel"), false, "error");
+        $("resultBox").textContent = String(e);
+      } finally {
+        $("submitBtn").disabled = false;
+      }
+    }
+
+    $("refreshAll").addEventListener("click", refreshAll);
+    $("submitBtn").addEventListener("click", submitJob);
+
+    refreshAll();
+    setInterval(refreshAi, 15000);
+  </script>
+</body>
+</html>

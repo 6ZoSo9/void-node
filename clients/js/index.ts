@@ -1,6 +1,6 @@
 export type Tx = { hash: string; body: any }
 export class VoidClient {
-  constructor(public base = 'http://127.0.0.1:4100') {}
+  constructor(public base = 'http://localhost:4100') {}
   async health() { return fetch(this.base + '/api/health').then(r=>r.json()) }
   async head() { return fetch(this.base + '/api/head').then(r=>r.json()) }
   async submit(tx: Tx) {

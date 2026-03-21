@@ -1,0 +1,19 @@
+[Unit]
+Description=VOID WorkCredits Devnet Helper HTTP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+Environment=WC_HTTP_PORT=4312
+ExecStartPre=/usr/bin/test -f %h/dev/void-node/ops/void-workcredits-devnet-http.cjs
+ExecStart=/usr/bin/node %h/dev/void-node/ops/void-workcredits-devnet-http.cjs
+Restart=always
+RestartSec=2
+TimeoutStartSec=20
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

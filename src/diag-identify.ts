@@ -5,7 +5,7 @@
 /* Prints local environment info + probes common endpoints for quick diagnostics. */
 import * as os from "node:os";
 
-const BASE = process.env.BASE || "http://127.0.0.1:4100";
+const BASE = process.env.BASE || "http://localhost:4100";
 
 async function safeJson(url: string) {
   try {

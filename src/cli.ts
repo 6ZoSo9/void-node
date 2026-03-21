@@ -3,7 +3,7 @@
 
 // src/cli.ts
 /* Minimal CLI for local ops. Designed to be resilient even if some HTTP routes
- * are not present. BASE defaults to http://127.0.0.1:4100
+ * are not present. BASE defaults to http://localhost:4100
  *
  * Examples:
  *   tsx src/cli.ts health
@@ -11,9 +11,9 @@
  *   BASE=http://127.0.0.1:4101 tsx src/cli.ts peers
  *   tsx src/cli.ts once --empty
  *   tsx src/cli.ts start-proposer 5000
- *   tsx src/cli.ts follow-start http://127.0.0.1:4100 1000
+ *   tsx src/cli.ts follow-start http://localhost:4100 1000
  */
-const BASE = process.env.BASE || "http://127.0.0.1:4100";
+const BASE = process.env.BASE || "http://localhost:4100";
 
 async function jget(path: string) {
   const r = await fetch(new URL(path, BASE));

@@ -1,0 +1,29 @@
+name: prom-verify
+on: [push, pull_request]
+jobs:
+  promtool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install promtool
+        run: |
+          set -euo pipefail
+          VER="2.54.1"
+          curl -sSL -o /tmp/promtool.tar.gz https://github.com/prometheus/prometheus/releases/download/v${VER}/prometheus-${VER}.linux-amd64.tar.gz
+          tar -xzf /tmp/promtool.tar.gz -C /tmp
+          sudo mv /tmp/prometheus-${VER}.linux-amd64/promtool /usr/local/bin/promtool
+          promtool --version
+      - name: Lint rules and alerts (if present)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(ops/rules/*.yml ops/alerts/*.yml)
+          if (( ${#files[@]} == 0 )); then
+            echo "No repo Prom files to lint. OK."
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            echo "::group::promtool check rules $f"
+            promtool check rules "$f"
+            echo "::endgroup::"
+          done

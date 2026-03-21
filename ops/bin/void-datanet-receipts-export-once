@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Root-run script. No curl. Reads jsonl directly and writes node_exporter textfile metrics.
+DATA_DIR="${DATA_DIR:-data_a}"
+REPO="${REPO:-/home/zoso/dev/void-node}"
+
+FILE="${DATANET_RECEIPTS_FILE:-$REPO/$DATA_DIR/datanet/receipts/datanet.jsonl}"
+OUTDIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}"
+OUTFILE="${OUTFILE:-$OUTDIR/void_datanet_receipts.prom}"
+
+mkdir -p "$OUTDIR"
+TMP="$(mktemp "$OUTDIR/.void_datanet_receipts.prom.tmp.XXXXXX")"
+
+node <<'JS' > "$TMP"
+const fs = require("fs");
+const path = require("path");
+
+const file = process.env.DATANET_RECEIPTS_FILE
+  || path.join(process.env.REPO || "/home/zoso/dev/void-node",
+               process.env.DATA_DIR || "data_a",
+               "datanet","receipts","datanet.jsonl");
+
+let receipts_total = 0;
+let ok_total = 0;
+let bad_total = 0;
+let bytes_total = 0;
+let wc_total = 0;
+let last_ts_ms = 0;
+
+function addBad() { bad_total++; }
+
+let data = "";
+try {
+  data = fs.readFileSync(file, "utf8");
+} catch (e) {
+  // If file missing, emit zeros but keep exporter alive.
+  data = "";
+}
+
+if (data) {
+  const lines = data.split("\n");
+  for (const line of lines) {
+    if (!line || !line.trim()) continue;
+    receipts_total++;
+    try {
+      const o = JSON.parse(line);
+      const ok = (o && (o.ok === 1 || o.ok === true)) ? 1 : 0;
+      if (ok) ok_total++; else bad_total++;
+      const b = Number(o.bytes ?? o.bytes_actual ?? 0);
+      const wc = Number(o.wc_award ?? 0);
+      if (Number.isFinite(b) && b > 0) bytes_total += b;
+      if (Number.isFinite(wc) && wc > 0) wc_total += wc;
+      const ts = Number(o.ts_ms ?? 0);
+      if (Number.isFinite(ts) && ts > last_ts_ms) last_ts_ms = ts;
+    } catch (e) {
+      addBad();
+    }
+  }
+}
+
+const now_ms = Date.now();
+const age_seconds = last_ts_ms > 0 ? Math.max(0, (now_ms - last_ts_ms) / 1000) : 0;
+
+function outHelp(name, help) { process.stdout.write(`# HELP ${name} ${help}\n`); }
+function outType(name, type) { process.stdout.write(`# TYPE ${name} ${type}\n`); }
+function out(name, val) { process.stdout.write(`${name} ${val}\n`); }
+
+outHelp("void_datanet_receipts_total", "DataNet receipts total (derived from jsonl)");
+outType("void_datanet_receipts_total", "counter");
+out("void_datanet_receipts_total", receipts_total);
+
+outHelp("void_datanet_receipts_ok_total", "DataNet receipts ok total (derived from jsonl)");
+outType("void_datanet_receipts_ok_total", "counter");
+out("void_datanet_receipts_ok_total", ok_total);
+
+outHelp("void_datanet_receipts_bad_total", "DataNet receipts bad/invalid total (derived from jsonl)");
+outType("void_datanet_receipts_bad_total", "counter");
+out("void_datanet_receipts_bad_total", bad_total);
+
+outHelp("void_datanet_receipts_bytes_total", "Total bytes recorded from receipts (derived from jsonl)");
+outType("void_datanet_receipts_bytes_total", "counter");
+out("void_datanet_receipts_bytes_total", bytes_total);
+
+outHelp("void_datanet_receipts_wc_total", "Total WC awarded (derived from jsonl)");
+outType("void_datanet_receipts_wc_total", "counter");
+out("void_datanet_receipts_wc_total", wc_total);
+
+outHelp("void_datanet_receipts_last_ts_ms", "Last receipt timestamp (ms) seen in jsonl");
+outType("void_datanet_receipts_last_ts_ms", "gauge");
+out("void_datanet_receipts_last_ts_ms", last_ts_ms);
+
+outHelp("void_datanet_receipts_age_seconds", "Age in seconds since last receipt in jsonl");
+outType("void_datanet_receipts_age_seconds", "gauge");
+out("void_datanet_receipts_age_seconds", age_seconds);
+JS
+
+# Atomic replace
+chmod 0644 "$TMP"
+mv -f "$TMP" "$OUTFILE"
+
+# __STRIP_BAD_TOTAL_V1__
+# Safety net: ensure node_exporter textfile never carries void_datanet_receipts_bad_total
+# (prevents Prom rule confusion + alert false positives from job="node")
+if [[ -x /usr/local/bin/void-strip-textfile-metric.sh ]]; then
+  _OUT="${OUTFILE:-/var/lib/node_exporter/textfile_collector/void_datanet_receipts.prom}"
+  /usr/local/bin/void-strip-textfile-metric.sh "$_OUT" "void_datanet_receipts_bad_total" || true
+fi

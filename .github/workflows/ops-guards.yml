@@ -1,0 +1,39 @@
+name: ops-guards
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block files >=10MB
+        run: |
+          set -euo pipefail
+          BIG=$(git ls-files -z | xargs -0 -I{} bash -c 'test -f "{}" && stat -c"%s {}" "{}"' | awk '$1>=10485760{print $2}')
+          if [ -n "${BIG:-}" ]; then
+            echo "Files >=10MB:"; echo "$BIG"; exit 1; fi
+      - name: Block root-owned files
+        run: |
+          set -euo pipefail
+          ROOTY=$(git ls-files | xargs -I{} bash -c 'test -e "{}" && [ "$(stat -c"%U" "{}")" = "root" ] && echo "{}" || true')
+          if [ -n "${ROOTY:-}" ]; then
+            echo "Root-owned files:"; echo "$ROOTY"; exit 1; fi
+
+      - name: Guard .RECIPEPREFIX for ops
+        run: |
+          set -euo pipefail
+          if grep -qE '^[[:space:]]*>' Makefile.ops; then
+            grep -q '^[.]RECIPEPREFIX := >' Makefile.ops || { 
+              echo "Missing '.RECIPEPREFIX := >' in Makefile.ops"; exit 1; 
+            }
+          fi
+
+      - name: Basic bash sanity (no CRLF, no DOS paths)
+        run: |
+          set -euo pipefail
+          if grep -RIl $'\r' ops/*.sh ops/**/*.sh 2>/dev/null | grep .; then
+            echo "CRLF found in shell scripts"; exit 1; fi
+          # Ensure executable bit on our ops scripts
+          for f in ops/*.sh ops/**/*.sh; do
+            [ -f "$f" ] || continue
+            if [ ! -x "$f" ]; then echo "not executable: $f"; exit 1; fi
+          done

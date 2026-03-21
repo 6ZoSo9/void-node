@@ -24,3 +24,103 @@ src/index.ts.*.bak
 *.tmp
 *wallet*.json
 *.bak.*
+
+# local big backups
+*.bak
+
+ops/prom-snap/
+
+# Ignore raw Prom snapshots
+ops/prom-snap/
+
+ops/prom-snap/**
+!ops/prom-snap/README.md
+
+# local junk
+.park/
+react
+
+# allow committed DataNet + voidctl sources
+!/src/datanet/
+!/src/voidctl/
+# allow ops/datanet scripts (smoke + exporter)
+!ops/datanet/
+!ops/datanet/**
+# ops/datanet: ignore local backup noise
+ops/datanet/*.bak
+ops/datanet/*.bak.*
+
+# local backups / patch artifacts
+*.bak
+*.bak.*
+*.bak-*
+*.bakshebang.*
+*.heapsnapshot
+# stray curl output files
+/200
+/404
+perf.data
+perf.data.*
+src/index.ts.crashbak.*
+
+# diag artifacts
+.node-reports/
+report.*.json
+src/diag/_bak_*/
+src/diag/_trash_*/
+
+# local scratch + broken artifacts
+src/diag/_scratch/
+src/index.ts.BROKEN.*
+src/diag/*.DISABLED.*
+# datanet scratch artifacts (auto-generated; keep out of git status)
+src/http/datanet_routes.ts.pre-restore.*
+src/http/datanet_routes.ts.pre_gitrestore.*
+.githooks/*.bak.*
+.githooks/*.bak
+
+# === VOID_NATIVE_FETCH_RECEIPTS_GUARDS_V1 ===
+# temp files produced by patch scripts
+src/index.ts.tmp.*
+# local script backups / experiments
+ops/bin/node-options-tripwire-v4.sh.bak*
+ops/bin/node-options-tripwire-v3.sh
+# old fetch-wrapper experiments (native mode replaced these)
+src/diag/datanet_receipts_persist_wrap_fetch_v1*.cjs
+src/diag/datanet_receipts_persist_wrap_fetch_v2*.cjs
+src/diag/datanet_receipts_persist_wrap_fetch_v3*.cjs
+# === /VOID_NATIVE_FETCH_RECEIPTS_GUARDS_V1 ===
+
+# ---- local junk / debug backups ----
+_quarantine_untracked.*/
+*.bak_dbg.*
+*.bak_direct.*
+*.bak_noscript.*
+*.bak_rebuild.*
+*.bak_rewrite.*
+*.bak_v*
+*.fixbak.*
+*.pinbak.*
+*.BROKEN.*
+*.broken.*
+*.tmp.*
+/src/_graveyard/
+/src/index.ts.broken.*
+/wal_v1.js
+
+# ---- NEVER COMMIT LIVE MAINNET FILES ----
+/ops/mainnet/
+
+# runtime scratch (keep agent bridge tracked)
+runtime/*
+!runtime/agent_bridge.mjs
+
+# ops scratch / generated helpers (commit explicitly when promoted)
+ops/preload/*
+
+# --- junk output accidentally created by copy/paste ---
+/void-node@0.1.0
+/3361318
+/\{number:*.json\}
+/\{number:*\}
+

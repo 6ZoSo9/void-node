@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VOID DataNet Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a31;
+      --panel2: #0f1730;
+      --text: #e7ecff;
+      --muted: #9aa7d1;
+      --accent: #7aa2ff;
+      --ok: #7ee787;
+      --warn: #ffb86b;
+      --err: #ff7b72;
+      --border: #26304f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, Arial, sans-serif;
+      background: linear-gradient(180deg, #09101d 0%, #0b1020 100%);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1, h2, h3 { margin: 0 0 12px; }
+    p { color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.24);
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    input, textarea, button {
+      font: inherit;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--text);
+      padding: 10px 12px;
+    }
+    textarea { width: 100%; min-height: 120px; resize: vertical; }
+    input[type="text"], input[type="number"] { width: 100%; }
+    button {
+      cursor: pointer;
+      background: #17305f;
+      border-color: #284a8b;
+    }
+    button:hover { filter: brightness(1.08); }
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .pill.ok { color: var(--ok); border-color: #2f6f3b; }
+    .pill.err { color: var(--err); border-color: #7a2f2f; }
+    .pill.warn { color: var(--warn); border-color: #7a5a2f; }
+    .list {
+      display: grid;
+      gap: 10px;
+      max-height: 420px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .item {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0e1630;
+      cursor: pointer;
+    }
+    .item:hover { border-color: var(--accent); }
+    .item.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      word-break: break-word;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #0a1228;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      max-height: 260px;
+      overflow: auto;
+    }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .toolbar { margin-bottom: 12px; }
+    .full { width: 100%; }
+    .stack { display: grid; gap: 12px; }
+    .selectedBox {
+      background: #0a1228;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row toolbar" style="justify-content:space-between;">
+      <div>
+        <h1>VOID DataNet + Agent Demo</h1>
+        <p>Publish → fetch → verify → decrypt → submit linked agent job → pick → complete.</p>
+      </div>
+      <div class="row">
+        <span id="healthPill" class="pill">health: checking…</span>
+        <span id="loopproofPill" class="pill">loopproof: checking…</span>
+        <a href="/participant" class="btn secondary" style="text-decoration:none;">Participant page</a><button onclick="refreshAll()">Refresh</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Publish plaintext</h2>
+        <p class="small">Server-side demo encryption for proof. Good enough for demos, not final product shape.</p>
+        <div class="row">
+          <input id="passphrase" class="full" type="text" value="void-demo-pass" placeholder="Passphrase" />
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <textarea id="plaintext">hello from VOID DataNet demo UI</textarea>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button onclick="publishPlaintext()">Publish</button>
+          <button onclick="useLatest()">Use latest dataset</button>
+          <span id="publishStatus" class="muted small"></span>
+        </div>
+        <div style="margin-top:12px;">
+          <pre id="publishOut">{}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Recent datasets</h2>
+        <div class="row" style="margin-bottom:10px;">
+          <button onclick="loadList()">Reload list</button>
+          <span id="listStatus" class="muted small"></span>
+        </div>
+        <div id="datasetList" class="list"></div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:16px;">
+      <div class="card">
+        <h2>Selected dataset</h2>
+        <div class="selectedBox">
+          <div class="small muted">Selected dataset id</div>
+          <div id="selectedId" class="mono small">(none)</div>
+        </div>
+        <div class="row" style="margin:12px 0 10px;">
+          <button onclick="copySelectedId()">Copy id</button>
+          <button onclick="fetchSelected()">Fetch meta</button>
+          <button onclick="verifySelected()">Verify</button>
+          <button onclick="decryptSelected()">Decrypt</button>
+        </div>
+        <div class="row" style="margin-bottom:10px;">
+          <span id="selectedStatus" class="small muted"></span>
+        </div>
+        <div class="row" style="margin-bottom:10px;">
+          <input id="decryptPassphrase" class="full" type="text" value="void-demo-pass" placeholder="Decrypt passphrase" />
+        </div>
+        <div class="stack">
+          <div>
+            <div class="small muted" style="margin-bottom:6px;">Meta</div>
+            <pre id="metaOut">{}</pre>
+          </div>
+          <div>
+            <div class="small muted" style="margin-bottom:6px;">Verify</div>
+            <pre id="verifyOut">{}</pre>
+          </div>
+          <div>
+            <div class="small muted" style="margin-bottom:6px;">Decrypt</div>
+            <pre id="decryptOut">{}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Receipts</h2>
+        <div class="row" style="margin-bottom:10px;">
+          <button onclick="loadReceipts()">Reload receipts</button>
+          <span id="receiptsStatus" class="muted small"></span>
+        </div>
+        <pre id="receiptsOut">[]</pre>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:16px;">
+      <div class="card">
+        <h2>Linked agent job</h2>
+        <div class="row">
+          <input id="workerHint" class="full" type="text" value="demo-worker-2" placeholder="Worker hint" />
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <input id="jobPriority" class="full" type="number" value="5" placeholder="Priority" />
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button onclick="submitLinkedJob()">Submit linked job</button>
+          <button onclick="pickJob()">Pick job</button>
+          <button onclick="completeJob()">Complete job</button>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button onclick="loadLatestIntegration()">Load latest integration</button>
+          <span id="agentStatus" class="muted small"></span>
+        </div>
+        <div class="selectedBox" style="margin-top:12px;">
+          <div class="small muted">Selected job id</div>
+          <div id="selectedJobId" class="mono small">(none)</div>
+        </div>
+        <div class="stack" style="margin-top:12px;">
+          <div>
+            <div class="small muted" style="margin-bottom:6px;">Agent submit/pick/complete output</div>
+            <pre id="agentActionOut">{}</pre>
+          </div>
+          <div>
+            <div class="small muted" style="margin-bottom:6px;">Integrated dataset ↔ job view</div>
+            <pre id="agentIntegrationOut">{}</pre>
+          </div>
+          <div>
+            <div class="small muted" style="margin-bottom:6px;">Agent summary</div>
+            <pre id="agentSummaryOut">{}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Demo summary</h2>
+        <div class="row" style="margin-bottom:10px;">
+          <button onclick="loadDemoSummary()">Reload summary</button>
+          <span id="demoSummaryStatus" class="muted small"></span>
+        </div>
+        <pre id="demoSummaryOut">{}</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let selectedId = "";
+    let selectedJobId = "";
+
+    function pretty(x) { return JSON.stringify(x, null, 2); }
+
+    async function jfetch(url, opts) {
+      const r = await fetch(url, opts);
+      const text = await r.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (!r.ok) throw new Error((data && (data.err || data.error)) || text || ("HTTP " + r.status));
+      return data;
+    }
+
+    function setText(id, text) { document.getElementById(id).textContent = text; }
+    function setJSON(id, obj) { document.getElementById(id).textContent = pretty(obj); }
+    function setPill(id, text, kind) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = `pill ${kind || ""}`.trim();
+    }
+
+    async function loadHealth() {
+      try {
+        const j = await jfetch("/health");
+        setPill("healthPill", `health: ok http=${j.http} p2p=${j.p2p}`, "ok");
+      } catch (e) {
+        setPill("healthPill", "health: error", "err");
+      }
+    }
+
+    async function loadLoopproof() {
+      try {
+        const j = await jfetch("/__void/demo/summary.json");
+        const ok = Number(j?.datanet?.loopproof_ok ?? -1);
+        if (ok >= 1) setPill("loopproofPill", "loopproof: green", "ok");
+        else if (ok === 0) setPill("loopproofPill", "loopproof: red", "err");
+        else setPill("loopproofPill", "loopproof: unknown", "warn");
+      } catch (e) {
+        setPill("loopproofPill", "loopproof: error", "err");
+      }
+    }
+
+    async function loadList() {
+      setText("listStatus", "loading…");
+      try {
+        const j = await jfetch("/datanet/list?limit=25");
+        const el = document.getElementById("datasetList");
+        el.innerHTML = "";
+        for (const item of (j.items || [])) {
+          const div = document.createElement("div");
+          div.className = "item" + (item.id === selectedId ? " active" : "");
+          div.onclick = () => selectDataset(item.id);
+          div.innerHTML = `
+            <div class="row" style="justify-content:space-between;">
+              <strong class="mono small">${item.id}</strong>
+              <span class="pill">${item.mime || "unknown"}</span>
+            </div>
+            <div class="small muted" style="margin-top:8px;">
+              created_at_ms=${item.created_at_ms} | plain=${item.plaintext_len} | cipher=${item.ciphertext_len}
+            </div>
+            <div class="mono small muted" style="margin-top:6px;">sha256=${item.sha256}</div>
+          `;
+          el.appendChild(div);
+        }
+        setText("listStatus", `loaded ${j.count} items`);
+      } catch (e) {
+        setText("listStatus", String(e.message || e));
+      }
+    }
+
+    async function loadReceipts() {
+      setText("receiptsStatus", "loading…");
+      try {
+        const j = await jfetch("/datanet/receipts");
+        setJSON("receiptsOut", j);
+        setText("receiptsStatus", `loaded ${j.count} receipts`);
+      } catch (e) {
+        setText("receiptsStatus", String(e.message || e));
+      }
+    }
+
+    function selectDataset(id) {
+      selectedId = id;
+      setText("selectedId", id || "(none)");
+      setText("selectedStatus", "selected");
+      loadList();
+      fetchSelected();
+    }
+
+    async function useLatest() {
+      try {
+        const j = await jfetch("/datanet/list?limit=1");
+        const item = (j.items || [])[0];
+        if (!item) return setText("selectedStatus", "no datasets available");
+        selectDataset(item.id);
+      } catch (e) {
+        setText("selectedStatus", String(e.message || e));
+      }
+    }
+
+    async function copySelectedId() {
+      if (!selectedId) return setText("selectedStatus", "no dataset selected");
+      try {
+        await navigator.clipboard.writeText(selectedId);
+        setText("selectedStatus", "dataset id copied");
+      } catch {
+        setText("selectedStatus", "copy failed");
+      }
+    }
+
+    async function publishPlaintext() {
+      const text = document.getElementById("plaintext").value;
+      const passphrase = document.getElementById("passphrase").value;
+      setText("publishStatus", "publishing…");
+      try {
+        const j = await jfetch("/datanet/dev/publish-plaintext", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            text,
+            passphrase,
+            mime: "text/plain",
+            meta: { ui: "demo-datanet" }
+          })
+        });
+        setJSON("publishOut", j);
+        setText("publishStatus", "publish ok");
+        selectedId = j.id;
+        setText("selectedId", selectedId);
+        await loadList();
+        await loadReceipts();
+        await fetchSelected();
+        await loadDemoSummary();
+      } catch (e) {
+        setText("publishStatus", String(e.message || e));
+      }
+    }
+
+    async function fetchSelected() {
+      if (!selectedId) return setText("selectedStatus", "no dataset selected");
+      setText("selectedStatus", "fetching…");
+      try {
+        const meta = await jfetch(`/datanet/meta/${selectedId}`);
+        setJSON("metaOut", meta);
+        setText("selectedStatus", "fetch ok");
+      } catch (e) {
+        setText("selectedStatus", String(e.message || e));
+      }
+    }
+
+    async function verifySelected() {
+      if (!selectedId) return setText("selectedStatus", "no dataset selected");
+      setText("selectedStatus", "verifying…");
+      try {
+        const j = await jfetch(`/datanet/verify/${selectedId}`);
+        setJSON("verifyOut", j);
+        setText("selectedStatus", "verify ok");
+        await loadReceipts();
+        await loadLoopproof();
+      } catch (e) {
+        setText("selectedStatus", String(e.message || e));
+      }
+    }
+
+    async function decryptSelected() {
+      if (!selectedId) return setText("selectedStatus", "no dataset selected");
+      const passphrase = document.getElementById("decryptPassphrase").value;
+      setText("selectedStatus", "decrypting…");
+      try {
+        const j = await jfetch(`/datanet/dev/decrypt/${selectedId}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ passphrase })
+        });
+        setJSON("decryptOut", j);
+        setText("selectedStatus", "decrypt ok");
+        await loadReceipts();
+      } catch (e) {
+        setText("selectedStatus", String(e.message || e));
+      }
+    }
+
+    async function submitLinkedJob() {
+      if (!selectedId) return setText("agentStatus", "no dataset selected");
+      setText("agentStatus", "submitting linked job…");
+      try {
+        const worker_hint = document.getElementById("workerHint").value || "demo-worker-2";
+        const priority = Number(document.getElementById("jobPriority").value || 5);
+        const j = await jfetch("/agent/v1/job/submit-for-dataset", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            dataset_id: selectedId,
+            action: "datanet.verify",
+            priority,
+            worker_hint
+          })
+        });
+        selectedJobId = j?.job?.id || "";
+        setText("selectedJobId", selectedJobId || "(none)");
+        setJSON("agentActionOut", j);
+        setText("agentStatus", "linked job submitted");
+        await loadAgentSummary();
+      } catch (e) {
+        setText("agentStatus", String(e.message || e));
+      }
+    }
+
+    async function pickJob() {
+      setText("agentStatus", "picking job…");
+      try {
+        const worker_id = document.getElementById("workerHint").value || "demo-worker-2";
+        const j = await jfetch("/agent/v1/job/pick", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ worker_id })
+        });
+        if (j?.job?.id) {
+          selectedJobId = j.job.id;
+          setText("selectedJobId", selectedJobId);
+        }
+        setJSON("agentActionOut", j);
+        setText("agentStatus", "pick ok");
+        await loadAgentSummary();
+      } catch (e) {
+        setText("agentStatus", String(e.message || e));
+      }
+    }
+
+    async function completeJob() {
+      if (!selectedJobId) return setText("agentStatus", "no selected job");
+      setText("agentStatus", "completing job…");
+      try {
+        const j = await jfetch(`/agent/v1/job/${selectedJobId}/complete`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            result: {
+              ok: true,
+              checked_dataset_id: selectedId || null,
+              note: "completed from demo UI"
+            }
+          })
+        });
+        setJSON("agentActionOut", j);
+        setText("agentStatus", "complete ok");
+        await loadLatestIntegration();
+        await loadAgentSummary();
+      } catch (e) {
+        setText("agentStatus", String(e.message || e));
+      }
+    }
+
+    async function loadLatestIntegration() {
+      setText("agentStatus", "loading integration…");
+      try {
+        let j;
+        if (selectedJobId) j = await jfetch(`/__void/integration/dataset-job/${selectedJobId}`);
+        else j = await jfetch("/__void/integration/latest-dataset-job.json");
+        setJSON("agentIntegrationOut", j);
+        if (!selectedJobId && j?.job?.id) {
+          selectedJobId = j.job.id;
+          setText("selectedJobId", selectedJobId);
+        }
+        setText("agentStatus", "integration loaded");
+      } catch (e) {
+        setText("agentStatus", String(e.message || e));
+      }
+    }
+
+    async function loadAgentSummary() {
+      try {
+        const j = await jfetch("/__void/agent/summary.json");
+        setJSON("agentSummaryOut", j);
+      } catch (e) {
+        setJSON("agentSummaryOut", { ok: false, err: String(e.message || e) });
+      }
+    }
+
+    async function loadDemoSummary() {
+      setText("demoSummaryStatus", "loading…");
+      try {
+        const j = await jfetch("/__void/demo/summary.json");
+        setJSON("demoSummaryOut", j);
+        setText("demoSummaryStatus", "summary loaded");
+      } catch (e) {
+        setText("demoSummaryStatus", String(e.message || e));
+      }
+    }
+
+    async function refreshAll() {
+      await loadHealth();
+      await loadLoopproof();
+      await loadList();
+      await loadReceipts();
+      await loadDemoSummary();
+      await loadAgentSummary();
+      if (!selectedId) await useLatest();
+      else await fetchSelected();
+      if (selectedJobId) await loadLatestIntegration();
+    }
+
+    refreshAll();
+  </script>
+</body>
+</html>

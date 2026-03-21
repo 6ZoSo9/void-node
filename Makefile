@@ -1,82 +1,173 @@
-.RECIPEPREFIX := >
-PROPOSER ?= http://127.0.0.1:4100
-FOLLOWER ?= http://127.0.0.1:4101
 
-.PHONY: build up proposer follower seal follow-once tx lookup status receipts kidx-all kidx-block kidx-hash hello-now stop
+include Makefile.ops
 
-build:
-> npm run build
+hooks-install:
+	@./ops/hooks-install.sh
 
-up:
-> bash scripts/boot.sh up
+.PHONY: wc-arm wc-disarm wc-status
 
-proposer:
-> bash scripts/boot.sh proposer
+wc-arm:
+	@sudo /usr/local/bin/void-datanet-wc-expected 1
+	@sleep 5
+	@PROM="http://127.0.0.1:9090" ops/bin/promq 'max(void_datanet_wc_expected{job="node",instance="127.0.0.1:9100"})' | sed 's/^/wc_expected=/'
 
-follower:
-> bash scripts/boot.sh follower
+wc-disarm:
+	@sudo /usr/local/bin/void-datanet-wc-expected 0
+	@sleep 5
+	@PROM="http://127.0.0.1:9090" ops/bin/promq 'max(void_datanet_wc_expected{job="node",instance="127.0.0.1:9100"})' | sed 's/^/wc_expected=/'
 
-seal:
-> bash scripts/boot.sh seal
+wc-status:
+	@PROM="http://127.0.0.1:9090" ops/bin/promq 'max(void_datanet_wc_expected{job="node",instance="127.0.0.1:9100"})' | sed 's/^/wc_expected=/'
+	@PROM="http://127.0.0.1:9090" ops/bin/promq 'count(ALERTS{alertstate="pending",alertname="VoidDataNetWCAwardedNotIncreasing"})' | sed 's/^/wc_alert_pending=/'
+	@PROM="http://127.0.0.1:9090" ops/bin/promq 'count(ALERTS{alertstate="firing",alertname="VoidDataNetWCAwardedNotIncreasing"})' | sed 's/^/wc_alert_firing=/'
 
-follow-once:
-> bash scripts/boot.sh once
+wc-relayer-smoke:
+	@bash ops/wc-relayer-smoke.sh
 
-tx:
-> bash scripts/boot.sh tx
+wc-stack-status:
+	@bash -lc 'set -euo pipefail; \
+	echo "=== node health ==="; \
+	curl -fsS --max-time 3 http://127.0.0.1:4100/health | sed -n "1,120p"; \
+	echo; \
+	echo "=== helper pool ==="; \
+	curl -fsS --max-time 3 http://127.0.0.1:4312/workcredits/devnet/pool.json | sed -n "1,160p"; \
+	echo; \
+	echo "=== relayer health ==="; \
+	curl -fsS --max-time 3 http://127.0.0.1:4313/api/wc-relayer/v1/health | sed -n "1,160p"; \
+	echo; \
+	echo "=== participant wiring ==="; \
+	curl -fsS --max-time 5 http://127.0.0.1:4100/participant | rg -n "api/wc-relayer/v1/quote|api/wc-relayer/v1/execute|approve_tx_hash|swap_tx_hash|Relayer is live for quote and execution" | sed -n "1,160p"; \
+	echo; \
+	echo "=== relayer quote smoke ==="; \
+	curl -fsS --max-time 5 -H "content-type: application/json" \
+	  -d "{\"side\":\"wc_to_void\",\"amount\":1,\"wallet\":\"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\"}" \
+	  http://127.0.0.1:4313/api/wc-relayer/v1/quote | sed -n "1,200p"; \
+	'
 
-lookup:
-> bash scripts/boot.sh lookup
 
-status:
-> curl -sS $(FOLLOWER)/sync/status | jq .
+wc-stack-exec-smoke:
+	@bash ops/wc-relayer-smoke.sh
 
-receipts:
-> bash scripts/boot.sh rcpt
+wc-stack-up:
+	@bash -lc 'set -euo pipefail; \
+	echo "=== restart main node ==="; \
+	systemctl --user restart void-node.service; \
+	echo; \
+	echo "=== restart wc relayer ==="; \
+	systemctl --user restart void-wc-relayer.service; \
+	echo; \
+	echo "=== restart helper on :4312 if unit exists, else keep current process ==="; \
+	if [[ -f "$$HOME/.config/systemd/user/void-workcredits-devnet-http.service" ]]; then \
+	  systemctl --user restart void-workcredits-devnet-http.service; \
+	else \
+	  echo "[info] no systemd helper unit found; assuming helper already managed separately"; \
+	fi; \
+	echo; \
+	echo "=== wait for node ==="; \
+	for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
+	  curl -fsS --max-time 3 http://127.0.0.1:4100/health >/dev/null 2>&1 && break; \
+	  sleep 1; \
+	done; \
+	echo "=== wait for relayer ==="; \
+	for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
+	  curl -fsS --max-time 3 http://127.0.0.1:4313/api/wc-relayer/v1/health >/dev/null 2>&1 && break; \
+	  sleep 1; \
+	done; \
+	$(MAKE) --no-print-directory wc-stack-status; \
+	'
 
-kidx-all:
-> curl -sS -X POST $(FOLLOWER)/index/kidx/build | jq .
+wc-stack-restart:
+	@$(MAKE) --no-print-directory wc-stack-up
 
-kidx-block:
-> test -n "$(BLOCK)" || (echo "usage: make kidx-block BLOCK=<number>"; exit 1)
-> curl -sS -X POST "$(FOLLOWER)/index/kidx/rebuild-shard?block=$(BLOCK)" | jq .
+wc-stack-down:
+	@bash -lc 'set -euo pipefail; \
+	echo "=== stop wc relayer ==="; \
+	systemctl --user stop void-wc-relayer.service || true; \
+	echo; \
+	echo "=== stop helper http ==="; \
+	systemctl --user stop void-workcredits-devnet-http.service || true; \
+	echo; \
+	echo "=== stop main node ==="; \
+	systemctl --user stop void-node.service || true; \
+	echo; \
+	echo "=== remaining listeners ==="; \
+	ss -Htanlp "sport = :4100 or sport = :4312 or sport = :4313 or sport = :4700" 2>/dev/null || true; \
+	'
+wc-stack-doctor:
+	@bash -lc 'set -euo pipefail; \
+	echo "=== systemd status: node ==="; \
+	systemctl --user --no-pager --full status void-node.service | sed -n "1,80p" || true; \
+	echo; \
+	echo "=== systemd status: helper ==="; \
+	systemctl --user --no-pager --full status void-workcredits-devnet-http.service | sed -n "1,80p" || true; \
+	echo; \
+	echo "=== systemd status: relayer ==="; \
+	systemctl --user --no-pager --full status void-wc-relayer.service | sed -n "1,80p" || true; \
+	echo; \
+	echo "=== listeners ==="; \
+	ss -Htanlp "sport = :4100 or sport = :4312 or sport = :4313 or sport = :4700" 2>/dev/null || true; \
+	echo; \
+	echo "=== http probe: node /health ==="; \
+	curl -fsS --max-time 3 http://127.0.0.1:4100/health | sed -n "1,120p" || echo "[fail] node health"; \
+	echo; \
+	echo "=== http probe: helper /pool.json ==="; \
+	curl -fsS --max-time 3 http://127.0.0.1:4312/workcredits/devnet/pool.json | sed -n "1,160p" || echo "[fail] helper pool"; \
+	echo; \
+	echo "=== http probe: relayer /health ==="; \
+	curl -fsS --max-time 3 http://127.0.0.1:4313/api/wc-relayer/v1/health | sed -n "1,160p" || echo "[fail] relayer health"; \
+	echo; \
+	echo "=== participant wiring snapshot ==="; \
+	curl -fsS --max-time 5 http://127.0.0.1:4100/participant | rg -n "api/wc-relayer/v1/quote|api/wc-relayer/v1/execute|approve_tx_hash|swap_tx_hash|No Redeemable WC|Relayer is live for quote and execution" | sed -n "1,200p" || echo "[fail] participant page"; \
+	echo; \
+	echo "=== helper recent journal ==="; \
+	journalctl --user -u void-workcredits-devnet-http.service --no-pager -n 40 || true; \
+	echo; \
+	echo "=== relayer recent journal ==="; \
+	journalctl --user -u void-wc-relayer.service --no-pager -n 40 || true; \
+	'
 
-kidx-hash:
-> test -n "$(HASH)" || (echo "usage: make kidx-hash HASH=<64-hex>"; exit 1)
-> curl -sS -X POST "$(FOLLOWER)/index/kidx/rebuild-shard?hash=$(HASH)" | jq .
+wc-demo-e2e:
+	@bash ops/wc-demo-run.sh
 
-hello-now:
-> curl -sS $(PROPOSER)/p2p/hello-now | jq .
-> curl -sS $(FOLLOWER)/p2p/hello-now | jq .
+wc-smoke:
+	@bash ops/wc-smoke.sh
 
-stop:
-> bash scripts/boot.sh stop
+wc-doctor:
+	@bash ops/voidctl wc-doctor
 
-PROM=http://127.0.0.1:9090
+wc-check:
+	@bash ops/voidctl wc-ready
+	@bash ops/voidctl wc-doctor
 
-prom-ok:
-	@until curl -sf $(PROM)/-/ready >/dev/null; do sleep 0.2; done && echo "[ok] ready"
-	@curl -sS $(PROM)/api/v1/status/flags | jq '{time:.data["storage.tsdb.retention.time"], size:.data["storage.tsdb.retention.size"], lifecycle:.data["web.enable-lifecycle"]}'
-	@curl -sS '$(PROM)/api/v1/targets?state=active' \
-	  | jq '.data.activeTargets | length as $$n | {count:$$n, ok:[ .[]|select(.health=="up") ]|length, jobs:[ .[]|.labels.job ]}'
-	@for j in prometheus node void-node void-follower-v4 void-scheduler; do \
-	  printf "up{%s}=" $$j; \
-	  curl -sS --get $(PROM)/api/v1/query --data-urlencode "query=up{job=\"$$j\"}" \
-	    | jq -r '.data.result[0].value[1]'; \
-	done
+wc-demo:
+	@bash ops/voidctl wc-demo
 
-prom-reload:
-	@curl -sS -X POST $(PROM)/-/reload && echo "reloaded"
+wc-golden:
+	@$(MAKE) --no-print-directory wc-check
+	@$(MAKE) --no-print-directory wc-demo
+	@$(MAKE) --no-print-directory wc-check
 
-prom-flags:
-	@curl -sS $(PROM)/api/v1/status/flags \
-	  | jq '{cfg:.data["config.file"], tsdb:.data["storage.tsdb.path"], time:.data["storage.tsdb.retention.time"], size:.data["storage.tsdb.retention.size"], lifecycle:.data["web.enable-lifecycle"]}'
+install-hooks:
+	@bash ops/install-hooks.sh
 
-prom-targets:
-	@curl -sS '$(PROM)/api/v1/targets?state=active' \
-	  | jq '.data.activeTargets | length as $$n | {count:$$n, targets:[ .[] | {job:.labels.job,url:.scrapeUrl,health:.health} ]}'
+.PHONY: void-main-commit void-follow-once void-follower-status void-dev-cycle
 
-prom-backup:
-	@sudo tar czf /root/prometheus-config-OK.$$(date +%F-%H%M).tgz /etc/prometheus /etc/systemd/system/prometheus.service.d && \
-	echo "backup -> /root/prometheus-config-OK.$$(date +%F-%H%M).tgz"
+void-main-commit:
+	./ops/void-main-commit.sh
 
+void-follow-once:
+	./ops/void-follow-once.sh
+
+void-follower-status:
+	./ops/void-follower-status.sh
+
+void-dev-cycle:
+	./ops/void-dev-cycle.sh
+.PHONY: autoprop-smoke
+autoprop-smoke:
+	./ops/autoprop-smoke.sh
+
+
+.PHONY: full-demo-smoke
+full-demo-smoke:
+	./ops/full-demo-smoke.sh
