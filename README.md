@@ -1,7 +1,6 @@
 # void-node
 Minimal block node with segmented storage, pubsub, and HTTP APIs.
 
-## Quick start
 ## Quick install (thin path)
 
 For the current Ubuntu devbox/user-unit path:
@@ -10,11 +9,11 @@ For the current Ubuntu devbox/user-unit path:
     ./ops/install-all.sh
     ./ops/install-path-status.sh
 
-```bash
-npm ci
-npm run build
-BASE=http://localhost:4100 npm run cli -- health
-```
+## Legacy quick start
+
+    npm ci
+    npm run build
+    BASE=http://localhost:4100 npm run cli -- health
 
 ## Environment
 See `.env.example` for the full list. Common:
