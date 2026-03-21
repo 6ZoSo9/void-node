@@ -163,3 +163,7 @@ void-follower-status:
 
 void-dev-cycle:
 	./ops/void-dev-cycle.sh
+.PHONY: autoprop-smoke
+autoprop-smoke:
+	./ops/autoprop-smoke.sh
+
