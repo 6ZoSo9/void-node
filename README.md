@@ -32,3 +32,21 @@ See `runbook/` for operational guides.
 
 > Note: `main-legacy` is archival; do not push. Current default: `main`.
 
+## Thin install path
+
+For the current Ubuntu devbox/user-unit path:
+
+    cd "$HOME/dev/void-node"
+    ./ops/install-all.sh
+
+### Extra verification
+
+    cd "$HOME/dev/void-node"
+    ./ops/submit-path-truth-smoke.sh
+    ./ops/void-follower-status.sh
+
+### Notes
+- `ops/install-all.sh` runs install/build, installs user units, and runs first-run smoke
+- this path is proven on the current dev workstation
+- `ops/FRESH_HOST_RUNBOOK.md` has the longer runbook
+
