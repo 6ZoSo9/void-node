@@ -18,7 +18,7 @@ TMP_FETCH="$(mktemp "$TMPDIR/datanet.fetch.XXXXXX.json")"
 cleanup(){ rm -f "$TMP_PUB" "$TMP_FETCH"; }
 trap cleanup EXIT
 
-PLAINTEXT="void-datanet-loop-proof-$(date +%s)"
+PLAINTEXT="void-datanet-loop-proof-$(date +%s)-$$-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \\n')"
 B64="$(printf %s "$PLAINTEXT" | base64 -w0)"
 
 echo "=== [0] health ==="
