@@ -125,7 +125,7 @@ PY
 )"
   if [ -n "${root:-}" ]; then
     proof_json="$(curl -fsS --max-time 2 "$BASE/datanet/v1/proof/$root/0" || true)"
-    leaf="$(python3 -c "import json,sys; j=json.loads(sys.argv[1] or {}); print((j.get(leaf,) or ).lower().replace(0x,))" "$proof_json" 2>/dev/null || true)"
+    leaf="$(python3 -c 'import json,sys; j=json.loads(sys.argv[1] or "{}"); print(str(j.get("leaf","") or "").lower().replace("0x",""))' "$proof_json" 2>/dev/null || true)"
     plain_sha="$(printf %s "$PLAINTEXT" | sha256sum | awk "{print \$1}")"
     if [ -n "${leaf:-}" ]; then
       post_receipt "$root" "$leaf" 0 "$bytes" "$plain_sha" "loopproof.txt" "text/plain" "$WHO" || true
@@ -137,6 +137,43 @@ PY
 fi
 if rg -n --no-heading -S "$B64" "$TMP_FETCH" >/dev/null 2>&1; then
   echo "[ok] loopproof match (b64)"
+  root="$(python3 - "$TMP_PUB" <<PY2 2>/dev/null || true
+import json,sys
+p=sys.argv[1]
+try:
+  j=json.load(open(p,"r",encoding="utf-8"))
+  print(str(j.get("merkleRootHex","") or "").lower().replace("0x",""))
+except Exception:
+  pass
+PY2
+)"
+  leaf="$(python3 - "$TMP_FETCH" <<PY2 2>/dev/null || true
+import json,sys
+p=sys.argv[1]
+try:
+  j=json.load(open(p,"r",encoding="utf-8"))
+  man = j.get("manifest") or {}
+  chunks = man.get("chunks") or []
+  first = chunks[0] if chunks else {}
+  print(str(first.get("leafHashHex","") or "").lower().replace("0x",""))
+except Exception:
+  pass
+PY2
+)"
+  bytes="$(python3 - "$TMP_PUB" <<PY2 2>/dev/null || true
+import json,sys
+p=sys.argv[1]
+try:
+  j=json.load(open(p,"r",encoding="utf-8"))
+  print(int(j.get("sizeBytes",0) or 0))
+except Exception:
+  print(0)
+PY2
+)"
+  plain_sha="$(printf %s "$PLAINTEXT" | sha256sum | awk "{print \$1}")"
+  if [ -n "${root:-}" ] && [ -n "${leaf:-}" ]; then
+    post_receipt "$root" "$leaf" 0 "$bytes" "$plain_sha" "loopproof.txt" "text/plain" "$WHO" || true
+  fi
   exit 0
 fi
 

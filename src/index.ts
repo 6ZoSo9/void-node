@@ -760,6 +760,35 @@ console.log("[shim] published global node (post-construct)");
         };
         fs.writeFileSync(path.join(outDir, "meta.publish_shim.v1.json"), JSON.stringify(meta, null, 2));
 
+        try {
+          const canonicalDnDir = path.join(dataDir, "datanet");
+          const canonicalManifestsDir = path.join(canonicalDnDir, "manifests");
+          const canonicalChunksDir = path.join(canonicalDnDir, "chunks");
+          fs.mkdirSync(canonicalManifestsDir, { recursive: true });
+          fs.mkdirSync(canonicalChunksDir, { recursive: true });
+
+          const rootHex = String(man?.merkleRootHex || "").toLowerCase().replace(/^0x/, "");
+          const chunksArr = Array.isArray(man?.chunks) ? man.chunks : [];
+
+          if (/^[0-9a-f]{64}$/.test(rootHex)) {
+            fs.writeFileSync(
+              path.join(canonicalManifestsDir, `${rootHex}.json`),
+              JSON.stringify(man, null, 2) + "\n"
+            );
+
+            for (const ch of chunksArr) {
+              try {
+                const leafHex = String(ch?.leafHashHex || "").toLowerCase().replace(/^0x/, "");
+                const fileName = String(ch?.file || "");
+                if (!/^[0-9a-f]{64}$/.test(leafHex) || !fileName) continue;
+                const srcChunkPath = path.join(outDir, fileName);
+                const dstChunkPath = path.join(canonicalChunksDir, `${leafHex}.bin`);
+                if (fs.existsSync(srcChunkPath)) fs.copyFileSync(srcChunkPath, dstChunkPath);
+              } catch {}
+            }
+          }
+        } catch {}
+
         return res.status(200).json(meta);
       } catch (e: any) {
         return res.status(500).json({ ok:false, error:"publish_throw", msg: e?.message || String(e) });
