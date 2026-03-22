@@ -32,8 +32,13 @@ echo "$TRUTH" | grep -q '"legacy_global_queue_is_noise":true' || fail "legacy qu
 pass "submit-path truth clean"
 
 echo
-echo "=== install-path status: follower ==="
+echo "=== install-path status: follower snapshot ==="
 ./ops/void-follower-status.sh
+
+echo
+echo "NOTE: follower section above is a live snapshot only."
+echo "NOTE: transient lag can be nonzero between timer runs."
+echo "NOTE: use ./ops/demo-smoke-follower.sh for a real bounded follower proof."
 
 echo
 echo "PASS install-path-status"
