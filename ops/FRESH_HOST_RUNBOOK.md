@@ -47,7 +47,12 @@ For an explicit bounded follower proof after install:
 
     curl -fsS --max-time 5 http://127.0.0.1:4100/__void/diag/submit_path_truth.json ; echo
 
-### Run demo proof
+### Run canonical proof
+
+    cd "$HOME/dev/void-node"
+    ./ops/thin-path-proof.sh
+
+### Run legacy compatibility wrapper
 
     cd "$HOME/dev/void-node"
     ./ops/post-install-demo.sh
@@ -65,7 +70,9 @@ For an explicit bounded follower proof after install:
   - node_txQueue_size: 0
   - global___void_tx_queue_size: 0
   - legacy_global_queue_is_noise: true
-- follower bounded proof (`./ops/demo-smoke-follower.sh`) shows:
+- canonical proof (`./ops/thin-path-proof.sh`) includes autoprop, full demo, follower proof, and final snapshot
+- legacy wrapper (`./ops/post-install-demo.sh`) is kept for compatibility and must not call the canonical proof internally
+- follower bounded proof only (`./ops/demo-smoke-follower.sh`) shows:
   - lag=0
   - main_health=ok
   - follower_health=ok
@@ -79,12 +86,14 @@ For an explicit bounded follower proof after install:
 
 ## Known Good Baseline (2026-03-21)
 
-Use these commands as the canonical proof path on a live install:
+Use this as the canonical proof path on a live install:
 
-    make autoprop-smoke
-    make full-demo-smoke
-    ./ops/post-install-demo.sh
-    ./ops/fresh-user-smoke.sh
+    cd "$HOME/dev/void-node"
+    ./ops/thin-path-proof.sh
+
+Equivalent make target:
+
+    make thin-path-proof
 
 Notes:
 

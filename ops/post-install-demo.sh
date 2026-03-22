@@ -6,19 +6,23 @@ set +o histexpand
 ROOT="${ROOT:-$HOME/dev/void-node}"
 cd "$ROOT"
 
-echo "=== [1] install path status ==="
+echo "NOTE: canonical proof path is ./ops/thin-path-proof.sh"
+echo "NOTE: this script is now a compatibility wrapper and does not recurse"
+echo
+
+echo "=== [1] install path status snapshot ==="
 ./ops/install-path-status.sh
 
 echo
-echo "=== [2] live demo smoke ==="
+echo "=== [2] main bounded proof ==="
 ./ops/demo-smoke-main.sh
 
 echo
-echo "=== [3] follower sync proof ==="
+echo "=== [3] follower bounded proof ==="
 ./ops/demo-smoke-follower.sh
 
 echo
-echo "=== [4] final status ==="
+echo "=== [4] final snapshot ==="
 ./ops/install-path-status.sh
 
 echo
