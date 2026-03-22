@@ -57,12 +57,11 @@ pass "systemd user mode available"
 
 echo
 echo "=== install-devbox: next ==="
-echo "1) install/update user units"
-echo "2) restart main node"
-echo "3) run demo-preflight"
-echo "4) run install-path-status (live snapshot)"
-echo "5) run demo-smoke-follower (bounded follower proof)"
-echo "6) run post-install-demo"
-echo "7) run fresh-user-smoke"
+echo "1) run ./ops/install-all.sh"
+echo "2) or, if doing steps manually: ./ops/install-user-units.sh"
+echo "3) then ./ops/first-run-smoke.sh"
+echo "4) then ./ops/thin-path-proof.sh"
+echo "5) optional: ./ops/fresh-user-smoke.sh"
+echo "6) optional clean-session proof: ./ops/clean-user-session-proof.sh"
 echo
 echo "PASS install-devbox"

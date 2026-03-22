@@ -39,7 +39,18 @@ For the current Ubuntu devbox/user-unit path:
     cd "$HOME/dev/void-node"
     ./ops/install-all.sh
 
-For the currently proven bounded proof path on `main`:
+
+Clean user-session proof (preserves user systemd/DBus, but drops shell profile noise):
+
+    cd "$HOME/dev/void-node"
+    ./ops/clean-user-session-proof.sh
+
+Primary fresh-user entrypoint on `main`:
+
+    cd "$HOME/dev/void-node"
+    ./ops/install-all.sh
+
+Canonical proof entrypoint after install:
 
     cd "$HOME/dev/void-node"
     ./ops/thin-path-proof.sh
@@ -90,6 +101,7 @@ For the current Ubuntu devbox/user-unit path:
     cd "$HOME/dev/void-node"
     ./ops/install-path-status.sh
     ./ops/thin-path-proof.sh
+    ./ops/fresh-user-smoke.sh
     ./ops/post-install-demo.sh   # compatibility wrapper
 
 ### Notes

@@ -9,22 +9,33 @@ Bring up a working local VOID main node and follower sync loop on a fresh Ubuntu
 - Node/npm are already installed
 - user has a writable home directory
 
-## 1. Install/build
+## 1. Preferred one-shot install path
+
+    cd "$HOME/dev/void-node"
+    ./ops/install-all.sh
+
+## 2. Manual step-by-step path
 
     cd "$HOME/dev/void-node"
     ./ops/install-devbox-ubuntu.sh
 
-## 2. Install user units
-
     cd "$HOME/dev/void-node"
     ./ops/install-user-units.sh
-
-## 3. First-run verification
 
     cd "$HOME/dev/void-node"
     ./ops/first-run-smoke.sh
 
-For an explicit bounded follower proof after install:
+## 3. Canonical proof after install
+
+    cd "$HOME/dev/void-node"
+    ./ops/thin-path-proof.sh
+
+## 3b. Clean user-session proof
+
+    cd "$HOME/dev/void-node"
+    ./ops/clean-user-session-proof.sh
+
+For a follower-only bounded proof after install:
 
     cd "$HOME/dev/void-node"
     ./ops/demo-smoke-follower.sh
@@ -87,6 +98,11 @@ For an explicit bounded follower proof after install:
 ## Known Good Baseline (2026-03-21)
 
 Use this as the canonical proof path on a live install:
+
+    cd "$HOME/dev/void-node"
+    ./ops/install-all.sh
+
+Or, once installed already:
 
     cd "$HOME/dev/void-node"
     ./ops/thin-path-proof.sh
