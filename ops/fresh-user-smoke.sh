@@ -35,21 +35,21 @@ pass "toolchain present"
 echo
 echo "=== fresh-user-smoke: runbook command presence ==="
 for f in \
+  ops/install-all.sh \
+  ops/install-devbox-ubuntu.sh \
+  ops/install-user-units.sh \
+  ops/install-path-status.sh \
   ops/demo-preflight.sh \
-  ops/demo-start-main.sh \
   ops/demo-smoke-main.sh \
   ops/demo-smoke-follower.sh \
-  ops/demo-all.sh \
-  ops/autoprop-smoke.sh \
-  ops/submit-path-truth-smoke.sh \
-  ops/void-follow-once.sh \
-  ops/void-follower-status.sh
+  ops/post-install-demo.sh \
+  ops/fresh-user-smoke.sh \
+  ops/first-run-smoke.sh
 do
   test -x "$f" || fail "missing executable $f"
 done
 pass "all referenced scripts executable"
 
-echo
 echo "=== fresh-user-smoke: units present ==="
 systemctl --user cat void-node.service >/dev/null 2>&1 || fail "void-node.service missing"
 systemctl --user cat void-follower-once.service >/dev/null 2>&1 || fail "void-follower-once.service missing"
