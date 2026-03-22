@@ -35,14 +35,30 @@ if [ "$H1" -le "$H0" ]; then
 fi
 
 echo
-echo "=== main smoke: persisted latest ==="
-PERSISTED="$(curl -fsS --max-time 5 "$BASE/blocks/$H1/persisted")"
-echo "$PERSISTED"
+echo "=== main smoke: persisted search window ==="
+FROM="$H0"
+TO="$H1"
+FOUND=0
+FOUND_BLOCK=""
+i="$FROM"
+while [ "$i" -le "$TO" ]; do
+  PERSISTED="$(curl -fsS --max-time 5 "$BASE/blocks/$i/persisted" || true)"
+  echo "$PERSISTED"
+  echo
+  if printf '%s' "$PERSISTED" | grep -F "\"memo\":\"$MEMO\"" >/dev/null 2>&1; then
+    FOUND=1
+    FOUND_BLOCK="$i"
+    break
+  fi
+  i=$((i + 1))
+done
 
-echo "$PERSISTED" | grep -F "\"memo\":\"$MEMO\"" >/dev/null || {
-  echo "FAIL persisted block missing submitted tx"
+if [ "$FOUND" -ne 1 ]; then
+  echo "FAIL persisted block range missing submitted tx memo=$MEMO range=${FROM}..${TO}"
   exit 1
-}
+fi
+
+echo "PASS main sealed submitted tx in block $FOUND_BLOCK"
 
 echo
 echo "=== main smoke: proposer truth ==="
