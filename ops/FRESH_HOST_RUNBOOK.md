@@ -64,3 +64,26 @@ Bring up a working local VOID main node and follower sync loop on a fresh Ubuntu
 - this path is proven on the dev workstation
 - it is not yet proven on a truly fresh VM or new user
 - local dirty Makefile is not part of this runbook
+
+## Known Good Baseline (2026-03-21)
+
+Use these commands as the canonical proof path on a live install:
+
+    make autoprop-smoke
+    make full-demo-smoke
+    ./ops/post-install-demo.sh
+    ./ops/fresh-user-smoke.sh
+
+Notes:
+
+- Smoke checks are range-based across sealed blocks.
+- Do not assume the submitted tx must appear in the latest head block.
+- With autoprop enabled, one block may seal the tx and a later head may already exist by the time the script checks persisted state.
+
+Pinned references:
+
+- commit `0b5ed89`
+- commit `e738339`
+- tags `ckpt-demo-smoke-main-rangefix-20260321-190409`
+- tags `ckpt-autoprop-smoke-rangefix-20260321-185210`
+

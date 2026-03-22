@@ -1,6 +1,37 @@
 # void-node
 Minimal block node with segmented storage, pubsub, and HTTP APIs.
 
+## Thin Demo / Proof Baseline (2026-03-21)
+
+Current proven baseline on `main`:
+
+- `make autoprop-smoke`
+- `make full-demo-smoke`
+- `./ops/post-install-demo.sh`
+- `./ops/fresh-user-smoke.sh`
+
+What this proves:
+
+- submit -> seal -> persisted tx path works
+- DataNet publish -> fetch -> receipt path works
+- WC credit increments from DataNet receipt path
+- follower converges to lag `0`
+- proposer is enabled and submit-path truth stays clean
+
+Important test behavior:
+
+- smoke verification is range-based, not latest-head-only
+- a submitted tx may land in the first sealed block after submission while a later head may already exist
+- scripts therefore verify the submitted memo across the sealed block range instead of assuming it must appear in the latest head block
+
+Reference commits/tags:
+
+- `0b5ed89` — main demo smoke range verification
+- `e738339` — autoprop smoke range verification
+- `ckpt-demo-smoke-main-rangefix-20260321-190409`
+- `ckpt-autoprop-smoke-rangefix-20260321-185210`
+
+
 ## Quick install (thin path)
 
 For the current Ubuntu devbox/user-unit path:
