@@ -86,6 +86,7 @@ Environment=P2P_PORT=$FOLLOW_P2P_PORT
 Environment=DATA_DIR=$DATA_B
 Environment=NODE_PRIVKEY_PATH=$NODEB_KEY
 Environment=BOOTSTRAP_ADDRS=127.0.0.1:$P2P_PORT
+Environment=SRC=http://127.0.0.1:4100
 ExecStart=/usr/bin/env npx --yes tsx scripts/follower_once.ts
 UNIT
 
@@ -119,4 +120,7 @@ echo "=== [5] next ==="
 echo "systemctl --user restart $MAIN_UNIT"
 echo "systemctl --user restart $FOLLOW_ONCE_TIMER"
 echo "./ops/demo-preflight.sh"
-echo "./ops/demo-all.sh"
+echo "./ops/install-path-status.sh"
+echo "./ops/demo-smoke-follower.sh"
+echo "./ops/post-install-demo.sh"
+echo "./ops/fresh-user-smoke.sh"

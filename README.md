@@ -38,7 +38,14 @@ For the current Ubuntu devbox/user-unit path:
 
     cd "$HOME/dev/void-node"
     ./ops/install-all.sh
-    ./ops/install-path-status.sh
+
+For the currently proven bounded proof path on `main`:
+
+    cd "$HOME/dev/void-node"
+    make autoprop-smoke
+    make full-demo-smoke
+    ./ops/post-install-demo.sh
+    ./ops/fresh-user-smoke.sh
 
 ## Legacy quick start
 
@@ -81,10 +88,14 @@ For the current Ubuntu devbox/user-unit path:
 
     cd "$HOME/dev/void-node"
     ./ops/install-path-status.sh
+    ./ops/demo-smoke-follower.sh
     ./ops/post-install-demo.sh
 
 ### Notes
 - `ops/install-all.sh` runs install/build, installs user units, and runs first-run smoke
+- `./ops/install-path-status.sh` is an honest live snapshot; follower output there is not a bounded proof
+- `./ops/demo-smoke-follower.sh` is the bounded follower proof
+- follower install units must include `Environment=SRC=http://127.0.0.1:4100`
 - this path is proven on the current dev workstation
 - `ops/FRESH_HOST_RUNBOOK.md` has the longer runbook
 

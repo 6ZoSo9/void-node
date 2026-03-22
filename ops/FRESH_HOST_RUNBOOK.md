@@ -24,6 +24,11 @@ Bring up a working local VOID main node and follower sync loop on a fresh Ubuntu
     cd "$HOME/dev/void-node"
     ./ops/first-run-smoke.sh
 
+For an explicit bounded follower proof after install:
+
+    cd "$HOME/dev/void-node"
+    ./ops/demo-smoke-follower.sh
+
 ## 4. Manual day-2 commands
 
 ### Restart main
@@ -45,7 +50,12 @@ Bring up a working local VOID main node and follower sync loop on a fresh Ubuntu
 ### Run demo proof
 
     cd "$HOME/dev/void-node"
-    ./ops/demo-all.sh
+    ./ops/post-install-demo.sh
+
+### Run bounded follower proof only
+
+    cd "$HOME/dev/void-node"
+    ./ops/demo-smoke-follower.sh
 
 ## 5. Expected success signals
 - /head.txt responds on 127.0.0.1:4100
@@ -55,15 +65,17 @@ Bring up a working local VOID main node and follower sync loop on a fresh Ubuntu
   - node_txQueue_size: 0
   - global___void_tx_queue_size: 0
   - legacy_global_queue_is_noise: true
-- follower status shows:
+- follower bounded proof (`./ops/demo-smoke-follower.sh`) shows:
   - lag=0
   - main_health=ok
   - follower_health=ok
+- install-path follower section is snapshot-only and may show transient lag between timer runs
 
 ## 6. Known current reality
 - this path is proven on the dev workstation
 - it is not yet proven on a truly fresh VM or new user
 - local dirty Makefile is not part of this runbook
+- follower user unit must include `Environment=SRC=http://127.0.0.1:4100` so `scripts/follower_once.ts` follows the main HTTP node instead of falling back to legacy `:4300`
 
 ## Known Good Baseline (2026-03-21)
 
