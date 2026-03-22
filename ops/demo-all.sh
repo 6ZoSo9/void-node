@@ -3,14 +3,11 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-cd "${ROOT:-$HOME/dev/void-node}"
+ROOT="${ROOT:-$HOME/dev/void-node}"
+cd "$ROOT"
 
-./ops/demo-bootstrap.sh
+echo "NOTE: ops/demo-all.sh is now a legacy compatibility wrapper."
+echo "NOTE: canonical proof path is ./ops/thin-path-proof.sh"
 echo
-./ops/demo-start-main.sh
-echo
-./ops/demo-smoke-main.sh
-echo
-./ops/demo-smoke-follower.sh
-echo
-echo "PASS demo-all"
+
+exec ./ops/thin-path-proof.sh

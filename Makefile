@@ -171,3 +171,6 @@ autoprop-smoke:
 .PHONY: full-demo-smoke
 full-demo-smoke:
 	./ops/full-demo-smoke.sh
+
+thin-path-proof:
+	./ops/thin-path-proof.sh

@@ -42,6 +42,7 @@ for f in \
   ops/demo-preflight.sh \
   ops/demo-smoke-main.sh \
   ops/demo-smoke-follower.sh \
+  ops/thin-path-proof.sh \
   ops/post-install-demo.sh \
   ops/fresh-user-smoke.sh \
   ops/first-run-smoke.sh
@@ -60,6 +61,11 @@ echo
 echo "=== fresh-user-smoke: first-run smoke ==="
 ./ops/first-run-smoke.sh
 pass "first-run smoke passed"
+
+echo
+echo "=== fresh-user-smoke: canonical proof entrypoint presence ==="
+test -x ./ops/thin-path-proof.sh || fail "missing executable ops/thin-path-proof.sh"
+pass "canonical proof entrypoint present"
 
 echo
 echo "PASS fresh-user-smoke"
