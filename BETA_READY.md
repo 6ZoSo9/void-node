@@ -24,6 +24,10 @@ Command summary:
 
     make beta-help
 
+Release handoff bundle:
+
+    make beta-pack
+
 ## What a tester should expect
 
 ### `make public-beta-status`

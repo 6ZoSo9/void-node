@@ -225,3 +225,7 @@ beta-help:
 	@printf '%s\n' 'Docs:'
 	@printf '%s\n' '  PUBLIC_BETA.md'
 	@printf '%s\n' '  ops/BETA_BASELINE_2026-03-23.md'
+
+.PHONY: beta-pack
+beta-pack:
+	@bash ops/beta-release-pack.sh
