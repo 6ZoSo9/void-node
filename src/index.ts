@@ -36963,6 +36963,32 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <span class="pill">selected account</span>
             <span class="pill">local truth</span>
           </div>
+
+          <div class="panel" style="margin-top:16px;padding:14px">
+            <div class="section-head">
+              <div>
+                <h2 style="margin-bottom:4px">Current earned-WC truth</h2>
+                <div class="section-copy">WC ledger is the current source of truth for earned local credits on this page.</div>
+              </div>
+            </div>
+            <div class="metric-strip">
+              <div class="mini">
+                <div class="k">Latest ledger reason</div>
+                <div class="v" id="ledgerLatestReason">-</div>
+                <div class="s">most recent local credit/debit reason</div>
+              </div>
+              <div class="mini">
+                <div class="k">Latest receipt id</div>
+                <div class="v" id="ledgerLatestReceipt">-</div>
+                <div class="s">linked receipt when available</div>
+              </div>
+              <div class="mini">
+                <div class="k">Ledger truth</div>
+                <div class="v" id="ledgerTruthState">-</div>
+                <div class="s">derived from local WC ledger events</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="panel">
@@ -37285,9 +37311,26 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         : "sync unavailable"
     );
 
+    const ledgerEvents = (ledger && ledger.events) || [];
+    const latestLedger = ledgerEvents && ledgerEvents.length ? ledgerEvents[0] : null;
+
     const jobsHtml = renderJobs((jobs && jobs.jobs) || []);
-    const receiptsHtml = renderReceipts((receipts && receipts.receipts) || []);
-    const ledgerHtml = renderLedger((ledger && ledger.events) || []);
+    let receiptsHtml = renderReceipts((receipts && receipts.receipts) || []);
+    const ledgerHtml = renderLedger(ledgerEvents);
+
+    if ((!receipts || !receipts.receipts || !receipts.receipts.length) && latestLedger) {
+      receiptsHtml =
+        '<div class="empty">' +
+        'No receipt rows are available on this endpoint for this account yet. ' +
+        'Current earned-WC truth is coming from the local WC ledger. ' +
+        'Latest ledger reason: <b>' + esc(latestLedger.reason || "-") + '</b>' +
+        (latestLedger.receipt_id ? (' | receipt: <span class="mono">' + esc(latestLedger.receipt_id) + '</span>') : '') +
+        '</div>';
+    }
+
+    setText("ledgerLatestReason", latestLedger ? (latestLedger.reason || "-") : "-");
+    setText("ledgerLatestReceipt", latestLedger ? (latestLedger.receipt_id || "-") : "-");
+    setText("ledgerTruthState", latestLedger ? "ledger-backed" : "no events");
 
     if ($("jobsWrap")) $("jobsWrap").innerHTML = jobsHtml;
     if ($("jobsWrapOverview")) $("jobsWrapOverview").innerHTML = jobsHtml;
