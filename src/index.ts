@@ -36624,7 +36624,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="quick">
         <a class="linkbtn" href="/datanet-demo">DataNet Demo</a>
         <a class="linkbtn" href="/demo/datanet/">Legacy Demo</a>
-        <a class="linkbtn" href="http://127.0.0.1:4312/workcredits/devnet/ui" target="_blank" rel="noopener noreferrer">Helper Swap UI</a>
+        <a class="linkbtn" href="#" data-local-wc-ui="1" target="_blank" rel="noopener noreferrer">Local Trading UI</a>
       </div>
     </div>
   </aside>
@@ -36884,8 +36884,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="action-rail" style="margin-top:12px">
               <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Redeemable</button>
               <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Execute Trade (Relayer Offline)</button>
-              <a class="linkbtn" id="tradeOpenHelperBtn" href="http://127.0.0.1:4312/workcredits/devnet/ui" target="_blank" rel="noopener noreferrer">Open Helper Swap UI</a>
-              <a class="linkbtn" id="tradePoolJsonBtn" href="http://127.0.0.1:4312/workcredits/devnet/pool.json" target="_blank" rel="noopener noreferrer">Open Pool JSON</a>
+              <a class="linkbtn" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" target="_blank" rel="noopener noreferrer">Open Local Trading UI</a>
+              <a class="linkbtn" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" target="_blank" rel="noopener noreferrer">Open Pool JSON</a>
             </div>
 
             <div class="hero-note" style="margin-top:12px">
@@ -36898,7 +36898,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Trading state</h2>
-              <div class="section-copy">Pool and helper context kept visible until the shell has native swap execution.</div>
+              <div class="section-copy">Pool and local trading context stay visible until the shell has native swap execution.</div>
             </div>
           </div>
           <pre id="tradeStateOut">loading…</pre>
@@ -36941,13 +36941,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Redeem WC to helper flow</h2>
-                <div class="section-copy">Moves local redeemable WC into the helper-facing trading path.</div>
+                <h2 style="margin-bottom:4px">Redeem WC to local trading flow</h2>
+                <div class="section-copy">Moves local redeemable WC into the local trading path.</div>
               </div>
             </div>
             <label for="redeemAmount">Redeem amount</label>
             <input id="redeemAmount" value="10" inputmode="decimal" />
-            <label for="redeemWallet">Helper wallet address</label>
+            <label for="redeemWallet">Local trading wallet address</label>
             <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
             <div class="action-rail" style="margin-top:12px">
               <button class="btn btn-primary" id="redeemBtn" type="button">Redeem WC</button>
@@ -36994,8 +36994,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Helper wallet preview</h2>
-              <div class="section-copy">Secondary helper-facing wallet state, kept separate from local earned WC.</div>
+              <h2>Local trading wallet preview</h2>
+              <div class="section-copy">Secondary local-trading wallet state, kept separate from local earned WC.</div>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -37006,12 +37006,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Helper WC</div>
               <div class="v" id="helperWalletWcMini">-</div>
-              <div class="s">helper wallet preview</div>
+              <div class="s">local trading wallet preview</div>
             </div>
             <div class="mini">
               <div class="k">Helper VOID</div>
               <div class="v" id="helperWalletVoidMini">-</div>
-              <div class="s">helper wallet preview</div>
+              <div class="s">local trading wallet preview</div>
             </div>
             <div class="mini">
               <div class="k">Redeemable WC</div>
@@ -37053,7 +37053,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Helper / pool context</h2>
+              <h2>Local trading / pool context</h2>
               <div class="section-copy">Raw helper state kept available without dominating the page.</div>
             </div>
           </div>
@@ -37101,8 +37101,15 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 </div>
 
 <script>
+window.__VOID_LOCAL_WC_BASE = (window.__VOID_LOCAL_WC_BASE || "http://127.0.0.1:4312/workcredits/devnet");
+window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://127.0.0.1:4313/api/wc-relayer/v1");
+</script>
+
+<script>
 (async () => {
   const $ = (id) => document.getElementById(id);
+  const LOCAL_WC_BASE = (window.__VOID_LOCAL_WC_BASE || "http://127.0.0.1:4312/workcredits/devnet");
+  const LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://127.0.0.1:4313/api/wc-relayer/v1");
 
   async function j(url, opts){
     const r = await fetch(url, opts);
@@ -37163,8 +37170,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
   async function refresh(){
     const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+
+    const wcUiLink = document.querySelector('[data-local-wc-ui="1"]');
+    if (wcUiLink) wcUiLink.setAttribute("href", LOCAL_WC_BASE + "/ui");
+    const wcPoolLink = document.querySelector('[data-local-wc-pool="1"]');
+    if (wcPoolLink) wcPoolLink.setAttribute("href", LOCAL_WC_BASE + "/pool.json");
     const wcAddr = /^0x[0-9a-fA-F]{40}$/.test(account) ? account : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
-    const wcBase = "http://127.0.0.1:4312/workcredits/devnet";
+    const wcBase = LOCAL_WC_BASE;
 
     const [bal, redeem, redeemed, jobs, receipts, ledger, summary, peer, health, wcDash, relayerHealth] = await Promise.all([
       j("/wc/balance?account=" + encodeURIComponent(account)),
@@ -37177,7 +37189,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       j("/__void/peer-main-status.json"),
       j("/health"),
       j(wcBase + "/dashboard/" + encodeURIComponent(wcAddr) + ".json"),
-      j("http://127.0.0.1:4313/api/wc-relayer/v1/health").catch(() => ({ ok:false, offline:true })),
+      j(LOCAL_RELAYER_BASE + "/health").catch(() => ({ ok:false, offline:true })),
     ]);
 
     const localEarned = bal && bal.ok && Number.isFinite(Number(bal.balance)) ? Number(bal.balance) : null;
@@ -37195,7 +37207,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     let quotedVoid:any = null;
     let relayerQuote:any = null;
     if (relayerUp && Number.isFinite(tradeInput) && tradeInput > 0) {
-      relayerQuote = await j("http://127.0.0.1:4313/api/wc-relayer/v1/quote", {
+      relayerQuote = await j(LOCAL_RELAYER_BASE + "/quote", {
         method: "POST",
         headers: { "content-type":"application/json" },
         body: JSON.stringify({
@@ -37246,7 +37258,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       "helperWalletMeta",
       wcBal
         ? ("helper wallet: " + wcAddr + " | WC: " + wcBal.wc + " | VOID: " + wcBal.void)
-        : "helper wallet unavailable"
+        : "local trading wallet unavailable"
     );
 
     setText("tradePriceWcPerVoid", wcPerVoid !== null ? wcPerVoid : "-");
@@ -37359,8 +37371,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       pool_price: wcPool && wcPool.price ? wcPool.price : null
     });
     if ($("tradeStateOut")) setPre("tradeStateOut", {
-      helper_ui: "http://127.0.0.1:4312/workcredits/devnet/ui",
-      helper_pool_json: "http://127.0.0.1:4312/workcredits/devnet/pool.json",
+      helper_ui: wcBase + "/ui",
+      helper_pool_json: wcBase + "/pool.json",
       helper_address: wcAddr,
       helper_dashboard_ok: !!(wcDash && wcDash.account && wcDash.pool),
       helper_balances: wcBal || null,
@@ -37430,7 +37442,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       redeemableNow = await j("/wc/redeemable?account=" + encodeURIComponent(account));
     } catch {}
     try {
-      relayerHealthNow = await j("http://127.0.0.1:4313/api/wc-relayer/v1/health");
+      relayerHealthNow = await j(LOCAL_RELAYER_BASE + "/health");
     } catch {}
 
     const redeemableAmt = redeemableNow && redeemableNow.ok ? Number(redeemableNow.redeemable || 0) : 0;
@@ -37512,12 +37524,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       amount,
       wallet,
       redeemable_wc: redeemableAmt,
-      quote_endpoint: "http://127.0.0.1:4313/api/wc-relayer/v1/quote",
-      execute_endpoint: "http://127.0.0.1:4313/api/wc-relayer/v1/execute"
+      quote_endpoint: LOCAL_RELAYER_BASE + "/quote",
+      execute_endpoint: LOCAL_RELAYER_BASE + "/execute"
     });
 
     try {
-      const out = await j("http://127.0.0.1:4313/api/wc-relayer/v1/execute", {
+      const out = await j(LOCAL_RELAYER_BASE + "/execute", {
         method:"POST",
         headers:{ "content-type":"application/json" },
         body: JSON.stringify({
