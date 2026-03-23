@@ -178,3 +178,7 @@ thin-path-proof:
 .PHONY: full-demo-smoke-inner-autoprop
 full-demo-smoke-inner-autoprop:
 	BASE="$${BASE:-$${MAIN_BASE:-http://127.0.0.1:4100}}" ./ops/autoprop-smoke.sh
+
+.PHONY: demo-video-proof
+demo-video-proof:
+	./ops/demo-video-proof.sh

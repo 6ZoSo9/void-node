@@ -30,7 +30,18 @@ Bring up a working local VOID main node and follower sync loop on a fresh Ubuntu
     cd "$HOME/dev/void-node"
     ./ops/thin-path-proof.sh
 
-## 3b. Clean user-session proof
+
+
+
+
+## 3c. Clean user-facing demo proof
+
+    cd "$HOME/dev/void-node"
+    ./ops/demo-video-proof.sh
+
+Equivalent make target:
+
+    make demo-video-proof## 3b. Clean user-session proof
 
     cd "$HOME/dev/void-node"
     ./ops/clean-user-session-proof.sh

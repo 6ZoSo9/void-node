@@ -40,6 +40,16 @@ For the current Ubuntu devbox/user-unit path:
     ./ops/install-all.sh
 
 
+Clean user-facing demo proof path on `main`:
+
+    cd "$HOME/dev/void-node"
+    ./ops/demo-video-proof.sh
+
+Equivalent make target:
+
+    make demo-video-proof
+
+
 Clean user-session proof (preserves user systemd/DBus, but drops shell profile noise):
 
     cd "$HOME/dev/void-node"
