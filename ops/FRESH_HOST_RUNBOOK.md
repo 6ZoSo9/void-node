@@ -135,3 +135,16 @@ Pinned references:
 - tags `ckpt-demo-smoke-main-rangefix-20260321-190409`
 - tags `ckpt-autoprop-smoke-rangefix-20260321-185210`
 
+## Current proof scope / caveat
+
+`./ops/demo-video-proof.sh` is the canonical fresh-user proof path.
+
+Today it proves:
+- install and startup
+- main node health
+- follower proof in oneshot/store mode
+- DataNet publish/fetch/receipt
+- WC helper/pool visibility
+
+It does not yet prove isolated per-address WC earnings delta inside a fresh-user root.
+That needs isolated-root protocol state/broadcast artifacts plus ledger coupling.

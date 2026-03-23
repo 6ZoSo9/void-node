@@ -124,3 +124,15 @@ For the current Ubuntu devbox/user-unit path:
 - this path is proven on the current dev workstation
 - `ops/FRESH_HOST_RUNBOOK.md` has the longer runbook
 
+### Current proof scope
+
+`./ops/demo-video-proof.sh` currently proves:
+
+- install path / user-unit bring-up
+- main node health and sealing
+- follower sync proof (oneshot/store mode aware)
+- DataNet publish/fetch/receipt loop
+- WorkCredits pool/helper visibility
+
+It does **not** yet prove isolated per-address WC earnings delta for a fresh-user root.
+That remaining gap depends on isolated-root protocol state / broadcast artifacts and WC ledger coupling.
