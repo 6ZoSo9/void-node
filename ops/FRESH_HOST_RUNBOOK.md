@@ -9,12 +9,34 @@ Bring up a working local VOID main node and follower sync loop on a fresh Ubuntu
 - Node/npm are already installed
 - user has a writable home directory
 
-## 1. Preferred one-shot install path
+## 1. Preferred public-beta path
 
     cd "$HOME/dev/void-node"
-    ./ops/install-all.sh
+    ./ops/public-beta-quickstart.sh
 
-## 2. Manual step-by-step path
+Equivalent make target:
+
+    make public-beta
+
+## 2. Preferred bounded proof gates
+
+    cd "$HOME/dev/void-node"
+    make wc-wallet-proof
+
+    cd "$HOME/dev/void-node"
+    make public-beta-preflight
+
+What these prove today:
+
+- isolated node health
+- isolated helper/pool visibility
+- real DataNet publish -> fetch -> verified receipt flow
+- isolated per-wallet WC delta:
+  - wallet A earns `1 WC`
+  - wallet B earns `0`
+- ledger truth and receipt truth match the credited wallet
+
+## 3. Manual step-by-step install path
 
     cd "$HOME/dev/void-node"
     ./ops/install-devbox-ubuntu.sh
@@ -25,28 +47,25 @@ Bring up a working local VOID main node and follower sync loop on a fresh Ubuntu
     cd "$HOME/dev/void-node"
     ./ops/first-run-smoke.sh
 
-## 3. Canonical proof after install
-
-    cd "$HOME/dev/void-node"
-    ./ops/thin-path-proof.sh
-
-
-
-
-
-## 3c. Clean user-facing demo proof
+## 3b. Broader demo proof
 
     cd "$HOME/dev/void-node"
     ./ops/demo-video-proof.sh
 
 Equivalent make target:
 
-    make demo-video-proof## 3b. Clean user-session proof
+    make demo-video-proof
+
+## 3c. Legacy canonical thin-path proof
 
     cd "$HOME/dev/void-node"
-    ./ops/clean-user-session-proof.sh
+    ./ops/thin-path-proof.sh
 
-For a follower-only bounded proof after install:
+Equivalent make target:
+
+    make thin-path-proof
+
+## 3d. Follower-only bounded proof
 
     cd "$HOME/dev/void-node"
     ./ops/demo-smoke-follower.sh
@@ -85,20 +104,15 @@ For a follower-only bounded proof after install:
     ./ops/demo-smoke-follower.sh
 
 ## 5. Expected success signals
-- /head.txt responds on 127.0.0.1:4100
-- proposer/status shows "enabled": true
-- submitted tx appears in /blocks/<n>/persisted
-- submit-path truth shows:
-  - node_txQueue_size: 0
-  - global___void_tx_queue_size: 0
-  - legacy_global_queue_is_noise: true
-- canonical proof (`./ops/thin-path-proof.sh`) includes autoprop, full demo, follower proof, and final snapshot
-- legacy wrapper (`./ops/post-install-demo.sh`) is kept for compatibility and must not call the canonical proof internally
-- follower bounded proof only (`./ops/demo-smoke-follower.sh`) shows:
-  - lag=0
-  - main_health=ok
-  - follower_health=ok
-- install-path follower section is snapshot-only and may show transient lag between timer runs
+- `./ops/public-beta-quickstart.sh` ends with `PASS public-beta-quickstart`
+- `make public-beta-preflight` ends with `PASS`
+- `make wc-wallet-proof` ends with `ASSERT OK` and `PASS`
+- wallet A shows `1 WC` earned/redeemable in the isolated proof
+- wallet B shows `0`
+- isolated ledger contains a `credit` event for wallet A
+- isolated receipt log contains the matching verified receipt
+- `./ops/demo-video-proof.sh` ends with `full demo smoke passed`
+- main helper account view on `:4312` reflects per-wallet WC correctly
 
 ## 6. Known current reality
 - this path is proven on the dev workstation
@@ -106,45 +120,53 @@ For a follower-only bounded proof after install:
 - local dirty Makefile is not part of this runbook
 - follower user unit must include `Environment=SRC=http://127.0.0.1:4100` so `scripts/follower_once.ts` follows the main HTTP node instead of falling back to legacy `:4300`
 
-## Known Good Baseline (2026-03-21)
+## Known Good Baseline (2026-03-23)
 
-Use this as the canonical proof path on a live install:
-
-    cd "$HOME/dev/void-node"
-    ./ops/install-all.sh
-
-Or, once installed already:
+Use this as the current proof ladder on a live install:
 
     cd "$HOME/dev/void-node"
-    ./ops/thin-path-proof.sh
+    make wc-wallet-proof
 
-Equivalent make target:
+    cd "$HOME/dev/void-node"
+    make public-beta-preflight
 
-    make thin-path-proof
-
-Notes:
-
-- Smoke checks are range-based across sealed blocks.
-- Do not assume the submitted tx must appear in the latest head block.
-- With autoprop enabled, one block may seal the tx and a later head may already exist by the time the script checks persisted state.
+    cd "$HOME/dev/void-node"
+    ./ops/public-beta-quickstart.sh
 
 Pinned references:
 
-- commit `0b5ed89`
-- commit `e738339`
-- tags `ckpt-demo-smoke-main-rangefix-20260321-190409`
-- tags `ckpt-autoprop-smoke-rangefix-20260321-185210`
+- `acd8670`
+- `11e2941`
+- `190dd0f`
+- `517d9d6`
+- `f5ca378`
+- `95020b1`
 
-## Current proof scope / caveat
+## Current proof scope
 
-`./ops/demo-video-proof.sh` is the canonical fresh-user proof path.
+`./ops/public-beta-quickstart.sh` is now the preferred fresh-user/public-beta path.
 
 Today it proves:
-- install and startup
-- main node health
-- follower proof in oneshot/store mode
-- DataNet publish/fetch/receipt
-- WC helper/pool visibility
 
-It does not yet prove isolated per-address WC earnings delta inside a fresh-user root.
-That needs isolated-root protocol state/broadcast artifacts plus ledger coupling.
+- install and startup path
+- public-beta preflight gate
+- main node health
+- isolated node health
+- isolated helper/pool visibility
+- real DataNet publish/fetch/verified-receipt loop
+- isolated per-address WC earnings delta
+- broader demo proof path
+
+Current honest caveat:
+
+- the isolated wallet-proof gate is the tightest proof surface
+- broader demo/proposer/follower surfaces exist and are useful, but they are a wider operational path than the bounded wallet-proof gate
+
+Public beta happy path:
+
+    cd "$HOME/dev/void-node"
+    ./ops/public-beta-quickstart.sh
+
+Equivalent make target:
+
+    make public-beta

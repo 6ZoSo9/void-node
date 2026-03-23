@@ -1,46 +1,53 @@
 # void-node
 Minimal block node with segmented storage, pubsub, and HTTP APIs.
 
-## Thin Demo / Proof Baseline (2026-03-21)
+## Current Proven Paths (2026-03-23)
 
-Current proven baseline on `main`:
+Current green paths on `main`:
 
-- `make autoprop-smoke`
-- `make full-demo-smoke`
-- `./ops/post-install-demo.sh`
-- `./ops/fresh-user-smoke.sh`
+- `make wc-wallet-proof`
+- `make public-beta-preflight`
+- `./ops/public-beta-quickstart.sh`
+- `./ops/demo-video-proof.sh`
 
-What this proves:
+What these currently prove:
 
-- submit -> seal -> persisted tx path works
-- DataNet publish -> fetch -> receipt path works
-- WC credit increments from DataNet receipt path
-- follower converges to lag `0`
-- proposer is enabled and submit-path truth stays clean
+- real DataNet publish -> fetch -> verified receipt path works
+- WorkCredits credit increments from the verified DataNet receipt path
+- isolated per-wallet WC proof is green:
+  - wallet A earns `1 WC`
+  - wallet B earns `0`
+  - ledger truth and receipt truth match wallet A
+- public beta quickstart is green on the current dev workstation
+- main demo proof now defaults to a real wallet address instead of legacy `demo-user`
 
-Important test behavior:
+Pinned references:
 
-- smoke verification is range-based, not latest-head-only
-- a submitted tx may land in the first sealed block after submission while a later head may already exist
-- scripts therefore verify the submitted memo across the sealed block range instead of assuming it must appear in the latest head block
+- `acd8670` — wallet-specific WC awards fixed in isolated flow
+- `11e2941` — isolated per-wallet WC proof runner added
+- `190dd0f` — `make wc-wallet-proof` added
+- `517d9d6` — `public-beta-preflight` switched to real DataNet publish/fetch/receipt proof
+- `f5ca378` — `public-beta-quickstart` gated on preflight and real wallet proof
+- `95020b1` — main demo proof defaults to wallet address
 
-Reference commits/tags:
+## Quick install / public beta path
 
-- `0b5ed89` — main demo smoke range verification
-- `e738339` — autoprop smoke range verification
-- `ckpt-demo-smoke-main-rangefix-20260321-190409`
-- `ckpt-autoprop-smoke-rangefix-20260321-185210`
-
-
-## Quick install (thin path)
-
-For the current Ubuntu devbox/user-unit path:
+Recommended current user-facing path:
 
     cd "$HOME/dev/void-node"
-    ./ops/install-all.sh
+    ./ops/public-beta-quickstart.sh
 
+Equivalent make target:
 
-Clean user-facing demo proof path on `main`:
+    make public-beta
+
+Recommended bounded proof gates:
+
+    cd "$HOME/dev/void-node"
+    make wc-wallet-proof
+    make public-beta-preflight
+
+Compatibility / broader demo path:
 
     cd "$HOME/dev/void-node"
     ./ops/demo-video-proof.sh
@@ -49,25 +56,17 @@ Equivalent make target:
 
     make demo-video-proof
 
-
-Clean user-session proof (preserves user systemd/DBus, but drops shell profile noise):
-
-    cd "$HOME/dev/void-node"
-    ./ops/clean-user-session-proof.sh
-
-Primary fresh-user entrypoint on `main`:
+Legacy install aggregator (still available, but not the preferred beta entrypoint):
 
     cd "$HOME/dev/void-node"
     ./ops/install-all.sh
 
-Canonical proof entrypoint after install:
+Notes:
 
-    cd "$HOME/dev/void-node"
-    ./ops/thin-path-proof.sh
-
-Equivalent make target:
-
-    make thin-path-proof
+- `make wc-wallet-proof` is the tightest honest proof of wallet-specific WC awarding
+- `make public-beta-preflight` is the gate that should be green before relying on the broader demo path
+- `./ops/public-beta-quickstart.sh` now runs install/startup, preflight, and demo proof in sequence
+- older thin/demo proof surfaces remain available, but they are no longer the primary public-beta story
 
 ## Legacy quick start
 
@@ -136,3 +135,12 @@ For the current Ubuntu devbox/user-unit path:
 
 It does **not** yet prove isolated per-address WC earnings delta for a fresh-user root.
 That remaining gap depends on isolated-root protocol state / broadcast artifacts and WC ledger coupling.
+
+Public beta happy path:
+
+    cd "$HOME/dev/void-node"
+    ./ops/public-beta-quickstart.sh
+
+Equivalent make target:
+
+    make public-beta
