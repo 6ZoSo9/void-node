@@ -57,11 +57,26 @@ pass "systemd user mode available"
 
 echo
 echo "=== install-devbox: next ==="
-echo "1) run ./ops/install-all.sh"
-echo "2) or, if doing steps manually: ./ops/install-user-units.sh"
-echo "3) then ./ops/first-run-smoke.sh"
-echo "4) then ./ops/thin-path-proof.sh"
-echo "5) optional: ./ops/fresh-user-smoke.sh"
-echo "6) optional clean-session proof: ./ops/clean-user-session-proof.sh"
+echo "Preferred public beta path:"
+echo "./ops/public-beta-quickstart.sh"
+echo "Equivalent:"
+echo "make public-beta"
+echo
+echo "Manual step-by-step:"
+echo "./ops/install-user-units.sh"
+echo "./ops/first-run-smoke.sh"
+echo
+echo "Bounded proof gates:"
+echo "make public-beta-preflight"
+echo "make wc-wallet-proof"
+echo
+echo "Live status:"
+echo "make public-beta-status"
+echo "./ops/install-path-status.sh"
+echo
+echo "Compatibility / optional:"
+echo "./ops/demo-video-proof.sh"
+echo "./ops/fresh-user-smoke.sh"
+echo "./ops/clean-user-session-proof.sh"
 echo
 echo "PASS install-devbox"
