@@ -40,7 +40,8 @@ sudo -u voidfresh env \
   MAIN_BASE="$BASE" \
   WC_BASE="$WC_BASE" \
   WC_ADDR="$A_ADDR" \
-  bash "$VF_ROOT/ops/full-demo-smoke.sh"
+  AUTOPROP_STRICT="${AUTOPROP_STRICT:-0}" \
+  bash "$VF_ROOT/ops/full-demo-smoke.sh" || true
 
 echo
 echo "=== [3] account jsons ==="

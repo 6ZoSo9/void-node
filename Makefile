@@ -182,3 +182,11 @@ full-demo-smoke-inner-autoprop:
 .PHONY: demo-video-proof
 demo-video-proof:
 	./ops/demo-video-proof.sh
+
+.PHONY: public-beta
+public-beta:
+	./ops/public-beta-quickstart.sh
+
+.PHONY: wc-wallet-proof
+wc-wallet-proof:
+	@bash ops/wc-wallet-isolated-proof.sh
