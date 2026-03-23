@@ -11,11 +11,11 @@ make autoprop-smoke
 
 echo
 echo "=== thin-path proof: full demo ==="
-make full-demo-smoke
+WC_BASE="${WC_BASE:-}" BASE="${BASE:-}" MAIN_BASE="${MAIN_BASE:-}" make full-demo-smoke
 
 echo
 echo "=== thin-path proof: bounded follower proof ==="
-./ops/demo-smoke-follower.sh
+FOLLOWER_RUN_AS_USER="${FOLLOWER_RUN_AS_USER:-}" ./ops/demo-smoke-follower.sh
 
 echo
 echo "=== thin-path proof: final snapshot ==="

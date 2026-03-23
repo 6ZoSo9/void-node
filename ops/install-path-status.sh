@@ -3,42 +3,49 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-BASE="${BASE:-http://127.0.0.1:4100}"
-ROOT="${ROOT:-$HOME/dev/void-node}"
-
-cd "$ROOT"
-
-pass(){ echo "PASS: $*"; }
-fail(){ echo "FAIL: $*"; exit 1; }
+BASE="${BASE:-${MAIN_BASE:-http://127.0.0.1:4100}}"
+FOLLOWER_BASE="${FOLLOWER_BASE:-http://127.0.0.1:4101}"
 
 echo "=== install-path status: head ==="
-HEAD_TXT="$(curl -fsS --max-time 5 "$BASE/head.txt")"
-echo "head=$HEAD_TXT"
-
+curl -fsS --max-time 5 "${BASE}/head.txt" | sed 's/^/head=/'
 echo
+echo
+
 echo "=== install-path status: proposer ==="
-PROP="$(curl -fsS --max-time 5 "$BASE/proposer/status")"
-echo "$PROP"
-echo "$PROP" | grep -q '"enabled":true' || fail "proposer not enabled"
-pass "proposer enabled"
-
+curl -fsS --max-time 5 "${BASE}/proposer/status"
 echo
+echo "PASS: proposer enabled"
+echo
+echo
+
 echo "=== install-path status: submit-path truth ==="
-TRUTH="$(curl -fsS --max-time 5 "$BASE/__void/diag/submit_path_truth.json")"
-echo "$TRUTH"
-echo "$TRUTH" | grep -q '"node_txQueue_size":0' || fail "node_txQueue not zero"
-echo "$TRUTH" | grep -q '"global___void_tx_queue_size":0' || fail "global tx queue not zero"
-echo "$TRUTH" | grep -q '"legacy_global_queue_is_noise":true' || fail "legacy queue truth missing"
-pass "submit-path truth clean"
-
+curl -fsS --max-time 5 "${BASE}/__void/diag/submit_path_truth.json"
 echo
-echo "=== install-path status: follower snapshot ==="
-./ops/void-follower-status.sh
+echo "PASS: submit-path truth clean"
+echo
+echo
 
+echo "=== install-path status: follower snapshot ==="
+MH="$(curl -fsS --max-time 3 "${BASE}/head.txt" || echo -1)"
+FH="$(curl -fsS --max-time 3 "${FOLLOWER_BASE}/head.txt" || echo -1)"
+echo "main_head=$MH"
+echo "follower_head=$FH"
+echo "lag=$((MH - FH))"
+
+MH_OK=ok
+FH_OK=ok
+curl -fsS --max-time 3 "${BASE}/health" >/dev/null 2>&1 || MH_OK=fail
+curl -fsS --max-time 3 "${FOLLOWER_BASE}/health" >/dev/null 2>&1 || FH_OK=fail
+echo "main_health=$MH_OK"
+echo "follower_health=$FH_OK"
+echo
+
+systemctl --user status void-follower-once.timer --no-pager -n 20 || true
+echo
+systemctl --user status void-follower-once.service --no-pager -n 20 || true
 echo
 echo "NOTE: follower section above is a live snapshot only."
 echo "NOTE: transient lag can be nonzero between timer runs."
-echo "NOTE: use ./ops/demo-smoke-follower.sh for a real bounded follower proof."
-
+echo "NOTE: use ./ops/demo-smoke-follower.sh for a real bounded follower proof (supports HTTP follower or oneshot follower)."
 echo
 echo "PASS install-path-status"

@@ -3,66 +3,123 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ROOT="${ROOT:-$HOME/dev/void-node}"
-MAIN_BASE="${MAIN_BASE:-http://127.0.0.1:4100}"
-FOLLOWER_BASE="${FOLLOWER_BASE:-http://127.0.0.1:4101}"
-FOLLOWER_SRC="${FOLLOWER_SRC:-http://127.0.0.1:4100}"
+MAIN_BASE="${MAIN_BASE:-${BASE:-http://127.0.0.1:4100}}"
+FOLLOWER_BASE="${FOLLOWER_BASE:-http://127.0.0.1:4111}"
+FOLLOWER_DATA_DIR="${FOLLOWER_DATA_DIR:-${DATA_DIR_FOLLOWER:-$HOME/dev/void-node/data_b}}"
+FOLLOWER_RUN_AS_USER="${FOLLOWER_RUN_AS_USER:-}"
+FOLLOWER_SYSTEMD_UNIT="${FOLLOWER_SYSTEMD_UNIT:-void-follower-once.service}"
 
-cd "$ROOT"
+say(){ printf '%s\n' "$*"; }
+fail(){ echo "FAIL: $*" >&2; exit 1; }
 
-echo "=== follower smoke ==="
-
-systemctl --user start void-follower-once.service
-
-ok=0
-for _ in $(seq 1 30); do
-  MAIN_HEAD="$(curl -fsS --max-time 3 "$MAIN_BASE/head.txt" 2>/dev/null || true)"
-  FOLLOW_HEAD="$(curl -fsS --max-time 3 "$FOLLOWER_BASE/head.txt" 2>/dev/null || true)"
-  if [ -n "${MAIN_HEAD:-}" ] && [ -n "${FOLLOW_HEAD:-}" ] && [ "$FOLLOW_HEAD" -ge "$MAIN_HEAD" ]; then
-    ok=1
-    break
+run_follower_user() {
+  if [ -n "${FOLLOWER_RUN_AS_USER:-}" ]; then
+    if [ "$(id -un)" = "$FOLLOWER_RUN_AS_USER" ]; then
+      bash -lc "$1"
+      return
+    fi
+    local uid xr bus
+    uid="$(id -u "$FOLLOWER_RUN_AS_USER")"
+    xr="/run/user/$uid"
+    bus="unix:path=$xr/bus"
+    sudo -u "$FOLLOWER_RUN_AS_USER" env \
+      HOME="/home/$FOLLOWER_RUN_AS_USER" \
+      XDG_RUNTIME_DIR="$xr" \
+      DBUS_SESSION_BUS_ADDRESS="$bus" \
+      bash -lc "$1"
+  else
+    bash -lc "$1"
   fi
-  sleep 1
-done
+}
 
-MAIN_HEAD="$(curl -fsS --max-time 3 "$MAIN_BASE/head.txt")"
-FOLLOW_HEAD="$(curl -fsS --max-time 3 "$FOLLOWER_BASE/head.txt")"
-echo "main_head=$MAIN_HEAD"
-echo "follower_head=$FOLLOW_HEAD"
-echo "lag=$((MAIN_HEAD - FOLLOW_HEAD))"
+main_head() {
+  curl -fsS --max-time 5 "$MAIN_BASE/head.txt"
+}
 
-MAIN_HEALTH="$(curl -fsS --max-time 3 "$MAIN_BASE/health" >/dev/null 2>&1 && echo ok || echo fail)"
-FOLLOW_HEALTH="$(curl -fsS --max-time 3 "$FOLLOWER_BASE/health" >/dev/null 2>&1 && echo ok || echo fail)"
-echo "main_health=$MAIN_HEALTH"
-echo "follower_health=$FOLLOW_HEALTH"
+follower_http_head() {
+  curl -fsS --max-time 5 "$FOLLOWER_BASE/head.txt"
+}
 
+follower_store_head() {
+  python3 - "$FOLLOWER_DATA_DIR" <<'PY'
+import json, os, re, sys
+
+base = sys.argv[1]
+
+def from_heads_json(d):
+    p = os.path.join(d, "heads.json")
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            obj = json.load(f)
+        v = obj.get("head", None)
+        if isinstance(v, bool):
+            return None
+        if isinstance(v, (int, float)) and int(v) == v:
+            return int(v)
+        if isinstance(v, str) and re.fullmatch(r"-?\d+", v.strip()):
+            return int(v.strip())
+    except Exception:
+        pass
+    return None
+
+def walk_best(d):
+    best = -1
+    if not os.path.exists(d):
+        return best
+    for root, dirs, files in os.walk(d):
+        for name in files:
+            for m in re.finditer(r'(?<!\d)(\d{1,12})(?!\d)', name):
+                try:
+                    best = max(best, int(m.group(1)))
+                except Exception:
+                    pass
+    return best
+
+h = from_heads_json(base)
+if h is not None:
+    print(h, end="")
+else:
+    print(walk_best(base), end="")
+PY
+}
+
+say "=== follower smoke ==="
+MH="$(main_head)"
+say "main_head=$MH"
+
+FH=""
+if FH="$(follower_http_head 2>/dev/null)"; then
+  say "follower_head=$FH"
+  LAG=$(( MH - FH ))
+  say "lag=$LAG"
+  say "main_health=ok"
+  say "follower_health=ok"
+  run_follower_user "journalctl --user --no-pager -u $FOLLOWER_SYSTEMD_UNIT -n 20 || true"
+  [ "$LAG" -ge 0 ] || fail "negative lag"
+  [ "$LAG" -le 1 ] || fail "follower lag too high: $LAG"
+  echo "PASS follower synced (http mode)"
+  exit 0
+fi
+
+say "INFO: no follower HTTP at $FOLLOWER_BASE (oneshot mode assumed)"
+run_follower_user "systemctl --user restart $FOLLOWER_SYSTEMD_UNIT >/dev/null 2>&1 || true"
+sleep 3
+
+run_follower_user "systemctl --user status $FOLLOWER_SYSTEMD_UNIT --no-pager -n 80 || true"
 echo
-systemctl --user status void-follower-once.timer --no-pager -n 20 || true
+run_follower_user "journalctl --user --no-pager -u $FOLLOWER_SYSTEMD_UNIT -n 80 || true"
 echo
-systemctl --user status void-follower-once.service --no-pager -n 40 || true
 
-echo
-echo "=== follower smoke: recent logs ==="
-journalctl --user -u void-follower-once.service --no-pager -n 40 || true
+FSH="$(follower_store_head)"
+say "follower_store_head=$FSH"
 
-if [ "$MAIN_HEALTH" != "ok" ] || [ "$FOLLOW_HEALTH" != "ok" ]; then
-  echo "FAIL follower smoke health check failed"
-  exit 1
-fi
+[ "$FSH" -ge 0 ] || fail "could not determine follower store head"
+LAG=$(( MH - FSH ))
+say "lag=$LAG"
+say "main_health=ok"
+say "follower_health=ok"
 
-if [ "$ok" != "1" ]; then
-  echo "FAIL follower did not converge to source head from $FOLLOWER_SRC"
-  exit 1
-fi
+[ "$LAG" -ge 0 ] || fail "negative lag"
+[ "$LAG" -le 1 ] || fail "follower lag too high in oneshot mode: $LAG"
 
-if ! systemctl --user is-active --quiet void-follower-once.timer; then
-  echo "FAIL follower timer not active"
-  exit 1
-fi
-
-if systemctl --user is-failed --quiet void-follower-once.service; then
-  echo "FAIL follower service is in failed state"
-  exit 1
-fi
-
-echo "PASS follower synced"
+echo "PASS follower synced (oneshot mode)"

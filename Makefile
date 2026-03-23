@@ -170,7 +170,11 @@ autoprop-smoke:
 
 .PHONY: full-demo-smoke
 full-demo-smoke:
-	./ops/full-demo-smoke.sh
+	WC_BASE="$${WC_BASE:-$${BASE:-$${MAIN_BASE:-http://127.0.0.1:4100}}}" BASE="$${BASE:-$${MAIN_BASE:-http://127.0.0.1:4100}}" ./ops/full-demo-smoke.sh
 
 thin-path-proof:
 	./ops/thin-path-proof.sh
+
+.PHONY: full-demo-smoke-inner-autoprop
+full-demo-smoke-inner-autoprop:
+	BASE="$${BASE:-$${MAIN_BASE:-http://127.0.0.1:4100}}" ./ops/autoprop-smoke.sh

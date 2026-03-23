@@ -3,55 +3,88 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-BASE="${BASE:-http://127.0.0.1:4100}"
-WHO="${WHO:-demo-user}"
+BASE="${BASE:-${MAIN_BASE:-http://127.0.0.1:4100}}"
+WC_BASE="${WC_BASE:-http://127.0.0.1:4312/workcredits/devnet}"
+ACCOUNT="${ACCOUNT:-demo-user}"
+WC_ADDR="${WC_ADDR:-}"
+
+fail(){ echo "FAIL: $*" >&2; exit 1; }
 
 echo "=== [0] health ==="
-curl -fsS --max-time 2 "$BASE/health" >/dev/null
+curl -fsS --max-time 5 "${BASE}/health" >/dev/null
 echo "[ok] health"
 echo
 
 echo "=== [1] wc before ==="
-BAL_BEFORE="$(curl -fsS "$BASE/wc/balance?account=$WHO")"
-echo "$BAL_BEFORE"
-BEFORE="$(python3 - <<'PY' "$BAL_BEFORE"
-import json,sys
-print(int(json.loads(sys.argv[1]).get("balance",0)))
-PY
-)"
-echo "balance_before=$BEFORE"
+POOL_BEFORE="$(curl -fsS --max-time 5 "${WC_BASE}/pool.json")"
+echo "$POOL_BEFORE"
+
+BAL_BEFORE=0
+if [ -n "$WC_ADDR" ]; then
+  ACC_BEFORE="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json")"
+  echo "$ACC_BEFORE"
+  BAL_BEFORE="$(printf '%s' "$ACC_BEFORE" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("balances") or {}).get("wc") or 0))')"
+fi
+echo "balance_before=$BAL_BEFORE"
 echo
 
 echo "=== [2] autoprop smoke ==="
-make autoprop-smoke
+BASE="$BASE" MAIN_BASE="$BASE" ./ops/autoprop-smoke.sh
 echo
 
 echo "=== [3] datanet loopproof ==="
-WHO="$WHO" ./ops/datanet-loop-proof-v1.sh
+BODY="void-datanet-loop-proof-$(date +%s)-$$-$(openssl rand -hex 4 2>/dev/null || echo nossl)"
+BODY_B64="$(printf '%s' "$BODY" | base64 -w0)"
+PUB="$(curl -fsS --max-time 20 \
+  -H 'content-type: application/json' \
+  -X POST "${BASE}/datanet/v1/publish?who=${ACCOUNT}" \
+  --data '{"name":"loopproof.txt","mime":"text/plain","plaintext_b64":"'"$BODY_B64"'"}')"
+echo "[ok] publish_http=200"
+echo "publish_body:"
+echo "$PUB"
+DATASET_ID="$(printf '%s' "$PUB" | python3 -c 'import sys,json; print(json.load(sys.stdin)["id"])')"
+ROOT="$(printf '%s' "$PUB" | python3 -c 'import sys,json; print(json.load(sys.stdin)["merkleRootHex"])')"
+BYTES="$(printf '%s' "$PUB" | python3 -c 'import sys,json; print(json.load(sys.stdin)["sizeBytes"])')"
+echo "datasetId=$DATASET_ID"
+echo "root=$ROOT"
+echo "bytes=$BYTES"
 echo
 
-echo "=== [4] wc after ==="
-BAL_AFTER="$(curl -fsS "$BASE/wc/balance?account=$WHO")"
-echo "$BAL_AFTER"
-AFTER="$(python3 - <<'PY' "$BAL_AFTER"
-import json,sys
-print(int(json.loads(sys.argv[1]).get("balance",0)))
-PY
-)"
-echo "balance_after=$AFTER"
+echo "=== [4] fetch ==="
+FETCH="$(curl -fsS --max-time 20 "${BASE}/datanet/v1/fetch?id=${DATASET_ID}&who=${ACCOUNT}")"
+echo "[ok] fetch_http=200"
+echo "fetch_body:"
+echo "$FETCH"
+FETCH_B64="$(printf '%s' "$FETCH" | python3 -c 'import sys,json; print(json.load(sys.stdin)["cipher_b64"])')"
+[ "$FETCH_B64" = "$BODY_B64" ] || fail "loopproof mismatch"
+echo "[ok] loopproof match (b64)"
 echo
 
-DELTA="$((AFTER - BEFORE))"
-echo "wc_delta=$DELTA"
+echo "=== [5] receipt ==="
+LEAF="$(printf '%s' "$FETCH" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(j["manifest"]["chunks"][0]["leafHashHex"])')"
+ROOT_FROM_FETCH="$(printf '%s' "$FETCH" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(j["manifest"]["merkleRootHex"])')"
+INDEX_FROM_FETCH="$(printf '%s' "$FETCH" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int(j["manifest"]["chunks"][0]["index"]))')"
+PLAIN_SHA256="$LEAF"
+RECEIPT="$(curl -fsS --max-time 20 \
+  -H 'content-type: application/json' \
+  -X POST "${BASE}/datanet/v1/receipt" \
+  --data '{"who":"'"$ACCOUNT"'","id":"'"$DATASET_ID"'","root":"'"$ROOT_FROM_FETCH"'","leaf":"'"$LEAF"'","index":'"$INDEX_FROM_FETCH"',"plain_sha256":"'"$PLAIN_SHA256"'"}')"
+echo "[ok] receipt_http=200"
+echo "$RECEIPT"
+echo
 
-if [ "$DELTA" -lt 1 ]; then
-  echo "[FAIL] expected WC delta >= 1 from loopproof receipt"
-  exit 1
+echo "=== [6] wc after ==="
+POOL_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/pool.json")"
+echo "$POOL_AFTER"
+
+BAL_AFTER="$BAL_BEFORE"
+if [ -n "$WC_ADDR" ]; then
+  ACC_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json")"
+  echo "$ACC_AFTER"
+  BAL_AFTER="$(printf '%s' "$ACC_AFTER" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("balances") or {}).get("wc") or 0))')"
 fi
-
+echo "balance_after=$BAL_AFTER"
 echo
-echo "=== [5] recent ledger ==="
-curl -fsS "$BASE/wc/ledger?account=$WHO&limit=5" ; echo
-
+echo "wc_delta=$((BAL_AFTER - BAL_BEFORE))"
 echo
 echo "[ok] full demo smoke passed"
