@@ -47,6 +47,11 @@ Recommended bounded proof gates:
     make wc-wallet-proof
     make public-beta-preflight
 
+Recommended live status:
+
+    cd "$HOME/dev/void-node"
+    make public-beta-status
+
 Compatibility / broader demo path:
 
     cd "$HOME/dev/void-node"
