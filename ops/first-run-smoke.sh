@@ -97,3 +97,16 @@ echo
 curl -fsS --max-time 5 "${BASE}/__void/diag/submit_path_truth.json"
 echo
 echo "PASS first-run-smoke"
+echo
+echo "=== next ==="
+echo "Live status:"
+echo "make public-beta-status"
+echo "./ops/install-path-status.sh"
+echo
+echo "Bounded proof gates:"
+echo "make public-beta-preflight"
+echo "make wc-wallet-proof"
+echo
+echo "Broader demo path:"
+echo "./ops/demo-video-proof.sh"
+echo "./ops/public-beta-quickstart.sh"
