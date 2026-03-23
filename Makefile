@@ -202,3 +202,26 @@ install-path-status:
 .PHONY: public-beta-status
 public-beta-status:
 	@bash ops/install-path-status.sh
+
+.PHONY: beta-help
+beta-help:
+	@printf '%s\n' 'VOID Node beta baseline commands'
+	@printf '%s\n' ''
+	@printf '%s\n' 'User-facing path:'
+	@printf '%s\n' '  ./ops/public-beta-quickstart.sh'
+	@printf '%s\n' '  make public-beta'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Live snapshot:'
+	@printf '%s\n' '  make public-beta-status'
+	@printf '%s\n' '  ./ops/install-path-status.sh'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Bounded proof gates:'
+	@printf '%s\n' '  make public-beta-preflight'
+	@printf '%s\n' '  make wc-wallet-proof'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Broader demo path:'
+	@printf '%s\n' '  ./ops/demo-video-proof.sh'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Docs:'
+	@printf '%s\n' '  PUBLIC_BETA.md'
+	@printf '%s\n' '  ops/BETA_BASELINE_2026-03-23.md'

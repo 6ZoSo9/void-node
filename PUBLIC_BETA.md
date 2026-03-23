@@ -9,6 +9,10 @@ Equivalent:
 
     make public-beta
 
+Quick command summary:
+
+    make beta-help
+
 
 ## Live status
 

@@ -52,6 +52,11 @@ Recommended live status:
     cd "$HOME/dev/void-node"
     make public-beta-status
 
+One-command beta help:
+
+    cd "$HOME/dev/void-node"
+    make beta-help
+
 Compatibility / broader demo path:
 
     cd "$HOME/dev/void-node"
