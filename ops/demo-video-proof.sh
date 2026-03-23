@@ -8,7 +8,7 @@ cd "$ROOT"
 
 BASE="${BASE:-${MAIN_BASE:-http://127.0.0.1:4100}}"
 WC_BASE="${WC_BASE:-http://127.0.0.1:4312/workcredits/devnet}"
-ACCOUNT="${ACCOUNT:-demo-user}"
+ACCOUNT="${ACCOUNT:-${WC_ADDR:-demo-user}}"
 
 FOLLOWER_BASE="${FOLLOWER_BASE:-http://127.0.0.1:4111}"
 FOLLOWER_DATA_DIR="${FOLLOWER_DATA_DIR:-$HOME/dev/void-node/data_b}"

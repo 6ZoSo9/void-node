@@ -7,7 +7,7 @@ RPC="${RPC_URL:-http://127.0.0.1:8545}"
 NODE="${NODE_BASE:-http://127.0.0.1:4100}"
 REL="${RELAYER_BASE:-http://127.0.0.1:4313/api/wc-relayer/v1}"
 HELPER="${HELPER_BASE:-http://127.0.0.1:4312/workcredits/devnet}"
-ACCOUNT="${ACCOUNT:-demo-user}"
+ACCOUNT="${ACCOUNT:-${WC_ADDR:-demo-user}}"
 WALLET="${WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
 AMOUNT="${AMOUNT:-1}"
 

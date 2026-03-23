@@ -5,7 +5,7 @@ set +o histexpand
 
 BASE="${BASE:-${MAIN_BASE:-http://127.0.0.1:4100}}"
 WC_BASE="${WC_BASE:-http://127.0.0.1:4312/workcredits/devnet}"
-ACCOUNT="${ACCOUNT:-demo-user}"
+ACCOUNT="${ACCOUNT:-${WC_ADDR:-demo-user}}"
 WC_ADDR="${WC_ADDR:-}"
 
 fail(){ echo "FAIL: $*" >&2; exit 1; }
@@ -19,13 +19,13 @@ echo "=== [1] wc before ==="
 POOL_BEFORE="$(curl -fsS --max-time 5 "${WC_BASE}/pool.json")"
 echo "$POOL_BEFORE"
 
-BAL_BEFORE=0
+EARN_BEFORE=0
 if [ -n "$WC_ADDR" ]; then
   ACC_BEFORE="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json")"
   echo "$ACC_BEFORE"
-  BAL_BEFORE="$(printf '%s' "$ACC_BEFORE" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("balances") or {}).get("wc") or 0))')"
+  EARN_BEFORE="$(printf '%s' "$ACC_BEFORE" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("earnings") or {}).get("redeemable_wc") or 0))')"
 fi
-echo "balance_before=$BAL_BEFORE"
+echo "redeemable_wc_before=$EARN_BEFORE"
 echo
 
 echo "=== [2] autoprop smoke ==="
@@ -77,14 +77,14 @@ echo "=== [6] wc after ==="
 POOL_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/pool.json")"
 echo "$POOL_AFTER"
 
-BAL_AFTER="$BAL_BEFORE"
+EARN_AFTER="$EARN_BEFORE"
 if [ -n "$WC_ADDR" ]; then
   ACC_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json")"
   echo "$ACC_AFTER"
-  BAL_AFTER="$(printf '%s' "$ACC_AFTER" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("balances") or {}).get("wc") or 0))')"
+  EARN_AFTER="$(printf '%s' "$ACC_AFTER" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("earnings") or {}).get("redeemable_wc") or 0))')"
 fi
-echo "balance_after=$BAL_AFTER"
+echo "redeemable_wc_after=$EARN_AFTER"
 echo
-echo "wc_delta=$((BAL_AFTER - BAL_BEFORE))"
+echo "wc_earnings_delta=$((EARN_AFTER - EARN_BEFORE))"
 echo
 echo "[ok] full demo smoke passed"

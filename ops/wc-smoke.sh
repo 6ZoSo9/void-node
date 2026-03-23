@@ -4,7 +4,7 @@ set -euo pipefail
 NODE_BASE="${NODE_BASE:-http://127.0.0.1:4100}"
 HELPER_BASE="${HELPER_BASE:-http://127.0.0.1:4312/workcredits/devnet}"
 RELAYER_BASE="${RELAYER_BASE:-http://127.0.0.1:4313}"
-ACCOUNT="${ACCOUNT:-demo-user}"
+ACCOUNT="${ACCOUNT:-${WC_ADDR:-demo-user}}"
 WALLET="${WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
 TRADE_WC="${TRADE_WC:-1}"
 

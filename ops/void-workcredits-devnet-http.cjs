@@ -249,7 +249,7 @@ async function buildAccountJsonNative(addr) {
     }
   }
 
-  const localEarned = readLocalLedgerBalanceForAccount("demo-user");
+    const localEarned = readLocalLedgerBalanceForAccount(addr);
 
   function wcRound(n) {
     const x = Number(n || 0);
