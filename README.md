@@ -98,43 +98,47 @@ See `runbook/` for operational guides.
 
 > Note: `main-legacy` is archival; do not push. Current default: `main`.
 
-## Thin install path
+## Additional verification / compatibility paths
 
-For the current Ubuntu devbox/user-unit path:
-
-    cd "$HOME/dev/void-node"
-    ./ops/install-all.sh
-
-### Extra verification
+These remain available when you want broader or older proof surfaces:
 
     cd "$HOME/dev/void-node"
     ./ops/install-path-status.sh
     ./ops/thin-path-proof.sh
     ./ops/fresh-user-smoke.sh
-    ./ops/post-install-demo.sh   # compatibility wrapper
+    ./ops/post-install-demo.sh
 
-### Notes
-- `ops/install-all.sh` runs install/build, installs user units, and runs first-run smoke
-- `./ops/install-path-status.sh` is an honest live snapshot; follower output there is not a bounded proof and may show informational oneshot/store mode status
-- `./ops/thin-path-proof.sh` is the canonical bounded proof path
-- `./ops/post-install-demo.sh` is a compatibility wrapper for older flows and is not the canonical entrypoint
+Notes:
+
+- `./ops/install-path-status.sh` is an honest live snapshot
+- `./ops/thin-path-proof.sh` remains available as a compatibility bounded proof surface
+- `./ops/post-install-demo.sh` is a compatibility wrapper for older flows and is not the preferred current entrypoint
 - `./ops/demo-smoke-follower.sh` remains the follower-only bounded proof
-- follower install units must include `Environment=SRC=http://127.0.0.1:4100`
-- this path is proven on the current dev workstation
-- `ops/FRESH_HOST_RUNBOOK.md` has the longer runbook
+- `ops/FRESH_HOST_RUNBOOK.md` is the longer operational runbook
 
-### Current proof scope
+## Current proof scope
 
-`./ops/demo-video-proof.sh` currently proves:
+Tightest current proof surfaces:
 
-- install path / user-unit bring-up
-- main node health and sealing
-- follower sync proof (oneshot/store mode aware)
-- DataNet publish/fetch/receipt loop
-- WorkCredits pool/helper visibility
+- `make wc-wallet-proof`
+- `make public-beta-preflight`
 
-It does **not** yet prove isolated per-address WC earnings delta for a fresh-user root.
-That remaining gap depends on isolated-root protocol state / broadcast artifacts and WC ledger coupling.
+These prove:
+
+- isolated node health
+- isolated helper/pool visibility
+- real DataNet publish -> fetch -> verified receipt
+- isolated per-wallet WC earnings delta
+- wallet A earns `1 WC`
+- wallet B earns `0`
+- ledger truth and receipt truth match the credited wallet
+
+Broader proof surfaces:
+
+- `./ops/demo-video-proof.sh`
+- `./ops/public-beta-quickstart.sh`
+
+These cover the wider demo/install/startup path and are useful, but they are broader operational paths than the bounded isolated wallet-proof gate.
 
 Public beta happy path:
 
