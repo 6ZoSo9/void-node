@@ -3,6 +3,8 @@ set -euo pipefail
 set +H
 set +o histexpand
 
+WC_ADDR="${WC_ADDR:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
+
 ROOT="${ROOT:-$HOME/dev/void-node}"
 cd "$ROOT"
 
