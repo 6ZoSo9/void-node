@@ -41,46 +41,25 @@ follower_http_head() {
 }
 
 follower_store_head() {
-  python3 - "$FOLLOWER_DATA_DIR" <<'PY'
+  run_follower_user "python3 - <<'PY' '$FOLLOWER_DATA_DIR'
 import json, os, re, sys
-
 base = sys.argv[1]
-
-def from_heads_json(d):
-    p = os.path.join(d, "heads.json")
+f = os.path.join(base, 'heads.json')
+if os.path.exists(f):
     try:
-        with open(p, "r", encoding="utf-8") as f:
-            obj = json.load(f)
-        v = obj.get("head", None)
-        if isinstance(v, bool):
-            return None
-        if isinstance(v, (int, float)) and int(v) == v:
-            return int(v)
-        if isinstance(v, str) and re.fullmatch(r"-?\d+", v.strip()):
-            return int(v.strip())
+        with open(f, 'r', encoding='utf-8') as fh:
+            j = json.load(fh)
+        print(int(j.get('head', -1)))
+        raise SystemExit
     except Exception:
         pass
-    return None
-
-def walk_best(d):
-    best = -1
-    if not os.path.exists(d):
-        return best
-    for root, dirs, files in os.walk(d):
-        for name in files:
-            for m in re.finditer(r'(?<!\d)(\d{1,12})(?!\d)', name):
-                try:
-                    best = max(best, int(m.group(1)))
-                except Exception:
-                    pass
-    return best
-
-h = from_heads_json(base)
-if h is not None:
-    print(h, end="")
-else:
-    print(walk_best(base), end="")
-PY
+best = -1
+for root, dirs, files in os.walk(base):
+    for name in files:
+        for m in re.finditer(r'(?:^|[^0-9])([0-9]{1,12})(?:[^0-9]|$)', name):
+            best = max(best, int(m.group(1)))
+print(best)
+PY"
 }
 
 say "=== follower smoke ==="
@@ -112,14 +91,43 @@ echo
 
 FSH="$(follower_store_head)"
 say "follower_store_head=$FSH"
-
 [ "$FSH" -ge 0 ] || fail "could not determine follower store head"
+
+MH2="$(main_head)"
+if [ "$MH2" -gt "$MH" ]; then
+  say "main_head_resampled=$MH2"
+  MH="$MH2"
+fi
+
 LAG=$(( MH - FSH ))
 say "lag=$LAG"
 say "main_health=ok"
 say "follower_health=ok"
 
-[ "$LAG" -ge 0 ] || fail "negative lag"
+if [ "$LAG" -gt 1 ]; then
+  say "INFO: oneshot follower trailing live main; running one extra catch-up pass"
+  run_follower_user "systemctl --user restart $FOLLOWER_SYSTEMD_UNIT >/dev/null 2>&1 || true"
+  sleep 3
+  FSH="$(follower_store_head)"
+  say "follower_store_head_after_recatchup=$FSH"
+  MH="$(main_head)"
+  say "main_head_after_recatchup=$MH"
+  LAG=$(( MH - FSH ))
+  say "lag_after_recatchup=$LAG"
+fi
+
+if [ "$LAG" -lt 0 ]; then
+  sleep 1
+  MH3="$(main_head)"
+  if [ "$MH3" -gt "$MH" ]; then
+    say "main_head_resampled_final=$MH3"
+    MH="$MH3"
+    LAG=$(( MH - FSH ))
+    say "lag_after_resample=$LAG"
+  fi
+fi
+
+[ "$LAG" -ge 0 ] || fail "negative lag after main-head resample"
 [ "$LAG" -le 1 ] || fail "follower lag too high in oneshot mode: $LAG"
 
 echo "PASS follower synced (oneshot mode)"

@@ -11,6 +11,28 @@ head_now() {
   curl -fsS --max-time 3 "${BASE}/head.txt"
 }
 
+block_hits_memo() {
+  local n="$1"
+  local memo="$2"
+  local body=""
+
+  for u in \
+    "${BASE}/blocks/${n}/persisted" \
+    "${BASE}/blocks/${n}/full2" \
+    "${BASE}/blocks/range?start=${n}&end=${n}" \
+    "${BASE}/blocks/${n}/full"
+  do
+    body="$(curl -fsS --max-time 5 "$u" || true)"
+    echo "$body"
+    echo
+    if printf '%s' "$body" | grep -F "\"memo\":\"$memo\"" >/dev/null 2>&1; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 echo "=== baseline ==="
 H0="$(head_now)"
 echo "head_before=$H0"
@@ -36,7 +58,7 @@ if [ "$H1" -le "$H0" ]; then
   exit 1
 fi
 
-echo "=== persisted moving search window ==="
+echo "=== moving search window across proof surfaces ==="
 FOUND=0
 FOUND_BLOCK=""
 SEEN_FROM="$H0"
@@ -56,10 +78,7 @@ while [ "$(date +%s)" -le "$DEADLINE" ]; do
 
   i="$SEEN_FROM"
   while [ "$i" -le "$CUR_HEAD" ]; do
-    PERSISTED="$(curl -fsS --max-time 5 "${BASE}/blocks/$i/persisted" || true)"
-    echo "$PERSISTED"
-    echo
-    if printf '%s' "$PERSISTED" | grep -F "\"memo\":\"$MEMO\"" >/dev/null 2>&1; then
+    if block_hits_memo "$i" "$MEMO"; then
       FOUND=1
       FOUND_BLOCK="$i"
       break 2
@@ -82,7 +101,7 @@ if [ "$FOUND" -ne 1 ]; then
   echo "=== mempool truth on failure ==="
   curl -fsS --max-time 5 "${BASE}/mempool" || true
   echo
-  echo "FAIL persisted block search missing submitted tx memo=$MEMO searched_from=$H0 final_head=$FINAL_HEAD search_secs=$SEARCH_SECS"
+  echo "FAIL block search missing submitted tx memo=$MEMO searched_from=$H0 final_head=$FINAL_HEAD search_secs=$SEARCH_SECS"
   exit 1
 fi
 

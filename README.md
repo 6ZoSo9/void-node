@@ -116,7 +116,7 @@ For the current Ubuntu devbox/user-unit path:
 
 ### Notes
 - `ops/install-all.sh` runs install/build, installs user units, and runs first-run smoke
-- `./ops/install-path-status.sh` is an honest live snapshot; follower output there is not a bounded proof
+- `./ops/install-path-status.sh` is an honest live snapshot; follower output there is not a bounded proof and may show informational oneshot/store mode status
 - `./ops/thin-path-proof.sh` is the canonical bounded proof path
 - `./ops/post-install-demo.sh` is a compatibility wrapper for older flows and is not the canonical entrypoint
 - `./ops/demo-smoke-follower.sh` remains the follower-only bounded proof
