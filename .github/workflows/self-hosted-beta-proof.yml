@@ -1,0 +1,24 @@
+name: self-hosted-beta-proof
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  beta-proof:
+    runs-on: [self-hosted, void-node, beta-proof]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show beta help
+        run: make beta-help
+
+      - name: Live status
+        run: make public-beta-status
+
+      - name: Wallet proof
+        run: make wc-wallet-proof
+
+      - name: Beta preflight
+        run: make public-beta-preflight

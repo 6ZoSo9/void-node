@@ -19,7 +19,9 @@ for f in \
   ops/install-user-units.sh \
   ops/install-devbox-ubuntu.sh \
   ops/first-run-smoke.sh \
-  ops/BETA_BASELINE_2026-03-23.md
+  ops/BETA_BASELINE_2026-03-23.md \
+  ops/SELF_HOSTED_BETA_CI_PLAN.md \
+  .github/workflows/self-hosted-beta-proof.yml
 do
   need_file "$f"
 done

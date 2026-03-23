@@ -57,6 +57,10 @@ One-command beta help:
     cd "$HOME/dev/void-node"
     make beta-help
 
+Self-hosted CI plan for the real bounded proof commands:
+
+    ops/SELF_HOSTED_BETA_CI_PLAN.md
+
 Compatibility / broader demo path:
 
     cd "$HOME/dev/void-node"
