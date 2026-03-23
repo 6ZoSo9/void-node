@@ -190,3 +190,7 @@ public-beta:
 .PHONY: wc-wallet-proof
 wc-wallet-proof:
 	@bash ops/wc-wallet-isolated-proof.sh
+
+.PHONY: public-beta-preflight
+public-beta-preflight:
+	@bash ops/public-beta-preflight.sh
