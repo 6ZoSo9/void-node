@@ -57,6 +57,10 @@ One-command beta help:
     cd "$HOME/dev/void-node"
     make beta-help
 
+Tester-facing beta handoff:
+
+    BETA_READY.md
+
 Self-hosted CI plan for the real bounded proof commands:
 
     ops/SELF_HOSTED_BETA_CI_PLAN.md
