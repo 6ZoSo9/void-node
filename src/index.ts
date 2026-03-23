@@ -36024,7 +36024,43 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         for (const line of readLines(receiptsFile())) {
           try { out.push(JSON.parse(line)); } catch {}
         }
-        if (account) out = out.filter((r:any) => String(r?.account || "") === account);
+
+        if (account) {
+          out = out.filter((r:any) => {
+            const acct = String(r?.account || r?.who || r?.owner || "").trim();
+            return acct === account;
+          });
+        }
+
+        if (account && out.length === 0) {
+          const synthetic:any[] = [];
+          const path = require("node:path");
+          const ledgerFileLocal = path.join(
+            String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+            "wc_v1",
+            "ledger.jsonl"
+          );
+          for (const line of readLines(ledgerFileLocal)) {
+            try {
+              const e:any = JSON.parse(line);
+              if (String(e?.account || "") !== account) continue;
+              if (String(e?.kind || "") !== "credit") continue;
+              synthetic.push({
+                receipt_id: String(e?.receipt_id || e?.job_id || ("ledger:" + String(e?.ts_ms || ""))),
+                job_id: e?.job_id || null,
+                account,
+                kind: String(e?.receipt_kind || e?.reason || "wc_credit"),
+                status: "credited",
+                delta: Number(e?.delta || 0),
+                reason: String(e?.reason || ""),
+                ts_ms: Number(e?.ts_ms || 0),
+                _synthetic: "wc_ledger_v1"
+              });
+            } catch {}
+          }
+          out = synthetic;
+        }
+
         out = out.slice(-limit).reverse();
         return res.json({ ok:true, count: out.length, receipts: out });
       } catch (e:any) {
