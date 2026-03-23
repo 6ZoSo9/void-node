@@ -104,23 +104,41 @@ Persistent=true
 WantedBy=timers.target
 UNIT
 
-echo "=== [3] reload + enable ==="
+echo "=== [3] reload + enable/start ==="
 systemctl --user daemon-reload
-systemctl --user enable "$MAIN_UNIT"
-systemctl --user enable "$FOLLOW_ONCE_TIMER"
+systemctl --user enable --now "$MAIN_UNIT"
+systemctl --user enable --now "$FOLLOW_ONCE_TIMER"
 
-echo "=== [4] show installed units ==="
+echo "=== [4] verify installed/active units ==="
 systemctl --user cat "$MAIN_UNIT" >/dev/null
 systemctl --user cat "$FOLLOW_ONCE_SERVICE" >/dev/null
 systemctl --user cat "$FOLLOW_ONCE_TIMER" >/dev/null
-pass "user units installed"
+systemctl --user is-enabled "$MAIN_UNIT" >/dev/null
+systemctl --user is-enabled "$FOLLOW_ONCE_TIMER" >/dev/null
+systemctl --user is-active "$MAIN_UNIT" >/dev/null
+pass "user units installed and started"
 
 echo
-echo "=== [5] next ==="
-echo "Preferred: ./ops/install-all.sh"
-echo "Manual path:"
-echo "systemctl --user restart $MAIN_UNIT"
-echo "systemctl --user restart $FOLLOW_ONCE_TIMER"
+echo "=== [5] live status ==="
+systemctl --user --no-pager --full status "$MAIN_UNIT" || true
+echo
+systemctl --user --no-pager --full status "$FOLLOW_ONCE_TIMER" || true
+
+echo
+echo "=== [6] next ==="
+echo "Preferred public beta path:"
+echo "./ops/public-beta-quickstart.sh"
+echo "Equivalent:"
+echo "make public-beta"
+echo
+echo "Bounded proof gates:"
+echo "make public-beta-preflight"
+echo "make wc-wallet-proof"
+echo
+echo "Live status:"
+echo "make public-beta-status"
+echo "./ops/install-path-status.sh"
+echo
+echo "Manual fallback:"
 echo "./ops/first-run-smoke.sh"
-echo "./ops/thin-path-proof.sh"
-echo "./ops/fresh-user-smoke.sh"
+echo "./ops/demo-video-proof.sh"
