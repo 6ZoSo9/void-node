@@ -63,12 +63,12 @@ print(best)
 PY"
 }
 
-say "=== install-path status: head ==="
+say "=== public-beta status: main head ==="
 H="$(head_now)"
 say "head=$H"
 echo
 
-say "=== install-path status: proposer ==="
+say "=== public-beta status: proposer ==="
 P="$(curl -fsS --max-time 5 "$BASE/proposer/status")"
 echo "$P"
 python3 - <<'PY' "$P"
@@ -82,7 +82,7 @@ else:
 PY
 echo
 
-say "=== install-path status: submit-path truth ==="
+say "=== public-beta status: submit-path truth ==="
 T="$(curl -fsS --max-time 5 "$BASE/__void/diag/submit_path_truth.json")"
 echo "$T"
 python3 - <<'PY' "$T"
@@ -98,7 +98,7 @@ print("PASS: submit-path truth clean")
 PY
 echo
 
-say "=== install-path status: follower snapshot ==="
+say "=== public-beta status: follower snapshot ==="
 MH="$(head_now)"
 say "main_head=$MH"
 
@@ -148,5 +148,18 @@ echo
 say "NOTE: follower section above is a live snapshot only."
 say "NOTE: oneshot follower mode does not require follower HTTP on 4111."
 say "NOTE: use ./ops/demo-smoke-follower.sh for the real bounded follower proof."
+echo
+say "=== next ==="
+say "Live snapshot:"
+say "make public-beta-status"
+say "./ops/install-path-status.sh"
+echo
+say "Bounded proof gates:"
+say "make public-beta-preflight"
+say "make wc-wallet-proof"
+echo
+say "Broader beta path:"
+say "./ops/public-beta-quickstart.sh"
+say "make public-beta"
 echo
 say "PASS install-path-status"
