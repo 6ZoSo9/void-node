@@ -82,4 +82,13 @@ grep -q 'make public-beta-status' ops/BETA_BASELINE_2026-03-23.md || fail "basel
 grep -q 'make public-beta-preflight' ops/BETA_BASELINE_2026-03-23.md || fail "baseline doc missing preflight command"
 grep -q 'make wc-wallet-proof' ops/BETA_BASELINE_2026-03-23.md || fail "baseline doc missing wallet proof command"
 
+echo "=== beta-proof guards: self-hosted workflow wiring ==="
+grep -q 'runs-on: \[self-hosted, void-node, beta-proof\]' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing expected runs-on labels"
+grep -q 'make beta-help' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing beta-help"
+grep -q 'make public-beta-status' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing public-beta-status"
+grep -q 'make wc-wallet-proof' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing wc-wallet-proof"
+grep -q 'make public-beta-preflight' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing public-beta-preflight"
+grep -q 'SELF_HOSTED_BETA_CI_PLAN.md' README.md || fail "README missing self-hosted beta CI plan mention"
+grep -q 'workflow_dispatch' .github/workflows/self-hosted-beta-proof.yml || fail "self-hosted workflow missing workflow_dispatch"
+
 echo "PASS beta-proof-guards"
