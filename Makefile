@@ -194,3 +194,11 @@ wc-wallet-proof:
 .PHONY: public-beta-preflight
 public-beta-preflight:
 	@bash ops/public-beta-preflight.sh
+
+.PHONY: install-path-status
+install-path-status:
+	@bash ops/install-path-status.sh
+
+.PHONY: public-beta-status
+public-beta-status:
+	@bash ops/install-path-status.sh

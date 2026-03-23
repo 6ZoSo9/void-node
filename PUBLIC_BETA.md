@@ -9,6 +9,31 @@ Equivalent:
 
     make public-beta
 
+
+## Live status
+
+Fastest honest live-status command:
+
+    cd "$HOME/dev/void-node"
+    make public-beta-status
+
+Equivalent direct script:
+
+    ./ops/install-path-status.sh
+
+What it tells you:
+
+- current main head
+- proposer enabled/disabled truth
+- submit-path truth
+- follower snapshot / lag
+- whether the current live stack looks healthy right now
+
+It is a live snapshot, not a bounded proof. For proof surfaces use:
+
+    make public-beta-preflight
+    make wc-wallet-proof
+
 ## What this currently proves
 
 - install/build path
@@ -29,8 +54,8 @@ Equivalent:
 Run these in order:
 
     cd "$HOME/dev/void-node"
+    make public-beta-status
     make public-beta-preflight
     make wc-wallet-proof
-    ./ops/install-path-status.sh
     ./ops/demo-smoke-follower.sh
     ./ops/demo-video-proof.sh
