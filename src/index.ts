@@ -38245,3 +38245,219 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   }
 })();
 
+
+// === VOID_UPGRADE_PLAN_ENDPOINT_V1 ===
+(() => {
+  const tryMount = () => {
+    try {
+      const app: any = (globalThis as any).__void_http_app;
+      if (!app) return false;
+      app.locals = app.locals || {};
+      if (app.locals.__void_upgrade_plan_v1) return true;
+      app.locals.__void_upgrade_plan_v1 = true;
+
+      const fs = require("fs");
+      const path = require("path");
+      const crypto = require("crypto");
+      const cp = require("child_process");
+
+      const safeJson = (p: string) => {
+        try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; }
+      };
+      const safeText = (p: string) => {
+        try { return String(fs.readFileSync(p, "utf8")); } catch { return ""; }
+      };
+      const sh = (cmd: string) => {
+        try {
+          return String(cp.execSync(cmd, {
+            cwd: process.cwd(),
+            stdio: ["ignore", "pipe", "ignore"],
+          })).trim();
+        } catch {
+          return "";
+        }
+      };
+      const sha256File = (p: string) => {
+        try {
+          const buf = fs.readFileSync(p);
+          return crypto.createHash("sha256").update(buf).digest("hex");
+        } catch {
+          return "";
+        }
+      };
+      const cmpSemver = (a: string, b: string) => {
+        const pa = String(a || "").split(".").map((x) => Number(x.replace(/[^0-9].*$/, "")) || 0);
+        const pb = String(b || "").split(".").map((x) => Number(x.replace(/[^0-9].*$/, "")) || 0);
+        for (let i = 0; i < Math.max(pa.length, pb.length, 3); i++) {
+          const da = pa[i] || 0;
+          const db = pb[i] || 0;
+          if (da > db) return 1;
+          if (da < db) return -1;
+        }
+        return 0;
+      };
+
+      const packageJsonPath = path.join(process.cwd(), "package.json");
+      const manifestPath =
+        process.env.VOID_UPDATE_MANIFEST_PATH ||
+        process.env.UPDATE_MANIFEST_PATH ||
+        path.join(process.cwd(), "config", "update-manifest.v0.json");
+      const pubkeyPath =
+        process.env.VOID_UPDATE_PUBKEY_PATH ||
+        process.env.UPDATE_PUBKEY_PATH ||
+        path.join(process.cwd(), "config", "update-pubkey.v1.pem");
+
+      const localVersion = () => {
+        const pkg = safeJson(packageJsonPath) || {};
+        const protocol = Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1);
+        return {
+          version: String(pkg.version || "0.0.0"),
+          protocol_version: protocol,
+          channel: String(process.env.VOID_UPDATE_CHANNEL || process.env.UPDATE_CHANNEL || "stable"),
+          build_time: String(process.env.VOID_BUILD_TIME || ""),
+          git_commit: sh("git rev-parse --short=12 HEAD"),
+        };
+      };
+
+      const verifyManifest = (manifest: any) => {
+        if (!manifest || !manifest.signature || !manifest.signature.sig) {
+          return { signature_present: false, signature_valid: false, verification_reason: "signature_missing" };
+        }
+        if (!fs.existsSync(pubkeyPath)) {
+          return { signature_present: true, signature_valid: false, verification_reason: "pubkey_missing" };
+        }
+        try {
+          const keyPem = safeText(pubkeyPath);
+          const clone = JSON.parse(JSON.stringify(manifest));
+          const sigB64 = String(clone?.signature?.sig || "");
+          if (!clone.signature) clone.signature = {};
+          delete clone.signature.sig;
+          const payload = Buffer.from(JSON.stringify(clone));
+          const ok = crypto.verify(
+            null,
+            payload,
+            keyPem,
+            Buffer.from(sigB64, "base64"),
+          );
+          return {
+            signature_present: true,
+            signature_valid: !!ok,
+            verification_reason: ok ? "signature_valid" : "signature_invalid",
+          };
+        } catch (e: any) {
+          return {
+            signature_present: true,
+            signature_valid: false,
+            verification_reason: e?.message ? `verify_error:${e.message}` : "verify_error",
+          };
+        }
+      };
+
+      const buildPlan = () => {
+        const local = localVersion();
+        const manifest = safeJson(manifestPath);
+        const manifestFound = !!manifest;
+        const verify = verifyManifest(manifest);
+        const localVersionStr = String(local.version || "0.0.0");
+        const manifestVersionStr = String(manifest?.version || "");
+        const localProto = Number(local.protocol_version || 0);
+        const minProto = Number(manifest?.min_protocol_version || manifest?.protocol_version || 0);
+        const targetProto = Number(manifest?.protocol_version || 0);
+        const compatible = !!manifest && localProto >= minProto;
+        const cmp = manifestFound ? cmpSemver(manifestVersionStr, localVersionStr) : 0;
+        const updateAvailable = manifestFound && cmp > 0;
+
+        let reason = "up_to_date";
+        let action = "none";
+
+        if (!manifestFound) {
+          reason = "manifest_missing";
+          action = "none";
+        } else if (!verify.signature_present) {
+          reason = "signature_missing";
+          action = "block";
+        } else if (!verify.signature_valid) {
+          reason = verify.verification_reason || "signature_invalid";
+          action = "block";
+        } else if (!compatible) {
+          reason = "protocol_incompatible";
+          action = "block";
+        } else if (updateAvailable) {
+          reason = "update_available";
+          action = "download_verify_only";
+        } else {
+          reason = "up_to_date";
+          action = "none";
+        }
+
+        const artifactPath =
+          String(manifest?.artifact_path || manifest?.artifact?.path || "");
+        const artifactSha256 =
+          String(manifest?.artifact_sha256 || manifest?.artifact?.sha256 || "");
+        const artifactExists = artifactPath ? fs.existsSync(artifactPath) : false;
+        const artifactSha256Actual = artifactExists ? sha256File(artifactPath) : "";
+        const artifactSha256Matches =
+          !!artifactExists && !!artifactSha256 && artifactSha256Actual === artifactSha256;
+
+        return {
+          ok: true,
+          local,
+          manifestPath,
+          pubkeyPath,
+          manifest_found: manifestFound,
+          manifest,
+          signature_present: verify.signature_present,
+          signature_valid: verify.signature_valid,
+          verification_reason: verify.verification_reason,
+          compatible,
+          update_available: updateAvailable,
+          action,
+          reason,
+          target: manifestFound ? {
+            version: manifestVersionStr,
+            protocol_version: targetProto,
+            min_protocol_version: minProto,
+            channel: String(manifest?.channel || ""),
+          } : null,
+          artifact: {
+            path: artifactPath,
+            exists: artifactExists,
+            sha256_expected: artifactSha256,
+            sha256_actual: artifactSha256Actual,
+            sha256_matches: artifactSha256Matches,
+          },
+          steps: [
+            "read_manifest",
+            "verify_signature",
+            "check_protocol_compatibility",
+            "compare_versions",
+            updateAvailable ? "would_download_and_verify_artifact" : "no_download_needed",
+            updateAvailable ? "would_stage_restart_after_apply" : "no_restart_needed",
+          ],
+          git: {
+            commit: sh("git rev-parse --short=12 HEAD"),
+            branch: sh("git branch --show-current"),
+            dirty: !!sh("git status --porcelain"),
+          },
+        };
+      };
+
+      app.get("/upgrade/plan", (_req: any, res: any) => res.json(buildPlan()));
+      app.get("/__void/upgrade/plan.json", (_req: any, res: any) => res.json(buildPlan()));
+
+      console.log("[upgrade-plan:v1] mounted /upgrade/plan /__void/upgrade/plan.json");
+      return true;
+    } catch (e: any) {
+      console.error("[upgrade-plan:v1] mount failed:", e?.message || e);
+      return false;
+    }
+  };
+
+  if (!tryMount()) {
+    const iv = setInterval(() => {
+      if (tryMount()) clearInterval(iv);
+    }, 500);
+    (iv as any).unref?.();
+  }
+})();
+
