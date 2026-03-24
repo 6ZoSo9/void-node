@@ -18,7 +18,7 @@ if [ ! -f "$PRIVKEY" ]; then
 fi
 
 python3 - "$MANIFEST" "$PRIVKEY" <<'PY'
-import base64, json, sys
+import base64, json, subprocess, sys, tempfile
 from pathlib import Path
 
 manifest_path = Path(sys.argv[1])
@@ -36,25 +36,27 @@ payload = {
 }
 payload_json = json.dumps(payload, separators=(",", ":")).encode()
 
-sig_b64 = base64.b64encode(
-    __import__("subprocess").check_output(
-        [
-            "openssl", "pkeyutl",
-            "-sign",
-            "-rawin",
-            "-inkey", str(privkey_path),
-        ],
-        input=payload_json,
-    )
-).decode()
+with tempfile.NamedTemporaryFile(delete=False) as tf:
+    tf.write(payload_json)
+    payload_path = tf.name
+
+sig = subprocess.check_output(
+    [
+        "openssl", "pkeyutl",
+        "-sign",
+        "-rawin",
+        "-in", payload_path,
+        "-inkey", str(privkey_path),
+    ]
+)
 
 m.setdefault("signature", {})
 m["signature"]["alg"] = "ed25519"
 m["signature"]["key_id"] = m.get("signature", {}).get("key_id", "dev-ed25519-local-v1")
-m["signature"]["sig"] = sig_b64
+m["signature"]["sig"] = base64.b64encode(sig).decode()
 
 manifest_path.write_text(json.dumps(m, indent=2) + "\n")
 print("[ok] signed", manifest_path)
 print("[ok] payload", json.dumps(payload, separators=(",", ":")))
-print("[ok] sig_b64_len", len(sig_b64))
+print("[ok] sig_b64_len", len(m["signature"]["sig"]))
 PY
