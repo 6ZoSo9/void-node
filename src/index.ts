@@ -38153,3 +38153,95 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   }catch{}
 })();
 // -------- /LEGACY GLOBAL TX QUEUE NOISE CLEANER v1 --------
+
+
+// === VOID_VERSION_UPGRADE_ENDPOINTS_V1 ===
+(() => {
+  const tryMount = () => {
+    try {
+      const app: any = (globalThis as any).__void_http_app;
+      if (!app) return false;
+      app.locals = app.locals || {};
+      if (app.locals.__void_version_upgrade_v1) return true;
+      app.locals.__void_version_upgrade_v1 = true;
+
+      const fs = require("fs");
+      const path = require("path");
+      const cp = require("child_process");
+
+      const readJson = (p: string) => {
+        try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; }
+      };
+
+      const git = (cmd: string) => {
+        try {
+          return String(cp.execSync(cmd, {
+            cwd: process.cwd(),
+            stdio: ["ignore", "pipe", "ignore"],
+          })).trim();
+        } catch {
+          return "";
+        }
+      };
+
+      const versionInfo = () => {
+        const pkg = readJson(path.join(process.cwd(), "package.json")) || {};
+        const protocol = Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1);
+        return {
+          ok: true,
+          name: pkg.name || "void-node",
+          version: pkg.version || "0.0.0",
+          protocol,
+          git: {
+            commit: git("git rev-parse --short=12 HEAD"),
+            branch: git("git branch --show-current"),
+            dirty: !!git("git status --porcelain"),
+          },
+          runtime: {
+            node: process.version,
+            platform: process.platform,
+            arch: process.arch,
+          },
+          p2p: {
+            advertiseHost:
+              process.env.VOID_P2P_ADVERTISE_HOST ||
+              process.env.P2P_ADVERTISE_HOST ||
+              process.env.P2P_HOST ||
+              "",
+            port: Number(process.env.P2P_PORT || 0),
+          },
+        };
+      };
+
+      app.get("/version", (_req: any, res: any) => res.json(versionInfo()));
+      app.get("/__void/version.json", (_req: any, res: any) => res.json(versionInfo()));
+      app.get("/upgrade/check", (_req: any, res: any) => {
+        const current = versionInfo();
+        const manifestPath = path.join(process.cwd(), "config", "upgrade-manifest.json");
+        const manifest = readJson(manifestPath);
+        const available = !!(manifest && manifest.version && manifest.version !== current.version);
+        res.json({
+          ok: true,
+          current,
+          manifestPath,
+          updateAvailable: available,
+          manifest,
+        });
+      });
+
+      console.log("[version-upgrade:v1] mounted /version /__void/version.json /upgrade/check");
+      return true;
+    } catch (e: any) {
+      console.error("[version-upgrade:v1] mount failed:", e?.message || e);
+      return false;
+    }
+  };
+
+  if (!tryMount()) {
+    const iv = setInterval(() => {
+      if (tryMount()) clearInterval(iv);
+    }, 500);
+    (iv as any).unref?.();
+  }
+})();
+
