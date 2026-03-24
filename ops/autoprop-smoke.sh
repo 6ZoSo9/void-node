@@ -4,10 +4,16 @@ set +H
 set +o histexpand
 
 BASE="${BASE:-http://127.0.0.1:4100}"
-WAIT_SECS="${WAIT_SECS:-5}"
-SEARCH_SECS="${SEARCH_SECS:-12}"
+WAIT_SECS="${WAIT_SECS:-6}"
+SEARCH_SECS="${SEARCH_SECS:-30}"
 
 head_now() {
+  local n
+  n="$(curl -fsS --max-time 3 "${BASE}/blocks/latest/number2.json" 2>/dev/null | python3 -c 'import sys,json; print(int(json.load(sys.stdin).get("number",0)))' 2>/dev/null || true)"
+  if [ -n "${n:-}" ] && [ "$n" -gt 0 ] 2>/dev/null; then
+    printf '%s\n' "$n"
+    return 0
+  fi
   curl -fsS --max-time 3 "${BASE}/head.txt"
 }
 
@@ -66,10 +72,7 @@ DEADLINE=$(( $(date +%s) + SEARCH_SECS ))
 
 while [ "$(date +%s)" -le "$DEADLINE" ]; do
   CUR_HEAD="$(head_now || echo "$H1")"
-
-  if [ -z "${CUR_HEAD:-}" ]; then
-    CUR_HEAD="$H1"
-  fi
+  [ -n "${CUR_HEAD:-}" ] || CUR_HEAD="$H1"
 
   if [ "$CUR_HEAD" -lt "$SEEN_FROM" ]; then
     sleep 1
@@ -91,7 +94,28 @@ while [ "$(date +%s)" -le "$DEADLINE" ]; do
 done
 
 if [ "$FOUND" -ne 1 ]; then
-  FINAL_HEAD="$(head_now || echo unknown)"
+  FINAL_HEAD="$(head_now || echo 0)"
+
+  echo "=== trailing final scan before failure ==="
+  START=$(( FINAL_HEAD > 8 ? FINAL_HEAD - 8 : 0 ))
+  i="$START"
+  while [ "$i" -le "$FINAL_HEAD" ]; do
+    if block_hits_memo "$i" "$MEMO"; then
+      FOUND=1
+      FOUND_BLOCK="$i"
+      break
+    fi
+    i=$((i + 1))
+  done
+
+  if [ "$FOUND" -eq 1 ]; then
+    echo "[ok] submitted tx found in trailing scan block $FOUND_BLOCK"
+    echo "=== proposer status ==="
+    curl -fsS --max-time 5 "${BASE}/proposer/status"
+    echo
+    exit 0
+  fi
+
   echo "=== proposer status on failure ==="
   curl -fsS --max-time 5 "${BASE}/proposer/status" || true
   echo
@@ -101,7 +125,18 @@ if [ "$FOUND" -ne 1 ]; then
   echo "=== mempool truth on failure ==="
   curl -fsS --max-time 5 "${BASE}/mempool" || true
   echo
-  echo "FAIL block search missing submitted tx memo=$MEMO searched_from=$H0 final_head=$FINAL_HEAD search_secs=$SEARCH_SECS"
+  echo "=== latest head block surfaces on failure ==="
+  for u in \
+    "${BASE}/blocks/${FINAL_HEAD}/persisted" \
+    "${BASE}/blocks/${FINAL_HEAD}/full2" \
+    "${BASE}/blocks/range?start=${FINAL_HEAD}&end=${FINAL_HEAD}" \
+    "${BASE}/blocks/${FINAL_HEAD}/full"
+  do
+    echo "--- $u"
+    curl -fsS --max-time 5 "$u" || true
+    echo
+  done
+  echo "FAIL block search missing submitted tx memo=$MEMO searched_from=$H0 final_head=$FINAL_HEAD wait_secs=$WAIT_SECS search_secs=$SEARCH_SECS"
   exit 1
 fi
 

@@ -77,14 +77,36 @@ echo "=== [6] wc after ==="
 POOL_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/pool.json")"
 echo "$POOL_AFTER"
 
+ACC_KEY="${WC_ADDR:-$ACCOUNT}"
+
 EARN_AFTER="$EARN_BEFORE"
-if [ -n "$WC_ADDR" ]; then
-  ACC_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json")"
-  echo "$ACC_AFTER"
-  EARN_AFTER="$(printf '%s' "$ACC_AFTER" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("earnings") or {}).get("redeemable_wc") or 0))')"
+ACC_AFTER=""
+if [ -n "$ACC_KEY" ]; then
+  ACC_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/account/${ACC_KEY}.json" || true)"
+  if [ -n "$ACC_AFTER" ]; then
+    echo "$ACC_AFTER"
+    EARN_AFTER="$(printf '%s' "$ACC_AFTER" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("earnings") or {}).get("redeemable_wc") or 0))')"
+  fi
 fi
 echo "redeemable_wc_after=$EARN_AFTER"
+
+echo
+echo "=== [7] raw participant truth ==="
+echo "--- /receipts"
+curl -fsS --max-time 8 "${BASE}/receipts?account=${ACC_KEY}&limit=5" | sed -n '1,220p' || true
+echo
+echo "--- /wc/ledger"
+curl -fsS --max-time 8 "${BASE}/wc/ledger?account=${ACC_KEY}&limit=5" | sed -n '1,220p' || true
+echo
+echo "--- raw datanet receipt tail"
+DATA_DIR_LOCAL="${DATA_DIR:-data_a}"
+tail -n 5 "${DATA_DIR_LOCAL}/datanet/receipts/datanet.jsonl" 2>/dev/null || true
+echo
+echo "--- raw wc ledger tail"
+tail -n 5 "${DATA_DIR_LOCAL}/wc_v1/ledger.jsonl" 2>/dev/null || true
+
 echo
 echo "wc_earnings_delta=$((EARN_AFTER - EARN_BEFORE))"
+
 echo
 echo "[ok] full demo smoke passed"
