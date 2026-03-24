@@ -22324,17 +22324,11 @@ const wal = new WALv1(getDataDir());
   }
 
   function takeFromQueues(node:any, cap:number){
-    // v2fs canonical source ONLY: live node.mempool.txs
-    // Do NOT consume pending/queue/global mirrors here; those aliases caused
-    // empty/lost/duplicate seals when mixed together.
+    // Canonical source is live node.mempool.txs first, but older lastmile/saveBlock
+    // wrappers may still prime/drain txQueue before v2fs runs. To avoid empty/lost
+    // seals, consume txQueue as a bounded fallback after mempool.
     const out:any[] = [];
     const capN = Math.max(1, Math.min(+cap||1, 2000));
-
-    const q = node?.mempool?.txs;
-    if (!Array.isArray(q) || q.length <= 0) return out;
-
-    const n = Math.min(capN, q.length);
-    const picked = q.splice(0, n);
 
     function stable(v:any):string{
       try{
@@ -22356,23 +22350,41 @@ const wal = new WALv1(getDataDir());
       }
     }
 
-    for (const raw of picked){
-      if (raw && typeof raw === "object" && raw.body && typeof raw.body === "object" && typeof raw.hash === "string") {
-        out.push(raw);
-        continue;
+    function pushPicked(picked:any[]){
+      for (const raw of picked){
+        if (out.length >= capN) break;
+
+        if (raw && typeof raw === "object" && raw.body && typeof raw.body === "object" && typeof raw.hash === "string") {
+          out.push(raw);
+          continue;
+        }
+
+        const body = (raw && typeof raw === "object")
+          ? (raw.body && typeof raw.body === "object" ? { ...raw.body } : { ...raw })
+          : { value: raw };
+
+        out.push({
+          body,
+          hash: sha256hex(stable(body)),
+          ts: body?.ts ?? Date.now(),
+          nonce: String(body?.nonce ?? Date.now()),
+          _src: "v2fs.canonicalized"
+        });
       }
+    }
 
-      const body = (raw && typeof raw === "object")
-        ? (raw.body && typeof raw.body === "object" ? { ...raw.body } : { ...raw })
-        : { value: raw };
+    const mp = node?.mempool?.txs;
+    if (Array.isArray(mp) && mp.length > 0){
+      const takeMp = Math.min(capN, mp.length);
+      pushPicked(mp.splice(0, takeMp));
+    }
 
-      out.push({
-        body,
-        hash: sha256hex(stable(body)),
-        ts: body?.ts ?? Date.now(),
-        nonce: String(body?.nonce ?? Date.now()),
-        _src: "v2fs.canonicalized"
-      });
+    if (out.length < capN){
+      const q = node?.txQueue;
+      if (Array.isArray(q) && q.length > 0){
+        const takeQ = Math.min(capN - out.length, q.length);
+        pushPicked(q.splice(0, takeQ));
+      }
     }
 
     return out;
