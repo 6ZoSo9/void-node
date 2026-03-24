@@ -36025,6 +36025,39 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           try { out.push(JSON.parse(line)); } catch {}
         }
 
+        try {
+          const path = require("node:path");
+          const datanetRawFile = path.join(
+            String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+            "datanet",
+            "receipts",
+            "datanet.jsonl"
+          );
+          for (const line of readLines(datanetRawFile)) {
+            try {
+              const r:any = JSON.parse(line);
+              out.push({
+                receipt_id: String(r?.id || ""),
+                job_id: r?.job_id || null,
+                account: String(r?.account || r?.who || r?.owner || ""),
+                who: String(r?.who || r?.account || r?.owner || ""),
+                kind: "datanet_receipt",
+                status: Number(r?.ok || 0) === 1 ? "credited" : "recorded",
+                delta: Number(r?.wc_award || 0),
+                reason: "datanet_receipt",
+                ts_ms: Number(r?.ts_ms || 0),
+                root: r?.root || null,
+                leaf: r?.leaf || null,
+                index: Number(r?.index || 0),
+                bytes: Number(r?.bytes || 0),
+                mime: r?.mime || null,
+                name: r?.name || null,
+                _raw: "datanet_v1"
+              });
+            } catch {}
+          }
+        } catch {}
+
         if (account) {
           out = out.filter((r:any) => {
             const acct = String(r?.account || r?.who || r?.owner || "").trim();
