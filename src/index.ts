@@ -38764,3 +38764,185 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   }
 })();
 
+
+// === VOID_UPGRADE_APPLY_ENDPOINT_V1 ===
+(() => {
+  const tryMount = () => {
+    try {
+      const app: any = (globalThis as any).__void_http_app;
+      if (!app) return false;
+      app.locals = app.locals || {};
+      if (app.locals.__void_upgrade_apply_v1) return true;
+      app.locals.__void_upgrade_apply_v1 = true;
+
+      const fs = require("fs");
+      const path = require("path");
+      const crypto = require("crypto");
+
+      const jget = async (url: string) => {
+        const r = await fetch(url, { method: "GET" as any });
+        const t = await r.text();
+        try { return JSON.parse(t); } catch { return { ok: false, raw: t, status: r.status }; }
+      };
+
+      const sha256File = (p: string) => {
+        try {
+          const buf = fs.readFileSync(p);
+          return crypto.createHash("sha256").update(buf).digest("hex");
+        } catch {
+          return "";
+        }
+      };
+
+      const runtimeDir = () => {
+        const dir = path.join(process.cwd(), "runtime");
+        try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+        return dir;
+      };
+
+      const stageFilePath = () => path.join(runtimeDir(), "upgrade-staged.v1.json");
+      const pendingFilePath = () => path.join(runtimeDir(), "upgrade-apply-pending.v1.json");
+      const rollbackFilePath = () => path.join(runtimeDir(), "upgrade-rollback-marker.v1.json");
+
+      const baseUrl = () => {
+        const host = "127.0.0.1";
+        const port = Number(process.env.HTTP_PORT || 4100);
+        return `http://${host}:${port}`;
+      };
+
+      const readJson = (p: string) => {
+        try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; }
+      };
+
+      app.get("/upgrade/apply", (_req: any, res: any) => {
+        try {
+          const p = pendingFilePath();
+          if (!fs.existsSync(p)) {
+            return res.status(404).json({ ok: false, reason: "not_pending", pending_file: p });
+          }
+          return res.json(JSON.parse(fs.readFileSync(p, "utf8")));
+        } catch (e: any) {
+          return res.status(500).json({ ok: false, error: e?.message || String(e) });
+        }
+      });
+
+      app.post("/upgrade/apply", async (_req: any, res: any) => {
+        try {
+          const stagePath = stageFilePath();
+          if (!fs.existsSync(stagePath)) {
+            return res.status(400).json({
+              ok: false,
+              reason: "not_staged",
+              stage_file: stagePath,
+            });
+          }
+
+          const staged = readJson(stagePath);
+          if (!staged || !staged.artifact || !staged.artifact.path) {
+            return res.status(400).json({
+              ok: false,
+              reason: "staged_payload_invalid",
+              stage_file: stagePath,
+            });
+          }
+
+          const dry = await jget(`${baseUrl()}/upgrade/dry-run`);
+          if (!dry?.ok) {
+            return res.status(500).json({ ok: false, reason: "dry_run_failed", dry });
+          }
+          if (!dry?.safe_to_apply) {
+            return res.status(400).json({ ok: false, reason: "not_safe_to_apply", dry_run: dry });
+          }
+          if (!dry?.update_available) {
+            return res.status(400).json({ ok: false, reason: "no_update_available", dry_run: dry });
+          }
+
+          const artifactPath = String(staged?.artifact?.path || "");
+          const expectedSha = String(staged?.artifact?.sha256_expected || staged?.artifact?.sha256 || "");
+          const actualSha = sha256File(artifactPath);
+
+          if (!artifactPath || !fs.existsSync(artifactPath)) {
+            return res.status(400).json({
+              ok: false,
+              reason: "artifact_missing",
+              artifact_path: artifactPath,
+            });
+          }
+          if (!expectedSha || !actualSha || expectedSha !== actualSha) {
+            return res.status(400).json({
+              ok: false,
+              reason: "artifact_hash_mismatch",
+              artifact_path: artifactPath,
+              sha256_expected: expectedSha,
+              sha256_actual: actualSha,
+            });
+          }
+
+          const rollback = {
+            ok: true,
+            created_at: new Date().toISOString(),
+            node_pid: process.pid,
+            cwd: process.cwd(),
+            current_version: dry?.local || {},
+            stage_file: stagePath,
+            pending_file: pendingFilePath(),
+            artifact: {
+              path: artifactPath,
+              sha256_expected: expectedSha,
+              sha256_actual: actualSha,
+            },
+            note: "Rollback marker only. No restart performed by /upgrade/apply v1.",
+          };
+
+          const pending = {
+            ok: true,
+            pending_at: new Date().toISOString(),
+            apply_mode: "manual_pending_only",
+            safe_to_apply: true,
+            current: dry?.local || {},
+            target: staged?.target || null,
+            stage_file: stagePath,
+            rollback_file: rollbackFilePath(),
+            artifact: {
+              path: artifactPath,
+              sha256_expected: expectedSha,
+              sha256_actual: actualSha,
+            },
+            next_steps: [
+              "manual_restart_or_boot-time-consumer",
+              "post_restart_health_gate",
+              "rollback_on_failure",
+            ],
+          };
+
+          fs.writeFileSync(rollbackFilePath(), JSON.stringify(rollback, null, 2) + "\n", "utf8");
+          fs.writeFileSync(pendingFilePath(), JSON.stringify(pending, null, 2) + "\n", "utf8");
+
+          return res.json({
+            ok: true,
+            reason: "apply_pending_written",
+            pending_file: pendingFilePath(),
+            rollback_file: rollbackFilePath(),
+            pending,
+          });
+        } catch (e: any) {
+          return res.status(500).json({ ok: false, error: e?.message || String(e) });
+        }
+      });
+
+      console.log("[upgrade-apply:v1] mounted POST/GET /upgrade/apply");
+      return true;
+    } catch (e: any) {
+      console.error("[upgrade-apply:v1] mount failed:", e?.message || e);
+      return false;
+    }
+  };
+
+  if (!tryMount()) {
+    const iv = setInterval(() => {
+      if (tryMount()) clearInterval(iv);
+    }, 500);
+    (iv as any).unref?.();
+  }
+})();
+
