@@ -38319,6 +38319,18 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
         };
       };
 
+      const stableManifestPayload = (manifest: any) => {
+        const m = {
+          version: String(manifest?.version || ""),
+          protocol_version: Number(manifest?.protocol_version || 0),
+          min_protocol_version: Number(manifest?.min_protocol_version || 0),
+          channel: String(manifest?.channel || ""),
+          published_at: String(manifest?.published_at || ""),
+          notes: String(manifest?.notes || ""),
+        };
+        return JSON.stringify(m);
+      };
+
       const verifyManifest = (manifest: any) => {
         if (!manifest || !manifest.signature || !manifest.signature.sig) {
           return { signature_present: false, signature_valid: false, verification_reason: "signature_missing" };
@@ -38328,11 +38340,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
         }
         try {
           const keyPem = safeText(pubkeyPath);
-          const clone = JSON.parse(JSON.stringify(manifest));
-          const sigB64 = String(clone?.signature?.sig || "");
-          if (!clone.signature) clone.signature = {};
-          delete clone.signature.sig;
-          const payload = Buffer.from(JSON.stringify(clone));
+          const sigB64 = String(manifest?.signature?.sig || "");
+          const payload = Buffer.from(stableManifestPayload(manifest));
           const ok = crypto.verify(
             null,
             payload,
