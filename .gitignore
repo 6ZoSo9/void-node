@@ -126,3 +126,5 @@ ops/preload/*
 
 
 releases/
+
+!config/update-pubkey.v1.pem
