@@ -38629,3 +38629,138 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   }
 })();
 
+
+// === VOID_UPGRADE_STAGE_ENDPOINT_V1 ===
+(() => {
+  const tryMount = () => {
+    try {
+      const app: any = (globalThis as any).__void_http_app;
+      if (!app) return false;
+      app.locals = app.locals || {};
+      if (app.locals.__void_upgrade_stage_v1) return true;
+      app.locals.__void_upgrade_stage_v1 = true;
+
+      const fs = require("fs");
+      const path = require("path");
+
+      const jget = async (url: string) => {
+        const r = await fetch(url, { method: "GET" as any });
+        const t = await r.text();
+        try { return JSON.parse(t); } catch { return { ok: false, raw: t, status: r.status }; }
+      };
+
+      const baseUrl = () => {
+        const host = "127.0.0.1";
+        const port = Number(process.env.HTTP_PORT || 4100);
+        return `http://${host}:${port}`;
+      };
+
+      const stageFilePath = () => {
+        const dir = path.join(process.cwd(), "runtime");
+        try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+        return path.join(dir, "upgrade-staged.v1.json");
+      };
+
+      app.post("/upgrade/stage", async (_req: any, res: any) => {
+        try {
+          const base = baseUrl();
+          const dry = await jget(`${base}/upgrade/dry-run`);
+          const plan = await jget(`${base}/upgrade/plan`);
+          const version = await jget(`${base}/version`);
+
+          if (!dry?.ok) {
+            return res.status(500).json({ ok: false, reason: "dry_run_failed", dry });
+          }
+          if (!dry?.safe_to_apply) {
+            return res.status(400).json({
+              ok: false,
+              reason: "not_safe_to_apply",
+              dry_run: dry,
+            });
+          }
+          if (!dry?.update_available) {
+            return res.status(400).json({
+              ok: false,
+              reason: "no_update_available",
+              dry_run: dry,
+            });
+          }
+
+          const artifact = dry?.artifact || {};
+          const artifactPath = String(artifact?.path || "");
+          const artifactExists = !!artifact?.exists;
+          const artifactSha256 = String(artifact?.sha256_expected || "");
+          const artifactSha256Matches = !!artifact?.sha256_matches;
+
+          if (!artifactPath) {
+            return res.status(400).json({ ok: false, reason: "artifact_path_missing", dry_run: dry });
+          }
+          if (!artifactExists) {
+            return res.status(400).json({ ok: false, reason: "artifact_missing", dry_run: dry });
+          }
+          if (!artifactSha256 || !artifactSha256Matches) {
+            return res.status(400).json({ ok: false, reason: "artifact_hash_mismatch", dry_run: dry });
+          }
+
+          const staged = {
+            ok: true,
+            staged_at: new Date().toISOString(),
+            current: version,
+            target: plan?.target || null,
+            manifestPath: plan?.manifestPath || "",
+            pubkeyPath: plan?.pubkeyPath || "",
+            artifact: {
+              path: artifactPath,
+              sha256_expected: artifactSha256,
+              sha256_actual: String(artifact?.sha256_actual || ""),
+            },
+            dry_run: dry,
+            next_steps: [
+              "manual_restart_into_staged_artifact",
+              "post_restart_health_gate",
+              "rollback_on_failure"
+            ],
+          };
+
+          const out = stageFilePath();
+          fs.writeFileSync(out, JSON.stringify(staged, null, 2) + "\n", "utf8");
+
+          return res.json({
+            ok: true,
+            reason: "staged",
+            stage_file: out,
+            staged,
+          });
+        } catch (e: any) {
+          return res.status(500).json({ ok: false, error: e?.message || String(e) });
+        }
+      });
+
+      app.get("/upgrade/stage", (_req: any, res: any) => {
+        try {
+          const p = stageFilePath();
+          if (!fs.existsSync(p)) {
+            return res.status(404).json({ ok: false, reason: "not_staged", stage_file: p });
+          }
+          return res.json(JSON.parse(fs.readFileSync(p, "utf8")));
+        } catch (e: any) {
+          return res.status(500).json({ ok: false, error: e?.message || String(e) });
+        }
+      });
+
+      console.log("[upgrade-stage:v1] mounted POST/GET /upgrade/stage");
+      return true;
+    } catch (e: any) {
+      console.error("[upgrade-stage:v1] mount failed:", e?.message || e);
+      return false;
+    }
+  };
+
+  if (!tryMount()) {
+    const iv = setInterval(() => {
+      if (tryMount()) clearInterval(iv);
+    }, 500);
+    (iv as any).unref?.();
+  }
+})();
+
