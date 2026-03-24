@@ -36007,8 +36007,55 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       try {
         const account = safeStr(req.query?.account, 128);
         const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
-        let jobs = allJobs();
-        if (account) jobs = jobs.filter((j:any) => String(j?.account || "") === account);
+        let jobs:any[] = allJobs();
+
+        try {
+          const path = require("node:path");
+          const datanetRawFile = path.join(
+            String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+            "datanet",
+            "receipts",
+            "datanet.jsonl"
+          );
+          for (const line of readLines(datanetRawFile)) {
+            try {
+              const r:any = JSON.parse(line);
+              jobs.push({
+                id: String(r?.id || ""),
+                account: String(r?.account || r?.who || r?.owner || ""),
+                kind: "datanet_receipt",
+                type: "datanet_receipt",
+                status: Number(r?.ok || 0) === 1 ? "completed" : "recorded",
+                dataset_id: r?.dataset_id || null,
+                receipt_id: String(r?.id || ""),
+                root: r?.root || null,
+                leaf: r?.leaf || null,
+                index: Number(r?.index || 0),
+                bytes: Number(r?.bytes || 0),
+                mime: r?.mime || null,
+                name: r?.name || null,
+                delta: Number(r?.wc_award || 0),
+                created_at_ms: Number(r?.ts_ms || 0),
+                ts_ms: Number(r?.ts_ms || 0),
+                _raw: "datanet_v1"
+              });
+            } catch {}
+          }
+        } catch {}
+
+        if (account) {
+          jobs = jobs.filter((j:any) => {
+            const acct = String(j?.account || j?.who || j?.owner || "").trim();
+            return acct === account;
+          });
+        }
+
+        jobs.sort((a:any, b:any) => {
+          const ax = Number(a?.created_at_ms || a?.ts_ms || 0);
+          const bx = Number(b?.created_at_ms || b?.ts_ms || 0);
+          return ax - bx;
+        });
+
         jobs = jobs.slice(-limit).reverse();
         return res.json({ ok:true, count: jobs.length, jobs });
       } catch (e:any) {
