@@ -38946,3 +38946,103 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   }
 })();
 
+
+// === VOID_UPGRADE_BOOT_CONSUMER_LOGONLY_V1 ===
+(() => {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const crypto = require("crypto");
+
+    const runtimeDir = path.join(process.cwd(), "runtime");
+    try { fs.mkdirSync(runtimeDir, { recursive: true }); } catch {}
+
+    const pendingPath = path.join(runtimeDir, "upgrade-apply-pending.v1.json");
+    const statusPath = path.join(runtimeDir, "upgrade-boot-consumer-status.v1.json");
+
+    const sha256File = (p: string) => {
+      try {
+        const buf = fs.readFileSync(p);
+        return crypto.createHash("sha256").update(buf).digest("hex");
+      } catch {
+        return "";
+      }
+    };
+
+    const writeStatus = (obj: any) => {
+      try { fs.writeFileSync(statusPath, JSON.stringify(obj, null, 2) + "\n", "utf8"); } catch {}
+    };
+
+    const run = () => {
+      if (!fs.existsSync(pendingPath)) {
+        const status = {
+          ok: true,
+          mode: "log_only",
+          checked_at: new Date().toISOString(),
+          pending_found: false,
+          reason: "not_pending",
+          pending_file: pendingPath,
+        };
+        writeStatus(status);
+        console.log("[upgrade-boot-consumer:v1] no pending apply file");
+        return;
+      }
+
+      let pending: any = null;
+      try {
+        pending = JSON.parse(fs.readFileSync(pendingPath, "utf8"));
+      } catch (e: any) {
+        const status = {
+          ok: false,
+          mode: "log_only",
+          checked_at: new Date().toISOString(),
+          pending_found: true,
+          reason: "pending_json_invalid",
+          error: e?.message || String(e),
+          pending_file: pendingPath,
+        };
+        writeStatus(status);
+        console.error("[upgrade-boot-consumer:v1] invalid pending file:", e?.message || e);
+        return;
+      }
+
+      const artifactPath = String(pending?.artifact?.path || "");
+      const expectedSha = String(pending?.artifact?.sha256_expected || "");
+      const actualSha = artifactPath ? sha256File(artifactPath) : "";
+      const artifactExists = !!artifactPath && fs.existsSync(artifactPath);
+      const hashMatches = !!artifactPath && !!expectedSha && !!actualSha && expectedSha === actualSha;
+
+      const status = {
+        ok: true,
+        mode: "log_only",
+        checked_at: new Date().toISOString(),
+        pending_found: true,
+        artifact: {
+          path: artifactPath,
+          exists: artifactExists,
+          sha256_expected: expectedSha,
+          sha256_actual: actualSha,
+          sha256_matches: hashMatches,
+        },
+        current: pending?.current || null,
+        target: pending?.target || null,
+        decision: artifactExists && hashMatches ? "would_apply_pending" : "would_block_pending",
+        note: "Log-only consumer. No artifact switch or restart performed.",
+        pending_file: pendingPath,
+      };
+
+      writeStatus(status);
+
+      if (artifactExists && hashMatches) {
+        console.log(`[upgrade-boot-consumer:v1] would apply pending artifact: ${artifactPath}`);
+      } else {
+        console.error("[upgrade-boot-consumer:v1] pending apply blocked: artifact missing or hash mismatch");
+      }
+    };
+
+    run();
+  } catch (e: any) {
+    try { console.error("[upgrade-boot-consumer:v1] init failed:", e?.message || e); } catch {}
+  }
+})();
+
