@@ -289,7 +289,14 @@ console.log("[shim] published global node (post-construct)");
 
   /* ---------- bootstrap dialing (placeholder; actual dialing lives in node_core) ---------- */
   const env = loadEnv(); // may include BOOTSTRAP_ADDRS, ports, etc.
-  const mergedBootstrap = new Set<string>([...BOOTSTRAP_RAW, ...((env as any).BOOTSTRAP_ADDRS || [])]);
+  const envBootstrapRaw = (env as any).BOOTSTRAP_ADDRS || [];
+  const envBootstrapList = Array.isArray(envBootstrapRaw)
+    ? envBootstrapRaw
+    : String(envBootstrapRaw)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+  const mergedBootstrap = new Set<string>([...BOOTSTRAP_RAW, ...envBootstrapList]);
   for (const _a of mergedBootstrap) {
     // dialing handled by Node; we keep env merge here for logging & future hooks
   }

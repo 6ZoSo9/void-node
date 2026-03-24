@@ -236,6 +236,19 @@ export class Node {
     this.knownAddrs.add(addr);
     console.log(`[void-node] started TCP on ${addr}, id=${this.id}`);
 
+    const bootstrapRaw = String(process.env.BOOTSTRAP_ADDRS || "").trim();
+    const bootstrapAddrs = bootstrapRaw
+      ? bootstrapRaw.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    if (bootstrapAddrs.length) {
+      console.log(`[void-node] bootstrap dial targets: ${bootstrapAddrs.join(", ")}`);
+      for (const a of bootstrapAddrs) {
+        if (a && a !== addr && this.shouldDial(a)) {
+          setTimeout(() => this.connect(a), 250).unref?.();
+        }
+      }
+    }
+
     // Default topic subscriptions used across the stack
     this.subscribe("void/tx");
     this.subscribe("void/http");
