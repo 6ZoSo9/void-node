@@ -422,7 +422,8 @@ const router = express.Router();
       const plain_sha = String(b.plain_sha256 || "").trim().replace(/^0x/, "");
       if (plain_sha && !isHex64(plain_sha)) return res.status(400).json({ ok: false, err: "bad_plain_sha256" });
 
-      const who = String(b.who || "").slice(0, 96);
+      const account = String(b.account || b.who || b.owner || "").slice(0, 96);
+      const who = account; // compat mirror for older readers/writers
       const mime = String(b.mime || "").slice(0, 96);
       const name = String(b.name || "").slice(0, 96);
 
@@ -463,19 +464,20 @@ const router = express.Router();
         bytes,
         mime,
         name,
+        account,
         who,
         wc_award,
       };
 
       // Bridge DataNet receipt WC into the canonical wc_v1 ledger consumed by /wc/*
       try {
-        if (ok === 1 && Number.isFinite(wc_award) && wc_award > 0 && who) {
+        if (ok === 1 && Number.isFinite(wc_award) && wc_award > 0 && account) {
           const wcDir2 = path.join(baseDir, "wc_v1");
           const ledgerFile2 = path.join(wcDir2, "ledger.jsonl");
           fs.mkdirSync(wcDir2, { recursive: true });
 
           const dedupeKey = [
-            String(who),
+            String(account),
             String(rootIn),
             String(leafIn),
             String(idxIn),
@@ -492,7 +494,7 @@ const router = express.Router();
                 try {
                   const j = JSON.parse(t);
                   if (String(j?.kind || "") !== "credit") continue;
-                  if (String(j?.account || "") !== String(who)) continue;
+                  if (String(j?.account || j?.who || j?.owner || "") !== String(account)) continue;
 
                   const priorKey = String(
                     j?.dedupe_key || [
@@ -513,7 +515,8 @@ const router = express.Router();
           if (!alreadyCredited) {
             const evt = {
               kind: "credit",
-              account: String(who),
+              account: String(account),
+              who: String(account),
               delta: Math.floor(Number(wc_award) || 0),
               reason: "datanet_receipt",
               job_id: null,
