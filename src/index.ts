@@ -38470,3 +38470,162 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   }
 })();
 
+
+// === VOID_UPGRADE_DRY_RUN_ENDPOINT_V1 ===
+(() => {
+  const tryMount = () => {
+    try {
+      const app: any = (globalThis as any).__void_http_app;
+      if (!app) return false;
+      app.locals = app.locals || {};
+      if (app.locals.__void_upgrade_dry_run_v1) return true;
+      app.locals.__void_upgrade_dry_run_v1 = true;
+
+      const cp = require("child_process");
+
+      const sh = (cmd: string) => {
+        try {
+          return String(cp.execSync(cmd, {
+            cwd: process.cwd(),
+            stdio: ["ignore", "pipe", "ignore"],
+          })).trim();
+        } catch {
+          return "";
+        }
+      };
+
+      const jget = async (url: string) => {
+        const r = await fetch(url, { method: "GET" as any });
+        const t = await r.text();
+        try { return JSON.parse(t); } catch { return { ok: false, raw: t, status: r.status }; }
+      };
+
+      const baseUrl = () => {
+        const host = "127.0.0.1";
+        const port = Number(process.env.HTTP_PORT || 4100);
+        return `http://${host}:${port}`;
+      };
+
+      const buildDryRun = async () => {
+        const base = baseUrl();
+        const plan = await jget(`${base}/upgrade/plan`);
+        const health = await jget(`${base}/health`);
+        const version = await jget(`${base}/version`);
+
+        const manifestFound = !!plan?.manifest_found;
+        const signatureValid = !!plan?.signature_valid;
+        const compatible = !!plan?.compatible;
+        const updateAvailable = !!plan?.update_available;
+        const artifact = plan?.artifact || {};
+        const artifactPath = String(artifact?.path || "");
+        const artifactExists = !!artifact?.exists;
+        const artifactSha256Matches = !!artifact?.sha256_matches;
+
+        const healthOk = !!health?.ok;
+        const peerCount = Array.isArray(health?.peers) ? health.peers.length : 0;
+        const p2pListen = Array.isArray(health?.listen) ? health.listen.length : 0;
+
+        let safeToApply = false;
+        let reason = "blocked";
+        const checks: any = {
+          manifest_found: manifestFound,
+          signature_valid: signatureValid,
+          compatible,
+          health_ok: healthOk,
+          peer_count: peerCount,
+          p2p_listen_present: p2pListen > 0,
+          git_dirty: !!plan?.git?.dirty,
+          update_available: updateAvailable,
+          artifact_required: updateAvailable,
+          artifact_exists: artifactExists,
+          artifact_sha256_matches: artifactSha256Matches,
+        };
+
+        if (!manifestFound) {
+          reason = "manifest_missing";
+        } else if (!signatureValid) {
+          reason = plan?.verification_reason || "signature_invalid";
+        } else if (!compatible) {
+          reason = "protocol_incompatible";
+        } else if (!healthOk) {
+          reason = "node_unhealthy";
+        } else if (p2pListen < 1) {
+          reason = "p2p_not_listening";
+        } else if (updateAvailable && !artifactPath) {
+          reason = "artifact_path_missing";
+        } else if (updateAvailable && !artifactExists) {
+          reason = "artifact_missing";
+        } else if (updateAvailable && !artifactSha256Matches) {
+          reason = "artifact_hash_mismatch";
+        } else {
+          safeToApply = true;
+          reason = updateAvailable ? "ready_for_downloaded_apply" : "safe_but_no_update_needed";
+        }
+
+        return {
+          ok: true,
+          local: plan?.local || version || {},
+          dry_run_only: true,
+          safe_to_apply: safeToApply,
+          reason,
+          current_action: plan?.action || "none",
+          update_available: updateAvailable,
+          manifest_found: manifestFound,
+          signature_valid: signatureValid,
+          verification_reason: plan?.verification_reason || "",
+          compatible,
+          artifact,
+          health: {
+            ok: healthOk,
+            peer_count: peerCount,
+            listen: health?.listen || [],
+            node_id: health?.nodeId || "",
+          },
+          git: plan?.git || {},
+          next_steps: safeToApply
+            ? (updateAvailable
+                ? [
+                    "download_artifact",
+                    "verify_artifact_hash",
+                    "stage_restart",
+                    "post_restart_health_gate",
+                    "rollback_on_failure"
+                  ]
+                : ["no_apply_needed"])
+            : ["do_not_apply", "fix_blocking_reason_first"],
+          checks,
+        };
+      };
+
+      app.get("/upgrade/dry-run", async (_req: any, res: any) => {
+        try {
+          res.json(await buildDryRun());
+        } catch (e: any) {
+          res.status(500).json({ ok: false, error: e?.message || String(e) });
+        }
+      });
+
+      app.get("/__void/upgrade/dry-run.json", async (_req: any, res: any) => {
+        try {
+          res.json(await buildDryRun());
+        } catch (e: any) {
+          res.status(500).json({ ok: false, error: e?.message || String(e) });
+        }
+      });
+
+      console.log("[upgrade-dry-run:v1] mounted /upgrade/dry-run /__void/upgrade/dry-run.json");
+      return true;
+    } catch (e: any) {
+      console.error("[upgrade-dry-run:v1] mount failed:", e?.message || e);
+      return false;
+    }
+  };
+
+  if (!tryMount()) {
+    const iv = setInterval(() => {
+      if (tryMount()) clearInterval(iv);
+    }, 500);
+    (iv as any).unref?.();
+  }
+})();
+
