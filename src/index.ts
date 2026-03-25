@@ -34457,13 +34457,38 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
   }
 
   function localVersion(){
-    return {
-      version: String(process.env.VOID_VERSION || "0.1.0-demo"),
-      protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || 1),
-      channel: String(process.env.VOID_UPDATE_CHANNEL || "stable"),
-      build_time: String(process.env.VOID_BUILD_TIME || ""),
-      git_commit: String(process.env.VOID_GIT_COMMIT || "")
-    };
+    try{
+      const cp = require("child_process");
+      const sh = (cmd:string) => {
+        try{
+          return String(cp.execSync(cmd, {
+            cwd: process.cwd(),
+            stdio: ["ignore", "pipe", "ignore"],
+          })).trim();
+        }catch{
+          return "";
+        }
+      };
+      let pkg:any = {};
+      try{
+        pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"));
+      }catch{}
+      return {
+        version: String(pkg?.version || process.env.VOID_VERSION || "0.0.0"),
+        protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1),
+        channel: String(process.env.VOID_UPDATE_CHANNEL || process.env.UPDATE_CHANNEL || "stable"),
+        build_time: String(process.env.VOID_BUILD_TIME || ""),
+        git_commit: String(process.env.VOID_GIT_COMMIT || sh("git rev-parse --short=12 HEAD") || "")
+      };
+    }catch{
+      return {
+        version: String(process.env.VOID_VERSION || "0.0.0"),
+        protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1),
+        channel: String(process.env.VOID_UPDATE_CHANNEL || process.env.UPDATE_CHANNEL || "stable"),
+        build_time: String(process.env.VOID_BUILD_TIME || ""),
+        git_commit: String(process.env.VOID_GIT_COMMIT || "")
+      };
+    }
   }
 
   function manifestPath(){
@@ -34795,7 +34820,24 @@ try {
 app.get("/upgrade/check", async (_req:any, res:any) => {
       try{
         const out = await computeUpgradeStatus();
-        return res.json(out);
+        const manifestPathV0 = manifestPath();
+        const manifestPathV1 = path.join(process.cwd(), "config", "upgrade-manifest.json");
+        return res.json({
+          ok: true,
+          local: out.local,
+          manifest_found: !!out.manifest_found,
+          manifest: out.manifest || null,
+          update_available: !!out.update_available,
+          compatible: !!out.compatible,
+          reason: String(out.reason || ""),
+          signature_present: !!out.signature_present,
+          signature_valid: !!out.signature_valid,
+          verification_reason: String(out.verification_reason || ""),
+          manifest_paths: {
+            active: manifestPathV0,
+            legacy_v1_demo: manifestPathV1
+          }
+        });
       }catch(e:any){
         return res.status(500).json({ ok:false, err:String(e?.message || e) });
       }
