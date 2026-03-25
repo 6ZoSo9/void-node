@@ -38989,18 +38989,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
 })();
 
 
-// === VOID_UPGRADE_BOOT_CONSUMER_LOGONLY_V1 ===
+// === VOID_UPGRADE_BOOT_CONSUMER_EXEC_PREP_V2 ===
 (() => {
   try {
     const fs = require("fs");
     const path = require("path");
     const crypto = require("crypto");
+    const cp = require("child_process");
 
     const runtimeDir = path.join(process.cwd(), "runtime");
     try { fs.mkdirSync(runtimeDir, { recursive: true }); } catch {}
 
     const pendingPath = path.join(runtimeDir, "upgrade-apply-pending.v1.json");
     const statusPath = path.join(runtimeDir, "upgrade-boot-consumer-status.v1.json");
+    const liveRoot = path.join(runtimeDir, "upgrade-live");
 
     const sha256File = (p: string) => {
       try {
@@ -39015,18 +39017,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
       try { fs.writeFileSync(statusPath, JSON.stringify(obj, null, 2) + "\n", "utf8"); } catch {}
     };
 
+    const safeVersion = (v: string) =>
+      String(v || "unknown").replace(/[^a-zA-Z0-9._-]+/g, "_");
+
     const run = () => {
       if (!fs.existsSync(pendingPath)) {
-        const status = {
+        writeStatus({
           ok: true,
-          mode: "log_only",
+          mode: "exec_prep_v2",
           checked_at: new Date().toISOString(),
           pending_found: false,
           reason: "not_pending",
           pending_file: pendingPath,
-        };
-        writeStatus(status);
-        console.log("[upgrade-boot-consumer:v1] no pending apply file");
+        });
+        console.log("[upgrade-boot-consumer:v2] no pending apply file");
         return;
       }
 
@@ -39034,31 +39038,122 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
       try {
         pending = JSON.parse(fs.readFileSync(pendingPath, "utf8"));
       } catch (e: any) {
-        const status = {
+        writeStatus({
           ok: false,
-          mode: "log_only",
+          mode: "exec_prep_v2",
           checked_at: new Date().toISOString(),
           pending_found: true,
           reason: "pending_json_invalid",
           error: e?.message || String(e),
           pending_file: pendingPath,
-        };
-        writeStatus(status);
-        console.error("[upgrade-boot-consumer:v1] invalid pending file:", e?.message || e);
+        });
+        console.error("[upgrade-boot-consumer:v2] invalid pending file:", e?.message || e);
         return;
       }
 
       const artifactPath = String(pending?.artifact?.path || "");
-      const expectedSha = String(pending?.artifact?.sha256_expected || "");
+      const expectedSha = String(
+        pending?.artifact?.sha256_expected ||
+        pending?.artifact?.sha256 ||
+        ""
+      );
       const actualSha = artifactPath ? sha256File(artifactPath) : "";
       const artifactExists = !!artifactPath && fs.existsSync(artifactPath);
       const hashMatches = !!artifactPath && !!expectedSha && !!actualSha && expectedSha === actualSha;
 
-      const status = {
+      if (!artifactExists || !hashMatches) {
+        writeStatus({
+          ok: false,
+          mode: "exec_prep_v2",
+          checked_at: new Date().toISOString(),
+          pending_found: true,
+          reason: !artifactExists ? "artifact_missing" : "artifact_hash_mismatch",
+          artifact: {
+            path: artifactPath,
+            exists: artifactExists,
+            sha256_expected: expectedSha,
+            sha256_actual: actualSha,
+            sha256_matches: hashMatches,
+          },
+          current: pending?.current || null,
+          target: pending?.target || null,
+          decision: "block_pending",
+          note: "Artifact verification failed before extraction.",
+          pending_file: pendingPath,
+        });
+        console.error("[upgrade-boot-consumer:v2] pending apply blocked");
+        return;
+      }
+
+      const targetVersion = safeVersion(
+        String(pending?.target?.version || pending?.target?.tag || "unknown")
+      );
+      const extractDir = path.join(liveRoot, targetVersion);
+      const markerPath = path.join(extractDir, ".prepared.json");
+
+      try { fs.mkdirSync(liveRoot, { recursive: true }); } catch {}
+      try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch {}
+      try { fs.mkdirSync(extractDir, { recursive: true }); } catch {}
+
+      try {
+        cp.execFileSync("tar", ["-xzf", artifactPath, "-C", extractDir], {
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+      } catch (e: any) {
+        writeStatus({
+          ok: false,
+          mode: "exec_prep_v2",
+          checked_at: new Date().toISOString(),
+          pending_found: true,
+          reason: "extract_failed",
+          error: e?.message || String(e),
+          artifact: {
+            path: artifactPath,
+            exists: artifactExists,
+            sha256_expected: expectedSha,
+            sha256_actual: actualSha,
+            sha256_matches: hashMatches,
+          },
+          extract_dir: extractDir,
+          pending_file: pendingPath,
+        });
+        console.error("[upgrade-boot-consumer:v2] extract failed:", e?.message || e);
+        return;
+      }
+
+      const prepared = {
         ok: true,
-        mode: "log_only",
+        prepared_at: new Date().toISOString(),
+        artifact_path: artifactPath,
+        sha256_expected: expectedSha,
+        sha256_actual: actualSha,
+        target: pending?.target || null,
+        current: pending?.current || null,
+        extract_dir: extractDir,
+        pending_file: pendingPath,
+        note: "Prepared extracted artifact only. No process re-exec/restart yet.",
+      };
+
+      try {
+        fs.writeFileSync(markerPath, JSON.stringify(prepared, null, 2) + "\n", "utf8");
+      } catch {}
+
+      try {
+        const consumed = {
+          ...pending,
+          consumed_at: new Date().toISOString(),
+          consumed_by: "upgrade-boot-consumer:v2"
+        };
+        fs.writeFileSync(pendingPath, JSON.stringify(consumed, null, 2) + "\n", "utf8");
+      } catch {}
+
+      writeStatus({
+        ok: true,
+        mode: "exec_prep_v2",
         checked_at: new Date().toISOString(),
         pending_found: true,
+        reason: "prepared_extracted_artifact",
+        decision: "prepared_only",
         artifact: {
           path: artifactPath,
           exists: artifactExists,
@@ -39066,25 +39161,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
           sha256_actual: actualSha,
           sha256_matches: hashMatches,
         },
+        extract_dir: extractDir,
+        marker_path: markerPath,
         current: pending?.current || null,
         target: pending?.target || null,
-        decision: artifactExists && hashMatches ? "would_apply_pending" : "would_block_pending",
-        note: "Log-only consumer. No artifact switch or restart performed.",
+        note: "Prepared extracted artifact. No automatic restart performed.",
         pending_file: pendingPath,
-      };
+      });
 
-      writeStatus(status);
-
-      if (artifactExists && hashMatches) {
-        console.log(`[upgrade-boot-consumer:v1] would apply pending artifact: ${artifactPath}`);
-      } else {
-        console.error("[upgrade-boot-consumer:v1] pending apply blocked: artifact missing or hash mismatch");
-      }
+      console.log("[upgrade-boot-consumer:v2] prepared extracted artifact:", extractDir);
     };
 
     run();
   } catch (e: any) {
-    try { console.error("[upgrade-boot-consumer:v1] init failed:", e?.message || e); } catch {}
+    try { console.error("[upgrade-boot-consumer:v2] init failed:", e?.message || e); } catch {}
   }
 })();
 
