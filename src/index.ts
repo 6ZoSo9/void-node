@@ -36264,7 +36264,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>VOID Participant Shell</title>
+  <title>VOID Participant</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root{
@@ -36792,7 +36792,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work and watch completion</span></button>
         <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">WC / VOID market surface</span></button>
         <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">balances, ledger, helper preview</span></button>
-        <button class="tabbtn" data-tab="receipts" id="tab-receipts">Receipts<span class="navhint">proofs, outputs, state</span></button>
+        <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">proofs, outputs, state</span></button>
       </nav>
     </div>
 
