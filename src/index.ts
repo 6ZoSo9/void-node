@@ -36773,10 +36773,6 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="side-label">Current account</div>
       <div class="account-big" id="heroAccount">remote-user-3</div>
       <div class="account-meta" id="heroAccountMeta">local earned WC and helper preview update here.</div>
-      <div style="margin-top:10px; padding:10px 12px; border-radius:12px; background:#0f172a; border:1px solid #253047; color:#cbd5e1; font-size:13px; line-height:1.45;">
-        <strong style="color:#f8fafc;">Live remote proof:</strong>
-        this node is being managed remotely and is still peered with the home anchor node while demo users complete jobs and receive Work Credits.
-      </div>
     </div>
 
     <div class="side-section">
@@ -36947,13 +36943,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <label for="account">Participant account</label>
           <input id="account" value="remote-user-3" />
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-            <button type="button" style="padding:8px 12px; border-radius:10px; border:1px solid #2f3b52; background:#111827; color:#e5e7eb; cursor:pointer; font-weight:600;" onclick="document.getElementById('account').value='remote-user-1'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-1</button>
-            <button type="button" style="padding:8px 12px; border-radius:10px; border:1px solid #2f3b52; background:#111827; color:#e5e7eb; cursor:pointer; font-weight:600;" onclick="document.getElementById('account').value='remote-user-2'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-2</button>
-            <button type="button" style="padding:8px 12px; border-radius:10px; border:1px solid #2f3b52; background:#111827; color:#e5e7eb; cursor:pointer; font-weight:600;" onclick="document.getElementById('account').value='remote-user-3'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-3</button>
-          </div>
-          <div style="margin-top:10px; padding:10px 12px; border-radius:12px; background:#0f172a; border:1px solid #253047; color:#cbd5e1; font-size:13px; line-height:1.45;">
-            <strong style="color:#f8fafc;">Live demo accounts:</strong>
-            switch between remote-user-1, remote-user-2, and remote-user-3 to show completed jobs, receipts, datasets, and credited Work Credits.
+            <button type="button" onclick="document.getElementById('account').value='remote-user-1'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-1</button>
+            <button type="button" onclick="document.getElementById('account').value='remote-user-2'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-2</button>
+            <button type="button" onclick="document.getElementById('account').value='remote-user-3'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-3</button>
           </div>
 
           <label for="plaintext">Plaintext payload</label>
