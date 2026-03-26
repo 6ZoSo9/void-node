@@ -918,6 +918,188 @@ function renderHtmlUi() {
       }
     });
   </script>
+
+<script>
+(function(){
+  if (window.__void_wallet_session_v1) return;
+  window.__void_wallet_session_v1 = true;
+
+  var KEY = "void_wallet_session_v1";
+
+  function valid(v){
+    return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
+  }
+
+  function shorten(v){
+    v = String(v || "").trim();
+    return valid(v) ? (v.slice(0, 6) + "…" + v.slice(-4)) : "Not connected";
+  }
+
+  function qs(name){
+    try {
+      var u = new URL(window.location.href);
+      return (u.searchParams.get(name) || "").trim();
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function getStored(){
+    try { return localStorage.getItem(KEY) || ""; } catch (_) { return ""; }
+  }
+
+  function setStored(v){
+    try { localStorage.setItem(KEY, String(v || "").trim()); } catch (_) {}
+  }
+
+  function clearStored(){
+    try { localStorage.removeItem(KEY); } catch (_) {}
+  }
+
+  function current(){
+    var q = qs("wallet");
+    if (valid(q)) {
+      setStored(q);
+      return q;
+    }
+    return getStored();
+  }
+
+  function fillInputs(addr){
+    if (!valid(addr)) return;
+
+    var ids = ["redeemWallet","wallet","walletAddress","address","tradeWallet","sendWallet"];
+    ids.forEach(function(id){
+      var el = document.getElementById(id);
+      if (!el || typeof el.value !== "string") return;
+      var v = String(el.value || "").trim();
+      if (!v || valid(v)) el.value = addr;
+    });
+
+    var acct = document.getElementById("account");
+    if (acct && typeof acct.value === "string") {
+      var v = String(acct.value || "").trim();
+      if (!v || valid(v)) acct.value = addr;
+    }
+  }
+
+  function helperHref(addr){
+    var base = window.location.protocol + "//" + window.location.hostname + ":4312/workcredits/devnet/ui";
+    var from = encodeURIComponent(window.location.href);
+    if (valid(addr)) return base + "?wallet=" + encodeURIComponent(addr) + "&from=" + from;
+    return base + "?from=" + from;
+  }
+
+  function bindLinks(addr){
+    var pool = window.location.protocol + "//" + window.location.hostname + ":4312/workcredits/devnet/pool.json";
+    document.querySelectorAll("[data-local-wc-ui]").forEach(function(a){
+      a.href = helperHref(addr);
+      a.removeAttribute("target");
+      a.removeAttribute("rel");
+    });
+    document.querySelectorAll("[data-local-wc-pool]").forEach(function(a){
+      a.href = pool;
+      a.removeAttribute("target");
+      a.removeAttribute("rel");
+    });
+
+    if (window.location.pathname === "/workcredits/devnet/ui") {
+      var from = qs("from") || (window.location.protocol + "//" + window.location.hostname + ":4100/participant#wallet");
+      var back = document.getElementById("voidWalletBackLink");
+      if (back) back.href = from;
+    }
+  }
+
+  function rerender(){
+    var addr = current();
+    fillInputs(addr);
+    bindLinks(addr);
+
+    var badge = document.getElementById("voidWalletSessionBadge");
+    var full = document.getElementById("voidWalletSessionFull");
+    var connectBtn = document.getElementById("voidWalletConnectBtn");
+    var disconnectBtn = document.getElementById("voidWalletDisconnectBtn");
+
+    if (badge) badge.textContent = shorten(addr);
+    if (full) full.textContent = valid(addr) ? addr : "No wallet connected";
+    if (connectBtn) connectBtn.style.display = valid(addr) ? "none" : "";
+    if (disconnectBtn) disconnectBtn.style.display = valid(addr) ? "" : "none";
+
+    try {
+      if (window.refreshAll && typeof window.refreshAll === "function") window.refreshAll().catch(function(){});
+      if (window.refresh && typeof window.refresh === "function") window.refresh().catch(function(){});
+    } catch (_) {}
+  }
+
+  async function connectWallet(){
+    if (!window.ethereum || !window.ethereum.request) {
+      alert("MetaMask or another injected wallet was not found in this browser.");
+      return;
+    }
+    var accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    var addr = (Array.isArray(accounts) && accounts.length) ? String(accounts[0]) : "";
+    if (!valid(addr)) {
+      alert("Wallet returned an invalid address.");
+      return;
+    }
+    setStored(addr);
+    rerender();
+  }
+
+  function disconnectWallet(){
+    clearStored();
+    rerender();
+  }
+
+  function mountBar(){
+    if (document.getElementById("voidWalletSessionBar")) return;
+
+    var onHelper = window.location.pathname === "/workcredits/devnet/ui";
+    var from = qs("from") || (window.location.protocol + "//" + window.location.hostname + ":4100/participant#wallet");
+
+    var wrap = document.createElement("div");
+    wrap.id = "voidWalletSessionBar";
+    wrap.style.cssText = "position:fixed;top:12px;right:12px;z-index:9999;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid rgba(148,163,184,.28);border-radius:14px;background:rgba(8,15,24,.96);backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(0,0,0,.28);color:#e5e7eb;font:12px/1.2 Inter,ui-sans-serif,system-ui,sans-serif;";
+    wrap.innerHTML =
+      '<div style="display:flex;flex-direction:column;gap:2px;min-width:180px">' +
+        '<div style="font-weight:800;letter-spacing:.04em;color:#f8fafc">Wallet Session</div>' +
+        '<div id="voidWalletSessionBadge" style="color:#93c5fd;font-weight:700">Not connected</div>' +
+        '<div id="voidWalletSessionFull" style="color:#94a3b8;font-size:11px;max-width:260px;overflow-wrap:anywhere">No wallet connected</div>' +
+      '</div>' +
+      (onHelper ? ('<a id="voidWalletBackLink" href="' + from + '" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;text-decoration:none;font-weight:700">Back</a>') : '') +
+      '<button id="voidWalletConnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Connect Wallet</button>' +
+      '<button id="voidWalletDisconnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Disconnect</button>';
+
+    document.body.appendChild(wrap);
+
+    var c = document.getElementById("voidWalletConnectBtn");
+    var d = document.getElementById("voidWalletDisconnectBtn");
+    if (c) c.addEventListener("click", function(){ connectWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
+    if (d) d.addEventListener("click", function(){ disconnectWallet(); });
+  }
+
+  window.addEventListener("storage", function(){ rerender(); });
+
+  if (window.ethereum && window.ethereum.on) {
+    try {
+      window.ethereum.on("accountsChanged", function(accounts){
+        var addr = (Array.isArray(accounts) && accounts.length) ? String(accounts[0]) : "";
+        if (valid(addr)) setStored(addr); else clearStored();
+        rerender();
+      });
+      window.ethereum.on("chainChanged", function(){ rerender(); });
+    } catch (_) {}
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ mountBar(); rerender(); }, { once:true });
+  } else {
+    mountBar();
+    rerender();
+  }
+})();
+</script>
+
 </body>
 </html>`;
 }
