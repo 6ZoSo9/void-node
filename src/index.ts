@@ -36764,7 +36764,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <div class="brand">
       <div>
         <div class="title">VOID</div>
-        <div class="sub">participant shell</div>
+        <div class="sub">participant dashboard</div>
       </div>
       <span class="status-dot" aria-hidden="true"></span>
     </div>
@@ -36779,20 +36779,20 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="side-label">Primary actions</div>
       <div class="quick">
         <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Earn Work Credits</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trading Preview</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Wallet Overview</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#receipts">Verify Receipts</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trading</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Wallet</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#receipts">Proofs</a>
       </div>
     </div>
 
     <div class="side-section">
       <div class="side-label">Sections</div>
       <nav class="nav">
-        <button class="tabbtn active" data-tab="overview" id="tab-overview">Home<span class="navhint">status, actions, recent activity</span></button>
-        <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work and watch completion</span></button>
-        <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">WC / VOID market surface</span></button>
-        <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">balances, ledger, helper preview</span></button>
-        <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">proofs, outputs, state</span></button>
+        <button class="tabbtn active" data-tab="overview" id="tab-overview">Home<span class="navhint">overview and recent activity</span></button>
+        <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work and review results</span></button>
+        <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">market preview</span></button>
+        <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">balances and activity</span></button>
+        <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">receipts and outputs</span></button>
       </nav>
     </div>
 
@@ -36814,15 +36814,15 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <span class="pill">receipt-backed WC</span>
           <span class="pill">helper-connected trading</span>
         </div>
-        <h1>Earn WC, trade into VOID, and verify everything from one place.</h1>
+        <h1>Earn Work Credits, review proofs, and manage balances in one place.</h1>
         <div class="hero-copy">
-          This shell should feel like a product, not a clearance-bin admin page. The main loop is simple: do work, receive receipts, earn WC, then manage or trade balances.
+          The core loop is simple: submit work, receive a receipt, earn WC, then manage balances from one dashboard.
         </div>
         <div class="hero-actions">
           <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Start Earning</a>
-          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Open Trading</a>
-          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">See Wallet</a>
-          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#receipts">Inspect Receipts</a>
+          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trade</a>
+          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Wallet</a>
+          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#receipts">Proofs</a>
         </div>
       </div>
 
@@ -36869,7 +36869,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Main loop</h2>
-              <div class="section-copy">The participant journey reduced to the four actions that matter.</div>
+              <div class="section-copy">The participant journey reduced to the actions that matter most.</div>
             </div>
           </div>
           <div class="grid-3">
@@ -36891,16 +36891,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
           <div class="action-rail">
             <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Submit Work</a>
-            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trading Preview</a>
-            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Wallet Overview</a>
+            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trading</a>
+            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Wallet</a>
           </div>
         </div>
 
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Live summary</h2>
-              <div class="section-copy">High-level current state for the selected participant account.</div>
+              <h2>Account summary</h2>
+              <div class="section-copy">Current state for the selected participant account.</div>
             </div>
           </div>
           <pre id="summaryOut">loading…</pre>
@@ -36911,7 +36911,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Recent jobs</h2>
+              <h2>Recent work</h2>
               <div class="section-copy">Most recent submitted work for this account.</div>
             </div>
           </div>
@@ -36921,7 +36921,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Recent receipts</h2>
+              <h2>Recent proofs</h2>
               <div class="section-copy">Latest proofs created by successful work.</div>
             </div>
           </div>
@@ -36995,11 +36995,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="section-head">
               <div>
                 <h2>Why this matters</h2>
-                <div class="section-copy">This is the main user loop that proves the product is doing real work.</div>
+                <div class="section-copy">This is the main product loop: submit work, get proof, earn WC.</div>
               </div>
             </div>
             <div class="hero-note">
-              Better design means stronger focus. The primary action on this page is submitting useful work and getting a visible economic result from it.
+              The primary action here is simple: submit useful work and show the resulting reward.
             </div>
           </div>
         </div>
@@ -37011,7 +37011,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading Preview</h2>
+              <h2>Trading</h2>
               <div class="section-copy">Helper-backed market surface for devnet until native shell swapping exists.</div>
             </div>
           </div>
@@ -37079,8 +37079,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading state</h2>
-              <div class="section-copy">Pool and local trading context stay visible until the shell has native swap execution.</div>
+              <h2>Trading status</h2>
+              <div class="section-copy">Trading context stays visible until native swap execution is wired.</div>
             </div>
           </div>
           <pre id="tradeStateOut">loading…</pre>
@@ -37176,7 +37176,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Local trading wallet preview</h2>
+              <h2>Wallet preview</h2>
               <div class="section-copy">Secondary wallet state, separate from earned WC.</div>
             </div>
           </div>
@@ -37235,8 +37235,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Local trading / pool context</h2>
-              <div class="section-copy">Raw helper state kept available without dominating the page.</div>
+              <h2>Trading context</h2>
+              <div class="section-copy">Helper and pool state kept available without dominating the page.</div>
             </div>
           </div>
           <pre id="helperWalletStateOut">loading…</pre>
@@ -37249,7 +37249,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Recent receipts</h2>
+              <h2>Recent proofs</h2>
               <div class="section-copy">Proofs and outputs created by successful work.</div>
             </div>
           </div>
