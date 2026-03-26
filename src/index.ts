@@ -37390,8 +37390,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const wcPerVoid = wcPool && wcPool.price && Number(wcPool.price.wc_per_void) > 0 ? Number(wcPool.price.wc_per_void) : null;
     const tradeInput = $("tradeInputWc") ? Number(($("tradeInputWc").value || "").trim() || "0") : 0;
     const relayerUp = !!(relayerHealth && (relayerHealth.ok || relayerHealth.status === "ok"));
-    let quotedVoid:any = null;
-    let relayerQuote:any = null;
+    let quotedVoid = null;
+    let relayerQuote = null;
     if (relayerUp && Number.isFinite(tradeInput) && tradeInput > 0) {
       relayerQuote = await j(LOCAL_RELAYER_BASE + "/quote", {
         method: "POST",
@@ -37619,7 +37619,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
     const amount = $("tradeInputWc") ? Number((($("tradeInputWc").value || "").trim() || "0")) : 0;
     const wallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
-    const btn:any = $("tradeExecuteBtn");
+    const btn = $("tradeExecuteBtn");
     const prevText = btn ? btn.textContent : "Execute Trade";
 
     let redeemableNow:any = null;
