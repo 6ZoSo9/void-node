@@ -36775,7 +36775,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <div class="brand">
       <div>
         <div class="title">VOID</div>
-        <div class="sub">participant dashboard</div>
+        <div class="sub">participant</div>
       </div>
       <span class="status-dot" aria-hidden="true"></span>
     </div>
@@ -36783,20 +36783,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <div class="side-section">
       <div class="side-label">Current account</div>
       <div class="account-big" id="heroAccount">remote-user-3</div>
-      <div class="account-meta" id="heroAccountMeta">Live demo account status updates here.</div>
+      <div class="account-meta" id="heroAccountMeta">Selected account and recent WC activity.</div>
     </div>
-
-    <div class="side-section">
-      <div class="side-label">Primary actions</div>
-      <div class="quick">
-        <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Earn Work Credits</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trading</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Wallet</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#receipts">Proofs</a>
-      </div>
-    </div>
-
-    <div class="side-section">
+<div class="side-section">
       <div class="side-label">Sections</div>
       <nav class="nav">
         <button class="tabbtn active" data-tab="overview" id="tab-overview">Home<span class="navhint">overview and recent activity</span></button>
@@ -36808,14 +36797,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </div>
 
     <div class="side-section">
-      <div class="side-label">Tools</div>
+      <div class="side-label">Quick links</div>
       <div class="quick">
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/datanet-demo">DataNet Demo</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/demo/datanet/">Legacy Demo</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="#" data-local-wc-ui="1" >Local Trading UI</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/datanet-demo">DataNet</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="#" data-local-wc-ui="1">Trading UI</a>
       </div>
     </div>
-  </aside>
+
+</aside>
 
   <main class="main">
     <section class="hero">
@@ -36841,7 +36830,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="hero-metric">
           <div class="k">Selected account</div>
           <div class="v" id="heroAccountMirror">remote-user-3</div>
-          <div class="s" id="heroAccountMirrorMeta">Live demo account status updates here.</div>
+          <div class="s" id="heroAccountMirrorMeta">Selected account and recent WC activity.</div>
         </div>
         <div class="hero-note">
           <strong>Primary balance:</strong> Work Credits.<br>
@@ -36879,8 +36868,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Main loop</h2>
-              <div class="section-copy">The participant journey reduced to the actions that matter most.</div>
+              <h2>Overview</h2>
+              <div class="section-copy">The core participant flow: earn, verify, and manage balances.</div>
             </div>
           </div>
           <div class="grid-3">
