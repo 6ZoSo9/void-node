@@ -36779,8 +36779,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="side-label">Primary actions</div>
       <div class="quick">
         <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Earn Work Credits</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trade WC / VOID</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Open Wallet</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trading Preview</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Wallet Overview</a>
         <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#receipts">Verify Receipts</a>
       </div>
     </div>
@@ -36891,8 +36891,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
           <div class="action-rail">
             <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Submit Work</a>
-            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trade WC / VOID</a>
-            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Open Wallet</a>
+            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trading Preview</a>
+            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Wallet Overview</a>
           </div>
         </div>
 
@@ -37011,7 +37011,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trade WC / VOID</h2>
+              <h2>Trading Preview</h2>
               <div class="section-copy">Helper-backed market surface for devnet until native shell swapping exists.</div>
             </div>
           </div>
