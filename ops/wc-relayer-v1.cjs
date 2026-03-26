@@ -6,6 +6,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 
 const PORT = Number(process.env.WC_RELAYER_PORT || '4313');
+const HOST = String(process.env.WC_RELAYER_HOST || '0.0.0.0');
 const HELPER = process.env.WC_HELPER_BASE || 'http://127.0.0.1:4312/workcredits/devnet';
 const NODE_BASE = process.env.NODE_BASE || 'http://127.0.0.1:4100';
 const RPC_URL = process.env.RPC_URL || 'http://127.0.0.1:8545';
@@ -401,6 +402,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+server.listen(PORT, HOST, () => {
   console.log(`[wc-relayer-v1] listening on http://127.0.0.1:${PORT}`);
 });
