@@ -36772,7 +36772,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <div class="side-section">
       <div class="side-label">Current account</div>
       <div class="account-big" id="heroAccount">remote-user-3</div>
-      <div class="account-meta" id="heroAccountMeta">Live demo account status and recent proof update here.</div>
+      <div class="account-meta" id="heroAccountMeta">Live demo account status updates here.</div>
     </div>
 
     <div class="side-section">
@@ -36830,7 +36830,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="hero-metric">
           <div class="k">Selected account</div>
           <div class="v" id="heroAccountMirror">remote-user-3</div>
-          <div class="s" id="heroAccountMirrorMeta">Live demo account status and recent proof update here.</div>
+          <div class="s" id="heroAccountMirrorMeta">Live demo account status updates here.</div>
         </div>
         <div class="hero-note">
           <strong>Primary balance:</strong> local earned WC.<br>
@@ -36852,7 +36852,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="s" id="syncMeta">loading…</div>
       </div>
       <div class="kpi">
-        <div class="k">Earned WC</div>
+        <div class="k">WC</div>
         <div class="v" id="wcBalance">-</div>
         <div class="s" id="wcMeta">loading…</div>
       </div>
