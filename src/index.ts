@@ -36759,6 +36759,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
   </style>
 </head>
 <body>
+<div style="max-width:1400px;margin:0 auto 14px auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px;">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <a href="/participant" style="color:#e5e7eb;text-decoration:none;font-weight:800;letter-spacing:.04em;">VOID</a>
+    <a href="/participant" style="color:#93c5fd;text-decoration:none;">Participant</a>
+    <a href="/datanet-demo" style="color:#93c5fd;text-decoration:none;">DataNet</a>
+    <a href="#" data-local-wc-ui="1" style="color:#93c5fd;text-decoration:none;" target="_blank" rel="noopener noreferrer">Trading</a>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <a href="/participant#overview" style="color:#94a3b8;text-decoration:none;">Dashboard home</a>
+  </div>
+</div>
 <div class="shell">
   <aside class="sidebar">
     <div class="brand">
@@ -36797,7 +36808,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </div>
 
     <div class="side-section">
-      <div class="side-label">External surfaces</div>
+      <div class="side-label">Tools</div>
       <div class="quick">
         <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/datanet-demo">DataNet Demo</a>
         <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/demo/datanet/">Legacy Demo</a>
