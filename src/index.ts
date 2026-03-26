@@ -36771,7 +36771,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
     <div class="side-section">
       <div class="side-label">Current account</div>
-      <div class="account-big" id="heroAccount">demo-user</div>
+      <div class="account-big" id="heroAccount">remote-user-3</div>
       <div class="account-meta" id="heroAccountMeta">local earned WC and helper preview update here.</div>
     </div>
 
@@ -36829,7 +36829,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="hero-side">
         <div class="hero-metric">
           <div class="k">Selected account</div>
-          <div class="v" id="heroAccountMirror">demo-user</div>
+          <div class="v" id="heroAccountMirror">remote-user-3</div>
           <div class="s" id="heroAccountMirrorMeta">local earned WC and helper preview update here.</div>
         </div>
         <div class="hero-note">
@@ -36941,7 +36941,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
 
           <label for="account">Participant account</label>
-          <input id="account" value="demo-user" />
+          <input id="account" value="remote-user-3" />
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <button type="button" onclick="document.getElementById('account').value='remote-user-1'">remote-user-1</button>
+            <button type="button" onclick="document.getElementById('account').value='remote-user-2'">remote-user-2</button>
+            <button type="button" onclick="document.getElementById('account').value='remote-user-3'">remote-user-3</button>
+          </div>
 
           <label for="plaintext">Plaintext payload</label>
           <textarea id="plaintext">hello from VOID participant dashboard</textarea>
@@ -37346,7 +37351,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   }
 
   async function refresh(){
-    const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+    const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
 
     const wcUiLink = document.querySelector('[data-local-wc-ui="1"]');
     if (wcUiLink) wcUiLink.setAttribute("href", LOCAL_WC_BASE + "/ui");
@@ -37575,7 +37580,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   }
 
   async function submitJob(){
-    const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+    const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
     const plaintext = $("plaintext") ? $("plaintext").value : "";
     const btn = $("submitBtn");
     if (btn) btn.disabled = true;
@@ -37607,7 +37612,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   }
 
   if ($("tradeExecuteBtn")) $("tradeExecuteBtn").addEventListener("click", async () => {
-    const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+    const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
     const amount = $("tradeInputWc") ? Number((($("tradeInputWc").value || "").trim() || "0")) : 0;
     const wallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
     const btn:any = $("tradeExecuteBtn");
@@ -37775,7 +37780,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   if ($("redeemBtn")) $("redeemBtn").addEventListener("click", () => redeemNow(false));
   if ($("redeemMaxBtn")) $("redeemMaxBtn").addEventListener("click", async () => {
     try {
-      const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+      const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
       const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
       if (st && st.ok && $("redeemAmount")) $("redeemAmount").value = String(st.redeemable ?? 0);
       if ($("tradeInputWc")) $("tradeInputWc").value = String(st && st.ok ? (st.redeemable ?? 0) : 0);
@@ -37784,7 +37789,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://
   });
   if ($("tradeUseRedeemableBtn")) $("tradeUseRedeemableBtn").addEventListener("click", async () => {
     try {
-      const account = $("account") ? ((($("account").value || "").trim()) || "demo-user") : "demo-user";
+      const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
       const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
       if (st && st.ok && $("tradeInputWc")) $("tradeInputWc").value = String(st.redeemable ?? 0);
       await refresh();
