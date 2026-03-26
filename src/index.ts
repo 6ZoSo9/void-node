@@ -36764,7 +36764,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <a href="/participant" style="color:#e5e7eb;text-decoration:none;font-weight:800;letter-spacing:.04em;">VOID</a>
     <a href="/participant" style="color:#93c5fd;text-decoration:none;">Participant</a>
     <a href="/datanet-demo" style="color:#93c5fd;text-decoration:none;">DataNet</a>
-    <a href="#" data-local-wc-ui="1" style="color:#93c5fd;text-decoration:none;" target="_blank" rel="noopener noreferrer">Trading</a>
+    <a href="#" data-local-wc-ui="1" style="color:#93c5fd;text-decoration:none;" >Trading</a>
   </div>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <a href="/participant#overview" style="color:#94a3b8;text-decoration:none;">Dashboard home</a>
@@ -36812,7 +36812,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="quick">
         <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/datanet-demo">DataNet Demo</a>
         <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/demo/datanet/">Legacy Demo</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="#" data-local-wc-ui="1" target="_blank" rel="noopener noreferrer">Local Trading UI</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="#" data-local-wc-ui="1" >Local Trading UI</a>
       </div>
     </div>
   </aside>
@@ -36900,21 +36900,20 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">Shows earned Work Credits from the local ledger.</div>
             </div>
           </div>
-          <div class="action-rail">
-            <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Submit Work</a>
-            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trading</a>
-            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Wallet</a>
-          </div>
         </div>
 
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Account summary</h2>
-              <div class="section-copy">Current state for the selected participant account.</div>
+              <h2>Account snapshot</h2>
+              <div class="section-copy">High-level current state for the selected participant account.</div>
             </div>
           </div>
-          <pre id="summaryOut">loading…</pre>
+          <div class="hero-note" id="summaryCard">loading…</div>
+          <details class="adv" style="margin-top:14px">
+            <summary><span>Advanced account state</span><span class="pill">raw json</span></summary>
+            <div class="adv-body"><pre id="summaryOut">loading…</pre></div>
+          </details>
         </div>
       </div>
 
@@ -37077,8 +37076,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="action-rail" style="margin-top:12px">
               <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Redeemable</button>
               <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Execute Trade (Relayer Offline)</button>
-              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" target="_blank" rel="noopener noreferrer">Open Local Trading UI</a>
-              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" target="_blank" rel="noopener noreferrer">Open Pool JSON</a>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Local Trading UI</a>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >Open Pool JSON</a>
             </div>
 
             <div class="hero-note" style="margin-top:12px">
@@ -37090,11 +37089,15 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading status</h2>
-              <div class="section-copy">Trading context stays visible until native swap execution is wired.</div>
+              <h2>Trading overview</h2>
+              <div class="section-copy">Quote, relayer status, and helper context for the current trading flow.</div>
             </div>
           </div>
-          <pre id="tradeStateOut">loading…</pre>
+          <div class="hero-note" id="tradeOverviewCard">loading…</div>
+          <details class="adv" style="margin-top:14px">
+            <summary><span>Advanced trading state</span><span class="pill">raw json</span></summary>
+            <div class="adv-body"><pre id="tradeStateOut">loading…</pre></div>
+          </details>
         </div>
       </div>
     </section>
@@ -37270,11 +37273,15 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>State surfaces</h2>
-              <div class="section-copy">Current summary and verification context.</div>
+              <h2>Proof summary</h2>
+              <div class="section-copy">Verification context for recent proofs and outputs.</div>
             </div>
           </div>
-          <pre id="dataStateOut">loading…</pre>
+          <div class="hero-note" id="proofSummaryCard">loading…</div>
+          <details class="adv" style="margin-top:14px">
+            <summary><span>Advanced proof state</span><span class="pill">raw json</span></summary>
+            <div class="adv-body"><pre id="dataStateOut">loading…</pre></div>
+          </details>
         </div>
       </div>
 
@@ -37594,6 +37601,28 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             : "Relayer is live for quote and execution.")
     });
     setPre("summaryOut", summaryWrapped);
+
+    const latestReceipt = receipts && receipts.receipts && receipts.receipts.length ? receipts.receipts[0] : null;
+    setText(
+      "summaryCard",
+      localEarned !== null
+        ? ("Account " + account + " has " + localEarned + " WC, " + (localCount ?? 0) + " ledger entries, and latest job status " + (latestJob ? latestJob.status : "unknown") + ".")
+        : ("Account " + account + " is loaded, but earned WC is unavailable right now.")
+    );
+
+    setText(
+      "tradeOverviewCard",
+      "Redeemable WC: " + redeemableTotal +
+      " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
+      " • Relayer: " + (relayerUp ? "online" : "offline")
+    );
+
+    setText(
+      "proofSummaryCard",
+      latestReceipt
+        ? ("Latest receipt: " + latestReceipt.receipt_id + " • Job: " + (latestReceipt.job_id || "-") + " • Dataset: " + (latestReceipt.dataset_id || "-"))
+        : "No recent proof is available for this account yet."
+    );
   }
 
   async function submitJob(){
