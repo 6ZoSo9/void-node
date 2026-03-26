@@ -37484,8 +37484,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     const syncEl = $("syncGap");
     const gap = peer && typeof peer.head_gap === "number" ? peer.head_gap : null;
+    const peerCount = health && Array.isArray(health.peers) ? health.peers.length : 0;
     let syncLabel = "Unknown";
     let syncClass = "bad";
+    let syncMeta = "sync unavailable";
 
     if (peer && peer.ok && gap !== null) {
       if (gap === 0) {
@@ -37498,16 +37500,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         syncLabel = "Lagging";
         syncClass = "bad";
       }
+      syncMeta = "local: " + peer.local_head + " | main: " + peer.main_head + " | gap: " + gap;
+    } else if (peerCount > 0) {
+      syncLabel = "Peered";
+      syncClass = "ok";
+      syncMeta = "connected peers: " + peerCount + " | peer-main-status unavailable";
     }
 
     setText("syncGap", syncLabel);
     if (syncEl) syncEl.className = "v " + syncClass;
-    setText(
-      "syncMeta",
-      peer && peer.ok && gap !== null
-        ? ("local: " + peer.local_head + " | main: " + peer.main_head + " | gap: " + gap)
-        : "sync unavailable"
-    );
+    setText("syncMeta", syncMeta);
 
     const ledgerEvents = (ledger && ledger.events) || [];
     const latestLedger = ledgerEvents && ledgerEvents.length ? ledgerEvents[0] : null;
