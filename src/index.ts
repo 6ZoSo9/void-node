@@ -37411,8 +37411,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("heroAccountMirror", account);
 
     const acctMeta = localEarned !== null
-      ? ("earned WC: " + localEarned + " | ledger events: " + (localCount ?? 0))
-      : "earned WC unavailable";
+      ? ("Earned WC: " + localEarned + " • Ledger entries: " + (localCount ?? 0))
+      : "Earned WC unavailable";
 
     setText("heroAccountMeta", acctMeta);
     setText("heroAccountMirrorMeta", acctMeta);
@@ -37429,8 +37429,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "walletMeta",
       localEarned !== null
-        ? ("earned WC: " + localEarned + " | events: " + (localCount ?? 0) + " | account: " + account)
-        : "earned WC unavailable"
+        ? ("Earned WC: " + localEarned + " • Entries: " + (localCount ?? 0) + " • Account: " + account)
+        : "Earned WC unavailable"
     );
     setText("walletEarnedMini", localEarned !== null ? localEarned : "-");
     setText("walletRedeemedMini", redeemedTotal);
@@ -37487,7 +37487,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const peerCount = health && Array.isArray(health.peers) ? health.peers.length : 0;
     let syncLabel = "Unknown";
     let syncClass = "bad";
-    let syncMeta = "sync unavailable";
+    let syncMeta = "Sync details unavailable";
 
     if (peer && peer.ok && gap !== null) {
       if (gap === 0) {
