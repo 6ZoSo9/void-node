@@ -36943,9 +36943,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <label for="account">Participant account</label>
           <input id="account" value="remote-user-3" />
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-            <button type="button" onclick="document.getElementById('account').value='remote-user-1'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-1</button>
-            <button type="button" onclick="document.getElementById('account').value='remote-user-2'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-2</button>
-            <button type="button" onclick="document.getElementById('account').value='remote-user-3'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-3</button>
+            <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-1'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-1</button>
+            <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-2'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-2</button>
+            <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-3'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-3</button>
           </div>
 
           <label for="plaintext">Plaintext payload</label>
