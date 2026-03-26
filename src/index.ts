@@ -36833,7 +36833,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="s" id="heroAccountMirrorMeta">Live demo account status updates here.</div>
         </div>
         <div class="hero-note">
-          <strong>Primary balance:</strong> local earned WC.<br>
+          <strong>Primary balance:</strong> earned WC.<br>
           <strong>Trading surface:</strong> helper-backed for now.<br>
           <strong>Verification:</strong> receipts and state remain available, but are no longer the main visual focus.
         </div>
@@ -36886,7 +36886,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">3. Manage</div>
               <div class="v">Wallet</div>
-              <div class="s">Track local earned WC separately from helper preview balances.</div>
+              <div class="s">Track earned WC separately from helper preview balances.</div>
             </div>
           </div>
           <div class="action-rail">
@@ -37149,7 +37149,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Current earned-WC truth</h2>
+                <h2 style="margin-bottom:4px">Earned WC</h2>
                 <div class="section-copy">WC ledger is the current source of truth for earned local credits on this page.</div>
               </div>
             </div>
@@ -37177,7 +37177,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Local trading wallet preview</h2>
-              <div class="section-copy">Secondary local-trading wallet state, kept separate from local earned WC.</div>
+              <div class="section-copy">Secondary local-trading wallet state, kept separate from earned WC.</div>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -37411,8 +37411,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("heroAccountMirror", account);
 
     const acctMeta = localEarned !== null
-      ? ("local earned WC: " + localEarned + " | ledger events: " + (localCount ?? 0))
-      : "local earned WC unavailable";
+      ? ("earned WC: " + localEarned + " | ledger events: " + (localCount ?? 0))
+      : "earned WC unavailable";
 
     setText("heroAccountMeta", acctMeta);
     setText("heroAccountMirrorMeta", acctMeta);
@@ -37429,8 +37429,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "walletMeta",
       localEarned !== null
-        ? ("local earned WC: " + localEarned + " | events: " + (localCount ?? 0) + " | account: " + account)
-        : "local earned WC unavailable"
+        ? ("earned WC: " + localEarned + " | events: " + (localCount ?? 0) + " | account: " + account)
+        : "earned WC unavailable"
     );
     setText("walletEarnedMini", localEarned !== null ? localEarned : "-");
     setText("walletRedeemedMini", redeemedTotal);
@@ -37522,7 +37522,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       receiptsHtml =
         '<div class="empty">' +
         'No receipt rows are available on this endpoint for this account yet. ' +
-        'Current earned-WC truth is coming from the local WC ledger. ' +
+        'Earned WC is coming from the local WC ledger. ' +
         'Latest ledger reason: <b>' + esc(latestLedger.reason || "-") + '</b>' +
         (latestLedger.receipt_id ? (' | receipt: <span class="mono">' + esc(latestLedger.receipt_id) + '</span>') : '') +
         '</div>';
