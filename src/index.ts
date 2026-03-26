@@ -37283,8 +37283,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 </div>
 
 <script>
-window.__VOID_LOCAL_WC_BASE = (window.__VOID_LOCAL_WC_BASE || "http://127.0.0.1:4312/workcredits/devnet");
-window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://127.0.0.1:4313/api/wc-relayer/v1");
+window.__VOID_LOCAL_WC_BASE = (window.__VOID_LOCAL_WC_BASE || (location.protocol + "//" + location.hostname + ":4312/workcredits/devnet"));
+window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (location.protocol + "//" + location.hostname + ":4313/api/wc-relayer/v1"));
 </script>
 
 <script>
