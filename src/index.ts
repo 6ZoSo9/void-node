@@ -36912,7 +36912,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="hero-note" id="summaryCard">loading…</div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Advanced account state</span><span class="pill">raw json</span></summary>
-            <div class="adv-body"><pre id="summaryOut">loading…</pre></div>
+            <div class="adv-body"><div class="hero-note" id="summaryCard">loading…</div>
+          <details style="margin-top:14px">
+            <summary style="cursor:pointer;color:#cbd5e1;font-weight:700;">Advanced account state</summary>
+            <pre id="summaryOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
+          </details></div>
           </details>
         </div>
       </div>
@@ -37096,7 +37100,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Advanced trading state</span><span class="pill">raw json</span></summary>
-            <div class="adv-body"><pre id="tradeStateOut">loading…</pre></div>
+            <div class="adv-body"><div class="hero-note" id="tradeOverviewCard">loading…</div>
+          <details style="margin-top:14px">
+            <summary style="cursor:pointer;color:#cbd5e1;font-weight:700;">Advanced trading state</summary>
+            <pre id="tradeStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
+          </details></div>
           </details>
         </div>
       </div>
@@ -37280,7 +37288,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="hero-note" id="proofSummaryCard">loading…</div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Advanced proof state</span><span class="pill">raw json</span></summary>
-            <div class="adv-body"><pre id="dataStateOut">loading…</pre></div>
+            <div class="adv-body"><div class="hero-note" id="proofSummaryCard">loading…</div>
+          <details style="margin-top:14px">
+            <summary style="cursor:pointer;color:#cbd5e1;font-weight:700;">Advanced proof state</summary>
+            <pre id="dataStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
+          </details></div>
           </details>
         </div>
       </div>
