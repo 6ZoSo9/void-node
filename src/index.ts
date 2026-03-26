@@ -37294,9 +37294,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   const LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://127.0.0.1:4313/api/wc-relayer/v1");
 
   async function j(url, opts){
-    const r = await fetch(url, opts);
-    const text = await r.text();
-    try { return JSON.parse(text); } catch { return { ok:false, raw:text, status:r.status }; }
+    try{
+      const r = await fetch(url, opts);
+      const text = await r.text();
+      try { return JSON.parse(text); } catch { return { ok:false, raw:text, status:r.status, url }; }
+    }catch(e){
+      return { ok:false, error:String((e && e.message) || e), url };
+    }
   }
 
   function setText(id, v){
