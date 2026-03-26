@@ -36778,10 +36778,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <div class="side-section">
       <div class="side-label">Primary actions</div>
       <div class="quick">
-        <a class="linkbtn btn-primary" href="/participant#work">Earn Work Credits</a>
-        <a class="linkbtn" href="/participant#trading">Trade WC / VOID</a>
-        <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
-        <a class="linkbtn" href="/participant#receipts">Verify Receipts</a>
+        <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Earn Work Credits</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trade WC / VOID</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Open Wallet</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#receipts">Verify Receipts</a>
       </div>
     </div>
 
@@ -36799,9 +36799,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <div class="side-section">
       <div class="side-label">External surfaces</div>
       <div class="quick">
-        <a class="linkbtn" href="/datanet-demo">DataNet Demo</a>
-        <a class="linkbtn" href="/demo/datanet/">Legacy Demo</a>
-        <a class="linkbtn" href="#" data-local-wc-ui="1" target="_blank" rel="noopener noreferrer">Local Trading UI</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/datanet-demo">DataNet Demo</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/demo/datanet/">Legacy Demo</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="#" data-local-wc-ui="1" target="_blank" rel="noopener noreferrer">Local Trading UI</a>
       </div>
     </div>
   </aside>
@@ -36819,10 +36819,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           This shell should feel like a product, not a clearance-bin admin page. The main loop is simple: do work, receive receipts, earn WC, then manage or trade balances.
         </div>
         <div class="hero-actions">
-          <a class="linkbtn btn-primary" href="/participant#work">Start Earning</a>
-          <a class="linkbtn" href="/participant#trading">Open Trading</a>
-          <a class="linkbtn" href="/participant#wallet">See Wallet</a>
-          <a class="linkbtn" href="/participant#receipts">Inspect Receipts</a>
+          <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Start Earning</a>
+          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Open Trading</a>
+          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">See Wallet</a>
+          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#receipts">Inspect Receipts</a>
         </div>
       </div>
 
@@ -36890,9 +36890,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
           </div>
           <div class="action-rail">
-            <a class="linkbtn btn-primary" href="/participant#work">Submit Work</a>
-            <a class="linkbtn" href="/participant#trading">Trade WC / VOID</a>
-            <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
+            <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Submit Work</a>
+            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trade WC / VOID</a>
+            <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Open Wallet</a>
           </div>
         </div>
 
@@ -37066,8 +37066,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="action-rail" style="margin-top:12px">
               <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Redeemable</button>
               <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Execute Trade (Relayer Offline)</button>
-              <a class="linkbtn" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" target="_blank" rel="noopener noreferrer">Open Local Trading UI</a>
-              <a class="linkbtn" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" target="_blank" rel="noopener noreferrer">Open Pool JSON</a>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" target="_blank" rel="noopener noreferrer">Open Local Trading UI</a>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" target="_blank" rel="noopener noreferrer">Open Pool JSON</a>
             </div>
 
             <div class="hero-note" style="margin-top:12px">
