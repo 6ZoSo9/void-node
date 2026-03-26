@@ -37622,8 +37622,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const btn = $("tradeExecuteBtn");
     const prevText = btn ? btn.textContent : "Execute Trade";
 
-    let redeemableNow:any = null;
-    let relayerHealthNow:any = null;
+    let redeemableNow = null;
+    let relayerHealthNow = null;
     try {
       redeemableNow = await j("/wc/redeemable?account=" + encodeURIComponent(account));
     } catch {}
