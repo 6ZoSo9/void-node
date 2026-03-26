@@ -36833,7 +36833,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="s" id="heroAccountMirrorMeta">Live demo account status updates here.</div>
         </div>
         <div class="hero-note">
-          <strong>Primary balance:</strong> earned WC.<br>
+          <strong>Primary balance:</strong> Work Credits.<br>
           <strong>Trading surface:</strong> helper-backed for now.<br>
           <strong>Verification:</strong> receipts and state remain available, but are no longer the main visual focus.
         </div>
@@ -36886,7 +36886,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">3. Manage</div>
               <div class="v">Wallet</div>
-              <div class="s">Track earned WC separately from helper preview balances.</div>
+              <div class="s">Shows earned Work Credits from the local ledger.</div>
             </div>
           </div>
           <div class="action-rail">
@@ -37093,7 +37093,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Local earned WC</h2>
+              <h2>Earned WC</h2>
               <div class="section-copy">Receipt-backed earnings for the selected participant account.</div>
             </div>
           </div>
@@ -37177,7 +37177,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Local trading wallet preview</h2>
-              <div class="section-copy">Secondary local-trading wallet state, kept separate from earned WC.</div>
+              <div class="section-copy">Secondary wallet state, separate from earned WC.</div>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -37522,7 +37522,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       receiptsHtml =
         '<div class="empty">' +
         'No receipt rows are available on this endpoint for this account yet. ' +
-        'Earned WC is coming from the local WC ledger. ' +
+        'Earned WC is read from the local WC ledger. ' +
         'Latest ledger reason: <b>' + esc(latestLedger.reason || "-") + '</b>' +
         (latestLedger.receipt_id ? (' | receipt: <span class="mono">' + esc(latestLedger.receipt_id) + '</span>') : '') +
         '</div>';
