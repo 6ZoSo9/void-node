@@ -37626,6 +37626,79 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     );
   }
 
+  async function redeemNow(useMax){
+    const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+    const wallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
+    const btn = $("redeemBtn");
+    const prevText = btn ? btn.textContent : "Redeem WC";
+
+    try {
+      let amount = $("redeemAmount") ? Number((($("redeemAmount").value || "").trim() || "0")) : 0;
+
+      if (useMax) {
+        const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
+        amount = st && st.ok ? Number(st.redeemable || 0) : 0;
+        if ($("redeemAmount")) $("redeemAmount").value = String(amount);
+      }
+
+      if (!(Number.isFinite(amount) && amount > 0)) {
+        setPre("redeemOut", {
+          ok:false,
+          redeem:false,
+          reason:"invalid_amount",
+          account,
+          wallet,
+          amount,
+          note:"Enter a redeem amount greater than zero."
+        });
+        return;
+      }
+
+      if (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+        setPre("redeemOut", {
+          ok:false,
+          redeem:false,
+          reason:"invalid_wallet",
+          account,
+          wallet,
+          amount,
+          note:"Enter a valid 0x wallet address."
+        });
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Redeeming...";
+      }
+
+      setPre("redeemOut", {
+        ok:true,
+        redeem:true,
+        submitting:true,
+        account,
+        wallet,
+        amount
+      });
+
+      const out = await j("/wc/redeem", {
+        method: "POST",
+        headers: { "content-type":"application/json" },
+        body: JSON.stringify({ account, amount, wallet })
+      });
+
+      setPre("redeemOut", out);
+      await refresh();
+    } catch (e) {
+      setPre("redeemOut", { ok:false, redeem:false, error:String((e && e.message) || e) });
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prevText || "Redeem WC";
+      }
+    }
+  }
+
   async function submitJob(){
     const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
     const plaintext = $("plaintext") ? $("plaintext").value : "";
