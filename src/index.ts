@@ -36930,7 +36930,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="s" id="syncMeta">loading…</div>
       </div>
       <div class="kpi">
-        <div class="k">WC</div>
+        <div class="k">Lifetime WC Earned</div>
         <div class="v" id="wcBalance">-</div>
         <div class="s" id="wcMeta">loading…</div>
       </div>
@@ -37222,7 +37222,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               </div>
             </div>
             <label for="sendTo">Recipient local account</label>
-            <input id="sendTo" value="" placeholder="remote-user-2 or another local account id" autocomplete="off" />
+            <input id="sendTo" value="" placeholder="remote-user-2" autocomplete="off" />
             <label for="sendAmount">Send amount</label>
             <input id="sendAmount" value="1" inputmode="decimal" />
             <div class="action-rail" style="margin-top:12px">
@@ -37301,17 +37301,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Connected Wallet</div>
               <div class="v" id="connectedWalletAddrMini">-</div>
-              <div class="s">current MetaMask session address</div>
+              <div class="s">connected wallet address</div>
             </div>
             <div class="mini">
               <div class="k">Onchain VOID</div>
               <div class="v" id="connectedWalletVoidMini">-</div>
-              <div class="s">live devnet token balance</div>
+              <div class="s">current onchain VOID balance</div>
             </div>
             <div class="mini">
               <div class="k">Local WC Status</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">WC is local-ledger only for now</div>
+              <div class="s">WC stays offchain in the local ledger</div>
             </div>
           </div>
           <div class="action-rail">
@@ -37630,7 +37630,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "walletMeta",
       redeemState
-        ? ("Redeemable WC: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
+        ? ("Spendable now: " + redeemableTotal + " WC • Lifetime earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Local account: " + account)
         : "Local WC state unavailable"
     );
     setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
@@ -37638,15 +37638,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("walletRedeemedMini", redeemedTotal);
     setText("walletRedeemableMini", redeemableTotal);
 
-    setText("connectedWalletVoidBig", connectedVoidBal);
+    setText(
+      "connectedWalletVoidBig",
+      /^0x[0-9a-fA-F]{40}$/.test(connectedWallet)
+        ? (connectedVoidBal === "-" ? "Loading..." : connectedVoidBal)
+        : "Connect wallet"
+    );
     setText("connectedWalletVoidMini", connectedVoidBal);
     setText("connectedWalletAddrMini", shortAddr(connectedWallet));
     setText("helperRedeemableMini", redeemableTotal);
     setText(
       "connectedWalletMeta",
       /^0x[0-9a-fA-F]{40}$/.test(connectedWallet)
-        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + connectedVoidBal + " | WC remains local-ledger only")
-        : "no connected wallet detected"
+        ? ("Connected: " + connectedWallet + " • Onchain VOID: " + (connectedVoidBal === "-" ? "loading" : connectedVoidBal))
+        : "Connect MetaMask to view onchain wallet state"
     );
 
     setText("tradePriceWcPerVoid", wcPerVoid !== null ? wcPerVoid : "-");
