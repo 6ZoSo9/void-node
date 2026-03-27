@@ -37132,12 +37132,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="mini">
                 <div class="k">Quoted VOID</div>
                 <div class="v" id="tradeQuoteVoid">-</div>
-                <div class="s">estimated at current trading price</div>
+                <div class="s">estimated using the current local trading price</div>
               </div>
               <div class="mini">
                 <div class="k">Trade Status</div>
                 <div class="v" id="tradeRelayerState">-</div>
-                <div class="s">trade execution status</div>
+                <div class="s">whether direct trading is ready right now</div>
               </div>
             </div>
 
@@ -37146,9 +37146,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
             <div class="action-rail" style="margin-top:12px">
               <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Available WC</button>
-              <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Execute Trade (Relayer Offline)</button>
-              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading</a>
-              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >Open Pool Details</a>
+              <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Trade Unavailable Right Now</button>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading Tools</a>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >View Pool Details</a>
             </div>
 
             <div class="hero-note" style="margin-top:12px">Preview your trade here. If direct execution is unavailable right now, use Advanced Trading as a fallback.</div>
@@ -37159,7 +37159,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Trade Summary</h2>
-              <div class="section-copy">See your current trade path, estimated return, and execution status.</div>
+              <div class="section-copy">See your estimated return, whether direct trading is ready, and where to go if you need the fallback tools.</div>
             </div>
           </div>
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
@@ -37686,10 +37686,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const tradeBlocked = !relayerUp || !(Number.isFinite(redeemableTotal) && redeemableTotal > 0);
       $("tradeExecuteBtn").disabled = tradeBlocked;
       $("tradeExecuteBtn").textContent = !relayerUp
-        ? "Execute Trade (Relayer Offline)"
+        ? "Trade Unavailable Right Now"
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "Execute Trade (No Redeemable WC)"
-            : "Execute Trade");
+            ? "Swap WC for VOID (No Redeemable WC)"
+            : "Swap WC for VOID");
     }
 
     if (health && health.ok) {
@@ -38097,7 +38097,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const amount = $("tradeInputWc") ? Number((($("tradeInputWc").value || "").trim() || "0")) : 0;
     const wallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
     const btn = $("tradeExecuteBtn");
-    const prevText = btn ? btn.textContent : "Execute Trade";
+    const prevText = btn ? btn.textContent : "Swap WC for VOID";
 
     let redeemableNow = null;
     let relayerHealthNow = null;
@@ -38225,7 +38225,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prevText || "Execute Trade";
+        btn.textContent = prevText || "Swap WC for VOID";
       }
     }
   });
