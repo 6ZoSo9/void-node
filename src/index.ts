@@ -37147,8 +37147,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="action-rail" style="margin-top:12px">
               <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Available WC</button>
               <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Trade Unavailable Right Now</button>
-              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading Tools</a>
-              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >View Pool Details</a>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading Tools</a>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >View Pool Details</a>
             </div>
 
             <div class="hero-note" style="margin-top:12px">Preview your trade here. If direct execution is unavailable right now, use Advanced Trading as a fallback.</div>
@@ -37656,7 +37656,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "walletMeta",
       redeemState
-        ? ("Redeemable WC: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
+        ? ("Available WC: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
         : "Local WC state unavailable"
     );
     setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
@@ -37680,7 +37680,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("tradeWalletVoid", wcBal ? wcBal.void : "-");
     setText("tradeRedeemableWc", redeemableTotal);
     setText("tradeQuoteVoid", quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-");
-    setText("tradeRelayerState", relayerUp ? "online" : "offline");
+    setText("tradeRelayerState", relayerUp ? "Direct Trading Ready" : "Direct Trading Unavailable");
 
     if ($("tradeExecuteBtn")) {
       const tradeBlocked = !relayerUp || !(Number.isFinite(redeemableTotal) && redeemableTotal > 0);
@@ -37824,7 +37824,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       "tradeOverviewCard",
       "Redeemable WC: " + redeemableTotal +
       " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
-      " • Relayer: " + (relayerUp ? "online" : "offline")
+      " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable")
     );
 
     setText(
