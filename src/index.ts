@@ -36878,7 +36878,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="side-label">Quick links</div>
       <div class="quick">
         <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/datanet-demo">DataNet</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="#" data-local-wc-ui="1">Trading UI</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="#" data-local-wc-ui="1">Advanced Trading</a>
       </div>
     </div>
 
@@ -37334,12 +37334,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Connected Wallet</div>
               <div class="v" id="connectedWalletAddrMini">-</div>
-              <div class="s">current MetaMask session address</div>
+              <div class="s">currently connected wallet address</div>
             </div>
             <div class="mini">
               <div class="k">Onchain VOID</div>
               <div class="v" id="connectedWalletVoidMini">-</div>
-              <div class="s">live devnet token balance</div>
+              <div class="s">live onchain VOID balance</div>
             </div>
             <div class="mini">
               <div class="k">WC Storage</div>
@@ -37350,7 +37350,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="action-rail">
             <span class="pill">connected wallet</span>
             <span class="pill">onchain void</span>
-            <span class="pill">wc is offchain</span>
+            <span class="pill">wc stays local</span>
           </div>
 
           <div class="panel" style="margin-top:16px;padding:14px">
@@ -38477,7 +38477,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       '</div>' +
       (onHelper ? ('<a id="voidWalletBackLink" href="' + from + '" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;text-decoration:none;font-weight:700">Back</a>') : '') +
       '<button id="voidWalletConnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Connect Wallet</button>' +
-      '<button id="voidWalletRefreshBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Refresh</button>' +
+      '<button id="voidWalletRefreshBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Refresh Connection</button>' +
       '<button id="voidWalletDisconnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Disconnect Wallet</button>';
 
     var navHost =
