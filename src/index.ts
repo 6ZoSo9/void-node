@@ -35575,6 +35575,20 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     return n;
   }
 
+  function debitTotal(account:string){
+    let n = 0;
+    for (const line of readLines(ledgerFile())) {
+      try {
+        const j = JSON.parse(line);
+        if (String(j?.account || "") !== account) continue;
+        if (String(j?.kind || "") !== "debit") continue;
+        const d = Number(j?.amount ?? Math.abs(Number(j?.delta || 0)));
+        if (Number.isFinite(d) && d > 0) n += d;
+      } catch {}
+    }
+    return n;
+  }
+
   function redeemedTotal(account:string){
     let n = 0;
     for (const line of readLines(redeemedFile())) {
@@ -35596,9 +35610,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
   function redeemState(account:string){
     const earned = wcRound(earnedTotal(account));
+    const debited = wcRound(debitTotal(account));
     const redeemed = wcRound(redeemedTotal(account));
-    const redeemable = wcRound(Math.max(0, earned - redeemed));
-    return { account, earned, redeemed, redeemable };
+    const redeemable = wcRound(Math.max(0, earned - debited - redeemed));
+    return { account, earned, debited, redeemed, redeemable };
   }
 
   function mount(){
