@@ -36973,8 +36973,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Your Balances</h2>
-              <div class="section-copy">WC and VOID at a glance.</div>
+              <h2>Your Balances<span class="help" tabindex="0" data-help="Top-level balances for participant Work Credits, trading Work Credits, and onchain VOID.">?</span></h2>
             </div>
           </div>
           <div class="hero-note" id="summaryCard">loading…</div>
@@ -37079,9 +37078,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
                 <div class="section-copy">This is the main loop: do useful work, get proof, and earn Work Credits.</div>
               </div>
             </div>
-            <div class="hero-note">
-              The primary action here is simple: submit useful work and show the resulting reward.
-            </div>
+            
           </div>
         </div>
       </div>
@@ -37091,8 +37088,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="panel">
         <div class="section-head">
           <div>
-            <h2>Trade WC for VOID</h2>
-            <div class="section-copy">Enter an amount, preview the trade, and confirm.</div>
+            <h2>Trade WC for VOID<span class="help" tabindex="0" data-help="Trade flow uses participant Work Credits for eligibility and the mapped trading wallet for execution.">?</span></h2>
           </div>
         </div>
 
@@ -37108,25 +37104,24 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="mini">
             <div class="k">Available WC</div>
             <div class="v" id="tradeRedeemableWc">-</div>
-            <div class="s">available from participant account</div>
+            <div class="s">participant WC</div>
           </div>
           <div class="mini">
             <div class="k">Quoted VOID</div>
             <div class="v" id="tradeQuoteVoid">-</div>
-            <div class="s">estimated from current pool price</div>
+            <div class="s">estimated output</div>
           </div>
           <div class="mini">
             <div class="k">Trade Status</div>
             <div class="v" id="tradeRelayerState">-</div>
-            <div class="s">updates from participant WC + relayer status</div>
+            <div class="s">current status</div>
           </div>
         </div>
 
         <div class="panel" style="margin-top:16px;padding:14px">
           <div class="section-head">
             <div>
-              <h2 style="margin-bottom:4px">Review</h2>
-              <div class="section-copy">Review the trade before you confirm.</div>
+              <h2 style="margin-bottom:4px">Review<span class="help" tabindex="0" data-help="Quick summary of participant WC availability, quote output, and trading wallet.">?</span></h2>
             </div>
           </div>
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
@@ -37179,8 +37174,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Your Work Credits</h2>
-              <div class="section-copy">Your local Work Credit balance for this participant account. Start by checking what is available now.</div>
+              <h2>Your Work Credits<span class="help" tabindex="0" data-help="Work Credits tracked on the participant account. This is the source used for earning, redeeming, and trade eligibility.">?</span></h2>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -37192,30 +37186,29 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Total Earned</div>
               <div class="v" id="walletEarnedMini">-</div>
-              <div class="s">all Work Credits earned on this node</div>
+              <div class="s">Total earned</div>
             </div>
             <div class="mini">
               <div class="k">Sent</div>
               <div class="v" id="walletDebitedMini">-</div>
-              <div class="s">Work Credits sent to other local users</div>
+              <div class="s">Sent out</div>
             </div>
             <div class="mini">
               <div class="k">Moved to Trading</div>
               <div class="v" id="walletRedeemedMini">-</div>
-              <div class="s">Work Credits already moved into trading</div>
+              <div class="s">In trading</div>
             </div>
             <div class="mini" style="border:1px solid rgba(255,255,255,.14);box-shadow:0 0 0 1px rgba(255,255,255,.03) inset">
               <div class="k">Available Now</div>
               <div class="v" id="walletRedeemableMini" style="font-size:34px">-</div>
-              <div class="s">Work Credits ready to use right now</div>
+              <div class="s">Ready now</div>
             </div>
           </div>
 
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Send Local WC</h2>
-                <div class="section-copy">Send Work Credits to another local user on this node. This stays offchain and does not send VOID from MetaMask.</div>
+                <h2 style="margin-bottom:4px">Send Local WC<span class="help" tabindex="0" data-help="Transfers Work Credits between participant accounts on this node. This does not send onchain VOID.">?</span></h2>
               </div>
             </div>
             <label for="sendTo">Recipient local account</label>
@@ -37233,8 +37226,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Move WC to Trading</h2>
-                <div class="section-copy">Move your available local WC into the trading wallet so it can be swapped for VOID.</div>
+                <h2 style="margin-bottom:4px">Move WC to Trading<span class="help" tabindex="0" data-help="Moves participant Work Credits into the mapped trading wallet so they can be swapped for VOID.">?</span></h2>
               </div>
             </div>
             <label for="redeemAmount">WC to move into trading</label>
@@ -37294,12 +37286,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Connected Wallet</div>
               <div class="v" id="connectedWalletAddrMini">-</div>
-              <div class="s">currently connected wallet address</div>
+              <div class="s">Wallet address</div>
             </div>
             <div class="mini">
               <div class="k">Onchain VOID</div>
               <div class="v" id="connectedWalletVoidMini">-</div>
-              <div class="s">live onchain VOID balance</div>
+              <div class="s">Onchain VOID</div>
             </div>
             <div class="mini">
               <div class="k">WC Storage</div>
@@ -37344,8 +37336,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading History</h2>
-              <div class="section-copy">Recent WC moves into trading.</div>
+              <h2>Trading History<span class="help" tabindex="0" data-help="Recent participant WC moves into the mapped trading wallet.">?</span></h2>
             </div>
           </div>
           <div class="table-wrap"><div id="redeemHistoryWrap" class="empty">loading…</div></div>
@@ -37401,9 +37392,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <span class="pill">raw truth surfaces</span>
         </summary>
         <div class="adv-body">
-          <div class="hero-note">
-            Diagnostics stay available, but they are intentionally pushed below the main user actions so the shell reads like a product first.
-          </div>
+          
         </div>
       </details>
     </section>
