@@ -37688,7 +37688,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       $("tradeExecuteBtn").textContent = !relayerUp
         ? "Trade Unavailable Right Now"
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "Swap WC for VOID (No Redeemable WC)"
+            ? "No Available WC to Trade"
             : "Swap WC for VOID");
     }
 
