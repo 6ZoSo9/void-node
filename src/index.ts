@@ -37290,34 +37290,34 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Connected Wallet / Onchain Assets</h2>
-              <div class="section-copy">Onchain and helper-backed wallet context. VOID is onchain. WC remains local-ledger only for now.</div>
+              <div class="section-copy">Real connected wallet state first. VOID is onchain. WC remains local-ledger only for now.</div>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
-            <div class="v" style="font-size:52px;margin-bottom:10px" id="helperWalletWcBig">-</div>
-            <div class="s" id="helperWalletMeta">loading…</div>
+            <div class="v" style="font-size:52px;margin-bottom:10px" id="connectedWalletVoidBig">-</div>
+            <div class="s" id="connectedWalletMeta">loading…</div>
           </div>
           <div class="metric-strip" style="margin-top:14px">
             <div class="mini">
-              <div class="k">Helper WC Preview</div>
-              <div class="v" id="helperWalletWcMini">-</div>
-              <div class="s">local trading wallet preview</div>
+              <div class="k">Connected Wallet</div>
+              <div class="v" id="connectedWalletAddrMini">-</div>
+              <div class="s">current MetaMask session address</div>
             </div>
             <div class="mini">
-              <div class="k">Helper VOID Preview</div>
-              <div class="v" id="helperWalletVoidMini">-</div>
-              <div class="s">local trading wallet preview</div>
+              <div class="k">Onchain VOID</div>
+              <div class="v" id="connectedWalletVoidMini">-</div>
+              <div class="s">live devnet token balance</div>
             </div>
             <div class="mini">
-              <div class="k">Local Redeemable WC</div>
+              <div class="k">Local WC Status</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">local WC not yet moved on helper path</div>
+              <div class="s">WC is local-ledger only for now</div>
             </div>
           </div>
           <div class="action-rail">
-            <span class="pill">preview only</span>
-            <span class="pill">helper-backed</span>
-            <span class="pill">separate system</span>
+            <span class="pill">wallet session</span>
+            <span class="pill">onchain void</span>
+            <span class="pill">wc is local only</span>
           </div>
 
           <div class="panel" style="margin-top:16px;padding:14px">
@@ -37462,6 +37462,42 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     });
   }
 
+  function getConnectedWallet(){
+    try {
+      return String(localStorage.getItem("void_wallet_session_v1") || "").trim();
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function shortAddr(a){
+    a = String(a || "").trim();
+    return /^0x[a-fA-F0-9]{40}$/.test(a) ? (a.slice(0, 6) + "…" + a.slice(-4)) : "-";
+  }
+
+  function pad64(hex){
+    return String(hex || "").replace(/^0x/, "").padStart(64, "0");
+  }
+
+  function parseHexBigInt(hex){
+    const s = String(hex || "0x0").trim();
+    if (!/^0x[0-9a-fA-F]+$/.test(s)) return 0n;
+    return BigInt(s);
+  }
+
+  function formatUnits18FromHex(hex){
+    try {
+      const n = parseHexBigInt(hex);
+      const whole = n / (10n ** 18n);
+      const frac = n % (10n ** 18n);
+      if (frac === 0n) return whole.toString();
+      const fracStr = frac.toString().padStart(18, "0").replace(/0+$/, "");
+      return whole.toString() + "." + fracStr.slice(0, 6);
+    } catch (_) {
+      return "-";
+    }
+  }
+
   function renderJobs(items){
     if (!items || !items.length) return '<div class="empty">No jobs yet for this account.</div>';
     return '<table><thead><tr><th>Job ID</th><th>Status</th><th>Kind</th><th>Dataset</th></tr></thead><tbody>' +
@@ -37501,6 +37537,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if (wcUiLink) wcUiLink.setAttribute("href", LOCAL_WC_BASE + "/ui");
     const wcPoolLink = document.querySelector('[data-local-wc-pool="1"]');
     if (wcPoolLink) wcPoolLink.setAttribute("href", LOCAL_WC_BASE + "/pool.json");
+    const connectedWallet = getConnectedWallet();
     const wcAddr = /^0x[0-9a-fA-F]{40}$/.test(account) ? account : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
     const wcBase = LOCAL_WC_BASE;
 
@@ -37517,6 +37554,30 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       j(wcBase + "/dashboard/" + encodeURIComponent(wcAddr) + ".json"),
       j(LOCAL_RELAYER_BASE + "/health").catch(() => ({ ok:false, offline:true })),
     ]);
+
+    let connectedVoidBal = "-";
+    if (/^0x[0-9a-fA-F]{40}$/.test(connectedWallet) && relayerHealth && relayerHealth.ok && /^0x[0-9a-fA-F]{40}$/.test(String(relayerHealth.void_token || ""))) {
+      try {
+        const data = "0x70a08231" + pad64(connectedWallet);
+        const rpcRes = await fetch("http://" + location.hostname + ":8545", {
+          method: "POST",
+          headers: { "content-type":"application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "eth_call",
+            params: [
+              { to: String(relayerHealth.void_token), data: data },
+              "latest"
+            ]
+          })
+        });
+        const rpcJson = await rpcRes.json();
+        connectedVoidBal = formatUnits18FromHex(rpcJson && rpcJson.result ? rpcJson.result : "0x0");
+      } catch (_) {
+        connectedVoidBal = "-";
+      }
+    }
 
     const localEarned = bal && bal.ok && Number.isFinite(Number(bal.balance)) ? Number(bal.balance) : null;
     const localCount = bal && bal.ok && Number.isFinite(Number(bal.count)) ? Number(bal.count) : null;
@@ -37577,15 +37638,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("walletRedeemedMini", redeemedTotal);
     setText("walletRedeemableMini", redeemableTotal);
 
-    setText("helperWalletWcBig", wcBal ? wcBal.wc : "-");
-    setText("helperWalletWcMini", wcBal ? wcBal.wc : "-");
-    setText("helperWalletVoidMini", wcBal ? wcBal.void : "-");
-    setText("helperRedeemableMini", wcEarn && wcEarn.redeemable_wc != null ? wcEarn.redeemable_wc : redeemableTotal);
+    setText("connectedWalletVoidBig", connectedVoidBal);
+    setText("connectedWalletVoidMini", connectedVoidBal);
+    setText("connectedWalletAddrMini", shortAddr(connectedWallet));
+    setText("helperRedeemableMini", redeemableTotal);
     setText(
-      "helperWalletMeta",
-      wcBal
-        ? ("helper wallet: " + wcAddr + " | WC: " + wcBal.wc + " | VOID: " + wcBal.void)
-        : "local trading wallet unavailable"
+      "connectedWalletMeta",
+      /^0x[0-9a-fA-F]{40}$/.test(connectedWallet)
+        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + connectedVoidBal + " | WC remains local-ledger only")
+        : "no connected wallet detected"
     );
 
     setText("tradePriceWcPerVoid", wcPerVoid !== null ? wcPerVoid : "-");
