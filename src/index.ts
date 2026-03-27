@@ -37184,6 +37184,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="section-copy">The basic loop is simple: earn Work Credits, move them into trading, swap for VOID, then hold or send your VOID.</div>
           </div>
         </div>
+        <!-- VOID_WALLET_START_HERE_CTA_V1 -->
+        <div class="hero-note" style="margin-top:12px">
+          <strong>Start here:</strong> check your <strong>Available WC</strong>, then move some into trading when you are ready to swap for VOID.
+        </div>
         <div class="metric-strip">
           <div class="mini">
             <div class="k">1. Earn WC</div>
