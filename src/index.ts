@@ -36997,7 +36997,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Recent Proofs</h2>
-              <div class="section-copy">Latest proofs created by successful work.</div>
+              <div class="section-copy">Proofs and results created by successful work.</div>
             </div>
           </div>
           <div class="table-wrap"><div id="receiptsWrapOverview" class="empty">loading…</div></div>
@@ -37028,7 +37028,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <div class="row" style="margin-top:14px;">
             <button class="btn btn-primary" id="submitBtn">Submit Work</button>
-            <button class="btn" id="refreshBtn" type="button">Refresh Connection</button>
+            <button class="btn" id="refreshBtn" type="button">Refresh Status</button>
           </div>
 
           <div class="metric-strip">
@@ -37655,7 +37655,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       "walletMeta",
       redeemState
         ? ("Available WC: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
-        : "Local WC state unavailable"
+        : "Local Work Credit state is unavailable right now"
     );
     setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
     setText("walletDebitedMini", redeemState && Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0);
@@ -37670,7 +37670,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       "connectedWalletMeta",
       /^0x[0-9a-fA-F]{40}$/.test(connectedWallet)
         ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + " | WC remains local-ledger only")
-        : "no connected wallet detected"
+        : "No connected wallet detected"
     );
 
     setText("tradePriceWcPerVoid", wcPerVoid !== null ? wcPerVoid : "-");
@@ -37805,7 +37805,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       note: !relayerUp
         ? "Relayer is offline."
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "No redeemable WC available. Earn or redeem WC before executing a trade."
+            ? "No available WC to trade yet. Earn Work Credits or move them into trading before executing a trade."
             : "Relayer is live for quote and execution.")
     });
     setPre("summaryOut", summaryWrapped);
@@ -37820,7 +37820,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     setText(
       "tradeOverviewCard",
-      "Redeemable WC: " + redeemableTotal +
+      "Available WC: " + redeemableTotal +
       " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
       " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable")
     );
@@ -38165,7 +38165,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         amount,
         wallet,
         redeemable_wc: redeemableAmt,
-        note:"Requested WC exceeds currently redeemable WC."
+        note:"Requested WC is greater than your currently available WC for trading."
       });
       await refresh();
       return;
