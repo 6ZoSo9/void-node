@@ -37394,8 +37394,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading context</h2>
-              <div class="section-copy">Helper and pool state kept available without dominating the page.</div>
+              <h2>Trading Status</h2>
+              <div class="section-copy">Current trading wallet and pool details, kept available here when you need them.</div>
             </div>
           </div>
           <pre id="helperWalletStateOut">loading…</pre>
