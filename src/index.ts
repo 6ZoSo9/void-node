@@ -37274,8 +37274,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Connected Wallet</h2>
-              <div class="section-copy">This is your connected MetaMask wallet. VOID is onchain here. Work Credits stay local/offchain for now.</div>
+              <h2>Connected Wallet<span class="help" tabindex="0" data-help="Shows the connected wallet and its onchain VOID balance. Work Credits remain tied to the participant account.">?</span></h2>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -37289,14 +37288,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">Wallet address</div>
             </div>
             <div class="mini">
-              <div class="k">Onchain VOID</div>
+              <div class="k">VOID Balance</div>
               <div class="v" id="connectedWalletVoidMini">-</div>
-              <div class="s">Onchain VOID</div>
+              <div class="s">Onchain balance</div>
             </div>
             <div class="mini">
-              <div class="k">WC Storage</div>
+              <div class="k">Participant WC</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">Work Credits are stored locally on this node for now</div>
+              <div class="s">Local participant credits</div>
             </div>
           </div>
 
@@ -37304,8 +37303,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Send VOID</h2>
-                <div class="section-copy">Send devnet VOID onchain from the connected MetaMask wallet to another wallet address.</div>
+                <h2 style="margin-bottom:4px">Send VOID<span class="help" tabindex="0" data-help="Sends onchain VOID from the connected wallet to another wallet address.">?</span></h2>
               </div>
             </div>
             <label for="voidSendTo">Recipient wallet</label>
@@ -37326,8 +37324,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Work Credit History</h2>
-              <div class="section-copy">A history of local Work Credit activity showing how your balance changed.</div>
+              <h2>Work Credit History<span class="help" tabindex="0" data-help="History of participant Work Credit balance changes on this node.">?</span></h2>
             </div>
           </div>
           <div class="table-wrap"><div id="ledgerWrap" class="empty">loading…</div></div>
