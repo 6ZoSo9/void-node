@@ -36841,7 +36841,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <a href="/participant" style="color:#e5e7eb;text-decoration:none;font-weight:800;letter-spacing:.04em;">VOID</a>
     <a href="/participant" style="color:#93c5fd;text-decoration:none;">Participant</a>
-    <a href="/datanet-demo" style="color:#93c5fd;text-decoration:none;">DataNet</a>
+    <a href="/datanet-demo" style="color:#93c5fd;text-decoration:none;">Open DataNet</a>
     <a href="#" data-local-wc-ui="1" style="color:#93c5fd;text-decoration:none;" >Trading</a>
   </div>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -36878,7 +36878,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="side-label">Quick links</div>
       <div class="quick">
         <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/datanet-demo">DataNet</a>
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="#" data-local-wc-ui="1">Advanced Trading</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="#" data-local-wc-ui="1">Open Advanced Trading</a>
       </div>
     </div>
 
