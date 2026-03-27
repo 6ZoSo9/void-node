@@ -36834,6 +36834,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       .hero h1{font-size:28px}
       .brand .title{font-size:24px}
     }
+  
+    .help{position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:999px;border:1px solid #334155;background:#0f172a;color:#cbd5e1;font-size:11px;font-weight:800;line-height:1;cursor:help;margin-left:6px;vertical-align:middle;flex:none}
+    .help::after{content:attr(data-help);position:absolute;left:50%;bottom:125%;transform:translateX(-50%);min-width:180px;max-width:260px;padding:8px 10px;border-radius:10px;background:#020617;border:1px solid #334155;color:#e5e7eb;font-size:12px;font-weight:500;line-height:1.35;white-space:normal;opacity:0;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.35);z-index:80}
+    .help:hover::after,.help:focus::after{opacity:1}
+
   </style>
 </head>
 <body>
