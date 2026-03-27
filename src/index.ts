@@ -36967,7 +36967,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Your Balances</h2>
-              <div class="section-copy">High-level current state for the selected participant account.</div>
+              <div class="section-copy">WC and VOID at a glance.</div>
             </div>
           </div>
           <div class="hero-note" id="summaryCard">loading…</div>
@@ -36985,7 +36985,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Recent work</h2>
-              <div class="section-copy">Most recent submitted work for this account.</div>
+              <div class="section-copy">Latest submitted work.</div>
             </div>
           </div>
           <div class="table-wrap"><div id="jobsWrapOverview" class="empty">loading…</div></div>
@@ -36995,7 +36995,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Recent Proofs</h2>
-              <div class="section-copy">Proofs and results created by successful work.</div>
+              <div class="section-copy">Latest proofs and results.</div>
             </div>
           </div>
           <div class="table-wrap"><div id="receiptsWrapOverview" class="empty">loading…</div></div>
@@ -37044,13 +37044,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="k">Current Account</div>
               <div class="v">Participant</div>
               <div class="s">The participant account currently selected for this work.</div>
-            
-              <!-- VOID_HOME_SEND_VOID_ACTION_V1 -->
-              <div class="mini">
-                <div class="k">Send VOID</div>
-                <div class="v">Send</div>
-                <div class="s">Send from wallet.</div>
-              </div>
+
             </div>
           </div>
 
