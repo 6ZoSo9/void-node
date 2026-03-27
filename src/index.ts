@@ -36953,7 +36953,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Overview</h2>
-              <div class="section-copy">See your balances, take the next action, and review recent activity.</div>
+              
             </div>
           </div>
           <div class="grid-3">
@@ -37020,7 +37020,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Earn Work Credits</h2>
-              <div class="section-copy">Submit useful work here, wait for proof that it completed, and earn Work Credits when the job finishes.</div>
+              
             </div>
           </div>
 
@@ -37363,7 +37363,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Recent proofs</h2>
-              <div class="section-copy">Proofs and results created by successful work.</div>
+              
             </div>
           </div>
           <div class="table-wrap"><div id="receiptsWrap" class="empty">loading…</div></div>
@@ -37373,7 +37373,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Latest Proof Summary</h2>
-              <div class="section-copy">Quick verification details for your most recent proof and result.</div>
+              
             </div>
           </div>
           <div class="hero-note" id="proofSummaryCard">loading…</div>
@@ -37625,6 +37625,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     setText("heroAccountMeta", acctMeta);
     setText("heroAccountMirrorMeta", acctMeta);
+    setText("heroWalletShort", /^0x[0-9a-fA-F]{40}$/.test(connectedWallet) ? shortAddr(connectedWallet) : "Not connected");
+    setText("heroWalletMeta", wcAddr ? ("Trading wallet: " + shortAddr(wcAddr)) : "No trading wallet linked");
 
     setText("wcBalance", localEarned !== null ? localEarned : "-");
     setText(
