@@ -37097,23 +37097,28 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
           </div>
 
-          <div class="metric-strip">
-            <div class="mini">
-              <div class="k">Current Price</div>
-              <div class="v" id="tradePriceWcPerVoid">-</div>
-              <div class="s">how many WC it currently takes to get 1 VOID</div>
+          <details class="adv" style="margin-bottom:16px">
+            <summary><span>Market Details</span><span class="pill">advanced</span></summary>
+            <div class="adv-body">
+              <div class="metric-strip">
+                <div class="mini">
+                  <div class="k">Current Price</div>
+                  <div class="v" id="tradePriceWcPerVoid">-</div>
+                  <div class="s">how many WC it currently takes to get 1 VOID</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Trading Wallet WC</div>
+                  <div class="v" id="tradeWalletWc">-</div>
+                  <div class="s">current local trading balance</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Trading Wallet VOID</div>
+                  <div class="v" id="tradeWalletVoid">-</div>
+                  <div class="s">current local trading balance</div>
+                </div>
+              </div>
             </div>
-            <div class="mini">
-              <div class="k">Trading Wallet WC</div>
-              <div class="v" id="tradeWalletWc">-</div>
-              <div class="s">current local trading balance</div>
-            </div>
-            <div class="mini">
-              <div class="k">Trading Wallet VOID</div>
-              <div class="v" id="tradeWalletVoid">-</div>
-              <div class="s">current local trading balance</div>
-            </div>
-          </div>
+          </details>
 
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
@@ -37147,9 +37152,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="action-rail" style="margin-top:12px">
               <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
               <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Trade Unavailable Right Now</button>
-              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading Tools</a>
-              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >View Pool Details</a>
             </div>
+
+            <details class="adv" style="margin-top:12px">
+              <summary><span>Advanced Trading Tools</span><span class="pill">optional</span></summary>
+              <div class="adv-body">
+                <div class="action-rail">
+                  <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading Tools</a>
+                  <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >View Pool Details</a>
+                </div>
+              </div>
+            </details>
 
             
           </div>
@@ -37158,8 +37171,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trade Summary</h2>
-              <div class="section-copy">Current trade status.</div>
+              <h2>Review</h2>
+              <div class="section-copy">Review the trade before you confirm.</div>
             </div>
           </div>
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
