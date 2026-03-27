@@ -37694,13 +37694,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const poolMeta = wcPool && wcPool.price
         ? (" | WC/VOID: " + wcPool.price.wc_per_void)
         : "";
-      setText("topHealth", "Online");
+      setText("topHealth", "Ready");
       setText(
         "topHealthMeta",
         "http: " + (health.http ?? "?") + " | p2p: " + (Array.isArray(health.listen) && health.listen.length ? health.listen[0] : "?") + poolMeta
       );
     } else {
-      setText("topHealth", "Offline");
+      setText("topHealth", "Needs Attention");
       setText("topHealthMeta", "health unavailable");
     }
 
@@ -37713,7 +37713,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const peerCount = health && Array.isArray(health.peers) ? health.peers.length : 0;
     let syncLabel = "Unknown";
     let syncClass = "bad";
-    let syncMeta = "Sync details unavailable";
+    let syncMeta = "Network sync details unavailable";
 
     if (peer && peer.ok && gap !== null) {
       if (gap === 0) {
@@ -37726,11 +37726,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         syncLabel = "Lagging";
         syncClass = "bad";
       }
-      syncMeta = "local: " + peer.local_head + " | main: " + peer.main_head + " | gap: " + gap;
+      syncMeta = "Current sync gap: " + gap + " | local: " + peer.local_head + " | main: " + peer.main_head;
     } else if (peerCount > 0) {
       syncLabel = "Peered";
       syncClass = "ok";
-      syncMeta = "connected peers: " + peerCount + " | peer-main-status unavailable";
+      syncMeta = "Connected peers: " + peerCount + " | main sync details unavailable";
     }
 
     setText("syncGap", syncLabel);
