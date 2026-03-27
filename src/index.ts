@@ -37201,10 +37201,6 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
         </div>
       </div>
-      <!-- VOID_WALLET_TO_TRADE_CTA_V1 -->
-      <div class="hero-note" style="margin-bottom:16px">
-        <strong>Ready to trade?</strong> Open <a href="/participant#trading" style="font-weight:800;text-decoration:none">Trade WC for VOID</a> when you want to swap your available WC.
-      </div>
       <div class="grid-2-eq">
         <div class="panel">
           <div class="section-head">
