@@ -36946,19 +36946,19 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
           <div class="grid-3">
             <div class="mini">
-              <div class="k">1. Earn</div>
-              <div class="v">Submit</div>
-              <div class="s">Send a DataNet publish job and watch it complete.</div>
+              <div class="k">1. Do Work</div>
+              <div class="v">Start</div>
+              <div class="s">Submit work and watch it complete on the node.</div>
             </div>
             <div class="mini">
-              <div class="k">2. Verify</div>
-              <div class="v">Receipt</div>
-              <div class="s">Inspect receipts and dataset outputs for proof.</div>
+              <div class="k">2. Check Proof</div>
+              <div class="v">Proof</div>
+              <div class="s">Review receipts and outputs to confirm what happened.</div>
             </div>
             <div class="mini">
-              <div class="k">3. Manage</div>
-              <div class="v">Wallet</div>
-              <div class="s">Shows earned Work Credits from the local ledger.</div>
+              <div class="k">3. Use Rewards</div>
+              <div class="v">Balance</div>
+              <div class="s">Check your Work Credits and decide whether to keep or trade them.</div>
             </div>
           </div>
         </div>
@@ -37011,7 +37011,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Earn Work Credits</h2>
-              <div class="section-copy">Submit work and let the node drive the receipt → WC loop.</div>
+              <div class="section-copy">Submit useful work, receive a proof-backed result, and earn Work Credits when it completes.</div>
             </div>
           </div>
 
@@ -37033,19 +37033,19 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <div class="metric-strip">
             <div class="mini">
-              <div class="k">Job kind</div>
-              <div class="v">publish</div>
-              <div class="s">DataNet publish flow</div>
+              <div class="k">Work Type</div>
+              <div class="v">Data Publish</div>
+              <div class="s">Submits data through the normal DataNet flow.</div>
             </div>
             <div class="mini">
-              <div class="k">Target reward</div>
+              <div class="k">Expected Reward</div>
               <div class="v">+10</div>
-              <div class="s">receipt-backed WC</div>
+              <div class="s">Work Credits awarded when the proof-backed job completes.</div>
             </div>
             <div class="mini">
-              <div class="k">Account model</div>
-              <div class="v">local</div>
-              <div class="s">selected participant account</div>
+              <div class="k">Current Account</div>
+              <div class="v">Participant</div>
+              <div class="s">The participant account currently selected for this work.</div>
             </div>
           </div>
 
@@ -37060,7 +37060,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="section-head">
               <div>
                 <h2>Recent work</h2>
-                <div class="section-copy">What was submitted and how it resolved.</div>
+                <div class="section-copy">Your recent work and how each submission finished.</div>
               </div>
             </div>
             <div class="table-wrap"><div id="jobsWrap" class="empty">loading…</div></div>
@@ -37070,7 +37070,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="section-head">
               <div>
                 <h2>Why this matters</h2>
-                <div class="section-copy">This is the main product loop: submit work, get proof, earn WC.</div>
+                <div class="section-copy">This is the main loop: do useful work, get proof, and earn Work Credits.</div>
               </div>
             </div>
             <div class="hero-note">
