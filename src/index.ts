@@ -37034,7 +37034,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <div class="row" style="margin-top:14px;">
             <button class="btn btn-primary" id="submitBtn">Submit Job</button>
-            <button class="btn" id="refreshBtn" type="button">Refresh</button>
+            <button class="btn" id="refreshBtn" type="button">Refresh Connection</button>
           </div>
 
           <div class="metric-strip">
@@ -38317,7 +38317,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function shorten(v){
     v = String(v || "").trim();
-    return valid(v) ? (v.slice(0, 6) + "…" + v.slice(-4)) : "Not connected";
+    return valid(v) ? ("Connected: " + v.slice(0, 6) + "…" + v.slice(-4)) : "No wallet connected";
   }
 
   function qs(name){
@@ -38407,7 +38407,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     var disconnectBtn = document.getElementById("voidWalletDisconnectBtn");
 
     if (badge) badge.textContent = shorten(addr);
-    if (full) full.textContent = valid(addr) ? addr : "No wallet connected";
+    if (full) full.textContent = valid(addr) ? ("Connected wallet address: " + addr) : "Connect a wallet to view onchain VOID and send transactions.";
     if (connectBtn) connectBtn.style.display = valid(addr) ? "none" : "";
     if (refreshBtn) refreshBtn.style.display = valid(addr) ? "" : "none";
     if (disconnectBtn) disconnectBtn.style.display = valid(addr) ? "" : "none";
@@ -38471,14 +38471,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     wrap.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0;border:0;background:transparent;box-shadow:none;color:#e5e7eb;font:12px/1.2 Inter,ui-sans-serif,system-ui,sans-serif;";
     wrap.innerHTML =
       '<div style="display:flex;flex-direction:column;gap:2px;min-width:180px">' +
-        '<div style="font-weight:800;letter-spacing:.04em;color:#f8fafc">Wallet Session</div>' +
-        '<div id="voidWalletSessionBadge" style="color:#93c5fd;font-weight:700">Not connected</div>' +
-        '<div id="voidWalletSessionFull" style="color:#94a3b8;font-size:11px;max-width:260px;overflow-wrap:anywhere">No wallet connected</div>' +
+        '<div style="font-weight:800;letter-spacing:.04em;color:#f8fafc">Wallet</div>' +
+        '<div id="voidWalletSessionBadge" style="color:#93c5fd;font-weight:700">No wallet connected</div>' +
+        '<div id="voidWalletSessionFull" style="color:#94a3b8;font-size:11px;max-width:260px;overflow-wrap:anywhere">Connect a wallet to view onchain VOID and send transactions.</div>' +
       '</div>' +
       (onHelper ? ('<a id="voidWalletBackLink" href="' + from + '" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;text-decoration:none;font-weight:700">Back</a>') : '') +
-      '<button id="voidWalletConnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Connect</button>' +
+      '<button id="voidWalletConnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Connect Wallet</button>' +
       '<button id="voidWalletRefreshBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Refresh</button>' +
-      '<button id="voidWalletDisconnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Disconnect</button>';
+      '<button id="voidWalletDisconnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Disconnect Wallet</button>';
 
     var navHost =
       document.querySelector("body > div[style*='justify-content:space-between'] > div:last-child") ||
