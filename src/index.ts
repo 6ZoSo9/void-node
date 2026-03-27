@@ -37101,24 +37101,24 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
         <div class="action-rail" style="margin-top:12px">
           <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
-          <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Trade Unavailable Right Now</button>
+          <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Trade Availability...</button>
         </div>
 
         <div class="metric-strip" style="margin-top:16px">
           <div class="mini">
             <div class="k">Available WC</div>
             <div class="v" id="tradeRedeemableWc">-</div>
-            <div class="s">ready to trade</div>
+            <div class="s">available from participant account</div>
           </div>
           <div class="mini">
             <div class="k">Quoted VOID</div>
             <div class="v" id="tradeQuoteVoid">-</div>
-            <div class="s">estimated output</div>
+            <div class="s">estimated from current pool price</div>
           </div>
           <div class="mini">
             <div class="k">Trade Status</div>
             <div class="v" id="tradeRelayerState">-</div>
-            <div class="s">current trading status</div>
+            <div class="s">updates from participant WC + relayer status</div>
           </div>
         </div>
 
@@ -37679,9 +37679,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const tradeBlocked = !relayerUp || !(Number.isFinite(redeemableTotal) && redeemableTotal > 0);
       $("tradeExecuteBtn").disabled = tradeBlocked;
       $("tradeExecuteBtn").textContent = !relayerUp
-        ? "Trade Unavailable Right Now"
+        ? "Trading Temporarily Unavailable"
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "No Available WC to Trade"
+            ? "Earn WC or Move WC to Trading First"
             : "Swap WC for VOID");
     }
 
@@ -37836,7 +37836,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       "tradeOverviewCard",
       "Available WC (participant): " + redeemableTotal +
       " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
-      " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable")
+      " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable") +
+      (wcAddr ? " • Trading Wallet: " + wcAddr : "")
     );
 
     setText(
