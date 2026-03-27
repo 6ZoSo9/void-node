@@ -37511,6 +37511,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       '</tbody></table>';
   }
 
+  function renderRedeemed(items){
+    if (!items || !items.length) return '<div class="empty">No WC has been moved into trading for this account yet.</div>';
+    return '<table><thead><tr><th>Amount</th><th>Wallet</th><th>When</th></tr></thead><tbody>' +
+      items.map(e => '<tr><td>'+esc(e.amount)+'</td><td>'+esc(e.wallet || "")+'</td><td>'+esc(e.ts_ms ? new Date(Number(e.ts_ms)).toLocaleString() : "")+'</td></tr>').join("") +
+      '</tbody></table>';
+  }
+
   function switchTab(tab){
     document.querySelectorAll(".tabbtn").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".tabpane").forEach(p => p.classList.remove("active"));
@@ -37708,6 +37715,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const jobsHtml = renderJobs((jobs && jobs.jobs) || []);
     let receiptsHtml = renderReceipts((receipts && receipts.receipts) || []);
     const ledgerHtml = renderLedger(ledgerEvents);
+    const redeemedHtml = renderRedeemed((redeemedState && redeemedState.events) || []);
 
     if ((!receipts || !receipts.receipts || !receipts.receipts.length) && latestLedger) {
       receiptsHtml =
@@ -37728,6 +37736,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if ($("receiptsWrap")) $("receiptsWrap").innerHTML = receiptsHtml;
     if ($("receiptsWrapOverview")) $("receiptsWrapOverview").innerHTML = receiptsHtml;
     if ($("ledgerWrap")) $("ledgerWrap").innerHTML = ledgerHtml;
+    if ($("redeemHistoryWrap")) $("redeemHistoryWrap").innerHTML = redeemedHtml;
 
     const summaryWrapped = {
       account,
