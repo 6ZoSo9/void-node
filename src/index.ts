@@ -37458,6 +37458,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
   }
 
+  function isWalletAddr(v){
+    return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
+  }
+
+  function deriveParticipantWallet(account, redeemedState, connectedWallet, manualWallet){
+    try {
+      const events = redeemedState && Array.isArray(redeemedState.events) ? redeemedState.events : [];
+      for (const ev of events) {
+        const w = String((ev && ev.wallet) || "").trim();
+        if (isWalletAddr(w)) return w;
+      }
+    } catch (_) {}
+
+    if (isWalletAddr(connectedWallet)) return String(connectedWallet).trim();
+    if (isWalletAddr(manualWallet)) return String(manualWallet).trim();
+    if (isWalletAddr(account)) return String(account).trim();
+    return "";
+  }
+
   function shortAddr(a){
     a = String(a || "").trim();
     return /^0x[a-fA-F0-9]{40}$/.test(a) ? (a.slice(0, 6) + "…" + a.slice(-4)) : "-";
@@ -37533,10 +37552,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const wcPoolLink = document.querySelector('[data-local-wc-pool="1"]');
     if (wcPoolLink) wcPoolLink.setAttribute("href", LOCAL_WC_BASE + "/pool.json");
     const connectedWallet = getConnectedWallet();
-    const wcAddr = /^0x[0-9a-fA-F]{40}$/.test(account) ? account : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
+    const manualWallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "";
     const wcBase = LOCAL_WC_BASE;
 
-    const [bal, redeem, redeemed, jobs, receipts, ledger, summary, peer, health, wcDash, relayerHealth] = await Promise.all([
+    const [bal, redeem, redeemed, jobs, receipts, ledger, summary, peer, health, relayerHealth] = await Promise.all([
       j("/wc/balance?account=" + encodeURIComponent(account)),
       j("/wc/redeemable?account=" + encodeURIComponent(account)),
       j("/wc/redeemed?account=" + encodeURIComponent(account) + "&limit=20"),
@@ -37546,9 +37565,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       j("/__void/demo/summary.json"),
       j("/__void/peer-main-status.json"),
       j("/health"),
-      j(wcBase + "/dashboard/" + encodeURIComponent(wcAddr) + ".json"),
       j(LOCAL_RELAYER_BASE + "/health").catch(() => ({ ok:false, offline:true })),
     ]);
+
+    const wcAddr = deriveParticipantWallet(account, redeemed, connectedWallet, manualWallet);
+    if ($("redeemWallet") && wcAddr && $("redeemWallet").value !== wcAddr) $("redeemWallet").value = wcAddr;
+
+    const wcDash = wcAddr
+      ? await j(wcBase + "/dashboard/" + encodeURIComponent(wcAddr) + ".json")
+      : { ok:false, reason:"no_wallet_mapping" };
 
     let connectedVoidBal = "-";
     if (/^0x[0-9a-fA-F]{40}$/.test(connectedWallet) && relayerHealth && relayerHealth.ok && /^0x[0-9a-fA-F]{40}$/.test(String(relayerHealth.void_token || ""))) {
@@ -37636,9 +37661,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("helperRedeemableMini", redeemableTotal);
     setText(
       "connectedWalletMeta",
-      /^0x[0-9a-fA-F]{40}$/.test(connectedWallet)
-        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + " | WC remains local-ledger only")
-        : "No connected wallet detected"
+      isWalletAddr(connectedWallet)
+        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | trading wallet: " + wcAddr : " | no trading wallet linked"))
+        : (wcAddr
+            ? ("trading wallet: " + wcAddr + " | no connected wallet detected")
+            : "No connected wallet detected")
     );
 
     setText("tradePriceWcPerVoid", wcPerVoid !== null ? wcPerVoid : "-");
@@ -37757,7 +37784,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     if ($("dataStateOut")) setPre("dataStateOut", summaryWrapped);
     if ($("helperWalletStateOut")) setPre("helperWalletStateOut", {
-      helper_address: wcAddr,
+      participant_account: account,
+      connected_wallet: connectedWallet || null,
+      manual_wallet: manualWallet || null,
+      mapped_trading_wallet: wcAddr || null,
       helper_dashboard_ok: !!(wcDash && wcDash.account && wcDash.pool),
       helper_balances: wcBal || null,
       helper_earnings: wcEarn || null,
@@ -37766,7 +37796,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if ($("tradeStateOut")) setPre("tradeStateOut", {
       helper_ui: wcBase + "/ui",
       helper_pool_json: wcBase + "/pool.json",
-      helper_address: wcAddr,
+      participant_account: account,
+      connected_wallet: connectedWallet || null,
+      manual_wallet: manualWallet || null,
+      mapped_trading_wallet: wcAddr || null,
       helper_dashboard_ok: !!(wcDash && wcDash.account && wcDash.pool),
       helper_balances: wcBal || null,
       helper_earnings: wcEarn || null,
