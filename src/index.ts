@@ -36893,9 +36893,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <span class="pill">WC → VOID trading</span>
         </div>
         <h1>Earn Work Credits, trade for VOID, and manage everything in one place.</h1>
-        <div class="hero-copy">
-          The core loop is simple: submit work, receive a receipt, earn WC, then manage balances from one dashboard.
-        </div>
+        <div class="hero-copy">Submit useful work, receive proof-backed rewards, track your Work Credits, and trade into VOID when you are ready.</div>
         <div class="hero-actions">
           <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Start Earning</a>
           <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trade WC for VOID</a>
@@ -36910,11 +36908,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="v" id="heroAccountMirror">remote-user-3</div>
           <div class="s" id="heroAccountMirrorMeta">Current participant account being viewed on this node.</div>
         </div>
-        <div class="hero-note">
-          <strong>Primary balance:</strong> Work Credits.<br>
-          <strong>Trading surface:</strong> helper-backed for now.<br>
-          <strong>Verification:</strong> receipts and state remain available, but are no longer the main visual focus.
-        </div>
+        <div class="hero-note"><strong>Primary balance:</strong> Work Credits.<br><strong>Trading:</strong> swap WC for VOID from the trading flow.<br><strong>Verification:</strong> receipts and proof details are still available whenever you need them.</div>
       </div>
     </section>
 
