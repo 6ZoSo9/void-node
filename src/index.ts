@@ -38291,7 +38291,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch {}
   }
 
-  switchTab(initialTab || "overview");
+  switchTab(initialTab || "wallet");
   setInterval(refresh, 3000);
 })();
 </script>
