@@ -36996,7 +36996,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Recent proofs</h2>
+              <h2>Recent Proofs</h2>
               <div class="section-copy">Latest proofs created by successful work.</div>
             </div>
           </div>
@@ -37409,7 +37409,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Recent proofs</h2>
-              <div class="section-copy">Proofs and outputs created by successful work.</div>
+              <div class="section-copy">Proofs and results created by successful work.</div>
             </div>
           </div>
           <div class="table-wrap"><div id="receiptsWrap" class="empty">loading…</div></div>
@@ -37418,16 +37418,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Proof summary</h2>
-              <div class="section-copy">Verification context for recent proofs and outputs.</div>
+              <h2>Latest Proof Summary</h2>
+              <div class="section-copy">Quick verification details for your most recent proof and result.</div>
             </div>
           </div>
           <div class="hero-note" id="proofSummaryCard">loading…</div>
           <details class="adv" style="margin-top:14px">
-            <summary><span>Advanced proof state</span><span class="pill">raw json</span></summary>
-            <div class="adv-body"><div class="hero-note" id="proofSummaryCard">loading…</div>
+            <summary><span>Advanced Proof Details</span><span class="pill">raw json</span></summary>
+            <div class="adv-body">
           <details style="margin-top:14px">
-            <summary style="cursor:pointer;color:#cbd5e1;font-weight:700;">Advanced proof state</summary>
+            <summary style="cursor:pointer;color:#cbd5e1;font-weight:700;">Advanced Proof Details</summary>
             <pre id="dataStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
           </details></div>
           </details>
@@ -37533,15 +37533,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   function renderReceipts(items){
-    if (!items || !items.length) return '<div class="empty">No receipts yet for this account.</div>';
-    return '<table><thead><tr><th>Receipt ID</th><th>Job ID</th><th>Kind</th><th>Dataset</th></tr></thead><tbody>' +
+    if (!items || !items.length) return '<div class="empty">No proofs are available for this account yet.</div>';
+    return '<table><thead><tr><th>Proof ID</th><th>Job ID</th><th>Type</th><th>Dataset</th></tr></thead><tbody>' +
       items.map(r => '<tr><td>'+esc(r.receipt_id)+'</td><td>'+esc(r.job_id)+'</td><td>'+esc(r.kind)+'</td><td>'+esc(r.dataset_id || "")+'</td></tr>').join("") +
       '</tbody></table>';
   }
 
   function renderLedger(items){
-    if (!items || !items.length) return '<div class="empty">No WC ledger events yet for this account.</div>';
-    return '<table><thead><tr><th>Delta</th><th>Reason</th><th>Job ID</th><th>Receipt ID</th></tr></thead><tbody>' +
+    if (!items || !items.length) return '<div class="empty">No recent Work Credit balance changes are available for this account yet.</div>';
+    return '<table><thead><tr><th>Change</th><th>Reason</th><th>Job ID</th><th>Proof ID</th></tr></thead><tbody>' +
       items.map(e => '<tr><td>'+esc(e.delta)+'</td><td>'+esc(e.reason)+'</td><td>'+esc(e.job_id || "")+'</td><td>'+esc(e.receipt_id || "")+'</td></tr>').join("") +
       '</tbody></table>';
   }
@@ -37747,10 +37747,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if ((!receipts || !receipts.receipts || !receipts.receipts.length) && latestLedger) {
       receiptsHtml =
         '<div class="empty">' +
-        'No receipt rows are available on this endpoint for this account yet. ' +
-        'Earned WC is read from the local WC ledger. ' +
-        'Latest ledger reason: <b>' + esc(latestLedger.reason || "-") + '</b>' +
-        (latestLedger.receipt_id ? (' | receipt: <span class="mono">' + esc(latestLedger.receipt_id) + '</span>') : '') +
+        'No proof rows are available on this endpoint for this account yet. ' +
+        'Earned WC is still being read from the local Work Credit ledger. ' +
+        'Latest balance change: <b>' + esc(latestLedger.reason || "-") + '</b>' +
+        (latestLedger.receipt_id ? (' | proof: <span class="mono">' + esc(latestLedger.receipt_id) + '</span>') : '') +
         '</div>';
     }
 
@@ -37828,7 +37828,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "proofSummaryCard",
       latestReceipt
-        ? ("Latest receipt: " + latestReceipt.receipt_id + " • Job: " + (latestReceipt.job_id || "-") + " • Dataset: " + (latestReceipt.dataset_id || "-"))
+        ? ("Latest proof: " + latestReceipt.receipt_id + " • Job: " + (latestReceipt.job_id || "-") + " • Dataset: " + (latestReceipt.dataset_id || "-"))
         : "No recent proof is available for this account yet."
     );
   }
