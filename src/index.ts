@@ -35632,6 +35632,58 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       }
     });
 
+    app.get("/wallet/void-balance", async (req:any, res:any) => {
+      try {
+        const address = String(req.query?.address || "").trim();
+        if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+          return res.status(400).json({ ok:false, error:"invalid_address" });
+        }
+
+        const relayerHealth = await fetch("http://127.0.0.1:4313/api/wc-relayer/v1/health")
+          .then(r => r.json())
+          .catch(() => ({ ok:false }));
+
+        const voidToken = String(relayerHealth && relayerHealth.ok ? (relayerHealth.void_token || "") : "").trim();
+        if (!/^0x[a-fA-F0-9]{40}$/.test(voidToken)) {
+          return res.status(503).json({ ok:false, error:"void_token_unavailable", relayer_health: relayerHealth });
+        }
+
+        const data = "0x70a08231" + address.replace(/^0x/, "").toLowerCase().padStart(64, "0");
+        const rpcRes = await fetch("http://127.0.0.1:8545", {
+          method: "POST",
+          headers: { "content-type":"application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "eth_call",
+            params: [
+              { to: voidToken, data },
+              "latest"
+            ]
+          })
+        });
+        const rpcJson = await rpcRes.json().catch(() => ({}));
+        const raw = String(rpcJson && rpcJson.result ? rpcJson.result : "0x0");
+
+        let balance = "0";
+        try {
+          const n = BigInt(/^0x[0-9a-fA-F]+$/.test(raw) ? raw : "0x0");
+          const whole = n / (10n ** 18n);
+          const frac = n % (10n ** 18n);
+          if (frac === 0n) balance = whole.toString();
+          else {
+            const fracStr = frac.toString().padStart(18, "0").replace(/0+$/, "").slice(0, 6);
+            balance = fracStr ? (whole.toString() + "." + fracStr) : whole.toString();
+          }
+        } catch {}
+
+        return res.json({ ok:true, address, void_token: voidToken, raw, balance });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+
     app.get("/wc/redeemed", (req:any, res:any) => {
       try {
         const account = safeAccount(req.query?.account);
@@ -36861,7 +36913,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <div class="side-section">
       <div class="side-label">Current account</div>
       <div class="account-big" id="heroAccount">remote-user-3</div>
-      <div class="account-meta" id="heroAccountMeta">Selected account and recent WC activity.</div>
+      <div class="account-meta" id="heroAccountMeta">Local node account currently being viewed.</div>
     </div>
 <div class="side-section">
       <div class="side-label">Sections</div>
@@ -36908,7 +36960,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="hero-metric">
           <div class="k">Selected account</div>
           <div class="v" id="heroAccountMirror">remote-user-3</div>
-          <div class="s" id="heroAccountMirrorMeta">Selected account and recent WC activity.</div>
+          <div class="s" id="heroAccountMirrorMeta">Local node account currently being viewed.</div>
         </div>
         <div class="hero-note">
           <strong>Primary balance:</strong> Work Credits.<br>
@@ -37475,29 +37527,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     return /^0x[a-fA-F0-9]{40}$/.test(a) ? (a.slice(0, 6) + "…" + a.slice(-4)) : "-";
   }
 
-  function pad64(hex){
-    return String(hex || "").replace(/^0x/, "").padStart(64, "0");
-  }
-
-  function parseHexBigInt(hex){
-    const s = String(hex || "0x0").trim();
-    if (!/^0x[0-9a-fA-F]+$/.test(s)) return 0n;
-    return BigInt(s);
-  }
-
-  function formatUnits18FromHex(hex){
-    try {
-      const n = parseHexBigInt(hex);
-      const whole = n / (10n ** 18n);
-      const frac = n % (10n ** 18n);
-      if (frac === 0n) return whole.toString();
-      const fracStr = frac.toString().padStart(18, "0").replace(/0+$/, "");
-      return whole.toString() + "." + fracStr.slice(0, 6);
-    } catch (_) {
-      return "-";
-    }
-  }
-
   function renderJobs(items){
     if (!items || !items.length) return '<div class="empty">No jobs yet for this account.</div>';
     return '<table><thead><tr><th>Job ID</th><th>Status</th><th>Kind</th><th>Dataset</th></tr></thead><tbody>' +
@@ -37556,27 +37585,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     ]);
 
     let connectedVoidBal = "-";
-    if (/^0x[0-9a-fA-F]{40}$/.test(connectedWallet) && relayerHealth && relayerHealth.ok && /^0x[0-9a-fA-F]{40}$/.test(String(relayerHealth.void_token || ""))) {
+    if (/^0x[0-9a-fA-F]{40}$/.test(connectedWallet)) {
       try {
-        const data = "0x70a08231" + pad64(connectedWallet);
-        const rpcRes = await fetch("http://" + location.hostname + ":8545", {
-          method: "POST",
-          headers: { "content-type":"application/json" },
-          body: JSON.stringify({
-            jsonrpc: "2.0",
-            id: 1,
-            method: "eth_call",
-            params: [
-              { to: String(relayerHealth.void_token), data: data },
-              "latest"
-            ]
-          })
-        });
-        const rpcJson = await rpcRes.json();
-        connectedVoidBal = formatUnits18FromHex(rpcJson && rpcJson.result ? rpcJson.result : "0x0");
+        const voidBal = await j("/wallet/void-balance?address=" + encodeURIComponent(connectedWallet));
+        if (voidBal && voidBal.ok) connectedVoidBal = String(voidBal.balance || "0");
       } catch (_) {
         connectedVoidBal = "-";
       }
+    }
     }
 
     const localEarned = bal && bal.ok && Number.isFinite(Number(bal.balance)) ? Number(bal.balance) : null;
