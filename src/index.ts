@@ -38037,14 +38037,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     var full = document.getElementById("voidWalletSessionFull");
     var connectBtn = document.getElementById("voidWalletConnectBtn");
     var refreshBtn = document.getElementById("voidWalletRefreshBtn");
-    var switchBtn = document.getElementById("voidWalletSwitchBtn");
     var disconnectBtn = document.getElementById("voidWalletDisconnectBtn");
 
     if (badge) badge.textContent = shorten(addr);
     if (full) full.textContent = valid(addr) ? addr : "No wallet connected";
     if (connectBtn) connectBtn.style.display = valid(addr) ? "none" : "";
     if (refreshBtn) refreshBtn.style.display = valid(addr) ? "" : "none";
-    if (switchBtn) switchBtn.style.display = valid(addr) ? "" : "none";
     if (disconnectBtn) disconnectBtn.style.display = valid(addr) ? "" : "none";
 
     try {
@@ -38094,17 +38092,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     rerender();
   }
 
-  async function switchWallet(){
-    if (!window.ethereum || !window.ethereum.request) {
-      alert("MetaMask or another injected wallet was not found in this browser.");
-      return;
-    }
-
-    alert("Switch the active account in MetaMask, then return to this page. The dashboard will resync automatically.");
-    try {
-      await refreshWalletSession();
-    } catch (_) {}
-  }
 
   function mountBar(){
     if (document.getElementById("voidWalletSessionBar")) return;
@@ -38124,7 +38111,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       (onHelper ? ('<a id="voidWalletBackLink" href="' + from + '" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;text-decoration:none;font-weight:700">Back</a>') : '') +
       '<button id="voidWalletConnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Connect</button>' +
       '<button id="voidWalletRefreshBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Refresh</button>' +
-      '<button id="voidWalletSwitchBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Switch</button>' +
       '<button id="voidWalletDisconnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Disconnect</button>';
 
     var navHost =
@@ -38136,11 +38122,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     var c = document.getElementById("voidWalletConnectBtn");
     var rf = document.getElementById("voidWalletRefreshBtn");
-    var sw = document.getElementById("voidWalletSwitchBtn");
     var d = document.getElementById("voidWalletDisconnectBtn");
     if (c) c.addEventListener("click", function(){ connectWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
-    if (rf) rf.addEventListener("click", function(){ refreshWalletSession().catch(function(e){ alert(String((e && e.message) || e)); }); });
-    if (sw) sw.addEventListener("click", function(){ switchWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
+    if (rf) rf.addEventListener("click", function(){
+      refreshWalletSession()
+        .then(function(){ window.location.reload(); })
+        .catch(function(e){ alert(String((e && e.message) || e)); });
+    });
     if (d) d.addEventListener("click", function(){ disconnectWallet(); });
   }
 
