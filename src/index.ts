@@ -37111,7 +37111,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Trading Wallet VOID</div>
               <div class="v" id="tradeWalletVoid">-</div>
-              <div class="s">preview balance</div>
+              <div class="s">current local trading balance</div>
             </div>
           </div>
 
@@ -37178,6 +37178,33 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </section>
 
     <section class="tabpane" id="pane-wallet">
+      <!-- VOID_WALLET_UE_STEP_STRIP_V1 -->
+      <div class="panel" style="margin-bottom:16px;padding:14px">
+        <div class="section-head">
+          <div>
+            <h2 style="margin-bottom:4px">How it works</h2>
+            <div class="section-copy">The basic loop is simple: earn Work Credits, move them into trading, swap for VOID, then hold or send your VOID.</div>
+          </div>
+        </div>
+        <div class="metric-strip">
+          <div class="mini">
+            <div class="k">1. Earn WC</div>
+            <div class="s">Complete useful work and receive proof-backed Work Credits.</div>
+          </div>
+          <div class="mini">
+            <div class="k">2. Move WC to Trading</div>
+            <div class="s">Move available local WC into the trading wallet.</div>
+          </div>
+          <div class="mini">
+            <div class="k">3. Trade WC for VOID</div>
+            <div class="s">Preview your return, then swap when trading is available.</div>
+          </div>
+          <div class="mini">
+            <div class="k">4. Hold or Send VOID</div>
+            <div class="s">Your VOID lives in your connected MetaMask wallet.</div>
+          </div>
+        </div>
+      </div>
       <div class="grid-2-eq">
         <div class="panel">
           <div class="section-head">
@@ -37226,7 +37253,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <label for="sendAmount">Send amount</label>
             <input id="sendAmount" value="1" inputmode="decimal" />
             <div class="action-rail" style="margin-top:12px">
-              <button class="btn btn-primary" id="sendWcBtn" type="button">Transfer WC</button>
+              <button class="btn btn-primary" id="sendWcBtn" type="button">Send WC</button>
             </div>
             <div style="margin-top:12px">
               <pre id="sendOut">idle</pre>
@@ -37289,7 +37316,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Connected Wallet / Onchain Assets</h2>
+              <h2>Connected Wallet</h2>
               <div class="section-copy">This is your connected MetaMask wallet. VOID is onchain here. Work Credits stay local/offchain for now.</div>
             </div>
           </div>
