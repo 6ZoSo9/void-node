@@ -36842,10 +36842,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <a href="/participant" style="color:#e5e7eb;text-decoration:none;font-weight:800;letter-spacing:.04em;">VOID</a>
     <a href="/participant" style="color:#93c5fd;text-decoration:none;">Participant</a>
     <a href="/datanet-demo" style="color:#93c5fd;text-decoration:none;">Open DataNet</a>
-    <a href="#" data-local-wc-ui="1" style="color:#93c5fd;text-decoration:none;" >Trading</a>
+    <a href="#" data-local-wc-ui="1" style="color:#93c5fd;text-decoration:none;" >Advanced Trading</a>
   </div>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-    <a href="/participant#overview" style="color:#94a3b8;text-decoration:none;">Dashboard home</a>
+    <a href="/participant#overview" style="color:#94a3b8;text-decoration:none;">Back to Home</a>
   </div>
 </div>
 <div class="shell">
@@ -36861,23 +36861,23 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <div class="side-section">
       <div class="side-label">Current account</div>
       <div class="account-big" id="heroAccount">remote-user-3</div>
-      <div class="account-meta" id="heroAccountMeta">Local node account currently being viewed.</div>
+      <div class="account-meta" id="heroAccountMeta">Current participant account being viewed on this node.</div>
     </div>
 <div class="side-section">
       <div class="side-label">Sections</div>
       <nav class="nav">
-        <button class="tabbtn active" data-tab="overview" id="tab-overview">Home<span class="navhint">overview and recent activity</span></button>
-        <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work and review results</span></button>
-        <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">market preview</span></button>
-        <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">balances and activity</span></button>
-        <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">receipts and outputs</span></button>
+        <button class="tabbtn active" data-tab="overview" id="tab-overview">Home<span class="navhint">see your status and recent activity</span></button>
+        <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work and review what happened</span></button>
+        <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">check prices and trade WC for VOID</span></button>
+        <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">view balances, send WC, and manage VOID</span></button>
+        <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">review receipts, proofs, and outputs</span></button>
       </nav>
     </div>
 
     <div class="side-section">
-      <div class="side-label">Quick links</div>
+      <div class="side-label">Shortcuts</div>
       <div class="quick">
-        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/datanet-demo">DataNet</a>
+        <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/datanet-demo">Open DataNet</a>
         <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="#" data-local-wc-ui="1">Open Advanced Trading</a>
       </div>
     </div>
