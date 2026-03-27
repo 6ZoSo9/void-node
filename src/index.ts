@@ -37159,7 +37159,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Advanced trading state</span><span class="pill">raw json</span></summary>
-            <div class="adv-body"><div class="hero-note" id="tradeOverviewCard">loading…</div>
+            <div class="adv-body">
           <details style="margin-top:14px">
             <summary style="cursor:pointer;color:#cbd5e1;font-weight:700;">Advanced trading state</summary>
             <pre id="tradeStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
