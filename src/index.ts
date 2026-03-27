@@ -36948,17 +36948,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Earn WC</div>
               <div class="v">Earn</div>
-              <div class="s">Submit work and earn Work Credits.</div>
+              <div class="s">Start earning.</div>
             </div>
             <div class="mini">
               <div class="k">Move to Trading</div>
               <div class="v">Move</div>
-              <div class="s">Move available WC into trading.</div>
+              <div class="s">Prepare WC for trade.</div>
             </div>
             <div class="mini">
               <div class="k">Trade for VOID</div>
               <div class="v">Trade</div>
-              <div class="s">Swap WC for VOID.</div>
+              <div class="s">Exchange WC for VOID.</div>
             </div>
           </div>
         </div>
@@ -36966,13 +36966,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Balances</h2>
+              <h2>Your Balances</h2>
               <div class="section-copy">High-level current state for the selected participant account.</div>
             </div>
           </div>
           <div class="hero-note" id="summaryCard">loading…</div>
           <details class="adv" style="margin-top:14px">
-            <summary><span>Advanced account state</span><span class="pill">raw json</span></summary>
+            <summary><span>Account Details</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
               <pre id="summaryOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
             </div>
@@ -37049,7 +37049,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="mini">
                 <div class="k">Send VOID</div>
                 <div class="v">Send</div>
-                <div class="s">Send VOID from your connected wallet.</div>
+                <div class="s">Send from wallet.</div>
               </div>
             </div>
           </div>
