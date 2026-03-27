@@ -37011,11 +37011,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Earn Work Credits</h2>
-              <div class="section-copy">Submit useful work, receive a proof-backed result, and earn Work Credits when it completes.</div>
+              <div class="section-copy">Submit useful work here, wait for proof that it completed, and earn Work Credits when the job finishes.</div>
             </div>
           </div>
 
-          <label for="account">Participant account</label>
+          <label for="account">Which participant account should receive credit?</label>
           <input id="account" value="remote-user-3" />
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
             <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-1'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-1</button>
@@ -37023,11 +37023,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-3'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-3</button>
           </div>
 
-          <label for="plaintext">Plaintext payload</label>
-          <textarea id="plaintext">hello from VOID participant dashboard</textarea>
+          <label for="plaintext">What do you want to submit?</label>
+          <textarea id="plaintext">Enter the text or data you want to submit through the participant dashboard.</textarea>
 
           <div class="row" style="margin-top:14px;">
-            <button class="btn btn-primary" id="submitBtn">Submit Job</button>
+            <button class="btn btn-primary" id="submitBtn">Submit Work</button>
             <button class="btn" id="refreshBtn" type="button">Refresh Connection</button>
           </div>
 
@@ -37050,8 +37050,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
 
           <div style="margin-top:14px;">
-            <label>Submit result</label>
-            <pre id="submitOut">idle</pre>
+            <label>Submission Status</label>
+            <pre id="submitOut">Waiting for your first submission.</pre>
           </div>
         </div>
 
