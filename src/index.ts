@@ -36839,9 +36839,29 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     .help::after{content:attr(data-help);position:absolute;left:50%;bottom:125%;transform:translateX(-50%);min-width:180px;max-width:260px;padding:8px 10px;border-radius:10px;background:#020617;border:1px solid #334155;color:#e5e7eb;font-size:12px;font-weight:500;line-height:1.35;white-space:normal;opacity:0;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.35);z-index:80}
     .help:hover::after,.help:focus::after{opacity:1}
 
+  
+    body[data-active-tab="work"] .hero-shell,
+    body[data-active-tab="trading"] .hero-shell,
+    body[data-active-tab="wallet"] .hero-shell,
+    body[data-active-tab="receipts"] .hero-shell{display:none}
+
+    body[data-active-tab="work"] .top-kpis,
+    body[data-active-tab="trading"] .top-kpis,
+    body[data-active-tab="wallet"] .top-kpis,
+    body[data-active-tab="receipts"] .top-kpis{display:none}
+
+    .compact-tab-head{display:none;margin-bottom:16px}
+    body[data-active-tab="work"] #work-compact-head,
+    body[data-active-tab="trading"] #trading-compact-head,
+    body[data-active-tab="wallet"] #wallet-compact-head,
+    body[data-active-tab="receipts"] #receipts-compact-head{display:block}
+
+    .compact-tab-title{font-size:28px;font-weight:900;letter-spacing:-.03em;color:#f8fafc;margin:0 0 6px}
+    .compact-tab-meta{color:#93a4bf;font-size:13px}
+
   </style>
 </head>
-<body>
+<body data-active-tab="overview">
 <div style="max-width:1400px;margin:0 auto 14px auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px;">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <a href="/participant" style="color:#e5e7eb;text-decoration:none;font-weight:800;letter-spacing:.04em;">VOID</a>
@@ -36897,13 +36917,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <span class="pill">receipt-backed WC</span>
           <span class="pill">WC → VOID trading</span>
         </div>
-        <h1>Earn Work Credits, trade for VOID, and manage everything in one place.</h1>
-        <div class="hero-copy">Submit useful work, receive proof-backed rewards, track your Work Credits, and trade into VOID when you are ready.</div>
+        <h1>VOID Participant</h1>
+        <div class="hero-copy"></div>
         <div class="hero-actions">
           <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Start Earning</a>
-          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#trading">Trade WC for VOID</a>
-          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#wallet">Wallet</a>
-          <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" href="/participant#receipts">View Proofs</a>
+          
+          
+          
         </div>
       </div>
 
@@ -37015,6 +37035,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </section>
 
     <section class="tabpane" id="pane-work">
+      <div class="compact-tab-head" id="work-compact-head"><h1 class="compact-tab-title">Earn</h1><div class="compact-tab-meta">Submit work and earn WC.</div></div>
       <div class="grid-2">
         <div class="action">
           <div class="section-head">
@@ -37090,6 +37111,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </section>
 
     <section class="tabpane" id="pane-trading">
+      <div class="compact-tab-head" id="trading-compact-head"><h1 class="compact-tab-title">Trade</h1><div class="compact-tab-meta">Swap participant WC for VOID.</div></div>
       <div class="panel">
         <div class="section-head">
           <div>
@@ -37105,7 +37127,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Trade Availability...</button>
         </div>
 
-        <div class="metric-strip" style="margin-top:16px">
+        <div class="metric-strip top-kpis" style="margin-top:16px">
           <div class="mini">
             <div class="k">Available WC</div>
             <div class="v" id="tradeRedeemableWc">-</div>
@@ -37358,6 +37380,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </section>
 
     <section class="tabpane" id="pane-receipts">
+      <div class="compact-tab-head" id="receipts-compact-head"><h1 class="compact-tab-title">Proofs</h1><div class="compact-tab-meta">Receipts and results.</div></div>
       <div class="grid-2-eq">
         <div class="panel">
           <div class="section-head">
@@ -37531,6 +37554,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const pane = $("pane-" + tab);
     if (btn) btn.classList.add("active");
     if (pane) pane.classList.add("active");
+    try { document.body.setAttribute("data-active-tab", tab); } catch {}
     try { localStorage.setItem("void_participant_tab", tab); } catch {}
     try { history.replaceState(null, "", "#"+tab); } catch {}
   }
