@@ -35665,6 +35665,69 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       }
     });
 
+    app.post("/wc/send", (req:any, res:any) => {
+      try {
+        const from = safeAccount(req.body?.from || req.body?.account || req.query?.from || req.query?.account || "");
+        const to = safeAccount(req.body?.to || req.query?.to || "");
+        const reqAmount = req.body?.amount ?? req.query?.amount;
+        const note = String(req.body?.note || req.query?.note || "wc_send_v1").trim().slice(0, 160);
+
+        if (!from) return res.status(400).json({ ok:false, error:"from_required" });
+        if (!to) return res.status(400).json({ ok:false, error:"to_required" });
+        if (from === to) return res.status(400).json({ ok:false, error:"same_account" });
+
+        const st = redeemState(from);
+        const amount = wcRound(Number(reqAmount));
+
+        if (!(Number.isFinite(amount) && amount > 0)) {
+          return res.status(400).json({ ok:false, error:"invalid_amount", redeemable: st.redeemable });
+        }
+        if (amount > st.redeemable) {
+          return res.status(400).json({ ok:false, error:"amount_exceeds_redeemable", redeemable: st.redeemable });
+        }
+
+        const ts = Date.now();
+        const ref = "wc_send_" + ts + "_" + Math.random().toString(16).slice(2,10);
+
+        const debitEvt = {
+          kind: "debit",
+          account: from,
+          delta: -amount,
+          amount,
+          to,
+          reason: "wc_send_v1",
+          note,
+          ref,
+          ts_ms: ts
+        };
+        const creditEvt = {
+          kind: "credit",
+          account: to,
+          delta: amount,
+          from,
+          reason: "wc_send_receive_v1",
+          note,
+          ref,
+          ts_ms: ts
+        };
+
+        appendJsonl(ledgerFile(), debitEvt);
+        appendJsonl(ledgerFile(), creditEvt);
+
+        return res.json({
+          ok:true,
+          ref,
+          amount,
+          from_state: redeemState(from),
+          to_state: redeemState(to),
+          debit_event: debitEvt,
+          credit_event: creditEvt
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
     app.get("/__void/diag/wc-redeem-v1.json", (_req:any, res:any) => {
       try {
         const fs = require("node:fs");
