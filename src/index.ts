@@ -37212,16 +37212,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Send Work Credits</h2>
-                <div class="section-copy">Transfer redeemable WC from the current account to another local account or wallet-linked identity.</div>
+                <h2 style="margin-bottom:4px">Transfer Local Work Credits</h2>
+                <div class="section-copy">Transfer redeemable WC inside the local ledger only. This does not send onchain to MetaMask.</div>
               </div>
             </div>
-            <label for="sendTo">Recipient account</label>
-            <input id="sendTo" value="" placeholder="remote-user-2 or 0x..." />
+            <label for="sendTo">Recipient local account</label>
+            <input id="sendTo" value="" placeholder="remote-user-2 or another local account id" autocomplete="off" />
             <label for="sendAmount">Send amount</label>
             <input id="sendAmount" value="1" inputmode="decimal" />
             <div class="action-rail" style="margin-top:12px">
-              <button class="btn btn-primary" id="sendWcBtn" type="button">Send WC</button>
+              <button class="btn btn-primary" id="sendWcBtn" type="button">Transfer WC</button>
             </div>
             <div style="margin-top:12px">
               <pre id="sendOut">idle</pre>
