@@ -37284,7 +37284,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
           <div class="metric-strip" style="margin-top:14px">
             <div class="mini">
-              <div class="k">Connected Wallet</div>
+              <div class="k">Wallet</div>
               <div class="v" id="connectedWalletAddrMini">-</div>
               <div class="s">Wallet address</div>
             </div>
