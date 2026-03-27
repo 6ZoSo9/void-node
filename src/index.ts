@@ -37093,7 +37093,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Trading</h2>
-              <div class="section-copy">Helper-backed market surface for devnet until native shell swapping exists.</div>
+              <div class="section-copy">Local trading flow for swapping Work Credits into VOID during devnet.</div>
             </div>
           </div>
 
@@ -37104,12 +37104,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">current helper pool price</div>
             </div>
             <div class="mini">
-              <div class="k">Helper wallet WC</div>
+              <div class="k">Trading Wallet WC</div>
               <div class="v" id="tradeWalletWc">-</div>
-              <div class="s">preview balance</div>
+              <div class="s">current local trading balance</div>
             </div>
             <div class="mini">
-              <div class="k">Helper wallet VOID</div>
+              <div class="k">Trading Wallet VOID</div>
               <div class="v" id="tradeWalletVoid">-</div>
               <div class="s">preview balance</div>
             </div>
@@ -37125,19 +37125,19 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
             <div class="metric-strip">
               <div class="mini">
-                <div class="k">Local Redeemable WC</div>
+                <div class="k">Available WC</div>
                 <div class="v" id="tradeRedeemableWc">-</div>
-                <div class="s">available from local earnings</div>
+                <div class="s">ready to move into trading</div>
               </div>
               <div class="mini">
                 <div class="k">Quoted VOID</div>
                 <div class="v" id="tradeQuoteVoid">-</div>
-                <div class="s">estimated at current helper price</div>
+                <div class="s">estimated at current trading price</div>
               </div>
               <div class="mini">
                 <div class="k">Relayer</div>
                 <div class="v" id="tradeRelayerState">-</div>
-                <div class="s">native execution status</div>
+                <div class="s">trade execution status</div>
               </div>
             </div>
 
@@ -37161,7 +37161,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Trading overview</h2>
-              <div class="section-copy">Quote, relayer status, and helper context for the current trading flow.</div>
+              <div class="section-copy">See your current trade path, estimated return, and execution status.</div>
             </div>
           </div>
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
@@ -37193,24 +37193,24 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <div class="metric-strip" style="margin-top:14px">
             <div class="mini">
-              <div class="k">Earned</div>
+              <div class="k">Total Earned</div>
               <div class="v" id="walletEarnedMini">-</div>
-              <div class="s">lifetime local WC credits</div>
+              <div class="s">all Work Credits earned on this node</div>
             </div>
             <div class="mini">
-              <div class="k">Debited</div>
+              <div class="k">Sent</div>
               <div class="v" id="walletDebitedMini">-</div>
-              <div class="s">local WC transferred out</div>
+              <div class="s">Work Credits sent to other local users</div>
             </div>
             <div class="mini">
-              <div class="k">Redeemed</div>
+              <div class="k">Moved to Trading</div>
               <div class="v" id="walletRedeemedMini">-</div>
-              <div class="s">moved into helper flow</div>
+              <div class="s">Work Credits already moved into trading</div>
             </div>
             <div class="mini">
-              <div class="k">Redeemable</div>
+              <div class="k">Available Now</div>
               <div class="v" id="walletRedeemableMini">-</div>
-              <div class="s">currently spendable local WC</div>
+              <div class="s">Work Credits ready to use right now</div>
             </div>
           </div>
 
@@ -37345,8 +37345,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>WC ledger</h2>
-              <div class="section-copy">Receipt-backed credits that explain how the local earned balance moved.</div>
+              <h2>Work Credit History</h2>
+              <div class="section-copy">A history of local Work Credit activity showing how your balance changed.</div>
             </div>
           </div>
           <div class="table-wrap"><div id="ledgerWrap" class="empty">loading…</div></div>
