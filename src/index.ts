@@ -37662,9 +37662,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "connectedWalletMeta",
       isWalletAddr(connectedWallet)
-        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | trading wallet: " + wcAddr : " | no trading wallet linked"))
+        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | trading wallet: " + wcAddr : " | no trading wallet linked") + " | local WC comes from participant account")
         : (wcAddr
-            ? ("trading wallet: " + wcAddr + " | no connected wallet detected")
+            ? ("trading wallet: " + wcAddr + " | no connected wallet detected | local WC comes from participant account")
             : "No connected wallet detected")
     );
 
@@ -37785,25 +37785,27 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if ($("dataStateOut")) setPre("dataStateOut", summaryWrapped);
     if ($("helperWalletStateOut")) setPre("helperWalletStateOut", {
       participant_account: account,
+      participant_redeem_state: redeemState || null,
       connected_wallet: connectedWallet || null,
       manual_wallet: manualWallet || null,
       mapped_trading_wallet: wcAddr || null,
       helper_dashboard_ok: !!(wcDash && wcDash.account && wcDash.pool),
       helper_balances: wcBal || null,
-      helper_earnings: wcEarn || null,
-      pool_price: wcPool && wcPool.price ? wcPool.price : null
+      helper_wallet_earnings_raw: wcEarn || null,
+      pool_price: wcPool && wcPool.price ? wcPool.price : null,
+      note: "Participant local WC on :4100 is canonical for earn/redeem/trade eligibility. Helper earnings are wallet-scoped and informational only."
     });
     if ($("tradeStateOut")) setPre("tradeStateOut", {
       helper_ui: wcBase + "/ui",
       helper_pool_json: wcBase + "/pool.json",
       participant_account: account,
+      participant_redeem_state: redeemState || null,
       connected_wallet: connectedWallet || null,
       manual_wallet: manualWallet || null,
       mapped_trading_wallet: wcAddr || null,
       helper_dashboard_ok: !!(wcDash && wcDash.account && wcDash.pool),
       helper_balances: wcBal || null,
-      helper_earnings: wcEarn || null,
-      local_redeem_state: redeemState || null,
+      helper_wallet_earnings_raw: wcEarn || null,
       local_redeemed_events: redeemedState || null,
       quote_input_wc: Number.isFinite(tradeInput) ? tradeInput : null,
       quote_output_void: quotedVoid,
@@ -37817,8 +37819,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       note: !relayerUp
         ? "Relayer is offline."
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "No available WC to trade yet. Earn Work Credits or move them into trading before executing a trade."
-            : "Relayer is live for quote and execution.")
+            ? "No available WC to trade yet. Participant local WC on :4100 is the canonical source for trade eligibility."
+            : "Relayer is live for quote and execution. Participant local WC on :4100 is the canonical source for trade eligibility.")
     });
     setPre("summaryOut", summaryWrapped);
 
@@ -37832,7 +37834,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     setText(
       "tradeOverviewCard",
-      "Available WC: " + redeemableTotal +
+      "Available WC (participant): " + redeemableTotal +
       " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
       " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable")
     );
