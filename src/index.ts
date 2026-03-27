@@ -36941,24 +36941,24 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Overview</h2>
-              <div class="section-copy">This is your main dashboard for earning Work Credits, checking proof-backed activity, and managing balances.</div>
+              <div class="section-copy">See your balances, take the next action, and review recent activity.</div>
             </div>
           </div>
           <div class="grid-3">
             <div class="mini">
-              <div class="k">1. Do Work</div>
-              <div class="v">Start</div>
-              <div class="s">Submit work and watch it complete on the node.</div>
+              <div class="k">Earn WC</div>
+              <div class="v">Earn</div>
+              <div class="s">Submit work and earn Work Credits.</div>
             </div>
             <div class="mini">
-              <div class="k">2. Check Proof</div>
-              <div class="v">Proof</div>
-              <div class="s">Review receipts and outputs to confirm what happened.</div>
+              <div class="k">Move to Trading</div>
+              <div class="v">Move</div>
+              <div class="s">Move available WC into trading.</div>
             </div>
             <div class="mini">
-              <div class="k">3. Use Rewards</div>
-              <div class="v">Balance</div>
-              <div class="s">Check your Work Credits and decide whether to keep or trade them.</div>
+              <div class="k">Trade for VOID</div>
+              <div class="v">Trade</div>
+              <div class="s">Swap WC for VOID.</div>
             </div>
           </div>
         </div>
@@ -36966,7 +36966,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Your Account</h2>
+              <h2>Balances</h2>
               <div class="section-copy">High-level current state for the selected participant account.</div>
             </div>
           </div>
@@ -37046,6 +37046,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="k">Current Account</div>
               <div class="v">Participant</div>
               <div class="s">The participant account currently selected for this work.</div>
+            
+              <!-- VOID_HOME_SEND_VOID_ACTION_V1 -->
+              <div class="mini">
+                <div class="k">Send VOID</div>
+                <div class="v">Send</div>
+                <div class="s">Send VOID from your connected wallet.</div>
+              </div>
             </div>
           </div>
 
