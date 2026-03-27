@@ -37212,6 +37212,25 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
+                <h2 style="margin-bottom:4px">Send Work Credits</h2>
+                <div class="section-copy">Transfer redeemable WC from the current account to another local account or wallet-linked identity.</div>
+              </div>
+            </div>
+            <label for="sendTo">Recipient account</label>
+            <input id="sendTo" value="" placeholder="remote-user-2 or 0x..." />
+            <label for="sendAmount">Send amount</label>
+            <input id="sendAmount" value="1" inputmode="decimal" />
+            <div class="action-rail" style="margin-top:12px">
+              <button class="btn btn-primary" id="sendWcBtn" type="button">Send WC</button>
+            </div>
+            <div style="margin-top:12px">
+              <pre id="sendOut">idle</pre>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:16px;padding:14px">
+            <div class="section-head">
+              <div>
                 <h2 style="margin-bottom:4px">Redeem WC to local trading flow</h2>
                 <div class="section-copy">Moves local redeemable WC into the local trading path.</div>
               </div>
@@ -37704,6 +37723,48 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     );
   }
 
+  async function sendWcNow(){
+    const from = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+    const to = $("sendTo") ? (($("sendTo").value || "").trim()) : "";
+    const amount = $("sendAmount") ? Number((($("sendAmount").value || "").trim() || "0")) : 0;
+    const btn = $("sendWcBtn");
+    const prevText = btn ? btn.textContent : "Send WC";
+
+    try {
+      if (!to) {
+        setPre("sendOut", { ok:false, error:"recipient_required" });
+        return;
+      }
+      if (!(Number.isFinite(amount) && amount > 0)) {
+        setPre("sendOut", { ok:false, error:"invalid_amount" });
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Sending...";
+      }
+
+      setPre("sendOut", { ok:true, sending:true, from, to, amount });
+
+      const out = await j("/wc/send", {
+        method: "POST",
+        headers: { "content-type":"application/json" },
+        body: JSON.stringify({ from, to, amount })
+      });
+
+      setPre("sendOut", out);
+      await refresh();
+    } catch (e) {
+      setPre("sendOut", { ok:false, error:String((e && e.message) || e) });
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prevText || "Send WC";
+      }
+    }
+  }
+
   async function redeemNow(useMax){
     const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
     const wallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
@@ -37975,6 +38036,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
   if ($("refreshBtn")) $("refreshBtn").addEventListener("click", refresh);
+  if ($("sendWcBtn")) $("sendWcBtn").addEventListener("click", () => sendWcNow());
   if ($("redeemBtn")) $("redeemBtn").addEventListener("click", () => redeemNow(false));
   if ($("redeemMaxBtn")) $("redeemMaxBtn").addEventListener("click", async () => {
     try {
