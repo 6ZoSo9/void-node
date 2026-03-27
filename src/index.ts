@@ -37139,7 +37139,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <input id="tradeInputWc" value="10" inputmode="decimal" />
 
             <div class="action-rail" style="margin-top:12px">
-              <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Available WC</button>
+              <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
               <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Trade Unavailable Right Now</button>
               <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading Tools</a>
               <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >View Pool Details</a>
@@ -37170,37 +37170,6 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </section>
 
     <section class="tabpane active" id="pane-wallet">
-      <!-- VOID_WALLET_UE_STEP_STRIP_V1 -->
-      <div class="panel" style="margin-bottom:16px;padding:14px">
-        <div class="section-head">
-          <div>
-            <h2 style="margin-bottom:4px">How it works</h2>
-            <div class="section-copy">The basic loop is simple: earn Work Credits, move them into trading, swap for VOID, then hold or send your VOID.</div>
-          </div>
-        </div>
-        <!-- VOID_WALLET_START_HERE_CTA_V1 -->
-        <div class="hero-note" style="margin-top:12px">
-          <strong>Start here:</strong> check your <strong>Available WC</strong>, then move some into trading when you are ready to swap for VOID.
-        </div>
-        <div class="metric-strip">
-          <div class="mini">
-            <div class="k">1. Earn WC</div>
-            <div class="s">Complete useful work and receive proof-backed Work Credits.</div>
-          </div>
-          <div class="mini">
-            <div class="k">2. Move WC to Trading</div>
-            <div class="s">Move available local WC into the trading wallet.</div>
-          </div>
-          <div class="mini">
-            <div class="k">3. Trade WC for VOID</div>
-            <div class="s">Preview your return, then swap when trading is available.</div>
-          </div>
-          <div class="mini">
-            <div class="k">4. Hold or Send VOID</div>
-            <div class="s">Your VOID lives in your connected MetaMask wallet.</div>
-          </div>
-        </div>
-      </div>
       <div class="grid-2-eq">
         <div class="panel">
           <div class="section-head">
