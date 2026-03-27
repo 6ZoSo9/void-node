@@ -37086,7 +37086,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Trade WC for VOID</h2>
-              <div class="section-copy">Local trading flow for swapping Work Credits into VOID during devnet.</div>
+              <div class="section-copy">Swap Work Credits for VOID.</div>
             </div>
           </div>
 
@@ -37112,7 +37112,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="section-head">
               <div>
                 <h2 style="margin-bottom:4px">WC → VOID quote</h2>
-                <div class="section-copy">Estimated VOID you would receive if you trade your available WC right now.</div>
+                <div class="section-copy">Preview your trade.</div>
               </div>
             </div>
 
@@ -37144,7 +37144,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >View Pool Details</a>
             </div>
 
-            <div class="hero-note" style="margin-top:12px">Preview your trade here. If direct execution is unavailable right now, use Advanced Trading as a fallback.</div>
+            
           </div>
         </div>
 
@@ -37152,17 +37152,15 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Trade Summary</h2>
-              <div class="section-copy">See your estimated return, whether direct trading is ready, and where to go if you need the fallback tools.</div>
+              <div class="section-copy">Your current trade summary.</div>
             </div>
           </div>
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Advanced trading state</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
-          <details style="margin-top:14px">
-            <summary style="cursor:pointer;color:#cbd5e1;font-weight:700;">Advanced trading state</summary>
-            <pre id="tradeStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
-          </details></div>
+              <pre id="tradeStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
+            </div>
           </details>
         </div>
       </div>
@@ -37244,11 +37242,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
           </div>
 
-          <div class="action-rail">
-            <span class="pill">receipt auto-credit</span>
-            <span class="pill">selected account</span>
-            <span class="pill">local truth</span>
-          </div>
+
 
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
@@ -37305,11 +37299,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">Work Credits are stored locally on this node for now</div>
             </div>
           </div>
-          <div class="action-rail">
-            <span class="pill">connected wallet</span>
-            <span class="pill">onchain void</span>
-            <span class="pill">wc stays local</span>
-          </div>
+
 
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
@@ -37346,8 +37336,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Redeem history</h2>
-              <div class="section-copy">Move available local WC into trading before swapping for VOID.</div>
+              <h2>Trading Transfers</h2>
+              <div class="section-copy">Recent moves from WC into trading.</div>
             </div>
           </div>
           <div class="table-wrap"><div id="redeemHistoryWrap" class="empty">loading…</div></div>
@@ -37356,13 +37346,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
       <div class="grid-2-eq">
         <div class="panel">
-          <div class="section-head">
-            <div>
-              <h2>Trading context</h2>
-              <div class="section-copy">Helper and pool state kept available without dominating the page.</div>
+          <details class="adv">
+            <summary><span>Trading Details</span><span class="pill">advanced</span></summary>
+            <div class="adv-body">
+              <pre id="helperWalletStateOut">loading…</pre>
             </div>
-          </div>
-          <pre id="helperWalletStateOut">loading…</pre>
+          </details>
         </div>
       </div>
     </section>
