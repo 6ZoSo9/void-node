@@ -36914,24 +36914,24 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
     <section class="kpis">
       <div class="kpi">
-        <div class="k">Node health</div>
+        <div class="k">Node Status</div>
         <div class="v" id="topHealth">-</div>
-        <div class="s" id="topHealthMeta">loading…</div>
+        <div class="s" id="topHealthMeta">Checking node availability…</div>
       </div>
       <div class="kpi">
-        <div class="k">Sync</div>
+        <div class="k">Network Sync</div>
         <div class="v" id="syncGap">-</div>
-        <div class="s" id="syncMeta">loading…</div>
+        <div class="s" id="syncMeta">Checking network sync…</div>
       </div>
       <div class="kpi">
-        <div class="k">Local WC Earned</div>
+        <div class="k">Available WC</div>
         <div class="v" id="wcBalance">-</div>
-        <div class="s" id="wcMeta">loading…</div>
+        <div class="s" id="wcMeta">Checking available Work Credits…</div>
       </div>
       <div class="kpi">
-        <div class="k">Latest job</div>
+        <div class="k">Latest Work</div>
         <div class="v" id="latestJobState">-</div>
-        <div class="s" id="latestJobMeta">loading…</div>
+        <div class="s" id="latestJobMeta">Checking your most recent work…</div>
       </div>
     </section>
 
