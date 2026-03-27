@@ -36941,7 +36941,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       </div>
     </section>
 
-    <section class="tabpane active" id="pane-overview">
+    <section class="tabpane" id="pane-overview">
       <div class="grid-2">
         <div class="panel">
           <div class="section-head">
@@ -37175,7 +37175,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       </div>
     </section>
 
-    <section class="tabpane" id="pane-wallet">
+    <section class="tabpane active" id="pane-wallet">
       <!-- VOID_WALLET_UE_STEP_STRIP_V1 -->
       <div class="panel" style="margin-bottom:16px;padding:14px">
         <div class="section-head">
