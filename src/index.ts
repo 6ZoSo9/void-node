@@ -36914,14 +36914,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
     <section class="kpis">
       <div class="kpi">
-        <div class="k">Node Status</div>
+        <div class="k">VOID Balance</div>
         <div class="v" id="topHealth">-</div>
-        <div class="s" id="topHealthMeta">Checking node availability…</div>
+        <div class="s" id="topHealthMeta">Checking onchain VOID balance…</div>
       </div>
       <div class="kpi">
-        <div class="k">Network Sync</div>
+        <div class="k">Trading WC</div>
         <div class="v" id="syncGap">-</div>
-        <div class="s" id="syncMeta">Checking network sync…</div>
+        <div class="s" id="syncMeta">Checking WC already moved into trading…</div>
       </div>
       <div class="kpi">
         <div class="k">Available WC</div>
@@ -36936,6 +36936,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </section>
 
     <section class="tabpane" id="pane-overview">
+      <!-- VOID_HOME_SYSTEM_STATUS_V1 -->
+      <details class="adv" style="margin-bottom:16px">
+        <summary><span>System Status</span><span class="pill">advanced</span></summary>
+        <div class="adv-body">
+          <div class="hero-note" id="systemStatusCard">loading…</div>
+        </div>
+      </details>
       <div class="grid-2">
         <div class="panel">
           <div class="section-head">
@@ -37650,20 +37657,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             : "Swap WC for VOID");
     }
 
-    if (health && health.ok) {
-      const poolMeta = wcPool && wcPool.price
-        ? (" | WC/VOID: " + wcPool.price.wc_per_void)
-        : "";
-      setText("topHealth", "Ready");
-      setText(
-        "topHealthMeta",
-        "http: " + (health.http ?? "?") + " | p2p: " + (Array.isArray(health.listen) && health.listen.length ? health.listen[0] : "?") + poolMeta
-      );
-    } else {
-      setText("topHealth", "Needs Attention");
-      setText("topHealthMeta", "health unavailable");
-    }
-
     const latestJob = jobs && jobs.ok && jobs.jobs && jobs.jobs.length ? jobs.jobs[0] : null;
     setText("latestJobState", latestJob ? latestJob.status : "-");
     setText("latestJobMeta", latestJob ? (latestJob.job_id + " | " + latestJob.kind) : "no jobs");
@@ -37693,9 +37686,32 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       syncMeta = "Connected peers: " + peerCount + " | main sync details unavailable";
     }
 
-    setText("syncGap", syncLabel);
-    if (syncEl) syncEl.className = "v " + syncClass;
-    setText("syncMeta", syncMeta);
+    const voidBalHome = connectedVoidBal === "-" ? "0" : connectedVoidBal;
+    setText("topHealth", voidBalHome);
+    setText(
+      "topHealthMeta",
+      /^0x[0-9a-fA-F]{40}$/.test(connectedWallet)
+        ? "live onchain VOID balance"
+        : "No connected wallet"
+    );
+
+    const tradingWcHome = Number.isFinite(Number(redeemedTotal)) ? Number(redeemedTotal) : 0;
+    setText("syncGap", tradingWcHome);
+    if (syncEl) syncEl.className = "v";
+    setText("syncMeta", "Work Credits currently moved into trading");
+
+    if ($("systemStatusCard")) {
+      const sys = [];
+      sys.push("Node: " + (health && health.ok ? "Ready" : "Needs Attention"));
+      if (health && health.ok) {
+        sys.push("http " + (health.http ?? "?"));
+        sys.push("p2p " + (Array.isArray(health.listen) && health.listen.length ? health.listen[0] : "?"));
+      }
+      sys.push("Sync: " + syncLabel);
+      sys.push(syncMeta);
+      if (wcPool && wcPool.price && wcPool.price.wc_per_void != null) sys.push("WC/VOID: " + wcPool.price.wc_per_void);
+      setText("systemStatusCard", sys.join(" • "));
+    }
 
     const ledgerEvents = (ledger && ledger.events) || [];
     const latestLedger = ledgerEvents && ledgerEvents.length ? ledgerEvents[0] : null;
