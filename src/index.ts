@@ -37212,12 +37212,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Your Work Credits</h2>
-              <div class="section-copy">Offchain/local Work Credit state for the selected participant account.</div>
+              <div class="section-copy">Your local Work Credit balance for this participant account. Start by checking what is available now.</div>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
-            <div class="v" style="font-size:52px;margin-bottom:10px" id="walletRedeemableBig">-</div>
-            <div class="s" id="walletMeta">loading…</div>
+            <div class="v" style="font-size:64px;margin-bottom:8px;line-height:1" id="walletRedeemableBig">-</div>
+            <div class="s" id="walletMeta">Available Work Credits you can use right now</div>
           </div>
 
           <div class="metric-strip" style="margin-top:14px">
@@ -37236,9 +37236,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="v" id="walletRedeemedMini">-</div>
               <div class="s">Work Credits already moved into trading</div>
             </div>
-            <div class="mini">
+            <div class="mini" style="border:1px solid rgba(255,255,255,.14);box-shadow:0 0 0 1px rgba(255,255,255,.03) inset">
               <div class="k">Available Now</div>
-              <div class="v" id="walletRedeemableMini">-</div>
+              <div class="v" id="walletRedeemableMini" style="font-size:34px">-</div>
               <div class="s">Work Credits ready to use right now</div>
             </div>
           </div>
