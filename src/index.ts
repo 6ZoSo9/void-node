@@ -37125,7 +37125,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
             <div class="metric-strip">
               <div class="mini">
-                <div class="k">Redeemable WC</div>
+                <div class="k">Local Redeemable WC</div>
                 <div class="v" id="tradeRedeemableWc">-</div>
                 <div class="s">available from local earnings</div>
               </div>
@@ -37182,12 +37182,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Earned WC</h2>
-              <div class="section-copy">Receipt-backed earnings for the selected participant account.</div>
+              <h2>Local Work Credits</h2>
+              <div class="section-copy">Local ledger state for the selected participant account.</div>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
-            <div class="v" style="font-size:52px;margin-bottom:10px" id="walletBalanceBig">-</div>
+            <div class="v" style="font-size:52px;margin-bottom:10px" id="walletRedeemableBig">-</div>
             <div class="s" id="walletMeta">loading…</div>
           </div>
 
@@ -37195,17 +37195,22 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Earned</div>
               <div class="v" id="walletEarnedMini">-</div>
-              <div class="s">total receipt-backed WC</div>
+              <div class="s">lifetime local WC credits</div>
+            </div>
+            <div class="mini">
+              <div class="k">Debited</div>
+              <div class="v" id="walletDebitedMini">-</div>
+              <div class="s">local WC transferred out</div>
             </div>
             <div class="mini">
               <div class="k">Redeemed</div>
               <div class="v" id="walletRedeemedMini">-</div>
-              <div class="s">already moved toward helper flow</div>
+              <div class="s">moved into helper flow</div>
             </div>
             <div class="mini">
               <div class="k">Redeemable</div>
               <div class="v" id="walletRedeemableMini">-</div>
-              <div class="s">available to bridge into helper trading</div>
+              <div class="s">currently spendable local WC</div>
             </div>
           </div>
 
@@ -37257,8 +37262,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Earned WC</h2>
-                <div class="section-copy">WC ledger is the current source of truth for earned local credits on this page.</div>
+                <h2 style="margin-bottom:4px">Local WC Ledger Truth</h2>
+                <div class="section-copy">This section explains the local ledger state used to derive earned, debited, redeemed, and redeemable WC.</div>
               </div>
             </div>
             <div class="metric-strip">
@@ -37284,8 +37289,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Wallet preview</h2>
-              <div class="section-copy">Secondary wallet state, separate from earned WC.</div>
+              <h2>Connected Wallet / Onchain Assets</h2>
+              <div class="section-copy">Onchain and helper-backed wallet context. VOID is onchain. WC remains local-ledger only for now.</div>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -37294,19 +37299,19 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
           <div class="metric-strip" style="margin-top:14px">
             <div class="mini">
-              <div class="k">Helper WC</div>
+              <div class="k">Helper WC Preview</div>
               <div class="v" id="helperWalletWcMini">-</div>
               <div class="s">local trading wallet preview</div>
             </div>
             <div class="mini">
-              <div class="k">Helper VOID</div>
+              <div class="k">Helper VOID Preview</div>
               <div class="v" id="helperWalletVoidMini">-</div>
               <div class="s">local trading wallet preview</div>
             </div>
             <div class="mini">
-              <div class="k">Redeemable WC</div>
+              <div class="k">Local Redeemable WC</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">not yet in helper wallet</div>
+              <div class="s">local WC not yet moved on helper path</div>
             </div>
           </div>
           <div class="action-rail">
@@ -37560,14 +37565,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         : "local WC unavailable"
     );
 
-    setText("walletBalanceBig", localEarned !== null ? localEarned : "-");
+    setText("walletRedeemableBig", redeemableTotal);
     setText(
       "walletMeta",
-      localEarned !== null
-        ? ("Earned WC: " + localEarned + " • Entries: " + (localCount ?? 0) + " • Account: " + account)
-        : "Earned WC unavailable"
+      redeemState
+        ? ("Redeemable WC: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
+        : "Local WC state unavailable"
     );
-    setText("walletEarnedMini", localEarned !== null ? localEarned : "-");
+    setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
+    setText("walletDebitedMini", redeemState && Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0);
     setText("walletRedeemedMini", redeemedTotal);
     setText("walletRedeemableMini", redeemableTotal);
 
