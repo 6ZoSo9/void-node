@@ -37092,7 +37092,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading</h2>
+              <h2>Trade WC for VOID</h2>
               <div class="section-copy">Local trading flow for swapping Work Credits into VOID during devnet.</div>
             </div>
           </div>
@@ -37151,16 +37151,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >Open Pool Details</a>
             </div>
 
-            <div class="hero-note" style="margin-top:12px">
-              Native in-shell swap execution is still gated by relayer availability. Quote and redeem flow are live now; execution can fall back to the helper UI until the relayer is up.
-            </div>
+            <div class="hero-note" style="margin-top:12px">Preview your trade here. If direct execution is unavailable right now, use Advanced Trading as a fallback.</div>
           </div>
         </div>
 
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading overview</h2>
+              <h2>Trade Summary</h2>
               <div class="section-copy">See your current trade path, estimated return, and execution status.</div>
             </div>
           </div>
@@ -37209,7 +37207,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Local Work Credits</h2>
+              <h2>Your Work Credits</h2>
               <div class="section-copy">Offchain/local Work Credit state for the selected participant account.</div>
             </div>
           </div>
