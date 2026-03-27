@@ -36933,7 +36933,6 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="v" id="heroAccountMirror">remote-user-3</div>
           <div class="s" id="heroAccountMirrorMeta">Current participant account being viewed on this node.</div>
         </div>
-        <div class="hero-note"><strong>Primary balance:</strong> Work Credits.<br><strong>Trading:</strong> swap WC for VOID from the trading flow.<br><strong>Verification:</strong> receipts and proof details are still available whenever you need them.</div>
       </div>
     </section>
 
@@ -38433,7 +38432,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     var disconnectBtn = document.getElementById("voidWalletDisconnectBtn");
 
     if (badge) badge.textContent = shorten(addr);
-    if (full) full.textContent = valid(addr) ? ("Connected wallet address: " + addr) : "Connect a wallet to view onchain VOID and send transactions.";
+    if (full) full.textContent = valid(addr) ? addr : "";
     if (connectBtn) connectBtn.style.display = valid(addr) ? "none" : "";
     if (refreshBtn) refreshBtn.style.display = valid(addr) ? "" : "none";
     if (disconnectBtn) disconnectBtn.style.display = valid(addr) ? "" : "none";
