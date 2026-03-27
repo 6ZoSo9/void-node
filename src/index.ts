@@ -37093,7 +37093,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Trade WC for VOID</h2>
-              <div class="section-copy">Swap Work Credits for VOID.</div>
+              <div class="section-copy">Enter an amount, preview the trade, and confirm.</div>
             </div>
           </div>
 
@@ -37119,7 +37119,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="section-head">
               <div>
                 <h2 style="margin-bottom:4px">WC → VOID quote</h2>
-                <div class="section-copy">Preview your trade.</div>
+                <div class="section-copy">See how much VOID you would receive.</div>
               </div>
             </div>
 
@@ -37159,7 +37159,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Trade Summary</h2>
-              <div class="section-copy">Your current trade summary.</div>
+              <div class="section-copy">Current trade status.</div>
             </div>
           </div>
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
@@ -37343,8 +37343,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading Transfers</h2>
-              <div class="section-copy">Recent moves from WC into trading.</div>
+              <h2>Trading History</h2>
+              <div class="section-copy">Recent WC moves into trading.</div>
             </div>
           </div>
           <div class="table-wrap"><div id="redeemHistoryWrap" class="empty">loading…</div></div>
