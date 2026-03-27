@@ -37314,6 +37314,25 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <span class="pill">helper-backed</span>
             <span class="pill">separate system</span>
           </div>
+
+          <div class="panel" style="margin-top:16px;padding:14px">
+            <div class="section-head">
+              <div>
+                <h2 style="margin-bottom:4px">Send VOID</h2>
+                <div class="section-copy">Send devnet VOID onchain from the connected MetaMask wallet to another wallet address.</div>
+              </div>
+            </div>
+            <label for="voidSendTo">Recipient wallet</label>
+            <input id="voidSendTo" value="" placeholder="0x..." autocomplete="off" />
+            <label for="voidSendAmount">VOID amount</label>
+            <input id="voidSendAmount" value="1" inputmode="decimal" />
+            <div class="action-rail" style="margin-top:12px">
+              <button class="btn btn-primary" id="voidSendBtn" type="button">Send VOID</button>
+            </div>
+            <div style="margin-top:12px">
+              <pre id="voidSendOut">idle</pre>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -37838,6 +37857,116 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
   }
 
+  function parseUnits18(v){
+    const s = String(v || "").trim();
+    const m = s.match(/^(\d+)(?:\.(\d+))?$/);
+    if (!m) throw new Error("invalid_amount");
+    const whole = BigInt(m[1] || "0");
+    const fracRaw = String(m[2] || "");
+    const frac = (fracRaw + "000000000000000000").slice(0, 18);
+    return (whole * (10n ** 18n)) + BigInt(frac || "0");
+  }
+
+  function erc20TransferData(to, amountUnits){
+    const selector = "a9059cbb";
+    const addr = String(to || "").replace(/^0x/, "").toLowerCase();
+    const amt = amountUnits.toString(16);
+    return "0x" + selector + addr.padStart(64, "0") + amt.padStart(64, "0");
+  }
+
+  async function sendVoidNow(){
+    const to = $("voidSendTo") ? (($("voidSendTo").value || "").trim()) : "";
+    const amountStr = $("voidSendAmount") ? (($("voidSendAmount").value || "").trim()) : "";
+    const btn = $("voidSendBtn");
+    const prevText = btn ? btn.textContent : "Send VOID";
+
+    try {
+      const from = (() => {
+        try { return String(localStorage.getItem("void_wallet_session_v1") || "").trim(); }
+        catch (_) { return ""; }
+      })();
+
+      if (!from || !/^0x[a-fA-F0-9]{40}$/.test(from)) {
+        setPre("voidSendOut", { ok:false, error:"wallet_not_connected" });
+        return;
+      }
+      if (!to || !/^0x[a-fA-F0-9]{40}$/.test(to)) {
+        setPre("voidSendOut", { ok:false, error:"invalid_recipient_wallet" });
+        return;
+      }
+
+      let units;
+      try {
+        units = parseUnits18(amountStr);
+      } catch (_) {
+        setPre("voidSendOut", { ok:false, error:"invalid_amount" });
+        return;
+      }
+      if (!(units > 0n)) {
+        setPre("voidSendOut", { ok:false, error:"invalid_amount" });
+        return;
+      }
+
+      const relayerHealth = await j(LOCAL_RELAYER_BASE + "/health");
+      const voidToken = relayerHealth && relayerHealth.ok ? String(relayerHealth.void_token || "").trim() : "";
+      if (!/^0x[a-fA-F0-9]{40}$/.test(voidToken)) {
+        setPre("voidSendOut", { ok:false, error:"void_token_unavailable", relayer_health: relayerHealth });
+        return;
+      }
+
+      if (!window.ethereum || !window.ethereum.request) {
+        setPre("voidSendOut", { ok:false, error:"wallet_provider_missing" });
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Sending...";
+      }
+
+      const tx = {
+        from: from,
+        to: voidToken,
+        data: erc20TransferData(to, units)
+      };
+
+      setPre("voidSendOut", {
+        ok:true,
+        submitting:true,
+        from,
+        to,
+        void_token: voidToken,
+        amount: amountStr,
+        tx
+      });
+
+      const txHash = await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [tx]
+      });
+
+      setPre("voidSendOut", {
+        ok:true,
+        sent:true,
+        from,
+        to,
+        void_token: voidToken,
+        amount: amountStr,
+        tx_hash: txHash,
+        note: "VOID transfer submitted from connected wallet."
+      });
+
+      await refresh();
+    } catch (e) {
+      setPre("voidSendOut", { ok:false, error:String((e && e.message) || e) });
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prevText || "Send VOID";
+      }
+    }
+  }
+
   async function submitJob(){
     const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
     const plaintext = $("plaintext") ? $("plaintext").value : "";
@@ -38037,6 +38166,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
   if ($("refreshBtn")) $("refreshBtn").addEventListener("click", refresh);
   if ($("sendWcBtn")) $("sendWcBtn").addEventListener("click", () => sendWcNow());
+  if ($("voidSendBtn")) $("voidSendBtn").addEventListener("click", () => sendVoidNow());
   if ($("redeemBtn")) $("redeemBtn").addEventListener("click", () => redeemNow(false));
   if ($("redeemMaxBtn")) $("redeemMaxBtn").addEventListener("click", async () => {
     try {
