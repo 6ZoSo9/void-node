@@ -37619,7 +37619,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "wcMeta",
       localEarned !== null
-        ? ("earned locally: " + localEarned + " | events: " + (localCount ?? 0) + " | account: " + account)
+        ? ("lifetime earned: " + localEarned + " | events: " + (localCount ?? 0) + " | account: " + account)
         : "local WC unavailable"
     );
 
