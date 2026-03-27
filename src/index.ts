@@ -37088,101 +37088,89 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </section>
 
     <section class="tabpane" id="pane-trading">
-      <div class="grid-2">
-        <div class="panel">
-          <div class="section-head">
-            <div>
-              <h2>Trade WC for VOID</h2>
-              <div class="section-copy">Enter an amount, preview the trade, and confirm.</div>
-            </div>
-          </div>
-
-          <details class="adv" style="margin-bottom:16px">
-            <summary><span>Market Details</span><span class="pill">advanced</span></summary>
-            <div class="adv-body">
-              <div class="metric-strip">
-                <div class="mini">
-                  <div class="k">Current Price</div>
-                  <div class="v" id="tradePriceWcPerVoid">-</div>
-                  <div class="s">how many WC it currently takes to get 1 VOID</div>
-                </div>
-                <div class="mini">
-                  <div class="k">Trading Wallet WC</div>
-                  <div class="v" id="tradeWalletWc">-</div>
-                  <div class="s">current local trading balance</div>
-                </div>
-                <div class="mini">
-                  <div class="k">Trading Wallet VOID</div>
-                  <div class="v" id="tradeWalletVoid">-</div>
-                  <div class="s">current local trading balance</div>
-                </div>
-              </div>
-            </div>
-          </details>
-
-          <div class="panel" style="margin-top:16px;padding:14px">
-            <div class="section-head">
-              <div>
-                <h2 style="margin-bottom:4px">WC → VOID quote</h2>
-                <div class="section-copy">See how much VOID you would receive.</div>
-              </div>
-            </div>
-
-            <div class="metric-strip">
-              <div class="mini">
-                <div class="k">Available WC</div>
-                <div class="v" id="tradeRedeemableWc">-</div>
-                <div class="s">ready to move into trading</div>
-              </div>
-              <div class="mini">
-                <div class="k">Quoted VOID</div>
-                <div class="v" id="tradeQuoteVoid">-</div>
-                <div class="s">estimated using the current local trading price</div>
-              </div>
-              <div class="mini">
-                <div class="k">Trade Status</div>
-                <div class="v" id="tradeRelayerState">-</div>
-                <div class="s">whether direct trading is ready right now</div>
-              </div>
-            </div>
-
-            <label for="tradeInputWc">WC to trade</label>
-            <input id="tradeInputWc" value="10" inputmode="decimal" />
-
-            <div class="action-rail" style="margin-top:12px">
-              <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
-              <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Trade Unavailable Right Now</button>
-            </div>
-
-            <details class="adv" style="margin-top:12px">
-              <summary><span>Advanced Trading Tools</span><span class="pill">optional</span></summary>
-              <div class="adv-body">
-                <div class="action-rail">
-                  <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading Tools</a>
-                  <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >View Pool Details</a>
-                </div>
-              </div>
-            </details>
-
-            
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <h2>Trade WC for VOID</h2>
+            <div class="section-copy">Enter an amount, preview the trade, and confirm.</div>
           </div>
         </div>
 
-        <div class="panel">
+        <label for="tradeInputWc">WC to trade</label>
+        <input id="tradeInputWc" value="10" inputmode="decimal" />
+
+        <div class="action-rail" style="margin-top:12px">
+          <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
+          <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Trade Unavailable Right Now</button>
+        </div>
+
+        <div class="metric-strip" style="margin-top:16px">
+          <div class="mini">
+            <div class="k">Available WC</div>
+            <div class="v" id="tradeRedeemableWc">-</div>
+            <div class="s">ready to trade</div>
+          </div>
+          <div class="mini">
+            <div class="k">Quoted VOID</div>
+            <div class="v" id="tradeQuoteVoid">-</div>
+            <div class="s">estimated output</div>
+          </div>
+          <div class="mini">
+            <div class="k">Trade Status</div>
+            <div class="v" id="tradeRelayerState">-</div>
+            <div class="s">current trading status</div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:16px;padding:14px">
           <div class="section-head">
             <div>
-              <h2>Review</h2>
+              <h2 style="margin-bottom:4px">Review</h2>
               <div class="section-copy">Review the trade before you confirm.</div>
             </div>
           </div>
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
-          <details class="adv" style="margin-top:14px">
-            <summary><span>Advanced trading state</span><span class="pill">raw json</span></summary>
-            <div class="adv-body">
-              <pre id="tradeStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
-            </div>
-          </details>
         </div>
+
+        <details class="adv" style="margin-top:16px">
+          <summary><span>Market Details</span><span class="pill">advanced</span></summary>
+          <div class="adv-body">
+            <div class="metric-strip">
+              <div class="mini">
+                <div class="k">Current Price</div>
+                <div class="v" id="tradePriceWcPerVoid">-</div>
+                <div class="s">how many WC it takes to get 1 VOID</div>
+              </div>
+              <div class="mini">
+                <div class="k">Trading Wallet WC</div>
+                <div class="v" id="tradeWalletWc">-</div>
+                <div class="s">current trading balance</div>
+              </div>
+              <div class="mini">
+                <div class="k">Trading Wallet VOID</div>
+                <div class="v" id="tradeWalletVoid">-</div>
+                <div class="s">current trading balance</div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="adv" style="margin-top:12px">
+          <summary><span>Advanced Trading Tools</span><span class="pill">optional</span></summary>
+          <div class="adv-body">
+            <div class="action-rail">
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading Tools</a>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >View Pool Details</a>
+            </div>
+          </div>
+        </details>
+
+        <details class="adv" style="margin-top:12px">
+          <summary><span>Advanced trading state</span><span class="pill">raw json</span></summary>
+          <div class="adv-body">
+            <pre id="tradeStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
+          </div>
+        </details>
       </div>
     </section>
 
