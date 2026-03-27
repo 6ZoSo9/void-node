@@ -36861,7 +36861,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <div class="side-section">
       <div class="side-label">Current account</div>
       <div class="account-big" id="heroAccount">remote-user-3</div>
-      <div class="account-meta" id="heroAccountMeta">Selected account and recent WC activity.</div>
+      <div class="account-meta" id="heroAccountMeta">Local node account currently being viewed.</div>
     </div>
 <div class="side-section">
       <div class="side-label">Sections</div>
@@ -36908,7 +36908,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="hero-metric">
           <div class="k">Selected account</div>
           <div class="v" id="heroAccountMirror">remote-user-3</div>
-          <div class="s" id="heroAccountMirrorMeta">Selected account and recent WC activity.</div>
+          <div class="s" id="heroAccountMirrorMeta">Local node account currently being viewed.</div>
         </div>
         <div class="hero-note">
           <strong>Primary balance:</strong> Work Credits.<br>
@@ -36930,7 +36930,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="s" id="syncMeta">loading…</div>
       </div>
       <div class="kpi">
-        <div class="k">WC</div>
+        <div class="k">Local WC Earned</div>
         <div class="v" id="wcBalance">-</div>
         <div class="s" id="wcMeta">loading…</div>
       </div>
@@ -37183,7 +37183,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Local Work Credits</h2>
-              <div class="section-copy">Local ledger state for the selected participant account.</div>
+              <div class="section-copy">Offchain/local Work Credit state for the selected participant account.</div>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -37290,7 +37290,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Connected Wallet / Onchain Assets</h2>
-              <div class="section-copy">Real connected wallet state first. VOID is onchain. WC remains local-ledger only for now.</div>
+              <div class="section-copy">Onchain wallet state from the connected MetaMask wallet. VOID is onchain. WC stays local/offchain for now.</div>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -37309,15 +37309,15 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">live devnet token balance</div>
             </div>
             <div class="mini">
-              <div class="k">Local WC Status</div>
+              <div class="k">WC Model</div>
               <div class="v" id="helperRedeemableMini">-</div>
               <div class="s">WC is local-ledger only for now</div>
             </div>
           </div>
           <div class="action-rail">
-            <span class="pill">wallet session</span>
+            <span class="pill">connected wallet</span>
             <span class="pill">onchain void</span>
-            <span class="pill">wc is local only</span>
+            <span class="pill">wc is offchain</span>
           </div>
 
           <div class="panel" style="margin-top:16px;padding:14px">
