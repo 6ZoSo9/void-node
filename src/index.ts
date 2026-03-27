@@ -37099,9 +37099,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <div class="metric-strip">
             <div class="mini">
-              <div class="k">WC per VOID</div>
+              <div class="k">Current Price</div>
               <div class="v" id="tradePriceWcPerVoid">-</div>
-              <div class="s">current helper pool price</div>
+              <div class="s">how many WC it currently takes to get 1 VOID</div>
             </div>
             <div class="mini">
               <div class="k">Trading Wallet WC</div>
@@ -37135,7 +37135,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
                 <div class="s">estimated at current trading price</div>
               </div>
               <div class="mini">
-                <div class="k">Relayer</div>
+                <div class="k">Trade Status</div>
                 <div class="v" id="tradeRelayerState">-</div>
                 <div class="s">trade execution status</div>
               </div>
@@ -37147,8 +37147,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="action-rail" style="margin-top:12px">
               <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Available WC</button>
               <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Execute Trade (Relayer Offline)</button>
-              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Local Trading UI</a>
-              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >Open Pool JSON</a>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading</a>
+              <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >Open Pool Details</a>
             </div>
 
             <div class="hero-note" style="margin-top:12px">
@@ -37240,13 +37240,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
                 <div class="section-copy">Move your available local WC into the trading wallet so it can be swapped for VOID.</div>
               </div>
             </div>
-            <label for="redeemAmount">Redeem amount</label>
+            <label for="redeemAmount">WC to move into trading</label>
             <input id="redeemAmount" value="10" inputmode="decimal" />
-            <label for="redeemWallet">Local trading wallet address</label>
+            <label for="redeemWallet">Trading wallet address</label>
             <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
             <div class="action-rail" style="margin-top:12px">
-              <button class="btn btn-primary" id="redeemBtn" type="button">Redeem WC</button>
-              <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
+              <button class="btn btn-primary" id="redeemBtn" type="button">Move WC to Trading</button>
+              <button class="btn" id="redeemMaxBtn" type="button">Use All Available WC</button>
             </div>
             <div style="margin-top:12px">
               <pre id="redeemOut">idle</pre>
@@ -37262,25 +37262,25 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Local WC Ledger Truth</h2>
-                <div class="section-copy">This section explains the local ledger state used to derive earned, debited, redeemed, and redeemable WC.</div>
+                <h2 style="margin-bottom:4px">WC Balance Details</h2>
+                <div class="section-copy">This explains how your local Work Credit balance was calculated.</div>
               </div>
             </div>
             <div class="metric-strip">
               <div class="mini">
-                <div class="k">Latest ledger reason</div>
+                <div class="k">Latest Balance Change</div>
                 <div class="v" id="ledgerLatestReason">-</div>
-                <div class="s">most recent local credit/debit reason</div>
+                <div class="s">the latest reason your Work Credit balance changed</div>
               </div>
               <div class="mini">
-                <div class="k">Latest receipt id</div>
+                <div class="k">Latest Receipt</div>
                 <div class="v" id="ledgerLatestReceipt">-</div>
-                <div class="s">linked receipt when available</div>
+                <div class="s">proof linked to the latest balance change when available</div>
               </div>
               <div class="mini">
-                <div class="k">Ledger truth</div>
+                <div class="k">Balance Source</div>
                 <div class="v" id="ledgerTruthState">-</div>
-                <div class="s">derived from local WC ledger events</div>
+                <div class="s">calculated from local Work Credit activity on this node</div>
               </div>
             </div>
           </div>
@@ -37309,9 +37309,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">live devnet token balance</div>
             </div>
             <div class="mini">
-              <div class="k">WC Model</div>
+              <div class="k">WC Storage</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">WC is local-ledger only for now</div>
+              <div class="s">Work Credits are stored locally on this node for now</div>
             </div>
           </div>
           <div class="action-rail">
