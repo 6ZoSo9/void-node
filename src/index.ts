@@ -36913,7 +36913,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     <div class="side-section">
       <div class="side-label">Current account</div>
       <div class="account-big" id="heroAccount">remote-user-3</div>
-      <div class="account-meta" id="heroAccountMeta">Local node account currently being viewed.</div>
+      <div class="account-meta" id="heroAccountMeta">Selected account and recent WC activity.</div>
     </div>
 <div class="side-section">
       <div class="side-label">Sections</div>
@@ -36960,7 +36960,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="hero-metric">
           <div class="k">Selected account</div>
           <div class="v" id="heroAccountMirror">remote-user-3</div>
-          <div class="s" id="heroAccountMirrorMeta">Local node account currently being viewed.</div>
+          <div class="s" id="heroAccountMirrorMeta">Selected account and recent WC activity.</div>
         </div>
         <div class="hero-note">
           <strong>Primary balance:</strong> Work Credits.<br>
@@ -36982,7 +36982,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="s" id="syncMeta">loading…</div>
       </div>
       <div class="kpi">
-        <div class="k">Lifetime WC Earned</div>
+        <div class="k">WC</div>
         <div class="v" id="wcBalance">-</div>
         <div class="s" id="wcMeta">loading…</div>
       </div>
@@ -37274,7 +37274,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               </div>
             </div>
             <label for="sendTo">Recipient local account</label>
-            <input id="sendTo" value="" placeholder="remote-user-2" autocomplete="off" />
+            <input id="sendTo" value="" placeholder="remote-user-2 or another local account id" autocomplete="off" />
             <label for="sendAmount">Send amount</label>
             <input id="sendAmount" value="1" inputmode="decimal" />
             <div class="action-rail" style="margin-top:12px">
@@ -37353,17 +37353,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Connected Wallet</div>
               <div class="v" id="connectedWalletAddrMini">-</div>
-              <div class="s">connected wallet address</div>
+              <div class="s">current MetaMask session address</div>
             </div>
             <div class="mini">
               <div class="k">Onchain VOID</div>
               <div class="v" id="connectedWalletVoidMini">-</div>
-              <div class="s">current onchain VOID balance</div>
+              <div class="s">live devnet token balance</div>
             </div>
             <div class="mini">
               <div class="k">Local WC Status</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">WC stays offchain in the local ledger</div>
+              <div class="s">WC is local-ledger only for now</div>
             </div>
           </div>
           <div class="action-rail">
@@ -37526,6 +37526,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     a = String(a || "").trim();
     return /^0x[a-fA-F0-9]{40}$/.test(a) ? (a.slice(0, 6) + "…" + a.slice(-4)) : "-";
   }
+  }
 
   function renderJobs(items){
     if (!items || !items.length) return '<div class="empty">No jobs yet for this account.</div>';
@@ -37593,7 +37594,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         connectedVoidBal = "-";
       }
     }
-    }
 
     const localEarned = bal && bal.ok && Number.isFinite(Number(bal.balance)) ? Number(bal.balance) : null;
     const localCount = bal && bal.ok && Number.isFinite(Number(bal.count)) ? Number(bal.count) : null;
@@ -37646,7 +37646,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "walletMeta",
       redeemState
-        ? ("Spendable now: " + redeemableTotal + " WC • Lifetime earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Local account: " + account)
+        ? ("Redeemable WC: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
         : "Local WC state unavailable"
     );
     setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
@@ -37657,7 +37657,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "connectedWalletVoidBig",
       /^0x[0-9a-fA-F]{40}$/.test(connectedWallet)
-        ? (connectedVoidBal === "-" ? "Loading..." : connectedVoidBal)
+        ? (connectedVoidBal === "-" ? "0" : connectedVoidBal)
         : "Connect wallet"
     );
     setText("connectedWalletVoidMini", connectedVoidBal);
@@ -37666,7 +37666,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "connectedWalletMeta",
       /^0x[0-9a-fA-F]{40}$/.test(connectedWallet)
-        ? ("Connected: " + connectedWallet + " • Onchain VOID: " + (connectedVoidBal === "-" ? "loading" : connectedVoidBal))
+        ? ("Connected: " + connectedWallet + " | Onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + " | WC remains local-ledger only")
         : "Connect MetaMask to view onchain wallet state"
     );
 
