@@ -36941,7 +36941,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Overview</h2>
-              <div class="section-copy">The core participant flow: earn, verify, and manage balances.</div>
+              <div class="section-copy">This is your main dashboard for earning Work Credits, checking proof-backed activity, and managing balances.</div>
             </div>
           </div>
           <div class="grid-3">
@@ -36966,7 +36966,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Account snapshot</h2>
+              <h2>Your Account</h2>
               <div class="section-copy">High-level current state for the selected participant account.</div>
             </div>
           </div>
