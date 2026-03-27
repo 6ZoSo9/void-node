@@ -37119,7 +37119,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="section-head">
               <div>
                 <h2 style="margin-bottom:4px">WC → VOID quote</h2>
-                <div class="section-copy">Quote against the helper pool using your current redeemable WC.</div>
+                <div class="section-copy">Estimated VOID you would receive if you trade your available WC right now.</div>
               </div>
             </div>
 
@@ -37145,7 +37145,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <input id="tradeInputWc" value="10" inputmode="decimal" />
 
             <div class="action-rail" style="margin-top:12px">
-              <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Redeemable</button>
+              <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Available WC</button>
               <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Execute Trade (Relayer Offline)</button>
               <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Local Trading UI</a>
               <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >Open Pool JSON</a>
@@ -37217,8 +37217,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Transfer Local Work Credits</h2>
-                <div class="section-copy">Transfer redeemable WC inside the local ledger only. This does not send onchain to MetaMask.</div>
+                <h2 style="margin-bottom:4px">Send Local WC</h2>
+                <div class="section-copy">Send Work Credits to another local user on this node. This stays offchain and does not send VOID from MetaMask.</div>
               </div>
             </div>
             <label for="sendTo">Recipient local account</label>
@@ -37236,8 +37236,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Redeem WC to local trading flow</h2>
-                <div class="section-copy">Moves local redeemable WC into the local trading path.</div>
+                <h2 style="margin-bottom:4px">Move WC to Trading</h2>
+                <div class="section-copy">Move your available local WC into the trading wallet so it can be swapped for VOID.</div>
               </div>
             </div>
             <label for="redeemAmount">Redeem amount</label>
@@ -37290,7 +37290,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Connected Wallet / Onchain Assets</h2>
-              <div class="section-copy">Onchain wallet state from the connected MetaMask wallet. VOID is onchain. WC stays local/offchain for now.</div>
+              <div class="section-copy">This is your connected MetaMask wallet. VOID is onchain here. Work Credits stay local/offchain for now.</div>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -37356,7 +37356,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Redeem history</h2>
-              <div class="section-copy">Moves from local redeemable WC into the helper trading path.</div>
+              <div class="section-copy">Move available local WC into trading before swapping for VOID.</div>
             </div>
           </div>
           <div class="table-wrap"><div id="redeemHistoryWrap" class="empty">loading…</div></div>
