@@ -35947,6 +35947,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         }
 
         const mix = (selection && selection.mix) ? selection.mix : null;
+        const publish_last_hour_post = (mix ? Number(mix.publish_last_hour || 0) : 0) + (selected_task_class === "datanet_publish" ? 1 : 0);
+        const verify_last_hour_post = (mix ? Number(mix.verify_last_hour || 0) : 0) + (selected_task_class === "datanet_fetch_verify" ? 1 : 0);
+        const total_last_hour_post = publish_last_hour_post + verify_last_hour_post;
+        const verify_share_post = total_last_hour_post > 0 ? (verify_last_hour_post / total_last_hour_post) : 0;
 
         rt.last_result[String(account)] = {
           at_ms: Date.now(),
@@ -35956,9 +35960,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           selected_task_class,
           selected_dataset_id: selected_dataset_id || null,
           selection_reason,
-          publish_last_hour: mix ? Number(mix.publish_last_hour || 0) : null,
-          verify_last_hour: mix ? Number(mix.verify_last_hour || 0) : null,
-          verify_share: mix ? Number(mix.verify_share || 0) : null,
+          publish_last_hour: publish_last_hour_post,
+          verify_last_hour: verify_last_hour_post,
+          verify_share: verify_share_post,
           safe_mode: !!cfg.safe_mode,
           min_submit_gap_ms: minGap,
           max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
@@ -35971,6 +35975,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           selected_task_class,
           selected_dataset_id: selected_dataset_id || null,
           selection_reason,
+          publish_last_hour: publish_last_hour_post,
+          verify_last_hour: verify_last_hour_post,
+          verify_share: verify_share_post,
           safe_mode: !!cfg.safe_mode,
           min_submit_gap_ms: minGap,
           max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
