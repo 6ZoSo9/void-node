@@ -35663,7 +35663,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       last_error: null,
       submit_history_ms: {},
       verify_history_by_dataset: {},
-      selection_history_by_account: {}
+      selection_history_by_account: {},
+      selection_events_by_account: {}
     };
 
     function runnerConfigFor(account:string){
@@ -35760,29 +35761,45 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const approved = runnerApprovedTaskClassesFor(account);
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       rt.selection_history_by_account = rt.selection_history_by_account || {};
+      rt.selection_events_by_account = rt.selection_events_by_account || {};
+
       const hist = Array.isArray(rt.selection_history_by_account[String(account)]) ? rt.selection_history_by_account[String(account)] : [];
       const recent = hist.slice(-3).map((x:any) => String(x || ""));
       const verifyStreak = recent.length >= 2 && recent[recent.length - 1] === "datanet_fetch_verify" && recent[recent.length - 2] === "datanet_fetch_verify";
+
+      const now = Date.now();
+      const hourAgo = now - (60 * 60 * 1000);
+      const events = Array.isArray(rt.selection_events_by_account[String(account)]) ? rt.selection_events_by_account[String(account)] : [];
+      const kept = events.filter((x:any) => x && Number(x.ts_ms || 0) >= hourAgo);
+      rt.selection_events_by_account[String(account)] = kept;
+
+      const publishLastHour = kept.filter((x:any) => String(x.task_class || "") === "datanet_publish").length;
+      const verifyLastHour = kept.filter((x:any) => String(x.task_class || "") === "datanet_fetch_verify").length;
+      const totalLastHour = publishLastHour + verifyLastHour;
+      const verifyShare = totalLastHour > 0 ? (verifyLastHour / totalLastHour) : 0;
+      const verifyShareCap = 0.6;
 
       const hasPublish = approved.includes("datanet_publish");
       const hasVerify = approved.includes("datanet_fetch_verify");
       const candidate = hasVerify ? runnerFindVerifyCandidate(account) : null;
 
-      if (hasVerify && candidate && candidate.dataset_id && !verifyStreak) {
+      if (hasVerify && candidate && candidate.dataset_id && !verifyStreak && verifyShare < verifyShareCap) {
         return {
           task_class: "datanet_fetch_verify",
           reason: "stale_verify_target",
           dataset_id: String(candidate.dataset_id || ""),
-          candidate
+          candidate,
+          mix: { publish_last_hour: publishLastHour, verify_last_hour: verifyLastHour, verify_share: verifyShare }
         };
       }
 
       if (hasPublish) {
         return {
           task_class: "datanet_publish",
-          reason: verifyStreak ? "avoid_verify_streak" : "publish_fallback",
+          reason: verifyStreak ? "avoid_verify_streak" : (verifyShare >= verifyShareCap ? "rebalance_to_publish" : "publish_fallback"),
           dataset_id: null,
-          candidate: null
+          candidate: null,
+          mix: { publish_last_hour: publishLastHour, verify_last_hour: verifyLastHour, verify_share: verifyShare }
         };
       }
 
@@ -35791,7 +35808,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           task_class: "datanet_fetch_verify",
           reason: "verify_only_available",
           dataset_id: String(candidate.dataset_id || ""),
-          candidate
+          candidate,
+          mix: { publish_last_hour: publishLastHour, verify_last_hour: verifyLastHour, verify_share: verifyShare }
         };
       }
 
@@ -35799,7 +35817,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         task_class: String(approved[0] || "datanet_publish"),
         reason: "default_first_approved",
         dataset_id: null,
-        candidate: null
+        candidate: null,
+        mix: { publish_last_hour: publishLastHour, verify_last_hour: verifyLastHour, verify_share: verifyShare }
       };
     }
 
@@ -35911,11 +35930,23 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         rt.selection_history_by_account[String(account)].push(selected_task_class);
         rt.selection_history_by_account[String(account)] = rt.selection_history_by_account[String(account)].slice(-10);
 
+        rt.selection_events_by_account = rt.selection_events_by_account || {};
+        rt.selection_events_by_account[String(account)] = Array.isArray(rt.selection_events_by_account[String(account)])
+          ? rt.selection_events_by_account[String(account)]
+          : [];
+        rt.selection_events_by_account[String(account)].push({
+          ts_ms: Date.now(),
+          task_class: selected_task_class
+        });
+        rt.selection_events_by_account[String(account)] = rt.selection_events_by_account[String(account)].slice(-200);
+
         if (selected_task_class === "datanet_fetch_verify" && selected_dataset_id) {
           rt.verify_history_by_dataset = rt.verify_history_by_dataset || {};
           rt.verify_history_by_dataset[String(account)] = rt.verify_history_by_dataset[String(account)] || {};
           rt.verify_history_by_dataset[String(account)][String(selected_dataset_id)] = Date.now();
         }
+
+        const mix = (selection && selection.mix) ? selection.mix : null;
 
         rt.last_result[String(account)] = {
           at_ms: Date.now(),
@@ -35925,6 +35956,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           selected_task_class,
           selected_dataset_id: selected_dataset_id || null,
           selection_reason,
+          publish_last_hour: mix ? Number(mix.publish_last_hour || 0) : null,
+          verify_last_hour: mix ? Number(mix.verify_last_hour || 0) : null,
+          verify_share: mix ? Number(mix.verify_share || 0) : null,
           safe_mode: !!cfg.safe_mode,
           min_submit_gap_ms: minGap,
           max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
@@ -35986,6 +36020,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         last_selected_task_class: lastResult && lastResult.selected_task_class ? lastResult.selected_task_class : null,
         last_selected_dataset_id: lastResult && lastResult.selected_dataset_id ? lastResult.selected_dataset_id : null,
         last_selection_reason: lastResult && lastResult.selection_reason ? lastResult.selection_reason : null,
+        publish_last_hour: lastResult && Number.isFinite(Number(lastResult.publish_last_hour)) ? Number(lastResult.publish_last_hour) : 0,
+        verify_last_hour: lastResult && Number.isFinite(Number(lastResult.verify_last_hour)) ? Number(lastResult.verify_last_hour) : 0,
+        verify_share: lastResult && Number.isFinite(Number(lastResult.verify_share)) ? Number(lastResult.verify_share) : 0,
         loop_started: !!rt.loop_started,
         loop_interval_ms: Number(rt.loop_interval_ms || 5000) || 5000,
         min_submit_gap_ms: Number(cfg.min_submit_gap_ms || 30000) || 30000,
@@ -39112,6 +39149,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
              " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only") +
              " • Approved: " + String((runnerStatus.approved_task_classes || []).join(", ") || "-") +
              (runnerStatus.last_selection_reason ? (" • Chosen because: " + String(runnerStatus.last_selection_reason)) : "") +
+             " • Mix P/V: " + String(runnerStatus.publish_last_hour || 0) + "/" + String(runnerStatus.verify_last_hour || 0) +
              (runnerStatus.safe_mode ? " • Safe Mode clamps limits conservatively" : ""))
           : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
       );
