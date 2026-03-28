@@ -36850,13 +36850,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     body[data-active-tab="wallet"] .top-kpis,
     body[data-active-tab="receipts"] .top-kpis{display:none}
 
-    .compact-tab-head{display:none;margin-bottom:16px}
+    .compact-tab-head{display:none;margin-bottom:10px}
     body[data-active-tab="work"] #work-compact-head,
     body[data-active-tab="trading"] #trading-compact-head,
     body[data-active-tab="wallet"] #wallet-compact-head,
     body[data-active-tab="receipts"] #receipts-compact-head{display:block}
 
-    .compact-tab-title{font-size:28px;font-weight:900;letter-spacing:-.03em;color:#f8fafc;margin:0 0 6px}
+    .compact-tab-title{font-size:22px;font-weight:900;letter-spacing:-.03em;color:#f8fafc;margin:0 0 2px}
     .compact-tab-meta{color:#93a4bf;font-size:13px}
 
   
@@ -36864,6 +36864,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     details.soft-adv{margin-top:14px}
     details.soft-adv > summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;font-weight:800;color:#f8fafc;padding:0}
     details.soft-adv > summary::-webkit-details-marker{display:none}
+
+  
+    body[data-active-tab="work"] .hero,
+    body[data-active-tab="trading"] .hero,
+    body[data-active-tab="wallet"] .hero,
+    body[data-active-tab="receipts"] .hero{display:none}
+
+    body[data-active-tab="work"] .kpis,
+    body[data-active-tab="trading"] .kpis,
+    body[data-active-tab="wallet"] .kpis,
+    body[data-active-tab="receipts"] .kpis{display:none}
 
   </style>
 </head>
