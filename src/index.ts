@@ -36993,19 +36993,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
           </details>
         </div>
-          <div class="section-head">
-            <div>
-              <h2>Latest Activity<span class="help" tabindex="0" data-help="Top-level balances for participant Work Credits, trading Work Credits, and onchain VOID.">?</span></h2>
-            </div>
-          </div>
-          <div class="hero-note" id="summaryCard">loading…</div>
-          <details class="adv" style="margin-top:14px">
-            <summary><span>Account Activity Details</span><span class="pill">raw json</span></summary>
-            <div class="adv-body">
-              <pre id="summaryOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
-            </div>
-          </details>
-        </div>
+
       </div>
 
       <div class="grid-2-eq">
