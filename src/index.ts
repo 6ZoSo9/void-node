@@ -37015,7 +37015,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Recent work</h2>
-              <div class="section-copy">Latest submitted work.</div>
+              
             </div>
           </div>
           <div class="table-wrap"><div id="jobsWrapOverview" class="empty">loading…</div></div>
@@ -37025,7 +37025,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Recent Proofs</h2>
-              <div class="section-copy">Latest proofs and results.</div>
+              
             </div>
           </div>
           <div class="table-wrap"><div id="receiptsWrapOverview" class="empty">loading…</div></div>
