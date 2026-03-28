@@ -36954,9 +36954,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="s" id="topHealthMeta">Checking onchain VOID balance…</div>
       </div>
       <div class="kpi">
-        <div class="k">Trading WC</div>
+        <div class="k">Redeemed WC</div>
         <div class="v" id="syncGap">-</div>
-        <div class="s" id="syncMeta">Checking WC already moved into trading…</div>
+        <div class="s" id="syncMeta">Checking redeemed WC…</div>
       </div>
       <div class="kpi">
         <div class="k">Available WC</div>
@@ -37330,9 +37330,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">In connected wallet</div>
             </div>
             <div class="mini">
-              <div class="k">Local WC</div>
+              <div class="k">Participant WC</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">Stored on this node</div>
+              <div class="s">Participant balance</div>
             </div>
           </div>
 
@@ -37370,7 +37370,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading History<span class="help" tabindex="0" data-help="Recent WC redemption events for the selected participant account.">?</span></h2>
+              <h2>Trading History<span class="help" tabindex="0" data-help="Recent WC redemptions for the selected participant account.">?</span></h2>
             </div>
           </div>
           <div class="table-wrap"><div id="redeemHistoryWrap" class="empty">loading…</div></div>
@@ -37380,7 +37380,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="grid-2-eq">
         <div class="panel">
           <details class="adv">
-            <summary><span>Trading Details</span><span class="pill">advanced</span></summary>
+            <summary><span>Trading Diagnostics</span><span class="pill">advanced</span></summary>
             <div class="adv-body">
               <pre id="helperWalletStateOut">loading…</pre>
             </div>
@@ -37751,7 +37751,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const tradingWcHome = Number.isFinite(Number(redeemedTotal)) ? Number(redeemedTotal) : 0;
     setText("syncGap", tradingWcHome);
     if (syncEl) syncEl.className = "v";
-    setText("syncMeta", "Work Credits currently moved into trading");
+    setText("syncMeta", "Participant WC already redeemed");
 
     if ($("systemStatusCard")) {
       const sys = [];
@@ -37818,7 +37818,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       helper_balances: wcBal || null,
       helper_wallet_earnings_raw: wcEarn || null,
       pool_price: wcPool && wcPool.price ? wcPool.price : null,
-      note: "Participant local WC on :4100 is canonical for earn/redeem/trade eligibility. Helper earnings are wallet-scoped and informational only."
+      note: "Participant local WC on :4100 is canonical. Helper wallet values below are diagnostics only until redeemed/trading WC accounting is fixed."
     });
     if ($("tradeStateOut")) setPre("tradeStateOut", {
       helper_ui: wcBase + "/ui",
@@ -37831,6 +37831,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       helper_dashboard_ok: !!(wcDash && wcDash.account && wcDash.pool),
       helper_balances: wcBal || null,
       helper_wallet_earnings_raw: wcEarn || null,
+      helper_note: "Helper wallet values are diagnostic only until helper redeemed/trading WC accounting is fixed.",
       local_redeemed_events: redeemedState || null,
       quote_input_wc: Number.isFinite(tradeInput) ? tradeInput : null,
       quote_output_void: quotedVoid,
