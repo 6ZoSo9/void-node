@@ -36874,7 +36874,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       line-height: 1.25;
     }
     #ledgerLatestReceipt, #ledgerLatestReason, #ledgerTruthState,
-    #connectedWalletAddrMini, #connectedWalletVoidMini, #helperRedeemableMini,
+    #connectedWalletAddrMini, #connectedWalletVoidMini, #connectedWalletWcMini, #helperRedeemableMini,
       #walletTruthAddr, #walletTruthVoid, #walletTruthMapped,
     #walletEarnedMini, #walletDebitedMini, #walletRedeemedMini, #walletRedeemableMini {
       overflow-wrap: anywhere;
