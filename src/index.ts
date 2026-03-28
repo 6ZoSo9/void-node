@@ -37306,8 +37306,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">WC Balance Details<span class="help" tabindex="0" data-help="Advanced explanation of how the local participant WC balance was calculated.">?</span></h2>
-                <div class="section-copy">This explains how your local Work Credit balance was calculated.</div>
+                <h2 style="margin-bottom:4px">Participant WC Details<span class="help" tabindex="0" data-help="Advanced explanation of how the local participant WC balance was calculated.">?</span></h2>
+                <div class="section-copy">This explains participant-side Work Credit state on this node.</div>
               </div>
             </div>
             <div class="metric-strip">
@@ -37347,14 +37347,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">Wallet address</div>
             </div>
             <div class="mini">
-              <div class="k">VOID Balance</div>
+              <div class="k">Onchain VOID</div>
               <div class="v" id="connectedWalletVoidMini">-</div>
-              <div class="s">In connected wallet</div>
+              <div class="s">Actual wallet balance</div>
             </div>
             <div class="mini">
-              <div class="k">Available Participant WC</div>
+              <div class="k">Participant WC</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">Participant balance</div>
+              <div class="s">Local participant balance</div>
             </div>
           </div>
 
