@@ -35675,12 +35675,33 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         max_jobs_per_hour = Math.min(max_jobs_per_hour, 40);
       }
 
+      const allow_publish = (raw.allow_datanet_publish === undefined) ? true : !!raw.allow_datanet_publish;
+      const allow_fetch_verify = (raw.allow_datanet_fetch_verify === undefined)
+        ? !!process.env.VOID_WC_ENABLE_FETCH_VERIFY
+        : !!raw.allow_datanet_fetch_verify;
+
       return {
         account,
         safe_mode,
         min_submit_gap_ms,
-        max_jobs_per_hour
+        max_jobs_per_hour,
+        allow_datanet_publish: allow_publish,
+        allow_datanet_fetch_verify: allow_fetch_verify
       };
+    }
+
+    function runnerApprovedTaskClassesFor(account:string){
+      const cfg:any = runnerConfigFor(account);
+      const out:string[] = [];
+      if (cfg.allow_datanet_publish) out.push("datanet_publish");
+      if (cfg.allow_datanet_fetch_verify) out.push("datanet_fetch_verify");
+      if (!out.length) out.push("datanet_publish");
+      return out;
+    }
+
+    function runnerSelectedTaskClassFor(account:string){
+      const approved = runnerApprovedTaskClassesFor(account);
+      return String(approved[0] || "datanet_publish");
     }
 
     async function wcRunnerSubmitOnce(account:string){
@@ -35729,12 +35750,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
       try {
         const port = Number(process.env.HTTP_PORT || 4100);
+        const selected_task_class = runnerSelectedTaskClassFor(account);
         const payload = {
           account,
           kind: "datanet_publish",
           plaintext: JSON.stringify({
             kind: "agent_auto_selected_v1",
-            task_class: "datanet_publish",
+            task_class: selected_task_class,
+            approved_task_classes: runnerApprovedTaskClassesFor(account),
             policy: "useful_verifiable_only",
             account,
             ts_ms: now,
@@ -35799,7 +35822,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         mode: "agent_auto_only",
         user_override: "stop_only",
         payout_policy: "useful_verifiable_only",
-        approved_task_classes: ["datanet_publish"],
+        approved_task_classes: runnerApprovedTaskClassesFor(account),
+        active_task_class: runnerSelectedTaskClassFor(account),
         loop_started: !!rt.loop_started,
         loop_interval_ms: Number(rt.loop_interval_ms || 5000) || 5000,
         min_submit_gap_ms: Number(cfg.min_submit_gap_ms || 30000) || 30000,
@@ -35882,7 +35906,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         GG.__void_wc_runner_config_v1[String(account)] = {
           safe_mode: req.body?.safe_mode === undefined ? current.safe_mode : !!req.body?.safe_mode,
           min_submit_gap_ms: Math.max(5000, Number(req.body?.min_submit_gap_ms || current.min_submit_gap_ms) || current.min_submit_gap_ms),
-          max_jobs_per_hour: Math.max(1, Number(req.body?.max_jobs_per_hour || current.max_jobs_per_hour) || current.max_jobs_per_hour)
+          max_jobs_per_hour: Math.max(1, Number(req.body?.max_jobs_per_hour || current.max_jobs_per_hour) || current.max_jobs_per_hour),
+          allow_datanet_publish: req.body?.allow_datanet_publish === undefined ? current.allow_datanet_publish : !!req.body?.allow_datanet_publish,
+          allow_datanet_fetch_verify: req.body?.allow_datanet_fetch_verify === undefined ? current.allow_datanet_fetch_verify : !!req.body?.allow_datanet_fetch_verify
         };
         return res.json({ ok:true, changed:true, ...runnerConfigFor(account) });
       } catch (e:any) {
@@ -38788,9 +38814,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText("wcRunnerEnabledMini", runnerEnabled ? "ON" : "OFF");
       setText(
         "wcRunnerTaskMini",
-        runnerStatus && Array.isArray(runnerStatus.approved_task_classes) && runnerStatus.approved_task_classes.length
-          ? String(runnerStatus.approved_task_classes[0] || "-")
-          : "-"
+        runnerStatus && runnerStatus.active_task_class
+          ? String(runnerStatus.active_task_class || "-")
+          : (runnerStatus && Array.isArray(runnerStatus.approved_task_classes) && runnerStatus.approved_task_classes.length
+              ? String(runnerStatus.approved_task_classes[0] || "-")
+              : "-")
       );
       setText(
         "wcRunnerLastJobMini",
@@ -38856,6 +38884,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : (runnerConfig && runnerConfig.ok ? String(runnerConfig.max_jobs_per_hour || "-") : "-")
       );
       setText("wcRunnerGapMini", runnerConfig && runnerConfig.ok ? (String(Math.round(Number(runnerConfig.min_submit_gap_ms || 0) / 1000)) + "s") : "-");
+      setText(
+        "wcRunnerMeta",
+        runnerStatus && runnerStatus.ok
+          ? ("Mode: " + String(runnerStatus.mode || "agent_auto_only") +
+             " • Override: " + String(runnerStatus.user_override || "stop_only") +
+             " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only") +
+             " • Approved: " + String((runnerStatus.approved_task_classes || []).join(", ") || "-") +
+             (runnerStatus.safe_mode ? " • Safe Mode clamps limits conservatively" : ""))
+          : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
+      );
       if ($("wcRunnerSafeModeInput")) $("wcRunnerSafeModeInput").checked = !!(runnerConfig && runnerConfig.ok && runnerConfig.safe_mode);
       if ($("wcRunnerGapInput") && runnerConfig && runnerConfig.ok) $("wcRunnerGapInput").value = String(Math.round(Number(runnerConfig.min_submit_gap_ms || 30000) / 1000));
       if ($("wcRunnerJobsPerHourInput") && runnerConfig && runnerConfig.ok) $("wcRunnerJobsPerHourInput").value = String(Number(runnerConfig.max_jobs_per_hour || 60));
