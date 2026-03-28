@@ -35660,14 +35660,21 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       min_submit_gap_ms: Number(process.env.VOID_WC_RUNNER_MIN_MS || 30000),
       last_submit_ms: {},
       last_result: {},
-      last_error: null
+      last_error: null,
+      submit_history_ms: {}
     };
 
     function runnerConfigFor(account:string){
       const raw = GG.__void_wc_runner_config_v1[String(account || "")] || {};
       const safe_mode = (raw.safe_mode === undefined) ? true : !!raw.safe_mode;
-      const min_submit_gap_ms = Math.max(5000, Number(raw.min_submit_gap_ms || process.env.VOID_WC_RUNNER_MIN_MS || 30000) || 30000);
-      const max_jobs_per_hour = Math.max(1, Number(raw.max_jobs_per_hour || 60) || 60);
+      let min_submit_gap_ms = Math.max(5000, Number(raw.min_submit_gap_ms || process.env.VOID_WC_RUNNER_MIN_MS || 30000) || 30000);
+      let max_jobs_per_hour = Math.max(1, Number(raw.max_jobs_per_hour || 60) || 60);
+
+      if (safe_mode) {
+        min_submit_gap_ms = Math.max(min_submit_gap_ms, 45000);
+        max_jobs_per_hour = Math.min(max_jobs_per_hour, 40);
+      }
+
       return {
         account,
         safe_mode,
@@ -35682,9 +35689,43 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const now = Date.now();
       const minGap = Number(cfg.min_submit_gap_ms || rt.min_submit_gap_ms || 30000) || 30000;
       const last = Number((rt.last_submit_ms || {})[String(account)] || 0);
-      if ((now - last) < minGap) return { ok:true, skipped:true, reason:"cooldown", account, next_due_ms: (last + minGap) };
+
+      rt.submit_history_ms = rt.submit_history_ms || {};
+      const history = Array.isArray(rt.submit_history_ms[String(account)]) ? rt.submit_history_ms[String(account)] : [];
+      const hourAgo = now - (60 * 60 * 1000);
+      const recentHistory = history.filter((x:any) => Number.isFinite(Number(x)) && Number(x) >= hourAgo);
+      rt.submit_history_ms[String(account)] = recentHistory;
+
+      if ((now - last) < minGap) {
+        return {
+          ok:true,
+          skipped:true,
+          reason:"cooldown",
+          account,
+          next_due_ms: (last + minGap),
+          safe_mode: !!cfg.safe_mode,
+          min_submit_gap_ms: minGap,
+          max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+        };
+      }
+
+      if (recentHistory.length >= Number(cfg.max_jobs_per_hour || 60)) {
+        const oldestKept = Number(recentHistory[0] || now);
+        return {
+          ok:true,
+          skipped:true,
+          reason:"hourly_limit",
+          account,
+          safe_mode: !!cfg.safe_mode,
+          min_submit_gap_ms: minGap,
+          max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60,
+          next_due_ms: oldestKept + (60 * 60 * 1000)
+        };
+      }
 
       rt.last_submit_ms[String(account)] = now;
+      recentHistory.push(now);
+      rt.submit_history_ms[String(account)] = recentHistory;
 
       try {
         const port = Number(process.env.HTTP_PORT || 4100);
@@ -35696,7 +35737,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             task_class: "datanet_publish",
             policy: "useful_verifiable_only",
             account,
-            ts_ms: now
+            ts_ms: now,
+            safe_mode: !!cfg.safe_mode
           })
         };
 
@@ -35711,13 +35753,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           at_ms: Date.now(),
           ok: !!(out && out.ok),
           job_id: out && out.job ? (out.job.job_id || null) : null,
-          result: out
+          result: out,
+          safe_mode: !!cfg.safe_mode,
+          min_submit_gap_ms: minGap,
+          max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
         };
-        return { ok:true, account, submitted:true, out };
+        return { ok:true, account, submitted:true, out, safe_mode: !!cfg.safe_mode, min_submit_gap_ms: minGap, max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60 };
       } catch (e:any) {
         const err = String(e?.message || e);
         rt.last_error = { at_ms: Date.now(), account, error: err };
-        rt.last_result[String(account)] = { at_ms: Date.now(), ok:false, error: err };
+        rt.last_result[String(account)] = { at_ms: Date.now(), ok:false, error: err, safe_mode: !!cfg.safe_mode };
         return { ok:false, account, error: err };
       }
     }
@@ -35745,6 +35790,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       const lastSubmit = rt.last_submit_ms ? (rt.last_submit_ms[String(account)] || null) : null;
       const lastResult = rt.last_result ? (rt.last_result[String(account)] || null) : null;
+      const submitHistory = rt.submit_history_ms ? (rt.submit_history_ms[String(account)] || []) : [];
       const cfg:any = runnerConfigFor(account);
       return {
         ok: true,
@@ -35758,6 +35804,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         loop_interval_ms: Number(rt.loop_interval_ms || 5000) || 5000,
         min_submit_gap_ms: Number(cfg.min_submit_gap_ms || 30000) || 30000,
         max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60,
+        jobs_last_hour: Array.isArray(submitHistory) ? submitHistory.length : 0,
         safe_mode: !!cfg.safe_mode,
         last_submit_ms: lastSubmit,
         last_result: lastResult,
@@ -38741,7 +38788,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
       );
       setText("wcRunnerSafeModeMini", runnerConfig && runnerConfig.ok ? (runnerConfig.safe_mode ? "ON" : "OFF") : "-");
-      setText("wcRunnerJobsPerHourMini", runnerConfig && runnerConfig.ok ? String(runnerConfig.max_jobs_per_hour || "-") : "-");
+      setText(
+        "wcRunnerJobsPerHourMini",
+        runnerStatus && runnerStatus.ok
+          ? (String(runnerStatus.jobs_last_hour || 0) + "/" + String(runnerStatus.max_jobs_per_hour || "-"))
+          : (runnerConfig && runnerConfig.ok ? String(runnerConfig.max_jobs_per_hour || "-") : "-")
+      );
       setText("wcRunnerGapMini", runnerConfig && runnerConfig.ok ? (String(Math.round(Number(runnerConfig.min_submit_gap_ms || 0) / 1000)) + "s") : "-");
       if ($("wcRunnerSafeModeInput")) $("wcRunnerSafeModeInput").checked = !!(runnerConfig && runnerConfig.ok && runnerConfig.safe_mode);
       if ($("wcRunnerGapInput") && runnerConfig && runnerConfig.ok) $("wcRunnerGapInput").value = String(Math.round(Number(runnerConfig.min_submit_gap_ms || 30000) / 1000));
