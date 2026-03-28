@@ -35653,9 +35653,83 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
     const GG:any = globalThis as any;
     GG.__void_wc_runner_state_v1 = GG.__void_wc_runner_state_v1 || {};
+    GG.__void_wc_runner_runtime_v1 = GG.__void_wc_runner_runtime_v1 || {
+      loop_started: false,
+      loop_interval_ms: 5000,
+      min_submit_gap_ms: Number(process.env.VOID_WC_RUNNER_MIN_MS || 30000),
+      last_submit_ms: {},
+      last_result: {},
+      last_error: null
+    };
+
+    async function wcRunnerSubmitOnce(account:string){
+      const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+      const now = Date.now();
+      const minGap = Number(rt.min_submit_gap_ms || 30000) || 30000;
+      const last = Number((rt.last_submit_ms || {})[String(account)] || 0);
+      if ((now - last) < minGap) return { ok:true, skipped:true, reason:"cooldown", account, next_due_ms: (last + minGap) };
+
+      rt.last_submit_ms[String(account)] = now;
+
+      try {
+        const port = Number(process.env.HTTP_PORT || 4100);
+        const payload = {
+          account,
+          kind: "datanet_publish",
+          plaintext: JSON.stringify({
+            kind: "agent_auto_selected_v1",
+            task_class: "datanet_publish",
+            policy: "useful_verifiable_only",
+            account,
+            ts_ms: now
+          })
+        };
+
+        const r = await fetch(`http://127.0.0.1:${port}/jobs/submit`, {
+          method: "POST",
+          headers: { "content-type":"application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const out = await r.json().catch(() => ({ ok:false, error:"non_json_runner_submit" }));
+        rt.last_result[String(account)] = {
+          at_ms: Date.now(),
+          ok: !!(out && out.ok),
+          job_id: out && out.job ? (out.job.job_id || null) : null,
+          result: out
+        };
+        return { ok:true, account, submitted:true, out };
+      } catch (e:any) {
+        const err = String(e?.message || e);
+        rt.last_error = { at_ms: Date.now(), account, error: err };
+        rt.last_result[String(account)] = { at_ms: Date.now(), ok:false, error: err };
+        return { ok:false, account, error: err };
+      }
+    }
+
+    async function wcRunnerTick(){
+      const state:any = GG.__void_wc_runner_state_v1 || {};
+      const accounts = Object.keys(state).filter((k) => !!state[k]);
+      for (const account of accounts) {
+        try { await wcRunnerSubmitOnce(String(account)); } catch {}
+      }
+    }
+
+    function ensureWcRunnerLoop(){
+      const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+      if (rt.loop_started) return;
+      rt.loop_started = true;
+      const everyMs = Number(rt.loop_interval_ms || 5000) || 5000;
+      setInterval(() => { wcRunnerTick().catch(() => {}); }, everyMs);
+    }
+
+    ensureWcRunnerLoop();
 
     function runnerStateFor(account:string){
       const enabled = !!GG.__void_wc_runner_state_v1[String(account || "")];
+      const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+      const lastSubmit = rt.last_submit_ms ? (rt.last_submit_ms[String(account)] || null) : null;
+      const lastResult = rt.last_result ? (rt.last_result[String(account)] || null) : null;
       return {
         ok: true,
         account,
@@ -35663,6 +35737,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         mode: "agent_auto_only",
         user_override: "stop_only",
         payout_policy: "useful_verifiable_only",
+        approved_task_classes: ["datanet_publish"],
+        loop_started: !!rt.loop_started,
+        loop_interval_ms: Number(rt.loop_interval_ms || 5000) || 5000,
+        min_submit_gap_ms: Number(rt.min_submit_gap_ms || 30000) || 30000,
+        last_submit_ms: lastSubmit,
+        last_result: lastResult,
         note: enabled
           ? "Agent-selected useful work is enabled for this account."
           : "Agent-selected useful work is stopped for this account."
@@ -35689,6 +35769,20 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           ...runnerStateFor(account),
           changed: true
         });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.post("/wc/runner/tick", async (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.body?.account || req.query?.account || "");
+        if (account) {
+          const out = await wcRunnerSubmitOnce(account);
+          return res.json({ ok:true, manual:true, account, runner: runnerStateFor(account), submit: out });
+        }
+        await wcRunnerTick();
+        return res.json({ ok:true, manual:true, ticked_all:true });
       } catch (e:any) {
         return res.status(500).json({ ok:false, error:String(e?.message || e) });
       }
