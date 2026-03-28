@@ -35651,6 +35651,49 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       }
     });
 
+    const GG:any = globalThis as any;
+    GG.__void_wc_runner_state_v1 = GG.__void_wc_runner_state_v1 || {};
+
+    function runnerStateFor(account:string){
+      const enabled = !!GG.__void_wc_runner_state_v1[String(account || "")];
+      return {
+        ok: true,
+        account,
+        enabled,
+        mode: "agent_auto_only",
+        user_override: "stop_only",
+        payout_policy: "useful_verifiable_only",
+        note: enabled
+          ? "Agent-selected useful work is enabled for this account."
+          : "Agent-selected useful work is stopped for this account."
+      };
+    }
+
+    app.get("/wc/runner/status", (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.query?.account);
+        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+        return res.json(runnerStateFor(account));
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.post("/wc/runner/set", (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.body?.account);
+        const enabled = !!req.body?.enabled;
+        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+        GG.__void_wc_runner_state_v1[String(account)] = enabled;
+        return res.json({
+          ...runnerStateFor(account),
+          changed: true
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
     app.post("/wc/redeem", (req:any, res:any) => {
       try {
         const account = safeAccount(req.body?.account);
@@ -37067,8 +37110,15 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <label for="plaintext">What do you want to submit?</label>
           <textarea id="plaintext">Enter text or data.</textarea>
 
+          <label>Earn Work Credits</label>
+          <div class="hero-note" id="wcRunnerStatusCard">Agent-selected useful work only. Loading runner state…</div>
+          <div class="action-rail" style="margin-top:10px">
+            <button class="btn btn-primary" id="wcRunnerToggleBtn" type="button">Earn Work Credits</button>
+          </div>
+          <div class="subtle-tab-copy">When enabled, the bundled agent selects useful work for the network. Manual override only stops work.</div>
+
           <div class="row" style="margin-top:14px;">
-            <button class="btn btn-primary" id="submitBtn">Manual Test Submit</button>
+            <button class="btn" id="submitBtn">Manual Test Submit</button>
             <button class="btn" id="refreshBtn" type="button">Refresh Status</button>
           </div>
 
@@ -37634,7 +37684,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const manualWallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "";
     const wcBase = LOCAL_WC_BASE;
 
-    const [bal, redeem, redeemed, jobs, receipts, ledger, summary, peer, health, relayerHealth] = await Promise.all([
+    const [bal, redeem, redeemed, jobs, receipts, ledger, summary, peer, health, relayerHealth, runnerStatus] = await Promise.all([
       j("/wc/balance?account=" + encodeURIComponent(account)),
       j("/wc/redeemable?account=" + encodeURIComponent(account)),
       j("/wc/redeemed?account=" + encodeURIComponent(account) + "&limit=20"),
@@ -37645,6 +37695,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       j("/__void/peer-main-status.json"),
       j("/health"),
       j(LOCAL_RELAYER_BASE + "/health").catch(() => ({ ok:false, offline:true })),
+      j("/wc/runner/status?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
     ]);
 
     const wcAddr = deriveParticipantWallet(account, redeemed, connectedWallet, manualWallet);
@@ -37705,6 +37756,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
 
     setText("heroAccount", account);
+
+    const runnerEnabled = !!(runnerStatus && runnerStatus.ok && runnerStatus.enabled);
+    setText(
+      "wcRunnerStatusCard",
+      runnerEnabled
+        ? "Earn Work Credits is ON. Agent-selected useful work is allowed for this account."
+        : "Earn Work Credits is OFF. No new agent-selected work should be started for this account."
+    );
+    if ($("wcRunnerToggleBtn")) {
+      $("wcRunnerToggleBtn").textContent = runnerEnabled ? "Stop Earning Work Credits" : "Earn Work Credits";
+    }
 
     const acctMeta = localEarned !== null
       ? ("Earned WC: " + localEarned + " • Ledger entries: " + (localCount ?? 0))
