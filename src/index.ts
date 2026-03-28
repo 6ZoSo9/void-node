@@ -37146,6 +37146,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
         <div style="margin-top:12px">
           <div class="hero-note" id="tradeSummary">Ready to trade WC for VOID.</div>
+            <div class="hero-note" id="tradeFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
+            <div class="action-rail" style="margin-top:10px">
+              <button class="btn" id="tradeModeAutoBtn" type="button">Auto</button>
+              <button class="btn" id="tradeModeWalletBtn" type="button">Use Wallet</button>
+              <button class="btn" id="tradeModeSponsoredBtn" type="button">Sponsored</button>
+            </div>
           <details class="adv" style="margin-top:10px">
             <summary><span>Trade Result</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
@@ -37234,6 +37240,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
             <div class="v" style="font-size:64px;margin-bottom:8px;line-height:1" id="walletRedeemableBig">-</div>
             <div class="s" id="walletMeta">Available Work Credits you can use right now</div>
+              <div class="s" id="walletRedeemedSummary" style="margin-top:6px">Redeemed WC: -</div>
           </div>
 
           <div class="metric-strip" style="margin-top:14px">
@@ -37293,6 +37300,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
             <div style="margin-top:12px">
               <div class="hero-note" id="redeemSummary">Ready to redeem WC.</div>
+                <div class="hero-note" id="redeemFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
+                <div class="action-rail" style="margin-top:10px">
+                  <button class="btn" id="redeemModeAutoBtn" type="button">Auto</button>
+                  <button class="btn" id="redeemModeWalletBtn" type="button">Use Wallet</button>
+                  <button class="btn" id="redeemModeSponsoredBtn" type="button">Sponsored</button>
+                </div>
               <details class="adv" style="margin-top:10px">
                 <summary><span>Redeem Details</span><span class="pill">raw json</span></summary>
                 <div class="adv-body">
@@ -37550,6 +37563,24 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch (_) {
       return "-";
     }
+  }
+
+
+  let redeemFeeMode = "auto";
+  let tradeFeeMode = "auto";
+
+  function feeModeLabel(mode){
+    if (mode === "wallet") return "Wallet";
+    if (mode === "sponsored") return "Sponsored";
+    return "Auto";
+  }
+
+  function renderRedeemFeeMode(){
+    setText("redeemFeeModeCard", "Execution: " + feeModeLabel(redeemFeeMode) + " • Fee Source: " + feeModeLabel(redeemFeeMode));
+  }
+
+  function renderTradeFeeMode(){
+    setText("tradeFeeModeCard", "Execution: " + feeModeLabel(tradeFeeMode) + " • Fee Source: " + feeModeLabel(tradeFeeMode));
   }
 
   function renderJobs(items){
@@ -39964,4 +39995,3 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try { console.error("[upgrade-boot-consumer:v2] init failed:", e?.message || e); } catch {}
   }
 })();
-
