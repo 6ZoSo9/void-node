@@ -36986,6 +36986,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
           </div>
           <div class="hero-note" id="summaryCard">loading…</div>
+          <div class="hero-note" id="latestActionCard" style="margin-top:10px">Waiting for your next action.</div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Account Activity Details</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
@@ -37067,7 +37068,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <div style="margin-top:14px;">
             <label>Submission Status</label>
-            <pre id="submitOut">Waiting for your first submission.</pre>
+            <pre id="submitOut">Ready to submit work.</pre>
           </div>
         </div>
 
@@ -37250,7 +37251,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
             </div>
             <div style="margin-top:12px">
-              <pre id="redeemOut">idle</pre>
+              <pre id="redeemOut">Ready to redeem WC.</pre>
             </div>
           </div>
 
@@ -37953,6 +37954,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       });
 
       setPre("redeemOut", out);
+        if (out && out.ok) setLatestAction("WC redeemed. You can now trade from the Trade tab.");
       await refresh();
     } catch (e) {
       setPre("redeemOut", { ok:false, redeem:false, error:String((e && e.message) || e) });
@@ -38088,6 +38090,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         body: JSON.stringify({ account, kind:"datanet_publish", plaintext })
       });
       setPre("submitOut", out);
+        if (out && out.ok && out.job && out.job.job_id) setLatestAction("Work submitted. Waiting for proof and WC credit.");
 
       const jobId = out && out.job && out.job.job_id;
       if (jobId) {
