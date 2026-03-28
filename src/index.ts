@@ -37232,6 +37232,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="v" id="latestJobState">-</div>
         <div class="s" id="latestJobMeta">Checking your most recent work…</div>
       </div>
+        <div class="kpi">
+          <div class="k">Earn WC</div>
+          <div class="v" id="runnerStateHome">-</div>
+          <div class="s" id="runnerMetaHome">Checking runner…</div>
+        </div>
     </section>
 
     <section class="tabpane" id="pane-overview">
