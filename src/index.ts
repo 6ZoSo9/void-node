@@ -36954,9 +36954,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="s" id="topHealthMeta">Checking onchain VOID balance…</div>
       </div>
       <div class="kpi">
-        <div class="k">Redeemed WC</div>
+        <div class="k">Already Redeemed</div>
         <div class="v" id="syncGap">-</div>
-        <div class="s" id="syncMeta">Checking redeemed WC…</div>
+        <div class="s" id="syncMeta">Checking redeemed amount…</div>
       </div>
       <div class="kpi">
         <div class="k">Available WC</div>
@@ -37751,7 +37751,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const tradingWcHome = Number.isFinite(Number(redeemedTotal)) ? Number(redeemedTotal) : 0;
     setText("syncGap", tradingWcHome);
     if (syncEl) syncEl.className = "v";
-    setText("syncMeta", "Participant WC already redeemed");
+    setText("syncMeta", "Already redeemed from participant");
 
     if ($("systemStatusCard")) {
       const sys = [];
