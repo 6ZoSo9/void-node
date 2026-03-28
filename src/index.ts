@@ -37164,24 +37164,24 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="mini">
             <div class="k">Available WC</div>
             <div class="v" id="tradeRedeemableWc">-</div>
-            <div class="s">participant WC</div>
+            <div class="s">available now</div>
           </div>
           <div class="mini">
             <div class="k">Quoted VOID</div>
             <div class="v" id="tradeQuoteVoid">-</div>
-            <div class="s">estimated output</div>
+            <div class="s">you would receive</div>
           </div>
           <div class="mini">
             <div class="k">Trade Status</div>
             <div class="v" id="tradeRelayerState">-</div>
-            <div class="s">current status</div>
+            <div class="s">execution path</div>
           </div>
         </div>
 
         <div class="panel" style="margin-top:16px;padding:14px">
           <div class="section-head">
             <div>
-              <h2 style="margin-bottom:4px">Review<span class="help" tabindex="0" data-help="Main trade summary for available WC, redeemed WC, quote output, and destination wallet.">?</span></h2>
+              <h2 style="margin-bottom:4px">Review<span class="help" tabindex="0" data-help="Main trade summary for what you can trade now, what is already prepared, the current quote, and where the output will go.">?</span></h2>
             </div>
           </div>
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
@@ -37221,7 +37221,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         </details>
 
         <details class="adv" style="margin-top:12px">
-          <summary><span>Advanced trading state</span><span class="pill">raw json</span></summary>
+          <summary><span>Advanced Trading State</span><span class="pill">raw json</span></summary>
           <div class="adv-body">
             <pre id="tradeStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
           </div>
