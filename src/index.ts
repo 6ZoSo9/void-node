@@ -38590,6 +38590,85 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   await refresh();
 
+  let __voidRunnerAutoRefreshBusy = false;
+  async function refreshRunnerPanelOnly(){
+    try {
+      if (__voidRunnerAutoRefreshBusy) return;
+      __voidRunnerAutoRefreshBusy = true;
+
+      const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+      const runnerStatus = await j("/wc/runner/status?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true }));
+      const runnerEnabled = !!(runnerStatus && runnerStatus.ok && runnerStatus.enabled);
+
+      setText(
+        "wcRunnerStatusCard",
+        runnerEnabled
+          ? ("Earn Work Credits is ON. Agent-selected useful work is allowed for this account." +
+             (runnerStatus && runnerStatus.last_result && runnerStatus.last_result.job_id
+               ? (" Last job: " + runnerStatus.last_result.job_id)
+               : " Waiting for next approved task."))
+          : "Earn Work Credits is OFF. No new agent-selected work should be started for this account. Enable earning before running approved work."
+      );
+
+      if ($("wcRunnerToggleBtn")) {
+        $("wcRunnerToggleBtn").textContent = runnerEnabled ? "Stop Earning Work Credits" : "Earn Work Credits";
+      }
+      if ($("wcRunnerTickBtn")) {
+        $("wcRunnerTickBtn").disabled = !runnerEnabled;
+      }
+
+      setText("wcRunnerEnabledMini", runnerEnabled ? "ON" : "OFF");
+      setText(
+        "wcRunnerTaskMini",
+        runnerStatus && Array.isArray(runnerStatus.approved_task_classes) && runnerStatus.approved_task_classes.length
+          ? String(runnerStatus.approved_task_classes[0] || "-")
+          : "-"
+      );
+      setText(
+        "wcRunnerLastJobMini",
+        runnerStatus && runnerStatus.last_result && runnerStatus.last_result.job_id
+          ? String(runnerStatus.last_result.job_id)
+          : "-"
+      );
+      setText(
+        "wcRunnerCooldownMini",
+        runnerStatus && Number.isFinite(Number(runnerStatus.min_submit_gap_ms))
+          ? (String(Math.round(Number(runnerStatus.min_submit_gap_ms) / 1000)) + "s")
+          : "-"
+      );
+      setText(
+        "wcRunnerLastRunMini",
+        runnerStatus && Number.isFinite(Number(runnerStatus.last_submit_ms))
+          ? new Date(Number(runnerStatus.last_submit_ms)).toLocaleTimeString()
+          : "-"
+      );
+      setText(
+        "wcRunnerLastResultMini",
+        runnerStatus && runnerStatus.last_result
+          ? (runnerStatus.last_result.ok ? "OK" : "ERR")
+          : "-"
+      );
+      setText(
+        "wcRunnerMeta",
+        runnerStatus && runnerStatus.ok
+          ? ("Mode: " + String(runnerStatus.mode || "agent_auto_only") +
+             " • Override: " + String(runnerStatus.user_override || "stop_only") +
+             " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only"))
+          : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
+      );
+    } catch (_) {
+    } finally {
+      __voidRunnerAutoRefreshBusy = false;
+    }
+  }
+
+  setInterval(() => {
+    try {
+      const active = document && document.body && document.body.getAttribute("data-active-tab");
+      if (active === "work") refreshRunnerPanelOnly().catch(() => {});
+    } catch {}
+  }, 4000);
+
   let initialTab = null;
   try {
     const h = String((location && location.hash) || "").replace(/^#/, "").trim();
