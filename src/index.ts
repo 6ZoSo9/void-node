@@ -36859,6 +36859,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     .compact-tab-title{font-size:28px;font-weight:900;letter-spacing:-.03em;color:#f8fafc;margin:0 0 6px}
     .compact-tab-meta{color:#93a4bf;font-size:13px}
 
+  
+    .subtle-tab-copy{color:#93a4bf;font-size:13px;margin:2px 0 14px}
+    details.soft-adv{margin-top:14px}
+    details.soft-adv > summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;font-weight:800;color:#f8fafc;padding:0}
+    details.soft-adv > summary::-webkit-details-marker{display:none}
+
   </style>
 </head>
 <body data-active-tab="overview">
@@ -37028,17 +37034,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </section>
 
     <section class="tabpane" id="pane-work">
-      <div class="compact-tab-head" id="work-compact-head"><h1 class="compact-tab-title">Earn</h1><div class="compact-tab-meta">Submit work and earn WC.</div></div>
+      <div class="compact-tab-head" id="work-compact-head"><h1 class="compact-tab-title">Earn</h1></div>
       <div class="grid-2">
         <div class="action">
           <div class="section-head">
             <div>
-              <h2>Earn Work Credits</h2>
+              <h2>Earn Work Credits<span class="help" tabindex="0" data-help="Submit work for the selected participant account. Completed work creates receipts and can earn WC.">?</span></h2>
               
             </div>
           </div>
 
-          <label for="account">Which participant account should receive credit?</label>
+          <label for="account">Participant account</label>
           <input id="account" value="remote-user-3" />
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
             <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-1'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-1</button>
@@ -37084,7 +37090,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="section-head">
               <div>
                 <h2>Recent work</h2>
-                <div class="section-copy">Your recent work and how each submission finished.</div>
+                
               </div>
             </div>
             <div class="table-wrap"><div id="jobsWrap" class="empty">loading…</div></div>
@@ -37104,7 +37110,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </section>
 
     <section class="tabpane" id="pane-trading">
-      <div class="compact-tab-head" id="trading-compact-head"><h1 class="compact-tab-title">Trade</h1><div class="compact-tab-meta">Swap participant WC for VOID.</div></div>
+      <div class="compact-tab-head" id="trading-compact-head"><h1 class="compact-tab-title">Trade</h1></div>
       <div class="panel">
         <div class="section-head">
           <div>
@@ -37373,7 +37379,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     </section>
 
     <section class="tabpane" id="pane-receipts">
-      <div class="compact-tab-head" id="receipts-compact-head"><h1 class="compact-tab-title">Proofs</h1><div class="compact-tab-meta">Receipts and results.</div></div>
+      <div class="compact-tab-head" id="receipts-compact-head"><h1 class="compact-tab-title">Proofs</h1></div>
       <div class="grid-2-eq">
         <div class="panel">
           <div class="section-head">
