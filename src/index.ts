@@ -36875,6 +36875,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     }
     #ledgerLatestReceipt, #ledgerLatestReason, #ledgerTruthState,
     #connectedWalletAddrMini, #connectedWalletVoidMini, #helperRedeemableMini,
+      #walletTruthAddr, #walletTruthVoid, #walletTruthMapped,
     #walletEarnedMini, #walletDebitedMini, #walletRedeemedMini, #walletRedeemableMini {
       overflow-wrap: anywhere;
       word-break: break-word;
