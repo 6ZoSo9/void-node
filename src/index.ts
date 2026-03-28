@@ -38104,6 +38104,33 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("latestJobState", latestJob ? latestJob.status : "-");
     setText("latestJobMeta", latestJob ? (latestJob.job_id + " | " + latestJob.kind) : "no jobs");
 
+    const homeRunner = runnerStatus && runnerStatus.ok ? runnerStatus : null;
+    const homeRunnerLabel = homeRunner ? (homeRunner.enabled ? "ON" : "OFF") : "-";
+    const homeRunnerMeta = (() => {
+      try {
+        if (!homeRunner) return "Runner unavailable";
+        const task = Array.isArray(homeRunner.approved_task_classes) && homeRunner.approved_task_classes.length
+          ? String(homeRunner.approved_task_classes[0] || "-")
+          : "-";
+        const lr = homeRunner.last_result || null;
+        const submit = lr && lr.result ? lr.result : null;
+        let resultLabel = "-";
+        let nextLabel = "";
+        if (submit && submit.skipped && submit.reason === "cooldown") resultLabel = "COOLDOWN";
+        else if (submit && submit.skipped && submit.reason === "hourly_limit") resultLabel = "LIMIT";
+        else if (lr && lr.ok) resultLabel = "OK";
+        else if (lr) resultLabel = "ERR";
+        if (submit && submit.next_due_ms && Number.isFinite(Number(submit.next_due_ms))) {
+          nextLabel = " • Next: " + new Date(Number(submit.next_due_ms)).toLocaleTimeString();
+        }
+        return task + " • " + resultLabel + nextLabel;
+      } catch (_) {
+        return "Runner state unavailable";
+      }
+    })();
+    setText("runnerStateHome", homeRunnerLabel);
+    setText("runnerMetaHome", homeRunnerMeta);
+
     const syncEl = $("syncGap");
     const gap = peer && typeof peer.head_gap === "number" ? peer.head_gap : null;
     const peerCount = health && Array.isArray(health.peers) ? health.peers.length : 0;
