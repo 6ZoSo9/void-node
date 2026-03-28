@@ -36857,6 +36857,30 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     body[data-active-tab="receipts"] #receipts-compact-head{display:block}
 
     .compact-tab-title{font-size:22px;font-weight:900;letter-spacing:-.03em;color:#f8fafc;margin:0 0 2px}
+
+    /* VOID_UI_OVERFLOW_GUARD_V1 */
+    .mini, .panel, .subpanel, .kpi { min-width: 0; }
+    .mini .k, .mini .s, .mini .v,
+    .kpi .k, .kpi .s, .kpi .v,
+    .hero-note, pre {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .mini .v {
+      line-height: 1.08;
+      font-size: clamp(18px, 2vw, 34px);
+    }
+    .mini .k, .mini .s {
+      line-height: 1.25;
+    }
+    #ledgerLatestReceipt, #ledgerLatestReason, #ledgerTruthState,
+    #connectedWalletAddrMini, #connectedWalletVoidMini, #helperRedeemableMini,
+    #walletEarnedMini, #walletDebitedMini, #walletRedeemedMini, #walletRedeemableMini {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+    }
+
     .compact-tab-meta{color:#93a4bf;font-size:13px}
 
   
@@ -37068,7 +37092,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <div style="margin-top:14px;">
             <label>Submission Status</label>
-            <pre id="submitOut">Ready to submit work.</pre>
+            <div class="hero-note" id="submitSummary">Ready to submit work.</div>
+          <details class="adv" style="margin-top:10px">
+            <summary><span>Submission Details</span><span class="pill">raw json</span></summary>
+            <div class="adv-body">
+              <pre id="submitOut">Ready to submit work.</pre>
+            </div>
+          </details>
           </div>
         </div>
 
@@ -37111,6 +37141,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="action-rail" style="margin-top:12px">
           <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
           <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Trade Availability...</button>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="hero-note" id="tradeSummary">Ready to trade WC for VOID.</div>
+          <details class="adv" style="margin-top:10px">
+            <summary><span>Trade Result</span><span class="pill">raw json</span></summary>
+            <div class="adv-body">
+              <pre id="tradeOut">Ready to trade WC for VOID.</pre>
+            </div>
+          </details>
         </div>
 
         <div class="metric-strip top-kpis" style="margin-top:16px">
@@ -37207,9 +37247,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">Sent out</div>
             </div>
             <div class="mini">
-              <div class="k">Moved to Trading</div>
+              <div class="k">Redeemed WC</div>
               <div class="v" id="walletRedeemedMini">-</div>
-              <div class="s">In trading</div>
+              <div class="s">Redeemed from participant</div>
             </div>
             <div class="mini" style="border:1px solid rgba(255,255,255,.14);box-shadow:0 0 0 1px rgba(255,255,255,.03) inset">
               <div class="k">Available Now</div>
@@ -37251,7 +37291,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
             </div>
             <div style="margin-top:12px">
-              <pre id="redeemOut">Ready to redeem WC.</pre>
+              <div class="hero-note" id="redeemSummary">Ready to redeem WC.</div>
+              <details class="adv" style="margin-top:10px">
+                <summary><span>Redeem Details</span><span class="pill">raw json</span></summary>
+                <div class="adv-body">
+                  <pre id="redeemOut">Ready to redeem WC.</pre>
+                </div>
+              </details>
             </div>
           </div>
 
@@ -37268,17 +37314,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="mini">
                 <div class="k">Latest Balance Change</div>
                 <div class="v" id="ledgerLatestReason">-</div>
-                <div class="s">the latest reason your Work Credit balance changed</div>
+                <div class="s">most recent balance change</div>
               </div>
               <div class="mini">
                 <div class="k">Latest Receipt</div>
                 <div class="v" id="ledgerLatestReceipt">-</div>
-                <div class="s">proof linked to the latest balance change when available</div>
+                <div class="s">latest linked proof when available</div>
               </div>
               <div class="mini">
                 <div class="k">Balance Source</div>
                 <div class="v" id="ledgerTruthState">-</div>
-                <div class="s">calculated from local Work Credit activity on this node</div>
+                <div class="s">calculated from local participant WC activity on this node</div>
               </div>
             </div>
           </div>
@@ -37306,7 +37352,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">In connected wallet</div>
             </div>
             <div class="mini">
-              <div class="k">Participant WC</div>
+              <div class="k">Available Participant WC</div>
               <div class="v" id="helperRedeemableMini">-</div>
               <div class="s">Participant balance</div>
             </div>
@@ -37881,6 +37927,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       });
 
       setPre("sendOut", out);
+      setPre("tradeOut", out);
+      if (out && out.ok) setLatestAction("Trade submitted onchain.");
       await refresh();
     } catch (e) {
       setPre("sendOut", { ok:false, error:String((e && e.message) || e) });
