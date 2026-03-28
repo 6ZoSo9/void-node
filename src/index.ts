@@ -37353,9 +37353,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">Actual wallet balance</div>
             </div>
             <div class="mini">
-              <div class="k">Participant WC</div>
-              <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">Local participant balance</div>
+              <div class="k">Onchain WC</div>
+              <div class="v" id="connectedWalletWcMini">-</div>
+              <div class="s">Wallet token balance</div>
             </div>
           </div>
 
