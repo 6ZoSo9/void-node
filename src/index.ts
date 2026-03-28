@@ -35661,7 +35661,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       last_submit_ms: {},
       last_result: {},
       last_error: null,
-      submit_history_ms: {}
+      submit_history_ms: {},
+      verify_history_by_dataset: {}
     };
 
     function runnerConfigFor(account:string){
@@ -35699,11 +35700,6 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       return out;
     }
 
-    function runnerSelectedTaskClassFor(account:string){
-      const approved = runnerApprovedTaskClassesFor(account);
-      return String(approved[0] || "datanet_publish");
-    }
-
     function runnerDatanetDir(){
       const path = require("node:path");
       return path.join(dataDir(), "datanet_v1", "local_jobs");
@@ -35712,6 +35708,67 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     async function runnerSha256Hex(s:string): Promise<string> {
       const crypto = require("node:crypto");
       return crypto.createHash("sha256").update(Buffer.from(s, "utf8")).digest("hex");
+    }
+
+    function runnerFindVerifyCandidate(account:string){
+      try {
+        const fs = require("node:fs");
+        const path = require("node:path");
+        const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+        rt.verify_history_by_dataset = rt.verify_history_by_dataset || {};
+
+        const dir = runnerDatanetDir();
+        if (!fs.existsSync(dir)) return null;
+
+        const files = fs.readdirSync(dir)
+          .filter((x:any) => String(x).endsWith(".txt"))
+          .sort();
+
+        if (!files.length) return null;
+
+        const now = Date.now();
+        const verifyCooldownMs = 5 * 60 * 1000;
+
+        let chosen:any = null;
+        let chosenTs = Number.POSITIVE_INFINITY;
+
+        for (const f of files) {
+          const datasetId = String(f).replace(/\.txt$/i, "");
+          const last = Number((rt.verify_history_by_dataset[String(account)] || {})[datasetId] || 0);
+          const age = now - last;
+          if (age < verifyCooldownMs) continue;
+          if (last < chosenTs) {
+            chosenTs = last;
+            chosen = {
+              dataset_id: datasetId,
+              path: path.join(dir, f),
+              last_verified_ms: last || null
+            };
+          }
+        }
+
+        if (chosen) return chosen;
+
+        const fallback = String(files[files.length - 1] || "");
+        if (!fallback) return null;
+        return {
+          dataset_id: fallback.replace(/\.txt$/i, ""),
+          path: path.join(dir, fallback),
+          last_verified_ms: null
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    function runnerSelectedTaskClassFor(account:string){
+      const approved = runnerApprovedTaskClassesFor(account);
+      if (approved.includes("datanet_fetch_verify")) {
+        const candidate = runnerFindVerifyCandidate(account);
+        if (candidate && candidate.dataset_id) return "datanet_fetch_verify";
+      }
+      if (approved.includes("datanet_publish")) return "datanet_publish";
+      return String(approved[0] || "datanet_publish");
     }
 
     async function wcRunnerSubmitOnce(account:string){
@@ -35762,12 +35819,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         const port = Number(process.env.HTTP_PORT || 4100);
         const selected_task_class = runnerSelectedTaskClassFor(account);
         let runnerPlaintext = null as any;
+        let selected_dataset_id = null as any;
         if (selected_task_class === "datanet_fetch_verify") {
-          const localDir = runnerDatanetDir();
-          const files = fs.existsSync(localDir)
-            ? fs.readdirSync(localDir).filter((x:any) => String(x).endsWith(".txt")).sort()
-            : [];
-          if (!files.length) {
+          const candidate = runnerFindVerifyCandidate(account);
+          if (!candidate || !candidate.path || !candidate.dataset_id) {
             return {
               ok:true,
               skipped:true,
@@ -35778,13 +35833,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
             };
           }
-          const chosen = String(files[files.length - 1] || "");
-          const datasetId = chosen.replace(/\.txt$/i, "");
-          const payloadPath = path.join(localDir, chosen);
-          const fetched = String(fs.readFileSync(payloadPath, "utf8") || "");
+          selected_dataset_id = String(candidate.dataset_id || "");
+          const fetched = String(fs.readFileSync(String(candidate.path), "utf8") || "");
           const expectedInputHash = await runnerSha256Hex(fetched);
           runnerPlaintext = JSON.stringify({
-            dataset_id: datasetId,
+            dataset_id: selected_dataset_id,
             expected_input_hash: expectedInputHash
           });
         } else {
@@ -35812,16 +35865,34 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         });
 
         const out = await r.json().catch(() => ({ ok:false, error:"non_json_runner_submit" }));
+        if (selected_task_class === "datanet_fetch_verify" && selected_dataset_id) {
+          rt.verify_history_by_dataset = rt.verify_history_by_dataset || {};
+          rt.verify_history_by_dataset[String(account)] = rt.verify_history_by_dataset[String(account)] || {};
+          rt.verify_history_by_dataset[String(account)][String(selected_dataset_id)] = Date.now();
+        }
+
         rt.last_result[String(account)] = {
           at_ms: Date.now(),
           ok: !!(out && out.ok),
           job_id: out && out.job ? (out.job.job_id || null) : null,
           result: out,
+          selected_task_class,
+          selected_dataset_id: selected_dataset_id || null,
           safe_mode: !!cfg.safe_mode,
           min_submit_gap_ms: minGap,
           max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
         };
-        return { ok:true, account, submitted:true, out, safe_mode: !!cfg.safe_mode, min_submit_gap_ms: minGap, max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60 };
+        return {
+          ok:true,
+          account,
+          submitted:true,
+          out,
+          selected_task_class,
+          selected_dataset_id: selected_dataset_id || null,
+          safe_mode: !!cfg.safe_mode,
+          min_submit_gap_ms: minGap,
+          max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+        };
       } catch (e:any) {
         const err = String(e?.message || e);
         rt.last_error = { at_ms: Date.now(), account, error: err };
@@ -35864,6 +35935,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         payout_policy: "useful_verifiable_only",
         approved_task_classes: runnerApprovedTaskClassesFor(account),
         active_task_class: runnerSelectedTaskClassFor(account),
+        last_selected_task_class: lastResult && lastResult.selected_task_class ? lastResult.selected_task_class : null,
+        last_selected_dataset_id: lastResult && lastResult.selected_dataset_id ? lastResult.selected_dataset_id : null,
         loop_started: !!rt.loop_started,
         loop_interval_ms: Number(rt.loop_interval_ms || 5000) || 5000,
         min_submit_gap_ms: Number(cfg.min_submit_gap_ms || 30000) || 30000,
@@ -38910,11 +38983,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText("wcRunnerEnabledMini", runnerEnabled ? "ON" : "OFF");
       setText(
         "wcRunnerTaskMini",
-        runnerStatus && runnerStatus.active_task_class
-          ? String(runnerStatus.active_task_class || "-")
-          : (runnerStatus && Array.isArray(runnerStatus.approved_task_classes) && runnerStatus.approved_task_classes.length
-              ? String(runnerStatus.approved_task_classes[0] || "-")
-              : "-")
+        runnerStatus && runnerStatus.last_selected_task_class
+          ? String(runnerStatus.last_selected_task_class || "-")
+          : (runnerStatus && runnerStatus.active_task_class
+              ? String(runnerStatus.active_task_class || "-")
+              : (runnerStatus && Array.isArray(runnerStatus.approved_task_classes) && runnerStatus.approved_task_classes.length
+                  ? String(runnerStatus.approved_task_classes[0] || "-")
+                  : "-"))
       );
       setText(
         "wcRunnerLastJobMini",
