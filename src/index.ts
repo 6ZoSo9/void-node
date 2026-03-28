@@ -37064,7 +37064,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
 
           <label for="plaintext">What do you want to submit?</label>
-          <textarea id="plaintext">Enter the text or data you want to submit through the participant dashboard.</textarea>
+          <textarea id="plaintext">Enter text or data.</textarea>
 
           <div class="row" style="margin-top:14px;">
             <button class="btn btn-primary" id="submitBtn">Submit Work</button>
