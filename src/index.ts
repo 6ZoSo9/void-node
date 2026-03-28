@@ -37068,7 +37068,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <textarea id="plaintext">Enter text or data.</textarea>
 
           <div class="row" style="margin-top:14px;">
-            <button class="btn btn-primary" id="submitBtn">Submit Work</button>
+            <button class="btn btn-primary" id="submitBtn">Manual Test Submit</button>
             <button class="btn" id="refreshBtn" type="button">Refresh Status</button>
           </div>
 
