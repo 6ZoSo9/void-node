@@ -35663,6 +35663,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       last_error: null,
       submit_history_ms: {},
       verify_history_by_dataset: {},
+      redundancy_history_by_dataset: {},
       selection_history_by_account: {},
       selection_events_by_account: {}
     };
@@ -35682,6 +35683,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const allow_fetch_verify = (raw.allow_datanet_fetch_verify === undefined)
         ? !!process.env.VOID_WC_ENABLE_FETCH_VERIFY
         : !!raw.allow_datanet_fetch_verify;
+      const allow_redundancy_check = (raw.allow_datanet_redundancy_check === undefined)
+        ? !!process.env.VOID_WC_ENABLE_REDUNDANCY_CHECK
+        : !!raw.allow_datanet_redundancy_check;
 
       return {
         account,
@@ -35689,7 +35693,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         min_submit_gap_ms,
         max_jobs_per_hour,
         allow_datanet_publish: allow_publish,
-        allow_datanet_fetch_verify: allow_fetch_verify
+        allow_datanet_fetch_verify: allow_fetch_verify,
+        allow_datanet_redundancy_check: allow_redundancy_check,
+        target_publish_share: 0.5,
+        target_verify_share: 0.3,
+        target_redundancy_share: 0.2
       };
     }
 
@@ -35698,6 +35706,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const out:string[] = [];
       if (cfg.allow_datanet_publish) out.push("datanet_publish");
       if (cfg.allow_datanet_fetch_verify) out.push("datanet_fetch_verify");
+      if (cfg.allow_datanet_redundancy_check) out.push("datanet_redundancy_check");
       if (!out.length) out.push("datanet_publish");
       return out;
     }
@@ -35757,8 +35766,54 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       }
     }
 
+    function runnerFindRedundancyCandidate(account:string){
+      try {
+        const fs = require("node:fs");
+        const path = require("node:path");
+        const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+        rt.redundancy_history_by_dataset = rt.redundancy_history_by_dataset || {};
+
+        const dir = runnerDatanetDir();
+        if (!fs.existsSync(dir)) return null;
+
+        const files = fs.readdirSync(dir)
+          .filter((x:any) => String(x).endsWith(".txt"))
+          .sort();
+
+        if (!files.length) return null;
+
+        const now = Date.now();
+        const redundancyCooldownMs = 15 * 60 * 1000;
+
+        let chosen:any = null;
+        let chosenTs = Number.POSITIVE_INFINITY;
+
+        for (const f of files) {
+          const datasetId = String(f).replace(/\.txt$/i, "");
+          const last = Number((rt.redundancy_history_by_dataset[String(account)] || {})[datasetId] || 0);
+          const age = now - last;
+          if (age < redundancyCooldownMs) continue;
+          if (last < chosenTs) {
+            chosenTs = last;
+            chosen = {
+              dataset_id: datasetId,
+              path: path.join(dir, f),
+              last_redundancy_check_ms: last || null,
+              stale_for_ms: last ? (now - last) : null
+            };
+          }
+        }
+
+        if (chosen) return chosen;
+        return null;
+      } catch {
+        return null;
+      }
+    }
+
     function runnerSelectionDecisionFor(account:string){
       const approved = runnerApprovedTaskClassesFor(account);
+      const cfg:any = runnerConfigFor(account);
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       rt.selection_history_by_account = rt.selection_history_by_account || {};
       rt.selection_events_by_account = rt.selection_events_by_account || {};
@@ -35766,6 +35821,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const hist = Array.isArray(rt.selection_history_by_account[String(account)]) ? rt.selection_history_by_account[String(account)] : [];
       const recent = hist.slice(-3).map((x:any) => String(x || ""));
       const verifyStreak = recent.length >= 2 && recent[recent.length - 1] === "datanet_fetch_verify" && recent[recent.length - 2] === "datanet_fetch_verify";
+      const redundancyStreak = recent.length >= 2 && recent[recent.length - 1] === "datanet_redundancy_check" && recent[recent.length - 2] === "datanet_redundancy_check";
 
       const now = Date.now();
       const hourAgo = now - (60 * 60 * 1000);
@@ -35775,41 +35831,85 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
       const publishLastHour = kept.filter((x:any) => String(x.task_class || "") === "datanet_publish").length;
       const verifyLastHour = kept.filter((x:any) => String(x.task_class || "") === "datanet_fetch_verify").length;
-      const totalLastHour = publishLastHour + verifyLastHour;
+      const redundancyLastHour = kept.filter((x:any) => String(x.task_class || "") === "datanet_redundancy_check").length;
+      const totalLastHour = publishLastHour + verifyLastHour + redundancyLastHour;
+
+      const publishShare = totalLastHour > 0 ? (publishLastHour / totalLastHour) : 0;
       const verifyShare = totalLastHour > 0 ? (verifyLastHour / totalLastHour) : 0;
-      const verifyShareCap = 0.6;
+      const redundancyShare = totalLastHour > 0 ? (redundancyLastHour / totalLastHour) : 0;
 
       const hasPublish = approved.includes("datanet_publish");
       const hasVerify = approved.includes("datanet_fetch_verify");
-      const candidate = hasVerify ? runnerFindVerifyCandidate(account) : null;
+      const hasRedundancy = approved.includes("datanet_redundancy_check");
 
-      if (hasVerify && candidate && candidate.dataset_id && !verifyStreak && verifyShare < verifyShareCap) {
-        return {
-          task_class: "datanet_fetch_verify",
-          reason: "stale_verify_target",
-          dataset_id: String(candidate.dataset_id || ""),
-          candidate,
-          mix: { publish_last_hour: publishLastHour, verify_last_hour: verifyLastHour, verify_share: verifyShare }
-        };
-      }
+      const verifyCandidate = hasVerify ? runnerFindVerifyCandidate(account) : null;
+      const redundancyCandidate = hasRedundancy ? runnerFindRedundancyCandidate(account) : null;
+
+      const targetPublish = Number(cfg.target_publish_share || 0.5);
+      const targetVerify = Number(cfg.target_verify_share || 0.3);
+      const targetRedundancy = Number(cfg.target_redundancy_share || 0.2);
+
+      const mix = {
+        publish_last_hour: publishLastHour,
+        verify_last_hour: verifyLastHour,
+        redundancy_last_hour: redundancyLastHour,
+        publish_share: publishShare,
+        verify_share: verifyShare,
+        redundancy_share: redundancyShare
+      };
+
+      const choices:any[] = [];
 
       if (hasPublish) {
-        return {
+        choices.push({
           task_class: "datanet_publish",
-          reason: verifyStreak ? "avoid_verify_streak" : (verifyShare >= verifyShareCap ? "rebalance_to_publish" : "publish_fallback"),
+          reason: "target_publish_mix",
           dataset_id: null,
           candidate: null,
-          mix: { publish_last_hour: publishLastHour, verify_last_hour: verifyLastHour, verify_share: verifyShare }
-        };
+          deficit: targetPublish - publishShare
+        });
       }
 
-      if (hasVerify && candidate && candidate.dataset_id) {
-        return {
+      if (hasVerify && verifyCandidate && verifyCandidate.dataset_id && !verifyStreak) {
+        choices.push({
           task_class: "datanet_fetch_verify",
-          reason: "verify_only_available",
-          dataset_id: String(candidate.dataset_id || ""),
-          candidate,
-          mix: { publish_last_hour: publishLastHour, verify_last_hour: verifyLastHour, verify_share: verifyShare }
+          reason: "stale_verify_target",
+          dataset_id: String(verifyCandidate.dataset_id || ""),
+          candidate: verifyCandidate,
+          deficit: targetVerify - verifyShare
+        });
+      }
+
+      if (hasRedundancy && redundancyCandidate && redundancyCandidate.dataset_id && !redundancyStreak) {
+        choices.push({
+          task_class: "datanet_redundancy_check",
+          reason: "stale_redundancy_target",
+          dataset_id: String(redundancyCandidate.dataset_id || ""),
+          candidate: redundancyCandidate,
+          deficit: targetRedundancy - redundancyShare
+        });
+      }
+
+      if (choices.length) {
+        choices.sort((a:any, b:any) => Number(b.deficit || 0) - Number(a.deficit || 0));
+        const best = choices[0];
+        const baseReason = String(best.reason || "mix_choice");
+        let finalReason = baseReason;
+
+        if (best.task_class === "datanet_publish" && verifyShare >= targetVerify && redundancyShare >= targetRedundancy) {
+          finalReason = "rebalance_to_publish";
+        } else if (best.task_class === "datanet_publish" && verifyStreak) {
+          finalReason = "avoid_verify_streak";
+        } else if (best.task_class === "datanet_publish" && redundancyStreak) {
+          finalReason = "avoid_redundancy_streak";
+        }
+
+        return {
+          task_class: String(best.task_class || "datanet_publish"),
+          reason: finalReason,
+          dataset_id: best.dataset_id || null,
+          candidate: best.candidate || null,
+          mix
         };
       }
 
@@ -35818,7 +35918,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         reason: "default_first_approved",
         dataset_id: null,
         candidate: null,
-        mix: { publish_last_hour: publishLastHour, verify_last_hour: verifyLastHour, verify_share: verifyShare }
+        mix
       };
     }
 
@@ -35898,6 +35998,27 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             dataset_id: selected_dataset_id,
             expected_input_hash: expectedInputHash
           });
+        } else if (selected_task_class === "datanet_redundancy_check") {
+          const candidate = selection && selection.candidate ? selection.candidate : runnerFindRedundancyCandidate(account);
+          if (!candidate || !candidate.path || !candidate.dataset_id) {
+            return {
+              ok:true,
+              skipped:true,
+              reason:"no_redundancy_target",
+              selection_reason,
+              account,
+              safe_mode: !!cfg.safe_mode,
+              min_submit_gap_ms: minGap,
+              max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+            };
+          }
+          selected_dataset_id = String(candidate.dataset_id || "");
+          const fetched = String(fs.readFileSync(String(candidate.path), "utf8") || "");
+          const expectedInputHash = await runnerSha256Hex(fetched);
+          runnerPlaintext = JSON.stringify({
+            dataset_id: selected_dataset_id,
+            expected_input_hash: expectedInputHash
+          });
         } else {
           runnerPlaintext = JSON.stringify({
             kind: "agent_auto_selected_v1",
@@ -35945,6 +36066,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           rt.verify_history_by_dataset[String(account)] = rt.verify_history_by_dataset[String(account)] || {};
           rt.verify_history_by_dataset[String(account)][String(selected_dataset_id)] = Date.now();
         }
+        if (selected_task_class === "datanet_redundancy_check" && selected_dataset_id) {
+          rt.redundancy_history_by_dataset = rt.redundancy_history_by_dataset || {};
+          rt.redundancy_history_by_dataset[String(account)] = rt.redundancy_history_by_dataset[String(account)] || {};
+          rt.redundancy_history_by_dataset[String(account)][String(selected_dataset_id)] = Date.now();
+        }
 
         const mix = (selection && selection.mix) ? selection.mix : null;
         const publish_last_hour_post = (mix ? Number(mix.publish_last_hour || 0) : 0) + (selected_task_class === "datanet_publish" ? 1 : 0);
@@ -35962,6 +36088,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           selection_reason,
           publish_last_hour: publish_last_hour_post,
           verify_last_hour: verify_last_hour_post,
+          redundancy_last_hour: (selection && selection.mix) ? Number(selection.mix.redundancy_last_hour || 0) + (selected_task_class === "datanet_redundancy_check" ? 1 : 0) : (selected_task_class === "datanet_redundancy_check" ? 1 : 0),
           verify_share: verify_share_post,
           safe_mode: !!cfg.safe_mode,
           min_submit_gap_ms: minGap,
@@ -35977,6 +36104,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           selection_reason,
           publish_last_hour: publish_last_hour_post,
           verify_last_hour: verify_last_hour_post,
+          redundancy_last_hour: (selection && selection.mix) ? Number(selection.mix.redundancy_last_hour || 0) + (selected_task_class === "datanet_redundancy_check" ? 1 : 0) : (selected_task_class === "datanet_redundancy_check" ? 1 : 0),
           verify_share: verify_share_post,
           safe_mode: !!cfg.safe_mode,
           min_submit_gap_ms: minGap,
@@ -36029,6 +36157,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         last_selection_reason: lastResult && lastResult.selection_reason ? lastResult.selection_reason : null,
         publish_last_hour: lastResult && Number.isFinite(Number(lastResult.publish_last_hour)) ? Number(lastResult.publish_last_hour) : 0,
         verify_last_hour: lastResult && Number.isFinite(Number(lastResult.verify_last_hour)) ? Number(lastResult.verify_last_hour) : 0,
+        redundancy_last_hour: lastResult && Number.isFinite(Number(lastResult.redundancy_last_hour)) ? Number(lastResult.redundancy_last_hour) : 0,
         verify_share: lastResult && Number.isFinite(Number(lastResult.verify_share)) ? Number(lastResult.verify_share) : 0,
         loop_started: !!rt.loop_started,
         loop_interval_ms: Number(rt.loop_interval_ms || 5000) || 5000,
@@ -36114,7 +36243,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           min_submit_gap_ms: Math.max(5000, Number(req.body?.min_submit_gap_ms || current.min_submit_gap_ms) || current.min_submit_gap_ms),
           max_jobs_per_hour: Math.max(1, Number(req.body?.max_jobs_per_hour || current.max_jobs_per_hour) || current.max_jobs_per_hour),
           allow_datanet_publish: req.body?.allow_datanet_publish === undefined ? current.allow_datanet_publish : !!req.body?.allow_datanet_publish,
-          allow_datanet_fetch_verify: req.body?.allow_datanet_fetch_verify === undefined ? current.allow_datanet_fetch_verify : !!req.body?.allow_datanet_fetch_verify
+          allow_datanet_fetch_verify: req.body?.allow_datanet_fetch_verify === undefined ? current.allow_datanet_fetch_verify : !!req.body?.allow_datanet_fetch_verify,
+          allow_datanet_redundancy_check: req.body?.allow_datanet_redundancy_check === undefined ? current.allow_datanet_redundancy_check : !!req.body?.allow_datanet_redundancy_check
         };
         return res.json({ ok:true, changed:true, ...runnerConfigFor(account) });
       } catch (e:any) {
@@ -36283,6 +36413,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
   }
   function rewardFor(kind:string): number {
     const k = String(kind || "").trim().toLowerCase();
+    if (k.includes("redundancy_check")) return 2;
     if (k.includes("verify")) return 3;
     if (k.includes("publish")) return 10;
     if (k.includes("datanet")) return 10;
@@ -36594,6 +36725,64 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           input_hash: expectedHash,
           output_hash: outputHash,
           verified: true,
+        });
+
+        G[MARK].last_job_id = jobId;
+        G[MARK].last_receipt_id = receiptId;
+      } else if (kind === "datanet_redundancy_check") {
+        let checkInput:any = null;
+        try { checkInput = JSON.parse(plaintext); } catch {}
+        if (!checkInput || typeof checkInput !== "object") throw new Error("invalid_redundancy_check_input");
+
+        const datasetId = safeStr(checkInput.dataset_id || "", 160);
+        if (!datasetId) throw new Error("missing_dataset_id");
+
+        const payloadPath = path.join(datanetDir(), datasetId + ".txt");
+        if (!fs.existsSync(payloadPath)) throw new Error("dataset_not_found");
+
+        const fetched = String(fs.readFileSync(payloadPath, "utf8") || "");
+        const fetchedHash = await sha256Hex(fetched);
+        const expectedHash = safeStr(checkInput.expected_input_hash || checkInput.input_hash || "", 128);
+        const verifiedHash = !expectedHash ? true : (expectedHash === fetchedHash);
+
+        if (!verifiedHash) throw new Error("redundancy_check_mismatch");
+
+        const receiptId = "rcpt_" + nowMs() + "_" + fetchedHash.slice(0,12);
+        const outputObj = {
+          dataset_id: datasetId,
+          path: payloadPath,
+          bytes: Buffer.byteLength(fetched, "utf8"),
+          checked: true,
+          readable: true,
+          verified_hash: verifiedHash,
+          fetched_input_hash: fetchedHash,
+        };
+        const outputHash = await sha256Hex(JSON.stringify(outputObj));
+
+        const receipt = {
+          receipt_id: receiptId,
+          job_id: jobId,
+          account,
+          kind,
+          status: "completed",
+          input_hash: expectedHash || fetchedHash,
+          output_hash: outputHash,
+          dataset_id: datasetId,
+          output: outputObj,
+          ts_ms: nowMs(),
+        };
+        appendJsonl(receiptsFile(), receipt);
+
+        replaceJobState(jobId, {
+          status: "completed",
+          completed_at_ms: nowMs(),
+          receipt_id: receiptId,
+          dataset_id: datasetId,
+          input_hash: expectedHash || fetchedHash,
+          output_hash: outputHash,
+          checked: true,
+          readable: true,
+          verified_hash: verifiedHash,
         });
 
         G[MARK].last_job_id = jobId;
@@ -39156,7 +39345,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
              " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only") +
              " • Approved: " + String((runnerStatus.approved_task_classes || []).join(", ") || "-") +
              (runnerStatus.last_selection_reason ? (" • Chosen because: " + String(runnerStatus.last_selection_reason)) : "") +
-             " • Mix P/V: " + String(runnerStatus.publish_last_hour || 0) + "/" + String(runnerStatus.verify_last_hour || 0) +
+             " • Mix P/V/R: " + String(runnerStatus.publish_last_hour || 0) + "/" + String(runnerStatus.verify_last_hour || 0) + "/" + String(runnerStatus.redundancy_last_hour || 0) +
              (runnerStatus.safe_mode ? " • Safe Mode clamps limits conservatively" : ""))
           : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
       );
