@@ -37209,7 +37209,29 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="action-rail" style="margin-top:10px">
             <button class="btn btn-primary" id="wcRunnerToggleBtn" type="button">Earn Work Credits</button>
           </div>
-          <div class="subtle-tab-copy">When enabled, the bundled agent selects useful work for the network. Manual override only stops work.</div>
+          <div class="metric-strip" style="margin-top:12px">
+            <div class="mini">
+              <div class="k">Runner</div>
+              <div class="v" id="wcRunnerEnabledMini">-</div>
+              <div class="s">current state</div>
+            </div>
+            <div class="mini">
+              <div class="k">Task Class</div>
+              <div class="v" id="wcRunnerTaskMini">-</div>
+              <div class="s">approved work</div>
+            </div>
+            <div class="mini">
+              <div class="k">Last Job</div>
+              <div class="v" id="wcRunnerLastJobMini">-</div>
+              <div class="s">most recent queued job</div>
+            </div>
+            <div class="mini">
+              <div class="k">Cooldown</div>
+              <div class="v" id="wcRunnerCooldownMini">-</div>
+              <div class="s">minimum gap</div>
+            </div>
+          </div>
+          <div class="subtle-tab-copy" id="wcRunnerMeta">When enabled, the bundled agent selects useful work for the network. Manual override only stops work.</div>
 
           <div class="row" style="margin-top:14px;">
             <button class="btn" id="submitBtn">Manual Test Submit</button>
