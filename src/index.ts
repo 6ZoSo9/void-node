@@ -35778,6 +35778,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       try {
         const account = safeAccount(req.body?.account || req.query?.account || "");
         if (account) {
+          const st = runnerStateFor(account);
+          if (!st.enabled) {
+            return res.status(409).json({
+              ok:false,
+              blocked:true,
+              reason:"runner_disabled",
+              account,
+              runner: st,
+              note:"Enable Earn Work Credits before running approved work."
+            });
+          }
           const out = await wcRunnerSubmitOnce(account);
           return res.json({ ok:true, manual:true, account, runner: runnerStateFor(account), submit: out });
         }
