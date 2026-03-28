@@ -37208,6 +37208,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="hero-note" id="wcRunnerStatusCard">Agent-selected useful work only. Loading runner state…</div>
           <div class="action-rail" style="margin-top:10px">
             <button class="btn btn-primary" id="wcRunnerToggleBtn" type="button">Earn Work Credits</button>
+            <button class="btn" id="wcRunnerTickBtn" type="button">Run Once</button>
           </div>
           <div class="metric-strip" style="margin-top:12px">
             <div class="mini">
@@ -37229,6 +37230,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="k">Cooldown</div>
               <div class="v" id="wcRunnerCooldownMini">-</div>
               <div class="s">minimum gap</div>
+            </div>
+            <div class="mini">
+              <div class="k">Last Run</div>
+              <div class="v" id="wcRunnerLastRunMini">-</div>
+              <div class="s">most recent runner attempt</div>
+            </div>
+            <div class="mini">
+              <div class="k">Last Result</div>
+              <div class="v" id="wcRunnerLastResultMini">-</div>
+              <div class="s">latest runner outcome</div>
             </div>
           </div>
           <div class="subtle-tab-copy" id="wcRunnerMeta">When enabled, the bundled agent selects useful work for the network. Manual override only stops work.</div>
