@@ -36923,10 +36923,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <span class="pill">receipt-backed WC</span>
           <span class="pill">WC → VOID trading</span>
         </div>
-        <h1>VOID Participant</h1>
+        <h1 style="margin:0 0 6px;font-size:28px;letter-spacing:-.03em">VOID Participant</h1>
         <div class="hero-copy"></div>
-        <div class="hero-actions">
-          <a class="linkbtn btn-primary" style="padding:10px 14px; border-radius:12px; font-weight:700;" href="/participant#work">Start Earning</a>
+        <div class="hero-actions" style="margin-top:10px">
+          <a class="linkbtn btn-primary" style="padding:8px 12px; border-radius:12px; font-weight:700;" href="/participant#work">Start Earning</a>
           
           
           
@@ -36961,13 +36961,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
     <section class="tabpane" id="pane-overview">
       <!-- VOID_HOME_SYSTEM_STATUS_V1 -->
-      <details class="adv" style="margin-bottom:16px">
+      <details class="adv" style="margin-bottom:12px">
         <summary><span>System Status</span><span class="pill">advanced</span></summary>
         <div class="adv-body">
           <div class="hero-note" id="systemStatusCard">loading…</div>
         </div>
       </details>
-      <div class="grid-2">
+      <div class="grid-2" style="margin-top:0">
         <div class="panel">
           <div class="section-head">
             <div>
@@ -36979,17 +36979,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Earn WC</div>
               <div class="v">Earn</div>
-              <div class="s">Start earning.</div>
+              
             </div>
             <div class="mini">
               <div class="k">Move to Trading</div>
               <div class="v">Move</div>
-              <div class="s">Prepare WC for trade.</div>
+              
             </div>
             <div class="mini">
               <div class="k">Trade for VOID</div>
               <div class="v">Trade</div>
-              <div class="s">Exchange WC for VOID.</div>
+              
             </div>
           </div>
         </div>
