@@ -36949,7 +36949,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
     <section class="kpis">
       <div class="kpi">
-        <div class="k">VOID Balance</div>
+        <div class="k">Onchain VOID</div>
         <div class="v" id="topHealth">-</div>
         <div class="s" id="topHealthMeta">Checking onchain VOID balance…</div>
       </div>
@@ -37263,16 +37263,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Move WC to Trading<span class="help" tabindex="0" data-help="Moves participant Work Credits into the mapped trading wallet so they can be swapped for VOID.">?</span></h2>
+                <h2 style="margin-bottom:4px">Redeem WC<span class="help" tabindex="0" data-help="Moves participant Work Credits into the mapped trading wallet so they can be swapped for VOID.">?</span></h2>
               </div>
             </div>
-            <label for="redeemAmount">WC to move into trading</label>
+            <label for="redeemAmount">WC to redeem</label>
             <input id="redeemAmount" value="10" inputmode="decimal" />
-            <label for="redeemWallet">Trading wallet address</label>
+            <label for="redeemWallet">Redeem to wallet</label>
             <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
             <div class="action-rail" style="margin-top:12px">
-              <button class="btn btn-primary" id="redeemBtn" type="button">Move WC to Trading</button>
-              <button class="btn" id="redeemMaxBtn" type="button">Use All Available WC</button>
+              <button class="btn btn-primary" id="redeemBtn" type="button">Redeem WC</button>
+              <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
             </div>
             <div style="margin-top:12px">
               <pre id="redeemOut">idle</pre>
@@ -37327,12 +37327,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">VOID Balance</div>
               <div class="v" id="connectedWalletVoidMini">-</div>
-              <div class="s">Onchain balance</div>
+              <div class="s">In connected wallet</div>
             </div>
             <div class="mini">
-              <div class="k">Participant WC</div>
+              <div class="k">Local WC</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">Local participant credits</div>
+              <div class="s">Stored on this node</div>
             </div>
           </div>
 
@@ -37370,7 +37370,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading History<span class="help" tabindex="0" data-help="Recent participant WC moves into the mapped trading wallet.">?</span></h2>
+              <h2>Trading History<span class="help" tabindex="0" data-help="Recent WC redemption events for the selected participant account.">?</span></h2>
             </div>
           </div>
           <div class="table-wrap"><div id="redeemHistoryWrap" class="empty">loading…</div></div>
@@ -37687,7 +37687,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "connectedWalletMeta",
       isWalletAddr(connectedWallet)
-        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | trading wallet: " + wcAddr : " | no trading wallet linked") + " | local WC comes from participant account")
+        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | trading wallet: " + wcAddr : " | no trading wallet linked") + " | local WC stays on the participant account")
         : (wcAddr
             ? ("trading wallet: " + wcAddr + " | no connected wallet detected | local WC comes from participant account")
             : "No connected wallet detected")
@@ -37859,10 +37859,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     setText(
       "tradeOverviewCard",
-      "Available WC (participant): " + redeemableTotal +
+      "Participant WC: " + redeemableTotal +
       " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
       " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable") +
-      (wcAddr ? " • Trading Wallet: " + wcAddr : "")
+      (wcAddr ? " • Redeemed to wallet: " + wcAddr : "")
     );
 
     setText(
