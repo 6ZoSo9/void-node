@@ -36979,21 +36979,20 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         </div>
       </details>
       <div class="grid-2" style="margin-top:0;align-items:start">
-
-            <div class="mini">
-              <div class="k">Move to Trading</div>
-              <div class="v">Move</div>
-              
-            </div>
-            <div class="mini">
-              <div class="k">Trade for VOID</div>
-              <div class="v">Trade</div>
-              
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Latest Activity<span class="help" tabindex="0" data-help="Top-level balances for participant Work Credits, redeemed WC, and onchain VOID.">?</span></h2>
             </div>
           </div>
+          <div class="hero-note" id="summaryCard">loading…</div>
+          <details class="adv" style="margin-top:14px">
+            <summary><span>Account Activity Details</span><span class="pill">raw json</span></summary>
+            <div class="adv-body">
+              <pre id="summaryOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
+            </div>
+          </details>
         </div>
-
-        <div class="panel">
           <div class="section-head">
             <div>
               <h2>Latest Activity<span class="help" tabindex="0" data-help="Top-level balances for participant Work Credits, trading Work Credits, and onchain VOID.">?</span></h2>
