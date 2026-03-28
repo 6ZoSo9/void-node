@@ -37897,6 +37897,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     );
   }
 
+  if ($("redeemModeAutoBtn")) $("redeemModeAutoBtn").addEventListener("click", () => { redeemFeeMode = "auto"; renderRedeemFeeMode(); });
+  if ($("redeemModeWalletBtn")) $("redeemModeWalletBtn").addEventListener("click", () => { redeemFeeMode = "wallet"; renderRedeemFeeMode(); });
+  if ($("redeemModeSponsoredBtn")) $("redeemModeSponsoredBtn").addEventListener("click", () => { redeemFeeMode = "sponsored"; renderRedeemFeeMode(); });
+
+  if ($("tradeModeAutoBtn")) $("tradeModeAutoBtn").addEventListener("click", () => { tradeFeeMode = "auto"; renderTradeFeeMode(); });
+  if ($("tradeModeWalletBtn")) $("tradeModeWalletBtn").addEventListener("click", () => { tradeFeeMode = "wallet"; renderTradeFeeMode(); });
+  if ($("tradeModeSponsoredBtn")) $("tradeModeSponsoredBtn").addEventListener("click", () => { tradeFeeMode = "sponsored"; renderTradeFeeMode(); });
+
+  renderRedeemFeeMode();
+  renderTradeFeeMode();
+
   async function sendWcNow(){
     const from = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
     const to = $("sendTo") ? (($("sendTo").value || "").trim()) : "";
