@@ -35704,6 +35704,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       return String(approved[0] || "datanet_publish");
     }
 
+    function runnerDatanetDir(){
+      const path = require("node:path");
+      return path.join(dataDir(), "datanet_v1", "local_jobs");
+    }
+
+    async function runnerSha256Hex(s:string): Promise<string> {
+      const crypto = require("node:crypto");
+      return crypto.createHash("sha256").update(Buffer.from(s, "utf8")).digest("hex");
+    }
+
     async function wcRunnerSubmitOnce(account:string){
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       const cfg:any = runnerConfigFor(account);
@@ -35751,10 +35761,34 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       try {
         const port = Number(process.env.HTTP_PORT || 4100);
         const selected_task_class = runnerSelectedTaskClassFor(account);
-        const payload = {
-          account,
-          kind: "datanet_publish",
-          plaintext: JSON.stringify({
+        let runnerPlaintext = null as any;
+        if (selected_task_class === "datanet_fetch_verify") {
+          const localDir = runnerDatanetDir();
+          const files = fs.existsSync(localDir)
+            ? fs.readdirSync(localDir).filter((x:any) => String(x).endsWith(".txt")).sort()
+            : [];
+          if (!files.length) {
+            return {
+              ok:true,
+              skipped:true,
+              reason:"no_fetch_verify_target",
+              account,
+              safe_mode: !!cfg.safe_mode,
+              min_submit_gap_ms: minGap,
+              max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+            };
+          }
+          const chosen = String(files[files.length - 1] || "");
+          const datasetId = chosen.replace(/\.txt$/i, "");
+          const payloadPath = path.join(localDir, chosen);
+          const fetched = String(fs.readFileSync(payloadPath, "utf8") || "");
+          const expectedInputHash = await runnerSha256Hex(fetched);
+          runnerPlaintext = JSON.stringify({
+            dataset_id: datasetId,
+            expected_input_hash: expectedInputHash
+          });
+        } else {
+          runnerPlaintext = JSON.stringify({
             kind: "agent_auto_selected_v1",
             task_class: selected_task_class,
             approved_task_classes: runnerApprovedTaskClassesFor(account),
@@ -35762,7 +35796,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             account,
             ts_ms: now,
             safe_mode: !!cfg.safe_mode
-          })
+          });
+        }
+
+        const payload = {
+          account,
+          kind: selected_task_class,
+          plaintext: runnerPlaintext
         };
 
         const r = await fetch(`http://127.0.0.1:${port}/jobs/submit`, {
@@ -36295,51 +36335,107 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
     try {
       const kind = String(job.kind || "");
-      if (kind !== "datanet_publish") throw new Error("unsupported_kind");
-
       const account = safeStr(job.account, 128) || "demo";
       const plaintext = String(job.input?.plaintext || "");
       if (!plaintext) throw new Error("missing_plaintext");
 
-      const inputHash = await sha256Hex(plaintext);
-      const datasetId = "ds_" + nowMs() + "_" + inputHash.slice(0,16);
-      const payloadPath = path.join(datanetDir(), datasetId + ".txt");
-      fs.writeFileSync(payloadPath, plaintext);
+      if (kind === "datanet_publish") {
+        const inputHash = await sha256Hex(plaintext);
+        const datasetId = "ds_" + nowMs() + "_" + inputHash.slice(0,16);
+        const payloadPath = path.join(datanetDir(), datasetId + ".txt");
+        fs.writeFileSync(payloadPath, plaintext);
 
-      const receiptId = "rcpt_" + nowMs() + "_" + inputHash.slice(0,12);
-      const outputObj = {
-        dataset_id: datasetId,
-        path: payloadPath,
-        bytes: Buffer.byteLength(plaintext, "utf8"),
-      };
-      const outputHash = await sha256Hex(JSON.stringify(outputObj));
+        const receiptId = "rcpt_" + nowMs() + "_" + inputHash.slice(0,12);
+        const outputObj = {
+          dataset_id: datasetId,
+          path: payloadPath,
+          bytes: Buffer.byteLength(plaintext, "utf8"),
+        };
+        const outputHash = await sha256Hex(JSON.stringify(outputObj));
 
-      const receipt = {
-        receipt_id: receiptId,
-        job_id: jobId,
-        account,
-        kind,
-        status: "completed",
-        input_hash: inputHash,
-        output_hash: outputHash,
-        dataset_id: datasetId,
-        output: outputObj,
-        ts_ms: nowMs(),
-      };
-      appendJsonl(receiptsFile(), receipt);
+        const receipt = {
+          receipt_id: receiptId,
+          job_id: jobId,
+          account,
+          kind,
+          status: "completed",
+          input_hash: inputHash,
+          output_hash: outputHash,
+          dataset_id: datasetId,
+          output: outputObj,
+          ts_ms: nowMs(),
+        };
+        appendJsonl(receiptsFile(), receipt);
 
-      replaceJobState(jobId, {
-        status: "completed",
-        completed_at_ms: nowMs(),
-        receipt_id: receiptId,
-        dataset_id: datasetId,
-        input_hash: inputHash,
-        output_hash: outputHash,
-      });
+        replaceJobState(jobId, {
+          status: "completed",
+          completed_at_ms: nowMs(),
+          receipt_id: receiptId,
+          dataset_id: datasetId,
+          input_hash: inputHash,
+          output_hash: outputHash,
+        });
 
-      G[MARK].last_job_id = jobId;
-      G[MARK].last_receipt_id = receiptId;
-    } catch (e:any) {
+        G[MARK].last_job_id = jobId;
+        G[MARK].last_receipt_id = receiptId;
+      } else if (kind === "datanet_fetch_verify") {
+        let verifyInput:any = null;
+        try { verifyInput = JSON.parse(plaintext); } catch {}
+        if (!verifyInput || typeof verifyInput !== "object") throw new Error("invalid_fetch_verify_input");
+
+        const datasetId = safeStr(verifyInput.dataset_id || "", 160);
+        if (!datasetId) throw new Error("missing_dataset_id");
+
+        const payloadPath = path.join(datanetDir(), datasetId + ".txt");
+        if (!fs.existsSync(payloadPath)) throw new Error("dataset_not_found");
+
+        const fetched = String(fs.readFileSync(payloadPath, "utf8") || "");
+        const fetchedHash = await sha256Hex(fetched);
+        const expectedHash = safeStr(verifyInput.expected_input_hash || verifyInput.input_hash || "", 128);
+        const verified = !!expectedHash && expectedHash === fetchedHash;
+
+        if (!verified) throw new Error("verify_mismatch");
+
+        const receiptId = "rcpt_" + nowMs() + "_" + fetchedHash.slice(0,12);
+        const outputObj = {
+          dataset_id: datasetId,
+          path: payloadPath,
+          bytes: Buffer.byteLength(fetched, "utf8"),
+          verified: true,
+          fetched_input_hash: fetchedHash,
+        };
+        const outputHash = await sha256Hex(JSON.stringify(outputObj));
+
+        const receipt = {
+          receipt_id: receiptId,
+          job_id: jobId,
+          account,
+          kind,
+          status: "completed",
+          input_hash: expectedHash,
+          output_hash: outputHash,
+          dataset_id: datasetId,
+          output: outputObj,
+          ts_ms: nowMs(),
+        };
+        appendJsonl(receiptsFile(), receipt);
+
+        replaceJobState(jobId, {
+          status: "completed",
+          completed_at_ms: nowMs(),
+          receipt_id: receiptId,
+          dataset_id: datasetId,
+          input_hash: expectedHash,
+          output_hash: outputHash,
+          verified: true,
+        });
+
+        G[MARK].last_job_id = jobId;
+        G[MARK].last_receipt_id = receiptId;
+      } else {
+        throw new Error("unsupported_kind");
+      }
+} catch (e:any) {
       replaceJobState(jobId, {
         status: "failed",
         completed_at_ms: nowMs(),
