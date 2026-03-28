@@ -37343,6 +37343,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="v" id="wcRunnerLastResultMini">-</div>
               <div class="s">latest runner outcome</div>
             </div>
+            <div class="mini">
+              <div class="k">Next Run</div>
+              <div class="v" id="wcRunnerNextRunMini">-</div>
+              <div class="s">earliest eligible attempt</div>
+            </div>
           </div>
           <div class="subtle-tab-copy" id="wcRunnerMeta">When enabled, the bundled agent selects useful work for the network. Manual override only stops work.</div>
           <div class="panel" style="margin-top:12px;padding:12px">
@@ -38773,18 +38778,42 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           ? new Date(Number(runnerStatus.last_submit_ms)).toLocaleTimeString()
           : "-"
       );
-      setText(
-        "wcRunnerLastResultMini",
-        runnerStatus && runnerStatus.last_result
-          ? (runnerStatus.last_result.ok ? "OK" : "ERR")
-          : "-"
-      );
+      const runnerLastResultLabel = (() => {
+        try {
+          const lr = runnerStatus && runnerStatus.last_result ? runnerStatus.last_result : null;
+          const submit = lr && lr.result ? lr.result : null;
+          if (!lr) return "-";
+          if (submit && submit.skipped && submit.reason === "cooldown") return "COOLDOWN";
+          if (submit && submit.skipped && submit.reason === "hourly_limit") return "LIMIT";
+          if (lr.ok) return "OK";
+          return "ERR";
+        } catch (_) {
+          return "-";
+        }
+      })();
+
+      const runnerNextRunLabel = (() => {
+        try {
+          const lr = runnerStatus && runnerStatus.last_result ? runnerStatus.last_result : null;
+          const submit = lr && lr.result ? lr.result : null;
+          if (submit && submit.next_due_ms && Number.isFinite(Number(submit.next_due_ms))) {
+            return new Date(Number(submit.next_due_ms)).toLocaleTimeString();
+          }
+          return "-";
+        } catch (_) {
+          return "-";
+        }
+      })();
+
+      setText("wcRunnerLastResultMini", runnerLastResultLabel);
+      setText("wcRunnerNextRunMini", runnerNextRunLabel);
       setText(
         "wcRunnerMeta",
         runnerStatus && runnerStatus.ok
           ? ("Mode: " + String(runnerStatus.mode || "agent_auto_only") +
              " • Override: " + String(runnerStatus.user_override || "stop_only") +
-             " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only"))
+             " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only") +
+             (runnerStatus.safe_mode ? " • Safe Mode clamps limits conservatively" : ""))
           : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
       );
       setText("wcRunnerSafeModeMini", runnerConfig && runnerConfig.ok ? (runnerConfig.safe_mode ? "ON" : "OFF") : "-");
