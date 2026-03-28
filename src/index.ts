@@ -37086,8 +37086,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="subpanel">
             <div class="section-head">
               <div>
-                <h2>Why this matters</h2>
-                <div class="section-copy">This is the main loop: do useful work, get proof, and earn Work Credits.</div>
+                <h2 style="display:none">Why this matters</h2>
+                <div class="section-copy"></div>
               </div>
             </div>
             
@@ -37260,7 +37260,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">WC Balance Details</h2>
+                <h2 style="margin-bottom:4px">WC Balance Details<span class="help" tabindex="0" data-help="Advanced explanation of how the local participant WC balance was calculated.">?</span></h2>
                 <div class="section-copy">This explains how your local Work Credit balance was calculated.</div>
               </div>
             </div>
@@ -37682,7 +37682,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       $("tradeExecuteBtn").textContent = !relayerUp
         ? "Trading Temporarily Unavailable"
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "Earn WC or Move WC to Trading First"
+            ? "Earn WC or Redeem WC First"
             : "Swap WC for VOID");
     }
 
