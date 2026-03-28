@@ -35662,7 +35662,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       last_result: {},
       last_error: null,
       submit_history_ms: {},
-      verify_history_by_dataset: {}
+      verify_history_by_dataset: {},
+      selection_history_by_account: {}
     };
 
     function runnerConfigFor(account:string){
@@ -35742,33 +35743,68 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             chosen = {
               dataset_id: datasetId,
               path: path.join(dir, f),
-              last_verified_ms: last || null
+              last_verified_ms: last || null,
+              stale_for_ms: last ? (now - last) : null
             };
           }
         }
 
         if (chosen) return chosen;
-
-        const fallback = String(files[files.length - 1] || "");
-        if (!fallback) return null;
-        return {
-          dataset_id: fallback.replace(/\.txt$/i, ""),
-          path: path.join(dir, fallback),
-          last_verified_ms: null
-        };
+        return null;
       } catch {
         return null;
       }
     }
 
-    function runnerSelectedTaskClassFor(account:string){
+    function runnerSelectionDecisionFor(account:string){
       const approved = runnerApprovedTaskClassesFor(account);
-      if (approved.includes("datanet_fetch_verify")) {
-        const candidate = runnerFindVerifyCandidate(account);
-        if (candidate && candidate.dataset_id) return "datanet_fetch_verify";
+      const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+      rt.selection_history_by_account = rt.selection_history_by_account || {};
+      const hist = Array.isArray(rt.selection_history_by_account[String(account)]) ? rt.selection_history_by_account[String(account)] : [];
+      const recent = hist.slice(-3).map((x:any) => String(x || ""));
+      const verifyStreak = recent.length >= 2 && recent[recent.length - 1] === "datanet_fetch_verify" && recent[recent.length - 2] === "datanet_fetch_verify";
+
+      const hasPublish = approved.includes("datanet_publish");
+      const hasVerify = approved.includes("datanet_fetch_verify");
+      const candidate = hasVerify ? runnerFindVerifyCandidate(account) : null;
+
+      if (hasVerify && candidate && candidate.dataset_id && !verifyStreak) {
+        return {
+          task_class: "datanet_fetch_verify",
+          reason: "stale_verify_target",
+          dataset_id: String(candidate.dataset_id || ""),
+          candidate
+        };
       }
-      if (approved.includes("datanet_publish")) return "datanet_publish";
-      return String(approved[0] || "datanet_publish");
+
+      if (hasPublish) {
+        return {
+          task_class: "datanet_publish",
+          reason: verifyStreak ? "avoid_verify_streak" : "publish_fallback",
+          dataset_id: null,
+          candidate: null
+        };
+      }
+
+      if (hasVerify && candidate && candidate.dataset_id) {
+        return {
+          task_class: "datanet_fetch_verify",
+          reason: "verify_only_available",
+          dataset_id: String(candidate.dataset_id || ""),
+          candidate
+        };
+      }
+
+      return {
+        task_class: String(approved[0] || "datanet_publish"),
+        reason: "default_first_approved",
+        dataset_id: null,
+        candidate: null
+      };
+    }
+
+    function runnerSelectedTaskClassFor(account:string){
+      return String((runnerSelectionDecisionFor(account) || {}).task_class || "datanet_publish");
     }
 
     async function wcRunnerSubmitOnce(account:string){
@@ -35817,16 +35853,19 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
       try {
         const port = Number(process.env.HTTP_PORT || 4100);
-        const selected_task_class = runnerSelectedTaskClassFor(account);
+        const selection = runnerSelectionDecisionFor(account);
+        const selected_task_class = String(selection?.task_class || "datanet_publish");
+        const selection_reason = String(selection?.reason || "unknown");
         let runnerPlaintext = null as any;
         let selected_dataset_id = null as any;
         if (selected_task_class === "datanet_fetch_verify") {
-          const candidate = runnerFindVerifyCandidate(account);
+          const candidate = selection && selection.candidate ? selection.candidate : runnerFindVerifyCandidate(account);
           if (!candidate || !candidate.path || !candidate.dataset_id) {
             return {
               ok:true,
               skipped:true,
               reason:"no_fetch_verify_target",
+              selection_reason,
               account,
               safe_mode: !!cfg.safe_mode,
               min_submit_gap_ms: minGap,
@@ -35865,6 +35904,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         });
 
         const out = await r.json().catch(() => ({ ok:false, error:"non_json_runner_submit" }));
+        rt.selection_history_by_account = rt.selection_history_by_account || {};
+        rt.selection_history_by_account[String(account)] = Array.isArray(rt.selection_history_by_account[String(account)])
+          ? rt.selection_history_by_account[String(account)]
+          : [];
+        rt.selection_history_by_account[String(account)].push(selected_task_class);
+        rt.selection_history_by_account[String(account)] = rt.selection_history_by_account[String(account)].slice(-10);
+
         if (selected_task_class === "datanet_fetch_verify" && selected_dataset_id) {
           rt.verify_history_by_dataset = rt.verify_history_by_dataset || {};
           rt.verify_history_by_dataset[String(account)] = rt.verify_history_by_dataset[String(account)] || {};
@@ -35878,6 +35924,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           result: out,
           selected_task_class,
           selected_dataset_id: selected_dataset_id || null,
+          selection_reason,
           safe_mode: !!cfg.safe_mode,
           min_submit_gap_ms: minGap,
           max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
@@ -35889,6 +35936,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           out,
           selected_task_class,
           selected_dataset_id: selected_dataset_id || null,
+          selection_reason,
           safe_mode: !!cfg.safe_mode,
           min_submit_gap_ms: minGap,
           max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
@@ -35937,6 +35985,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         active_task_class: runnerSelectedTaskClassFor(account),
         last_selected_task_class: lastResult && lastResult.selected_task_class ? lastResult.selected_task_class : null,
         last_selected_dataset_id: lastResult && lastResult.selected_dataset_id ? lastResult.selected_dataset_id : null,
+        last_selection_reason: lastResult && lastResult.selection_reason ? lastResult.selection_reason : null,
         loop_started: !!rt.loop_started,
         loop_interval_ms: Number(rt.loop_interval_ms || 5000) || 5000,
         min_submit_gap_ms: Number(cfg.min_submit_gap_ms || 30000) || 30000,
@@ -39062,6 +39111,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
              " • Override: " + String(runnerStatus.user_override || "stop_only") +
              " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only") +
              " • Approved: " + String((runnerStatus.approved_task_classes || []).join(", ") || "-") +
+             (runnerStatus.last_selection_reason ? (" • Chosen because: " + String(runnerStatus.last_selection_reason)) : "") +
              (runnerStatus.safe_mode ? " • Safe Mode clamps limits conservatively" : ""))
           : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
       );
