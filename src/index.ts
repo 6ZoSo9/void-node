@@ -36927,13 +36927,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         </div>
       </div>
 
-      <div class="hero-side">
-        <div class="hero-metric">
-          <div class="k">Selected account</div>
-          <div class="v" id="heroAccountMirror">remote-user-3</div>
-          <div class="s" id="heroAccountMirrorMeta">Current participant account being viewed on this node.</div>
-        </div>
-      </div>
+
     </section>
 
     <section class="kpis">
@@ -37640,14 +37634,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
 
     setText("heroAccount", account);
-    setText("heroAccountMirror", account);
 
     const acctMeta = localEarned !== null
       ? ("Earned WC: " + localEarned + " • Ledger entries: " + (localCount ?? 0))
       : "Earned WC unavailable";
 
     setText("heroAccountMeta", acctMeta);
-    setText("heroAccountMirrorMeta", acctMeta);
     setText("heroWalletShort", /^0x[0-9a-fA-F]{40}$/.test(connectedWallet) ? shortAddr(connectedWallet) : "Not connected");
     setText("heroWalletMeta", wcAddr ? ("Trading wallet: " + shortAddr(wcAddr)) : "No trading wallet linked");
 
