@@ -35653,6 +35653,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
     const GG:any = globalThis as any;
     GG.__void_wc_runner_state_v1 = GG.__void_wc_runner_state_v1 || {};
+    GG.__void_wc_runner_config_v1 = GG.__void_wc_runner_config_v1 || {};
     GG.__void_wc_runner_runtime_v1 = GG.__void_wc_runner_runtime_v1 || {
       loop_started: false,
       loop_interval_ms: 5000,
@@ -35662,10 +35663,24 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       last_error: null
     };
 
+    function runnerConfigFor(account:string){
+      const raw = GG.__void_wc_runner_config_v1[String(account || "")] || {};
+      const safe_mode = (raw.safe_mode === undefined) ? true : !!raw.safe_mode;
+      const min_submit_gap_ms = Math.max(5000, Number(raw.min_submit_gap_ms || process.env.VOID_WC_RUNNER_MIN_MS || 30000) || 30000);
+      const max_jobs_per_hour = Math.max(1, Number(raw.max_jobs_per_hour || 60) || 60);
+      return {
+        account,
+        safe_mode,
+        min_submit_gap_ms,
+        max_jobs_per_hour
+      };
+    }
+
     async function wcRunnerSubmitOnce(account:string){
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+      const cfg:any = runnerConfigFor(account);
       const now = Date.now();
-      const minGap = Number(rt.min_submit_gap_ms || 30000) || 30000;
+      const minGap = Number(cfg.min_submit_gap_ms || rt.min_submit_gap_ms || 30000) || 30000;
       const last = Number((rt.last_submit_ms || {})[String(account)] || 0);
       if ((now - last) < minGap) return { ok:true, skipped:true, reason:"cooldown", account, next_due_ms: (last + minGap) };
 
@@ -35730,6 +35745,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       const lastSubmit = rt.last_submit_ms ? (rt.last_submit_ms[String(account)] || null) : null;
       const lastResult = rt.last_result ? (rt.last_result[String(account)] || null) : null;
+      const cfg:any = runnerConfigFor(account);
       return {
         ok: true,
         account,
@@ -35740,7 +35756,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         approved_task_classes: ["datanet_publish"],
         loop_started: !!rt.loop_started,
         loop_interval_ms: Number(rt.loop_interval_ms || 5000) || 5000,
-        min_submit_gap_ms: Number(rt.min_submit_gap_ms || 30000) || 30000,
+        min_submit_gap_ms: Number(cfg.min_submit_gap_ms || 30000) || 30000,
+        max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60,
+        safe_mode: !!cfg.safe_mode,
         last_submit_ms: lastSubmit,
         last_result: lastResult,
         note: enabled
@@ -35794,6 +35812,32 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         }
         await wcRunnerTick();
         return res.json({ ok:true, manual:true, ticked_all:true });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/wc/runner/config", (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.query?.account);
+        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+        return res.json({ ok:true, ...runnerConfigFor(account) });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.post("/wc/runner/config", (req:any, res:any) => {
+      try {
+        const account = safeAccount(req.body?.account);
+        if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+        const current = runnerConfigFor(account);
+        GG.__void_wc_runner_config_v1[String(account)] = {
+          safe_mode: req.body?.safe_mode === undefined ? current.safe_mode : !!req.body?.safe_mode,
+          min_submit_gap_ms: Math.max(5000, Number(req.body?.min_submit_gap_ms || current.min_submit_gap_ms) || current.min_submit_gap_ms),
+          max_jobs_per_hour: Math.max(1, Number(req.body?.max_jobs_per_hour || current.max_jobs_per_hour) || current.max_jobs_per_hour)
+        };
+        return res.json({ ok:true, changed:true, ...runnerConfigFor(account) });
       } catch (e:any) {
         return res.status(500).json({ ok:false, error:String(e?.message || e) });
       }
@@ -37254,6 +37298,45 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
           </div>
           <div class="subtle-tab-copy" id="wcRunnerMeta">When enabled, the bundled agent selects useful work for the network. Manual override only stops work.</div>
+          <div class="panel" style="margin-top:12px;padding:12px">
+            <div class="section-head">
+              <div>
+                <h2 style="margin-bottom:4px">Runner Limits<span class="help" tabindex="0" data-help="Safety controls for auto-selected work. These limits affect how often the runner may submit approved work.">?</span></h2>
+              </div>
+            </div>
+            <div class="metric-strip">
+              <div class="mini">
+                <div class="k">Safe Mode</div>
+                <div class="v" id="wcRunnerSafeModeMini">-</div>
+                <div class="s">safety default</div>
+              </div>
+              <div class="mini">
+                <div class="k">Jobs / Hour</div>
+                <div class="v" id="wcRunnerJobsPerHourMini">-</div>
+                <div class="s">submission ceiling</div>
+              </div>
+              <div class="mini">
+                <div class="k">Gap</div>
+                <div class="v" id="wcRunnerGapMini">-</div>
+                <div class="s">minimum spacing</div>
+              </div>
+            </div>
+            <div class="action-rail" style="margin-top:10px">
+              <label style="display:flex;align-items:center;gap:8px;">
+                <input id="wcRunnerSafeModeInput" type="checkbox" checked />
+                <span>Safe Mode</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;">
+                <span>Min Gap (sec)</span>
+                <input id="wcRunnerGapInput" value="30" inputmode="numeric" style="width:90px" />
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;">
+                <span>Max Jobs/Hour</span>
+                <input id="wcRunnerJobsPerHourInput" value="60" inputmode="numeric" style="width:90px" />
+              </label>
+              <button class="btn" id="wcRunnerSaveConfigBtn" type="button">Save Limits</button>
+            </div>
+          </div>
 
           <div class="row" style="margin-top:14px;">
             <button class="btn" id="submitBtn">Manual Test Submit</button>
@@ -37822,7 +37905,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const manualWallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "";
     const wcBase = LOCAL_WC_BASE;
 
-    const [bal, redeem, redeemed, jobs, receipts, ledger, summary, peer, health, relayerHealth, runnerStatus] = await Promise.all([
+    const [bal, redeem, redeemed, jobs, receipts, ledger, summary, peer, health, relayerHealth, runnerStatus, runnerConfig] = await Promise.all([
       j("/wc/balance?account=" + encodeURIComponent(account)),
       j("/wc/redeemable?account=" + encodeURIComponent(account)),
       j("/wc/redeemed?account=" + encodeURIComponent(account) + "&limit=20"),
@@ -37834,6 +37917,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       j("/health"),
       j(LOCAL_RELAYER_BASE + "/health").catch(() => ({ ok:false, offline:true })),
       j("/wc/runner/status?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
+      j("/wc/runner/config?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
     ]);
 
     const wcAddr = deriveParticipantWallet(account, redeemed, connectedWallet, manualWallet);
@@ -38656,6 +38740,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
              " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only"))
           : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
       );
+      setText("wcRunnerSafeModeMini", runnerConfig && runnerConfig.ok ? (runnerConfig.safe_mode ? "ON" : "OFF") : "-");
+      setText("wcRunnerJobsPerHourMini", runnerConfig && runnerConfig.ok ? String(runnerConfig.max_jobs_per_hour || "-") : "-");
+      setText("wcRunnerGapMini", runnerConfig && runnerConfig.ok ? (String(Math.round(Number(runnerConfig.min_submit_gap_ms || 0) / 1000)) + "s") : "-");
+      if ($("wcRunnerSafeModeInput")) $("wcRunnerSafeModeInput").checked = !!(runnerConfig && runnerConfig.ok && runnerConfig.safe_mode);
+      if ($("wcRunnerGapInput") && runnerConfig && runnerConfig.ok) $("wcRunnerGapInput").value = String(Math.round(Number(runnerConfig.min_submit_gap_ms || 30000) / 1000));
+      if ($("wcRunnerJobsPerHourInput") && runnerConfig && runnerConfig.ok) $("wcRunnerJobsPerHourInput").value = String(Number(runnerConfig.max_jobs_per_hour || 60));
     } catch (_) {
     } finally {
       __voidRunnerAutoRefreshBusy = false;
