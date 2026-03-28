@@ -37181,7 +37181,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel" style="margin-top:16px;padding:14px">
           <div class="section-head">
             <div>
-              <h2 style="margin-bottom:4px">Review<span class="help" tabindex="0" data-help="Quick summary of participant WC availability, quote output, and trading wallet.">?</span></h2>
+              <h2 style="margin-bottom:4px">Review<span class="help" tabindex="0" data-help="Main trade summary for available WC, redeemed WC, quote output, and destination wallet.">?</span></h2>
             </div>
           </div>
           <div class="hero-note" id="tradeOverviewCard">loading…</div>
@@ -37239,7 +37239,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
             <div class="v" style="font-size:64px;margin-bottom:8px;line-height:1" id="walletRedeemableBig">-</div>
-            <div class="s" id="walletMeta">Available Work Credits you can use right now</div>
+            <div class="s" id="walletMeta">Available participant-side WC you can use right now</div>
               <div class="s" id="walletRedeemedSummary" style="margin-top:6px">Redeemed WC: -</div>
           </div>
 
@@ -37287,7 +37287,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Redeem WC<span class="help" tabindex="0" data-help="Moves participant Work Credits into the mapped trading wallet so they can be swapped for VOID.">?</span></h2>
+                <h2 style="margin-bottom:4px">Prepare WC for Trade<span class="help" tabindex="0" data-help="Moves WC into the current trade path. This is a temporary step and may not appear as wallet-held WC.">?</span></h2>
               </div>
             </div>
             <label for="redeemAmount">WC to redeem</label>
@@ -37295,11 +37295,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <label for="redeemWallet">Redeem to wallet</label>
             <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
             <div class="action-rail" style="margin-top:12px">
-              <button class="btn btn-primary" id="redeemBtn" type="button">Redeem WC</button>
+              <button class="btn btn-primary" id="redeemBtn" type="button">Prepare for Trade</button>
               <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
             </div>
             <div style="margin-top:12px">
-              <div class="hero-note" id="redeemSummary">Ready to redeem WC.</div>
+              <div class="hero-note" id="redeemSummary">Ready to prepare WC for trade.</div>
                 <div class="hero-note" id="redeemFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
                 <div class="action-rail" style="margin-top:10px">
                   <button class="btn" id="redeemModeAutoBtn" type="button">Auto</button>
@@ -37309,7 +37309,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <details class="adv" style="margin-top:10px">
                 <summary><span>Redeem Details</span><span class="pill">raw json</span></summary>
                 <div class="adv-body">
-                  <pre id="redeemOut">Ready to redeem WC.</pre>
+                  <pre id="redeemOut">Ready to prepare WC for trade.</pre>
                 </div>
               </details>
             </div>
