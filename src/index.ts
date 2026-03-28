@@ -36411,14 +36411,95 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
   function safeId(x:any): string {
     return String(x ?? "").trim().slice(0,160);
   }
-  function rewardFor(kind:string): number {
-    const k = String(kind || "").trim().toLowerCase();
+  function rewardBaseFor(kind:string){
+    const k = String(kind || "").toLowerCase();
     if (k.includes("redundancy_check")) return 2;
     if (k.includes("verify")) return 3;
     if (k.includes("publish")) return 10;
     if (k.includes("datanet")) return 10;
     return 5;
   }
+
+  function rewardByteBonus(bytes:number){
+    const n = Number(bytes || 0);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    if (n >= 1024 * 1024) return 6;
+    if (n >= 256 * 1024) return 4;
+    if (n >= 64 * 1024) return 3;
+    if (n >= 8 * 1024) return 2;
+    if (n >= 512) return 1;
+    return 0;
+  }
+
+  function rewardStalenessBonus(staleMs:number){
+    const n = Number(staleMs || 0);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    if (n >= 24 * 60 * 60 * 1000) return 3;
+    if (n >= 6 * 60 * 60 * 1000) return 2;
+    if (n >= 60 * 60 * 1000) return 1;
+    return 0;
+  }
+
+  function rewardQualityMultiplier(receipt:any){
+    const status = String(receipt?.status || "").toLowerCase();
+    if (status && !["ok","success","done","completed"].includes(status)) return 0;
+
+    const kind = String(receipt?.kind || receipt?.type || "").toLowerCase();
+    const out = receipt?.output || {};
+
+    if (kind.includes("verify")) {
+      return out && out.verified === true ? 1 : 0;
+    }
+    if (kind.includes("redundancy_check")) {
+      return out && out.checked === true && out.readable === true && out.verified_hash === true ? 1 : 0;
+    }
+    if (kind.includes("publish")) {
+      const b = Number(out?.bytes || 0);
+      return b > 0 ? 1 : 0;
+    }
+    return 1;
+  }
+
+  function rewardPolicyForReceipt(receipt:any){
+    const kind = String(receipt?.kind || receipt?.type || "receipt");
+    const base = rewardBaseFor(kind);
+    const out = receipt?.output || {};
+    const bytes = Number(out?.bytes || 0);
+    const staleMs = Number(out?.stale_for_ms ?? receipt?.stale_for_ms ?? receipt?.stale_ms ?? 0);
+    const q = rewardQualityMultiplier(receipt);
+
+    if (q <= 0) {
+      return {
+        reward: 0,
+        base,
+        byte_bonus: 0,
+        stale_bonus: 0,
+        quality_multiplier: q,
+        bytes,
+        stale_ms: staleMs
+      };
+    }
+
+    const byteBonus = rewardByteBonus(bytes);
+    const staleBonus = rewardStalenessBonus(staleMs);
+    const raw = (base + byteBonus + staleBonus) * q;
+    const reward = Math.max(1, Math.round(raw));
+
+    return {
+      reward,
+      base,
+      byte_bonus: byteBonus,
+      stale_bonus: staleBonus,
+      quality_multiplier: q,
+      bytes,
+      stale_ms: staleMs
+    };
+  }
+
+  function rewardFor(kind:string){
+    return rewardBaseFor(kind);
+  }
+
   function alreadyCredited(account:string, jobId:string, receiptId:string): boolean {
     for (const line of readLines(ledgerFile())) {
       try {
@@ -36445,14 +36526,18 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         if (status && !["ok","success","done","completed"].includes(status)) continue;
         if (alreadyCredited(account, jobId, receiptId)) continue;
 
+        const rewardMeta = rewardPolicyForReceipt(j);
+        if (!Number.isFinite(Number(rewardMeta?.reward || 0)) || Number(rewardMeta.reward || 0) <= 0) continue;
+
         const evt = {
           kind: "credit",
           account,
-          delta: rewardFor(kind),
-          reason: "receipt_auto_credit_v1",
+          delta: Number(rewardMeta.reward || 0),
+          reason: "receipt_auto_credit_v2_policy",
           job_id: jobId || null,
           receipt_id: receiptId || null,
           receipt_kind: kind,
+          reward_meta: rewardMeta,
           ts_ms: Date.now(),
         };
         appendJsonl(ledgerFile(), evt);
@@ -36488,6 +36573,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           ledger_file: ledgerFile(),
           last_scan_ms: G[MARK].last_scan_ms,
           last_credited: G[MARK].last_credited,
+          reward_policy: {
+            version: "wc_reward_policy_v1",
+            publish_base: rewardBaseFor("datanet_publish"),
+            verify_base: rewardBaseFor("datanet_fetch_verify"),
+            redundancy_base: rewardBaseFor("datanet_redundancy_check"),
+            byte_bonus_buckets: [512, 8192, 65536, 262144, 1048576],
+            stale_bonus_windows_ms: [3600000, 21600000, 86400000]
+          }
         });
       } catch (e:any) {
         return res.status(500).json({ ok:false, error:String(e?.message || e) });
