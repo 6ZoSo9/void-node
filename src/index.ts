@@ -35860,6 +35860,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
       const choices:any[] = [];
 
+      const publishNeedScore = Math.min(1, Math.max(0.2, (targetPublish - publishShare) + (totalLastHour <= 1 ? 0.3 : 0)));
+      const verifyNeedScore = Math.min(1, Math.max(0, (targetVerify - verifyShare) + (verifyCandidate && Number(verifyCandidate.stale_for_ms || 0) >= 60 * 60 * 1000 ? 0.2 : 0)));
+      const redundancyNeedScore = Math.min(1, Math.max(0, (targetRedundancy - redundancyShare) + (redundancyCandidate && Number(redundancyCandidate.stale_for_ms || 0) >= 6 * 60 * 60 * 1000 ? 0.25 : 0)));
+
       if (hasPublish) {
         choices.push({
           task_class: "datanet_publish",
@@ -35868,34 +35872,36 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           candidate: null,
           deficit: targetPublish - publishShare,
           stale_for_ms: 0,
-          difficulty_bucket: "medium",
-          network_need_score: Math.max(0, targetPublish - publishShare)
+          difficulty_bucket: totalLastHour <= 1 ? "high" : "medium",
+          network_need_score: publishNeedScore
         });
       }
 
       if (hasVerify && verifyCandidate && verifyCandidate.dataset_id && !verifyStreak) {
+        const verifyStaleMs = Number(verifyCandidate.stale_for_ms || 0);
         choices.push({
           task_class: "datanet_fetch_verify",
           reason: "stale_verify_target",
           dataset_id: String(verifyCandidate.dataset_id || ""),
           candidate: verifyCandidate,
           deficit: targetVerify - verifyShare,
-          stale_for_ms: Number(verifyCandidate.stale_for_ms || 0),
-          difficulty_bucket: "medium",
-          network_need_score: Math.max(0, targetVerify - verifyShare)
+          stale_for_ms: verifyStaleMs,
+          difficulty_bucket: verifyStaleMs >= 6 * 60 * 60 * 1000 ? "high" : "medium",
+          network_need_score: verifyNeedScore
         });
       }
 
       if (hasRedundancy && redundancyCandidate && redundancyCandidate.dataset_id && !redundancyStreak) {
+        const redundancyStaleMs = Number(redundancyCandidate.stale_for_ms || 0);
         choices.push({
           task_class: "datanet_redundancy_check",
           reason: "stale_redundancy_target",
           dataset_id: String(redundancyCandidate.dataset_id || ""),
           candidate: redundancyCandidate,
           deficit: targetRedundancy - redundancyShare,
-          stale_for_ms: Number(redundancyCandidate.stale_for_ms || 0),
-          difficulty_bucket: "low",
-          network_need_score: Math.max(0, targetRedundancy - redundancyShare)
+          stale_for_ms: redundancyStaleMs,
+          difficulty_bucket: redundancyStaleMs >= 24 * 60 * 60 * 1000 ? "medium" : "low",
+          network_need_score: redundancyNeedScore
         });
       }
 
@@ -35918,6 +35924,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           reason: finalReason,
           dataset_id: best.dataset_id || null,
           candidate: best.candidate || null,
+          stale_for_ms: Number(best.stale_for_ms || 0),
+          difficulty_bucket: String(best.difficulty_bucket || "low"),
+          network_need_score: Number(best.network_need_score || 0),
           mix
         };
       }
@@ -35927,6 +35936,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         reason: "default_first_approved",
         dataset_id: null,
         candidate: null,
+        stale_for_ms: 0,
+        difficulty_bucket: "low",
+        network_need_score: 0,
         mix
       };
     }
@@ -36104,6 +36116,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           selected_task_class,
           selected_dataset_id: selected_dataset_id || null,
           selection_reason,
+          selected_stale_for_ms: Number(selection?.stale_for_ms || 0),
+          selected_difficulty_bucket: String(selection?.difficulty_bucket || "low"),
+          selected_network_need_score: Number(selection?.network_need_score || 0),
           publish_last_hour: publish_last_hour_post,
           verify_last_hour: verify_last_hour_post,
           redundancy_last_hour: (selection && selection.mix) ? Number(selection.mix.redundancy_last_hour || 0) + (selected_task_class === "datanet_redundancy_check" ? 1 : 0) : (selected_task_class === "datanet_redundancy_check" ? 1 : 0),
@@ -39500,6 +39515,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
              " • Approved: " + String((runnerStatus.approved_task_classes || []).join(", ") || "-") +
              (runnerStatus.last_selection_reason ? (" • Chosen because: " + String(runnerStatus.last_selection_reason)) : "") +
              " • Mix P/V/R: " + String(runnerStatus.publish_last_hour || 0) + "/" + String(runnerStatus.verify_last_hour || 0) + "/" + String(runnerStatus.redundancy_last_hour || 0) +
+             (runnerStatus.last_result && Number(runnerStatus.last_result.selected_network_need_score || 0) > 0
+               ? (" • Need: " + String(Number(runnerStatus.last_result.selected_network_need_score || 0).toFixed(2)))
+               : "") +
+             (runnerStatus.last_result && String(runnerStatus.last_result.selected_difficulty_bucket || "")
+               ? (" • Difficulty: " + String(runnerStatus.last_result.selected_difficulty_bucket || ""))
+               : "") +
              (runnerStatus.safe_mode ? " • Safe Mode clamps limits conservatively" : ""))
           : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
       );
