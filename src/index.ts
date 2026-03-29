@@ -38051,7 +38051,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <label>Earn Work Credits</label>
           <div class="hero-note" id="wcRunnerStatusCard">Agent-selected useful work only. Loading runner state…</div>
           <div class="action-rail" style="margin-top:10px">
-            <label class="void-switch" id="wcRunnerToggleWrap"><input id="wcRunnerToggleInput" type="checkbox" /><span class="void-switch-track" id="wcRunnerToggleTrack" aria-hidden="true"></span><span class="void-switch-label" id="wcRunnerToggleLabel">Earn Work Credits</span></label>
+            <label class="void-switch" for="wcRunnerToggleInput" id="wcRunnerToggleWrap"><input id="wcRunnerToggleInput" type="checkbox" /><span class="void-switch-track" id="wcRunnerToggleTrack" aria-hidden="true"></span><span class="void-switch-label" id="wcRunnerToggleLabel">Earn Work Credits</span></label>
             <button class="btn" id="wcRunnerTickBtn" type="button">Run Once</button>
           </div>
           <div class="metric-strip" style="margin-top:12px">
@@ -38145,8 +38145,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
             <div class="mini">
               <div class="k">Expected Reward</div>
-              <div class="v" id="wcExpectedRewardValue">Dynamic</div>
-              <div class="s" id="wcExpectedRewardMeta">Base varies by task and bonuses apply.</div>
+              <div class="v">+10</div>
+              <div class="s">Work Credits awarded when the proof-backed job completes.</div>
             </div>
             <div class="mini">
               <div class="k">Current Account</div>
@@ -39521,9 +39521,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
 
     if ($("wcRunnerToggleInput")) {
-      $("wcRunnerToggleInput").addEventListener("click", (ev) => {
-        ev.stopPropagation();
-      });
       $("wcRunnerToggleInput").addEventListener("change", async () => {
         const input = $("wcRunnerToggleInput");
         await __voidSetRunnerEnabled(!!(input && input.checked));
@@ -39631,31 +39628,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       setText("wcRunnerLastResultMini", runnerLastResultLabel);
       setText("wcRunnerNextRunMini", runnerNextRunLabel);
-      const expectedTaskClass = (() => {
-        try {
-          if (runnerStatus && runnerStatus.last_selected_task_class) return String(runnerStatus.last_selected_task_class || "");
-          if (runnerStatus && runnerStatus.active_task_class) return String(runnerStatus.active_task_class || "");
-          if (runnerStatus && Array.isArray(runnerStatus.approved_task_classes) && runnerStatus.approved_task_classes.length) {
-            return String(runnerStatus.approved_task_classes[0] || "");
-          }
-        } catch (_) {}
-        return "datanet_publish";
-      })();
-
-      const expectedBase = (() => {
-        const k = String(expectedTaskClass || "").toLowerCase();
-        if (k.includes("redundancy_check")) return 2;
-        if (k.includes("verify")) return 3;
-        if (k.includes("publish")) return 10;
-        return 5;
-      })();
-
-      setText("wcExpectedRewardValue", "~" + String(expectedBase) + "+");
-      setText(
-        "wcExpectedRewardMeta",
-        "Base " + String(expectedBase) + " • stale / difficulty / need / byte bonuses apply"
-      );
-
       setText(
         "wcRunnerMeta",
         runnerStatus && runnerStatus.ok
