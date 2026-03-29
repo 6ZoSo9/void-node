@@ -38051,7 +38051,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <label>Earn Work Credits</label>
           <div class="hero-note" id="wcRunnerStatusCard">Agent-selected useful work only. Loading runner state…</div>
           <div class="action-rail" style="margin-top:10px">
-            <label class="void-switch" for="wcRunnerToggleInput" id="wcRunnerToggleWrap"><input id="wcRunnerToggleInput" type="checkbox" /><span class="void-switch-track" id="wcRunnerToggleTrack" aria-hidden="true"></span><span class="void-switch-label" id="wcRunnerToggleLabel">Earn Work Credits</span></label>
+            <label class="void-switch" id="wcRunnerToggleWrap"><input id="wcRunnerToggleInput" type="checkbox" /><span class="void-switch-track" id="wcRunnerToggleTrack" aria-hidden="true"></span><span class="void-switch-label" id="wcRunnerToggleLabel">Earn Work Credits</span></label>
             <button class="btn" id="wcRunnerTickBtn" type="button">Run Once</button>
           </div>
           <div class="metric-strip" style="margin-top:12px">
@@ -39521,6 +39521,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
 
     if ($("wcRunnerToggleInput")) {
+      $("wcRunnerToggleInput").addEventListener("click", (ev) => {
+        ev.stopPropagation();
+      });
       $("wcRunnerToggleInput").addEventListener("change", async () => {
         const input = $("wcRunnerToggleInput");
         await __voidSetRunnerEnabled(!!(input && input.checked));
