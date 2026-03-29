@@ -37838,6 +37838,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     }
     #ledgerLatestReceipt, #ledgerLatestReason, #ledgerTruthState,
     #connectedWalletAddrMini, #connectedWalletVoidMini, #connectedWalletWcMini, #helperRedeemableMini,
+    .void-switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+    .void-switch input{position:absolute;opacity:0;pointer-events:none}
+    .void-switch-track{position:relative;width:52px;height:30px;border-radius:999px;border:1px solid rgba(120,190,255,.28);background:rgba(10,26,44,.95);box-shadow:inset 0 0 0 1px rgba(255,255,255,.02)}
+    .void-switch-track::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:999px;background:#9fb7c9;transition:transform .18s ease,background .18s ease}
+    .void-switch input:checked + .void-switch-track{background:linear-gradient(180deg,rgba(22,88,128,.92),rgba(15,64,102,.96));border-color:rgba(120,190,255,.45)}
+    .void-switch input:checked + .void-switch-track::after{transform:translateX(22px);background:#d7f0ff}
+    .void-switch-label{font-weight:700}
+
       #walletTruthAddr, #walletTruthVoid, #walletTruthMapped,
     #walletEarnedMini, #walletDebitedMini, #walletRedeemedMini, #walletRedeemableMini {
       overflow-wrap: anywhere;
@@ -38043,7 +38051,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <label>Earn Work Credits</label>
           <div class="hero-note" id="wcRunnerStatusCard">Agent-selected useful work only. Loading runner state…</div>
           <div class="action-rail" style="margin-top:10px">
-            <button class="btn btn-primary" id="wcRunnerToggleBtn" type="button">Earn Work Credits</button>
+            <label class="void-switch" for="wcRunnerToggleInput"><input id="wcRunnerToggleInput" type="checkbox" /><span class="void-switch-track" aria-hidden="true"></span><span class="void-switch-label" id="wcRunnerToggleLabel">Earn Work Credits</span></label>
             <button class="btn" id="wcRunnerTickBtn" type="button">Run Once</button>
           </div>
           <div class="metric-strip" style="margin-top:12px">
@@ -38772,8 +38780,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         ? "Earn Work Credits is ON. Agent-selected useful work is allowed for this account."
         : "Earn Work Credits is OFF. No new agent-selected work should be started for this account."
     );
-    if ($("wcRunnerToggleBtn")) {
-      $("wcRunnerToggleBtn").textContent = runnerEnabled ? "Stop Earning Work Credits" : "Earn Work Credits";
+    if ($("wcRunnerToggleInput")) {
+      $("wcRunnerToggleInput").checked = !!runnerEnabled;
+    }
+    if ($("wcRunnerToggleLabel")) {
+      $("wcRunnerToggleLabel").textContent = runnerEnabled ? "Earning Work Credits" : "Earn Work Credits";
     }
 
     const acctMeta = localEarned !== null
