@@ -35866,7 +35866,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           reason: "target_publish_mix",
           dataset_id: null,
           candidate: null,
-          deficit: targetPublish - publishShare
+          deficit: targetPublish - publishShare,
+          stale_for_ms: 0,
+          difficulty_bucket: "medium",
+          network_need_score: Math.max(0, targetPublish - publishShare)
         });
       }
 
@@ -35876,7 +35879,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           reason: "stale_verify_target",
           dataset_id: String(verifyCandidate.dataset_id || ""),
           candidate: verifyCandidate,
-          deficit: targetVerify - verifyShare
+          deficit: targetVerify - verifyShare,
+          stale_for_ms: Number(verifyCandidate.stale_for_ms || 0),
+          difficulty_bucket: "medium",
+          network_need_score: Math.max(0, targetVerify - verifyShare)
         });
       }
 
@@ -35886,7 +35892,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           reason: "stale_redundancy_target",
           dataset_id: String(redundancyCandidate.dataset_id || ""),
           candidate: redundancyCandidate,
-          deficit: targetRedundancy - redundancyShare
+          deficit: targetRedundancy - redundancyShare,
+          stale_for_ms: Number(redundancyCandidate.stale_for_ms || 0),
+          difficulty_bucket: "low",
+          network_need_score: Math.max(0, targetRedundancy - redundancyShare)
         });
       }
 
@@ -35972,7 +35981,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
       try {
         const port = Number(process.env.HTTP_PORT || 4100);
-        const selection = runnerSelectionDecisionFor(account);
+        const selection:any = runnerSelectionDecisionFor(account);
         const selected_task_class = String(selection?.task_class || "datanet_publish");
         const selection_reason = String(selection?.reason || "unknown");
         let runnerPlaintext = null as any;
@@ -35996,7 +36005,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           const expectedInputHash = await runnerSha256Hex(fetched);
           runnerPlaintext = JSON.stringify({
             dataset_id: selected_dataset_id,
-            expected_input_hash: expectedInputHash
+            expected_input_hash: expectedInputHash,
+            stale_for_ms: Number(selection?.candidate?.stale_for_ms || 0),
+            difficulty_bucket: String(selection?.difficulty_bucket || "medium"),
+            network_need_score: Number(selection?.network_need_score || 0)
           });
         } else if (selected_task_class === "datanet_redundancy_check") {
           const candidate = selection && selection.candidate ? selection.candidate : runnerFindRedundancyCandidate(account);
@@ -36017,7 +36029,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           const expectedInputHash = await runnerSha256Hex(fetched);
           runnerPlaintext = JSON.stringify({
             dataset_id: selected_dataset_id,
-            expected_input_hash: expectedInputHash
+            expected_input_hash: expectedInputHash,
+            stale_for_ms: Number(selection?.candidate?.stale_for_ms || 0),
+            difficulty_bucket: String(selection?.difficulty_bucket || "medium"),
+            network_need_score: Number(selection?.network_need_score || 0)
           });
         } else {
           runnerPlaintext = JSON.stringify({
@@ -36027,7 +36042,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             policy: "useful_verifiable_only",
             account,
             ts_ms: now,
-            safe_mode: !!cfg.safe_mode
+            safe_mode: !!cfg.safe_mode,
+            stale_for_ms: 0,
+            difficulty_bucket: String(selection?.difficulty_bucket || "medium"),
+            network_need_score: Number(selection?.network_need_score || 0)
           });
         }
 
@@ -36440,6 +36458,22 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     return 0;
   }
 
+  function rewardDifficultyBonus(bucket:string){
+    const b = String(bucket || "").toLowerCase();
+    if (b === "high") return 3;
+    if (b === "medium") return 1;
+    return 0;
+  }
+
+  function rewardNeedBonus(score:number){
+    const n = Number(score || 0);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    if (n >= 0.9) return 3;
+    if (n >= 0.7) return 2;
+    if (n >= 0.5) return 1;
+    return 0;
+  }
+
   function rewardQualityMultiplier(receipt:any){
     const status = String(receipt?.status || "").toLowerCase();
     if (status && !["ok","success","done","completed"].includes(status)) return 0;
@@ -36462,10 +36496,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
   function rewardPolicyForReceipt(receipt:any){
     const kind = String(receipt?.kind || receipt?.type || "receipt");
-    const base = rewardBaseFor(kind);
     const out = receipt?.output || {};
+    const base = rewardBaseFor(kind);
     const bytes = Number(out?.bytes || 0);
     const staleMs = Number(out?.stale_for_ms ?? receipt?.stale_for_ms ?? receipt?.stale_ms ?? 0);
+    const difficultyBucket = String(out?.difficulty_bucket ?? receipt?.difficulty_bucket ?? "low");
+    const networkNeedScore = Number(out?.network_need_score ?? receipt?.network_need_score ?? 0);
     const q = rewardQualityMultiplier(receipt);
 
     if (q <= 0) {
@@ -36474,15 +36510,21 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         base,
         byte_bonus: 0,
         stale_bonus: 0,
+        difficulty_bonus: 0,
+        need_bonus: 0,
         quality_multiplier: q,
         bytes,
-        stale_ms: staleMs
+        stale_ms: staleMs,
+        difficulty_bucket: difficultyBucket,
+        network_need_score: networkNeedScore
       };
     }
 
     const byteBonus = rewardByteBonus(bytes);
     const staleBonus = rewardStalenessBonus(staleMs);
-    const raw = (base + byteBonus + staleBonus) * q;
+    const difficultyBonus = rewardDifficultyBonus(difficultyBucket);
+    const needBonus = rewardNeedBonus(networkNeedScore);
+    const raw = (base + byteBonus + staleBonus + difficultyBonus + needBonus) * q;
     const reward = Math.max(1, Math.round(raw));
 
     return {
@@ -36490,9 +36532,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       base,
       byte_bonus: byteBonus,
       stale_bonus: staleBonus,
+      difficulty_bonus: difficultyBonus,
+      need_bonus: needBonus,
       quality_multiplier: q,
       bytes,
-      stale_ms: staleMs
+      stale_ms: staleMs,
+      difficulty_bucket: difficultyBucket,
+      network_need_score: networkNeedScore
     };
   }
 
@@ -36729,6 +36775,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       const plaintext = String(job.input?.plaintext || "");
       if (!plaintext) throw new Error("missing_plaintext");
 
+      let parsedInput:any = null;
+      try { parsedInput = JSON.parse(plaintext); } catch {}
+      const inputStaleMs = Number(parsedInput?.stale_for_ms || 0);
+      const inputDifficultyBucket = String(parsedInput?.difficulty_bucket || "low");
+      const inputNeedScore = Number(parsedInput?.network_need_score || 0);
+
       if (kind === "datanet_publish") {
         const inputHash = await sha256Hex(plaintext);
         const datasetId = "ds_" + nowMs() + "_" + inputHash.slice(0,16);
@@ -36740,6 +36792,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           dataset_id: datasetId,
           path: payloadPath,
           bytes: Buffer.byteLength(plaintext, "utf8"),
+          stale_for_ms: inputStaleMs,
+          difficulty_bucket: inputDifficultyBucket || "medium",
+          network_need_score: inputNeedScore
         };
         const outputHash = await sha256Hex(JSON.stringify(outputObj));
 
@@ -36793,6 +36848,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           bytes: Buffer.byteLength(fetched, "utf8"),
           verified: true,
           fetched_input_hash: fetchedHash,
+          stale_for_ms: inputStaleMs,
+          difficulty_bucket: inputDifficultyBucket || "medium",
+          network_need_score: inputNeedScore
         };
         const outputHash = await sha256Hex(JSON.stringify(outputObj));
 
@@ -36849,6 +36907,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           readable: true,
           verified_hash: verifiedHash,
           fetched_input_hash: fetchedHash,
+          stale_for_ms: inputStaleMs,
+          difficulty_bucket: inputDifficultyBucket || "low",
+          network_need_score: inputNeedScore
         };
         const outputHash = await sha256Hex(JSON.stringify(outputObj));
 
