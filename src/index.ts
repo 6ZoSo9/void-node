@@ -39518,9 +39518,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : "Earn Work Credits is OFF. No new agent-selected work should be started for this account. Enable earning before running approved work."
       );
 
-      if ($("wcRunnerToggleBtn")) {
-        $("wcRunnerToggleBtn").textContent = runnerEnabled ? "Stop Earning Work Credits" : "Earn Work Credits";
-      }
       if ($("wcRunnerTickBtn")) {
         $("wcRunnerTickBtn").disabled = !runnerEnabled;
       }
