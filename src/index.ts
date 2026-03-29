@@ -35745,16 +35745,21 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
         for (const f of files) {
           const datasetId = String(f).replace(/\.txt$/i, "");
+          const fullPath = path.join(dir, f);
+          let fileMtimeMs = 0;
+          try { fileMtimeMs = Number(fs.statSync(fullPath).mtimeMs || 0); } catch {}
           const last = Number((rt.verify_history_by_dataset[String(account)] || {})[datasetId] || 0);
-          const age = now - last;
+          const basis = last > 0 ? last : fileMtimeMs;
+          const age = basis > 0 ? (now - basis) : (2 * 60 * 60 * 1000);
           if (age < verifyCooldownMs) continue;
-          if (last < chosenTs) {
-            chosenTs = last;
+          if (basis < chosenTs) {
+            chosenTs = basis;
             chosen = {
               dataset_id: datasetId,
-              path: path.join(dir, f),
+              path: fullPath,
               last_verified_ms: last || null,
-              stale_for_ms: last ? (now - last) : null
+              file_mtime_ms: fileMtimeMs || null,
+              stale_for_ms: age
             };
           }
         }
@@ -35790,16 +35795,21 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
         for (const f of files) {
           const datasetId = String(f).replace(/\.txt$/i, "");
+          const fullPath = path.join(dir, f);
+          let fileMtimeMs = 0;
+          try { fileMtimeMs = Number(fs.statSync(fullPath).mtimeMs || 0); } catch {}
           const last = Number((rt.redundancy_history_by_dataset[String(account)] || {})[datasetId] || 0);
-          const age = now - last;
+          const basis = last > 0 ? last : fileMtimeMs;
+          const age = basis > 0 ? (now - basis) : (8 * 60 * 60 * 1000);
           if (age < redundancyCooldownMs) continue;
-          if (last < chosenTs) {
-            chosenTs = last;
+          if (basis < chosenTs) {
+            chosenTs = basis;
             chosen = {
               dataset_id: datasetId,
-              path: path.join(dir, f),
+              path: fullPath,
               last_redundancy_check_ms: last || null,
-              stale_for_ms: last ? (now - last) : null
+              file_mtime_ms: fileMtimeMs || null,
+              stale_for_ms: age
             };
           }
         }
