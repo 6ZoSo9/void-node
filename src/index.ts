@@ -36658,6 +36658,74 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       }
     });
 
+    app.get("/wc/reward-stats", (req:any, res:any) => {
+      try {
+        const account = String(req.query?.account || "remote-user-3");
+        const fs = require("node:fs");
+        let lines:any[] = [];
+        try {
+          const raw = fs.existsSync(ledgerFile()) ? String(fs.readFileSync(ledgerFile(), "utf8") || "") : "";
+          lines = raw
+            .split(/\r?\n/)
+            .map((x:string) => x.trim())
+            .filter(Boolean)
+            .map((x:string) => { try { return JSON.parse(x); } catch { return null; } })
+            .filter((x:any) => !!x);
+        } catch {
+          lines = [];
+        }
+        const now = Date.now();
+        const hourAgo = now - (60 * 60 * 1000);
+
+        let lastCredit:any = null;
+        let publish_last_hour = 0;
+        let verify_last_hour = 0;
+        let redundancy_last_hour = 0;
+        let total_last_hour = 0;
+
+        for (const j of lines) {
+          if (!j || String(j.kind || "") !== "credit") continue;
+          if (String(j.account || "") !== account) continue;
+
+          const ts = Number(j.ts_ms || 0);
+          const rk = String(j.receipt_kind || "");
+
+          if (!lastCredit || ts > Number(lastCredit.ts_ms || 0)) {
+            lastCredit = j;
+          }
+
+          if (ts >= hourAgo) {
+            total_last_hour += Number(j.delta || 0) || 0;
+            if (rk === "datanet_publish") publish_last_hour += Number(j.delta || 0) || 0;
+            else if (rk === "datanet_fetch_verify") verify_last_hour += Number(j.delta || 0) || 0;
+            else if (rk === "datanet_redundancy_check") redundancy_last_hour += Number(j.delta || 0) || 0;
+          }
+        }
+
+        const rm = lastCredit && lastCredit.reward_meta ? lastCredit.reward_meta : null;
+
+        return res.json({
+          ok: true,
+          account,
+          last_credit: lastCredit ? {
+            ts_ms: Number(lastCredit.ts_ms || 0),
+            delta: Number(lastCredit.delta || 0),
+            reason: String(lastCredit.reason || ""),
+            receipt_kind: String(lastCredit.receipt_kind || ""),
+            reward_meta: rm || null
+          } : null,
+          totals_last_hour: {
+            publish_wc: publish_last_hour,
+            verify_wc: verify_last_hour,
+            redundancy_wc: redundancy_last_hour,
+            total_wc: total_last_hour
+          }
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
     setInterval(() => {
       try { scanOnce(); } catch {}
     }, 3000).unref?.();
@@ -37892,6 +37960,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="k">Earn WC</div>
           <div class="v" id="runnerStateHome">-</div>
           <div class="s" id="runnerMetaHome">Checking runner…</div>
+        </div>
+        <div class="kpi">
+          <div class="k">Last WC Reward</div>
+          <div class="v" id="wcRewardLastValue">-</div>
+          <div class="s" id="wcRewardLastMeta">Checking reward…</div>
         </div>
     </section>
 
