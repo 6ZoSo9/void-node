@@ -39498,6 +39498,27 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   await refresh();
 
+    if ($("wcRunnerToggleInput")) {
+      $("wcRunnerToggleInput").addEventListener("change", async () => {
+        const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+        const input = $("wcRunnerToggleInput");
+        const nextEnabled = !!(input && input.checked);
+        try {
+          const out = await j("/wc/runner/set", {
+            method: "POST",
+            headers: { "content-type":"application/json" },
+            body: JSON.stringify({ account, enabled: nextEnabled })
+          });
+          if (input) input.checked = !!(out && out.ok && out.enabled);
+          setPre("submitOut", out);
+          await refresh();
+        } catch (e) {
+          if (input) input.checked = !nextEnabled;
+          setPre("submitOut", { ok:false, error:String(e) });
+        }
+      });
+    }
+
   let __voidRunnerAutoRefreshBusy = false;
   async function refreshRunnerPanelOnly(){
     try {
