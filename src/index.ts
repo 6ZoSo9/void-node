@@ -38676,6 +38676,28 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       '</tbody></table>';
   }
 
+  function ensureRewardDiagnosticsRow(){
+    try {
+      if (document.getElementById("wcRewardDiagRow")) return;
+
+      const host = document.getElementById("wcRunnerMeta");
+      if (!host || !host.parentNode) return;
+
+      const row = document.createElement("div");
+      row.id = "wcRewardDiagRow";
+      row.className = "metric-strip";
+      row.style.marginTop = "12px";
+      row.innerHTML = [
+        '<div class="mini"><div class="k">Last Reward</div><div class="v" id="wcRewardDiagLast">-</div><div class="s" id="wcRewardDiagKind">-</div></div>',
+        '<div class="mini"><div class="k">Base / Byte</div><div class="v" id="wcRewardDiagBaseByte">-</div><div class="s">base + byte</div></div>',
+        '<div class="mini"><div class="k">Stale / Diff / Need</div><div class="v" id="wcRewardDiagBonusMix">-</div><div class="s">bonus mix</div></div>',
+        '<div class="mini"><div class="k">P / V / R</div><div class="v" id="wcRewardDiagTotals">-</div><div class="s">last-hour WC</div></div>'
+      ].join("");
+
+      host.parentNode.insertBefore(row, host.nextSibling);
+    } catch {}
+  }
+
   function switchTab(tab){
     document.querySelectorAll(".tabbtn").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".tabpane").forEach(p => p.classList.remove("active"));
