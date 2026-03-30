@@ -38920,11 +38920,23 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("heroAccount", account);
 
     const runnerEnabled = !!(runnerStatus && runnerStatus.ok && runnerStatus.enabled);
+    const runnerSafeMode = !!(runnerStatus && runnerStatus.safe_mode);
+    const runnerMinGapSec = runnerStatus && Number.isFinite(Number(runnerStatus.min_submit_gap_ms))
+      ? Math.round(Number(runnerStatus.min_submit_gap_ms) / 1000)
+      : (runnerConfig && Number.isFinite(Number(runnerConfig.min_submit_gap_ms))
+          ? Math.round(Number(runnerConfig.min_submit_gap_ms) / 1000)
+          : null);
+    const runnerJobsHourCap = runnerStatus && Number.isFinite(Number(runnerStatus.max_jobs_per_hour))
+      ? Number(runnerStatus.max_jobs_per_hour)
+      : (runnerConfig && Number.isFinite(Number(runnerConfig.max_jobs_per_hour))
+          ? Number(runnerConfig.max_jobs_per_hour)
+          : null);
+
     setText(
       "wcRunnerStatusCard",
       runnerEnabled
-        ? "Earn Work Credits is ON for this account."
-        : "Earn Work Credits is OFF for this account."
+        ? ("Earn Work Credits is ON for this account" + (runnerSafeMode ? " • Safe Mode ON" : "") + ".")
+        : ("Earn Work Credits is OFF for this account" + (runnerSafeMode ? " • Safe Mode still clamps limits" : "") + ".")
     );
     if ($("wcRunnerToggleInput")) {
       $("wcRunnerToggleInput").checked = !!runnerEnabled;
@@ -38932,6 +38944,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if ($("wcRunnerToggleLabel")) {
       $("wcRunnerToggleLabel").textContent = runnerEnabled ? "Earning Work Credits" : "Earn Work Credits";
     }
+
+    setText(
+      "wcRunnerMeta",
+      [
+        "Mode: " + String((runnerStatus && runnerStatus.mode) || "agent_auto_only"),
+        "Override: " + String((runnerStatus && runnerStatus.user_override) || "stop_only"),
+        "Task: " + String((runnerStatus && runnerStatus.active_task_class) || (runnerConfig && runnerConfig.allow_datanet_publish ? "datanet_publish" : "-")),
+        "Min gap: " + (runnerMinGapSec !== null ? (String(runnerMinGapSec) + "s") : "-"),
+        "Cap: " + (runnerJobsHourCap !== null ? (String(runnerJobsHourCap) + "/hour") : "-")
+      ].join(" • ") + (runnerSafeMode ? " • Safe Mode clamps limits conservatively" : "")
+    );
 
     const isLegacyAccount = account === "remote-user-3";
     const acctMeta = localEarned !== null

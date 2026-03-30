@@ -189,3 +189,39 @@ echo "  ACCOUNT=$ACCOUNT"
 echo "  WALLET=$WALLET"
 echo "  JOB_ID=$JOB_ID"
 echo "  OUT=$OUT"
+
+echo
+echo "=== [7] compact summary ==="
+python3 - "$OUT/redeemable.before.json" "$OUT/redeemable.after.json" "$OUT/redeemable.final.json" "$OUT/poll.result.json" <<'PY'
+import json, sys
+
+before = json.load(open(sys.argv[1]))
+after = json.load(open(sys.argv[2]))
+final = json.load(open(sys.argv[3]))
+poll = json.load(open(sys.argv[4]))
+
+job = poll.get("found_job") or {}
+rcpt = poll.get("found_receipt") or {}
+
+def num(obj, key):
+    try:
+        return float(obj.get(key) or 0)
+    except Exception:
+        return 0.0
+
+print(f"job_id={job.get('job_id')}")
+print(f"job_status={job.get('status')}")
+print(f"receipt_id={rcpt.get('receipt_id')}")
+print(f"earned_before={num(before,'earned'):g}")
+print(f"earned_after={num(after,'earned'):g}")
+print(f"earned_final={num(final,'earned'):g}")
+print(f"redeemed_before={num(before,'redeemed'):g}")
+print(f"redeemed_after={num(after,'redeemed'):g}")
+print(f"redeemed_final={num(final,'redeemed'):g}")
+print(f"redeemable_before={num(before,'redeemable'):g}")
+print(f"redeemable_after={num(after,'redeemable'):g}")
+print(f"redeemable_final={num(final,'redeemable'):g}")
+print(f"delta_earned_submit={num(after,'earned') - num(before,'earned'):g}")
+print(f"delta_redeemed_total={num(final,'redeemed') - num(before,'redeemed'):g}")
+print(f"delta_redeemable_total={num(final,'redeemable') - num(before,'redeemable'):g}")
+PY
