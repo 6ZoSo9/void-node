@@ -38707,15 +38707,39 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function renderReceipts(items){
     if (!items || !items.length) return '<div class="empty">No proofs are available for this account yet.</div>';
-    return '<table><thead><tr><th>Proof ID</th><th>Job ID</th><th>Type</th><th>Dataset</th></tr></thead><tbody>' +
-      items.map(r => '<tr><td>'+esc(r.receipt_id)+'</td><td>'+esc(r.job_id)+'</td><td>'+esc(r.kind)+'</td><td>'+esc(r.dataset_id || "")+'</td></tr>').join("") +
+    return '<table style="width:100%;table-layout:fixed"><thead><tr><th style="width:32%">Proof ID</th><th style="width:24%">Job ID</th><th style="width:18%">Type</th><th style="width:26%">Dataset</th></tr></thead><tbody>' +
+      items.map(r => {
+        const receiptId = String(r.receipt_id || "");
+        const jobId = String(r.job_id || "");
+        const ds = String(r.dataset_id || "");
+        const receiptIdShort = receiptId.length > 22 ? (receiptId.slice(0,10) + "…" + receiptId.slice(-6)) : receiptId;
+        const jobIdShort = jobId.length > 22 ? (jobId.slice(0,10) + "…" + jobId.slice(-6)) : jobId;
+        const dsShort = ds.length > 22 ? (ds.slice(0,8) + "…" + ds.slice(-6)) : ds;
+        return '<tr>'
+          + '<td class="mono" title="'+esc(receiptId)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
+          + '<td class="mono" title="'+esc(jobId)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
+          + '<td title="'+esc(r.kind)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.kind)+'</td>'
+          + '<td class="mono" title="'+esc(ds)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort)+'</span></td>'
+          + '</tr>';
+      }).join("") +
       '</tbody></table>';
   }
 
   function renderLedger(items){
     if (!items || !items.length) return '<div class="empty">No recent Work Credit balance changes are available for this account yet.</div>';
-    return '<table><thead><tr><th>Change</th><th>Reason</th><th>Job ID</th><th>Proof ID</th></tr></thead><tbody>' +
-      items.map(e => '<tr><td>'+esc(e.delta)+'</td><td>'+esc(e.reason)+'</td><td>'+esc(e.job_id || "")+'</td><td>'+esc(e.receipt_id || "")+'</td></tr>').join("") +
+    return '<table style="width:100%;table-layout:fixed"><thead><tr><th style="width:12%">Change</th><th style="width:26%">Reason</th><th style="width:31%">Job ID</th><th style="width:31%">Proof ID</th></tr></thead><tbody>' +
+      items.map(e => {
+        const jobId = String(e.job_id || "");
+        const receiptId = String(e.receipt_id || "");
+        const jobIdShort = jobId.length > 22 ? (jobId.slice(0,10) + "…" + jobId.slice(-6)) : jobId;
+        const receiptIdShort = receiptId.length > 22 ? (receiptId.slice(0,10) + "…" + receiptId.slice(-6)) : receiptId;
+        return '<tr>'
+          + '<td title="'+esc(String(e.delta))+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.delta)+'</td>'
+          + '<td title="'+esc(e.reason)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.reason)+'</td>'
+          + '<td class="mono" title="'+esc(jobId)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
+          + '<td class="mono" title="'+esc(receiptId)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
+          + '</tr>';
+      }).join("") +
       '</tbody></table>';
   }
 
