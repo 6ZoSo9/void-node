@@ -38931,7 +38931,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       const basePart = rm && Number.isFinite(Number(rm.base_reward))
         ? Number(rm.base_reward)
-        : null;
+        : (rm && Number.isFinite(Number(rm.base))
+            ? Number(rm.base)
+            : null);
       const bytePart = rm && Number.isFinite(Number(rm.byte_bonus))
         ? Number(rm.byte_bonus)
         : null;
