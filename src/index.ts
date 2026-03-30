@@ -37880,6 +37880,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     }
     #ledgerLatestReceipt, #ledgerLatestReason, #ledgerTruthState,
     #connectedWalletAddrMini, #connectedWalletVoidMini, #connectedWalletWcMini, #helperRedeemableMini,
+    #wcRunnerLastJobMini, #tradeOverviewCard {
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      white-space:normal;
+    }
     .void-switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
     .void-switch input{position:absolute;opacity:0;pointer-events:none}
     .void-switch-track{position:relative;width:52px;height:30px;border-radius:999px;border:1px solid rgba(120,190,255,.28);background:rgba(10,26,44,.95);box-shadow:inset 0 0 0 1px rgba(255,255,255,.02);cursor:pointer}
@@ -39114,9 +39119,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         '</div>';
     }
 
-    setText("ledgerLatestReason", latestLedger ? (latestLedger.reason || "-") : "-");
-    setText("ledgerLatestReceipt", latestLedger ? (latestLedger.receipt_id || "-") : "-");
-    setText("ledgerTruthState", latestLedger ? "ledger-backed" : "no events");
+    if (latestLedger) {
+      const reasonFull = String(latestLedger.reason || "-");
+      const receiptFull = String(latestLedger.receipt_id || "-");
+      const reasonShort = reasonFull.length > 20 ? (reasonFull.slice(0, 16) + "…") : reasonFull;
+      const receiptShort = receiptFull.length > 22 ? (receiptFull.slice(0, 8) + "…" + receiptFull.slice(-6)) : receiptFull;
+      setText("ledgerLatestReason", reasonShort);
+      setText("ledgerLatestReceipt", receiptShort);
+      try { $("ledgerLatestReason").title = reasonFull; } catch {}
+      try { $("ledgerLatestReceipt").title = receiptFull; } catch {}
+      setText("ledgerTruthState", "ledger-backed");
+      try { $("ledgerTruthState").title = "calculated from local participant WC activity on this node"; } catch {}
+    } else {
+      setText("ledgerLatestReason", "-");
+      setText("ledgerLatestReceipt", "-");
+      setText("ledgerTruthState", "no events");
+      try { $("ledgerLatestReason").title = ""; } catch {}
+      try { $("ledgerLatestReceipt").title = ""; } catch {}
+      try { $("ledgerTruthState").title = ""; } catch {}
+    }
 
     if ($("jobsWrap")) $("jobsWrap").innerHTML = jobsHtml;
     if ($("jobsWrapOverview")) $("jobsWrapOverview").innerHTML = jobsHtml;
@@ -39188,13 +39209,22 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         : ("Account " + account + " is loaded, but earned WC is unavailable right now.")
     );
 
-    setText(
-      "tradeOverviewCard",
-      "Participant WC: " + redeemableTotal +
-      " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
-      " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable") +
-      (wcAddr ? " • Redeemed to wallet: " + wcAddr : "")
-    );
+    {
+      const wcAddrShort = wcAddr ? (String(wcAddr).slice(0, 8) + "…" + String(wcAddr).slice(-6)) : "";
+      const tradeOverviewText =
+        "WC: " + redeemableTotal +
+        " • VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
+        " • Trading: " + (relayerUp ? "Ready" : "Unavailable") +
+        (wcAddr ? " • Wallet: " + wcAddrShort : "");
+      setText("tradeOverviewCard", tradeOverviewText);
+      try {
+        $("tradeOverviewCard").title =
+          "Participant WC: " + redeemableTotal +
+          " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
+          " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable") +
+          (wcAddr ? " • Redeemed to wallet: " + wcAddr : "");
+      } catch {}
+    }
 
     if (latestReceipt) {
       const ridFull = String(latestReceipt.receipt_id || "");
@@ -39781,9 +39811,18 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText(
         "wcRunnerLastJobMini",
         runnerStatus && runnerStatus.last_result && runnerStatus.last_result.job_id
-          ? String(runnerStatus.last_result.job_id)
+          ? (() => {
+              const full = String(runnerStatus.last_result.job_id);
+              return full.length > 22 ? (full.slice(0, 8) + "…" + full.slice(-6)) : full;
+            })()
           : "-"
       );
+      try {
+        $("wcRunnerLastJobMini").title =
+          runnerStatus && runnerStatus.last_result && runnerStatus.last_result.job_id
+            ? String(runnerStatus.last_result.job_id)
+            : "";
+      } catch {}
       setText(
         "wcRunnerCooldownMini",
         runnerStatus && Number.isFinite(Number(runnerStatus.min_submit_gap_ms))
