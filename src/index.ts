@@ -38046,7 +38046,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
 
           <label for="plaintext">What do you want to submit?</label>
-          <textarea id="plaintext">Enter text or data.</textarea>
+          <textarea id="plaintext" placeholder="Enter text or data."></textarea>
 
           <label>Earn Work Credits</label>
           <div class="hero-note" id="wcRunnerStatusCard">Agent-selected useful work only. Loading runner state…</div>
@@ -38091,7 +38091,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">earliest eligible attempt</div>
             </div>
           </div>
-          <div class="subtle-tab-copy" id="wcRunnerMeta">When enabled, the bundled agent selects useful work for the network. Manual override only stops work.</div>
+          <div class="subtle-tab-copy" id="wcRunnerMeta">Agent-selected useful work runs here. Stop only.</div>
           <div class="panel" style="margin-top:12px;padding:12px">
             <div class="section-head">
               <div>
@@ -38133,7 +38133,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
 
           <div class="row" style="margin-top:14px;">
-            <button class="btn" id="submitBtn">Manual Test Submit</button>
+            <button class="btn" id="submitBtn">Submit Work</button>
             <button class="btn" id="refreshBtn" type="button">Refresh Status</button>
           </div>
 
@@ -38800,8 +38800,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "wcRunnerStatusCard",
       runnerEnabled
-        ? "Earn Work Credits is ON. Agent-selected useful work is allowed for this account."
-        : "Earn Work Credits is OFF. No new agent-selected work should be started for this account."
+        ? "Earn Work Credits is ON for this account."
+        : "Earn Work Credits is OFF for this account."
     );
     if ($("wcRunnerToggleInput")) {
       $("wcRunnerToggleInput").checked = !!runnerEnabled;
@@ -39663,11 +39663,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText(
         "wcRunnerStatusCard",
         runnerEnabled
-          ? ("Earn Work Credits is ON. Agent-selected useful work is allowed for this account." +
+          ? ("Earn Work Credits is ON for this account." +
              (runnerStatus && runnerStatus.last_result && runnerStatus.last_result.job_id
                ? (" Last job: " + runnerStatus.last_result.job_id)
                : " Waiting for next approved task."))
-          : "Earn Work Credits is OFF. No new agent-selected work should be started for this account. Enable earning before running approved work."
+          : "Earn Work Credits is OFF for this account. Enable earning before running approved work."
       );
 
       if ($("wcRunnerTickBtn")) {
@@ -39739,7 +39739,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
              " • Override: " + String(runnerStatus.user_override || "stop_only") +
              " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only") +
              (runnerStatus.safe_mode ? " • Safe Mode clamps limits conservatively" : ""))
-          : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
+          : "Agent-selected useful work runs here. Stop only."
       );
       setText("wcRunnerSafeModeMini", runnerConfig && runnerConfig.ok ? (runnerConfig.safe_mode ? "ON" : "OFF") : "-");
       setText(
@@ -39765,7 +39765,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                ? (" • Difficulty: " + String(runnerStatus.last_result.selected_difficulty_bucket || ""))
                : "") +
              (runnerStatus.safe_mode ? " • Safe Mode clamps limits conservatively" : ""))
-          : "When enabled, the bundled agent selects useful work for the network. Manual override only stops work."
+          : "Agent-selected useful work runs here. Stop only."
       );
       if ($("wcRunnerSafeModeInput")) $("wcRunnerSafeModeInput").checked = !!(runnerConfig && runnerConfig.ok && runnerConfig.safe_mode);
       if ($("wcRunnerGapInput") && runnerConfig && runnerConfig.ok) $("wcRunnerGapInput").value = String(Math.round(Number(runnerConfig.min_submit_gap_ms || 30000) / 1000));
