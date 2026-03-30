@@ -18654,7 +18654,7 @@ const wal = new WALv1(getDataDir());
   }
 })();
 
-    app.post("/agent/v0/job", express.json({limit:"5mb"}), (req,res)=>{
+    app.post("/jobs/submit", express.json({limit:"5mb"}), (req,res)=>{
       try{
         const id = id24();
         const input = req.body?.input ?? req.body;
@@ -30506,7 +30506,7 @@ try {
       // Middleware: wrap res.json only for POST /agent/v0/job
       app.use((req:any, res:any, next:any)=>{
         try{
-          if (req.method !== "POST" || req.path !== "/agent/v0/job") return next();
+          if (req.method !== "POST" || req.path !== "/jobs/submit") return next();
           const orig = res.json?.bind(res);
           if (typeof orig !== "function") return next();
 
