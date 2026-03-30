@@ -38945,7 +38945,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     const latestJob = jobs && jobs.ok && jobs.jobs && jobs.jobs.length ? jobs.jobs[0] : null;
     setText("latestJobState", latestJob ? latestJob.status : "-");
-    setText("latestJobMeta", latestJob ? (latestJob.job_id + " | " + latestJob.kind) : "no jobs");
+    if (latestJob) {
+      const jobIdFull = String(latestJob.job_id || "");
+      const jobIdShort = jobIdFull.length > 26 ? (jobIdFull.slice(0, 10) + "…" + jobIdFull.slice(-6)) : jobIdFull;
+      setText("latestJobMeta", jobIdShort + " | " + String(latestJob.kind || ""));
+      try { $("latestJobMeta").title = jobIdFull + " | " + String(latestJob.kind || ""); } catch {}
+    } else {
+      setText("latestJobMeta", "no jobs");
+      try { $("latestJobMeta").title = ""; } catch {}
+    }
 
     const homeRunner = runnerStatus && runnerStatus.ok ? runnerStatus : null;
     const homeRunnerLabel = homeRunner ? (homeRunner.enabled ? "ON" : "OFF") : "-";
@@ -39188,12 +39196,22 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       (wcAddr ? " • Redeemed to wallet: " + wcAddr : "")
     );
 
-    setText(
-      "proofSummaryCard",
-      latestReceipt
-        ? ("Latest proof: " + latestReceipt.receipt_id + " • Job: " + (latestReceipt.job_id || "-") + " • Dataset: " + (latestReceipt.dataset_id || "-"))
-        : "No recent proof is available for this account yet."
-    );
+    if (latestReceipt) {
+      const ridFull = String(latestReceipt.receipt_id || "");
+      const jidFull = String(latestReceipt.job_id || "-");
+      const dsFull = String(latestReceipt.dataset_id || "-");
+      const ridShort = ridFull.length > 24 ? (ridFull.slice(0, 10) + "…" + ridFull.slice(-6)) : ridFull;
+      const jidShort = jidFull.length > 24 ? (jidFull.slice(0, 10) + "…" + jidFull.slice(-6)) : jidFull;
+      const dsShort = dsFull.length > 24 ? (dsFull.slice(0, 8) + "…" + dsFull.slice(-6)) : dsFull;
+      setText(
+        "proofSummaryCard",
+        "Latest proof: " + ridShort + " • Job: " + jidShort + " • Dataset: " + dsShort
+      );
+      try { $("proofSummaryCard").title = "Latest proof: " + ridFull + " • Job: " + jidFull + " • Dataset: " + dsFull; } catch {}
+    } else {
+      setText("proofSummaryCard", "No recent proof is available for this account yet.");
+      try { $("proofSummaryCard").title = ""; } catch {}
+    }
   }
 
   if ($("redeemModeAutoBtn")) $("redeemModeAutoBtn").addEventListener("click", () => { redeemFeeMode = "auto"; renderRedeemFeeMode(); });
