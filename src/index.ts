@@ -38337,7 +38337,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Your Work Credits<span class="help" tabindex="0" data-help="Work Credits tracked on the participant account. This is the source used for earning, redeeming, and trade eligibility.">?</span></h2>
+              <h2>Current WC Balance<span class="help" tabindex="0" data-help="Work Credits tracked on the participant account. This is the source used for earning, redeeming, and trade eligibility.">?</span></h2>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -38350,7 +38350,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Total Earned</div>
               <div class="v" id="walletEarnedMini">-</div>
-              <div class="s">Total earned</div>
+              <div class="s">Credited to this account</div>
             </div>
             <div class="mini">
               <div class="k">Sent</div>
@@ -38471,7 +38471,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="mini">
               <div class="k">Participant WC</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">Local participant balance</div>
+              <div class="s">Local WC balance</div>
+          <div class="subtle-tab-copy" id="wcBetaAccountingNote" style="margin-top:8px">Beta note: this balance may include reconciled legacy WC credits.</div>
             </div>
           </div>
 
@@ -38850,7 +38851,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
 
     const acctMeta = localEarned !== null
-      ? ("Earned WC: " + localEarned + " • Ledger entries: " + (localCount ?? 0))
+      ? ("Current WC: " + localEarned + " • Ledger entries: " + (localCount ?? 0))
       : "Earned WC unavailable";
 
     setText("heroAccountMeta", acctMeta);
@@ -38869,7 +38870,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "walletMeta",
       redeemState
-        ? ("Available WC: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
+        ? ("Spendable WC: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
         : "Local Work Credit state is unavailable right now"
     );
     setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
@@ -38886,7 +38887,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       isWalletAddr(connectedWallet)
         ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | trading wallet: " + wcAddr : " | no trading wallet linked") + " | local WC stays on the participant account")
         : (wcAddr
-            ? ("trading wallet: " + wcAddr + " | no connected wallet detected | local WC comes from participant account")
+            ? ("trading wallet: " + wcAddr + " | no connected wallet detected | local WC is read from the participant ledger")
             : "No connected wallet detected")
     );
 
