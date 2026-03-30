@@ -39374,7 +39374,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         body: JSON.stringify({ account, kind:"datanet_publish", plaintext })
       });
       setPre("submitOut", out);
-        if (out && out.ok && out.job && out.job.job_id) setLatestAction("Work submitted. Waiting for proof and WC credit.");
+      if (out && out.ok && out.job && out.job.job_id) {
+        setLatestAction("Work submitted. Waiting for proof and WC credit.");
+      }
 
       const jobId = out && out.job && out.job.job_id;
       if (jobId) {
@@ -39382,7 +39384,24 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           await new Promise(r => setTimeout(r, 1500));
           const st = await j("/jobs/" + encodeURIComponent(jobId));
           setPre("submitOut", st);
-          if (st && st.job && (st.job.status === "completed" || st.job.status === "failed")) break;
+
+          if (st && st.job && st.job.status === "completed") {
+            setLatestAction("Work completed. Receipt recorded and WC should appear shortly.");
+            setPre("submitOut", {
+              ...st,
+              note: "Work completed. Receipt recorded and WC should appear shortly."
+            });
+            break;
+          }
+
+          if (st && st.job && st.job.status === "failed") {
+            setLatestAction("Work failed. Check the job status below.");
+            setPre("submitOut", {
+              ...st,
+              note: "Work failed. Check the job status below."
+            });
+            break;
+          }
         }
       }
     } catch (e) {
