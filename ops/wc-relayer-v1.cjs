@@ -230,7 +230,8 @@ async function quote(side, amount, wallet) {
 
 async function executeTrade(body) {
   const side = String(body && body.side || '').trim();
-  const account = String(body && body.account || process.env.WC_ACCOUNT || process.env.WC_ADDR || 'demo-user').trim() || 'demo-user';
+  const account = String(body && body.account || process.env.WC_ACCOUNT || process.env.WC_ADDR || '').trim();
+  if (!account) return send(res, 400, { ok:false, error:'missing_account' });
   const wallet = String(body && body.wallet || DEFAULT_WALLET).trim().toLowerCase();
   const amountStr = String(body && body.amount != null ? body.amount : '0').trim();
   const slippageBps = Number(body && body.maxSlippageBps != null ? body.maxSlippageBps : DEFAULT_SLIPPAGE_BPS);

@@ -35491,6 +35491,24 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       }
     });
 
+    app.get("/__void/diag/wc-identity-truth.json", (req:any, res:any) => {
+      try {
+        const fs = require("node:fs");
+        const path = require("node:path");
+        const account = String(req.query?.account || "remote-user-3").trim() || "remote-user-3";
+        const file = path.join(String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"), "wc_v1", "ledger.jsonl");
+        return res.json({
+          ok:true,
+          account,
+          data_dir: String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+          ledger_file: file,
+          ledger_exists: fs.existsSync(file),
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
     app.get("/__void/diag/wc-ledger-v1.json", (_req:any, res:any) => {
       try {
         const fs = require("node:fs");
@@ -36588,11 +36606,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     for (const line of readLines(receiptsFile())) {
       try {
         const j:any = JSON.parse(line);
-        const account = safeAccount(j?.account || j?.who || j?.owner || "demo");
+        const account = safeAccount(j?.account || j?.who || j?.owner || "");
         const receiptId = safeId(j?.receipt_id || j?.id || j?.receiptId || "");
         const jobId = safeId(j?.job_id || j?.jobId || "");
         const status = String(j?.status || "ok").toLowerCase();
         const kind = String(j?.kind || j?.type || "receipt");
+        if (!account) continue;
         if (!receiptId && !jobId) continue;
         if (status && !["ok","success","done","completed"].includes(status)) continue;
         if (alreadyCredited(account, jobId, receiptId)) continue;
@@ -38067,6 +38086,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-2'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-2</button>
             <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-3'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-3</button>
           </div>
+          <div class="subtle-tab-copy" id="wcIdentityTruth" style="margin-top:8px">WC truth: checking active account and ledger…</div>
 
           <label for="plaintext">What do you want to submit?</label>
           <textarea id="plaintext" placeholder="Enter text or data."></textarea>
@@ -38739,7 +38759,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const manualWallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "";
     const wcBase = LOCAL_WC_BASE;
 
-    const [bal, redeem, redeemed, jobs, receipts, ledger, rewardStats, summary, peer, health, relayerHealth, runnerStatus, runnerConfig] = await Promise.all([
+    const [bal, redeem, redeemed, jobs, receipts, ledger, rewardStats, identityTruth, summary, peer, health, relayerHealth, runnerStatus, runnerConfig] = await Promise.all([
       j("/wc/balance?account=" + encodeURIComponent(account)),
       j("/wc/redeemable?account=" + encodeURIComponent(account)),
       j("/wc/redeemed?account=" + encodeURIComponent(account) + "&limit=20"),
@@ -38747,6 +38767,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       j("/receipts?account=" + encodeURIComponent(account) + "&limit=10"),
       j("/wc/ledger?account=" + encodeURIComponent(account) + "&limit=20"),
       j("/wc/reward-stats?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
+      j("/__void/diag/wc-identity-truth.json?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
       j("/__void/demo/summary.json"),
       j("/__void/peer-main-status.json"),
       j("/health"),
