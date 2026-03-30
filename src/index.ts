@@ -35495,7 +35495,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       try {
         const fs = require("node:fs");
         const path = require("node:path");
-        const account = String(req.query?.account || "remote-user-3").trim() || "remote-user-3";
+        const account = String(req.query?.account || "zoso").trim() || "zoso";
         const file = path.join(String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"), "wc_v1", "ledger.jsonl");
         return res.json({
           ok:true,
@@ -36679,7 +36679,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
     app.get("/wc/reward-stats", (req:any, res:any) => {
       try {
-        const account = String(req.query?.account || "remote-user-3");
+        const account = String(req.query?.account || "zoso");
         const fs = require("node:fs");
         let lines:any[] = [];
         try {
@@ -37754,12 +37754,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       font-weight:800;
     }
     .table-wrap{
-      overflow:auto;
+      overflow-x:auto;
+      overflow-y:hidden;
       border:1px solid var(--line);
       border-radius:16px;
       background:rgba(255,255,255,.01);
     }
-    .table-wrap table{min-width:640px}
+    .table-wrap table{min-width:0}
     pre{
       margin:0;
       white-space:pre-wrap;
@@ -37945,7 +37946,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
     <div class="side-section">
       <div class="side-label">Current account</div>
-      <div class="account-big" id="heroAccount">remote-user-3</div>
+      <div class="account-big" id="heroAccount">zoso</div>
       <div class="account-meta" id="heroAccountMeta">Current participant account being viewed on this node.</div>
     </div>
 <div class="side-section">
@@ -38084,14 +38085,18 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
           </div>
 
-          <label for="account">Participant account</label>
-          <input id="account" value="remote-user-3" />
+          <label for="account">Participant identity</label>
+          <input id="account" value="zoso" />
+          <div class="subtle-tab-copy" style="margin-top:8px">Preferred beta path: use your connected wallet as your participant identity. Manual identities stay available for dev/test.</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-            <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-1'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-1</button>
-            <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-2'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-2</button>
-            <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#e5e7eb; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-3'; if (window.refreshAll) window.refreshAll().catch(()=>{});">remote-user-3</button>
+            <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #1d4ed8; background:#0b1b34; color:#dbeafe; cursor:pointer; font-weight:700; font-size:12px;">use connected wallet</button>
+            <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='zoso'; try{localStorage.setItem('void_participant_account_v1','zoso')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: zoso</button>
+            <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-1'; try{localStorage.setItem('void_participant_account_v1','remote-user-1')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: remote-user-1</button>
+            <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-2'; try{localStorage.setItem('void_participant_account_v1','remote-user-2')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: remote-user-2</button>
+            <button type="button" style="padding:7px 11px; border-radius:999px; border:1px dashed #6b7280; background:#111827; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-3'; try{localStorage.setItem('void_participant_account_v1','remote-user-3')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">legacy: remote-user-3</button>
           </div>
           <div class="subtle-tab-copy" id="wcIdentityTruth" style="margin-top:8px">WC truth: checking active account and ledger…</div>
+          <div class="subtle-tab-copy" id="wcLegacyWarn" style="margin-top:6px; display:none; color:#fbbf24">Legacy migrated/demo account selected. Values may include historical merged WC from older identities.</div>
 
           <label for="plaintext">What do you want to submit?</label>
           <textarea id="plaintext" placeholder="Enter text or data."></textarea>
@@ -38102,83 +38107,90 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <label class="void-switch" for="wcRunnerToggleInput" id="wcRunnerToggleWrap"><input id="wcRunnerToggleInput" type="checkbox" /><span class="void-switch-track" id="wcRunnerToggleTrack" aria-hidden="true"></span><span class="void-switch-label" id="wcRunnerToggleLabel">Earn Work Credits</span></label>
             <button class="btn" id="wcRunnerTickBtn" type="button">Run Once</button>
           </div>
-          <div class="metric-strip" style="margin-top:12px">
-            <div class="mini">
-              <div class="k">Runner</div>
-              <div class="v" id="wcRunnerEnabledMini">-</div>
-              <div class="s">current state</div>
-            </div>
-            <div class="mini">
-              <div class="k">Task Class</div>
-              <div class="v" id="wcRunnerTaskMini">-</div>
-              <div class="s">approved work</div>
-            </div>
-            <div class="mini">
-              <div class="k">Last Job</div>
-              <div class="v" id="wcRunnerLastJobMini">-</div>
-              <div class="s">most recent queued job</div>
-            </div>
-            <div class="mini">
-              <div class="k">Cooldown</div>
-              <div class="v" id="wcRunnerCooldownMini">-</div>
-              <div class="s">minimum gap</div>
-            </div>
-            <div class="mini">
-              <div class="k">Last Run</div>
-              <div class="v" id="wcRunnerLastRunMini">-</div>
-              <div class="s">most recent runner attempt</div>
-            </div>
-            <div class="mini">
-              <div class="k">Last Result</div>
-              <div class="v" id="wcRunnerLastResultMini">-</div>
-              <div class="s">latest runner outcome</div>
-            </div>
-            <div class="mini">
-              <div class="k">Next Run</div>
-              <div class="v" id="wcRunnerNextRunMini">-</div>
-              <div class="s">earliest eligible attempt</div>
-            </div>
-          </div>
           <div class="subtle-tab-copy" id="wcRunnerMeta">Agent-selected useful work runs here. Stop only.</div>
-          <div class="panel" style="margin-top:12px;padding:12px">
-            <div class="section-head">
-              <div>
-                <h2 style="margin-bottom:4px">Runner Limits<span class="help" tabindex="0" data-help="Safety controls for auto-selected work. These limits affect how often the runner may submit approved work.">?</span></h2>
+
+          <details class="adv" style="margin-top:12px">
+            <summary><span>Runner Details</span><span class="pill">advanced</span></summary>
+            <div class="adv-body">
+              <div class="metric-strip" style="margin-top:10px">
+                <div class="mini">
+                  <div class="k">Runner</div>
+                  <div class="v" id="wcRunnerEnabledMini">-</div>
+                  <div class="s">current state</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Task Class</div>
+                  <div class="v" id="wcRunnerTaskMini">-</div>
+                  <div class="s">approved work</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Last Job</div>
+                  <div class="v" id="wcRunnerLastJobMini">-</div>
+                  <div class="s">most recent queued job</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Cooldown</div>
+                  <div class="v" id="wcRunnerCooldownMini">-</div>
+                  <div class="s">minimum gap</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Last Run</div>
+                  <div class="v" id="wcRunnerLastRunMini">-</div>
+                  <div class="s">most recent runner attempt</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Last Result</div>
+                  <div class="v" id="wcRunnerLastResultMini">-</div>
+                  <div class="s">latest runner outcome</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Next Run</div>
+                  <div class="v" id="wcRunnerNextRunMini">-</div>
+                  <div class="s">earliest eligible attempt</div>
+                </div>
+              </div>
+
+              <div class="panel" style="margin-top:12px;padding:12px">
+                <div class="section-head">
+                  <div>
+                    <h2 style="margin-bottom:4px">Runner Limits<span class="help" tabindex="0" data-help="Safety controls for auto-selected work. These limits affect how often the runner may submit approved work.">?</span></h2>
+                  </div>
+                </div>
+                <div class="metric-strip earn-summary-strip">
+                  <div class="mini">
+                    <div class="k">Safe Mode</div>
+                    <div class="v" id="wcRunnerSafeModeMini">-</div>
+                    <div class="s">safety default</div>
+                  </div>
+                  <div class="mini">
+                    <div class="k">Jobs / Hour</div>
+                    <div class="v" id="wcRunnerJobsPerHourMini">-</div>
+                    <div class="s">submission ceiling</div>
+                  </div>
+                  <div class="mini">
+                    <div class="k">Gap</div>
+                    <div class="v" id="wcRunnerGapMini">-</div>
+                    <div class="s">minimum spacing</div>
+                  </div>
+                </div>
+                <div class="action-rail" style="margin-top:10px">
+                  <label style="display:flex;align-items:center;gap:8px;">
+                    <input id="wcRunnerSafeModeInput" type="checkbox" checked />
+                    <span>Safe Mode</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:8px;">
+                    <span>Min Gap (sec)</span>
+                    <input id="wcRunnerGapInput" value="30" inputmode="numeric" style="width:90px" />
+                  </label>
+                  <label style="display:flex;align-items:center;gap:8px;">
+                    <span>Max Jobs/Hour</span>
+                    <input id="wcRunnerJobsPerHourInput" value="60" inputmode="numeric" style="width:90px" />
+                  </label>
+                  <button class="btn" id="wcRunnerSaveConfigBtn" type="button">Save Limits</button>
+                </div>
               </div>
             </div>
-            <div class="metric-strip earn-summary-strip">
-              <div class="mini">
-                <div class="k">Safe Mode</div>
-                <div class="v" id="wcRunnerSafeModeMini">-</div>
-                <div class="s">safety default</div>
-              </div>
-              <div class="mini">
-                <div class="k">Jobs / Hour</div>
-                <div class="v" id="wcRunnerJobsPerHourMini">-</div>
-                <div class="s">submission ceiling</div>
-              </div>
-              <div class="mini">
-                <div class="k">Gap</div>
-                <div class="v" id="wcRunnerGapMini">-</div>
-                <div class="s">minimum spacing</div>
-              </div>
-            </div>
-            <div class="action-rail" style="margin-top:10px">
-              <label style="display:flex;align-items:center;gap:8px;">
-                <input id="wcRunnerSafeModeInput" type="checkbox" checked />
-                <span>Safe Mode</span>
-              </label>
-              <label style="display:flex;align-items:center;gap:8px;">
-                <span>Min Gap (sec)</span>
-                <input id="wcRunnerGapInput" value="30" inputmode="numeric" style="width:90px" />
-              </label>
-              <label style="display:flex;align-items:center;gap:8px;">
-                <span>Max Jobs/Hour</span>
-                <input id="wcRunnerJobsPerHourInput" value="60" inputmode="numeric" style="width:90px" />
-              </label>
-              <button class="btn" id="wcRunnerSaveConfigBtn" type="button">Save Limits</button>
-            </div>
-          </div>
+          </details>
 
           <div class="row" style="margin-top:14px;">
             <button class="btn" id="submitBtn">Submit Work</button>
@@ -38196,18 +38208,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="v">10+</div>
               <div class="s">Base shown. Difficulty and need bonuses may raise payout.</div>
             </div>
-
           </div>
 
           <div style="margin-top:14px;">
             <label>Submission Status</label>
             <div class="hero-note" id="submitSummary">Ready to submit work.</div>
-          <details class="adv" style="margin-top:10px">
-            <summary><span>Submission Details</span><span class="pill">raw json</span></summary>
-            <div class="adv-body">
-              <pre id="submitOut">Ready to submit work.</pre>
-            </div>
-          </details>
+            <details class="adv" style="margin-top:10px">
+              <summary><span>Advanced Submission Details</span><span class="pill">raw json</span></summary>
+              <div class="adv-body">
+                <pre id="submitOut">Ready to submit work.</pre>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -38252,22 +38263,6 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Trade Availability...</button>
         </div>
 
-        <div style="margin-top:12px">
-          <div class="hero-note" id="tradeSummary">Ready to trade.</div>
-            <div class="hero-note" id="tradeFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
-            <div class="action-rail" style="margin-top:10px">
-              <button class="btn" id="tradeModeAutoBtn" type="button">Auto</button>
-              <button class="btn" id="tradeModeWalletBtn" type="button">Use Wallet</button>
-              <button class="btn" id="tradeModeSponsoredBtn" type="button">Sponsored</button>
-            </div>
-          <details class="adv" style="margin-top:10px">
-            <summary><span>Trade Result</span><span class="pill">raw json</span></summary>
-            <div class="adv-body">
-              <pre id="tradeOut">Ready to trade WC for VOID.</pre>
-            </div>
-          </details>
-        </div>
-
         <div class="metric-strip top-kpis" style="margin-top:16px">
           <div class="mini">
             <div class="k">Spendable WC</div>
@@ -38292,10 +38287,23 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <h2 style="margin-bottom:4px">Review<span class="help" tabindex="0" data-help="Main trade summary for what you can trade now, what is already prepared, the current quote, and where the output will go.">?</span></h2>
             </div>
           </div>
-          <div class="hero-note" id="tradeOverviewCard">loading…</div>
+          <div class="hero-note" id="tradeSummary">Ready to trade.</div>
+          <div class="hero-note" id="tradeOverviewCard" style="margin-top:10px">loading…</div>
         </div>
 
         <details class="adv" style="margin-top:16px">
+          <summary><span>Execution Options</span><span class="pill">advanced</span></summary>
+          <div class="adv-body">
+            <div class="hero-note" id="tradeFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
+            <div class="action-rail" style="margin-top:10px">
+              <button class="btn" id="tradeModeAutoBtn" type="button">Auto</button>
+              <button class="btn" id="tradeModeWalletBtn" type="button">Use Wallet</button>
+              <button class="btn" id="tradeModeSponsoredBtn" type="button">Sponsored</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="adv" style="margin-top:12px">
           <summary><span>Market Details</span><span class="pill">advanced</span></summary>
           <div class="adv-body">
             <div class="metric-strip">
@@ -38325,6 +38333,13 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradeOpenHelperBtn" href="#" data-local-wc-ui="1" >Open Advanced Trading Tools</a>
               <a class="linkbtn" style="padding:9px 13px; border-radius:12px; font-weight:600; opacity:.82;" id="tradePoolJsonBtn" href="#" data-local-wc-pool="1" >View Pool Details</a>
             </div>
+          </div>
+        </details>
+
+        <details class="adv" style="margin-top:12px">
+          <summary><span>Trade Result</span><span class="pill">raw json</span></summary>
+          <div class="adv-body">
+            <pre id="tradeOut">Ready to trade WC for VOID.</pre>
           </div>
         </details>
 
@@ -38455,7 +38470,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Connected Wallet<span class="help" tabindex="0" data-help="Shows the connected wallet and its onchain VOID balance. Work Credits remain tied to the participant account.">?</span></h2>
+              <h2>Connected Wallet<span class="help" tabindex="0" data-help="Shows the connected wallet and its onchain VOID balance. Connected wallet is the preferred beta participant identity, while manual identities remain available for dev/test.">?</span></h2>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -38541,7 +38556,6 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Recent proofs</h2>
-              
             </div>
           </div>
           <div class="table-wrap"><div id="receiptsWrap" class="empty">loading…</div></div>
@@ -38551,30 +38565,17 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="section-head">
             <div>
               <h2>Latest Proof Summary</h2>
-              
             </div>
           </div>
           <div class="hero-note" id="proofSummaryCard">loading…</div>
           <details class="adv" style="margin-top:14px">
-            <summary><span>Advanced Proof Details</span><span class="pill">raw json</span></summary>
+            <summary><span>Proof Details</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
-          <details style="margin-top:14px">
-            <summary style="cursor:pointer;color:#cbd5e1;font-weight:700;">Advanced Proof Details</summary>
-            <pre id="dataStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
-          </details></div>
+              <pre id="dataStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
+            </div>
           </details>
         </div>
       </div>
-
-      <details class="adv">
-        <summary>
-          <span>Advanced diagnostics</span>
-          <span class="pill">raw truth surfaces</span>
-        </summary>
-        <div class="adv-body">
-          
-        </div>
-      </details>
     </section>
   </main>
 </div>
@@ -38625,6 +38626,29 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch (_) {
       return "";
     }
+  }
+
+  function getRememberedParticipantAccount(){
+    try {
+      return String(localStorage.getItem("void_participant_account_v1") || "").trim();
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function rememberParticipantAccount(v){
+    try {
+      const s = String(v || "").trim();
+      if (s) localStorage.setItem("void_participant_account_v1", s);
+    } catch (_) {}
+  }
+
+  function pickInitialParticipantAccount(){
+    const remembered = getRememberedParticipantAccount();
+    if (remembered) return remembered;
+    const connected = getConnectedWallet();
+    if (isWalletAddr(connected)) return connected;
+    return "zoso";
   }
 
   function isWalletAddr(v){
@@ -38694,65 +38718,76 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function renderJobs(items){
     if (!items || !items.length) return '<div class="empty">No jobs yet for this account.</div>';
-    return '<table style="width:100%;table-layout:fixed"><thead><tr><th style="width:32%">Job ID</th><th style="width:18%">Status</th><th style="width:22%">Kind</th><th style="width:28%">Dataset</th></tr></thead><tbody>' +
+    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:42%">Job ID</th><th style="width:24%">Status</th><th style="width:34%">Kind</th></tr></thead><tbody>' +
       items.map(j => {
         const jobId = String(j.job_id || "");
         const ds = String(j.dataset_id || "");
-        const jobIdShort = jobId.length > 22 ? (jobId.slice(0,10) + "…" + jobId.slice(-6)) : jobId;
-        const dsShort = ds.length > 22 ? (ds.slice(0,8) + "…" + ds.slice(-6)) : ds;
+        const jobIdShort = jobId.length > 20 ? (jobId.slice(0,8) + "…" + jobId.slice(-5)) : jobId;
+        const kind = String(j.kind || "");
+        const kindWithDs = ds ? (kind + " • " + ds) : kind;
         return '<tr>'
-          + '<td class="mono" title="'+esc(jobId)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
-          + '<td title="'+esc(j.status)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(j.status)+'</td>'
-          + '<td title="'+esc(j.kind)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(j.kind)+'</td>'
-          + '<td class="mono" title="'+esc(ds)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort)+'</span></td>'
+          + '<td class="mono" title="'+esc(jobId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
+          + '<td title="'+esc(j.status)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(j.status)+'</td>'
+          + '<td title="'+esc(kindWithDs)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
           + '</tr>';
       }).join("") +
-      '</tbody></table>';
+      '</tbody></table></div>';
   }
 
   function renderReceipts(items){
     if (!items || !items.length) return '<div class="empty">No proofs are available for this account yet.</div>';
-    return '<table style="width:100%;table-layout:fixed"><thead><tr><th style="width:32%">Proof ID</th><th style="width:24%">Job ID</th><th style="width:18%">Type</th><th style="width:26%">Dataset</th></tr></thead><tbody>' +
+    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:38%">Proof ID</th><th style="width:34%">Job ID</th><th style="width:28%">Type</th></tr></thead><tbody>' +
       items.map(r => {
         const receiptId = String(r.receipt_id || "");
         const jobId = String(r.job_id || "");
         const ds = String(r.dataset_id || "");
-        const receiptIdShort = receiptId.length > 22 ? (receiptId.slice(0,10) + "…" + receiptId.slice(-6)) : receiptId;
-        const jobIdShort = jobId.length > 22 ? (jobId.slice(0,10) + "…" + jobId.slice(-6)) : jobId;
-        const dsShort = ds.length > 22 ? (ds.slice(0,8) + "…" + ds.slice(-6)) : ds;
+        const receiptIdShort = receiptId.length > 20 ? (receiptId.slice(0,8) + "…" + receiptId.slice(-5)) : receiptId;
+        const jobIdShort = jobId.length > 20 ? (jobId.slice(0,8) + "…" + jobId.slice(-5)) : jobId;
+        const kind = String(r.kind || "");
+        const kindWithDs = ds ? (kind + " • " + ds) : kind;
         return '<tr>'
-          + '<td class="mono" title="'+esc(receiptId)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
-          + '<td class="mono" title="'+esc(jobId)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
-          + '<td title="'+esc(r.kind)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.kind)+'</td>'
-          + '<td class="mono" title="'+esc(ds)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort)+'</span></td>'
+          + '<td class="mono" title="'+esc(receiptId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
+          + '<td class="mono" title="'+esc(jobId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
+          + '<td title="'+esc(kindWithDs)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
           + '</tr>';
       }).join("") +
-      '</tbody></table>';
+      '</tbody></table></div>';
   }
 
   function renderLedger(items){
     if (!items || !items.length) return '<div class="empty">No recent Work Credit balance changes are available for this account yet.</div>';
-    return '<table style="width:100%;table-layout:fixed"><thead><tr><th style="width:12%">Change</th><th style="width:26%">Reason</th><th style="width:31%">Job ID</th><th style="width:31%">Proof ID</th></tr></thead><tbody>' +
+    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:12%">Change</th><th style="width:24%">Reason</th><th style="width:30%">Job ID</th><th style="width:34%">Proof ID</th></tr></thead><tbody>' +
       items.map(e => {
         const jobId = String(e.job_id || "");
         const receiptId = String(e.receipt_id || "");
-        const jobIdShort = jobId.length > 22 ? (jobId.slice(0,10) + "…" + jobId.slice(-6)) : jobId;
-        const receiptIdShort = receiptId.length > 22 ? (receiptId.slice(0,10) + "…" + receiptId.slice(-6)) : receiptId;
+        const jobIdShort = jobId.length > 20 ? (jobId.slice(0,8) + "…" + jobId.slice(-5)) : jobId;
+        const receiptIdShort = receiptId.length > 20 ? (receiptId.slice(0,8) + "…" + receiptId.slice(-5)) : receiptId;
+        const reason = String(e.reason || "");
+        const reasonShort = reason.length > 18 ? (reason.slice(0,15) + "…") : reason;
         return '<tr>'
-          + '<td title="'+esc(String(e.delta))+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.delta)+'</td>'
-          + '<td title="'+esc(e.reason)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.reason)+'</td>'
-          + '<td class="mono" title="'+esc(jobId)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
-          + '<td class="mono" title="'+esc(receiptId)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
+          + '<td title="'+esc(String(e.delta))+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.delta)+'</td>'
+          + '<td title="'+esc(reason)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(reasonShort)+'</td>'
+          + '<td class="mono" title="'+esc(jobId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
+          + '<td class="mono" title="'+esc(receiptId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
           + '</tr>';
       }).join("") +
-      '</tbody></table>';
+      '</tbody></table></div>';
   }
 
   function renderRedeemed(items){
     if (!items || !items.length) return '<div class="empty">No WC has been moved into trading for this account yet.</div>';
-    return '<table><thead><tr><th>Amount</th><th>Wallet</th><th>When</th></tr></thead><tbody>' +
-      items.map(e => '<tr><td>'+esc(e.amount)+'</td><td>'+esc(e.wallet || "")+'</td><td>'+esc(e.ts_ms ? new Date(Number(e.ts_ms)).toLocaleString() : "")+'</td></tr>').join("") +
-      '</tbody></table>';
+    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:16%">Amount</th><th style="width:40%">Wallet</th><th style="width:44%">When</th></tr></thead><tbody>' +
+      items.map(e => {
+        const wallet = String((e && e.wallet) || "");
+        const walletShort = wallet.length > 20 ? (wallet.slice(0,8) + "…" + wallet.slice(-5)) : wallet;
+        const when = e.ts_ms ? new Date(Number(e.ts_ms)).toLocaleString() : "";
+        return '<tr>'
+          + '<td title="'+esc(e.amount)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.amount)+'</td>'
+          + '<td class="mono" title="'+esc(wallet)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(walletShort)+'</span></td>'
+          + '<td title="'+esc(when)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(when)+'</td>'
+          + '</tr>';
+      }).join("") +
+      '</tbody></table></div>';
   }
 
   function ensureRewardDiagnosticsRow(){
@@ -38790,13 +38825,21 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   async function refresh(){
-    const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+    const accountInput = $("account");
+    const connectedWallet = getConnectedWallet();
+    const currentAccountRaw = accountInput ? String(accountInput.value || "").trim() : "";
+    const shouldAdoptConnectedWallet = !currentAccountRaw || currentAccountRaw === "zoso";
+    if (accountInput && shouldAdoptConnectedWallet && isWalletAddr(connectedWallet)) {
+      accountInput.value = connectedWallet;
+      rememberParticipantAccount(connectedWallet);
+    }
+    const account = accountInput ? ((String(accountInput.value || "").trim()) || pickInitialParticipantAccount()) : pickInitialParticipantAccount();
+    rememberParticipantAccount(account);
 
     const wcUiLink = document.querySelector('[data-local-wc-ui="1"]');
     if (wcUiLink) wcUiLink.setAttribute("href", LOCAL_WC_BASE + "/ui");
     const wcPoolLink = document.querySelector('[data-local-wc-pool="1"]');
     if (wcPoolLink) wcPoolLink.setAttribute("href", LOCAL_WC_BASE + "/pool.json");
-    const connectedWallet = getConnectedWallet();
     const manualWallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "";
     const wcBase = LOCAL_WC_BASE;
 
@@ -38890,11 +38933,21 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       $("wcRunnerToggleLabel").textContent = runnerEnabled ? "Earning Work Credits" : "Earn Work Credits";
     }
 
+    const isLegacyAccount = account === "remote-user-3";
     const acctMeta = localEarned !== null
-      ? ("Current WC: " + localEarned + " • Ledger entries: " + (localCount ?? 0))
-      : "Earned WC unavailable";
+      ? ("Current WC: " + localEarned + " • Ledger entries: " + (localCount ?? 0) + (isLegacyAccount ? " • legacy migrated account" : ""))
+      : (isLegacyAccount ? "Earned WC unavailable • legacy migrated account" : "Earned WC unavailable");
 
     setText("heroAccountMeta", acctMeta);
+
+    const legacyWarnEl = $("wcLegacyWarn");
+    if (legacyWarnEl) legacyWarnEl.style.display = isLegacyAccount ? "" : "none";
+
+    const wcTruthText = localEarned !== null
+      ? ("WC truth: account " + account + " • ledger-earned " + localEarned + " • entries " + (localCount ?? 0) + (isLegacyAccount ? " • legacy migrated/demo identity" : ""))
+      : ("WC truth: account " + account + " • ledger state unavailable" + (isLegacyAccount ? " • legacy migrated/demo identity" : ""));
+    setText("wcIdentityTruth", wcTruthText);
+
     setText("heroWalletShort", /^0x[0-9a-fA-F]{40}$/.test(connectedWallet) ? shortAddr(connectedWallet) : "Not connected");
     setText("heroWalletMeta", wcAddr ? ("Trading wallet: " + shortAddr(wcAddr)) : "No trading wallet linked");
 
@@ -39256,7 +39309,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   renderTradeFeeMode();
 
   async function sendWcNow(){
-    const from = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+    const from = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
     const to = $("sendTo") ? (($("sendTo").value || "").trim()) : "";
     const amount = $("sendAmount") ? Number((($("sendAmount").value || "").trim() || "0")) : 0;
     const btn = $("sendWcBtn");
@@ -39300,7 +39353,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   async function redeemNow(useMax){
-    const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+    const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
     const wallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
     const btn = $("redeemBtn");
     const prevText = btn ? btn.textContent : "Redeem WC";
@@ -39484,7 +39537,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   async function submitJob(){
-    const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+    const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
     const plaintext = $("plaintext") ? $("plaintext").value : "";
     const btn = $("submitBtn");
     if (btn) btn.disabled = true;
@@ -39536,7 +39589,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   if ($("tradeExecuteBtn")) $("tradeExecuteBtn").addEventListener("click", async () => {
-    const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+    const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
     const amount = $("tradeInputWc") ? Number((($("tradeInputWc").value || "").trim() || "0")) : 0;
     const wallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
     const btn = $("tradeExecuteBtn");
@@ -39699,6 +39752,32 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     });
   } catch {}
 
+  if ($("account")) {
+    try {
+      const initAcct = pickInitialParticipantAccount();
+      if (initAcct && !$("account").value) $("account").value = initAcct;
+      if (initAcct && $("account").value === "zoso" && isWalletAddr(getConnectedWallet())) $("account").value = initAcct;
+    } catch (_) {}
+    $("account").addEventListener("change", () => {
+      try { rememberParticipantAccount($("account").value || ""); } catch (_) {}
+      refresh().catch(() => {});
+    });
+    $("account").addEventListener("blur", () => {
+      try { rememberParticipantAccount($("account").value || ""); } catch (_) {}
+    });
+  }
+
+  if ($("useConnectedWalletForAccountBtn")) $("useConnectedWalletForAccountBtn").addEventListener("click", async () => {
+    try {
+      const w = getConnectedWallet();
+      if (isWalletAddr(w) && $("account")) {
+        $("account").value = w;
+        rememberParticipantAccount(w);
+        await refresh();
+      }
+    } catch (_) {}
+  });
+
   if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
   if ($("refreshBtn")) $("refreshBtn").addEventListener("click", refresh);
   if ($("sendWcBtn")) $("sendWcBtn").addEventListener("click", () => sendWcNow());
@@ -39706,7 +39785,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   if ($("redeemBtn")) $("redeemBtn").addEventListener("click", () => redeemNow(false));
   if ($("redeemMaxBtn")) $("redeemMaxBtn").addEventListener("click", async () => {
     try {
-      const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+      const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
       const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
       if (st && st.ok && $("redeemAmount")) $("redeemAmount").value = String(st.redeemable ?? 0);
       if ($("tradeInputWc")) $("tradeInputWc").value = String(st && st.ok ? (st.redeemable ?? 0) : 0);
@@ -39715,7 +39794,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   });
   if ($("tradeUseRedeemableBtn")) $("tradeUseRedeemableBtn").addEventListener("click", async () => {
     try {
-      const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+      const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
       const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
       if (st && st.ok && $("tradeInputWc")) $("tradeInputWc").value = String(st.redeemable ?? 0);
       await refresh();
@@ -39726,7 +39805,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   await refresh();
 
     async function __voidSetRunnerEnabled(nextEnabled){
-      const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+      const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
       const input = $("wcRunnerToggleInput");
       __voidRunnerTogglePendingUntil = Date.now() + 1500;
       if (input) input.checked = !!nextEnabled;
@@ -39779,7 +39858,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (__voidRunnerAutoRefreshBusy) return;
       __voidRunnerAutoRefreshBusy = true;
 
-      const account = $("account") ? ((($("account").value || "").trim()) || "remote-user-3") : "remote-user-3";
+      const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
       const runnerStatus = await j("/wc/runner/status?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true }));
       const runnerEnabled = !!(runnerStatus && runnerStatus.ok && runnerStatus.enabled);
 
