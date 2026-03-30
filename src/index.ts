@@ -38171,12 +38171,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="v">+10</div>
               <div class="s">Work Credits awarded when the proof-backed job completes.</div>
             </div>
-            <div class="mini">
-              <div class="k">Current Account</div>
-              <div class="v">Participant</div>
-              <div class="s">The participant account currently selected for this work.</div>
 
-            </div>
           </div>
 
           <div style="margin-top:14px;">
