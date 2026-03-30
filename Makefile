@@ -191,6 +191,10 @@ public-beta:
 wc-wallet-proof:
 	@bash ops/wc-wallet-isolated-proof.sh
 
+.PHONY: wc-trade-proof
+wc-trade-proof:
+	@bash ops/wc-smoke.sh
+
 .PHONY: public-beta-preflight
 public-beta-preflight:
 	@bash ops/public-beta-preflight.sh
@@ -218,6 +222,7 @@ beta-help:
 	@printf '%s\n' 'Bounded proof gates:'
 	@printf '%s\n' '  make public-beta-preflight   # wallet proof + wallet identity smoke + runner safety'
 	@printf '%s\n' '  make wc-wallet-proof          # isolated wallet-specific WC proof only'
+	@printf '%s\n' '  make wc-trade-proof           # bounded relayer / redeem / trade proof'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Broader demo path:'
 	@printf '%s\n' '  ./ops/demo-video-proof.sh'
