@@ -38689,8 +38689,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function renderJobs(items){
     if (!items || !items.length) return '<div class="empty">No jobs yet for this account.</div>';
-    return '<table><thead><tr><th>Job ID</th><th>Status</th><th>Kind</th><th>Dataset</th></tr></thead><tbody>' +
-      items.map(j => '<tr><td>'+esc(j.job_id)+'</td><td>'+esc(j.status)+'</td><td>'+esc(j.kind)+'</td><td>'+esc(j.dataset_id || "")+'</td></tr>').join("") +
+    return '<table style="width:100%;table-layout:fixed"><thead><tr><th style="width:32%">Job ID</th><th style="width:18%">Status</th><th style="width:22%">Kind</th><th style="width:28%">Dataset</th></tr></thead><tbody>' +
+      items.map(j => {
+        const jobId = String(j.job_id || "");
+        const ds = String(j.dataset_id || "");
+        const jobIdShort = jobId.length > 22 ? (jobId.slice(0,10) + "…" + jobId.slice(-6)) : jobId;
+        const dsShort = ds.length > 22 ? (ds.slice(0,8) + "…" + ds.slice(-6)) : ds;
+        return '<tr>'
+          + '<td class="mono" title="'+esc(jobId)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
+          + '<td title="'+esc(j.status)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(j.status)+'</td>'
+          + '<td title="'+esc(j.kind)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(j.kind)+'</td>'
+          + '<td class="mono" title="'+esc(ds)+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort)+'</span></td>'
+          + '</tr>';
+      }).join("") +
       '</tbody></table>';
   }
 
