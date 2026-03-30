@@ -86,7 +86,13 @@ print(f"wallet_identity_redeemable_final={num(final,'redeemable'):g}")
 PY
 echo
 
-echo "=== [5] public-beta preflight summary ==="
+echo "=== [5] runner safety proof ==="
+ACCOUNT="${WALLET_IDENTITY_ACCOUNT}" \
+BASE="${BASE_MAIN}" \
+./ops/runner-safety-proof.sh
+echo
+
+echo "=== [6] public-beta preflight summary ==="
 python3 - <<'PY'
 print("PASS")
 print("- main node reachable")
@@ -94,5 +100,6 @@ print("- isolated node reachable")
 print("- isolated helper reachable")
 print("- wallet-specific WC proof green")
 print("- wallet identity participant smoke green")
+print("- runner safety proof green")
 print("- baseline is good enough for continued public-beta hardening")
 PY
