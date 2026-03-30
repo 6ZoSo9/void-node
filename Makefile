@@ -199,6 +199,11 @@ wc-trade-proof:
 public-beta-preflight:
 	@bash ops/public-beta-preflight.sh
 
+.PHONY: beta-proof
+beta-proof:
+	@$(MAKE) --no-print-directory public-beta-preflight
+	@$(MAKE) --no-print-directory wc-trade-proof
+
 .PHONY: install-path-status
 install-path-status:
 	@bash ops/install-path-status.sh
@@ -223,6 +228,7 @@ beta-help:
 	@printf '%s\n' '  make public-beta-preflight   # wallet proof + wallet identity smoke + runner safety'
 	@printf '%s\n' '  make wc-wallet-proof          # isolated wallet-specific WC proof only'
 	@printf '%s\n' '  make wc-trade-proof           # bounded relayer / redeem / trade proof'
+	@printf '%s\n' '  make beta-proof               # preflight + relayer trade proof'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Broader demo path:'
 	@printf '%s\n' '  ./ops/demo-video-proof.sh'

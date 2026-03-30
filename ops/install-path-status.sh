@@ -158,6 +158,7 @@ say "Bounded proof gates:"
 say "make public-beta-preflight   # wallet proof + wallet identity smoke + runner safety"
 say "make wc-wallet-proof          # isolated wallet-specific WC proof only"
 say "make wc-trade-proof           # bounded relayer / redeem / trade proof"
+say "make beta-proof               # preflight + relayer trade proof"
 echo
 say "Broader beta path:"
 say "./ops/public-beta-quickstart.sh"
