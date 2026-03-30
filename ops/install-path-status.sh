@@ -155,8 +155,8 @@ say "make public-beta-status"
 say "./ops/install-path-status.sh"
 echo
 say "Bounded proof gates:"
-say "make public-beta-preflight"
-say "make wc-wallet-proof"
+say "make public-beta-preflight   # wallet proof + wallet identity smoke + runner safety"
+say "make wc-wallet-proof          # isolated wallet-specific WC proof only"
 echo
 say "Broader beta path:"
 say "./ops/public-beta-quickstart.sh"

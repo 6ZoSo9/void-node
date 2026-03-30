@@ -39,7 +39,7 @@ say "=== public beta: preflight ==="
 if ! make public-beta-preflight; then
   echo
   say "FAIL public-beta-quickstart: public-beta-preflight failed"
-  say "NEXT: run make wc-wallet-proof"
+  say "NEXT: run make public-beta-preflight   # includes wallet proof + wallet identity smoke + runner safety"
   say "NEXT: run ./ops/install-path-status.sh"
   exit 1
 fi
@@ -59,6 +59,6 @@ echo
 say "=== public beta: final ==="
 say "PASS public-beta-quickstart"
 say "node: install/startup path OK"
-say "proof: public-beta-preflight OK"
+say "proof: public-beta-preflight OK (wallet proof + wallet identity smoke + runner safety)"
 say "proof: demo-video-proof OK"
 say "next: use ./ops/install-path-status.sh for live status"

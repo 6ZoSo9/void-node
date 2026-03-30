@@ -132,8 +132,8 @@ echo "Equivalent:"
 echo "make public-beta"
 echo
 echo "Bounded proof gates:"
-echo "make public-beta-preflight"
-echo "make wc-wallet-proof"
+echo "make public-beta-preflight   # wallet proof + wallet identity smoke + runner safety"
+echo "make wc-wallet-proof          # isolated wallet-specific WC proof only"
 echo
 echo "Live status:"
 echo "make public-beta-status"
