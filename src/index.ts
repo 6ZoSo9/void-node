@@ -37836,6 +37836,29 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     .mini .k, .mini .s {
       line-height: 1.25;
     }
+    .earn-summary-strip{
+      gap:8px;
+      margin-top:10px;
+    }
+    .earn-summary-strip .mini{
+      padding:10px 12px;
+      min-height:0;
+      border-radius:12px;
+    }
+    .earn-summary-strip .mini .k{
+      font-size:11px;
+      letter-spacing:.05em;
+    }
+    .earn-summary-strip .mini .v{
+      font-size:16px;
+      margin-top:4px;
+      line-height:1.2;
+    }
+    .earn-summary-strip .mini .s{
+      font-size:11px;
+      margin-top:4px;
+      line-height:1.25;
+    }
     #ledgerLatestReceipt, #ledgerLatestReason, #ledgerTruthState,
     #connectedWalletAddrMini, #connectedWalletVoidMini, #connectedWalletWcMini, #helperRedeemableMini,
     .void-switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
@@ -38098,7 +38121,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
                 <h2 style="margin-bottom:4px">Runner Limits<span class="help" tabindex="0" data-help="Safety controls for auto-selected work. These limits affect how often the runner may submit approved work.">?</span></h2>
               </div>
             </div>
-            <div class="metric-strip">
+            <div class="metric-strip earn-summary-strip">
               <div class="mini">
                 <div class="k">Safe Mode</div>
                 <div class="v" id="wcRunnerSafeModeMini">-</div>
