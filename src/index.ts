@@ -37997,7 +37997,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="s" id="syncMeta">Checking redeemed amount…</div>
       </div>
       <div class="kpi">
-        <div class="k">Available WC</div>
+        <div class="k">Spendable WC</div>
         <div class="v" id="wcBalance">-</div>
         <div class="s" id="wcMeta">Checking available Work Credits…</div>
       </div>
@@ -38248,7 +38248,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         </div>
 
         <div style="margin-top:12px">
-          <div class="hero-note" id="tradeSummary">Ready to trade WC for VOID.</div>
+          <div class="hero-note" id="tradeSummary">Ready to trade.</div>
             <div class="hero-note" id="tradeFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
             <div class="action-rail" style="margin-top:10px">
               <button class="btn" id="tradeModeAutoBtn" type="button">Auto</button>
@@ -38265,19 +38265,19 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
         <div class="metric-strip top-kpis" style="margin-top:16px">
           <div class="mini">
-            <div class="k">Available WC</div>
+            <div class="k">Spendable WC</div>
             <div class="v" id="tradeRedeemableWc">-</div>
-            <div class="s">available now</div>
+            <div class="s">ready now</div>
           </div>
           <div class="mini">
             <div class="k">Quoted VOID</div>
             <div class="v" id="tradeQuoteVoid">-</div>
-            <div class="s">you would receive</div>
+            <div class="s">est. receive</div>
           </div>
           <div class="mini">
             <div class="k">Trade Status</div>
             <div class="v" id="tradeRelayerState">-</div>
-            <div class="s">execution path</div>
+            <div class="s">trade path</div>
           </div>
         </div>
 
@@ -38300,14 +38300,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
                 <div class="s">how many WC it takes to get 1 VOID</div>
               </div>
               <div class="mini">
-                <div class="k">Trading Wallet WC</div>
+                <div class="k">Wallet WC</div>
                 <div class="v" id="tradeWalletWc">-</div>
-                <div class="s">current trading balance</div>
+                <div class="s">wallet balance</div>
               </div>
               <div class="mini">
-                <div class="k">Trading Wallet VOID</div>
+                <div class="k">Wallet VOID</div>
                 <div class="v" id="tradeWalletVoid">-</div>
-                <div class="s">current trading balance</div>
+                <div class="s">wallet balance</div>
               </div>
             </div>
           </div>
@@ -38348,24 +38348,24 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <div class="metric-strip" style="margin-top:14px">
             <div class="mini">
-              <div class="k">Total Earned</div>
+              <div class="k">Credited</div>
               <div class="v" id="walletEarnedMini">-</div>
-              <div class="s">Credited to this account</div>
+              <div class="s">this account</div>
             </div>
             <div class="mini">
-              <div class="k">Sent</div>
+              <div class="k">Transferred</div>
               <div class="v" id="walletDebitedMini">-</div>
-              <div class="s">Sent out</div>
+              <div class="s">to others</div>
             </div>
             <div class="mini">
-              <div class="k">Redeemed WC</div>
+              <div class="k">Redeemed</div>
               <div class="v" id="walletRedeemedMini">-</div>
-              <div class="s">Redeemed from participant</div>
+              <div class="s">for trade path</div>
             </div>
             <div class="mini" style="border:1px solid rgba(255,255,255,.14);box-shadow:0 0 0 1px rgba(255,255,255,.03) inset">
-              <div class="k">Available Now</div>
+              <div class="k">Spendable</div>
               <div class="v" id="walletRedeemableMini" style="font-size:34px">-</div>
-              <div class="s">Ready now</div>
+              <div class="s">usable now</div>
             </div>
           </div>
 
@@ -38402,7 +38402,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
             </div>
             <div style="margin-top:12px">
-              <div class="hero-note" id="redeemSummary">Ready to prepare WC for trade.</div>
+              <div class="hero-note" id="redeemSummary">Ready to prepare WC.</div>
                 <div class="hero-note" id="redeemFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
                 <div class="action-rail" style="margin-top:10px">
                   <button class="btn" id="redeemModeAutoBtn" type="button">Auto</button>
