@@ -38187,9 +38187,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <div class="s">Submits data through the normal DataNet flow.</div>
             </div>
             <div class="mini">
-              <div class="k">Expected Reward</div>
-              <div class="v">+10</div>
-              <div class="s">Work Credits awarded when the proof-backed job completes.</div>
+              <div class="k">Est. Reward</div>
+              <div class="v">10+</div>
+              <div class="s">Base shown. Difficulty and need bonuses may raise payout.</div>
             </div>
 
           </div>
