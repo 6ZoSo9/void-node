@@ -38721,13 +38721,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const manualWallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "";
     const wcBase = LOCAL_WC_BASE;
 
-    const [bal, redeem, redeemed, jobs, receipts, ledger, summary, peer, health, relayerHealth, runnerStatus, runnerConfig] = await Promise.all([
+    const [bal, redeem, redeemed, jobs, receipts, ledger, rewardStats, summary, peer, health, relayerHealth, runnerStatus, runnerConfig] = await Promise.all([
       j("/wc/balance?account=" + encodeURIComponent(account)),
       j("/wc/redeemable?account=" + encodeURIComponent(account)),
       j("/wc/redeemed?account=" + encodeURIComponent(account) + "&limit=20"),
       j("/jobs?account=" + encodeURIComponent(account) + "&limit=10"),
       j("/receipts?account=" + encodeURIComponent(account) + "&limit=10"),
       j("/wc/ledger?account=" + encodeURIComponent(account) + "&limit=20"),
+      j("/wc/reward-stats?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
       j("/__void/demo/summary.json"),
       j("/__void/peer-main-status.json"),
       j("/health"),
@@ -38897,6 +38898,66 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     })();
     setText("runnerStateHome", homeRunnerLabel);
     setText("runnerMetaHome", homeRunnerMeta);
+
+    try {
+      const rs = rewardStats && rewardStats.ok ? rewardStats : null;
+      const lc = rs && rs.last_credit ? rs.last_credit : null;
+      const rm = lc && lc.reward_meta ? lc.reward_meta : null;
+      const totals = rs && rs.totals_last_hour ? rs.totals_last_hour : null;
+
+      const lastRewardValue =
+        lc && Number.isFinite(Number(lc.delta))
+          ? String(Number(lc.delta))
+          : "-";
+
+      const lastRewardMeta =
+        lc
+          ? (
+              String(lc.receipt_kind || lc.reason || "-") +
+              (lc.ts_ms ? (" • " + new Date(Number(lc.ts_ms)).toLocaleString()) : "")
+            )
+          : "No credited reward yet";
+
+      setText("wcRewardLastValue", lastRewardValue);
+      setText("wcRewardLastMeta", lastRewardMeta);
+
+      ensureRewardDiagnosticsRow();
+
+      setText("wcRewardDiagLast", lastRewardValue);
+      setText(
+        "wcRewardDiagKind",
+        lc ? String(lc.receipt_kind || lc.reason || "-") : "-"
+      );
+
+      const basePart = rm && Number.isFinite(Number(rm.base_reward))
+        ? Number(rm.base_reward)
+        : null;
+      const bytePart = rm && Number.isFinite(Number(rm.byte_bonus))
+        ? Number(rm.byte_bonus)
+        : null;
+      setText(
+        "wcRewardDiagBaseByte",
+        (basePart !== null || bytePart !== null)
+          ? String(basePart !== null ? basePart : 0) + " + " + String(bytePart !== null ? bytePart : 0)
+          : "-"
+      );
+
+      const stalePart = rm && Number.isFinite(Number(rm.stale_bonus))
+        ? Number(rm.stale_bonus)
+        : 0;
+      const diffPart = rm && Number.isFinite(Number(rm.difficulty_bonus))
+        ? Number(rm.difficulty_bonus)
+        : 0;
+      const needPart = rm && Number.isFinite(Number(rm.network_need_bonus))
+        ? Number(rm.network_need_bonus)
+        : 0;
+      setText("wcRewardDiagBonusMix", String(stalePart) + " / " + String(diffPart) + " / " + String(needPart));
+
+      const p = totals && Number.isFinite(Number(totals.publish_wc)) ? Number(totals.publish_wc) : 0;
+      const v = totals && Number.isFinite(Number(totals.verify_wc)) ? Number(totals.verify_wc) : 0;
+      const r = totals && Number.isFinite(Number(totals.redundancy_wc)) ? Number(totals.redundancy_wc) : 0;
+      setText("wcRewardDiagTotals", String(p) + " / " + String(v) + " / " + String(r));
+    } catch {}
 
     const syncEl = $("syncGap");
     const gap = peer && typeof peer.head_gap === "number" ? peer.head_gap : null;
