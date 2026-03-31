@@ -233,6 +233,10 @@ alienware-remote-update:
 public-beta-status:
 	@bash ops/install-path-status.sh
 
+.PHONY: two-box-mixed-remote-proof
+two-box-mixed-remote-proof:
+	@bash ops/two-box-peer-workload-proof.sh
+
 .PHONY: beta-help
 beta-help:
 	@printf '%s\n' 'VOID Node beta baseline commands'
