@@ -39182,13 +39182,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("tradeRelayerState", relayerUp ? "Direct Trading Ready" : "Direct Trading Unavailable");
 
     if ($("tradeExecuteBtn")) {
-      const tradeBlocked = !relayerUp || !(Number.isFinite(redeemableTotal) && redeemableTotal > 0);
+      const hasRedeemable = Number.isFinite(redeemableTotal) && redeemableTotal > 0;
+      const tradeBlocked = !relayerUp || !hasRedeemable;
       $("tradeExecuteBtn").disabled = tradeBlocked;
       $("tradeExecuteBtn").textContent = !relayerUp
         ? "Trading Temporarily Unavailable"
-        : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "Need Spendable WC"
-            : "Swap WC for VOID");
+        : (!hasRedeemable
+            ? "Earn or Redeem WC First"
+            : "Trade WC for VOID");
     }
 
     const latestJob = jobs && jobs.ok && jobs.jobs && jobs.jobs.length ? jobs.jobs[0] : null;
@@ -39454,16 +39455,24 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     {
       const wcAddrShort = wcAddr ? (String(wcAddr).slice(0, 8) + "…" + String(wcAddr).slice(-6)) : "";
+      const walletReady = !!wcAddr;
+      const hasRedeemable = Number.isFinite(redeemableTotal) && redeemableTotal > 0;
+      const quoteText = quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-";
       const tradeOverviewText =
-        "WC: " + redeemableTotal +
-        " • VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
-        " • Trading: " + (relayerUp ? "Ready" : "Unavailable") +
-        (wcAddr ? " • Execution wallet: " + wcAddrShort : "");
+        !walletReady
+          ? "Connect a wallet to prepare and trade WC."
+          : !relayerUp
+            ? ("Wallet ready • " + redeemableTotal + " WC spendable • Trading path unavailable right now.")
+            : !hasRedeemable
+              ? ("Wallet ready • No spendable WC yet • Earn or redeem WC first.")
+              : ("Ready to trade " + redeemableTotal + " WC for about " + quoteText + " VOID" +
+                 (wcAddrShort ? (" • Wallet: " + wcAddrShort) : ""));
       setText("tradeOverviewCard", tradeOverviewText);
       try {
         $("tradeOverviewCard").title =
-          "Participant WC available: " + redeemableTotal +
-          " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
+          "Wallet ready: " + (walletReady ? "yes" : "no") +
+          " • Participant WC available: " + redeemableTotal +
+          " • Quoted VOID: " + quoteText +
           " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable") +
           (wcAddr ? " • Execution wallet: " + wcAddr : "");
       } catch {}
@@ -39620,6 +39629,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     try {
       let amount = $("redeemAmount") ? Number((($("redeemAmount").value || "").trim() || "0")) : 0;
+
+      try {
+        const hasWallet = !!wallet;
+        const redeemableHint = await j("/wc/redeemable?account=" + encodeURIComponent(account)).catch(() => null);
+        const redeemableNow = redeemableHint && redeemableHint.ok ? Number(redeemableHint.redeemable || 0) : 0;
+        setText(
+          "redeemSummary",
+          !hasWallet
+            ? "Connect a wallet to prepare WC for trade."
+            : (redeemableNow > 0
+                ? ("Ready to prepare up to " + redeemableNow + " WC for trade using your connected wallet.")
+                : "No WC is ready to prepare yet. Earn WC first.")
+        );
+        if ($("redeemBtn")) {
+          $("redeemBtn").textContent = !hasWallet
+            ? "Connect Wallet First"
+            : (redeemableNow > 0 ? "Prepare for Trade" : "No WC Ready");
+        }
+      } catch {}
 
       if (useMax) {
         const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
