@@ -38098,6 +38098,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
           <div class="hero-note" id="summaryCard">loading…</div>
           <div class="hero-note" id="latestActionCard" style="margin-top:10px">No recent action yet. Submit work to create a receipt and earn WC.</div>
+          <div class="hero-note" id="networkValueCard" style="margin-top:10px">loading…</div>
           <div class="hero-actions" style="margin-top:10px">
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Work</a>
           </div>
@@ -39446,12 +39447,63 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setPre("summaryOut", summaryWrapped);
 
     const latestReceipt = receipts && receipts.receipts && receipts.receipts.length ? receipts.receipts[0] : null;
+    const receiptItems = (receipts && receipts.receipts) || [];
     setText(
       "summaryCard",
       localEarned !== null
         ? ("Account " + account + " has " + localEarned + " WC, " + (localCount ?? 0) + " ledger entries, and latest job status " + (latestJob ? latestJob.status : "unknown") + ".")
         : ("Account " + account + " is loaded, but earned WC is unavailable right now.")
     );
+
+    try {
+      let publishCount = 0;
+      let verifyCount = 0;
+      let redundancyCount = 0;
+      let latestVerifiedDataset = "";
+      let latestRedundancyDataset = "";
+
+      for (const r of receiptItems) {
+        const kind = String((r && r.kind) || "");
+        const out = (r && r.output) || {};
+        const ds = String((r && r.dataset_id) || "");
+
+        if (kind === "datanet_publish") publishCount += 1;
+        if (kind === "datanet_fetch_verify") {
+          verifyCount += 1;
+          if (!latestVerifiedDataset && out && out.verified === true && ds) latestVerifiedDataset = ds;
+        }
+        if (kind === "datanet_redundancy_check") {
+          redundancyCount += 1;
+          if (!latestRedundancyDataset && out && out.checked === true && ds) latestRedundancyDataset = ds;
+        }
+      }
+
+      const verifiedShort = latestVerifiedDataset
+        ? (latestVerifiedDataset.length > 22 ? (latestVerifiedDataset.slice(0, 8) + "…" + latestVerifiedDataset.slice(-6)) : latestVerifiedDataset)
+        : "-";
+      const redundancyShort = latestRedundancyDataset
+        ? (latestRedundancyDataset.length > 22 ? (latestRedundancyDataset.slice(0, 8) + "…" + latestRedundancyDataset.slice(-6)) : latestRedundancyDataset)
+        : "-";
+
+      setText(
+        "networkValueCard",
+        "Recent network value • publish: " + publishCount +
+        " • verify: " + verifyCount +
+        " • redundancy: " + redundancyCount +
+        " • latest verified: " + verifiedShort +
+        " • latest checked: " + redundancyShort
+      );
+
+      if ($("networkValueCard")) {
+        $("networkValueCard").title =
+          "Recent receipt-backed network work" +
+          " • publish count: " + publishCount +
+          " • verify count: " + verifyCount +
+          " • redundancy count: " + redundancyCount +
+          " • latest verified dataset: " + (latestVerifiedDataset || "-") +
+          " • latest redundancy-checked dataset: " + (latestRedundancyDataset || "-");
+      }
+    } catch {}
 
     {
       const wcAddrShort = wcAddr ? (String(wcAddr).slice(0, 8) + "…" + String(wcAddr).slice(-6)) : "";
