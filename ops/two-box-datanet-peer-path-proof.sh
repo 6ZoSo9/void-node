@@ -144,7 +144,7 @@ REMOTE_DN_HTTP="$(jget "$REMOTE_NODE_BASE/datanet/v1/status" 10)"
 printf '%s\n' "$REMOTE_DN_HTTP" | tee "$OUT_DIR/remote-datanet-status.json"
 echo
 
-echo "=== [5] read back remote-published ds_* payload from Precision ==="
+echo "=== [5] read back remote-published ds_* payload from Precision (canonical proof path) ==="
 REMOTE_LOCAL_JOB_HTTP="$(jget "$REMOTE_NODE_BASE/datanet/v1/local-job/$DATASET_ID?who=$ACCOUNT" 10)"
 printf '%s\n' "$REMOTE_LOCAL_JOB_HTTP" | tee "$OUT_DIR/remote-local-job-http.json"
 echo
