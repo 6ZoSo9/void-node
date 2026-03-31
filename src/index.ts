@@ -38224,7 +38224,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <div style="margin-top:14px;">
             <label>Submission Status</label>
-            <div class="hero-note" id="submitSummary">Ready to submit work.</div>
+            <div class="hero-note" id="submitSummary">Ready to submit work. After completion, the page waits for participant WC credit before refreshing trade availability.</div>
             <details class="adv" style="margin-top:10px">
               <summary><span>Advanced Submission Details</span><span class="pill">raw json</span></summary>
               <div class="adv-body">
@@ -38245,15 +38245,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             <div class="table-wrap"><div id="jobsWrap" class="empty">loading…</div></div>
           </div>
 
-          <div class="subpanel">
-            <div class="section-head">
-              <div>
-                <h2 style="display:none">Why this matters</h2>
-                <div class="section-copy"></div>
-              </div>
-            </div>
-            
-          </div>
+          
         </div>
       </div>
     </section>
@@ -38665,6 +38657,44 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function isWalletAddr(v){
     return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
+  }
+
+  async function waitForRedeemableIncrease(account, beforeRedeemable, timeoutMs){
+    const started = Date.now();
+    const baseline = Number.isFinite(Number(beforeRedeemable)) ? Number(beforeRedeemable) : 0;
+    const deadline = started + (Number.isFinite(Number(timeoutMs)) ? Number(timeoutMs) : 12000);
+    let last = null;
+
+    while (Date.now() < deadline) {
+      try {
+        const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
+        last = st;
+        const nowRedeemable = st && st.ok ? Number(st.redeemable || 0) : NaN;
+        if (Number.isFinite(nowRedeemable) && nowRedeemable > baseline) {
+          return {
+            ok: true,
+            waited_ms: Date.now() - started,
+            before_redeemable: baseline,
+            after_redeemable: nowRedeemable,
+            state: st
+          };
+        }
+      } catch (_) {}
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    let finalRedeemable = baseline;
+    try {
+      if (last && last.ok) finalRedeemable = Number(last.redeemable || 0);
+    } catch (_) {}
+
+    return {
+      ok: false,
+      waited_ms: Date.now() - started,
+      before_redeemable: baseline,
+      after_redeemable: finalRedeemable,
+      state: last
+    };
   }
 
   function deriveParticipantWallet(account, redeemedState, connectedWallet, manualWallet){
@@ -39297,14 +39327,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         "WC: " + redeemableTotal +
         " • VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
         " • Trading: " + (relayerUp ? "Ready" : "Unavailable") +
-        (wcAddr ? " • Wallet: " + wcAddrShort : "");
+        (wcAddr ? " • Execution wallet: " + wcAddrShort : "");
       setText("tradeOverviewCard", tradeOverviewText);
       try {
         $("tradeOverviewCard").title =
           "Participant WC available: " + redeemableTotal +
           " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
           " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable") +
-          (wcAddr ? " • Redeemed to wallet: " + wcAddr : "");
+          (wcAddr ? " • Execution wallet: " + wcAddr : "");
       } catch {}
     }
 
@@ -39570,7 +39600,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const plaintext = $("plaintext") ? $("plaintext").value : "";
     const btn = $("submitBtn");
     if (btn) btn.disabled = true;
-    setPre("submitOut", { ok:true, submitting:true, account });
+
+    let redeemableBefore = 0;
+    try {
+      const st0 = await j("/wc/redeemable?account=" + encodeURIComponent(account));
+      redeemableBefore = st0 && st0.ok ? Number(st0.redeemable || 0) : 0;
+    } catch (_) {}
+
+    setPre("submitOut", { ok:true, submitting:true, account, redeemable_before: redeemableBefore });
 
     try {
       const out = await j("/jobs/submit", {
@@ -39591,10 +39628,27 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           setPre("submitOut", st);
 
           if (st && st.job && st.job.status === "completed") {
-            setLatestAction("Work completed. Receipt recorded and WC should appear shortly.");
+            setLatestAction("Work completed. Waiting for participant WC credit to appear.");
             setPre("submitOut", {
               ...st,
-              note: "Work completed. Receipt recorded and WC should appear shortly."
+              note: "Work completed. Waiting for participant WC credit to appear.",
+              credit_pending_check: true,
+              redeemable_before: redeemableBefore
+            });
+
+            const creditWait = await waitForRedeemableIncrease(account, redeemableBefore, 12000);
+
+            setLatestAction(
+              creditWait && creditWait.ok
+                ? "Work completed and participant WC credit is now visible."
+                : "Work completed, but participant WC credit did not appear before the wait window ended."
+            );
+            setPre("submitOut", {
+              ...st,
+              credit_wait: creditWait,
+              note: creditWait && creditWait.ok
+                ? "Work completed and participant WC credit is now visible."
+                : "Work completed, but participant WC credit did not appear before the wait window ended."
             });
             break;
           }
@@ -40053,7 +40107,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function shorten(v){
     v = String(v || "").trim();
-    return valid(v) ? ("Connected: " + v.slice(0, 6) + "…" + v.slice(-4)) : "No wallet connected";
+    return valid(v) ? ("Execution: " + v.slice(0, 6) + "…" + v.slice(-4)) : "No execution wallet connected";
   }
 
   function qs(name){
@@ -40207,9 +40261,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     wrap.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0;border:0;background:transparent;box-shadow:none;color:#e5e7eb;font:12px/1.2 Inter,ui-sans-serif,system-ui,sans-serif;";
     wrap.innerHTML =
       '<div style="display:flex;flex-direction:column;gap:2px;min-width:180px">' +
-        '<div style="font-weight:800;letter-spacing:.04em;color:#f8fafc">Wallet</div>' +
-        '<div id="voidWalletSessionBadge" style="color:#93c5fd;font-weight:700">No wallet connected</div>' +
-        '<div id="voidWalletSessionFull" style="color:#94a3b8;font-size:11px;max-width:260px;overflow-wrap:anywhere">Connect a wallet to view onchain VOID and send transactions.</div>' +
+        '<div style="font-weight:800;letter-spacing:.04em;color:#f8fafc">Execution Wallet</div>' +
+        '<div id="voidWalletSessionBadge" style="color:#93c5fd;font-weight:700">No execution wallet connected</div>' +
+        '<div id="voidWalletSessionFull" style="color:#94a3b8;font-size:11px;max-width:260px;overflow-wrap:anywhere">Connect a wallet to view onchain VOID and use it as the execution wallet for redeem and trade actions.</div>' +
       '</div>' +
       (onHelper ? ('<a id="voidWalletBackLink" href="' + from + '" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;text-decoration:none;font-weight:700">Back</a>') : '') +
       '<button id="voidWalletConnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Connect Wallet</button>' +
