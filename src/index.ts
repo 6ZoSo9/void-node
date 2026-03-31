@@ -38144,9 +38144,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <label for="account">Participant identity</label>
           <input id="account" value="zoso" />
-          <div class="subtle-tab-copy" style="margin-top:8px">Participant identity selects which account receives WC and owns the receipts and history shown here. Your connected wallet is optional and is used separately for redeem and trade execution.</div>
+          <div class="subtle-tab-copy" style="margin-top:8px">Participant identity selects which account receives WC and owns the receipts and history shown here. Connected wallet is the preferred happy path and is also used for redeem and trade execution unless you open the advanced override.</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-            <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #1d4ed8; background:#0b1b34; color:#dbeafe; cursor:pointer; font-weight:700; font-size:12px;">use wallet as participant</button>
+            <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #1d4ed8; background:#0b1b34; color:#dbeafe; cursor:pointer; font-weight:700; font-size:12px;">Use Connected Wallet</button>
           </div>
           <details class="adv" style="margin-top:10px">
             <summary><span>Developer account shortcuts</span><span class="pill">advanced</span></summary>
@@ -38471,8 +38471,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
             <label for="redeemAmount">WC to redeem</label>
             <input id="redeemAmount" value="10" inputmode="decimal" />
-            <label for="redeemWallet">Execution wallet</label>
-            <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
+            <details class="adv" style="margin-top:10px">
+              <summary><span>Execution wallet override</span><span class="pill">advanced</span></summary>
+              <div class="adv-body">
+                <label for="redeemWallet" style="margin-top:10px">Execution wallet</label>
+                <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
+                <div class="subtle-tab-copy" style="margin-top:8px">Connected wallet is preferred automatically. Only change this if you intentionally want a different execution wallet.</div>
+              </div>
+            </details>
             <div class="action-rail" style="margin-top:12px">
               <button class="btn btn-primary" id="redeemBtn" type="button">Prepare for Trade</button>
               <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
@@ -38701,8 +38707,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function pickInitialParticipantAccount(){
     const remembered = getRememberedParticipantAccount();
-    if (remembered) return remembered;
     const connected = getConnectedWallet();
+    const rememberedLooksDefault =
+      !remembered ||
+      remembered === "zoso" ||
+      remembered === "dev-zoso" ||
+      remembered === "remote-user-1" ||
+      remembered === "remote-user-2" ||
+      remembered === "remote-user-3";
+    if (isWalletAddr(connected) && rememberedLooksDefault) return connected;
+    if (remembered) return remembered;
     if (isWalletAddr(connected)) return connected;
     return "zoso";
   }
@@ -39465,7 +39479,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   async function redeemNow(useMax){
     const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
-    const wallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
+    const wallet = $("redeemWallet")
+      ? (($("redeemWallet").value || "").trim())
+      : (isWalletAddr(getConnectedWallet()) ? getConnectedWallet() : "");
     const btn = $("redeemBtn");
     const prevText = btn ? btn.textContent : "Redeem WC";
 
@@ -39726,7 +39742,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   if ($("tradeExecuteBtn")) $("tradeExecuteBtn").addEventListener("click", async () => {
     const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
     const amount = $("tradeInputWc") ? Number((($("tradeInputWc").value || "").trim() || "0")) : 0;
-    const wallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
+    const wallet = $("redeemWallet")
+      ? (($("redeemWallet").value || "").trim())
+      : (isWalletAddr(getConnectedWallet()) ? getConnectedWallet() : "");
     const btn = $("tradeExecuteBtn");
     const prevText = btn ? btn.textContent : "Swap WC for VOID";
 
