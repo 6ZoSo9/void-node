@@ -164,6 +164,7 @@ say "make alienware-bootstrap      # sync + restart + verify node/helper/relayer
 say "make alienware-update         # update + restart + verify alienware role health"
 say "make precision-update         # update + restart + verify precision primary node"
 say "make alienware-remote-update  # run alienware updater remotely from precision"
+say "cat ops/SECOND_MACHINE_ONBOARDING.md  # proven second-machine bring-up runbook"
 echo
 say "Broader beta path:"
 say "./ops/public-beta-quickstart.sh"

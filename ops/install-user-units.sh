@@ -141,6 +141,7 @@ echo "make alienware-bootstrap      # sync + restart + verify node/helper/relaye
 echo "make alienware-update         # update + restart + verify alienware role health"
 echo "make precision-update         # update + restart + verify precision primary node"
 echo "make alienware-remote-update  # run alienware updater remotely from precision"
+echo "cat ops/SECOND_MACHINE_ONBOARDING.md  # proven second-machine bring-up runbook"
 echo
 echo "Live status:"
 echo "make public-beta-status"

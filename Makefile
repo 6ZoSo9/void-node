@@ -255,6 +255,7 @@ beta-help:
 	@printf '%s\n' '  make alienware-update         # update + restart + verify alienware role health'
 	@printf '%s\n' '  make precision-update         # update + restart + verify precision primary node'
 	@printf '%s\n' '  make alienware-remote-update  # run alienware updater remotely from precision'
+	@printf '%s\n' '  cat ops/SECOND_MACHINE_ONBOARDING.md  # proven second-machine bring-up runbook'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Broader demo path:'
 	@printf '%s\n' '  ./ops/demo-video-proof.sh'
