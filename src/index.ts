@@ -39785,7 +39785,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try {
       const initAcct = pickInitialParticipantAccount();
       if (initAcct && !$("account").value) $("account").value = initAcct;
-      if (initAcct && $("account").value === "zoso" && isWalletAddr(getConnectedWallet())) $("account").value = initAcct;
     } catch (_) {}
     $("account").addEventListener("change", () => {
       try { rememberParticipantAccount($("account").value || ""); } catch (_) {}
