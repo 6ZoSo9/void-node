@@ -109,12 +109,6 @@ dst.write_text(json.dumps(obj, indent=2) + "\n")
 print(json.dumps(obj, indent=2))
 PY
 
-JOB_ID="$(python3 - <<'PY'
-import json
-obj=json.load(open("/tmp/two-box-datanet-peer-path-proof-" + __import__("os").environ.get("TS_NOW_FALLBACK","") + "/remote-proof-summary.json")) if False else None
-PY
-)" || true
-
 JOB_ID="$(python3 - "$OUT_DIR/remote-proof-summary.json" <<'PY'
 import json, sys
 obj = json.load(open(sys.argv[1]))
@@ -150,7 +144,68 @@ REMOTE_DN_HTTP="$(jget "$REMOTE_NODE_BASE/datanet/v1/status" 10)"
 printf '%s\n' "$REMOTE_DN_HTTP" | tee "$OUT_DIR/remote-datanet-status.json"
 echo
 
-echo "=== [5] verify local/remote/network truth after remote flow ==="
+echo "=== [5] read back remote-published ds_* payload from Precision ==="
+REMOTE_LOCAL_JOB_HTTP="$(jget "$REMOTE_NODE_BASE/datanet/v1/local-job/$DATASET_ID?who=$ACCOUNT" 10)"
+printf '%s\n' "$REMOTE_LOCAL_JOB_HTTP" | tee "$OUT_DIR/remote-local-job-http.json"
+echo
+
+python3 - \
+  "$OUT_DIR/remote-proof-summary.json" \
+  "$OUT_DIR/remote-job-http.json" \
+  "$OUT_DIR/remote-receipts-http.json" \
+  "$OUT_DIR/remote-local-job-http.json" \
+  "$ACCOUNT" \
+  "$PLAINTEXT" <<'PY'
+import hashlib, json, sys
+
+summary = json.load(open(sys.argv[1]))
+remote_job = json.load(open(sys.argv[2]))
+remote_receipts = json.load(open(sys.argv[3]))
+remote_local_job = json.load(open(sys.argv[4]))
+account = sys.argv[5]
+plaintext = sys.argv[6]
+
+job_id = str(summary.get("job_id") or "")
+receipt_id = str(summary.get("receipt_id") or "")
+dataset_id = str(summary.get("dataset_id") or "")
+assert job_id, "summary missing job_id"
+assert receipt_id, "summary missing receipt_id"
+assert dataset_id, "summary missing dataset_id"
+
+remote_job_id = str((remote_job.get("job") or {}).get("job_id") or "")
+remote_job_status = str((remote_job.get("job") or {}).get("status") or "")
+remote_job_dataset = str((remote_job.get("job") or {}).get("dataset_id") or "")
+assert remote_job_id == job_id, f"remote job_id mismatch: {remote_job_id} vs {job_id}"
+assert remote_job_status == "completed", f"remote job not completed: {remote_job_status}"
+assert remote_job_dataset == dataset_id, f"remote dataset mismatch: {remote_job_dataset} vs {dataset_id}"
+
+receipts = remote_receipts.get("receipts") or []
+assert any(str(r.get("receipt_id") or "") == receipt_id for r in receipts), f"receipt_id {receipt_id} not found in remote receipts view"
+
+assert remote_local_job.get("ok") is True, f"remote local-job route not ok: {remote_local_job}"
+assert str(remote_local_job.get("who") or "") == account, f"route who mismatch: {remote_local_job.get('who')} vs {account}"
+assert str(remote_local_job.get("id") or "") == dataset_id, f"route dataset mismatch: {remote_local_job.get('id')} vs {dataset_id}"
+
+got_plaintext = str(remote_local_job.get("plaintext") or "")
+got_sha256 = str(remote_local_job.get("sha256") or "")
+want_sha256 = hashlib.sha256(plaintext.encode("utf-8")).hexdigest()
+
+assert got_plaintext == plaintext, f"plaintext mismatch: {got_plaintext!r} vs {plaintext!r}"
+assert got_sha256 == want_sha256, f"sha256 mismatch: {got_sha256} vs {want_sha256}"
+
+print("[ok] remote readback payload validated from precision")
+print(json.dumps({
+    "ok": True,
+    "job_id": job_id,
+    "receipt_id": receipt_id,
+    "dataset_id": dataset_id,
+    "readback_size_bytes": remote_local_job.get("sizeBytes"),
+    "readback_sha256": got_sha256
+}, indent=2))
+PY
+
+echo
+echo "=== [6] verify local/remote/network truth after remote flow ==="
 echo "--- local ready after ---"
 LOCAL_READY_AFTER="$(jget "$LOCAL_NODE_BASE/__void/ready.json" 5)"
 printf '%s\n' "$LOCAL_READY_AFTER"
@@ -225,7 +280,7 @@ assert local_head == remote_head, f"head mismatch after remote flow: {local_head
 assert remote_node in local_peers, f"remote nodeId {remote_node} not found in local peers after flow {local_peers}"
 assert local_node in remote_peers, f"local nodeId {local_node} not found in remote peers after flow {remote_peers}"
 
-print("[ok] two-box datanet peer-path proof validated")
+print("[ok] two-box datanet peer-path + readback proof validated")
 print(json.dumps({
     "ok": True,
     "job_id": job_id,
@@ -245,5 +300,5 @@ print(json.dumps({
 PY
 
 echo
-echo "=== [6] success ==="
-echo "[ok] two-box datanet peer-path proof green"
+echo "=== [7] success ==="
+echo "[ok] two-box datanet peer-path + readback proof green"
