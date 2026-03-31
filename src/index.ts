@@ -35796,6 +35796,139 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       } catch {}
     })();
 
+    // === [ADD] network value summary endpoint v1 ===
+    ;(() => {
+      try {
+        const APP:any = (globalThis as any).__void_http_app || (typeof app !== "undefined" ? app : null);
+        if (!APP || typeof APP.get !== "function") return;
+        if ((APP as any).__void_network_value_summary_v1) return;
+        (APP as any).__void_network_value_summary_v1 = true;
+
+        APP.get("/network/value-summary.json", (req:any, res:any) => {
+          try {
+            const limit = Math.max(1, Math.min(500, Number(req?.query?.limit || 100) || 100));
+
+            const path = require("node:path");
+            const localReceiptsFile = path.join(
+              String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+              "datanet_v1",
+              "receipts.jsonl"
+            );
+
+            let localOut:any[] = [];
+            let creditedOut:any[] = [];
+
+            for (const line of readLines(localReceiptsFile)) {
+              try { localOut.push(JSON.parse(line)); } catch {}
+            }
+
+            try {
+              const datanetRawFile = path.join(
+                String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+                "datanet",
+                "receipts",
+                "datanet.jsonl"
+              );
+              for (const line of readLines(datanetRawFile)) {
+                try {
+                  const r:any = JSON.parse(line);
+                  creditedOut.push({
+                    receipt_id: String(r?.id || ""),
+                    job_id: r?.job_id || null,
+                    account: String(r?.account || r?.who || r?.owner || ""),
+                    who: String(r?.who || r?.account || r?.owner || ""),
+                    kind: "datanet_receipt",
+                    status: Number(r?.ok || 0) === 1 ? "credited" : "recorded",
+                    delta: Number(r?.wc_award || 0),
+                    reason: "datanet_receipt",
+                    ts_ms: Number(r?.ts_ms || 0),
+                    dataset_id: r?.dataset_id || null,
+                    root: r?.root || null,
+                    leaf: r?.leaf || null,
+                    index: Number(r?.index || 0),
+                    bytes: Number(r?.bytes || 0),
+                    mime: r?.mime || null,
+                    name: r?.name || null,
+                    _raw: "datanet_v1"
+                  });
+                } catch {}
+              }
+            } catch {}
+
+            localOut.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+            creditedOut.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+
+            const localSample = localOut.slice(0, limit);
+            const creditedSample = creditedOut.slice(0, limit);
+            const mixedSample = [...localSample, ...creditedSample]
+              .sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0))
+              .slice(0, limit);
+
+            let publish_count = 0;
+            let verify_count = 0;
+            let redundancy_count = 0;
+            const credited_count = creditedOut.length;
+
+            let latest_publish_dataset:any = null;
+            let latest_verified_dataset:any = null;
+            let latest_redundancy_checked_dataset:any = null;
+
+            for (const r of localOut) {
+              const kind = String(r?.kind || "");
+              const ds = r?.dataset_id || null;
+              const ts = Number(r?.ts_ms || 0);
+              const output = r?.output || null;
+
+              if (kind === "datanet_publish") {
+                publish_count++;
+                if (!latest_publish_dataset && ds) {
+                  latest_publish_dataset = { dataset_id: ds, ts_ms: ts, receipt_id: r?.receipt_id || null };
+                }
+              } else if (kind === "datanet_fetch_verify") {
+                verify_count++;
+                if (!latest_verified_dataset && ds && output && output.verified === true) {
+                  latest_verified_dataset = { dataset_id: ds, ts_ms: ts, receipt_id: r?.receipt_id || null };
+                }
+              } else if (kind === "datanet_redundancy_check") {
+                redundancy_count++;
+                if (!latest_redundancy_checked_dataset && ds && output && output.checked === true) {
+                  latest_redundancy_checked_dataset = {
+                    dataset_id: ds,
+                    ts_ms: ts,
+                    receipt_id: r?.receipt_id || null,
+                    readable: !!output?.readable,
+                    verified_hash: !!output?.verified_hash
+                  };
+                }
+              }
+            }
+
+            return res.json({
+              ok: true,
+              limit,
+              sample_count: mixedSample.length,
+              local_sample_count: localSample.length,
+              credited_sample_count: creditedSample.length,
+              counts: {
+                publish: publish_count,
+                verify: verify_count,
+                redundancy: redundancy_count,
+                credited: credited_count
+              },
+              latest_publish_dataset,
+              latest_verified_dataset,
+              latest_redundancy_checked_dataset,
+              receipts: mixedSample
+            });
+          } catch (e:any) {
+            return res.status(500).json({ ok:false, error:"network_value_summary_throw", msg:String(e?.message || e) });
+          }
+        });
+
+        try { console.log("[network.value.summary.v1] mounted: GET /network/value-summary.json"); } catch {}
+      } catch {}
+    })();
+
     function runnerFindVerifyCandidate(account:string){
       try {
         const fs = require("node:fs");
