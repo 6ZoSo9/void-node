@@ -137,6 +137,7 @@ echo "make wc-wallet-proof          # isolated wallet-specific WC proof only"
 echo "make wc-trade-proof           # bounded relayer / redeem / trade proof"
 echo "make datanet-mvp-proof        # bounded live manifest/chunk/receipt/WC proof"
 echo "make beta-proof               # preflight + relayer trade proof + datanet mvp proof"
+echo "make alienware-bootstrap      # sync + restart + verify node/helper/relayer role"
 echo
 echo "Live status:"
 echo "make public-beta-status"

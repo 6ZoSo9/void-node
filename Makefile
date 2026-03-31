@@ -213,6 +213,10 @@ beta-proof:
 install-path-status:
 	@bash ops/install-path-status.sh
 
+.PHONY: alienware-bootstrap
+alienware-bootstrap:
+	@bash ops/alienware-bootstrap-node-helper-relayer.sh
+
 .PHONY: public-beta-status
 public-beta-status:
 	@bash ops/install-path-status.sh
@@ -235,6 +239,7 @@ beta-help:
 	@printf '%s\n' '  make wc-trade-proof           # bounded relayer / redeem / trade proof'
 	@printf '%s\n' '  make datanet-mvp-proof        # bounded live manifest/chunk/receipt/WC proof'
 	@printf '%s\n' '  make beta-proof               # preflight + relayer trade proof + datanet mvp proof'
+	@printf '%s\n' '  make alienware-bootstrap      # sync + restart + verify node/helper/relayer role'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Broader demo path:'
 	@printf '%s\n' '  ./ops/demo-video-proof.sh'
