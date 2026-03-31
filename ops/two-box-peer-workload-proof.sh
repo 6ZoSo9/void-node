@@ -5,7 +5,7 @@ set +o histexpand
 
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
 RUNS="${RUNS:-5}"
-ACCOUNT_BASE="${ACCOUNT_BASE:-remote-user-mixed}"
+ACCOUNT_BASE="${ACCOUNT_BASE:-remote-user-mixed-$(date +%Y%m%d-%H%M%S)}"
 WALLET="${WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
 REMOTE_NODE_BASE="http://${ALIEN##*@}:4100"
 REMOTE_HELPER_BASE="http://${ALIEN##*@}:4312/workcredits/devnet"
