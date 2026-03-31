@@ -233,6 +233,10 @@ alienware-remote-update:
 public-beta-status:
 	@bash ops/install-path-status.sh
 
+.PHONY: two-box-fresh-participant-proof
+two-box-fresh-participant-proof:
+	@bash ops/two-box-peer-workload-proof.sh
+
 .PHONY: two-box-mixed-remote-proof
 two-box-mixed-remote-proof:
 	@bash ops/two-box-peer-workload-proof.sh
