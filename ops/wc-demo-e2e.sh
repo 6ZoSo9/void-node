@@ -185,24 +185,42 @@ echo "=== [10] dashboard after trade ==="
 jget "$HELPER_BASE/dashboard/$WALLET.json" | tee "$OUT_DIR/dashboard.after.json"
 echo
 
+echo "=== [10b] local WC after execute ==="
+jget "$NODE_BASE/wc/balance?account=$ACCOUNT" | tee "$OUT_DIR/wc.balance.after-execute.json"
+echo
+jget "$NODE_BASE/wc/redeemable?account=$ACCOUNT" | tee "$OUT_DIR/wc.redeemable.after-execute.json"
+echo
+
 redeem_result_earned="$(py_get "$OUT_DIR/relayer.execute.json" redeem_result.earned)"
 redeem_result_redeemed="$(py_get "$OUT_DIR/relayer.execute.json" redeem_result.redeemed)"
 redeem_result_redeemable="$(py_get "$OUT_DIR/relayer.execute.json" redeem_result.redeemable)"
+after_execute_balance_amt="$(py_get "$OUT_DIR/wc.balance.after-execute.json" balance)"
+after_execute_redeemable_amt="$(py_get "$OUT_DIR/wc.redeemable.after-execute.json" redeemable)"
 
-python3 - "$redeem_result_earned" "$redeem_result_redeemed" "$redeem_result_redeemable" "$trade_amt" <<'PY'
+python3 - "$redeem_result_earned" "$redeem_result_redeemed" "$redeem_result_redeemable" "$trade_amt" "$after_execute_redeemable_amt" <<'PY'
 import sys
-earned_after, redeemed_after, redeemable_after, trade = map(float, sys.argv[1:])
+earned_after, redeemed_after, redeemable_after, trade, local_after_execute = map(float, sys.argv[1:])
 expected_redeemable_after = earned_after - redeemed_after
 if abs(redeemable_after - expected_redeemable_after) > 1e-9:
     raise SystemExit(f"[fail] redeem_result identity mismatch: earned={earned_after} redeemed={redeemed_after} redeemable={redeemable_after} expected={expected_redeemable_after}")
+if abs(local_after_execute - redeemable_after) > 1e-9:
+    raise SystemExit(f"[fail] local redeemable after execute mismatch: local={local_after_execute} redeem_result={redeemable_after}")
 print(f"[ok] redeem_result trade effect: earned={earned_after}, redeemed={redeemed_after}, redeemable={redeemable_after}, trade={trade}")
 PY
 
 echo "=== [11] summary ==="
-python3 - "$OUT_DIR" "$job_id" "$approve_hash" "$swap_hash" <<'PY'
+python3 - "$OUT_DIR" "$job_id" "$approve_hash" "$swap_hash" "$before_redeemable_amt" "$after_redeemable_amt" "$after_execute_redeemable_amt" "$before_balance_amt" "$after_balance_amt" "$after_execute_balance_amt" "$trade_amt" <<'PY'
 import json, pathlib, sys
 out = pathlib.Path(sys.argv[1])
 job_id, approve_hash, swap_hash = sys.argv[2], sys.argv[3], sys.argv[4]
+before_redeemable = float(sys.argv[5])
+after_credit_redeemable = float(sys.argv[6])
+after_execute_redeemable = float(sys.argv[7])
+before_balance = float(sys.argv[8])
+after_credit_balance = float(sys.argv[9])
+after_execute_balance = float(sys.argv[10])
+trade_amt = float(sys.argv[11])
+
 before = json.load(open(out / "dashboard.before.json"))
 after = json.load(open(out / "dashboard.after.json"))
 execute = json.load(open(out / "relayer.execute.json"))
@@ -214,6 +232,15 @@ summary = {
   "job_id": job_id,
   "approve_tx_hash": approve_hash,
   "swap_tx_hash": swap_hash,
+
+  "participant_balance_before": before_balance,
+  "participant_balance_after_credit": after_credit_balance,
+  "participant_balance_after_execute": after_execute_balance,
+
+  "participant_redeemable_before": before_redeemable,
+  "participant_redeemable_after_credit": after_credit_redeemable,
+  "participant_redeemable_after_execute": after_execute_redeemable,
+  "trade_wc": trade_amt,
 
   "flow_before_pending_wc": before["account"]["earnings"]["diagnostic_pending_wc"],
   "flow_after_pending_wc": after["account"]["earnings"]["diagnostic_pending_wc"],

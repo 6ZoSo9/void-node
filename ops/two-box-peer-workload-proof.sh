@@ -111,23 +111,36 @@ assert obj.get("ok") is True, "summary ok != true"
 assert obj.get("approve_tx_hash"), "missing approve_tx_hash"
 assert obj.get("swap_tx_hash"), "missing swap_tx_hash"
 
-before_pending = float(obj.get("flow_before_pending_wc", 0))
-after_pending = float(obj.get("flow_after_pending_wc", 0))
-before_redeemed = float(obj.get("flow_before_redeemed_wc", 0))
-after_redeemed = float(obj.get("flow_after_redeemed_wc", 0))
+before_redeemable = float(obj.get("participant_redeemable_before", -1))
+after_credit_redeemable = float(obj.get("participant_redeemable_after_credit", -1))
+after_execute_redeemable = float(obj.get("participant_redeemable_after_execute", -1))
+trade_wc = float(obj.get("trade_wc", -1))
 
-assert after_pending <= before_pending, f"pending WC did not go down or hold: {before_pending} -> {after_pending}"
-assert after_redeemed >= before_redeemed, f"redeemed WC did not go up or hold: {before_redeemed} -> {after_redeemed}"
+before_balance = float(obj.get("participant_balance_before", -1))
+after_credit_balance = float(obj.get("participant_balance_after_credit", -1))
+after_execute_balance = float(obj.get("participant_balance_after_execute", -1))
+
+assert abs(before_redeemable - 0.0) <= 1e-9, f"fresh-account redeemable_before != 0: {before_redeemable}"
+assert abs(after_credit_redeemable - 10.0) <= 1e-9, f"redeemable_after_credit != 10: {after_credit_redeemable}"
+assert abs(trade_wc - 1.0) <= 1e-9, f"trade_wc != 1: {trade_wc}"
+assert abs(after_execute_redeemable - 9.0) <= 1e-9, f"redeemable_after_execute != 9: {after_execute_redeemable}"
+
+assert abs(before_balance - 0.0) <= 1e-9, f"fresh-account balance_before != 0: {before_balance}"
+assert abs(after_credit_balance - 10.0) <= 1e-9, f"balance_after_credit != 10: {after_credit_balance}"
+assert abs(after_execute_balance - 10.0) <= 1e-9, f"balance_after_execute != 10: {after_execute_balance}"
 
 print("[ok] run summary validated")
 print(json.dumps({
     "ok": True,
     "approve_tx_hash": obj.get("approve_tx_hash"),
     "swap_tx_hash": obj.get("swap_tx_hash"),
-    "flow_before_pending_wc": before_pending,
-    "flow_after_pending_wc": after_pending,
-    "flow_before_redeemed_wc": before_redeemed,
-    "flow_after_redeemed_wc": after_redeemed,
+    "participant_redeemable_before": before_redeemable,
+    "participant_redeemable_after_credit": after_credit_redeemable,
+    "participant_redeemable_after_execute": after_execute_redeemable,
+    "participant_balance_before": before_balance,
+    "participant_balance_after_credit": after_credit_balance,
+    "participant_balance_after_execute": after_execute_balance,
+    "trade_wc": trade_wc,
     "before_void": obj.get("before_void"),
     "after_void": obj.get("after_void"),
     "artifacts_dir": obj.get("artifacts_dir"),
