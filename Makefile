@@ -237,6 +237,10 @@ public-beta-status:
 two-box-network-peer-proof:
 	@bash ops/two-box-network-peer-proof.sh
 
+.PHONY: two-box-datanet-peer-path-proof
+two-box-datanet-peer-path-proof:
+	@bash ops/two-box-datanet-peer-path-proof.sh
+
 .PHONY: two-box-fresh-participant-proof
 two-box-fresh-participant-proof:
 	@bash ops/two-box-peer-workload-proof.sh
