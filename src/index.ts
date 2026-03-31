@@ -38099,9 +38099,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <label for="account">Participant identity</label>
           <input id="account" value="zoso" />
-          <div class="subtle-tab-copy" style="margin-top:8px">Preferred beta path: use your connected wallet as your participant identity. Manual identities stay available for dev/test.</div>
+          <div class="subtle-tab-copy" style="margin-top:8px">Participant identity selects which account’s WC, receipts, and history you are viewing. Your connected wallet is optional and is used separately for redeem/trade execution.</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-            <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #1d4ed8; background:#0b1b34; color:#dbeafe; cursor:pointer; font-weight:700; font-size:12px;">use connected wallet</button>
+            <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #1d4ed8; background:#0b1b34; color:#dbeafe; cursor:pointer; font-weight:700; font-size:12px;">use wallet as participant</button>
             <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='dev-zoso'; try{localStorage.setItem('void_participant_account_v1','dev-zoso')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: zoso</button>
             <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-1'; try{localStorage.setItem('void_participant_account_v1','remote-user-1')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: remote-user-1</button>
             <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='remote-user-2'; try{localStorage.setItem('void_participant_account_v1','remote-user-2')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: remote-user-2</button>
@@ -38422,19 +38422,19 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Prepare WC for Trade<span class="help" tabindex="0" data-help="Moves WC into the current trade path. This is a temporary step and may not appear as wallet-held WC.">?</span></h2>
+                <h2 style="margin-bottom:4px">Prepare WC for Trade<span class="help" tabindex="0" data-help="Uses the selected participant account for WC eligibility, then routes execution through the current execution wallet. This is temporary trade-path preparation, not a participant identity change.">?</span></h2>
               </div>
             </div>
             <label for="redeemAmount">WC to redeem</label>
             <input id="redeemAmount" value="10" inputmode="decimal" />
-            <label for="redeemWallet">Redeem to wallet</label>
+            <label for="redeemWallet">Execution wallet</label>
             <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
             <div class="action-rail" style="margin-top:12px">
               <button class="btn btn-primary" id="redeemBtn" type="button">Prepare for Trade</button>
               <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
             </div>
             <div style="margin-top:12px">
-              <div class="hero-note" id="redeemSummary">Ready to prepare WC.</div>
+              <div class="hero-note" id="redeemSummary">Ready to prepare WC using the selected participant account and current execution wallet.</div>
                 <div class="hero-note" id="redeemFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
                 <div class="action-rail" style="margin-top:10px">
                   <button class="btn" id="redeemModeAutoBtn" type="button">Auto</button>
@@ -38978,7 +38978,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("wcIdentityTruth", wcTruthText);
 
     setText("heroWalletShort", /^0x[0-9a-fA-F]{40}$/.test(connectedWallet) ? shortAddr(connectedWallet) : "Not connected");
-    setText("heroWalletMeta", wcAddr ? ("Trading wallet: " + shortAddr(wcAddr)) : "No trading wallet linked");
+    setText("heroWalletMeta", wcAddr ? ("Execution wallet: " + shortAddr(wcAddr)) : "No execution wallet linked");
 
     setText("wcBalance", localEarned !== null ? localEarned : "-");
     setText(
@@ -39007,9 +39007,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "connectedWalletMeta",
       isWalletAddr(connectedWallet)
-        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | trading wallet: " + wcAddr : " | no trading wallet linked") + " | local WC stays on the participant account")
+        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | execution wallet: " + wcAddr : " | no execution wallet linked") + " | participant WC stays on the selected account")
         : (wcAddr
-            ? ("trading wallet: " + wcAddr + " | no connected wallet detected | local WC is read from the participant ledger")
+            ? ("execution wallet: " + wcAddr + " | no connected wallet detected | participant WC is read from the selected account ledger")
             : "No connected wallet detected")
     );
 
