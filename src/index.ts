@@ -35751,6 +35751,51 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       return crypto.createHash("sha256").update(Buffer.from(s, "utf8")).digest("hex");
     }
 
+    // === [ADD] datanet local_jobs readback route v1 ===
+    ;(() => {
+      try {
+        const APP:any = (globalThis as any).__void_http_app || (typeof app !== "undefined" ? app : null);
+        if (!APP || typeof APP.get !== "function") return;
+        if ((APP as any).__void_datanet_local_job_readback_v1) return;
+        (APP as any).__void_datanet_local_job_readback_v1 = true;
+
+        APP.get("/datanet/v1/local-job/:id", (req:any, res:any) => {
+          try {
+            const fs = require("node:fs");
+            const path = require("node:path");
+
+            const who = String((req?.query?.who ?? "") || "").trim();
+            if (!who) return res.status(400).json({ ok:false, error:"missing_who" });
+
+            const id = String((req?.params?.id ?? "") || "").trim();
+            if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+            if (!/^ds_[A-Za-z0-9_\-]+$/.test(id)) return res.status(400).json({ ok:false, error:"bad_id" });
+
+            const file = path.join(dataDir(), "datanet_v1", "local_jobs", id + ".txt");
+            if (!fs.existsSync(file)) return res.status(404).json({ ok:false, error:"not_found", id });
+
+            const plaintext = String(fs.readFileSync(file, "utf8") || "");
+            const crypto = require("node:crypto");
+            const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
+
+            return res.status(200).json({
+              ok: true,
+              who,
+              id,
+              file,
+              sizeBytes: Buffer.byteLength(plaintext, "utf8"),
+              sha256,
+              plaintext
+            });
+          } catch (e:any) {
+            return res.status(500).json({ ok:false, error:"local_job_readback_throw", msg:String(e?.message || e) });
+          }
+        });
+
+        try { console.log("[datanet.local_job_readback.v1] mounted: GET /datanet/v1/local-job/:id"); } catch {}
+      } catch {}
+    })();
+
     function runnerFindVerifyCandidate(account:string){
       try {
         const fs = require("node:fs");
