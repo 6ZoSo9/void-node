@@ -207,6 +207,7 @@ public-beta-preflight:
 beta-proof:
 	@$(MAKE) --no-print-directory public-beta-preflight
 	@$(MAKE) --no-print-directory wc-trade-proof
+	@$(MAKE) --no-print-directory datanet-mvp-proof
 
 .PHONY: install-path-status
 install-path-status:
@@ -233,7 +234,7 @@ beta-help:
 	@printf '%s\n' '  make wc-wallet-proof          # isolated wallet-specific WC proof only'
 	@printf '%s\n' '  make wc-trade-proof           # bounded relayer / redeem / trade proof'
 	@printf '%s\n' '  make datanet-mvp-proof        # bounded live manifest/chunk/receipt/WC proof'
-	@printf '%s\n' '  make beta-proof               # preflight + relayer trade proof'
+	@printf '%s\n' '  make beta-proof               # preflight + relayer trade proof + datanet mvp proof'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Broader demo path:'
 	@printf '%s\n' '  ./ops/demo-video-proof.sh'
