@@ -35875,29 +35875,47 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
             for (const r of localOut) {
               const kind = String(r?.kind || "");
-              const ds = r?.dataset_id || null;
-              const ts = Number(r?.ts_ms || 0);
+              const ds = r?.dataset_id || r?.id || null;
+              const ts = Number(r?.ts_ms || r?.ts || 0);
               const output = r?.output || null;
 
-              if (kind === "datanet_publish") {
+              if (kind === "datanet_publish" || kind === "publish") {
                 publish_count++;
                 if (!latest_publish_dataset && ds) {
-                  latest_publish_dataset = { dataset_id: ds, ts_ms: ts, receipt_id: r?.receipt_id || null };
+                  latest_publish_dataset = {
+                    dataset_id: ds,
+                    ts_ms: ts,
+                    receipt_id: r?.receipt_id || null,
+                    sha256: r?.sha256 || null
+                  };
                 }
-              } else if (kind === "datanet_fetch_verify") {
+              } else if (kind === "datanet_fetch_verify" || kind === "verify") {
                 verify_count++;
-                if (!latest_verified_dataset && ds && output && output.verified === true) {
-                  latest_verified_dataset = { dataset_id: ds, ts_ms: ts, receipt_id: r?.receipt_id || null };
+                const verifiedOk =
+                  (output && output.verified === true) ||
+                  r?.ok === true ||
+                  String(r?.ok || "") === "true";
+                if (!latest_verified_dataset && ds && verifiedOk) {
+                  latest_verified_dataset = {
+                    dataset_id: ds,
+                    ts_ms: ts,
+                    receipt_id: r?.receipt_id || null,
+                    sha256_now: r?.sha256_now || null
+                  };
                 }
-              } else if (kind === "datanet_redundancy_check") {
+              } else if (kind === "datanet_redundancy_check" || kind === "fetch") {
                 redundancy_count++;
-                if (!latest_redundancy_checked_dataset && ds && output && output.checked === true) {
+                const checkedOk =
+                  (output && output.checked === true) ||
+                  kind === "fetch";
+                if (!latest_redundancy_checked_dataset && ds && checkedOk) {
                   latest_redundancy_checked_dataset = {
                     dataset_id: ds,
                     ts_ms: ts,
                     receipt_id: r?.receipt_id || null,
-                    readable: !!output?.readable,
-                    verified_hash: !!output?.verified_hash
+                    readable: (output && output.readable === true) || null,
+                    verified_hash: (output && output.verified_hash === true) || null,
+                    sha256: r?.sha256 || null
                   };
                 }
               }
@@ -39589,27 +39607,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     );
 
     try {
-      let publishCount = 0;
-      let verifyCount = 0;
-      let redundancyCount = 0;
-      let latestVerifiedDataset = "";
-      let latestRedundancyDataset = "";
+      const netValue = await j("/network/value-summary.json?limit=20").catch(() => null);
+      const counts = netValue && netValue.ok && netValue.counts ? netValue.counts : null;
 
-      for (const r of receiptItems) {
-        const kind = String((r && r.kind) || "");
-        const out = (r && r.output) || {};
-        const ds = String((r && r.dataset_id) || "");
+      const publishCount = counts ? Number(counts.publish || 0) : 0;
+      const verifyCount = counts ? Number(counts.verify || 0) : 0;
+      const redundancyCount = counts ? Number(counts.redundancy || 0) : 0;
 
-        if (kind === "datanet_publish") publishCount += 1;
-        if (kind === "datanet_fetch_verify") {
-          verifyCount += 1;
-          if (!latestVerifiedDataset && out && out.verified === true && ds) latestVerifiedDataset = ds;
-        }
-        if (kind === "datanet_redundancy_check") {
-          redundancyCount += 1;
-          if (!latestRedundancyDataset && out && out.checked === true && ds) latestRedundancyDataset = ds;
-        }
-      }
+      const latestVerifiedDataset = netValue && netValue.latest_verified_dataset && netValue.latest_verified_dataset.dataset_id
+        ? String(netValue.latest_verified_dataset.dataset_id)
+        : "";
+      const latestRedundancyDataset = netValue && netValue.latest_redundancy_checked_dataset && netValue.latest_redundancy_checked_dataset.dataset_id
+        ? String(netValue.latest_redundancy_checked_dataset.dataset_id)
+        : "";
 
       const verifiedShort = latestVerifiedDataset
         ? (latestVerifiedDataset.length > 22 ? (latestVerifiedDataset.slice(0, 8) + "…" + latestVerifiedDataset.slice(-6)) : latestVerifiedDataset)
@@ -39620,21 +39630,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       setText(
         "networkValueCard",
-        "Recent network value • publish: " + publishCount +
-        " • verify: " + verifyCount +
-        " • redundancy: " + redundancyCount +
-        " • latest verified: " + verifiedShort +
-        " • latest checked: " + redundancyShort
+        netValue && netValue.ok
+          ? ("Recent network value • publish: " + publishCount +
+             " • verify: " + verifyCount +
+             " • redundancy: " + redundancyCount +
+             " • latest verified: " + verifiedShort +
+             " • latest checked: " + redundancyShort)
+          : "Recent network value is unavailable right now."
       );
 
       if ($("networkValueCard")) {
         $("networkValueCard").title =
-          "Recent receipt-backed network work" +
-          " • publish count: " + publishCount +
-          " • verify count: " + verifyCount +
-          " • redundancy count: " + redundancyCount +
-          " • latest verified dataset: " + (latestVerifiedDataset || "-") +
-          " • latest redundancy-checked dataset: " + (latestRedundancyDataset || "-");
+          netValue && netValue.ok
+            ? ("Backend network value summary" +
+               " • publish count: " + publishCount +
+               " • verify count: " + verifyCount +
+               " • redundancy count: " + redundancyCount +
+               " • latest verified dataset: " + (latestVerifiedDataset || "-") +
+               " • latest redundancy-checked dataset: " + (latestRedundancyDataset || "-"))
+            : "Backend network value summary is unavailable right now.";
       }
     } catch {}
 
