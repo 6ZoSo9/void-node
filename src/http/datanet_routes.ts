@@ -666,6 +666,7 @@ router.get("/receipts/status", (req, res) => {
       }
 
       const cipher_sha256_server = crypto.createHash("sha256").update(cipherAll).digest("hex");
+      const plain_sha256_out = String(meta.plain_sha256 || cipher_sha256_server || "");
 
       // verify: chunk hashes match manifest + merkle root matches id
       let verify_ok = false;
@@ -708,7 +709,7 @@ router.get("/receipts/status", (req, res) => {
         verify_ok,
         cipher_sha256_server,
         cipher_b64: cipherAll.toString("base64"),
-        plain_sha256: String(meta.plain_sha256 || ""),
+        plain_sha256: plain_sha256_out,
       });
     } catch (e:any) {
       return res.status(500).json({ ok:false, error:"fetch2_throw", msg: e?.message || String(e) });
