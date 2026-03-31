@@ -38101,6 +38101,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="hero-actions" style="margin-top:10px">
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Work</a>
           </div>
+          <div class="hero-note" id="latestDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Account Activity Details</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
@@ -38636,6 +38637,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="hero-actions" style="margin-top:10px">
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestReceiptDatasetBtn" href="#" target="_blank" rel="noopener">Open Latest Receipt Dataset</a>
           </div>
+          <div class="hero-note" id="latestReceiptDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Receipt Details</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
@@ -38678,6 +38680,49 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const el = $(id);
     if (el) el.textContent = typeof v === "string" ? v : JSON.stringify(v, null, 2);
   }
+
+  function shortDatasetPreviewCard(d){
+    try {
+      if (!d || d.ok !== true) return "Dataset preview unavailable.";
+      const id = String(d.id || "-");
+      const sizeBytes = Number(d.sizeBytes || 0);
+      const sha256 = String(d.sha256 || "-");
+      const plaintext = String(d.plaintext || "");
+      const preview = plaintext.length > 120 ? (plaintext.slice(0, 120) + "…") : plaintext;
+      return "Dataset: " + id +
+        " • Bytes: " + sizeBytes +
+        " • SHA256: " + sha256 +
+        (preview ? (" • Preview: " + preview) : "");
+    } catch (_) {
+      return "Dataset preview unavailable.";
+    }
+  }
+
+  async function loadDatasetPreviewInto(cardId, datasetId, account){
+    try {
+      const el = $(cardId);
+      if (!el) return;
+      if (!datasetId) {
+        el.style.display = "none";
+        el.textContent = "";
+        el.title = "";
+        return;
+      }
+      const out = await j("/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(account));
+      el.style.display = "";
+      el.textContent = shortDatasetPreviewCard(out);
+      try {
+        el.title = typeof out === "object" ? JSON.stringify(out, null, 2) : String(out);
+      } catch {}
+    } catch (e) {
+      const el = $(cardId);
+      if (!el) return;
+      el.style.display = "";
+      el.textContent = "Dataset preview unavailable.";
+      try { el.title = String((e && e.message) || e || "preview_error"); } catch {}
+    }
+  }
+
 
   function esc(s){
     return String(s ?? "").replace(/[&<>"]/g, function(c){
@@ -39477,10 +39522,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           btn.style.display = "";
           btn.textContent = "Open Latest Receipt Dataset";
           btn.title = "Open dataset readback for " + dsFull;
+          loadDatasetPreviewInto("latestReceiptDatasetPreviewCard", dsFull, account).catch(() => {});
         } else if (btn) {
           btn.style.display = "none";
           btn.removeAttribute("href");
           btn.title = "";
+          const preview = $("latestReceiptDatasetPreviewCard");
+          if (preview) {
+            preview.style.display = "none";
+            preview.textContent = "";
+            preview.title = "";
+          }
         }
       } catch {}
     } else {
@@ -39492,6 +39544,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           btn.style.display = "none";
           btn.removeAttribute("href");
           btn.title = "";
+        }
+        const preview = $("latestReceiptDatasetPreviewCard");
+        if (preview) {
+          preview.style.display = "none";
+          preview.textContent = "";
+          preview.title = "";
         }
       } catch {}
     }
@@ -40223,10 +40281,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           latestDatasetBtn.style.display = "";
           latestDatasetBtn.textContent = "Open Latest Useful Work";
           latestDatasetBtn.title = "Open dataset readback for " + lrDataset;
+          loadDatasetPreviewInto("latestDatasetPreviewCard", lrDataset, account).catch(() => {});
         } else if (latestDatasetBtn) {
           latestDatasetBtn.style.display = "none";
           latestDatasetBtn.removeAttribute("href");
           latestDatasetBtn.title = "";
+          const preview = $("latestDatasetPreviewCard");
+          if (preview) {
+            preview.style.display = "none";
+            preview.textContent = "";
+            preview.title = "";
+          }
         }
       } catch {}
       setText(
