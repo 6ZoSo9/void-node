@@ -38307,7 +38307,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="panel">
         <div class="section-head">
           <div>
-            <h2>Trade WC for VOID<span class="help" tabindex="0" data-help="Trade flow uses participant Work Credits for eligibility and the mapped trading wallet for execution.">?</span></h2>
+            <h2>Trade WC for VOID<span class="help" tabindex="0" data-help="Trade flow uses participant Work Credits from the selected account. When a wallet is connected, it is the default execution and receive path unless you open an advanced override.">?</span></h2>
           </div>
         </div>
 
@@ -38316,7 +38316,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
         <div class="action-rail" style="margin-top:12px">
           <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
-          <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Trade Availability...</button>
+          <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Wallet + WC...</button>
         </div>
 
         <div class="metric-strip top-kpis" style="margin-top:16px">
@@ -38343,7 +38343,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <h2 style="margin-bottom:4px">Review<span class="help" tabindex="0" data-help="Main trade summary for what you can trade now, what is already prepared, the current quote, and where the output will go.">?</span></h2>
             </div>
           </div>
-          <div class="hero-note" id="tradeSummary">Ready to trade.</div>
+          <div class="hero-note" id="tradeSummary">Ready to trade spendable WC for VOID using your connected wallet by default.</div>
           <div class="hero-note" id="tradeOverviewCard" style="margin-top:10px">loading…</div>
         </div>
 
@@ -38466,7 +38466,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Prepare WC for Trade<span class="help" tabindex="0" data-help="Uses the selected participant account for WC eligibility, then routes execution through the current execution wallet. This is temporary trade-path preparation, not a participant identity change.">?</span></h2>
+                <h2 style="margin-bottom:4px">Redeem WC for Trade<span class="help" tabindex="0" data-help="Uses the selected participant account for WC eligibility and prepares WC for the trade path. Connected wallet is the default execution path unless you open the advanced override.">?</span></h2>
               </div>
             </div>
             <label for="redeemAmount">WC to redeem</label>
@@ -38484,7 +38484,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
             </div>
             <div style="margin-top:12px">
-              <div class="hero-note" id="redeemSummary">Ready to prepare WC using the selected participant account and current execution wallet.</div>
+              <div class="hero-note" id="redeemSummary">Ready to redeem WC from the selected participant account for the trade path. Connected wallet is used by default.</div>
                 <div class="hero-note" id="redeemFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
                 <div class="action-rail" style="margin-top:10px">
                   <button class="btn" id="redeemModeAutoBtn" type="button">Auto</button>
@@ -38494,7 +38494,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               <details class="adv" style="margin-top:10px">
                 <summary><span>Redeem Details</span><span class="pill">raw json</span></summary>
                 <div class="adv-body">
-                  <pre id="redeemOut">Ready to prepare WC for trade.</pre>
+                  <pre id="redeemOut">Ready to redeem WC for trade.</pre>
                 </div>
               </details>
             </div>
@@ -39122,7 +39122,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       $("tradeExecuteBtn").textContent = !relayerUp
         ? "Trading Temporarily Unavailable"
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "Earn or Redeem WC First"
+            ? "Need Spendable WC"
             : "Swap WC for VOID");
     }
 
