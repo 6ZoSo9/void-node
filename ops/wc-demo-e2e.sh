@@ -19,7 +19,6 @@ mkdir -p "$OUT_DIR"
 need() { command -v "$1" >/dev/null 2>&1 || { echo "[fail] missing command: $1" >&2; exit 1; }; }
 need curl
 need python3
-need rg
 
 jpost() {
   local url="$1"
@@ -79,8 +78,8 @@ fi
 
 before_redeemable_amt="$(py_get "$OUT_DIR/wc.redeemable.before.json" redeemable)"
 before_balance_amt="$(py_get "$OUT_DIR/wc.balance.before.json" balance)"
-before_dashboard_pending="$(py_get "$OUT_DIR/dashboard.before.json" account.earnings.pending_wc)"
-before_dashboard_redeemed="$(py_get "$OUT_DIR/dashboard.before.json" account.earnings.redeemed_wc)"
+before_dashboard_pending="$(py_get "$OUT_DIR/dashboard.before.json" account.earnings.diagnostic_pending_wc)"
+before_dashboard_redeemed="$(py_get "$OUT_DIR/dashboard.before.json" account.earnings.diagnostic_redeemed_wc)"
 
 echo "=== [4] submit job ==="
 jpost "$NODE_BASE/jobs/submit" "{\"account\":\"$ACCOUNT\",\"kind\":\"datanet_publish\",\"plaintext\":\"$PLAINTEXT\"}" | tee "$OUT_DIR/job.submit.json"
@@ -216,15 +215,15 @@ summary = {
   "approve_tx_hash": approve_hash,
   "swap_tx_hash": swap_hash,
 
-  "flow_before_pending_wc": before["account"]["earnings"]["pending_wc"],
-  "flow_after_pending_wc": after["account"]["earnings"]["pending_wc"],
-  "flow_before_redeemed_wc": before["account"]["earnings"]["redeemed_wc"],
-  "flow_after_redeemed_wc": after["account"]["earnings"]["redeemed_wc"],
+  "flow_before_pending_wc": before["account"]["earnings"]["diagnostic_pending_wc"],
+  "flow_after_pending_wc": after["account"]["earnings"]["diagnostic_pending_wc"],
+  "flow_before_redeemed_wc": before["account"]["earnings"]["diagnostic_redeemed_wc"],
+  "flow_after_redeemed_wc": after["account"]["earnings"]["diagnostic_redeemed_wc"],
 
-  "trade_before_pending_wc": trade_before["pending_wc"],
-  "trade_after_pending_wc": trade_after["pending_wc"],
-  "trade_before_redeemed_wc": trade_before["redeemed_wc"],
-  "trade_after_redeemed_wc": trade_after["redeemed_wc"],
+  "trade_before_pending_wc": trade_before["diagnostic_pending_wc"],
+  "trade_after_pending_wc": trade_after["diagnostic_pending_wc"],
+  "trade_before_redeemed_wc": trade_before["diagnostic_redeemed_wc"],
+  "trade_after_redeemed_wc": trade_after["diagnostic_redeemed_wc"],
 
   "before_void": before["account"]["balances"]["void"],
   "after_void": after["account"]["balances"]["void"],
