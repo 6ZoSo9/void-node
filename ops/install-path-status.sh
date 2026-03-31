@@ -163,6 +163,7 @@ say "make beta-proof               # preflight + relayer trade proof + datanet m
 say "make alienware-bootstrap      # sync + restart + verify node/helper/relayer role"
 say "make alienware-update         # update + restart + verify alienware role health"
 say "make precision-update         # update + restart + verify precision primary node"
+say "make alienware-remote-update  # run alienware updater remotely from precision"
 echo
 say "Broader beta path:"
 say "./ops/public-beta-quickstart.sh"

@@ -225,6 +225,10 @@ alienware-update:
 precision-update:
 	@bash ops/precision-update-node.sh
 
+.PHONY: alienware-remote-update
+alienware-remote-update:
+	@bash ops/alienware-remote-update.sh
+
 .PHONY: public-beta-status
 public-beta-status:
 	@bash ops/install-path-status.sh
@@ -250,6 +254,7 @@ beta-help:
 	@printf '%s\n' '  make alienware-bootstrap      # sync + restart + verify node/helper/relayer role'
 	@printf '%s\n' '  make alienware-update         # update + restart + verify alienware role health'
 	@printf '%s\n' '  make precision-update         # update + restart + verify precision primary node'
+	@printf '%s\n' '  make alienware-remote-update  # run alienware updater remotely from precision'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Broader demo path:'
 	@printf '%s\n' '  ./ops/demo-video-proof.sh'

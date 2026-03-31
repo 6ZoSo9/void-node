@@ -75,6 +75,7 @@ echo "make beta-proof               # preflight + relayer trade proof + datanet 
 echo "make alienware-bootstrap      # sync + restart + verify node/helper/relayer role"
 echo "make alienware-update         # update + restart + verify alienware role health"
 echo "make precision-update         # update + restart + verify precision primary node"
+echo "make alienware-remote-update  # run alienware updater remotely from precision"
 echo
 echo "Live status:"
 echo "make public-beta-status"
