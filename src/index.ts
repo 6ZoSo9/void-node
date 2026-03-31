@@ -36328,7 +36328,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               reason:"runner_disabled",
               account,
               runner: st,
-              note:"Enable Earn Work Credits before running approved work."
+              note:"Turn on Earn Work Credits before running approved work."
             });
           }
           const out = await wcRunnerSubmitOnce(account);
@@ -38010,10 +38010,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="side-label">Sections</div>
       <nav class="nav">
         <button class="tabbtn active" data-tab="overview" id="tab-overview">Home<span class="navhint">see your status and recent activity</span></button>
-        <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work and review what happened</span></button>
+        <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work, get a receipt, and earn WC</span></button>
         <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">check prices and trade WC for VOID</span></button>
         <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">view balances, send WC, and manage VOID</span></button>
-        <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">review receipts, proofs, and outputs</span></button>
+        <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">review receipts and outputs from completed work</span></button>
       </nav>
     </div>
 
@@ -38067,7 +38067,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="kpi">
         <div class="k">Latest Work</div>
         <div class="v" id="latestJobState">-</div>
-        <div class="s" id="latestJobMeta">Checking your most recent work…</div>
+        <div class="s" id="latestJobMeta">Checking your latest receipt-backed work…</div>
       </div>
         <div class="kpi">
           <div class="k">Earn WC</div>
@@ -38097,7 +38097,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
           </div>
           <div class="hero-note" id="summaryCard">loading…</div>
-          <div class="hero-note" id="latestActionCard" style="margin-top:10px">Waiting for your next action.</div>
+          <div class="hero-note" id="latestActionCard" style="margin-top:10px">No recent action yet. Submit work to create a receipt and earn WC.</div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Account Activity Details</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
@@ -38122,7 +38122,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Recent Proofs</h2>
+              <h2>Recent Receipts</h2>
               
             </div>
           </div>
@@ -38137,14 +38137,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="action">
           <div class="section-head">
             <div>
-              <h2>Earn Work Credits<span class="help" tabindex="0" data-help="Submit work for the selected participant account. Completed work creates receipts and can earn WC.">?</span></h2>
+              <h2>Earn Work Credits<span class="help" tabindex="0" data-help="Submit work for the selected participant account. Completed work creates a receipt and can earn WC.">?</span></h2>
               
             </div>
           </div>
 
           <label for="account">Participant identity</label>
           <input id="account" value="zoso" />
-          <div class="subtle-tab-copy" style="margin-top:8px">Participant identity selects which account’s WC, receipts, and history you are viewing. Your connected wallet is optional and is used separately for redeem/trade execution.</div>
+          <div class="subtle-tab-copy" style="margin-top:8px">Participant identity selects which account receives WC and owns the receipts and history shown here. Your connected wallet is optional and is used separately for redeem and trade execution.</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
             <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #1d4ed8; background:#0b1b34; color:#dbeafe; cursor:pointer; font-weight:700; font-size:12px;">use wallet as participant</button>
             <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='dev-zoso'; try{localStorage.setItem('void_participant_account_v1','dev-zoso')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: zoso</button>
@@ -38159,12 +38159,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           <textarea id="plaintext" placeholder="Enter text or data."></textarea>
 
           <label>Earn Work Credits</label>
-          <div class="hero-note" id="wcRunnerStatusCard">Agent-selected useful work only. Loading runner state…</div>
+          <div class="hero-note" id="wcRunnerStatusCard">Useful work is agent-selected here. Loading earn state…</div>
           <div class="action-rail" style="margin-top:10px">
             <label class="void-switch" for="wcRunnerToggleInput" id="wcRunnerToggleWrap"><input id="wcRunnerToggleInput" type="checkbox" /><span class="void-switch-track" id="wcRunnerToggleTrack" aria-hidden="true"></span><span class="void-switch-label" id="wcRunnerToggleLabel">Earn Work Credits</span></label>
             <button class="btn" id="wcRunnerTickBtn" type="button">Run Once</button>
           </div>
-          <div class="subtle-tab-copy" id="wcRunnerMeta">Agent-selected useful work runs here. Stop only.</div>
+          <div class="subtle-tab-copy" id="wcRunnerMeta">Approved useful work only. Turn earning on or off, or run once.</div>
 
           <details class="adv" style="margin-top:12px">
             <summary><span>Runner Details</span><span class="pill">advanced</span></summary>
@@ -38269,11 +38269,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
           <div style="margin-top:14px;">
             <label>Submission Status</label>
-            <div class="hero-note" id="submitSummary">Ready to submit work. After completion, the page waits for participant WC credit before refreshing trade availability.</div>
+            <div class="hero-note" id="submitSummary">Ready to submit work. When it completes, this page waits for the receipt and WC update before refreshing balances and trade availability.</div>
             <details class="adv" style="margin-top:10px">
               <summary><span>Advanced Submission Details</span><span class="pill">raw json</span></summary>
               <div class="adv-body">
-                <pre id="submitOut">Ready to submit work.</pre>
+                <pre id="submitOut">Ready to submit work and watch for the receipt.</pre>
               </div>
             </details>
           </div>
@@ -39016,8 +39016,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "wcRunnerStatusCard",
       runnerEnabled
-        ? ("Earn Work Credits is ON for this account" + (runnerSafeMode ? " • Safe Mode ON" : "") + ".")
-        : ("Earn Work Credits is OFF for this account" + (runnerSafeMode ? " • Safe Mode still clamps limits" : "") + ".")
+        ? ("Earn Work Credits is ON for this account" + (runnerSafeMode ? " • Safe Mode ON" : "") + ". Approved useful work can run here.")
+        : ("Earn Work Credits is OFF for this account" + (runnerSafeMode ? " • Safe Mode still clamps limits" : "") + ". Turn it on to allow approved useful work.")
     );
     if ($("wcRunnerToggleInput")) {
       $("wcRunnerToggleInput").checked = !!runnerEnabled;
@@ -39067,7 +39067,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "walletMeta",
       redeemState
-        ? ("Participant WC available now: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
+        ? ("Spendable WC now: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
         : "Local Work Credit state is unavailable right now"
     );
     setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
@@ -39082,7 +39082,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "connectedWalletMeta",
       isWalletAddr(connectedWallet)
-        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | execution wallet: " + wcAddr : " | no execution wallet linked") + " | participant WC stays on the selected account")
+        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | execution wallet: " + wcAddr : " | no execution wallet linked") + " | participant WC and receipts stay on the selected account")
         : (wcAddr
             ? ("execution wallet: " + wcAddr + " | no connected wallet detected | participant WC is read from the selected account ledger")
             : "No connected wallet detected")
@@ -39101,7 +39101,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       $("tradeExecuteBtn").textContent = !relayerUp
         ? "Trading Temporarily Unavailable"
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "Earn WC or Redeem WC First"
+            ? "Earn or Redeem WC First"
             : "Swap WC for VOID");
     }
 
@@ -39761,7 +39761,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         amount,
         wallet,
         redeemable_state: redeemableNow || null,
-        note:"No redeemable WC available. Earn or redeem WC before executing a trade."
+        note:"No redeemable WC available yet. Earn WC first, then redeem or trade."
       });
       await refresh();
       return;
@@ -39992,11 +39992,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText(
         "wcRunnerStatusCard",
         runnerEnabled
-          ? ("Earn Work Credits is ON for this account." +
+          ? ("Earn Work Credits is ON for this account. Approved useful work can run here." +
              (runnerStatus && runnerStatus.last_result && runnerStatus.last_result.job_id
                ? (" Last job: " + runnerStatus.last_result.job_id)
                : " Waiting for next approved task."))
-          : "Earn Work Credits is OFF for this account. Enable earning before running approved work."
+          : "Earn Work Credits is OFF for this account. Turn it on before running approved useful work."
       );
 
       if ($("wcRunnerTickBtn")) {
