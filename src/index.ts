@@ -38843,7 +38843,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const shouldAdoptConnectedWallet = !currentAccountRaw || currentAccountRaw === "zoso";
     if (accountInput && shouldAdoptConnectedWallet && isWalletAddr(connectedWallet)) {
       accountInput.value = connectedWallet;
-      rememberParticipantAccount(connectedWallet);
     }
     const account = accountInput ? ((String(accountInput.value || "").trim()) || pickInitialParticipantAccount()) : pickInitialParticipantAccount();
     rememberParticipantAccount(account);
