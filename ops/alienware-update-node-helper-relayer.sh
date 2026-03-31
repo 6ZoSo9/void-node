@@ -32,6 +32,17 @@ OLD_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
 echo "branch=$OLD_BRANCH"
 echo "old_head=$OLD_HEAD"
 git log --oneline --decorate -n 3 || true
+SNAP_DIR="/tmp/void-update-snapshots"
+mkdir -p "$SNAP_DIR"
+SNAP_FILE="$SNAP_DIR/alienware-update-last-head.txt"
+{
+  echo "ts=$(date -Is)"
+  echo "host=$(hostname)"
+  echo "role=alienware-node-helper-relayer"
+  echo "branch=$OLD_BRANCH"
+  echo "old_head=$OLD_HEAD"
+} > "$SNAP_FILE"
+echo "snapshot_file=$SNAP_FILE"
 echo
 
 echo "=== [1] runtime ==="
@@ -51,6 +62,9 @@ git reset --hard origin/main
 NEW_HEAD="$(git rev-parse --short HEAD)"
 echo "new_head=$NEW_HEAD"
 git log --oneline --decorate -n 5
+{
+  echo "new_head=$NEW_HEAD"
+} >> "$SNAP_FILE"
 echo
 
 echo "=== [3] install deps ==="
@@ -106,6 +120,7 @@ if [ "$OLD_HEAD" = "$NEW_HEAD" ]; then
 else
   echo "changed=yes"
 fi
+echo "rollback_hint=git reset --hard $OLD_HEAD"
 echo "- repo synced to origin/main"
 echo "- deps installed"
 echo "- stale 4100/4700 holders cleared"
