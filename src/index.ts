@@ -38142,9 +38142,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
           </div>
 
-          <label for="account">Participant identity</label>
+          <label for="account">Participant identity<span class="help" tabindex="0" data-help="If you connect a wallet and have not already chosen a real participant identity, the connected wallet is preferred automatically.">?</span></label>
           <input id="account" value="zoso" />
-          <div class="subtle-tab-copy" style="margin-top:8px">Participant identity selects which account receives WC and owns the receipts and history shown here. Connected wallet is the preferred happy path and is also used for redeem and trade execution unless you open the advanced override.</div>
+          <div class="subtle-tab-copy" style="margin-top:8px">Participant identity selects which account receives WC and owns the receipts and history shown here. If no real participant identity has been chosen yet, a connected wallet is preferred automatically. That same wallet is also used for redeem and trade execution unless you open the advanced override.</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
             <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #1d4ed8; background:#0b1b34; color:#dbeafe; cursor:pointer; font-weight:700; font-size:12px;">Use Connected Wallet</button>
           </div>
