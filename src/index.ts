@@ -12395,7 +12395,19 @@ void_seal_rate_1m ${rate1m()}
     return m?num(m[1],d):d;
   }
   async function readHead(){ try{ return num(await fetchText("http://localhost:4100/blocks/latest/number",300), g.__void_basics_cache.head);}catch{ return g.__void_basics_cache.head; } }
-  async function readTxrootHealthLive(){ try{ const t=await fetchText("http://localhost:4100/health/txroot3/live.prom",300); return prom(t,"void_txroot_health",g.__void_basics_cache.txroot_health_live);}catch{ return g.__void_basics_cache.txroot_health_live; } }
+  async function readTxrootHealthLive(){
+    try{
+      let t = await fetchText("http://localhost:4100/health/txroot3?format=prom", 300);
+      let v = prom(t, "void_txroot_health", null);
+      if (v == null) {
+        t = await fetchText("http://localhost:4100/health/txroot3/live.prom", 300);
+        v = prom(t, "void_txroot_health", g.__void_basics_cache.txroot_health_live);
+      }
+      return v == null ? g.__void_basics_cache.txroot_health_live : v;
+    }catch{
+      return g.__void_basics_cache.txroot_health_live;
+    }
+  }
   async function readLastmile(){ const prev=g.__void_basics_cache.lastmile; try{ const t=await fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom",300); return {
       total: prom(t,"void_lastmile_block_txs_total",prev.total),
       latest_txs: prom(t,"void_lastmile_latest_txs",prev.latest_txs),
