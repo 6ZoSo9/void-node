@@ -195,6 +195,10 @@ wc-wallet-proof:
 wc-trade-proof:
 	@bash ops/wc-smoke.sh
 
+.PHONY: datanet-mvp-proof
+datanet-mvp-proof:
+	@bash ops/datanet-mvp-proof.sh
+
 .PHONY: public-beta-preflight
 public-beta-preflight:
 	@bash ops/public-beta-preflight.sh
@@ -228,6 +232,7 @@ beta-help:
 	@printf '%s\n' '  make public-beta-preflight   # wallet proof + wallet identity smoke + runner safety'
 	@printf '%s\n' '  make wc-wallet-proof          # isolated wallet-specific WC proof only'
 	@printf '%s\n' '  make wc-trade-proof           # bounded relayer / redeem / trade proof'
+	@printf '%s\n' '  make datanet-mvp-proof        # bounded live manifest/chunk/receipt/WC proof'
 	@printf '%s\n' '  make beta-proof               # preflight + relayer trade proof'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Broader demo path:'
