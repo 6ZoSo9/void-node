@@ -51,12 +51,21 @@ echo "=== [3] install deps ==="
 npm install
 echo
 
-echo "=== [4] restart node service ==="
-systemctl --user restart void-node.service
-sleep 4
+echo "=== [4] stop service + clear stale ports ==="
+systemctl --user stop void-node.service || true
+sleep 2
+for p in 4100 4700; do
+  fuser -k "${p}/tcp" || true
+done
+sleep 2
 echo
 
-echo "=== [5] probes ==="
+echo "=== [5] restart node service ==="
+systemctl --user restart void-node.service
+sleep 6
+echo
+
+echo "=== [6] probes ==="
 echo "--- node /health"
 curl -fsS --max-time 5 "$NODE_BASE/health" || { echo "[fail] node health"; exit 1; }
 echo
@@ -78,11 +87,11 @@ curl -fsS --max-time 5 -H 'content-type: application/json' \
 echo
 echo
 
-echo "=== [6] listeners ==="
+echo "=== [7] listeners ==="
 ss -ltnp | grep -E ':4100 |:4312 |:4313 |:4700 |:8545 ' || true
 echo
 
-echo "=== [7] role summary ==="
+echo "=== [8] role summary ==="
 echo "PASS alienware-bootstrap"
 echo "- repo synced to origin/main"
 echo "- node service restarted"
