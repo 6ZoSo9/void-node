@@ -618,26 +618,49 @@ router.get("/receipts/status", (req, res) => {
       const path = await import("node:path");
       const crypto = await import("node:crypto");
       const dataDir = String((process.env.DATA_DIR || "data") || "data");
-      const dir = path.join(dataDir, "datanet", "mvp2", id);
-      const manPath = path.join(dir, "manifest.v1.json");
-      const metaPath = path.join(dir, "meta.json");
-      if (!fs.existsSync(dir) || !fs.existsSync(manPath)) return res.status(404).json({ ok:false, error:"not_found" });
+      const dnDir = path.join(dataDir, "datanet");
+      const mvp2Dir = path.join(dnDir, "mvp2", id);
+      const mvp2ManPath = path.join(mvp2Dir, "manifest.v1.json");
+      const mvp2MetaPath = path.join(mvp2Dir, "meta.json");
 
-      const man = JSON.parse(fs.readFileSync(manPath, "utf8"));
-      const meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, "utf8")) : {};
-
+      let man: any = null;
+      let meta: any = {};
       let cipherAll: Buffer | null = null;
-      const cipherPath = path.join(dir, "cipher.bin");
-      if (fs.existsSync(cipherPath)) {
-        cipherAll = fs.readFileSync(cipherPath);
+      let source = "mvp2";
+
+      if (fs.existsSync(mvp2Dir) && fs.existsSync(mvp2ManPath)) {
+        man = JSON.parse(fs.readFileSync(mvp2ManPath, "utf8"));
+        meta = fs.existsSync(mvp2MetaPath) ? JSON.parse(fs.readFileSync(mvp2MetaPath, "utf8")) : {};
+
+        const cipherPath = path.join(mvp2Dir, "cipher.bin");
+        if (fs.existsSync(cipherPath)) {
+          cipherAll = fs.readFileSync(cipherPath);
+        } else {
+          const chunks = Array.isArray(man.chunks) ? man.chunks : [];
+          const parts: Buffer[] = [];
+          for (const c of chunks) {
+            const fname = String(c.file || "");
+            if (!fname) continue;
+            parts.push(fs.readFileSync(path.join(mvp2Dir, fname)));
+          }
+          cipherAll = Buffer.concat(parts);
+        }
       } else {
-        // reconstruct from chunk files in manifest order
+        const manifestsDir2 = path.join(dnDir, "manifests");
+        const chunksDir2 = path.join(dnDir, "chunks");
+        const manPath2 = path.join(manifestsDir2, `${id}.json`);
+        if (!fs.existsSync(manPath2)) return res.status(404).json({ ok:false, error:"not_found" });
+
+        source = "manifest_chunks";
+        man = JSON.parse(fs.readFileSync(manPath2, "utf8"));
+        meta = {};
+
         const chunks = Array.isArray(man.chunks) ? man.chunks : [];
         const parts: Buffer[] = [];
         for (const c of chunks) {
-          const fname = String(c.file || "");
-          if (!fname) continue;
-          parts.push(fs.readFileSync(path.join(dir, fname)));
+          const wantHex = String(c.leafHashHex || "").toLowerCase();
+          if (!wantHex) continue;
+          parts.push(fs.readFileSync(path.join(chunksDir2, `${wantHex}.bin`)));
         }
         cipherAll = Buffer.concat(parts);
       }
@@ -654,10 +677,18 @@ router.get("/receipts/status", (req, res) => {
         const chunks = Array.isArray(man.chunks) ? man.chunks : [];
         const leaves: Buffer[] = [];
         for (const c of chunks) {
-          const fname = String(c.file || "");
-          const wantHex = String(c.leafHashHex || "");
-          if (!fname || !wantHex) throw new Error("bad_manifest_chunk");
-          const buf = fs.readFileSync(path.join(dir, fname));
+          const wantHex = String(c.leafHashHex || "").toLowerCase();
+          if (!wantHex) throw new Error("bad_manifest_chunk");
+
+          let buf: Buffer;
+          if (source === "mvp2") {
+            const fname = String(c.file || "");
+            if (!fname) throw new Error("bad_manifest_chunk");
+            buf = fs.readFileSync(path.join(mvp2Dir, fname));
+          } else {
+            buf = fs.readFileSync(path.join(dnDir, "chunks", `${wantHex}.bin`));
+          }
+
           const leaf = sha256(buf);
           const gotHex = hex(leaf);
           if (gotHex !== wantHex) throw new Error("leaf_mismatch");
@@ -673,6 +704,7 @@ router.get("/receipts/status", (req, res) => {
       return res.status(200).json({
         ok: true,
         id,
+        source,
         verify_ok,
         cipher_sha256_server,
         cipher_b64: cipherAll.toString("base64"),
