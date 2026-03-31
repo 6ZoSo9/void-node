@@ -39408,16 +39408,33 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const ridFull = String(latestReceipt.receipt_id || "");
       const jidFull = String(latestReceipt.job_id || "-");
       const dsFull = String(latestReceipt.dataset_id || "-");
+      const kindFull = String(latestReceipt.kind || "-");
+      const statusFull = String(latestReceipt.status || "-");
+      const outputObj = latestReceipt.output || null;
+      const outputPathFull = outputObj && outputObj.path ? String(outputObj.path) : "";
       const ridShort = ridFull.length > 24 ? (ridFull.slice(0, 10) + "…" + ridFull.slice(-6)) : ridFull;
-      const jidShort = jidFull.length > 24 ? (jidFull.slice(0, 10) + "…" + jidFull.slice(-6)) : jidFull;
       const dsShort = dsFull.length > 24 ? (dsFull.slice(0, 8) + "…" + dsFull.slice(-6)) : dsFull;
-      setText(
-        "proofSummaryCard",
-        "Latest proof: " + ridShort + " • Job: " + jidShort + " • Dataset: " + dsShort
-      );
-      try { $("proofSummaryCard").title = "Latest proof: " + ridFull + " • Job: " + jidFull + " • Dataset: " + dsFull; } catch {}
+      const outputPathShort = outputPathFull
+        ? (outputPathFull.length > 34 ? (outputPathFull.slice(0, 14) + "…" + outputPathFull.slice(-12)) : outputPathFull)
+        : "-";
+      const summaryText =
+        "Receipt: " + ridShort +
+        " • " + kindFull +
+        " • " + statusFull +
+        " • Dataset: " + dsShort +
+        (outputPathFull ? (" • Output: " + outputPathShort) : "");
+      setText("proofSummaryCard", summaryText);
+      try {
+        $("proofSummaryCard").title =
+          "Receipt: " + ridFull +
+          " • Job: " + jidFull +
+          " • Type: " + kindFull +
+          " • Status: " + statusFull +
+          " • Dataset: " + dsFull +
+          (outputPathFull ? (" • Output: " + outputPathFull) : "");
+      } catch {}
     } else {
-      setText("proofSummaryCard", "No recent proof is available for this account yet.");
+      setText("proofSummaryCard", "No recent receipt is available for this account yet.");
       try { $("proofSummaryCard").title = ""; } catch {}
     }
   }
