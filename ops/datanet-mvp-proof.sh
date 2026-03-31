@@ -6,6 +6,7 @@ set +o histexpand
 BASE="${BASE:-http://127.0.0.1:4100}"
 WHO="${WHO:-0xdf994e1b8c1ac9078c66892b589c8aa76c3be592}"
 ROOT="${ROOT:-}"
+IDEMPOTENT="${IDEMPOTENT:-1}"
 
 if [ -z "$ROOT" ]; then
   ROOT="$(python3 - <<'PY2'
@@ -56,7 +57,6 @@ chunk_path = sys.argv[3]
 receipt_body_path = sys.argv[4]
 who = sys.argv[5]
 
-man = manifest.get("manifest") or {}
 root = (proof.get("root") or "").lower()
 idx = int(proof.get("index") or 0)
 leaf = (proof.get("leaf") or "").lower()
@@ -99,23 +99,75 @@ print(json.dumps({
 PY
 
 echo
-echo "=== [6] post receipt ==="
-curl -fsS --max-time 20 \
-  -H 'content-type: application/json' \
-  -X POST "$BASE/datanet/v1/receipt" \
-  --data-binary @"$OUT/receipt.body.json" | tee "$OUT/receipt.post.json"
+echo "=== [6] wc ledger before post/skip ==="
+jget "$BASE/wc/ledger?account=$WHO&limit=50" | tee "$OUT/wc.ledger.before.json"
 echo
 
-echo "=== [7] receipts status after ==="
+echo "=== [7] maybe post receipt ==="
+python3 - "$OUT/receipt.body.json" "$OUT/wc.ledger.before.json" "$WHO" "$IDEMPOTENT" > "$OUT/post.mode.env" <<'PY'
+import json, sys
+
+body = json.load(open(sys.argv[1]))
+ledger = json.load(open(sys.argv[2]))
+who = sys.argv[3]
+idempotent = str(sys.argv[4] or "1")
+
+rid = str(body.get("id") or "")
+events = ledger.get("events") or []
+
+already = False
+for ev in events:
+    if str(ev.get("reason") or "") != "datanet_receipt":
+        continue
+    if str(ev.get("account") or ev.get("who") or "") != who:
+        continue
+    if rid and str(ev.get("receipt_id") or "") == rid:
+        already = True
+        break
+
+mode = "post"
+if idempotent == "1" and already:
+    mode = "skip_existing"
+
+print(f"POST_MODE={mode}")
+print(f"POST_RECEIPT_ID={rid}")
+PY
+
+. "$OUT/post.mode.env"
+
+if [ "$POST_MODE" = "skip_existing" ]; then
+  echo "[ok] skipping receipt post; matching datanet_receipt already exists"
+  python3 - "$OUT/receipt.body.json" > "$OUT/receipt.post.json" <<'PY'
+import json, sys
+body = json.load(open(sys.argv[1]))
+print(json.dumps({
+  "ok": True,
+  "wrote": False,
+  "skipped": True,
+  "reason": "already_credited",
+  "id": body.get("id"),
+  "bytes": body.get("bytes"),
+}, indent=2))
+PY
+  cat "$OUT/receipt.post.json"
+else
+  curl -fsS --max-time 20 \
+    -H 'content-type: application/json' \
+    -X POST "$BASE/datanet/v1/receipt" \
+    --data-binary @"$OUT/receipt.body.json" | tee "$OUT/receipt.post.json"
+fi
+echo
+
+echo "=== [8] receipts status after ==="
 jget "$BASE/datanet/v1/receipts/status" | tee "$OUT/receipts.after.json"
 echo
 
-echo "=== [8] wc ledger for account ==="
-jget "$BASE/wc/ledger?account=$WHO&limit=50" | tee "$OUT/wc.ledger.json"
+echo "=== [9] wc ledger after post/skip ==="
+jget "$BASE/wc/ledger?account=$WHO&limit=50" | tee "$OUT/wc.ledger.after.json"
 echo
 
-echo "=== [9] assert live manifest/chunk proof ==="
-python3 - "$OUT/status.json" "$OUT/proof.json" "$OUT/receipt.post.json" "$OUT/receipts.before.json" "$OUT/receipts.after.json" "$OUT/wc.ledger.json" "$WHO" <<'PY'
+echo "=== [10] assert live manifest/chunk proof ==="
+python3 - "$OUT/status.json" "$OUT/proof.json" "$OUT/receipt.post.json" "$OUT/receipts.before.json" "$OUT/receipts.after.json" "$OUT/wc.ledger.before.json" "$OUT/wc.ledger.after.json" "$WHO" <<'PY'
 import json, sys
 
 status = json.load(open(sys.argv[1]))
@@ -123,8 +175,9 @@ proof = json.load(open(sys.argv[2]))
 post = json.load(open(sys.argv[3]))
 before = json.load(open(sys.argv[4]))
 after = json.load(open(sys.argv[5]))
-ledger = json.load(open(sys.argv[6]))
-who = sys.argv[7]
+ledger_before = json.load(open(sys.argv[6]))
+ledger_after = json.load(open(sys.argv[7]))
+who = sys.argv[8]
 
 if not status.get("ok"):
     raise SystemExit("[fail] datanet status ok != true")
@@ -137,8 +190,6 @@ if not proof.get("ok"):
     raise SystemExit("[fail] proof ok != true")
 if not post.get("ok"):
     raise SystemExit("[fail] receipt post ok != true")
-if not post.get("wrote"):
-    raise SystemExit("[fail] receipt post wrote != true")
 
 before_total = int(before.get("total") or 0)
 after_total = int(after.get("total") or 0)
@@ -146,27 +197,32 @@ if after_total < before_total:
     raise SystemExit(f"[fail] receipts total decreased: {before_total} -> {after_total}")
 
 post_receipt_id = str(post.get("id") or "")
-events = ledger.get("events") or []
-matches = []
-for ev in events:
+events_after = ledger_after.get("events") or []
+matches_after = []
+for ev in events_after:
     if str(ev.get("reason") or "") != "datanet_receipt":
         continue
     if str(ev.get("account") or ev.get("who") or "") != who:
         continue
     if post_receipt_id and str(ev.get("receipt_id") or "") == post_receipt_id:
-        matches.append(ev)
+        matches_after.append(ev)
 
-if not matches:
+if not matches_after:
     raise SystemExit("[fail] no matching datanet_receipt credit found in wc ledger")
 
+mode = "posted"
+if post.get("skipped"):
+    mode = "skipped_existing"
+
 print("datanet_mvp_proof_ok=1")
+print(f"mode={mode}")
 print(f"root={proof.get('root')}")
 print(f"leaf={proof.get('leaf')}")
 print(f"receipt_id={post_receipt_id}")
 print(f"receipts_total_before={before_total}")
 print(f"receipts_total_after={after_total}")
-print(f"ledger_match_count={len(matches)}")
-print(f"latest_credit_delta={matches[0].get('delta')}")
+print(f"ledger_match_count={len(matches_after)}")
+print(f"latest_credit_delta={matches_after[0].get('delta')}")
 PY
 
 echo
