@@ -161,6 +161,7 @@ say "make wc-trade-proof           # bounded relayer / redeem / trade proof"
 say "make datanet-mvp-proof        # bounded live manifest/chunk/receipt/WC proof"
 say "make beta-proof               # preflight + relayer trade proof + datanet mvp proof"
 say "make alienware-bootstrap      # sync + restart + verify node/helper/relayer role"
+say "make alienware-update         # update + restart + verify alienware role health"
 echo
 say "Broader beta path:"
 say "./ops/public-beta-quickstart.sh"

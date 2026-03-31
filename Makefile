@@ -217,6 +217,10 @@ install-path-status:
 alienware-bootstrap:
 	@bash ops/alienware-bootstrap-node-helper-relayer.sh
 
+.PHONY: alienware-update
+alienware-update:
+	@bash ops/alienware-update-node-helper-relayer.sh
+
 .PHONY: public-beta-status
 public-beta-status:
 	@bash ops/install-path-status.sh
@@ -240,6 +244,7 @@ beta-help:
 	@printf '%s\n' '  make datanet-mvp-proof        # bounded live manifest/chunk/receipt/WC proof'
 	@printf '%s\n' '  make beta-proof               # preflight + relayer trade proof + datanet mvp proof'
 	@printf '%s\n' '  make alienware-bootstrap      # sync + restart + verify node/helper/relayer role'
+	@printf '%s\n' '  make alienware-update         # update + restart + verify alienware role health'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Broader demo path:'
 	@printf '%s\n' '  ./ops/demo-video-proof.sh'
