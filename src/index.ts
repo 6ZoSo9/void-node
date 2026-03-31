@@ -38844,7 +38844,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function renderReceipts(items){
     if (!items || !items.length) return '<div class="empty">No receipts are available for this account yet.</div>';
-    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:31%">Receipt</th><th style="width:21%">Type</th><th style="width:26%">Dataset</th><th style="width:22%">Status</th></tr></thead><tbody>' +
+    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:24%">Receipt</th><th style="width:19%">Type</th><th style="width:22%">Dataset</th><th style="width:14%">Status</th><th style="width:21%">Result</th></tr></thead><tbody>' +
       items.map(r => {
         const receiptId = String(r.receipt_id || "");
         const ds = String(r.dataset_id || "");
@@ -38852,11 +38852,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const dsShort = ds.length > 24 ? (ds.slice(0,10) + "…" + ds.slice(-8)) : ds;
         const kind = String(r.kind || "");
         const status = String(r.status || "-");
+        const out = r.output || {};
+        let result = "-";
+        if (kind === "datanet_fetch_verify") {
+          result = out && out.verified === true ? "verified" : "verify pending";
+        } else if (kind === "datanet_redundancy_check") {
+          const parts = [];
+          if (out && out.checked === true) parts.push("checked");
+          if (out && out.readable === true) parts.push("readable");
+          if (out && out.verified_hash === true) parts.push("hash ok");
+          result = parts.length ? parts.join(" • ") : "redundancy pending";
+        } else if (kind === "datanet_publish") {
+          result = out && out.path ? "stored" : "-";
+        }
         return '<tr>'
           + '<td class="mono" title="'+esc(receiptId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
           + '<td title="'+esc(kind)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
           + '<td class="mono" title="'+esc(ds)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort || "-")+'</span></td>'
           + '<td title="'+esc(status)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(status)+'</td>'
+          + '<td title="'+esc(result)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(result)+'</td>'
           + '</tr>';
       }).join("") +
       '</tbody></table></div>';
@@ -39417,10 +39431,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const outputPathShort = outputPathFull
         ? (outputPathFull.length > 34 ? (outputPathFull.slice(0, 14) + "…" + outputPathFull.slice(-12)) : outputPathFull)
         : "-";
+
+      let resultFull = "";
+      if (kindFull === "datanet_fetch_verify") {
+        resultFull = outputObj && outputObj.verified === true ? "verified" : "";
+      } else if (kindFull === "datanet_redundancy_check") {
+        const parts = [];
+        if (outputObj && outputObj.checked === true) parts.push("checked");
+        if (outputObj && outputObj.readable === true) parts.push("readable");
+        if (outputObj && outputObj.verified_hash === true) parts.push("hash ok");
+        resultFull = parts.join(" • ");
+      } else if (kindFull === "datanet_publish") {
+        resultFull = outputPathFull ? "stored" : "";
+      }
+
       const summaryText =
         "Receipt: " + ridShort +
         " • " + kindFull +
         " • " + statusFull +
+        (resultFull ? (" • " + resultFull) : "") +
         " • Dataset: " + dsShort +
         (outputPathFull ? (" • Output: " + outputPathShort) : "");
       setText("proofSummaryCard", summaryText);
@@ -39430,6 +39459,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           " • Job: " + jidFull +
           " • Type: " + kindFull +
           " • Status: " + statusFull +
+          (resultFull ? (" • Result: " + resultFull) : "") +
           " • Dataset: " + dsFull +
           (outputPathFull ? (" • Output: " + outputPathFull) : "");
       } catch {}
