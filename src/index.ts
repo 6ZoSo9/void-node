@@ -38542,7 +38542,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Trading History<span class="help" tabindex="0" data-help="Recent WC redemptions for the selected participant account.">?</span></h2>
+              <h2>Redemption History<span class="help" tabindex="0" data-help="Recent participant-side WC redemption events for the selected account on this node. This is not onchain swap history.">?</span></h2>
             </div>
           </div>
           <div class="table-wrap"><div id="redeemHistoryWrap" class="empty">loading…</div></div>
@@ -38552,7 +38552,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       <div class="grid-2-eq">
         <div class="panel">
           <details class="adv">
-            <summary><span>Trading Diagnostics</span><span class="pill">advanced</span></summary>
+            <summary><span>Helper Wallet Diagnostics</span><span class="pill">advanced</span></summary>
             <div class="adv-body">
               <pre id="helperWalletStateOut">loading…</pre>
             </div>
@@ -38998,7 +38998,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "walletMeta",
       redeemState
-        ? ("Spendable WC: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
+        ? ("Participant WC available now: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
         : "Local Work Credit state is unavailable right now"
     );
     setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
@@ -39257,7 +39257,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       helper_balances: wcBal || null,
       helper_wallet_earnings_raw: wcEarn || null,
       pool_price: wcPool && wcPool.price ? wcPool.price : null,
-      note: "Participant local WC on :4100 is canonical. Helper wallet values below are diagnostics only until redeemed/trading WC accounting is fixed."
+      note: "Participant WC on :4100 is the canonical source for earning, redeeming, and trade eligibility. Helper wallet values below are diagnostic only and should not be treated as participant WC truth."
     });
     if ($("tradeStateOut")) setPre("tradeStateOut", {
       helper_ui: wcBase + "/ui",
@@ -39270,7 +39270,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       helper_dashboard_ok: !!(wcDash && wcDash.account && wcDash.pool),
       helper_balances: wcBal || null,
       helper_wallet_earnings_raw: wcEarn || null,
-      helper_note: "Helper wallet values are diagnostic only until helper redeemed/trading WC accounting is fixed.",
+      helper_note: "Helper wallet values are diagnostic only. Participant WC on :4100 remains the canonical source for trade eligibility and redemption state.",
       local_redeemed_events: redeemedState || null,
       quote_input_wc: Number.isFinite(tradeInput) ? tradeInput : null,
       quote_output_void: quotedVoid,
@@ -39284,8 +39284,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       note: !relayerUp
         ? "Relayer is offline."
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "No available WC to trade yet. Participant local WC on :4100 is the canonical source for trade eligibility."
-            : "Relayer is live for quote and execution. Participant local WC on :4100 is the canonical source for trade eligibility.")
+            ? "No participant WC is available to trade yet. Participant WC on :4100 is the canonical source for trade eligibility."
+            : "Relayer is live for quote and execution. Participant WC on :4100 is the canonical source for trade eligibility.")
     });
     setPre("summaryOut", summaryWrapped);
 
@@ -39307,7 +39307,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText("tradeOverviewCard", tradeOverviewText);
       try {
         $("tradeOverviewCard").title =
-          "Participant WC: " + redeemableTotal +
+          "Participant WC available: " + redeemableTotal +
           " • Quoted VOID: " + (quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-") +
           " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable") +
           (wcAddr ? " • Redeemed to wallet: " + wcAddr : "");
