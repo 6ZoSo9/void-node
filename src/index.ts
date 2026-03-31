@@ -38617,7 +38617,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Recent proofs</h2>
+              <h2>Recent receipts</h2>
             </div>
           </div>
           <div class="table-wrap"><div id="receiptsWrap" class="empty">loading…</div></div>
@@ -38626,12 +38626,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Latest Proof Summary</h2>
+              <h2>Latest Receipt Summary</h2>
             </div>
           </div>
           <div class="hero-note" id="proofSummaryCard">loading…</div>
           <details class="adv" style="margin-top:14px">
-            <summary><span>Proof Details</span><span class="pill">raw json</span></summary>
+            <summary><span>Receipt Details</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
               <pre id="dataStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
             </div>
@@ -38843,20 +38843,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   function renderReceipts(items){
-    if (!items || !items.length) return '<div class="empty">No proofs are available for this account yet.</div>';
-    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:38%">Proof ID</th><th style="width:34%">Job ID</th><th style="width:28%">Type</th></tr></thead><tbody>' +
+    if (!items || !items.length) return '<div class="empty">No receipts are available for this account yet.</div>';
+    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:31%">Receipt</th><th style="width:21%">Type</th><th style="width:26%">Dataset</th><th style="width:22%">Status</th></tr></thead><tbody>' +
       items.map(r => {
         const receiptId = String(r.receipt_id || "");
-        const jobId = String(r.job_id || "");
         const ds = String(r.dataset_id || "");
-        const receiptIdShort = receiptId.length > 20 ? (receiptId.slice(0,8) + "…" + receiptId.slice(-5)) : receiptId;
-        const jobIdShort = jobId.length > 20 ? (jobId.slice(0,8) + "…" + jobId.slice(-5)) : jobId;
+        const receiptIdShort = receiptId.length > 22 ? (receiptId.slice(0,8) + "…" + receiptId.slice(-6)) : receiptId;
+        const dsShort = ds.length > 24 ? (ds.slice(0,10) + "…" + ds.slice(-8)) : ds;
         const kind = String(r.kind || "");
-        const kindWithDs = ds ? (kind + " • " + ds) : kind;
+        const status = String(r.status || "-");
         return '<tr>'
           + '<td class="mono" title="'+esc(receiptId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
-          + '<td class="mono" title="'+esc(jobId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
-          + '<td title="'+esc(kindWithDs)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
+          + '<td title="'+esc(kind)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
+          + '<td class="mono" title="'+esc(ds)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort || "-")+'</span></td>'
+          + '<td title="'+esc(status)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(status)+'</td>'
           + '</tr>';
       }).join("") +
       '</tbody></table></div>';
@@ -39290,10 +39290,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if ((!receipts || !receipts.receipts || !receipts.receipts.length) && latestLedger) {
       receiptsHtml =
         '<div class="empty">' +
-        'No proof rows are available on this endpoint for this account yet. ' +
+        'No receipt rows are available on this endpoint for this account yet. ' +
         'Earned WC is still being read from the local Work Credit ledger. ' +
         'Latest balance change: <b>' + esc(latestLedger.reason || "-") + '</b>' +
-        (latestLedger.receipt_id ? (' | proof: <span class="mono">' + esc(latestLedger.receipt_id) + '</span>') : '') +
+        (latestLedger.receipt_id ? (' | receipt: <span class="mono">' + esc(latestLedger.receipt_id) + '</span>') : '') +
         '</div>';
     }
 
