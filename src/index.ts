@@ -38098,6 +38098,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           </div>
           <div class="hero-note" id="summaryCard">loading…</div>
           <div class="hero-note" id="latestActionCard" style="margin-top:10px">No recent action yet. Submit work to create a receipt and earn WC.</div>
+          <div class="hero-actions" style="margin-top:10px">
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Work</a>
+          </div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Account Activity Details</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
@@ -38630,6 +38633,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             </div>
           </div>
           <div class="hero-note" id="proofSummaryCard">loading…</div>
+          <div class="hero-actions" style="margin-top:10px">
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestReceiptDatasetBtn" href="#" target="_blank" rel="noopener">Open Latest Receipt Dataset</a>
+          </div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Receipt Details</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
@@ -39463,9 +39469,31 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           " • Dataset: " + dsFull +
           (outputPathFull ? (" • Output: " + outputPathFull) : "");
       } catch {}
+
+      try {
+        const btn = $("latestReceiptDatasetBtn");
+        if (btn && dsFull && dsFull !== "-") {
+          btn.href = "/datanet/v1/local-job/" + encodeURIComponent(dsFull) + "?who=" + encodeURIComponent(account);
+          btn.style.display = "";
+          btn.textContent = "Open Latest Receipt Dataset";
+          btn.title = "Open dataset readback for " + dsFull;
+        } else if (btn) {
+          btn.style.display = "none";
+          btn.removeAttribute("href");
+          btn.title = "";
+        }
+      } catch {}
     } else {
       setText("proofSummaryCard", "No recent receipt is available for this account yet.");
       try { $("proofSummaryCard").title = ""; } catch {}
+      try {
+        const btn = $("latestReceiptDatasetBtn");
+        if (btn) {
+          btn.style.display = "none";
+          btn.removeAttribute("href");
+          btn.title = "";
+        }
+      } catch {}
     }
   }
 
@@ -40187,6 +40215,18 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                  (lrReceipt ? (" • Receipt: " + lrReceipt) : "") +
                  (lrDataset ? (" • Dataset: " + lrDataset) : ""))
               : "";
+        }
+
+        const latestDatasetBtn = $("latestDatasetOpenBtn");
+        if (latestDatasetBtn && lrJob && lrDataset) {
+          latestDatasetBtn.href = "/datanet/v1/local-job/" + encodeURIComponent(lrDataset) + "?who=" + encodeURIComponent(account);
+          latestDatasetBtn.style.display = "";
+          latestDatasetBtn.textContent = "Open Latest Useful Work";
+          latestDatasetBtn.title = "Open dataset readback for " + lrDataset;
+        } else if (latestDatasetBtn) {
+          latestDatasetBtn.style.display = "none";
+          latestDatasetBtn.removeAttribute("href");
+          latestDatasetBtn.title = "";
         }
       } catch {}
       setText(
