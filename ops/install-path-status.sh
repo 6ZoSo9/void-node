@@ -162,6 +162,7 @@ say "make datanet-mvp-proof        # bounded live manifest/chunk/receipt/WC proo
 say "make beta-proof               # preflight + relayer trade proof + datanet mvp proof"
 say "make alienware-bootstrap      # sync + restart + verify node/helper/relayer role"
 say "make alienware-update         # update + restart + verify alienware role health"
+say "make precision-update         # update + restart + verify precision primary node"
 echo
 say "Broader beta path:"
 say "./ops/public-beta-quickstart.sh"
