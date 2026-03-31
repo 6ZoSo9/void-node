@@ -40076,16 +40076,22 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
 
       setText("wcRunnerEnabledMini", runnerEnabled ? "ON" : "OFF");
-      setText(
-        "wcRunnerTaskMini",
+      const runnerTaskClass =
         runnerStatus && runnerStatus.last_selected_task_class
           ? String(runnerStatus.last_selected_task_class || "-")
           : (runnerStatus && runnerStatus.active_task_class
               ? String(runnerStatus.active_task_class || "-")
               : (runnerStatus && Array.isArray(runnerStatus.approved_task_classes) && runnerStatus.approved_task_classes.length
                   ? String(runnerStatus.approved_task_classes[0] || "-")
-                  : "-"))
-      );
+                  : "-"));
+
+      const runnerTaskLabel =
+        runnerTaskClass === "datanet_publish" ? "publish" :
+        runnerTaskClass === "datanet_fetch_verify" ? "verify" :
+        runnerTaskClass === "datanet_redundancy_check" ? "redundancy" :
+        runnerTaskClass;
+
+      setText("wcRunnerTaskMini", runnerTaskLabel || "-");
       setText(
         "wcRunnerLastJobMini",
         runnerStatus && runnerStatus.last_result && runnerStatus.last_result.job_id
@@ -40120,7 +40126,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if (!lr) return "-";
           if (submit && submit.skipped && submit.reason === "cooldown") return "COOLDOWN";
           if (submit && submit.skipped && submit.reason === "hourly_limit") return "LIMIT";
-          if (lr.ok) return "OK";
+          if (lr.ok) {
+            if (runnerTaskClass === "datanet_publish") return "publish stored";
+            if (runnerTaskClass === "datanet_fetch_verify") return "verify ok";
+            if (runnerTaskClass === "datanet_redundancy_check") return "redundancy ok";
+            return "OK";
+          }
           return "ERR";
         } catch (_) {
           return "-";
@@ -40142,6 +40153,42 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       setText("wcRunnerLastResultMini", runnerLastResultLabel);
       setText("wcRunnerNextRunMini", runnerNextRunLabel);
+
+      try {
+        const lr = runnerStatus && runnerStatus.last_result ? runnerStatus.last_result : null;
+        const lrJob = lr && lr.job_id ? String(lr.job_id) : "";
+        const lrReceipt = lr && lr.receipt_id ? String(lr.receipt_id) : "";
+        const lrDataset = lr && lr.selected_dataset_id ? String(lr.selected_dataset_id) : "";
+
+        setText(
+          "latestJobState",
+          lrJob
+            ? (runnerTaskLabel + (lrDataset ? (" • " + lrDataset) : ""))
+            : (runnerEnabled ? "waiting" : "off")
+        );
+
+        setText(
+          "latestActionCard",
+          lrJob
+            ? ("Latest useful work: " + runnerLastResultLabel +
+               " • " + runnerTaskLabel +
+               (lrDataset ? (" • Dataset: " + lrDataset) : "") +
+               (lrReceipt ? (" • Receipt: " + lrReceipt) : ""))
+            : (runnerEnabled
+                ? "Earn Work Credits is on. Waiting for the next approved useful task."
+                : "Earn Work Credits is off. Turn it on to allow approved useful work.")
+        );
+
+        if ($("latestJobState")) {
+          $("latestJobState").title =
+            lrJob
+              ? ("Last useful work: " + runnerTaskLabel +
+                 (lrJob ? (" • Job: " + lrJob) : "") +
+                 (lrReceipt ? (" • Receipt: " + lrReceipt) : "") +
+                 (lrDataset ? (" • Dataset: " + lrDataset) : ""))
+              : "";
+        }
+      } catch {}
       setText(
         "wcRunnerMeta",
         runnerStatus && runnerStatus.ok
