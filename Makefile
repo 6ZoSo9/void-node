@@ -292,3 +292,23 @@ remote-product-regression:
 remote-product-regression-quick:
 	RUNS=$${RUNS:-1} bash ops/two-box-remote-product-network-regression-proof.sh | tee /tmp/remote-product-regression.quick.log
 	grep -E '\[ok\] two-box remote product \+ network regression proof green|participant_bootstrap_account|recent_runner_activity_count|remote_ready|remote_gap|remote_txroot_live' /tmp/remote-product-regression.quick.log || true
+
+.PHONY: remote-product-regression-cycle
+
+remote-product-regression-cycle:
+	STAMP=$$(date +%Y%m%d-%H%M%S); \
+	OUT=/tmp/remote-product-regression-cycle-$$STAMP; \
+	mkdir -p "$$OUT"; \
+	echo "=== [1] pre-change remote regression ==="; \
+	RUNS=$${RUNS:-1} bash ops/two-box-remote-product-network-regression-proof.sh | tee "$$OUT/pre.log"; \
+	echo; \
+	echo "=== [2] apply your product/network change now in another terminal, then press Enter here ==="; \
+	read dummy; \
+	echo; \
+	echo "=== [3] post-change remote regression ==="; \
+	RUNS=$${RUNS:-1} bash ops/two-box-remote-product-network-regression-proof.sh | tee "$$OUT/post.log"; \
+	echo; \
+	echo "=== [4] key proof lines ==="; \
+	grep -E '\[ok\] two-box remote product \+ network regression proof green|participant_bootstrap_account|recent_runner_activity_count|remote_ready|remote_gap|remote_txroot_live' "$$OUT"/pre.log "$$OUT"/post.log || true; \
+	echo; \
+	echo "out=$$OUT"
