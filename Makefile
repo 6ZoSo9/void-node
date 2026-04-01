@@ -283,3 +283,12 @@ beta-help:
 .PHONY: beta-pack
 beta-pack:
 	@bash ops/beta-release-pack.sh
+
+.PHONY: remote-product-regression remote-product-regression-quick
+
+remote-product-regression:
+	RUNS=$${RUNS:-2} bash ops/two-box-remote-product-network-regression-proof.sh
+
+remote-product-regression-quick:
+	RUNS=$${RUNS:-1} bash ops/two-box-remote-product-network-regression-proof.sh | tee /tmp/remote-product-regression.quick.log
+	grep -E '\[ok\] two-box remote product \+ network regression proof green|participant_bootstrap_account|recent_runner_activity_count|remote_ready|remote_gap|remote_txroot_live' /tmp/remote-product-regression.quick.log || true
