@@ -39795,19 +39795,45 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         ? (latestRedundancyDataset.length > 22 ? (latestRedundancyDataset.slice(0, 8) + "…" + latestRedundancyDataset.slice(-6)) : latestRedundancyDataset)
         : "-";
 
-      setText(
-        "networkValueCard",
-        netValue && netValue.ok
-          ? ("Recent runner mix • publish " + recentPublishCount +
-             " • verify " + recentVerifyCount +
-             " • redundancy " + recentRedundancyCount +
-             " • latest publish " + publishShort +
-             " • latest verify " + verifiedShort +
-             " • latest check " + redundancyShort)
-          : "Recent network value is unavailable right now."
-      );
+      const activeAccountForLinks = String(
+        account ||
+        (($("account") && ($("account") as HTMLInputElement).value) || "") ||
+        window.__void_participant_account_qs ||
+        ""
+      ).trim();
+
+      const escHtml = (v) =>
+        String(v == null ? "" : v)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+      const mkDatasetLink = (label, datasetId) => {
+        if (!datasetId) return '<span style="color:#94a3b8">' + escHtml(label) + ' -</span>';
+        const href = "/datanet/v1/local-job/" + encodeURIComponent(String(datasetId)) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+        return '<a href="' + href + '" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none;font-weight:700">' +
+          escHtml(label) + " " + escHtml(String(datasetId).length > 22 ? (String(datasetId).slice(0, 8) + "…" + String(datasetId).slice(-6)) : String(datasetId)) +
+          "</a>";
+      };
 
       if ($("networkValueCard")) {
+        $("networkValueCard").innerHTML = netValue && netValue.ok
+          ? (
+              '<div style="display:flex;flex-direction:column;gap:8px">' +
+                '<div>Recent runner mix • publish ' + recentPublishCount +
+                ' • verify ' + recentVerifyCount +
+                ' • redundancy ' + recentRedundancyCount + '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:10px">' +
+                  mkDatasetLink("Open publish", latestPublishDataset) +
+                  mkDatasetLink("Open verify", latestVerifiedDataset) +
+                  mkDatasetLink("Open check", latestRedundancyDataset) +
+                '</div>' +
+              '</div>'
+            )
+          : "Recent network value is unavailable right now.";
+
         $("networkValueCard").title =
           netValue && netValue.ok
             ? ("Backend network value summary" +
