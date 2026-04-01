@@ -39763,11 +39763,21 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try {
       const netValue = await j("/network/value-summary.json?limit=20").catch(() => null);
       const counts = netValue && netValue.ok && netValue.counts ? netValue.counts : null;
+      const recentRunnerActivity = netValue && netValue.ok && Array.isArray(netValue.recent_runner_activity)
+        ? netValue.recent_runner_activity
+        : [];
 
       const publishCount = counts ? Number(counts.publish || 0) : 0;
       const verifyCount = counts ? Number(counts.verify || 0) : 0;
       const redundancyCount = counts ? Number(counts.redundancy || 0) : 0;
 
+      const recentPublishCount = recentRunnerActivity.filter((x) => String((x && x.task_class) || "") === "publish").length;
+      const recentVerifyCount = recentRunnerActivity.filter((x) => String((x && x.task_class) || "") === "verify").length;
+      const recentRedundancyCount = recentRunnerActivity.filter((x) => String((x && x.task_class) || "") === "redundancy").length;
+
+      const latestPublishDataset = netValue && netValue.latest_publish_dataset && netValue.latest_publish_dataset.dataset_id
+        ? String(netValue.latest_publish_dataset.dataset_id)
+        : "";
       const latestVerifiedDataset = netValue && netValue.latest_verified_dataset && netValue.latest_verified_dataset.dataset_id
         ? String(netValue.latest_verified_dataset.dataset_id)
         : "";
@@ -39775,6 +39785,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         ? String(netValue.latest_redundancy_checked_dataset.dataset_id)
         : "";
 
+      const publishShort = latestPublishDataset
+        ? (latestPublishDataset.length > 22 ? (latestPublishDataset.slice(0, 8) + "…" + latestPublishDataset.slice(-6)) : latestPublishDataset)
+        : "-";
       const verifiedShort = latestVerifiedDataset
         ? (latestVerifiedDataset.length > 22 ? (latestVerifiedDataset.slice(0, 8) + "…" + latestVerifiedDataset.slice(-6)) : latestVerifiedDataset)
         : "-";
@@ -39785,11 +39798,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText(
         "networkValueCard",
         netValue && netValue.ok
-          ? ("Recent network value • publish: " + publishCount +
-             " • verify: " + verifyCount +
-             " • redundancy: " + redundancyCount +
-             " • latest verified: " + verifiedShort +
-             " • latest checked: " + redundancyShort)
+          ? ("Recent runner mix • publish " + recentPublishCount +
+             " • verify " + recentVerifyCount +
+             " • redundancy " + recentRedundancyCount +
+             " • latest publish " + publishShort +
+             " • latest verify " + verifiedShort +
+             " • latest check " + redundancyShort)
           : "Recent network value is unavailable right now."
       );
 
@@ -39797,9 +39811,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         $("networkValueCard").title =
           netValue && netValue.ok
             ? ("Backend network value summary" +
-               " • publish count: " + publishCount +
-               " • verify count: " + verifyCount +
-               " • redundancy count: " + redundancyCount +
+               " • recent runner activity: " + recentRunnerActivity.length +
+               " • recent publish: " + recentPublishCount +
+               " • recent verify: " + recentVerifyCount +
+               " • recent redundancy: " + recentRedundancyCount +
+               " • historical publish count: " + publishCount +
+               " • historical verify count: " + verifyCount +
+               " • historical redundancy count: " + redundancyCount +
+               " • latest publish dataset: " + (latestPublishDataset || "-") +
                " • latest verified dataset: " + (latestVerifiedDataset || "-") +
                " • latest redundancy-checked dataset: " + (latestRedundancyDataset || "-"))
             : "Backend network value summary is unavailable right now.";
