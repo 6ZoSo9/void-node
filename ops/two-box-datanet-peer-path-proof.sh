@@ -76,9 +76,9 @@ print(json.dumps({
 PY
 echo
 
-echo "=== [2] run remote datanet publish/receipt flow ==="
+echo "=== [2] run fresh remote publish + verify + redundancy flow ==="
 REMOTE_OUT="$(
-  ACCOUNT="$ACCOUNT" PLAINTEXT="$PLAINTEXT" ALIEN="$ALIEN" REMOTE_NODE_BASE="$REMOTE_NODE_BASE" bash ops/two-box-datanet-proof.sh
+  ACCOUNT="$ACCOUNT" PLAINTEXT="$PLAINTEXT" ALIEN="$ALIEN" LOCAL_NODE_BASE="$LOCAL_NODE_BASE" REMOTE_NODE_BASE="$REMOTE_NODE_BASE" bash ops/two-box-remote-verify-redundancy-proof.sh
 )"
 printf '%s\n' "$REMOTE_OUT" | tee "$OUT_DIR/remote-proof-output.log"
 
@@ -86,27 +86,57 @@ echo
 echo "=== [3] extract remote proof summary ==="
 python3 - "$OUT_DIR/remote-proof-output.log" "$OUT_DIR/remote-proof-summary.json" <<'PY'
 import json, pathlib, sys
+
 src = pathlib.Path(sys.argv[1]).read_text()
 dst = pathlib.Path(sys.argv[2])
-start = src.rfind('{\n  "ok": true,')
-if start == -1:
-    raise SystemExit("[fail] summary json block not found in remote proof output")
-tail = src[start:]
+
+objs = []
 depth = 0
-end = None
-for i, ch in enumerate(tail):
+start = None
+
+for i, ch in enumerate(src):
     if ch == "{":
+        if depth == 0:
+            start = i
         depth += 1
     elif ch == "}":
-        depth -= 1
-        if depth == 0:
-            end = i + 1
-            break
-if end is None:
-    raise SystemExit("[fail] could not close summary json block")
-obj = json.loads(tail[:end])
-dst.write_text(json.dumps(obj, indent=2) + "\n")
-print(json.dumps(obj, indent=2))
+        if depth > 0:
+            depth -= 1
+            if depth == 0 and start is not None:
+                chunk = src[start:i+1]
+                try:
+                    obj = json.loads(chunk)
+                    objs.append(obj)
+                except Exception:
+                    pass
+                start = None
+
+target = None
+for obj in objs:
+    if (
+        obj.get("ok") is True and
+        str(obj.get("dataset_id") or "").startswith("ds_") and
+        str(obj.get("publish_receipt_id") or "") and
+        str(obj.get("verify_receipt_id") or "") and
+        str(obj.get("redund_receipt_id") or "")
+    ):
+        target = obj
+
+if target is None:
+    for obj in objs:
+        if (
+            obj.get("ok") is True and
+            str(obj.get("job_id") or "").startswith("job_") and
+            str(obj.get("receipt_id") or "").startswith("rcpt_") and
+            str(obj.get("dataset_id") or "").startswith("ds_")
+        ):
+            target = obj
+
+if target is None:
+    raise SystemExit("[fail] dataset/job/receipt summary json block not found in remote proof output")
+
+dst.write_text(json.dumps(target, indent=2) + "\n")
+print(json.dumps(target, indent=2))
 PY
 
 JOB_ID="$(python3 - "$OUT_DIR/remote-proof-summary.json" <<'PY'
