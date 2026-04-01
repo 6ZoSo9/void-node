@@ -152,19 +152,28 @@ PY
   REMOTE_NETWORK_JSON="$OUT_DIR/run.${i}.network.json"
   REMOTE_POOL_JSON="$OUT_DIR/run.${i}.pool.json"
   REMOTE_RELAYER_JSON="$OUT_DIR/run.${i}.relayer.json"
+  REMOTE_BALANCE_JSON="$OUT_DIR/run.${i}.balance.json"
+  REMOTE_REDEEMABLE_JSON="$OUT_DIR/run.${i}.redeemable.json"
+  REMOTE_RECEIPTS_JSON="$OUT_DIR/run.${i}.receipts.json"
 
   jget "$REMOTE_NODE_BASE/participant" 10 > "$REMOTE_PARTICIPANT_HTML"
   jget "$REMOTE_NODE_BASE/network/value-summary.json?limit=20" 10 > "$REMOTE_NETWORK_JSON"
   jget "$REMOTE_HELPER_BASE/pool.json" 10 > "$REMOTE_POOL_JSON"
   jget "$REMOTE_RELAYER_BASE/health" 10 > "$REMOTE_RELAYER_JSON"
+  jget "$REMOTE_NODE_BASE/wc/balance?account=$ACCOUNT" 10 > "$REMOTE_BALANCE_JSON"
+  jget "$REMOTE_NODE_BASE/wc/redeemable?account=$ACCOUNT" 10 > "$REMOTE_REDEEMABLE_JSON"
+  jget "$REMOTE_NODE_BASE/receipts?account=$ACCOUNT" 10 > "$REMOTE_RECEIPTS_JSON"
 
-  python3 - "$REMOTE_PARTICIPANT_HTML" "$REMOTE_NETWORK_JSON" "$REMOTE_POOL_JSON" "$REMOTE_RELAYER_JSON" <<'PY'
+  python3 - "$REMOTE_PARTICIPANT_HTML" "$REMOTE_NETWORK_JSON" "$REMOTE_POOL_JSON" "$REMOTE_RELAYER_JSON" "$REMOTE_BALANCE_JSON" "$REMOTE_REDEEMABLE_JSON" "$REMOTE_RECEIPTS_JSON" <<'PY'
 import json, pathlib, sys
 
 participant_html = pathlib.Path(sys.argv[1]).read_text()
 network = json.load(open(sys.argv[2]))
 pool = json.load(open(sys.argv[3]))
 relayer = json.load(open(sys.argv[4]))
+balance = json.load(open(sys.argv[5]))
+redeemable = json.load(open(sys.argv[6]))
+receipts_view = json.load(open(sys.argv[7]))
 
 assert "<title>VOID Participant</title>" in participant_html, "participant page title missing"
 assert network.get("ok") is True, "network value summary not ok"
@@ -185,7 +194,21 @@ assert relayer.get("ok") is True, "remote relayer not ok"
 assert relayer.get("can_quote") is True, "remote relayer can_quote false"
 assert relayer.get("can_execute") is True, "remote relayer can_execute false"
 
-print("[ok] precision verified remote participant/network surfaces")
+assert balance.get("ok") is True, "remote wc/balance not ok"
+assert float(balance.get("balance") or -1) == 10.0, f"remote balance != 10: {balance}"
+assert int(balance.get("count") or 0) >= 1, f"remote balance count invalid: {balance}"
+
+assert redeemable.get("ok") is True, "remote wc/redeemable not ok"
+assert float(redeemable.get("earned") or -1) == 10.0, f"remote earned != 10: {redeemable}"
+assert float(redeemable.get("redeemed") or -1) == 1.0, f"remote redeemed != 1: {redeemable}"
+assert float(redeemable.get("redeemable") or -1) == 9.0, f"remote redeemable != 9: {redeemable}"
+
+assert receipts_view.get("ok") is True, "remote receipts view not ok"
+receipts = receipts_view.get("receipts") or []
+assert len(receipts) >= 1, "remote receipts empty"
+assert any(str(r.get("kind") or "") == "datanet_publish" for r in receipts), "remote publish receipt missing"
+
+print("[ok] precision verified remote participant/network/account surfaces")
 print(json.dumps({
     "ok": True,
     "recent_runner_activity_count": network.get("recent_runner_activity_count"),
@@ -196,6 +219,11 @@ print(json.dumps({
     "relayer_ok": relayer.get("ok"),
     "relayer_can_quote": relayer.get("can_quote"),
     "relayer_can_execute": relayer.get("can_execute"),
+    "remote_balance": balance.get("balance"),
+    "remote_earned": redeemable.get("earned"),
+    "remote_redeemed": redeemable.get("redeemed"),
+    "remote_redeemable": redeemable.get("redeemable"),
+    "remote_receipt_count": len(receipts),
 }, indent=2))
 PY
   echo
