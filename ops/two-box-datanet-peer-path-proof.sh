@@ -205,7 +205,25 @@ print(json.dumps({
 PY
 
 echo
-echo "=== [6] verify local/remote/network truth after remote flow ==="
+echo "=== [6] verify remote network value truth from Precision ==="
+REMOTE_NETWORK_VALUE_HTTP="$(jget "$REMOTE_NODE_BASE/network/value-summary.json?limit=50" 10)"
+printf '%s\n' "$REMOTE_NETWORK_VALUE_HTTP" | tee "$OUT_DIR/remote-network-value-http.json"
+python3 - "$OUT_DIR/remote-network-value-http.json" <<'PY'
+import json, sys
+o = json.load(open(sys.argv[1]))
+recent = o.get("recent_runner_activity") or []
+print(json.dumps({
+    "ok": o.get("ok"),
+    "counts": o.get("counts"),
+    "recent_runner_activity_count": o.get("recent_runner_activity_count"),
+    "publish_present": any(str(x.get("task_class") or "") == "publish" for x in recent),
+    "verify_present": any(str(x.get("task_class") or "") == "verify" for x in recent),
+    "redundancy_present": any(str(x.get("task_class") or "") == "redundancy" for x in recent),
+}, indent=2))
+PY
+echo
+
+echo "=== [7] verify local/remote/network truth after remote flow ==="
 echo "--- local ready after ---"
 LOCAL_READY_AFTER="$(jget "$LOCAL_NODE_BASE/__void/ready.json" 5)"
 printf '%s\n' "$LOCAL_READY_AFTER"
@@ -230,6 +248,7 @@ python3 - \
   "$OUT_DIR/remote-proof-summary.json" \
   "$OUT_DIR/remote-job-http.json" \
   "$OUT_DIR/remote-receipts-http.json" \
+  "$OUT_DIR/remote-network-value-http.json" \
   "$LOCAL_READY_AFTER" \
   "$REMOTE_READY_AFTER" \
   "$LOCAL_HEALTH_AFTER" \
@@ -241,12 +260,13 @@ import json, sys
 summary = json.load(open(sys.argv[1]))
 remote_job = json.load(open(sys.argv[2]))
 remote_receipts = json.load(open(sys.argv[3]))
-local_ready = json.loads(sys.argv[4])
-remote_ready = json.loads(sys.argv[5])
-local_health = json.loads(sys.argv[6])
-remote_health = json.loads(sys.argv[7])
-local_head = int(sys.argv[8].strip())
-remote_head = int(sys.argv[9].strip())
+remote_network_value = json.load(open(sys.argv[4]))
+local_ready = json.loads(sys.argv[5])
+remote_ready = json.loads(sys.argv[6])
+local_health = json.loads(sys.argv[7])
+remote_health = json.loads(sys.argv[8])
+local_head = int(sys.argv[9].strip())
+remote_head = int(sys.argv[10].strip())
 
 job_id = str(summary.get("job_id") or "")
 receipt_id = str(summary.get("receipt_id") or "")
@@ -265,6 +285,13 @@ assert remote_job_dataset == dataset_id, f"remote dataset mismatch: {remote_job_
 receipts = remote_receipts.get("receipts") or []
 assert any(str(r.get("receipt_id") or "") == receipt_id for r in receipts), f"receipt_id {receipt_id} not found in remote receipts view"
 
+recent = remote_network_value.get("recent_runner_activity") or []
+assert remote_network_value.get("ok") is True, f"remote network value not ok: {remote_network_value}"
+assert int(remote_network_value.get("recent_runner_activity_count") or 0) > 0, "remote recent_runner_activity_count <= 0"
+assert any(str(x.get("task_class") or "") == "publish" for x in recent), "remote publish missing from recent_runner_activity"
+assert any(str(x.get("task_class") or "") == "verify" for x in recent), "remote verify missing from recent_runner_activity"
+assert any(str(x.get("task_class") or "") == "redundancy" for x in recent), "remote redundancy missing from recent_runner_activity"
+
 local_node = str(local_health.get("nodeId") or "")
 remote_node = str(remote_health.get("nodeId") or "")
 local_peers = [str(x) for x in (local_health.get("peers") or [])]
@@ -280,12 +307,16 @@ assert local_head == remote_head, f"head mismatch after remote flow: {local_head
 assert remote_node in local_peers, f"remote nodeId {remote_node} not found in local peers after flow {local_peers}"
 assert local_node in remote_peers, f"local nodeId {local_node} not found in remote peers after flow {remote_peers}"
 
-print("[ok] two-box datanet peer-path + readback proof validated")
+print("[ok] two-box datanet peer-path + remote network value proof validated")
 print(json.dumps({
     "ok": True,
     "job_id": job_id,
     "receipt_id": receipt_id,
     "dataset_id": dataset_id,
+    "remote_recent_runner_activity_count": remote_network_value.get("recent_runner_activity_count"),
+    "remote_publish_present": any(str(x.get("task_class") or "") == "publish" for x in recent),
+    "remote_verify_present": any(str(x.get("task_class") or "") == "verify" for x in recent),
+    "remote_redundancy_present": any(str(x.get("task_class") or "") == "redundancy" for x in recent),
     "local_node_id": local_node,
     "remote_node_id": remote_node,
     "local_head_after": local_head,
@@ -300,5 +331,5 @@ print(json.dumps({
 PY
 
 echo
-echo "=== [7] success ==="
-echo "[ok] two-box datanet peer-path + readback proof green"
+echo "=== [8] success ==="
+echo "[ok] two-box datanet peer-path + remote network value proof green" 
