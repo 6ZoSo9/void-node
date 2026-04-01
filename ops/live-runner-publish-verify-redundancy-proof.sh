@@ -91,17 +91,34 @@ test "$SEEN_REDUND" -eq 1
 
 echo
 echo "=== [5] backend network value truth ==="
-jget "$BASE/network/value-summary.json?limit=10" 10 | tee "$OUT/network.after.json" >/dev/null
+jget "$BASE/network/value-summary.json?limit=50" 10 | tee "$OUT/network.after.json" >/dev/null
 python3 - "$OUT/network.after.json" <<'PY'
 import sys, json, pathlib
 o = json.loads(pathlib.Path(sys.argv[1]).read_text())
+recent = o.get("recent_runner_activity") or []
 print(json.dumps({
   "ok": o.get("ok"),
   "counts": o.get("counts"),
+  "recent_runner_activity_count": o.get("recent_runner_activity_count"),
+  "publish_present": any(str(x.get("task_class") or "") == "publish" for x in recent),
+  "verify_present": any(str(x.get("task_class") or "") == "verify" for x in recent),
+  "redundancy_present": any(str(x.get("task_class") or "") == "redundancy" for x in recent),
   "latest_publish_dataset": o.get("latest_publish_dataset"),
   "latest_verified_dataset": o.get("latest_verified_dataset"),
   "latest_redundancy_checked_dataset": o.get("latest_redundancy_checked_dataset"),
 }, indent=2))
+PY
+
+python3 - "$OUT/network.after.json" <<'PY'
+import sys, json, pathlib
+o = json.loads(pathlib.Path(sys.argv[1]).read_text())
+recent = o.get("recent_runner_activity") or []
+assert o.get("ok") is True, "network value summary not ok"
+assert int(o.get("recent_runner_activity_count") or 0) > 0, "recent_runner_activity_count <= 0"
+assert any(str(x.get("task_class") or "") == "publish" for x in recent), "publish missing from recent_runner_activity"
+assert any(str(x.get("task_class") or "") == "verify" for x in recent), "verify missing from recent_runner_activity"
+assert any(str(x.get("task_class") or "") == "redundancy" for x in recent), "redundancy missing from recent_runner_activity"
+print("[ok] network value recent activity assertions passed")
 PY
 
 echo
