@@ -38571,6 +38571,16 @@ a{color:#93c5fd;text-decoration:none}
           </div>
           <div class="table-wrap"><div id="receiptsWrapOverview" class="empty">loading…</div></div>
         </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Recent DataNet Datasets</h2>
+              
+            </div>
+          </div>
+          <div class="table-wrap"><div id="recentDatasetsWrapOverview" class="empty">loading…</div></div>
+        </div>
       </div>
     </section>
 
@@ -39836,6 +39846,45 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if ($("jobsWrapOverview")) $("jobsWrapOverview").innerHTML = jobsHtml;
     if ($("receiptsWrap")) $("receiptsWrap").innerHTML = receiptsHtml;
     if ($("receiptsWrapOverview")) $("receiptsWrapOverview").innerHTML = receiptsHtml;
+
+    let recentDatasetsHtml = '<div class="empty">No local datasets found.</div>';
+    try {
+      const recentDatasets = await j("/datanet/v1/local-jobs/recent?who=" + encodeURIComponent(account) + "&limit=8").catch(() => null);
+      const items = recentDatasets && recentDatasets.ok && Array.isArray(recentDatasets.items) ? recentDatasets.items : [];
+      if (items.length) {
+        recentDatasetsHtml =
+          '<table><thead><tr>' +
+          '<th>Dataset</th><th>Updated</th><th>Bytes</th><th>Preview</th><th>Open</th>' +
+          '</tr></thead><tbody>' +
+          items.map((d) => {
+            const dsFull = String(d.dataset_id || "-");
+            const dsShort = dsFull.length > 22 ? (dsFull.slice(0, 8) + "…" + dsFull.slice(-6)) : dsFull;
+            const mtimeMs = Number(d.mtime_ms || 0);
+            const updated = mtimeMs > 0 ? new Date(mtimeMs).toLocaleString() : "-";
+            const bytes = Number(d.bytes || 0);
+            const preview = esc(String(d.preview || ""));
+            const viewerUrl = String(d.viewer_url || "");
+            const rawUrl = String(d.raw_json_url || "");
+            return '<tr>' +
+              '<td><code title="' + esc(dsFull) + '">' + esc(dsShort) + '</code></td>' +
+              '<td>' + esc(updated) + '</td>' +
+              '<td>' + esc(String(bytes)) + '</td>' +
+              '<td style="max-width:420px;white-space:pre-wrap;word-break:break-word">' + preview + '</td>' +
+              '<td>' +
+                (viewerUrl
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">View</a>')
+                  : '') +
+                (rawUrl
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
+                  : '') +
+              '</td>' +
+            '</tr>';
+          }).join('') +
+          '</tbody></table>';
+      }
+    } catch (_) {}
+    if ($("recentDatasetsWrapOverview")) $("recentDatasetsWrapOverview").innerHTML = recentDatasetsHtml;
+
     if ($("ledgerWrap")) $("ledgerWrap").innerHTML = ledgerHtml;
     if ($("redeemHistoryWrap")) $("redeemHistoryWrap").innerHTML = redeemedHtml;
 
