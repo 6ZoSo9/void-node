@@ -35792,7 +35792,92 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           }
         });
 
-        try { console.log("[datanet.local_job_readback.v1] mounted: GET /datanet/v1/local-job/:id"); } catch {}
+        APP.get("/datanet/view/:id", (req:any, res:any) => {
+          try {
+            const fs = require("node:fs");
+            const path = require("node:path");
+
+            const who = String((req?.query?.who ?? "") || "").trim();
+            if (!who) return res.status(400).send("missing_who");
+
+            const id = String((req?.params?.id ?? "") || "").trim();
+            if (!id) return res.status(400).send("missing_id");
+            if (!/^ds_[A-Za-z0-9_\-]+$/.test(id)) return res.status(400).send("bad_id");
+
+            const file = path.join(dataDir(), "datanet_v1", "local_jobs", id + ".txt");
+            if (!fs.existsSync(file)) return res.status(404).send("not_found");
+
+            const plaintext = String(fs.readFileSync(file, "utf8") || "");
+            const crypto = require("node:crypto");
+            const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
+            const sizeBytes = Buffer.byteLength(plaintext, "utf8");
+
+            const esc = (v:any) => String(v == null ? "" : v)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;");
+
+            const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>VOID DataNet Viewer</title>
+<style>
+body{margin:0;padding:24px;background:#020617;color:#e5e7eb;font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.card{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:16px}
+h1{margin:0 0 6px;font-size:28px}
+.sub{color:#94a3b8}
+.meta{display:grid;grid-template-columns:180px 1fr;gap:8px 12px}
+.k{color:#93c5fd;font-weight:700}
+code,pre{background:#020617;border:1px solid #1e293b;border-radius:12px}
+code{padding:2px 6px}
+pre{padding:14px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.row{display:flex;flex-wrap:wrap;gap:10px}
+a{color:#93c5fd;text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #334155;border-radius:12px;background:#111827;color:#e5e7eb;text-decoration:none;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>DataNet Viewer</h1>
+    <div class="sub">Readable local dataset view for the selected participant account.</div>
+  </div>
+
+  <div class="card">
+    <div class="meta">
+      <div class="k">Dataset</div><div><code>${esc(id)}</code></div>
+      <div class="k">Account</div><div><code>${esc(who)}</code></div>
+      <div class="k">SHA-256</div><div><code>${esc(sha256)}</code></div>
+      <div class="k">Bytes</div><div>${esc(sizeBytes)}</div>
+      <div class="k">Source</div><div><code>${esc(file)}</code></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <a class="btn" href="/datanet/v1/local-job/${encodeURIComponent(id)}?who=${encodeURIComponent(who)}" target="_blank" rel="noopener">Open raw JSON</a>
+      <a class="btn" href="/participant#overview">Back to Overview</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="k" style="margin-bottom:10px">Plaintext</div>
+    <pre>${esc(plaintext)}</pre>
+  </div>
+</div>
+</body>
+</html>`;
+            res.status(200).type("html").send(html);
+          } catch (e:any) {
+            return res.status(500).type("text/plain").send(String(e?.message || e));
+          }
+        });
+
+        try { console.log("[datanet.local_job_readback.v1] mounted: GET /datanet/v1/local-job/:id and /datanet/view/:id"); } catch {}
       } catch {}
     })();
 
@@ -39802,6 +39887,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         ? String(netValue.latest_redundancy_checked_dataset.dataset_id)
         : "";
 
+      const viewableDatasetIds = new Set(
+        recentRunnerActivity
+          .map((x) => String((x && x.dataset_id) || "").trim())
+          .filter(Boolean)
+      );
+
       const publishShort = latestPublishDataset
         ? (latestPublishDataset.length > 22 ? (latestPublishDataset.slice(0, 8) + "…" + latestPublishDataset.slice(-6)) : latestPublishDataset)
         : "-";
@@ -39829,9 +39920,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       const mkDatasetLink = (label, datasetId) => {
         if (!datasetId) return '<span style="color:#94a3b8">' + escHtml(label) + ' -</span>';
-        const href = "/datanet/v1/local-job/" + encodeURIComponent(String(datasetId)) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+        const shortId = String(datasetId).length > 22 ? (String(datasetId).slice(0, 8) + "…" + String(datasetId).slice(-6)) : String(datasetId);
+        if (!viewableDatasetIds.has(String(datasetId))) {
+          return '<span style="color:#94a3b8">' + escHtml(label) + ' ' + escHtml(shortId) + ' (not local)</span>';
+        }
+        const href = "/datanet/view/" + encodeURIComponent(String(datasetId)) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
         return '<a href="' + href + '" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none;font-weight:700">' +
-          escHtml(label) + " " + escHtml(String(datasetId).length > 22 ? (String(datasetId).slice(0, 8) + "…" + String(datasetId).slice(-6)) : String(datasetId)) +
+          escHtml(label) + " " + escHtml(shortId) +
           "</a>";
       };
 
