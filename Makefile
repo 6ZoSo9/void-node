@@ -306,6 +306,12 @@ product-surface-proof-plus:
 	bash ops/two-box-participant-datanet-e2e-proof.sh
 	bash ops/two-box-participant-overview-dataset-proof.sh
 	RUNS=1 bash ops/two-box-remote-product-network-regression-proof.sh
+
+participant-golden-path-proof:
+	bash ops/two-box-participant-golden-path-proof.sh
+
+product-golden-proof:
+	bash ops/two-box-participant-golden-path-proof.sh
 remote-product-regression-quick:
 	RUNS=$${RUNS:-1} bash ops/two-box-remote-product-network-regression-proof.sh | tee /tmp/remote-product-regression.quick.log
 	grep -E '\[ok\] two-box remote product \+ network regression proof green|participant_bootstrap_account|recent_runner_activity_count|remote_ready|remote_gap|remote_txroot_live' /tmp/remote-product-regression.quick.log || true
