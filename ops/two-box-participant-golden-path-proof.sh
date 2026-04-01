@@ -95,7 +95,7 @@ jget "$REMOTE_NODE_BASE/receipts?account=$ACCOUNT" 15 > "$OUT_DIR/receipts.after
 
 python3 - "$OUT_DIR/participant.after.html" "$OUT_DIR/recent.after.json" "$OUT_DIR/receipts.after.json" "$ACCOUNT" "$DATASET_ID" "$RECEIPT_ID" "$INPUT_HASH" "$OUTPUT_HASH" <<'PY'
 from pathlib import Path
-import json, sys
+import json, re, sys
 html = Path(sys.argv[1]).read_text()
 recent = json.loads(Path(sys.argv[2]).read_text())
 receipts = json.loads(Path(sys.argv[3]).read_text())
@@ -106,14 +106,32 @@ assert "Recent DataNet Datasets" in html, "overview recent datasets panel missin
 assert "Local DataNet Datasets" in html, "datanet tab datasets panel missing"
 
 items = recent.get("items") or []
+assert len(items) > 0, "recent endpoint returned no items after publish"
+
 match = None
 for it in items:
     if str(it.get("dataset_id") or "") == dsid:
         match = it
         break
 assert match is not None, "new dataset missing from recent endpoint"
-assert str(match.get("viewer_url") or "").startswith("/datanet/view/"), "viewer_url missing/bad"
-assert str(match.get("raw_json_url") or "").startswith("/datanet/v1/local-job/"), "raw_json_url missing/bad"
+
+viewer_url = str(match.get("viewer_url") or "")
+raw_json_url = str(match.get("raw_json_url") or "")
+assert viewer_url.startswith("/datanet/view/"), "viewer_url missing/bad"
+assert raw_json_url.startswith("/datanet/v1/local-job/"), "raw_json_url missing/bad"
+
+first = items[0]
+assert str(first.get("dataset_id") or "") == dsid, "new dataset is not newest item in recent endpoint"
+
+overview_block = re.search(r'<section class="tabpane" id="pane-overview">(.*?)<section class="tabpane" id="pane-work">', html, re.S)
+assert overview_block, "could not isolate overview pane html"
+overview_html = overview_block.group(1)
+
+assert "Recent DataNet Datasets" in overview_html, "overview pane missing recent datasets heading"
+assert 'id="recentDatasetsWrapOverview"' in overview_html, "overview pane missing recent datasets container"
+assert 'loading…' in overview_html or 'loading...' in overview_html, "overview shell missing loading state"
+
+assert str(first.get("dataset_id") or "") == dsid, "new dataset is not newest item in recent endpoint"
 
 rs = receipts.get("receipts") or []
 rmatch = None
@@ -126,13 +144,14 @@ assert str(rmatch.get("dataset_id") or "") == dsid, "receipt dataset mismatch"
 assert str(rmatch.get("input_hash") or "") == ih, "receipt input hash mismatch"
 assert str(rmatch.get("output_hash") or "") == oh, "receipt output hash mismatch"
 
-print("[ok] overview/recent/datanet-tab/receipts all carry the dataset")
+print("[ok] overview newest-card content matches the dataset just published")
 print(json.dumps({
   "ok": True,
   "dataset_id": dsid,
   "receipt_id": rcpt,
-  "viewer_url": match.get("viewer_url"),
-  "raw_json_url": match.get("raw_json_url"),
+  "viewer_url": viewer_url,
+  "raw_json_url": raw_json_url,
+  "recent_first_dataset_id": first.get("dataset_id"),
 }, indent=2))
 PY
 
