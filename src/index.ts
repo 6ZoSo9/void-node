@@ -35759,6 +35759,64 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         if ((APP as any).__void_datanet_local_job_readback_v1) return;
         (APP as any).__void_datanet_local_job_readback_v1 = true;
 
+        APP.get("/datanet/v1/local-jobs/recent", (req:any, res:any) => {
+          try {
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const crypto = require("node:crypto");
+
+            const who = String((req?.query?.who ?? "") || "").trim();
+            if (!who) return res.status(400).json({ ok:false, error:"missing_who" });
+
+            const limit = Math.max(1, Math.min(100, Number(req?.query?.limit || 20) || 20));
+            const dir = path.join(dataDir(), "datanet_v1", "local_jobs");
+            if (!fs.existsSync(dir)) {
+              return res.status(200).json({ ok:true, who, dir, count:0, items:[] });
+            }
+
+            const files = fs.readdirSync(dir)
+              .filter((x:any) => String(x).endsWith(".txt"))
+              .map((name:any) => {
+                const full = path.join(dir, String(name));
+                let st:any = null;
+                try { st = fs.statSync(full); } catch {}
+                return { name: String(name), full, st };
+              })
+              .filter((x:any) => !!x.st)
+              .sort((a:any, b:any) => Number(b.st.mtimeMs || 0) - Number(a.st.mtimeMs || 0))
+              .slice(0, limit);
+
+            const items = files.map((x:any) => {
+              const datasetId = String(x.name).replace(/\.txt$/i, "");
+              let plaintext = "";
+              try { plaintext = String(fs.readFileSync(x.full, "utf8") || ""); } catch {}
+              const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
+              const preview = plaintext.length > 280 ? (plaintext.slice(0, 280) + "…") : plaintext;
+              return {
+                dataset_id: datasetId,
+                who,
+                bytes: Buffer.byteLength(plaintext, "utf8"),
+                mtime_ms: Number(x.st.mtimeMs || 0),
+                sha256,
+                preview,
+                file: x.full,
+                raw_json_url: "/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(who),
+                viewer_url: "/datanet/view/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(who)
+              };
+            });
+
+            return res.status(200).json({
+              ok: true,
+              who,
+              dir,
+              count: items.length,
+              items
+            });
+          } catch (e:any) {
+            return res.status(500).json({ ok:false, error:"local_jobs_recent_throw", msg:String(e?.message || e) });
+          }
+        });
+
         APP.get("/datanet/v1/local-job/:id", (req:any, res:any) => {
           try {
             const fs = require("node:fs");
@@ -35877,7 +35935,7 @@ a{color:#93c5fd;text-decoration:none}
           }
         });
 
-        try { console.log("[datanet.local_job_readback.v1] mounted: GET /datanet/v1/local-job/:id and /datanet/view/:id"); } catch {}
+        try { console.log("[datanet.local_job_readback.v1] mounted: GET /datanet/v1/local-jobs/recent, /datanet/v1/local-job/:id and /datanet/view/:id"); } catch {}
       } catch {}
     })();
 
