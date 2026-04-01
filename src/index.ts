@@ -38449,6 +38449,7 @@ a{color:#93c5fd;text-decoration:none}
       <nav class="nav">
         <button class="tabbtn active" data-tab="overview" id="tab-overview">Home<span class="navhint">see your status and recent activity</span></button>
         <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work, get a receipt, and earn WC</span></button>
+        <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
         <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">check prices and trade WC for VOID</span></button>
         <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">view balances, send WC, and manage VOID</span></button>
         <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">review receipts and outputs from completed work</span></button>
@@ -38581,6 +38582,19 @@ a{color:#93c5fd;text-decoration:none}
           </div>
           <div class="table-wrap"><div id="recentDatasetsWrapOverview" class="empty">loading…</div></div>
         </div>
+      </div>
+    </section>
+
+    <section class="tabpane" id="pane-datanet">
+      <div class="panel" style="grid-column: span 12;">
+        <div class="section-head">
+          <div>
+            <h2>Local DataNet Datasets</h2>
+            <div class="section-copy">Actual local datasets currently viewable on this node for the selected participant account.</div>
+          </div>
+        </div>
+        <div class="hero-note" id="datanetOverviewCard">loading…</div>
+        <div class="table-wrap"><div id="datanetDatasetsWrap" class="empty">loading…</div></div>
       </div>
     </section>
 
@@ -39884,6 +39898,21 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
     } catch (_) {}
     if ($("recentDatasetsWrapOverview")) $("recentDatasetsWrapOverview").innerHTML = recentDatasetsHtml;
+    if ($("datanetDatasetsWrap")) $("datanetDatasetsWrap").innerHTML = recentDatasetsHtml;
+    if ($("datanetOverviewCard")) {
+      try {
+        const recentDatasets = await j("/datanet/v1/local-jobs/recent?who=" + encodeURIComponent(account) + "&limit=8").catch(() => null);
+        const items = recentDatasets && recentDatasets.ok && Array.isArray(recentDatasets.items) ? recentDatasets.items : [];
+        const totalBytes = items.reduce((n, x) => n + Number((x && x.bytes) || 0), 0);
+        const newest = items.length ? Number(items[0].mtime_ms || 0) : 0;
+        const newestText = newest > 0 ? new Date(newest).toLocaleString() : "-";
+        setText("datanetOverviewCard", items.length
+          ? ("Local datasets • count " + items.length + " • bytes " + totalBytes + " • newest " + newestText)
+          : "No local datasets found for this participant account on this node.");
+      } catch (_) {
+        setText("datanetOverviewCard", "Local datasets are unavailable right now.");
+      }
+    }
 
     if ($("ledgerWrap")) $("ledgerWrap").innerHTML = ledgerHtml;
     if ($("redeemHistoryWrap")) $("redeemHistoryWrap").innerHTML = redeemedHtml;
@@ -40669,7 +40698,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       try {
         const href = a.getAttribute("href") || "";
         const tab = String(href.split("#")[1] || "").trim();
-        if (["overview","work","wallet","trading","receipts"].includes(tab)) {
+        if (["overview","work","wallet","trading","wallet","receipts","datanet"].includes(tab)) {
           ev.preventDefault();
           switchTab(tab);
         }
@@ -40681,7 +40710,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     window.addEventListener("hashchange", () => {
       try {
         const h = String((location && location.hash) || "").replace(/^#/, "").trim();
-        if (h && ["overview","work","wallet","trading","receipts"].includes(h)) switchTab(h);
+        if (h && ["overview","work","wallet","trading","receipts","datanet"].includes(h)) switchTab(h);
       } catch {}
     });
   } catch {}
@@ -40999,13 +41028,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   let initialTab = null;
   try {
     const h = String((location && location.hash) || "").replace(/^#/, "").trim();
-    if (h && ["overview","work","wallet","trading","receipts"].includes(h)) initialTab = h;
+    if (h && ["overview","work","wallet","trading","receipts","datanet"].includes(h)) initialTab = h;
   } catch {}
 
   if (!initialTab) {
     try {
       const remembered = localStorage.getItem("void_participant_tab");
-      if (remembered && ["overview","work","wallet","trading","receipts"].includes(remembered)) initialTab = remembered;
+      if (remembered && ["overview","work","wallet","trading","receipts","datanet"].includes(remembered)) initialTab = remembered;
     } catch {}
   }
 
@@ -41275,7 +41304,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         removed,
         canonical:"/participant",
         aliases:["/participant-dashboard","/welcome"],
-        tabs:["overview","work","wallet","trading","receipts"]
+        tabs:["overview","work","wallet","trading","receipts","datanet"]
       });
     });
 
