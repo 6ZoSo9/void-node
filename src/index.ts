@@ -39774,6 +39774,23 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const recentPublishCount = recentRunnerActivity.filter((x) => String((x && x.task_class) || "") === "publish").length;
       const recentVerifyCount = recentRunnerActivity.filter((x) => String((x && x.task_class) || "") === "verify").length;
       const recentRedundancyCount = recentRunnerActivity.filter((x) => String((x && x.task_class) || "") === "redundancy").length;
+      const latestRecentTsMs = recentRunnerActivity.reduce((m, x) => {
+        const ts = Number((x && x.ts_ms) || 0);
+        return ts > m ? ts : m;
+      }, 0);
+      const freshnessText = latestRecentTsMs > 0
+        ? (() => {
+            const ageMs = Math.max(0, Date.now() - latestRecentTsMs);
+            const secs = Math.floor(ageMs / 1000);
+            if (secs < 60) return secs + "s ago";
+            const mins = Math.floor(secs / 60);
+            if (mins < 60) return mins + "m ago";
+            const hours = Math.floor(mins / 60);
+            if (hours < 48) return hours + "h ago";
+            const days = Math.floor(hours / 24);
+            return days + "d ago";
+          })()
+        : "stale";
 
       const latestPublishDataset = netValue && netValue.latest_publish_dataset && netValue.latest_publish_dataset.dataset_id
         ? String(netValue.latest_publish_dataset.dataset_id)
@@ -39825,6 +39842,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                 '<div>Recent runner mix • publish ' + recentPublishCount +
                 ' • verify ' + recentVerifyCount +
                 ' • redundancy ' + recentRedundancyCount + '</div>' +
+                '<div style="color:#94a3b8;font-size:12px">Last updated ' + freshnessText + '</div>' +
                 '<div style="display:flex;flex-wrap:wrap;gap:10px">' +
                   mkDatasetLink("Open publish", latestPublishDataset) +
                   mkDatasetLink("Open verify", latestVerifiedDataset) +
@@ -39841,6 +39859,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                " • recent publish: " + recentPublishCount +
                " • recent verify: " + recentVerifyCount +
                " • recent redundancy: " + recentRedundancyCount +
+               " • last updated: " + freshnessText +
+               " • latest recent ts_ms: " + latestRecentTsMs +
                " • historical publish count: " + publishCount +
                " • historical verify count: " + verifyCount +
                " • historical redundancy count: " + redundancyCount +
