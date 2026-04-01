@@ -38594,6 +38594,21 @@ a{color:#93c5fd;text-decoration:none}
           </div>
         </div>
         <div class="hero-note" id="datanetOverviewCard">loading…</div>
+        <div class="row" style="gap:10px;align-items:end;margin:10px 0 12px 0;flex-wrap:wrap">
+          <label style="display:flex;flex-direction:column;gap:6px;min-width:220px;flex:1 1 280px">
+            <span class="s">Filter datasets</span>
+            <input id="datanetFilterInput" placeholder="filter by dataset id or preview text" style="padding:10px 12px;border-radius:12px;border:1px solid #334155;background:#0b1220;color:#e5e7eb" />
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;min-width:180px">
+            <span class="s">Sort</span>
+            <select id="datanetSortSelect" style="padding:10px 12px;border-radius:12px;border:1px solid #334155;background:#0b1220;color:#e5e7eb">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="biggest">Biggest first</option>
+              <option value="smallest">Smallest first</option>
+            </select>
+          </label>
+        </div>
         <div class="table-wrap"><div id="datanetDatasetsWrap" class="empty">loading…</div></div>
       </div>
     </section>
@@ -39898,21 +39913,92 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
     } catch (_) {}
     if ($("recentDatasetsWrapOverview")) $("recentDatasetsWrapOverview").innerHTML = recentDatasetsHtml;
-    if ($("datanetDatasetsWrap")) $("datanetDatasetsWrap").innerHTML = recentDatasetsHtml;
-    if ($("datanetOverviewCard")) {
-      try {
-        const recentDatasets = await j("/datanet/v1/local-jobs/recent?who=" + encodeURIComponent(account) + "&limit=8").catch(() => null);
-        const items = recentDatasets && recentDatasets.ok && Array.isArray(recentDatasets.items) ? recentDatasets.items : [];
-        const totalBytes = items.reduce((n, x) => n + Number((x && x.bytes) || 0), 0);
-        const newest = items.length ? Number(items[0].mtime_ms || 0) : 0;
-        const newestText = newest > 0 ? new Date(newest).toLocaleString() : "-";
-        setText("datanetOverviewCard", items.length
-          ? ("Local datasets • count " + items.length + " • bytes " + totalBytes + " • newest " + newestText)
-          : "No local datasets found for this participant account on this node.");
-      } catch (_) {
-        setText("datanetOverviewCard", "Local datasets are unavailable right now.");
-      }
+
+    let datanetItems = [];
+    try {
+      const recentDatasets = await j("/datanet/v1/local-jobs/recent?who=" + encodeURIComponent(account) + "&limit=50").catch(() => null);
+      datanetItems = recentDatasets && recentDatasets.ok && Array.isArray(recentDatasets.items) ? recentDatasets.items : [];
+      const totalBytes = datanetItems.reduce((n, x) => n + Number((x && x.bytes) || 0), 0);
+      const newest = datanetItems.length ? Math.max(...datanetItems.map((x) => Number((x && x.mtime_ms) || 0))) : 0;
+      const newestText = newest > 0 ? new Date(newest).toLocaleString() : "-";
+      setText("datanetOverviewCard", datanetItems.length
+        ? ("Local datasets • count " + datanetItems.length + " • bytes " + totalBytes + " • newest " + newestText)
+        : "No local datasets found for this participant account on this node.");
+    } catch (_) {
+      datanetItems = [];
+      setText("datanetOverviewCard", "Local datasets are unavailable right now.");
     }
+
+    const renderDatanetDatasets = () => {
+      const filterText = String((($("datanetFilterInput") && $("datanetFilterInput").value) || "")).trim().toLowerCase();
+      const sortMode = String((($("datanetSortSelect") && $("datanetSortSelect").value) || "newest")).trim();
+      let items = Array.isArray(datanetItems) ? datanetItems.slice() : [];
+
+      if (filterText) {
+        items = items.filter((d) => {
+          const ds = String((d && d.dataset_id) || "").toLowerCase();
+          const pv = String((d && d.preview) || "").toLowerCase();
+          return ds.includes(filterText) || pv.includes(filterText);
+        });
+      }
+
+      items.sort((a, b) => {
+        const am = Number((a && a.mtime_ms) || 0);
+        const bm = Number((b && b.mtime_ms) || 0);
+        const ab = Number((a && a.bytes) || 0);
+        const bb = Number((b && b.bytes) || 0);
+        if (sortMode === "oldest") return am - bm;
+        if (sortMode === "biggest") return bb - ab;
+        if (sortMode === "smallest") return ab - bb;
+        return bm - am;
+      });
+
+      let html = '<div class="empty">No local datasets found.</div>';
+      if (items.length) {
+        html =
+          '<table><thead><tr>' +
+          '<th>Dataset</th><th>Updated</th><th>Bytes</th><th>Preview</th><th>Open</th>' +
+          '</tr></thead><tbody>' +
+          items.map((d) => {
+            const dsFull = String(d.dataset_id || "-");
+            const dsShort = dsFull.length > 22 ? (dsFull.slice(0, 8) + "…" + dsFull.slice(-6)) : dsFull;
+            const mtimeMs = Number(d.mtime_ms || 0);
+            const updated = mtimeMs > 0 ? new Date(mtimeMs).toLocaleString() : "-";
+            const bytes = Number(d.bytes || 0);
+            const preview = esc(String(d.preview || ""));
+            const viewerUrl = String(d.viewer_url || "");
+            const rawUrl = String(d.raw_json_url || "");
+            return '<tr>' +
+              '<td><code title="' + esc(dsFull) + '">' + esc(dsShort) + '</code></td>' +
+              '<td>' + esc(updated) + '</td>' +
+              '<td>' + esc(String(bytes)) + '</td>' +
+              '<td style="max-width:420px;white-space:pre-wrap;word-break:break-word">' + preview + '</td>' +
+              '<td>' +
+                (viewerUrl
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">View</a>')
+                  : '') +
+                (rawUrl
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
+                  : '') +
+              '</td>' +
+            '</tr>';
+          }).join('') +
+          '</tbody></table>';
+      }
+      if ($("datanetDatasetsWrap")) $("datanetDatasetsWrap").innerHTML = html;
+    };
+
+    renderDatanetDatasets();
+    try {
+      if ($("datanetFilterInput") && !$("datanetFilterInput").__void_bound_v1) {
+        $("datanetFilterInput").__void_bound_v1 = 1;
+        $("datanetFilterInput").addEventListener("input", renderDatanetDatasets);
+      }
+      if ($("datanetSortSelect") && !$("datanetSortSelect").__void_bound_v1) {
+        $("datanetSortSelect").__void_bound_v1 = 1;
+        $("datanetSortSelect").addEventListener("change", renderDatanetDatasets);
+      }
+    } catch (_) {}
 
     if ($("ledgerWrap")) $("ledgerWrap").innerHTML = ledgerHtml;
     if ($("redeemHistoryWrap")) $("redeemHistoryWrap").innerHTML = redeemedHtml;
@@ -40698,7 +40784,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       try {
         const href = a.getAttribute("href") || "";
         const tab = String(href.split("#")[1] || "").trim();
-        if (["overview","work","wallet","trading","wallet","receipts","datanet"].includes(tab)) {
+        if (["overview","work","wallet","trading","receipts","datanet"].includes(tab)) {
           ev.preventDefault();
           switchTab(tab);
         }
