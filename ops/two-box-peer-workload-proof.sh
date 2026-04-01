@@ -156,7 +156,11 @@ PY
   REMOTE_REDEEMABLE_JSON="$OUT_DIR/run.${i}.redeemable.json"
   REMOTE_RECEIPTS_JSON="$OUT_DIR/run.${i}.receipts.json"
 
-  jget "$REMOTE_NODE_BASE/participant" 10 > "$REMOTE_PARTICIPANT_HTML"
+  jget "$REMOTE_NODE_BASE/participant?account=$(python3 - <<'PY'
+import urllib.parse, os
+print(urllib.parse.quote(os.environ["ACCOUNT"]))
+PY
+)" 10 > "$REMOTE_PARTICIPANT_HTML"
   jget "$REMOTE_NODE_BASE/network/value-summary.json?limit=20" 10 > "$REMOTE_NETWORK_JSON"
   jget "$REMOTE_HELPER_BASE/pool.json" 10 > "$REMOTE_POOL_JSON"
   jget "$REMOTE_RELAYER_BASE/health" 10 > "$REMOTE_RELAYER_JSON"
@@ -164,18 +168,21 @@ PY
   jget "$REMOTE_NODE_BASE/wc/redeemable?account=$ACCOUNT" 10 > "$REMOTE_REDEEMABLE_JSON"
   jget "$REMOTE_NODE_BASE/receipts?account=$ACCOUNT" 10 > "$REMOTE_RECEIPTS_JSON"
 
-  python3 - "$REMOTE_PARTICIPANT_HTML" "$REMOTE_NETWORK_JSON" "$REMOTE_POOL_JSON" "$REMOTE_RELAYER_JSON" "$REMOTE_BALANCE_JSON" "$REMOTE_REDEEMABLE_JSON" "$REMOTE_RECEIPTS_JSON" <<'PY'
+  python3 - "$ACCOUNT" "$REMOTE_PARTICIPANT_HTML" "$REMOTE_NETWORK_JSON" "$REMOTE_POOL_JSON" "$REMOTE_RELAYER_JSON" "$REMOTE_BALANCE_JSON" "$REMOTE_REDEEMABLE_JSON" "$REMOTE_RECEIPTS_JSON" <<'PY'
 import json, pathlib, sys
 
-participant_html = pathlib.Path(sys.argv[1]).read_text()
-network = json.load(open(sys.argv[2]))
-pool = json.load(open(sys.argv[3]))
-relayer = json.load(open(sys.argv[4]))
-balance = json.load(open(sys.argv[5]))
-redeemable = json.load(open(sys.argv[6]))
-receipts_view = json.load(open(sys.argv[7]))
+account = sys.argv[1]
+participant_html = pathlib.Path(sys.argv[2]).read_text()
+network = json.load(open(sys.argv[3]))
+pool = json.load(open(sys.argv[4]))
+relayer = json.load(open(sys.argv[5]))
+balance = json.load(open(sys.argv[6]))
+redeemable = json.load(open(sys.argv[7]))
+receipts_view = json.load(open(sys.argv[8]))
 
 assert "<title>VOID Participant</title>" in participant_html, "participant page title missing"
+assert ('window.__void_participant_account_qs=' + json.dumps(account)) in participant_html, "participant bootstrap account missing"
+
 assert network.get("ok") is True, "network value summary not ok"
 assert int(network.get("recent_runner_activity_count") or 0) > 0, "recent_runner_activity_count <= 0"
 
@@ -208,9 +215,10 @@ receipts = receipts_view.get("receipts") or []
 assert len(receipts) >= 1, "remote receipts empty"
 assert any(str(r.get("kind") or "") == "datanet_publish" for r in receipts), "remote publish receipt missing"
 
-print("[ok] precision verified remote participant/network/account surfaces")
+print("[ok] precision verified remote participant/network/account/page-account surfaces")
 print(json.dumps({
     "ok": True,
+    "participant_bootstrap_account": account,
     "recent_runner_activity_count": network.get("recent_runner_activity_count"),
     "publish_present": any(str(x.get("task_class") or "") == "publish" for x in recent),
     "counts": counts,

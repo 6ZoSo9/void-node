@@ -39052,7 +39052,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch (_) {}
   }
 
+  function getBootstrapParticipantAccount(){
+    try {
+      return String(window.__void_participant_account_qs || "").trim();
+    } catch (_) {
+      return "";
+    }
+  }
+
   function pickInitialParticipantAccount(){
+    const boot = getBootstrapParticipantAccount();
+    if (boot) return boot;
     const remembered = getRememberedParticipantAccount();
     const connected = getConnectedWallet();
     const rememberedLooksDefault =
@@ -40412,7 +40422,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   if ($("account")) {
     try {
       const initAcct = pickInitialParticipantAccount();
-      if (initAcct && !$("account").value) $("account").value = initAcct;
+      if (initAcct) {
+        $("account").value = initAcct;
+        rememberParticipantAccount(initAcct);
+      }
     } catch (_) {}
     $("account").addEventListener("change", () => {
       try { rememberParticipantAccount($("account").value || ""); } catch (_) {}
@@ -40975,8 +40988,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       res.redirect(302, "/participant" + (hash || ""));
     });
 
-    app.get("/participant", (_req:any, res:any) => {
-      res.type("html").send(pageHtml());
+    app.get("/participant", (req:any, res:any) => {
+      const qAcct = String((req && req.query && req.query.account) || "").trim();
+      const boot = '<script>window.__void_participant_account_qs=' + JSON.stringify(qAcct) + ';</script>';
+      res.type("html").send(String(pageHtml()).replace("</body>", boot + "</body>"));
     });
 
     app.get("/welcome", (req:any, res:any) => {
