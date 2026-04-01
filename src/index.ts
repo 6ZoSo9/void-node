@@ -35921,6 +35921,148 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               }
             }
 
+            const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+            const lastResultByAccount:any = rt.last_result || {};
+            const selectionEventsByAccount:any = rt.selection_events_by_account || {};
+
+            const accountKeys = Array.from(new Set([
+              ...Object.keys(lastResultByAccount || {}),
+              ...Object.keys(selectionEventsByAccount || {})
+            ])).filter((x:any) => String(x || "").trim().length > 0);
+
+            const recentRunnerActivity:any[] = [];
+
+            const normalizeTaskClass = (raw:any) => {
+              const s = String(raw || "");
+              return s === "datanet_publish" ? "publish" :
+                s === "datanet_fetch_verify" ? "verify" :
+                s === "datanet_redundancy_check" ? "redundancy" :
+                s === "publish" ? "publish" :
+                s === "verify" ? "verify" :
+                s === "redundancy" ? "redundancy" :
+                s;
+            };
+
+            for (const account of accountKeys) {
+              const events = Array.isArray(selectionEventsByAccount[String(account)])
+                ? selectionEventsByAccount[String(account)]
+                : [];
+              for (const ev of events) {
+                if (!ev) continue;
+                const rawTask = String(ev?.task_class || "");
+                const taskClass = normalizeTaskClass(rawTask);
+                recentRunnerActivity.push({
+                  source: "runner_selection_event",
+                  account: String(account),
+                  ts_ms: Number(ev?.ts_ms || 0),
+                  task_class: taskClass,
+                  raw_task_class: rawTask,
+                  selection_reason: ev?.reason || null,
+                  dataset_id: ev?.dataset_id || null,
+                  stale_for_ms: Number(ev?.stale_for_ms || 0) || null
+                });
+              }
+
+              const lr:any = lastResultByAccount[String(account)] || null;
+              if (lr && (lr.selected_task_class || lr.job_id || lr.receipt_id || lr.dataset_id)) {
+                const rawTask = String(lr?.selected_task_class || "");
+                const taskClass = normalizeTaskClass(rawTask);
+                recentRunnerActivity.push({
+                  source: "runner_last_result",
+                  account: String(account),
+                  ts_ms: Number(lr?.at_ms || 0),
+                  task_class: taskClass,
+                  raw_task_class: rawTask,
+                  selection_reason: lr?.selection_reason || null,
+                  dataset_id: lr?.selected_dataset_id || lr?.dataset_id || null,
+                  job_id: lr?.job_id || null,
+                  receipt_id: lr?.receipt_id || null,
+                  ok: lr?.ok === undefined ? null : !!lr.ok,
+                  status: lr?.status || null,
+                  selected_network_need_score: Number(lr?.selected_network_need_score || 0) || null,
+                  selected_difficulty_bucket: lr?.selected_difficulty_bucket || null
+                });
+              }
+            }
+
+            try {
+              const jobsV1File = path.join(
+                String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+                "jobs_v1",
+                "jobs.jsonl"
+              );
+              const agentReceiptsV1File = path.join(
+                String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+                "agent_v1",
+                "receipts.jsonl"
+              );
+
+              const receiptsById:any = {};
+              for (const line of readLines(agentReceiptsV1File)) {
+                try {
+                  const r:any = JSON.parse(line);
+                  const rid = String(r?.receipt_id || "");
+                  if (!rid) continue;
+                  receiptsById[rid] = r;
+                } catch {}
+              }
+
+              const persistedRecent:any[] = [];
+              for (const line of readLines(jobsV1File)) {
+                try {
+                  const j:any = JSON.parse(line);
+                  const rawTask = String(j?.kind || j?.task_class || j?.selected_task_class || "");
+                  const taskClass = normalizeTaskClass(rawTask);
+                  if (!(taskClass === "publish" || taskClass === "verify" || taskClass === "redundancy")) continue;
+
+                  const rid = String(j?.receipt_id || "");
+                  const rr:any = rid ? (receiptsById[rid] || null) : null;
+                  const tsMs =
+                    Number((rr && rr?.ts_ms) || 0) ||
+                    Number(j?.ts_ms || 0) ||
+                    Number(j?.ts || 0) ||
+                    0;
+
+                  persistedRecent.push({
+                    source: rr ? "persisted_receipt_v1" : "persisted_job_v1",
+                    account: String(j?.account || rr?.account || ""),
+                    ts_ms: tsMs,
+                    task_class: taskClass,
+                    raw_task_class: rawTask,
+                    selection_reason: j?.selection_reason || rr?.selection_reason || null,
+                    dataset_id: j?.dataset_id || j?.selected_dataset_id || rr?.dataset_id || rr?.selected_dataset_id || null,
+                    job_id: j?.job_id || rr?.job_id || null,
+                    receipt_id: rid || rr?.receipt_id || null,
+                    ok: rr?.ok === undefined ? null : !!rr.ok,
+                    status: j?.status || rr?.status || null
+                  });
+                } catch {}
+              }
+
+              persistedRecent.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+              for (const item of persistedRecent.slice(0, Math.max(limit * 4, 100))) {
+                recentRunnerActivity.push(item);
+              }
+            } catch {}
+
+            recentRunnerActivity.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+
+            const dedupSeen = new Set();
+            const recentRunnerActivityDeduped:any[] = [];
+            for (const item of recentRunnerActivity) {
+              const key = [
+                String(item?.account || ""),
+                String(item?.task_class || ""),
+                String(item?.dataset_id || ""),
+                String(item?.job_id || ""),
+                String(item?.receipt_id || "")
+              ].join("|");
+              if (dedupSeen.has(key)) continue;
+              dedupSeen.add(key);
+              recentRunnerActivityDeduped.push(item);
+              if (recentRunnerActivityDeduped.length >= limit) break;
+            }
+
             return res.json({
               ok: true,
               limit,
@@ -35936,6 +36078,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               latest_publish_dataset,
               latest_verified_dataset,
               latest_redundancy_checked_dataset,
+              recent_runner_activity_count: recentRunnerActivityDeduped.length,
+              recent_runner_activity: recentRunnerActivityDeduped,
               receipts: mixedSample
             });
           } catch (e:any) {
