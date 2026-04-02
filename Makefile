@@ -339,3 +339,7 @@ remote-product-regression-cycle:
 .PHONY: jobs-submit-e2e-proof
 jobs-submit-e2e-proof:
 	bash ops/jobs-submit-e2e-proof.sh
+
+.PHONY: two-box-remote-jobs-submit-proof
+two-box-remote-jobs-submit-proof:
+	bash ops/two-box-remote-jobs-submit-proof.sh
