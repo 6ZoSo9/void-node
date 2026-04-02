@@ -39375,17 +39375,29 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function renderJobs(items){
     if (!items || !items.length) return '<div class="empty">No recent activity yet for this account.</div>';
-    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:42%">Job ID</th><th style="width:24%">Status</th><th style="width:34%">Kind</th></tr></thead><tbody>' +
+    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:42%">Job ID</th><th style="width:24%">Status</th><th style="width:34%">Activity</th></tr></thead><tbody>' +
       items.map(j => {
         const jobId = String(j.job_id || "");
         const ds = String(j.dataset_id || "");
         const jobIdShort = jobId.length > 20 ? (jobId.slice(0,8) + "…" + jobId.slice(-5)) : jobId;
-        const kind = String(j.kind || "");
+        const kindRaw = String(j.kind || "");
+        const statusRaw = String(j.status || "");
+        const kind =
+          kindRaw === "datanet_publish" ? "Publish dataset" :
+          kindRaw === "datanet_fetch_verify" ? "Verify dataset" :
+          kindRaw === "datanet_redundancy_check" ? "Check redundancy" :
+          (kindRaw || "Activity");
+        const status =
+          statusRaw === "completed" ? "Done" :
+          statusRaw === "queued" ? "Queued" :
+          statusRaw === "running" ? "Running" :
+          statusRaw === "failed" ? "Needs attention" :
+          (statusRaw || "-");
         const kindWithDs = ds ? (kind + " • " + ds) : kind;
         return '<tr>'
           + '<td class="mono" title="'+esc(jobId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
-          + '<td title="'+esc(j.status)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(j.status)+'</td>'
-          + '<td title="'+esc(kindWithDs)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind || "activity")+'</td>'
+          + '<td title="'+esc(statusRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(status)+'</td>'
+          + '<td title="'+esc(kindWithDs)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
           + '</tr>';
       }).join("") +
       '</tbody></table></div>';
@@ -39399,26 +39411,37 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const ds = String(r.dataset_id || "");
         const receiptIdShort = receiptId.length > 22 ? (receiptId.slice(0,8) + "…" + receiptId.slice(-6)) : receiptId;
         const dsShort = ds.length > 24 ? (ds.slice(0,10) + "…" + ds.slice(-8)) : ds;
-        const kind = String(r.kind || "");
-        const status = String(r.status || "-");
+        const kindRaw = String(r.kind || "");
+        const kind =
+          kindRaw === "datanet_publish" ? "Publish" :
+          kindRaw === "datanet_fetch_verify" ? "Verify" :
+          kindRaw === "datanet_redundancy_check" ? "Redundancy" :
+          (kindRaw || "-");
+        const statusRaw = String(r.status || "-");
+        const status =
+          statusRaw === "completed" ? "Done" :
+          statusRaw === "queued" ? "Queued" :
+          statusRaw === "running" ? "Running" :
+          statusRaw === "failed" ? "Needs attention" :
+          statusRaw;
         const out = r.output || {};
         let result = "-";
-        if (kind === "datanet_fetch_verify") {
-          result = out && out.verified === true ? "verified" : "verify pending";
-        } else if (kind === "datanet_redundancy_check") {
+        if (kindRaw === "datanet_fetch_verify") {
+          result = out && out.verified === true ? "Verified" : "Waiting to verify";
+        } else if (kindRaw === "datanet_redundancy_check") {
           const parts = [];
-          if (out && out.checked === true) parts.push("checked");
-          if (out && out.readable === true) parts.push("readable");
-          if (out && out.verified_hash === true) parts.push("hash ok");
-          result = parts.length ? parts.join(" • ") : "redundancy pending";
-        } else if (kind === "datanet_publish") {
-          result = out && out.path ? "stored" : "-";
+          if (out && out.checked === true) parts.push("Checked");
+          if (out && out.readable === true) parts.push("Readable");
+          if (out && out.verified_hash === true) parts.push("Hash ok");
+          result = parts.length ? parts.join(" • ") : "Waiting on redundancy";
+        } else if (kindRaw === "datanet_publish") {
+          result = out && out.path ? "Stored" : "-";
         }
         return '<tr>'
           + '<td class="mono" title="'+esc(receiptId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
-          + '<td title="'+esc(kind)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
+          + '<td title="'+esc(kindRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
           + '<td class="mono" title="'+esc(ds)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort || "-")+'</span></td>'
-          + '<td title="'+esc(status)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(status)+'</td>'
+          + '<td title="'+esc(statusRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(status)+'</td>'
           + '<td title="'+esc(result)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(result)+'</td>'
           + '</tr>';
       }).join("") +
