@@ -36324,12 +36324,14 @@ a{color:#93c5fd;text-decoration:none}
               );
 
               const receiptsById:any = {};
+              const receiptsByJobId:any = {};
               for (const line of readLines(agentReceiptsV1File)) {
                 try {
                   const r:any = JSON.parse(line);
                   const rid = String(r?.receipt_id || "");
-                  if (!rid) continue;
-                  receiptsById[rid] = r;
+                  const jobId = String(r?.job_id || "");
+                  if (rid) receiptsById[rid] = r;
+                  if (jobId) receiptsByJobId[jobId] = r;
                 } catch {}
               }
 
@@ -36342,7 +36344,11 @@ a{color:#93c5fd;text-decoration:none}
                   if (!(taskClass === "publish" || taskClass === "verify" || taskClass === "redundancy")) continue;
 
                   const rid = String(j?.receipt_id || "");
-                  const rr:any = rid ? (receiptsById[rid] || null) : null;
+                  const jobId = String(j?.job_id || "");
+                  const rr:any =
+                    (rid && receiptsById[rid]) ? receiptsById[rid] :
+                    (jobId && receiptsByJobId[jobId]) ? receiptsByJobId[jobId] :
+                    null;
                   const tsMs =
                     Number((rr && rr?.ts_ms) || 0) ||
                     Number(j?.ts_ms || 0) ||
@@ -36379,13 +36385,16 @@ a{color:#93c5fd;text-decoration:none}
               const key = [
                 String(item?.account || ""),
                 String(item?.task_class || ""),
-                String(item?.dataset_id || ""),
                 String(item?.job_id || ""),
-                String(item?.receipt_id || "")
+                String(item?.receipt_id || ""),
+                String(item?.dataset_id || "")
               ].join("|");
               if (dedupSeen.has(key)) continue;
               dedupSeen.add(key);
-              recentRunnerActivityDeduped.push(item);
+              recentRunnerActivityDeduped.push({
+                ...item,
+                __void_value_summary_receipt_join_v2: true
+              });
               if (recentRunnerActivityDeduped.length >= limit) break;
             }
 
