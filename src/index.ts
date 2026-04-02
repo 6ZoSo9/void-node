@@ -40244,9 +40244,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const tradeBlocked = !relayerUp || !hasRedeemable;
       $("tradeExecuteBtn").disabled = tradeBlocked;
       $("tradeExecuteBtn").textContent = !relayerUp
-        ? "Trading Temporarily Unavailable"
+        ? "Trading Unavailable"
         : (!hasRedeemable
-            ? "Earn or Redeem WC First"
+            ? "Get WC Ready First"
             : "Trade WC for VOID");
     }
 
@@ -40952,16 +40952,32 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const walletReady = !!wcAddr;
       const hasRedeemable = Number.isFinite(redeemableTotal) && redeemableTotal > 0;
       const quoteText = quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-";
+
+      // __void_trade_overview_badge_v1
+      const tradeStateBadge =
+        !walletReady
+          ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.25);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#e5e7eb;background:rgba(148,163,184,.10)">No Wallet</span>'
+          : !relayerUp
+            ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(239,68,68,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fca5a5;background:rgba(239,68,68,.12)">Unavailable</span>'
+            : !hasRedeemable
+              ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(245,158,11,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fcd34d;background:rgba(245,158,11,.12)">No WC Ready</span>'
+              : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(34,197,94,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#86efac;background:rgba(34,197,94,.12)">Ready</span>';
+
       const tradeOverviewText =
         !walletReady
-          ? "Connect a wallet to prepare and trade WC."
+          ? "Connect a wallet to redeem WC and trade for VOID."
           : !relayerUp
-            ? ("Wallet ready • " + redeemableTotal + " WC spendable • Trading path unavailable right now.")
+            ? ("Trading is temporarily unavailable • " + redeemableTotal + " WC is still spendable on your participant side.")
             : !hasRedeemable
-              ? ("Wallet ready • No spendable WC yet • Earn or redeem WC first.")
+              ? "No spendable WC is ready yet • Earn or redeem WC first."
               : ("Ready to trade " + redeemableTotal + " WC for about " + quoteText + " VOID" +
-                 (wcAddrShort ? (" • Wallet: " + wcAddrShort) : ""));
-      setText("tradeOverviewCard", tradeOverviewText);
+                 (wcAddrShort ? (" • Wallet " + wcAddrShort) : ""));
+
+      if ($("tradeOverviewCard")) {
+        $("tradeOverviewCard").innerHTML =
+          tradeStateBadge +
+          '<span style="margin-left:8px">' + esc(tradeOverviewText) + '</span>';
+      }
       try {
         $("tradeOverviewCard").title =
           "Wallet ready: " + (walletReady ? "yes" : "no") +
