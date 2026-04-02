@@ -38536,7 +38536,7 @@ a{color:#93c5fd;text-decoration:none}
             </div>
           </div>
           <div class="hero-note" id="summaryCard">loading…</div>
-          <div class="hero-note" id="latestActionCard" style="margin-top:10px">No recent action yet. Submit work to create a receipt and earn WC.</div>
+          <div class="hero-note" id="latestActionCard" style="margin-top:10px">No recent activity yet. Submit work to generate a result and earn WC.</div>
           <div class="hero-note" id="networkValueCard" style="margin-top:10px">loading…</div>
           <div class="hero-actions" style="margin-top:10px">
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Work</a>
@@ -38566,7 +38566,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Recent work</h2>
+              <h2>Recent activity</h2>
               
             </div>
           </div>
@@ -39374,7 +39374,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   function renderJobs(items){
-    if (!items || !items.length) return '<div class="empty">No jobs yet for this account.</div>';
+    if (!items || !items.length) return '<div class="empty">No recent activity yet for this account.</div>';
     return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:42%">Job ID</th><th style="width:24%">Status</th><th style="width:34%">Kind</th></tr></thead><tbody>' +
       items.map(j => {
         const jobId = String(j.job_id || "");
@@ -39385,7 +39385,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         return '<tr>'
           + '<td class="mono" title="'+esc(jobId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
           + '<td title="'+esc(j.status)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(j.status)+'</td>'
-          + '<td title="'+esc(kindWithDs)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
+          + '<td title="'+esc(kindWithDs)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind || "activity")+'</td>'
           + '</tr>';
       }).join("") +
       '</tbody></table></div>';
