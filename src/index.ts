@@ -41144,18 +41144,32 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const hasWallet = !!wallet;
         const redeemableHint = await j("/wc/redeemable?account=" + encodeURIComponent(account)).catch(() => null);
         const redeemableNow = redeemableHint && redeemableHint.ok ? Number(redeemableHint.redeemable || 0) : 0;
-        setText(
-          "redeemSummary",
+
+        // __void_redeem_summary_badge_v1
+        const redeemStateBadge =
           !hasWallet
-            ? "Connect a wallet to prepare WC for trade."
+            ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.25);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#e5e7eb;background:rgba(148,163,184,.10)">No Wallet</span>'
             : (redeemableNow > 0
-                ? ("Ready to prepare up to " + redeemableNow + " WC for trade using your connected wallet.")
-                : "No WC is ready to prepare yet. Earn WC first.")
-        );
+                ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(34,197,94,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#86efac;background:rgba(34,197,94,.12)">Ready</span>'
+                : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(245,158,11,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fcd34d;background:rgba(245,158,11,.12)">No WC Ready</span>');
+
+        const redeemSummaryText =
+          !hasWallet
+            ? "Connect a wallet to move WC into the trade path."
+            : (redeemableNow > 0
+                ? ("Ready to move up to " + redeemableNow + " WC into the trade path.")
+                : "No spendable WC is ready yet. Earn WC first.");
+
+        if ($("redeemSummary")) {
+          $("redeemSummary").innerHTML =
+            redeemStateBadge +
+            '<span style="margin-left:8px">' + esc(redeemSummaryText) + '</span>';
+        }
+
         if ($("redeemBtn")) {
           $("redeemBtn").textContent = !hasWallet
             ? "Connect Wallet First"
-            : (redeemableNow > 0 ? "Prepare for Trade" : "No WC Ready");
+            : (redeemableNow > 0 ? "Move WC to Trade" : "No WC Ready");
         }
       } catch {}
 
@@ -41193,7 +41207,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       if (btn) {
         btn.disabled = true;
-        btn.textContent = "Redeeming...";
+        btn.textContent = "Moving WC...";
       }
 
       setPre("redeemOut", {
@@ -41212,7 +41226,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       });
 
       setPre("redeemOut", out);
-        if (out && out.ok) setLatestAction("WC redeemed. You can now trade from the Trade tab.");
+        if (out && out.ok) setLatestAction("WC moved to trade. You can now continue in the Trade tab.");
       await refresh();
     } catch (e) {
       setPre("redeemOut", { ok:false, redeem:false, error:String((e && e.message) || e) });
