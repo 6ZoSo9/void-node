@@ -38150,6 +38150,73 @@ a{color:#93c5fd;text-decoration:none}
 })();
 // === jobs-and-datanet-worker-v1 END ===
 
+// === jobs-submit-to-jobsv1-bridge-v1 BEGIN ===
+;(() => {
+  const G:any = globalThis as any;
+  const MARK = "__void_jobs_submit_to_jobsv1_bridge_v1";
+  if (G[MARK]) return;
+  G[MARK] = { installed:false, ts:Date.now() };
+
+  function getApp(){ return G.__void_http_app || G.app || null; }
+  function dataDir(){ return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"); }
+
+  function mount(){
+    const app:any = getApp();
+    if (!app || typeof app.use !== "function") return setTimeout(mount, 250);
+    if (G[MARK].installed) return;
+    G[MARK].installed = true;
+
+    const fs = require("node:fs");
+    const path = require("node:path");
+
+    function jobsDir(){ return path.join(dataDir(), "jobs_v1"); }
+    function jobsFile(){ return path.join(jobsDir(), "jobs.jsonl"); }
+    function ensureDirs(){ fs.mkdirSync(jobsDir(), { recursive:true }); }
+
+    app.use((req:any, res:any, next:any) => {
+      try {
+        if (req.method !== "POST" || req.path !== "/jobs/submit") return next();
+
+        const _json = res.json.bind(res);
+        res.json = (body:any) => {
+          try {
+            const ok = !!(body && body.ok);
+            const job = body && body.job ? body.job : null;
+            const jobId = String((job && (job.job_id || job.id)) || body?.job_id || body?.id || "").trim();
+            if (ok && jobId) {
+              ensureDirs();
+              const account = String(req.body?.account || "zoso").trim().slice(0,128) || "zoso";
+              const kind = String(req.body?.kind || "datanet_publish").trim().slice(0,64) || "datanet_publish";
+              const plaintext = String(req.body?.plaintext || "");
+              const line = {
+                job_id: jobId,
+                status: "queued",
+                kind,
+                account,
+                input: { plaintext },
+                ts_ms: Date.now(),
+                _event: "jobs_submit_bridge_v1"
+              };
+              fs.appendFileSync(jobsFile(), JSON.stringify(line) + "\n");
+              try { G[MARK].last_job_id = jobId; } catch {}
+            }
+          } catch {}
+          return _json(body);
+        };
+        return next();
+      } catch {
+        return next();
+      }
+    });
+
+    try { console.log("[jobs-submit-to-jobsv1-bridge-v1] mounted"); } catch {}
+  }
+
+  mount();
+})();
+// === jobs-submit-to-jobsv1-bridge-v1 END ===
+
+
 // [removed legacy participant-dashboard-v1 duplicate block]
 
 
