@@ -40781,57 +40781,99 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             : "Backend network value summary is unavailable right now.";
       }
 
-      // __void_overview_newest_publish_card_v1
+      // __void_overview_latest_useful_card_v2
       try {
-        const latestPublishItem = recentRunnerActivity.find((x) =>
-          String((x && x.task_class) || "") === "publish" &&
-          String((x && x.dataset_id) || "").trim().length > 0
-        ) || null;
+        const latestUsefulItem = recentRunnerActivity.find((x) => {
+          const task = String((x && x.task_class) || "").trim();
+          const ds = String((x && x.dataset_id) || "").trim();
+          return !!ds && (task === "redundancy" || task === "verify" || task === "publish");
+        }) || null;
 
-        const newestPublishDatasetId = latestPublishItem && latestPublishItem.dataset_id
-          ? String(latestPublishItem.dataset_id)
-          : (latestPublishDataset || "");
+        const latestUsefulTask = latestUsefulItem
+          ? String(latestUsefulItem.task_class || "")
+          : (
+              latestRedundancyDataset ? "redundancy" :
+              latestVerifiedDataset ? "verify" :
+              latestPublishDataset ? "publish" :
+              ""
+            );
 
-        const newestPublishReceiptId = latestPublishItem && latestPublishItem.receipt_id
-          ? String(latestPublishItem.receipt_id)
+        const latestUsefulDatasetId = latestUsefulItem && latestUsefulItem.dataset_id
+          ? String(latestUsefulItem.dataset_id)
+          : (
+              latestUsefulTask === "redundancy" ? latestRedundancyDataset :
+              latestUsefulTask === "verify" ? latestVerifiedDataset :
+              latestPublishDataset
+            );
+
+        const latestUsefulReceiptId = latestUsefulItem && latestUsefulItem.receipt_id
+          ? String(latestUsefulItem.receipt_id)
+          : (
+              latestUsefulTask === "redundancy" && netValue && netValue.latest_redundancy_checked_dataset
+                ? String(netValue.latest_redundancy_checked_dataset.receipt_id || "")
+                : latestUsefulTask === "verify" && netValue && netValue.latest_verified_dataset
+                  ? String(netValue.latest_verified_dataset.receipt_id || "")
+                  : latestUsefulTask === "publish" && netValue && netValue.latest_publish_dataset
+                    ? String(netValue.latest_publish_dataset.receipt_id || "")
+                    : ""
+            );
+
+        const latestUsefulJobId = latestUsefulItem && latestUsefulItem.job_id
+          ? String(latestUsefulItem.job_id)
           : "";
 
-        const newestPublishJobId = latestPublishItem && latestPublishItem.job_id
-          ? String(latestPublishItem.job_id)
-          : "";
+        const latestUsefulTsMs = latestUsefulItem
+          ? Number(latestUsefulItem.ts_ms || 0)
+          : (
+              latestUsefulTask === "redundancy" && netValue && netValue.latest_redundancy_checked_dataset
+                ? Number(netValue.latest_redundancy_checked_dataset.ts_ms || 0)
+                : latestUsefulTask === "verify" && netValue && netValue.latest_verified_dataset
+                  ? Number(netValue.latest_verified_dataset.ts_ms || 0)
+                  : latestUsefulTask === "publish" && netValue && netValue.latest_publish_dataset
+                    ? Number(netValue.latest_publish_dataset.ts_ms || 0)
+                    : 0
+            );
 
-        const newestPublishTsMs = latestPublishItem
-          ? Number(latestPublishItem.ts_ms || 0)
-          : Number((netValue && netValue.latest_publish_dataset && netValue.latest_publish_dataset.ts_ms) || 0);
-
-        const newestPublishWhen = newestPublishTsMs > 0
-          ? new Date(newestPublishTsMs).toLocaleString()
+        const latestUsefulWhen = latestUsefulTsMs > 0
+          ? new Date(latestUsefulTsMs).toLocaleString()
           : "-";
 
-        if (newestPublishDatasetId) {
+        const latestUsefulLabel =
+          latestUsefulTask === "redundancy" ? "Latest redundancy check" :
+          latestUsefulTask === "verify" ? "Latest verify result" :
+          latestUsefulTask === "publish" ? "Newest published dataset" :
+          "Latest useful dataset";
+
+        const latestUsefulBtnText =
+          latestUsefulTask === "redundancy" ? "Open Latest Check" :
+          latestUsefulTask === "verify" ? "Open Latest Verify" :
+          latestUsefulTask === "publish" ? "Open Newest Publish" :
+          "Open Latest Dataset";
+
+        if (latestUsefulDatasetId) {
           if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "";
-          setText("latestDatasetIdHero", newestPublishDatasetId);
+          setText("latestDatasetIdHero", latestUsefulDatasetId);
           setText(
             "latestDatasetMetaHero",
-            "Newest published dataset • " +
-            newestPublishWhen +
-            (newestPublishJobId ? (" • job " + newestPublishJobId) : "") +
-            (newestPublishReceiptId ? (" • receipt " + newestPublishReceiptId) : "")
+            latestUsefulLabel + " • " +
+            latestUsefulWhen +
+            (latestUsefulJobId ? (" • job " + latestUsefulJobId) : "") +
+            (latestUsefulReceiptId ? (" • receipt " + latestUsefulReceiptId) : "")
           );
 
           const latestDatasetBtn = $("latestDatasetBtn");
           if (latestDatasetBtn) {
             latestDatasetBtn.style.display = "";
-            latestDatasetBtn.textContent = "Open Newest Publish";
-            latestDatasetBtn.title = "Open dataset readback for " + newestPublishDatasetId;
+            latestDatasetBtn.textContent = latestUsefulBtnText;
+            latestDatasetBtn.title = "Open dataset readback for " + latestUsefulDatasetId;
             latestDatasetBtn.onclick = () => {
-              const href = "/datanet/view/" + encodeURIComponent(String(newestPublishDatasetId)) +
+              const href = "/datanet/view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
                 "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
               try { window.open(href, "_blank", "noopener"); } catch {}
             };
           }
 
-          loadDatasetPreviewInto("latestDatasetPreviewCard", newestPublishDatasetId, activeAccountForLinks || "zoso").catch(() => {});
+          loadDatasetPreviewInto("latestDatasetPreviewCard", latestUsefulDatasetId, activeAccountForLinks || "zoso").catch(() => {});
         } else {
           if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "none";
           if ($("latestDatasetBtn")) {
