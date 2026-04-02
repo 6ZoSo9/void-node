@@ -40730,6 +40730,71 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                " • latest redundancy-checked dataset: " + (latestRedundancyDataset || "-"))
             : "Backend network value summary is unavailable right now.";
       }
+
+      // __void_overview_newest_publish_card_v1
+      try {
+        const latestPublishItem = recentRunnerActivity.find((x) =>
+          String((x && x.task_class) || "") === "publish" &&
+          String((x && x.dataset_id) || "").trim().length > 0
+        ) || null;
+
+        const newestPublishDatasetId = latestPublishItem && latestPublishItem.dataset_id
+          ? String(latestPublishItem.dataset_id)
+          : (latestPublishDataset || "");
+
+        const newestPublishReceiptId = latestPublishItem && latestPublishItem.receipt_id
+          ? String(latestPublishItem.receipt_id)
+          : "";
+
+        const newestPublishJobId = latestPublishItem && latestPublishItem.job_id
+          ? String(latestPublishItem.job_id)
+          : "";
+
+        const newestPublishTsMs = latestPublishItem
+          ? Number(latestPublishItem.ts_ms || 0)
+          : Number((netValue && netValue.latest_publish_dataset && netValue.latest_publish_dataset.ts_ms) || 0);
+
+        const newestPublishWhen = newestPublishTsMs > 0
+          ? new Date(newestPublishTsMs).toLocaleString()
+          : "-";
+
+        if (newestPublishDatasetId) {
+          if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "";
+          setText("latestDatasetIdHero", newestPublishDatasetId);
+          setText(
+            "latestDatasetMetaHero",
+            "Newest published dataset • " +
+            newestPublishWhen +
+            (newestPublishJobId ? (" • job " + newestPublishJobId) : "") +
+            (newestPublishReceiptId ? (" • receipt " + newestPublishReceiptId) : "")
+          );
+
+          const latestDatasetBtn = $("latestDatasetBtn");
+          if (latestDatasetBtn) {
+            latestDatasetBtn.style.display = "";
+            latestDatasetBtn.textContent = "Open Newest Publish";
+            latestDatasetBtn.title = "Open dataset readback for " + newestPublishDatasetId;
+            latestDatasetBtn.onclick = () => {
+              const href = "/datanet/view/" + encodeURIComponent(String(newestPublishDatasetId)) +
+                "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+              try { window.open(href, "_blank", "noopener"); } catch {}
+            };
+          }
+
+          loadDatasetPreviewInto("latestDatasetPreviewCard", newestPublishDatasetId, activeAccountForLinks || "zoso").catch(() => {});
+        } else {
+          if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "none";
+          if ($("latestDatasetBtn")) {
+            $("latestDatasetBtn").style.display = "none";
+            $("latestDatasetBtn").onclick = null;
+          }
+          if ($("latestDatasetPreviewCard")) {
+            $("latestDatasetPreviewCard").style.display = "none";
+            $("latestDatasetPreviewCard").textContent = "";
+            $("latestDatasetPreviewCard").title = "";
+          }
+        }
+      } catch {}
     } catch {}
 
     {
