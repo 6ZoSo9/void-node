@@ -39854,10 +39854,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if ((!receipts || !receipts.receipts || !receipts.receipts.length) && latestLedger) {
       receiptsHtml =
         '<div class="empty">' +
-        'No receipt rows are available on this endpoint for this account yet. ' +
-        'Earned WC is still being read from the local Work Credit ledger. ' +
-        'Latest balance change: <b>' + esc(latestLedger.reason || "-") + '</b>' +
-        (latestLedger.receipt_id ? (' | receipt: <span class="mono">' + esc(latestLedger.receipt_id) + '</span>') : '') +
+        'Recent receipts are still syncing for this account. ' +
+        'Your latest work is still being read from the local Work Credit ledger. ' +
+        'Latest activity: <b>' + esc(latestLedger.reason || "-") + '</b>' +
+        (latestLedger.receipt_id ? (' • receipt <span class="mono">' + esc(latestLedger.receipt_id) + '</span>') : '') +
         '</div>';
     }
 
@@ -39870,8 +39870,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText("ledgerLatestReceipt", receiptShort);
       try { $("ledgerLatestReason").title = reasonFull; } catch {}
       try { $("ledgerLatestReceipt").title = receiptFull; } catch {}
-      setText("ledgerTruthState", "ledger-backed");
-      try { $("ledgerTruthState").title = "calculated from local participant WC activity on this node"; } catch {}
+      setText("ledgerTruthState", "local ledger");
+      try { $("ledgerTruthState").title = "derived from local participant activity on this node"; } catch {}
     } else {
       setText("ledgerLatestReason", "-");
       setText("ledgerLatestReceipt", "-");
