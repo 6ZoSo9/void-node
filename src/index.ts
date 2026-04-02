@@ -40839,15 +40839,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : "-";
 
         const latestUsefulLabel =
-          latestUsefulTask === "redundancy" ? "Latest redundancy check" :
-          latestUsefulTask === "verify" ? "Latest verify result" :
-          latestUsefulTask === "publish" ? "Newest published dataset" :
+          latestUsefulTask === "redundancy" ? "Latest checked dataset" :
+          latestUsefulTask === "verify" ? "Latest verified dataset" :
+          latestUsefulTask === "publish" ? "Latest published dataset" :
           "Latest useful dataset";
 
         const latestUsefulBtnText =
-          latestUsefulTask === "redundancy" ? "Open Latest Check" :
-          latestUsefulTask === "verify" ? "Open Latest Verify" :
-          latestUsefulTask === "publish" ? "Open Newest Publish" :
+          latestUsefulTask === "redundancy" ? "Open Checked Dataset" :
+          latestUsefulTask === "verify" ? "Open Verified Dataset" :
+          latestUsefulTask === "publish" ? "Open Published Dataset" :
           "Open Latest Dataset";
 
         if (latestUsefulDatasetId) {
