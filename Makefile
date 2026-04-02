@@ -347,3 +347,7 @@ two-box-remote-jobs-submit-proof:
 .PHONY: two-box-remote-jobs-submit-product-proof
 two-box-remote-jobs-submit-product-proof:
 	bash ops/two-box-remote-jobs-submit-product-proof.sh
+
+.PHONY: two-box-remote-datanet-view-proof
+two-box-remote-datanet-view-proof:
+	bash ops/two-box-remote-datanet-view-proof.sh
