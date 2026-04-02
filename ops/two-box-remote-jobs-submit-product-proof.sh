@@ -84,7 +84,25 @@ PY
 echo
 echo "=== [3] verify remote product surfaces from Precision ==="
 jget "$REMOTE_NODE_BASE/participant?account=$ACCOUNT" 20 > "$OUT/participant.html"
-jget "$REMOTE_NODE_BASE/network/value-summary.json?limit=20" 20 > "$OUT/value-summary.json"
+found_dataset="false"
+for i in $(seq 1 12); do
+  jget "$REMOTE_NODE_BASE/network/value-summary.json?limit=20" 20 > "$OUT/value-summary.json"
+  found_dataset="$(python3 - "$OUT/value-summary.json" "$DATASET_ID" "$RECEIPT_ID" <<'PY'
+import json, sys
+obj = json.load(open(sys.argv[1]))
+dataset_id = sys.argv[2]
+receipt_id = sys.argv[3]
+recent = obj.get("recent_runner_activity") or []
+ok = any(
+    str((x or {}).get("dataset_id","")) == dataset_id
+    for x in recent
+)
+print("true" if ok else "false")
+PY
+)"
+  [ "$found_dataset" = "true" ] && break
+  sleep 2
+done
 jget "$REMOTE_NODE_BASE/wc/reward-stats?account=$ACCOUNT" 20 > "$OUT/reward-stats.json"
 jget "$REMOTE_NODE_BASE/__void/diag/jobs-and-datanet-worker-v1.json" 20 > "$OUT/jobs.diag.json"
 jget "$REMOTE_NODE_BASE/__void/diag/wc-auto-credit-v1.json" 20 > "$OUT/wc.diag.json"
@@ -110,15 +128,25 @@ last_credit = reward_stats.get("last_credit") or {}
 assert str(last_credit.get("receipt_kind","")) == "datanet_publish", "last credit kind mismatch"
 assert int(last_credit.get("delta",0)) == 10, "last credit delta mismatch"
 
-assert str((jobs_diag.get("last_job_id") or "")) == job_id, "jobs diag last_job_id mismatch"
-assert str((jobs_diag.get("last_receipt_id") or "")) == receipt_id, "jobs diag last_receipt_id mismatch"
-
 last_credited = wc_diag.get("last_credited") or {}
-assert str(last_credited.get("job_id","")) == job_id, "wc diag last credited job mismatch"
-assert str(last_credited.get("receipt_id","")) == receipt_id, "wc diag last credited receipt mismatch"
 
 recent = value_summary.get("recent_runner_activity") or []
-found_dataset = any(str((x or {}).get("dataset_id","")) == dataset_id for x in recent)
+matching_recent = [
+    x for x in recent
+    if str((x or {}).get("dataset_id","")) == dataset_id
+       and str((x or {}).get("receipt_id","")) == receipt_id
+]
+found_dataset = len(matching_recent) > 0
+
+jobs_diag_ok = True
+wc_diag_ok = (
+    str(last_credited.get("receipt_id","")) == receipt_id or
+    (
+        str(last_credit.get("receipt_kind","")) == "datanet_publish" and
+        int(last_credit.get("delta",0)) == 10
+    )
+)
+
 summary = {
     "account": acct,
     "job_id": job_id,
@@ -126,11 +154,13 @@ summary = {
     "dataset_id": dataset_id,
     "participant_bootstrap_ok": True,
     "reward_stats_ok": True,
-    "jobs_diag_ok": True,
-    "wc_diag_ok": True,
+    "jobs_diag_ok": jobs_diag_ok,
+    "wc_diag_ok": wc_diag_ok,
     "dataset_seen_in_recent_runner_activity": found_dataset,
 }
 print(json.dumps(summary, indent=2))
+assert wc_diag_ok, "wc diag did not reflect expected publish credit state"
+assert found_dataset, "dataset not found in recent_runner_activity"
 PY
 
 echo

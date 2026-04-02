@@ -351,3 +351,11 @@ two-box-remote-jobs-submit-product-proof:
 .PHONY: two-box-remote-datanet-view-proof
 two-box-remote-datanet-view-proof:
 	bash ops/two-box-remote-datanet-view-proof.sh
+
+.PHONY: two-box-remote-verify-redundancy-product-proof
+two-box-remote-verify-redundancy-product-proof:
+	bash ops/two-box-remote-verify-redundancy-product-proof.sh
+
+.PHONY: two-box-golden-product-smoke
+two-box-golden-product-smoke:
+	bash ops/two-box-golden-product-smoke.sh
