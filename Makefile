@@ -335,3 +335,7 @@ remote-product-regression-cycle:
 	grep -E '\[ok\] two-box remote product \+ network regression proof green|participant_bootstrap_account|recent_runner_activity_count|remote_ready|remote_gap|remote_txroot_live' "$$OUT"/pre.log "$$OUT"/post.log || true; \
 	echo; \
 	echo "out=$$OUT"
+
+.PHONY: jobs-submit-e2e-proof
+jobs-submit-e2e-proof:
+	bash ops/jobs-submit-e2e-proof.sh
