@@ -37521,7 +37521,7 @@ a{color:#93c5fd;text-decoration:none}
   const MARK = "__void_jobs_and_datanet_worker_v1";
   if (G[MARK]) return;
   G[MARK] = { installed:false, ts:Date.now(), last_job_id:"", last_receipt_id:"" };
-  if (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 === "1") return;
+  if (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 === "1" && process.env.VOID_ENABLE_JOBS_WORKER_INCREMENTAL_V1 !== "1") return;
 
   function getApp(){ return G.__void_http_app || G.app || null; }
   function dataDir(){ return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"); }
@@ -37579,6 +37579,91 @@ a{color:#93c5fd;text-decoration:none}
     fs.appendFileSync(file, JSON.stringify(obj) + "\n");
   }
 
+  function workerState(){
+    const st:any = G[MARK].cursor_v1 || (G[MARK].cursor_v1 = {
+      jobs_ino: 0,
+      jobs_offset: 0,
+      jobs_carry: "",
+      seen_job_ids: Object.create(null),
+      timer: null,
+      running: false,
+      last_tick_ms: 0,
+      last_processed_job_id: "",
+      completed_job_ids: Object.create(null)
+    });
+    return st;
+  }
+
+  function scanQueuedJobsIncremental(): string[] {
+    const fs = require("node:fs");
+    ensureDirs();
+
+    const st:any = workerState();
+    const file = jobsFile();
+
+    let stat:any = null;
+    try { stat = fs.statSync(file); } catch { return []; }
+    if (!stat) return [];
+
+    const ino = Number(stat.ino || 0);
+    const size = Number(stat.size || 0);
+
+    if (st.jobs_ino && ino !== st.jobs_ino) {
+      st.jobs_offset = 0;
+      st.jobs_carry = "";
+      st.seen_job_ids = Object.create(null);
+    }
+    if (size < Number(st.jobs_offset || 0)) {
+      st.jobs_offset = 0;
+      st.jobs_carry = "";
+      st.seen_job_ids = Object.create(null);
+    }
+    st.jobs_ino = ino;
+
+    if (size <= Number(st.jobs_offset || 0)) return [];
+
+    let fd:any = null;
+    try {
+      fd = fs.openSync(file, "r");
+      const len = Math.max(0, size - Number(st.jobs_offset || 0));
+      const buf = Buffer.allocUnsafe(len);
+      const n = fs.readSync(fd, buf, 0, len, Number(st.jobs_offset || 0));
+      st.jobs_offset = Number(st.jobs_offset || 0) + n;
+
+      let text = st.jobs_carry + String(buf.subarray(0, n).toString("utf8") || "");
+      const lines = text.split(/\r?\n/);
+      st.jobs_carry = lines.pop() || "";
+
+      const out:string[] = [];
+      for (const raw of lines) {
+        const line = String(raw || "").trim();
+        if (!line) continue;
+        try {
+          const j:any = JSON.parse(line);
+          const jobId = String(j?.job_id || "");
+          if (!jobId) continue;
+          if (st.seen_job_ids[jobId]) continue;
+          st.seen_job_ids[jobId] = 1;
+          if (String(j?.status || "") !== "queued") continue;
+          if (st.completed_job_ids[jobId]) continue;
+          out.push(jobId);
+        } catch {}
+      }
+      return out;
+    } finally {
+      try { if (fd !== null) fs.closeSync(fd); } catch {}
+    }
+  }
+
+  function markJobDone(jobId:string){
+    try {
+      const st:any = workerState();
+      st.completed_job_ids[jobId] = 1;
+      st.last_processed_job_id = jobId;
+      st.last_tick_ms = Date.now();
+    } catch {}
+  }
+
   function allJobs(){
     const out:any[] = [];
     for (const line of readLines(jobsFile())) {
@@ -37596,24 +37681,10 @@ a{color:#93c5fd;text-decoration:none}
   }
 
   function replaceJobState(jobId:string, patch:any){
-    const lines = readLines(jobsFile());
-    const out:string[] = [];
-    let last:any = null;
-    for (const line of lines) {
-      try {
-        const j = JSON.parse(line);
-        if (String(j?.job_id || "") === jobId) {
-          last = { ...j, ...patch };
-          continue;
-        }
-        out.push(JSON.stringify(j));
-      } catch {}
-    }
-    if (!last) return null;
-    out.push(JSON.stringify(last));
     const fs = require("node:fs");
-    fs.writeFileSync(jobsFile(), out.join("\n") + (out.length ? "\n" : ""));
-    return last;
+    ensureDirs();
+    appendJsonl(jobsFile(), { job_id: jobId, ...patch, ts_ms: nowMs(), _event: "job_state_patch_v2" });
+    return { job_id: jobId, ...patch };
   }
 
   function listReceiptsForJob(jobId:string){
@@ -37826,17 +37897,32 @@ a{color:#93c5fd;text-decoration:none}
   }
 
   function startWorker(){
-    setInterval(() => {
+    const st:any = workerState();
+    if (st.timer) return;
+
+    const TICK_MS = Math.max(1000, Number(process.env.VOID_JOBS_WORKER_TICK_MS || 3000) || 3000);
+
+    const tick = async () => {
+      if (st.running) return;
+      st.running = true;
       try {
-        const jobs = allJobs();
-        for (const j of jobs) {
-          if (String(j?.status || "") === "queued") {
-            void processJob(String(j.job_id || ""));
-            break;
-          }
+        const queued = scanQueuedJobsIncremental();
+        for (const jobId of queued) {
+          try {
+            await processJob(jobId);
+            markJobDone(jobId);
+            G[MARK].last_job_id = jobId;
+          } catch {}
         }
-      } catch {}
-    }, 1500).unref?.();
+        st.last_tick_ms = Date.now();
+      } finally {
+        st.running = false;
+      }
+    };
+
+    st.timer = setInterval(() => { tick().catch(()=>{}); }, TICK_MS);
+    st.timer.unref?.();
+    setTimeout(() => { tick().catch(()=>{}); }, 250).unref?.();
   }
 
   function mount(){
@@ -38038,6 +38124,21 @@ a{color:#93c5fd;text-decoration:none}
         datanet_dir: datanetDir(),
         last_job_id: G[MARK].last_job_id,
         last_receipt_id: G[MARK].last_receipt_id,
+        cursor_v1: (() => {
+          const c:any = G[MARK].cursor_v1 || null;
+          if (!c) return null;
+          return {
+            jobs_ino: Number(c.jobs_ino || 0),
+            jobs_offset: Number(c.jobs_offset || 0),
+            jobs_carry_len: String(c.jobs_carry || "").length,
+            seen_job_ids_count: Object.keys(c.seen_job_ids || {}).length,
+            completed_job_ids_count: Object.keys(c.completed_job_ids || {}).length,
+            running: !!c.running,
+            last_tick_ms: Number(c.last_tick_ms || 0),
+            last_processed_job_id: String(c.last_processed_job_id || ""),
+            timer_active: !!c.timer
+          };
+        })(),
       });
     });
 
