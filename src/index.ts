@@ -36398,6 +36398,56 @@ a{color:#93c5fd;text-decoration:none}
               if (recentRunnerActivityDeduped.length >= limit) break;
             }
 
+            // __void_value_summary_latest_from_persisted_v1
+            try {
+              const latestPublishFromPersisted = recentRunnerActivity.find((x:any) =>
+                String(x?.task_class || "") === "publish" &&
+                String(x?.dataset_id || "").trim().length > 0
+              ) || null;
+
+              const latestVerifyFromPersisted = recentRunnerActivity.find((x:any) =>
+                String(x?.task_class || "") === "verify" &&
+                String(x?.dataset_id || "").trim().length > 0
+              ) || null;
+
+              const latestRedundancyFromPersisted = recentRunnerActivity.find((x:any) =>
+                String(x?.task_class || "") === "redundancy" &&
+                String(x?.dataset_id || "").trim().length > 0
+              ) || null;
+
+              if (latestPublishFromPersisted) {
+                latest_publish_dataset = {
+                  dataset_id: String(latestPublishFromPersisted.dataset_id || ""),
+                  ts_ms: Number(latestPublishFromPersisted.ts_ms || 0),
+                  receipt_id: latestPublishFromPersisted.receipt_id || null,
+                  sha256: (latest_publish_dataset && latest_publish_dataset.sha256) || null,
+                  __void_value_summary_latest_from_persisted_v1: true
+                };
+              }
+
+              if (latestVerifyFromPersisted) {
+                latest_verified_dataset = {
+                  dataset_id: String(latestVerifyFromPersisted.dataset_id || ""),
+                  ts_ms: Number(latestVerifyFromPersisted.ts_ms || 0),
+                  receipt_id: latestVerifyFromPersisted.receipt_id || null,
+                  sha256_now: (latest_verified_dataset && latest_verified_dataset.sha256_now) || null,
+                  __void_value_summary_latest_from_persisted_v1: true
+                };
+              }
+
+              if (latestRedundancyFromPersisted) {
+                latest_redundancy_checked_dataset = {
+                  dataset_id: String(latestRedundancyFromPersisted.dataset_id || ""),
+                  ts_ms: Number(latestRedundancyFromPersisted.ts_ms || 0),
+                  receipt_id: latestRedundancyFromPersisted.receipt_id || null,
+                  readable: (latest_redundancy_checked_dataset && latest_redundancy_checked_dataset.readable) || null,
+                  verified_hash: (latest_redundancy_checked_dataset && latest_redundancy_checked_dataset.verified_hash) || null,
+                  sha256: (latest_redundancy_checked_dataset && latest_redundancy_checked_dataset.sha256) || null,
+                  __void_value_summary_latest_from_persisted_v1: true
+                };
+              }
+            } catch {}
+
             return res.json({
               ok: true,
               limit,
