@@ -343,3 +343,7 @@ jobs-submit-e2e-proof:
 .PHONY: two-box-remote-jobs-submit-proof
 two-box-remote-jobs-submit-proof:
 	bash ops/two-box-remote-jobs-submit-proof.sh
+
+.PHONY: two-box-remote-jobs-submit-product-proof
+two-box-remote-jobs-submit-product-proof:
+	bash ops/two-box-remote-jobs-submit-product-proof.sh
