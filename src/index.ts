@@ -38546,6 +38546,7 @@ a{color:#93c5fd;text-decoration:none}
             <div class="s" style="margin-bottom:6px">Newest local dataset</div>
             <div class="v" id="latestDatasetIdHero" style="font-size:18px;line-height:1.35;word-break:break-word">-</div>
             <div class="s" id="latestDatasetMetaHero" style="margin-top:6px">-</div>
+            <div class="s" id="latestDatasetReceiptHero" style="margin-top:6px;display:none">-</div>
             <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
               <a class="btn" id="latestDatasetOpenHero" href="#" target="_blank" rel="noopener" style="display:none">Open viewer</a>
               <a class="btn secondary" id="latestDatasetRawHero" href="#" target="_blank" rel="noopener" style="display:none">Open raw JSON</a>
@@ -39889,6 +39890,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try {
       const recentDatasets = await j("/datanet/v1/local-jobs/recent?who=" + encodeURIComponent(account) + "&limit=8").catch(() => null);
       const items = recentDatasets && recentDatasets.ok && Array.isArray(recentDatasets.items) ? recentDatasets.items : [];
+      const recentReceipt = (() => {
+        const rows = Array.isArray(receipts && receipts.receipts) ? receipts.receipts : [];
+        for (const r of rows) {
+          if (String((r && r.dataset_id) || "")) return r;
+        }
+        return rows[0] || null;
+      })();
       if (!items.length) {
         if ($("latestDatasetPreviewCard")) $("latestDatasetPreviewCard").style.display = "none";
         if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "none";
@@ -39909,6 +39917,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if ($("latestDatasetActionCard")) {
           setText("latestDatasetIdHero", firstDatasetId);
           setText("latestDatasetMetaHero", String(firstBytes) + " bytes" + (firstHash ? (" • sha256 " + firstHash.slice(0, 12) + "…") : ""));
+          const receiptEl = $("latestDatasetReceiptHero");
+          if (receiptEl) {
+            let receiptText = "";
+            if (recentReceipt && String((recentReceipt as any).dataset_id || "") === firstDatasetId) {
+              const rid = String((recentReceipt as any).receipt_id || "-");
+              const kind = String((recentReceipt as any).kind || "-");
+              receiptText = "From receipt " + rid.slice(0, 18) + (rid.length > 18 ? "…" : "") + " • " + kind;
+            } else if (recentReceipt) {
+              const rid = String((recentReceipt as any).receipt_id || "-");
+              receiptText = "Latest receipt " + rid.slice(0, 18) + (rid.length > 18 ? "…" : "");
+            }
+            if (receiptText) {
+              receiptEl.textContent = receiptText;
+              (receiptEl as HTMLElement).style.display = "";
+            } else {
+              receiptEl.textContent = "";
+              (receiptEl as HTMLElement).style.display = "none";
+            }
+          }
           const openA = $("latestDatasetOpenHero");
           const rawA = $("latestDatasetRawHero");
           if (openA) {
