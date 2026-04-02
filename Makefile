@@ -359,3 +359,7 @@ two-box-remote-verify-redundancy-product-proof:
 .PHONY: two-box-golden-product-smoke
 two-box-golden-product-smoke:
 	bash ops/two-box-golden-product-smoke.sh
+
+.PHONY: golden-smoke
+golden-smoke:
+	bash ops/two-box-golden-product-smoke.sh
