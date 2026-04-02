@@ -40850,16 +40850,29 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           latestUsefulTask === "publish" ? "Open Published Dataset" :
           "Open Latest Dataset";
 
+        // __void_overview_latest_useful_badge_v1
+        const latestUsefulBadge =
+          latestUsefulTask === "redundancy"
+            ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.35);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#c4b5fd;background:rgba(139,92,246,.12)">Checked</span>'
+            : latestUsefulTask === "verify"
+              ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.35);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#93c5fd;background:rgba(59,130,246,.12)">Verified</span>'
+              : latestUsefulTask === "publish"
+                ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.35);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#86efac;background:rgba(34,197,94,.12)">Published</span>'
+                : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.35);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#e5e7eb;background:rgba(148,163,184,.10)">Latest</span>';
+
         if (latestUsefulDatasetId) {
           if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "";
           setText("latestDatasetIdHero", latestUsefulDatasetId);
-          setText(
-            "latestDatasetMetaHero",
-            latestUsefulLabel + " • " +
-            latestUsefulWhen +
-            (latestUsefulJobId ? (" • job " + latestUsefulJobId) : "") +
-            (latestUsefulReceiptId ? (" • receipt " + latestUsefulReceiptId) : "")
-          );
+          if ($("latestDatasetMetaHero")) {
+            $("latestDatasetMetaHero").innerHTML =
+              latestUsefulBadge +
+              '<span style="margin-left:8px">' + escHtml(latestUsefulLabel + " • ") + '</span>' +
+              escHtml(
+                latestUsefulWhen +
+                (latestUsefulJobId ? (" • job " + latestUsefulJobId) : "") +
+                (latestUsefulReceiptId ? (" • receipt " + latestUsefulReceiptId) : "")
+              );
+          }
 
           const latestDatasetBtn = $("latestDatasetBtn");
           if (latestDatasetBtn) {
