@@ -375,6 +375,7 @@ if (process.env.VOID_EARLY_MINIMAL_BOOT === "1") {
     app.get("/participant", (req:any, res:any) => {
       const account = String(req?.query?.account || "guest");
       const esc = (x:string) => x.replace(/[&<>"]/g, "");
+      // __void_datanet_view_summary_v1
       const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -36052,6 +36053,12 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             const crypto = require("node:crypto");
             const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
             const sizeBytes = Buffer.byteLength(plaintext, "utf8");
+      const previewText = plaintext.length > 220 ? (plaintext.slice(0, 220) + "…") : plaintext;
+      const datasetTone =
+        plaintext.includes('"task_class":"datanet_redundancy_check"') ? { label: "Checked Dataset", style: "color:#c4b5fd;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.28)" } :
+        plaintext.includes('"task_class":"datanet_fetch_verify"') ? { label: "Verified Dataset", style: "color:#93c5fd;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.28)" } :
+        plaintext.includes('"task_class":"datanet_publish"') ? { label: "Published Dataset", style: "color:#86efac;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.28)" } :
+        { label: "Dataset", style: "color:#e5e7eb;background:rgba(148,163,184,.10);border:1px solid rgba(148,163,184,.25)" };
 
             const esc = (v:any) => String(v == null ? "" : v)
               .replace(/&/g, "&amp;")
@@ -36089,6 +36096,13 @@ a{color:#93c5fd;text-decoration:none}
   </div>
 
   <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;${datasetTone.style}">${esc(datasetTone.label)}</span>
+      <span class="sub">Local readback for dataset <code>${esc(id)}</code></span>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="meta">
       <div class="k">Dataset</div><div><code>${esc(id)}</code></div>
       <div class="k">Account</div><div><code>${esc(who)}</code></div>
@@ -36100,9 +36114,14 @@ a{color:#93c5fd;text-decoration:none}
 
   <div class="card">
     <div class="row">
-      <a class="btn" href="/datanet/v1/local-job/${encodeURIComponent(id)}?who=${encodeURIComponent(who)}" target="_blank" rel="noopener">Open raw JSON</a>
+      <a class="btn" href="/datanet/v1/local-job/${encodeURIComponent(id)}?who=${encodeURIComponent(who)}" target="_blank" rel="noopener">Open Dataset JSON</a>
       <a class="btn" href="/participant#overview">Back to Overview</a>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="k" style="margin-bottom:10px">Preview</div>
+    <pre style="max-height:none">${esc(previewText || "-")}</pre>
   </div>
 
   <div class="card">
