@@ -334,6 +334,83 @@ console.log("[shim] published global node (post-construct)");
 })();
 (globalThis as any).__void_http_app = app;
 
+// ---- EARLY MINIMAL BOOT MODE (short-circuit before additive IIFE storm) ----
+if (process.env.VOID_EARLY_MINIMAL_BOOT === "1") {
+  try {
+    app.get(["/health", "/api/health"], (_req:any, res:any) => {
+      try {
+        const n:any = ((globalThis as any).__void_node || (globalThis as any).node);
+        res.json({
+          ok: true,
+          proto: PROTO_VER,
+          nodeId: n?.id || "unknown",
+          http: HTTP_PORT,
+          p2p: P2P_PORT,
+          peers: Array.isArray([...((n?.peers || new Map()).keys?.() || [])]) ? [...(n?.peers?.keys?.() || [])].filter((k:any)=>!String(k).startsWith("?-")) : [],
+          listen: n?.listenAddrs || []
+        });
+      } catch (e:any) {
+        res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/head.txt", (_req:any, res:any) => {
+      try {
+        const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
+        res.type("text/plain").send(String(Number.isFinite(n) ? n : -1));
+      } catch (e:any) {
+        res.status(500).type("text/plain").send(String(e?.message || e));
+      }
+    });
+
+    app.get("/blocks/latest/number", (_req:any, res:any) => {
+      try {
+        const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
+        res.type("text/plain").send(String(Number.isFinite(n) ? n : -1));
+      } catch (e:any) {
+        res.status(500).type("text/plain").send(String(e?.message || e));
+      }
+    });
+
+    app.get("/participant", (req:any, res:any) => {
+      const account = String(req?.query?.account || "guest");
+      const esc = (x:string) => x.replace(/[&<>"]/g, "");
+      const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>VOID Participant (early minimal)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font:14px/1.45 Inter,system-ui,sans-serif;background:#07111b;color:#edf4fb;padding:24px}
+    .card{max-width:760px;background:#0f1b2a;border:1px solid #21364b;border-radius:16px;padding:20px}
+    .muted{color:#93a6bc}
+    code{background:#122235;padding:2px 6px;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>VOID Participant</h1>
+    <p class="muted">Early minimal boot mode is active.</p>
+    <p>account: <code>${esc(account)}</code></p>
+    <p>This response is mounted before the late additive runtime. If this mode stays healthy, the thrash is coming from the top-level additive boot storm.</p>
+  </div>
+</body>
+</html>`;
+      res.type("html").send(html);
+    });
+
+    app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.1"),()=>{
+      console.log("[early-minimal-boot] http listening");
+      console.log(`[early-minimal-boot] http :${HTTP_PORT}`);
+    });
+    return;
+  } catch (e:any) {
+    console.error("[early-minimal-boot] failed", String(e?.stack || e));
+    throw e;
+  }
+}
+
 /* [latest-number-json.safe.v1] */
 ;(function __voidLatestNumberJsonSafeV1(){
   try{
@@ -3894,6 +3971,64 @@ try {
     res.send(metrics.renderText({ peers, mempool, head, peers_known: peersReg.count() }));
   });
 
+  // ---- MINIMAL BOOT MODE (hard bypass of late additive runtime) ----
+  if (process.env.VOID_MINIMAL_BOOT === "1") {
+    try {
+      app.get("/head.txt", (_req, res) => {
+        try {
+          const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
+          res.type("text/plain").send(String(Number.isFinite(n) ? n : -1));
+        } catch (e:any) {
+          res.status(500).type("text/plain").send(String(e?.message || e));
+        }
+      });
+
+      app.get("/blocks/latest/number", (_req, res) => {
+        try {
+          const n = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
+          res.type("text/plain").send(String(Number.isFinite(n) ? n : -1));
+        } catch (e:any) {
+          res.status(500).type("text/plain").send(String(e?.message || e));
+        }
+      });
+
+      app.get("/participant", (req:any, res:any) => {
+        const account = String(req?.query?.account || "guest");
+        const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>VOID Participant (minimal)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font:14px/1.45 Inter,system-ui,sans-serif;background:#07111b;color:#edf4fb;padding:24px}
+    .card{max-width:760px;background:#0f1b2a;border:1px solid #21364b;border-radius:16px;padding:20px}
+    .muted{color:#93a6bc}
+    code{background:#122235;padding:2px 6px;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>VOID Participant</h1>
+    <p class="muted">Minimal boot mode is active.</p>
+    <p>account: <code>${account.replace(/[&<>"]/g, "")}</code></p>
+    <p>This route is intentionally minimal so we can prove whether the late additive runtime is the thing killing the node.</p>
+  </div>
+</body>
+</html>`;
+        res.type("html").send(html);
+      });
+
+      app.listen(Number(process.env.HTTP_PORT||4100),(process.env.HTTP_HOST||"127.0.0.1"),()=>{
+        console.log("[minimal-boot] http listening");
+        console.log(`[minimal-boot] http :${HTTP_PORT}`);
+      });
+      return;
+    } catch (e:any) {
+      console.error("[minimal-boot] failed", String(e?.stack || e));
+      throw e;
+    }
+  }
 
   // ---- DEBUG: wrap app.listen to prove bind/address/errors (additive, safe) ----
   try {
@@ -3944,7 +4079,7 @@ try {
       selfAdvert.p2pListen = p2pListen;
 
       (((globalThis as any).__void_node || (globalThis as any).node) as any).publishJson("void/http", { id: (((globalThis as any).__void_node || (globalThis as any).node) as any).id, http: httpBase });
-      setInterval(() => {
+      if (process.env.VOID_DISABLE_POST_LISTEN_PEER_INTERVALS !== "1") setInterval(() => {
         (((globalThis as any).__void_node || (globalThis as any).node) as any).publishJson("void/http", { id: (((globalThis as any).__void_node || (globalThis as any).node) as any).id, http: httpBase });
       }, 10_000).unref?.();
 
@@ -3958,7 +4093,7 @@ try {
       console.log(`[peers] self upsert -> id=${(((globalThis as any).__void_node || (globalThis as any).node) as any).id} http=${httpBase} p2p=${p2pListen}`);
 
       // periodic announce-upsert to known peers
-      setInterval(() => {
+      if (process.env.VOID_DISABLE_POST_LISTEN_PEER_INTERVALS !== "1") setInterval(() => {
         try {
           const peers = peersReg.all();
           for (const p of peers) {
@@ -4143,6 +4278,7 @@ import type {} from "express"; // type-only safety; no runtime impact
 
 // ---------------- Late-bound diagnostics (attach when app exists) ----------------
 (function lateAttachDiag(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V3 === "1") return;
   let tries = 0;
   let attached = false;
 
@@ -4648,6 +4784,7 @@ import type {} from "express"; // type-only safety; no runtime impact
 
 // -------------- Compat shim: /blocks/:n/full (range-backed, JSON) ---------------
 (function compatBlocksFull(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V3 === "1") return;
   let tries = 0, attached = false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
   async function attach(){
@@ -5277,6 +5414,7 @@ import type {} from "express"; // type-only safety; no runtime impact
 // --------------- [ADD] universal store write wrapper (auto-detect) --------------
 ;(function wrapAnyStoreWriterForTxInjection(){
   try{
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V4 === "1") return;
     const g:any = globalThis as any;
     if (g.__void_store_inject2_installed) return; g.__void_store_inject2_installed = true;
 
@@ -5523,6 +5661,7 @@ import type {} from "express"; // type-only safety; no runtime impact
 // --------------- [ADD] force tx injection at saveBlock + persisted full2 ----------
 ;(function forceTxsAtSaveBlockAndFull2(){
   try{
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V2 === "1") return;
     const g:any = globalThis as any;
     if (g.__void_store_force_inject_installed) return; g.__void_store_force_inject_installed = true;
 
@@ -5677,6 +5816,7 @@ import type {} from "express"; // type-only safety; no runtime impact
 // ---------------- [ADD] pending canon + compactor + routes ----------------------
 ;(function canonizePendingToMempool(){
   try{
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V1 === "1") return;
     const g:any = globalThis as any;
     if (g.__void_pending_canon_installed) return; g.__void_pending_canon_installed = true;
 
@@ -5905,6 +6045,7 @@ import type {} from "express"; // type-only safety; no runtime impact
 // --------------- [ADD] cap per-block tx injection + live control ----------------
 ;(function capPerBlockInjection(){
   try{
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V1 === "1") return;
     const g:any = globalThis as any;
     if (g.__void_merge_cap_installed) return; g.__void_merge_cap_installed = true;
 
@@ -5948,6 +6089,7 @@ import type {} from "express"; // type-only safety; no runtime impact
 // --------------- [ADD] merge-all limiter hook integration ----------------------
 ;(function integrateCapWithMergeAll(){
   try{
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V1 === "1") return;
     const g:any = globalThis as any;
     if (g.__void_merge_limit_integrated) return; g.__void_merge_limit_integrated = true;
 
@@ -6917,12 +7059,13 @@ import { computeTxRoot } from "./util/txroot.js";
 // ---------------- [ADD] TxRoot counters: clean-room last-wins wrapper + /metrics/txroot2 ----------------
 (function installTxRootCountersCleanRoom(){
   try{
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V3 === "1") return;
     const g:any = globalThis as any;
     g.__txroot_counters = g.__txroot_counters || { blocks: 0, txs: 0 };
 
     // Expose a fresh endpoint that we control (plain text; Prometheus-friendly)
     let triesEP = 0;
-    (function armEndpoint(){
+    if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function armEndpoint(){
       const app:any = g.__void_http_app || g.app;
       if (!app || typeof app.get !== "function") { if (++triesEP < 200) return setTimeout(armEndpoint, 50); return; }
       if ((app as any).__txroot_metrics_v2) return;
@@ -7004,7 +7147,7 @@ import { computeTxRoot } from "./util/txroot.js";
   try{
     const g:any = globalThis as any;
     let tries = 0;
-    (function arm(){
+    if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function arm(){
       const app:any = g.__void_http_app || g.app;
       if (!app || typeof app.get !== "function") { if (++tries < 200) return setTimeout(arm, 50); return; }
       if ((app as any).__txroot_metrics_v2_json) return;
@@ -7020,11 +7163,11 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---------------- [ADD] /blocks/latest/number.json (JSON mirror) ----------------
-(function installLatestNumberJson(){
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function installLatestNumberJson(){
   try{
     const g:any = globalThis as any;
     let tries = 0;
-    (function arm(){
+    if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function arm(){
       const app:any = g.__void_http_app || g.app;
       const node:any = g.__void_node || (g as any).node;
       if (!app || typeof app.get !== "function" || !node?.store) {
@@ -7057,11 +7200,11 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---------------- [ADD] /blocks/latest/number2.json (fetch-free JSON mirror) ----------------
-(function installLatestNumberJsonV2(){
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function installLatestNumberJsonV2(){
   try{
     const g:any = globalThis as any;
     let tries = 0;
-    (function arm(){
+    if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function arm(){
       const app:any  = g.__void_http_app || g.app;
       const node:any = g.__void_node || (g as any).node;
       if (!app || typeof app.get !== "function" || !node?.store) {
@@ -7115,11 +7258,11 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---------------- [ADD] /health/summary.json ----------------
-(function installHealthSummaryJson(){
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function installHealthSummaryJson(){
   try{
     const g:any = globalThis as any;
     let tries = 0;
-    (function arm(){
+    if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function arm(){
       const app:any = g.__void_http_app || g.app;
       if (!app || typeof app.get !== "function") { if (++tries < 200) return setTimeout(arm, 50); return; }
       if ((app as any).__health_summary_json) return;
@@ -7159,7 +7302,7 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---------------- Dev: /dev/blocks/:n/txroot (additive, no deps) ----------------
-(function registerTxRootDevRoute() {
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function registerTxRootDevRoute() {
   let tries = 0, attached = false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   function attach(){
@@ -7191,7 +7334,7 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---------------- Dev: /dev/txroot/:n (additive shim; ignores broken snippet) ----------------
-(function registerTxRootDevRoute_v2() {
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function registerTxRootDevRoute_v2() {
   let tries = 0, attached = false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   function attach(){
@@ -7311,7 +7454,7 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---------------- Header shim + txroot counter metrics (additive) -------------------
-;(function headerShimAndTxrootCounter(){
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function headerShimAndTxrootCounter(){
   let tries = 0, attached = false;
 
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
@@ -7381,7 +7524,7 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // -------------- last-block metrics: txcount + empty (additive) --------------
-;(function lastBlockMetrics(){
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function lastBlockMetrics(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   async function getHead(){
@@ -7413,7 +7556,7 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---------------- Metrics bundle (/metrics/void) -------------------
-;(function metricsBundle(){
+;if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function metricsBundle(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   async function fetchText(path:string){
@@ -7438,7 +7581,7 @@ import { computeTxRoot } from "./util/txroot.js";
 })();
 
 // ---------------- Ops snapshot (/ops/txroot-state.json) -------------------
-;(function opsTxrootState(){
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function opsTxrootState(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   async function t(path){ try{ const r=await fetch("http://127.0.0.1:"+ (process.env.HTTP_PORT||"4100")+path); return await r.text(); }catch{ return ""; } }
@@ -7471,7 +7614,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
 
 // ---- follower drift metric v3b: selfBase from Host; clean closure -----------
-;(function followerDriftMetric_v3b(){
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function followerDriftMetric_v3b(){
   let tries=0, attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   async function getJSON(u:string){ try{ const r=await fetch(u,{headers:{'cache-control':'no-cache'}}); return await r.json(); }catch{ return null; } }
@@ -7514,7 +7657,8 @@ import { computeTxRoot } from "./util/txroot.js";
 
 
 // ---- follower drift exporter v4b (reads head from /metrics/void) -----------
-;(function driftExporterV4b(){
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function driftExporterV4b(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V4 === "1") return;
   if (String(process.env.VOID_DRIFT_DISABLE||process.env.VOID_DISABLE_DRIFT||"0")==="1") { console.log("[driftExporterV4b] disabled by env"); return; }
   let tries = 0, attached = false;
   const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
@@ -7571,6 +7715,7 @@ import { computeTxRoot } from "./util/txroot.js";
 
 // ---- follower drift exporter v4b (reads head from /metrics/void) -----------
 ;(function driftExporterV4b(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V4 === "1") return;
   let tries = 0, attached = false;
   const PEER = process.env.VOID_DRIFT_PEER || "http://localhost:4100";
 
@@ -7761,7 +7906,7 @@ import { computeTxRoot } from "./util/txroot.js";
 // =============================================================================
 
 // ------------------------------ __void diag + txroot v4 (additive) ------------------------------
-(function __void_diag_and_txroot_v4() {
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function __void_diag_and_txroot_v4() {
   let tries = 0, attached = false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
 
@@ -7864,7 +8009,7 @@ __void_txroot4_up 0
 
 
 // ------------------------------ txroot v4 verify3: unshadowed aliases + nicer logs ------------------------------
-(function __void_txroot_v4_verify3_aliases_and_logs(){
+if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function __void_txroot_v4_verify3_aliases_and_logs(){
   let tries = 0, attached = false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
   function toInt(x:any){ const n = Number(x); return Number.isFinite(n) ? n : NaN; }
@@ -8340,7 +8485,7 @@ __void_txroot4_up 0
  *    you'll still get visibility via counters and your existing /__void/txroot/v4/* checks.
  */
 
-(async function attachTxrootSaveHook(){
+if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (async function attachTxrootSaveHook(){
   const MAX_ATTACH_TRIES = 80;  // ~40s worst case
   // ------------- helper: get the Express app via your global hook -------------
   function getApp(){
@@ -8473,7 +8618,7 @@ __void_txroot4_up 0
 
 
 // ===== TXROOT CORE METRICS EXPORTER SHIM (additive, binds ASAP) ==============
-(function txrootCoreExporterShim(){
+if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (function txrootCoreExporterShim(){
   const MAX_TRIES = 120; // ~60s
   let tries = 0, bound = false;
 
@@ -8523,7 +8668,7 @@ __void_txroot4_up 0
 })();
 
 // ===== TXROOT CORE COUNTER WIRING (additive; pairs with exporter shim) =======
-(function txrootCoreCountersAttach(){
+if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (function txrootCoreCountersAttach(){
   const counters = (globalThis as any).__void_txroot_core_counters ||= {
     saves_total: 0,
     set_total: 0,
@@ -8592,7 +8737,7 @@ __void_txroot4_up 0
  // ============================================================================
 
 // ===== TXROOT CORE METRICS — POST-SAVE WRAPPER (additive, idempotent) ========
-(function txrootCorePostSaveWrapper(){
+if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (function txrootCorePostSaveWrapper(){
   const counters = (globalThis as any).__void_txroot_core_counters ||= {
     saves_total: 0,
     set_total: 0,
@@ -8658,7 +8803,7 @@ __void_txroot4_up 0
  // ============================================================================
 
 // ==== TXROOT CORE METRICS — STICKY WRAPPER (survives re-patches) ============
-(function txrootCoreStickyWrapper(){
+if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (function txrootCoreStickyWrapper(){
   const counters = (globalThis as any).__void_txroot_core_counters ||= {
     saves_total: 0,
     set_total: 0,
@@ -8746,7 +8891,7 @@ __void_txroot4_up 0
  // ============================================================================
 
 // --- TXROOT CORE EXPORTER (authoritative read of the global counters) ------
-(function txrootCoreExporter(){
+if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (function txrootCoreExporter(){
   const counters = (globalThis as any).__void_txroot_core_counters ||= {
     saves_total: 0,
     set_total: 0,
@@ -8790,7 +8935,7 @@ __void_txroot4_up 0
 })();
 
 // --- TXROOT CORE PRE-PATCH: unconditional saves_total++ on every saveBlock ---
-(function txrootCorePrePatch(){
+if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (function txrootCorePrePatch(){
   const counters = (globalThis as any).__void_txroot_core_counters ||= {
     saves_total: 0, set_total: 0, mismatch_total: 0, errors_total: 0, heartbeat_total: 0,
   };
@@ -8825,7 +8970,7 @@ __void_txroot4_up 0
 })();
 
 // ===== TXROOT CORE v2 (robust) =====
-(function txrootCoreV2(){
+if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (function txrootCoreV2(){
   // Single global counters object (idempotent)
   const ctr = (globalThis as any).__void_txroot_core_counters_v2 ||= {
     saves_total: 0,
@@ -8915,7 +9060,7 @@ __void_txroot4_up 0
 })();
 
 // ===== TXROOT CORE v2-synth (head watcher; additive, non-intrusive) =====
-(function txrootCoreV2Synth(){
+if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (function txrootCoreV2Synth(){
   if (String(process.env.VOID_TXROOT_CORE_V2_SYNTH_DISABLE||"0")==="1") { try{ console.log("[txrootCoreV2Synth] disabled by env"); }catch{} return; }
   if (String(process.env.VOID_TXROOT_CORE_V2_SYNTH_DISABLE||"0")==="1") { console.log("[txrootCoreV2Synth] disabled by env"); return; }
   // Share the same v2 counters
@@ -9001,7 +9146,7 @@ __void_txroot4_up 0
 })();
 
 // ===== TXROOT CORE v2-synth-self (per-process, env-aware) =====
-(function txrootCoreV2SynthSelf(){
+if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (function txrootCoreV2SynthSelf(){
   const ctr = (globalThis as any).__void_txroot_core_counters_v2 ||= {
     saves_total: 0, set_total: 0, mismatch_total: 0, errors_total: 0, heartbeat_total: 0,
   };
@@ -9058,7 +9203,7 @@ __void_txroot4_up 0
 })();
 
 // ---------------- txRoot setter attach (additive) --------------------
-;(async function attachTxrootSetterAdditive(){
+if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") { ;(async function attachTxrootSetterAdditive(){
   try {
     const app:any = (globalThis as any).__void_http_app || (globalThis as any).app;
     const store:any = (globalThis as any).__void_store || (globalThis as any).store || (globalThis as any).SegStoreInstance;
@@ -9090,9 +9235,10 @@ try { /* ok */ } catch (e) { console.warn("[boot.txroot-setter] dynamic import w
     console.error("[boot.txroot-setter] failed to attach:", e);
   }
 })();
+}
 
 // ---------------- txRoot setter attach (additive, ESM-safe) --------------------
-;(function attachTxrootSetterESM(){
+if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") { ;(function attachTxrootSetterESM(){
   try {
     if ((globalThis as any).__void_txroot_setter_attached) return;
     const tryAttach = async () => {
@@ -9120,9 +9266,10 @@ try { /* ok */ } catch (e) { console.warn("[boot.txroot-setter] dynamic import w
     console.error("[boot.txroot-setter] failed to schedule attach:", e);
   }
 })();
+}
 
 // ---------------- txRoot setter DIAGNOSTIC harness (additive, ESM-safe) --------------------
-;(function txrootSetterDiagHarness(){
+if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") { ;(function txrootSetterDiagHarness(){
   try {
     const G:any = (globalThis as any);
     if (G.__void_txroot_setter_diag_installed) return;
@@ -9204,6 +9351,7 @@ try { /* ok */ } catch (e) { console.warn("[boot.txroot-setter] dynamic import w
     console.error("[boot.txroot-setter] harness error:", e);
   }
 })();
+}
 
 // ---------------- PROM text exporter for txroot-setter (direct mount; additive) --------------------
 ;(function mountSetterPromDirect(){
@@ -9252,6 +9400,7 @@ try { /* ok */ } catch (e) { console.warn("[boot.txroot-setter] dynamic import w
 // ---------------- txRoot health probe (additive, no deps) --------------------
 ;(function txrootHealthProbe(){
   try {
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V1 === "1") return;
     const G:any = (globalThis as any);
     const getApp = () => G.__void_http_app || G.app;
     const getNode = (app:any) => G.__void_node || app?.locals?.node;
@@ -9328,6 +9477,7 @@ void_txroot_health ${ok ? 1 : 0}
 // ---------------- txRoot health probe v2 (additive; absolute URL fix) -----------
 ;(function txrootHealthProbeV2(){
   try {
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V1 === "1") return;
     const G:any = (globalThis as any);
     if (G.__void_txroot_health_v2) return; // don't double-mount
     const getApp = () => G.__void_http_app || G.app;
@@ -9396,6 +9546,7 @@ void_txroot_health ${ok ? 1 : 0}
 // ----- txRoot health probe v2.1 (fallbacks for 404 on __void/txroot/check/:n) -----
 ;(function txrootHealthProbeV21(){
   try {
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V1 === "1") return;
     const G:any = (globalThis as any);
     if (G.__void_txroot_health_v21) return;
     const getApp = () => G.__void_http_app || G.app;
@@ -9474,6 +9625,7 @@ void_txroot_health ${ok ? 1 : 0}
 // ----- txRoot health probe v3 (always fallback-safe) -----
 ;(function txrootHealthProbeV3(){
   try {
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V1 === "1") return;
     const G:any = (globalThis as any);
     if (G.__void_txroot_health_v3) return;
     const getApp = () => G.__void_http_app || G.app;
@@ -10114,6 +10266,7 @@ void_seal_rate_1m ${rate1m()}
   });
 })();
 // --- SEALS_V3_BOOTSAFE_END ---
+if (process.env.VOID_DISABLE_SEALS_V3 !== "1") {
 // --- SEALS_V3_WATCHDOG_BEGIN ---
 // Seals V3 watchdog: auto-remount /metrics/void/seals and /__void/seals/v3/status
 // if the Express app is replaced or routes disappear.
@@ -10341,6 +10494,7 @@ void_seal_rate_1m ${rate1m()}
   setInterval(tick, 5000).unref?.();
 })();
 /// --- SEALS_V3_HEARTBEAT_FIX_END ---
+}
 // --- SEALS_V3_HEALTH_WATCHDOG_BEGIN ---
 // Watches the Express app and (re)mounts /metrics/void/seals/health reliably.
 (() => {
@@ -10388,7 +10542,7 @@ void_seal_rate_1m ${rate1m()}
 /// --- SEALS_V3_HEALTH_WATCHDOG_END ---
 
 // ===================== txRoot Header-Setter Shim v2 (additive) =====================
-(function txrootHeaderSetterShimV2(){
+if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") (function txrootHeaderSetterShimV2(){
   const BOOT_TAG = "[txroot/header-shim:v2]";
   let attached = false;
   // in-memory header map (number -> { txRoot, ts })
@@ -10521,7 +10675,7 @@ void_seal_rate_1m ${rate1m()}
  // =================== /txRoot Header-Setter Shim v2 (additive) =====================
 
 // ===================== txRoot Header-Setter Sidecar v3 (additive) =====================
-(function txrootHeaderSetterSidecarV3(){
+if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") (function txrootHeaderSetterSidecarV3(){
   const TAG = "[txroot/header-sidecar:v3]";
   let attached = false;
 
@@ -10639,7 +10793,7 @@ void_seal_rate_1m ${rate1m()}
 // =================== /txRoot Header-Setter Sidecar v3 (additive) =====================
 
 // ===================== txRoot Header-Write Wrapper v1 (pure-additive) =====================
-(async function txrootHeaderWriteWrapper(){
+if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootHeaderWriteWrapper(){
   const TAG = "[txroot/header-write:v1]";
   let installed = false;
 
@@ -10759,6 +10913,7 @@ void_seal_rate_1m ${rate1m()}
 
 // ================== Dev TX pour-on-save shim (additive, idempotent) ==================
 (function devTxPourOnSaveShim(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V2 === "1") return;
   const TAG = "[dev/pour-on-save:v1]";
   let attached = false;
 
@@ -10836,6 +10991,7 @@ void_seal_rate_1m ${rate1m()}
 
 // ================== Dev TX pour-on-save shim v2 (additive, idempotent) ==================
 (function devTxPourOnSaveShimV2(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V2 === "1") return;
   const TAG = "[dev/pour-on-save:v2]";
   let attached = false;
 
@@ -10933,6 +11089,7 @@ void_seal_rate_1m ${rate1m()}
 
 // ================= Dev Injector → Mempool Bridge (v1, additive) =================
 (function devInjectorToMempoolBridge(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V2 === "1") return;
   const TAG = "[dev/inject-bridge:v1]";
   let attached = false;
 
@@ -11020,6 +11177,7 @@ void_seal_rate_1m ${rate1m()}
 
 // =========== Dev Direct Enqueue → node.mempool.txs (v1, additive) ===========
 (function devDirectEnqueueV1(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V4 === "1") return;
   const TAG = "[dev/enqueue:v1]";
   let attached = false;
 
@@ -11071,6 +11229,7 @@ void_seal_rate_1m ${rate1m()}
 
 // ======================= TX MERGE v2 (additive-only) =========================
 (function txMergeV2(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V4 === "1") return;
   const TAG = "[tx/merge:v2]";
   let attached = false;
 
@@ -11190,6 +11349,7 @@ void_seal_rate_1m ${rate1m()}
 
 // ===================== Dev mempool PICK endpoints (additive) =====================
 (function devMempoolPickRoutes(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V4 === "1") return;
   const TAG = "[dev/mempool-pick:v1]";
   let attached = false;
 
@@ -11234,6 +11394,7 @@ void_seal_rate_1m ${rate1m()}
 
 // ---------------------- Dev mempool picker (additive) ----------------------
 (function devMempoolPickerV1(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V4 === "1") return;
   const TAG = "[dev/mempool-pick:v1]";
   let attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
@@ -11276,6 +11437,7 @@ void_seal_rate_1m ${rate1m()}
 
 // ---------------- txmerge v23 prom-exporter bridge (additive) ----------------
 (function txmergeV23PromBridge(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V2 === "1") return;
   const TAG = "[txmerge:v23:prom-bridge]";
   let attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
@@ -11318,6 +11480,7 @@ void_seal_rate_1m ${rate1m()}
 
 // -------- txmerge v23b prom-exporter (additive, alt path) --------
 (function txmergeV23bPromBridge(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V2 === "1") return;
   const TAG = "[txmerge:v23b:prom-bridge]";
   let attached=false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
@@ -11717,7 +11880,7 @@ void_seal_rate_1m ${rate1m()}
 // ---- /TXROOT HEALTH SHIM -----------------------------------------------------
 
 // ---- LASTMILE injected counter v2 (increment on real saveBlock with txs) ----
-(function lastMileInjectedV2(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileInjectedV2(){
   let tries=0, attached=false;
   const RETRY=250, MAX=20000;
   const g:any = (globalThis as any);
@@ -11781,7 +11944,7 @@ void_seal_rate_1m ${rate1m()}
 })();
 
 // ---- LASTMILE v3: count txs actually persisted per block (Prom text) ----
-(function lastMileV3(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3(){
   let tries=0, attached=false;
   const RETRY=250, MAX=20000;
   const g:any = (globalThis as any);
@@ -11826,7 +11989,7 @@ void_seal_rate_1m ${rate1m()}
 })();
 
 // ---- LASTMILE v3b: piggyback on __lastMile_info (add injected) ----
-(function lastMileV3b(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b(){
   const g:any = (globalThis as any);
   g.__lastMile_block_txs_total = g.__lastMile_block_txs_total || 0;
 
@@ -14699,7 +14862,7 @@ void_header3_last_mismatch ${lastMismatch}
   attach(); // kick
 })();
 // ---------------- TxRoot header NOOP-setter v3d (ESM-safe, additive) -----------------
-(function txrootHeaderNoopSetterV3d(){
+if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") (function txrootHeaderNoopSetterV3d(){
   const TICK = 400;
   const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   const GUARD = "__void_txroot_noop_setter_v3d";
@@ -14778,7 +14941,7 @@ void_header3_last_mismatch ${lastMismatch}
   (function waitApp(){ const app = getApp(); if (!app) return setTimeout(waitApp, TICK); attach(); })();
 })();
 // --------------- TxRoot noop-setter v3e (pre-save snapshot, additive) ---------------
-(function txrootHeaderNoopSetterV3e(){
+if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") (function txrootHeaderNoopSetterV3e(){
   const TICK = 400;
   const GUARD = "__void_txroot_noop_setter_v3e";
   const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
@@ -14861,7 +15024,7 @@ void_header3_last_mismatch ${lastMismatch}
   (function wait(){ const app = getApp(); if (!app) return setTimeout(wait, TICK); attach(); })();
 })();
 // --------------- TxRoot noop-setter v3f (relaxed presave + debug gauge, additive) ---------------
-(function txrootHeaderNoopSetterV3f(){
+if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") (function txrootHeaderNoopSetterV3f(){
   const TICK = 400;
   const GUARD = "__void_txroot_noop_setter_v3f";
   const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
@@ -15019,7 +15182,7 @@ void_header3_last_mismatch ${lastMismatch}
   mount();
 })();
 // -------- noop-setter:v3h (robust) --------
-(function noopSetterV3h(){
+if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1") (function noopSetterV3h(){
   const TICK=400;
   function getStore(){ return (globalThis as any).__void_store; }
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
@@ -15139,7 +15302,7 @@ void_header3_last_mismatch ${lastMismatch}
   mount();
 })();
 // -------- noop-sidecar:v1 (header watcher, race-proof) --------
-(function noopSidecarV1(){
+if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") (function noopSidecarV1(){
   const TICK = 1000;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   const state:any = (globalThis as any).__void_txroot_noop_sidecar
@@ -15223,7 +15386,7 @@ void_header3_last_mismatch ${lastMismatch}
   mount();
 })();
 // -------- noop-sidecar:v1.1 (lookback + pruning) --------
-(function noopSidecarTweaks(){
+if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") (function noopSidecarTweaks(){
   const getState = () => (globalThis as any).__void_txroot_noop_sidecar;
   const S:any = getState && getState();
   if (!S || S.__tweaks_applied) return;
@@ -15615,7 +15778,7 @@ void_header3_last_mismatch ${lastMismatch}
   start();
 })();
 // ---------------- txroot forensics + observer (pure-additive) -----------------
-(function txrootForensicsAndObserver(){
+if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (function txrootForensicsAndObserver(){
   const TICK = 1000;
 
   // lazy app getter (keeps our additive pattern)
@@ -15631,7 +15794,7 @@ void_header3_last_mismatch ${lastMismatch}
   };
 
   // Try to hook saveBlock just to inspect arguments (no behavior change)
-  (function hookSaveBlockForShape(){
+  if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (function hookSaveBlockForShape(){
     try {
       const SegStore = (globalThis as any).SegStore || require('./chain/seg_store.js').SegStore;
       if (!SegStore || !SegStore.prototype || (SegStore.prototype as any).__void_forensics_hooked) return;
@@ -15672,7 +15835,7 @@ void_header3_last_mismatch ${lastMismatch}
   })();
 
   // Mount /__void/metrics/txroot4/forensics.prom
-  (function mountForensicsRoute(){
+  if (process.env.VOID_TXROOT_FORENSICS_DISABLE !== "1") (function mountForensicsRoute(){
     function attach(){
       const app:any = getApp();
       if (!app || typeof app.get!=='function') return setTimeout(attach, TICK);
@@ -15696,6 +15859,7 @@ void_header3_last_mismatch ${lastMismatch}
   })();
 
   // ---------------- Observer: treat "header3==dev-root" per new block as a set ----------------
+  if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1" && process.env.VOID_TXROOT_OBSERVER_DISABLE !== "1") {
   const obs = {
     last_seen: -1,
     seen_blocks_total: 0,
@@ -15764,9 +15928,10 @@ void_header3_last_mismatch ${lastMismatch}
     }
     attach();
   })();
+  }
 })();
 // -------- txroot forensics: STICKY wrapper so later patches can't overwrite -----
-(function txrootForensicsSticky(){
+if (process.env.VOID_TXROOT_FORENSICS_STICKY_DISABLE !== "1") if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (function txrootForensicsSticky(){
   const TICK = 500;
   const sym = Symbol.for('__void_forensics_wrapped');
 
@@ -15893,7 +16058,7 @@ try {
   stickify();
 })();
 // ---- txroot forensics: STICKY v2 (ESM-safe + instance-level fallback) ----
-(function txrootForensicsStickyV2(){
+if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (function txrootForensicsStickyV2(){
   const TICK = 500;
   const sym = Symbol.for('__void_forensics_wrapped_v2');
 
@@ -16059,7 +16224,7 @@ try {
   tick();
 })();
 // ---- txroot forensics: STICKY v3 (aggressive binder + observer fallback) ----
-(function txrootForensicsStickyV3(){
+if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (function txrootForensicsStickyV3(){
   const g:any = globalThis as any;
   const TICK = 250;
   const SYM = Symbol.for('__void_forensics_wrapped_v3');
@@ -16416,12 +16581,12 @@ try {
 // [__void_extracted_txroot_forensics_bundle_v5_v73] extracted to src/diag/txroot_forensics_bundle_v5_v73.ts
 
 // [__void_loaded_txroot_bundle_v5_v73] ensure extracted bundle executes (side-effects)
-(async function __voidLoadTxrootBundleV5V73(){
+if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (async function __voidLoadTxrootBundleV5V73(){
   const G:any = (globalThis as any);
   const S:any = (G.__void_txroot_bundle_load_state ||= { entered:0, ok:false, okSpec:'', tries:[], ts:0 });
   S.entered = (S.entered||0) + 1;
   S.ts = Date.now();
-  try { console.error('[diag-load] loader ENTER v5_v73 entered=', S.entered, 'ts=', S.ts); } catch {}
+  if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") try { console.error('[diag-load] loader ENTER v5_v73 entered=', S.entered, 'ts=', S.ts); } catch {}
   if (G.__void_loaded_txroot_bundle_v5_v73) { try{ console.error('[diag-load] loader already-latched ok=', S.ok, 'spec=', S.okSpec||''); }catch{}; return; }
   G.__void_loaded_txroot_bundle_v5_v73 = true;
   const tries = [
@@ -16446,12 +16611,12 @@ try {
 })();
 
 
-try { require('./diag/txroot_forensics_bundle_v5_v73'); } catch (e:any) {
+if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1" && process.env.VOID_DISABLE_HEAD_SURGERY !== "1") try { require('./diag/txroot_forensics_bundle_v5_v73'); } catch (e:any) {
   try { console.error('[txroot-forensics.bundle] require failed', e?.message || e); } catch {}
 }
 
 // --------------- WAL v7.4 (Vector-7): INSTANCE ACCESSOR GUARD (last-wins) ---------------
-(function walV74InstanceAccessor(){
+if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function walV74InstanceAccessor(){
   const G:any = globalThis as any;
   const FLAG   = "__wal_v74_wrapped";
   const RAWKEY = "__wal_v74_raw";
@@ -16702,7 +16867,7 @@ void_wal_wrapped ${wrapped?1:0}
 })();
 
 // ---------------- WAL v1 (inline, additive, idempotent) ----------------
-(function walV1InlineBoot(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1InlineBoot(){
   const TICK = 250;
   let attached = false;
 
@@ -19032,6 +19197,7 @@ const wal = new WALv1(getDataDir());
 })();
 // -------- SAFE submit (non-dev, additive) --------
 (function SafeSubmitV1(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V1 === "1") return;
   const TICK=400;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
@@ -19057,6 +19223,7 @@ const wal = new WALv1(getDataDir());
 })();
 // -------- SAFE submit v1.1 (mirror to txQueue) --------
 (function SafeSubmitV11(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V1 === "1") return;
   const TICK=400;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
@@ -19128,7 +19295,7 @@ const wal = new WALv1(getDataDir());
     tick();
 
     // Prom text exporter
-    app.get("/__void/metrics/blockcount.v2.prom", (_req:any,res:any)=>{
+    if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1" && process.env.VOID_BLOCKCOUNT_V2_DISABLE !== "1") app.get("/__void/metrics/blockcount.v2.prom", (_req:any,res:any)=>{
       const lines = [
         "# HELP void_block_txcount_v2 tx count in latest persisted block (derived, SAFEBOOT)",
         "# TYPE void_block_txcount_v2 gauge",
@@ -19143,12 +19310,12 @@ const wal = new WALv1(getDataDir());
       res.type("text/plain").send(lines.join("\n")+"\n");
     });
 
-    (console?.log||(()=>{}))('[blockcount.v2] exporter at /__void/metrics/blockcount.v2.prom');
+    if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1" && process.env.VOID_BLOCKCOUNT_V2_DISABLE !== "1") (console?.log||(()=>{}))('[blockcount.v2] exporter at /__void/metrics/blockcount.v2.prom');
   }
   mount();
 })();
 // ========== LastMileSafe v1 (additive, SAFEBOOT-friendly) ==========
-(function LastMileSafeV1(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSafeV1(){
   const TICK=400;
   function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
   function getSegStore(){ try{ return require("./chain/seg_store.js")?.SegStore; }catch{ return null; } }
@@ -19209,7 +19376,7 @@ const wal = new WALv1(getDataDir());
     }
     tick();
 
-    app.get("/__void/metrics/blockcount.v2b.prom", (_req:any,res:any)=>{
+    if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1" && process.env.VOID_BLOCKCOUNT_V2B_DISABLE !== "1") app.get("/__void/metrics/blockcount.v2b.prom", (_req:any,res:any)=>{
       const out = [
         "# HELP void_block_txcount_v2b tx count latest block (derived, SAFEBOOT)",
         "# TYPE void_block_txcount_v2b gauge",
@@ -19223,12 +19390,12 @@ const wal = new WALv1(getDataDir());
       ];
       res.type("text/plain").send(out.join("\n")+"\n");
     });
-    (console?.log||(()=>{}))('[blockcount.v2b] exporter at /__void/metrics/blockcount.v2b.prom');
+    if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1" && process.env.VOID_BLOCKCOUNT_V2B_DISABLE !== "1") (console?.log||(()=>{}))('[blockcount.v2b] exporter at /__void/metrics/blockcount.v2b.prom');
   }
   mount();
 })();
 // ===== LastMileSafe v1.2 (cap; prime from mempool when queue empty) =====
-(function LastMileSafeV12(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSafeV12(){
   const TICK=400;
   function getNode(){ return (globalThis as any).__void_node || (globalThis as any).node; }
   function getSegStore(){ try{ return require("./chain/seg_store.js")?.SegStore; }catch{ return null; } }
@@ -19298,7 +19465,7 @@ const wal = new WALv1(getDataDir());
   mount();
 })();
 // ===== LastMileSafe v12.3 (authoritative inject + Prom) =====
-(function LastMileSafeV123(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSafeV123(){
   const FLAG = "__void_lastmile_safe_v123";
   const TICK=400;
 
@@ -19497,6 +19664,7 @@ const wal = new WALv1(getDataDir());
 })();
 // ---- SafeSubmit.v13 (unified against latched node) ---------------------------
 (function SafeSubmitV13(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V1 === "1") return;
   const TICK=400;
   function app(){ return (globalThis).__void_http_app || (globalThis).app; }
   function node(){ return (globalThis).__void_node || (globalThis).node || null; }
@@ -19516,7 +19684,8 @@ const wal = new WALv1(getDataDir());
   mount();
 })();
 // ===== LastMileSafe v123-inst (wrap *instance* saveBlock; own metrics) =====
-(function LastMileSafeV123_INST(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSafeV123_INST(){
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V2 === "1") return;
   const TICK = 400, FLAG = "__void_lastmile_v123_inst";
   function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
@@ -19608,7 +19777,7 @@ const wal = new WALv1(getDataDir());
 })();
 
 // ===== Update lastmile v123b to use helper + better fallbacks =====
-(function LastMileSafeV123b_Tune(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSafeV123b_Tune(){
   const TICK=200;
   function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
   function store(){ return (globalThis as any).__void_store; }
@@ -19665,7 +19834,7 @@ const wal = new WALv1(getDataDir());
         `void_txroot_forensics_last_ms_v7b ${MET.last_ms}`
       ].join("\n")+"\n");
     });
-    (console?.log||(()=>{}))('[forensics.v7b] exporter at /__void/metrics/txroot4/forensics.prom.v7b');
+    if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (console?.log||(()=>{}))('[forensics.v7b] exporter at /__void/metrics/txroot4/forensics.prom.v7b');
   }
 
   function patch(){
@@ -19690,14 +19859,14 @@ const wal = new WALv1(getDataDir());
       try { MET.last_ms = Math.max(0, Date.now()-t0); } catch{}
       return out;
     };
-    (console?.log||(()=>{}))('[forensics.v7b] instance tracer installed');
+    if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (console?.log||(()=>{}))('[forensics.v7b] instance tracer installed');
   }
 
   patch();
   mountExporter();
 })();
 // ===== HeadNumberProbe v1 (belt-and-suspenders) =====
-(function HeadNumberProbeV1(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function HeadNumberProbeV1(){
   const TICK=200;
   function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
   function store(){ return (globalThis as any).__void_store; }
@@ -19785,7 +19954,7 @@ const wal = new WALv1(getDataDir());
   patch();
 })();
 // ===== SaveBlockChainLatchV1 (self-healing, counts + numbers) =====
-(function SaveBlockChainLatchV1(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockChainLatchV1(){
   const TICK = 300;
 
   function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
@@ -19906,7 +20075,7 @@ const wal = new WALv1(getDataDir());
   healLoop();
 })();
 // ===== SaveBlockChainLatchV1.1 (deferred head sampling) =====
-(function SaveBlockChainLatchV1_1(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockChainLatchV1_1(){
   const TICK = 300;
   function app(){ return (globalThis as any).__void_http_app || (globalThis as any).app; }
   function node(){ return (globalThis as any).__void_node || (globalThis as any).node; }
@@ -20109,7 +20278,7 @@ const wal = new WALv1(getDataDir());
 // [saveblock-numberfix.v1] normalize block.number before SegStore.saveBlock validation.
 // Unblocks dev proposer/pump paths that accidentally pass {"number":N} or NaN/string.
 // Additive-only. Best-effort; does not throw.
-;(function saveBlockNumberFixV1(){
+;if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function saveBlockNumberFixV1(){
   try{
     const G:any = globalThis as any;
     if (G.__void_saveblock_numberfix_v1) return;
@@ -20207,7 +20376,7 @@ const wal = new WALv1(getDataDir());
 
 // [saveblock-numberfix.v2] prototype-level normalizer for SegStore.prototype.saveBlock (outermost).
 // Fixes "SegStore.saveBlock: invalid block.number" seen via /proposer/pump.* when block.number is NaN/object/string/undefined.
-;(function saveBlockNumberFixV2(){
+;if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function saveBlockNumberFixV2(){
   try{
     const G:any = globalThis as any;
     if (G.__void_saveblock_numberfix_v2) return;
@@ -20604,7 +20773,7 @@ const wal = new WALv1(getDataDir());
 })();
 
 // [saveblock.finalize.v1] stamp SegStore.prototype.saveBlock to avoid wrap storms / recursion loops
-;(function saveBlockFinalizeV1(){
+if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_SAVEBLOCK_FINALIZE_V1_DISABLE !== "1") { ;(function saveBlockFinalizeV1(){
   try {
     const g:any = globalThis as any;
     if (g.__void_saveblock_finalize_v1) return;
@@ -20670,9 +20839,10 @@ const wal = new WALv1(getDataDir());
     }, delay);
   } catch {}
 })();
+}
 
 // [saveblock.finalize.inspector.v1] expose in-process finalize state + saveBlock flags (safe under /__void/metrics/*)
-;(function saveBlockFinalizeInspectorV1(){
+if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") { ;(function saveBlockFinalizeInspectorV1(){
   try{
     const G:any = globalThis as any;
     if (G.__void_saveblock_finalize_inspector_v1) return;
@@ -20766,6 +20936,7 @@ const wal = new WALv1(getDataDir());
     })();
   }catch{}
 })();
+}
 
 // [saveblock.finalize.v2.lastwins] outermost sticky accessor wrapper for SegStore.prototype.saveBlock (last-wins; avoids recursion storms)
 // [DISABLED noisy saveblock finalize loop v2]
@@ -20776,7 +20947,7 @@ const wal = new WALv1(getDataDir());
 
 
 // [saveblock.finalize.v2c.outer_accessor] outermost accessor shim for SegStore.prototype.saveBlock (wraps existing accessor latch; adds sticky+final flags; self-healing)
-;(function saveBlockFinalizeV2cOuterAccessor(){
+if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") { ;(function saveBlockFinalizeV2cOuterAccessor(){
   try{
     const G:any = globalThis as any;
     if (G.__void_saveblock_finalize_v2c_outer) return;
@@ -20905,9 +21076,10 @@ const wal = new WALv1(getDataDir());
     })();
   }catch{}
 })();
+}
 
 // -------- saveBlock.finalize.v3.norecurse (data-property lock; breaks wrapper recursion) --------
-(function SaveBlockFinalizeV3NoRecurse(){
+if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalizeV3NoRecurse(){
   const TICK = 350;
   const G:any = (globalThis as any);
   const KEY = "__void_saveblock_finalize_v3_state";
@@ -21068,7 +21240,7 @@ const wal = new WALv1(getDataDir());
 })();
 
 // -------- saveBlock.finalize.v3b.ownprop (shadow accessor by defining OWN data prop; last-wins) --------
-(function SaveBlockFinalizeV3bOwnProp(){
+if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalizeV3bOwnProp(){
   const TICK = 450;
   const REASSERT_MS = 1000;
   const G:any = (globalThis as any);
@@ -21286,7 +21458,7 @@ const wal = new WALv1(getDataDir());
 })();
 
 // -------- proposer.commit-direct.v1 (SAFE_ALLOW: /__void/metrics/*; bypass saveBlock accessor recursion) --------
-(function ProposerCommitDirectV1(){
+if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1") (function ProposerCommitDirectV1(){
   const TICK=450;
   const G:any = (globalThis as any);
   const KEY="__void_proposer_commit_direct_v1_state";
@@ -21499,7 +21671,7 @@ const wal = new WALv1(getDataDir());
 })();
 
 // -------- proposer.commit-direct.v1b (SAFE_ALLOW: /__void/metrics/*; pick correct node/store; bypass saveBlock accessor recursion) --------
-(function ProposerCommitDirectV1b(){
+if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1") (function ProposerCommitDirectV1b(){
   const TICK=450;
   const G:any = (globalThis as any);
   const KEY="__void_proposer_commit_direct_v1b_state";
@@ -21800,7 +21972,7 @@ const wal = new WALv1(getDataDir());
 })();
 
 // -------- proposer.commit-direct.v1c (SAFE_ALLOW: /__void/metrics/*; return+disk diag; tries strict tx shape; detects true no-op) --------
-(function ProposerCommitDirectV1c(){
+if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1") (function ProposerCommitDirectV1c(){
   const TICK=450;
   const G:any = (globalThis as any);
   const KEY="__void_proposer_commit_direct_v1c_state";
@@ -22106,7 +22278,7 @@ const wal = new WALv1(getDataDir());
 })();
 
 // -------- saveblock.inst-override.v1 (INSTANCE shadow data-fn; hides accessor; non-recursive; SAFE_ALLOW /__void/metrics/*) --------
-(function SaveBlockInstOverrideV1(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockInstOverrideV1(){
   const TICK=450;
   const G:any = (globalThis as any);
   const KEY="__void_saveblock_inst_override_v1_state";
@@ -22265,7 +22437,7 @@ const wal = new WALv1(getDataDir());
 })();
 
 // -------- proposer.commit-direct.v2fs (disk head bump; saveBlockCommit only; SAFE_ALLOW /__void/metrics/*) --------
-(function ProposerCommitDirectV2FS(){
+if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1") (function ProposerCommitDirectV2FS(){
   const TICK=400;
   const G:any = (globalThis as any);
   const KEY="__void_proposer_commit_direct_v2fs_state";
@@ -22559,7 +22731,7 @@ const wal = new WALv1(getDataDir());
 // -------- void_head_latest_surgery_v1 (additive) --------
 // Goal: break cycles like head.txt -> blocks/latest/number -> blocks/latest/full -> head.txt
 // We forcibly replace handlers for: /head.txt, /head, /blocks/latest/number, /blocks/latest/full
-(function VoidHeadLatestSurgeryV1(){
+if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurgeryV1(){
   const G:any = (globalThis as any);
   const KEY="__void_head_latest_surgery_v1_state";
   if (!G[KEY]) G[KEY] = { mounted:false, removed:0, errs:0, lastErr:"", ts:0 };
@@ -24860,7 +25032,7 @@ try {
 })();
 
 // ===== __void dev: proposer scan route v2 (proto + non-enum + locals) =====
-;(function __voidDevProposerScanRouteV2(){
+;if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function __voidDevProposerScanRouteV2(){
   try{
     const g:any = globalThis as any;
     const app:any = g.__void_http_app || g.app;
@@ -25003,7 +25175,7 @@ try {
   }catch{}
 })();
 // === head-surfaces-truthfix.v1 BEGIN ===
-;(() => {
+if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
   const TAG = "[head-surfaces.truthfix.v1]";
   const MARK = "__void_head_surfaces_truthfix_v1";
   const G: any = globalThis as any;
@@ -25208,9 +25380,10 @@ try {
 
   installWhenReady();
 })();
+}
 // === head-surfaces-truthfix.v1 END ===
 // === head-surfaces-truthfix.v2 BEGIN ===
-;(() => {
+if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
   const MARK = "__void_head_surfaces_truthfix_v2";
   const TAG = "[head-surfaces.truthfix.v2]";
   const G: any = globalThis as any;
@@ -25416,6 +25589,7 @@ try {
 
   installWhenReady();
 })();
+}
 // === head-surfaces-truthfix.v2 END ===
 // === lastseal-diag-repair.v1 BEGIN ===
 ;(() => {
@@ -25716,6 +25890,8 @@ try {
 // This unblocks any endpoints that rely on loadHeadNumber() (like lastseal surfaces).
 ;(() => {
   try {
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V2 === "1") return;
+    if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V2 === "1") return;
     const TAG = "__void_store_headfile_persist_after_save_v1__installed";
     const g: any = globalThis as any;
     if (g[TAG]) return;
@@ -25783,6 +25959,7 @@ try {
   if (g[TAG]) return;
   g[TAG] = true;
 
+  if (process.env.VOID_DISABLE_RUNTIME_HOTPATH_V3 === "1") return;
   const state: any = g.__void_headfile_persist_v2_state || (g.__void_headfile_persist_v2_state = {
     installedAtMs: Date.now(),
     tries: 0,
@@ -26501,7 +26678,7 @@ try {
  * Goal: stop the "triplicate tx" bug by deduping txs on the block RIGHT before persistence.
  * Additive-only: wraps store.saveBlock if present (or falls back to global store/node hooks).
  */
-(() => {
+if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
   try {
     const g: any = globalThis as any;
     if (g.__void_txs_dedupe_before_save_v1_installed) return;
@@ -26652,7 +26829,7 @@ try {
  *   GET /dev/saveblock.args.json   (last args summary)
  *   GET /dev/saveblock.args.full.json (best-effort truncated snapshot)
  */
-(() => {
+if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
   try {
     const g: any = globalThis as any;
     if (g.__void_saveblock_args_tap_v1_installed) return;
@@ -26772,7 +26949,7 @@ try {
 // __void_txdup_lastchance_dedupe_v1__
 // Goal: regardless of which saveBlock proxy/wrapper is currently effective, dedupe block.txs
 // at the last possible moment before persistence (wrap *all* likely save-like functions).
-(() => {
+if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
   try {
     const crypto = require("crypto");
 
@@ -27097,7 +27274,7 @@ try {
 })();
 
 // === __void_txdedupe_stats_wrap_v1__ ===
-(() => {
+if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
   try {
     const TAG = "__void_txdedupe_stats_wrap_v1__";
     const g: any = globalThis as any;
@@ -27245,7 +27422,7 @@ try {
 })();
 
 // === __void_txdedupe_stats_wrap_v2__ ===
-(() => {
+if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
   try {
     const TAG = "__void_txdedupe_stats_wrap_v2__";
     const g: any = globalThis as any;
@@ -28273,6 +28450,8 @@ try {
   } catch {}
 })();
 
+// === VOID_HARD_MINIMAL_BOOT_LATE_ADDITIVE_BEGIN ===
+if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
 /* __void_full3_route_audit_v2__
    Installs /__void/diag/routes.full3.audit.json with a retry loop so it attaches even if executed early.
    Also exposes a tiny in-memory status at /__void/diag/routes.full3.audit.status.json.
@@ -32881,7 +33060,7 @@ try {
 
 
 // [ADD] txsubmit late repair v1
-;(()=>{
+;if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (()=>{
   const g:any = globalThis as any;
   if (g.__void_txsubmit_late_repair_v1_installed) return;
   g.__void_txsubmit_late_repair_v1_installed = true;
@@ -33081,7 +33260,7 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 
 
 // [ADD] reader truthfix v1
-;(()=>{
+;if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") (()=>{
   const g:any = globalThis as any;
   if (g.__void_reader_truthfix_v1_installed) return;
   g.__void_reader_truthfix_v1_installed = true;
@@ -34877,7 +35056,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
 
 // [ADD] participant page clean path v1
-;(()=>{
+;if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") (()=>{
   const g:any = globalThis as any;
   if (g.__void_participant_page_cleanpath_v1_installed) return;
   g.__void_participant_page_cleanpath_v1_installed = true;
@@ -34916,8 +35095,11 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
 
 
+
+}
+// === VOID_HARD_MINIMAL_BOOT_LATE_ADDITIVE_END ===
 // === head-unify-truthfix.v1 BEGIN ===
-;(() => {
+;if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
   const G:any = globalThis as any;
   const MARK = "__void_head_unify_truthfix_v1";
   if (G[MARK]) return;
@@ -35190,6 +35372,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
   const MARK = "__void_peer_main_status_robust_v1";
   if (G[MARK]) return;
   G[MARK] = { installed:false, ts:Date.now() };
+  if (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 === "1") return;
 
   function getApp(){ return G.__void_http_app || G.app || null; }
 
@@ -37097,41 +37280,120 @@ a{color:#93c5fd;text-decoration:none}
     return false;
   }
   function scanOnce(){
-    let credited = 0;
-    for (const line of readLines(receiptsFile())) {
+    const fs = require("node:fs");
+    ensureDirs();
+
+    const state:any = G[MARK] || (G[MARK] = {});
+    const cur:any = state.cursor_v1 || (state.cursor_v1 = {
+      ino: 0,
+      offset: 0,
+      carry: "",
+      ledger_loaded: false,
+      credited_ids: Object.create(null)
+    });
+
+    const rFile = receiptsFile();
+    const lFile = ledgerFile();
+
+    if (!cur.ledger_loaded) {
       try {
-        const j:any = JSON.parse(line);
-        const account = safeAccount(j?.account || j?.who || j?.owner || "");
-        const receiptId = safeId(j?.receipt_id || j?.id || j?.receiptId || "");
-        const jobId = safeId(j?.job_id || j?.jobId || "");
-        const status = String(j?.status || "ok").toLowerCase();
-        const kind = String(j?.kind || j?.type || "receipt");
-        if (!account) continue;
-        if (!receiptId && !jobId) continue;
-        if (status && !["ok","success","done","completed"].includes(status)) continue;
-        if (alreadyCredited(account, jobId, receiptId)) continue;
+        for (const line of readLines(lFile)) {
+          try {
+            const e:any = JSON.parse(line);
+            if (String(e?.kind || "") !== "credit") continue;
+            const rid = String(e?.receipt_id || e?.job_id || "");
+            if (rid) cur.credited_ids[rid] = 1;
+          } catch {}
+        }
+      } catch {}
+      cur.ledger_loaded = true;
+    }
 
-        const rewardMeta = rewardPolicyForReceipt(j);
-        if (!Number.isFinite(Number(rewardMeta?.reward || 0)) || Number(rewardMeta.reward || 0) <= 0) continue;
+    let st:any = null;
+    try { st = fs.statSync(rFile); } catch { return 0; }
+    if (!st) return 0;
 
-        const evt = {
+    const ino = Number(st.ino || 0);
+    const size = Number(st.size || 0);
+
+    if (cur.ino && ino !== cur.ino) {
+      cur.offset = 0;
+      cur.carry = "";
+    }
+    if (size < Number(cur.offset || 0)) {
+      cur.offset = 0;
+      cur.carry = "";
+    }
+    cur.ino = ino;
+
+    if (size <= Number(cur.offset || 0)) {
+      state.last_scan_ms = Date.now();
+      return 0;
+    }
+
+    let fd:any = null;
+    let credited = 0;
+    try {
+      fd = fs.openSync(rFile, "r");
+      const len = Math.max(0, size - Number(cur.offset || 0));
+      const buf = Buffer.allocUnsafe(len);
+      const n = fs.readSync(fd, buf, 0, len, Number(cur.offset || 0));
+      cur.offset = Number(cur.offset || 0) + n;
+
+      let text = cur.carry + String(buf.subarray(0, n).toString("utf8") || "");
+      const lines = text.split(/\r?\n/);
+      cur.carry = lines.pop() || "";
+
+      for (const raw of lines) {
+        const line = String(raw || "").trim();
+        if (!line) continue;
+
+        let r:any = null;
+        try { r = JSON.parse(line); } catch { continue; }
+        if (!r || typeof r !== "object") continue;
+
+        const receiptId = String(r?.receipt_id || r?.id || r?.job_id || "");
+        if (!receiptId) continue;
+        if (cur.credited_ids[receiptId]) continue;
+
+        const status = String(r?.status || "");
+        const okNum = Number(r?.ok ?? 1);
+        if (!(okNum === 1 || status === "" || /ok|success|credited|complete|done/i.test(status))) continue;
+
+        const account = String(r?.account || r?.who || r?.owner || "zoso");
+        const receiptKind = String(r?.receipt_kind || r?.kind || r?.reason || "");
+
+        let delta = Number(r?.wc_award || r?.delta || 0);
+        if (!(delta > 0)) {
+          if (receiptKind === "datanet_publish") delta = Number(rewardBaseFor("datanet_publish") || 0);
+          else if (receiptKind === "datanet_fetch_verify") delta = Number(rewardBaseFor("datanet_fetch_verify") || 0);
+          else if (receiptKind === "datanet_redundancy_check") delta = Number(rewardBaseFor("datanet_redundancy_check") || 0);
+        }
+        if (!(delta > 0)) continue;
+
+        const entry:any = {
           kind: "credit",
           account,
-          delta: Number(rewardMeta.reward || 0),
-          reason: "receipt_auto_credit_v2_policy",
-          job_id: jobId || null,
-          receipt_id: receiptId || null,
-          receipt_kind: kind,
-          reward_meta: rewardMeta,
-          ts_ms: Date.now(),
+          delta,
+          ts_ms: Number(r?.ts_ms || Date.now()),
+          reason: "receipt_auto_credit",
+          receipt_kind: receiptKind || "unknown",
+          receipt_id: receiptId,
+          job_id: r?.job_id || null,
+          reward_meta: r?.reward_meta || null
         };
-        appendJsonl(ledgerFile(), evt);
-        credited++;
-      } catch {}
+
+        fs.appendFileSync(lFile, JSON.stringify(entry) + "\n");
+        cur.credited_ids[receiptId] = 1;
+        credited += 1;
+        state.last_credited = entry;
+      }
+
+      state.last_scan_ms = Date.now();
+      return credited;
+    } finally {
+      try { if (fd !== null) fs.closeSync(fd); } catch {}
     }
-    G[MARK].last_scan_ms = Date.now();
-    G[MARK].last_credited = credited;
-    return credited;
   }
 
   function mount(){
@@ -37240,9 +37502,11 @@ a{color:#93c5fd;text-decoration:none}
       }
     });
 
-    setInterval(() => {
-      try { scanOnce(); } catch {}
-    }, 3000).unref?.();
+    if (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 !== "1" || process.env.VOID_ENABLE_WC_AUTOCREDIT_INCREMENTAL_V1 === "1") {
+      setInterval(() => {
+        try { scanOnce(); } catch {}
+      }, 3000).unref?.();
+    }
 
     try { console.log("[wc-auto-credit-from-receipts-v1] mounted"); } catch {}
   }
@@ -37257,6 +37521,7 @@ a{color:#93c5fd;text-decoration:none}
   const MARK = "__void_jobs_and_datanet_worker_v1";
   if (G[MARK]) return;
   G[MARK] = { installed:false, ts:Date.now(), last_job_id:"", last_receipt_id:"" };
+  if (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 === "1") return;
 
   function getApp(){ return G.__void_http_app || G.app || null; }
   function dataDir(){ return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"); }
@@ -41507,7 +41772,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
 
 // ---------------- [ADD] proposer compat shim: /proposer/status + /proposer/commit ----------------
-(function ProposerCompatShimV1(){
+if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCompatShimV1(){
   const G:any = (globalThis as any);
   const KEY="__void_proposer_compat_shim_v1";
   if (G[KEY]) return;
