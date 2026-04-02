@@ -38543,7 +38543,7 @@ a{color:#93c5fd;text-decoration:none}
           </div>
           <div class="hero-note" id="latestDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
           <div class="mini" id="latestDatasetActionCard" style="margin-top:10px;display:none">
-            <div class="s" style="margin-bottom:6px">Newest local dataset</div>
+            <div class="s" style="margin-bottom:6px">Latest dataset</div>
             <div class="v" id="latestDatasetIdHero" style="font-size:18px;line-height:1.35;word-break:break-word">-</div>
             <div class="s" id="latestDatasetMetaHero" style="margin-top:6px">-</div>
             <div class="s" id="latestDatasetReceiptHero" style="margin-top:6px;display:none">-</div>
@@ -39910,23 +39910,23 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const firstRawUrl = String(first.raw_json_url || "");
 
         if ($("latestDatasetPreviewCard")) {
-          $("latestDatasetPreviewCard").textContent = "Latest dataset preview: " + firstPreview + " • " + firstBytes + " bytes";
+          $("latestDatasetPreviewCard").textContent = "Preview: " + firstPreview + " • " + firstBytes + " bytes";
           $("latestDatasetPreviewCard").style.display = "";
         }
 
         if ($("latestDatasetActionCard")) {
           setText("latestDatasetIdHero", firstDatasetId);
-          setText("latestDatasetMetaHero", String(firstBytes) + " bytes" + (firstHash ? (" • sha256 " + firstHash.slice(0, 12) + "…") : ""));
+          setText("latestDatasetMetaHero", String(firstBytes) + " bytes" + (firstHash ? (" • hash " + firstHash.slice(0, 12) + "…") : ""));
           const receiptEl = $("latestDatasetReceiptHero");
           if (receiptEl) {
             let receiptText = "";
             if (recentReceipt && String((recentReceipt as any).dataset_id || "") === firstDatasetId) {
               const rid = String((recentReceipt as any).receipt_id || "-");
               const kind = String((recentReceipt as any).kind || "-");
-              receiptText = "From receipt " + rid.slice(0, 18) + (rid.length > 18 ? "…" : "") + " • " + kind;
+              receiptText = "Created from receipt " + rid.slice(0, 18) + (rid.length > 18 ? "…" : "") + " • " + kind;
             } else if (recentReceipt) {
               const rid = String((recentReceipt as any).receipt_id || "-");
-              receiptText = "Latest receipt " + rid.slice(0, 18) + (rid.length > 18 ? "…" : "");
+              receiptText = "Linked to latest receipt " + rid.slice(0, 18) + (rid.length > 18 ? "…" : "");
             }
             if (receiptText) {
               receiptEl.textContent = receiptText;
