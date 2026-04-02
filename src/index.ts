@@ -38542,6 +38542,15 @@ a{color:#93c5fd;text-decoration:none}
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Work</a>
           </div>
           <div class="hero-note" id="latestDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
+          <div class="mini" id="latestDatasetActionCard" style="margin-top:10px;display:none">
+            <div class="s" style="margin-bottom:6px">Newest local dataset</div>
+            <div class="v" id="latestDatasetIdHero" style="font-size:18px;line-height:1.35;word-break:break-word">-</div>
+            <div class="s" id="latestDatasetMetaHero" style="margin-top:6px">-</div>
+            <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+              <a class="btn" id="latestDatasetOpenHero" href="#" target="_blank" rel="noopener" style="display:none">Open viewer</a>
+              <a class="btn secondary" id="latestDatasetRawHero" href="#" target="_blank" rel="noopener" style="display:none">Open raw JSON</a>
+            </div>
+          </div>
           <details class="adv" style="margin-top:14px">
             <summary><span>Account Activity Details</span><span class="pill">raw json</span></summary>
             <div class="adv-body">
@@ -39880,12 +39889,54 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try {
       const recentDatasets = await j("/datanet/v1/local-jobs/recent?who=" + encodeURIComponent(account) + "&limit=8").catch(() => null);
       const items = recentDatasets && recentDatasets.ok && Array.isArray(recentDatasets.items) ? recentDatasets.items : [];
-      if (items.length) {
+      if (!items.length) {
+        if ($("latestDatasetPreviewCard")) $("latestDatasetPreviewCard").style.display = "none";
+        if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "none";
+      } else {
+        const first = items[0] || {};
+        const firstDatasetId = String(first.dataset_id || "-");
+        const firstBytes = Number(first.bytes || 0);
+        const firstPreview = String(first.preview || "-");
+        const firstHash = String(first.sha256 || "");
+        const firstViewerUrl = String(first.viewer_url || "");
+        const firstRawUrl = String(first.raw_json_url || "");
+
+        if ($("latestDatasetPreviewCard")) {
+          $("latestDatasetPreviewCard").textContent = "Latest dataset preview: " + firstPreview + " • " + firstBytes + " bytes";
+          $("latestDatasetPreviewCard").style.display = "";
+        }
+
+        if ($("latestDatasetActionCard")) {
+          setText("latestDatasetIdHero", firstDatasetId);
+          setText("latestDatasetMetaHero", String(firstBytes) + " bytes" + (firstHash ? (" • sha256 " + firstHash.slice(0, 12) + "…") : ""));
+          const openA = $("latestDatasetOpenHero");
+          const rawA = $("latestDatasetRawHero");
+          if (openA) {
+            if (firstViewerUrl) {
+              openA.setAttribute("href", firstViewerUrl);
+              (openA as HTMLElement).style.display = "";
+            } else {
+              openA.setAttribute("href", "#");
+              (openA as HTMLElement).style.display = "none";
+            }
+          }
+          if (rawA) {
+            if (firstRawUrl) {
+              rawA.setAttribute("href", firstRawUrl);
+              (rawA as HTMLElement).style.display = "";
+            } else {
+              rawA.setAttribute("href", "#");
+              (rawA as HTMLElement).style.display = "none";
+            }
+          }
+          $("latestDatasetActionCard").style.display = "";
+        }
+
         recentDatasetsHtml =
           '<table><thead><tr>' +
           '<th>Dataset</th><th>Updated</th><th>Bytes</th><th>Preview</th><th>Open</th>' +
           '</tr></thead><tbody>' +
-          items.map((d) => {
+          items.map((d, idx) => {
             const dsFull = String(d.dataset_id || "-");
             const dsShort = dsFull.length > 22 ? (dsFull.slice(0, 8) + "…" + dsFull.slice(-6)) : dsFull;
             const mtimeMs = Number(d.mtime_ms || 0);
@@ -39894,8 +39945,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             const preview = esc(String(d.preview || ""));
             const viewerUrl = String(d.viewer_url || "");
             const rawUrl = String(d.raw_json_url || "");
+            const newest = idx === 0 ? ' <span class="pill">Newest</span>' : '';
             return '<tr>' +
-              '<td><code title="' + esc(dsFull) + '">' + esc(dsShort) + '</code></td>' +
+              '<td><code title="' + esc(dsFull) + '">' + esc(dsShort) + '</code>' + newest + '</td>' +
               '<td>' + esc(updated) + '</td>' +
               '<td>' + esc(String(bytes)) + '</td>' +
               '<td style="max-width:420px;white-space:pre-wrap;word-break:break-word">' + preview + '</td>' +
