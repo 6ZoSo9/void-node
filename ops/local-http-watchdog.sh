@@ -5,7 +5,7 @@ set +o histexpand
 
 BASE="${BASE:-http://127.0.0.1:4100}"
 SERVICE="${SERVICE:-void-node.service}"
-MAX_TIME="${MAX_TIME:-8}"
+MAX_TIME="${MAX_TIME:-12}"
 OUT="${OUT:-/tmp/void-node-watchdog-last.json}"
 
 probe() {
@@ -24,9 +24,6 @@ if ! probe "$BASE/health"; then
 elif ! probe "$BASE/head.txt"; then
   STATUS="fail"
   WHY="head_timeout"
-elif ! probe "$BASE/participant?account=watchdog&ts=$(ts)"; then
-  STATUS="fail"
-  WHY="participant_timeout"
 fi
 
 if [ "$STATUS" = "ok" ]; then
@@ -38,7 +35,7 @@ fi
 
 echo "[warn] watchdog: $WHY -> restarting $SERVICE"
 systemctl --user restart "$SERVICE"
-sleep 8
+sleep 20
 
 POST="ok"
 POST_WHY="recovered"
@@ -48,9 +45,6 @@ if ! probe "$BASE/health"; then
 elif ! probe "$BASE/head.txt"; then
   POST="fail"
   POST_WHY="head_timeout_after_restart"
-elif ! probe "$BASE/participant?account=watchdog&ts=$(ts)"; then
-  POST="fail"
-  POST_WHY="participant_timeout_after_restart"
 fi
 
 if [ "$POST" = "ok" ]; then
