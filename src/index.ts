@@ -39713,6 +39713,51 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     });
   }
 
+  // __void_activity_receipts_pills_v1
+  function pillHtml(text, tone){
+    const tones = {
+      neutral: "color:#e5e7eb;background:rgba(148,163,184,.10);border:1px solid rgba(148,163,184,.25)",
+      blue: "color:#93c5fd;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.28)",
+      green: "color:#86efac;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.28)",
+      violet: "color:#c4b5fd;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.28)",
+      amber: "color:#fcd34d;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.28)",
+      red: "color:#fca5a5;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.28)"
+    };
+    const style = tones[tone] || tones.neutral;
+    return '<span style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.02em;white-space:nowrap;' + style + '">' + esc(text) + '</span>';
+  }
+
+  function kindTone(kindRaw){
+    if (kindRaw === "datanet_publish") return "green";
+    if (kindRaw === "datanet_fetch_verify") return "blue";
+    if (kindRaw === "datanet_redundancy_check") return "violet";
+    return "neutral";
+  }
+
+  function statusTone(statusRaw){
+    if (statusRaw === "completed") return "green";
+    if (statusRaw === "queued") return "amber";
+    if (statusRaw === "running") return "blue";
+    if (statusRaw === "failed") return "red";
+    return "neutral";
+  }
+
+  function resultTone(kindRaw, result){
+    const r = String(result || "").toLowerCase();
+    if (kindRaw === "datanet_fetch_verify") {
+      if (r.includes("verified")) return "blue";
+      if (r.includes("waiting")) return "amber";
+    }
+    if (kindRaw === "datanet_redundancy_check") {
+      if (r.includes("checked") || r.includes("readable") || r.includes("hash ok")) return "violet";
+      if (r.includes("waiting")) return "amber";
+    }
+    if (kindRaw === "datanet_publish") {
+      if (r.includes("stored")) return "green";
+    }
+    return "neutral";
+  }
+
   function getConnectedWallet(){
     try {
       return String(localStorage.getItem("void_wallet_session_v1") || "").trim();
@@ -39888,8 +39933,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const kindWithDs = ds ? (kind + " • " + ds) : kind;
         return '<tr>'
           + '<td class="mono" title="'+esc(jobId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
-          + '<td title="'+esc(statusRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(status)+'</td>'
-          + '<td title="'+esc(kindWithDs)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
+          + '<td title="'+esc(statusRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(status, statusTone(statusRaw))+'</td>'
+          + '<td title="'+esc(kindWithDs)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(kind, kindTone(kindRaw))+'</td>'
           + '</tr>';
       }).join("") +
       '</tbody></table></div>';
@@ -39931,10 +39976,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         }
         return '<tr>'
           + '<td class="mono" title="'+esc(receiptId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
-          + '<td title="'+esc(kindRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(kind)+'</td>'
+          + '<td title="'+esc(kindRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(kind, kindTone(kindRaw))+'</td>'
           + '<td class="mono" title="'+esc(ds)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort || "-")+'</span></td>'
-          + '<td title="'+esc(statusRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(status)+'</td>'
-          + '<td title="'+esc(result)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(result)+'</td>'
+          + '<td title="'+esc(statusRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(status, statusTone(statusRaw))+'</td>'
+          + '<td title="'+esc(result)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(result, resultTone(kindRaw, result))+'</td>'
           + '</tr>';
       }).join("") +
       '</tbody></table></div>';
