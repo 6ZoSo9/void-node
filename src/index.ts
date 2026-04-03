@@ -42745,8 +42745,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const boot = '<script>window.__void_participant_account_qs=' + JSON.stringify(qAcct) + ';</script>';
       const body = String(pageHtml())
         .replace('<div class="account-big" id="heroAccount">zoso</div>', '<div class="account-big" id="heroAccount">' + acct + '</div>')
-        .replace('<input id="account" value="zoso" />', '<input id="account" value="' + acct + '" />');
-      res.type("html").send(body.replace("</body>", boot + "</body>"));
+        .replace('<input id="account" value="zoso" />', '<input id="account" value="' + acct + '" />')
+        .replace("</head>", boot + "</head>");
+      res.type("html").send(body);
     });
 
     app.get("/welcome", (req:any, res:any) => {
