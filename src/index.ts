@@ -40796,10 +40796,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             }
             if (receiptText) {
               receiptEl.textContent = receiptText;
-              (receiptEl as HTMLElement).style.display = "";
+              (receiptEl).style.display = "";
             } else {
               receiptEl.textContent = "";
-              (receiptEl as HTMLElement).style.display = "none";
+              (receiptEl).style.display = "none";
             }
           }
           const openA = $("latestDatasetOpenHero");
@@ -40807,19 +40807,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if (openA) {
             if (firstViewerUrl) {
               openA.setAttribute("href", firstViewerUrl);
-              (openA as HTMLElement).style.display = "";
+              (openA).style.display = "";
             } else {
               openA.setAttribute("href", "#");
-              (openA as HTMLElement).style.display = "none";
+              (openA).style.display = "none";
             }
           }
           if (rawA) {
             if (firstRawUrl) {
               rawA.setAttribute("href", firstRawUrl);
-              (rawA as HTMLElement).style.display = "";
+              (rawA).style.display = "";
             } else {
               rawA.setAttribute("href", "#");
-              (rawA as HTMLElement).style.display = "none";
+              (rawA).style.display = "none";
             }
           }
           $("latestDatasetActionCard").style.display = "";
@@ -40971,7 +40971,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       helper_balances: wcBal || null,
       helper_wallet_earnings_raw: wcEarn || null,
       pool_price: wcPool && wcPool.price ? wcPool.price : null,
-      note: "Participant WC on :4100 is the canonical source for earning, redeeming, and trade eligibility. Helper wallet values below are diagnostic only and should not be treated as participant WC truth."
+      note: "Participant WC on :4100 is the canonical source for earning, redeeming, and trade eligibility. Helper wallet values below are diagnostic only and should not be treated."
     });
     if ($("tradeStateOut")) setPre("tradeStateOut", {
       helper_ui: wcBase + "/ui",
@@ -41072,7 +41072,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       const activeAccountForLinks = String(
         account ||
-        (($("account") && ($("account") as HTMLInputElement).value) || "") ||
+        (($("account") && ($("account")).value) || "") ||
         window.__void_participant_account_qs ||
         ""
       ).trim();
@@ -42391,7 +42391,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       '<div style="display:flex;flex-direction:column;gap:2px;min-width:180px">' +
         '<div style="font-weight:800;letter-spacing:.04em;color:#f8fafc">Execution Wallet</div>' +
         '<div id="voidWalletSessionBadge" style="color:#93c5fd;font-weight:700">No execution wallet connected</div>' +
-        '<div id="voidWalletSessionFull" style="color:#94a3b8;font-size:11px;max-width:260px;overflow-wrap:anywhere">Connect a wallet to view onchain VOID and use it as the execution wallet for redeem and trade actions.</div>' +
+        '<div id="voidWalletSessionFull" style="color:#94a3b8;font-size:11px;max-width:260px;overflow-wrap:anywhere">Connect a wallet to view onchain VOID and use it.</div>' +
       '</div>' +
       (onHelper ? ('<a id="voidWalletBackLink" href="' + from + '" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;text-decoration:none;font-weight:700">Back</a>') : '') +
       '<button id="voidWalletConnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Connect Wallet</button>' +
