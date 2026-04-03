@@ -42,8 +42,11 @@ bash ops/two-box-cross-machine-participant-open-workflow-proof.sh | tee "$OUT/cr
 step "[5] participant open-by-id workflow proof"
 bash ops/two-box-remote-participant-open-by-id-proof.sh | tee "$OUT/participant-open-by-id-proof.log"
 
-step "[6] summarize"
-python3 - "$OUT/participant-js-parse-proof.log" "$OUT/participant-consume-view-proof.log" "$OUT/cross-machine-participant-open-workflow-proof.log" "$OUT/participant-open-by-id-proof.log" <<'PY'
+step "[6] participant copy actions proof"
+bash ops/two-box-remote-participant-copy-actions-proof.sh | tee "$OUT/participant-copy-actions-proof.log"
+
+step "[7] summarize"
+python3 - "$OUT/participant-js-parse-proof.log" "$OUT/participant-consume-view-proof.log" "$OUT/cross-machine-participant-open-workflow-proof.log" "$OUT/participant-open-by-id-proof.log" "$OUT/participant-copy-actions-proof.log" <<'PY'
 from pathlib import Path
 import json
 import sys
@@ -81,19 +84,14 @@ def extract_json_after_marker(text: str, marker: str):
 def parse_participant_js(txt: str):
     ok = "[ok] two-box remote participant js parse proof green" in txt
     parse_ok = "=== [4] parse-check emitted browser js ===" in txt and "SyntaxError" not in txt
-    return {
-        "ok": ok,
-        "parse_ok": parse_ok,
-    }
+    return {"ok": ok, "parse_ok": parse_ok}
 
 def parse_participant_consume_view(txt: str):
     shell = extract_json_after_marker(
-        txt,
-        "=== [5] verify participant shell exposes consume-view logic ==="
+        txt, "=== [5] verify participant shell exposes consume-view logic ==="
     ) or {}
     end2end = extract_json_after_marker(
-        txt,
-        "=== [6] fetch consume-view page from Alienware for the published dataset ==="
+        txt, "=== [6] fetch consume-view page from Alienware for the published dataset ==="
     ) or {}
     return {
         "ok": "[ok] two-box remote participant consume-view proof green" in txt,
@@ -103,8 +101,7 @@ def parse_participant_consume_view(txt: str):
 
 def parse_cross_machine_participant_open(txt: str):
     obj = extract_json_after_marker(
-        txt,
-        "=== [7] verify HTML render + local materialization on Alienware ==="
+        txt, "=== [7] verify HTML render + local materialization on Alienware ==="
     ) or {}
     return {
         "ok": "[ok] two-box cross-machine participant open workflow proof green" in txt,
@@ -120,12 +117,10 @@ def parse_cross_machine_participant_open(txt: str):
 
 def parse_open_by_id(txt: str):
     ui = extract_json_after_marker(
-        txt,
-        "=== [5] verify open-by-id UI + handler exists on participant page ==="
+        txt, "=== [5] verify open-by-id UI + handler exists on participant page ==="
     ) or {}
     end2end = extract_json_after_marker(
-        txt,
-        "=== [6] simulate the open-by-id target end-to-end ==="
+        txt, "=== [6] simulate the open-by-id target end-to-end ==="
     ) or {}
     return {
         "ok": "[ok] two-box remote participant open-by-id proof green" in txt,
@@ -149,16 +144,34 @@ def parse_open_by_id(txt: str):
         "local_job_plaintext_ok": bool(end2end.get("local_job_plaintext_ok")),
     }
 
+def parse_copy_actions(txt: str):
+    obj = extract_json_after_marker(
+        txt, "=== [3] verify copy/share affordances in emitted html ==="
+    ) or {}
+    return {
+        "ok": "[ok] two-box remote participant copy actions proof green" in txt,
+        "html_ok": bool(obj.get("ok")),
+        "has_latest_copy_id": bool(obj.get("has_latest_copy_id")),
+        "has_latest_copy_link": bool(obj.get("has_latest_copy_link")),
+        "has_copy_helper": bool(obj.get("has_copy_helper")),
+        "has_copy_id_text": bool(obj.get("has_copy_id_text")),
+        "has_copy_link_text": bool(obj.get("has_copy_link_text")),
+        "has_copy_id_button_text": bool(obj.get("has_copy_id_button_text")),
+        "has_copy_link_button_text": bool(obj.get("has_copy_link_button_text")),
+    }
+
 pj_txt = Path(sys.argv[1]).read_text()
 pcv_txt = Path(sys.argv[2]).read_text()
 cm_txt = Path(sys.argv[3]).read_text()
 obi_txt = Path(sys.argv[4]).read_text()
+copy_txt = Path(sys.argv[5]).read_text()
 
 summary = {
     "participant_js_parse_proof": parse_participant_js(pj_txt),
     "participant_consume_view_proof": parse_participant_consume_view(pcv_txt),
     "cross_machine_participant_open_workflow_proof": parse_cross_machine_participant_open(cm_txt),
     "participant_open_by_id_workflow_proof": parse_open_by_id(obi_txt),
+    "participant_copy_actions_proof": parse_copy_actions(copy_txt),
 }
 summary["product_ui_ok"] = (
     summary["participant_js_parse_proof"]["ok"] and
@@ -193,7 +206,16 @@ summary["product_ui_ok"] = (
     summary["participant_open_by_id_workflow_proof"]["has_sha256"] and
     summary["participant_open_by_id_workflow_proof"]["local_copy_hit"] and
     summary["participant_open_by_id_workflow_proof"]["local_job_id_ok"] and
-    summary["participant_open_by_id_workflow_proof"]["local_job_plaintext_ok"]
+    summary["participant_open_by_id_workflow_proof"]["local_job_plaintext_ok"] and
+    summary["participant_copy_actions_proof"]["ok"] and
+    summary["participant_copy_actions_proof"]["html_ok"] and
+    summary["participant_copy_actions_proof"]["has_latest_copy_id"] and
+    summary["participant_copy_actions_proof"]["has_latest_copy_link"] and
+    summary["participant_copy_actions_proof"]["has_copy_helper"] and
+    summary["participant_copy_actions_proof"]["has_copy_id_text"] and
+    summary["participant_copy_actions_proof"]["has_copy_link_text"] and
+    summary["participant_copy_actions_proof"]["has_copy_id_button_text"] and
+    summary["participant_copy_actions_proof"]["has_copy_link_button_text"]
 )
 print(json.dumps(summary, indent=2))
 if not summary["product_ui_ok"]:
