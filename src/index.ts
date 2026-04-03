@@ -40786,12 +40786,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           const receiptEl = $("latestDatasetReceiptHero");
           if (receiptEl) {
             let receiptText = "";
-            if (recentReceipt && String((recentReceipt as any).dataset_id || "") === firstDatasetId) {
-              const rid = String((recentReceipt as any).receipt_id || "-");
-              const kind = String((recentReceipt as any).kind || "-");
+            if (recentReceipt && String((recentReceipt && recentReceipt.dataset_id) || "") === firstDatasetId) {
+              const rid = String((recentReceipt && recentReceipt.receipt_id) || "-");
+              const kind = String((recentReceipt && recentReceipt.kind) || "-");
               receiptText = "Created from receipt " + rid.slice(0, 18) + (rid.length > 18 ? "…" : "") + " • " + kind;
             } else if (recentReceipt) {
-              const rid = String((recentReceipt as any).receipt_id || "-");
+              const rid = String((recentReceipt && recentReceipt.receipt_id) || "-");
               receiptText = "Linked to latest receipt " + rid.slice(0, 18) + (rid.length > 18 ? "…" : "");
             }
             if (receiptText) {
