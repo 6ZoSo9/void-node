@@ -5,6 +5,7 @@ set +o histexpand
 
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
 LOCAL_NODE_BASE="${LOCAL_NODE_BASE:-http://127.0.0.1:4100}"
+PUBLIC_LOCAL_NODE_BASE="${PUBLIC_LOCAL_NODE_BASE:-http://100.93.2.116:4100}"
 REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"
 OUT="${OUT:-/tmp/two-box-cross-machine-datanet-lifecycle-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
@@ -108,7 +109,41 @@ echo "local_dataset_id=$LOCAL_DATASET_ID" | tee -a "$OUT/local.ids.txt"
 echo "local_sha256=$LOCAL_SHA256" | tee -a "$OUT/local.ids.txt"
 
 echo
-echo "=== [3] run verify + redundancy on Alienware against Precision-origin dataset ==="
+echo "=== [3] explicitly seed Precision peer into Alienware registry ==="
+# __void_cross_machine_explicit_peer_upsert_v1
+LOCAL_HEALTH_JSON="$(jget "$LOCAL_NODE_BASE/health" 20)"
+printf '%s\n' "$LOCAL_HEALTH_JSON" > "$OUT/local.health.json"
+
+LOCAL_NODE_ID="$(python3 - "$OUT/local.health.json" <<'PY'
+import json, sys
+obj = json.load(open(sys.argv[1]))
+print(str(obj.get("nodeId") or ""))
+PY
+)"
+
+LOCAL_P2P_LISTEN="$(python3 - "$OUT/local.health.json" <<'PY'
+import json, sys
+obj = json.load(open(sys.argv[1]))
+listen = obj.get("listen") or []
+print(str(listen[0] if listen else ""))
+PY
+)"
+
+if [ -z "$LOCAL_NODE_ID" ] || [ -z "$LOCAL_P2P_LISTEN" ]; then
+  echo "[fail] missing local node id or p2p listen for explicit peer upsert" >&2
+  exit 1
+fi
+
+curl -fsS --max-time 10 -H 'content-type: application/json' \
+  -X POST "$REMOTE_NODE_BASE/peers/registry/upsert" \
+  --data "{\"id\":\"$LOCAL_NODE_ID\",\"http\":\"$PUBLIC_LOCAL_NODE_BASE\",\"p2p\":\"$LOCAL_P2P_LISTEN\",\"capabilities\":[\"blob\",\"tx\",\"block\"]}" \
+  | tee "$OUT/remote.peer-upsert.json"
+echo
+jget "$REMOTE_NODE_BASE/peers/registry" 20 | tee "$OUT/remote.peers.after-upsert.json"
+echo
+
+echo
+echo "=== [4] run verify + redundancy on Alienware against Precision-origin dataset ==="
 VERIFY_JSON="$(jpost_json "$REMOTE_NODE_BASE/jobs/submit" "{\"account\":\"$ACCOUNT\",\"kind\":\"datanet_fetch_verify\",\"plaintext\":\"{\\\"dataset_id\\\":\\\"$LOCAL_DATASET_ID\\\",\\\"expected_input_hash\\\":\\\"$LOCAL_SHA256\\\"}\"}" 20)"
 printf '%s\n' "$VERIFY_JSON" | tee "$OUT/remote.verify.submit.json"
 
@@ -125,8 +160,8 @@ PY
 REDUND_JOB_ID="$(python3 - "$OUT/remote.redund.submit.json" <<'PY'
 import json, sys
 obj = json.load(open(sys.argv[1]))
-job = obj.get("job") or {}
-print(str(job.get("job_id") or ""))
+job = obj.get("job_id") or (obj.get("job") or {}).get("job_id") or ""
+print(str(job))
 PY
 )"
 
@@ -136,7 +171,7 @@ if [ -z "$VERIFY_JOB_ID" ] || [ -z "$REDUND_JOB_ID" ]; then
 fi
 
 echo
-echo "=== [4] verify remote product/network surfaces after fetch fallback ==="
+echo "=== [5] verify remote product/network surfaces after fetch fallback ==="
 FOUND_VERIFY="false"
 FOUND_REDUND="false"
 FOUND_LOCAL_COPY="false"
@@ -211,7 +246,7 @@ if [ "$FOUND_VERIFY" != "true" ] || [ "$FOUND_REDUND" != "true" ] || [ "$FOUND_L
 fi
 
 echo
-echo "=== [5] summary ==="
+echo "=== [6] summary ==="
 python3 - "$OUT/local.ids.txt" "$OUT/remote.check.json" "$ACCOUNT" "$VERIFY_JOB_ID" "$REDUND_JOB_ID" <<'PY'
 import json, sys
 from pathlib import Path
