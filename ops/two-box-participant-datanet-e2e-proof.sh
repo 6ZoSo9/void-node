@@ -176,7 +176,7 @@ dsid = sys.argv[3]
 plaintext = sys.argv[4]
 
 assert "DataNet Viewer" in html, "viewer title missing"
-assert "Open raw JSON" in html, "viewer raw button missing"
+assert ("Open raw JSON" in html or "Open Dataset JSON" in html), "viewer raw button missing"
 assert "Plaintext" in html, "viewer plaintext section missing"
 
 assert raw.get("ok") is True, "raw local-job not ok"
