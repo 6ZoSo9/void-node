@@ -48,8 +48,11 @@ bash ops/two-box-remote-consumer-fetch-product-proof.sh | tee "$OUT/consumer-fet
 step "[7] consume-view product proof"
 bash ops/two-box-remote-consume-view-product-proof.sh | tee "$OUT/consume-view-product-proof.log"
 
-step "[8] summarize"
-python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" "$OUT/consumer-fetch-product-proof.log" "$OUT/consume-view-product-proof.log" <<'PY'
+step "[8] participant js parse proof"
+bash ops/two-box-remote-participant-js-parse-proof.sh | tee "$OUT/participant-js-parse-proof.log"
+
+step "[9] summarize"
+python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" "$OUT/consumer-fetch-product-proof.log" "$OUT/consume-view-product-proof.log" "$OUT/participant-js-parse-proof.log" <<'PY'
 from pathlib import Path
 import json
 import sys
@@ -148,12 +151,21 @@ def parse_consume_view(txt: str):
         "local_job_plaintext_ok": bool(obj.get("local_job_plaintext_ok")),
     }
 
+def parse_participant_js(txt: str):
+    ok = "[ok] two-box remote participant js parse proof green" in txt
+    parse_ok = "=== [4] parse-check emitted browser js ===" in txt and "SyntaxError" not in txt
+    return {
+        "ok": ok,
+        "parse_ok": parse_ok,
+    }
+
 jobs_txt = Path(sys.argv[1]).read_text()
 view_txt = Path(sys.argv[2]).read_text()
 vr_txt = Path(sys.argv[3]).read_text()
 cm_txt = Path(sys.argv[4]).read_text()
 cf_txt = Path(sys.argv[5]).read_text()
 cv_txt = Path(sys.argv[6]).read_text()
+pj_txt = Path(sys.argv[7]).read_text()
 
 summary = {
     "jobs_submit_product_proof": parse_jobs_submit(jobs_txt),
@@ -162,6 +174,7 @@ summary = {
     "cross_machine_lifecycle_proof": parse_cross_machine(cm_txt),
     "consumer_fetch_product_proof": parse_consumer_fetch(cf_txt),
     "consume_view_product_proof": parse_consume_view(cv_txt),
+    "participant_js_parse_proof": parse_participant_js(pj_txt),
 }
 summary["golden_ok"] = (
     summary["jobs_submit_product_proof"]["ok"] and
@@ -189,7 +202,9 @@ summary["golden_ok"] = (
     summary["consume_view_product_proof"]["has_plaintext"] and
     summary["consume_view_product_proof"]["local_copy_hit"] and
     summary["consume_view_product_proof"]["local_job_id_ok"] and
-    summary["consume_view_product_proof"]["local_job_plaintext_ok"]
+    summary["consume_view_product_proof"]["local_job_plaintext_ok"] and
+    summary["participant_js_parse_proof"]["ok"] and
+    summary["participant_js_parse_proof"]["parse_ok"]
 )
 print(json.dumps(summary, indent=2))
 if not summary["golden_ok"]:
