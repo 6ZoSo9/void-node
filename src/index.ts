@@ -37657,6 +37657,64 @@ a{color:#93c5fd;text-decoration:none}
     fs.appendFileSync(file, JSON.stringify(obj) + "\n");
   }
 
+  // __void_datanet_peer_fetch_fallback_v1
+  async function tryFetchDatasetFromPeers(datasetId:string, expectedHash:string=""): Promise<{ ok:boolean; path?:string; fetchedFrom?:string; fetchedHash?:string; error?:string }> {
+    const fs = require("node:fs");
+    const path = require("node:path");
+
+    try {
+      const outPath = path.join(datanetDir(), datasetId + ".txt");
+      if (fs.existsSync(outPath)) {
+        const already = String(fs.readFileSync(outPath, "utf8") || "");
+        const alreadyHash = await sha256Hex(already);
+        if (!expectedHash || expectedHash === alreadyHash) {
+          return { ok:true, path:outPath, fetchedFrom:"local", fetchedHash:alreadyHash };
+        }
+      }
+
+      const peers = await (async () => {
+        try {
+          const selfBase = "http://127.0.0.1:" + String(process.env.HTTP_PORT || "4100");
+          const r = await fetch(selfBase + "/peers/registry");
+          const j:any = await r.json().catch(() => null);
+          return Array.isArray(j?.peers) ? j.peers : [];
+        } catch {
+          return [];
+        }
+      })();
+
+      for (const peer of (Array.isArray(peers) ? peers : [])) {
+        const httpBase = String(peer?.http || "").trim();
+        if (!httpBase) continue;
+
+        try {
+          const url = new URL("/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=zoso", httpBase).toString();
+          const r = await fetch(url);
+          if (!r.ok) continue;
+
+          const j:any = await r.json().catch(() => null);
+          if (!j || !j.ok) continue;
+
+          const plaintext = String(j.plaintext || "");
+          if (!plaintext) continue;
+
+          const fetchedHash = await sha256Hex(plaintext);
+          const remoteSha = String(j.sha256 || "");
+          if (remoteSha && remoteSha !== fetchedHash) continue;
+          if (expectedHash && fetchedHash !== expectedHash) continue;
+
+          ensureDirs();
+          fs.writeFileSync(outPath, plaintext);
+          return { ok:true, path:outPath, fetchedFrom:httpBase, fetchedHash };
+        } catch {}
+      }
+
+      return { ok:false, error:"dataset_not_found_remote" };
+    } catch (e:any) {
+      return { ok:false, error:String(e?.message || e) };
+    }
+  }
+
   function workerState(){
     const st:any = G[MARK].cursor_v1 || (G[MARK].cursor_v1 = {
       jobs_ino: 0,
@@ -37852,12 +37910,17 @@ a{color:#93c5fd;text-decoration:none}
         const datasetId = safeStr(verifyInput.dataset_id || "", 160);
         if (!datasetId) throw new Error("missing_dataset_id");
 
-        const payloadPath = path.join(datanetDir(), datasetId + ".txt");
-        if (!fs.existsSync(payloadPath)) throw new Error("dataset_not_found");
+        let payloadPath = path.join(datanetDir(), datasetId + ".txt");
+        const expectedHash = safeStr(verifyInput.expected_input_hash || verifyInput.input_hash || "", 128);
+
+        if (!fs.existsSync(payloadPath)) {
+          const pulled = await tryFetchDatasetFromPeers(datasetId, expectedHash);
+          if (!pulled.ok || !pulled.path) throw new Error(pulled.error || "dataset_not_found");
+          payloadPath = pulled.path;
+        }
 
         const fetched = String(fs.readFileSync(payloadPath, "utf8") || "");
         const fetchedHash = await sha256Hex(fetched);
-        const expectedHash = safeStr(verifyInput.expected_input_hash || verifyInput.input_hash || "", 128);
         const verified = !!expectedHash && expectedHash === fetchedHash;
 
         if (!verified) throw new Error("verify_mismatch");
@@ -37909,12 +37972,17 @@ a{color:#93c5fd;text-decoration:none}
         const datasetId = safeStr(checkInput.dataset_id || "", 160);
         if (!datasetId) throw new Error("missing_dataset_id");
 
-        const payloadPath = path.join(datanetDir(), datasetId + ".txt");
-        if (!fs.existsSync(payloadPath)) throw new Error("dataset_not_found");
+        let payloadPath = path.join(datanetDir(), datasetId + ".txt");
+        const expectedHash = safeStr(checkInput.expected_input_hash || checkInput.input_hash || "", 128);
+
+        if (!fs.existsSync(payloadPath)) {
+          const pulled = await tryFetchDatasetFromPeers(datasetId, expectedHash);
+          if (!pulled.ok || !pulled.path) throw new Error(pulled.error || "dataset_not_found");
+          payloadPath = pulled.path;
+        }
 
         const fetched = String(fs.readFileSync(payloadPath, "utf8") || "");
         const fetchedHash = await sha256Hex(fetched);
-        const expectedHash = safeStr(checkInput.expected_input_hash || checkInput.input_hash || "", 128);
         const verifiedHash = !expectedHash ? true : (expectedHash === fetchedHash);
 
         if (!verifiedHash) throw new Error("redundancy_check_mismatch");
