@@ -40,15 +40,16 @@ step "[4] verify redundancy product proof"
 bash ops/two-box-remote-verify-redundancy-product-proof.sh | tee "$OUT/verify-redundancy-product-proof.log"
 
 step "[5] cross-machine lifecycle proof"
-# __void_cross_machine_lifecycle_gate_v1
 bash ops/two-box-cross-machine-datanet-lifecycle-proof.sh | tee "$OUT/cross-machine-lifecycle-proof.log"
 
 step "[6] consumer fetch product proof"
-# __void_consumer_fetch_product_gate_v1
 bash ops/two-box-remote-consumer-fetch-product-proof.sh | tee "$OUT/consumer-fetch-product-proof.log"
 
-step "[7] summarize"
-python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" "$OUT/consumer-fetch-product-proof.log" <<'PY'
+step "[7] consume-view product proof"
+bash ops/two-box-remote-consume-view-product-proof.sh | tee "$OUT/consume-view-product-proof.log"
+
+step "[8] summarize"
+python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" "$OUT/consumer-fetch-product-proof.log" "$OUT/consume-view-product-proof.log" <<'PY'
 from pathlib import Path
 import json
 import sys
@@ -84,14 +85,10 @@ def extract_json_after_marker(text: str, marker: str):
     return None
 
 def parse_jobs_submit(txt: str):
-    obj = extract_json_after_marker(
-        txt,
-        "=== [3] verify remote product surfaces from Precision ==="
-    ) or {}
+    obj = extract_json_after_marker(txt, "=== [3] verify remote product surfaces from Precision ===") or {}
     ok = "[ok] two-box remote jobs submit product proof green" in txt
     return {
         "ok": ok,
-        "account": str(obj.get("account", "")),
         "dataset_seen_in_recent_runner_activity": bool(obj.get("dataset_seen_in_recent_runner_activity")),
     }
 
@@ -101,15 +98,12 @@ def parse_view(txt: str):
     view_page_ok = "{'has_html': True, 'has_dataset_id': True, 'has_account': True, 'looks_like_view_page': True}" in txt
     return {
         "ok": ok,
-        "dataset_id": str(obj.get("dataset_id", "")),
         "view_page_ok": view_page_ok,
+        "dataset_id": str(obj.get("dataset_id", "")),
     }
 
 def parse_vr(txt: str):
-    obj = extract_json_after_marker(
-        txt,
-        "=== [3] verify remote product surfaces ==="
-    ) or {}
+    obj = extract_json_after_marker(txt, "=== [3] verify remote product surfaces ===") or {}
     ok = "[ok] two-box remote verify redundancy product proof green" in txt
     return {
         "ok": ok,
@@ -122,32 +116,36 @@ def parse_vr(txt: str):
     }
 
 def parse_cross_machine(txt: str):
-    obj = extract_json_after_marker(
-        txt,
-        "=== [6] summary ==="
-    ) or {}
+    obj = extract_json_after_marker(txt, "=== [6] summary ===") or {}
     ok = "[ok] two-box cross-machine datanet lifecycle proof green" in txt
     return {
         "ok": ok,
         "verify_hit": bool(obj.get("verify_hit")),
         "redundancy_hit": bool(obj.get("redundancy_hit")),
         "local_copy_hit": bool(obj.get("local_copy_hit")),
-        "latest_verified_dataset": str(obj.get("latest_verified_dataset", "")),
-        "latest_redundancy_checked_dataset": str(obj.get("latest_redundancy_checked_dataset", "")),
     }
 
 def parse_consumer_fetch(txt: str):
-    obj = extract_json_after_marker(
-        txt,
-        "=== [5] verify returned plaintext + local materialization on Alienware ==="
-    ) or {}
+    obj = extract_json_after_marker(txt, "=== [5] verify returned plaintext + local materialization on Alienware ===") or {}
     ok = "[ok] two-box remote consumer fetch product proof green" in txt
     return {
         "ok": ok,
         "fetch_plaintext_ok": bool(obj.get("fetch_plaintext_ok")),
         "local_copy_hit": bool(obj.get("local_copy_hit")),
-        "source": str(obj.get("source", "")),
-        "dataset_id": str(obj.get("dataset_id", "")),
+    }
+
+def parse_consume_view(txt: str):
+    obj = extract_json_after_marker(txt, "=== [5] verify remote consume-view page + local materialization ===") or {}
+    ok = "[ok] two-box remote consume-view product proof green" in txt
+    return {
+        "ok": ok,
+        "has_html": bool(obj.get("has_html")),
+        "has_title": bool(obj.get("has_title")),
+        "has_dataset_id": bool(obj.get("has_dataset_id")),
+        "has_plaintext": bool(obj.get("has_plaintext")),
+        "local_copy_hit": bool(obj.get("local_copy_hit")),
+        "local_job_id_ok": bool(obj.get("local_job_id_ok")),
+        "local_job_plaintext_ok": bool(obj.get("local_job_plaintext_ok")),
     }
 
 jobs_txt = Path(sys.argv[1]).read_text()
@@ -155,6 +153,7 @@ view_txt = Path(sys.argv[2]).read_text()
 vr_txt = Path(sys.argv[3]).read_text()
 cm_txt = Path(sys.argv[4]).read_text()
 cf_txt = Path(sys.argv[5]).read_text()
+cv_txt = Path(sys.argv[6]).read_text()
 
 summary = {
     "jobs_submit_product_proof": parse_jobs_submit(jobs_txt),
@@ -162,6 +161,7 @@ summary = {
     "verify_redundancy_product_proof": parse_vr(vr_txt),
     "cross_machine_lifecycle_proof": parse_cross_machine(cm_txt),
     "consumer_fetch_product_proof": parse_consumer_fetch(cf_txt),
+    "consume_view_product_proof": parse_consume_view(cv_txt),
 }
 summary["golden_ok"] = (
     summary["jobs_submit_product_proof"]["ok"] and
@@ -181,7 +181,15 @@ summary["golden_ok"] = (
     summary["cross_machine_lifecycle_proof"]["local_copy_hit"] and
     summary["consumer_fetch_product_proof"]["ok"] and
     summary["consumer_fetch_product_proof"]["fetch_plaintext_ok"] and
-    summary["consumer_fetch_product_proof"]["local_copy_hit"]
+    summary["consumer_fetch_product_proof"]["local_copy_hit"] and
+    summary["consume_view_product_proof"]["ok"] and
+    summary["consume_view_product_proof"]["has_html"] and
+    summary["consume_view_product_proof"]["has_title"] and
+    summary["consume_view_product_proof"]["has_dataset_id"] and
+    summary["consume_view_product_proof"]["has_plaintext"] and
+    summary["consume_view_product_proof"]["local_copy_hit"] and
+    summary["consume_view_product_proof"]["local_job_id_ok"] and
+    summary["consume_view_product_proof"]["local_job_plaintext_ok"]
 )
 print(json.dumps(summary, indent=2))
 if not summary["golden_ok"]:
