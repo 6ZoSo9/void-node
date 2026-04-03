@@ -42020,16 +42020,33 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   const parseDatasetIdOrLink = (raw) => {
     const value = String(raw || "").trim();
-    if (!value) return { datasetId: "", source: "empty" };
-    if (/^ds_[A-Za-z0-9_\-]+$/.test(value)) return { datasetId: value, source: "dataset_id" };
+    let datasetId = "";
+    let source = "invalid";
+    if (!value) {
+      source = "empty";
+      return { datasetId, source };
+    }
+    if (/^ds_[A-Za-z0-9_\-]+$/.test(value)) {
+      datasetId = value;
+      source = "dataset_id";
+      return { datasetId, source };
+    }
     try {
-      const maybeUrl = value.startsWith("http://") || value.startsWith("https://")
-        ? new URL(value)
-        : new URL(value, window.location.origin);
-      const m = String(maybeUrl.pathname || "").match(/\/datanet\/consume-view\/([^/?#]+)/);
-      if (m && m[1]) return { datasetId: decodeURIComponent(m[1]), source: "consume_view_link" };
+      let maybeUrl;
+      if (value.startsWith("http://") || value.startsWith("https://")) {
+        maybeUrl = new URL(value);
+      } else {
+        maybeUrl = new URL(value, window.location.origin);
+      }
+      const path = String((maybeUrl && maybeUrl.pathname) || "");
+      const m = path.match(/\/datanet\/consume-view\/([^/?#]+)/);
+      if (m && m[1]) {
+        datasetId = decodeURIComponent(m[1]);
+        source = "consume_view_link";
+        return { datasetId, source };
+      }
     } catch (_) {}
-    return { datasetId: "", source: "invalid" };
+    return { datasetId, source };
   };
 
   if ($("datanetPasteLinkBtn")) $("datanetPasteLinkBtn").addEventListener("click", async () => {
