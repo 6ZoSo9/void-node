@@ -39,8 +39,12 @@ bash ops/two-box-remote-datanet-view-proof.sh | tee "$OUT/datanet-view-proof.log
 step "[4] verify redundancy product proof"
 bash ops/two-box-remote-verify-redundancy-product-proof.sh | tee "$OUT/verify-redundancy-product-proof.log"
 
-step "[5] summarize"
-python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" <<'PY'
+step "[5] cross-machine lifecycle proof"
+# __void_cross_machine_lifecycle_gate_v1
+bash ops/two-box-cross-machine-datanet-lifecycle-proof.sh | tee "$OUT/cross-machine-lifecycle-proof.log"
+
+step "[6] summarize"
+python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" <<'PY'
 from pathlib import Path
 import json
 import sys
@@ -113,14 +117,31 @@ def parse_vr(txt: str):
         "redundancy_seen_in_recent_runner_activity": bool(obj.get("redundancy_seen_in_recent_runner_activity")),
     }
 
+def parse_cross_machine(txt: str):
+    obj = extract_json_after_marker(
+        txt,
+        "=== [6] summary ==="
+    ) or {}
+    ok = "[ok] two-box cross-machine datanet lifecycle proof green" in txt
+    return {
+        "ok": ok,
+        "verify_hit": bool(obj.get("verify_hit")),
+        "redundancy_hit": bool(obj.get("redundancy_hit")),
+        "local_copy_hit": bool(obj.get("local_copy_hit")),
+        "latest_verified_dataset": str(obj.get("latest_verified_dataset", "")),
+        "latest_redundancy_checked_dataset": str(obj.get("latest_redundancy_checked_dataset", "")),
+    }
+
 jobs_txt = Path(sys.argv[1]).read_text()
 view_txt = Path(sys.argv[2]).read_text()
 vr_txt = Path(sys.argv[3]).read_text()
+cm_txt = Path(sys.argv[4]).read_text()
 
 summary = {
     "jobs_submit_product_proof": parse_jobs_submit(jobs_txt),
     "datanet_view_proof": parse_view(view_txt),
     "verify_redundancy_product_proof": parse_vr(vr_txt),
+    "cross_machine_lifecycle_proof": parse_cross_machine(cm_txt),
 }
 summary["golden_ok"] = (
     summary["jobs_submit_product_proof"]["ok"] and
@@ -133,7 +154,11 @@ summary["golden_ok"] = (
     summary["verify_redundancy_product_proof"]["participant_has_open_verify"] and
     summary["verify_redundancy_product_proof"]["participant_has_open_check"] and
     summary["verify_redundancy_product_proof"]["verify_seen_in_recent_runner_activity"] and
-    summary["verify_redundancy_product_proof"]["redundancy_seen_in_recent_runner_activity"]
+    summary["verify_redundancy_product_proof"]["redundancy_seen_in_recent_runner_activity"] and
+    summary["cross_machine_lifecycle_proof"]["ok"] and
+    summary["cross_machine_lifecycle_proof"]["verify_hit"] and
+    summary["cross_machine_lifecycle_proof"]["redundancy_hit"] and
+    summary["cross_machine_lifecycle_proof"]["local_copy_hit"]
 )
 print(json.dumps(summary, indent=2))
 if not summary["golden_ok"]:
