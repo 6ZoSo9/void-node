@@ -42039,11 +42039,22 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         maybeUrl = new URL(value, window.location.origin);
       }
       const path = String((maybeUrl && maybeUrl.pathname) || "");
-      const m = path.match(/\/datanet\/consume-view\/([^/?#]+)/);
-      if (m && m[1]) {
-        datasetId = decodeURIComponent(m[1]);
-        source = "consume_view_link";
-        return { datasetId, source };
+      const marker = "/datanet/consume-view/";
+      const pos = path.indexOf(marker);
+      if (pos >= 0) {
+        const tail = String(path.slice(pos + marker.length) || "");
+        let idPart = tail;
+        const qPos = idPart.indexOf("?");
+        if (qPos >= 0) idPart = idPart.slice(0, qPos);
+        const hPos = idPart.indexOf("#");
+        if (hPos >= 0) idPart = idPart.slice(0, hPos);
+        const slashPos = idPart.indexOf("/");
+        if (slashPos >= 0) idPart = idPart.slice(0, slashPos);
+        if (idPart) {
+          datasetId = decodeURIComponent(idPart);
+          source = "consume_view_link";
+          return { datasetId, source };
+        }
       }
     } catch (_) {}
     return { datasetId, source };
