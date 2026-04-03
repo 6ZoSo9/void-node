@@ -39348,6 +39348,8 @@ a{color:#93c5fd;text-decoration:none}
             <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
               <a class="btn" id="latestDatasetOpenHero" href="#" target="_blank" rel="noopener" style="display:none">Open viewer</a>
               <a class="btn secondary" id="latestDatasetRawHero" href="#" target="_blank" rel="noopener" style="display:none">Open raw JSON</a>
+              <button class="btn secondary" id="latestDatasetCopyIdHero" type="button" style="display:none">Copy ID</button>
+              <button class="btn secondary" id="latestDatasetCopyLinkHero" type="button" style="display:none">Copy Open Link</button>
             </div>
           </div>
           <details class="adv" style="margin-top:14px">
@@ -40822,6 +40824,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           }
           const openA = $("latestDatasetOpenHero");
           const rawA = $("latestDatasetRawHero");
+          const copyIdBtn = $("latestDatasetCopyIdHero");
+          const copyLinkBtn = $("latestDatasetCopyLinkHero");
+          const consumeUrl = "/datanet/consume-view/" + encodeURIComponent(firstDatasetId) + "?who=" + encodeURIComponent(account || "zoso");
           if (openA) {
             if (firstViewerUrl) {
               openA.setAttribute("href", firstViewerUrl);
@@ -40838,6 +40843,24 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             } else {
               rawA.setAttribute("href", "#");
               (rawA).style.display = "none";
+            }
+          }
+          if (copyIdBtn) {
+            if (firstDatasetId && firstDatasetId !== "-") {
+              copyIdBtn.style.display = "";
+              copyIdBtn.onclick = () => window.__void_copyText(firstDatasetId, "Copied dataset id.");
+            } else {
+              copyIdBtn.style.display = "none";
+              copyIdBtn.onclick = null;
+            }
+          }
+          if (copyLinkBtn) {
+            if (firstDatasetId && firstDatasetId !== "-") {
+              copyLinkBtn.style.display = "";
+              copyLinkBtn.onclick = () => window.__void_copyText(consumeUrl, "Copied open link.");
+            } else {
+              copyLinkBtn.style.display = "none";
+              copyLinkBtn.onclick = null;
             }
           }
           $("latestDatasetActionCard").style.display = "";
@@ -40857,6 +40880,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             const viewerUrl = String(d.viewer_url || "");
             const rawUrl = String(d.raw_json_url || "");
             const newest = idx === 0 ? ' <span class="pill">Newest</span>' : '';
+            const consumeUrl = "/datanet/consume-view/" + encodeURIComponent(dsFull) + "?who=" + encodeURIComponent(account || "zoso");
             return '<tr>' +
               '<td><code title="' + esc(dsFull) + '">' + esc(dsShort) + '</code>' + newest + '</td>' +
               '<td>' + esc(updated) + '</td>' +
@@ -40867,8 +40891,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                   ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">View</a>')
                   : '') +
                 (rawUrl
-                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
                   : '') +
+                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ');return false;">Copy ID</button>') +
+                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ');return false;">Copy Link</button>') +
               '</td>' +
             '</tr>';
           }).join('') +
@@ -40931,6 +40957,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             const preview = esc(String(d.preview || ""));
             const viewerUrl = String(d.viewer_url || "");
             const rawUrl = String(d.raw_json_url || "");
+            const consumeUrl = "/datanet/consume-view/" + encodeURIComponent(dsFull) + "?who=" + encodeURIComponent(account || "zoso");
             return '<tr>' +
               '<td><code title="' + esc(dsFull) + '">' + esc(dsShort) + '</code></td>' +
               '<td>' + esc(updated) + '</td>' +
@@ -40941,8 +40968,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                   ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">View</a>')
                   : '') +
                 (rawUrl
-                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
                   : '') +
+                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ');return false;">Copy ID</button>') +
+                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ');return false;">Copy Link</button>') +
               '</td>' +
             '</tr>';
           }).join('') +
@@ -41102,6 +41131,39 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
+
+      const copyText = async (txt, label) => {
+        const value = String(txt || "");
+        if (!value) return false;
+        let ok = false;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(value);
+            ok = true;
+          }
+        } catch (_) {}
+        if (!ok) {
+          try {
+            const ta = document.createElement("textarea");
+            ta.value = value;
+            ta.setAttribute("readonly", "readonly");
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            ok = !!document.execCommand("copy");
+            document.body.removeChild(ta);
+          } catch (_) {}
+        }
+        const msg = ok ? String(label || "Copied.") : "Copy failed.";
+        const openStatus = $("datanetOpenByIdStatus");
+        if (openStatus) openStatus.textContent = msg;
+        const latestAction = $("latestActionCard");
+        if (latestAction && ok) latestAction.textContent = msg;
+        return ok;
+      };
+      window.__void_copyText = copyText;
 
       const mkDatasetLink = (label, datasetId) => {
         if (!datasetId) return '<span style="color:#94a3b8">' + escHtml(label) + ' -</span>';
