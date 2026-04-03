@@ -36227,6 +36227,138 @@ a{color:#93c5fd;text-decoration:none}
       } catch {}
     })();
 
+    // __void_datanet_consume_view_v1
+    ;(() => {
+      try {
+        const APP:any = (globalThis as any).__void_http_app || (typeof app !== "undefined" ? app : null);
+        if (!APP || typeof APP.get !== "function") return;
+        if ((APP as any).__void_datanet_consume_view_v1) return;
+        (APP as any).__void_datanet_consume_view_v1 = true;
+
+        APP.get("/datanet/consume-view/:id", async (req:any, res:any) => {
+          try {
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const crypto = require("node:crypto");
+
+            const who = String((req?.query?.who ?? "") || "").trim();
+            if (!who) return res.status(400).send("missing_who");
+
+            const id = String((req?.params?.id ?? "") || "").trim();
+            if (!id) return res.status(400).send("missing_id");
+            if (!/^ds_[A-Za-z0-9_\-]+$/.test(id)) return res.status(400).send("bad_id");
+
+            const file = path.join(dataDir(), "datanet_v1", "local_jobs", id + ".txt");
+
+            if (!fs.existsSync(file)) {
+              try {
+                const selfBase = String(req.protocol || "http") + "://" + String(req.get("host") || "");
+                const consumeUrl = new URL("/datanet/v1/consume/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who), selfBase).toString();
+                const rr = await fetch(consumeUrl);
+                if (!rr.ok) {
+                  const txt = await rr.text().catch(() => "");
+                  return res.status(rr.status || 404).type("text/plain").send(txt || "not_found");
+                }
+              } catch (e:any) {
+                return res.status(500).type("text/plain").send(String(e?.message || e));
+              }
+            }
+
+            if (!fs.existsSync(file)) return res.status(404).send("not_found");
+
+            const plaintext = String(fs.readFileSync(file, "utf8") || "");
+            const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
+            const sizeBytes = Buffer.byteLength(plaintext, "utf8");
+            const previewText = plaintext.length > 220 ? (plaintext.slice(0, 220) + "…") : plaintext;
+            const datasetTone =
+              plaintext.includes('"task_class":"datanet_redundancy_check"') ? { label: "Checked Dataset", style: "color:#c4b5fd;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.28)" } :
+              plaintext.includes('"task_class":"datanet_fetch_verify"') ? { label: "Verified Dataset", style: "color:#93c5fd;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.28)" } :
+              plaintext.includes('"task_class":"datanet_publish"') ? { label: "Published Dataset", style: "color:#86efac;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.28)" } :
+              { label: "Dataset", style: "color:#e5e7eb;background:rgba(148,163,184,.10);border:1px solid rgba(148,163,184,.25)" };
+
+            const esc = (v:any) => String(v == null ? "" : v)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;");
+
+            const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>VOID DataNet Consume Viewer</title>
+<style>
+body{margin:0;padding:24px;background:#020617;color:#e5e7eb;font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.card{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:16px}
+h1{margin:0 0 6px;font-size:28px}
+.sub{color:#94a3b8}
+.meta{display:grid;grid-template-columns:180px 1fr;gap:8px 12px}
+.k{color:#93c5fd;font-weight:700}
+code,pre{background:#020617;border:1px solid #1e293b;border-radius:12px}
+code{padding:2px 6px}
+pre{padding:14px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.row{display:flex;flex-wrap:wrap;gap:10px}
+a{color:#93c5fd;text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #334155;border-radius:12px;background:#111827;color:#e5e7eb;text-decoration:none;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>DataNet Consume Viewer</h1>
+    <div class="sub">Remote-capable dataset view that consumes from peers if needed.</div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;${datasetTone.style}">${esc(datasetTone.label)}</span>
+      <span class="sub">Consume-and-view for dataset <code>${esc(id)}</code></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="meta">
+      <div class="k">Dataset</div><div><code>${esc(id)}</code></div>
+      <div class="k">Account</div><div><code>${esc(who)}</code></div>
+      <div class="k">SHA-256</div><div><code>${esc(sha256)}</code></div>
+      <div class="k">Bytes</div><div>${esc(sizeBytes)}</div>
+      <div class="k">Source</div><div><code>${esc(file)}</code></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <a class="btn" href="/datanet/v1/local-job/${encodeURIComponent(id)}?who=${encodeURIComponent(who)}" target="_blank" rel="noopener">Open Dataset JSON</a>
+      <a class="btn" href="/datanet/view/${encodeURIComponent(id)}?who=${encodeURIComponent(who)}" target="_blank" rel="noopener">Open Local-Only View</a>
+      <a class="btn" href="/participant#overview">Back to Overview</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="k" style="margin-bottom:10px">Preview</div>
+    <pre style="max-height:none">${esc(previewText || "-")}</pre>
+  </div>
+
+  <div class="card">
+    <div class="k" style="margin-bottom:10px">Plaintext</div>
+    <pre>${esc(plaintext)}</pre>
+  </div>
+</div>
+</body>
+</html>`;
+            res.status(200).type("html").send(html);
+          } catch (e:any) {
+            return res.status(500).type("text/plain").send(String(e?.message || e));
+          }
+        });
+
+        try { console.log("[datanet.consume_view.v1] mounted: GET /datanet/consume-view/:id"); } catch {}
+      } catch {}
+    })();
+
+
 
     // === [ADD] network value summary endpoint v1 ===
     ;(() => {
