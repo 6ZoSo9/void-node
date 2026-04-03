@@ -40420,6 +40420,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const wcDash = wcAddr
       ? await j(wcBase + "/dashboard/" + encodeURIComponent(wcAddr) + ".json")
       : { ok:false, reason:"no_wallet_mapping" };
+    const wcBal = wcDash && wcDash.account && wcDash.account.balances ? wcDash.account.balances : null;
+    const wcEarn = wcDash && wcDash.account && wcDash.account.earnings ? wcDash.account.earnings : null;
+    const wcPool = wcDash && wcDash.pool ? wcDash.pool : null;
 
     let connectedVoidBal = "-";
     if (wcBal && Number.isFinite(Number(wcBal.void))) {
@@ -40468,9 +40471,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const redeemedState = redeemed && redeemed.ok ? redeemed : null;
     const redeemedTotal = redeemState && Number.isFinite(Number(redeemState.redeemed)) ? Number(redeemState.redeemed) : 0;
     const redeemableTotal = redeemState && Number.isFinite(Number(redeemState.redeemable)) ? Number(redeemState.redeemable) : 0;
-    const wcBal = wcDash && wcDash.account && wcDash.account.balances ? wcDash.account.balances : null;
-    const wcEarn = wcDash && wcDash.account && wcDash.account.earnings ? wcDash.account.earnings : null;
-    const wcPool = wcDash && wcDash.pool ? wcDash.pool : null;
     const wcPerVoid = wcPool && wcPool.price && Number(wcPool.price.wc_per_void) > 0 ? Number(wcPool.price.wc_per_void) : null;
     const tradeInput = $("tradeInputWc") ? Number(($("tradeInputWc").value || "").trim() || "0") : 0;
     const relayerUp = !!(relayerHealth && (relayerHealth.ok || relayerHealth.status === "ok"));
