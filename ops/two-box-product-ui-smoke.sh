@@ -121,7 +121,7 @@ def parse_cross_machine_participant_open(txt: str):
 def parse_open_by_id(txt: str):
     ui = extract_json_after_marker(
         txt,
-        "=== [5] verify open-by-id UI exists on participant page ==="
+        "=== [5] verify open-by-id UI + handler exists on participant page ==="
     ) or {}
     end2end = extract_json_after_marker(
         txt,
@@ -134,6 +134,10 @@ def parse_open_by_id(txt: str):
         "has_button": bool(ui.get("has_button")),
         "has_status": bool(ui.get("has_status")),
         "has_consume_view_route": bool(ui.get("has_consume_view_route")),
+        "has_handler_redirect": bool(ui.get("has_handler_redirect")),
+        "has_empty_guard": bool(ui.get("has_empty_guard")),
+        "has_bad_id_guard": bool(ui.get("has_bad_id_guard")),
+        "has_error_guard": bool(ui.get("has_error_guard")),
         "end_to_end_ok": bool(end2end.get("ok")),
         "has_html": bool(end2end.get("has_html")),
         "has_title": bool(end2end.get("has_title")),
@@ -177,6 +181,10 @@ summary["product_ui_ok"] = (
     summary["participant_open_by_id_workflow_proof"]["has_button"] and
     summary["participant_open_by_id_workflow_proof"]["has_status"] and
     summary["participant_open_by_id_workflow_proof"]["has_consume_view_route"] and
+    summary["participant_open_by_id_workflow_proof"]["has_handler_redirect"] and
+    summary["participant_open_by_id_workflow_proof"]["has_empty_guard"] and
+    summary["participant_open_by_id_workflow_proof"]["has_bad_id_guard"] and
+    summary["participant_open_by_id_workflow_proof"]["has_error_guard"] and
     summary["participant_open_by_id_workflow_proof"]["end_to_end_ok"] and
     summary["participant_open_by_id_workflow_proof"]["has_html"] and
     summary["participant_open_by_id_workflow_proof"]["has_title"] and
