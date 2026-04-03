@@ -1,7 +1,7 @@
 {
   "chain": "devnet",
   "rpc_url": "http://127.0.0.1:8545",
-  "pool_address": "0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0",
+  "pool_address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
   "void_reserve_raw": "500000000000000000000",
   "wc_reserve_raw": "50000000000000000000000"
 }

@@ -197,17 +197,28 @@ async function resolveAddresses(wallet) {
 async function realQuoteWCToVoid(amountHuman, wallet) {
   const addrs = await resolveAddresses(wallet);
   if (!addrs.pool) throw new Error('missing_pool_address');
-  const rawIn = parseHumanToRaw18(amountHuman);
-  const rawOut = parseRaw(await castCall(addrs.pool, 'quoteVoidForWC(uint256)(uint256)', [rawIn]));
+  const rawIn = BigInt(String(parseHumanToRaw18(amountHuman)));
+  const poolJson = JSON.parse(require('child_process').execFileSync(
+    'curl',
+    ['-fsS', 'http://127.0.0.1:4312/workcredits/devnet/pool.json'],
+    { encoding: 'utf8' }
+  ));
+  const reserveWc = BigInt(String(poolJson.reserves.wc_raw));
+  const reserveVoid = BigInt(String(poolJson.reserves.void_raw));
+  if (reserveWc <= 0n || reserveVoid <= 0n) {
+    throw new Error('helper pool reserves unavailable');
+  }
+  let rawOut = (rawIn * reserveVoid) / (reserveWc + rawIn);
+  rawOut = (rawOut * 995n) / 1000n;
   return {
     ok: true,
     mode: 'onchain_quote',
     side: 'wc_to_void',
-    amount_in: Number(amountHuman),
-    amount_in_raw: rawIn,
+    amount_in: String(amountHuman),
+    amount_in_raw: rawIn.toString(),
     amount_out: format18(rawOut),
-    amount_out_raw: rawOut,
-    pricing_source: 'pool.quoteVoidForWC',
+    amount_out_raw: rawOut.toString(),
+    pricing_source: 'helper.pool_json.constant_product_conservative',
     pool_price: addrs.helper_pool && addrs.helper_pool.price ? addrs.helper_pool.price : null,
     pool: addrs.pool,
     wc_token: addrs.wc || null,
@@ -325,7 +336,7 @@ async function executeTrade(body) {
   const minOutRaw = applySlippage(quotedOutRaw, slippageBps);
 
   const approveTx = await castSend(addrs.wc, 'approve(address,uint256)', [addrs.pool, amountInRaw]);
-  const swapTx = await castSend(addrs.pool, 'swapWCForVoid(uint256,uint256,address)', [amountInRaw, minOutRaw, wallet]);
+  const swapTx = await castSend(addrs.pool, 'swapWcForVoid(uint256,uint256,address)', [amountInRaw, minOutRaw, wallet]);
 
   const postDashboard = await getDashboard(wallet).catch(() => null);
 
@@ -353,7 +364,7 @@ async function executeTrade(body) {
       swap_tx: swapTx,
       helper_dashboard_before: addrs.dashboard || null,
       helper_dashboard_after: postDashboard || null,
-      note: 'Redeem applied locally and on-chain WC->VOID swap executed through WorkCreditsPoolV1.'
+      note: 'Redeem applied locally and on-chain WC->VOID swap executed through VoidWorkCreditsPool.'
     }
   };
 }
