@@ -41088,12 +41088,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const mkDatasetLink = (label, datasetId) => {
         if (!datasetId) return '<span style="color:#94a3b8">' + escHtml(label) + ' -</span>';
         const shortId = String(datasetId).length > 22 ? (String(datasetId).slice(0, 8) + "…" + String(datasetId).slice(-6)) : String(datasetId);
-        if (!viewableDatasetIds.has(String(datasetId))) {
-          return '<span style="color:#94a3b8">' + escHtml(label) + ' ' + escHtml(shortId) + ' (not local)</span>';
-        }
-        const href = "/datanet/view/" + encodeURIComponent(String(datasetId)) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+        const href = "/datanet/consume-view/" + encodeURIComponent(String(datasetId)) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+        const suffix = viewableDatasetIds.has(String(datasetId)) ? "" : " (remote-capable)";
         return '<a href="' + href + '" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none;font-weight:700">' +
-          escHtml(label) + " " + escHtml(shortId) +
+          escHtml(label) + " " + escHtml(shortId) + escHtml(suffix) +
           "</a>";
       };
 
