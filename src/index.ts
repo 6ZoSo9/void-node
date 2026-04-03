@@ -42101,6 +42101,33 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
   });
 
+  try {
+    const openInput = $("datanetOpenByIdInput");
+    const openStatus = $("datanetOpenByIdStatus");
+    const params = new URLSearchParams(window.location.search || "");
+    const qsDataset = String(params.get("open_dataset") || "").trim();
+    const qsLink = String(params.get("open_link") || "").trim();
+
+    if (openInput) {
+      if (qsDataset) {
+        openInput.value = qsDataset;
+        if (openStatus) openStatus.textContent = "Preloaded dataset id from page link: " + qsDataset + ".";
+      } else if (qsLink) {
+        openInput.value = qsLink;
+        const parsed = parseDatasetIdOrLink(qsLink);
+        if (openStatus) {
+          if (parsed.source === "consume_view_link" && parsed.datasetId) {
+            openStatus.textContent = "Preloaded consume-view link from page link. Extracted dataset " + parsed.datasetId + ".";
+          } else {
+            openStatus.textContent = "Preloaded link from page link.";
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+
+
   if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
   if ($("refreshBtn")) $("refreshBtn").addEventListener("click", refresh);
   if ($("sendWcBtn")) $("sendWcBtn").addEventListener("click", () => sendWcNow());
