@@ -162,11 +162,14 @@ echo "=== [5] verify returned plaintext + local materialization on Alienware ===
 FOUND_LOCAL_COPY="false"
 
 for i in $(seq 1 20); do
-  jget "$REMOTE_NODE_BASE/datanet/v1/local-job/$LOCAL_DATASET_ID?who=zoso" 20 > "$OUT/remote.local-job.json" && FOUND_LOCAL_COPY="true" && break || true
+  if jget "$REMOTE_NODE_BASE/datanet/v1/local-job/$LOCAL_DATASET_ID?who=zoso" 20 > "$OUT/remote.local-job.json"; then
+    FOUND_LOCAL_COPY="true"
+    break
+  fi
   sleep 2
 done
 
-python3 - "$OUT/remote.consume.body.json" "$PLAINTEXT" "$FOUND_LOCAL_COPY" "$LOCAL_DATASET_ID" "$ACCOUNT" <<'PY'
+python3 - "$OUT/remote.consume.body.json" "$PLAINTEXT" "$FOUND_LOCAL_COPY" "$LOCAL_DATASET_ID" "$ACCOUNT" <<'PY' | tee "$OUT/summary.json"
 import json, sys
 obj = json.load(open(sys.argv[1]))
 want = sys.argv[2]
@@ -185,7 +188,7 @@ summary = {
 print(json.dumps(summary, indent=2))
 if not summary["ok"]:
     raise SystemExit("FAIL: consumer fetch proof did not pass cleanly")
-PY | tee "$OUT/summary.json"
+PY
 
 echo
 echo "[ok] two-box remote consumer fetch product proof green"
