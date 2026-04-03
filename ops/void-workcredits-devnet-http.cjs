@@ -1211,7 +1211,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && pathname === '/workcredits/devnet/pool.json') {
     log('GET', pathname, '-> pool native');
     try {
-      sendJson(res, 200, buildPoolJsonNative());
+      Promise.resolve().then(() => buildPoolJsonNative()).then((obj) => sendJson(res, 200, obj)).catch((err) => sendErr(res, 500, err));
     } catch (e) {
       sendJson(res, 500, { error: 'pool native failed', details: String((e && e.message) || e) });
     }
