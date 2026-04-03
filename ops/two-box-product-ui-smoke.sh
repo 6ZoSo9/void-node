@@ -39,8 +39,11 @@ bash ops/two-box-remote-participant-consume-view-proof.sh | tee "$OUT/participan
 step "[4] cross-machine participant open workflow proof"
 bash ops/two-box-cross-machine-participant-open-workflow-proof.sh | tee "$OUT/cross-machine-participant-open-workflow-proof.log"
 
-step "[5] summarize"
-python3 - "$OUT/participant-js-parse-proof.log" "$OUT/participant-consume-view-proof.log" "$OUT/cross-machine-participant-open-workflow-proof.log" <<'PY'
+step "[5] participant open-by-id workflow proof"
+bash ops/two-box-remote-participant-open-by-id-proof.sh | tee "$OUT/participant-open-by-id-proof.log"
+
+step "[6] summarize"
+python3 - "$OUT/participant-js-parse-proof.log" "$OUT/participant-consume-view-proof.log" "$OUT/cross-machine-participant-open-workflow-proof.log" "$OUT/participant-open-by-id-proof.log" <<'PY'
 from pathlib import Path
 import json
 import sys
@@ -91,13 +94,9 @@ def parse_participant_consume_view(txt: str):
     end2end = extract_json_after_marker(
         txt,
         "=== [6] fetch consume-view page from Alienware for the published dataset ==="
-    ) or extract_json_after_marker(
-        txt,
-        "=== [6] verify consume-view page from Alienware for the published dataset ==="
     ) or {}
-    ok = "[ok] two-box remote participant consume-view proof green" in txt
     return {
-        "ok": ok,
+        "ok": "[ok] two-box remote participant consume-view proof green" in txt,
         "shell_ok": bool(shell.get("ok")),
         "end_to_end_ok": bool(end2end.get("ok")),
     }
@@ -107,9 +106,8 @@ def parse_cross_machine_participant_open(txt: str):
         txt,
         "=== [7] verify HTML render + local materialization on Alienware ==="
     ) or {}
-    ok = "[ok] two-box cross-machine participant open workflow proof green" in txt
     return {
-        "ok": ok,
+        "ok": "[ok] two-box cross-machine participant open workflow proof green" in txt,
         "has_html": bool(obj.get("has_html")),
         "has_title": bool(obj.get("has_title")),
         "has_dataset_id": bool(obj.get("has_dataset_id")),
@@ -120,14 +118,43 @@ def parse_cross_machine_participant_open(txt: str):
         "local_job_plaintext_ok": bool(obj.get("local_job_plaintext_ok")),
     }
 
+def parse_open_by_id(txt: str):
+    ui = extract_json_after_marker(
+        txt,
+        "=== [5] verify open-by-id UI exists on participant page ==="
+    ) or {}
+    end2end = extract_json_after_marker(
+        txt,
+        "=== [6] simulate the open-by-id target end-to-end ==="
+    ) or {}
+    return {
+        "ok": "[ok] two-box remote participant open-by-id proof green" in txt,
+        "ui_ok": bool(ui.get("ok")),
+        "has_input": bool(ui.get("has_input")),
+        "has_button": bool(ui.get("has_button")),
+        "has_status": bool(ui.get("has_status")),
+        "has_consume_view_route": bool(ui.get("has_consume_view_route")),
+        "end_to_end_ok": bool(end2end.get("ok")),
+        "has_html": bool(end2end.get("has_html")),
+        "has_title": bool(end2end.get("has_title")),
+        "has_dataset_id": bool(end2end.get("has_dataset_id")),
+        "has_plaintext": bool(end2end.get("has_plaintext")),
+        "has_sha256": bool(end2end.get("has_sha256")),
+        "local_copy_hit": bool(end2end.get("local_copy_hit")),
+        "local_job_id_ok": bool(end2end.get("local_job_id_ok")),
+        "local_job_plaintext_ok": bool(end2end.get("local_job_plaintext_ok")),
+    }
+
 pj_txt = Path(sys.argv[1]).read_text()
 pcv_txt = Path(sys.argv[2]).read_text()
 cm_txt = Path(sys.argv[3]).read_text()
+obi_txt = Path(sys.argv[4]).read_text()
 
 summary = {
     "participant_js_parse_proof": parse_participant_js(pj_txt),
     "participant_consume_view_proof": parse_participant_consume_view(pcv_txt),
     "cross_machine_participant_open_workflow_proof": parse_cross_machine_participant_open(cm_txt),
+    "participant_open_by_id_workflow_proof": parse_open_by_id(obi_txt),
 }
 summary["product_ui_ok"] = (
     summary["participant_js_parse_proof"]["ok"] and
@@ -143,7 +170,22 @@ summary["product_ui_ok"] = (
     summary["cross_machine_participant_open_workflow_proof"]["has_sha256"] and
     summary["cross_machine_participant_open_workflow_proof"]["local_copy_hit"] and
     summary["cross_machine_participant_open_workflow_proof"]["local_job_id_ok"] and
-    summary["cross_machine_participant_open_workflow_proof"]["local_job_plaintext_ok"]
+    summary["cross_machine_participant_open_workflow_proof"]["local_job_plaintext_ok"] and
+    summary["participant_open_by_id_workflow_proof"]["ok"] and
+    summary["participant_open_by_id_workflow_proof"]["ui_ok"] and
+    summary["participant_open_by_id_workflow_proof"]["has_input"] and
+    summary["participant_open_by_id_workflow_proof"]["has_button"] and
+    summary["participant_open_by_id_workflow_proof"]["has_status"] and
+    summary["participant_open_by_id_workflow_proof"]["has_consume_view_route"] and
+    summary["participant_open_by_id_workflow_proof"]["end_to_end_ok"] and
+    summary["participant_open_by_id_workflow_proof"]["has_html"] and
+    summary["participant_open_by_id_workflow_proof"]["has_title"] and
+    summary["participant_open_by_id_workflow_proof"]["has_dataset_id"] and
+    summary["participant_open_by_id_workflow_proof"]["has_plaintext"] and
+    summary["participant_open_by_id_workflow_proof"]["has_sha256"] and
+    summary["participant_open_by_id_workflow_proof"]["local_copy_hit"] and
+    summary["participant_open_by_id_workflow_proof"]["local_job_id_ok"] and
+    summary["participant_open_by_id_workflow_proof"]["local_job_plaintext_ok"]
 )
 print(json.dumps(summary, indent=2))
 if not summary["product_ui_ok"]:
