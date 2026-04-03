@@ -39338,6 +39338,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="hero-note" id="networkValueCard" style="margin-top:10px">loading…</div>
           <div class="hero-actions" style="margin-top:10px">
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Work</a>
+            <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy Share Page</button>
           </div>
           <div class="hero-note" id="latestDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
           <div class="mini" id="latestDatasetActionCard" style="margin-top:10px;display:none">
@@ -42369,16 +42370,36 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         }
 
         const latestDatasetBtn = $("latestDatasetOpenBtn");
+        const latestDatasetShareBtn = $("latestDatasetShareBtn");
         if (latestDatasetBtn && lrJob && lrDataset) {
           latestDatasetBtn.href = "/datanet/v1/local-job/" + encodeURIComponent(lrDataset) + "?who=" + encodeURIComponent(account);
           latestDatasetBtn.style.display = "";
           latestDatasetBtn.textContent = "Open Latest Useful Work";
           latestDatasetBtn.title = "Open dataset readback for " + lrDataset;
+
+          if (latestDatasetShareBtn) {
+            const shareHref =
+              window.location.origin +
+              "/participant?account=" + encodeURIComponent(account) +
+              "&open_dataset=" + encodeURIComponent(lrDataset) +
+              "#datanet";
+            latestDatasetShareBtn.style.display = "";
+            latestDatasetShareBtn.title = "Copy participant page link preloaded for " + lrDataset;
+            latestDatasetShareBtn.onclick = () =>
+              window.__void_copyText &&
+              window.__void_copyText(shareHref, "Copied latest shared dataset page link.", latestDatasetShareBtn);
+          }
+
           loadDatasetPreviewInto("latestDatasetPreviewCard", lrDataset, account).catch(() => {});
         } else if (latestDatasetBtn) {
           latestDatasetBtn.style.display = "none";
           latestDatasetBtn.removeAttribute("href");
           latestDatasetBtn.title = "";
+          if (latestDatasetShareBtn) {
+            latestDatasetShareBtn.style.display = "none";
+            latestDatasetShareBtn.title = "";
+            latestDatasetShareBtn.onclick = null;
+          }
           const preview = $("latestDatasetPreviewCard");
           if (preview) {
             preview.style.display = "none";
