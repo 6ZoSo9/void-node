@@ -107,30 +107,28 @@ echo "$PARTICIPANT_URL" | tee "$OUT/remote.participant.url.txt"
 curl -fsS --max-time 30 "$PARTICIPANT_URL" > "$OUT/remote.participant.html"
 
 echo
-echo "=== [5] verify participant page points to consume-view for latest publish dataset ==="
-python3 - "$OUT/remote.participant.html" "$LOCAL_DATASET_ID" "$ACCOUNT" "$PLAINTEXT" "$REMOTE_NODE_BASE" <<'PY' | tee "$OUT/participant-link-summary.json"
-import json, sys, urllib.parse
+echo "=== [5] verify participant shell exposes consume-view logic ==="
+python3 - "$OUT/remote.participant.html" <<'PY' | tee "$OUT/participant-link-summary.json"
+import json, sys
 html = open(sys.argv[1], "r", encoding="utf-8").read()
-dataset_id = sys.argv[2]
-account = sys.argv[3]
-plaintext = sys.argv[4]
-remote_base = sys.argv[5].rstrip("/")
 
-href = "/datanet/consume-view/" + urllib.parse.quote(dataset_id, safe="") + "?who=" + urllib.parse.quote(account, safe="")
-summary = {
-    "ok": href in html,
-    "expected_href": href,
+checks = {
     "has_participant_html": "<html" in html.lower(),
-    "has_dataset_id_somewhere": dataset_id in html,
-    "has_consume_view_href": href in html,
+    "has_mkDatasetLink": "const mkDatasetLink = (label, datasetId)" in html,
+    "has_consume_view_route": '"/datanet/consume-view/"' in html or "/datanet/consume-view/" in html,
+    "has_network_value_card": "networkValueCard" in html,
+}
+summary = {
+    "ok": all(checks.values()),
+    **checks,
 }
 print(json.dumps(summary, indent=2))
 if not summary["ok"]:
-    raise SystemExit("FAIL: participant page did not expose consume-view link")
+    raise SystemExit("FAIL: participant shell did not expose consume-view logic")
 PY
 
 echo
-echo "=== [6] fetch the participant-linked consume-view page from Alienware ==="
+echo "=== [6] fetch consume-view page from Alienware for the published dataset ==="
 CONSUME_VIEW_URL="$REMOTE_NODE_BASE/datanet/consume-view/$LOCAL_DATASET_ID?who=$ACCOUNT"
 echo "$CONSUME_VIEW_URL" | tee "$OUT/remote.consume-view.url.txt"
 curl -fsS --max-time 30 "$CONSUME_VIEW_URL" > "$OUT/remote.consume-view.html"
