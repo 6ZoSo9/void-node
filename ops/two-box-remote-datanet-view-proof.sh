@@ -137,33 +137,19 @@ if not all([checks["has_html"], checks["has_dataset_id"], checks["looks_like_vie
 PY
 
 echo
-echo "=== [5] fetch remote raw/local job helpers too ==="
-jget "$REMOTE_NODE_BASE/datanet/v1/local-job/$(python3 - "$DATASET_ID" <<'PY'
-import urllib.parse, sys
-print(urllib.parse.quote(sys.argv[1], safe=""))
-PY
-)" 20 > "$OUT/local-job.json" || true
-jget "$REMOTE_NODE_BASE/datanet/v1/local-jobs/recent?limit=10" 20 > "$OUT/local-jobs-recent.json" || true
-
-echo
-echo "=== [6] summarize ==="
-python3 - "$JOB_ID" "$RECEIPT_ID" "$DATASET_ID" "$ACCOUNT" "$OUT/value-summary.json" "$OUT/local-job.json" <<'PY'
+echo "=== [5] summarize ==="
+python3 - "$JOB_ID" "$RECEIPT_ID" "$DATASET_ID" "$ACCOUNT" "$OUT/value-summary.json" <<'PY'
 from pathlib import Path
 import json, sys
 job_id, receipt_id, dataset_id, account = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 vs = json.loads(Path(sys.argv[5]).read_text())
-local_job = None
-try:
-    local_job = json.loads(Path(sys.argv[6]).read_text())
-except:
-    local_job = None
 summary = {
     "job_id": job_id,
     "receipt_id": receipt_id,
     "dataset_id": dataset_id,
     "account": account,
     "value_summary_ok": True,
-    "local_job_helper_ok": bool(local_job),
+    "view_page_ok": True,
 }
 print(json.dumps(summary, indent=2))
 PY

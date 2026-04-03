@@ -51,7 +51,12 @@ node --check "$OUT/participant.main.js"
 
 echo
 echo "=== [5] sanity grep ==="
-grep -nE 'window.__void_participant_account_qs|switchTab\\(|setInterval\\(refresh, 3000\\)|/datanet/consume-view/' "$OUT/participant.main.js" | sed -n '1,120p' || true
+{
+  grep -nF 'window.__void_participant_account_qs' "$OUT/participant.main.js" || true
+  grep -nF 'switchTab(' "$OUT/participant.main.js" || true
+  grep -nF 'setInterval(refresh, 3000)' "$OUT/participant.main.js" || true
+  grep -nF '/datanet/consume-view/' "$OUT/participant.main.js" || true
+} | sed -n '1,120p'
 
 echo
 echo "[ok] two-box remote participant js parse proof green"
