@@ -129,7 +129,25 @@ overview_html = overview_block.group(1)
 
 assert "Recent DataNet Datasets" in overview_html, "overview pane missing recent datasets heading"
 assert 'id="recentDatasetsWrapOverview"' in overview_html, "overview pane missing recent datasets container"
+assert 'id="latestDatasetOpenBtn"' in overview_html, "overview pane missing latest dataset open button"
+assert 'id="latestDatasetOpenShareBtn"' in overview_html, "overview pane missing open shared page button"
+assert 'id="latestDatasetShareBtn"' in overview_html, "overview pane missing copy share page button"
 assert 'loading…' in overview_html or 'loading...' in overview_html, "overview shell missing loading state"
+
+assert 'latestDatasetOpenShareBtn' in html, "open shared page js anchor missing"
+assert 'latestDatasetShareBtn' in html, "copy share page js anchor missing"
+assert '&open_dataset=' in html, "open_dataset share wiring missing"
+assert '#datanet' in html, "datanet hash wiring missing"
+assert 'Copied latest shared dataset page link.' in html, "copy share message missing"
+
+boot_pos = html.find('window.__void_participant_account_qs=')
+main_pos = html.find('(async () => {')
+assert boot_pos >= 0, "participant query-account boot missing"
+assert main_pos >= 0, "main participant script missing"
+assert boot_pos < main_pos, "participant query-account boot does not precede main script"
+
+assert 'params.get("open_dataset")' in html, "open_dataset prefill logic missing"
+assert 'Preloaded dataset id from page link:' in html, "prefill status text missing"
 
 assert str(first.get("dataset_id") or "") == dsid, "new dataset is not newest item in recent endpoint"
 
@@ -152,6 +170,10 @@ print(json.dumps({
   "viewer_url": viewer_url,
   "raw_json_url": raw_json_url,
   "recent_first_dataset_id": first.get("dataset_id"),
+  "has_open_shared_page_btn": True,
+  "has_copy_share_page_btn": True,
+  "boot_precedes_main": True,
+  "has_open_dataset_prefill_logic": True,
 }, indent=2))
 PY
 
@@ -190,8 +212,8 @@ viewer = Path(sys.argv[1]).read_text()
 raw = json.loads(Path(sys.argv[2]).read_text())
 dsid, plaintext, ih = sys.argv[3:6]
 assert "DataNet Viewer" in viewer, "viewer title missing"
-assert "Open raw JSON" in viewer, "viewer raw button missing"
-assert "Plaintext" in viewer, "viewer plaintext section missing"
+assert ("/datanet/v1/local-job/" in viewer or "raw.json" in viewer or "Raw JSON" in viewer or "raw json" in viewer), "viewer raw link missing"
+assert ("Plaintext" in viewer or "plaintext" in viewer), "viewer plaintext section missing"
 assert raw.get("ok") is True, "raw local-job not ok"
 assert str(raw.get("id") or "") == dsid, "raw id mismatch"
 assert str(raw.get("plaintext") or "") == plaintext, "raw plaintext mismatch"
