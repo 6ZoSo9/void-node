@@ -137,18 +137,18 @@ summary = {
         'datanetOpenByIdStatus' in html and
         '/datanet/consume-view/' in html and
         'window.location.href = href;' in html and
-        'Enter a dataset id first.' in html and
-        'That does not look like a dataset id.' in html and
-        'Unable to open dataset by id.' in html
+        'Enter a dataset id or paste a consume-view link first.' in html and
+        'That does not look like a dataset id or consume-view link.' in html and
+        'Unable to open dataset by id or link.' in html
     ),
     "has_input": 'id="datanetOpenByIdInput"' in html,
     "has_button": 'id="datanetOpenByIdBtn"' in html,
     "has_status": 'datanetOpenByIdStatus' in html,
     "has_consume_view_route": '/datanet/consume-view/' in html,
     "has_handler_redirect": 'window.location.href = href;' in html,
-    "has_empty_guard": 'Enter a dataset id first.' in html,
-    "has_bad_id_guard": 'That does not look like a dataset id.' in html,
-    "has_error_guard": 'Unable to open dataset by id.' in html,
+    "has_empty_guard": 'Enter a dataset id or paste a consume-view link first.' in html,
+    "has_bad_id_guard": 'That does not look like a dataset id or consume-view link.' in html,
+    "has_error_guard": 'Unable to open dataset by id or link.' in html,
     "expected_open_target": expected,
 }
 print(json.dumps(summary, indent=2))

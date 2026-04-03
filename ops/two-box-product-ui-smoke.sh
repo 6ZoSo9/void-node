@@ -45,8 +45,11 @@ bash ops/two-box-remote-participant-open-by-id-proof.sh | tee "$OUT/participant-
 step "[6] participant copy actions proof"
 bash ops/two-box-remote-participant-copy-actions-proof.sh | tee "$OUT/participant-copy-actions-proof.log"
 
-step "[7] summarize"
-python3 - "$OUT/participant-js-parse-proof.log" "$OUT/participant-consume-view-proof.log" "$OUT/cross-machine-participant-open-workflow-proof.log" "$OUT/participant-open-by-id-proof.log" "$OUT/participant-copy-actions-proof.log" <<'PY'
+step "[7] participant share/open flow proof"
+bash ops/two-box-remote-participant-share-open-flow-proof.sh | tee "$OUT/participant-share-open-flow-proof.log"
+
+step "[8] summarize"
+python3 - "$OUT/participant-js-parse-proof.log" "$OUT/participant-consume-view-proof.log" "$OUT/cross-machine-participant-open-workflow-proof.log" "$OUT/participant-open-by-id-proof.log" "$OUT/participant-copy-actions-proof.log" "$OUT/participant-share-open-flow-proof.log" <<'PY'
 from pathlib import Path
 import json
 import sys
@@ -160,11 +163,40 @@ def parse_copy_actions(txt: str):
         "has_copy_link_button_text": bool(obj.get("has_copy_link_button_text")),
     }
 
+def parse_share_open_flow(txt: str):
+    overview = extract_json_after_marker(
+        txt, "=== [4] verify overview share/open anchors in emitted html/js ==="
+    ) or {}
+    boot = extract_json_after_marker(
+        txt, "=== [5] verify query-account boot script is before main script ==="
+    ) or {}
+    prefill = extract_json_after_marker(
+        txt, "=== [7] verify prefill logic present for open_dataset ==="
+    ) or {}
+    return {
+        "ok": "[ok] two-box remote participant share/open flow proof green" in txt,
+        "overview_ok": bool(overview.get("ok")),
+        "has_open_shared_page_btn_html": bool(overview.get("has_open_shared_page_btn_html")),
+        "has_copy_share_page_btn_html": bool(overview.get("has_copy_share_page_btn_html")),
+        "has_open_shared_page_js": bool(overview.get("has_open_shared_page_js")),
+        "has_copy_share_page_js": bool(overview.get("has_copy_share_page_js")),
+        "has_open_dataset_qs": bool(overview.get("has_open_dataset_qs")),
+        "has_datanet_hash": bool(overview.get("has_datanet_hash")),
+        "has_copy_message": bool(overview.get("has_copy_message")),
+        "boot_order_ok": bool(boot.get("ok")),
+        "prefill_ok": bool(prefill.get("ok")),
+        "has_open_input": bool(prefill.get("has_open_input")),
+        "has_open_status": bool(prefill.get("has_open_status")),
+        "has_open_dataset_qs_logic": bool(prefill.get("has_open_dataset_qs_logic")),
+        "has_prefill_status_text": bool(prefill.get("has_prefill_status_text")),
+    }
+
 pj_txt = Path(sys.argv[1]).read_text()
 pcv_txt = Path(sys.argv[2]).read_text()
 cm_txt = Path(sys.argv[3]).read_text()
 obi_txt = Path(sys.argv[4]).read_text()
 copy_txt = Path(sys.argv[5]).read_text()
+share_txt = Path(sys.argv[6]).read_text()
 
 summary = {
     "participant_js_parse_proof": parse_participant_js(pj_txt),
@@ -172,6 +204,7 @@ summary = {
     "cross_machine_participant_open_workflow_proof": parse_cross_machine_participant_open(cm_txt),
     "participant_open_by_id_workflow_proof": parse_open_by_id(obi_txt),
     "participant_copy_actions_proof": parse_copy_actions(copy_txt),
+    "participant_share_open_flow_proof": parse_share_open_flow(share_txt),
 }
 summary["product_ui_ok"] = (
     summary["participant_js_parse_proof"]["ok"] and
@@ -215,7 +248,22 @@ summary["product_ui_ok"] = (
     summary["participant_copy_actions_proof"]["has_copy_id_text"] and
     summary["participant_copy_actions_proof"]["has_copy_link_text"] and
     summary["participant_copy_actions_proof"]["has_copy_id_button_text"] and
-    summary["participant_copy_actions_proof"]["has_copy_link_button_text"]
+    summary["participant_copy_actions_proof"]["has_copy_link_button_text"] and
+    summary["participant_share_open_flow_proof"]["ok"] and
+    summary["participant_share_open_flow_proof"]["overview_ok"] and
+    summary["participant_share_open_flow_proof"]["has_open_shared_page_btn_html"] and
+    summary["participant_share_open_flow_proof"]["has_copy_share_page_btn_html"] and
+    summary["participant_share_open_flow_proof"]["has_open_shared_page_js"] and
+    summary["participant_share_open_flow_proof"]["has_copy_share_page_js"] and
+    summary["participant_share_open_flow_proof"]["has_open_dataset_qs"] and
+    summary["participant_share_open_flow_proof"]["has_datanet_hash"] and
+    summary["participant_share_open_flow_proof"]["has_copy_message"] and
+    summary["participant_share_open_flow_proof"]["boot_order_ok"] and
+    summary["participant_share_open_flow_proof"]["prefill_ok"] and
+    summary["participant_share_open_flow_proof"]["has_open_input"] and
+    summary["participant_share_open_flow_proof"]["has_open_status"] and
+    summary["participant_share_open_flow_proof"]["has_open_dataset_qs_logic"] and
+    summary["participant_share_open_flow_proof"]["has_prefill_status_text"]
 )
 print(json.dumps(summary, indent=2))
 if not summary["product_ui_ok"]:
