@@ -36141,6 +36141,93 @@ a{color:#93c5fd;text-decoration:none}
       } catch {}
     })();
 
+    // __void_datanet_consumer_fetch_v1
+    ;(() => {
+      try {
+        const APP:any = (globalThis as any).__void_http_app || (typeof app !== "undefined" ? app : null);
+        if (!APP || typeof APP.get !== "function") return;
+        if ((APP as any).__void_datanet_consumer_fetch_v1) return;
+        (APP as any).__void_datanet_consumer_fetch_v1 = true;
+
+        APP.get("/datanet/v1/consume/:id", async (req:any, res:any) => {
+          try {
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const crypto = require("node:crypto");
+
+            const who = String((req?.query?.who ?? "") || "").trim();
+            if (!who) return res.status(400).json({ ok:false, error:"missing_who" });
+
+            const id = String((req?.params?.id ?? "") || "").trim();
+            if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
+            if (!/^ds_[A-Za-z0-9_\-]+$/.test(id)) return res.status(400).json({ ok:false, error:"bad_id" });
+
+            const dir = path.join(dataDir(), "datanet_v1", "local_jobs");
+            const file = path.join(dir, id + ".txt");
+
+            const makeLocalJson = (plaintext:string, source:string, extra:any = {}) => {
+              const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
+              return {
+                ok: true,
+                who,
+                id,
+                source,
+                file,
+                sizeBytes: Buffer.byteLength(plaintext, "utf8"),
+                sha256,
+                plaintext,
+                ...extra
+              };
+            };
+
+            if (fs.existsSync(file)) {
+              const plaintext = String(fs.readFileSync(file, "utf8") || "");
+              return res.status(200).json(makeLocalJson(plaintext, "local"));
+            }
+
+            const selfBase = String(req.protocol || "http") + "://" + String(req.get("host") || "");
+            let peers:any[] = [];
+            try {
+              const rr = await fetch(selfBase + "/peers/registry");
+              if (rr.ok) {
+                const rj:any = await rr.json().catch(() => ({}));
+                peers = Array.isArray(rj?.peers) ? rj.peers : [];
+              }
+            } catch {}
+
+            for (const peer of peers) {
+              try {
+                const peerHttp = String((peer && peer.http) || "").trim();
+                if (!peerHttp) continue;
+
+                const u = new URL("/datanet/v1/local-job/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who), peerHttp).toString();
+                const pr = await fetch(u);
+                if (!pr.ok) continue;
+
+                const pj:any = await pr.json().catch(() => null);
+                const plaintext = String((pj && pj.plaintext) || "");
+                if (!plaintext) continue;
+
+                fs.mkdirSync(dir, { recursive: true });
+                fs.writeFileSync(file, plaintext, "utf8");
+
+                return res.status(200).json(makeLocalJson(plaintext, "peer_materialized", {
+                  peer_http: peerHttp
+                }));
+              } catch {}
+            }
+
+            return res.status(404).json({ ok:false, error:"not_found", id });
+          } catch (e:any) {
+            return res.status(500).json({ ok:false, error:"consume_throw", msg:String(e?.message || e) });
+          }
+        });
+
+        try { console.log("[datanet.consumer_fetch.v1] mounted: GET /datanet/v1/consume/:id"); } catch {}
+      } catch {}
+    })();
+
+
     // === [ADD] network value summary endpoint v1 ===
     ;(() => {
       try {
