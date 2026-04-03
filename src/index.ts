@@ -40848,7 +40848,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if (copyIdBtn) {
             if (firstDatasetId && firstDatasetId !== "-") {
               copyIdBtn.style.display = "";
-              copyIdBtn.onclick = () => window.__void_copyText(firstDatasetId, "Copied dataset id.");
+              copyIdBtn.onclick = () => window.__void_copyText(firstDatasetId, "Copied dataset id.", copyIdBtn);
             } else {
               copyIdBtn.style.display = "none";
               copyIdBtn.onclick = null;
@@ -40857,7 +40857,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if (copyLinkBtn) {
             if (firstDatasetId && firstDatasetId !== "-") {
               copyLinkBtn.style.display = "";
-              copyLinkBtn.onclick = () => window.__void_copyText(consumeUrl, "Copied open link.");
+              copyLinkBtn.onclick = () => window.__void_copyText(consumeUrl, "Copied open link.", copyLinkBtn);
             } else {
               copyLinkBtn.style.display = "none";
               copyLinkBtn.onclick = null;
@@ -40893,8 +40893,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                 (rawUrl
                   ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
                   : '') +
-                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ');return false;">Copy ID</button>') +
-                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ');return false;">Copy Link</button>') +
+                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
+                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy Link</button>') +
               '</td>' +
             '</tr>';
           }).join('') +
@@ -40970,8 +40970,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                 (rawUrl
                   ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
                   : '') +
-                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ');return false;">Copy ID</button>') +
-                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ');return false;">Copy Link</button>') +
+                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
+                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy Link</button>') +
               '</td>' +
             '</tr>';
           }).join('') +
@@ -41132,7 +41132,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
 
-      const copyText = async (txt, label) => {
+      const copyText = async (txt, label, btn) => {
         const value = String(txt || "");
         if (!value) return false;
         let ok = false;
@@ -41161,6 +41161,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if (openStatus) openStatus.textContent = msg;
         const latestAction = $("latestActionCard");
         if (latestAction && ok) latestAction.textContent = msg;
+        try {
+          if (btn) {
+            const original = String(btn.__void_copy_label || btn.textContent || "Copy");
+            if (!btn.__void_copy_label) btn.__void_copy_label = original;
+            btn.textContent = ok ? "Copied" : "Failed";
+            btn.disabled = true;
+            setTimeout(() => {
+              try {
+                btn.textContent = original;
+                btn.disabled = false;
+              } catch (_) {}
+            }, ok ? 1200 : 1500);
+          }
+        } catch (_) {}
         return ok;
       };
       window.__void_copyText = copyText;
