@@ -43,8 +43,12 @@ step "[5] cross-machine lifecycle proof"
 # __void_cross_machine_lifecycle_gate_v1
 bash ops/two-box-cross-machine-datanet-lifecycle-proof.sh | tee "$OUT/cross-machine-lifecycle-proof.log"
 
-step "[6] summarize"
-python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" <<'PY'
+step "[6] consumer fetch product proof"
+# __void_consumer_fetch_product_gate_v1
+bash ops/two-box-remote-consumer-fetch-product-proof.sh | tee "$OUT/consumer-fetch-product-proof.log"
+
+step "[7] summarize"
+python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" "$OUT/consumer-fetch-product-proof.log" <<'PY'
 from pathlib import Path
 import json
 import sys
@@ -132,16 +136,32 @@ def parse_cross_machine(txt: str):
         "latest_redundancy_checked_dataset": str(obj.get("latest_redundancy_checked_dataset", "")),
     }
 
+def parse_consumer_fetch(txt: str):
+    obj = extract_json_after_marker(
+        txt,
+        "=== [5] verify returned plaintext + local materialization on Alienware ==="
+    ) or {}
+    ok = "[ok] two-box remote consumer fetch product proof green" in txt
+    return {
+        "ok": ok,
+        "fetch_plaintext_ok": bool(obj.get("fetch_plaintext_ok")),
+        "local_copy_hit": bool(obj.get("local_copy_hit")),
+        "source": str(obj.get("source", "")),
+        "dataset_id": str(obj.get("dataset_id", "")),
+    }
+
 jobs_txt = Path(sys.argv[1]).read_text()
 view_txt = Path(sys.argv[2]).read_text()
 vr_txt = Path(sys.argv[3]).read_text()
 cm_txt = Path(sys.argv[4]).read_text()
+cf_txt = Path(sys.argv[5]).read_text()
 
 summary = {
     "jobs_submit_product_proof": parse_jobs_submit(jobs_txt),
     "datanet_view_proof": parse_view(view_txt),
     "verify_redundancy_product_proof": parse_vr(vr_txt),
     "cross_machine_lifecycle_proof": parse_cross_machine(cm_txt),
+    "consumer_fetch_product_proof": parse_consumer_fetch(cf_txt),
 }
 summary["golden_ok"] = (
     summary["jobs_submit_product_proof"]["ok"] and
@@ -158,7 +178,10 @@ summary["golden_ok"] = (
     summary["cross_machine_lifecycle_proof"]["ok"] and
     summary["cross_machine_lifecycle_proof"]["verify_hit"] and
     summary["cross_machine_lifecycle_proof"]["redundancy_hit"] and
-    summary["cross_machine_lifecycle_proof"]["local_copy_hit"]
+    summary["cross_machine_lifecycle_proof"]["local_copy_hit"] and
+    summary["consumer_fetch_product_proof"]["ok"] and
+    summary["consumer_fetch_product_proof"]["fetch_plaintext_ok"] and
+    summary["consumer_fetch_product_proof"]["local_copy_hit"]
 )
 print(json.dumps(summary, indent=2))
 if not summary["golden_ok"]:
