@@ -120,6 +120,16 @@ function roundNum(n, places = 8) {
   return Number(x.toFixed(places));
 }
 
+function evmUintToDecStr(v) {
+  const s = String(v || "").trim().split(/\s+/)[0];
+  if (!s) return "0";
+  if (/^0x[0-9a-fA-F]+$/.test(s)) {
+    try { return BigInt(s).toString(); } catch { return "0"; }
+  }
+  if (/^\d+$/.test(s)) return s;
+  return "0";
+}
+
 async function buildPoolJsonNative() {
   const statePath = process.env.STATE_FILE || path.join(ROOT, "docs", "VOID-WORKCREDITS-DEVNET-STATE.json");
   const protoPath = process.env.STATE_JSON || path.join(ROOT, "docs", "VOID-DEVNET-PROTOCOL-STATE.json");
@@ -154,12 +164,12 @@ async function buildPoolJsonNative() {
     throw new Error("missing live pool/token addresses");
   }
 
-  const wcRawStr = rawStr(await execFileP(
+  const wcRawStr = evmUintToDecStr(await execFileP(
     castBin,
     ["call", "--rpc-url", rpcUrl, wcAddr, "balanceOf(address)(uint256)", poolAddr],
     { encoding: "utf8" }
   ));
-  const voidRawStr = rawStr(await execFileP(
+  const voidRawStr = evmUintToDecStr(await execFileP(
     castBin,
     ["call", "--rpc-url", rpcUrl, voidAddr, "balanceOf(address)(uint256)", poolAddr],
     { encoding: "utf8" }
