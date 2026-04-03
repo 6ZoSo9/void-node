@@ -41940,6 +41940,34 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch (_) {}
   });
 
+
+  if ($("datanetOpenByIdBtn")) $("datanetOpenByIdBtn").addEventListener("click", () => {
+    try {
+      const input = $("datanetOpenByIdInput");
+      const status = $("datanetOpenByIdStatus");
+      const raw = input ? String(input.value || "").trim() : "";
+      const account = $("account")
+        ? ((String($("account").value || "").trim()) || pickInitialParticipantAccount())
+        : pickInitialParticipantAccount();
+      if (!raw) {
+        if (status) status.textContent = "Enter a dataset id first.";
+        return;
+      }
+      if (!/^ds_[A-Za-z0-9_\-]+$/.test(raw)) {
+        if (status) status.textContent = "That does not look like a dataset id.";
+        return;
+      }
+      const href = "/datanet/consume-view/" + encodeURIComponent(raw) + "?who=" + encodeURIComponent(account || "zoso");
+      if (status) status.textContent = "Opening remote dataset " + raw + "…";
+      window.location.href = href;
+    } catch (e) {
+      try {
+        const status = $("datanetOpenByIdStatus");
+        if (status) status.textContent = "Unable to open dataset by id.";
+      } catch {}
+    }
+  });
+
   if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
   if ($("refreshBtn")) $("refreshBtn").addEventListener("click", refresh);
   if ($("sendWcBtn")) $("sendWcBtn").addEventListener("click", () => sendWcNow());
