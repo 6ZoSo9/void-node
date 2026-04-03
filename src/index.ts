@@ -36604,7 +36604,7 @@ a{color:#93c5fd;text-decoration:none}
                     job_id: j?.job_id || rr?.job_id || null,
                     receipt_id: rid || rr?.receipt_id || null,
                     ok: rr?.ok === undefined ? null : !!rr.ok,
-                    status: j?.status || rr?.status || null
+                    status: rr?.status || j?.status || null
                   });
                 } catch {}
               }
@@ -40422,7 +40422,27 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       : { ok:false, reason:"no_wallet_mapping" };
 
     let connectedVoidBal = "-";
-    if (/^0x[0-9a-fA-F]{40}$/.test(connectedWallet) && relayerHealth && relayerHealth.ok && /^0x[0-9a-fA-F]{40}$/.test(String(relayerHealth.void_token || ""))) {
+    if (wcBal && Number.isFinite(Number(wcBal.void))) {
+      connectedVoidBal = String(Number(wcBal.void));
+    } else if (/^0x[0-9a-fA-F]{40}$/.test(wcAddr) && relayerHealth && relayerHealth.ok && /^0x[0-9a-fA-F]{40}$/.test(String(relayerHealth.void_token || ""))) {
+      try {
+        if (window.ethereum && window.ethereum.request) {
+          const data = "0x70a08231" + pad64(wcAddr);
+          const raw = await window.ethereum.request({
+            method: "eth_call",
+            params: [
+              { to: String(relayerHealth.void_token), data: data },
+              "latest"
+            ]
+          });
+          connectedVoidBal = formatUnits18FromHex(raw || "0x0");
+        } else {
+          connectedVoidBal = "-";
+        }
+      } catch (_) {
+        connectedVoidBal = "-";
+      }
+    } else if (/^0x[0-9a-fA-F]{40}$/.test(connectedWallet) && relayerHealth && relayerHealth.ok && /^0x[0-9a-fA-F]{40}$/.test(String(relayerHealth.void_token || ""))) {
       try {
         if (window.ethereum && window.ethereum.request) {
           const data = "0x70a08231" + pad64(connectedWallet);
@@ -40550,12 +40570,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     setText("connectedWalletVoidBig", connectedVoidBal === "-" ? "0" : connectedVoidBal);
     setText("connectedWalletVoidMini", connectedVoidBal === "-" ? "0" : connectedVoidBal);
-    setText("connectedWalletAddrMini", shortAddr(connectedWallet));
+    setText("connectedWalletAddrMini", shortAddr(wcAddr || connectedWallet));
     setText("helperRedeemableMini", redeemableTotal);
     setText(
       "connectedWalletMeta",
       isWalletAddr(connectedWallet)
-        ? ("connected wallet: " + connectedWallet + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + (wcAddr ? " | execution wallet: " + wcAddr : " | no execution wallet linked") + " | participant WC and receipts stay on the selected account")
+        ? ("connected wallet: " + connectedWallet + " | execution wallet: " + (wcAddr || connectedWallet) + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + " | participant WC and receipts stay on the selected account")
         : (wcAddr
             ? ("execution wallet: " + wcAddr + " | no connected wallet detected | participant WC is read from the selected account ledger")
             : "No connected wallet detected")
