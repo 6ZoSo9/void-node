@@ -40471,6 +40471,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const redeemedState = redeemed && redeemed.ok ? redeemed : null;
     const redeemedTotal = redeemState && Number.isFinite(Number(redeemState.redeemed)) ? Number(redeemState.redeemed) : 0;
     const redeemableTotal = redeemState && Number.isFinite(Number(redeemState.redeemable)) ? Number(redeemState.redeemable) : 0;
+    const executionWalletVoid = connectedVoidBal !== "-" && Number.isFinite(Number(connectedVoidBal))
+      ? Number(connectedVoidBal)
+      : null;
+    const executionWalletVoidText = executionWalletVoid !== null ? String(executionWalletVoid) : "0";
+
     const wcPerVoid = wcPool && wcPool.price && Number(wcPool.price.wc_per_void) > 0 ? Number(wcPool.price.wc_per_void) : null;
     const tradeInput = $("tradeInputWc") ? Number(($("tradeInputWc").value || "").trim() || "0") : 0;
     const relayerUp = !!(relayerHealth && (relayerHealth.ok || relayerHealth.status === "ok"));
@@ -40568,14 +40573,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("walletRedeemedMini", redeemedTotal);
     setText("walletRedeemableMini", redeemableTotal);
 
-    setText("connectedWalletVoidBig", connectedVoidBal === "-" ? "0" : connectedVoidBal);
-    setText("connectedWalletVoidMini", connectedVoidBal === "-" ? "0" : connectedVoidBal);
+    setText("connectedWalletVoidBig", executionWalletVoidText);
+    setText("connectedWalletVoidMini", executionWalletVoidText);
     setText("connectedWalletAddrMini", shortAddr(wcAddr || connectedWallet));
     setText("helperRedeemableMini", redeemableTotal);
     setText(
       "connectedWalletMeta",
       isWalletAddr(connectedWallet)
-        ? ("connected wallet: " + connectedWallet + " | execution wallet: " + (wcAddr || connectedWallet) + " | onchain VOID: " + (connectedVoidBal === "-" ? "0" : connectedVoidBal) + " | participant WC and receipts stay on the selected account")
+        ? ("connected wallet: " + connectedWallet + " | execution wallet: " + (wcAddr || connectedWallet) + " | onchain VOID: " + executionWalletVoidText + " | participant WC and receipts stay on the selected account")
         : (wcAddr
             ? ("execution wallet: " + wcAddr + " | no connected wallet detected | participant WC is read from the selected account ledger")
             : "No connected wallet detected")
@@ -40583,7 +40588,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     setText("tradePriceWcPerVoid", wcPerVoid !== null ? wcPerVoid : "-");
     setText("tradeWalletWc", wcBal ? wcBal.wc : "-");
-    setText("tradeWalletVoid", wcBal ? wcBal.void : "-");
+    setText("tradeWalletVoid", executionWalletVoid !== null ? executionWalletVoid : "-");
     setText("tradeRedeemableWc", redeemableTotal);
     setText("tradeQuoteVoid", quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-");
     setText("tradeRelayerState", relayerUp ? "Direct Trading Ready" : "Direct Trading Unavailable");
