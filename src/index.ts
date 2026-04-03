@@ -39338,6 +39338,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="hero-note" id="networkValueCard" style="margin-top:10px">loading…</div>
           <div class="hero-actions" style="margin-top:10px">
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Work</a>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open Shared Page</a>
             <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy Share Page</button>
           </div>
           <div class="hero-note" id="latestDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
@@ -42370,6 +42371,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         }
 
         const latestDatasetBtn = $("latestDatasetOpenBtn");
+        const latestDatasetOpenShareBtn = $("latestDatasetOpenShareBtn");
         const latestDatasetShareBtn = $("latestDatasetShareBtn");
         if (latestDatasetBtn && lrJob && lrDataset) {
           latestDatasetBtn.href = "/datanet/v1/local-job/" + encodeURIComponent(lrDataset) + "?who=" + encodeURIComponent(account);
@@ -42377,12 +42379,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           latestDatasetBtn.textContent = "Open Latest Useful Work";
           latestDatasetBtn.title = "Open dataset readback for " + lrDataset;
 
+          const shareHref =
+            window.location.origin +
+            "/participant?account=" + encodeURIComponent(account) +
+            "&open_dataset=" + encodeURIComponent(lrDataset) +
+            "#datanet";
+
+          if (latestDatasetOpenShareBtn) {
+            latestDatasetOpenShareBtn.href = shareHref;
+            latestDatasetOpenShareBtn.style.display = "";
+            latestDatasetOpenShareBtn.textContent = "Open Shared Page";
+            latestDatasetOpenShareBtn.title = "Open participant page preloaded for " + lrDataset;
+          }
+
           if (latestDatasetShareBtn) {
-            const shareHref =
-              window.location.origin +
-              "/participant?account=" + encodeURIComponent(account) +
-              "&open_dataset=" + encodeURIComponent(lrDataset) +
-              "#datanet";
             latestDatasetShareBtn.style.display = "";
             latestDatasetShareBtn.title = "Copy participant page link preloaded for " + lrDataset;
             latestDatasetShareBtn.onclick = () =>
@@ -42395,6 +42405,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           latestDatasetBtn.style.display = "none";
           latestDatasetBtn.removeAttribute("href");
           latestDatasetBtn.title = "";
+          if (latestDatasetOpenShareBtn) {
+            latestDatasetOpenShareBtn.style.display = "none";
+            latestDatasetOpenShareBtn.removeAttribute("href");
+            latestDatasetOpenShareBtn.title = "";
+          }
           if (latestDatasetShareBtn) {
             latestDatasetShareBtn.style.display = "none";
             latestDatasetShareBtn.title = "";
