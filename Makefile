@@ -363,3 +363,7 @@ two-box-golden-product-smoke:
 .PHONY: golden-smoke
 golden-smoke:
 	bash ops/two-box-golden-product-smoke.sh
+
+.PHONY: two-box-cross-machine-datanet-lifecycle-proof
+two-box-cross-machine-datanet-lifecycle-proof:
+	bash ops/two-box-cross-machine-datanet-lifecycle-proof.sh
