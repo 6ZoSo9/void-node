@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+set +o histexpand
+
+ALIEN="${ALIEN:-zoso@100.122.79.39}"
+OUT="${OUT:-/tmp/two-box-product-ui-smoke-$(date +%Y%m%d-%H%M%S)}"
+mkdir -p "$OUT"
+
+step() {
+  echo
+  echo "=== $1 ==="
+}
+
+step "[1] local + remote truth"
+git branch --show-current | tee "$OUT/local.branch.txt"
+git rev-parse --short HEAD | tee "$OUT/local.head.txt"
+git describe --tags --abbrev=0 2>/dev/null | tee "$OUT/local.tag.txt" || true
+ssh "$ALIEN" '
+set -euo pipefail
+cd "$HOME/dev/void-node"
+echo "--- remote branch ---"
+git branch --show-current
+echo "--- remote head ---"
+git rev-parse --short HEAD
+echo "--- remote latest tag ---"
+git describe --tags --abbrev=0 2>/dev/null || true
+echo "--- remote health ---"
+curl -fsS --max-time 8 http://127.0.0.1:4100/health
+echo
+' | tee "$OUT/remote.truth.txt"
+
+step "[2] participant js parse proof"
+bash ops/two-box-remote-participant-js-parse-proof.sh | tee "$OUT/participant-js-parse-proof.log"
+
+step "[3] participant consume-view proof"
+bash ops/two-box-remote-participant-consume-view-proof.sh | tee "$OUT/participant-consume-view-proof.log"
+
+step "[4] cross-machine participant open workflow proof"
+bash ops/two-box-cross-machine-participant-open-workflow-proof.sh | tee "$OUT/cross-machine-participant-open-workflow-proof.log"
+
+step "[5] summarize"
+python3 - "$OUT/participant-js-parse-proof.log" "$OUT/participant-consume-view-proof.log" "$OUT/cross-machine-participant-open-workflow-proof.log" <<'PY'
+from pathlib import Path
+import json
+import sys
+
+def extract_json_after_marker(text: str, marker: str):
+    pos = text.find(marker)
+    if pos < 0:
+        return None
+    sub = text[pos + len(marker):]
+    start = sub.find("{")
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    for idx, ch in enumerate(sub[start:], start=start):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        else:
+            if ch == '"':
+                in_str = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return json.loads(sub[start:idx+1])
+    return None
+
+def parse_participant_js(txt: str):
+    ok = "[ok] two-box remote participant js parse proof green" in txt
+    parse_ok = "=== [4] parse-check emitted browser js ===" in txt and "SyntaxError" not in txt
+    return {
+        "ok": ok,
+        "parse_ok": parse_ok,
+    }
+
+def parse_participant_consume_view(txt: str):
+    shell = extract_json_after_marker(
+        txt,
+        "=== [5] verify participant shell exposes consume-view logic ==="
+    ) or {}
+    end2end = extract_json_after_marker(
+        txt,
+        "=== [6] fetch consume-view page from Alienware for the published dataset ==="
+    ) or extract_json_after_marker(
+        txt,
+        "=== [6] verify consume-view page from Alienware for the published dataset ==="
+    ) or {}
+    ok = "[ok] two-box remote participant consume-view proof green" in txt
+    return {
+        "ok": ok,
+        "shell_ok": bool(shell.get("ok")),
+        "end_to_end_ok": bool(end2end.get("ok")),
+    }
+
+def parse_cross_machine_participant_open(txt: str):
+    obj = extract_json_after_marker(
+        txt,
+        "=== [7] verify HTML render + local materialization on Alienware ==="
+    ) or {}
+    ok = "[ok] two-box cross-machine participant open workflow proof green" in txt
+    return {
+        "ok": ok,
+        "has_html": bool(obj.get("has_html")),
+        "has_title": bool(obj.get("has_title")),
+        "has_dataset_id": bool(obj.get("has_dataset_id")),
+        "has_plaintext": bool(obj.get("has_plaintext")),
+        "has_sha256": bool(obj.get("has_sha256")),
+        "local_copy_hit": bool(obj.get("local_copy_hit")),
+        "local_job_id_ok": bool(obj.get("local_job_id_ok")),
+        "local_job_plaintext_ok": bool(obj.get("local_job_plaintext_ok")),
+    }
+
+pj_txt = Path(sys.argv[1]).read_text()
+pcv_txt = Path(sys.argv[2]).read_text()
+cm_txt = Path(sys.argv[3]).read_text()
+
+summary = {
+    "participant_js_parse_proof": parse_participant_js(pj_txt),
+    "participant_consume_view_proof": parse_participant_consume_view(pcv_txt),
+    "cross_machine_participant_open_workflow_proof": parse_cross_machine_participant_open(cm_txt),
+}
+summary["product_ui_ok"] = (
+    summary["participant_js_parse_proof"]["ok"] and
+    summary["participant_js_parse_proof"]["parse_ok"] and
+    summary["participant_consume_view_proof"]["ok"] and
+    summary["participant_consume_view_proof"]["shell_ok"] and
+    summary["participant_consume_view_proof"]["end_to_end_ok"] and
+    summary["cross_machine_participant_open_workflow_proof"]["ok"] and
+    summary["cross_machine_participant_open_workflow_proof"]["has_html"] and
+    summary["cross_machine_participant_open_workflow_proof"]["has_title"] and
+    summary["cross_machine_participant_open_workflow_proof"]["has_dataset_id"] and
+    summary["cross_machine_participant_open_workflow_proof"]["has_plaintext"] and
+    summary["cross_machine_participant_open_workflow_proof"]["has_sha256"] and
+    summary["cross_machine_participant_open_workflow_proof"]["local_copy_hit"] and
+    summary["cross_machine_participant_open_workflow_proof"]["local_job_id_ok"] and
+    summary["cross_machine_participant_open_workflow_proof"]["local_job_plaintext_ok"]
+)
+print(json.dumps(summary, indent=2))
+if not summary["product_ui_ok"]:
+    raise SystemExit("FAIL: product ui smoke did not pass cleanly")
+PY
+
+echo
+echo "[ok] two-box product ui smoke green"
+echo "[ok] proof bundle: $OUT"
