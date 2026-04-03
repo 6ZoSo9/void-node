@@ -123,7 +123,7 @@ echo "$PARTICIPANT_URL" | tee "$OUT/remote.participant.url.txt"
 curl -fsS --max-time 30 "${PARTICIPANT_URL%\#datanet}" > "$OUT/remote.participant.html"
 
 echo
-echo "=== [5] verify open-by-id UI exists on participant page ==="
+echo "=== [5] verify open-by-id UI + handler exists on participant page ==="
 python3 - "$OUT/remote.participant.html" "$LOCAL_DATASET_ID" "$ACCOUNT" <<'PY' | tee "$OUT/participant-ui-summary.json"
 import json, sys, urllib.parse
 html = open(sys.argv[1], "r", encoding="utf-8").read()
@@ -135,17 +135,25 @@ summary = {
         'id="datanetOpenByIdInput"' in html and
         'id="datanetOpenByIdBtn"' in html and
         'datanetOpenByIdStatus' in html and
-        '/datanet/consume-view/' in html
+        '/datanet/consume-view/' in html and
+        'window.location.href = href;' in html and
+        'Enter a dataset id first.' in html and
+        'That does not look like a dataset id.' in html and
+        'Unable to open dataset by id.' in html
     ),
     "has_input": 'id="datanetOpenByIdInput"' in html,
     "has_button": 'id="datanetOpenByIdBtn"' in html,
     "has_status": 'datanetOpenByIdStatus' in html,
     "has_consume_view_route": '/datanet/consume-view/' in html,
+    "has_handler_redirect": 'window.location.href = href;' in html,
+    "has_empty_guard": 'Enter a dataset id first.' in html,
+    "has_bad_id_guard": 'That does not look like a dataset id.' in html,
+    "has_error_guard": 'Unable to open dataset by id.' in html,
     "expected_open_target": expected,
 }
 print(json.dumps(summary, indent=2))
 if not summary["ok"]:
-    raise SystemExit("FAIL: participant open-by-id UI not present")
+    raise SystemExit("FAIL: participant open-by-id UI/handler not present")
 PY
 
 echo
