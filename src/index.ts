@@ -39417,6 +39417,7 @@ a{color:#93c5fd;text-decoration:none}
               <span class="s">Dataset ID or Link</span>
               <input id="datanetOpenByIdInput" placeholder="ds_... or /datanet/consume-view/..." style="padding:10px 12px;border-radius:12px;border:1px solid #334155;background:#020617;color:#e5e7eb" />
             </label>
+            <button id="datanetPasteLinkBtn" type="button" class="btn secondary" style="min-width:110px">Paste</button>
             <button id="datanetOpenByIdBtn" type="button" class="btn" style="min-width:180px">Open Remote Dataset</button>
           </div>
           <div class="hero-note" id="datanetOpenByIdStatus" style="margin-top:10px">Enter a dataset id or paste a full consume-view link.</div>
@@ -42017,6 +42018,54 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   });
 
 
+  const parseDatasetIdOrLink = (raw) => {
+    const value = String(raw || "").trim();
+    if (!value) return { datasetId: "", source: "empty" };
+    if (/^ds_[A-Za-z0-9_\-]+$/.test(value)) return { datasetId: value, source: "dataset_id" };
+    try {
+      const maybeUrl = value.startsWith("http://") || value.startsWith("https://")
+        ? new URL(value)
+        : new URL(value, window.location.origin);
+      const m = String(maybeUrl.pathname || "").match(/\/datanet\/consume-view\/([^/?#]+)/);
+      if (m && m[1]) return { datasetId: decodeURIComponent(m[1]), source: "consume_view_link" };
+    } catch (_) {}
+    return { datasetId: "", source: "invalid" };
+  };
+
+  if ($("datanetPasteLinkBtn")) $("datanetPasteLinkBtn").addEventListener("click", async () => {
+    try {
+      const input = $("datanetOpenByIdInput");
+      const status = $("datanetOpenByIdStatus");
+      if (!input) return;
+      let pasted = "";
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          pasted = String(await navigator.clipboard.readText() || "").trim();
+        }
+      } catch (_) {}
+      if (!pasted) {
+        if (status) status.textContent = "Clipboard paste is unavailable here.";
+        return;
+      }
+      input.value = pasted;
+      const parsed = parseDatasetIdOrLink(pasted);
+      if (status) {
+        if (parsed.source === "consume_view_link" && parsed.datasetId) {
+          status.textContent = "Pasted consume-view link. Extracted dataset " + parsed.datasetId + ".";
+        } else if (parsed.source === "dataset_id" && parsed.datasetId) {
+          status.textContent = "Pasted dataset id " + parsed.datasetId + ".";
+        } else {
+          status.textContent = "Pasted text into the open box.";
+        }
+      }
+    } catch (_) {
+      try {
+        const status = $("datanetOpenByIdStatus");
+        if (status) status.textContent = "Clipboard paste is unavailable here.";
+      } catch {}
+    }
+  });
+
   if ($("datanetOpenByIdBtn")) $("datanetOpenByIdBtn").addEventListener("click", () => {
     try {
       const input = $("datanetOpenByIdInput");
@@ -42030,26 +42079,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         return;
       }
 
-      let datasetId = "";
-      if (/^ds_[A-Za-z0-9_\-]+$/.test(raw)) {
-        datasetId = raw;
-      } else {
-        try {
-          const maybeUrl = raw.startsWith("http://") || raw.startsWith("https://")
-            ? new URL(raw)
-            : new URL(raw, window.location.origin);
-          const m = String(maybeUrl.pathname || "").match(/\/datanet\/consume-view\/([^/?#]+)/);
-          if (m && m[1]) datasetId = decodeURIComponent(m[1]);
-        } catch (_) {}
-      }
-
+      const parsed = parseDatasetIdOrLink(raw);
+      const datasetId = String(parsed.datasetId || "");
       if (!datasetId || !/^ds_[A-Za-z0-9_\-]+$/.test(datasetId)) {
         if (status) status.textContent = "That does not look like a dataset id or consume-view link.";
         return;
       }
 
       const href = "/datanet/consume-view/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(account || "zoso");
-      if (status) status.textContent = "Opening remote dataset " + datasetId + "…";
+      if (status) {
+        status.textContent = parsed.source === "consume_view_link"
+          ? ("Detected consume-view link. Opening dataset " + datasetId + "…")
+          : ("Opening remote dataset " + datasetId + "…");
+      }
       window.location.href = href;
     } catch (e) {
       try {
