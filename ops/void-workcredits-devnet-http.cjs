@@ -120,25 +120,62 @@ function roundNum(n, places = 8) {
   return Number(x.toFixed(places));
 }
 
-function buildPoolJsonNative() {
+async function buildPoolJsonNative() {
   const statePath = process.env.STATE_FILE || path.join(ROOT, "docs", "VOID-WORKCREDITS-DEVNET-STATE.json");
-  const state = readJsonSafe(statePath);
-  if (!state) throw new Error("missing state file: " + statePath);
+  const protoPath = process.env.STATE_JSON || path.join(ROOT, "docs", "VOID-DEVNET-PROTOCOL-STATE.json");
+  const state = readJsonSafe(statePath) || {};
+  const proto = readJsonSafe(protoPath) || {};
+  const rpcUrl = String(
+    state.rpc_url ||
+    proto.rpc_url ||
+    process.env.RPC_URL ||
+    "http://127.0.0.1:8545"
+  );
+  const castBin = process.env.CAST_BIN || "cast";
 
-  const voidRawStr = rawStr(state.void_reserve_raw);
-  const wcRawStr = rawStr(state.wc_reserve_raw);
+  const poolAddr = String(
+    state.pool_address ||
+    proto.workCreditsPoolV1 ||
+    proto.workCreditsPool ||
+    ""
+  );
+  const wcAddr = String(
+    state.workcredits_token ||
+    proto.workCreditsToken ||
+    ""
+  );
+  const voidAddr = String(
+    state.void_token ||
+    proto.voidToken ||
+    ""
+  );
+
+  if (!poolAddr || !wcAddr || !voidAddr) {
+    throw new Error("missing live pool/token addresses");
+  }
+
+  const wcRawStr = rawStr(await execFileP(
+    castBin,
+    ["call", "--rpc-url", rpcUrl, wcAddr, "balanceOf(address)(uint256)", poolAddr],
+    { encoding: "utf8" }
+  ));
+  const voidRawStr = rawStr(await execFileP(
+    castBin,
+    ["call", "--rpc-url", rpcUrl, voidAddr, "balanceOf(address)(uint256)", poolAddr],
+    { encoding: "utf8" }
+  ));
 
   const voidHuman = toHuman(voidRawStr);
   const wcHuman = toHuman(wcRawStr);
 
   return {
-    chain: String(state.chain || "devnet"),
+    chain: String(state.chain || proto.chain || "devnet"),
     up: 1,
     health: 1,
     health_5m: 1,
     pool: {
-      address: String(state.pool_address || ""),
-      rpcUrl: String(state.rpc_url || process.env.RPC_URL || "http://127.0.0.1:8545"),
+      address: poolAddr,
+      rpcUrl: rpcUrl,
     },
     reserves: {
       void_raw: voidRawStr,
