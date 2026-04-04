@@ -4,7 +4,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
-CFG="config/void-mainnet-bootstrap-mainnet.live.json"
+CFG="ops/mainnet/void-mainnet.live.json"
 ART="ops/void-mainnet-plan-artifact-v1.sh"
 
 PLAN_FILES=(

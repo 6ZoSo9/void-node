@@ -21,7 +21,7 @@ REPO="${UHOME}/dev/void-node"
 PROM_DIR="/var/lib/node_exporter/textfile_collector"
 OUTDIR="/root/void-mainnet-plan"
 
-LIVE_JSON_DEFAULT="${REPO}/config/void-mainnet-bootstrap-mainnet.live.json"
+LIVE_JSON_DEFAULT="${REPO}/ops/mainnet/void-mainnet.live.json"
 LIVE_JSON="${LIVE_JSON:-$LIVE_JSON_DEFAULT}"
 
 mkdir -p "$OUTDIR" "$PROM_DIR"

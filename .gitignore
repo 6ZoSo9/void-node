@@ -137,3 +137,7 @@ releases/
 *.new
 *.orig
 *~
+
+!ops/mainnet/void-mainnet.live.json
+!/ops/mainnet/
+!/ops/mainnet/void-mainnet.live.json
