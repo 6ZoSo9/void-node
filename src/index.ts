@@ -41894,6 +41894,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         relayer_health: relayerHealthNow || null,
         note:"Relayer is offline."
       });
+      setText("tradeOut", "Trade unavailable: relayer is offline.");
       await refresh();
       return;
     }
@@ -41910,6 +41911,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         redeemable_state: redeemableNow || null,
         note:"No redeemable WC available yet. Earn WC first, then redeem or trade."
       });
+      setText("tradeOut", "No WC is ready to trade yet. Earn or redeem WC first.");
       await refresh();
       return;
     }
@@ -41925,6 +41927,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         wallet,
         note:"Enter a WC amount greater than zero."
       });
+      setText("tradeOut", "Enter a WC amount greater than zero.");
       return;
     }
 
@@ -41940,6 +41943,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         redeemable_wc: redeemableAmt,
         note:"Requested WC is greater than your currently available WC for trading."
       });
+      setText("tradeOut", "Requested WC is greater than your currently available WC for trading.");
       await refresh();
       return;
     }
@@ -41961,6 +41965,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       quote_endpoint: LOCAL_RELAYER_BASE + "/quote",
       execute_endpoint: LOCAL_RELAYER_BASE + "/execute"
     });
+    setText("tradeOut", "Executing trade for " + amount + " WC" + (wallet ? (" using wallet " + wallet) : "") + "...");
 
     try {
       const out = await j(LOCAL_RELAYER_BASE + "/execute", {
@@ -41990,9 +41995,24 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : ((out && out.note) || "Trade execution failed.")
       });
 
+      if (out && out.ok) {
+        const amountOut = Number.isFinite(Number(out.amount_out)) ? Number(out.amount_out) : null;
+        const amountOutText = amountOut !== null ? String(amountOut) : "?";
+        const txBits = [approveHash, swapHash].filter(Boolean);
+        setText(
+          "tradeOut",
+          "Trade executed: spent " + amount + " WC for about " + amountOutText + " VOID" +
+          (wallet ? (" using " + wallet) : "") +
+          (txBits.length ? (" • txs: " + txBits.join(", ")) : "")
+        );
+      } else {
+        setText("tradeOut", (out && out.note) ? String(out.note) : "Trade execution failed.");
+      }
+
       await refresh();
     } catch (e) {
       setPre("tradeStateOut", { ok:false, execute:false, error:String(e) });
+      setText("tradeOut", "Trade execution failed: " + String(e));
     } finally {
       if (btn) {
         btn.disabled = false;
