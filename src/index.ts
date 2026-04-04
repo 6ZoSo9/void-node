@@ -36217,10 +36217,39 @@ a{color:#93c5fd;text-decoration:none}
               } catch {}
             }
 
+            const selfHost = String(req.get("host") || "").trim();
+            const tried = new Set<string>();
+
             for (const peer of peers) {
               try {
-                const peerHttp = String((peer && peer.http) || "").trim();
+                let peerHttp = String((peer && peer.http) || "").trim();
+                const peerP2p = String((peer && peer.p2p) || "").trim();
+
+                if (peerHttp) {
+                  try {
+                    const pu = new URL(peerHttp);
+                    const ph = String(pu.host || "").trim();
+                    const hn = String(pu.hostname || "").trim();
+                    if (!ph || ph === selfHost || hn === "127.0.0.1" || hn === "localhost") {
+                      peerHttp = "";
+                    }
+                  } catch {
+                    peerHttp = "";
+                  }
+                }
+
+                if (!peerHttp && peerP2p) {
+                  try {
+                    const host = String(peerP2p).split(":")[0].trim();
+                    if (host && host !== "127.0.0.1" && host !== "localhost") {
+                      peerHttp = "http://" + host + ":4100";
+                    }
+                  } catch {}
+                }
+
                 if (!peerHttp) continue;
+                if (tried.has(peerHttp)) continue;
+                tried.add(peerHttp);
 
                 const u = new URL("/datanet/v1/local-job/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who), peerHttp).toString();
                 const pr = await fetch(u);
