@@ -36191,6 +36191,32 @@ a{color:#93c5fd;text-decoration:none}
               }
             } catch {}
 
+            if (!Array.isArray(peers) || peers.length === 0) {
+              try {
+                const pr = await fetch(selfBase + "/peers");
+                if (pr.ok) {
+                  const pj:any = await pr.json().catch(() => ({}));
+                  const connected = Array.isArray(pj?.connected) ? pj.connected : [];
+                  const mapped:any[] = [];
+                  for (const c of connected) {
+                    try {
+                      const listens = Array.isArray(c?.listens) ? c.listens : [];
+                      const addr = String((listens[0] || c?.addr || "")).trim();
+                      if (!addr) continue;
+                      const host = String(addr).split(":")[0].trim();
+                      if (!host) continue;
+                      mapped.push({
+                        id: String(c?.id || ""),
+                        http: "http://" + host + ":4100",
+                        p2p: addr
+                      });
+                    } catch {}
+                  }
+                  if (mapped.length > 0) peers = mapped;
+                }
+              } catch {}
+            }
+
             for (const peer of peers) {
               try {
                 const peerHttp = String((peer && peer.http) || "").trim();
