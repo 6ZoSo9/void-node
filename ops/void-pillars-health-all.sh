@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROM="${PROM_URL:-http://127.0.0.1:9090}"
 
-DN_OVERALL_WITH_TIMER="$(curl -fsS -G "$PROM/api/v1/query" --data-urlencode 'query=void_datanet_overall_health_effective' | jq -r '.data.result[0].value[1] // empty' 2>/dev/null || true)"
+DN_OVERALL_WITH_TIMER="$(curl -fsS -G "$PROM/api/v1/query" --data-urlencode 'query=max(void_datanet_overall_health_by_target)' | jq -r '.data.result[0].value[1] // empty' 2>/dev/null || true)"
 
 urlenc() {
   python3 - <<'PY' "$1"
@@ -32,10 +32,10 @@ void_mainnet_core_manifest_health="$(q 'void_mainnet_core_manifest_health')"
 void_mainnet_core_manifest_days="$(q 'void_mainnet_core_manifest_days')"
 chosen_manifest_days="$(q 'chosen_manifest_days')"
 
-void_datanet_overall_health="$(q 'void_datanet_overall_health')"
+void_datanet_overall_health="$(q 'max(void_datanet_overall_health_by_target)')"
 
 void_datanet_ok="$([ "${DN_OVERALL_WITH_TIMER:-0}" = "1" ] && echo 1 || echo 0)"
-void_datanet_last_ok_age_seconds="$(q 'void_datanet_last_ok_age_seconds')"
+void_datanet_last_ok_age_seconds="$(q 'max(void_datanet_receipts_file_age_seconds)')"
 
 echo
 echo "[pillars] === key ==="
@@ -47,7 +47,7 @@ printf "  %-34s = %s\n" "void_mainnet_core_manifest_health" "$void_mainnet_core_
 printf "  %-34s = %s\n" "void_mainnet_core_manifest_days" "$void_mainnet_core_manifest_days"
 printf "  %-34s = %s\n" "chosen_manifest_days" "$chosen_manifest_days"
 printf "  %-34s = %s\n" "void_datanet_overall_health" "$void_datanet_overall_health"
-  printf "  void_datanet_overall_health_effective = %s\n" "${DN_OVERALL_WITH_TIMER:-}"
+printf "  %-34s = %s\n" "void_datanet_overall_health_effective" "${DN_OVERALL_WITH_TIMER:-}"
 printf "  %-34s = %s\n" "void_datanet_last_ok_age_seconds" "$void_datanet_last_ok_age_seconds"
 
 echo

@@ -376,3 +376,20 @@ two-box-post-ui-trade-gate:
 two-box-post-ui-trade-gate-proof: two-box-post-ui-trade-gate
 
 product-golden-proof-v2: two-box-post-ui-trade-gate
+
+.PHONY: void-pillars-preflight
+void-pillars-preflight:
+	@bash ops/void-pillars-preflight.sh
+
+.PHONY: void-pillars-health-all
+void-pillars-health-all:
+	@bash ops/void-pillars-health-all.sh
+
+.PHONY: void-mainnet-pillars-preflight
+void-mainnet-pillars-preflight:
+	@bash ops/void-mainnet-pillars-preflight.sh
+
+.PHONY: void-full3-truth-sweep-health
+void-full3-truth-sweep-health:
+	@bash ops/void-full3-truth-sweep-health.sh
+
