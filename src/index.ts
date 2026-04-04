@@ -35471,7 +35471,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     removeExact(app, "get", "/__void/peer-main-status.json");
 
     app.get("/__void/peer-main-status.json", async (_req:any, res:any) => {
-      const mainBase = "http://127.0.0.1:4100";
+      const mainBase = String(process.env.VOID_MAIN_BASE || "http://127.0.0.1:4100");
       const localBase = `http://127.0.0.1:${process.env.HTTP_PORT || 4100}`;
 
       let localHealth:any = null;
