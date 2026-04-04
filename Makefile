@@ -367,3 +367,12 @@ golden-smoke:
 .PHONY: two-box-cross-machine-datanet-lifecycle-proof
 two-box-cross-machine-datanet-lifecycle-proof:
 	bash ops/two-box-cross-machine-datanet-lifecycle-proof.sh
+
+
+.PHONY: two-box-post-ui-trade-gate two-box-post-ui-trade-gate-proof product-golden-proof-v2
+two-box-post-ui-trade-gate:
+	bash ops/two-box-post-ui-trade-gate.sh
+
+two-box-post-ui-trade-gate-proof: two-box-post-ui-trade-gate
+
+product-golden-proof-v2: two-box-post-ui-trade-gate
