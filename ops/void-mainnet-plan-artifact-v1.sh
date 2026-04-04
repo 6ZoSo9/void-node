@@ -42,6 +42,26 @@ PY
 )"
 [[ -n "$CHAIN_ID" ]] || { echo "[ERR] LIVE_JSON missing .chainId"; exit 3; }
 echo "CHAIN_ID = $CHAIN_ID"
+
+MODE="$(python3 - "$LIVE_JSON" <<'PY'
+import json,sys
+j=json.load(open(sys.argv[1],"r"))
+print(j.get("mode",""))
+PY
+)"
+STATUS="$(python3 - "$LIVE_JSON" <<'PY'
+import json,sys
+j=json.load(open(sys.argv[1],"r"))
+print(j.get("status",""))
+PY
+)"
+echo "MODE     = $MODE"
+echo "STATUS   = $STATUS"
+
+if [[ "$MODE" == "mainnet_plan_stub" && "$STATUS" == "stub_only_not_live" ]]; then
+  echo "[info] pinned live json is an intentional stub-only mainnet plan"
+fi
+
 CAST="/home/zoso/.foundry/bin/cast"
 RPC_DEFAULT="http://127.0.0.1:8545"
 RPC_URL="${RPC_URL:-$RPC_DEFAULT}"

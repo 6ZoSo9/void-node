@@ -19,9 +19,18 @@ if [[ ! -f "$CFG" ]]; then
   exit 1
 fi
 
-# (2) config must be valid JSON (do NOT print it)
+# (2) config must be valid JSON and match pinned stub shape (do NOT print it)
 if command -v jq >/dev/null 2>&1; then
   jq -e . "$CFG" >/dev/null 2>&1 || { echo "bad_roles: invalid_json"; exit 1; }
+  jq -e '
+    .chainId == 2050 and
+    .mode == "mainnet_plan_stub" and
+    .status == "stub_only_not_live" and
+    .keys_source == "luks_flash_drives" and
+    .premine_model.type == "segmented_offline_vaults" and
+    .premine_model.vault_count == 30 and
+    (.premine_vaults | length) == 30
+  ' "$CFG" >/dev/null 2>&1 || { echo "bad_roles: pinned_stub_schema_mismatch"; exit 1; }
 fi
 
 # (3) artifact script must exist + be executable
