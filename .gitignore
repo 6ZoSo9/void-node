@@ -128,3 +128,12 @@ ops/preload/*
 releases/
 
 !config/update-pubkey.v1.pem
+
+# local backup/temp junk
+*.bak
+*.bak.*
+*.tmp
+*.tmp.*
+*.new
+*.orig
+*~
