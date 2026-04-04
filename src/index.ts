@@ -29632,6 +29632,10 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
         else if (Array.isArray(body.persisted)) txsLen = body.persisted.length;
         else if (Array.isArray(body.txsPersisted)) txsLen = body.txsPersisted.length;
       }
+      if (txsLen == null && body.hasBlock === true) {
+        txsLen = 0;
+      }
+
       if (txsLen != null && Number.isFinite(Number(txsLen))) {
         const n = Number(txsLen);
         body.txsLen = n;
