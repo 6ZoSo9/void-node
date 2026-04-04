@@ -38375,6 +38375,17 @@ a{color:#93c5fd;text-decoration:none}
           }
         } catch {}
 
+        const latestByJob = new Map<string, any>();
+        for (const row of jobs) {
+          const jobId = String(row?.job_id || row?.id || "").trim();
+          if (!jobId) continue;
+          const prev = latestByJob.get(jobId);
+          const rowTs = Number(row?.completed_at_ms || row?.created_at_ms || row?.ts_ms || 0);
+          const prevTs = prev ? Number(prev?.completed_at_ms || prev?.created_at_ms || prev?.ts_ms || 0) : -1;
+          if (!prev || rowTs >= prevTs) latestByJob.set(jobId, row);
+        }
+        jobs = Array.from(latestByJob.values());
+
         if (account) {
           jobs = jobs.filter((j:any) => {
             const acct = String(j?.account || j?.who || j?.owner || "").trim();
@@ -38383,8 +38394,8 @@ a{color:#93c5fd;text-decoration:none}
         }
 
         jobs.sort((a:any, b:any) => {
-          const ax = Number(a?.created_at_ms || a?.ts_ms || 0);
-          const bx = Number(b?.created_at_ms || b?.ts_ms || 0);
+          const ax = Number(a?.completed_at_ms || a?.created_at_ms || a?.ts_ms || 0);
+          const bx = Number(b?.completed_at_ms || b?.created_at_ms || b?.ts_ms || 0);
           return ax - bx;
         });
 
