@@ -14472,19 +14472,11 @@ void_header3_last_mismatch ${lastMismatch}
         const lines:string[] = [];
 
         // Legacy names to keep panels working
-        lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
-        lines.push("# TYPE void_proposer_auto_enabled gauge");
-        lines.push("void_proposer_auto_enabled " + enabled);
-
         lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
         lines.push("# TYPE void_proposer_auto_ms gauge");
         lines.push("void_proposer_auto_ms " + ms);
 
         // v2 unambiguous names
-        lines.push("# HELP void_proposer_auto_enabled_v2 Proposer auto-loop enabled (1/0) [v2]");
-        lines.push("# TYPE void_proposer_auto_enabled_v2 gauge");
-        lines.push("void_proposer_auto_enabled_v2 " + enabled);
-
         lines.push("# HELP void_proposer_auto_ms_v2 Proposer tick interval in ms (NaN if unknown) [v2]");
         lines.push("# TYPE void_proposer_auto_ms_v2 gauge");
         lines.push("void_proposer_auto_ms_v2 " + ms);
@@ -14593,6 +14585,14 @@ void_header3_last_mismatch ${lastMismatch}
         lines.push("# TYPE void_proposer_auto_ms_v2 gauge");
         lines.push("void_proposer_auto_ms_v2 " + (Number.isFinite(ms)?ms:"NaN"));
 
+        lines.push("# HELP void_proposer_effective_enabled Effective proposer enabled (1/0)");
+        lines.push("# TYPE void_proposer_effective_enabled gauge");
+        lines.push("void_proposer_effective_enabled " + enabled);
+
+        lines.push("# HELP void_proposer_effective_ms Effective proposer tick interval in ms (NaN if unknown)");
+        lines.push("# TYPE void_proposer_effective_ms gauge");
+        lines.push("void_proposer_effective_ms " + (Number.isFinite(ms)?ms:"NaN"));
+
         lines.push("# HELP void_proposer_exporter_ts_ms_v2 Exporter generation timestamp (ms since epoch) [v2]");
         lines.push("# TYPE void_proposer_exporter_ts_ms_v2 gauge");
         lines.push("void_proposer_exporter_ts_ms_v2 " + (truth.ts_ms||Date.now()));
@@ -14686,17 +14686,9 @@ void_header3_last_mismatch ${lastMismatch}
         const ms = Number.isFinite(truth.ms) ? Number(truth.ms) : NaN;
 
         const lines:string[] = [];
-        lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
-        lines.push("# TYPE void_proposer_auto_enabled gauge");
-        lines.push("void_proposer_auto_enabled " + enabled);
-
         lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
         lines.push("# TYPE void_proposer_auto_ms gauge");
         lines.push("void_proposer_auto_ms " + (Number.isFinite(ms)?ms:"NaN"));
-
-        lines.push("# HELP void_proposer_auto_enabled_v2 Proposer auto-loop enabled (1/0) [v2]");
-        lines.push("# TYPE void_proposer_auto_enabled_v2 gauge");
-        lines.push("void_proposer_auto_enabled_v2 " + enabled);
 
         lines.push("# HELP void_proposer_auto_ms_v2 Proposer tick interval in ms (NaN if unknown) [v2]");
         lines.push("# TYPE void_proposer_auto_ms_v2 gauge");
