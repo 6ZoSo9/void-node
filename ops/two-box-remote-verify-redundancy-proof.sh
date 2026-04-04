@@ -182,16 +182,23 @@ publish_receipt_id = sys.argv[9]
 verify_receipt_id = sys.argv[10]
 redund_receipt_id = sys.argv[11]
 
-def job_ok(obj, kind):
+def job_ok(obj, kind, receipt_id):
     job = obj.get("job") or {}
-    assert str(job.get("kind") or "") == kind, f"{kind} job kind mismatch: {job.get('kind')}"
+    receipts = obj.get("receipts") or []
+    rid = str(job.get("receipt_id") or "")
     assert str(job.get("status") or "") == "completed", f"{kind} job not completed: {job.get('status')}"
     assert str(job.get("dataset_id") or "") == dataset_id, f"{kind} dataset mismatch: {job.get('dataset_id')} vs {dataset_id}"
+    assert rid == receipt_id, f"{kind} receipt_id mismatch: {rid} vs {receipt_id}"
+    if receipts:
+        r0 = receipts[0] or {}
+        assert str(r0.get("kind") or "") == kind, f"{kind} receipt kind mismatch in job payload: {r0.get('kind')}"
+        assert str(r0.get("receipt_id") or "") == receipt_id, f"{kind} receipt_id mismatch in job payload"
+        assert str(r0.get("dataset_id") or "") == dataset_id, f"{kind} receipt dataset mismatch in job payload"
     return job
 
-job_ok(publish_job, "datanet_publish")
-job_ok(verify_job, "datanet_fetch_verify")
-job_ok(redund_job, "datanet_redundancy_check")
+job_ok(publish_job, "datanet_publish", publish_receipt_id)
+job_ok(verify_job, "datanet_fetch_verify", verify_receipt_id)
+job_ok(redund_job, "datanet_redundancy_check", redund_receipt_id)
 
 receipts = receipts_http.get("receipts") or []
 by_id = {str(r.get("receipt_id") or ""): r for r in receipts}
