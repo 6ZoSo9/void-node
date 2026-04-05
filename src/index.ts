@@ -39784,7 +39784,7 @@ a{color:#93c5fd;text-decoration:none}
         </details>
 
         <details class="adv" style="margin-top:12px">
-          <summary><span>Trade Result</span><span class="pill">raw json</span></summary>
+          <summary><span>Trade Summary</span><span class="pill">details</span></summary>
           <div class="adv-body">
             <pre id="tradeOut">Ready to trade WC for VOID.</pre>
           </div>
@@ -40683,10 +40683,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       if ($("tradeSummary")) {
         $("tradeSummary").textContent = !relayerUp
-          ? "Trading is unavailable right now. WC can still be prepared on the Wallet tab."
+          ? "Trading is unavailable right now. You can still prepare WC on the Wallet tab."
           : (!hasRedeemable
-              ? "No WC is prepared for trading yet. Prepare WC first on the Wallet tab."
-              : "WC is prepared and the trade path is ready. You can execute the trade now.");
+              ? "No WC is ready for trading yet. Prepare WC on the Wallet tab first."
+              : "WC is ready and the trade path is live. You can execute the trade now.");
       }
     }
 
@@ -41520,11 +41520,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       const tradeOverviewText =
         !walletReady
-          ? "Connect a wallet to trade WC for VOID."
+          ? "Connect a wallet to execute a trade."
           : !relayerUp
-            ? ("Trading unavailable • " + redeemableTotal + " WC is still available on your participant side.")
+            ? ("Trading is unavailable right now • " + redeemableTotal + " WC is still available to prepare from your participant side.")
             : !hasRedeemable
-              ? "No WC is ready to trade yet • Earn or move WC first."
+              ? "No WC is ready for trading yet • Earn WC or prepare it on the Wallet tab first."
               : ("Ready to trade " + redeemableTotal + " WC for about " + quoteText + " VOID" +
                  (wcAddrShort ? (" • Wallet " + wcAddrShort) : ""));
 
@@ -42028,7 +42028,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       ? (($("redeemWallet").value || "").trim())
       : (isWalletAddr(getConnectedWallet()) ? getConnectedWallet() : "");
     const btn = $("tradeExecuteBtn");
-    const prevText = btn ? btn.textContent : "Swap WC for VOID";
+    const prevText = btn ? btn.textContent : "Execute Trade";
 
     let redeemableNow = null;
     let relayerHealthNow = null;
@@ -42055,6 +42055,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         note:"Relayer is offline."
       });
       setText("tradeOut", "Trade unavailable: relayer is offline.");
+      setLatestAction("Trade unavailable right now. The relayer is offline.");
       await refresh();
       return;
     }
@@ -42072,6 +42073,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         note:"No redeemable WC available yet. Earn WC first, then redeem or trade."
       });
       setText("tradeOut", "No WC is ready to trade yet. Earn or move WC first.");
+      setLatestAction("No WC is prepared for trading yet.");
       await refresh();
       return;
     }
@@ -42088,6 +42090,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         note:"Enter a WC amount greater than zero."
       });
       setText("tradeOut", "Enter a WC amount greater than zero.");
+      setLatestAction("Enter a WC amount greater than zero before trading.");
       return;
     }
 
@@ -42104,6 +42107,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         note:"Requested WC is greater than your currently available WC for trading."
       });
       setText("tradeOut", "Requested WC is greater than your currently available WC for trading.");
+      setLatestAction("Requested WC is greater than the amount currently prepared for trading.");
       await refresh();
       return;
     }
@@ -42126,6 +42130,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       execute_endpoint: LOCAL_RELAYER_BASE + "/execute"
     });
     setText("tradeOut", "Executing trade for " + amount + " WC" + (wallet ? (" using wallet " + wallet) : "") + "...");
+    setLatestAction("Executing trade for " + amount + " WC" + (wallet ? (" using " + wallet) : "") + "...");
 
     try {
       const out = await j(LOCAL_RELAYER_BASE + "/execute", {
@@ -42158,25 +42163,30 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (out && out.ok) {
         const amountOut = Number.isFinite(Number(out.amount_out)) ? Number(out.amount_out) : null;
         const amountOutText = amountOut !== null ? String(amountOut) : "?";
-        const txBits = [approveHash, swapHash].filter(Boolean);
-        setText(
-          "tradeOut",
-          "Trade executed: spent " + amount + " WC for about " + amountOutText + " VOID" +
-          (wallet ? (" using " + wallet) : "") +
-          (txBits.length ? (" • txs: " + txBits.join(", ")) : "")
-        );
+        const shortWallet = wallet ? (String(wallet).slice(0, 8) + "…" + String(wallet).slice(-6)) : "";
+        const txCount = [approveHash, swapHash].filter(Boolean).length;
+        const successText =
+          "Trade complete • Spent " + amount + " WC • Received about " + amountOutText + " VOID" +
+          (shortWallet ? (" • Wallet " + shortWallet) : "") +
+          (txCount ? (" • " + txCount + " transaction" + (txCount === 1 ? "" : "s")) : "");
+        setText("tradeOut", successText);
+        setLatestAction(successText);
       } else {
-        setText("tradeOut", (out && out.note) ? String(out.note) : "Trade execution failed.");
+        const failText = (out && out.note) ? String(out.note) : "Trade execution failed.";
+        setText("tradeOut", failText);
+        setLatestAction(failText);
       }
 
       await refresh();
     } catch (e) {
+      const errText = "Trade execution failed: " + String(e);
       setPre("tradeStateOut", { ok:false, execute:false, error:String(e) });
-      setText("tradeOut", "Trade execution failed: " + String(e));
+      setText("tradeOut", errText);
+      setLatestAction(errText);
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prevText || "Swap WC for VOID";
+        btn.textContent = prevText || "Execute Trade";
       }
     }
   });
