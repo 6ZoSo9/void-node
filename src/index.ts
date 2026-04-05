@@ -41512,11 +41512,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       const tradeOverviewText =
         !walletReady
-          ? "Connect a wallet to redeem WC and trade for VOID."
+          ? "Connect a wallet to trade WC for VOID."
           : !relayerUp
-            ? ("Trading is temporarily unavailable • " + redeemableTotal + " WC is still spendable on your participant side.")
+            ? ("Trading unavailable • " + redeemableTotal + " WC is still available on your participant side.")
             : !hasRedeemable
-              ? "No spendable WC is ready yet • Earn or redeem WC first."
+              ? "No WC is ready to trade yet • Earn or move WC first."
               : ("Ready to trade " + redeemableTotal + " WC for about " + quoteText + " VOID" +
                  (wcAddrShort ? (" • Wallet " + wcAddrShort) : ""));
 
@@ -41735,10 +41735,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         const redeemSummaryText =
           !hasWallet
-            ? "Connect a wallet to move WC into the trade path."
+            ? "Connect a wallet to prepare WC for trading."
             : (redeemableNow > 0
-                ? ("Ready to move up to " + redeemableNow + " WC into the trade path.")
-                : "No spendable WC is ready yet. Earn WC first.");
+                ? ("Ready to move " + redeemableNow + " WC into trading.")
+                : "No WC is ready to move yet • Earn WC first.");
 
         if ($("redeemSummary")) {
           $("redeemSummary").innerHTML =
@@ -41748,8 +41748,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         if ($("redeemBtn")) {
           $("redeemBtn").textContent = !hasWallet
-            ? "Connect Wallet First"
-            : (redeemableNow > 0 ? "Move WC to Trade" : "No WC Ready");
+            ? "Connect Wallet"
+            : (redeemableNow > 0 ? "Move WC to Trading" : "No WC Ready");
         }
       } catch {}
 
@@ -42054,7 +42054,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         redeemable_state: redeemableNow || null,
         note:"No redeemable WC available yet. Earn WC first, then redeem or trade."
       });
-      setText("tradeOut", "No WC is ready to trade yet. Earn or redeem WC first.");
+      setText("tradeOut", "No WC is ready to trade yet. Earn or move WC first.");
       await refresh();
       return;
     }
