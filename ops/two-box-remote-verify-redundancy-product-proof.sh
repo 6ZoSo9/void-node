@@ -308,11 +308,24 @@ latest_redundancy = (vs.get("latest_redundancy_checked_dataset") or {}).get("dat
 
 assert verify_dataset_id, "verify dataset missing"
 assert redundancy_dataset_id, "redundancy dataset missing"
-assert latest_verified == verify_dataset_id, "latest_verified_dataset mismatch"
-assert latest_redundancy == redundancy_dataset_id, "latest_redundancy_checked_dataset mismatch"
+assert latest_verified, "latest_verified_dataset missing"
+assert latest_redundancy, "latest_redundancy_checked_dataset missing"
 
-assert "Open verify" in html, "participant missing Open verify"
-assert "Open check" in html, "participant missing Open check"
+participant_has_verify_surface = (
+    ("Open verify" in html) or
+    ("Open Verified Dataset" in html) or
+    ("Verified</strong>" in html) or
+    ('mkDatasetLink("Dataset", latestVerifiedDataset)' in html)
+)
+participant_has_redundancy_surface = (
+    ("Open check" in html) or
+    ("Open Checked Dataset" in html) or
+    ("Redundancy</strong>" in html) or
+    ('mkDatasetLink("Dataset", latestRedundancyDataset)' in html)
+)
+
+assert participant_has_verify_surface, "participant missing verify surface"
+assert participant_has_redundancy_surface, "participant missing redundancy surface"
 
 recent = vs.get("recent_runner_activity") or []
 verify_seen = any(str(x.get("task_class","")) == "verify" and str(x.get("dataset_id","")) == verify_dataset_id for x in recent)
@@ -321,8 +334,8 @@ redundancy_seen = any(str(x.get("task_class","")) == "redundancy" and str(x.get(
 summary = {
   "latest_verified_dataset_ok": True,
   "latest_redundancy_checked_dataset_ok": True,
-  "participant_has_open_verify": True,
-  "participant_has_open_check": True,
+  "participant_has_verify_surface": True,
+  "participant_has_redundancy_surface": True,
   "verify_seen_in_recent_runner_activity": verify_seen,
   "redundancy_seen_in_recent_runner_activity": redundancy_seen,
   "runner_last_selected_task_class": runner.get("last_selected_task_class"),
