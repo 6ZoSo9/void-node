@@ -42579,8 +42579,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           lrJob
             ? ("Latest useful work: " + runnerLastResultLabel +
                " • " + runnerTaskLabel +
-               (lrDataset ? (" • Dataset: " + lrDataset) : "") +
-               (lrReceipt ? (" • Receipt: " + lrReceipt) : ""))
+               (lrDataset ? " • Dataset ready" : "") +
+               (lrReceipt ? " • Receipt ready" : ""))
             : (runnerEnabled
                 ? "Earn Work Credits is on. Waiting for the next approved useful task."
                 : "Earn Work Credits is off. Turn it on to allow approved useful work.")
@@ -42649,15 +42649,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           }
         }
       } catch {}
-      setText(
-        "wcRunnerMeta",
-        runnerStatus && runnerStatus.ok
-          ? ("Mode: " + String(runnerStatus.mode || "agent_auto_only") +
-             " • Override: " + String(runnerStatus.user_override || "stop_only") +
-             " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only") +
-             (runnerStatus.safe_mode ? " • Safe Mode clamps limits conservatively" : ""))
-          : "Agent-selected useful work runs here. Stop only."
-      );
       setText("wcRunnerSafeModeMini", runnerConfig && runnerConfig.ok ? (runnerConfig.safe_mode ? "ON" : "OFF") : "-");
       setText(
         "wcRunnerJobsPerHourMini",
