@@ -127,6 +127,36 @@ curl -fsS --max-time 6 "$NODE_BASE/participant" > /tmp/alienware.participant.$$
 head -c 200 /tmp/alienware.participant.$$ || true
 rm -f /tmp/alienware.participant.$$
 echo
+echo "--- node /ready gate"
+READY_OK=0
+for i in $(seq 1 15); do
+  READY_JSON="$(curl -fsS --max-time 6 "$NODE_BASE/__void/ready.json" || true)"
+  printf '%s\n' "$READY_JSON" | tee /tmp/alienware.ready.$$.json >/dev/null
+  if python3 - "$READY_JSON" <<'PY2'
+import json, sys
+try:
+    o = json.loads(sys.argv[1])
+except Exception:
+    raise SystemExit(1)
+assert o.get("ready") is True
+assert int(o.get("gap", -1)) == 0
+assert int(o.get("txroot_live", 0)) == 1
+print("ok")
+PY2
+  then
+    READY_OK=1
+    echo "[ok] ready gate passed on poll=$i"
+    break
+  fi
+  echo "[wait] ready gate not passed yet poll=$i"
+  sleep 2
+done
+if [ "$READY_OK" != "1" ]; then
+  echo "[fail] ready gate did not pass" >&2
+  exit 1
+fi
+cat /tmp/alienware.ready.$$.json
+echo
 echo "--- helper /pool.json"
 curl -fsS --max-time 6 "$HELPER_BASE/pool.json" | tee /tmp/alienware.helper.$$.json
 echo
