@@ -136,12 +136,17 @@ for i in $(seq 1 15); do
 import json, sys
 try:
     o = json.loads(sys.argv[1])
+    ok = (
+        o.get("ready") is True and
+        int(o.get("gap", -1)) == 0 and
+        int(o.get("txroot_live", 0)) == 1
+    )
 except Exception:
-    raise SystemExit(1)
-assert o.get("ready") is True
-assert int(o.get("gap", -1)) == 0
-assert int(o.get("txroot_live", 0)) == 1
-print("ok")
+    ok = False
+if ok:
+    print("ok")
+    raise SystemExit(0)
+raise SystemExit(1)
 PY2
   then
     READY_OK=1
