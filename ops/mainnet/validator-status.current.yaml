@@ -5,20 +5,20 @@ reward_address: "0xTBD"
 consensus_key: "0xTBD"
 
 expected_branch: main
-expected_version: TBD
-expected_config_identity: TBD
-current_reported_version: TBD
-current_reported_config_identity: TBD
+expected_version: 1
+expected_config_identity: two-box-mainnet0-baseline
+current_reported_version: 1
+current_reported_config_identity: two-box-mainnet0-baseline
 
 status: candidate
-status_reason: placeholder starter record
-status_last_changed_at: TBD
+status_reason: two-box mainnet0 readiness proof green
+status_last_changed_at: 2026-04-05T01:49:42Z
 
-last_known_head: TBD
-last_known_health: TBD
-last_known_drift: TBD
-checkpoint_awareness_status: TBD
-incident_response_readiness: TBD
+last_known_head: 1607
+last_known_health: ok=true
+last_known_drift: 0
+checkpoint_awareness_status: baseline-observe
+incident_response_readiness: policy-stack-sanity-green
 
 warning_count: 0
 pause_count: 0
@@ -26,5 +26,9 @@ last_warning_at: null
 last_pause_at: null
 last_incident_involved: null
 
-notes: []
-operator_comments: []
+notes:
+  - "node_id=53a5268cd87aa0ed5b5cedb24f7ac734"
+  - "same_node=false"
+  - "peer_head_gap=0"
+operator_comments:
+  - "Stamped from live two-box mainnet0 readiness proof."

@@ -1,15 +1,15 @@
-incident_id: INC-PLACEHOLDER-001
-started_at: TBD
+incident_id: INC-BASELINE-OBSERVE-001
+started_at: 2026-04-05T01:49:42Z
 operator_label: zoso
-severity_tier: TBD
+severity_tier: R0
 classification: local anomaly
 
-local_head_height: TBD
+local_head_height: 1607
 local_head_hash: TBD
-peer_head_height: TBD
+peer_head_height: 1607
 peer_head_hash: TBD
-disputed_height: TBD
-disputed_hash: TBD
+disputed_height: none
+disputed_hash: none
 parent_height: TBD
 parent_hash: TBD
 
@@ -17,20 +17,20 @@ accepted_checkpoint_height: TBD
 accepted_checkpoint_hash: TBD
 checkpoint_challenged: false
 checkpoint_crossed_by_reorg: false
-checkpoint_notes: ""
+checkpoint_notes: "Baseline two-box observation; no checkpoint incident."
 
-observed_reorg_depth: TBD
-observed_reorg_frequency: TBD
-convergence_status: TBD
-validator_convergence_status: TBD
-branch_notes: ""
+observed_reorg_depth: 0
+observed_reorg_frequency: 0
+convergence_status: converged
+validator_convergence_status: converged
+branch_notes: "Both boxes ready with gap=0 and peer head gap=0."
 
 suspected_bad_block: false
 suspected_invalid_state: false
 txroot_or_header_evidence: ""
 persisted_state_evidence: ""
-reproduced_on_multiple_nodes: false
-evidence_notes: ""
+reproduced_on_multiple_nodes: true
+evidence_notes: "Two-box runtime readiness proof green."
 
 validators_on_branch_a: []
 validators_on_branch_b: []
@@ -41,4 +41,4 @@ response_level: observe_only
 canonical_guidance_issued: false
 rollback_or_fork_considered: false
 rollback_or_fork_justification: ""
-operator_notes: ""
+operator_notes: "Benign baseline observation bundle stamped from readiness proof."
