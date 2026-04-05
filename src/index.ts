@@ -41337,13 +41337,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           ? (
               '<div style="display:flex;flex-direction:column;gap:10px">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:10px">' +
-                  '<span>Recent mix • publish ' + recentPublishCount + '</span>' +
+                  '<span>Recent useful work • publish ' + recentPublishCount + '</span>' +
                   '<span>verify ' + recentVerifyCount + '</span>' +
                   '<span>redundancy ' + recentRedundancyCount + '</span>' +
                   '<span style="color:#94a3b8">updated ' + freshnessText + '</span>' +
                 '</div>' +
                 '<div style="display:flex;flex-direction:column;gap:6px">' +
-                  '<div><strong>Verify</strong> • ' + escHtml(shortReceipt(latestVerifyReceipt)) + ' • ' + escHtml(latestVerifyWhen) + '</div>' +
+                  '<div><strong>Latest verified dataset</strong> • ' + escHtml(latestVerifyWhen) + '</div>' +
                   '<div style="color:#94a3b8;font-size:12px">' + mkDatasetLink("Dataset", latestVerifiedDataset) + '</div>' +
                   '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
                     (latestVerifiedDataset
@@ -41352,7 +41352,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                   '</div>' +
                 '</div>' +
                 '<div style="display:flex;flex-direction:column;gap:6px">' +
-                  '<div><strong>Redundancy</strong> • ' + escHtml(shortReceipt(latestRedundancyReceipt)) + ' • ' + escHtml(latestRedundancyWhen) + '</div>' +
+                  '<div><strong>Latest checked dataset</strong> • ' + escHtml(latestRedundancyWhen) + '</div>' +
                   '<div style="color:#94a3b8;font-size:12px">' + mkDatasetLink("Dataset", latestRedundancyDataset) + '</div>' +
                   '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
                     (latestRedundancyDataset
@@ -41360,10 +41360,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                       : '<span style="color:#64748b;font-size:12px">No checked dataset yet</span>') +
                   '</div>' +
                 '</div>' +
-                '<div style="color:#94a3b8;font-size:12px">Runner reason • ' + escHtml(latestReasonText) + '</div>' +
+                '<div style="color:#94a3b8;font-size:12px">Why this work was picked • ' + escHtml(latestReasonText) + '</div>' +
               '</div>'
             )
-          : "Recent network value is unavailable right now.";
+          : "Recent useful work is unavailable right now.";
 
         $("networkValueCard").title =
           netValue && netValue.ok
@@ -41967,7 +41967,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       });
       setPre("submitOut", out);
       if (out && out.ok && out.job && out.job.job_id) {
-        setLatestAction("Work submitted. Waiting for proof and WC credit.");
+        setLatestAction("Work submitted. Waiting for completion and WC credit.");
       }
 
       const jobId = out && out.job && out.job.job_id;
@@ -41978,10 +41978,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           setPre("submitOut", st);
 
           if (st && st.job && st.job.status === "completed") {
-            setLatestAction("Work completed. Waiting for participant WC credit to appear.");
+            setLatestAction("Work completed. Waiting for WC credit to appear.");
             setPre("submitOut", {
               ...st,
-              note: "Work completed. Waiting for participant WC credit to appear.",
+              note: "Work completed. Waiting for WC credit to appear.",
               credit_pending_check: true,
               redeemable_before: redeemableBefore
             });
@@ -41990,15 +41990,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
             setLatestAction(
               creditWait && creditWait.ok
-                ? "Work completed and participant WC credit is now visible."
-                : "Work completed, but participant WC credit did not appear before the wait window ended."
+                ? "Work completed and WC credit is now visible."
+                : "Work completed, but WC credit did not appear before the wait window ended."
             );
             setPre("submitOut", {
               ...st,
               credit_wait: creditWait,
               note: creditWait && creditWait.ok
-                ? "Work completed and participant WC credit is now visible."
-                : "Work completed, but participant WC credit did not appear before the wait window ended."
+                ? "Work completed and WC credit is now visible."
+                : "Work completed, but WC credit did not appear before the wait window ended."
             });
             break;
           }
