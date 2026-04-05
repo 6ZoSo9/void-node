@@ -41337,10 +41337,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                 '<div style="display:flex;flex-direction:column;gap:6px">' +
                   '<div><strong>Verify</strong> • ' + escHtml(shortReceipt(latestVerifyReceipt)) + ' • ' + escHtml(latestVerifyWhen) + '</div>' +
                   '<div style="color:#94a3b8;font-size:12px">' + mkDatasetLink("Dataset", latestVerifiedDataset) + '</div>' +
+                  '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+                    (latestVerifiedDataset
+                      ? ('<a href="/datanet/view/' + encodeURIComponent(String(latestVerifiedDataset)) + '?who=' + encodeURIComponent(activeAccountForLinks || "zoso") + '" target="_blank" rel="noopener" class="btn small">Open Verified Dataset</a>')
+                      : '<span style="color:#64748b;font-size:12px">No verified dataset yet</span>') +
+                  '</div>' +
                 '</div>' +
                 '<div style="display:flex;flex-direction:column;gap:6px">' +
                   '<div><strong>Redundancy</strong> • ' + escHtml(shortReceipt(latestRedundancyReceipt)) + ' • ' + escHtml(latestRedundancyWhen) + '</div>' +
                   '<div style="color:#94a3b8;font-size:12px">' + mkDatasetLink("Dataset", latestRedundancyDataset) + '</div>' +
+                  '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+                    (latestRedundancyDataset
+                      ? ('<a href="/datanet/view/' + encodeURIComponent(String(latestRedundancyDataset)) + '?who=' + encodeURIComponent(activeAccountForLinks || "zoso") + '" target="_blank" rel="noopener" class="btn small">Open Checked Dataset</a>')
+                      : '<span style="color:#64748b;font-size:12px">No checked dataset yet</span>') +
+                  '</div>' +
                 '</div>' +
                 '<div style="color:#94a3b8;font-size:12px">Runner reason • ' + escHtml(latestReasonText) + '</div>' +
               '</div>'
