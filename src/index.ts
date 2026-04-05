@@ -41814,8 +41814,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       });
 
       setPre("redeemOut", out);
-        if (out && out.ok) setLatestAction("WC moved to trade. You can now continue in the Trade tab.");
+      if (out && out.ok) {
+        setLatestAction("WC moved to trade. Opening the Trade tab now.");
+      }
       await refresh();
+      if (out && out.ok) {
+        try { switchTab("trading"); } catch (_) {}
+        try {
+          const tradeBtn = $("tradeExecuteBtn");
+          if (tradeBtn && typeof tradeBtn.focus === "function") tradeBtn.focus();
+        } catch (_) {}
+      }
     } catch (e) {
       setPre("redeemOut", { ok:false, redeem:false, error:String((e && e.message) || e) });
     } finally {
