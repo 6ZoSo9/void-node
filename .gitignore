@@ -141,3 +141,6 @@ releases/
 !ops/mainnet/void-mainnet.live.json
 !/ops/mainnet/
 !/ops/mainnet/void-mainnet.live.json
+!/script/
+!/script/mainnet_rebuild/
+!/script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol
