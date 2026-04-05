@@ -191,8 +191,12 @@ done
 export VERIFY_JOB_ID VERIFY_DATASET_ID VERIFY_RECEIPT_ID
 
 echo
+echo "--- wait for verify cooldown to clear before redundancy ---"
+sleep 7
+
+echo
 echo "--- tick until redundancy observed ---"
-for i in $(seq 1 12); do
+for i in $(seq 1 20); do
   curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://127.0.0.1:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
 print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
@@ -220,6 +224,22 @@ lr = obj.get("last_result") or {}
 print((lr.get("job_id") or ""))
 PY
 )"
+  SUBMIT_REASON="$(python3 - /tmp/vr-tick2.json <<'PY'
+from pathlib import Path
+import json, sys
+p = Path(sys.argv[1])
+if not p.exists():
+    print("")
+    raise SystemExit(0)
+try:
+    obj = json.loads(p.read_text())
+except:
+    print("")
+    raise SystemExit(0)
+sub = obj.get("submit") or {}
+print(sub.get("reason") or "")
+PY
+)"
   if [ "$TASK" = "datanet_redundancy_check" ] && [ -n "$DATASET" ] && [ -n "$JOB" ]; then
     REDUNDANCY_JOB_ID="$JOB"
     REDUNDANCY_DATASET_ID="$DATASET"
@@ -242,6 +262,10 @@ print(rid)
 PY
 )"
     break
+  fi
+  if [ "$SUBMIT_REASON" = "runner_busy" ] || [ "$SUBMIT_REASON" = "cooldown" ] || [ "$SUBMIT_REASON" = "background_runner_won_race" ]; then
+    sleep 2
+    continue
   fi
   sleep 2
 done
