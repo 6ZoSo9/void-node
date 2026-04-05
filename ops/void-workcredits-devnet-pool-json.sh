@@ -44,28 +44,21 @@ if [[ -f "$STATE_FILE" ]]; then
   fi
 
   if [[ "$NEED_FALLBACK" == "1" ]]; then
-    echo "[fallback] using $STATE_FILE instead of Prometheus" 1>&2
+    echo "[fallback] using live chain via ops/void-workcredits-devnet-pool-state.sh" 1>&2
 
     POOL_ADDR="$(jq -r ".pool_address // \"\"" "$STATE_FILE" 2>/dev/null || true)"
     if [[ -z "${RPC_URL:-}" ]]; then
       RPC_URL="$(jq -r ".rpc_url // \"http://127.0.0.1:8545\"" "$STATE_FILE" 2>/dev/null || true)"
     fi
 
-    VOID_RAW="$(jq -r ".void_reserve_raw // \"0\"" "$STATE_FILE" 2>/dev/null || echo 0)"
-    WC_RAW="$(jq -r ".wc_reserve_raw // \"0\"" "$STATE_FILE" 2>/dev/null || echo 0)"
+    TMP_OUT="$(mktemp)"
+    RPC_URL="$RPC_URL" bash "$ROOT/ops/void-workcredits-devnet-pool-state.sh" > "$TMP_OUT"
 
-    WC_PER_VOID="$(python3 - <<PY
-v=int("${VOID_RAW:-0}")
-w=int("${WC_RAW:-0}")
-print((w / v) if v else 0)
-PY
-)"
-    VOID_PER_WC="$(python3 - <<PY
-v=int("${VOID_RAW:-0}")
-w=int("${WC_RAW:-0}")
-print((v / w) if w else 0)
-PY
-)"
+    VOID_RAW="$(awk -F"= " "/voidReserveRaw/ {print \$2}" "$TMP_OUT" | tail -n1 | tr -d "[:space:]")"
+    WC_RAW="$(awk -F"= " "/wcReserveRaw/ {print \$2}" "$TMP_OUT" | tail -n1 | tr -d "[:space:]")"
+    VOID_PER_WC="$(awk -F"= " "/VOID_per_WC/ {print \$2}" "$TMP_OUT" | tail -n1 | tr -d "[:space:]")"
+    WC_PER_VOID="$(awk -F"= " "/WC_per_VOID/ {print \$2}" "$TMP_OUT" | tail -n1 | tr -d "[:space:]")"
+    rm -f "$TMP_OUT"
 
     UP="1"
     HEALTH="1"
