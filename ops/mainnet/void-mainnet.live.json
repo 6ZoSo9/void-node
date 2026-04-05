@@ -12,6 +12,23 @@
     "active_hot_wallet_should_be_small": true,
     "pool_seeding_source": "premine_allocations"
   },
+  "selected_premine_vault": {
+    "id": "TBD",
+    "address": "TBD",
+    "status": "offline_unassigned",
+    "purpose": "TBD"
+  },
+  "active_hot_wallet": {
+    "address": "TBD",
+    "max_balance_policy": "bounded_operational_buffer",
+    "notes": "Small active operational wallet only."
+  },
+  "funding_allocations": {
+    "hot_wallet_refill": "0",
+    "treasury_allocation": "0",
+    "pool_seeding_allocation": "0",
+    "other_allocations": []
+  },
   "roles": {
     "AdminGate": "TBD",
     "UpdateGate": "TBD",
@@ -19,39 +36,181 @@
     "ValidatorSet": "TBD",
     "VoidToken": "TBD",
     "VoidTreasury": "TBD",
-    "OpsTreasury": "TBD"
+    "OpsTreasury": "TBD",
+    "RewardEngine": "TBD"
+  },
+  "admins": {
+    "adminGateController": "TBD",
+    "updateGateController": "TBD",
+    "configGateController": "TBD",
+    "validatorAdmin": "TBD",
+    "voidTreasuryAdmin": "TBD",
+    "opsTreasuryAdmin": "TBD",
+    "rewardEngineAdmin": "TBD"
+  },
+  "validator0": {
+    "reward": "TBD",
+    "consensusKey": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "stakeVOID": "0"
+  },
+  "pool_seeding_plan": {
+    "enabled": false,
+    "source": "premine_allocations",
+    "amount": "0",
+    "destination": "TBD",
+    "notes": "Enable only when current cycle includes pool seeding."
   },
   "premine_vaults": [
-    { "id": "vault01", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault02", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault03", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault04", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault05", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault06", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault07", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault08", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault09", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault10", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault11", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault12", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault13", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault14", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault15", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault16", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault17", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault18", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault19", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault20", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault21", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault22", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault23", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault24", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault25", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault26", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault27", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault28", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault29", "address": "TBD", "status": "offline_unassigned" },
-    { "id": "vault30", "address": "TBD", "status": "offline_unassigned" }
+    {
+      "id": "vault01",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault02",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault03",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault04",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault05",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault06",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault07",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault08",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault09",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault10",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault11",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault12",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault13",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault14",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault15",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault16",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault17",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault18",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault19",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault20",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault21",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault22",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault23",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault24",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault25",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault26",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault27",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault28",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault29",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    },
+    {
+      "id": "vault30",
+      "address": "TBD",
+      "status": "offline_unassigned"
+    }
   ],
   "notes": [
     "Mainnet plan is stub-only until real live addresses are assigned.",
@@ -60,6 +219,9 @@
     "Premine is segmented across 30 offline vaults.",
     "Only one premine vault should be touched at a time.",
     "Use a small active hot wallet for operations.",
-    "Initial pool seeding comes from premine allocations."
+    "Initial pool seeding comes from premine allocations.",
+    "Draft schema example only.",
+    "Real mainnet keys remain on LUKS flash drives.",
+    "Do not model full-premine transfer into VoidTreasury."
   ]
 }
