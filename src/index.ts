@@ -35871,6 +35871,8 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       last_submit_ms: {},
       last_result: {},
       last_error: null,
+      manual_tick_hold_until_ms: {},
+      inflight_by_account: {},
       submit_history_ms: {},
       verify_history_by_dataset: {},
       redundancy_history_by_dataset: {},
@@ -37019,6 +37021,17 @@ a{color:#93c5fd;text-decoration:none}
 
     async function wcRunnerSubmitOnce(account:string){
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+      rt.inflight_by_account = rt.inflight_by_account || {};
+      if (rt.inflight_by_account[String(account)]) {
+        return {
+          ok:true,
+          skipped:true,
+          reason:"runner_busy",
+          account
+        };
+      }
+      rt.inflight_by_account[String(account)] = true;
+
       const cfg:any = runnerConfigFor(account);
       const now = Date.now();
       const minGap = Number(cfg.min_submit_gap_ms || rt.min_submit_gap_ms || 30000) || 30000;
@@ -37227,13 +37240,22 @@ a{color:#93c5fd;text-decoration:none}
         rt.last_error = { at_ms: Date.now(), account, error: err };
         rt.last_result[String(account)] = { at_ms: Date.now(), ok:false, error: err, safe_mode: !!cfg.safe_mode };
         return { ok:false, account, error: err };
+      } finally {
+        try {
+          rt.inflight_by_account[String(account)] = false;
+        } catch {}
       }
     }
 
     async function wcRunnerTick(){
       const state:any = GG.__void_wc_runner_state_v1 || {};
+      const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+      rt.manual_tick_hold_until_ms = rt.manual_tick_hold_until_ms || {};
+      const now = Date.now();
       const accounts = Object.keys(state).filter((k) => !!state[k]);
       for (const account of accounts) {
+        const holdUntil = Number(rt.manual_tick_hold_until_ms[String(account)] || 0);
+        if (holdUntil > now) continue;
         try { await wcRunnerSubmitOnce(String(account)); } catch {}
       }
     }
@@ -37314,19 +37336,58 @@ a{color:#93c5fd;text-decoration:none}
       try {
         const account = safeAccount(req.body?.account || req.query?.account || "");
         if (account) {
-          const st = runnerStateFor(account);
-          if (!st.enabled) {
+          const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+          rt.manual_tick_hold_until_ms = rt.manual_tick_hold_until_ms || {};
+          rt.manual_tick_hold_until_ms[String(account)] = Date.now() + 8000;
+
+          const stBefore = runnerStateFor(account);
+          const lastSubmitBefore = Number(stBefore && stBefore.last_submit_ms ? stBefore.last_submit_ms : 0);
+          if (!stBefore.enabled) {
             return res.status(409).json({
               ok:false,
               blocked:true,
               reason:"runner_disabled",
               account,
-              runner: st,
+              runner: stBefore,
+              runner_before: stBefore,
               note:"Turn on Earn Work Credits before running approved work."
             });
           }
           const out = await wcRunnerSubmitOnce(account);
-          return res.json({ ok:true, manual:true, account, runner: runnerStateFor(account), submit: out });
+          const stAfter = runnerStateFor(account);
+          const lastSubmitAfter = Number(stAfter && stAfter.last_submit_ms ? stAfter.last_submit_ms : 0);
+
+          const racedWithBackground =
+            !!(out && out.skipped && out.reason === "cooldown" && lastSubmitAfter > lastSubmitBefore);
+
+          const submitAligned = racedWithBackground
+            ? {
+                ...out,
+                raced_with_background: true,
+                reason: "background_runner_won_race",
+                note: "A background runner tick submitted work for this account before the manual tick finished."
+              }
+            : out;
+
+          const runnerAligned = (submitAligned && submitAligned.submitted)
+            ? stAfter
+            : ({
+                ...stBefore,
+                active_task_class: stAfter.active_task_class,
+                loop_started: stAfter.loop_started,
+                loop_interval_ms: stAfter.loop_interval_ms,
+                note: stAfter.note
+              });
+
+          return res.json({
+            ok:true,
+            manual:true,
+            account,
+            runner: runnerAligned,
+            runner_before: stBefore,
+            runner_after: stAfter,
+            submit: submitAligned
+          });
         }
         await wcRunnerTick();
         return res.json({ ok:true, manual:true, ticked_all:true });
