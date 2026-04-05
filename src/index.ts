@@ -41567,14 +41567,42 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         resultFull = outputPathFull ? "stored" : "";
       }
 
+      const receiptLabel =
+        kindFull === "datanet_fetch_verify" ? "Latest verify receipt" :
+        kindFull === "datanet_redundancy_check" ? "Latest redundancy receipt" :
+        kindFull === "datanet_publish" ? "Latest publish receipt" :
+        "Latest receipt";
+
+      const receiptBadge =
+        kindFull === "datanet_fetch_verify"
+          ? "Verified"
+          : kindFull === "datanet_redundancy_check"
+            ? "Checked"
+            : kindFull === "datanet_publish"
+              ? "Published"
+              : "Receipt";
+
       const summaryText =
-        "Receipt: " + ridShort +
-        " • " + kindFull +
-        " • " + statusFull +
+        receiptBadge + " • " + statusFull +
         (resultFull ? (" • " + resultFull) : "") +
-        " • Dataset: " + dsShort +
-        (outputPathFull ? (" • Output: " + outputPathShort) : "");
-      setText("proofSummaryCard", summaryText);
+        " • Dataset " + dsShort +
+        " • Receipt " + ridShort;
+
+      if ($("proofSummaryCard")) {
+        $("proofSummaryCard").innerHTML =
+          '<div style="display:flex;flex-direction:column;gap:6px">' +
+            '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+              '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.35);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#e5e7eb;background:rgba(148,163,184,.10)">' + escHtml(receiptBadge) + '</span>' +
+              '<strong>' + escHtml(receiptLabel) + '</strong>' +
+            '</div>' +
+            '<div>' + escHtml(summaryText) + '</div>' +
+            '<div style="color:#94a3b8;font-size:12px">' +
+              'Job ' + escHtml(jidFull) +
+              (outputPathFull ? (' • Output ' + escHtml(outputPathShort)) : '') +
+            '</div>' +
+          '</div>';
+      }
+
       try {
         $("proofSummaryCard").title =
           "Receipt: " + ridFull +
@@ -41588,10 +41616,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       try {
         const btn = $("latestReceiptDatasetBtn");
+        const btnText =
+          kindFull === "datanet_fetch_verify" ? "Open Verified Dataset" :
+          kindFull === "datanet_redundancy_check" ? "Open Checked Dataset" :
+          kindFull === "datanet_publish" ? "Open Published Dataset" :
+          "Open Latest Receipt Dataset";
         if (btn && dsFull && dsFull !== "-") {
           btn.href = "/datanet/v1/local-job/" + encodeURIComponent(dsFull) + "?who=" + encodeURIComponent(account);
           btn.style.display = "";
-          btn.textContent = "Open Latest Receipt Dataset";
+          btn.textContent = btnText;
           btn.title = "Open dataset readback for " + dsFull;
           loadDatasetPreviewInto("latestReceiptDatasetPreviewCard", dsFull, account).catch(() => {});
         } else if (btn) {
