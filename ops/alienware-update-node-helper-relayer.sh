@@ -7,79 +7,25 @@ align_workcredits_state_for_live_anvil() {
   echo "=== [align] workcredits state vs live anvil ==="
   local cast_bin="$HOME/.foundry/bin/cast"
   local rpc="http://127.0.0.1:8545"
-  local state_json="$HOME/dev/void-node/docs/VOID-DEVNET-PROTOCOL-STATE.json"
-  local wc_state_json="$HOME/dev/void-node/docs/VOID-WORKCREDITS-DEVNET-STATE.json"
-  local b31337="$HOME/dev/void-node/broadcast/WorkCreditsDevnetDeploy.s.sol/31337/run-latest.json"
 
   if [ ! -x "$cast_bin" ]; then
     echo "[align] skip: cast not present at $cast_bin"
-    return 0
-  fi
-  if [ ! -f "$state_json" ] || [ ! -f "$wc_state_json" ]; then
-    echo "[align] skip: missing state json(s)"
-    return 0
-  fi
-  if [ ! -f "$b31337" ]; then
-    echo "[align] skip: missing 31337 broadcast file"
     return 0
   fi
 
   local chain_id
   chain_id="$("$cast_bin" chain-id --rpc-url "$rpc" 2>/dev/null || true)"
   echo "[align] rpc chain_id=${chain_id:-<unknown>}"
-  if [ "${chain_id:-}" != "31337" ]; then
-    echo "[align] skip: rpc chain is not 31337"
+
+  if [ "${chain_id:-}" = "2050" ]; then
+    echo "[align] note: live WC/devnet chain is 2050 on :8545"
+    echo "[align] note: this updater does not realign anvil/ledger state by itself"
+    echo "[align] note: use local->remote anvil_dumpState/anvil_loadState plus rsync data_a/wc_v1 when strict parity is required"
     return 0
   fi
 
-  python3 - "$state_json" "$wc_state_json" "$b31337" <<'PY2'
-import json, sys, pathlib
-state_p = pathlib.Path(sys.argv[1])
-wc_p = pathlib.Path(sys.argv[2])
-b_p = pathlib.Path(sys.argv[3])
-
-state = json.loads(state_p.read_text())
-wc = json.loads(wc_p.read_text())
-b = json.loads(b_p.read_text())
-txs = b.get("transactions", [])
-
-def addr_for(name: str):
-    for t in txs:
-        if t.get("contractName") == name:
-            return t.get("contractAddress")
-    return None
-
-void_addr = addr_for("DevnetVoidToken")
-wc_addr = addr_for("WorkCreditsToken")
-pool_addr = addr_for("WorkCreditsPoolV1")
-relayer_addr = addr_for("WorkCreditsRelayerV1")
-changed = False
-
-def set_if(obj, key, val):
-    global changed
-    if val and obj.get(key) != val:
-        obj[key] = val
-        changed = True
-
-set_if(state, "chain", "devnet")
-set_if(state, "rpc_url", "http://127.0.0.1:8545")
-set_if(state, "voidToken", void_addr)
-set_if(state, "workCreditsToken", wc_addr)
-set_if(state, "workCreditsPoolV1", pool_addr)
-if relayer_addr:
-    set_if(state, "workCreditsRelayerV1", relayer_addr)
-
-set_if(wc, "chain", "devnet")
-set_if(wc, "rpc_url", "http://127.0.0.1:8545")
-set_if(wc, "pool_address", pool_addr)
-
-if changed:
-    state_p.write_text(json.dumps(state, indent=2) + "\n")
-    wc_p.write_text(json.dumps(wc, indent=2) + "\n")
-    print("[align] updated state jsons from 31337 broadcast")
-else:
-    print("[align] state jsons already aligned")
-PY2
+  echo "[align] skip: rpc chain is not 2050"
+  return 0
 }
 
 
@@ -165,6 +111,10 @@ systemctl --user restart void-node.service
 sleep 6
 echo
 
+echo "=== [5b] restart helper if present ==="
+systemctl --user restart void-workcredits-devnet-http.service || true
+sleep 3
+echo
 
 align_workcredits_state_for_live_anvil
 
