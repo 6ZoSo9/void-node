@@ -40680,6 +40680,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         : (!hasRedeemable
             ? "Get WC Ready First"
             : "Execute Trade");
+
+      if ($("tradeSummary")) {
+        $("tradeSummary").textContent = !relayerUp
+          ? "Trading is unavailable right now. WC can still be prepared on the Wallet tab."
+          : (!hasRedeemable
+              ? "No WC is prepared for trading yet. Prepare WC first on the Wallet tab."
+              : "WC is prepared and the trade path is ready. You can execute the trade now.");
+      }
     }
 
     const latestJob = jobs && jobs.ok && jobs.jobs && jobs.jobs.length ? jobs.jobs[0] : null;
