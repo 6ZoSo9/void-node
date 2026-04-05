@@ -55,7 +55,7 @@ if [ "$WC_SYNC_FROM_LOCAL" = "1" ]; then
   \"$HOME/.foundry/bin/cast\" rpc --rpc-url \"$REMOTE_RPC_URL\" anvil_loadState \"\$(cat /tmp/void-local-anvil-state-2050.hex)\"
   '"
 
-  rsync -av --delete data_a/wc_v1/ "$ALIEN_HOST:$REMOTE_REPO/data_a/wc_v1/"
+  tar -C data_a/wc_v1 -cf - . | ssh "$ALIEN_HOST" 'set -euo pipefail; mkdir -p "'"$REMOTE_REPO"'/data_a/wc_v1"; tar -C "'"$REMOTE_REPO"'/data_a/wc_v1" -xf -'
 
   ssh -t "$ALIEN_HOST" "bash -lc '
   set -euo pipefail
