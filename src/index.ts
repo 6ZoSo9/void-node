@@ -41463,12 +41463,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if ($("latestDatasetMetaHero")) {
             $("latestDatasetMetaHero").innerHTML =
               latestUsefulBadge +
-              '<span style="margin-left:8px">' + escHtml(latestUsefulLabel + " • ") + '</span>' +
-              escHtml(
-                latestUsefulWhen +
-                (latestUsefulJobId ? (" • job " + latestUsefulJobId) : "") +
-                (latestUsefulReceiptId ? (" • receipt " + latestUsefulReceiptId) : "")
-              );
+              '<span style="margin-left:8px;color:#94a3b8">' + escHtml(latestUsefulLabel) + '</span>';
           }
 
           const latestDatasetBtn = $("latestDatasetBtn");
