@@ -37157,7 +37157,12 @@ a{color:#93c5fd;text-decoration:none}
           : [];
         rt.selection_events_by_account[String(account)].push({
           ts_ms: Date.now(),
-          task_class: selected_task_class
+          task_class: selected_task_class,
+          dataset_id: selected_dataset_id || null,
+          selection_reason,
+          selected_difficulty_bucket: String(selection?.difficulty_bucket || "low"),
+          selected_network_need_score: Number(selection?.network_need_score || 0),
+          stale_for_ms: Number(selection?.stale_for_ms || 0)
         });
         rt.selection_events_by_account[String(account)] = rt.selection_events_by_account[String(account)].slice(-200);
 
@@ -37175,8 +37180,10 @@ a{color:#93c5fd;text-decoration:none}
         const mix = (selection && selection.mix) ? selection.mix : null;
         const publish_last_hour_post = (mix ? Number(mix.publish_last_hour || 0) : 0) + (selected_task_class === "datanet_publish" ? 1 : 0);
         const verify_last_hour_post = (mix ? Number(mix.verify_last_hour || 0) : 0) + (selected_task_class === "datanet_fetch_verify" ? 1 : 0);
-        const total_last_hour_post = publish_last_hour_post + verify_last_hour_post;
+        const redundancy_last_hour_post = (mix ? Number(mix.redundancy_last_hour || 0) : 0) + (selected_task_class === "datanet_redundancy_check" ? 1 : 0);
+        const total_last_hour_post = publish_last_hour_post + verify_last_hour_post + redundancy_last_hour_post;
         const verify_share_post = total_last_hour_post > 0 ? (verify_last_hour_post / total_last_hour_post) : 0;
+        const redundancy_share_post = total_last_hour_post > 0 ? (redundancy_last_hour_post / total_last_hour_post) : 0;
 
         rt.last_result[String(account)] = {
           at_ms: Date.now(),
@@ -37191,8 +37198,9 @@ a{color:#93c5fd;text-decoration:none}
           selected_network_need_score: Number(selection?.network_need_score || 0),
           publish_last_hour: publish_last_hour_post,
           verify_last_hour: verify_last_hour_post,
-          redundancy_last_hour: (selection && selection.mix) ? Number(selection.mix.redundancy_last_hour || 0) + (selected_task_class === "datanet_redundancy_check" ? 1 : 0) : (selected_task_class === "datanet_redundancy_check" ? 1 : 0),
+          redundancy_last_hour: redundancy_last_hour_post,
           verify_share: verify_share_post,
+          redundancy_share: redundancy_share_post,
           safe_mode: !!cfg.safe_mode,
           min_submit_gap_ms: minGap,
           max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
@@ -37207,8 +37215,9 @@ a{color:#93c5fd;text-decoration:none}
           selection_reason,
           publish_last_hour: publish_last_hour_post,
           verify_last_hour: verify_last_hour_post,
-          redundancy_last_hour: (selection && selection.mix) ? Number(selection.mix.redundancy_last_hour || 0) + (selected_task_class === "datanet_redundancy_check" ? 1 : 0) : (selected_task_class === "datanet_redundancy_check" ? 1 : 0),
+          redundancy_last_hour: redundancy_last_hour_post,
           verify_share: verify_share_post,
+          redundancy_share: redundancy_share_post,
           safe_mode: !!cfg.safe_mode,
           min_submit_gap_ms: minGap,
           max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
