@@ -39698,7 +39698,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel">
         <div class="section-head">
           <div>
-            <h2>Trade WC for VOID<span class="help" tabindex="0" data-help="Trade flow uses participant Work Credits from the selected account. When a wallet is connected, it is the default execution and receive path unless you open an advanced override.">?</span></h2>
+            <h2>Execute Trade<span class="help" tabindex="0" data-help="Trade flow uses participant Work Credits already prepared for trading from the selected account. When a wallet is connected, it is the default execution and receive path unless you open an advanced override.">?</span></h2>
           </div>
         </div>
 
@@ -39707,14 +39707,14 @@ a{color:#93c5fd;text-decoration:none}
 
         <div class="action-rail" style="margin-top:12px">
           <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
-          <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Wallet + WC...</button>
+          <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Trade Readiness...</button>
         </div>
 
         <div class="metric-strip top-kpis" style="margin-top:16px">
           <div class="mini">
             <div class="k">Spendable WC</div>
             <div class="v" id="tradeRedeemableWc">-</div>
-            <div class="s">ready now</div>
+            <div class="s">prepared now</div>
           </div>
           <div class="mini">
             <div class="k">Quoted VOID</div>
@@ -39724,7 +39724,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="mini">
             <div class="k">Trade Status</div>
             <div class="v" id="tradeRelayerState">-</div>
-            <div class="s">trade path</div>
+            <div class="s">execution path</div>
           </div>
         </div>
 
@@ -39734,7 +39734,7 @@ a{color:#93c5fd;text-decoration:none}
               <h2 style="margin-bottom:4px">Review<span class="help" tabindex="0" data-help="Main trade summary for what you can trade now, what is already prepared, the current quote, and where the output will go.">?</span></h2>
             </div>
           </div>
-          <div class="hero-note" id="tradeSummary">Ready to trade spendable WC for VOID using your connected wallet by default.</div>
+          <div class="hero-note" id="tradeSummary">Use this step after WC is prepared for trading. Your connected wallet is used by default.</div>
           <div class="hero-note" id="tradeOverviewCard" style="margin-top:10px">loading…</div>
         </div>
 
@@ -39857,7 +39857,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Redeem WC for Trade<span class="help" tabindex="0" data-help="Uses the selected participant account for WC eligibility and prepares WC for the trade path. Connected wallet is the default execution path unless you open the advanced override.">?</span></h2>
+                <h2 style="margin-bottom:4px">Prepare WC for Trading<span class="help" tabindex="0" data-help="Uses the selected participant account for WC eligibility and prepares WC for the trading step. Connected wallet is the default execution path unless you open the advanced override.">?</span></h2>
               </div>
             </div>
             <label for="redeemAmount">WC to redeem</label>
@@ -39871,11 +39871,11 @@ a{color:#93c5fd;text-decoration:none}
               </div>
             </details>
             <div class="action-rail" style="margin-top:12px">
-              <button class="btn btn-primary" id="redeemBtn" type="button">Prepare for Trade</button>
+              <button class="btn btn-primary" id="redeemBtn" type="button">Prepare WC</button>
               <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
             </div>
             <div style="margin-top:12px">
-              <div class="hero-note" id="redeemSummary">Ready to redeem WC from the selected participant account for the trade path. Connected wallet is used by default.</div>
+              <div class="hero-note" id="redeemSummary">Prepare participant WC here first, then execute the trade in the Trade tab. Connected wallet is used by default.</div>
                 <div class="hero-note" id="redeemFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
                 <div class="action-rail" style="margin-top:10px">
                   <button class="btn" id="redeemModeAutoBtn" type="button">Auto</button>
@@ -40679,7 +40679,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         ? "Trading Unavailable"
         : (!hasRedeemable
             ? "Get WC Ready First"
-            : "Trade WC for VOID");
+            : "Execute Trade");
     }
 
     const latestJob = jobs && jobs.ok && jobs.jobs && jobs.jobs.length ? jobs.jobs[0] : null;
