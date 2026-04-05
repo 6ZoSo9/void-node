@@ -41296,18 +41296,53 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       };
 
       if ($("networkValueCard")) {
+        const latestVerifyReceipt = netValue && netValue.latest_verified_dataset
+          ? String(netValue.latest_verified_dataset.receipt_id || "")
+          : "";
+        const latestRedundancyReceipt = netValue && netValue.latest_redundancy_checked_dataset
+          ? String(netValue.latest_redundancy_checked_dataset.receipt_id || "")
+          : "";
+
+        const latestVerifyWhen = netValue && netValue.latest_verified_dataset && Number(netValue.latest_verified_dataset.ts_ms || 0) > 0
+          ? new Date(Number(netValue.latest_verified_dataset.ts_ms || 0)).toLocaleString()
+          : "-";
+        const latestRedundancyWhen = netValue && netValue.latest_redundancy_checked_dataset && Number(netValue.latest_redundancy_checked_dataset.ts_ms || 0) > 0
+          ? new Date(Number(netValue.latest_redundancy_checked_dataset.ts_ms || 0)).toLocaleString()
+          : "-";
+
+        const latestRunnerItem = recentRunnerActivity.length ? recentRunnerActivity[0] : null;
+        const latestReasonRaw = latestRunnerItem && latestRunnerItem.selection_reason
+          ? String(latestRunnerItem.selection_reason)
+          : "";
+        const latestReasonText =
+          latestReasonRaw === "stale_verify_target" ? "Picked a stale dataset that needed verification." :
+          latestReasonRaw === "stale_redundancy_target" ? "Picked a stale dataset that needed a redundancy check." :
+          latestReasonRaw === "publish_target_mix" ? "Picked publish work to keep the mix balanced." :
+          latestReasonRaw ? latestReasonRaw.replace(/_/g, " ") : "No recent runner selection reason.";
+
+        const shortReceipt = (v) => {
+          const s = String(v || "");
+          return !s ? "-" : (s.length > 22 ? (s.slice(0, 8) + "…" + s.slice(-6)) : s);
+        };
+
         $("networkValueCard").innerHTML = netValue && netValue.ok
           ? (
-              '<div style="display:flex;flex-direction:column;gap:8px">' +
-                '<div>Recent runner mix • publish ' + recentPublishCount +
-                ' • verify ' + recentVerifyCount +
-                ' • redundancy ' + recentRedundancyCount + '</div>' +
-                '<div style="color:#94a3b8;font-size:12px">Last updated ' + freshnessText + '</div>' +
+              '<div style="display:flex;flex-direction:column;gap:10px">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:10px">' +
-                  mkDatasetLink("Open publish", latestPublishDataset) +
-                  mkDatasetLink("Open verify", latestVerifiedDataset) +
-                  mkDatasetLink("Open check", latestRedundancyDataset) +
+                  '<span>Recent mix • publish ' + recentPublishCount + '</span>' +
+                  '<span>verify ' + recentVerifyCount + '</span>' +
+                  '<span>redundancy ' + recentRedundancyCount + '</span>' +
+                  '<span style="color:#94a3b8">updated ' + freshnessText + '</span>' +
                 '</div>' +
+                '<div style="display:flex;flex-direction:column;gap:6px">' +
+                  '<div><strong>Verify</strong> • ' + escHtml(shortReceipt(latestVerifyReceipt)) + ' • ' + escHtml(latestVerifyWhen) + '</div>' +
+                  '<div style="color:#94a3b8;font-size:12px">' + mkDatasetLink("Dataset", latestVerifiedDataset) + '</div>' +
+                '</div>' +
+                '<div style="display:flex;flex-direction:column;gap:6px">' +
+                  '<div><strong>Redundancy</strong> • ' + escHtml(shortReceipt(latestRedundancyReceipt)) + ' • ' + escHtml(latestRedundancyWhen) + '</div>' +
+                  '<div style="color:#94a3b8;font-size:12px">' + mkDatasetLink("Dataset", latestRedundancyDataset) + '</div>' +
+                '</div>' +
+                '<div style="color:#94a3b8;font-size:12px">Runner reason • ' + escHtml(latestReasonText) + '</div>' +
               '</div>'
             )
           : "Recent network value is unavailable right now.";
@@ -41326,7 +41361,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                " • historical redundancy count: " + redundancyCount +
                " • latest publish dataset: " + (latestPublishDataset || "-") +
                " • latest verified dataset: " + (latestVerifiedDataset || "-") +
-               " • latest redundancy-checked dataset: " + (latestRedundancyDataset || "-"))
+               " • latest verify receipt: " + (latestVerifyReceipt || "-") +
+               " • latest redundancy-checked dataset: " + (latestRedundancyDataset || "-") +
+               " • latest redundancy receipt: " + (latestRedundancyReceipt || "-") +
+               " • latest selection reason: " + (latestReasonRaw || "-"))
             : "Backend network value summary is unavailable right now.";
       }
 
