@@ -36306,9 +36306,25 @@ a{color:#93c5fd;text-decoration:none}
                 const selfBase = String(req.protocol || "http") + "://" + String(req.get("host") || "");
                 const consumeUrl = new URL("/datanet/v1/consume/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who), selfBase).toString();
                 const rr = await fetch(consumeUrl);
-                if (!rr.ok) {
+                if (rr.ok) {
+                  await rr.text().catch(() => "");
+                } else {
                   const txt = await rr.text().catch(() => "");
-                  return res.status(rr.status || 404).type("text/plain").send(txt || "not_found");
+                  const trimmed = String(txt || "").trim();
+                  const looksJson = trimmed.startsWith("{") && trimmed.endsWith("}");
+                  let parsed:any = null;
+                  if (looksJson) {
+                    try { parsed = JSON.parse(trimmed); } catch {}
+                  }
+                  const isLocalNotFound =
+                    Number(rr.status || 0) === 404 &&
+                    (
+                      trimmed === "not_found" ||
+                      (parsed && parsed.ok === false && String(parsed.error || "") === "not_found")
+                    );
+                  if (!isLocalNotFound) {
+                    return res.status(rr.status || 404).type("text/plain").send(trimmed || "not_found");
+                  }
                 }
               } catch (e:any) {
                 return res.status(500).type("text/plain").send(String(e?.message || e));
