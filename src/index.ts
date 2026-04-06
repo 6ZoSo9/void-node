@@ -41639,7 +41639,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const submit = lr && lr.result ? lr.result : null;
         let resultLabel = "-";
         let nextLabel = "";
-        if (submit && submit.skipped && submit.reason === "cooldown") resultLabel = "COOLDOWN";
+        if (out && out.outcome_label) resultLabel = String(out.outcome_label || "-");
+        else if (submit && submit.skipped && submit.reason === "cooldown") resultLabel = "COOLDOWN";
         else if (submit && submit.skipped && submit.reason === "hourly_limit") resultLabel = "LIMIT";
         else if (submit && submit.skipped && submit.reason === "no_fetch_verify_target") resultLabel = "NO VERIFY TARGET";
         else if (submit && submit.skipped && submit.reason === "no_redundancy_target") resultLabel = "NO REDUNDANCY TARGET";
@@ -43501,8 +43502,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           const lr = runnerStatus && runnerStatus.last_result ? runnerStatus.last_result : null;
           const submit = lr && lr.result ? lr.result : null;
           if (!lr) return "-";
+          if (runnerStatus && runnerStatus.outcome_label) return String(runnerStatus.outcome_label || "-");
           if (submit && submit.skipped && submit.reason === "cooldown") return "COOLDOWN";
           if (submit && submit.skipped && submit.reason === "hourly_limit") return "LIMIT";
+          if (submit && submit.skipped && submit.reason === "runner_busy") return "BUSY";
+          if (submit && submit.raced_with_background) return "RACE";
           if (lr.ok) {
             if (runnerTaskClass === "datanet_publish") return "publish stored";
             if (runnerTaskClass === "datanet_fetch_verify") return "verify ok";
