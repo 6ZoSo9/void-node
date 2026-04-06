@@ -393,3 +393,11 @@ void-mainnet-pillars-preflight:
 void-full3-truth-sweep-health:
 	@bash ops/void-full3-truth-sweep-health.sh
 
+
+.PHONY: datanet-operator-cycle datanet-operator-cycle-apply
+
+datanet-operator-cycle:
+	bash ops/two-box-datanet-operator-cycle.sh
+
+datanet-operator-cycle-apply:
+	APPLY=1 LIMIT=$${LIMIT:-3} WHO=$${WHO:-zoso} bash ops/two-box-datanet-operator-cycle.sh
