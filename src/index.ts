@@ -43897,57 +43897,59 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const latestUsefulStatusJob = latestUsefulForStatus ? String(latestUsefulForStatus.job_id || "") : "";
         const latestUsefulStatusHint = latestUsefulForStatus ? String(latestUsefulForStatus.result_hint || "") : "";
 
+        const effectiveLatestUsefulDataset = latestUsefulStatusDataset || lrDataset;
+        const effectiveLatestUsefulReceipt = latestUsefulStatusReceipt || lrReceipt;
+        const effectiveLatestUsefulJob = latestUsefulStatusJob || lrJob;
+        const effectiveLatestUsefulLabel = latestUsefulStatusDataset
+          ? (latestUsefulStatusLabel || "latest")
+          : runnerTaskLabel;
+        const effectiveLatestUsefulHint = latestUsefulStatusDataset
+          ? (latestUsefulStatusHint || "ready")
+          : runnerLastResultLabel;
+
         setText(
           "latestJobState",
-          latestUsefulStatusDataset
-            ? ((latestUsefulStatusLabel || "latest") + " • " + latestUsefulStatusDataset)
-            : (lrJob
-                ? (runnerTaskLabel + (lrDataset ? (" • " + lrDataset) : ""))
-                : (runnerEnabled ? "waiting" : "off"))
+          effectiveLatestUsefulDataset
+            ? (effectiveLatestUsefulLabel + " • " + effectiveLatestUsefulDataset)
+            : (runnerEnabled ? "waiting" : "off")
         );
 
         setText(
           "latestActionCard",
-          latestUsefulStatusDataset
-            ? ("Latest useful work: " + (latestUsefulStatusHint || "ready") +
-               (latestUsefulStatusLabel ? (" • " + latestUsefulStatusLabel) : "") +
+          effectiveLatestUsefulDataset
+            ? ("Latest useful work: " + effectiveLatestUsefulHint +
+               (effectiveLatestUsefulLabel ? (" • " + effectiveLatestUsefulLabel) : "") +
                " • Dataset ready" +
-               (latestUsefulStatusReceipt ? " • Receipt ready" : "") +
-               (latestUsefulStatusJob ? " • Job ready" : ""))
-            : (lrJob
-                ? ("Latest useful work: " + runnerLastResultLabel +
-                   " • " + runnerTaskLabel +
-                   (lrDataset ? " • Dataset ready" : "") +
-                   (lrReceipt ? " • Receipt ready" : ""))
-                : (runnerEnabled
-                    ? "Earn Work Credits is on. Waiting for the next approved useful task."
-                    : "Earn Work Credits is off. Turn it on to allow approved useful work."))
+               (effectiveLatestUsefulReceipt ? " • Receipt ready" : "") +
+               (effectiveLatestUsefulJob ? " • Job ready" : ""))
+            : (runnerEnabled
+                ? "Earn Work Credits is on. Waiting for the next approved useful task."
+                : "Earn Work Credits is off. Turn it on to allow approved useful work.")
         );
 
         if ($("latestJobState")) {
           $("latestJobState").title =
-            latestUsefulStatusDataset
-              ? ("Latest useful work: " + (latestUsefulStatusLabel || "latest") +
-                 (latestUsefulStatusJob ? (" • Job: " + latestUsefulStatusJob) : "") +
-                 (latestUsefulStatusReceipt ? (" • Receipt: " + latestUsefulStatusReceipt) : "") +
-                 (latestUsefulStatusDataset ? (" • Dataset: " + latestUsefulStatusDataset) : ""))
-              : (lrJob
-                  ? ("Last useful work: " + runnerTaskLabel +
-                     (lrJob ? (" • Job: " + lrJob) : "") +
-                     (lrReceipt ? (" • Receipt: " + lrReceipt) : "") +
-                     (lrDataset ? (" • Dataset: " + lrDataset) : ""))
-                  : "");
+            effectiveLatestUsefulDataset
+              ? ("Latest useful work: " + effectiveLatestUsefulLabel +
+                 (effectiveLatestUsefulJob ? (" • Job: " + effectiveLatestUsefulJob) : "") +
+                 (effectiveLatestUsefulReceipt ? (" • Receipt: " + effectiveLatestUsefulReceipt) : "") +
+                 (effectiveLatestUsefulDataset ? (" • Dataset: " + effectiveLatestUsefulDataset) : ""))
+              : "";
         }
 
         const latestDatasetBtn = $("latestDatasetOpenBtn");
         const latestDatasetOpenShareBtn = $("latestDatasetOpenShareBtn");
         const latestDatasetShareBtn = $("latestDatasetShareBtn");
-        if (latestDatasetBtn && lrJob && lrDataset) {
-          const latestUsefulLinks = buildLatestUsefulLinks(netValue && netValue.latest_useful_dataset ? netValue.latest_useful_dataset : null, lrDataset, account);
+        if (latestDatasetBtn && effectiveLatestUsefulDataset) {
+          const latestUsefulLinks = buildLatestUsefulLinks(
+            netValue && netValue.latest_useful_dataset ? netValue.latest_useful_dataset : null,
+            effectiveLatestUsefulDataset,
+            account
+          );
           latestDatasetBtn.href = latestUsefulLinks.raw_href;
           latestDatasetBtn.style.display = "";
           latestDatasetBtn.textContent = "Open Latest Useful Work";
-          latestDatasetBtn.title = "Open dataset readback for " + lrDataset;
+          latestDatasetBtn.title = "Open dataset readback for " + effectiveLatestUsefulDataset;
 
           const shareHref = latestUsefulLinks.share_href;
 
@@ -43955,18 +43957,18 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             latestDatasetOpenShareBtn.href = shareHref;
             latestDatasetOpenShareBtn.style.display = "";
             latestDatasetOpenShareBtn.textContent = "Open Shared Page";
-            latestDatasetOpenShareBtn.title = "Open participant page preloaded for " + lrDataset;
+            latestDatasetOpenShareBtn.title = "Open participant page preloaded for " + effectiveLatestUsefulDataset;
           }
 
           if (latestDatasetShareBtn) {
             latestDatasetShareBtn.style.display = "";
-            latestDatasetShareBtn.title = "Copy participant page link preloaded for " + lrDataset;
+            latestDatasetShareBtn.title = "Copy participant page link preloaded for " + effectiveLatestUsefulDataset;
             latestDatasetShareBtn.onclick = () =>
               window.__void_copyText &&
               window.__void_copyText(shareHref, "Copied latest shared dataset page link.", latestDatasetShareBtn);
           }
 
-          loadDatasetPreviewInto("latestDatasetPreviewCard", lrDataset, account).catch(() => {});
+          loadDatasetPreviewInto("latestDatasetPreviewCard", effectiveLatestUsefulDataset, account).catch(() => {});
         } else if (latestDatasetBtn) {
           latestDatasetBtn.style.display = "none";
           latestDatasetBtn.removeAttribute("href");
