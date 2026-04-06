@@ -37200,6 +37200,47 @@ a{color:#93c5fd;text-decoration:none}
       return latestUsefulCandidates.length ? enrichLatestUseful(latestUsefulCandidates[0]) : null;
     }
 
+
+  function normalizeParticipantTaskClass(raw:any){
+    const s = String(raw || "");
+    return s === "datanet_publish" ? "publish" :
+      s === "datanet_fetch_verify" ? "verify" :
+      s === "datanet_redundancy_check" ? "redundancy" :
+      s === "datanet_receipt" ? "publish" :
+      s === "publish" ? "publish" :
+      s === "verify" ? "verify" :
+      s === "redundancy" ? "redundancy" :
+      s;
+  }
+
+  function participantDisplayKind(taskClass:any){
+    const s = String(taskClass || "");
+    return s === "publish" ? "Published" :
+      s === "verify" ? "Verified" :
+      s === "redundancy" ? "Checked" :
+      "Work";
+  }
+
+  function participantResultHint(taskClass:any){
+    const s = String(taskClass || "");
+    return s === "publish" ? "stored" :
+      s === "verify" ? "verified" :
+      s === "redundancy" ? "checked" :
+      "ready";
+  }
+
+  function participantDisplayStatus(status:any, ok:any){
+    const s = String(status || "").toLowerCase();
+    if (s === "completed" || s === "credited" || s === "done" || s === "ok" || s === "success") return "Completed";
+    if (s === "queued") return "Queued";
+    if (s === "running") return "Running";
+    if (s === "failed" || s === "error") return "Failed";
+    if (ok === true) return "Completed";
+    if (ok === false) return "Failed";
+    return s ? (s.charAt(0).toUpperCase() + s.slice(1)) : "Recorded";
+  }
+
+
     async function wcRunnerSubmitOnce(account:string){
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       rt.inflight_by_account = rt.inflight_by_account || {};
@@ -38804,6 +38845,46 @@ a{color:#93c5fd;text-decoration:none}
       }
     });
 
+
+    function normalizeParticipantTaskClassForHistory(raw:any){
+      const x = String(raw || "");
+      return x === "datanet_publish" ? "publish" :
+        x === "datanet_fetch_verify" ? "verify" :
+        x === "datanet_redundancy_check" ? "redundancy" :
+        x === "datanet_receipt" ? "publish" :
+        x === "publish" ? "publish" :
+        x === "verify" ? "verify" :
+        x === "redundancy" ? "redundancy" :
+        x;
+    }
+
+    function participantDisplayKindForHistory(taskClass:any){
+      const x = String(taskClass || "");
+      return x === "publish" ? "Published" :
+        x === "verify" ? "Verified" :
+        x === "redundancy" ? "Checked" :
+        "Work";
+    }
+
+    function participantResultHintForHistory(taskClass:any){
+      const x = String(taskClass || "");
+      return x === "publish" ? "stored" :
+        x === "verify" ? "verified" :
+        x === "redundancy" ? "checked" :
+        "ready";
+    }
+
+    function participantDisplayStatusForHistory(status:any, ok:any){
+      const x = String(status || "").toLowerCase();
+      if (x === "completed" || x === "credited" || x === "done" || x === "ok" || x === "success") return "Completed";
+      if (x === "queued") return "Queued";
+      if (x === "running") return "Running";
+      if (x === "failed" || x === "error") return "Failed";
+      if (ok === true) return "Completed";
+      if (ok === false) return "Failed";
+      return x ? (x.charAt(0).toUpperCase() + x.slice(1)) : "Recorded";
+    }
+
     app.get("/jobs", (req:any, res:any) => {
       try {
         const account = safeStr(req.query?.account, 128);
@@ -38821,12 +38902,18 @@ a{color:#93c5fd;text-decoration:none}
           for (const line of readLines(datanetRawFile)) {
             try {
               const r:any = JSON.parse(line);
+              const taskClass = normalizeParticipantTaskClassForHistory("datanet_receipt");
+              const rowStatus = Number(r?.ok || 0) === 1 ? "completed" : "recorded";
               jobs.push({
                 id: String(r?.id || ""),
                 account: String(r?.account || r?.who || r?.owner || ""),
                 kind: "datanet_receipt",
                 type: "datanet_receipt",
-                status: Number(r?.ok || 0) === 1 ? "completed" : "recorded",
+                task_class: taskClass,
+                display_kind: participantDisplayKindForHistory(taskClass),
+                result_hint: participantResultHintForHistory(taskClass),
+                status: rowStatus,
+                display_status: participantDisplayStatusForHistory(rowStatus, Number(r?.ok || 0) === 1),
                 dataset_id: r?.dataset_id || null,
                 receipt_id: String(r?.id || ""),
                 root: r?.root || null,
@@ -38838,6 +38925,7 @@ a{color:#93c5fd;text-decoration:none}
                 delta: Number(r?.wc_award || 0),
                 created_at_ms: Number(r?.ts_ms || 0),
                 ts_ms: Number(r?.ts_ms || 0),
+                sort_ts_ms: Number(r?.ts_ms || 0),
                 _raw: "datanet_v1"
               });
             } catch {}
@@ -38849,8 +38937,8 @@ a{color:#93c5fd;text-decoration:none}
           const jobId = String(row?.job_id || row?.id || "").trim();
           if (!jobId) continue;
           const prev = latestByJob.get(jobId);
-          const rowTs = Number(row?.completed_at_ms || row?.created_at_ms || row?.ts_ms || 0);
-          const prevTs = prev ? Number(prev?.completed_at_ms || prev?.created_at_ms || prev?.ts_ms || 0) : -1;
+          const rowTs = Number(row?.sort_ts_ms || row?.completed_at_ms || row?.created_at_ms || row?.ts_ms || 0);
+          const prevTs = prev ? Number(prev?.sort_ts_ms || prev?.completed_at_ms || prev?.created_at_ms || prev?.ts_ms || 0) : -1;
           if (!prev || rowTs >= prevTs) latestByJob.set(jobId, row);
         }
         jobs = Array.from(latestByJob.values());
@@ -38861,6 +38949,33 @@ a{color:#93c5fd;text-decoration:none}
             return acct === account;
           });
         }
+
+        jobs = jobs.map((j:any) => {
+          const rawKind = String(j?.kind || j?.type || "");
+          const rawTask =
+            String(j?.task_class || "") ||
+            (rawKind === "datanet_publish" ? "datanet_publish" :
+             rawKind === "datanet_fetch_verify" ? "datanet_fetch_verify" :
+             rawKind === "datanet_redundancy_check" ? "datanet_redundancy_check" :
+             rawKind === "datanet_receipt" ? "datanet_receipt" :
+             rawKind);
+
+          const taskClass = normalizeParticipantTaskClassForHistory(rawTask);
+          const okVal =
+            j?.ok === undefined || j?.ok === null
+              ? null
+              : (Number(j?.ok) === 1 || j?.ok === true);
+          const rowStatus = String(j?.status || "");
+
+          return {
+            ...j,
+            task_class: taskClass || null,
+            display_kind: j?.display_kind || participantDisplayKindForHistory(taskClass),
+            result_hint: j?.result_hint || participantResultHintForHistory(taskClass),
+            display_status: j?.display_status || participantDisplayStatusForHistory(rowStatus, okVal),
+            sort_ts_ms: Number(j?.sort_ts_ms || j?.completed_at_ms || j?.created_at_ms || j?.ts_ms || 0)
+          };
+        });
 
         jobs.sort((a:any, b:any) => {
           const ax = Number(a?.completed_at_ms || a?.created_at_ms || a?.ts_ms || 0);
@@ -38895,16 +39010,23 @@ a{color:#93c5fd;text-decoration:none}
           for (const line of readLines(datanetRawFile)) {
             try {
               const r:any = JSON.parse(line);
+              const taskClass = normalizeParticipantTaskClassForHistory("datanet_receipt");
+              const rowStatus = Number(r?.ok || 0) === 1 ? "credited" : "recorded";
               out.push({
                 receipt_id: String(r?.id || ""),
                 job_id: r?.job_id || null,
                 account: String(r?.account || r?.who || r?.owner || ""),
                 who: String(r?.who || r?.account || r?.owner || ""),
                 kind: "datanet_receipt",
-                status: Number(r?.ok || 0) === 1 ? "credited" : "recorded",
+                task_class: taskClass,
+                display_kind: participantDisplayKindForHistory(taskClass),
+                result_hint: participantResultHintForHistory(taskClass),
+                status: rowStatus,
+                display_status: participantDisplayStatusForHistory(rowStatus, Number(r?.ok || 0) === 1),
                 delta: Number(r?.wc_award || 0),
                 reason: "datanet_receipt",
                 ts_ms: Number(r?.ts_ms || 0),
+                sort_ts_ms: Number(r?.ts_ms || 0),
                 root: r?.root || null,
                 leaf: r?.leaf || null,
                 index: Number(r?.index || 0),
