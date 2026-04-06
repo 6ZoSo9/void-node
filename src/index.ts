@@ -40169,8 +40169,8 @@ a{color:#93c5fd;text-decoration:none}
           <div class="hero-note" id="latestDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
           <div class="mini" id="latestDatasetActionCard" style="margin-top:10px;display:none">
             <div class="s" style="margin-bottom:6px">Latest dataset</div>
-            <div class="v" id="latestDatasetIdHero" style="font-size:18px;line-height:1.35;word-break:break-word">-</div>
-            <div class="s" id="latestDatasetMetaHero" style="margin-top:6px">-</div>
+            <div class="s" id="latestDatasetMetaHero" style="margin-top:0">-</div>
+            <div class="v" id="latestDatasetIdHero" style="font-size:15px;line-height:1.35;word-break:break-word;margin-top:8px">-</div>
             <div class="s" id="latestDatasetReceiptHero" style="margin-top:6px;display:none">-</div>
             <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
               <a class="btn" id="latestDatasetOpenHero" href="#" target="_blank" rel="noopener" style="display:none">Open viewer</a>
@@ -42237,7 +42237,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         if (latestUsefulDatasetId) {
           if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "";
-          setText("latestDatasetIdHero", latestUsefulDatasetId);
+          const latestUsefulDatasetShort =
+            String(latestUsefulDatasetId).length > 28
+              ? (String(latestUsefulDatasetId).slice(0, 12) + "…" + String(latestUsefulDatasetId).slice(-10))
+              : String(latestUsefulDatasetId);
+
+          setText("latestDatasetIdHero", latestUsefulDatasetShort);
 
           const latestDatasetViewHref =
             "/datanet/view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
@@ -42255,11 +42260,22 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               '<span style="margin-left:8px;color:#94a3b8">' + escHtml(latestUsefulLabel) + ' • ' + escHtml(latestUsefulWhen) + '</span>';
           }
 
+          const idHero = $("latestDatasetIdHero");
+          if (idHero) {
+            idHero.title = String(latestUsefulDatasetId);
+          }
+
           const receiptHero = $("latestDatasetReceiptHero");
           if (receiptHero) {
             const receiptBits = [];
-            if (latestUsefulReceiptId) receiptBits.push("Receipt " + latestUsefulReceiptId);
-            if (latestUsefulJobId) receiptBits.push("Job " + latestUsefulJobId);
+            if (latestUsefulReceiptId) {
+              const rid = String(latestUsefulReceiptId);
+              receiptBits.push("Receipt " + (rid.length > 22 ? (rid.slice(0, 10) + "…" + rid.slice(-6)) : rid));
+            }
+            if (latestUsefulJobId) {
+              const jid = String(latestUsefulJobId);
+              receiptBits.push("Job " + (jid.length > 22 ? (jid.slice(0, 10) + "…" + jid.slice(-6)) : jid));
+            }
             receiptHero.textContent = receiptBits.join(" • ");
             receiptHero.style.display = receiptBits.length ? "" : "none";
           }
