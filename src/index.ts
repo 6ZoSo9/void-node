@@ -42118,13 +42118,24 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           "</a>";
       };
 
-      const runnerSnippetItems = recentRunnerActivity.slice(0, 2).map((x) => {
-        const task = String((x && x.task_class) || "-");
-        const reason = formatRunnerReasonMini(x && x.selection_reason);
-        const when = x && Number(x.ts_ms || 0) > 0 ? new Date(Number(x.ts_ms)).toLocaleTimeString() : "-";
-        const job = x && x.job_id ? (" • " + String(x.job_id)) : "";
-        return task + " • " + reason + " • " + when + job;
-      });
+      const runnerSnippetItems = (() => {
+        const seen = new Set();
+        const rows = [];
+        for (const x of recentRunnerActivity) {
+          const task = String((x && x.task_class) || "-");
+          const reason = formatRunnerReasonMini(x && x.selection_reason);
+          const tsMs = Number((x && x.ts_ms) || 0);
+          const when = tsMs > 0 ? new Date(tsMs).toLocaleTimeString() : "-";
+          const bucketTs = tsMs > 0 ? Math.floor(tsMs / 1000) : 0;
+          const dedupeKey = [task, reason, bucketTs].join("|");
+          if (seen.has(dedupeKey)) continue;
+          seen.add(dedupeKey);
+          const job = x && x.job_id ? (" • " + String(x.job_id)) : "";
+          rows.push(task + " • " + reason + " • " + when + job);
+          if (rows.length >= 2) break;
+        }
+        return rows;
+      })();
 
       if ($("runnerActivitySnippetCard")) {
         if (runnerSnippetItems.length) {
