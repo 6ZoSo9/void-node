@@ -35999,6 +35999,58 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           }
         });
 
+        APP.get("/__void/datanet/provenance-status.json", (_req:any, res:any) => {
+          try {
+            const fs = require("node:fs");
+            const path = require("node:path");
+
+            const dir = path.join(dataDir(), "datanet_v1", "local_jobs");
+            const receipts = path.join(dataDir(), "agent_v1", "receipts.jsonl");
+
+            const localJobIds = new Set<string>();
+            if (fs.existsSync(dir)) {
+              for (const name of fs.readdirSync(dir)) {
+                const s = String(name || "");
+                if (/^ds_[A-Za-z0-9_\-]+\.txt$/i.test(s)) {
+                  localJobIds.add(s.replace(/\.txt$/i, ""));
+                }
+              }
+            }
+
+            const receiptIds = new Set<string>();
+            if (fs.existsSync(receipts)) {
+              for (const line of String(fs.readFileSync(receipts, "utf8") || "").split(/\r?\n/)) {
+                if (!line.trim()) continue;
+                try {
+                  const obj = JSON.parse(line);
+                  const ds = String(obj?.dataset_id || "");
+                  if (ds) receiptIds.add(ds);
+                } catch {}
+              }
+            }
+
+            const localOrigin:string[] = [];
+            const fetchedOrMaterialized:string[] = [];
+            for (const ds of Array.from(localJobIds).sort()) {
+              if (receiptIds.has(ds)) localOrigin.push(ds);
+              else fetchedOrMaterialized.push(ds);
+            }
+
+            return res.status(200).json({
+              ok: true,
+              dataDir: dataDir(),
+              local_jobs_total: localJobIds.size,
+              receipt_dataset_ids_total: receiptIds.size,
+              local_origin_count: localOrigin.length,
+              fetched_or_materialized_count: fetchedOrMaterialized.length,
+              local_origin_sample: localOrigin.slice(-10),
+              fetched_or_materialized_sample: fetchedOrMaterialized.slice(-10)
+            });
+          } catch (e:any) {
+            return res.status(500).json({ ok:false, error:"datanet_provenance_status_throw", msg:String(e?.message || e) });
+          }
+        });
+
         APP.get("/datanet/v1/local-job/:id", (req:any, res:any) => {
           try {
             const fs = require("node:fs");
