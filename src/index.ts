@@ -38960,7 +38960,8 @@ a{color:#93c5fd;text-decoration:none}
       </div>
       <div class="controls">
         <input id="peerInput" placeholder="Peer base URL, e.g. http://100.122.79.39:4100" />
-        <button id="loadBtn">Load</button>
+        <button id="peerPresetBtn" type="button">Use Alienware Peer</button>
+        <button id="loadBtn" type="button">Load</button>
       </div>
     </div>
 
@@ -39105,8 +39106,30 @@ a{color:#93c5fd;text-decoration:none}
       }
     }
 
-    $("loadBtn").addEventListener("click", load);
-    $("peerInput").value = "http://100.122.79.39:4100";
+    const DEFAULT_PEER = "http://100.122.79.39:4100";
+
+    function getSavedPeer() {
+      try { return String(localStorage.getItem("void_admin_datanet_peer_v1") || "").trim(); } catch (_) { return ""; }
+    }
+
+    function setSavedPeer(v) {
+      try { localStorage.setItem("void_admin_datanet_peer_v1", String(v || "").trim()); } catch (_) {}
+    }
+
+    $("loadBtn").addEventListener("click", () => {
+      const peer = ($("peerInput").value || "").trim();
+      setSavedPeer(peer);
+      load();
+    });
+
+    $("peerPresetBtn").addEventListener("click", () => {
+      $("peerInput").value = DEFAULT_PEER;
+      setSavedPeer(DEFAULT_PEER);
+      load();
+    });
+
+    const rememberedPeer = getSavedPeer();
+    $("peerInput").value = rememberedPeer || DEFAULT_PEER;
     load();
   </script>
 </body>
