@@ -38756,6 +38756,117 @@ a{color:#93c5fd;text-decoration:none}
       });
     });
 
+    app.get("/__void/admin/datanet-summary.json", async (req:any, res:any) => {
+      try {
+        const fs = require("node:fs");
+        const path = require("node:path");
+
+        const peerBase = String((req?.query?.peer ?? "") || "").trim();
+
+        const buildLocalProvenance = () => {
+          const dir = path.join(dataDir(), "datanet_v1", "local_jobs");
+          const receipts = receiptsFile();
+
+          const localJobIds = new Set<string>();
+          if (fs.existsSync(dir)) {
+            for (const name of fs.readdirSync(dir)) {
+              const file = String(name || "");
+              if (/^ds_[A-Za-z0-9_\-]+\.txt$/i.test(file)) {
+                localJobIds.add(file.replace(/\.txt$/i, ""));
+              }
+            }
+          }
+
+          const receiptIds = new Set<string>();
+          if (fs.existsSync(receipts)) {
+            for (const line of String(fs.readFileSync(receipts, "utf8") || "").split(/\r?\n/)) {
+              if (!line.trim()) continue;
+              try {
+                const obj = JSON.parse(line);
+                const ds = String(obj?.dataset_id || "");
+                if (ds) receiptIds.add(ds);
+              } catch {}
+            }
+          }
+
+          const localOrigin:string[] = [];
+          const fetchedOrMaterialized:string[] = [];
+          for (const ds of Array.from(localJobIds).sort()) {
+            if (receiptIds.has(ds)) localOrigin.push(ds);
+            else fetchedOrMaterialized.push(ds);
+          }
+
+          return {
+            local_jobs_total: localJobIds.size,
+            receipt_dataset_ids_total: receiptIds.size,
+            local_origin_count: localOrigin.length,
+            fetched_or_materialized_count: fetchedOrMaterialized.length,
+            local_origin_sample: localOrigin.slice(-10),
+            fetched_or_materialized_sample: fetchedOrMaterialized.slice(-10)
+          };
+        };
+
+        const local = {
+          node_id: String((globalThis as any)?.node?.id || ""),
+          head: (() => {
+            try {
+              const fs = require("node:fs");
+              const path = require("node:path");
+              const headFile = path.join(dataDir(), "head.txt");
+              const raw = fs.existsSync(headFile) ? String(fs.readFileSync(headFile, "utf8") || "").trim() : "";
+              const n = Number(raw || 0);
+              return Number.isFinite(n) ? n : 0;
+            } catch { return 0; }
+          })(),
+          last_job_id: G[MARK].last_job_id,
+          last_receipt_id: G[MARK].last_receipt_id,
+          provenance_v1: buildLocalProvenance()
+        };
+
+        let peer:any = null;
+        if (peerBase) {
+          try {
+            const r = await fetch(String(peerBase).replace(/\/$/, "") + "/__void/diag/jobs-and-datanet-worker-v1.json");
+            const j:any = await r.json();
+            const hr = await fetch(String(peerBase).replace(/\/$/, "") + "/health");
+            const hj:any = await hr.json();
+            peer = {
+              base: peerBase,
+              node_id: String(hj?.nodeId || ""),
+              last_job_id: j?.last_job_id || "",
+              last_receipt_id: j?.last_receipt_id || "",
+              provenance_v1: j?.provenance_v1 || null
+            };
+          } catch (e:any) {
+            peer = {
+              base: peerBase,
+              error: String(e?.message || e)
+            };
+          }
+        }
+
+        const delta = (() => {
+          if (!peer || !peer.provenance_v1) return null;
+          const lp:any = local.provenance_v1 || {};
+          const rp:any = peer.provenance_v1 || {};
+          return {
+            local_jobs_total: Number(lp.local_jobs_total || 0) - Number(rp.local_jobs_total || 0),
+            local_origin_count: Number(lp.local_origin_count || 0) - Number(rp.local_origin_count || 0),
+            fetched_or_materialized_count: Number(lp.fetched_or_materialized_count || 0) - Number(rp.fetched_or_materialized_count || 0)
+          };
+        })();
+
+        return res.json({
+          ok: true,
+          local,
+          peer,
+          delta
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:"admin_datanet_summary_throw", msg:String(e?.message || e) });
+      }
+    });
+
     startWorker();
     try { console.log("[jobs-and-datanet-worker-v1] mounted"); } catch {}
   }
