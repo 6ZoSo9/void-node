@@ -36837,8 +36837,40 @@ a{color:#93c5fd;text-decoration:none}
                 : null
             ].filter(Boolean);
 
+            const enrichLatestUseful = (item:any) => {
+              if (!item) return null;
+              const taskClass = String(item?.task_class || "");
+              const ds = String(item?.dataset_id || "");
+              const rid = String(item?.receipt_id || "");
+              const match = recentRunnerActivity.find((x:any) => {
+                if (String(x?.task_class || "") !== taskClass) return false;
+                const xds = String(x?.dataset_id || "");
+                const xrid = String(x?.receipt_id || "");
+                if (ds && xds && ds === xds) return true;
+                if (rid && xrid && rid === xrid) return true;
+                return false;
+              }) || null;
+
+              const result_hint =
+                taskClass === "publish" ? "stored" :
+                taskClass === "verify" ? "verified" :
+                taskClass === "redundancy" ? "checked" :
+                null;
+
+              return {
+                ...item,
+                job_id: match && match?.job_id ? String(match.job_id) : null,
+                status: match && match?.status ? String(match.status) : null,
+                source_kind: match && match?.source ? String(match.source) : null,
+                result_hint,
+                consume_path: ds ? ("/datanet/consume-view/" + encodeURIComponent(ds)) : null,
+                view_path: ds ? ("/datanet/view/" + encodeURIComponent(ds)) : null,
+                raw_local_job_path: ds ? ("/datanet/v1/local-job/" + encodeURIComponent(ds)) : null
+              };
+            };
+
             latestUsefulCandidates.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
-            const latest_useful_dataset = latestUsefulCandidates.length ? latestUsefulCandidates[0] : null;
+            const latest_useful_dataset = latestUsefulCandidates.length ? enrichLatestUseful(latestUsefulCandidates[0]) : null;
 
             return res.json({
               ok: true,
@@ -42246,14 +42278,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           setText("latestDatasetIdHero", latestUsefulDatasetShort);
 
           const latestDatasetViewHref =
-            "/datanet/view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
-            "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+            latestUseful && latestUseful.view_path
+              ? (String(latestUseful.view_path) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"))
+              : ("/datanet/view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
+                 "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"));
           const latestDatasetRawHref =
-            "/datanet/v1/local-job/" + encodeURIComponent(String(latestUsefulDatasetId)) +
-            "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+            latestUseful && latestUseful.raw_local_job_path
+              ? (String(latestUseful.raw_local_job_path) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"))
+              : ("/datanet/v1/local-job/" + encodeURIComponent(String(latestUsefulDatasetId)) +
+                 "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"));
           const latestDatasetConsumeHref =
-            "/datanet/consume-view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
-            "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+            latestUseful && latestUseful.consume_path
+              ? (String(latestUseful.consume_path) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"))
+              : ("/datanet/consume-view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
+                 "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"));
 
           if ($("latestDatasetMetaHero")) {
             $("latestDatasetMetaHero").innerHTML =
