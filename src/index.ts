@@ -37561,6 +37561,9 @@ a{color:#93c5fd;text-decoration:none}
               ok:false,
               blocked:true,
               reason:"runner_disabled",
+              outcome:"disabled",
+              outcome_label:"OFF",
+              outcome_reason:"runner_disabled",
               account,
               runner: stBefore,
               runner_before: stBefore,
@@ -37593,10 +37596,34 @@ a{color:#93c5fd;text-decoration:none}
                 note: stAfter.note
               });
 
+          const outcomeReason =
+            submitAligned && submitAligned.reason
+              ? String(submitAligned.reason)
+              : ((submitAligned && submitAligned.submitted) ? "submitted" : "unknown");
+
+          const outcome =
+            outcomeReason === "runner_busy" ? "busy" :
+            outcomeReason === "cooldown" ? "cooldown" :
+            outcomeReason === "hourly_limit" ? "hourly_limit" :
+            outcomeReason === "background_runner_won_race" ? "background_runner_won_race" :
+            outcomeReason === "submitted" ? "submitted" :
+            ((submitAligned && submitAligned.submitted) ? "submitted" : "unknown");
+
+          const outcomeLabel =
+            outcome === "busy" ? "BUSY" :
+            outcome === "cooldown" ? "COOLDOWN" :
+            outcome === "hourly_limit" ? "LIMIT" :
+            outcome === "background_runner_won_race" ? "RACE" :
+            outcome === "submitted" ? "SUBMITTED" :
+            "UNKNOWN";
+
           return res.json({
             ok:true,
             manual:true,
             account,
+            outcome,
+            outcome_label: outcomeLabel,
+            outcome_reason: outcomeReason,
             runner: runnerAligned,
             runner_before: stBefore,
             runner_after: stAfter,
