@@ -36617,58 +36617,7 @@ a{color:#93c5fd;text-decoration:none}
 
             const recentRunnerActivity:any[] = [];
 
-            const normalizeTaskClass = (raw:any) => {
-              const s = String(raw || "");
-              return s === "datanet_publish" ? "publish" :
-                s === "datanet_fetch_verify" ? "verify" :
-                s === "datanet_redundancy_check" ? "redundancy" :
-                s === "publish" ? "publish" :
-                s === "verify" ? "verify" :
-                s === "redundancy" ? "redundancy" :
-                s;
-            };
-
-            for (const account of accountKeys) {
-              const events = Array.isArray(selectionEventsByAccount[String(account)])
-                ? selectionEventsByAccount[String(account)]
-                : [];
-              for (const ev of events) {
-                if (!ev) continue;
-                const rawTask = String(ev?.task_class || "");
-                const taskClass = normalizeTaskClass(rawTask);
-                recentRunnerActivity.push({
-                  source: "runner_selection_event",
-                  account: String(account),
-                  ts_ms: Number(ev?.ts_ms || 0),
-                  task_class: taskClass,
-                  raw_task_class: rawTask,
-                  selection_reason: ev?.selection_reason || ev?.reason || null,
-                  dataset_id: ev?.dataset_id || null,
-                  stale_for_ms: Number(ev?.stale_for_ms || 0) || null
-                });
-              }
-
-              const lr:any = lastResultByAccount[String(account)] || null;
-              if (lr && (lr.selected_task_class || lr.job_id || lr.receipt_id || lr.dataset_id)) {
-                const rawTask = String(lr?.selected_task_class || "");
-                const taskClass = normalizeTaskClass(rawTask);
-                recentRunnerActivity.push({
-                  source: "runner_last_result",
-                  account: String(account),
-                  ts_ms: Number(lr?.at_ms || 0),
-                  task_class: taskClass,
-                  raw_task_class: rawTask,
-                  selection_reason: lr?.selection_reason || null,
-                  dataset_id: lr?.selected_dataset_id || lr?.dataset_id || null,
-                  job_id: lr?.job_id || null,
-                  receipt_id: lr?.receipt_id || null,
-                  ok: lr?.ok === undefined ? null : !!lr.ok,
-                  status: lr?.status || null,
-                  selected_network_need_score: Number(lr?.selected_network_need_score || 0) || null,
-                  selected_difficulty_bucket: lr?.selected_difficulty_bucket || null
-                });
-              }
-            }
+            recentRunnerActivity.push(...buildRunnerRuntimeActivityItems(lastResultByAccount, selectionEventsByAccount));
 
             try {
               const jobsV1File = path.join(
@@ -36699,7 +36648,7 @@ a{color:#93c5fd;text-decoration:none}
                 try {
                   const j:any = JSON.parse(line);
                   const rawTask = String(j?.kind || j?.task_class || j?.selected_task_class || "");
-                  const taskClass = normalizeTaskClass(rawTask);
+                  const taskClass = normalizeRunnerTaskClass(rawTask);
                   if (!(taskClass === "publish" || taskClass === "verify" || taskClass === "redundancy")) continue;
 
                   const rid = String(j?.receipt_id || "");
@@ -37137,6 +37086,67 @@ a{color:#93c5fd;text-decoration:none}
       return String((runnerSelectionDecisionFor(account) || {}).task_class || "datanet_publish");
     }
 
+
+    function normalizeRunnerTaskClass(raw:any){
+      const s = String(raw || "");
+      return s === "datanet_publish" ? "publish" :
+        s === "datanet_fetch_verify" ? "verify" :
+        s === "datanet_redundancy_check" ? "redundancy" :
+        s === "publish" ? "publish" :
+        s === "verify" ? "verify" :
+        s === "redundancy" ? "redundancy" :
+        s;
+    }
+
+    function buildRunnerRuntimeActivityItems(lastResultByAccount:any, selectionEventsByAccount:any){
+      const accountKeys = Array.from(new Set([
+        ...Object.keys(lastResultByAccount || {}),
+        ...Object.keys(selectionEventsByAccount || {})
+      ])).filter((x:any) => String(x || "").trim().length > 0);
+
+      const recentRunnerActivity:any[] = [];
+      for (const account of accountKeys) {
+        const events = Array.isArray(selectionEventsByAccount[String(account)])
+          ? selectionEventsByAccount[String(account)]
+          : [];
+        for (const ev of events) {
+          if (!ev) continue;
+          const rawTask = String(ev?.task_class || "");
+          recentRunnerActivity.push({
+            source: "runner_selection_event",
+            account: String(account),
+            ts_ms: Number(ev?.ts_ms || 0),
+            task_class: normalizeRunnerTaskClass(rawTask),
+            raw_task_class: rawTask,
+            selection_reason: ev?.selection_reason || ev?.reason || null,
+            dataset_id: ev?.dataset_id || null,
+            stale_for_ms: Number(ev?.stale_for_ms || 0) || null
+          });
+        }
+
+        const lr:any = lastResultByAccount[String(account)] || null;
+        if (lr && (lr.selected_task_class || lr.job_id || lr.receipt_id || lr.dataset_id)) {
+          const rawTask = String(lr?.selected_task_class || "");
+          recentRunnerActivity.push({
+            source: "runner_last_result",
+            account: String(account),
+            ts_ms: Number(lr?.at_ms || 0),
+            task_class: normalizeRunnerTaskClass(rawTask),
+            raw_task_class: rawTask,
+            selection_reason: lr?.selection_reason || null,
+            dataset_id: lr?.selected_dataset_id || lr?.dataset_id || null,
+            job_id: lr?.job_id || null,
+            receipt_id: lr?.receipt_id || null,
+            ok: lr?.ok === undefined ? null : !!lr.ok,
+            status: lr?.status || null,
+            selected_network_need_score: Number(lr?.selected_network_need_score || 0) || null,
+            selected_difficulty_bucket: lr?.selected_difficulty_bucket || null
+          });
+        }
+      }
+      return recentRunnerActivity;
+    }
+
     async function wcRunnerSubmitOnce(account:string){
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       rt.inflight_by_account = rt.inflight_by_account || {};
@@ -37547,6 +37557,7 @@ a{color:#93c5fd;text-decoration:none}
           : "Agent-selected useful work is stopped for this account."
       };
     }
+
 
     app.get("/wc/runner/status", (req:any, res:any) => {
       try {
@@ -38972,6 +38983,67 @@ a{color:#93c5fd;text-decoration:none}
       });
     });
 
+
+    function normalizeRunnerTaskClassForAdmin(raw:any){
+      const s = String(raw || "");
+      return s === "datanet_publish" ? "publish" :
+        s === "datanet_fetch_verify" ? "verify" :
+        s === "datanet_redundancy_check" ? "redundancy" :
+        s === "publish" ? "publish" :
+        s === "verify" ? "verify" :
+        s === "redundancy" ? "redundancy" :
+        s;
+    }
+
+    function buildRunnerRuntimeActivityItemsForAdmin(lastResultByAccount:any, selectionEventsByAccount:any){
+      const accountKeys = Array.from(new Set([
+        ...Object.keys(lastResultByAccount || {}),
+        ...Object.keys(selectionEventsByAccount || {})
+      ])).filter((x:any) => String(x || "").trim().length > 0);
+
+      const recentRunnerActivity:any[] = [];
+      for (const account of accountKeys) {
+        const events = Array.isArray(selectionEventsByAccount[String(account)])
+          ? selectionEventsByAccount[String(account)]
+          : [];
+        for (const ev of events) {
+          if (!ev) continue;
+          const rawTask = String(ev?.task_class || "");
+          recentRunnerActivity.push({
+            source: "runner_selection_event",
+            account: String(account),
+            ts_ms: Number(ev?.ts_ms || 0),
+            task_class: normalizeRunnerTaskClassForAdmin(rawTask),
+            raw_task_class: rawTask,
+            selection_reason: ev?.selection_reason || ev?.reason || null,
+            dataset_id: ev?.dataset_id || null,
+            stale_for_ms: Number(ev?.stale_for_ms || 0) || null
+          });
+        }
+
+        const lr:any = lastResultByAccount[String(account)] || null;
+        if (lr && (lr.selected_task_class || lr.job_id || lr.receipt_id || lr.dataset_id)) {
+          const rawTask = String(lr?.selected_task_class || "");
+          recentRunnerActivity.push({
+            source: "runner_last_result",
+            account: String(account),
+            ts_ms: Number(lr?.at_ms || 0),
+            task_class: normalizeRunnerTaskClassForAdmin(rawTask),
+            raw_task_class: rawTask,
+            selection_reason: lr?.selection_reason || null,
+            dataset_id: lr?.selected_dataset_id || lr?.dataset_id || null,
+            job_id: lr?.job_id || null,
+            receipt_id: lr?.receipt_id || null,
+            ok: lr?.ok === undefined ? null : !!lr.ok,
+            status: lr?.status || null,
+            selected_network_need_score: Number(lr?.selected_network_need_score || 0) || null,
+            selected_difficulty_bucket: lr?.selected_difficulty_bucket || null
+          });
+        }
+      }
+      return recentRunnerActivity;
+    }
+
     app.get("/__void/admin/datanet-summary.json", async (req:any, res:any) => {
       try {
         const fs = require("node:fs");
@@ -39065,62 +39137,73 @@ a{color:#93c5fd;text-decoration:none}
         const lastResultByAccount:any = rt.last_result || {};
         const selectionEventsByAccount:any = rt.selection_events_by_account || {};
 
-        const accountKeys = Array.from(new Set([
-          ...Object.keys(lastResultByAccount || {}),
-          ...Object.keys(selectionEventsByAccount || {})
-        ])).filter((x:any) => String(x || "").trim().length > 0);
+        const recentRunnerActivity:any[] = buildRunnerRuntimeActivityItemsForAdmin(lastResultByAccount, selectionEventsByAccount);
 
-        const normalizeTaskClass = (raw:any) => {
-          const s = String(raw || "");
-          return s === "datanet_publish" ? "publish" :
-            s === "datanet_fetch_verify" ? "verify" :
-            s === "datanet_redundancy_check" ? "redundancy" :
-            s === "publish" ? "publish" :
-            s === "verify" ? "verify" :
-            s === "redundancy" ? "redundancy" :
-            s;
-        };
+        try {
+          const jobsV1File = path.join(
+            String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+            "jobs_v1",
+            "jobs.jsonl"
+          );
+          const agentReceiptsV1File = path.join(
+            String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+            "agent_v1",
+            "receipts.jsonl"
+          );
 
-        const recentRunnerActivity:any[] = [];
-        for (const account of accountKeys) {
-          const events = Array.isArray(selectionEventsByAccount[String(account)])
-            ? selectionEventsByAccount[String(account)]
-            : [];
-          for (const ev of events) {
-            if (!ev) continue;
-            const rawTask = String(ev?.task_class || "");
-            recentRunnerActivity.push({
-              source: "runner_selection_event",
-              account: String(account),
-              ts_ms: Number(ev?.ts_ms || 0),
-              task_class: normalizeTaskClass(rawTask),
-              raw_task_class: rawTask,
-              selection_reason: ev?.selection_reason || ev?.reason || null,
-              dataset_id: ev?.dataset_id || null,
-              stale_for_ms: Number(ev?.stale_for_ms || 0) || null
-            });
+          const receiptsById:any = {};
+          const receiptsByJobId:any = {};
+          for (const line of readLines(agentReceiptsV1File)) {
+            try {
+              const r:any = JSON.parse(line);
+              const rid = String(r?.receipt_id || "");
+              const jobId = String(r?.job_id || "");
+              if (rid) receiptsById[rid] = r;
+              if (jobId) receiptsByJobId[jobId] = r;
+            } catch {}
           }
 
-          const lr:any = lastResultByAccount[String(account)] || null;
-          if (lr && (lr.selected_task_class || lr.job_id || lr.receipt_id || lr.dataset_id)) {
-            const rawTask = String(lr?.selected_task_class || "");
-            recentRunnerActivity.push({
-              source: "runner_last_result",
-              account: String(account),
-              ts_ms: Number(lr?.at_ms || 0),
-              task_class: normalizeTaskClass(rawTask),
-              raw_task_class: rawTask,
-              selection_reason: lr?.selection_reason || null,
-              dataset_id: lr?.selected_dataset_id || lr?.dataset_id || null,
-              job_id: lr?.job_id || null,
-              receipt_id: lr?.receipt_id || null,
-              ok: lr?.ok === undefined ? null : !!lr.ok,
-              status: lr?.status || null,
-              selected_network_need_score: Number(lr?.selected_network_need_score || 0) || null,
-              selected_difficulty_bucket: lr?.selected_difficulty_bucket || null
-            });
+          const persistedRecent:any[] = [];
+          for (const line of readLines(jobsV1File)) {
+            try {
+              const j:any = JSON.parse(line);
+              const rawTask = String(j?.kind || j?.task_class || j?.selected_task_class || "");
+              const taskClass = normalizeRunnerTaskClassForAdmin(rawTask);
+              if (!(taskClass === "publish" || taskClass === "verify" || taskClass === "redundancy")) continue;
+
+              const rid = String(j?.receipt_id || "");
+              const jobId = String(j?.job_id || "");
+              const rr:any =
+                (rid && receiptsById[rid]) ? receiptsById[rid] :
+                (jobId && receiptsByJobId[jobId]) ? receiptsByJobId[jobId] :
+                null;
+              const tsMs =
+                Number((rr && rr?.ts_ms) || 0) ||
+                Number(j?.ts_ms || 0) ||
+                Number(j?.ts || 0) ||
+                0;
+
+              persistedRecent.push({
+                source: rr ? "persisted_receipt_v1" : "persisted_job_v1",
+                account: String(j?.account || rr?.account || ""),
+                ts_ms: tsMs,
+                task_class: taskClass,
+                raw_task_class: rawTask,
+                selection_reason: j?.selection_reason || rr?.selection_reason || null,
+                dataset_id: j?.dataset_id || j?.selected_dataset_id || rr?.dataset_id || rr?.selected_dataset_id || null,
+                job_id: j?.job_id || rr?.job_id || null,
+                receipt_id: rid || rr?.receipt_id || null,
+                ok: rr?.ok === undefined ? null : !!rr.ok,
+                status: rr?.status || j?.status || null
+              });
+            } catch {}
           }
-        }
+
+          persistedRecent.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+          for (const item of persistedRecent.slice(0, 100)) {
+            recentRunnerActivity.push(item);
+          }
+        } catch {}
 
         recentRunnerActivity.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
 
