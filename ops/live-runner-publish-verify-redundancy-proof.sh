@@ -25,7 +25,7 @@ jget "$BASE/network/value-summary.json?limit=10" 10 | tee "$OUT/network.before.j
 
 echo
 echo "=== [2] enable full runner config for account ==="
-jpost_json "$BASE/wc/runner/config" "{\"account\":\"$ACCOUNT\",\"allow_datanet_fetch_verify\":true,\"allow_datanet_redundancy_check\":true}" 10 | tee "$OUT/runner.config.json"
+jpost_json "$BASE/wc/runner/config" "{\"account\":\"$ACCOUNT\",\"safe_mode\":false,\"allow_datanet_fetch_verify\":true,\"allow_datanet_redundancy_check\":true,\"min_submit_gap_ms\":1000,\"max_jobs_per_hour\":120}" 10 | tee "$OUT/runner.config.json"
 echo
 jpost_json "$BASE/wc/runner/set" "{\"account\":\"$ACCOUNT\",\"enabled\":true}" 10 | tee "$OUT/runner.set.json"
 
@@ -54,6 +54,9 @@ o = json.loads(pathlib.Path(sys.argv[1]).read_text())
 print(json.dumps({
   "enabled": o.get("enabled"),
   "approved_task_classes": o.get("approved_task_classes"),
+  "selection_task_class": ((o.get("selection") or {}).get("task_class")),
+  "selection_dataset_id": ((o.get("selection") or {}).get("dataset_id")),
+  "selection_reason": ((o.get("selection") or {}).get("reason")),
   "last_selected_task_class": o.get("last_selected_task_class"),
   "last_selected_dataset_id": o.get("last_selected_dataset_id"),
   "last_selection_reason": o.get("last_selection_reason"),
@@ -66,7 +69,8 @@ PY
   TASK="$(python3 - "$OUT/runner.status.$i.json" <<'PY'
 import sys, json, pathlib
 o = json.loads(pathlib.Path(sys.argv[1]).read_text())
-print(o.get("last_selected_task_class") or "")
+sel = o.get("selection") or {}
+print((sel.get("task_class") or o.get("last_selected_task_class") or ""))
 PY
 )"
   case "$TASK" in

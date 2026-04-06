@@ -36942,6 +36942,7 @@ a{color:#93c5fd;text-decoration:none}
 
       const hist = Array.isArray(rt.selection_history_by_account[String(account)]) ? rt.selection_history_by_account[String(account)] : [];
       const recent = hist.slice(-3).map((x:any) => String(x || ""));
+      const publishStreak = recent.length >= 2 && recent[recent.length - 1] === "datanet_publish" && recent[recent.length - 2] === "datanet_publish";
       const verifyStreak = recent.length >= 2 && recent[recent.length - 1] === "datanet_fetch_verify" && recent[recent.length - 2] === "datanet_fetch_verify";
       const redundancyStreak = recent.length >= 2 && recent[recent.length - 1] === "datanet_redundancy_check" && recent[recent.length - 2] === "datanet_redundancy_check";
 
@@ -36986,13 +36987,14 @@ a{color:#93c5fd;text-decoration:none}
       const verifyNeedScore = Math.min(1, Math.max(0, (targetVerify - verifyShare) + (verifyCandidate && Number(verifyCandidate.stale_for_ms || 0) >= 60 * 60 * 1000 ? 0.2 : 0)));
       const redundancyNeedScore = Math.min(1, Math.max(0, (targetRedundancy - redundancyShare) + (redundancyCandidate && Number(redundancyCandidate.stale_for_ms || 0) >= 6 * 60 * 60 * 1000 ? 0.25 : 0)));
 
-      if (hasPublish) {
+      if (hasPublish && !(publishStreak && (verifyCandidate || redundancyCandidate))) {
         choices.push({
           task_class: "datanet_publish",
           reason: "target_publish_mix",
           dataset_id: null,
           candidate: null,
           deficit: targetPublish - publishShare,
+          score: Number((targetPublish - publishShare) || 0) + (publishNeedScore * 0.35),
           stale_for_ms: 0,
           difficulty_bucket: totalLastHour <= 1 ? "high" : "medium",
           network_need_score: publishNeedScore
@@ -37007,6 +37009,7 @@ a{color:#93c5fd;text-decoration:none}
           dataset_id: String(verifyCandidate.dataset_id || ""),
           candidate: verifyCandidate,
           deficit: targetVerify - verifyShare,
+          score: Number((targetVerify - verifyShare) || 0) + (verifyNeedScore * 0.35) + Math.min(0.35, verifyStaleMs / (24 * 60 * 60 * 1000)),
           stale_for_ms: verifyStaleMs,
           difficulty_bucket: verifyStaleMs >= 6 * 60 * 60 * 1000 ? "high" : "medium",
           network_need_score: verifyNeedScore
@@ -37021,6 +37024,7 @@ a{color:#93c5fd;text-decoration:none}
           dataset_id: String(redundancyCandidate.dataset_id || ""),
           candidate: redundancyCandidate,
           deficit: targetRedundancy - redundancyShare,
+          score: Number((targetRedundancy - redundancyShare) || 0) + (redundancyNeedScore * 0.35) + Math.min(0.35, redundancyStaleMs / (48 * 60 * 60 * 1000)),
           stale_for_ms: redundancyStaleMs,
           difficulty_bucket: redundancyStaleMs >= 24 * 60 * 60 * 1000 ? "medium" : "low",
           network_need_score: redundancyNeedScore
@@ -37028,7 +37032,9 @@ a{color:#93c5fd;text-decoration:none}
       }
 
       if (choices.length) {
-        choices.sort((a:any, b:any) => Number(b.deficit || 0) - Number(a.deficit || 0));
+        choices.sort((a:any, b:any) =>
+          Number(b.score || b.deficit || 0) - Number(a.score || a.deficit || 0)
+        );
         const best = choices[0];
         const baseReason = String(best.reason || "mix_choice");
         let finalReason = baseReason;
