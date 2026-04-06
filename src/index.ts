@@ -38867,6 +38867,254 @@ a{color:#93c5fd;text-decoration:none}
       }
     });
 
+
+    app.get("/__void/admin/datanet-summary", (_req:any, res:any) => {
+      const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>VOID Admin · DataNet Summary</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg:#0b1020;
+      --panel:#121a30;
+      --text:#e5e7eb;
+      --muted:#94a3b8;
+      --line:rgba(148,163,184,.18);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:#0b1020;
+      color:var(--text);
+      font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    }
+    .wrap{max-width:1180px;margin:0 auto;padding:24px}
+    .top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+    h1{margin:0;font-size:22px}
+    .muted{color:var(--muted)}
+    .controls{display:flex;gap:10px;flex-wrap:wrap}
+    input,button{
+      background:var(--panel);
+      color:var(--text);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:10px 12px;
+      font:inherit;
+    }
+    input{min-width:320px}
+    button{cursor:pointer}
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:14px;
+      margin:14px 0 20px;
+    }
+    .card{
+      background:rgba(18,26,48,.92);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:16px;
+      min-width:0;
+    }
+    .card h2{
+      margin:0 0 10px;
+      font-size:13px;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      color:var(--muted);
+    }
+    .big{font-size:28px;font-weight:800}
+    .kv{display:grid;grid-template-columns:160px 1fr;gap:8px 12px}
+    .kv div:nth-child(odd){color:var(--muted)}
+    .section{
+      margin-top:16px;
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:14px;
+    }
+    .mono{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:12px;
+      word-break:break-all;
+    }
+    .list{margin:0;padding-left:18px;max-height:260px;overflow:auto}
+    .error{
+      margin-top:12px;padding:12px 14px;border:1px solid rgba(239,68,68,.28);
+      background:rgba(127,29,29,.18);border-radius:14px;color:#fecaca;display:none
+    }
+    @media (max-width: 900px){
+      .grid,.section{grid-template-columns:1fr}
+      input{min-width:0;width:100%}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1>DataNet Admin Summary</h1>
+        <div class="muted">Operator view for local, peer, and delta provenance truth.</div>
+      </div>
+      <div class="controls">
+        <input id="peerInput" placeholder="Peer base URL, e.g. http://100.122.79.39:4100" />
+        <button id="loadBtn">Load</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Local Head</h2>
+        <div class="big" id="localHead">-</div>
+        <div class="muted mono" id="localNode">-</div>
+      </div>
+      <div class="card">
+        <h2>Peer</h2>
+        <div class="big" id="peerState">Not loaded</div>
+        <div class="muted mono" id="peerNode">-</div>
+      </div>
+      <div class="card">
+        <h2>Delta</h2>
+        <div class="kv">
+          <div>Local Jobs</div><div id="deltaJobs">-</div>
+          <div>Local Origin</div><div id="deltaOrigin">-</div>
+          <div>Fetched/Mat.</div><div id="deltaFetched">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="card">
+        <h2>Local Provenance</h2>
+        <div class="kv">
+          <div>Local Jobs</div><div id="localJobs">-</div>
+          <div>Receipt Datasets</div><div id="localReceipts">-</div>
+          <div>Local Origin</div><div id="localOrigin">-</div>
+          <div>Fetched/Materialized</div><div id="localFetched">-</div>
+          <div>Last Job</div><div class="mono" id="localLastJob">-</div>
+          <div>Last Receipt</div><div class="mono" id="localLastReceipt">-</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Peer Provenance</h2>
+        <div class="kv">
+          <div>Local Jobs</div><div id="peerJobs">-</div>
+          <div>Receipt Datasets</div><div id="peerReceipts">-</div>
+          <div>Local Origin</div><div id="peerOrigin">-</div>
+          <div>Fetched/Materialized</div><div id="peerFetched">-</div>
+          <div>Last Job</div><div class="mono" id="peerLastJob">-</div>
+          <div>Last Receipt</div><div class="mono" id="peerLastReceipt">-</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Local Origin Sample</h2>
+        <ul class="list mono" id="localOriginSample"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Fetched/Materialized Sample</h2>
+        <ul class="list mono" id="localFetchedSample"></ul>
+      </div>
+    </div>
+
+    <div class="error" id="errBox"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const set = (id, v) => { const el = $(id); if (el) el.textContent = String(v ?? "-"); };
+    const esc = (s) => String(s).replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
+    const fillList = (id, arr) => {
+      const el = $(id);
+      if (!el) return;
+      const items = Array.isArray(arr) ? arr : [];
+      el.innerHTML = items.length ? items.map(x => "<li>" + esc(x) + "</li>").join("") : "<li class=\"muted\">None</li>";
+    };
+    const showErr = (msg) => {
+      const el = $("errBox");
+      if (!el) return;
+      el.style.display = msg ? "block" : "none";
+      el.textContent = msg || "";
+    };
+
+    async function load() {
+      showErr("");
+      const peer = ($("peerInput").value || "").trim();
+      const url = "/__void/admin/datanet-summary.json" + (peer ? ("?peer=" + encodeURIComponent(peer)) : "");
+      try {
+        const r = await fetch(url, { cache: "no-store" });
+        const j = await r.json();
+        if (!j || !j.ok) throw new Error((j && (j.msg || j.error)) || "request_failed");
+
+        const local = j.local || {};
+        const lp = local.provenance_v1 || {};
+        const peerObj = j.peer || null;
+        const pp = peerObj && peerObj.provenance_v1 ? peerObj.provenance_v1 : null;
+        const d = j.delta || null;
+
+        set("localHead", local.head);
+        set("localNode", local.node_id || "-");
+        set("localJobs", lp.local_jobs_total);
+        set("localReceipts", lp.receipt_dataset_ids_total);
+        set("localOrigin", lp.local_origin_count);
+        set("localFetched", lp.fetched_or_materialized_count);
+        set("localLastJob", local.last_job_id || "-");
+        set("localLastReceipt", local.last_receipt_id || "-");
+        fillList("localOriginSample", lp.local_origin_sample);
+        fillList("localFetchedSample", lp.fetched_or_materialized_sample);
+
+        if (peerObj && !peerObj.error && pp) {
+          set("peerState", "Loaded");
+          set("peerNode", peerObj.node_id || peerObj.base || "-");
+          set("peerJobs", pp.local_jobs_total);
+          set("peerReceipts", pp.receipt_dataset_ids_total);
+          set("peerOrigin", pp.local_origin_count);
+          set("peerFetched", pp.fetched_or_materialized_count);
+          set("peerLastJob", peerObj.last_job_id || "-");
+          set("peerLastReceipt", peerObj.last_receipt_id || "-");
+        } else if (peerObj && peerObj.error) {
+          set("peerState", "Error");
+          set("peerNode", peerObj.base || "-");
+          set("peerJobs", "-");
+          set("peerReceipts", "-");
+          set("peerOrigin", "-");
+          set("peerFetched", "-");
+          set("peerLastJob", "-");
+          set("peerLastReceipt", "-");
+          showErr("Peer load failed: " + peerObj.error);
+        } else {
+          set("peerState", "Not loaded");
+          set("peerNode", "-");
+          set("peerJobs", "-");
+          set("peerReceipts", "-");
+          set("peerOrigin", "-");
+          set("peerFetched", "-");
+          set("peerLastJob", "-");
+          set("peerLastReceipt", "-");
+        }
+
+        set("deltaJobs", d ? d.local_jobs_total : "-");
+        set("deltaOrigin", d ? d.local_origin_count : "-");
+        set("deltaFetched", d ? d.fetched_or_materialized_count : "-");
+      } catch (e) {
+        showErr(String((e && e.message) || e));
+      }
+    }
+
+    $("loadBtn").addEventListener("click", load);
+    $("peerInput").value = "http://100.122.79.39:4100";
+    load();
+  </script>
+</body>
+</html>`;
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      return res.status(200).send(html);
+    });
+
     startWorker();
     try { console.log("[jobs-and-datanet-worker-v1] mounted"); } catch {}
   }
