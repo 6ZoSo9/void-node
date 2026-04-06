@@ -37132,6 +37132,31 @@ a{color:#93c5fd;text-decoration:none}
         if (selected_task_class === "datanet_fetch_verify") {
           const candidate = selection && selection.candidate ? selection.candidate : runnerFindVerifyCandidate(account);
           if (!candidate || !candidate.path || !candidate.dataset_id) {
+            rt.last_result[String(account)] = {
+              at_ms: Date.now(),
+              ok: true,
+              skipped: true,
+              reason: "no_fetch_verify_target",
+              result: {
+                ok:true,
+                skipped:true,
+                reason:"no_fetch_verify_target",
+                selection_reason,
+                account,
+                safe_mode: !!cfg.safe_mode,
+                min_submit_gap_ms: minGap,
+                max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+              },
+              selected_task_class,
+              selected_dataset_id: null,
+              selection_reason,
+              selected_stale_for_ms: Number(selection?.stale_for_ms || 0),
+              selected_difficulty_bucket: String(selection?.difficulty_bucket || "low"),
+              selected_network_need_score: Number(selection?.network_need_score || 0),
+              safe_mode: !!cfg.safe_mode,
+              min_submit_gap_ms: minGap,
+              max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+            };
             return {
               ok:true,
               skipped:true,
@@ -37156,6 +37181,31 @@ a{color:#93c5fd;text-decoration:none}
         } else if (selected_task_class === "datanet_redundancy_check") {
           const candidate = selection && selection.candidate ? selection.candidate : runnerFindRedundancyCandidate(account);
           if (!candidate || !candidate.path || !candidate.dataset_id) {
+            rt.last_result[String(account)] = {
+              at_ms: Date.now(),
+              ok: true,
+              skipped: true,
+              reason: "no_redundancy_target",
+              result: {
+                ok:true,
+                skipped:true,
+                reason:"no_redundancy_target",
+                selection_reason,
+                account,
+                safe_mode: !!cfg.safe_mode,
+                min_submit_gap_ms: minGap,
+                max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+              },
+              selected_task_class,
+              selected_dataset_id: null,
+              selection_reason,
+              selected_stale_for_ms: Number(selection?.stale_for_ms || 0),
+              selected_difficulty_bucket: String(selection?.difficulty_bucket || "low"),
+              selected_network_need_score: Number(selection?.network_need_score || 0),
+              safe_mode: !!cfg.safe_mode,
+              min_submit_gap_ms: minGap,
+              max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+            };
             return {
               ok:true,
               skipped:true,
