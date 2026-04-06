@@ -36606,7 +36606,7 @@ a{color:#93c5fd;text-decoration:none}
               }
             }
 
-            const rt:any = GG.__void_wc_runner_runtime_v1 || {};
+            const rt:any = (globalThis as any).__void_wc_runner_runtime_v1 || {};
             const lastResultByAccount:any = rt.last_result || {};
             const selectionEventsByAccount:any = rt.selection_events_by_account || {};
 
@@ -36642,7 +36642,7 @@ a{color:#93c5fd;text-decoration:none}
                   ts_ms: Number(ev?.ts_ms || 0),
                   task_class: taskClass,
                   raw_task_class: rawTask,
-                  selection_reason: ev?.reason || null,
+                  selection_reason: ev?.selection_reason || ev?.reason || null,
                   dataset_id: ev?.dataset_id || null,
                   stale_for_ms: Number(ev?.stale_for_ms || 0) || null
                 });
@@ -38898,6 +38898,87 @@ a{color:#93c5fd;text-decoration:none}
           }
         }
 
+        const rt:any = (globalThis as any).__void_wc_runner_runtime_v1 || {};
+        const lastResultByAccount:any = rt.last_result || {};
+        const selectionEventsByAccount:any = rt.selection_events_by_account || {};
+
+        const accountKeys = Array.from(new Set([
+          ...Object.keys(lastResultByAccount || {}),
+          ...Object.keys(selectionEventsByAccount || {})
+        ])).filter((x:any) => String(x || "").trim().length > 0);
+
+        const normalizeTaskClass = (raw:any) => {
+          const s = String(raw || "");
+          return s === "datanet_publish" ? "publish" :
+            s === "datanet_fetch_verify" ? "verify" :
+            s === "datanet_redundancy_check" ? "redundancy" :
+            s === "publish" ? "publish" :
+            s === "verify" ? "verify" :
+            s === "redundancy" ? "redundancy" :
+            s;
+        };
+
+        const recentRunnerActivity:any[] = [];
+        for (const account of accountKeys) {
+          const events = Array.isArray(selectionEventsByAccount[String(account)])
+            ? selectionEventsByAccount[String(account)]
+            : [];
+          for (const ev of events) {
+            if (!ev) continue;
+            const rawTask = String(ev?.task_class || "");
+            recentRunnerActivity.push({
+              source: "runner_selection_event",
+              account: String(account),
+              ts_ms: Number(ev?.ts_ms || 0),
+              task_class: normalizeTaskClass(rawTask),
+              raw_task_class: rawTask,
+              selection_reason: ev?.selection_reason || ev?.reason || null,
+              dataset_id: ev?.dataset_id || null,
+              stale_for_ms: Number(ev?.stale_for_ms || 0) || null
+            });
+          }
+
+          const lr:any = lastResultByAccount[String(account)] || null;
+          if (lr && (lr.selected_task_class || lr.job_id || lr.receipt_id || lr.dataset_id)) {
+            const rawTask = String(lr?.selected_task_class || "");
+            recentRunnerActivity.push({
+              source: "runner_last_result",
+              account: String(account),
+              ts_ms: Number(lr?.at_ms || 0),
+              task_class: normalizeTaskClass(rawTask),
+              raw_task_class: rawTask,
+              selection_reason: lr?.selection_reason || null,
+              dataset_id: lr?.selected_dataset_id || lr?.dataset_id || null,
+              job_id: lr?.job_id || null,
+              receipt_id: lr?.receipt_id || null,
+              ok: lr?.ok === undefined ? null : !!lr.ok,
+              status: lr?.status || null,
+              selected_network_need_score: Number(lr?.selected_network_need_score || 0) || null,
+              selected_difficulty_bucket: lr?.selected_difficulty_bucket || null
+            });
+          }
+        }
+
+        recentRunnerActivity.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+
+        const seenRunnerActivity = new Set<string>();
+        const recentRunnerActivityDeduped:any[] = [];
+        for (const item of recentRunnerActivity) {
+          const key = [
+            String(item?.account || ""),
+            String(item?.task_class || ""),
+            String(item?.dataset_id || ""),
+            String(item?.job_id || ""),
+            String(item?.receipt_id || ""),
+            String(item?.selection_reason || ""),
+            String(item?.ts_ms || 0)
+          ].join("|");
+          if (seenRunnerActivity.has(key)) continue;
+          seenRunnerActivity.add(key);
+          recentRunnerActivityDeduped.push(item);
+          if (recentRunnerActivityDeduped.length >= 25) break;
+        }
+
         const delta = (() => {
           if (!peer || !peer.provenance_v1) return null;
           const lp:any = local.provenance_v1 || {};
@@ -38913,7 +38994,9 @@ a{color:#93c5fd;text-decoration:none}
           ok: true,
           local,
           peer,
-          delta
+          delta,
+          recent_runner_activity_count: recentRunnerActivityDeduped.length,
+          recent_runner_activity: recentRunnerActivityDeduped
         });
       } catch (e:any) {
         return res.status(500).json({ ok:false, error:"admin_datanet_summary_throw", msg:String(e?.message || e) });
@@ -41341,6 +41424,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
 
     const homeRunner = runnerStatus && runnerStatus.ok ? runnerStatus : null;
+    const formatRunnerSelectionReason = (raw, fallback = "") => {
+      const v = String(raw || "").trim();
+      if (!v) return fallback;
+      if (v === "unknown") return "No specific selection reason was recorded.";
+      if (v === "stale_verify_target") return "Picked a stale dataset that needed verification.";
+      if (v === "stale_redundancy_target") return "Picked a stale dataset that needed a redundancy check.";
+      if (v === "target_publish_mix") return "Picked publish work to keep the mix balanced.";
+      if (v === "rebalance_to_publish") return "Picked publish work to rebalance recent work toward publish.";
+      if (v === "avoid_verify_streak") return "Picked publish work to avoid over-favoring verify jobs in a row.";
+      if (v === "avoid_redundancy_streak") return "Picked publish work to avoid over-favoring redundancy checks in a row.";
+      if (v === "default_first_approved") return "Picked the first approved task because no stronger target was available.";
+      const cleaned = v
+        .replace(/^selected[:\s-]*/i, "")
+        .replace(/^reason[:\s-]*/i, "")
+        .replace(/_/g, " ")
+        .trim();
+      if (!cleaned) return fallback;
+      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1) + (/[.!?]$/.test(cleaned) ? "" : ".");
+    };
     const homeRunnerLabel = homeRunner ? (homeRunner.enabled ? "ON" : "OFF") : "-";
     const homeRunnerMeta = (() => {
       try {
@@ -41359,10 +41461,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         else if (submit && submit.skipped && submit.reason === "runner_busy") resultLabel = "BUSY";
         else if (lr && lr.ok) resultLabel = "OK";
         else if (lr) resultLabel = "ERR";
+
+        const rawSelectionReason =
+          (lr && typeof lr.selection_reason === "string" && lr.selection_reason) ||
+          (submit && typeof submit.selection_reason === "string" && submit.selection_reason) ||
+          "";
+
+        const selectionReasonLabel = formatRunnerSelectionReason(rawSelectionReason, "");
+
         if (submit && submit.next_due_ms && Number.isFinite(Number(submit.next_due_ms))) {
           nextLabel = " • Next: " + new Date(Number(submit.next_due_ms)).toLocaleTimeString();
         }
-        return task + " • " + resultLabel + nextLabel;
+
+        return task + " • " + resultLabel + (selectionReasonLabel ? (" • " + selectionReasonLabel) : "") + nextLabel;
       } catch (_) {
         return "Runner state unavailable";
       }
@@ -41985,11 +42096,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const latestReasonRaw = latestRunnerItem && latestRunnerItem.selection_reason
           ? String(latestRunnerItem.selection_reason)
           : "";
-        const latestReasonText =
-          latestReasonRaw === "stale_verify_target" ? "Picked a stale dataset that needed verification." :
-          latestReasonRaw === "stale_redundancy_target" ? "Picked a stale dataset that needed a redundancy check." :
-          latestReasonRaw === "publish_target_mix" ? "Picked publish work to keep the mix balanced." :
-          latestReasonRaw ? latestReasonRaw.replace(/_/g, " ") : "No recent runner selection reason.";
+        const latestReasonText = formatRunnerSelectionReason(
+          latestReasonRaw,
+          "No recent runner selection reason."
+        );
 
         const shortReceipt = (v) => {
           const s = String(v || "");
@@ -43338,7 +43448,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
              " • Override: " + String(runnerStatus.user_override || "stop_only") +
              " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only") +
              " • Approved: " + String((runnerStatus.approved_task_classes || []).join(", ") || "-") +
-             (runnerStatus.last_selection_reason ? (" • Chosen because: " + String(runnerStatus.last_selection_reason)) : "") +
+             (runnerStatus.last_selection_reason ? (" • Chosen because: " + formatRunnerSelectionReason(runnerStatus.last_selection_reason, "")) : "") +
              " • Mix P/V/R: " + String(runnerStatus.publish_last_hour || 0) + "/" + String(runnerStatus.verify_last_hour || 0) + "/" + String(runnerStatus.redundancy_last_hour || 0) +
              (runnerStatus.last_result && Number(runnerStatus.last_result.selected_network_need_score || 0) > 0
                ? (" • Need: " + String(Number(runnerStatus.last_result.selected_network_need_score || 0).toFixed(2)))
