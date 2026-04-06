@@ -33926,6 +33926,47 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
     return metas.slice(0, limit);
   }
 
+  function buildLatestUsefulLinks(latestUseful:any, datasetId:any, account:any){
+    const ds = String(datasetId || latestUseful?.dataset_id || "");
+    const who = encodeURIComponent(String(account || "zoso"));
+    if (!ds) {
+      return {
+        dataset_id: "",
+        view_href: "",
+        raw_href: "",
+        consume_href: "",
+        share_href: ""
+      };
+    }
+
+    const viewBase =
+      latestUseful && latestUseful.view_path
+        ? String(latestUseful.view_path)
+        : ("/datanet/view/" + encodeURIComponent(ds));
+
+    const rawBase =
+      latestUseful && latestUseful.raw_local_job_path
+        ? String(latestUseful.raw_local_job_path)
+        : ("/datanet/v1/local-job/" + encodeURIComponent(ds));
+
+    const consumeBase =
+      latestUseful && latestUseful.consume_path
+        ? String(latestUseful.consume_path)
+        : ("/datanet/consume-view/" + encodeURIComponent(ds));
+
+    return {
+      dataset_id: ds,
+      view_href: viewBase + "?who=" + who,
+      raw_href: rawBase + "?who=" + who,
+      consume_href: consumeBase + "?who=" + who,
+      share_href:
+        window.location.origin +
+        "/participant?account=" + who +
+        "&open_dataset=" + encodeURIComponent(ds) +
+        "#datanet"
+    };
+  }
+
   async function latestDataset(){
     const files = await listMetaFiles(1);
     if (!files.length) return null;
@@ -42470,21 +42511,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
           setText("latestDatasetIdHero", latestUsefulDatasetShort);
 
-          const latestDatasetViewHref =
-            latestUseful && latestUseful.view_path
-              ? (String(latestUseful.view_path) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"))
-              : ("/datanet/view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
-                 "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"));
-          const latestDatasetRawHref =
-            latestUseful && latestUseful.raw_local_job_path
-              ? (String(latestUseful.raw_local_job_path) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"))
-              : ("/datanet/v1/local-job/" + encodeURIComponent(String(latestUsefulDatasetId)) +
-                 "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"));
-          const latestDatasetConsumeHref =
-            latestUseful && latestUseful.consume_path
-              ? (String(latestUseful.consume_path) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"))
-              : ("/datanet/consume-view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
-                 "?who=" + encodeURIComponent(activeAccountForLinks || "zoso"));
+          const latestUsefulLinks = buildLatestUsefulLinks(latestUseful, latestUsefulDatasetId, activeAccountForLinks || "zoso");
+          const latestDatasetViewHref = latestUsefulLinks.view_href;
+          const latestDatasetRawHref = latestUsefulLinks.raw_href;
+          const latestDatasetConsumeHref = latestUsefulLinks.consume_href;
 
           if ($("latestDatasetMetaHero")) {
             $("latestDatasetMetaHero").innerHTML =
@@ -43696,16 +43726,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const latestDatasetOpenShareBtn = $("latestDatasetOpenShareBtn");
         const latestDatasetShareBtn = $("latestDatasetShareBtn");
         if (latestDatasetBtn && lrJob && lrDataset) {
-          latestDatasetBtn.href = "/datanet/v1/local-job/" + encodeURIComponent(lrDataset) + "?who=" + encodeURIComponent(account);
+          const latestUsefulLinks = buildLatestUsefulLinks(netValue && netValue.latest_useful_dataset ? netValue.latest_useful_dataset : null, lrDataset, account);
+          latestDatasetBtn.href = latestUsefulLinks.raw_href;
           latestDatasetBtn.style.display = "";
           latestDatasetBtn.textContent = "Open Latest Useful Work";
           latestDatasetBtn.title = "Open dataset readback for " + lrDataset;
 
-          const shareHref =
-            window.location.origin +
-            "/participant?account=" + encodeURIComponent(account) +
-            "&open_dataset=" + encodeURIComponent(lrDataset) +
-            "#datanet";
+          const shareHref = latestUsefulLinks.share_href;
 
           if (latestDatasetOpenShareBtn) {
             latestDatasetOpenShareBtn.href = shareHref;
