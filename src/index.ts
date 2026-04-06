@@ -39948,6 +39948,7 @@ a{color:#93c5fd;text-decoration:none}
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Work</a>
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open Shared Page</a>
             <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy Share Page</button>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700;" id="adminDataNetSummaryBtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">Open DataNet Admin</a>
           </div>
           <div class="hero-note" id="latestDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
           <div class="mini" id="latestDatasetActionCard" style="margin-top:10px;display:none">
