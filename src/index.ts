@@ -41715,70 +41715,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           $("latestDatasetPreviewCard").style.display = "";
         }
 
+        // latest useful hero card owns latestDatasetActionCard and its controls now.
+        // Keep preview loader scoped to latestDatasetPreviewCard only so we do not have two writers
+        // fighting over the same hero fields/buttons.
         if ($("latestDatasetActionCard")) {
-          setText("latestDatasetIdHero", firstDatasetId);
-          setText("latestDatasetMetaHero", String(firstBytes) + " bytes" + (firstHash ? (" • hash " + firstHash.slice(0, 12) + "…") : ""));
-          const receiptEl = $("latestDatasetReceiptHero");
-          if (receiptEl) {
-            let receiptText = "";
-            if (recentReceipt && String((recentReceipt && recentReceipt.dataset_id) || "") === firstDatasetId) {
-              const rid = String((recentReceipt && recentReceipt.receipt_id) || "-");
-              const kind = String((recentReceipt && recentReceipt.kind) || "-");
-              receiptText = "Created from receipt " + rid.slice(0, 18) + (rid.length > 18 ? "…" : "") + " • " + kind;
-            } else if (recentReceipt) {
-              const rid = String((recentReceipt && recentReceipt.receipt_id) || "-");
-              receiptText = "Linked to latest receipt " + rid.slice(0, 18) + (rid.length > 18 ? "…" : "");
-            }
-            if (receiptText) {
-              receiptEl.textContent = receiptText;
-              (receiptEl).style.display = "";
-            } else {
-              receiptEl.textContent = "";
-              (receiptEl).style.display = "none";
-            }
-          }
-          const openA = $("latestDatasetOpenHero");
-          const rawA = $("latestDatasetRawHero");
-          const copyIdBtn = $("latestDatasetCopyIdHero");
-          const copyLinkBtn = $("latestDatasetCopyLinkHero");
-          const consumeUrl = "/datanet/consume-view/" + encodeURIComponent(firstDatasetId) + "?who=" + encodeURIComponent(account || "zoso");
-          if (openA) {
-            if (firstViewerUrl) {
-              openA.setAttribute("href", firstViewerUrl);
-              (openA).style.display = "";
-            } else {
-              openA.setAttribute("href", "#");
-              (openA).style.display = "none";
-            }
-          }
-          if (rawA) {
-            if (firstRawUrl) {
-              rawA.setAttribute("href", firstRawUrl);
-              (rawA).style.display = "";
-            } else {
-              rawA.setAttribute("href", "#");
-              (rawA).style.display = "none";
-            }
-          }
-          if (copyIdBtn) {
-            if (firstDatasetId && firstDatasetId !== "-") {
-              copyIdBtn.style.display = "";
-              copyIdBtn.onclick = () => window.__void_copyText(firstDatasetId, "Copied dataset id.", copyIdBtn);
-            } else {
-              copyIdBtn.style.display = "none";
-              copyIdBtn.onclick = null;
-            }
-          }
-          if (copyLinkBtn) {
-            if (firstDatasetId && firstDatasetId !== "-") {
-              copyLinkBtn.style.display = "";
-              copyLinkBtn.onclick = () => window.__void_copyText(consumeUrl, "Copied open link.", copyLinkBtn);
-            } else {
-              copyLinkBtn.style.display = "none";
-              copyLinkBtn.onclick = null;
-            }
-          }
-          $("latestDatasetActionCard").style.display = "";
+          // no-op on purpose
         }
 
         recentDatasetsHtml =
