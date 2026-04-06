@@ -39916,6 +39916,14 @@ a{color:#93c5fd;text-decoration:none}
 
     </section>
 
+    <section id="participantTopStatusStrip" class="hero-note" style="margin:0 0 14px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span id="topStripWallet" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Wallet: -</span>
+      <span id="topStripWc" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Usable WC: -</span>
+      <span id="topStripTrade" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Trade: -</span>
+      <span id="topStripRelayer" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Relayer: -</span>
+      <span id="topStripRunner" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Runner: -</span>
+    </section>
+
     <section class="kpis">
       <div class="kpi">
         <div class="k">Onchain VOID</div>
@@ -41225,6 +41233,28 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("tradeRedeemableWc", redeemableTotal);
     setText("tradeQuoteVoid", quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-");
     setText("tradeRelayerState", relayerUp ? "Direct Trading Ready" : "Direct Trading Unavailable");
+
+    const topStripSet = (id, text, tone) => {
+      const el = $(id);
+      if (!el) return;
+      el.textContent = text;
+      const styles = {
+        neutral: 'display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700',
+        good: 'display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(34,197,94,.28);background:rgba(34,197,94,.12);color:#86efac;font-weight:700',
+        warn: 'display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(245,158,11,.28);background:rgba(245,158,11,.12);color:#fcd34d;font-weight:700',
+        bad: 'display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(239,68,68,.28);background:rgba(239,68,68,.12);color:#fca5a5;font-weight:700'
+      };
+      el.setAttribute("style", styles[tone] || styles.neutral);
+    };
+
+    const walletReadyTop = !!wcAddr;
+    const hasRedeemableTop = Number.isFinite(redeemableTotal) && redeemableTotal > 0;
+
+    topStripSet("topStripWallet", walletReadyTop ? "Wallet: Connected" : "Wallet: Not connected", walletReadyTop ? "good" : "warn");
+    topStripSet("topStripWc", "Usable WC: " + String(redeemableTotal), hasRedeemableTop ? "good" : "neutral");
+    topStripSet("topStripTrade", hasRedeemableTop ? ("Trade: " + String(redeemableTotal) + " WC ready") : "Trade: No WC ready", hasRedeemableTop ? "good" : "warn");
+    topStripSet("topStripRelayer", relayerUp ? "Relayer: Ready" : "Relayer: Down", relayerUp ? "good" : "bad");
+    topStripSet("topStripRunner", runnerEnabled ? "Runner: ON" : "Runner: OFF", runnerEnabled ? "good" : "warn");
 
     if ($("tradeExecuteBtn")) {
       const hasRedeemable = Number.isFinite(redeemableTotal) && redeemableTotal > 0;
