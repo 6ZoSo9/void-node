@@ -41485,6 +41485,66 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("tradeFeeModeCard", "Execution: " + feeModeLabel(tradeFeeMode) + " • Fee Source: " + feeModeLabel(tradeFeeMode));
   }
 
+
+  function deriveRunnerUiState(runnerStatus){
+    const runnerTaskClass =
+      runnerStatus && runnerStatus.last_selected_task_class
+        ? String(runnerStatus.last_selected_task_class || "-")
+        : (runnerStatus && runnerStatus.active_task_class
+            ? String(runnerStatus.active_task_class || "-")
+            : (runnerStatus && Array.isArray(runnerStatus.approved_task_classes) && runnerStatus.approved_task_classes.length
+                ? String(runnerStatus.approved_task_classes[0] || "-")
+                : "-"));
+
+    const runnerTaskLabel =
+      runnerTaskClass === "datanet_publish" ? "publish" :
+      runnerTaskClass === "datanet_fetch_verify" ? "verify" :
+      runnerTaskClass === "datanet_redundancy_check" ? "redundancy" :
+      runnerTaskClass;
+
+    const runnerLastResultLabel = (() => {
+      try {
+        const lr = runnerStatus && runnerStatus.last_result ? runnerStatus.last_result : null;
+        const submit = lr && lr.result ? lr.result : null;
+        if (!lr) return "-";
+        if (runnerStatus && runnerStatus.outcome_label) return String(runnerStatus.outcome_label || "-");
+        if (submit && submit.skipped && submit.reason === "cooldown") return "COOLDOWN";
+        if (submit && submit.skipped && submit.reason === "hourly_limit") return "LIMIT";
+        if (submit && submit.skipped && submit.reason === "runner_busy") return "BUSY";
+        if (submit && submit.raced_with_background) return "RACE";
+        if (lr.ok) {
+          if (runnerTaskClass === "datanet_publish") return "publish stored";
+          if (runnerTaskClass === "datanet_fetch_verify") return "verify ok";
+          if (runnerTaskClass === "datanet_redundancy_check") return "redundancy ok";
+          return "OK";
+        }
+        return "ERR";
+      } catch (_) {
+        return "-";
+      }
+    })();
+
+    const runnerNextRunLabel = (() => {
+      try {
+        const lr = runnerStatus && runnerStatus.last_result ? runnerStatus.last_result : null;
+        const submit = lr && lr.result ? lr.result : null;
+        if (submit && submit.next_due_ms && Number.isFinite(Number(submit.next_due_ms))) {
+          return new Date(Number(submit.next_due_ms)).toLocaleTimeString();
+        }
+        return "-";
+      } catch (_) {
+        return "-";
+      }
+    })();
+
+    return {
+      runnerTaskClass,
+      runnerTaskLabel,
+      runnerLastResultLabel,
+      runnerNextRunLabel
+    };
+  }
+
   function renderJobs(items){
     if (!items || !items.length) return '<div class="empty">No recent activity yet for this account.</div>';
     return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:42%">Job ID</th><th style="width:24%">Status</th><th style="width:34%">Activity</th></tr></thead><tbody>' +
@@ -43781,20 +43841,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
 
       setText("wcRunnerEnabledMini", runnerEnabled ? "ON" : "OFF");
-      const runnerTaskClass =
-        runnerStatus && runnerStatus.last_selected_task_class
-          ? String(runnerStatus.last_selected_task_class || "-")
-          : (runnerStatus && runnerStatus.active_task_class
-              ? String(runnerStatus.active_task_class || "-")
-              : (runnerStatus && Array.isArray(runnerStatus.approved_task_classes) && runnerStatus.approved_task_classes.length
-                  ? String(runnerStatus.approved_task_classes[0] || "-")
-                  : "-"));
-
-      const runnerTaskLabel =
-        runnerTaskClass === "datanet_publish" ? "publish" :
-        runnerTaskClass === "datanet_fetch_verify" ? "verify" :
-        runnerTaskClass === "datanet_redundancy_check" ? "redundancy" :
-        runnerTaskClass;
+      const runnerUi = deriveRunnerUiState(runnerStatus);
+      const runnerTaskClass = runnerUi.runnerTaskClass;
+      const runnerTaskLabel = runnerUi.runnerTaskLabel;
+      const runnerLastResultLabel = runnerUi.runnerLastResultLabel;
+      const runnerNextRunLabel = runnerUi.runnerNextRunLabel;
 
       setText("wcRunnerTaskMini", runnerTaskLabel || "-");
       setText(
@@ -43824,40 +43875,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           ? new Date(Number(runnerStatus.last_submit_ms)).toLocaleTimeString()
           : "-"
       );
-      const runnerLastResultLabel = (() => {
-        try {
-          const lr = runnerStatus && runnerStatus.last_result ? runnerStatus.last_result : null;
-          const submit = lr && lr.result ? lr.result : null;
-          if (!lr) return "-";
-          if (runnerStatus && runnerStatus.outcome_label) return String(runnerStatus.outcome_label || "-");
-          if (submit && submit.skipped && submit.reason === "cooldown") return "COOLDOWN";
-          if (submit && submit.skipped && submit.reason === "hourly_limit") return "LIMIT";
-          if (submit && submit.skipped && submit.reason === "runner_busy") return "BUSY";
-          if (submit && submit.raced_with_background) return "RACE";
-          if (lr.ok) {
-            if (runnerTaskClass === "datanet_publish") return "publish stored";
-            if (runnerTaskClass === "datanet_fetch_verify") return "verify ok";
-            if (runnerTaskClass === "datanet_redundancy_check") return "redundancy ok";
-            return "OK";
-          }
-          return "ERR";
-        } catch (_) {
-          return "-";
-        }
-      })();
-
-      const runnerNextRunLabel = (() => {
-        try {
-          const lr = runnerStatus && runnerStatus.last_result ? runnerStatus.last_result : null;
-          const submit = lr && lr.result ? lr.result : null;
-          if (submit && submit.next_due_ms && Number.isFinite(Number(submit.next_due_ms))) {
-            return new Date(Number(submit.next_due_ms)).toLocaleTimeString();
-          }
-          return "-";
-        } catch (_) {
-          return "-";
-        }
-      })();
 
       setText("wcRunnerLastResultMini", runnerLastResultLabel);
       setText("wcRunnerNextRunMini", runnerNextRunLabel);
