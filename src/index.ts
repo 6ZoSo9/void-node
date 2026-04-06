@@ -41029,7 +41029,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const manualWallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "";
     const wcBase = LOCAL_WC_BASE;
 
-    const [bal, redeem, redeemed, jobs, receipts, ledger, rewardStats, identityTruth, summary, peer, health, relayerHealth, runnerStatus, runnerConfig] = await Promise.all([
+    const [bal, redeem, redeemed, jobs, receipts, ledger, rewardStats, identityTruth, summary, peer, health, relayerHealth, runnerStatus, runnerConfig, datanetAdmin] = await Promise.all([
       j("/wc/balance?account=" + encodeURIComponent(account)),
       j("/wc/redeemable?account=" + encodeURIComponent(account)),
       j("/wc/redeemed?account=" + encodeURIComponent(account) + "&limit=20"),
@@ -41044,6 +41044,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       j(LOCAL_RELAYER_BASE + "/health").catch(() => ({ ok:false, offline:true })),
       j("/wc/runner/status?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
       j("/wc/runner/config?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
+      j("/__void/admin/datanet-summary.json?peer=" + encodeURIComponent("http://100.122.79.39:4100")).catch(() => ({ ok:false, unavailable:true })),
     ]);
 
     const wcAddr = deriveParticipantWallet(account, redeemed, connectedWallet, manualWallet);
@@ -41578,9 +41579,31 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const totalBytes = datanetItems.reduce((n, x) => n + Number((x && x.bytes) || 0), 0);
       const newest = datanetItems.length ? Math.max(...datanetItems.map((x) => Number((x && x.mtime_ms) || 0))) : 0;
       const newestText = newest > 0 ? new Date(newest).toLocaleString() : "-";
-      setText("datanetOverviewCard", datanetItems.length
-        ? ("Local datasets • count " + datanetItems.length + " • bytes " + totalBytes + " • newest " + newestText)
-        : "No local datasets found for this participant account on this node.");
+      const dl = datanetAdmin && datanetAdmin.ok ? (datanetAdmin.local || {}) : null;
+      const dp = datanetAdmin && datanetAdmin.ok ? (datanetAdmin.peer || null) : null;
+      const dd = datanetAdmin && datanetAdmin.ok ? (datanetAdmin.delta || null) : null;
+      const lp = dl && dl.provenance_v1 ? dl.provenance_v1 : null;
+      const pp = dp && dp.provenance_v1 ? dp.provenance_v1 : null;
+
+      if (lp) {
+        const parts = [];
+        parts.push("Local datasets " + String(lp.local_jobs_total || 0));
+        parts.push("Fetched/materialized " + String(lp.fetched_or_materialized_count || 0));
+        parts.push("Bytes " + totalBytes);
+        parts.push("Newest " + newestText);
+        if (pp) {
+          parts.push("Peer datasets " + String(pp.local_jobs_total || 0));
+          parts.push("Peer fetched/materialized " + String(pp.fetched_or_materialized_count || 0));
+        }
+        if (dd) {
+          parts.push("Δ jobs " + String(dd.local_jobs_total || 0));
+        }
+        setText("datanetOverviewCard", parts.join(" • "));
+      } else {
+        setText("datanetOverviewCard", datanetItems.length
+          ? ("Local datasets • count " + datanetItems.length + " • bytes " + totalBytes + " • newest " + newestText)
+          : "No local datasets found for this participant account on this node.");
+      }
     } catch (_) {
       datanetItems = [];
       setText("datanetOverviewCard", "Local datasets are unavailable right now.");
