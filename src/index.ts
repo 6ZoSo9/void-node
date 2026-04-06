@@ -42573,11 +42573,18 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         body: JSON.stringify({ account, kind:"datanet_publish", plaintext })
       });
       setPre("submitOut", out);
-      if (out && out.ok && out.job && out.job.job_id) {
-        setLatestAction("Work submitted. Waiting for completion and WC credit.");
+      const jobId = out && out.job && out.job.job_id ? String(out.job.job_id) : "";
+      const jobShort = jobId && jobId.length > 24 ? (jobId.slice(0, 10) + "…" + jobId.slice(-6)) : jobId;
+
+      if (out && out.ok && jobId) {
+        setLatestAction("Work submitted • Job " + jobShort + " • Waiting for completion and WC credit.");
+        setPre("submitOut", {
+          ...out,
+          note: "Work submitted • Job " + jobId + " • Waiting for completion and WC credit.",
+          redeemable_before: redeemableBefore
+        });
       }
 
-      const jobId = out && out.job && out.job.job_id;
       if (jobId) {
         for (let i = 0; i < 8; i++) {
           await new Promise(r => setTimeout(r, 1500));
@@ -42585,36 +42592,40 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           setPre("submitOut", st);
 
           if (st && st.job && st.job.status === "completed") {
-            setLatestAction("Work completed. Waiting for WC credit to appear.");
+            setLatestAction("Work completed • Job " + jobShort + " • Waiting for WC credit to appear.");
             setPre("submitOut", {
               ...st,
-              note: "Work completed. Waiting for WC credit to appear.",
+              note: "Work completed • Job " + jobId + " • Waiting for WC credit to appear.",
               credit_pending_check: true,
               redeemable_before: redeemableBefore
             });
 
             const creditWait = await waitForRedeemableIncrease(account, redeemableBefore, 12000);
+            const beforeAmt = creditWait && Number.isFinite(Number(creditWait.before_redeemable)) ? Number(creditWait.before_redeemable) : redeemableBefore;
+            const afterAmt = creditWait && Number.isFinite(Number(creditWait.after_redeemable)) ? Number(creditWait.after_redeemable) : redeemableBefore;
 
             setLatestAction(
               creditWait && creditWait.ok
-                ? "Work completed and WC credit is now visible."
-                : "Work completed, but WC credit did not appear before the wait window ended."
+                ? ("Work completed • Job " + jobShort + " • WC visible now (" + beforeAmt + " → " + afterAmt + ").")
+                : ("Work completed • Job " + jobShort + " • WC not visible before timeout (" + beforeAmt + " → " + afterAmt + ").")
             );
             setPre("submitOut", {
               ...st,
               credit_wait: creditWait,
               note: creditWait && creditWait.ok
-                ? "Work completed and WC credit is now visible."
-                : "Work completed, but WC credit did not appear before the wait window ended."
+                ? ("Work completed • Job " + jobId + " • WC visible now (" + beforeAmt + " -> " + afterAmt + ").")
+                : ("Work completed • Job " + jobId + " • WC not visible before timeout (" + beforeAmt + " -> " + afterAmt + ")."),
+              redeemable_before: beforeAmt,
+              redeemable_after: afterAmt
             });
             break;
           }
 
           if (st && st.job && st.job.status === "failed") {
-            setLatestAction("Work failed. Check the job status below.");
+            setLatestAction("Work failed • Job " + jobShort + " • Check the job status below.");
             setPre("submitOut", {
               ...st,
-              note: "Work failed. Check the job status below."
+              note: "Work failed • Job " + jobId + " • Check the job status below."
             });
             break;
           }
