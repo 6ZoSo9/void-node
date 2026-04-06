@@ -37122,10 +37122,6 @@ a{color:#93c5fd;text-decoration:none}
         };
       }
 
-      rt.last_submit_ms[String(account)] = now;
-      recentHistory.push(now);
-      rt.submit_history_ms[String(account)] = recentHistory;
-
       try {
         const port = Number(process.env.HTTP_PORT || 4100);
         const selection:any = runnerSelectionDecisionFor(account);
@@ -37209,6 +37205,13 @@ a{color:#93c5fd;text-decoration:none}
         });
 
         const out = await r.json().catch(() => ({ ok:false, error:"non_json_runner_submit" }));
+
+        if (out && out.ok) {
+          rt.last_submit_ms[String(account)] = now;
+          recentHistory.push(now);
+          rt.submit_history_ms[String(account)] = recentHistory;
+        }
+
         rt.selection_history_by_account = rt.selection_history_by_account || {};
         rt.selection_history_by_account[String(account)] = Array.isArray(rt.selection_history_by_account[String(account)])
           ? rt.selection_history_by_account[String(account)]
