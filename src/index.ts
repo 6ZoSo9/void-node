@@ -43693,33 +43693,58 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const lrReceipt = lr && lr.receipt_id ? String(lr.receipt_id) : "";
         const lrDataset = lr && lr.selected_dataset_id ? String(lr.selected_dataset_id) : "";
 
+        const latestUsefulForStatus = netValue && netValue.latest_useful_dataset ? netValue.latest_useful_dataset : null;
+        const latestUsefulStatusTask = latestUsefulForStatus ? String(latestUsefulForStatus.task_class || "") : "";
+        const latestUsefulStatusLabel =
+          latestUsefulStatusTask === "publish" ? "publish" :
+          latestUsefulStatusTask === "verify" ? "verify" :
+          latestUsefulStatusTask === "redundancy" ? "redundancy" :
+          "";
+        const latestUsefulStatusDataset = latestUsefulForStatus ? String(latestUsefulForStatus.dataset_id || "") : "";
+        const latestUsefulStatusReceipt = latestUsefulForStatus ? String(latestUsefulForStatus.receipt_id || "") : "";
+        const latestUsefulStatusJob = latestUsefulForStatus ? String(latestUsefulForStatus.job_id || "") : "";
+        const latestUsefulStatusHint = latestUsefulForStatus ? String(latestUsefulForStatus.result_hint || "") : "";
+
         setText(
           "latestJobState",
-          lrJob
-            ? (runnerTaskLabel + (lrDataset ? (" • " + lrDataset) : ""))
-            : (runnerEnabled ? "waiting" : "off")
+          latestUsefulStatusDataset
+            ? ((latestUsefulStatusLabel || "latest") + " • " + latestUsefulStatusDataset)
+            : (lrJob
+                ? (runnerTaskLabel + (lrDataset ? (" • " + lrDataset) : ""))
+                : (runnerEnabled ? "waiting" : "off"))
         );
 
         setText(
           "latestActionCard",
-          lrJob
-            ? ("Latest useful work: " + runnerLastResultLabel +
-               " • " + runnerTaskLabel +
-               (lrDataset ? " • Dataset ready" : "") +
-               (lrReceipt ? " • Receipt ready" : ""))
-            : (runnerEnabled
-                ? "Earn Work Credits is on. Waiting for the next approved useful task."
-                : "Earn Work Credits is off. Turn it on to allow approved useful work.")
+          latestUsefulStatusDataset
+            ? ("Latest useful work: " + (latestUsefulStatusHint || "ready") +
+               (latestUsefulStatusLabel ? (" • " + latestUsefulStatusLabel) : "") +
+               " • Dataset ready" +
+               (latestUsefulStatusReceipt ? " • Receipt ready" : "") +
+               (latestUsefulStatusJob ? " • Job ready" : ""))
+            : (lrJob
+                ? ("Latest useful work: " + runnerLastResultLabel +
+                   " • " + runnerTaskLabel +
+                   (lrDataset ? " • Dataset ready" : "") +
+                   (lrReceipt ? " • Receipt ready" : ""))
+                : (runnerEnabled
+                    ? "Earn Work Credits is on. Waiting for the next approved useful task."
+                    : "Earn Work Credits is off. Turn it on to allow approved useful work."))
         );
 
         if ($("latestJobState")) {
           $("latestJobState").title =
-            lrJob
-              ? ("Last useful work: " + runnerTaskLabel +
-                 (lrJob ? (" • Job: " + lrJob) : "") +
-                 (lrReceipt ? (" • Receipt: " + lrReceipt) : "") +
-                 (lrDataset ? (" • Dataset: " + lrDataset) : ""))
-              : "";
+            latestUsefulStatusDataset
+              ? ("Latest useful work: " + (latestUsefulStatusLabel || "latest") +
+                 (latestUsefulStatusJob ? (" • Job: " + latestUsefulStatusJob) : "") +
+                 (latestUsefulStatusReceipt ? (" • Receipt: " + latestUsefulStatusReceipt) : "") +
+                 (latestUsefulStatusDataset ? (" • Dataset: " + latestUsefulStatusDataset) : ""))
+              : (lrJob
+                  ? ("Last useful work: " + runnerTaskLabel +
+                     (lrJob ? (" • Job: " + lrJob) : "") +
+                     (lrReceipt ? (" • Receipt: " + lrReceipt) : "") +
+                     (lrDataset ? (" • Dataset: " + lrDataset) : ""))
+                  : "");
         }
 
         const latestDatasetBtn = $("latestDatasetOpenBtn");
