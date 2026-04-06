@@ -41590,7 +41590,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function renderReceipts(items){
     if (!items || !items.length) return '<div class="empty">No receipts are available for this account yet.</div>';
-    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:24%">Receipt</th><th style="width:19%">Type</th><th style="width:22%">Dataset</th><th style="width:14%">Status</th><th style="width:21%">Result</th></tr></thead><tbody>' +
+    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:23%">Type</th><th style="width:16%">Status</th><th style="width:24%">Dataset</th><th style="width:21%">Result</th><th style="width:16%">Receipt</th></tr></thead><tbody>' +
       items.map(r => {
         const receiptId = String(r.receipt_id || "");
         const ds = String(r.dataset_id || "");
@@ -41633,11 +41633,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           }
         }
         return '<tr>'
-          + '<td class="mono" title="'+esc(receiptId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
           + '<td title="'+esc(kindRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(kind, kindTone(kindRaw))+'</td>'
-          + '<td class="mono" title="'+esc(ds)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort || "-")+'</span></td>'
           + '<td title="'+esc(statusRaw || status)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(status, statusTone(statusRaw))+'</td>'
+          + '<td class="mono" title="'+esc(ds)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort || "-")+'</span></td>'
           + '<td title="'+esc(result)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(result, resultTone(kindRaw, result))+'</td>'
+          + '<td class="mono" title="'+esc(receiptId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
           + '</tr>';
       }).join("") +
       '</tbody></table></div>';
