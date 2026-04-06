@@ -41775,11 +41775,36 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           ? Number(runnerConfig.max_jobs_per_hour)
           : null);
 
+    const latestUsefulForRunnerCard = netValue && netValue.latest_useful_dataset ? netValue.latest_useful_dataset : null;
+    const latestUsefulRunnerTask = latestUsefulForRunnerCard ? String(latestUsefulForRunnerCard.task_class || "") : "";
+    const latestUsefulRunnerDataset = latestUsefulForRunnerCard ? String(latestUsefulForRunnerCard.dataset_id || "") : "";
+    const latestUsefulRunnerReceipt = latestUsefulForRunnerCard ? String(latestUsefulForRunnerCard.receipt_id || "") : "";
+    const latestUsefulRunnerHint = latestUsefulForRunnerCard ? String(latestUsefulForRunnerCard.result_hint || "") : "";
+    const latestUsefulRunnerLabel =
+      latestUsefulRunnerTask === "publish" ? "published" :
+      latestUsefulRunnerTask === "verify" ? "verified" :
+      latestUsefulRunnerTask === "redundancy" ? "checked" :
+      "ready";
+
     setText(
       "wcRunnerStatusCard",
       runnerEnabled
-        ? ("Earn Work Credits is ON for this account" + (runnerSafeMode ? " • Safe Mode ON" : "") + ". Approved useful work can run here.")
-        : ("Earn Work Credits is OFF for this account" + (runnerSafeMode ? " • Safe Mode still clamps limits" : "") + ". Turn it on to allow approved useful work.")
+        ? ("Earn Work Credits is ON for this account" +
+           (runnerSafeMode ? " • Safe Mode ON" : "") +
+           (latestUsefulRunnerDataset
+             ? (". Latest useful work " + (latestUsefulRunnerHint || latestUsefulRunnerLabel) +
+                " • " + latestUsefulRunnerLabel +
+                " • Dataset ready" +
+                (latestUsefulRunnerReceipt ? " • Receipt ready" : ""))
+             : ". Approved useful work can run here."))
+        : ("Earn Work Credits is OFF for this account" +
+           (runnerSafeMode ? " • Safe Mode still clamps limits" : "") +
+           (latestUsefulRunnerDataset
+             ? (". Latest useful work " + (latestUsefulRunnerHint || latestUsefulRunnerLabel) +
+                " • " + latestUsefulRunnerLabel +
+                " • Dataset ready" +
+                (latestUsefulRunnerReceipt ? " • Receipt ready" : ""))
+             : ". Turn it on to allow approved useful work."))
     );
     if ($("wcRunnerToggleInput")) {
       $("wcRunnerToggleInput").checked = !!runnerEnabled;
