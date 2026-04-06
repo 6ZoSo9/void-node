@@ -37491,6 +37491,24 @@ a{color:#93c5fd;text-decoration:none}
       const lastResult = rt.last_result ? (rt.last_result[String(account)] || null) : null;
       const submitHistory = rt.submit_history_ms ? (rt.submit_history_ms[String(account)] || []) : [];
       const cfg:any = runnerConfigFor(account);
+      const selection:any = runnerSelectionDecisionFor(account) || null;
+
+      const selectionTaskClass = selection && selection.task_class ? String(selection.task_class || "") : "";
+      const selectionDatasetId = selection && selection.dataset_id ? String(selection.dataset_id || "") : "";
+      const selectionReason = selection && selection.reason ? String(selection.reason || "") : "";
+      const selectionStaleForMs = selection ? Number(selection.stale_for_ms || 0) : 0;
+      const selectionDifficultyBucket = selection && selection.difficulty_bucket ? String(selection.difficulty_bucket || "low") : "low";
+      const selectionNetworkNeedScore = selection ? Number(selection.network_need_score || 0) : 0;
+
+      const selectionPreviewLabel =
+        selectionTaskClass === "datanet_fetch_verify"
+          ? (selectionDatasetId ? ("verify " + selectionDatasetId) : "verify target")
+          : selectionTaskClass === "datanet_redundancy_check"
+            ? (selectionDatasetId ? ("redundancy " + selectionDatasetId) : "redundancy target")
+            : selectionTaskClass === "datanet_publish"
+              ? "publish"
+              : "-";
+
       return {
         ok: true,
         account,
@@ -37500,6 +37518,15 @@ a{color:#93c5fd;text-decoration:none}
         payout_policy: "useful_verifiable_only",
         approved_task_classes: runnerApprovedTaskClassesFor(account),
         active_task_class: runnerSelectedTaskClassFor(account),
+        selection: {
+          task_class: selectionTaskClass || null,
+          reason: selectionReason || null,
+          dataset_id: selectionDatasetId || null,
+          stale_for_ms: selectionStaleForMs,
+          difficulty_bucket: selectionDifficultyBucket || null,
+          network_need_score: selectionNetworkNeedScore,
+          preview_label: selectionPreviewLabel
+        },
         last_selected_task_class: lastResult && lastResult.selected_task_class ? lastResult.selected_task_class : null,
         last_selected_dataset_id: lastResult && lastResult.selected_dataset_id ? lastResult.selected_dataset_id : null,
         last_selection_reason: lastResult && lastResult.selection_reason ? lastResult.selection_reason : null,
@@ -43638,14 +43665,18 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
              " • Override: " + String(runnerStatus.user_override || "stop_only") +
              " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only") +
              " • Approved: " + String((runnerStatus.approved_task_classes || []).join(", ") || "-") +
-             (runnerStatus.last_selection_reason ? (" • Chosen because: " + formatRunnerSelectionReason(runnerStatus.last_selection_reason, "")) : "") +
+             ((runnerStatus.selection && runnerStatus.selection.reason) ? (" • Chosen because: " + formatRunnerSelectionReason(runnerStatus.selection.reason, "")) : (runnerStatus.last_selection_reason ? (" • Chosen because: " + formatRunnerSelectionReason(runnerStatus.last_selection_reason, "")) : "")) +
              " • Mix P/V/R: " + String(runnerStatus.publish_last_hour || 0) + "/" + String(runnerStatus.verify_last_hour || 0) + "/" + String(runnerStatus.redundancy_last_hour || 0) +
-             (runnerStatus.last_result && Number(runnerStatus.last_result.selected_network_need_score || 0) > 0
-               ? (" • Need: " + String(Number(runnerStatus.last_result.selected_network_need_score || 0).toFixed(2)))
-               : "") +
-             (runnerStatus.last_result && String(runnerStatus.last_result.selected_difficulty_bucket || "")
-               ? (" • Difficulty: " + String(runnerStatus.last_result.selected_difficulty_bucket || ""))
-               : "") +
+             ((runnerStatus.selection && Number(runnerStatus.selection.network_need_score || 0) > 0)
+               ? (" • Need: " + String(Number(runnerStatus.selection.network_need_score || 0).toFixed(2)))
+               : (runnerStatus.last_result && Number(runnerStatus.last_result.selected_network_need_score || 0) > 0
+                   ? (" • Need: " + String(Number(runnerStatus.last_result.selected_network_need_score || 0).toFixed(2)))
+                   : "")) +
+             ((runnerStatus.selection && String(runnerStatus.selection.difficulty_bucket || ""))
+               ? (" • Difficulty: " + String(runnerStatus.selection.difficulty_bucket || ""))
+               : (runnerStatus.last_result && String(runnerStatus.last_result.selected_difficulty_bucket || "")
+                   ? (" • Difficulty: " + String(runnerStatus.last_result.selected_difficulty_bucket || ""))
+                   : "")) +
              (runnerStatus.safe_mode ? " • Safe Mode clamps limits conservatively" : ""))
           : "Agent-selected useful work runs here. Stop only."
       );
