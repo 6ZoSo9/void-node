@@ -41354,6 +41354,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         let nextLabel = "";
         if (submit && submit.skipped && submit.reason === "cooldown") resultLabel = "COOLDOWN";
         else if (submit && submit.skipped && submit.reason === "hourly_limit") resultLabel = "LIMIT";
+        else if (submit && submit.skipped && submit.reason === "no_fetch_verify_target") resultLabel = "NO VERIFY TARGET";
+        else if (submit && submit.skipped && submit.reason === "no_redundancy_target") resultLabel = "NO REDUNDANCY TARGET";
+        else if (submit && submit.skipped && submit.reason === "runner_busy") resultLabel = "BUSY";
         else if (lr && lr.ok) resultLabel = "OK";
         else if (lr) resultLabel = "ERR";
         if (submit && submit.next_due_ms && Number.isFinite(Number(submit.next_due_ms))) {
