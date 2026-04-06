@@ -36807,6 +36807,39 @@ a{color:#93c5fd;text-decoration:none}
               }
             } catch {}
 
+            const latestUsefulCandidates:any[] = [
+              latest_redundancy_checked_dataset
+                ? {
+                    task_class: "redundancy",
+                    label: "Latest checked dataset",
+                    badge: "Checked",
+                    button_text: "Open Checked Dataset",
+                    ...latest_redundancy_checked_dataset
+                  }
+                : null,
+              latest_verified_dataset
+                ? {
+                    task_class: "verify",
+                    label: "Latest verified dataset",
+                    badge: "Verified",
+                    button_text: "Open Verified Dataset",
+                    ...latest_verified_dataset
+                  }
+                : null,
+              latest_publish_dataset
+                ? {
+                    task_class: "publish",
+                    label: "Latest published dataset",
+                    badge: "Published",
+                    button_text: "Open Published Dataset",
+                    ...latest_publish_dataset
+                  }
+                : null
+            ].filter(Boolean);
+
+            latestUsefulCandidates.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+            const latest_useful_dataset = latestUsefulCandidates.length ? latestUsefulCandidates[0] : null;
+
             return res.json({
               ok: true,
               limit,
@@ -36822,6 +36855,7 @@ a{color:#93c5fd;text-decoration:none}
               latest_publish_dataset,
               latest_verified_dataset,
               latest_redundancy_checked_dataset,
+              latest_useful_dataset,
               recent_runner_activity_count: recentRunnerActivityDeduped.length,
               recent_runner_activity: recentRunnerActivityDeduped,
               receipts: mixedSample
@@ -42158,72 +42192,39 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       // __void_overview_latest_useful_card_v2
       try {
-        const latestUsefulItem = recentRunnerActivity.find((x) => {
-          const task = String((x && x.task_class) || "").trim();
-          const ds = String((x && x.dataset_id) || "").trim();
-          return !!ds && (task === "redundancy" || task === "verify" || task === "publish");
-        }) || null;
+        const latestUseful = netValue && netValue.latest_useful_dataset ? netValue.latest_useful_dataset : null;
 
-        const latestUsefulTask = latestUsefulItem
-          ? String(latestUsefulItem.task_class || "")
-          : (
-              latestRedundancyDataset ? "redundancy" :
-              latestVerifiedDataset ? "verify" :
-              latestPublishDataset ? "publish" :
-              ""
-            );
-
-        const latestUsefulDatasetId = latestUsefulItem && latestUsefulItem.dataset_id
-          ? String(latestUsefulItem.dataset_id)
-          : (
-              latestUsefulTask === "redundancy" ? latestRedundancyDataset :
-              latestUsefulTask === "verify" ? latestVerifiedDataset :
-              latestPublishDataset
-            );
-
-        const latestUsefulReceiptId = latestUsefulItem && latestUsefulItem.receipt_id
-          ? String(latestUsefulItem.receipt_id)
-          : (
-              latestUsefulTask === "redundancy" && netValue && netValue.latest_redundancy_checked_dataset
-                ? String(netValue.latest_redundancy_checked_dataset.receipt_id || "")
-                : latestUsefulTask === "verify" && netValue && netValue.latest_verified_dataset
-                  ? String(netValue.latest_verified_dataset.receipt_id || "")
-                  : latestUsefulTask === "publish" && netValue && netValue.latest_publish_dataset
-                    ? String(netValue.latest_publish_dataset.receipt_id || "")
-                    : ""
-            );
-
-        const latestUsefulJobId = latestUsefulItem && latestUsefulItem.job_id
-          ? String(latestUsefulItem.job_id)
+        const latestUsefulTask = latestUseful
+          ? String(latestUseful.task_class || "")
           : "";
 
-        const latestUsefulTsMs = latestUsefulItem
-          ? Number(latestUsefulItem.ts_ms || 0)
-          : (
-              latestUsefulTask === "redundancy" && netValue && netValue.latest_redundancy_checked_dataset
-                ? Number(netValue.latest_redundancy_checked_dataset.ts_ms || 0)
-                : latestUsefulTask === "verify" && netValue && netValue.latest_verified_dataset
-                  ? Number(netValue.latest_verified_dataset.ts_ms || 0)
-                  : latestUsefulTask === "publish" && netValue && netValue.latest_publish_dataset
-                    ? Number(netValue.latest_publish_dataset.ts_ms || 0)
-                    : 0
-            );
+        const latestUsefulDatasetId = latestUseful && latestUseful.dataset_id
+          ? String(latestUseful.dataset_id)
+          : "";
+
+        const latestUsefulReceiptId = latestUseful && latestUseful.receipt_id
+          ? String(latestUseful.receipt_id)
+          : "";
+
+        const latestUsefulJobId = latestUseful && latestUseful.job_id
+          ? String(latestUseful.job_id)
+          : "";
+
+        const latestUsefulTsMs = latestUseful
+          ? Number(latestUseful.ts_ms || 0)
+          : 0;
 
         const latestUsefulWhen = latestUsefulTsMs > 0
           ? new Date(latestUsefulTsMs).toLocaleString()
           : "-";
 
-        const latestUsefulLabel =
-          latestUsefulTask === "redundancy" ? "Latest checked dataset" :
-          latestUsefulTask === "verify" ? "Latest verified dataset" :
-          latestUsefulTask === "publish" ? "Latest published dataset" :
-          "Latest useful dataset";
+        const latestUsefulLabel = latestUseful && latestUseful.label
+          ? String(latestUseful.label)
+          : "Latest useful dataset";
 
-        const latestUsefulBtnText =
-          latestUsefulTask === "redundancy" ? "Open Checked Dataset" :
-          latestUsefulTask === "verify" ? "Open Verified Dataset" :
-          latestUsefulTask === "publish" ? "Open Published Dataset" :
-          "Open Latest Dataset";
+        const latestUsefulBtnText = latestUseful && latestUseful.button_text
+          ? String(latestUseful.button_text)
+          : "Open Latest Dataset";
 
         // __void_overview_latest_useful_badge_v1
         const latestUsefulBadge =
