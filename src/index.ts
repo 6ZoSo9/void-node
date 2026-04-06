@@ -42297,31 +42297,95 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if (latestUsefulDatasetId) {
           if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "";
           setText("latestDatasetIdHero", latestUsefulDatasetId);
+
+          const latestDatasetViewHref =
+            "/datanet/view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
+            "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+          const latestDatasetRawHref =
+            "/datanet/v1/local-job/" + encodeURIComponent(String(latestUsefulDatasetId)) +
+            "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+          const latestDatasetConsumeHref =
+            "/datanet/consume-view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
+            "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+
           if ($("latestDatasetMetaHero")) {
             $("latestDatasetMetaHero").innerHTML =
               latestUsefulBadge +
-              '<span style="margin-left:8px;color:#94a3b8">' + escHtml(latestUsefulLabel) + '</span>';
+              '<span style="margin-left:8px;color:#94a3b8">' + escHtml(latestUsefulLabel) + ' • ' + escHtml(latestUsefulWhen) + '</span>';
           }
 
-          const latestDatasetBtn = $("latestDatasetBtn");
-          if (latestDatasetBtn) {
-            latestDatasetBtn.style.display = "";
-            latestDatasetBtn.textContent = latestUsefulBtnText;
-            latestDatasetBtn.title = "Open dataset readback for " + latestUsefulDatasetId;
-            latestDatasetBtn.onclick = () => {
-              const href = "/datanet/view/" + encodeURIComponent(String(latestUsefulDatasetId)) +
-                "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
-              try { window.open(href, "_blank", "noopener"); } catch {}
-            };
+          const receiptHero = $("latestDatasetReceiptHero");
+          if (receiptHero) {
+            const receiptBits = [];
+            if (latestUsefulReceiptId) receiptBits.push("Receipt " + latestUsefulReceiptId);
+            if (latestUsefulJobId) receiptBits.push("Job " + latestUsefulJobId);
+            receiptHero.textContent = receiptBits.join(" • ");
+            receiptHero.style.display = receiptBits.length ? "" : "none";
+          }
+
+          const openHero = $("latestDatasetOpenHero");
+          if (openHero) {
+            openHero.style.display = "";
+            openHero.href = latestDatasetViewHref;
+            openHero.textContent = latestUsefulBtnText;
+            openHero.title = "Open dataset readback for " + latestUsefulDatasetId;
+          }
+
+          const rawHero = $("latestDatasetRawHero");
+          if (rawHero) {
+            rawHero.style.display = "";
+            rawHero.href = latestDatasetRawHref;
+            rawHero.title = "Open raw local-job JSON for " + latestUsefulDatasetId;
+          }
+
+          const copyIdHero = $("latestDatasetCopyIdHero");
+          if (copyIdHero) {
+            copyIdHero.style.display = "";
+            copyIdHero.onclick = () => copyText(latestUsefulDatasetId, "Copied dataset id.", copyIdHero);
+          }
+
+          const copyLinkHero = $("latestDatasetCopyLinkHero");
+          if (copyLinkHero) {
+            copyLinkHero.style.display = "";
+            copyLinkHero.onclick = () => copyText(latestDatasetConsumeHref, "Copied open link.", copyLinkHero);
           }
 
           loadDatasetPreviewInto("latestDatasetPreviewCard", latestUsefulDatasetId, activeAccountForLinks || "zoso").catch(() => {});
         } else {
           if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "none";
-          if ($("latestDatasetBtn")) {
-            $("latestDatasetBtn").style.display = "none";
-            $("latestDatasetBtn").onclick = null;
+
+          const receiptHero = $("latestDatasetReceiptHero");
+          if (receiptHero) {
+            receiptHero.style.display = "none";
+            receiptHero.textContent = "";
           }
+
+          const openHero = $("latestDatasetOpenHero");
+          if (openHero) {
+            openHero.style.display = "none";
+            openHero.removeAttribute("href");
+            openHero.title = "";
+          }
+
+          const rawHero = $("latestDatasetRawHero");
+          if (rawHero) {
+            rawHero.style.display = "none";
+            rawHero.removeAttribute("href");
+            rawHero.title = "";
+          }
+
+          const copyIdHero = $("latestDatasetCopyIdHero");
+          if (copyIdHero) {
+            copyIdHero.style.display = "none";
+            copyIdHero.onclick = null;
+          }
+
+          const copyLinkHero = $("latestDatasetCopyLinkHero");
+          if (copyLinkHero) {
+            copyLinkHero.style.display = "none";
+            copyLinkHero.onclick = null;
+          }
+
           if ($("latestDatasetPreviewCard")) {
             $("latestDatasetPreviewCard").style.display = "none";
             $("latestDatasetPreviewCard").textContent = "";
