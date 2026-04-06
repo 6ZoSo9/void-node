@@ -41547,7 +41547,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function renderJobs(items){
     if (!items || !items.length) return '<div class="empty">No recent activity yet for this account.</div>';
-    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:42%">Job ID</th><th style="width:24%">Status</th><th style="width:34%">Activity</th></tr></thead><tbody>' +
+    return '<div style="width:100%;overflow-x:hidden"><table style="width:100%;table-layout:fixed;border-collapse:collapse"><thead><tr><th style="width:54%">Activity</th><th style="width:20%">Status</th><th style="width:26%">Job</th></tr></thead><tbody>' +
       items.map(j => {
         const jobId = String(j.job_id || j.id || "");
         const ds = String(j.dataset_id || "");
@@ -41573,10 +41573,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
            (statusRaw || "-"));
         const hint = String(j.result_hint || "");
         const activityLabel = ds ? (kind + " • " + ds) : (hint ? (kind + " • " + hint) : kind);
+        const activitySub = jobId ? ('Job ' + jobIdShort) : '';
         return '<tr>'
-          + '<td class="mono" title="'+esc(jobId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort)+'</span></td>'
+          + '<td title="'+esc(activityLabel + (jobId ? (' • Job ' + jobId) : ''))+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+          +   '<div style="display:flex;flex-direction:column;gap:2px;min-width:0">'
+          +     '<div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + pillHtml(kind, kindTone(kindRaw)) + '</div>'
+          +     '<div style="color:#94a3b8;font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(activitySub || (ds || hint || '-')) + '</div>'
+          +   '</div>'
+          + '</td>'
           + '<td title="'+esc(statusRaw || status)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(status, statusTone(statusRaw))+'</td>'
-          + '<td title="'+esc(activityLabel)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(kind, kindTone(kindRaw))+'</td>'
+          + '<td class="mono" title="'+esc(jobId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(jobIdShort || "-")+'</span></td>'
           + '</tr>';
       }).join("") +
       '</tbody></table></div>';
