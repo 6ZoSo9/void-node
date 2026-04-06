@@ -36756,70 +36756,12 @@ a{color:#93c5fd;text-decoration:none}
               }
             } catch {}
 
-            const latestUsefulCandidates:any[] = [
-              latest_redundancy_checked_dataset
-                ? {
-                    task_class: "redundancy",
-                    label: "Latest checked dataset",
-                    badge: "Checked",
-                    button_text: "Open Checked Dataset",
-                    ...latest_redundancy_checked_dataset
-                  }
-                : null,
-              latest_verified_dataset
-                ? {
-                    task_class: "verify",
-                    label: "Latest verified dataset",
-                    badge: "Verified",
-                    button_text: "Open Verified Dataset",
-                    ...latest_verified_dataset
-                  }
-                : null,
-              latest_publish_dataset
-                ? {
-                    task_class: "publish",
-                    label: "Latest published dataset",
-                    badge: "Published",
-                    button_text: "Open Published Dataset",
-                    ...latest_publish_dataset
-                  }
-                : null
-            ].filter(Boolean);
-
-            const enrichLatestUseful = (item:any) => {
-              if (!item) return null;
-              const taskClass = String(item?.task_class || "");
-              const ds = String(item?.dataset_id || "");
-              const rid = String(item?.receipt_id || "");
-              const match = recentRunnerActivity.find((x:any) => {
-                if (String(x?.task_class || "") !== taskClass) return false;
-                const xds = String(x?.dataset_id || "");
-                const xrid = String(x?.receipt_id || "");
-                if (ds && xds && ds === xds) return true;
-                if (rid && xrid && rid === xrid) return true;
-                return false;
-              }) || null;
-
-              const result_hint =
-                taskClass === "publish" ? "stored" :
-                taskClass === "verify" ? "verified" :
-                taskClass === "redundancy" ? "checked" :
-                null;
-
-              return {
-                ...item,
-                job_id: match && match?.job_id ? String(match.job_id) : null,
-                status: match && match?.status ? String(match.status) : null,
-                source_kind: match && match?.source ? String(match.source) : null,
-                result_hint,
-                consume_path: ds ? ("/datanet/consume-view/" + encodeURIComponent(ds)) : null,
-                view_path: ds ? ("/datanet/view/" + encodeURIComponent(ds)) : null,
-                raw_local_job_path: ds ? ("/datanet/v1/local-job/" + encodeURIComponent(ds)) : null
-              };
-            };
-
-            latestUsefulCandidates.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
-            const latest_useful_dataset = latestUsefulCandidates.length ? enrichLatestUseful(latestUsefulCandidates[0]) : null;
+            const latest_useful_dataset = buildLatestUsefulDataset(
+              latest_publish_dataset,
+              latest_verified_dataset,
+              latest_redundancy_checked_dataset,
+              recentRunnerActivity
+            );
 
             return res.json({
               ok: true,
@@ -37145,6 +37087,76 @@ a{color:#93c5fd;text-decoration:none}
         }
       }
       return recentRunnerActivity;
+    }
+
+
+    function buildLatestUsefulDataset(latest_publish_dataset:any, latest_verified_dataset:any, latest_redundancy_checked_dataset:any, recentRunnerActivity:any[]){
+      const latestUsefulCandidates:any[] = [
+        latest_redundancy_checked_dataset
+          ? {
+              task_class: "redundancy",
+              label: "Latest checked dataset",
+              badge: "Checked",
+              button_text: "Open Checked Dataset",
+              ...latest_redundancy_checked_dataset
+            }
+          : null,
+        latest_verified_dataset
+          ? {
+              task_class: "verify",
+              label: "Latest verified dataset",
+              badge: "Verified",
+              button_text: "Open Verified Dataset",
+              ...latest_verified_dataset
+            }
+          : null,
+        latest_publish_dataset
+          ? {
+              task_class: "publish",
+              label: "Latest published dataset",
+              badge: "Published",
+              button_text: "Open Published Dataset",
+              ...latest_publish_dataset
+            }
+          : null
+      ].filter(Boolean);
+
+      const enrichLatestUseful = (item:any) => {
+        if (!item) return null;
+        const taskClass = String(item?.task_class || "");
+        const ds = String(item?.dataset_id || "");
+        const rid = String(item?.receipt_id || "");
+        const match = Array.isArray(recentRunnerActivity)
+          ? (recentRunnerActivity.find((x:any) => {
+              if (String(x?.task_class || "") !== taskClass) return false;
+              const xds = String(x?.dataset_id || "");
+              const xrid = String(x?.receipt_id || "");
+              if (ds && xds && ds === xds) return true;
+              if (rid && xrid && rid === xrid) return true;
+              return false;
+            }) || null)
+          : null;
+
+        const result_hint =
+          taskClass === "publish" ? "stored" :
+          taskClass === "verify" ? "verified" :
+          taskClass === "redundancy" ? "checked" :
+          null;
+
+        return {
+          ...item,
+          job_id: match && match?.job_id ? String(match.job_id) : null,
+          status: match && match?.status ? String(match.status) : null,
+          source_kind: match && match?.source ? String(match.source) : null,
+          result_hint,
+          consume_path: ds ? ("/datanet/consume-view/" + encodeURIComponent(ds)) : null,
+          view_path: ds ? ("/datanet/view/" + encodeURIComponent(ds)) : null,
+          raw_local_job_path: ds ? ("/datanet/v1/local-job/" + encodeURIComponent(ds)) : null
+        };
+      };
+
+      latestUsefulCandidates.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+      return latestUsefulCandidates.length ? enrichLatestUseful(latestUsefulCandidates[0]) : null;
     }
 
     async function wcRunnerSubmitOnce(account:string){
