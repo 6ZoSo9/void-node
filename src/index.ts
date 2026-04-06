@@ -39156,6 +39156,12 @@ a{color:#93c5fd;text-decoration:none}
         <h2>Fetched/Materialized Sample</h2>
         <ul class="list mono" id="localFetchedSample"></ul>
       </div>
+
+      <div class="card" style="grid-column:1/-1">
+        <h2>Recent Runner Activity</h2>
+        <div class="muted" id="runnerActivityMeta" style="margin-bottom:10px">No recent runner activity.</div>
+        <ul class="list mono" id="runnerActivityList"></ul>
+      </div>
     </div>
 
     <div class="error" id="errBox"></div>
@@ -39192,6 +39198,7 @@ a{color:#93c5fd;text-decoration:none}
         const peerObj = j.peer || null;
         const pp = peerObj && peerObj.provenance_v1 ? peerObj.provenance_v1 : null;
         const d = j.delta || null;
+        const recentRunnerActivity = Array.isArray(j.recent_runner_activity) ? j.recent_runner_activity : [];
 
         set("localHead", local.head);
         set("localNode", local.node_id || "-");
@@ -39237,6 +39244,26 @@ a{color:#93c5fd;text-decoration:none}
         set("deltaJobs", d ? d.local_jobs_total : "-");
         set("deltaOrigin", d ? d.local_origin_count : "-");
         set("deltaFetched", d ? d.fetched_or_materialized_count : "-");
+
+        set(
+          "runnerActivityMeta",
+          recentRunnerActivity.length
+            ? (String(recentRunnerActivity.length) + " recent item" + (recentRunnerActivity.length === 1 ? "" : "s"))
+            : "No recent runner activity."
+        );
+
+        fillList(
+          "runnerActivityList",
+          recentRunnerActivity.map((x) => {
+            const task = String((x && x.task_class) || "-");
+            const reason = String((x && x.selection_reason) || "-");
+            const when = x && Number(x.ts_ms || 0) > 0 ? new Date(Number(x.ts_ms)).toLocaleString() : "-";
+            const job = x && x.job_id ? (" • job " + String(x.job_id)) : "";
+            const dataset = x && x.dataset_id ? (" • dataset " + String(x.dataset_id)) : "";
+            const source = x && x.source ? (" • " + String(x.source)) : "";
+            return task + " • " + reason + " • " + when + job + dataset + source;
+          })
+        );
       } catch (e) {
         showErr(String((e && e.message) || e));
       }
@@ -40117,6 +40144,7 @@ a{color:#93c5fd;text-decoration:none}
             <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy Share Page</button>
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700;" id="adminDataNetSummaryBtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">Open DataNet Admin</a>
           </div>
+          <div class="hero-note" id="runnerActivitySnippetCard" style="margin-top:10px;display:none">loading…</div>
           <div class="hero-note" id="latestDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
           <div class="mini" id="latestDatasetActionCard" style="margin-top:10px;display:none">
             <div class="s" style="margin-bottom:6px">Latest dataset</div>
@@ -41961,6 +41989,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const recentPublishCount = recentRunnerActivity.filter((x) => String((x && x.task_class) || "") === "publish").length;
       const recentVerifyCount = recentRunnerActivity.filter((x) => String((x && x.task_class) || "") === "verify").length;
       const recentRedundancyCount = recentRunnerActivity.filter((x) => String((x && x.task_class) || "") === "redundancy").length;
+      const formatRunnerReasonMini = (raw) => {
+        const v = String(raw || "").trim();
+        if (!v) return "-";
+        if (v === "target_publish_mix") return "publish mix";
+        if (v === "rebalance_to_publish") return "rebalance to publish";
+        if (v === "avoid_verify_streak") return "avoid verify streak";
+        if (v === "avoid_redundancy_streak") return "avoid redundancy streak";
+        if (v === "stale_verify_target") return "stale verify target";
+        if (v === "stale_redundancy_target") return "stale redundancy target";
+        if (v === "default_first_approved") return "default approved task";
+        if (v === "unknown") return "unknown";
+        return v.replace(/^selected[:\s-]*/i, "").replace(/^reason[:\s-]*/i, "").replace(/_/g, " ").trim();
+      };
       const latestRecentTsMs = recentRunnerActivity.reduce((m, x) => {
         const ts = Number((x && x.ts_ms) || 0);
         return ts > m ? ts : m;
@@ -42076,6 +42117,26 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           escHtml(label) + " " + escHtml(shortId) + escHtml(suffix) +
           "</a>";
       };
+
+      const runnerSnippetItems = recentRunnerActivity.slice(0, 2).map((x) => {
+        const task = String((x && x.task_class) || "-");
+        const reason = formatRunnerReasonMini(x && x.selection_reason);
+        const when = x && Number(x.ts_ms || 0) > 0 ? new Date(Number(x.ts_ms)).toLocaleTimeString() : "-";
+        const job = x && x.job_id ? (" • " + String(x.job_id)) : "";
+        return task + " • " + reason + " • " + when + job;
+      });
+
+      if ($("runnerActivitySnippetCard")) {
+        if (runnerSnippetItems.length) {
+          $("runnerActivitySnippetCard").style.display = "";
+          $("runnerActivitySnippetCard").innerHTML =
+            '<div style="font-weight:700;margin-bottom:6px">Recent runner activity</div>' +
+            runnerSnippetItems.map((x) => '<div style="margin-top:4px">' + escHtml(x) + '</div>').join("");
+        } else {
+          $("runnerActivitySnippetCard").style.display = "none";
+          $("runnerActivitySnippetCard").textContent = "";
+        }
+      }
 
       if ($("networkValueCard")) {
         const latestVerifyReceipt = netValue && netValue.latest_verified_dataset
