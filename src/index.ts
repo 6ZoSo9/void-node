@@ -37140,20 +37140,60 @@ a{color:#93c5fd;text-decoration:none}
     async function wcRunnerSubmitOnce(account:string){
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       rt.inflight_by_account = rt.inflight_by_account || {};
-      if (rt.inflight_by_account[String(account)]) {
-        return {
-          ok:true,
-          skipped:true,
-          reason:"runner_busy",
-          account
-        };
-      }
-      rt.inflight_by_account[String(account)] = true;
 
       const cfg:any = runnerConfigFor(account);
       const now = Date.now();
       const minGap = Number(cfg.min_submit_gap_ms || rt.min_submit_gap_ms || 30000) || 30000;
       const last = Number((rt.last_submit_ms || {})[String(account)] || 0);
+      const busySelection:any = runnerSelectionDecisionFor(account);
+      const busySelectedTaskClass = String(busySelection?.task_class || "datanet_publish");
+      const busySelectionReason = String(busySelection?.reason || "unknown");
+      const busySelectedDatasetId =
+        busySelection && busySelection.candidate && busySelection.candidate.dataset_id
+          ? String(busySelection.candidate.dataset_id || "")
+          : null;
+
+      if (rt.inflight_by_account[String(account)]) {
+        rt.last_result = rt.last_result || {};
+        rt.last_result[String(account)] = {
+          at_ms: now,
+          ok: true,
+          skipped: true,
+          reason: "runner_busy",
+          result: {
+            ok:true,
+            skipped:true,
+            reason:"runner_busy",
+            selection_reason: busySelectionReason,
+            account,
+            safe_mode: !!cfg.safe_mode,
+            min_submit_gap_ms: minGap,
+            max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+          },
+          selected_task_class: busySelectedTaskClass,
+          selected_dataset_id: busySelectedDatasetId,
+          selection_reason: busySelectionReason,
+          selected_stale_for_ms: Number(busySelection?.stale_for_ms || 0),
+          selected_difficulty_bucket: String(busySelection?.difficulty_bucket || "low"),
+          selected_network_need_score: Number(busySelection?.network_need_score || 0),
+          safe_mode: !!cfg.safe_mode,
+          min_submit_gap_ms: minGap,
+          max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+        };
+        return {
+          ok:true,
+          skipped:true,
+          reason:"runner_busy",
+          selection_reason: busySelectionReason,
+          selected_task_class: busySelectedTaskClass,
+          selected_dataset_id: busySelectedDatasetId,
+          account,
+          safe_mode: !!cfg.safe_mode,
+          min_submit_gap_ms: minGap,
+          max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60
+        };
+      }
+      rt.inflight_by_account[String(account)] = true;
 
       rt.submit_history_ms = rt.submit_history_ms || {};
       const history = Array.isArray(rt.submit_history_ms[String(account)]) ? rt.submit_history_ms[String(account)] : [];
@@ -37372,7 +37412,10 @@ a{color:#93c5fd;text-decoration:none}
         rt.last_result[String(account)] = {
           at_ms: Date.now(),
           ok: !!(out && out.ok),
+          reason: (out && out.ok) ? "submitted" : String(out?.error || out?.reason || "submit_failed"),
+          status: (out && out.job && out.job.status) ? String(out.job.status) : ((out && out.ok) ? "submitted" : "error"),
           job_id: out && out.job ? (out.job.job_id || null) : null,
+          receipt_id: out && out.job ? (out.job.receipt_id || null) : null,
           result: out,
           selected_task_class,
           selected_dataset_id: selected_dataset_id || null,
