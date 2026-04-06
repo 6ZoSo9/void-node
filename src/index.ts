@@ -41190,16 +41190,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "wcMeta",
       localEarned !== null
-        ? ("lifetime earned: " + localEarned + " | events: " + (localCount ?? 0) + " | account: " + account)
-        : "local WC unavailable"
+        ? ("Lifetime earned WC: " + localEarned + " • Ledger events: " + (localCount ?? 0) + " • Account: " + account)
+        : "Lifetime earned WC is unavailable right now."
     );
 
     setText("walletRedeemableBig", redeemableTotal);
     setText(
       "walletMeta",
       redeemState
-        ? ("Spendable WC now: " + redeemableTotal + " • Earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Debited: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Redeemed: " + redeemedTotal + " • Account: " + account)
-        : "Local Work Credit state is unavailable right now"
+        ? ("Usable WC right now: " + redeemableTotal + " • Lifetime earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Already used/spent: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Already moved to trading: " + redeemedTotal + " • Account: " + account)
+        : "Participant-side Work Credit state is unavailable right now."
     );
     setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
     setText("walletDebitedMini", redeemState && Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0);
@@ -41213,10 +41213,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "connectedWalletMeta",
       isWalletAddr(connectedWallet)
-        ? ("connected wallet: " + connectedWallet + " | execution wallet: " + (wcAddr || connectedWallet) + " | onchain VOID: " + executionWalletVoidText + " | participant WC and receipts stay on the selected account")
+        ? ("Connected wallet: " + connectedWallet + " • Execution wallet: " + (wcAddr || connectedWallet) + " • Onchain VOID: " + executionWalletVoidText)
         : (wcAddr
-            ? ("execution wallet: " + wcAddr + " | no connected wallet detected | participant WC is read from the selected account ledger")
-            : "No connected wallet detected")
+            ? ("Execution wallet: " + wcAddr + " • No connected wallet detected yet.")
+            : "No connected wallet detected.")
     );
 
     setText("tradePriceWcPerVoid", wcPerVoid !== null ? wcPerVoid : "-");
@@ -41238,10 +41238,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       if ($("tradeSummary")) {
         $("tradeSummary").textContent = !relayerUp
-          ? "Trading is unavailable right now. You can still prepare WC on the Wallet tab."
+          ? "Direct trading is unavailable right now because the relayer is offline. You can still prepare WC on the Wallet tab."
           : (!hasRedeemable
-              ? "No WC is ready for trading yet. Prepare WC on the Wallet tab first."
-              : "WC is ready and the trade path is live. You can execute the trade now.");
+              ? "No WC is prepared for trading yet. Move WC into trading-ready state on the Wallet tab first."
+              : "WC is prepared, the relayer is up, and the trade path is live. You can execute the trade now.");
       }
     }
 
@@ -42099,9 +42099,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         !walletReady
           ? "Connect a wallet to execute a trade."
           : !relayerUp
-            ? ("Trading is unavailable right now • " + redeemableTotal + " WC is still available to prepare from your participant side.")
+            ? ("Relayer offline • " + redeemableTotal + " WC is still available to move into trading-ready state.")
             : !hasRedeemable
-              ? "No WC is ready for trading yet • Earn WC or prepare it on the Wallet tab first."
+              ? "No WC is prepared for trading yet • Earn WC, then move it into trading-ready state on the Wallet tab."
               : ("Ready to trade " + redeemableTotal + " WC for about " + quoteText + " VOID" +
                  (wcAddrShort ? (" • Wallet " + wcAddrShort) : ""));
 
@@ -42320,9 +42320,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         const redeemSummaryText =
           !hasWallet
-            ? "Connect a wallet to prepare WC for trading."
+            ? "Connect a wallet to move WC into trading-ready state."
             : (redeemableNow > 0
-                ? ("Ready to move " + redeemableNow + " WC into trading.")
+                ? ("Ready to move " + redeemableNow + " WC from participant balance into trading-ready state.")
                 : "No WC is ready to move yet • Earn WC first.");
 
         if ($("redeemSummary")) {
