@@ -41568,7 +41568,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         }
         return '<tr>'
           + '<td class="mono" title="'+esc(receiptId)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(receiptIdShort)+'</span></td>'
-          + '<td title="'+esc(kindRaw)}" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(kind, kindTone(kindRaw))+'</td>'
+          + '<td title="'+esc(kindRaw)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(kind, kindTone(kindRaw))+'</td>'
           + '<td class="mono" title="'+esc(ds)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(dsShort || "-")+'</span></td>'
           + '<td title="'+esc(statusRaw || status)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(status, statusTone(statusRaw))+'</td>'
           + '<td title="'+esc(result)+'" style="max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+pillHtml(result, resultTone(kindRaw, result))+'</td>'
@@ -42799,7 +42799,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const jidFull = String(latestReceipt.job_id || "-");
       const dsFull = String(latestReceipt.dataset_id || "-");
       const kindFull = String(latestReceipt.kind || "-");
+      const taskClassFull = String(latestReceipt.task_class || "");
       const statusFull = String(latestReceipt.status || "-");
+      const displayStatusFull = String(latestReceipt.display_status || "") || statusFull;
       const outputObj = latestReceipt.output || null;
       const outputPathFull = outputObj && outputObj.path ? String(outputObj.path) : "";
       const ridShort = ridFull.length > 24 ? (ridFull.slice(0, 10) + "…" + ridFull.slice(-6)) : ridFull;
@@ -42808,36 +42810,42 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         ? (outputPathFull.length > 34 ? (outputPathFull.slice(0, 14) + "…" + outputPathFull.slice(-12)) : outputPathFull)
         : "-";
 
-      let resultFull = "";
-      if (kindFull === "datanet_fetch_verify") {
-        resultFull = outputObj && outputObj.verified === true ? "verified" : "";
-      } else if (kindFull === "datanet_redundancy_check") {
-        const parts = [];
-        if (outputObj && outputObj.checked === true) parts.push("checked");
-        if (outputObj && outputObj.readable === true) parts.push("readable");
-        if (outputObj && outputObj.verified_hash === true) parts.push("hash ok");
-        resultFull = parts.join(" • ");
-      } else if (kindFull === "datanet_publish") {
-        resultFull = outputPathFull ? "stored" : "";
+      let resultFull = String(latestReceipt.result_hint || "");
+      if (!resultFull) {
+        if (kindFull === "datanet_fetch_verify") {
+          resultFull = outputObj && outputObj.verified === true ? "verified" : "";
+        } else if (kindFull === "datanet_redundancy_check") {
+          const parts = [];
+          if (outputObj && outputObj.checked === true) parts.push("checked");
+          if (outputObj && outputObj.readable === true) parts.push("readable");
+          if (outputObj && outputObj.verified_hash === true) parts.push("hash ok");
+          resultFull = parts.join(" • ");
+        } else if (kindFull === "datanet_publish") {
+          resultFull = outputPathFull ? "stored" : "";
+        }
       }
 
+      const receiptBadge =
+        String(latestReceipt.display_kind || "") ||
+        (taskClassFull === "verify" ? "Verified" :
+         taskClassFull === "redundancy" ? "Checked" :
+         taskClassFull === "publish" ? "Published" :
+         kindFull === "datanet_fetch_verify" ? "Verified" :
+         kindFull === "datanet_redundancy_check" ? "Checked" :
+         kindFull === "datanet_publish" ? "Published" :
+         "Receipt");
+
       const receiptLabel =
+        taskClassFull === "verify" ? "Latest verify receipt" :
+        taskClassFull === "redundancy" ? "Latest redundancy receipt" :
+        taskClassFull === "publish" ? "Latest publish receipt" :
         kindFull === "datanet_fetch_verify" ? "Latest verify receipt" :
         kindFull === "datanet_redundancy_check" ? "Latest redundancy receipt" :
         kindFull === "datanet_publish" ? "Latest publish receipt" :
         "Latest receipt";
 
-      const receiptBadge =
-        kindFull === "datanet_fetch_verify"
-          ? "Verified"
-          : kindFull === "datanet_redundancy_check"
-            ? "Checked"
-            : kindFull === "datanet_publish"
-              ? "Published"
-              : "Receipt";
-
       const summaryText =
-        receiptBadge + " • " + statusFull +
+        receiptBadge + " • " + displayStatusFull +
         (resultFull ? (" • " + resultFull) : "") +
         " • Dataset " + dsShort +
         " • Receipt " + ridShort;
@@ -42861,8 +42869,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         $("proofSummaryCard").title =
           "Receipt: " + ridFull +
           " • Job: " + jidFull +
-          " • Type: " + kindFull +
-          " • Status: " + statusFull +
+          " • Type: " + (taskClassFull || kindFull) +
+          " • Status: " + displayStatusFull +
           (resultFull ? (" • Result: " + resultFull) : "") +
           " • Dataset: " + dsFull +
           (outputPathFull ? (" • Output: " + outputPathFull) : "");
@@ -42871,6 +42879,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       try {
         const btn = $("latestReceiptDatasetBtn");
         const btnText =
+          taskClassFull === "verify" ? "Open Verified Dataset" :
+          taskClassFull === "redundancy" ? "Open Checked Dataset" :
+          taskClassFull === "publish" ? "Open Published Dataset" :
           kindFull === "datanet_fetch_verify" ? "Open Verified Dataset" :
           kindFull === "datanet_redundancy_check" ? "Open Checked Dataset" :
           kindFull === "datanet_publish" ? "Open Published Dataset" :
