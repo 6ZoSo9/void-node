@@ -39245,6 +39245,27 @@ a{color:#93c5fd;text-decoration:none}
         set("deltaOrigin", d ? d.local_origin_count : "-");
         set("deltaFetched", d ? d.fetched_or_materialized_count : "-");
 
+        const formatRunnerReasonMini = (raw) => {
+          const v = String(raw || "").trim();
+          if (!v) return "-";
+          if (v === "target_publish_mix") return "publish mix";
+          if (v === "rebalance_to_publish") return "rebalance to publish";
+          if (v === "avoid_verify_streak") return "avoid verify streak";
+          if (v === "avoid_redundancy_streak") return "avoid redundancy streak";
+          if (v === "stale_verify_target") return "stale verify target";
+          if (v === "stale_redundancy_target") return "stale redundancy target";
+          if (v === "default_first_approved") return "default approved task";
+          if (v === "unknown") return "unknown";
+          return v.replace(/^selected[:\s-]*/i, "").replace(/^reason[:\s-]*/i, "").replace(/_/g, " ").trim();
+        };
+
+        const formatRunnerSourceMini = (raw) => {
+          const v = String(raw || "").trim();
+          if (v === "runner_selection_event") return "selection";
+          if (v === "runner_last_result") return "result";
+          return v || "-";
+        };
+
         set(
           "runnerActivityMeta",
           recentRunnerActivity.length
@@ -39256,11 +39277,11 @@ a{color:#93c5fd;text-decoration:none}
           "runnerActivityList",
           recentRunnerActivity.map((x) => {
             const task = String((x && x.task_class) || "-");
-            const reason = String((x && x.selection_reason) || "-");
-            const when = x && Number(x.ts_ms || 0) > 0 ? new Date(Number(x.ts_ms)).toLocaleString() : "-";
+            const reason = formatRunnerReasonMini(x && x.selection_reason);
+            const when = x && Number(x.ts_ms || 0) > 0 ? new Date(Number(x.ts_ms)).toLocaleTimeString() : "-";
             const job = x && x.job_id ? (" • job " + String(x.job_id)) : "";
             const dataset = x && x.dataset_id ? (" • dataset " + String(x.dataset_id)) : "";
-            const source = x && x.source ? (" • " + String(x.source)) : "";
+            const source = x && x.source ? (" • " + formatRunnerSourceMini(x.source)) : "";
             return task + " • " + reason + " • " + when + job + dataset + source;
           })
         );
