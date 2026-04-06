@@ -42171,20 +42171,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
 
       if ($("networkValueCard")) {
-        const latestVerifyReceipt = netValue && netValue.latest_verified_dataset
-          ? String(netValue.latest_verified_dataset.receipt_id || "")
-          : "";
-        const latestRedundancyReceipt = netValue && netValue.latest_redundancy_checked_dataset
-          ? String(netValue.latest_redundancy_checked_dataset.receipt_id || "")
-          : "";
-
-        const latestVerifyWhen = netValue && netValue.latest_verified_dataset && Number(netValue.latest_verified_dataset.ts_ms || 0) > 0
-          ? new Date(Number(netValue.latest_verified_dataset.ts_ms || 0)).toLocaleString()
-          : "-";
-        const latestRedundancyWhen = netValue && netValue.latest_redundancy_checked_dataset && Number(netValue.latest_redundancy_checked_dataset.ts_ms || 0) > 0
-          ? new Date(Number(netValue.latest_redundancy_checked_dataset.ts_ms || 0)).toLocaleString()
-          : "-";
-
         const latestRunnerItem = recentRunnerActivity.length ? recentRunnerActivity[0] : null;
         const latestReasonRaw = latestRunnerItem && latestRunnerItem.selection_reason
           ? String(latestRunnerItem.selection_reason)
@@ -42194,11 +42180,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           "No recent runner selection reason."
         );
 
-        const shortReceipt = (v) => {
-          const s = String(v || "");
-          return !s ? "-" : (s.length > 22 ? (s.slice(0, 8) + "…" + s.slice(-6)) : s);
-        };
-
         $("networkValueCard").innerHTML = netValue && netValue.ok
           ? (
               '<div style="display:flex;flex-direction:column;gap:10px">' +
@@ -42207,24 +42188,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                   '<span>verify ' + recentVerifyCount + '</span>' +
                   '<span>redundancy ' + recentRedundancyCount + '</span>' +
                   '<span style="color:#94a3b8">updated ' + freshnessText + '</span>' +
-                '</div>' +
-                '<div style="display:flex;flex-direction:column;gap:6px">' +
-                  '<div><strong>Latest verified dataset</strong> • ' + escHtml(latestVerifyWhen) + '</div>' +
-                  '<div style="color:#94a3b8;font-size:12px">' + mkDatasetLink("Dataset", latestVerifiedDataset) + '</div>' +
-                  '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
-                    (latestVerifiedDataset
-                      ? ('<a href="/datanet/view/' + encodeURIComponent(String(latestVerifiedDataset)) + '?who=' + encodeURIComponent(activeAccountForLinks || "zoso") + '" target="_blank" rel="noopener" class="btn small">Open Verified Dataset</a>')
-                      : '<span style="color:#64748b;font-size:12px">No verified dataset yet</span>') +
-                  '</div>' +
-                '</div>' +
-                '<div style="display:flex;flex-direction:column;gap:6px">' +
-                  '<div><strong>Latest checked dataset</strong> • ' + escHtml(latestRedundancyWhen) + '</div>' +
-                  '<div style="color:#94a3b8;font-size:12px">' + mkDatasetLink("Dataset", latestRedundancyDataset) + '</div>' +
-                  '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
-                    (latestRedundancyDataset
-                      ? ('<a href="/datanet/view/' + encodeURIComponent(String(latestRedundancyDataset)) + '?who=' + encodeURIComponent(activeAccountForLinks || "zoso") + '" target="_blank" rel="noopener" class="btn small">Open Checked Dataset</a>')
-                      : '<span style="color:#64748b;font-size:12px">No checked dataset yet</span>') +
-                  '</div>' +
                 '</div>' +
                 '<div style="color:#94a3b8;font-size:12px">Why this work was picked • ' + escHtml(latestReasonText) + '</div>' +
               '</div>'
