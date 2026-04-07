@@ -1,0 +1,26 @@
+groups:
+  - name: void-agent-pick2-v2-lease
+    rules:
+      - record: void:agent_pick2_v2:active_lease_rejects:last_5m
+        expr: max_over_time(void_agent_pick2_v2_reject_by_reason_total{reason="active_lease"}[5m])
+
+      - record: void:agent_pick2_v2:chosen_total:last_5m
+        expr: max_over_time(void_agent_pick2_v2_chosen_total[5m])
+
+      - alert: VoidAgentPick2V2ActiveLeasePressure
+        expr: increase(void_agent_pick2_v2_reject_by_reason_total{reason="active_lease"}[15m]) > 20
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "weighted_v2 active lease pressure"
+          description: "weighted_v2 is seeing repeated active_lease rejects; this may indicate contention or hammering on pick2."
+
+      - alert: VoidAgentPick2V2ChosenButLeaseRejecting
+        expr: increase(void_agent_pick2_v2_chosen_total[15m]) > 0 and increase(void_agent_pick2_v2_reject_by_reason_total{reason="active_lease"}[15m]) > 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "weighted_v2 lease contention observed"
+          description: "weighted_v2 is selecting jobs and also seeing active_lease rejects in the same window."
