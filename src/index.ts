@@ -19367,7 +19367,7 @@ const wal = new WALv1(getDataDir());
         const chosen = chooseWeightedJob(avail);
         return res.json({
           ok: true,
-          policy: "weighted_v1",
+          policy: "weighted_v2",
           leaseMs: LEASE_MS,
           available: avail.length,
           best: chosen.best ? {
@@ -32087,7 +32087,7 @@ try {
             selected_network_need_score: chosen.network_need_score || 0,
             selected_stale_for_ms: chosen.stale_for_ms || 0,
             selected_score: chosen.score,
-            selection_policy: "weighted_v1_runnable_fallback"
+            selection_policy: "weighted_v2"
           };
 
           return res.json({ok:true, job: outJob, leaseMs:LEASE_MS, epochMs});
