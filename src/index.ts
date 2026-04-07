@@ -37723,6 +37723,24 @@ a{color:#93c5fd;text-decoration:none}
       const verifyCandidate = hasVerify ? runnerFindVerifyCandidate(account) : null;
       const redundancyCandidate = hasRedundancy ? runnerFindRedundancyCandidate(account) : null;
 
+      const MAX_PICK_STALE_MS = Math.max(60000, Number(process.env.VOID_AGENT_MAX_STALE_MS || 7 * 24 * 60 * 60 * 1000));
+
+      const verifyCandidateFresh =
+        verifyCandidate &&
+        verifyCandidate.dataset_id &&
+        Number(verifyCandidate.stale_for_ms || 0) > 0 &&
+        Number(verifyCandidate.stale_for_ms || 0) <= MAX_PICK_STALE_MS
+          ? verifyCandidate
+          : null;
+
+      const redundancyCandidateFresh =
+        redundancyCandidate &&
+        redundancyCandidate.dataset_id &&
+        Number(redundancyCandidate.stale_for_ms || 0) > 0 &&
+        Number(redundancyCandidate.stale_for_ms || 0) <= MAX_PICK_STALE_MS
+          ? redundancyCandidate
+          : null;
+
       const targetPublish = Number(cfg.target_publish_share || 0.5);
       const targetVerify = Number(cfg.target_verify_share || 0.3);
       const targetRedundancy = Number(cfg.target_redundancy_share || 0.2);
@@ -37739,10 +37757,10 @@ a{color:#93c5fd;text-decoration:none}
       const choices:any[] = [];
 
       const publishNeedScore = Math.min(1, Math.max(0.2, (targetPublish - publishShare) + (totalLastHour <= 1 ? 0.3 : 0)));
-      const verifyNeedScore = Math.min(1, Math.max(0, (targetVerify - verifyShare) + (verifyCandidate && Number(verifyCandidate.stale_for_ms || 0) >= 60 * 60 * 1000 ? 0.2 : 0)));
-      const redundancyNeedScore = Math.min(1, Math.max(0, (targetRedundancy - redundancyShare) + (redundancyCandidate && Number(redundancyCandidate.stale_for_ms || 0) >= 6 * 60 * 60 * 1000 ? 0.25 : 0)));
+      const verifyNeedScore = Math.min(1, Math.max(0, (targetVerify - verifyShare) + (verifyCandidateFresh && Number(verifyCandidateFresh.stale_for_ms || 0) >= 60 * 60 * 1000 ? 0.2 : 0)));
+      const redundancyNeedScore = Math.min(1, Math.max(0, (targetRedundancy - redundancyShare) + (redundancyCandidateFresh && Number(redundancyCandidateFresh.stale_for_ms || 0) >= 6 * 60 * 60 * 1000 ? 0.25 : 0)));
 
-      if (hasPublish && !(publishStreak && (verifyCandidate || redundancyCandidate))) {
+      if (hasPublish && !(publishStreak && (verifyCandidateFresh || redundancyCandidateFresh))) {
         choices.push({
           task_class: "datanet_publish",
           reason: "target_publish_mix",
@@ -37756,13 +37774,13 @@ a{color:#93c5fd;text-decoration:none}
         });
       }
 
-      if (hasVerify && verifyCandidate && verifyCandidate.dataset_id && !verifyStreak) {
-        const verifyStaleMs = Number(verifyCandidate.stale_for_ms || 0);
+      if (hasVerify && verifyCandidateFresh && verifyCandidateFresh.dataset_id && !verifyStreak) {
+        const verifyStaleMs = Number(verifyCandidateFresh.stale_for_ms || 0);
         choices.push({
           task_class: "datanet_fetch_verify",
           reason: "stale_verify_target",
-          dataset_id: String(verifyCandidate.dataset_id || ""),
-          candidate: verifyCandidate,
+          dataset_id: String(verifyCandidateFresh.dataset_id || ""),
+          candidate: verifyCandidateFresh,
           deficit: targetVerify - verifyShare,
           score: Number((targetVerify - verifyShare) || 0) + (verifyNeedScore * 0.35) + Math.min(0.35, verifyStaleMs / (24 * 60 * 60 * 1000)),
           stale_for_ms: verifyStaleMs,
@@ -37771,13 +37789,13 @@ a{color:#93c5fd;text-decoration:none}
         });
       }
 
-      if (hasRedundancy && redundancyCandidate && redundancyCandidate.dataset_id && !redundancyStreak) {
-        const redundancyStaleMs = Number(redundancyCandidate.stale_for_ms || 0);
+      if (hasRedundancy && redundancyCandidateFresh && redundancyCandidateFresh.dataset_id && !redundancyStreak) {
+        const redundancyStaleMs = Number(redundancyCandidateFresh.stale_for_ms || 0);
         choices.push({
           task_class: "datanet_redundancy_check",
           reason: "stale_redundancy_target",
-          dataset_id: String(redundancyCandidate.dataset_id || ""),
-          candidate: redundancyCandidate,
+          dataset_id: String(redundancyCandidateFresh.dataset_id || ""),
+          candidate: redundancyCandidateFresh,
           deficit: targetRedundancy - redundancyShare,
           score: Number((targetRedundancy - redundancyShare) || 0) + (redundancyNeedScore * 0.35) + Math.min(0.35, redundancyStaleMs / (48 * 60 * 60 * 1000)),
           stale_for_ms: redundancyStaleMs,
