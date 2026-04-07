@@ -46487,3 +46487,75 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
     try { console.error("[upgrade-boot-consumer:v2] init failed:", e?.message || e); } catch {}
   }
 })();
+
+
+// ---------------- [ADD] Agent pick2 weighted.v2 runtime-truth shim ----------------
+(function AgentPick2WeightedV2RuntimeTruthShim(){
+  try{
+    const TICK = 400;
+
+    function mount(){
+      const g:any = globalThis as any;
+      const app:any = g.__void_http_app || g.app;
+      if (!app || typeof app.get !== "function") return setTimeout(mount, TICK);
+      if ((app as any).__agent_pick2_weighted_v2_runtime_truth__) return;
+      (app as any).__agent_pick2_weighted_v2_runtime_truth__ = true;
+
+      app.get("/__void/agent/pick2/weighted.v2", async (req:any, res:any)=>{
+        try{
+          const token = String(req?.headers?.["x-agent-token"] || "");
+          const base = "http://127.0.0.1:" + String(process.env.HTTP_PORT || "4100");
+
+          const r = await fetch(base + "/agent/v0/pick2", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-agent-token": token
+            },
+            body: JSON.stringify({})
+          });
+
+          const j:any = await r.json().catch(() => null);
+          const job = j?.job || null;
+
+          return res.json({
+            ok: true,
+            policy: "weighted_v2_runtime_truth",
+            source: "/agent/v0/pick2",
+            leaseMs: Number(j?.leaseMs || 0),
+            epochMs: Number(j?.epochMs || 0),
+            best: job ? {
+              id: String(job?.id || job?.job_id || ""),
+              score: Number(job?.selected_score || 0),
+              task_class: job?.selected_task_class || job?.task_class || job?.kind || null,
+              dataset_id: job?.selected_dataset_id || job?.dataset_id || null,
+              difficulty_bucket: job?.selected_difficulty_bucket || null,
+              network_need_score: Number(job?.selected_network_need_score || 0),
+              stale_for_ms: Number(job?.selected_stale_for_ms || 0),
+              selection_policy: job?.selection_policy || null,
+              selection_reason: job?.selection_reason || null
+            } : null,
+            ranked: job ? [{
+              id: String(job?.id || job?.job_id || ""),
+              score: Number(job?.selected_score || 0),
+              task_class: job?.selected_task_class || job?.task_class || job?.kind || null,
+              dataset_id: job?.selected_dataset_id || job?.dataset_id || null,
+              difficulty_bucket: job?.selected_difficulty_bucket || null,
+              network_need_score: Number(job?.selected_network_need_score || 0),
+              stale_for_ms: Number(job?.selected_stale_for_ms || 0),
+              selection_policy: job?.selection_policy || null,
+              selection_reason: job?.selection_reason || null
+            }] : []
+          });
+        }catch(e:any){
+          return res.status(500).json({ok:false, error:e?.message || "internal"});
+        }
+      });
+
+      try{ console.log("[agent.pick2.weighted.v2.runtime-truth] ready"); }catch{}
+    }
+
+    mount();
+  }catch{}
+})();
+
