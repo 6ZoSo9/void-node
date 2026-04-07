@@ -31890,20 +31890,56 @@ try {
               "unknown"
             );
           }
+          function rowPlaintextJson(x:any){
+            try{
+              const t = String(x?.input?.plaintext || "").trim();
+              if (!t) return null;
+              const j = JSON.parse(t);
+              return (j && typeof j === "object") ? j : null;
+            }catch{
+              return null;
+            }
+          }
           function rowDatasetId(x:any){
-            const v = x?.selected_dataset_id || x?.dataset_id || x?.input?.dataset_id || null;
+            const pj = rowPlaintextJson(x);
+            const v =
+              x?.selected_dataset_id ||
+              x?.dataset_id ||
+              x?.input?.dataset_id ||
+              pj?.dataset_id ||
+              null;
             return v == null ? null : String(v);
           }
           function rowDifficulty(x:any){
-            const v = x?.selected_difficulty_bucket || x?.difficulty_bucket || x?.input?.difficulty_bucket || null;
+            const pj = rowPlaintextJson(x);
+            const v =
+              x?.selected_difficulty_bucket ||
+              x?.difficulty_bucket ||
+              x?.input?.difficulty_bucket ||
+              pj?.difficulty_bucket ||
+              null;
             return v == null ? null : String(v);
           }
           function rowNeed(x:any){
-            const n = Number(x?.selected_network_need_score || x?.network_need_score || x?.input?.network_need_score || 0);
+            const pj = rowPlaintextJson(x);
+            const n = Number(
+              x?.selected_network_need_score ||
+              x?.network_need_score ||
+              x?.input?.network_need_score ||
+              pj?.network_need_score ||
+              0
+            );
             return Number.isFinite(n) ? n : 0;
           }
           function rowStale(x:any){
-            const n = Number(x?.selected_stale_for_ms || x?.stale_for_ms || x?.input?.stale_for_ms || 0);
+            const pj = rowPlaintextJson(x);
+            const n = Number(
+              x?.selected_stale_for_ms ||
+              x?.stale_for_ms ||
+              x?.input?.stale_for_ms ||
+              pj?.stale_for_ms ||
+              0
+            );
             return Number.isFinite(n) ? n : 0;
           }
           function rowIsRunnable(x:any){
