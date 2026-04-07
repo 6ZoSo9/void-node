@@ -32133,12 +32133,31 @@ try {
               };
             });
 
+          PICK2V2_METRICS.reject_samples = Array.isArray(PICK2V2_METRICS.reject_samples) ? PICK2V2_METRICS.reject_samples : [];
+
           for (const r of rankedAll){
             if (r?.hard_reject){
               PICK2V2_METRICS.reject_total = Number(PICK2V2_METRICS.reject_total || 0) + 1;
               const rr = String(r?.reject_reason || "unknown");
               PICK2V2_METRICS.reject_by_reason[rr] = Number(PICK2V2_METRICS.reject_by_reason[rr] || 0) + 1;
+
+              PICK2V2_METRICS.reject_samples.push({
+                ts_ms: Date.now(),
+                id: String(r?.id || ""),
+                task_class: String(r?.task || ""),
+                dataset_id: String(r?.dataset_id || ""),
+                reject_reason: rr,
+                score: Number(r?.score || 0),
+                stale_for_ms: Number(r?.stale_for_ms || 0),
+                network_need_score: Number(r?.network_need_score || 0),
+                payload_bytes: Number(r?.payload_bytes || 0),
+                selection_reason: String(r?.selection_reason || "")
+              });
             }
+          }
+
+          if (PICK2V2_METRICS.reject_samples.length > 200) {
+            PICK2V2_METRICS.reject_samples = PICK2V2_METRICS.reject_samples.slice(-200);
           }
 
           const ranked = rankedAll
@@ -46794,6 +46813,42 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       });
 
       try{ console.log("[agent.pick2.v2.metrics] exporter ready: /__void/metrics/agent_pick2_v2.prom"); }catch{}
+    }
+
+    mount();
+  }catch{}
+})();
+
+
+// ---------------- [ADD] Agent pick2 v2 reject samples route ----------------
+(function AgentPick2V2RejectSamplesRoute(){
+  try{
+    const TICK = 400;
+
+    function mount(){
+      const g:any = globalThis as any;
+      const app:any = g.__void_http_app || g.app;
+      if (!app || typeof app.get !== "function") return setTimeout(mount, TICK);
+      if ((app as any).__agent_pick2_v2_reject_samples_route__) return;
+      (app as any).__agent_pick2_v2_reject_samples_route__ = true;
+
+      app.get("/__void/agent/pick2/rejects.v2", (_req:any, res:any)=>{
+        try{
+          const M:any = (globalThis as any).__void_pick2_v2_metrics || {};
+          const samples:any[] = Array.isArray(M.reject_samples) ? M.reject_samples.slice(-100).reverse() : [];
+          return res.json({
+            ok: true,
+            policy: "weighted_v2",
+            total_rejects: Number(M.reject_total || 0),
+            reject_by_reason: M.reject_by_reason || {},
+            samples
+          });
+        }catch(e:any){
+          return res.status(500).json({ ok:false, error:e?.message || "internal" });
+        }
+      });
+
+      try{ console.log("[agent.pick2.v2.rejects] route ready: /__void/agent/pick2/rejects.v2"); }catch{}
     }
 
     mount();
