@@ -17899,7 +17899,60 @@ const wal = new WALv1(getDataDir());
           const id = body?.jobId || body?.receipt?.id;
           if (id){
             ensureDir();
-            const rec = { id, ts: Date.now(), type: String(req.body?.type || "unknown"), input: (req.body?.input ?? null) };
+            const input = (req.body?.input ?? null);
+            const meta = (req.body?.meta ?? {});
+            const rec = {
+              id,
+              ts: Date.now(),
+              type: String(req.body?.type || "unknown"),
+              kind: String(
+                req.body?.kind ||
+                input?.kind ||
+                input?.task_class ||
+                meta?.selected_task_class ||
+                meta?.task_class ||
+                "unknown"
+              ),
+              task_class: (
+                input?.task_class ||
+                meta?.selected_task_class ||
+                meta?.task_class ||
+                input?.kind ||
+                req.body?.kind ||
+                null
+              ),
+              dataset_id: (
+                input?.dataset_id ??
+                input?.selected_dataset_id ??
+                meta?.selected_dataset_id ??
+                meta?.dataset_id ??
+                null
+              ),
+              difficulty_bucket: (
+                input?.difficulty_bucket ??
+                input?.selected_difficulty_bucket ??
+                meta?.selected_difficulty_bucket ??
+                meta?.difficulty_bucket ??
+                null
+              ),
+              network_need_score: Number(
+                input?.network_need_score ??
+                input?.selected_network_need_score ??
+                meta?.selected_network_need_score ??
+                meta?.network_need_score ??
+                0
+              ) || 0,
+              stale_for_ms: Number(
+                input?.stale_for_ms ??
+                input?.selected_stale_for_ms ??
+                meta?.selected_stale_for_ms ??
+                meta?.stale_for_ms ??
+                0
+              ) || 0,
+              input,
+              meta,
+              status: "queued"
+            };
             const fd = fs.openSync(jobsFile, "a");
             fs.writeSync(fd, JSON.stringify(rec) + "\n"); try{ fs.fdatasyncSync(fd); }catch{} fs.closeSync(fd);
           }
@@ -18973,7 +19026,10 @@ const wal = new WALv1(getDataDir());
 
   const DATA_DIR = process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data";
   const AGENT_DIR = path.join(DATA_DIR, "agent");
-  const FILE_JOBS     = path.join(AGENT_DIR, "jobs.jsonl");
+  const JOBSV1_DIR = path.join(DATA_DIR, "jobs_v1");
+  const FILE_JOBS_V1 = path.join(JOBSV1_DIR, "jobs.jsonl");
+  const FILE_JOBS_LEGACY = path.join(AGENT_DIR, "jobs.jsonl");
+  const FILE_JOBS = fs.existsSync(FILE_JOBS_V1) ? FILE_JOBS_V1 : FILE_JOBS_LEGACY;
   const FILE_RESULTS  = path.join(AGENT_DIR, "results.jsonl");
   const FILE_LEASES   = path.join(AGENT_DIR, "leases.jsonl");
 
@@ -18996,7 +19052,11 @@ const wal = new WALv1(getDataDir());
   function readSetFrom(file, idKey){ // returns Set<string>
     const s = new Set();
     for (const l of safeLines(file)){
-      try{ const x = JSON.parse(l); const id = x[idKey]; if (id) s.add(String(id)); }catch{}
+      try{
+        const x = JSON.parse(l);
+        const id = x[idKey] || x.job_id || x.id;
+        if (id) s.add(String(id));
+      }catch{}
     }
     return s;
   }
@@ -19016,9 +19076,207 @@ const wal = new WALv1(getDataDir());
   }
   function readLatestJob(id){
     for (let l of safeLines(FILE_JOBS).reverse()){
-      try{ const x = JSON.parse(l); if (String(x.id||"") === id) return x; }catch{}
+      try{
+        const x = JSON.parse(l);
+        const xid = String(x.job_id || x.id || "");
+        if (xid === id) return x;
+      }catch{}
     }
     return null;
+  }
+
+  function num(x:any, d=0){
+    const n = Number(x);
+    return Number.isFinite(n) ? n : d;
+  }
+
+  function str(x:any, d=""){
+    return (x == null) ? d : String(x);
+  }
+
+  function jobTaskClass(job:any){
+    return str(
+      job?.task_class ??
+      job?.selected_task_class ??
+      job?.meta?.task_class ??
+      job?.meta?.selected_task_class ??
+      job?.input?.task_class ??
+      job?.input?.selected_task_class ??
+      job?.input?.kind ??
+      job?.kind ??
+      job?.type,
+      "unknown"
+    ).trim() || "unknown";
+  }
+
+  function jobDatasetId(job:any){
+    return str(
+      job?.dataset_id ??
+      job?.selected_dataset_id ??
+      job?.meta?.dataset_id ??
+      job?.meta?.selected_dataset_id ??
+      job?.input?.dataset_id ??
+      job?.input?.selected_dataset_id,
+      ""
+    ).trim() || null;
+  }
+
+  function jobDifficultyBucket(job:any){
+    return str(
+      job?.difficulty_bucket ??
+      job?.selected_difficulty_bucket ??
+      job?.meta?.difficulty_bucket ??
+      job?.meta?.selected_difficulty_bucket ??
+      job?.input?.difficulty_bucket ??
+      job?.input?.selected_difficulty_bucket,
+      ""
+    ).trim() || null;
+  }
+
+  function jobNetworkNeedScore(job:any){
+    return clamp(num(
+      job?.network_need_score ??
+      job?.selected_network_need_score ??
+      job?.meta?.network_need_score ??
+      job?.meta?.selected_network_need_score ??
+      job?.input?.network_need_score ??
+      job?.input?.selected_network_need_score,
+      0
+    ), 0, 100);
+  }
+
+  function jobStaleForMs(job:any){
+    return Math.max(0, num(
+      job?.stale_for_ms ??
+      job?.selected_stale_for_ms ??
+      job?.meta?.stale_for_ms ??
+      job?.meta?.selected_stale_for_ms ??
+      job?.input?.stale_for_ms ??
+      job?.input?.selected_stale_for_ms,
+      0
+    ));
+  }
+
+  function jobIsRunnable(job:any){
+    const st = str(job?.status, "").trim().toLowerCase();
+    if (!st) return true;
+    if (st === "queued" || st === "ready" || st === "pending") return true;
+    if (st === "failed" || st === "completed" || st === "error" || st === "done" || st === "cancelled") return false;
+    return true;
+  }
+
+  function clamp(n:number, lo:number, hi:number){
+    return Math.max(lo, Math.min(hi, n));
+  }
+
+  function recentResultsByTaskClass(limit=400){
+    const out:any[] = [];
+    const lines = safeLines(FILE_RESULTS);
+    for (let i = lines.length - 1; i >= 0 && out.length < limit; --i){
+      const l = lines[i];
+      try{
+        const x = JSON.parse(l);
+        out.push(x);
+      }catch{}
+    }
+    return out;
+  }
+
+  function fairnessCounts(limit=400){
+    const m = new Map<string, number>();
+    for (const r of recentResultsByTaskClass(limit)){
+      const tc = str(
+        r?.task_class ??
+        r?.selected_task_class ??
+        r?.meta?.task_class ??
+        r?.meta?.selected_task_class ??
+        r?.kind,
+        "unknown"
+      ).trim() || "unknown";
+      m.set(tc, Number(m.get(tc) || 0) + 1);
+    }
+    return m;
+  }
+
+  function scoreJob(job:any, fairnessMap:Map<string, number>){
+    const taskClass = jobTaskClass(job);
+    const datasetId = jobDatasetId(job);
+    const difficultyBucket = jobDifficultyBucket(job);
+    const networkNeed = jobNetworkNeedScore(job);
+    const staleForMs = jobStaleForMs(job);
+
+    const verifiableBonus =
+      /verify|verification|redundancy|replica|fetch/i.test(taskClass) ? 14 :
+      /publish/i.test(taskClass) ? 10 : 6;
+
+    const demandScore = clamp(networkNeed, 0, 100) * 0.35;
+    const staleScore = clamp(staleForMs / 1000, 0, 300) * 0.06;
+
+    const fairnessSeen = Number(fairnessMap.get(taskClass) || 0);
+    const fairnessBonus = clamp(18 - fairnessSeen * 3, 0, 18);
+
+    const difficultyBonus =
+      /high|hard/.test(str(difficultyBucket).toLowerCase()) ? 6 :
+      /medium|med/.test(str(difficultyBucket).toLowerCase()) ? 3 :
+      /low|easy/.test(str(difficultyBucket).toLowerCase()) ? 1 : 0;
+
+    const abusePenalty =
+      /spam|loop|test|noop/.test(str(taskClass).toLowerCase()) ? 20 : 0;
+
+    const score =
+      Number(
+        (verifiableBonus + demandScore + staleScore + fairnessBonus + difficultyBonus - abusePenalty).toFixed(3)
+      );
+
+    const reasonParts = [
+      `task=${taskClass}`,
+      `verifiable_bonus=${verifiableBonus}`,
+      `need=${networkNeed}`,
+      `stale_ms=${staleForMs}`,
+      `fairness_seen=${fairnessSeen}`,
+      `fairness_bonus=${fairnessBonus}`,
+      `difficulty=${difficultyBucket || "-"}`,
+      `difficulty_bonus=${difficultyBonus}`,
+      `abuse_penalty=${abusePenalty}`,
+      `score=${score}`
+    ];
+
+    return {
+      score,
+      taskClass,
+      datasetId,
+      difficultyBucket,
+      networkNeedScore: networkNeed,
+      staleForMs,
+      reason: `weighted_v1|` + reasonParts.join("|")
+    };
+  }
+
+  function chooseWeightedJob(availIds:string[]){
+    const fairnessMap = fairnessCounts(400);
+    const ranked:any[] = [];
+
+    for (const id of availIds){
+      const job = readLatestJob(id);
+      if (!job) continue;
+      if (!jobIsRunnable(job)) continue;
+      const scored = scoreJob(job, fairnessMap);
+      ranked.push({
+        id,
+        job,
+        ...scored
+      });
+    }
+
+    ranked.sort((a,b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+    return {
+      ranked,
+      best: ranked.length ? ranked[0] : null
+    };
   }
 
   function mount(){
@@ -19038,14 +19296,84 @@ const wal = new WALv1(getDataDir());
 
         if (!avail.length) return res.json({ok:true, job:null, leaseMs:LEASE_MS});
 
-        const id = avail[0];
+        const chosen = chooseWeightedJob(avail);
+        const picked = chosen.best;
+        if (!picked) return res.json({ok:true, job:null, leaseMs:LEASE_MS});
+
+        const id = picked.id;
         const worker = (req.body?.worker || "anon").toString();
-        const lease = {id, worker, ts: nowMs(), leaseMs: LEASE_MS};
+        const lease = {
+          id,
+          worker,
+          ts: nowMs(),
+          leaseMs: LEASE_MS,
+          selection_reason: picked.reason,
+          selected_task_class: picked.taskClass || null,
+          selected_dataset_id: picked.datasetId || null,
+          selected_difficulty_bucket: picked.difficultyBucket || null,
+          selected_network_need_score: picked.networkNeedScore || 0,
+          selected_stale_for_ms: picked.staleForMs || 0,
+          selected_score: picked.score
+        };
         fs.mkdirSync(AGENT_DIR, {recursive:true});
         fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n");
 
-        const job = readLatestJob(id);
-        return res.json({ok:true, job, leaseMs: LEASE_MS});
+        const baseJob = picked.job || readLatestJob(id) || { id };
+        const job = {
+          ...baseJob,
+          id: String((baseJob && (baseJob.id || baseJob.job_id)) || id),
+          selection_reason: picked.reason,
+          selected_task_class: picked.taskClass || baseJob?.selected_task_class || baseJob?.task_class || null,
+          selected_dataset_id: picked.datasetId || baseJob?.selected_dataset_id || baseJob?.dataset_id || null,
+          selected_difficulty_bucket: picked.difficultyBucket || baseJob?.selected_difficulty_bucket || null,
+          selected_network_need_score: picked.networkNeedScore || 0,
+          selected_stale_for_ms: picked.staleForMs || 0,
+          selected_score: picked.score,
+          selection_policy: "weighted_v1"
+        };
+
+        return res.json({ok:true, job, leaseMs:LEASE_MS});
+      }catch(e:any){
+        return res.status(500).json({ok:false, error:e?.message||"internal"});
+      }
+    });
+
+    app.get("/__void/agent/pick2/weighted", requireAgentAuth, (req:any, res:any)=>{
+      try{
+        const jobs  = readSetFrom(FILE_JOBS, "id");
+        const done  = readSetFrom(FILE_RESULTS, "id");
+        const active= readLeasesActive();
+
+        const avail: string[] = [];
+        for (const id of jobs){ if (!done.has(id) && !active.has(id)) avail.push(id); }
+
+        const chosen = chooseWeightedJob(avail);
+        return res.json({
+          ok: true,
+          policy: "weighted_v1",
+          leaseMs: LEASE_MS,
+          available: avail.length,
+          best: chosen.best ? {
+            id: chosen.best.id,
+            score: chosen.best.score,
+            task_class: chosen.best.taskClass,
+            dataset_id: chosen.best.datasetId,
+            difficulty_bucket: chosen.best.difficultyBucket,
+            network_need_score: chosen.best.networkNeedScore,
+            stale_for_ms: chosen.best.staleForMs,
+            selection_reason: chosen.best.reason
+          } : null,
+          ranked: chosen.ranked.slice(0, 20).map((x:any) => ({
+            id: x.id,
+            score: x.score,
+            task_class: x.taskClass,
+            dataset_id: x.datasetId,
+            difficulty_bucket: x.difficultyBucket,
+            network_need_score: x.networkNeedScore,
+            stale_for_ms: x.staleForMs,
+            selection_reason: x.reason
+          }))
+        });
       }catch(e:any){
         return res.status(500).json({ok:false, error:e?.message||"internal"});
       }
@@ -31442,7 +31770,6 @@ try {
         return next();
       }
 
-      // ---- PRUNE any existing /agent/v0/pick2 handlers (route-level) ----
       try{
         const stack = app?._router?.stack || [];
         for (let i=stack.length-1;i>=0;i--){
@@ -31451,13 +31778,10 @@ try {
           const p = String(layer.route.path || "");
           const isPick2 = (p === "/agent/v0/pick2");
           const isPost  = !!layer.route.methods?.post;
-          if (isPick2 && isPost){
-            stack.splice(i,1);
-          }
+          if (isPick2 && isPost) stack.splice(i,1);
         }
       }catch{}
 
-      // Fingerprint endpoint so we can prove which impl is live
       app.get("/__void/agent/pick2_impl", (_req:any,res:any)=>{
         const root = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || process.env.VOID_AGENT_DIR || process.env.AGENT_DIR || "data");
         const agentDir = path.join(root, "agent");
@@ -31470,11 +31794,14 @@ try {
         try{
           const root = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || process.env.VOID_AGENT_DIR || process.env.AGENT_DIR || "data");
           const agentDir = path.join(root, "agent");
-          const FILE_JOBS    = path.join(agentDir, "jobs.jsonl");
+          const jobsV1Dir = path.join(root, "jobs_v1");
+          const FILE_JOBS_V1 = path.join(jobsV1Dir, "jobs.jsonl");
+          const FILE_JOBS_LEGACY = path.join(agentDir, "jobs.jsonl");
+          const FILE_JOBS = fs.existsSync(FILE_JOBS_V1) ? FILE_JOBS_V1 : FILE_JOBS_LEGACY;
           const FILE_RESULTS = path.join(agentDir, "results.jsonl");
           const FILE_LEASES  = path.join(agentDir, "leases.jsonl");
 
-          const epochMs = readEpochMs(agentDir); // 0 => disabled
+          const epochMs = readEpochMs(agentDir);
           const cutoffLease = nowMs() - LEASE_MS;
 
           function safeLines(file:string){
@@ -31486,54 +31813,186 @@ try {
             }catch{ return []; }
           }
 
+          function rowId(x:any){ return String(x?.job_id || x?.id || ""); }
+          function rowTs(x:any){
+            const n = Number(x?.ts_ms || x?.created_at_ms || x?.started_at_ms || x?.ts || 0);
+            return Number.isFinite(n) ? n : 0;
+          }
+          function rowTaskClass(x:any){
+            return String(
+              x?.selected_task_class ||
+              x?.task_class ||
+              x?.kind ||
+              x?.input?.task_class ||
+              x?.input?.kind ||
+              "unknown"
+            );
+          }
+          function rowDatasetId(x:any){
+            const v = x?.selected_dataset_id || x?.dataset_id || x?.input?.dataset_id || null;
+            return v == null ? null : String(v);
+          }
+          function rowDifficulty(x:any){
+            const v = x?.selected_difficulty_bucket || x?.difficulty_bucket || x?.input?.difficulty_bucket || null;
+            return v == null ? null : String(v);
+          }
+          function rowNeed(x:any){
+            const n = Number(x?.selected_network_need_score || x?.network_need_score || x?.input?.network_need_score || 0);
+            return Number.isFinite(n) ? n : 0;
+          }
+          function rowStale(x:any){
+            const n = Number(x?.selected_stale_for_ms || x?.stale_for_ms || x?.input?.stale_for_ms || 0);
+            return Number.isFinite(n) ? n : 0;
+          }
+          function rowIsRunnable(x:any){
+            const st = String(x?.status || "").trim().toLowerCase();
+            if (!st) return true;
+            return st === "queued" || st === "ready" || st === "pending";
+          }
+          function verifiableBonus(taskClass:string){
+            return /verify|verification|redundancy|replica|fetch/i.test(taskClass) ? 14 :
+                   /publish/i.test(taskClass) ? 10 : 6;
+          }
+          function difficultyBonus(diff:string){
+            const d = String(diff || "").toLowerCase();
+            return /high|hard/.test(d) ? 6 :
+                   /medium|med/.test(d) ? 3 :
+                   /low|easy/.test(d) ? 1 : 0;
+          }
+
           const done = new Set<string>();
           for (const l of safeLines(FILE_RESULTS).slice(-SCAN_MAX)){
-            try{ const x=JSON.parse(l); const id=String(x.id||""); if(id) done.add(id); }catch{}
+            try{
+              const x = JSON.parse(l);
+              const id = rowId(x);
+              if (id) done.add(id);
+            }catch{}
           }
 
           const active = new Set<string>();
           for (const l of safeLines(FILE_LEASES).slice(-SCAN_MAX)){
             try{
-              const x=JSON.parse(l);
-              const id=String(x.id||"");
-              const ts=Number(x.ts||0);
+              const x = JSON.parse(l);
+              const id = String(x.id || "");
+              const ts = Number(x.ts || 0);
               if (!id) continue;
               if (ts >= cutoffLease) active.add(id);
             }catch{}
           }
 
-          const seen = new Set<string>();
-          let chosenJob:any = null;
-
-          const lines = safeLines(FILE_JOBS);
-          const n = Math.min(lines.length, SCAN_MAX);
-          for (let i=0;i<n;i++){
-            const l = lines[i];
+          const latestById = new Map<string, any>();
+          const rawLines = safeLines(FILE_JOBS);
+          const n = Math.min(rawLines.length, SCAN_MAX);
+          for (let i = 0; i < n; i++){
+            const l = rawLines[i];
             try{
-              const x=JSON.parse(l);
-              const id=String(x.id||"");
-              if (!id || seen.has(id)) continue;
-              seen.add(id);
-
-              const ts=Number(x.ts||0);
-              if (epochMs>0){
-                if (!Number.isFinite(ts) || ts<=0 || ts < epochMs) continue;
-              }
-
-              if (done.has(id)) continue;
-              if (active.has(id)) continue;
-
-              chosenJob=x;
-              break;
+              const x = JSON.parse(l);
+              const id = rowId(x);
+              if (!id) continue;
+              const prev = latestById.get(id);
+              if (!prev || rowTs(x) >= rowTs(prev)) latestById.set(id, x);
             }catch{}
           }
 
-          if (!chosenJob) return res.json({ok:true, job:null, leaseMs:LEASE_MS, epochMs});
+          const fairnessCounts = new Map<string, number>();
+          for (const x of Array.from(latestById.values())){
+            const id = rowId(x);
+            if (!id) continue;
+            const task = rowTaskClass(x);
+            if (!rowIsRunnable(x)) continue;
+            fairnessCounts.set(task, Number(fairnessCounts.get(task) || 0));
+          }
+
+          const ranked = Array.from(latestById.values())
+            .filter((x:any) => {
+              const id = rowId(x);
+              if (!id) return false;
+              if (!rowIsRunnable(x)) return false;
+              if (epochMs > 0){
+                const ts = rowTs(x);
+                if (!Number.isFinite(ts) || ts <= 0 || ts < epochMs) return false;
+              }
+              if (done.has(id)) return false;
+              if (active.has(id)) return false;
+              return true;
+            })
+            .map((x:any) => {
+              const id = rowId(x);
+              const task = rowTaskClass(x);
+              const need = rowNeed(x);
+              const stale = rowStale(x);
+              const diff = rowDifficulty(x);
+              const seen = Number(fairnessCounts.get(task) || 0);
+              const fairnessBonus = Math.max(0, Math.min(18, 18 - seen * 3));
+              const score = Number((
+                verifiableBonus(task) +
+                (Math.max(0, Math.min(100, need)) * 0.35) +
+                (Math.max(0, Math.min(300, stale / 1000)) * 0.06) +
+                fairnessBonus +
+                difficultyBonus(diff || "")
+              ).toFixed(3));
+              const selection_reason =
+                "weighted_v1|" +
+                "task=" + task +
+                "|verifiable_bonus=" + verifiableBonus(task) +
+                "|need=" + need +
+                "|stale_ms=" + stale +
+                "|fairness_seen=" + seen +
+                "|fairness_bonus=" + fairnessBonus +
+                "|difficulty=" + String(diff || "-") +
+                "|difficulty_bonus=" + difficultyBonus(diff || "") +
+                "|abuse_penalty=0" +
+                "|score=" + score;
+              return {
+                raw: x,
+                id,
+                score,
+                task,
+                dataset_id: rowDatasetId(x),
+                difficulty_bucket: diff,
+                network_need_score: need,
+                stale_for_ms: stale,
+                selection_reason
+              };
+            })
+            .sort((a:any, b:any) => {
+              if (b.score !== a.score) return b.score - a.score;
+              return rowTs(a.raw) - rowTs(b.raw);
+            });
+
+          const chosen = ranked.length ? ranked[0] : null;
+          if (!chosen) return res.json({ok:true, job:null, leaseMs:LEASE_MS, epochMs});
 
           const worker = (req.body?.worker || "anon").toString();
-          const lease = {id: String(chosenJob.id||""), worker, ts: nowMs(), leaseMs: LEASE_MS};
+          const lease = {
+            id: chosen.id,
+            worker,
+            ts: nowMs(),
+            leaseMs: LEASE_MS,
+            selection_reason: chosen.selection_reason,
+            selected_task_class: chosen.task || null,
+            selected_dataset_id: chosen.dataset_id || null,
+            selected_difficulty_bucket: chosen.difficulty_bucket || null,
+            selected_network_need_score: chosen.network_need_score || 0,
+            selected_stale_for_ms: chosen.stale_for_ms || 0,
+            selected_score: chosen.score
+          };
           try{ fs.mkdirSync(agentDir, {recursive:true}); fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n"); }catch{}
-          return res.json({ok:true, job: chosenJob, leaseMs:LEASE_MS, epochMs});
+
+          const outJob = {
+            ...chosen.raw,
+            id: chosen.id,
+            selection_reason: chosen.selection_reason,
+            selected_task_class: chosen.task || chosen.raw?.selected_task_class || chosen.raw?.task_class || chosen.raw?.kind || null,
+            selected_dataset_id: chosen.dataset_id || chosen.raw?.selected_dataset_id || chosen.raw?.dataset_id || null,
+            selected_difficulty_bucket: chosen.difficulty_bucket || chosen.raw?.selected_difficulty_bucket || null,
+            selected_network_need_score: chosen.network_need_score || 0,
+            selected_stale_for_ms: chosen.stale_for_ms || 0,
+            selected_score: chosen.score,
+            selection_policy: "weighted_v1"
+          };
+
+          return res.json({ok:true, job: outJob, leaseMs:LEASE_MS, epochMs});
         }catch(e:any){
           return res.status(500).json({ok:false, error:e?.message||"internal"});
         }
@@ -31541,11 +32000,10 @@ try {
 
       console.log("[agent.pick2.epochCutoff.v2] ready (pruned old pick2)");
     }
+
     mount();
   }catch{}
 })();
-
-
 // ---------------- [ADD] Agent v0: prune + re-register /__void/agent/pick2_impl (v1) ----------------
 (function AgentV0Pick2ImplPruneV1(){
   try{
