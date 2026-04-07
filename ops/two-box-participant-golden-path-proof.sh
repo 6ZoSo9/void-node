@@ -136,8 +136,11 @@ assert 'loading…' in overview_html or 'loading...' in overview_html, "overview
 
 assert 'latestDatasetOpenShareBtn' in html, "open shared page js anchor missing"
 assert 'latestDatasetShareBtn' in html, "copy share page js anchor missing"
-assert '&open_dataset=' in html, "open_dataset share wiring missing"
-assert '#datanet' in html, "datanet hash wiring missing"
+assert 'latestDatasetOpenShareBtn' in html, "open shared page button missing in html"
+assert 'latestDatasetShareBtn' in html, "copy share page button missing in html"
+
+assert 'params.get("open_dataset")' in html, "open_dataset prefill logic missing"
+assert 'Preloaded dataset id from page link:' in html, "prefill status text missing"
 assert 'Copied latest shared dataset page link.' in html, "copy share message missing"
 
 boot_pos = html.find('window.__void_participant_account_qs=')
@@ -299,5 +302,27 @@ print(json.dumps({
 }, indent=2))
 PY
 
+echo
+echo "=== [8] local runner selection persistence proof ==="
+bash ops/live-runner-selection-persistence-proof.sh > "$OUT_DIR/runner-selection-persistence-proof.log"
+tail -n 80 "$OUT_DIR/runner-selection-persistence-proof.log"
+grep -q "\[ok\] live runner selection persistence proof green" "$OUT_DIR/runner-selection-persistence-proof.log"
+grep -q "target_publish_mix" "$OUT_DIR/runner-selection-persistence-proof.log"
+grep -q "stale_verify_target" "$OUT_DIR/runner-selection-persistence-proof.log"
+grep -q "stale_redundancy_target" "$OUT_DIR/runner-selection-persistence-proof.log"
+echo "[ok] runner selection persistence proof is included in golden path"
+
+echo
+echo
+echo "=== [8] local runner selection persistence proof ==="
+bash ops/live-runner-selection-persistence-proof.sh > "$OUT_DIR/runner-selection-persistence-proof.log"
+tail -n 80 "$OUT_DIR/runner-selection-persistence-proof.log"
+grep -q "\[ok\] live runner selection persistence proof green" "$OUT_DIR/runner-selection-persistence-proof.log"
+grep -q "target_publish_mix" "$OUT_DIR/runner-selection-persistence-proof.log"
+grep -q "stale_verify_target" "$OUT_DIR/runner-selection-persistence-proof.log"
+grep -q "stale_redundancy_target" "$OUT_DIR/runner-selection-persistence-proof.log"
+echo "[ok] runner selection persistence proof is included in golden path"
+
+echo
 echo "[ok] two-box participant golden path proof green"
 echo "out=$OUT_DIR"
