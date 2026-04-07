@@ -46855,3 +46855,222 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
   }catch{}
 })();
 
+
+// ---------------- [ADD] Agent candidate freshness routes/exporter ----------------
+(function AgentCandidateFreshnessRoutes(){
+  try{
+    const TICK = 400;
+
+    function mount(){
+      const g:any = globalThis as any;
+      const APP:any = g.__void_http_app || g.app;
+      if (!APP || typeof APP.get !== "function") return setTimeout(mount, TICK);
+      if ((APP as any).__void_agent_candidate_freshness_v1__) return;
+      (APP as any).__void_agent_candidate_freshness_v1__ = true;
+
+      function dataDirLocal(){
+        return String(process.env.DATA_DIR || "data_a");
+      }
+
+      function runnerDatanetDirLocal(){
+        const path = require("node:path");
+        return path.join(dataDirLocal(), "datanet_v1", "local_jobs");
+      }
+
+      function candidateSnapshot(account:string){
+        const fs = require("node:fs");
+        const path = require("node:path");
+        const dir = runnerDatanetDirLocal();
+        const now = Date.now();
+        const verifyCooldownMs = 5 * 60 * 1000;
+        const redundancyCooldownMs = 15 * 60 * 1000;
+        const MAX_PICK_STALE_MS = Math.max(60000, Number(process.env.VOID_AGENT_MAX_STALE_MS || 7 * 24 * 60 * 60 * 1000));
+
+        const rt:any = (globalThis as any).__void_wc_runner_runtime_v1 || {};
+        rt.verify_history_by_dataset = rt.verify_history_by_dataset || {};
+        rt.redundancy_history_by_dataset = rt.redundancy_history_by_dataset || {};
+
+        const out:any[] = [];
+        if (!fs.existsSync(dir)) {
+          return {
+            ok: true,
+            account,
+            dir,
+            verify_candidate: null,
+            redundancy_candidate: null,
+            counts: {
+              total_datasets: 0,
+              verify_eligible: 0,
+              verify_over_stale: 0,
+              redundancy_eligible: 0,
+              redundancy_over_stale: 0
+            },
+            items: []
+          };
+        }
+
+        const files = fs.readdirSync(dir)
+          .filter((x:any) => String(x).endsWith(".txt"))
+          .sort();
+
+        let verifyEligible = 0;
+        let verifyOverStale = 0;
+        let redundancyEligible = 0;
+        let redundancyOverStale = 0;
+
+        let verifyCandidate:any = null;
+        let verifyChosenTs = Number.POSITIVE_INFINITY;
+
+        let redundancyCandidate:any = null;
+        let redundancyChosenTs = Number.POSITIVE_INFINITY;
+
+        for (const f of files) {
+          const datasetId = String(f).replace(/\.txt$/i, "");
+          const fullPath = path.join(dir, f);
+
+          let fileMtimeMs = 0;
+          try { fileMtimeMs = Number(fs.statSync(fullPath).mtimeMs || 0); } catch {}
+
+          const verifyLast = Number((rt.verify_history_by_dataset[String(account)] || {})[datasetId] || 0);
+          const verifyBasis = verifyLast > 0 ? verifyLast : fileMtimeMs;
+          const verifyAge = verifyBasis > 0 ? (now - verifyBasis) : (2 * 60 * 60 * 1000);
+          const verifyEligibleNow = verifyAge >= verifyCooldownMs && verifyAge <= MAX_PICK_STALE_MS;
+
+          const redundancyLast = Number((rt.redundancy_history_by_dataset[String(account)] || {})[datasetId] || 0);
+          const redundancyBasis = redundancyLast > 0 ? redundancyLast : fileMtimeMs;
+          const redundancyAge = redundancyBasis > 0 ? (now - redundancyBasis) : (8 * 60 * 60 * 1000);
+          const redundancyEligibleNow = redundancyAge >= redundancyCooldownMs && redundancyAge <= MAX_PICK_STALE_MS;
+
+          if (verifyEligibleNow) verifyEligible += 1;
+          if (verifyAge > MAX_PICK_STALE_MS) verifyOverStale += 1;
+          if (redundancyEligibleNow) redundancyEligible += 1;
+          if (redundancyAge > MAX_PICK_STALE_MS) redundancyOverStale += 1;
+
+          if (verifyEligibleNow && verifyBasis < verifyChosenTs) {
+            verifyChosenTs = verifyBasis;
+            verifyCandidate = {
+              dataset_id: datasetId,
+              path: fullPath,
+              last_verified_ms: verifyLast || null,
+              file_mtime_ms: fileMtimeMs || null,
+              stale_for_ms: verifyAge
+            };
+          }
+
+          if (redundancyEligibleNow && redundancyBasis < redundancyChosenTs) {
+            redundancyChosenTs = redundancyBasis;
+            redundancyCandidate = {
+              dataset_id: datasetId,
+              path: fullPath,
+              last_redundancy_check_ms: redundancyLast || null,
+              file_mtime_ms: fileMtimeMs || null,
+              stale_for_ms: redundancyAge
+            };
+          }
+
+          out.push({
+            dataset_id: datasetId,
+            path: fullPath,
+            file_mtime_ms: fileMtimeMs || null,
+            verify: {
+              last_ms: verifyLast || null,
+              stale_for_ms: verifyAge,
+              cooldown_ms: verifyCooldownMs,
+              eligible: !!verifyEligibleNow,
+              over_stale_cap: verifyAge > MAX_PICK_STALE_MS
+            },
+            redundancy: {
+              last_ms: redundancyLast || null,
+              stale_for_ms: redundancyAge,
+              cooldown_ms: redundancyCooldownMs,
+              eligible: !!redundancyEligibleNow,
+              over_stale_cap: redundancyAge > MAX_PICK_STALE_MS
+            }
+          });
+        }
+
+        out.sort((a:any, b:any) => {
+          const av = Number(a?.verify?.stale_for_ms || 0);
+          const bv = Number(b?.verify?.stale_for_ms || 0);
+          return bv - av;
+        });
+
+        return {
+          ok: true,
+          account,
+          dir,
+          verify_candidate: verifyCandidate || null,
+          redundancy_candidate: redundancyCandidate || null,
+          counts: {
+            total_datasets: out.length,
+            verify_eligible: verifyEligible,
+            verify_over_stale: verifyOverStale,
+            redundancy_eligible: redundancyEligible,
+            redundancy_over_stale: redundancyOverStale
+          },
+          items: out.slice(0, 200)
+        };
+      }
+
+      APP.get("/__void/agent/candidates.v1", (req:any, res:any) => {
+        try{
+          const account = String(req?.query?.account || "dev-zoso");
+          return res.json(candidateSnapshot(account));
+        }catch(e:any){
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      APP.get("/__void/metrics/agent_candidates.prom", (req:any, res:any) => {
+        try{
+          const account = String(req?.query?.account || "dev-zoso");
+          const snap:any = candidateSnapshot(account);
+          const vc = snap?.verify_candidate || null;
+          const rc = snap?.redundancy_candidate || null;
+          const counts:any = snap?.counts || {};
+
+          const esc = (x:any) => String(x ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+          const lines = [
+            "# HELP void_agent_candidates_verify_eligible_total Verify candidates currently eligible",
+            "# TYPE void_agent_candidates_verify_eligible_total gauge",
+            "void_agent_candidates_verify_eligible_total{account=\"" + esc(account) + "\"} " + Number(counts.verify_eligible || 0),
+
+            "# HELP void_agent_candidates_verify_over_stale_total Verify candidates over stale cap",
+            "# TYPE void_agent_candidates_verify_over_stale_total gauge",
+            "void_agent_candidates_verify_over_stale_total{account=\"" + esc(account) + "\"} " + Number(counts.verify_over_stale || 0),
+
+            "# HELP void_agent_candidates_redundancy_eligible_total Redundancy candidates currently eligible",
+            "# TYPE void_agent_candidates_redundancy_eligible_total gauge",
+            "void_agent_candidates_redundancy_eligible_total{account=\"" + esc(account) + "\"} " + Number(counts.redundancy_eligible || 0),
+
+            "# HELP void_agent_candidates_redundancy_over_stale_total Redundancy candidates over stale cap",
+            "# TYPE void_agent_candidates_redundancy_over_stale_total gauge",
+            "void_agent_candidates_redundancy_over_stale_total{account=\"" + esc(account) + "\"} " + Number(counts.redundancy_over_stale || 0),
+
+            "# HELP void_agent_candidates_verify_candidate_stale_ms Current chosen verify candidate stale_for_ms",
+            "# TYPE void_agent_candidates_verify_candidate_stale_ms gauge",
+            "void_agent_candidates_verify_candidate_stale_ms{account=\"" + esc(account) + "\",dataset_id=\"" + esc(vc?.dataset_id || "") + "\"} " + Number(vc?.stale_for_ms || 0),
+
+            "# HELP void_agent_candidates_redundancy_candidate_stale_ms Current chosen redundancy candidate stale_for_ms",
+            "# TYPE void_agent_candidates_redundancy_candidate_stale_ms gauge",
+            "void_agent_candidates_redundancy_candidate_stale_ms{account=\"" + esc(account) + "\",dataset_id=\"" + esc(rc?.dataset_id || "") + "\"} " + Number(rc?.stale_for_ms || 0)
+          ];
+
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+        }catch(e:any){
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(
+            "# HELP void_agent_candidates_exporter_error exporter error\n" +
+            "# TYPE void_agent_candidates_exporter_error gauge\n" +
+            "void_agent_candidates_exporter_error 1\n"
+          );
+        }
+      });
+
+      try { console.log("[agent.candidates.v1] mounted: /__void/agent/candidates.v1 and /__void/metrics/agent_candidates.prom"); } catch {}
+    }
+
+    mount();
+  }catch{}
+})();
+
