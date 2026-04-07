@@ -1,0 +1,32 @@
+groups:
+  - name: void-agent-pick2-v2
+    rules:
+      - record: void:agent_pick2_v2:chosen_total:last_5m
+        expr: max_over_time(void_agent_pick2_v2_chosen_total[5m])
+
+      - record: void:agent_pick2_v2:reject_total:last_5m
+        expr: max_over_time(void_agent_pick2_v2_reject_total[5m])
+
+      - record: void:agent_pick2_v2:last_score:last_5m
+        expr: max_over_time(void_agent_pick2_v2_last_score[5m])
+
+      - record: void:agent_pick2_v2:too_stale_rejects:last_5m
+        expr: max_over_time(void_agent_pick2_v2_reject_by_reason_total{reason="too_stale"}[5m])
+
+      - alert: VoidAgentPick2V2NoSelections
+        expr: increase(void_agent_pick2_v2_chosen_total[30m]) == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "weighted_v2 made no selections"
+          description: "No weighted_v2 job selections were observed in the last 30 minutes."
+
+      - alert: VoidAgentPick2V2TooStalePressure
+        expr: increase(void_agent_pick2_v2_reject_by_reason_total{reason="too_stale"}[30m]) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "weighted_v2 too-stale rejects observed"
+          description: "weighted_v2 is rejecting jobs for too_stale; queue freshness may need cleanup."
