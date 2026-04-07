@@ -31963,7 +31963,32 @@ try {
           const MAX_STALE_MS = Math.max(60000, Number(process.env.VOID_AGENT_MAX_STALE_MS || 7 * 24 * 60 * 60 * 1000));
           const MAX_PLAINTEXT_BYTES = Math.max(256, Number(process.env.VOID_AGENT_MAX_PLAINTEXT_BYTES || 1048576));
 
-          const ranked = Array.from(latestRunnableById.entries())
+          const PICK2V2_METRICS:any = (globalThis as any).__void_pick2_v2_metrics || ((globalThis as any).__void_pick2_v2_metrics = {
+            chosen_total: 0,
+            chosen_by_task: {},
+            reject_total: 0,
+            reject_by_reason: {},
+            last: {
+              id: "",
+              task_class: "",
+              dataset_id: "",
+              score: 0,
+              network_need_score: 0,
+              stale_for_ms: 0,
+              payload_bytes: 0,
+              verify_component: 0,
+              need_component: 0,
+              freshness_component: 0,
+              fairness_component: 0,
+              difficulty_component: 0,
+              cost_penalty: 0,
+              abuse_penalty: 0,
+              reject_reason: "",
+              selection_policy: "weighted_v2"
+            }
+          });
+
+          const rankedAll = Array.from(latestRunnableById.entries())
             .map(([id, x]: any) => ({ id, x, latest: latestById.get(id) || x }))
             .map(({id, x, latest}: any) => {
               const task = rowTaskClass(x);
@@ -32051,7 +32076,17 @@ try {
                 runnable_status: x?.status || null,
                 selection_reason
               };
-            })
+            });
+
+          for (const r of rankedAll){
+            if (r?.hard_reject){
+              PICK2V2_METRICS.reject_total = Number(PICK2V2_METRICS.reject_total || 0) + 1;
+              const rr = String(r?.reject_reason || "unknown");
+              PICK2V2_METRICS.reject_by_reason[rr] = Number(PICK2V2_METRICS.reject_by_reason[rr] || 0) + 1;
+            }
+          }
+
+          const ranked = rankedAll
             .filter((x:any) => !x.hard_reject)
             .sort((a:any, b:any) => {
               if (b.score !== a.score) return b.score - a.score;
@@ -32062,6 +32097,28 @@ try {
 
           const chosen = ranked.length ? ranked[0] : null;
           if (!chosen) return res.json({ok:true, job:null, leaseMs:LEASE_MS, epochMs});
+
+          PICK2V2_METRICS.chosen_total = Number(PICK2V2_METRICS.chosen_total || 0) + 1;
+          const chosenTask = String(chosen.task || "unknown");
+          PICK2V2_METRICS.chosen_by_task[chosenTask] = Number(PICK2V2_METRICS.chosen_by_task[chosenTask] || 0) + 1;
+          PICK2V2_METRICS.last = {
+            id: String(chosen.id || ""),
+            task_class: chosenTask,
+            dataset_id: String(chosen.dataset_id || ""),
+            score: Number(chosen.score || 0),
+            network_need_score: Number(chosen.network_need_score || 0),
+            stale_for_ms: Number(chosen.stale_for_ms || 0),
+            payload_bytes: Number(chosen.payload_bytes || 0),
+            verify_component: Number(chosen.verify_component || 0),
+            need_component: Number(chosen.need_component || 0),
+            freshness_component: Number(chosen.freshness_component || 0),
+            fairness_component: Number(chosen.fairness_component || 0),
+            difficulty_component: Number(chosen.difficulty_component || 0),
+            cost_penalty: Number(chosen.cost_penalty || 0),
+            abuse_penalty: Number(chosen.abuse_penalty || 0),
+            reject_reason: String(chosen.reject_reason || ""),
+            selection_policy: "weighted_v2"
+          };
 
           const worker = (req.body?.worker || "anon").toString();
           const lease = {
@@ -46555,6 +46612,115 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       });
 
       try{ console.log("[agent.pick2.weighted.v2.runtime-truth] ready"); }catch{}
+    }
+
+    mount();
+  }catch{}
+})();
+
+
+// ---------------- [ADD] Agent pick2 v2 metrics exporter ----------------
+(function AgentPick2V2MetricsExporter(){
+  try{
+    const TICK = 400;
+
+    function mount(){
+      const g:any = globalThis as any;
+      const app:any = g.__void_http_app || g.app;
+      if (!app || typeof app.get !== "function") return setTimeout(mount, TICK);
+      if ((app as any).__agent_pick2_v2_metrics_exporter__) return;
+      (app as any).__agent_pick2_v2_metrics_exporter__ = true;
+
+      app.get("/__void/metrics/agent_pick2_v2.prom", (_req:any, res:any)=>{
+        try{
+          const M:any = (globalThis as any).__void_pick2_v2_metrics || {};
+          const last:any = M.last || {};
+          const chosenByTask:any = M.chosen_by_task || {};
+          const rejectByReason:any = M.reject_by_reason || {};
+
+          const esc = (x:any) => String(x ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+          const lines:string[] = [
+            "# HELP void_agent_pick2_v2_chosen_total Total chosen jobs by weighted_v2 picker",
+            "# TYPE void_agent_pick2_v2_chosen_total counter",
+            "void_agent_pick2_v2_chosen_total " + Number(M.chosen_total || 0),
+
+            "# HELP void_agent_pick2_v2_reject_total Total hard rejects observed by weighted_v2 picker",
+            "# TYPE void_agent_pick2_v2_reject_total counter",
+            "void_agent_pick2_v2_reject_total " + Number(M.reject_total || 0),
+
+            "# HELP void_agent_pick2_v2_last_score Last chosen weighted_v2 score",
+            "# TYPE void_agent_pick2_v2_last_score gauge",
+            "void_agent_pick2_v2_last_score " + Number(last.score || 0),
+
+            "# HELP void_agent_pick2_v2_last_network_need_score Last chosen network need score",
+            "# TYPE void_agent_pick2_v2_last_network_need_score gauge",
+            "void_agent_pick2_v2_last_network_need_score " + Number(last.network_need_score || 0),
+
+            "# HELP void_agent_pick2_v2_last_stale_for_ms Last chosen stale_for_ms",
+            "# TYPE void_agent_pick2_v2_last_stale_for_ms gauge",
+            "void_agent_pick2_v2_last_stale_for_ms " + Number(last.stale_for_ms || 0),
+
+            "# HELP void_agent_pick2_v2_last_payload_bytes Last chosen payload bytes",
+            "# TYPE void_agent_pick2_v2_last_payload_bytes gauge",
+            "void_agent_pick2_v2_last_payload_bytes " + Number(last.payload_bytes || 0),
+
+            "# HELP void_agent_pick2_v2_last_verify_component Last chosen verify component",
+            "# TYPE void_agent_pick2_v2_last_verify_component gauge",
+            "void_agent_pick2_v2_last_verify_component " + Number(last.verify_component || 0),
+
+            "# HELP void_agent_pick2_v2_last_need_component Last chosen need component",
+            "# TYPE void_agent_pick2_v2_last_need_component gauge",
+            "void_agent_pick2_v2_last_need_component " + Number(last.need_component || 0),
+
+            "# HELP void_agent_pick2_v2_last_freshness_component Last chosen freshness component",
+            "# TYPE void_agent_pick2_v2_last_freshness_component gauge",
+            "void_agent_pick2_v2_last_freshness_component " + Number(last.freshness_component || 0),
+
+            "# HELP void_agent_pick2_v2_last_fairness_component Last chosen fairness component",
+            "# TYPE void_agent_pick2_v2_last_fairness_component gauge",
+            "void_agent_pick2_v2_last_fairness_component " + Number(last.fairness_component || 0),
+
+            "# HELP void_agent_pick2_v2_last_difficulty_component Last chosen difficulty component",
+            "# TYPE void_agent_pick2_v2_last_difficulty_component gauge",
+            "void_agent_pick2_v2_last_difficulty_component " + Number(last.difficulty_component || 0),
+
+            "# HELP void_agent_pick2_v2_last_cost_penalty Last chosen cost penalty",
+            "# TYPE void_agent_pick2_v2_last_cost_penalty gauge",
+            "void_agent_pick2_v2_last_cost_penalty " + Number(last.cost_penalty || 0),
+
+            "# HELP void_agent_pick2_v2_last_abuse_penalty Last chosen abuse penalty",
+            "# TYPE void_agent_pick2_v2_last_abuse_penalty gauge",
+            "void_agent_pick2_v2_last_abuse_penalty " + Number(last.abuse_penalty || 0),
+
+            "# HELP void_agent_pick2_v2_info Last chosen metadata as labels",
+            "# TYPE void_agent_pick2_v2_info gauge",
+            'void_agent_pick2_v2_info{task_class="' + esc(last.task_class || "") + '",dataset_id="' + esc(last.dataset_id || "") + '",reject_reason="' + esc(last.reject_reason || "") + '",selection_policy="' + esc(last.selection_policy || "weighted_v2") + '"} 1'
+          ];
+
+          for (const [task, val] of Object.entries(chosenByTask)){
+            lines.push('# HELP void_agent_pick2_v2_chosen_by_task_total Total chosen jobs by task class');
+            lines.push('# TYPE void_agent_pick2_v2_chosen_by_task_total counter');
+            lines.push('void_agent_pick2_v2_chosen_by_task_total{task_class="' + esc(task) + '"} ' + Number(val || 0));
+          }
+
+          for (const [reason, val] of Object.entries(rejectByReason)){
+            lines.push('# HELP void_agent_pick2_v2_reject_by_reason_total Total rejects by reason');
+            lines.push('# TYPE void_agent_pick2_v2_reject_by_reason_total counter');
+            lines.push('void_agent_pick2_v2_reject_by_reason_total{reason="' + esc(reason) + '"} ' + Number(val || 0));
+          }
+
+          res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+        }catch(e:any){
+          res.type("text/plain; version=0.0.4; charset=utf-8").send(
+            "# HELP void_agent_pick2_v2_exporter_error exporter error\n" +
+            "# TYPE void_agent_pick2_v2_exporter_error gauge\n" +
+            "void_agent_pick2_v2_exporter_error 1\n"
+          );
+        }
+      });
+
+      try{ console.log("[agent.pick2.v2.metrics] exporter ready: /__void/metrics/agent_pick2_v2.prom"); }catch{}
     }
 
     mount();
