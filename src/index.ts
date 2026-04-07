@@ -39510,6 +39510,94 @@ a{color:#93c5fd;text-decoration:none}
       }
     });
 
+    app.get("/__void/metrics/jobs_v1_feed.prom", (_req:any, res:any) => {
+      try {
+        const rows = allJobs();
+        const latestByJob = new Map<string, any>();
+
+        function rowId(x:any){
+          return String(x?.job_id || x?.id || "").trim();
+        }
+        function rowTs(x:any){
+          const n = Number(x?.sort_ts_ms || x?.completed_at_ms || x?.created_at_ms || x?.started_at_ms || x?.ts_ms || x?.ts || 0);
+          return Number.isFinite(n) ? n : 0;
+        }
+        function rowTask(x:any){
+          return String(
+            x?.selected_task_class ||
+            x?.task_class ||
+            x?.kind ||
+            x?.meta?.selected_task_class ||
+            x?.meta?.task_class ||
+            x?.input?.selected_task_class ||
+            x?.input?.task_class ||
+            x?.input?.kind ||
+            "unknown"
+          ).trim() || "unknown";
+        }
+        function isRunnableStatus(x:any){
+          const st = String(x?.status || "").trim().toLowerCase();
+          if (!st) return true;
+          return st === "queued" || st === "ready" || st === "pending";
+        }
+
+        for (const row of rows) {
+          const id = rowId(row);
+          if (!id) continue;
+          const prev = latestByJob.get(id);
+          if (!prev || rowTs(row) >= rowTs(prev)) latestByJob.set(id, row);
+        }
+
+        const latest = Array.from(latestByJob.values());
+        const total = latest.length;
+        let queued = 0;
+        let terminal = 0;
+        let unknownTask = 0;
+
+        for (const row of latest) {
+          const st = String(row?.status || "").trim().toLowerCase();
+          const task = rowTask(row);
+          if (isRunnableStatus(row)) queued += 1;
+          if (st === "completed" || st === "failed" || st === "error" || st === "done" || st === "cancelled") terminal += 1;
+          if (task === "unknown") unknownTask += 1;
+        }
+
+        const poisonRatio = total > 0 ? ((terminal + unknownTask) / total) : 0;
+
+        const lines = [
+          "# HELP void_jobs_v1_latest_total Latest distinct jobs present in jobs_v1 feed",
+          "# TYPE void_jobs_v1_latest_total gauge",
+          "void_jobs_v1_latest_total " + total,
+
+          "# HELP void_jobs_v1_latest_queued_total Latest distinct jobs whose latest status is runnable",
+          "# TYPE void_jobs_v1_latest_queued_total gauge",
+          "void_jobs_v1_latest_queued_total " + queued,
+
+          "# HELP void_jobs_v1_latest_terminal_total Latest distinct jobs whose latest status is terminal",
+          "# TYPE void_jobs_v1_latest_terminal_total gauge",
+          "void_jobs_v1_latest_terminal_total " + terminal,
+
+          "# HELP void_jobs_v1_latest_unknown_task_total Latest distinct jobs whose canonical task class is unknown",
+          "# TYPE void_jobs_v1_latest_unknown_task_total gauge",
+          "void_jobs_v1_latest_unknown_task_total " + unknownTask,
+
+          "# HELP void_jobs_v1_latest_poison_ratio Ratio of terminal_latest plus unknown_task_latest over latest total",
+          "# TYPE void_jobs_v1_latest_poison_ratio gauge",
+          "void_jobs_v1_latest_poison_ratio " + poisonRatio
+        ];
+
+        res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+      } catch (e:any) {
+        res.type("text/plain; version=0.0.4; charset=utf-8").send(
+          [
+            "# HELP void_jobs_v1_feed_exporter_error exporter error",
+            "# TYPE void_jobs_v1_feed_exporter_error gauge",
+            "void_jobs_v1_feed_exporter_error 1"
+          ].join("\n") + "\n"
+        );
+      }
+    });
+
 
     function normalizeParticipantTaskClassForHistory(raw:any){
       const x = String(raw || "");
