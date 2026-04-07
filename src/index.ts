@@ -19123,50 +19123,69 @@ const wal = new WALv1(getDataDir());
     ).trim() || "unknown";
   }
 
+  function parsePlaintextJson(input:any){
+    try{
+      const t = String(input?.plaintext || "").trim();
+      if (!t) return null;
+      const j = JSON.parse(t);
+      return (j && typeof j === "object") ? j : null;
+    }catch{
+      return null;
+    }
+  }
+
   function jobDatasetId(job:any){
+    const pj = parsePlaintextJson(job?.input);
     return str(
       job?.dataset_id ??
       job?.selected_dataset_id ??
       job?.meta?.dataset_id ??
       job?.meta?.selected_dataset_id ??
       job?.input?.dataset_id ??
-      job?.input?.selected_dataset_id,
+      job?.input?.selected_dataset_id ??
+      pj?.dataset_id,
       ""
     ).trim() || null;
   }
 
   function jobDifficultyBucket(job:any){
+    const pj = parsePlaintextJson(job?.input);
     return str(
       job?.difficulty_bucket ??
       job?.selected_difficulty_bucket ??
       job?.meta?.difficulty_bucket ??
       job?.meta?.selected_difficulty_bucket ??
       job?.input?.difficulty_bucket ??
-      job?.input?.selected_difficulty_bucket,
+      job?.input?.selected_difficulty_bucket ??
+      pj?.difficulty_bucket,
       ""
     ).trim() || null;
   }
 
   function jobNetworkNeedScore(job:any){
+    const pj = parsePlaintextJson(job?.input);
     return clamp(num(
       job?.network_need_score ??
       job?.selected_network_need_score ??
       job?.meta?.network_need_score ??
       job?.meta?.selected_network_need_score ??
       job?.input?.network_need_score ??
-      job?.input?.selected_network_need_score,
+      job?.input?.selected_network_need_score ??
+      pj?.network_need_score,
       0
     ), 0, 100);
   }
 
   function jobStaleForMs(job:any){
+    const pj = parsePlaintextJson(job?.input);
     return Math.max(0, num(
       job?.stale_for_ms ??
       job?.selected_stale_for_ms ??
       job?.meta?.stale_for_ms ??
       job?.meta?.selected_stale_for_ms ??
       job?.input?.stale_for_ms ??
-      job?.input?.selected_stale_for_ms,
+      job?.input?.selected_stale_for_ms ??
+      pj?.stale_for_ms,
       0
     ));
   }
