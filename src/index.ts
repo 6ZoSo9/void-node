@@ -19085,6 +19085,20 @@ const wal = new WALv1(getDataDir());
     return null;
   }
 
+  function readLatestRunnableJob(id){
+    let latest:any = null;
+    for (let l of safeLines(FILE_JOBS).reverse()){
+      try{
+        const x = JSON.parse(l);
+        const xid = String(x.job_id || x.id || "");
+        if (xid !== id) continue;
+        if (!latest) latest = x;
+        if (jobIsRunnable(x)) return x;
+      }catch{}
+    }
+    return latest;
+  }
+
   function num(x:any, d=0){
     const n = Number(x);
     return Number.isFinite(n) ? n : d;
@@ -19257,13 +19271,16 @@ const wal = new WALv1(getDataDir());
     const ranked:any[] = [];
 
     for (const id of availIds){
-      const job = readLatestJob(id);
+      const latestJob = readLatestJob(id);
+      const job = readLatestRunnableJob(id);
       if (!job) continue;
       if (!jobIsRunnable(job)) continue;
       const scored = scoreJob(job, fairnessMap);
       ranked.push({
         id,
         job,
+        latestJob,
+        poisoned_latest_terminal: !!(latestJob && !jobIsRunnable(latestJob)),
         ...scored
       });
     }
@@ -19329,7 +19346,7 @@ const wal = new WALv1(getDataDir());
           selected_network_need_score: picked.networkNeedScore || 0,
           selected_stale_for_ms: picked.staleForMs || 0,
           selected_score: picked.score,
-          selection_policy: "weighted_v1"
+          selection_policy: "weighted_v1_runnable_fallback"
         };
 
         return res.json({ok:true, job, leaseMs:LEASE_MS});
@@ -19361,6 +19378,9 @@ const wal = new WALv1(getDataDir());
             difficulty_bucket: chosen.best.difficultyBucket,
             network_need_score: chosen.best.networkNeedScore,
             stale_for_ms: chosen.best.staleForMs,
+            poisoned_latest_terminal: !!chosen.best.poisoned_latest_terminal,
+            latest_status: chosen.best.latestJob?.status || null,
+            runnable_status: chosen.best.job?.status || null,
             selection_reason: chosen.best.reason
           } : null,
           ranked: chosen.ranked.slice(0, 20).map((x:any) => ({
@@ -19371,6 +19391,9 @@ const wal = new WALv1(getDataDir());
             difficulty_bucket: x.difficultyBucket,
             network_need_score: x.networkNeedScore,
             stale_for_ms: x.staleForMs,
+            poisoned_latest_terminal: !!x.poisoned_latest_terminal,
+            latest_status: x.latestJob?.status || null,
+            runnable_status: x.job?.status || null,
             selection_reason: x.reason
           }))
         });
