@@ -19346,7 +19346,7 @@ const wal = new WALv1(getDataDir());
           selected_network_need_score: picked.networkNeedScore || 0,
           selected_stale_for_ms: picked.staleForMs || 0,
           selected_score: picked.score,
-          selection_policy: "weighted_v1_runnable_fallback"
+          selection_policy: "weighted_v2"
         };
 
         return res.json({ok:true, job, leaseMs:LEASE_MS});
@@ -19378,6 +19378,15 @@ const wal = new WALv1(getDataDir());
             difficulty_bucket: chosen.best.difficultyBucket,
             network_need_score: chosen.best.networkNeedScore,
             stale_for_ms: chosen.best.staleForMs,
+            payload_bytes: chosen.best.payload_bytes || 0,
+            verify_component: chosen.best.verify_component || 0,
+            need_component: chosen.best.need_component || 0,
+            freshness_component: chosen.best.freshness_component || 0,
+            fairness_component: chosen.best.fairness_component || 0,
+            difficulty_component: chosen.best.difficulty_component || 0,
+            cost_penalty: chosen.best.cost_penalty || 0,
+            abuse_penalty: chosen.best.abuse_penalty || 0,
+            reject_reason: chosen.best.reject_reason || null,
             poisoned_latest_terminal: !!chosen.best.poisoned_latest_terminal,
             latest_status: chosen.best.latestJob?.status || null,
             runnable_status: chosen.best.job?.status || null,
@@ -19391,6 +19400,15 @@ const wal = new WALv1(getDataDir());
             difficulty_bucket: x.difficultyBucket,
             network_need_score: x.networkNeedScore,
             stale_for_ms: x.staleForMs,
+            payload_bytes: x.payload_bytes || 0,
+            verify_component: x.verify_component || 0,
+            need_component: x.need_component || 0,
+            freshness_component: x.freshness_component || 0,
+            fairness_component: x.fairness_component || 0,
+            difficulty_component: x.difficulty_component || 0,
+            cost_penalty: x.cost_penalty || 0,
+            abuse_penalty: x.abuse_penalty || 0,
+            reject_reason: x.reject_reason || null,
             poisoned_latest_terminal: !!x.poisoned_latest_terminal,
             latest_status: x.latestJob?.status || null,
             runnable_status: x.job?.status || null,
@@ -31930,48 +31948,81 @@ try {
             if (!id) continue;
             const task = rowTaskClass(x);
             if (!rowIsRunnable(x)) continue;
-            fairnessCounts.set(task, Number(fairnessCounts.get(task) || 0));
+            fairnessCounts.set(task, Number(fairnessCounts.get(task) || 0) + 1);
           }
+
+          const W_VERIFY = Number(process.env.VOID_AGENT_WEIGHT_VERIFY || 1.00);
+          const W_NEED = Number(process.env.VOID_AGENT_WEIGHT_NEED || 0.35);
+          const W_FRESH = Number(process.env.VOID_AGENT_WEIGHT_FRESH || 0.20);
+          const W_FAIR = Number(process.env.VOID_AGENT_WEIGHT_FAIR || 0.30);
+          const W_DIFF = Number(process.env.VOID_AGENT_WEIGHT_DIFF || 0.20);
+          const W_COST = Number(process.env.VOID_AGENT_WEIGHT_COST || 0.25);
+          const W_ABUSE = Number(process.env.VOID_AGENT_WEIGHT_ABUSE || 0.50);
+          const MAX_STALE_MS = Math.max(60000, Number(process.env.VOID_AGENT_MAX_STALE_MS || 7 * 24 * 60 * 60 * 1000));
+          const MAX_PLAINTEXT_BYTES = Math.max(256, Number(process.env.VOID_AGENT_MAX_PLAINTEXT_BYTES || 1048576));
 
           const ranked = Array.from(latestRunnableById.entries())
             .map(([id, x]: any) => ({ id, x, latest: latestById.get(id) || x }))
-            .filter(({id, x}: any) => {
-              if (!id) return false;
-              if (!rowIsRunnable(x)) return false;
-              if (epochMs > 0){
-                const ts = rowTs(x);
-                if (!Number.isFinite(ts) || ts <= 0 || ts < epochMs) return false;
-              }
-              if (done.has(id)) return false;
-              if (active.has(id)) return false;
-              return true;
-            })
             .map(({id, x, latest}: any) => {
               const task = rowTaskClass(x);
               const need = rowNeed(x);
               const stale = rowStale(x);
               const diff = rowDifficulty(x);
               const seen = Number(fairnessCounts.get(task) || 0);
-              const fairnessBonus = Math.max(0, Math.min(18, 18 - seen * 3));
-              const score = Number((
-                verifiableBonus(task) +
-                (Math.max(0, Math.min(100, need)) * 0.35) +
-                (Math.max(0, Math.min(300, stale / 1000)) * 0.06) +
-                fairnessBonus +
-                difficultyBonus(diff || "")
-              ).toFixed(3));
+              const plaintext = String(x?.input?.plaintext || "");
+              const payloadBytes = Buffer.byteLength(plaintext || "", "utf8");
+              const latestTs = rowTs(latest);
+              const rawTs = rowTs(x);
+
+              let reject_reason = "";
+              if (!id) reject_reason = "missing_id";
+              else if (!rowIsRunnable(x)) reject_reason = "not_runnable";
+              else if (!task || task === "unknown") reject_reason = "unknown_task";
+              else if ((task === "datanet_fetch_verify" || task === "datanet_redundancy_check") && !rowDatasetId(x)) reject_reason = "missing_dataset_id";
+              else if (epochMs > 0 && (!Number.isFinite(rawTs) || rawTs <= 0 || rawTs < epochMs)) reject_reason = "pre_epoch";
+              else if (done.has(id)) reject_reason = "already_done";
+              else if (active.has(id)) reject_reason = "active_lease";
+              else if (stale > MAX_STALE_MS) reject_reason = "too_stale";
+              else if (payloadBytes > MAX_PLAINTEXT_BYTES) reject_reason = "payload_too_large";
+
+              const verify_component = verifiableBonus(task);
+              const need_component = Math.max(0, Math.min(100, need)) * W_NEED;
+              const freshness_score = Math.max(0, Math.min(1, 1 - (Math.max(0, stale) / MAX_STALE_MS)));
+              const freshness_component = Number((freshness_score * 20 * W_FRESH).toFixed(3));
+              const fairness_bonus = Math.max(0, Math.min(18, 18 - Math.max(0, (seen - 1)) * 3));
+              const fairness_component = Number((fairness_bonus * W_FAIR).toFixed(3));
+              const difficulty_component = Number((difficultyBonus(diff || "") * W_DIFF).toFixed(3));
+              const cost_penalty = Number((Math.max(0, Math.min(1, payloadBytes / MAX_PLAINTEXT_BYTES)) * 10 * W_COST).toFixed(3));
+              const abuse_penalty = Number(((/spam|loop|test|noop/i.test(task) ? 1 : 0) * 10 * W_ABUSE).toFixed(3));
+
+              const score = reject_reason
+                ? -1000000
+                : Number((
+                    (verify_component * W_VERIFY) +
+                    need_component +
+                    freshness_component +
+                    fairness_component +
+                    difficulty_component -
+                    cost_penalty -
+                    abuse_penalty
+                  ).toFixed(3));
+
               const selection_reason =
-                "weighted_v1_runnable_fallback|" +
+                "weighted_v2|" +
                 "task=" + task +
-                "|verifiable_bonus=" + verifiableBonus(task) +
-                "|need=" + need +
-                "|stale_ms=" + stale +
+                "|verify_component=" + verify_component +
+                "|need_component=" + need_component +
+                "|freshness_component=" + freshness_component +
+                "|fairness_component=" + fairness_component +
+                "|difficulty_component=" + difficulty_component +
+                "|cost_penalty=" + cost_penalty +
+                "|abuse_penalty=" + abuse_penalty +
                 "|fairness_seen=" + seen +
-                "|fairness_bonus=" + fairnessBonus +
-                "|difficulty=" + String(diff || "-") +
-                "|difficulty_bonus=" + difficultyBonus(diff || "") +
-                "|abuse_penalty=0" +
+                "|payload_bytes=" + payloadBytes +
+                "|stale_ms=" + stale +
+                "|reject_reason=" + (reject_reason || "-") +
                 "|score=" + score;
+
               return {
                 raw: x,
                 latest_raw: latest,
@@ -31982,15 +32033,29 @@ try {
                 difficulty_bucket: diff,
                 network_need_score: need,
                 stale_for_ms: stale,
+                payload_bytes: payloadBytes,
+                verify_component: verify_component,
+                need_component: need_component,
+                freshness_component: freshness_component,
+                fairness_component: fairness_component,
+                difficulty_component: difficulty_component,
+                cost_penalty: cost_penalty,
+                abuse_penalty: abuse_penalty,
+                fairness_seen: seen,
+                hard_reject: !!reject_reason,
+                reject_reason: reject_reason || null,
                 poisoned_latest_terminal: !!(latest && !rowIsRunnable(latest)),
                 latest_status: latest?.status || null,
                 runnable_status: x?.status || null,
                 selection_reason
               };
             })
+            .filter((x:any) => !x.hard_reject)
             .sort((a:any, b:any) => {
               if (b.score !== a.score) return b.score - a.score;
-              return rowTs(a.raw) - rowTs(b.raw);
+              if (a.stale_for_ms !== b.stale_for_ms) return a.stale_for_ms - b.stale_for_ms;
+              if (a.payload_bytes !== b.payload_bytes) return a.payload_bytes - b.payload_bytes;
+              return String(a.id).localeCompare(String(b.id));
             });
 
           const chosen = ranked.length ? ranked[0] : null;
