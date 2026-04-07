@@ -38968,6 +38968,10 @@ a{color:#93c5fd;text-decoration:none}
     const path = require("node:path");
     return path.join(receiptsDir(), "receipts.jsonl");
   }
+  function jobStateFile(){
+    const path = require("node:path");
+    return path.join(receiptsDir(), "job_state.jsonl");
+  }
   function datanetDir(){
     const path = require("node:path");
     return path.join(dataDir(), "datanet_v1", "local_jobs");
@@ -39156,7 +39160,7 @@ a{color:#93c5fd;text-decoration:none}
   function replaceJobState(jobId:string, patch:any){
     const fs = require("node:fs");
     ensureDirs();
-    appendJsonl(jobsFile(), { job_id: jobId, ...patch, ts_ms: nowMs(), _event: "job_state_patch_v2" });
+    appendJsonl(jobStateFile(), { job_id: jobId, ...patch, ts_ms: nowMs(), _event: "job_state_patch_v3" });
     return { job_id: jobId, ...patch };
   }
 
