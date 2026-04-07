@@ -18124,7 +18124,20 @@ const wal = new WALv1(getDataDir());
         const id = req.params?.id || "";
         const inputHash  = sha256(req.body?.input ?? null);
         const outputHash = sha256(req.body?.output ?? null);
-        const rec = { id, inputHash, outputHash, ts: Date.now() };
+        const meta:any = req.body?.meta || {};
+        const rec = {
+          id,
+          inputHash,
+          outputHash,
+          ts: Date.now(),
+          selection_reason: meta?.selection_reason || req.body?.selection_reason || null,
+          selected_task_class: meta?.selected_task_class || req.body?.selected_task_class || null,
+          selected_dataset_id: meta?.selected_dataset_id || req.body?.selected_dataset_id || null,
+          selected_difficulty_bucket: meta?.selected_difficulty_bucket || req.body?.selected_difficulty_bucket || null,
+          selected_network_need_score: Number(meta?.selected_network_need_score || req.body?.selected_network_need_score || 0) || null,
+          selected_stale_for_ms: Number(meta?.selected_stale_for_ms || req.body?.selected_stale_for_ms || 0) || null,
+          meta
+        };
         append(rec);
         return res.json({ ok:true, id, inputHash, outputHash });
       }catch(e){ return res.status(500).json({ ok:false, error: String(e&&e.message||e) }); }
@@ -31680,12 +31693,19 @@ try {
 
           // append receipt line
           fs.mkdirSync(agentDir, {recursive:true});
+          const meta:any = body.meta || {};
           const rec = {
             id,
             inputHash: inputHash || "",
             outputHash: outputHash || "",
             ts: Date.now(),
-            meta: body.meta || {}
+            selection_reason: meta?.selection_reason || body.selection_reason || null,
+            selected_task_class: meta?.selected_task_class || body.selected_task_class || null,
+            selected_dataset_id: meta?.selected_dataset_id || body.selected_dataset_id || null,
+            selected_difficulty_bucket: meta?.selected_difficulty_bucket || body.selected_difficulty_bucket || null,
+            selected_network_need_score: Number(meta?.selected_network_need_score || body.selected_network_need_score || 0) || null,
+            selected_stale_for_ms: Number(meta?.selected_stale_for_ms || body.selected_stale_for_ms || 0) || null,
+            meta: meta
           };
           fs.appendFileSync(receiptsFile, JSON.stringify(rec) + "\n");
           return res.json({ok:true, id, inputHash: rec.inputHash, outputHash: rec.outputHash});
@@ -36684,6 +36704,26 @@ a{color:#93c5fd;text-decoration:none}
                 } catch {}
               }
 
+              const runtimeReasonByJobId:any = {};
+              const runtimeReasonByReceiptId:any = {};
+              const runtimeReasonByAccountDatasetTask:any = {};
+              for (const item of recentRunnerActivity) {
+                try {
+                  const reason = String(item?.selection_reason || "");
+                  const jobId = String(item?.job_id || "");
+                  const receiptId = String(item?.receipt_id || "");
+                  const accountKey = String(item?.account || "");
+                  const datasetKey = String(item?.dataset_id || "");
+                  const taskKey = String(item?.task_class || "");
+                  const compositeKey = [accountKey, datasetKey, taskKey].join("|");
+                  if (reason && jobId && !runtimeReasonByJobId[jobId]) runtimeReasonByJobId[jobId] = reason;
+                  if (reason && receiptId && !runtimeReasonByReceiptId[receiptId]) runtimeReasonByReceiptId[receiptId] = reason;
+                  if (reason && accountKey && datasetKey && taskKey && !runtimeReasonByAccountDatasetTask[compositeKey]) {
+                    runtimeReasonByAccountDatasetTask[compositeKey] = reason;
+                  }
+                } catch {}
+              }
+
               const persistedRecent:any[] = [];
               for (const line of readLines(jobsV1File)) {
                 try {
@@ -36703,6 +36743,18 @@ a{color:#93c5fd;text-decoration:none}
                     Number(j?.ts_ms || 0) ||
                     Number(j?.ts || 0) ||
                     0;
+                  const compositeKey = [
+                    String(j?.account || rr?.account || ""),
+                    String(j?.dataset_id || j?.selected_dataset_id || rr?.dataset_id || rr?.selected_dataset_id || ""),
+                    String(taskClass || "")
+                  ].join("|");
+                  const selectionReason =
+                    j?.selection_reason ||
+                    rr?.selection_reason ||
+                    (jobId ? runtimeReasonByJobId[jobId] : null) ||
+                    (rid ? runtimeReasonByReceiptId[rid] : null) ||
+                    runtimeReasonByAccountDatasetTask[compositeKey] ||
+                    null;
 
                   persistedRecent.push({
                     source: rr ? "persisted_receipt_v1" : "persisted_job_v1",
@@ -36710,7 +36762,7 @@ a{color:#93c5fd;text-decoration:none}
                     ts_ms: tsMs,
                     task_class: taskClass,
                     raw_task_class: rawTask,
-                    selection_reason: j?.selection_reason || rr?.selection_reason || null,
+                    selection_reason: selectionReason,
                     dataset_id: j?.dataset_id || j?.selected_dataset_id || rr?.dataset_id || rr?.selected_dataset_id || null,
                     job_id: j?.job_id || rr?.job_id || null,
                     receipt_id: rid || rr?.receipt_id || null,
@@ -36728,8 +36780,8 @@ a{color:#93c5fd;text-decoration:none}
 
             recentRunnerActivity.sort((a:any, b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
 
-            const dedupSeen = new Set();
-            const recentRunnerActivityDeduped:any[] = [];
+            const dedupBest:any = {};
+            const dedupOrder:string[] = [];
             for (const item of recentRunnerActivity) {
               const key = [
                 String(item?.account || ""),
@@ -36738,10 +36790,26 @@ a{color:#93c5fd;text-decoration:none}
                 String(item?.receipt_id || ""),
                 String(item?.dataset_id || "")
               ].join("|");
-              if (dedupSeen.has(key)) continue;
-              dedupSeen.add(key);
+
+              const prev = dedupBest[key] || null;
+              const itemReason = String(item?.selection_reason || "").trim();
+              const prevReason = prev ? String(prev?.selection_reason || "").trim() : "";
+
+              if (!prev) {
+                dedupBest[key] = item;
+                dedupOrder.push(key);
+                continue;
+              }
+
+              if (!prevReason && itemReason) {
+                dedupBest[key] = item;
+              }
+            }
+
+            const recentRunnerActivityDeduped:any[] = [];
+            for (const key of dedupOrder) {
               recentRunnerActivityDeduped.push({
-                ...item,
+                ...(dedupBest[key] || {}),
                 __void_value_summary_receipt_join_v2: true
               });
               if (recentRunnerActivityDeduped.length >= limit) break;
@@ -37461,7 +37529,16 @@ a{color:#93c5fd;text-decoration:none}
         const payload = {
           account,
           kind: selected_task_class,
-          plaintext: runnerPlaintext
+          plaintext: runnerPlaintext,
+          meta: {
+            selection_reason,
+            selected_task_class,
+            selected_dataset_id: selected_dataset_id || null,
+            selected_difficulty_bucket: String(selection?.difficulty_bucket || "low"),
+            selected_network_need_score: Number(selection?.network_need_score || 0),
+            selected_stale_for_ms: Number(selection?.stale_for_ms || 0),
+            safe_mode: !!cfg.safe_mode
+          }
         };
 
         const r = await fetch(`http://127.0.0.1:${port}/jobs/submit`, {
@@ -38581,13 +38658,36 @@ a{color:#93c5fd;text-decoration:none}
     if (!job) return;
     if (String(job.status || "") !== "queued") return;
 
-    replaceJobState(jobId, { status:"running", started_at_ms: nowMs() });
 
     try {
       const kind = String(job.kind || "");
       const account = safeStr(job.account, 128) || "demo";
       const plaintext = String(job.input?.plaintext || "");
       if (!plaintext) throw new Error("missing_plaintext");
+
+      const jobMeta:any = job?.meta || {};
+      const persistedSelectionReason = String(job.selection_reason || jobMeta.selection_reason || "");
+      const persistedSelectedTaskClass = String(job.selected_task_class || jobMeta.selected_task_class || kind || "");
+      const persistedSelectedDatasetId = job.selected_dataset_id || jobMeta.selected_dataset_id || null;
+      const persistedSelectedDifficultyBucket = job.selected_difficulty_bucket || jobMeta.selected_difficulty_bucket || null;
+      const persistedSelectedNeedScore = Number(job.selected_network_need_score || jobMeta.selected_network_need_score || 0) || null;
+      const persistedSelectedStaleMs = Number(job.selected_stale_for_ms || jobMeta.selected_stale_for_ms || 0) || null;
+      const persistedSafeMode = job.safe_mode === undefined
+        ? (jobMeta.safe_mode === undefined ? null : !!jobMeta.safe_mode)
+        : !!job.safe_mode;
+
+      replaceJobState(jobId, {
+        status:"running",
+        started_at_ms: nowMs(),
+        selection_reason: persistedSelectionReason || null,
+        selected_task_class: persistedSelectedTaskClass || kind || null,
+        selected_dataset_id: persistedSelectedDatasetId || null,
+        selected_difficulty_bucket: persistedSelectedDifficultyBucket || null,
+        selected_network_need_score: persistedSelectedNeedScore,
+        selected_stale_for_ms: persistedSelectedStaleMs,
+        safe_mode: persistedSafeMode
+      });
+
 
       let parsedInput:any = null;
       try { parsedInput = JSON.parse(plaintext); } catch {}
@@ -38621,6 +38721,13 @@ a{color:#93c5fd;text-decoration:none}
           input_hash: inputHash,
           output_hash: outputHash,
           dataset_id: datasetId,
+          selection_reason: persistedSelectionReason || null,
+          selected_task_class: persistedSelectedTaskClass || kind,
+          selected_dataset_id: persistedSelectedDatasetId || datasetId,
+          selected_difficulty_bucket: persistedSelectedDifficultyBucket || inputDifficultyBucket || null,
+          selected_network_need_score: Number(persistedSelectedNeedScore || inputNeedScore || 0) || null,
+          selected_stale_for_ms: Number(persistedSelectedStaleMs || inputStaleMs || 0) || null,
+          safe_mode: persistedSafeMode,
           output: outputObj,
           ts_ms: nowMs(),
         };
@@ -38682,6 +38789,13 @@ a{color:#93c5fd;text-decoration:none}
           input_hash: expectedHash,
           output_hash: outputHash,
           dataset_id: datasetId,
+          selection_reason: persistedSelectionReason || null,
+          selected_task_class: persistedSelectedTaskClass || kind,
+          selected_dataset_id: persistedSelectedDatasetId || datasetId,
+          selected_difficulty_bucket: persistedSelectedDifficultyBucket || inputDifficultyBucket || null,
+          selected_network_need_score: Number(persistedSelectedNeedScore || inputNeedScore || 0) || null,
+          selected_stale_for_ms: Number(persistedSelectedStaleMs || inputStaleMs || 0) || null,
+          safe_mode: persistedSafeMode,
           output: outputObj,
           ts_ms: nowMs(),
         };
@@ -38746,6 +38860,13 @@ a{color:#93c5fd;text-decoration:none}
           input_hash: expectedHash || fetchedHash,
           output_hash: outputHash,
           dataset_id: datasetId,
+          selection_reason: persistedSelectionReason || null,
+          selected_task_class: persistedSelectedTaskClass || kind,
+          selected_dataset_id: persistedSelectedDatasetId || datasetId,
+          selected_difficulty_bucket: persistedSelectedDifficultyBucket || inputDifficultyBucket || null,
+          selected_network_need_score: Number(persistedSelectedNeedScore || inputNeedScore || 0) || null,
+          selected_stale_for_ms: Number(persistedSelectedStaleMs || inputStaleMs || 0) || null,
+          safe_mode: persistedSafeMode,
           output: outputObj,
           ts_ms: nowMs(),
         };
@@ -38822,6 +38943,7 @@ a{color:#93c5fd;text-decoration:none}
         if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
         if (!plaintext) return res.status(400).json({ ok:false, error:"missing_plaintext" });
 
+        const meta:any = req.body?.meta || {};
         const jobId = "job_" + nowMs() + "_" + Math.random().toString(16).slice(2,10);
         const job = {
           job_id: jobId,
@@ -38829,6 +38951,14 @@ a{color:#93c5fd;text-decoration:none}
           kind,
           status: "queued",
           input: { plaintext },
+          selection_reason: meta?.selection_reason || null,
+          selected_task_class: meta?.selected_task_class || kind,
+          selected_dataset_id: meta?.selected_dataset_id || null,
+          selected_difficulty_bucket: meta?.selected_difficulty_bucket || null,
+          selected_network_need_score: Number(meta?.selected_network_need_score || 0) || null,
+          selected_stale_for_ms: Number(meta?.selected_stale_for_ms || 0) || null,
+          safe_mode: meta?.safe_mode === undefined ? null : !!meta.safe_mode,
+          meta,
           created_at_ms: nowMs(),
         };
         appendJsonl(jobsFile(), job);
@@ -39795,6 +39925,7 @@ a{color:#93c5fd;text-decoration:none}
               const account = String(req.body?.account || "zoso").trim().slice(0,128) || "zoso";
               const kind = String(req.body?.kind || "datanet_publish").trim().slice(0,64) || "datanet_publish";
               const plaintext = String(req.body?.plaintext || "");
+              const meta:any = req.body?.meta || {};
               const line = {
                 job_id: jobId,
                 status: "queued",
@@ -39802,6 +39933,13 @@ a{color:#93c5fd;text-decoration:none}
                 account,
                 input: { plaintext },
                 ts_ms: Date.now(),
+                selection_reason: meta?.selection_reason || null,
+                selected_task_class: meta?.selected_task_class || kind,
+                selected_dataset_id: meta?.selected_dataset_id || null,
+                selected_difficulty_bucket: meta?.selected_difficulty_bucket || null,
+                selected_network_need_score: Number(meta?.selected_network_need_score || 0) || null,
+                selected_stale_for_ms: Number(meta?.selected_stale_for_ms || 0) || null,
+                safe_mode: meta?.safe_mode === undefined ? null : !!meta.safe_mode,
                 _event: "jobs_submit_bridge_v1"
               };
               fs.appendFileSync(jobsFile(), JSON.stringify(line) + "\n");
