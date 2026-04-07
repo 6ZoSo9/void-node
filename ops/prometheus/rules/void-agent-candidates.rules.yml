@@ -1,0 +1,38 @@
+groups:
+  - name: void-agent-candidates
+    rules:
+      - record: void:agent_candidates:verify_eligible:last_5m
+        expr: max_over_time(void_agent_candidates_verify_eligible_total[5m])
+
+      - record: void:agent_candidates:verify_over_stale:last_5m
+        expr: max_over_time(void_agent_candidates_verify_over_stale_total[5m])
+
+      - record: void:agent_candidates:redundancy_eligible:last_5m
+        expr: max_over_time(void_agent_candidates_redundancy_eligible_total[5m])
+
+      - record: void:agent_candidates:redundancy_over_stale:last_5m
+        expr: max_over_time(void_agent_candidates_redundancy_over_stale_total[5m])
+
+      - record: void:agent_candidates:verify_candidate_stale_ms:last_5m
+        expr: max_over_time(void_agent_candidates_verify_candidate_stale_ms[5m])
+
+      - record: void:agent_candidates:redundancy_candidate_stale_ms:last_5m
+        expr: max_over_time(void_agent_candidates_redundancy_candidate_stale_ms[5m])
+
+      - alert: VoidAgentCandidatesVerifyEmpty
+        expr: max_over_time(void_agent_candidates_verify_eligible_total[15m]) == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "no eligible verify candidates"
+          description: "The candidate pool has had zero eligible verify candidates for 15 minutes."
+
+      - alert: VoidAgentCandidatesRedundancyEmpty
+        expr: max_over_time(void_agent_candidates_redundancy_eligible_total[15m]) == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "no eligible redundancy candidates"
+          description: "The candidate pool has had zero eligible redundancy candidates for 15 minutes."
