@@ -36795,13 +36795,30 @@ a{color:#93c5fd;text-decoration:none}
               const itemReason = String(item?.selection_reason || "").trim();
               const prevReason = prev ? String(prev?.selection_reason || "").trim() : "";
 
+              const sourceRank = (v:any) => {
+                const s = String(v || "");
+                return s === "persisted_receipt_v1" ? 3 :
+                  s === "persisted_job_v1" ? 2 :
+                  s === "runner_last_result" ? 1 :
+                  s === "runner_selection_event" ? 0 :
+                  -1;
+              };
+
               if (!prev) {
                 dedupBest[key] = item;
                 dedupOrder.push(key);
                 continue;
               }
 
-              if (!prevReason && itemReason) {
+              const prevRank = sourceRank(prev?.source);
+              const itemRank = sourceRank(item?.source);
+
+              if (itemRank > prevRank) {
+                dedupBest[key] = item;
+                continue;
+              }
+
+              if (itemRank == prevRank && !prevReason && itemReason) {
                 dedupBest[key] = item;
               }
             }
@@ -36869,7 +36886,7 @@ a{color:#93c5fd;text-decoration:none}
               latest_publish_dataset,
               latest_verified_dataset,
               latest_redundancy_checked_dataset,
-              recentRunnerActivity
+              recentRunnerActivityDeduped
             );
 
             return res.json({
@@ -37241,15 +37258,32 @@ a{color:#93c5fd;text-decoration:none}
         const taskClass = String(item?.task_class || "");
         const ds = String(item?.dataset_id || "");
         const rid = String(item?.receipt_id || "");
+        const sourceRank = (v:any) => {
+          const s = String(v || "");
+          return s === "persisted_receipt_v1" ? 3 :
+            s === "persisted_job_v1" ? 2 :
+            s === "runner_last_result" ? 1 :
+            s === "runner_selection_event" ? 0 :
+            -1;
+        };
+
         const match = Array.isArray(recentRunnerActivity)
-          ? (recentRunnerActivity.find((x:any) => {
-              if (String(x?.task_class || "") !== taskClass) return false;
-              const xds = String(x?.dataset_id || "");
-              const xrid = String(x?.receipt_id || "");
-              if (ds && xds && ds === xds) return true;
-              if (rid && xrid && rid === xrid) return true;
-              return false;
-            }) || null)
+          ? (() => {
+              const matches = recentRunnerActivity.filter((x:any) => {
+                if (String(x?.task_class || "") !== taskClass) return false;
+                const xds = String(x?.dataset_id || "");
+                const xrid = String(x?.receipt_id || "");
+                if (ds && xds && ds === xds) return true;
+                if (rid && xrid && rid === xrid) return true;
+                return false;
+              });
+              matches.sort((a:any, b:any) => {
+                const rankDelta = sourceRank(b?.source) - sourceRank(a?.source);
+                if (rankDelta) return rankDelta;
+                return Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0);
+              });
+              return matches[0] || null;
+            })()
           : null;
 
         const result_hint =
