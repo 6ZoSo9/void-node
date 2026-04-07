@@ -4,8 +4,6 @@ groups:
       - record: void:agent_pick2_v2:active_lease_rejects:last_5m
         expr: max_over_time(void_agent_pick2_v2_reject_by_reason_total{reason="active_lease"}[5m])
 
-      - record: void:agent_pick2_v2:chosen_total:last_5m
-        expr: max_over_time(void_agent_pick2_v2_chosen_total[5m])
 
       - alert: VoidAgentPick2V2ActiveLeasePressure
         expr: increase(void_agent_pick2_v2_reject_by_reason_total{reason="active_lease"}[15m]) > 20
