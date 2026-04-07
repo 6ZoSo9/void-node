@@ -19367,7 +19367,9 @@ const wal = new WALv1(getDataDir());
         const chosen = chooseWeightedJob(avail);
         return res.json({
           ok: true,
-          policy: "weighted_v2",
+          policy: "weighted_legacy",
+          legacy: true,
+          warning: "legacy debug path does not reflect runtime-winning weighted_v2 scorer; use /__void/agent/pick2/weighted.v2",
           leaseMs: LEASE_MS,
           available: avail.length,
           best: chosen.best ? {
