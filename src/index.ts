@@ -31904,6 +31904,7 @@ try {
           }
 
           const latestById = new Map<string, any>();
+          const latestRunnableById = new Map<string, any>();
           const rawLines = safeLines(FILE_JOBS);
           const n = Math.min(rawLines.length, SCAN_MAX);
           for (let i = 0; i < n; i++){
@@ -31912,13 +31913,19 @@ try {
               const x = JSON.parse(l);
               const id = rowId(x);
               if (!id) continue;
+
               const prev = latestById.get(id);
               if (!prev || rowTs(x) >= rowTs(prev)) latestById.set(id, x);
+
+              if (rowIsRunnable(x)) {
+                const prevRun = latestRunnableById.get(id);
+                if (!prevRun || rowTs(x) >= rowTs(prevRun)) latestRunnableById.set(id, x);
+              }
             }catch{}
           }
 
           const fairnessCounts = new Map<string, number>();
-          for (const x of Array.from(latestById.values())){
+          for (const x of Array.from(latestRunnableById.values())){
             const id = rowId(x);
             if (!id) continue;
             const task = rowTaskClass(x);
@@ -31926,9 +31933,9 @@ try {
             fairnessCounts.set(task, Number(fairnessCounts.get(task) || 0));
           }
 
-          const ranked = Array.from(latestById.values())
-            .filter((x:any) => {
-              const id = rowId(x);
+          const ranked = Array.from(latestRunnableById.entries())
+            .map(([id, x]: any) => ({ id, x, latest: latestById.get(id) || x }))
+            .filter(({id, x}: any) => {
               if (!id) return false;
               if (!rowIsRunnable(x)) return false;
               if (epochMs > 0){
@@ -31939,8 +31946,7 @@ try {
               if (active.has(id)) return false;
               return true;
             })
-            .map((x:any) => {
-              const id = rowId(x);
+            .map(({id, x, latest}: any) => {
               const task = rowTaskClass(x);
               const need = rowNeed(x);
               const stale = rowStale(x);
@@ -31955,7 +31961,7 @@ try {
                 difficultyBonus(diff || "")
               ).toFixed(3));
               const selection_reason =
-                "weighted_v1|" +
+                "weighted_v1_runnable_fallback|" +
                 "task=" + task +
                 "|verifiable_bonus=" + verifiableBonus(task) +
                 "|need=" + need +
@@ -31968,6 +31974,7 @@ try {
                 "|score=" + score;
               return {
                 raw: x,
+                latest_raw: latest,
                 id,
                 score,
                 task,
@@ -31975,6 +31982,9 @@ try {
                 difficulty_bucket: diff,
                 network_need_score: need,
                 stale_for_ms: stale,
+                poisoned_latest_terminal: !!(latest && !rowIsRunnable(latest)),
+                latest_status: latest?.status || null,
+                runnable_status: x?.status || null,
                 selection_reason
               };
             })
@@ -32012,7 +32022,7 @@ try {
             selected_network_need_score: chosen.network_need_score || 0,
             selected_stale_for_ms: chosen.stale_for_ms || 0,
             selected_score: chosen.score,
-            selection_policy: "weighted_v1"
+            selection_policy: "weighted_v1_runnable_fallback"
           };
 
           return res.json({ok:true, job: outJob, leaseMs:LEASE_MS, epochMs});
