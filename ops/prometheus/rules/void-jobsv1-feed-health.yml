@@ -1,0 +1,38 @@
+groups:
+  - name: void-jobsv1-feed-health
+    rules:
+      - record: void:jobs_v1_feed:poison_ratio:last_5m
+        expr: max_over_time(void_jobs_v1_latest_poison_ratio[5m])
+
+      - record: void:jobs_v1_feed:terminal_total:last_5m
+        expr: max_over_time(void_jobs_v1_latest_terminal_total[5m])
+
+      - record: void:jobs_v1_feed:unknown_task_total:last_5m
+        expr: max_over_time(void_jobs_v1_latest_unknown_task_total[5m])
+
+      - alert: VoidJobsV1FeedPoisoned
+        expr: void:jobs_v1_feed:poison_ratio:last_5m > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "jobs_v1 feed poison detected"
+          description: "jobs_v1 latest rows contain terminal or unknown-task entries again."
+
+      - alert: VoidJobsV1FeedTerminalLatestPresent
+        expr: void:jobs_v1_feed:terminal_total:last_5m > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "jobs_v1 latest terminal rows present"
+          description: "Latest jobs_v1 rows should not be terminal."
+
+      - alert: VoidJobsV1FeedUnknownTaskPresent
+        expr: void:jobs_v1_feed:unknown_task_total:last_5m > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "jobs_v1 latest unknown task rows present"
+          description: "Latest jobs_v1 rows should have canonical task classes."
