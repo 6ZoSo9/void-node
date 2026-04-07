@@ -47280,3 +47280,220 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
   }catch{}
 })();
 
+
+// ---------------- [ADD] Agent receipts truth exporter v3 (prune + last-wins) ----------------
+(function AgentReceiptsTruthExporterV3(){
+  try{
+    const TICK = 400;
+
+    function mount(){
+      const g:any = globalThis as any;
+      const app:any = g.__void_http_app || g.app;
+      if (!app || typeof app.get !== "function") return setTimeout(mount, TICK);
+      if ((app as any).__agent_receipts_truth_exporter_v3__) return;
+      (app as any).__agent_receipts_truth_exporter_v3__ = true;
+
+      const fs = require("node:fs");
+      const path = require("node:path");
+
+      function dataDir(){
+        return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a");
+      }
+      function receiptsFile(){
+        return path.join(dataDir(), "agent_v1", "receipts.jsonl");
+      }
+      function resultsFile(){
+        return path.join(dataDir(), "agent", "results.jsonl");
+      }
+      function ledgerFile(){
+        return path.join(dataDir(), "wc_v1", "ledger.jsonl");
+      }
+
+      function safeReadLines(file:string, maxLines:number=20000){
+        try{
+          if (!fs.existsSync(file)) return [];
+          const raw = String(fs.readFileSync(file, "utf8") || "");
+          const lines = raw.split(/\r?\n/).filter(Boolean);
+          return lines.slice(-maxLines);
+        }catch{
+          return [];
+        }
+      }
+
+      function safeJsonLines(file:string, maxLines:number=20000){
+        const out:any[] = [];
+        for (const line of safeReadLines(file, maxLines)){
+          try{
+            const j = JSON.parse(line);
+            if (j && typeof j === "object") out.push(j);
+          }catch{}
+        }
+        return out;
+      }
+
+      function computeTruth(){
+        const recs = safeJsonLines(receiptsFile(), 50000);
+        const resu = safeJsonLines(resultsFile(), 50000);
+        const ledg = safeJsonLines(ledgerFile(), 50000);
+
+        const recIds = new Set<string>();
+        let receiptsLastTsMs = 0;
+        const uniq5 = new Set<string>();
+        const uniq15 = new Set<string>();
+        const now = Date.now();
+        const since5 = now - (5 * 60 * 1000);
+        const since15 = now - (15 * 60 * 1000);
+
+        for (const r of recs){
+          const id = String(r?.receipt_id || r?.id || r?.job_id || "");
+          if (id) recIds.add(id);
+          const ts = Number(r?.ts_ms || 0);
+          if (ts > receiptsLastTsMs) receiptsLastTsMs = ts;
+          if (id && ts >= since5) uniq5.add(id);
+          if (id && ts >= since15) uniq15.add(id);
+        }
+
+        const resultIds = new Set<string>();
+        for (const r of resu){
+          const id = String(r?.id || r?.job_id || "");
+          if (id) resultIds.add(id);
+        }
+
+        let covered = 0;
+        for (const id of resultIds){
+          if (recIds.has(id)) covered += 1;
+        }
+
+        let wcAwardedTotal = 0;
+        let wcAwardsLastTsMs = 0;
+        for (const l of ledg){
+          if (String(l?.kind || "") !== "credit") continue;
+          const delta = Number(l?.delta || 0) || 0;
+          wcAwardedTotal += delta;
+          const ts = Number(l?.ts_ms || 0);
+          if (ts > wcAwardsLastTsMs) wcAwardsLastTsMs = ts;
+        }
+
+        const receiptsAgeSec = receiptsLastTsMs > 0 ? Math.max(0, (now - receiptsLastTsMs) / 1000) : 1e12;
+        const wcAgeSec = wcAwardsLastTsMs > 0 ? Math.max(0, (now - wcAwardsLastTsMs) / 1000) : 1e12;
+
+        return {
+          results_total: resultIds.size,
+          receipts_total: recIds.size,
+          receipts_covered: covered,
+          receipts_coverage: resultIds.size > 0 ? (covered / resultIds.size) : (recIds.size > 0 ? 1 : 0),
+          receipts_last_ts_ms: receiptsLastTsMs,
+          receipts_age_seconds: receiptsAgeSec,
+          wc_awarded_total: wcAwardedTotal,
+          wc_awards_last_ts_seconds: wcAwardsLastTsMs > 0 ? (wcAwardsLastTsMs / 1000) : 0,
+          wc_awards_age_seconds: wcAgeSec,
+          wc_awards_unique_5m: uniq5.size,
+          wc_awards_ok_5m: uniq5.size > 0 && receiptsAgeSec < 10 * 60 ? 1 : 0,
+          wc_awards_unique_15m: uniq15.size,
+          wc_awards_ok_15m: uniq15.size > 0 && receiptsAgeSec < 20 * 60 ? 1 : 0
+        };
+      }
+
+      function pruneGet(pathWant:string){
+        try{
+          const stack:any[] = app?._router?.stack || [];
+          for (let i = stack.length - 1; i >= 0; i--) {
+            const layer:any = stack[i];
+            const r:any = layer?.route;
+            if (!r || String(r?.path || "") !== pathWant) continue;
+            if (!Array.isArray(r.stack)) continue;
+            r.stack = r.stack.filter((s:any)=> !(s && s.method === "get"));
+            if (!r.stack.length) stack.splice(i, 1);
+          }
+        }catch{}
+      }
+
+      pruneGet("/__void/metrics/agent_receipts.prom");
+      pruneGet("/__void/metrics/agent_receipts_coverage.prom");
+      pruneGet("/__void/metrics/agent_wc_awards.prom");
+
+      app.get("/__void/metrics/agent_receipts.prom", (_req:any, res:any)=>{
+        try{
+          const t = computeTruth();
+          const lines = [
+            "# HELP void_agent_receipts_total total unique receipts observed",
+            "# TYPE void_agent_receipts_total gauge",
+            `void_agent_receipts_total ${t.receipts_total}`,
+            "# HELP void_agent_receipts_errors total receipt write errors (truth exporter default 0)",
+            "# TYPE void_agent_receipts_errors gauge",
+            "void_agent_receipts_errors 0",
+            "# HELP void_agent_receipts_last_ts_ms latest receipt timestamp ms",
+            "# TYPE void_agent_receipts_last_ts_ms gauge",
+            `void_agent_receipts_last_ts_ms ${t.receipts_last_ts_ms}`,
+            "# HELP void_agent_receipts_age_seconds seconds since latest receipt",
+            "# TYPE void_agent_receipts_age_seconds gauge",
+            `void_agent_receipts_age_seconds ${t.receipts_age_seconds}`
+          ];
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+        }catch{
+          return res.status(500).type("text/plain; version=0.0.4; charset=utf-8").send("void_agent_receipts_errors 1\n");
+        }
+      });
+
+      app.get("/__void/metrics/agent_receipts_coverage.prom", (_req:any, res:any)=>{
+        try{
+          const t = computeTruth();
+          const lines = [
+            "# HELP void_agent_results_unique_total total unique job results observed",
+            "# TYPE void_agent_results_unique_total gauge",
+            `void_agent_results_unique_total ${t.results_total}`,
+            "# HELP void_agent_receipts_total total receipts observed (unique ids)",
+            "# TYPE void_agent_receipts_total gauge",
+            `void_agent_receipts_total ${t.receipts_total}`,
+            "# HELP void_agent_receipts_covered results with corresponding receipts",
+            "# TYPE void_agent_receipts_covered gauge",
+            `void_agent_receipts_covered ${t.receipts_covered}`,
+            "# HELP void_agent_receipts_coverage fraction of results with receipts (0..1)",
+            "# TYPE void_agent_receipts_coverage gauge",
+            `void_agent_receipts_coverage ${t.receipts_coverage}`
+          ];
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+        }catch{
+          return res.status(500).type("text/plain; version=0.0.4; charset=utf-8").send("void_agent_receipts_coverage 0\n");
+        }
+      });
+
+      app.get("/__void/metrics/agent_wc_awards.prom", (_req:any, res:any)=>{
+        try{
+          const t = computeTruth();
+          const lines = [
+            "# HELP void_agent_wc_awarded_total cumulative WC credits from ledger credits",
+            "# TYPE void_agent_wc_awarded_total gauge",
+            `void_agent_wc_awarded_total ${t.wc_awarded_total}`,
+            "# HELP void_agent_wc_awards_last_ts_seconds last credit timestamp seen (seconds)",
+            "# TYPE void_agent_wc_awards_last_ts_seconds gauge",
+            `void_agent_wc_awards_last_ts_seconds ${t.wc_awards_last_ts_seconds}`,
+            "# HELP void_agent_wc_awards_age_seconds seconds since last credit",
+            "# TYPE void_agent_wc_awards_age_seconds gauge",
+            `void_agent_wc_awards_age_seconds ${t.wc_awards_age_seconds}`,
+            "# HELP void_agent_wc_awards_unique_5m unique receipt ids in last 5m",
+            "# TYPE void_agent_wc_awards_unique_5m gauge",
+            `void_agent_wc_awards_unique_5m ${t.wc_awards_unique_5m}`,
+            "# HELP void_agent_wc_awards_ok_5m 1 if unique_5m>0 and latest receipt age<10m",
+            "# TYPE void_agent_wc_awards_ok_5m gauge",
+            `void_agent_wc_awards_ok_5m ${t.wc_awards_ok_5m}`,
+            "# HELP void_agent_wc_awards_unique_15m unique receipt ids in last 15m",
+            "# TYPE void_agent_wc_awards_unique_15m gauge",
+            `void_agent_wc_awards_unique_15m ${t.wc_awards_unique_15m}`,
+            "# HELP void_agent_wc_awards_ok_15m 1 if unique_15m>0 and latest receipt age<20m",
+            "# TYPE void_agent_wc_awards_ok_15m gauge",
+            `void_agent_wc_awards_ok_15m ${t.wc_awards_ok_15m}`
+          ];
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+        }catch{
+          return res.status(500).type("text/plain; version=0.0.4; charset=utf-8").send("void_agent_wc_awarded_total 0\n");
+        }
+      });
+
+      try{ console.log("[agent.receipts.truth.v3] mounted"); }catch{}
+    }
+
+    mount();
+  }catch{}
+})();
+
