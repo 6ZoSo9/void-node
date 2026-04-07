@@ -14,8 +14,8 @@ jget() {
 }
 
 echo "=== [1] remote participant/product truth ==="
-ALIEN="$ALIEN" RUNS="$RUNS" bash ops/two-box-peer-workload-proof.sh \
-  | tee "$OUT_DIR/peer-workload-proof.log"
+ALIEN="$ALIEN" bash ops/two-box-participant-golden-path-proof.sh \
+  | tee "$OUT_DIR/participant-golden-path-proof.log"
 
 echo
 echo "=== [2] remote network value summary ==="
