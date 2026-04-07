@@ -400,3 +400,15 @@ datanet-operator-cycle:
 
 datanet-operator-cycle-apply:
 	APPLY=1 LIMIT=$${LIMIT:-3} WHO=$${WHO:-zoso} bash ops/two-box-datanet-operator-cycle.sh
+
+
+.PHONY: report-stale-local quarantine-stale-local restore-stale-local
+
+report-stale-local:
+	python3 ops/report_stale_local_datasets.py
+
+quarantine-stale-local:
+	python3 ops/quarantine_stale_local_datasets.py
+
+restore-stale-local:
+	python3 ops/restore_quarantined_local_datasets.py
