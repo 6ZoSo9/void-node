@@ -39245,6 +39245,20 @@ a{color:#93c5fd;text-decoration:none}
         if (!httpBase) continue;
 
         try {
+          const u = new URL(httpBase);
+          const host = String(u.hostname || "").trim().toLowerCase();
+          const port = String(u.port || "").trim();
+          const selfPort = String(process.env.HTTP_PORT || "4100").trim();
+
+          // Never treat loopback as a remote peer fetch target.
+          if (host === "127.0.0.1" || host === "localhost" || host === "::1") continue;
+
+          // Best-effort skip exact self HTTP endpoint.
+          if (port && selfPort && port == selfPort) {
+            const adv = String(process.env.VOID_HTTP_HOST || process.env.HTTP_HOST || "").trim().toLowerCase();
+            if (adv && host === adv) continue;
+          }
+
           const url = new URL("/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=zoso", httpBase).toString();
           const r = await fetch(url);
           if (!r.ok) continue;
