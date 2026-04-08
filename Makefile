@@ -426,3 +426,7 @@ two-box-redundancy-check-proof:
 .PHONY: two-box-peer-proof-suite
 two-box-peer-proof-suite:
 	bash ops/two-box-peer-proof-suite.sh
+
+.PHONY: two-box-peer-proof-suite-quick
+two-box-peer-proof-suite-quick:
+	QUICK_MODE=1 bash ops/two-box-peer-proof-suite.sh

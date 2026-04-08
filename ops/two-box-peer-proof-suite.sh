@@ -7,6 +7,7 @@ cd "$HOME/dev/void-node"
 
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
 WHO="${WHO:-zoso}"
+QUICK_MODE="${QUICK_MODE:-0}"
 
 START_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 START_MS="$(python3 - <<'PY'
@@ -102,6 +103,7 @@ echo "out_dir=$OUT_DIR"
 echo "dataset_id=$DATASET_ID"
 echo "local_base=$LOCAL_BASE"
 echo "remote_base=$REMOTE_BASE"
+echo "quick_mode=$QUICK_MODE"
 echo
 
 echo "=== preflight: local health ==="
@@ -119,6 +121,25 @@ echo
 echo "=== preflight: remote fetch local dataset ==="
 ssh "$ALIEN" "set -euo pipefail; curl -fsS '${LOCAL_BASE}/datanet/v1/local-job/${DATASET_ID}?who=${WHO}' | jq ."
 echo
+
+if [ "$QUICK_MODE" = "1" ]; then
+  END_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  END_MS="$(python3 - <<'PY'
+import time
+print(int(time.time()*1000))
+PY
+)"
+  echo "=== quick summary ==="
+  echo "ok=true"
+  echo "quick_mode=1"
+  echo "start_ts=$START_TS"
+  echo "end_ts=$END_TS"
+  echo "elapsed_ms=$((END_MS - START_MS))"
+  echo "dataset_id=$DATASET_ID"
+  echo "local_base=$LOCAL_BASE"
+  echo "remote_base=$REMOTE_BASE"
+  exit 0
+fi
 
 run_step() {
   local name="$1"
