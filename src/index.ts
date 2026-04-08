@@ -32035,13 +32035,69 @@ try {
               need_component: 0,
               freshness_component: 0,
               fairness_component: 0,
+              fairness_streak_penalty: 0,
+              fairness_opposite_boost: 0,
+              fairness_recent_count_penalty: 0,
+              recent_task_streak_task: "",
+              recent_task_streak_len: 0,
               difficulty_component: 0,
               cost_penalty: 0,
               abuse_penalty: 0,
               reject_reason: "",
-              selection_policy: "weighted_v2"
+              selection_policy: "weighted_v2_fair_v2"
             }
           });
+
+          const recentDone = (() => {
+            try {
+              return safeLines(FILE_LEASES)
+                .map((line:string) => { try { return JSON.parse(line); } catch { return null; } })
+                .filter((x:any) => !!x)
+                .slice(-40);
+            } catch {
+              return [];
+            }
+          })();
+
+          const recentTaskCounts:any = Object.create(null);
+          let recentTaskStreakTask = "";
+          let recentTaskStreakLen = 0;
+
+          for (const r of recentDone) {
+            const t = String(
+              r?.selected_task_class ||
+              r?.task_class ||
+              r?.kind ||
+              ""
+            ).trim();
+            if (!t) continue;
+            recentTaskCounts[t] = Number(recentTaskCounts[t] || 0) + 1;
+          }
+
+          for (let i = recentDone.length - 1; i >= 0; i--) {
+            const r:any = recentDone[i];
+            const t = String(
+              r?.selected_task_class ||
+              r?.task_class ||
+              r?.kind ||
+              ""
+            ).trim();
+            if (!t) continue;
+            if (!recentTaskStreakTask) {
+              recentTaskStreakTask = t;
+              recentTaskStreakLen = 1;
+              continue;
+            }
+            if (t === recentTaskStreakTask) {
+              recentTaskStreakLen += 1;
+              continue;
+            }
+            break;
+          }
+
+          PICK2V2_METRICS.recent_task_counts = recentTaskCounts;
+          PICK2V2_METRICS.recent_task_streak_task = recentTaskStreakTask;
+          PICK2V2_METRICS.recent_task_streak_len = recentTaskStreakLen;
 
           const rankedAll = Array.from(latestRunnableById.entries())
             .map(([id, x]: any) => ({ id, x, latest: latestById.get(id) || x }))
@@ -32051,6 +32107,7 @@ try {
               const stale = rowStale(x);
               const diff = rowDifficulty(x);
               const seen = Number(fairnessCounts.get(task) || 0);
+              const recentSeen = Number(recentTaskCounts[task] || 0);
               const plaintext = String(x?.input?.plaintext || "");
               const payloadBytes = Buffer.byteLength(plaintext || "", "utf8");
               const latestTs = rowTs(latest);
@@ -32073,6 +32130,15 @@ try {
               const freshness_component = Number((freshness_score * 20 * W_FRESH).toFixed(3));
               const fairness_bonus = Math.max(0, Math.min(18, 18 - Math.max(0, (seen - 1)) * 3));
               const fairness_component = Number((fairness_bonus * W_FAIR).toFixed(3));
+              const fairness_streak_penalty =
+                recentTaskStreakTask && task === recentTaskStreakTask
+                  ? Number((Math.min(3, recentTaskStreakLen) * 6 * W_FAIR).toFixed(3))
+                  : 0;
+              const fairness_opposite_boost =
+                recentTaskStreakTask && task && task !== recentTaskStreakTask
+                  ? Number((Math.min(3, recentTaskStreakLen) * 4 * W_FAIR).toFixed(3))
+                  : 0;
+              const fairness_recent_count_penalty = Number((Math.min(6, recentSeen) * 0.75 * W_FAIR).toFixed(3));
               const difficulty_component = Number((difficultyBonus(diff || "") * W_DIFF).toFixed(3));
               const cost_penalty = Number((Math.max(0, Math.min(1, payloadBytes / MAX_PLAINTEXT_BYTES)) * 10 * W_COST).toFixed(3));
               const abuse_penalty = Number(((/spam|loop|test|noop/i.test(task) ? 1 : 0) * 10 * W_ABUSE).toFixed(3));
@@ -32084,18 +32150,27 @@ try {
                     need_component +
                     freshness_component +
                     fairness_component +
+                    fairness_opposite_boost +
                     difficulty_component -
+                    fairness_streak_penalty -
+                    fairness_recent_count_penalty -
                     cost_penalty -
                     abuse_penalty
                   ).toFixed(3));
 
               const selection_reason =
-                "weighted_v2|" +
+                "weighted_v2_fair_v2|" +
                 "task=" + task +
                 "|verify_component=" + verify_component +
                 "|need_component=" + need_component +
                 "|freshness_component=" + freshness_component +
                 "|fairness_component=" + fairness_component +
+                "|fairness_streak_penalty=" + fairness_streak_penalty +
+                "|fairness_opposite_boost=" + fairness_opposite_boost +
+                "|fairness_recent_count_penalty=" + fairness_recent_count_penalty +
+                "|recent_task_streak_task=" + recentTaskStreakTask +
+                "|recent_task_streak_len=" + recentTaskStreakLen +
+                "|recent_seen=" + recentSeen +
                 "|difficulty_component=" + difficulty_component +
                 "|cost_penalty=" + cost_penalty +
                 "|abuse_penalty=" + abuse_penalty +
@@ -32120,6 +32195,12 @@ try {
                 need_component: need_component,
                 freshness_component: freshness_component,
                 fairness_component: fairness_component,
+                fairness_streak_penalty: fairness_streak_penalty,
+                fairness_opposite_boost: fairness_opposite_boost,
+                fairness_recent_count_penalty: fairness_recent_count_penalty,
+                recent_task_streak_task: recentTaskStreakTask,
+                recent_task_streak_len: recentTaskStreakLen,
+                recent_seen: recentSeen,
                 difficulty_component: difficulty_component,
                 cost_penalty: cost_penalty,
                 abuse_penalty: abuse_penalty,
@@ -32164,7 +32245,7 @@ try {
             .filter((x:any) => !x.hard_reject)
             .sort((a:any, b:any) => {
               if (b.score !== a.score) return b.score - a.score;
-              if (a.stale_for_ms !== b.stale_for_ms) return a.stale_for_ms - b.stale_for_ms;
+              if (a.stale_for_ms !== b.stale_for_ms) return b.stale_for_ms - a.stale_for_ms;
               if (a.payload_bytes !== b.payload_bytes) return a.payload_bytes - b.payload_bytes;
               return String(a.id).localeCompare(String(b.id));
             });
@@ -32187,11 +32268,16 @@ try {
             need_component: Number(chosen.need_component || 0),
             freshness_component: Number(chosen.freshness_component || 0),
             fairness_component: Number(chosen.fairness_component || 0),
+            fairness_streak_penalty: Number(chosen.fairness_streak_penalty || 0),
+            fairness_opposite_boost: Number(chosen.fairness_opposite_boost || 0),
+            fairness_recent_count_penalty: Number(chosen.fairness_recent_count_penalty || 0),
+            recent_task_streak_task: String(chosen.recent_task_streak_task || ""),
+            recent_task_streak_len: Number(chosen.recent_task_streak_len || 0),
             difficulty_component: Number(chosen.difficulty_component || 0),
             cost_penalty: Number(chosen.cost_penalty || 0),
             abuse_penalty: Number(chosen.abuse_penalty || 0),
             reject_reason: String(chosen.reject_reason || ""),
-            selection_policy: "weighted_v2"
+            selection_policy: "weighted_v2_fair_v2"
           };
 
           const worker = (req.body?.worker || "anon").toString();
@@ -32220,7 +32306,7 @@ try {
             selected_network_need_score: chosen.network_need_score || 0,
             selected_stale_for_ms: chosen.stale_for_ms || 0,
             selected_score: chosen.score,
-            selection_policy: "weighted_v2"
+            selection_policy: "weighted_v2_fair_v2"
           };
 
           return res.json({ok:true, job: outJob, leaseMs:LEASE_MS, epochMs});
