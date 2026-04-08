@@ -22,6 +22,7 @@ mkdir -p "$OUT_DIR"
 
 PEER_LOG="$OUT_DIR/peer-fetch-repair.log"
 REDUND_LOG="$OUT_DIR/redundancy-check.log"
+JSON_OUT="${JSON_OUT:-$OUT_DIR/result.json}"
 
 pick_dataset_id() {
   if [ -n "${DATASET_ID:-}" ]; then
@@ -92,9 +93,9 @@ pick_remote_base() {
   printf '%s\n' "http://127.0.0.1:4100"
 }
 
-json_line() {
+write_json_file() {
   python3 - <<'PY'
-import json, os
+import json, os, pathlib
 payload = {
   "ok": os.environ.get("JSON_OK", ""),
   "quick_mode": os.environ.get("JSON_QUICK_MODE", ""),
@@ -107,6 +108,9 @@ payload = {
   "peer_log": os.environ.get("JSON_PEER_LOG", ""),
   "redundancy_log": os.environ.get("JSON_REDUND_LOG", ""),
 }
+out = pathlib.Path(os.environ["JSON_OUT"])
+out.parent.mkdir(parents=True, exist_ok=True)
+out.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n")
 print(json.dumps(payload, sort_keys=True))
 PY
 }
@@ -120,6 +124,7 @@ REMOTE_BASE="$(pick_remote_base)"
 echo "=== VOID two-box proof suite ==="
 echo "start_ts=$START_TS"
 echo "out_dir=$OUT_DIR"
+echo "json_out=$JSON_OUT"
 echo "dataset_id=$DATASET_ID"
 echo "local_base=$LOCAL_BASE"
 echo "remote_base=$REMOTE_BASE"
@@ -170,7 +175,8 @@ PY
     JSON_REMOTE_BASE="$REMOTE_BASE" \
     JSON_PEER_LOG="" \
     JSON_REDUND_LOG="" \
-    json_line
+    JSON_OUT="$JSON_OUT" \
+    write_json_file
   fi
   exit 0
 fi
@@ -222,5 +228,6 @@ if [ "$JSON_MODE" = "1" ]; then
   JSON_REMOTE_BASE="$REMOTE_BASE" \
   JSON_PEER_LOG="$PEER_LOG" \
   JSON_REDUND_LOG="$REDUND_LOG" \
-  json_line
+  JSON_OUT="$JSON_OUT" \
+  write_json_file
 fi
