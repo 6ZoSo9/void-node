@@ -434,3 +434,7 @@ two-box-peer-proof-suite-quick:
 .PHONY: two-box-peer-proof-suite-quick-json
 two-box-peer-proof-suite-quick-json:
 	QUICK_MODE=1 JSON_MODE=1 bash ops/two-box-peer-proof-suite.sh
+
+.PHONY: two-box-peer-proof-suite-export
+two-box-peer-proof-suite-export:
+	bash ops/two-box-peer-proof-suite-exporter.sh
