@@ -47140,7 +47140,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         const since15 = now - (15 * 60 * 1000);
 
         for (const r of recs){
-          const id = String(r?.receipt_id || r?.id || r?.job_id || "");
+          const id = String(r?.job_id || r?.id || r?.receipt_id || "");
           if (id) recIds.add(id);
           const ts = Number(r?.ts_ms || 0);
           if (ts > receiptsLastTsMs) receiptsLastTsMs = ts;
@@ -47345,7 +47345,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         const since15 = now - (15 * 60 * 1000);
 
         for (const r of recs){
-          const id = String(r?.receipt_id || r?.id || r?.job_id || "");
+          const id = String(r?.job_id || r?.id || r?.receipt_id || "");
           if (id) recIds.add(id);
           const ts = Number(r?.ts_ms || 0);
           if (ts > receiptsLastTsMs) receiptsLastTsMs = ts;
