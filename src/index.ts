@@ -47097,7 +47097,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         return path.join(dataDir(), "agent_v1", "receipts.jsonl");
       }
       function resultsFile(){
-        return path.join(dataDir(), "agent", "results.jsonl");
+        return path.join(dataDir(), "agent_v1", "job_state.jsonl");
       }
       function ledgerFile(){
         return path.join(dataDir(), "wc_v1", "ledger.jsonl");
@@ -47303,7 +47303,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         return path.join(dataDir(), "agent_v1", "receipts.jsonl");
       }
       function resultsFile(){
-        return path.join(dataDir(), "agent", "results.jsonl");
+        return path.join(dataDir(), "agent_v1", "job_state.jsonl");
       }
       function ledgerFile(){
         return path.join(dataDir(), "wc_v1", "ledger.jsonl");
