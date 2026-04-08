@@ -46780,51 +46780,52 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       if ((app as any).__agent_pick2_weighted_v2_runtime_truth__) return;
       (app as any).__agent_pick2_weighted_v2_runtime_truth__ = true;
 
-      app.get("/__void/agent/pick2/weighted.v2", async (req:any, res:any)=>{
+      app.get("/__void/agent/pick2/weighted.v2", async (_req:any, res:any)=>{
         try{
-          const token = String(req?.headers?.["x-agent-token"] || "");
-          const base = "http://127.0.0.1:" + String(process.env.HTTP_PORT || "4100");
+          const M:any = (globalThis as any).__void_pick2_v2_metrics || {};
+          const last:any = M.last || {};
+          const rejectByReason:any = M.reject_by_reason || {};
+          const chosenByTask:any = M.chosen_by_task || {};
+          const rejectSamples:any[] = Array.isArray(M.reject_samples) ? M.reject_samples.slice(-25).reverse() : [];
 
-          const r = await fetch(base + "/agent/v0/pick2", {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "x-agent-token": token
-            },
-            body: JSON.stringify({})
-          });
-
-          const j:any = await r.json().catch(() => null);
-          const job = j?.job || null;
+          const best = last && Object.keys(last).length ? {
+            id: String(last?.id || ""),
+            score: Number(last?.score || 0),
+            task_class: String(last?.task_class || ""),
+            dataset_id: String(last?.dataset_id || ""),
+            network_need_score: Number(last?.network_need_score || 0),
+            stale_for_ms: Number(last?.stale_for_ms || 0),
+            payload_bytes: Number(last?.payload_bytes || 0),
+            verify_component: Number(last?.verify_component || 0),
+            need_component: Number(last?.need_component || 0),
+            freshness_component: Number(last?.freshness_component || 0),
+            fairness_component: Number(last?.fairness_component || 0),
+            fairness_streak_penalty: Number(last?.fairness_streak_penalty || 0),
+            fairness_opposite_boost: Number(last?.fairness_opposite_boost || 0),
+            fairness_recent_count_penalty: Number(last?.fairness_recent_count_penalty || 0),
+            recent_task_streak_task: String(last?.recent_task_streak_task || ""),
+            recent_task_streak_len: Number(last?.recent_task_streak_len || 0),
+            difficulty_component: Number(last?.difficulty_component || 0),
+            cost_penalty: Number(last?.cost_penalty || 0),
+            abuse_penalty: Number(last?.abuse_penalty || 0),
+            reject_reason: String(last?.reject_reason || ""),
+            selection_policy: String(last?.selection_policy || "weighted_v2_fair_v2")
+          } : null;
 
           return res.json({
             ok: true,
             policy: "weighted_v2_runtime_truth",
-            source: "/agent/v0/pick2",
-            leaseMs: Number(j?.leaseMs || 0),
-            epochMs: Number(j?.epochMs || 0),
-            best: job ? {
-              id: String(job?.id || job?.job_id || ""),
-              score: Number(job?.selected_score || 0),
-              task_class: job?.selected_task_class || job?.task_class || job?.kind || null,
-              dataset_id: job?.selected_dataset_id || job?.dataset_id || null,
-              difficulty_bucket: job?.selected_difficulty_bucket || null,
-              network_need_score: Number(job?.selected_network_need_score || 0),
-              stale_for_ms: Number(job?.selected_stale_for_ms || 0),
-              selection_policy: job?.selection_policy || null,
-              selection_reason: job?.selection_reason || null
-            } : null,
-            ranked: job ? [{
-              id: String(job?.id || job?.job_id || ""),
-              score: Number(job?.selected_score || 0),
-              task_class: job?.selected_task_class || job?.task_class || job?.kind || null,
-              dataset_id: job?.selected_dataset_id || job?.dataset_id || null,
-              difficulty_bucket: job?.selected_difficulty_bucket || null,
-              network_need_score: Number(job?.selected_network_need_score || 0),
-              stale_for_ms: Number(job?.selected_stale_for_ms || 0),
-              selection_policy: job?.selection_policy || null,
-              selection_reason: job?.selection_reason || null
-            }] : []
+            source: "__void_pick2_v2_metrics",
+            chosen_total: Number(M?.chosen_total || 0),
+            reject_total: Number(M?.reject_total || 0),
+            chosen_by_task: chosenByTask,
+            reject_by_reason: rejectByReason,
+            recent_task_counts: M?.recent_task_counts || {},
+            recent_task_streak_task: String(M?.recent_task_streak_task || ""),
+            recent_task_streak_len: Number(M?.recent_task_streak_len || 0),
+            best,
+            ranked: best ? [best] : [],
+            reject_samples: rejectSamples
           });
         }catch(e:any){
           return res.status(500).json({ok:false, error:e?.message || "internal"});
