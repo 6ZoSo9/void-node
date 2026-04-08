@@ -39230,14 +39230,42 @@ a{color:#93c5fd;text-decoration:none}
       }
 
       const peers = await (async () => {
+        const out:any[] = [];
+        const seen = new Set<string>();
+
+        const addPeer = (httpBase:string, p2pAddr:string="") => {
+          const http = String(httpBase || "").trim();
+          if (!http) return;
+          if (seen.has(http)) return;
+          seen.add(http);
+          out.push({ http, p2p: String(p2pAddr || "").trim() });
+        };
+
         try {
+          const mainBase = String(process.env.VOID_MAIN_BASE || "").trim();
+          if (mainBase) addPeer(mainBase, String(process.env.BOOTSTRAP_ADDRS || "").trim());
+        } catch {}
+
+        try {
+          const peerBase = String(process.env.VOID_DRIFT_PEER || "").trim();
+          if (peerBase) addPeer(peerBase, "");
+        } catch {}
+
+        try {
+          const publicBase = String(process.env.PUBLIC_HTTP_BASE || "").trim();
           const selfBase = "http://127.0.0.1:" + String(process.env.HTTP_PORT || "4100");
           const r = await fetch(selfBase + "/peers/registry");
           const j:any = await r.json().catch(() => null);
-          return Array.isArray(j?.peers) ? j.peers : [];
-        } catch {
-          return [];
-        }
+          const arr = Array.isArray(j?.peers) ? j.peers : [];
+          for (const peer of arr) {
+            const http = String(peer?.http || "").trim();
+            if (!http) continue;
+            if (publicBase && http === publicBase) continue;
+            addPeer(http, String(peer?.p2p || "").trim());
+          }
+        } catch {}
+
+        return out;
       })();
 
       for (const peer of (Array.isArray(peers) ? peers : [])) {
