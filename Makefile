@@ -438,3 +438,7 @@ two-box-peer-proof-suite-quick-json:
 .PHONY: two-box-peer-proof-suite-export
 two-box-peer-proof-suite-export:
 	bash ops/two-box-peer-proof-suite-exporter.sh
+
+.PHONY: two-box-peer-suite-refresh
+two-box-peer-suite-refresh:
+	bash ops/two-box-peer-suite-refresh.sh
