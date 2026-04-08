@@ -422,3 +422,7 @@ two-box-peer-fetch-repair-proof:
 .PHONY: two-box-redundancy-check-proof
 two-box-redundancy-check-proof:
 	bash ops/two-box-redundancy-check-proof.sh
+
+.PHONY: two-box-peer-proof-suite
+two-box-peer-proof-suite:
+	bash ops/two-box-peer-proof-suite.sh

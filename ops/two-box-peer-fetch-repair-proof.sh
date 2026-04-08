@@ -5,7 +5,7 @@ set +o histexpand
 
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
 LOCAL_BASE="${LOCAL_BASE:-}"
-REMOTE_BASE="${REMOTE_BASE:-http://127.0.0.1:4100}"
+REMOTE_BASE="${REMOTE_BASE:-}"
 WHO="${WHO:-zoso}"
 
 cd "$HOME/dev/void-node"
@@ -57,6 +57,25 @@ pick_local_base() {
 
 LOCAL_BASE="$(pick_local_base)"
 echo "[info] LOCAL_BASE=${LOCAL_BASE}"
+
+pick_remote_base() {
+  if [ -n "${REMOTE_BASE:-}" ]; then
+    printf '%s\n' "$REMOTE_BASE"
+    return 0
+  fi
+
+  local guessed=""
+  guessed="$(ssh "$ALIEN" 'TS_IP_REMOTE="$(tailscale ip -4 | head -n 1 || true)"; if [ -n "$TS_IP_REMOTE" ]; then printf "http://%s:4100\n" "$TS_IP_REMOTE"; fi' 2>/dev/null || true)"
+  if [ -n "$guessed" ]; then
+    printf '%s\n' "$guessed"
+    return 0
+  fi
+
+  printf '%s\n' "http://127.0.0.1:4100"
+}
+
+REMOTE_BASE="$(pick_remote_base)"
+echo "[info] REMOTE_BASE=${REMOTE_BASE}"
 
 DATASET_ID="${DATASET_ID:-}"
 if [ -z "$DATASET_ID" ]; then
