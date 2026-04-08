@@ -412,3 +412,13 @@ quarantine-stale-local:
 
 restore-stale-local:
 	python3 ops/restore_quarantined_local_datasets.py
+
+
+.PHONY: two-box-peer-fetch-repair-proof
+
+two-box-peer-fetch-repair-proof:
+	bash ops/two-box-peer-fetch-repair-proof.sh
+
+.PHONY: two-box-redundancy-check-proof
+two-box-redundancy-check-proof:
+	bash ops/two-box-redundancy-check-proof.sh
