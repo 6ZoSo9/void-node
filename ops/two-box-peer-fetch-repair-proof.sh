@@ -4,11 +4,59 @@ set +H
 set +o histexpand
 
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
-LOCAL_BASE="${LOCAL_BASE:-http://127.0.0.1:4100}"
+LOCAL_BASE="${LOCAL_BASE:-}"
 REMOTE_BASE="${REMOTE_BASE:-http://127.0.0.1:4100}"
 WHO="${WHO:-zoso}"
 
 cd "$HOME/dev/void-node"
+
+pick_local_base() {
+  if [ -n "${LOCAL_BASE:-}" ]; then
+    printf '%s\n' "$LOCAL_BASE"
+    return 0
+  fi
+
+  if [ -n "${PUBLIC_HTTP_BASE:-}" ]; then
+    if curl -fsS --max-time 3 "${PUBLIC_HTTP_BASE}/health" >/dev/null 2>&1; then
+      printf '%s\n' "$PUBLIC_HTTP_BASE"
+      return 0
+    fi
+  fi
+
+  if command -v systemctl >/dev/null 2>&1; then
+    ENV_LINE="$(systemctl --user show void-node.service --property=Environment --no-pager 2>/dev/null || true)"
+    PUB="$(printf '%s\n' "$ENV_LINE" | sed -n 's/.*PUBLIC_HTTP_BASE=\([^ ]*\).*/\1/p' | head -n 1)"
+    if [ -n "$PUB" ]; then
+      if curl -fsS --max-time 3 "${PUB}/health" >/dev/null 2>&1; then
+        printf '%s\n' "$PUB"
+        return 0
+      fi
+    fi
+  fi
+
+  if command -v tailscale >/dev/null 2>&1; then
+    TS_IP="$(tailscale ip -4 2>/dev/null | head -n 1 || true)"
+    if [ -n "$TS_IP" ]; then
+      TS_BASE="http://${TS_IP}:4100"
+      if curl -fsS --max-time 3 "${TS_BASE}/health" >/dev/null 2>&1; then
+        printf '%s\n' "$TS_BASE"
+        return 0
+      fi
+    fi
+  fi
+
+  for base in "http://127.0.0.1:4100" "http://localhost:4100"; do
+    if curl -fsS --max-time 3 "${base}/health" >/dev/null 2>&1; then
+      printf '%s\n' "$base"
+      return 0
+    fi
+  done
+
+  printf '%s\n' "http://127.0.0.1:4100"
+}
+
+LOCAL_BASE="$(pick_local_base)"
+echo "[info] LOCAL_BASE=${LOCAL_BASE}"
 
 DATASET_ID="${DATASET_ID:-}"
 if [ -z "$DATASET_ID" ]; then
