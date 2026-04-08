@@ -8,6 +8,7 @@ cd "$HOME/dev/void-node"
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
 WHO="${WHO:-zoso}"
 QUICK_MODE="${QUICK_MODE:-0}"
+JSON_MODE="${JSON_MODE:-0}"
 
 START_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 START_MS="$(python3 - <<'PY'
@@ -91,6 +92,25 @@ pick_remote_base() {
   printf '%s\n' "http://127.0.0.1:4100"
 }
 
+json_line() {
+  python3 - <<'PY'
+import json, os
+payload = {
+  "ok": os.environ.get("JSON_OK", ""),
+  "quick_mode": os.environ.get("JSON_QUICK_MODE", ""),
+  "start_ts": os.environ.get("JSON_START_TS", ""),
+  "end_ts": os.environ.get("JSON_END_TS", ""),
+  "elapsed_ms": os.environ.get("JSON_ELAPSED_MS", ""),
+  "dataset_id": os.environ.get("JSON_DATASET_ID", ""),
+  "local_base": os.environ.get("JSON_LOCAL_BASE", ""),
+  "remote_base": os.environ.get("JSON_REMOTE_BASE", ""),
+  "peer_log": os.environ.get("JSON_PEER_LOG", ""),
+  "redundancy_log": os.environ.get("JSON_REDUND_LOG", ""),
+}
+print(json.dumps(payload, sort_keys=True))
+PY
+}
+
 DATASET_ID="$(pick_dataset_id)"
 test -n "$DATASET_ID"
 
@@ -104,6 +124,7 @@ echo "dataset_id=$DATASET_ID"
 echo "local_base=$LOCAL_BASE"
 echo "remote_base=$REMOTE_BASE"
 echo "quick_mode=$QUICK_MODE"
+echo "json_mode=$JSON_MODE"
 echo
 
 echo "=== preflight: local health ==="
@@ -138,6 +159,19 @@ PY
   echo "dataset_id=$DATASET_ID"
   echo "local_base=$LOCAL_BASE"
   echo "remote_base=$REMOTE_BASE"
+  if [ "$JSON_MODE" = "1" ]; then
+    JSON_OK="true" \
+    JSON_QUICK_MODE="1" \
+    JSON_START_TS="$START_TS" \
+    JSON_END_TS="$END_TS" \
+    JSON_ELAPSED_MS="$((END_MS - START_MS))" \
+    JSON_DATASET_ID="$DATASET_ID" \
+    JSON_LOCAL_BASE="$LOCAL_BASE" \
+    JSON_REMOTE_BASE="$REMOTE_BASE" \
+    JSON_PEER_LOG="" \
+    JSON_REDUND_LOG="" \
+    json_line
+  fi
   exit 0
 fi
 
@@ -176,3 +210,17 @@ echo "local_base=$LOCAL_BASE"
 echo "remote_base=$REMOTE_BASE"
 echo "peer_log=$PEER_LOG"
 echo "redundancy_log=$REDUND_LOG"
+
+if [ "$JSON_MODE" = "1" ]; then
+  JSON_OK="true" \
+  JSON_QUICK_MODE="$QUICK_MODE" \
+  JSON_START_TS="$START_TS" \
+  JSON_END_TS="$END_TS" \
+  JSON_ELAPSED_MS="$((END_MS - START_MS))" \
+  JSON_DATASET_ID="$DATASET_ID" \
+  JSON_LOCAL_BASE="$LOCAL_BASE" \
+  JSON_REMOTE_BASE="$REMOTE_BASE" \
+  JSON_PEER_LOG="$PEER_LOG" \
+  JSON_REDUND_LOG="$REDUND_LOG" \
+  json_line
+fi
