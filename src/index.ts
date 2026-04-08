@@ -31999,10 +31999,19 @@ try {
             }catch{}
           }
 
+          const requestedAccount = String(req.body?.account || "").trim();
+          const rowAccount = (x:any) => String(
+            x?.account ||
+            x?.meta?.account ||
+            x?.input?.account ||
+            ""
+          ).trim();
+
           const fairnessCounts = new Map<string, number>();
           for (const x of Array.from(latestRunnableById.values())){
             const id = rowId(x);
             if (!id) continue;
+            if (requestedAccount && rowAccount(x) !== requestedAccount) continue;
             const task = rowTaskClass(x);
             if (!rowIsRunnable(x)) continue;
             fairnessCounts.set(task, Number(fairnessCounts.get(task) || 0) + 1);
@@ -32116,6 +32125,7 @@ try {
               let reject_reason = "";
               if (!id) reject_reason = "missing_id";
               else if (!rowIsRunnable(x)) reject_reason = "not_runnable";
+              else if (requestedAccount && rowAccount(x) !== requestedAccount) reject_reason = "account_mismatch";
               else if (!task || task === "unknown") reject_reason = "unknown_task";
               else if ((task === "datanet_fetch_verify" || task === "datanet_redundancy_check") && !rowDatasetId(x)) reject_reason = "missing_dataset_id";
               else if (epochMs > 0 && (!Number.isFinite(rawTs) || rawTs <= 0 || rawTs < epochMs)) reject_reason = "pre_epoch";
@@ -32260,6 +32270,7 @@ try {
             id: String(chosen.id || ""),
             task_class: chosenTask,
             dataset_id: String(chosen.dataset_id || ""),
+            requested_account: String(requestedAccount || ""),
             score: Number(chosen.score || 0),
             network_need_score: Number(chosen.network_need_score || 0),
             stale_for_ms: Number(chosen.stale_for_ms || 0),
@@ -32299,6 +32310,7 @@ try {
           const outJob = {
             ...chosen.raw,
             id: chosen.id,
+            requested_account: requestedAccount || null,
             selection_reason: chosen.selection_reason,
             selected_task_class: chosen.task || chosen.raw?.selected_task_class || chosen.raw?.task_class || chosen.raw?.kind || null,
             selected_dataset_id: chosen.dataset_id || chosen.raw?.selected_dataset_id || chosen.raw?.dataset_id || null,

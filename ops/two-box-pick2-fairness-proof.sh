@@ -13,27 +13,37 @@ if [ -z "$TOKEN" ]; then
   exit 1
 fi
 
+RUN_ID="${RUN_ID:-$(date +%s)}"
+ACCOUNT="fairness-proof-${RUN_ID}"
+WORKER="fairness-proof-${RUN_ID}"
+
 DATASET_ID="$(find "$HOME/dev/void-node/data_a/datanet_v1/local_jobs" -maxdepth 1 -name 'ds_*.txt' | sed 's#.*/##; s#\.txt$##' | sort | tail -n 1)"
 test -n "$DATASET_ID"
 
 DATASET_PATH="$HOME/dev/void-node/data_a/datanet_v1/local_jobs/${DATASET_ID}.txt"
 EXPECTED_HASH="$(sha256sum "$DATASET_PATH" | awk '{print $1}')"
 
+echo "run_id=$RUN_ID"
+echo "account=$ACCOUNT"
+echo "worker=$WORKER"
 echo "dataset_id=$DATASET_ID"
 echo "expected_hash=$EXPECTED_HASH"
 
 python3 - <<PY > "$OUT/queued.json"
 import json, urllib.request
+
 base = "${BASE}"
 dataset_id = "${DATASET_ID}"
 expected_hash = "${EXPECTED_HASH}"
+account = "${ACCOUNT}"
+
 jobs = []
 for i in range(6):
     kind = "datanet_fetch_verify" if i % 2 == 0 else "datanet_redundancy_check"
     stale = 600000 + i * 1000
     need = 0.9 if kind == "datanet_fetch_verify" else 0.85
     body = {
-        "account": "fairness-proof",
+        "account": account,
         "kind": kind,
         "plaintext": json.dumps({
             "dataset_id": dataset_id,
@@ -52,9 +62,15 @@ for i in range(6):
             "safe_mode": False
         }
     }
-    req = urllib.request.Request(base + "/jobs/submit", data=json.dumps(body).encode(), headers={"content-type":"application/json"}, method="POST")
+    req = urllib.request.Request(
+        base + "/jobs/submit",
+        data=json.dumps(body).encode(),
+        headers={"content-type":"application/json"},
+        method="POST"
+    )
     with urllib.request.urlopen(req, timeout=15) as r:
         jobs.append(json.loads(r.read().decode()))
+
 print(json.dumps(jobs, indent=2))
 PY
 
@@ -65,7 +81,7 @@ for i in 1 2 3 4 5 6; do
   curl -fsS \
     -H "x-agent-token: $TOKEN" \
     -H 'content-type: application/json' \
-    --data '{"worker":"fairness-proof"}' \
+    --data "{\"worker\":\"$WORKER\",\"account\":\"$ACCOUNT\"}" \
     "$BASE/agent/v0/pick2" | jq -c . >> "$OUT/picks.jsonl"
 done
 
@@ -77,8 +93,10 @@ echo
 echo "=== summary ==="
 python3 - <<PY
 import json, collections, pathlib
+
 p = pathlib.Path("${OUT}/picks.jsonl")
 rows = [json.loads(line) for line in p.read_text().splitlines() if line.strip()]
+
 tasks = []
 policies = []
 reasons = []
@@ -87,6 +105,7 @@ for r in rows:
     tasks.append(str(j.get("selected_task_class") or j.get("task_class") or j.get("kind") or ""))
     policies.append(str(j.get("selection_policy") or ""))
     reasons.append(str(j.get("selection_reason") or ""))
+
 counts = collections.Counter(tasks)
 max_streak = 0
 cur = 0
@@ -98,7 +117,10 @@ for t in tasks:
         cur = 1
         prev = t
     max_streak = max(max_streak, cur)
+
 print(json.dumps({
+    "account": "${ACCOUNT}",
+    "worker": "${WORKER}",
     "tasks": tasks,
     "counts": dict(counts),
     "max_streak": max_streak,
