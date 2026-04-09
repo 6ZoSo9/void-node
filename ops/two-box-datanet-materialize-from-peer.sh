@@ -4,7 +4,7 @@ set +H
 set +o histexpand
 
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
-LOCAL_BASE="${LOCAL_BASE:-http://127.0.0.1:4100}"
+LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}"
 REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}"
 WHO="${WHO:-zoso}"
 LIMIT="${LIMIT:-5}"
@@ -72,12 +72,13 @@ git describe --tags --abbrev=0 2>/dev/null || true
 ' | tee "$OUT/remote.truth.txt"
 
 echo
+echo
 echo "=== [2] fetch current provenance truth ==="
 curl -fsS --max-time 15 "$LOCAL_BASE/__void/diag/jobs-and-datanet-worker-v1.json" > "$OUT/local.worker.before.json"
-ssh "$ALIEN" '
+ssh "$ALIEN" "REMOTE_BASE='$REMOTE_BASE' bash -s" > "$OUT/remote.worker.before.json" <<'REMOTE'
 set -euo pipefail
-curl -fsS --max-time 15 http://127.0.0.1:4100/__void/diag/jobs-and-datanet-worker-v1.json
-' > "$OUT/remote.worker.before.json"
+curl -fsS --max-time 15 "$REMOTE_BASE/__void/diag/jobs-and-datanet-worker-v1.json"
+REMOTE
 
 python3 - "$OUT/local.worker.before.json" "$OUT/remote.worker.before.json" <<'PY' | tee "$OUT/provenance.before.summary.json"
 from pathlib import Path
@@ -215,6 +216,10 @@ done < "$OUT/targets.list"
 echo
 echo "=== [6] provenance after materialization ==="
 curl -fsS --max-time 15 "$LOCAL_BASE/__void/diag/jobs-and-datanet-worker-v1.json" > "$OUT/local.worker.after.json"
+ssh "$ALIEN" "REMOTE_BASE='$REMOTE_BASE' bash -s" > "$OUT/remote.worker.after.json" <<'REMOTE'
+set -euo pipefail
+curl -fsS --max-time 15 "$REMOTE_BASE/__void/diag/jobs-and-datanet-worker-v1.json"
+REMOTE
 python3 - "$OUT/local.worker.before.json" "$OUT/local.worker.after.json" <<'PY' | tee "$OUT/provenance.after.summary.json"
 from pathlib import Path
 import json, sys

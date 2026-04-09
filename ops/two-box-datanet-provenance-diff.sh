@@ -4,7 +4,7 @@ set +H
 set +o histexpand
 
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
-LOCAL_BASE="${LOCAL_BASE:-http://127.0.0.1:4100}"
+LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}"
 REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}"
 OUT="${OUT:-/tmp/two-box-datanet-provenance-diff-$(date +%Y%m%d-%H%M%S)}"
 
@@ -26,12 +26,13 @@ git describe --tags --abbrev=0 2>/dev/null || true
 ' | tee "$OUT/remote.truth.txt"
 
 echo
+echo
 echo "=== [2] fetch worker diag provenance ==="
 curl -fsS --max-time 15 "$LOCAL_BASE/__void/diag/jobs-and-datanet-worker-v1.json" > "$OUT/local.worker.json"
-ssh "$ALIEN" '
+ssh "$ALIEN" "REMOTE_BASE='$REMOTE_BASE' bash -s" > "$OUT/remote.worker.json" <<'REMOTE'
 set -euo pipefail
-curl -fsS --max-time 15 http://127.0.0.1:4100/__void/diag/jobs-and-datanet-worker-v1.json
-' > "$OUT/remote.worker.json"
+curl -fsS --max-time 15 "$REMOTE_BASE/__void/diag/jobs-and-datanet-worker-v1.json"
+REMOTE
 
 python3 - "$OUT/local.worker.json" "$OUT/remote.worker.json" <<'PY' | tee "$OUT/provenance-summary.json"
 from pathlib import Path
