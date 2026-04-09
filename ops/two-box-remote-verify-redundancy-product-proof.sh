@@ -185,11 +185,15 @@ sel = obj.get("selection") or {}
 print(sel.get("dataset_id") or "")
 PY
 )"
-  if [ "$PREVIEW_TASK" = "datanet_fetch_verify" ] && [ -n "$PREVIEW_DATASET" ]; then
+  if [ "$PREVIEW_TASK" = "datanet_fetch_verify" ] && [ "$PREVIEW_DATASET" = "$SEED_DATASET_ID" ]; then
     break
   fi
   sleep 2
 done
+if [ "${PREVIEW_DATASET:-}" != "$SEED_DATASET_ID" ]; then
+  echo '{"ok":false,"error":"seed_dataset_never_became_verify_target","seed_dataset_id":"'"$SEED_DATASET_ID"'","preview_dataset":"'"${PREVIEW_DATASET:-}"'"}'
+  exit 1
+fi
 
 echo "--- tick until verify observed ---"
 for i in $(seq 1 12); do
