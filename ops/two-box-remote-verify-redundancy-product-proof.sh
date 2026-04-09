@@ -259,8 +259,6 @@ print(json.dumps({
   "allow_datanet_publish": False,
   "allow_datanet_fetch_verify": False,
   "allow_datanet_redundancy_check": True,
-  "min_submit_gap_ms": 2000,
-  "max_jobs_per_hour": 20,
   "safe_mode": False
 }, separators=(',', ':')))
 PY
@@ -269,15 +267,15 @@ curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.1
 import json, sys
 print(json.dumps({
   "account": sys.argv[1],
-  "enabled": True
+  "enabled": False
 }, separators=(',', ':')))
 PY
 )"
-sleep 8
+sleep 6
 
 echo
 echo "--- tick until redundancy observed ---"
-for i in $(seq 1 20); do
+for i in $(seq 1 12); do
   curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
 print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
@@ -329,7 +327,7 @@ PY
   if [ -n "$REDUNDANCY_JOB_ID" ] && [ -n "$REDUNDANCY_RECEIPT_ID" ] && [ -n "$REDUNDANCY_DATASET_ID" ]; then
     break
   fi
-  sleep 2
+  sleep 6
 done
 export REDUNDANCY_JOB_ID REDUNDANCY_DATASET_ID REDUNDANCY_RECEIPT_ID
 
