@@ -446,3 +446,13 @@ two-box-peer-suite-refresh:
 .PHONY: pick2-isolated-proof-export
 pick2-isolated-proof-export:
 	bash ops/pick2-isolated-proof-exporter.sh
+
+.PHONY: pick2-isolated-proof-run
+pick2-isolated-proof-run:
+	bash ops/pick2-isolated-proof-runner.sh
+
+.PHONY: pick2-isolated-proof-cycle
+pick2-isolated-proof-cycle:
+	bash ops/pick2-isolated-proof-runner.sh
+	bash ops/pick2-isolated-proof-exporter.sh
+
