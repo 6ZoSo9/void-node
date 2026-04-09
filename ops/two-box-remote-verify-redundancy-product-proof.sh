@@ -250,6 +250,10 @@ PY
   fi
   sleep 2
 done
+if [ -z "${VERIFY_JOB_ID:-}" ] || [ -z "${VERIFY_RECEIPT_ID:-}" ] || [ -z "${VERIFY_DATASET_ID:-}" ]; then
+  echo '{"ok":false,"error":"verify_phase_missing_ids","verify_job_id":"'"${VERIFY_JOB_ID:-}"'","verify_receipt_id":"'"${VERIFY_RECEIPT_ID:-}"'","verify_dataset_id":"'"${VERIFY_DATASET_ID:-}"'"}'
+  exit 1
+fi
 export VERIFY_JOB_ID VERIFY_DATASET_ID VERIFY_RECEIPT_ID
 echo "--- submit redundancy job directly after verify ---"
 BODY="$(python3 - "$ACCOUNT" "$VERIFY_DATASET_ID" "$HOME/dev/void-node/data_a/datanet_v1/local_jobs/${VERIFY_DATASET_ID}.txt" <<'PY'
