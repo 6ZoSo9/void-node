@@ -50,7 +50,7 @@ print(json.dumps({
 }, separators=(',', ':')))
 PY
 )"
-curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://127.0.0.1:4100/jobs/submit --data "$BODY" > /tmp/vr-seed-submit.json
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-seed-submit.json
 cat /tmp/vr-seed-submit.json
 echo
 
@@ -66,7 +66,7 @@ export SEED_JOB_ID
 SEED_RECEIPT_ID=""
 SEED_DATASET_ID=""
 for i in $(seq 1 12); do
-  curl -fsS --max-time 15 "http://127.0.0.1:4100/__void/diag/jobs-and-datanet-worker-v1.json" > /tmp/vr-seed-worker-diag.json
+  curl -fsS --max-time 15 "http://100.122.79.39:4100/__void/diag/jobs-and-datanet-worker-v1.json" > /tmp/vr-seed-worker-diag.json
   SEED_RECEIPT_ID="$(python3 - /tmp/vr-seed-worker-diag.json <<'PY'
 import json, sys
 obj = json.load(open(sys.argv[1]))
@@ -105,7 +105,7 @@ fi
 
 echo
 echo "--- enable verify + redundancy and runner ---"
-curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://127.0.0.1:4100/wc/runner/config --data "$(python3 - "$ACCOUNT" <<'PY'
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/config --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
 print(json.dumps({
   "account": sys.argv[1],
@@ -119,7 +119,7 @@ print(json.dumps({
 PY
 )"
 echo
-curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://127.0.0.1:4100/wc/runner/set --data "$(python3 - "$ACCOUNT" <<'PY'
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/set --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
 print(json.dumps({"account": sys.argv[1], "enabled": True}, separators=(',', ':')))
 PY
@@ -136,13 +136,13 @@ REDUNDANCY_RECEIPT_ID=""
 echo
 echo "--- tick until verify observed ---"
 for i in $(seq 1 12); do
-  curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://127.0.0.1:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'
+  curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
 print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
 PY
 )" > /tmp/vr-tick.json || true
 
-  STATUS_JSON="$(curl -fsS --max-time 15 "http://127.0.0.1:4100/wc/runner/status?account=$ACCOUNT")"
+  STATUS_JSON="$(curl -fsS --max-time 15 "http://100.122.79.39:4100/wc/runner/status?account=$ACCOUNT")"
   export STATUS_JSON
   TASK="$(python3 - <<'PY'
 import json, os
@@ -197,13 +197,13 @@ sleep 7
 echo
 echo "--- tick until redundancy observed ---"
 for i in $(seq 1 20); do
-  curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://127.0.0.1:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'
+  curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
 print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
 PY
 )" > /tmp/vr-tick2.json || true
 
-  STATUS_JSON="$(curl -fsS --max-time 15 "http://127.0.0.1:4100/wc/runner/status?account=$ACCOUNT")"
+  STATUS_JSON="$(curl -fsS --max-time 15 "http://100.122.79.39:4100/wc/runner/status?account=$ACCOUNT")"
   export STATUS_JSON
   TASK="$(python3 - <<'PY'
 import json, os
