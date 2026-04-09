@@ -37727,7 +37727,7 @@ a{color:#93c5fd;text-decoration:none}
         const maxPickStaleMs = Math.max(60000, Number(process.env.VOID_AGENT_MAX_STALE_MS || 7 * 24 * 60 * 60 * 1000));
 
         let chosen:any = null;
-        let chosenTs = Number.POSITIVE_INFINITY;
+        let chosenScore = Number.NEGATIVE_INFINITY;
 
         for (const f of files) {
           const datasetId = String(f).replace(/\.txt$/i, "");
@@ -37739,8 +37739,12 @@ a{color:#93c5fd;text-decoration:none}
           const age = basis > 0 ? (now - basis) : (2 * 60 * 60 * 1000);
           if (age < verifyCooldownMs) continue;
           if (age > maxPickStaleMs) continue;
-          if (basis < chosenTs) {
-            chosenTs = basis;
+
+          const isFreshUnverifiedProofDataset = isProofAccount && last <= 0 && fileMtimeMs > 0;
+          const score = isFreshUnverifiedProofDataset ? fileMtimeMs : (-basis);
+
+          if (score > chosenScore) {
+            chosenScore = score;
             chosen = {
               dataset_id: datasetId,
               path: fullPath,
@@ -37780,7 +37784,7 @@ a{color:#93c5fd;text-decoration:none}
         const maxPickStaleMs = Math.max(60000, Number(process.env.VOID_AGENT_MAX_STALE_MS || 7 * 24 * 60 * 60 * 1000));
 
         let chosen:any = null;
-        let chosenTs = Number.POSITIVE_INFINITY;
+        let chosenScore = Number.NEGATIVE_INFINITY;
 
         for (const f of files) {
           const datasetId = String(f).replace(/\.txt$/i, "");
@@ -37792,8 +37796,12 @@ a{color:#93c5fd;text-decoration:none}
           const age = basis > 0 ? (now - basis) : (8 * 60 * 60 * 1000);
           if (age < redundancyCooldownMs) continue;
           if (age > maxPickStaleMs) continue;
-          if (basis < chosenTs) {
-            chosenTs = basis;
+
+          const isFreshUncheckedProofDataset = isProofAccount && last <= 0 && fileMtimeMs > 0;
+          const score = isFreshUncheckedProofDataset ? fileMtimeMs : (-basis);
+
+          if (score > chosenScore) {
+            chosenScore = score;
             chosen = {
               dataset_id: datasetId,
               path: fullPath,
