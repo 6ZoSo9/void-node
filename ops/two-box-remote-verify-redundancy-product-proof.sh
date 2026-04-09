@@ -268,18 +268,18 @@ if not path.exists():
     raise SystemExit(f"missing dataset file: {path}")
 
 data = path.read_bytes()
+plaintext = json.dumps({
+  "dataset_id": dataset_id,
+  "expected_input_hash": hashlib.sha256(data).hexdigest(),
+  "stale_for_ms": 6 * 60 * 60 * 1000,
+  "difficulty_bucket": "low",
+  "network_need_score": 0.2
+}, separators=(',', ':'))
+
 payload = {
   "account": account,
   "kind": "datanet_redundancy_check",
-  "input": {
-    "plaintext": json.dumps({
-      "dataset_id": dataset_id,
-      "expected_input_hash": hashlib.sha256(data).hexdigest(),
-      "stale_for_ms": 6 * 60 * 60 * 1000,
-      "difficulty_bucket": "low",
-      "network_need_score": 0.2
-    }, separators=(',', ':'))
-  }
+  "plaintext": plaintext
 }
 print(json.dumps(payload, separators=(',', ':')))
 PY
