@@ -54,8 +54,12 @@ bash ops/two-box-remote-participant-js-parse-proof.sh | tee "$OUT/participant-js
 step "[9] weighted pick2 mixed proof"
 TOKEN="${TOKEN:-${VOID_AGENT_TOKEN:-${AGENT_TOKEN:-dev-agent-local-20260409}}}" bash ops/pick2-weighted-mixed-proof.sh | tee "$OUT/weighted-pick2-mixed-proof.log"
 
-step "[10] summarize"
-python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" "$OUT/consumer-fetch-product-proof.log" "$OUT/consume-view-product-proof.log" "$OUT/participant-js-parse-proof.log" "$OUT/weighted-pick2-mixed-proof.log" <<'PY'
+step "[10] datanet operator cycle apply"
+APPLY=1 LIMIT="${LIMIT:-3}" WHO="${WHO:-zoso}" \
+bash ops/two-box-datanet-operator-cycle.sh | tee "$OUT/datanet-operator-cycle.log"
+
+step "[11] summarize"
+python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" "$OUT/consumer-fetch-product-proof.log" "$OUT/consume-view-product-proof.log" "$OUT/participant-js-parse-proof.log" "$OUT/weighted-pick2-mixed-proof.log" "$OUT/datanet-operator-cycle.log" <<'PY'
 from pathlib import Path
 import json
 import sys
@@ -170,6 +174,14 @@ def parse_weighted_pick2(txt: str):
         "has_summary": has_summary,
     }
 
+def parse_datanet_operator_cycle(txt: str):
+    ok = '[ok] proof bundle:' in txt and '"expected_after_remote_only_jobs_count"' in txt and '"fetched_or_materialized_count"' in txt
+    applied = '=== [3] bounded materialize ===' in txt or '=== [3] bounded materialize apply ===' in txt
+    return {
+        "ok": ok,
+        "applied": applied,
+    }
+
 jobs_txt = Path(sys.argv[1]).read_text()
 view_txt = Path(sys.argv[2]).read_text()
 vr_txt = Path(sys.argv[3]).read_text()
@@ -178,6 +190,7 @@ cf_txt = Path(sys.argv[5]).read_text()
 cv_txt = Path(sys.argv[6]).read_text()
 pj_txt = Path(sys.argv[7]).read_text()
 wp_txt = Path(sys.argv[8]).read_text()
+op_txt = Path(sys.argv[9]).read_text()
 
 summary = {
     "jobs_submit_product_proof": parse_jobs_submit(jobs_txt),
@@ -188,6 +201,7 @@ summary = {
     "consume_view_product_proof": parse_consume_view(cv_txt),
     "participant_js_parse_proof": parse_participant_js(pj_txt),
     "weighted_pick2_mixed_proof": parse_weighted_pick2(wp_txt),
+    "datanet_operator_cycle_apply": parse_datanet_operator_cycle(op_txt),
 }
 summary["golden_ok"] = (
     summary["jobs_submit_product_proof"]["ok"] and
@@ -215,7 +229,9 @@ summary["golden_ok"] = (
     summary["participant_js_parse_proof"]["ok"] and
     summary["participant_js_parse_proof"]["parse_ok"] and
     summary["weighted_pick2_mixed_proof"]["ok"] and
-    summary["weighted_pick2_mixed_proof"]["has_summary"]
+    summary["weighted_pick2_mixed_proof"]["has_summary"] and
+    summary["datanet_operator_cycle_apply"]["ok"] and
+    summary["datanet_operator_cycle_apply"]["applied"]
 )
 print(json.dumps(summary, indent=2))
 if not summary["golden_ok"]:
