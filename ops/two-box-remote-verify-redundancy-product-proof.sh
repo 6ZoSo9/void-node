@@ -287,6 +287,7 @@ PY
 curl -sS -i --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-redundancy-submit.http
 echo "--- redundancy submit raw response ---"
 cat /tmp/vr-redundancy-submit.http || true
+echo
 REDUNDANCY_JOB_ID=""
 
 REDUNDANCY_RECEIPT_ID=""
