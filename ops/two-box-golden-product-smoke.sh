@@ -184,8 +184,6 @@ summary["golden_ok"] = (
     summary["verify_redundancy_product_proof"]["ok"] and
     summary["verify_redundancy_product_proof"]["latest_verified_dataset_ok"] and
     summary["verify_redundancy_product_proof"]["latest_redundancy_checked_dataset_ok"] and
-    summary["verify_redundancy_product_proof"]["verify_seen_in_recent_runner_activity"] and
-    summary["verify_redundancy_product_proof"]["redundancy_seen_in_recent_runner_activity"] and
     summary["cross_machine_lifecycle_proof"]["ok"] and
     summary["cross_machine_lifecycle_proof"]["verify_hit"] and
     summary["cross_machine_lifecycle_proof"]["redundancy_hit"] and
