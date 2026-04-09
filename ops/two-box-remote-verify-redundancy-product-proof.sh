@@ -251,37 +251,32 @@ PY
   sleep 2
 done
 export VERIFY_JOB_ID VERIFY_DATASET_ID VERIFY_RECEIPT_ID
-echo "--- switch proof account to redundancy-only after verify ---"
-curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/config --data "$(python3 - "$ACCOUNT" <<'PY'
+echo "--- submit redundancy job directly after verify ---"
+BODY="$(python3 - "$ACCOUNT" "$VERIFY_DATASET_ID" <<'PY'
 import json, sys
 print(json.dumps({
   "account": sys.argv[1],
-  "allow_datanet_publish": False,
-  "allow_datanet_fetch_verify": False,
-  "allow_datanet_redundancy_check": True,
-  "safe_mode": False
+  "kind": "datanet_redundancy_check",
+  "input": {
+    "plaintext": json.dumps({
+      "dataset_id": sys.argv[2]
+    }, separators=(',', ':'))
+  }
 }, separators=(',', ':')))
 PY
 )"
-curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/set --data "$(python3 - "$ACCOUNT" <<'PY'
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-redundancy-submit.json
+REDUNDANCY_JOB_ID="$(python3 - /tmp/vr-redundancy-submit.json <<'PY'
 import json, sys
-print(json.dumps({
-  "account": sys.argv[1],
-  "enabled": False
-}, separators=(',', ':')))
+obj = json.load(open(sys.argv[1]))
+job = obj.get("job") or {}
+print(job.get("job_id") or obj.get("job_id") or "")
 PY
 )"
-sleep 6
 
-echo
-echo "--- tick until redundancy observed ---"
-for i in $(seq 1 12); do
-  curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'
-import json, sys
-print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
-PY
-)" > /tmp/vr-tick2.json || true
-
+REDUNDANCY_RECEIPT_ID=""
+REDUNDANCY_DATASET_ID=""
+for i in $(seq 1 30); do
   python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" "$VERIFY_DATASET_ID" > /tmp/vr-redundancy-hit.json <<'PY'
 from pathlib import Path
 import json, sys
@@ -327,7 +322,7 @@ PY
   if [ -n "$REDUNDANCY_JOB_ID" ] && [ -n "$REDUNDANCY_RECEIPT_ID" ] && [ -n "$REDUNDANCY_DATASET_ID" ]; then
     break
   fi
-  sleep 6
+  sleep 2
 done
 export REDUNDANCY_JOB_ID REDUNDANCY_DATASET_ID REDUNDANCY_RECEIPT_ID
 
