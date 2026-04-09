@@ -287,7 +287,7 @@ PY
   python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" "$VERIFY_DATASET_ID" > /tmp/vr-redundancy-hit.json <<'PY'
 from pathlib import Path
 import json, sys
-p = Path(sys.argv[1]); account = sys.argv[2]; seed_dataset_id = sys.argv[3]
+p = Path(sys.argv[1]); account = sys.argv[2]; target_dataset_id = sys.argv[3]
 out = {"job_id":"", "receipt_id":"", "dataset_id":""}
 if p.exists():
     for line in p.read_text().splitlines():
