@@ -7,9 +7,10 @@ ALIEN="${ALIEN:-zoso@100.122.79.39}"
 LIMIT="${LIMIT:-3}"
 WHO="${WHO:-zoso}"
 APPLY="${APPLY:-0}"
+REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}"
 
 echo "=== [1] sync remote to current main ==="
-ssh "$ALIEN" '
+ssh "$ALIEN" "REMOTE_BASE='$REMOTE_BASE' bash -s" <<'REMOTE'
 set -euo pipefail
 cd "$HOME/dev/void-node"
 git fetch origin
@@ -18,9 +19,9 @@ git reset --hard origin/main
 systemctl --user restart void-node.service
 sleep 2
 git rev-parse --short HEAD
-curl -fsS http://127.0.0.1:4100/health
+curl -fsS "$REMOTE_BASE/health"
 echo
-'
+REMOTE
 
 echo
 echo "=== [2] provenance diff before ==="
