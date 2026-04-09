@@ -28,7 +28,7 @@ git describe --tags --abbrev=0 2>/dev/null || true
 
 echo
 echo "=== [2] provenance diff before ==="
-LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="${REMOTE_BASE:-http://127.0.0.1:4100}" bash ops/two-box-datanet-provenance-diff.sh | tee "$OUT/provenance-diff-before.txt"
+LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}" bash ops/two-box-datanet-provenance-diff.sh | tee "$OUT/provenance-diff-before.txt"
 
 python3 - "$OUT/provenance-diff-before.txt" <<'PY' > "$OUT/before.json"
 from pathlib import Path
@@ -70,7 +70,7 @@ PY
 
 echo
 echo "=== [3] bounded materialize apply ==="
-LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="${REMOTE_BASE:-http://127.0.0.1:4100}" APPLY=1 LIMIT="$LIMIT" WHO="$WHO" bash ops/two-box-datanet-materialize-from-peer.sh | tee "$OUT/materialize.txt"
+LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}" APPLY=1 LIMIT="$LIMIT" WHO="$WHO" bash ops/two-box-datanet-materialize-from-peer.sh | tee "$OUT/materialize.txt"
 
 python3 - "$OUT/materialize.txt" <<'PY' > "$OUT/materialize-summary.json"
 from pathlib import Path
@@ -131,7 +131,7 @@ PY
 
 echo
 echo "=== [4] provenance diff after ==="
-LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="${REMOTE_BASE:-http://127.0.0.1:4100}" bash ops/two-box-datanet-provenance-diff.sh | tee "$OUT/provenance-diff-after.txt"
+LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}" bash ops/two-box-datanet-provenance-diff.sh | tee "$OUT/provenance-diff-after.txt"
 
 python3 - "$OUT/provenance-diff-after.txt" <<'PY' > "$OUT/after.json"
 from pathlib import Path
