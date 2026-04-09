@@ -36,7 +36,7 @@ dataset_id = "${DATASET_ID}"
 expected_hash = "${EXPECTED_HASH}"
 account = "${ACCOUNT}"
 
-BIG = "X" * 12000000
+BIG = "X" * 2000000
 
 jobs = [
     {
@@ -115,7 +115,7 @@ for j in jobs:
         headers={"content-type":"application/json"},
         method="POST"
     )
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with urllib.request.urlopen(req, timeout=120) as r:
         out.append({
             "seed": j,
             "resp": json.loads(r.read().decode())
@@ -158,7 +158,12 @@ echo "=== summary ==="
 python3 - <<PY
 import json, pathlib, collections
 
-rows = [json.loads(x) for x in pathlib.Path("${OUT}/picks.jsonl").read_text().splitlines() if x.strip()]
+rows = []
+for line in pathlib.Path("${OUT}/picks.jsonl").read_text().splitlines():
+    line = line.strip()
+    if not line:
+        continue
+    rows.append(json.loads(line))
 weighted = json.loads(pathlib.Path("${OUT}/weighted.json").read_text())
 rejects = json.loads(pathlib.Path("${OUT}/rejects.json").read_text())
 

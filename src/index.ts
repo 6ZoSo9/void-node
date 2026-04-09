@@ -32449,8 +32449,13 @@ try {
 
           for (const r of rankedAll){
             if (r?.hard_reject){
-              PICK2V2_METRICS.reject_total = Number(PICK2V2_METRICS.reject_total || 0) + 1;
               const rr = String(r?.reject_reason || "unknown");
+
+              // When the caller requested a specific account, account_mismatch is expected filtering noise.
+              // Keep it out of shared reject surfaces so real reject reasons stay visible.
+              if (requestedAccount && rr === "account_mismatch") continue;
+
+              PICK2V2_METRICS.reject_total = Number(PICK2V2_METRICS.reject_total || 0) + 1;
               PICK2V2_METRICS.reject_by_reason[rr] = Number(PICK2V2_METRICS.reject_by_reason[rr] || 0) + 1;
 
               PICK2V2_METRICS.reject_samples.push({
