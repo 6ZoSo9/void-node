@@ -128,10 +128,10 @@ print(json.dumps({
   "max_jobs_per_hour": 20,
   "allow_datanet_publish": False,
   "allow_datanet_fetch_verify": True,
-  "allow_datanet_redundancy_check": True
-}, separators=(',', ':')))
-PY
-)"
+  "allow_datanet_redundancy_check": False,
+  "target_publish_share": 0.0,
+  "target_verify_share": 1.0,
+  "target_redundancy_share": 0.0,
 echo
 curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/set --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
