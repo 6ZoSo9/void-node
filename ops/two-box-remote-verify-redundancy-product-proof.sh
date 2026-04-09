@@ -137,11 +137,16 @@ echo
 echo
 echo "--- wait until seeded dataset becomes selectable for verify ---"
 for i in $(seq 1 12); do
-  STATUS_JSON="$(curl -fsS --max-time 15 \"http://100.122.79.39:4100/wc/runner/status?account=$ACCOUNT\" || true)"
-  export STATUS_JSON
-  PREVIEW_TASK="$(python3 - <<\'PY\'
-import json, os
-raw = os.environ.get("STATUS_JSON", "").strip()
+  curl -fsS --max-time 15 "http://100.122.79.39:4100/wc/runner/status?account=$ACCOUNT" > /tmp/vr-preview-status.json || true
+
+  PREVIEW_TASK="$(python3 - /tmp/vr-preview-status.json <<'PY'
+from pathlib import Path
+import json, sys
+p = Path(sys.argv[1])
+if not p.exists():
+    print("")
+    raise SystemExit(0)
+raw = p.read_text().strip()
 if not raw:
     print("")
     raise SystemExit(0)
@@ -150,9 +155,14 @@ sel = obj.get("selection") or {}
 print(sel.get("task_class") or "")
 PY
 )"
-  PREVIEW_DATASET="$(python3 - <<\'PY\'
-import json, os
-raw = os.environ.get("STATUS_JSON", "").strip()
+  PREVIEW_DATASET="$(python3 - /tmp/vr-preview-status.json <<'PY'
+from pathlib import Path
+import json, sys
+p = Path(sys.argv[1])
+if not p.exists():
+    print("")
+    raise SystemExit(0)
+raw = p.read_text().strip()
 if not raw:
     print("")
     raise SystemExit(0)
@@ -167,7 +177,6 @@ PY
   sleep 2
 done
 
-echo
 echo "--- tick until verify observed ---"
 for i in $(seq 1 12); do
   curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'
