@@ -1,1 +1,458 @@
-#!/usr/bin/env bash\nset -euo pipefail\nset +H\nset +o histexpand\n\nALIEN="${ALIEN:-zoso@100.122.79.39}"\nREMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"\nOUT="${OUT:-/tmp/two-box-remote-verify-redundancy-product-proof-$(date +%Y%m%d-%H%M%S)}"\nmkdir -p "$OUT"\n\njget() {\n  curl -fsS --max-time "${2:-20}" "$1"\n}\n\necho "=== [1] local + remote truth ==="\ngit branch --show-current | tee "$OUT/local.branch.txt"\ngit rev-parse --short HEAD | tee "$OUT/local.head.txt"\ngit describe --tags --abbrev=0 2>/dev/null | tee "$OUT/local.tag.txt" || true\nssh "$ALIEN" '\nset -euo pipefail\ncd "$HOME/dev/void-node"\necho "--- remote branch ---"\ngit branch --show-current\necho "--- remote head ---"\ngit rev-parse --short HEAD\necho "--- remote latest tag ---"\ngit describe --tags --abbrev=0 2>/dev/null || true\n' | tee "$OUT/remote.truth.txt"\n\necho\necho "=== [2] remote seed publish, enable runner, and drive verify/redundancy ==="\nssh "$ALIEN" 'bash -s' <<'REMOTE' | tee "$OUT/remote.summary.json"\nset -euo pipefail\nset +H\nset +o histexpand\n\ncd "$HOME/dev/void-node"\n\nACCOUNT="runner-proof-live-verify-redundancy-$(date +%Y%m%d-%H%M%S)"\nPLAINTEXT="verify redundancy proof seed $(date +%Y%m%d-%H%M%S)"\nexport ACCOUNT\n\necho "--- seed publish through proven route ---"\nBODY="$(python3 - "$ACCOUNT" "$PLAINTEXT" <<'PY'\nimport json, sys\nprint(json.dumps({\n    "account": sys.argv[1],\n    "kind": "datanet_publish",\n    "plaintext": sys.argv[2]\n}, separators=(',', ':')))\nPY\n)"\ncurl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-seed-submit.json\ncat /tmp/vr-seed-submit.json\necho\n\nSEED_JOB_ID="$(python3 - /tmp/vr-seed-submit.json <<'PY'\nimport json, sys\nobj = json.load(open(sys.argv[1]))\njob = obj.get("job") or {}\nprint(job.get("job_id") or job.get("id") or obj.get("job_id") or obj.get("id") or "")\nPY\n)"\nexport SEED_JOB_ID\n\nSEED_RECEIPT_ID=""\nSEED_DATASET_ID=""\nfor i in $(seq 1 12); do\n  curl -fsS --max-time 15 "http://100.122.79.39:4100/__void/diag/jobs-and-datanet-worker-v1.json" > /tmp/vr-seed-worker-diag.json\n  SEED_RECEIPT_ID="$(python3 - /tmp/vr-seed-worker-diag.json <<'PY'\nimport json, sys\nobj = json.load(open(sys.argv[1]))\nprint(obj.get("last_receipt_id") or "")\nPY\n)"\n  SEED_DATASET_ID="$(python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$SEED_JOB_ID" <<'PY'\nfrom pathlib import Path\nimport json, sys\np = Path(sys.argv[1])\njob_id = sys.argv[2]\ndataset_id = ""\nif p.exists():\n    for line in p.read_text().splitlines():\n        if not line.strip():\n            continue\n        try:\n            obj = json.loads(line)\n        except:\n            continue\n        if str(obj.get("job_id","")) == job_id:\n            dataset_id = str(obj.get("dataset_id",""))\nprint(dataset_id)\nPY\n)"\n  [ -n "$SEED_DATASET_ID" ] && break\n  sleep 2\ndone\nexport SEED_RECEIPT_ID\nexport SEED_DATASET_ID\n\nif [ -z "$SEED_JOB_ID" ] || [ -z "$SEED_DATASET_ID" ]; then\n  echo '{"ok":false,"error":"seed_publish_missing_ids"}'\n  exit 1\nfi\n\necho\necho "--- wait for seeded local dataset file ---"\nSEED_LOCAL_FILE="$HOME/dev/void-node/data_a/datanet_v1/local_jobs/${SEED_DATASET_ID}.txt"\nfor i in $(seq 1 20); do\n  if [ -s "$SEED_LOCAL_FILE" ]; then\n    break\n  fi\n  sleep 1\ndone\nif [ ! -s "$SEED_LOCAL_FILE" ]; then\n  echo '{"ok":false,"error":"seed_local_file_missing"}'\n  exit 1\nfi\n\necho\necho "--- enable verify + redundancy and runner ---"\ncurl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/config --data "$(python3 - "$ACCOUNT" <<'PY'\nimport json, sys\nprint(json.dumps({\n  "account": sys.argv[1],\n  "safe_mode": False,\n  "min_submit_gap_ms": 5000,\n  "max_jobs_per_hour": 20,\n  "allow_datanet_publish": False,\n  "allow_datanet_fetch_verify": True,\n  "allow_datanet_redundancy_check": True\n}, separators=(',', ':')))\nPY\n)"\necho\ncurl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/set --data "$(python3 - "$ACCOUNT" <<'PY'\nimport json, sys\nprint(json.dumps({"account": sys.argv[1], "enabled": True}, separators=(',', ':')))\nPY\n)"\necho\n\nVERIFY_JOB_ID=""\nVERIFY_DATASET_ID=""\nVERIFY_RECEIPT_ID=""\nREDUNDANCY_JOB_ID=""\nREDUNDANCY_DATASET_ID=""\nREDUNDANCY_RECEIPT_ID=""\n\necho\necho\necho "--- wait until seeded dataset becomes selectable for verify ---"\nfor i in $(seq 1 12); do\n  curl -fsS --max-time 15 "http://100.122.79.39:4100/wc/runner/status?account=$ACCOUNT" > /tmp/vr-preview-status.json || true\n\n  PREVIEW_TASK="$(python3 - /tmp/vr-preview-status.json <<'PY'\nfrom pathlib import Path\nimport json, sys\np = Path(sys.argv[1])\nif not p.exists():\n    print("")\n    raise SystemExit(0)\nraw = p.read_text().strip()\nif not raw:\n    print("")\n    raise SystemExit(0)\nobj = json.loads(raw)\nsel = obj.get("selection") or {}\nprint(sel.get("task_class") or "")\nPY\n)"\n  PREVIEW_DATASET="$(python3 - /tmp/vr-preview-status.json <<'PY'\nfrom pathlib import Path\nimport json, sys\np = Path(sys.argv[1])\nif not p.exists():\n    print("")\n    raise SystemExit(0)\nraw = p.read_text().strip()\nif not raw:\n    print("")\n    raise SystemExit(0)\nobj = json.loads(raw)\nsel = obj.get("selection") or {}\nprint(sel.get("dataset_id") or "")\nPY\n)"\n  if [ "$PREVIEW_TASK" = "datanet_fetch_verify" ] && [ "$PREVIEW_DATASET" = "$SEED_DATASET_ID" ]; then\n    break\n  fi\n  sleep 2\ndone\nif [ "${PREVIEW_DATASET:-}" != "$SEED_DATASET_ID" ]; then\n  echo '{"ok":false,"error":"seed_dataset_never_became_verify_target","seed_dataset_id":"'"$SEED_DATASET_ID"'","preview_dataset":"'"${PREVIEW_DATASET:-}"'"}'\n  exit 1\nfi\n\necho "--- tick until verify observed ---"\nfor i in $(seq 1 12); do\n  curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'\nimport json, sys\nprint(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))\nPY\n)" > /tmp/vr-tick.json || true\n\n  python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" "$SEED_DATASET_ID" > /tmp/vr-verify-hit.json <<'PY'\nfrom pathlib import Path\nimport json, sys\np = Path(sys.argv[1]); account = sys.argv[2]; seed_dataset_id = sys.argv[3]\nout = {"job_id":"", "receipt_id":"", "dataset_id":""}\nif p.exists():\n    for line in p.read_text().splitlines():\n        if not line.strip():\n            continue\n        try:\n            obj = json.loads(line)\n        except:\n            continue\n        if str(obj.get("account","")) != account:\n            continue\n        if str(obj.get("kind","")) != "datanet_fetch_verify":\n            continue\n        if str(obj.get("dataset_id","")) != seed_dataset_id:\n            continue\n        out = {\n            "job_id": str(obj.get("job_id","")),\n            "receipt_id": str(obj.get("receipt_id","")),\n            "dataset_id": str(obj.get("dataset_id","")),\n        }\nprint(json.dumps(out))\nPY\n\n  VERIFY_JOB_ID="$(python3 - /tmp/vr-verify-hit.json <<'PY'\nimport json, sys\nprint(json.load(open(sys.argv[1]))["job_id"])\nPY\n)"\n  VERIFY_RECEIPT_ID="$(python3 - /tmp/vr-verify-hit.json <<'PY'\nimport json, sys\nprint(json.load(open(sys.argv[1]))["receipt_id"])\nPY\n)"\n  VERIFY_DATASET_ID="$(python3 - /tmp/vr-verify-hit.json <<'PY'\nimport json, sys\nprint(json.load(open(sys.argv[1]))["dataset_id"])\nPY\n)"\n  if [ -n "$VERIFY_JOB_ID" ] && [ -n "$VERIFY_RECEIPT_ID" ] && [ -n "$VERIFY_DATASET_ID" ]; then\n    break\n  fi\n  sleep 2\ndone\nif [ -z "${VERIFY_JOB_ID:-}" ] || [ -z "${VERIFY_RECEIPT_ID:-}" ] || [ -z "${VERIFY_DATASET_ID:-}" ]; then\n  echo '{"ok":false,"error":"verify_phase_missing_ids","verify_job_id":"'"${VERIFY_JOB_ID:-}"'","verify_receipt_id":"'"${VERIFY_RECEIPT_ID:-}"'","verify_dataset_id":"'"${VERIFY_DATASET_ID:-}"'"}'\n  exit 1\nfi\nexport VERIFY_JOB_ID VERIFY_DATASET_ID VERIFY_RECEIPT_ID\necho "--- submit redundancy job directly after verify ---"\nBODY="$(python3 - "$ACCOUNT" "$VERIFY_DATASET_ID" "$HOME/dev/void-node/data_a/datanet_v1/local_jobs/${VERIFY_DATASET_ID}.txt" <<'PY'\nfrom pathlib import Path\nimport hashlib, json, sys\n\naccount = sys.argv[1]\ndataset_id = sys.argv[2]\npath = Path(sys.argv[3])\n\nif not path.exists():\n    raise SystemExit(f"missing dataset file: {path}")\n\ndata = path.read_bytes()\npayload = {\n  "account": account,\n  "kind": "datanet_redundancy_check",\n  "input": {\n    "plaintext": json.dumps({\n      "dataset_id": dataset_id,\n      "expected_input_hash": hashlib.sha256(data).hexdigest(),\n      "stale_for_ms": 6 * 60 * 60 * 1000,\n      "difficulty_bucket": "low",\n      "network_need_score": 0.2\n    }, separators=(',', ':'))\n  }\n}\nprint(json.dumps(payload, separators=(',', ':')))\nPY\n)"\ncurl -sS -i --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-redundancy-submit.http\necho "--- redundancy submit raw response ---"\ncat /tmp/vr-redundancy-submit.http || true\nREDUNDANCY_JOB_ID=""\nREDUNDANCY_RECEIPT_ID=""\nREDUNDANCY_DATASET_ID=""\nfor i in $(seq 1 30); do\n  python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" "$VERIFY_DATASET_ID" > /tmp/vr-redundancy-hit.json <<'PY'\nfrom pathlib import Path\nimport json, sys\np = Path(sys.argv[1]); account = sys.argv[2]; target_dataset_id = sys.argv[3]\nout = {"job_id":"", "receipt_id":"", "dataset_id":""}\nif p.exists():\n    for line in p.read_text().splitlines():\n        if not line.strip():\n            continue\n        try:\n            obj = json.loads(line)\n        except:\n            continue\n        if str(obj.get("account","")) != account:\n            continue\n        if str(obj.get("kind","")) != "datanet_redundancy_check":\n            continue\n        if str(obj.get("dataset_id","")) != target_dataset_id:\n            continue\n        out = {\n            "job_id": str(obj.get("job_id","")),\n            "receipt_id": str(obj.get("receipt_id","")),\n            "dataset_id": str(obj.get("dataset_id","")),\n        }\nprint(json.dumps(out))\nPY\n\n  REDUNDANCY_JOB_ID="$(python3 - /tmp/vr-redundancy-hit.json <<'PY'\nimport json, sys\nprint(json.load(open(sys.argv[1]))["job_id"])\nPY\n)"\n  REDUNDANCY_RECEIPT_ID="$(python3 - /tmp/vr-redundancy-hit.json <<'PY'\nimport json, sys\nprint(json.load(open(sys.argv[1]))["receipt_id"])\nPY\n)"\n  REDUNDANCY_DATASET_ID="$(python3 - /tmp/vr-redundancy-hit.json <<'PY'\nimport json, sys\nprint(json.load(open(sys.argv[1]))["dataset_id"])\nPY\n)"\n  if [ -n "$REDUNDANCY_JOB_ID" ] && [ -n "$REDUNDANCY_RECEIPT_ID" ] && [ -n "$REDUNDANCY_DATASET_ID" ]; then\n    break\n  fi\n  sleep 2\ndone\nexport REDUNDANCY_JOB_ID REDUNDANCY_DATASET_ID REDUNDANCY_RECEIPT_ID\n\n\n\npython3 - <<'PY'\nimport json, os\nsummary = {\n  "account": os.environ.get("ACCOUNT",""),\n  "seed_job_id": os.environ.get("SEED_JOB_ID",""),\n  "seed_receipt_id": os.environ.get("SEED_RECEIPT_ID",""),\n  "seed_dataset_id": os.environ.get("SEED_DATASET_ID",""),\n  "verify_job_id": os.environ.get("VERIFY_JOB_ID",""),\n  "verify_receipt_id": os.environ.get("VERIFY_RECEIPT_ID",""),\n  "verify_dataset_id": os.environ.get("VERIFY_DATASET_ID",""),\n  "redundancy_job_id": os.environ.get("REDUNDANCY_JOB_ID",""),\n  "redundancy_receipt_id": os.environ.get("REDUNDANCY_RECEIPT_ID",""),\n  "redundancy_dataset_id": os.environ.get("REDUNDANCY_DATASET_ID",""),\n}\nprint(json.dumps(summary))\nPY\nREMOTE\n\nACCOUNT="$(python3 - "$OUT/remote.summary.json" <<'PY'\nfrom pathlib import Path\nimport json, sys\nlines = [x.strip() for x in Path(sys.argv[1]).read_text().splitlines() if x.strip()]\nprint(json.loads(lines[-1])["account"])\nPY\n)"\nVERIFY_DATASET_ID="$(python3 - "$OUT/remote.summary.json" <<'PY'\nfrom pathlib import Path\nimport json, sys\nlines = [x.strip() for x in Path(sys.argv[1]).read_text().splitlines() if x.strip()]\nprint(json.loads(lines[-1])["verify_dataset_id"])\nPY\n)"\nREDUNDANCY_DATASET_ID="$(python3 - "$OUT/remote.summary.json" <<'PY'\nfrom pathlib import Path\nimport json, sys\nlines = [x.strip() for x in Path(sys.argv[1]).read_text().splitlines() if x.strip()]\nprint(json.loads(lines[-1])["redundancy_dataset_id"])\nPY\n)"\n\necho\necho "=== [3] verify remote product surfaces ==="\njget "$REMOTE_NODE_BASE/network/value-summary.json?limit=20" 20 > "$OUT/value-summary.json"\njget "$REMOTE_NODE_BASE/participant?account=$ACCOUNT" 20 > "$OUT/participant.html"\njget "$REMOTE_NODE_BASE/wc/runner/status?account=$ACCOUNT" 20 > "$OUT/runner-status.json"\n\npython3 - "$OUT/value-summary.json" "$OUT/participant.html" "$OUT/runner-status.json" "$VERIFY_DATASET_ID" "$REDUNDANCY_DATASET_ID" <<'PY'\nfrom pathlib import Path\nimport json, sys\nvs = json.loads(Path(sys.argv[1]).read_text())\nhtml = Path(sys.argv[2]).read_text()\nrunner = json.loads(Path(sys.argv[3]).read_text())\nverify_dataset_id = sys.argv[4]\nredundancy_dataset_id = sys.argv[5]\n\nassert vs.get("ok") is True, "value summary not ok"\nlatest_verified = (vs.get("latest_verified_dataset") or {}).get("dataset_id") or ""\nlatest_redundancy = (vs.get("latest_redundancy_checked_dataset") or {}).get("dataset_id") or ""\n\nassert verify_dataset_id, "verify dataset missing"\nassert redundancy_dataset_id, "redundancy dataset missing"\nassert latest_verified, "latest_verified_dataset missing"\nassert latest_redundancy, "latest_redundancy_checked_dataset missing"\n\nparticipant_has_verify_surface = (\n    ("Open verify" in html) or\n    ("Open Verified Dataset" in html) or\n    ("Verified</strong>" in html) or\n    ('mkDatasetLink("Dataset", latestVerifiedDataset)' in html)\n)\nparticipant_has_redundancy_surface = (\n    ("Open check" in html) or\n    ("Open Checked Dataset" in html) or\n    ("Redundancy</strong>" in html) or\n    ('mkDatasetLink("Dataset", latestRedundancyDataset)' in html)\n)\n\nassert participant_has_verify_surface, "participant missing verify surface"\nassert participant_has_redundancy_surface, "participant missing redundancy surface"\n\nrecent = vs.get("recent_runner_activity") or []\nverify_seen = any(str(x.get("task_class","")) == "verify" and str(x.get("dataset_id","")) == verify_dataset_id for x in recent)\nredundancy_seen = any(str(x.get("task_class","")) == "redundancy" and str(x.get("dataset_id","")) == redundancy_dataset_id for x in recent)\n\nsummary = {\n  "latest_verified_dataset_ok": True,\n  "latest_redundancy_checked_dataset_ok": True,\n  "participant_has_verify_surface": True,\n  "participant_has_redundancy_surface": True,\n  "verify_seen_in_recent_runner_activity": verify_seen,\n  "redundancy_seen_in_recent_runner_activity": redundancy_seen,\n  "runner_last_selected_task_class": runner.get("last_selected_task_class"),\n  "runner_last_selected_dataset_id": runner.get("last_selected_dataset_id"),\n}\nprint(json.dumps(summary, indent=2))\nif not verify_seen:\n    raise SystemExit("FAIL: verify dataset not seen in recent_runner_activity")\nif not redundancy_seen:\n    raise SystemExit("FAIL: redundancy dataset not seen in recent_runner_activity")\nPY\n\necho\necho "[ok] two-box remote verify redundancy product proof green"\necho "[ok] proof bundle: $OUT"\n
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+set +o histexpand
+
+ALIEN="${ALIEN:-zoso@100.122.79.39}"
+REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"
+OUT="${OUT:-/tmp/two-box-remote-verify-redundancy-product-proof-$(date +%Y%m%d-%H%M%S)}"
+mkdir -p "$OUT"
+
+jget() {
+  curl -fsS --max-time "${2:-20}" "$1"
+}
+
+echo "=== [1] local + remote truth ==="
+git branch --show-current | tee "$OUT/local.branch.txt"
+git rev-parse --short HEAD | tee "$OUT/local.head.txt"
+git describe --tags --abbrev=0 2>/dev/null | tee "$OUT/local.tag.txt" || true
+ssh "$ALIEN" '
+set -euo pipefail
+cd "$HOME/dev/void-node"
+echo "--- remote branch ---"
+git branch --show-current
+echo "--- remote head ---"
+git rev-parse --short HEAD
+echo "--- remote latest tag ---"
+git describe --tags --abbrev=0 2>/dev/null || true
+' | tee "$OUT/remote.truth.txt"
+
+echo
+echo "=== [2] remote seed publish, enable runner, and drive verify/redundancy ==="
+ssh "$ALIEN" 'bash -s' <<'REMOTE' | tee "$OUT/remote.summary.json"
+set -euo pipefail
+set +H
+set +o histexpand
+
+cd "$HOME/dev/void-node"
+
+ACCOUNT="runner-proof-live-verify-redundancy-$(date +%Y%m%d-%H%M%S)"
+PLAINTEXT="verify redundancy proof seed $(date +%Y%m%d-%H%M%S)"
+export ACCOUNT
+
+echo "--- seed publish through proven route ---"
+BODY="$(python3 - "$ACCOUNT" "$PLAINTEXT" <<'PY'
+import json, sys
+print(json.dumps({
+    "account": sys.argv[1],
+    "kind": "datanet_publish",
+    "plaintext": sys.argv[2]
+}, separators=(',', ':')))
+PY
+)"
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-seed-submit.json
+cat /tmp/vr-seed-submit.json
+echo
+
+SEED_JOB_ID="$(python3 - /tmp/vr-seed-submit.json <<'PY'
+import json, sys
+obj = json.load(open(sys.argv[1]))
+job = obj.get("job") or {}
+print(job.get("job_id") or job.get("id") or obj.get("job_id") or obj.get("id") or "")
+PY
+)"
+export SEED_JOB_ID
+
+SEED_RECEIPT_ID=""
+SEED_DATASET_ID=""
+for i in $(seq 1 12); do
+  curl -fsS --max-time 15 "http://100.122.79.39:4100/__void/diag/jobs-and-datanet-worker-v1.json" > /tmp/vr-seed-worker-diag.json
+  SEED_RECEIPT_ID="$(python3 - /tmp/vr-seed-worker-diag.json <<'PY'
+import json, sys
+obj = json.load(open(sys.argv[1]))
+print(obj.get("last_receipt_id") or "")
+PY
+)"
+  SEED_DATASET_ID="$(python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$SEED_JOB_ID" <<'PY'
+from pathlib import Path
+import json, sys
+p = Path(sys.argv[1])
+job_id = sys.argv[2]
+dataset_id = ""
+if p.exists():
+    for line in p.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except:
+            continue
+        if str(obj.get("job_id","")) == job_id:
+            dataset_id = str(obj.get("dataset_id",""))
+print(dataset_id)
+PY
+)"
+  [ -n "$SEED_DATASET_ID" ] && break
+  sleep 2
+done
+export SEED_RECEIPT_ID
+export SEED_DATASET_ID
+
+if [ -z "$SEED_JOB_ID" ] || [ -z "$SEED_DATASET_ID" ]; then
+  echo '{"ok":false,"error":"seed_publish_missing_ids"}'
+  exit 1
+fi
+
+echo
+echo "--- wait for seeded local dataset file ---"
+SEED_LOCAL_FILE="$HOME/dev/void-node/data_a/datanet_v1/local_jobs/${SEED_DATASET_ID}.txt"
+for i in $(seq 1 20); do
+  if [ -s "$SEED_LOCAL_FILE" ]; then
+    break
+  fi
+  sleep 1
+done
+if [ ! -s "$SEED_LOCAL_FILE" ]; then
+  echo '{"ok":false,"error":"seed_local_file_missing"}'
+  exit 1
+fi
+
+echo
+echo "--- enable verify + redundancy and runner ---"
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/config --data "$(python3 - "$ACCOUNT" <<'PY'
+import json, sys
+print(json.dumps({
+  "account": sys.argv[1],
+  "safe_mode": False,
+  "min_submit_gap_ms": 5000,
+  "max_jobs_per_hour": 20,
+  "allow_datanet_publish": False,
+  "allow_datanet_fetch_verify": True,
+  "allow_datanet_redundancy_check": True
+}, separators=(',', ':')))
+PY
+)"
+echo
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/set --data "$(python3 - "$ACCOUNT" <<'PY'
+import json, sys
+print(json.dumps({"account": sys.argv[1], "enabled": True}, separators=(',', ':')))
+PY
+)"
+echo
+
+VERIFY_JOB_ID=""
+VERIFY_DATASET_ID=""
+VERIFY_RECEIPT_ID=""
+REDUNDANCY_JOB_ID=""
+REDUNDANCY_DATASET_ID=""
+REDUNDANCY_RECEIPT_ID=""
+
+echo
+echo
+echo "--- wait until seeded dataset becomes selectable for verify ---"
+for i in $(seq 1 12); do
+  curl -fsS --max-time 15 "http://100.122.79.39:4100/wc/runner/status?account=$ACCOUNT" > /tmp/vr-preview-status.json || true
+
+  PREVIEW_TASK="$(python3 - /tmp/vr-preview-status.json <<'PY'
+from pathlib import Path
+import json, sys
+p = Path(sys.argv[1])
+if not p.exists():
+    print("")
+    raise SystemExit(0)
+raw = p.read_text().strip()
+if not raw:
+    print("")
+    raise SystemExit(0)
+obj = json.loads(raw)
+sel = obj.get("selection") or {}
+print(sel.get("task_class") or "")
+PY
+)"
+  PREVIEW_DATASET="$(python3 - /tmp/vr-preview-status.json <<'PY'
+from pathlib import Path
+import json, sys
+p = Path(sys.argv[1])
+if not p.exists():
+    print("")
+    raise SystemExit(0)
+raw = p.read_text().strip()
+if not raw:
+    print("")
+    raise SystemExit(0)
+obj = json.loads(raw)
+sel = obj.get("selection") or {}
+print(sel.get("dataset_id") or "")
+PY
+)"
+  if [ "$PREVIEW_TASK" = "datanet_fetch_verify" ] && [ "$PREVIEW_DATASET" = "$SEED_DATASET_ID" ]; then
+    break
+  fi
+  sleep 2
+done
+if [ "${PREVIEW_DATASET:-}" != "$SEED_DATASET_ID" ]; then
+  echo '{"ok":false,"error":"seed_dataset_never_became_verify_target","seed_dataset_id":"'"$SEED_DATASET_ID"'","preview_dataset":"'"${PREVIEW_DATASET:-}"'"}'
+  exit 1
+fi
+
+echo "--- tick until verify observed ---"
+for i in $(seq 1 12); do
+  curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'
+import json, sys
+print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
+PY
+)" > /tmp/vr-tick.json || true
+
+  python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" "$SEED_DATASET_ID" > /tmp/vr-verify-hit.json <<'PY'
+from pathlib import Path
+import json, sys
+p = Path(sys.argv[1]); account = sys.argv[2]; seed_dataset_id = sys.argv[3]
+out = {"job_id":"", "receipt_id":"", "dataset_id":""}
+if p.exists():
+    for line in p.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except:
+            continue
+        if str(obj.get("account","")) != account:
+            continue
+        if str(obj.get("kind","")) != "datanet_fetch_verify":
+            continue
+        if str(obj.get("dataset_id","")) != seed_dataset_id:
+            continue
+        out = {
+            "job_id": str(obj.get("job_id","")),
+            "receipt_id": str(obj.get("receipt_id","")),
+            "dataset_id": str(obj.get("dataset_id","")),
+        }
+print(json.dumps(out))
+PY
+
+  VERIFY_JOB_ID="$(python3 - /tmp/vr-verify-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["job_id"])
+PY
+)"
+  VERIFY_RECEIPT_ID="$(python3 - /tmp/vr-verify-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["receipt_id"])
+PY
+)"
+  VERIFY_DATASET_ID="$(python3 - /tmp/vr-verify-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["dataset_id"])
+PY
+)"
+  if [ -n "$VERIFY_JOB_ID" ] && [ -n "$VERIFY_RECEIPT_ID" ] && [ -n "$VERIFY_DATASET_ID" ]; then
+    break
+  fi
+  sleep 2
+done
+if [ -z "${VERIFY_JOB_ID:-}" ] || [ -z "${VERIFY_RECEIPT_ID:-}" ] || [ -z "${VERIFY_DATASET_ID:-}" ]; then
+  echo '{"ok":false,"error":"verify_phase_missing_ids","verify_job_id":"'"${VERIFY_JOB_ID:-}"'","verify_receipt_id":"'"${VERIFY_RECEIPT_ID:-}"'","verify_dataset_id":"'"${VERIFY_DATASET_ID:-}"'"}'
+  exit 1
+fi
+export VERIFY_JOB_ID VERIFY_DATASET_ID VERIFY_RECEIPT_ID
+echo "--- submit redundancy job directly after verify ---"
+BODY="$(python3 - "$ACCOUNT" "$VERIFY_DATASET_ID" "$HOME/dev/void-node/data_a/datanet_v1/local_jobs/${VERIFY_DATASET_ID}.txt" <<'PY'
+from pathlib import Path
+import hashlib, json, sys
+
+account = sys.argv[1]
+dataset_id = sys.argv[2]
+path = Path(sys.argv[3])
+
+if not path.exists():
+    raise SystemExit(f"missing dataset file: {path}")
+
+data = path.read_bytes()
+payload = {
+  "account": account,
+  "kind": "datanet_redundancy_check",
+  "input": {
+    "plaintext": json.dumps({
+      "dataset_id": dataset_id,
+      "expected_input_hash": hashlib.sha256(data).hexdigest(),
+      "stale_for_ms": 6 * 60 * 60 * 1000,
+      "difficulty_bucket": "low",
+      "network_need_score": 0.2
+    }, separators=(',', ':'))
+  }
+}
+print(json.dumps(payload, separators=(',', ':')))
+PY
+)"
+curl -sS -i --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-redundancy-submit.http
+echo "--- redundancy submit raw response ---"
+cat /tmp/vr-redundancy-submit.http || true
+REDUNDANCY_JOB_ID="$(python3 - /tmp/vr-redundancy-submit.http <<'PY'
+from pathlib import Path
+import json, sys
+raw = Path(sys.argv[1]).read_text()
+body = raw.split("\r\n\r\n", 1)[1] if "\r\n\r\n" in raw else raw.split("\n\n", 1)[1]
+obj = json.loads(body)
+job = obj.get("job") or {}
+print(job.get("job_id") or obj.get("job_id") or "")
+PY
+)"
+
+REDUNDANCY_RECEIPT_ID=""
+REDUNDANCY_DATASET_ID=""
+for i in $(seq 1 30); do
+  python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" "$VERIFY_DATASET_ID" > /tmp/vr-redundancy-hit.json <<'PY'
+from pathlib import Path
+import json, sys
+p = Path(sys.argv[1]); account = sys.argv[2]; target_dataset_id = sys.argv[3]
+out = {"job_id":"", "receipt_id":"", "dataset_id":""}
+if p.exists():
+    for line in p.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except:
+            continue
+        if str(obj.get("account","")) != account:
+            continue
+        if str(obj.get("kind","")) != "datanet_redundancy_check":
+            continue
+        if str(obj.get("dataset_id","")) != target_dataset_id:
+            continue
+        out = {
+            "job_id": str(obj.get("job_id","")),
+            "receipt_id": str(obj.get("receipt_id","")),
+            "dataset_id": str(obj.get("dataset_id","")),
+        }
+print(json.dumps(out))
+PY
+
+  REDUNDANCY_JOB_ID="$(python3 - /tmp/vr-redundancy-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["job_id"])
+PY
+)"
+  REDUNDANCY_RECEIPT_ID="$(python3 - /tmp/vr-redundancy-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["receipt_id"])
+PY
+)"
+  REDUNDANCY_DATASET_ID="$(python3 - /tmp/vr-redundancy-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["dataset_id"])
+PY
+)"
+  if [ -n "$REDUNDANCY_JOB_ID" ] && [ -n "$REDUNDANCY_RECEIPT_ID" ] && [ -n "$REDUNDANCY_DATASET_ID" ]; then
+    break
+  fi
+  sleep 2
+done
+export REDUNDANCY_JOB_ID REDUNDANCY_DATASET_ID REDUNDANCY_RECEIPT_ID
+
+
+
+python3 - <<'PY'
+import json, os
+summary = {
+  "account": os.environ.get("ACCOUNT",""),
+  "seed_job_id": os.environ.get("SEED_JOB_ID",""),
+  "seed_receipt_id": os.environ.get("SEED_RECEIPT_ID",""),
+  "seed_dataset_id": os.environ.get("SEED_DATASET_ID",""),
+  "verify_job_id": os.environ.get("VERIFY_JOB_ID",""),
+  "verify_receipt_id": os.environ.get("VERIFY_RECEIPT_ID",""),
+  "verify_dataset_id": os.environ.get("VERIFY_DATASET_ID",""),
+  "redundancy_job_id": os.environ.get("REDUNDANCY_JOB_ID",""),
+  "redundancy_receipt_id": os.environ.get("REDUNDANCY_RECEIPT_ID",""),
+  "redundancy_dataset_id": os.environ.get("REDUNDANCY_DATASET_ID",""),
+}
+print(json.dumps(summary))
+PY
+REMOTE
+
+ACCOUNT="$(python3 - "$OUT/remote.summary.json" <<'PY'
+from pathlib import Path
+import json, sys
+lines = [x.strip() for x in Path(sys.argv[1]).read_text().splitlines() if x.strip()]
+print(json.loads(lines[-1])["account"])
+PY
+)"
+VERIFY_DATASET_ID="$(python3 - "$OUT/remote.summary.json" <<'PY'
+from pathlib import Path
+import json, sys
+lines = [x.strip() for x in Path(sys.argv[1]).read_text().splitlines() if x.strip()]
+print(json.loads(lines[-1])["verify_dataset_id"])
+PY
+)"
+REDUNDANCY_DATASET_ID="$(python3 - "$OUT/remote.summary.json" <<'PY'
+from pathlib import Path
+import json, sys
+lines = [x.strip() for x in Path(sys.argv[1]).read_text().splitlines() if x.strip()]
+print(json.loads(lines[-1])["redundancy_dataset_id"])
+PY
+)"
+
+echo
+echo "=== [3] verify remote product surfaces ==="
+jget "$REMOTE_NODE_BASE/network/value-summary.json?limit=20" 20 > "$OUT/value-summary.json"
+jget "$REMOTE_NODE_BASE/participant?account=$ACCOUNT" 20 > "$OUT/participant.html"
+jget "$REMOTE_NODE_BASE/wc/runner/status?account=$ACCOUNT" 20 > "$OUT/runner-status.json"
+
+python3 - "$OUT/value-summary.json" "$OUT/participant.html" "$OUT/runner-status.json" "$VERIFY_DATASET_ID" "$REDUNDANCY_DATASET_ID" <<'PY'
+from pathlib import Path
+import json, sys
+vs = json.loads(Path(sys.argv[1]).read_text())
+html = Path(sys.argv[2]).read_text()
+runner = json.loads(Path(sys.argv[3]).read_text())
+verify_dataset_id = sys.argv[4]
+redundancy_dataset_id = sys.argv[5]
+
+assert vs.get("ok") is True, "value summary not ok"
+latest_verified = (vs.get("latest_verified_dataset") or {}).get("dataset_id") or ""
+latest_redundancy = (vs.get("latest_redundancy_checked_dataset") or {}).get("dataset_id") or ""
+
+assert verify_dataset_id, "verify dataset missing"
+assert redundancy_dataset_id, "redundancy dataset missing"
+assert latest_verified, "latest_verified_dataset missing"
+assert latest_redundancy, "latest_redundancy_checked_dataset missing"
+
+participant_has_verify_surface = (
+    ("Open verify" in html) or
+    ("Open Verified Dataset" in html) or
+    ("Verified</strong>" in html) or
+    ('mkDatasetLink("Dataset", latestVerifiedDataset)' in html)
+)
+participant_has_redundancy_surface = (
+    ("Open check" in html) or
+    ("Open Checked Dataset" in html) or
+    ("Redundancy</strong>" in html) or
+    ('mkDatasetLink("Dataset", latestRedundancyDataset)' in html)
+)
+
+assert participant_has_verify_surface, "participant missing verify surface"
+assert participant_has_redundancy_surface, "participant missing redundancy surface"
+
+recent = vs.get("recent_runner_activity") or []
+verify_seen = any(str(x.get("task_class","")) == "verify" and str(x.get("dataset_id","")) == verify_dataset_id for x in recent)
+redundancy_seen = any(str(x.get("task_class","")) == "redundancy" and str(x.get("dataset_id","")) == redundancy_dataset_id for x in recent)
+
+summary = {
+  "latest_verified_dataset_ok": True,
+  "latest_redundancy_checked_dataset_ok": True,
+  "participant_has_verify_surface": True,
+  "participant_has_redundancy_surface": True,
+  "verify_seen_in_recent_runner_activity": verify_seen,
+  "redundancy_seen_in_recent_runner_activity": redundancy_seen,
+  "runner_last_selected_task_class": runner.get("last_selected_task_class"),
+  "runner_last_selected_dataset_id": runner.get("last_selected_dataset_id"),
+}
+print(json.dumps(summary, indent=2))
+if not verify_seen:
+    raise SystemExit("FAIL: verify dataset not seen in recent_runner_activity")
+if not redundancy_seen:
+    raise SystemExit("FAIL: redundancy dataset not seen in recent_runner_activity")
+PY
+
+echo
+echo "[ok] two-box remote verify redundancy product proof green"
+echo "[ok] proof bundle: $OUT"
