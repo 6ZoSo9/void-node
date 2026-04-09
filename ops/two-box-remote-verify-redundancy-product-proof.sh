@@ -36,7 +36,7 @@ set +o histexpand
 
 cd "$HOME/dev/void-node"
 
-ACCOUNT="verify-redundancy-proof-user-$(date +%Y%m%d-%H%M%S)"
+ACCOUNT="runner-proof-live-verify-redundancy-$(date +%Y%m%d-%H%M%S)"
 PLAINTEXT="verify redundancy proof seed $(date +%Y%m%d-%H%M%S)"
 export ACCOUNT
 
