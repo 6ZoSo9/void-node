@@ -37705,6 +37705,31 @@ a{color:#93c5fd;text-decoration:none}
       } catch {}
     })();
 
+    function runnerProofOwnedDatasetSet(account:string){
+      try {
+        const fs = require("node:fs");
+        const path = require("node:path");
+        const receiptsPath = path.join(String(DATA_DIR || "data"), "agent_v1", "receipts.jsonl");
+        const out = new Set<string>();
+        if (!fs.existsSync(receiptsPath)) return out;
+        const lines = String(fs.readFileSync(receiptsPath, "utf8") || "").split(/\r?\n/);
+        for (const line of lines) {
+          const raw = String(line || "").trim();
+          if (!raw) continue;
+          try {
+            const obj:any = JSON.parse(raw);
+            if (String(obj?.account || "") !== String(account || "")) continue;
+            if (String(obj?.kind || "") !== "datanet_publish") continue;
+            const ds = String(obj?.dataset_id || "");
+            if (ds) out.add(ds);
+          } catch {}
+        }
+        return out;
+      } catch {
+        return new Set<string>();
+      }
+    }
+
     function runnerFindVerifyCandidate(account:string){
       try {
         const fs = require("node:fs");
@@ -37723,6 +37748,7 @@ a{color:#93c5fd;text-decoration:none}
 
         const now = Date.now();
         const isProofAccount = String(account || "").startsWith("runner-proof-live-");
+        const owned = isProofAccount ? runnerProofOwnedDatasetSet(account) : new Set<string>();
         const verifyCooldownMs = isProofAccount ? 1000 : (5 * 60 * 1000);
         const maxPickStaleMs = Math.max(60000, Number(process.env.VOID_AGENT_MAX_STALE_MS || 7 * 24 * 60 * 60 * 1000));
 
@@ -37740,8 +37766,12 @@ a{color:#93c5fd;text-decoration:none}
           if (age < verifyCooldownMs) continue;
           if (age > maxPickStaleMs) continue;
 
-          const isFreshUnverifiedProofDataset = isProofAccount && last <= 0 && fileMtimeMs > 0;
-          const score = isFreshUnverifiedProofDataset ? fileMtimeMs : (-basis);
+          const isOwnedProofDataset = isProofAccount && owned.has(datasetId);
+          const isFreshUnverifiedProofDataset = isOwnedProofDataset && last <= 0 && fileMtimeMs > 0;
+          const score =
+            isFreshUnverifiedProofDataset ? (1e15 + fileMtimeMs) :
+            isOwnedProofDataset ? (1e12 - basis) :
+            (-basis);
 
           if (score > chosenScore) {
             chosenScore = score;
@@ -37780,6 +37810,7 @@ a{color:#93c5fd;text-decoration:none}
 
         const now = Date.now();
         const isProofAccount = String(account || "").startsWith("runner-proof-live-");
+        const owned = isProofAccount ? runnerProofOwnedDatasetSet(account) : new Set<string>();
         const redundancyCooldownMs = isProofAccount ? 2000 : (15 * 60 * 1000);
         const maxPickStaleMs = Math.max(60000, Number(process.env.VOID_AGENT_MAX_STALE_MS || 7 * 24 * 60 * 60 * 1000));
 
@@ -37797,8 +37828,12 @@ a{color:#93c5fd;text-decoration:none}
           if (age < redundancyCooldownMs) continue;
           if (age > maxPickStaleMs) continue;
 
-          const isFreshUncheckedProofDataset = isProofAccount && last <= 0 && fileMtimeMs > 0;
-          const score = isFreshUncheckedProofDataset ? fileMtimeMs : (-basis);
+          const isOwnedProofDataset = isProofAccount && owned.has(datasetId);
+          const isFreshUncheckedProofDataset = isOwnedProofDataset && last <= 0 && fileMtimeMs > 0;
+          const score =
+            isFreshUncheckedProofDataset ? (1e15 + fileMtimeMs) :
+            isOwnedProofDataset ? (1e12 - basis) :
+            (-basis);
 
           if (score > chosenScore) {
             chosenScore = score;
