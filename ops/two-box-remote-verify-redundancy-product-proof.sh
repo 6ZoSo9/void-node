@@ -252,17 +252,32 @@ PY
 done
 export VERIFY_JOB_ID VERIFY_DATASET_ID VERIFY_RECEIPT_ID
 echo "--- submit redundancy job directly after verify ---"
-BODY="$(python3 - "$ACCOUNT" "$VERIFY_DATASET_ID" <<'PY'
-import json, sys
-print(json.dumps({
-  "account": sys.argv[1],
+BODY="$(python3 - "$ACCOUNT" "$VERIFY_DATASET_ID" "$HOME/dev/void-node/data_a/datanet_v1/local_jobs/${VERIFY_DATASET_ID}.txt" <<'PY'
+from pathlib import Path
+import hashlib, json, sys
+
+account = sys.argv[1]
+dataset_id = sys.argv[2]
+path = Path(sys.argv[3])
+
+if not path.exists():
+    raise SystemExit(f"missing dataset file: {path}")
+
+data = path.read_bytes()
+payload = {
+  "account": account,
   "kind": "datanet_redundancy_check",
   "input": {
     "plaintext": json.dumps({
-      "dataset_id": sys.argv[2]
+      "dataset_id": dataset_id,
+      "expected_input_hash": hashlib.sha256(data).hexdigest(),
+      "stale_for_ms": 6 * 60 * 60 * 1000,
+      "difficulty_bucket": "low",
+      "network_need_score": 0.2
     }, separators=(',', ':'))
   }
-}, separators=(',', ':')))
+}
+print(json.dumps(payload, separators=(',', ':')))
 PY
 )"
 curl -sS -i --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-redundancy-submit.http
