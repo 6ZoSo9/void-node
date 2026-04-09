@@ -32458,7 +32458,7 @@ try {
               PICK2V2_METRICS.reject_total = Number(PICK2V2_METRICS.reject_total || 0) + 1;
               PICK2V2_METRICS.reject_by_reason[rr] = Number(PICK2V2_METRICS.reject_by_reason[rr] || 0) + 1;
 
-              PICK2V2_METRICS.reject_samples.push({
+              const sample = {
                 ts_ms: Date.now(),
                 id: String(r?.id || ""),
                 task_class: String(r?.task || ""),
@@ -32469,7 +32469,18 @@ try {
                 network_need_score: Number(r?.network_need_score || 0),
                 payload_bytes: Number(r?.payload_bytes || 0),
                 selection_reason: String(r?.selection_reason || "")
-              });
+              };
+
+              const dupIdx = PICK2V2_METRICS.reject_samples.findIndex((x:any) =>
+                String(x?.id || "") === sample.id &&
+                String(x?.reject_reason || "") === sample.reject_reason
+              );
+
+              if (dupIdx >= 0) {
+                PICK2V2_METRICS.reject_samples[dupIdx] = sample;
+              } else {
+                PICK2V2_METRICS.reject_samples.push(sample);
+              }
             }
           }
 

@@ -36,7 +36,7 @@ dataset_id = "${DATASET_ID}"
 expected_hash = "${EXPECTED_HASH}"
 account = "${ACCOUNT}"
 
-BIG = "X" * 2000000
+BIG = "X" * 1500000
 
 jobs = [
     {
@@ -132,11 +132,13 @@ echo
 echo "=== public weighted picks ==="
 : > "$OUT/picks.jsonl"
 for i in 1 2 3 4; do
-  curl -fsS --max-time 8 -X POST \
+  RESP="$(curl -fsS --max-time 8 -X POST \
     -H "x-agent-token: $TOKEN" \
     -H 'content-type: application/json' \
     --data "{\"worker\":\"$WORKER\",\"account\":\"$ACCOUNT\"}" \
-    "$BASE/agent/v0/pick2" | tee -a "$OUT/picks.jsonl" | jq .
+    "$BASE/agent/v0/pick2")"
+  printf '%s\n' "$RESP" | jq -c . >> "$OUT/picks.jsonl"
+  printf '%s\n' "$RESP" | jq .
   echo
 done
 
@@ -164,6 +166,7 @@ for line in pathlib.Path("${OUT}/picks.jsonl").read_text().splitlines():
     if not line:
         continue
     rows.append(json.loads(line))
+
 weighted = json.loads(pathlib.Path("${OUT}/weighted.json").read_text())
 rejects = json.loads(pathlib.Path("${OUT}/rejects.json").read_text())
 
