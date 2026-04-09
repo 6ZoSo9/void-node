@@ -265,10 +265,15 @@ print(json.dumps({
 }, separators=(',', ':')))
 PY
 )"
-curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-redundancy-submit.json
-REDUNDANCY_JOB_ID="$(python3 - /tmp/vr-redundancy-submit.json <<'PY'
+curl -sS -i --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-redundancy-submit.http
+echo "--- redundancy submit raw response ---"
+cat /tmp/vr-redundancy-submit.http || true
+REDUNDANCY_JOB_ID="$(python3 - /tmp/vr-redundancy-submit.http <<'PY'
+from pathlib import Path
 import json, sys
-obj = json.load(open(sys.argv[1]))
+raw = Path(sys.argv[1]).read_text()
+body = raw.split("\r\n\r\n", 1)[1] if "\r\n\r\n" in raw else raw.split("\n\n", 1)[1]
+obj = json.loads(body)
 job = obj.get("job") or {}
 print(job.get("job_id") or obj.get("job_id") or "")
 PY
