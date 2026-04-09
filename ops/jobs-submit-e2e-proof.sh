@@ -1,9 +1,10 @@
+NODE_BASE="${NODE_BASE:-http://100.122.79.39:4100}"
 #!/usr/bin/env bash
 set -euo pipefail
 set +H
 set +o histexpand
 
-BASE="${BASE:-http://127.0.0.1:4100}"
+BASE="${BASE:-${NODE_BASE}}"
 DATA_DIR="${DATA_DIR:-$HOME/dev/void-node/data_a}"
 OUT="${OUT:-/tmp/void-jobs-submit-e2e-$(date +%Y%m%d-%H%M%S)}"
 ACCOUNT="${ACCOUNT:-jobs-submit-proof-user-$(date +%Y%m%d-%H%M%S)}"
