@@ -199,10 +199,10 @@ print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
 PY
 )" > /tmp/vr-tick.json || true
 
-  python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" > /tmp/vr-verify-hit.json <<'PY'
+  python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" "$SEED_DATASET_ID" > /tmp/vr-verify-hit.json <<'PY'
 from pathlib import Path
 import json, sys
-p = Path(sys.argv[1]); account = sys.argv[2]
+p = Path(sys.argv[1]); account = sys.argv[2]; seed_dataset_id = sys.argv[3]
 out = {"job_id":"", "receipt_id":"", "dataset_id":""}
 if p.exists():
     for line in p.read_text().splitlines():
@@ -215,6 +215,8 @@ if p.exists():
         if str(obj.get("account","")) != account:
             continue
         if str(obj.get("kind","")) != "datanet_fetch_verify":
+            continue
+        if str(obj.get("dataset_id","")) != seed_dataset_id:
             continue
         out = {
             "job_id": str(obj.get("job_id","")),
@@ -257,10 +259,10 @@ print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
 PY
 )" > /tmp/vr-tick2.json || true
 
-  python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" > /tmp/vr-redundancy-hit.json <<'PY'
+  python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" "$VERIFY_DATASET_ID" > /tmp/vr-redundancy-hit.json <<'PY'
 from pathlib import Path
 import json, sys
-p = Path(sys.argv[1]); account = sys.argv[2]
+p = Path(sys.argv[1]); account = sys.argv[2]; seed_dataset_id = sys.argv[3]
 out = {"job_id":"", "receipt_id":"", "dataset_id":""}
 if p.exists():
     for line in p.read_text().splitlines():
@@ -273,6 +275,8 @@ if p.exists():
         if str(obj.get("account","")) != account:
             continue
         if str(obj.get("kind","")) != "datanet_redundancy_check":
+            continue
+        if str(obj.get("dataset_id","")) != target_dataset_id:
             continue
         out = {
             "job_id": str(obj.get("job_id","")),
