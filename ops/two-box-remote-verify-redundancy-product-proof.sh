@@ -104,6 +104,20 @@ if [ -z "$SEED_JOB_ID" ] || [ -z "$SEED_DATASET_ID" ]; then
 fi
 
 echo
+echo "--- wait for seeded local dataset file ---"
+SEED_LOCAL_FILE="$HOME/dev/void-node/data_a/datanet_v1/local_jobs/${SEED_DATASET_ID}.txt"
+for i in $(seq 1 20); do
+  if [ -s "$SEED_LOCAL_FILE" ]; then
+    break
+  fi
+  sleep 1
+done
+if [ ! -s "$SEED_LOCAL_FILE" ]; then
+  echo '{"ok":false,"error":"seed_local_file_missing"}'
+  exit 1
+fi
+
+echo
 echo "--- enable verify + redundancy and runner ---"
 curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/config --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
