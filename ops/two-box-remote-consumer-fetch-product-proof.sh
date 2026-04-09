@@ -4,7 +4,7 @@ set +H
 set +o histexpand
 
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
-LOCAL_NODE_BASE="${LOCAL_NODE_BASE:-http://127.0.0.1:4100}"
+LOCAL_NODE_BASE="${LOCAL_NODE_BASE:-http://100.122.79.39:4100}"
 PUBLIC_LOCAL_NODE_BASE="${PUBLIC_LOCAL_NODE_BASE:-http://100.93.2.116:4100}"
 REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"
 OUT="${OUT:-/tmp/two-box-remote-consumer-fetch-product-proof-$(date +%Y%m%d-%H%M%S)}"
