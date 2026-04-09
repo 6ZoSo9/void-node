@@ -1134,6 +1134,99 @@ try {
       .catch((e:any) => console.warn("[jsonparse-diag.v1c] import=ERR", e && (e.stack||e)));
   } else {
     console.log("[jsonparse-diag.v1c] gate=OFF");
+
+
+// === latest-number2.late-win.v1 BEGIN ===
+// Force /blocks/latest/number2.json to prefer in-proc head truth, then /blocks/latest/number.json, then head.txt.
+// This is intentionally mounted late so it wins over stale older handlers.
+;(function latestNumber2LateWinV1(){
+  try{
+    const G:any = globalThis as any;
+    const TAG = "[latest-number2.late-win.v1]";
+    let tries = 0;
+
+    function getApp(){ return G.__void_http_app || G.app || null; }
+
+    async function fetchJson(url:string, ms=250){
+      try{
+        const AC:any = (globalThis as any).AbortController;
+        const ctrl = AC ? new AC() : null;
+        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch{} }, ms);
+        const r:any = await (globalThis as any).fetch(url, ctrl ? { signal: ctrl.signal } : undefined).catch(()=>null);
+        clearTimeout(t);
+        if (r && r.ok) return await r.json().catch(()=>null);
+      }catch{}
+      return null;
+    }
+
+    async function fetchText(url:string, ms=250){
+      try{
+        const AC:any = (globalThis as any).AbortController;
+        const ctrl = AC ? new AC() : null;
+        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch{} }, ms);
+        const r:any = await (globalThis as any).fetch(url, ctrl ? { signal: ctrl.signal } : undefined).catch(()=>null);
+        clearTimeout(t);
+        if (r && r.ok) return String(await r.text().catch(()=>"" ));
+      }catch{}
+      return null;
+    }
+
+    function inprocHead(): number {
+      try{
+        const cands:any[] = [
+          G.__void_head_number,
+          G.__void_head_last,
+          G.__void_head,
+          G.__void_last_head,
+          G.__void_seals_last_number,
+          G.__void_last_seal?.number,
+          G.__void_proposer_mirror?.lastSeenHead,
+        ];
+        for (const v of cands){
+          const n = Number(v);
+          if (Number.isFinite(n) && n >= 0) return n;
+        }
+      }catch{}
+      return -1;
+    }
+
+    (function arm(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") {
+        if (++tries < 200) return setTimeout(arm, 100);
+        return;
+      }
+      if ((app as any).__latest_number2_late_win_v1) return;
+      (app as any).__latest_number2_late_win_v1 = true;
+
+      app.get("/blocks/latest/number2.json", async (_req:any, res:any)=>{
+        try{
+          let n = inprocHead();
+
+          if (!(Number.isFinite(n) && n >= 0)){
+            const j:any = await fetchJson(`http://127.0.0.1:${process.env.HTTP_PORT || "4100"}/blocks/latest/number.json`, 250);
+            const x = Number(j && j.number);
+            if (Number.isFinite(x) && x >= 0) n = x;
+          }
+
+          if (!(Number.isFinite(n) && n >= 0)){
+            const t = await fetchText(`http://127.0.0.1:${process.env.HTTP_PORT || "4100"}/head.txt`, 250);
+            const x = Number(String(t || "").trim());
+            if (Number.isFinite(x) && x >= 0) n = x;
+          }
+
+          res.json({ number: (Number.isFinite(n) && n >= 0) ? n : -1, __hardfix: "latest-number2.late-win.v1" });
+        }catch(e:any){
+          res.status(500).json({ ok:false, error:String(e?.message || e), __hardfix: "latest-number2.late-win.v1" });
+        }
+      });
+
+      try{ console.log(TAG + " mounted"); }catch{}
+    })();
+  }catch{}
+})();
+// === latest-number2.late-win.v1 END ===
+
   }
 } catch (e:any) {
   console.warn("[jsonparse-diag.v1c] gate=ERR", e && (e.stack||e));
@@ -7233,12 +7326,32 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function installLatestNum
       app.get("/blocks/latest/number2.json", async (_req:any, res:any)=>{
         try{
           let n = -1;
+          const G:any = globalThis as any;
 
-          // 1) Preferred: store.getHead()
+          // 0) Strongest: in-proc truth surfaces already updated by working seal path
           try{
-            const head = await node.store.getHead?.();
-            if (typeof head?.number === "number") n = head.number;
+            const cands:any[] = [
+              G.__void_head_number,
+              G.__void_head_last,
+              G.__void_head,
+              G.__void_last_head,
+              G.__void_seals_last_number,
+              G.__void_last_seal?.number,
+              G.__void_proposer_mirror?.lastSeenHead,
+            ];
+            for (const v of cands){
+              const x = Number(v);
+              if (Number.isFinite(x) && x >= 0) { n = x; break; }
+            }
           }catch{}
+
+          // 1) Preferred store view
+          if (n < 0) {
+            try{
+              const head = await node.store.getHead?.();
+              if (typeof head?.number === "number") n = head.number;
+            }catch{}
+          }
 
           // 2) Fallback: node.headNumber if present
           if (n < 0 && typeof node?.headNumber === "number") {
@@ -7248,9 +7361,9 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function installLatestNum
           // 3) Final fallback: read heads.json on disk (no fetch)
           if (n < 0) n = await readHeadFromDisk();
 
-          res.json({ number: n });
+          res.json({ number: n, __hardfix: "number2-directfix.v1" });
         }catch(e){
-          res.status(500).json({ ok:false, error: String(e) });
+          res.status(500).json({ ok:false, error: String(e), __hardfix: "number2-directfix.v1" });
         }
       });
       console.log("[compat] endpoint /blocks/latest/number2.json ready (fetch-free)");
@@ -12905,8 +13018,43 @@ void_ready_exporter_timestamp_ms ${now}
         // parentHash may be added/normalized by your wrappers, so we keep it minimal.
       };
 
-      // Call your patched SegStore.saveBlock (already wrapped with tx merge + counters)
-      await s.saveBlock(block);
+      // Prefer stronger commit path when available
+      if (typeof s.saveBlockCommit === "function") {
+        await s.saveBlockCommit(block);
+      } else if (typeof s.saveBlock === "function") {
+        await s.saveBlock(block);
+      } else {
+        return { ok:false, taken:0, reason:'store has no saveBlock/saveBlockCommit' };
+      }
+
+      try {
+        const G:any = globalThis as any;
+        G.__void_last_seal = { number: nextNum, at: Date.now() };
+        G.__void_seals_last_number = nextNum;
+        G.__void_head_number = nextNum;
+        G.__void_head_last = nextNum;
+        G.__void_head = nextNum;
+        G.__void_last_head = nextNum;
+      } catch {}
+
+      try {
+        const fs = require("node:fs");
+        const path = require("node:path");
+        const dataDirRaw = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+        const dataDir = path.isAbsolute(dataDirRaw) ? dataDirRaw : path.join(process.cwd(), dataDirRaw);
+        const headFile = path.join(dataDir, "head.txt");
+        fs.mkdirSync(path.dirname(headFile), { recursive: true });
+        fs.writeFileSync(headFile, String(nextNum) + "\n", "utf8");
+        try {
+          const fd = fs.openSync(headFile, "r");
+          try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+        } catch {}
+      } catch {}
+
+      // best-effort drain of one tx if wrappers did not already consume it
+      try {
+        if (Array.isArray(mem) && mem.length > 0) mem.splice(0, 1);
+      } catch {}
 
       lastSeal = { number: nextNum, at: Date.now() };
       return { ok:true, number: nextNum, taken: Math.min(memSize, 1 /* real tx selection happens in wrappers */) };
@@ -14010,25 +14158,63 @@ void_header3_last_mismatch ${lastMismatch}
   let autoTimer: any = null, autoMs: number|undefined;
 
   function setGauge(val:number){ try {
-    (globalThis as any).__void_metrics = (globalThis as any).__void_metrics || {};
-    (globalThis as any).__void_metrics.proposerAutoEnabled = (val?1:0);
-    (globalThis as any).__void_metrics.proposerAutoMs = Number.isFinite(autoMs||NaN)?(autoMs as number):NaN;
+    const G:any = globalThis as any;
+    G.__void_metrics = G.__void_metrics || {};
+    G.__void_metrics.proposerAutoEnabled = (val?1:0);
+    G.__void_metrics.proposerAutoMs = Number.isFinite(autoMs||NaN)?(autoMs as number):NaN;
+    G.__void_proposer_auto = G.__void_proposer_auto || {};
+    G.__void_proposer_auto.enabled = !!val;
+    G.__void_proposer_auto.ms = Number.isFinite(autoMs||NaN)?(autoMs as number):NaN;
+    G.__void_proposer_auto.intervalMs = Number.isFinite(autoMs||NaN)?(autoMs as number):NaN;
   } catch{} }
 
   async function tick(){
     try {
-      const node:any = getNode(); if (!node || typeof node.proposeBlock!=="function") return;
-      await node.proposeBlock?.();
+      const G:any = globalThis as any;
+      const port = String(process.env.HTTP_PORT || "4100");
+      const r:any = await fetch("http://127.0.0.1:" + port + "/proposer/tick", { method:"POST" }).catch(()=>null);
+      const j:any = r ? await r.json().catch(()=>null) : null;
+      try {
+        G.__void_proposer_auto = G.__void_proposer_auto || {};
+        G.__void_proposer_auto.enabled = true;
+        G.__void_proposer_auto.ms = Number(autoMs||0);
+        G.__void_proposer_auto.intervalMs = Number(autoMs||0);
+        if (typeof G.__void_proposer_notify === "function") {
+          G.__void_proposer_notify({
+            auto: true,
+            ms: Number(autoMs||0),
+            head: Number(j && j.number)
+          });
+        }
+      } catch {}
     } catch(e) { /* swallow */ }
   }
 
   function start(ms:number){
-    stop(); autoMs = ms; setGauge(1);
+    const G:any = globalThis as any;
+    stop(); autoMs = ms;
+    G.__void_proposer_auto = G.__void_proposer_auto || {};
+    G.__void_proposer_auto.enabled = true;
+    G.__void_proposer_auto.ms = ms;
+    G.__void_proposer_auto.intervalMs = ms;
+    setGauge(1);
     autoTimer = setInterval(tick, ms);
+    try {
+      if (typeof G.__void_proposer_notify === "function") G.__void_proposer_notify({ auto:true, ms });
+    } catch {}
   }
   function stop(){
+    const G:any = globalThis as any;
     if (autoTimer) clearInterval(autoTimer);
-    autoTimer = null; setGauge(0);
+    autoTimer = null;
+    G.__void_proposer_auto = G.__void_proposer_auto || {};
+    G.__void_proposer_auto.enabled = false;
+    G.__void_proposer_auto.ms = Number.isFinite(autoMs||NaN)?(autoMs as number):NaN;
+    G.__void_proposer_auto.intervalMs = Number.isFinite(autoMs||NaN)?(autoMs as number):NaN;
+    setGauge(0);
+    try {
+      if (typeof G.__void_proposer_notify === "function") G.__void_proposer_notify({ auto:false, ms:Number(autoMs||0) });
+    } catch {}
   }
 
   function mount(){
@@ -14036,10 +14222,22 @@ void_header3_last_mismatch ${lastMismatch}
     if ((app as any).__void_proposer_auto_v2) return; (app as any).__void_proposer_auto_v2 = true;
 
     app.post("/proposer/auto/start", (req:any,res:any)=>{
-      const ms = Number(req.query.ms ?? 2000); start(ms);
-      res.json({ok:true, ms});
+      const G:any = globalThis as any;
+      const ms = Number(req.query.ms ?? 2000);
+      start(ms);
+      try {
+        G.__void_proposer_auto = G.__void_proposer_auto || {};
+        G.__void_proposer_auto.enabled = true;
+        G.__void_proposer_auto.ms = ms;
+        G.__void_proposer_auto.intervalMs = ms;
+        if (typeof G.__void_proposer_notify === "function") G.__void_proposer_notify({ auto:true, ms });
+      } catch {}
+      res.json({ok:true, auto:true, ms});
     });
-    app.post("/proposer/auto/stop", (_req:any,res:any)=>{ stop(); res.json({ok:true}); });
+    app.post("/proposer/auto/stop", (_req:any,res:any)=>{
+      stop();
+      res.json({ok:true, auto:false});
+    });
 
     // exporter bridge (piggybacks your existing /metrics/void/proposer.v2.prom writer)
     const old = (globalThis as any).__void_exporters = (globalThis as any).__void_exporters || {};
@@ -23140,12 +23338,35 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
   function readHeadsN(dir:string){
     const fs = require("node:fs");
     const path = require("node:path");
+
+    // 1) prefer canonical head.txt in current build
     try {
-      const p = path.join(dir, "heads.json");
-      const j = JSON.parse(fs.readFileSync(p,"utf8"));
-      const n = Number(j && (j.number ?? j.n));
-      if (Number.isFinite(n)) return n;
+      const p1 = path.join(dir, "head.txt");
+      if (fs.existsSync(p1)) {
+        const t = String(fs.readFileSync(p1,"utf8") || "").trim();
+        const n = Number(t);
+        if (Number.isFinite(n) && n >= 0) return n;
+      }
     } catch {}
+
+    // 2) tolerate older heads.json shapes
+    try {
+      const p2 = path.join(dir, "heads.json");
+      const j = JSON.parse(fs.readFileSync(p2,"utf8"));
+      const cands = [
+        j && (j.number ?? j.n),
+        j && j.head,
+        j && j.headNumber,
+        j && j.latest,
+        j && j.latestNumber,
+        j && j.main && (j.main.head ?? j.main.headNumber),
+      ];
+      for (const v of cands) {
+        const n = Number(v);
+        if (Number.isFinite(n) && n >= 0) return n;
+      }
+    } catch {}
+
     return -1;
   }
 
@@ -35977,6 +36198,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     try {
       const fs = require("node:fs");
       const path = require("node:path");
+      const ht = path.join(dataDir(), "head.txt");
+      if (fs.existsSync(ht)) {
+        const n = Number(String(fs.readFileSync(ht, "utf8") || "").trim());
+        if (Number.isFinite(n) && n >= 0) return n;
+      }
+    } catch {}
+
+    try {
+      const fs = require("node:fs");
+      const path = require("node:path");
       const hj = path.join(dataDir(), "heads.json");
       if (fs.existsSync(hj)) {
         const j = JSON.parse(fs.readFileSync(hj, "utf8") || "{}");
@@ -35984,19 +36215,28 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         if (Number.isFinite(n) && n >= 0) return n;
       }
     } catch {}
-    try {
-      const fs = require("node:fs");
-      const path = require("node:path");
-      const ht = path.join(dataDir(), "head.txt");
-      if (fs.existsSync(ht)) {
-        const n = Number(String(fs.readFileSync(ht, "utf8") || "").trim());
-        if (Number.isFinite(n) && n >= 0) return n;
-      }
-    } catch {}
+
     return -1;
   }
 
   function liveHead(): number {
+    // Prefer in-proc truth surfaces first; these are updated by the working seal path.
+    try {
+      const fast:any[] = [
+        G.__void_head_number,
+        G.__void_head_last,
+        G.__void_head,
+        G.__void_last_head,
+        G.__void_seals_last_number,
+        G.__void_last_seal?.number,
+        G.__void_proposer_mirror?.lastSeenHead,
+      ];
+      for (const v of fast) {
+        const n = Number(v);
+        if (Number.isFinite(n) && n >= 0) return n;
+      }
+    } catch {}
+
     const cands:any[] = [];
     try { if (G.__void_node?.store) cands.push(G.__void_node.store); } catch {}
     try { if (G.node?.store) cands.push(G.node.store); } catch {}
