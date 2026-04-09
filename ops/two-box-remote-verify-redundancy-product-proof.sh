@@ -123,31 +123,26 @@ curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.1
 import json, sys
 print(json.dumps({
   "account": sys.argv[1],
-  "safe_mode": False,
-  "min_submit_gap_ms": 5000,
-  "max_jobs_per_hour": 20,
   "allow_datanet_publish": False,
   "allow_datanet_fetch_verify": True,
   "allow_datanet_redundancy_check": False,
   "target_publish_share": 0.0,
   "target_verify_share": 1.0,
   "target_redundancy_share": 0.0,
-echo
-curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/set --data "$(python3 - "$ACCOUNT" <<'PY'
-import json, sys
-print(json.dumps({"account": sys.argv[1], "enabled": True}, separators=(',', ':')))
+  "min_submit_gap_ms": 5000,
+  "max_jobs_per_hour": 20,
+  "safe_mode": False
+}, separators=(',', ':')))
 PY
 )"
-echo
-
-VERIFY_JOB_ID=""
-VERIFY_DATASET_ID=""
-VERIFY_RECEIPT_ID=""
-REDUNDANCY_JOB_ID=""
-REDUNDANCY_DATASET_ID=""
-REDUNDANCY_RECEIPT_ID=""
-
-echo
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/set --data "$(python3 - "$ACCOUNT" <<'PY'
+import json, sys
+print(json.dumps({
+  "account": sys.argv[1],
+  "enabled": True
+}, separators=(',', ':')))
+PY
+)"
 echo
 echo "--- wait until seeded dataset becomes selectable for verify ---"
 for i in $(seq 1 12); do
