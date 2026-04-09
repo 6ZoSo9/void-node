@@ -26,10 +26,20 @@ do
   echo
 done
 
-echo "=== [4] alert truth ==="
+echo "=== [4] export isolated pick2 proof metrics if proof output exists ==="
+if [ -f /tmp/void-pick2-fairness-proof/picks.jsonl ]; then
+  make pick2-isolated-proof-export
+else
+  echo "[ok] no isolated proof output yet; skipping pick2 isolated exporter"
+fi
+
+echo
+echo "=== [5] alert truth ==="
 for q in \
   'ALERTS{alertname="VoidTwoBoxPeerSuiteFailed"}' \
-  'ALERTS{alertname="VoidTwoBoxPeerSuiteStale"}'
+  'ALERTS{alertname="VoidTwoBoxPeerSuiteStale"}' \
+  'ALERTS{alertname="VoidPick2IsolatedProofFailed"}' \
+  'ALERTS{alertname="VoidPick2IsolatedProofStreakRegression"}'
 do
   echo "--- query=$q"
   curl -fsS --get --data-urlencode "query=$q" "$PROM_URL/api/v1/query" | jq .
