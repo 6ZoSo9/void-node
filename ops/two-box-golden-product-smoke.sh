@@ -51,8 +51,11 @@ bash ops/two-box-remote-consume-view-product-proof.sh | tee "$OUT/consume-view-p
 step "[8] participant js parse proof"
 bash ops/two-box-remote-participant-js-parse-proof.sh | tee "$OUT/participant-js-parse-proof.log"
 
-step "[9] summarize"
-python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" "$OUT/consumer-fetch-product-proof.log" "$OUT/consume-view-product-proof.log" "$OUT/participant-js-parse-proof.log" <<'PY'
+step "[9] weighted pick2 mixed proof"
+TOKEN="${TOKEN:-${VOID_AGENT_TOKEN:-${AGENT_TOKEN:-dev-agent-local-20260409}}}" bash ops/pick2-weighted-mixed-proof.sh | tee "$OUT/weighted-pick2-mixed-proof.log"
+
+step "[10] summarize"
+python3 - "$OUT/jobs-submit-product-proof.log" "$OUT/datanet-view-proof.log" "$OUT/verify-redundancy-product-proof.log" "$OUT/cross-machine-lifecycle-proof.log" "$OUT/consumer-fetch-product-proof.log" "$OUT/consume-view-product-proof.log" "$OUT/participant-js-parse-proof.log" "$OUT/weighted-pick2-mixed-proof.log" <<'PY'
 from pathlib import Path
 import json
 import sys
@@ -159,6 +162,14 @@ def parse_participant_js(txt: str):
         "parse_ok": parse_ok,
     }
 
+def parse_weighted_pick2(txt: str):
+    ok = '"all_policies_weighted": true' in txt and '"good_tasks_should_win": true' in txt and '"bad_rejects_should_appear": true' in txt
+    has_summary = "=== summary ===" in txt
+    return {
+        "ok": ok,
+        "has_summary": has_summary,
+    }
+
 jobs_txt = Path(sys.argv[1]).read_text()
 view_txt = Path(sys.argv[2]).read_text()
 vr_txt = Path(sys.argv[3]).read_text()
@@ -166,6 +177,7 @@ cm_txt = Path(sys.argv[4]).read_text()
 cf_txt = Path(sys.argv[5]).read_text()
 cv_txt = Path(sys.argv[6]).read_text()
 pj_txt = Path(sys.argv[7]).read_text()
+wp_txt = Path(sys.argv[8]).read_text()
 
 summary = {
     "jobs_submit_product_proof": parse_jobs_submit(jobs_txt),
@@ -175,6 +187,7 @@ summary = {
     "consumer_fetch_product_proof": parse_consumer_fetch(cf_txt),
     "consume_view_product_proof": parse_consume_view(cv_txt),
     "participant_js_parse_proof": parse_participant_js(pj_txt),
+    "weighted_pick2_mixed_proof": parse_weighted_pick2(wp_txt),
 }
 summary["golden_ok"] = (
     summary["jobs_submit_product_proof"]["ok"] and
@@ -200,7 +213,9 @@ summary["golden_ok"] = (
     summary["consume_view_product_proof"]["local_job_id_ok"] and
     summary["consume_view_product_proof"]["local_job_plaintext_ok"] and
     summary["participant_js_parse_proof"]["ok"] and
-    summary["participant_js_parse_proof"]["parse_ok"]
+    summary["participant_js_parse_proof"]["parse_ok"] and
+    summary["weighted_pick2_mixed_proof"]["ok"] and
+    summary["weighted_pick2_mixed_proof"]["has_summary"]
 )
 print(json.dumps(summary, indent=2))
 if not summary["golden_ok"]:
