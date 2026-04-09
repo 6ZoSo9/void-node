@@ -38380,7 +38380,13 @@ a{color:#93c5fd;text-decoration:none}
           }
         };
 
-        const r = await fetch(`http://127.0.0.1:${port}/jobs/submit`, {
+        const runnerSubmitBase =
+          String(
+            process.env.PUBLIC_HTTP_BASE ||
+            process.env.HTTP_ADVERTISE ||
+            `http://127.0.0.1:${port}`
+          ).replace(/\/$/, "");
+        const r = await fetch(`${runnerSubmitBase}/jobs/submit`, {
           method: "POST",
           headers: { "content-type":"application/json" },
           body: JSON.stringify(payload)
