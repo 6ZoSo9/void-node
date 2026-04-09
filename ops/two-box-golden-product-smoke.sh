@@ -26,7 +26,7 @@ git rev-parse --short HEAD
 echo "--- remote latest tag ---"
 git describe --tags --abbrev=0 2>/dev/null || true
 echo "--- remote health ---"
-curl -fsS --max-time 8 http://127.0.0.1:4100/health
+curl -fsS --max-time 8 "http://100.122.79.39:4100/health"
 echo
 ' | tee "$OUT/remote.truth.txt"
 
