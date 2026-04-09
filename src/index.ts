@@ -43467,7 +43467,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const submit = lr && lr.result ? lr.result : null;
         let resultLabel = "-";
         let nextLabel = "";
-        if (out && out.outcome_label) resultLabel = String(out.outcome_label || "-");
+        if (lr && lr.outcome_label) resultLabel = String(lr.outcome_label || "-");
         else if (submit && submit.skipped && submit.reason === "cooldown") resultLabel = "COOLDOWN";
         else if (submit && submit.skipped && submit.reason === "hourly_limit") resultLabel = "LIMIT";
         else if (submit && submit.skipped && submit.reason === "no_fetch_verify_target") resultLabel = "NO VERIFY TARGET";
