@@ -64,10 +64,13 @@ pick_remote_base() {
     return 0
   fi
 
-  local guessed=""
-  guessed="$(ssh "$ALIEN" 'TS_IP_REMOTE="$(tailscale ip -4 | head -n 1 || true)"; if [ -n "$TS_IP_REMOTE" ]; then printf "http://%s:4100\n" "$TS_IP_REMOTE"; fi' 2>/dev/null || true)"
-  if [ -n "$guessed" ]; then
-    printf '%s\n' "$guessed"
+  if [ -n "${REMOTE_BASE:-}" ]; then
+    printf '%s\n' "$REMOTE_BASE"
+    return 0
+  fi
+
+  if [ -n "${REMOTE_IP:-}" ]; then
+    printf 'http://%s:4100\n' "$REMOTE_IP"
     return 0
   fi
 
