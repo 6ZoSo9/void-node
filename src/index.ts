@@ -31438,7 +31438,7 @@ try {
       const FILE_LEASES  = path.join(AGENT_DIR, "leases.jsonl");
 
       // last-wins override: we *add* another handler and explicitly reorder it to the end
-      app.post("/agent/v0/pick2", requireAgentAuth, (req:any, res:any)=>{
+      app.post("/__void/agent/pick2_fifo_v2_debug", requireAgentAuth, (req:any, res:any)=>{
         try{
           const done   = setFromJsonl(FILE_RESULTS, "id", SCAN_MAX);
           const active = leasesActive(FILE_LEASES, LEASE_MS, SCAN_MAX);
@@ -31488,7 +31488,7 @@ try {
         }
       }catch{}
 
-      console.log("[agent/pick2] fifo v2 mounted (last-wins)");
+      console.log("[agent/pick2] fifo v2 mounted at /__void/agent/pick2_fifo_v2_debug (public /agent/v0/pick2 left to weighted route)");
     }
     mount();
   }catch{}
@@ -31929,7 +31929,7 @@ try {
       }
 
       // Hard override pick2 again, but this time with epoch filtering.
-      app.post("/agent/v0/pick2", requireAgentAuth, (req:any, res:any)=>{
+      app.post("/__void/agent/pick2_fifo_v2_debug", requireAgentAuth, (req:any, res:any)=>{
         try{
           const root = String(process.env.VOID_AGENT_DIR || process.env.AGENT_DIR || process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
           const agentDir = path.join(root, "agent");
@@ -47080,6 +47080,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
     try { console.error("[upgrade-boot-consumer:v2] init failed:", e?.message || e); } catch {}
   }
 })();
+
 
 
 // ---------------- [ADD] Agent pick2 weighted.v2 runtime-truth shim ----------------
