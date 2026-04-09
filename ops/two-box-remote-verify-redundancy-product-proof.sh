@@ -199,35 +199,11 @@ print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
 PY
 )" > /tmp/vr-tick.json || true
 
-  STATUS_JSON="$(curl -fsS --max-time 15 "http://100.122.79.39:4100/wc/runner/status?account=$ACCOUNT")"
-  export STATUS_JSON
-  TASK="$(python3 - <<'PY'
-import json, os
-obj = json.loads(os.environ["STATUS_JSON"])
-print((obj.get("last_selected_task_class") or obj.get("active_task_class") or ""))
-PY
-)"
-  DATASET="$(python3 - <<'PY'
-import json, os
-obj = json.loads(os.environ["STATUS_JSON"])
-print((obj.get("last_selected_dataset_id") or ""))
-PY
-)"
-  JOB="$(python3 - <<'PY'
-import json, os
-obj = json.loads(os.environ["STATUS_JSON"])
-lr = obj.get("last_result") or {}
-print((lr.get("job_id") or ""))
-PY
-)"
-  if [ "$TASK" = "datanet_fetch_verify" ] && [ -n "$DATASET" ] && [ -n "$JOB" ]; then
-    VERIFY_JOB_ID="$JOB"
-    VERIFY_DATASET_ID="$DATASET"
-    VERIFY_RECEIPT_ID="$(python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$JOB" <<'PY'
+  python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" > /tmp/vr-verify-hit.json <<'PY'
 from pathlib import Path
 import json, sys
-p = Path(sys.argv[1]); job_id = sys.argv[2]
-rid = ""
+p = Path(sys.argv[1]); account = sys.argv[2]
+out = {"job_id":"", "receipt_id":"", "dataset_id":""}
 if p.exists():
     for line in p.read_text().splitlines():
         if not line.strip():
@@ -236,18 +212,39 @@ if p.exists():
             obj = json.loads(line)
         except:
             continue
-        if str(obj.get("job_id","")) == job_id:
-            rid = str(obj.get("receipt_id",""))
-print(rid)
+        if str(obj.get("account","")) != account:
+            continue
+        if str(obj.get("kind","")) != "datanet_fetch_verify":
+            continue
+        out = {
+            "job_id": str(obj.get("job_id","")),
+            "receipt_id": str(obj.get("receipt_id","")),
+            "dataset_id": str(obj.get("dataset_id","")),
+        }
+print(json.dumps(out))
+PY
+
+  VERIFY_JOB_ID="$(python3 - /tmp/vr-verify-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["job_id"])
 PY
 )"
+  VERIFY_RECEIPT_ID="$(python3 - /tmp/vr-verify-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["receipt_id"])
+PY
+)"
+  VERIFY_DATASET_ID="$(python3 - /tmp/vr-verify-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["dataset_id"])
+PY
+)"
+  if [ -n "$VERIFY_JOB_ID" ] && [ -n "$VERIFY_RECEIPT_ID" ] && [ -n "$VERIFY_DATASET_ID" ]; then
     break
   fi
   sleep 2
 done
 export VERIFY_JOB_ID VERIFY_DATASET_ID VERIFY_RECEIPT_ID
-
-echo
 echo "--- wait for verify cooldown to clear before redundancy ---"
 sleep 7
 
@@ -260,51 +257,11 @@ print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
 PY
 )" > /tmp/vr-tick2.json || true
 
-  STATUS_JSON="$(curl -fsS --max-time 15 "http://100.122.79.39:4100/wc/runner/status?account=$ACCOUNT")"
-  export STATUS_JSON
-  TASK="$(python3 - <<'PY'
-import json, os
-obj = json.loads(os.environ["STATUS_JSON"])
-print((obj.get("last_selected_task_class") or obj.get("active_task_class") or ""))
-PY
-)"
-  DATASET="$(python3 - <<'PY'
-import json, os
-obj = json.loads(os.environ["STATUS_JSON"])
-print((obj.get("last_selected_dataset_id") or ""))
-PY
-)"
-  JOB="$(python3 - <<'PY'
-import json, os
-obj = json.loads(os.environ["STATUS_JSON"])
-lr = obj.get("last_result") or {}
-print((lr.get("job_id") or ""))
-PY
-)"
-  SUBMIT_REASON="$(python3 - /tmp/vr-tick2.json <<'PY'
+  python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$ACCOUNT" > /tmp/vr-redundancy-hit.json <<'PY'
 from pathlib import Path
 import json, sys
-p = Path(sys.argv[1])
-if not p.exists():
-    print("")
-    raise SystemExit(0)
-try:
-    obj = json.loads(p.read_text())
-except:
-    print("")
-    raise SystemExit(0)
-sub = obj.get("submit") or {}
-print(sub.get("reason") or "")
-PY
-)"
-  if [ "$TASK" = "datanet_redundancy_check" ] && [ -n "$DATASET" ] && [ -n "$JOB" ]; then
-    REDUNDANCY_JOB_ID="$JOB"
-    REDUNDANCY_DATASET_ID="$DATASET"
-    REDUNDANCY_RECEIPT_ID="$(python3 - "$HOME/dev/void-node/data_a/agent_v1/receipts.jsonl" "$JOB" <<'PY'
-from pathlib import Path
-import json, sys
-p = Path(sys.argv[1]); job_id = sys.argv[2]
-rid = ""
+p = Path(sys.argv[1]); account = sys.argv[2]
+out = {"job_id":"", "receipt_id":"", "dataset_id":""}
 if p.exists():
     for line in p.read_text().splitlines():
         if not line.strip():
@@ -313,20 +270,40 @@ if p.exists():
             obj = json.loads(line)
         except:
             continue
-        if str(obj.get("job_id","")) == job_id:
-            rid = str(obj.get("receipt_id",""))
-print(rid)
+        if str(obj.get("account","")) != account:
+            continue
+        if str(obj.get("kind","")) != "datanet_redundancy_check":
+            continue
+        out = {
+            "job_id": str(obj.get("job_id","")),
+            "receipt_id": str(obj.get("receipt_id","")),
+            "dataset_id": str(obj.get("dataset_id","")),
+        }
+print(json.dumps(out))
+PY
+
+  REDUNDANCY_JOB_ID="$(python3 - /tmp/vr-redundancy-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["job_id"])
 PY
 )"
+  REDUNDANCY_RECEIPT_ID="$(python3 - /tmp/vr-redundancy-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["receipt_id"])
+PY
+)"
+  REDUNDANCY_DATASET_ID="$(python3 - /tmp/vr-redundancy-hit.json <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["dataset_id"])
+PY
+)"
+  if [ -n "$REDUNDANCY_JOB_ID" ] && [ -n "$REDUNDANCY_RECEIPT_ID" ] && [ -n "$REDUNDANCY_DATASET_ID" ]; then
     break
-  fi
-  if [ "$SUBMIT_REASON" = "runner_busy" ] || [ "$SUBMIT_REASON" = "cooldown" ] || [ "$SUBMIT_REASON" = "background_runner_won_race" ]; then
-    sleep 2
-    continue
   fi
   sleep 2
 done
 export REDUNDANCY_JOB_ID REDUNDANCY_DATASET_ID REDUNDANCY_RECEIPT_ID
+
 
 python3 - <<'PY'
 import json, os
