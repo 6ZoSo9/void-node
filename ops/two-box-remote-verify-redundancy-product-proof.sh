@@ -251,8 +251,24 @@ PY
   sleep 2
 done
 export VERIFY_JOB_ID VERIFY_DATASET_ID VERIFY_RECEIPT_ID
-echo "--- wait for verify cooldown to clear before redundancy ---"
-sleep 7
+echo "--- switch proof account to redundancy-only after verify ---"
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/config --data "$(python3 - "$ACCOUNT" <<'PY'
+import json, sys
+print(json.dumps({
+  "account": sys.argv[1],
+  "allow_datanet_publish": False,
+  "allow_datanet_fetch_verify": False,
+  "allow_datanet_redundancy_check": True,
+  "target_publish_share": 0.0,
+  "target_verify_share": 0.0,
+  "target_redundancy_share": 1.0,
+  "min_submit_gap_ms": 2000,
+  "max_jobs_per_hour": 20,
+  "safe_mode": False
+}, separators=(',', ':')))
+PY
+)"
+sleep 3
 
 echo
 echo "--- tick until redundancy observed ---"
