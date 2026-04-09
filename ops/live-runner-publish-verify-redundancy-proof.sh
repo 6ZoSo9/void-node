@@ -4,7 +4,7 @@ set +H
 set +o histexpand
 
 BASE="${BASE:-http://127.0.0.1:4100}"
-ACCOUNT="${ACCOUNT:-zoso}"
+ACCOUNT="${ACCOUNT:-runner-proof-live-$(date +%Y%m%d-%H%M%S)}"
 OUT="/tmp/live-runner-publish-verify-redundancy-proof.$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$OUT"
 
@@ -25,6 +25,7 @@ jget "$BASE/network/value-summary.json?limit=10" 10 | tee "$OUT/network.before.j
 
 echo
 echo "=== [2] enable full runner config for account ==="
+echo "account=$ACCOUNT"
 jpost_json "$BASE/wc/runner/config" "{\"account\":\"$ACCOUNT\",\"safe_mode\":false,\"allow_datanet_fetch_verify\":true,\"allow_datanet_redundancy_check\":true,\"min_submit_gap_ms\":1000,\"max_jobs_per_hour\":120}" 10 | tee "$OUT/runner.config.json"
 echo
 jpost_json "$BASE/wc/runner/set" "{\"account\":\"$ACCOUNT\",\"enabled\":true}" 10 | tee "$OUT/runner.set.json"
@@ -36,7 +37,7 @@ echo
 jget "$BASE/wc/runner/status?account=$ACCOUNT" 10 | tee "$OUT/runner.status.before.json"
 
 echo
-echo "=== [4] drive runner until publish + verify + redundancy are all seen ==="
+echo "=== [4] drive runner until publish + verify + redundancy are all seen in receipts ==="
 SEEN_PUBLISH=0
 SEEN_VERIFY=0
 SEEN_REDUND=0
@@ -66,23 +67,54 @@ print(json.dumps({
 }, indent=2))
 PY
 
-  TASK="$(python3 - "$OUT/runner.status.$i.json" <<'PY'
+  python3 - "$ACCOUNT" "data_a/agent_v1/receipts.jsonl" <<'PY' > "$OUT/seen.$i.json"
+import sys, json, pathlib
+account = sys.argv[1]
+p = pathlib.Path(sys.argv[2])
+seen = {"publish": 0, "verify": 0, "redundancy": 0}
+if p.exists():
+    for line in p.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
+        if str(obj.get("account") or "") != account:
+            continue
+        kind = str(obj.get("kind") or "")
+        if kind == "datanet_publish":
+            seen["publish"] = 1
+        elif kind == "datanet_fetch_verify":
+            seen["verify"] = 1
+        elif kind == "datanet_redundancy_check":
+            seen["redundancy"] = 1
+print(json.dumps(seen))
+PY
+
+  SEEN_PUBLISH="$(python3 - "$OUT/seen.$i.json" <<'PY'
 import sys, json, pathlib
 o = json.loads(pathlib.Path(sys.argv[1]).read_text())
-sel = o.get("selection") or {}
-print((sel.get("task_class") or o.get("last_selected_task_class") or ""))
+print(int(o.get("publish") or 0))
 PY
 )"
-  case "$TASK" in
-    datanet_publish) SEEN_PUBLISH=1 ;;
-    datanet_fetch_verify) SEEN_VERIFY=1 ;;
-    datanet_redundancy_check) SEEN_REDUND=1 ;;
-  esac
+  SEEN_VERIFY="$(python3 - "$OUT/seen.$i.json" <<'PY'
+import sys, json, pathlib
+o = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print(int(o.get("verify") or 0))
+PY
+)"
+  SEEN_REDUND="$(python3 - "$OUT/seen.$i.json" <<'PY'
+import sys, json, pathlib
+o = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print(int(o.get("redundancy") or 0))
+PY
+)"
 
   echo "seen_publish=$SEEN_PUBLISH seen_verify=$SEEN_VERIFY seen_redundancy=$SEEN_REDUND"
 
   if [ "$SEEN_PUBLISH" -eq 1 ] && [ "$SEEN_VERIFY" -eq 1 ] && [ "$SEEN_REDUND" -eq 1 ]; then
-    echo "[ok] all three task classes observed"
+    echo "[ok] all three task classes observed in receipts for account=$ACCOUNT"
     break
   fi
 
@@ -136,4 +168,5 @@ jget "$BASE/health" 10 | tee "$OUT/health.final.json"
 echo
 echo "=== [8] success ==="
 echo "[ok] live runner publish/verify/redundancy proof green"
+echo "account=$ACCOUNT"
 echo "out=$OUT"

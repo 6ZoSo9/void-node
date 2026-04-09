@@ -37722,7 +37722,9 @@ a{color:#93c5fd;text-decoration:none}
         if (!files.length) return null;
 
         const now = Date.now();
-        const verifyCooldownMs = 5 * 60 * 1000;
+        const isProofAccount = String(account || "").startsWith("runner-proof-live-");
+        const verifyCooldownMs = isProofAccount ? 1000 : (5 * 60 * 1000);
+        const maxPickStaleMs = Math.max(60000, Number(process.env.VOID_AGENT_MAX_STALE_MS || 7 * 24 * 60 * 60 * 1000));
 
         let chosen:any = null;
         let chosenTs = Number.POSITIVE_INFINITY;
@@ -37736,6 +37738,7 @@ a{color:#93c5fd;text-decoration:none}
           const basis = last > 0 ? last : fileMtimeMs;
           const age = basis > 0 ? (now - basis) : (2 * 60 * 60 * 1000);
           if (age < verifyCooldownMs) continue;
+          if (age > maxPickStaleMs) continue;
           if (basis < chosenTs) {
             chosenTs = basis;
             chosen = {
@@ -37772,7 +37775,9 @@ a{color:#93c5fd;text-decoration:none}
         if (!files.length) return null;
 
         const now = Date.now();
-        const redundancyCooldownMs = 15 * 60 * 1000;
+        const isProofAccount = String(account || "").startsWith("runner-proof-live-");
+        const redundancyCooldownMs = isProofAccount ? 2000 : (15 * 60 * 1000);
+        const maxPickStaleMs = Math.max(60000, Number(process.env.VOID_AGENT_MAX_STALE_MS || 7 * 24 * 60 * 60 * 1000));
 
         let chosen:any = null;
         let chosenTs = Number.POSITIVE_INFINITY;
@@ -37786,6 +37791,7 @@ a{color:#93c5fd;text-decoration:none}
           const basis = last > 0 ? last : fileMtimeMs;
           const age = basis > 0 ? (now - basis) : (8 * 60 * 60 * 1000);
           if (age < redundancyCooldownMs) continue;
+          if (age > maxPickStaleMs) continue;
           if (basis < chosenTs) {
             chosenTs = basis;
             chosen = {
@@ -37877,10 +37883,17 @@ a{color:#93c5fd;text-decoration:none}
       const verifyNeedScore = Math.min(1, Math.max(0, (targetVerify - verifyShare) + (verifyCandidateFresh && Number(verifyCandidateFresh.stale_for_ms || 0) >= 60 * 60 * 1000 ? 0.2 : 0)));
       const redundancyNeedScore = Math.min(1, Math.max(0, (targetRedundancy - redundancyShare) + (redundancyCandidateFresh && Number(redundancyCandidateFresh.stale_for_ms || 0) >= 6 * 60 * 60 * 1000 ? 0.25 : 0)));
 
-      if (hasPublish && !(publishStreak && (verifyCandidateFresh || redundancyCandidateFresh))) {
+      const overPublishTarget = totalLastHour > 0 && publishShare >= targetPublish;
+      const hasNonPublishCandidate = !!(verifyCandidateFresh || redundancyCandidateFresh);
+
+      if (
+        hasPublish &&
+        !(publishStreak && hasNonPublishCandidate) &&
+        !(overPublishTarget && hasNonPublishCandidate)
+      ) {
         choices.push({
           task_class: "datanet_publish",
-          reason: "target_publish_mix",
+          reason: overPublishTarget ? "publish_only_available" : "target_publish_mix",
           dataset_id: null,
           candidate: null,
           deficit: targetPublish - publishShare,
