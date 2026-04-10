@@ -37618,9 +37618,8 @@ a{color:#93c5fd;text-decoration:none}
             try {
               const datanetRawFile = path.join(
                 String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
-                "datanet",
-                "receipts",
-                "datanet.jsonl"
+                "agent_v1",
+                "receipts.jsonl"
               );
               for (const line of readLines(datanetRawFile)) {
                 try {
