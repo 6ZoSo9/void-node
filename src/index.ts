@@ -43411,7 +43411,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     topStripSet("topStripWallet", walletReadyTop ? "Wallet: Connected" : "Wallet: Not connected", walletReadyTop ? "good" : "warn");
     topStripSet("topStripWc", "Usable WC: " + String(redeemableTotal), hasRedeemableTop ? "good" : "neutral");
-    topStripSet("topStripTrade", hasRedeemableTop ? ("Trade: " + String(redeemableTotal) + " WC ready") : "Trade: No WC ready", hasRedeemableTop ? "good" : "warn");
+    topStripSet("topStripTrade", hasRedeemableTop ? ("Trade: " + String(redeemableTotal) + " WC available") : "Trade: No WC ready", hasRedeemableTop ? "good" : "warn");
     topStripSet("topStripRelayer", relayerUp ? "Relayer: Ready" : "Relayer: Down", relayerUp ? "good" : "bad");
     topStripSet("topStripRunner", runnerEnabled ? "Runner: ON" : "Runner: OFF", runnerEnabled ? "good" : "warn");
 
@@ -44320,15 +44320,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(239,68,68,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fca5a5;background:rgba(239,68,68,.12)">Unavailable</span>'
             : !hasRedeemable
               ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(245,158,11,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fcd34d;background:rgba(245,158,11,.12)">No WC Ready</span>'
-              : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(34,197,94,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#86efac;background:rgba(34,197,94,.12)">Ready</span>';
+              : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(34,197,94,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#86efac;background:rgba(34,197,94,.12)">Available</span>';
 
       const tradeOverviewText =
         !walletReady
           ? "Connect a wallet to execute a trade."
           : !relayerUp
-            ? ("Relayer offline • " + redeemableTotal + " WC is still available to move into trading-ready state.")
+            ? ("Relayer offline • " + redeemableTotal + " WC is still available to trade once the relayer is back.")
             : !hasRedeemable
-              ? "No WC is prepared for trading yet • Earn WC, then move it into trading-ready state on the Wallet tab."
+              ? "No WC is available to trade yet."
               : ("Available to trade " + redeemableTotal + " WC for about " + quoteText + " VOID" +
                  (wcAddrShort ? (" • Wallet " + wcAddrShort) : ""));
 
