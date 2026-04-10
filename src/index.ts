@@ -48267,10 +48267,8 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
           loop_balanced:
             Number(counts.publish || 0) >= Number(counts.verify || 0) &&
             Number(counts.verify || 0) >= Number(counts.redundancy || 0),
-          credit_coverage_ratio:
-            Number(counts.publish || 0) > 0
-              ? Number(counts.credited || 0) / Number(counts.publish || 1)
-              : 0
+          credited_receipt_kind: "datanet_receipt",
+          credited_semantics: "credited counts datanet_receipt credit events, not full publish-loop completion coverage"
         };
 
         return res.json(out);
@@ -48297,7 +48295,6 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         const verify = Number(counts.verify || 0);
         const redundancy = Number(counts.redundancy || 0);
         const credited = Number(counts.credited || 0);
-        const creditCoverage = publish > 0 ? credited / publish : 0;
 
         const lines = [
           '# HELP void_datanet_chunks_total Datanet chunk count',
@@ -48318,9 +48315,9 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
           '# HELP void_datanet_credited_total Credited receipt count in value summary',
           '# TYPE void_datanet_credited_total gauge',
           `void_datanet_credited_total ${credited}`,
-          '# HELP void_datanet_credit_coverage_ratio Credited/publish ratio',
-          '# TYPE void_datanet_credit_coverage_ratio gauge',
-          `void_datanet_credit_coverage_ratio ${creditCoverage}`,
+          '# HELP void_datanet_credited_receipts_total Credited datanet_receipt events',
+          '# TYPE void_datanet_credited_receipts_total gauge',
+          `void_datanet_credited_receipts_total ${credited}`,
           '# HELP void_datanet_loop_balanced_v1 Whether publish>=verify>=redundancy',
           '# TYPE void_datanet_loop_balanced_v1 gauge',
           `void_datanet_loop_balanced_v1 ${(publish >= verify && verify >= redundancy) ? 1 : 0}`
