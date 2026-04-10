@@ -47599,17 +47599,35 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
 
         out.sort((a:any, b:any) => {
-          const av = Number(a?.verify?.stale_for_ms || 0);
-          const bv = Number(b?.verify?.stale_for_ms || 0);
-          return bv - av;
+          const aFreshEligible = ((a?.verify?.eligible && !a?.verify?.over_stale_cap) || (a?.redundancy?.eligible && !a?.redundancy?.over_stale_cap)) ? 1 : 0;
+          const bFreshEligible = ((b?.verify?.eligible && !b?.verify?.over_stale_cap) || (b?.redundancy?.eligible && !b?.redundancy?.over_stale_cap)) ? 1 : 0;
+          if (bFreshEligible !== aFreshEligible) return bFreshEligible - aFreshEligible;
+
+          const aStale = Math.min(
+            Number.isFinite(Number(a?.verify?.stale_for_ms)) ? Number(a?.verify?.stale_for_ms) : Number.POSITIVE_INFINITY,
+            Number.isFinite(Number(a?.redundancy?.stale_for_ms)) ? Number(a?.redundancy?.stale_for_ms) : Number.POSITIVE_INFINITY
+          );
+          const bStale = Math.min(
+            Number.isFinite(Number(b?.verify?.stale_for_ms)) ? Number(b?.verify?.stale_for_ms) : Number.POSITIVE_INFINITY,
+            Number.isFinite(Number(b?.redundancy?.stale_for_ms)) ? Number(b?.redundancy?.stale_for_ms) : Number.POSITIVE_INFINITY
+          );
+          return aStale - bStale;
         });
+
+        const freshVerifyCandidate =
+          out.find((x:any) => x?.verify?.eligible && !x?.verify?.over_stale_cap) ||
+          verifyCandidate || null;
+
+        const freshRedundancyCandidate =
+          out.find((x:any) => x?.redundancy?.eligible && !x?.redundancy?.over_stale_cap) ||
+          redundancyCandidate || null;
 
         return {
           ok: true,
           account,
           dir,
-          verify_candidate: verifyCandidate || null,
-          redundancy_candidate: redundancyCandidate || null,
+          verify_candidate: freshVerifyCandidate,
+          redundancy_candidate: freshRedundancyCandidate,
           counts: {
             total_datasets: out.length,
             verify_eligible: verifyEligible,
