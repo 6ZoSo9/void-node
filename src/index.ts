@@ -42083,9 +42083,9 @@ a{color:#93c5fd;text-decoration:none}
           <div class="hero-note" id="latestActionCard" style="margin-top:10px">No recent activity yet. Submit work to generate a result and earn WC.</div>
           <div class="hero-note" id="networkValueCard" style="margin-top:10px">loading…</div>
           <div class="hero-actions" style="margin-top:10px">
-            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Work</a>
-            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open Shared Page</a>
-            <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy Share Page</button>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Dataset</a>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open Shared Dataset Page</a>
+            <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy Shared Dataset Page</button>
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700;" id="adminDataNetSummaryBtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">Open DataNet Admin</a>
           </div>
           <div class="hero-note" id="runnerActivitySnippetCard" style="margin-top:10px;display:none">loading…</div>
@@ -42096,10 +42096,10 @@ a{color:#93c5fd;text-decoration:none}
             <div class="v" id="latestDatasetIdHero" style="font-size:15px;line-height:1.35;word-break:break-word;margin-top:8px">-</div>
             <div class="s" id="latestDatasetReceiptHero" style="margin-top:6px;display:none">-</div>
             <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
-              <a class="btn" id="latestDatasetOpenHero" href="#" target="_blank" rel="noopener" style="display:none">Open viewer</a>
+              <a class="btn" id="latestDatasetOpenHero" href="#" target="_blank" rel="noopener" style="display:none">Open consume viewer</a>
               <a class="btn secondary" id="latestDatasetRawHero" href="#" target="_blank" rel="noopener" style="display:none">Open raw JSON</a>
               <button class="btn secondary" id="latestDatasetCopyIdHero" type="button" style="display:none">Copy ID</button>
-              <button class="btn secondary" id="latestDatasetCopyLinkHero" type="button" style="display:none">Copy Open Link</button>
+              <button class="btn secondary" id="latestDatasetCopyLinkHero" type="button" style="display:none">Copy Consume Link</button>
             </div>
           </div>
           <details class="adv" style="margin-top:14px">
@@ -42159,7 +42159,7 @@ a{color:#93c5fd;text-decoration:none}
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
             <div>
               <div style="font-weight:800;font-size:14px">Open Dataset by ID or Link</div>
-              <div class="section-copy" style="margin-top:4px">Paste a dataset id or a full consume-view link from another node and open it through the remote-capable viewer on this node.</div>
+              <div class="section-copy" style="margin-top:4px">Paste a dataset id or a full consume-view link. This opens the consume viewer on this node using your current participant identity.</div>
             </div>
           </div>
           <div class="row" style="gap:10px;align-items:end;margin-top:12px;flex-wrap:wrap">
@@ -42168,7 +42168,7 @@ a{color:#93c5fd;text-decoration:none}
               <input id="datanetOpenByIdInput" placeholder="ds_... or /datanet/consume-view/..." style="padding:10px 12px;border-radius:12px;border:1px solid #334155;background:#020617;color:#e5e7eb" />
             </label>
             <button id="datanetPasteLinkBtn" type="button" class="btn secondary" style="min-width:110px">Paste</button>
-            <button id="datanetOpenByIdBtn" type="button" class="btn" style="min-width:180px">Open Remote Dataset</button>
+            <button id="datanetOpenByIdBtn" type="button" class="btn" style="min-width:180px">Open Consume Viewer</button>
           </div>
           <div class="hero-note" id="datanetOpenByIdStatus" style="margin-top:10px">Enter a dataset id or paste a full consume-view link.</div>
         </div>
@@ -45335,8 +45335,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const href = "/datanet/consume-view/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(resolveActiveParticipantAccount());
       if (status) {
         status.textContent = parsed.source === "consume_view_link"
-          ? ("Detected consume-view link. Opening dataset " + datasetId + "…")
-          : ("Opening remote dataset " + datasetId + "…");
+          ? ("Detected consume-view link. Opening dataset " + datasetId + " in the consume viewer…")
+          : ("Opening dataset " + datasetId + " in the consume viewer…");
       }
       window.location.href = href;
     } catch (e) {
@@ -45588,13 +45588,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if (latestDatasetOpenShareBtn) {
             latestDatasetOpenShareBtn.href = shareHref;
             latestDatasetOpenShareBtn.style.display = "";
-            latestDatasetOpenShareBtn.textContent = "Open Shared Page";
-            latestDatasetOpenShareBtn.title = "Open participant page preloaded for " + effectiveLatestUsefulDataset;
+            latestDatasetOpenShareBtn.textContent = "Open Shared Dataset Page";
+            latestDatasetOpenShareBtn.title = "Open participant page preloaded to open dataset " + effectiveLatestUsefulDataset;
           }
 
           if (latestDatasetShareBtn) {
             latestDatasetShareBtn.style.display = "";
-            latestDatasetShareBtn.title = "Copy participant page link preloaded for " + effectiveLatestUsefulDataset;
+            latestDatasetShareBtn.title = "Copy participant page link preloaded to open dataset " + effectiveLatestUsefulDataset;
             latestDatasetShareBtn.onclick = () =>
               window.__void_copyText &&
               window.__void_copyText(shareHref, "Copied latest shared dataset page link.", latestDatasetShareBtn);
