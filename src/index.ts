@@ -45685,10 +45685,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             effectiveLatestUsefulDataset,
             account
           );
-          latestDatasetBtn.href = latestUsefulLinks.raw_href;
+          latestDatasetBtn.href = latestUsefulLinks.consume_href;
           latestDatasetBtn.style.display = "";
-          latestDatasetBtn.textContent = "Open Latest Useful Work";
-          latestDatasetBtn.title = "Open dataset readback for " + effectiveLatestUsefulDataset;
+          latestDatasetBtn.textContent = "Open consume viewer";
+          latestDatasetBtn.title = "Open consume viewer for " + effectiveLatestUsefulDataset;
 
           const shareHref = latestUsefulLinks.share_href;
 
