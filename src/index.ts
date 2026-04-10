@@ -44167,6 +44167,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           ? String(latestUseful.button_text)
           : "Open Latest Dataset";
 
+        const latestUsefulActionHref = latestUseful
+          ? String(latestUseful.consume_path || latestUseful.view_path || "")
+          : "";
+        const latestUsefulActionPath = latestUsefulActionHref
+          ? (latestUsefulActionHref + (String(latestUsefulActionHref).includes("?") ? "&" : "?") + "who=" + encodeURIComponent(account))
+          : "";
+
         // __void_overview_latest_useful_badge_v1
         const latestUsefulBadge =
           latestUsefulTask === "redundancy"
@@ -44178,7 +44185,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                 : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.35);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#e5e7eb;background:rgba(148,163,184,.10)">Latest</span>';
 
         if (latestUsefulDatasetId) {
-          if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "";
+          if ($("latestDatasetActionCard")) {
+            $("latestDatasetActionCard").style.display = latestUsefulActionPath ? "" : "none";
+            $("latestDatasetActionCard").style.cursor = latestUsefulActionPath ? "pointer" : "default";
+            $("latestDatasetActionCard").title = latestUsefulActionPath ? latestUsefulBtnText : "";
+            $("latestDatasetActionCard").onclick = latestUsefulActionPath ? (() => { try { window.location.href = latestUsefulActionPath; } catch (_) {} }) : null;
+          }
           const latestUsefulDatasetShort =
             String(latestUsefulDatasetId).length > 28
               ? (String(latestUsefulDatasetId).slice(0, 12) + "…" + String(latestUsefulDatasetId).slice(-10))
@@ -44246,7 +44258,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
           loadDatasetPreviewInto("latestDatasetPreviewCard", latestUsefulDatasetId, activeAccountForLinks || "zoso").catch(() => {});
         } else {
-          if ($("latestDatasetActionCard")) $("latestDatasetActionCard").style.display = "none";
+          if ($("latestDatasetActionCard")) {
+            $("latestDatasetActionCard").style.display = "none";
+            $("latestDatasetActionCard").title = "";
+            $("latestDatasetActionCard").onclick = null;
+          }
 
           const receiptHero = $("latestDatasetReceiptHero");
           if (receiptHero) {
