@@ -48107,3 +48107,87 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
 })();
 
 
+
+// === [BEGIN AgentCandidatesFreshnessV1] ===
+(() => {
+  const G: any = globalThis as any;
+  if (G.__void_agent_candidates_freshness_v1_installed) return;
+  G.__void_agent_candidates_freshness_v1_installed = true;
+
+  const attach = () => {
+    const app: any = G.__void_http_app;
+    if (!app || typeof app.get !== "function") return false;
+    if (G.__void_agent_candidates_freshness_v1_attached) return true;
+    G.__void_agent_candidates_freshness_v1_attached = true;
+
+    app.get("/__void/agent/candidates/freshness.v1", async (_req: any, res: any) => {
+      try {
+        const port = Number(process.env.HTTP_PORT || 4100);
+        const r = await fetch(`http://127.0.0.1:${port}/__void/agent/candidates.v1?limit=200`);
+        const j: any = await r.json();
+        const items = Array.isArray(j?.items) ? j.items : [];
+
+        const out = {
+          ok: true,
+          ts_ms: Date.now(),
+          counts: j?.counts || {},
+          sample_size: items.length,
+          verify_eligible_sample: items.filter((x: any) => !!x?.verify?.eligible).length,
+          redundancy_eligible_sample: items.filter((x: any) => !!x?.redundancy?.eligible).length,
+          verify_over_stale_sample: items.filter((x: any) => !!x?.verify?.over_stale_cap).length,
+          redundancy_over_stale_sample: items.filter((x: any) => !!x?.redundancy?.over_stale_cap).length,
+          first_verify_candidate: j?.verify_candidate || null,
+          first_redundancy_candidate: j?.redundancy_candidate || null
+        };
+        return res.json(out);
+      } catch (e: any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/metrics/agent_candidates_freshness_v1.prom", async (_req: any, res: any) => {
+      try {
+        const port = Number(process.env.HTTP_PORT || 4100);
+        const r = await fetch(`http://127.0.0.1:${port}/__void/agent/candidates.v1?limit=200`);
+        const j: any = await r.json();
+        const items = Array.isArray(j?.items) ? j.items : [];
+        const counts = j?.counts || {};
+
+        const lines = [
+          '# HELP void_agent_candidates_verify_eligible_total Verify-eligible candidate count',
+          '# TYPE void_agent_candidates_verify_eligible_total gauge',
+          `void_agent_candidates_verify_eligible_total ${Number(counts.verify_eligible || 0)}`,
+          '# HELP void_agent_candidates_redundancy_eligible_total Redundancy-eligible candidate count',
+          '# TYPE void_agent_candidates_redundancy_eligible_total gauge',
+          `void_agent_candidates_redundancy_eligible_total ${Number(counts.redundancy_eligible || 0)}`,
+          '# HELP void_agent_candidates_verify_over_stale_total Verify candidates over stale cap',
+          '# TYPE void_agent_candidates_verify_over_stale_total gauge',
+          `void_agent_candidates_verify_over_stale_total ${Number(counts.verify_over_stale || 0)}`,
+          '# HELP void_agent_candidates_redundancy_over_stale_total Redundancy candidates over stale cap',
+          '# TYPE void_agent_candidates_redundancy_over_stale_total gauge',
+          `void_agent_candidates_redundancy_over_stale_total ${Number(counts.redundancy_over_stale || 0)}`,
+          '# HELP void_agent_candidates_sample_size_v1 Candidate sample size',
+          '# TYPE void_agent_candidates_sample_size_v1 gauge',
+          `void_agent_candidates_sample_size_v1 ${items.length}`
+        ];
+        res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
+        return res.send(lines.join("\n") + "\n");
+      } catch (e: any) {
+        res.setHeader("content-type", "text/plain; charset=utf-8");
+        return res.status(500).send(`# error ${String(e?.message || e)}\n`);
+      }
+    });
+
+    try { console.error("[agent.candidates.freshness.v1] mounted"); } catch {}
+    return true;
+  };
+
+  if (!attach()) {
+    let tries = 0;
+    const t = setInterval(() => {
+      tries++;
+      if (attach() || tries >= 400) clearInterval(t);
+    }, 50);
+  }
+})();
+// === [END AgentCandidatesFreshnessV1] ===
