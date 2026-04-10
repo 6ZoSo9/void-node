@@ -44471,11 +44471,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         !walletReady
           ? "Connect a wallet to execute a trade."
           : !relayerUp
-            ? ("Relayer offline • " + redeemableTotal + " WC is still available to trade once the relayer is back.")
+            ? ("Local relayer offline • " + redeemableTotal + " WC is still available once helper/relayer returns.")
             : !hasRedeemable
               ? "No WC is available to trade yet."
-              : ("Available to trade " + redeemableTotal + " WC for about " + quoteText + " VOID" +
-                 (wcAddrShort ? (" • Wallet " + wcAddrShort) : ""));
+              : ("Local devnet trade ready • " + redeemableTotal + " WC can swap for about " + quoteText + " VOID" +
+                 (wcAddrShort ? (" • Wallet " + wcAddrShort) : "") +
+                 " • Route: redeem → approve → swap");
 
       if ($("tradeOverviewCard")) {
         $("tradeOverviewCard").innerHTML =
@@ -44487,7 +44488,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           "Wallet ready: " + (walletReady ? "yes" : "no") +
           " • Participant WC available: " + redeemableTotal +
           " • Quoted VOID: " + quoteText +
-          " • Direct Trading: " + (relayerUp ? "Ready" : "Unavailable") +
+          " • Local helper/relayer trade: " + (relayerUp ? "Ready" : "Unavailable") +
           (wcAddr ? " • Execution wallet: " + wcAddr : "");
       } catch {}
     }
