@@ -44329,7 +44329,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             ? ("Relayer offline • " + redeemableTotal + " WC is still available to move into trading-ready state.")
             : !hasRedeemable
               ? "No WC is prepared for trading yet • Earn WC, then move it into trading-ready state on the Wallet tab."
-              : ("Ready to trade " + redeemableTotal + " WC for about " + quoteText + " VOID" +
+              : ("Available to trade " + redeemableTotal + " WC for about " + quoteText + " VOID" +
                  (wcAddrShort ? (" • Wallet " + wcAddrShort) : ""));
 
       if ($("tradeOverviewCard")) {
@@ -44521,6 +44521,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setPre("sendOut", out);
       setPre("tradeOut", out);
       if (out && out.ok) setLatestAction("Trade submitted onchain.");
+      await refresh();
+      try { await new Promise(r => setTimeout(r, 1200)); } catch {}
       await refresh();
     } catch (e) {
       setPre("sendOut", { ok:false, error:String((e && e.message) || e) });
