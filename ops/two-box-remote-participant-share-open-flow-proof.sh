@@ -52,16 +52,16 @@ summary = {
         'id="latestDatasetShareBtn"' in html and
         'latestDatasetOpenShareBtn' in js and
         'latestDatasetShareBtn' in js and
-        '&open_dataset=' in js and
-        '#datanet' in js and
+        'buildLatestUsefulLinks' in js and
+        'share_href' in js and
         'Copied latest shared dataset page link.' in js
     ),
     "has_open_shared_page_btn_html": 'id="latestDatasetOpenShareBtn"' in html,
     "has_copy_share_page_btn_html": 'id="latestDatasetShareBtn"' in html,
     "has_open_shared_page_js": 'latestDatasetOpenShareBtn' in js,
     "has_copy_share_page_js": 'latestDatasetShareBtn' in js,
-    "has_open_dataset_qs": '&open_dataset=' in js,
-    "has_datanet_hash": '#datanet' in js,
+    "has_build_latest_useful_links": 'buildLatestUsefulLinks' in js,
+    "has_share_href": 'share_href' in js,
     "has_copy_message": 'Copied latest shared dataset page link.' in js,
 }
 print(json.dumps(summary, indent=2))
@@ -116,12 +116,14 @@ summary = {
         'id="datanetOpenByIdInput"' in html and
         'id="datanetOpenByIdStatus"' in html and
         'params.get("open_dataset")' in js and
-        'Preloaded dataset id from page link:' in js
+        'Preloaded dataset id from page link:' in js and
+        'participant_share_link' in js
     ),
     "has_open_input": 'id="datanetOpenByIdInput"' in html,
     "has_open_status": 'id="datanetOpenByIdStatus"' in html,
     "has_open_dataset_qs_logic": 'params.get("open_dataset")' in js,
     "has_prefill_status_text": 'Preloaded dataset id from page link:' in js,
+    "has_participant_share_link_logic": 'participant_share_link' in js,
 }
 print(json.dumps(summary, indent=2))
 if not summary["ok"]:

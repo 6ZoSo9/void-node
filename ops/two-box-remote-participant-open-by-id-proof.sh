@@ -157,17 +157,29 @@ if not summary["ok"]:
 PY
 
 echo
-echo "=== [6] simulate the open-by-id target end-to-end ==="
+echo "=== [6] materialize remotely, then open consume-view ==="
+CONSUME_URL="$REMOTE_NODE_BASE/datanet/v1/consume/$LOCAL_DATASET_ID?who=$ACCOUNT"
+LOCAL_JOB_URL="$REMOTE_NODE_BASE/datanet/v1/local-job/$LOCAL_DATASET_ID?who=$ACCOUNT"
 CONSUME_VIEW_URL="$REMOTE_NODE_BASE/datanet/consume-view/$LOCAL_DATASET_ID?who=$ACCOUNT"
+
+echo "$CONSUME_URL" | tee "$OUT/remote.consume.url.txt"
+echo "$LOCAL_JOB_URL" | tee "$OUT/remote.local-job.url.txt"
 echo "$CONSUME_VIEW_URL" | tee "$OUT/remote.consume-view.url.txt"
-curl -fsS --max-time 30 "$CONSUME_VIEW_URL" > "$OUT/remote.consume-view.html"
+
+rm -f "$OUT/remote.consume.json" "$OUT/remote.local-job.json" "$OUT/remote.consume-view.html"
 
 for i in $(seq 1 20); do
-  if jget "$REMOTE_NODE_BASE/datanet/v1/local-job/$LOCAL_DATASET_ID?who=$ACCOUNT" 20 > "$OUT/remote.local-job.json"; then
+  echo "[materialize attempt $i]" | tee -a "$OUT/materialize.log"
+  jget "$CONSUME_URL" 20 > "$OUT/remote.consume.json" || true
+  if jget "$LOCAL_JOB_URL" 20 > "$OUT/remote.local-job.json"; then
     break
   fi
   sleep 2
 done
+
+test -s "$OUT/remote.local-job.json"
+
+curl -fsS --max-time 30 "$CONSUME_VIEW_URL" > "$OUT/remote.consume-view.html"
 
 python3 - "$OUT/remote.consume-view.html" "$OUT/remote.local-job.json" "$LOCAL_DATASET_ID" "$PLAINTEXT" "$LOCAL_SHA256" <<'PY' | tee "$OUT/summary.json"
 import json, sys
