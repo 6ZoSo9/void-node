@@ -48211,3 +48211,139 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
   }
 })();
 // === [END AgentCandidatesFreshnessV1] ===
+
+// === [BEGIN DataNetReceiptsHealthV1] ===
+(() => {
+  const G: any = globalThis as any;
+  if (G.__void_datanet_receipts_health_v1_installed) return;
+  G.__void_datanet_receipts_health_v1_installed = true;
+
+  const attach = () => {
+    const app: any = G.__void_http_app;
+    if (!app || typeof app.get !== "function") return false;
+    if (G.__void_datanet_receipts_health_v1_attached) return true;
+    G.__void_datanet_receipts_health_v1_attached = true;
+
+    app.get("/__void/datanet/receipts/health.v1", async (_req: any, res: any) => {
+      try {
+        const host = String(process.env.VOID_HTTP_HOST || process.env.HTTP_HOST || "127.0.0.1");
+        const port = Number(process.env.HTTP_PORT || 4100);
+
+        const [statusR, valueR] = await Promise.all([
+          fetch(`http://${host}:${port}/datanet/v1/status`),
+          fetch(`http://${host}:${port}/network/value-summary.json`)
+        ]);
+
+        const statusJ: any = await statusR.json();
+        const valueJ: any = await valueR.json();
+
+        const counts = valueJ?.counts || {};
+        const latestUseful = valueJ?.latest_useful_dataset || null;
+        const receipts = Array.isArray(valueJ?.receipts) ? valueJ.receipts : [];
+        const recent = Array.isArray(valueJ?.recent_runner_activity) ? valueJ.recent_runner_activity : [];
+
+        const out = {
+          ok: true,
+          ts_ms: Date.now(),
+          datanet: {
+            chunks: Number(statusJ?.chunks || 0),
+            manifests: Number(statusJ?.manifests || 0)
+          },
+          loop: {
+            publish: Number(counts.publish || 0),
+            verify: Number(counts.verify || 0),
+            redundancy: Number(counts.redundancy || 0),
+            credited: Number(counts.credited || 0)
+          },
+          latest_useful: latestUseful ? {
+            task_class: latestUseful.task_class || null,
+            dataset_id: latestUseful.dataset_id || null,
+            receipt_id: latestUseful.receipt_id || null,
+            status: latestUseful.status || null,
+            ts_ms: Number(latestUseful.ts_ms || 0) || null
+          } : null,
+          receipts_sample_count: receipts.length,
+          recent_runner_activity_count: recent.length,
+          loop_balanced:
+            Number(counts.publish || 0) >= Number(counts.verify || 0) &&
+            Number(counts.verify || 0) >= Number(counts.redundancy || 0),
+          credit_coverage_ratio:
+            Number(counts.publish || 0) > 0
+              ? Number(counts.credited || 0) / Number(counts.publish || 1)
+              : 0
+        };
+
+        return res.json(out);
+      } catch (e: any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    app.get("/__void/metrics/datanet_receipts_health_v1.prom", async (_req: any, res: any) => {
+      try {
+        const host = String(process.env.VOID_HTTP_HOST || process.env.HTTP_HOST || "127.0.0.1");
+        const port = Number(process.env.HTTP_PORT || 4100);
+
+        const [statusR, valueR] = await Promise.all([
+          fetch(`http://${host}:${port}/datanet/v1/status`),
+          fetch(`http://${host}:${port}/network/value-summary.json`)
+        ]);
+
+        const statusJ: any = await statusR.json();
+        const valueJ: any = await valueR.json();
+        const counts = valueJ?.counts || {};
+
+        const publish = Number(counts.publish || 0);
+        const verify = Number(counts.verify || 0);
+        const redundancy = Number(counts.redundancy || 0);
+        const credited = Number(counts.credited || 0);
+        const creditCoverage = publish > 0 ? credited / publish : 0;
+
+        const lines = [
+          '# HELP void_datanet_chunks_total Datanet chunk count',
+          '# TYPE void_datanet_chunks_total gauge',
+          `void_datanet_chunks_total ${Number(statusJ?.chunks || 0)}`,
+          '# HELP void_datanet_manifests_total Datanet manifest count',
+          '# TYPE void_datanet_manifests_total gauge',
+          `void_datanet_manifests_total ${Number(statusJ?.manifests || 0)}`,
+          '# HELP void_datanet_publish_total Published datasets in value summary',
+          '# TYPE void_datanet_publish_total gauge',
+          `void_datanet_publish_total ${publish}`,
+          '# HELP void_datanet_verify_total Verified datasets in value summary',
+          '# TYPE void_datanet_verify_total gauge',
+          `void_datanet_verify_total ${verify}`,
+          '# HELP void_datanet_redundancy_total Redundancy-checked datasets in value summary',
+          '# TYPE void_datanet_redundancy_total gauge',
+          `void_datanet_redundancy_total ${redundancy}`,
+          '# HELP void_datanet_credited_total Credited receipt count in value summary',
+          '# TYPE void_datanet_credited_total gauge',
+          `void_datanet_credited_total ${credited}`,
+          '# HELP void_datanet_credit_coverage_ratio Credited/publish ratio',
+          '# TYPE void_datanet_credit_coverage_ratio gauge',
+          `void_datanet_credit_coverage_ratio ${creditCoverage}`,
+          '# HELP void_datanet_loop_balanced_v1 Whether publish>=verify>=redundancy',
+          '# TYPE void_datanet_loop_balanced_v1 gauge',
+          `void_datanet_loop_balanced_v1 ${(publish >= verify && verify >= redundancy) ? 1 : 0}`
+        ];
+
+        res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
+        return res.send(lines.join("\n") + "\n");
+      } catch (e: any) {
+        res.setHeader("content-type", "text/plain; charset=utf-8");
+        return res.status(500).send(`# error ${String(e?.message || e)}\n`);
+      }
+    });
+
+    try { console.error("[datanet.receipts.health.v1] mounted"); } catch {}
+    return true;
+  };
+
+  if (!attach()) {
+    let tries = 0;
+    const t = setInterval(() => {
+      tries++;
+      if (attach() || tries >= 400) clearInterval(t);
+    }, 50);
+  }
+})();
+// === [END DataNetReceiptsHealthV1] ===
