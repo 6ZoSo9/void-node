@@ -43249,7 +43249,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const manualWallet = $("redeemWallet") ? (($("redeemWallet").value || "").trim()) : "";
     const wcBase = LOCAL_WC_BASE;
 
-    const [bal, redeem, redeemed, jobs, receipts, ledger, rewardStats, identityTruth, summary, peer, health, relayerHealth, runnerStatus, runnerConfig, datanetAdmin] = await Promise.all([
+    const [bal, redeem, redeemed, jobs, receipts, ledger, rewardStats, identityTruth, summary, payoutSummary, peer, health, relayerHealth, runnerStatus, runnerConfig, datanetAdmin] = await Promise.all([
       j("/wc/balance?account=" + encodeURIComponent(account)),
       j("/wc/redeemable?account=" + encodeURIComponent(account)),
       j("/wc/redeemed?account=" + encodeURIComponent(account) + "&limit=20"),
@@ -43259,6 +43259,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       j("/wc/reward-stats?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
       j("/__void/diag/wc-identity-truth.json?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
       j("/network/value-summary.json"),
+      j("/__void/participant/payout-summary.v1?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
       j("/__void/peer-main-status.json"),
       j("/health"),
       j(LOCAL_RELAYER_BASE + "/health").catch(() => ({ ok:false, offline:true })),
@@ -43365,6 +43366,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : null);
 
     const netValue = summary && summary.ok ? summary : null;
+    const payout = payoutSummary && payoutSummary.ok ? payoutSummary : null;
+    const payoutLatest = payout && payout.latest_useful ? payout.latest_useful : null;
+    const payoutCredit = payout && payout.matched_credit ? payout.matched_credit : null;
     const latestUsefulForRunnerCard = netValue && netValue.latest_useful_dataset ? netValue.latest_useful_dataset : null;
     const latestUsefulRunnerTask = latestUsefulForRunnerCard ? String(latestUsefulForRunnerCard.task_class || "") : "";
     const latestUsefulRunnerDataset = latestUsefulForRunnerCard ? String(latestUsefulForRunnerCard.dataset_id || "") : "";
@@ -43471,9 +43475,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("walletRedeemableBig", redeemableTotal);
     setText(
       "walletMeta",
-      redeemState
-        ? ("Usable WC right now: " + redeemableTotal + " • Lifetime earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Already used/spent: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Already moved to trading: " + redeemedTotal + " • Account: " + account)
-        : "Participant-side Work Credit state is unavailable right now."
+      payout && payout.wallet
+        ? ("Usable WC right now: " + Number(payout.wallet.redeemable || 0) +
+           " • Lifetime earned: " + Number(payout.wallet.earned || 0) +
+           " • Already used/spent: " + Number(payout.wallet.debited || 0) +
+           " • Already moved to trading: " + Number(payout.wallet.redeemed || 0) +
+           " • Wallet WC balance: " + Number(payout.wallet.wc_balance || 0) +
+           " • Account: " + account)
+        : (redeemState
+            ? ("Usable WC right now: " + redeemableTotal + " • Lifetime earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Already used/spent: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Already moved to trading: " + redeemedTotal + " • Account: " + account)
+            : "Participant-side Work Credit state is unavailable right now.")
     );
     setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
     setText("walletDebitedMini", redeemState && Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0);
@@ -43519,6 +43530,33 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     topStripSet("topStripWallet", walletReadyTop ? "Wallet: Connected" : "Wallet: Not connected", walletReadyTop ? "good" : "warn");
     topStripSet("topStripWc", "Usable WC: " + String(redeemableTotal), hasRedeemableTop ? "good" : "neutral");
     topStripSet("topStripTrade", hasRedeemableTop ? ("Trade: " + String(redeemableTotal) + " WC available") : "Trade: No WC ready", hasRedeemableTop ? "good" : "warn");
+    try {
+      if (payout && payout.joined && payoutLatest && payoutCredit) {
+        setText("latestJobState", "+" + String(Number(payoutCredit.delta || 0)) + " WC");
+        setText("latestJobMeta",
+          String(payoutLatest.task_class || "work") +
+          " • dataset " + String(payoutLatest.dataset_id || "-") +
+          " • receipt " + String(payoutLatest.receipt_id || "-") +
+          " • credited"
+        );
+        setText("latestActionCard",
+          "Latest useful work credited • +" + String(Number(payoutCredit.delta || 0)) +
+          " WC • account " + String(payout.account || account) +
+          " • reason " + String(payoutCredit.reason || "-")
+        );
+        setText("wcRewardLastValue",
+          payout.rewards && payout.rewards.last_credit
+            ? String(Number(payout.rewards.last_credit.delta || 0))
+            : "-"
+        );
+        setText("wcRewardLastMeta",
+          payout.rewards && payout.rewards.last_credit
+            ? ("Last credit • " + String(payout.rewards.last_credit.receipt_kind || "-") +
+               " • ts " + String(Number(payout.rewards.last_credit.ts_ms || 0)))
+            : "Checking reward…"
+        );
+      }
+    } catch (_) {}
     topStripSet("topStripRelayer", relayerUp ? "Relayer: Ready" : "Relayer: Down", relayerUp ? "good" : "bad");
     topStripSet("topStripRunner", runnerEnabled ? "Runner: ON" : "Runner: OFF", runnerEnabled ? "good" : "warn");
 
