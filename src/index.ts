@@ -42339,6 +42339,7 @@ a{color:#93c5fd;text-decoration:none}
             </div>
           </div>
           <div class="hero-note" id="tradeSummary">Use this step after WC is prepared for trading. Your connected wallet is used by default.</div>
+          <div class="subtle-tab-copy" id="tradeBackendTruthCard" style="margin-top:8px">Backend truth: loading…</div>
           <div class="hero-note" id="tradeOverviewCard" style="margin-top:10px">loading…</div>
         </div>
 
@@ -42415,6 +42416,7 @@ a{color:#93c5fd;text-decoration:none}
             <div class="v" style="font-size:64px;margin-bottom:8px;line-height:1" id="walletRedeemableBig">-</div>
             <div class="s" id="walletMeta">Available participant-side WC you can use right now</div>
               <div class="s" id="walletRedeemedSummary" style="margin-top:6px">Redeemed WC: -</div>
+              <div class="s" id="walletBackendTruthCard" style="margin-top:6px">Backend truth: loading…</div>
           </div>
 
           <div class="metric-strip" style="margin-top:14px">
@@ -43380,8 +43382,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         " • redeemed " + backendRedeemed +
         " • entries " + backendCount;
       setText("backendTruthCard", backendTruthText);
+      setText("tradeBackendTruthCard", backendTruthText);
+      setText("walletBackendTruthCard", backendTruthText);
     } catch (_) {
       setText("backendTruthCard", "Backend truth unavailable.");
+      setText("tradeBackendTruthCard", "Backend truth unavailable.");
+      setText("walletBackendTruthCard", "Backend truth unavailable.");
     }
 
     setText("heroWalletShort", /^0x[0-9a-fA-F]{40}$/.test(connectedWallet) ? shortAddr(connectedWallet) : "Not connected");
