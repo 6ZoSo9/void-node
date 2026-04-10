@@ -37159,6 +37159,43 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           }
         });
 
+        const findReceiptJobLinkage = (datasetId:any, who:any) => {
+          try {
+            const path = require("node:path");
+            const ds = String(datasetId || "").trim();
+            const account = String(who || "").trim();
+            if (!ds || !account) return { receipt_id: null, job_id: null };
+
+            const receiptsPath = path.join(
+              String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+              "agent_v1",
+              "receipts.jsonl"
+            );
+
+            let best:any = null;
+            for (const line of readLines(receiptsPath)) {
+              try {
+                const r:any = JSON.parse(line);
+                if (String(r?.dataset_id || "") !== ds) continue;
+                if (String(r?.account || "") !== account) continue;
+                const rid = String(r?.receipt_id || "").trim();
+                const jid = String(r?.job_id || "").trim();
+                if (!rid && !jid) continue;
+                const ts = Number(r?.ts_ms || r?.ts || 0);
+                if (!best || ts >= Number(best?.ts_ms || best?.ts || 0)) best = r;
+              } catch {}
+            }
+
+            return best ? {
+              receipt_id: String(best?.receipt_id || "").trim() || null,
+              job_id: String(best?.job_id || "").trim() || null
+            } : { receipt_id: null, job_id: null };
+          } catch {
+            return { receipt_id: null, job_id: null };
+          }
+        };
+        try { (globalThis as any).__void_findReceiptJobLinkage = findReceiptJobLinkage; } catch {}
+
         APP.get("/datanet/v1/local-job/:id", (req:any, res:any) => {
           try {
             const fs = require("node:fs");
@@ -37187,28 +37224,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
             try {
               if (!receipt_id || !job_id) {
-                const receiptsPath = path.join(
-                  String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
-                  "agent_v1",
-                  "receipts.jsonl"
-                );
-                let best:any = null;
-                for (const line of readLines(receiptsPath)) {
-                  try {
-                    const r:any = JSON.parse(line);
-                    if (String(r?.dataset_id || "") !== String(id || "")) continue;
-                    if (String(r?.account || "") !== String(who || "")) continue;
-                    const rid = String(r?.receipt_id || "").trim();
-                    const jid = String(r?.job_id || "").trim();
-                    if (!rid && !jid) continue;
-                    const ts = Number(r?.ts_ms || r?.ts || 0);
-                    if (!best || ts >= Number(best?.ts_ms || best?.ts || 0)) best = r;
-                  } catch {}
-                }
-                if (best) {
-                  if (!receipt_id) receipt_id = String(best?.receipt_id || "").trim() || null;
-                  if (!job_id) job_id = String(best?.job_id || "").trim() || null;
-                }
+                const linked = (((globalThis as any).__void_findReceiptJobLinkage) ? (globalThis as any).__void_findReceiptJobLinkage(id, who) : { receipt_id: null, job_id: null });
+                if (!receipt_id) receipt_id = linked.receipt_id || null;
+                if (!job_id) job_id = linked.job_id || null;
               }
             } catch {}
 
@@ -37547,28 +37565,9 @@ a{color:#93c5fd;text-decoration:none}
 
             try {
               if (!receiptId || !jobId) {
-                const receiptsPath = path.join(
-                  String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
-                  "agent_v1",
-                  "receipts.jsonl"
-                );
-                let best:any = null;
-                for (const line of readLines(receiptsPath)) {
-                  try {
-                    const r:any = JSON.parse(line);
-                    if (String(r?.dataset_id || "") !== String(id || "")) continue;
-                    if (String(r?.account || "") !== String(who || "")) continue;
-                    const rid = String(r?.receipt_id || "").trim();
-                    const jid = String(r?.job_id || "").trim();
-                    if (!rid && !jid) continue;
-                    const ts = Number(r?.ts_ms || r?.ts || 0);
-                    if (!best || ts >= Number(best?.ts_ms || best?.ts || 0)) best = r;
-                  } catch {}
-                }
-                if (best) {
-                  if (!receiptId) receiptId = String(best?.receipt_id || "").trim();
-                  if (!jobId) jobId = String(best?.job_id || "").trim();
-                }
+                const linked = (((globalThis as any).__void_findReceiptJobLinkage) ? (globalThis as any).__void_findReceiptJobLinkage(id, who) : { receipt_id: null, job_id: null });
+                if (!receiptId) receiptId = String(linked.receipt_id || "").trim();
+                if (!jobId) jobId = String(linked.job_id || "").trim();
               }
             } catch {}
 
