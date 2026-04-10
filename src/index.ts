@@ -43429,7 +43429,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         $("tradeSummary").textContent = !relayerUp
           ? "Direct trading is unavailable right now because the relayer is offline. You can still prepare WC on the Wallet tab."
           : (!hasRedeemable
-              ? "No WC is prepared for trading yet. Move WC into trading-ready state on the Wallet tab first."
+              ? "No WC is available to trade yet."
               : "WC is prepared, the relayer is up, and the trade path is live. You can execute the trade now.");
       }
     }
@@ -44557,14 +44557,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           !hasWallet
             ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.25);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#e5e7eb;background:rgba(148,163,184,.10)">No Wallet</span>'
             : (redeemableNow > 0
-                ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(34,197,94,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#86efac;background:rgba(34,197,94,.12)">Ready</span>'
+                ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(34,197,94,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#86efac;background:rgba(34,197,94,.12)">Available</span>'
                 : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(245,158,11,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fcd34d;background:rgba(245,158,11,.12)">No WC Ready</span>');
 
         const redeemSummaryText =
           !hasWallet
-            ? "Connect a wallet to move WC into trading-ready state."
+            ? "Connect a wallet to trade WC for VOID."
             : (redeemableNow > 0
-                ? ("Ready to move " + redeemableNow + " WC from participant balance into trading-ready state.")
+                ? ("Available to trade " + redeemableNow + " WC from participant balance.")
                 : "No WC is ready to move yet • Earn WC first.");
 
         if ($("redeemSummary")) {
