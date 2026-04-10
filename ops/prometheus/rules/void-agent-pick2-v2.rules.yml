@@ -14,13 +14,13 @@ groups:
         expr: max_over_time(void_agent_pick2_v2_reject_by_reason_total{reason="too_stale"}[5m])
 
       - alert: VoidAgentPick2V2NoSelections
-        expr: increase(void_agent_pick2_v2_chosen_total[30m]) == 0
+        expr: (void_agent_queue_pending_post_epoch > 0) and (increase(void_agent_pick2_v2_chosen_total[30m]) == 0)
         for: 30m
         labels:
           severity: warning
         annotations:
-          summary: "weighted_v2 made no selections"
-          description: "No weighted_v2 job selections were observed in the last 30 minutes."
+          summary: "weighted_v2 made no selections while post-epoch work is pending"
+          description: "Post-epoch queue pending is > 0, but weighted_v2 recorded no selections in the last 30 minutes."
 
       - alert: VoidAgentPick2V2TooStalePressure
         expr: increase(void_agent_pick2_v2_reject_by_reason_total{reason="too_stale"}[30m]) > 0
