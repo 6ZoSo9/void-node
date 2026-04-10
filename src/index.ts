@@ -19092,6 +19092,9 @@ const wal = new WALv1(getDataDir());
       try{
         const id = id24();
         const input = req.body?.input ?? req.body;
+        if ((input && (input.kind === "datanet_fetch_verify" || input.kind === "datanet_redundancy_check")) && !String(input?.plaintext || "").trim()) {
+          return res.status(400).json({ ok:false, error:"missing_plaintext_from_19091", debug:{ keys:Object.keys(input||{}), dataset_id: input?.dataset_id ?? null, selected_dataset_id: input?.selected_dataset_id ?? null } });
+        }
         const meta  = req.body?.meta ?? {};
         const inputStr = JSON.stringify(input ?? null);
         const inputHash = sha256Hex(inputStr);
