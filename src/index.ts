@@ -303,6 +303,36 @@ console.log("[shim] published global node (post-construct)");
 
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
+
+  try {
+    app.get("/__void/diag/routes/jobs-submit", (_req:any, res:any) => {
+      try {
+        const out:any[] = [];
+        const router = (app as any)?._router;
+        const stack = Array.isArray(router?.stack) ? router.stack : [];
+        for (let i = 0; i < stack.length; i++) {
+          const layer:any = stack[i];
+          const route = layer?.route;
+          const path = route?.path;
+          const methods = route?.methods ? Object.keys(route.methods).filter((k:string)=>route.methods[k]) : [];
+          const name = String(layer?.name || "");
+          if (path === "/jobs/submit" || name.toLowerCase().includes("router") || name.toLowerCase().includes("bound dispatch")) {
+            out.push({
+              idx: i,
+              name,
+              path: path || null,
+              methods,
+              keys: Object.keys(layer || {}).slice(0,12)
+            });
+          }
+        }
+        return res.json({ ok:true, count: out.length, routes: out });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+  } catch {}
+
 ;(() => {
   try {
     const g:any = globalThis as any;
