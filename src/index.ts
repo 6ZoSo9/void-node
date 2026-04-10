@@ -37502,8 +37502,36 @@ a{color:#93c5fd;text-decoration:none}
             let parsed:any = null;
             try { parsed = JSON.parse(plaintext); } catch {}
             const taskClass = String(parsed?.task_class || "");
-            const receiptId = String(parsed?.receipt_id || parsed?.latest_receipt_id || "").trim();
-            const jobId = String(parsed?.job_id || parsed?.latest_job_id || "").trim();
+            let receiptId = String(parsed?.receipt_id || parsed?.latest_receipt_id || "").trim();
+            let jobId = String(parsed?.job_id || parsed?.latest_job_id || "").trim();
+
+            try {
+              if (!receiptId || !jobId) {
+                const receiptsPath = path.join(
+                  String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+                  "agent_v1",
+                  "receipts.jsonl"
+                );
+                let best:any = null;
+                for (const line of readLines(receiptsPath)) {
+                  try {
+                    const r:any = JSON.parse(line);
+                    if (String(r?.dataset_id || "") !== String(id || "")) continue;
+                    if (String(r?.account || "") !== String(who || "")) continue;
+                    const rid = String(r?.receipt_id || "").trim();
+                    const jid = String(r?.job_id || "").trim();
+                    if (!rid && !jid) continue;
+                    const ts = Number(r?.ts_ms || r?.ts || 0);
+                    if (!best || ts >= Number(best?.ts_ms || best?.ts || 0)) best = r;
+                  } catch {}
+                }
+                if (best) {
+                  if (!receiptId) receiptId = String(best?.receipt_id || "").trim();
+                  if (!jobId) jobId = String(best?.job_id || "").trim();
+                }
+              }
+            } catch {}
+
             const consumeHref = "/datanet/consume-view/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
             const rawHref = "/datanet/v1/local-job/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
             const localViewHref = "/datanet/view/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
