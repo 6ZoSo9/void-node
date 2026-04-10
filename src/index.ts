@@ -37499,6 +37499,15 @@ a{color:#93c5fd;text-decoration:none}
             const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
             const sizeBytes = Buffer.byteLength(plaintext, "utf8");
             const previewText = plaintext.length > 220 ? (plaintext.slice(0, 220) + "…") : plaintext;
+            let parsed:any = null;
+            try { parsed = JSON.parse(plaintext); } catch {}
+            const taskClass = String(parsed?.task_class || "");
+            const receiptId = String(parsed?.receipt_id || parsed?.latest_receipt_id || "").trim();
+            const jobId = String(parsed?.job_id || parsed?.latest_job_id || "").trim();
+            const consumeHref = "/datanet/consume-view/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
+            const rawHref = "/datanet/v1/local-job/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
+            const localViewHref = "/datanet/view/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
+            const backHref = "/participant?account=" + encodeURIComponent(who) + "&open_dataset=" + encodeURIComponent(id) + "#datanet";
             const datasetTone =
               plaintext.includes('"task_class":"datanet_redundancy_check"') ? { label: "Checked Dataset", style: "color:#c4b5fd;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.28)" } :
               plaintext.includes('"task_class":"datanet_fetch_verify"') ? { label: "Verified Dataset", style: "color:#93c5fd;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.28)" } :
@@ -37551,6 +37560,9 @@ a{color:#93c5fd;text-decoration:none}
     <div class="meta">
       <div class="k">Dataset</div><div><code>${esc(id)}</code></div>
       <div class="k">Account</div><div><code>${esc(who)}</code></div>
+      <div class="k">Task</div><div>${esc(taskClass || "-")}</div>
+      <div class="k">Receipt</div><div><code>${esc(receiptId || "-")}</code></div>
+      <div class="k">Job</div><div><code>${esc(jobId || "-")}</code></div>
       <div class="k">SHA-256</div><div><code>${esc(sha256)}</code></div>
       <div class="k">Bytes</div><div>${esc(sizeBytes)}</div>
       <div class="k">Source</div><div><code>${esc(file)}</code></div>
@@ -37559,9 +37571,14 @@ a{color:#93c5fd;text-decoration:none}
 
   <div class="card">
     <div class="row">
-      <a class="btn" href="/datanet/v1/local-job/${encodeURIComponent(id)}?who=${encodeURIComponent(who)}" target="_blank" rel="noopener">Open Dataset JSON</a>
-      <a class="btn" href="/datanet/view/${encodeURIComponent(id)}?who=${encodeURIComponent(who)}" target="_blank" rel="noopener">Open Local-Only View</a>
-      <a class="btn" href="/participant#overview">Back to Overview</a>
+      <a class="btn" href="${consumeHref}" target="_blank" rel="noopener">Open consume viewer</a>
+      <a class="btn" href="${rawHref}" target="_blank" rel="noopener">Open Dataset JSON</a>
+      <a class="btn" href="${localViewHref}" target="_blank" rel="noopener">Open Local-Only View</a>
+      <a class="btn" href="${backHref}">Back to Participant</a>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${esc(id)}')">Copy Dataset ID</button>
+      <button class="btn" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${consumeHref}')">Copy Consume Link</button>
     </div>
   </div>
 
