@@ -48347,3 +48347,87 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
   }
 })();
 // === [END DataNetReceiptsHealthV1] ===
+
+// === [BEGIN LatestUsefulCreditJoinV1] ===
+(() => {
+  const G: any = globalThis as any;
+  if (G.__void_latest_useful_credit_join_v1_installed) return;
+  G.__void_latest_useful_credit_join_v1_installed = true;
+
+  const attach = () => {
+    const app: any = G.__void_http_app;
+    if (!app || typeof app.get !== "function") return false;
+    if (G.__void_latest_useful_credit_join_v1_attached) return true;
+    G.__void_latest_useful_credit_join_v1_attached = true;
+
+    app.get("/__void/datanet/latest-useful-credit.v1", async (_req: any, res: any) => {
+      try {
+        const host = String(process.env.VOID_HTTP_HOST || process.env.HTTP_HOST || "127.0.0.1");
+        const port = Number(process.env.HTTP_PORT || 4100);
+        const r = await fetch(`http://${host}:${port}/network/value-summary.json?limit=50`);
+        const j: any = await r.json();
+
+        const latest = j?.latest_useful_dataset || null;
+        const receipts = Array.isArray(j?.receipts) ? j.receipts : [];
+
+        let matched = null;
+        if (latest) {
+          matched =
+            receipts.find((x: any) =>
+              String(x?.receipt_id || "") === String(latest?.receipt_id || "") &&
+              String(x?.job_id || "") === String(latest?.job_id || "")
+            ) ||
+            receipts.find((x: any) =>
+              String(x?.receipt_id || "") === String(latest?.receipt_id || "")
+            ) ||
+            receipts.find((x: any) =>
+              String(x?.job_id || "") === String(latest?.job_id || "")
+            ) ||
+            null;
+        }
+
+        return res.json({
+          ok: true,
+          ts_ms: Date.now(),
+          latest_useful: latest ? {
+            task_class: latest.task_class || null,
+            dataset_id: latest.dataset_id || null,
+            receipt_id: latest.receipt_id || null,
+            job_id: latest.job_id || null,
+            status: latest.status || null,
+            ts_ms: Number(latest.ts_ms || 0) || null,
+            account_hint: matched?.account || null
+          } : null,
+          matched_credit: matched ? {
+            receipt_id: matched.receipt_id || null,
+            job_id: matched.job_id || null,
+            account: matched.account || null,
+            delta: Number(matched.delta || 0),
+            reason: matched.reason || null,
+            ts_ms: Number(matched.ts_ms || 0) || null
+          } : null,
+          joined:
+            !!latest && !!matched &&
+            (
+              String(matched?.receipt_id || "") === String(latest?.receipt_id || "") ||
+              String(matched?.job_id || "") === String(latest?.job_id || "")
+            )
+        });
+      } catch (e: any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    try { console.error("[datanet.latest-useful-credit.v1] mounted"); } catch {}
+    return true;
+  };
+
+  if (!attach()) {
+    let tries = 0;
+    const t = setInterval(() => {
+      tries++;
+      if (attach() || tries >= 400) clearInterval(t);
+    }, 50);
+  }
+})();
+// === [END LatestUsefulCreditJoinV1] ===
