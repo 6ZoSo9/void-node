@@ -48431,3 +48431,105 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
   }
 })();
 // === [END LatestUsefulCreditJoinV1] ===
+
+// === [BEGIN ParticipantPayoutSummaryV1] ===
+(() => {
+  const G: any = globalThis as any;
+  if (G.__void_participant_payout_summary_v1_installed) return;
+  G.__void_participant_payout_summary_v1_installed = true;
+
+  const attach = () => {
+    const app: any = G.__void_http_app;
+    if (!app || typeof app.get !== "function") return false;
+    if (G.__void_participant_payout_summary_v1_attached) return true;
+    G.__void_participant_payout_summary_v1_attached = true;
+
+    app.get("/__void/participant/payout-summary.v1", async (req: any, res: any) => {
+      try {
+        const host = String(process.env.VOID_HTTP_HOST || process.env.HTTP_HOST || "127.0.0.1");
+        const port = Number(process.env.HTTP_PORT || 4100);
+
+        const account = String(
+          req?.query?.account ||
+          req?.query?.wallet ||
+          ""
+        ).trim() || "0xdf994e1b8c1ac9078c66892b589c8aa76c3be592";
+
+        const enc = encodeURIComponent(account);
+
+        const [joinR, balR, redeemableR, redeemedR, rewardStatsR] = await Promise.all([
+          fetch(`http://${host}:${port}/__void/datanet/latest-useful-credit.v1`),
+          fetch(`http://${host}:${port}/wc/balance?account=${enc}`),
+          fetch(`http://${host}:${port}/wc/redeemable?account=${enc}`),
+          fetch(`http://${host}:${port}/wc/redeemed?account=${enc}&limit=20`),
+          fetch(`http://${host}:${port}/wc/reward-stats?account=${enc}`)
+        ]);
+
+        const joinJ: any = await joinR.json();
+        const balJ: any = await balR.json();
+        const redeemableJ: any = await redeemableR.json();
+        const redeemedJ: any = await redeemedR.json();
+        const rewardStatsJ: any = await rewardStatsR.json();
+
+        const latest = joinJ?.latest_useful || null;
+        const matched = joinJ?.matched_credit || null;
+        const rewardLast = rewardStatsJ?.last_credit || null;
+
+        return res.json({
+          ok: true,
+          ts_ms: Date.now(),
+          account,
+          latest_useful: latest ? {
+            task_class: latest.task_class || null,
+            dataset_id: latest.dataset_id || null,
+            receipt_id: latest.receipt_id || null,
+            job_id: latest.job_id || null,
+            status: latest.status || null,
+            ts_ms: Number(latest.ts_ms || 0) || null
+          } : null,
+          matched_credit: matched ? {
+            receipt_id: matched.receipt_id || null,
+            job_id: matched.job_id || null,
+            account: matched.account || null,
+            delta: Number(matched.delta || 0),
+            reason: matched.reason || null,
+            ts_ms: Number(matched.ts_ms || 0) || null
+          } : null,
+          joined: !!joinJ?.joined,
+          wallet: {
+            wc_balance: Number(balJ?.balance || 0),
+            wc_events: Number(balJ?.count || 0),
+            redeemable: Number(redeemableJ?.redeemable || 0),
+            earned: Number(redeemableJ?.earned || 0),
+            debited: Number(redeemableJ?.debited || 0),
+            redeemed: Number(redeemedJ?.redeemed || 0),
+            redeemed_events: Array.isArray(redeemedJ?.events) ? redeemedJ.events.length : 0
+          },
+          rewards: {
+            last_credit: rewardLast ? {
+              ts_ms: Number(rewardLast.ts_ms || 0) || null,
+              delta: Number(rewardLast.delta || 0),
+              reason: rewardLast.reason || null,
+              receipt_kind: rewardLast.receipt_kind || null
+            } : null,
+            totals_last_hour: rewardStatsJ?.totals_last_hour || null
+          }
+        });
+      } catch (e: any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
+    try { console.error("[participant.payout-summary.v1] mounted"); } catch {}
+    return true;
+  };
+
+  if (!attach()) {
+    let tries = 0;
+    const t = setInterval(() => {
+      tries++;
+      if (attach() || tries >= 400) clearInterval(t);
+    }, 50);
+  }
+})();
+// === [END ParticipantPayoutSummaryV1] ===
