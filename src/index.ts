@@ -43170,7 +43170,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       j("/wc/ledger?account=" + encodeURIComponent(account) + "&limit=20"),
       j("/wc/reward-stats?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
       j("/__void/diag/wc-identity-truth.json?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true })),
-      j("/__void/demo/summary.json"),
+      j("/network/value-summary.json"),
       j("/__void/peer-main-status.json"),
       j("/health"),
       j(LOCAL_RELAYER_BASE + "/health").catch(() => ({ ok:false, offline:true })),
