@@ -40145,12 +40145,32 @@ a{color:#93c5fd;text-decoration:none}
         let plaintext = String(req.body?.plaintext || "");
         const rawKind = String(req.body?.kind || "").trim();
         const isVerifyLike = rawKind === "datanet_fetch_verify" || rawKind === "datanet_redundancy_check";
-        let normalizedDatasetId = String(req.body?.dataset_id || req.body?.selected_dataset_id || "").trim();
+        let normalizedDatasetId = String(
+          req.body?.dataset_id ||
+          req.body?.selected_dataset_id ||
+          req.body?.input?.dataset_id ||
+          req.body?.input?.selected_dataset_id ||
+          ""
+        ).trim();
         if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
         if (!plaintext && isVerifyLike && normalizedDatasetId) {
           plaintext = JSON.stringify({ dataset_id: normalizedDatasetId });
         }
-        if (!plaintext) return res.status(400).json({ ok:false, error:"missing_plaintext" });
+        if (!plaintext) {
+          return res.status(400).json({
+            ok:false,
+            error:"missing_plaintext",
+            debug:{
+              body_keys: Object.keys(req.body || {}),
+              input_keys: Object.keys((req.body && req.body.input) || {}),
+              dataset_id: req.body?.dataset_id ?? null,
+              selected_dataset_id: req.body?.selected_dataset_id ?? null,
+              input_dataset_id: req.body?.input?.dataset_id ?? null,
+              input_selected_dataset_id: req.body?.input?.selected_dataset_id ?? null,
+              normalizedDatasetId
+            }
+          });
+        }
 
         const MAX_AGENT_PLAINTEXT_BYTES = Math.max(256, Number(process.env.VOID_AGENT_MAX_PLAINTEXT_BYTES || 1048576));
         const plaintextBytes = Buffer.byteLength(plaintext, "utf8");
