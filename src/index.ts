@@ -42266,7 +42266,7 @@ a{color:#93c5fd;text-decoration:none}
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <div style="font-weight:800;font-size:14px">Open Dataset by ID or Link</div>
-              <button type="button" title="Paste a dataset id or a consume-view link. This opens the consume viewer on this node using your current participant identity." aria-label="Open dataset help" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;border:1px solid #334155;background:#0f172a;color:#93c5fd;font-size:12px;font-weight:800;cursor:help;padding:0">?</button>
+              <button type="button" class="help" title="Paste a dataset id or a consume-view link. This opens the consume viewer on this node using your current participant identity." aria-label="Open dataset help" style="margin-left:0">?</button>
             </div>
           </div>
           <div class="row" style="gap:10px;align-items:end;margin-top:12px;flex-wrap:wrap">
