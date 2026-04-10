@@ -37178,13 +37178,53 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             const crypto = require("node:crypto");
             const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
 
+            let parsed:any = null;
+            try { parsed = JSON.parse(plaintext); } catch {}
+
+            const task_class = String(parsed?.task_class || "").trim() || null;
+            let receipt_id = String(parsed?.receipt_id || parsed?.latest_receipt_id || "").trim() || null;
+            let job_id = String(parsed?.job_id || parsed?.latest_job_id || "").trim() || null;
+
+            try {
+              if (!receipt_id || !job_id) {
+                const receiptsPath = path.join(
+                  String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
+                  "agent_v1",
+                  "receipts.jsonl"
+                );
+                let best:any = null;
+                for (const line of readLines(receiptsPath)) {
+                  try {
+                    const r:any = JSON.parse(line);
+                    if (String(r?.dataset_id || "") !== String(id || "")) continue;
+                    if (String(r?.account || "") !== String(who || "")) continue;
+                    const rid = String(r?.receipt_id || "").trim();
+                    const jid = String(r?.job_id || "").trim();
+                    if (!rid && !jid) continue;
+                    const ts = Number(r?.ts_ms || r?.ts || 0);
+                    if (!best || ts >= Number(best?.ts_ms || best?.ts || 0)) best = r;
+                  } catch {}
+                }
+                if (best) {
+                  if (!receipt_id) receipt_id = String(best?.receipt_id || "").trim() || null;
+                  if (!job_id) job_id = String(best?.job_id || "").trim() || null;
+                }
+              }
+            } catch {}
+
             return res.status(200).json({
               ok: true,
               who,
               id,
               file,
+              dataset_id: id,
               sizeBytes: Buffer.byteLength(plaintext, "utf8"),
               sha256,
+              task_class,
+              receipt_id,
+              job_id,
+              latest_receipt_id: receipt_id,
+              latest_job_id: job_id,
               plaintext
             });
           } catch (e:any) {
