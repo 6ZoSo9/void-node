@@ -45019,6 +45019,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           (txCount ? (" • " + txCount + " transaction" + (txCount === 1 ? "" : "s")) : "");
         setText("tradeOut", successText);
         setLatestAction(successText);
+        try {
+          const u = new URL(window.location.href);
+          u.searchParams.set("account", account);
+          setTimeout(() => { window.location.href = u.toString(); }, 900);
+        } catch (_) {
+          try { setTimeout(() => window.location.reload(), 900); } catch (_) {}
+        }
       } else {
         const failText = (out && out.note) ? String(out.note) : "Trade execution failed.";
         setText("tradeOut", failText);
