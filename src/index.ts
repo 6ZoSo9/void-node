@@ -42190,7 +42190,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="hero-note" id="latestActionCard" style="margin-top:10px">No recent activity yet. Submit work to generate a result and earn WC.</div>
           <div class="hero-note" id="networkValueCard" style="margin-top:10px">loading…</div>
           <div class="hero-actions" style="margin-top:10px">
-            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open Latest Useful Dataset</a>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open consume viewer</a>
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open Shared Dataset Page</a>
             <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy Shared Dataset Page</button>
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700;" id="adminDataNetSummaryBtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">Open DataNet Admin</a>
@@ -43488,14 +43488,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       "ready";
 
     const latestUsefulRunnerButtonText = latestUsefulForRunnerCard
-      ? String(latestUsefulForRunnerCard.button_text || "Open Latest Useful Dataset")
-      : "Open Latest Useful Dataset";
+      ? String(latestUsefulForRunnerCard.button_text || "Open consume viewer")
+      : "Open consume viewer";
     const latestUsefulRunnerOpenPath = latestUsefulForRunnerCard
       ? String(latestUsefulForRunnerCard.consume_path || latestUsefulForRunnerCard.view_path || "")
       : "";
     const latestUsefulRunnerMetaText = latestUsefulRunnerDataset
       ? (
-          "Latest useful work: " + (latestUsefulRunnerHint || latestUsefulRunnerLabel) +
+          "Latest dataset: " + (latestUsefulRunnerHint || latestUsefulRunnerLabel) +
           " • task " + (latestUsefulRunnerTask || "-") +
           " • dataset " + latestUsefulRunnerDataset +
           (latestUsefulRunnerReceipt ? (" • receipt " + latestUsefulRunnerReceipt) : "")
@@ -45656,7 +45656,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         setText(
           "latestActionCard",
           effectiveLatestUsefulDataset
-            ? ("Latest useful work: " + effectiveLatestUsefulHint +
+            ? ("Latest dataset: " + effectiveLatestUsefulHint +
                (effectiveLatestUsefulLabel ? (" • " + effectiveLatestUsefulLabel) : "") +
                " • Dataset ready" +
                (effectiveLatestUsefulReceipt ? " • Receipt ready" : "") +
@@ -45669,7 +45669,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if ($("latestJobState")) {
           $("latestJobState").title =
             effectiveLatestUsefulDataset
-              ? ("Latest useful work: " + effectiveLatestUsefulLabel +
+              ? ("Latest dataset: " + effectiveLatestUsefulLabel +
                  (effectiveLatestUsefulJob ? (" • Job: " + effectiveLatestUsefulJob) : "") +
                  (effectiveLatestUsefulReceipt ? (" • Receipt: " + effectiveLatestUsefulReceipt) : "") +
                  (effectiveLatestUsefulDataset ? (" • Dataset: " + effectiveLatestUsefulDataset) : ""))
