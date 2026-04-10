@@ -42813,17 +42813,23 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function pickInitialParticipantAccount(){
     const boot = getBootstrapParticipantAccount();
-    if (boot) return boot;
     const remembered = getRememberedParticipantAccount();
     const connected = getConnectedWallet();
-    const rememberedLooksDefault =
-      !remembered ||
-      remembered === "zoso" ||
-      remembered === "dev-zoso" ||
-      remembered === "remote-user-1" ||
-      remembered === "remote-user-2" ||
-      remembered === "remote-user-3";
-    if (isWalletAddr(connected) && rememberedLooksDefault) return connected;
+
+    const looksDefault = (v) => {
+      v = String(v || "").trim();
+      return (
+        !v ||
+        v === "zoso" ||
+        v === "dev-zoso" ||
+        v === "remote-user-1" ||
+        v === "remote-user-2" ||
+        v === "remote-user-3"
+      );
+    };
+
+    if (isWalletAddr(connected) && looksDefault(boot) && looksDefault(remembered)) return connected;
+    if (boot) return boot;
     if (remembered) return remembered;
     if (isWalletAddr(connected)) return connected;
     return "zoso";
@@ -45082,6 +45088,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (isWalletAddr(w) && $("account")) {
         $("account").value = w;
         rememberParticipantAccount(w);
+        try {
+          const u = new URL(window.location.href);
+          u.searchParams.set("account", w);
+          history.replaceState(null, "", u.toString());
+          window.__void_participant_account_qs = w;
+        } catch (_) {}
         await refresh();
       }
     } catch (_) {}
