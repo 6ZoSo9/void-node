@@ -42154,6 +42154,7 @@ a{color:#93c5fd;text-decoration:none}
             </div>
           </details>
           <div class="subtle-tab-copy" id="wcIdentityTruth" style="margin-top:8px">WC truth: checking active account and ledger…</div>
+          <div class="subtle-tab-copy" id="backendTruthCard" style="margin-top:6px">Backend truth: loading…</div>
           <div class="subtle-tab-copy" id="wcLegacyWarn" style="margin-top:6px; display:none; color:#fbbf24">Legacy migrated/demo account selected. Values may include historical merged WC from older identities.</div>
 
           <label for="plaintext">What do you want to submit?</label>
@@ -43367,6 +43368,21 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       ? ("WC truth: account " + account + " • ledger-earned " + localEarned + " • entries " + (localCount ?? 0) + (isLegacyAccount ? " • legacy migrated/demo identity" : ""))
       : ("WC truth: account " + account + " • ledger state unavailable" + (isLegacyAccount ? " • legacy migrated/demo identity" : ""));
     setText("wcIdentityTruth", wcTruthText);
+    try {
+      const backendBalance = bal && bal.ok ? Number(bal.balance || 0) : 0;
+      const backendRedeemable = redeem && redeem.ok ? Number(redeem.redeemable || 0) : 0;
+      const backendRedeemed = redeemed && redeemed.ok ? Number(redeemed.redeemed || 0) : 0;
+      const backendCount = bal && bal.ok ? Number(bal.count || 0) : 0;
+      const backendTruthText =
+        "Backend truth: account " + account +
+        " • balance " + backendBalance +
+        " • redeemable " + backendRedeemable +
+        " • redeemed " + backendRedeemed +
+        " • entries " + backendCount;
+      setText("backendTruthCard", backendTruthText);
+    } catch (_) {
+      setText("backendTruthCard", "Backend truth unavailable.");
+    }
 
     setText("heroWalletShort", /^0x[0-9a-fA-F]{40}$/.test(connectedWallet) ? shortAddr(connectedWallet) : "Not connected");
     setText("heroWalletMeta", wcAddr ? ("Execution wallet: " + shortAddr(wcAddr)) : "No execution wallet linked");
