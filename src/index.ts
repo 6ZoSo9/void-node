@@ -37618,35 +37618,34 @@ a{color:#93c5fd;text-decoration:none}
             try {
               const datanetRawFile = path.join(
                 String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
-                "agent_v1",
-                "receipts.jsonl"
+                "wc_v1",
+                "ledger.jsonl"
               );
               for (const line of readLines(datanetRawFile)) {
                 try {
                   const r:any = JSON.parse(line);
                   const receiptId = String(r?.receipt_id || r?.id || "").trim();
-                  const delta = Number(r?.wc_award ?? r?.delta ?? 0);
-                  const okNum = Number(r?.ok ?? 0);
-                  if (!(delta > 0) && !(receiptId && okNum === 1)) continue;
+                  const delta = Number(r?.delta ?? r?.wc_award ?? 0);
+                  if (!(delta > 0) || String(r?.kind || "") !== "credit") continue;
 
                   creditedOut.push({
                     receipt_id: receiptId,
                     job_id: r?.job_id || null,
-                    account: String(r?.account || r?.who || r?.owner || ""),
-                    who: String(r?.who || r?.account || r?.owner || ""),
+                    account: String(r?.account || ""),
+                    who: String(r?.account || ""),
                     kind: "datanet_receipt",
-                    status: (delta > 0 || okNum === 1) ? "credited" : "recorded",
+                    status: "credited",
                     delta,
-                    reason: "datanet_receipt",
+                    reason: String(r?.reason || "datanet_receipt"),
                     ts_ms: Number(r?.ts_ms || 0),
                     dataset_id: r?.dataset_id || null,
-                    root: r?.root || null,
-                    leaf: r?.leaf || null,
-                    index: Number(r?.index || 0),
-                    bytes: Number(r?.bytes || 0),
-                    mime: r?.mime || null,
-                    name: r?.name || null,
-                    _raw: "agent_v1"
+                    root: null,
+                    leaf: null,
+                    index: 0,
+                    bytes: 0,
+                    mime: null,
+                    name: null,
+                    _raw: "wc_v1_ledger"
                   });
                 } catch {}
               }
