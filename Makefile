@@ -335,6 +335,13 @@ remote-product-regression-cycle:
 	echo; \
 	echo "out=$$OUT"
 
+.PHONY: participant-share-open-proof participant-share-open-e2e-proof
+participant-share-open-proof:
+	bash ops/two-box-participant-share-open-e2e-proof.sh
+
+participant-share-open-e2e-proof:
+	bash ops/two-box-participant-share-open-e2e-proof.sh
+
 .PHONY: jobs-submit-e2e-proof
 jobs-submit-e2e-proof:
 	bash ops/jobs-submit-e2e-proof.sh
