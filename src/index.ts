@@ -40157,6 +40157,9 @@ a{color:#93c5fd;text-decoration:none}
           plaintext = JSON.stringify({ dataset_id: normalizedDatasetId });
         }
         if (!plaintext) {
+          return res.status(400).json({ ok:false, error:"missing_plaintext_from_40141" });
+        }
+        if (false) {
           return res.status(400).json({
             ok:false,
             error:"missing_plaintext",
