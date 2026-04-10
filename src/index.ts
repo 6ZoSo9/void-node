@@ -43288,24 +43288,33 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       latestUsefulRunnerTask === "redundancy" ? "checked" :
       "ready";
 
+    const latestUsefulRunnerButtonText = latestUsefulForRunnerCard
+      ? String(latestUsefulForRunnerCard.button_text || "Open Latest Useful Dataset")
+      : "Open Latest Useful Dataset";
+    const latestUsefulRunnerOpenPath = latestUsefulForRunnerCard
+      ? String(latestUsefulForRunnerCard.consume_path || latestUsefulForRunnerCard.view_path || "")
+      : "";
+    const latestUsefulRunnerMetaText = latestUsefulRunnerDataset
+      ? (
+          "Latest useful work: " + (latestUsefulRunnerHint || latestUsefulRunnerLabel) +
+          " • task " + (latestUsefulRunnerTask || "-") +
+          " • dataset " + latestUsefulRunnerDataset +
+          (latestUsefulRunnerReceipt ? (" • receipt " + latestUsefulRunnerReceipt) : "")
+        )
+      : "";
+
     setText(
       "wcRunnerStatusCard",
       runnerEnabled
         ? ("Earn Work Credits is ON for this account" +
            (runnerSafeMode ? " • Safe Mode ON" : "") +
-           (latestUsefulRunnerDataset
-             ? (". Latest useful work " + (latestUsefulRunnerHint || latestUsefulRunnerLabel) +
-                " • " + latestUsefulRunnerLabel +
-                " • Dataset ready" +
-                (latestUsefulRunnerReceipt ? " • Receipt ready" : ""))
+           (latestUsefulRunnerMetaText
+             ? (". " + latestUsefulRunnerMetaText)
              : ". Approved useful work can run here."))
         : ("Earn Work Credits is OFF for this account" +
            (runnerSafeMode ? " • Safe Mode still clamps limits" : "") +
-           (latestUsefulRunnerDataset
-             ? (". Latest useful work " + (latestUsefulRunnerHint || latestUsefulRunnerLabel) +
-                " • " + latestUsefulRunnerLabel +
-                " • Dataset ready" +
-                (latestUsefulRunnerReceipt ? " • Receipt ready" : ""))
+           (latestUsefulRunnerMetaText
+             ? (". " + latestUsefulRunnerMetaText)
              : ". Turn it on to allow approved useful work."))
     );
     if ($("wcRunnerToggleInput")) {
