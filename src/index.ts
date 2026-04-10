@@ -40142,9 +40142,27 @@ a{color:#93c5fd;text-decoration:none}
       try {
         const account = safeStr(req.body?.account, 128);
         const kind = safeStr(req.body?.kind || "datanet_publish", 64);
-        const plaintext = String(req.body?.plaintext || "");
+        let plaintext = String(req.body?.plaintext || "");
+        const rawKind = String(req.body?.kind || "").trim();
+        const isVerifyLike = rawKind === "datanet_fetch_verify" || rawKind === "datanet_redundancy_check";
+        let normalizedDatasetId = String(req.body?.dataset_id || req.body?.selected_dataset_id || "").trim();
         if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+        if (!plaintext && isVerifyLike && normalizedDatasetId) {
+          plaintext = JSON.stringify({ dataset_id: normalizedDatasetId });
+        }
         if (!plaintext) return res.status(400).json({ ok:false, error:"missing_plaintext" });
+
+        const MAX_AGENT_PLAINTEXT_BYTES = Math.max(256, Number(process.env.VOID_AGENT_MAX_PLAINTEXT_BYTES || 1048576));
+        const plaintextBytes = Buffer.byteLength(plaintext, "utf8");
+        if (isVerifyLike) {
+          try {
+            const parsed = JSON.parse(plaintext || "{}");
+            const parsedDatasetId = String(parsed?.dataset_id || parsed?.selected_dataset_id || "").trim();
+            if (!normalizedDatasetId && parsedDatasetId) normalizedDatasetId = parsedDatasetId;
+          } catch {}
+          if (!normalizedDatasetId) return res.status(400).json({ ok:false, error:"missing_dataset_id" });
+          if (plaintextBytes > MAX_AGENT_PLAINTEXT_BYTES) return res.status(413).json({ ok:false, error:"payload_too_large" });
+        }
 
         const meta:any = req.body?.meta || {};
         const jobId = "job_" + nowMs() + "_" + Math.random().toString(16).slice(2,10);
@@ -40153,10 +40171,14 @@ a{color:#93c5fd;text-decoration:none}
           account,
           kind,
           status: "queued",
-          input: { plaintext },
+          dataset_id: normalizedDatasetId || null,
+          input: {
+            plaintext,
+            ...(normalizedDatasetId ? { dataset_id: normalizedDatasetId, selected_dataset_id: normalizedDatasetId } : {})
+          },
           selection_reason: meta?.selection_reason || null,
           selected_task_class: meta?.selected_task_class || kind,
-          selected_dataset_id: meta?.selected_dataset_id || null,
+          selected_dataset_id: normalizedDatasetId || meta?.selected_dataset_id || null,
           selected_difficulty_bucket: meta?.selected_difficulty_bucket || null,
           selected_network_need_score: Number(meta?.selected_network_need_score || 0) || null,
           selected_stale_for_ms: Number(meta?.selected_stale_for_ms || 0) || null,
@@ -41215,18 +41237,34 @@ a{color:#93c5fd;text-decoration:none}
               ensureDirs();
               const account = String(req.body?.account || "zoso").trim().slice(0,128) || "zoso";
               const kind = String(req.body?.kind || "datanet_publish").trim().slice(0,64) || "datanet_publish";
-              const plaintext = String(req.body?.plaintext || "");
+              let plaintext = String(req.body?.plaintext || "");
+              const isVerifyLike = kind === "datanet_fetch_verify" || kind === "datanet_redundancy_check";
+              let normalizedDatasetId = String(req.body?.dataset_id || req.body?.selected_dataset_id || "").trim();
+              if (!plaintext && isVerifyLike && normalizedDatasetId) {
+                plaintext = JSON.stringify({ dataset_id: normalizedDatasetId });
+              }
+              if (isVerifyLike) {
+                try {
+                  const parsed = JSON.parse(plaintext || "{}");
+                  const parsedDatasetId = String(parsed?.dataset_id || parsed?.selected_dataset_id || "").trim();
+                  if (!normalizedDatasetId && parsedDatasetId) normalizedDatasetId = parsedDatasetId;
+                } catch {}
+              }
               const meta:any = req.body?.meta || {};
               const line = {
                 job_id: jobId,
                 status: "queued",
                 kind,
                 account,
-                input: { plaintext },
+                dataset_id: normalizedDatasetId || null,
+                input: {
+                  plaintext,
+                  ...(normalizedDatasetId ? { dataset_id: normalizedDatasetId, selected_dataset_id: normalizedDatasetId } : {})
+                },
                 ts_ms: Date.now(),
                 selection_reason: meta?.selection_reason || null,
                 selected_task_class: meta?.selected_task_class || kind,
-                selected_dataset_id: meta?.selected_dataset_id || null,
+                selected_dataset_id: normalizedDatasetId || meta?.selected_dataset_id || null,
                 selected_difficulty_bucket: meta?.selected_difficulty_bucket || null,
                 selected_network_need_score: Number(meta?.selected_network_need_score || 0) || null,
                 selected_stale_for_ms: Number(meta?.selected_stale_for_ms || 0) || null,
