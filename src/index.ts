@@ -45364,6 +45364,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         maybeUrl = new URL(value, window.location.origin);
       }
       const path = String((maybeUrl && maybeUrl.pathname) || "");
+
+      const qsDataset = String((maybeUrl && maybeUrl.searchParams && maybeUrl.searchParams.get("open_dataset")) || "").trim();
+      if (qsDataset && /^ds_[A-Za-z0-9_\-]+$/.test(qsDataset)) {
+        datasetId = qsDataset;
+        source = "participant_share_link";
+        return { datasetId, source };
+      }
+
       const marker = "/datanet/consume-view/";
       const pos = path.indexOf(marker);
       if (pos >= 0) {
@@ -45403,8 +45411,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       input.value = pasted;
       const parsed = parseDatasetIdOrLink(pasted);
       if (status) {
-        if (parsed.source === "consume_view_link" && parsed.datasetId) {
-          status.textContent = "Pasted consume-view link. Extracted dataset " + parsed.datasetId + ".";
+        if ((parsed.source === "consume_view_link" || parsed.source === "participant_share_link") && parsed.datasetId) {
+          status.textContent = (parsed.source === "participant_share_link" ? "Pasted shared participant link. Extracted dataset " : "Pasted consume-view link. Extracted dataset ") + parsed.datasetId + ".";
         } else if (parsed.source === "dataset_id" && parsed.datasetId) {
           status.textContent = "Pasted dataset id " + parsed.datasetId + ".";
         } else {
@@ -45443,7 +45451,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (status) {
         status.textContent = parsed.source === "consume_view_link"
           ? ("Detected consume-view link. Opening dataset " + datasetId + " in the consume viewer…")
-          : ("Opening dataset " + datasetId + " in the consume viewer…");
+          : (parsed.source === "participant_share_link"
+              ? ("Detected shared participant link. Opening dataset " + datasetId + " in the consume viewer…")
+              : ("Opening dataset " + datasetId + " in the consume viewer…"));
       }
       window.location.href = href;
     } catch (e) {
@@ -45469,8 +45479,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         openInput.value = qsLink;
         const parsed = parseDatasetIdOrLink(qsLink);
         if (openStatus) {
-          if (parsed.source === "consume_view_link" && parsed.datasetId) {
-            openStatus.textContent = "Preloaded consume-view link from page link. Extracted dataset " + parsed.datasetId + ".";
+          if ((parsed.source === "consume_view_link" || parsed.source === "participant_share_link") && parsed.datasetId) {
+            openStatus.textContent = (parsed.source === "participant_share_link" ? "Preloaded shared participant link from page link. Extracted dataset " : "Preloaded consume-view link from page link. Extracted dataset ") + parsed.datasetId + ".";
           } else {
             openStatus.textContent = "Preloaded link from page link.";
           }
