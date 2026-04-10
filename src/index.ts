@@ -43276,6 +43276,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           ? Number(runnerConfig.max_jobs_per_hour)
           : null);
 
+    const netValue = summary && summary.ok ? summary : null;
     const latestUsefulForRunnerCard = netValue && netValue.latest_useful_dataset ? netValue.latest_useful_dataset : null;
     const latestUsefulRunnerTask = latestUsefulForRunnerCard ? String(latestUsefulForRunnerCard.task_class || "") : "";
     const latestUsefulRunnerDataset = latestUsefulForRunnerCard ? String(latestUsefulForRunnerCard.dataset_id || "") : "";
