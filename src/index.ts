@@ -37624,14 +37624,19 @@ a{color:#93c5fd;text-decoration:none}
               for (const line of readLines(datanetRawFile)) {
                 try {
                   const r:any = JSON.parse(line);
+                  const receiptId = String(r?.receipt_id || r?.id || "").trim();
+                  const delta = Number(r?.wc_award ?? r?.delta ?? 0);
+                  const okNum = Number(r?.ok ?? 0);
+                  if (!(delta > 0) && !(receiptId && okNum === 1)) continue;
+
                   creditedOut.push({
-                    receipt_id: String(r?.id || ""),
+                    receipt_id: receiptId,
                     job_id: r?.job_id || null,
                     account: String(r?.account || r?.who || r?.owner || ""),
                     who: String(r?.who || r?.account || r?.owner || ""),
                     kind: "datanet_receipt",
-                    status: Number(r?.ok || 0) === 1 ? "credited" : "recorded",
-                    delta: Number(r?.wc_award || 0),
+                    status: (delta > 0 || okNum === 1) ? "credited" : "recorded",
+                    delta,
                     reason: "datanet_receipt",
                     ts_ms: Number(r?.ts_ms || 0),
                     dataset_id: r?.dataset_id || null,
@@ -37641,7 +37646,7 @@ a{color:#93c5fd;text-decoration:none}
                     bytes: Number(r?.bytes || 0),
                     mime: r?.mime || null,
                     name: r?.name || null,
-                    _raw: "datanet_v1"
+                    _raw: "agent_v1"
                   });
                 } catch {}
               }
