@@ -44524,6 +44524,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       await refresh();
       try { await new Promise(r => setTimeout(r, 1200)); } catch {}
       await refresh();
+      try { await new Promise(r => setTimeout(r, 1200)); } catch {}
+      await refresh();
     } catch (e) {
       setPre("sendOut", { ok:false, error:String((e && e.message) || e) });
     } finally {
