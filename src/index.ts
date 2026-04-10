@@ -42264,9 +42264,9 @@ a{color:#93c5fd;text-decoration:none}
         <div class="hero-note" id="datanetOverviewCard">loading…</div>
         <div class="panel" style="margin:10px 0 12px 0;padding:14px;border-radius:14px;border:1px solid #1e293b;background:#0b1220">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-            <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <div style="font-weight:800;font-size:14px">Open Dataset by ID or Link</div>
-              <div class="section-copy" style="margin-top:4px">Paste a dataset id or a full consume-view link. This opens the consume viewer on this node using your current participant identity.</div>
+              <button type="button" title="Paste a dataset id or a consume-view link. This opens the consume viewer on this node using your current participant identity." aria-label="Open dataset help" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;border:1px solid #334155;background:#0f172a;color:#93c5fd;font-size:12px;font-weight:800;cursor:help;padding:0">?</button>
             </div>
           </div>
           <div class="row" style="gap:10px;align-items:end;margin-top:12px;flex-wrap:wrap">
@@ -42275,9 +42275,9 @@ a{color:#93c5fd;text-decoration:none}
               <input id="datanetOpenByIdInput" placeholder="ds_... or /datanet/consume-view/..." style="padding:10px 12px;border-radius:12px;border:1px solid #334155;background:#020617;color:#e5e7eb" />
             </label>
             <button id="datanetPasteLinkBtn" type="button" class="btn secondary" style="min-width:110px">Paste</button>
-            <button id="datanetOpenByIdBtn" type="button" class="btn" style="min-width:180px">Open Consume Viewer</button>
+            <button id="datanetOpenByIdBtn" type="button" class="btn" style="min-width:180px">Open consume viewer</button>
           </div>
-          <div class="hero-note" id="datanetOpenByIdStatus" style="margin-top:10px">Enter a dataset id or paste a full consume-view link.</div>
+          <div class="hero-note" id="datanetOpenByIdStatus" style="margin-top:10px">Enter a dataset id or paste a consume-view link.</div>
         </div>
 
         <div class="row" style="gap:10px;align-items:end;margin:10px 0 12px 0;flex-wrap:wrap">
