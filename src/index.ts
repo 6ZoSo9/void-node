@@ -42137,7 +42137,7 @@ a{color:#93c5fd;text-decoration:none}
           </div>
 
           <label for="account">Participant identity<span class="help" tabindex="0" data-help="If you connect a wallet and have not already chosen a real participant identity, the connected wallet is preferred automatically.">?</span></label>
-          <input id="account" value="zoso" />
+          <input id="account" value="" placeholder="connected wallet or participant id" />
           <div class="subtle-tab-copy" style="margin-top:8px">Participant identity selects which account receives WC and owns the receipts and history shown here. If no real participant identity has been chosen yet, a connected wallet is preferred automatically. That same wallet is also used for redeem and trade execution unless you open the advanced override.</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
             <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #1d4ed8; background:#0b1b34; color:#dbeafe; cursor:pointer; font-weight:700; font-size:12px;">Use Connected Wallet</button>
@@ -42782,6 +42782,18 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch (_) {
       return "";
     }
+  }
+
+  function resolveActiveParticipantAccount(){
+    const manual = $("account") ? String($("account").value || "").trim() : "";
+    if (manual) return manual;
+    const connected = getConnectedWallet();
+    if (connected) return connected;
+    try {
+      const remembered = String(localStorage.getItem("void_participant_account_v1") || "").trim();
+      if (remembered) return remembered;
+    } catch {}
+    return "";
   }
 
   function rememberParticipantAccount(v){
@@ -44049,7 +44061,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const mkDatasetLink = (label, datasetId) => {
         if (!datasetId) return '<span style="color:#94a3b8">' + escHtml(label) + ' -</span>';
         const shortId = String(datasetId).length > 22 ? (String(datasetId).slice(0, 8) + "…" + String(datasetId).slice(-6)) : String(datasetId);
-        const href = "/datanet/consume-view/" + encodeURIComponent(String(datasetId)) + "?who=" + encodeURIComponent(activeAccountForLinks || "zoso");
+        const href = "/datanet/consume-view/" + encodeURIComponent(String(datasetId)) + "?who=" + encodeURIComponent(resolveActiveParticipantAccount());
         const suffix = viewableDatasetIds.has(String(datasetId)) ? "" : " (remote-capable)";
         return '<a href="' + href + '" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none;font-weight:700">' +
           escHtml(label) + " " + escHtml(shortId) + escHtml(suffix) +
@@ -44199,7 +44211,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
           setText("latestDatasetIdHero", latestUsefulDatasetShort);
 
-          const latestUsefulLinks = buildLatestUsefulLinks(latestUseful, latestUsefulDatasetId, activeAccountForLinks || "zoso");
+          const latestUsefulLinks = buildLatestUsefulLinks(latestUseful, latestUsefulDatasetId, resolveActiveParticipantAccount());
           const latestDatasetViewHref = latestUsefulLinks.view_href;
           const latestDatasetRawHref = latestUsefulLinks.raw_href;
           const latestDatasetConsumeHref = latestUsefulLinks.consume_href;
@@ -44257,7 +44269,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             copyLinkHero.onclick = () => copyText(latestDatasetConsumeHref, "Copied open link.", copyLinkHero);
           }
 
-          loadDatasetPreviewInto("latestDatasetPreviewCard", latestUsefulDatasetId, activeAccountForLinks || "zoso").catch(() => {});
+          loadDatasetPreviewInto("latestDatasetPreviewCard", latestUsefulDatasetId, resolveActiveParticipantAccount()).catch(() => {});
         } else {
           if ($("latestDatasetActionCard")) {
             $("latestDatasetActionCard").style.display = "none";
@@ -44489,7 +44501,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   renderTradeFeeMode();
 
   async function sendWcNow(){
-    const from = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
+    const from = resolveActiveParticipantAccount();
     const to = $("sendTo") ? (($("sendTo").value || "").trim()) : "";
     const amount = $("sendAmount") ? Number((($("sendAmount").value || "").trim() || "0")) : 0;
     const btn = $("sendWcBtn");
@@ -44537,7 +44549,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   async function redeemNow(useMax){
-    const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
+    const account = resolveActiveParticipantAccount();
     const wallet = $("redeemWallet")
       ? (($("redeemWallet").value || "").trim())
       : (isWalletAddr(getConnectedWallet()) ? getConnectedWallet() : "");
@@ -44765,7 +44777,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   async function submitJob(){
-    const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
+    const account = resolveActiveParticipantAccount();
     const plaintext = $("plaintext") ? $("plaintext").value : "";
     const btn = $("submitBtn");
     if (btn) btn.disabled = true;
@@ -44852,7 +44864,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   if ($("tradeExecuteBtn")) $("tradeExecuteBtn").addEventListener("click", async () => {
-    const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
+    const account = resolveActiveParticipantAccount();
     const amount = $("tradeInputWc") ? Number((($("tradeInputWc").value || "").trim() || "0")) : 0;
     const wallet = $("redeemWallet")
       ? (($("redeemWallet").value || "").trim())
@@ -45172,7 +45184,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         return;
       }
 
-      const href = "/datanet/consume-view/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(account || "zoso");
+      const href = "/datanet/consume-view/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(resolveActiveParticipantAccount());
       if (status) {
         status.textContent = parsed.source === "consume_view_link"
           ? ("Detected consume-view link. Opening dataset " + datasetId + "…")
@@ -45221,7 +45233,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   if ($("redeemBtn")) $("redeemBtn").addEventListener("click", () => redeemNow(false));
   if ($("redeemMaxBtn")) $("redeemMaxBtn").addEventListener("click", async () => {
     try {
-      const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
+      const account = resolveActiveParticipantAccount();
       const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
       if (st && st.ok && $("redeemAmount")) $("redeemAmount").value = String(st.redeemable ?? 0);
       if ($("tradeInputWc")) $("tradeInputWc").value = String(st && st.ok ? (st.redeemable ?? 0) : 0);
@@ -45230,7 +45242,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   });
   if ($("tradeUseRedeemableBtn")) $("tradeUseRedeemableBtn").addEventListener("click", async () => {
     try {
-      const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
+      const account = resolveActiveParticipantAccount();
       const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
       if (st && st.ok && $("tradeInputWc")) $("tradeInputWc").value = String(st.redeemable ?? 0);
       await refresh();
@@ -45241,7 +45253,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   await refresh();
 
     async function __voidSetRunnerEnabled(nextEnabled){
-      const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
+      const account = resolveActiveParticipantAccount();
       const input = $("wcRunnerToggleInput");
       __voidRunnerTogglePendingUntil = Date.now() + 1500;
       if (input) input.checked = !!nextEnabled;
@@ -45294,7 +45306,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (__voidRunnerAutoRefreshBusy) return;
       __voidRunnerAutoRefreshBusy = true;
 
-      const account = $("account") ? ((($("account").value || "").trim()) || "zoso") : "zoso";
+      const account = resolveActiveParticipantAccount();
       const runnerStatus = await j("/wc/runner/status?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true }));
       const runnerEnabled = !!(runnerStatus && runnerStatus.ok && runnerStatus.enabled);
 
