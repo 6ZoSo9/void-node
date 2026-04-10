@@ -43990,13 +43990,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         ""
       ).trim();
 
-      const escHtml = (v) =>
-        String(v == null ? "" : v)
+      function escHtml(v){
+        return String(v == null ? "" : v)
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#39;");
+          .replace(/\'/g, "&#39;");
+      }
 
       const copyText = async (txt, label, btn) => {
         const value = String(txt || "");
