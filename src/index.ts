@@ -48136,3 +48136,55 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
   }catch{}
 })();
 
+
+// === [BEGIN JobsSubmitLiveDiagV1] ===
+(() => {
+  const G: any = globalThis as any;
+  if (G.__void_jobs_submit_live_diag_v1_installed) return;
+  G.__void_jobs_submit_live_diag_v1_installed = true;
+
+  const attach = () => {
+    const app: any = G.__void_http_app;
+    if (!app || typeof app.get !== "function") return false;
+    if (G.__void_jobs_submit_live_diag_v1_attached) return true;
+    G.__void_jobs_submit_live_diag_v1_attached = true;
+
+    app.get("/__void/diag/routes/jobs-submit.v2", (_req: any, res: any) => {
+      try {
+        const stack: any[] = app?._router?.stack || [];
+        const routes = [];
+        for (let i = 0; i < stack.length; i++) {
+          const L: any = stack[i];
+          const r: any = L?.route;
+          if (!r) continue;
+          const path = r.path;
+          const methods = Object.keys(r.methods || {}).filter((k) => (r.methods || {})[k]);
+          if (path === "/jobs/submit") {
+            routes.push({
+              idx: i,
+              path,
+              methods,
+              handlerCount: Array.isArray(r.stack) ? r.stack.length : 0,
+              handlerNames: Array.isArray(r.stack) ? r.stack.map((x: any) => String(x?.name || "")) : []
+            });
+          }
+        }
+        return res.json({ ok: true, count: routes.length, routes });
+      } catch (e: any) {
+        return res.status(500).json({ ok: false, error: String(e?.message || e) });
+      }
+    });
+
+    try { console.error("[jobs.submit.live.diag.v1] mounted /__void/diag/routes/jobs-submit.v2"); } catch {}
+    return true;
+  };
+
+  if (!attach()) {
+    let tries = 0;
+    const t = setInterval(() => {
+      tries++;
+      if (attach() || tries >= 400) clearInterval(t);
+    }, 50);
+  }
+})();
+// === [END JobsSubmitLiveDiagV1] ===
