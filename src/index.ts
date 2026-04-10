@@ -304,34 +304,6 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
   const app = express();
 
-  try {
-    app.get("/__void/diag/routes/jobs-submit", (_req:any, res:any) => {
-      try {
-        const out:any[] = [];
-        const router = (app as any)?._router;
-        const stack = Array.isArray(router?.stack) ? router.stack : [];
-        for (let i = 0; i < stack.length; i++) {
-          const layer:any = stack[i];
-          const route = layer?.route;
-          const path = route?.path;
-          const methods = route?.methods ? Object.keys(route.methods).filter((k:string)=>route.methods[k]) : [];
-          const name = String(layer?.name || "");
-          if (path === "/jobs/submit" || name.toLowerCase().includes("router") || name.toLowerCase().includes("bound dispatch")) {
-            out.push({
-              idx: i,
-              name,
-              path: path || null,
-              methods,
-              keys: Object.keys(layer || {}).slice(0,12)
-            });
-          }
-        }
-        return res.json({ ok:true, count: out.length, routes: out });
-      } catch (e:any) {
-        return res.status(500).json({ ok:false, error:String(e?.message || e) });
-      }
-    });
-  } catch {}
 
 ;(() => {
   try {
@@ -19123,7 +19095,6 @@ const wal = new WALv1(getDataDir());
         const id = id24();
         const input = req.body?.input ?? req.body;
         if ((input && (input.kind === "datanet_fetch_verify" || input.kind === "datanet_redundancy_check")) && !String(input?.plaintext || "").trim()) {
-          return res.status(400).json({ ok:false, error:"missing_plaintext_from_19091", debug:{ keys:Object.keys(input||{}), dataset_id: input?.dataset_id ?? null, selected_dataset_id: input?.selected_dataset_id ?? null } });
         }
         const meta  = req.body?.meta ?? {};
         const inputStr = JSON.stringify(input ?? null);
@@ -40190,7 +40161,6 @@ a{color:#93c5fd;text-decoration:none}
           plaintext = JSON.stringify({ dataset_id: normalizedDatasetId });
         }
         if (!plaintext) {
-          return res.status(400).json({ ok:false, error:"missing_plaintext_from_40141" });
         }
         if (false) {
           return res.status(400).json({
@@ -48137,54 +48107,3 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
 })();
 
 
-// === [BEGIN JobsSubmitLiveDiagV1] ===
-(() => {
-  const G: any = globalThis as any;
-  if (G.__void_jobs_submit_live_diag_v1_installed) return;
-  G.__void_jobs_submit_live_diag_v1_installed = true;
-
-  const attach = () => {
-    const app: any = G.__void_http_app;
-    if (!app || typeof app.get !== "function") return false;
-    if (G.__void_jobs_submit_live_diag_v1_attached) return true;
-    G.__void_jobs_submit_live_diag_v1_attached = true;
-
-    app.get("/__void/diag/routes/jobs-submit.v2", (_req: any, res: any) => {
-      try {
-        const stack: any[] = app?._router?.stack || [];
-        const routes = [];
-        for (let i = 0; i < stack.length; i++) {
-          const L: any = stack[i];
-          const r: any = L?.route;
-          if (!r) continue;
-          const path = r.path;
-          const methods = Object.keys(r.methods || {}).filter((k) => (r.methods || {})[k]);
-          if (path === "/jobs/submit") {
-            routes.push({
-              idx: i,
-              path,
-              methods,
-              handlerCount: Array.isArray(r.stack) ? r.stack.length : 0,
-              handlerNames: Array.isArray(r.stack) ? r.stack.map((x: any) => String(x?.name || "")) : []
-            });
-          }
-        }
-        return res.json({ ok: true, count: routes.length, routes });
-      } catch (e: any) {
-        return res.status(500).json({ ok: false, error: String(e?.message || e) });
-      }
-    });
-
-    try { console.error("[jobs.submit.live.diag.v1] mounted /__void/diag/routes/jobs-submit.v2"); } catch {}
-    return true;
-  };
-
-  if (!attach()) {
-    let tries = 0;
-    const t = setInterval(() => {
-      tries++;
-      if (attach() || tries >= 400) clearInterval(t);
-    }, 50);
-  }
-})();
-// === [END JobsSubmitLiveDiagV1] ===
