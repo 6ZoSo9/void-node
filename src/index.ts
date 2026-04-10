@@ -37270,6 +37270,18 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
             const sizeBytes = Buffer.byteLength(plaintext, "utf8");
       const previewText = plaintext.length > 220 ? (plaintext.slice(0, 220) + "…") : plaintext;
+      let parsed:any = null;
+      try { parsed = JSON.parse(plaintext); } catch {}
+      const taskClass = String(parsed?.task_class || "").trim();
+      let receiptId = String(parsed?.receipt_id || parsed?.latest_receipt_id || "").trim();
+      let jobId = String(parsed?.job_id || parsed?.latest_job_id || "").trim();
+      try {
+        if (!receiptId || !jobId) {
+          const linked = (((globalThis as any).__void_findReceiptJobLinkage) ? (globalThis as any).__void_findReceiptJobLinkage(id, who) : { receipt_id: null, job_id: null });
+          if (!receiptId) receiptId = String(linked.receipt_id || "").trim();
+          if (!jobId) jobId = String(linked.job_id || "").trim();
+        }
+      } catch {}
       const datasetTone =
         plaintext.includes('"task_class":"datanet_redundancy_check"') ? { label: "Checked Dataset", style: "color:#c4b5fd;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.28)" } :
         plaintext.includes('"task_class":"datanet_fetch_verify"') ? { label: "Verified Dataset", style: "color:#93c5fd;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.28)" } :
@@ -37322,6 +37334,9 @@ a{color:#93c5fd;text-decoration:none}
     <div class="meta">
       <div class="k">Dataset</div><div><code>${esc(id)}</code></div>
       <div class="k">Account</div><div><code>${esc(who)}</code></div>
+      <div class="k">Task</div><div>${esc(taskClass || "-")}</div>
+      <div class="k">Receipt</div><div><code>${esc(receiptId || "-")}</code></div>
+      <div class="k">Job</div><div><code>${esc(jobId || "-")}</code></div>
       <div class="k">SHA-256</div><div><code>${esc(sha256)}</code></div>
       <div class="k">Bytes</div><div>${esc(sizeBytes)}</div>
       <div class="k">Source</div><div><code>${esc(file)}</code></div>
