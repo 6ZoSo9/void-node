@@ -37282,6 +37282,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           if (!jobId) jobId = String(linked.job_id || "").trim();
         }
       } catch {}
+      const consumeHref = "/datanet/consume-view/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
+      const rawHref = "/datanet/v1/local-job/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
+      const backHref = "/participant?account=" + encodeURIComponent(who) + "&open_dataset=" + encodeURIComponent(id) + "#datanet";
       const datasetTone =
         plaintext.includes('"task_class":"datanet_redundancy_check"') ? { label: "Checked Dataset", style: "color:#c4b5fd;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.28)" } :
         plaintext.includes('"task_class":"datanet_fetch_verify"') ? { label: "Verified Dataset", style: "color:#93c5fd;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.28)" } :
@@ -37345,8 +37348,13 @@ a{color:#93c5fd;text-decoration:none}
 
   <div class="card">
     <div class="row">
-      <a class="btn" href="/datanet/v1/local-job/${encodeURIComponent(id)}?who=${encodeURIComponent(who)}" target="_blank" rel="noopener">Open Dataset JSON</a>
-      <a class="btn" href="/participant#overview">Back to Overview</a>
+      <a class="btn" href="${consumeHref}" target="_blank" rel="noopener">Open consume viewer</a>
+      <a class="btn" href="${rawHref}" target="_blank" rel="noopener">Open Dataset JSON</a>
+      <a class="btn" href="${backHref}">Back to Participant</a>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${esc(id)}')">Copy Dataset ID</button>
+      <button class="btn" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${consumeHref}')">Copy Consume Link</button>
     </div>
   </div>
 
