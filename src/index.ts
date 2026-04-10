@@ -48123,7 +48123,8 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
     app.get("/__void/agent/candidates/freshness.v1", async (_req: any, res: any) => {
       try {
         const port = Number(process.env.HTTP_PORT || 4100);
-        const r = await fetch(`http://127.0.0.1:${port}/__void/agent/candidates.v1?limit=200`);
+        const host = String(process.env.VOID_HTTP_HOST || process.env.HTTP_HOST || "127.0.0.1");
+        const r = await fetch(`http://${host}:${port}/__void/agent/candidates.v1?limit=200`);
         const j: any = await r.json();
         const items = Array.isArray(j?.items) ? j.items : [];
 
@@ -48148,7 +48149,8 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
     app.get("/__void/metrics/agent_candidates_freshness_v1.prom", async (_req: any, res: any) => {
       try {
         const port = Number(process.env.HTTP_PORT || 4100);
-        const r = await fetch(`http://127.0.0.1:${port}/__void/agent/candidates.v1?limit=200`);
+        const host = String(process.env.VOID_HTTP_HOST || process.env.HTTP_HOST || "127.0.0.1");
+        const r = await fetch(`http://${host}:${port}/__void/agent/candidates.v1?limit=200`);
         const j: any = await r.json();
         const items = Array.isArray(j?.items) ? j.items : [];
         const counts = j?.counts || {};
