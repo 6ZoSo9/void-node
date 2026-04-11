@@ -42339,7 +42339,7 @@ a{color:#93c5fd;text-decoration:none}
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open dataset</a>
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open shared page</a>
             <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy shared page</button>
-            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700;" id="adminDataNetSummaryBtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">Open DataNet Admin</a>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700;" id="adminDataNetSummaryBtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">DataNet Admin</a>
           </div>
           <div class="hero-note" id="runnerActivitySnippetCard" style="margin-top:10px;display:none">loading…</div>
           <div class="hero-note" id="latestDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
@@ -44633,7 +44633,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             openHero.style.display = "";
             openHero.href = latestDatasetViewHref;
             openHero.textContent = latestUsefulBtnText;
-            openHero.title = "Open dataset " + latestUsefulDatasetId;
+            openHero.title = "Open latest dataset " + latestUsefulDatasetId;
           }
 
           const rawHero = $("latestDatasetRawHero");
@@ -44652,7 +44652,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           const copyLinkHero = $("latestDatasetCopyLinkHero");
           if (copyLinkHero) {
             copyLinkHero.style.display = "";
-            copyLinkHero.onclick = () => copyText(latestDatasetConsumeHref, "Copied dataset link.", copyLinkHero);
+            copyLinkHero.onclick = () => copyText(latestDatasetConsumeHref, "Copied open link.", copyLinkHero);
           }
 
           loadDatasetPreviewInto("latestDatasetPreviewCard", latestUsefulDatasetId, resolveActiveParticipantAccount()).catch(() => {});
@@ -45856,7 +45856,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           latestDatasetBtn.href = latestUsefulLinks.consume_href;
           latestDatasetBtn.style.display = "";
           latestDatasetBtn.textContent = "Open dataset";
-          latestDatasetBtn.title = "Open dataset " + effectiveLatestUsefulDataset;
+          latestDatasetBtn.title = "Open latest dataset " + effectiveLatestUsefulDataset;
 
           const shareHref = latestUsefulLinks.share_href;
 
@@ -45864,12 +45864,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             latestDatasetOpenShareBtn.href = shareHref;
             latestDatasetOpenShareBtn.style.display = "";
             latestDatasetOpenShareBtn.textContent = "Open shared page";
-            latestDatasetOpenShareBtn.title = "Open participant page preloaded to open dataset " + effectiveLatestUsefulDataset;
+            latestDatasetOpenShareBtn.title = "Open shared page for dataset " + effectiveLatestUsefulDataset;
           }
 
           if (latestDatasetShareBtn) {
             latestDatasetShareBtn.style.display = "";
-            latestDatasetShareBtn.title = "Copy shared page for dataset " + effectiveLatestUsefulDataset;
+            latestDatasetShareBtn.title = "Copy shared page " + effectiveLatestUsefulDataset;
             latestDatasetShareBtn.onclick = () =>
               window.__void_copyText &&
               window.__void_copyText(shareHref, "Copied latest shared page link.", latestDatasetShareBtn);
