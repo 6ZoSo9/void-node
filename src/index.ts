@@ -44919,7 +44919,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       setPre("sendOut", out);
       setPre("tradeOut", out);
-      if (out && out.ok) setLatestAction("Trade submitted onchain.");
+      if (out && out.ok) setLatestAction("WC sent successfully.");
       await refresh();
       try { await new Promise(r => setTimeout(r, 1200)); } catch {}
       await refresh();
@@ -45033,7 +45033,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       setPre("redeemOut", out);
       if (out && out.ok) {
-        setLatestAction("WC moved to trade. Opening the Trade tab now.");
+        setLatestAction("WC prepared for trading. Opening the Trade tab now.");
       }
       await refresh();
       if (out && out.ok) {
@@ -45299,9 +45299,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         amount,
         wallet,
         redeemable_state: redeemableNow || null,
-        note:"No redeemable WC available yet. Earn WC first, then redeem or trade."
+        note:"No WC is prepared yet. Earn WC first, then prepare it for trading."
       });
-      setText("tradeOut", "No WC is ready to trade yet. Earn or move WC first.");
+      setText("tradeOut", "No WC is ready to trade yet. Earn WC first, then prepare it.");
       setLatestAction("No WC is prepared for trading yet.");
       await refresh();
       return;
