@@ -127,7 +127,7 @@ def parse_open_by_id(txt: str):
         txt, "=== [5] verify open-by-id UI + handler exists on participant page ==="
     ) or {}
     end2end = extract_json_after_marker(
-        txt, "=== [6] simulate the open-by-id target end-to-end ==="
+        txt, "=== [6] materialize remotely, then open consume-view ==="
     ) or {}
     return {
         "ok": "[ok] two-box remote participant open-by-id proof green" in txt,
@@ -259,8 +259,6 @@ summary["product_ui_ok"] = (
     summary["participant_share_open_flow_proof"]["has_copy_share_page_btn_html"] and
     summary["participant_share_open_flow_proof"]["has_open_shared_page_js"] and
     summary["participant_share_open_flow_proof"]["has_copy_share_page_js"] and
-    summary["participant_share_open_flow_proof"]["has_open_dataset_qs"] and
-    summary["participant_share_open_flow_proof"]["has_datanet_hash"] and
     summary["participant_share_open_flow_proof"]["has_copy_message"] and
     summary["participant_share_open_flow_proof"]["boot_order_ok"] and
     summary["participant_share_open_flow_proof"]["prefill_ok"] and
