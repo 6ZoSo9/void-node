@@ -37348,13 +37348,13 @@ a{color:#93c5fd;text-decoration:none}
 
   <div class="card">
     <div class="row">
-      <a class="btn" href="${consumeHref}" target="_blank" rel="noopener">Open consume viewer</a>
+      <a class="btn" href="${consumeHref}" target="_blank" rel="noopener">Open dataset</a>
       <a class="btn" href="${rawHref}" target="_blank" rel="noopener">Open Dataset JSON</a>
       <a class="btn" href="${backHref}">Back to Participant</a>
     </div>
     <div class="row" style="margin-top:10px">
       <button class="btn" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${esc(id)}')">Copy Dataset ID</button>
-      <button class="btn" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${consumeHref}')">Copy Consume Link</button>
+      <button class="btn" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${consumeHref}')">Copy open link</button>
     </div>
   </div>
 
@@ -37807,14 +37807,14 @@ a{color:#93c5fd;text-decoration:none}
 
   <div class="card">
     <div class="row">
-      <a class="btn" href="${consumeHref}" target="_blank" rel="noopener">Open consume viewer</a>
+      <a class="btn" href="${consumeHref}" target="_blank" rel="noopener">Open dataset</a>
       <a class="btn" href="${rawHref}" target="_blank" rel="noopener">Open Dataset JSON</a>
       <a class="btn" href="${localViewHref}" target="_blank" rel="noopener">Open Local-Only View</a>
       <a class="btn" href="${backHref}">Back to Participant</a>
     </div>
     <div class="row" style="margin-top:10px">
       <button class="btn" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${esc(id)}')">Copy Dataset ID</button>
-      <button class="btn" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${consumeHref}')">Copy Consume Link</button>
+      <button class="btn" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${consumeHref}')">Copy open link</button>
     </div>
   </div>
 
@@ -42336,9 +42336,9 @@ a{color:#93c5fd;text-decoration:none}
           <div class="hero-note" id="latestActionCard" style="margin-top:10px">No recent activity yet. Submit work to generate a result and earn WC.</div>
           <div class="hero-note" id="networkValueCard" style="margin-top:10px">loading…</div>
           <div class="hero-actions" style="margin-top:10px">
-            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open consume viewer</a>
-            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open Shared Dataset Page</a>
-            <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy Shared Dataset Page</button>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open dataset</a>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open shared page</a>
+            <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy shared page</button>
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700;" id="adminDataNetSummaryBtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">Open DataNet Admin</a>
           </div>
           <div class="hero-note" id="runnerActivitySnippetCard" style="margin-top:10px;display:none">loading…</div>
@@ -42349,10 +42349,10 @@ a{color:#93c5fd;text-decoration:none}
             <div class="v" id="latestDatasetIdHero" style="font-size:15px;line-height:1.35;word-break:break-word;margin-top:8px">-</div>
             <div class="s" id="latestDatasetReceiptHero" style="margin-top:6px;display:none">-</div>
             <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
-              <a class="btn" id="latestDatasetOpenHero" href="#" target="_blank" rel="noopener" style="display:none">Open consume viewer</a>
+              <a class="btn" id="latestDatasetOpenHero" href="#" target="_blank" rel="noopener" style="display:none">Open dataset</a>
               <a class="btn secondary" id="latestDatasetRawHero" href="#" target="_blank" rel="noopener" style="display:none">Open raw JSON</a>
               <button class="btn secondary" id="latestDatasetCopyIdHero" type="button" style="display:none">Copy ID</button>
-              <button class="btn secondary" id="latestDatasetCopyLinkHero" type="button" style="display:none">Copy Consume Link</button>
+              <button class="btn secondary" id="latestDatasetCopyLinkHero" type="button" style="display:none">Copy open link</button>
             </div>
           </div>
           <details class="adv" style="margin-top:14px">
@@ -42411,17 +42411,17 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel" style="margin:10px 0 12px 0;padding:14px;border-radius:14px;border:1px solid #1e293b;background:#0b1220">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <div style="font-weight:800;font-size:14px">Open Dataset by ID or Link</div>
-              <button type="button" class="help" title="Paste a dataset id, a consume-view link, or a shared dataset page link. This opens the consume viewer on this node using your current participant identity." aria-label="Open dataset help" style="margin-left:0">?</button>
+              <div style="font-weight:800;font-size:14px">Open dataset</div>
+              <button type="button" class="help" title="Paste a dataset id, a consume link, or a shared dataset page link. This opens the dataset on this node using your current participant identity." aria-label="Open dataset help" style="margin-left:0">?</button>
             </div>
           </div>
           <div class="row" style="gap:10px;align-items:end;margin-top:12px;flex-wrap:wrap">
             <label style="display:flex;flex-direction:column;gap:6px;min-width:280px;flex:1 1 380px">
               <span class="s">Dataset ID or Link</span>
-              <input id="datanetOpenByIdInput" placeholder="ds_..., /datanet/consume-view/..., or shared dataset page link" style="padding:10px 12px;border-radius:12px;border:1px solid #334155;background:#020617;color:#e5e7eb" />
+              <input id="datanetOpenByIdInput" placeholder="ds_..., consume link, or shared dataset page link" style="padding:10px 12px;border-radius:12px;border:1px solid #334155;background:#020617;color:#e5e7eb" />
             </label>
             <button id="datanetPasteLinkBtn" type="button" class="btn secondary" style="min-width:110px">Paste</button>
-            <button id="datanetOpenByIdBtn" type="button" class="btn" style="min-width:180px">Open consume viewer</button>
+            <button id="datanetOpenByIdBtn" type="button" class="btn" style="min-width:180px">Open dataset</button>
           </div>
           <div class="hero-note" id="datanetOpenByIdStatus" style="margin-top:10px">Enter a dataset id, a consume-view link, or a shared dataset page link.</div>
         </div>
@@ -44652,7 +44652,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           const copyLinkHero = $("latestDatasetCopyLinkHero");
           if (copyLinkHero) {
             copyLinkHero.style.display = "";
-            copyLinkHero.onclick = () => copyText(latestDatasetConsumeHref, "Copied open link.", copyLinkHero);
+            copyLinkHero.onclick = () => copyText(latestDatasetConsumeHref, "Copied dataset link.", copyLinkHero);
           }
 
           loadDatasetPreviewInto("latestDatasetPreviewCard", latestUsefulDatasetId, resolveActiveParticipantAccount()).catch(() => {});
@@ -45558,7 +45558,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const parsed = parseDatasetIdOrLink(pasted);
       if (status) {
         if ((parsed.source === "consume_view_link" || parsed.source === "participant_share_link") && parsed.datasetId) {
-          status.textContent = (parsed.source === "participant_share_link" ? "Pasted shared participant link. Extracted dataset " : "Pasted consume-view link. Extracted dataset ") + parsed.datasetId + ".";
+          status.textContent = (parsed.source === "participant_share_link" ? "Pasted shared page link. Extracted dataset " : "Pasted consume link. Extracted dataset ") + parsed.datasetId + ".";
         } else if (parsed.source === "dataset_id" && parsed.datasetId) {
           status.textContent = "Pasted dataset id " + parsed.datasetId + ".";
         } else {
@@ -45627,7 +45627,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const parsed = parseDatasetIdOrLink(qsLink);
         if (openStatus) {
           if ((parsed.source === "consume_view_link" || parsed.source === "participant_share_link") && parsed.datasetId) {
-            openStatus.textContent = (parsed.source === "participant_share_link" ? "Preloaded shared participant link from page link. Extracted dataset " : "Preloaded consume-view link from page link. Extracted dataset ") + parsed.datasetId + ".";
+            openStatus.textContent = (parsed.source === "participant_share_link" ? "Preloaded shared page link. Extracted dataset " : "Preloaded consume link. Extracted dataset ") + parsed.datasetId + ".";
           } else {
             openStatus.textContent = "Preloaded link from page link.";
           }
@@ -45855,24 +45855,24 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           );
           latestDatasetBtn.href = latestUsefulLinks.consume_href;
           latestDatasetBtn.style.display = "";
-          latestDatasetBtn.textContent = "Open consume viewer";
-          latestDatasetBtn.title = "Open consume viewer for " + effectiveLatestUsefulDataset;
+          latestDatasetBtn.textContent = "Open dataset";
+          latestDatasetBtn.title = "Open dataset " + effectiveLatestUsefulDataset;
 
           const shareHref = latestUsefulLinks.share_href;
 
           if (latestDatasetOpenShareBtn) {
             latestDatasetOpenShareBtn.href = shareHref;
             latestDatasetOpenShareBtn.style.display = "";
-            latestDatasetOpenShareBtn.textContent = "Open Shared Dataset Page";
+            latestDatasetOpenShareBtn.textContent = "Open shared page";
             latestDatasetOpenShareBtn.title = "Open participant page preloaded to open dataset " + effectiveLatestUsefulDataset;
           }
 
           if (latestDatasetShareBtn) {
             latestDatasetShareBtn.style.display = "";
-            latestDatasetShareBtn.title = "Copy participant page link preloaded to open dataset " + effectiveLatestUsefulDataset;
+            latestDatasetShareBtn.title = "Copy shared page for dataset " + effectiveLatestUsefulDataset;
             latestDatasetShareBtn.onclick = () =>
               window.__void_copyText &&
-              window.__void_copyText(shareHref, "Copied latest shared dataset page link.", latestDatasetShareBtn);
+              window.__void_copyText(shareHref, "Copied latest shared page link.", latestDatasetShareBtn);
           }
 
           loadDatasetPreviewInto("latestDatasetPreviewCard", effectiveLatestUsefulDataset, account).catch(() => {});
