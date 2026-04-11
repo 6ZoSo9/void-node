@@ -310,7 +310,11 @@ PY
 
 echo
 echo "=== [8] local runner selection persistence proof ==="
-bash ops/live-runner-selection-persistence-proof.sh > "$OUT_DIR/runner-selection-persistence-proof.log"
+curl -fsS --max-time 10 http://127.0.0.1:4100/health > "$OUT_DIR/local.health.before-step8.json" || {
+  echo "[fail] local 4100 unhealthy before step8; restart void-node.service first" >&2
+  exit 1
+}
+timeout 240 bash ops/live-runner-selection-persistence-proof.sh > "$OUT_DIR/runner-selection-persistence-proof.log"
 tail -n 80 "$OUT_DIR/runner-selection-persistence-proof.log"
 grep -q "\[ok\] live runner selection persistence proof green" "$OUT_DIR/runner-selection-persistence-proof.log"
 grep -q "target_publish_mix" "$OUT_DIR/runner-selection-persistence-proof.log"
