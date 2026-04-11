@@ -37578,7 +37578,7 @@ a{color:#93c5fd;text-decoration:none}
 <div class="wrap">
   <div class="card">
     <h1>Opening Dataset</h1>
-    <div class="sub">This node may materialize the dataset from a peer before showing the local consume viewer.</div>
+    <div class="sub">This node may materialize the dataset from a peer before showing the local dataset view.</div>
   </div>
 
   <div class="card">
@@ -37593,7 +37593,7 @@ a{color:#93c5fd;text-decoration:none}
     </div>
     <div class="row" style="margin-top:12px">
       <a class="btn" href="${backHref}">Back to Participant</a>
-      <a class="btn" href="${consumeView}">Open consume viewer directly</a>
+      <a class="btn" href="${consumeView}">Open dataset directly</a>
     </div>
   </div>
 </div>
@@ -37623,8 +37623,8 @@ a{color:#93c5fd;text-decoration:none}
     const source = obj && obj.source ? String(obj.source) : "local";
     if (statusEl) {
       statusEl.textContent = source === "peer_materialized"
-        ? "Dataset materialized from peer. Opening consume viewer…"
-        : "Dataset already local. Opening consume viewer…";
+        ? "Dataset materialized from peer. Opening dataset…"
+        : "Dataset already local. Opening dataset…";
     }
     if (stageEl) stageEl.textContent = source === "peer_materialized"
       ? "Ready. Opening viewer…"
@@ -42423,7 +42423,7 @@ a{color:#93c5fd;text-decoration:none}
             <button id="datanetPasteLinkBtn" type="button" class="btn secondary" style="min-width:110px">Paste</button>
             <button id="datanetOpenByIdBtn" type="button" class="btn" style="min-width:180px">Open dataset</button>
           </div>
-          <div class="hero-note" id="datanetOpenByIdStatus" style="margin-top:10px">Enter a dataset id, a consume-view link, or a shared dataset page link.</div>
+          <div class="hero-note" id="datanetOpenByIdStatus" style="margin-top:10px">Enter a dataset id, a consume link, or a shared dataset page link.</div>
         </div>
 
         <div class="row" style="gap:10px;align-items:end;margin:10px 0 12px 0;flex-wrap:wrap">
@@ -43634,8 +43634,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       "ready";
 
     const latestUsefulRunnerButtonText = latestUsefulForRunnerCard
-      ? String(latestUsefulForRunnerCard.button_text || "Open consume viewer")
-      : "Open consume viewer";
+      ? String(latestUsefulForRunnerCard.button_text || "Open dataset")
+      : "Open dataset";
     const latestUsefulRunnerOpenPath = latestUsefulForRunnerCard
       ? String(latestUsefulForRunnerCard.consume_path || latestUsefulForRunnerCard.view_path || "")
       : "";
@@ -44123,7 +44123,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                   ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
                   : '') +
                 ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
-                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy Link</button>') +
+                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy open link</button>') +
               '</td>' +
             '</tr>';
           }).join('') +
@@ -44222,7 +44222,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                   ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
                   : '') +
                 ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
-                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy Link</button>') +
+                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy open link</button>') +
               '</td>' +
             '</tr>';
           }).join('') +
@@ -44633,7 +44633,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             openHero.style.display = "";
             openHero.href = latestDatasetViewHref;
             openHero.textContent = latestUsefulBtnText;
-            openHero.title = "Open dataset readback for " + latestUsefulDatasetId;
+            openHero.title = "Open dataset " + latestUsefulDatasetId;
           }
 
           const rawHero = $("latestDatasetRawHero");
@@ -44842,7 +44842,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           btn.href = "/datanet/v1/local-job/" + encodeURIComponent(dsFull) + "?who=" + encodeURIComponent(account);
           btn.style.display = "";
           btn.textContent = btnText;
-          btn.title = "Open dataset readback for " + dsFull;
+          btn.title = "Open dataset " + dsFull;
           loadDatasetPreviewInto("latestReceiptDatasetPreviewCard", dsFull, account).catch(() => {});
         } else if (btn) {
           btn.style.display = "none";
@@ -45582,14 +45582,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         ? ((String($("account").value || "").trim()) || pickInitialParticipantAccount())
         : pickInitialParticipantAccount();
       if (!raw) {
-        if (status) status.textContent = "Enter a dataset id, a consume-view link, or a shared dataset page link first.";
+        if (status) status.textContent = "Enter a dataset id, a consume link, or a shared dataset page link first.";
         return;
       }
 
       const parsed = parseDatasetIdOrLink(raw);
       const datasetId = String(parsed.datasetId || "");
       if (!datasetId || !/^ds_[A-Za-z0-9_\-]+$/.test(datasetId)) {
-        if (status) status.textContent = "That does not look like a dataset id, consume-view link, or shared dataset page link.";
+        if (status) status.textContent = "That does not look like a dataset id, consume link, or shared dataset page link.";
         return;
       }
 
