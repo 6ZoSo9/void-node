@@ -97,7 +97,16 @@ job_done=0
 for i in $(seq 1 "$JOB_WAIT_LOOPS"); do
   echo "--- poll $i/$JOB_WAIT_LOOPS"
   jget "$NODE_BASE/jobs/$job_id" | tee "$OUT_DIR/job.status.$i.json"
-  status="$(py_get "$OUT_DIR/job.status.$i.json" job.status)"
+  status="$(python3 - "$OUT_DIR/job.status.$i.json" <<'PY'
+import json, sys
+j=json.load(open(sys.argv[1]))
+job=j.get("job") or {}
+rs=j.get("receipts") or []
+status=str(job.get("status") or "")
+done=(status=="completed") or any(str(r.get("status") or "")=="completed" and str(r.get("dataset_id") or "") for r in rs)
+print("completed" if done else status)
+PY
+)"
   echo "status=$status"
   if [[ "$status" == "completed" ]]; then
     job_done=1

@@ -382,6 +382,11 @@ two-box-post-ui-trade-gate:
 two-box-post-ui-trade-gate-proof: two-box-post-ui-trade-gate
 
 product-golden-proof-v2: two-box-post-ui-trade-gate
+	bash ops/two-box-golden-product-smoke.sh
+	bash ops/two-box-participant-golden-path-proof.sh
+	$(MAKE) --no-print-directory participant-share-open-proof
+	RUNS=$${RUNS:-1} bash ops/two-box-remote-product-network-regression-proof.sh | tee /tmp/remote-product-regression.quick.log
+	grep -E '\[ok\] two-box remote product \+ network regression proof green|participant_bootstrap_account|recent_runner_activity_count|remote_ready|remote_gap|remote_txroot_live' /tmp/remote-product-regression.quick.log || true
 
 .PHONY: void-pillars-preflight
 void-pillars-preflight:
