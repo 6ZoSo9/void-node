@@ -43,18 +43,36 @@ for i in $(seq 1 24); do
   jpost_json "$BASE/wc/runner/tick" "{\"account\":\"$ACCOUNT\"}" 25 > "$OUT/runner.tick.$i.json" || true
   jget "$BASE/wc/runner/status?account=$ACCOUNT" 10 > "$OUT/runner.status.$i.json"
 
-  TASK="$(python3 - "$OUT/runner.status.$i.json" <<'PY'
-import sys, json, pathlib
-o = json.loads(pathlib.Path(sys.argv[1]).read_text())
-sel = o.get("selection") or {}
-print(sel.get("task_class") or o.get("last_selected_task_class") or "")
+  python3 - "$DATA_DIR/jobs_v1/jobs.jsonl" "$ACCOUNT" <<'PY' > "$OUT/runner.seen.$i.env"
+import json, sys, pathlib
+jobs = pathlib.Path(sys.argv[1])
+acct = sys.argv[2]
+seen_publish = 0
+seen_verify = 0
+seen_redund = 0
+if jobs.exists():
+    for line in jobs.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
+        if str(obj.get("account") or "") != acct:
+            continue
+        kind = str(obj.get("kind") or "")
+        if kind == "datanet_publish":
+            seen_publish = 1
+        elif kind == "datanet_fetch_verify":
+            seen_verify = 1
+        elif kind == "datanet_redundancy_check":
+            seen_redund = 1
+print(f"SEEN_PUBLISH={seen_publish}")
+print(f"SEEN_VERIFY={seen_verify}")
+print(f"SEEN_REDUND={seen_redund}")
 PY
-)"
-  case "$TASK" in
-    datanet_publish) SEEN_PUBLISH=1 ;;
-    datanet_fetch_verify) SEEN_VERIFY=1 ;;
-    datanet_redundancy_check) SEEN_REDUND=1 ;;
-  esac
+  . "$OUT/runner.seen.$i.env"
 
   echo "seen_publish=$SEEN_PUBLISH seen_verify=$SEEN_VERIFY seen_redundancy=$SEEN_REDUND"
 
