@@ -42622,7 +42622,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel">
         <div class="section-head">
           <div>
-            <h2>Execute Trade<span class="help" tabindex="0" data-help="Trade flow uses participant Work Credits already prepared for trading from the selected account. When a wallet is connected, it is the default execution and receive path unless you open an advanced override.">?</span></h2>
+            <h2>Trade WC for VOID<span class="help" tabindex="0" data-help="Trade prepared Work Credits from the selected participant account. Your connected wallet is used by default unless you choose an advanced override.">?</span></h2>
           </div>
         </div>
 
@@ -42655,10 +42655,10 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel" style="margin-top:16px;padding:14px">
           <div class="section-head">
             <div>
-              <h2 style="margin-bottom:4px">Review<span class="help" tabindex="0" data-help="Main trade summary for what you can trade now, what is already prepared, the current quote, and where the output will go.">?</span></h2>
+              <h2 style="margin-bottom:4px">Trade Summary<span class="help" tabindex="0" data-help="Shows what is ready to trade now, the current quote, and where the output will go.">?</span></h2>
             </div>
           </div>
-          <div class="hero-note" id="tradeSummary">Use this step after WC is prepared for trading. Your connected wallet is used by default.</div>
+          <div class="hero-note" id="tradeSummary">Trade prepared WC here. Your connected wallet is used by default.</div>
           <div class="subtle-tab-copy" id="tradeBackendTruthCard" style="margin-top:8px">Backend truth: loading…</div>
           <div class="hero-note" id="tradeOverviewCard" style="margin-top:10px">loading…</div>
         </div>
@@ -42666,7 +42666,7 @@ a{color:#93c5fd;text-decoration:none}
         <details class="adv" style="margin-top:16px">
           <summary><span>Execution Options</span><span class="pill">advanced</span></summary>
           <div class="adv-body">
-            <div class="hero-note" id="tradeFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
+            <div class="hero-note" id="tradeFeeModeCard" style="margin-top:10px">Execution: Auto • Fees: Auto</div>
             <div class="action-rail" style="margin-top:10px">
               <button class="btn" id="tradeModeAutoBtn" type="button">Auto</button>
               <button class="btn" id="tradeModeWalletBtn" type="button">Use Wallet</button>
@@ -42783,7 +42783,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Prepare WC for Trading<span class="help" tabindex="0" data-help="Uses the selected participant account for WC eligibility and prepares WC for the trading step. Connected wallet is the default execution path unless you open the advanced override.">?</span></h2>
+                <h2 style="margin-bottom:4px">Prepare WC<span class="help" tabindex="0" data-help="Prepares Work Credits from the selected participant account for trading. Your connected wallet is used by default unless you choose an advanced override.">?</span></h2>
               </div>
             </div>
             <label for="redeemAmount">WC to redeem</label>
@@ -42793,7 +42793,7 @@ a{color:#93c5fd;text-decoration:none}
               <div class="adv-body">
                 <label for="redeemWallet" style="margin-top:10px">Execution wallet</label>
                 <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
-                <div class="subtle-tab-copy" style="margin-top:8px">Connected wallet is preferred automatically. Only change this if you intentionally want a different execution wallet.</div>
+                <div class="subtle-tab-copy" style="margin-top:8px">Connected wallet is used by default. Change this only if you want a different execution wallet.</div>
               </div>
             </details>
             <div class="action-rail" style="margin-top:12px">
@@ -42801,7 +42801,7 @@ a{color:#93c5fd;text-decoration:none}
               <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
             </div>
             <div style="margin-top:12px">
-              <div class="hero-note" id="redeemSummary">Prepare participant WC here first, then execute the trade in the Trade tab. Connected wallet is used by default.</div>
+              <div class="hero-note" id="redeemSummary">Prepare WC here first, then trade it in the Trade tab. Connected wallet is used by default.</div>
                 <div class="hero-note" id="redeemFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
                 <div class="action-rail" style="margin-top:10px">
                   <button class="btn" id="redeemModeAutoBtn" type="button">Auto</button>
@@ -43254,11 +43254,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   function renderRedeemFeeMode(){
-    setText("redeemFeeModeCard", "Execution: " + feeModeLabel(redeemFeeMode) + " • Fee Source: " + feeModeLabel(redeemFeeMode));
+    setText("redeemFeeModeCard", "Execution: " + feeModeLabel(redeemFeeMode) + " • Fees: " + feeModeLabel(redeemFeeMode));
   }
 
   function renderTradeFeeMode(){
-    setText("tradeFeeModeCard", "Execution: " + feeModeLabel(tradeFeeMode) + " • Fee Source: " + feeModeLabel(tradeFeeMode));
+    setText("tradeFeeModeCard", "Execution: " + feeModeLabel(tradeFeeMode) + " • Fees: " + feeModeLabel(tradeFeeMode));
   }
 
 
@@ -44727,9 +44727,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             ? ("Local relayer offline • " + redeemableTotal + " WC is still available once helper/relayer returns.")
             : !hasRedeemable
               ? "No WC is available to trade yet."
-              : ("Local devnet trade ready • " + redeemableTotal + " WC can swap for about " + quoteText + " VOID" +
+              : ("Trade ready • " + redeemableTotal + " WC can swap for about " + quoteText + " VOID" +
                  (wcAddrShort ? (" • Wallet " + wcAddrShort) : "") +
-                 " • Route: redeem → approve → swap");
+                 "");
 
       if ($("tradeOverviewCard")) {
         $("tradeOverviewCard").innerHTML =
