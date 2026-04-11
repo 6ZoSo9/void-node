@@ -42329,7 +42329,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Latest Activity<span class="help" tabindex="0" data-help="Top-level balances for participant Work Credits, redeemed WC, and onchain VOID.">?</span></h2>
+              <h2>Latest Activity<span class="help" tabindex="0" data-help="Recent useful work, the latest dataset, and quick actions to open or share it.">?</span></h2>
             </div>
           </div>
           <div class="hero-note" id="summaryCard">loading…</div>
@@ -42339,7 +42339,7 @@ a{color:#93c5fd;text-decoration:none}
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open dataset</a>
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open shared page</a>
             <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy shared page</button>
-            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700;" id="adminDataNetSummaryBtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">DataNet Admin</a>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700;" id="adminDataNetSummaryBtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">Admin</a>
           </div>
           <div class="hero-note" id="runnerActivitySnippetCard" style="margin-top:10px;display:none">loading…</div>
           <div class="hero-note" id="latestDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
@@ -44117,10 +44117,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               '<td style="max-width:420px;white-space:pre-wrap;word-break:break-word">' + preview + '</td>' +
               '<td>' +
                 (viewerUrl
-                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">View</a>')
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">Open</a>')
                   : '') +
                 (rawUrl
-                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">Raw JSON</a>')
                   : '') +
                 ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
                 ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy open link</button>') +
@@ -44216,10 +44216,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               '<td style="max-width:420px;white-space:pre-wrap;word-break:break-word">' + preview + '</td>' +
               '<td>' +
                 (viewerUrl
-                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">View</a>')
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">Open</a>')
                   : '') +
                 (rawUrl
-                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">JSON</a>')
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">Raw JSON</a>')
                   : '') +
                 ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
                 ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy open link</button>') +
@@ -45864,12 +45864,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             latestDatasetOpenShareBtn.href = shareHref;
             latestDatasetOpenShareBtn.style.display = "";
             latestDatasetOpenShareBtn.textContent = "Open shared page";
-            latestDatasetOpenShareBtn.title = "Open shared page for dataset " + effectiveLatestUsefulDataset;
+            latestDatasetOpenShareBtn.title = "Open shared page " + effectiveLatestUsefulDataset;
           }
 
           if (latestDatasetShareBtn) {
             latestDatasetShareBtn.style.display = "";
-            latestDatasetShareBtn.title = "Copy shared page " + effectiveLatestUsefulDataset;
+            latestDatasetShareBtn.title = "Copy link for shared page " + effectiveLatestUsefulDataset;
             latestDatasetShareBtn.onclick = () =>
               window.__void_copyText &&
               window.__void_copyText(shareHref, "Copied latest shared page link.", latestDatasetShareBtn);
