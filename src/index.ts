@@ -37526,6 +37526,118 @@ a{color:#93c5fd;text-decoration:none}
       } catch {}
     })();
 
+    // __void_datanet_opening_view_v1
+    ;(() => {
+      try {
+        const APP:any = (globalThis as any).__void_http_app || (typeof app !== "undefined" ? app : null);
+        if (!APP || typeof APP.get !== "function") return;
+        if ((APP as any).__void_datanet_opening_view_v1) return;
+        (APP as any).__void_datanet_opening_view_v1 = true;
+
+        APP.get("/datanet/open/:id", async (req:any, res:any) => {
+          try {
+            const who = String((req?.query?.who ?? "") || "").trim();
+            if (!who) return res.status(400).type("text/plain").send("missing_who");
+
+            const id = String((req?.params?.id ?? "") || "").trim();
+            if (!id) return res.status(400).type("text/plain").send("missing_id");
+            if (!/^ds_[A-Za-z0-9_\-]+$/.test(id)) return res.status(400).type("text/plain").send("bad_id");
+
+            const esc = (v:any) => String(v == null ? "" : v)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;");
+
+            const consumeApi = "/datanet/v1/consume/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
+            const consumeView = "/datanet/consume-view/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
+            const backHref = "/participant?account=" + encodeURIComponent(who) + "&open_dataset=" + encodeURIComponent(id) + "#datanet";
+
+            const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>VOID Opening Dataset</title>
+<style>
+body{margin:0;padding:24px;background:#020617;color:#e5e7eb;font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.card{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:16px}
+h1{margin:0 0 6px;font-size:28px}
+.sub{color:#94a3b8}
+code,pre{background:#020617;border:1px solid #1e293b;border-radius:12px}
+code{padding:2px 6px}
+.pre{padding:14px;white-space:pre-wrap;word-break:break-word}
+.row{display:flex;flex-wrap:wrap;gap:10px}
+a{color:#93c5fd;text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #334155;border-radius:12px;background:#111827;color:#e5e7eb;text-decoration:none;font-weight:700}
+.pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#93c5fd;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.28)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Opening Dataset</h1>
+    <div class="sub">This node may materialize the dataset from a peer before showing the local consume viewer.</div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="align-items:center">
+      <span class="pill">Preparing local copy</span>
+      <span class="sub">Dataset <code>${esc(id)}</code> for participant <code>${esc(who)}</code></span>
+    </div>
+    <div id="openStatus" class="sub" style="margin-top:10px">Requesting dataset from this node…</div>
+    <pre id="openDetail" class="pre" style="margin-top:12px">Waiting for materialization.</pre>
+    <div class="row" style="margin-top:12px">
+      <a class="btn" href="${backHref}">Back to Participant</a>
+      <a class="btn" href="${consumeView}">Open consume viewer directly</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(async () => {
+  const statusEl = document.getElementById("openStatus");
+  const detailEl = document.getElementById("openDetail");
+  const consumeApi = ${JSON.stringify(consumeApi)};
+  const consumeView = ${JSON.stringify(consumeView)};
+  try {
+    if (statusEl) statusEl.textContent = "Materializing from peer if needed…";
+    const rr = await fetch(consumeApi, { credentials: "same-origin" });
+    const txt = await rr.text();
+    let obj = null;
+    try { obj = JSON.parse(txt); } catch {}
+    if (!rr.ok) {
+      if (statusEl) statusEl.textContent = "Unable to open dataset on this node.";
+      if (detailEl) detailEl.textContent = txt || "not_found";
+      return;
+    }
+    if (statusEl) {
+      const source = obj && obj.source ? String(obj.source) : "local";
+      statusEl.textContent = source === "peer_materialized"
+        ? "Dataset materialized from peer. Opening consume viewer…"
+        : "Dataset already local. Opening consume viewer…";
+    }
+    if (detailEl) detailEl.textContent = JSON.stringify(obj || { ok:true }, null, 2);
+    setTimeout(() => { window.location.href = consumeView; }, 250);
+  } catch (e) {
+    if (statusEl) statusEl.textContent = "Open failed on this node.";
+    if (detailEl) detailEl.textContent = String((e && e.message) || e || "unknown_error");
+  }
+})();
+</script>
+</body>
+</html>`;
+            return res.status(200).type("html").send(html);
+          } catch (e:any) {
+            return res.status(500).type("text/plain").send(String(e?.message || e));
+          }
+        });
+
+        try { console.log("[datanet.opening_view.v1] mounted: GET /datanet/open/:id"); } catch {}
+      } catch {}
+    })();
+
     // __void_datanet_consume_view_v1
     ;(() => {
       try {
@@ -45463,13 +45575,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
 
       const effectiveAccount = String(account || resolveActiveParticipantAccount() || pickInitialParticipantAccount()).trim();
-      const href = "/datanet/consume-view/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(effectiveAccount);
+      const href = "/datanet/open/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(effectiveAccount);
       if (status) {
         status.textContent = parsed.source === "consume_view_link"
-          ? ("Detected consume-view link. Opening dataset " + datasetId + " in the consume viewer. This node may materialize it from a peer first…")
+          ? ("Detected consume-view link. Opening dataset " + datasetId + ". This node may materialize it from a peer first…")
           : (parsed.source === "participant_share_link"
-              ? ("Detected shared participant link. Opening dataset " + datasetId + " in the consume viewer. This node may materialize it from a peer first…")
-              : ("Opening dataset " + datasetId + " in the consume viewer. This node may materialize it from a peer first…"));
+              ? ("Detected shared participant link. Opening dataset " + datasetId + ". This node may materialize it from a peer first…")
+              : ("Opening dataset " + datasetId + ". This node may materialize it from a peer first…"));
       }
       window.location.href = href;
     } catch (e) {
