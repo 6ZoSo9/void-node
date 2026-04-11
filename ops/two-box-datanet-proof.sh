@@ -48,7 +48,7 @@ for i in $(seq 1 20); do
       "curl -fsS --max-time 10 http://127.0.0.1:4100/jobs/$JOB_ID"
   )"
   printf '%s\n' "$OUT"
-  STATUS="$(printf '%s\n' "$OUT" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("job",{}).get("status",""))')"
+  STATUS="$(printf '%s\n' "$OUT" | python3 -c 'import sys,json; o=json.load(sys.stdin); job=o.get("job",{}); rs=o.get("receipts",[]); status=str(job.get("status","") or ""); done=(status=="completed") or any(str(r.get("status","") or "")=="completed" and str(r.get("dataset_id","") or "") for r in rs); print("completed" if done else status)')"
   echo "status=$STATUS"
   [ "$STATUS" = "completed" ] && break
   sleep 2
@@ -56,9 +56,9 @@ done
 test "$STATUS" = "completed"
 
 RECEIPT_ID="$(printf '%s\n' "$OUT" | python3 -c 'import sys,json; o=json.load(sys.stdin); rs=o.get("receipts",[]); print((rs[0] if rs else {}).get("receipt_id",""))')"
-DATASET_ID="$(printf '%s\n' "$OUT" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("job",{}).get("dataset_id",""))')"
-INPUT_HASH="$(printf '%s\n' "$OUT" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("job",{}).get("input_hash",""))')"
-OUTPUT_HASH="$(printf '%s\n' "$OUT" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("job",{}).get("output_hash",""))')"
+DATASET_ID="$(printf '%s\n' "$OUT" | python3 -c 'import sys,json; o=json.load(sys.stdin); job=o.get("job",{}); rs=o.get("receipts",[]); ds=str(job.get("dataset_id","") or ""); print(ds if ds else next((str(r.get("dataset_id","") or "") for r in rs if str(r.get("status","") or "")=="completed" and str(r.get("dataset_id","") or "")), ""))')"
+INPUT_HASH="$(printf '%s\n' "$OUT" | python3 -c 'import sys,json; o=json.load(sys.stdin); job=o.get("job",{}); rs=o.get("receipts",[]); v=str(job.get("input_hash","") or ""); print(v if v else next((str(r.get("input_hash","") or "") for r in rs if str(r.get("status","") or "")=="completed" and str(r.get("input_hash","") or "")), ""))')"
+OUTPUT_HASH="$(printf '%s\n' "$OUT" | python3 -c 'import sys,json; o=json.load(sys.stdin); job=o.get("job",{}); rs=o.get("receipts",[]); v=str(job.get("output_hash","") or ""); print(v if v else next((str(r.get("output_hash","") or "") for r in rs if str(r.get("status","") or "")=="completed" and str(r.get("output_hash","") or "")), ""))')"
 test -n "$RECEIPT_ID"
 test -n "$DATASET_ID"
 
