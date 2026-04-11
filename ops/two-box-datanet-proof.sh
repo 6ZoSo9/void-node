@@ -4,6 +4,8 @@ set +H
 set +o histexpand
 
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
+REMOTE_HOST="${ALIEN##*@}"
+REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://${REMOTE_HOST}:4100}"
 ALIEN_HOST="${ALIEN##*@}"
 REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://${ALIEN_HOST}:4100}"
 ACCOUNT="${ACCOUNT:-alien-remote-user-proof}"
@@ -12,10 +14,10 @@ PLAINTEXT="${PLAINTEXT:-two-box datanet proof $TS_NOW}"
 
 echo "=== [1] before ==="
 echo "--- local ready ---"
-curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json ; echo
+curl -fsS --max-time 5 $REMOTE_NODE_BASE/__void/ready.json ; echo
 echo "--- remote ready (ssh) ---"
 ssh -o BatchMode=yes -o ConnectTimeout=8 "$ALIEN" \
-  'curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json' ; echo
+  'curl -fsS --max-time 5 $REMOTE_NODE_BASE/__void/ready.json' ; echo
 echo "--- remote ready (precision->remote http) ---"
 curl -fsS --max-time 8 "$REMOTE_NODE_BASE/__void/ready.json" ; echo
 echo
@@ -27,7 +29,7 @@ REMOTE_SUBMIT="$(
 set -euo pipefail
 BODY="$(printf '{"account":"%s","kind":"datanet_publish","plaintext":"%s"}' "$ACCOUNT" "$PLAINTEXT")"
 curl -fsS --max-time 12 -H 'content-type: application/json' \
-  -X POST http://127.0.0.1:4100/jobs/submit \
+  -X POST $REMOTE_NODE_BASE/jobs/submit \
   --data "$BODY"
 EOSSH
 )"
@@ -45,7 +47,7 @@ for i in $(seq 1 20); do
   echo "--- poll $i/20 ---"
   OUT="$(
     ssh -o BatchMode=yes -o ConnectTimeout=8 "$ALIEN" \
-      "curl -fsS --max-time 10 http://127.0.0.1:4100/jobs/$JOB_ID"
+      "curl -fsS --max-time 10 $REMOTE_NODE_BASE/jobs/$JOB_ID"
   )"
   printf '%s\n' "$OUT"
   STATUS="$(printf '%s\n' "$OUT" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("job",{}).get("status",""))')"
@@ -66,7 +68,7 @@ echo
 echo "=== [4] remote receipt view (ssh) ==="
 REMOTE_RECEIPTS_SSH="$(
   ssh -o BatchMode=yes -o ConnectTimeout=8 "$ALIEN" \
-    "curl -fsS --max-time 10 'http://127.0.0.1:4100/receipts?account=$ACCOUNT'"
+    "curl -fsS --max-time 10 '$REMOTE_NODE_BASE/receipts?account=$ACCOUNT'"
 )"
 printf '%s\n' "$REMOTE_RECEIPTS_SSH"
 echo
@@ -91,10 +93,10 @@ test "$PRECISION_DATASET_ID" = "$DATASET_ID"
 
 echo "=== [6] after ==="
 echo "--- local ready ---"
-curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json ; echo
+curl -fsS --max-time 5 $REMOTE_NODE_BASE/__void/ready.json ; echo
 echo "--- remote ready (ssh) ---"
 ssh -o BatchMode=yes -o ConnectTimeout=8 "$ALIEN" \
-  'curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json' ; echo
+  'curl -fsS --max-time 5 $REMOTE_NODE_BASE/__void/ready.json' ; echo
 echo "--- remote ready (precision->remote http) ---"
 curl -fsS --max-time 8 "$REMOTE_NODE_BASE/__void/ready.json" ; echo
 echo "--- remote datanet (precision->remote http) ---"
