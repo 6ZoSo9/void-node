@@ -37587,7 +37587,10 @@ a{color:#93c5fd;text-decoration:none}
       <span class="sub">Dataset <code>${esc(id)}</code> for participant <code>${esc(who)}</code></span>
     </div>
     <div id="openStatus" class="sub" style="margin-top:10px">Requesting dataset from this node…</div>
-    <pre id="openDetail" class="pre" style="margin-top:12px">Waiting for materialization.</pre>
+    <div id="openStage" class="sub" style="margin-top:8px">Step 1 of 3 · contacting local node</div>
+    <div id="openDetail" class="card" style="margin-top:12px;padding:12px 14px;background:#020617;border:1px solid #1e293b">
+      <div class="sub">The consume viewer will open automatically when the local copy is ready.</div>
+    </div>
     <div class="row" style="margin-top:12px">
       <a class="btn" href="${backHref}">Back to Participant</a>
       <a class="btn" href="${consumeView}">Open consume viewer directly</a>
@@ -37598,31 +37601,47 @@ a{color:#93c5fd;text-decoration:none}
 <script>
 (async () => {
   const statusEl = document.getElementById("openStatus");
+  const stageEl = document.getElementById("openStage");
   const detailEl = document.getElementById("openDetail");
   const consumeApi = ${JSON.stringify(consumeApi)};
   const consumeView = ${JSON.stringify(consumeView)};
   try {
     if (statusEl) statusEl.textContent = "Materializing from peer if needed…";
+    if (stageEl) stageEl.textContent = "Step 2 of 3 · checking local copy and peers";
     const rr = await fetch(consumeApi, { credentials: "same-origin" });
     const txt = await rr.text();
     let obj = null;
     try { obj = JSON.parse(txt); } catch {}
     if (!rr.ok) {
       if (statusEl) statusEl.textContent = "Unable to open dataset on this node.";
-      if (detailEl) detailEl.textContent = txt || "not_found";
+      if (stageEl) stageEl.textContent = "Open failed";
+      if (detailEl) {
+        detailEl.innerHTML = '<div class="sub">The node could not prepare this dataset here.</div><pre class="pre" style="margin-top:10px">' + String(txt || "not_found").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</pre>';
+      }
       return;
     }
+    const source = obj && obj.source ? String(obj.source) : "local";
     if (statusEl) {
-      const source = obj && obj.source ? String(obj.source) : "local";
       statusEl.textContent = source === "peer_materialized"
         ? "Dataset materialized from peer. Opening consume viewer…"
         : "Dataset already local. Opening consume viewer…";
     }
-    if (detailEl) detailEl.textContent = JSON.stringify(obj || { ok:true }, null, 2);
+    if (stageEl) stageEl.textContent = source === "peer_materialized"
+      ? "Step 3 of 3 · local copy ready"
+      : "Step 3 of 3 · local copy confirmed";
+    if (detailEl) {
+      const sourceLabel = source === "peer_materialized" ? "Fetched from peer and saved locally." : "Already present on this node.";
+      const bytesLabel = (obj && Number.isFinite(Number(obj.sizeBytes))) ? Number(obj.sizeBytes) + " bytes" : "size unavailable";
+      detailEl.innerHTML = '<div class="sub">' + sourceLabel + '</div><div class="sub" style="margin-top:6px">Dataset <code>${esc(id)}</code> · ' + bytesLabel + '</div>';
+    }
     setTimeout(() => { window.location.href = consumeView; }, 250);
   } catch (e) {
     if (statusEl) statusEl.textContent = "Open failed on this node.";
-    if (detailEl) detailEl.textContent = String((e && e.message) || e || "unknown_error");
+    if (stageEl) stageEl.textContent = "Open failed";
+    if (detailEl) {
+      const msg = String((e && e.message) || e || "unknown_error").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      detailEl.innerHTML = '<div class="sub">Unexpected error while preparing the dataset.</div><pre class="pre" style="margin-top:10px">' + msg + '</pre>';
+    }
   }
 })();
 </script>
