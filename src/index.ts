@@ -42934,7 +42934,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Recent receipts</h2>
+              <h2>Recent Receipts</h2>
             </div>
           </div>
           <div class="table-wrap"><div id="receiptsWrap" class="empty">loading…</div></div>
@@ -42943,12 +42943,12 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Latest Receipt Summary</h2>
+              <h2>Latest Receipt</h2>
             </div>
           </div>
           <div class="hero-note" id="proofSummaryCard">loading…</div>
           <div class="hero-actions" style="margin-top:10px">
-            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestReceiptDatasetBtn" href="#" target="_blank" rel="noopener">Open Latest Receipt Dataset</a>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestReceiptDatasetBtn" href="#" target="_blank" rel="noopener">Open dataset</a>
           </div>
           <div class="hero-note" id="latestReceiptDatasetPreviewCard" style="margin-top:10px;display:none">loading…</div>
           <details class="adv" style="margin-top:14px">
@@ -43002,10 +43002,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const sha256 = String(d.sha256 || "-");
       const plaintext = String(d.plaintext || "");
       const preview = plaintext.length > 120 ? (plaintext.slice(0, 120) + "…") : plaintext;
-      return "Dataset: " + id +
-        " • Bytes: " + sizeBytes +
-        " • SHA256: " + sha256 +
-        (preview ? (" • Preview: " + preview) : "");
+      return "Dataset " + id +
+        " • " + sizeBytes + " bytes" +
+        (preview ? (" • " + preview) : "") +
+        (sha256 && sha256 !== "-" ? (" • SHA256 " + sha256.slice(0, 12) + "…") : "");
     } catch (_) {
       return "Dataset preview unavailable.";
     }
@@ -44804,12 +44804,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       if ($("proofSummaryCard")) {
         $("proofSummaryCard").innerHTML =
-          '<div style="display:flex;flex-direction:column;gap:6px">' +
+          '<div style="display:flex;flex-direction:column;gap:8px">' +
             '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
               '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.35);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#e5e7eb;background:rgba(148,163,184,.10)">' + escHtml(receiptBadge) + '</span>' +
               '<strong>' + escHtml(receiptLabel) + '</strong>' +
             '</div>' +
-            '<div>' + escHtml(summaryText) + '</div>' +
+            '<div>' + escHtml(displayStatusFull + (resultFull ? (' • ' + resultFull) : '')) + '</div>' +
+            '<div style="color:#94a3b8;font-size:12px">Dataset ' + escHtml(dsShort) + ' • Receipt ' + escHtml(ridShort) + '</div>' +
             '<div style="color:#94a3b8;font-size:12px">' +
               'Job ' + escHtml(jidFull) +
               (outputPathFull ? (' • Output ' + escHtml(outputPathShort)) : '') +
@@ -44837,7 +44838,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           kindFull === "datanet_fetch_verify" ? "Open Verified Dataset" :
           kindFull === "datanet_redundancy_check" ? "Open Checked Dataset" :
           kindFull === "datanet_publish" ? "Open Published Dataset" :
-          "Open Latest Receipt Dataset";
+          "Open dataset";
         if (btn && dsFull && dsFull !== "-") {
           btn.href = "/datanet/v1/local-job/" + encodeURIComponent(dsFull) + "?who=" + encodeURIComponent(account);
           btn.style.display = "";
@@ -44857,7 +44858,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         }
       } catch {}
     } else {
-      setText("proofSummaryCard", "No recent receipt is available for this account yet.");
+      setText("proofSummaryCard", "No recent receipt yet for this account.");
       try { $("proofSummaryCard").title = ""; } catch {}
       try {
         const btn = $("latestReceiptDatasetBtn");
