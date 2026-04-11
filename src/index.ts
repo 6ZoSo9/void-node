@@ -37651,6 +37651,7 @@ a{color:#93c5fd;text-decoration:none}
   <div class="card">
     <h1>DataNet Consume Viewer</h1>
     <div class="sub">Remote-capable dataset view that consumes from peers if needed.</div>
+    <div class="sub" style="margin-top:8px">On first open, this node may materialize the dataset from a peer before rendering the local copy below.</div>
   </div>
 
   <div class="card">
@@ -45450,14 +45451,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         ? ((String($("account").value || "").trim()) || pickInitialParticipantAccount())
         : pickInitialParticipantAccount();
       if (!raw) {
-        if (status) status.textContent = "Enter a dataset id or paste a consume-view link first.";
+        if (status) status.textContent = "Enter a dataset id, a consume-view link, or a shared dataset page link first.";
         return;
       }
 
       const parsed = parseDatasetIdOrLink(raw);
       const datasetId = String(parsed.datasetId || "");
       if (!datasetId || !/^ds_[A-Za-z0-9_\-]+$/.test(datasetId)) {
-        if (status) status.textContent = "That does not look like a dataset id or consume-view link.";
+        if (status) status.textContent = "That does not look like a dataset id, consume-view link, or shared dataset page link.";
         return;
       }
 
@@ -45465,10 +45466,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const href = "/datanet/consume-view/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(effectiveAccount);
       if (status) {
         status.textContent = parsed.source === "consume_view_link"
-          ? ("Detected consume-view link. Opening dataset " + datasetId + " in the consume viewer…")
+          ? ("Detected consume-view link. Opening dataset " + datasetId + " in the consume viewer. This node may materialize it from a peer first…")
           : (parsed.source === "participant_share_link"
-              ? ("Detected shared participant link. Opening dataset " + datasetId + " in the consume viewer…")
-              : ("Opening dataset " + datasetId + " in the consume viewer…"));
+              ? ("Detected shared participant link. Opening dataset " + datasetId + " in the consume viewer. This node may materialize it from a peer first…")
+              : ("Opening dataset " + datasetId + " in the consume viewer. This node may materialize it from a peer first…"));
       }
       window.location.href = href;
     } catch (e) {
