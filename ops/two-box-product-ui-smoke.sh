@@ -4,6 +4,10 @@ set +H
 set +o histexpand
 
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
+REMOTE_HOST="${ALIEN##*@}"
+REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://${REMOTE_HOST}:4100}"
+REMOTE_HELPER_BASE="${REMOTE_HELPER_BASE:-http://${REMOTE_HOST}:4312/workcredits/devnet}"
+REMOTE_RELAYER_BASE="${REMOTE_RELAYER_BASE:-http://${REMOTE_HOST}:4313/api/wc-relayer/v1}"
 OUT="${OUT:-/tmp/two-box-product-ui-smoke-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
 
