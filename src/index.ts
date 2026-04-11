@@ -41845,7 +41845,7 @@ a{color:#93c5fd;text-decoration:none}
       border:1px solid #224a65;
       background:linear-gradient(180deg,rgba(56,189,248,.12),rgba(56,189,248,.04));
       border-radius:16px;
-      padding:14px;
+      padding:12px 14px;
       color:#d9edf9;
     }
     .hero-note strong{color:#fff}
@@ -41905,16 +41905,16 @@ a{color:#93c5fd;text-decoration:none}
       word-break:break-word;
     }
     .tabpane{display:none}
-    .tabpane.active{display:grid;gap:16px}
+    .tabpane.active{display:grid;gap:14px}
     .grid-2{
       display:grid;
       grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
-      gap:16px;
+      gap:14px;
     }
     .grid-2-eq{
       display:grid;
       grid-template-columns:1fr 1fr;
-      gap:16px;
+      gap:14px;
     }
     .grid-3{
       display:grid;
@@ -41924,15 +41924,15 @@ a{color:#93c5fd;text-decoration:none}
     .panel,
     .action,
     .subpanel{
-      padding:18px;
+      padding:16px;
       min-width:0;
     }
     .section-head{
       display:flex;
       justify-content:space-between;
-      gap:12px;
+      gap:10px;
       align-items:flex-end;
-      margin-bottom:12px;
+      margin-bottom:10px;
     }
     .section-head h2{
       margin:0;
@@ -42009,15 +42009,15 @@ a{color:#93c5fd;text-decoration:none}
     .row > *{flex:1}
     .action-rail{
       display:flex;
-      gap:10px;
+      gap:8px;
       flex-wrap:wrap;
-      margin-top:14px;
+      margin-top:12px;
     }
     .metric-strip{
       display:grid;
       grid-template-columns:repeat(3,minmax(0,1fr));
-      gap:12px;
-      margin-top:12px;
+      gap:10px;
+      margin-top:10px;
     }
     table{
       width:100%;
@@ -42188,7 +42188,7 @@ a{color:#93c5fd;text-decoration:none}
     .compact-tab-meta{color:#93a4bf;font-size:13px}
 
   
-    .subtle-tab-copy{color:#93a4bf;font-size:13px;margin:2px 0 14px}
+    .subtle-tab-copy{color:#93a4bf;font-size:13px;margin:2px 0 12px}
     details.soft-adv{margin-top:14px}
     details.soft-adv > summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;font-weight:800;color:#f8fafc;padding:0}
     details.soft-adv > summary::-webkit-details-marker{display:none}
