@@ -129,26 +129,30 @@ import json, sys, urllib.parse
 html = open(sys.argv[1], "r", encoding="utf-8").read()
 dataset_id = sys.argv[2]
 account = sys.argv[3]
-expected = "/datanet/consume-view/" + urllib.parse.quote(dataset_id, safe="") + "?who=" + urllib.parse.quote(account, safe="")
+expected = "/datanet/open/" + urllib.parse.quote(dataset_id, safe="") + "?who=" + urllib.parse.quote(account, safe="")
 summary = {
     "ok": (
         'id="datanetOpenByIdInput"' in html and
         'id="datanetOpenByIdBtn"' in html and
         'datanetOpenByIdStatus' in html and
+        '/datanet/open/' in html and
         '/datanet/consume-view/' in html and
         'window.location.href = href;' in html and
-        'Enter a dataset id or paste a consume-view link first.' in html and
-        'That does not look like a dataset id or consume-view link.' in html and
-        'Unable to open dataset by id or link.' in html
+        'Enter a dataset id, a consume-view link, or a shared dataset page link first.' in html and
+        'That does not look like a dataset id, consume-view link, or shared dataset page link.' in html and
+        'Unable to open dataset by id or link.' in html and
+        'This node may materialize it from a peer first' in html
     ),
     "has_input": 'id="datanetOpenByIdInput"' in html,
     "has_button": 'id="datanetOpenByIdBtn"' in html,
     "has_status": 'datanetOpenByIdStatus' in html,
+    "has_open_route": '/datanet/open/' in html,
     "has_consume_view_route": '/datanet/consume-view/' in html,
     "has_handler_redirect": 'window.location.href = href;' in html,
-    "has_empty_guard": 'Enter a dataset id or paste a consume-view link first.' in html,
-    "has_bad_id_guard": 'That does not look like a dataset id or consume-view link.' in html,
+    "has_empty_guard": 'Enter a dataset id, a consume-view link, or a shared dataset page link first.' in html,
+    "has_bad_id_guard": 'That does not look like a dataset id, consume-view link, or shared dataset page link.' in html,
     "has_error_guard": 'Unable to open dataset by id or link.' in html,
+    "has_materialize_message": 'This node may materialize it from a peer first' in html,
     "expected_open_target": expected,
 }
 print(json.dumps(summary, indent=2))
