@@ -20,7 +20,7 @@ step "[1] local + remote truth"
 git branch --show-current | tee "$OUT/local.branch.txt"
 git rev-parse --short HEAD | tee "$OUT/local.head.txt"
 git describe --tags --abbrev=0 2>/dev/null | tee "$OUT/local.tag.txt" || true
-ssh "$ALIEN" '
+ssh "$ALIEN" "REMOTE_NODE_BASE='$REMOTE_NODE_BASE' bash -s" <<'EOSSH' | tee "$OUT/remote.truth.txt"
 set -euo pipefail
 cd "$HOME/dev/void-node"
 echo "--- remote branch ---"
@@ -30,9 +30,9 @@ git rev-parse --short HEAD
 echo "--- remote latest tag ---"
 git describe --tags --abbrev=0 2>/dev/null || true
 echo "--- remote health ---"
-curl -fsS --max-time 8 $REMOTE_NODE_BASE/health
+curl -fsS --max-time 8 "$REMOTE_NODE_BASE/health"
 echo
-' | tee "$OUT/remote.truth.txt"
+EOSSH
 
 step "[2] participant js parse proof"
 bash ops/two-box-remote-participant-js-parse-proof.sh | tee "$OUT/participant-js-parse-proof.log"
