@@ -40,9 +40,15 @@ sleep 8
 curl -fsS --max-time 20 http://127.0.0.1:4100/health > "$OUT/local.health.preflight.json"
 cat "$OUT/local.health.preflight.json"
 
-run_step "participant_golden_path" "bash ops/two-box-participant-golden-path-proof.sh"
-run_step "product_ui_smoke" "bash ops/two-box-product-ui-smoke.sh"
-run_step "datanet_proof" "bash ops/two-box-datanet-proof.sh"
+LOCAL_NODE_BASE="${LOCAL_NODE_BASE:-http://127.0.0.1:4100}"
+PUBLIC_LOCAL_NODE_BASE="${PUBLIC_LOCAL_NODE_BASE:-http://100.93.2.116:4100}"
+REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"
+REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}"
+
+run_step "participant_datanet_e2e" "LOCAL_NODE_BASE='$LOCAL_NODE_BASE' PUBLIC_LOCAL_NODE_BASE='$PUBLIC_LOCAL_NODE_BASE' REMOTE_NODE_BASE='$REMOTE_NODE_BASE' bash ops/two-box-participant-datanet-e2e-proof.sh"
+run_step "participant_share_open_e2e" "LOCAL_NODE_BASE='$LOCAL_NODE_BASE' PUBLIC_LOCAL_NODE_BASE='$PUBLIC_LOCAL_NODE_BASE' REMOTE_NODE_BASE='$REMOTE_NODE_BASE' REMOTE_BASE='$REMOTE_BASE' bash ops/two-box-participant-share-open-e2e-proof.sh"
+run_step "consumer_fetch_product" "LOCAL_NODE_BASE='$LOCAL_NODE_BASE' PUBLIC_LOCAL_NODE_BASE='$PUBLIC_LOCAL_NODE_BASE' REMOTE_NODE_BASE='$REMOTE_NODE_BASE' bash ops/two-box-remote-consumer-fetch-product-proof.sh"
+run_step "consume_view_product" "LOCAL_NODE_BASE='$LOCAL_NODE_BASE' PUBLIC_LOCAL_NODE_BASE='$PUBLIC_LOCAL_NODE_BASE' REMOTE_NODE_BASE='$REMOTE_NODE_BASE' bash ops/two-box-remote-consume-view-product-proof.sh"
 
 echo
 echo "=== canonical gate summary ==="
