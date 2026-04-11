@@ -138,8 +138,8 @@ summary = {
         '/datanet/open/' in html and
         '/datanet/consume-view/' in html and
         'window.location.href = href;' in html and
-        'Enter a dataset id, a consume-view link, or a shared dataset page link first.' in html and
-        'That does not look like a dataset id, consume-view link, or shared dataset page link.' in html and
+        'Enter a dataset id, a consume link, or a shared dataset page link first.' in html and
+        'That does not look like a dataset id, consume link, or shared dataset page link.' in html and
         'Unable to open dataset by id or link.' in html and
         'This node may materialize it from a peer first' in html
     ),
@@ -149,8 +149,8 @@ summary = {
     "has_open_route": '/datanet/open/' in html,
     "has_consume_view_route": '/datanet/consume-view/' in html,
     "has_handler_redirect": 'window.location.href = href;' in html,
-    "has_empty_guard": 'Enter a dataset id, a consume-view link, or a shared dataset page link first.' in html,
-    "has_bad_id_guard": 'That does not look like a dataset id, consume-view link, or shared dataset page link.' in html,
+    "has_empty_guard": 'Enter a dataset id, a consume link, or a shared dataset page link first.' in html,
+    "has_bad_id_guard": 'That does not look like a dataset id, consume link, or shared dataset page link.' in html,
     "has_error_guard": 'Unable to open dataset by id or link.' in html,
     "has_materialize_message": 'This node may materialize it from a peer first' in html,
     "expected_open_target": expected,
