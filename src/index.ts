@@ -42629,12 +42629,12 @@ a{color:#93c5fd;text-decoration:none}
         <label for="tradeInputWc">WC to trade</label>
         <input id="tradeInputWc" value="10" inputmode="decimal" />
 
-        <div class="action-rail" style="margin-top:12px">
+        <div class="action-rail" style="margin-top:10px">
           <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
           <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Trade Readiness...</button>
         </div>
 
-        <div class="metric-strip top-kpis" style="margin-top:16px">
+        <div class="metric-strip top-kpis" style="margin-top:12px">
           <div class="mini">
             <div class="k">Spendable WC</div>
             <div class="v" id="tradeRedeemableWc">-</div>
@@ -42652,18 +42652,18 @@ a{color:#93c5fd;text-decoration:none}
           </div>
         </div>
 
-        <div class="panel" style="margin-top:16px;padding:14px">
+        <div class="panel" style="margin-top:12px;padding:12px 14px">
           <div class="section-head">
             <div>
               <h2 style="margin-bottom:4px">Trade Summary<span class="help" tabindex="0" data-help="Shows what is ready to trade now, the current quote, and where the output will go.">?</span></h2>
             </div>
           </div>
           <div class="hero-note" id="tradeSummary">Trade prepared WC here. Your connected wallet is used by default.</div>
+          <div class="hero-note" id="tradeOverviewCard" style="margin-top:8px">loading…</div>
           <div class="subtle-tab-copy" id="tradeBackendTruthCard" style="margin-top:8px">Backend truth: loading…</div>
-          <div class="hero-note" id="tradeOverviewCard" style="margin-top:10px">loading…</div>
         </div>
 
-        <details class="adv" style="margin-top:16px">
+        <details class="adv" style="margin-top:12px">
           <summary><span>Execution Options</span><span class="pill">advanced</span></summary>
           <div class="adv-body">
             <div class="hero-note" id="tradeFeeModeCard" style="margin-top:10px">Execution: Auto • Fees: Auto</div>
@@ -42762,7 +42762,7 @@ a{color:#93c5fd;text-decoration:none}
             </div>
           </div>
 
-          <div class="panel" style="margin-top:16px;padding:14px">
+          <div class="panel" style="margin-top:12px;padding:12px 14px">
             <div class="section-head">
               <div>
                 <h2 style="margin-bottom:4px">Send Local WC<span class="help" tabindex="0" data-help="Transfers Work Credits between participant accounts on this node. This does not send onchain VOID.">?</span></h2>
@@ -42772,7 +42772,7 @@ a{color:#93c5fd;text-decoration:none}
             <input id="sendTo" value="" placeholder="remote-user-2 or another local account id" autocomplete="off" />
             <label for="sendAmount">Send amount</label>
             <input id="sendAmount" value="1" inputmode="decimal" />
-            <div class="action-rail" style="margin-top:12px">
+            <div class="action-rail" style="margin-top:10px">
               <button class="btn btn-primary" id="sendWcBtn" type="button">Send WC</button>
             </div>
             <div style="margin-top:12px">
@@ -42802,8 +42802,8 @@ a{color:#93c5fd;text-decoration:none}
             </div>
             <div style="margin-top:12px">
               <div class="hero-note" id="redeemSummary">Prepare WC here first, then trade it in the Trade tab. Connected wallet is used by default.</div>
-                <div class="hero-note" id="redeemFeeModeCard" style="margin-top:10px">Execution: Auto • Fee Source: Auto</div>
-                <div class="action-rail" style="margin-top:10px">
+                <div class="hero-note" id="redeemFeeModeCard" style="margin-top:8px">Execution: Auto • Fees: Auto</div>
+                <div class="action-rail" style="margin-top:8px">
                   <button class="btn" id="redeemModeAutoBtn" type="button">Auto</button>
                   <button class="btn" id="redeemModeWalletBtn" type="button">Use Wallet</button>
                   <button class="btn" id="redeemModeSponsoredBtn" type="button">Sponsored</button>
