@@ -37388,10 +37388,105 @@ a{color:#93c5fd;text-decoration:none}
         if ((APP as any).__void_datanet_consumer_fetch_v1) return;
         (APP as any).__void_datanet_consumer_fetch_v1 = true;
 
+        const materializeDatasetFromPeers = async (id:string, who:string, selfBase:string, selfHost:string) => {
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const dir = path.join(dataDir(), "datanet_v1", "local_jobs");
+          const file = path.join(dir, id + ".txt");
+
+          if (fs.existsSync(file)) {
+            return { ok:true, source:"local", file, plaintext:String(fs.readFileSync(file, "utf8") || ""), peer_http:null };
+          }
+
+          let peers:any[] = [];
+          try {
+            const rr = await fetch(selfBase + "/peers/registry");
+            if (rr.ok) {
+              const rj:any = await rr.json().catch(() => ({}));
+              peers = Array.isArray(rj?.peers) ? rj.peers : [];
+            }
+          } catch {}
+
+          if (!Array.isArray(peers) || peers.length === 0) {
+            try {
+              const pr = await fetch(selfBase + "/peers");
+              if (pr.ok) {
+                const pj:any = await pr.json().catch(() => ({}));
+                const connected = Array.isArray(pj?.connected) ? pj.connected : [];
+                const mapped:any[] = [];
+                for (const c of connected) {
+                  try {
+                    const listens = Array.isArray(c?.listens) ? c.listens : [];
+                    const addr = String((listens[0] || c?.addr || "")).trim();
+                    if (!addr) continue;
+                    const host = String(addr).split(":")[0].trim();
+                    if (!host) continue;
+                    mapped.push({
+                      id: String(c?.id || ""),
+                      http: "http://" + host + ":4100",
+                      p2p: addr
+                    });
+                  } catch {}
+                }
+                if (mapped.length > 0) peers = mapped;
+              }
+            } catch {}
+          }
+
+          const tried = new Set<string>();
+
+          for (const peer of peers) {
+            try {
+              let peerHttp = String((peer && peer.http) || "").trim();
+              const peerP2p = String((peer && peer.p2p) || "").trim();
+
+              if (peerHttp) {
+                try {
+                  const pu = new URL(peerHttp);
+                  const ph = String(pu.host || "").trim();
+                  const hn = String(pu.hostname || "").trim();
+                  if (!ph || ph === selfHost || hn === "127.0.0.1" || hn === "localhost") {
+                    peerHttp = "";
+                  }
+                } catch {
+                  peerHttp = "";
+                }
+              }
+
+              if (!peerHttp && peerP2p) {
+                try {
+                  const host = String(peerP2p).split(":")[0].trim();
+                  if (host && host !== "127.0.0.1" && host !== "localhost") {
+                    peerHttp = "http://" + host + ":4100";
+                  }
+                } catch {}
+              }
+
+              if (!peerHttp) continue;
+              if (tried.has(peerHttp)) continue;
+              tried.add(peerHttp);
+
+              const u = new URL("/datanet/v1/local-job/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who), peerHttp).toString();
+              const pr = await fetch(u);
+              if (!pr.ok) continue;
+
+              const pj:any = await pr.json().catch(() => null);
+              const plaintext = String((pj && pj.plaintext) || "");
+              if (!plaintext) continue;
+
+              fs.mkdirSync(dir, { recursive: true });
+              fs.writeFileSync(file, plaintext, "utf8");
+
+              return { ok:true, source:"peer_materialized", file, plaintext, peer_http:peerHttp };
+            } catch {}
+          }
+
+          return { ok:false, error:"not_found", id, file };
+        };
+        try { (globalThis as any).__void_materializeDatasetFromPeers = materializeDatasetFromPeers; } catch {}
+
         APP.get("/datanet/v1/consume/:id", async (req:any, res:any) => {
           try {
-            const fs = require("node:fs");
-            const path = require("node:path");
             const crypto = require("node:crypto");
 
             const who = String((req?.query?.who ?? "") || "").trim();
@@ -37401,117 +37496,27 @@ a{color:#93c5fd;text-decoration:none}
             if (!id) return res.status(400).json({ ok:false, error:"missing_id" });
             if (!/^ds_[A-Za-z0-9_\-]+$/.test(id)) return res.status(400).json({ ok:false, error:"bad_id" });
 
-            const dir = path.join(dataDir(), "datanet_v1", "local_jobs");
-            const file = path.join(dir, id + ".txt");
-
-            const makeLocalJson = (plaintext:string, source:string, extra:any = {}) => {
-              const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
-              return {
-                ok: true,
-                who,
-                id,
-                source,
-                file,
-                sizeBytes: Buffer.byteLength(plaintext, "utf8"),
-                sha256,
-                plaintext,
-                ...extra
-              };
-            };
-
-            if (fs.existsSync(file)) {
-              const plaintext = String(fs.readFileSync(file, "utf8") || "");
-              return res.status(200).json(makeLocalJson(plaintext, "local"));
-            }
-
             const selfBase = String(req.protocol || "http") + "://" + String(req.get("host") || "");
-            let peers:any[] = [];
-            try {
-              const rr = await fetch(selfBase + "/peers/registry");
-              if (rr.ok) {
-                const rj:any = await rr.json().catch(() => ({}));
-                peers = Array.isArray(rj?.peers) ? rj.peers : [];
-              }
-            } catch {}
-
-            if (!Array.isArray(peers) || peers.length === 0) {
-              try {
-                const pr = await fetch(selfBase + "/peers");
-                if (pr.ok) {
-                  const pj:any = await pr.json().catch(() => ({}));
-                  const connected = Array.isArray(pj?.connected) ? pj.connected : [];
-                  const mapped:any[] = [];
-                  for (const c of connected) {
-                    try {
-                      const listens = Array.isArray(c?.listens) ? c.listens : [];
-                      const addr = String((listens[0] || c?.addr || "")).trim();
-                      if (!addr) continue;
-                      const host = String(addr).split(":")[0].trim();
-                      if (!host) continue;
-                      mapped.push({
-                        id: String(c?.id || ""),
-                        http: "http://" + host + ":4100",
-                        p2p: addr
-                      });
-                    } catch {}
-                  }
-                  if (mapped.length > 0) peers = mapped;
-                }
-              } catch {}
-            }
-
             const selfHost = String(req.get("host") || "").trim();
-            const tried = new Set<string>();
 
-            for (const peer of peers) {
-              try {
-                let peerHttp = String((peer && peer.http) || "").trim();
-                const peerP2p = String((peer && peer.p2p) || "").trim();
-
-                if (peerHttp) {
-                  try {
-                    const pu = new URL(peerHttp);
-                    const ph = String(pu.host || "").trim();
-                    const hn = String(pu.hostname || "").trim();
-                    if (!ph || ph === selfHost || hn === "127.0.0.1" || hn === "localhost") {
-                      peerHttp = "";
-                    }
-                  } catch {
-                    peerHttp = "";
-                  }
-                }
-
-                if (!peerHttp && peerP2p) {
-                  try {
-                    const host = String(peerP2p).split(":")[0].trim();
-                    if (host && host !== "127.0.0.1" && host !== "localhost") {
-                      peerHttp = "http://" + host + ":4100";
-                    }
-                  } catch {}
-                }
-
-                if (!peerHttp) continue;
-                if (tried.has(peerHttp)) continue;
-                tried.add(peerHttp);
-
-                const u = new URL("/datanet/v1/local-job/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who), peerHttp).toString();
-                const pr = await fetch(u);
-                if (!pr.ok) continue;
-
-                const pj:any = await pr.json().catch(() => null);
-                const plaintext = String((pj && pj.plaintext) || "");
-                if (!plaintext) continue;
-
-                fs.mkdirSync(dir, { recursive: true });
-                fs.writeFileSync(file, plaintext, "utf8");
-
-                return res.status(200).json(makeLocalJson(plaintext, "peer_materialized", {
-                  peer_http: peerHttp
-                }));
-              } catch {}
+            const out:any = await materializeDatasetFromPeers(id, who, selfBase, selfHost);
+            if (!out || out.ok !== true || !String(out.plaintext || "")) {
+              return res.status(404).json({ ok:false, error:"not_found", id });
             }
 
-            return res.status(404).json({ ok:false, error:"not_found", id });
+            const plaintext = String(out.plaintext || "");
+            const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
+            return res.status(200).json({
+              ok: true,
+              who,
+              id,
+              source: String(out.source || "local"),
+              file: String(out.file || ""),
+              sizeBytes: Buffer.byteLength(plaintext, "utf8"),
+              sha256,
+              plaintext,
+              ...(out.peer_http ? { peer_http: String(out.peer_http) } : {})
+            });
           } catch (e:any) {
             return res.status(500).json({ ok:false, error:"consume_throw", msg:String(e?.message || e) });
           }
@@ -37547,26 +37552,35 @@ a{color:#93c5fd;text-decoration:none}
             if (!fs.existsSync(file)) {
               try {
                 const selfBase = String(req.protocol || "http") + "://" + String(req.get("host") || "");
-                const consumeUrl = new URL("/datanet/v1/consume/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who), selfBase).toString();
-                const rr = await fetch(consumeUrl);
-                if (rr.ok) {
-                  await rr.text().catch(() => "");
-                } else {
-                  const txt = await rr.text().catch(() => "");
-                  const trimmed = String(txt || "").trim();
-                  const looksJson = trimmed.startsWith("{") && trimmed.endsWith("}");
-                  let parsed:any = null;
-                  if (looksJson) {
-                    try { parsed = JSON.parse(trimmed); } catch {}
+                const selfHost = String(req.get("host") || "").trim();
+                const materialize = (globalThis as any).__void_materializeDatasetFromPeers;
+                if (typeof materialize === "function") {
+                  const out:any = await materialize(id, who, selfBase, selfHost);
+                  if (!out || out.ok !== true) {
+                    return res.status(404).type("text/plain").send("not_found");
                   }
-                  const isLocalNotFound =
-                    Number(rr.status || 0) === 404 &&
-                    (
-                      trimmed === "not_found" ||
-                      (parsed && parsed.ok === false && String(parsed.error || "") === "not_found")
-                    );
-                  if (!isLocalNotFound) {
-                    return res.status(rr.status || 404).type("text/plain").send(trimmed || "not_found");
+                } else {
+                  const consumeUrl = new URL("/datanet/v1/consume/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who), selfBase).toString();
+                  const rr = await fetch(consumeUrl);
+                  if (rr.ok) {
+                    await rr.text().catch(() => "");
+                  } else {
+                    const txt = await rr.text().catch(() => "");
+                    const trimmed = String(txt || "").trim();
+                    const looksJson = trimmed.startsWith("{") && trimmed.endsWith("}");
+                    let parsed:any = null;
+                    if (looksJson) {
+                      try { parsed = JSON.parse(trimmed); } catch {}
+                    }
+                    const isLocalNotFound =
+                      Number(rr.status || 0) === 404 &&
+                      (
+                        trimmed === "not_found" ||
+                        (parsed && parsed.ok === false && String(parsed.error || "") === "not_found")
+                      );
+                    if (!isLocalNotFound) {
+                      return res.status(rr.status || 404).type("text/plain").send(trimmed || "not_found");
+                    }
                   }
                 }
               } catch (e:any) {
