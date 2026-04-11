@@ -37587,9 +37587,9 @@ a{color:#93c5fd;text-decoration:none}
       <span class="sub">Dataset <code>${esc(id)}</code> for participant <code>${esc(who)}</code></span>
     </div>
     <div id="openStatus" class="sub" style="margin-top:10px">Requesting dataset from this node…</div>
-    <div id="openStage" class="sub" style="margin-top:8px">Step 1 of 3 · contacting local node</div>
+    <div id="openStage" class="sub" style="margin-top:8px">Starting…</div>
     <div id="openDetail" class="card" style="margin-top:12px;padding:12px 14px;background:#020617;border:1px solid #1e293b">
-      <div class="sub">The consume viewer will open automatically when the local copy is ready.</div>
+      <div class="sub">The viewer will open automatically when ready.</div>
     </div>
     <div class="row" style="margin-top:12px">
       <a class="btn" href="${backHref}">Back to Participant</a>
@@ -37607,7 +37607,7 @@ a{color:#93c5fd;text-decoration:none}
   const consumeView = ${JSON.stringify(consumeView)};
   try {
     if (statusEl) statusEl.textContent = "Materializing from peer if needed…";
-    if (stageEl) stageEl.textContent = "Step 2 of 3 · checking local copy and peers";
+    if (stageEl) stageEl.textContent = "Checking local copy…";
     const rr = await fetch(consumeApi, { credentials: "same-origin" });
     const txt = await rr.text();
     let obj = null;
@@ -37627,14 +37627,14 @@ a{color:#93c5fd;text-decoration:none}
         : "Dataset already local. Opening consume viewer…";
     }
     if (stageEl) stageEl.textContent = source === "peer_materialized"
-      ? "Step 3 of 3 · local copy ready"
-      : "Step 3 of 3 · local copy confirmed";
+      ? "Ready. Opening viewer…"
+      : "Ready. Opening viewer…";
     if (detailEl) {
-      const sourceLabel = source === "peer_materialized" ? "Fetched from peer and saved locally." : "Already present on this node.";
+      const sourceLabel = source === "peer_materialized" ? "Fetched from peer." : "Already local.";
       const bytesLabel = (obj && Number.isFinite(Number(obj.sizeBytes))) ? Number(obj.sizeBytes) + " bytes" : "size unavailable";
       detailEl.innerHTML = '<div class="sub">' + sourceLabel + '</div><div class="sub" style="margin-top:6px">Dataset <code>${esc(id)}</code> · ' + bytesLabel + '</div>';
     }
-    setTimeout(() => { window.location.href = consumeView; }, 250);
+    setTimeout(() => { window.location.href = consumeView; }, 125);
   } catch (e) {
     if (statusEl) statusEl.textContent = "Open failed on this node.";
     if (stageEl) stageEl.textContent = "Open failed";
