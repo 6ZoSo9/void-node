@@ -254,8 +254,13 @@ obj = json.loads(tail[:end])
 assert obj.get("ok") is True, "wc demo summary ok != true"
 assert obj.get("approve_tx_hash"), "missing approve_tx_hash"
 assert obj.get("swap_tx_hash"), "missing swap_tx_hash"
-assert float(obj.get("participant_redeemable_after_credit", -1)) == 10.0, "redeemable_after_credit != 10"
-assert float(obj.get("participant_redeemable_after_execute", -1)) == 9.0, "redeemable_after_execute != 9"
+before_redeemable = float(obj.get("participant_redeemable_before", -1))
+after_credit = float(obj.get("participant_redeemable_after_credit", -1))
+after_execute = float(obj.get("participant_redeemable_after_execute", -1))
+trade_wc = float(obj.get("trade_wc", -1))
+assert before_redeemable >= 0, "participant_redeemable_before missing/bad"
+assert after_credit >= before_redeemable, f"redeemable regressed before trade: before={before_redeemable} after_credit={after_credit}"
+assert abs((after_credit - after_execute) - trade_wc) < 1e-9, f"redeemable execute delta != trade_wc: after_credit={after_credit} after_execute={after_execute} trade_wc={trade_wc}"
 print("[ok] wc trade path succeeded")
 print(json.dumps({
   "ok": True,
@@ -315,15 +320,3 @@ echo "[ok] runner selection persistence proof is included in golden path"
 
 echo
 echo
-echo "=== [8] local runner selection persistence proof ==="
-bash ops/live-runner-selection-persistence-proof.sh > "$OUT_DIR/runner-selection-persistence-proof.log"
-tail -n 80 "$OUT_DIR/runner-selection-persistence-proof.log"
-grep -q "\[ok\] live runner selection persistence proof green" "$OUT_DIR/runner-selection-persistence-proof.log"
-grep -q "target_publish_mix" "$OUT_DIR/runner-selection-persistence-proof.log"
-grep -q "stale_verify_target" "$OUT_DIR/runner-selection-persistence-proof.log"
-grep -q "stale_redundancy_target" "$OUT_DIR/runner-selection-persistence-proof.log"
-echo "[ok] runner selection persistence proof is included in golden path"
-
-echo
-echo "[ok] two-box participant golden path proof green"
-echo "out=$OUT_DIR"

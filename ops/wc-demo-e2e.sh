@@ -155,35 +155,41 @@ PY
 
 trade_amt="$TRADE_WC"
 
-echo "=== [7b] wait for redeemable WC visibility ==="
-credit_ready=0
+echo "=== [7b] wait for redeemable WC credit delta ==="
+credit_visible=0
+target_redeemable="$(python3 - "$before_redeemable_amt" <<'PY'
+import sys
+before=float(sys.argv[1] or 0)
+print(before + 10.0)
+PY
+)"
 for i in $(seq 1 "$JOB_WAIT_LOOPS"); do
   echo "--- redeemable poll $i/$JOB_WAIT_LOOPS"
+  sleep "$JOB_WAIT_SECS"
   jget "$NODE_BASE/wc/balance?account=$ACCOUNT" | tee "$OUT_DIR/wc.balance.creditwait.$i.json"
   echo
   jget "$NODE_BASE/wc/redeemable?account=$ACCOUNT" | tee "$OUT_DIR/wc.redeemable.creditwait.$i.json"
   echo
   after_balance_amt="$(py_get "$OUT_DIR/wc.balance.creditwait.$i.json" balance)"
   after_redeemable_amt="$(py_get "$OUT_DIR/wc.redeemable.creditwait.$i.json" redeemable)"
-  if python3 - "$after_redeemable_amt" "$trade_amt" <<'PY'
+  if python3 - "$after_redeemable_amt" "$target_redeemable" "$trade_amt" <<'PY'
 import sys
-redeemable=float(sys.argv[1]); trade=float(sys.argv[2])
-print(f"[info] redeemable_now={redeemable} trade={trade}")
-raise SystemExit(0 if redeemable >= trade else 1)
+redeemable=float(sys.argv[1]); target=float(sys.argv[2]); trade=float(sys.argv[3])
+print(f"[info] redeemable_now={redeemable} target={target} trade={trade}")
+raise SystemExit(0 if redeemable >= target and redeemable >= trade else 1)
 PY
   then
     cp -a "$OUT_DIR/wc.balance.creditwait.$i.json" "$OUT_DIR/wc.balance.after-job.json"
     cp -a "$OUT_DIR/wc.redeemable.creditwait.$i.json" "$OUT_DIR/wc.redeemable.after-job.json"
-    credit_ready=1
+    credit_visible=1
     break
   fi
-  sleep "$JOB_WAIT_SECS"
 done
-if [ "$credit_ready" != "1" ]; then
-  echo "[fail] redeemable WC did not become visible in time after completed job" >&2
+
+if [[ "$credit_visible" != "1" ]]; then
+  echo "[fail] redeemable WC credit delta did not become visible in time after completed job" >&2
   exit 1
 fi
-
 python3 - "$after_redeemable_amt" "$trade_amt" <<'PY'
 import sys
 redeemable=float(sys.argv[1]); trade=float(sys.argv[2])
