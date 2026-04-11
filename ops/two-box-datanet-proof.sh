@@ -82,8 +82,8 @@ echo
 echo
 
 PRECISION_RECEIPT_ID="$(printf '%s\n' "$REMOTE_RECEIPTS_HTTP" | python3 -c 'import sys,json; o=json.load(sys.stdin); rs=o.get("receipts",[]); print((rs[0] if rs else {}).get("receipt_id",""))')"
-PRECISION_DATASET_ID="$(printf '%s\n' "$REMOTE_JOB_HTTP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("job",{}).get("dataset_id",""))')"
-PRECISION_STATUS="$(printf '%s\n' "$REMOTE_JOB_HTTP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("job",{}).get("status",""))')"
+PRECISION_DATASET_ID="$(printf '%s\n' "$REMOTE_JOB_HTTP" | python3 -c 'import sys,json; o=json.load(sys.stdin); job=o.get("job",{}); rs=o.get("receipts",[]); ds=str(job.get("dataset_id","") or ""); print(ds if ds else next((str(r.get("dataset_id","") or "") for r in rs if str(r.get("status","") or "")=="completed" and str(r.get("dataset_id","") or "")), ""))')"
+PRECISION_STATUS="$(printf '%s\n' "$REMOTE_JOB_HTTP" | python3 -c 'import sys,json; o=json.load(sys.stdin); job=o.get("job",{}); rs=o.get("receipts",[]); status=str(job.get("status","") or ""); done=(status=="completed") or any(str(r.get("status","") or "")=="completed" and str(r.get("dataset_id","") or "") for r in rs); print("completed" if done else status)')"
 
 test "$PRECISION_STATUS" = "completed"
 test "$PRECISION_RECEIPT_ID" = "$RECEIPT_ID"
