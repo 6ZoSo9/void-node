@@ -33,6 +33,13 @@ git branch --show-current
 git rev-parse --short HEAD
 git describe --tags --abbrev=0 2>/dev/null || true
 
+echo
+echo "=== local node preflight ==="
+systemctl --user restart void-node.service
+sleep 8
+curl -fsS --max-time 20 http://127.0.0.1:4100/health > "$OUT/local.health.preflight.json"
+cat "$OUT/local.health.preflight.json"
+
 run_step "participant_golden_path" "bash ops/two-box-participant-golden-path-proof.sh"
 run_step "product_ui_smoke" "bash ops/two-box-product-ui-smoke.sh"
 run_step "datanet_proof" "bash ops/two-box-datanet-proof.sh"
