@@ -42266,18 +42266,18 @@ a{color:#93c5fd;text-decoration:none}
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <div style="font-weight:800;font-size:14px">Open Dataset by ID or Link</div>
-              <button type="button" class="help" title="Paste a dataset id or a consume-view link. This opens the consume viewer on this node using your current participant identity." aria-label="Open dataset help" style="margin-left:0">?</button>
+              <button type="button" class="help" title="Paste a dataset id, a consume-view link, or a shared dataset page link. This opens the consume viewer on this node using your current participant identity." aria-label="Open dataset help" style="margin-left:0">?</button>
             </div>
           </div>
           <div class="row" style="gap:10px;align-items:end;margin-top:12px;flex-wrap:wrap">
             <label style="display:flex;flex-direction:column;gap:6px;min-width:280px;flex:1 1 380px">
               <span class="s">Dataset ID or Link</span>
-              <input id="datanetOpenByIdInput" placeholder="ds_... or /datanet/consume-view/..." style="padding:10px 12px;border-radius:12px;border:1px solid #334155;background:#020617;color:#e5e7eb" />
+              <input id="datanetOpenByIdInput" placeholder="ds_..., /datanet/consume-view/..., or shared dataset page link" style="padding:10px 12px;border-radius:12px;border:1px solid #334155;background:#020617;color:#e5e7eb" />
             </label>
             <button id="datanetPasteLinkBtn" type="button" class="btn secondary" style="min-width:110px">Paste</button>
             <button id="datanetOpenByIdBtn" type="button" class="btn" style="min-width:180px">Open consume viewer</button>
           </div>
-          <div class="hero-note" id="datanetOpenByIdStatus" style="margin-top:10px">Enter a dataset id or paste a consume-view link.</div>
+          <div class="hero-note" id="datanetOpenByIdStatus" style="margin-top:10px">Enter a dataset id, a consume-view link, or a shared dataset page link.</div>
         </div>
 
         <div class="row" style="gap:10px;align-items:end;margin:10px 0 12px 0;flex-wrap:wrap">
@@ -45447,7 +45447,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         return;
       }
 
-      const href = "/datanet/consume-view/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(resolveActiveParticipantAccount());
+      const effectiveAccount = String(account || resolveActiveParticipantAccount() || pickInitialParticipantAccount()).trim();
+      const href = "/datanet/consume-view/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(effectiveAccount);
       if (status) {
         status.textContent = parsed.source === "consume_view_link"
           ? ("Detected consume-view link. Opening dataset " + datasetId + " in the consume viewer…")
@@ -45485,6 +45486,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             openStatus.textContent = "Preloaded link from page link.";
           }
         }
+      }
+
+      if (qsDataset || qsLink) {
+        try {
+          const datanetTab = $("tab-datanet");
+          if (datanetTab && typeof datanetTab.click === "function") datanetTab.click();
+        } catch (_) {}
+        try {
+          if (typeof openInput.focus === "function") openInput.focus();
+          if (typeof openInput.select === "function") openInput.select();
+        } catch (_) {}
       }
     }
   } catch (_) {}
