@@ -40086,6 +40086,22 @@ a{color:#93c5fd;text-decoration:none}
     return found;
   }
 
+  function listQueuedJobsFullScan(): string[] {
+    const out:string[] = [];
+    const seen = new Set<string>();
+    const completed:any = (workerState().completed_job_ids || {});
+    for (const j of allJobs()) {
+      const jobId = String(j?.job_id || "").trim();
+      if (!jobId) continue;
+      if (seen.has(jobId)) continue;
+      seen.add(jobId);
+      if (String(j?.status || "") !== "queued") continue;
+      if (completed[jobId]) continue;
+      out.push(jobId);
+    }
+    return out;
+  }
+
   function replaceJobState(jobId:string, patch:any){
     const fs = require("node:fs");
     ensureDirs();
@@ -40366,7 +40382,8 @@ a{color:#93c5fd;text-decoration:none}
       if (st.running) return;
       st.running = true;
       try {
-        const queued = scanQueuedJobsIncremental();
+        let queued = scanQueuedJobsIncremental();
+        if (!queued.length) queued = listQueuedJobsFullScan();
         for (const jobId of queued) {
           try {
             await processJob(jobId);
@@ -40397,7 +40414,11 @@ a{color:#93c5fd;text-decoration:none}
       try {
         const account = safeStr(req.body?.account, 128);
         const kind = safeStr(req.body?.kind || "datanet_publish", 64);
-        let plaintext = String(req.body?.plaintext || "");
+        let plaintext = String(
+          req.body?.plaintext ??
+          req.body?.input?.plaintext ??
+          ""
+        );
         const rawKind = String(req.body?.kind || "").trim();
         const isVerifyLike = rawKind === "datanet_fetch_verify" || rawKind === "datanet_redundancy_check";
         let normalizedDatasetId = String(
