@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Canonical wallet/trade participant flow-surface proof.
+# Verifies two-box runtime truth plus the participant Wallet/Trade UI surfaces
+# for send WC, prepare WC, and trade WC->VOID on matched local/remote code.
 set -euo pipefail
 set +H
 set +o histexpand
@@ -36,26 +39,52 @@ curl -fsS --max-time 10 'http://127.0.0.1:4312/workcredits/devnet/account/$ACCOU
 " | tee "$OUT/remote-runtime.txt"
 
 echo
-echo "=== [4] participant/trade page smoke ==="
+echo
+echo "=== [4] participant wallet/trade flow surfaces ==="
 curl -fsS --max-time 15 "http://127.0.0.1:4100/participant?account=$ACCOUNT#trade" > "$OUT/local-participant-trade.html"
 ssh "$ALIEN" "set -euo pipefail; curl -fsS --max-time 15 'http://127.0.0.1:4100/participant?account=$ACCOUNT#trade'" > "$OUT/remote-participant-trade.html"
 
-python3 - "$OUT/local-participant-trade.html" "$OUT/remote-participant-trade.html" <<'PY'
+python3 - "$OUT/local-participant-trade.html" "$OUT/remote-participant-trade.html" "$ACCOUNT" <<'PY'
 import pathlib, sys, json
+
 local_html = pathlib.Path(sys.argv[1]).read_text()
 remote_html = pathlib.Path(sys.argv[2]).read_text()
+account = sys.argv[3]
+
+def check(html):
+    return {
+        "has_account_bootstrap": ('window.__void_participant_account_qs=' + json.dumps(account)) in html,
+        "has_trade_header": "Trade WC for VOID" in html,
+        "has_prepare_header": "Prepare WC" in html,
+        "has_send_wc_button": 'id="sendWcBtn"' in html and "Send WC" in html,
+        "has_prepare_wc_button": 'id="redeemBtn"' in html and "Prepare WC" in html,
+        "has_trade_execute_button": 'id="tradeExecuteBtn"' in html,
+        "has_send_out": 'id="sendOut"' in html,
+        "has_redeem_out": 'id="redeemOut"' in html,
+        "has_trade_out": 'id="tradeOut"' in html,
+        "has_latest_action_card": 'id="latestActionCard"' in html,
+        "has_use_max_trade": 'id="tradeUseRedeemableBtn"' in html and "Use Max" in html,
+        "has_use_max_redeem": 'id="redeemMaxBtn"' in html and "Use Max" in html,
+        "has_send_success_text": "WC sent successfully." in html,
+        "has_prepare_success_text": "WC prepared for trading. Opening the Trade tab now." in html,
+        "has_trade_ready_text": "Ready to trade WC for VOID." in html,
+        "has_prepare_ready_text": "Ready to redeem WC for trade." in html,
+        "has_trade_unavailable_text": "Trade unavailable: relayer is offline." in html,
+        "has_trade_need_prepare_text": "No WC is ready to trade yet. Earn WC first, then prepare it." in html,
+        "has_prepare_summary": "Prepare WC here first, then trade it in the Trade tab." in html,
+    }
 
 checks = {
-  "local_has_trade_tab": ('#trade' in local_html) or ('Trade' in local_html),
-  "remote_has_trade_tab": ('#trade' in remote_html) or ('Trade' in remote_html),
-  "local_has_wallet_or_trade_copy": ('Redeem' in local_html) or ('Trade' in local_html) or ('Swap' in local_html),
-  "remote_has_wallet_or_trade_copy": ('Redeem' in remote_html) or ('Trade' in remote_html) or ('Swap' in remote_html),
+    "local": check(local_html),
+    "remote": check(remote_html),
 }
 print(json.dumps(checks, indent=2))
-assert all(checks.values()), checks
+
+for side, obj in checks.items():
+    missing = [k for k, v in obj.items() if not v]
+    assert not missing, {side: missing}
 PY
 
-echo
 echo "=== [5] compact runtime summary ==="
 python3 - "$OUT" <<'PY'
 import json, pathlib, sys
@@ -110,5 +139,5 @@ assert summary["remote_relayer_ok"] is True, summary
 PY
 
 echo
-echo "[ok] two-box wc/trade runtime proof green"
+echo "[ok] two-box wallet/trade flow-surface proof green"
 echo "out=$OUT"
