@@ -44169,7 +44169,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         recentDatasetsHtml =
           '<table><thead><tr>' +
-          '<th>Dataset</th><th>Updated</th><th>Bytes</th><th>Preview</th><th>Open</th>' +
+          '<th>Dataset</th><th>Updated</th><th>Bytes</th><th>Preview</th><th>Actions</th>' +
           '</tr></thead><tbody>' +
           items.map((d, idx) => {
             const dsFull = String(d.dataset_id || "-");
@@ -44187,15 +44187,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               '<td>' + esc(updated) + '</td>' +
               '<td>' + esc(String(bytes)) + '</td>' +
               '<td style="max-width:420px;white-space:pre-wrap;word-break:break-word">' + preview + '</td>' +
-              '<td>' +
+              '<td style="white-space:nowrap">' +
                 (viewerUrl
-                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">Open</a>')
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:800;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">Open</a>')
                   : '') +
                 (rawUrl
-                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">Raw JSON</a>')
+                  ? ('<a class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;margin-right:6px;opacity:.9" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">Raw</a>')
                   : '') +
-                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
-                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy open link</button>') +
+                ('<button type="button" class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;margin-right:6px;opacity:.9" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
+                ('<button type="button" class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;opacity:.9" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy link</button>') +
               '</td>' +
             '</tr>';
           }).join('') +
@@ -44269,7 +44269,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (items.length) {
         html =
           '<table><thead><tr>' +
-          '<th>Dataset</th><th>Updated</th><th>Bytes</th><th>Preview</th><th>Open</th>' +
+          '<th>Dataset</th><th>Updated</th><th>Bytes</th><th>Preview</th><th>Actions</th>' +
           '</tr></thead><tbody>' +
           items.map((d) => {
             const dsFull = String(d.dataset_id || "-");
@@ -44286,15 +44286,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               '<td>' + esc(updated) + '</td>' +
               '<td>' + esc(String(bytes)) + '</td>' +
               '<td style="max-width:420px;white-space:pre-wrap;word-break:break-word">' + preview + '</td>' +
-              '<td>' +
+              '<td style="white-space:nowrap">' +
                 (viewerUrl
-                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">Open</a>')
+                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:800;margin-right:8px" href="' + esc(viewerUrl) + '" target="_blank" rel="noopener">Open</a>')
                   : '') +
                 (rawUrl
-                  ? ('<a class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">Raw JSON</a>')
+                  ? ('<a class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;margin-right:6px;opacity:.9" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">Raw</a>')
                   : '') +
-                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700;margin-right:8px" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
-                ('<button type="button" class="linkbtn" style="padding:6px 10px;border-radius:10px;font-weight:700" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy open link</button>') +
+                ('<button type="button" class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;margin-right:6px;opacity:.9" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
+                ('<button type="button" class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;opacity:.9" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy link</button>') +
               '</td>' +
             '</tr>';
           }).join('') +
