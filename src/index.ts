@@ -44675,9 +44675,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           const latestDatasetConsumeHref = latestUsefulLinks.consume_href;
 
           if ($("latestDatasetMetaHero")) {
+            const heroMetaBits = [latestUsefulLabel, latestUsefulWhen];
+            if (latestUsefulStatus) heroMetaBits.push(latestUsefulStatus);
+            if (latestUsefulResult) heroMetaBits.push(latestUsefulResult);
             $("latestDatasetMetaHero").innerHTML =
               latestUsefulBadge +
-              '<span style="margin-left:8px;color:#94a3b8">' + escHtml(latestUsefulLabel) + ' • ' + escHtml(latestUsefulWhen) + '</span>';
+              '<span style="margin-left:8px;color:#94a3b8">' + escHtml(heroMetaBits.filter(Boolean).join(' • ')) + '</span>';
           }
 
           const idHero = $("latestDatasetIdHero");
@@ -44695,6 +44698,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             if (latestUsefulJobId) {
               const jid = String(latestUsefulJobId);
               receiptBits.push("Job " + (jid.length > 22 ? (jid.slice(0, 10) + "…" + jid.slice(-6)) : jid));
+            }
+            if (latestUsefulDatasetId) {
+              const ds = String(latestUsefulDatasetId);
+              receiptBits.push("Dataset " + (ds.length > 22 ? (ds.slice(0, 8) + "…" + ds.slice(-6)) : ds));
             }
             receiptHero.textContent = receiptBits.join(" • ");
             receiptHero.style.display = receiptBits.length ? "" : "none";
@@ -44883,10 +44890,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             '</div>' +
             '<div>' + escHtml(displayStatusFull + (resultFull ? (' • ' + resultFull) : '')) + '</div>' +
             '<div style="color:#94a3b8;font-size:12px">Dataset ' + escHtml(dsShort) + ' • Receipt ' + escHtml(ridShort) + '</div>' +
-            '<div style="color:#94a3b8;font-size:12px">' +
-              'Job ' + escHtml(jidFull) +
-              (outputPathFull ? (' • Output ' + escHtml(outputPathShort)) : '') +
-            '</div>' +
           '</div>';
       }
 
@@ -44914,8 +44917,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if (btn && dsFull && dsFull !== "-") {
           btn.href = "/datanet/v1/local-job/" + encodeURIComponent(dsFull) + "?who=" + encodeURIComponent(account);
           btn.style.display = "";
-          btn.textContent = btnText;
-          btn.title = "Open dataset " + dsFull;
+          btn.textContent = "Open from Proofs";
+          btn.title = "Open dataset " + dsFull + " from Proofs";
           loadDatasetPreviewInto("latestReceiptDatasetPreviewCard", dsFull, account).catch(() => {});
         } else if (btn) {
           btn.style.display = "none";
