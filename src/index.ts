@@ -36395,6 +36395,14 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         req.on("error", reject);
       });
 
+      const CACHE_KEY = "__void_peer_main_status_cache_v2";
+      const cache:any = G[CACHE_KEY] || (G[CACHE_KEY] = {
+        main: null,
+        main_head: null,
+        same_node: null,
+        ts: 0
+      });
+
       const mainBase = String(process.env.VOID_MAIN_BASE || process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100");
       const localBase = `http://127.0.0.1:${process.env.HTTP_PORT || 4100}`;
 
@@ -36403,7 +36411,10 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       let localHead:any = liveHead(), mainHead:any = null, headGap:any = null;
 
       try { localHealth = await getj(`${localBase}/health`); localOk = !!localHealth?.ok; } catch {}
-      try { mainHealth = await getj(`${mainBase}/health`); mainOk = !!mainHealth?.ok; } catch {}
+      try {
+        mainHealth = await getj(`${mainBase}/health`);
+        mainOk = !!mainHealth?.ok;
+      } catch {}
 
       try {
         const md:any = await getj(`${mainBase}/__void/demo/summary.json`);
@@ -36415,17 +36426,51 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         } catch {}
       }
 
-      if (localHealth && mainHealth && localHealth.nodeId && mainHealth.nodeId) {
-        sameNode = String(localHealth.nodeId) === String(mainHealth.nodeId);
+      if (mainHealth) {
+        cache.main = {
+          nodeId: mainHealth.nodeId ?? null,
+          http: mainHealth.http ?? null,
+          p2p: mainHealth.p2p ?? null,
+          peers: mainHealth.peers ?? null,
+          listen: mainHealth.listen ?? null,
+        };
+        cache.ts = Date.now();
       }
-      if (typeof localHead === "number" && typeof mainHead === "number") headGap = mainHead - localHead;
+      if (typeof mainHead === "number") {
+        cache.main_head = mainHead;
+        cache.ts = Date.now();
+      }
+
+      const localNodeId = String(localHealth?.nodeId ?? nodeId() ?? "");
+      const mainNodeId = String(mainHealth?.nodeId ?? cache.main?.nodeId ?? "");
+
+      if (localNodeId && mainNodeId) {
+        sameNode = localNodeId === mainNodeId;
+        cache.same_node = sameNode;
+      } else if (cache.same_node !== null && cache.same_node !== undefined) {
+        sameNode = !!cache.same_node;
+      }
+
+      const mainOut = mainHealth ? {
+        nodeId: mainHealth.nodeId ?? null,
+        http: mainHealth.http ?? null,
+        p2p: mainHealth.p2p ?? null,
+        peers: mainHealth.peers ?? null,
+        listen: mainHealth.listen ?? null,
+      } : cache.main;
+
+      const mainHeadOut =
+        (typeof mainHead === "number") ? mainHead :
+        (typeof cache.main_head === "number" ? cache.main_head : null);
+
+      if (typeof localHead === "number" && typeof mainHeadOut === "number") headGap = mainHeadOut - localHead;
 
       return res.status(200).json({
         ok: true,
         local_base: localBase,
         main_base: mainBase,
         local_ok: localOk,
-        main_ok: mainOk,
+        main_ok: mainOk || !!cache.main,
         same_node: sameNode,
         local: localHealth ? {
           nodeId: localHealth.nodeId ?? null,
@@ -36440,15 +36485,9 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
           peers: peerIds(),
           listen: listenAddrs(),
         },
-        main: mainHealth ? {
-          nodeId: mainHealth.nodeId ?? null,
-          http: mainHealth.http ?? null,
-          p2p: mainHealth.p2p ?? null,
-          peers: mainHealth.peers ?? null,
-          listen: mainHealth.listen ?? null,
-        } : null,
+        main: mainOut,
         local_head: localHead,
-        main_head: mainHead,
+        main_head: mainHeadOut,
         head_gap: headGap,
       });
     });
