@@ -36464,6 +36464,48 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
       });
     });
 
+    app.get("/follower/status", async (req:any, res:any) => {
+      try {
+        const http = require("http");
+        const peerBase = String(req?.query?.peer || "").trim();
+        if (!peerBase) return res.status(400).json({ ok:false, error:"missing_peer" });
+
+        const getj = (url:string, timeoutMs=1500)=>new Promise((resolve,reject)=>{
+          const r = http.get(url, { timeout: timeoutMs }, (rr:any)=>{
+            let data = "";
+            rr.setEncoding("utf8");
+            rr.on("data", (c:string)=>data += c);
+            rr.on("end", ()=>{ try { resolve(JSON.parse(data || "{}")); } catch (e) { reject(e); } });
+          });
+          r.on("timeout", ()=>{ try { r.destroy(new Error("timeout")); } catch {} });
+          r.on("error", reject);
+        });
+
+        const head_local = liveHead();
+        let head_peer:any = null;
+        try {
+          const pj:any = await getj(String(peerBase).replace(/\/+$/, "") + "/blocks/latest/number2.json");
+          const n = Number(pj?.number);
+          if (Number.isFinite(n) && n >= 0) head_peer = n;
+        } catch {}
+
+        const drift =
+          (typeof head_local === "number" && typeof head_peer === "number")
+            ? (head_peer - head_local)
+            : null;
+
+        return res.json({
+          ok:true,
+          peer: peerBase,
+          drift,
+          head_local,
+          head_peer
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
+
     try { console.log("[head-unify-truthfix.v1] mounted"); } catch {}
   }
 
@@ -36576,54 +36618,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     if (G[MARK].installed) return;
     G[MARK].installed = true;
 
-    removeExact(app, "get", "/__void/peer-main-status.json");
-
-    app.get("/__void/peer-main-status.json", async (_req:any, res:any) => {
-      const mainBase = String(process.env.VOID_MAIN_BASE || "http://127.0.0.1:4100");
-      const localBase = `http://127.0.0.1:${process.env.HTTP_PORT || 4100}`;
-
-      let localHealth:any = null;
-      let mainHealth:any = null;
-      let localOk = true;
-      let mainOk = false;
-      let sameNode:any = null;
-
-      const lHead = localHead();
-      let mHead:any = await mainHead(mainBase);
-
-      try { localHealth = await getJson(`${localBase}/health`, 1200); } catch {}
-      try { mainHealth = await getJson(`${mainBase}/health`, 1200); mainOk = !!mainHealth?.ok; } catch {}
-
-      if (localHealth && mainHealth && localHealth.nodeId && mainHealth.nodeId) {
-        sameNode = String(localHealth.nodeId) === String(mainHealth.nodeId);
-      }
-
-      return res.json({
-        ok: true,
-        local_base: localBase,
-        main_base: mainBase,
-        local_ok: localOk,
-        main_ok: mainOk,
-        same_node: sameNode,
-        local: {
-          nodeId: localHealth?.nodeId ?? localNodeId(),
-          http: localHealth?.http ?? Number(process.env.HTTP_PORT || 4100),
-          p2p: localHealth?.p2p ?? Number(process.env.P2P_PORT || 4700),
-          peers: localHealth?.peers ?? localPeers(),
-          listen: localHealth?.listen ?? localListen(),
-        },
-        main: mainHealth ? {
-          nodeId: mainHealth.nodeId ?? null,
-          http: mainHealth.http ?? null,
-          p2p: mainHealth.p2p ?? null,
-          peers: mainHealth.peers ?? null,
-          listen: mainHealth.listen ?? null,
-        } : null,
-        local_head: lHead,
-        main_head: mHead,
-        head_gap: (typeof lHead === "number" && typeof mHead === "number") ? (mHead - lHead) : null,
-      });
-    });
+    // keep head-unify-truthfix.v1 as the final /__void/peer-main-status.json truth
 
     app.get("/__void/diag/peer-main-status-robust.v1.json", (_req:any,res:any)=>{
       res.json({ ok:true, installed:true, local_head: localHead(), peers: localPeers(), listen: localListen() });
