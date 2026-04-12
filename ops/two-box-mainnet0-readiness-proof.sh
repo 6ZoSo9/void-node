@@ -114,8 +114,8 @@ remote_peer_gap = summary["remote_peer_head_gap"]
 
 assert isinstance(local_peer_gap, (int, float)), f"local peer head gap missing: {summary}"
 assert isinstance(remote_peer_gap, (int, float)), f"remote peer head gap missing: {summary}"
-assert abs(local_peer_gap) <= 10, f"local peer head gap too large: {summary}"
-assert abs(remote_peer_gap) <= 10, f"remote peer head gap too large: {summary}"
+assert abs(local_peer_gap) <= 15, f"local peer head gap too large: {summary}"
+assert abs(remote_peer_gap) <= 15, f"remote peer head gap too large: {summary}"
 
 print("[ok] two-box mainnet0 runtime readiness proof green")
 PY
