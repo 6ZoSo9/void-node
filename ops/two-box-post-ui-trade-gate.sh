@@ -59,6 +59,8 @@ run_step "wallet_trade_flow" "bash ops/two-box-wc-trade-runtime-proof.sh"
 run_step "wallet_trade_execution" "bash ops/two-box-wc-trade-execution-proof.sh"
 # canonical WC send execution proof
 run_step "wallet_send_execution" "bash ops/two-box-wc-send-execution-proof.sh"
+# canonical VOID send execution proof
+run_step "wallet_void_send_execution" "bash ops/two-box-void-send-execution-proof.sh"
 # supporting two-box WC/devnet truth parity proof
 run_step "wallet_trade_state_parity" "bash ops/two-box-wc-state-parity-proof.sh"
 
