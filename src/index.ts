@@ -42765,6 +42765,16 @@ a{color:#93c5fd;text-decoration:none}
           <div class="panel" style="margin-top:12px;padding:12px 14px">
             <div class="section-head">
               <div>
+                <h2 style="margin-bottom:4px">Recent Wallet Activity<span class="help" tabindex="0" data-help="Shows the latest wallet-side action like sending WC, preparing WC, trading WC for VOID, or sending VOID.">?</span></h2>
+              </div>
+            </div>
+            <div class="hero-note" id="walletActivityCard">No recent wallet activity yet.</div>
+            <div class="subtle-tab-copy" id="walletActivityMeta" style="margin-top:8px">Your latest wallet-side action will appear here.</div>
+          </div>
+
+          <div class="panel" style="margin-top:12px;padding:12px 14px">
+            <div class="section-head">
+              <div>
                 <h2 style="margin-bottom:4px">Send Local WC<span class="help" tabindex="0" data-help="Transfers Work Credits between participant accounts on this node. This does not send onchain VOID.">?</span></h2>
               </div>
             </div>
@@ -42992,6 +43002,63 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   function setPre(id, v){
     const el = $(id);
     if (el) el.textContent = typeof v === "string" ? v : JSON.stringify(v, null, 2);
+  }
+
+  function setWalletActivity(entry){
+    try {
+      const card = $("walletActivityCard");
+      const meta = $("walletActivityMeta");
+      if (!card || !meta) return;
+
+      const kind = String((entry && entry.kind) || "").trim();
+      const status = String((entry && entry.status) || "").trim();
+      const amount = (entry && entry.amount != null) ? String(entry.amount) : "";
+      const unit = String((entry && entry.unit) || "").trim();
+      const target = String((entry && entry.target) || "").trim();
+      const txHash = String((entry && entry.tx_hash) || "").trim();
+      const note = String((entry && entry.note) || "").trim();
+      const now = new Date();
+      const stamp = now.toLocaleTimeString();
+
+      let title = "Wallet activity updated.";
+      if (kind === "send_wc") title = "Sent " + amount + (unit ? (" " + unit) : " WC") + (target ? (" to " + target) : "") + ".";
+      else if (kind === "prepare_wc") title = "Prepared " + amount + (unit ? (" " + unit) : " WC") + " for trading.";
+      else if (kind === "trade_wc_void") title = "Traded " + amount + (unit ? (" " + unit) : " WC") + " for VOID.";
+      else if (kind === "send_void") title = "Sent " + amount + (unit ? (" " + unit) : " VOID") + (target ? (" to " + target) : "") + ".";
+      else if (note) title = note;
+
+      if (status === "submitting") title = "Submitting • " + title;
+      else if (status === "failed") title = "Failed • " + title;
+      else if (status === "sent") title = "Submitted • " + title;
+      else if (status === "success") title = "Done • " + title;
+
+      let metaParts = [];
+      metaParts.push("Status: " + (status || "-"));
+      if (target) metaParts.push("Target: " + target);
+      if (txHash) {
+        const shortHash = /^0x[a-fA-F0-9]{64}$/.test(txHash) ? (txHash.slice(0, 10) + "…" + txHash.slice(-6)) : txHash;
+        metaParts.push("Tx: " + shortHash);
+      }
+      metaParts.push("Updated: " + stamp);
+      if (note && note != title) metaParts.push(note);
+
+      card.textContent = title;
+      meta.textContent = metaParts.join(" • ");
+
+      try {
+        const stored = { kind, status, amount, unit, target, tx_hash: txHash, note, ts_ms: Date.now() };
+        localStorage.setItem("void_wallet_activity_v1", JSON.stringify(stored));
+      } catch (_) {}
+    } catch (_) {}
+  }
+
+  function loadRememberedWalletActivity(){
+    try {
+      const raw = localStorage.getItem("void_wallet_activity_v1") || "";
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") setWalletActivity(parsed);
+    } catch (_) {}
   }
 
   function shortDatasetPreviewCard(d){
@@ -43494,6 +43561,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const connectedWallet = getConnectedWallet();
     const account = accountInput ? ((String(accountInput.value || "").trim()) || pickInitialParticipantAccount()) : pickInitialParticipantAccount();
     rememberParticipantAccount(account);
+
+    loadRememberedWalletActivity();
 
     const wcUiLink = document.querySelector('[data-local-wc-ui="1"]');
     if (wcUiLink) wcUiLink.setAttribute("href", LOCAL_WC_BASE + "/ui");
@@ -44911,6 +44980,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
 
       setPre("sendOut", { ok:true, sending:true, from, to, amount });
+      setWalletActivity({ kind:"send_wc", status:"submitting", amount, unit:"WC", target:to, note:"Sending local WC." });
 
       const out = await j("/wc/send", {
         method: "POST",
@@ -44920,14 +44990,21 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       setPre("sendOut", out);
       setPre("tradeOut", out);
-      if (out && out.ok) setLatestAction("WC sent successfully.");
+      if (out && out.ok) {
+        setLatestAction("WC sent successfully.");
+        setWalletActivity({ kind:"send_wc", status:"success", amount, unit:"WC", target:to, note:"Local WC transfer completed." });
+      } else {
+        setWalletActivity({ kind:"send_wc", status:"failed", amount, unit:"WC", target:to, note:String((out && (out.note || out.error || out.reason)) || "Local WC transfer failed.") });
+      }
       await refresh();
       try { await new Promise(r => setTimeout(r, 1200)); } catch {}
       await refresh();
       try { await new Promise(r => setTimeout(r, 1200)); } catch {}
       await refresh();
     } catch (e) {
-      setPre("sendOut", { ok:false, error:String((e && e.message) || e) });
+      const err = String((e && e.message) || e);
+      setPre("sendOut", { ok:false, error:err });
+      setWalletActivity({ kind:"send_wc", status:"failed", amount, unit:"WC", target:to, note:err });
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -45025,6 +45102,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         wallet,
         amount
       });
+      setWalletActivity({ kind:"prepare_wc", status:"submitting", amount, unit:"WC", target:shortAddr(wallet), note:"Preparing WC for trading." });
 
       const out = await j("/wc/redeem", {
         method: "POST",
@@ -45035,6 +45113,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setPre("redeemOut", out);
       if (out && out.ok) {
         setLatestAction("WC prepared for trading. Opening the Trade tab now.");
+        setWalletActivity({ kind:"prepare_wc", status:"success", amount, unit:"WC", target:shortAddr(wallet), note:"WC prepared for trading." });
+      } else {
+        setWalletActivity({ kind:"prepare_wc", status:"failed", amount, unit:"WC", target:shortAddr(wallet), note:String((out && (out.note || out.error || out.reason)) || "WC prepare failed.") });
       }
       await refresh();
       if (out && out.ok) {
@@ -45045,7 +45126,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         } catch (_) {}
       }
     } catch (e) {
-      setPre("redeemOut", { ok:false, redeem:false, error:String((e && e.message) || e) });
+      const err = String((e && e.message) || e);
+      setPre("redeemOut", { ok:false, redeem:false, error:err });
+      setWalletActivity({ kind:"prepare_wc", status:"failed", amount, unit:"WC", target:shortAddr(wallet), note:err });
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -45136,6 +45219,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       };
 
       setLatestAction("Sending " + amountStr + " VOID to " + shortAddr(to) + "...");
+      setWalletActivity({ kind:"send_void", status:"submitting", amount:amountStr, unit:"VOID", target:shortAddr(to), note:"Submitting onchain VOID transfer." });
       setPre("voidSendOut", {
         ok:true,
         submitting:true,
@@ -45164,6 +45248,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         note: "VOID transfer submitted from connected wallet."
       });
       setLatestAction("VOID send submitted • " + amountStr + " VOID to " + shortAddr(to) + " • tx " + shortHash);
+      setWalletActivity({ kind:"send_void", status:"sent", amount:amountStr, unit:"VOID", target:shortAddr(to), tx_hash:txHash, note:"VOID transfer submitted from connected wallet." });
 
       if (toInput) toInput.value = "";
       if (amountInput) amountInput.value = "1";
@@ -45173,6 +45258,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const err = String((e && e.message) || e);
       setPre("voidSendOut", { ok:false, error:err });
       setLatestAction("VOID send failed • " + err);
+      setWalletActivity({ kind:"send_void", status:"failed", amount:amountStr, unit:"VOID", target:shortAddr(to), note:err });
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -45378,6 +45464,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     });
     setText("tradeOut", "Executing trade for " + amount + " WC" + (wallet ? (" using wallet " + wallet) : "") + "...");
     setLatestAction("Executing trade for " + amount + " WC" + (wallet ? (" using " + wallet) : "") + "...");
+    setWalletActivity({ kind:"trade_wc_void", status:"submitting", amount, unit:"WC", target:shortAddr(wallet), note:"Executing WC to VOID trade." });
 
     try {
       const out = await j(LOCAL_RELAYER_BASE + "/execute", {
@@ -45418,6 +45505,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           (txCount ? (" • " + txCount + " transaction" + (txCount === 1 ? "" : "s")) : "");
         setText("tradeOut", successText);
         setLatestAction(successText);
+        setWalletActivity({ kind:"trade_wc_void", status:"success", amount, unit:"WC", target:shortAddr(wallet), tx_hash:swapHash || approveHash || "", note:successText });
         try { await refresh(); } catch (_) {}
         try {
           const u = new URL(window.location.href);
@@ -45430,6 +45518,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const failText = (out && out.note) ? String(out.note) : "Trade execution failed.";
         setText("tradeOut", failText);
         setLatestAction(failText);
+        setWalletActivity({ kind:"trade_wc_void", status:"failed", amount, unit:"WC", target:shortAddr(wallet), note:failText });
       }
 
       await refresh();
@@ -45438,6 +45527,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setPre("tradeStateOut", { ok:false, execute:false, error:String(e) });
       setText("tradeOut", errText);
       setLatestAction(errText);
+      setWalletActivity({ kind:"trade_wc_void", status:"failed", amount, unit:"WC", target:shortAddr(wallet), note:errText });
     } finally {
       if (btn) {
         btn.disabled = false;
