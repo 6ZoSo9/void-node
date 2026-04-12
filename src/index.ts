@@ -36394,7 +36394,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         req.on("error", reject);
       });
 
-      const mainBase = "http://127.0.0.1:4100";
+      const mainBase = String(process.env.VOID_MAIN_BASE || process.env.VOID_DRIFT_PEER || "http://127.0.0.1:4100");
       const localBase = `http://127.0.0.1:${process.env.HTTP_PORT || 4100}`;
 
       let localHealth:any = null, mainHealth:any = null;
