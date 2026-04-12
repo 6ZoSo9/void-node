@@ -3796,6 +3796,21 @@ try {
         } catch {}
       }
 
+      if (conflicts > 0) {
+        return res.status(409).json({
+          ok: false,
+          error: "conflicting blocks detected; reseed follower from canonical node",
+          imported,
+          alreadyHad,
+          filled,
+          conflicts,
+          kidxRebuilt,
+          headBefore,
+          headAfter,
+          headAdvanced
+        });
+      }
+
       return res.json({ ok: true, imported, alreadyHad, filled, conflicts, kidxRebuilt, headBefore, headAfter, headAdvanced });
     } catch (e: any) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
