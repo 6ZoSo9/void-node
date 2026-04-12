@@ -44494,8 +44494,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           } catch (_) {}
         }
         const msg = ok ? String(label || "Copied.") : "Copy failed.";
-        const openStatus = $("datanetOpenByIdStatus");
-        if (openStatus) openStatus.textContent = msg;
+            if (openStatus) openStatus.textContent = msg;
         const latestAction = $("latestActionCard");
         if (latestAction && ok) latestAction.textContent = msg;
         try {
@@ -45653,10 +45652,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     return { datasetId, source };
   };
 
+  function renderOpenByIdStatus(kind, datasetId, account, note){
+    const status = $("datanetOpenByIdStatus");
+    if (!status) return;
+    const label =
+      kind === "consume_view_link" ? "Consume link" :
+      kind === "participant_share_link" ? "Shared page link" :
+      kind === "dataset_id" ? "Dataset ID" :
+      "Input";
+    const bits = [];
+    bits.push("Detected: " + label);
+    if (datasetId) bits.push("Dataset: " + datasetId);
+    if (account) bits.push("Account: " + account);
+    if (note) bits.push(note);
+    status.textContent = bits.join(" • ");
+  }
+
   if ($("datanetPasteLinkBtn")) $("datanetPasteLinkBtn").addEventListener("click", async () => {
     try {
       const input = $("datanetOpenByIdInput");
-      const status = $("datanetOpenByIdStatus");
       if (!input) return;
       let pasted = "";
       try {
@@ -45665,24 +45679,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         }
       } catch (_) {}
       if (!pasted) {
-        if (status) status.textContent = "Clipboard paste is unavailable here.";
+        renderOpenByIdStatus("", "", "", "Clipboard paste is unavailable here.");
         return;
       }
       input.value = pasted;
       const parsed = parseDatasetIdOrLink(pasted);
-      if (status) {
-        if ((parsed.source === "consume_view_link" || parsed.source === "participant_share_link") && parsed.datasetId) {
-          status.textContent = (parsed.source === "participant_share_link" ? "Pasted shared page link. Extracted dataset " : "Pasted consume link. Extracted dataset ") + parsed.datasetId + ".";
-        } else if (parsed.source === "dataset_id" && parsed.datasetId) {
-          status.textContent = "Pasted dataset id " + parsed.datasetId + ".";
-        } else {
-          status.textContent = "Pasted text into the open box.";
-        }
+      if ((parsed.source === "consume_view_link" || parsed.source === "participant_share_link" || parsed.source === "dataset_id") && parsed.datasetId) {
+        renderOpenByIdStatus(parsed.source, parsed.datasetId, "", "Ready to open here.");
+      } else {
+        renderOpenByIdStatus("", "", "", "Pasted text into the open box.");
       }
     } catch (_) {
       try {
-        const status = $("datanetOpenByIdStatus");
-        if (status) status.textContent = "Clipboard paste is unavailable here.";
+        renderOpenByIdStatus("", "", "", "Clipboard paste is unavailable here.");
       } catch {}
     }
   });
@@ -45690,37 +45699,29 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   if ($("datanetOpenByIdBtn")) $("datanetOpenByIdBtn").addEventListener("click", () => {
     try {
       const input = $("datanetOpenByIdInput");
-      const status = $("datanetOpenByIdStatus");
       const raw = input ? String(input.value || "").trim() : "";
       const account = $("account")
         ? ((String($("account").value || "").trim()) || pickInitialParticipantAccount())
         : pickInitialParticipantAccount();
       if (!raw) {
-        if (status) status.textContent = "Enter a dataset id, a consume link, or a shared dataset page link first.";
+        renderOpenByIdStatus("", "", "", "Enter a dataset id, a consume link, or a shared dataset page link first.");
         return;
       }
 
       const parsed = parseDatasetIdOrLink(raw);
       const datasetId = String(parsed.datasetId || "");
       if (!datasetId || !/^ds_[A-Za-z0-9_\-]+$/.test(datasetId)) {
-        if (status) status.textContent = "That does not look like a dataset id, consume link, or shared dataset page link.";
+        renderOpenByIdStatus("", "", "", "That does not look like a dataset id, consume link, or shared dataset page link.");
         return;
       }
 
       const effectiveAccount = String(account || resolveActiveParticipantAccount() || pickInitialParticipantAccount()).trim();
       const href = "/datanet/open/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(effectiveAccount);
-      if (status) {
-        status.textContent = parsed.source === "consume_view_link"
-          ? ("Detected consume-view link. Opening dataset " + datasetId + ". This node may materialize it from a peer first…")
-          : (parsed.source === "participant_share_link"
-              ? ("Detected shared participant link. Opening dataset " + datasetId + ". This node may materialize it from a peer first…")
-              : ("Opening dataset " + datasetId + ". This node may materialize it from a peer first…"));
-      }
+      renderOpenByIdStatus(parsed.source, datasetId, effectiveAccount, "Opening here now. This node may materialize it from a peer first…");
       window.location.href = href;
     } catch (e) {
       try {
-        const status = $("datanetOpenByIdStatus");
-        if (status) status.textContent = "Unable to open dataset by id or link.";
+        renderOpenByIdStatus("", "", "", "Unable to open dataset by id or link.");
       } catch {}
     }
   });
@@ -45735,16 +45736,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if (openInput) {
       if (qsDataset) {
         openInput.value = qsDataset;
-        if (openStatus) openStatus.textContent = "Preloaded dataset id from page link: " + qsDataset + ".";
+        renderOpenByIdStatus("dataset_id", qsDataset, "", "Preloaded from page link.");
       } else if (qsLink) {
         openInput.value = qsLink;
         const parsed = parseDatasetIdOrLink(qsLink);
-        if (openStatus) {
-          if ((parsed.source === "consume_view_link" || parsed.source === "participant_share_link") && parsed.datasetId) {
-            openStatus.textContent = (parsed.source === "participant_share_link" ? "Preloaded shared page link. Extracted dataset " : "Preloaded consume link. Extracted dataset ") + parsed.datasetId + ".";
-          } else {
-            openStatus.textContent = "Preloaded link from page link.";
-          }
+        if ((parsed.source === "consume_view_link" || parsed.source === "participant_share_link") && parsed.datasetId) {
+          renderOpenByIdStatus(parsed.source, parsed.datasetId, "", "Preloaded from page link.");
+        } else {
+          renderOpenByIdStatus("", "", "", "Preloaded link from page link.");
         }
       }
 
