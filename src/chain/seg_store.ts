@@ -96,15 +96,29 @@ export class SegStore {
   }
 
   loadHeadNumber(): number {
-    const j = safeReadJson(this.headsFile);
-    const n = Number(j?.head);
-    return Number.isFinite(n) ? n : -1;
+    const j = safeReadJson(this.headsFile) || {};
+    const jHead = Number(j?.head);
+    const jNum = Number(j?.number);
+
+    let txtHead = -1;
+    try {
+      const t = fs.readFileSync(path.join(this.root, "head.txt"), "utf8").trim();
+      const n = Number(String(t).split(/\s+/)[0]);
+      if (Number.isFinite(n)) txtHead = n;
+    } catch {}
+
+    const cand = [jHead, jNum, txtHead].filter((x) => Number.isFinite(x));
+    return cand.length ? Math.max(...cand) : -1;
   }
 
   private persistHeadAtomic(n: number) {
     const j = safeReadJson(this.headsFile) || { head: -1, hash: "0x0" };
     j.head = n;
+    j.number = n;
     atomicWriteJson(this.headsFile, j);
+    try {
+      fs.writeFileSync(path.join(this.root, "head.txt"), String(n) + "\n");
+    } catch {}
   }
 
   private segBase(n: number) { return Math.floor(n / SEG_SPAN) * SEG_SPAN; }
