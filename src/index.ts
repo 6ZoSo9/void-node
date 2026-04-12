@@ -3714,6 +3714,8 @@ try {
 
       const touched = new Set<string>();
       let imported = 0, alreadyHad = 0, filled = 0, conflicts = 0;
+      const store:any = (((globalThis as any).__void_node || (globalThis as any).node) as any).store;
+      const headBefore = Number(store?.loadHeadNumber?.() ?? -1);
 
       for (const b of arr) {
         const n = Number(b?.number);
@@ -3776,7 +3778,25 @@ try {
       for (const p of touched) {
         try { await buildKidxForJsonl(p); kidxRebuilt++; } catch {}
       }
-      return res.json({ ok: true, imported, alreadyHad, filled, conflicts, kidxRebuilt });
+
+      let headAfter = headBefore;
+      try {
+        while (store?.loadBlock?.(headAfter + 1)) headAfter++;
+      } catch {}
+
+      let headAdvanced = 0;
+      if (Number.isFinite(headAfter) && headAfter > headBefore) {
+        try {
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const d = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+          fs.writeFileSync(path.join(d, "head.txt"), String(headAfter) + "\n");
+          fs.writeFileSync(path.join(d, "heads.json"), JSON.stringify({ number: headAfter, head: headAfter }, null, 2) + "\n");
+          headAdvanced = headAfter - headBefore;
+        } catch {}
+      }
+
+      return res.json({ ok: true, imported, alreadyHad, filled, conflicts, kidxRebuilt, headBefore, headAfter, headAdvanced });
     } catch (e: any) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
