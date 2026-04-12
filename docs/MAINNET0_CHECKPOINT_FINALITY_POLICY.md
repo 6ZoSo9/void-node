@@ -247,3 +247,14 @@ Current Mainnet-0 checkpoint/finality intent is:
 - deep or checkpoint-crossing reorgs are emergency territory
 - correctness beats passive acceptance of bad chain behavior
 - operator response must be explicit when checkpoint safety is challenged
+
+## Conflicting block import handling
+
+A conflicting `/blocks/import` result is evidence of divergence, not a harmless sync detail.
+
+Operational rule:
+- `/blocks/import` may be used for clean suffix catch-up only
+- `/blocks/import` must not be used to merge overlapping conflicting ranges between competing histories
+- if conflicting blocks are detected, operators should preserve evidence, stop the follower, and reseed from the canonical node instead of attempting live reconciliation
+
+This rule exists to reduce the chance that operators normalize corrupt or ambiguous state under the label of “sync.”

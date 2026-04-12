@@ -164,3 +164,21 @@ Current Mainnet-0 intent is:
 - coordinated forks allowed only when necessary to restore correctness/state
 - no pretending that every divergence is acceptable
 - no pretending that emergency intervention is forbidden when the chain is clearly wrong
+
+## Follower reseed and conflicting import policy
+
+`/blocks/import` is a suffix catch-up tool only. It is not a fork reconciliation tool.
+
+Operator rules:
+- clean suffix catch-up is allowed when the follower is missing later canonical blocks and there is no conflicting overlap
+- overlapping conflicting imports must not be treated as a valid merge path
+- if `/blocks/import` returns HTTP 409 or reports conflicting blocks, operators must stop treating the follower as converging normally
+
+Required response to conflicting import:
+1. stop the follower node
+2. identify the canonical node
+3. normalize canonical `heads.json` from canonical `head.txt`
+4. reseed the follower data directory from the canonical node
+5. restart follower and re-run readiness / peer truth checks
+
+Mainnet-0 validators and operators must treat live conflict-merging as unsafe. Correctness is more important than pretending competing histories can be merged opportunistically.

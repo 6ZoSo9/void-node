@@ -169,3 +169,15 @@ Current validator-admission intent is:
 - validators are expected to cooperate during incidents
 - Mainnet-0 is not permissionless-chaotic validator behavior
 - admission is tied to canonical continuity and recoverability
+
+## Operator sync safety rule
+
+Before admitting or re-admitting a validator/follower into normal operation, operators must follow this sync safety rule:
+
+- use `/blocks/import` only for clean suffix catch-up
+- do not use `/blocks/import` to reconcile conflicting overlapping ranges
+- if import detects conflicts or returns HTTP 409, stop the follower and reseed it from the canonical node
+- confirm canonical `heads.json` matches canonical `head.txt` before reseeding
+- only return the follower to service after readiness and peer truth checks are green
+
+A candidate operator who treats conflicting overlap import as normal recovery is not following Mainnet-0 operational policy.
