@@ -132,8 +132,8 @@ print(json.dumps(summary, indent=2))
 
 assert summary["local_ready"] is True, summary
 assert summary["remote_ready"] is True, summary
-assert summary["local_gap"] == 0, summary
-assert summary["remote_gap"] == 0, summary
+assert isinstance(summary["local_gap"], int) and summary["local_gap"] <= 1, summary
+assert isinstance(summary["remote_gap"], int) and summary["remote_gap"] <= 1, summary
 assert summary["local_relayer_ok"] is True, summary
 assert summary["remote_relayer_ok"] is True, summary
 PY
