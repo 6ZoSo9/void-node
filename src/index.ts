@@ -3713,7 +3713,7 @@ try {
       if (!arr.length) return res.json({ ok: true, imported: 0, alreadyHad: 0, filled: 0, kidxRebuilt: 0 });
 
       const touched = new Set<string>();
-      let imported = 0, alreadyHad = 0, filled = 0;
+      let imported = 0, alreadyHad = 0, filled = 0, conflicts = 0;
 
       for (const b of arr) {
         const n = Number(b?.number);
@@ -3763,6 +3763,12 @@ try {
           continue;
         }
 
+        const sameBlock =
+          JSON.stringify(existing) === JSON.stringify(b);
+        if (!sameBlock) {
+          conflicts++;
+          continue;
+        }
         alreadyHad++;
       }
 
@@ -3770,7 +3776,7 @@ try {
       for (const p of touched) {
         try { await buildKidxForJsonl(p); kidxRebuilt++; } catch {}
       }
-      return res.json({ ok: true, imported, alreadyHad, filled, kidxRebuilt });
+      return res.json({ ok: true, imported, alreadyHad, filled, conflicts, kidxRebuilt });
     } catch (e: any) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
