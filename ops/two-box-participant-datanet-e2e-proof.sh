@@ -225,7 +225,7 @@ assert "Plaintext" in consume_html, "consume-view page missing plaintext section
 assert plaintext in consume_html, "consume-view page missing submitted plaintext"
 assert ("Open Dataset JSON" in consume_html or "Open raw JSON" in consume_html), "consume-view page missing dataset json action"
 assert "Copy Dataset ID" in consume_html, "consume-view page missing copy dataset action"
-assert "Copy Consume Link" in consume_html, "consume-view page missing copy consume link action"
+assert ("Copy open link" in consume_html or "Copy Consume Link" in consume_html), "consume-view page missing copy/open link action"
 assert ("Back to Participant" in consume_html and "open_dataset=" in consume_html), "consume-view page missing participant back-link with open_dataset"
 
 print("[ok] participant open_dataset preload hooks and consume-view paths render correctly")
@@ -238,7 +238,7 @@ print(json.dumps({
     "participant_has_open_dataset_preload_logic": ('params.get("open_dataset")' in participant_html),
     "consume_view_has_plaintext": (plaintext in consume_html),
     "consume_view_has_copy_dataset_id": ("Copy Dataset ID" in consume_html),
-    "consume_view_has_copy_consume_link": ("Copy Consume Link" in consume_html),
+    "consume_view_has_copy_open_or_consume_link": (("Copy open link" in consume_html) or ("Copy Consume Link" in consume_html)),
     "consume_view_has_back_to_participant": ("Back to Participant" in consume_html and "open_dataset=" in consume_html),
 }, indent=2))
 PY
