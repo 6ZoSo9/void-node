@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Diagnostic WC/devnet drift check for two independent local devnets.
+# Same addresses/config should usually match, but reserve and ledger parity is
+# informational unless the two boxes are intentionally mirrored to one source of truth.
 set -euo pipefail
 set +H
 set +o histexpand
@@ -104,14 +107,23 @@ same_reserves = (
     summary["local_void_reserve"] == summary["remote_void_reserve"] and
     summary["local_wc_reserve"] == summary["remote_wc_reserve"]
 )
+same_account_balances = (
+    summary["local_account_void"] == summary["remote_account_void"] and
+    summary["local_account_wc"] == summary["remote_account_wc"]
+)
 
 print()
 print("same_addresses=" + str(same_addresses).lower())
 print("same_reserves=" + str(same_reserves).lower())
-if not same_addresses or not same_reserves:
-    print("[warn] WC/devnet state parity is not aligned across boxes")
-else:
+print("same_account_balances=" + str(same_account_balances).lower())
+
+if same_addresses and same_reserves and same_account_balances:
     print("[ok] WC/devnet state parity aligned across boxes")
+elif same_addresses:
+    print("[warn] WC/devnet addresses/config match, but reserve/account state has drifted across boxes")
+    print("[info] This is expected when both boxes run independent local anvil/devnet histories")
+else:
+    print("[warn] WC/devnet addresses/config do not match across boxes")
 PY
 
 echo
@@ -119,4 +131,5 @@ echo "=== [4] save artifact list ==="
 find "$OUT" -maxdepth 1 -type f | sort
 
 echo
+echo "[info] diagnostic_only=true"
 echo "out=$OUT"
