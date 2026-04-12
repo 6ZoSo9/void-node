@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Canonical broader two-box product gate.
+# Runs the participant-facing canonical journey proof plus the remaining
+# cross-node consumer/consume-view product proofs on matched code.
 set -euo pipefail
 set +H
 set +o histexpand
@@ -46,6 +49,7 @@ REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"
 REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}"
 
 run_step "participant_datanet_e2e" "LOCAL_NODE_BASE='$LOCAL_NODE_BASE' PUBLIC_LOCAL_NODE_BASE='$PUBLIC_LOCAL_NODE_BASE' REMOTE_NODE_BASE='$REMOTE_NODE_BASE' bash ops/two-box-participant-datanet-e2e-proof.sh"
+# canonical participant-facing journey proof
 run_step "participant_share_open_e2e" "LOCAL_NODE_BASE='$LOCAL_NODE_BASE' PUBLIC_LOCAL_NODE_BASE='$PUBLIC_LOCAL_NODE_BASE' REMOTE_NODE_BASE='$REMOTE_NODE_BASE' REMOTE_BASE='$REMOTE_BASE' bash ops/two-box-participant-share-open-e2e-proof.sh"
 run_step "consumer_fetch_product" "LOCAL_NODE_BASE='$LOCAL_NODE_BASE' PUBLIC_LOCAL_NODE_BASE='$PUBLIC_LOCAL_NODE_BASE' REMOTE_NODE_BASE='$REMOTE_NODE_BASE' bash ops/two-box-remote-consumer-fetch-product-proof.sh"
 run_step "consume_view_product" "LOCAL_NODE_BASE='$LOCAL_NODE_BASE' PUBLIC_LOCAL_NODE_BASE='$PUBLIC_LOCAL_NODE_BASE' REMOTE_NODE_BASE='$REMOTE_NODE_BASE' bash ops/two-box-remote-consume-view-product-proof.sh"

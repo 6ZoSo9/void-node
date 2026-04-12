@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Canonical participant-facing two-box user journey proof.
+# Verifies publish/open/materialize/share flows across Precision <-> Alienware
+# from the participant UI perspective, including both-way share/open behavior.
 set -euo pipefail
 set +H
 set +o histexpand
