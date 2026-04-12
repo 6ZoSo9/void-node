@@ -45072,8 +45072,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   async function sendVoidNow(){
-    const to = $("voidSendTo") ? (($("voidSendTo").value || "").trim()) : "";
-    const amountStr = $("voidSendAmount") ? (($("voidSendAmount").value || "").trim()) : "";
+    const toInput = $("voidSendTo");
+    const amountInput = $("voidSendAmount");
+    const to = toInput ? String(toInput.value || "").trim() : "";
+    const amountStr = amountInput ? String(amountInput.value || "").trim() : "";
     const btn = $("voidSendBtn");
     const prevText = btn ? btn.textContent : "Send VOID";
 
@@ -45085,10 +45087,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       if (!from || !/^0x[a-fA-F0-9]{40}$/.test(from)) {
         setPre("voidSendOut", { ok:false, error:"wallet_not_connected" });
+        setLatestAction("VOID send unavailable. Connect a wallet first.");
         return;
       }
       if (!to || !/^0x[a-fA-F0-9]{40}$/.test(to)) {
         setPre("voidSendOut", { ok:false, error:"invalid_recipient_wallet" });
+        setLatestAction("Enter a valid recipient wallet before sending VOID.");
         return;
       }
 
@@ -45097,10 +45101,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         units = parseUnits18(amountStr);
       } catch (_) {
         setPre("voidSendOut", { ok:false, error:"invalid_amount" });
+        setLatestAction("Enter a valid VOID amount before sending.");
         return;
       }
       if (!(units > 0n)) {
         setPre("voidSendOut", { ok:false, error:"invalid_amount" });
+        setLatestAction("Enter a VOID amount greater than zero.");
         return;
       }
 
@@ -45108,11 +45114,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const voidToken = relayerHealth && relayerHealth.ok ? String(relayerHealth.void_token || "").trim() : "";
       if (!/^0x[a-fA-F0-9]{40}$/.test(voidToken)) {
         setPre("voidSendOut", { ok:false, error:"void_token_unavailable", relayer_health: relayerHealth });
+        setLatestAction("VOID send unavailable right now. Token metadata could not be loaded.");
         return;
       }
 
       if (!window.ethereum || !window.ethereum.request) {
         setPre("voidSendOut", { ok:false, error:"wallet_provider_missing" });
+        setLatestAction("VOID send unavailable. Wallet provider missing.");
         return;
       }
 
@@ -45127,6 +45135,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         data: erc20TransferData(to, units)
       };
 
+      setLatestAction("Sending " + amountStr + " VOID to " + shortAddr(to) + "...");
       setPre("voidSendOut", {
         ok:true,
         submitting:true,
@@ -45142,6 +45151,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         params: [tx]
       });
 
+      const shortHash = /^0x[a-fA-F0-9]{64}$/.test(String(txHash || "")) ? (String(txHash).slice(0, 10) + "…" + String(txHash).slice(-6)) : String(txHash || "-");
+
       setPre("voidSendOut", {
         ok:true,
         sent:true,
@@ -45152,10 +45163,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         tx_hash: txHash,
         note: "VOID transfer submitted from connected wallet."
       });
+      setLatestAction("VOID send submitted • " + amountStr + " VOID to " + shortAddr(to) + " • tx " + shortHash);
+
+      if (toInput) toInput.value = "";
+      if (amountInput) amountInput.value = "1";
 
       await refresh();
     } catch (e) {
-      setPre("voidSendOut", { ok:false, error:String((e && e.message) || e) });
+      const err = String((e && e.message) || e);
+      setPre("voidSendOut", { ok:false, error:err });
+      setLatestAction("VOID send failed • " + err);
     } finally {
       if (btn) {
         btn.disabled = false;
