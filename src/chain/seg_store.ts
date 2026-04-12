@@ -91,6 +91,31 @@ export class SegStore {
       atomicWriteJson(this.headsFile, { head: -1, hash: "0x0" });
     }
 
+    // Heal heads.json from canonical head.txt if they disagree.
+    try {
+      const j = safeReadJson(this.headsFile) || {};
+      const jHead = Number(j?.head);
+      const jNum = Number(j?.number);
+
+      let txtHead = -1;
+      try {
+        const t = fs.readFileSync(path.join(this.root, "head.txt"), "utf8").trim();
+        const n = Number(String(t).split(/\s+/)[0]);
+        if (Number.isFinite(n)) txtHead = n;
+      } catch {}
+
+      const cur = [jHead, jNum].filter((x) => Number.isFinite(x));
+      const curHead = cur.length ? Math.max(...cur) : -1;
+
+      if (Number.isFinite(txtHead) && txtHead >= 0 && txtHead != curHead) {
+        j.head = txtHead;
+        j.number = txtHead;
+        atomicWriteJson(this.headsFile, j);
+      } else if (Number.isFinite(curHead) && curHead >= 0 && (!Number.isFinite(txtHead) || txtHead != curHead)) {
+        try { fs.writeFileSync(path.join(this.root, "head.txt"), String(curHead) + "\n"); } catch {}
+      }
+    } catch {}
+
     // Replay WAL best-effort on boot (keeps prior behavior if WAL absent).
     try { this.replayWalAllBestEffort(); } catch {}
   }
