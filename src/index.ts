@@ -3688,8 +3688,9 @@ try {
   });
 
   app.get("/blocks/range", (req, res) => {
-    const from = Number(req.query.from ?? 0);
-    const to = Number(req.query.to ?? (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber());
+    const head = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
+    const from = Number(req.query.from ?? req.query.start ?? 0);
+    const to = Number(req.query.to ?? req.query.end ?? head);
     if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
       return res.status(400).json({ ok: false, error: "bad range" });
     }
