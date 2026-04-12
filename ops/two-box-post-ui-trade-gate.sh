@@ -57,6 +57,8 @@ run_step "consume_view_product" "LOCAL_NODE_BASE='$LOCAL_NODE_BASE' PUBLIC_LOCAL
 run_step "wallet_trade_flow" "bash ops/two-box-wc-trade-runtime-proof.sh"
 # canonical wallet/trade execution proof
 run_step "wallet_trade_execution" "bash ops/two-box-wc-trade-execution-proof.sh"
+# canonical WC send execution proof
+run_step "wallet_send_execution" "bash ops/two-box-wc-send-execution-proof.sh"
 # supporting two-box WC/devnet truth parity proof
 run_step "wallet_trade_state_parity" "bash ops/two-box-wc-state-parity-proof.sh"
 
