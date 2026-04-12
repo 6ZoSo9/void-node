@@ -45736,12 +45736,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if (openInput) {
       if (qsDataset) {
         openInput.value = qsDataset;
-        renderOpenByIdStatus("dataset_id", qsDataset, "", "Preloaded from page link.");
+        renderOpenByIdStatus("dataset_id", qsDataset, "", "Preloaded dataset id from page link: " + qsDataset);
       } else if (qsLink) {
         openInput.value = qsLink;
         const parsed = parseDatasetIdOrLink(qsLink);
-        if ((parsed.source === "consume_view_link" || parsed.source === "participant_share_link") && parsed.datasetId) {
-          renderOpenByIdStatus(parsed.source, parsed.datasetId, "", "Preloaded from page link.");
+        if (parsed.source === "participant_share_link" && parsed.datasetId) {
+          renderOpenByIdStatus(parsed.source, parsed.datasetId, "", "Preloaded shared participant link from page link. Extracted dataset " + parsed.datasetId);
+        } else if (parsed.source === "consume_view_link" && parsed.datasetId) {
+          renderOpenByIdStatus(parsed.source, parsed.datasetId, "", "Preloaded consume-view link from page link. Extracted dataset " + parsed.datasetId);
+        } else if (parsed.datasetId) {
+          renderOpenByIdStatus(parsed.source, parsed.datasetId, "", "Preloaded link from page link. Extracted dataset " + parsed.datasetId);
         } else {
           renderOpenByIdStatus("", "", "", "Preloaded link from page link.");
         }
