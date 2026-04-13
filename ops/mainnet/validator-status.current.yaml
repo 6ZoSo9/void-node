@@ -12,11 +12,11 @@ current_reported_config_identity: two-box-mainnet0-baseline
 
 status: candidate
 status_reason: two-box mainnet0 readiness proof green
-status_last_changed_at: 2026-04-05T01:49:42Z
+status_last_changed_at: 2026-04-13T02:15:34Z
 
-last_known_head: 1607
-last_known_health: ok=true
-last_known_drift: 0
+last_known_head: 68103
+last_known_health: ready=true
+last_known_drift: 3
 checkpoint_awareness_status: baseline-observe
 incident_response_readiness: policy-stack-sanity-green
 
@@ -28,7 +28,8 @@ last_incident_involved: null
 
 notes:
   - "node_id=53a5268cd87aa0ed5b5cedb24f7ac734"
-  - "same_node=false"
-  - "peer_head_gap=0"
+  - "same_node=False"
+  - "peer_head_gap=3"
+  - "txroot_live=1"
 operator_comments:
-  - "Stamped from live two-box mainnet0 readiness proof."
+  - "Stamped from live validator admission status script."
