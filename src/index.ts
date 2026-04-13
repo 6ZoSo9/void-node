@@ -43989,7 +43989,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const hasOnchainWc = Number.isFinite(onchainTradeableWc) && onchainTradeableWc > 0;
 
       try {
-        const setMiniLabel = (valueId:any, title:any, subtitle:any) => {
+        const setMiniLabel = (valueId, title, subtitle) => {
           const el = $(valueId);
           const mini = el && el.closest ? el.closest(".mini") : null;
           if (!mini) return;
@@ -44024,7 +44024,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       } catch (_) {}
 
       try {
-        const hideById = (id:any) => {
+        const hideById = (id) => {
           const el = $(id);
           if (!el) return;
           const panel = el.closest ? el.closest(".panel") : null;
@@ -44044,7 +44044,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       } catch (_) {}
 
       if ($("tradeUseRedeemableBtn")) {
-        $("tradeUseRedeemableBtn").onclick = function(ev:any){
+        $("tradeUseRedeemableBtn").onclick = function(ev){
           try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
           try { if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation(); } catch (_) {}
           try {
