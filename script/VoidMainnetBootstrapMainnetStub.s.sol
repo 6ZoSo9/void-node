@@ -10,19 +10,49 @@ import {console2} from "forge-std/console2.sol";
 ///      until the real compile-green mainnet bootstrap source is rebuilt.
 contract VoidMainnetBootstrapMainnetStub is Script {
     string internal constant RUN_STUB_ONLY = "RUN_STUB_ONLY";
+    string internal constant PLAN_VERSION = "void-mainnet-plan-stub-v2";
+
+    function _emitLine(string memory k, string memory v) internal pure {
+        console2.log(k);
+        console2.log(v);
+    }
+
+    function _emitLineUint(string memory k, uint256 v) internal pure {
+        console2.log(k);
+        console2.logUint(v);
+    }
 
     function _emitPlan(string memory configPath) internal view {
         console2.log("=== [VOID mainnet bootstrap PLAN (stub)] ===");
-        console2.log("configPath:");
-        console2.log(configPath);
-        console2.log("chainId expected:");
-        console2.logUint(block.chainid);
-        console2.log("note:");
-        console2.log("This is a maintained stub-only bootstrap script.");
-        console2.log("It intentionally avoids project-contract imports.");
-        console2.log("Use it to prove plan/artifact wiring while live bootstrap source is rebuilt.");
-        console2.log("marker:");
-        console2.log(RUN_STUB_ONLY);
+
+        _emitLine("PLAN_KIND", "mainnet_bootstrap_plan");
+        _emitLine("PLAN_MODE", "stub_only");
+        _emitLine("PLAN_VERSION", PLAN_VERSION);
+        _emitLine("CONFIG_PATH", configPath);
+        _emitLineUint("CHAIN_ID_EXPECTED", block.chainid);
+
+        _emitLine("SECTION", "deploy_order");
+        _emitLine("DEPLOY_01", "UpdateGate");
+        _emitLine("DEPLOY_02", "AdminGate");
+        _emitLine("DEPLOY_03", "ConfigGate");
+        _emitLine("DEPLOY_04", "ValidatorSet");
+        _emitLine("DEPLOY_05", "VoidToken");
+        _emitLine("DEPLOY_06", "VoidTreasury");
+        _emitLine("DEPLOY_07", "OpsTreasury");
+        _emitLine("DEPLOY_08", "RewardEngine");
+
+        _emitLine("SECTION", "locked_invariants");
+        _emitLine("INVARIANT_01", "plan_only_no_broadcast");
+        _emitLine("INVARIANT_02", "permissionless_user_contract_deploy_and_calls_preserved");
+        _emitLine("INVARIANT_03", "master_key_gates_only_for_locked_admin_surfaces");
+        _emitLine("INVARIANT_04", "treasury_and_tokenomics_must_match_live_json_plan");
+        _emitLine("INVARIANT_05", "validator_and_gate_wiring_must_be_explicit_before_live_run");
+
+        _emitLine("SECTION", "status");
+        _emitLine("NOTE", "maintained stub-only bootstrap script");
+        _emitLine("NOTE", "intentionally avoids project-contract imports");
+        _emitLine("NOTE", "proves plan/artifact wiring while live bootstrap source is rebuilt");
+        _emitLine("MARKER", RUN_STUB_ONLY);
     }
 
     function plan(string calldata configPath) external view {

@@ -1,217 +1,58 @@
 {
-  "chainId": 2050,
-  "mode": "mainnet_plan_stub",
-  "status": "stub_only_not_live",
-  "keys_source": "luks_flash_drives",
-  "premine_model": {
-    "type": "segmented_offline_vaults",
-    "vault_count": 30,
-    "vaults_live_online_by_default": false,
-    "touch_one_vault_at_a_time": true,
-    "active_hot_wallet_required": true,
-    "active_hot_wallet_should_be_small": true,
-    "pool_seeding_source": "premine_allocations"
-  },
-  "selected_premine_vault": {
-    "id": "TBD",
-    "address": "TBD",
-    "status": "offline_unassigned",
-    "purpose": "TBD"
-  },
   "active_hot_wallet": {
     "address": "TBD",
     "max_balance_policy": "bounded_operational_buffer",
     "notes": "Small active operational wallet only."
   },
-  "funding_allocations": {
-    "hot_wallet_refill": "0",
-    "treasury_allocation": "0",
-    "pool_seeding_allocation": "0",
-    "other_allocations": []
-  },
-  "roles": {
-    "AdminGate": "TBD",
-    "UpdateGate": "TBD",
-    "ConfigGate": "TBD",
-    "ValidatorSet": "TBD",
-    "VoidToken": "TBD",
-    "VoidTreasury": "TBD",
-    "OpsTreasury": "TBD",
-    "RewardEngine": "TBD"
-  },
   "admins": {
     "adminGateController": "TBD",
-    "updateGateController": "TBD",
     "configGateController": "TBD",
-    "validatorAdmin": "TBD",
-    "voidTreasuryAdmin": "TBD",
     "opsTreasuryAdmin": "TBD",
-    "rewardEngineAdmin": "TBD"
+    "rewardEngineAdmin": "TBD",
+    "updateGateController": "TBD",
+    "validatorAdmin": "TBD",
+    "voidTreasuryAdmin": "TBD"
   },
-  "validator0": {
-    "reward": "TBD",
-    "consensusKey": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "stakeVOID": "0"
+  "chainId": 2050,
+  "funding_allocations": {
+    "hot_wallet_refill": "0",
+    "other_allocations": [],
+    "pool_seeding_allocation": "0",
+    "treasury_allocation": "0"
   },
-  "pool_seeding_plan": {
-    "enabled": false,
-    "source": "premine_allocations",
-    "amount": "0",
-    "destination": "TBD",
-    "notes": "Enable only when current cycle includes pool seeding."
-  },
-  "premine_vaults": [
-    {
-      "id": "vault01",
-      "address": "TBD",
-      "status": "offline_unassigned"
+  "keys_source": "luks_flash_drives",
+  "metadata": {
+    "operator_intent": {
+      "real_addresses_committed": false,
+      "real_keys_committed": false,
+      "real_values_expected_only_in_offline_or_local_operator_inputs": true
     },
-    {
-      "id": "vault02",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault03",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault04",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault05",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault06",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault07",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault08",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault09",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault10",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault11",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault12",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault13",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault14",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault15",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault16",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault17",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault18",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault19",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault20",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault21",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault22",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault23",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault24",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault25",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault26",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault27",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault28",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault29",
-      "address": "TBD",
-      "status": "offline_unassigned"
-    },
-    {
-      "id": "vault30",
-      "address": "TBD",
-      "status": "offline_unassigned"
+    "stub_policy": {
+      "description": "This pinned file is a non-live planning stub. Real addresses/keys remain offline until live bootstrap preparation.",
+      "may_remain_stub_in_plan_mode": [
+        "selected_premine_vault.*",
+        "active_hot_wallet.address",
+        "roles.*",
+        "admins.*",
+        "funding_allocations.reward",
+        "funding_allocations.destination",
+        "premine_vaults[*].address"
+      ],
+      "mode": "mainnet_plan_stub",
+      "must_fill_before_live": [
+        "selected_premine_vault.id",
+        "selected_premine_vault.address",
+        "selected_premine_vault.purpose",
+        "active_hot_wallet.address",
+        "roles.*",
+        "admins.*",
+        "funding_allocations.reward",
+        "funding_allocations.destination",
+        "premine_vaults[*].address"
+      ]
     }
-  ],
+  },
+  "mode": "mainnet_plan_stub",
   "notes": [
     "Mainnet plan is stub-only until real live addresses are assigned.",
     "Do not reuse devnet keys for mainnet.",
@@ -224,35 +65,200 @@
     "Real mainnet keys remain on LUKS flash drives.",
     "Do not model full-premine transfer into VoidTreasury."
   ],
-  "metadata": {
-    "stub_policy": {
-      "mode": "mainnet_plan_stub",
-      "description": "This pinned file is a non-live planning stub. Real addresses/keys remain offline until live bootstrap preparation.",
-      "must_fill_before_live": [
-        "selected_premine_vault.id",
-        "selected_premine_vault.address",
-        "selected_premine_vault.purpose",
-        "active_hot_wallet.address",
-        "roles.*",
-        "admins.*",
-        "funding_allocations.reward",
-        "funding_allocations.destination",
-        "premine_vaults[*].address"
-      ],
-      "may_remain_stub_in_plan_mode": [
-        "selected_premine_vault.*",
-        "active_hot_wallet.address",
-        "roles.*",
-        "admins.*",
-        "funding_allocations.reward",
-        "funding_allocations.destination",
-        "premine_vaults[*].address"
-      ]
+  "pool_seeding_plan": {
+    "amount": "0",
+    "destination": "TBD",
+    "enabled": false,
+    "notes": "Enable only when current cycle includes pool seeding.",
+    "source": "premine_allocations"
+  },
+  "premine_model": {
+    "active_hot_wallet_required": true,
+    "active_hot_wallet_should_be_small": true,
+    "pool_seeding_source": "premine_allocations",
+    "touch_one_vault_at_a_time": true,
+    "type": "segmented_offline_vaults",
+    "vault_count": 30,
+    "vaults_live_online_by_default": false
+  },
+  "premine_vaults": [
+    {
+      "address": "TBD",
+      "id": "vault01",
+      "status": "offline_unassigned"
     },
-    "operator_intent": {
-      "real_addresses_committed": false,
-      "real_keys_committed": false,
-      "real_values_expected_only_in_offline_or_local_operator_inputs": true
+    {
+      "address": "TBD",
+      "id": "vault02",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault03",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault04",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault05",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault06",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault07",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault08",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault09",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault10",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault11",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault12",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault13",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault14",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault15",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault16",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault17",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault18",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault19",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault20",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault21",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault22",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault23",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault24",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault25",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault26",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault27",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault28",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault29",
+      "status": "offline_unassigned"
+    },
+    {
+      "address": "TBD",
+      "id": "vault30",
+      "status": "offline_unassigned"
     }
-  }
+  ],
+  "roles": {
+    "AdminGate": "TBD",
+    "ConfigGate": "TBD",
+    "OpsTreasury": "TBD",
+    "RewardEngine": "TBD",
+    "UpdateGate": "TBD",
+    "ValidatorSet": "TBD",
+    "VoidToken": "TBD",
+    "VoidTreasury": "TBD"
+  },
+  "selected_premine_vault": {
+    "address": "TBD",
+    "id": "TBD",
+    "purpose": "TBD",
+    "status": "offline_unassigned"
+  },
+  "status": "stub_only_not_live",
+  "treasury": {
+    "mode": "stub_placeholder_not_live",
+    "ops_treasury": "0x0000000000000000000000000000000000000000",
+    "void_treasury": "0x0000000000000000000000000000000000000000"
+  },
+  "validator0": {
+    "consensusKey": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "reward": "TBD",
+    "stakeVOID": "0"
+  },
+  "validators": []
 }
