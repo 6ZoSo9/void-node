@@ -42827,7 +42827,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Current WC Balance<span class="help" tabindex="0" data-help="Work Credits tracked on the participant account. This is the source used for earning, redeeming, and trade eligibility.">?</span></h2>
+              <h2>Local WC<span class="help" tabindex="0" data-help="Work Credits tracked on the participant account. This is the source used for earning, redeeming, and trade eligibility.">?</span></h2>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -43948,11 +43948,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     };
 
     const walletReadyTop = !!wcAddr;
-    const hasRedeemableTop = Number.isFinite(redeemableTotal) && redeemableTotal > 0;
+    const localWcTop = redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0;
+    const onchainWcTop = (wcBal && Number.isFinite(Number(wcBal.wc))) ? Number(wcBal.wc) : 0;
+    const hasOnchainWcTop = onchainWcTop > 0;
 
     topStripSet("topStripWallet", walletReadyTop ? "Wallet: Connected" : "Wallet: Not connected", walletReadyTop ? "good" : "warn");
-    topStripSet("topStripWc", "Usable WC: " + String(redeemableTotal), hasRedeemableTop ? "good" : "neutral");
-    topStripSet("topStripTrade", hasRedeemableTop ? ("Trade: " + String(redeemableTotal) + " WC available") : "Trade: No WC ready", hasRedeemableTop ? "good" : "warn");
+    topStripSet("topStripWc", "Local WC: " + String(localWcTop), localWcTop > 0 ? "good" : "neutral");
+    topStripSet("topStripTrade", hasOnchainWcTop ? ("On-chain WC: " + String(onchainWcTop)) : "On-chain WC: 0", hasOnchainWcTop ? "good" : "warn");
     try {
       if (payout && payout.joined && payoutLatest && payoutCredit) {
         setText("latestJobState", "+" + String(Number(payoutCredit.delta || 0)) + " WC");
@@ -44006,21 +44008,29 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         setMiniLabel("connectedWalletVoidMini", "VOID", "execution wallet");
         setMiniLabel("helperRedeemableMini", "Local WC", "participant-side");
 
-        if ($("walletEarnedMini") && redeemState && Number.isFinite(Number(redeemState.earned))) {
-          $("walletEarnedMini").textContent = String(Number(redeemState.earned));
+        const localWcNow = redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0;
+        const onchainWcNow = wcBal && wcBal.wc != null ? Number(wcBal.wc) : 0;
+        const voidNow = executionWalletVoid !== null ? String(executionWalletVoid) : "-";
+
+        if ($("walletEarnedMini")) {
+          $("walletEarnedMini").textContent = String(localWcNow);
         }
         if ($("walletRedeemedMini")) {
-          $("walletRedeemedMini").textContent = wcBal && wcBal.wc != null ? String(wcBal.wc) : "-";
+          $("walletRedeemedMini").textContent = String(onchainWcNow);
         }
         if ($("walletRedeemableMini")) {
-          $("walletRedeemableMini").textContent = executionWalletVoid !== null ? String(executionWalletVoid) : "-";
+          $("walletRedeemableMini").textContent = voidNow;
         }
-        if ($("helperRedeemableMini") && redeemState && Number.isFinite(Number(redeemState.earned))) {
-          $("helperRedeemableMini").textContent = String(Number(redeemState.earned));
+        if ($("helperRedeemableMini")) {
+          $("helperRedeemableMini").textContent = String(localWcNow);
         }
         if ($("tradeRedeemableWc")) {
           $("tradeRedeemableWc").textContent = String(onchainTradeableWc);
         }
+
+        if ($("walletBalanceValue")) $("walletBalanceValue").textContent = String(localWcNow);
+        if ($("walletMeta")) $("walletMeta").textContent = "Local participant-side WC on this node.";
+        if ($("walletRedeemedSummary")) $("walletRedeemedSummary").textContent = "On-chain WC: " + String(onchainWcNow);
       } catch (_) {}
 
       try {
@@ -44036,11 +44046,34 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         hideById("redeemBtn");
         hideById("redeemMaxBtn");
         hideById("redeemHistoryWrap");
-        const debitedMini = $("walletDebitedMini");
-        if (debitedMini && debitedMini.closest) {
-          const mini = debitedMini.closest(".mini");
-          if (mini) mini.style.display = "none";
-        }
+
+        try {
+          const currentCard = $("walletBalanceValue");
+          const card = currentCard && currentCard.closest ? currentCard.closest(".panel") : null;
+          if (card) {
+            const notes = card.querySelectorAll(".subtle-tab-copy, .hero-note, .s");
+            notes.forEach((node) => {
+              const t = String((node.textContent || "")).toLowerCase();
+              if (
+                t.includes("usable wc right now") ||
+                t.includes("redeemed wc") ||
+                t.includes("backend truth") ||
+                t.includes("already used") ||
+                t.includes("already moved to trading")
+              ) {
+                node.style.display = "none";
+              }
+            });
+          }
+        } catch (_) {}
+        const hideMiniById = (id) => {
+          const el = $(id);
+          if (el && el.closest) {
+            const mini = el.closest(".mini");
+            if (mini) mini.style.display = "none";
+          }
+        };
+        hideMiniById("walletDebitedMini");
       } catch (_) {}
 
       if ($("tradeUseRedeemableBtn")) {
