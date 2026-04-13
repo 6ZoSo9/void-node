@@ -42376,8 +42376,8 @@ a{color:#93c5fd;text-decoration:none}
 
     <section id="participantTopStatusStrip" class="hero-note" style="margin:0 0 14px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="topStripWallet" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Wallet: -</span>
-      <span id="topStripWc" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Usable WC: -</span>
-      <span id="topStripTrade" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Trade: -</span>
+      <span id="topStripWc" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Local WC: -</span>
+      <span id="topStripTrade" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">On-chain WC: -</span>
       <span id="topStripRelayer" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Relayer: -</span>
       <span id="topStripRunner" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Runner: -</span>
     </section>
@@ -42391,7 +42391,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="kpi">
         <div class="k">Already Redeemed</div>
         <div class="v" id="syncGap">-</div>
-        <div class="s" id="syncMeta">Checking redeemed amount…</div>
+        <div class="s" id="syncMeta">Checking local/on-chain balances…</div>
       </div>
       <div class="kpi">
         <div class="k">On-chain WC</div>
@@ -42734,7 +42734,7 @@ a{color:#93c5fd;text-decoration:none}
 
         <div class="metric-strip top-kpis" style="margin-top:12px">
           <div class="mini">
-            <div class="k">Spendable WC</div>
+            <div class="k">On-chain WC</div>
             <div class="v" id="tradeRedeemableWc">-</div>
             <div class="s">execution wallet</div>
           </div>
@@ -42854,9 +42854,9 @@ a{color:#93c5fd;text-decoration:none}
               <div class="s">for trade path</div>
             </div>
             <div class="mini" style="border:1px solid rgba(255,255,255,.14);box-shadow:0 0 0 1px rgba(255,255,255,.03) inset">
-              <div class="k">Spendable</div>
+              <div class="k">VOID</div>
               <div class="v" id="walletRedeemableMini" style="font-size:34px">-</div>
-              <div class="s">usable now</div>
+              <div class="s">execution wallet</div>
             </div>
           </div>
 
@@ -43895,29 +43895,27 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         : "Lifetime earned WC is unavailable right now."
     );
 
-    setText("walletRedeemableBig", redeemableTotal);
+    const localWcTruth = redeemState && Number.isFinite(Number(redeemState.earned))
+      ? Number(redeemState.earned)
+      : (localEarned !== null ? Number(localEarned) : 0);
+    const onchainWcTruth = wcBal && wcBal.wc != null && Number.isFinite(Number(wcBal.wc))
+      ? Number(wcBal.wc)
+      : 0;
+
+    setText("walletRedeemableBig", localWcTruth);
     setText(
       "walletMeta",
-      payout && payout.wallet
-        ? ("Usable WC right now: " + Number(payout.wallet.redeemable || 0) +
-           " • Lifetime earned: " + Number(payout.wallet.earned || 0) +
-           " • Already used/spent: " + Number(payout.wallet.debited || 0) +
-           " • Already moved to trading: " + Number(payout.wallet.redeemed || 0) +
-           " • Wallet WC balance: " + Number(payout.wallet.wc_balance || 0) +
-           " • Account: " + account)
-        : (redeemState
-            ? ("Usable WC right now: " + redeemableTotal + " • Lifetime earned: " + (Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0) + " • Already used/spent: " + (Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0) + " • Already moved to trading: " + redeemedTotal + " • Account: " + account)
-            : "Participant-side Work Credit state is unavailable right now.")
+      "Local participant-side WC on this node."
     );
-    setText("walletEarnedMini", redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : (localEarned !== null ? localEarned : "-"));
+    setText("walletEarnedMini", localWcTruth);
     setText("walletDebitedMini", redeemState && Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0);
-    setText("walletRedeemedMini", redeemedTotal);
-    setText("walletRedeemableMini", redeemableTotal);
+    setText("walletRedeemedMini", onchainWcTruth);
+    setText("walletRedeemableMini", executionWalletVoidText);
 
     setText("connectedWalletVoidBig", executionWalletVoidText);
     setText("connectedWalletVoidMini", executionWalletVoidText);
     setText("connectedWalletAddrMini", shortAddr(wcAddr || connectedWallet));
-    setText("helperRedeemableMini", redeemableTotal);
+    setText("helperRedeemableMini", localWcTruth);
     setText(
       "connectedWalletMeta",
       isWalletAddr(connectedWallet)
@@ -43930,7 +43928,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("tradePriceWcPerVoid", wcPerVoid !== null ? wcPerVoid : "-");
     setText("tradeWalletWc", wcBal ? wcBal.wc : "-");
     setText("tradeWalletVoid", executionWalletVoid !== null ? executionWalletVoid : "-");
-    setText("tradeRedeemableWc", redeemableTotal);
+    setText("tradeRedeemableWc", wcBal && wcBal.wc != null && Number.isFinite(Number(wcBal.wc)) ? Number(wcBal.wc) : 0);
     setText("tradeQuoteVoid", quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-");
     setText("tradeRelayerState", relayerUp ? "Direct Trading Ready" : "Direct Trading Unavailable");
 
@@ -44277,10 +44275,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         : "No connected wallet"
     );
 
-    const tradingWcHome = Number.isFinite(Number(redeemedTotal)) ? Number(redeemedTotal) : 0;
+    const tradingWcHome = wcBal && wcBal.wc != null && Number.isFinite(Number(wcBal.wc)) ? Number(wcBal.wc) : 0;
     setText("syncGap", tradingWcHome);
     if (syncEl) syncEl.className = "v";
-    setText("syncMeta", "Already redeemed from participant");
+    setText("syncMeta", "On-chain WC currently available in execution wallet");
 
     if ($("systemStatusCard")) {
       const sys = [];
@@ -44995,23 +44993,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const quoteText = quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-";
 
       // __void_trade_overview_badge_v1
+      const onchainTradeAvailable = wcBal && wcBal.wc != null && Number.isFinite(Number(wcBal.wc)) ? Number(wcBal.wc) : 0;
+      const hasOnchainTradeAvailable = onchainTradeAvailable > 0;
       const tradeStateBadge =
         !walletReady
           ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.25);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#e5e7eb;background:rgba(148,163,184,.10)">No Wallet</span>'
           : !relayerUp
             ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(239,68,68,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fca5a5;background:rgba(239,68,68,.12)">Unavailable</span>'
-            : !hasRedeemable
-              ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(245,158,11,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fcd34d;background:rgba(245,158,11,.12)">No WC Ready</span>'
+            : !hasOnchainTradeAvailable
+              ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(245,158,11,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fcd34d;background:rgba(245,158,11,.12)">No On-chain WC</span>'
               : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(34,197,94,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#86efac;background:rgba(34,197,94,.12)">Available</span>';
 
       const tradeOverviewText =
         !walletReady
           ? "Connect a wallet to execute a trade."
           : !relayerUp
-            ? ("Local relayer offline • " + redeemableTotal + " WC is still available once helper/relayer returns.")
-            : !hasRedeemable
-              ? "No WC is available to trade yet."
-              : ("Trade ready • " + redeemableTotal + " WC can swap for about " + quoteText + " VOID" +
+            ? "Local relayer offline • on-chain WC trade path unavailable right now."
+            : !hasOnchainTradeAvailable
+              ? "No on-chain WC is available to trade yet."
+              : ("Trade ready • " + onchainTradeAvailable + " on-chain WC can swap for about " + quoteText + " VOID" +
                  (wcAddrShort ? (" • Wallet " + wcAddrShort) : "") +
                  "");
 
@@ -45023,7 +45023,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       try {
         $("tradeOverviewCard").title =
           "Wallet ready: " + (walletReady ? "yes" : "no") +
-          " • Participant WC available: " + redeemableTotal +
+          " • On-chain WC available: " + onchainTradeAvailable +
           " • Quoted VOID: " + quoteText +
           " • Local helper/relayer trade: " + (relayerUp ? "Ready" : "Unavailable") +
           (wcAddr ? " • Execution wallet: " + wcAddr : "");
