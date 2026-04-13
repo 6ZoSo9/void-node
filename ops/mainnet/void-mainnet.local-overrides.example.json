@@ -1,0 +1,40 @@
+{
+  "selected_premine_vault": {
+    "id": "vault-01",
+    "address": "0xREPLACE_WITH_REAL_OFFLINE_VAULT_ADDRESS",
+    "status": "offline_selected",
+    "purpose": "hot_wallet_refill_seed"
+  },
+  "active_hot_wallet": {
+    "address": "0xREPLACE_WITH_REAL_ACTIVE_HOT_WALLET_ADDRESS"
+  },
+  "roles": {
+    "AdminGate": "0xREPLACE",
+    "UpdateGate": "0xREPLACE",
+    "ConfigGate": "0xREPLACE",
+    "ValidatorSet": "0xREPLACE",
+    "VoidToken": "0xREPLACE",
+    "VoidTreasury": "0xREPLACE",
+    "OpsTreasury": "0xREPLACE",
+    "RewardEngine": "0xREPLACE"
+  },
+  "admins": {
+    "adminGateController": "0xREPLACE",
+    "updateGateController": "0xREPLACE",
+    "configGateController": "0xREPLACE",
+    "validatorAdmin": "0xREPLACE",
+    "voidTreasuryAdmin": "0xREPLACE",
+    "opsTreasuryAdmin": "0xREPLACE",
+    "rewardEngineAdmin": "0xREPLACE"
+  },
+  "funding_allocations": {
+    "reward": "REPLACE",
+    "destination": "0xREPLACE"
+  },
+  "premine_vaults": [
+    { "id": "vault-01", "address": "0xREPLACE_WITH_REAL_OFFLINE_VAULT_ADDRESS" }
+  ],
+  "metadata": {
+    "operator_local_overlay": true
+  }
+}

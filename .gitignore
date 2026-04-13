@@ -145,3 +145,5 @@ releases/
 !/script/mainnet_rebuild/
 !/script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol
 ops/mainnet/validator-identity.env
+ops/mainnet/void-mainnet.local-overrides.json
+ops/mainnet/void-mainnet.live.local.json
