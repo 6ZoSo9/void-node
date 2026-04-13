@@ -227,16 +227,53 @@ async function realQuoteWCToVoid(amountHuman, wallet) {
   };
 }
 
-async function quote(side, amount, wallet) {
-  if (String(side) !== 'wc_to_void') {
-    return {
-      ok: false,
-      error: 'unsupported_side',
-      side: String(side || ''),
-      supported: ['wc_to_void'],
-    };
+async function realQuoteVoidToWC(amountHuman, wallet) {
+  const addrs = await resolveAddresses(wallet);
+  if (!addrs.pool) throw new Error('missing_pool_address');
+  const rawIn = BigInt(String(parseHumanToRaw18(amountHuman)));
+  const poolJson = JSON.parse(require('child_process').execFileSync(
+    'curl',
+    ['-fsS', 'http://127.0.0.1:4312/workcredits/devnet/pool.json'],
+    { encoding: 'utf8' }
+  ));
+  const reserveWc = BigInt(String(poolJson.reserves.wc_raw));
+  const reserveVoid = BigInt(String(poolJson.reserves.void_raw));
+  if (reserveWc <= 0n || reserveVoid <= 0n) {
+    throw new Error('helper pool reserves unavailable');
   }
-  return await realQuoteWCToVoid(amount, wallet || DEFAULT_WALLET);
+  let rawOut = (rawIn * reserveWc) / (reserveVoid + rawIn);
+  rawOut = (rawOut * 995n) / 1000n;
+  return {
+    ok: true,
+    mode: 'onchain_quote',
+    side: 'void_to_wc',
+    amount_in: String(amountHuman),
+    amount_in_raw: rawIn.toString(),
+    amount_out: format18(rawOut),
+    amount_out_raw: rawOut.toString(),
+    pricing_source: 'helper.pool_json.constant_product_conservative',
+    pool_price: addrs.helper_pool && addrs.helper_pool.price ? addrs.helper_pool.price : null,
+    pool: addrs.pool,
+    wc_token: addrs.wc || null,
+    void_token: addrs.voidToken || null,
+    helper_pool: addrs.helper_pool || null,
+  };
+}
+
+async function quote(side, amount, wallet) {
+  const s = String(side || '').trim();
+  if (s === 'wc_to_void') {
+    return await realQuoteWCToVoid(amount, wallet || DEFAULT_WALLET);
+  }
+  if (s === 'void_to_wc') {
+    return await realQuoteVoidToWC(amount, wallet || DEFAULT_WALLET);
+  }
+  return {
+    ok: false,
+    error: 'unsupported_side',
+    side: s,
+    supported: ['wc_to_void', 'void_to_wc'],
+  };
 }
 
 async function executeTrade(body) {
@@ -248,7 +285,7 @@ async function executeTrade(body) {
   const slippageBps = Number(body && body.maxSlippageBps != null ? body.maxSlippageBps : DEFAULT_SLIPPAGE_BPS);
 
   if (side !== 'wc_to_void') {
-    return { status: 400, body: { ok:false, error:'unsupported_side', side } };
+    return { status: 400, body: { ok:false, error:'unsupported_side', side, supported: ['wc_to_void'] } };
   }
   if (!/^\d+(\.\d+)?$/.test(amountStr) || Number(amountStr) <= 0) {
     return { status: 400, body: { ok:false, error:'invalid_amount', amount: body && body.amount } };
