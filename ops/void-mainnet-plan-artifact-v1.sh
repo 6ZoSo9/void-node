@@ -10,6 +10,8 @@ FORGE="/home/zoso/.foundry/bin/forge"
 # Writes:
 #   /root/void-mainnet-plan/plan.<ts>.txt
 #   /root/void-mainnet-plan/plan.latest.txt
+#   /root/void-mainnet-plan/plan.<ts>.json
+#   /root/void-mainnet-plan/plan.latest.json
 #   /var/lib/node_exporter/textfile_collector/void_mainnet_bootstrap_plan_artifact.prom
 
 [[ "${EUID}" -eq 0 ]] || { echo "[ERR] run as root (sudo)"; exit 1; }
@@ -170,6 +172,8 @@ echo
 echo "=== [2] run forge script (PLAN-only; should NOT broadcast) ==="
 PLAN_TXT="$OUTDIR/plan.${TS}.txt"
 PLAN_LATEST="$OUTDIR/plan.latest.txt"
+PLAN_JSON="$OUTDIR/plan.${TS}.json"
+PLAN_JSON_LATEST="$OUTDIR/plan.latest.json"
 
 cd "$FOUNDRY_ROOT"
 
@@ -209,10 +213,15 @@ cp -a "$PLAN_TXT" "$PLAN_LATEST" || true
 HASH="$(sha256sum "$PLAN_TXT" | awk '{print $1}')"
 LIVE_HASH="$(sha256sum "$LIVE_JSON" | awk '{print $1}')"
 
-echo
-echo "=== [3] write textfile metrics (atomic) ==="
-TMP_PROM="$(mktemp)"
-trap 'rm -f "$TMP_PROM"' EXIT
+MARKER_DETECTED=0
+if [[ "$STUB_OK" -eq 1 ]]; then
+  MARKER_DETECTED=1
+fi
+
+STUB_ONLY=0
+if [[ "$MODE" == "mainnet_plan_stub" && "$STATUS" == "stub_only_not_live" ]]; then
+  STUB_ONLY=1
+fi
 
 OK=1
 if [[ "$RC" -ne 0 && "$STUB_OK" -ne 1 ]]; then
@@ -221,6 +230,56 @@ fi
 if [[ "$PLAN_FACTS_OK" -ne 1 ]]; then
   OK=0
 fi
+
+export PLAN_OK="$OK"
+export STUB_ONLY="$STUB_ONLY"
+export PLAN_VERSION_VALUE="void-mainnet-plan-stub-v2"
+export CHAIN_ID_VALUE="$CHAIN_ID"
+export LIVE_JSON_VALUE="$LIVE_JSON"
+export LIVE_HASH_VALUE="$LIVE_HASH"
+export PLAN_TXT_VALUE="$PLAN_TXT"
+export PLAN_HASH_VALUE="$HASH"
+export SCRIPT_PATH_VALUE="$SCRIPT_PATH"
+export CONTRACT_NAME_VALUE="$CONTRACT_NAME"
+export MARKER_DETECTED="$MARKER_DETECTED"
+export PLAN_FACTS_OK_VALUE="$PLAN_FACTS_OK"
+export RC_VALUE="$RC"
+export MODE_VALUE="$MODE"
+export STATUS_VALUE="$STATUS"
+
+python3 - "$PLAN_JSON" <<'PY'
+import json, os, sys
+
+out = sys.argv[1]
+payload = {
+  "ok": int(os.environ["PLAN_OK"]),
+  "stub_only": int(os.environ["STUB_ONLY"]),
+  "plan_version": os.environ["PLAN_VERSION_VALUE"],
+  "chain_id": int(os.environ["CHAIN_ID_VALUE"]),
+  "live_json": os.environ["LIVE_JSON_VALUE"],
+  "live_json_hash": os.environ["LIVE_HASH_VALUE"],
+  "plan_artifact_path": os.environ["PLAN_TXT_VALUE"],
+  "plan_artifact_hash": os.environ["PLAN_HASH_VALUE"],
+  "script_path": os.environ["SCRIPT_PATH_VALUE"],
+  "contract_name": os.environ["CONTRACT_NAME_VALUE"],
+  "marker_detected": int(os.environ["MARKER_DETECTED"]),
+  "plan_facts_ok": int(os.environ["PLAN_FACTS_OK_VALUE"]),
+  "rc": int(os.environ["RC_VALUE"]),
+  "mode": os.environ["MODE_VALUE"],
+  "status": os.environ["STATUS_VALUE"]
+}
+with open(out, "w") as f:
+  json.dump(payload, f, indent=2, sort_keys=True)
+  f.write("\n")
+PY
+
+rm -f "$PLAN_JSON_LATEST"
+cp -a "$PLAN_JSON" "$PLAN_JSON_LATEST" || true
+
+echo
+echo "=== [3] write textfile metrics (atomic) ==="
+TMP_PROM="$(mktemp)"
+trap 'rm -f "$TMP_PROM"' EXIT
 
 cat >"$TMP_PROM" <<PROM
 # HELP void_mainnet_bootstrap_plan_artifact_ok 1 if PLAN artifact generation succeeded.
@@ -241,6 +300,7 @@ mv -f "$TMP_PROM" "$DEST_PROM"
 chmod 0644 "$DEST_PROM"
 
 echo "[ok] plan_txt   = $PLAN_TXT"
+echo "[ok] plan_json  = $PLAN_JSON"
 echo "[ok] plan_hash  = $HASH"
 echo "[ok] live_hash  = $LIVE_HASH"
 echo "[ok] prom_file  = $DEST_PROM"
