@@ -31,42 +31,47 @@ now="$(q 'max(void_datanet_overall_health_by_target)')"
 last5="$(q 'max(void_datanet_overall_health_by_target)')"
 receipts_age_now="$(q 'max(void_datanet_receipts_file_age_seconds)')"
 receipts_ok_now="$(q 'max(void_datanet_receipts_file_status_ok)')"
-receipts_ok_last5="$(q 'max(void_datanet_receipts_file_ok_last_5m)')"
+receipts_ok_last5="$(q 'max(void:datanet_receipts_file:pillar_ok:last_5m)')"
 comp=""
 
 # fallbacks for older recording names if they still exist
-if [ -z "${now}" ] || [ "${now}" = "0" ]; then
+if [ -z "${now}" ]; then
   now="$(q 'datanet_ok_now')"
 fi
-if [ -z "${last5}" ] || [ "${last5}" = "0" ]; then
+if [ -z "${last5}" ]; then
   last5="$(q 'datanet_ok_last5m')"
 fi
-if [ -z "${receipts_age_now}" ] || [ "${receipts_age_now}" = "0" ]; then
+if [ -z "${receipts_age_now}" ]; then
   receipts_age_now="$(q 'datanet_receipts_age_now')"
 fi
-if [ -z "${receipts_ok_now}" ] || [ "${receipts_ok_now}" = "0" ]; then
+if [ -z "${receipts_ok_now}" ]; then
   receipts_ok_now="$(q 'datanet_receipts_ok_now')"
 fi
-if [ -z "${receipts_ok_last5}" ] || [ "${receipts_ok_last5}" = "0" ]; then
+if [ -z "${receipts_ok_last5}" ]; then
+  receipts_ok_last5="$(q 'max(void_datanet_receipts_file_ok_last_5m)')"
+fi
+if [ -z "${receipts_ok_last5}" ]; then
   receipts_ok_last5="$(q 'datanet_receipts_ok_last5m')"
 fi
 
-# raw fallbacks if recordings are missing
-if [ -z "${now}" ] || [ "${now}" = "0" ]; then
+# raw fallbacks only if recordings are missing (empty), not when they are legitimately 0
+if [ -z "${now}" ]; then
   now="$(q 'max(void_datanet_smoke_ok) * max(void_datanet_mvp_smoke_ok)')"
 fi
-if [ -z "${last5}" ] || [ "${last5}" = "0" ]; then
+if [ -z "${last5}" ]; then
   last5="$(q '(max(min_over_time(void_datanet_smoke_ok[5m])) > bool 0) * (max(min_over_time(void_datanet_mvp_smoke_ok[5m])) > bool 0)')"
 fi
-if [ -z "${receipts_ok_now}" ] || [ "${receipts_ok_now}" = "0" ]; then
+if [ -z "${receipts_ok_now}" ]; then
   receipts_ok_now="$(q 'max(void_datanet_receipts_file_status_ok)')"
 fi
-if [ -z "${receipts_ok_last5}" ] || [ "${receipts_ok_last5}" = "0" ]; then
+if [ -z "${receipts_ok_last5}" ]; then
   receipts_ok_last5="$(q 'max(void_datanet_receipts_file_ok_last_5m)')"
 fi
 
-comp="$(q 'datanet_composite_last5m')"
-if [ -z "${comp}" ] || [ "${comp}" = "0" ]; then
+# Canonical composite for this check: live datanet health * receipts-file pillar health.
+# Do not trust old datanet_composite_last5m if it exists; compute from maintained inputs.
+comp="$(q 'max(void_datanet_overall_health_by_target) * max(void:datanet_receipts_file:pillar_ok:last_5m)')"
+if [ -z "${comp}" ]; then
   comp="$(q '('"${last5:-0}"' * '"${receipts_ok_last5:-0}"')')"
 fi
 
