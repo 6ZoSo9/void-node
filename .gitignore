@@ -144,3 +144,4 @@ releases/
 !/script/
 !/script/mainnet_rebuild/
 !/script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol
+ops/mainnet/validator-identity.env

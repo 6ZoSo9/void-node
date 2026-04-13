@@ -5,6 +5,14 @@ set +o histexpand
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${1:-$REPO/ops/mainnet/validator-status.current.yaml}"
+IDENTITY_FILE="${IDENTITY_FILE:-$REPO/ops/mainnet/validator-identity.env}"
+
+if [[ -f "$IDENTITY_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$IDENTITY_FILE"
+  set +a
+fi
 
 VALIDATOR_ID="${VALIDATOR_ID:-candidate-validator-01}"
 OPERATOR_LABEL="${OPERATOR_LABEL:-zoso}"
