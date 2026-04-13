@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+echo "=== [mainnet0-policy] run mainnet pillars preflight ==="
+make void-mainnet-pillars-preflight
+echo
 set +H
 set +o histexpand
 
