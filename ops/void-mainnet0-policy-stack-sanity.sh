@@ -28,11 +28,13 @@ SCRIPTS=(
   "$REPO/ops/void-mainnet0-reorg-incident-sanity.sh"
   "$REPO/ops/void-mainnet0-validator-admission-sanity.sh"
   "$REPO/ops/void-mainnet0-operator-artifacts-sanity.sh"
+  "$REPO/ops/void-mainnet-bootstrap-sanity.sh"
 )
 
 ARTIFACTS=(
   "$REPO/ops/mainnet/validator-status.template.yaml"
   "$REPO/ops/mainnet/canonical-incident-bundle.template.yaml"
+  "$REPO/ops/mainnet/void-mainnet.live.json"
 )
 
 echo "=== [1] repo baseline ==="
@@ -73,6 +75,8 @@ grep -q '^validator_id:' "$REPO/ops/mainnet/validator-status.template.yaml" || {
 grep -q '^status:' "$REPO/ops/mainnet/validator-status.template.yaml" || { echo "[ERR] validator template missing status"; exit 1; }
 grep -q '^incident_id:' "$REPO/ops/mainnet/canonical-incident-bundle.template.yaml" || { echo "[ERR] incident bundle missing incident_id"; exit 1; }
 grep -q '^response_level:' "$REPO/ops/mainnet/canonical-incident-bundle.template.yaml" || { echo "[ERR] incident bundle missing response_level"; exit 1; }
+grep -q '"mode": "mainnet_plan_stub"' "$REPO/ops/mainnet/void-mainnet.live.json" || { echo "[ERR] live json missing mainnet_plan_stub mode"; exit 1; }
+grep -q '"chainId": 2050' "$REPO/ops/mainnet/void-mainnet.live.json" || { echo "[ERR] live json missing chainId 2050"; exit 1; }
 echo "[ok] yaml template fields present"
 
 echo
@@ -97,10 +101,12 @@ scripts = [
     "ops/void-mainnet0-reorg-incident-sanity.sh",
     "ops/void-mainnet0-validator-admission-sanity.sh",
     "ops/void-mainnet0-operator-artifacts-sanity.sh",
+    "ops/void-mainnet-bootstrap-sanity.sh",
 ]
 artifacts = [
     "ops/mainnet/validator-status.template.yaml",
     "ops/mainnet/canonical-incident-bundle.template.yaml",
+    "ops/mainnet/void-mainnet.live.json",
 ]
 print({
     "docs_present": all((repo / p).exists() for p in docs),
