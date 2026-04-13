@@ -42394,7 +42394,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="s" id="syncMeta">Checking redeemed amount…</div>
       </div>
       <div class="kpi">
-        <div class="k">Spendable WC</div>
+        <div class="k">On-chain WC</div>
         <div class="v" id="wcBalance">-</div>
         <div class="s" id="wcMeta">Checking available Work Credits…</div>
       </div>
@@ -42720,7 +42720,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel">
         <div class="section-head">
           <div>
-            <h2>Trade WC for VOID<span class="help" tabindex="0" data-help="Trade prepared Work Credits from the selected participant account. Your connected wallet is used by default unless you choose an advanced override.">?</span></h2>
+            <h2>Trade WC for VOID<span class="help" tabindex="0" data-help="Trade on-chain WC from the execution wallet. Local WC is tracked separately and is not traded directly.">?</span></h2>
           </div>
         </div>
 
@@ -42736,7 +42736,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="mini">
             <div class="k">Spendable WC</div>
             <div class="v" id="tradeRedeemableWc">-</div>
-            <div class="s">prepared now</div>
+            <div class="s">execution wallet</div>
           </div>
           <div class="mini">
             <div class="k">Quoted VOID</div>
@@ -42756,7 +42756,7 @@ a{color:#93c5fd;text-decoration:none}
               <h2 style="margin-bottom:4px">Trade Summary<span class="help" tabindex="0" data-help="Shows what is ready to trade now, the current quote, and where the output will go.">?</span></h2>
             </div>
           </div>
-          <div class="hero-note" id="tradeSummary">Trade prepared WC here. Your connected wallet is used by default.</div>
+          <div class="hero-note" id="tradeSummary">Trade on-chain WC here. Your connected wallet is used by default.</div>
           <div class="hero-note" id="tradeOverviewCard" style="margin-top:8px">loading…</div>
           <div class="subtle-tab-copy" id="tradeBackendTruthCard" style="margin-top:8px">Backend truth: loading…</div>
         </div>
@@ -42891,7 +42891,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Prepare WC<span class="help" tabindex="0" data-help="Prepares Work Credits from the selected participant account for trading. Your connected wallet is used by default unless you choose an advanced override.">?</span></h2>
+                <h2 style="margin-bottom:4px;display:none">Prepare WC<span class="help" tabindex="0" data-help="Deprecated.">?</span></h2>
               </div>
             </div>
             <label for="redeemAmount">WC to redeem</label>
@@ -42901,15 +42901,15 @@ a{color:#93c5fd;text-decoration:none}
               <div class="adv-body">
                 <label for="redeemWallet" style="margin-top:10px">Execution wallet</label>
                 <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
-                <div class="subtle-tab-copy" style="margin-top:8px">Connected wallet is used by default. Change this only if you want a different execution wallet.</div>
+                <div class="subtle-tab-copy" style="margin-top:8px;display:none">Connected wallet is used by default. Change this only if you want a different execution wallet.</div>
               </div>
             </details>
             <div class="action-rail" style="margin-top:12px">
-              <button class="btn btn-primary" id="redeemBtn" type="button">Prepare WC</button>
-              <button class="btn" id="redeemMaxBtn" type="button">Use Max</button>
+              <button class="btn btn-primary" id="redeemBtn" type="button" style="display:none">Prepare WC</button>
+              <button class="btn" id="redeemMaxBtn" type="button" style="display:none">Use Max</button>
             </div>
             <div style="margin-top:12px">
-              <div class="hero-note" id="redeemSummary">Prepare WC here first, then trade it in the Trade tab. Connected wallet is used by default.</div>
+              <div class="hero-note" id="redeemSummary" style="display:none">Prepare WC here first, then trade it in the Trade tab. Connected wallet is used by default.</div>
                 <div class="hero-note" id="redeemFeeModeCard" style="margin-top:8px">Execution: Auto • Fees: Auto</div>
                 <div class="action-rail" style="margin-top:8px">
                   <button class="btn" id="redeemModeAutoBtn" type="button">Auto</button>
@@ -43983,22 +43983,97 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     topStripSet("topStripRelayer", relayerUp ? "Relayer: Ready" : "Relayer: Down", relayerUp ? "good" : "bad");
     topStripSet("topStripRunner", runnerEnabled ? "Runner: ON" : "Runner: OFF", runnerEnabled ? "good" : "warn");
 
-    if ($("tradeExecuteBtn")) {
-      const hasRedeemable = Number.isFinite(redeemableTotal) && redeemableTotal > 0;
-      const tradeBlocked = !relayerUp || !hasRedeemable;
-      $("tradeExecuteBtn").disabled = tradeBlocked;
-      $("tradeExecuteBtn").textContent = !relayerUp
-        ? "Trading Unavailable"
-        : (!hasRedeemable
-            ? "Get WC Ready First"
-            : "Execute Trade");
+    {
+      const onchainTradeableWc = (wcBal && Number.isFinite(Number(wcBal.wc))) ? Number(wcBal.wc) : 0;
+      const walletReady = !!wcAddr;
+      const hasOnchainWc = Number.isFinite(onchainTradeableWc) && onchainTradeableWc > 0;
 
-      if ($("tradeSummary")) {
-        $("tradeSummary").textContent = !relayerUp
-          ? "Direct trading is unavailable right now because the relayer is offline. You can still prepare WC on the Wallet tab."
-          : (!hasRedeemable
-              ? "No WC is available to trade yet."
-              : "WC is prepared, the relayer is up, and the trade path is live. You can execute the trade now.");
+      try {
+        const setMiniLabel = (valueId:any, title:any, subtitle:any) => {
+          const el = $(valueId);
+          const mini = el && el.closest ? el.closest(".mini") : null;
+          if (!mini) return;
+          const k = mini.querySelector(".k");
+          const sub = mini.querySelector(".s");
+          if (k) k.textContent = title;
+          if (sub) sub.textContent = subtitle;
+        };
+
+        setMiniLabel("walletEarnedMini", "Local WC", "participant-side");
+        setMiniLabel("walletRedeemedMini", "On-chain WC", "execution wallet");
+        setMiniLabel("walletRedeemableMini", "VOID", "execution wallet");
+        setMiniLabel("tradeRedeemableWc", "On-chain WC", "execution wallet");
+        setMiniLabel("connectedWalletVoidMini", "VOID", "execution wallet");
+        setMiniLabel("helperRedeemableMini", "Local WC", "participant-side");
+
+        if ($("walletEarnedMini") && redeemState && Number.isFinite(Number(redeemState.earned))) {
+          $("walletEarnedMini").textContent = String(Number(redeemState.earned));
+        }
+        if ($("walletRedeemedMini")) {
+          $("walletRedeemedMini").textContent = wcBal && wcBal.wc != null ? String(wcBal.wc) : "-";
+        }
+        if ($("walletRedeemableMini")) {
+          $("walletRedeemableMini").textContent = executionWalletVoid !== null ? String(executionWalletVoid) : "-";
+        }
+        if ($("helperRedeemableMini") && redeemState && Number.isFinite(Number(redeemState.earned))) {
+          $("helperRedeemableMini").textContent = String(Number(redeemState.earned));
+        }
+        if ($("tradeRedeemableWc")) {
+          $("tradeRedeemableWc").textContent = String(onchainTradeableWc);
+        }
+      } catch (_) {}
+
+      try {
+        const hideById = (id:any) => {
+          const el = $(id);
+          if (!el) return;
+          const panel = el.closest ? el.closest(".panel") : null;
+          const mini = el.closest ? el.closest(".mini") : null;
+          if (panel) panel.style.display = "none";
+          else if (mini) mini.style.display = "none";
+          else el.style.display = "none";
+        };
+        hideById("redeemBtn");
+        hideById("redeemMaxBtn");
+        hideById("redeemHistoryWrap");
+        const debitedMini = $("walletDebitedMini");
+        if (debitedMini && debitedMini.closest) {
+          const mini = debitedMini.closest(".mini");
+          if (mini) mini.style.display = "none";
+        }
+      } catch (_) {}
+
+      if ($("tradeUseRedeemableBtn")) {
+        $("tradeUseRedeemableBtn").onclick = function(ev:any){
+          try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
+          try { if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation(); } catch (_) {}
+          try {
+            if ($("tradeInputWc")) $("tradeInputWc").value = String(onchainTradeableWc > 0 ? onchainTradeableWc : 0);
+          } catch (_) {}
+          return false;
+        };
+      }
+
+      if ($("tradeExecuteBtn")) {
+        const tradeBlocked = !relayerUp || !walletReady || !hasOnchainWc;
+        $("tradeExecuteBtn").disabled = tradeBlocked;
+        $("tradeExecuteBtn").textContent = !relayerUp
+          ? "Trading Unavailable"
+          : (!walletReady
+              ? "Connect Wallet First"
+              : (!hasOnchainWc
+                  ? "No On-chain WC"
+                  : "Trade WC for VOID"));
+
+        if ($("tradeSummary")) {
+          $("tradeSummary").textContent = !relayerUp
+            ? "Direct trading is unavailable right now because the relayer is offline."
+            : (!walletReady
+                ? "Connect a wallet to trade on-chain WC."
+                : (!hasOnchainWc
+                    ? "No on-chain WC is available in the execution wallet yet."
+                    : "On-chain WC is available, the relayer is up, and the trade path is live."));
+        }
       }
     }
 
