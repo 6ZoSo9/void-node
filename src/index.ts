@@ -42757,9 +42757,9 @@ a{color:#93c5fd;text-decoration:none}
             <div class="s">execution wallet</div>
           </div>
           <div class="mini">
-            <div class="k">Quoted VOID</div>
+            <div class="k" id="tradeQuoteLabel">Quoted Output</div>
             <div class="v" id="tradeQuoteVoid">-</div>
-            <div class="s">est. receive</div>
+            <div class="s" id="tradeQuoteSubLabel">est. receive</div>
           </div>
           <div class="mini">
             <div class="k">Trade Status</div>
@@ -42798,7 +42798,7 @@ a{color:#93c5fd;text-decoration:none}
               <div class="mini">
                 <div class="k">Current Price</div>
                 <div class="v" id="tradePriceWcPerVoid">-</div>
-                <div class="s">how many WC it takes to get 1 VOID</div>
+                <div class="s" id="tradePriceSubLabel">how many WC it takes to get 1 VOID</div>
               </div>
               <div class="mini">
                 <div class="k">Wallet WC</div>
@@ -43781,13 +43781,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         method: "POST",
         headers: { "content-type":"application/json" },
         body: JSON.stringify({
-          side: "wc_to_void",
+          side: currentTradeDirection,
           amount: tradeInput,
           wallet: wcAddr
         })
       }).catch(() => null);
       if (relayerQuote && relayerQuote.ok && Number.isFinite(Number(relayerQuote.amount_out))) {
         quotedVoid = Number(relayerQuote.amount_out);
+      } else if (wcPerVoid !== null) {
+        quotedVoid = currentTradeDirection === "wc_to_void"
+          ? (tradeInput / wcPerVoid)
+          : (tradeInput * wcPerVoid);
       }
     }
 
@@ -43958,12 +43962,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const voidBtn = $("tradeDirVoidToWcBtn");
         const note = $("tradeDirectionNote");
         const inputLabel = $("tradeInputLabel");
+        const quoteLabel = $("tradeQuoteLabel");
+        const quoteSubLabel = $("tradeQuoteSubLabel");
+        const priceSubLabel = $("tradePriceSubLabel");
         if (wcBtn) wcBtn.className = currentTradeDirection === "wc_to_void" ? "btn btn-primary" : "btn";
         if (voidBtn) voidBtn.className = currentTradeDirection === "void_to_wc" ? "btn btn-primary" : "btn";
         if (note) note.textContent = currentTradeDirection === "wc_to_void"
-          ? "WC → VOID is live now. VOID → WC is being staged next."
-          : "VOID → WC UI is staged. Execution will stay disabled until the reverse relayer path is verified.";
+          ? "WC → VOID is live now."
+          : "VOID → WC quote is live. Execution will stay disabled until the reverse relayer path is verified.";
         if (inputLabel) inputLabel.textContent = currentTradeDirection === "wc_to_void" ? "WC to trade" : "VOID to trade";
+        if (quoteLabel) quoteLabel.textContent = currentTradeDirection === "wc_to_void" ? "Quoted VOID" : "Quoted WC";
+        if (quoteSubLabel) quoteSubLabel.textContent = "est. receive";
+        if (priceSubLabel) priceSubLabel.textContent = currentTradeDirection === "wc_to_void"
+          ? "how many WC it takes to get 1 VOID"
+          : "how many WC 1 VOID can buy";
       } catch (_) {}
     };
 
@@ -44001,7 +44013,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         if (meta) meta.textContent = currentTradeDirection === "wc_to_void"
           ? "Displaying current WC/VOID ratio plus live quote snapshot."
-          : "Reverse chart shell is ready. Reverse quote execution still needs relayer verification.";
+          : "Displaying reverse quote snapshot. Reverse execution still needs relayer verification.";
       } catch (_) {}
     };
 
@@ -44187,7 +44199,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         if ($("tradeSummary")) {
           $("tradeSummary").textContent = reverseMode
-            ? "VOID → WC UI is staged. Execution will unlock after reverse relayer support is verified."
+            ? "VOID → WC quote is live. Execution will stay disabled until the reverse relayer path is verified."
             : (!relayerUp
                 ? "Direct trading is unavailable right now because the relayer is offline."
                 : (!walletReady
