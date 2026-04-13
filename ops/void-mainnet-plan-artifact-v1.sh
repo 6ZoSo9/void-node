@@ -293,6 +293,14 @@ void_mainnet_bootstrap_plan_artifact_hash_info{hash="${HASH}",live_hash="${LIVE_
 # HELP void_mainnet_bootstrap_plan_artifact_mtime_seconds Unix mtime of latest PLAN artifact.
 # TYPE void_mainnet_bootstrap_plan_artifact_mtime_seconds gauge
 void_mainnet_bootstrap_plan_artifact_mtime_seconds $(stat -c %Y "$PLAN_TXT")
+
+# HELP void_mainnet_bootstrap_plan_stub_only 1 if the current plan lane is stub-only.
+# TYPE void_mainnet_bootstrap_plan_stub_only gauge
+void_mainnet_bootstrap_plan_stub_only ${STUB_ONLY}
+
+# HELP void_mainnet_bootstrap_plan_marker_detected 1 if the stub marker was detected in the plan artifact.
+# TYPE void_mainnet_bootstrap_plan_marker_detected gauge
+void_mainnet_bootstrap_plan_marker_detected ${MARKER_DETECTED}
 PROM
 
 DEST_PROM="$PROM_DIR/void_mainnet_bootstrap_plan_artifact.prom"
