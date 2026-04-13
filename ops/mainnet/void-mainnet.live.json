@@ -223,5 +223,36 @@
     "Draft schema example only.",
     "Real mainnet keys remain on LUKS flash drives.",
     "Do not model full-premine transfer into VoidTreasury."
-  ]
+  ],
+  "metadata": {
+    "stub_policy": {
+      "mode": "mainnet_plan_stub",
+      "description": "This pinned file is a non-live planning stub. Real addresses/keys remain offline until live bootstrap preparation.",
+      "must_fill_before_live": [
+        "selected_premine_vault.id",
+        "selected_premine_vault.address",
+        "selected_premine_vault.purpose",
+        "active_hot_wallet.address",
+        "roles.*",
+        "admins.*",
+        "funding_allocations.reward",
+        "funding_allocations.destination",
+        "premine_vaults[*].address"
+      ],
+      "may_remain_stub_in_plan_mode": [
+        "selected_premine_vault.*",
+        "active_hot_wallet.address",
+        "roles.*",
+        "admins.*",
+        "funding_allocations.reward",
+        "funding_allocations.destination",
+        "premine_vaults[*].address"
+      ]
+    },
+    "operator_intent": {
+      "real_addresses_committed": false,
+      "real_keys_committed": false,
+      "real_values_expected_only_in_offline_or_local_operator_inputs": true
+    }
+  }
 }
