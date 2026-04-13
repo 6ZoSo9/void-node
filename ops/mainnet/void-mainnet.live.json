@@ -5,13 +5,13 @@
     "notes": "Small active operational wallet only."
   },
   "admins": {
-    "adminGateController": "TBD",
-    "configGateController": "TBD",
-    "opsTreasuryAdmin": "TBD",
-    "rewardEngineAdmin": "TBD",
-    "updateGateController": "TBD",
-    "validatorAdmin": "TBD",
-    "voidTreasuryAdmin": "TBD"
+    "admin": "TBD",
+    "config_admin": "TBD",
+    "ops_admin": "TBD",
+    "reward_admin": "TBD",
+    "treasury_admin": "TBD",
+    "update_admin": "TBD",
+    "validator_admin": "TBD"
   },
   "chainId": 2050,
   "funding_allocations": {
@@ -234,14 +234,14 @@
     }
   ],
   "roles": {
-    "AdminGate": "TBD",
-    "ConfigGate": "TBD",
-    "OpsTreasury": "TBD",
-    "RewardEngine": "TBD",
-    "UpdateGate": "TBD",
-    "ValidatorSet": "TBD",
-    "VoidToken": "TBD",
-    "VoidTreasury": "TBD"
+    "admin_gate": "TBD",
+    "config_gate": "TBD",
+    "ops_treasury": "TBD",
+    "reward_engine": "TBD",
+    "update_gate": "TBD",
+    "validator_set": "TBD",
+    "void_token": "TBD",
+    "void_treasury": "TBD"
   },
   "selected_premine_vault": {
     "address": "TBD",
