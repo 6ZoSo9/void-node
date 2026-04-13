@@ -80,6 +80,30 @@ case "$MODE" in
     ;;
   rehearsal|live_broadcast|plan_only)
     echo "[info] non-stub mode detected: $MODE"
+    jq -e '
+      .selected_premine_vault.id != "TBD" and
+      .selected_premine_vault.address != "TBD" and
+      .selected_premine_vault.purpose != "TBD" and
+      .active_hot_wallet.address != "TBD" and
+      .funding_allocations.reward != "TBD" and
+      .funding_allocations.destination != "TBD" and
+      (.roles.AdminGate != "TBD") and
+      (.roles.UpdateGate != "TBD") and
+      (.roles.ConfigGate != "TBD") and
+      (.roles.ValidatorSet != "TBD") and
+      (.roles.VoidToken != "TBD") and
+      (.roles.VoidTreasury != "TBD") and
+      (.roles.OpsTreasury != "TBD") and
+      (.roles.RewardEngine != "TBD") and
+      (.admins.adminGateController != "TBD") and
+      (.admins.updateGateController != "TBD") and
+      (.admins.configGateController != "TBD") and
+      (.admins.validatorAdmin != "TBD") and
+      (.admins.voidTreasuryAdmin != "TBD") and
+      (.admins.opsTreasuryAdmin != "TBD") and
+      (.admins.rewardEngineAdmin != "TBD") and
+      ((.premine_vaults | map(.address != "TBD") | all))
+    ' "$PIN" >/dev/null || { echo "[ERR] non-stub mode still contains unresolved must-fill-before-live fields"; exit 1; }
     ;;
   *)
     echo "[ERR] invalid mode: $MODE"
