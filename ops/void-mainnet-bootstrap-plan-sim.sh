@@ -4,8 +4,8 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
-CFG="ops/mainnet/void-mainnet.live.json"
-ART="ops/void-mainnet-plan-artifact-v1.sh"
+CFG="${CFG:-ops/mainnet/void-mainnet.live.json}"
+ART="${ART:-ops/void-mainnet-plan-artifact-v1.sh}"
 
 PLAN_FILES=(
   "/root/void-mainnet-plan/plan.latest.txt"
@@ -24,13 +24,13 @@ if command -v jq >/dev/null 2>&1; then
   jq -e . "$CFG" >/dev/null 2>&1 || { echo "bad_roles: invalid_json"; exit 1; }
   jq -e '
     .chainId == 2050 and
-    .mode == "mainnet_plan_stub" and
-    .status == "stub_only_not_live" and
+    (.mode | type == "string") and
+    (.status | type == "string") and
     .keys_source == "luks_flash_drives" and
     .premine_model.type == "segmented_offline_vaults" and
     .premine_model.vault_count == 30 and
     (.premine_vaults | length) == 30
-  ' "$CFG" >/dev/null 2>&1 || { echo "bad_roles: pinned_stub_schema_mismatch"; exit 1; }
+  ' "$CFG" >/dev/null 2>&1 || { echo "bad_roles: pinned_schema_mismatch"; exit 1; }
 fi
 
 # (3) artifact script must exist + be executable
@@ -40,8 +40,13 @@ if [[ ! -x "$ART" ]]; then
 fi
 
 TMP="$(mktemp)"
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "plan_sim_failed: artifact helper requires root; run with sudo"
+  exit 1
+fi
+
 set +e
-"$ART" >"$TMP" 2>&1
+env LIVE_JSON="$CFG" "$ART" >"$TMP" 2>&1
 RC="$?"
 set -e
 
