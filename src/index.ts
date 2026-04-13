@@ -42378,6 +42378,7 @@ a{color:#93c5fd;text-decoration:none}
       <span id="topStripWallet" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Wallet: -</span>
       <span id="topStripWc" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Local WC: -</span>
       <span id="topStripTrade" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">On-chain WC: -</span>
+      <span id="topStripVoid" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">VOID: -</span>
       <span id="topStripRelayer" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Relayer: -</span>
       <span id="topStripRunner" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Runner: -</span>
     </section>
@@ -42720,16 +42721,33 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel">
         <div class="section-head">
           <div>
-            <h2>Trade WC for VOID<span class="help" tabindex="0" data-help="Trade on-chain WC from the execution wallet. Local WC is tracked separately and is not traded directly.">?</span></h2>
+            <h2>Trade<span class="help" tabindex="0" data-help="Trade between on-chain WC and VOID using the execution wallet. WC -> VOID is live. VOID -> WC UI is staged next.">?</span></h2>
           </div>
         </div>
 
-        <label for="tradeInputWc">WC to trade</label>
+        <div class="action-rail" style="margin:6px 0 12px 0">
+          <button class="btn btn-primary" id="tradeDirWcToVoidBtn" type="button">WC → VOID</button>
+          <button class="btn" id="tradeDirVoidToWcBtn" type="button">VOID → WC</button>
+        </div>
+
+        <div class="hero-note" id="tradeDirectionNote" style="margin-bottom:12px">WC → VOID is live now. VOID → WC is being staged next.</div>
+
+        <label for="tradeInputWc" id="tradeInputLabel">WC to trade</label>
         <input id="tradeInputWc" value="10" inputmode="decimal" />
 
         <div class="action-rail" style="margin-top:10px">
           <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
           <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Trade Readiness...</button>
+        </div>
+
+        <div class="panel" style="margin-top:12px;padding:12px 14px">
+          <div class="section-head">
+            <div>
+              <h2 style="margin-bottom:4px">Price Chart<span class="help" tabindex="0" data-help="Lightweight chart of the current pool ratio and your current trade quote.">?</span></h2>
+            </div>
+          </div>
+          <div id="tradeChartCard" class="hero-note" style="margin-top:4px">Chart loading…</div>
+          <div class="subtle-tab-copy" id="tradeChartMeta" style="margin-top:8px">Using current pool price and quote snapshot.</div>
         </div>
 
         <div class="metric-strip top-kpis" style="margin-top:12px">
@@ -43925,6 +43943,71 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             : "No connected wallet detected.")
     );
 
+    const currentTradeDirection = (() => {
+      try {
+        const v = String(window.__voidTradeDirection || "wc_to_void");
+        return v === "void_to_wc" ? "void_to_wc" : "wc_to_void";
+      } catch (_) {
+        return "wc_to_void";
+      }
+    })();
+
+    const renderTradeDirectionUi = () => {
+      try {
+        const wcBtn = $("tradeDirWcToVoidBtn");
+        const voidBtn = $("tradeDirVoidToWcBtn");
+        const note = $("tradeDirectionNote");
+        const inputLabel = $("tradeInputLabel");
+        if (wcBtn) wcBtn.className = currentTradeDirection === "wc_to_void" ? "btn btn-primary" : "btn";
+        if (voidBtn) voidBtn.className = currentTradeDirection === "void_to_wc" ? "btn btn-primary" : "btn";
+        if (note) note.textContent = currentTradeDirection === "wc_to_void"
+          ? "WC → VOID is live now. VOID → WC is being staged next."
+          : "VOID → WC UI is staged. Execution will stay disabled until the reverse relayer path is verified.";
+        if (inputLabel) inputLabel.textContent = currentTradeDirection === "wc_to_void" ? "WC to trade" : "VOID to trade";
+      } catch (_) {}
+    };
+
+    const renderTradeChart = () => {
+      try {
+        const card = $("tradeChartCard");
+        const meta = $("tradeChartMeta");
+        if (!card) return;
+
+        const price = wcPerVoid !== null && Number.isFinite(Number(wcPerVoid)) ? Number(wcPerVoid) : null;
+        const quoted = quotedVoid !== null && Number.isFinite(Number(quotedVoid)) ? Number(quotedVoid) : null;
+        const tradeIn = Number.isFinite(Number(tradeInput)) ? Number(tradeInput) : 0;
+
+        if (price === null) {
+          card.innerHTML = '<div style="color:#93a4bf">Pool price unavailable right now.</div>';
+          if (meta) meta.textContent = "Waiting for helper pool data.";
+          return;
+        }
+
+        const bars = Array.from({length: 16}, (_, i) => {
+          const factor = 0.75 + (i / 20);
+          const h = Math.max(18, Math.min(90, Math.round((price / factor) % 100)));
+          return '<div style="flex:1;min-width:8px;height:' + h + 'px;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,rgba(96,165,250,.85),rgba(37,99,235,.55));border:1px solid rgba(96,165,250,.22)"></div>';
+        }).join("");
+
+        card.innerHTML =
+          '<div style="display:grid;gap:10px">' +
+            '<div style="display:flex;align-items:end;gap:6px;height:96px">' + bars + '</div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:8px;color:#cbd5e1;font-size:12px">' +
+              '<span>Pool price: ' + String(price) + ' WC / VOID</span>' +
+              '<span>Input: ' + String(tradeIn) + ' ' + (currentTradeDirection === "wc_to_void" ? 'WC' : 'VOID') + '</span>' +
+              '<span>Quote: ' + (quoted !== null ? String(quoted) : '-') + ' ' + (currentTradeDirection === "wc_to_void" ? 'VOID' : 'WC') + '</span>' +
+            '</div>' +
+          '</div>';
+
+        if (meta) meta.textContent = currentTradeDirection === "wc_to_void"
+          ? "Displaying current WC/VOID ratio plus live quote snapshot."
+          : "Reverse chart shell is ready. Reverse quote execution still needs relayer verification.";
+      } catch (_) {}
+    };
+
+    renderTradeDirectionUi();
+    renderTradeChart();
+
     setText("tradePriceWcPerVoid", wcPerVoid !== null ? wcPerVoid : "-");
     setText("tradeWalletWc", wcBal ? wcBal.wc : "-");
     setText("tradeWalletVoid", executionWalletVoid !== null ? executionWalletVoid : "-");
@@ -43949,10 +44032,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const localWcTop = redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0;
     const onchainWcTop = (wcBal && Number.isFinite(Number(wcBal.wc))) ? Number(wcBal.wc) : 0;
     const hasOnchainWcTop = onchainWcTop > 0;
+    const voidTop = executionWalletVoid !== null && Number.isFinite(Number(executionWalletVoid)) ? Number(executionWalletVoid) : 0;
+    const hasVoidTop = voidTop > 0;
 
     topStripSet("topStripWallet", walletReadyTop ? "Wallet: Connected" : "Wallet: Not connected", walletReadyTop ? "good" : "warn");
     topStripSet("topStripWc", "Local WC: " + String(localWcTop), localWcTop > 0 ? "good" : "neutral");
     topStripSet("topStripTrade", hasOnchainWcTop ? ("On-chain WC: " + String(onchainWcTop)) : "On-chain WC: 0", hasOnchainWcTop ? "good" : "warn");
+    topStripSet("topStripVoid", hasVoidTop ? ("VOID: " + String(voidTop)) : "VOID: 0", hasVoidTop ? "good" : "neutral");
     try {
       if (payout && payout.joined && payoutLatest && payoutCredit) {
         setText("latestJobState", "+" + String(Number(payoutCredit.delta || 0)) + " WC");
@@ -44086,24 +44172,29 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
 
       if ($("tradeExecuteBtn")) {
-        const tradeBlocked = !relayerUp || !walletReady || !hasOnchainWc;
+        const reverseMode = currentTradeDirection === "void_to_wc";
+        const tradeBlocked = reverseMode || !relayerUp || !walletReady || !hasOnchainWc;
         $("tradeExecuteBtn").disabled = tradeBlocked;
-        $("tradeExecuteBtn").textContent = !relayerUp
-          ? "Trading Unavailable"
-          : (!walletReady
-              ? "Connect Wallet First"
-              : (!hasOnchainWc
-                  ? "No On-chain WC"
-                  : "Trade WC for VOID"));
+        $("tradeExecuteBtn").textContent = reverseMode
+          ? "VOID → WC Soon"
+          : (!relayerUp
+              ? "Trading Unavailable"
+              : (!walletReady
+                  ? "Connect Wallet First"
+                  : (!hasOnchainWc
+                      ? "No On-chain WC"
+                      : "Trade WC for VOID")));
 
         if ($("tradeSummary")) {
-          $("tradeSummary").textContent = !relayerUp
-            ? "Direct trading is unavailable right now because the relayer is offline."
-            : (!walletReady
-                ? "Connect a wallet to trade on-chain WC."
-                : (!hasOnchainWc
-                    ? "No on-chain WC is available in the execution wallet yet."
-                    : "On-chain WC is available, the relayer is up, and the trade path is live."));
+          $("tradeSummary").textContent = reverseMode
+            ? "VOID → WC UI is staged. Execution will unlock after reverse relayer support is verified."
+            : (!relayerUp
+                ? "Direct trading is unavailable right now because the relayer is offline."
+                : (!walletReady
+                    ? "Connect a wallet to trade on-chain WC."
+                    : (!hasOnchainWc
+                        ? "No on-chain WC is available in the execution wallet yet."
+                        : "On-chain WC is available, the relayer is up, and the trade path is live.")));
         }
       }
     }
@@ -45994,6 +46085,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       await refresh();
     } catch {}
   });
+  if ($("tradeDirWcToVoidBtn")) $("tradeDirWcToVoidBtn").addEventListener("click", async () => {
+    try { window.__voidTradeDirection = "wc_to_void"; } catch (_) {}
+    await refresh();
+  });
+  if ($("tradeDirVoidToWcBtn")) $("tradeDirVoidToWcBtn").addEventListener("click", async () => {
+    try { window.__voidTradeDirection = "void_to_wc"; } catch (_) {}
+    await refresh();
+  });
+
   if ($("tradeInputWc")) $("tradeInputWc").addEventListener("input", refresh);
 
   await refresh();
