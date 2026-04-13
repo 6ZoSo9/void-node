@@ -90,18 +90,17 @@ if [[ -f foundry.toml ]]; then
 elif [[ -f contracts/foundry.toml ]]; then
   FOUND_FOUNDRY="1"
   FOUNDRY_ROOT="$REPO/contracts"
+elif [[ -d "$REPO/script" || -d "$REPO/script/mainnet_rebuild" ]]; then
+  FOUND_FOUNDRY="1"
+  FOUNDRY_ROOT="$REPO"
 else
   FOUNDRY_ROOT="$REPO"
 fi
-[[ "$FOUND_FOUNDRY" == "1" ]] || { echo "[ERR] foundry.toml not found in repo root or contracts/"; exit 4; }
+[[ "$FOUND_FOUNDRY" == "1" ]] || { echo "[ERR] could not determine foundry root or script tree under repo"; exit 4; }
 echo "FOUNDRY_ROOT = $FOUNDRY_ROOT"
 # Prefer explicit Mainnet PLAN scripts (deterministic).
 SCRIPT_PATH=""
-for cand in \
-  "$FOUNDRY_ROOT/script/VoidMainnetBootstrapMainnet.s.sol" \
-  "$FOUNDRY_ROOT/script/VoidMainnetBootstrapMainnetStub.s.sol" \
-  "$FOUNDRY_ROOT/script/VoidMainnetBootstrapMainnetPlan.s.sol" \
-  "$FOUNDRY_ROOT/script/VoidMainnetBootstrapMainnetPLAN.s.sol"
+for cand in   "$FOUNDRY_ROOT/script/VoidMainnetBootstrapMainnet.s.sol"   "$FOUNDRY_ROOT/script/VoidMainnetBootstrapMainnetStub.s.sol"   "$FOUNDRY_ROOT/script/VoidMainnetBootstrapMainnetPlan.s.sol"   "$FOUNDRY_ROOT/script/VoidMainnetBootstrapMainnetPLAN.s.sol"   "$FOUNDRY_ROOT/script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol"
 do
   if [[ -f "$cand" ]]; then
     SCRIPT_PATH="$cand"
@@ -109,19 +108,16 @@ do
   fi
 done
 
-# Fallback: find any script mentioning VoidMainnetBootstrapMainnet
+# Fallback: find any relevant bootstrap script
 if [[ -z "$SCRIPT_PATH" ]]; then
-  if rg -n "VoidMainnetBootstrapMainnet" "$FOUNDRY_ROOT/script" "$FOUNDRY_ROOT/scripts" >/dev/null 2>&1; then
-    SCRIPT_PATH="$(rg -n "VoidMainnetBootstrapMainnet" "$FOUNDRY_ROOT/script" "$FOUNDRY_ROOT/scripts" 2>/dev/null \
-      | head -n 1 | cut -d: -f1 || true)"
+  if rg -n "VoidMainnetBootstrap(Mainnet|Dev|Plan|FromJson|vaults-rebuild)" "$FOUNDRY_ROOT/script" "$FOUNDRY_ROOT/scripts" >/dev/null 2>&1; then
+    SCRIPT_PATH="$(rg -n "VoidMainnetBootstrap(Mainnet|Dev|Plan|FromJson|vaults-rebuild)" "$FOUNDRY_ROOT/script" "$FOUNDRY_ROOT/scripts" 2>/dev/null       | head -n 1 | cut -d: -f1 || true)"
   fi
 fi
 
-# Final fallback: any BootstrapMainnet-ish filename
+# Final fallback: any bootstrap-ish filename under script tree
 if [[ -z "$SCRIPT_PATH" ]]; then
-  SCRIPT_PATH="$(ls -1 "$FOUNDRY_ROOT"/script/*.s.sol 2>/dev/null \
-    | rg -n "(BootstrapMainnet|MainnetBootstrap|Mainnet).*\.s\.sol$" \
-    | head -n 1 | cut -d: -f2- || true)"
+  SCRIPT_PATH="$(find "$FOUNDRY_ROOT/script" -type f -name '*.s.sol' 2>/dev/null     | rg -n "(Bootstrap|Mainnet|mainnet_rebuild).*\.s\.sol$"     | head -n 1 | cut -d: -f2- || true)"
 fi
 
 [[ -n "$SCRIPT_PATH" ]] || { echo "[ERR] could not find a mainnet bootstrap PLAN script under $FOUNDRY_ROOT/script"; exit 5; }
