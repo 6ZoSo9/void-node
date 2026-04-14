@@ -221,24 +221,31 @@ function poolHistoryFile() {
 function appendPoolHistorySnapshot(obj) {
   try {
     const file = poolHistoryFile();
-    fs.mkdirSync(path.dirname(file), { recursive: true });
+    require("fs").mkdirSync(path.dirname(file), { recursive: true });
     const rec = {
       ts: Date.now(),
       chain: String((obj && obj.chain) || "devnet"),
       reserves: (obj && obj.reserves) ? obj.reserves : null,
       price: (obj && obj.price) ? obj.price : null
     };
-    fs.appendFileSync(file, JSON.stringify(rec) + "\n", "utf8");
-  } catch (_) {}
+    require("fs").appendFileSync(file, JSON.stringify(rec) + "\n", "utf8");
+    return { ok: true, file, ts: rec.ts };
+  } catch (e) {
+    return {
+      ok: false,
+      file: poolHistoryFile(),
+      error: String((e && e.message) || e)
+    };
+  }
 }
 
 function readPoolHistorySnapshots() {
   try {
     const file = poolHistoryFile();
-    if (!fs.existsSync(file)) return [];
+    if (!require("fs").existsSync(file)) return [];
     const now = Date.now();
     const keepAfter = now - (35 * 24 * 60 * 60 * 1000);
-    const lines = String(fs.readFileSync(file, "utf8") || "")
+    const lines = String(require("fs").readFileSync(file, "utf8") || "")
       .split("\n")
       .map((x) => x.trim())
       .filter(Boolean);
@@ -1280,7 +1287,8 @@ const server = http.createServer((req, res) => {
       Promise.resolve()
         .then(() => buildPoolJsonNative())
         .then((obj) => {
-          appendPoolHistorySnapshot(obj);
+          const hist = appendPoolHistorySnapshot(obj);
+          obj.history_append = hist;
           sendJson(res, 200, obj);
         })
         .catch((err) => sendErr(res, 500, err));
