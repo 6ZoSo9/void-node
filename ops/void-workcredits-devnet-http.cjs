@@ -1357,4 +1357,29 @@ server.listen(PORT, () => {
   log('ROOT=' + ROOT);
   log('PORT=' + PORT);
   log('listening on http://127.0.0.1:' + PORT);
+
+  const SAMPLE_MS = Math.max(15000, Number(process.env.WC_POOL_HISTORY_SAMPLE_MS || 60000) || 60000);
+  let sampling = false;
+
+  async function samplePoolHistoryTick() {
+    if (sampling) return;
+    sampling = true;
+    try {
+      const obj = await buildPoolJsonNative();
+      const hist = appendPoolHistorySnapshot(obj);
+      if (hist && hist.ok) {
+        log('pool-history sample ok', hist.file, String(hist.ts));
+      } else {
+        log('pool-history sample skipped/fail', JSON.stringify(hist || {}));
+      }
+    } catch (e) {
+      log('pool-history sample failed', String((e && e.message) || e));
+    } finally {
+      sampling = false;
+    }
+  }
+
+  setTimeout(samplePoolHistoryTick, 2500);
+  setInterval(samplePoolHistoryTick, SAMPLE_MS);
+  log('pool-history sampler enabled every ' + SAMPLE_MS + 'ms');
 });
