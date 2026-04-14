@@ -44048,8 +44048,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         if (changedEnough) history.push(snapshot);
         history = history
-          .filter((x) => x && Number.isFinite(Number(x.ts)) && Number(x.ts) > now - (6 * 60 * 60 * 1000))
-          .slice(-360);
+          .filter((x) => x && Number.isFinite(Number(x.ts)) && Number(x.ts) > now - (35 * 24 * 60 * 60 * 1000))
+          .slice(-8000);
 
         try { localStorage.setItem(historyKey, JSON.stringify(history)); } catch (_) {}
 
@@ -44073,6 +44073,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         const minY = Math.min.apply(null, points.map((p) => p.price));
         const maxY = Math.max.apply(null, points.map((p) => p.price));
+        const ySpanRaw = Math.maxY !== undefined ? (maxY - minY) : 0;
+        const yPad = Math.max(ySpanRaw * 0.18, Math.max(Math.abs(maxY || 0), Math.abs(minY || 0)) * 0.0008, 0.000001);
         const minX = points[0].ts;
         const maxX = points[points.length - 1].ts;
 
@@ -44090,8 +44092,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           return padL + ((x - minX) / (maxX - minX)) * innerW;
         };
         const sy = (y) => {
-          const lo = minY * 0.998;
-          const hi = maxY * 1.002;
+          const lo = minY - yPad;
+          const hi = maxY + yPad;
           if (hi === lo) return padT + innerH / 2;
           return padT + innerH - ((y - lo) / (hi - lo)) * innerH;
         };
@@ -44103,6 +44105,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const currentY = sy(points[points.length - 1].price);
         const prevPrice = points.length > 1 ? points[0].price : points[points.length - 1].price;
         const changePct = prevPrice > 0 ? (((points[points.length - 1].price / prevPrice) - 1) * 100) : 0;
+        const rangeLow = minY;
+        const rangeHigh = maxY;
 
         const gridY = [0, 0.25, 0.5, 0.75, 1].map((r) => padT + innerH * r);
         const gridX = [0, 0.25, 0.5, 0.75, 1].map((r) => padL + innerW * r);
@@ -44141,6 +44145,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             '</svg>' +
             '<div style="display:flex;flex-wrap:wrap;gap:8px;color:#cbd5e1;font-size:12px">' +
               '<span>Last: ' + Number(points[points.length - 1].price).toFixed(6) + '</span>' +
+              '<span>Low: ' + Number(rangeLow).toFixed(6) + '</span>' +
+              '<span>High: ' + Number(rangeHigh).toFixed(6) + '</span>' +
               '<span>Change: ' + (changePct >= 0 ? '+' : '') + changePct.toFixed(4) + '%</span>' +
               '<span>Samples: ' + String(points.length) + '</span>' +
               '<span>Quote: ' + (quoted !== null ? Number(quoted).toFixed(6) : '-') + ' ' + outputUnit + '</span>' +
@@ -44148,7 +44154,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           '</div>';
 
         if (meta) meta.textContent =
-          'Time-series pool chart from live price snapshots stored in-browser. Range: ' + tradeChartRangeMs.key + '. X-axis = time, Y-axis = pool price.';
+          'Time-series pool chart from live price snapshots stored in-browser. Range: ' + tradeChartRangeMs.key + '. Retention: 35d. Tight autoscale is applied to the visible window.';
       } catch (_) {}
     };
 
