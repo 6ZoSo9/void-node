@@ -43130,6 +43130,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if (el) el.textContent = typeof v === "string" ? v : JSON.stringify(v, null, 2);
   }
 
+  function setLatestAction(msg){
+    try {
+      const el = $("latestActionCard");
+      if (el) el.textContent = String(msg || "");
+    } catch (_) {}
+  }
+
   function setWalletActivity(entry){
     try {
       const card = $("walletActivityCard");
@@ -45900,7 +45907,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         note:"Requested WC is greater than your currently available WC for trading."
       });
       setText("tradeOut", "Requested WC is greater than your currently available WC for trading.");
-      setLatestAction("Requested WC is greater than the amount currently prepared for trading.");
+      setLatestAction("Requested WC is greater than the amount currently available for trading.");
       await refresh();
       return;
     }
