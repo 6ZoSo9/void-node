@@ -44185,10 +44185,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       if ($("tradeExecuteBtn")) {
         const reverseMode = currentTradeDirection === "void_to_wc";
-        const tradeBlocked = reverseMode || !relayerUp || !walletReady || !hasOnchainWc;
+        const hasVoidForReverse = executionWalletVoid !== null && Number.isFinite(Number(executionWalletVoid)) && Number(executionWalletVoid) > 0;
+        const tradeBlocked = reverseMode
+          ? (!relayerUp || !walletReady || !hasVoidForReverse)
+          : (!relayerUp || !walletReady || !hasOnchainWc);
         $("tradeExecuteBtn").disabled = tradeBlocked;
         $("tradeExecuteBtn").textContent = reverseMode
-          ? "VOID → WC Soon"
+          ? (!relayerUp
+              ? "Trading Unavailable"
+              : (!walletReady
+                  ? "Connect Wallet First"
+                  : (!hasVoidForReverse
+                      ? "No VOID"
+                      : "Trade VOID for WC")))
           : (!relayerUp
               ? "Trading Unavailable"
               : (!walletReady
@@ -44199,7 +44208,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         if ($("tradeSummary")) {
           $("tradeSummary").textContent = reverseMode
-            ? "VOID → WC quote is live. Execution will stay disabled until the reverse relayer path is verified."
+            ? (!relayerUp
+                ? "Direct trading is unavailable right now because the relayer is offline."
+                : (!walletReady
+                    ? "Connect a wallet to trade VOID."
+                    : (!hasVoidForReverse
+                        ? "No VOID is available in the execution wallet yet."
+                        : "VOID is available, the relayer is up, and the reverse trade path is live.")))
             : (!relayerUp
                 ? "Direct trading is unavailable right now because the relayer is offline."
                 : (!walletReady
@@ -45127,7 +45142,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         $("tradeOverviewCard").title =
           "Wallet ready: " + (walletReady ? "yes" : "no") +
           " • On-chain WC available: " + onchainTradeAvailable +
-          " • Quoted VOID: " + quoteText +
+          " • Quoted Output: " + quoteText +
           " • Local helper/relayer trade: " + (relayerUp ? "Ready" : "Unavailable") +
           (wcAddr ? " • Execution wallet: " + wcAddr : "");
       } catch {}
@@ -45768,7 +45783,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       ok:true,
       execute:true,
       submitting:true,
-      side:"wc_to_void",
+      side: currentTradeDirection,
       account,
       amount,
       wallet,
@@ -45776,16 +45791,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       quote_endpoint: LOCAL_RELAYER_BASE + "/quote",
       execute_endpoint: LOCAL_RELAYER_BASE + "/execute"
     });
-    setText("tradeOut", "Executing trade for " + amount + " WC" + (wallet ? (" using wallet " + wallet) : "") + "...");
-    setLatestAction("Executing trade for " + amount + " WC" + (wallet ? (" using " + wallet) : "") + "...");
-    setWalletActivity({ kind:"trade_wc_void", status:"submitting", amount, unit:"WC", target:shortAddr(wallet) });
+    setText("tradeOut", "Executing trade for " + amount + " " + (currentTradeDirection === "void_to_wc" ? "VOID" : "WC") + (wallet ? (" using wallet " + wallet) : "") + "...");
+    setLatestAction("Executing trade for " + amount + " " + (currentTradeDirection === "void_to_wc" ? "VOID" : "WC") + (wallet ? (" using " + wallet) : "") + "...");
+    setWalletActivity({ kind: currentTradeDirection === "void_to_wc" ? "trade_void_wc" : "trade_wc_void", status:"submitting", amount, unit:(currentTradeDirection === "void_to_wc" ? "VOID" : "WC"), target:shortAddr(wallet) });
 
     try {
       const out = await j(LOCAL_RELAYER_BASE + "/execute", {
         method:"POST",
         headers:{ "content-type":"application/json" },
         body: JSON.stringify({
-          side:"wc_to_void",
+          side: currentTradeDirection,
           amount,
           account,
           wallet
@@ -45809,17 +45824,23 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       });
 
       if (out && out.ok) {
-        const amountOut = Number.isFinite(Number(out.amount_out)) ? Number(out.amount_out) : null;
+        const amountOut = Number.isFinite(Number(out.amount_out))
+          ? Number(out.amount_out)
+          : (Number.isFinite(Number(out.quoted_wc)) ? Number(out.quoted_wc) : null);
         const amountOutText = amountOut !== null ? String(amountOut) : "?";
         const shortWallet = wallet ? (String(wallet).slice(0, 8) + "…" + String(wallet).slice(-6)) : "";
         const txCount = [approveHash, swapHash].filter(Boolean).length;
         const successText =
-          "Trade complete • Spent " + amount + " WC • Received about " + amountOutText + " VOID" +
-          (shortWallet ? (" • Wallet " + shortWallet) : "") +
-          (txCount ? (" • " + txCount + " transaction" + (txCount === 1 ? "" : "s")) : "");
+          currentTradeDirection === "void_to_wc"
+            ? ("Trade complete • Spent " + amount + " VOID • Received about " + amountOutText + " WC" +
+               (shortWallet ? (" • Wallet " + shortWallet) : "") +
+               (txCount ? (" • " + txCount + " transaction" + (txCount === 1 ? "" : "s")) : ""))
+            : ("Trade complete • Spent " + amount + " WC • Received about " + amountOutText + " VOID" +
+               (shortWallet ? (" • Wallet " + shortWallet) : "") +
+               (txCount ? (" • " + txCount + " transaction" + (txCount === 1 ? "" : "s")) : ""));
         setText("tradeOut", successText);
         setLatestAction(successText);
-        setWalletActivity({ kind:"trade_wc_void", status:"success", amount, unit:"WC", target:shortAddr(wallet), tx_hash:swapHash || approveHash || "", note:successText });
+        setWalletActivity({ kind: currentTradeDirection === "void_to_wc" ? "trade_void_wc" : "trade_wc_void", status:"success", amount, unit:(currentTradeDirection === "void_to_wc" ? "VOID" : "WC"), target:shortAddr(wallet), tx_hash:swapHash || approveHash || "", note:successText });
         try { await refresh(); } catch (_) {}
         try {
           const u = new URL(window.location.href);
@@ -45832,7 +45853,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const failText = (out && out.note) ? String(out.note) : "Trade execution failed.";
         setText("tradeOut", failText);
         setLatestAction(failText);
-        setWalletActivity({ kind:"trade_wc_void", status:"failed", amount, unit:"WC", target:shortAddr(wallet), note:failText });
+        setWalletActivity({ kind: currentTradeDirection === "void_to_wc" ? "trade_void_wc" : "trade_wc_void", status:"failed", amount, unit:(currentTradeDirection === "void_to_wc" ? "VOID" : "WC"), target:shortAddr(wallet), note:failText });
       }
 
       await refresh();
@@ -45841,7 +45862,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setPre("tradeStateOut", { ok:false, execute:false, error:String(e) });
       setText("tradeOut", errText);
       setLatestAction(errText);
-      setWalletActivity({ kind:"trade_wc_void", status:"failed", amount, unit:"WC", target:shortAddr(wallet), note:errText });
+      setWalletActivity({ kind: currentTradeDirection === "void_to_wc" ? "trade_void_wc" : "trade_wc_void", status:"failed", amount, unit:(currentTradeDirection === "void_to_wc" ? "VOID" : "WC"), target:shortAddr(wallet), note:errText });
     } finally {
       if (btn) {
         btn.disabled = false;
