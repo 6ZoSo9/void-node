@@ -214,6 +214,62 @@ function execFileP(cmd, args, opts) {
   });
 }
 
+function poolHistoryFile() {
+  return path.join(ROOT, "runtime", "wc_devnet_pool_history.jsonl");
+}
+
+function appendPoolHistorySnapshot(obj) {
+  try {
+    const file = poolHistoryFile();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const rec = {
+      ts: Date.now(),
+      chain: String((obj && obj.chain) || "devnet"),
+      reserves: (obj && obj.reserves) ? obj.reserves : null,
+      price: (obj && obj.price) ? obj.price : null
+    };
+    fs.appendFileSync(file, JSON.stringify(rec) + "\n", "utf8");
+  } catch (_) {}
+}
+
+function readPoolHistorySnapshots() {
+  try {
+    const file = poolHistoryFile();
+    if (!fs.existsSync(file)) return [];
+    const now = Date.now();
+    const keepAfter = now - (35 * 24 * 60 * 60 * 1000);
+    const lines = String(fs.readFileSync(file, "utf8") || "")
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+    const out = [];
+    for (const line of lines) {
+      try {
+        const j = JSON.parse(line);
+        const ts = Number((j && j.ts) || 0);
+        const wcPerVoid = Number(j && j.price && j.price.wc_per_void || 0);
+        const voidPerWc = Number(j && j.price && j.price.void_per_wc || 0);
+        if (!Number.isFinite(ts) || ts < keepAfter) continue;
+        if (!Number.isFinite(wcPerVoid) || wcPerVoid <= 0) continue;
+        if (!Number.isFinite(voidPerWc) || voidPerWc <= 0) continue;
+        out.push({
+          ts,
+          chain: String((j && j.chain) || "devnet"),
+          reserves: j && j.reserves ? j.reserves : null,
+          price: {
+            wc_per_void: wcPerVoid,
+            void_per_wc: voidPerWc
+          }
+        });
+      } catch (_) {}
+    }
+    return out.slice(-20000);
+  } catch (_) {
+    return [];
+  }
+}
+
 async function buildAccountJsonNative(addr) {
   const statePath = process.env.STATE_JSON || path.join(ROOT, "docs", "VOID-DEVNET-PROTOCOL-STATE.json");
   const bcastPath = process.env.BCAST_FILE || path.join(ROOT, "broadcast", "WorkCreditsDevnetDeploy.s.sol", "2050", "run-latest.json");
@@ -1221,9 +1277,33 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && pathname === '/workcredits/devnet/pool.json') {
     log('GET', pathname, '-> pool native');
     try {
-      Promise.resolve().then(() => buildPoolJsonNative()).then((obj) => sendJson(res, 200, obj)).catch((err) => sendErr(res, 500, err));
+      Promise.resolve()
+        .then(() => buildPoolJsonNative())
+        .then((obj) => {
+          appendPoolHistorySnapshot(obj);
+          sendJson(res, 200, obj);
+        })
+        .catch((err) => sendErr(res, 500, err));
     } catch (e) {
       sendJson(res, 500, { error: 'pool native failed', details: String((e && e.message) || e) });
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/workcredits/devnet/pool-history.json') {
+    log('GET', pathname, '-> pool history');
+    try {
+      const items = readPoolHistorySnapshots();
+      sendJson(res, 200, {
+        ok: true,
+        chain: 'devnet',
+        count: items.length,
+        points: items,
+        file: poolHistoryFile(),
+        retention_days: 35
+      });
+    } catch (e) {
+      sendJson(res, 500, { ok: false, error: 'pool history failed', details: String((e && e.message) || e) });
     }
     return;
   }
