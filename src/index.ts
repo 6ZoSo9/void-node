@@ -44305,9 +44305,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if ($("tradeExecuteBtn")) {
         const reverseMode = currentTradeDirection === "void_to_wc";
         const hasVoidForReverse = executionWalletVoid !== null && Number.isFinite(Number(executionWalletVoid)) && Number(executionWalletVoid) > 0;
+        const localTradeableWc = Number.isFinite(redeemableTotal) ? Number(redeemableTotal) : 0;
+        const hasLocalWc = localTradeableWc > 0;
         const tradeBlocked = reverseMode
           ? (!relayerUp || !walletReady || !hasVoidForReverse)
-          : (!relayerUp || !walletReady || !hasOnchainWc);
+          : (!relayerUp || !walletReady || !hasLocalWc);
         $("tradeExecuteBtn").disabled = tradeBlocked;
         $("tradeExecuteBtn").textContent = reverseMode
           ? (!relayerUp
@@ -44321,8 +44323,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               ? "Trading Unavailable"
               : (!walletReady
                   ? "Connect Wallet First"
-                  : (!hasOnchainWc
-                      ? "No On-chain WC"
+                  : (!hasLocalWc
+                      ? "No Local WC"
                       : "Trade WC for VOID")));
 
         if ($("tradeSummary")) {
@@ -44337,10 +44339,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             : (!relayerUp
                 ? "Direct trading is unavailable right now because the relayer is offline."
                 : (!walletReady
-                    ? "Connect a wallet to trade on-chain WC."
-                    : (!hasOnchainWc
-                        ? "No on-chain WC is available in the execution wallet yet."
-                        : "On-chain WC is available, the relayer is up, and the trade path is live.")));
+                    ? "Connect a wallet to receive VOID from traded WC."
+                    : (!hasLocalWc
+                        ? "No local WC is available to trade yet."
+                        : "Local WC is available, the relayer is up, and the trade path is live.")));
         }
       }
     }
@@ -44803,7 +44805,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       relayer_quote: relayerQuote,
       relayer_health: relayerHealth || null,
       pool_price: wcPool && wcPool.price ? wcPool.price : null,
-      trade_execute_enabled: !!(relayerUp && Number.isFinite(redeemableTotal) && redeemableTotal > 0),
+      trade_execute_enabled: !!(relayerUp && walletReady && Number.isFinite(redeemableTotal) && redeemableTotal > 0),
       trade_block_reason: !relayerUp
         ? "relayer_offline"
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0) ? "no_redeemable_wc" : null),
@@ -45232,6 +45234,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       // __void_trade_overview_badge_v1
       const onchainTradeAvailable = wcBal && wcBal.wc != null && Number.isFinite(Number(wcBal.wc)) ? Number(wcBal.wc) : 0;
+      const localTradeAvailable = Number.isFinite(redeemableTotal) ? Number(redeemableTotal) : 0;
       const hasOnchainTradeAvailable = onchainTradeAvailable > 0;
       const tradeStateBadge =
         !walletReady
@@ -45239,7 +45242,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : !relayerUp
             ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(239,68,68,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fca5a5;background:rgba(239,68,68,.12)">Unavailable</span>'
             : !hasOnchainTradeAvailable
-              ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(245,158,11,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fcd34d;background:rgba(245,158,11,.12)">No On-chain WC</span>'
+              ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(245,158,11,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fcd34d;background:rgba(245,158,11,.12)">No Local WC</span>'
               : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(34,197,94,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#86efac;background:rgba(34,197,94,.12)">Available</span>';
 
       const tradeOverviewText =
@@ -45248,7 +45251,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : !relayerUp
             ? "Local relayer offline • on-chain WC trade path unavailable right now."
             : !hasOnchainTradeAvailable
-              ? "No on-chain WC is available to trade yet."
+              ? "No local WC is available to trade yet."
               : ("Trade ready • " + onchainTradeAvailable + " on-chain WC can swap for about " + quoteText + " VOID" +
                  (wcAddrShort ? (" • Wallet " + wcAddrShort) : "") +
                  "");
