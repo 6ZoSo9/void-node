@@ -43725,6 +43725,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const wcDash = wcAddr
       ? await j(wcBase + "/dashboard/" + encodeURIComponent(wcAddr) + ".json")
       : { ok:false, reason:"no_wallet_mapping" };
+    const wcPoolHistory = await j(wcBase + "/pool-history.json").catch(() => ({ ok:false, unavailable:true }));
     const wcBal = wcDash && wcDash.account && wcDash.account.balances ? wcDash.account.balances : null;
     const wcEarn = wcDash && wcDash.account && wcDash.account.earnings ? wcDash.account.earnings : null;
     const wcPool = wcDash && wcDash.pool ? wcDash.pool : null;
@@ -44025,39 +44026,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const directionLabel = currentTradeDirection === "wc_to_void" ? "WC / VOID" : "VOID / WC";
         const outputUnit = currentTradeDirection === "wc_to_void" ? "VOID" : "WC";
         const now = Date.now();
-        const historyKey = "void_trade_price_history_v2";
-        let history = [];
-        try {
-          const raw = localStorage.getItem(historyKey) || "[]";
-          const parsed = JSON.parse(raw);
-          history = Array.isArray(parsed) ? parsed : [];
-        } catch (_) {
-          history = [];
-        }
 
-        const snapshot = {
-          ts: now,
-          wc_per_void: Number(price),
-          void_per_wc: Number(price) > 0 ? (1 / Number(price)) : 0
-        };
+        const helperPoints = (wcPoolHistory && wcPoolHistory.ok && Array.isArray(wcPoolHistory.points))
+          ? wcPoolHistory.points
+          : [];
 
-        const last = history.length ? history[history.length - 1] : null;
-        const changedEnough = !last ||
-          Math.abs(Number(last.wc_per_void || 0) - snapshot.wc_per_void) > 0.000001 ||
-          (now - Number(last.ts || 0)) > 15000;
-
-        if (changedEnough) history.push(snapshot);
-        history = history
-          .filter((x) => x && Number.isFinite(Number(x.ts)) && Number(x.ts) > now - (35 * 24 * 60 * 60 * 1000))
-          .slice(-8000);
-
-        try { localStorage.setItem(historyKey, JSON.stringify(history)); } catch (_) {}
-
-        const pointsRaw = history.map((x) => ({
+        const pointsRaw = helperPoints.map((x) => ({
           ts: Number(x.ts),
           price: currentTradeDirection === "wc_to_void"
-            ? Number(x.wc_per_void)
-            : Number(x.void_per_wc)
+            ? Number(x && x.price && x.price.wc_per_void)
+            : Number(x && x.price && x.price.void_per_wc)
         })).filter((x) => Number.isFinite(x.ts) && Number.isFinite(x.price) && x.price > 0);
 
         let points = pointsRaw.filter((x) => x.ts >= (now - tradeChartRangeMs.ms));
@@ -44154,7 +44132,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           '</div>';
 
         if (meta) meta.textContent =
-          'Time-series pool chart from live price snapshots stored in-browser. Range: ' + tradeChartRangeMs.key + '. Retention: 35d. Tight autoscale is applied to the visible window.';
+          'Time-series pool chart from helper pool-history snapshots. Range: ' + tradeChartRangeMs.key + '. Retention: 35d. Tight autoscale is applied to the visible window.';
       } catch (_) {}
     };
 
@@ -44809,6 +44787,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if ($("tradeStateOut")) setPre("tradeStateOut", {
       helper_ui: wcBase + "/ui",
       helper_pool_json: wcBase + "/pool.json",
+      helper_pool_history_json: wcBase + "/pool-history.json",
       participant_account: account,
       participant_redeem_state: redeemState || null,
       connected_wallet: connectedWallet || null,
