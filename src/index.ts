@@ -43771,6 +43771,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       : null;
     const executionWalletVoidText = executionWalletVoid !== null ? String(executionWalletVoid) : "0";
 
+    const currentTradeDirection = (() => {
+      try {
+        const v = String(window.__voidTradeDirection || "wc_to_void");
+        return v === "void_to_wc" ? "void_to_wc" : "wc_to_void";
+      } catch (_) {
+        return "wc_to_void";
+      }
+    })();
+
     const wcPerVoid = wcPool && wcPool.price && Number(wcPool.price.wc_per_void) > 0 ? Number(wcPool.price.wc_per_void) : null;
     const tradeInput = $("tradeInputWc") ? Number(($("tradeInputWc").value || "").trim() || "0") : 0;
     const relayerUp = !!(relayerHealth && (relayerHealth.ok || relayerHealth.status === "ok"));
@@ -43946,15 +43955,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             ? ("Execution wallet: " + wcAddr + " • No connected wallet detected yet.")
             : "No connected wallet detected.")
     );
-
-    const currentTradeDirection = (() => {
-      try {
-        const v = String(window.__voidTradeDirection || "wc_to_void");
-        return v === "void_to_wc" ? "void_to_wc" : "wc_to_void";
-      } catch (_) {
-        return "wc_to_void";
-      }
-    })();
 
     const renderTradeDirectionUi = () => {
       try {
