@@ -42743,8 +42743,18 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel" style="margin-top:12px;padding:12px 14px">
           <div class="section-head">
             <div>
-              <h2 style="margin-bottom:4px">Price Chart<span class="help" tabindex="0" data-help="Lightweight chart of the current pool ratio and your current trade quote.">?</span></h2>
+              <h2 style="margin-bottom:4px">Price Chart<span class="help" tabindex="0" data-help="Pool price over time from live snapshots.">?</span></h2>
             </div>
+          </div>
+          <div class="action-rail" id="tradeChartRanges" style="margin:6px 0 10px 0">
+            <button class="btn" id="tradeRange1mBtn" type="button">1m</button>
+            <button class="btn" id="tradeRange5mBtn" type="button">5m</button>
+            <button class="btn" id="tradeRange10mBtn" type="button">10m</button>
+            <button class="btn" id="tradeRange1hBtn" type="button">1h</button>
+            <button class="btn" id="tradeRange12hBtn" type="button">12h</button>
+            <button class="btn" id="tradeRange1dBtn" type="button">1d</button>
+            <button class="btn" id="tradeRange1wBtn" type="button">1w</button>
+            <button class="btn" id="tradeRange1moBtn" type="button">1mth</button>
           </div>
           <div id="tradeChartCard" class="hero-note" style="margin-top:4px">Chart loading…</div>
           <div class="subtle-tab-copy" id="tradeChartMeta" style="margin-top:8px">Using current pool price and quote snapshot.</div>
@@ -43979,6 +43989,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       } catch (_) {}
     };
 
+    const tradeChartRangeMs = (() => {
+      try {
+        const raw = String(localStorage.getItem("void_trade_chart_range_v1") || "1h");
+        const map = {
+          "1m": 60 * 1000,
+          "5m": 5 * 60 * 1000,
+          "10m": 10 * 60 * 1000,
+          "1h": 60 * 60 * 1000,
+          "12h": 12 * 60 * 60 * 1000,
+          "1d": 24 * 60 * 60 * 1000,
+          "1w": 7 * 24 * 60 * 60 * 1000,
+          "1mo": 30 * 24 * 60 * 60 * 1000
+        };
+        return { key: map[raw] ? raw : "1h", ms: map[raw] || (60 * 60 * 1000) };
+      } catch (_) {
+        return { key: "1h", ms: 60 * 60 * 1000 };
+      }
+    })();
+
     const renderTradeChart = () => {
       try {
         const card = $("tradeChartCard");
@@ -44031,10 +44060,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             : Number(x.void_per_wc)
         })).filter((x) => Number.isFinite(x.ts) && Number.isFinite(x.price) && x.price > 0);
 
-        const points = pointsRaw.length >= 2 ? pointsRaw : [
-          { ts: now - 60000, price: currentTradeDirection === "wc_to_void" ? Number(price) : (Number(price) > 0 ? 1 / Number(price) : 0) },
-          { ts: now, price: currentTradeDirection === "wc_to_void" ? Number(price) : (Number(price) > 0 ? 1 / Number(price) : 0) }
-        ];
+        let points = pointsRaw.filter((x) => x.ts >= (now - tradeChartRangeMs.ms));
+        if (points.length < 2) {
+          points = pointsRaw.slice(-Math.max(2, Math.min(120, pointsRaw.length)));
+        }
+        if (points.length < 2) {
+          points = [
+            { ts: now - 60000, price: currentTradeDirection === "wc_to_void" ? Number(price) : (Number(price) > 0 ? 1 / Number(price) : 0) },
+            { ts: now, price: currentTradeDirection === "wc_to_void" ? Number(price) : (Number(price) > 0 ? 1 / Number(price) : 0) }
+          ];
+        }
 
         const minY = Math.min.apply(null, points.map((p) => p.price));
         const maxY = Math.max.apply(null, points.map((p) => p.price));
@@ -44102,7 +44137,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               '<circle cx="' + currentX.toFixed(2) + '" cy="' + currentY.toFixed(2) + '" r="4.5" fill="rgba(250,204,21,0.95)" stroke="rgba(15,23,42,0.9)" stroke-width="2"/>' +
               yTicks.map((v) => '<text x="' + (padL - 8) + '" y="' + (sy(v) + 4).toFixed(2) + '" text-anchor="end" fill="rgba(203,213,225,0.88)" font-size="11">' + Number(v).toFixed(6) + '</text>').join('') +
               xTicks.map((v) => '<text x="' + sx(v).toFixed(2) + '" y="' + (H - 10) + '" text-anchor="middle" fill="rgba(203,213,225,0.88)" font-size="11">' + fmtTime(v) + '</text>').join('') +
-              '<text x="' + (padL + 4) + '" y="14" fill="rgba(203,213,225,0.92)" font-size="12" font-weight="700">' + directionLabel + ' • pool price over time</text>' +
+              '<text x="' + (padL + 4) + '" y="14" fill="rgba(203,213,225,0.92)" font-size="12" font-weight="700">' + directionLabel + ' • pool price over time • ' + tradeChartRangeMs.key + '</text>' +
             '</svg>' +
             '<div style="display:flex;flex-wrap:wrap;gap:8px;color:#cbd5e1;font-size:12px">' +
               '<span>Last: ' + Number(points[points.length - 1].price).toFixed(6) + '</span>' +
@@ -44113,7 +44148,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           '</div>';
 
         if (meta) meta.textContent =
-          'Time-series pool chart from live price snapshots stored in-browser. X-axis = time, Y-axis = pool price.';
+          'Time-series pool chart from live price snapshots stored in-browser. Range: ' + tradeChartRangeMs.key + '. X-axis = time, Y-axis = pool price.';
       } catch (_) {}
     };
 
@@ -46226,6 +46261,41 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try { window.__voidTradeDirection = "void_to_wc"; } catch (_) {}
     await refresh();
   });
+
+  const setTradeChartRange = async (key) => {
+    try { localStorage.setItem("void_trade_chart_range_v1", key); } catch (_) {}
+    await refresh();
+  };
+  const markTradeChartRangeButtons = () => {
+    try {
+      const active = String(localStorage.getItem("void_trade_chart_range_v1") || "1h");
+      const pairs = [
+        ["tradeRange1mBtn","1m"],
+        ["tradeRange5mBtn","5m"],
+        ["tradeRange10mBtn","10m"],
+        ["tradeRange1hBtn","1h"],
+        ["tradeRange12hBtn","12h"],
+        ["tradeRange1dBtn","1d"],
+        ["tradeRange1wBtn","1w"],
+        ["tradeRange1moBtn","1mo"]
+      ];
+      for (const [id, key] of pairs) {
+        const el = $(id);
+        if (!el) continue;
+        el.className = active === key ? "btn btn-primary" : "btn";
+      }
+    } catch (_) {}
+  };
+  markTradeChartRangeButtons();
+
+  if ($("tradeRange1mBtn")) $("tradeRange1mBtn").addEventListener("click", async () => { await setTradeChartRange("1m"); });
+  if ($("tradeRange5mBtn")) $("tradeRange5mBtn").addEventListener("click", async () => { await setTradeChartRange("5m"); });
+  if ($("tradeRange10mBtn")) $("tradeRange10mBtn").addEventListener("click", async () => { await setTradeChartRange("10m"); });
+  if ($("tradeRange1hBtn")) $("tradeRange1hBtn").addEventListener("click", async () => { await setTradeChartRange("1h"); });
+  if ($("tradeRange12hBtn")) $("tradeRange12hBtn").addEventListener("click", async () => { await setTradeChartRange("12h"); });
+  if ($("tradeRange1dBtn")) $("tradeRange1dBtn").addEventListener("click", async () => { await setTradeChartRange("1d"); });
+  if ($("tradeRange1wBtn")) $("tradeRange1wBtn").addEventListener("click", async () => { await setTradeChartRange("1w"); });
+  if ($("tradeRange1moBtn")) $("tradeRange1moBtn").addEventListener("click", async () => { await setTradeChartRange("1mo"); });
 
   if ($("tradeInputWc")) $("tradeInputWc").addEventListener("input", refresh);
 
