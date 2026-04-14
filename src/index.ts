@@ -44805,7 +44805,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       relayer_quote: relayerQuote,
       relayer_health: relayerHealth || null,
       pool_price: wcPool && wcPool.price ? wcPool.price : null,
-      trade_execute_enabled: !!(relayerUp && walletReady && Number.isFinite(redeemableTotal) && redeemableTotal > 0),
+      trade_execute_enabled: !!(relayerUp && !!wcAddr && Number.isFinite(redeemableTotal) && redeemableTotal > 0),
       trade_block_reason: !relayerUp
         ? "relayer_offline"
         : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0) ? "no_redeemable_wc" : null),
@@ -45807,6 +45807,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   if ($("tradeExecuteBtn")) $("tradeExecuteBtn").addEventListener("click", async () => {
+    const currentTradeDirection = (() => {
+      try {
+        const v = String((window.__voidTradeDirection || "wc_to_void")).trim();
+        return v === "void_to_wc" ? "void_to_wc" : "wc_to_void";
+      } catch (_) {
+        return "wc_to_void";
+      }
+    })();
     const account = resolveActiveParticipantAccount();
     const amount = $("tradeInputWc") ? Number((($("tradeInputWc").value || "").trim() || "0")) : 0;
     const wallet = $("redeemWallet")
@@ -45855,10 +45863,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         amount,
         wallet,
         redeemable_state: redeemableNow || null,
-        note:"No WC is prepared yet. Earn WC first, then prepare it for trading."
+        note:"No local WC is available yet. Earn WC first, then trade it."
       });
-      setText("tradeOut", "No WC is ready to trade yet. Earn WC first, then prepare it.");
-      setLatestAction("No WC is prepared for trading yet.");
+      setText("tradeOut", "No local WC is available to trade yet. Earn WC first.");
+      setLatestAction("No local WC is available for trading yet.");
       await refresh();
       return;
     }
