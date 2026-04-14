@@ -43987,48 +43987,59 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         const price = wcPerVoid !== null && Number.isFinite(Number(wcPerVoid)) ? Number(wcPerVoid) : null;
         const quoted = quotedVoid !== null && Number.isFinite(Number(quotedVoid)) ? Number(quotedVoid) : null;
-        const tradeIn = Number.isFinite(Number(tradeInput)) && Number(tradeInput) > 0 ? Number(tradeInput) : 10;
-
-        const reserveWc = wcPool && wcPool.reserves && Number.isFinite(Number(wcPool.reserves.wc)) ? Number(wcPool.reserves.wc) : null;
-        const reserveVoid = wcPool && wcPool.reserves && Number.isFinite(Number(wcPool.reserves.void)) ? Number(wcPool.reserves.void) : null;
-
-        if (price === null || reserveWc === null || reserveVoid === null || reserveWc <= 0 || reserveVoid <= 0) {
+        if (price === null) {
           card.innerHTML = '<div style="color:#93a4bf">Pool chart unavailable right now.</div>';
-          if (meta) meta.textContent = "Waiting for helper pool reserves and price.";
+          if (meta) meta.textContent = "Waiting for helper pool price.";
           return;
         }
 
-        const feeFactor = 0.995;
-        const directionLabel = currentTradeDirection === "wc_to_void" ? "WC → VOID" : "VOID → WC";
-        const inputUnit = currentTradeDirection === "wc_to_void" ? "WC" : "VOID";
+        const directionLabel = currentTradeDirection === "wc_to_void" ? "WC / VOID" : "VOID / WC";
         const outputUnit = currentTradeDirection === "wc_to_void" ? "VOID" : "WC";
-
-        const sampleBase = Math.max(tradeIn, currentTradeDirection === "wc_to_void" ? 10 : 0.1);
-        const multipliers = [0.10, 0.18, 0.28, 0.40, 0.55, 0.75, 1.00, 1.30, 1.70, 2.20, 2.80, 3.50];
-        const points = multipliers.map((m) => {
-          const x = sampleBase * m;
-          let out = 0;
-          let effPrice = 0;
-          if (currentTradeDirection === "wc_to_void") {
-            out = ((x * reserveVoid) / (reserveWc + x)) * feeFactor;
-            effPrice = out > 0 ? (x / out) : 0; // WC per VOID
-          } else {
-            out = ((x * reserveWc) / (reserveVoid + x)) * feeFactor;
-            effPrice = x > 0 ? (out / x) : 0; // WC per VOID
-          }
-          return { x, out, effPrice };
-        }).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.out) && Number.isFinite(p.effPrice) && p.effPrice > 0);
-
-        if (!points.length) {
-          card.innerHTML = '<div style="color:#93a4bf">Pool curve unavailable right now.</div>';
-          if (meta) meta.textContent = "Could not derive pool-math curve.";
-          return;
+        const now = Date.now();
+        const historyKey = "void_trade_price_history_v2";
+        let history = [];
+        try {
+          const raw = localStorage.getItem(historyKey) || "[]";
+          const parsed = JSON.parse(raw);
+          history = Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+          history = [];
         }
 
-        const minY = Math.min(...points.map((p) => p.effPrice));
-        const maxY = Math.max(...points.map((p) => p.effPrice));
-        const minX = Math.min(...points.map((p) => p.x));
-        const maxX = Math.max(...points.map((p) => p.x));
+        const snapshot = {
+          ts: now,
+          wc_per_void: Number(price),
+          void_per_wc: Number(price) > 0 ? (1 / Number(price)) : 0
+        };
+
+        const last = history.length ? history[history.length - 1] : null;
+        const changedEnough = !last ||
+          Math.abs(Number(last.wc_per_void || 0) - snapshot.wc_per_void) > 0.000001 ||
+          (now - Number(last.ts || 0)) > 15000;
+
+        if (changedEnough) history.push(snapshot);
+        history = history
+          .filter((x) => x && Number.isFinite(Number(x.ts)) && Number(x.ts) > now - (6 * 60 * 60 * 1000))
+          .slice(-360);
+
+        try { localStorage.setItem(historyKey, JSON.stringify(history)); } catch (_) {}
+
+        const pointsRaw = history.map((x) => ({
+          ts: Number(x.ts),
+          price: currentTradeDirection === "wc_to_void"
+            ? Number(x.wc_per_void)
+            : Number(x.void_per_wc)
+        })).filter((x) => Number.isFinite(x.ts) && Number.isFinite(x.price) && x.price > 0);
+
+        const points = pointsRaw.length >= 2 ? pointsRaw : [
+          { ts: now - 60000, price: currentTradeDirection === "wc_to_void" ? Number(price) : (Number(price) > 0 ? 1 / Number(price) : 0) },
+          { ts: now, price: currentTradeDirection === "wc_to_void" ? Number(price) : (Number(price) > 0 ? 1 / Number(price) : 0) }
+        ];
+
+        const minY = Math.min.apply(null, points.map((p) => p.price));
+        const maxY = Math.max.apply(null, points.map((p) => p.price));
+        const minX = points[0].ts;
+        const maxX = points[points.length - 1].ts;
 
         const W = 860;
         const H = 240;
@@ -44050,64 +44061,59 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           return padT + innerH - ((y - lo) / (hi - lo)) * innerH;
         };
 
-        const linePath = points.map((p, i) => (i ? 'L' : 'M') + sx(p.x).toFixed(2) + ' ' + sy(p.effPrice).toFixed(2)).join(' ');
-        const areaPath = linePath + ' L ' + sx(points[points.length - 1].x).toFixed(2) + ' ' + (padT + innerH) + ' L ' + sx(points[0].x).toFixed(2) + ' ' + (padT + innerH) + ' Z';
+        const linePath = points.map((p, i) => (i ? 'L' : 'M') + sx(p.ts).toFixed(2) + ' ' + sy(p.price).toFixed(2)).join(' ');
+        const areaPath = linePath + ' L ' + sx(points[points.length - 1].ts).toFixed(2) + ' ' + (padT + innerH) + ' L ' + sx(points[0].ts).toFixed(2) + ' ' + (padT + innerH) + ' Z';
 
-        const currentPoint = (() => {
-          let best = points[0];
-          let bestDist = Math.abs(points[0].x - tradeIn);
-          for (const p of points) {
-            const d = Math.abs(p.x - tradeIn);
-            if (d < bestDist) {
-              best = p;
-              bestDist = d;
-            }
-          }
-          return best;
-        })();
-
-        const currentX = sx(currentPoint.x);
-        const currentY = sy(currentPoint.effPrice);
-        const spotPrice = price;
-        const effectivePrice = currentPoint.effPrice;
-        const impactPct = spotPrice > 0 ? (((effectivePrice / spotPrice) - 1) * 100) : 0;
+        const currentX = sx(points[points.length - 1].ts);
+        const currentY = sy(points[points.length - 1].price);
+        const prevPrice = points.length > 1 ? points[0].price : points[points.length - 1].price;
+        const changePct = prevPrice > 0 ? (((points[points.length - 1].price / prevPrice) - 1) * 100) : 0;
 
         const gridY = [0, 0.25, 0.5, 0.75, 1].map((r) => padT + innerH * r);
         const gridX = [0, 0.25, 0.5, 0.75, 1].map((r) => padL + innerW * r);
-
         const yTicks = [minY, (minY + maxY) / 2, maxY];
-        const xTicks = [minX, tradeIn, maxX];
+
+        const fmtTime = (ts) => {
+          try {
+            const d = new Date(ts);
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            return hh + ':' + mm;
+          } catch (_) {
+            return '-';
+          }
+        };
+
+        const xTicks = [minX, minX + ((maxX - minX) / 2), maxX];
 
         card.innerHTML =
           '<div style="display:grid;gap:10px">' +
-            '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="240" role="img" aria-label="AMM pool curve">' +
+            '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="240" role="img" aria-label="Pool price chart">' +
               '<defs>' +
-                '<linearGradient id="tradeCurveFill" x1="0" x2="0" y1="0" y2="1">' +
-                  '<stop offset="0%" stop-color="rgba(96,165,250,0.30)"></stop>' +
-                  '<stop offset="100%" stop-color="rgba(37,99,235,0.05)"></stop>' +
+                '<linearGradient id="tradeTsFill" x1="0" x2="0" y1="0" y2="1">' +
+                  '<stop offset="0%" stop-color="rgba(96,165,250,0.28)"></stop>' +
+                  '<stop offset="100%" stop-color="rgba(37,99,235,0.04)"></stop>' +
                 '</linearGradient>' +
               '</defs>' +
-              gridY.map((y) => '<line x1="' + padL + '" y1="' + y.toFixed(2) + '" x2="' + (padL + innerW) + '" y2="' + y.toFixed(2) + '" stroke="rgba(148,163,184,0.14)" stroke-width="1"/>').join('') +
-              gridX.map((x) => '<line x1="' + x.toFixed(2) + '" y1="' + padT + '" x2="' + x.toFixed(2) + '" y2="' + (padT + innerH) + '" stroke="rgba(148,163,184,0.10)" stroke-width="1"/>').join('') +
-              '<path d="' + areaPath + '" fill="url(#tradeCurveFill)" stroke="none"/>' +
+              gridY.map((y) => '<line x1="' + padL + '" y1="' + y.toFixed(2) + '" x2="' + (padL + innerW) + '" y2="' + y.toFixed(2) + '" stroke="rgba(148,163,184,0.12)" stroke-width="1"/>').join('') +
+              gridX.map((x) => '<line x1="' + x.toFixed(2) + '" y1="' + padT + '" x2="' + x.toFixed(2) + '" y2="' + (padT + innerH) + '" stroke="rgba(148,163,184,0.08)" stroke-width="1"/>').join('') +
+              '<path d="' + areaPath + '" fill="url(#tradeTsFill)" stroke="none"/>' +
               '<path d="' + linePath + '" fill="none" stroke="rgba(96,165,250,0.95)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
-              '<line x1="' + currentX.toFixed(2) + '" y1="' + padT + '" x2="' + currentX.toFixed(2) + '" y2="' + (padT + innerH) + '" stroke="rgba(250,204,21,0.35)" stroke-width="1.5" stroke-dasharray="4 4"/>' +
               '<circle cx="' + currentX.toFixed(2) + '" cy="' + currentY.toFixed(2) + '" r="4.5" fill="rgba(250,204,21,0.95)" stroke="rgba(15,23,42,0.9)" stroke-width="2"/>' +
-              yTicks.map((v) => '<text x="' + (padL - 8) + '" y="' + (sy(v) + 4).toFixed(2) + '" text-anchor="end" fill="rgba(203,213,225,0.88)" font-size="11">' + Number(v).toFixed(4) + '</text>').join('') +
-              xTicks.map((v) => '<text x="' + sx(v).toFixed(2) + '" y="' + (H - 10) + '" text-anchor="middle" fill="rgba(203,213,225,0.88)" font-size="11">' + Number(v).toFixed(4) + '</text>').join('') +
-              '<text x="' + (padL + 4) + '" y="14" fill="rgba(203,213,225,0.92)" font-size="12" font-weight="700">' + directionLabel + ' • effective WC/VOID price curve</text>' +
+              yTicks.map((v) => '<text x="' + (padL - 8) + '" y="' + (sy(v) + 4).toFixed(2) + '" text-anchor="end" fill="rgba(203,213,225,0.88)" font-size="11">' + Number(v).toFixed(6) + '</text>').join('') +
+              xTicks.map((v) => '<text x="' + sx(v).toFixed(2) + '" y="' + (H - 10) + '" text-anchor="middle" fill="rgba(203,213,225,0.88)" font-size="11">' + fmtTime(v) + '</text>').join('') +
+              '<text x="' + (padL + 4) + '" y="14" fill="rgba(203,213,225,0.92)" font-size="12" font-weight="700">' + directionLabel + ' • pool price over time</text>' +
             '</svg>' +
             '<div style="display:flex;flex-wrap:wrap;gap:8px;color:#cbd5e1;font-size:12px">' +
-              '<span>Spot: ' + Number(spotPrice).toFixed(6) + ' WC/VOID</span>' +
-              '<span>Effective: ' + Number(effectivePrice).toFixed(6) + ' WC/VOID</span>' +
-              '<span>Impact: ' + (impactPct >= 0 ? '+' : '') + impactPct.toFixed(4) + '%</span>' +
-              '<span>Input: ' + Number(tradeIn).toFixed(6) + ' ' + inputUnit + '</span>' +
+              '<span>Last: ' + Number(points[points.length - 1].price).toFixed(6) + '</span>' +
+              '<span>Change: ' + (changePct >= 0 ? '+' : '') + changePct.toFixed(4) + '%</span>' +
+              '<span>Samples: ' + String(points.length) + '</span>' +
               '<span>Quote: ' + (quoted !== null ? Number(quoted).toFixed(6) : '-') + ' ' + outputUnit + '</span>' +
             '</div>' +
           '</div>';
 
         if (meta) meta.textContent =
-          'AMM pool curve from live reserves. X-axis = input size, Y-axis = effective WC per VOID after fee and slippage.';
+          'Time-series pool chart from live price snapshots stored in-browser. X-axis = time, Y-axis = pool price.';
       } catch (_) {}
     };
 
