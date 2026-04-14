@@ -284,32 +284,17 @@ async function executeTrade(body) {
   const amountStr = String(body && body.amount != null ? body.amount : '0').trim();
   const slippageBps = Number(body && body.maxSlippageBps != null ? body.maxSlippageBps : DEFAULT_SLIPPAGE_BPS);
 
-  if (side !== 'wc_to_void') {
-    return { status: 400, body: { ok:false, error:'unsupported_side', side, supported: ['wc_to_void'] } };
+  if (side !== 'wc_to_void' && side !== 'void_to_wc') {
+    return { status: 400, body: { ok:false, error:'unsupported_side', side, supported: ['wc_to_void', 'void_to_wc'] } };
   }
   if (!/^\d+(\.\d+)?$/.test(amountStr) || Number(amountStr) <= 0) {
     return { status: 400, body: { ok:false, error:'invalid_amount', amount: body && body.amount } };
   }
 
-  const [redeemable, addrs, q] = await Promise.all([
-    j(`${NODE_BASE}/wc/redeemable?account=${encodeURIComponent(account)}`),
+  const [addrs, q] = await Promise.all([
     resolveAddresses(wallet),
     quote(side, amountStr, wallet),
   ]);
-
-  const redeemableWc = Number(redeemable && redeemable.redeemable || 0);
-  if (!(redeemable && redeemable.ok)) {
-    return {
-      status: 502,
-      body: {
-        ok:false,
-        error:'redeemable_unavailable',
-        account,
-        node_base: NODE_BASE,
-        redeemable_state: redeemable || null
-      }
-    };
-  }
 
   if (!q || !q.ok) {
     return {
@@ -329,6 +314,60 @@ async function executeTrade(body) {
         ok:false,
         error:'missing_contract_addresses',
         addresses: addrs
+      }
+    };
+  }
+
+  if (side === 'void_to_wc') {
+    const amountNum = Number(amountStr);
+    const amountInRaw = q.amount_in_raw;
+    const quotedOutRaw = q.amount_out_raw;
+    const minOutRaw = applySlippage(quotedOutRaw, slippageBps);
+
+    const approveTx = await castSend(addrs.voidToken, 'approve(address,uint256)', [addrs.pool, amountInRaw]);
+    const swapTx = await castSend(addrs.pool, 'swapVoidForWc(uint256,uint256,address)', [amountInRaw, minOutRaw, wallet]);
+
+    const postDashboard = await getDashboard(wallet).catch(() => null);
+
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        accepted: true,
+        execute: true,
+        mode: 'onchain_swap',
+        side,
+        account,
+        wallet,
+        requested_void: amountNum,
+        requested_void_raw: amountInRaw,
+        quoted_wc: q.amount_out,
+        quoted_wc_raw: quotedOutRaw,
+        min_wc_raw: minOutRaw,
+        max_slippage_bps: slippageBps,
+        pool: addrs.pool,
+        wc_token: addrs.wc,
+        void_token: addrs.voidToken,
+        approve_tx: approveTx,
+        swap_tx: swapTx,
+        helper_dashboard_before: addrs.dashboard || null,
+        helper_dashboard_after: postDashboard || null,
+        note: 'On-chain VOID->WC swap executed through VoidWorkCreditsPool.'
+      }
+    };
+  }
+
+  const redeemable = await j(`${NODE_BASE}/wc/redeemable?account=${encodeURIComponent(account)}`);
+  const redeemableWc = Number(redeemable && redeemable.redeemable || 0);
+  if (!(redeemable && redeemable.ok)) {
+    return {
+      status: 502,
+      body: {
+        ok:false,
+        error:'redeemable_unavailable',
+        account,
+        node_base: NODE_BASE,
+        redeemable_state: redeemable || null
       }
     };
   }
