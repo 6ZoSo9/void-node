@@ -47421,7 +47421,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     wrap.id = "voidParticipantWalletNativeBar";
     wrap.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%;padding:10px 12px;border:1px solid #334155;border-radius:12px;background:#0b1220;color:#e5e7eb;box-sizing:border-box;";
     wrap.innerHTML =
-      '<div style="font-weight:800;color:#f8fafc;margin-right:8px">Participant Wallet (Native for Current Account)</div>' +
+      '<div style="font-weight:800;color:#f8fafc;margin-right:8px">Account Wallet</div>' +
       '<button id="voidParticipantWalletCreateBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Create Wallet</button>' +
       '<button id="voidParticipantWalletImportBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Import Wallet</button>' +
       '<button id="voidParticipantWalletUnlockBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Unlock</button>' +
