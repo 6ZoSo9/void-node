@@ -47307,15 +47307,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   async function refreshNativeWalletState(){
     try {
       var account = accountNow();
-      if (!account) return note("No participant account selected.");
+      if (!account) return note("Account: none selected • No participant wallet");
       var st = await j("/__void/participant/wallet/status?account=" + encodeURIComponent(account));
       if (!st || !st.ok || !st.has_wallet) {
-        note("No participant wallet stored for this participant account.");
+        note("Account: " + account + " • Wallet: none stored for this account");
         return;
       }
       var parts = [];
-      parts.push("Address: " + String(st.address || ""));
-      parts.push(st.unlocked ? "Unlocked" : "Locked");
+      parts.push("Account: " + account);
+      parts.push("Wallet: " + String(st.address || ""));
+      parts.push("State: " + (st.unlocked ? "Unlocked" : "Locked"));
       if (st.address && document.getElementById("redeemWallet")) {
         document.getElementById("redeemWallet").value = String(st.address);
       }
@@ -47336,7 +47337,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if (!out || !out.ok) return alert(String((out && out.error) || "wallet create failed"));
     if (document.getElementById("redeemWallet")) document.getElementById("redeemWallet").value = String(out.address || "");
     await refreshNativeWalletState();
-    alert("Participant wallet created. Address: " + String(out.address || ""));
+    alert("Participant wallet created for " + account + ". Address: " + String(out.address || ""));
   }
   async function importWallet(){
     var account = accountNow();
@@ -47352,7 +47353,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if (!out || !out.ok) return alert(String((out && out.error) || "wallet import failed"));
     if (document.getElementById("redeemWallet")) document.getElementById("redeemWallet").value = String(out.address || "");
     await refreshNativeWalletState();
-    alert("Participant wallet imported. Address: " + String(out.address || ""));
+    alert("Participant wallet imported for " + account + ". Address: " + String(out.address || ""));
   }
   async function unlockWallet(){
     var account = accountNow();
@@ -47372,7 +47373,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
     if (document.getElementById("redeemWallet")) document.getElementById("redeemWallet").value = String(out.address || "");
     await refreshNativeWalletState();
-    alert("Participant wallet unlocked.");
+    alert("Participant wallet unlocked for " + account + ".");
   }
   async function lockWallet(){
     var account = accountNow();
@@ -47383,6 +47384,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     });
     if (!out || !out.ok) return alert(String((out && out.error) || "wallet lock failed"));
     await refreshNativeWalletState();
+    alert("Participant wallet locked for " + account + ".");
   }
   async function exportWallet(){
     var account = accountNow();
@@ -47396,6 +47398,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     document.body.appendChild(a);
     a.click();
     setTimeout(function(){ try { URL.revokeObjectURL(a.href); } catch(_){} try { a.remove(); } catch(_){} }, 500);
+    alert("Participant wallet keystore exported for " + account + ".");
   }
   function mount(){
     if (document.getElementById("voidParticipantWalletNativeBar")) return;
@@ -47420,7 +47423,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     wrap.id = "voidParticipantWalletNativeBar";
     wrap.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%;padding:10px 12px;border:1px solid #334155;border-radius:12px;background:#0b1220;color:#e5e7eb;box-sizing:border-box;";
     wrap.innerHTML =
-      '<div style="font-weight:800;color:#f8fafc;margin-right:8px">Participant Wallet (Native)</div>' +
+      '<div style="font-weight:800;color:#f8fafc;margin-right:8px">Participant Wallet (Native for Current Account)</div>' +
       '<button id="voidParticipantWalletCreateBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Create Wallet</button>' +
       '<button id="voidParticipantWalletImportBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Import Wallet</button>' +
       '<button id="voidParticipantWalletUnlockBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Unlock</button>' +
