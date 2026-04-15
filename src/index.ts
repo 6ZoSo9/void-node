@@ -43427,7 +43427,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     if (accountEl) accountEl.value = s;
     const mgrEl = $("participantAccountManagerInput");
     if (mgrEl) mgrEl.value = s;
+    const mgrTopEl = $("participantAccountManagerInputTop");
+    if (mgrTopEl) mgrTopEl.value = s;
     rememberParticipantAccount(s);
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("account", s);
+      history.replaceState(null, "", u.pathname + "?" + u.searchParams.toString() + u.hash);
+    } catch (_) {}
   }
 
   function deleteParticipantAccount(v){
