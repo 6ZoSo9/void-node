@@ -14,6 +14,7 @@ const ROOT = process.env.ROOT || process.cwd();
 const ANVIL_PK = process.env.ANVIL_PK || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 const DEFAULT_WALLET = (process.env.WC_RELAYER_WALLET || '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266').toLowerCase();
 const DEFAULT_SLIPPAGE_BPS = Number(process.env.WC_RELAYER_MAX_SLIPPAGE_BPS || '50');
+const DEFAULT_REDEEM_FEE_BPS = Number(process.env.WC_RELAYER_REDEEM_FEE_BPS || '50');
 
 async function j(url, opts) {
   const r = await fetch(url, opts);
@@ -125,6 +126,12 @@ async function castCall(to, sig, args) {
   const argv = ['call', to, sig, ...(args || []), '--rpc-url', RPC_URL];
   const out = await execFileP('cast', argv);
   return out;
+}
+
+async function castCalldata(sig, args = []) {
+  const argv = ['calldata', sig, ...args.map(String)];
+  const out = await execFileP('cast', argv);
+  return String(out || '').trim();
 }
 
 async function castSend(to, sig, args = []) {
@@ -445,6 +452,388 @@ async function executeTrade(body) {
   };
 }
 
+
+async function executeTradeOnchainOnly(body) {
+  const side = String(body && body.side || '').trim();
+  const amountStr = String(body && body.amount != null ? body.amount : '0').trim();
+  const amountNum = Number(amountStr);
+  const account = String(body && body.account || '').trim();
+  const wallet = String(body && body.wallet || DEFAULT_WALLET).trim().toLowerCase();
+  const slippageBps = Math.max(1, Number(body && body.max_slippage_bps != null ? body.max_slippage_bps : 100) || 100);
+
+  if (side !== 'wc_to_void') {
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        error: 'unsupported_side_onchain_only',
+        mode: 'onchain_only',
+        side,
+        account,
+        wallet,
+        note: 'onchain_only is currently supported only for wc_to_void.'
+      }
+    };
+  }
+
+  if (!(Number.isFinite(amountNum) && amountNum > 0)) {
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        error: 'invalid_amount',
+        mode: 'onchain_only',
+        side,
+        account,
+        wallet,
+        requested_wc: amountStr
+      }
+    };
+  }
+
+  const addrs = await resolveAddresses(wallet);
+  const preDashboard = await getDashboard(wallet).catch(() => null);
+  const onchainWc = (
+    preDashboard &&
+    preDashboard.account &&
+    preDashboard.account.balances &&
+    Number.isFinite(Number(preDashboard.account.balances.wc))
+  )
+    ? Number(preDashboard.account.balances.wc)
+    : 0;
+
+  if (!(Number.isFinite(onchainWc) && onchainWc >= amountNum)) {
+    return {
+      status: 409,
+      body: {
+        ok: false,
+        accepted: false,
+        execute: false,
+        mode: 'onchain_only',
+        error: 'insufficient_onchain_wc',
+        side,
+        account,
+        wallet,
+        requested_wc: amountNum,
+        onchain_wc: onchainWc,
+        note: 'On-chain WC is insufficient. Redeem local WC separately first.'
+      }
+    };
+  }
+
+  const q = await quote(side, amountStr, wallet);
+  if (!q || !q.ok) {
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        accepted: false,
+        execute: false,
+        mode: 'onchain_only',
+        error: 'quote_failed',
+        side,
+        account,
+        wallet,
+        quote: q || null
+      }
+    };
+  }
+
+  const amountInRaw = q.amount_in_raw;
+  const quotedOutRaw = q.amount_out_raw;
+  const minOutRaw = applySlippage(quotedOutRaw, slippageBps);
+
+  const approveTx = await castSend(addrs.wc, 'approve(address,uint256)', [addrs.pool, amountInRaw]);
+  const swapTx = await castSend(addrs.pool, 'swapWcForVoid(uint256,uint256,address)', [amountInRaw, minOutRaw, wallet]);
+
+  const postDashboard = await getDashboard(wallet).catch(() => null);
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      accepted: true,
+      execute: true,
+      mode: 'onchain_only_swap',
+      side,
+      account,
+      wallet,
+      requested_wc: amountNum,
+      requested_wc_raw: amountInRaw,
+      quoted_void: q.amount_out,
+      quoted_void_raw: quotedOutRaw,
+      min_void_raw: minOutRaw,
+      max_slippage_bps: slippageBps,
+      pool: addrs.pool,
+      wc_token: addrs.wc,
+      void_token: addrs.voidToken,
+      approve_tx: approveTx,
+      swap_tx: swapTx,
+      helper_dashboard_before: preDashboard || null,
+      helper_dashboard_after: postDashboard || null,
+      note: 'On-chain WC->VOID swap executed without redeem fallback.'
+    }
+  };
+}
+
+
+
+
+async function buildWalletTrade(body) {
+  const side = String(body && body.side || '').trim();
+  const amountStr = String(body && body.amount != null ? body.amount : '0').trim();
+  const amountNum = Number(amountStr);
+  const wallet = String(body && body.wallet || '').trim().toLowerCase();
+  const slippageBps = Math.max(1, Number(body && body.max_slippage_bps != null ? body.max_slippage_bps : 100) || 100);
+
+  if (side !== 'wc_to_void') {
+    return {
+      status: 400,
+      body: {
+        ok:false,
+        error:'unsupported_side_wallet_build',
+        side,
+        wallet,
+        note:'Only wallet-signed WC->VOID is wired right now.'
+      }
+    };
+  }
+  if (!(Number.isFinite(amountNum) && amountNum > 0)) {
+    return {
+      status: 400,
+      body: {
+        ok:false,
+        error:'invalid_amount',
+        side,
+        wallet,
+        requested_wc: amountStr
+      }
+    };
+  }
+  if (!/^0x[a-f0-9]{40}$/.test(wallet)) {
+    return {
+      status: 400,
+      body: {
+        ok:false,
+        error:'invalid_wallet',
+        side,
+        wallet
+      }
+    };
+  }
+
+  const addrs = await resolveAddresses(wallet);
+  if (!addrs.pool || !addrs.wc) {
+    return {
+      status: 500,
+      body: {
+        ok:false,
+        error:'missing_pool_or_wc_token',
+        side,
+        wallet,
+        pool:addrs.pool || null,
+        wc_token:addrs.wc || null
+      }
+    };
+  }
+
+  const q = await quote(side, amountStr, wallet);
+  if (!q || !q.ok) {
+    return {
+      status: 400,
+      body: {
+        ok:false,
+        error:'quote_failed',
+        side,
+        wallet,
+        quote:q || null
+      }
+    };
+  }
+
+  const amountInRaw = String(q.amount_in_raw || '0');
+  const quotedOutRaw = String(q.amount_out_raw || '0');
+  const minOutRaw = applySlippage(quotedOutRaw, slippageBps);
+
+  const approveData = await castCalldata('approve(address,uint256)', [addrs.pool, amountInRaw]);
+  const swapData = await castCalldata('swapWcForVoid(uint256,uint256,address)', [amountInRaw, minOutRaw, wallet]);
+
+  return {
+    status: 200,
+    body: {
+      ok:true,
+      accepted:true,
+      execute:false,
+      mode:'wallet_signed_wc_to_void',
+      side,
+      wallet,
+      requested_wc: amountNum,
+      requested_wc_raw: amountInRaw,
+      quoted_void: q.amount_out,
+      quoted_void_raw: quotedOutRaw,
+      min_void_raw: minOutRaw,
+      max_slippage_bps: slippageBps,
+      pool: addrs.pool,
+      wc_token: addrs.wc,
+      void_token: addrs.voidToken || null,
+      approve_tx_request: {
+        from: wallet,
+        to: addrs.wc,
+        data: approveData
+      },
+      swap_tx_request: {
+        from: wallet,
+        to: addrs.pool,
+        data: swapData
+      },
+      note:'Wallet must sign approve first, then swap.'
+    }
+  };
+}
+
+
+async function executeRedeemBridge(body) {
+  const amountStr = String(body && body.amount != null ? body.amount : '0').trim();
+  const amountNum = Number(amountStr);
+  const account = String(body && body.account || '').trim();
+  const wallet = String(body && body.wallet || DEFAULT_WALLET).trim().toLowerCase();
+
+  if (!account) {
+    return {
+      status: 400,
+      body: { ok:false, error:'missing_account', note:'account is required.' }
+    };
+  }
+  if (!(Number.isFinite(amountNum) && amountNum > 0)) {
+    return {
+      status: 400,
+      body: { ok:false, error:'invalid_amount', account, wallet, requested_wc: amountStr }
+    };
+  }
+  if (!/^0x[a-f0-9]{40}$/.test(wallet)) {
+    return {
+      status: 400,
+      body: { ok:false, error:'invalid_wallet', account, wallet }
+    };
+  }
+
+  const localState = await j(`${NODE_BASE}/wc/redeemable?account=${encodeURIComponent(account)}`).catch(() => null);
+  const spendable = localState && localState.ok ? Number(localState.redeemable || 0) : 0;
+  if (!(Number.isFinite(spendable) && spendable >= amountNum)) {
+    return {
+      status: 409,
+      body: {
+        ok:false,
+        accepted:false,
+        execute:false,
+        mode:'redeem_bridge',
+        error:'insufficient_local_wc',
+        account,
+        wallet,
+        requested_wc: amountNum,
+        local_redeemable: spendable,
+        note:'Local spendable WC is insufficient for redeem bridge.'
+      }
+    };
+  }
+
+  const addrs = await resolveAddresses(wallet);
+  if (!addrs.wc) {
+    return {
+      status: 500,
+      body: {
+        ok:false,
+        accepted:false,
+        execute:false,
+        mode:'redeem_bridge',
+        error:'missing_wc_token',
+        account,
+        wallet
+      }
+    };
+  }
+
+  const grossRaw = BigInt(String(parseHumanToRaw18(amountNum)));
+  let feeRaw = (grossRaw * BigInt(Math.max(0, DEFAULT_REDEEM_FEE_BPS))) / 10000n;
+  if (feeRaw < 0n) feeRaw = 0n;
+  const netRaw = grossRaw - feeRaw;
+
+  if (!(netRaw > 0n)) {
+    return {
+      status: 400,
+      body: {
+        ok:false,
+        accepted:false,
+        execute:false,
+        mode:'redeem_bridge',
+        error:'amount_too_small_after_fee',
+        account,
+        wallet,
+        requested_wc: amountNum,
+        fee_bps: DEFAULT_REDEEM_FEE_BPS
+      }
+    };
+  }
+
+  const beforeDashboard = await getDashboard(wallet).catch(() => null);
+  const transferTx = await castSend(addrs.wc, 'transfer(address,uint256)', [wallet, netRaw.toString()]);
+
+  const redeem = await j(`${NODE_BASE}/wc/redeem`, {
+    method:'POST',
+    headers:{ 'content-type':'application/json' },
+    body: JSON.stringify({ account, amount: amountNum, wallet })
+  }).catch(() => null);
+
+  if (!(redeem && redeem.ok)) {
+    return {
+      status: 502,
+      body: {
+        ok:false,
+        accepted:false,
+        execute:false,
+        mode:'redeem_bridge',
+        error:'local_redeem_record_failed_after_transfer',
+        account,
+        wallet,
+        requested_wc: amountNum,
+        bridged_wc: format18(netRaw),
+        fee_wc: format18(feeRaw),
+        transfer_tx: transferTx,
+        redeem_result: redeem || null,
+        note:'WC transfer succeeded but local redeem record failed.'
+      }
+    };
+  }
+
+  const afterDashboard = await getDashboard(wallet).catch(() => null);
+
+  return {
+    status: 200,
+    body: {
+      ok:true,
+      accepted:true,
+      execute:true,
+      mode:'redeem_bridge',
+      account,
+      wallet,
+      requested_wc: amountNum,
+      bridged_wc: format18(netRaw),
+      bridged_wc_raw: netRaw.toString(),
+      fee_wc: format18(feeRaw),
+      fee_wc_raw: feeRaw.toString(),
+      fee_bps: DEFAULT_REDEEM_FEE_BPS,
+      wc_token: addrs.wc,
+      transfer_tx: transferTx,
+      local_before: localState || null,
+      redeem_result: redeem,
+      helper_dashboard_before: beforeDashboard || null,
+      helper_dashboard_after: afterDashboard || null,
+      note:'Local WC redeemed and net WC transferred on-chain to the wallet. Relayer retained the fee in WC to offset gas.'
+    }
+  };
+}
+
+
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'OPTIONS') return send(res, 204, { ok:true });
@@ -463,7 +852,8 @@ const server = http.createServer(async (req, res) => {
         helper_up: !!(addrs && addrs.helper_pool && addrs.helper_pool.up === 1),
         can_quote: true,
         can_execute: true,
-        mode: 'redeem_then_onchain_swap',
+        can_redeem_bridge: true,
+        mode: 'onchain_only_or_redeem_then_onchain_swap',
         pool: addrs && addrs.pool || null,
         wc_token: addrs && addrs.wc || null,
         void_token: addrs && addrs.voidToken || null,
@@ -478,9 +868,24 @@ const server = http.createServer(async (req, res) => {
       return send(res, out && out.ok ? 200 : 400, out);
     }
 
+    if (req.method === 'POST' && u.pathname === '/api/wc-relayer/v1/redeem-bridge') {
+      const body = await readBody(req);
+      const out = await executeRedeemBridge(body);
+      return send(res, out.status, out.body);
+    }
+
+    if (req.method === 'POST' && u.pathname === '/api/wc-relayer/v1/build-wallet-trade') {
+      const body = await readBody(req);
+      const out = await buildWalletTrade(body);
+      return send(res, out.status, out.body);
+    }
+
     if (req.method === 'POST' && u.pathname === '/api/wc-relayer/v1/execute') {
       const body = await readBody(req);
-      const out = await executeTrade(body);
+      const source = String(body && body.source || '').trim().toLowerCase();
+      const out = source === 'onchain_only'
+        ? await executeTradeOnchainOnly(body)
+        : await executeTrade(body);
       return send(res, out.status, out.body);
     }
 

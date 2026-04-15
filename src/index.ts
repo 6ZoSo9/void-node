@@ -82,6 +82,7 @@ import { registerP2PRoutes } from "./http/p2p_routes.js";
 import { registerIndexExtras } from "./http/routes/index_kidx_extras.js";
 import { registerBlockExtras } from "./http/blocks_extras.js";
 import { Metrics } from "./metrics.js";
+import "./http/participant_wallet_native_v1";
 
 
 // __VOID_TS_DECLARES_V1__
@@ -42376,7 +42377,7 @@ a{color:#93c5fd;text-decoration:none}
 
     <section id="participantTopStatusStrip" class="hero-note" style="margin:0 0 14px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="topStripWallet" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Wallet: -</span>
-      <span id="topStripWc" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Local WC: -</span>
+      <span id="topStripWc" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Spendable WC: -</span>
       <span id="topStripTrade" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">On-chain WC: -</span>
       <span id="topStripVoid" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">VOID: -</span>
       <span id="topStripRelayer" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Relayer: -</span>
@@ -42390,7 +42391,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="s" id="topHealthMeta">Checking onchain VOID balance…</div>
       </div>
       <div class="kpi">
-        <div class="k">Already Redeemed</div>
+        <div class="k">Lifetime Earned WC</div>
         <div class="v" id="syncGap">-</div>
         <div class="s" id="syncMeta">Checking local/on-chain balances…</div>
       </div>
@@ -42555,11 +42556,11 @@ a{color:#93c5fd;text-decoration:none}
             </div>
           </div>
 
-          <label for="account">Participant identity<span class="help" tabindex="0" data-help="If you connect a wallet and have not already chosen a real participant identity, the connected wallet is preferred automatically.">?</span></label>
-          <input id="account" value="" placeholder="connected wallet or participant id" />
-          <div class="subtle-tab-copy" style="margin-top:8px">Participant identity selects which account receives WC and owns the receipts and history shown here. If no real participant identity has been chosen yet, a connected wallet is preferred automatically. That same wallet is also used for redeem and trade execution unless you open the advanced override.</div>
+          <label for="account">Participant Account<span class="help" tabindex="0" data-help="This is the app identity that earns WC and owns local receipts and activity on this node.">?</span></label>
+          <input id="account" value="" placeholder="participant account id" />
+          <div class="subtle-tab-copy" style="margin-top:8px">Participant Account selects which local account receives WC and owns receipts and history on this node. Execution wallet actions are handled separately by the stored native wallet.</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-            <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #1d4ed8; background:#0b1b34; color:#dbeafe; cursor:pointer; font-weight:700; font-size:12px;">Use Connected Wallet</button>
+            <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#94a3b8; cursor:pointer; font-weight:700; font-size:12px; display:none;">Use Connected Wallet</button>
           </div>
           <details class="adv" style="margin-top:10px">
             <summary><span>Developer account shortcuts</span><span class="pill">advanced</span></summary>
@@ -42721,22 +42722,22 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel">
         <div class="section-head">
           <div>
-            <h2>Trade<span class="help" tabindex="0" data-help="Trade between on-chain WC and VOID using the execution wallet. WC -> VOID is live. VOID -> WC UI is staged next.">?</span></h2>
+            <h2>On-chain Trade<span class="help" tabindex="0" data-help="Trade on-chain WC and VOID using the execution wallet. This box is only for on-chain balances.">?</span></h2>
           </div>
         </div>
 
         <div class="action-rail" style="margin:6px 0 12px 0">
-          <button class="btn btn-primary" id="tradeDirWcToVoidBtn" type="button">WC → VOID</button>
-          <button class="btn" id="tradeDirVoidToWcBtn" type="button">VOID → WC</button>
+          <button class="btn btn-primary" id="tradeDirWcToVoidBtn" type="button">On-chain WC → VOID</button>
+          <button class="btn" id="tradeDirVoidToWcBtn" type="button">VOID → On-chain WC</button>
         </div>
 
-        <div class="hero-note" id="tradeDirectionNote" style="margin-bottom:12px">WC → VOID is live now. VOID → WC is being staged next.</div>
+        <div class="hero-note" id="tradeDirectionNote" style="margin-bottom:12px">On-chain WC trading requires wallet signing. The browser-signed swap path is not wired yet. Use the redeem box below to bridge local spendable WC on-chain first.</div>
 
         <label for="tradeInputWc" id="tradeInputLabel">WC to trade</label>
         <input id="tradeInputWc" value="10" inputmode="decimal" />
 
         <div class="action-rail" style="margin-top:10px">
-          <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
+          <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max On-chain</button>
           <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Trade Readiness...</button>
         </div>
 
@@ -42784,9 +42785,41 @@ a{color:#93c5fd;text-decoration:none}
               <h2 style="margin-bottom:4px">Trade Summary<span class="help" tabindex="0" data-help="Shows what is ready to trade now, the current quote, and where the output will go.">?</span></h2>
             </div>
           </div>
-          <div class="hero-note" id="tradeSummary">Trade on-chain WC here. Your connected wallet is used by default.</div>
+          <div class="hero-note" id="tradeSummary">Trade on-chain WC here using the stored execution wallet.</div>
           <div class="hero-note" id="tradeOverviewCard" style="margin-top:8px">loading…</div>
           <div class="subtle-tab-copy" id="tradeBackendTruthCard" style="margin-top:8px">Backend truth: loading…</div>
+        </div>
+
+        <div class="panel" style="margin-top:12px;padding:12px 14px">
+          <div class="section-head">
+            <div>
+              <h2 style="margin-bottom:4px">Bridge WC On-Chain<span class="help" tabindex="0" data-help="Bridges local spendable WC from the participant account into the execution wallet as on-chain WC through the relayer path.">?</span></h2>
+            </div>
+          </div>
+          <div class="metric-strip top-kpis" style="margin-top:6px">
+            <div class="mini">
+              <div class="k">Spendable WC</div>
+              <div class="v" id="redeemLocalAvailableTradeBox">-</div>
+              <div class="s">participant-side now</div>
+            </div>
+            <div class="mini">
+              <div class="k">On-chain WC</div>
+              <div class="v" id="redeemOnchainAvailableTradeBox">-</div>
+              <div class="s">execution wallet</div>
+            </div>
+            <div class="mini">
+              <div class="k">Wallet VOID</div>
+              <div class="v" id="redeemVoidAvailableTradeBox">-</div>
+              <div class="s">execution wallet</div>
+            </div>
+          </div>
+          <label for="redeemTradeInputWc" style="margin-top:12px">WC to bridge on-chain</label>
+          <input id="redeemTradeInputWc" value="0" inputmode="decimal" />
+          <div class="action-rail" style="margin-top:10px">
+            <button class="btn" id="redeemTradeUseMaxBtn" type="button">Use Max Spendable</button>
+            <button class="btn btn-primary" id="redeemTradeExecuteBtn" type="button">Bridge WC On-Chain</button>
+          </div>
+          <div class="hero-note" id="redeemTradeSummary" style="margin-top:10px">Bridge local spendable WC here to move net WC into your execution wallet as on-chain WC.</div>
         </div>
 
         <details class="adv" style="margin-top:12px">
@@ -42855,7 +42888,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Local WC<span class="help" tabindex="0" data-help="Work Credits tracked on the participant account. This is the source used for earning, redeeming, and trade eligibility.">?</span></h2>
+              <h2>Spendable WC<span class="help" tabindex="0" data-help="Work Credits currently available on the participant account right now. This is the local spendable amount, not lifetime earned WC.">?</span></h2>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -42929,7 +42962,7 @@ a{color:#93c5fd;text-decoration:none}
               <div class="adv-body">
                 <label for="redeemWallet" style="margin-top:10px">Execution wallet</label>
                 <input id="redeemWallet" value="0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" />
-                <div class="subtle-tab-copy" style="margin-top:8px;display:none">Connected wallet is used by default. Change this only if you want a different execution wallet.</div>
+                <div class="subtle-tab-copy" style="margin-top:8px;display:none">Stored execution wallet is used by default. Change this only if you want a different execution wallet.</div>
               </div>
             </details>
             <div class="action-rail" style="margin-top:12px">
@@ -42937,7 +42970,7 @@ a{color:#93c5fd;text-decoration:none}
               <button class="btn" id="redeemMaxBtn" type="button" style="display:none">Use Max</button>
             </div>
             <div style="margin-top:12px">
-              <div class="hero-note" id="redeemSummary" style="display:none">Prepare WC here first, then trade it in the Trade tab. Connected wallet is used by default.</div>
+              <div class="hero-note" id="redeemSummary" style="display:none">Bridge WC here first, then trade it in the Trade tab. Stored execution wallet is used by default.</div>
                 <div class="hero-note" id="redeemFeeModeCard" style="margin-top:8px">Execution: Auto • Fees: Auto</div>
                 <div class="action-rail" style="margin-top:8px">
                   <button class="btn" id="redeemModeAutoBtn" type="button">Auto</button>
@@ -42985,7 +43018,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Connected Wallet<span class="help" tabindex="0" data-help="Shows the connected wallet and its onchain VOID balance. Connected wallet is the preferred beta participant identity, while manual identities remain available for dev/test.">?</span></h2>
+              <h2>Execution Wallet<span class="help" tabindex="0" data-help="Shows the stored native execution wallet and its on-chain balances. This wallet may be stored but locked after restart until you unlock it again.">?</span></h2>
             </div>
           </div>
           <div class="kpi" style="padding:0;border:none;box-shadow:none;background:none">
@@ -42994,7 +43027,7 @@ a{color:#93c5fd;text-decoration:none}
           </div>
           <div class="metric-strip" style="margin-top:14px">
             <div class="mini">
-              <div class="k">Wallet</div>
+              <div class="k">Execution Wallet</div>
               <div class="v" id="connectedWalletAddrMini">-</div>
               <div class="s">Wallet address</div>
             </div>
@@ -43004,9 +43037,9 @@ a{color:#93c5fd;text-decoration:none}
               <div class="s">Actual wallet balance</div>
             </div>
             <div class="mini">
-              <div class="k">Participant WC</div>
+              <div class="k">Spendable WC</div>
               <div class="v" id="helperRedeemableMini">-</div>
-              <div class="s">Local WC balance</div>
+              <div class="s">participant-side now</div>
           <div class="subtle-tab-copy" id="wcBetaAccountingNote" style="margin-top:8px">Beta note: this balance may include reconciled legacy WC credits.</div>
             </div>
           </div>
@@ -43015,7 +43048,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
-                <h2 style="margin-bottom:4px">Send VOID<span class="help" tabindex="0" data-help="Sends onchain VOID from the connected wallet to another wallet address.">?</span></h2>
+                <h2 style="margin-bottom:4px">Send VOID<span class="help" tabindex="0" data-help="Sends on-chain VOID from the stored execution wallet to another wallet address.">?</span></h2>
               </div>
             </div>
             <label for="voidSendTo">Recipient wallet</label>
@@ -43295,11 +43328,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   function getConnectedWallet(){
-    try {
-      return String(localStorage.getItem("void_wallet_session_v1") || "").trim();
-    } catch (_) {
-      return "";
-    }
+    return "";
   }
 
   function getRememberedParticipantAccount(){
@@ -43313,12 +43342,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   function resolveActiveParticipantAccount(){
     const manual = $("account") ? String($("account").value || "").trim() : "";
     if (manual) return manual;
-    const connected = getConnectedWallet();
-    if (connected) return connected;
+    try {
+      const qsAcct = String(window.__void_participant_account_qs || "").trim();
+      if (qsAcct) return qsAcct;
+    } catch (_) {}
     try {
       const remembered = String(localStorage.getItem("void_participant_account_v1") || "").trim();
       if (remembered) return remembered;
-    } catch {}
+    } catch (_) {}
     return "";
   }
 
@@ -43726,7 +43757,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       j("/__void/admin/datanet-summary.json?peer=" + encodeURIComponent("http://100.122.79.39:4100")).catch(() => ({ ok:false, unavailable:true })),
     ]);
 
-    const wcAddr = deriveParticipantWallet(account, redeemed, connectedWallet, manualWallet);
+    const nativeWalletStatus = await j("/__void/participant/wallet/status?account=" + encodeURIComponent(account)).catch(() => ({ ok:false }));
+    const nativeWalletAddr = (nativeWalletStatus && nativeWalletStatus.ok && nativeWalletStatus.has_wallet && /^0x[a-fA-F0-9]{40}$/.test(String(nativeWalletStatus.address || "").trim()))
+      ? String(nativeWalletStatus.address || "").trim()
+      : "";
+    const wcAddr = nativeWalletAddr || deriveParticipantWallet(account, redeemed, connectedWallet, manualWallet);
     if ($("redeemWallet") && wcAddr && $("redeemWallet").value !== wcAddr) $("redeemWallet").value = wcAddr;
 
     const wcDash = wcAddr
@@ -43784,10 +43819,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const redeemedState = redeemed && redeemed.ok ? redeemed : null;
     const redeemedTotal = redeemState && Number.isFinite(Number(redeemState.redeemed)) ? Number(redeemState.redeemed) : 0;
     const redeemableTotal = redeemState && Number.isFinite(Number(redeemState.redeemable)) ? Number(redeemState.redeemable) : 0;
+    try { globalThis.__void_last_redeem_state = redeemState || null; } catch (_) {}
     const executionWalletVoid = connectedVoidBal !== "-" && Number.isFinite(Number(connectedVoidBal))
       ? Number(connectedVoidBal)
       : null;
     const executionWalletVoidText = executionWalletVoid !== null ? String(executionWalletVoid) : "0";
+
+    const onchainTradeableWc = (wcBal && Number.isFinite(Number(wcBal.wc))) ? Number(wcBal.wc) : 0;
+    const hasOnchainWc = Number.isFinite(onchainTradeableWc) && onchainTradeableWc > 0;
+    const localTradeableWc = Number.isFinite(redeemableTotal) ? Number(redeemableTotal) : 0;
+    const hasLocalWc = localTradeableWc > 0;
+    const effectiveTradeableWc = hasLocalWc ? localTradeableWc : onchainTradeableWc;
+    const tradeWcSource = hasLocalWc ? "local" : (hasOnchainWc ? "onchain" : "none");
+    try { globalThis.__void_last_onchain_wc = onchainTradeableWc; } catch (_) {}
 
     const currentTradeDirection = (() => {
       try {
@@ -43933,20 +43977,34 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText("walletBackendTruthCard", "Backend truth unavailable.");
     }
 
-    setText("heroWalletShort", /^0x[0-9a-fA-F]{40}$/.test(connectedWallet) ? shortAddr(connectedWallet) : "Not connected");
-    setText("heroWalletMeta", wcAddr ? ("Execution wallet: " + shortAddr(wcAddr)) : "No execution wallet linked");
+    const executionWalletAddr = (
+      nativeWalletStatus && nativeWalletStatus.ok && nativeWalletStatus.has_wallet && isWalletAddr(nativeWalletStatus.address)
+    )
+      ? String(nativeWalletStatus.address)
+      : (isWalletAddr(wcAddr) ? String(wcAddr) : "");
 
-    setText("wcBalance", localEarned !== null ? localEarned : "-");
-    setText(
-      "wcMeta",
-      localEarned !== null
-        ? ("Lifetime earned WC: " + localEarned + " • Ledger events: " + (localCount ?? 0) + " • Account: " + account)
-        : "Lifetime earned WC is unavailable right now."
+    const executionWalletUnlocked = !!(
+      nativeWalletStatus &&
+      nativeWalletStatus.ok &&
+      nativeWalletStatus.has_wallet &&
+      nativeWalletStatus.unlocked &&
+      isWalletAddr(nativeWalletStatus.address) &&
+      isWalletAddr(nativeWalletStatus.unlocked_address) &&
+      String(nativeWalletStatus.address).toLowerCase() === String(nativeWalletStatus.unlocked_address).toLowerCase()
     );
 
-    const localWcTruth = redeemState && Number.isFinite(Number(redeemState.earned))
-      ? Number(redeemState.earned)
-      : (localEarned !== null ? Number(localEarned) : 0);
+    setText("heroWalletShort", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
+    setText("heroWalletMeta", executionWalletAddr ? ("Execution wallet: " + shortAddr(executionWalletAddr)) : "No execution wallet linked");
+
+    setText("wcBalance", onchainWcTruth);
+    setText(
+      "wcMeta",
+      "On-chain WC currently available in the stored execution wallet."
+    );
+
+    const localWcTruth = redeemState && Number.isFinite(Number(redeemState.redeemable))
+      ? Number(redeemState.redeemable)
+      : 0;
     const onchainWcTruth = wcBal && wcBal.wc != null && Number.isFinite(Number(wcBal.wc))
       ? Number(wcBal.wc)
       : 0;
@@ -43954,24 +44012,22 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("walletRedeemableBig", localWcTruth);
     setText(
       "walletMeta",
-      "Local participant-side WC on this node."
+      "Spendable participant-side WC on this node."
     );
-    setText("walletEarnedMini", localWcTruth);
+    setText("walletEarnedMini", localEarned !== null ? Number(localEarned) : 0);
     setText("walletDebitedMini", redeemState && Number.isFinite(Number(redeemState.debited)) ? Number(redeemState.debited) : 0);
     setText("walletRedeemedMini", onchainWcTruth);
     setText("walletRedeemableMini", executionWalletVoidText);
 
     setText("connectedWalletVoidBig", executionWalletVoidText);
     setText("connectedWalletVoidMini", executionWalletVoidText);
-    setText("connectedWalletAddrMini", shortAddr(wcAddr || connectedWallet));
-    setText("helperRedeemableMini", localWcTruth);
+    setText("connectedWalletAddrMini", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
+    setText("helperRedeemableMini", redeemState && Number.isFinite(Number(redeemState.redeemable)) ? Number(redeemState.redeemable) : 0);
     setText(
       "connectedWalletMeta",
-      isWalletAddr(connectedWallet)
-        ? ("Connected wallet: " + connectedWallet + " • Execution wallet: " + (wcAddr || connectedWallet) + " • Onchain VOID: " + executionWalletVoidText)
-        : (wcAddr
-            ? ("Execution wallet: " + wcAddr + " • No connected wallet detected yet.")
-            : "No connected wallet detected.")
+      executionWalletAddr
+        ? ("Execution wallet: " + executionWalletAddr + " • " + (executionWalletUnlocked ? "Unlocked" : "Stored but locked") + " • On-chain VOID: " + executionWalletVoidText)
+        : "No execution wallet detected."
     );
 
     const renderTradeDirectionUi = () => {
@@ -43986,8 +44042,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if (wcBtn) wcBtn.className = currentTradeDirection === "wc_to_void" ? "btn btn-primary" : "btn";
         if (voidBtn) voidBtn.className = currentTradeDirection === "void_to_wc" ? "btn btn-primary" : "btn";
         if (note) note.textContent = currentTradeDirection === "wc_to_void"
-          ? "WC → VOID is live now."
-          : "VOID → WC quote is live. Execution will stay disabled until the reverse relayer path is verified.";
+          ? "WC → VOID now uses signing from the unlocked participant wallet."
+          : "VOID → WC quote is live. Execution will stay disabled until the reverse wallet-signed path is wired.";
         if (inputLabel) inputLabel.textContent = currentTradeDirection === "wc_to_void" ? "WC to trade" : "VOID to trade";
         if (quoteLabel) quoteLabel.textContent = currentTradeDirection === "wc_to_void" ? "Quoted VOID" : "Quoted WC";
         if (quoteSubLabel) quoteSubLabel.textContent = "est. receive";
@@ -44167,14 +44223,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     };
 
     const walletReadyTop = !!wcAddr;
-    const localWcTop = redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0;
+    const localWcTop = redeemState && Number.isFinite(Number(redeemState.redeemable)) ? Number(redeemState.redeemable) : 0;
     const onchainWcTop = (wcBal && Number.isFinite(Number(wcBal.wc))) ? Number(wcBal.wc) : 0;
     const hasOnchainWcTop = onchainWcTop > 0;
     const voidTop = executionWalletVoid !== null && Number.isFinite(Number(executionWalletVoid)) ? Number(executionWalletVoid) : 0;
     const hasVoidTop = voidTop > 0;
 
-    topStripSet("topStripWallet", walletReadyTop ? "Wallet: Connected" : "Wallet: Not connected", walletReadyTop ? "good" : "warn");
-    topStripSet("topStripWc", "Local WC: " + String(localWcTop), localWcTop > 0 ? "good" : "neutral");
+    topStripSet(
+      "topStripWallet",
+      walletReadyTop
+        ? ((executionWalletUnlocked ? "Execution Wallet: Unlocked" : "Execution Wallet: Stored"))
+        : "Execution Wallet: Missing",
+      walletReadyTop ? (executionWalletUnlocked ? "good" : "warn") : "warn"
+    );
+    topStripSet("topStripWc", "Spendable WC: " + String(localWcTop), localWcTop > 0 ? "good" : "neutral");
     topStripSet("topStripTrade", hasOnchainWcTop ? ("On-chain WC: " + String(onchainWcTop)) : "On-chain WC: 0", hasOnchainWcTop ? "good" : "warn");
     topStripSet("topStripVoid", hasVoidTop ? ("VOID: " + String(voidTop)) : "VOID: 0", hasVoidTop ? "good" : "neutral");
     try {
@@ -44208,9 +44270,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     topStripSet("topStripRunner", runnerEnabled ? "Runner: ON" : "Runner: OFF", runnerEnabled ? "good" : "warn");
 
     {
-      const onchainTradeableWc = (wcBal && Number.isFinite(Number(wcBal.wc))) ? Number(wcBal.wc) : 0;
       const walletReady = !!wcAddr;
-      const hasOnchainWc = Number.isFinite(onchainTradeableWc) && onchainTradeableWc > 0;
 
       try {
         const setMiniLabel = (valueId, title, subtitle) => {
@@ -44223,19 +44283,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if (sub) sub.textContent = subtitle;
         };
 
-        setMiniLabel("walletEarnedMini", "Local WC", "participant-side");
+        setMiniLabel("walletEarnedMini", "Lifetime earned WC", "participant-side ledger");
         setMiniLabel("walletRedeemedMini", "On-chain WC", "execution wallet");
         setMiniLabel("walletRedeemableMini", "VOID", "execution wallet");
-        setMiniLabel("tradeRedeemableWc", "On-chain WC", "execution wallet");
+        setMiniLabel("tradeRedeemableWc", tradeWcSource === "local" ? "Spendable WC" : "On-chain WC", tradeWcSource === "local" ? "participant-side now" : "execution wallet");
         setMiniLabel("connectedWalletVoidMini", "VOID", "execution wallet");
-        setMiniLabel("helperRedeemableMini", "Local WC", "participant-side");
+        setMiniLabel("helperRedeemableMini", "Spendable WC", "participant-side now");
 
-        const localWcNow = redeemState && Number.isFinite(Number(redeemState.earned)) ? Number(redeemState.earned) : 0;
+        const localWcNow = redeemState && Number.isFinite(Number(redeemState.redeemable)) ? Number(redeemState.redeemable) : 0;
+        const lifetimeEarnedNow = localEarned !== null ? Number(localEarned) : 0;
         const onchainWcNow = wcBal && wcBal.wc != null ? Number(wcBal.wc) : 0;
         const voidNow = executionWalletVoid !== null ? String(executionWalletVoid) : "-";
 
         if ($("walletEarnedMini")) {
-          $("walletEarnedMini").textContent = String(localWcNow);
+          $("walletEarnedMini").textContent = String(lifetimeEarnedNow);
         }
         if ($("walletRedeemedMini")) {
           $("walletRedeemedMini").textContent = String(onchainWcNow);
@@ -44247,11 +44308,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           $("helperRedeemableMini").textContent = String(localWcNow);
         }
         if ($("tradeRedeemableWc")) {
-          $("tradeRedeemableWc").textContent = String(onchainTradeableWc);
+          $("tradeRedeemableWc").textContent = String(onchainWcNow);
+        }
+        if ($("redeemLocalAvailableTradeBox")) {
+          $("redeemLocalAvailableTradeBox").textContent = String(localWcNow);
+        }
+        if ($("redeemOnchainAvailableTradeBox")) {
+          $("redeemOnchainAvailableTradeBox").textContent = String(onchainWcNow);
+        }
+        if ($("redeemVoidAvailableTradeBox")) {
+          $("redeemVoidAvailableTradeBox").textContent = voidNow;
         }
 
         if ($("walletBalanceValue")) $("walletBalanceValue").textContent = String(localWcNow);
-        if ($("walletMeta")) $("walletMeta").textContent = "Local participant-side WC on this node.";
+        if ($("walletMeta")) $("walletMeta").textContent = "Spendable participant-side WC on this node.";
         if ($("walletRedeemedSummary")) $("walletRedeemedSummary").textContent = "On-chain WC: " + String(onchainWcNow);
       } catch (_) {}
 
@@ -44311,45 +44381,42 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       if ($("tradeExecuteBtn")) {
         const reverseMode = currentTradeDirection === "void_to_wc";
-        const hasVoidForReverse = executionWalletVoid !== null && Number.isFinite(Number(executionWalletVoid)) && Number(executionWalletVoid) > 0;
-        const localTradeableWc = Number.isFinite(redeemableTotal) ? Number(redeemableTotal) : 0;
-        const hasLocalWc = localTradeableWc > 0;
-        const tradeBlocked = reverseMode
-          ? (!relayerUp || !walletReady || !hasVoidForReverse)
-          : (!relayerUp || !walletReady || !hasLocalWc);
-        $("tradeExecuteBtn").disabled = tradeBlocked;
+        const walletReadyForInfo = !!wcAddr;
+        const hasVoidForInfo = executionWalletVoid !== null && Number.isFinite(Number(executionWalletVoid)) && Number(executionWalletVoid) > 0;
+        const hasOnchainWcForInfo = Number.isFinite(onchainTradeableWc) && onchainTradeableWc > 0;
+        const nativeUnlockedMatchesExecution = !!(nativeWalletStatus && nativeWalletStatus.ok && nativeWalletStatus.unlocked && isWalletAddr(nativeWalletStatus.address) && isWalletAddr(wcAddr) && String(nativeWalletStatus.address).toLowerCase() === String(wcAddr).toLowerCase());
+        const connectedMatchesExecution = nativeUnlockedMatchesExecution;
+        const canWalletSwap = !reverseMode && walletReadyForInfo && connectedMatchesExecution && hasOnchainWcForInfo;
+
+        $("tradeExecuteBtn").disabled = !canWalletSwap;
         $("tradeExecuteBtn").textContent = reverseMode
-          ? (!relayerUp
-              ? "Trading Unavailable"
-              : (!walletReady
+          ? "Wallet-Signed VOID→WC Coming Soon"
+          : (canWalletSwap
+              ? "Approve + Swap WC for VOID"
+              : (!walletReadyForInfo
                   ? "Connect Wallet First"
-                  : (!hasVoidForReverse
-                      ? "No VOID"
-                      : "Trade VOID for WC")))
-          : (!relayerUp
-              ? "Trading Unavailable"
-              : (!walletReady
-                  ? "Connect Wallet First"
-                  : (!hasLocalWc
-                      ? "No Local WC"
-                      : "Trade WC for VOID")));
+                  : (!connectedMatchesExecution
+                      ? "Unlock Native Wallet"
+                      : (!hasOnchainWcForInfo
+                          ? "No On-chain WC"
+                          : "Approve + Swap WC for VOID"))));
 
         if ($("tradeSummary")) {
-          $("tradeSummary").textContent = reverseMode
-            ? (!relayerUp
-                ? "Direct trading is unavailable right now because the relayer is offline."
-                : (!walletReady
-                    ? "Connect a wallet to trade VOID."
-                    : (!hasVoidForReverse
-                        ? "No VOID is available in the execution wallet yet."
-                        : "VOID is available, the relayer is up, and the reverse trade path is live.")))
-            : (!relayerUp
-                ? "Direct trading is unavailable right now because the relayer is offline."
-                : (!walletReady
-                    ? "Connect a wallet to receive VOID from traded WC."
-                    : (!hasLocalWc
-                        ? "No local WC is available to trade yet."
-                        : "Local WC is available, the relayer is up, and the trade path is live.")));
+          let summaryText = "";
+          if (!walletReadyForInfo) {
+            summaryText = "Connect a wallet first. On-chain WC trading must be signed by the wallet owner.";
+          } else if (reverseMode) {
+            summaryText = hasVoidForInfo
+              ? "VOID is present in the execution wallet, but VOID→WC trading is disabled until the reverse wallet-signed path is wired."
+              : "No VOID is available in the execution wallet yet. Reverse wallet-signed trading is not wired yet.";
+          } else if (!connectedMatchesExecution) {
+            summaryText = "Unlock the native participant wallet shown above to sign the on-chain WC→VOID swap.";
+          } else if (!hasOnchainWcForInfo) {
+            summaryText = "No on-chain WC is available to trade yet. Bridge local WC below first.";
+          } else {
+            summaryText = "On-chain WC is present and ready. This trade will ask your wallet to sign approve, then swap.";
+          }
+          $("tradeSummary").textContent = summaryText;
         }
       }
     }
@@ -44518,7 +44585,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       "topHealthMeta",
       /^0x[0-9a-fA-F]{40}$/.test(connectedWallet)
         ? "live onchain VOID balance"
-        : "No connected wallet"
+        : "No execution wallet"
     );
 
     const tradingWcHome = wcBal && wcBal.wc != null && Number.isFinite(Number(wcBal.wc)) ? Number(wcBal.wc) : 0;
@@ -44812,15 +44879,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       relayer_quote: relayerQuote,
       relayer_health: relayerHealth || null,
       pool_price: wcPool && wcPool.price ? wcPool.price : null,
-      trade_execute_enabled: !!(relayerUp && !!wcAddr && Number.isFinite(redeemableTotal) && redeemableTotal > 0),
+      trade_execute_enabled: !!(relayerUp && !!wcAddr && Number.isFinite(onchainTradeableWc) && onchainTradeableWc > 0),
       trade_block_reason: !relayerUp
         ? "relayer_offline"
-        : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0) ? "no_redeemable_wc" : null),
+        : (!(Number.isFinite(onchainTradeableWc) && onchainTradeableWc > 0) ? "no_onchain_wc" : null),
       note: !relayerUp
         ? "Relayer is offline."
-        : (!(Number.isFinite(redeemableTotal) && redeemableTotal > 0)
-            ? "No participant WC is available to trade yet. Participant WC on :4100 is the canonical source for trade eligibility."
-            : "Relayer is live for quote and execution. Participant WC on :4100 is the canonical source for trade eligibility.")
+        : (!(Number.isFinite(onchainTradeableWc) && onchainTradeableWc > 0)
+            ? "No on-chain WC is available to trade yet. Bridge local WC into the execution wallet first."
+            : "Relayer is live for quote and execution. On-chain WC in the execution wallet is available for trading.")
     });
     setPre("summaryOut", summaryWrapped);
 
@@ -45236,7 +45303,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     {
       const wcAddrShort = wcAddr ? (String(wcAddr).slice(0, 8) + "…" + String(wcAddr).slice(-6)) : "";
       const walletReady = !!wcAddr;
-      const hasRedeemable = Number.isFinite(redeemableTotal) && redeemableTotal > 0;
+      const hasRedeemable = Number.isFinite(onchainTradeableWc) && onchainTradeableWc > 0;
       const quoteText = quotedVoid !== null && Number.isFinite(quotedVoid) ? quotedVoid.toFixed(6) : "-";
 
       // __void_trade_overview_badge_v1
@@ -45249,7 +45316,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : !relayerUp
             ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(239,68,68,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fca5a5;background:rgba(239,68,68,.12)">Unavailable</span>'
             : !hasOnchainTradeAvailable
-              ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(245,158,11,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fcd34d;background:rgba(245,158,11,.12)">No Local WC</span>'
+              ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(245,158,11,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#fcd34d;background:rgba(245,158,11,.12)">No On-chain WC</span>'
               : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(34,197,94,.28);font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#86efac;background:rgba(34,197,94,.12)">Available</span>';
 
       const tradeOverviewText =
@@ -45258,10 +45325,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : !relayerUp
             ? "Local relayer offline • on-chain WC trade path unavailable right now."
             : !hasOnchainTradeAvailable
-              ? "No local WC is available to trade yet."
+              ? "No on-chain WC is available to trade yet. Redeem local WC below first."
               : ("Trade ready • " + onchainTradeAvailable + " on-chain WC can swap for about " + quoteText + " VOID" +
                  (wcAddrShort ? (" • Wallet " + wcAddrShort) : "") +
-                 "");
+                 " • Spendable local WC: " + localTradeAvailable);
 
       if ($("tradeOverviewCard")) {
         $("tradeOverviewCard").innerHTML =
@@ -45272,6 +45339,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         $("tradeOverviewCard").title =
           "Wallet ready: " + (walletReady ? "yes" : "no") +
           " • On-chain WC available: " + onchainTradeAvailable +
+          " • Spendable local WC: " + localTradeAvailable +
           " • Quoted Output: " + quoteText +
           " • Local helper/relayer trade: " + (relayerUp ? "Ready" : "Unavailable") +
           (wcAddr ? " • Execution wallet: " + wcAddr : "");
@@ -45613,6 +45681,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     return "0x" + selector + addr.padStart(64, "0") + amt.padStart(64, "0");
   }
 
+  function erc20ApproveData(spender, amountUnits){
+    const selector = "095ea7b3";
+    const addr = String(spender || "").replace(/^0x/, "").toLowerCase();
+    const amt = amountUnits.toString(16);
+    return "0x" + selector + addr.padStart(64, "0") + amt.padStart(64, "0");
+  }
+
   async function sendVoidNow(){
     const toInput = $("voidSendTo");
     const amountInput = $("voidSendAmount");
@@ -45622,14 +45697,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const prevText = btn ? btn.textContent : "Send VOID";
 
     try {
-      const from = (() => {
-        try { return String(localStorage.getItem("void_wallet_session_v1") || "").trim(); }
-        catch (_) { return ""; }
-      })();
+      const nativeSignerStatus = await j("/__void/participant/wallet/status?account=" + encodeURIComponent(resolveActiveParticipantAccount())).catch(() => ({ ok:false }));
+      const from = (nativeSignerStatus && nativeSignerStatus.ok && nativeSignerStatus.unlocked && /^0x[a-fA-F0-9]{40}$/.test(String(nativeSignerStatus.address || "").trim()))
+        ? String(nativeSignerStatus.address || "").trim()
+        : "";
 
       if (!from || !/^0x[a-fA-F0-9]{40}$/.test(from)) {
         setPre("voidSendOut", { ok:false, error:"wallet_not_connected" });
-        setLatestAction("VOID send unavailable. Connect a wallet first.");
+        setLatestAction("VOID send unavailable. Unlock the participant wallet first.");
         return;
       }
       if (!to || !/^0x[a-fA-F0-9]{40}$/.test(to)) {
@@ -45657,6 +45732,51 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (!/^0x[a-fA-F0-9]{40}$/.test(voidToken)) {
         setPre("voidSendOut", { ok:false, error:"void_token_unavailable", relayer_health: relayerHealth });
         setLatestAction("VOID send unavailable right now. Token metadata could not be loaded.");
+        return;
+      }
+
+      const nativeStatus = await j("/__void/participant/wallet/status?account=" + encodeURIComponent(resolveActiveParticipantAccount())).catch(() => ({ ok:false }));
+      if (nativeStatus && nativeStatus.ok && nativeStatus.unlocked && /^0x[a-fA-F0-9]{40}$/.test(String(nativeStatus.address || "")) && String(nativeStatus.address).toLowerCase() === String(from).toLowerCase()) {
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Sending...";
+        }
+
+        setLatestAction("Sending " + amountStr + " VOID to " + shortAddr(to) + " from participant wallet...");
+        setWalletActivity({ kind:"send_void", status:"submitting", amount:amountStr, unit:"VOID", target:shortAddr(to) });
+        setPre("voidSendOut", {
+          ok:true,
+          submitting:true,
+          from,
+          to,
+          void_token: voidToken,
+          amount: amountStr,
+          mode: "participant_wallet_native_send_void"
+        });
+
+        const nativeOut = await j("/__void/participant/wallet/send-void", {
+          method: "POST",
+          headers: { "content-type":"application/json" },
+          body: JSON.stringify({ account: resolveActiveParticipantAccount(), to, amount: amountStr })
+        });
+
+        if (!(nativeOut && nativeOut.ok)) {
+          setPre("voidSendOut", nativeOut || { ok:false, error:"native_send_void_failed" });
+          setLatestAction("VOID send failed • " + String((nativeOut && (nativeOut.error || nativeOut.reason || nativeOut.note)) || "participant wallet send failed"));
+          return;
+        }
+
+        const txHash = String(nativeOut.tx_hash || "");
+        const shortHash = /^0x[a-fA-F0-9]{64}$/.test(txHash) ? (txHash.slice(0, 10) + "…" + txHash.slice(-6)) : String(txHash || "-");
+
+        setPre("voidSendOut", nativeOut);
+        setLatestAction("VOID send submitted • " + amountStr + " VOID to " + shortAddr(to) + " • tx " + shortHash);
+        setWalletActivity({ kind:"send_void", status:"sent", amount:amountStr, unit:"VOID", target:shortAddr(to), tx_hash:txHash });
+
+        if (toInput) toInput.value = "";
+        if (amountInput) amountInput.value = "1";
+
+        await refresh();
         return;
       }
 
@@ -45704,7 +45824,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         void_token: voidToken,
         amount: amountStr,
         tx_hash: txHash,
-        note: "VOID transfer submitted from connected wallet."
+        note: "VOID transfer submitted from stored execution wallet."
       });
       setLatestAction("VOID send submitted • " + amountStr + " VOID to " + shortAddr(to) + " • tx " + shortHash);
       setWalletActivity({ kind:"send_void", status:"sent", amount:amountStr, unit:"VOID", target:shortAddr(to), tx_hash:txHash });
@@ -45813,6 +45933,77 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
   }
 
+  if ($("redeemTradeUseMaxBtn")) $("redeemTradeUseMaxBtn").addEventListener("click", (ev) => {
+    try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
+    try {
+      const account = resolveActiveParticipantAccount();
+      const redeemableNow = (globalThis.__void_last_redeem_state || null);
+      const spendable = redeemableNow && Number.isFinite(Number(redeemableNow.redeemable)) ? Number(redeemableNow.redeemable) : 0;
+      if ($("redeemTradeInputWc")) $("redeemTradeInputWc").value = String(spendable > 0 ? spendable : 0);
+    } catch (_) {}
+    return false;
+  });
+
+  if ($("redeemTradeExecuteBtn")) $("redeemTradeExecuteBtn").addEventListener("click", async () => {
+    const account = resolveActiveParticipantAccount();
+    const amount = $("redeemTradeInputWc") ? Number((($("redeemTradeInputWc").value || "").trim() || "0")) : 0;
+    const wallet = $("redeemWallet")
+      ? (($("redeemWallet").value || "").trim())
+      : (isWalletAddr(getConnectedWallet()) ? getConnectedWallet() : "");
+    const btn = $("redeemTradeExecuteBtn");
+    const prevText = btn ? btn.textContent : "Bridge WC On-Chain";
+
+    let redeemableNow = null;
+    try {
+      redeemableNow = await j("/wc/redeemable?account=" + encodeURIComponent(account));
+    } catch (_) {}
+
+    const spendable = redeemableNow && redeemableNow.ok ? Number(redeemableNow.redeemable || 0) : 0;
+
+    if (!(Number.isFinite(amount) && amount > 0)) {
+      setText("redeemTradeSummary", "Enter a WC amount greater than zero.");
+      return;
+    }
+    if (!(Number.isFinite(spendable) && spendable > 0)) {
+      setText("redeemTradeSummary", "No spendable WC is available to bridge right now.");
+      return;
+    }
+    if (amount > spendable) {
+      setText("redeemTradeSummary", "Requested WC is greater than your spendable local WC.");
+      return;
+    }
+
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Bridging WC...";
+      }
+      setText("redeemTradeSummary", "Bridging " + amount + " local WC into the execution wallet...");
+      const out = await j(LOCAL_RELAYER_BASE + "/redeem-bridge", {
+        method: "POST",
+        headers: { "content-type":"application/json" },
+        body: JSON.stringify({ account, amount, wallet })
+      });
+      if (out && out.ok) {
+        const bridged = out.bridged_wc != null ? String(out.bridged_wc) : String(amount);
+        const fee = out.fee_wc != null ? String(out.fee_wc) : "0";
+        setText("redeemTradeSummary", "Bridge complete. " + bridged + " WC moved on-chain into the execution wallet. Fee: " + fee + " WC.");
+        try {} catch (_) {}
+        try { switchTab("trading"); } catch (_) {}
+      } else {
+        setText("redeemTradeSummary", String((out && (out.note || out.error || out.reason)) || "Bridge failed."));
+      }
+      try { await refresh(); } catch (_) {}
+    } catch (e) {
+      setText("redeemTradeSummary", String((e && e.message) || e || "Redeem failed."));
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prevText || "Bridge WC On-Chain";
+      }
+    }
+  });
+
   if ($("tradeExecuteBtn")) $("tradeExecuteBtn").addEventListener("click", async () => {
     const currentTradeDirection = (() => {
       try {
@@ -45828,183 +46019,167 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       ? (($("redeemWallet").value || "").trim())
       : (isWalletAddr(getConnectedWallet()) ? getConnectedWallet() : "");
     const btn = $("tradeExecuteBtn");
-    const prevText = btn ? btn.textContent : "Execute Trade";
-
-    let redeemableNow = null;
-    let relayerHealthNow = null;
-    try {
-      redeemableNow = await j("/wc/redeemable?account=" + encodeURIComponent(account));
-    } catch {}
-    try {
-      relayerHealthNow = await j(LOCAL_RELAYER_BASE + "/health");
-    } catch {}
-
-    const redeemableAmt = redeemableNow && redeemableNow.ok ? Number(redeemableNow.redeemable || 0) : 0;
-    const relayerLive = !!(relayerHealthNow && relayerHealthNow.ok);
-
-    if (!relayerLive) {
-      setPre("tradeStateOut", {
-        ok:false,
-        execute:false,
-        blocked:true,
-        reason:"relayer_offline",
-        account,
-        amount,
-        wallet,
-        relayer_health: relayerHealthNow || null,
-        note:"Relayer is offline."
-      });
-      setText("tradeOut", "Trade unavailable: relayer is offline.");
-      setLatestAction("Trade unavailable right now. The relayer is offline.");
-      await refresh();
-      return;
-    }
-
-    if (!(Number.isFinite(redeemableAmt) && redeemableAmt > 0)) {
-      setPre("tradeStateOut", {
-        ok:false,
-        execute:false,
-        blocked:true,
-        reason:"no_redeemable_wc",
-        account,
-        amount,
-        wallet,
-        redeemable_state: redeemableNow || null,
-        note:"No local WC is available yet. Earn WC first, then trade it."
-      });
-      setText("tradeOut", "No local WC is available to trade yet. Earn WC first.");
-      setLatestAction("No local WC is available for trading yet.");
-      await refresh();
-      return;
-    }
-
-    if (!(Number.isFinite(amount) && amount > 0)) {
-      setPre("tradeStateOut", {
-        ok:false,
-        execute:false,
-        blocked:true,
-        reason:"invalid_amount",
-        account,
-        amount,
-        wallet,
-        note:"Enter a WC amount greater than zero."
-      });
-      setText("tradeOut", "Enter a WC amount greater than zero.");
-      setLatestAction("Enter a WC amount greater than zero before trading.");
-      return;
-    }
-
-    if (amount > redeemableAmt) {
-      setPre("tradeStateOut", {
-        ok:false,
-        execute:false,
-        blocked:true,
-        reason:"amount_exceeds_redeemable",
-        account,
-        amount,
-        wallet,
-        redeemable_wc: redeemableAmt,
-        note:"Requested WC is greater than your currently available WC for trading."
-      });
-      setText("tradeOut", "Requested WC is greater than your currently available WC for trading.");
-      setLatestAction("Requested WC is greater than the amount currently available for trading.");
-      await refresh();
-      return;
-    }
-
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = "Executing Trade...";
-    }
-
-    setPre("tradeStateOut", {
-      ok:true,
-      execute:true,
-      submitting:true,
-      side: currentTradeDirection,
-      account,
-      amount,
-      wallet,
-      redeemable_wc: redeemableAmt,
-      quote_endpoint: LOCAL_RELAYER_BASE + "/quote",
-      execute_endpoint: LOCAL_RELAYER_BASE + "/execute"
-    });
-    setText("tradeOut", "Executing trade for " + amount + " " + (currentTradeDirection === "void_to_wc" ? "VOID" : "WC") + (wallet ? (" using wallet " + wallet) : "") + "...");
-    setLatestAction("Executing trade for " + amount + " " + (currentTradeDirection === "void_to_wc" ? "VOID" : "WC") + (wallet ? (" using " + wallet) : "") + "...");
-    setWalletActivity({ kind: currentTradeDirection === "void_to_wc" ? "trade_void_wc" : "trade_wc_void", status:"submitting", amount, unit:(currentTradeDirection === "void_to_wc" ? "VOID" : "WC"), target:shortAddr(wallet) });
+    const prevText = btn ? btn.textContent : "Approve + Swap WC for VOID";
 
     try {
-      const out = await j(LOCAL_RELAYER_BASE + "/execute", {
-        method:"POST",
-        headers:{ "content-type":"application/json" },
+      const nativeSignerStatus = await j("/__void/participant/wallet/status?account=" + encodeURIComponent(resolveActiveParticipantAccount())).catch(() => ({ ok:false }));
+      const from = (nativeSignerStatus && nativeSignerStatus.ok && nativeSignerStatus.unlocked && /^0x[a-fA-F0-9]{40}$/.test(String(nativeSignerStatus.address || "").trim()))
+        ? String(nativeSignerStatus.address || "").trim()
+        : "";
+
+      if (currentTradeDirection !== "wc_to_void") {
+        setPre("tradeStateOut", { ok:false, error:"reverse_trade_not_wired" });
+        setText("tradeOut", "VOID→WC wallet-signed trading is not wired yet.");
+        setLatestAction("VOID→WC trading is not wired yet.");
+        return;
+      }
+      if (!(Number.isFinite(amount) && amount > 0)) {
+        setPre("tradeStateOut", { ok:false, error:"invalid_amount" });
+        setText("tradeOut", "Enter a WC amount greater than zero.");
+        setLatestAction("Enter a WC amount greater than zero before trading.");
+        return;
+      }
+      if (!isWalletAddr(from)) {
+        setPre("tradeStateOut", { ok:false, error:"wallet_not_connected" });
+        setText("tradeOut", "Connect the execution wallet before trading.");
+        setLatestAction("Connect the execution wallet before trading.");
+        return;
+      }
+      if (!isWalletAddr(wallet)) {
+        setPre("tradeStateOut", { ok:false, error:"invalid_execution_wallet", wallet });
+        setText("tradeOut", "Execution wallet is invalid.");
+        setLatestAction("Execution wallet is invalid.");
+        return;
+      }
+      if (String(from).toLowerCase() !== String(wallet).toLowerCase()) {
+        setPre("tradeStateOut", { ok:false, error:"connected_wallet_mismatch", connected_wallet: from, execution_wallet: wallet });
+        setText("tradeOut", "Connect the execution wallet shown on this page before trading.");
+        setLatestAction("Selected wallet does not match the stored execution wallet.");
+        return;
+      }
+      const nativeStatus = await j("/__void/participant/wallet/status?account=" + encodeURIComponent(account)).catch(() => ({ ok:false }));
+      if (nativeStatus && nativeStatus.ok && nativeStatus.unlocked && String(nativeStatus.address || "").toLowerCase() === String(wallet).toLowerCase()) {
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Signing in Participant Wallet...";
+        }
+        setText("tradeOut", "Sending WC→VOID trade from participant wallet...");
+        setLatestAction("Signing WC→VOID trade in participant wallet.");
+
+        const nativeOut = await j("/__void/participant/wallet/trade/wc-to-void", {
+          method: "POST",
+          headers: { "content-type":"application/json" },
+          body: JSON.stringify({ account, amount, wallet })
+        });
+
+        if (!(nativeOut && nativeOut.ok)) {
+          setPre("tradeStateOut", nativeOut || { ok:false, error:"native_trade_failed" });
+          setText("tradeOut", String((nativeOut && (nativeOut.error || nativeOut.reason || nativeOut.note)) || "Participant wallet trade failed."));
+          setLatestAction("Participant wallet WC→VOID trade failed.");
+          return;
+        }
+
+        const shortApprove = /^0x[a-fA-F0-9]{64}$/.test(String(nativeOut.approve_tx_hash || "")) ? (String(nativeOut.approve_tx_hash).slice(0, 10) + "…" + String(nativeOut.approve_tx_hash).slice(-6)) : String(nativeOut.approve_tx_hash || "-");
+        const shortSwap = /^0x[a-fA-F0-9]{64}$/.test(String(nativeOut.swap_tx_hash || "")) ? (String(nativeOut.swap_tx_hash).slice(0, 10) + "…" + String(nativeOut.swap_tx_hash).slice(-6)) : String(nativeOut.swap_tx_hash || "-");
+
+        setPre("tradeStateOut", nativeOut);
+        setText("tradeOut", "Participant wallet WC→VOID swap submitted.");
+        setLatestAction("Participant wallet WC→VOID swap submitted • approve " + shortApprove + " • swap " + shortSwap);
+        try { setWalletActivity({ kind:"trade_wc_void", status:"sent", amount, unit:"WC", target:shortAddr(wallet), tx_hash:String(nativeOut.swap_tx_hash || "") }); } catch (_) {}
+        try { await refresh(); } catch (_) {}
+        return;
+      }
+
+      if (!window.ethereum || !window.ethereum.request) {
+        setPre("tradeStateOut", { ok:false, error:"wallet_provider_missing" });
+        setText("tradeOut", "Wallet provider missing.");
+        setLatestAction("Wallet provider missing.");
+        return;
+      }
+
+      const plan = await j(LOCAL_RELAYER_BASE + "/build-wallet-trade", {
+        method: "POST",
+        headers: { "content-type":"application/json" },
         body: JSON.stringify({
-          side: currentTradeDirection,
+          side: "wc_to_void",
           amount,
-          account,
           wallet
         })
       });
 
-      const approveHash = out && out.approve_tx ? (out.approve_tx.tx_hash || null) : null;
-      const swapHash = out && out.swap_tx ? (out.swap_tx.tx_hash || null) : null;
-
-      setPre("tradeStateOut", {
-        ...out,
-        approve_tx_hash: approveHash,
-        swap_tx_hash: swapHash,
-        explorer_hint: {
-          network: "anvil/devnet",
-          txs: [approveHash, swapHash].filter(Boolean)
-        },
-        note: out && out.ok
-          ? "Trade executed successfully. Approve + swap tx hashes recorded below."
-          : ((out && out.note) || "Trade execution failed.")
-      });
-
-      if (out && out.ok) {
-        const amountOut = Number.isFinite(Number(out.amount_out))
-          ? Number(out.amount_out)
-          : (Number.isFinite(Number(out.quoted_wc)) ? Number(out.quoted_wc) : null);
-        const amountOutText = amountOut !== null ? String(amountOut) : "?";
-        const shortWallet = wallet ? (String(wallet).slice(0, 8) + "…" + String(wallet).slice(-6)) : "";
-        const txCount = [approveHash, swapHash].filter(Boolean).length;
-        const successText =
-          currentTradeDirection === "void_to_wc"
-            ? ("Trade complete • Spent " + amount + " VOID • Received about " + amountOutText + " WC" +
-               (shortWallet ? (" • Wallet " + shortWallet) : "") +
-               (txCount ? (" • " + txCount + " transaction" + (txCount === 1 ? "" : "s")) : ""))
-            : ("Trade complete • Spent " + amount + " WC • Received about " + amountOutText + " VOID" +
-               (shortWallet ? (" • Wallet " + shortWallet) : "") +
-               (txCount ? (" • " + txCount + " transaction" + (txCount === 1 ? "" : "s")) : ""));
-        setText("tradeOut", successText);
-        setLatestAction(successText);
-        setWalletActivity({ kind: currentTradeDirection === "void_to_wc" ? "trade_void_wc" : "trade_wc_void", status:"success", amount, unit:(currentTradeDirection === "void_to_wc" ? "VOID" : "WC"), target:shortAddr(wallet), tx_hash:swapHash || approveHash || "", note:successText });
-        try { await refresh(); } catch (_) {}
-        try {
-          const u = new URL(window.location.href);
-          u.searchParams.set("account", account);
-          setTimeout(() => { window.location.replace(u.toString()); }, 250);
-        } catch (_) {
-          try { setTimeout(() => window.location.reload(), 250); } catch (_) {}
-        }
-      } else {
-        const failText = (out && out.note) ? String(out.note) : "Trade execution failed.";
-        setText("tradeOut", failText);
-        setLatestAction(failText);
-        setWalletActivity({ kind: currentTradeDirection === "void_to_wc" ? "trade_void_wc" : "trade_wc_void", status:"failed", amount, unit:(currentTradeDirection === "void_to_wc" ? "VOID" : "WC"), target:shortAddr(wallet), note:failText });
+      if (!(plan && plan.ok && plan.approve_tx_request && plan.swap_tx_request)) {
+        setPre("tradeStateOut", plan || { ok:false, error:"wallet_trade_plan_failed" });
+        setText("tradeOut", String((plan && (plan.note || plan.error || plan.reason)) || "Could not prepare wallet trade."));
+        setLatestAction("Could not prepare wallet-signed WC→VOID trade.");
+        return;
       }
 
-      await refresh();
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Approve in Wallet...";
+      }
+
+      setPre("tradeStateOut", {
+        ok:true,
+        preparing:true,
+        mode:"wallet_signed_wc_to_void",
+        account,
+        wallet,
+        amount,
+        plan
+      });
+      setText("tradeOut", "Waiting for wallet approval transaction...");
+      setLatestAction("Approve WC spending in your wallet.");
+
+      const approveHash = await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [plan.approve_tx_request]
+      });
+
+      if (btn) btn.textContent = "Swap in Wallet...";
+      setText("tradeOut", "Approval submitted. Waiting for wallet swap transaction...");
+      setLatestAction("Approval sent. Confirm the swap in your wallet.");
+
+      const swapHash = await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [plan.swap_tx_request]
+      });
+
+      const shortApprove = /^0x[a-fA-F0-9]{64}$/.test(String(approveHash || "")) ? (String(approveHash).slice(0, 10) + "…" + String(approveHash).slice(-6)) : String(approveHash || "-");
+      const shortSwap = /^0x[a-fA-F0-9]{64}$/.test(String(swapHash || "")) ? (String(swapHash).slice(0, 10) + "…" + String(swapHash).slice(-6)) : String(swapHash || "-");
+
+      setPre("tradeStateOut", {
+        ok:true,
+        sent:true,
+        mode:"wallet_signed_wc_to_void",
+        account,
+        wallet,
+        amount,
+        quote: {
+          quoted_void: plan.quoted_void,
+          quoted_void_raw: plan.quoted_void_raw,
+          min_void_raw: plan.min_void_raw
+        },
+        approve_tx_hash: approveHash,
+        swap_tx_hash: swapHash,
+        approve_request: plan.approve_tx_request,
+        swap_request: plan.swap_tx_request
+      });
+      setText("tradeOut", "Wallet-signed WC→VOID swap submitted.");
+      setLatestAction("WC→VOID swap submitted • approve " + shortApprove + " • swap " + shortSwap);
+      try { setWalletActivity({ kind:"trade_wc_void", status:"sent", amount, unit:"WC", target:shortAddr(wallet), tx_hash:String(swapHash || "") }); } catch (_) {}
+
+      try { await refresh(); } catch (_) {}
     } catch (e) {
-      const errText = "Trade execution failed: " + String(e);
-      setPre("tradeStateOut", { ok:false, execute:false, error:String(e) });
-      setText("tradeOut", errText);
-      setLatestAction(errText);
-      setWalletActivity({ kind: currentTradeDirection === "void_to_wc" ? "trade_void_wc" : "trade_wc_void", status:"failed", amount, unit:(currentTradeDirection === "void_to_wc" ? "VOID" : "WC"), target:shortAddr(wallet), note:errText });
+      const err = String((e && e.message) || e || "Trade failed.");
+      setPre("tradeStateOut", { ok:false, error:err, mode:"wallet_signed_wc_to_void" });
+      setText("tradeOut", err);
+      setLatestAction("WC→VOID trade failed • " + err);
+      try { setWalletActivity({ kind:"trade_wc_void", status:"failed", amount, unit:"WC", target:shortAddr(wallet), note:err }); } catch (_) {}
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prevText || "Execute Trade";
+        btn.textContent = prevText || "Approve + Swap WC for VOID";
       }
     }
   });
@@ -46244,17 +46419,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const account = resolveActiveParticipantAccount();
       const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
       if (st && st.ok && $("redeemAmount")) $("redeemAmount").value = String(st.redeemable ?? 0);
-      if ($("tradeInputWc")) $("tradeInputWc").value = String(st && st.ok ? (st.redeemable ?? 0) : 0);
       await refresh();
     } catch {}
   });
-  if ($("tradeUseRedeemableBtn")) $("tradeUseRedeemableBtn").addEventListener("click", async () => {
+  if ($("tradeUseRedeemableBtn")) $("tradeUseRedeemableBtn").addEventListener("click", async (ev) => {
+    try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
     try {
-      const account = resolveActiveParticipantAccount();
-      const st = await j("/wc/redeemable?account=" + encodeURIComponent(account));
-      if (st && st.ok && $("tradeInputWc")) $("tradeInputWc").value = String(st.redeemable ?? 0);
+      const dash = await j(LOCAL_HELPER_BASE + "/dashboard/" + encodeURIComponent(resolveActiveParticipantAccount()) + ".json");
+      const onchain = (dash && dash.account && dash.account.balances && Number.isFinite(Number(dash.account.balances.wc)))
+        ? Number(dash.account.balances.wc)
+        : 0;
+      if ($("tradeInputWc")) $("tradeInputWc").value = String(onchain > 0 ? onchain : 0);
       await refresh();
-    } catch {}
+    } catch (_) {}
+    return false;
   });
   if ($("tradeDirWcToVoidBtn")) $("tradeDirWcToVoidBtn").addEventListener("click", async () => {
     try { window.__voidTradeDirection = "wc_to_void"; } catch (_) {}
@@ -46604,7 +46782,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   function shorten(v){
     v = String(v || "").trim();
-    return valid(v) ? ("Execution: " + v.slice(0, 6) + "…" + v.slice(-4)) : "No execution wallet connected";
+    return valid(v) ? ("External: " + v.slice(0, 6) + "…" + v.slice(-4)) : "No external wallet linked";
   }
 
   function qs(name){
@@ -46707,7 +46885,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   async function connectWallet(){
     if (!window.ethereum || !window.ethereum.request) {
-      alert("MetaMask or another injected wallet was not found in this browser.");
+      alert("No injected browser wallet was found. Participant flow does not require MetaMask.");
       return;
     }
     var accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -46726,29 +46904,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   async function refreshWalletSession(){
-    if (!window.ethereum || !window.ethereum.request) {
-      rerender();
-      return;
-    }
-
-    var accounts = [];
-    try {
-      accounts = await window.ethereum.request({ method: "eth_accounts" });
-    } catch (_) {
-      rerender();
-      return;
-    }
-
-    var addr = (Array.isArray(accounts) && accounts.length) ? String(accounts[0]) : "";
-    if (valid(addr)) setStored(addr);
-    else clearStored();
-
-    rerender();
+    return;
   }
 
 
   function mountBar(){
-    if (document.getElementById("voidWalletSessionBar")) return;
+    return;
 
     var onHelper = window.location.pathname === "/workcredits/devnet/ui";
     var from = qs("from") || (window.location.protocol + "//" + window.location.hostname + ":4100/participant#wallet");
@@ -46758,14 +46919,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     wrap.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0;border:0;background:transparent;box-shadow:none;color:#e5e7eb;font:12px/1.2 Inter,ui-sans-serif,system-ui,sans-serif;";
     wrap.innerHTML =
       '<div style="display:flex;flex-direction:column;gap:2px;min-width:180px">' +
-        '<div style="font-weight:800;letter-spacing:.04em;color:#f8fafc">Execution Wallet</div>' +
-        '<div id="voidWalletSessionBadge" style="color:#93c5fd;font-weight:700">No execution wallet connected</div>' +
-        '<div id="voidWalletSessionFull" style="color:#94a3b8;font-size:11px;max-width:260px;overflow-wrap:anywhere">Connect a wallet to view onchain VOID and use it.</div>' +
+        '<div style="font-weight:800;letter-spacing:.04em;color:#f8fafc">External Wallet</div>' +
+        '<div id="voidWalletSessionBadge" style="color:#93c5fd;font-weight:700">No external wallet linked</div>' +
+        '<div id="voidWalletSessionFull" style="color:#94a3b8;font-size:11px;max-width:260px;overflow-wrap:anywhere">External browser wallets are optional legacy paths. Participant flow uses the stored native wallet.</div>' +
       '</div>' +
       (onHelper ? ('<a id="voidWalletBackLink" href="' + from + '" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;text-decoration:none;font-weight:700">Back</a>') : '') +
-      '<button id="voidWalletConnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Connect Wallet</button>' +
+      '<button id="voidWalletConnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Connect External Wallet</button>' +
       '<button id="voidWalletRefreshBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Refresh Connection</button>' +
-      '<button id="voidWalletDisconnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Disconnect Wallet</button>';
+      '<button id="voidWalletDisconnectBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;display:none">Disconnect External Wallet</button>';
 
     var navHost =
       document.querySelector("body > div[style*='justify-content:space-between'] > div:last-child") ||
@@ -46794,11 +46955,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   if (window.ethereum && window.ethereum.on) {
     try {
-      window.ethereum.on("accountsChanged", function(accounts){
-        var addr = (Array.isArray(accounts) && accounts.length) ? String(accounts[0]) : "";
-        if (valid(addr)) setStored(addr); else clearStored();
-        rerender();
-      });
+      window.ethereum.on("accountsChanged", function(){ rerender(); });
       window.ethereum.on("chainChanged", function(){ rerender(); });
     } catch (_) {}
   }
@@ -46809,6 +46966,173 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     mountBar();
     refreshWalletSession().catch(function(){ rerender(); });
   }
+})();
+</script>
+
+<script>
+(function(){
+  if (window.__void_participant_wallet_native_ui_v1) return;
+  window.__void_participant_wallet_native_ui_v1 = true;
+
+  function q(sel){ return document.querySelector(sel); }
+  function accountNow(){
+    try {
+      var el = document.getElementById("account");
+      var v = el ? String(el.value || "").trim() : "";
+      if (v) return v;
+
+      try {
+        var qsAcct = String((window.__void_participant_account_qs || "")).trim();
+        if (qsAcct) return qsAcct;
+      } catch (_) {}
+
+      try {
+        var remembered = String(localStorage.getItem("void_participant_account_v1") || "").trim();
+        if (remembered) return remembered;
+      } catch (_) {}
+
+      return "";
+    } catch (_) { return ""; }
+  }
+  function note(msg){
+    try {
+      var el = document.getElementById("voidParticipantWalletNativeState");
+      if (el) el.textContent = String(msg || "");
+    } catch (_) {}
+  }
+  async function j(url, opts){
+    var res = await fetch(url, Object.assign({ headers:{ "content-type":"application/json" } }, opts || {}));
+    var txt = await res.text();
+    try { return JSON.parse(txt || "{}"); } catch (_) { return { ok:false, error:txt || ("http_" + res.status) }; }
+  }
+  async function refreshNativeWalletState(){
+    try {
+      var account = accountNow();
+      if (!account) return note("No participant account selected.");
+      var st = await j("/__void/participant/wallet/status?account=" + encodeURIComponent(account));
+      if (!st || !st.ok || !st.has_wallet) {
+        note("No participant wallet stored for this participant account.");
+        return;
+      }
+      var parts = [];
+      parts.push("Address: " + String(st.address || ""));
+      parts.push(st.unlocked ? "Unlocked" : "Locked");
+      if (st.address && document.getElementById("redeemWallet")) {
+        document.getElementById("redeemWallet").value = String(st.address);
+      }
+      note(parts.join(" • "));
+    } catch (e) {
+      note(String((e && e.message) || e || "native wallet status failed"));
+    }
+  }
+  async function createWallet(){
+    var account = accountNow();
+    if (!account) return alert("Select or enter a participant account first.");
+    var passphrase = prompt("Set a participant wallet passphrase (min 8 chars):", "");
+    if (!passphrase) return;
+    var out = await j("/__void/participant/wallet/create", {
+      method: "POST",
+      body: JSON.stringify({ account: account, passphrase: passphrase })
+    });
+    if (!out || !out.ok) return alert(String((out && out.error) || "wallet create failed"));
+    if (document.getElementById("redeemWallet")) document.getElementById("redeemWallet").value = String(out.address || "");
+    await refreshNativeWalletState();
+    alert("Participant wallet created. Address: " + String(out.address || ""));
+  }
+  async function importWallet(){
+    var account = accountNow();
+    if (!account) return alert("Select or enter a participant account first.");
+    var privateKey = prompt("Paste 0x private key to import:", "");
+    if (!privateKey) return;
+    var passphrase = prompt("Set a participant wallet passphrase (min 8 chars):", "");
+    if (!passphrase) return;
+    var out = await j("/__void/participant/wallet/import", {
+      method: "POST",
+      body: JSON.stringify({ account: account, passphrase: passphrase, private_key: privateKey })
+    });
+    if (!out || !out.ok) return alert(String((out && out.error) || "wallet import failed"));
+    if (document.getElementById("redeemWallet")) document.getElementById("redeemWallet").value = String(out.address || "");
+    await refreshNativeWalletState();
+    alert("Participant wallet imported. Address: " + String(out.address || ""));
+  }
+  async function unlockWallet(){
+    var account = accountNow();
+    if (!account) return alert("Select or enter a participant account first.");
+    var passphrase = prompt("Enter participant wallet passphrase:", "");
+    if (!passphrase) return;
+    var out = await j("/__void/participant/wallet/unlock", {
+      method: "POST",
+      body: JSON.stringify({ account: account, passphrase: passphrase })
+    });
+    if (!out || !out.ok) return alert(String((out && out.error) || "wallet unlock failed"));
+    if (document.getElementById("redeemWallet")) document.getElementById("redeemWallet").value = String(out.address || "");
+    await refreshNativeWalletState();
+    alert("Participant wallet unlocked.");
+  }
+  async function lockWallet(){
+    var account = accountNow();
+    if (!account) return alert("Select or enter a participant account first.");
+    var out = await j("/__void/participant/wallet/lock", {
+      method: "POST",
+      body: JSON.stringify({ account: account })
+    });
+    if (!out || !out.ok) return alert(String((out && out.error) || "wallet lock failed"));
+    await refreshNativeWalletState();
+  }
+  async function exportWallet(){
+    var account = accountNow();
+    if (!account) return alert("Select or enter a participant account first.");
+    var out = await j("/__void/participant/wallet/export?account=" + encodeURIComponent(account));
+    if (!out || !out.ok) return alert(String((out && out.error) || "wallet export failed"));
+    var blob = new Blob([JSON.stringify(out.keystore, null, 2)], { type:"application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = account + ".participant-wallet.keystore.json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ try { URL.revokeObjectURL(a.href); } catch(_){} try { a.remove(); } catch(_){} }, 500);
+  }
+  function mount(){
+    if (document.getElementById("voidParticipantWalletNativeBar")) return;
+
+    var topHome = document.querySelector('a[href="#home"], a[href="/participant#home"], a[href="/participant"]');
+    var pageRoot = document.querySelector("main") || document.querySelector(".content") || document.body;
+
+    var host = document.getElementById("voidParticipantWalletNativeHost");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "voidParticipantWalletNativeHost";
+      host.style.cssText = "margin:10px 0 14px 0;";
+      if (topHome && topHome.parentNode) {
+        try { topHome.parentNode.insertBefore(host, topHome.nextSibling); }
+        catch (_) { pageRoot.insertBefore(host, pageRoot.firstChild); }
+      } else {
+        pageRoot.insertBefore(host, pageRoot.firstChild);
+      }
+    }
+
+    var wrap = document.createElement("div");
+    wrap.id = "voidParticipantWalletNativeBar";
+    wrap.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%;padding:10px 12px;border:1px solid #334155;border-radius:12px;background:#0b1220;color:#e5e7eb;box-sizing:border-box;";
+    wrap.innerHTML =
+      '<div style="font-weight:800;color:#f8fafc;margin-right:8px">Participant Wallet (Native)</div>' +
+      '<button id="voidParticipantWalletCreateBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Create Wallet</button>' +
+      '<button id="voidParticipantWalletImportBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Import Wallet</button>' +
+      '<button id="voidParticipantWalletUnlockBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Unlock</button>' +
+      '<button id="voidParticipantWalletLockBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Lock</button>' +
+      '<button id="voidParticipantWalletExportBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Export Keystore</button>' +
+      '<div id="voidParticipantWalletNativeState" style="min-width:260px;color:#93c5fd;overflow-wrap:anywhere">Checking native participant wallet…</div>';
+    host.appendChild(wrap);
+    document.getElementById("voidParticipantWalletCreateBtn").addEventListener("click", function(){ createWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
+    document.getElementById("voidParticipantWalletImportBtn").addEventListener("click", function(){ importWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
+    document.getElementById("voidParticipantWalletUnlockBtn").addEventListener("click", function(){ unlockWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
+    document.getElementById("voidParticipantWalletLockBtn").addEventListener("click", function(){ lockWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
+    document.getElementById("voidParticipantWalletExportBtn").addEventListener("click", function(){ exportWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
+    refreshNativeWalletState().catch(function(){});
+  }
+  window.addEventListener("focus", function(){ refreshNativeWalletState().catch(function(){}); });
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) refreshNativeWalletState().catch(function(){}); });
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount, { once:true }); else mount();
 })();
 </script>
 
