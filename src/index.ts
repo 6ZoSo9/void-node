@@ -42331,6 +42331,10 @@ a{color:#93c5fd;text-decoration:none}
       <div class="side-label">Current account</div>
       <div class="account-big" id="heroAccount">zoso</div>
       <div class="account-meta" id="heroAccountMeta">Current participant account being viewed on this node.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button type="button" id="participantSwitchAccountBtn" class="btn" style="padding:8px 10px">Switch</button>
+        <button type="button" id="participantCreateAccountBtn" class="btn btn-primary" style="padding:8px 10px">Create New</button>
+      </div>
     </div>
 <div class="side-section">
       <div class="side-label">Sections</div>
@@ -42563,7 +42567,7 @@ a{color:#93c5fd;text-decoration:none}
             <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#94a3b8; cursor:pointer; font-weight:700; font-size:12px; display:none;">Use Connected Wallet</button>
           </div>
 
-          <div class="panel" style="margin-top:12px;padding:12px 14px">
+          <div class="panel" id="participantAccountsPanel" style="margin-top:12px;padding:12px 14px">
             <div class="section-head">
               <div>
                 <h2 style="margin-bottom:4px">Participant Accounts<span class="help" tabindex="0" data-help="Create, save, and switch local participant accounts. These are app identities, not execution wallets.">?</span></h2>
@@ -43415,6 +43419,34 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     rememberParticipantAccount(s);
   }
 
+  function deleteParticipantAccount(v){
+    try {
+      const s = String(v || "").trim();
+      if (!s) return false;
+      const msg =
+        "Delete participant account '" + s + "' from this node?\n\n" +
+        "Warning: deleting this account may also remove its stored participant wallet and password-protected wallet state on this machine. " +
+        "This does not delete on-chain funds, but it can remove local access state for this account.";
+      if (!confirm(msg)) return false;
+
+      const next = getSavedParticipantAccounts().filter((x) => x !== s);
+      setSavedParticipantAccounts(next);
+
+      const current = String(resolveActiveParticipantAccount() || "").trim();
+      if (current === s) {
+        const fallback = next[0] || "zoso";
+        try { localStorage.setItem("void_participant_account_v1", fallback); } catch (_) {}
+        const accountEl = $("account");
+        if (accountEl) accountEl.value = fallback;
+        const mgrEl = $("participantAccountManagerInput");
+        if (mgrEl) mgrEl.value = fallback;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function renderParticipantAccountsManager(current){
     try {
       const now = String(current || "").trim();
@@ -43432,11 +43464,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       if (meta) {
         meta.textContent = saved.length
-          ? ("Saved accounts: " + saved.length + " • Current: " + (now || "-"))
+          ? ("Saved accounts: " + saved.length + " • Current: " + (now || "-") + " • Deleting an account may also remove its stored wallet/password state on this node.")
           : "No saved participant accounts yet.";
       }
 
       saved.forEach((acct) => {
+        const row = document.createElement("div");
+        row.style.display = "inline-flex";
+        row.style.alignItems = "center";
+        row.style.gap = "6px";
+
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = acct === now ? "btn btn-primary" : "btn";
@@ -43446,7 +43483,25 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           applyParticipantAccount(acct);
           try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
         });
-        list.appendChild(btn);
+
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "btn";
+        del.title = "Delete account";
+        del.setAttribute("aria-label", "Delete account " + acct);
+        del.style.padding = "8px 10px";
+        del.style.color = "#fca5a5";
+        del.textContent = "🗑";
+        del.addEventListener("click", async (ev) => {
+          try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
+          const ok = deleteParticipantAccount(acct);
+          if (!ok) return;
+          try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+        });
+
+        row.appendChild(btn);
+        row.appendChild(del);
+        list.appendChild(row);
       });
     } catch (_) {}
   }
@@ -46511,6 +46566,39 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   } catch (_) {}
 
 
+
+  if ($("participantSwitchAccountBtn")) $("participantSwitchAccountBtn").addEventListener("click", () => {
+    try { switchTab("work"); } catch (_) {}
+    try {
+      const panel = $("participantAccountsPanel");
+      if (panel && typeof panel.scrollIntoView === "function") {
+        panel.scrollIntoView({ behavior:"smooth", block:"start" });
+      }
+    } catch (_) {}
+    try {
+      const input = $("participantAccountManagerInput");
+      if (input && typeof input.focus === "function") input.focus();
+    } catch (_) {}
+  });
+
+  if ($("participantCreateAccountBtn")) $("participantCreateAccountBtn").addEventListener("click", async () => {
+    const raw = prompt("Create new participant account name:", "zoso-2");
+    const v = String(raw || "").trim();
+    if (!v) return;
+    if (!/^[A-Za-z0-9._-]{2,64}$/.test(v)) {
+      alert("Use 2-64 characters: letters, numbers, dot, underscore, or dash.");
+      return;
+    }
+    applyParticipantAccount(v);
+    try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+    try { switchTab("work"); } catch (_) {}
+    try {
+      const panel = $("participantAccountsPanel");
+      if (panel && typeof panel.scrollIntoView === "function") {
+        panel.scrollIntoView({ behavior:"smooth", block:"start" });
+      }
+    } catch (_) {}
+  });
 
   if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
   if ($("refreshBtn")) $("refreshBtn").addEventListener("click", refresh);
