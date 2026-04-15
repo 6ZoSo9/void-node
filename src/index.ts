@@ -42776,7 +42776,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel" style="margin-top:12px;padding:12px 14px">
           <div class="section-head">
             <div>
-              <h2 style="margin-bottom:4px">Price Chart<span class="help" tabindex="0" data-help="Pool price over time from live snapshots.">?</span></h2>
+              <h2 style="margin-bottom:4px">Market<span class="help" tabindex="0" data-help="Compact pool-price view from helper snapshots. This is a lightweight market mini-chart, not a full exchange terminal.">?</span></h2>
             </div>
           </div>
           <div class="action-rail" id="tradeChartRanges" style="margin:6px 0 10px 0">
@@ -42789,8 +42789,8 @@ a{color:#93c5fd;text-decoration:none}
             <button class="btn" id="tradeRange1wBtn" type="button">1w</button>
             <button class="btn" id="tradeRange1moBtn" type="button">1mth</button>
           </div>
-          <div id="tradeChartCard" class="hero-note" style="margin-top:4px">Chart loading…</div>
-          <div class="subtle-tab-copy" id="tradeChartMeta" style="margin-top:8px">Using current pool price and quote snapshot.</div>
+          <div id="tradeChartCard" class="hero-note" style="margin-top:4px">Market loading…</div>
+          <div class="subtle-tab-copy" id="tradeChartMeta" style="margin-top:8px">Compact market view from helper pool snapshots.</div>
         </div>
 
         <div class="metric-strip top-kpis" style="margin-top:12px">
@@ -44340,11 +44340,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const maxX = points[points.length - 1].ts;
 
         const W = 860;
-        const H = 240;
-        const padL = 56;
-        const padR = 18;
-        const padT = 18;
-        const padB = 34;
+        const H = 170;
+        const padL = 44;
+        const padR = 12;
+        const padT = 14;
+        const padB = 24;
         const innerW = W - padL - padR;
         const innerH = H - padT - padB;
 
@@ -44388,7 +44388,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         card.innerHTML =
           '<div style="display:grid;gap:10px">' +
-            '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="240" role="img" aria-label="Pool price chart">' +
+            '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="170" role="img" aria-label="Market mini chart">' +
               '<defs>' +
                 '<linearGradient id="tradeTsFill" x1="0" x2="0" y1="0" y2="1">' +
                   '<stop offset="0%" stop-color="rgba(96,165,250,0.28)"></stop>' +
@@ -44400,22 +44400,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
               '<path d="' + areaPath + '" fill="url(#tradeTsFill)" stroke="none"/>' +
               '<path d="' + linePath + '" fill="none" stroke="rgba(96,165,250,0.95)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
               '<circle cx="' + currentX.toFixed(2) + '" cy="' + currentY.toFixed(2) + '" r="4.5" fill="rgba(250,204,21,0.95)" stroke="rgba(15,23,42,0.9)" stroke-width="2"/>' +
-              yTicks.map((v) => '<text x="' + (padL - 8) + '" y="' + (sy(v) + 4).toFixed(2) + '" text-anchor="end" fill="rgba(203,213,225,0.88)" font-size="11">' + Number(v).toFixed(6) + '</text>').join('') +
-              xTicks.map((v) => '<text x="' + sx(v).toFixed(2) + '" y="' + (H - 10) + '" text-anchor="middle" fill="rgba(203,213,225,0.88)" font-size="11">' + fmtTime(v) + '</text>').join('') +
-              '<text x="' + (padL + 4) + '" y="14" fill="rgba(203,213,225,0.92)" font-size="12" font-weight="700">' + directionLabel + ' • pool price over time • ' + tradeChartRangeMs.key + '</text>' +
+              yTicks.map((v, i) => i === 0 || i === yTicks.length - 1 ? '<text x="' + (padL - 6) + '" y="' + (sy(v) + 4).toFixed(2) + '" text-anchor="end" fill="rgba(203,213,225,0.82)" font-size="10">' + Number(v).toFixed(4) + '</text>' : '').join('') +
+              xTicks.map((v, i) => i === 0 || i === xTicks.length - 1 ? '<text x="' + sx(v).toFixed(2) + '" y="' + (H - 8) + '" text-anchor="middle" fill="rgba(203,213,225,0.82)" font-size="10">' + fmtTime(v) + '</text>' : '').join('') +
+              '<text x="' + (padL + 4) + '" y="13" fill="rgba(203,213,225,0.92)" font-size="11" font-weight="700">' + directionLabel + ' • ' + tradeChartRangeMs.key + '</text>' +
             '</svg>' +
-            '<div style="display:flex;flex-wrap:wrap;gap:8px;color:#cbd5e1;font-size:12px">' +
-              '<span>Last: ' + Number(points[points.length - 1].price).toFixed(6) + '</span>' +
-              '<span>Low: ' + Number(rangeLow).toFixed(6) + '</span>' +
-              '<span>High: ' + Number(rangeHigh).toFixed(6) + '</span>' +
-              '<span>Change: ' + (changePct >= 0 ? '+' : '') + changePct.toFixed(4) + '%</span>' +
-              '<span>Samples: ' + String(points.length) + '</span>' +
-              '<span>Quote: ' + (quoted !== null ? Number(quoted).toFixed(6) : '-') + ' ' + outputUnit + '</span>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:10px;color:#cbd5e1;font-size:11px;line-height:1.35">' +
+              '<span>Last ' + Number(points[points.length - 1].price).toFixed(6) + '</span>' +
+              '<span>' + (changePct >= 0 ? '+' : '') + changePct.toFixed(4) + '%</span>' +
+              '<span>Range ' + Number(rangeLow).toFixed(6) + ' – ' + Number(rangeHigh).toFixed(6) + '</span>' +
+              '<span>Quote ' + (quoted !== null ? Number(quoted).toFixed(6) : '-') + ' ' + outputUnit + '</span>' +
             '</div>' +
           '</div>';
 
         if (meta) meta.textContent =
-          'Time-series pool chart from helper pool-history snapshots. Range: ' + tradeChartRangeMs.key + '. Retention: 35d. Tight autoscale is applied to the visible window.';
+          'Compact market view from helper pool-history snapshots • Range ' + tradeChartRangeMs.key + ' • Retention 35d';
       } catch (_) {}
     };
 
