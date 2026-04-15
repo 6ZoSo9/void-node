@@ -43996,18 +43996,18 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("heroWalletShort", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("heroWalletMeta", executionWalletAddr ? ("Execution wallet: " + shortAddr(executionWalletAddr)) : "No execution wallet linked");
 
-    setText("wcBalance", onchainWcTruth);
-    setText(
-      "wcMeta",
-      "On-chain WC currently available in the stored execution wallet."
-    );
-
     const localWcTruth = redeemState && Number.isFinite(Number(redeemState.redeemable))
       ? Number(redeemState.redeemable)
       : 0;
     const onchainWcTruth = wcBal && wcBal.wc != null && Number.isFinite(Number(wcBal.wc))
       ? Number(wcBal.wc)
       : 0;
+
+    setText("wcBalance", onchainWcTruth);
+    setText(
+      "wcMeta",
+      "On-chain WC currently available in the stored execution wallet."
+    );
 
     setText("walletRedeemableBig", localWcTruth);
     setText(
