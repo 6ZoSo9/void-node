@@ -46779,6 +46779,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           : "Earn Work Credits is OFF for this account. Turn it on before running approved useful work."
       );
 
+      if (Date.now() > __voidRunnerTogglePendingUntil) {
+        if ($("wcRunnerToggleInput")) {
+          $("wcRunnerToggleInput").checked = !!runnerEnabled;
+        }
+        if ($("wcRunnerToggleLabel")) {
+          $("wcRunnerToggleLabel").textContent = runnerEnabled ? "Earning Work Credits" : "Earn Work Credits";
+        }
+      }
+
+      try {
+        topStripSet("topStripRunner", runnerEnabled ? "Runner: ON" : "Runner: OFF", runnerEnabled ? "good" : "warn");
+      } catch (_) {}
+
       if ($("wcRunnerTickBtn")) {
         $("wcRunnerTickBtn").disabled = !runnerEnabled;
       }
