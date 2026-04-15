@@ -43532,14 +43532,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           btn.textContent = acct === now ? (acct + " ✓") : acct;
           btn.style.padding = "8px 10px";
           btn.addEventListener("click", () => {
-            applyParticipantAccount(acct);
             try {
               const u = new URL(window.location.href);
               u.searchParams.set("account", acct);
               u.hash = "#work";
-              window.location.href = u.toString();
+              window.location.assign(u.toString());
             } catch (_) {
-              try { window.location.href = "/participant?account=" + encodeURIComponent(acct) + "#work"; } catch (_) {}
+              try { window.location.assign("/participant?account=" + encodeURIComponent(acct) + "#work"); } catch (_) {}
             }
           });
 
@@ -43943,7 +43942,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   async function refresh(){
     const accountInput = $("account");
     const connectedWallet = getConnectedWallet();
-    const account = accountInput ? ((String(accountInput.value || "").trim()) || pickInitialParticipantAccount()) : pickInitialParticipantAccount();
+    const account = resolveActiveParticipantAccount() || pickInitialParticipantAccount();
+    if (accountInput && String(accountInput.value || "").trim() !== account) {
+      accountInput.value = account;
+    }
     rememberParticipantAccount(account);
     renderParticipantAccountsManager(account);
 
