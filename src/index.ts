@@ -43938,8 +43938,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const nativeWalletAddr = (nativeWalletStatus && nativeWalletStatus.ok && nativeWalletStatus.has_wallet && /^0x[a-fA-F0-9]{40}$/.test(String(nativeWalletStatus.address || "").trim()))
       ? String(nativeWalletStatus.address || "").trim()
       : "";
-    const wcAddr = nativeWalletAddr || deriveParticipantWallet(account, redeemed, connectedWallet, manualWallet);
-    if ($("redeemWallet") && wcAddr && $("redeemWallet").value !== wcAddr) $("redeemWallet").value = wcAddr;
+    const wcAddr = nativeWalletAddr;
+    if ($("redeemWallet")) $("redeemWallet").value = wcAddr || "";
 
     const wcDash = wcAddr
       ? await j(wcBase + "/dashboard/" + encodeURIComponent(wcAddr) + ".json")
@@ -44158,7 +44158,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       nativeWalletStatus && nativeWalletStatus.ok && nativeWalletStatus.has_wallet && isWalletAddr(nativeWalletStatus.address)
     )
       ? String(nativeWalletStatus.address)
-      : (isWalletAddr(wcAddr) ? String(wcAddr) : "");
+      : "";
 
     const executionWalletUnlocked = !!(
       nativeWalletStatus &&
@@ -44760,7 +44760,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("topHealth", voidBalHome);
     setText(
       "topHealthMeta",
-      /^0x[0-9a-fA-F]{40}$/.test(connectedWallet)
+      executionWalletAddr
         ? "live onchain VOID balance"
         : "No execution wallet"
     );
@@ -47293,7 +47293,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       method: "POST",
       body: JSON.stringify({ account: account, passphrase: passphrase })
     });
-    if (!out || !out.ok) return alert(String((out && out.error) || "wallet unlock failed"));
+    if (!out || !out.ok) {
+      var msg = String((out && out.error) || "wallet unlock failed");
+      if (msg === "wallet_not_found") {
+        return alert("No participant wallet exists for '" + account + "' yet. Create or import a wallet for this participant account first.");
+      }
+      return alert(msg);
+    }
     if (document.getElementById("redeemWallet")) document.getElementById("redeemWallet").value = String(out.address || "");
     await refreshNativeWalletState();
     alert("Participant wallet unlocked.");
