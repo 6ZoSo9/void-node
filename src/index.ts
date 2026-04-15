@@ -42339,9 +42339,10 @@ a{color:#93c5fd;text-decoration:none}
       <div id="participantAccountsDrawer" style="display:none;margin-top:12px;padding:12px;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)">
         <div style="font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Participant Accounts</div>
         <div style="font-size:13px;line-height:1.45;color:#94a3b8;margin-bottom:10px">Switch accounts here. Deleting an account may also remove its stored wallet/password state on this node.</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input id="participantAccountManagerInputTop" value="" placeholder="zoso" style="min-width:160px;flex:1" />
-          <button class="btn btn-primary" id="participantAccountManagerSaveBtnTop" type="button">Use</button>
+        <div id="participantAccountCreateRowTop" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <input id="participantAccountManagerInputTop" value="" placeholder="new-account" style="min-width:160px;flex:1" />
+          <button class="btn btn-primary" id="participantAccountManagerSaveBtnTop" type="button">Create</button>
+          <button class="btn" id="participantAccountManagerCancelBtnTop" type="button">Cancel</button>
         </div>
         <div id="participantAccountManagerMetaTop" style="margin-top:8px;font-size:12px;color:#94a3b8">No saved participant accounts yet.</div>
         <div id="participantAccountManagerListTop" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
@@ -43479,7 +43480,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         {
           meta: $("participantAccountManagerMetaTop"),
           list: $("participantAccountManagerListTop"),
-          input: $("participantAccountManagerInputTop"),
+          input: null,
         }
       ];
 
@@ -46639,26 +46640,31 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const open = drawer.style.display !== "none";
         drawer.style.display = open ? "none" : "";
       }
-    } catch (_) {}
-    try {
-      const input = $("participantAccountManagerInputTop");
-      if (input && typeof input.focus === "function") input.focus();
+      const createRow = $("participantAccountCreateRowTop");
+      if (createRow) createRow.style.display = "none";
     } catch (_) {}
   });
 
-  if ($("participantCreateAccountBtn")) $("participantCreateAccountBtn").addEventListener("click", async () => {
-    const raw = prompt("Create new participant account name:", "zoso-2");
-    const v = String(raw || "").trim();
-    if (!v) return;
-    if (!/^[A-Za-z0-9._-]{2,64}$/.test(v)) {
-      alert("Use 2-64 characters: letters, numbers, dot, underscore, or dash.");
-      return;
-    }
-    applyParticipantAccount(v);
-    try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+  if ($("participantCreateAccountBtn")) $("participantCreateAccountBtn").addEventListener("click", () => {
     try {
       const drawer = $("participantAccountsDrawer");
       if (drawer) drawer.style.display = "";
+      const createRow = $("participantAccountCreateRowTop");
+      if (createRow) createRow.style.display = "flex";
+      const input = $("participantAccountManagerInputTop");
+      if (input) {
+        input.value = "";
+        if (typeof input.focus === "function") input.focus();
+      }
+    } catch (_) {}
+  });
+
+  if ($("participantAccountManagerCancelBtnTop")) $("participantAccountManagerCancelBtnTop").addEventListener("click", () => {
+    try {
+      const createRow = $("participantAccountCreateRowTop");
+      if (createRow) createRow.style.display = "none";
+      const input = $("participantAccountManagerInputTop");
+      if (input) input.value = "";
     } catch (_) {}
   });
 
@@ -46666,11 +46672,20 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const input = $("participantAccountManagerInputTop");
     const v = input ? String(input.value || "").trim() : "";
     if (!v) {
-      alert("Enter a participant account first.");
+      alert("Enter a new participant account name first.");
+      return;
+    }
+    if (!/^[A-Za-z0-9._-]{2,64}$/.test(v)) {
+      alert("Use 2-64 characters: letters, numbers, dot, underscore, or dash.");
       return;
     }
     applyParticipantAccount(v);
     try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+    try {
+      const createRow = $("participantAccountCreateRowTop");
+      if (createRow) createRow.style.display = "none";
+      if (input) input.value = "";
+    } catch (_) {}
   });
 
   if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
