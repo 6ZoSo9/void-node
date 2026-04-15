@@ -39497,7 +39497,12 @@ a{color:#93c5fd;text-decoration:none}
   const G:any = globalThis as any;
   const MARK = "__void_wc_auto_credit_from_receipts_v1";
   if (G[MARK]) return;
-  G[MARK] = { installed:false, ts:Date.now(), last_scan_ms:0, last_credited:0 };
+  G[MARK] = { installed:false, disabled:true, ts:Date.now(), last_scan_ms:0, last_credited:0 };
+
+  // Disabled: canonical WC crediting now happens through explicit acceptance-gated
+  // DataNet receipt bridging in src/http/datanet_routes.ts. Leaving this legacy
+  // auto-credit loop active causes duplicate/implicit credits.
+  return;
 
   function getApp(){ return G.__void_http_app || G.app || null; }
   function dataDir(){ return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"); }

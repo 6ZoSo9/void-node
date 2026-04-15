@@ -440,19 +440,30 @@ const router = express.Router();
       const bytes = bytes_actual;
       const ok = (b.ok === false) ? 0 : 1;
 
+      // Explicit WC eligibility gate:
+      // - receipts may still be recorded for diagnostic/non-award flows
+      // - WC only bridges when caller explicitly marks acceptance
+      const wc_eligible = (
+        b?.ok === true ||
+        b?.accepted === true ||
+        b?.verified === true
+      ) ? 1 : 0;
+
       // WC award policy (v1): if caller didn't provide wc_award, award 1 WC per 4KiB (cap).
       const wcIn0 = Number(b.wc_award || 0);
       let wc_award = (Number.isFinite(wcIn0) && wcIn0 >= 0 && wcIn0 <= 1_000_000) ? Math.floor(wcIn0) : 0;
       if (!wc_award) {
         const base = Math.floor((bytes_actual || 0) / 4096);
         wc_award = Math.min(1_000_000, Math.max(0, base));
-        if (ok === 1 && (bytes_actual || 0) > 0 && wc_award < 1) wc_award = 1;
+        if (wc_eligible === 1 && (bytes_actual || 0) > 0 && wc_award < 1) wc_award = 1;
       }
+      if (wc_eligible !== 1) wc_award = 0;
 
       const now = Date.now();
       const rec = {
         ts_ms: now,
         ok,
+        wc_eligible,
         id: id.toLowerCase(),
         root: rootIn,
         leaf: leafIn,
@@ -471,7 +482,7 @@ const router = express.Router();
 
       // Bridge DataNet receipt WC into the canonical wc_v1 ledger consumed by /wc/*
       try {
-        if (ok === 1 && Number.isFinite(wc_award) && wc_award > 0 && account) {
+        if (wc_eligible === 1 && Number.isFinite(wc_award) && wc_award > 0 && account) {
           const wcDir2 = path.join(baseDir, "wc_v1");
           const ledgerFile2 = path.join(wcDir2, "ledger.jsonl");
           fs.mkdirSync(wcDir2, { recursive: true });
