@@ -42344,7 +42344,7 @@ a{color:#93c5fd;text-decoration:none}
           <button class="btn btn-primary" id="participantAccountManagerSaveBtnTop" type="button">Create</button>
           <button class="btn" id="participantAccountManagerCancelBtnTop" type="button">Cancel</button>
         </div>
-        <div id="participantAccountManagerMetaTop" style="margin-top:8px;font-size:12px;color:#94a3b8">No saved participant accounts yet.</div>
+        <div id="participantAccountManagerMetaTop" style="display:none;margin-top:8px;font-size:12px;color:#94a3b8"></div>
         <div id="participantAccountManagerListTop" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
       </div>
     </div>
@@ -43510,9 +43510,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         list.innerHTML = "";
 
         if (meta) {
-          meta.textContent = saved.length
-            ? ("Saved accounts: " + saved.length + " • Current: " + (now || "-") + " • Deleting an account may also remove its stored wallet/password state on this node.")
-            : "No saved participant accounts yet.";
+          meta.textContent = "";
         }
 
         saved.forEach((acct) => {
@@ -43533,9 +43531,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           btn.className = acct === now ? "btn btn-primary" : "btn";
           btn.textContent = acct === now ? (acct + " ✓") : acct;
           btn.style.padding = "8px 10px";
-          btn.addEventListener("click", async () => {
+          btn.addEventListener("click", () => {
             applyParticipantAccount(acct);
-            try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+            try {
+              const u = new URL(window.location.href);
+              u.searchParams.set("account", acct);
+              u.hash = "#work";
+              window.location.href = u.toString();
+            } catch (_) {
+              try { window.location.href = "/participant?account=" + encodeURIComponent(acct) + "#work"; } catch (_) {}
+            }
           });
 
           const metaLine = document.createElement("div");
