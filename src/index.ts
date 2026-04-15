@@ -43424,7 +43424,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const s = String(v || "").trim();
       if (!s) return false;
       const msg =
-        "Delete participant account '" + s + "' from this node?\n\n" +
+        "Delete participant account '" + s + "' from this node?\\n\\n" +
         "Warning: deleting this account may also remove its stored participant wallet and password-protected wallet state on this machine. " +
         "This does not delete on-chain funds, but it can remove local access state for this account.";
       if (!confirm(msg)) return false;
