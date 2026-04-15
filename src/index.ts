@@ -43728,6 +43728,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const connectedWallet = getConnectedWallet();
     const account = accountInput ? ((String(accountInput.value || "").trim()) || pickInitialParticipantAccount()) : pickInitialParticipantAccount();
     rememberParticipantAccount(account);
+    renderParticipantAccountsManager(account);
 
     loadRememberedWalletActivity();
 
@@ -46002,6 +46003,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         btn.textContent = prevText || "Bridge WC On-Chain";
       }
     }
+  });
+
+  if ($("participantAccountManagerSaveBtn")) $("participantAccountManagerSaveBtn").addEventListener("click", async () => {
+    const input = $("participantAccountManagerInput");
+    const v = input ? String(input.value || "").trim() : "";
+    if (!v) {
+      alert("Enter a participant account first.");
+      return;
+    }
+    applyParticipantAccount(v);
+    try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
   });
 
   if ($("tradeExecuteBtn")) $("tradeExecuteBtn").addEventListener("click", async () => {
