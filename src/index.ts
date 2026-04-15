@@ -42335,6 +42335,17 @@ a{color:#93c5fd;text-decoration:none}
         <button type="button" id="participantSwitchAccountBtn" class="btn" style="padding:8px 10px">Switch</button>
         <button type="button" id="participantCreateAccountBtn" class="btn btn-primary" style="padding:8px 10px">Create New</button>
       </div>
+
+      <div id="participantAccountsDrawer" style="display:none;margin-top:12px;padding:12px;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)">
+        <div style="font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Participant Accounts</div>
+        <div style="font-size:13px;line-height:1.45;color:#94a3b8;margin-bottom:10px">Switch accounts here. Deleting an account may also remove its stored wallet/password state on this node.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input id="participantAccountManagerInputTop" value="" placeholder="zoso" style="min-width:160px;flex:1" />
+          <button class="btn btn-primary" id="participantAccountManagerSaveBtnTop" type="button">Use</button>
+        </div>
+        <div id="participantAccountManagerMetaTop" style="margin-top:8px;font-size:12px;color:#94a3b8">No saved participant accounts yet.</div>
+        <div id="participantAccountManagerListTop" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+      </div>
     </div>
 <div class="side-section">
       <div class="side-label">Sections</div>
@@ -42567,7 +42578,7 @@ a{color:#93c5fd;text-decoration:none}
             <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#94a3b8; cursor:pointer; font-weight:700; font-size:12px; display:none;">Use Connected Wallet</button>
           </div>
 
-          <div class="panel" id="participantAccountsPanel" style="margin-top:12px;padding:12px 14px">
+          <div class="panel" id="participantAccountsPanel" style="display:none;margin-top:12px;padding:12px 14px">
             <div class="section-head">
               <div>
                 <h2 style="margin-bottom:4px">Participant Accounts<span class="help" tabindex="0" data-help="Create, save, and switch local participant accounts. These are app identities, not execution wallets.">?</span></h2>
@@ -43452,56 +43463,68 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const now = String(current || "").trim();
       if (now) rememberParticipantAccount(now);
 
-      const meta = $("participantAccountManagerMeta");
-      const list = $("participantAccountManagerList");
-      const input = $("participantAccountManagerInput");
+      const pairs = [
+        {
+          meta: $("participantAccountManagerMeta"),
+          list: $("participantAccountManagerList"),
+          input: $("participantAccountManagerInput"),
+        },
+        {
+          meta: $("participantAccountManagerMetaTop"),
+          list: $("participantAccountManagerListTop"),
+          input: $("participantAccountManagerInputTop"),
+        }
+      ];
 
-      if (input && now && String(input.value || "").trim() !== now) input.value = now;
-      if (!list) return;
-
-      list.innerHTML = "";
       const saved = getSavedParticipantAccounts();
 
-      if (meta) {
-        meta.textContent = saved.length
-          ? ("Saved accounts: " + saved.length + " • Current: " + (now || "-") + " • Deleting an account may also remove its stored wallet/password state on this node.")
-          : "No saved participant accounts yet.";
-      }
+      pairs.forEach(({ meta, list, input }) => {
+        if (input && now && String(input.value || "").trim() !== now) input.value = now;
+        if (!list) return;
 
-      saved.forEach((acct) => {
-        const row = document.createElement("div");
-        row.style.display = "inline-flex";
-        row.style.alignItems = "center";
-        row.style.gap = "6px";
+        list.innerHTML = "";
 
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = acct === now ? "btn btn-primary" : "btn";
-        btn.textContent = acct === now ? (acct + " ✓") : acct;
-        btn.style.padding = "8px 10px";
-        btn.addEventListener("click", async () => {
-          applyParticipantAccount(acct);
-          try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+        if (meta) {
+          meta.textContent = saved.length
+            ? ("Saved accounts: " + saved.length + " • Current: " + (now || "-") + " • Deleting an account may also remove its stored wallet/password state on this node.")
+            : "No saved participant accounts yet.";
+        }
+
+        saved.forEach((acct) => {
+          const row = document.createElement("div");
+          row.style.display = "inline-flex";
+          row.style.alignItems = "center";
+          row.style.gap = "6px";
+
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = acct === now ? "btn btn-primary" : "btn";
+          btn.textContent = acct === now ? (acct + " ✓") : acct;
+          btn.style.padding = "8px 10px";
+          btn.addEventListener("click", async () => {
+            applyParticipantAccount(acct);
+            try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+          });
+
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "btn";
+          del.title = "Delete account";
+          del.setAttribute("aria-label", "Delete account " + acct);
+          del.style.padding = "8px 10px";
+          del.style.color = "#fca5a5";
+          del.textContent = "🗑";
+          del.addEventListener("click", async (ev) => {
+            try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
+            const ok = deleteParticipantAccount(acct);
+            if (!ok) return;
+            try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+          });
+
+          row.appendChild(btn);
+          row.appendChild(del);
+          list.appendChild(row);
         });
-
-        const del = document.createElement("button");
-        del.type = "button";
-        del.className = "btn";
-        del.title = "Delete account";
-        del.setAttribute("aria-label", "Delete account " + acct);
-        del.style.padding = "8px 10px";
-        del.style.color = "#fca5a5";
-        del.textContent = "🗑";
-        del.addEventListener("click", async (ev) => {
-          try { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); } catch (_) {}
-          const ok = deleteParticipantAccount(acct);
-          if (!ok) return;
-          try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
-        });
-
-        row.appendChild(btn);
-        row.appendChild(del);
-        list.appendChild(row);
       });
     } catch (_) {}
   }
@@ -46568,15 +46591,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
 
   if ($("participantSwitchAccountBtn")) $("participantSwitchAccountBtn").addEventListener("click", () => {
-    try { switchTab("work"); } catch (_) {}
     try {
-      const panel = $("participantAccountsPanel");
-      if (panel && typeof panel.scrollIntoView === "function") {
-        panel.scrollIntoView({ behavior:"smooth", block:"start" });
+      const drawer = $("participantAccountsDrawer");
+      if (drawer) {
+        const open = drawer.style.display !== "none";
+        drawer.style.display = open ? "none" : "";
       }
     } catch (_) {}
     try {
-      const input = $("participantAccountManagerInput");
+      const input = $("participantAccountManagerInputTop");
       if (input && typeof input.focus === "function") input.focus();
     } catch (_) {}
   });
@@ -46591,13 +46614,21 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
     applyParticipantAccount(v);
     try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
-    try { switchTab("work"); } catch (_) {}
     try {
-      const panel = $("participantAccountsPanel");
-      if (panel && typeof panel.scrollIntoView === "function") {
-        panel.scrollIntoView({ behavior:"smooth", block:"start" });
-      }
+      const drawer = $("participantAccountsDrawer");
+      if (drawer) drawer.style.display = "";
     } catch (_) {}
+  });
+
+  if ($("participantAccountManagerSaveBtnTop")) $("participantAccountManagerSaveBtnTop").addEventListener("click", async () => {
+    const input = $("participantAccountManagerInputTop");
+    const v = input ? String(input.value || "").trim() : "";
+    if (!v) {
+      alert("Enter a participant account first.");
+      return;
+    }
+    applyParticipantAccount(v);
+    try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
   });
 
   if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
