@@ -44290,7 +44290,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       } catch (_) {
         return { key: "1h", ms: 60 * 60 * 1000 };
       }
-    })();    const renderTradeChart = () => {
+    })();
+
+    const renderTradeChart = () => {
       try {
         const card = $("tradeChartCard");
         const meta = $("tradeChartMeta");
@@ -44321,7 +44323,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         let points = pointsRaw.filter((x) => x.ts >= (now - tradeChartRangeMs.ms));
         if (points.length < 2) {
-          points = pointsRaw.slice(-Math.max(2, Math.min(240, pointsRaw.length)));
+          points = pointsRaw.slice(-Math.max(2, Math.min(120, pointsRaw.length)));
         }
         if (points.length < 2) {
           points = [
@@ -44330,55 +44332,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           ];
         }
 
-        const bucketMs = (() => {
-          if (tradeChartRangeMs.key === "1m") return 5 * 1000;
-          if (tradeChartRangeMs.key === "5m") return 15 * 1000;
-          if (tradeChartRangeMs.key === "10m") return 30 * 1000;
-          if (tradeChartRangeMs.key === "1h") return 5 * 60 * 1000;
-          if (tradeChartRangeMs.key === "12h") return 30 * 60 * 1000;
-          if (tradeChartRangeMs.key === "1d") return 60 * 60 * 1000;
-          if (tradeChartRangeMs.key === "1w") return 6 * 60 * 60 * 1000;
-          return 24 * 60 * 60 * 1000;
-        })();
-
-        const buckets = new Map();
-        for (const pt of points) {
-          const bucketStart = Math.floor(pt.ts / bucketMs) * bucketMs;
-          const ex = buckets.get(bucketStart);
-          if (!ex) {
-            buckets.set(bucketStart, {
-              ts: bucketStart,
-              open: pt.price,
-              high: pt.price,
-              low: pt.price,
-              close: pt.price
-            });
-          } else {
-            ex.high = Math.max(ex.high, pt.price);
-            ex.low = Math.min(ex.low, pt.price);
-            ex.close = pt.price;
-          }
-        }
-
-        let candles = Array.from(buckets.values()).sort((a, b) => a.ts - b.ts);
-        if (candles.length < 2) {
-          candles = [
-            { ts: now - bucketMs, open: points[0].price, high: points[0].price, low: points[0].price, close: points[0].price },
-            { ts: now, open: points[points.length - 1].price, high: points[points.length - 1].price, low: points[points.length - 1].price, close: points[points.length - 1].price }
-          ];
-        }
-
-        const lows = candles.map((c) => c.low);
-        const highs = candles.map((c) => c.high);
-        const minY = Math.min.apply(null, lows);
-        const maxY = Math.max.apply(null, highs);
-        const ySpanRaw = maxY - minY;
-        const yPad = Math.max(ySpanRaw * 0.16, Math.max(Math.abs(maxY || 0), Math.abs(minY || 0)) * 0.0008, 0.000001);
-        const minX = candles[0].ts;
-        const maxX = candles[candles.length - 1].ts + bucketMs;
+        const minY = Math.min.apply(null, points.map((p) => p.price));
+        const maxY = Math.max.apply(null, points.map((p) => p.price));
+        const ySpanRaw = Math.maxY !== undefined ? (maxY - minY) : 0;
+        const yPad = Math.max(ySpanRaw * 0.18, Math.max(Math.abs(maxY || 0), Math.abs(minY || 0)) * 0.0008, 0.000001);
+        const minX = points[0].ts;
+        const maxX = points[points.length - 1].ts;
 
         const W = 860;
-        const H = 260;
+        const H = 240;
         const padL = 56;
         const padR = 18;
         const padT = 18;
@@ -44397,77 +44359,64 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           return padT + innerH - ((y - lo) / (hi - lo)) * innerH;
         };
 
-        const gridY = [0, 0.25, 0.5, 0.75, 1].map((f) => padT + innerH * f);
-        const gridX = [0, 0.25, 0.5, 0.75, 1].map((f) => padL + innerW * f);
-        const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => (maxY + yPad) - ((maxY - minY) + (2 * yPad)) * f);
-        const xTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => minX + (maxX - minX) * f);
+        const linePath = points.map((p, i) => (i ? 'L' : 'M') + sx(p.ts).toFixed(2) + ' ' + sy(p.price).toFixed(2)).join(' ');
+        const areaPath = linePath + ' L ' + sx(points[points.length - 1].ts).toFixed(2) + ' ' + (padT + innerH) + ' L ' + sx(points[0].ts).toFixed(2) + ' ' + (padT + innerH) + ' Z';
+
+        const currentX = sx(points[points.length - 1].ts);
+        const currentY = sy(points[points.length - 1].price);
+        const prevPrice = points.length > 1 ? points[0].price : points[points.length - 1].price;
+        const changePct = prevPrice > 0 ? (((points[points.length - 1].price / prevPrice) - 1) * 100) : 0;
+        const rangeLow = minY;
+        const rangeHigh = maxY;
+
+        const gridY = [0, 0.25, 0.5, 0.75, 1].map((r) => padT + innerH * r);
+        const gridX = [0, 0.25, 0.5, 0.75, 1].map((r) => padL + innerW * r);
+        const yTicks = [minY, (minY + maxY) / 2, maxY];
 
         const fmtTime = (ts) => {
           try {
-            if (tradeChartRangeMs.ms >= 24 * 60 * 60 * 1000) {
-              return new Date(ts).toLocaleDateString([], { month:"short", day:"numeric" });
-            }
-            return new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+            const d = new Date(ts);
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            return hh + ':' + mm;
           } catch (_) {
-            return "-";
+            return '-';
           }
         };
 
-        const candleGap = Math.max(2, Math.min(10, innerW / Math.max(1, candles.length) * 0.2));
-        const candleBodyW = Math.max(4, Math.min(22, (innerW / Math.max(1, candles.length)) - candleGap));
-
-        const candleSvg = candles.map((c) => {
-          const cx = sx(c.ts + (bucketMs / 2));
-          const yOpen = sy(c.open);
-          const yClose = sy(c.close);
-          const yHigh = sy(c.high);
-          const yLow = sy(c.low);
-          const top = Math.min(yOpen, yClose);
-          const bottom = Math.max(yOpen, yClose);
-          const isUp = c.close >= c.open;
-          const wickColor = isUp ? 'rgba(74,222,128,0.95)' : 'rgba(248,113,113,0.95)';
-          const bodyFill = isUp ? 'rgba(34,197,94,0.75)' : 'rgba(239,68,68,0.75)';
-          const bodyStroke = isUp ? 'rgba(134,239,172,0.95)' : 'rgba(252,165,165,0.95)';
-          const wick = '<line x1="' + cx.toFixed(2) + '" y1="' + yHigh.toFixed(2) + '" x2="' + cx.toFixed(2) + '" y2="' + yLow.toFixed(2) + '" stroke="' + wickColor + '" stroke-width="2"/>';
-          const bodyH = Math.max(2, bottom - top);
-          const body = '<rect x="' + (cx - candleBodyW / 2).toFixed(2) + '" y="' + top.toFixed(2) + '" width="' + candleBodyW.toFixed(2) + '" height="' + bodyH.toFixed(2) + '" rx="1.5" fill="' + bodyFill + '" stroke="' + bodyStroke + '" stroke-width="1"/>';
-          return wick + body;
-        }).join('');
-
-        const rangeLow = Math.min.apply(null, lows);
-        const rangeHigh = Math.max.apply(null, highs);
-        const firstOpen = Number(candles[0].open);
-        const lastClose = Number(candles[candles.length - 1].close);
-        const changePct = firstOpen > 0 ? ((lastClose - firstOpen) / firstOpen) * 100 : 0;
-        const last = candles[candles.length - 1];
+        const xTicks = [minX, minX + ((maxX - minX) / 2), maxX];
 
         card.innerHTML =
-          '<div style="display:flex;flex-direction:column;gap:8px">' +
-            '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="260" role="img" aria-label="Pool candlestick chart">' +
+          '<div style="display:grid;gap:10px">' +
+            '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="240" role="img" aria-label="Pool price chart">' +
+              '<defs>' +
+                '<linearGradient id="tradeTsFill" x1="0" x2="0" y1="0" y2="1">' +
+                  '<stop offset="0%" stop-color="rgba(96,165,250,0.28)"></stop>' +
+                  '<stop offset="100%" stop-color="rgba(37,99,235,0.04)"></stop>' +
+                '</linearGradient>' +
+              '</defs>' +
               gridY.map((y) => '<line x1="' + padL + '" y1="' + y.toFixed(2) + '" x2="' + (padL + innerW) + '" y2="' + y.toFixed(2) + '" stroke="rgba(148,163,184,0.12)" stroke-width="1"/>').join('') +
               gridX.map((x) => '<line x1="' + x.toFixed(2) + '" y1="' + padT + '" x2="' + x.toFixed(2) + '" y2="' + (padT + innerH) + '" stroke="rgba(148,163,184,0.08)" stroke-width="1"/>').join('') +
-              candleSvg +
+              '<path d="' + areaPath + '" fill="url(#tradeTsFill)" stroke="none"/>' +
+              '<path d="' + linePath + '" fill="none" stroke="rgba(96,165,250,0.95)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
+              '<circle cx="' + currentX.toFixed(2) + '" cy="' + currentY.toFixed(2) + '" r="4.5" fill="rgba(250,204,21,0.95)" stroke="rgba(15,23,42,0.9)" stroke-width="2"/>' +
               yTicks.map((v) => '<text x="' + (padL - 8) + '" y="' + (sy(v) + 4).toFixed(2) + '" text-anchor="end" fill="rgba(203,213,225,0.88)" font-size="11">' + Number(v).toFixed(6) + '</text>').join('') +
               xTicks.map((v) => '<text x="' + sx(v).toFixed(2) + '" y="' + (H - 10) + '" text-anchor="middle" fill="rgba(203,213,225,0.88)" font-size="11">' + fmtTime(v) + '</text>').join('') +
-              '<text x="' + (padL + 4) + '" y="14" fill="rgba(203,213,225,0.92)" font-size="12" font-weight="700">' + directionLabel + ' • candlesticks • ' + tradeChartRangeMs.key + '</text>' +
+              '<text x="' + (padL + 4) + '" y="14" fill="rgba(203,213,225,0.92)" font-size="12" font-weight="700">' + directionLabel + ' • pool price over time • ' + tradeChartRangeMs.key + '</text>' +
             '</svg>' +
             '<div style="display:flex;flex-wrap:wrap;gap:8px;color:#cbd5e1;font-size:12px">' +
-              '<span>Open: ' + Number(last.open).toFixed(6) + '</span>' +
-              '<span>High: ' + Number(last.high).toFixed(6) + '</span>' +
-              '<span>Low: ' + Number(last.low).toFixed(6) + '</span>' +
-              '<span>Close: ' + Number(last.close).toFixed(6) + '</span>' +
-              '<span>Range High: ' + Number(rangeHigh).toFixed(6) + '</span>' +
-              '<span>Range Low: ' + Number(rangeLow).toFixed(6) + '</span>' +
+              '<span>Last: ' + Number(points[points.length - 1].price).toFixed(6) + '</span>' +
+              '<span>Low: ' + Number(rangeLow).toFixed(6) + '</span>' +
+              '<span>High: ' + Number(rangeHigh).toFixed(6) + '</span>' +
               '<span>Change: ' + (changePct >= 0 ? '+' : '') + changePct.toFixed(4) + '%</span>' +
-              '<span>Candles: ' + String(candles.length) + '</span>' +
+              '<span>Samples: ' + String(points.length) + '</span>' +
               '<span>Quote: ' + (quoted !== null ? Number(quoted).toFixed(6) : '-') + ' ' + outputUnit + '</span>' +
             '</div>' +
           '</div>';
 
         if (meta) meta.textContent =
-          'Candlestick pool chart from helper pool-history snapshots. Range: ' + tradeChartRangeMs.key + '. Retention: 35d. Candles are aggregated from visible helper samples.';
+          'Time-series pool chart from helper pool-history snapshots. Range: ' + tradeChartRangeMs.key + '. Retention: 35d. Tight autoscale is applied to the visible window.';
       } catch (_) {}
-    };
     };
 
     renderTradeDirectionUi();
