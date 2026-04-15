@@ -42562,6 +42562,22 @@ a{color:#93c5fd;text-decoration:none}
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
             <button type="button" id="useConnectedWalletForAccountBtn" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#94a3b8; cursor:pointer; font-weight:700; font-size:12px; display:none;">Use Connected Wallet</button>
           </div>
+
+          <div class="panel" style="margin-top:12px;padding:12px 14px">
+            <div class="section-head">
+              <div>
+                <h2 style="margin-bottom:4px">Participant Accounts<span class="help" tabindex="0" data-help="Create, save, and switch local participant accounts. These are app identities, not execution wallets.">?</span></h2>
+              </div>
+            </div>
+            <div class="subtle-tab-copy" style="margin-top:0">Use a plain local account like zoso instead of a wallet-shaped ID unless you intentionally want that.</div>
+            <div class="action-rail" style="margin-top:10px">
+              <input id="participantAccountManagerInput" value="" placeholder="zoso" style="min-width:220px;flex:1" />
+              <button class="btn btn-primary" id="participantAccountManagerSaveBtn" type="button">Save / Use Account</button>
+            </div>
+            <div class="subtle-tab-copy" id="participantAccountManagerMeta" style="margin-top:8px">No saved participant accounts yet.</div>
+            <div id="participantAccountManagerList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+          </div>
+
           <details class="adv" style="margin-top:10px">
             <summary><span>Developer account shortcuts</span><span class="pill">advanced</span></summary>
             <div class="adv-body">
@@ -43353,10 +43369,85 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     return "";
   }
 
+  function getSavedParticipantAccounts(){
+    try {
+      const raw = String(localStorage.getItem("void_participant_accounts_v1") || "").trim();
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      return arr
+        .map((x) => String(x || "").trim())
+        .filter((x, i, a) => x && a.indexOf(x) === i)
+        .slice(0, 12);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function setSavedParticipantAccounts(arr){
+    try {
+      const clean = (Array.isArray(arr) ? arr : [])
+        .map((x) => String(x || "").trim())
+        .filter((x, i, a) => x && a.indexOf(x) === i)
+        .slice(0, 12);
+      localStorage.setItem("void_participant_accounts_v1", JSON.stringify(clean));
+    } catch (_) {}
+  }
+
   function rememberParticipantAccount(v){
     try {
       const s = String(v || "").trim();
-      if (s) localStorage.setItem("void_participant_account_v1", s);
+      if (!s) return;
+      localStorage.setItem("void_participant_account_v1", s);
+      const arr = getSavedParticipantAccounts().filter((x) => x !== s);
+      arr.unshift(s);
+      setSavedParticipantAccounts(arr);
+    } catch (_) {}
+  }
+
+  function applyParticipantAccount(v){
+    const s = String(v || "").trim();
+    if (!s) return;
+    const accountEl = $("account");
+    if (accountEl) accountEl.value = s;
+    const mgrEl = $("participantAccountManagerInput");
+    if (mgrEl) mgrEl.value = s;
+    rememberParticipantAccount(s);
+  }
+
+  function renderParticipantAccountsManager(current){
+    try {
+      const now = String(current || "").trim();
+      if (now) rememberParticipantAccount(now);
+
+      const meta = $("participantAccountManagerMeta");
+      const list = $("participantAccountManagerList");
+      const input = $("participantAccountManagerInput");
+
+      if (input && now && String(input.value || "").trim() !== now) input.value = now;
+      if (!list) return;
+
+      list.innerHTML = "";
+      const saved = getSavedParticipantAccounts();
+
+      if (meta) {
+        meta.textContent = saved.length
+          ? ("Saved accounts: " + saved.length + " • Current: " + (now || "-"))
+          : "No saved participant accounts yet.";
+      }
+
+      saved.forEach((acct) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = acct === now ? "btn btn-primary" : "btn";
+        btn.textContent = acct === now ? (acct + " ✓") : acct;
+        btn.style.padding = "8px 10px";
+        btn.addEventListener("click", async () => {
+          applyParticipantAccount(acct);
+          try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
+        });
+        list.appendChild(btn);
+      });
     } catch (_) {}
   }
 
