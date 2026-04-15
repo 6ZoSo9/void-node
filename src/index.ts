@@ -43465,7 +43465,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
   }
 
-  function renderParticipantAccountsManager(current){
+  async function renderParticipantAccountsManager(current){
     try {
       const now = String(current || "").trim();
       if (now) rememberParticipantAccount(now);
@@ -43485,6 +43485,23 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       const saved = getSavedParticipantAccounts();
 
+      const accountStates = {};
+      await Promise.all(saved.map(async (acct) => {
+        try {
+          const [walletSt, runnerSt] = await Promise.all([
+            j("/__void/participant/wallet/status?account=" + encodeURIComponent(acct)).catch(() => ({ ok:false })),
+            j("/wc/runner/status?account=" + encodeURIComponent(acct)).catch(() => ({ ok:false }))
+          ]);
+          accountStates[acct] = {
+            walletSet: !!(walletSt && walletSt.ok && walletSt.has_wallet),
+            walletAddr: walletSt && walletSt.ok && walletSt.has_wallet ? String(walletSt.address || "") : "",
+            runnerOn: !!(runnerSt && runnerSt.ok && runnerSt.enabled)
+          };
+        } catch (_) {
+          accountStates[acct] = { walletSet:false, walletAddr:"", runnerOn:false };
+        }
+      }));
+
       pairs.forEach(({ meta, list, input }) => {
         if (input && now && String(input.value || "").trim() !== now) input.value = now;
         if (!list) return;
@@ -43498,10 +43515,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         }
 
         saved.forEach((acct) => {
+          const st = accountStates[acct] || { walletSet:false, walletAddr:"", runnerOn:false };
+
           const row = document.createElement("div");
           row.style.display = "inline-flex";
           row.style.alignItems = "center";
           row.style.gap = "6px";
+
+          const wrap = document.createElement("div");
+          wrap.style.display = "flex";
+          wrap.style.flexDirection = "column";
+          wrap.style.gap = "4px";
 
           const btn = document.createElement("button");
           btn.type = "button";
@@ -43512,6 +43536,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             applyParticipantAccount(acct);
             try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
           });
+
+          const metaLine = document.createElement("div");
+          metaLine.style.fontSize = "11px";
+          metaLine.style.color = "#94a3b8";
+          metaLine.style.paddingLeft = "2px";
+          metaLine.textContent =
+            (st.walletSet ? ("wallet set" + (st.walletAddr ? (" • " + shortAddr(st.walletAddr)) : "")) : "no wallet")
+            + " • "
+            + (st.runnerOn ? "runner on" : "runner off");
 
           const del = document.createElement("button");
           del.type = "button";
@@ -43528,7 +43561,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             try { if (window.refreshAll) await window.refreshAll(); } catch (_) {}
           });
 
-          row.appendChild(btn);
+          wrap.appendChild(btn);
+          wrap.appendChild(metaLine);
+          row.appendChild(wrap);
           row.appendChild(del);
           list.appendChild(row);
         });
