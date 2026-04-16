@@ -60,15 +60,32 @@ FETCH_B64="$(printf '%s' "$FETCH" | python3 -c 'import sys,json; print(json.load
 echo "[ok] loopproof match (b64)"
 echo
 
-echo "=== [5] receipt ==="
+echo "=== [5] receipt (accepted + verified) ==="
 LEAF="$(printf '%s' "$FETCH" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(j["manifest"]["chunks"][0]["leafHashHex"])')"
 ROOT_FROM_FETCH="$(printf '%s' "$FETCH" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(j["manifest"]["merkleRootHex"])')"
 INDEX_FROM_FETCH="$(printf '%s' "$FETCH" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int(j["manifest"]["chunks"][0]["index"]))')"
 PLAIN_SHA256="$LEAF"
+RECEIPT_BODY="$(python3 - <<PY
+import json
+print(json.dumps({
+  "who": "${ACCOUNT}",
+  "account": "${ACCOUNT}",
+  "id": "${DATASET_ID}",
+  "root": "${ROOT_FROM_FETCH}",
+  "leaf": "${LEAF}",
+  "index": int("${INDEX_FROM_FETCH}"),
+  "plain_sha256": "${PLAIN_SHA256}",
+  "bytes": int("${BYTES}"),
+  "ok": True,
+  "accepted": True,
+  "verified": True,
+}))
+PY
+)"
 RECEIPT="$(curl -fsS --max-time 20 \
   -H 'content-type: application/json' \
   -X POST "${BASE}/datanet/v1/receipt" \
-  --data '{"who":"'"$ACCOUNT"'","id":"'"$DATASET_ID"'","root":"'"$ROOT_FROM_FETCH"'","leaf":"'"$LEAF"'","index":'"$INDEX_FROM_FETCH"',"plain_sha256":"'"$PLAIN_SHA256"'"}')"
+  --data "$RECEIPT_BODY")"
 echo "[ok] receipt_http=200"
 echo "$RECEIPT"
 echo
