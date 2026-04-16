@@ -13052,17 +13052,40 @@ void_ready_exporter_timestamp_ms ${now}
       const mem = (n.mempool && Array.isArray(n.mempool.txs)) ? n.mempool.txs : (Array.isArray(n.txs) ? n.txs : null);
       if (!mem) return { ok:false, taken:0, reason:'no mempool array found' };
 
-      // Don’t create empty blocks unless policy says fill=true (your wrappers handle it)
       const memSize = mem.length;
+      if (memSize <= 0) return { ok:false, taken:0, reason:'mempool empty' };
+
       const head = await getLatestNumberViaLocal();
       const nextNum = head + 1;
+      const now = Date.now();
 
-      // Build a minimal block "envelope"; your saveBlock wrappers add txs + txroot + policies.
+      // Take one real tx now; do not rely on wrappers to materialize it later.
+      const picked = mem.slice(0, 1);
+      const taken = picked.length;
+
       const block: any = {
         number: nextNum,
-        timestamp: Date.now(),
-        // parentHash may be added/normalized by your wrappers, so we keep it minimal.
+        timestamp: now,
+        ts: now,
+        txs: picked,
       };
+
+      try {
+        const mod:any = require("./util/txroot.js");
+        const txRootOf = mod?.txRootOf || mod?.computeTxRoot || mod?.computeTxRootFromTxs;
+        if (typeof txRootOf === "function") {
+          const out = await Promise.resolve(txRootOf(block.txs));
+          const root =
+            typeof out === "string" ? out :
+            (out && typeof out.root === "string") ? out.root :
+            String(out || "");
+          if (root) {
+            block.header = block.header || {};
+            block.header.txRoot = root;
+            block.txRoot = root;
+          }
+        }
+      } catch {}
 
       // Prefer stronger commit path when available
       if (typeof s.saveBlockCommit === "function") {
@@ -13072,6 +13095,11 @@ void_ready_exporter_timestamp_ms ${now}
       } else {
         return { ok:false, taken:0, reason:'store has no saveBlock/saveBlockCommit' };
       }
+
+      // Drain only after successful commit.
+      try {
+        if (Array.isArray(mem) && taken > 0) mem.splice(0, taken);
+      } catch {}
 
       try {
         const G:any = globalThis as any;
@@ -13097,13 +13125,8 @@ void_ready_exporter_timestamp_ms ${now}
         } catch {}
       } catch {}
 
-      // best-effort drain of one tx if wrappers did not already consume it
-      try {
-        if (Array.isArray(mem) && mem.length > 0) mem.splice(0, 1);
-      } catch {}
-
       lastSeal = { number: nextNum, at: Date.now() };
-      return { ok:true, number: nextNum, taken: Math.min(memSize, 1 /* real tx selection happens in wrappers */) };
+      return { ok:true, number: nextNum, taken };
     } catch (e:any) {
       /* [sealOnce.logstack.v1]
          Capture real stack for the caller (tick) + journald, but throttle to avoid freezes. */
@@ -50111,3 +50134,282 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
   }
 })();
 // === [END ParticipantPayoutSummaryV1] ===
+
+
+// === void terminal saveBlock inject+txroot v1 ===
+;(function voidTerminalSaveBlockInjectAndTxrootV1(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_terminal_saveblock_fix_v1_installed) return;
+    G.__void_terminal_saveblock_fix_v1_installed = true;
+
+    const state = (G.__void_terminal_saveblock_fix_v1_state = G.__void_terminal_saveblock_fix_v1_state || {
+      active: false,
+      wraps: 0,
+      injectedBlocks: 0,
+      injectedTxs: 0,
+      txrootSets: 0,
+      lastBlock: -1,
+      lastCount: 0,
+      lastTxRoot: "",
+      lastErr: ""
+    });
+
+    function getNode(){ return G.__void_node || G.node || G.VOID_NODE || null; }
+    function getApp(){ return G.__void_http_app || G.app || null; }
+
+    function normTxRoot(v:any): string {
+      if (!v) return "";
+      if (typeof v === "string") return v;
+      if (typeof v === "object" && typeof v.root === "string") return v.root;
+      try { return String(v); } catch { return ""; }
+    }
+
+    async function attachRoutes(){
+      const app:any = getApp();
+      if (!app || typeof app.get !== "function") return false;
+      if ((app as any).__void_terminal_saveblock_fix_v1_routes) return true;
+      (app as any).__void_terminal_saveblock_fix_v1_routes = true;
+
+      app.get("/__void/diag/saveblock_terminal.json", (_req:any, res:any)=>{
+        res.json({
+          ok: true,
+          active: !!state.active,
+          wraps: Number(state.wraps||0),
+          injectedBlocks: Number(state.injectedBlocks||0),
+          injectedTxs: Number(state.injectedTxs||0),
+          txrootSets: Number(state.txrootSets||0),
+          lastBlock: Number(state.lastBlock||-1),
+          lastCount: Number(state.lastCount||0),
+          lastTxRoot: String(state.lastTxRoot||""),
+          lastErr: state.lastErr ? String(state.lastErr) : ""
+        });
+      });
+
+      app.get("/__void/diag/saveblock_terminal.prom", (_req:any, res:any)=>{
+        res.type("text/plain").send(
+          [
+            "# HELP void_terminal_saveblock_active 1 if terminal saveBlock wrapper active",
+            "# TYPE void_terminal_saveblock_active gauge",
+            `void_terminal_saveblock_active ${state.active ? 1 : 0}`,
+            "# HELP void_terminal_saveblock_wraps_total number of times terminal wrapper attached",
+            "# TYPE void_terminal_saveblock_wraps_total counter",
+            `void_terminal_saveblock_wraps_total ${Number(state.wraps||0)}`,
+            "# HELP void_terminal_saveblock_injected_blocks_total blocks where txs were injected",
+            "# TYPE void_terminal_saveblock_injected_blocks_total counter",
+            `void_terminal_saveblock_injected_blocks_total ${Number(state.injectedBlocks||0)}`,
+            "# HELP void_terminal_saveblock_injected_txs_total txs injected by terminal wrapper",
+            "# TYPE void_terminal_saveblock_injected_txs_total counter",
+            `void_terminal_saveblock_injected_txs_total ${Number(state.injectedTxs||0)}`,
+            "# HELP void_terminal_saveblock_txroot_sets_total txroot/header.txRoot sets by terminal wrapper",
+            "# TYPE void_terminal_saveblock_txroot_sets_total counter",
+            `void_terminal_saveblock_txroot_sets_total ${Number(state.txrootSets||0)}`,
+            ""
+          ].join("\n")
+        );
+      });
+
+      return true;
+    }
+
+    function attach(){
+      const node:any = getNode();
+      const store:any = node?.store;
+      if (!node || !store || typeof store.saveBlock !== "function") return false;
+      if ((store as any).__void_terminal_saveblock_fix_v1_wrapped) return true;
+
+      const prev = store.saveBlock.bind(store);
+      (store as any).__void_terminal_saveblock_fix_v1_prev = prev;
+
+      store.saveBlock = async function terminalSaveBlockFix(block:any, ...rest:any[]){
+        try{
+          const mp:any[] = Array.isArray(node?.mempool?.txs) ? node.mempool.txs : [];
+          if (block && typeof block === "object") {
+            if (!Array.isArray(block.txs)) block.txs = [];
+
+            if (block.txs.length === 0 && mp.length > 0) {
+              const capCfg = (G.__VOID_INJECT_CAP || {});
+              const capEnabled = capCfg && capCfg.enabled !== false;
+              const capRaw = Number(capCfg && capCfg.maxPerBlock != null ? capCfg.maxPerBlock : 1000);
+              const cap = capEnabled ? Math.max(0, Number.isFinite(capRaw) ? Math.floor(capRaw) : 1000) : 1000;
+              const take = Math.min(mp.length, cap > 0 ? cap : mp.length);
+              if (take > 0) {
+                const picked = mp.splice(0, take);
+                block.txs.push(...picked);
+                state.injectedBlocks++;
+                state.injectedTxs += picked.length;
+                state.lastBlock = Number(block?.number ?? -1);
+                state.lastCount = picked.length;
+                try { console.log(`[terminal-saveblock] injected ${picked.length} tx(s) into block #${block?.number ?? "?"}`); } catch {}
+              }
+            }
+
+            try{
+              const { txRootOf } = require("./util/txroot.js");
+              const computed = normTxRoot(txRootOf(Array.isArray(block.txs) ? block.txs : []));
+              if (computed) {
+                block.header = block.header || {};
+                let changed = 0;
+                if (!block.header.txRoot) { block.header.txRoot = computed; changed++; }
+                if (!block.txRoot) { block.txRoot = computed; changed++; }
+                if (changed > 0) {
+                  state.txrootSets += changed;
+                  state.lastTxRoot = computed;
+                }
+              }
+            } catch (e:any) {
+              state.lastErr = String(e?.message || e || "");
+            }
+          }
+        } catch (e:any) {
+          state.lastErr = String(e?.message || e || "");
+        }
+        return await prev(block, ...rest);
+      };
+
+      (store as any).__void_terminal_saveblock_fix_v1_wrapped = true;
+      state.active = true;
+      state.wraps++;
+      try { console.log("[terminal-saveblock] wrapped live store.saveBlock"); } catch {}
+      return true;
+    }
+
+    let tries = 0;
+    (function tick(){
+      try { attachRoutes(); } catch {}
+      if (attach()) return;
+      if (++tries < 240) return setTimeout(tick, 500);
+    })();
+  }catch(e:any){
+    try { console.warn("[terminal-saveblock] init failed:", e?.message || e); } catch {}
+  }
+})();
+
+
+// === void terminal saveBlock inject+txroot v2 ===
+;(function voidTerminalSaveBlockInjectAndTxrootV2(){
+  try{
+    const G:any = globalThis as any;
+    if (G.__void_terminal_saveblock_fix_v2_installed) return;
+    G.__void_terminal_saveblock_fix_v2_installed = true;
+
+    const state = (G.__void_terminal_saveblock_fix_v2_state = G.__void_terminal_saveblock_fix_v2_state || {
+      active: false,
+      wraps: 0,
+      injectedBlocks: 0,
+      injectedTxs: 0,
+      txrootSets: 0,
+      lastBlock: -1,
+      lastCount: 0,
+      lastTxRoot: "",
+      lastErr: ""
+    });
+
+    function getNode(){ return G.__void_node || G.node || G.VOID_NODE || null; }
+
+    function normTxRoot(v:any): string {
+      if (!v) return "";
+      if (typeof v === "string") return v;
+      if (typeof v === "object" && typeof v.root === "string") return v.root;
+      try { return String(v); } catch { return ""; }
+    }
+
+    async function computeRoot(txs:any[]): Promise<string> {
+      try{
+        const mod:any = require("./util/txroot.js");
+        const fn =
+          mod?.txRootOf ||
+          mod?.computeTxRoot ||
+          mod?.computeTxRootFromTxs ||
+          null;
+        if (typeof fn === "function") {
+          const out = await Promise.resolve(fn(txs));
+          return normTxRoot(out);
+        }
+      }catch(e:any){
+        state.lastErr = String(e?.message || e || "");
+      }
+      return "";
+    }
+
+    function install(){
+      const node:any = getNode();
+      const store:any = node?.store;
+      if (!node || !store || typeof store.saveBlock !== "function") return false;
+
+      const cur:any = store.saveBlock;
+      if (cur && cur.__void_terminal_saveblock_fix_v2) {
+        state.active = true;
+        return true;
+      }
+
+      const prev = cur.bind(store);
+
+      const wrapped:any = async function terminalSaveBlockFixV2(block:any, ...rest:any[]){
+        try{
+          const mp:any[] = Array.isArray(node?.mempool?.txs) ? node.mempool.txs : [];
+          if (block && typeof block === "object") {
+            if (!Array.isArray(block.txs)) block.txs = [];
+
+            if (block.txs.length === 0 && mp.length > 0) {
+              const capCfg:any = (G.__VOID_INJECT_CAP || {});
+              let cap = Number(capCfg?.maxPerBlock ?? 1000);
+              if (!Number.isFinite(cap) || cap < 0) cap = 1000;
+              if (capCfg?.enabled === false) cap = mp.length;
+              const take = Math.min(mp.length, cap > 0 ? cap : mp.length);
+
+              if (take > 0) {
+                const picked = mp.splice(0, take);
+                block.txs.push(...picked);
+                state.injectedBlocks++;
+                state.injectedTxs += picked.length;
+                state.lastBlock = Number(block?.number ?? -1);
+                state.lastCount = picked.length;
+                try { console.log(`[terminal-saveblock-v2] injected ${picked.length} tx(s) into block #${block?.number ?? "?"}`); } catch {}
+              }
+            }
+
+            const root = await computeRoot(Array.isArray(block.txs) ? block.txs : []);
+            if (root) {
+              block.header = block.header || {};
+              let changed = 0;
+              if (!block.header.txRoot) { block.header.txRoot = root; changed++; }
+              if (!block.txRoot) { block.txRoot = root; changed++; }
+              if (changed > 0) {
+                state.txrootSets += changed;
+                state.lastTxRoot = root;
+              }
+            }
+          }
+        } catch (e:any) {
+          state.lastErr = String(e?.message || e || "");
+        }
+        return await prev(block, ...rest);
+      };
+
+      wrapped.__void_terminal_saveblock_fix_v2 = true;
+      wrapped.__void_terminal_saveblock_fix_v2_prev = prev;
+
+      store.saveBlock = wrapped;
+      store.__void_terminal_saveblock_fix_v2_wrapped = true;
+      store.__void_terminal_saveblock_fix_v2_prev = prev;
+      state.wraps++;
+      state.active = true;
+      try { console.log("[terminal-saveblock-v2] rewrapped live store.saveBlock"); } catch {}
+      return true;
+    }
+
+    let tries = 0;
+    (function tick(){
+      try { install(); } catch (e:any) { state.lastErr = String(e?.message || e || ""); }
+      if (++tries < 240) return setTimeout(tick, 500);
+    })();
+
+    setInterval(() => {
+      try { install(); } catch (e:any) { state.lastErr = String(e?.message || e || ""); }
+    }, 1000);
+
+  }catch(e:any){
+    try { console.warn("[terminal-saveblock-v2] init failed:", e?.message || e); } catch {}
+  }
+})();
