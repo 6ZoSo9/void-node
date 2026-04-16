@@ -13049,19 +13049,63 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
   }
 
   async function readInputs(){
-    let head=null, live=null, seen=null;
+    let head:any = null, live:any = null, seen:any = null;
+
+    // 1) strongest head truth first
+    try{
+      const t = await fetchText("http://localhost:4100/head.txt", 300);
+      const n = Number(String(t || "").trim().split(/\s+/)[0]);
+      if (Number.isFinite(n) && n >= 0) head = n;
+    }catch{}
+    if (head == null){
+      try{
+        const t = await fetchText("http://localhost:4100/blocks/latest/number2.json", 400);
+        const j = JSON.parse(String(t || "{}"));
+        const n = Number(j?.number);
+        if (Number.isFinite(n) && n >= 0) head = n;
+      }catch{}
+    }
+
+    // 2) fallback basics exporter only if stronger head truth missing
     try{
       const t = await fetchText("http://localhost:4100/__void/metrics/void.basics.v2.prom", 500);
-      head = parseGauge(t, "void_head_number");
-      live = parseGauge(t, "void_txroot_health_live");
+      if (head == null) {
+        const h = parseGauge(t, "void_head_number");
+        if (Number.isFinite(h) && h >= 0) head = h;
+      }
+      const lv = parseGauge(t, "void_txroot_health_live");
+      if (live == null && Number.isFinite(lv)) live = lv;
     }catch{}
-    if (head==null){
-      try{ head = Number(await fetchText("http://localhost:4100/blocks/latest/number", 400)); }catch{}
+
+    // 3) strongest txroot truth: explicit verify on current head
+    if (head != null){
+      try{
+        const t = await fetchText(`http://localhost:4100/blocks/${head}/txroot/verify2`, 500);
+        const j = JSON.parse(String(t || "{}"));
+        if (j && typeof j.match === "boolean") live = j.match ? 1 : 0;
+      }catch{}
     }
+
+    // 4) old fallback only if explicit verify unavailable
+    if (live == null){
+      try{
+        let t = await fetchText("http://localhost:4100/health/txroot3?format=prom", 300);
+        let v = parseGauge(t, "void_txroot_health");
+        if (v == null) {
+          t = await fetchText("http://localhost:4100/health/txroot3/live.prom", 300);
+          v = parseGauge(t, "void_txroot_health");
+        }
+        if (Number.isFinite(v)) live = v;
+      }catch{}
+    }
+
+    // 5) lastmile seen
     try{
       const lm = await fetchText("http://localhost:4100/__void/metrics/lastmile.v4b.prom", 500);
-      seen = parseGauge(lm, "void_lastmile_last_seen_block");
+      const sv = parseGauge(lm, "void_lastmile_last_seen_block");
+      if (Number.isFinite(sv)) seen = sv;
     }catch{}
+
     return {head, live, seen};
   }
 
@@ -13072,7 +13116,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
 
     app.get("/__void/ready.json", async (_req,res)=>{
       const {head, live, seen} = await readInputs();
-      const okHead = Number.isFinite(head), okSeen = Number.isFinite(seen), okLive = (live===1);
+      const okHead = Number.isFinite(head) && head >= 0, okSeen = Number.isFinite(seen) && seen >= 0, okLive = (live===1);
       const gap = (okHead && okSeen) ? (head - seen) : null;
       const reasons = [];
       if(!okHead) reasons.push("no_head");
@@ -13085,7 +13129,7 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
 
     app.get("/__void/ready.prom", async (_req,res)=>{
       const {head, live, seen} = await readInputs();
-      const okHead = Number.isFinite(head), okSeen = Number.isFinite(seen), okLive = (live===1);
+      const okHead = Number.isFinite(head) && head >= 0, okSeen = Number.isFinite(seen) && seen >= 0, okLive = (live===1);
       const gap = (okHead&&okSeen) ? (head - seen) : -1;
       const ready = okHead && okSeen && gap<=10 && ((((process.env.VOID_READY_REQUIRE_TXROOT_LIVE || "").trim() === "1")) ? okLive : true);
       res.type("text/plain").send(
