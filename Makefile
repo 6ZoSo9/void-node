@@ -468,3 +468,8 @@ pick2-isolated-proof-cycle:
 	bash ops/pick2-isolated-proof-runner.sh
 	bash ops/pick2-isolated-proof-exporter.sh
 
+proposer-rescue-ping-proof:
+	bash ops/proposer-rescue-ping-proof.sh
+
+demo-proof-all:
+	bash ops/full-demo-smoke-with-proposer-proof.sh
