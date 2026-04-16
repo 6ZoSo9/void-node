@@ -438,8 +438,10 @@ if (process.env.VOID_EARLY_MINIMAL_BOOT === "1") {
 
     app.get("/blocks/latest/number.json", (_req:any, res:any) => {
       try{
+        let best = -1;
+
         const n0 = readHead();
-        if (typeof n0 === "number") return res.json({ number: n0, __hardfix: "latest-number-json.safe.v1/head.txt" });
+        if (typeof n0 === "number" && Number.isFinite(n0) && n0 >= 0) best = n0;
 
         const cands:any[] = [
           (g as any).__void_head_number,
@@ -450,8 +452,16 @@ if (process.env.VOID_EARLY_MINIMAL_BOOT === "1") {
         ];
         for (const v of cands){
           const x = Number(v);
-          if (Number.isFinite(x) && x >= 0) return res.json({ number: x, __hardfix: "latest-number-json.safe.v1/inproc" });
+          if (Number.isFinite(x) && x > best) best = x;
         }
+
+        try {
+          const st:any = (((globalThis as any).__void_node || (globalThis as any).node) as any)?.store;
+          const load = Number(st?.loadHeadNumber?.() ?? -1);
+          if (Number.isFinite(load) && load > best) best = load;
+        } catch {}
+
+        if (best >= 0) return res.json({ number: best, __hardfix: "latest-number-json.safe.v1/max-live" });
         return res.json({ number: -1, __hardfix: "latest-number-json.safe.v1/none" });
       }catch{
         return res.json({ number: -1, __hardfix: "latest-number-json.safe.v1/error" });
@@ -937,8 +947,33 @@ try {
     try {
       const p = (req && (req.path || req.url)) ? String(req.path || req.url) : '';
       if (p === '/blocks/latest/number2.json' || p === '/blocks/latest/number.json' || p === '/blocks/latest/number') {
-        const n = __readHeadFile();
-        if (typeof n === 'number') return res.json({ number: n, __headfix: 'headfile.v1' });
+        let best = -1;
+
+        const nDisk = __readHeadFile();
+        if (typeof nDisk === 'number' && Number.isFinite(nDisk) && nDisk >= 0) best = nDisk;
+
+        try {
+          const g:any = globalThis as any;
+          const cands:any[] = [
+            g.__void_head_number,
+            g.__void_head_last,
+            g.__void_head,
+            g.__void_last_head,
+            g.__void_seals_last_number,
+          ];
+          for (const v of cands) {
+            const x = Number(v);
+            if (Number.isFinite(x) && x > best) best = x;
+          }
+        } catch {}
+
+        try {
+          const st:any = (((globalThis as any).__void_node || (globalThis as any).node) as any)?.store;
+          const load = Number(st?.loadHeadNumber?.() ?? -1);
+          if (Number.isFinite(load) && load > best) best = load;
+        } catch {}
+
+        if (best >= 0) return res.json({ number: best, __headfix: 'headfile.v1/max-live' });
       }
       if (p === '/metrics/void/seals') {
         const origSend = res.send;
