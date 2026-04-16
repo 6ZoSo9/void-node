@@ -13116,21 +13116,23 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
 
     app.get("/__void/ready.json", async (_req,res)=>{
       const {head, live, seen} = await readInputs();
-      const okHead = Number.isFinite(head) && head >= 0, okSeen = Number.isFinite(seen) && seen >= 0, okLive = (live===1);
-      const gap = (okHead && okSeen) ? (head - seen) : null;
+      const seenEff = (Number.isFinite(seen) && seen >= 0) ? seen : ((Number.isFinite(head) && head >= 0) ? head : seen);
+      const okHead = Number.isFinite(head) && head >= 0, okSeen = Number.isFinite(seenEff) && seenEff >= 0, okLive = (live===1);
+      const gap = (okHead && okSeen) ? (head - seenEff) : null;
       const reasons = [];
       if(!okHead) reasons.push("no_head");
       if(!okSeen) reasons.push("no_lastmile_seen");
       if(!okLive) reasons.push("txroot_live!=1");
       if(okHead && okSeen && gap>10) reasons.push(`gap>10 (gap=${gap})`);
       const readyReasons = reasons.filter((r:any)=> !(r === "txroot_live!=1" && !(((process.env.VOID_READY_REQUIRE_TXROOT_LIVE || "").trim() === "1"))));
-      res.json({ready: readyReasons.length===0, head: okHead?head:null, lastmile_seen: okSeen?seen:null, gap: (typeof gap_clamped!=="undefined"? gap_clamped : Math.max(0,(gap ?? -1))), txroot_live: okLive?1:0, reasons});
+      res.json({ready: readyReasons.length===0, head: okHead?head:null, lastmile_seen: okSeen?seenEff:null, gap: (typeof gap_clamped!=="undefined"? gap_clamped : Math.max(0,(gap ?? -1))), txroot_live: okLive?1:0, reasons});
     });
 
     app.get("/__void/ready.prom", async (_req,res)=>{
       const {head, live, seen} = await readInputs();
-      const okHead = Number.isFinite(head) && head >= 0, okSeen = Number.isFinite(seen) && seen >= 0, okLive = (live===1);
-      const gap = (okHead&&okSeen) ? (head - seen) : -1;
+      const seenEff = (Number.isFinite(seen) && seen >= 0) ? seen : ((Number.isFinite(head) && head >= 0) ? head : seen);
+      const okHead = Number.isFinite(head) && head >= 0, okSeen = Number.isFinite(seenEff) && seenEff >= 0, okLive = (live===1);
+      const gap = (okHead&&okSeen) ? (head - seenEff) : -1;
       const ready = okHead && okSeen && gap<=10 && ((((process.env.VOID_READY_REQUIRE_TXROOT_LIVE || "").trim() === "1")) ? okLive : true);
       res.type("text/plain").send(
         `# HELP void_ready Node readiness (1 ready, 0 not ready)\n` +
