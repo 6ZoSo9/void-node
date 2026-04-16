@@ -13091,19 +13091,39 @@ void_ready_exporter_timestamp_ms ${now}
   }
 
   async function getLatestNumberViaLocal(): Promise<number> {
-    // Prefer in-memory if present, else ask store, else HTTP shim (as last resort).
+    const vals:number[] = [];
     const n = getNode();
-    if (n && typeof n.headNumber === 'number') return n.headNumber;
     const s = getStore();
-    if (s && typeof s.getHeadNumber === 'function') {
-      try { const h = await s.getHeadNumber(); if (typeof h === 'number') return h; } catch {}
-    }
-    // Last fallback via local HTTP (works even during early boot since you expose it)
+
     try {
-      const r = await fetch('http://127.0.0.1:'+ (process.env.HTTP_PORT||'4100') +'/blocks/latest/number2.json');
-      if (r.ok) { const j:any = await r.json(); if (j && typeof j.number === 'number') return j.number; }
+      if (n && typeof n.headNumber === 'number' && Number.isFinite(n.headNumber) && n.headNumber >= 0) {
+        vals.push(n.headNumber);
+      }
     } catch {}
-    return -1;
+
+    try {
+      if (s && typeof s.getHeadNumber === 'function') {
+        const h = await s.getHeadNumber();
+        if (typeof h === 'number' && Number.isFinite(h) && h >= 0) vals.push(h);
+      }
+    } catch {}
+
+    try {
+      if (s && typeof s.loadHeadNumber === 'function') {
+        const h2 = await s.loadHeadNumber();
+        if (typeof h2 === 'number' && Number.isFinite(h2) && h2 >= 0) vals.push(h2);
+      }
+    } catch {}
+
+    try {
+      const r = await fetch('http://127.0.0.1:' + (process.env.HTTP_PORT || '4100') + '/blocks/latest/number2.json');
+      if (r.ok) {
+        const j:any = await r.json();
+        if (j && typeof j.number === 'number' && Number.isFinite(j.number) && j.number >= 0) vals.push(j.number);
+      }
+    } catch {}
+
+    return vals.length ? Math.max(...vals) : -1;
   }
 
   // Pull up to "cap" txs from node.mempool; we rely on existing saveBlock wrappers
@@ -13162,7 +13182,51 @@ void_ready_exporter_timestamp_ms ${now}
 
       // Drain only after successful commit.
       try {
-        if (Array.isArray(mem) && taken > 0) mem.splice(0, taken);
+        const pickedSet = new Set(Array.isArray(picked) ? picked : []);
+
+        const norm = (x:any) => {
+          try {
+            if (!x) return "";
+            if (typeof x === "string") return x;
+            if (typeof x?.hash === "string" && x.hash) return "hash:" + x.hash;
+            const body = (x && typeof x === "object" && x.data && typeof x.data === "object") ? x.data : x;
+            return "body:" + JSON.stringify(body);
+          } catch {
+            return "";
+          }
+        };
+
+        const pickedKeys = new Set((Array.isArray(picked) ? picked : []).map((x:any) => norm(x)).filter(Boolean));
+
+        const drainArr = (arr:any[]) => {
+          if (!Array.isArray(arr) || !arr.length) return 0;
+          const before = arr.length;
+          for (let i = arr.length - 1; i >= 0; i--) {
+            const t = arr[i];
+            if (pickedSet.has(t)) { arr.splice(i, 1); continue; }
+            const k = norm(t);
+            if (k && pickedKeys.has(k)) arr.splice(i, 1);
+          }
+          return before - arr.length;
+        };
+
+        let drained = 0;
+        if (Array.isArray(mem) && taken > 0) drained += drainArr(mem);
+
+        const q1:any = Array.isArray(n?.txQueue) ? n.txQueue : null;
+        const q2:any = Array.isArray((globalThis as any).__void_tx_queue) ? (globalThis as any).__void_tx_queue : null;
+        const q3:any = Array.isArray((globalThis as any).__void_dev_inject3_queue) ? (globalThis as any).__void_dev_inject3_queue : null;
+        const q4:any = Array.isArray((globalThis as any).__void_dev_tx_queue) ? (globalThis as any).__void_dev_tx_queue : null;
+
+        const seen = new Set<any>();
+        for (const q of [q1, q2, q3, q4]) {
+          if (q && !seen.has(q)) {
+            seen.add(q);
+            drained += drainArr(q);
+          }
+        }
+
+        try { console.log(`[rescue-seal] drained ${drained} picked tx mirror(s) after commit`); } catch {}
       } catch {}
 
       try {
@@ -13243,10 +13307,14 @@ void_ready_exporter_timestamp_ms ${now}
     const app:any = getApp();
     if (!app || typeof app.get !== 'function') return setTimeout(attach, FLAG_POLL_MS);
 
-    // If a canonical /proposer/tick already exists, don’t double-attach.
+    // Do not early-return here.
+    // Older /proposer/tick routes may already exist and shadow canonical paths,
+    // but we still want unique rescue aliases to mount.
     try {
       const hasExisting = (app._router?.stack||[]).some((l:any)=> l?.route?.path && String(l.route.path).includes('/proposer/tick'));
-      if (hasExisting) { attached = true; return; }
+      if (hasExisting) {
+        try { console.log("[rescue-v1] existing /proposer/tick detected; mounting unique rescue aliases only"); } catch {}
+      }
     } catch {}
 
     // --- Routes ---
@@ -13310,8 +13378,10 @@ void_ready_exporter_timestamp_ms ${now}
       stopAutoLoop(); res.json({ ok:true, auto:false });
     });
 
-    // Optional: simple dev alias
+    // Optional rescue aliases that do not collide with older proposer mounts
     app.get('/dev/proposer/seal', async (req:any,res:any)=>{ const r = await sealOnce(); res.json(r); });
+    app.post('/__void/rescue/proposer/seal-now', async (req:any,res:any)=>{ const r = await sealOnce(); res.json(r); });
+    app.post('/__void/rescue/proposer/tick', async (req:any,res:any)=>{ const r = await sealOnce(); res.json(r); });
 
     attached = true;
 
