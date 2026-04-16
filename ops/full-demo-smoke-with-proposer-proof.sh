@@ -10,8 +10,12 @@ echo "=== [1] full demo smoke ==="
 bash "$ROOT/ops/full-demo-smoke.sh"
 
 echo
-echo "=== [2] proposer rescue ping proof ==="
+echo "=== [2] canonical datanet accepted-receipt proof ==="
+bash "$ROOT/ops/datanet-canonical-proof.sh"
+
+echo
+echo "=== [3] proposer rescue ping proof ==="
 bash "$ROOT/ops/proposer-rescue-ping-proof.sh"
 
 echo
-echo "[GREEN] full demo smoke + proposer rescue ping proof"
+echo "[GREEN] full demo smoke + canonical datanet proof + proposer rescue ping proof"
