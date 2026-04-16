@@ -997,6 +997,73 @@ try {
   try { console.error('[headfix.early.v1] armed'); } catch {}
 } catch {}
   (globalThis as any).__void_http_app = app
+
+/* [headfile.boot-repair.v1] */
+;(function __voidHeadfileBootRepairV1(){
+  try{
+    const fs = require('fs');
+    const path = require('path');
+    const g:any = globalThis as any;
+    const dataDir = process.env.DATA_DIR || process.env.VOID_DATA_DIR || 'data';
+    const headFile = path.join(process.cwd(), dataDir, 'head.txt');
+
+    const readHead = (): number => {
+      try {
+        const t = String(fs.readFileSync(headFile, 'utf8') || '').trim();
+        const n = Number(t);
+        return Number.isFinite(n) && n >= 0 ? n : -1;
+      } catch { return -1; }
+    };
+
+    const writeHead = (n:number) => {
+      try {
+        fs.mkdirSync(path.dirname(headFile), { recursive: true });
+        fs.writeFileSync(headFile, String(n) + '\n', 'utf8');
+        try {
+          const fd = fs.openSync(headFile, 'r');
+          try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+        } catch {}
+      } catch {}
+    };
+
+    setTimeout(() => {
+      try {
+        let best = readHead();
+
+        try {
+          const st:any = (((g.__void_node || g.node) as any)?.store);
+          const load = Number(st?.loadHeadNumber?.() ?? -1);
+          if (Number.isFinite(load) && load > best) best = load;
+        } catch {}
+
+        try {
+          const cands:any[] = [
+            g.__void_head_number,
+            g.__void_head_last,
+            g.__void_head,
+            g.__void_last_head,
+            g.__void_seals_last_number,
+          ];
+          for (const v of cands) {
+            const x = Number(v);
+            if (Number.isFinite(x) && x > best) best = x;
+          }
+        } catch {}
+
+        const disk = readHead();
+        if (best >= 0 && best > disk) {
+          writeHead(best);
+          try { console.error(`[headfile.boot-repair.v1] raised head.txt ${disk} -> ${best}`); } catch {}
+        } else {
+          try { console.error(`[headfile.boot-repair.v1] no repair needed disk=${disk} best=${best}`); } catch {}
+        }
+      } catch (e:any) {
+        try { console.error('[headfile.boot-repair.v1] failed', String(e?.stack || e)); } catch {}
+      }
+    }, 1500);
+  } catch {}
+})();
+
 /* [number2.guard.fallback.v1b] */
 ;(function __voidNumber2GuardFallbackV1b(){
   try{
