@@ -293,7 +293,8 @@ print(f"[ok] redeem_result trade effect: earned={earned_after}, redeemed={redeem
 PY
 
 echo "=== [11] summary ==="
-python3 - "$OUT_DIR" "$job_id" "$approve_hash" "$swap_hash" "$before_redeemable_amt" "$after_redeemable_amt" "$after_execute_redeemable_amt" "$before_balance_amt" "$after_balance_amt" "$after_execute_balance_amt" "$trade_amt" <<'PY'
+SUMMARY_JOB_ID="${job_id:-}"
+python3 - "$OUT_DIR" "$SUMMARY_JOB_ID" "$approve_hash" "$swap_hash" "$before_redeemable_amt" "$after_redeemable_amt" "$after_execute_redeemable_amt" "$before_balance_amt" "$after_balance_amt" "$after_execute_balance_amt" "$trade_amt" <<'PY'
 import json, pathlib, sys
 out = pathlib.Path(sys.argv[1])
 job_id, approve_hash, swap_hash = sys.argv[2], sys.argv[3], sys.argv[4]
