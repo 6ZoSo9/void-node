@@ -42717,8 +42717,8 @@ a{color:#93c5fd;text-decoration:none}
           <div class="hero-note" id="networkValueCard" style="margin-top:10px">loading…</div>
           <div class="hero-actions" style="margin-top:10px">
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenBtn" href="#" target="_blank" rel="noopener">Open dataset</a>
-            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open shared page</a>
-            <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy shared page</button>
+            <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700; display:none;" id="latestDatasetOpenShareBtn" href="#" target="_blank" rel="noopener">Open Shared Page</a>
+            <button class="btn secondary" id="latestDatasetShareBtn" type="button" style="display:none">Copy Share Page</button>
             <a class="linkbtn" style="padding:8px 12px; border-radius:12px; font-weight:700;" id="adminDataNetSummaryBtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">Admin</a>
           </div>
           <div class="hero-note" id="runnerActivitySnippetCard" style="margin-top:10px;display:none">loading…</div>
@@ -42732,7 +42732,7 @@ a{color:#93c5fd;text-decoration:none}
               <a class="btn" id="latestDatasetOpenHero" href="#" target="_blank" rel="noopener" style="display:none">Open dataset</a>
               <a class="btn secondary" id="latestDatasetRawHero" href="#" target="_blank" rel="noopener" style="display:none">Open raw JSON</a>
               <button class="btn secondary" id="latestDatasetCopyIdHero" type="button" style="display:none">Copy ID</button>
-              <button class="btn secondary" id="latestDatasetCopyLinkHero" type="button" style="display:none">Copy link</button>
+              <button class="btn secondary" id="latestDatasetCopyLinkHero" type="button" style="display:none">Copy Link</button>
             </div>
           </div>
           <details class="adv" style="margin-top:14px">
@@ -45194,7 +45194,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                   ? ('<a class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;margin-right:6px;opacity:.9" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">Raw</a>')
                   : '') +
                 ('<button type="button" class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;margin-right:6px;opacity:.9" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
-                ('<button type="button" class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;opacity:.9" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy link</button>') +
+                ('<button type="button" class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;opacity:.9" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy Link</button>') +
               '</td>' +
             '</tr>';
           }).join('') +
@@ -45293,7 +45293,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                   ? ('<a class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;margin-right:6px;opacity:.9" href="' + esc(rawUrl) + '" target="_blank" rel="noopener">Raw</a>')
                   : '') +
                 ('<button type="button" class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;margin-right:6px;opacity:.9" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(dsFull) + "' + "'" + ', ' + "'" + 'Copied dataset id.' + "'" + ', this);return false;">Copy ID</button>') +
-                ('<button type="button" class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;opacity:.9" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy link</button>') +
+                ('<button type="button" class="linkbtn" style="padding:5px 8px;border-radius:10px;font-weight:600;opacity:.9" onclick="window.__void_copyText && window.__void_copyText(' + "'" + '" + esc(consumeUrl) + "' + "'" + ', ' + "'" + 'Copied open link.' + "'" + ', this);return false;">Copy Link</button>') +
               '</td>' +
             '</tr>';
           }).join('') +
@@ -47233,7 +47233,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if (latestDatasetOpenShareBtn) {
             latestDatasetOpenShareBtn.href = shareHref;
             latestDatasetOpenShareBtn.style.display = "";
-            latestDatasetOpenShareBtn.textContent = "Open shared page";
+            latestDatasetOpenShareBtn.textContent = "Open Shared Page";
             latestDatasetOpenShareBtn.title = "Open shared page " + effectiveLatestUsefulDataset;
           }
 
