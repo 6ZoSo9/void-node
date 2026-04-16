@@ -1372,7 +1372,7 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
         if (!node) throw new Error("no node global found");
         if (typeof node.sealBlock !== "function") throw new Error("node.sealBlock missing");
 
-        block = await node.sealBlock({ allowEmpty });
+        block = await node.sealBlock({ allowEmptyOnce: allowEmpty });
 
         try {
           const mod:any = require("./util/txroot.js");
