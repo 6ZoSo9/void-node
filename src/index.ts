@@ -4700,7 +4700,7 @@ import type {} from "express"; // type-only safety; no runtime impact
       }
     });
 
-    // GET /tx/ping/verify2?window=20 -> scan recent blocks, resolve tx hashes via cache
+    // GET /tx/ping/verify2?window=20 -> scan recent blocks, match ping txs by cache hash OR persisted body
     app.get("/tx/ping/verify2", async (req: any, res: any) => {
       try {
         const win = Math.max(1, Math.min(+((req.query||{}).window ?? 20), 200));
@@ -4709,18 +4709,51 @@ import type {} from "express"; // type-only safety; no runtime impact
         if (latest < 0) return res.status(404).json({ ok:false, error:"latest unavailable" });
         const from = Math.max(0, latest - win);
         const blocks = await fetch(`http://127.0.0.1:${port}/blocks/range?from=${from}&to=${latest}`).then(r=>r.json());
+
+        const cacheMap: Map<string, CacheRec> = g.__void_recent_tx || new Map<string, CacheRec>();
+        const cacheBodies = new Set(
+          Array.from(cacheMap.values())
+            .map((r:any) => {
+              try { return JSON.stringify(r?.body ?? null); } catch { return ""; }
+            })
+            .filter(Boolean)
+        );
+
         const out: any[] = [];
         for (const b of (Array.isArray(blocks)?blocks:[])) {
-          const txs = (b?.txs)||[];
-          // Normalize each tx to a hash string if possible
-          const hashes = txs.map((t:any)=> (typeof t === "string") ? t : (t?.hash ?? null)).filter(Boolean);
+          const txs = Array.isArray(b?.txs) ? b.txs : [];
           const pings: any[] = [];
-          for (const h of hashes) {
-            const cached = get(h);
-            if (cached && cached.kind === "ping") pings.push(cached);
+
+          for (const t of txs) {
+            const hash =
+              (typeof t === "string") ? t :
+              (t && typeof t === "object" && typeof t.hash === "string") ? t.hash :
+              null;
+
+            const cached = hash ? get(hash) : undefined;
+
+            let body: any = null;
+            if (t && typeof t === "object" && t.data && typeof t.data === "object") body = t.data;
+            else if (t && typeof t === "object" && t.body && typeof t.body === "object") body = t.body;
+            else if (t && typeof t === "object") body = t;
+
+            const bodyKey = (() => {
+              try { return (body && typeof body === "object") ? JSON.stringify(body) : ""; } catch { return ""; }
+            })();
+
+            if (cached && cached.kind === "ping") {
+              pings.push({ hash, body: cached, via: "hash" });
+              continue;
+            }
+
+            if (body && body.kind === "ping" && bodyKey && cacheBodies.has(bodyKey)) {
+              pings.push({ hash: hash || null, body, via: "body" });
+            }
           }
+
           if (pings.length) out.push({ number: b.number, pings });
         }
+
         res.json({ ok:true, from, to: latest, hits: out });
       } catch (e:any) {
         res.status(500).json({ ok:false, error: String(e?.message || e) });
@@ -4789,20 +4822,51 @@ import type {} from "express"; // type-only safety; no runtime impact
 
         const from = Math.max(0, latest - win);
         const blocks:any[] = await fetch(`http://127.0.0.1:${port}/blocks/range?from=${from}&to=${latest}`).then(r=>r.json());
-        const cacheKeys = new Set(keysOfCache());
+        const m: Map<string, {body:any, ts:number}> = g.__void_recent_tx || new Map();
+        const cacheKeys = new Set(Array.from(m.keys()));
+        const cacheBodies = new Set(
+          Array.from(m.values())
+            .map((r:any) => {
+              try { return JSON.stringify(r?.body ?? null); } catch { return ""; }
+            })
+            .filter(Boolean)
+        );
         const hits: any[] = [];
 
         for (const b of (Array.isArray(blocks)?blocks:[])) {
-          const txs = (b?.txs) || [];
-          const hashes = txs.map((t:any)=> {
-            if (typeof t === "string") return t;
-            if (t && typeof t === "object" && typeof t.hash === "string") return t.hash;
-            return null;
-          }).filter(Boolean) as string[];
+          const txs = Array.isArray(b?.txs) ? b.txs : [];
+          const matched: any[] = [];
 
-          const matched = hashes.filter(h => cacheKeys.has(h));
+          for (const t of txs) {
+            const hash =
+              (typeof t === "string") ? t :
+              (t && typeof t === "object" && typeof t.hash === "string") ? t.hash :
+              null;
+
+            let body: any = null;
+            if (t && typeof t === "object" && t.data && typeof t.data === "object") body = t.data;
+            else if (t && typeof t === "object" && t.body && typeof t.body === "object") body = t.body;
+            else if (t && typeof t === "object") body = t;
+
+            const bodyKey = (() => {
+              try { return (body && typeof body === "object") ? JSON.stringify(body) : ""; } catch { return ""; }
+            })();
+
+            const byHash = !!(hash && cacheKeys.has(hash));
+            const byBody = !!(body && body.kind === "ping" && bodyKey && cacheBodies.has(bodyKey));
+
+            if (byHash || byBody) {
+              matched.push({
+                hash: hash || null,
+                via: byHash ? "hash" : "body",
+                body: (body && body.kind === "ping") ? body : null
+              });
+            }
+          }
+
           if (matched.length) hits.push({ number: b.number, matched });
         }
+
         res.json({ ok:true, from, to: latest, hits });
       } catch(e:any){
         res.status(500).json({ ok:false, error:String(e?.message||e) });
