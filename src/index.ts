@@ -1396,6 +1396,46 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
           if (store && typeof store.saveBlockCommit === "function") {
             await store.saveBlockCommit(block);
             commitUsed = "store.saveBlockCommit";
+
+            try {
+              const n =
+                (block && typeof block.number === "number" ? block.number : null) ??
+                (block && block.header && typeof block.header.number === "number" ? block.header.number : null) ??
+                null;
+
+              if (typeof n === "number" && n >= 0) {
+                if (typeof store.persistHeadAtomic === "function") {
+                  store.persistHeadAtomic(n);
+                } else {
+                  const fs = require("node:fs");
+                  const path = require("node:path");
+                  const dataDirRaw = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+                  const dataDir = path.isAbsolute(dataDirRaw) ? dataDirRaw : path.join(process.cwd(), dataDirRaw);
+                  const headFile = path.join(dataDir, "head.txt");
+                  const headsFile = path.join(dataDir, "heads.json");
+
+                  fs.mkdirSync(path.dirname(headFile), { recursive: true });
+                  fs.writeFileSync(headFile, String(n) + "\n", "utf8");
+
+                  let heads:any = { head: -1, hash: "0x0" };
+                  try { heads = JSON.parse(fs.readFileSync(headsFile, "utf8") || "{}"); } catch {}
+                  heads.head = n;
+                  heads.number = n;
+                  if (!heads.hash) heads.hash = "0x0";
+                  fs.writeFileSync(headsFile, JSON.stringify(heads, null, 2), "utf8");
+                }
+
+                try {
+                  const G:any = globalThis as any;
+                  G.__void_last_seal = { number: n, at: Date.now() };
+                  G.__void_seals_last_number = n;
+                  G.__void_head_number = n;
+                  G.__void_head_last = n;
+                  G.__void_head = n;
+                  G.__void_last_head = n;
+                } catch {}
+              }
+            } catch {}
           } else if (store && typeof store.saveBlock === "function") {
             await store.saveBlock(block);
             commitUsed = "store.saveBlock";
