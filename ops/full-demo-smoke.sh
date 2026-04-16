@@ -19,19 +19,28 @@ echo "=== [1] wc before ==="
 POOL_BEFORE="$(curl -fsS --max-time 5 "${WC_BASE}/pool.json")"
 echo "$POOL_BEFORE"
 
-EARN_BEFORE=0
-if [ -n "$WC_ADDR" ]; then
-  ACC_BEFORE="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json")"
-  echo "$ACC_BEFORE"
-  EARN_BEFORE="$(printf '%s' "$ACC_BEFORE" | python3 -c 'import sys,json; j=json.load(sys.stdin); e=(j.get("earnings") or {}); print(int(
-    e.get("redeemable_wc")
-    or e.get("diagnostic_redeemable_wc")
-    or e.get("pending_wc")
-    or e.get("diagnostic_pending_wc")
-    or 0
-))')"
-fi
+CANON_BEFORE_JSON="$(curl -fsS --max-time 5 "${BASE}/wc/redeemable?account=${ACCOUNT}")"
+echo "$CANON_BEFORE_JSON"
+EARN_BEFORE="$(printf '%s' "$CANON_BEFORE_JSON" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(float(j.get("redeemable") or 0))')"
 echo "redeemable_wc_before=$EARN_BEFORE"
+
+HELPER_EARN_BEFORE=""
+if [ -n "$WC_ADDR" ]; then
+  ACC_BEFORE="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json" || true)"
+  if [ -n "$ACC_BEFORE" ]; then
+    echo "$ACC_BEFORE"
+    HELPER_EARN_BEFORE="$(printf '%s' "$ACC_BEFORE" | python3 -c 'import sys,json; j=json.load(sys.stdin); e=(j.get("earnings") or {}); print(float(
+      e.get("redeemable_wc")
+      or e.get("diagnostic_redeemable_wc")
+      or e.get("pending_wc")
+      or e.get("diagnostic_pending_wc")
+      or 0
+    ))')"
+    echo "helper_redeemable_wc_before=$HELPER_EARN_BEFORE"
+  else
+    echo "helper_redeemable_wc_before=n/a"
+  fi
+fi
 echo
 
 echo "=== [2] autoprop smoke ==="
@@ -101,21 +110,35 @@ POOL_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/pool.json")"
 echo "$POOL_AFTER"
 
 ACC_AFTER=""
-EARN_AFTER=""
+HELPER_EARN_AFTER=""
+CANON_AFTER_JSON="$(curl -fsS --max-time 5 "${BASE}/wc/redeemable?account=${ACCOUNT}")"
+echo "$CANON_AFTER_JSON"
+EARN_AFTER="$(printf '%s' "$CANON_AFTER_JSON" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(float(j.get("redeemable") or 0))')"
+echo "redeemable_wc_after=$EARN_AFTER"
+python3 - <<PY
+before_v = float("${EARN_BEFORE}")
+after_v = float("${EARN_AFTER}")
+print(f"redeemable_wc_delta={after_v - before_v}")
+PY
+
 if [ -n "$WC_ADDR" ]; then
   ACC_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json" || true)"
   if [ -n "$ACC_AFTER" ]; then
     echo "$ACC_AFTER"
-    EARN_AFTER="$(printf '%s' "$ACC_AFTER" | python3 -c 'import sys,json; j=json.load(sys.stdin); e=(j.get("earnings") or {}); print(int(
-    e.get("redeemable_wc")
-    or e.get("diagnostic_redeemable_wc")
-    or e.get("pending_wc")
-    or e.get("diagnostic_pending_wc")
-    or 0
-))')"
-    echo "helper_redeemable_wc_after=$EARN_AFTER"
-    if [ -n "${EARN_BEFORE:-}" ]; then
-      echo "helper_redeemable_wc_delta=$((EARN_AFTER-EARN_BEFORE))"
+    HELPER_EARN_AFTER="$(printf '%s' "$ACC_AFTER" | python3 -c 'import sys,json; j=json.load(sys.stdin); e=(j.get("earnings") or {}); print(float(
+      e.get("redeemable_wc")
+      or e.get("diagnostic_redeemable_wc")
+      or e.get("pending_wc")
+      or e.get("diagnostic_pending_wc")
+      or 0
+    ))')"
+    echo "helper_redeemable_wc_after=$HELPER_EARN_AFTER"
+    if [ -n "${HELPER_EARN_BEFORE:-}" ]; then
+      python3 - <<PY2
+before_v = float("${HELPER_EARN_BEFORE}")
+after_v = float("${HELPER_EARN_AFTER}")
+print(f"helper_redeemable_wc_delta={after_v - before_v}")
+PY2
     fi
   else
     echo "helper_redeemable_wc_after=n/a"
@@ -139,7 +162,11 @@ echo "--- raw wc ledger tail"
 tail -n 5 "${DATA_DIR_LOCAL}/wc_v1/ledger.jsonl" 2>/dev/null || true
 
 echo
-echo "wc_earnings_delta=$((EARN_AFTER - EARN_BEFORE))"
+python3 - <<PY
+before_v = float("${EARN_BEFORE}")
+after_v = float("${EARN_AFTER}")
+print(f"wc_earnings_delta={after_v - before_v}")
+PY
 
 echo
 echo "[ok] full demo smoke passed"
