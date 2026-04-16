@@ -23,7 +23,13 @@ EARN_BEFORE=0
 if [ -n "$WC_ADDR" ]; then
   ACC_BEFORE="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json")"
   echo "$ACC_BEFORE"
-  EARN_BEFORE="$(printf '%s' "$ACC_BEFORE" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("earnings") or {}).get("redeemable_wc") or 0))')"
+  EARN_BEFORE="$(printf '%s' "$ACC_BEFORE" | python3 -c 'import sys,json; j=json.load(sys.stdin); e=(j.get("earnings") or {}); print(int(
+    e.get("redeemable_wc")
+    or e.get("diagnostic_redeemable_wc")
+    or e.get("pending_wc")
+    or e.get("diagnostic_pending_wc")
+    or 0
+))')"
 fi
 echo "redeemable_wc_before=$EARN_BEFORE"
 echo
@@ -100,7 +106,13 @@ if [ -n "$WC_ADDR" ]; then
   ACC_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json" || true)"
   if [ -n "$ACC_AFTER" ]; then
     echo "$ACC_AFTER"
-    EARN_AFTER="$(printf '%s' "$ACC_AFTER" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("earnings") or {}).get("redeemable_wc") or 0))')"
+    EARN_AFTER="$(printf '%s' "$ACC_AFTER" | python3 -c 'import sys,json; j=json.load(sys.stdin); e=(j.get("earnings") or {}); print(int(
+    e.get("redeemable_wc")
+    or e.get("diagnostic_redeemable_wc")
+    or e.get("pending_wc")
+    or e.get("diagnostic_pending_wc")
+    or 0
+))')"
     echo "helper_redeemable_wc_after=$EARN_AFTER"
     if [ -n "${EARN_BEFORE:-}" ]; then
       echo "helper_redeemable_wc_delta=$((EARN_AFTER-EARN_BEFORE))"
