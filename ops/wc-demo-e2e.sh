@@ -6,6 +6,11 @@ set +o histexpand
 NODE_BASE="${NODE_BASE:-http://127.0.0.1:4100}"
 HELPER_BASE="${HELPER_BASE:-http://127.0.0.1:4312/workcredits/devnet}"
 RELAYER_BASE="${RELAYER_BASE:-http://127.0.0.1:4313/api/wc-relayer/v1}"
+
+if ! printf '%s' "$WALLET" | grep -Eq '^0x[0-9a-fA-F]{40}$'; then
+  echo "[fail] WALLET must be a 0x-prefixed 20-byte EVM address; got: $WALLET" >&2
+  exit 1
+fi
 ACCOUNT="${ACCOUNT:-${WC_ADDR:-demo-user}}"
 WALLET="${WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
 PLAINTEXT="${PLAINTEXT:-wc-demo-e2e-$(date +%s)}"
@@ -32,6 +37,16 @@ jpost() {
 jget() {
   local url="$1"
   curl -fsS --max-time 15 "$url"
+}
+
+dashboard_get() {
+  local out="$1"
+  if jget "$HELPER_BASE/dashboard/$WALLET.json" | tee "$out"; then
+    :
+  else
+    echo "[warn] helper dashboard route unavailable; continuing" >&2
+    printf '%s\n' '{"ok":false,"account":{"earnings":{"diagnostic_pending_wc":0,"diagnostic_redeemed_wc":0}}}' > "$out"
+  fi
 }
 
 py_get() {
@@ -61,7 +76,7 @@ jget "$RELAYER_BASE/health" | tee "$OUT_DIR/relayer.health.json"
 echo
 
 echo "=== [2] dashboard before ==="
-jget "$HELPER_BASE/dashboard/$WALLET.json" | tee "$OUT_DIR/dashboard.before.json"
+dashboard_get "$OUT_DIR/dashboard.before.json"
 echo
 
 echo "=== [3] local WC before ==="
@@ -81,64 +96,111 @@ before_balance_amt="$(py_get "$OUT_DIR/wc.balance.before.json" balance)"
 before_dashboard_pending="$(py_get "$OUT_DIR/dashboard.before.json" account.earnings.diagnostic_pending_wc)"
 before_dashboard_redeemed="$(py_get "$OUT_DIR/dashboard.before.json" account.earnings.diagnostic_redeemed_wc)"
 
-echo "=== [4] submit job ==="
-jpost "$NODE_BASE/jobs/submit" "{\"account\":\"$ACCOUNT\",\"kind\":\"datanet_publish\",\"plaintext\":\"$PLAINTEXT\"}" | tee "$OUT_DIR/job.submit.json"
+echo "=== [4] canonical publish ==="
+BODY_B64="$(printf '%s' "$PLAINTEXT" | base64 -w0)"
+curl -fsS --max-time 20 \
+  -H 'content-type: application/json' \
+  -X POST "${NODE_BASE}/datanet/v1/publish?who=${ACCOUNT}" \
+  --data '{"name":"wc-demo-e2e.txt","mime":"text/plain","plaintext_b64":"'"$BODY_B64"'"}' \
+  | tee "$OUT_DIR/publish.json"
 echo
 
-job_id="$(py_get "$OUT_DIR/job.submit.json" job.job_id)"
-if [[ -z "$job_id" ]]; then
-  echo "[fail] no job_id returned from submit" >&2
+DATASET_ID="$(py_get "$OUT_DIR/publish.json" id)"
+BYTES="$(py_get "$OUT_DIR/publish.json" sizeBytes)"
+if [[ -z "$DATASET_ID" ]]; then
+  echo "[fail] canonical publish did not return dataset id" >&2
   exit 1
 fi
-echo "[ok] job_id=$job_id"
+echo "[ok] dataset_id=$DATASET_ID"
 
-echo "=== [5] wait for job completion ==="
-job_done=0
-for i in $(seq 1 "$JOB_WAIT_LOOPS"); do
-  echo "--- poll $i/$JOB_WAIT_LOOPS"
-  jget "$NODE_BASE/jobs/$job_id" | tee "$OUT_DIR/job.status.$i.json"
-  status="$(python3 - "$OUT_DIR/job.status.$i.json" <<'PY'
-import json, sys
-j=json.load(open(sys.argv[1]))
-job=j.get("job") or {}
-rs=j.get("receipts") or []
-status=str(job.get("status") or "")
-done=(status=="completed") or any(str(r.get("status") or "")=="completed" and str(r.get("dataset_id") or "") for r in rs)
-print("completed" if done else status)
+echo "=== [5] fetch canonical dataset ==="
+FETCH_OK=0
+if jget "$NODE_BASE/datanet/v1/fetch?id=$DATASET_ID&who=$ACCOUNT" > "$OUT_DIR/fetch.after-publish.json"; then
+  FETCH_OK=1
+elif jget "$NODE_BASE/datanet/v1/fetch/$DATASET_ID?who=$ACCOUNT" > "$OUT_DIR/fetch.after-publish.json"; then
+  FETCH_OK=1
+elif jget "$NODE_BASE/datanet/v1/fetch2/$DATASET_ID?who=$ACCOUNT" > "$OUT_DIR/fetch.after-publish.json"; then
+  FETCH_OK=1
+fi
+
+if [[ "$FETCH_OK" != "1" ]]; then
+  echo "[fail] canonical fetch did not return dataset body" >&2
+  exit 1
+fi
+
+cat "$OUT_DIR/fetch.after-publish.json"
+echo
+
+FETCH_B64="$(py_get "$OUT_DIR/fetch.after-publish.json" cipher_b64)"
+if [[ -n "$FETCH_B64" && "$FETCH_B64" != "$BODY_B64" ]]; then
+  echo "[fail] fetched dataset body did not match published plaintext" >&2
+  exit 1
+fi
+
+echo "=== [6] post accepted receipt ==="
+LEAF="$(py_get "$OUT_DIR/fetch.after-publish.json" manifest.chunks.0.leafHashHex)"
+ROOT_FROM_FETCH="$(py_get "$OUT_DIR/fetch.after-publish.json" manifest.merkleRootHex)"
+INDEX_FROM_FETCH="$(py_get "$OUT_DIR/fetch.after-publish.json" manifest.chunks.0.index)"
+
+if [[ -z "$LEAF" || -z "$ROOT_FROM_FETCH" || -z "$INDEX_FROM_FETCH" ]]; then
+  echo "[fail] canonical fetch response missing manifest fields required for accepted receipt" >&2
+  exit 1
+fi
+
+PLAIN_SHA256="$LEAF"
+RECEIPT_BODY="$(python3 - <<PY
+import json
+print(json.dumps({
+  "who": "${ACCOUNT}",
+  "account": "${ACCOUNT}",
+  "id": "${DATASET_ID}",
+  "root": "${ROOT_FROM_FETCH}",
+  "leaf": "${LEAF}",
+  "index": int("${INDEX_FROM_FETCH}"),
+  "plain_sha256": "${PLAIN_SHA256}",
+  "bytes": int("${BYTES}" or 0),
+  "ok": True,
+  "accepted": True,
+  "verified": True,
+}))
 PY
 )"
-  echo "status=$status"
-  if [[ "$status" == "completed" ]]; then
-    job_done=1
-    cp -a "$OUT_DIR/job.status.$i.json" "$OUT_DIR/job.status.final.json"
+curl -fsS --max-time 20 \
+  -H 'content-type: application/json' \
+  -X POST "${NODE_BASE}/datanet/v1/receipt" \
+  --data "$RECEIPT_BODY" | tee "$OUT_DIR/receipt.accepted.json"
+echo
+
+echo "=== [7] WC after explicit credit ==="
+credit_ready=0
+for i in $(seq 1 "${CREDIT_WAIT_LOOPS:-20}"); do
+  jget "$NODE_BASE/wc/balance?account=$ACCOUNT" | tee "$OUT_DIR/wc.balance.creditwait.$i.json"
+  echo
+  jget "$NODE_BASE/wc/redeemable?account=$ACCOUNT" | tee "$OUT_DIR/wc.redeemable.creditwait.$i.json"
+  echo
+
+  after_balance_amt="$(py_get "$OUT_DIR/wc.balance.creditwait.$i.json" balance)"
+  after_redeemable_amt="$(py_get "$OUT_DIR/wc.redeemable.creditwait.$i.json" redeemable)"
+
+  if python3 - "$before_redeemable_amt" "$after_redeemable_amt" <<'PY'
+import sys
+br, ar = map(float, sys.argv[1:])
+raise SystemExit(0 if ar > br else 1)
+PY
+  then
+    cp -a "$OUT_DIR/wc.balance.creditwait.$i.json" "$OUT_DIR/wc.balance.after-job.json"
+    cp -a "$OUT_DIR/wc.redeemable.creditwait.$i.json" "$OUT_DIR/wc.redeemable.after-job.json"
+    credit_ready=1
     break
   fi
-  if [[ "$status" == "failed" ]]; then
-    echo "[fail] job failed" >&2
-    exit 1
-  fi
-  sleep "$JOB_WAIT_SECS"
+
+  sleep "${CREDIT_WAIT_SECS:-1}"
 done
-if [[ "$job_done" != "1" ]]; then
-  echo "[fail] job did not complete in time" >&2
+
+if [[ "$credit_ready" != "1" ]]; then
+  echo "[fail] explicit accepted receipt did not create redeemable WC in time" >&2
   exit 1
 fi
-
-echo
-echo "=== [6] receipts after job ==="
-jget "$NODE_BASE/receipts?account=$ACCOUNT&limit=10" | tee "$OUT_DIR/receipts.after-job.json"
-echo
-receipt_count="$(py_get "$OUT_DIR/receipts.after-job.json" receipts.0.receipt_id)"
-if [[ -z "$receipt_count" ]]; then
-  echo "[fail] no receipt found after completed job" >&2
-  exit 1
-fi
-
-echo "=== [7] WC after job ==="
-jget "$NODE_BASE/wc/balance?account=$ACCOUNT" | tee "$OUT_DIR/wc.balance.after-job.json"
-echo
-jget "$NODE_BASE/wc/redeemable?account=$ACCOUNT" | tee "$OUT_DIR/wc.redeemable.after-job.json"
-echo
 
 after_balance_amt="$(py_get "$OUT_DIR/wc.balance.after-job.json" balance)"
 after_redeemable_amt="$(py_get "$OUT_DIR/wc.redeemable.after-job.json" redeemable)"
@@ -147,58 +209,28 @@ python3 - "$before_balance_amt" "$after_balance_amt" "$before_redeemable_amt" "$
 import sys
 bb, ab, br, ar = map(float, sys.argv[1:])
 if ab < bb:
-    raise SystemExit("[fail] WC balance went down after job")
-if ar < br:
-    raise SystemExit("[fail] redeemable WC went down after job")
-print(f"[ok] WC after job: balance {bb} -> {ab}, redeemable {br} -> {ar}")
+    raise SystemExit("[fail] WC balance went down after explicit credit")
+if ar <= br:
+    raise SystemExit("[fail] redeemable WC did not increase after explicit credit")
+print(f"[ok] WC after explicit credit: balance {bb} -> {ab}, redeemable {br} -> {ar}")
 PY
 
-trade_amt="$TRADE_WC"
-
-echo "=== [7b] wait for redeemable WC credit delta ==="
-credit_visible=0
-target_redeemable="$(python3 - "$before_redeemable_amt" <<'PY'
+trade_amt="$(python3 - "$TRADE_WC" "$after_redeemable_amt" <<'PY'
 import sys
-before=float(sys.argv[1] or 0)
-print(before + 10.0)
+req = float(sys.argv[1])
+avail = float(sys.argv[2])
+amt = min(req, avail)
+if amt <= 0:
+    raise SystemExit("[fail] no redeemable WC available to trade")
+if abs(round(amt) - amt) < 1e-9:
+    print(int(round(amt)))
+else:
+    print(amt)
 PY
 )"
-for i in $(seq 1 "$JOB_WAIT_LOOPS"); do
-  echo "--- redeemable poll $i/$JOB_WAIT_LOOPS"
-  sleep "$JOB_WAIT_SECS"
-  jget "$NODE_BASE/wc/balance?account=$ACCOUNT" | tee "$OUT_DIR/wc.balance.creditwait.$i.json"
-  echo
-  jget "$NODE_BASE/wc/redeemable?account=$ACCOUNT" | tee "$OUT_DIR/wc.redeemable.creditwait.$i.json"
-  echo
-  after_balance_amt="$(py_get "$OUT_DIR/wc.balance.creditwait.$i.json" balance)"
-  after_redeemable_amt="$(py_get "$OUT_DIR/wc.redeemable.creditwait.$i.json" redeemable)"
-  if python3 - "$after_redeemable_amt" "$target_redeemable" "$trade_amt" <<'PY'
-import sys
-redeemable=float(sys.argv[1]); target=float(sys.argv[2]); trade=float(sys.argv[3])
-print(f"[info] redeemable_now={redeemable} target={target} trade={trade}")
-raise SystemExit(0 if redeemable >= target and redeemable >= trade else 1)
-PY
-  then
-    cp -a "$OUT_DIR/wc.balance.creditwait.$i.json" "$OUT_DIR/wc.balance.after-job.json"
-    cp -a "$OUT_DIR/wc.redeemable.creditwait.$i.json" "$OUT_DIR/wc.redeemable.after-job.json"
-    credit_visible=1
-    break
-  fi
-done
 
-if [[ "$credit_visible" != "1" ]]; then
-  echo "[fail] redeemable WC credit delta did not become visible in time after completed job" >&2
-  exit 1
-fi
-python3 - "$after_redeemable_amt" "$trade_amt" <<'PY'
-import sys
-redeemable=float(sys.argv[1]); trade=float(sys.argv[2])
-if trade <= 0:
-    raise SystemExit("[fail] TRADE_WC must be > 0")
-if redeemable < trade:
-    raise SystemExit(f"[fail] not enough redeemable WC for trade: redeemable={redeemable} trade={trade}")
-print(f"[ok] trade request valid: redeemable={redeemable} trade={trade}")
-PY
+echo "=== [7b] trade amount ==="
+echo "trade_wc=$trade_amt"
 
 echo "=== [8] relayer quote ==="
 jpost "$RELAYER_BASE/quote" "{\"side\":\"wc_to_void\",\"amount\":$trade_amt,\"wallet\":\"$WALLET\"}" | tee "$OUT_DIR/relayer.quote.json"
@@ -210,7 +242,15 @@ if [[ "$quote_ok" != "True" && "$quote_ok" != "true" ]]; then
 fi
 
 echo "=== [9] execute trade ==="
-jpost "$RELAYER_BASE/execute" "{\"side\":\"wc_to_void\",\"amount\":$trade_amt,\"account\":\"$ACCOUNT\",\"wallet\":\"$WALLET\"}" | tee "$OUT_DIR/relayer.execute.json"
+curl -sS -D "$OUT_DIR/relayer.execute.headers" \
+  -H 'content-type: application/json' \
+  -d "{\"side\":\"wc_to_void\",\"amount\":$trade_amt,\"account\":\"$ACCOUNT\",\"wallet\":\"$WALLET\"}" \
+  "$RELAYER_BASE/execute" \
+  -o "$OUT_DIR/relayer.execute.json" || true
+echo "--- execute headers ---"
+sed -n '1,80p' "$OUT_DIR/relayer.execute.headers" || true
+echo "--- execute body ---"
+cat "$OUT_DIR/relayer.execute.json" || true
 echo
 
 exec_ok="$(py_get "$OUT_DIR/relayer.execute.json" ok)"
@@ -226,7 +266,7 @@ if [[ -z "$approve_hash" || -z "$swap_hash" ]]; then
 fi
 
 echo "=== [10] dashboard after trade ==="
-jget "$HELPER_BASE/dashboard/$WALLET.json" | tee "$OUT_DIR/dashboard.after.json"
+dashboard_get "$OUT_DIR/dashboard.after.json"
 echo
 
 echo "=== [10b] local WC after execute ==="

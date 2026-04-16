@@ -8,6 +8,7 @@ REMOTE_HOST="${ALIEN##*@}"
 REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://${REMOTE_HOST}:4100}"
 REMOTE_HELPER_BASE="${REMOTE_HELPER_BASE:-http://${REMOTE_HOST}:4312/workcredits/devnet}"
 REMOTE_RELAYER_BASE="${REMOTE_RELAYER_BASE:-http://${REMOTE_HOST}:4313/api/wc-relayer/v1}"
+REMOTE_WALLET="${REMOTE_WALLET:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}"
 WHO="${WHO:-zoso}"
 ACCOUNT="${ACCOUNT:-participant-golden-user-$(date +%Y%m%d-%H%M%S)}"
 WALLET="${WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
@@ -228,7 +229,7 @@ PY
 echo
 echo "=== [6] run one WC trade path ==="
 ssh -o BatchMode=yes -o ConnectTimeout=8 "$ALIEN" \
-  "cd '$HOME/dev/void-node' && NODE_BASE='$REMOTE_NODE_BASE' HELPER_BASE='$REMOTE_HELPER_BASE' RELAYER_BASE='$REMOTE_RELAYER_BASE' ACCOUNT='$ACCOUNT' WALLET='$WALLET' PLAINTEXT='golden wc trade ${TS_NOW}' RUNS=1 bash ops/wc-demo-e2e.sh" \
+  "cd '$HOME/dev/void-node' && NODE_BASE='$REMOTE_NODE_BASE' HELPER_BASE='$REMOTE_HELPER_BASE' RELAYER_BASE='$REMOTE_RELAYER_BASE' ACCOUNT='$ACCOUNT' WALLET='$REMOTE_WALLET' PLAINTEXT='golden wc trade ${TS_NOW}' RUNS=1 bash ops/wc-demo-e2e.sh" \
   > "$OUT_DIR/wc-demo.log"
 
 python3 - "$OUT_DIR/wc-demo.log" <<'PY'
