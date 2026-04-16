@@ -1374,6 +1374,23 @@ if (process.env.VOID_DIAG_JSONPARSE === "1") {
 
         block = await node.sealBlock({ allowEmpty });
 
+        try {
+          const mod:any = require("./util/txroot.js");
+          const txRootOf = mod?.txRootOf || mod?.computeTxRoot || mod?.computeTxRootFromTxs;
+          if (typeof txRootOf === "function" && block && Array.isArray(block.txs)) {
+            const out = await Promise.resolve(txRootOf(block.txs));
+            const root =
+              typeof out === "string" ? out :
+              (out && typeof out.root === "string") ? out.root :
+              String(out || "");
+            if (root) {
+              block.header = block.header || {};
+              block.header.txRoot = root;
+              block.txRoot = root;
+            }
+          }
+        } catch {}
+
         if (!dry) {
           const store: any = node.store || null;
           if (store && typeof store.saveBlockCommit === "function") {
@@ -23535,7 +23552,23 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
 
       const next = (from >= 0 ? from + 1 : 0);
       const blk:any = { number: next, ts: Date.now(), txs, _commit:"proposer.commit-direct.v2fs" };
-      try { S.last_blk_preview = JSON.stringify({number:blk.number, txs:txs.length}).slice(0,200); } catch { S.last_blk_preview=""; }
+      try {
+        const mod:any = require("./util/txroot.js");
+        const txRootOf = mod?.txRootOf || mod?.computeTxRoot || mod?.computeTxRootFromTxs;
+        if (typeof txRootOf === "function") {
+          const out = await Promise.resolve(txRootOf(blk.txs));
+          const root =
+            typeof out === "string" ? out :
+            (out && typeof out.root === "string") ? out.root :
+            String(out || "");
+          if (root) {
+            blk.header = blk.header || {};
+            blk.header.txRoot = root;
+            blk.txRoot = root;
+          }
+        }
+      } catch {}
+      try { S.last_blk_preview = JSON.stringify({number:blk.number, txs:txs.length, txRoot:String(blk?.header?.txRoot || blk?.txRoot || "")}).slice(0,200); } catch { S.last_blk_preview=""; }
 
       // commit: call saveBlockCommit if present; DO NOT call saveBlock (accessor recursion)
       const store:any = node.store;
