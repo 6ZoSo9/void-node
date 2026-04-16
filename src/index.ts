@@ -42732,7 +42732,7 @@ a{color:#93c5fd;text-decoration:none}
               <a class="btn" id="latestDatasetOpenHero" href="#" target="_blank" rel="noopener" style="display:none">Open dataset</a>
               <a class="btn secondary" id="latestDatasetRawHero" href="#" target="_blank" rel="noopener" style="display:none">Open raw JSON</a>
               <button class="btn secondary" id="latestDatasetCopyIdHero" type="button" style="display:none">Copy ID</button>
-              <button class="btn secondary" id="latestDatasetCopyLinkHero" type="button" style="display:none">Copy open link</button>
+              <button class="btn secondary" id="latestDatasetCopyLinkHero" type="button" style="display:none">Copy link</button>
             </div>
           </div>
           <details class="adv" style="margin-top:14px">
@@ -45672,6 +45672,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           const latestDatasetViewHref = latestUsefulLinks.view_href;
           const latestDatasetRawHref = latestUsefulLinks.raw_href;
           const latestDatasetConsumeHref = latestUsefulLinks.consume_href;
+          const latestDatasetShareHref = latestUsefulLinks.share_href;
 
           if ($("latestDatasetMetaHero")) {
             const heroMetaBits = [latestUsefulLabel, latestUsefulWhen];
@@ -45730,7 +45731,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           const copyLinkHero = $("latestDatasetCopyLinkHero");
           if (copyLinkHero) {
             copyLinkHero.style.display = "";
-            copyLinkHero.onclick = () => copyText(latestDatasetConsumeHref, "Copied open link.", copyLinkHero);
+            copyLinkHero.title = "Copy shared page for " + latestUsefulDatasetId;
+            copyLinkHero.onclick = () => copyText(latestDatasetShareHref, "Copied latest shared page link.", copyLinkHero);
           }
 
           loadDatasetPreviewInto("latestDatasetPreviewCard", latestUsefulDatasetId, resolveActiveParticipantAccount()).catch(() => {});
