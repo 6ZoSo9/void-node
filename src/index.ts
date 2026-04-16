@@ -45732,7 +45732,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           if (copyLinkHero) {
             copyLinkHero.style.display = "";
             copyLinkHero.title = "Copy shared page for " + latestUsefulDatasetId;
-            copyLinkHero.onclick = () => copyText(latestDatasetShareHref, "Copied latest shared page link.", copyLinkHero);
+            copyLinkHero.onclick = () => copyText(latestDatasetShareHref, "Copied latest shared dataset page link.", copyLinkHero);
           }
 
           loadDatasetPreviewInto("latestDatasetPreviewCard", latestUsefulDatasetId, resolveActiveParticipantAccount()).catch(() => {});
@@ -47242,7 +47242,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             latestDatasetShareBtn.title = "Copy link for shared page " + effectiveLatestUsefulDataset;
             latestDatasetShareBtn.onclick = () =>
               window.__void_copyText &&
-              window.__void_copyText(shareHref, "Copied latest shared page link.", latestDatasetShareBtn);
+              window.__void_copyText(shareHref, "Copied latest shared dataset page link.", latestDatasetShareBtn);
           }
 
           loadDatasetPreviewInto("latestDatasetPreviewCard", effectiveLatestUsefulDataset, account).catch(() => {});
