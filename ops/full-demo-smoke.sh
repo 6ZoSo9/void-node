@@ -73,30 +73,34 @@ echo "[ok] receipt_http=200"
 echo "$RECEIPT"
 echo
 
-echo "=== [6] wc after ==="
+echo "=== [6] wc after (diagnostic only) ==="
 POOL_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/pool.json")"
 echo "$POOL_AFTER"
 
-ACC_KEY="${WC_ADDR:-$ACCOUNT}"
-
-EARN_AFTER="$EARN_BEFORE"
 ACC_AFTER=""
-if [ -n "$ACC_KEY" ]; then
-  ACC_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/account/${ACC_KEY}.json" || true)"
+EARN_AFTER=""
+if [ -n "$WC_ADDR" ]; then
+  ACC_AFTER="$(curl -fsS --max-time 5 "${WC_BASE}/account/${WC_ADDR}.json" || true)"
   if [ -n "$ACC_AFTER" ]; then
     echo "$ACC_AFTER"
     EARN_AFTER="$(printf '%s' "$ACC_AFTER" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(int((j.get("earnings") or {}).get("redeemable_wc") or 0))')"
+    echo "helper_redeemable_wc_after=$EARN_AFTER"
+    if [ -n "${EARN_BEFORE:-}" ]; then
+      echo "helper_redeemable_wc_delta=$((EARN_AFTER-EARN_BEFORE))"
+    fi
+  else
+    echo "helper_redeemable_wc_after=n/a"
+    echo "helper_redeemable_wc_delta=n/a"
   fi
 fi
-echo "redeemable_wc_after=$EARN_AFTER"
 
 echo
 echo "=== [7] raw participant truth ==="
 echo "--- /receipts"
-curl -fsS --max-time 8 "${BASE}/receipts?account=${ACC_KEY}&limit=5" | sed -n '1,220p' || true
+curl -fsS --max-time 8 "${BASE}/receipts?account=${ACCOUNT:-demo-user}&limit=5" | sed -n '1,220p' || true
 echo
 echo "--- /wc/ledger"
-curl -fsS --max-time 8 "${BASE}/wc/ledger?account=${ACC_KEY}&limit=5" | sed -n '1,220p' || true
+curl -fsS --max-time 8 "${BASE}/wc/ledger?account=${ACCOUNT:-demo-user}&limit=5" | sed -n '1,220p' || true
 echo
 echo "--- raw datanet receipt tail"
 DATA_DIR_LOCAL="${DATA_DIR:-data_a}"

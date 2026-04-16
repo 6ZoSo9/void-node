@@ -5,17 +5,6 @@ set +o histexpand
 
 BASE="${BASE:-http://127.0.0.1:4100}"
 
-json_get() {
-  local expr="$1"
-  python3 - "$expr" <<'PY'
-import sys, json
-expr = sys.argv[1]
-obj = json.load(sys.stdin)
-ns = {"j": obj}
-print(eval(expr, {"__builtins__": {}}, ns))
-PY
-}
-
 get_json_to_file() {
   local url="$1"
   local out="$2"
@@ -92,35 +81,77 @@ MP="$(curl -fsS "$BASE/mempool/count" | python3 -c 'import sys,json; print(json.
 QS="$(curl -fsS "$BASE/proposer/queue/size" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("size", -1))' || echo -1)"
 echo "after_ping mempool=$MP queue=$QS"
 
-if [ "$MP" -lt 1 ]; then
-  echo "[FAIL] ping did not enter canonical mempool"
-  exit 1
+SKIP_SEAL=0
+SEALED_NUMBER=""
+SEALED_TAKEN=""
+
+if [ "$MP" -lt 1 ] && [ "$QS" -lt 1 ]; then
+  echo "[warn] ping not visible in mempool/queue; checking if it already sealed"
+  EARLY_VERIFY="$(curl -fsS "$BASE/tx/ping/verify2?window=20" || true)"
+  echo "$EARLY_VERIFY"
+
+  EARLY_NUMBER="$(printf '%s' "$EARLY_VERIFY" | python3 - "$PING_TS" "$PING_NONCE" "$PING_NOTE" <<'PY'
+import sys, json
+pts, pnonce, pnote = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    j = json.load(sys.stdin)
+except Exception:
+    print("")
+    raise SystemExit(0)
+
+found = ""
+for hit in j.get("hits", []):
+    for p in hit.get("pings", []):
+        b = p.get("body") or {}
+        if str(b.get("ts","")) == pts and str(b.get("nonce","")) == pnonce and str(b.get("note","")) == pnote and b.get("kind") == "ping":
+            found = str(hit.get("number",""))
+            break
+    if found:
+        break
+print(found)
+PY
+)"
+  if [ -n "$EARLY_NUMBER" ]; then
+    echo "[ok] ping already sealed in block $EARLY_NUMBER"
+    SKIP_SEAL=1
+    SEALED_NUMBER="$EARLY_NUMBER"
+    SEALED_TAKEN="1"
+  else
+    echo "[FAIL] ping neither visible in mempool/queue nor already sealed"
+    exit 1
+  fi
 fi
 
 echo
 echo "=== [4] seal exactly one block ==="
-SEAL_JSON="$(mktemp)"
-post_json_to_file "$BASE/proposer/seal-now" "$SEAL_JSON"
-cat "$SEAL_JSON"; echo
+if [ "$SKIP_SEAL" = "1" ]; then
+  echo "already_sealed_number=$SEALED_NUMBER"
+  echo "sealed_number=$SEALED_NUMBER"
+  echo "sealed_taken=$SEALED_TAKEN"
+else
+  SEAL_JSON="$(mktemp)"
+  post_json_to_file "$BASE/proposer/seal-now" "$SEAL_JSON"
+  cat "$SEAL_JSON"; echo
 
-SEALED_NUMBER="$(python3 - "$SEAL_JSON" <<'PY'
+  SEALED_NUMBER="$(python3 - "$SEAL_JSON" <<'PY'
 import sys, json
 j=json.load(open(sys.argv[1]))
 print(j.get("number",-1))
 PY
 )"
-SEALED_TAKEN="$(python3 - "$SEAL_JSON" <<'PY'
+  SEALED_TAKEN="$(python3 - "$SEAL_JSON" <<'PY'
 import sys, json
 j=json.load(open(sys.argv[1]))
 print(j.get("taken",-1))
 PY
 )"
-echo "sealed_number=$SEALED_NUMBER"
-echo "sealed_taken=$SEALED_TAKEN"
+  echo "sealed_number=$SEALED_NUMBER"
+  echo "sealed_taken=$SEALED_TAKEN"
 
-if [ "$SEALED_NUMBER" = "-1" ]; then
-  echo "[FAIL] proposer/seal-now did not return a valid block number"
-  exit 1
+  if [ "$SEALED_NUMBER" = "-1" ]; then
+    echo "[FAIL] proposer/seal-now did not return a valid block number"
+    exit 1
+  fi
 fi
 
 echo
