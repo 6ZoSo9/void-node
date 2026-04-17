@@ -40964,7 +40964,45 @@ a{color:#93c5fd;text-decoration:none}
         const job = latestJobById(jobId);
         if (!job) return res.status(404).json({ ok:false, error:"job_not_found" });
         const receipts = listReceiptsForJob(jobId);
-        return res.json({ ok:true, job, receipts });
+
+        const canonicalJob:any = { ...job };
+        let receiptTruth:any = null;
+        if (Array.isArray(receipts) && receipts.length) {
+          for (let i = receipts.length - 1; i >= 0; i--) {
+            const r:any = receipts[i];
+            const st = String(r?.status || "").trim().toLowerCase();
+            if (st === "completed" || st === "ok" || st === "done") {
+              receiptTruth = r;
+              break;
+            }
+          }
+        }
+
+        if (receiptTruth) {
+          canonicalJob.status = "completed";
+
+          if ((!canonicalJob.dataset_id || canonicalJob.dataset_id == null) && receiptTruth?.dataset_id) {
+            canonicalJob.dataset_id = receiptTruth.dataset_id;
+          }
+
+          if ((!canonicalJob.selected_dataset_id || canonicalJob.selected_dataset_id == null) && receiptTruth?.selected_dataset_id) {
+            canonicalJob.selected_dataset_id = receiptTruth.selected_dataset_id;
+          }
+
+          if ((!canonicalJob.completed_at_ms || Number(canonicalJob.completed_at_ms) <= 0) && Number.isFinite(Number(receiptTruth?.ts_ms))) {
+            canonicalJob.completed_at_ms = Number(receiptTruth.ts_ms);
+          }
+
+          if ((!canonicalJob.updated_at_ms || Number(canonicalJob.updated_at_ms) <= 0) && Number.isFinite(Number(receiptTruth?.ts_ms))) {
+            canonicalJob.updated_at_ms = Number(receiptTruth.ts_ms);
+          }
+
+          if ((!canonicalJob.output || canonicalJob.output == null) && receiptTruth?.output && typeof receiptTruth.output === "object") {
+            canonicalJob.output = receiptTruth.output;
+          }
+        }
+
+        return res.json({ ok:true, job: canonicalJob, receipts });
       } catch (e:any) {
         return res.status(500).json({ ok:false, error:String(e?.message || e) });
       }
