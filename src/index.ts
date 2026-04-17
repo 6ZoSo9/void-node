@@ -19639,7 +19639,11 @@ const wal = new WALv1(getDataDir());
   const FILE_JOBS_LEGACY = path.join(AGENT_DIR, "jobs.jsonl");
   const FILE_JOBS = fs.existsSync(FILE_JOBS_V1) ? FILE_JOBS_V1 : FILE_JOBS_LEGACY;
   const FILE_RESULTS  = path.join(AGENT_DIR, "results.jsonl");
+  const FILE_RECEIPTS = path.join(AGENT_DIR, "receipts.jsonl");
   const FILE_LEASES   = path.join(AGENT_DIR, "leases.jsonl");
+  const AGENTV1_DIR   = path.join(DATA_DIR, "agent_v1");
+  const FILE_RECEIPTS_V1 = path.join(AGENTV1_DIR, "receipts.jsonl");
+  const FILE_JOB_STATE_V1 = path.join(AGENTV1_DIR, "job_state.jsonl");
 
   const AGENT_TOKEN = process.env.VOID_AGENT_TOKEN || process.env.AGENT_TOKEN || "";
   const LEASE_MS = Math.max(1000, Number(process.env.VOID_AGENT_LEASE_MS || 30000)); // default 30s
@@ -19934,9 +19938,29 @@ const wal = new WALv1(getDataDir());
         const done  = readSetFrom(FILE_RESULTS, "id");
         const active= readLeasesActive(); // only leases within LEASE_MS
 
-        // available = jobs - done - active
+        const doneTruth = new Set<string>();
+        const addCompletedTruth = (file:string) => {
+          try{
+            if (!fs.existsSync(file)) return;
+            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\n")){
+              if (!line.trim()) continue;
+              try{
+                const j:any = JSON.parse(line);
+                const st = String(j?.status || "").trim().toLowerCase();
+                if (!(st === "completed" || st === "ok" || st === "done")) continue;
+                const jid = String(j?.job_id || j?.id || "").trim();
+                if (jid) doneTruth.add(jid);
+              }catch{}
+            }
+          }catch{}
+        };
+        addCompletedTruth(FILE_RECEIPTS);
+        addCompletedTruth(FILE_RECEIPTS_V1);
+        addCompletedTruth(FILE_JOB_STATE_V1);
+
+        // available = jobs - results - receipt/job_state truth - active
         const avail: string[] = [];
-        for (const id of jobs){ if (!done.has(id) && !active.has(id)) avail.push(id); }
+        for (const id of jobs){ if (!done.has(id) && !doneTruth.has(id) && !active.has(id)) avail.push(id); }
 
         if (!avail.length) return res.json({ok:true, job:null, leaseMs:LEASE_MS});
 
@@ -19988,8 +20012,28 @@ const wal = new WALv1(getDataDir());
         const done  = readSetFrom(FILE_RESULTS, "id");
         const active= readLeasesActive();
 
+        const doneTruth = new Set<string>();
+        const addCompletedTruth = (file:string) => {
+          try{
+            if (!fs.existsSync(file)) return;
+            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\n")){
+              if (!line.trim()) continue;
+              try{
+                const j:any = JSON.parse(line);
+                const st = String(j?.status || "").trim().toLowerCase();
+                if (!(st === "completed" || st === "ok" || st === "done")) continue;
+                const jid = String(j?.job_id || j?.id || "").trim();
+                if (jid) doneTruth.add(jid);
+              }catch{}
+            }
+          }catch{}
+        };
+        addCompletedTruth(FILE_RECEIPTS);
+        addCompletedTruth(FILE_RECEIPTS_V1);
+        addCompletedTruth(FILE_JOB_STATE_V1);
+
         const avail: string[] = [];
-        for (const id of jobs){ if (!done.has(id) && !active.has(id)) avail.push(id); }
+        for (const id of jobs){ if (!done.has(id) && !doneTruth.has(id) && !active.has(id)) avail.push(id); }
 
         const chosen = chooseWeightedJob(avail);
         return res.json({
@@ -31861,13 +31905,36 @@ try {
       const AGENT_DIR = path.join(root, "agent");
       const FILE_JOBS    = path.join(AGENT_DIR, "jobs.jsonl");
       const FILE_RESULTS = path.join(AGENT_DIR, "results.jsonl");
+      const FILE_RECEIPTS = path.join(AGENT_DIR, "receipts.jsonl");
       const FILE_LEASES  = path.join(AGENT_DIR, "leases.jsonl");
+      const AGENTV1_DIR  = path.join(root, "agent_v1");
+      const FILE_RECEIPTS_V1 = path.join(AGENTV1_DIR, "receipts.jsonl");
+      const FILE_JOB_STATE_V1 = path.join(AGENTV1_DIR, "job_state.jsonl");
 
       // last-wins override: we *add* another handler and explicitly reorder it to the end
       app.post("/__void/agent/pick2_fifo_v2_debug", requireAgentAuth, (req:any, res:any)=>{
         try{
           const done   = setFromJsonl(FILE_RESULTS, "id", SCAN_MAX);
           const active = leasesActive(FILE_LEASES, LEASE_MS, SCAN_MAX);
+          const doneTruth = new Set<string>();
+          const addCompletedTruth = (file:string) => {
+            try{
+              if (!fs.existsSync(file)) return;
+              const lines = String(fs.readFileSync(file, "utf8") || "").split("\n").filter((l:string)=>l.trim().length>0).slice(-SCAN_MAX);
+              for (const l of lines){
+                try{
+                  const j:any = JSON.parse(l);
+                  const st = String(j?.status || "").trim().toLowerCase();
+                  if (!(st === "completed" || st === "ok" || st === "done")) continue;
+                  const jid = String(j?.job_id || j?.id || "").trim();
+                  if (jid) doneTruth.add(jid);
+                }catch{}
+              }
+            }catch{}
+          };
+          addCompletedTruth(FILE_RECEIPTS);
+          addCompletedTruth(FILE_RECEIPTS_V1);
+          addCompletedTruth(FILE_JOB_STATE_V1);
 
           // FIFO scan: read jobs from head, dedupe-by-id as we go
           const seen = new Set<string>();
@@ -31880,7 +31947,7 @@ try {
             if (!id) continue;
             if (seen.has(id)) continue;
             seen.add(id);
-            if (done.has(id)) continue;
+            if (done.has(id) || doneTruth.has(id)) continue;
             if (active.has(id)) continue;
             chosenId = id;
             break;
@@ -32361,9 +32428,32 @@ try {
           const agentDir = path.join(root, "agent");
           const FILE_JOBS    = path.join(agentDir, "jobs.jsonl");
           const FILE_RESULTS = path.join(agentDir, "results.jsonl");
+          const FILE_RECEIPTS = path.join(agentDir, "receipts.jsonl");
           const FILE_LEASES  = path.join(agentDir, "leases.jsonl");
+          const AGENTV1_DIR = path.join(root, "agent_v1");
+          const FILE_RECEIPTS_V1 = path.join(AGENTV1_DIR, "receipts.jsonl");
+          const FILE_JOB_STATE_V1 = path.join(AGENTV1_DIR, "job_state.jsonl");
 
           const epochMs = readEpochMs(agentDir); // 0 => disabled
+          const doneTruth = new Set<string>();
+          const addCompletedTruth = (file:string) => {
+            try{
+              if (!fs.existsSync(file)) return;
+              const lines = String(fs.readFileSync(file, "utf8") || "").split("\n").filter((l:string)=>l.trim().length>0).slice(-SCAN_MAX);
+              for (const l of lines){
+                try{
+                  const j:any = JSON.parse(l);
+                  const st = String(j?.status || "").trim().toLowerCase();
+                  if (!(st === "completed" || st === "ok" || st === "done")) continue;
+                  const jid = String(j?.job_id || j?.id || "").trim();
+                  if (jid) doneTruth.add(jid);
+                }catch{}
+              }
+            }catch{}
+          };
+          addCompletedTruth(FILE_RECEIPTS);
+          addCompletedTruth(FILE_RECEIPTS_V1);
+          addCompletedTruth(FILE_JOB_STATE_V1);
           const cutoffLease = nowMs() - LEASE_MS;
 
           function safeLines(file:string){
@@ -32414,7 +32504,7 @@ try {
                 if (!Number.isFinite(ts) || ts<=0 || ts < epochMs) continue;
               }
 
-              if (done.has(id)) continue;
+              if (done.has(id) || doneTruth.has(id)) continue;
               if (active.has(id)) continue;
 
               chosenId=id;
@@ -32508,10 +32598,32 @@ try {
           const FILE_JOBS_LEGACY = path.join(agentDir, "jobs.jsonl");
           const FILE_JOBS = fs.existsSync(FILE_JOBS_V1) ? FILE_JOBS_V1 : FILE_JOBS_LEGACY;
           const FILE_RESULTS = path.join(agentDir, "results.jsonl");
+          const FILE_RECEIPTS = path.join(agentDir, "receipts.jsonl");
           const FILE_LEASES  = path.join(agentDir, "leases.jsonl");
+          const AGENTV1_DIR = path.join(root, "agent_v1");
+          const FILE_RECEIPTS_V1 = path.join(AGENTV1_DIR, "receipts.jsonl");
+          const FILE_JOB_STATE_V1 = path.join(AGENTV1_DIR, "job_state.jsonl");
 
           const epochMs = readEpochMs(agentDir);
           const cutoffLease = nowMs() - LEASE_MS;
+          const doneTruth = new Set<string>();
+          const addCompletedTruth = (file:string) => {
+            try{
+              if (!fs.existsSync(file)) return;
+              for (const l of safeLines(file)){
+                try{
+                  const j:any = JSON.parse(l);
+                  const st = String(j?.status || "").trim().toLowerCase();
+                  if (!(st === "completed" || st === "ok" || st === "done")) continue;
+                  const jid = String(j?.job_id || j?.id || "").trim();
+                  if (jid) doneTruth.add(jid);
+                }catch{}
+              }
+            }catch{}
+          };
+          addCompletedTruth(FILE_RECEIPTS);
+          addCompletedTruth(FILE_RECEIPTS_V1);
+          addCompletedTruth(FILE_JOB_STATE_V1);
 
           function safeLines(file:string){
             try{
@@ -32776,7 +32888,7 @@ try {
               else if (!task || task === "unknown") reject_reason = "unknown_task";
               else if ((task === "datanet_fetch_verify" || task === "datanet_redundancy_check") && !rowDatasetId(x)) reject_reason = "missing_dataset_id";
               else if (epochMs > 0 && (!Number.isFinite(rawTs) || rawTs <= 0 || rawTs < epochMs)) reject_reason = "pre_epoch";
-              else if (done.has(id)) reject_reason = "already_done";
+              else if (done.has(id) || doneTruth.has(id)) reject_reason = "already_done";
               else if (active.has(id)) reject_reason = "active_lease";
               else if (stale > MAX_STALE_MS) reject_reason = "too_stale";
               else if (payloadBytes > MAX_PLAINTEXT_BYTES) reject_reason = "payload_too_large";
