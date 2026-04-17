@@ -12,7 +12,7 @@ current_reported_config_identity: two-box-mainnet0-baseline
 
 status: candidate
 status_reason: two-box mainnet0 readiness proof green
-status_last_changed_at: 2026-04-17T12:37:41Z
+status_last_changed_at: 2026-04-17T12:49:08Z
 
 last_known_head: 196020
 last_known_health: ready=true

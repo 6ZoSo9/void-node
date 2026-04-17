@@ -477,3 +477,7 @@ demo-proof-all:
 .PHONY: mainnet0-launch-readiness
 mainnet0-launch-readiness:
 	bash ops/mainnet0-launch-readiness.sh
+
+.PHONY: mainnet0-go-no-go-bundle
+mainnet0-go-no-go-bundle:
+	bash ops/mainnet0-go-no-go-bundle.sh
