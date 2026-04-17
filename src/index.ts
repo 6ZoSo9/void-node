@@ -19960,7 +19960,10 @@ const wal = new WALv1(getDataDir());
 
         // available = jobs - results - receipt/job_state truth - active
         const avail: string[] = [];
-        for (const id of jobs){ if (!done.has(id) && !doneTruth.has(id) && !active.has(id)) avail.push(id); }
+        for (const rawId of jobs){
+          const id = String(rawId);
+          if (!done.has(id) && !doneTruth.has(id) && !active.has(id)) avail.push(id);
+        }
 
         if (!avail.length) return res.json({ok:true, job:null, leaseMs:LEASE_MS});
 
@@ -20033,7 +20036,10 @@ const wal = new WALv1(getDataDir());
         addCompletedTruth(FILE_JOB_STATE_V1);
 
         const avail: string[] = [];
-        for (const id of jobs){ if (!done.has(id) && !doneTruth.has(id) && !active.has(id)) avail.push(id); }
+        for (const rawId of jobs){
+          const id = String(rawId);
+          if (!done.has(id) && !doneTruth.has(id) && !active.has(id)) avail.push(id);
+        }
 
         const chosen = chooseWeightedJob(avail);
         return res.json({
