@@ -40781,7 +40781,12 @@ a{color:#93c5fd;text-decoration:none}
           if (st.seen_job_ids[jobId]) continue;
           st.seen_job_ids[jobId] = 1;
           if (String(j?.status || "") !== "queued") continue;
+          const completedTruth = getCompletedTruthSet();
           if (st.completed_job_ids[jobId]) continue;
+          if (completedTruth.has(jobId)) {
+            st.completed_job_ids[jobId] = 1;
+            continue;
+          }
           out.push(jobId);
         } catch {}
       }
@@ -40826,7 +40831,12 @@ a{color:#93c5fd;text-decoration:none}
       if (seen.has(jobId)) continue;
       seen.add(jobId);
       if (String(j?.status || "") !== "queued") continue;
+      const completedTruth = getCompletedTruthSet();
       if (completed[jobId]) continue;
+      if (completedTruth.has(jobId)) {
+        completed[jobId] = 1;
+        continue;
+      }
       out.push(jobId);
     }
     return out;
@@ -40850,6 +40860,78 @@ a{color:#93c5fd;text-decoration:none}
     return out;
   }
 
+  function completedTruthCache(){
+    const st:any = G[MARK].completed_truth_v1 || (G[MARK].completed_truth_v1 = {
+      receipts_sig: "",
+      job_state_sig: "",
+      jobs_sig: "",
+      set: new Set<string>(),
+      rebuilt_at_ms: 0
+    });
+    return st;
+  }
+
+  function fileSig(file:string){
+    const fs = require("node:fs");
+    try{
+      const st = fs.statSync(file);
+      return String(Number(st.size || 0)) + ":" + String(Math.trunc(Number(st.mtimeMs || 0)));
+    }catch{
+      return "missing";
+    }
+  }
+
+  function getCompletedTruthSet(){
+    const st:any = completedTruthCache();
+    const sigReceipts = fileSig(receiptsFile());
+    const sigJobState = fileSig(jobStateFile());
+    const sigJobs = fileSig(jobsFile());
+
+    if (
+      st.receipts_sig === sigReceipts &&
+      st.job_state_sig === sigJobState &&
+      st.jobs_sig === sigJobs &&
+      st.set instanceof Set
+    ) {
+      return st.set as Set<string>;
+    }
+
+    const next = new Set<string>();
+    const consider = (x:any) => {
+      const jid = String(x?.job_id || x?.id || "").trim();
+      if (!jid) return;
+
+      const status = String(x?.status || "").trim().toLowerCase();
+      const ev = String(x?._event || "").trim().toLowerCase();
+      const isCompleted =
+        status === "completed" || status === "ok" || status === "done" ||
+        (ev === "job_state_patch_v3" && status === "completed");
+
+      if (isCompleted) next.add(jid);
+    };
+
+    for (const line of readLines(receiptsFile())) {
+      try { consider(JSON.parse(line)); } catch {}
+    }
+    for (const line of readLines(jobStateFile())) {
+      try { consider(JSON.parse(line)); } catch {}
+    }
+    for (const line of readLines(jobsFile())) {
+      try { consider(JSON.parse(line)); } catch {}
+    }
+
+    st.receipts_sig = sigReceipts;
+    st.job_state_sig = sigJobState;
+    st.jobs_sig = sigJobs;
+    st.set = next;
+    st.rebuilt_at_ms = nowMs();
+    return next as Set<string>;
+  }
+
+  function hasCompletedTruth(jobId:string){
+    return getCompletedTruthSet().has(jobId);
+  }
+
   async function sha256Hex(s:string): Promise<string> {
     const crypto = require("node:crypto");
     return crypto.createHash("sha256").update(Buffer.from(s, "utf8")).digest("hex");
@@ -40860,6 +40942,10 @@ a{color:#93c5fd;text-decoration:none}
     const path = require("node:path");
     const job = latestJobById(jobId);
     if (!job) return;
+    if (hasCompletedTruth(jobId)) {
+      markJobDone(jobId);
+      return;
+    }
     if (String(job.status || "") !== "queued") return;
 
 
@@ -40935,6 +41021,11 @@ a{color:#93c5fd;text-decoration:none}
           output: outputObj,
           ts_ms: nowMs(),
         };
+        if (hasCompletedTruth(jobId)) {
+          markJobDone(jobId);
+          return;
+        }
+
         appendJsonl(receiptsFile(), receipt);
 
         replaceJobState(jobId, {
@@ -40946,6 +41037,7 @@ a{color:#93c5fd;text-decoration:none}
           output_hash: outputHash,
         });
 
+        markJobDone(jobId);
         G[MARK].last_job_id = jobId;
         G[MARK].last_receipt_id = receiptId;
       } else if (kind === "datanet_fetch_verify") {
@@ -41003,6 +41095,11 @@ a{color:#93c5fd;text-decoration:none}
           output: outputObj,
           ts_ms: nowMs(),
         };
+        if (hasCompletedTruth(jobId)) {
+          markJobDone(jobId);
+          return;
+        }
+
         appendJsonl(receiptsFile(), receipt);
 
         replaceJobState(jobId, {
@@ -41015,6 +41112,7 @@ a{color:#93c5fd;text-decoration:none}
           verified: true,
         });
 
+        markJobDone(jobId);
         G[MARK].last_job_id = jobId;
         G[MARK].last_receipt_id = receiptId;
       } else if (kind === "datanet_redundancy_check") {
@@ -41074,6 +41172,11 @@ a{color:#93c5fd;text-decoration:none}
           output: outputObj,
           ts_ms: nowMs(),
         };
+        if (hasCompletedTruth(jobId)) {
+          markJobDone(jobId);
+          return;
+        }
+
         appendJsonl(receiptsFile(), receipt);
 
         replaceJobState(jobId, {
@@ -41088,6 +41191,7 @@ a{color:#93c5fd;text-decoration:none}
           verified_hash: verifiedHash,
         });
 
+        markJobDone(jobId);
         G[MARK].last_job_id = jobId;
         G[MARK].last_receipt_id = receiptId;
       } else {
