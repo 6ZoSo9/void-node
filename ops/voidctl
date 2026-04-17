@@ -730,21 +730,27 @@ PY2
 }
 
 cmd_agent_summary() {
-  j /__void/agent/summary.json | print_json_pretty
+  j /__void/agent/pillar4.summary.json | print_json_pretty
 }
 
 cmd_status() {
   local health demo agent
   health="$(j /health)"
   demo="$(j /__void/demo/summary.json)"
-  agent="$(j /__void/agent/summary.json)"
+  agent="$(j /__void/agent/pillar4.summary.json)"
   python3 -c 'import json,sys
 h=json.loads(sys.argv[1]); d=json.loads(sys.argv[2]); a=json.loads(sys.argv[3])
 c=d.get("chain") or {}
 dn=d.get("datanet") or {}
 u=d.get("update") or {}
 latest=dn.get("latest_dataset") or {}
-counts=a.get("counts") or {}
+counts=dict(a.get("counts") or {})
+if "queued" not in counts and "queue_pending" in counts:
+    counts["queued"] = counts.get("queue_pending", 0)
+if "picked" not in counts:
+    counts["picked"] = 0
+if "receipts" not in counts and "completed" in counts:
+    counts["receipts"] = counts.get("completed", 0)
 print("VOID status")
 print("-----------")
 print("node_id:", h.get("nodeId"))
@@ -777,7 +783,7 @@ cmd_doctor() {
   ok /version version
   ok /upgrade/check upgrade-check
   ok /__void/demo/summary.json demo-summary
-  ok /__void/agent/summary.json agent-summary
+  ok /__void/agent/pillar4.summary.json agent-summary
   ok "/datanet/list?limit=1" datanet-list
 
   echo
