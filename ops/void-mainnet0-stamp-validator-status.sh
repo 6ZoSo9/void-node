@@ -71,14 +71,21 @@ ready_ok = bool(ready.get("ready"))
 reasons = ready.get("reasons") or []
 txroot_live = ready.get("txroot_live")
 
-if ready_ok and same_node is False and local_ok and main_ok:
+head_gap_abs = abs(int(head_gap)) if isinstance(head_gap, (int, float)) else None
+
+if ready_ok and same_node is False and local_ok and main_ok and head_gap_abs == 0:
     status = "candidate"
     status_reason = "two-box mainnet0 readiness proof green"
     checkpoint_awareness_status = "baseline-observe"
     incident_response_readiness = "policy-stack-sanity-green"
 else:
     status = "blocked"
-    status_reason = "validator admission preconditions not met"
+    if head_gap_abs is None:
+        status_reason = "validator admission preconditions not met: missing head gap"
+    elif head_gap_abs != 0:
+        status_reason = f"validator admission preconditions not met: head_gap={head_gap}"
+    else:
+        status_reason = "validator admission preconditions not met"
     checkpoint_awareness_status = "needs-review"
     incident_response_readiness = "needs-review"
 

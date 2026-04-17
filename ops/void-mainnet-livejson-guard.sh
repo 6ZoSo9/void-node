@@ -113,21 +113,21 @@ esac
 
 echo "=== [6] role/admin field presence ==="
 jq -e '
-  (.roles.AdminGate != null) and
-  (.roles.UpdateGate != null) and
-  (.roles.ConfigGate != null) and
-  (.roles.ValidatorSet != null) and
-  (.roles.VoidToken != null) and
-  (.roles.VoidTreasury != null) and
-  (.roles.OpsTreasury != null) and
-  (.roles.RewardEngine != null) and
-  (.admins.adminGateController != null) and
-  (.admins.updateGateController != null) and
-  (.admins.configGateController != null) and
-  (.admins.validatorAdmin != null) and
-  (.admins.voidTreasuryAdmin != null) and
-  (.admins.opsTreasuryAdmin != null) and
-  (.admins.rewardEngineAdmin != null)
+  ((.roles.AdminGate // .roles.admin_gate) != null) and
+  ((.roles.UpdateGate // .roles.update_gate) != null) and
+  ((.roles.ConfigGate // .roles.config_gate) != null) and
+  ((.roles.ValidatorSet // .roles.validator_set) != null) and
+  ((.roles.VoidToken // .roles.void_token) != null) and
+  ((.roles.VoidTreasury // .roles.void_treasury) != null) and
+  ((.roles.OpsTreasury // .roles.ops_treasury) != null) and
+  ((.roles.RewardEngine // .roles.reward_engine) != null) and
+  ((.admins.adminGateController // .admins.admin) != null) and
+  ((.admins.updateGateController // .admins.update_admin) != null) and
+  ((.admins.configGateController // .admins.config_admin) != null) and
+  ((.admins.validatorAdmin // .admins.validator_admin) != null) and
+  ((.admins.voidTreasuryAdmin // .admins.treasury_admin) != null) and
+  ((.admins.opsTreasuryAdmin // .admins.ops_admin) != null) and
+  ((.admins.rewardEngineAdmin // .admins.reward_admin) != null)
 ' "$PIN" >/dev/null || { echo "[ERR] required role/admin fields missing"; exit 1; }
 
 echo "=== [7] summary ==="

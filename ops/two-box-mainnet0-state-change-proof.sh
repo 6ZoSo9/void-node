@@ -50,6 +50,19 @@ echo
 ssh "$ALIEN" 'set -euo pipefail; curl -fsS --max-time 10 http://127.0.0.1:4100/__void/ready.json; echo; curl -fsS --max-time 10 http://127.0.0.1:4100/__void/peer-main-status.json' | tee "$OUT/remote-before.txt"
 
 echo
+echo "=== [1b] precondition gate ==="
+python3 - "$OUT/local-ready-before.json" "$OUT/local-peer-before.json" <<'PY2'
+import json, sys
+ready = json.load(open(sys.argv[1]))
+peer = json.load(open(sys.argv[2]))
+gap = peer.get("head_gap")
+assert ready.get("ready") is True, f"local ready is not true: {ready}"
+assert isinstance(gap, (int, float)), f"missing head_gap: {peer}"
+assert abs(int(gap)) == 0, f"precondition failed: head_gap={gap}"
+print("[ok] local precondition gate green (ready=true, head_gap=0)")
+PY2
+
+echo
 echo "=== [2] submit live state change on local box ==="
 TS_NOW="$(date +%Y%m%d-%H%M%S)"
 ACCOUNT="mainnet0-state-change-$TS_NOW"
