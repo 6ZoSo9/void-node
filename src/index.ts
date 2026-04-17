@@ -33886,6 +33886,111 @@ try {
         }
       });
 
+
+      app.get("/__void/agent/pillar4.summary.json", (_req:any, res:any)=>{
+        try{
+          const root = String(process.env.AGENT_DIR || process.env.VOID_AGENT_DIR || process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+          const AGENT_DIR = path.join(root, "agent");
+          const FILE_JOBS     = path.join(AGENT_DIR, "jobs.jsonl");
+          const FILE_RESULTS  = path.join(AGENT_DIR, "results.jsonl");
+          const FILE_RECEIPTS = path.join(AGENT_DIR, "receipts.jsonl");
+
+          function safeReadLines(file:string, maxLines:number=5000){
+            try{
+              if (!fs.existsSync(file)) return [];
+              const raw = String(fs.readFileSync(file, "utf8") || "");
+              return raw.split(/\r?\n/).filter(Boolean).slice(-maxLines);
+            }catch{
+              return [];
+            }
+          }
+
+          function safeJsonLines(file:string, maxLines:number=5000){
+            const out:any[] = [];
+            for (const line of safeReadLines(file, maxLines)){
+              try{
+                const j = JSON.parse(line);
+                if (j && typeof j === "object") out.push(j);
+              }catch{}
+            }
+            return out;
+          }
+
+          function rowId(x:any){
+            return String(x?.job_id || x?.id || "").trim();
+          }
+          function rowTs(x:any){
+            const n = Number(x?.sort_ts_ms || x?.completed_at_ms || x?.created_at_ms || x?.started_at_ms || x?.ts_ms || x?.ts || 0);
+            return Number.isFinite(n) ? n : 0;
+          }
+
+          const jobs_u = countUniqueIds(FILE_JOBS, SCAN_MAX);
+          const res_u  = countUniqueIds(FILE_RESULTS, SCAN_MAX);
+          const rec_u  = countUniqueIds(FILE_RECEIPTS, SCAN_MAX);
+          const completed_u = Math.max(res_u, rec_u);
+          const pending = Math.max(0, jobs_u - completed_u);
+
+          const latestByJob = new Map<string, any>();
+          for (const row of safeJsonLines(FILE_JOBS, SCAN_MAX)) {
+            const jid = rowId(row);
+            if (!jid) continue;
+            const prev = latestByJob.get(jid);
+            if (!prev || rowTs(row) >= rowTs(prev)) latestByJob.set(jid, row);
+          }
+
+          const latestReceiptByJob = new Map<string, any>();
+          for (const row of safeJsonLines(FILE_RECEIPTS, SCAN_MAX)) {
+            const jid = rowId(row);
+            const st = String(row?.status || "").trim().toLowerCase();
+            if (!jid) continue;
+            if (!(st === "completed" || st === "ok" || st === "done")) continue;
+            const prev = latestReceiptByJob.get(jid);
+            if (!prev || rowTs(row) >= rowTs(prev)) latestReceiptByJob.set(jid, row);
+          }
+
+          const canonicalJobs = Array.from(latestByJob.values()).map((j:any) => {
+            const cj:any = { ...j };
+            const jid = rowId(cj);
+            const rr:any = latestReceiptByJob.get(jid) || null;
+            if (rr) {
+              cj.status = "completed";
+              if ((!cj.dataset_id || cj.dataset_id == null) && rr?.dataset_id) cj.dataset_id = rr.dataset_id;
+              if ((!cj.selected_dataset_id || cj.selected_dataset_id == null) && rr?.selected_dataset_id) cj.selected_dataset_id = rr.selected_dataset_id;
+              if ((!cj.completed_at_ms || Number(cj.completed_at_ms) <= 0) && Number.isFinite(Number(rr?.ts_ms))) cj.completed_at_ms = Number(rr.ts_ms);
+              if ((!cj.updated_at_ms || Number(cj.updated_at_ms) <= 0) && Number.isFinite(Number(rr?.ts_ms))) cj.updated_at_ms = Number(rr.ts_ms);
+              if ((!cj.output || cj.output == null) && rr?.output && typeof rr.output === "object") cj.output = rr.output;
+            }
+            return cj;
+          }).sort((a:any,b:any)=> rowTs(a) - rowTs(b));
+
+          const latestRaw:any = canonicalJobs.length ? canonicalJobs[canonicalJobs.length - 1] : null;
+          const latest = latestRaw ? {
+            job_id: latestRaw?.job_id ?? latestRaw?.id ?? null,
+            created_at_ms: latestRaw?.created_at_ms ?? null,
+            completed_at_ms: latestRaw?.completed_at_ms ?? null,
+            updated_at_ms: latestRaw?.updated_at_ms ?? null,
+            kind: latestRaw?.kind ?? latestRaw?.type ?? null,
+            status: latestRaw?.status ?? null,
+            dataset_id: latestRaw?.dataset_id ?? latestRaw?.selected_dataset_id ?? null
+          } : null;
+
+          return res.json({
+            ok: true,
+            source: "agent_pillar4_truth",
+            ts_ms: Date.now(),
+            counts: {
+              total: jobs_u,
+              completed: completed_u,
+              receipts: rec_u,
+              queue_pending: pending
+            },
+            latest_job: latest
+          });
+        }catch(e:any){
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
       console.log("[agent] pillar exporter v4 mounted at /__void/metrics/agent_pillar4.prom");
     }
     mount();
