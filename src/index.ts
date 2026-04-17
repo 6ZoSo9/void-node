@@ -33808,14 +33808,17 @@ try {
           const jobs_u = countUniqueIds(FILE_JOBS, SCAN_MAX);
           const res_u  = countUniqueIds(FILE_RESULTS, SCAN_MAX);
           const rec_u  = countUniqueIds(FILE_RECEIPTS, SCAN_MAX);
-          const pending = Math.max(0, jobs_u - res_u);
+          const completed_u = Math.max(res_u, rec_u);
+          const pending = Math.max(0, jobs_u - completed_u);
           const active  = leasesActive(FILE_LEASES, LEASE_MS, SCAN_MAX);
           const fifoV2 = ((app as any).__agent_v0_pick2_fifo_v2__ ? 1 : 0);
 
           const epochMs = readEpochMs(AGENT_DIR);
           const jobsPost = countUniqueIdsPostEpoch(FILE_JOBS, SCAN_MAX, epochMs);
           const resPost  = countUniqueIdsPostEpoch(FILE_RESULTS, SCAN_MAX, epochMs);
-          const pendingPost = Math.max(0, jobsPost - resPost);
+          const recPost  = countUniqueIdsPostEpoch(FILE_RECEIPTS, SCAN_MAX, epochMs);
+          const completedPost = Math.max(resPost, recPost);
+          const pendingPost = Math.max(0, jobsPost - completedPost);
 
           const lines = [
             "# HELP void_agent_auth_configured whether server has agent token configured",
@@ -33826,15 +33829,19 @@ try {
             "# TYPE void_agent_jobs_total gauge",
             `void_agent_jobs_total ${jobs_u}`,
 
-            "# HELP void_agent_results_total unique job ids observed in results.jsonl (bounded)",
+            "# HELP void_agent_results_total unique completed job ids observed in results.jsonl OR receipts truth (bounded)",
             "# TYPE void_agent_results_total gauge",
-            `void_agent_results_total ${res_u}`,
+            `void_agent_results_total ${completed_u}`,
 
             "# HELP void_agent_receipts_total unique job ids observed in receipts.jsonl (bounded)",
             "# TYPE void_agent_receipts_total gauge",
             `void_agent_receipts_total ${rec_u}`,
 
-            "# HELP void_agent_queue_pending jobs_total - results_total (unique, bounded)",
+            "# HELP void_agent_completed_total unique completed job ids observed in results.jsonl OR receipts truth (bounded)",
+            "# TYPE void_agent_completed_total gauge",
+            `void_agent_completed_total ${completed_u}`,
+
+            "# HELP void_agent_queue_pending jobs_total - completed_total (unique, bounded)",
             "# TYPE void_agent_queue_pending gauge",
             `void_agent_queue_pending ${pending}`,
 
@@ -33854,11 +33861,11 @@ try {
             "# TYPE void_agent_jobs_post_epoch_total gauge",
             `void_agent_jobs_post_epoch_total ${jobsPost}`,
 
-            "# HELP void_agent_results_post_epoch_total unique result ids with ts>=epoch_ms (bounded)",
+            "# HELP void_agent_results_post_epoch_total unique completed job ids with ts>=epoch_ms from results.jsonl OR receipts truth (bounded)",
             "# TYPE void_agent_results_post_epoch_total gauge",
-            `void_agent_results_post_epoch_total ${resPost}`,
+            `void_agent_results_post_epoch_total ${completedPost}`,
 
-            "# HELP void_agent_queue_pending_post_epoch max(0, jobs_post_epoch - results_post_epoch)",
+            "# HELP void_agent_queue_pending_post_epoch max(0, jobs_post_epoch - completed_post_epoch)",
             "# TYPE void_agent_queue_pending_post_epoch gauge",
             `void_agent_queue_pending_post_epoch ${pendingPost}`,
 
@@ -35878,15 +35885,49 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
     app.get("/__void/agent/summary.json", async (_req:any, res:any) => {
       try{
         const jobs = await listJobs();
-        const queued = jobs.filter((j:any)=> j?.status === "queued").length;
-        const picked = jobs.filter((j:any)=> j?.status === "picked").length;
-        const completed = jobs.filter((j:any)=> j?.status === "completed").length;
-        const latest = jobs.length ? summarizeJob(jobs[jobs.length - 1]) : null;
+
+        const completedByReceipt = new Set<string>();
+        const datasetByReceipt = new Map<string,string>();
+
+        try{
+          let txt = "";
+          try{ txt = await fsp.readFile(receiptsFile(), "utf8"); }catch{}
+          const lines = txt.trim() ? txt.trim().split(/\n+/) : [];
+          for (const line of lines) {
+            try{
+              const r:any = JSON.parse(line);
+              const jid = String(r?.job_id || r?.id || "").trim();
+              const st = String(r?.status || "").trim().toLowerCase();
+              if (!jid) continue;
+              if (st === "completed" || st === "ok" || st === "done") {
+                completedByReceipt.add(jid);
+                if (r?.dataset_id) datasetByReceipt.set(jid, String(r.dataset_id));
+              }
+            }catch{}
+          }
+        }catch{}
+
+        const canonicalJobs = jobs.map((j:any) => {
+          const cj:any = { ...j };
+          const jid = String(cj?.job_id || cj?.id || "").trim();
+          if (jid && completedByReceipt.has(jid)) {
+            cj.status = "completed";
+            if ((!cj.dataset_id || cj.dataset_id == null) && datasetByReceipt.has(jid)) {
+              cj.dataset_id = datasetByReceipt.get(jid);
+            }
+          }
+          return cj;
+        });
+
+        const queued = canonicalJobs.filter((j:any)=> j?.status === "queued").length;
+        const picked = canonicalJobs.filter((j:any)=> j?.status === "picked").length;
+        const completed = canonicalJobs.filter((j:any)=> j?.status === "completed").length;
+        const latest = canonicalJobs.length ? summarizeJob(canonicalJobs[canonicalJobs.length - 1]) : null;
         return res.json({
           ok: true,
           ts_ms: Date.now(),
           counts: {
-            total: jobs.length,
+            total: canonicalJobs.length,
             queued,
             picked,
             completed
