@@ -473,3 +473,7 @@ proposer-rescue-ping-proof:
 
 demo-proof-all:
 	bash ops/full-demo-smoke-with-proposer-proof.sh
+
+.PHONY: mainnet0-launch-readiness
+mainnet0-launch-readiness:
+	bash ops/mainnet0-launch-readiness.sh
