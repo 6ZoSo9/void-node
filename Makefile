@@ -481,3 +481,7 @@ mainnet0-launch-readiness:
 .PHONY: mainnet0-go-no-go-bundle
 mainnet0-go-no-go-bundle:
 	bash ops/mainnet0-go-no-go-bundle.sh
+
+.PHONY: mainnet0-mainnet-exec-preflight
+mainnet0-mainnet-exec-preflight:
+	bash ops/mainnet0-mainnet-exec-preflight.sh
