@@ -23968,13 +23968,15 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
     const t0 = Date.now();
     try{
       S.ticks++;
-      const AUTO_EMPTY = (String(process.env.VOID_V2FS_AUTO_EMPTY ?? process.env.ALLOW_EMPTY_BLOCKS ?? "0") === "1") ? 1 : 0;
-      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=" + AUTO_EMPTY;
+      const AUTO_EMPTY = 1;
+      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1";
       const r = await fetch(url, { method:"POST" }).catch(()=>null);
       const j = r ? await r.json().catch(()=>null) : null;
       const ms = Date.now() - t0;
       S.last_ms = ms;
       S.last_ts = Date.now();
+      (S as any).last_auto_empty = AUTO_EMPTY;
+      (S as any).last_url = url;
       if (j && j.ok && j.advanced) { S.ok++; S.last_from = Number(j.from ?? -1); S.last_to = Number(j.to ?? -1); S.last_err=""; }
       else if (j && j.ok) { S.noop++; S.last_from = Number(j.from ?? -1); S.last_to = Number(j.to ?? -1); S.last_err=""; }
       else { S.errs++; S.last_err = "bad_response"; }
@@ -24325,8 +24327,8 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
 
     // Warm kick once after a short delay so the autoprop loop has time to attach.
     setTimeout(()=>{
-      const AUTO_EMPTY2 = (String(process.env.VOID_V2FS_AUTO_EMPTY ?? process.env.ALLOW_EMPTY_BLOCKS ?? "0") === "1") ? 1 : 0;
-      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=${AUTO_EMPTY2}`;
+      const AUTO_EMPTY2 = 1;
+      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1`;
       postT(url, 300).then(()=>{});
     }, 600);
 
