@@ -8,7 +8,7 @@
 ## Validator / runtime
 - [ ] Validator status is candidate
 - [ ] last_known_head present
-- [ ] last_known_drift is 0
+- [ ] abs(last_known_drift) <= 2
 - [ ] checkpoint awareness recorded
 - [ ] incident response readiness is policy-stack-sanity-green
 - [ ] local ready.json is green

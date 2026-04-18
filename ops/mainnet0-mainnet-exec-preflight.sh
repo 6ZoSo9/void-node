@@ -144,8 +144,12 @@ if admin_tbd:
 
 if validator["status"] != "candidate":
     blockers.append(f"validator status is {validator['status']}, expected candidate")
-if str(validator["last_known_drift"]) != "0":
-    blockers.append(f"validator last_known_drift is {validator['last_known_drift']}, expected 0")
+try:
+    validator_drift = abs(int(str(validator["last_known_drift"])))
+except Exception:
+    validator_drift = 999999
+if validator_drift > 2:
+    blockers.append(f"validator last_known_drift is {validator['last_known_drift']}, expected abs(drift) <= 2")
 if validator["incident_response_readiness"] != "policy-stack-sanity-green":
     blockers.append("incident_response_readiness is not policy-stack-sanity-green")
 

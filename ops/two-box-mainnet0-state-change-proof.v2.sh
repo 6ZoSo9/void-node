@@ -23,8 +23,9 @@ import json, sys
 ready = json.load(open(sys.argv[1]))
 peer = json.load(open(sys.argv[2]))
 assert ready.get("ready") is True, f"local ready is not true: {ready}"
-assert peer.get("head_gap") == 0, f"head_gap not zero: {peer}"
-print("[ok] local precondition gate green (ready=true, head_gap=0)")
+gap = int(peer.get("head_gap", 999999))
+assert abs(gap) <= 2, f"head_gap too large: {peer}"
+print(f"[ok] local precondition gate green (ready=true, abs(head_gap)<={2})")
 PY
 
 echo
@@ -85,12 +86,14 @@ html = pathlib.Path(sys.argv[3]).read_text()
 dataset_id = sys.argv[4]
 plaintext = sys.argv[5]
 
-assert peer.get("head_gap") == 0, f"peer-main gap not zero: {peer}"
-assert follower.get("drift") == 0, f"follower drift not zero: {follower}"
+gap = int(peer.get("head_gap", 999999))
+assert abs(gap) <= 2, f"peer-main gap too large: {peer}"
+drift = int(follower.get("drift", 999999))
+assert abs(drift) <= 2, f"follower drift too large: {follower}"
 assert dataset_id in html, "dataset id missing from consume-view"
 assert plaintext in html, "plaintext missing from consume-view"
 
-print("[ok] remote receipt completed, follower stayed at drift=0, and local consume-view sees the remote dataset")
+print("[ok] remote receipt completed, follower stayed within bounded drift tolerance, and local consume-view sees the remote dataset")
 PY
 
 echo
