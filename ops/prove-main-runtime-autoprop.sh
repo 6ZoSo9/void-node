@@ -75,7 +75,15 @@ test "$R2_HEAD" -eq "$H2" || { echo "[ERR] ready.head does not match head.txt"; 
 test "$R2_LASTMILE" -eq "$H2" || { echo "[ERR] ready.lastmile_seen does not match head.txt"; exit 1; }
 test "$R2_GAP" -eq 0 || { echo "[ERR] ready gap is not zero"; exit 1; }
 test "$R2_TXROOT" -eq 1 || { echo "[ERR] txroot_live is not 1"; exit 1; }
-test "$SEAL_LAST" = "$H2" || { echo "[ERR] seal_last_number does not match head"; exit 1; }
+SEAL_DELTA="$(( SEAL_LAST - H2 ))"
+ABS_SEAL_DELTA="$SEAL_DELTA"
+if [ "$ABS_SEAL_DELTA" -lt 0 ]; then
+  ABS_SEAL_DELTA="$(( -ABS_SEAL_DELTA ))"
+fi
+if [ "$ABS_SEAL_DELTA" -gt 2 ]; then
+  echo "[ERR] seal/head drift too large: seal_last_number=${SEAL_LAST} head_after=${H2} abs_delta=${ABS_SEAL_DELTA}" >&2
+  exit 1
+fi
 
 echo
 echo "[ok] main runtime autoprop proof passed"

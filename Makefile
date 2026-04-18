@@ -489,3 +489,7 @@ mainnet0-mainnet-exec-preflight:
 .PHONY: prove-main-runtime-autoprop
 prove-main-runtime-autoprop:
 	bash ops/prove-main-runtime-autoprop.sh
+
+.PHONY: mainnet0-go-no-go-with-runtime
+mainnet0-go-no-go-with-runtime:
+	bash ops/mainnet0-go-no-go-with-runtime.sh
