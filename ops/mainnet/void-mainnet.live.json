@@ -234,14 +234,14 @@
     }
   ],
   "roles": {
-    "admin_gate": "0x1a5ba3763b57a6db1bf7af93decdbfe2abd59653",
-    "config_gate": "0x8988ef6c649a7c581abe77d2071bc784e3368569",
-    "ops_treasury": "0xa0efc8f59b1c474d6cd59dc28211a6033fe12b47",
-    "reward_engine": "0xe14f22afb374fc775850eb75892b47c2541fdb82",
-    "update_gate": "TBD",
-    "validator_set": "0x9858d3c6081ab26f0bf52238398bffc1f2c4c7a6",
-    "void_token": "0xa6f12f7b68c6b86a3f951ba5121145e5d3c6e2e3",
-    "void_treasury": "0xbdb94598124b4a524dc85bb5dce6878459df8c0e"
+    "admin_gate": "0x8988eF6c649a7c581Abe77D2071Bc784E3368569",
+    "config_gate": "0x9858d3c6081Ab26f0bf52238398BffC1F2c4c7a6",
+    "ops_treasury": "0xA0EfC8f59B1c474d6CD59Dc28211A6033fe12b47",
+    "reward_engine": "0x968415090eC0cFaBE7a33bAc28Ad9342cC1CBF12",
+    "update_gate": "0x1a5Ba3763b57a6db1bf7af93dECdbfe2AbD59653",
+    "validator_set": "0xe14F22aFB374FC775850EB75892b47c2541FdB82",
+    "void_token": "0xA6F12f7b68C6b86A3F951Ba5121145e5d3C6e2E3",
+    "void_treasury": "0xbDb94598124b4A524Dc85Bb5dCe6878459df8c0E"
   },
   "selected_premine_vault": {
     "address": "0xF13ecfBf6F6b7Fc1664E3414964197e155750b8A",

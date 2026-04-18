@@ -12,9 +12,9 @@ current_reported_config_identity: two-box-mainnet0-baseline
 
 status: candidate
 status_reason: two-box mainnet0 readiness proof green (bounded live race tolerated)
-status_last_changed_at: 2026-04-18T12:09:03Z
+status_last_changed_at: 2026-04-18T13:30:40Z
 
-last_known_head: 215494
+last_known_head: 217922
 last_known_health: ready=true
 last_known_drift: 0
 checkpoint_awareness_status: baseline-observe
