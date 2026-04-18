@@ -485,3 +485,7 @@ mainnet0-go-no-go-bundle:
 .PHONY: mainnet0-mainnet-exec-preflight
 mainnet0-mainnet-exec-preflight:
 	bash ops/mainnet0-mainnet-exec-preflight.sh
+
+.PHONY: prove-main-runtime-autoprop
+prove-main-runtime-autoprop:
+	bash ops/prove-main-runtime-autoprop.sh
