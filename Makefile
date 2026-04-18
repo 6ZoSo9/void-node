@@ -493,3 +493,7 @@ prove-main-runtime-autoprop:
 .PHONY: mainnet0-go-no-go-with-runtime
 mainnet0-go-no-go-with-runtime:
 	bash ops/mainnet0-go-no-go-with-runtime.sh
+
+.PHONY: prove-alienware-follower-autostart
+prove-alienware-follower-autostart:
+	bash ops/prove-alienware-follower-autostart.sh
