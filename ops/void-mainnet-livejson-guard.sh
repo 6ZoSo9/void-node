@@ -70,9 +70,19 @@ case "$MODE" in
   mainnet_plan_stub)
     jq -e '
       .status == "stub_only_not_live" and
-      .selected_premine_vault.id == "TBD" and
-      .selected_premine_vault.address == "TBD" and
-      .active_hot_wallet.address == "TBD" and
+      (
+        (
+          .selected_premine_vault.id == "TBD" and
+          .selected_premine_vault.address == "TBD" and
+          .active_hot_wallet.address == "TBD"
+        ) or (
+          .selected_premine_vault.id != "TBD" and
+          .selected_premine_vault.address != "TBD" and
+          .selected_premine_vault.purpose != "TBD" and
+          .selected_premine_vault.status == "offline_selected" and
+          .active_hot_wallet.address != "TBD"
+        )
+      ) and
       .funding_allocations.hot_wallet_refill == "0" and
       .funding_allocations.treasury_allocation == "0" and
       .funding_allocations.pool_seeding_allocation == "0"

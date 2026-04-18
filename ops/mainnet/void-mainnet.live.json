@@ -1,17 +1,17 @@
 {
   "active_hot_wallet": {
-    "address": "TBD",
+    "address": "0x0d66fCDf95d38f7Db6B4206BF183f34cD816C2AA",
     "max_balance_policy": "bounded_operational_buffer",
     "notes": "Small active operational wallet only."
   },
   "admins": {
-    "admin": "TBD",
-    "config_admin": "TBD",
-    "ops_admin": "TBD",
-    "reward_admin": "TBD",
-    "treasury_admin": "TBD",
-    "update_admin": "TBD",
-    "validator_admin": "TBD"
+    "admin": "0x5730ca2ac38F0e39BF46C121Fbdf581638fA72bc",
+    "config_admin": "0x7d10c06f4601816bbB79374b2D22A1f4dC9cad5c",
+    "ops_admin": "0x11deBFb674B8a477894524419ec8aC06BE6BE956",
+    "reward_admin": "0xf99A628AFaa71b136fabB7a1D67f3676ce6db9Ff",
+    "treasury_admin": "0x4E77786f32D41E40E7CEF28389068d6F31F1d6A2",
+    "update_admin": "0x9D71B202F154caeB2653bae6361358D4e464B8DE",
+    "validator_admin": "0x8DC0d4abc9ecd40b5E8f6b4c2Fe1370822e52Bc4"
   },
   "chainId": 2050,
   "funding_allocations": {
@@ -83,9 +83,9 @@
   },
   "premine_vaults": [
     {
-      "address": "TBD",
+      "address": "0xF13ecfBf6F6b7Fc1664E3414964197e155750b8A",
       "id": "vault01",
-      "status": "offline_unassigned"
+      "status": "offline_selected"
     },
     {
       "address": "TBD",
@@ -234,20 +234,20 @@
     }
   ],
   "roles": {
-    "admin_gate": "TBD",
-    "config_gate": "TBD",
-    "ops_treasury": "TBD",
-    "reward_engine": "TBD",
+    "admin_gate": "0x1a5ba3763b57a6db1bf7af93decdbfe2abd59653",
+    "config_gate": "0x8988ef6c649a7c581abe77d2071bc784e3368569",
+    "ops_treasury": "0xa0efc8f59b1c474d6cd59dc28211a6033fe12b47",
+    "reward_engine": "0xe14f22afb374fc775850eb75892b47c2541fdb82",
     "update_gate": "TBD",
-    "validator_set": "TBD",
-    "void_token": "TBD",
-    "void_treasury": "TBD"
+    "validator_set": "0x9858d3c6081ab26f0bf52238398bffc1f2c4c7a6",
+    "void_token": "0xa6f12f7b68c6b86a3f951ba5121145e5d3c6e2e3",
+    "void_treasury": "0xbdb94598124b4a524dc85bb5dce6878459df8c0e"
   },
   "selected_premine_vault": {
-    "address": "TBD",
-    "id": "TBD",
-    "purpose": "TBD",
-    "status": "offline_unassigned"
+    "address": "0xF13ecfBf6F6b7Fc1664E3414964197e155750b8A",
+    "id": "vault01",
+    "purpose": "initial_mainnet_source",
+    "status": "offline_selected"
   },
   "status": "stub_only_not_live",
   "treasury": {
