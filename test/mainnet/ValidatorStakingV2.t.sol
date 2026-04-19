@@ -150,4 +150,107 @@ contract ValidatorStakingV2Test is Test {
         staking.activate();
         vm.stopPrank();
     }
+
+    function test_cannotRegisterSameRewardTwice() public {
+        vm.prank(controller);
+        staking.registerValidator(reward, consensusKey);
+
+        vm.expectRevert(ValidatorStakingV2.ValidatorAlreadyRegistered.selector);
+        vm.prank(address(0xCAFE));
+        staking.registerValidator(reward, bytes32(uint256(2)));
+    }
+
+    function test_controllerCannotRegisterSecondValidator() public {
+        vm.startPrank(controller);
+        staking.registerValidator(reward, consensusKey);
+        vm.expectRevert(ValidatorStakingV2.ControllerAlreadyAssigned.selector);
+        staking.registerValidator(address(0xB0B), bytes32(uint256(2)));
+        vm.stopPrank();
+    }
+
+    function test_stakeFor_allowsThirdPartyFunding() public {
+        address donor = address(0xD00D);
+        token.mint(donor, 2000 ether);
+
+        vm.prank(controller);
+        staking.registerValidator(reward, consensusKey);
+
+        vm.startPrank(donor);
+        token.approve(address(staking), type(uint256).max);
+        staking.stakeFor(reward, MIN_STAKE);
+        vm.stopPrank();
+
+        IValidatorStakingV2.ValidatorInfo memory info = staking.getValidator(reward);
+        assertEq(info.stakeVOID, MIN_STAKE);
+        assertEq(info.pendingActivation, true);
+    }
+
+    function test_beginUnbond_belowMinimum_deactivatesValidator() public {
+        vm.startPrank(controller);
+        staking.registerAndStake(reward, consensusKey, MIN_STAKE + 100 ether);
+        staking.activate();
+        staking.beginUnbond(101 ether);
+        vm.stopPrank();
+
+        IValidatorStakingV2.ValidatorInfo memory info = staking.getValidator(reward);
+        assertEq(info.active, false);
+        assertEq(info.pendingActivation, false);
+        assertEq(info.stakeVOID, MIN_STAKE - 1 ether);
+
+        (address[] memory rewards, ) = staking.getActiveValidators();
+        assertEq(rewards.length, 0);
+    }
+
+    function test_finalizeUnbond_tooEarly_reverts() public {
+        vm.startPrank(controller);
+        staking.registerAndStake(reward, consensusKey, MIN_STAKE);
+        staking.beginExit();
+        vm.expectRevert(ValidatorStakingV2.UnbondNotReady.selector);
+        staking.finalizeExit();
+        vm.stopPrank();
+    }
+
+    function test_setRewardAddress_movesValidatorMapping() public {
+        address newReward = address(0xABCD);
+
+        vm.startPrank(controller);
+        staking.registerAndStake(reward, consensusKey, MIN_STAKE);
+        staking.activate();
+        staking.setRewardAddress(newReward);
+        vm.stopPrank();
+
+        IValidatorStakingV2.ValidatorInfo memory info = staking.getValidator(newReward);
+        assertEq(info.reward, newReward);
+        assertEq(info.controller, controller);
+        assertEq(info.consensusKey, consensusKey);
+        assertEq(info.stakeVOID, MIN_STAKE);
+        assertTrue(staking.isActiveValidator(newReward));
+
+        vm.expectRevert(ValidatorStakingV2.ValidatorNotFound.selector);
+        staking.getValidator(reward);
+
+        (address[] memory rewards, uint256[] memory stakes) = staking.getActiveValidators();
+        assertEq(rewards.length, 1);
+        assertEq(rewards[0], newReward);
+        assertEq(stakes[0], MIN_STAKE);
+    }
+
+    function test_beginUnbond_twice_reverts() public {
+        vm.startPrank(controller);
+        staking.registerAndStake(reward, consensusKey, MIN_STAKE);
+        staking.beginExit();
+        vm.expectRevert(ValidatorStakingV2.PendingUnbondExists.selector);
+        staking.beginExit();
+        vm.stopPrank();
+    }
+
+    function test_getValidatorCount_tracksRegistrations() public {
+        vm.prank(controller);
+        staking.registerValidator(reward, consensusKey);
+
+        vm.prank(address(0xCAFE));
+        staking.registerValidator(address(0xD00D), bytes32(uint256(88)));
+
+        assertEq(staking.getValidatorCount(), 2);
+    }
 }
