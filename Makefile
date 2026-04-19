@@ -562,3 +562,11 @@ validator-registry-source-swap-local-proof:
 
 validator-registry-source-swap-proof-anvil:
 	bash ops/mainnet/validator-registry-source-swap-proof-anvil.sh
+
+.PHONY: validator-epoch-runtime-consumer-local-proof validator-epoch-runtime-consumer-proof-anvil
+
+validator-epoch-runtime-consumer-local-proof:
+	bash ops/mainnet/validator-epoch-runtime-consumer-local-proof.sh
+
+validator-epoch-runtime-consumer-proof-anvil:
+	bash ops/mainnet/validator-epoch-runtime-consumer-proof-anvil.sh
