@@ -610,3 +610,11 @@ validator-epoch-manifest-view-local-proof:
 
 validator-epoch-manifest-view-proof-anvil:
 	bash ops/mainnet/validator-epoch-manifest-view-proof-anvil.sh
+
+.PHONY: validator-epoch-manifest-export-local-proof validator-epoch-manifest-export-proof-anvil
+
+validator-epoch-manifest-export-local-proof:
+	bash ops/mainnet/validator-epoch-manifest-export-local-proof.sh
+
+validator-epoch-manifest-export-proof-anvil:
+	bash ops/mainnet/validator-epoch-manifest-export-proof-anvil.sh
