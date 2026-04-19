@@ -147,3 +147,4 @@ releases/
 ops/mainnet/validator-identity.env
 ops/mainnet/void-mainnet.local-overrides.json
 ops/mainnet/void-mainnet.live.local.json
+.runtime/
