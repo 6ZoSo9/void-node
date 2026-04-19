@@ -2,13 +2,14 @@
 pragma solidity ^0.8.24;
 
 import {IValidatorStakingV2} from "./IValidatorStakingV2.sol";
+import {IValidatorTruthSource} from "./IValidatorTruthSource.sol";
 
 interface IERC20Minimal {
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
 
-contract ValidatorStakingV2 is IValidatorStakingV2 {
+contract ValidatorStakingV2 is IValidatorStakingV2, IValidatorTruthSource {
     error ZeroAddress();
     error InvalidAmount();
     error InvalidConsensusKey();
@@ -24,7 +25,7 @@ contract ValidatorStakingV2 is IValidatorStakingV2 {
     error TokenTransferFailed();
 
     IERC20Minimal public immutable voidToken;
-    uint256 public immutable override minStake;
+    uint256 public immutable override(IValidatorStakingV2, IValidatorTruthSource) minStake;
     uint256 public immutable override unbondingPeriodSeconds;
 
     mapping(address => ValidatorInfo) internal _validatorsByReward;
@@ -187,7 +188,12 @@ contract ValidatorStakingV2 is IValidatorStakingV2 {
         return _validatorsByReward[reward];
     }
 
-    function getActiveValidators() external view override returns (address[] memory rewards, uint256[] memory stakeVOID_) {
+    function getActiveValidators()
+        external
+        view
+        override(IValidatorStakingV2, IValidatorTruthSource)
+        returns (address[] memory rewards, uint256[] memory stakeVOID_)
+    {
         uint256 n = _activeValidators.length;
         rewards = new address[](n);
         stakeVOID_ = new uint256[](n);
@@ -197,6 +203,44 @@ contract ValidatorStakingV2 is IValidatorStakingV2 {
             rewards[i] = reward;
             stakeVOID_[i] = _validatorsByReward[reward].stakeVOID;
         }
+    }
+
+    function getActiveValidatorCount() external view override returns (uint256) {
+        return _activeValidators.length;
+    }
+
+    function getActiveValidatorAt(uint256 index) external view override returns (address reward) {
+        return _activeValidators[index];
+    }
+
+    function getValidatorTruth(address reward) external view override returns (ValidatorTruth memory) {
+        _requireValidatorExists(reward);
+        ValidatorInfo storage info = _validatorsByReward[reward];
+        return ValidatorTruth({
+            reward: info.reward,
+            controller: info.controller,
+            consensusKey: info.consensusKey,
+            stakeVOID: info.stakeVOID,
+            active: info.active,
+            pendingExit: info.pendingExit,
+            jailed: info.jailed
+        });
+    }
+
+    function isSelectableValidator(address reward) public view override returns (bool) {
+        if (!_validatorExists(reward)) return false;
+        ValidatorInfo storage info = _validatorsByReward[reward];
+        return (
+            info.active &&
+            !info.pendingExit &&
+            !info.jailed &&
+            info.stakeVOID >= minStake &&
+            info.consensusKey != bytes32(0)
+        );
+    }
+
+    function effectivePowerOf(address reward) external view override returns (uint256) {
+        return isSelectableValidator(reward) ? _validatorsByReward[reward].stakeVOID : 0;
     }
 
     function getValidatorCount() external view override returns (uint256) {

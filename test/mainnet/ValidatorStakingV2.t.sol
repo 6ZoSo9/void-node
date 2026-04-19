@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import "../../contracts/mainnet/ValidatorStakingV2.sol";
+import "../../contracts/mainnet/IValidatorTruthSource.sol";
 
 contract MockVoidToken {
     string public name = "Mock VOID";
@@ -252,5 +253,43 @@ contract ValidatorStakingV2Test is Test {
         staking.registerValidator(address(0xD00D), bytes32(uint256(88)));
 
         assertEq(staking.getValidatorCount(), 2);
+    }
+
+    function test_truthSource_reportsSelectableActiveValidator() public {
+        vm.startPrank(controller);
+        staking.registerAndStake(reward, consensusKey, MIN_STAKE);
+        staking.activate();
+        vm.stopPrank();
+
+        assertEq(staking.getActiveValidatorCount(), 1);
+        assertEq(staking.getActiveValidatorAt(0), reward);
+        assertTrue(staking.isSelectableValidator(reward));
+        assertEq(staking.effectivePowerOf(reward), MIN_STAKE);
+
+        IValidatorTruthSource.ValidatorTruth memory truth = staking.getValidatorTruth(reward);
+        assertEq(truth.reward, reward);
+        assertEq(truth.controller, controller);
+        assertEq(truth.consensusKey, consensusKey);
+        assertEq(truth.stakeVOID, MIN_STAKE);
+        assertEq(truth.active, true);
+        assertEq(truth.pendingExit, false);
+        assertEq(truth.jailed, false);
+    }
+
+    function test_truthSource_nonSelectableAfterExitBegins() public {
+        vm.startPrank(controller);
+        staking.registerAndStake(reward, consensusKey, MIN_STAKE);
+        staking.activate();
+        staking.beginExit();
+        vm.stopPrank();
+
+        assertEq(staking.getActiveValidatorCount(), 0);
+        assertFalse(staking.isSelectableValidator(reward));
+        assertEq(staking.effectivePowerOf(reward), 0);
+
+        IValidatorTruthSource.ValidatorTruth memory truth = staking.getValidatorTruth(reward);
+        assertEq(truth.active, false);
+        assertEq(truth.pendingExit, true);
+        assertEq(truth.stakeVOID, 0);
     }
 }
