@@ -510,3 +510,8 @@ post-bootstrap-crossbox-proof:
 
 mainnet-deployed-proof:
 	bash ops/mainnet/void-mainnet-deployed-proof.sh
+
+.PHONY: mainnet-validator-handoff-proof
+
+mainnet-validator-handoff-proof:
+	bash ops/mainnet/void-mainnet-validator-handoff-proof.sh
