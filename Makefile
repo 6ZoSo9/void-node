@@ -538,3 +538,11 @@ validator-selection-registry-local-proof:
 
 validator-selection-registry-proof-anvil:
 	bash ops/mainnet/validator-selection-registry-proof-anvil.sh
+
+.PHONY: validator-runtime-consumer-local-proof validator-runtime-consumer-proof-anvil
+
+validator-runtime-consumer-local-proof:
+	bash ops/mainnet/validator-runtime-consumer-local-proof.sh
+
+validator-runtime-consumer-proof-anvil:
+	bash ops/mainnet/validator-runtime-consumer-proof-anvil.sh
