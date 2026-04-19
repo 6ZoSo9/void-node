@@ -546,3 +546,11 @@ validator-runtime-consumer-local-proof:
 
 validator-runtime-consumer-proof-anvil:
 	bash ops/mainnet/validator-runtime-consumer-proof-anvil.sh
+
+.PHONY: validator-runtime-consumer-multival-local-proof validator-runtime-consumer-multival-proof-anvil
+
+validator-runtime-consumer-multival-local-proof:
+	bash ops/mainnet/validator-runtime-consumer-multival-local-proof.sh
+
+validator-runtime-consumer-multival-proof-anvil:
+	bash ops/mainnet/validator-runtime-consumer-multival-proof-anvil.sh
