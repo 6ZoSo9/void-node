@@ -634,3 +634,11 @@ validator-epoch-manifest-node-ingest-test:
 
 validator-epoch-manifest-node-ingest-proof-anvil:
 	bash ops/mainnet/validator-epoch-manifest-node-ingest-proof-anvil.sh
+
+.PHONY: validator-epoch-runtime-adapter-test validator-epoch-runtime-adapter-proof-anvil
+
+validator-epoch-runtime-adapter-test:
+	node --test test/node/validator_epoch_runtime_adapter.test.cjs
+
+validator-epoch-runtime-adapter-proof-anvil:
+	bash ops/mainnet/validator-epoch-runtime-adapter-proof-anvil.sh
