@@ -68,6 +68,13 @@ def parse_bool(s: str) -> bool:
 def norm_hex(s: str) -> str:
     return str(s).strip().lower()
 
+def norm_dec_str(v: object) -> str:
+    if isinstance(v, str):
+        if not re.fullmatch(r"[0-9]+", v):
+            raise SystemExit(f"[ERR] expected decimal string, got={v!r}")
+        return v
+    raise SystemExit(f"[ERR] expected decimal string, got type={type(v).__name__} value={v!r}")
+
 def fail(msg: str) -> None:
     raise SystemExit(f"[ERR] {msg}")
 
@@ -98,7 +105,7 @@ expected = {
     "requestedStartSlot": int(manifest_vals[1]),
     "requestedEndSlotExclusive": int(manifest_vals[2]),
     "validatorCount": int(manifest_vals[3]),
-    "totalPower": int(manifest_vals[4]),
+    "totalPower": str(int(manifest_vals[4])),
     "validatorSetCommitment": manifest_vals[5],
     "scheduleWindowCommitment": manifest_vals[6],
     "epochWindowCommitment": manifest_vals[7],
@@ -116,7 +123,6 @@ for k in [
     "requestedStartSlot",
     "requestedEndSlotExclusive",
     "validatorCount",
-    "totalPower",
     "published",
     "publishedMatch",
     "publishedStartSlot",
@@ -124,6 +130,9 @@ for k in [
 ]:
     if data.get(k) != expected[k]:
         fail(f"field mismatch for {k}: file={data.get(k)!r} expected={expected[k]!r}")
+
+if norm_dec_str(data.get("totalPower")) != expected["totalPower"]:
+    fail(f"field mismatch for totalPower: file={data.get('totalPower')!r} expected={expected['totalPower']!r}")
 
 for k in [
     "validatorSetCommitment",
@@ -150,7 +159,7 @@ for idx, slot in enumerate(range(start_slot, end_slot_exclusive)):
     expected_slot = {
         "slot": int(vals[0]),
         "reward": vals[1],
-        "effectivePower": int(vals[2]),
+        "effectivePower": str(int(vals[2])),
     }
     got = file_schedule[idx]
 
@@ -158,7 +167,7 @@ for idx, slot in enumerate(range(start_slot, end_slot_exclusive)):
         fail(f"slot mismatch at idx={idx}: file={got.get('slot')} expected={expected_slot['slot']}")
     if norm_hex(got.get("reward")) != norm_hex(expected_slot["reward"]):
         fail(f"reward mismatch at idx={idx}: file={got.get('reward')} expected={expected_slot['reward']}")
-    if int(got.get("effectivePower")) != expected_slot["effectivePower"]:
+    if norm_dec_str(got.get("effectivePower")) != expected_slot["effectivePower"]:
         fail(f"effectivePower mismatch at idx={idx}: file={got.get('effectivePower')} expected={expected_slot['effectivePower']}")
 
 chain_id = int(run(["cast", "chain-id", "--rpc-url", rpc_url]))

@@ -626,3 +626,11 @@ validator-epoch-manifest-verify-import-local-proof:
 
 validator-epoch-manifest-verify-import-proof-anvil:
 	bash ops/mainnet/validator-epoch-manifest-verify-import-proof-anvil.sh
+
+.PHONY: validator-epoch-manifest-node-ingest-test validator-epoch-manifest-node-ingest-proof-anvil
+
+validator-epoch-manifest-node-ingest-test:
+	node --test test/node/validator_epoch_manifest.test.cjs
+
+validator-epoch-manifest-node-ingest-proof-anvil:
+	bash ops/mainnet/validator-epoch-manifest-node-ingest-proof-anvil.sh

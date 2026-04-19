@@ -87,7 +87,7 @@ for slot in range(START_SLOT, END_SLOT_EXCLUSIVE):
     schedule_window.append({
         "slot": int(vals[0]),
         "reward": vals[1],
-        "effectivePower": int(vals[2]),
+        "effectivePower": str(int(vals[2])),
     })
 
 chain_id = int(run(["cast", "chain-id", "--rpc-url", RPC_URL]))
@@ -97,7 +97,7 @@ data = {
     "requestedStartSlot": int(manifest_vals[1]),
     "requestedEndSlotExclusive": int(manifest_vals[2]),
     "validatorCount": int(manifest_vals[3]),
-    "totalPower": int(manifest_vals[4]),
+    "totalPower": str(int(manifest_vals[4])),
     "validatorSetCommitment": manifest_vals[5],
     "scheduleWindowCommitment": manifest_vals[6],
     "epochWindowCommitment": manifest_vals[7],
@@ -115,6 +115,7 @@ data = {
         "manifestView": MANIFEST_VIEW_ADDR,
         "scheduleView": SCHEDULE_VIEW_ADDR,
         "exportedAtUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "bigintEncoding": "decimal_string",
     },
 }
 
