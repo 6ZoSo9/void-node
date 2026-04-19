@@ -594,3 +594,11 @@ validator-epoch-commitment-view-local-proof:
 
 validator-epoch-commitment-view-proof-anvil:
 	bash ops/mainnet/validator-epoch-commitment-view-proof-anvil.sh
+
+.PHONY: validator-epoch-commitment-registry-local-proof validator-epoch-commitment-registry-proof-anvil
+
+validator-epoch-commitment-registry-local-proof:
+	bash ops/mainnet/validator-epoch-commitment-registry-local-proof.sh
+
+validator-epoch-commitment-registry-proof-anvil:
+	bash ops/mainnet/validator-epoch-commitment-registry-proof-anvil.sh
