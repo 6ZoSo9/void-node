@@ -570,3 +570,11 @@ validator-epoch-runtime-consumer-local-proof:
 
 validator-epoch-runtime-consumer-proof-anvil:
 	bash ops/mainnet/validator-epoch-runtime-consumer-proof-anvil.sh
+
+.PHONY: validator-epoch-proposer-selector-local-proof validator-epoch-proposer-selector-proof-anvil
+
+validator-epoch-proposer-selector-local-proof:
+	bash ops/mainnet/validator-epoch-proposer-selector-local-proof.sh
+
+validator-epoch-proposer-selector-proof-anvil:
+	bash ops/mainnet/validator-epoch-proposer-selector-proof-anvil.sh
