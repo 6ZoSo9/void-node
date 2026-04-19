@@ -586,3 +586,11 @@ validator-epoch-schedule-view-local-proof:
 
 validator-epoch-schedule-view-proof-anvil:
 	bash ops/mainnet/validator-epoch-schedule-view-proof-anvil.sh
+
+.PHONY: validator-epoch-commitment-view-local-proof validator-epoch-commitment-view-proof-anvil
+
+validator-epoch-commitment-view-local-proof:
+	bash ops/mainnet/validator-epoch-commitment-view-local-proof.sh
+
+validator-epoch-commitment-view-proof-anvil:
+	bash ops/mainnet/validator-epoch-commitment-view-proof-anvil.sh
