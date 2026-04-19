@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 
 // [diag-eaddrinuse-listen.v1] print listen() callsite on EADDRINUSE (self-double-listen detector)
 ;(function diagListenEaddrInuseV1(){
@@ -303,7 +304,176 @@ console.log("[shim] published global node (post-construct)");
   }
 
   /* ----------------------------- HTTP ----------------------------- */
-  const app = express();
+  
+const app = express();
+
+/* __void_validator_runtime_truth_routes_v1 */
+const __voidRequire = createRequire(import.meta.url);
+let __voidValidatorRuntimeTruthSwitchMod: any = null;
+
+function __voidGetValidatorRuntimeTruthSwitchMod(): any {
+  if (!__voidValidatorRuntimeTruthSwitchMod) {
+    __voidValidatorRuntimeTruthSwitchMod = __voidRequire("./runtime/validator_runtime_truth_switch.cjs");
+  }
+  return __voidValidatorRuntimeTruthSwitchMod;
+}
+
+function __voidConfiguredValidatorTruthMode(): string {
+  const mod = __voidGetValidatorRuntimeTruthSwitchMod();
+  return String(process.env.VOID_VALIDATOR_RUNTIME_TRUTH_MODE || mod.MODE_LEGACY || "legacy").trim();
+}
+
+function __voidConfiguredValidatorTruthDir(): string {
+  return String(process.env.VOID_VALIDATOR_EPOCH_MANIFEST_DIR || "").trim();
+}
+
+function __voidMakeLegacyValidatorTruthProvider(): any {
+  const err = () => {
+    throw new Error("legacy validator runtime truth path is not wired into live node lookup yet");
+  };
+  return {
+    getModeLabel() { return "legacy"; },
+    getLoadedEpochs() { return []; },
+    getLatestEpoch() { return err(); },
+    getEpochSummary(_epoch: number) { return err(); },
+    getProposerForSlot(_epoch: number, _slot: number) { return err(); },
+    getScheduleWindow(_epoch: number, _startSlot: number, _endSlotExclusive: number) { return err(); },
+  };
+}
+
+function __voidBuildValidatorRuntimeTruthSwitch(): any {
+  const mod = __voidGetValidatorRuntimeTruthSwitchMod();
+  const mode = __voidConfiguredValidatorTruthMode();
+
+  if (mode === mod.MODE_VERIFIED_EPOCH) {
+    const sourceDir = __voidConfiguredValidatorTruthDir();
+    if (!sourceDir) {
+      throw new Error("VOID_VALIDATOR_EPOCH_MANIFEST_DIR is required when VOID_VALIDATOR_RUNTIME_TRUTH_MODE=verified_epoch_manifests");
+    }
+    return new mod.ValidatorRuntimeTruthSwitch({ mode, sourceDir });
+  }
+
+  if (mode === mod.MODE_LEGACY) {
+    return new mod.ValidatorRuntimeTruthSwitch({
+      mode,
+      legacyProvider: __voidMakeLegacyValidatorTruthProvider(),
+    });
+  }
+
+  throw new Error(`unsupported validator runtime truth mode: ${mode}`);
+}
+
+function __voidReadValidatorRuntimeTruthStatus(): any {
+  const configuredMode = __voidConfiguredValidatorTruthMode();
+  const sourceDir = __voidConfiguredValidatorTruthDir();
+  try {
+    const sw = __voidBuildValidatorRuntimeTruthSwitch();
+    let latestEpoch: any = null;
+    try {
+      latestEpoch = sw.getLatestEpoch();
+    } catch (_e: any) {
+      latestEpoch = null;
+    }
+    return {
+      ok: true,
+      configuredMode,
+      mode: sw.getModeLabel(),
+      sourceDir,
+      loadedEpochs: sw.getLoadedEpochs(),
+      latestEpoch,
+      lookupsAvailable: sw.getModeLabel() === "verified_epoch_manifests",
+    };
+  } catch (e: any) {
+    return {
+      ok: false,
+      configuredMode,
+      mode: configuredMode,
+      sourceDir,
+      error: String(e?.message || e),
+      lookupsAvailable: false,
+    };
+  }
+}
+
+function __voidParseNonNegativeInt(raw: any, label: string): number {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) {
+    throw new Error(`invalid ${label}: ${raw}`);
+  }
+  return n;
+}
+
+app.get("/__void/runtime/validator-truth/status", (_req: any, res: any) => {
+  const out = __voidReadValidatorRuntimeTruthStatus();
+  return res.status(out.ok ? 200 : 500).json(out);
+});
+
+app.get("/__void/runtime/validator-truth/epoch/:epoch", (req: any, res: any) => {
+  try {
+    const sw = __voidBuildValidatorRuntimeTruthSwitch();
+    const epoch = __voidParseNonNegativeInt(req.params.epoch, "epoch");
+    return res.json({
+      ok: true,
+      mode: sw.getModeLabel(),
+      sourceDir: __voidConfiguredValidatorTruthDir(),
+      summary: sw.getEpochSummary(epoch),
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      mode: __voidConfiguredValidatorTruthMode(),
+      sourceDir: __voidConfiguredValidatorTruthDir(),
+      error: String(e?.message || e),
+    });
+  }
+});
+
+app.get("/__void/runtime/validator-truth/proposer/:epoch/:slot", (req: any, res: any) => {
+  try {
+    const sw = __voidBuildValidatorRuntimeTruthSwitch();
+    const epoch = __voidParseNonNegativeInt(req.params.epoch, "epoch");
+    const slot = __voidParseNonNegativeInt(req.params.slot, "slot");
+    return res.json({
+      ok: true,
+      mode: sw.getModeLabel(),
+      sourceDir: __voidConfiguredValidatorTruthDir(),
+      proposer: sw.getProposerForSlot(epoch, slot),
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      mode: __voidConfiguredValidatorTruthMode(),
+      sourceDir: __voidConfiguredValidatorTruthDir(),
+      error: String(e?.message || e),
+    });
+  }
+});
+
+app.get("/__void/runtime/validator-truth/window/:epoch/:start/:end", (req: any, res: any) => {
+  try {
+    const sw = __voidBuildValidatorRuntimeTruthSwitch();
+    const epoch = __voidParseNonNegativeInt(req.params.epoch, "epoch");
+    const startSlot = __voidParseNonNegativeInt(req.params.start, "start");
+    const endSlotExclusive = __voidParseNonNegativeInt(req.params.end, "end");
+    if (endSlotExclusive < startSlot) {
+      throw new Error(`invalid window: start=${startSlot} end=${endSlotExclusive}`);
+    }
+    return res.json({
+      ok: true,
+      mode: sw.getModeLabel(),
+      sourceDir: __voidConfiguredValidatorTruthDir(),
+      window: sw.getScheduleWindow(epoch, startSlot, endSlotExclusive),
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      mode: __voidConfiguredValidatorTruthMode(),
+      sourceDir: __voidConfiguredValidatorTruthDir(),
+      error: String(e?.message || e),
+    });
+  }
+});
+
 
 
 ;(() => {
