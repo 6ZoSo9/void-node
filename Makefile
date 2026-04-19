@@ -505,3 +505,8 @@ post-bootstrap-ops-proof:
 
 post-bootstrap-crossbox-proof:
 	bash ops/post-bootstrap-crossbox-proof.sh
+
+.PHONY: mainnet-deployed-proof
+
+mainnet-deployed-proof:
+	bash ops/mainnet/void-mainnet-deployed-proof.sh
