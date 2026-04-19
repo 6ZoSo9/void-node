@@ -578,3 +578,11 @@ validator-epoch-proposer-selector-local-proof:
 
 validator-epoch-proposer-selector-proof-anvil:
 	bash ops/mainnet/validator-epoch-proposer-selector-proof-anvil.sh
+
+.PHONY: validator-epoch-schedule-view-local-proof validator-epoch-schedule-view-proof-anvil
+
+validator-epoch-schedule-view-local-proof:
+	bash ops/mainnet/validator-epoch-schedule-view-local-proof.sh
+
+validator-epoch-schedule-view-proof-anvil:
+	bash ops/mainnet/validator-epoch-schedule-view-proof-anvil.sh
