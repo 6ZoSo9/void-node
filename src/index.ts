@@ -395,6 +395,49 @@ function __voidReadValidatorRuntimeTruthStatus(): any {
   }
 }
 
+function __voidConfiguredValidatorTruthShadowLatestPath(): string {
+  const envPath = String(process.env.VOID_VALIDATOR_RUNTIME_TRUTH_SHADOW_LATEST || "").trim();
+  if (envPath) return envPath;
+  const pathMod = require("path");
+  const home = String(process.env.HOME || "").trim();
+  if (home) return pathMod.join(home, "dev", "void-node", ".runtime", "validator_runtime_truth_shadow", "latest.json");
+  return ".runtime/validator_runtime_truth_shadow/latest.json";
+}
+
+function __voidReadValidatorRuntimeTruthShadowLatest(): any {
+  const filePath = __voidConfiguredValidatorTruthShadowLatestPath();
+  try {
+    const fs = require("fs");
+    const pathMod = require("path");
+    const text = fs.readFileSync(filePath, "utf8");
+    const report = JSON.parse(text);
+    const checked = report?.checked || {};
+    return {
+      ok: true,
+      path: pathMod.resolve(filePath),
+      report,
+      summary: {
+        ok: !!report?.ok,
+        dir: String(report?.dir || ""),
+        base: String(report?.base || ""),
+        loadedEpochsFromDisk: Array.isArray(report?.loadedEpochsFromDisk) ? report.loadedEpochsFromDisk : [],
+        mismatchCount: Array.isArray(report?.mismatches) ? report.mismatches.length : 0,
+        checkedCounts: {
+          epochs: Array.isArray(checked?.epochs) ? checked.epochs.length : 0,
+          proposers: Array.isArray(checked?.proposers) ? checked.proposers.length : 0,
+          windows: Array.isArray(checked?.windows) ? checked.windows.length : 0,
+        },
+      },
+    };
+  } catch (e: any) {
+    return {
+      ok: false,
+      path: filePath,
+      error: String(e?.message || e),
+    };
+  }
+}
+
 function __voidParseNonNegativeInt(raw: any, label: string): number {
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 0) {
@@ -406,6 +449,33 @@ function __voidParseNonNegativeInt(raw: any, label: string): number {
 app.get("/__void/runtime/validator-truth/status", (_req: any, res: any) => {
   const out = __voidReadValidatorRuntimeTruthStatus();
   return res.status(out.ok ? 200 : 500).json(out);
+});
+
+app.get("/__void/runtime/validator-truth/shadow/latest", (_req: any, res: any) => {
+  const shadow = __voidReadValidatorRuntimeTruthShadowLatest();
+  return res.status(shadow.ok ? 200 : 500).json(shadow);
+});
+
+app.get("/__void/runtime/validator-truth/diag", (_req: any, res: any) => {
+  const status = __voidReadValidatorRuntimeTruthStatus();
+  const shadow = __voidReadValidatorRuntimeTruthShadowLatest();
+  const ok = !!status?.ok && !!shadow?.ok;
+  const loadedEpochs = Array.isArray(status?.loadedEpochs) ? status.loadedEpochs : [];
+  const latestEpoch = status?.latestEpoch ?? null;
+  return res.status(ok ? 200 : 500).json({
+    ok,
+    configuredMode: status?.configuredMode,
+    mode: status?.mode,
+    sourceDir: status?.sourceDir,
+    loadedEpochs,
+    latestEpoch,
+    lookupsAvailable: !!status?.lookupsAvailable,
+    shadowLatestPath: shadow?.path || __voidConfiguredValidatorTruthShadowLatestPath(),
+    shadowLatestOk: !!shadow?.ok,
+    shadowLatestSummary: shadow?.summary || null,
+    status,
+    shadow,
+  });
 });
 
 app.get("/__void/runtime/validator-truth/epoch/:epoch", (req: any, res: any) => {
