@@ -554,3 +554,11 @@ validator-runtime-consumer-multival-local-proof:
 
 validator-runtime-consumer-multival-proof-anvil:
 	bash ops/mainnet/validator-runtime-consumer-multival-proof-anvil.sh
+
+.PHONY: validator-registry-source-swap-local-proof validator-registry-source-swap-proof-anvil
+
+validator-registry-source-swap-local-proof:
+	bash ops/mainnet/validator-registry-source-swap-local-proof.sh
+
+validator-registry-source-swap-proof-anvil:
+	bash ops/mainnet/validator-registry-source-swap-proof-anvil.sh
