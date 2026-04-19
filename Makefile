@@ -530,3 +530,11 @@ validator-selection-adapter-local-proof:
 
 validator-selection-adapter-proof-anvil:
 	bash ops/mainnet/validator-selection-adapter-proof-anvil.sh
+
+.PHONY: validator-selection-registry-local-proof validator-selection-registry-proof-anvil
+
+validator-selection-registry-local-proof:
+	bash ops/mainnet/validator-selection-registry-local-proof.sh
+
+validator-selection-registry-proof-anvil:
+	bash ops/mainnet/validator-selection-registry-proof-anvil.sh
