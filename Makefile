@@ -497,3 +497,11 @@ mainnet0-go-no-go-with-runtime:
 .PHONY: prove-alienware-follower-autostart
 prove-alienware-follower-autostart:
 	bash ops/prove-alienware-follower-autostart.sh
+
+.PHONY: post-bootstrap-ops-proof post-bootstrap-crossbox-proof
+
+post-bootstrap-ops-proof:
+	bash ops/post-bootstrap-ops-proof.sh
+
+post-bootstrap-crossbox-proof:
+	bash ops/post-bootstrap-crossbox-proof.sh
