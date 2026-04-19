@@ -515,3 +515,8 @@ mainnet-deployed-proof:
 
 mainnet-validator-handoff-proof:
 	bash ops/mainnet/void-mainnet-validator-handoff-proof.sh
+
+.PHONY: validator-staking-v2-local-proof
+
+validator-staking-v2-local-proof:
+	bash ops/mainnet/validator-staking-v2-local-proof.sh
