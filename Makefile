@@ -520,3 +520,8 @@ mainnet-validator-handoff-proof:
 
 validator-staking-v2-local-proof:
 	bash ops/mainnet/validator-staking-v2-local-proof.sh
+
+.PHONY: validator-selection-adapter-local-proof
+
+validator-selection-adapter-local-proof:
+	bash ops/mainnet/validator-selection-adapter-local-proof.sh
