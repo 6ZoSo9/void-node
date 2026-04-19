@@ -525,3 +525,8 @@ validator-staking-v2-local-proof:
 
 validator-selection-adapter-local-proof:
 	bash ops/mainnet/validator-selection-adapter-local-proof.sh
+
+.PHONY: validator-selection-adapter-proof-anvil
+
+validator-selection-adapter-proof-anvil:
+	bash ops/mainnet/validator-selection-adapter-proof-anvil.sh
