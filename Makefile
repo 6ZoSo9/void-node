@@ -642,3 +642,11 @@ validator-epoch-runtime-adapter-test:
 
 validator-epoch-runtime-adapter-proof-anvil:
 	bash ops/mainnet/validator-epoch-runtime-adapter-proof-anvil.sh
+
+.PHONY: validator-runtime-truth-switch-test validator-runtime-truth-switch-proof-anvil
+
+validator-runtime-truth-switch-test:
+	node --test test/node/validator_runtime_truth_switch.test.cjs
+
+validator-runtime-truth-switch-proof-anvil:
+	bash ops/mainnet/validator-runtime-truth-switch-proof-anvil.sh
