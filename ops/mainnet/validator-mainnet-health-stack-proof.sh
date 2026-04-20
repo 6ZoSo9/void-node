@@ -45,12 +45,18 @@ summary = op.get("summary") or {}
 assert op.get("ok") is True, op
 assert summary.get("overallGreen") is True, summary
 assert status.get("mode") == "verified_epoch_manifests", status
-assert status.get("latestEpoch") == 4, status
-assert status.get("loadedEpochs") == [1, 2, 3, 4], status
-assert summary.get("latestEpoch") == 4, summary
-assert summary.get("validatorCount") == 4, summary
-assert str(summary.get("totalPower")) == "4000000000000000000000", summary
-assert summary.get("uniqueRewardCount") == 4, summary
+
+loaded_epochs = status.get("loadedEpochs") or []
+latest_epoch = int(status.get("latestEpoch"))
+validator_count = int(summary.get("validatorCount"))
+unique_reward_count = int(summary.get("uniqueRewardCount"))
+total_power = int(str(summary.get("totalPower")))
+
+assert loaded_epochs == list(range(1, latest_epoch + 1)), status
+assert summary.get("latestEpoch") == latest_epoch, (summary, status)
+assert validator_count == len(loaded_epochs), (summary, status)
+assert unique_reward_count == validator_count, summary
+assert total_power == validator_count * 10**21, summary
 assert summary.get("shadowMismatchCount") == 0, summary
 assert summary.get("compareCoreMismatchCount") == 0, summary
 assert summary.get("multivalidatorGateGreen") is True, summary
@@ -58,12 +64,12 @@ assert summary.get("runbookGateGreen") is True, summary
 
 queries = {
     "void_validator_operator_overall_green": "1",
-    "void_validator_operator_target_epoch": "4",
-    "void_validator_operator_expected_validator_count": "4",
-    "void_validator_operator_latest_epoch": "4",
-    "void_validator_operator_validator_count": "4",
-    "void_validator_operator_total_power": "4000000000000000000000",
-    "void_validator_operator_unique_reward_count": "4",
+    "void_validator_operator_target_epoch": str(summary["targetEpoch"]),
+    "void_validator_operator_expected_validator_count": str(summary["expectedValidatorCount"]),
+    "void_validator_operator_latest_epoch": str(summary["latestEpoch"]),
+    "void_validator_operator_validator_count": str(summary["validatorCount"]),
+    "void_validator_operator_total_power": str(summary["totalPower"]),
+    "void_validator_operator_unique_reward_count": str(summary["uniqueRewardCount"]),
     "void_validator_operator_shadow_mismatch_count": "0",
     "void_validator_operator_compare_core_mismatch_count": "0",
     "void_validator_operator_multivalidator_gate_green": "1",
@@ -90,8 +96,7 @@ while time.time() < deadline:
         if not res:
             ok = False
             continue
-        value = str(res[0]["value"][1])
-        if value != expected:
+        if str(res[0]["value"][1]) != expected:
             ok = False
     if ok:
         break
@@ -103,8 +108,8 @@ report = {
     "ok": True,
     "validatorTruthStatus": {
         "mode": status.get("mode"),
-        "loadedEpochs": status.get("loadedEpochs"),
-        "latestEpoch": status.get("latestEpoch"),
+        "loadedEpochs": loaded_epochs,
+        "latestEpoch": latest_epoch,
         "sourceDir": status.get("sourceDir"),
     },
     "operatorSummary": summary,

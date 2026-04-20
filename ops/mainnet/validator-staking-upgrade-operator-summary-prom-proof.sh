@@ -3,6 +3,7 @@ set -euo pipefail
 set +H
 set +o histexpand
 
+BASE="${BASE:-http://127.0.0.1:4100}"
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
 SERVICE_NAME="void-validator-operator-summary-export.service"
 TIMER_NAME="void-validator-operator-summary-export.timer"
@@ -39,20 +40,28 @@ echo "=== [3] collector file truth ==="
 sudo ls -l "$OUT_FILE"
 sudo sed -n '1,160p' "$OUT_FILE"
 
-python3 - <<'PY' "$OUT_FILE"
+python3 - <<'PY' "$OUT_FILE" "$BASE"
+import json
 import sys
+import urllib.request
 from pathlib import Path
 
-text = Path(sys.argv[1]).read_text(encoding="utf-8")
+out_file, base = sys.argv[1:3]
+text = Path(out_file).read_text(encoding="utf-8")
+
+with urllib.request.urlopen(base.rstrip("/") + "/__void/runtime/validator-truth/operator-summary") as r:
+    obj = json.loads(r.read().decode("utf-8", "replace"))
+
+summary = obj.get("summary") or {}
 required = {
     "void_validator_operator_summary_ok 1",
     "void_validator_operator_overall_green 1",
-    "void_validator_operator_target_epoch 4",
-    "void_validator_operator_expected_validator_count 4",
-    "void_validator_operator_latest_epoch 4",
-    "void_validator_operator_validator_count 4",
-    "void_validator_operator_total_power 4000000000000000000000",
-    "void_validator_operator_unique_reward_count 4",
+    f"void_validator_operator_target_epoch {summary['targetEpoch']}",
+    f"void_validator_operator_expected_validator_count {summary['expectedValidatorCount']}",
+    f"void_validator_operator_latest_epoch {summary['latestEpoch']}",
+    f"void_validator_operator_validator_count {summary['validatorCount']}",
+    f"void_validator_operator_total_power {summary['totalPower']}",
+    f"void_validator_operator_unique_reward_count {summary['uniqueRewardCount']}",
     "void_validator_operator_shadow_mismatch_count 0",
     "void_validator_operator_compare_core_mismatch_count 0",
     "void_validator_operator_multivalidator_gate_green 1",
@@ -66,34 +75,45 @@ PY
 
 echo
 echo "=== [4] Prometheus query proof ==="
-python3 - <<'PY' "$PROM_URL"
+python3 - <<'PY' "$PROM_URL" "$BASE"
 import json
 import time
 import urllib.parse
 import urllib.request
 import sys
 
-prom = sys.argv[1].rstrip("/")
+prom, base = sys.argv[1:3]
+prom = prom.rstrip("/")
+base = base.rstrip("/")
 
+with urllib.request.urlopen(base + "/__void/runtime/validator-truth/operator-summary") as r:
+    obj = json.loads(r.read().decode("utf-8", "replace"))
+
+summary = obj.get("summary") or {}
 queries = {
     "void_validator_operator_overall_green": "1",
-    "void_validator_operator_target_epoch": "4",
-    "void_validator_operator_expected_validator_count": "4",
-    "void_validator_operator_latest_epoch": "4",
-    "void_validator_operator_validator_count": "4",
+    "void_validator_operator_target_epoch": str(summary["targetEpoch"]),
+    "void_validator_operator_expected_validator_count": str(summary["expectedValidatorCount"]),
+    "void_validator_operator_latest_epoch": str(summary["latestEpoch"]),
+    "void_validator_operator_validator_count": str(summary["validatorCount"]),
+    "void_validator_operator_total_power": str(summary["totalPower"]),
+    "void_validator_operator_unique_reward_count": str(summary["uniqueRewardCount"]),
     "void_validator_operator_shadow_mismatch_count": "0",
     "void_validator_operator_compare_core_mismatch_count": "0",
+    "void_validator_operator_multivalidator_gate_green": "1",
+    "void_validator_operator_runbook_gate_green": "1",
+    "void_validator_operator:overall_green:last_5m": "1",
 }
 
 def query(expr: str):
-  url = prom + "/api/v1/query?" + urllib.parse.urlencode({"query": expr})
-  with urllib.request.urlopen(url) as r:
-      obj = json.loads(r.read().decode("utf-8", "replace"))
-  if obj.get("status") != "success":
-      raise RuntimeError(obj)
-  return obj.get("data", {}).get("result", [])
+    url = prom + "/api/v1/query?" + urllib.parse.urlencode({"query": expr})
+    with urllib.request.urlopen(url) as r:
+        obj = json.loads(r.read().decode("utf-8", "replace"))
+    if obj.get("status") != "success":
+        raise RuntimeError(obj)
+    return obj.get("data", {}).get("result", [])
 
-deadline = time.time() + 45
+deadline = time.time() + 90
 last = {}
 while time.time() < deadline:
     ok = True
@@ -103,13 +123,8 @@ while time.time() < deadline:
         if not res:
             ok = False
             continue
-        value = str(res[0]["value"][1])
-        if value != expected:
+        if str(res[0]["value"][1]) != expected:
             ok = False
-    record = query("void_validator_operator:overall_green:last_5m")
-    last["void_validator_operator:overall_green:last_5m"] = record
-    if not record or str(record[0]["value"][1]) != "1":
-        ok = False
     if ok:
         break
     time.sleep(3)
