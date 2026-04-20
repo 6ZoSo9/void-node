@@ -5,16 +5,58 @@ set +o histexpand
 
 BASE="${BASE:-http://127.0.0.1:4100}"
 SECRETS="${SECRETS:-/mnt/key2/mainnet-keygen/20260418-023715/private/wallet-secrets.json}"
-OUT_JSON="${OUT_JSON:-/tmp/validator-staking-next-onboard-proof.$(date +%Y%m%d-%H%M%S).json}"
+PROOF_OUT_JSON="${PROOF_OUT_JSON:-/tmp/validator-staking-next-onboard-proof.$(date +%Y%m%d-%H%M%S).json}"
 
-echo "=== [1] run next-validator selector in dry-run mode ==="
+echo "=== [1] lightweight canonical health check ==="
+python3 - <<'PY2' "$BASE" "$SECRETS"
+import json, urllib.parse, urllib.request, sys
+from pathlib import Path
+
+base, secrets_path = sys.argv[1:3]
+base = base.rstrip("/")
+prom = "http://127.0.0.1:9090"
+
+def get_json(url: str):
+    with urllib.request.urlopen(url) as r:
+        return json.loads(r.read().decode("utf-8", "replace"))
+
+def query(expr: str):
+    url = prom + "/api/v1/query?" + urllib.parse.urlencode({"query": expr})
+    obj = get_json(url)
+    return obj["data"]["result"]
+
+status = get_json(base + "/__void/runtime/validator-truth/status")
+assert status.get("mode") == "verified_epoch_manifests", status
+assert status.get("latestEpoch") == 4, status
+assert status.get("loadedEpochs") == [1,2,3,4], status
+
+required = {
+    "void_validator_operator_overall_green": "1",
+    "void_validator_operator:overall_green:last_5m": "1",
+    "void_mainnet_keys_health": "1",
+    "void:mainnet_keys_health:gate:last_5m": "1",
+    "void:mainnet_pillars:health_with_keys:last_5m": "1",
+    "void:mainnet_pillars:health_with_validator_operator:last_5m": "1",
+}
+for expr, expected in required.items():
+    res = query(expr)
+    assert res and str(res[0]["value"][1]) == expected, {expr: res}
+
+secrets = json.loads(Path(secrets_path).read_text(encoding="utf-8"))
+rows = secrets.get("keys") if isinstance(secrets, dict) else secrets
+assert isinstance(rows, list) and len(rows) >= 30, "wallet-secrets missing expected keys"
+print("[ok] lightweight canonical health check green")
+PY2
+
+echo
+echo "=== [2] run next-validator selector in dry-run mode ==="
 TMP_OUT="$(mktemp)"
-DRY_RUN=1 BASE="$BASE" SECRETS="$SECRETS" \
+env -u OUT_JSON SKIP_PREFLIGHT=1 DRY_RUN=1 BASE="$BASE" SECRETS="$SECRETS" \
   "$HOME/dev/void-node/ops/mainnet/validator-staking-next-onboard-runbook.sh" | tee "$TMP_OUT"
 
 echo
-echo "=== [2] parse dry-run output and prove increment logic ==="
-python3 - <<'PY' "$TMP_OUT" "$OUT_JSON"
+echo "=== [3] parse dry-run output and prove increment logic ==="
+python3 - <<'PY' "$TMP_OUT" "$PROOF_OUT_JSON"
 import json, re, sys
 from pathlib import Path
 

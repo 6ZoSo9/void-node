@@ -6,12 +6,18 @@ set +o histexpand
 BASE="${BASE:-http://127.0.0.1:4100}"
 SECRETS="${SECRETS:-/mnt/key2/mainnet-keygen/20260418-023715/private/wallet-secrets.json}"
 DRY_RUN="${DRY_RUN:-1}"
+SKIP_PREFLIGHT="${SKIP_PREFLIGHT:-0}"
 CANDIDATE_NAME="${CANDIDATE_NAME:-}"
 TARGET_EPOCH="${TARGET_EPOCH:-}"
 EXPECTED_VALIDATOR_COUNT="${EXPECTED_VALIDATOR_COUNT:-}"
 
-echo "=== [1] preflight canonical health stack ==="
-"$HOME/dev/void-node/ops/mainnet/validator-mainnet-health-stack-proof.sh"
+if [ "$SKIP_PREFLIGHT" != "1" ]; then
+  echo "=== [1] preflight canonical health stack ==="
+  env -u OUT_JSON "$HOME/dev/void-node/ops/mainnet/validator-mainnet-health-stack-proof.sh"
+else
+  echo "=== [1] preflight canonical health stack ==="
+  echo "[skip] SKIP_PREFLIGHT=1"
+fi
 
 echo
 echo "=== [2] select next unused vault candidate from live runtime truth ==="
@@ -30,7 +36,10 @@ def get_json(path: str):
 status = get_json("/__void/runtime/validator-truth/status")
 latest_epoch = int(status["latestEpoch"])
 epoch_summary = get_json(f"/__void/runtime/validator-truth/epoch/{latest_epoch}")["summary"]
-window = get_json(f"/__void/runtime/validator-truth/window/{latest_epoch}/0/64")["window"]
+window_len = int(epoch_summary.get("scheduleWindowLength") or 0)
+if window_len <= 0:
+    raise SystemExit(f"[ERR] invalid scheduleWindowLength for epoch {latest_epoch}: {window_len}")
+window = get_json(f"/__void/runtime/validator-truth/window/{latest_epoch}/0/{window_len}")["window"]
 
 used_rewards = sorted({
     str(row.get("reward", "")).lower()
@@ -83,6 +92,7 @@ print(str(latest_epoch))
 print(str(latest_epoch + 1))
 print(str(validator_count))
 print(str(validator_count + 1))
+print(str(window_len))
 print(json.dumps(used_rewards))
 PY
 )
@@ -93,7 +103,8 @@ CURRENT_EPOCH="${INFO[2]}"
 AUTO_TARGET_EPOCH="${INFO[3]}"
 CURRENT_VALIDATOR_COUNT="${INFO[4]}"
 AUTO_EXPECTED_VALIDATOR_COUNT="${INFO[5]}"
-USED_REWARDS_JSON="${INFO[6]}"
+WINDOW_LENGTH="${INFO[6]}"
+USED_REWARDS_JSON="${INFO[7]}"
 
 if [ -z "${TARGET_EPOCH:-}" ]; then
   TARGET_EPOCH="$AUTO_TARGET_EPOCH"
@@ -108,6 +119,7 @@ echo "current_epoch=$CURRENT_EPOCH"
 echo "target_epoch=$TARGET_EPOCH"
 echo "current_validator_count=$CURRENT_VALIDATOR_COUNT"
 echo "expected_validator_count=$EXPECTED_VALIDATOR_COUNT"
+echo "window_length=$WINDOW_LENGTH"
 echo "used_rewards_json=$USED_REWARDS_JSON"
 
 echo
