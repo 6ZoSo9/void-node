@@ -44150,6 +44150,39 @@ a{color:#93c5fd;text-decoration:none}
           </div>
         </div>
       </div>
+    
+      <div class="panel" style="margin-top:12px;padding:12px 14px">
+        <div class="section-head">
+          <div>
+            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Shows the participant-side preflight payload for the future Base native USDC Buy VOID flow. This does not execute the purchase yet; it prepares the delivery truth and policy handoff.">?</span></h2>
+          </div>
+        </div>
+        <div class="metric-strip" style="margin-top:6px">
+          <div class="mini">
+            <div class="k">Rail</div>
+            <div class="v" id="buyPlanRail">-</div>
+            <div class="s">accepted funding asset</div>
+          </div>
+          <div class="mini">
+            <div class="k">Delivery</div>
+            <div class="v" id="buyPlanDelivery">-</div>
+            <div class="s">target execution wallet</div>
+          </div>
+          <div class="mini">
+            <div class="k">State</div>
+            <div class="v" id="buyPlanState">-</div>
+            <div class="s">participant-side readiness</div>
+          </div>
+        </div>
+        <div class="hero-note" id="buyPlanSummary" style="margin-top:12px">Checking Buy VOID handoff…</div>
+        <details class="adv" style="margin-top:10px">
+          <summary><span>Purchase Handoff Payload</span><span class="pill">copy</span></summary>
+          <div class="adv-body">
+            <pre id="buyPlanOut">loading…</pre>
+          </div>
+        </details>
+      </div>
+
     </section>
 
     <section class="tabpane" id="pane-staking">
@@ -45694,6 +45727,30 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         ? ("Base native USDC only • initiate purchases from this participant page • blind direct deposits and exchange/custodial sends are not supported.")
         : "Base native USDC only • participant-page initiation only • blind direct deposits are not supported • link a wallet first."
     );
+
+    const buyHandoffReady = !!executionWalletAddr;
+    const buyHandoffPayload = {
+      participant_account: account,
+      delivery_wallet: executionWalletAddr || null,
+      execution_wallet_unlocked: !!executionWalletUnlocked,
+      current_void_balance: executionWalletVoidText,
+      accepted_asset: "base_native_usdc",
+      initiation: "participant_page_only",
+      blind_direct_deposits: "blocked",
+      exchange_or_custodial_wallet_sends: "blocked",
+      status: buyHandoffReady ? "ready_for_buy_void_fulfillment_lane" : "missing_execution_wallet"
+    };
+
+    setText("buyPlanRail", "Base USDC");
+    setText("buyPlanDelivery", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
+    setText("buyPlanState", buyHandoffReady ? "Ready" : "Missing");
+    setText(
+      "buyPlanSummary",
+      buyHandoffReady
+        ? ("Buy VOID participant preflight is ready. When the Base native USDC fulfillment lane is wired, delivery should target the stored execution wallet " + shortAddr(executionWalletAddr) + ".")
+        : "No execution wallet linked yet. Link a wallet first before the Buy VOID fulfillment lane can target delivery."
+    );
+    setText("buyPlanOut", JSON.stringify(buyHandoffPayload, null, 2));
 
     const renderTradeDirectionUi = () => {
       try {
