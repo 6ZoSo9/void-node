@@ -43065,6 +43065,14 @@ a{color:#93c5fd;text-decoration:none}
     function safeNote(x:any){
       return safeStr(x, 500);
     }
+    function safeStatus(x:any){
+      const v = safeStr(x, 64);
+      const allowed = new Set(["queued","payment_seen","payment_confirmed","void_sent","completed","failed"]);
+      return allowed.has(v) ? v : "";
+    }
+    function safeTxRef(x:any){
+      return safeStr(x, 160);
+    }
     function nowMs(){ return Date.now(); }
     function makeId(){
       const crypto = require("node:crypto");
@@ -43093,21 +43101,43 @@ a{color:#93c5fd;text-decoration:none}
       }
       return out;
     }
-    function listQueue(account:string, limit:number): any[] {
-      const out:any[] = [];
+    function latestQueueById(): Map<string, any> {
+      const out = new Map<string, any>();
       const lines = readLines(queueFile());
-      for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
+      for (let i = 0; i < lines.length; i++) {
         try {
           const j = JSON.parse(lines[i]);
-          if (account && String(j?.account || "") !== account) continue;
-          out.push(j);
+          const qid = String(j?.queue_id || "");
+          if (!qid) continue;
+          out.set(qid, j);
         } catch {}
       }
       return out;
     }
+    function listQueue(account:string, limit:number): any[] {
+      const latest = Array.from(latestQueueById().values());
+      const filtered = latest.filter((j:any) => !account || String(j?.account || "") === account);
+      filtered.sort((a:any,b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+      return filtered.slice(0, limit);
+    }
     function latestQueued(account:string): any {
       const rows = listQueue(account, 1);
       return rows.length ? rows[0] : null;
+    }
+    function findQueuedById(queueId:string): any {
+      const latest = latestQueueById();
+      return latest.get(queueId) || null;
+    }
+    function canTransition(fromStatus:string, toStatus:string): boolean {
+      const edges:any = {
+        queued: new Set(["payment_seen","failed"]),
+        payment_seen: new Set(["payment_confirmed","failed"]),
+        payment_confirmed: new Set(["void_sent","failed"]),
+        void_sent: new Set(["completed","failed"]),
+        completed: new Set([]),
+        failed: new Set([]),
+      };
+      return !!(edges[fromStatus] && edges[fromStatus].has(toStatus));
     }
 
     function mount(){
@@ -43152,7 +43182,41 @@ a{color:#93c5fd;text-decoration:none}
             source_status: String(src.status || ""),
             operator_status: "queued",
             operator_note: safeNote(req.body?.operator_note || ""),
+            payment_ref: "",
+            void_tx_ref: "",
             fulfillment_lane: String(src.fulfillment_lane || "buy_void_base_usdc_v1_future"),
+          };
+
+          appendJsonl(queueFile(), row);
+          return res.json({ ok:true, queued: row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.post("/__void/operator/buy-void/queue/transition", (req:any, res:any) => {
+        try {
+          const queueId = safeId(req.body?.queue_id);
+          const nextStatus = safeStatus(req.body?.operator_status);
+          if (!queueId) return res.status(400).json({ ok:false, error:"missing_queue_id" });
+          if (!nextStatus) return res.status(400).json({ ok:false, error:"invalid_operator_status" });
+
+          const cur = findQueuedById(queueId);
+          if (!cur) return res.status(404).json({ ok:false, error:"queue_not_found" });
+
+          const curStatus = String(cur?.operator_status || "");
+          if (!canTransition(curStatus, nextStatus)) {
+            return res.status(400).json({ ok:false, error:"invalid_transition", current:curStatus, next:nextStatus, queued:cur });
+          }
+
+          const row = {
+            ...cur,
+            ok: true,
+            ts_ms: nowMs(),
+            operator_status: nextStatus,
+            operator_note: safeNote(req.body?.operator_note || cur?.operator_note || ""),
+            payment_ref: safeTxRef(req.body?.payment_ref || cur?.payment_ref || ""),
+            void_tx_ref: safeTxRef(req.body?.void_tx_ref || cur?.void_tx_ref || ""),
           };
 
           appendJsonl(queueFile(), row);
@@ -43177,6 +43241,18 @@ a{color:#93c5fd;text-decoration:none}
         try {
           const account = safeAccount(req.query?.account);
           const row = latestQueued(account);
+          return res.json({ ok:true, queued: row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.get("/__void/operator/buy-void/queue/status", (req:any, res:any) => {
+        try {
+          const queueId = safeId(req.query?.queue_id);
+          if (!queueId) return res.status(400).json({ ok:false, error:"missing_queue_id" });
+          const row = findQueuedById(queueId);
+          if (!row) return res.status(404).json({ ok:false, error:"queue_not_found" });
           return res.json({ ok:true, queued: row });
         } catch (e:any) {
           return res.status(500).json({ ok:false, error:String(e?.message || e) });
