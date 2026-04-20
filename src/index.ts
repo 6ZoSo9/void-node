@@ -44227,6 +44227,39 @@ a{color:#93c5fd;text-decoration:none}
           <a class="linkbtn" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Open Validator Summary</a>
         </div>
       </div>
+    
+      <div class="panel" style="margin-top:12px;padding:12px 14px">
+        <div class="section-head">
+          <div>
+            <h2>Next Validator Plan<span class="help" tabindex="0" data-help="Shows the next operator-side validator onboarding step based on current live validator truth. This does not execute browser staking; it prepares the real next-step handoff.">?</span></h2>
+          </div>
+        </div>
+        <div class="metric-strip" style="margin-top:6px">
+          <div class="mini">
+            <div class="k">Next Epoch</div>
+            <div class="v" id="stakeNextEpoch">-</div>
+            <div class="s">target after current live truth</div>
+          </div>
+          <div class="mini">
+            <div class="k">Next Count</div>
+            <div class="v" id="stakeNextCount">-</div>
+            <div class="s">expected validator count</div>
+          </div>
+          <div class="mini">
+            <div class="k">Runbook</div>
+            <div class="v" id="stakePlanState">-</div>
+            <div class="s">operator handoff path</div>
+          </div>
+        </div>
+        <div class="hero-note" id="stakeNextPlanSummary" style="margin-top:12px">Checking next validator plan…</div>
+        <details class="adv" style="margin-top:10px">
+          <summary><span>Operator Handoff Commands</span><span class="pill">copy</span></summary>
+          <div class="adv-body">
+            <pre id="stakeNextPlanOut">loading…</pre>
+          </div>
+        </details>
+      </div>
+
     </section>
 
     <section class="tabpane active" id="pane-wallet">
@@ -45610,6 +45643,36 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       executionWalletAddr
         ? ("Execution wallet " + shortAddr(executionWalletAddr) + " is linked. This stake tab now mirrors live validator truth and staking readiness on this node.")
         : "No execution wallet linked yet. Link or unlock a wallet first, then come back here to check staking readiness."
+    );
+
+    const nextStakeEpoch = vtLatest !== null ? (vtLatest + 1) : null;
+    const nextStakeCount = voCount !== null ? (voCount + 1) : null;
+    const nextStakeRunbook = "/home/zoso/dev/void-node/ops/mainnet/validator-staking-next-onboard-runbook.sh";
+    const nextStakeDryRunCmd = nextStakeEpoch !== null && nextStakeCount !== null
+      ? ("DRY_RUN=1 TARGET_EPOCH=" + nextStakeEpoch + " EXPECTED_VALIDATOR_COUNT=" + nextStakeCount + " " + nextStakeRunbook)
+      : ("DRY_RUN=1 " + nextStakeRunbook);
+    const nextStakeLiveCmd = nextStakeEpoch !== null && nextStakeCount !== null
+      ? ("DRY_RUN=0 TARGET_EPOCH=" + nextStakeEpoch + " EXPECTED_VALIDATOR_COUNT=" + nextStakeCount + " " + nextStakeRunbook)
+      : ("DRY_RUN=0 " + nextStakeRunbook);
+
+    setText("stakeNextEpoch", nextStakeEpoch !== null ? nextStakeEpoch : "-");
+    setText("stakeNextCount", nextStakeCount !== null ? nextStakeCount : "-");
+    setText("stakePlanState", (vo && vo.overallGreen) ? "Ready" : "Check");
+    setText(
+      "stakeNextPlanSummary",
+      (vo && vo.overallGreen && nextStakeEpoch !== null && nextStakeCount !== null)
+        ? ("Operator next step is ready. The next onboarding runbook will auto-select the next unused vault and target epoch " + nextStakeEpoch + " with validator count " + nextStakeCount + ".")
+        : "Next validator plan unavailable until live validator truth and operator summary are green."
+    );
+    setText(
+      "stakeNextPlanOut",
+      [
+        "# Dry-run next validator selection",
+        nextStakeDryRunCmd,
+        "",
+        "# Live operator execution",
+        nextStakeLiveCmd
+      ].join("\n")
     );
 
     const buyWalletState = executionWalletAddr
