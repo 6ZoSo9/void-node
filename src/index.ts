@@ -438,6 +438,59 @@ function __voidReadValidatorRuntimeTruthShadowLatest(): any {
   }
 }
 
+function __voidConfiguredValidatorTruthCompareLatestPath(): string {
+  const envPath = String(process.env.VOID_VALIDATOR_RUNTIME_TRUTH_COMPARE_LATEST || "").trim();
+  if (envPath) return envPath;
+  const pathMod = require("path");
+  const home = String(process.env.HOME || "").trim();
+  if (home) return pathMod.join(home, "dev", "void-node", ".runtime", "validator_truth_compare", "latest.json");
+  return ".runtime/validator_truth_compare/latest.json";
+}
+
+function __voidReadValidatorTruthFrozenVsUpgradeLatest(): any {
+  const filePath = __voidConfiguredValidatorTruthCompareLatestPath();
+  try {
+    const fs = require("fs");
+    const pathMod = require("path");
+    const text = fs.readFileSync(filePath, "utf8");
+    const report = JSON.parse(text);
+    const coreSummary = report?.coreSummary || {};
+    return {
+      ok: true,
+      path: pathMod.resolve(filePath),
+      report,
+      summary: {
+        ok: !!report?.ok,
+        compareMode: String(report?.compareMode || ""),
+        frozenManifest: String(report?.frozenManifest || ""),
+        upgradeManifest: String(report?.upgradeManifest || ""),
+        coreMismatchCount: Array.isArray(report?.coreMismatches) ? report.coreMismatches.length : 0,
+        expectedDifferenceCount: Array.isArray(report?.expectedDifferences) ? report.expectedDifferences.length : 0,
+        coreSummary: {
+          epoch: coreSummary?.epoch ?? null,
+          startSlot: coreSummary?.startSlot ?? null,
+          endSlotExclusive: coreSummary?.endSlotExclusive ?? null,
+          validatorCount: coreSummary?.validatorCount ?? null,
+          totalPower: String(coreSummary?.totalPower || ""),
+          scheduleWindowLength: coreSummary?.scheduleWindowLength ?? null,
+          reward0: String(coreSummary?.reward0 || ""),
+          effectivePower0: String(coreSummary?.effectivePower0 || ""),
+          frozenPublished: !!coreSummary?.frozenPublished,
+          upgradePublished: !!coreSummary?.upgradePublished,
+          frozenPublishedMatch: !!coreSummary?.frozenPublishedMatch,
+          upgradePublishedMatch: !!coreSummary?.upgradePublishedMatch,
+        },
+      },
+    };
+  } catch (e: any) {
+    return {
+      ok: false,
+      path: filePath,
+      error: String(e?.message || e),
+    };
+  }
+}
+
 function __voidParseNonNegativeInt(raw: any, label: string): number {
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 0) {
@@ -475,6 +528,38 @@ app.get("/__void/runtime/validator-truth/diag", (_req: any, res: any) => {
     shadowLatestSummary: shadow?.summary || null,
     status,
     shadow,
+  });
+});
+
+app.get("/__void/runtime/validator-truth/compare/latest", (_req: any, res: any) => {
+  const compare = __voidReadValidatorTruthFrozenVsUpgradeLatest();
+  return res.status(compare.ok ? 200 : 500).json(compare);
+});
+
+app.get("/__void/runtime/validator-truth/diag/all", (_req: any, res: any) => {
+  const status = __voidReadValidatorRuntimeTruthStatus();
+  const shadow = __voidReadValidatorRuntimeTruthShadowLatest();
+  const compare = __voidReadValidatorTruthFrozenVsUpgradeLatest();
+  const ok = !!status?.ok && !!shadow?.ok && !!compare?.ok;
+  const loadedEpochs = Array.isArray(status?.loadedEpochs) ? status.loadedEpochs : [];
+  const latestEpoch = status?.latestEpoch ?? null;
+  return res.status(ok ? 200 : 500).json({
+    ok,
+    configuredMode: status?.configuredMode,
+    mode: status?.mode,
+    sourceDir: status?.sourceDir,
+    loadedEpochs,
+    latestEpoch,
+    lookupsAvailable: !!status?.lookupsAvailable,
+    shadowLatestPath: shadow?.path || __voidConfiguredValidatorTruthShadowLatestPath(),
+    shadowLatestOk: !!shadow?.ok,
+    shadowLatestSummary: shadow?.summary || null,
+    compareLatestPath: compare?.path || __voidConfiguredValidatorTruthCompareLatestPath(),
+    compareLatestOk: !!compare?.ok,
+    compareLatestSummary: compare?.summary || null,
+    status,
+    shadow,
+    compare,
   });
 });
 

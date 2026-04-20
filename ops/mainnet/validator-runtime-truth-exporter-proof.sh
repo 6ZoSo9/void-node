@@ -27,6 +27,12 @@ keys = [
     "void_validator_runtime_truth_shadow_checked_epochs",
     "void_validator_runtime_truth_shadow_checked_proposers",
     "void_validator_runtime_truth_shadow_checked_windows",
+    "void_validator_runtime_truth_compare_latest_ok",
+    "void_validator_runtime_truth_compare_report_ok",
+    "void_validator_runtime_truth_compare_core_mismatch_count",
+    "void_validator_runtime_truth_compare_expected_difference_count",
+    "void_validator_runtime_truth_compare_epoch",
+    "void_validator_runtime_truth_compare_schedule_window_length",
 ]
 
 hits = []
@@ -43,6 +49,9 @@ required = {
     "void_validator_runtime_truth_shadow_latest_ok 1",
     "void_validator_runtime_truth_shadow_report_ok 1",
     "void_validator_runtime_truth_shadow_mismatch_count 0",
+    "void_validator_runtime_truth_compare_latest_ok 1",
+    "void_validator_runtime_truth_compare_report_ok 1",
+    "void_validator_runtime_truth_compare_core_mismatch_count 0",
 }
 missing = [x for x in required if x not in hits]
 if missing:
