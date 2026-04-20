@@ -32,6 +32,14 @@ lines.append("# HELP void_validator_operator_overall_green Whether the operator 
 lines.append("# TYPE void_validator_operator_overall_green gauge")
 lines.append(f"void_validator_operator_overall_green {1 if summary.get('overallGreen') else 0}")
 
+lines.append("# HELP void_validator_operator_target_epoch Target epoch from operator summary.")
+lines.append("# TYPE void_validator_operator_target_epoch gauge")
+lines.append(f"void_validator_operator_target_epoch {num(summary.get('targetEpoch'))}")
+
+lines.append("# HELP void_validator_operator_expected_validator_count Expected validator count from operator summary.")
+lines.append("# TYPE void_validator_operator_expected_validator_count gauge")
+lines.append(f"void_validator_operator_expected_validator_count {num(summary.get('expectedValidatorCount'))}")
+
 lines.append("# HELP void_validator_operator_latest_epoch Latest epoch from operator summary.")
 lines.append("# TYPE void_validator_operator_latest_epoch gauge")
 lines.append(f"void_validator_operator_latest_epoch {num(summary.get('latestEpoch'))}")
@@ -64,7 +72,7 @@ lines.append("# HELP void_validator_operator_runbook_gate_green Whether the onbo
 lines.append("# TYPE void_validator_operator_runbook_gate_green gauge")
 lines.append(f"void_validator_operator_runbook_gate_green {1 if summary.get('runbookGateGreen') else 0}")
 
-Path(out_file).write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+Path(out_file).write_text("\n".join(lines) + "\n", encoding="utf-8")
 print(f"[ok] wrote {out_file}")
-print("\\n".join(lines))
+print("\n".join(lines))
 PY
