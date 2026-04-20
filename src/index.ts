@@ -43005,6 +43005,190 @@ a{color:#93c5fd;text-decoration:none}
 })();
 
 
+
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_operator_buy_void_queue_v1";
+    if (G[MARK]) return;
+    G[MARK] = { installed:false };
+
+    function getApp(){
+      try { return (G.__void_http_app || app); }
+      catch { return G.__void_http_app; }
+    }
+    function dataDir(){
+      const raw = String(process.env.DATA_DIR || "data_a").trim();
+      return raw || "data_a";
+    }
+    function baseDir(){
+      const pathMod = require("node:path");
+      return pathMod.join(process.cwd(), dataDir(), "participant_buy_void_v1");
+    }
+    function requestsFile(){
+      const pathMod = require("node:path");
+      return pathMod.join(baseDir(), "requests.jsonl");
+    }
+    function queueFile(){
+      const pathMod = require("node:path");
+      return pathMod.join(baseDir(), "operator_queue.jsonl");
+    }
+    function ensureDir(){
+      const fs = require("node:fs");
+      fs.mkdirSync(baseDir(), { recursive:true });
+    }
+    function readLines(file:string): string[] {
+      const fs = require("node:fs");
+      try {
+        return String(fs.readFileSync(file, "utf8") || "")
+          .split("\n")
+          .map((x:string)=>x.trim())
+          .filter(Boolean);
+      } catch {
+        return [];
+      }
+    }
+    function appendJsonl(file:string, obj:any){
+      const fs = require("node:fs");
+      ensureDir();
+      fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+    }
+    function safeStr(x:any, n:number){
+      return String(x ?? "").trim().slice(0, n);
+    }
+    function safeAccount(x:any){
+      return safeStr(x, 128);
+    }
+    function safeId(x:any){
+      return safeStr(x, 160);
+    }
+    function safeNote(x:any){
+      return safeStr(x, 500);
+    }
+    function nowMs(){ return Date.now(); }
+    function makeId(){
+      const crypto = require("node:crypto");
+      return "buyq_" + nowMs() + "_" + crypto.randomBytes(4).toString("hex");
+    }
+    function findRequestById(requestId:string): any {
+      const lines = readLines(requestsFile());
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const j = JSON.parse(lines[i]);
+          if (String(j?.request_id || "") === requestId) return j;
+        } catch {}
+      }
+      return null;
+    }
+    function listDrafts(account:string, limit:number): any[] {
+      const out:any[] = [];
+      const lines = readLines(requestsFile());
+      for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
+        try {
+          const j = JSON.parse(lines[i]);
+          if (account && String(j?.account || "") !== account) continue;
+          if (String(j?.status || "") !== "draft_ready") continue;
+          out.push(j);
+        } catch {}
+      }
+      return out;
+    }
+    function listQueue(account:string, limit:number): any[] {
+      const out:any[] = [];
+      const lines = readLines(queueFile());
+      for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
+        try {
+          const j = JSON.parse(lines[i]);
+          if (account && String(j?.account || "") !== account) continue;
+          out.push(j);
+        } catch {}
+      }
+      return out;
+    }
+    function latestQueued(account:string): any {
+      const rows = listQueue(account, 1);
+      return rows.length ? rows[0] : null;
+    }
+
+    function mount(){
+      const appAny:any = getApp();
+      if (!appAny || typeof appAny.get !== "function" || typeof appAny.post !== "function") {
+        return setTimeout(mount, 250);
+      }
+      if (G[MARK].installed) return;
+      G[MARK].installed = true;
+
+      appAny.get("/__void/operator/buy-void/drafts", (req:any, res:any) => {
+        try {
+          const account = safeAccount(req.query?.account);
+          const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
+          const rows = listDrafts(account, limit);
+          return res.json({ ok:true, count: rows.length, drafts: rows });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.post("/__void/operator/buy-void/queue", (req:any, res:any) => {
+        try {
+          const requestId = safeId(req.body?.request_id);
+          if (!requestId) return res.status(400).json({ ok:false, error:"missing_request_id" });
+
+          const src = findRequestById(requestId);
+          if (!src) return res.status(404).json({ ok:false, error:"request_not_found" });
+          if (String(src?.status || "") !== "draft_ready") {
+            return res.status(400).json({ ok:false, error:"request_not_draft_ready", request: src });
+          }
+
+          const row = {
+            ok: true,
+            queue_id: makeId(),
+            ts_ms: nowMs(),
+            request_id: String(src.request_id || ""),
+            account: String(src.account || ""),
+            delivery_wallet: String(src.delivery_wallet || ""),
+            requested_amount_usdc: Number(src.requested_amount_usdc || 0),
+            policy: src.policy || {},
+            source_status: String(src.status || ""),
+            operator_status: "queued",
+            operator_note: safeNote(req.body?.operator_note || ""),
+            fulfillment_lane: String(src.fulfillment_lane || "buy_void_base_usdc_v1_future"),
+          };
+
+          appendJsonl(queueFile(), row);
+          return res.json({ ok:true, queued: row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.get("/__void/operator/buy-void/queue", (req:any, res:any) => {
+        try {
+          const account = safeAccount(req.query?.account);
+          const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
+          const rows = listQueue(account, limit);
+          return res.json({ ok:true, count: rows.length, queued: rows });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.get("/__void/operator/buy-void/queue/latest", (req:any, res:any) => {
+        try {
+          const account = safeAccount(req.query?.account);
+          const row = latestQueued(account);
+          return res.json({ ok:true, queued: row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+    }
+
+    mount();
+  } catch {}
+})();
+
+
 // [removed legacy participant-dashboard-v1 duplicate block]
 
 
