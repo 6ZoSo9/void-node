@@ -42838,6 +42838,173 @@ a{color:#93c5fd;text-decoration:none}
 // === jobs-submit-to-jobsv1-bridge-v1 END ===
 
 
+
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_participant_buy_void_request_v1";
+    if (G[MARK]) return;
+    G[MARK] = { installed:false };
+
+    function getApp(){
+      try { return (G.__void_http_app || app); }
+      catch { return G.__void_http_app; }
+    }
+    function dataDir(){
+      const raw = String(process.env.DATA_DIR || "data_a").trim();
+      return raw || "data_a";
+    }
+    function requestDir(){
+      const pathMod = require("node:path");
+      return pathMod.join(process.cwd(), dataDir(), "participant_buy_void_v1");
+    }
+    function requestFile(){
+      const pathMod = require("node:path");
+      return pathMod.join(requestDir(), "requests.jsonl");
+    }
+    function ensureDir(){
+      const fs = require("node:fs");
+      fs.mkdirSync(requestDir(), { recursive:true });
+    }
+    function appendJsonl(file:string, obj:any){
+      const fs = require("node:fs");
+      ensureDir();
+      fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+    }
+    function readLines(file:string): string[] {
+      const fs = require("node:fs");
+      try {
+        return String(fs.readFileSync(file, "utf8") || "")
+          .split("\n")
+          .map((x:string)=>x.trim())
+          .filter(Boolean);
+      } catch {
+        return [];
+      }
+    }
+    function safeStr(x:any, n:number){
+      return String(x ?? "").trim().slice(0, n);
+    }
+    function safeAccount(x:any){
+      return safeStr(x, 128);
+    }
+    function safeWallet(x:any){
+      const v = safeStr(x, 80);
+      return /^0x[a-fA-F0-9]{40}$/.test(v) ? v : "";
+    }
+    function safeAmountUsdc(x:any){
+      const n = Number(x);
+      if (!Number.isFinite(n) || n <= 0) return 0;
+      return Math.round(n * 1_000_000) / 1_000_000;
+    }
+    function nowMs(){ return Date.now(); }
+    function makeId(){
+      const crypto = require("node:crypto");
+      return "buyreq_" + nowMs() + "_" + crypto.randomBytes(4).toString("hex");
+    }
+    function buildPolicy(deliveryWallet:string, requestedAmountUsdc:number){
+      return {
+        accepted_asset: "base_native_usdc",
+        participant_page_only: true,
+        blind_direct_deposits_blocked: true,
+        exchange_or_custodial_wallet_sends_blocked: true,
+        delivery_wallet_valid: !!deliveryWallet,
+        requested_amount_usdc_valid: requestedAmountUsdc > 0,
+      };
+    }
+    function buildStatus(pol:any){
+      return (pol.delivery_wallet_valid && pol.requested_amount_usdc_valid)
+        ? "draft_ready"
+        : "needs_fix";
+    }
+    function latestRequestFor(account:string): any {
+      const lines = readLines(requestFile());
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const j = JSON.parse(lines[i]);
+          if (String(j?.account || "") === account) return j;
+        } catch {}
+      }
+      return null;
+    }
+    function listRequestsFor(account:string, limit:number): any[] {
+      const out:any[] = [];
+      const lines = readLines(requestFile());
+      for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
+        try {
+          const j = JSON.parse(lines[i]);
+          if (String(j?.account || "") === account) out.push(j);
+        } catch {}
+      }
+      return out;
+    }
+
+    function mount(){
+      const appAny:any = getApp();
+      if (!appAny || typeof appAny.get !== "function" || typeof appAny.post !== "function") {
+        return setTimeout(mount, 250);
+      }
+      if (G[MARK].installed) return;
+      G[MARK].installed = true;
+
+      appAny.post("/__void/participant/buy-void/request", (req:any, res:any) => {
+        try {
+          const account = safeAccount(req.body?.account);
+          if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+
+          const deliveryWallet = safeWallet(req.body?.delivery_wallet || req.body?.wallet);
+          const requestedAmountUsdc = safeAmountUsdc(req.body?.requested_amount_usdc ?? req.body?.amount_usdc ?? req.body?.amount);
+          const policy = buildPolicy(deliveryWallet, requestedAmountUsdc);
+          const status = buildStatus(policy);
+
+          const row = {
+            ok: status === "draft_ready",
+            request_id: makeId(),
+            ts_ms: nowMs(),
+            account,
+            delivery_wallet: deliveryWallet || null,
+            requested_amount_usdc: requestedAmountUsdc,
+            policy,
+            status,
+            fulfillment_lane: "buy_void_base_usdc_v1_future",
+          };
+
+          appendJsonl(requestFile(), row);
+          return res.json({ ok:true, request:row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.get("/__void/participant/buy-void/latest", (req:any, res:any) => {
+        try {
+          const account = safeAccount(req.query?.account);
+          if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+          const row = latestRequestFor(account);
+          return res.json({ ok:true, request: row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.get("/__void/participant/buy-void/requests", (req:any, res:any) => {
+        try {
+          const account = safeAccount(req.query?.account);
+          if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
+          const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
+          const rows = listRequestsFor(account, limit);
+          return res.json({ ok:true, count: rows.length, requests: rows });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+    }
+
+    mount();
+  } catch {}
+})();
+
+
 // [removed legacy participant-dashboard-v1 duplicate block]
 
 
@@ -44179,6 +44346,28 @@ a{color:#93c5fd;text-decoration:none}
           <summary><span>Purchase Handoff Payload</span><span class="pill">copy</span></summary>
           <div class="adv-body">
             <pre id="buyPlanOut">loading…</pre>
+          </div>
+        </details>
+      </div>
+
+    
+      <div class="panel" style="margin-top:12px;padding:12px 14px">
+        <div class="section-head">
+          <div>
+            <h2>Buy VOID Request Draft<span class="help" tabindex="0" data-help="Creates a canonical local request draft for the future Base native USDC Buy VOID fulfillment lane. This records delivery wallet, requested amount, and policy checks on this node.">?</span></h2>
+          </div>
+        </div>
+        <label for="buyDraftAmountUsdc">Requested USDC amount</label>
+        <input id="buyDraftAmountUsdc" value="25" inputmode="decimal" />
+        <div class="action-rail" style="margin-top:10px">
+          <button class="btn btn-primary" id="buyDraftCreateBtn" type="button">Create Request Draft</button>
+        </div>
+        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">No Buy VOID request draft created yet.</div>
+        <div class="subtle-tab-copy" id="buyDraftLatestCard" style="margin-top:8px">Latest request: none</div>
+        <details class="adv" style="margin-top:10px">
+          <summary><span>Latest Draft Payload</span><span class="pill">json</span></summary>
+          <div class="adv-body">
+            <pre id="buyDraftOut">loading…</pre>
           </div>
         </details>
       </div>
@@ -45751,6 +45940,72 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         : "No execution wallet linked yet. Link a wallet first before the Buy VOID fulfillment lane can target delivery."
     );
     setText("buyPlanOut", JSON.stringify(buyHandoffPayload, null, 2));
+
+    const buyDraftBtn = $("buyDraftCreateBtn");
+    const buyDraftAmountEl = $("buyDraftAmountUsdc");
+    const buyDraftAmount = buyDraftAmountEl ? String(buyDraftAmountEl.value || "25").trim() : "25";
+
+    async function loadLatestBuyVoidDraft(){
+      const latest = await j("/__void/participant/buy-void/latest?account=" + encodeURIComponent(account)).catch(() => ({ ok:false }));
+      if (latest && latest.ok && latest.request) {
+        const r = latest.request || {};
+        setText("buyDraftSummary", r.ok
+          ? ("Latest Buy VOID draft is ready for fulfillment handoff. Request " + String(r.request_id || "-") + " targets " + (r.delivery_wallet ? shortAddr(String(r.delivery_wallet)) : "no wallet") + ".")
+          : ("Latest Buy VOID draft needs fixes. Request " + String(r.request_id || "-") + " is missing a valid delivery wallet or amount."));
+        setText("buyDraftLatestCard",
+          "Latest request: " + String(r.request_id || "-") +
+          " • amount " + String(r.requested_amount_usdc || 0) + " USDC" +
+          " • status " + String(r.status || "-"));
+        setText("buyDraftOut", JSON.stringify(r, null, 2));
+      } else {
+        setText("buyDraftSummary", executionWalletAddr
+          ? "No Buy VOID request draft created yet. Use the button below to record one on this node."
+          : "Link an execution wallet first, then create a Buy VOID request draft.");
+        setText("buyDraftLatestCard", "Latest request: none");
+        setText("buyDraftOut", JSON.stringify({
+          participant_account: account,
+          delivery_wallet: executionWalletAddr || null,
+          requested_amount_usdc: buyDraftAmount,
+          accepted_asset: "base_native_usdc",
+          status: executionWalletAddr ? "ready_to_create_draft" : "missing_execution_wallet"
+        }, null, 2));
+      }
+    }
+
+    try {
+      (window).__voidCreateBuyVoidDraft = async function(){
+        const amountRaw = buyDraftAmountEl ? String(buyDraftAmountEl.value || "").trim() : "";
+        const payload = {
+          account: account,
+          delivery_wallet: executionWalletAddr || null,
+          requested_amount_usdc: amountRaw,
+        };
+        setText("buyDraftOut", JSON.stringify({ creating:true, payload }, null, 2));
+        const res = await j("/__void/participant/buy-void/request", {
+          method: "POST",
+          headers: { "content-type":"application/json" },
+          body: JSON.stringify(payload)
+        }).catch((e) => ({ ok:false, error:String(e && e.message || e) }));
+        if (res && res.ok && res.request) {
+          setText("buyDraftOut", JSON.stringify(res.request, null, 2));
+        } else {
+          setText("buyDraftOut", JSON.stringify(res || { ok:false, error:"request_failed" }, null, 2));
+        }
+        await loadLatestBuyVoidDraft();
+        return false;
+      };
+    } catch (_) {}
+
+    try {
+      if (buyDraftBtn) {
+        buyDraftBtn.onclick = function(ev){
+          try { if (ev && ev.preventDefault) ev.preventDefault(); } catch (_) {}
+          try { return (window).__voidCreateBuyVoidDraft(); } catch (_) { return false; }
+        };
+      }
+    } catch (_) {}
+
+    await loadLatestBuyVoidDraft();
 
     const renderTradeDirectionUi = () => {
       try {
