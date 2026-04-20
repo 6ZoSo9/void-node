@@ -40,6 +40,11 @@ run_phase() {
     "$HOME/dev/void-node/.runtime/validator_epoch_manifests/verified-current"
 
   echo
+  echo "=== [phase:$mode] refresh shadow latest for current published dir ==="
+  "$HOME/dev/void-node/ops/mainnet/validator-runtime-truth-shadow-run.sh" \
+    "$HOME/dev/void-node/.runtime/validator_epoch_manifests/verified-current"
+
+  echo
   echo "=== [phase:$mode] diag/all assertions ==="
   python3 - <<'PY' "$BASE" "$mode"
 import json, sys, urllib.request
