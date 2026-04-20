@@ -1,0 +1,30 @@
+{
+  "chainId": 2050,
+  "rpcUrl": "http://127.0.0.1:8545",
+  "status": "upgrade_track_seeded_epoch_captured",
+  "deployer": "0x7D493C395fC3636bEcac605f9CBc855b7fffE6f1",
+  "seed": {
+    "reward": "0xD2571D5D471D6574f7d57D0a3aCa5B34D0C8dA6F",
+    "consensusKey": "0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540",
+    "stakeVOID": "1000000000000000000000",
+    "capturedEpoch": 1,
+    "windowStartSlot": 0,
+    "windowEndSlotExclusive": 8
+  },
+  "contracts": {
+    "staking": "0x77DFEedD19A4741f299C902AD5bBe0DE917a9e59",
+    "adapter": "0xADbB476A945280F7c1e00d5626e8B8Bf3a885549",
+    "ordered": "0x94980033429Ce5850a88870e29Ec81D34490F398",
+    "snapshot": "0x45d31E24eC241083b3429FA6fE7D1F13F90A37be",
+    "selector": "0x9C361707c2a9524099008f112be5149c10F9E926",
+    "scheduleView": "0xFfE3071Be9168529d60b223fEe5f4290544802b8",
+    "commitmentView": "0xFefff9cbAF7796bDa5BAe0ec759CB7Cc47A7608D",
+    "commitmentRegistry": "0x6649C6f0E29179326d8a6A547F1B0a97F7410f1B",
+    "manifestView": "0x83e7D9CCa7e1e839c91F86D8A48754c50963201A"
+  },
+  "notes": [
+    "This is a separate upgrade-track validator truth stack.",
+    "It is not a mutation of frozen Mainnet-0 bootstrap contracts.",
+    "The deployer is the upgrade-track admin for snapshot and commitment registry in this lane."
+  ]
+}
