@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
+set +H
+set +o histexpand
 
-ROOT="/home/zoso/dev/void-node"
-OUTDIR="/var/lib/node_exporter/textfile_collector"
-OUT="$OUTDIR/void_mainnet_keys.prom"
-TMP="$OUT.$$.tmp"
+ROOT="${ROOT:-$HOME/dev/void-node}"
+OUTDIR="${OUTDIR:-/var/lib/node_exporter/textfile_collector}"
+OUT="${OUT:-$OUTDIR/void_mainnet_keys.prom}"
+TMP="${TMP:-$OUT.$$.tmp}"
 NOW="$(date +%s)"
 
-PIN="$ROOT/ops/mainnet/void-mainnet.live.json"
-HINT="/tmp/void-mainnet-keys-exporter.last"
+PIN="${PIN:-$ROOT/ops/mainnet/void-mainnet.live.json}"
+HINT_DIR="${HINT_DIR:-${TMPDIR:-/tmp}}"
+HINT="${HINT:-$HINT_DIR/void-mainnet-keys-exporter.${USER:-user}.last}"
 
 up=1
 live_present=0
@@ -16,6 +19,16 @@ live_tracked=0
 roles_ok=0
 premine_schema_ok=0
 LIVE=""
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || { echo "[ERR] missing required command: $1" >&2; exit 1; }
+}
+
+need_cmd jq
+need_cmd find
+
+mkdir -p "$(dirname "$OUT")" 2>/dev/null || true
+mkdir -p "$(dirname "$HINT")" 2>/dev/null || true
 
 # [A] PIN FIRST (no heuristics)
 if [ -f "$PIN" ] && [ -s "$PIN" ]; then
@@ -29,7 +42,17 @@ if [ -z "$LIVE" ]; then
     case "$b" in
       *.sh|*.bash|*.zsh|*.bak.*|*.bak_*|*.fixbak.*|*.pinbak.*|*.tmp.*) continue ;;
     esac
-    if grep -qE '(contractName|AdminGate|UpdateGate|ConfigGate|VoidTreasury|OpsTreasury|ValidatorSet|premine|roles|keys_source|premine_model|premine_vaults)' "$f" 2>/dev/null; then
+    if jq -e '
+      (
+        (.roles? | type == "object") or
+        (.admins? | type == "object")
+      ) and (
+        .chainId? == 2050 or
+        .keys_source? != null or
+        .premine_model? != null or
+        .premine_vaults? != null
+      )
+    ' "$f" >/dev/null 2>&1; then
       LIVE="$f"
       break
     fi
@@ -40,54 +63,70 @@ if [ -z "$LIVE" ]; then
   )
 fi
 
-# evaluate LIVE
 if [ -n "${LIVE:-}" ] && [ -f "$LIVE" ] && [ -s "$LIVE" ]; then
   live_present=1
 
-  # tracked: accept old role/broadcast structure OR new pinned schema
-  if grep -qE '(AdminGate|UpdateGate|ConfigGate|VoidTreasury|OpsTreasury|ValidatorSet|premine|roles|contractName|transactions|transactionType|keys_source|premine_model|premine_vaults|vault_count)' "$LIVE" 2>/dev/null; then
+  if jq -e '
+    (
+      (.roles? | type == "object") and
+      (.admins? | type == "object")
+    ) and (
+      .chainId? == 2050 or
+      .keys_source? != null or
+      .premine_model? != null or
+      .premine_vaults? != null
+    )
+  ' "$LIVE" >/dev/null 2>&1; then
     live_tracked=1
   fi
 
-  need=(AdminGate UpdateGate ConfigGate VoidTreasury ValidatorSet)
-  ok=1
-  for k in "${need[@]}"; do
-    if grep -q "\"contractName\"[[:space:]]*:[[:space:]]*\"$k\"" "$LIVE" 2>/dev/null; then
-      :
-    elif grep -q "\"$k\"" "$LIVE" 2>/dev/null; then
-      :
-    else
-      ok=0
-    fi
-  done
-  roles_ok="$ok"
+  if jq -e '
+    ((.roles.AdminGate // .roles.admin_gate) != null) and
+    ((.roles.UpdateGate // .roles.update_gate) != null) and
+    ((.roles.ConfigGate // .roles.config_gate) != null) and
+    ((.roles.ValidatorSet // .roles.validator_set) != null) and
+    ((.roles.VoidToken // .roles.void_token) != null) and
+    ((.roles.VoidTreasury // .roles.void_treasury) != null) and
+    ((.roles.OpsTreasury // .roles.ops_treasury) != null) and
+    ((.roles.RewardEngine // .roles.reward_engine) != null) and
+    ((.admins.adminGateController // .admins.admin) != null) and
+    ((.admins.updateGateController // .admins.update_admin) != null) and
+    ((.admins.configGateController // .admins.config_admin) != null) and
+    ((.admins.validatorAdmin // .admins.validator_admin) != null) and
+    ((.admins.voidTreasuryAdmin // .admins.treasury_admin) != null) and
+    ((.admins.opsTreasuryAdmin // .admins.ops_admin) != null) and
+    ((.admins.rewardEngineAdmin // .admins.reward_admin) != null)
+  ' "$LIVE" >/dev/null 2>&1; then
+    roles_ok=1
+  fi
 
-  ps_ok=1
-  grep -q '"chainId"[[:space:]]*:[[:space:]]*2050' "$LIVE" 2>/dev/null || ps_ok=0
-  grep -q '"keys_source"[[:space:]]*:[[:space:]]*"luks_flash_drives"' "$LIVE" 2>/dev/null || ps_ok=0
-  grep -q '"type"[[:space:]]*:[[:space:]]*"segmented_offline_vaults"' "$LIVE" 2>/dev/null || ps_ok=0
-  grep -q '"vault_count"[[:space:]]*:[[:space:]]*30' "$LIVE" 2>/dev/null || ps_ok=0
-  grep -q '"premine_vaults"' "$LIVE" 2>/dev/null || ps_ok=0
-  premine_schema_ok="$ps_ok"
+  if jq -e '
+    .chainId == 2050 and
+    .keys_source == "luks_flash_drives" and
+    (.premine_model | type == "object") and
+    .premine_model.type == "segmented_offline_vaults" and
+    .premine_model.vault_count == 30 and
+    (.premine_vaults | type == "array") and
+    ((.premine_vaults | length) == 30)
+  ' "$LIVE" >/dev/null 2>&1; then
+    premine_schema_ok=1
+  fi
 
   {
     echo "LIVE=$LIVE"
     echo "size_bytes=$(wc -c <"$LIVE" 2>/dev/null || echo 0)"
-    echo "has_admingate=$(grep -q "\"contractName\"[[:space:]]*:[[:space:]]*\"AdminGate\"" "$LIVE" 2>/dev/null || grep -q "\"AdminGate\"" "$LIVE" 2>/dev/null && echo 1 || echo 0)"
-    echo "has_updategate=$(grep -q "\"contractName\"[[:space:]]*:[[:space:]]*\"UpdateGate\"" "$LIVE" 2>/dev/null || grep -q "\"UpdateGate\"" "$LIVE" 2>/dev/null && echo 1 || echo 0)"
-    echo "has_configgate=$(grep -q "\"contractName\"[[:space:]]*:[[:space:]]*\"ConfigGate\"" "$LIVE" 2>/dev/null || grep -q "\"ConfigGate\"" "$LIVE" 2>/dev/null && echo 1 || echo 0)"
-    echo "has_voidtreasury=$(grep -q "\"contractName\"[[:space:]]*:[[:space:]]*\"VoidTreasury\"" "$LIVE" 2>/dev/null || grep -q "\"VoidTreasury\"" "$LIVE" 2>/dev/null && echo 1 || echo 0)"
-    echo "has_validatorset=$(grep -q "\"contractName\"[[:space:]]*:[[:space:]]*\"ValidatorSet\"" "$LIVE" 2>/dev/null || grep -q "\"ValidatorSet\"" "$LIVE" 2>/dev/null && echo 1 || echo 0)"
-    echo "has_luks_flash_drives=$(grep -q '"keys_source"[[:space:]]*:[[:space:]]*"luks_flash_drives"' "$LIVE" 2>/dev/null && echo 1 || echo 0)"
-    echo "has_segmented_offline_vaults=$(grep -q '"type"[[:space:]]*:[[:space:]]*"segmented_offline_vaults"' "$LIVE" 2>/dev/null && echo 1 || echo 0)"
-    echo "has_vault_count_30=$(grep -q '"vault_count"[[:space:]]*:[[:space:]]*30' "$LIVE" 2>/dev/null && echo 1 || echo 0)"
-    echo "has_premine_vaults=$(grep -q '"premine_vaults"' "$LIVE" 2>/dev/null && echo 1 || echo 0)"
+    echo "live_tracked=$live_tracked"
+    echo "roles_ok=$roles_ok"
+    echo "premine_schema_ok=$premine_schema_ok"
+    echo "roles_keys=$(jq -r '(.roles // {} | keys | join(","))' "$LIVE" 2>/dev/null || echo "")"
+    echo "admins_keys=$(jq -r '(.admins // {} | keys | join(","))' "$LIVE" 2>/dev/null || echo "")"
   } >"$HINT" 2>/dev/null || true
 else
   printf "%s\n" "LIVE=(none)" >"$HINT" 2>/dev/null || true
 fi
 
 health=$(( up * live_present * live_tracked * roles_ok * premine_schema_ok ))
+
 {
   echo "# HELP void_mainnet_keys_exporter_up Safe wrapper for keys exporter (never fails)"
   echo "# TYPE void_mainnet_keys_exporter_up gauge"
@@ -101,11 +140,11 @@ health=$(( up * live_present * live_tracked * roles_ok * premine_schema_ok ))
   echo "# TYPE void_mainnet_keys_livejson_present gauge"
   echo "void_mainnet_keys_livejson_present $live_present"
 
-  echo "# HELP void_mainnet_keys_livejson_tracked 1 if json contains expected role markers"
+  echo "# HELP void_mainnet_keys_livejson_tracked 1 if json contains expected tracked structure"
   echo "# TYPE void_mainnet_keys_livejson_tracked gauge"
   echo "void_mainnet_keys_livejson_tracked $live_tracked"
 
-  echo "# HELP void_mainnet_keys_roles_ok 1 if json appears to contain required roles (heuristic)"
+  echo "# HELP void_mainnet_keys_roles_ok 1 if live json contains required roles/admins"
   echo "# TYPE void_mainnet_keys_roles_ok gauge"
   echo "void_mainnet_keys_roles_ok $roles_ok"
 
@@ -116,7 +155,6 @@ health=$(( up * live_present * live_tracked * roles_ok * premine_schema_ok ))
   echo "# HELP void_mainnet_keys_health Composite health (present * tracked * roles_ok * premine_schema_ok)"
   echo "# TYPE void_mainnet_keys_health gauge"
   echo "void_mainnet_keys_health $health"
-
 } >"$TMP"
 
 mv -f "$TMP" "$OUT"
