@@ -3,7 +3,7 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-DIAG_URL="${DIAG_URL:-http://127.0.0.1:4100/__void/runtime/validator-truth/diag}"
+DIAG_URL="${DIAG_URL:-http://127.0.0.1:4100/__void/runtime/validator-truth/diag/all}"
 OUT_NAME="${OUT_NAME:-void_validator_runtime_truth.prom}"
 TEXTFILE_DIR="${TEXTFILE_DIR:-}"
 
@@ -66,6 +66,8 @@ with urllib.request.urlopen(diag_url) as r:
 status = diag.get("status") or {}
 shadow = diag.get("shadow") or {}
 summary = shadow.get("summary") or diag.get("shadowLatestSummary") or {}
+compare = diag.get("compare") or {}
+compare_summary = compare.get("summary") or diag.get("compareLatestSummary") or {}
 
 def num(v):
     try:
@@ -125,6 +127,31 @@ lines.append(f"void_validator_runtime_truth_shadow_checked_proposers {num(checke
 lines.append("# HELP void_validator_runtime_truth_shadow_checked_windows Count of window endpoints checked by shadow compare.")
 lines.append("# TYPE void_validator_runtime_truth_shadow_checked_windows gauge")
 lines.append(f"void_validator_runtime_truth_shadow_checked_windows {num(checked.get('windows'))}")
+
+lines.append("# HELP void_validator_runtime_truth_compare_latest_ok Whether the frozen-vs-upgrade latest report was read successfully.")
+lines.append("# TYPE void_validator_runtime_truth_compare_latest_ok gauge")
+lines.append(f"void_validator_runtime_truth_compare_latest_ok {1 if diag.get('compareLatestOk') else 0}")
+
+lines.append("# HELP void_validator_runtime_truth_compare_report_ok Whether the frozen-vs-upgrade compare report core truth is OK.")
+lines.append("# TYPE void_validator_runtime_truth_compare_report_ok gauge")
+lines.append(f"void_validator_runtime_truth_compare_report_ok {1 if compare_summary.get('ok') else 0}")
+
+lines.append("# HELP void_validator_runtime_truth_compare_core_mismatch_count Frozen-vs-upgrade core mismatch count.")
+lines.append("# TYPE void_validator_runtime_truth_compare_core_mismatch_count gauge")
+lines.append(f"void_validator_runtime_truth_compare_core_mismatch_count {num(compare_summary.get('coreMismatchCount'))}")
+
+lines.append("# HELP void_validator_runtime_truth_compare_expected_difference_count Frozen-vs-upgrade expected difference count.")
+lines.append("# TYPE void_validator_runtime_truth_compare_expected_difference_count gauge")
+lines.append(f"void_validator_runtime_truth_compare_expected_difference_count {num(compare_summary.get('expectedDifferenceCount'))}")
+
+compare_core = compare_summary.get("coreSummary") or {}
+lines.append("# HELP void_validator_runtime_truth_compare_epoch Latest compared epoch for frozen-vs-upgrade truth.")
+lines.append("# TYPE void_validator_runtime_truth_compare_epoch gauge")
+lines.append(f"void_validator_runtime_truth_compare_epoch {num(compare_core.get('epoch'))}")
+
+lines.append("# HELP void_validator_runtime_truth_compare_schedule_window_length Latest compared schedule window length.")
+lines.append("# TYPE void_validator_runtime_truth_compare_schedule_window_length gauge")
+lines.append(f"void_validator_runtime_truth_compare_schedule_window_length {num(compare_core.get('scheduleWindowLength'))}")
 
 with open(out_path, "w", encoding="utf-8") as f:
     f.write("\n".join(lines) + "\n")
