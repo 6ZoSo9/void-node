@@ -509,6 +509,51 @@ app.get("/__void/runtime/validator-truth/shadow/latest", (_req: any, res: any) =
   return res.status(shadow.ok ? 200 : 500).json(shadow);
 });
 
+function __voidConfiguredValidatorTruthOperatorSummaryLatestPath(): string {
+  const envPath = String(process.env.VOID_VALIDATOR_RUNTIME_TRUTH_OPERATOR_SUMMARY_LATEST || "").trim();
+  if (envPath) return envPath;
+  const pathMod = require("path");
+  const home = String(process.env.HOME || "").trim();
+  if (home) return pathMod.join(home, "dev", "void-node", ".runtime", "validator_runtime_truth_operator", "latest.json");
+  return ".runtime/validator_runtime_truth_operator/latest.json";
+}
+
+function __voidReadValidatorTruthOperatorSummaryLatest(): any {
+  const filePath = __voidConfiguredValidatorTruthOperatorSummaryLatestPath();
+  try {
+    const fs = require("fs");
+    const pathMod = require("path");
+    const text = fs.readFileSync(filePath, "utf8");
+    const report = JSON.parse(text);
+    const summary = report?.summary || {};
+    return {
+      ok: true,
+      path: pathMod.resolve(filePath),
+      report,
+      summary: {
+        ok: !!summary?.ok,
+        targetEpoch: summary?.targetEpoch ?? null,
+        expectedValidatorCount: summary?.expectedValidatorCount ?? null,
+        latestEpoch: summary?.latestEpoch ?? null,
+        validatorCount: summary?.validatorCount ?? null,
+        totalPower: String(summary?.totalPower || ""),
+        uniqueRewardCount: summary?.uniqueRewardCount ?? null,
+        shadowMismatchCount: summary?.shadowMismatchCount ?? null,
+        compareCoreMismatchCount: summary?.compareCoreMismatchCount ?? null,
+        multivalidatorGateGreen: !!summary?.multivalidatorGateGreen,
+        runbookGateGreen: !!summary?.runbookGateGreen,
+        overallGreen: !!summary?.overallGreen,
+      },
+    };
+  } catch (e: any) {
+    return {
+      ok: false,
+      path: filePath,
+      error: String(e?.message || e),
+    };
+  }
+}
+
 app.get("/__void/runtime/validator-truth/diag", (_req: any, res: any) => {
   const status = __voidReadValidatorRuntimeTruthStatus();
   const shadow = __voidReadValidatorRuntimeTruthShadowLatest();
@@ -534,6 +579,11 @@ app.get("/__void/runtime/validator-truth/diag", (_req: any, res: any) => {
 app.get("/__void/runtime/validator-truth/compare/latest", (_req: any, res: any) => {
   const compare = __voidReadValidatorTruthFrozenVsUpgradeLatest();
   return res.status(compare.ok ? 200 : 500).json(compare);
+});
+
+app.get("/__void/runtime/validator-truth/operator-summary", (_req: any, res: any) => {
+  const summary = __voidReadValidatorTruthOperatorSummaryLatest();
+  return res.status(summary.ok ? 200 : 500).json(summary);
 });
 
 app.get("/__void/runtime/validator-truth/diag/all", (_req: any, res: any) => {
