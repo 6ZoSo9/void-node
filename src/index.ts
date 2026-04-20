@@ -43521,6 +43521,7 @@ a{color:#93c5fd;text-decoration:none}
         <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work, get a receipt, and earn WC</span></button>
         <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
         <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">check prices and trade WC for VOID</span></button>
+        <button class="tabbtn" data-tab="buy" id="tab-buy">Buy VOID<span class="navhint">check purchase-path readiness and wallet delivery status</span></button>
         <button class="tabbtn" data-tab="staking" id="tab-staking">Stake<span class="navhint">check validator staking readiness and live validator truth</span></button>
         <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">view balances, send WC, and manage VOID</span></button>
         <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">review receipts and outputs from completed work</span></button>
@@ -44083,6 +44084,74 @@ a{color:#93c5fd;text-decoration:none}
     </section>
 
     
+    
+    <section class="tabpane" id="pane-buy">
+      <div class="compact-tab-head" id="buy-compact-head"><h1 class="compact-tab-title">Buy VOID</h1></div>
+
+      <div class="grid-2-eq">
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Buy VOID<span class="help" tabindex="0" data-help="Shows the planned purchase rail and whether this participant session has a linked execution wallet ready for delivery.">?</span></h2>
+            </div>
+          </div>
+          <div class="metric-strip top-kpis" style="margin-top:6px">
+            <div class="mini">
+              <div class="k">Rail</div>
+              <div class="v" id="buyRailStatus">-</div>
+              <div class="s">supported payment path</div>
+            </div>
+            <div class="mini">
+              <div class="k">Delivery Wallet</div>
+              <div class="v" id="buyWalletAddr">-</div>
+              <div class="s">stored execution wallet</div>
+            </div>
+            <div class="mini">
+              <div class="k">Wallet State</div>
+              <div class="v" id="buyWalletState">-</div>
+              <div class="s">participant-side readiness</div>
+            </div>
+            <div class="mini">
+              <div class="k">Wallet VOID</div>
+              <div class="v" id="buyWalletVoid">-</div>
+              <div class="s">current on-chain balance</div>
+            </div>
+          </div>
+          <div class="hero-note" id="buyActionSummary" style="margin-top:12px">Checking Buy VOID readiness…</div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Purchase Rules<span class="help" tabindex="0" data-help="This Buy VOID surface reflects the current Mainnet-0 product rules already chosen for funding and wallet safety.">?</span></h2>
+            </div>
+          </div>
+          <div class="metric-strip" style="margin-top:6px">
+            <div class="mini">
+              <div class="k">Asset</div>
+              <div class="v">USDC</div>
+              <div class="s">Base native USDC only</div>
+            </div>
+            <div class="mini">
+              <div class="k">Flow</div>
+              <div class="v">Participant</div>
+              <div class="s">start here only</div>
+            </div>
+            <div class="mini">
+              <div class="k">Blind Deposits</div>
+              <div class="v">Blocked</div>
+              <div class="s">not supported</div>
+            </div>
+          </div>
+          <div class="hero-note" id="buyPathNote" style="margin-top:12px">Buy VOID path loading…</div>
+          <div class="action-rail" style="margin-top:10px">
+            <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
+            <a class="linkbtn" href="/participant#staking">Open Stake</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="tabpane" id="pane-staking">
       <div class="compact-tab-head" id="staking-compact-head"><h1 class="compact-tab-title">Stake</h1></div>
 
@@ -45541,6 +45610,26 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       executionWalletAddr
         ? ("Execution wallet " + shortAddr(executionWalletAddr) + " is linked. This stake tab now mirrors live validator truth and staking readiness on this node.")
         : "No execution wallet linked yet. Link or unlock a wallet first, then come back here to check staking readiness."
+    );
+
+    const buyWalletState = executionWalletAddr
+      ? (executionWalletUnlocked ? "Ready" : "Stored")
+      : "Missing";
+    setText("buyRailStatus", "Base USDC");
+    setText("buyWalletAddr", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
+    setText("buyWalletState", buyWalletState);
+    setText("buyWalletVoid", executionWalletVoidText);
+    setText(
+      "buyActionSummary",
+      executionWalletAddr
+        ? ("Participant-page-only Buy VOID is the planned funding rail. Delivery will target the stored execution wallet " + shortAddr(executionWalletAddr) + ".")
+        : "No execution wallet linked yet. Link a wallet first before using the future Buy VOID flow."
+    );
+    setText(
+      "buyPathNote",
+      executionWalletAddr
+        ? ("Base native USDC only • initiate purchases from this participant page • blind direct deposits and exchange/custodial sends are not supported.")
+        : "Base native USDC only • participant-page initiation only • blind direct deposits are not supported • link a wallet first."
     );
 
     const renderTradeDirectionUi = () => {
