@@ -43521,6 +43521,7 @@ a{color:#93c5fd;text-decoration:none}
         <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work, get a receipt, and earn WC</span></button>
         <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
         <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">check prices and trade WC for VOID</span></button>
+        <button class="tabbtn" data-tab="staking" id="tab-staking">Stake<span class="navhint">check validator staking readiness and live validator truth</span></button>
         <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">view balances, send WC, and manage VOID</span></button>
         <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">review receipts and outputs from completed work</span></button>
       </nav>
@@ -44078,6 +44079,84 @@ a{color:#93c5fd;text-decoration:none}
             <pre id="tradeStateOut" style="margin-top:10px;max-height:220px;overflow:auto">loading…</pre>
           </div>
         </details>
+      </div>
+    </section>
+
+    
+    <section class="tabpane" id="pane-staking">
+      <div class="compact-tab-head" id="staking-compact-head"><h1 class="compact-tab-title">Stake</h1></div>
+
+      <div class="grid-2-eq">
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Stake VOID<span class="help" tabindex="0" data-help="Shows the current validator minimum and whether the stored execution wallet is funded enough for validator staking policy on this node.">?</span></h2>
+            </div>
+          </div>
+          <div class="metric-strip top-kpis" style="margin-top:6px">
+            <div class="mini">
+              <div class="k">Min Stake</div>
+              <div class="v" id="stakeMinVoid">1000</div>
+              <div class="s">VOID policy minimum</div>
+            </div>
+            <div class="mini">
+              <div class="k">Wallet VOID</div>
+              <div class="v" id="stakeWalletVoid">-</div>
+              <div class="s">execution wallet</div>
+            </div>
+            <div class="mini">
+              <div class="k">Eligibility</div>
+              <div class="v" id="stakeWalletEligible">-</div>
+              <div class="s">minimum check</div>
+            </div>
+            <div class="mini">
+              <div class="k">Latest Epoch</div>
+              <div class="v" id="stakeRuntimeEpoch">-</div>
+              <div class="s">live validator truth</div>
+            </div>
+          </div>
+          <div class="hero-note" id="stakeActionSummary" style="margin-top:12px">Checking staking readiness…</div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Live Validator Set<span class="help" tabindex="0" data-help="Mirrors the live validator runtime truth already published on this node.">?</span></h2>
+            </div>
+          </div>
+          <div class="metric-strip" style="margin-top:6px">
+            <div class="mini">
+              <div class="k">Validators</div>
+              <div class="v" id="stakeRuntimeCount">-</div>
+              <div class="s">currently loaded</div>
+            </div>
+            <div class="mini">
+              <div class="k">Power</div>
+              <div class="v" id="stakeRuntimePower">-</div>
+              <div class="s">validator policy view</div>
+            </div>
+            <div class="mini">
+              <div class="k">Operator</div>
+              <div class="v" id="stakeRuntimeStatus">-</div>
+              <div class="s">summary status</div>
+            </div>
+          </div>
+          <div class="subtle-tab-copy" id="stakeRuntimeLoaded" style="margin-top:8px">Loaded epochs: -</div>
+          <div class="hero-note" id="stakeOperatorSummary" style="margin-top:8px">Validator truth loading…</div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:12px;padding:12px 14px">
+        <div class="section-head">
+          <div>
+            <h2>Participant Staking Path<span class="help" tabindex="0" data-help="This participant page now shows staking readiness and live validator truth. Browser stake execution is not wired yet; current live onboarding still runs through the node operator path.">?</span></h2>
+          </div>
+        </div>
+        <div class="hero-note" id="stakePathNote">Live validator onboarding is green on this node. This tab surfaces the real staking readiness and validator set truth first.</div>
+        <div class="action-rail" style="margin-top:10px">
+          <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
+          <a class="linkbtn" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Open Validator Summary</a>
+        </div>
       </div>
     </section>
 
@@ -45158,6 +45237,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const wcEarn = wcDash && wcDash.account && wcDash.account.earnings ? wcDash.account.earnings : null;
     const wcPool = wcDash && wcDash.pool ? wcDash.pool : null;
 
+    const validatorTruthStatus = await j("/__void/runtime/validator-truth/status").catch(() => ({ ok:false, unavailable:true }));
+    const validatorOperatorSummaryResp = await j("/__void/runtime/validator-truth/operator-summary").catch(() => ({ ok:false, unavailable:true }));
+    const validatorOperatorSummary = validatorOperatorSummaryResp && validatorOperatorSummaryResp.ok ? (validatorOperatorSummaryResp.summary || {}) : null;
+
     let connectedVoidBal = "-";
     if (wcBal && Number.isFinite(Number(wcBal.void))) {
       connectedVoidBal = String(Number(wcBal.void));
@@ -45414,6 +45497,50 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       executionWalletAddr
         ? ("Execution wallet: " + executionWalletAddr + " • " + (executionWalletUnlocked ? "Unlocked" : "Stored but locked") + " • On-chain VOID: " + executionWalletVoidText)
         : "No execution wallet detected."
+    );
+
+    const stakeMinVoid = 1000;
+    const stakeWalletVoid = executionWalletVoid !== null ? Number(executionWalletVoid) : 0;
+    const stakeEnough = Number.isFinite(stakeWalletVoid) && stakeWalletVoid >= stakeMinVoid;
+    const vtLoaded = validatorTruthStatus && Array.isArray(validatorTruthStatus.loadedEpochs) ? validatorTruthStatus.loadedEpochs : [];
+    const vtLatest = validatorTruthStatus && Number.isFinite(Number(validatorTruthStatus.latestEpoch))
+      ? Number(validatorTruthStatus.latestEpoch)
+      : null;
+    const vo = validatorOperatorSummary || {};
+    const voCount = Number.isFinite(Number(vo.validatorCount)) ? Number(vo.validatorCount) : null;
+    const voTarget = Number.isFinite(Number(vo.targetEpoch)) ? Number(vo.targetEpoch) : null;
+    const voExpected = Number.isFinite(Number(vo.expectedValidatorCount)) ? Number(vo.expectedValidatorCount) : null;
+    const voUnique = Number.isFinite(Number(vo.uniqueRewardCount)) ? Number(vo.uniqueRewardCount) : null;
+
+    setText("stakeMinVoid", stakeMinVoid);
+    setText("stakeWalletVoid", executionWalletVoidText);
+    setText("stakeWalletEligible", stakeEnough ? "Ready" : "Need more VOID");
+    setText("stakeRuntimeEpoch", vtLatest !== null ? vtLatest : "-");
+    setText("stakeRuntimeLoaded", "Loaded epochs: " + (vtLoaded.length ? vtLoaded.join(", ") : "-"));
+    setText("stakeRuntimeCount", voCount !== null ? voCount : "-");
+    setText("stakeRuntimePower", voCount !== null ? (voCount + " × 1000 VOID") : "-");
+    setText("stakeRuntimeStatus", vo && vo.overallGreen ? "Green" : "Check");
+    setText(
+      "stakeOperatorSummary",
+      validatorOperatorSummary
+        ? ("Target epoch " + (voTarget !== null ? voTarget : "-") +
+           " • expected validators " + (voExpected !== null ? voExpected : "-") +
+           " • unique rewards " + (voUnique !== null ? voUnique : "-") +
+           " • shadow mismatch " + String(vo.shadowMismatchCount ?? "-") +
+           " • compare mismatch " + String(vo.compareCoreMismatchCount ?? "-"))
+        : "Validator operator summary unavailable."
+    );
+    setText(
+      "stakeActionSummary",
+      stakeEnough
+        ? ("Execution wallet has enough VOID for the current 1000 VOID validator minimum. Live validator onboarding is green on this node, but browser staking execution is not wired yet.")
+        : ("Execution wallet has " + executionWalletVoidText + " VOID. You need at least 1000 VOID for the current validator minimum.")
+    );
+    setText(
+      "stakePathNote",
+      executionWalletAddr
+        ? ("Execution wallet " + shortAddr(executionWalletAddr) + " is linked. This stake tab now mirrors live validator truth and staking readiness on this node.")
+        : "No execution wallet linked yet. Link or unlock a wallet first, then come back here to check staking readiness."
     );
 
     const renderTradeDirectionUi = () => {
