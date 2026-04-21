@@ -45791,6 +45791,9 @@ a{color:#93c5fd;text-decoration:none}
         <details class="adv" style="margin-top:10px">
           <summary><span>Operator Handoff Commands</span><span class="pill">copy</span></summary>
           <div class="adv-body">
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
+              <button class="btn" type="button" id="stakeNextPlanCopyBtn">Copy Command</button>
+            </div>
             <pre id="stakeNextPlanOut">loading…</pre>
           </div>
         </details>
@@ -47245,6 +47248,42 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         nextStakeLiveCmd
       ].join("\n")
     );
+
+    const stakeNextPlanCopyBtn = $("stakeNextPlanCopyBtn");
+    if (stakeNextPlanCopyBtn) {
+      stakeNextPlanCopyBtn.onclick = async function(){
+        try {
+          const pre = $("stakeNextPlanOut");
+          const text = String((pre && (pre.textContent || pre.innerText)) || "").trim();
+          if (!text) {
+            alert("No command available yet.");
+            return;
+          }
+          const lines = text.split("\n").map(x => String(x).trim()).filter(Boolean);
+          const commandLine = lines.filter(x => !x.startsWith("#")).slice(-1)[0] || text;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(commandLine);
+          } else {
+            const ta = document.createElement("textarea");
+            ta.value = commandLine;
+            ta.setAttribute("readonly", "readonly");
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            ta.remove();
+          }
+          const old = stakeNextPlanCopyBtn.textContent || "Copy Command";
+          stakeNextPlanCopyBtn.textContent = "Copied";
+          setTimeout(function(){
+            try { stakeNextPlanCopyBtn.textContent = old; } catch (_) {}
+          }, 1200);
+        } catch (e) {
+          alert(String((e && e.message) || e || "copy failed"));
+        }
+      };
+    }
 
     const buyWalletState = executionWalletAddr
       ? (executionWalletUnlocked ? "Ready" : "Stored")
