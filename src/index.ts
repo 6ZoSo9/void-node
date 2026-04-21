@@ -43825,6 +43825,182 @@ a{color:#93c5fd;text-decoration:none}
         }
       });
 
+
+      appAny.get("/__void/operator/buy-void/base-watcher/view", (_req:any, res:any) => {
+        try {
+          const cfg = getWatcherConfig();
+          const pending = listPendingWatches(20);
+          const latest = latestWatch("");
+          const obs = listObs("", 20);
+          const obsCount = readLines(watcherObsFile()).length;
+          const esc = (x:any) => String(x ?? "").replace(/[&<>"']/g, (c:string) => (
+            c === "&" ? "&amp;" :
+            c === "<" ? "&lt;" :
+            c === ">" ? "&gt;" :
+            c === '"' ? "&quot;" : "&#39;"
+          ));
+          const pretty = (x:any) => esc(JSON.stringify(x, null, 2));
+          const pendingRows = pending.map((w:any) => {
+            return `<tr>
+              <td>${esc(w?.watch_id || "")}</td>
+              <td>${esc(w?.payment_tag || "")}</td>
+              <td>${esc(w?.watch_status || "")}</td>
+              <td>${esc(w?.payment_ref || "")}</td>
+              <td style="text-align:right">${esc(Number(w?.requested_amount_usdc || 0).toFixed(2))}</td>
+            </tr>`;
+          }).join("");
+          const obsRows = obs.map((o:any) => {
+            return `<tr>
+              <td>${esc(o?.obs_id || "")}</td>
+              <td>${esc(o?.payment_tag || "")}</td>
+              <td>${esc(o?.observed_status || "")}</td>
+              <td>${esc(o?.payment_ref || "")}</td>
+              <td style="text-align:right">${esc(Number(o?.observed_amount_usdc || 0).toFixed(2))}</td>
+            </tr>`;
+          }).join("");
+          const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Base Watcher</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;background:#0b1220;color:#e5e7eb;font:14px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px}
+  .top{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
+  .title{font-size:20px;font-weight:700}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  button,a.btn{border:1px solid #334155;background:#111827;color:#e5e7eb;border-radius:10px;padding:8px 12px;text-decoration:none;cursor:pointer}
+  .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .card{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:12px}
+  .k{color:#93c5fd;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  .v{font-size:18px;font-weight:700;margin-top:4px}
+  .sub{color:#94a3b8;font-size:12px}
+  .sec{margin-top:14px}
+  h2{font-size:14px;margin:0 0 8px 0;color:#93c5fd}
+  pre{margin:0;white-space:pre-wrap;word-break:break-word;background:#0b1220;border:1px solid #1f2937;border-radius:12px;padding:10px;max-height:360px;overflow:auto}
+  table{width:100%;border-collapse:collapse;background:#111827;border:1px solid #1f2937;border-radius:12px;overflow:hidden}
+  th,td{padding:8px 10px;border-bottom:1px solid #1f2937;text-align:left;vertical-align:top}
+  th{color:#93c5fd;font-size:12px}
+  td{font-size:12px}
+  .muted{color:#94a3b8}
+  .ok{color:#86efac}
+  .warn{color:#fca5a5}
+  @media (max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:640px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="title">Base Watcher</div>
+    <div class="actions">
+      <button id="runOnce">Run Once</button>
+      <a class="btn" href="/__void/operator/buy-void/base-watcher/status">Raw Status</a>
+      <a class="btn" href="/__void/operator/buy-void/base-watcher/observations?limit=20">Raw Observations</a>
+      <a class="btn" href="/__void/operator/buy-void/watch-targets?limit=20">Watch Targets</a>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="k">Enabled</div>
+      <div class="v">${cfg.enabled ? "true" : "false"}</div>
+      <div class="sub">${esc(cfg.mode || "")}</div>
+    </div>
+    <div class="card">
+      <div class="k">Pending</div>
+      <div class="v">${pending.length}</div>
+      <div class="sub">watch_target_created / payment_seen_recorded</div>
+    </div>
+    <div class="card">
+      <div class="k">Observations</div>
+      <div class="v">${obsCount}</div>
+      <div class="sub">${esc(cfg.chain || "")} / ${esc(cfg.asset || "")}</div>
+    </div>
+    <div class="card">
+      <div class="k">Receiver</div>
+      <div class="v" style="font-size:13px">${esc(cfg.receiver_address || "-")}</div>
+      <div class="sub">configured target</div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>Latest Watch</h2>
+    <pre>${pretty(latest || {})}</pre>
+  </div>
+
+  <div class="sec">
+    <h2>Pending Watches</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>watch_id</th>
+          <th>payment_tag</th>
+          <th>status</th>
+          <th>payment_ref</th>
+          <th>amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${pendingRows || '<tr><td colspan="5" class="muted">none</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sec">
+    <h2>Recent Observations</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>obs_id</th>
+          <th>payment_tag</th>
+          <th>status</th>
+          <th>payment_ref</th>
+          <th>amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${obsRows || '<tr><td colspan="5" class="muted">none</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(async function(){
+  var btn = document.getElementById("runOnce");
+  if (!btn) return;
+  btn.addEventListener("click", async function(){
+    try{
+      btn.disabled = true;
+      btn.textContent = "Running...";
+      var r = await fetch("/__void/operator/buy-void/base-watcher/run-once", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}"
+      });
+      var j = await r.json();
+      console.log(j);
+      location.reload();
+    }catch(e){
+      alert(String(e && e.message || e));
+      btn.disabled = false;
+      btn.textContent = "Run Once";
+    }
+  });
+})();
+</script>
+</body>
+</html>`;
+          res.setHeader("content-type", "text/html; charset=utf-8");
+          return res.status(200).end(html);
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
       appAny.get("/__void/operator/buy-void/watch-targets", (req:any, res:any) => {
         try {
           const account = safeAccount(req.query?.account);
