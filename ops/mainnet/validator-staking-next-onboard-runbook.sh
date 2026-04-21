@@ -35,17 +35,26 @@ def get_json(path: str):
 
 status = get_json("/__void/runtime/validator-truth/status")
 latest_epoch = int(status["latestEpoch"])
+loaded_epochs = [int(x) for x in (status.get("loadedEpochs") or [])]
 epoch_summary = get_json(f"/__void/runtime/validator-truth/epoch/{latest_epoch}")["summary"]
 window_len = int(epoch_summary.get("scheduleWindowLength") or 0)
 if window_len <= 0:
     raise SystemExit(f"[ERR] invalid scheduleWindowLength for epoch {latest_epoch}: {window_len}")
-window = get_json(f"/__void/runtime/validator-truth/window/{latest_epoch}/0/{window_len}")["window"]
 
-used_rewards = sorted({
-    str(row.get("reward", "")).lower()
-    for row in window
-    if isinstance(row, dict) and row.get("reward")
-})
+current_window = get_json(f"/__void/runtime/validator-truth/window/{latest_epoch}/0/{window_len}")["window"]
+
+historical_used_rewards = set()
+for epoch in loaded_epochs:
+    epoch_summary_i = get_json(f"/__void/runtime/validator-truth/epoch/{epoch}")["summary"]
+    epoch_window_len = int(epoch_summary_i.get("scheduleWindowLength") or 0)
+    if epoch_window_len <= 0:
+        raise SystemExit(f"[ERR] invalid scheduleWindowLength for epoch {epoch}: {epoch_window_len}")
+    epoch_window = get_json(f"/__void/runtime/validator-truth/window/{epoch}/0/{epoch_window_len}")["window"]
+    for row in epoch_window:
+        if isinstance(row, dict) and row.get("reward"):
+            historical_used_rewards.add(str(row.get("reward", "")).lower())
+
+used_rewards = sorted(historical_used_rewards)
 
 secrets = json.loads(Path(secrets_path).read_text(encoding="utf-8"))
 rows = secrets.get("keys") if isinstance(secrets, dict) else secrets
