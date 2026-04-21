@@ -43338,6 +43338,11 @@ a{color:#93c5fd;text-decoration:none}
       const allowed = new Set(["payment_seen","payment_confirmed"]);
       return allowed.has(v) ? v : "";
     }
+    function safeFulfillStatus(x:any){
+      const v = safeStr(x, 64);
+      const allowed = new Set(["void_sent","completed"]);
+      return allowed.has(v) ? v : "";
+    }
     function nowMs(){ return Date.now(); }
     function makeId(){
       const crypto = require("node:crypto");
@@ -43455,6 +43460,7 @@ a{color:#93c5fd;text-decoration:none}
             payment_ref: "",
             observed_amount_usdc: 0,
             observed_amount_match: false,
+            void_tx_ref: "",
             fulfillment_lane: String(src.fulfillment_lane || "buy_void_base_usdc_v1_future"),
           };
 
@@ -43519,6 +43525,63 @@ a{color:#93c5fd;text-decoration:none}
                 q = appendQueueTransition(q, "payment_confirmed", safeNote(req.body?.operator_note || "manual payment confirmation"), paymentRef, "");
                 queueUpdates.push(q);
               }
+            }
+          }
+
+          return res.json({ ok:true, watch: watchRow, queue_updates: queueUpdates });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.post("/__void/operator/buy-void/watch-targets/fulfill", (req:any, res:any) => {
+        try {
+          const watchId = safeId(req.body?.watch_id);
+          const fulfillStatus = safeFulfillStatus(req.body?.fulfill_status || req.body?.watch_status || req.body?.operator_status);
+          const voidTxRef = safeTxRef(req.body?.void_tx_ref);
+
+          if (!watchId) return res.status(400).json({ ok:false, error:"missing_watch_id" });
+          if (!fulfillStatus) return res.status(400).json({ ok:false, error:"invalid_fulfill_status" });
+          if (!voidTxRef) return res.status(400).json({ ok:false, error:"missing_void_tx_ref" });
+
+          const curWatch = findWatchById(watchId);
+          if (!curWatch) return res.status(404).json({ ok:false, error:"watch_not_found" });
+
+          const curQueue = findQueuedById(String(curWatch.queue_id || ""));
+          if (!curQueue) return res.status(404).json({ ok:false, error:"queue_not_found_for_watch", watch: curWatch });
+
+          const curQueueStatus = String(curQueue?.operator_status || "");
+          if (curQueueStatus !== "payment_confirmed" && curQueueStatus !== "void_sent") {
+            return res.status(400).json({ ok:false, error:"queue_not_ready_for_fulfill", queued: curQueue, watch: curWatch });
+          }
+
+          const watchRow = {
+            ...curWatch,
+            ok: true,
+            ts_ms: nowMs(),
+            source_operator_status: curQueueStatus,
+            watch_status: fulfillStatus === "completed" ? "completed_recorded" : "void_sent_recorded",
+            operator_note: safeNote(req.body?.operator_note || curWatch?.operator_note || ""),
+            void_tx_ref: voidTxRef,
+          };
+          appendJsonl(watchFile(), watchRow);
+
+          const queueUpdates:any[] = [];
+          let q = curQueue;
+
+          if (fulfillStatus === "void_sent") {
+            if (canQueueTransition(String(q?.operator_status || ""), "void_sent")) {
+              q = appendQueueTransition(q, "void_sent", safeNote(req.body?.operator_note || "manual VOID send"), String(curQueue?.payment_ref || ""), voidTxRef);
+              queueUpdates.push(q);
+            }
+          } else if (fulfillStatus === "completed") {
+            if (String(q?.operator_status || "") === "payment_confirmed" && canQueueTransition("payment_confirmed", "void_sent")) {
+              q = appendQueueTransition(q, "void_sent", safeNote(req.body?.operator_note || "manual VOID send"), String(curQueue?.payment_ref || ""), voidTxRef);
+              queueUpdates.push(q);
+            }
+            if (canQueueTransition(String(q?.operator_status || ""), "completed")) {
+              q = appendQueueTransition(q, "completed", safeNote(req.body?.operator_note || "manual fulfillment completion"), String(q?.payment_ref || curQueue?.payment_ref || ""), voidTxRef);
+              queueUpdates.push(q);
             }
           }
 
