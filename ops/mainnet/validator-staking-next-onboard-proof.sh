@@ -27,8 +27,11 @@ def query(expr: str):
 
 status = get_json(base + "/__void/runtime/validator-truth/status")
 assert status.get("mode") == "verified_epoch_manifests", status
-assert status.get("latestEpoch") == 4, status
-assert status.get("loadedEpochs") == [1,2,3,4], status
+loaded_epochs = status.get("loadedEpochs") or []
+assert isinstance(loaded_epochs, list) and loaded_epochs, status
+latest_epoch = int(status.get("latestEpoch"))
+assert latest_epoch == max(int(x) for x in loaded_epochs), status
+assert loaded_epochs == list(range(1, latest_epoch + 1)), status
 
 required = {
     "void_validator_operator_overall_green": "1",
