@@ -586,6 +586,75 @@ app.get("/__void/runtime/validator-truth/operator-summary", (_req: any, res: any
   return res.status(summary.ok ? 200 : 500).json(summary);
 });
 
+app.get("/__void/runtime/validator-truth/next-onboard", async (_req: any, res: any) => {
+  try {
+    const cp = require("child_process");
+    const util = require("util");
+    const pathMod = require("path");
+    const execFile = util.promisify(cp.execFile);
+
+    const secretsPath = String(
+      process.env.VOID_VALIDATOR_NEXT_ONBOARD_SECRETS ||
+      "/mnt/key2/mainnet-keygen/20260418-023715/private/wallet-secrets.json"
+    ).trim();
+    const home = String(process.env.HOME || "").trim();
+    const repoRoot = home
+      ? pathMod.join(home, "dev", "void-node")
+      : process.cwd();
+    const runbook = pathMod.join(repoRoot, "ops", "mainnet", "validator-staking-next-onboard-runbook.sh");
+    const base = "http://127.0.0.1:4100";
+    const env = Object.assign({}, process.env, {
+      DRY_RUN: "1",
+      SKIP_PREFLIGHT: "1",
+      BASE: base,
+      SECRETS: secretsPath,
+    });
+
+    const child = await execFile("bash", [runbook], {
+      encoding: "utf8",
+      env,
+      cwd: repoRoot,
+      maxBuffer: 1024 * 1024,
+    });
+    const text = String(child?.stdout || "");
+
+    const grab = (name: string) => {
+      const m = text.match(new RegExp("^" + name + "=(.+)$", "m"));
+      return m ? String(m[1]).trim() : "";
+    };
+
+    const usedRewardsRaw = grab("used_rewards_json");
+    let usedRewards: any[] = [];
+    try { usedRewards = usedRewardsRaw ? JSON.parse(usedRewardsRaw) : []; } catch (_) { usedRewards = []; }
+
+    const out = {
+      ok: true,
+      base,
+      runbook,
+      secretsPath,
+      selectedCandidateName: grab("selected_candidate_name"),
+      selectedCandidateAddr: grab("selected_candidate_addr"),
+      currentEpoch: Number(grab("current_epoch") || 0),
+      targetEpoch: Number(grab("target_epoch") || 0),
+      currentValidatorCount: Number(grab("current_validator_count") || 0),
+      expectedValidatorCount: Number(grab("expected_validator_count") || 0),
+      windowLength: Number(grab("window_length") || 0),
+      usedRewards,
+      command: grab("command"),
+      raw: text,
+    };
+    return res.json(out);
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      error: String(e?.message || e),
+      stdout: String(e?.stdout || ""),
+      stderr: String(e?.stderr || ""),
+    });
+  }
+});
+
+
 app.get("/__void/runtime/validator-truth/diag/all", (_req: any, res: any) => {
   const status = __voidReadValidatorRuntimeTruthStatus();
   const shadow = __voidReadValidatorRuntimeTruthShadowLatest();
@@ -46804,6 +46873,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const validatorTruthStatus = await j("/__void/runtime/validator-truth/status").catch(() => ({ ok:false, unavailable:true }));
     const validatorOperatorSummaryResp = await j("/__void/runtime/validator-truth/operator-summary").catch(() => ({ ok:false, unavailable:true }));
     const validatorOperatorSummary = validatorOperatorSummaryResp && validatorOperatorSummaryResp.ok ? (validatorOperatorSummaryResp.summary || {}) : null;
+    const validatorNextOnboardResp = await j("/__void/runtime/validator-truth/next-onboard").catch(() => ({ ok:false, unavailable:true }));
+    const validatorNextOnboard = validatorNextOnboardResp && validatorNextOnboardResp.ok ? validatorNextOnboardResp : null;
 
     let connectedVoidBal = "-";
     if (wcBal && Number.isFinite(Number(wcBal.void))) {
@@ -47107,30 +47178,57 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         : "No execution wallet linked yet. Link or unlock a wallet first, then come back here to check staking readiness."
     );
 
-    const nextStakeEpoch = vtLatest !== null ? (vtLatest + 1) : null;
-    const nextStakeCount = voCount !== null ? (voCount + 1) : null;
+    const nextStakeEpoch = validatorNextOnboard && Number.isFinite(Number(validatorNextOnboard.targetEpoch))
+      ? Number(validatorNextOnboard.targetEpoch)
+      : (vtLatest !== null ? (vtLatest + 1) : null);
+    const nextStakeCount = validatorNextOnboard && Number.isFinite(Number(validatorNextOnboard.expectedValidatorCount))
+      ? Number(validatorNextOnboard.expectedValidatorCount)
+      : (voCount !== null ? (voCount + 1) : null);
     const nextStakeRunbook = "/home/zoso/dev/void-node/ops/mainnet/validator-staking-next-onboard-runbook.sh";
     const nextStakeDryRunCmd = nextStakeEpoch !== null && nextStakeCount !== null
       ? ("DRY_RUN=1 TARGET_EPOCH=" + nextStakeEpoch + " EXPECTED_VALIDATOR_COUNT=" + nextStakeCount + " " + nextStakeRunbook)
       : ("DRY_RUN=1 " + nextStakeRunbook);
-    const nextStakeLiveCmd = nextStakeEpoch !== null && nextStakeCount !== null
-      ? ("DRY_RUN=0 TARGET_EPOCH=" + nextStakeEpoch + " EXPECTED_VALIDATOR_COUNT=" + nextStakeCount + " " + nextStakeRunbook)
-      : ("DRY_RUN=0 " + nextStakeRunbook);
+    const nextStakeLiveCmd = (validatorNextOnboard && validatorNextOnboard.command)
+      ? String(validatorNextOnboard.command)
+      : (
+          nextStakeEpoch !== null && nextStakeCount !== null
+            ? ("DRY_RUN=0 TARGET_EPOCH=" + nextStakeEpoch + " EXPECTED_VALIDATOR_COUNT=" + nextStakeCount + " " + nextStakeRunbook)
+            : ("DRY_RUN=0 " + nextStakeRunbook)
+        );
+    const nextStakeCandidateName = validatorNextOnboard && validatorNextOnboard.selectedCandidateName
+      ? String(validatorNextOnboard.selectedCandidateName)
+      : "";
+    const nextStakeCandidateAddr = validatorNextOnboard && validatorNextOnboard.selectedCandidateAddr
+      ? String(validatorNextOnboard.selectedCandidateAddr)
+      : "";
 
     setText("stakeNextEpoch", nextStakeEpoch !== null ? nextStakeEpoch : "-");
     setText("stakeNextCount", nextStakeCount !== null ? nextStakeCount : "-");
-    setText("stakePlanState", (vo && vo.overallGreen) ? "Ready" : "Check");
+    setText("stakePlanState", (validatorNextOnboard && validatorNextOnboard.ok) ? "Ready" : ((vo && vo.overallGreen) ? "Ready" : "Check"));
     setText(
       "stakeNextPlanSummary",
-      (vo && vo.overallGreen && nextStakeEpoch !== null && nextStakeCount !== null)
-        ? ("Operator next step is ready. The next onboarding runbook will auto-select the next unused vault and target epoch " + nextStakeEpoch + " with validator count " + nextStakeCount + ".")
-        : "Next validator plan unavailable until live validator truth and operator summary are green."
+      (validatorNextOnboard && validatorNextOnboard.ok && nextStakeEpoch !== null && nextStakeCount !== null)
+        ? (
+            "Operator next step is ready. Dry-run selected " +
+            (nextStakeCandidateName || "next unused vault") +
+            (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") +
+            " for epoch " + nextStakeEpoch +
+            " with validator count " + nextStakeCount + "."
+          )
+        : (
+            (vo && vo.overallGreen && nextStakeEpoch !== null && nextStakeCount !== null)
+              ? ("Operator next step is ready. The next onboarding runbook will auto-select the next unused vault and target epoch " + nextStakeEpoch + " with validator count " + nextStakeCount + ".")
+              : "Next validator plan unavailable until live validator truth and operator summary are green."
+          )
     );
     setText(
       "stakeNextPlanOut",
       [
         "# Dry-run next validator selection",
         nextStakeDryRunCmd,
+        "",
+        "# Selected candidate",
+        (nextStakeCandidateName || "(unavailable)") + (nextStakeCandidateAddr ? (" " + nextStakeCandidateAddr) : ""),
         "",
         "# Live operator execution",
         nextStakeLiveCmd
