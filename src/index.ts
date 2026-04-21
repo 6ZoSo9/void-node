@@ -43697,14 +43697,15 @@ a{color:#93c5fd;text-decoration:none}
       appAny.post("/__void/operator/buy-void/base-watcher/config", (req:any, res:any) => {
         try {
           const cur = getWatcherConfig();
+          const has = (k:string) => !!req.body && Object.prototype.hasOwnProperty.call(req.body, k);
           const next = {
             enabled: safeBool(req.body?.enabled, cur.enabled),
-            mode: safeStr(req.body?.mode || cur.mode, 64) || cur.mode,
-            chain: safeStr(req.body?.chain || cur.chain, 32) || cur.chain,
-            asset: safeStr(req.body?.asset || cur.asset, 64) || cur.asset,
-            receiver_address: safeStr(req.body?.receiver_address || cur.receiver_address, 120),
-            rpc_url: safeStr(req.body?.rpc_url || cur.rpc_url, 240),
-            token_address: safeStr(req.body?.token_address || cur.token_address, 120),
+            mode: has("mode") ? (safeStr(req.body?.mode, 64) || "") : cur.mode,
+            chain: has("chain") ? (safeStr(req.body?.chain, 32) || "") : cur.chain,
+            asset: has("asset") ? (safeStr(req.body?.asset, 64) || "") : cur.asset,
+            receiver_address: has("receiver_address") ? safeStr(req.body?.receiver_address, 120) : cur.receiver_address,
+            rpc_url: has("rpc_url") ? safeStr(req.body?.rpc_url, 240) : cur.rpc_url,
+            token_address: has("token_address") ? safeStr(req.body?.token_address, 120) : cur.token_address,
             token_decimals: Math.max(0, Math.min(30, Math.floor(Number(req.body?.token_decimals ?? cur.token_decimals) || Number(cur.token_decimals) || 6))),
             confirmations_required: Math.max(1, Math.min(100, Math.floor(Number(req.body?.confirmations_required ?? cur.confirmations_required) || Number(cur.confirmations_required) || 1))),
           };
