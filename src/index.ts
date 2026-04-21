@@ -43325,6 +43325,19 @@ a{color:#93c5fd;text-decoration:none}
     function safeNote(x:any){
       return safeStr(x, 500);
     }
+    function safeTxRef(x:any){
+      return safeStr(x, 160);
+    }
+    function safeAmountUsdc(x:any){
+      const n = Number(x);
+      if (!Number.isFinite(n) || n <= 0) return 0;
+      return Math.round(n * 1_000_000) / 1_000_000;
+    }
+    function safeObserveStatus(x:any){
+      const v = safeStr(x, 64);
+      const allowed = new Set(["payment_seen","payment_confirmed"]);
+      return allowed.has(v) ? v : "";
+    }
     function nowMs(){ return Date.now(); }
     function makeId(){
       const crypto = require("node:crypto");
@@ -43348,7 +43361,6 @@ a{color:#93c5fd;text-decoration:none}
       const latest = latestQueueById();
       return latest.get(queueId) || null;
     }
-
     function latestWatchById(): Map<string, any> {
       const out = new Map<string, any>();
       const lines = readLines(watchFile());
@@ -43375,6 +43387,33 @@ a{color:#93c5fd;text-decoration:none}
     function findWatchById(watchId:string): any {
       const latest = latestWatchById();
       return latest.get(watchId) || null;
+    }
+    function canQueueTransition(fromStatus:string, toStatus:string): boolean {
+      const edges:any = {
+        queued: new Set(["payment_seen","failed"]),
+        payment_seen: new Set(["payment_confirmed","failed"]),
+        payment_confirmed: new Set(["void_sent","failed"]),
+        void_sent: new Set(["completed","failed"]),
+        completed: new Set([]),
+        failed: new Set([]),
+      };
+      return !!(edges[fromStatus] && edges[fromStatus].has(toStatus));
+    }
+    function appendQueueTransition(cur:any, nextStatus:string, note:string, paymentRef:string, voidTxRef:string){
+      const row = {
+        ...cur,
+        ok: true,
+        ts_ms: nowMs(),
+        operator_status: nextStatus,
+        operator_note: safeNote(note || cur?.operator_note || ""),
+        payment_ref: safeTxRef(paymentRef || cur?.payment_ref || ""),
+        void_tx_ref: safeTxRef(voidTxRef || cur?.void_tx_ref || ""),
+      };
+      appendJsonl(queueFile(), row);
+      return row;
+    }
+    function amountMatches(expected:any, observed:any): boolean {
+      return Math.abs(Number(expected || 0) - Number(observed || 0)) < 0.000001;
     }
 
     function mount(){
@@ -43415,11 +43454,75 @@ a{color:#93c5fd;text-decoration:none}
             operator_note: safeNote(req.body?.operator_note || ""),
             payment_ref: "",
             observed_amount_usdc: 0,
+            observed_amount_match: false,
             fulfillment_lane: String(src.fulfillment_lane || "buy_void_base_usdc_v1_future"),
           };
 
           appendJsonl(watchFile(), row);
           return res.json({ ok:true, watch: row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.post("/__void/operator/buy-void/watch-targets/observe", (req:any, res:any) => {
+        try {
+          const watchId = safeId(req.body?.watch_id);
+          const observeStatus = safeObserveStatus(req.body?.observe_status || req.body?.watch_status || req.body?.operator_status);
+          const paymentRef = safeTxRef(req.body?.payment_ref);
+          const observedAmountUsdc = safeAmountUsdc(req.body?.observed_amount_usdc ?? req.body?.amount_usdc ?? req.body?.amount);
+
+          if (!watchId) return res.status(400).json({ ok:false, error:"missing_watch_id" });
+          if (!observeStatus) return res.status(400).json({ ok:false, error:"invalid_observe_status" });
+          if (!paymentRef) return res.status(400).json({ ok:false, error:"missing_payment_ref" });
+          if (!(observedAmountUsdc > 0)) return res.status(400).json({ ok:false, error:"invalid_observed_amount_usdc" });
+
+          const curWatch = findWatchById(watchId);
+          if (!curWatch) return res.status(404).json({ ok:false, error:"watch_not_found" });
+
+          const curQueue = findQueuedById(String(curWatch.queue_id || ""));
+          if (!curQueue) return res.status(404).json({ ok:false, error:"queue_not_found_for_watch", watch: curWatch });
+
+          const match = amountMatches(curWatch.requested_amount_usdc, observedAmountUsdc);
+          const nextWatchStatus = match
+            ? (observeStatus === "payment_confirmed" ? "payment_confirmed_recorded" : "payment_seen_recorded")
+            : "payment_mismatch";
+
+          const watchRow = {
+            ...curWatch,
+            ok: match,
+            ts_ms: nowMs(),
+            source_operator_status: String(curQueue.operator_status || ""),
+            watch_status: nextWatchStatus,
+            operator_note: safeNote(req.body?.operator_note || curWatch?.operator_note || ""),
+            payment_ref: paymentRef,
+            observed_amount_usdc: observedAmountUsdc,
+            observed_amount_match: match,
+          };
+          appendJsonl(watchFile(), watchRow);
+
+          const queueUpdates:any[] = [];
+          let q = curQueue;
+
+          if (match) {
+            if (observeStatus === "payment_seen") {
+              if (canQueueTransition(String(q?.operator_status || ""), "payment_seen")) {
+                q = appendQueueTransition(q, "payment_seen", safeNote(req.body?.operator_note || "manual payment observation"), paymentRef, "");
+                queueUpdates.push(q);
+              }
+            } else if (observeStatus === "payment_confirmed") {
+              if (String(q?.operator_status || "") === "queued" && canQueueTransition("queued", "payment_seen")) {
+                q = appendQueueTransition(q, "payment_seen", safeNote(req.body?.operator_note || "manual payment observation"), paymentRef, "");
+                queueUpdates.push(q);
+              }
+              if (canQueueTransition(String(q?.operator_status || ""), "payment_confirmed")) {
+                q = appendQueueTransition(q, "payment_confirmed", safeNote(req.body?.operator_note || "manual payment confirmation"), paymentRef, "");
+                queueUpdates.push(q);
+              }
+            }
+          }
+
+          return res.json({ ok:true, watch: watchRow, queue_updates: queueUpdates });
         } catch (e:any) {
           return res.status(500).json({ ok:false, error:String(e?.message || e) });
         }
@@ -43462,7 +43565,6 @@ a{color:#93c5fd;text-decoration:none}
     mount();
   } catch {}
 })();
-
 
 // [removed legacy participant-dashboard-v1 duplicate block]
 
