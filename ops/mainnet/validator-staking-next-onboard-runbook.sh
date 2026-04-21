@@ -61,6 +61,8 @@ rows = secrets.get("keys") if isinstance(secrets, dict) else secrets
 if not isinstance(rows, list):
     raise SystemExit("[ERR] wallet-secrets shape not recognized")
 
+validator_count = int(epoch_summary["validatorCount"])
+
 vaults = []
 for row in rows:
     if not isinstance(row, dict):
@@ -71,29 +73,34 @@ for row in rows:
         continue
     if addr and not addr.startswith("0x"):
         addr = "0x" + addr
-    vaults.append((name, addr.lower(), addr))
+    vault_num = int(name[-2:])
+    vaults.append((name, addr.lower(), addr, vault_num))
 
-vaults.sort()
+vaults.sort(key=lambda x: (x[3], x[0]))
 
 chosen = None
 if candidate_override:
-    for name, addr_l, addr in vaults:
+    for name, addr_l, addr, vault_num in vaults:
         if name == candidate_override:
-            chosen = (name, addr_l, addr)
+            chosen = (name, addr_l, addr, vault_num)
             break
     if chosen is None:
         raise SystemExit(f"[ERR] requested candidate not found in wallet-secrets: {candidate_override}")
 else:
+    min_vault_num = validator_count
     for item in vaults:
-        if item[1] not in used_rewards:
-            chosen = item
-            break
+        name, addr_l, addr, vault_num = item
+        if vault_num < min_vault_num:
+            continue
+        if addr_l in used_rewards:
+            continue
+        chosen = item
+        break
 
 if chosen is None:
     raise SystemExit("[ERR] no unused vaultNN candidate remains")
 
-candidate_name, candidate_addr_l, candidate_addr = chosen
-validator_count = int(epoch_summary["validatorCount"])
+candidate_name, candidate_addr_l, candidate_addr, candidate_vault_num = chosen
 
 print(candidate_name)
 print(candidate_addr)
