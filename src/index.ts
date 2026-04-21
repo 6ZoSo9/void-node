@@ -654,6 +654,81 @@ app.get("/__void/runtime/validator-truth/next-onboard", async (_req: any, res: a
   }
 });
 
+app.post("/__void/participant/stake/next-onboard", require("express").json({ limit: "64kb" }), async (req: any, res: any) => {
+  try {
+    if (!(req?.body && req.body.confirm === true)) {
+      return res.status(400).json({
+        ok: false,
+        error: "confirmation_required",
+        hint: "POST {\"confirm\":true} to execute live onboarding"
+      });
+    }
+
+    const cp = require("child_process");
+    const util = require("util");
+    const pathMod = require("path");
+    const execFile = util.promisify(cp.execFile);
+
+    const secretsPath = String(
+      process.env.VOID_VALIDATOR_NEXT_ONBOARD_SECRETS ||
+      "/mnt/key2/mainnet-keygen/20260418-023715/private/wallet-secrets.json"
+    ).trim();
+
+    const home = String(process.env.HOME || "").trim();
+    const repoRoot = home
+      ? pathMod.join(home, "dev", "void-node")
+      : process.cwd();
+    const runbook = pathMod.join(repoRoot, "ops", "mainnet", "validator-staking-next-onboard-runbook.sh");
+    const base = "http://127.0.0.1:4100";
+
+    const env = Object.assign({}, process.env, {
+      DRY_RUN: "0",
+      BASE: base,
+      SECRETS: secretsPath,
+    });
+
+    const child = await execFile("bash", [runbook], {
+      encoding: "utf8",
+      env,
+      cwd: repoRoot,
+      maxBuffer: 8 * 1024 * 1024,
+    });
+
+    const stdout = String(child?.stdout || "");
+    const stderr = String(child?.stderr || "");
+
+    const grab = (name: string) => {
+      const m = stdout.match(new RegExp("^" + name + "=(.+)$", "m"));
+      return m ? String(m[1]).trim() : "";
+    };
+
+    return res.json({
+      ok: true,
+      base,
+      runbook,
+      secretsPath,
+      selectedCandidateName: grab("selected_candidate_name"),
+      selectedCandidateAddr: grab("selected_candidate_addr"),
+      currentEpoch: Number(grab("current_epoch") || 0),
+      targetEpoch: Number(grab("target_epoch") || 0),
+      currentValidatorCount: Number(grab("current_validator_count") || 0),
+      expectedValidatorCount: Number(grab("expected_validator_count") || 0),
+      command: grab("command"),
+      reportJson: grab("report_json"),
+      stdout,
+      stderr,
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      error: String(e?.message || e),
+      stdout: String(e?.stdout || ""),
+      stderr: String(e?.stderr || ""),
+    });
+  }
+});
+
+
 
 app.get("/__void/runtime/validator-truth/diag/all", (_req: any, res: any) => {
   const status = __voidReadValidatorRuntimeTruthStatus();
@@ -45756,7 +45831,9 @@ a{color:#93c5fd;text-decoration:none}
         <div class="action-rail" style="margin-top:10px">
           <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
           <a class="linkbtn" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Open Validator Summary</a>
+          <button class="btn btn-primary" type="button" id="stakeNextOnboardBtn">Run Next Onboard</button>
         </div>
+        <div class="hero-note" id="stakeNextOnboardStatus" style="margin-top:10px">Live onboarding action not started.</div>
       </div>
     
       <div class="panel" style="margin-top:12px;padding:12px 14px">
@@ -47281,6 +47358,68 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           }, 1200);
         } catch (e) {
           alert(String((e && e.message) || e || "copy failed"));
+        }
+      };
+    }
+
+    const stakeNextOnboardBtn = $("stakeNextOnboardBtn");
+    const stakeNextOnboardStatus = $("stakeNextOnboardStatus");
+    if (stakeNextOnboardBtn) {
+      const canRunStakeNextOnboard = !!(validatorNextOnboard && validatorNextOnboard.ok && vo && vo.overallGreen && stakeEnough);
+      stakeNextOnboardBtn.disabled = !canRunStakeNextOnboard;
+      stakeNextOnboardBtn.title = canRunStakeNextOnboard
+        ? "Run live next-validator onboarding using the current operator truth."
+        : "Needs green validator operator summary, green next-onboard selector, and at least 1000 VOID in the execution wallet.";
+
+      setText(
+        "stakeNextOnboardStatus",
+        canRunStakeNextOnboard
+          ? ("Ready to run live onboarding for " + (nextStakeCandidateName || "next vault") + (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") + ". This mutates live validator state.")
+          : "Live onboarding action unavailable until wallet readiness, next-onboard selector truth, and operator summary are green."
+      );
+
+      stakeNextOnboardBtn.onclick = async function(){
+        try {
+          if (!canRunStakeNextOnboard) return;
+          const label = (nextStakeCandidateName || "next validator") + (nextStakeCandidateAddr ? (" " + nextStakeCandidateAddr) : "");
+          const ok = confirm("Run live next-validator onboarding for " + label + "? This mutates live validator state.");
+          if (!ok) return;
+
+          const old = stakeNextOnboardBtn.textContent || "Run Next Onboard";
+          stakeNextOnboardBtn.disabled = true;
+          stakeNextOnboardBtn.textContent = "Running…";
+          setText("stakeNextOnboardStatus", "Running live onboarding…");
+
+          const out = await j("/__void/participant/stake/next-onboard", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ confirm: true })
+          }).catch(() => ({ ok:false, error:"request_failed" }));
+
+          if (out && out.ok) {
+            const reportJson = String(out.reportJson || "").trim();
+            setText(
+              "stakeNextOnboardStatus",
+              "Live onboarding completed for " +
+                (out.selectedCandidateName || nextStakeCandidateName || "candidate") +
+                (out.selectedCandidateAddr ? (" " + shortAddr(String(out.selectedCandidateAddr))) : "") +
+                (reportJson ? (". report_json=" + reportJson) : ".")
+            );
+          } else {
+            setText(
+              "stakeNextOnboardStatus",
+              "Live onboarding failed: " + String((out && (out.error || out.stderr || out.stdout)) || "unknown_error")
+            );
+          }
+
+          stakeNextOnboardBtn.disabled = !canRunStakeNextOnboard;
+          stakeNextOnboardBtn.textContent = old;
+        } catch (e) {
+          try { setText("stakeNextOnboardStatus", "Live onboarding failed: " + String((e && e.message) || e || "unknown_error")); } catch (_) {}
+          try {
+            stakeNextOnboardBtn.disabled = false;
+            stakeNextOnboardBtn.textContent = "Run Next Onboard";
+          } catch (_) {}
         }
       };
     }
