@@ -45777,6 +45777,11 @@ a{color:#93c5fd;text-decoration:none}
             <div class="s">expected validator count</div>
           </div>
           <div class="mini">
+            <div class="k">Candidate</div>
+            <div class="v" id="stakeNextCandidate">-</div>
+            <div class="s">selected next vault</div>
+          </div>
+          <div class="mini">
             <div class="k">Runbook</div>
             <div class="v" id="stakePlanState">-</div>
             <div class="s">operator handoff path</div>
@@ -47204,6 +47209,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     setText("stakeNextEpoch", nextStakeEpoch !== null ? nextStakeEpoch : "-");
     setText("stakeNextCount", nextStakeCount !== null ? nextStakeCount : "-");
+    setText(
+      "stakeNextCandidate",
+      nextStakeCandidateName
+        ? (nextStakeCandidateAddr ? (nextStakeCandidateName + " " + shortAddr(nextStakeCandidateAddr)) : nextStakeCandidateName)
+        : "-"
+    );
     setText("stakePlanState", (validatorNextOnboard && validatorNextOnboard.ok) ? "Ready" : ((vo && vo.overallGreen) ? "Ready" : "Check"));
     setText(
       "stakeNextPlanSummary",
