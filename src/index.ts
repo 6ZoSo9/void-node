@@ -44632,6 +44632,39 @@ a{color:#93c5fd;text-decoration:none}
         </details>
       </div>
 
+    
+      <div class="panel" style="margin-top:12px;padding:12px 14px">
+        <div class="section-head">
+          <div>
+            <h2>Buy VOID Lifecycle<span class="help" tabindex="0" data-help="Shows the latest operator-side Buy VOID lifecycle item for this participant account, including current status, payment ref, and VOID tx ref.">?</span></h2>
+          </div>
+        </div>
+        <div class="metric-strip" style="margin-top:6px">
+          <div class="mini">
+            <div class="k">Status</div>
+            <div class="v" id="buyQueueStatus">-</div>
+            <div class="s">latest operator state</div>
+          </div>
+          <div class="mini">
+            <div class="k">Payment Ref</div>
+            <div class="v" id="buyQueuePaymentRef">-</div>
+            <div class="s">Base payment reference</div>
+          </div>
+          <div class="mini">
+            <div class="k">VOID Tx</div>
+            <div class="v" id="buyQueueVoidTxRef">-</div>
+            <div class="s">delivery transaction ref</div>
+          </div>
+        </div>
+        <div class="hero-note" id="buyQueueSummary" style="margin-top:12px">Checking operator lifecycle…</div>
+        <details class="adv" style="margin-top:10px">
+          <summary><span>Latest Operator Queue Artifact</span><span class="pill">json</span></summary>
+          <div class="adv-body">
+            <pre id="buyQueueOut">loading…</pre>
+          </div>
+        </details>
+      </div>
+
     </section>
 
     <section class="tabpane" id="pane-staking">
@@ -46232,6 +46265,42 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
     }
 
+
+    async function loadLatestBuyVoidOperatorQueue(){
+      const latest = await j("/__void/operator/buy-void/queue/latest?account=" + encodeURIComponent(account)).catch(() => ({ ok:false }));
+      const hist = await j("/__void/operator/buy-void/queue?account=" + encodeURIComponent(account) + "&limit=5").catch(() => ({ ok:false }));
+      if (latest && latest.ok && latest.queued) {
+        const q = latest.queued || {};
+        const histCount = hist && hist.ok ? Number(hist.count || 0) : 0;
+        setText("buyQueueStatus", String(q.operator_status || "-"));
+        setText("buyQueuePaymentRef", String(q.payment_ref || "-"));
+        setText("buyQueueVoidTxRef", String(q.void_tx_ref || "-"));
+        setText(
+          "buyQueueSummary",
+          "Latest operator item " + String(q.queue_id || "-") +
+          " • status " + String(q.operator_status || "-") +
+          " • request " + String(q.request_id || "-")
+        );
+        setText(
+          "buyQueueOut",
+          JSON.stringify({
+            latest: q,
+            history_count: histCount,
+            history: hist && hist.ok ? (hist.queued || []) : []
+          }, null, 2)
+        );
+      } else {
+        setText("buyQueueStatus", "No queue item");
+        setText("buyQueuePaymentRef", "-");
+        setText("buyQueueVoidTxRef", "-");
+        setText("buyQueueSummary", "No operator queue item yet for this account.");
+        setText("buyQueueOut", JSON.stringify({
+          account: account,
+          operator_queue_status: "none"
+        }, null, 2));
+      }
+    }
+
     try {
       (window).__voidCreateBuyVoidDraft = async function(){
         const amountRaw = buyDraftAmountEl ? String(buyDraftAmountEl.value || "").trim() : "";
@@ -46252,6 +46321,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           setText("buyDraftOut", JSON.stringify(res || { ok:false, error:"request_failed" }, null, 2));
         }
         await loadLatestBuyVoidDraft();
+    await loadLatestBuyVoidOperatorQueue();
+        await loadLatestBuyVoidOperatorQueue();
         return false;
       };
     } catch (_) {}
