@@ -43293,6 +43293,14 @@ a{color:#93c5fd;text-decoration:none}
       const pathMod = require("node:path");
       return pathMod.join(baseDir(), "operator_watch_targets.jsonl");
     }
+    function watcherConfigFile(){
+      const pathMod = require("node:path");
+      return pathMod.join(baseDir(), "base_watcher_config.json");
+    }
+    function watcherObsFile(){
+      const pathMod = require("node:path");
+      return pathMod.join(baseDir(), "base_watcher_observations.jsonl");
+    }
     function ensureDir(){
       const fs = require("node:fs");
       fs.mkdirSync(baseDir(), { recursive:true });
@@ -43312,6 +43320,16 @@ a{color:#93c5fd;text-decoration:none}
       const fs = require("node:fs");
       ensureDir();
       fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+    }
+    function readJson(file:string): any {
+      const fs = require("node:fs");
+      try { return JSON.parse(String(fs.readFileSync(file, "utf8") || "{}")); }
+      catch { return null; }
+    }
+    function writeJson(file:string, obj:any){
+      const fs = require("node:fs");
+      ensureDir();
+      fs.writeFileSync(file, JSON.stringify(obj, null, 2) + "\n", "utf8");
     }
     function safeStr(x:any, n:number){
       return String(x ?? "").trim().slice(0, n);
@@ -43343,10 +43361,37 @@ a{color:#93c5fd;text-decoration:none}
       const allowed = new Set(["void_sent","completed"]);
       return allowed.has(v) ? v : "";
     }
+    function safeBool(x:any, dflt:boolean){
+      if (typeof x === "boolean") return x;
+      const v = String(x ?? "").trim().toLowerCase();
+      if (["1","true","yes","on"].includes(v)) return true;
+      if (["0","false","no","off"].includes(v)) return false;
+      return dflt;
+    }
     function nowMs(){ return Date.now(); }
-    function makeId(){
+    function makeId(prefix:string){
       const crypto = require("node:crypto");
-      return "buywatch_" + nowMs() + "_" + crypto.randomBytes(4).toString("hex");
+      return prefix + "_" + nowMs() + "_" + crypto.randomBytes(4).toString("hex");
+    }
+
+    function defaultWatcherConfig(){
+      return {
+        enabled: true,
+        mode: "artifact_worker",
+        chain: "base",
+        asset: "base_native_usdc",
+        receiver_address: "",
+      };
+    }
+    function getWatcherConfig(){
+      const cur = readJson(watcherConfigFile()) || {};
+      return {
+        enabled: safeBool(cur.enabled, true),
+        mode: safeStr(cur.mode || "artifact_worker", 64) || "artifact_worker",
+        chain: safeStr(cur.chain || "base", 32) || "base",
+        asset: safeStr(cur.asset || "base_native_usdc", 64) || "base_native_usdc",
+        receiver_address: safeStr(cur.receiver_address || "", 120),
+      };
     }
 
     function latestQueueById(): Map<string, any> {
@@ -43393,6 +43438,40 @@ a{color:#93c5fd;text-decoration:none}
       const latest = latestWatchById();
       return latest.get(watchId) || null;
     }
+    function listPendingWatches(limit:number): any[] {
+      const latest = Array.from(latestWatchById().values());
+      const allowed = new Set(["watch_target_created","payment_seen_recorded"]);
+      const filtered = latest.filter((j:any) => allowed.has(String(j?.watch_status || "")));
+      filtered.sort((a:any,b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+      return filtered.slice(0, limit);
+    }
+
+    function latestObsByTag(): Map<string, any> {
+      const out = new Map<string, any>();
+      const lines = readLines(watcherObsFile());
+      for (let i = 0; i < lines.length; i++) {
+        try {
+          const j = JSON.parse(lines[i]);
+          const tag = String(j?.payment_tag || "");
+          if (!tag) continue;
+          out.set(tag, j);
+        } catch {}
+      }
+      return out;
+    }
+    function listObs(paymentTag:string, limit:number): any[] {
+      const out:any[] = [];
+      const lines = readLines(watcherObsFile());
+      for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
+        try {
+          const j = JSON.parse(lines[i]);
+          if (paymentTag && String(j?.payment_tag || "") !== paymentTag) continue;
+          out.push(j);
+        } catch {}
+      }
+      return out;
+    }
+
     function canQueueTransition(fromStatus:string, toStatus:string): boolean {
       const edges:any = {
         queued: new Set(["payment_seen","failed"]),
@@ -43421,6 +43500,49 @@ a{color:#93c5fd;text-decoration:none}
       return Math.abs(Number(expected || 0) - Number(observed || 0)) < 0.000001;
     }
 
+    function applyObserve(curWatch:any, curQueue:any, observeStatus:string, paymentRef:string, observedAmountUsdc:number, note:string){
+      const match = amountMatches(curWatch.requested_amount_usdc, observedAmountUsdc);
+      const nextWatchStatus = match
+        ? (observeStatus === "payment_confirmed" ? "payment_confirmed_recorded" : "payment_seen_recorded")
+        : "payment_mismatch";
+
+      const watchRow = {
+        ...curWatch,
+        ok: match,
+        ts_ms: nowMs(),
+        source_operator_status: String(curQueue.operator_status || ""),
+        watch_status: nextWatchStatus,
+        operator_note: safeNote(note || curWatch?.operator_note || ""),
+        payment_ref: safeTxRef(paymentRef),
+        observed_amount_usdc: observedAmountUsdc,
+        observed_amount_match: match,
+      };
+      appendJsonl(watchFile(), watchRow);
+
+      const queueUpdates:any[] = [];
+      let q = curQueue;
+
+      if (match) {
+        if (observeStatus === "payment_seen") {
+          if (canQueueTransition(String(q?.operator_status || ""), "payment_seen")) {
+            q = appendQueueTransition(q, "payment_seen", safeNote(note || "base watcher payment seen"), paymentRef, "");
+            queueUpdates.push(q);
+          }
+        } else if (observeStatus === "payment_confirmed") {
+          if (String(q?.operator_status || "") === "queued" && canQueueTransition("queued", "payment_seen")) {
+            q = appendQueueTransition(q, "payment_seen", safeNote(note || "base watcher payment seen"), paymentRef, "");
+            queueUpdates.push(q);
+          }
+          if (canQueueTransition(String(q?.operator_status || ""), "payment_confirmed")) {
+            q = appendQueueTransition(q, "payment_confirmed", safeNote(note || "base watcher payment confirmed"), paymentRef, "");
+            queueUpdates.push(q);
+          }
+        }
+      }
+
+      return { watch: watchRow, queue_updates: queueUpdates };
+    }
+
     function mount(){
       const appAny:any = getApp();
       if (!appAny || typeof appAny.get !== "function" || typeof appAny.post !== "function") {
@@ -43437,6 +43559,7 @@ a{color:#93c5fd;text-decoration:none}
           const src = findQueuedById(queueId);
           if (!src) return res.status(404).json({ ok:false, error:"queue_not_found" });
 
+          const cfg = getWatcherConfig();
           const curStatus = String(src?.operator_status || "");
           if (curStatus === "completed" || curStatus === "failed") {
             return res.status(400).json({ ok:false, error:"queue_not_watchable", queued: src });
@@ -43444,15 +43567,17 @@ a{color:#93c5fd;text-decoration:none}
 
           const row = {
             ok: true,
-            watch_id: makeId(),
+            watch_id: makeId("buywatch"),
             ts_ms: nowMs(),
             queue_id: String(src.queue_id || ""),
             request_id: String(src.request_id || ""),
+            payment_tag: String(src.request_id || ""),
             account: String(src.account || ""),
             delivery_wallet: String(src.delivery_wallet || ""),
             requested_amount_usdc: Number(src.requested_amount_usdc || 0),
-            expected_asset: "base_native_usdc",
-            expected_chain: "base",
+            expected_asset: cfg.asset,
+            expected_chain: cfg.chain,
+            receiver_address: String(cfg.receiver_address || ""),
             source_operator_status: curStatus,
             watch_status: "watch_target_created",
             watch_mode: "manual_stub",
@@ -43489,46 +43614,16 @@ a{color:#93c5fd;text-decoration:none}
           const curQueue = findQueuedById(String(curWatch.queue_id || ""));
           if (!curQueue) return res.status(404).json({ ok:false, error:"queue_not_found_for_watch", watch: curWatch });
 
-          const match = amountMatches(curWatch.requested_amount_usdc, observedAmountUsdc);
-          const nextWatchStatus = match
-            ? (observeStatus === "payment_confirmed" ? "payment_confirmed_recorded" : "payment_seen_recorded")
-            : "payment_mismatch";
+          const out = applyObserve(
+            curWatch,
+            curQueue,
+            observeStatus,
+            paymentRef,
+            observedAmountUsdc,
+            safeNote(req.body?.operator_note || "")
+          );
 
-          const watchRow = {
-            ...curWatch,
-            ok: match,
-            ts_ms: nowMs(),
-            source_operator_status: String(curQueue.operator_status || ""),
-            watch_status: nextWatchStatus,
-            operator_note: safeNote(req.body?.operator_note || curWatch?.operator_note || ""),
-            payment_ref: paymentRef,
-            observed_amount_usdc: observedAmountUsdc,
-            observed_amount_match: match,
-          };
-          appendJsonl(watchFile(), watchRow);
-
-          const queueUpdates:any[] = [];
-          let q = curQueue;
-
-          if (match) {
-            if (observeStatus === "payment_seen") {
-              if (canQueueTransition(String(q?.operator_status || ""), "payment_seen")) {
-                q = appendQueueTransition(q, "payment_seen", safeNote(req.body?.operator_note || "manual payment observation"), paymentRef, "");
-                queueUpdates.push(q);
-              }
-            } else if (observeStatus === "payment_confirmed") {
-              if (String(q?.operator_status || "") === "queued" && canQueueTransition("queued", "payment_seen")) {
-                q = appendQueueTransition(q, "payment_seen", safeNote(req.body?.operator_note || "manual payment observation"), paymentRef, "");
-                queueUpdates.push(q);
-              }
-              if (canQueueTransition(String(q?.operator_status || ""), "payment_confirmed")) {
-                q = appendQueueTransition(q, "payment_confirmed", safeNote(req.body?.operator_note || "manual payment confirmation"), paymentRef, "");
-                queueUpdates.push(q);
-              }
-            }
-          }
-
-          return res.json({ ok:true, watch: watchRow, queue_updates: queueUpdates });
+          return res.json({ ok:true, watch: out.watch, queue_updates: out.queue_updates });
         } catch (e:any) {
           return res.status(500).json({ ok:false, error:String(e?.message || e) });
         }
@@ -43586,6 +43681,145 @@ a{color:#93c5fd;text-decoration:none}
           }
 
           return res.json({ ok:true, watch: watchRow, queue_updates: queueUpdates });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.post("/__void/operator/buy-void/base-watcher/config", (req:any, res:any) => {
+        try {
+          const cur = getWatcherConfig();
+          const next = {
+            enabled: safeBool(req.body?.enabled, cur.enabled),
+            mode: safeStr(req.body?.mode || cur.mode, 64) || cur.mode,
+            chain: safeStr(req.body?.chain || cur.chain, 32) || cur.chain,
+            asset: safeStr(req.body?.asset || cur.asset, 64) || cur.asset,
+            receiver_address: safeStr(req.body?.receiver_address || cur.receiver_address, 120),
+          };
+          writeJson(watcherConfigFile(), next);
+          return res.json({ ok:true, config: next });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.get("/__void/operator/buy-void/base-watcher/status", (_req:any, res:any) => {
+        try {
+          const cfg = getWatcherConfig();
+          const pending = listPendingWatches(200);
+          const obsCount = readLines(watcherObsFile()).length;
+          return res.json({
+            ok:true,
+            config: cfg,
+            pending_count: pending.length,
+            observations_count: obsCount,
+            latest_watch: latestWatch(""),
+          });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.post("/__void/operator/buy-void/base-watcher/observations", (req:any, res:any) => {
+        try {
+          const cfg = getWatcherConfig();
+          const paymentTag = safeId(req.body?.payment_tag || req.body?.request_id);
+          const paymentRef = safeTxRef(req.body?.payment_ref);
+          const observedStatus = safeObserveStatus(req.body?.observed_status || req.body?.observe_status || req.body?.operator_status);
+          const observedAmountUsdc = safeAmountUsdc(req.body?.observed_amount_usdc ?? req.body?.amount_usdc ?? req.body?.amount);
+
+          if (!paymentTag) return res.status(400).json({ ok:false, error:"missing_payment_tag" });
+          if (!paymentRef) return res.status(400).json({ ok:false, error:"missing_payment_ref" });
+          if (!observedStatus) return res.status(400).json({ ok:false, error:"invalid_observed_status" });
+          if (!(observedAmountUsdc > 0)) return res.status(400).json({ ok:false, error:"invalid_observed_amount_usdc" });
+
+          const row = {
+            ok: true,
+            obs_id: makeId("baseobs"),
+            ts_ms: nowMs(),
+            payment_tag: paymentTag,
+            payment_ref: paymentRef,
+            observed_status: observedStatus,
+            observed_amount_usdc: observedAmountUsdc,
+            chain: String(cfg.chain || "base"),
+            asset: String(cfg.asset || "base_native_usdc"),
+            receiver_address: safeStr(req.body?.receiver_address || cfg.receiver_address || "", 120),
+            operator_note: safeNote(req.body?.operator_note || ""),
+          };
+          appendJsonl(watcherObsFile(), row);
+          return res.json({ ok:true, observation: row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.get("/__void/operator/buy-void/base-watcher/observations", (req:any, res:any) => {
+        try {
+          const paymentTag = safeId(req.query?.payment_tag);
+          const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
+          const rows = listObs(paymentTag, limit);
+          return res.json({ ok:true, count: rows.length, observations: rows });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.post("/__void/operator/buy-void/base-watcher/run-once", (_req:any, res:any) => {
+        try {
+          const cfg = getWatcherConfig();
+          if (!cfg.enabled) {
+            return res.json({ ok:true, config: cfg, processed_count: 0, processed: [], skipped: "disabled" });
+          }
+
+          const obsByTag = latestObsByTag();
+          const pending = listPendingWatches(200);
+          const processed:any[] = [];
+
+          for (const w of pending) {
+            const tag = String(w?.payment_tag || w?.request_id || "");
+            if (!tag) continue;
+            const obs = obsByTag.get(tag);
+            if (!obs) continue;
+            if (String(obs?.chain || "") !== String(cfg.chain || "")) continue;
+            if (String(obs?.asset || "") !== String(cfg.asset || "")) continue;
+            if (String(cfg.receiver_address || "") && String(obs?.receiver_address || "") && String(obs.receiver_address) !== String(cfg.receiver_address)) continue;
+
+            const q = findQueuedById(String(w?.queue_id || ""));
+            if (!q) continue;
+
+            const want = safeObserveStatus(obs?.observed_status);
+            if (!want) continue;
+
+            const wStatus = String(w?.watch_status || "");
+            if (wStatus === "payment_seen_recorded" && want === "payment_seen") continue;
+
+            const out = applyObserve(
+              w,
+              q,
+              want,
+              String(obs?.payment_ref || ""),
+              Number(obs?.observed_amount_usdc || 0),
+              "base watcher worker"
+            );
+
+            processed.push({
+              watch_id: String(w?.watch_id || ""),
+              queue_id: String(w?.queue_id || ""),
+              payment_tag: tag,
+              observed_status: want,
+              payment_ref: String(obs?.payment_ref || ""),
+              ok: !!out.watch?.ok,
+              queue_updates: out.queue_updates,
+            });
+          }
+
+          return res.json({
+            ok:true,
+            config: cfg,
+            processed_count: processed.length,
+            processed,
+            pending_count: listPendingWatches(200).length,
+          });
         } catch (e:any) {
           return res.status(500).json({ ok:false, error:String(e?.message || e) });
         }
