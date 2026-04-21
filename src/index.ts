@@ -43265,6 +43265,205 @@ a{color:#93c5fd;text-decoration:none}
 })();
 
 
+
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_operator_buy_void_watch_targets_v1";
+    if (G[MARK]) return;
+    G[MARK] = { installed:false };
+
+    function getApp(){
+      try { return (G.__void_http_app || app); }
+      catch { return G.__void_http_app; }
+    }
+    function dataDir(){
+      const raw = String(process.env.DATA_DIR || "data_a").trim();
+      return raw || "data_a";
+    }
+    function baseDir(){
+      const pathMod = require("node:path");
+      return pathMod.join(process.cwd(), dataDir(), "participant_buy_void_v1");
+    }
+    function queueFile(){
+      const pathMod = require("node:path");
+      return pathMod.join(baseDir(), "operator_queue.jsonl");
+    }
+    function watchFile(){
+      const pathMod = require("node:path");
+      return pathMod.join(baseDir(), "operator_watch_targets.jsonl");
+    }
+    function ensureDir(){
+      const fs = require("node:fs");
+      fs.mkdirSync(baseDir(), { recursive:true });
+    }
+    function readLines(file:string): string[] {
+      const fs = require("node:fs");
+      try {
+        return String(fs.readFileSync(file, "utf8") || "")
+          .split("\n")
+          .map((x:string)=>x.trim())
+          .filter(Boolean);
+      } catch {
+        return [];
+      }
+    }
+    function appendJsonl(file:string, obj:any){
+      const fs = require("node:fs");
+      ensureDir();
+      fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+    }
+    function safeStr(x:any, n:number){
+      return String(x ?? "").trim().slice(0, n);
+    }
+    function safeAccount(x:any){
+      return safeStr(x, 128);
+    }
+    function safeId(x:any){
+      return safeStr(x, 160);
+    }
+    function safeNote(x:any){
+      return safeStr(x, 500);
+    }
+    function nowMs(){ return Date.now(); }
+    function makeId(){
+      const crypto = require("node:crypto");
+      return "buywatch_" + nowMs() + "_" + crypto.randomBytes(4).toString("hex");
+    }
+
+    function latestQueueById(): Map<string, any> {
+      const out = new Map<string, any>();
+      const lines = readLines(queueFile());
+      for (let i = 0; i < lines.length; i++) {
+        try {
+          const j = JSON.parse(lines[i]);
+          const qid = String(j?.queue_id || "");
+          if (!qid) continue;
+          out.set(qid, j);
+        } catch {}
+      }
+      return out;
+    }
+    function findQueuedById(queueId:string): any {
+      const latest = latestQueueById();
+      return latest.get(queueId) || null;
+    }
+
+    function latestWatchById(): Map<string, any> {
+      const out = new Map<string, any>();
+      const lines = readLines(watchFile());
+      for (let i = 0; i < lines.length; i++) {
+        try {
+          const j = JSON.parse(lines[i]);
+          const wid = String(j?.watch_id || "");
+          if (!wid) continue;
+          out.set(wid, j);
+        } catch {}
+      }
+      return out;
+    }
+    function listWatches(account:string, limit:number): any[] {
+      const latest = Array.from(latestWatchById().values());
+      const filtered = latest.filter((j:any) => !account || String(j?.account || "") === account);
+      filtered.sort((a:any,b:any) => Number(b?.ts_ms || 0) - Number(a?.ts_ms || 0));
+      return filtered.slice(0, limit);
+    }
+    function latestWatch(account:string): any {
+      const rows = listWatches(account, 1);
+      return rows.length ? rows[0] : null;
+    }
+    function findWatchById(watchId:string): any {
+      const latest = latestWatchById();
+      return latest.get(watchId) || null;
+    }
+
+    function mount(){
+      const appAny:any = getApp();
+      if (!appAny || typeof appAny.get !== "function" || typeof appAny.post !== "function") {
+        return setTimeout(mount, 250);
+      }
+      if (G[MARK].installed) return;
+      G[MARK].installed = true;
+
+      appAny.post("/__void/operator/buy-void/watch-targets", (req:any, res:any) => {
+        try {
+          const queueId = safeId(req.body?.queue_id);
+          if (!queueId) return res.status(400).json({ ok:false, error:"missing_queue_id" });
+
+          const src = findQueuedById(queueId);
+          if (!src) return res.status(404).json({ ok:false, error:"queue_not_found" });
+
+          const curStatus = String(src?.operator_status || "");
+          if (curStatus === "completed" || curStatus === "failed") {
+            return res.status(400).json({ ok:false, error:"queue_not_watchable", queued: src });
+          }
+
+          const row = {
+            ok: true,
+            watch_id: makeId(),
+            ts_ms: nowMs(),
+            queue_id: String(src.queue_id || ""),
+            request_id: String(src.request_id || ""),
+            account: String(src.account || ""),
+            delivery_wallet: String(src.delivery_wallet || ""),
+            requested_amount_usdc: Number(src.requested_amount_usdc || 0),
+            expected_asset: "base_native_usdc",
+            expected_chain: "base",
+            source_operator_status: curStatus,
+            watch_status: "watch_target_created",
+            watch_mode: "manual_stub",
+            operator_note: safeNote(req.body?.operator_note || ""),
+            payment_ref: "",
+            observed_amount_usdc: 0,
+            fulfillment_lane: String(src.fulfillment_lane || "buy_void_base_usdc_v1_future"),
+          };
+
+          appendJsonl(watchFile(), row);
+          return res.json({ ok:true, watch: row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.get("/__void/operator/buy-void/watch-targets", (req:any, res:any) => {
+        try {
+          const account = safeAccount(req.query?.account);
+          const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
+          const rows = listWatches(account, limit);
+          return res.json({ ok:true, count: rows.length, watches: rows });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.get("/__void/operator/buy-void/watch-targets/latest", (req:any, res:any) => {
+        try {
+          const account = safeAccount(req.query?.account);
+          const row = latestWatch(account);
+          return res.json({ ok:true, watch: row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.get("/__void/operator/buy-void/watch-targets/status", (req:any, res:any) => {
+        try {
+          const watchId = safeId(req.query?.watch_id);
+          if (!watchId) return res.status(400).json({ ok:false, error:"missing_watch_id" });
+          const row = findWatchById(watchId);
+          if (!row) return res.status(404).json({ ok:false, error:"watch_not_found" });
+          return res.json({ ok:true, watch: row });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+    }
+
+    mount();
+  } catch {}
+})();
+
+
 // [removed legacy participant-dashboard-v1 duplicate block]
 
 
@@ -46321,7 +46520,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           setText("buyDraftOut", JSON.stringify(res || { ok:false, error:"request_failed" }, null, 2));
         }
         await loadLatestBuyVoidDraft();
-    await loadLatestBuyVoidOperatorQueue();
         await loadLatestBuyVoidOperatorQueue();
         return false;
       };
@@ -46337,6 +46535,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch (_) {}
 
     await loadLatestBuyVoidDraft();
+    await loadLatestBuyVoidOperatorQueue();
 
     const renderTradeDirectionUi = () => {
       try {
