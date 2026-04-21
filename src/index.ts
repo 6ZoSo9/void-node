@@ -43381,6 +43381,10 @@ a{color:#93c5fd;text-decoration:none}
         chain: "base",
         asset: "base_native_usdc",
         receiver_address: "",
+        rpc_url: "",
+        token_address: "",
+        token_decimals: 6,
+        confirmations_required: 1,
       };
     }
     function getWatcherConfig(){
@@ -43391,6 +43395,10 @@ a{color:#93c5fd;text-decoration:none}
         chain: safeStr(cur.chain || "base", 32) || "base",
         asset: safeStr(cur.asset || "base_native_usdc", 64) || "base_native_usdc",
         receiver_address: safeStr(cur.receiver_address || "", 120),
+        rpc_url: safeStr(cur.rpc_url || "", 240),
+        token_address: safeStr(cur.token_address || "", 120),
+        token_decimals: Math.max(0, Math.min(30, Number(cur.token_decimals ?? 6) || 6)),
+        confirmations_required: Math.max(1, Math.min(100, Number(cur.confirmations_required ?? 1) || 1)),
       };
     }
 
@@ -43695,6 +43703,10 @@ a{color:#93c5fd;text-decoration:none}
             chain: safeStr(req.body?.chain || cur.chain, 32) || cur.chain,
             asset: safeStr(req.body?.asset || cur.asset, 64) || cur.asset,
             receiver_address: safeStr(req.body?.receiver_address || cur.receiver_address, 120),
+            rpc_url: safeStr(req.body?.rpc_url || cur.rpc_url, 240),
+            token_address: safeStr(req.body?.token_address || cur.token_address, 120),
+            token_decimals: Math.max(0, Math.min(30, Math.floor(Number(req.body?.token_decimals ?? cur.token_decimals) || Number(cur.token_decimals) || 6))),
+            confirmations_required: Math.max(1, Math.min(100, Math.floor(Number(req.body?.confirmations_required ?? cur.confirmations_required) || Number(cur.confirmations_required) || 1))),
           };
           writeJson(watcherConfigFile(), next);
           return res.json({ ok:true, config: next });
@@ -43759,6 +43771,166 @@ a{color:#93c5fd;text-decoration:none}
           const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
           const rows = listObs(paymentTag, limit);
           return res.json({ ok:true, count: rows.length, observations: rows });
+        } catch (e:any) {
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      appAny.post("/__void/operator/buy-void/base-watcher/claim-tx", async (req:any, res:any) => {
+        try {
+          const watchId = safeId(req.body?.watch_id);
+          if (!watchId) return res.status(400).json({ ok:false, error:"missing_watch_id" });
+
+          const curWatch = latestWatch(watchId);
+          if (!curWatch) return res.status(404).json({ ok:false, error:"watch_not_found" });
+
+          const curQueue = findQueuedById(String(curWatch.queue_id || ""));
+          if (!curQueue) return res.status(404).json({ ok:false, error:"queue_not_found_for_watch", watch: curWatch });
+
+          const txHash = safeTxRef(req.body?.payment_ref || req.body?.tx_hash);
+          if (!txHash) return res.status(400).json({ ok:false, error:"missing_payment_ref" });
+
+          const cfg = getWatcherConfig();
+          const rpcUrl = safeStr(cfg.rpc_url || "", 240);
+          const tokenAddress = String(cfg.token_address || "").trim().toLowerCase();
+          const receiverAddress = String(cfg.receiver_address || "").trim().toLowerCase();
+          const tokenDecimals = Math.max(0, Math.min(30, Math.floor(Number(cfg.token_decimals) || 6)));
+          const confirmationsRequired = Math.max(1, Math.min(100, Math.floor(Number(cfg.confirmations_required) || 1)));
+
+          if (!rpcUrl) return res.status(400).json({ ok:false, error:"missing_rpc_url", config: cfg });
+          if (!/^0x[0-9a-f]{40}$/.test(tokenAddress)) return res.status(400).json({ ok:false, error:"missing_or_invalid_token_address", config: cfg });
+          if (!/^0x[0-9a-f]{40}$/.test(receiverAddress)) return res.status(400).json({ ok:false, error:"missing_or_invalid_receiver_address", config: cfg });
+
+          const rpcJson = async (method:string, params:any[]): Promise<any> => {
+            const r = await fetch(rpcUrl, {
+              method: "POST",
+              headers: { "content-type":"application/json" },
+              body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params }),
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(`rpc_http_${r.status}`);
+            if (j && j.error) throw new Error(String(j.error?.message || "rpc_error"));
+            return j?.result;
+          };
+
+          const hexToBig = (x:any): bigint => {
+            const v = String(x ?? "0x0").trim();
+            if (!/^0x[0-9a-fA-F]+$/.test(v)) return 0n;
+            return BigInt(v);
+          };
+
+          const parseUnitsSimple = (x:any, decimals:number): bigint => {
+            const sv = String(x ?? "").trim();
+            if (!/^\d+(\.\d+)?$/.test(sv)) return 0n;
+            const parts = sv.split(".");
+            const whole = parts[0] || "0";
+            const frac = ((parts[1] || "") + "0".repeat(decimals)).slice(0, decimals);
+            return BigInt(whole) * (10n ** BigInt(decimals)) + BigInt(frac || "0");
+          };
+
+          const formatUnitsSimple = (v:bigint, decimals:number): string => {
+            const neg = v < 0n;
+            const x = neg ? (-v) : v;
+            const base = 10n ** BigInt(decimals);
+            const whole = x / base;
+            const frac = String(x % base).padStart(decimals, "0").replace(/0+$/, "");
+            const out = frac ? `${whole}.${frac}` : `${whole}`;
+            return neg ? ("-" + out) : out;
+          };
+
+          const topicAddress = (topic:any): string => {
+            const t = String(topic ?? "").trim().toLowerCase();
+            if (!/^0x[0-9a-f]{64}$/.test(t)) return "";
+            return "0x" + t.slice(26);
+          };
+
+          const receipt = await rpcJson("eth_getTransactionReceipt", [txHash]);
+          if (!receipt) return res.status(404).json({ ok:false, error:"tx_receipt_not_found", payment_ref: txHash });
+
+          if (String(receipt?.status || "").toLowerCase() !== "0x1") {
+            return res.status(400).json({ ok:false, error:"tx_not_success", payment_ref: txHash, receipt });
+          }
+
+          const head = hexToBig(await rpcJson("eth_blockNumber", []));
+          const txBlock = hexToBig(receipt?.blockNumber || "0x0");
+          const confirmations = Number((txBlock > 0n && head >= txBlock) ? ((head - txBlock) + 1n) : 0n);
+
+          if (confirmations < confirmationsRequired) {
+            return res.status(400).json({
+              ok:false,
+              error:"insufficient_confirmations",
+              payment_ref: txHash,
+              confirmations,
+              confirmations_required: confirmationsRequired,
+              tx_block: String(txBlock),
+              head: String(head),
+            });
+          }
+
+          const wantUnits = parseUnitsSimple(curWatch.requested_amount_usdc, tokenDecimals);
+          const ERC20_TRANSFER_TOPIC0 = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+          const logs = Array.isArray(receipt?.logs) ? receipt.logs : [];
+          let matchedValue: bigint | null = null;
+
+          for (const log of logs) {
+            const addr = String(log?.address || "").trim().toLowerCase();
+            const topics = Array.isArray(log?.topics) ? log.topics : [];
+            if (addr !== tokenAddress) continue;
+            if (String(topics[0] || "").toLowerCase() !== ERC20_TRANSFER_TOPIC0) continue;
+            const to = topicAddress(topics[2]);
+            if (to !== receiverAddress) continue;
+            const value = hexToBig(log?.data || "0x0");
+            if (value !== wantUnits) continue;
+            matchedValue = value;
+            break;
+          }
+
+          if (matchedValue === null) {
+            return res.status(400).json({
+              ok:false,
+              error:"matching_transfer_not_found",
+              payment_ref: txHash,
+              token_address: tokenAddress,
+              receiver_address: receiverAddress,
+              expected_amount_base_units: String(wantUnits),
+            });
+          }
+
+          const observedAmountUsdc = Number(formatUnitsSimple(matchedValue, tokenDecimals));
+          const obsRow = {
+            ok: true,
+            obs_id: makeId("baseobs"),
+            ts_ms: nowMs(),
+            payment_tag: String(curWatch.payment_tag || curWatch.request_id || ""),
+            payment_ref: txHash,
+            observed_status: "payment_confirmed",
+            observed_amount_usdc: observedAmountUsdc,
+            chain: String(cfg.chain || "base"),
+            asset: String(cfg.asset || "base_native_usdc"),
+            receiver_address: receiverAddress,
+            operator_note: safeNote(req.body?.operator_note || "base watcher claim tx"),
+          };
+          appendJsonl(watcherObsFile(), obsRow);
+
+          const out = applyObserve(
+            curWatch,
+            curQueue,
+            "payment_confirmed",
+            txHash,
+            observedAmountUsdc,
+            safeNote(req.body?.operator_note || "base watcher claim tx")
+          );
+
+          return res.json({
+            ok:true,
+            config: cfg,
+            payment_ref: txHash,
+            confirmations,
+            receipt_block: String(txBlock),
+            observation: obsRow,
+            watch: out.watch,
+            queue_updates: out.queue_updates,
+          });
         } catch (e:any) {
           return res.status(500).json({ ok:false, error:String(e?.message || e) });
         }
