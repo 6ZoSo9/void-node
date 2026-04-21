@@ -683,6 +683,7 @@ app.post("/__void/participant/stake/next-onboard", require("express").json({ lim
 
     const env = Object.assign({}, process.env, {
       DRY_RUN: "0",
+      SKIP_PREFLIGHT: "1",
       BASE: base,
       SECRETS: secretsPath,
     });
