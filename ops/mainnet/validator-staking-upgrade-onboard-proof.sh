@@ -246,8 +246,23 @@ PY
 
 echo
 echo "=== [5] capture epoch + publish window on upgrade-track ==="
+CAPTURE_CHUNK_SIZE="${CAPTURE_CHUNK_SIZE:-5}"
+CAPTURE_ROUNDS="$(( (EXPECTED_VALIDATOR_COUNT + CAPTURE_CHUNK_SIZE - 1) / CAPTURE_CHUNK_SIZE ))"
+
 cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" \
-  "$SNAPSHOT" 'captureEpoch(uint256)' "$TARGET_EPOCH"
+  "$SNAPSHOT" 'beginEpochCapture(uint256)' "$TARGET_EPOCH"
+
+sleep 2
+
+for ((round=1; round<=CAPTURE_ROUNDS; round++)); do
+  echo "--- capture chunk ${round}/${CAPTURE_ROUNDS} (chunkSize=${CAPTURE_CHUNK_SIZE})"
+  cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" \
+    "$SNAPSHOT" 'appendEpochValidators(uint256,uint256)' "$TARGET_EPOCH" "$CAPTURE_CHUNK_SIZE"
+  sleep 2
+done
+
+cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" \
+  "$SNAPSHOT" 'finalizeEpochCapture(uint256)' "$TARGET_EPOCH"
 
 sleep 2
 
