@@ -113,6 +113,11 @@ print(json.dumps(used_rewards))
 PY
 )
 
+if [ "${#INFO[@]}" -lt 8 ]; then
+  echo "[ERR] next-onboard selector produced no candidate payload" >&2
+  exit 1
+fi
+
 SELECTED_CANDIDATE_NAME="${INFO[0]}"
 SELECTED_CANDIDATE_ADDR="${INFO[1]}"
 CURRENT_EPOCH="${INFO[2]}"
