@@ -11,6 +11,7 @@ import "../../contracts/mainnet/ValidatorEpochScheduleView.sol";
 import "../../contracts/mainnet/ValidatorEpochCommitmentView.sol";
 import "../../contracts/mainnet/ValidatorEpochCommitmentRegistry.sol";
 import "../../contracts/mainnet/ValidatorEpochManifestView.sol";
+import "../../contracts/mainnet/IValidatorSelectionSource.sol";
 
 interface IERC20ApproveLike {
     function balanceOf(address who) external view returns (uint256);
@@ -30,8 +31,13 @@ contract ValidatorTruthUpgradeTrackDeploy is Script {
         ValidatorEpochManifestView manifestView;
     }
 
-    function _deploy(address token, address admin) internal returns (Env memory e) {
-        e.staking = new ValidatorStakingV2(token, 1000 ether, 7 days);
+    function _deploy(address token, address admin, address existingStaking) internal returns (Env memory e) {
+        if (existingStaking == address(0)) {
+            e.staking = new ValidatorStakingV2(token, 1000 ether, 7 days);
+        } else {
+            e.staking = ValidatorStakingV2(existingStaking);
+        }
+
         e.adapter = new ValidatorSelectionAdapter(address(e.staking));
         e.ordered = new ValidatorSelectionOrderedView(address(e.adapter));
         e.snapshot = new ValidatorEpochSnapshot(admin, address(e.ordered));
@@ -50,30 +56,55 @@ contract ValidatorTruthUpgradeTrackDeploy is Script {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         address sender = vm.addr(pk);
 
-        address token = vm.envAddress("VOID_TOKEN");
-        address reward = vm.envAddress("REWARD_ADDRESS");
-        bytes32 consensusKey = vm.envBytes32("CONSENSUS_KEY");
-        uint256 stake = vm.envUint("STAKE_VOID");
+        address existingStaking = vm.envAddress("EXISTING_STAKING");
         uint256 epoch = vm.envUint("CAPTURE_EPOCH");
         uint256 startSlot = vm.envUint("START_SLOT");
         uint256 endSlotExclusive = vm.envUint("END_SLOT_EXCLUSIVE");
+        uint256 chunkSize = vm.envUint("CAPTURE_CHUNK_SIZE");
 
-        require(stake >= 1000 ether, "stake_below_min");
-        require(consensusKey != bytes32(0), "zero_consensus_key");
+        bool seedMode = existingStaking == address(0);
+
+        address token = address(0);
+        address reward = address(0);
+        bytes32 consensusKey = bytes32(0);
+        uint256 stake = 0;
+
+        require(chunkSize > 0, "invalid_chunk");
         require(endSlotExclusive > startSlot, "invalid_window");
-        require(IERC20ApproveLike(token).balanceOf(sender) >= stake, "insufficient_void_balance");
+
+        if (seedMode) {
+            token = vm.envAddress("VOID_TOKEN");
+            reward = vm.envAddress("REWARD_ADDRESS");
+            consensusKey = vm.envBytes32("CONSENSUS_KEY");
+            stake = vm.envUint("STAKE_VOID");
+
+            require(stake >= 1000 ether, "stake_below_min");
+            require(consensusKey != bytes32(0), "zero_consensus_key");
+            require(IERC20ApproveLike(token).balanceOf(sender) >= stake, "insufficient_void_balance");
+        }
 
         vm.startBroadcast(pk);
 
-        Env memory e = _deploy(token, sender);
+        Env memory e = _deploy(token, sender, existingStaking);
 
-        bool ok = IERC20ApproveLike(token).approve(address(e.staking), stake);
-        require(ok, "approve_failed");
+        if (seedMode) {
+            bool ok = IERC20ApproveLike(token).approve(address(e.staking), stake);
+            require(ok, "approve_failed");
 
-        e.staking.registerAndStake(reward, consensusKey, stake);
-        e.staking.activate();
+            e.staking.registerAndStake(reward, consensusKey, stake);
+            e.staking.activate();
+        }
 
-        e.snapshot.captureEpoch(epoch);
+        e.snapshot.beginEpochCapture(epoch);
+
+        uint256 count = IValidatorSelectionSource(address(e.ordered)).getSelectableValidatorCount();
+        for (uint256 i = 0; i < count; i += chunkSize) {
+            uint256 take = count - i;
+            if (take > chunkSize) take = chunkSize;
+            e.snapshot.appendEpochValidators(epoch, take);
+        }
+
+        e.snapshot.finalizeEpochCapture(epoch);
         e.commitmentRegistry.publishEpochWindow(epoch, startSlot, endSlotExclusive);
 
         console2.log("UPGRADE_TRACK staking", address(e.staking));
