@@ -98,9 +98,10 @@ else:
         break
 
 if chosen is None:
-    raise SystemExit("[ERR] no unused vaultNN candidate remains")
-
-candidate_name, candidate_addr_l, candidate_addr, candidate_vault_num = chosen
+    candidate_name = ""
+    candidate_addr = ""
+else:
+    candidate_name, candidate_addr_l, candidate_addr, candidate_vault_num = chosen
 
 print(candidate_name)
 print(candidate_addr)
@@ -134,6 +135,11 @@ if [ -z "${EXPECTED_VALIDATOR_COUNT:-}" ]; then
   EXPECTED_VALIDATOR_COUNT="$AUTO_EXPECTED_VALIDATOR_COUNT"
 fi
 
+EXHAUSTED="0"
+if [ -z "$SELECTED_CANDIDATE_NAME" ] || [ -z "$SELECTED_CANDIDATE_ADDR" ]; then
+  EXHAUSTED="1"
+fi
+
 echo "selected_candidate_name=$SELECTED_CANDIDATE_NAME"
 echo "selected_candidate_addr=$SELECTED_CANDIDATE_ADDR"
 echo "current_epoch=$CURRENT_EPOCH"
@@ -142,9 +148,21 @@ echo "current_validator_count=$CURRENT_VALIDATOR_COUNT"
 echo "expected_validator_count=$EXPECTED_VALIDATOR_COUNT"
 echo "window_length=$WINDOW_LENGTH"
 echo "used_rewards_json=$USED_REWARDS_JSON"
+echo "selection_state=$([ "$EXHAUSTED" = "1" ] && echo exhausted || echo ready)"
 
 echo
 echo "=== [3] execute or print exact onboarding command ==="
+
+if [ "$EXHAUSTED" = "1" ]; then
+  echo "[info] no unused vaultNN candidate remains"
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "[ok] dry-run only; no chain mutation performed"
+    exit 0
+  fi
+  echo "[ERR] no unused vaultNN candidate remains" >&2
+  exit 1
+fi
+
 CMD=(env
   "CANDIDATE_NAME=$SELECTED_CANDIDATE_NAME"
   "TARGET_EPOCH=$TARGET_EPOCH"
