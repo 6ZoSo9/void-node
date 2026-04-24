@@ -10,9 +10,11 @@ VOID_TOKEN="${VOID_TOKEN:-}"
 REWARD_ADDRESS="${REWARD_ADDRESS:-}"
 CONSENSUS_KEY="${CONSENSUS_KEY:-}"
 STAKE_VOID="${STAKE_VOID:-}"
+EXISTING_STAKING="${EXISTING_STAKING:-}"
 CAPTURE_EPOCH="${CAPTURE_EPOCH:-1}"
 START_SLOT="${START_SLOT:-0}"
 END_SLOT_EXCLUSIVE="${END_SLOT_EXCLUSIVE:-8}"
+CAPTURE_CHUNK_SIZE="${CAPTURE_CHUNK_SIZE:-1}"
 PRIVATE_KEY="${PRIVATE_KEY:-}"
 
 if [ -z "$PRIVATE_KEY" ]; then
@@ -60,8 +62,9 @@ test "$CHAIN_ACTUAL" = "$CHAIN_ID_EXPECTED"
 SENDER="$(cast wallet address --private-key "$PRIVATE_KEY")"
 echo "sender=$SENDER"
 
-BAL_RAW="$(cast call --rpc-url "$RPC" "$VOID_TOKEN" 'balanceOf(address)(uint256)' "$SENDER")"
-python3 - <<'PY' "$BAL_RAW" "$STAKE_VOID"
+if [ -z "${EXISTING_STAKING:-}" ] || [ "${EXISTING_STAKING:-}" = "0x0000000000000000000000000000000000000000" ]; then
+  BAL_RAW="$(cast call --rpc-url "$RPC" "$VOID_TOKEN" 'balanceOf(address)(uint256)' "$SENDER")"
+  python3 - <<'PY' "$BAL_RAW" "$STAKE_VOID"
 import re, sys
 bal_raw, need_raw = sys.argv[1:3]
 bal = int(re.sub(r"\s+\[[^\]]*\]$", "", bal_raw.strip()))
@@ -71,24 +74,32 @@ print(f"stake_needed={need}")
 if bal < need:
     raise SystemExit(f"[ERR] insufficient VOID balance for upgrade-track seeding: balance={bal} need={need}")
 PY
+else
+  echo "recovery_mode_existing_staking=$EXISTING_STAKING"
+  echo "skip_void_balance_preflight=true"
+fi
 
 echo
-echo "=== [2] deploy + seed upgrade-track stack ==="
+echo "=== [2] deploy + seed/recover upgrade-track stack ==="
 PRIVATE_KEY="$PRIVATE_KEY" \
 VOID_TOKEN="$VOID_TOKEN" \
 REWARD_ADDRESS="$REWARD_ADDRESS" \
 CONSENSUS_KEY="$CONSENSUS_KEY" \
 STAKE_VOID="$STAKE_VOID" \
+EXISTING_STAKING="$EXISTING_STAKING" \
 CAPTURE_EPOCH="$CAPTURE_EPOCH" \
 START_SLOT="$START_SLOT" \
 END_SLOT_EXCLUSIVE="$END_SLOT_EXCLUSIVE" \
+CAPTURE_CHUNK_SIZE="$CAPTURE_CHUNK_SIZE" \
 forge script script/mainnet_upgrade/ValidatorTruthUpgradeTrackDeploy.s.sol:ValidatorTruthUpgradeTrackDeploy \
   --rpc-url "$RPC" \
+  --slow \
+  --with-gas-price 2000000000 \
   --broadcast 2>&1 | tee "$DEPLOY_LOG"
 
 echo
 echo "=== [3] parse deployed addresses ==="
-python3 - <<'PY' "$DEPLOY_LOG" "$DEPLOYED_ARTIFACT" "$RPC" "$CHAIN_ID_EXPECTED" "$SENDER" "$VOID_TOKEN" "$REWARD_ADDRESS" "$CONSENSUS_KEY" "$STAKE_VOID" "$CAPTURE_EPOCH" "$START_SLOT" "$END_SLOT_EXCLUSIVE"
+python3 - <<'PY' "$DEPLOY_LOG" "$DEPLOYED_ARTIFACT" "$RPC" "$CHAIN_ID_EXPECTED" "$SENDER" "$VOID_TOKEN" "$REWARD_ADDRESS" "$CONSENSUS_KEY" "$STAKE_VOID" "$CAPTURE_EPOCH" "$START_SLOT" "$END_SLOT_EXCLUSIVE" "$EXISTING_STAKING" "$CAPTURE_CHUNK_SIZE"
 import json, re, sys
 from pathlib import Path
 
@@ -104,6 +115,8 @@ stake = sys.argv[9]
 epoch = int(sys.argv[10])
 start_slot = int(sys.argv[11])
 end_slot_exclusive = int(sys.argv[12])
+existing_staking = sys.argv[13]
+chunk_size = int(sys.argv[14])
 
 text = log_path.read_text(encoding="utf-8", errors="ignore")
 keys = [
@@ -127,7 +140,7 @@ for key in keys:
 artifact = {
     "chainId": chain_id,
     "rpcUrl": rpc,
-    "status": "upgrade_track_seeded_epoch_captured",
+    "status": "upgrade_track_epoch_captured",
     "deployer": sender,
     "seed": {
         "reward": reward,
@@ -136,8 +149,13 @@ artifact = {
         "capturedEpoch": epoch,
         "windowStartSlot": start_slot,
         "windowEndSlotExclusive": end_slot_exclusive,
+        "captureChunkSize": chunk_size,
     },
     "contracts": found,
+    "recovery": {
+        "existingStaking": existing_staking or None,
+        "mode": "recovery" if existing_staking and existing_staking != "0x0000000000000000000000000000000000000000" else "seed"
+    },
     "notes": [
         "This is a separate upgrade-track validator truth stack.",
         "It is not a mutation of frozen Mainnet-0 bootstrap contracts.",
