@@ -844,7 +844,7 @@ app.get("/__void/runtime/validator-truth/window/:epoch/:start/:end", (req: any, 
         if (now - lastFlush > 2000) {
           lastFlush = now;
           const top = Object.entries(counts).sort((a:any,b:any)=>b[1]-a[1]).slice(0,40);
-          const lines = top.map((x:any)=>`${x[1]} ${x[0]}`).join("\n") + "\n";
+          const lines = top.map((x:any)=>`${x[1]} ${x[0]}`).join("\\n") + "\n";
           fs.writeFileSync(LOG, lines, "utf8");
         }
       } catch {}
@@ -1139,7 +1139,7 @@ if (process.env.VOID_EARLY_MINIMAL_BOOT === "1") {
             "void_datanet_fetch_receipts_native_v1_last_ts_ms " + Number(s.last_ts_ms || 0)
           ];
           res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
-          res.status(200).send(lines.join("\n") + "\n");
+          res.status(200).send(lines.join("\\n") + "\n");
         } catch {
           try { res.status(200).send(""); } catch {}
         }
@@ -2492,7 +2492,7 @@ const top = entries.slice(0,40).reduce((acc:any,[k,v])=>{ acc[k]=v; return acc; 
       lines.push("# TYPE void_proposer_spy_last_call_ts_ms gauge");
       lines.push(`void_proposer_spy_last_call_ts_ms ${Number(st?.last_call_ts||0)}`);
       res.setHeader("content-type","text/plain; version=0.0.4");
-      res.send(lines.join("\n") + "\n");
+      res.send(lines.join("\\n") + "\n");
     });
   }
 } catch {}
@@ -3387,7 +3387,7 @@ try {
       lines.push("void_txsubmit_keep_hits_total " + n(g.__void_txsubmit_keep_hits_total));
 
       res.setHeader("content-type","text/plain; version=0.0.4");
-      res.send(lines.join("\n") + "\n");
+      res.send(lines.join("\\n") + "\n");
     });
 
     (console?.log||(()=>{}))("[txsubmit] prune-to-one v1 installed");
@@ -3975,7 +3975,7 @@ try {
         "# TYPE void_info_exporter_timestamp_ms gauge",
         `void_info_exporter_timestamp_ms ${Date.now()}`
       ];
-      res.type("text/plain").send(lines.join("\n"));
+      res.type("text/plain").send(lines.join("\\n"));
     } catch (e) {
       res.type("text/plain").send("void_uptime_seconds -1\n");
     }
@@ -3999,7 +3999,7 @@ try {
         "# HELP void_summary_timestamp_ms Exporter ts",
         "# TYPE void_summary_timestamp_ms gauge",
         `void_summary_timestamp_ms ${ts}`
-      ].join("\n"));
+      ].join("\\n"));
     } catch(e){ res.type("text/plain").send("void_head_number -1\n"); }
   });
 })();
@@ -4081,7 +4081,7 @@ try {
         ok: r.ok,
         code: r.code,
         timedOut: r.timedOut,
-        summary: r.stdout.split("\n").filter(Boolean).slice(-6),
+        summary: r.stdout.split("\\n").filter(Boolean).slice(-6),
         stdout: r.stdout,
         stderr: r.stderr,
       });
@@ -4117,7 +4117,7 @@ try {
           ok: verify.ok,
           code: verify.code,
           timedOut: verify.timedOut,
-          summary: verify.stdout.split("\n").filter(Boolean).slice(-6),
+          summary: verify.stdout.split("\\n").filter(Boolean).slice(-6),
         },
       });
     } catch (e: any) {
@@ -4533,7 +4533,7 @@ try {
         ok: r.ok,
         ms: Date.now() - t0,
         via: "scripts/dev_proposer.ts",
-        summary: r.stdout.split("\n").filter(Boolean).slice(-6),
+        summary: r.stdout.split("\\n").filter(Boolean).slice(-6),
       });
     } catch (e: any) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -6264,7 +6264,7 @@ import type {} from "express"; // type-only safety; no runtime impact
           try {
             if (t === "function") {
               const src = ((s as any)[k]).toString();
-              sig = src.split("\n")[0].slice(0, 160);
+              sig = src.split("\\n")[0].slice(0, 160);
             }
           } catch {}
           return { name:k, type:t, sig };
@@ -7396,7 +7396,7 @@ import type {} from "express"; // type-only safety; no runtime impact
           "# TYPE void_txroot_mismatch_total counter",
           `void_txroot_mismatch_total ${devCounters.txroot_mismatch_total}`,
           ""
-        ].join("\n")
+        ].join("\\n")
       );
     });
   }
@@ -7755,7 +7755,7 @@ import { computeTxRoot } from "./util/txroot.js";
             res.type("text/plain").send([
               `void_sealed_blocks_total ${snap.sealed_blocks_total}`,
               `void_sealed_txs_total ${snap.sealed_txs_total}`
-            ].join("\n"));
+            ].join("\\n"));
           });
         }
       } catch {}
@@ -7813,7 +7813,7 @@ import { computeTxRoot } from "./util/txroot.js";
         res.type("text/plain").send([
           `void_sealed_blocks_total ${c.blocks}`,
           `void_sealed_txs_total ${c.txs}`
-        ].join("\n"));
+        ].join("\\n"));
       });
     })();
 
@@ -8475,7 +8475,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function lastBlockMetrics
         fetchText("/metrics/txroot3"),
         fetchText("/metrics/lastblock"),
       ]);
-      res.type("text/plain").send([m4,m3,ml].join("\n"));
+      res.type("text/plain").send([m4,m3,ml].join("\\n"));
     });
     console.log("[metrics/bundle] ready at /metrics/void");
   }
@@ -8790,7 +8790,7 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function driftExporterV4b
             "# TYPE void_txroot_v2_errors_total counter",
             `void_txroot_v2_errors_total ${errs}`,
             ""
-          ].join("\n")
+          ].join("\\n")
         );
       });
     })();
@@ -10287,7 +10287,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") { ;(function txrootSett
           "# TYPE void_txroot_header_last_set_block gauge",
           `void_txroot_header_last_set_block ${Number(c.last_set_block)||-1}`
         ];
-        res.end(lines.join("\n")+"\n");
+        res.end(lines.join("\\n")+"\n");
       });
 
       app.__void_setter_prom_direct = true;
@@ -10825,7 +10825,7 @@ void_head_v2_poll_slow_total ${slowt}
         "# TYPE void_txroot_core_last_set_block gauge",
         `void_txroot_core_last_set_block ${Number(m.last_set_block||-1)}`,
       ];
-      res.type("text/plain").send(lines.join("\n") + "\n");
+      res.type("text/plain").send(lines.join("\\n") + "\n");
     });
   }
   attach();
@@ -10865,7 +10865,7 @@ void_head_v2_poll_slow_total ${slowt}
         "# TYPE void_txroot_core_last_set_block gauge",
         `void_txroot_core_last_set_block ${Number(m.last_set_block||-1)}`,
       ];
-      res.type("text/plain").send(out.join("\n")+"\n");
+      res.type("text/plain").send(out.join("\\n")+"\n");
     });
   }
   attach();
@@ -11757,7 +11757,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
         "# TYPE void_headerwrap_heartbeat_total counter",
         `void_headerwrap_heartbeat_total ${wrap_heartbeat_total}`,
         ""
-      ].join("\n"));
+      ].join("\\n"));
     });
     console.log(TAG, "prom route attached: /__void/metrics/txroot4/headerwrap.prom");
     return true;
@@ -12226,7 +12226,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
         "# TYPE void_txmerge2_last_merged_block gauge",
         `void_txmerge2_last_merged_block ${last_merged_block}`
       ];
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
 
     // tiny controls
@@ -12372,7 +12372,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
         `void_txmerge_v23_heartbeat ${(M.heartbeat=(Number(M.heartbeat||0)+1))}`
       ];
       res.setHeader("Content-Type","text/plain; version=0.0.4");
-      res.end(lines.join("\n")+"\n");
+      res.end(lines.join("\\n")+"\n");
       g.__void_txmerge_v23_metrics = M;
     });
     console.log(TAG, "attached");
@@ -12412,7 +12412,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
         `void_txmerge_v23b_heartbeat ${(M.heartbeat=(Number(M.heartbeat||0)+1))}`
       ];
       res.setHeader("Content-Type","text/plain; version=0.0.4");
-      res.end(lines.join("\n")+"\n");
+      res.end(lines.join("\\n")+"\n");
       g.__void_txmerge_v23_metrics = M;
     });
     console.log(TAG, "attached");
@@ -13260,7 +13260,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
       lines.push("# TYPE void_lastmile_errors_total counter");
       if (typeof s.lastmile_v4b.errors_total === "number") lines.push(`void_lastmile_errors_total ${s.lastmile_v4b.errors_total}`);
 
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
 
     a.__voidAboutBasics = true;
@@ -13406,7 +13406,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
           `void_lastmile_errors_total ${lm.errors_total||0}`,
           ""
         ];
-        res.type("text/plain").send(lines.join("\n"));
+        res.type("text/plain").send(lines.join("\\n"));
       } catch (e:any){
         res.type("text/plain").status(200).send(
           "# HELP void_uptime_ms Process uptime (ms)\n# TYPE void_uptime_ms gauge\n" +
@@ -13516,7 +13516,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
           "# TYPE void_lastmile_errors_total counter",
           `void_lastmile_errors_total ${lm.errors_total||0}`,
           ""
-        ].join("\n"));
+        ].join("\\n"));
       }catch{
         res.type("text/plain").send(`# HELP void_uptime_ms Process uptime (ms)
 # TYPE void_uptime_ms gauge
@@ -14065,7 +14065,7 @@ void_ready_exporter_timestamp_ms ${now}
     let top = "";
     try {
       const st = String(e?.stack || "");
-      if (st) top = st.split("\n").slice(0, 25).join("\n");
+      if (st) top = st.split("\\n").slice(0, 25).join("\\n");
     } catch {}
 
     const is_stack = msg.includes("Maximum call stack");
@@ -14442,7 +14442,7 @@ void_header3_last_mismatch ${lastMismatch}
           "# TYPE void_ready_bit gauge",
           "void_ready_bit 1",
           `# ts_ms ${now}`
-        ].join("\n"));
+        ].join("\\n"));
       } catch {
         res.type("text/plain").send("void_ready_bit 0\n");
       }
@@ -14537,7 +14537,7 @@ void_header3_last_mismatch ${lastMismatch}
           `void_ready_bit ${ready}`,
           `# components head_ok=${headOK?1:0} setter_ok=${setterOK?1:0}`,
           `# ts_ms ${now}`
-        ].join("\n"));
+        ].join("\\n"));
       } catch {
         res.type("text/plain").send("void_ready_bit 0\n");
       }
@@ -14668,7 +14668,7 @@ void_header3_last_mismatch ${lastMismatch}
           `void_ready_bit ${ready}`,
           `# components head_ok=${headOK?1:0} setter_ok=${setterOK?1:0}`,
           `# ts_ms ${now}`
-        ].join("\n"));
+        ].join("\\n"));
       } catch {
         res.type("text/plain").send("void_ready_bit 0\n");
       }
@@ -14912,7 +14912,7 @@ void_header3_last_mismatch ${lastMismatch}
         lines.push("# TYPE void_proposer_last_seen_head gauge");
         lines.push(`void_proposer_last_seen_head ${mirror.lastSeenHead}`);
       }
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
 
     // If other parts of the app emit events, they can update the mirror like so:
@@ -14981,7 +14981,7 @@ void_header3_last_mismatch ${lastMismatch}
         lines.push("# TYPE void_proposer_last_seen_head gauge");
         lines.push(`void_proposer_last_seen_head ${s.lastSeenHead}`);
       }
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
   }
   mount();
@@ -15016,7 +15016,7 @@ void_header3_last_mismatch ${lastMismatch}
       lines.push("# HELP void_proposer_active Head advanced within last 10s (1 yes, 0 no)");
       lines.push("# TYPE void_proposer_active gauge");
       lines.push(`void_proposer_active ${active}`);
-      res.type("text/plain").send((buf?buf+"\n":"") + lines.join("\n") + "\n");
+      res.type("text/plain").send((buf?buf+"\n":"") + lines.join("\\n") + "\n");
     });
   }
   poll(); mount();
@@ -15071,7 +15071,7 @@ void_header3_last_mismatch ${lastMismatch}
       lines.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
       lines.push("# TYPE void_proposer_auto_ms gauge");
       { const M=(globalThis as any).__void_metrics||{}; const v = Number(M.proposerAutoMs); lines.push("void_proposer_auto_ms " + (Number.isFinite(v) ? v : NaN)); }
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
   }
 
@@ -15198,7 +15198,7 @@ void_header3_last_mismatch ${lastMismatch}
       out.push("# HELP void_proposer_auto_ms Proposer tick interval in ms (NaN if unknown)");
       out.push("# TYPE void_proposer_auto_ms gauge");
       out.push(`void_proposer_auto_ms ${Number.isFinite(ms) ? ms : 'NaN'}`);
-      return out.join("\n");
+      return out.join("\\n");
     };
   } catch {}
 })();
@@ -15220,7 +15220,7 @@ void_header3_last_mismatch ${lastMismatch}
       lines.push("# HELP void_proposer_auto_enabled Proposer auto-loop enabled (1/0)");
       lines.push("# TYPE void_proposer_auto_enabled gauge");
       lines.push("void_proposer_auto_enabled " + enabled);
-      return lines.join("\n");
+      return lines.join("\\n");
     };
   }
   mount();
@@ -15371,7 +15371,7 @@ void_header3_last_mismatch ${lastMismatch}
       lines.push("# TYPE void_proposer_auto_ms gauge");
       lines.push("void_proposer_auto_ms " + ms);
 
-      return lines.join("\n");
+      return lines.join("\\n");
     };
   }
   mount();
@@ -15390,7 +15390,7 @@ void_header3_last_mismatch ${lastMismatch}
       lines.push("# HELP void_proposer_exporter_ts_ms Exporter generation timestamp (ms since epoch)");
       lines.push("# TYPE void_proposer_exporter_ts_ms gauge");
       lines.push("void_proposer_exporter_ts_ms " + now);
-      return (out ? out + "\n" : "") + lines.join("\n");
+      return (out ? out + "\n" : "") + lines.join("\\n");
     };
   }
   mount();
@@ -15423,7 +15423,7 @@ void_header3_last_mismatch ${lastMismatch}
       lines.push("void_proposer_auto_ms " + ms);
       // Tag so we can verify who is winning
       lines.push("# SOURCE proposer_exporter_override_vFINAL seq=" + seq);
-      return lines.join("\n");
+      return lines.join("\\n");
     };
   }
 
@@ -15457,7 +15457,7 @@ void_header3_last_mismatch ${lastMismatch}
       out.push("void_proposer_auto_ms " + ms);
 
       out.push("# SOURCE " + TAG);
-      return out.join("\n");
+      return out.join("\\n");
     };
   }
 
@@ -15522,7 +15522,7 @@ void_header3_last_mismatch ${lastMismatch}
         // Prepend/append around any existing block so both coexist safely.
         const legacy = old ? String(old()) : "";
         // Our v2 block LAST so Prom takes our values if names ever collide (they don't).
-        return (legacy ? legacy + "\n" : "") + v2.join("\n");
+        return (legacy ? legacy + "\n" : "") + v2.join("\\n");
       };
     } catch { return setTimeout(addV2, TICK); }
   }
@@ -15564,7 +15564,7 @@ void_header3_last_mismatch ${lastMismatch}
 
       // Tag so we can grep the live scrape
       out.push("# SOURCE proposer_exporter_sticky_hijack_v1");
-      return out.join("\n");
+      return out.join("\\n");
     };
   }
 
@@ -15613,7 +15613,7 @@ void_header3_last_mismatch ${lastMismatch}
 
         lines.push("# SOURCE proposer_exporter_v3_route");
         res.setHeader("Content-Type", "text/plain; version=0.0.4");
-        res.end(lines.join("\n"));
+        res.end(lines.join("\\n"));
       }catch(e:any){
         res.status(500).end("# ERROR " + String(e?.message||e));
       }
@@ -15725,7 +15725,7 @@ void_header3_last_mismatch ${lastMismatch}
 
         lines.push("# SOURCE proposer_exporter_v3_hardened");
         res.setHeader("Content-Type", "text/plain; version=0.0.4");
-        res.end(lines.join("\n"));
+        res.end(lines.join("\\n"));
       }catch(e:any){
         res.status(500).end("# ERROR " + String(e?.message||e));
       }
@@ -15826,7 +15826,7 @@ void_header3_last_mismatch ${lastMismatch}
 
         lines.push("# SOURCE proposer_exporter_v3b_hardened");
         res.setHeader("Content-Type", "text/plain; version=0.0.4");
-        res.end(lines.join("\n"));
+        res.end(lines.join("\\n"));
       }catch(e:any){
         res.status(500).end("# ERROR " + String(e?.message||e));
       }
@@ -15894,7 +15894,7 @@ void_header3_last_mismatch ${lastMismatch}
         "# TYPE void_proposer_rescues_total counter",
         `void_proposer_rescues_total ${rescues}`,
         `void_proposer_rescue_last_ts_ms ${now()}`
-      ].join("\n")+"\n");
+      ].join("\\n")+"\n");
     });
 
     // Background watchdog every 20s
@@ -16294,7 +16294,7 @@ if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUAR
         `void_txroot_header_noop_heartbeat_total ${s.heartbeat ?? 0}`,
         `txroot_noop_setter_source{source="${s.source || "noop-setter-v3g"}"} 1`,
         ""
-      ].join("\n"));
+      ].join("\\n"));
     });
     // done
   }
@@ -16415,7 +16415,7 @@ if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1") (function noopSetterV3h
         `void_txroot_header_noop_debug_last_pre_count ${s.debug_last_pre_count ?? -2}`,
         `txroot_noop_setter_source{source="${s.source || "noop-setter-v3h"}"} 1`,
         ""
-      ].join("\n"));
+      ].join("\\n"));
     });
   }
   mount();
@@ -16490,7 +16490,7 @@ if (process.env.VOID_DISABLE_TXROOT_HEADER_NOOP !== "1" && process.env.VOID_QUAR
         `void_txroot_header_noop_heartbeat_total ${state.heartbeat}`,
         `txroot_noop_setter_source{source="${state.source}"} 1`,
         ""
-      ].join("\n"));
+      ].join("\\n"));
     });
 
     // Compatibility mirror: if something else already bound /noop_setter.prom,
@@ -18019,7 +18019,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
         `void_wal_last_uncommitted_number ${state.lastUncommitted}`,
         `void_wal_synthetic_seq ${state.syntheticSeq}`,
       ];
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
     console.error("[wal.v1-inline] exporters bound");
   }
@@ -18088,7 +18088,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]           `void_wal_last_uncommitted_number ${S.lastUncommitted}`,
 // [wal-iife-neutralized]           `void_wal_synthetic_seq ${S.syntheticSeq}`,
 // [wal-iife-neutralized]         ];
-// [wal-iife-neutralized]         res.type("text/plain").send(lines.join("\n")+"\n");
+// [wal-iife-neutralized]         res.type("text/plain").send(lines.join("\\n")+"\n");
 // [wal-iife-neutralized]       });
 // [wal-iife-neutralized] 
 // [wal-iife-neutralized]       // tiny debug: show current saveBlock chain length
@@ -18147,7 +18147,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]           `void_wal_v4_last_uncommitted_number ${S.lastUncommitted}`,
 // [wal-iife-neutralized]           `void_wal_v4_synthetic_seq ${S.syntheticSeq}`,
 // [wal-iife-neutralized]         ];
-// [wal-iife-neutralized]         res.type("text/plain").send(lines.join("\n")+"\n");
+// [wal-iife-neutralized]         res.type("text/plain").send(lines.join("\\n")+"\n");
 // [wal-iife-neutralized]       });
 // [wal-iife-neutralized] 
 // [wal-iife-neutralized]       console.error("[wal.v1c] exporters bound (/__void/metrics/wal.v4.prom, status2.json)");
@@ -18192,7 +18192,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]           `void_wal_v5_commits_total ${S.commits}`,
 // [wal-iife-neutralized]           `void_wal_v5_overwrites_total ${S.overwrites}`,
 // [wal-iife-neutralized]           `void_wal_v5_last_uncommitted_number ${S.last_uncommitted}`,
-// [wal-iife-neutralized]         ].join("\n")+"\n");
+// [wal-iife-neutralized]         ].join("\\n")+"\n");
 // [wal-iife-neutralized]       });
 // [wal-iife-neutralized] 
 // [wal-iife-neutralized]       console.error("[wal.v1d] exporters bound (/__void/metrics/wal.v5.prom, status3.json)");
@@ -18859,14 +18859,14 @@ const wal = new WALv1(getDataDir());
     const done = new Set<string>();
     try{
       if (fs.existsSync(doneFile)){
-        for (const line of fs.readFileSync(doneFile, "utf8").split("\n")){ if (!line.trim()) continue;
+        for (const line of fs.readFileSync(doneFile, "utf8").split("\\n")){ if (!line.trim()) continue;
           const rec = JSON.parse(line); if (rec && rec.id) done.add(rec.id);
         }
       }
     }catch{}
     try{
       if (fs.existsSync(jobsFile)){
-        for (const line of fs.readFileSync(jobsFile, "utf8").split("\n")){ if (!line.trim()) continue;
+        for (const line of fs.readFileSync(jobsFile, "utf8").split("\\n")){ if (!line.trim()) continue;
           const j = JSON.parse(line);
           if (!j || !j.id || done.has(j.id)) continue;
           if (!S().map.has(j.id)){ j.status = "queued"; S().map.set(j.id, j); S().q.push(j); }
@@ -18939,7 +18939,7 @@ const wal = new WALv1(getDataDir());
       lines.push("# HELP void_agent_dlq_total total jobs sent to dead-letter");
       lines.push("# TYPE void_agent_dlq_total counter");
       lines.push(`void_agent_dlq_total ${Number(met.dlq||0)}`);
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
   }
 
@@ -19107,7 +19107,7 @@ const wal = new WALv1(getDataDir());
       lines.push("# HELP void_agent_dlq_total total jobs sent to dead-letter");
       lines.push("# TYPE void_agent_dlq_total counter");
       lines.push(`void_agent_dlq_total ${Number(met.dlq||0)}`);
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
   } mount();
 })();
@@ -19213,7 +19213,7 @@ const wal = new WALv1(getDataDir());
         const n = Math.max(1, Math.min(1000, Number(req.query.n||"50")));
         if (!fs.existsSync(file)) return res.json({ok:true, items:[]});
         const map = new Map<string, any>();
-        const lines = fs.readFileSync(file, "utf8").split("\n");
+        const lines = fs.readFileSync(file, "utf8").split("\\n");
         for (const line of lines){
           if (!line) continue;
           try{
@@ -19250,7 +19250,7 @@ const wal = new WALv1(getDataDir());
       try{
         const map = new Map<string, number>();
         if (fs.existsSync(file)){
-          for (const line of fs.readFileSync(file, "utf8").split("\n")){
+          for (const line of fs.readFileSync(file, "utf8").split("\\n")){
             if (!line) continue; try{ const o = JSON.parse(line); if (o?.id) map.set(o.id, 1); }catch{}
           }
         }
@@ -19514,7 +19514,7 @@ const wal = new WALv1(getDataDir());
       lines.push("# TYPE void_agent_receipts_errors counter");
       lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
       // IMPORTANT: real newlines (not '\n' literals)
-      res.type("text/plain").send(lines.join("\n") + "\n");
+      res.type("text/plain").send(lines.join("\\n") + "\n");
     });
   } mount();
 })();
@@ -19531,7 +19531,7 @@ const wal = new WALv1(getDataDir());
     const out:any[] = [];
     try{
       if (!fs.existsSync(pathStr)) return out;
-      for (const line of fs.readFileSync(pathStr, "utf8").split("\n")){
+      for (const line of fs.readFileSync(pathStr, "utf8").split("\\n")){
         if (!line) continue;
         try { out.push(JSON.parse(line)); } catch {}
       }
@@ -19596,7 +19596,7 @@ const wal = new WALv1(getDataDir());
       lines.push("# HELP void_agent_receipts_coverage fraction of results with receipts (0..1)");
       lines.push("# TYPE void_agent_receipts_coverage gauge");
       lines.push(`void_agent_receipts_coverage ${isFinite(r.coverage)?r.coverage:0}`);
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
   } mount();
 })();
@@ -19615,13 +19615,13 @@ const wal = new WALv1(getDataDir());
     const rmap = new Map<string, number>(); // id -> count
     try{
       if (fs.existsSync(resultsFile)){
-        for (const line of fs.readFileSync(resultsFile,"utf8").split("\n")){
+        for (const line of fs.readFileSync(resultsFile,"utf8").split("\\n")){
           if (!line) continue;
           try{ const o=JSON.parse(line); if (o?.id){ total++; seen.add(o.id); } }catch{}
         }
       }
       if (fs.existsSync(receiptsFile)){
-        for (const line of fs.readFileSync(receiptsFile,"utf8").split("\n")){
+        for (const line of fs.readFileSync(receiptsFile,"utf8").split("\\n")){
           if (!line) continue;
           try{ const o=JSON.parse(line); if (o?.id){ receipts++; rmap.set(o.id, (rmap.get(o.id)||0)+1); } }catch{}
         }
@@ -19653,7 +19653,7 @@ const wal = new WALv1(getDataDir());
         "# TYPE void_agent_receipts_coverage gauge",
         `void_agent_receipts_coverage ${coverage}`
       ];
-      res.type("text/plain").end(lines.join("\n")+"\n");
+      res.type("text/plain").end(lines.join("\\n")+"\n");
     });
   }
   mount();
@@ -19789,20 +19789,20 @@ const wal = new WALv1(getDataDir());
         const done = new Set();
         // collect leases
         if (fs.existsSync(FILE_LEASES)){
-          fs.readFileSync(FILE_LEASES,"utf8").split("\n").forEach(l=>{
+          fs.readFileSync(FILE_LEASES,"utf8").split("\\n").forEach(l=>{
             if(!l.trim()) return;
             try{ const x=JSON.parse(l); if(x && x.id) leased.add(x.id); }catch{}
           });
         }
         // collect done
         if (fs.existsSync(FILE_RESULTS)){
-          fs.readFileSync(FILE_RESULTS,"utf8").split("\n").forEach(l=>{
+          fs.readFileSync(FILE_RESULTS,"utf8").split("\\n").forEach(l=>{
             if(!l.trim()) return;
             try{ const x=JSON.parse(l); if(x && x.id) done.add(x.id); }catch{}
           });
         }
         // list jobs not done/not leased
-        fs.readFileSync(FILE_JOBS,"utf8").split("\n").forEach(l=>{
+        fs.readFileSync(FILE_JOBS,"utf8").split("\\n").forEach(l=>{
           if(!l.trim()) return;
           try{
             const x=JSON.parse(l);
@@ -20046,7 +20046,7 @@ const wal = new WALv1(getDataDir());
         // fetch the job payload to return
         let job:any = null;
         if (fs.existsSync(FILE_JOBS)){
-          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
+          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
             try{ const x=JSON.parse(l); if(x.id===id){ job=x; break; } }catch{}
@@ -20070,7 +20070,7 @@ const wal = new WALv1(getDataDir());
         // try to find original inputHash for this id
         let inputHash = (req.body?.inputHash || "");
         if (!inputHash && fs.existsSync(FILE_JOBS)){
-          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
+          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
             try{ const x=JSON.parse(l); if(x.id===id){ inputHash = x.inputHash || ""; break; } }catch{}
@@ -20092,7 +20092,7 @@ const wal = new WALv1(getDataDir());
         const id = req.params.id;
         let out:any = null;
         if (fs.existsSync(FILE_RESULTS)){
-          const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\n");
+          const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
             try{ const x=JSON.parse(l); if(x.id===id){ out=x; break; } }catch{}
@@ -20109,9 +20109,9 @@ const wal = new WALv1(getDataDir());
       try{
         if (!queued.length) rebuildIndex();
         let totalJobs=0, totalResults=0, totalReceipts=0;
-        if (fs.existsSync(FILE_JOBS))     totalJobs    = fs.readFileSync(FILE_JOBS,"utf8").split("\n").filter(Boolean).length;
-        if (fs.existsSync(FILE_RESULTS))  totalResults = fs.readFileSync(FILE_RESULTS,"utf8").split("\n").filter(Boolean).length;
-        if (fs.existsSync(FILE_RECEIPTS)) totalReceipts= fs.readFileSync(FILE_RECEIPTS,"utf8").split("\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_JOBS))     totalJobs    = fs.readFileSync(FILE_JOBS,"utf8").split("\\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_RESULTS))  totalResults = fs.readFileSync(FILE_RESULTS,"utf8").split("\\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_RECEIPTS)) totalReceipts= fs.readFileSync(FILE_RECEIPTS,"utf8").split("\\n").filter(Boolean).length;
         const lines = [
           "# HELP void_agent_jobs_queued current queued jobs",
           "# TYPE void_agent_jobs_queued gauge",
@@ -20126,7 +20126,7 @@ const wal = new WALv1(getDataDir());
           "# TYPE void_agent_receipts_file_total gauge",
           `void_agent_receipts_file_total ${totalReceipts}`,
         ];
-        res.type("text/plain").send(lines.join("\n")+"\n");
+        res.type("text/plain").send(lines.join("\\n")+"\n");
       }catch(e:any){
         res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
       }
@@ -20179,7 +20179,7 @@ const wal = new WALv1(getDataDir());
   function nowMs(){ return Date.now(); }
   function safeLines(file){
     if (!fs.existsSync(file)) return [];
-    return fs.readFileSync(file,"utf8").split("\n").filter(l=>l.trim().length>0);
+    return fs.readFileSync(file,"utf8").split("\\n").filter(l=>l.trim().length>0);
   }
   function readSetFrom(file, idKey){ // returns Set<string>
     const s = new Set();
@@ -20462,7 +20462,7 @@ const wal = new WALv1(getDataDir());
         const addCompletedTruth = (file:string) => {
           try{
             if (!fs.existsSync(file)) return;
-            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\n")){
+            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\\n")){
               if (!line.trim()) continue;
               try{
                 const j:any = JSON.parse(line);
@@ -20539,7 +20539,7 @@ const wal = new WALv1(getDataDir());
         const addCompletedTruth = (file:string) => {
           try{
             if (!fs.existsSync(file)) return;
-            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\n")){
+            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\\n")){
               if (!line.trim()) continue;
               try{
                 const j:any = JSON.parse(line);
@@ -20645,7 +20645,7 @@ const wal = new WALv1(getDataDir());
           `void_agent_leases_expired ${expired}`,
           `void_agent_lease_ms ${LEASE_MS}`
         ];
-        res.type("text/plain").send(out.join("\n")+"\n");
+        res.type("text/plain").send(out.join("\\n")+"\n");
       }catch(e:any){
         res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
       }
@@ -20680,7 +20680,7 @@ const wal = new WALv1(getDataDir());
         "# TYPE void_agent_auth_hash_sha256 gauge",
         `void_agent_auth_hash_sha256{hash="${hash}"} 1`
       ];
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
 
     // JSON (optional)
@@ -20700,7 +20700,7 @@ const wal = new WALv1(getDataDir());
   const FILE_JOBS = path.join(AGENT_DIR, "jobs.jsonl");
   const FILE_RESULTS = path.join(AGENT_DIR, "results.jsonl");
 
-  function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\n").filter(l=>l.trim()) : []; }
+  function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\\n").filter(l=>l.trim()) : []; }
   function countSet(file){ const s=new Set(); for (const l of safeLines(file)){ try{ s.add(JSON.parse(l).id) }catch{} } return s; }
 
   function mount(){
@@ -20881,7 +20881,7 @@ const wal = new WALv1(getDataDir());
         "# TYPE void_block_last_number_v2 gauge",
         `void_block_last_number_v2 ${lastNum < 0 ? 0 : lastNum}`
       ];
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
 
     if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1" && process.env.VOID_BLOCKCOUNT_V2_DISABLE !== "1") (console?.log||(()=>{}))('[blockcount.v2] exporter at /__void/metrics/blockcount.v2.prom');
@@ -20962,7 +20962,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
         "# TYPE void_block_last_number_v2b gauge",
         `void_block_last_number_v2b ${lastNum<0?0:lastNum}`
       ];
-      res.type("text/plain").send(out.join("\n")+"\n");
+      res.type("text/plain").send(out.join("\\n")+"\n");
     });
     if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1" && process.env.VOID_BLOCKCOUNT_V2B_DISABLE !== "1") (console?.log||(()=>{}))('[blockcount.v2b] exporter at /__void/metrics/blockcount.v2b.prom');
   }
@@ -21032,7 +21032,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
         "# HELP void_queue_size current proposer queue size",
         "# TYPE void_queue_size gauge",
         `void_queue_size ${q}`
-      ].join("\n")+"\n");
+      ].join("\\n")+"\n");
     });
     (console?.log||(()=>{}))('[qsnap] /__void/metrics/queue.prom ready');
   }
@@ -21075,7 +21075,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
         "# TYPE void_lastmile_mempool_len gauge",
         `void_lastmile_mempool_len ${S.last_mempool_len}`
       ];
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
     (console?.log||(()=>{}))('[lastmile.v123] exporter at /__void/metrics/lastmile.v123.prom');
   }
@@ -21194,7 +21194,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
         "# HELP void_node_queue_len current proposer queue length (live object)",
         "# TYPE void_node_queue_len gauge",
         `void_node_queue_len ${q}`
-      ].join("\n")+"\n");
+      ].join("\\n")+"\n");
     });
 
     (console?.log||(()=>{}))('[expose-node] mounted /__void/dev/node-snap + /__void/metrics/node-basic.prom');
@@ -21292,7 +21292,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
         "# HELP void_lastmile_b_mempool_len last observed mempool length",
         "# TYPE void_lastmile_b_mempool_len gauge",
         `void_lastmile_b_mempool_len ${S.last_mempool_len}`
-      ].join("\n")+"\n");
+      ].join("\\n")+"\n");
     });
     (console?.log||(()=>{}))('[lastmile.v123b] exporter at /__void/metrics/lastmile.v123b.prom');
   }
@@ -21406,7 +21406,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function LastMileSaf
         "# HELP void_txroot_forensics_last_ms_v7b last saveBlock duration ms (shim-b)",
         "# TYPE void_txroot_forensics_last_ms_v7b gauge",
         `void_txroot_forensics_last_ms_v7b ${MET.last_ms}`
-      ].join("\n")+"\n");
+      ].join("\\n")+"\n");
     });
     if (process.env.VOID_DISABLE_WRAPPER_STORM !== "1") (console?.log||(()=>{}))('[forensics.v7b] exporter at /__void/metrics/txroot4/forensics.prom.v7b');
   }
@@ -21577,7 +21577,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
         "# HELP void_txroot_forensics_last_ms_v7b last saveBlock duration ms (shim-b)",
         "# TYPE void_txroot_forensics_last_ms_v7b gauge",
         `void_txroot_forensics_last_ms_v7b ${S.last_ms}`
-      ].join("\n")+"\n");
+      ].join("\\n")+"\n");
     });
 
     // last-mile v123b metrics (count what finally ended up in the block)
@@ -21598,7 +21598,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
         "# HELP void_lastmile_b_mempool_len last observed mempool length",
         "# TYPE void_lastmile_b_mempool_len gauge",
         `void_lastmile_b_mempool_len ${Array.isArray((node()||{}).mempool?.txs)?(node() as any).mempool.txs.length:0}`
-      ].join("\n")+"\n");
+      ].join("\\n")+"\n");
     });
   }
 
@@ -21689,7 +21689,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
           "# HELP void_txroot_forensics_last_ms_v7b last saveBlock duration ms (shim-b)",
           "# TYPE void_txroot_forensics_last_ms_v7b gauge",
           `void_txroot_forensics_last_ms_v7b ${S.last_ms}`
-        ].join("\n")+"\n"
+        ].join("\\n")+"\n"
       );
     });
 
@@ -21711,7 +21711,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
           "# HELP void_lastmile_b_mempool_len last observed mempool length",
           "# TYPE void_lastmile_b_mempool_len gauge",
           `${Array.isArray((node()||{}).mempool?.txs)?(node() as any).mempool.txs.length:0}`
-        ].join("\n")+"\n"
+        ].join("\\n")+"\n"
       );
     });
 
@@ -21725,7 +21725,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockCh
           "# HELP void_head_probe_last_number last head observed by probe",
           "# TYPE void_head_probe_last_number gauge",
           `void_head_probe_last_number ${num}`
-        ].join("\n")+"\n");
+        ].join("\\n")+"\n");
       });
     }
   }
@@ -22798,7 +22798,7 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
               "# HELP void_saveblock_finalize_v3_ts_ms last successful lock ts",
               "# TYPE void_saveblock_finalize_v3_ts_ms gauge",
               `void_saveblock_finalize_v3_ts_ms ${S.ts||0}`
-            ].join("\n") + "\n"
+            ].join("\\n") + "\n"
           );
         });
 
@@ -23017,7 +23017,7 @@ if (process.env.VOID_DISABLE_SAVEBLOCK_TAIL !== "1") (function SaveBlockFinalize
               "# HELP void_saveblock_finalize_v3b_ts_ms last install ts",
               "# TYPE void_saveblock_finalize_v3b_ts_ms gauge",
               `void_saveblock_finalize_v3b_ts_ms ${S.ts||0}`
-            ].join("\n") + "\n"
+            ].join("\\n") + "\n"
           );
         });
 
@@ -23073,7 +23073,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       const p = mempoolPath();
       if (fs.existsSync(p)){
         const txt = fs.readFileSync(p, "utf8");
-        const lines = txt.split("\n").filter(Boolean);
+        const lines = txt.split("\\n").filter(Boolean);
         for (let i=0; i<lines.length && out.length<max; i++){
           try {
             const j = JSON.parse(lines[i]);
@@ -23234,7 +23234,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
           "# HELP void_proposer_commit_direct_v1_last_took last tx count",
           "# TYPE void_proposer_commit_direct_v1_last_took gauge",
           `void_proposer_commit_direct_v1_last_took ${S.last_took??0}`
-        ].join("\n") + "\n"
+        ].join("\\n") + "\n"
       );
     });
 
@@ -23350,7 +23350,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       const p = mempoolPath();
       if (fs.existsSync(p)){
         const txt = fs.readFileSync(p, "utf8");
-        const lines = txt.split("\n").filter(Boolean);
+        const lines = txt.split("\\n").filter(Boolean);
         for (let i=0; i<lines.length && out.length<max; i++){
           try {
             const j = JSON.parse(lines[i]);
@@ -23535,7 +23535,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
           "# HELP void_proposer_commit_direct_v1b_last_took last tx count",
           "# TYPE void_proposer_commit_direct_v1b_last_took gauge",
           `void_proposer_commit_direct_v1b_last_took ${S.last_took??0}`
-        ].join("\n") + "\n"
+        ].join("\\n") + "\n"
       );
     });
 
@@ -23680,7 +23680,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       const p = path.join(dataDir(), "mempool.jsonl");
       if (fs.existsSync(p)){
         const txt = fs.readFileSync(p, "utf8");
-        const lines = txt.split("\n").filter(Boolean);
+        const lines = txt.split("\\n").filter(Boolean);
         for (let i=0; i<lines.length && out.length<max; i++){
           try { const j = JSON.parse(lines[i]); if (j && typeof j === "object") out.push(j); } catch {}
         }
@@ -23841,7 +23841,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
           "# HELP void_proposer_commit_direct_v1c_errors_total errors",
           "# TYPE void_proposer_commit_direct_v1c_errors_total counter",
           `void_proposer_commit_direct_v1c_errors_total ${S.errors||0}`
-        ].join("\n") + "\n"
+        ].join("\\n") + "\n"
       );
     });
 
@@ -24001,7 +24001,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function SaveBlockIn
           "# HELP void_saveblock_inst_override_v1_errs_total errors",
           "# TYPE void_saveblock_inst_override_v1_errs_total counter",
           `void_saveblock_inst_override_v1_errs_total ${S.errs||0}`
-        ].join("\n") + "\n"
+        ].join("\\n") + "\n"
       );
     });
 
@@ -24164,7 +24164,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
     if (cap <= 0) return out;
     try {
       if (!fs.existsSync(mp)) return out;
-      const lines = fs.readFileSync(mp, "utf8").split("\n").filter(Boolean);
+      const lines = fs.readFileSync(mp, "utf8").split("\\n").filter(Boolean);
       if (!lines.length) return out;
       const takeN = Math.min(cap, lines.length);
       for (let i=0;i<takeN;i++){
@@ -24174,7 +24174,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
         } catch {}
       }
       const keep = lines.slice(takeN);
-      fs.writeFileSync(mp, keep.join("\n") + (keep.length ? "\n" : ""));
+      fs.writeFileSync(mp, keep.join("\\n") + (keep.length ? "\n" : ""));
     } catch {}
     return out;
   }
@@ -24309,7 +24309,7 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
           "# HELP void_proposer_commit_direct_v2fs_last_ts_ms last timestamp ms",
           "# TYPE void_proposer_commit_direct_v2fs_last_ts_ms gauge",
           `void_proposer_commit_direct_v2fs_last_ts_ms ${S.last_ts||0}`,
-        ].join("\n") + "\n"
+        ].join("\\n") + "\n"
       );
     });
 
@@ -24549,7 +24549,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
         "# HELP void_commit_direct_autoprop_v1_last_ts_ms last timestamp ms",
         "# TYPE void_commit_direct_autoprop_v1_last_ts_ms gauge",
         `void_commit_direct_autoprop_v1_last_ts_ms ${Number(S.last_ts)||0}`,
-      ].join("\n") + "\n");
+      ].join("\\n") + "\n");
     });
 
     // controls
@@ -24653,7 +24653,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
           "# HELP void_proposer_commit_direct_v2fs_commit_alias_last_ts_ms last timestamp ms",
           "# TYPE void_proposer_commit_direct_v2fs_commit_alias_last_ts_ms gauge",
           `void_proposer_commit_direct_v2fs_commit_alias_last_ts_ms ${S.last_ts||0}`,
-        ].join("\n") + "\n"
+        ].join("\\n") + "\n"
       );
     });
 
@@ -24801,7 +24801,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
           "# HELP void_commit_direct_autoprop_v1_health healthy heuristic (1/0)",
           "# TYPE void_commit_direct_autoprop_v1_health gauge",
           `void_commit_direct_autoprop_v1_health ${healthy}`,
-        ].join("\n") + "\n"
+        ].join("\\n") + "\n"
       );
     });
 
@@ -26311,7 +26311,7 @@ try {
       "# TYPE void_proposer_auto4_now_ms gauge",
       `void_proposer_auto4_now_ms ${now}`,
       ""
-    ].join("\n");
+    ].join("\\n");
   }
 
   function attach(){
@@ -26975,7 +26975,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") { ;(() => {
             "# TYPE void_seal_rate_1m_clamped gauge",
             `void_seal_rate_1m_clamped ${clamped}`,
             ""
-          ].join("\n")
+          ].join("\\n")
         );
       } catch (e: any) {
         G[MARK].errors++;
@@ -29681,7 +29681,7 @@ if (process.env.VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS !== "1") (() => {
           "# TYPE void_full3_wraps_total counter",
           `void_full3_wraps_total ${Number(st.wraps)}`,
         ];
-        res.end(lines.join("\n") + "\n");
+        res.end(lines.join("\\n") + "\n");
       });
       g.__void_full3_metrics_installed = true;
       st.routes++;
@@ -30857,7 +30857,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
                 "# HELP void_full3_dedupe_errors_total full3 dedupe errors",
                 "# TYPE void_full3_dedupe_errors_total counter",
                 `void_full3_dedupe_errors_total ${Number(state.errors || 0)}`,
-              ].join("\n") + "\n"
+              ].join("\\n") + "\n"
             );
           } catch (e: any) {
             try { res.status(500).end(`# err ${String(e?.message || e)}\n`); } catch {}
@@ -31450,7 +31450,7 @@ if (process.env.VOID_HARD_MINIMAL_BOOT !== "1") {
           "# HELP void_persisted_dedupe_errors_total persisted dedupe errors",
           "# TYPE void_persisted_dedupe_errors_total counter",
           `void_persisted_dedupe_errors_total ${Number(s.errors || 0)}`,
-        ].join("\n") + "\n"
+        ].join("\\n") + "\n"
       );
     });
   };
@@ -32377,7 +32377,7 @@ try {
         if (!fs.existsSync(file)) return [];
         const txt = String(fs.readFileSync(file,"utf8")||"");
         if (!txt) return [];
-        const lines = txt.split("\n").filter((l:string)=>l.trim().length>0);
+        const lines = txt.split("\\n").filter((l:string)=>l.trim().length>0);
         if (lines.length <= maxLines) return lines;
         // keep tail? no — FIFO wants head; keep head up to maxLines
         return lines.slice(0, maxLines);
@@ -32410,7 +32410,7 @@ try {
     function latestJobById(file:string, id:string, maxLines:number){
       try{
         if (!fs.existsSync(file)) return null;
-        const lines = String(fs.readFileSync(file,"utf8")||"").split("\n").filter((l:string)=>l.trim().length>0);
+        const lines = String(fs.readFileSync(file,"utf8")||"").split("\\n").filter((l:string)=>l.trim().length>0);
         // scan from tail for latest matching id (bounded from tail)
         let scanned=0;
         for (let k=lines.length-1; k>=0; k--){
@@ -32448,7 +32448,7 @@ try {
           const addCompletedTruth = (file:string) => {
             try{
               if (!fs.existsSync(file)) return;
-              const lines = String(fs.readFileSync(file, "utf8") || "").split("\n").filter((l:string)=>l.trim().length>0).slice(-SCAN_MAX);
+              const lines = String(fs.readFileSync(file, "utf8") || "").split("\\n").filter((l:string)=>l.trim().length>0).slice(-SCAN_MAX);
               for (const l of lines){
                 try{
                   const j:any = JSON.parse(l);
@@ -32535,7 +32535,7 @@ try {
         if (!fs.existsSync(file)) return [];
         const txt = String(fs.readFileSync(file,"utf8")||"");
         if (!txt) return [];
-        const lines = txt.split("\n").filter((l:string)=>l.trim().length>0);
+        const lines = txt.split("\\n").filter((l:string)=>l.trim().length>0);
         if (lines.length <= maxLines) return lines;
         return lines.slice(-maxLines); // for totals we only need bounded accuracy
       }catch{ return []; }
@@ -32685,7 +32685,7 @@ try {
               if (!fs.existsSync(file)) return [];
               const txt = String(fs.readFileSync(file,"utf8")||"");
               if (!txt) return [];
-              const lines = txt.split("\n").filter((l:string)=>l.trim().length>0);
+              const lines = txt.split("\\n").filter((l:string)=>l.trim().length>0);
               if (lines.length <= maxLines) return lines;
               return lines.slice(-maxLines);
             }catch{ return []; }
@@ -32752,7 +32752,7 @@ try {
           ];
 
           // CRITICAL: REAL newlines
-          res.type("text/plain").send(lines.join("\n") + "\n");
+          res.type("text/plain").send(lines.join("\\n") + "\n");
         }catch(e:any){
           res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
         }
@@ -32790,7 +32790,7 @@ try {
           if (!fs.existsSync(file)) return [];
           const txt = String(fs.readFileSync(file,"utf8")||"");
           if (!txt) return [];
-          const lines = txt.split("\n").filter((l:string)=>l.trim().length>0);
+          const lines = txt.split("\\n").filter((l:string)=>l.trim().length>0);
           if (lines.length <= maxLines) return lines;
           return lines.slice(-maxLines);
         }catch{ return []; }
@@ -32875,7 +32875,7 @@ try {
           ];
 
           // REAL newlines
-          res.type("text/plain").send(lines.join("\n") + "\n");
+          res.type("text/plain").send(lines.join("\\n") + "\n");
         }catch(e:any){
           res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
         }
@@ -32967,7 +32967,7 @@ try {
           const addCompletedTruth = (file:string) => {
             try{
               if (!fs.existsSync(file)) return;
-              const lines = String(fs.readFileSync(file, "utf8") || "").split("\n").filter((l:string)=>l.trim().length>0).slice(-SCAN_MAX);
+              const lines = String(fs.readFileSync(file, "utf8") || "").split("\\n").filter((l:string)=>l.trim().length>0).slice(-SCAN_MAX);
               for (const l of lines){
                 try{
                   const j:any = JSON.parse(l);
@@ -32989,7 +32989,7 @@ try {
               if (!fs.existsSync(file)) return [];
               const txt = String(fs.readFileSync(file,"utf8")||"");
               if (!txt) return [];
-              return txt.split("\n").filter((l:string)=>l.trim().length>0);
+              return txt.split("\\n").filter((l:string)=>l.trim().length>0);
             }catch{ return []; }
           }
 
@@ -33158,7 +33158,7 @@ try {
               if (!fs.existsSync(file)) return [];
               const txt = String(fs.readFileSync(file,"utf8")||"");
               if (!txt) return [];
-              return txt.split("\n").filter((l:string)=>l.trim().length>0);
+              return txt.split("\\n").filter((l:string)=>l.trim().length>0);
             }catch{ return []; }
           }
 
@@ -33718,7 +33718,7 @@ try {
     function readLatestJobInputHash(jobsFile:string, id:string){
       try{
         if (!fs.existsSync(jobsFile)) return "";
-        const lines = String(fs.readFileSync(jobsFile,"utf8")||"").split("\n").filter((l:string)=>l.trim().length>0);
+        const lines = String(fs.readFileSync(jobsFile,"utf8")||"").split("\\n").filter((l:string)=>l.trim().length>0);
         for (let i=lines.length-1;i>=0;i--){
           try{
             const j = JSON.parse(lines[i]);
@@ -33838,7 +33838,7 @@ try {
           if (!fs.existsSync(file)) return [];
           const txt = String(fs.readFileSync(file,"utf8")||"");
           if (!txt) return [];
-          const lines = txt.split("\n").filter((l:string)=>l.trim().length>0);
+          const lines = txt.split("\\n").filter((l:string)=>l.trim().length>0);
           if (lines.length <= maxLines) return lines;
           return lines.slice(-maxLines);
         }catch{ return []; }
@@ -33969,7 +33969,7 @@ try {
             `void_agent_scan_max ${SCAN_MAX}`
           ];
 
-          res.type("text/plain").send(lines.join("\n") + "\n");
+          res.type("text/plain").send(lines.join("\\n") + "\n");
         }catch(e:any){
           res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
         }
@@ -34008,7 +34008,7 @@ try {
           if (!fs.existsSync(file)) return [];
           const txt = String(fs.readFileSync(file,"utf8")||"");
           if (!txt) return [];
-          const lines = txt.split("\n").filter((l:string)=>l.trim().length>0);
+          const lines = txt.split("\\n").filter((l:string)=>l.trim().length>0);
           if (lines.length <= maxLines) return lines;
           return lines.slice(-maxLines);
         }catch{ return []; }
@@ -34181,7 +34181,7 @@ try {
           if (!fs.existsSync(file)) return [];
           const txt = String(fs.readFileSync(file,"utf8")||"");
           if (!txt) return [];
-          const lines = txt.split("\n").filter((l:string)=>l.trim().length>0);
+          const lines = txt.split("\\n").filter((l:string)=>l.trim().length>0);
           if (lines.length <= maxLines) return lines;
           return lines.slice(-maxLines);
         }catch{ return []; }
@@ -34519,7 +34519,7 @@ try {
           ];
 
           res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-          res.status(200).send(lines.join("\n") + "\n");
+          res.status(200).send(lines.join("\\n") + "\n");
         }catch(e:any){
           res.set("Content-Type", "text/plain; charset=utf-8");
           res.status(200).send("# error " + String(e?.message || "internal") + "\n");
@@ -34735,7 +34735,7 @@ try {
           ];
 
           res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-          res.status(200).send(lines.join("\n") + "\n");
+          res.status(200).send(lines.join("\\n") + "\n");
         }catch(e:any){
           res.set("Content-Type", "text/plain; charset=utf-8");
           res.status(200).send("# error " + String(e?.message || "internal") + "\n");
@@ -34770,7 +34770,7 @@ try {
       fs.closeSync(fd);
       const s = buf.toString("utf8");
       // if we started mid-line, drop first partial line
-      const parts = s.split("\n");
+      const parts = s.split("\\n");
       if (start > 0 && parts.length) parts.shift();
       return parts.filter(Boolean);
     }catch{ return []; }
@@ -34872,7 +34872,7 @@ try {
         "# TYPE void_agent_wc_awards_ok_15m gauge",
         `void_agent_wc_awards_ok_15m ${r.ok15}`
       ];
-      res.type("text/plain").end(lines.join("\n")+"\n");
+      res.type("text/plain").end(lines.join("\\n")+"\n");
     });
   }
   mount();
@@ -34923,7 +34923,7 @@ try {
     try{
       if (!fs.existsSync(file)) return [];
       const s = fs.readFileSync(file, "utf8");
-      const lines = s.split("\n").filter(Boolean);
+      const lines = s.split("\\n").filter(Boolean);
       return lines.slice(Math.max(0, lines.length - maxLines));
     }catch{ return []; }
   }
@@ -35006,7 +35006,7 @@ try {
           `void_agent_wc_awards_ok_15m ${ok15}`
         ];
 
-        res.type("text/plain").send(lines.join("\n") + "\n");
+        res.type("text/plain").send(lines.join("\\n") + "\n");
       }catch(e:any){
         res.status(500).type("text/plain").send("# ERROR agent_wc_awards exporter failed\n");
       }
@@ -35026,7 +35026,7 @@ try {
     try{
       if (!fs.existsSync(file)) return [];
       const s = fs.readFileSync(file, "utf8");
-      const lines = s.split("\n").filter(Boolean);
+      const lines = s.split("\\n").filter(Boolean);
       return lines.slice(Math.max(0, lines.length - maxLines));
     }catch{ return []; }
   }
@@ -35110,7 +35110,7 @@ try {
         "# TYPE void_agent_wc_awards_ok_15m gauge",
         `void_agent_wc_awards_ok_15m ${r.ok15}`
       ];
-      res.type("text/plain").send(lines.join("\n") + "\n");
+      res.type("text/plain").send(lines.join("\\n") + "\n");
     }catch(e:any){
       res.status(500).type("text/plain").send("# ERROR agent_wc_awards exporter failed\n");
     }
@@ -35167,7 +35167,7 @@ try {
   function tailLines(file:string, maxLines:number){
     try{
       const s = fs.readFileSync(file, "utf8");
-      const lines = s.split("\n").filter(Boolean);
+      const lines = s.split("\\n").filter(Boolean);
       return lines.slice(Math.max(0, lines.length - maxLines));
     }catch{ return []; }
   }
@@ -35228,7 +35228,7 @@ try {
       const fs = require("node:fs");
       if (fs.existsSync(receiptsFile)){
         const raw = String(fs.readFileSync(receiptsFile, "utf8") || "");
-        awarded = raw ? raw.split("\n").filter(Boolean).length : 0;
+        awarded = raw ? raw.split("\\n").filter(Boolean).length : 0;
       }
     }catch{
       awarded = 0;
@@ -35266,7 +35266,7 @@ try {
       lines.push("# HELP void_agent_wc_awards_ok_15m 1 if unique_15m>0 and age<20m");
       lines.push("# TYPE void_agent_wc_awards_ok_15m gauge");
       lines.push(`void_agent_wc_awards_ok_15m ${r.ok15}`);
-      res.type("text/plain").send(lines.join("\n")+"\n");
+      res.type("text/plain").send(lines.join("\\n")+"\n");
     });
 
     app.get("/__void/agent/wc_awards_v2/which", (_req:any, res:any)=>{
@@ -37927,7 +37927,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     try {
       if (!fs.existsSync(file)) return [];
       return String(fs.readFileSync(file, "utf8") || "")
-        .split("\n")
+        .split("\\n")
         .map((s:string)=>s.trim())
         .filter(Boolean);
     } catch { return []; }
@@ -38106,7 +38106,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     const fs = require("node:fs");
     try {
       if (!fs.existsSync(file)) return [];
-      return String(fs.readFileSync(file, "utf8") || "").split("\n").map((s:string)=>s.trim()).filter(Boolean);
+      return String(fs.readFileSync(file, "utf8") || "").split("\\n").map((s:string)=>s.trim()).filter(Boolean);
     } catch { return []; }
   }
   function appendJsonl(file:string, obj:any){
@@ -40690,7 +40690,7 @@ a{color:#93c5fd;text-decoration:none}
     const fs = require("node:fs");
     try {
       if (!fs.existsSync(file)) return [];
-      return String(fs.readFileSync(file, "utf8") || "").split("\n").map((s:string)=>s.trim()).filter(Boolean);
+      return String(fs.readFileSync(file, "utf8") || "").split("\\n").map((s:string)=>s.trim()).filter(Boolean);
     } catch { return []; }
   }
   function appendJsonl(file:string, obj:any){
@@ -41127,7 +41127,7 @@ a{color:#93c5fd;text-decoration:none}
     const fs = require("node:fs");
     try {
       if (!fs.existsSync(file)) return [];
-      return String(fs.readFileSync(file, "utf8") || "").split("\n").map((s:string)=>s.trim()).filter(Boolean);
+      return String(fs.readFileSync(file, "utf8") || "").split("\\n").map((s:string)=>s.trim()).filter(Boolean);
     } catch { return []; }
   }
 
@@ -41974,14 +41974,14 @@ a{color:#93c5fd;text-decoration:none}
           "void_jobs_v1_latest_poison_ratio " + poisonRatio
         ];
 
-        res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+        res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\\n") + "\n");
       } catch (e:any) {
         res.type("text/plain; version=0.0.4; charset=utf-8").send(
           [
             "# HELP void_jobs_v1_feed_exporter_error exporter error",
             "# TYPE void_jobs_v1_feed_exporter_error gauge",
             "void_jobs_v1_feed_exporter_error 1"
-          ].join("\n") + "\n"
+          ].join("\\n") + "\n"
         );
       }
     });
@@ -43020,7 +43020,7 @@ a{color:#93c5fd;text-decoration:none}
       const fs = require("node:fs");
       try {
         return String(fs.readFileSync(file, "utf8") || "")
-          .split("\n")
+          .split("\\n")
           .map((x:string)=>x.trim())
           .filter(Boolean);
       } catch {
@@ -43186,7 +43186,7 @@ a{color:#93c5fd;text-decoration:none}
       const fs = require("node:fs");
       try {
         return String(fs.readFileSync(file, "utf8") || "")
-          .split("\n")
+          .split("\\n")
           .map((x:string)=>x.trim())
           .filter(Boolean);
       } catch {
@@ -43454,7 +43454,7 @@ a{color:#93c5fd;text-decoration:none}
       const fs = require("node:fs");
       try {
         return String(fs.readFileSync(file, "utf8") || "")
-          .split("\n")
+          .split("\\n")
           .map((x:string)=>x.trim())
           .filter(Boolean);
       } catch {
@@ -47324,7 +47324,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         "",
         "# Live operator execution",
         nextStakeLiveCmd
-      ].join("\n")
+      ].join("\\n")
     );
 
     const stakeNextPlanCopyBtn = $("stakeNextPlanCopyBtn");
@@ -47337,7 +47337,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             alert("No command available yet.");
             return;
           }
-          const lines = text.split("\n").map(x => String(x).trim()).filter(Boolean);
+          const lines = text.split("\\n").map(x => String(x).trim()).filter(Boolean);
           const commandLine = lines.filter(x => !x.startsWith("#")).slice(-1)[0] || text;
           if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(commandLine);
@@ -51056,7 +51056,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
               "# HELP void_submit_path_truth_legacy_global_queue_is_noise 1 if global __void_tx_queue is legacy noise only",
               "# TYPE void_submit_path_truth_legacy_global_queue_is_noise gauge",
               "void_submit_path_truth_legacy_global_queue_is_noise 1"
-            ].join("\n") + "\n"
+            ].join("\\n") + "\n"
           );
         }catch(e:any){
           res.status(500).type("text/plain").send(`# err ${String(e?.message || e)}\n`);
@@ -52317,7 +52317,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             lines.push('void_agent_pick2_v2_reject_by_reason_total{reason="' + esc(reason) + '"} ' + Number(val || 0));
           }
 
-          res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+          res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\\n") + "\n");
         }catch(e:any){
           res.type("text/plain; version=0.0.4; charset=utf-8").send(
             "# HELP void_agent_pick2_v2_exporter_error exporter error\n" +
@@ -52590,7 +52590,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             "void_agent_candidates_redundancy_candidate_stale_ms{account=\"" + esc(account) + "\",dataset_id=\"" + esc(rc?.dataset_id || "") + "\"} " + Number(rc?.stale_for_ms || 0)
           ];
 
-          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\\n") + "\n");
         }catch(e:any){
           return res.type("text/plain; version=0.0.4; charset=utf-8").send(
             "# HELP void_agent_candidates_exporter_error exporter error\n" +
@@ -52745,7 +52745,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             "# TYPE void_agent_receipts_age_seconds gauge",
             `void_agent_receipts_age_seconds ${t.receipts_age_seconds}`
           ];
-          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\\n") + "\n");
         }catch(e:any){
           return res.status(500).type("text/plain; version=0.0.4; charset=utf-8").send("void_agent_receipts_errors 1\n");
         }
@@ -52768,7 +52768,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             "# TYPE void_agent_receipts_coverage gauge",
             `void_agent_receipts_coverage ${t.receipts_coverage}`
           ];
-          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\\n") + "\n");
         }catch(e:any){
           return res.status(500).type("text/plain; version=0.0.4; charset=utf-8").send("void_agent_receipts_coverage 0\n");
         }
@@ -52800,7 +52800,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             "# TYPE void_agent_wc_awards_ok_15m gauge",
             `void_agent_wc_awards_ok_15m ${t.wc_awards_ok_15m}`
           ];
-          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\\n") + "\n");
         }catch(e:any){
           return res.status(500).type("text/plain; version=0.0.4; charset=utf-8").send("void_agent_wc_awarded_total 0\n");
         }
@@ -52962,7 +52962,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             "# TYPE void_agent_receipts_age_seconds gauge",
             `void_agent_receipts_age_seconds ${t.receipts_age_seconds}`
           ];
-          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\\n") + "\n");
         }catch{
           return res.status(500).type("text/plain; version=0.0.4; charset=utf-8").send("void_agent_receipts_errors 1\n");
         }
@@ -52985,7 +52985,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             "# TYPE void_agent_receipts_coverage gauge",
             `void_agent_receipts_coverage ${t.receipts_coverage}`
           ];
-          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\\n") + "\n");
         }catch{
           return res.status(500).type("text/plain; version=0.0.4; charset=utf-8").send("void_agent_receipts_coverage 0\n");
         }
@@ -53017,7 +53017,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             "# TYPE void_agent_wc_awards_ok_15m gauge",
             `void_agent_wc_awards_ok_15m ${t.wc_awards_ok_15m}`
           ];
-          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n") + "\n");
+          return res.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\\n") + "\n");
         }catch{
           return res.status(500).type("text/plain; version=0.0.4; charset=utf-8").send("void_agent_wc_awarded_total 0\n");
         }
@@ -53097,7 +53097,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
           `void_agent_candidates_sample_size_v1 ${items.length}`
         ];
         res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
-        return res.send(lines.join("\n") + "\n");
+        return res.send(lines.join("\\n") + "\n");
       } catch (e: any) {
         res.setHeader("content-type", "text/plain; charset=utf-8");
         return res.status(500).send(`# error ${String(e?.message || e)}\n`);
@@ -53230,7 +53230,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         ];
 
         res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
-        return res.send(lines.join("\n") + "\n");
+        return res.send(lines.join("\\n") + "\n");
       } catch (e: any) {
         res.setHeader("content-type", "text/plain; charset=utf-8");
         return res.status(500).send(`# error ${String(e?.message || e)}\n`);
@@ -53507,7 +53507,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             "# TYPE void_terminal_saveblock_txroot_sets_total counter",
             `void_terminal_saveblock_txroot_sets_total ${Number(state.txrootSets||0)}`,
             ""
-          ].join("\n")
+          ].join("\\n")
         );
       });
 
