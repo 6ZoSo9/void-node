@@ -47420,14 +47420,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         canRunStakeNextOnboard
           ? ("Ready to run live onboarding for " + (nextStakeCandidateName || "next vault") + (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") + ". This mutates live validator state.")
           : "Live onboarding action unavailable until wallet readiness, next-onboard selector truth, and operator summary are green."
-      }
-
-      // === LIVE ONBOARD EXECUTION WIRING ===
-      
-
       );
 
-      
     }
 
     const buyWalletState = executionWalletAddr
