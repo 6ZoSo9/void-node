@@ -47364,22 +47364,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     }
 
     const stakeNextOnboardBtn = $("stakeNextOnboardBtn");
-    const stakeNextOnboardStatus = $("stakeNextOnboardStatus");
-    if (stakeNextOnboardBtn) {
-      const canRunStakeNextOnboard = !!(validatorNextOnboard && validatorNextOnboard.ok && vo && vo.overallGreen && stakeEnough);
-      stakeNextOnboardBtn.disabled = !canRunStakeNextOnboard;
-      stakeNextOnboardBtn.title = canRunStakeNextOnboard
-        ? "Run live next-validator onboarding using the current operator truth."
-        : "Needs green validator operator summary, green next-onboard selector, and at least 1000 VOID in the execution wallet.";
-
-      setText(
-        "stakeNextOnboardStatus",
-        canRunStakeNextOnboard
-          ? ("Ready to run live onboarding for " + (nextStakeCandidateName || "next vault") + (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") + ". This mutates live validator state.")
-          : "Live onboarding action unavailable until wallet readiness, next-onboard selector truth, and operator summary are green."
-      }
-
-      // === LIVE ONBOARD EXECUTION WIRING ===
       stakeNextOnboardBtn.onclick = async function(){
         try {
           if (!confirm("Run live validator onboarding? This will mutate validator state.")) {
@@ -47411,7 +47395,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             " (validators: " + j.expectedValidatorCount + ")"
           );
 
-          // refresh UI after success
           setTimeout(function(){ location.reload(); }, 1500);
 
         } catch (e) {
@@ -47420,52 +47403,27 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         }
       };
 
+    const stakeNextOnboardStatus = $("stakeNextOnboardStatus");
+    if (stakeNextOnboardBtn) {
+      const canRunStakeNextOnboard = !!(validatorNextOnboard && validatorNextOnboard.ok && vo && vo.overallGreen && stakeEnough);
+      stakeNextOnboardBtn.disabled = !canRunStakeNextOnboard;
+      stakeNextOnboardBtn.title = canRunStakeNextOnboard
+        ? "Run live next-validator onboarding using the current operator truth."
+        : "Needs green validator operator summary, green next-onboard selector, and at least 1000 VOID in the execution wallet.";
+
+      setText(
+        "stakeNextOnboardStatus",
+        canRunStakeNextOnboard
+          ? ("Ready to run live onboarding for " + (nextStakeCandidateName || "next vault") + (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") + ". This mutates live validator state.")
+          : "Live onboarding action unavailable until wallet readiness, next-onboard selector truth, and operator summary are green."
+      }
+
+      // === LIVE ONBOARD EXECUTION WIRING ===
+      
+
       );
 
-      stakeNextOnboardBtn.onclick = async function(){
-        try {
-          if (!canRunStakeNextOnboard) return;
-          const label = (nextStakeCandidateName || "next validator") + (nextStakeCandidateAddr ? (" " + nextStakeCandidateAddr) : "");
-          const ok = confirm("Run live next-validator onboarding for " + label + "? This mutates live validator state.");
-          if (!ok) return;
-
-          const old = stakeNextOnboardBtn.textContent || "Run Next Onboard";
-          stakeNextOnboardBtn.disabled = true;
-          stakeNextOnboardBtn.textContent = "Running…";
-          setText("stakeNextOnboardStatus", "Running live onboarding…");
-
-          const out = await j("/__void/participant/stake/next-onboard", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ confirm: true })
-          }).catch(() => ({ ok:false, error:"request_failed" }));
-
-          if (out && out.ok) {
-            const reportJson = String(out.reportJson || "").trim();
-            setText(
-              "stakeNextOnboardStatus",
-              "Live onboarding completed for " +
-                (out.selectedCandidateName || nextStakeCandidateName || "candidate") +
-                (out.selectedCandidateAddr ? (" " + shortAddr(String(out.selectedCandidateAddr))) : "") +
-                (reportJson ? (". report_json=" + reportJson) : ".")
-            );
-          } else {
-            setText(
-              "stakeNextOnboardStatus",
-              "Live onboarding failed: " + String((out && (out.error || out.stderr || out.stdout)) || "unknown_error")
-            );
-          }
-
-          stakeNextOnboardBtn.disabled = !canRunStakeNextOnboard;
-          stakeNextOnboardBtn.textContent = old;
-        } catch (e) {
-          try { setText("stakeNextOnboardStatus", "Live onboarding failed: " + String((e && e.message) || e || "unknown_error")); } catch (_) {}
-          try {
-            stakeNextOnboardBtn.disabled = false;
-            stakeNextOnboardBtn.textContent = "Run Next Onboard";
-          } catch (_) {}
-        }
-      };
+      
     }
 
     const buyWalletState = executionWalletAddr
