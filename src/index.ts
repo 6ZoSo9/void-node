@@ -47377,6 +47377,49 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         canRunStakeNextOnboard
           ? ("Ready to run live onboarding for " + (nextStakeCandidateName || "next vault") + (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") + ". This mutates live validator state.")
           : "Live onboarding action unavailable until wallet readiness, next-onboard selector truth, and operator summary are green."
+      }
+
+      // === LIVE ONBOARD EXECUTION WIRING ===
+      stakeNextOnboardBtn.onclick = async function(){
+        try {
+          if (!confirm("Run live validator onboarding? This will mutate validator state.")) {
+            return;
+          }
+
+          stakeNextOnboardBtn.disabled = true;
+          setText("stakeNextOnboardStatus", "Running live onboarding…");
+
+          const resp = await fetch("/__void/participant/stake/next-onboard", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ confirm: true })
+          });
+
+          const j = await resp.json();
+
+          if (!j || !j.ok) {
+            setText("stakeNextOnboardStatus", "❌ Failed: " + JSON.stringify(j));
+            stakeNextOnboardBtn.disabled = false;
+            return;
+          }
+
+          setText(
+            "stakeNextOnboardStatus",
+            "✅ Onboarded " +
+            (j.selectedCandidateName || "validator") +
+            " → epoch " + j.targetEpoch +
+            " (validators: " + j.expectedValidatorCount + ")"
+          );
+
+          // refresh UI after success
+          setTimeout(function(){ location.reload(); }, 1500);
+
+        } catch (e) {
+          setText("stakeNextOnboardStatus", "❌ Error: " + String(e));
+          stakeNextOnboardBtn.disabled = false;
+        }
+      };
+
       );
 
       stakeNextOnboardBtn.onclick = async function(){
