@@ -47409,7 +47409,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     const stakeNextOnboardStatus = $("stakeNextOnboardStatus");
     if (stakeNextOnboardBtn) {
-      const canRunStakeNextOnboard = !!(validatorNextOnboard && validatorNextOnboard.ok && vo && vo.overallGreen && );
+      const canRunStakeNextOnboard = !!(validatorNextOnboard && validatorNextOnboard.ok && vo && vo.overallGreen);
       stakeNextOnboardBtn.disabled = !canRunStakeNextOnboard;
       stakeNextOnboardBtn.title = canRunStakeNextOnboard
         ? "Run live next-validator onboarding using the current operator truth."
