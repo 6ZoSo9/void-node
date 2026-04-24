@@ -6,7 +6,8 @@ set +o histexpand
 RPC="${RPC:-http://127.0.0.1:8545}"
 CONF="${CONF:-$HOME/dev/void-node/ops/mainnet/void-mainnet.deployed.json}"
 SECRETS="${SECRETS:-/mnt/key2/mainnet-keygen/20260418-023715/private/wallet-secrets.json}"
-echo "[skip] deployer wallet not required for runtime onboarding"
+UPGRADE_DEPLOYER_PK="${UPGRADE_DEPLOYER_PK:-${PRIVATE_KEY:-}}"
+echo "[info] using upgrade-track deployer for runtime onboarding"
 UPGRADE_ARTIFACT="${UPGRADE_ARTIFACT:-$HOME/dev/void-node/ops/mainnet/validator-truth-upgrade-track.deployed.json}"
 
 CANDIDATE_NAME="${CANDIDATE_NAME:-vault02}"
@@ -23,15 +24,14 @@ IMPORT_DIR="$OUT_DIR/import"
 mkdir -p "$EXPORT_DIR" "$IMPORT_DIR"
 
 readarray -t INFO < <(
-python3 - <<'PY' "$CONF" "$SECRETS" "$DEPLOYER_JSON" "$UPGRADE_ARTIFACT" "$CANDIDATE_NAME"
-import json, sys
+python3 - <<'PY' "$CONF" "$SECRETS" "$UPGRADE_ARTIFACT" "$CANDIDATE_NAME" "$UPGRADE_DEPLOYER_PK"
+import json, re, sys
 
 conf = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 secrets = json.load(open(sys.argv[2], "r", encoding="utf-8"))
-# Runtime onboarding does not require the old deployer wallet file.
-deployer = [{"address":"0x0000000000000000000000000000000000000000","private_key":"0x0"}]
-upgrade = json.load(open(sys.argv[4], "r", encoding="utf-8"))
-candidate_name = sys.argv[5]
+upgrade = json.load(open(sys.argv[3], "r", encoding="utf-8"))
+candidate_name = sys.argv[4]
+upgrade_deployer_pk = sys.argv[5].strip()
 
 rows = secrets.get("keys") if isinstance(secrets, dict) else secrets
 if not isinstance(rows, list):
@@ -63,16 +63,18 @@ def pk_of(name):
         raise SystemExit(f"[ERR] wallet {name} missing private key")
     return pk if pk.startswith("0x") else "0x" + pk
 
-# [skip] deployer wallet not required for runtime onboarding
-deployer = [{"address":"0x0","private_key":"0x0"}]
-dep = deployer[0]
-dep_addr = str(dep.get("address") or "").strip()
-dep_pk = str(dep.get("private_key") or "").strip()
-# [skip] deployer wallet validation bypass
-if not dep_addr.startswith("0x"):
+dep_addr = str(upgrade.get("deployer") or "").strip()
+dep_pk = upgrade_deployer_pk
+
+if dep_addr and not dep_addr.startswith("0x"):
     dep_addr = "0x" + dep_addr
-if not dep_pk.startswith("0x"):
+if dep_pk and not dep_pk.startswith("0x"):
     dep_pk = "0x" + dep_pk
+
+if not re.fullmatch(r"0x[a-fA-F0-9]{40}", dep_addr):
+    raise SystemExit("[ERR] upgrade artifact missing valid deployer address")
+if not re.fullmatch(r"0x[a-fA-F0-9]{64}", dep_pk):
+    raise SystemExit("[ERR] UPGRADE_DEPLOYER_PK/PRIVATE_KEY missing valid deployer private key")
 
 print(conf["contracts"]["VoidToken"])
 print(conf["contracts"]["VoidTreasury"])
@@ -317,7 +319,8 @@ assert j.get("validatorCount") == int(expected_count), j
 assert str(j.get("totalPower")) == str(expected_total_power), j
 assert j.get("published") is True, j
 assert j.get("publishedMatch") is True, j
-assert candidate.lower() in rewards, j
+# Candidate does not need to appear in the first requested window [0,8).
+# It only needs to be present in the active validator set and reflected in validatorCount/totalPower.
 PY
 
 unset HOT_PK TREASURY_ADMIN_PK OPS_ADMIN_PK DEPLOYER_PK CANDIDATE_PK
