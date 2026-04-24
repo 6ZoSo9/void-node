@@ -53329,6 +53329,96 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
 })();
 // === [END LatestUsefulCreditJoinV1] ===
 
+
+// === [BEGIN WcRewardStatsFallbackRouteV1] ===
+(() => {
+  const G: any = globalThis as any;
+  if (G.__void_wc_reward_stats_fallback_v1_installed) return;
+  G.__void_wc_reward_stats_fallback_v1_installed = true;
+
+  const attach = () => {
+    const app: any = G.__void_http_app;
+    if (!app || typeof app.get !== "function") return false;
+    if (G.__void_wc_reward_stats_fallback_v1_attached) return true;
+    G.__void_wc_reward_stats_fallback_v1_attached = true;
+
+    app.get("/wc/reward-stats", (req: any, res: any) => {
+      try {
+        const account = String(req?.query?.account || "zoso");
+        const fs = require("node:fs");
+        const path = require("node:path");
+        const dataDir = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+        const ledgerPath = path.join(dataDir, "wc_v1", "ledger.jsonl");
+
+        let lines: any[] = [];
+        try {
+          const raw = fs.existsSync(ledgerPath) ? String(fs.readFileSync(ledgerPath, "utf8") || "") : "";
+          lines = raw
+            .split(/\r?\n/)
+            .map((x: string) => x.trim())
+            .filter(Boolean)
+            .map((x: string) => { try { return JSON.parse(x); } catch { return null; } })
+            .filter((x: any) => !!x);
+        } catch { lines = []; }
+
+        const now = Date.now();
+        const hourAgo = now - 60 * 60 * 1000;
+        let lastCredit: any = null;
+        let publish = 0, verify = 0, redundancy = 0, total = 0;
+
+        for (const j of lines) {
+          if (!j || String(j.kind || "") !== "credit") continue;
+          if (String(j.account || "") !== account) continue;
+          const ts = Number(j.ts_ms || 0);
+          const delta = Number(j.delta || 0) || 0;
+          const rk = String(j.receipt_kind || "");
+          if (!lastCredit || ts > Number(lastCredit.ts_ms || 0)) lastCredit = j;
+          if (ts >= hourAgo) {
+            total += delta;
+            if (rk === "datanet_publish") publish += delta;
+            else if (rk === "datanet_fetch_verify") verify += delta;
+            else if (rk === "datanet_redundancy_check") redundancy += delta;
+          }
+        }
+
+        return res.json({
+          ok: true,
+          fallback: true,
+          account,
+          ledger_file: ledgerPath,
+          last_credit: lastCredit ? {
+            ts_ms: Number(lastCredit.ts_ms || 0),
+            delta: Number(lastCredit.delta || 0),
+            reason: String(lastCredit.reason || ""),
+            receipt_kind: String(lastCredit.receipt_kind || ""),
+            reward_meta: lastCredit.reward_meta || null
+          } : null,
+          totals_last_hour: {
+            publish_wc: publish,
+            verify_wc: verify,
+            redundancy_wc: redundancy,
+            total_wc: total
+          }
+        });
+      } catch (e: any) {
+        return res.status(500).json({ ok: false, error: String(e?.message || e) });
+      }
+    });
+
+    return true;
+  };
+
+  if (!attach()) {
+    let tries = 0;
+    const t = setInterval(() => {
+      tries++;
+      if (attach() || tries >= 400) clearInterval(t);
+    }, 50);
+    try { (t as any).unref?.(); } catch {}
+  }
+})();
+// === [END WcRewardStatsFallbackRouteV1] ===
+
 // === [BEGIN ParticipantPayoutSummaryV1] ===
 (() => {
   const G: any = globalThis as any;
@@ -53362,11 +53452,20 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
           fetch(`http://${host}:${port}/wc/reward-stats?account=${enc}`)
         ]);
 
-        const joinJ: any = await joinR.json();
-        const balJ: any = await balR.json();
-        const redeemableJ: any = await redeemableR.json();
-        const redeemedJ: any = await redeemedR.json();
-        const rewardStatsJ: any = await rewardStatsR.json();
+        const safeJson = async (r: any) => {
+          try {
+            const text = await r.text();
+            try { return JSON.parse(text); } catch { return { ok:false, parse_error:true, status:r.status, body:String(text || "").slice(0,200) }; }
+          } catch (e: any) {
+            return { ok:false, error:String(e?.message || e) };
+          }
+        };
+
+        const joinJ: any = await safeJson(joinR);
+        const balJ: any = await safeJson(balR);
+        const redeemableJ: any = await safeJson(redeemableR);
+        const redeemedJ: any = await safeJson(redeemedR);
+        const rewardStatsJ: any = await safeJson(rewardStatsR);
 
         const latest = joinJ?.latest_useful || null;
         const matched = joinJ?.matched_credit || null;
