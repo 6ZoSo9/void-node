@@ -47220,7 +47220,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         : "No execution wallet detected."
     );
 
-    const stakeMinVoid = 1000;
+    const stakeMinVoid = 10000;
     const stakeWalletVoid = executionWalletVoid !== null ? Number(executionWalletVoid) : 0;
     const stakeEnough = Number.isFinite(stakeWalletVoid) && stakeWalletVoid >= stakeMinVoid;
     const vtLoaded = validatorTruthStatus && Array.isArray(validatorTruthStatus.loadedEpochs) ? validatorTruthStatus.loadedEpochs : [];
@@ -47239,7 +47239,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("stakeRuntimeEpoch", vtLatest !== null ? vtLatest : "-");
     setText("stakeRuntimeLoaded", "Loaded epochs: " + (vtLoaded.length ? vtLoaded.join(", ") : "-"));
     setText("stakeRuntimeCount", voCount !== null ? voCount : "-");
-    setText("stakeRuntimePower", voCount !== null ? (voCount + " × 1000 VOID") : "-");
+    setText("stakeRuntimePower", voCount !== null ? (voCount + " × 10000 VOID") : "-");
     setText("stakeRuntimeStatus", vo && vo.overallGreen ? "Green" : "Check");
     setText(
       "stakeOperatorSummary",
@@ -47254,8 +47254,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "stakeActionSummary",
       stakeEnough
-        ? ("Execution wallet has enough VOID for the current 1000 VOID validator minimum. Live validator onboarding is green on this node, but browser staking execution is not wired yet.")
-        : ("Execution wallet has " + executionWalletVoidText + " VOID. You need at least 1000 VOID for the current validator minimum.")
+        ? ("Execution wallet has enough VOID for the current 10000 VOID validator minimum. Live validator onboarding is green on this node, but browser staking execution is not wired yet.")
+        : ("Execution wallet has " + executionWalletVoidText + " VOID. You need at least 10000 VOID for the current validator minimum.")
     );
     setText(
       "stakePathNote",
@@ -47409,11 +47409,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     const stakeNextOnboardStatus = $("stakeNextOnboardStatus");
     if (stakeNextOnboardBtn) {
-      const canRunStakeNextOnboard = !!(validatorNextOnboard && validatorNextOnboard.ok && vo && vo.overallGreen && stakeEnough);
+      const canRunStakeNextOnboard = !!(validatorNextOnboard && validatorNextOnboard.ok && vo && vo.overallGreen && );
       stakeNextOnboardBtn.disabled = !canRunStakeNextOnboard;
       stakeNextOnboardBtn.title = canRunStakeNextOnboard
         ? "Run live next-validator onboarding using the current operator truth."
-        : "Needs green validator operator summary, green next-onboard selector, and at least 1000 VOID in the execution wallet.";
+        : "Needs green validator operator summary, green next-onboard selector, (wallet balance not required for operator onboarding).";
 
       setText(
         "stakeNextOnboardStatus",
