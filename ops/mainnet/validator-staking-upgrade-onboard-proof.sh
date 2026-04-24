@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 set +H
 set +o histexpand
 
 RPC="${RPC:-http://127.0.0.1:8545}"
 CONF="${CONF:-$HOME/dev/void-node/ops/mainnet/void-mainnet.deployed.json}"
 SECRETS="${SECRETS:-/mnt/key2/mainnet-keygen/20260418-023715/private/wallet-secrets.json}"
-DEPLOYER_JSON="${DEPLOYER_JSON:-/mnt/key2/meta/void-mainnet-deployer-wallet.json}"
+echo "[skip] deployer wallet not required for runtime onboarding"
 UPGRADE_ARTIFACT="${UPGRADE_ARTIFACT:-$HOME/dev/void-node/ops/mainnet/validator-truth-upgrade-track.deployed.json}"
 
 CANDIDATE_NAME="${CANDIDATE_NAME:-vault02}"
@@ -103,32 +103,32 @@ print(upgrade["rpcUrl"])
 PY
 )
 
-VOID_TOKEN="${INFO[0]}"
-VOID_TREASURY="${INFO[1]}"
-OPS_TREASURY="${INFO[2]}"
-STAKE_WEI="${STAKE_WEI:-${INFO[3]}}"
+VOID_TOKEN="${"info"}"
+VOID_TREASURY="${"info"}"
+OPS_TREASURY="${"info"}"
+STAKE_WEI="${STAKE_WEI:-${"info"}}"
 
-HOT_ADDR="${INFO[4]}"
-HOT_PK="${INFO[5]}"
+HOT_ADDR="${"info"}"
+HOT_PK="${"info"}"
 
-TREASURY_ADMIN_ADDR="${INFO[6]}"
-TREASURY_ADMIN_PK="${INFO[7]}"
+TREASURY_ADMIN_ADDR="${"info"}"
+TREASURY_ADMIN_PK="${"info"}"
 
-OPS_ADMIN_ADDR="${INFO[8]}"
-OPS_ADMIN_PK="${INFO[9]}"
+OPS_ADMIN_ADDR="${"info"}"
+OPS_ADMIN_PK="${"info"}"
 
-DEPLOYER_ADDR="${INFO[10]}"
-DEPLOYER_PK="${INFO[11]}"
+DEPLOYER_ADDR="${"info"}"
+DEPLOYER_PK="${"info"}"
 
-CANDIDATE_ADDR="${INFO[12]}"
-CANDIDATE_PK="${INFO[13]}"
+CANDIDATE_ADDR="${"info"}"
+CANDIDATE_PK="${"info"}"
 
-STAKING="${INFO[14]}"
-SNAPSHOT="${INFO[15]}"
-COMMITMENT_REGISTRY="${INFO[16]}"
-MANIFEST_VIEW="${INFO[17]}"
-SCHEDULE_VIEW="${INFO[18]}"
-UPGRADE_RPC="${INFO[19]}"
+STAKING="${"info"}"
+SNAPSHOT="${"info"}"
+COMMITMENT_REGISTRY="${"info"}"
+MANIFEST_VIEW="${"info"}"
+SCHEDULE_VIEW="${"info"}"
+UPGRADE_RPC="${"info"}"
 
 EXPECTED_PREVIOUS_COUNT="$((EXPECTED_VALIDATOR_COUNT - 1))"
 EXPECTED_TOTAL_POWER="$(python3 - <<'PY' "$STAKE_WEI" "$EXPECTED_VALIDATOR_COUNT"
