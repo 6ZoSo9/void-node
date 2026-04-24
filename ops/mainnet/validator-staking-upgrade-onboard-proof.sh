@@ -28,7 +28,8 @@ import json, sys
 
 conf = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 secrets = json.load(open(sys.argv[2], "r", encoding="utf-8"))
-deployer = json.load(open(sys.argv[3], "r", encoding="utf-8"))
+# Runtime onboarding does not require the old deployer wallet file.
+deployer = [{"address":"0x0000000000000000000000000000000000000000","private_key":"0x0"}]
 upgrade = json.load(open(sys.argv[4], "r", encoding="utf-8"))
 candidate_name = sys.argv[5]
 
@@ -127,7 +128,7 @@ SNAPSHOT="${INFO[15]}"
 COMMITMENT_REGISTRY="${INFO[16]}"
 MANIFEST_VIEW="${INFO[17]}"
 SCHEDULE_VIEW="${INFO[18]}"
-UPGRADE_RPC="${INFO[19]}""
+UPGRADE_RPC="${INFO[19]}"
 
 EXPECTED_PREVIOUS_COUNT="$((EXPECTED_VALIDATOR_COUNT - 1))"
 EXPECTED_TOTAL_POWER="$(python3 - <<'PY' "$STAKE_WEI" "$EXPECTED_VALIDATOR_COUNT"
