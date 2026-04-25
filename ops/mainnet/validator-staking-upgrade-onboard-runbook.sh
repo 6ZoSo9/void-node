@@ -38,34 +38,24 @@ OUT_DIR="$OUT_DIR" \
 echo
 echo "=== [3] resolve manifests epoch1..target ==="
 readarray -t MANIFESTS < <(
-python3 - <<'PY' "$COMPARE_LATEST" "$OUT_DIR" "$TARGET_EPOCH"
-import glob, json, os, sys
+python3 - <<'PY' "$OUT_DIR" "$TARGET_EPOCH"
+import sys
 from pathlib import Path
 
-compare_path, out_dir, target_epoch_s = sys.argv[1:4]
+out_dir, target_epoch_s = sys.argv[1:3]
 target_epoch = int(target_epoch_s)
-home = Path.home() / "dev/void-node/.runtime/validator_epoch_manifests"
+current = Path.home() / "dev/void-node/.runtime/validator_epoch_manifests/verified-current"
 
-compare = json.loads(Path(compare_path).read_text(encoding="utf-8"))
-epoch1 = str(compare["upgradeManifest"])
-print(epoch1)
+for epoch in range(1, target_epoch):
+    p = current / f"epoch-{epoch:06d}.manifest.verified.json"
+    if not p.exists():
+        raise SystemExit(f"[ERR] missing current verified manifest for epoch {epoch}: {p}")
+    print(str(p))
 
-for epoch in range(2, target_epoch + 1):
-    if epoch == target_epoch:
-        p = Path(out_dir) / "import" / f"epoch-{epoch:06d}.manifest.verified.json"
-        if not p.exists():
-            raise SystemExit(f"[ERR] missing target epoch manifest: {p}")
-        print(str(p))
-        continue
-
-    matches = []
-    for g in glob.glob(str(home / "**" / "import" / f"epoch-{epoch:06d}.manifest.verified.json"), recursive=True):
-        p = Path(g)
-        matches.append((p.stat().st_mtime, str(p)))
-    if not matches:
-        raise SystemExit(f"[ERR] no prior verified manifest found for epoch {epoch}")
-    matches.sort()
-    print(matches[-1][1])
+p = Path(out_dir) / "import" / f"epoch-{target_epoch:06d}.manifest.verified.json"
+if not p.exists():
+    raise SystemExit(f"[ERR] missing target epoch manifest: {p}")
+print(str(p))
 PY
 )
 
