@@ -524,6 +524,176 @@ const app = express();
 })();
 
 
+
+/* __void_mainnet0_validator_registration_draft_api_v1 */
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_mainnet0_validator_registration_draft_api_v1";
+    if (G[MARK]) return;
+    G[MARK] = true;
+
+    const fs = require("fs");
+    const path = require("path");
+    const crypto = require("crypto");
+
+    function artifactPath(): string {
+      return path.join(process.cwd(), ".runtime", "mainnet0", "validator-candidate-registry.local.current.json");
+    }
+
+    function readArtifact(): any {
+      const file = artifactPath();
+      try {
+        if (!fs.existsSync(file)) {
+          return {
+            ok: false,
+            error: "validator_candidate_registry_artifact_missing",
+            file,
+            hint: "Run ops/mainnet0/validator-candidate-registry-local-deploy-proof.sh first."
+          };
+        }
+        return { ok: true, file, artifact: JSON.parse(fs.readFileSync(file, "utf8")) };
+      } catch (e:any) {
+        return {
+          ok: false,
+          error: "validator_candidate_registry_artifact_read_failed",
+          message: String(e?.message || e),
+          file
+        };
+      }
+    }
+
+    function isAddr(v:any): boolean {
+      return /^0x[0-9a-fA-F]{40}$/.test(String(v || "").trim());
+    }
+
+    function normAddr(v:any): string {
+      const s = String(v || "").trim();
+      return isAddr(s) ? s : "";
+    }
+
+    function bytes32(v:any): string {
+      const s = String(v || "").trim();
+      return /^0x[0-9a-fA-F]{64}$/.test(s) ? s : "";
+    }
+
+    function hash32(label:string): string {
+      return "0x" + crypto.createHash("sha256").update(label).digest("hex");
+    }
+
+    app.get("/__void/participant/validator-registration/draft", (req:any, res:any) => {
+      const loaded = readArtifact();
+      const account = normAddr(req?.query?.account);
+      const reward = normAddr(req?.query?.reward || account);
+      const consensusKeyHash =
+        bytes32(req?.query?.consensus_key_hash) ||
+        (account ? hash32("void-mainnet0-validator-consensus:" + account.toLowerCase()) : "");
+      const metadataHash =
+        bytes32(req?.query?.metadata_hash) ||
+        (account ? hash32("void-mainnet0-validator-metadata:" + account.toLowerCase()) : "");
+
+      if (!loaded.ok) {
+        return res.status(404).json({
+          ok: false,
+          kind: "participant_validator_registration_draft",
+          account: String(req?.query?.account || ""),
+          ...loaded
+        });
+      }
+
+      const artifact = loaded.artifact || {};
+      const registry = normAddr(artifact.registry);
+      const minStakeWei = String(artifact.minValidatorStakeWei || "0");
+      const activeBefore = String(artifact.activeCountBefore || "0");
+      const activeAfter = String(artifact.activeCountAfter || "0");
+      const activeFinal = String(artifact.activeCountFinal || "0");
+      const invariantOk = !!artifact.ok && activeBefore === activeAfter && activeBefore === activeFinal;
+
+      if (!account) {
+        return res.status(400).json({
+          ok: false,
+          kind: "participant_validator_registration_draft",
+          error: "missing_or_invalid_account",
+          account: String(req?.query?.account || ""),
+          hint: "Pass ?account=0x... using the participant execution wallet address."
+        });
+      }
+
+      if (!reward) {
+        return res.status(400).json({
+          ok: false,
+          kind: "participant_validator_registration_draft",
+          error: "missing_or_invalid_reward",
+          account
+        });
+      }
+
+      if (!registry || !invariantOk) {
+        return res.status(409).json({
+          ok: false,
+          kind: "participant_validator_registration_draft",
+          error: "candidate_registry_not_ready_or_invariant_failed",
+          account,
+          registry: registry || null,
+          invariant_ok: invariantOk
+        });
+      }
+
+      return res.json({
+        ok: true,
+        kind: "participant_validator_registration_draft",
+        source: "local_deploy_proof_artifact",
+        mutation: false,
+        sends_transaction: false,
+        account,
+        owner: account,
+        reward,
+        registry,
+        chainId: 2050,
+        valueWei: minStakeWei,
+        functionSignature: "registerCandidate(address,bytes32,bytes32)",
+        args: {
+          reward,
+          consensusKeyHash,
+          metadataHash
+        },
+        castPreview: [
+          "cast send",
+          "--rpc-url", String(artifact.rpc || "http://127.0.0.1:8545"),
+          "--private-key", "$PARTICIPANT_PRIVATE_KEY",
+          registry,
+          "'registerCandidate(address,bytes32,bytes32)'",
+          reward,
+          consensusKeyHash,
+          metadataHash,
+          "--value", minStakeWei
+        ].join(" "),
+        safety: {
+          public_registration_mutates_active_set: false,
+          invariant_ok: invariantOk,
+          activeCountBefore: activeBefore,
+          activeCountAfter: activeAfter,
+          activeCountFinal: activeFinal,
+          becomes_active_immediately: false,
+          enters_waiting_pool_before_active_admission: true
+        },
+        policy: {
+          read_only_draft_only: true,
+          browser_execution_wired: false,
+          active_admission_separate: true,
+          activation_churn_limited: true,
+          active_set_capped: true
+        }
+      });
+    });
+
+    try { console.log("[mainnet0.validator-registration] draft API mounted"); } catch {}
+  } catch (e:any) {
+    try { console.warn("[mainnet0.validator-registration] draft API mount failed", e?.message || e); } catch {}
+  }
+})();
+
+
 /* __void_validator_runtime_truth_routes_v1 */
 const __voidRequire = createRequire(import.meta.url);
 let __voidValidatorRuntimeTruthSwitchMod: any = null;
