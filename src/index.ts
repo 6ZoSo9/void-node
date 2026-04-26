@@ -46436,6 +46436,13 @@ a{color:#93c5fd;text-decoration:none}
                 <button class="btn" id="validatorRegistrationSubmitDisabledBtn" type="button" disabled>Submit Registration — Not Live</button>
               </div>
               <div class="hero-note" id="validatorRegistrationButtonNote" style="margin-top:10px">Registration submit is intentionally disabled. Preview the prepared payload first.</div>
+              <details class="adv" id="validatorRegistrationPreflightDetails" style="margin-top:12px">
+                <summary><span>Submit Preflight</span><span class="pill">blocked intentionally</span></summary>
+                <div class="adv-body">
+                  <div class="hero-note" id="validatorRegistrationPreflightSummary" style="margin-top:10px">Preflight loading…</div>
+                  <pre id="validatorRegistrationPreflightPreview" style="margin-top:10px;max-height:220px;overflow:auto">No preflight loaded yet.</pre>
+                </div>
+              </details>
               <details class="adv" id="validatorRegistrationDraftDetails" style="margin-top:12px">
                 <summary><span>Registration Draft</span><span class="pill">read-only preview</span></summary>
                 <div class="adv-body">
@@ -47800,6 +47807,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const validatorRegistrationDraftResp = executionWalletAddr
       ? await j("/__void/participant/validator-registration/draft?account=" + encodeURIComponent(executionWalletAddr)).catch(() => ({ ok:false, unavailable:true }))
       : { ok:false, missing_wallet:true, unavailable:true };
+    const validatorRegistrationPreflightResp = executionWalletAddr
+      ? await j("/__void/participant/validator-registration/preflight?account=" + encodeURIComponent(executionWalletAddr)).catch(() => ({ ok:false, unavailable:true }))
+      : { ok:false, missing_wallet:true, unavailable:true };
 
     const executionWalletUnlocked = !!(
       nativeWalletStatus &&
@@ -47938,6 +47948,46 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         : "Registration submit is intentionally disabled. Create/import an execution wallet to preview the prepared payload."
     );
 
+    const validatorRegistrationPreflight = validatorRegistrationPreflightResp && validatorRegistrationPreflightResp.ok ? validatorRegistrationPreflightResp : null;
+    const validatorRegistrationPreflightSummary = (() => {
+      if (!executionWalletAddr) return "Create or import an execution wallet to run submit preflight.";
+      if (!validatorRegistrationPreflight) {
+        const err = validatorRegistrationPreflightResp && (validatorRegistrationPreflightResp.error || validatorRegistrationPreflightResp.reason)
+          ? String(validatorRegistrationPreflightResp.error || validatorRegistrationPreflightResp.reason)
+          : "preflight unavailable";
+        return "Submit preflight unavailable: " + err + ".";
+      }
+      return "Preflight: " +
+        (validatorRegistrationPreflight.gates_green_except_intentional_submit_blocks ? "core gates green" : "check gates") +
+        " • submit allowed: " + (validatorRegistrationPreflight.submit_allowed ? "yes" : "no") +
+        " • blocked reason: " + String(validatorRegistrationPreflight.submit_blocked_reason || "none");
+    })();
+
+    setText("validatorRegistrationPreflightSummary", validatorRegistrationPreflightSummary);
+    setPre(
+      "validatorRegistrationPreflightPreview",
+      validatorRegistrationPreflight
+        ? {
+            submit_allowed: validatorRegistrationPreflight.submit_allowed,
+            submit_blocked_reason: validatorRegistrationPreflight.submit_blocked_reason,
+            mutation: validatorRegistrationPreflight.mutation,
+            sends_transaction: validatorRegistrationPreflight.sends_transaction,
+            chainId: validatorRegistrationPreflight.chainId,
+            expectedChainId: validatorRegistrationPreflight.expectedChainId,
+            registry: validatorRegistrationPreflight.registry,
+            functionSignature: validatorRegistrationPreflight.functionSignature,
+            valueWei: validatorRegistrationPreflight.valueWei,
+            gates: validatorRegistrationPreflight.gates,
+            gates_green_except_intentional_submit_blocks: validatorRegistrationPreflight.gates_green_except_intentional_submit_blocks,
+            next_required_before_live_submit: validatorRegistrationPreflight.next_required_before_live_submit
+          }
+        : {
+            ok: false,
+            wallet: executionWalletAddr || null,
+            message: "No submit preflight loaded."
+          }
+    );
+
     try {
       const openDraftBtn = $("validatorRegistrationOpenDraftBtn");
       const draftDetails = $("validatorRegistrationDraftDetails");
@@ -47945,7 +47995,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         openDraftBtn.dataset.voidDraftPreviewBound = "1";
         openDraftBtn.addEventListener("click", () => {
           try { draftDetails.open = true; } catch (_) {}
-          setLatestAction("Opened read-only validator registration draft preview. No transaction was sent.");
+          try { const preflightDetails = $("validatorRegistrationPreflightDetails"); if (preflightDetails) preflightDetails.open = true; } catch (_) {}
+          setLatestAction("Opened read-only validator registration draft and preflight preview. No transaction was sent.");
           setText(
             "validatorRegistrationButtonNote",
             "Draft preview opened. This button does not submit, broadcast, stake, or activate a validator."
