@@ -46243,7 +46243,12 @@ a{color:#93c5fd;text-decoration:none}
               </div>
               <div class="hero-note" id="validatorRegistrationNote" style="margin-top:12px">Checking validator registration status…</div>
               <div class="hero-note" id="validatorRegistrationCounts" style="margin-top:10px">Candidate registry counts loading…</div>
-              <details class="adv" style="margin-top:12px">
+              <div class="action-rail" style="margin-top:10px">
+                <button class="btn btn-primary" id="validatorRegistrationOpenDraftBtn" type="button">Register Validator — Preview Only</button>
+                <button class="btn" id="validatorRegistrationSubmitDisabledBtn" type="button" disabled>Submit Registration — Not Live</button>
+              </div>
+              <div class="hero-note" id="validatorRegistrationButtonNote" style="margin-top:10px">Registration submit is intentionally disabled. Preview the prepared payload first.</div>
+              <details class="adv" id="validatorRegistrationDraftDetails" style="margin-top:12px">
                 <summary><span>Registration Draft</span><span class="pill">read-only preview</span></summary>
                 <div class="adv-body">
                   <div class="hero-note" id="validatorRegistrationDraftSummary" style="margin-top:10px">Registration draft loading…</div>
@@ -47737,6 +47742,35 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             message: "No registration draft loaded."
           }
     );
+
+    setText(
+      "validatorRegistrationButtonNote",
+      validatorRegistrationDraft
+        ? "Preview-only mode: this prepares the registration payload but does not send a transaction. Submit remains disabled until the real wallet execution path is wired."
+        : "Registration submit is intentionally disabled. Create/import an execution wallet to preview the prepared payload."
+    );
+
+    try {
+      const openDraftBtn = $("validatorRegistrationOpenDraftBtn");
+      const draftDetails = $("validatorRegistrationDraftDetails");
+      if (openDraftBtn && draftDetails && !openDraftBtn.dataset.voidDraftPreviewBound) {
+        openDraftBtn.dataset.voidDraftPreviewBound = "1";
+        openDraftBtn.addEventListener("click", () => {
+          try { draftDetails.open = true; } catch (_) {}
+          setLatestAction("Opened read-only validator registration draft preview. No transaction was sent.");
+          setText(
+            "validatorRegistrationButtonNote",
+            "Draft preview opened. This button does not submit, broadcast, stake, or activate a validator."
+          );
+          try { draftDetails.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (_) {}
+        });
+      }
+      const submitDisabledBtn = $("validatorRegistrationSubmitDisabledBtn");
+      if (submitDisabledBtn) {
+        submitDisabledBtn.disabled = true;
+        submitDisabledBtn.title = "Not live yet. Preview-only registration shell.";
+      }
+    } catch (_) {}
 
 
     const localWcTruth = redeemState && Number.isFinite(Number(redeemState.redeemable))
