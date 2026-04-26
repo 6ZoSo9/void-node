@@ -536,6 +536,7 @@ const app = express();
     const fs = require("fs");
     const path = require("path");
     const crypto = require("crypto");
+    const express = require("express");
 
     function artifactPath(): string {
       return path.join(process.cwd(), ".runtime", "mainnet0", "validator-candidate-registry.local.current.json");
@@ -878,6 +879,169 @@ const app = express();
     try { console.log("[mainnet0.validator-registration] preflight API mounted"); } catch {}
   } catch (e:any) {
     try { console.warn("[mainnet0.validator-registration] preflight API mount failed", e?.message || e); } catch {}
+  }
+})();
+
+
+
+/* __void_mainnet0_validator_registration_submit_stub_api_v1 */
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_mainnet0_validator_registration_submit_stub_api_v1";
+    if (G[MARK]) return;
+    G[MARK] = true;
+
+    const fs = require("fs");
+    const path = require("path");
+    const crypto = require("crypto");
+
+    function artifactPath(): string {
+      return path.join(process.cwd(), ".runtime", "mainnet0", "validator-candidate-registry.local.current.json");
+    }
+
+    function readArtifact(): any {
+      const file = artifactPath();
+      try {
+        if (!fs.existsSync(file)) {
+          return { ok:false, error:"validator_candidate_registry_artifact_missing", file };
+        }
+        return { ok:true, file, artifact: JSON.parse(fs.readFileSync(file, "utf8")) };
+      } catch (e:any) {
+        return { ok:false, error:"validator_candidate_registry_artifact_read_failed", message:String(e?.message || e), file };
+      }
+    }
+
+    function isAddr(v:any): boolean {
+      return /^0x[0-9a-fA-F]{40}$/.test(String(v || "").trim());
+    }
+
+    function normAddr(v:any): string {
+      const x = String(v || "").trim();
+      return isAddr(x) ? x : "";
+    }
+
+    function bytes32(v:any): string {
+      const x = String(v || "").trim();
+      return /^0x[0-9a-fA-F]{64}$/.test(x) ? x : "";
+    }
+
+    function hash32(label:string): string {
+      return "0x" + crypto.createHash("sha256").update(label).digest("hex");
+    }
+
+    function bodyOf(req:any): any {
+      return (req && req.body && typeof req.body === "object") ? req.body : {};
+    }
+
+    const submitRoute = "/__void/participant/validator-registration/submit";
+    app.use(submitRoute, express.json({ limit:"32kb" }));
+
+    app.post(submitRoute, (req:any, res:any) => {
+      const body = bodyOf(req);
+      const account = normAddr(body.account || req?.query?.account);
+      const reward = normAddr(body.reward || account);
+      const loaded = readArtifact();
+
+      if (!account) {
+        return res.status(400).json({
+          ok:false,
+          kind:"participant_validator_registration_submit",
+          error:"missing_or_invalid_account",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false
+        });
+      }
+
+      if (!loaded.ok) {
+        return res.status(404).json({
+          ok:false,
+          kind:"participant_validator_registration_submit",
+          account,
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          ...loaded
+        });
+      }
+
+      const artifact = loaded.artifact || {};
+      const registry = normAddr(artifact.registry);
+      const valueWei = String(artifact.minValidatorStakeWei || "0");
+
+      const consensusKeyHash =
+        bytes32(body.consensusKeyHash || body.consensus_key_hash) ||
+        hash32("void-mainnet0-validator-consensus:" + account.toLowerCase());
+
+      const metadataHash =
+        bytes32(body.metadataHash || body.metadata_hash) ||
+        hash32("void-mainnet0-validator-metadata:" + account.toLowerCase());
+
+      const expectedFunctionSignature = "registerCandidate(address,bytes32,bytes32)";
+      const gotFunctionSignature = String(body.functionSignature || expectedFunctionSignature);
+
+      const activeBefore = String(artifact.activeCountBefore || "0");
+      const activeAfter = String(artifact.activeCountAfter || "0");
+      const activeFinal = String(artifact.activeCountFinal || "0");
+
+      const gates = {
+        valid_account: !!account,
+        valid_reward: !!reward,
+        registry_ready: !!registry,
+        function_signature_match: gotFunctionSignature === expectedFunctionSignature,
+        value_is_min_stake_1000_void: valueWei === "1000000000000000000000",
+        active_set_safe: activeBefore === activeAfter && activeBefore === activeFinal,
+        payload_has_consensus_hash: !!consensusKeyHash,
+        payload_has_metadata_hash: !!metadataHash,
+        wallet_gate_authoritative: false,
+        wallet_unlocked: false,
+        wrong_chain_rejected: false,
+        double_submit_guard: false,
+        live_execution_wired: false
+      };
+
+      const coreGatesGreen =
+        gates.valid_account &&
+        gates.valid_reward &&
+        gates.registry_ready &&
+        gates.function_signature_match &&
+        gates.value_is_min_stake_1000_void &&
+        gates.active_set_safe &&
+        gates.payload_has_consensus_hash &&
+        gates.payload_has_metadata_hash;
+
+      return res.status(501).json({
+        ok:false,
+        kind:"participant_validator_registration_submit",
+        source:"submit_stub_v1",
+        mutation:false,
+        sends_transaction:false,
+        submit_allowed:false,
+        submit_blocked_reason:"live_wallet_execution_not_wired",
+        account,
+        owner:account,
+        reward,
+        registry,
+        valueWei,
+        functionSignature:expectedFunctionSignature,
+        args:{ reward, consensusKeyHash, metadataHash },
+        gates,
+        core_gates_green:coreGatesGreen,
+        required_before_live_submit:[
+          "server-authoritative participant wallet status",
+          "unlocked wallet proof",
+          "draft-submit payload equality proof",
+          "wrong-chain rejection proof",
+          "double-submit guard proof",
+          "real transaction execution proof"
+        ]
+      });
+    });
+
+    try { console.log("[mainnet0.validator-registration] blocked submit API mounted"); } catch {}
+  } catch (e:any) {
+    try { console.warn("[mainnet0.validator-registration] blocked submit API mount failed", e?.message || e); } catch {}
   }
 })();
 
