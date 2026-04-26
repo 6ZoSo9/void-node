@@ -307,6 +307,223 @@ console.log("[shim] published global node (post-construct)");
   
 const app = express();
 
+/* __void_mainnet0_validator_candidate_registry_api_v1 */
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_mainnet0_validator_candidate_registry_api_v1";
+    if (G[MARK]) return;
+    G[MARK] = true;
+
+    const fs = require("fs");
+    const path = require("path");
+
+    function artifactPath(): string {
+      return path.join(process.cwd(), ".runtime", "mainnet0", "validator-candidate-registry.local.current.json");
+    }
+
+    function readArtifact(): any {
+      const file = artifactPath();
+      try {
+        if (!fs.existsSync(file)) {
+          return {
+            ok: false,
+            available: false,
+            error: "validator_candidate_registry_artifact_missing",
+            file,
+            hint: "Run ops/mainnet0/validator-candidate-registry-local-deploy-proof.sh first."
+          };
+        }
+        const raw = fs.readFileSync(file, "utf8");
+        const parsed = JSON.parse(raw);
+        return {
+          ok: true,
+          available: true,
+          file,
+          artifact: parsed
+        };
+      } catch (e:any) {
+        return {
+          ok: false,
+          available: false,
+          error: "validator_candidate_registry_artifact_read_failed",
+          message: String(e?.message || e),
+          file
+        };
+      }
+    }
+
+    function n(v:any): number {
+      const x = Number(v);
+      return Number.isFinite(x) ? x : 0;
+    }
+
+    function addr(v:any): string {
+      const s = String(v || "").trim();
+      return /^0x[0-9a-fA-F]{40}$/.test(s) ? s.toLowerCase() : "";
+    }
+
+    function accountStatus(artifact:any, accountRaw:any): any {
+      const account = addr(accountRaw);
+      const proofCandidate = addr(artifact?.candidate);
+
+      if (!account) {
+        return {
+          account: String(accountRaw || ""),
+          state: "unknown",
+          registered: false,
+          reason: "missing_or_invalid_account"
+        };
+      }
+
+      if (proofCandidate && account === proofCandidate) {
+        const activeFinal = n(artifact?.activeCountFinal);
+        const waitingFinal = n(artifact?.waitingCountFinal);
+        const candidateAfter = n(artifact?.candidateCountAfter);
+
+        if (activeFinal > 0) {
+          return {
+            account,
+            state: "active",
+            registered: true,
+            in_latest_local_proof: true
+          };
+        }
+
+        if (waitingFinal > 0) {
+          return {
+            account,
+            state: "waiting",
+            registered: true,
+            in_latest_local_proof: true
+          };
+        }
+
+        if (candidateAfter > 0) {
+          return {
+            account,
+            state: "candidate",
+            registered: true,
+            in_latest_local_proof: true
+          };
+        }
+      }
+
+      return {
+        account,
+        state: "not_registered_in_latest_local_proof",
+        registered: false,
+        in_latest_local_proof: false
+      };
+    }
+
+    app.get("/__void/mainnet0/validator-candidate-registry/status", (_req:any, res:any) => {
+      const loaded = readArtifact();
+      if (!loaded.ok) {
+        return res.status(404).json({
+          ok: false,
+          kind: "mainnet0_validator_candidate_registry_status",
+          ...loaded
+        });
+      }
+
+      const a = loaded.artifact || {};
+      const activeBefore = n(a.activeCountBefore);
+      const activeAfter = n(a.activeCountAfter);
+      const activeFinal = n(a.activeCountFinal);
+      const activeSetAffected =
+        activeAfter !== activeBefore ||
+        activeFinal !== activeBefore;
+
+      return res.json({
+        ok: true,
+        kind: "mainnet0_validator_candidate_registry_status",
+        source: "local_deploy_proof_artifact",
+        file: loaded.file,
+        registration_available: true,
+        public_registration_mutates_active_set: activeSetAffected,
+        invariant_ok: !activeSetAffected && !!a.ok,
+        registry: a.registry || null,
+        deployer: a.deployer || null,
+        latest_proof_candidate: a.candidate || null,
+        minValidatorStakeWei: a.minValidatorStakeWei || null,
+        maxActiveValidators: a.maxActiveValidators || null,
+        activationChurnLimit: a.activationChurnLimit || null,
+        counts: {
+          candidateBefore: a.candidateCountBefore || "0",
+          candidateAfter: a.candidateCountAfter || "0",
+          waitingBefore: a.waitingCountBefore || "0",
+          waitingAfter: a.waitingCountAfter || "0",
+          waitingFinal: a.waitingCountFinal || "0",
+          activeBefore: a.activeCountBefore || "0",
+          activeAfter: a.activeCountAfter || "0",
+          activeFinal: a.activeCountFinal || "0"
+        },
+        policy: {
+          public_registration_creates_candidate_or_waiting_state_only: true,
+          registration_does_not_instantly_expand_active_validator_set: true,
+          activation_is_separate_owner_epoch_step: true,
+          active_set_cap_enforced_by_contract: true,
+          activation_churn_limit_enforced_by_contract: true
+        },
+        artifact: a
+      });
+    });
+
+    app.get("/__void/participant/validator-registration/status", (req:any, res:any) => {
+      const loaded = readArtifact();
+      const account = String(req?.query?.account || "").trim();
+
+      if (!loaded.ok) {
+        return res.status(404).json({
+          ok: false,
+          kind: "participant_validator_registration_status",
+          account,
+          ...loaded
+        });
+      }
+
+      const a = loaded.artifact || {};
+      const activeBefore = n(a.activeCountBefore);
+      const activeAfter = n(a.activeCountAfter);
+      const activeFinal = n(a.activeCountFinal);
+      const activeSetAffected =
+        activeAfter !== activeBefore ||
+        activeFinal !== activeBefore;
+
+      return res.json({
+        ok: true,
+        kind: "participant_validator_registration_status",
+        source: "local_deploy_proof_artifact",
+        account,
+        registry: a.registry || null,
+        candidate_registry_available: true,
+        public_registration_mutates_active_set: activeSetAffected,
+        invariant_ok: !activeSetAffected && !!a.ok,
+        status: accountStatus(a, account),
+        policy: {
+          can_register_as_candidate: true,
+          becomes_active_immediately: false,
+          enters_waiting_pool_before_active_admission: true,
+          active_validator_set_is_bounded: true
+        },
+        latest_proof: {
+          stamp: a.stamp || null,
+          candidate: a.candidate || null,
+          candidateCountAfter: a.candidateCountAfter || "0",
+          waitingCountFinal: a.waitingCountFinal || "0",
+          activeCountFinal: a.activeCountFinal || "0"
+        }
+      });
+    });
+
+    try { console.log("[mainnet0.validator-candidate] read-only API mounted"); } catch {}
+  } catch (e:any) {
+    try { console.warn("[mainnet0.validator-candidate] API mount failed", e?.message || e); } catch {}
+  }
+})();
+
+
 /* __void_validator_runtime_truth_routes_v1 */
 const __voidRequire = createRequire(import.meta.url);
 let __voidValidatorRuntimeTruthSwitchMod: any = null;
