@@ -148,3 +148,20 @@ ops/mainnet/validator-identity.env
 ops/mainnet/void-mainnet.local-overrides.json
 ops/mainnet/void-mainnet.live.local.json
 .runtime/
+
+# local secrets / keys / wallets
+.env
+.env.*
+!.env.template
+!.env.example
+.secrets/
+.secrets2/
+keystore/
+*.pem
+*.key
+*.pkcs8
+*.p12
+*.pfx
+wallet-secrets.json
+*wallet-secrets*.json
+*.agekey
