@@ -46042,6 +46042,39 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
+            <div class="panel" style="margin-top:12px">
+              <div class="section-head">
+                <div>
+                  <h2>Validator Registration<span class="help" tabindex="0" data-help="Read-only Mainnet-0 validator registration status. Registering as a public validator candidate does not immediately add you to the active validator set.">?</span></h2>
+                  <div class="section-copy">Public registration enters a candidate/waiting pool first. Active validator admission remains capped and epoch-controlled.</div>
+                </div>
+              </div>
+              <div class="metric-strip top-kpis" style="margin-top:6px">
+                <div class="mini">
+                  <div class="k">Registration</div>
+                  <div class="v" id="validatorRegistrationState">-</div>
+                  <div class="s" id="validatorRegistrationMeta">read-only status</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Active-Set Safety</div>
+                  <div class="v" id="validatorRegistrationSafety">-</div>
+                  <div class="s">registration does not activate</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Registry</div>
+                  <div class="v" id="validatorRegistrationRegistry">-</div>
+                  <div class="s">candidate registry</div>
+                </div>
+                <div class="mini">
+                  <div class="k">Min Stake</div>
+                  <div class="v" id="validatorRegistrationStake">-</div>
+                  <div class="s">candidate requirement</div>
+                </div>
+              </div>
+              <div class="hero-note" id="validatorRegistrationNote" style="margin-top:12px">Checking validator registration status…</div>
+              <div class="hero-note" id="validatorRegistrationCounts" style="margin-top:10px">Candidate registry counts loading…</div>
+            </div>
+
             <h2>Participant Staking Path<span class="help" tabindex="0" data-help="This participant page now shows staking readiness and live validator truth. Browser stake execution is not wired yet; current live onboarding still runs through the node operator path.">?</span></h2>
           </div>
         </div>
@@ -47390,6 +47423,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       ? String(nativeWalletStatus.address)
       : "";
 
+    const validatorRegistrationGlobalResp = await j("/__void/mainnet0/validator-candidate-registry/status").catch(() => ({ ok:false, unavailable:true }));
+    const validatorRegistrationResp = executionWalletAddr
+      ? await j("/__void/participant/validator-registration/status?account=" + encodeURIComponent(executionWalletAddr)).catch(() => ({ ok:false, unavailable:true }))
+      : { ok:false, missing_wallet:true, unavailable:true };
+
     const executionWalletUnlocked = !!(
       nativeWalletStatus &&
       nativeWalletStatus.ok &&
@@ -47402,6 +47440,82 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     setText("heroWalletShort", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("heroWalletMeta", executionWalletAddr ? ("Execution wallet: " + shortAddr(executionWalletAddr)) : "No execution wallet linked");
+
+    const validatorRegistrationGlobal = validatorRegistrationGlobalResp && validatorRegistrationGlobalResp.ok ? validatorRegistrationGlobalResp : null;
+    const validatorRegistration = validatorRegistrationResp && validatorRegistrationResp.ok ? validatorRegistrationResp : null;
+    const validatorRegistrationStatus = validatorRegistration && validatorRegistration.status ? validatorRegistration.status : null;
+    const validatorRegistrationStateRaw = String(
+      (validatorRegistrationStatus && validatorRegistrationStatus.state) ||
+      (executionWalletAddr ? "not_registered" : "no_wallet")
+    );
+
+    const validatorRegistrationStateLabel =
+      validatorRegistrationStateRaw === "active" ? "Active" :
+      validatorRegistrationStateRaw === "waiting" ? "Waiting" :
+      validatorRegistrationStateRaw === "candidate" ? "Candidate" :
+      validatorRegistrationStateRaw === "not_registered_in_latest_local_proof" ? "Not Registered" :
+      validatorRegistrationStateRaw === "missing_or_invalid_account" ? "No Wallet" :
+      validatorRegistrationStateRaw === "no_wallet" ? "No Wallet" :
+      "Check";
+
+    const validatorRegistrationSafe = !!(
+      validatorRegistrationGlobal &&
+      validatorRegistrationGlobal.invariant_ok &&
+      validatorRegistrationGlobal.public_registration_mutates_active_set === false
+    );
+
+    const validatorRegistrationRegistry = String(
+      (validatorRegistrationGlobal && validatorRegistrationGlobal.registry) ||
+      (validatorRegistration && validatorRegistration.registry) ||
+      ""
+    );
+
+    const validatorRegistrationMinStake = (() => {
+      try {
+        const wei = Number((validatorRegistrationGlobal && validatorRegistrationGlobal.minValidatorStakeWei) || 0);
+        if (Number.isFinite(wei) && wei > 0) return String(Math.round(wei / 1e18)) + " VOID";
+      } catch (_) {}
+      return "-";
+    })();
+
+    const validatorRegistrationCountsText = (() => {
+      try {
+        const c = (validatorRegistrationGlobal && validatorRegistrationGlobal.counts) || {};
+        return "Candidates " + String(c.candidateAfter || "0") +
+          " • Waiting " + String(c.waitingFinal || "0") +
+          " • Active delta " + String(c.activeFinal || "0") +
+          " • Active set unchanged: " + (validatorRegistrationSafe ? "yes" : "check");
+      } catch (_) {
+        return "Candidate registry counts unavailable.";
+      }
+    })();
+
+    setText("validatorRegistrationState", validatorRegistrationStateLabel);
+    setText(
+      "validatorRegistrationMeta",
+      executionWalletAddr
+        ? ("wallet " + shortAddr(executionWalletAddr))
+        : "link or create an execution wallet"
+    );
+    setText("validatorRegistrationSafety", validatorRegistrationSafe ? "Safe" : "Check");
+    setText("validatorRegistrationRegistry", validatorRegistrationRegistry ? shortAddr(validatorRegistrationRegistry) : "-");
+    setText("validatorRegistrationStake", validatorRegistrationMinStake);
+    setText("validatorRegistrationCounts", validatorRegistrationCountsText);
+    setText(
+      "validatorRegistrationNote",
+      validatorRegistrationSafe
+        ? (
+            validatorRegistrationStateLabel === "Waiting"
+              ? "This wallet is registered in the latest local proof and is waiting. It did not increase the active validator set."
+              : validatorRegistrationStateLabel === "Candidate"
+                ? "This wallet is registered as a candidate. Activation is separate and capped."
+                : validatorRegistrationStateLabel === "Active"
+                  ? "This wallet is active in the latest local proof."
+                  : "This wallet is not registered in the latest local proof. Public registration will enter candidate/waiting first, not active immediately."
+          )
+        : "Validator registration proof is unavailable or failed the active-set safety invariant."
+    );
+
 
     const localWcTruth = redeemState && Number.isFinite(Number(redeemState.redeemable))
       ? Number(redeemState.redeemable)
