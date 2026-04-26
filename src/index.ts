@@ -46243,6 +46243,13 @@ a{color:#93c5fd;text-decoration:none}
               </div>
               <div class="hero-note" id="validatorRegistrationNote" style="margin-top:12px">Checking validator registration status…</div>
               <div class="hero-note" id="validatorRegistrationCounts" style="margin-top:10px">Candidate registry counts loading…</div>
+              <details class="adv" style="margin-top:12px">
+                <summary><span>Registration Draft</span><span class="pill">read-only preview</span></summary>
+                <div class="adv-body">
+                  <div class="hero-note" id="validatorRegistrationDraftSummary" style="margin-top:10px">Registration draft loading…</div>
+                  <pre id="validatorRegistrationDraftPreview" style="margin-top:10px;max-height:240px;overflow:auto">No draft loaded yet.</pre>
+                </div>
+              </details>
             </div>
 
             <h2>Participant Staking Path<span class="help" tabindex="0" data-help="This participant page now shows staking readiness and live validator truth. Browser stake execution is not wired yet; current live onboarding still runs through the node operator path.">?</span></h2>
@@ -47597,6 +47604,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const validatorRegistrationResp = executionWalletAddr
       ? await j("/__void/participant/validator-registration/status?account=" + encodeURIComponent(executionWalletAddr)).catch(() => ({ ok:false, unavailable:true }))
       : { ok:false, missing_wallet:true, unavailable:true };
+    const validatorRegistrationDraftResp = executionWalletAddr
+      ? await j("/__void/participant/validator-registration/draft?account=" + encodeURIComponent(executionWalletAddr)).catch(() => ({ ok:false, unavailable:true }))
+      : { ok:false, missing_wallet:true, unavailable:true };
 
     const executionWalletUnlocked = !!(
       nativeWalletStatus &&
@@ -47684,6 +47694,48 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                   : "This wallet is not registered in the latest local proof. Public registration will enter candidate/waiting first, not active immediately."
           )
         : "Validator registration proof is unavailable or failed the active-set safety invariant."
+    );
+
+    const validatorRegistrationDraft = validatorRegistrationDraftResp && validatorRegistrationDraftResp.ok ? validatorRegistrationDraftResp : null;
+    const validatorRegistrationDraftSummary = (() => {
+      if (!executionWalletAddr) return "Create or import an execution wallet to prepare a validator registration draft.";
+      if (!validatorRegistrationDraft) {
+        const err = validatorRegistrationDraftResp && (validatorRegistrationDraftResp.error || validatorRegistrationDraftResp.reason)
+          ? String(validatorRegistrationDraftResp.error || validatorRegistrationDraftResp.reason)
+          : "draft unavailable";
+        return "Registration draft unavailable: " + err + ".";
+      }
+      return "Draft ready: " +
+        String(validatorRegistrationDraft.functionSignature || "registerCandidate") +
+        " • value " + String(validatorRegistrationDraft.valueWei || "0") + " wei" +
+        " • sends transaction now: " + (validatorRegistrationDraft.sends_transaction ? "yes" : "no") +
+        " • active-set mutation: " + (
+          validatorRegistrationDraft.safety && validatorRegistrationDraft.safety.public_registration_mutates_active_set
+            ? "yes"
+            : "no"
+        );
+    })();
+
+    setText("validatorRegistrationDraftSummary", validatorRegistrationDraftSummary);
+    setPre(
+      "validatorRegistrationDraftPreview",
+      validatorRegistrationDraft
+        ? {
+            registry: validatorRegistrationDraft.registry,
+            chainId: validatorRegistrationDraft.chainId,
+            functionSignature: validatorRegistrationDraft.functionSignature,
+            valueWei: validatorRegistrationDraft.valueWei,
+            args: validatorRegistrationDraft.args,
+            mutation: validatorRegistrationDraft.mutation,
+            sends_transaction: validatorRegistrationDraft.sends_transaction,
+            safety: validatorRegistrationDraft.safety,
+            castPreview: validatorRegistrationDraft.castPreview
+          }
+        : {
+            ok: false,
+            wallet: executionWalletAddr || null,
+            message: "No registration draft loaded."
+          }
     );
 
 
