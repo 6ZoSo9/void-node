@@ -73,6 +73,8 @@ find . -type f \( \
 \) -delete
 
 rm -f ops/systemd-effective-baseline.*.txt
+rm -f src/index.js
+rm -f ops/void-workcredits-devnet-pool-state.sh
 rm -f ops/mainnet/*.live.json
 rm -f ops/mainnet/*.deployed.json
 rm -f ops/mainnet/*recovery*.json

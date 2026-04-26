@@ -14857,9 +14857,9 @@ void_ready_exporter_timestamp_ms ${now}
     if (!app || typeof app.get !== "function") return setTimeout(attach, TICK);
 
     // idempotent mount (skip if already registered)
-    const key = "__void_header3_v2_mounted";
-    if ((app as any)[key]) return;
-    (app as any)[key] = true;
+    const mountMarker = "__void_header3_v2_mounted";
+    if ((app as any)[mountMarker]) return;
+    (app as any)[mountMarker] = true;
 
     async function selfJson(path:string){
       // Node >=18 has global fetch
@@ -25256,9 +25256,9 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
     return;
   }
   const G:any = (globalThis as any);
-  const KEY="__void_commit_direct_autoprop_v1_kicker";
-  if (G[KEY]) return;
-  G[KEY] = { mounted:false, kicks:0, last_ts:0 };
+  const mountMarker="__void_commit_direct_autoprop_v1_kicker";
+  if (G[mountMarker]) return;
+  G[mountMarker] = { mounted:false, kicks:0, last_ts:0 };
 
   function getApp(){ return G.__void_http_app || G.app; }
   function getState(){
@@ -25274,12 +25274,12 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
   function mount(){
     const app:any = getApp();
     if (!app || typeof app.get !== "function") return setTimeout(mount, 400);
-    if ((app as any).__void_commit_direct_autoprop_v1_kicker_mounted) { (G[KEY].mounted=true); return; }
+    if ((app as any).__void_commit_direct_autoprop_v1_kicker_mounted) { (G[mountMarker].mounted=true); return; }
     (app as any).__void_commit_direct_autoprop_v1_kicker_mounted = true;
-    G[KEY].mounted = true;
+    G[mountMarker].mounted = true;
 
     app.post("/__void/metrics/commit-direct-autoprop.v1/kick", (_req:any,res:any)=>{
-      G[KEY].kicks++; G[KEY].last_ts = Date.now();
+      G[mountMarker].kicks++; G[mountMarker].last_ts = Date.now();
       const S:any = getState();
       if (S && typeof S === "object") {
         S.enabled = true;
@@ -25288,7 +25288,7 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
       res.json({ ok:true, kicked:true, found: !!S, state: S ? { enabled:S.enabled, interval_ms:S.interval_ms, ticks:S.ticks, errs:S.errs, last_err:S.last_err } : null });
     });
 
-    app.get("/__void/metrics/commit-direct-autoprop.v1/kicker.status.json", (_req:any,res:any)=>res.json({ ok:true, state:G[KEY] }));
+    app.get("/__void/metrics/commit-direct-autoprop.v1/kicker.status.json", (_req:any,res:any)=>res.json({ ok:true, state:G[mountMarker] }));
     console.error("[autoprop.v1.kicker] mounted: POST /__void/metrics/commit-direct-autoprop.v1/kick");
   }
 
@@ -51660,9 +51660,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 // ---------------- [ADD] proposer compat shim: /proposer/status + /proposer/commit ----------------
 if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCompatShimV1(){
   const G:any = (globalThis as any);
-  const KEY="__void_proposer_compat_shim_v1";
-  if (G[KEY]) return;
-  G[KEY] = { mounted:false, calls:0, errors:0, last_ts:0, last_err:"" };
+  const mountMarker="__void_proposer_compat_shim_v1";
+  if (G[mountMarker]) return;
+  G[mountMarker] = { mounted:false, calls:0, errors:0, last_ts:0, last_err:"" };
 
   function getApp(){ return G.__void_http_app || G.app; }
   function port(){ return Number(process.env.HTTP_PORT || 4100); }
@@ -51676,8 +51676,8 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
   }
 
   async function proxyCommit(req:any, res:any){
-    G[KEY].calls++;
-    G[KEY].last_ts = Date.now();
+    G[mountMarker].calls++;
+    G[mountMarker].last_ts = Date.now();
     try{
       const qs = String(req?.originalUrl || req?.url || "").split("?")[1] || "";
       const target = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs` + (qs ? `?${qs}` : "");
@@ -51692,15 +51692,15 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       if (out.json && typeof out.json === "object") return res.status(out.status).json(out.json);
       return res.status(out.status).type(out.headers.get("content-type") || "text/plain").send(out.text);
     }catch(e:any){
-      G[KEY].errors++;
-      G[KEY].last_err = String(e?.stack || e?.message || e);
+      G[mountMarker].errors++;
+      G[mountMarker].last_err = String(e?.stack || e?.message || e);
       return res.status(500).json({ ok:false, error:"proposer_commit_proxy_failed", msg:String(e?.message||e) });
     }
   }
 
   async function proxyStatus(_req:any, res:any){
-    G[KEY].calls++;
-    G[KEY].last_ts = Date.now();
+    G[mountMarker].calls++;
+    G[mountMarker].last_ts = Date.now();
     try{
       const auto = await fetchJson(`http://127.0.0.1:${port()}/__void/metrics/commit-direct-autoprop.v1/status.json`);
       const v2fs = await fetchJson(`http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/status.json`);
@@ -51739,8 +51739,8 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
       });
     }catch(e:any){
-      G[KEY].errors++;
-      G[KEY].last_err = String(e?.stack || e?.message || e);
+      G[mountMarker].errors++;
+      G[mountMarker].last_err = String(e?.stack || e?.message || e);
       return res.status(500).json({ ok:false, error:"proposer_status_proxy_failed", msg:String(e?.message||e) });
     }
   }
@@ -51748,15 +51748,15 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
   function mount(){
     const app:any = getApp();
     if (!app || typeof app.get !== "function" || typeof app.post !== "function") return setTimeout(mount, 400);
-    if ((app as any).__void_proposer_compat_shim_v1_mounted) { G[KEY].mounted = true; return; }
+    if ((app as any).__void_proposer_compat_shim_v1_mounted) { G[mountMarker].mounted = true; return; }
     (app as any).__void_proposer_compat_shim_v1_mounted = true;
-    G[KEY].mounted = true;
+    G[mountMarker].mounted = true;
 
     app.get("/proposer/status", proxyStatus);
     app.post("/proposer/commit", proxyCommit);
     app.post("/proposer/commit-now", proxyCommit);
 
-    app.get("/__void/metrics/proposer.compat.status.json", (_req:any,res:any)=>res.json({ ok:true, state:G[KEY] }));
+    app.get("/__void/metrics/proposer.compat.status.json", (_req:any,res:any)=>res.json({ ok:true, state:G[mountMarker] }));
 
     try{ console.error("[proposer.compat.v1] mounted: GET /proposer/status ; POST /proposer/commit ; POST /proposer/commit-now"); }catch{}
   }
