@@ -248,27 +248,34 @@ PY
 
 echo
 echo "=== [5] capture epoch + publish window on upgrade-track ==="
-CAPTURE_CHUNK_SIZE="${CAPTURE_CHUNK_SIZE:-5}"
+CAPTURE_CHUNK_SIZE="${CAPTURE_CHUNK_SIZE:-1}"
+APPEND_GAS="${APPEND_GAS:-120000000}"
+FINALIZE_GAS="${FINALIZE_GAS:-120000000}"
+PUBLISH_GAS="${PUBLISH_GAS:-120000000}"
 CAPTURE_ROUNDS="$(( (EXPECTED_VALIDATOR_COUNT + CAPTURE_CHUNK_SIZE - 1) / CAPTURE_CHUNK_SIZE ))"
 
+set +e
 cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" \
   "$SNAPSHOT" 'beginEpochCapture(uint256)' "$TARGET_EPOCH"
+BEGIN_RC="$?"
+set -e
+echo "begin_rc=$BEGIN_RC (0 means newly begun; nonzero can be okay if already begun)"
 
 sleep 2
 
 for ((round=1; round<=CAPTURE_ROUNDS; round++)); do
   echo "--- capture chunk ${round}/${CAPTURE_ROUNDS} (chunkSize=${CAPTURE_CHUNK_SIZE})"
-  cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" \
+  cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" --gas-limit "$APPEND_GAS" \
     "$SNAPSHOT" 'appendEpochValidators(uint256,uint256)' "$TARGET_EPOCH" "$CAPTURE_CHUNK_SIZE"
   sleep 2
 done
 
-cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" \
+cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" --gas-limit "$FINALIZE_GAS" \
   "$SNAPSHOT" 'finalizeEpochCapture(uint256)' "$TARGET_EPOCH"
 
 sleep 2
 
-cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" \
+cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" --gas-limit "$PUBLISH_GAS" \
   "$COMMITMENT_REGISTRY" 'publishEpochWindow(uint256,uint256,uint256)' "$TARGET_EPOCH" "$START_SLOT" "$END_SLOT_EXCLUSIVE"
 
 sleep 2
