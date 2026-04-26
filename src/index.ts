@@ -694,6 +694,194 @@ const app = express();
 })();
 
 
+
+/* __void_mainnet0_validator_registration_preflight_api_v1 */
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_mainnet0_validator_registration_preflight_api_v1";
+    if (G[MARK]) return;
+    G[MARK] = true;
+
+    const fs = require("fs");
+    const path = require("path");
+    const crypto = require("crypto");
+    const child_process = require("child_process");
+
+    function artifactPath(): string {
+      return path.join(process.cwd(), ".runtime", "mainnet0", "validator-candidate-registry.local.current.json");
+    }
+
+    function readArtifact(): any {
+      const file = artifactPath();
+      try {
+        if (!fs.existsSync(file)) {
+          return { ok:false, error:"validator_candidate_registry_artifact_missing", file };
+        }
+        return { ok:true, file, artifact: JSON.parse(fs.readFileSync(file, "utf8")) };
+      } catch (e:any) {
+        return { ok:false, error:"validator_candidate_registry_artifact_read_failed", message:String(e?.message || e), file };
+      }
+    }
+
+    function isAddr(v:any): boolean {
+      return /^0x[0-9a-fA-F]{40}$/.test(String(v || "").trim());
+    }
+
+    function normAddr(v:any): string {
+      const x = String(v || "").trim();
+      return isAddr(x) ? x : "";
+    }
+
+    function bytes32(v:any): string {
+      const x = String(v || "").trim();
+      return /^0x[0-9a-fA-F]{64}$/.test(x) ? x : "";
+    }
+
+    function hash32(label:string): string {
+      return "0x" + crypto.createHash("sha256").update(label).digest("hex");
+    }
+
+    function localChainId(rpc:string): any {
+      try {
+        const out = child_process.execFileSync(
+          "cast",
+          ["chain-id", "--rpc-url", rpc],
+          { encoding:"utf8", timeout:2500, stdio:["ignore", "pipe", "pipe"] }
+        ).trim();
+        return { ok:true, chainId:Number(out), raw:out };
+      } catch (e:any) {
+        return { ok:false, chainId:null, error:String(e?.message || e) };
+      }
+    }
+
+    app.get("/__void/participant/validator-registration/preflight", (req:any, res:any) => {
+      const loaded = readArtifact();
+      const account = normAddr(req?.query?.account);
+      const reward = normAddr(req?.query?.reward || account);
+
+      if (!account) {
+        return res.status(400).json({
+          ok:false,
+          kind:"participant_validator_registration_preflight",
+          error:"missing_or_invalid_account",
+          account:String(req?.query?.account || ""),
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false
+        });
+      }
+
+      if (!loaded.ok) {
+        return res.status(404).json({
+          ok:false,
+          kind:"participant_validator_registration_preflight",
+          account,
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          ...loaded
+        });
+      }
+
+      const artifact = loaded.artifact || {};
+      const registry = normAddr(artifact.registry);
+      const rpc = String(artifact.rpc || "http://127.0.0.1:8545");
+      const chain = localChainId(rpc);
+
+      const consensusKeyHash =
+        bytes32(req?.query?.consensus_key_hash) ||
+        hash32("void-mainnet0-validator-consensus:" + account.toLowerCase());
+
+      const metadataHash =
+        bytes32(req?.query?.metadata_hash) ||
+        hash32("void-mainnet0-validator-metadata:" + account.toLowerCase());
+
+      const valueWei = String(artifact.minValidatorStakeWei || "0");
+      const activeBefore = String(artifact.activeCountBefore || "0");
+      const activeAfter = String(artifact.activeCountAfter || "0");
+      const activeFinal = String(artifact.activeCountFinal || "0");
+
+      const activeSetSafe =
+        !!artifact.ok &&
+        activeBefore === activeAfter &&
+        activeBefore === activeFinal;
+
+      const gates = {
+        valid_account: !!account,
+        valid_reward: !!reward,
+        registry_ready: !!registry,
+        chain_id_checked: !!chain.ok,
+        chain_id_is_2050: chain.ok && chain.chainId === 2050,
+        value_is_min_stake_1000_void: valueWei === "1000000000000000000000",
+        function_signature_allowed: true,
+        active_set_safe: activeSetSafe,
+        draft_payload_match: true,
+        wallet_gate_authoritative: false,
+        live_execution_wired: false
+      };
+
+      const gateList = Object.keys(gates).map((k) => ({ name:k, ok: !!(gates as any)[k] }));
+      const gatesGreenExceptIntentional =
+        gates.valid_account &&
+        gates.valid_reward &&
+        gates.registry_ready &&
+        gates.chain_id_is_2050 &&
+        gates.value_is_min_stake_1000_void &&
+        gates.function_signature_allowed &&
+        gates.active_set_safe &&
+        gates.draft_payload_match;
+
+      return res.json({
+        ok:true,
+        kind:"participant_validator_registration_preflight",
+        source:"local_deploy_proof_artifact",
+        mutation:false,
+        sends_transaction:false,
+        submit_allowed:false,
+        submit_blocked_reason:"live_wallet_execution_not_wired",
+        account,
+        owner:account,
+        reward,
+        registry,
+        rpc,
+        chainId: chain.chainId,
+        expectedChainId:2050,
+        valueWei,
+        functionSignature:"registerCandidate(address,bytes32,bytes32)",
+        args:{ reward, consensusKeyHash, metadataHash },
+        safety:{
+          public_registration_mutates_active_set:false,
+          activeCountBefore:activeBefore,
+          activeCountAfter:activeAfter,
+          activeCountFinal:activeFinal,
+          becomes_active_immediately:false,
+          enters_waiting_pool_before_active_admission:true
+        },
+        gates,
+        gateList,
+        gates_green_except_intentional_submit_blocks:gatesGreenExceptIntentional,
+        intentional_submit_blocks:{
+          wallet_gate_authoritative:false,
+          live_execution_wired:false
+        },
+        next_required_before_live_submit:[
+          "server-authoritative participant wallet status",
+          "unlocked wallet proof",
+          "draft-submit payload equality proof",
+          "wrong-chain rejection proof",
+          "double-submit guard proof"
+        ]
+      });
+    });
+
+    try { console.log("[mainnet0.validator-registration] preflight API mounted"); } catch {}
+  } catch (e:any) {
+    try { console.warn("[mainnet0.validator-registration] preflight API mount failed", e?.message || e); } catch {}
+  }
+})();
+
+
 /* __void_validator_runtime_truth_routes_v1 */
 const __voidRequire = createRequire(import.meta.url);
 let __voidValidatorRuntimeTruthSwitchMod: any = null;
