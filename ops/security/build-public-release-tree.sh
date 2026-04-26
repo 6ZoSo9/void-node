@@ -112,8 +112,7 @@ cat "$REPORT"
 echo
 echo "=== [4] scan sanitized tree with gitleaks ==="
 set +e
-gitleaks detect \
-  --source "$TREE" \
+gitleaks dir "$TREE" \
   --redact \
   --report-format json \
   --report-path "$OUT/gitleaks.sanitized.json"
@@ -121,6 +120,15 @@ RC="$?"
 set -e
 
 echo "gitleaks_rc=$RC"
+
+if [ "$RC" != "0" ]; then
+  if [ -s "$OUT/gitleaks.sanitized.json" ]; then
+    echo "[warn] gitleaks returned nonzero; checking whether findings were reported"
+  else
+    echo "[ERR] gitleaks scan failed without a usable report"
+    exit "$RC"
+  fi
+fi
 
 python3 - <<'PY' "$OUT/gitleaks.sanitized.json" "$OUT/gitleaks.sanitized.summary.txt"
 import json, sys
