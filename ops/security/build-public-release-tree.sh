@@ -110,9 +110,21 @@ REPORT_EOF
 cat "$REPORT"
 
 echo
-echo "=== [4] scan sanitized tree with gitleaks ==="
+echo "=== [4] create temporary one-commit git repo for gitleaks scan ==="
+(
+  cd "$TREE"
+  git init -q
+  git config user.email "void-public-release-scan@example.invalid"
+  git config user.name "VOID Public Release Scanner"
+  git add -A
+  git commit -q -m "sanitized public release scan tree"
+)
+
+echo
+echo "=== [5] scan sanitized tree with gitleaks detect ==="
 set +e
-gitleaks dir "$TREE" \
+gitleaks detect \
+  --source "$TREE" \
   --redact \
   --report-format json \
   --report-path "$OUT/gitleaks.sanitized.json"
@@ -126,9 +138,15 @@ if [ "$RC" != "0" ]; then
     echo "[warn] gitleaks returned nonzero; checking whether findings were reported"
   else
     echo "[ERR] gitleaks scan failed without a usable report"
+    rm -rf "$TREE/.git"
     exit "$RC"
   fi
 fi
+
+echo
+echo "=== [6] remove temporary scan git metadata ==="
+rm -rf "$TREE/.git"
+test ! -d "$TREE/.git"
 
 python3 - <<'PY' "$OUT/gitleaks.sanitized.json" "$OUT/gitleaks.sanitized.summary.txt"
 import json, sys
