@@ -884,6 +884,133 @@ const app = express();
 
 
 
+
+/* __void_mainnet0_validator_registration_wallet_authority_api_v1 */
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_mainnet0_validator_registration_wallet_authority_api_v1";
+    if (G[MARK]) return;
+    G[MARK] = true;
+
+    function isAddr(v:any): boolean {
+      return /^0x[0-9a-fA-F]{40}$/.test(String(v || "").trim());
+    }
+
+    function normAddr(v:any): string {
+      const x = String(v || "").trim();
+      return isAddr(x) ? x : "";
+    }
+
+    async function selfJson(path:string): Promise<any> {
+      const port = String(process.env.HTTP_PORT || "4100");
+      const url = "http://127.0.0.1:" + port + path;
+      try {
+        const r = await fetch(url);
+        const text = await r.text();
+        let json:any = null;
+        try { json = JSON.parse(text); } catch { json = { raw:text }; }
+        return { ok:r.ok, http_status:r.status, url, json };
+      } catch (e:any) {
+        return { ok:false, http_status:0, url, error:String(e?.message || e), json:null };
+      }
+    }
+
+    app.get("/__void/participant/validator-registration/wallet-authority", async (req:any, res:any) => {
+      const account = normAddr(req?.query?.account);
+
+      if (!account) {
+        return res.status(400).json({
+          ok:false,
+          kind:"participant_validator_registration_wallet_authority",
+          error:"missing_or_invalid_account",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false
+        });
+      }
+
+      const status = await selfJson("/__void/participant/wallet/status?account=" + encodeURIComponent(account));
+      const w:any = status.json || {};
+
+      const walletAddress =
+        normAddr(w.address) ||
+        normAddr(w.wallet) ||
+        normAddr(w.wallet_address) ||
+        normAddr(w.execution_wallet) ||
+        normAddr(w.account_wallet);
+
+      const hasWallet =
+        w.has_wallet === true ||
+        w.hasWallet === true ||
+        w.wallet_exists === true ||
+        !!walletAddress;
+
+      const walletUnlocked =
+        w.unlocked === true ||
+        w.is_unlocked === true ||
+        w.wallet_unlocked === true;
+
+      const accountMatch =
+        !!walletAddress &&
+        walletAddress.toLowerCase() === account.toLowerCase();
+
+      const readyForLiveSubmit =
+        status.ok === true &&
+        hasWallet === true &&
+        walletUnlocked === true &&
+        accountMatch === true;
+
+      const gates = {
+        wallet_status_endpoint_checked:true,
+        wallet_status_endpoint_reachable:status.ok === true,
+        participant_wallet_exists:hasWallet,
+        participant_wallet_unlocked:walletUnlocked,
+        participant_wallet_matches_account:accountMatch,
+        wallet_gate_authoritative:readyForLiveSubmit,
+        live_execution_wired:false
+      };
+
+      return res.status(200).json({
+        ok:true,
+        kind:"participant_validator_registration_wallet_authority",
+        source:"wallet_authority_probe_v1",
+        mutation:false,
+        sends_transaction:false,
+        submit_allowed:false,
+        submit_blocked_reason: readyForLiveSubmit ? "live_wallet_execution_not_wired" : "wallet_authority_not_ready",
+        account,
+        wallet_authority:{
+          status_checked:true,
+          status_ok:status.ok === true,
+          status_http:status.http_status,
+          has_wallet:hasWallet,
+          wallet_unlocked:walletUnlocked,
+          account_match:accountMatch,
+          wallet_address:walletAddress || null,
+          wallet_status_source:w.source || null,
+          ready_for_live_submit:readyForLiveSubmit
+        },
+        gates,
+        required_before_live_submit:[
+          "participant native wallet must exist",
+          "participant native wallet must be unlocked",
+          "wallet address must match participant account",
+          "draft-submit payload equality proof must pass",
+          "wrong-chain rejection proof must pass",
+          "double-submit guard proof must pass",
+          "real transaction execution proof must pass"
+        ]
+      });
+    });
+
+    try { console.log("[mainnet0.validator-registration] wallet authority API mounted"); } catch {}
+  } catch (e:any) {
+    try { console.warn("[mainnet0.validator-registration] wallet authority API mount failed", e?.message || e); } catch {}
+  }
+})();
+
+
 /* __void_mainnet0_validator_registration_submit_stub_api_v1 */
 ;(() => {
   try {
