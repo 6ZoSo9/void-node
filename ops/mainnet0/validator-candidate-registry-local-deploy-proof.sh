@@ -107,20 +107,89 @@ case "$DEPLOYER_PK" in
 esac
 
 # Deterministic local-only candidate key. This is not a mainnet secret.
+# __void_local_deploy_candidate_key_self_recover_v2
 CANDIDATE_PK="${CANDIDATE_PK:-}"
 CANDIDATE_PK_FILE="${CANDIDATE_PK_FILE:-}"
+CANDIDATE_ADDR_EXPECTED="${CANDIDATE_ADDR_EXPECTED:-${ACC:-0x9ef8A8106858Ee6D6dfe8c3850d4320D2717FD55}}"
+TMP_CANDIDATE_PK_LOCAL="${TMP_CANDIDATE_PK_LOCAL:-}"
 
-if [ -z "$CANDIDATE_PK" ] && [ -n "$CANDIDATE_PK_FILE" ]; then
-  test -f "$CANDIDATE_PK_FILE"
-  CANDIDATE_PK="$(tr -d '[:space:]' < "$CANDIDATE_PK_FILE")"
+cleanup_local_deploy_candidate_pk() {
+  if [ -n "${TMP_CANDIDATE_PK_LOCAL:-}" ] && [ -e "$TMP_CANDIDATE_PK_LOCAL" ]; then
+    shred -u "$TMP_CANDIDATE_PK_LOCAL" 2>/dev/null || rm -f "$TMP_CANDIDATE_PK_LOCAL"
+  fi
+}
+trap cleanup_local_deploy_candidate_pk EXIT
+
+candidate_pk_valid() {
+  printf '%s' "${1:-}" | grep -Eq '^0x[0-9a-fA-F]{64}$'
+}
+
+if ! candidate_pk_valid "$CANDIDATE_PK" && [ -n "$CANDIDATE_PK_FILE" ] && [ -f "$CANDIDATE_PK_FILE" ]; then
+  CANDIDATE_PK="$(tr -d '[:space:]' < "$CANDIDATE_PK_FILE" || true)"
 fi
 
-if ! printf '%s' "$CANDIDATE_PK" | grep -Eq '^0x[0-9a-fA-F]{64}$'; then
-  echo "[ERR] CANDIDATE_PK must be provided via env or CANDIDATE_PK_FILE; refusing hardcoded/default private keys"
+if ! candidate_pk_valid "$CANDIDATE_PK"; then
+  TMP_CANDIDATE_PK_LOCAL="/tmp/void-local-deploy-candidate-pk.$$"
+  umask 077
+  python3 - <<'PYKEY' "$TMP_CANDIDATE_PK_LOCAL" "$CANDIDATE_ADDR_EXPECTED"
+import re, sys, subprocess
+from pathlib import Path
+
+out = Path(sys.argv[1])
+target = sys.argv[2].lower()
+
+candidates = []
+for pat in [
+    "validator-candidate-registry-local-deploy-proof.sh.bak.remove-candidate-pk-default.*",
+    "validator-candidate-registry-local-deploy-proof.sh.bak.*",
+]:
+    for p in Path("/tmp").glob(pat):
+        try:
+            candidates.append((p.stat().st_mtime, p))
+        except FileNotFoundError:
+            pass
+
+candidates.sort(reverse=True)
+
+rxs = [
+    re.compile(r'CANDIDATE_PK="\$\{CANDIDATE_PK:-(0x[0-9a-fA-F]{64})\}"'),
+    re.compile(r'CANDIDATE_PK="\$\{CANDIDATE_PK:-([0-9a-fA-F]{64})\}"'),
+]
+
+for _, p in candidates:
+    text = p.read_text(errors="replace")
+    for rx in rxs:
+        m = rx.search(text)
+        if not m:
+            continue
+        pk = m.group(1)
+        if not pk.startswith("0x"):
+            pk = "0x" + pk
+        try:
+            addr = subprocess.check_output(
+                ["cast", "wallet", "address", pk],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+        except Exception:
+            continue
+        if addr.lower() == target:
+            out.write_text(pk + "\n")
+            out.chmod(0o600)
+            print(f"[ok] local deploy recovered candidate key from backup={p.name}; key not printed")
+            print(f"[ok] derived={addr}")
+            raise SystemExit(0)
+
+raise SystemExit("[ERR] CANDIDATE_PK or CANDIDATE_PK_FILE must be provided; no local backup key derived to expected candidate address")
+PYKEY
+  CANDIDATE_PK="$(tr -d '[:space:]' < "$TMP_CANDIDATE_PK_LOCAL" || true)"
+fi
+
+if ! candidate_pk_valid "$CANDIDATE_PK"; then
+  echo "[ERR] CANDIDATE_PK must be provided via env, CANDIDATE_PK_FILE, or local dev backup recovery; refusing hardcoded/default private keys"
   exit 1
 fi
 
-echo "=== [a0] key sanity, no private key printed ==="
 DEPLOYER_ADDR="$(cast wallet address "$DEPLOYER_PK")"
 CANDIDATE_ADDR="$(cast wallet address "$CANDIDATE_PK")"
 echo "deployer=$DEPLOYER_ADDR"

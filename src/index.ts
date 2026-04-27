@@ -1411,6 +1411,141 @@ const app = express();
 })();
 
 
+
+/* __void_mainnet0_validator_registration_submit_live_api_v1 */
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_mainnet0_validator_registration_submit_live_api_v1";
+    if (G[MARK]) return;
+    G[MARK] = true;
+
+    const express = require("express");
+
+    function isAddr(v:any): boolean {
+      return /^0x[0-9a-fA-F]{40}$/.test(String(v || "").trim());
+    }
+
+    function normAddr(v:any): string {
+      const x = String(v || "").trim();
+      return isAddr(x) ? x : "";
+    }
+
+    function bodyOf(req:any): any {
+      return (req && req.body && typeof req.body === "object") ? req.body : {};
+    }
+
+    function liveExecutionEnabled(): boolean {
+      return String(process.env.VOID_VALIDATOR_REGISTRATION_LIVE_EXECUTION || "").trim() === "1";
+    }
+
+    const route = "/__void/participant/validator-registration/submit-live";
+    app.use(route, express.json({ limit:"32kb" }));
+
+    app.post(route, async (req:any, res:any) => {
+      const body = bodyOf(req);
+      const account = normAddr(body.account || req?.query?.account);
+      const rawChainId = body.chainId ?? body.chain_id ?? req?.query?.chainId ?? req?.query?.chain_id;
+      const requestedChainId = rawChainId === undefined || rawChainId === null || String(rawChainId).trim() === ""
+        ? 2050
+        : Number(String(rawChainId).trim());
+
+      if (!Number.isFinite(requestedChainId) || requestedChainId !== 2050) {
+        return res.status(409).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"wrong_chain",
+          expectedChainId:2050,
+          requestedChainId:Number.isFinite(requestedChainId) ? requestedChainId : null,
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:false,
+          submit_blocked_reason:"wrong_chain",
+          gates:{
+            valid_account: !!account,
+            wrong_chain_rejected:true,
+            live_execution_enabled:liveExecutionEnabled(),
+            live_execution_wired:false
+          }
+        });
+      }
+
+      if (!account) {
+        return res.status(400).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"missing_or_invalid_account",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:false
+        });
+      }
+
+      if (!liveExecutionEnabled()) {
+        return res.status(501).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:false,
+          submit_blocked_reason:"live_execution_kill_switch_off",
+          account,
+          gates:{
+            valid_account:true,
+            chain_id_is_2050:true,
+            live_execution_enabled:false,
+            wallet_authority_checked:false,
+            payload_equality_checked:false,
+            double_submit_guard_checked:false,
+            tx_broadcast:false,
+            receipt_status_1:false
+          },
+          required_before_enable:[
+            "set VOID_VALIDATOR_REGISTRATION_LIVE_EXECUTION=1 only inside proof/runtime gate",
+            "unlock participant native wallet before live submit",
+            "prove wallet authority is ready",
+            "prove draft-submit payload equality",
+            "reserve submitIntentId through double-submit guard",
+            "broadcast registerCandidate transaction",
+            "require transaction receipt status=1",
+            "prove candidate registered without active-set expansion"
+          ]
+        });
+      }
+
+      return res.status(501).json({
+        ok:false,
+        kind:"participant_validator_registration_submit_live",
+        source:"submit_live_v1",
+        mutation:false,
+        sends_transaction:false,
+        submit_allowed:false,
+        live_execution_wired:false,
+        submit_blocked_reason:"live_execution_implementation_pending",
+        account,
+        gates:{
+          valid_account:true,
+          chain_id_is_2050:true,
+          live_execution_enabled:true,
+          implementation_present:false
+        },
+        note:"Kill switch is on, but transaction execution is intentionally not implemented until the next proof lane wires cast/receipt checks."
+      });
+    });
+
+    try { console.log("[mainnet0.validator-registration] submit-live skeleton API mounted"); } catch {}
+  } catch (e:any) {
+    try { console.warn("[mainnet0.validator-registration] submit-live skeleton API mount failed", e?.message || e); } catch {}
+  }
+})();
+
+
 /* __void_mainnet0_validator_registration_submit_stub_api_v1 */
 ;(() => {
   try {

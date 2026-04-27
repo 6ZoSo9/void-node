@@ -2,6 +2,19 @@
 set -euo pipefail
 cd "${VOID_REPO:-$HOME/dev/void-node}"
 
+
+# __void_lane_candidate_key_env_v1
+CANDIDATE_PK="${CANDIDATE_PK:-}"
+CANDIDATE_PK_FILE="${CANDIDATE_PK_FILE:-}"
+
+if [ -n "$CANDIDATE_PK_FILE" ]; then
+  test -f "$CANDIDATE_PK_FILE"
+fi
+
+export CANDIDATE_PK
+export CANDIDATE_PK_FILE
+
+
 export PATH="$HOME/.foundry/bin:$PATH"
 
 BASE="${BASE:-http://127.0.0.1:4100}"
@@ -29,7 +42,7 @@ ops/mainnet0/validator-candidate-registry-proof.sh
 
 echo
 echo "=== [c] local deploy/register/waiting proof ==="
-ops/mainnet0/validator-candidate-registry-local-deploy-proof.sh
+CANDIDATE_PK="$CANDIDATE_PK" CANDIDATE_PK_FILE="$CANDIDATE_PK_FILE" ops/mainnet0/validator-candidate-registry-local-deploy-proof.sh
 
 echo
 echo "=== [d] build ==="
