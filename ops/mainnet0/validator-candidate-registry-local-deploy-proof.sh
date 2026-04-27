@@ -107,7 +107,18 @@ case "$DEPLOYER_PK" in
 esac
 
 # Deterministic local-only candidate key. This is not a mainnet secret.
-CANDIDATE_PK="${CANDIDATE_PK:-0x59c6995e998f97a5a004497e5da2d7a57d6d7f4df0e3c2b3a7b3c9e8b2b3b8f0}"
+CANDIDATE_PK="${CANDIDATE_PK:-}"
+CANDIDATE_PK_FILE="${CANDIDATE_PK_FILE:-}"
+
+if [ -z "$CANDIDATE_PK" ] && [ -n "$CANDIDATE_PK_FILE" ]; then
+  test -f "$CANDIDATE_PK_FILE"
+  CANDIDATE_PK="$(tr -d '[:space:]' < "$CANDIDATE_PK_FILE")"
+fi
+
+if ! printf '%s' "$CANDIDATE_PK" | grep -Eq '^0x[0-9a-fA-F]{64}$'; then
+  echo "[ERR] CANDIDATE_PK must be provided via env or CANDIDATE_PK_FILE; refusing hardcoded/default private keys"
+  exit 1
+fi
 
 echo "=== [a0] key sanity, no private key printed ==="
 DEPLOYER_ADDR="$(cast wallet address "$DEPLOYER_PK")"
