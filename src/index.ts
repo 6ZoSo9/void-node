@@ -47810,6 +47810,16 @@ a{color:#93c5fd;text-decoration:none}
                 <div id="validatorRegistrationReadinessExecution">Live execution: -</div>
                 <div id="validatorRegistrationReadinessSubmit">Submit: Disabled</div>
               </div>
+
+              <div class="hero-note" id="validatorRegistrationLiveStatusPanel" role="status" aria-live="polite" style="margin-top:10px">
+                <strong>Live Submit Status</strong>
+                <div id="validatorRegistrationLiveStatusSummary" style="margin-top:6px">Status panel installed. Wiring refresh next.</div>
+                <div id="validatorRegistrationLiveStatusSwitch">Kill switch: -</div>
+                <div id="validatorRegistrationLiveStatusSigner">Signer file: -</div>
+                <div id="validatorRegistrationLiveStatusWallet">Wallet: -</div>
+                <div id="validatorRegistrationLiveStatusPayload">Payload: -</div>
+                <div id="validatorRegistrationLiveStatusBlockers">Blockers: -</div>
+              </div>
               <script>
               (function(){
                 var MARK="__void_validator_registration_readiness_ui_v1";
@@ -47922,6 +47932,22 @@ a{color:#93c5fd;text-decoration:none}
                     var btnNote = byId("validatorRegistrationButtonNote");
                     if (btnNote && !j.submit_allowed) {
                       btnNote.textContent = "Submit remains disabled: " + reason + ". Preview is safe; live execution is not wired.";
+                    }
+
+                    try {
+                      var sr = await fetch("/__void/participant/validator-registration/live-submit-status?account=" + encodeURIComponent(acc), { cache:"no-store" });
+                      var sj = await sr.json();
+                      var ss = sj.status || {};
+                      var sblockers = Array.isArray(sj.blockers) ? sj.blockers : [];
+                      setText("validatorRegistrationLiveStatusSummary", sj.ready_for_proof_submit ? "Proof-submit gates green. UI submit remains disabled." : "Proof-submit not ready.");
+                      setText("validatorRegistrationLiveStatusSwitch", "Kill switch: " + (ss.live_execution_enabled ? "ON" : "OFF"));
+                      setText("validatorRegistrationLiveStatusSigner", "Signer file: " + (ss.signer_file_present ? "present" : "missing") + " • match: " + (ss.signer_matches_account ? "yes" : "no"));
+                      setText("validatorRegistrationLiveStatusWallet", "Wallet: " + (ss.wallet_authority_ready ? "ready/unlocked" : "not ready"));
+                      setText("validatorRegistrationLiveStatusPayload", "Payload: " + (ss.payload_ready ? "ready" : "not ready"));
+                      setText("validatorRegistrationLiveStatusBlockers", "Blockers: " + (sblockers.length ? sblockers.join(", ") : "none"));
+                    } catch(e) {
+                      setText("validatorRegistrationLiveStatusSummary", "Live status: check failed.");
+                      setText("validatorRegistrationLiveStatusBlockers", "Blockers: status_fetch_failed");
                     }
                   } catch(e) {
                     setText("validatorRegistrationReadinessSummary", "Readiness check failed.");
