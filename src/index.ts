@@ -1412,6 +1412,179 @@ const app = express();
 
 
 
+
+/* __void_mainnet0_validator_registration_live_submit_status_api_v1 */
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_mainnet0_validator_registration_live_submit_status_api_v1";
+    if (G[MARK]) return;
+    G[MARK] = true;
+
+    const fs = require("fs");
+    const child_process = require("child_process");
+
+    function isAddr(v:any): boolean {
+      return /^0x[0-9a-fA-F]{40}$/.test(String(v || "").trim());
+    }
+
+    function normAddr(v:any): string {
+      const x = String(v || "").trim();
+      return isAddr(x) ? x : "";
+    }
+
+    function liveOn(): boolean {
+      return String(process.env.VOID_VALIDATOR_REGISTRATION_LIVE_EXECUTION || "").trim() === "1";
+    }
+
+    function cast(args:string[]): any {
+      const r = child_process.spawnSync("cast", args, {
+        encoding:"utf8",
+        timeout:30000,
+        env:{ ...process.env, PATH:String(process.env.PATH || "") }
+      });
+      return {
+        ok:r.status === 0,
+        stdout:String(r.stdout || ""),
+        stderr:String(r.stderr || "")
+      };
+    }
+
+    async function selfReq(method:string, path:string, payload?:any): Promise<any> {
+      const port = String(process.env.HTTP_PORT || "4100");
+      const init:any = { method };
+      if (payload !== undefined) {
+        init.headers = { "content-type":"application/json" };
+        init.body = JSON.stringify(payload);
+      }
+      try {
+        const r = await fetch("http://127.0.0.1:" + port + path, init);
+        const text = await r.text();
+        let json:any = {};
+        try { json = JSON.parse(text); } catch { json = { raw:text }; }
+        return { status:r.status, ok:r.ok, json };
+      } catch (e:any) {
+        return { status:0, ok:false, json:{ ok:false, error:String(e?.message || e) } };
+      }
+    }
+
+    function signerProbe(account:string): any {
+      const file = String(process.env.VOID_VALIDATOR_REGISTRATION_LIVE_SIGNER_PK_FILE || "").trim();
+      const out:any = {
+        signer_file_configured: !!file,
+        signer_file_present: false,
+        signer_key_valid_format: false,
+        signer_address: "",
+        signer_matches_account: false,
+        signer_error: ""
+      };
+
+      if (!file) {
+        out.signer_error = "missing_live_signer_pk_file";
+        return out;
+      }
+
+      if (!fs.existsSync(file)) {
+        out.signer_error = "live_signer_pk_file_missing";
+        return out;
+      }
+
+      out.signer_file_present = true;
+
+      let pk = "";
+      try { pk = String(fs.readFileSync(file, "utf8") || "").trim(); }
+      catch { out.signer_error = "live_signer_pk_file_read_failed"; return out; }
+
+      if (!/^0x[0-9a-fA-F]{64}$/.test(pk)) {
+        out.signer_error = "invalid_live_signer_private_key_format";
+        return out;
+      }
+
+      out.signer_key_valid_format = true;
+
+      const r = cast(["wallet", "address", pk]);
+      const addr = String(r.stdout || "").trim();
+      if (!r.ok || !isAddr(addr)) {
+        out.signer_error = "could_not_derive_live_signer_address";
+        return out;
+      }
+
+      out.signer_address = addr;
+      out.signer_matches_account = !!account && addr.toLowerCase() === account.toLowerCase();
+      if (!out.signer_matches_account) out.signer_error = "live_signer_account_mismatch";
+      return out;
+    }
+
+    app.get("/__void/participant/validator-registration/live-submit-status", async (req:any, res:any) => {
+      const account = normAddr(req?.query?.account);
+      const enabled = liveOn();
+      const blockers:string[] = [];
+
+      if (!account) blockers.push("missing_or_invalid_account");
+      if (!enabled) blockers.push("live_execution_kill_switch_off");
+
+      const signer = signerProbe(account);
+      if (enabled) {
+        if (!signer.signer_file_configured) blockers.push("missing_live_signer_pk_file");
+        else if (!signer.signer_file_present) blockers.push("live_signer_pk_file_missing");
+        else if (!signer.signer_key_valid_format) blockers.push("invalid_live_signer_private_key_format");
+        else if (!signer.signer_matches_account) blockers.push("live_signer_account_mismatch");
+      }
+
+      const wallet = account
+        ? await selfReq("GET", "/__void/participant/validator-registration/wallet-authority?account=" + encodeURIComponent(account))
+        : { status:0, json:{} };
+      const walletReady = wallet.status === 200 && wallet.json?.wallet_authority?.ready_for_live_submit === true;
+      if (!walletReady) blockers.push("wallet_authority_not_ready");
+
+      const payload = account
+        ? await selfReq("POST", "/__void/participant/validator-registration/submit", { account, chainId:2050 })
+        : { status:0, json:{} };
+      const payloadReady = payload.status === 501 && payload.json?.core_gates_green === true && !!payload.json?.submitIntentId && !!payload.json?.registry;
+      if (!payloadReady) blockers.push("submit_payload_not_ready");
+
+      res.json({
+        ok:true,
+        kind:"participant_validator_registration_live_submit_status",
+        source:"live_submit_status_v1",
+        mutation:false,
+        sends_transaction:false,
+        submit_allowed:false,
+        ready_for_proof_submit: !!(account && enabled && signer.signer_matches_account && walletReady && payloadReady),
+        account,
+        blockers:[...new Set(blockers)],
+        status:{
+          live_execution_enabled: enabled,
+          signer_file_configured: signer.signer_file_configured,
+          signer_file_present: signer.signer_file_present,
+          signer_key_valid_format: signer.signer_key_valid_format,
+          signer_address: signer.signer_address,
+          signer_matches_account: signer.signer_matches_account,
+          signer_error: signer.signer_error || "",
+          wallet_authority_ready: walletReady,
+          wallet_status_http: wallet.status,
+          payload_ready: payloadReady,
+          payload_http: payload.status
+        },
+        wallet_authority: wallet.json?.wallet_authority || null,
+        payload_summary: payload.json ? {
+          registry: payload.json.registry || "",
+          valueWei: payload.json.valueWei || "",
+          submitIntentId: payload.json.submitIntentId || "",
+          core_gates_green: payload.json.core_gates_green === true,
+          submit_blocked_reason: payload.json.submit_blocked_reason || ""
+        } : null,
+        note:"Read-only status endpoint. It does not reserve submit intents and does not broadcast transactions."
+      });
+    });
+
+    try { console.log("[mainnet0.validator-registration] live-submit status API mounted"); } catch {}
+  } catch (e:any) {
+    try { console.warn("[mainnet0.validator-registration] live-submit status API mount failed", e?.message || e); } catch {}
+  }
+})();
+
+
 /* __void_mainnet0_validator_registration_submit_live_api_v1 */
 ;(() => {
   try {
