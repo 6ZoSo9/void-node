@@ -1011,6 +1011,191 @@ const app = express();
 })();
 
 
+
+/* __void_mainnet0_validator_registration_double_submit_guard_api_v1 */
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_mainnet0_validator_registration_double_submit_guard_api_v1";
+    if (G[MARK]) return;
+    G[MARK] = true;
+
+    const express = require("express");
+    const crypto = require("crypto");
+
+    const storeKey = "__void_validator_registration_intent_guard_v1";
+    if (!G[storeKey]) {
+      G[storeKey] = {
+        reserved: Object.create(null),
+        calls:0,
+        reserves:0,
+        duplicates:0,
+        last_ts:0
+      };
+    }
+
+    function isAddr(v:any): boolean {
+      return /^0x[0-9a-fA-F]{40}$/.test(String(v || "").trim());
+    }
+
+    function bytes32(v:any): string {
+      return /^0x[0-9a-fA-F]{64}$/.test(String(v || "").trim()) ? String(v).trim() : "";
+    }
+
+    function normAddr(v:any): string {
+      const x = String(v || "").trim();
+      return isAddr(x) ? x : "";
+    }
+
+    function hash32(label:string): string {
+      return "0x" + crypto.createHash("sha256").update(label).digest("hex");
+    }
+
+    function computeIntent(body:any): any {
+      const account = normAddr(body.account);
+      const reward = normAddr(body.reward || account);
+      const registry = normAddr(body.registry);
+      const valueWei = String(body.valueWei || "1000000000000000000000");
+      const functionSignature = String(body.functionSignature || "registerCandidate(address,bytes32,bytes32)");
+      const consensusKeyHash = bytes32(body.consensusKeyHash || body.consensus_key_hash) || hash32("void-mainnet0-validator-consensus:" + account.toLowerCase());
+      const metadataHash = bytes32(body.metadataHash || body.metadata_hash) || hash32("void-mainnet0-validator-metadata:" + account.toLowerCase());
+
+      if (!account) return { ok:false, error:"missing_or_invalid_account" };
+      if (!reward) return { ok:false, error:"missing_or_invalid_reward" };
+      if (!registry) return { ok:false, error:"missing_or_invalid_registry" };
+
+      const submitIntent = {
+        chainId:2050,
+        account:account.toLowerCase(),
+        owner:account.toLowerCase(),
+        reward:reward.toLowerCase(),
+        registry:registry.toLowerCase(),
+        valueWei,
+        functionSignature,
+        consensusKeyHash:consensusKeyHash.toLowerCase(),
+        metadataHash:metadataHash.toLowerCase()
+      };
+
+      const submitIntentId = "0x" + crypto
+        .createHash("sha256")
+        .update(JSON.stringify(submitIntent))
+        .digest("hex");
+
+      return { ok:true, submitIntent, submitIntentId };
+    }
+
+    const route = "/__void/participant/validator-registration/double-submit-guard";
+    app.use(route, express.json({ limit:"32kb" }));
+
+    app.post(route, (req:any, res:any) => {
+      const body = (req && req.body && typeof req.body === "object") ? req.body : {};
+      const mode = String(body.mode || req?.query?.mode || "dry_run");
+      const computed = computeIntent(body);
+      const state = G[storeKey];
+
+      state.calls++;
+      state.last_ts = Date.now();
+
+      if (!computed.ok) {
+        return res.status(400).json({
+          ok:false,
+          kind:"participant_validator_registration_double_submit_guard",
+          error:computed.error,
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false
+        });
+      }
+
+      const id = computed.submitIntentId;
+      const alreadyReserved = !!state.reserved[id];
+
+      if (mode === "reserve") {
+        if (alreadyReserved) {
+          state.duplicates++;
+          return res.status(409).json({
+            ok:false,
+            kind:"participant_validator_registration_double_submit_guard",
+            error:"duplicate_submit_intent",
+            mutation:false,
+            sends_transaction:false,
+            submit_allowed:false,
+            submitIntentId:id,
+            submitIntent:computed.submitIntent,
+            guard:{
+              mode,
+              double_submit_guard:true,
+              already_reserved:true,
+              duplicate_submit_rejected:true,
+              live_execution_wired:false
+            }
+          });
+        }
+
+        state.reserved[id] = { ts:Date.now(), submitIntent:computed.submitIntent };
+        state.reserves++;
+
+        return res.status(200).json({
+          ok:true,
+          kind:"participant_validator_registration_double_submit_guard",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          submitIntentId:id,
+          submitIntent:computed.submitIntent,
+          guard:{
+            mode,
+            double_submit_guard:true,
+            already_reserved:false,
+            duplicate_submit_rejected:false,
+            reserved:true,
+            live_execution_wired:false
+          }
+        });
+      }
+
+      return res.status(200).json({
+        ok:true,
+        kind:"participant_validator_registration_double_submit_guard",
+        mutation:false,
+        sends_transaction:false,
+        submit_allowed:false,
+        submitIntentId:id,
+        submitIntent:computed.submitIntent,
+        guard:{
+          mode:"dry_run",
+          double_submit_guard:true,
+          already_reserved:alreadyReserved,
+          duplicate_submit_rejected:false,
+          would_reject_duplicate:alreadyReserved,
+          live_execution_wired:false
+        }
+      });
+    });
+
+    app.get("/__void/participant/validator-registration/double-submit-guard/status", (_req:any, res:any) => {
+      const state = G[storeKey];
+      return res.json({
+        ok:true,
+        kind:"participant_validator_registration_double_submit_guard_status",
+        mutation:false,
+        sends_transaction:false,
+        submit_allowed:false,
+        calls:Number(state.calls || 0),
+        reserves:Number(state.reserves || 0),
+        duplicates:Number(state.duplicates || 0),
+        reservedCount:Object.keys(state.reserved || {}).length,
+        live_execution_wired:false
+      });
+    });
+
+    try { console.log("[mainnet0.validator-registration] double-submit guard API mounted"); } catch {}
+  } catch (e:any) {
+    try { console.warn("[mainnet0.validator-registration] double-submit guard API mount failed", e?.message || e); } catch {}
+  }
+})();
+
+
 /* __void_mainnet0_validator_registration_submit_stub_api_v1 */
 ;(() => {
   try {
