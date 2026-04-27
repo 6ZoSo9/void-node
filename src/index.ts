@@ -1196,6 +1196,221 @@ const app = express();
 })();
 
 
+
+/* __void_mainnet0_validator_registration_live_submit_readiness_api_v1 */
+;(() => {
+  try {
+    const G:any = globalThis as any;
+    const MARK = "__void_mainnet0_validator_registration_live_submit_readiness_api_v1";
+    if (G[MARK]) return;
+    G[MARK] = true;
+
+    function isAddr(v:any): boolean {
+      return /^0x[0-9a-fA-F]{40}$/.test(String(v || "").trim());
+    }
+
+    function normAddr(v:any): string {
+      const x = String(v || "").trim();
+      return isAddr(x) ? x : "";
+    }
+
+    function eqAddr(a:any, b:any): boolean {
+      const aa = normAddr(a);
+      const bb = normAddr(b);
+      return !!aa && !!bb && aa.toLowerCase() === bb.toLowerCase();
+    }
+
+    function eqText(a:any, b:any): boolean {
+      return String(a || "").toLowerCase() === String(b || "").toLowerCase();
+    }
+
+    async function selfReq(method:string, path:string, body?:any): Promise<any> {
+      const port = String(process.env.HTTP_PORT || "4100");
+      const url = "http://127.0.0.1:" + port + path;
+      const init:any = { method };
+      if (body !== undefined) {
+        init.headers = { "content-type":"application/json" };
+        init.body = JSON.stringify(body);
+      }
+      try {
+        const r = await fetch(url, init);
+        const text = await r.text();
+        let json:any = null;
+        try { json = JSON.parse(text); } catch { json = { raw:text }; }
+        return { ok:r.ok, http_status:r.status, url, json };
+      } catch (e:any) {
+        return { ok:false, http_status:0, url, error:String(e?.message || e), json:null };
+      }
+    }
+
+    function payloadEquality(draft:any, submit:any): any {
+      const checks:any = {
+        account: eqAddr(draft?.account, submit?.account),
+        owner: eqAddr(draft?.owner, submit?.owner),
+        reward: eqAddr(draft?.reward, submit?.reward),
+        registry: eqAddr(draft?.registry, submit?.registry),
+        valueWei: String(draft?.valueWei || "") === String(submit?.valueWei || ""),
+        functionSignature: String(draft?.functionSignature || "") === String(submit?.functionSignature || ""),
+        argReward: eqAddr(draft?.args?.reward, submit?.args?.reward),
+        consensusKeyHash: eqText(draft?.args?.consensusKeyHash, submit?.args?.consensusKeyHash),
+        metadataHash: eqText(draft?.args?.metadataHash, submit?.args?.metadataHash)
+      };
+      const ok = Object.values(checks).every(Boolean);
+      return { ok, checks };
+    }
+
+    app.get("/__void/participant/validator-registration/live-submit-readiness", async (req:any, res:any) => {
+      const account = normAddr(req?.query?.account);
+      if (!account) {
+        return res.status(400).json({
+          ok:false,
+          kind:"participant_validator_registration_live_submit_readiness",
+          error:"missing_or_invalid_account",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false
+        });
+      }
+
+      const draftResp = await selfReq("GET", "/__void/participant/validator-registration/draft?account=" + encodeURIComponent(account));
+      const walletResp = await selfReq("GET", "/__void/participant/validator-registration/wallet-authority?account=" + encodeURIComponent(account));
+      const submitResp = await selfReq("POST", "/__void/participant/validator-registration/submit", { account, chainId:2050 });
+      const wrongChainResp = await selfReq("POST", "/__void/participant/validator-registration/submit", { account, chainId:1 });
+
+      const draft:any = draftResp.json || {};
+      const wallet:any = walletResp.json || {};
+      const submit:any = submitResp.json || {};
+      const wrong:any = wrongChainResp.json || {};
+
+      let doubleGuardResp:any = { ok:false, http_status:0, json:null, error:"submit_payload_unavailable" };
+      if (submit?.registry && submit?.args) {
+        doubleGuardResp = await selfReq("POST", "/__void/participant/validator-registration/double-submit-guard", {
+          account: submit.account,
+          reward: submit.reward,
+          registry: submit.registry,
+          valueWei: submit.valueWei,
+          functionSignature: submit.functionSignature,
+          consensusKeyHash: submit.args.consensusKeyHash,
+          metadataHash: submit.args.metadataHash
+        });
+      }
+
+      const doubleGuard:any = doubleGuardResp.json || {};
+      const equality = payloadEquality(draft, submit);
+
+      const publicRegistrationSafe =
+        draftResp.http_status === 200 &&
+        draft?.ok === true &&
+        draft?.mutation === false &&
+        draft?.sends_transaction === false &&
+        draft?.safety?.public_registration_mutates_active_set === false &&
+        draft?.safety?.invariant_ok === true &&
+        Number(draft?.chainId) === 2050;
+
+      const walletAuthorityReady =
+        walletResp.http_status === 200 &&
+        wallet?.ok === true &&
+        wallet?.wallet_authority?.ready_for_live_submit === true;
+
+      const payloadEqualityReady =
+        submitResp.http_status === 501 &&
+        submit?.mutation === false &&
+        submit?.sends_transaction === false &&
+        submit?.submit_allowed === false &&
+        submit?.submit_blocked_reason === "live_wallet_execution_not_wired" &&
+        submit?.core_gates_green === true &&
+        equality.ok === true &&
+        typeof submit?.submitIntentId === "string" &&
+        /^0x[0-9a-fA-F]{64}$/.test(submit.submitIntentId);
+
+      const wrongChainGateReady =
+        wrongChainResp.http_status === 409 &&
+        wrong?.error === "wrong_chain" &&
+        wrong?.expectedChainId === 2050 &&
+        wrong?.requestedChainId === 1 &&
+        wrong?.mutation === false &&
+        wrong?.sends_transaction === false &&
+        wrong?.submit_allowed === false &&
+        wrong?.gates?.wrong_chain_rejected === true &&
+        wrong?.gates?.live_execution_wired === false;
+
+      const doubleSubmitGuardReady =
+        doubleGuardResp.http_status === 200 &&
+        doubleGuard?.mutation === false &&
+        doubleGuard?.sends_transaction === false &&
+        doubleGuard?.submit_allowed === false &&
+        doubleGuard?.guard?.double_submit_guard === true &&
+        doubleGuard?.guard?.mode === "dry_run" &&
+        doubleGuard?.guard?.live_execution_wired === false &&
+        typeof doubleGuard?.submitIntentId === "string" &&
+        doubleGuard.submitIntentId === submit.submitIntentId;
+
+      const liveExecutionWired = false;
+
+      const blockers:string[] = [];
+      if (!publicRegistrationSafe) blockers.push("public_registration_not_safe");
+      if (!walletAuthorityReady) blockers.push("wallet_authority_not_ready");
+      if (!payloadEqualityReady) blockers.push("payload_equality_not_ready");
+      if (!wrongChainGateReady) blockers.push("wrong_chain_gate_not_ready");
+      if (!doubleSubmitGuardReady) blockers.push("double_submit_guard_not_ready");
+      if (!liveExecutionWired) blockers.push("live_execution_not_wired");
+
+      const gates = {
+        public_registration_safe: publicRegistrationSafe,
+        wallet_authority_ready: walletAuthorityReady,
+        payload_equality_ready: payloadEqualityReady,
+        wrong_chain_gate_ready: wrongChainGateReady,
+        double_submit_guard_ready: doubleSubmitGuardReady,
+        live_execution_wired: liveExecutionWired
+      };
+
+      const coreGatesGreenExceptWalletAndLive =
+        publicRegistrationSafe &&
+        payloadEqualityReady &&
+        wrongChainGateReady &&
+        doubleSubmitGuardReady;
+
+      const submitAllowed =
+        publicRegistrationSafe &&
+        walletAuthorityReady &&
+        payloadEqualityReady &&
+        wrongChainGateReady &&
+        doubleSubmitGuardReady &&
+        liveExecutionWired;
+
+      return res.status(200).json({
+        ok:true,
+        kind:"participant_validator_registration_live_submit_readiness",
+        source:"live_submit_readiness_v1",
+        mutation:false,
+        sends_transaction:false,
+        submit_allowed:submitAllowed,
+        submit_blocked_reason: submitAllowed ? null : blockers[0],
+        account,
+        gates,
+        core_gates_green_except_wallet_and_live: coreGatesGreenExceptWalletAndLive,
+        blockers,
+        readiness:{
+          draft_http_status:draftResp.http_status,
+          wallet_http_status:walletResp.http_status,
+          submit_http_status:submitResp.http_status,
+          wrong_chain_http_status:wrongChainResp.http_status,
+          double_guard_http_status:doubleGuardResp.http_status,
+          submitIntentId:submit?.submitIntentId || null,
+          doubleGuardIntentId:doubleGuard?.submitIntentId || null,
+          payloadEquality:equality
+        },
+        note:"Read-only aggregate. Live validator registration execution remains disabled until wallet authority and real transaction execution are explicitly wired and proven."
+      });
+    });
+
+    try { console.log("[mainnet0.validator-registration] live-submit readiness API mounted"); } catch {}
+  } catch (e:any) {
+    try { console.warn("[mainnet0.validator-registration] live-submit readiness API mount failed", e?.message || e); } catch {}
+  }
+})();
+
+
 /* __void_mainnet0_validator_registration_submit_stub_api_v1 */
 ;(() => {
   try {
