@@ -1421,6 +1421,8 @@ const app = express();
     G[MARK] = true;
 
     const express = require("express");
+    const fs = require("fs");
+    const child_process = require("child_process");
 
     function isAddr(v:any): boolean {
       return /^0x[0-9a-fA-F]{40}$/.test(String(v || "").trim());
@@ -1519,23 +1521,347 @@ const app = express();
         });
       }
 
-      return res.status(501).json({
-        ok:false,
+      const port = String(process.env.HTTP_PORT || "4100");
+      const base = "http://127.0.0.1:" + port;
+
+      async function selfReq(method:string, path:string, payload?:any): Promise<any> {
+        const init:any = { method };
+        if (payload !== undefined) {
+          init.headers = { "content-type":"application/json" };
+          init.body = JSON.stringify(payload);
+        }
+        try {
+          const r = await fetch(base + path, init);
+          const text = await r.text();
+          let json:any = null;
+          try { json = JSON.parse(text); } catch { json = { raw:text }; }
+          return { ok:r.ok, status:r.status, json, text };
+        } catch (e:any) {
+          return { ok:false, status:0, json:{ ok:false, error:String(e?.message || e) }, text:"" };
+        }
+      }
+
+      function bytes32(v:any): string {
+        const x = String(v || "").trim();
+        return /^0x[0-9a-fA-F]{64}$/.test(x) ? x : "";
+      }
+
+      function cast(args:string[], opts?:any): any {
+        const r = child_process.spawnSync("cast", args, {
+          encoding:"utf8",
+          timeout:Number(opts?.timeout || 120000),
+          env:{ ...process.env, PATH:String(process.env.PATH || "") }
+        });
+        return {
+          status:r.status,
+          signal:r.signal,
+          stdout:String(r.stdout || ""),
+          stderr:String(r.stderr || ""),
+          ok:r.status === 0
+        };
+      }
+
+      function parseCastSend(out:string): any {
+        const text = String(out || "");
+        const mStatus = text.match(/^status\s+([01])(?:\s+\([^)]+\))?\s*$/m);
+        const mTx = text.match(/^transactionHash\s+(0x[0-9a-fA-F]{64})\s*$/m);
+        return {
+          receiptStatus: mStatus ? mStatus[1] : "",
+          transactionHash: mTx ? mTx[1] : ""
+        };
+      }
+
+      function readSignerPk(): any {
+        const file = String(process.env.VOID_VALIDATOR_REGISTRATION_LIVE_SIGNER_PK_FILE || "").trim();
+        if (!file) return { ok:false, error:"missing_live_signer_pk_file" };
+        if (!fs.existsSync(file)) return { ok:false, error:"live_signer_pk_file_missing", file };
+        const pk = String(fs.readFileSync(file, "utf8") || "").trim();
+        if (!/^0x[0-9a-fA-F]{64}$/.test(pk)) return { ok:false, error:"invalid_live_signer_private_key_format", file };
+        const r = cast(["wallet", "address", pk], { timeout:30000 });
+        const addr = String(r.stdout || "").trim();
+        if (!r.ok || !isAddr(addr)) return { ok:false, error:"could_not_derive_live_signer_address", file };
+        return { ok:true, file, pk, address:addr };
+      }
+
+      const signer = readSignerPk();
+      if (!signer.ok) {
+        return res.status(409).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:signer.error,
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:true,
+          submit_blocked_reason:signer.error,
+          account,
+          gates:{
+            valid_account:true,
+            chain_id_is_2050:true,
+            live_execution_enabled:true,
+            signer_file_ready:false
+          }
+        });
+      }
+
+      if (String(signer.address || "").toLowerCase() !== account.toLowerCase()) {
+        return res.status(409).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"live_signer_account_mismatch",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:true,
+          submit_blocked_reason:"live_signer_account_mismatch",
+          account,
+          signer_address:signer.address,
+          gates:{
+            valid_account:true,
+            chain_id_is_2050:true,
+            live_execution_enabled:true,
+            signer_file_ready:true,
+            signer_matches_account:false
+          }
+        });
+      }
+
+      const walletResp = await selfReq("GET", "/__void/participant/validator-registration/wallet-authority?account=" + encodeURIComponent(account));
+      const wallet = walletResp.json || {};
+      if (!(walletResp.status === 200 && wallet?.wallet_authority?.ready_for_live_submit === true)) {
+        return res.status(409).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"wallet_authority_not_ready",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:true,
+          submit_blocked_reason:"wallet_authority_not_ready",
+          account,
+          wallet_authority:wallet?.wallet_authority || null,
+          gates:{
+            valid_account:true,
+            chain_id_is_2050:true,
+            live_execution_enabled:true,
+            signer_file_ready:true,
+            signer_matches_account:true,
+            wallet_authority_ready:false
+          }
+        });
+      }
+
+      const submitResp = await selfReq("POST", "/__void/participant/validator-registration/submit", { account, chainId:2050 });
+      const submit = submitResp.json || {};
+      if (!(submitResp.status === 501 && submit?.core_gates_green === true && submit?.registry && submit?.args && submit?.submitIntentId)) {
+        return res.status(409).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"submit_payload_not_ready",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:true,
+          submit_blocked_reason:"submit_payload_not_ready",
+          account,
+          submit_http_status:submitResp.status,
+          submit_payload:submit
+        });
+      }
+
+      const registry = normAddr(submit.registry);
+      const reward = normAddr(submit.reward || submit?.args?.reward || account);
+      const valueWei = String(submit.valueWei || "");
+      const consensusKeyHash = bytes32(submit?.args?.consensusKeyHash);
+      const metadataHash = bytes32(submit?.args?.metadataHash);
+
+      if (!registry || !reward || valueWei !== "1000000000000000000000" || !consensusKeyHash || !metadataHash) {
+        return res.status(409).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"invalid_live_payload",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:true,
+          submit_blocked_reason:"invalid_live_payload",
+          account,
+          registry,
+          reward,
+          valueWei,
+          has_consensus_hash:!!consensusKeyHash,
+          has_metadata_hash:!!metadataHash
+        });
+      }
+
+      const guardResp = await selfReq("POST", "/__void/participant/validator-registration/double-submit-guard", {
+        mode:"reserve",
+        account,
+        reward,
+        registry,
+        valueWei,
+        functionSignature:"registerCandidate(address,bytes32,bytes32)",
+        consensusKeyHash,
+        metadataHash
+      });
+      const guard = guardResp.json || {};
+      if (!(guardResp.status === 200 && guard?.ok === true && guard?.submitIntentId === submit.submitIntentId)) {
+        return res.status(409).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:guard?.error || "double_submit_guard_not_ready",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:true,
+          submit_blocked_reason:guard?.error || "double_submit_guard_not_ready",
+          account,
+          submitIntentId:submit.submitIntentId,
+          guard_http_status:guardResp.status,
+          guard
+        });
+      }
+
+      const rpc = String(process.env.VOID_VALIDATOR_REGISTRATION_RPC || process.env.RPC_URL || "http://127.0.0.1:8545");
+      const beforeCandidate = cast(["call", "--rpc-url", rpc, registry, "candidateCount()(uint256)"]);
+      const beforeWaiting = cast(["call", "--rpc-url", rpc, registry, "waitingCount()(uint256)"]);
+      const beforeActive = cast(["call", "--rpc-url", rpc, registry, "activeCount()(uint256)"]);
+
+      if (!beforeCandidate.ok || !beforeWaiting.ok || !beforeActive.ok) {
+        return res.status(500).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"pre_count_read_failed",
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          live_execution_wired:true,
+          account,
+          rpc,
+          pre_counts:{
+            candidate_ok:beforeCandidate.ok,
+            waiting_ok:beforeWaiting.ok,
+            active_ok:beforeActive.ok
+          }
+        });
+      }
+
+      const tx = cast([
+        "send",
+        "--rpc-url", rpc,
+        "--private-key", signer.pk,
+        registry,
+        "registerCandidate(address,bytes32,bytes32)",
+        reward,
+        consensusKeyHash,
+        metadataHash,
+        "--value", valueWei
+      ], { timeout:180000 });
+
+      const parsed = parseCastSend(tx.stdout + "\n" + tx.stderr);
+
+      if (!tx.ok || parsed.receiptStatus !== "1" || !parsed.transactionHash) {
+        return res.status(500).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"live_transaction_failed",
+          mutation:true,
+          sends_transaction:true,
+          submit_allowed:false,
+          live_execution_wired:true,
+          account,
+          registry,
+          transactionHash:parsed.transactionHash || null,
+          receipt_status:parsed.receiptStatus || null,
+          cast_exit_status:tx.status,
+          cast_signal:tx.signal,
+          cast_stdout_tail:tx.stdout.split(/\n/).slice(-20).join("\n"),
+          cast_stderr_tail:tx.stderr.split(/\n/).slice(-20).join("\n")
+        });
+      }
+
+      const afterCandidate = cast(["call", "--rpc-url", rpc, registry, "candidateCount()(uint256)"]);
+      const afterWaiting = cast(["call", "--rpc-url", rpc, registry, "waitingCount()(uint256)"]);
+      const afterActive = cast(["call", "--rpc-url", rpc, registry, "activeCount()(uint256)"]);
+
+      const candBefore = Number(BigInt(String(beforeCandidate.stdout || "0").trim()));
+      const candAfter = Number(BigInt(String(afterCandidate.stdout || "0").trim()));
+      const activeBefore = String(beforeActive.stdout || "0").trim();
+      const activeAfter = String(afterActive.stdout || "0").trim();
+
+      if (!afterCandidate.ok || !afterWaiting.ok || !afterActive.ok || candAfter !== candBefore + 1 || activeAfter !== activeBefore) {
+        return res.status(500).json({
+          ok:false,
+          kind:"participant_validator_registration_submit_live",
+          source:"submit_live_v1",
+          error:"post_transaction_invariant_failed",
+          mutation:true,
+          sends_transaction:true,
+          submit_allowed:false,
+          live_execution_wired:true,
+          account,
+          registry,
+          transactionHash:parsed.transactionHash,
+          receipt_status:parsed.receiptStatus,
+          counts:{
+            candidateBefore:String(beforeCandidate.stdout || "").trim(),
+            candidateAfter:String(afterCandidate.stdout || "").trim(),
+            waitingBefore:String(beforeWaiting.stdout || "").trim(),
+            waitingAfter:String(afterWaiting.stdout || "").trim(),
+            activeBefore,
+            activeAfter
+          }
+        });
+      }
+
+      return res.status(200).json({
+        ok:true,
         kind:"participant_validator_registration_submit_live",
         source:"submit_live_v1",
-        mutation:false,
-        sends_transaction:false,
-        submit_allowed:false,
-        live_execution_wired:false,
-        submit_blocked_reason:"live_execution_implementation_pending",
+        mutation:true,
+        sends_transaction:true,
+        submit_allowed:true,
+        live_execution_wired:true,
+        submit_blocked_reason:null,
         account,
+        signer_address:signer.address,
+        registry,
+        transactionHash:parsed.transactionHash,
+        receipt_status:parsed.receiptStatus,
+        submitIntentId:submit.submitIntentId,
+        guardIntentId:guard.submitIntentId,
+        functionSignature:"registerCandidate(address,bytes32,bytes32)",
+        valueWei,
+        args:{ reward, consensusKeyHash, metadataHash },
+        counts:{
+          candidateBefore:String(beforeCandidate.stdout || "").trim(),
+          candidateAfter:String(afterCandidate.stdout || "").trim(),
+          waitingBefore:String(beforeWaiting.stdout || "").trim(),
+          waitingAfter:String(afterWaiting.stdout || "").trim(),
+          activeBefore,
+          activeAfter
+        },
         gates:{
           valid_account:true,
           chain_id_is_2050:true,
           live_execution_enabled:true,
-          implementation_present:false
-        },
-        note:"Kill switch is on, but transaction execution is intentionally not implemented until the next proof lane wires cast/receipt checks."
+          signer_file_ready:true,
+          signer_matches_account:true,
+          wallet_authority_ready:true,
+          payload_ready:true,
+          double_submit_reserved:true,
+          tx_broadcast:true,
+          receipt_status_1:true,
+          active_set_safe:true
+        }
       });
     });
 
