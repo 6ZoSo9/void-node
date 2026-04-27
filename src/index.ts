@@ -1137,6 +1137,23 @@ const app = express();
       const activeAfter = String(artifact.activeCountAfter || "0");
       const activeFinal = String(artifact.activeCountFinal || "0");
 
+      const submitIntent = {
+        chainId:2050,
+        account:account.toLowerCase(),
+        owner:account.toLowerCase(),
+        reward:reward.toLowerCase(),
+        registry:registry.toLowerCase(),
+        valueWei,
+        functionSignature:expectedFunctionSignature,
+        consensusKeyHash:consensusKeyHash.toLowerCase(),
+        metadataHash:metadataHash.toLowerCase()
+      };
+
+      const submitIntentId = "0x" + crypto
+        .createHash("sha256")
+        .update(JSON.stringify(submitIntent))
+        .digest("hex");
+
       const gates = {
         valid_account: !!account,
         valid_reward: !!reward,
@@ -1150,6 +1167,7 @@ const app = express();
         wallet_unlocked: false,
         wrong_chain_rejected: false,
         double_submit_guard: false,
+        duplicate_submit_rejected: false,
         live_execution_wired: false
       };
 
@@ -1178,6 +1196,8 @@ const app = express();
         valueWei,
         functionSignature:expectedFunctionSignature,
         args:{ reward, consensusKeyHash, metadataHash },
+        submitIntent,
+        submitIntentId,
         gates,
         core_gates_green:coreGatesGreen,
         required_before_live_submit:[
