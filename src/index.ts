@@ -1070,6 +1070,31 @@ const app = express();
       const reward = normAddr(body.reward || account);
       const loaded = readArtifact();
 
+      const rawChainId = body.chainId ?? body.chain_id ?? req?.query?.chainId ?? req?.query?.chain_id;
+      const requestedChainId = rawChainId === undefined || rawChainId === null || String(rawChainId).trim() === ""
+        ? 2050
+        : Number(String(rawChainId).trim());
+
+      if (!Number.isFinite(requestedChainId) || requestedChainId !== 2050) {
+        return res.status(409).json({
+          ok:false,
+          kind:"participant_validator_registration_submit",
+          source:"submit_stub_v1",
+          error:"wrong_chain",
+          expectedChainId:2050,
+          requestedChainId:Number.isFinite(requestedChainId) ? requestedChainId : null,
+          mutation:false,
+          sends_transaction:false,
+          submit_allowed:false,
+          submit_blocked_reason:"wrong_chain",
+          gates:{
+            valid_account: !!account,
+            wrong_chain_rejected:true,
+            live_execution_wired:false
+          }
+        });
+      }
+
       if (!account) {
         return res.status(400).json({
           ok:false,
