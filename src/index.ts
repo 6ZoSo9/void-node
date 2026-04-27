@@ -47167,6 +47167,148 @@ a{color:#93c5fd;text-decoration:none}
               </div>
               <div class="hero-note" id="validatorRegistrationNote" style="margin-top:12px">Checking validator registration status…</div>
               <div class="hero-note" id="validatorRegistrationCounts" style="margin-top:10px">Candidate registry counts loading…</div>
+
+              <div class="hero-note" id="validatorRegistrationReadinessPanel" role="status" aria-live="polite" style="margin-top:10px">
+                <strong>Live Submit Readiness</strong>
+                <div id="validatorRegistrationReadinessSummary" style="margin-top:6px">Checking live-submit readiness…</div>
+                <div id="validatorRegistrationReadinessCore">Core safety gates: -</div>
+                <div id="validatorRegistrationReadinessWallet">Wallet authority: -</div>
+                <div id="validatorRegistrationReadinessExecution">Live execution: -</div>
+                <div id="validatorRegistrationReadinessSubmit">Submit: Disabled</div>
+              </div>
+              <script>
+              (function(){
+                var MARK="__void_validator_registration_readiness_ui_v1";
+                if (window[MARK]) return;
+                window[MARK]=true;
+
+                function byId(id){ return document.getElementById(id); }
+                function setText(id, text){ var el=byId(id); if(el) el.textContent=String(text); }
+                function shortAddr(x){
+                  x=String(x||"");
+                  return x.length>12 ? x.slice(0,6)+"…"+x.slice(-4) : x;
+                }
+                function isAddr(x){ return /^0x[0-9a-fA-F]{40}$/.test(String(x||"").trim()); }
+                function gateLabel(v){ return v ? "Ready" : "Not ready"; }
+
+                function findAccount(){
+                  try {
+                    var qs = new URLSearchParams(window.location.search || "");
+                    var q = qs.get("account") || qs.get("participant") || qs.get("wallet");
+                    if (isAddr(q)) return q;
+                  } catch(e) {}
+
+                  var ids = [
+                    "participantAccount",
+                    "participantAccountAddress",
+                    "voidParticipantAccount",
+                    "accountWalletAddress",
+                    "walletAddress",
+                    "currentAccount",
+                    "selectedAccount",
+                    "accountAddress"
+                  ];
+
+                  for (var i=0;i<ids.length;i++){
+                    var el = byId(ids[i]);
+                    var t = el ? (el.value || el.textContent || "") : "";
+                    var m = String(t).match(/0x[0-9a-fA-F]{40}/);
+                    if (m && isAddr(m[0])) return m[0];
+                  }
+
+                  try {
+                    var keys = [
+                      "void.participant.account",
+                      "void_participant_account",
+                      "participantAccount",
+                      "voidAccount",
+                      "accountWalletAddress",
+                      "selectedAccount"
+                    ];
+                    for (var k=0;k<keys.length;k++){
+                      var v = window.localStorage ? window.localStorage.getItem(keys[k]) : "";
+                      var mm = String(v||"").match(/0x[0-9a-fA-F]{40}/);
+                      if (mm && isAddr(mm[0])) return mm[0];
+                    }
+                  } catch(e) {}
+
+                  try {
+                    var body = document.body ? document.body.innerText : "";
+                    var all = String(body||"").match(/0x[0-9a-fA-F]{40}/g) || [];
+                    for (var a=0;a<all.length;a++){
+                      if (isAddr(all[a])) return all[a];
+                    }
+                  } catch(e) {}
+
+                  return "";
+                }
+
+                async function refreshReadiness(){
+                  var acc = findAccount();
+
+                  if (!acc) {
+                    setText("validatorRegistrationReadinessSummary", "No participant account detected yet.");
+                    setText("validatorRegistrationReadinessCore", "Core safety gates: -");
+                    setText("validatorRegistrationReadinessWallet", "Wallet authority: Not ready");
+                    setText("validatorRegistrationReadinessExecution", "Live execution: Not wired");
+                    setText("validatorRegistrationReadinessSubmit", "Submit: Disabled");
+                    return;
+                  }
+
+                  setText("validatorRegistrationReadinessSummary", "Checking readiness for " + shortAddr(acc) + "…");
+
+                  try {
+                    var r = await fetch("/__void/participant/validator-registration/live-submit-readiness?account=" + encodeURIComponent(acc), { cache:"no-store" });
+                    var j = await r.json();
+                    var g = j.gates || {};
+                    var blockers = Array.isArray(j.blockers) ? j.blockers : [];
+                    var reason = j.submit_blocked_reason || blockers[0] || "not_ready";
+
+                    setText(
+                      "validatorRegistrationReadinessSummary",
+                      j.submit_allowed ? "Live submit ready." : "Submit disabled: " + reason
+                    );
+                    setText(
+                      "validatorRegistrationReadinessCore",
+                      "Core safety gates: " + (j.core_gates_green_except_wallet_and_live ? "Ready" : "Check")
+                    );
+                    setText(
+                      "validatorRegistrationReadinessWallet",
+                      "Wallet authority: " + gateLabel(g.wallet_authority_ready)
+                    );
+                    setText(
+                      "validatorRegistrationReadinessExecution",
+                      "Live execution: " + (g.live_execution_wired ? "Wired" : "Not wired")
+                    );
+                    setText(
+                      "validatorRegistrationReadinessSubmit",
+                      "Submit: " + (j.submit_allowed ? "Enabled" : "Disabled")
+                    );
+
+                    var btnNote = byId("validatorRegistrationButtonNote");
+                    if (btnNote && !j.submit_allowed) {
+                      btnNote.textContent = "Submit remains disabled: " + reason + ". Preview is safe; live execution is not wired.";
+                    }
+                  } catch(e) {
+                    setText("validatorRegistrationReadinessSummary", "Readiness check failed.");
+                    setText("validatorRegistrationReadinessCore", "Core safety gates: Check");
+                    setText("validatorRegistrationReadinessWallet", "Wallet authority: Check");
+                    setText("validatorRegistrationReadinessExecution", "Live execution: Not wired");
+                    setText("validatorRegistrationReadinessSubmit", "Submit: Disabled");
+                  }
+                }
+
+                if (document.readyState === "loading") {
+                  document.addEventListener("DOMContentLoaded", refreshReadiness);
+                } else {
+                  refreshReadiness();
+                }
+
+                setTimeout(refreshReadiness, 750);
+                window.addEventListener("focus", refreshReadiness);
+                document.addEventListener("void:participant-account-changed", refreshReadiness);
+              })();
+              </script>
               <div class="action-rail" style="margin-top:10px">
                 <button class="btn btn-primary" id="validatorRegistrationOpenDraftBtn" type="button">Register Validator — Preview Only</button>
                 <button class="btn" id="validatorRegistrationSubmitDisabledBtn" type="button" disabled>Submit Registration — Not Live</button>

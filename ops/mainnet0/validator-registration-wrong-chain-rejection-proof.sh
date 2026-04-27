@@ -41,7 +41,7 @@ HTTP_WRONG="$(curl -sS -o "$OUT/submit.wrong-chain.json" -w '%{http_code}' \
   "$BASE/__void/participant/validator-registration/submit")"
 echo "wrong_chain_http_code=$HTTP_WRONG"
 python3 -m json.tool "$OUT/submit.wrong-chain.json" | sed -n '1,180p'
-test "$HTTP_WRONG" = "501"
+test "$HTTP_WRONG" = "409"
 
 python3 - <<'PY' "$OUT/submit.wrong-chain.json"
 import json, sys
@@ -49,9 +49,13 @@ j=json.load(open(sys.argv[1]))
 assert j["mutation"] is False
 assert j["sends_transaction"] is False
 assert j["submit_allowed"] is False
-assert j["submit_blocked_reason"] == "live_wallet_execution_not_wired"
+assert j["error"] == "wrong_chain"
+assert j["expectedChainId"] == 2050
+assert j["requestedChainId"] == 1
+assert j["submit_blocked_reason"] == "wrong_chain"
+assert j["gates"]["wrong_chain_rejected"] is True
 assert j["gates"]["live_execution_wired"] is False
-print("[ok] wrong-chain hinted submit is still blocked and non-mutating")
+print("[ok] wrong-chain hinted submit is explicitly rejected and non-mutating")
 PY
 
 echo
