@@ -226,18 +226,76 @@ fi
 
 echo
 echo "=== [f] owner moves candidate to waiting; active still must not change ==="
+MOVE_TO_WAITING_GAS="${MOVE_TO_WAITING_GAS:-250000}"
+MOVE_LOG="$OUT_DIR/validator-candidate-registry.move-to-waiting.$STAMP.log"
+
+OWNER_ADDR="$(cast call --rpc-url "$RPC" "$REGISTRY" 'owner()(address)' | sed -E 's/^0x0{24}/0x/')"
+echo "owner=$OWNER_ADDR"
+if [ "$(printf '%s' "$OWNER_ADDR" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$DEPLOYER_ADDR" | tr '[:upper:]' '[:lower:]')" ]; then
+  echo "[ERR] deployer is not registry owner"
+  exit 1
+fi
+
+set +e
 cast send \
   --rpc-url "$RPC" \
   --private-key "$DEPLOYER_PK" \
+  --gas-limit "$MOVE_TO_WAITING_GAS" \
   "$REGISTRY" \
   'moveToWaiting(address)' \
-  "$CANDIDATE_ADDR"
+  "$CANDIDATE_ADDR" 2>&1 | tee "$MOVE_LOG"
+MOVE_RC="${PIPESTATUS[0]}"
+set -e
+echo "move_rc=$MOVE_RC"
+
+MOVE_STATUS="$(python3 - "$MOVE_LOG" <<'PYSTATUS'
+import re, sys
+from pathlib import Path
+txt = Path(sys.argv[1]).read_text(errors="replace")
+m = re.search(r"(?m)^status\s+([01])\b", txt)
+if not m:
+    raise SystemExit("[ERR] could not parse moveToWaiting receipt status")
+print(m.group(1))
+PYSTATUS
+)"
+echo "move_status=$MOVE_STATUS"
+
+MOVE_TX_HASH="$(python3 - "$MOVE_LOG" <<'PYTX'
+import re, sys
+from pathlib import Path
+txt = Path(sys.argv[1]).read_text(errors="replace")
+m = re.search(r"(?m)^transactionHash\s+(0x[0-9a-fA-F]{64})\b", txt)
+if not m:
+    raise SystemExit("[ERR] could not parse moveToWaiting transactionHash")
+print(m.group(1))
+PYTX
+)"
+echo "move_tx=$MOVE_TX_HASH"
+
+if [ "$MOVE_RC" != "0" ]; then
+  echo "[ERR] cast send moveToWaiting exited nonzero"
+  exit 1
+fi
+
+if [ "$MOVE_STATUS" != "1" ]; then
+  echo "[ERR] moveToWaiting transaction failed; refusing to write ok=true artifact"
+  exit 1
+fi
 
 WAITING_COUNT_FINAL="$(cast call --rpc-url "$RPC" "$REGISTRY" 'waitingCount()(uint256)')"
 ACTIVE_COUNT_FINAL="$(cast call --rpc-url "$RPC" "$REGISTRY" 'activeCount()(uint256)')"
 
 echo "waiting_final=$WAITING_COUNT_FINAL"
 echo "active_final=$ACTIVE_COUNT_FINAL"
+
+python3 - <<'PYWAIT' "$WAITING_COUNT_AFTER" "$WAITING_COUNT_FINAL"
+import sys
+after = int(str(sys.argv[1]), 0)
+final = int(str(sys.argv[2]), 0)
+if final != after + 1:
+    raise SystemExit(f"[ERR] waiting count did not increase by 1: after={after} final={final}")
+print("[ok] waiting count increased by 1")
+PYWAIT
 
 if [ "$ACTIVE_COUNT_FINAL" != "$ACTIVE_COUNT_BEFORE" ]; then
   echo "[ERR] active count changed while moving to waiting"
