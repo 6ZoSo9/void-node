@@ -678,3 +678,7 @@ validator-offline-demotion-policy-proof:
 .PHONY: validator-offline-demotion-refill-policy-proof
 validator-offline-demotion-refill-policy-proof:
 	bash ops/mainnet0/validator-offline-demotion-refill-policy-proof.sh
+
+.PHONY: validator-lifecycle-composite-proof
+validator-lifecycle-composite-proof:
+	bash ops/mainnet0/validator-lifecycle-composite-proof.sh
