@@ -690,3 +690,15 @@ validator-lifecycle-composite-exporter:
 .PHONY: validator-lifecycle-composite-prom-proof
 validator-lifecycle-composite-prom-proof:
 	bash ops/mainnet0/validator-lifecycle-composite-prom-proof.sh
+
+.PHONY: mainnet0-validator-lifecycle-preflight
+mainnet0-validator-lifecycle-preflight:
+	bash ops/mainnet0-validator-lifecycle-preflight.sh
+
+.PHONY: mainnet0-go-no-go-with-validator-lifecycle
+mainnet0-go-no-go-with-validator-lifecycle:
+	bash ops/mainnet0-go-no-go-with-validator-lifecycle.sh
+
+.PHONY: mainnet0-validator-lifecycle-preflight-proof
+mainnet0-validator-lifecycle-preflight-proof:
+	bash ops/mainnet0-validator-lifecycle-preflight-proof.sh
