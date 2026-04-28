@@ -47945,6 +47945,57 @@ a{color:#93c5fd;text-decoration:none}
                       setText("validatorRegistrationLiveStatusWallet", "Wallet: " + (ss.wallet_authority_ready ? "ready/unlocked" : "not ready"));
                       setText("validatorRegistrationLiveStatusPayload", "Payload: " + (ss.payload_ready ? "ready" : "not ready"));
                       setText("validatorRegistrationLiveStatusBlockers", "Blockers: " + (sblockers.length ? sblockers.join(", ") : "none"));
+                      var liveBtn = byId("validatorRegistrationSubmitLiveBtn");
+                      if (liveBtn) {
+                        liveBtn.disabled = !sj.ready_for_proof_submit;
+                        liveBtn.title = sj.ready_for_proof_submit
+                          ? "Backend-gated submit is ready. Requires confirmation before sending."
+                          : "Backend-gated submit is blocked: " + (sblockers.length ? sblockers.join(", ") : "not_ready");
+
+                        if (!liveBtn.validatorRegistrationSubmitLiveBtnClickWired) {
+                          liveBtn.validatorRegistrationSubmitLiveBtnClickWired = true;
+                          liveBtn.addEventListener("click", async function(){
+                            if (liveBtn.disabled) return;
+
+                            var ok = window.confirm("Submit validator registration now? This sends a live backend-gated transaction if the node kill switch and wallet gates are still green.");
+                            if (!ok) return;
+
+                            liveBtn.disabled = true;
+                            setText("validatorRegistrationButtonNote", "Checking live-submit gates before sending…");
+
+                            try {
+                              var checkResp = await fetch("/__void/participant/validator-registration/live-submit-status?account=" + encodeURIComponent(acc), { cache:"no-store" });
+                              var checkJson = await checkResp.json();
+                              if (!checkJson.ready_for_proof_submit) {
+                                var bs = Array.isArray(checkJson.blockers) ? checkJson.blockers : ["not_ready"];
+                                setText("validatorRegistrationButtonNote", "Live submit blocked: " + bs.join(", "));
+                                liveBtn.disabled = true;
+                                return;
+                              }
+
+                              setText("validatorRegistrationButtonNote", "Submitting validator registration through backend-gated route…");
+
+                              var postResp = await fetch("/__void/participant/validator-registration/submit-live", {
+                                method:"POST",
+                                headers:{ "content-type":"application/json" },
+                                body:JSON.stringify({ account:acc, chainId:2050 })
+                              });
+                              var postJson = await postResp.json();
+
+                              if (postResp.ok && postJson.ok) {
+                                setText("validatorRegistrationButtonNote", "Live submit succeeded: " + (postJson.transactionHash || "tx accepted"));
+                                await refreshReadiness();
+                              } else {
+                                setText("validatorRegistrationButtonNote", "Live submit failed: " + (postJson.error || postJson.submit_blocked_reason || ("http_" + postResp.status)));
+                                await refreshReadiness();
+                              }
+                            } catch(e) {
+                              setText("validatorRegistrationButtonNote", "Live submit failed: " + (e && e.message ? e.message : String(e)));
+                              await refreshReadiness();
+                            }
+                          });
+                        }
+                      }
                     } catch(e) {
                       setText("validatorRegistrationLiveStatusSummary", "Live status: check failed.");
                       setText("validatorRegistrationLiveStatusBlockers", "Blockers: status_fetch_failed");
@@ -47972,6 +48023,7 @@ a{color:#93c5fd;text-decoration:none}
               <div class="action-rail" style="margin-top:10px">
                 <button class="btn btn-primary" id="validatorRegistrationOpenDraftBtn" type="button">Register Validator — Preview Only</button>
                 <button class="btn" id="validatorRegistrationSubmitDisabledBtn" type="button" disabled>Submit Registration — Not Live</button>
+                <button class="btn" id="validatorRegistrationSubmitLiveBtn" type="button" disabled>Submit Registration — Backend Gated</button>
               </div>
               <div class="hero-note" id="validatorRegistrationButtonNote" style="margin-top:10px">Registration submit is intentionally disabled. Preview the prepared payload first.</div>
               <details class="adv" id="validatorRegistrationPreflightDetails" style="margin-top:12px">
