@@ -59,12 +59,56 @@ PY2
   echo "[ok] VOID ready for $label"
 }
 
+
+wait_prom_ready_last30s() {
+  local label="${1:-prom-ready-last30s}"
+  local tmp="$OUT/wait-${label}.prom-ready-last30s.json"
+
+  echo
+  echo "=== [wait] $label Prom ready:last_30s ==="
+
+  local ok=0
+  for i in $(seq 1 90); do
+    if curl -fsS --max-time 5 --get "$PROM/api/v1/query" \
+      --data-urlencode 'query=ready:last_30s' > "$tmp" 2>"$tmp.err"; then
+      if python3 - "$tmp" <<'PY2' >/dev/null 2>&1
+import json, sys
+j=json.load(open(sys.argv[1]))
+r=(j.get("data") or {}).get("result") or []
+assert r
+assert any(str((x.get("value") or ["",""])[1]) in ("1","1.0") for x in r)
+PY2
+      then
+        ok=1
+        break
+      fi
+    fi
+    sleep 2
+  done
+
+  if [ "$ok" != "1" ]; then
+    echo "[ERR] Prom ready:last_30s did not become green for $label"
+    cat "$tmp" 2>/dev/null || true
+    cat "$tmp.err" 2>/dev/null || true
+    curl -fsS "$PROM/-/ready" || true
+    echo
+    curl -fsS "$PROM/api/v1/rules" | head -c 3000 || true
+    echo
+    exit 1
+  fi
+
+  cat "$tmp"
+  echo
+  echo "[ok] Prom ready:last_30s green for $label"
+}
+
 run_step() {
   local name="$1"
   shift
   local log="$OUT/$name.log"
 
   wait_void_ready "before-$name"
+  wait_prom_ready_last30s "before-$name"
 
   echo
   echo "=== [step] $name ==="
@@ -88,6 +132,7 @@ run_step() {
   echo "[ok] $name"
 
   wait_void_ready "after-$name"
+  wait_prom_ready_last30s "after-$name"
 }
 
 echo
