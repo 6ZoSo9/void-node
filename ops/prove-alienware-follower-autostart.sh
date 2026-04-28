@@ -3,6 +3,11 @@ set -euo pipefail
 set +H
 set +o histexpand
 
+# A restarted follower can briefly lag the proposer. Keep the final drift gate strict,
+# but allow a small initial catch-up window immediately after restart.
+MAX_INITIAL_FOLLOWER_DRIFT_AFTER_RESTART="${MAX_INITIAL_FOLLOWER_DRIFT_AFTER_RESTART:-10}"
+MAX_INITIAL_FOLLOWER_HEAD_GAP_AFTER_RESTART="${MAX_INITIAL_FOLLOWER_HEAD_GAP_AFTER_RESTART:-10}"
+
 ALIEN="${ALIEN:-zoso@100.122.79.39}"
 MAIN="${MAIN:-http://100.93.2.116:4100}"
 WAIT_SECS="${WAIT_SECS:-20}"
@@ -47,8 +52,22 @@ DRIFT1="$(printf '%s\n' "$S1" | json_get 'int(obj.get("drift", -999999))')"
 GAP1="$(printf '%s\n' "$P1" | json_get 'int(obj.get("head_gap", -999999))')"
 
 test "$OK1" = "True" || { echo "[ERR] follower status not ok after restart" >&2; exit 1; }
-test "$DRIFT1" -le 3 || { echo "[ERR] initial follower drift too large: $DRIFT1" >&2; exit 1; }
-test "$GAP1" -le 3 || { echo "[ERR] initial peer-main head_gap too large: $GAP1" >&2; exit 1; }
+if [ "$DRIFT1" -gt "${MAX_INITIAL_FOLLOWER_DRIFT_AFTER_RESTART:-10}" ]; then
+  echo "[ERR] initial follower drift too large after restart: $DRIFT1 > ${MAX_INITIAL_FOLLOWER_DRIFT_AFTER_RESTART:-10}" >&2
+  exit 1
+fi
+
+if [ "$DRIFT1" -gt 3 ]; then
+  echo "[warn] initial follower drift $DRIFT1; allowing post-restart catch-up before final drift gate"
+fi
+if [ "$GAP1" -gt "${MAX_INITIAL_FOLLOWER_HEAD_GAP_AFTER_RESTART:-10}" ]; then
+  echo "[ERR] initial peer-main head_gap too large after restart: $GAP1 > ${MAX_INITIAL_FOLLOWER_HEAD_GAP_AFTER_RESTART:-10}" >&2
+  exit 1
+fi
+
+if [ "$GAP1" -gt 3 ]; then
+  echo "[warn] initial peer-main head_gap $GAP1; allowing post-restart catch-up before final head_gap gate"
+fi
 
 echo
 echo "=== [3] wait for follower to keep tracking ==="

@@ -10,15 +10,15 @@ expected_config_identity: two-box-mainnet0-baseline
 current_reported_version: 1
 current_reported_config_identity: two-box-mainnet0-baseline
 
-status: candidate
-status_reason: two-box mainnet0 readiness proof green (bounded live race tolerated)
-status_last_changed_at: 2026-04-18T13:30:40Z
+status: blocked
+status_reason: validator admission preconditions not met
+status_last_changed_at: 2026-04-28T23:33:07Z
 
-last_known_head: 217922
+last_known_head: 659694
 last_known_health: ready=true
 last_known_drift: 0
-checkpoint_awareness_status: baseline-observe
-incident_response_readiness: policy-stack-sanity-green
+checkpoint_awareness_status: needs-review
+incident_response_readiness: needs-review
 
 warning_count: 0
 pause_count: 0
@@ -28,7 +28,7 @@ last_incident_involved: null
 
 notes:
   - "node_id=53a5268cd87aa0ed5b5cedb24f7ac734"
-  - "same_node=False"
+  - "same_node=True"
   - "peer_head_gap=0"
   - "txroot_live=1"
 operator_comments:

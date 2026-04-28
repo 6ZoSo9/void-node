@@ -22648,6 +22648,317 @@ const wal = new WALv1(getDataDir());
 })();
  // ============ /Agent v0 — auth hash metrics (additive, safe) ===============
 
+
+// ---------------- [ADD] Jobs submit/readback compatibility shim v1 ----------------
+// Purpose: make /jobs/submit and /jobs/:id share a durable readback surface.
+// This is additive and intentionally does not change the existing submit handler.
+(function JobsSubmitReadbackShimV1(){
+  try{
+    const TICK = 400;
+    const fs = require("node:fs");
+    const path = require("node:path");
+
+    function mount(){
+      const G:any = globalThis as any;
+      const APP:any = G.__void_http_app || G.app || (typeof app !== "undefined" ? app : null);
+      if (!APP || typeof APP.use !== "function" || typeof APP.get !== "function") return setTimeout(mount, TICK);
+      if ((APP as any).__void_jobs_submit_readback_shim_v1) return;
+      (APP as any).__void_jobs_submit_readback_shim_v1 = true;
+
+      const dataRoot = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data");
+      const agentDir = String(process.env.AGENT_DIR || process.env.VOID_AGENT_DIR || path.join(dataRoot, "agent"));
+      const jobsV1Dir = path.join(dataRoot, "jobs_v1");
+      const agentV1Dir = path.join(dataRoot, "agent_v1");
+
+      const jobFiles = [
+        path.join(agentDir, "jobs.jsonl"),
+        ...(fs.existsSync(jobsV1Dir) ? [path.join(jobsV1Dir, "jobs.jsonl")] : [])
+      ];
+      const resultFiles = [
+        path.join(agentDir, "results.jsonl")
+      ];
+      const receiptFiles = [
+        path.join(agentDir, "receipts.jsonl"),
+        path.join(agentV1Dir, "receipts.jsonl"),
+        path.join(agentV1Dir, "job_state.jsonl")
+      ];
+
+      function nowMs(){ return Date.now(); }
+
+      function safeLines(file:string, maxLines=8000){
+        try{
+          if (!fs.existsSync(file)) return [];
+          const raw = String(fs.readFileSync(file, "utf8") || "");
+          if (!raw) return [];
+          const lines = raw.split(/\r?\n/).filter((x:string)=>x.trim().length>0);
+          return lines.length > maxLines ? lines.slice(-maxLines) : lines;
+        }catch{ return []; }
+      }
+
+      function appendJsonl(file:string, obj:any){
+        try{
+          fs.mkdirSync(path.dirname(file), { recursive:true });
+          fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+          return true;
+        }catch{
+          return false;
+        }
+      }
+
+      function idOf(obj:any){
+        return String(
+          obj?.job_id ??
+          obj?.id ??
+          obj?.job?.job_id ??
+          obj?.job?.id ??
+          ""
+        ).trim();
+      }
+
+      function accountOf(obj:any){
+        return String(
+          obj?.account ??
+          obj?.job?.account ??
+          obj?.input?.account ??
+          obj?.meta?.account ??
+          ""
+        ).trim();
+      }
+
+      function kindOf(obj:any){
+        return String(
+          obj?.kind ??
+          obj?.job?.kind ??
+          obj?.input?.kind ??
+          obj?.task_class ??
+          obj?.selected_task_class ??
+          obj?.meta?.selected_task_class ??
+          ""
+        ).trim();
+      }
+
+      function datasetOf(obj:any){
+        return String(
+          obj?.dataset_id ??
+          obj?.job?.dataset_id ??
+          obj?.output?.dataset_id ??
+          obj?.result?.dataset_id ??
+          obj?.input?.dataset_id ??
+          obj?.selected_dataset_id ??
+          obj?.meta?.selected_dataset_id ??
+          ""
+        ).trim();
+      }
+
+      function receiptIdOf(obj:any){
+        return String(
+          obj?.receipt_id ??
+          obj?.receiptId ??
+          obj?.job?.receipt_id ??
+          obj?.id ??
+          ""
+        ).trim();
+      }
+
+      function statusOf(obj:any){
+        const raw = String(
+          obj?.status ??
+          obj?.job?.status ??
+          obj?.receipt_status ??
+          ""
+        ).trim().toLowerCase();
+        if (raw) return raw;
+        if (obj?.ok === true || obj?.output) return "completed";
+        if (obj?.ok === false) return "failed";
+        return "";
+      }
+
+      function findLatest(files:string[], id:string){
+        for (const file of files){
+          const lines = safeLines(file).reverse();
+          for (const line of lines){
+            try{
+              const obj = JSON.parse(line);
+              const ids = [
+                idOf(obj),
+                String(obj?.job_id || ""),
+                String(obj?.id || ""),
+                String(obj?.receipt_id || "")
+              ].filter(Boolean);
+              if (ids.includes(id)) return { file, obj };
+            }catch{}
+          }
+        }
+        return null;
+      }
+
+      function findReceipts(id:string){
+        const out:any[] = [];
+        for (const file of receiptFiles){
+          const lines = safeLines(file).reverse();
+          for (const line of lines){
+            try{
+              const obj = JSON.parse(line);
+              const ids = [
+                String(obj?.job_id || ""),
+                String(obj?.id || ""),
+                String(obj?.receipt_id || "")
+              ].filter(Boolean);
+              if (!ids.includes(id)) continue;
+              out.push({
+                ...obj,
+                status: statusOf(obj) || "completed",
+                dataset_id: datasetOf(obj) || obj?.dataset_id || null,
+                receipt_id: receiptIdOf(obj) || null,
+                source_file: file
+              });
+              if (out.length >= 10) return out;
+            }catch{}
+          }
+        }
+        return out;
+      }
+
+      function persistSubmittedJob(req:any, body:any){
+        try{
+          if (!body || body.ok !== true) return;
+          const job = body.job || {};
+          const id = String(job.job_id || job.id || body.job_id || body.id || "").trim();
+          if (!id) return;
+
+          const input = job.input || req?.body?.input || req?.body || {};
+          const rec = {
+            ...job,
+            id,
+            job_id: id,
+            account: String(job.account || req?.body?.account || input?.account || ""),
+            kind: String(job.kind || req?.body?.kind || input?.kind || ""),
+            status: String(job.status || "queued"),
+            dataset_id: job.dataset_id || null,
+            receipt_id: job.receipt_id || null,
+            input,
+            meta: job.meta || req?.body?.meta || {},
+            created_at_ms: Number(job.created_at_ms || body.ts || nowMs()),
+            persisted_by: "jobs_submit_readback_shim_v1"
+          };
+
+          for (const file of jobFiles) appendJsonl(file, rec);
+        }catch{}
+      }
+
+      function jobsSubmitCaptureV1(req:any, res:any, next:any){
+        try{
+          if (req.method !== "POST" || req.path !== "/jobs/submit") return next();
+          const orig = res.json?.bind(res);
+          if (typeof orig !== "function") return next();
+          res.json = (body:any) => {
+            try { persistSubmittedJob(req, body); } catch {}
+            return orig(body);
+          };
+          return next();
+        }catch{
+          return next();
+        }
+      }
+
+      APP.use(jobsSubmitCaptureV1);
+
+      APP.get("/jobs/:id", (req:any, res:any) => {
+        try{
+          const id = String(req?.params?.id || "").trim();
+          if (!id) return res.status(400).json({ ok:false, error:"missing_job_id" });
+
+          const base = findLatest(jobFiles, id);
+          const result = findLatest(resultFiles, id);
+          const receipts = findReceipts(id);
+
+          const baseObj:any = base?.obj || {};
+          const resultObj:any = result?.obj || {};
+          const receipt0:any = receipts[0] || {};
+
+          if (!base && !result && !receipts.length) {
+            return res.status(404).json({ ok:false, error:"job_not_found", job_id:id });
+          }
+
+          const st =
+            statusOf(receipt0) ||
+            statusOf(resultObj) ||
+            statusOf(baseObj) ||
+            "queued";
+
+          const ds =
+            datasetOf(receipt0) ||
+            datasetOf(resultObj) ||
+            datasetOf(baseObj) ||
+            null;
+
+          const rid =
+            receiptIdOf(receipt0) ||
+            receiptIdOf(resultObj) ||
+            receiptIdOf(baseObj) ||
+            null;
+
+          const job = {
+            ...baseObj,
+            job_id: String(baseObj?.job_id || baseObj?.id || id),
+            id: String(baseObj?.id || baseObj?.job_id || id),
+            account: accountOf(baseObj) || accountOf(receipt0) || null,
+            kind: kindOf(baseObj) || kindOf(receipt0) || null,
+            status: st,
+            dataset_id: ds,
+            receipt_id: rid,
+            input: baseObj?.input || null,
+            readback_sources: {
+              job_file: base?.file || null,
+              result_file: result?.file || null,
+              receipt_count: receipts.length
+            }
+          };
+
+          return res.json({
+            ok: true,
+            job,
+            receipts,
+            result: resultObj && Object.keys(resultObj).length ? resultObj : null,
+            source: "jobs_submit_readback_shim_v1"
+          });
+        }catch(e:any){
+          return res.status(500).json({ ok:false, error:String(e?.message || e) });
+        }
+      });
+
+      try{
+        const stack:any[] = APP?._router?.stack || [];
+
+        // Move capture middleware before existing /jobs/submit route so it can wrap res.json.
+        const capIdx = stack.findIndex((x:any)=>x && x.handle && x.handle.name === "jobsSubmitCaptureV1");
+        const submitIdx = stack.findIndex((x:any)=>x?.route?.path === "/jobs/submit" && x?.route?.methods?.post);
+        if (capIdx >= 0 && submitIdx >= 0 && capIdx > submitIdx) {
+          const layer = stack.splice(capIdx, 1)[0];
+          stack.splice(submitIdx, 0, layer);
+        }
+
+        // Move our /jobs/:id readback route ahead of older stale /jobs/:id handlers.
+        const jobGets = stack
+          .map((x:any, idx:number)=>({x, idx}))
+          .filter((row:any)=>row.x?.route?.path === "/jobs/:id" && row.x?.route?.methods?.get);
+        if (jobGets.length >= 2) {
+          const last = jobGets[jobGets.length - 1].idx;
+          const first = jobGets[0].idx;
+          const layer = stack.splice(last, 1)[0];
+          stack.splice(first, 0, layer);
+        }
+      }catch{}
+
+      try { console.log("[jobs/readback] shim v1 mounted for /jobs/submit + /jobs/:id"); } catch {}
+    }
+
+    mount();
+  }catch{}
+})();
+// ---------------- [/ADD] Jobs submit/readback compatibility shim v1 ----------------
+
+
 // ===== Agent v0 — corrected jobs metrics (jobs - results) =====
 (function AgentV0JobsMetricsV2(){
   const TICK=400, fs = require("node:fs"), path = require("node:path");

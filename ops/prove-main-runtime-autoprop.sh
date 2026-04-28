@@ -3,6 +3,10 @@ set -euo pipefail
 set +H
 set +o histexpand
 
+void_prom_unescape() {
+  python3 -c 'import sys; sys.stdout.write(sys.stdin.read().replace("\\n", "\n"))'
+}
+
 BASE="${BASE:-http://127.0.0.1:4100}"
 WAIT_SECS="${WAIT_SECS:-20}"
 
@@ -49,6 +53,8 @@ A2="$(curl -fsS --max-time 5 "$BASE/__void/metrics/commit-direct-autoprop.v1/sta
 V2="$(curl -fsS --max-time 5 "$BASE/__void/metrics/proposer.commit-direct.v2fs/status.json")"
 R2="$(curl -fsS --max-time 5 "$BASE/__void/ready.json")"
 S2="$(curl -fsS --max-time 5 "$BASE/metrics/void/seals")"
+# void_seals_payload_normalized: support endpoints that return escaped "\\n" Prom text
+S2="$(printf '%s' "$S2" | void_prom_unescape)"
 
 printf 'head_after=%s\n' "$H2"
 printf 'delta=%s\n' "$((H2-H1))"
