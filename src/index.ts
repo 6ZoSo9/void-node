@@ -1437,6 +1437,13 @@ const app = express();
       return String(process.env.VOID_VALIDATOR_REGISTRATION_LIVE_EXECUTION || "").trim() === "1";
     }
 
+    function proofStatusOn(req:any): boolean {
+      const envOn = String(process.env.VOID_VALIDATOR_REGISTRATION_STATUS_PROOF_MODE || "").trim() === "1";
+      const queryOn =
+        String(req?.query?.proof_status_mode || req?.query?.proofStatusMode || "").trim() === "1";
+      return envOn && queryOn;
+    }
+
     function cast(args:string[]): any {
       const r = child_process.spawnSync("cast", args, {
         encoding:"utf8",
@@ -1517,14 +1524,16 @@ const app = express();
 
     app.get("/__void/participant/validator-registration/live-submit-status", async (req:any, res:any) => {
       const account = normAddr(req?.query?.account);
-      const enabled = liveOn();
+      const liveEnabled = liveOn();
+      const proofStatusMode = proofStatusOn(req);
+      const statusGateEnabled = liveEnabled || proofStatusMode;
       const blockers:string[] = [];
 
       if (!account) blockers.push("missing_or_invalid_account");
-      if (!enabled) blockers.push("live_execution_kill_switch_off");
+      if (!statusGateEnabled) blockers.push("live_execution_kill_switch_off");
 
       const signer = signerProbe(account);
-      if (enabled) {
+      if (statusGateEnabled) {
         if (!signer.signer_file_configured) blockers.push("missing_live_signer_pk_file");
         else if (!signer.signer_file_present) blockers.push("live_signer_pk_file_missing");
         else if (!signer.signer_key_valid_format) blockers.push("invalid_live_signer_private_key_format");
@@ -1550,11 +1559,13 @@ const app = express();
         mutation:false,
         sends_transaction:false,
         submit_allowed:false,
-        ready_for_proof_submit: !!(account && enabled && signer.signer_matches_account && walletReady && payloadReady),
+        ready_for_proof_submit: !!(account && statusGateEnabled && signer.signer_matches_account && walletReady && payloadReady),
         account,
         blockers:[...new Set(blockers)],
         status:{
-          live_execution_enabled: enabled,
+          live_execution_enabled: liveEnabled,
+          proof_status_mode: proofStatusMode,
+          status_gate_enabled: statusGateEnabled,
           signer_file_configured: signer.signer_file_configured,
           signer_file_present: signer.signer_file_present,
           signer_key_valid_format: signer.signer_key_valid_format,
@@ -1574,7 +1585,7 @@ const app = express();
           core_gates_green: payload.json.core_gates_green === true,
           submit_blocked_reason: payload.json.submit_blocked_reason || ""
         } : null,
-        note:"Read-only status endpoint. It does not reserve submit intents and does not broadcast transactions."
+        note:"Read-only status endpoint. It does not reserve submit intents and does not broadcast transactions. proof_status_mode only affects this read-only status response and does not enable submit-live execution."
       });
     });
 

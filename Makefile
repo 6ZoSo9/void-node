@@ -654,3 +654,7 @@ validator-runtime-truth-switch-proof-anvil:
 .PHONY: validator-registration-live-submit-safety-proof
 validator-registration-live-submit-safety-proof:
 	bash ops/mainnet0/validator-registration-live-submit-safety-proof.sh
+
+.PHONY: validator-registration-positive-readiness-proof
+validator-registration-positive-readiness-proof:
+	bash ops/mainnet0/validator-registration-positive-readiness-proof.sh
