@@ -662,3 +662,7 @@ validator-registration-positive-readiness-proof:
 .PHONY: validator-registration-controlled-live-execution-proof
 validator-registration-controlled-live-execution-proof:
 	bash ops/mainnet0/validator-registration-controlled-live-execution-proof.sh
+
+.PHONY: validator-candidate-activation-proof
+validator-candidate-activation-proof:
+	bash ops/mainnet0/validator-candidate-activation-proof.sh
