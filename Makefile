@@ -674,3 +674,7 @@ validator-candidate-demotion-proof:
 .PHONY: validator-offline-demotion-policy-proof
 validator-offline-demotion-policy-proof:
 	bash ops/mainnet0/validator-offline-demotion-policy-proof.sh
+
+.PHONY: validator-offline-demotion-refill-policy-proof
+validator-offline-demotion-refill-policy-proof:
+	bash ops/mainnet0/validator-offline-demotion-refill-policy-proof.sh
