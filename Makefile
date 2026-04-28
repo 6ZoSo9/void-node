@@ -666,3 +666,7 @@ validator-registration-controlled-live-execution-proof:
 .PHONY: validator-candidate-activation-proof
 validator-candidate-activation-proof:
 	bash ops/mainnet0/validator-candidate-activation-proof.sh
+
+.PHONY: validator-candidate-demotion-proof
+validator-candidate-demotion-proof:
+	bash ops/mainnet0/validator-candidate-demotion-proof.sh
