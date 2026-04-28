@@ -670,3 +670,7 @@ validator-candidate-activation-proof:
 .PHONY: validator-candidate-demotion-proof
 validator-candidate-demotion-proof:
 	bash ops/mainnet0/validator-candidate-demotion-proof.sh
+
+.PHONY: validator-offline-demotion-policy-proof
+validator-offline-demotion-policy-proof:
+	bash ops/mainnet0/validator-offline-demotion-policy-proof.sh
