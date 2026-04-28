@@ -650,3 +650,7 @@ validator-runtime-truth-switch-test:
 
 validator-runtime-truth-switch-proof-anvil:
 	bash ops/mainnet/validator-runtime-truth-switch-proof-anvil.sh
+
+.PHONY: validator-registration-live-submit-safety-proof
+validator-registration-live-submit-safety-proof:
+	bash ops/mainnet0/validator-registration-live-submit-safety-proof.sh
