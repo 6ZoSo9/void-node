@@ -39630,13 +39630,56 @@ try {
   });
 
   app.post("/__void/update/update-now", expressJson({ limit:"16kb" }), async (_req:any, res:any) => {
+    const base = "http://127.0.0.1:" + String(process.env.HTTP_PORT || 4100);
+
+    async function getJson(pathname:string){
+      try {
+        const r = await fetch(base + pathname, { method: "GET" as any });
+        const text = await r.text();
+        try {
+          return { ok: r.ok, status: r.status, body: JSON.parse(text || "{}") };
+        } catch {
+          return { ok: r.ok, status: r.status, body: { raw: text } };
+        }
+      } catch (err:any) {
+        return { ok: false, status: 0, body: { error: String(err?.message || err || "fetch_failed") } };
+      }
+    }
+
+    const activeMarkers = {
+      staged: fs.existsSync(path.join(process.cwd(), "runtime", "upgrade-staged.v1.json")),
+      pending: fs.existsSync(path.join(process.cwd(), "runtime", "upgrade-apply-pending.v1.json")),
+      rollback: fs.existsSync(path.join(process.cwd(), "runtime", "upgrade-rollback-marker.v1.json")),
+    };
+
+    const status = await computeUpdateNotificationStatus();
+    const plan = await getJson("/upgrade/plan");
+    const dryRun = await getJson("/upgrade/dry-run");
+
     return res.status(501).json({
       ok: false,
       mutation: false,
       sends_transaction: false,
       installs_update: false,
+      stages_update: false,
+      writes_runtime_markers: false,
       error: "install_execution_not_wired",
-      note: "Signed update notification is wired, but one-click install remains disabled until the install proof lane is implemented."
+      note: "Signed update notification and preflight are wired, but one-click install remains disabled until the install proof lane is implemented.",
+      preflight_only: true,
+      preflight: {
+        status,
+        plan: plan.body,
+        dry_run: dryRun.body,
+        plan_http_status: plan.status,
+        dry_run_http_status: dryRun.status,
+        active_markers: activeMarkers,
+        next_safe_steps: [
+          "review_signed_manifest",
+          "review_upgrade_dry_run",
+          "run_marker_only_operator_proof",
+          "do_not_install_from_ui_yet"
+        ]
+      }
     });
   });
 } catch {}

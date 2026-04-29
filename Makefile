@@ -717,3 +717,6 @@ update-signed-artifact-mutation-proof:
 
 update-valid-artifact-marker-only-proof:
 	bash ops/mainnet0/update-valid-artifact-marker-only-proof.sh
+
+update-now-preflight-only-proof:
+	bash ops/mainnet0/update-now-preflight-only-proof.sh
