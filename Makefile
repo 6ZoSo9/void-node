@@ -702,3 +702,6 @@ mainnet0-go-no-go-with-validator-lifecycle:
 .PHONY: mainnet0-validator-lifecycle-preflight-proof
 mainnet0-validator-lifecycle-preflight-proof:
 	bash ops/mainnet0-validator-lifecycle-preflight-proof.sh
+
+update-notification-api-proof:
+	bash ops/mainnet0/update-notification-api-proof.sh

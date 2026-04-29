@@ -39475,6 +39475,173 @@ try {
 } catch {}
 /* === /__void/update/plan-status.json === */
 
+
+/* === __void update notification status v1 (additive, non-executing) === */
+try {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  const expressJson = require("express").json;
+
+  function updateNotifyStatePath(){
+    return path.join(os.homedir(), ".config", "void", "update-notification-state.json");
+  }
+
+  function readUpdateNotifyState(){
+    const f = updateNotifyStatePath();
+    try {
+      if (!fs.existsSync(f)) return {};
+      return JSON.parse(fs.readFileSync(f, "utf8") || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function writeUpdateNotifyState(obj:any){
+    const f = updateNotifyStatePath();
+    fs.mkdirSync(path.dirname(f), { recursive:true });
+    fs.writeFileSync(f, JSON.stringify(obj || {}, null, 2) + "\n");
+    return f;
+  }
+
+  function updateSeverity(manifest:any, reason:string){
+    const raw = String(
+      manifest?.severity ||
+      manifest?.update_severity ||
+      manifest?.urgency ||
+      manifest?.kind ||
+      ""
+    ).trim().toLowerCase();
+
+    const notes = String(manifest?.notes || "").toLowerCase();
+
+    if (raw === "critical" || raw === "security" || raw === "urgent") return raw === "urgent" ? "critical" : raw;
+    if (notes.includes("critical")) return "critical";
+    if (notes.includes("security") || notes.includes("cve") || notes.includes("vulnerability")) return "security";
+    if (reason === "protocol_too_old") return "critical";
+    return "normal";
+  }
+
+  async function computeUpdateNotificationStatus(){
+    const out = await computeUpgradeStatus();
+    const state = readUpdateNotifyState();
+    const nowMs = Date.now();
+    const remindUntilMs = Number(state.remind_until_ms || 0);
+    const suppressed = Number.isFinite(remindUntilMs) && remindUntilMs > nowMs;
+
+    const severity = updateSeverity(out.manifest || {}, String(out.reason || ""));
+    const trustOk = !!out.signature_present && !!out.signature_valid;
+    const updateAvailable = !!out.update_available;
+    const incompatible = out.compatible === false;
+
+    const shouldNotify =
+      !!out.manifest_found &&
+      trustOk &&
+      !suppressed &&
+      (updateAvailable || incompatible);
+
+    const blockingReason =
+      !out.manifest_found ? "manifest_missing" :
+      !out.signature_present ? "signature_missing" :
+      !out.signature_valid ? "signature_invalid" :
+      suppressed ? "remind_later_active" :
+      !(updateAvailable || incompatible) ? "no_update_required" :
+      "";
+
+    return {
+      ok: true,
+      source: "update_notification_status_v1",
+      mutation: false,
+      sends_transaction: false,
+      installs_update: false,
+      local: out.local,
+      manifest_found: !!out.manifest_found,
+      manifest: out.manifest || null,
+      update_available: updateAvailable,
+      compatible: !!out.compatible,
+      reason: String(out.reason || ""),
+      signature_present: !!out.signature_present,
+      signature_valid: !!out.signature_valid,
+      verification_reason: String(out.verification_reason || ""),
+      severity,
+      notification: {
+        should_notify: shouldNotify,
+        suppressed,
+        remind_until_ms: remindUntilMs || null,
+        remind_until_iso: remindUntilMs ? new Date(remindUntilMs).toISOString() : null,
+        blocking_reason: blockingReason,
+        title: severity === "critical" ? "Critical VOID update available" :
+               severity === "security" ? "Security update available" :
+               incompatible ? "VOID protocol update required" :
+               "VOID update available",
+        message: shouldNotify
+          ? "A signed VOID update is available. Review it before continuing normal operation."
+          : "No update notification is currently required.",
+        actions: {
+          update_now_enabled: false,
+          update_now_reason: "install_execution_not_wired",
+          remind_later_enabled: true
+        }
+      }
+    };
+  }
+
+  app.get("/__void/update/notification-status.json", async (_req:any, res:any) => {
+    try {
+      return res.status(200).json(await computeUpdateNotificationStatus());
+    } catch (err:any) {
+      return res.status(500).json({ ok:false, error:String(err?.message || err || "unknown_error") });
+    }
+  });
+
+  app.post("/__void/update/remind-later", expressJson({ limit:"16kb" }), async (req:any, res:any) => {
+    try {
+      const body = req.body || {};
+      const hoursRaw = Number(body.hours ?? 24);
+      const hours = Number.isFinite(hoursRaw) && hoursRaw > 0 ? Math.min(hoursRaw, 24 * 30) : 24;
+      const nowMs = Date.now();
+      const remindUntilMs = nowMs + Math.floor(hours * 60 * 60 * 1000);
+
+      const state = {
+        remind_until_ms: remindUntilMs,
+        remind_until_iso: new Date(remindUntilMs).toISOString(),
+        updated_at_ms: nowMs,
+        updated_at_iso: new Date(nowMs).toISOString(),
+        reason: String(body.reason || "user_remind_later").slice(0, 120)
+      };
+
+      const state_file = writeUpdateNotifyState(state);
+      const status = await computeUpdateNotificationStatus();
+
+      return res.status(200).json({
+        ok: true,
+        mutation: true,
+        sends_transaction: false,
+        installs_update: false,
+        state_file,
+        state,
+        status
+      });
+    } catch (err:any) {
+      return res.status(500).json({ ok:false, error:String(err?.message || err || "unknown_error") });
+    }
+  });
+
+  app.post("/__void/update/update-now", expressJson({ limit:"16kb" }), async (_req:any, res:any) => {
+    return res.status(501).json({
+      ok: false,
+      mutation: false,
+      sends_transaction: false,
+      installs_update: false,
+      error: "install_execution_not_wired",
+      note: "Signed update notification is wired, but one-click install remains disabled until the install proof lane is implemented."
+    });
+  });
+} catch {}
+/* === /__void update notification status v1 === */
+
+
+
 /* === __void peer main status v1 (additive) === */
 try {
   const http = require("http");
