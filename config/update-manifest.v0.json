@@ -9,6 +9,8 @@
   "signature": {
     "alg": "ed25519",
     "key_id": "dev-ed25519-local-v1",
-    "sig": "OpA3AE6gaghvxdvwkHp3NIO3AJHYESehNFctBGh4xZqFqDQo9UpeQSSUZm/m+CvQgWL7xu/7Z/an9+sWahGLDQ=="
-  }
+    "sig": "Sjm9CnFA3XzGjsgCmgww1YFV4hR+oZ0+bPaQTTpGez6l/ZFARaZ+VJT57sxJK4cV1eJr6/rHrPEgN42cNswWDA=="
+  },
+  "artifact_path": "",
+  "artifact_sha256": ""
 }

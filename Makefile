@@ -711,3 +711,6 @@ update-notification-critical-ui-proof:
 
 update-runtime-marker-clean-proof:
 	bash ops/mainnet0/update-runtime-marker-clean-proof.sh
+
+update-signed-artifact-mutation-proof:
+	bash ops/mainnet0/update-signed-artifact-mutation-proof.sh

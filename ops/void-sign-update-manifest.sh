@@ -26,6 +26,8 @@ privkey_path = Path(sys.argv[2])
 
 m = json.loads(manifest_path.read_text())
 
+artifact = m.get("artifact") if isinstance(m.get("artifact"), dict) else {}
+
 payload = {
     "version": str(m.get("version", "")),
     "protocol_version": int(m.get("protocol_version", 0)),
@@ -33,6 +35,8 @@ payload = {
     "channel": str(m.get("channel", "")),
     "published_at": str(m.get("published_at", "")),
     "notes": str(m.get("notes", "")),
+    "artifact_path": str(m.get("artifact_path", artifact.get("path", "")) or ""),
+    "artifact_sha256": str(m.get("artifact_sha256", artifact.get("sha256", m.get("sha256", ""))) or ""),
 }
 payload_json = json.dumps(payload, separators=(",", ":")).encode()
 

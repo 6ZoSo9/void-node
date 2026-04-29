@@ -39264,7 +39264,9 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
       min_protocol_version: Number(manifest?.min_protocol_version || 0),
       channel: String(manifest?.channel || ""),
       published_at: String(manifest?.published_at || ""),
-      notes: String(manifest?.notes || "")
+      notes: String(manifest?.notes || ""),
+      artifact_path: String(manifest?.artifact_path || manifest?.artifact?.path || ""),
+      artifact_sha256: String(manifest?.artifact_sha256 || manifest?.artifact?.sha256 || manifest?.sha256 || "")
     };
     return JSON.stringify(m);
   }
@@ -54281,6 +54283,8 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
           channel: String(manifest?.channel || ""),
           published_at: String(manifest?.published_at || ""),
           notes: String(manifest?.notes || ""),
+          artifact_path: String(manifest?.artifact_path || manifest?.artifact?.path || ""),
+          artifact_sha256: String(manifest?.artifact_sha256 || manifest?.artifact?.sha256 || manifest?.sha256 || ""),
         };
         return JSON.stringify(m);
       };
