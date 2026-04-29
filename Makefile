@@ -714,3 +714,6 @@ update-runtime-marker-clean-proof:
 
 update-signed-artifact-mutation-proof:
 	bash ops/mainnet0/update-signed-artifact-mutation-proof.sh
+
+update-valid-artifact-marker-only-proof:
+	bash ops/mainnet0/update-valid-artifact-marker-only-proof.sh
