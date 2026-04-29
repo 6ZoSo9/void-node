@@ -54937,6 +54937,23 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       String(v || "unknown").replace(/[^a-zA-Z0-9._-]+/g, "_");
 
     const run = () => {
+      const enabled = String(process.env.VOID_ENABLE_UPGRADE_BOOT_CONSUMER || "") === "1";
+      if (!enabled) {
+        writeStatus({
+          ok: true,
+          mode: "exec_prep_v2",
+          checked_at: new Date().toISOString(),
+          enabled: false,
+          pending_found: fs.existsSync(pendingPath),
+          reason: "boot_consumer_disabled",
+          decision: "skip_boot_consumer",
+          pending_file: pendingPath,
+          note: "Boot-time upgrade artifact preparation is disabled by default. Set VOID_ENABLE_UPGRADE_BOOT_CONSUMER=1 to allow preparation."
+        });
+        console.log("[upgrade-boot-consumer:v2] disabled by default");
+        return;
+      }
+
       if (!fs.existsSync(pendingPath)) {
         writeStatus({
           ok: true,

@@ -18,12 +18,23 @@ echo
 
 echo
 echo "=== [2] no active runtime upgrade marker files ==="
-if ls runtime/upgrade-*.v1.json >/tmp/void-upgrade-marker-ls.txt 2>/dev/null; then
-  cat /tmp/void-upgrade-marker-ls.txt
+ACTIVE_MARKERS=(
+  runtime/upgrade-staged.v1.json
+  runtime/upgrade-apply-pending.v1.json
+  runtime/upgrade-rollback-marker.v1.json
+)
+found_active=0
+for f in "${ACTIVE_MARKERS[@]}"; do
+  if [ -f "$f" ]; then
+    echo "$f"
+    found_active=1
+  fi
+done
+if [ "$found_active" = "1" ]; then
   echo "[ERR] active runtime upgrade marker files still present"
   exit 1
 fi
-echo "[ok] no active runtime upgrade marker files"
+echo "[ok] no active runtime staged/pending/rollback marker files"
 
 echo
 echo "=== [3] GET stage/apply must be inactive ==="
