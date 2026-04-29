@@ -720,3 +720,6 @@ update-valid-artifact-marker-only-proof:
 
 update-now-preflight-only-proof:
 	bash ops/mainnet0/update-now-preflight-only-proof.sh
+
+mainnet0-update-safety-proof:
+	bash ops/mainnet0/mainnet0-update-safety-proof.sh
