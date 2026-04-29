@@ -705,3 +705,6 @@ mainnet0-validator-lifecycle-preflight-proof:
 
 update-notification-api-proof:
 	bash ops/mainnet0/update-notification-api-proof.sh
+
+update-notification-critical-ui-proof:
+	bash ops/mainnet0/update-notification-critical-ui-proof.sh
