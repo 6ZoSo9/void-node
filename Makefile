@@ -708,3 +708,6 @@ update-notification-api-proof:
 
 update-notification-critical-ui-proof:
 	bash ops/mainnet0/update-notification-critical-ui-proof.sh
+
+update-runtime-marker-clean-proof:
+	bash ops/mainnet0/update-runtime-marker-clean-proof.sh
