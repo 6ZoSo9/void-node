@@ -48094,7 +48094,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Buy VOID<span class="help" tabindex="0" data-help="Shows the planned purchase rail and whether this participant session has a linked execution wallet ready for delivery.">?</span></h2>
+              <h2>Buy VOID<span class="help" tabindex="0" data-help="Shows the planned Base USDC purchase rail, self-custody wallet requirements, and the participant wallet that would receive VOID.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip top-kpis" style="margin-top:6px">
@@ -48125,7 +48125,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Purchase Rules<span class="help" tabindex="0" data-help="This Buy VOID surface reflects the current Mainnet-0 product rules already chosen for funding and wallet safety.">?</span></h2>
+              <h2>Purchase Rules<span class="help" tabindex="0" data-help="This Buy VOID surface reflects Mainnet-0 funding safety rules: Base native USDC only, participant-page initiation only, and no exchange or custodial sends.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip" style="margin-top:6px">
@@ -48156,7 +48156,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
-            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Shows the participant-side preflight payload for the future Base native USDC Buy VOID flow. This does not execute the purchase yet; it prepares the delivery truth and policy handoff.">?</span></h2>
+            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Shows the participant-side preflight payload for the Base native USDC Buy VOID flow. This does not claim payment or send VOID; it records delivery wallet truth and policy checks.">?</span></h2>
           </div>
         </div>
         <div class="metric-strip" style="margin-top:6px">
@@ -48189,7 +48189,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
-            <h2>Buy VOID Request Draft<span class="help" tabindex="0" data-help="Creates a canonical local request draft for the future Base native USDC Buy VOID fulfillment lane. This records delivery wallet, requested amount, and policy checks on this node.">?</span></h2>
+            <h2>Buy VOID Request Draft<span class="help" tabindex="0" data-help="Creates a local Buy VOID request draft. This records the participant wallet, requested USDC amount, and safety policy checks; it does not claim a transaction or send VOID.">?</span></h2>
           </div>
         </div>
         <label for="buyDraftAmountUsdc">Requested USDC amount</label>
@@ -50388,13 +50388,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "buyActionSummary",
       executionWalletAddr
-        ? ("Participant-page-only Buy VOID is the planned funding rail. Delivery will target the stored execution wallet " + shortAddr(executionWalletAddr) + ".")
+        ? ("Participant-page-only Buy VOID is the Mainnet-0 funding rail. Use only your own self-custody wallet. VOID delivery will target the stored participant wallet " + shortAddr(executionWalletAddr) + ".")
         : "No execution wallet linked yet. Link a wallet first before using the future Buy VOID flow."
     );
     setText(
       "buyPathNote",
       executionWalletAddr
-        ? ("Base native USDC only • initiate purchases from this participant page • blind direct deposits and exchange/custodial sends are not supported.")
+        ? ("Base native USDC only • start from this participant page • use your own self-custody wallet only • do not send from Coinbase, Binance, Robinhood, or any exchange/custodial account • blind direct deposits are not supported.")
         : "Base native USDC only • participant-page initiation only • blind direct deposits are not supported • link a wallet first."
     );
 
@@ -50417,7 +50417,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "buyPlanSummary",
       buyHandoffReady
-        ? ("Buy VOID participant preflight is ready. When the Base native USDC fulfillment lane is wired, delivery should target the stored execution wallet " + shortAddr(executionWalletAddr) + ".")
+        ? ("Buy VOID participant preflight is ready. After an operator verifies the real Base USDC transaction hash, VOID delivery should target the stored participant wallet " + shortAddr(executionWalletAddr) + ".")
         : "No execution wallet linked yet. Link a wallet first before the Buy VOID fulfillment lane can target delivery."
     );
     setText("buyPlanOut", JSON.stringify(buyHandoffPayload, null, 2));
@@ -50440,7 +50440,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         setText("buyDraftOut", JSON.stringify(r, null, 2));
       } else {
         setText("buyDraftSummary", executionWalletAddr
-          ? "No Buy VOID request draft created yet. Use the button below to record one on this node."
+          ? "No Buy VOID request draft created yet. Create a draft before sending funds; do not send blind direct deposits."
           : "Link an execution wallet first, then create a Buy VOID request draft.");
         setText("buyDraftLatestCard", "Latest request: none");
         setText("buyDraftOut", JSON.stringify({
