@@ -69,7 +69,7 @@ rpc_preflight() {
 import json, sys, urllib.request
 url = sys.argv[1]
 body = json.dumps({"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}).encode()
-req = urllib.request.Request(url, data=body, headers={"content-type":"application/json"})
+req = urllib.request.Request(url, data=body, headers={"content-type":"application/json","user-agent":"void-mainnet0-proof/1.0"})
 with urllib.request.urlopen(req, timeout=20) as r:
     j = json.loads(r.read().decode())
 print(json.dumps(j, indent=2))
