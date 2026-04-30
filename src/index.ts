@@ -48249,13 +48249,13 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Stake VOID<span class="help" tabindex="0" data-help="Shows the current validator minimum and whether the stored execution wallet is funded enough for validator staking policy on this node.">?</span></h2>
+              <h2>Stake VOID<span class="help" tabindex="0" data-help="Shows the current validator stake policy, candidate/waiting status, and whether the stored execution wallet is funded enough. This does not mean active admission.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip top-kpis" style="margin-top:6px">
             <div class="mini">
               <div class="k">Min Stake</div>
-              <div class="v" id="stakeMinVoid">1000</div>
+              <div class="v" id="stakeMinVoid">10000</div>
               <div class="s">VOID policy minimum</div>
             </div>
             <div class="mini">
@@ -48311,8 +48311,8 @@ a{color:#93c5fd;text-decoration:none}
             <div class="panel" style="margin-top:12px">
               <div class="section-head">
                 <div>
-                  <h2>Validator Registration<span class="help" tabindex="0" data-help="Read-only Mainnet-0 validator registration status. Registering as a public validator candidate does not immediately add you to the active validator set.">?</span></h2>
-                  <div class="section-copy">Public registration enters a candidate/waiting pool first. Active validator admission remains capped and epoch-controlled.</div>
+                  <h2>Validator Registration<span class="help" tabindex="0" data-help="Read-only Mainnet-0 validator registration status. Public registration can create a candidate/waiting record, but does not make the validator active or live admitted.">?</span></h2>
+                  <div class="section-copy">Public registration enters a candidate/waiting pool first. Active validator admission is separate, capped, epoch-controlled, and operator-governed.</div>
                 </div>
               </div>
               <div class="metric-strip top-kpis" style="margin-top:6px">
@@ -48583,7 +48583,7 @@ a{color:#93c5fd;text-decoration:none}
             <h2>Participant Staking Path<span class="help" tabindex="0" data-help="This participant page now shows staking readiness and live validator truth. Browser stake execution is not wired yet; current live onboarding still runs through the node operator path.">?</span></h2>
           </div>
         </div>
-        <div class="hero-note" id="stakePathNote">Live validator onboarding is green on this node. This tab surfaces the real staking readiness and validator set truth first.</div>
+        <div class="hero-note" id="stakePathNote">Live validator truth is green on this node. This tab surfaces staking readiness and validator set truth, but candidate/waiting status is not active admission.</div>
         <div class="action-rail" style="margin-top:10px">
           <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
           <a class="linkbtn" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Open Validator Summary</a>
@@ -50372,7 +50372,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText(
         "stakeNextOnboardStatus",
         canRunStakeNextOnboard
-          ? ("Ready to run live onboarding for " + (nextStakeCandidateName || "next vault") + (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") + ". This mutates live validator state.")
+          ? ("Operator-only live onboarding is available for " + (nextStakeCandidateName || "next vault") + (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") + ". This mutates live validator state and must not be confused with public candidate registration.")
           : "Live onboarding action unavailable until wallet readiness, next-onboard selector truth, and operator summary are green."
       );
 
