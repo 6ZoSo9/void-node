@@ -34,11 +34,15 @@ grep -q "not active or live admitted" "$VALIDATOR"
 echo "[ok] blocker docs match current not-go status"
 
 echo
-echo "=== [2] local no-Prometheus smoke ==="
+echo "=== [2] validator admission blocker proof ==="
+make mainnet0-validator-admission-blocker-proof
+
+echo
+echo "=== [3] local no-Prometheus smoke ==="
 make mainnet0-status-smoke
 
 echo
-echo "=== [3] summary ==="
+echo "=== [4] summary ==="
 python3 - <<'PY'
 print({
   "launch_state": "not_go_for_public_mainnet0",
