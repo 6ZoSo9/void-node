@@ -52,7 +52,7 @@
       ]
     }
   },
-  "mode": "mainnet_plan_stub",
+  "mode": "plan_only",
   "notes": [
     "Mainnet plan is stub-only until real live addresses are assigned.",
     "Do not reuse devnet keys for mainnet.",
@@ -63,7 +63,8 @@
     "Initial pool seeding comes from premine allocations.",
     "Draft schema example only.",
     "Real mainnet keys remain on LUKS flash drives.",
-    "Do not model full-premine transfer into VoidTreasury."
+    "Do not model full-premine transfer into VoidTreasury.",
+    "Plan-only validator candidate declared; not live admitted or active."
   ],
   "pool_seeding_plan": {
     "amount": "0",
@@ -249,16 +250,26 @@
     "purpose": "initial_mainnet_source",
     "status": "offline_selected"
   },
-  "status": "stub_only_not_live",
+  "status": "plan_only_not_live",
   "treasury": {
     "mode": "stub_placeholder_not_live",
     "ops_treasury": "0x0000000000000000000000000000000000000000",
     "void_treasury": "0x0000000000000000000000000000000000000000"
   },
   "validator0": {
-    "consensusKey": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "reward": "TBD",
-    "stakeVOID": "0"
+    "consensusKey": "0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540",
+    "reward": "0xD2571D5D471D6574f7d57D0a3aCa5B34D0C8dA6F",
+    "stakeVOID": "1000"
   },
-  "validators": []
+  "validators": [
+    {
+      "consensusKey": "0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540",
+      "id": "candidate-validator-01",
+      "operator_label": "zoso",
+      "reward": "0xD2571D5D471D6574f7d57D0a3aCa5B34D0C8dA6F",
+      "source": "ops/mainnet/validator-admission-public-keys.zoso.md",
+      "stakeVOID": "1000",
+      "status": "candidate_not_active"
+    }
+  ]
 }
