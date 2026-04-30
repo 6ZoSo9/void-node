@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+set +o histexpand
+
+cd "${VOID_REPO:-$HOME/dev/void-node}"
+
+BLOCKERS="ops/mainnet/mainnet0-blockers.current.md"
+STATUS="ops/mainnet/mainnet0-status.current.md"
+VALIDATOR="ops/mainnet/validator-status.current.yaml"
+
+echo "=== Mainnet-0 blockers proof ==="
+
+echo
+echo "=== [1] required files ==="
+test -f "$BLOCKERS"
+test -f "$STATUS"
+test -f "$VALIDATOR"
+
+grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
+grep -q "The money step is intentionally last" "$BLOCKERS"
+grep -q "Blocker 2: validator is not active or live admitted" "$BLOCKERS"
+grep -q "Blocker 3: Buy VOID real claim/send is not complete" "$BLOCKERS"
+grep -q "Blocker 4: final go/no-go remains blocked" "$BLOCKERS"
+grep -q "Ready signals are not launch approval" "$BLOCKERS"
+
+grep -q "status: not_go_for_public_mainnet0" "$STATUS"
+grep -q "Buy VOID real payment claim has not been run" "$STATUS"
+grep -q "Validator is still a plan-only candidate" "$STATUS"
+
+grep -q "status: plan_only_candidate_declared" "$VALIDATOR"
+grep -q "not active or live admitted" "$VALIDATOR"
+
+echo "[ok] blocker docs match current not-go status"
+
+echo
+echo "=== [2] local no-Prometheus smoke ==="
+make mainnet0-status-smoke
+
+echo
+echo "=== [3] summary ==="
+python3 - <<'PY'
+print({
+  "launch_state": "not_go_for_public_mainnet0",
+  "money_step": "last",
+  "validator_blocker": "not_active_or_live_admitted",
+  "buy_void_blocker": "real_claim_send_not_complete",
+  "go_no_go": "blocked_until_explicitly_cleared",
+})
+PY
+
+echo
+echo "[ok] Mainnet-0 blockers proof passed"

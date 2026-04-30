@@ -490,6 +490,10 @@ mainnet0-status-smoke:
 mainnet0-crossbox-status-smoke:
 	bash ops/mainnet/mainnet0-crossbox-status-smoke.sh
 
+.PHONY: mainnet0-blockers-proof
+mainnet0-blockers-proof:
+	bash ops/mainnet/mainnet0-blockers-proof.sh
+
 .PHONY: mainnet0-go-no-go-bundle
 mainnet0-go-no-go-bundle:
 	bash ops/mainnet0-go-no-go-bundle.sh
