@@ -113,7 +113,13 @@ case "$MODE" in
       filled(.admins.voidTreasuryAdmin // .admins.treasury_admin) and
       filled(.admins.opsTreasuryAdmin // .admins.ops_admin) and
       filled(.admins.rewardEngineAdmin // .admins.reward_admin) and
-      ((.premine_vaults | map(.address != "TBD") | all))
+      (
+        if .mode == "plan_only" then
+          (.premine_vaults | map((.address != "TBD") or (.status == "offline_unassigned")) | all)
+        else
+          (.premine_vaults | map(.address != "TBD") | all)
+        end
+      )
     ' "$PIN" >/dev/null || { echo "[ERR] non-stub mode still contains unresolved must-fill-before-live fields"; exit 1; }
     ;;
   *)
