@@ -1,8 +1,8 @@
 validator_id: candidate-validator-01
 operator_label: zoso
 operator_contact_path: ops/mainnet/operator-contact.zoso.md
-reward_address: "0xTBD"
-consensus_key: "0xTBD"
+reward_address: "0xD2571D5D471D6574f7d57D0a3aCa5B34D0C8dA6F"
+consensus_key: "0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540"
 
 expected_branch: main
 expected_version: 1
@@ -11,7 +11,7 @@ current_reported_version: 1
 current_reported_config_identity: two-box-mainnet0-baseline
 
 status: blocked
-status_reason: validator admission preconditions not met
+status_reason: public validator keys recorded; live admission config not promoted
 status_last_changed_at: 2026-04-30T09:35:23Z
 
 last_known_head: 720450
@@ -34,3 +34,4 @@ notes:
 operator_comments:
   - "Stamped from live validator admission status script."
   - "Operator policy review recorded at ops/mainnet/operator-policy-review.zoso.md."
+  - "Public validator key record added at ops/mainnet/validator-admission-public-keys.zoso.md; live admission still blocked until config promotion."
