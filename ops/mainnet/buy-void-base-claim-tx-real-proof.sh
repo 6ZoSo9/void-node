@@ -187,9 +187,9 @@ PY
 
   echo "=== [2] participant wallet ==="
   WALLET_JSON="$(curl -fsS "${BASE}/__void/participant/wallet/status?account=${ACCOUNT}")"
-  printf '%s\n' "$WALLET_JSON" | python3 - <<'PY'
-import json, sys
-j=json.load(sys.stdin)
+  VOID_JSON_IN="$WALLET_JSON" python3 - <<'PY'
+import json, os, sys
+j=json.loads(os.environ["VOID_JSON_IN"])
 print(json.dumps(j, indent=2))
 assert j.get("ok") is True, j
 assert j.get("has_wallet") is True, j
@@ -203,9 +203,9 @@ PY
   CREATE_JSON="$(curl -fsS -H 'content-type: application/json' \
     -d "{\"account\":\"${ACCOUNT}\",\"delivery_wallet\":\"${WALLET}\",\"requested_amount_usdc\":\"${AMOUNT_USDC}\"}" \
     "${BASE}/__void/participant/buy-void/request")"
-  printf '%s\n' "$CREATE_JSON" | python3 - <<'PY'
-import json, sys
-j=json.load(sys.stdin)
+  VOID_JSON_IN="$CREATE_JSON" python3 - <<'PY'
+import json, os, sys
+j=json.loads(os.environ["VOID_JSON_IN"])
 print(json.dumps(j, indent=2))
 assert j.get("ok") is True, j
 req=j.get("request") or {}
@@ -220,9 +220,9 @@ PY
   QUEUE_JSON="$(curl -fsS -H 'content-type: application/json' \
     -d "{\"request_id\":\"${REQUEST_ID}\",\"operator_note\":\"queued for real Base claim proof\"}" \
     "${BASE}/__void/operator/buy-void/queue")"
-  printf '%s\n' "$QUEUE_JSON" | python3 - <<'PY'
-import json, sys
-j=json.load(sys.stdin)
+  VOID_JSON_IN="$QUEUE_JSON" python3 - <<'PY'
+import json, os, sys
+j=json.loads(os.environ["VOID_JSON_IN"])
 print(json.dumps(j, indent=2))
 assert j.get("ok") is True, j
 q=j.get("queued") or {}
@@ -237,9 +237,9 @@ PY
   WATCH_JSON="$(curl -fsS -H 'content-type: application/json' \
     -d "{\"queue_id\":\"${QUEUE_ID}\",\"operator_note\":\"fresh watch target for real Base claim proof\"}" \
     "${BASE}/__void/operator/buy-void/watch-targets")"
-  printf '%s\n' "$WATCH_JSON" | python3 - <<'PY'
-import json, sys
-j=json.load(sys.stdin)
+  VOID_JSON_IN="$WATCH_JSON" python3 - <<'PY'
+import json, os, sys
+j=json.loads(os.environ["VOID_JSON_IN"])
 print(json.dumps(j, indent=2))
 assert j.get("ok") is True, j
 w=j.get("watch") or {}
@@ -252,10 +252,10 @@ PY
 
   echo "=== [6] verify fresh watch captured real receiver ==="
   WATCH_STATUS_JSON="$(curl -fsS "${BASE}/__void/operator/buy-void/watch-targets/status?watch_id=${WATCH_ID}")"
-  printf '%s\n' "$WATCH_STATUS_JSON" | python3 - "$RECEIVER_ADDRESS" <<'PY'
-import json, sys
+  VOID_JSON_IN="$WATCH_STATUS_JSON" python3 - "$RECEIVER_ADDRESS" <<'PY'
+import json, os, sys
 receiver = sys.argv[1]
-j=json.load(sys.stdin)
+j=json.loads(os.environ["VOID_JSON_IN"])
 print(json.dumps(j, indent=2))
 w=j.get("watch") or {}
 assert w.get("watch_id"), w
@@ -292,9 +292,9 @@ elif [ "$MODE" = "claim" ]; then
   CLAIM_JSON="$(curl -sS -X POST -H 'content-type: application/json' \
     -d "{\"watch_id\":\"${WATCH_ID}\",\"payment_ref\":\"${TX_HASH}\",\"operator_note\":\"real base usdc verification proof\"}" \
     "${BASE}/__void/operator/buy-void/base-watcher/claim-tx")"
-  printf '%s\n' "$CLAIM_JSON" | python3 - <<'PY'
-import json, sys
-j=json.load(sys.stdin)
+  VOID_JSON_IN="$CLAIM_JSON" python3 - <<'PY'
+import json, os, sys
+j=json.loads(os.environ["VOID_JSON_IN"])
 print(json.dumps(j, indent=2))
 assert j.get("ok") is True, j
 w = j.get("watch") or {}
@@ -308,9 +308,9 @@ PY
 
   echo "=== [2] verify final watch truth ==="
   WATCH_STATUS_JSON="$(curl -sS "${BASE}/__void/operator/buy-void/watch-targets/status?watch_id=${WATCH_ID}")"
-  printf '%s\n' "$WATCH_STATUS_JSON" | python3 - <<'PY'
-import json, sys
-j=json.load(sys.stdin)
+  VOID_JSON_IN="$WATCH_STATUS_JSON" python3 - <<'PY'
+import json, os, sys
+j=json.loads(os.environ["VOID_JSON_IN"])
 print(json.dumps(j, indent=2))
 w=j.get("watch") or {}
 assert j.get("ok") is True, j
@@ -321,9 +321,9 @@ PY
 
   echo "=== [3] verify final queue truth ==="
   QUEUE_STATUS_JSON="$(curl -sS "${BASE}/__void/operator/buy-void/queue/status?queue_id=${QUEUE_ID}")"
-  printf '%s\n' "$QUEUE_STATUS_JSON" | python3 - <<'PY'
-import json, sys
-j=json.load(sys.stdin)
+  VOID_JSON_IN="$QUEUE_STATUS_JSON" python3 - <<'PY'
+import json, os, sys
+j=json.loads(os.environ["VOID_JSON_IN"])
 print(json.dumps(j, indent=2))
 q=j.get("queued") or {}
 assert j.get("ok") is True, j

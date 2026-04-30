@@ -45480,7 +45480,8 @@ a{color:#93c5fd;text-decoration:none}
     }
     function requestDir(){
       const pathMod = require("node:path");
-      return pathMod.join(process.cwd(), dataDir(), "participant_buy_void_v1");
+      const dir = dataDir();
+      return pathMod.join(pathMod.isAbsolute(dir) ? dir : pathMod.join(process.cwd(), dir), "participant_buy_void_v1");
     }
     function requestFile(){
       const pathMod = require("node:path");
@@ -45499,7 +45500,7 @@ a{color:#93c5fd;text-decoration:none}
       const fs = require("node:fs");
       try {
         return String(fs.readFileSync(file, "utf8") || "")
-          .split("\\n")
+          .split(/\r?\n/)
           .map((x:string)=>x.trim())
           .filter(Boolean);
       } catch {
@@ -45647,7 +45648,8 @@ a{color:#93c5fd;text-decoration:none}
     }
     function baseDir(){
       const pathMod = require("node:path");
-      return pathMod.join(process.cwd(), dataDir(), "participant_buy_void_v1");
+      const dir = dataDir();
+      return pathMod.join(pathMod.isAbsolute(dir) ? dir : pathMod.join(process.cwd(), dir), "participant_buy_void_v1");
     }
     function requestsFile(){
       const pathMod = require("node:path");
@@ -45665,7 +45667,7 @@ a{color:#93c5fd;text-decoration:none}
       const fs = require("node:fs");
       try {
         return String(fs.readFileSync(file, "utf8") || "")
-          .split("\\n")
+          .split(/\r?\n/)
           .map((x:string)=>x.trim())
           .filter(Boolean);
       } catch {
@@ -45907,7 +45909,8 @@ a{color:#93c5fd;text-decoration:none}
     }
     function baseDir(){
       const pathMod = require("node:path");
-      return pathMod.join(process.cwd(), dataDir(), "participant_buy_void_v1");
+      const dir = dataDir();
+      return pathMod.join(pathMod.isAbsolute(dir) ? dir : pathMod.join(process.cwd(), dir), "participant_buy_void_v1");
     }
     function queueFile(){
       const pathMod = require("node:path");
@@ -45933,7 +45936,7 @@ a{color:#93c5fd;text-decoration:none}
       const fs = require("node:fs");
       try {
         return String(fs.readFileSync(file, "utf8") || "")
-          .split("\\n")
+          .split(/\r?\n/)
           .map((x:string)=>x.trim())
           .filter(Boolean);
       } catch {
