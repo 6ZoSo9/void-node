@@ -10,9 +10,9 @@ expected_config_identity: two-box-mainnet0-baseline
 current_reported_version: 1
 current_reported_config_identity: two-box-mainnet0-baseline
 
-status: blocked
-status_reason: public validator keys recorded; live admission config not promoted
-status_last_changed_at: 2026-04-30T09:35:23Z
+status: plan_only_candidate_declared
+status_reason: plan-only live config declares validator candidate; not active or live admitted
+status_last_changed_at: 2026-04-30T10:23:09Z
 
 last_known_head: 720450
 last_known_health: ready=true
@@ -35,3 +35,4 @@ operator_comments:
   - "Stamped from live validator admission status script."
   - "Operator policy review recorded at ops/mainnet/operator-policy-review.zoso.md."
   - "Public validator key record added at ops/mainnet/validator-admission-public-keys.zoso.md; live admission still blocked until config promotion."
+  - "Live JSON now declares plan-only candidate_not_active validator; not active or live admitted."
