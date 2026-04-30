@@ -38,6 +38,10 @@ echo "=== [status] make mainnet0-status-proof ==="
 make mainnet0-status-proof
 
 echo
+echo "=== [blockers] make mainnet0-blockers-proof ==="
+make mainnet0-blockers-proof
+
+echo
 echo "=== [launch blocker] current public Mainnet-0 approval state ==="
 STATUS_FILE="ops/mainnet/mainnet0-status.current.md"
 VALIDATOR_STATUS="ops/mainnet/validator-status.current.yaml"
