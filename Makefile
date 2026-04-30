@@ -498,6 +498,10 @@ mainnet0-blockers-proof:
 mainnet0-validator-admission-blocker-proof:
 	bash ops/mainnet/mainnet0-validator-admission-blocker-proof.sh
 
+.PHONY: mainnet0-validator-admission-promotion-plan-proof
+mainnet0-validator-admission-promotion-plan-proof:
+	bash ops/mainnet/mainnet0-validator-admission-promotion-plan-proof.sh
+
 .PHONY: mainnet0-go-no-go-bundle
 mainnet0-go-no-go-bundle:
 	bash ops/mainnet0-go-no-go-bundle.sh
