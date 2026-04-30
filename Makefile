@@ -498,6 +498,10 @@ mainnet0-blockers-proof:
 mainnet0-gonogo-no-go-proof:
 	bash ops/mainnet/mainnet0-gonogo-no-go-proof.sh
 
+.PHONY: mainnet0-prelaunch-safety-proof
+mainnet0-prelaunch-safety-proof:
+	bash ops/mainnet/mainnet0-prelaunch-safety-proof.sh
+
 .PHONY: mainnet0-validator-admission-blocker-proof
 mainnet0-validator-admission-blocker-proof:
 	bash ops/mainnet/mainnet0-validator-admission-blocker-proof.sh
