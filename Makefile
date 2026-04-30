@@ -726,3 +726,9 @@ mainnet0-update-safety-proof:
 
 mainnet0-update-safety-wiring-proof:
 	bash ops/mainnet0/mainnet0-update-safety-wiring-proof.sh
+
+mainnet0-update-safety-exporter:
+	bash ops/mainnet0/mainnet0-update-safety-exporter.sh
+
+mainnet0-update-safety-prom-proof:
+	bash ops/mainnet0/mainnet0-update-safety-prom-proof.sh
