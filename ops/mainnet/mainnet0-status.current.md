@@ -25,6 +25,8 @@ operator_label: zoso
 - Validator is not active.
 - Validator is not live admitted.
 - Mainnet-0 launch go/no-go has not been approved.
+- Mainnet-0 go/no-go NO-GO proof is green and proves the wrapper fails closed while blockers remain.
+- Mainnet-0 blockers proof now includes validator admission blocker proof and validator promotion plan proof.
 
 ## Current validator admission state
 
