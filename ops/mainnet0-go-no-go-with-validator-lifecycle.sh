@@ -30,4 +30,8 @@ echo "=== [validator lifecycle] make mainnet0-validator-lifecycle-preflight ==="
 make mainnet0-validator-lifecycle-preflight
 
 echo
+echo "=== [update safety] make mainnet0-update-safety-proof ==="
+make mainnet0-update-safety-proof
+
+echo
 echo "[ok] Mainnet-0 go/no-go validator lifecycle wrapper green"
