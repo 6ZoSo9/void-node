@@ -482,6 +482,10 @@ mainnet0-launch-readiness:
 mainnet0-status-proof:
 	bash ops/mainnet/mainnet0-status-proof.sh
 
+.PHONY: mainnet0-status-smoke
+mainnet0-status-smoke:
+	bash ops/mainnet/mainnet0-status-smoke.sh
+
 .PHONY: mainnet0-go-no-go-bundle
 mainnet0-go-no-go-bundle:
 	bash ops/mainnet0-go-no-go-bundle.sh
