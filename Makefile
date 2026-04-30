@@ -494,6 +494,10 @@ mainnet0-crossbox-status-smoke:
 mainnet0-blockers-proof:
 	bash ops/mainnet/mainnet0-blockers-proof.sh
 
+.PHONY: mainnet0-validator-admission-blocker-proof
+mainnet0-validator-admission-blocker-proof:
+	bash ops/mainnet/mainnet0-validator-admission-blocker-proof.sh
+
 .PHONY: mainnet0-go-no-go-bundle
 mainnet0-go-no-go-bundle:
 	bash ops/mainnet0-go-no-go-bundle.sh
