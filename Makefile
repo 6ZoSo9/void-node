@@ -723,3 +723,6 @@ update-now-preflight-only-proof:
 
 mainnet0-update-safety-proof:
 	bash ops/mainnet0/mainnet0-update-safety-proof.sh
+
+mainnet0-update-safety-wiring-proof:
+	bash ops/mainnet0/mainnet0-update-safety-wiring-proof.sh
