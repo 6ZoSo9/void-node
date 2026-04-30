@@ -60,6 +60,10 @@ do
   echo | tee -a "$OUT/runtime-checks.txt"
 done
 
+run_step "[8] mainnet0 update safety gate" \
+  make mainnet0-update-safety-proof
+
+
 python3 - "$OUT" <<'PY'
 import json, sys
 from pathlib import Path
