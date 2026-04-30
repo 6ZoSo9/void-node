@@ -1,6 +1,6 @@
 validator_id: candidate-validator-01
 operator_label: zoso
-operator_contact_path: TBD
+operator_contact_path: ops/mainnet/operator-contact.zoso.md
 reward_address: "0xTBD"
 consensus_key: "0xTBD"
 
