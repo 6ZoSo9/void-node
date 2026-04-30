@@ -38,11 +38,15 @@ echo "=== [2] validator admission blocker proof ==="
 make mainnet0-validator-admission-blocker-proof
 
 echo
-echo "=== [3] local no-Prometheus smoke ==="
+echo "=== [3] validator admission promotion plan proof ==="
+make mainnet0-validator-admission-promotion-plan-proof
+
+echo
+echo "=== [4] local no-Prometheus smoke ==="
 make mainnet0-status-smoke
 
 echo
-echo "=== [4] summary ==="
+echo "=== [5] summary ==="
 python3 - <<'PY'
 print({
   "launch_state": "not_go_for_public_mainnet0",

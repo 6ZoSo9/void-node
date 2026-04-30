@@ -27,6 +27,7 @@ Current healthy-but-not-launch posture:
 - Validator policy review is recorded.
 - Go/no-go wrapper intentionally exits NO-GO while blockers remain.
 - Validator admission blocker proof is green and proves plan-only/waiting/not-active state.
+- Validator admission promotion plan proof is green and proves the future promotion path remains plan-only and non-mutating.
 
 ## Blocker 1: maintain status proof discipline
 
