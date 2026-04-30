@@ -91,27 +91,28 @@ case "$MODE" in
   rehearsal|live_broadcast|plan_only)
     echo "[info] non-stub mode detected: $MODE"
     jq -e '
+      def filled($x): (($x // "TBD") | tostring) != "TBD" and (($x // "") | tostring) != "";
       .selected_premine_vault.id != "TBD" and
       .selected_premine_vault.address != "TBD" and
       .selected_premine_vault.purpose != "TBD" and
       .active_hot_wallet.address != "TBD" and
-      .funding_allocations.reward != "TBD" and
-      .funding_allocations.destination != "TBD" and
-      (.roles.AdminGate != "TBD") and
-      (.roles.UpdateGate != "TBD") and
-      (.roles.ConfigGate != "TBD") and
-      (.roles.ValidatorSet != "TBD") and
-      (.roles.VoidToken != "TBD") and
-      (.roles.VoidTreasury != "TBD") and
-      (.roles.OpsTreasury != "TBD") and
-      (.roles.RewardEngine != "TBD") and
-      (.admins.adminGateController != "TBD") and
-      (.admins.updateGateController != "TBD") and
-      (.admins.configGateController != "TBD") and
-      (.admins.validatorAdmin != "TBD") and
-      (.admins.voidTreasuryAdmin != "TBD") and
-      (.admins.opsTreasuryAdmin != "TBD") and
-      (.admins.rewardEngineAdmin != "TBD") and
+      (.funding_allocations | type == "object") and
+      (.funding_allocations | to_entries | map((.value | tostring) != "TBD") | all) and
+      filled(.roles.AdminGate // .roles.admin_gate) and
+      filled(.roles.UpdateGate // .roles.update_gate) and
+      filled(.roles.ConfigGate // .roles.config_gate) and
+      filled(.roles.ValidatorSet // .roles.validator_set) and
+      filled(.roles.VoidToken // .roles.void_token) and
+      filled(.roles.VoidTreasury // .roles.void_treasury) and
+      filled(.roles.OpsTreasury // .roles.ops_treasury) and
+      filled(.roles.RewardEngine // .roles.reward_engine) and
+      filled(.admins.adminGateController // .admins.admin) and
+      filled(.admins.updateGateController // .admins.update_admin) and
+      filled(.admins.configGateController // .admins.config_admin) and
+      filled(.admins.validatorAdmin // .admins.validator_admin) and
+      filled(.admins.voidTreasuryAdmin // .admins.treasury_admin) and
+      filled(.admins.opsTreasuryAdmin // .admins.ops_admin) and
+      filled(.admins.rewardEngineAdmin // .admins.reward_admin) and
       ((.premine_vaults | map(.address != "TBD") | all))
     ' "$PIN" >/dev/null || { echo "[ERR] non-stub mode still contains unresolved must-fill-before-live fields"; exit 1; }
     ;;
