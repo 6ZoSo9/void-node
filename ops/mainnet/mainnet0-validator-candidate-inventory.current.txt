@@ -1,0 +1,11 @@
+status=blocked_inventory_exhausted
+launch_state=not_go_for_public_mainnet0
+selector_state=exhausted
+current_validator_count=123
+expected_validator_count=124
+vault_count=99
+max_vault=99
+has_vault_ge_123=false
+live_admission_allowed=false
+money_step=last
+updated_at=2026-04-30
