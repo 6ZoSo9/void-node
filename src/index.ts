@@ -47544,12 +47544,9 @@ a{color:#93c5fd;text-decoration:none}
     <section class="hero">
       <div>
         <div class="eyebrow">
-          <span class="pill">VOID devnet</span>
-          <span class="pill">receipt-backed WC</span>
-          <span class="pill">WC → VOID trading</span>
+          <span class="pill">Mainnet-0 prep</span>
         </div>
         <h1 style="margin:0 0 6px;font-size:28px;letter-spacing:-.03em">VOID Participant</h1>
-        <div class="hero-copy"></div>
         <div class="hero-actions" style="margin-top:10px">
           <a class="linkbtn btn-primary" style="padding:8px 12px; border-radius:12px; font-weight:700;" href="/participant#work">Start Earning</a>
           
