@@ -8,6 +8,7 @@ cd "${VOID_REPO:-$HOME/dev/void-node}"
 BLOCKERS="ops/mainnet/mainnet0-blockers.current.md"
 STATUS="ops/mainnet/mainnet0-status.current.md"
 VALIDATOR="ops/mainnet/validator-status.current.yaml"
+INVENTORY="ops/mainnet/mainnet0-validator-candidate-inventory.current.txt"
 
 echo "=== Mainnet-0 blockers proof ==="
 
@@ -16,6 +17,7 @@ echo "=== [1] required files ==="
 test -f "$BLOCKERS"
 test -f "$STATUS"
 test -f "$VALIDATOR"
+test -f "$INVENTORY"
 
 grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
 grep -q "The money step is intentionally last" "$BLOCKERS"
@@ -30,6 +32,11 @@ grep -q "Validator is still a plan-only candidate" "$STATUS"
 
 grep -q "status: plan_only_candidate_declared" "$VALIDATOR"
 grep -q "not active or live admitted" "$VALIDATOR"
+
+grep -q "status=blocked_inventory_exhausted" "$INVENTORY"
+grep -q "selector_state=exhausted" "$INVENTORY"
+grep -q "live_admission_allowed=false" "$INVENTORY"
+grep -q "money_step=last" "$INVENTORY"
 
 echo "[ok] blocker docs match current not-go status"
 
@@ -52,6 +59,7 @@ print({
   "launch_state": "not_go_for_public_mainnet0",
   "money_step": "last",
   "validator_blocker": "not_active_or_live_admitted",
+  "candidate_inventory": "exhausted",
   "buy_void_blocker": "real_claim_send_not_complete",
   "go_no_go": "blocked_until_explicitly_cleared",
 })
