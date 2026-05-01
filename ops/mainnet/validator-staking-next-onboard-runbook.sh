@@ -69,11 +69,12 @@ for row in rows:
         continue
     name = str(row.get("name") or row.get("id") or row.get("label") or "").strip()
     addr = str(row.get("address") or "").strip()
-    if not name or not re.fullmatch(r"vault\d{2}", name):
+    m = re.fullmatch(r"vault(\d+)", name)
+    if not name or not m:
         continue
     if addr and not addr.startswith("0x"):
         addr = "0x" + addr
-    vault_num = int(name[-2:])
+    vault_num = int(m.group(1))
     vaults.append((name, addr.lower(), addr, vault_num))
 
 vaults.sort(key=lambda x: (x[3], x[0]))

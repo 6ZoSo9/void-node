@@ -33,8 +33,10 @@ grep -q "Validator is still a plan-only candidate" "$STATUS"
 grep -q "status: plan_only_candidate_declared" "$VALIDATOR"
 grep -q "not active or live admitted" "$VALIDATOR"
 
-grep -q "status=blocked_inventory_exhausted" "$INVENTORY"
-grep -q "selector_state=exhausted" "$INVENTORY"
+grep -q "status=candidate_inventory_ready_not_admitted" "$INVENTORY"
+grep -q "selector_state=ready" "$INVENTORY"
+grep -q "command_present=true" "$INVENTORY"
+grep -q "live_admission_executed=false" "$INVENTORY"
 grep -q "live_admission_allowed=false" "$INVENTORY"
 grep -q "money_step=last" "$INVENTORY"
 
@@ -59,7 +61,7 @@ print({
   "launch_state": "not_go_for_public_mainnet0",
   "money_step": "last",
   "validator_blocker": "not_active_or_live_admitted",
-  "candidate_inventory": "exhausted",
+  "candidate_inventory": "ready_not_admitted",
   "buy_void_blocker": "real_claim_send_not_complete",
   "go_no_go": "blocked_until_explicitly_cleared",
 })
