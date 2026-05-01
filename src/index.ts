@@ -47491,9 +47491,6 @@ a{color:#93c5fd;text-decoration:none}
     
     
   </div>
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-    <a href="/participant#overview" style="color:#94a3b8;text-decoration:none;">Back to Home</a>
-  </div>
 </div>
 <div class="shell">
   <aside class="sidebar">
