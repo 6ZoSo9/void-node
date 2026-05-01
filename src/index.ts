@@ -47016,11 +47016,7 @@ a{color:#93c5fd;text-decoration:none}
       color:#fff;
     }
     .tabbtn .navhint{
-      display:block;
-      color:var(--muted);
-      font-size:11px;
-      font-weight:700;
-      margin-top:3px;
+      display:none;
     }
     .quick{
       display:grid;
