@@ -47370,18 +47370,27 @@ a{color:#93c5fd;text-decoration:none}
 
   
     body[data-active-tab="work"] .hero-shell,
+    body[data-active-tab="datanet"] .hero-shell,
     body[data-active-tab="trading"] .hero-shell,
+    body[data-active-tab="buy"] .hero-shell,
+    body[data-active-tab="staking"] .hero-shell,
     body[data-active-tab="wallet"] .hero-shell,
     body[data-active-tab="receipts"] .hero-shell{display:none}
 
     body[data-active-tab="work"] .top-kpis,
+    body[data-active-tab="datanet"] .top-kpis,
     body[data-active-tab="trading"] .top-kpis,
+    body[data-active-tab="buy"] .top-kpis,
+    body[data-active-tab="staking"] .top-kpis,
     body[data-active-tab="wallet"] .top-kpis,
     body[data-active-tab="receipts"] .top-kpis{display:none}
 
     .compact-tab-head{display:none;margin-bottom:10px}
     body[data-active-tab="work"] #work-compact-head,
+    body[data-active-tab="datanet"] #datanet-compact-head,
     body[data-active-tab="trading"] #trading-compact-head,
+    body[data-active-tab="buy"] #buy-compact-head,
+    body[data-active-tab="staking"] #staking-compact-head,
     body[data-active-tab="wallet"] #wallet-compact-head,
     body[data-active-tab="receipts"] #receipts-compact-head{display:block}
 
@@ -47457,12 +47466,18 @@ a{color:#93c5fd;text-decoration:none}
 
   
     body[data-active-tab="work"] .hero,
+    body[data-active-tab="datanet"] .hero,
     body[data-active-tab="trading"] .hero,
+    body[data-active-tab="buy"] .hero,
+    body[data-active-tab="staking"] .hero,
     body[data-active-tab="wallet"] .hero,
     body[data-active-tab="receipts"] .hero{display:none}
 
     body[data-active-tab="work"] .kpis,
+    body[data-active-tab="datanet"] .kpis,
     body[data-active-tab="trading"] .kpis,
+    body[data-active-tab="buy"] .kpis,
+    body[data-active-tab="staking"] .kpis,
     body[data-active-tab="wallet"] .kpis,
     body[data-active-tab="receipts"] .kpis{display:none}
 
