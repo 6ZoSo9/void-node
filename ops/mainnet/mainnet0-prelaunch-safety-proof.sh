@@ -26,17 +26,22 @@ echo "=== [3] go/no-go must fail closed ==="
 make mainnet0-gonogo-no-go-proof
 
 echo
-echo "=== [4] cross-box smoke ==="
+echo "=== [4] validator live-admission dry-run proof ==="
+make mainnet0-validator-live-admission-dryrun-proof
+
+echo
+echo "=== [5] cross-box smoke ==="
 make mainnet0-crossbox-status-smoke
 
 echo
-echo "=== [5] summary ==="
+echo "=== [6] summary ==="
 python3 - <<'PY'
 print({
   "prelaunch_safety": "green",
   "launch_state": "not_go_for_public_mainnet0",
   "go_no_go": "fails_closed",
   "validator_live_admission": "blocked",
+  "validator_live_admission_dryrun": "green",
   "buy_void_claim_send": "blocked",
   "money_step": "last",
 })
