@@ -47540,13 +47540,6 @@ a{color:#93c5fd;text-decoration:none}
       </nav>
     </div>
 
-    <div class="side-section">
-      <div class="side-label">Shortcuts</div>
-      <div class="quick">
-        
-        
-      </div>
-    </div>
 
 </aside>
 
