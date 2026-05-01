@@ -47505,15 +47505,15 @@ a{color:#93c5fd;text-decoration:none}
     <div class="side-section">
       <div class="side-label">Current account</div>
       <div class="account-big" id="heroAccount">zoso</div>
-      <div class="account-meta" id="heroAccountMeta">Current participant account being viewed on this node.</div>
+      <div class="account-meta" id="heroAccountMeta">Local app identity for WC, receipts, and history.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-        <button type="button" id="participantSwitchAccountBtn" class="btn" style="padding:8px 10px">Switch</button>
-        <button type="button" id="participantCreateAccountBtn" class="btn btn-primary" style="padding:8px 10px">Create New</button>
+        <button type="button" id="participantSwitchAccountBtn" class="btn" style="padding:8px 10px">Accounts</button>
+        <button type="button" id="participantCreateAccountBtn" class="btn btn-primary" style="padding:8px 10px">New</button>
       </div>
 
       <div id="participantAccountsDrawer" style="display:none;margin-top:12px;padding:12px;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)">
         <div style="font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Participant Accounts</div>
-        <div style="font-size:13px;line-height:1.45;color:#94a3b8;margin-bottom:10px">Switch accounts here. Deleting an account may also remove its stored wallet/password state on this node.</div>
+        <div style="font-size:13px;line-height:1.45;color:#94a3b8;margin-bottom:10px">Switch accounts or create a local app identity. Deleting one may also remove its stored wallet/password state on this node.</div>
         <div id="participantAccountCreateRowTop" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <input id="participantAccountManagerInputTop" value="" placeholder="new-account" style="min-width:160px;flex:1" />
           <button class="btn btn-primary" id="participantAccountManagerSaveBtnTop" type="button">Create</button>
