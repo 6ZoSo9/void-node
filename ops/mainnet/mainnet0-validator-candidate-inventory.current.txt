@@ -1,11 +1,14 @@
 status=candidate_inventory_ready_not_admitted
 launch_state=not_go_for_public_mainnet0
 selector_state=ready
-selected_candidate_name=vault123
-current_validator_count=123
-expected_validator_count=124
+selected_candidate_name=vault124
+current_validator_count=124
+expected_validator_count=125
 command_present=true
 live_admission_allowed=false
 live_admission_executed=false
 money_step=last
 updated_at=2026-04-30
+selected_candidate_addr=0xd954A5912F9E0d8e242bf2E2DE121076c4d7E60c
+current_epoch=125
+target_epoch=126
