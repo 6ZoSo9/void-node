@@ -768,3 +768,16 @@ mainnet0-update-safety-exporter:
 
 mainnet0-update-safety-prom-proof:
 	bash ops/mainnet0/mainnet0-update-safety-prom-proof.sh
+
+.PHONY: mainnet0-restore-8545-epoch125-state
+mainnet0-restore-8545-epoch125-state:
+	bash ops/mainnet0/mainnet0-restore-8545-epoch125-state.sh
+
+.PHONY: mainnet0-8545-epoch125-state-proof
+mainnet0-8545-epoch125-state-proof:
+	bash ops/mainnet0/mainnet0-8545-epoch125-state-proof.sh
+
+.PHONY: mainnet0-catchup-vault123-chain-only
+mainnet0-catchup-vault123-chain-only:
+	bash ops/mainnet0/mainnet0-catchup-vault123-chain-only.sh
+
