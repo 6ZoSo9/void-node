@@ -781,3 +781,7 @@ mainnet0-8545-epoch125-state-proof:
 mainnet0-catchup-vault123-chain-only:
 	bash ops/mainnet0/mainnet0-catchup-vault123-chain-only.sh
 
+
+.PHONY: mainnet0-validator-policy-doc-proof
+mainnet0-validator-policy-doc-proof:
+	bash ops/mainnet/mainnet0-validator-policy-doc-proof.sh
