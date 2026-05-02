@@ -48,8 +48,42 @@ cleanup() {
 
   rm -f "$SIGNER_FILE" "$PROOF_PK_FILE" "$PROOF_PASSPHRASE_FILE" "$IMPORT_PAYLOAD" "$UNLOCK_PAYLOAD" "$SUBMIT_PAYLOAD" >/dev/null 2>&1 || true
   systemctl --user restart void-node.service >/dev/null 2>&1 || true
+  for i in $(seq 1 45); do
+    curl -fsS "$BASE/__void/ready.json" >/dev/null 2>&1 && break
+    sleep 1
+  done
 }
 trap cleanup EXIT
+
+wait_node_ready_after_restart() {
+  local label="${1:-restart}"
+  local tmp="$OUT/ready-after-${label}.json"
+
+  echo "[wait] node ready after $label"
+  for i in $(seq 1 45); do
+    if curl -fsS "$BASE/__void/ready.json" > "$tmp" 2>/dev/null; then
+      if python3 - "$tmp" <<'PY2' >/dev/null 2>&1
+import json, sys
+j=json.load(open(sys.argv[1]))
+assert j.get("ready") is True, j
+assert int(j.get("gap", -1)) == 0, j
+assert int(j.get("txroot_live", 0)) == 1, j
+PY2
+      then
+        cat "$tmp"
+        echo
+        echo "[ok] node ready after $label"
+        return 0
+      fi
+    fi
+    sleep 1
+  done
+
+  echo "[ERR] node did not become ready after $label"
+  cat "$tmp" 2>/dev/null || true
+  return 1
+}
+
 
 PROOF_ACCOUNT_FILE="$OUT/proof-account.txt"
 
@@ -69,7 +103,7 @@ systemctl --user unset-environment \
   VOID_RPC_URL \
   RPC_URL >/dev/null 2>&1 || true
 systemctl --user restart void-node.service
-sleep 3
+wait_node_ready_after_restart "restart"
 
 echo
 echo "=== [b] baseline node ready ==="
@@ -153,7 +187,7 @@ tail -120 "$OUT/local-deploy-proof.log"
 echo
 echo "=== [f] restart node to load fresh artifact ==="
 systemctl --user restart void-node.service
-sleep 3
+wait_node_ready_after_restart "restart"
 
 curl -fsS "$BASE/__void/mainnet0/validator-candidate-registry/status" > "$OUT/registry-status.json"
 cat "$OUT/registry-status.json"
@@ -315,7 +349,7 @@ systemctl --user set-environment \
 systemctl --user unset-environment VOID_VALIDATOR_REGISTRATION_STATUS_PROOF_MODE >/dev/null 2>&1 || true
 
 systemctl --user restart void-node.service
-sleep 3
+wait_node_ready_after_restart "restart"
 
 echo
 echo "=== [n] unlock temp wallet again after live-execution restart ==="
@@ -511,7 +545,7 @@ systemctl --user unset-environment \
   RPC_URL >/dev/null 2>&1 || true
 rm -f "$SIGNER_FILE" "$PROOF_PK_FILE" "$PROOF_PASSPHRASE_FILE"
 systemctl --user restart void-node.service
-sleep 3
+wait_node_ready_after_restart "restart"
 
 curl -fsS "$BASE/__void/participant/validator-registration/live-submit-status?account=$ACC" > "$OUT/status.restored.json"
 cat "$OUT/status.restored.json"
