@@ -17,6 +17,28 @@ fi
 TMP="$(mktemp /tmp/void-mainnet-validator-lifecycle.prom.XXXXXX)"
 trap 'rm -f "$TMP"' EXIT
 
+CURRENT_HEAD="$(git rev-parse --short HEAD)"
+ART_HEAD="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("gitHead",""))' "$ART")"
+ART_OK="$(python3 -c 'import json,sys; print("1" if json.load(open(sys.argv[1])).get("ok") is True else "0")' "$ART")"
+ART_LANES="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1])).get("lanes") or []))' "$ART")"
+
+if [ "$ART_OK" != "1" ]; then
+  echo "[ERR] refusing export: artifact ok is not true"
+  exit 1
+fi
+
+if [ "$ART_HEAD" != "$CURRENT_HEAD" ]; then
+  echo "[ERR] refusing export: artifact gitHead=$ART_HEAD current=$CURRENT_HEAD"
+  exit 1
+fi
+
+if [ "$ART_LANES" != "7" ]; then
+  echo "[ERR] refusing export: artifact lanes=$ART_LANES expected=7"
+  exit 1
+fi
+
+echo "[ok] lifecycle artifact accepted for export: head=$ART_HEAD lanes=$ART_LANES"
+
 python3 - "$ART" > "$TMP" <<'PY'
 import json, sys, time
 
