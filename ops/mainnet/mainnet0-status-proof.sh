@@ -18,10 +18,12 @@ test -f "$STATUS_FILE"
 test -f "$VALIDATOR_STATUS"
 grep -q 'status: not_go_for_public_mainnet0' "$STATUS_FILE"
 grep -q 'Buy VOID real payment claim has not been run' "$STATUS_FILE"
-grep -q 'Validator is still a plan-only candidate' "$STATUS_FILE"
+grep -q 'Public validator candidate promotion/admission remains blocked' "$STATUS_FILE"
+grep -q 'Operator/bootstrap validator runtime truth is green through epoch125' "$STATUS_FILE"
+grep -q 'Durable local RPC restore lane is green for epoch125' "$STATUS_FILE"
 grep -q 'Ready signals are not the same as launch approval' "$STATUS_FILE"
 grep -q 'Mainnet-0 go/no-go NO-GO proof is green' "$STATUS_FILE"
-grep -q 'Mainnet-0 blockers proof now includes validator admission blocker proof and validator promotion plan proof' "$STATUS_FILE"
+grep -q 'Mainnet-0 blockers proof includes validator admission blocker proof and validator promotion plan proof' "$STATUS_FILE"
 grep -q 'status: plan_only_candidate_declared' "$VALIDATOR_STATUS"
 grep -q 'not active or live admitted' "$VALIDATOR_STATUS"
 echo "[ok] status files encode not-go state"
@@ -111,7 +113,7 @@ print({
   "latest_watch_id": w.get("watch_id"),
   "buy_void_claim_run": bool(w.get("payment_ref")),
   "buy_void_void_sent": bool(w.get("void_tx_ref")),
-  "validator_status": "plan_only_candidate_declared",
+  "validator_status": "public_candidate_waiting_operator_epoch125_green",
 })
 PY
 
