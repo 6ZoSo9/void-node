@@ -34,9 +34,9 @@ echo "[ok] plan is explicitly plan-only and non-mutating"
 echo
 echo "=== [3] current status still blocks launch ==="
 grep -q "status: not_go_for_public_mainnet0" "$STATUS"
-grep -q "Validator is still a plan-only candidate" "$STATUS"
-grep -q "Validator is not active" "$STATUS"
-grep -q "Validator is not live admitted" "$STATUS"
+grep -q "Public validator candidate promotion/admission remains blocked" "$STATUS"
+grep -q "Public candidate/waiting registration must not be confused with operator/bootstrap validator admission" "$STATUS"
+grep -q "Operator/bootstrap validator runtime truth is green through epoch125" "$STATUS"
 grep -q "Buy VOID real payment claim has not been run" "$STATUS"
 echo "[ok] status file still records launch blockers"
 
@@ -44,7 +44,8 @@ echo
 echo "=== [4] blockers doc still keeps money last ==="
 grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
 grep -q "The money step is intentionally last" "$BLOCKERS"
-grep -q "validator is not active or live admitted" "$BLOCKERS"
+grep -q "Blocker 2: public validator admission is not promoted" "$BLOCKERS"
+grep -q "Public participant validator registration remains candidate/waiting only" "$BLOCKERS"
 grep -q "Buy VOID real claim/send is not complete" "$BLOCKERS"
 echo "[ok] blockers doc still matches intended order"
 
@@ -59,7 +60,7 @@ print({
   "promotion_plan": "documented",
   "mutation_allowed": False,
   "launch_state": "not_go_for_public_mainnet0",
-  "validator_live_admission": "blocked",
+  "public_validator_promotion": "blocked",
   "money_step": "last",
 })
 PY

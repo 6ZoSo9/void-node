@@ -1,7 +1,7 @@
 # VOID Mainnet-0 Current Status
 
 status: not_go_for_public_mainnet0
-updated_at: 2026-04-30
+updated_at: 2026-05-02
 operator_label: zoso
 
 ## Green / ready signals
@@ -10,6 +10,11 @@ operator_label: zoso
 - Alienware node readiness is green.
 - Update safety gate is green.
 - Validator lifecycle composite gate is green.
+- Operator/bootstrap validator runtime truth is green through epoch125.
+- vault123 live admission completed successfully.
+- Epoch125 reports validatorCount=124, totalPower=124000000000000000000000, published=true, and publishedMatch=true.
+- Durable local RPC restore lane is green for epoch125.
+- Mainnet-0 prelaunch safety proof is green for epoch125.
 - Buy VOID Base create/watch path is green.
 - Buy VOID payment safety copy is live.
 - Buy VOID watcher config uses Base native USDC.
@@ -18,24 +23,34 @@ operator_label: zoso
 
 ## Still not done
 
+- Public validator candidate promotion/admission remains blocked.
+- Public candidate/waiting registration must not be confused with operator/bootstrap validator admission.
 - Buy VOID real payment claim has not been run.
 - No real Base USDC transaction hash has been verified.
 - No VOID has been sent from the Buy VOID claim path.
-- Validator is still a plan-only candidate.
-- Validator is not active.
-- Validator is not live admitted.
 - Mainnet-0 launch go/no-go has not been approved.
 - Mainnet-0 go/no-go NO-GO proof is green and proves the wrapper fails closed while blockers remain.
-- Mainnet-0 blockers proof now includes validator admission blocker proof and validator promotion plan proof.
+- Mainnet-0 blockers proof includes validator admission blocker proof and validator promotion plan proof.
+- Money step remains last.
 
 ## Current validator admission state
 
-The validator status file currently reports:
+Two validator tracks must stay separate:
 
-- status: plan_only_candidate_declared
-- reason: plan-only live config declares validator candidate; not active or live admitted
+1. Operator/bootstrap validator runtime truth:
+   - latestEpoch: 125
+   - validatorCount: 124
+   - active validator count on recovered 8545 state: 124
+   - next operator candidate selector: vault124 targeting epoch126 / expectedValidatorCount=125
+   - durable 8545 restore lane is green.
 
-This is intentional. Do not describe the validator as active until the live config, runtime endpoints, and cross-box checks all agree.
+2. Public participant validator registration:
+   - public registration/candidate/waiting status remains non-launching.
+   - public registration does not mutate the active validator set.
+   - candidate/waiting state is not active validator admission.
+   - promotion remains plan-only and non-mutating until intentionally changed through a guarded proof lane.
+
+Do not describe public validator registration as active until the live config, runtime endpoints, and cross-box checks all agree.
 
 ## Current Buy VOID state
 

@@ -17,7 +17,9 @@ test -f "$STATUS_FILE"
 test -f "$VALIDATOR_STATUS"
 grep -q 'status: not_go_for_public_mainnet0' "$STATUS_FILE"
 grep -q 'Buy VOID real payment claim has not been run' "$STATUS_FILE"
-grep -q 'Validator is still a plan-only candidate' "$STATUS_FILE"
+grep -q 'Public validator candidate promotion/admission remains blocked' "$STATUS_FILE"
+grep -q 'Operator/bootstrap validator runtime truth is green through epoch125' "$STATUS_FILE"
+grep -q 'Durable local RPC restore lane is green for epoch125' "$STATUS_FILE"
 grep -q 'Ready signals are not the same as launch approval' "$STATUS_FILE"
 grep -q 'status: plan_only_candidate_declared' "$VALIDATOR_STATUS"
 grep -q 'not active or live admitted' "$VALIDATOR_STATUS"
@@ -63,7 +65,7 @@ print({
   "head": ready.get("head"),
   "buy_void_configured": bool((buy.get("config") or {}).get("enabled")),
   "buy_void_pending_count": buy.get("pending_count"),
-  "validator_status": "plan_only_candidate_declared",
+  "validator_status": "public_candidate_waiting_operator_epoch125_green",
   "prometheus_required": False,
 })
 PY
