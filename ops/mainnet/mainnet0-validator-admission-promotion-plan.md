@@ -35,6 +35,23 @@ Public validator registration is not active validator admission.
 
 Public registration creates a candidate or waiting record. Active validator admission is a separate operator-governed, capped, epoch-controlled step.
 
+
+## Locked public admission policy
+
+Any future public validator admission or promotion path must preserve the locked Mainnet-0 validator policy:
+
+- public candidate minimum stake: 10000 VOID
+- active validator cap: 256
+- activation churn limit per epoch: 4
+- public registration result: candidate_or_waiting_only
+- public registration directly mutates active set: false
+- active admission requires guarded operator epoch step: true
+- money step remains last: true
+
+Current 1000 VOID proof defaults are implementation gaps only. They are not the locked public Mainnet-0 admission policy.
+
+Before public Mainnet-0 activation, controlled proof lanes and public candidate/admission paths must enforce the 10000 VOID minimum stake policy.
+
 ## Promotion phases
 
 ### Phase 1: preserve blocker truth
