@@ -47498,6 +47498,37 @@ a{color:#93c5fd;text-decoration:none}
     
     
     
+    
+    /* VOID_STAKE_CLEANUP_V1 */
+    body[data-active-tab="staking"] #pane-staking{
+      max-width:1080px;
+    }
+    body[data-active-tab="staking"] .stake-primary-grid{
+      align-items:start;
+    }
+    body[data-active-tab="staking"] .stake-registration-shell{
+      border-color:#2a78a4;
+      background:linear-gradient(180deg,#102237,#0b1622);
+    }
+    body[data-active-tab="staking"] #validatorRegistrationReadinessPanel,
+    body[data-active-tab="staking"] #validatorRegistrationLiveStatusPanel,
+    body[data-active-tab="staking"] #validatorRegistrationSubmitDisabledBtn,
+    body[data-active-tab="staking"] #validatorRegistrationSubmitLiveBtn,
+    body[data-active-tab="staking"] .stake-operator-summary-link,
+    body[data-active-tab="staking"] #stakeNextOnboardBtn,
+    body[data-active-tab="staking"] #stakeNextOnboardStatus,
+    body[data-active-tab="staking"] .stake-next-validator-plan{
+      display:none !important;
+    }
+    body[data-active-tab="staking"] #validatorRegistrationOpenDraftBtn{
+      font-size:16px;
+      padding:14px 18px;
+      min-width:220px;
+    }
+    body[data-active-tab="staking"] #validatorRegistrationButtonNote{
+      border-style:dashed;
+    }
+
     /* VOID_TRADE_MARKET_UNAVAILABLE_V1 */
     body[data-active-tab="trading"] .trade-market-panel,
     body[data-active-tab="trading"] #tradeOverviewCard,
@@ -48676,7 +48707,7 @@ a{color:#93c5fd;text-decoration:none}
     <section class="tabpane" id="pane-staking">
       <div class="compact-tab-head" id="staking-compact-head"><h1 class="compact-tab-title">Stake</h1></div>
 
-      <div class="grid-2-eq">
+      <div class="grid-2-eq stake-primary-grid">
         <div class="panel">
           <div class="section-head">
             <div>
@@ -48736,7 +48767,8 @@ a{color:#93c5fd;text-decoration:none}
         </div>
       </div>
 
-      <div class="panel" style="margin-top:12px;padding:12px 14px">
+      <!-- VOID_STAKE_CLEANUP_V1 -->
+      <div class="panel stake-registration-shell" style="margin-top:12px;padding:16px 18px">
         <div class="section-head">
           <div>
             <div class="panel" style="margin-top:12px">
@@ -48990,11 +49022,11 @@ a{color:#93c5fd;text-decoration:none}
               })();
               </script>
               <div class="action-rail" style="margin-top:10px">
-                <button class="btn btn-primary" id="validatorRegistrationOpenDraftBtn" type="button">Register Validator — Preview Only</button>
+                <button class="btn btn-primary" id="validatorRegistrationOpenDraftBtn" type="button">Preview Registration</button>
                 <button class="btn" id="validatorRegistrationSubmitDisabledBtn" type="button" disabled>Submit Registration — Not Live</button>
                 <button class="btn" id="validatorRegistrationSubmitLiveBtn" type="button" disabled>Submit Registration — Backend Gated</button>
               </div>
-              <div class="hero-note" id="validatorRegistrationButtonNote" style="margin-top:10px">Registration submit is intentionally disabled. Preview the prepared payload first.</div>
+              <div class="hero-note" id="validatorRegistrationButtonNote" style="margin-top:10px">Preview is safe. Live registration stays disabled until Mainnet-0 operator gates are intentionally opened.</div>
               <details class="adv" id="validatorRegistrationPreflightDetails" style="margin-top:12px">
                 <summary><span>Submit Preflight</span><span class="pill">blocked intentionally</span></summary>
                 <div class="adv-body">
@@ -49017,13 +49049,13 @@ a{color:#93c5fd;text-decoration:none}
         <div class="hero-note" id="stakePathNote">Live validator truth is green on this node. This tab surfaces staking readiness and validator set truth, but candidate/waiting status is not active admission.</div>
         <div class="action-rail" style="margin-top:10px">
           <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
-          <a class="linkbtn" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Open Validator Summary</a>
+          <a class="linkbtn stake-operator-summary-link" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Open Validator Summary</a>
           <button class="btn btn-primary" type="button" id="stakeNextOnboardBtn">Run Next Onboard</button>
         </div>
         <div class="hero-note" id="stakeNextOnboardStatus" style="margin-top:10px">Live onboarding action not started.</div>
       </div>
     
-      <div class="panel" style="margin-top:12px;padding:12px 14px">
+      <div class="panel stake-next-validator-plan" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
             <h2>Next Validator Plan<span class="help" tabindex="0" data-help="Shows the next operator-side validator onboarding step based on current live validator truth. This does not execute browser staking; it prepares the real next-step handoff.">?</span></h2>
