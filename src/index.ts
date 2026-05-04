@@ -47493,6 +47493,36 @@ a{color:#93c5fd;text-decoration:none}
 
     
     
+    
+    /* VOID_EARN_CLEANUP_V1 */
+    body[data-active-tab="work"] #pane-work > .grid-2{
+      grid-template-columns:minmax(0,1fr);
+    }
+    body[data-active-tab="work"] #pane-work .action{
+      max-width:900px;
+    }
+    body[data-active-tab="work"] label[for="account"],
+    body[data-active-tab="work"] #account,
+    body[data-active-tab="work"] #useConnectedWalletForAccountBtn,
+    body[data-active-tab="work"] #participantAccountsPanel,
+    body[data-active-tab="work"] .earn-dev-shortcuts,
+    body[data-active-tab="work"] #wcIdentityTruth,
+    body[data-active-tab="work"] #backendTruthCard,
+    body[data-active-tab="work"] #wcLegacyWarn,
+    body[data-active-tab="work"] label[for="plaintext"],
+    body[data-active-tab="work"] #plaintext,
+    body[data-active-tab="work"] .earn-manual-submit-row,
+    body[data-active-tab="work"] .earn-manual-estimates{
+      display:none !important;
+    }
+    body[data-active-tab="work"] #wcRunnerStatusCard{
+      margin-top:10px;
+    }
+    body[data-active-tab="work"] #wcRunnerMeta{
+      font-size:13px;
+      margin-top:8px;
+    }
+
     /* VOID_SIDEBAR_ADVANCED_MENU_V1 */
     .sidebar-advanced-menu{
       border-top:1px solid var(--line);
@@ -48011,7 +48041,7 @@ a{color:#93c5fd;text-decoration:none}
             <div id="participantAccountManagerList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
           </div>
 
-          <details class="adv" style="margin-top:10px">
+          <details class="adv earn-dev-shortcuts" style="margin-top:10px">
             <summary><span>Developer account shortcuts</span><span class="pill">advanced</span></summary>
             <div class="adv-body">
               <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
@@ -48120,12 +48150,12 @@ a{color:#93c5fd;text-decoration:none}
             </div>
           </details>
 
-          <div class="row" style="margin-top:14px;">
+          <div class="row earn-manual-submit-row" style="margin-top:14px;">
             <button class="btn" id="submitBtn">Submit Work</button>
             <button class="btn" id="refreshBtn" type="button">Refresh Status</button>
           </div>
 
-          <div class="metric-strip">
+          <div class="metric-strip earn-manual-estimates">
             <div class="mini">
               <div class="k">Work Type</div>
               <div class="v">Data Publish</div>
