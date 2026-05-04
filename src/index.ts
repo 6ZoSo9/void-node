@@ -47492,6 +47492,36 @@ a{color:#93c5fd;text-decoration:none}
 
 
     
+    
+    /* VOID_SIDEBAR_ADVANCED_MENU_V1 */
+    .sidebar-advanced-menu{
+      border-top:1px solid var(--line);
+      margin-top:8px;
+      padding-top:8px;
+    }
+    .sidebar-advanced-menu summary{
+      list-style:none;
+      cursor:pointer;
+      border:1px solid var(--line);
+      background:#08131f;
+      color:var(--muted);
+      border-radius:14px;
+      padding:11px 14px;
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:.07em;
+      font-size:11px;
+    }
+    .sidebar-advanced-menu summary::-webkit-details-marker{display:none}
+    .sidebar-advanced-items{
+      display:grid;
+      gap:10px;
+      margin-top:10px;
+    }
+    .sidebar-advanced-menu:not([open]) .sidebar-advanced-items{
+      display:none;
+    }
+
     /* VOID_HOME_STATUS_STRIP_COMPACT_V1 */
     body[data-active-tab="overview"] #participantTopStatusStrip{
       width:100%;
@@ -47681,14 +47711,21 @@ a{color:#93c5fd;text-decoration:none}
 <div class="side-section">
       <div class="side-label">Sections</div>
       <nav class="nav">
+        <!-- VOID_SIDEBAR_ADVANCED_MENU_V1 -->
         <button class="tabbtn active" data-tab="overview" id="tab-overview">Home<span class="navhint">see your status and recent activity</span></button>
         <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work, get a receipt, and earn WC</span></button>
-        <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
-        <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">check prices and trade WC for VOID</span></button>
         <button class="tabbtn" data-tab="buy" id="tab-buy">Buy VOID<span class="navhint">check purchase-path readiness and wallet delivery status</span></button>
         <button class="tabbtn" data-tab="staking" id="tab-staking">Stake<span class="navhint">check validator staking readiness and live validator truth</span></button>
-        <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">view balances, send WC, and manage VOID</span></button>
-        <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">review receipts and outputs from completed work</span></button>
+
+        <details class="sidebar-advanced-menu">
+          <summary>Advanced</summary>
+          <div class="sidebar-advanced-items">
+            <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
+            <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">check prices and trade WC for VOID</span></button>
+            <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">view balances, send WC, and manage VOID</span></button>
+            <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">review receipts and outputs from completed work</span></button>
+          </div>
+        </details>
       </nav>
     </div>
 
