@@ -47494,6 +47494,46 @@ a{color:#93c5fd;text-decoration:none}
     
     
     
+    
+    /* VOID_BUY_CHECKOUT_UI_V1 */
+    body[data-active-tab="buy"] #pane-buy{
+      max-width:980px;
+    }
+    body[data-active-tab="buy"] .buy-checkout-panel{
+      order:1;
+      border-color:#2a78a4;
+      background:linear-gradient(180deg,#102237,#0b1622);
+    }
+    body[data-active-tab="buy"] .buy-readiness-grid{
+      order:2;
+      grid-template-columns:minmax(0,1fr);
+    }
+    body[data-active-tab="buy"] .buy-readiness-grid > .panel:nth-child(2){
+      display:none !important;
+    }
+    body[data-active-tab="buy"] .buy-status-panel{
+      order:3;
+    }
+    body[data-active-tab="buy"] .buy-handoff-panel{
+      display:none !important;
+    }
+    body[data-active-tab="buy"] #buyDraftAmountUsdc{
+      font-size:24px;
+      font-weight:900;
+      padding:16px;
+    }
+    body[data-active-tab="buy"] #buyDraftCreateBtn{
+      font-size:16px;
+      padding:14px 18px;
+      min-width:220px;
+    }
+    .buy-checkout-rules{
+      margin-top:10px;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.45;
+    }
+
     /* VOID_EARN_CLEANUP_V1 */
     body[data-active-tab="work"] #pane-work > .grid-2{
       grid-template-columns:minmax(0,1fr);
@@ -48367,7 +48407,7 @@ a{color:#93c5fd;text-decoration:none}
     <section class="tabpane" id="pane-buy">
       <div class="compact-tab-head" id="buy-compact-head"><h1 class="compact-tab-title">Buy VOID</h1></div>
 
-      <div class="grid-2-eq">
+      <div class="grid-2-eq buy-readiness-grid">
         <div class="panel">
           <div class="section-head">
             <div>
@@ -48430,7 +48470,7 @@ a{color:#93c5fd;text-decoration:none}
         </div>
       </div>
     
-      <div class="panel" style="margin-top:12px;padding:12px 14px">
+      <div class="panel buy-handoff-panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
             <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Shows the participant-side preflight payload for the Base native USDC Buy VOID flow. This does not claim payment or send VOID; it records delivery wallet truth and policy checks.">?</span></h2>
@@ -48463,18 +48503,19 @@ a{color:#93c5fd;text-decoration:none}
       </div>
 
     
-      <div class="panel" style="margin-top:12px;padding:12px 14px">
+      <div class="panel buy-checkout-panel" style="margin-top:12px;padding:16px 18px">
         <div class="section-head">
           <div>
-            <h2>Buy VOID Request Draft<span class="help" tabindex="0" data-help="Creates a local Buy VOID request draft. This records the participant wallet, requested USDC amount, and safety policy checks; it does not claim a transaction or send VOID.">?</span></h2>
+            <h2>Buy VOID Checkout<span class="help" tabindex="0" data-help="Creates a local Buy VOID request draft. This records the participant wallet, requested USDC amount, and safety policy checks; it does not claim a transaction or send VOID.">?</span></h2>
           </div>
         </div>
-        <label for="buyDraftAmountUsdc">Requested USDC amount</label>
+        <label for="buyDraftAmountUsdc">USDC amount</label>
         <input id="buyDraftAmountUsdc" value="25" inputmode="decimal" />
         <div class="action-rail" style="margin-top:10px">
-          <button class="btn btn-primary" id="buyDraftCreateBtn" type="button">Create Request Draft</button>
+          <button class="btn btn-primary" id="buyDraftCreateBtn" type="button">Create Buy Request</button>
         </div>
-        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">No Buy VOID request draft created yet.</div>
+        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount, confirm your delivery wallet, then create a Buy VOID request before sending Base USDC.</div>
+        <div class="buy-checkout-rules">Base native USDC only • use a self-custody wallet • start from this page • exchange/custodial sends and blind direct deposits are not supported.</div>
         <div class="subtle-tab-copy" id="buyDraftLatestCard" style="margin-top:8px">Latest request: none</div>
         <details class="adv" style="margin-top:10px">
           <summary><span>Latest Draft Payload</span><span class="pill">json</span></summary>
@@ -48485,10 +48526,10 @@ a{color:#93c5fd;text-decoration:none}
       </div>
 
     
-      <div class="panel" style="margin-top:12px;padding:12px 14px">
+      <div class="panel buy-status-panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
-            <h2>Buy VOID Lifecycle<span class="help" tabindex="0" data-help="Shows the latest operator-side Buy VOID lifecycle item for this participant account, including current status, payment ref, and VOID tx ref.">?</span></h2>
+            <h2>Buy VOID Status<span class="help" tabindex="0" data-help="Shows the latest operator-side Buy VOID lifecycle item for this participant account, including current status, payment ref, and VOID tx ref.">?</span></h2>
           </div>
         </div>
         <div class="metric-strip" style="margin-top:6px">
