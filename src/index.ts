@@ -47481,6 +47481,73 @@ a{color:#93c5fd;text-decoration:none}
     body[data-active-tab="wallet"] .kpis,
     body[data-active-tab="receipts"] .kpis{display:none}
 
+
+    /* VOID_PARTICIPANT_UI_CLEANUP_V1 */
+    .user-home-actions{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:14px;
+      margin:0 0 14px 0;
+    }
+    .home-action-card{
+      display:grid;
+      gap:10px;
+      min-height:154px;
+      padding:18px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:linear-gradient(180deg,#102237,#0b1622);
+      color:var(--text);
+      text-decoration:none;
+      box-shadow:var(--shadow);
+      transition:transform .08s ease,border-color .12s ease,background .12s ease;
+    }
+    .home-action-card:hover{
+      transform:translateY(-1px);
+      border-color:var(--accent);
+      background:linear-gradient(180deg,#12314a,#0d1f31);
+    }
+    .home-action-card .home-action-k{
+      color:var(--muted);
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    .home-action-card .home-action-title{
+      font-size:28px;
+      line-height:1.02;
+      letter-spacing:-.04em;
+      font-weight:950;
+    }
+    .home-action-card .home-action-meta{
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.35;
+      max-width:32ch;
+    }
+    .home-quiet-status{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      margin:0 0 14px 0;
+      color:var(--muted);
+      font-size:12px;
+    }
+    body:not([data-active-tab="overview"]) .user-home-actions,
+    body:not([data-active-tab="overview"]) .home-quiet-status{
+      display:none;
+    }
+    body[data-active-tab="overview"] .kpis,
+    body[data-active-tab="overview"] #pane-overview{
+      display:none !important;
+    }
+    @media (max-width: 980px){
+      .user-home-actions{grid-template-columns:1fr}
+      .home-action-card{min-height:0}
+    }
+
   </style>
 </head>
 <body data-active-tab="overview">
@@ -47566,6 +47633,30 @@ a{color:#93c5fd;text-decoration:none}
       <span id="topStripRelayer" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Relayer: -</span>
       <span id="topStripRunner" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Runner: -</span>
       <span id="topStripUpdate" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 10px;border-radius:999px;border:1px solid rgba(245,158,11,.28);background:rgba(245,158,11,.12);color:#fcd34d;font-weight:700"><span id="topStripUpdateText">Update: -</span><button type="button" id="topStripUpdateNowBtn" style="border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#e5e7eb;border-radius:999px;padding:3px 8px;font-weight:800;cursor:pointer">Update now</button><button type="button" id="topStripUpdateRemindBtn" style="border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.8);color:#cbd5e1;border-radius:999px;padding:3px 8px;font-weight:700;cursor:pointer">Remind me later</button></span>
+    </section>
+
+    <!-- VOID_PARTICIPANT_HOME_ACTIONS_V1 -->
+    <section class="user-home-actions" id="userHomeActions" aria-label="Main participant actions">
+      <a class="home-action-card" href="/participant#buy">
+        <span class="home-action-k">Step 1</span>
+        <span class="home-action-title">Buy VOID</span>
+        <span class="home-action-meta">Fund your account.</span>
+      </a>
+      <a class="home-action-card" href="/participant#work">
+        <span class="home-action-k">Step 2</span>
+        <span class="home-action-title">Earn Work Credits</span>
+        <span class="home-action-meta">Run approved work and collect receipts.</span>
+      </a>
+      <a class="home-action-card" href="/participant#staking">
+        <span class="home-action-k">Step 3</span>
+        <span class="home-action-title">Stake / Register</span>
+        <span class="home-action-meta">Join the validator waiting pool.</span>
+      </a>
+    </section>
+
+    <section class="home-quiet-status" id="homeQuietStatus">
+      <span class="pill">Ready</span>
+      <span>Advanced details are still available in the sections menu.</span>
     </section>
 
     <section class="kpis">
