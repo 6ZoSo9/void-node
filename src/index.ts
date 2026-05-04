@@ -47496,6 +47496,78 @@ a{color:#93c5fd;text-decoration:none}
     
     
     
+    
+    
+    /* VOID_TRADE_MARKET_UNAVAILABLE_V1 */
+    body[data-active-tab="trading"] .trade-market-panel,
+    body[data-active-tab="trading"] #tradeOverviewCard,
+    body[data-active-tab="trading"] #tradeBackendTruthCard{
+      display:none !important;
+    }
+    body[data-active-tab="trading"] .metric-strip .mini:has(#tradeRelayerState){
+      display:none !important;
+    }
+    body[data-active-tab="trading"] .trade-market-unavailable{
+      margin:10px 0 12px 0;
+      border-style:dashed;
+      color:#cbd5e1;
+    }
+
+    /* VOID_TRADE_CLEANUP_V1 */
+    body[data-active-tab="trading"] #pane-trading{
+      max-width:980px;
+    }
+    body[data-active-tab="trading"] .trade-swap-panel{
+      border-color:#2a78a4;
+      background:linear-gradient(180deg,#102237,#0b1622);
+    }
+    body[data-active-tab="trading"] .trade-pair-header{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      margin:2px 0 12px 0;
+      padding:14px;
+      border:1px solid rgba(148,163,184,.18);
+      border-radius:16px;
+      background:rgba(15,23,42,.42);
+    }
+    body[data-active-tab="trading"] .trade-pair-title{
+      font-size:30px;
+      font-weight:950;
+      letter-spacing:-.04em;
+      line-height:1;
+    }
+    body[data-active-tab="trading"] .trade-pair-meta{
+      color:var(--muted);
+      font-size:13px;
+      margin-top:5px;
+    }
+    body[data-active-tab="trading"] #tradeInputWc{
+      font-size:24px;
+      font-weight:900;
+      padding:16px;
+    }
+    body[data-active-tab="trading"] #tradeExecuteBtn{
+      font-size:16px;
+      padding:14px 18px;
+      min-width:220px;
+    }
+    body[data-active-tab="trading"] #tradeBackendTruthCard{
+      display:none !important;
+    }
+    body[data-active-tab="trading"] .trade-bridge-panel{
+      background:linear-gradient(180deg,#0d1722,#0a131c);
+      border-style:dashed;
+    }
+    body[data-active-tab="trading"] .trade-bridge-panel h2{
+      font-size:20px !important;
+    }
+    body[data-active-tab="trading"] details.adv summary{
+      color:#cbd5e1;
+    }
+
     /* VOID_WALLET_CLEANUP_V1 */
     body[data-active-tab="wallet"] #pane-wallet{
       max-width:1080px;
@@ -48266,29 +48338,42 @@ a{color:#93c5fd;text-decoration:none}
 
     <section class="tabpane" id="pane-trading">
       <div class="compact-tab-head" id="trading-compact-head"><h1 class="compact-tab-title">Trade</h1></div>
-      <div class="panel">
+      <div class="panel trade-swap-panel">
         <div class="section-head">
           <div>
-            <h2>On-chain Trade<span class="help" tabindex="0" data-help="Trade on-chain WC and VOID using the execution wallet. This box is only for on-chain balances.">?</span></h2>
+            <h2>Swap WC / VOID<span class="help" tabindex="0" data-help="Trade on-chain WC and VOID using the execution wallet. This box is only for on-chain balances.">?</span></h2>
           </div>
         </div>
 
-        <div class="action-rail" style="margin:6px 0 12px 0">
-          <button class="btn btn-primary" id="tradeDirWcToVoidBtn" type="button">On-chain WC → VOID</button>
-          <button class="btn" id="tradeDirVoidToWcBtn" type="button">VOID → On-chain WC</button>
+        <!-- VOID_TRADE_CLEANUP_V1 -->
+        <div class="trade-pair-header">
+          <div>
+            <div class="trade-pair-title">WC / VOID</div>
+            <div class="trade-pair-meta">Swap Work Credits and VOID from your execution wallet.</div>
+          </div>
+          <span class="pill">Mainnet-0 swap</span>
         </div>
 
-        <div class="hero-note" id="tradeDirectionNote" style="margin-bottom:12px">On-chain WC trading requires wallet signing. The browser-signed swap path is not wired yet. Use the redeem box below to bridge local spendable WC on-chain first.</div>
+        <div class="action-rail" style="margin:6px 0 12px 0">
+          <button class="btn btn-primary" id="tradeDirWcToVoidBtn" type="button">WC → VOID</button>
+          <button class="btn" id="tradeDirVoidToWcBtn" type="button">VOID → WC</button>
+        </div>
+
+        <div class="hero-note" id="tradeDirectionNote" style="margin-bottom:12px">Choose direction, enter amount, review the quote, then execute from the stored wallet.</div>
+        <!-- VOID_TRADE_MARKET_UNAVAILABLE_V1 -->
+        <div class="hero-note trade-market-unavailable" id="tradeMarketUnavailableNotice">
+          Market services are not initialized on this node yet. Trading is shown as a prepared Mainnet-0 swap flow; Buy VOID, Earn, and Wallet are not blocked.
+        </div>
 
         <label for="tradeInputWc" id="tradeInputLabel">WC to trade</label>
         <input id="tradeInputWc" value="10" inputmode="decimal" />
 
         <div class="action-rail" style="margin-top:10px">
-          <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max On-chain</button>
+          <button class="btn" id="tradeUseRedeemableBtn" type="button">Use Max</button>
           <button class="btn btn-primary" id="tradeExecuteBtn" type="button" disabled>Checking Trade Readiness...</button>
         </div>
 
-        <div class="panel" style="margin-top:12px;padding:12px 14px">
+        <div class="panel trade-market-panel" style="margin-top:12px;padding:12px 14px">
           <div class="section-head">
             <div>
               <h2 style="margin-bottom:4px">Market<span class="help" tabindex="0" data-help="Compact pool-price view from helper snapshots. This is a lightweight market mini-chart, not a full exchange terminal.">?</span></h2>
@@ -48329,7 +48414,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel" style="margin-top:12px;padding:12px 14px">
           <div class="section-head">
             <div>
-              <h2 style="margin-bottom:4px">Trade Summary<span class="help" tabindex="0" data-help="Shows what is ready to trade now, the current quote, and where the output will go.">?</span></h2>
+              <h2 style="margin-bottom:4px">Swap Status<span class="help" tabindex="0" data-help="Shows what is ready to trade now, the current quote, and where the output will go.">?</span></h2>
             </div>
           </div>
           <div class="hero-note" id="tradeSummary">Trade on-chain WC here using the stored execution wallet.</div>
@@ -48337,10 +48422,10 @@ a{color:#93c5fd;text-decoration:none}
           <div class="subtle-tab-copy" id="tradeBackendTruthCard" style="margin-top:8px">Backend truth: loading…</div>
         </div>
 
-        <div class="panel" style="margin-top:12px;padding:12px 14px">
+        <div class="panel trade-bridge-panel" style="margin-top:12px;padding:12px 14px">
           <div class="section-head">
             <div>
-              <h2 style="margin-bottom:4px">Bridge WC On-Chain<span class="help" tabindex="0" data-help="Bridges local spendable WC from the participant account into the execution wallet as on-chain WC through the relayer path.">?</span></h2>
+              <h2 style="margin-bottom:4px">Move WC On-Chain<span class="help" tabindex="0" data-help="Bridges local spendable WC from the participant account into the execution wallet as on-chain WC through the relayer path.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip top-kpis" style="margin-top:6px">
@@ -48366,7 +48451,7 @@ a{color:#93c5fd;text-decoration:none}
             <button class="btn" id="redeemTradeUseMaxBtn" type="button">Use Max Spendable</button>
             <button class="btn btn-primary" id="redeemTradeExecuteBtn" type="button">Bridge WC On-Chain</button>
           </div>
-          <div class="hero-note" id="redeemTradeSummary" style="margin-top:10px">Bridge local spendable WC here to move net WC into your execution wallet as on-chain WC.</div>
+          <div class="hero-note" id="redeemTradeSummary" style="margin-top:10px">Move spendable WC on-chain when you need more WC available for swapping.</div>
         </div>
 
         <details class="adv" style="margin-top:12px">
