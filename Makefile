@@ -785,3 +785,7 @@ mainnet0-catchup-vault123-chain-only:
 .PHONY: mainnet0-validator-policy-doc-proof
 mainnet0-validator-policy-doc-proof:
 	bash ops/mainnet/mainnet0-validator-policy-doc-proof.sh
+
+.PHONY: participant-ui-cleanup-proof
+participant-ui-cleanup-proof:
+	bash ops/mainnet0/participant-ui-cleanup-proof.sh
