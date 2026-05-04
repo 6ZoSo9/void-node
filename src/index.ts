@@ -47495,6 +47495,34 @@ a{color:#93c5fd;text-decoration:none}
     
     
     
+    
+    /* VOID_WALLET_CLEANUP_V1 */
+    body[data-active-tab="wallet"] #pane-wallet{
+      max-width:1080px;
+    }
+    body[data-active-tab="wallet"] .wallet-primary-grid{
+      align-items:start;
+    }
+    body[data-active-tab="wallet"] .wallet-prepare-wc-panel,
+    body[data-active-tab="wallet"] .wallet-participant-wc-details,
+    body[data-active-tab="wallet"] #walletBackendTruthCard,
+    body[data-active-tab="wallet"] #walletRedeemedSummary{
+      display:none !important;
+    }
+    body[data-active-tab="wallet"] #walletRedeemableBig,
+    body[data-active-tab="wallet"] #connectedWalletVoidBig{
+      font-size:clamp(34px, 5vw, 58px) !important;
+      line-height:1 !important;
+    }
+    body[data-active-tab="wallet"] #sendOut,
+    body[data-active-tab="wallet"] #voidSendOut{
+      max-height:110px;
+      font-size:12px;
+    }
+    body[data-active-tab="wallet"] .wallet-history-advanced{
+      margin-top:14px;
+    }
+
     /* VOID_BUY_CHECKOUT_UI_V1 */
     body[data-active-tab="buy"] #pane-buy{
       max-width:980px;
@@ -48953,7 +48981,7 @@ a{color:#93c5fd;text-decoration:none}
     </section>
 
     <section class="tabpane active" id="pane-wallet">
-      <div class="grid-2-eq">
+      <div class="grid-2-eq wallet-primary-grid">
         <div class="panel">
           <div class="section-head">
             <div>
@@ -49018,7 +49046,7 @@ a{color:#93c5fd;text-decoration:none}
             </div>
           </div>
 
-          <div class="panel" style="margin-top:16px;padding:14px">
+          <div class="panel wallet-prepare-wc-panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
                 <h2 style="margin-bottom:4px;display:none">Prepare WC<span class="help" tabindex="0" data-help="Deprecated.">?</span></h2>
@@ -49057,7 +49085,7 @@ a{color:#93c5fd;text-decoration:none}
 
 
 
-          <div class="panel" style="margin-top:16px;padding:14px">
+          <div class="panel wallet-participant-wc-details" style="margin-top:16px;padding:14px">
             <div class="section-head">
               <div>
                 <h2 style="margin-bottom:4px">Participant WC Details<span class="help" tabindex="0" data-help="Advanced explanation of how the local participant WC balance was calculated.">?</span></h2>
@@ -49134,6 +49162,9 @@ a{color:#93c5fd;text-decoration:none}
         </div>
       </div>
 
+      <details class="adv wallet-history-advanced">
+        <summary><span>Wallet History</span><span class="pill">advanced</span></summary>
+        <div class="adv-body">
       <div class="grid-2-eq">
         <div class="panel">
           <div class="section-head">
@@ -49153,6 +49184,9 @@ a{color:#93c5fd;text-decoration:none}
           <div class="table-wrap"><div id="redeemHistoryWrap" class="empty">loading…</div></div>
         </div>
       </div>
+
+        </div>
+      </details>
 
       <div class="grid-2-eq">
         <div class="panel">
