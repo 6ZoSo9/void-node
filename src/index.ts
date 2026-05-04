@@ -54076,6 +54076,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       return "";
     } catch (_) { return ""; }
   }
+  // VOID_ACCOUNT_WALLET_SHORT_STATUS_V1
+  function shortWalletLabel(x){
+    x = String(x || "").trim();
+    return /^0x[0-9a-fA-F]{40}$/.test(x) ? (x.slice(0,6) + "…" + x.slice(-4)) : x;
+  }
   function note(msg){
     try {
       var el = document.getElementById("voidParticipantWalletNativeState");
@@ -54090,10 +54095,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   async function refreshNativeWalletState(){
     try {
       var account = accountNow();
-      if (!account) return note("Account: none selected • No participant wallet");
+      if (!account) return note("No participant account selected • No wallet");
       var st = await j("/__void/participant/wallet/status?account=" + encodeURIComponent(account));
       if (!st || !st.ok || !st.has_wallet) {
-        note("Account: " + account + " • Wallet: none stored for this account");
+        note("Account: " + shortWalletLabel(account) + " • Wallet: none stored");
         return;
       }
       var parts = [];
@@ -54204,15 +54209,23 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     var wrap = document.createElement("div");
     wrap.id = "voidParticipantWalletNativeBar";
-    wrap.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%;padding:10px 12px;border:1px solid #334155;border-radius:12px;background:#0b1220;color:#e5e7eb;box-sizing:border-box;";
+    wrap.style.cssText = "display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;width:100%;padding:10px 12px;border:1px solid rgba(51,65,85,.9);border-radius:14px;background:#0b1220;color:#e5e7eb;box-sizing:border-box;";
     wrap.innerHTML =
-      '<div style="font-weight:800;color:#f8fafc;margin-right:8px">Account Wallet</div>' +
-      '<button id="voidParticipantWalletCreateBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Create Wallet</button>' +
-      '<button id="voidParticipantWalletImportBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Import Wallet</button>' +
-      '<button id="voidParticipantWalletUnlockBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Unlock</button>' +
-      '<button id="voidParticipantWalletLockBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Lock</button>' +
-      '<button id="voidParticipantWalletExportBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer">Export Keystore</button>' +
-      '<div id="voidParticipantWalletNativeState" style="min-width:260px;color:#93c5fd;overflow-wrap:anywhere">Checking native participant wallet…</div>';
+      '<!-- VOID_ACCOUNT_WALLET_BAR_CLEANUP_V1 -->' +
+      '<div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1">' +
+        '<div style="font-weight:900;color:#f8fafc;white-space:nowrap">Account Wallet</div>' +
+        '<div id="voidParticipantWalletNativeState" style="color:#93c5fd;overflow-wrap:anywhere;font-size:13px;line-height:1.35">Checking native participant wallet…</div>' +
+      '</div>' +
+      '<details id="voidParticipantWalletManageMenu" style="position:relative;margin-left:auto">' +
+        '<summary style="list-style:none;cursor:pointer;padding:8px 12px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:800">Manage Wallet</summary>' +
+        '<div style="position:absolute;right:0;top:38px;z-index:50;display:grid;gap:8px;min-width:190px;padding:10px;border:1px solid #334155;border-radius:12px;background:#08111f;box-shadow:0 18px 40px rgba(0,0,0,.35)">' +
+          '<button id="voidParticipantWalletUnlockBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;text-align:left">Unlock</button>' +
+          '<button id="voidParticipantWalletLockBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;text-align:left">Lock</button>' +
+          '<button id="voidParticipantWalletCreateBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;text-align:left">Create Wallet</button>' +
+          '<button id="voidParticipantWalletImportBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;text-align:left">Import Wallet</button>' +
+          '<button id="voidParticipantWalletExportBtn" type="button" style="padding:8px 10px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:700;cursor:pointer;text-align:left">Export Keystore</button>' +
+        '</div>' +
+      '</details>';
     host.appendChild(wrap);
     document.getElementById("voidParticipantWalletCreateBtn").addEventListener("click", function(){ createWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
     document.getElementById("voidParticipantWalletImportBtn").addEventListener("click", function(){ importWallet().catch(function(e){ alert(String((e && e.message) || e)); }); });
