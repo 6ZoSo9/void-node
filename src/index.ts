@@ -47482,6 +47482,94 @@ a{color:#93c5fd;text-decoration:none}
     body[data-active-tab="receipts"] .kpis{display:none}
 
 
+    
+    /* VOID_HOME_HIDE_BIG_BOXES_V1 */
+    body[data-active-tab="overview"] .hero,
+    body[data-active-tab="overview"] .user-home-actions,
+    body[data-active-tab="overview"] .home-quiet-status{
+      display:none !important;
+    }
+
+
+    
+    /* VOID_HOME_STATUS_STRIP_COMPACT_V1 */
+    body[data-active-tab="overview"] #participantTopStatusStrip{
+      width:100%;
+      min-height:0;
+      margin:0 0 14px 0 !important;
+      padding:14px 16px !important;
+      border-radius:18px;
+      align-items:center !important;
+      justify-content:flex-start !important;
+    }
+    body[data-active-tab="overview"] #participantTopStatusStrip span{
+      white-space:nowrap;
+    }
+
+    /* VOID_HOME_NEWS_FEED_V1 */
+    .home-news-feed{
+      display:grid;
+      gap:12px;
+      margin:14px 0 0 0;
+      padding:16px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:linear-gradient(180deg,#0f1b2a,#0b1520);
+      box-shadow:var(--shadow);
+    }
+    .home-news-head{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .home-news-head h2{
+      margin:0;
+      font-size:24px;
+      letter-spacing:-.03em;
+      line-height:1.05;
+      font-weight:950;
+    }
+    .home-news-sub{
+      color:var(--muted);
+      font-size:13px;
+      margin-top:4px;
+    }
+    .home-news-list{
+      display:grid;
+      gap:10px;
+    }
+    .home-news-item{
+      border:1px solid rgba(148,163,184,.18);
+      border-radius:14px;
+      padding:12px 14px;
+      background:rgba(15,23,42,.42);
+    }
+    .home-news-item .k{
+      color:#93c5fd;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+    .home-news-item .v{
+      font-size:15px;
+      line-height:1.38;
+      font-weight:750;
+      color:var(--text);
+    }
+    .home-news-item .s{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+      margin-top:5px;
+    }
+    body:not([data-active-tab="overview"]) .home-news-feed{
+      display:none;
+    }
+
     /* VOID_PARTICIPANT_UI_CLEANUP_V1 */
     .user-home-actions{
       display:grid;
@@ -47633,6 +47721,39 @@ a{color:#93c5fd;text-decoration:none}
       <span id="topStripRelayer" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Relayer: -</span>
       <span id="topStripRunner" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Runner: -</span>
       <span id="topStripUpdate" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 10px;border-radius:999px;border:1px solid rgba(245,158,11,.28);background:rgba(245,158,11,.12);color:#fcd34d;font-weight:700"><span id="topStripUpdateText">Update: -</span><button type="button" id="topStripUpdateNowBtn" style="border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#e5e7eb;border-radius:999px;padding:3px 8px;font-weight:800;cursor:pointer">Update now</button><button type="button" id="topStripUpdateRemindBtn" style="border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.8);color:#cbd5e1;border-radius:999px;padding:3px 8px;font-weight:700;cursor:pointer">Remind me later</button></span>
+    </section>
+
+    <!-- VOID_HOME_NEWS_FEED_V1 -->
+    <section class="home-news-feed" id="homeNewsFeed" aria-label="VOID news and updates">
+      <div class="home-news-head">
+        <div>
+          <h2>News & Updates</h2>
+          <div class="home-news-sub">What changed in the last 48 hours.</div>
+        </div>
+        <span class="pill">last 48h</span>
+      </div>
+      <div class="home-news-list">
+        <div class="home-news-item">
+          <div class="k">Desktop launcher</div>
+          <div class="v">VOID can now be started from a Linux desktop launcher.</div>
+          <div class="s">The launcher starts the local node, waits for readiness, then opens the participant page.</div>
+        </div>
+        <div class="home-news-item">
+          <div class="k">Cross-box proof</div>
+          <div class="v">Precision and Alienware both proved launcher install and no-open startup.</div>
+          <div class="s">Both boxes stayed ready with gap 0 and txroot live.</div>
+        </div>
+        <div class="home-news-item">
+          <div class="k">Validator policy</div>
+          <div class="v">Public validator registration is aligned to the 10,000 VOID minimum stake policy.</div>
+          <div class="s">Public registration enters candidate/waiting state and does not directly mutate the active validator set.</div>
+        </div>
+        <div class="home-news-item">
+          <div class="k">Participant UI</div>
+          <div class="v">Home is being simplified for normal users.</div>
+          <div class="s">Operator-heavy details are being moved out of the first screen.</div>
+        </div>
+      </div>
     </section>
 
     <!-- VOID_PARTICIPANT_HOME_ACTIONS_V1 -->
