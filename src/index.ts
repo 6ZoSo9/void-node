@@ -47398,6 +47398,207 @@ a{color:#93c5fd;text-decoration:none}
 
     /* VOID_UI_OVERFLOW_GUARD_V1 */
     .mini, .panel, .subpanel, .kpi { min-width: 0; }
+
+
+    
+    /* VOID_STATUS_STRIP_GLOBAL_COMPACT_V1 */
+    #participantTopStatusStrip{
+      width:100%;
+      min-height:0 !important;
+      height:auto !important;
+      margin:0 0 14px 0 !important;
+      padding:12px 16px !important;
+      align-items:center !important;
+      justify-content:flex-start !important;
+      align-content:center !important;
+    }
+    #participantTopStatusStrip:empty{
+      display:none !important;
+    }
+    #participantTopStatusStrip span{
+      line-height:1.2;
+      white-space:nowrap;
+    }
+    body[data-active-tab="receipts"] #participantTopStatusStrip,
+    body[data-active-tab="datanet"] #participantTopStatusStrip,
+    body[data-active-tab="wallet"] #participantTopStatusStrip,
+    body[data-active-tab="work"] #participantTopStatusStrip,
+    body[data-active-tab="buy"] #participantTopStatusStrip,
+    body[data-active-tab="staking"] #participantTopStatusStrip,
+    body[data-active-tab="trading"] #participantTopStatusStrip{
+      min-height:0 !important;
+      padding:12px 16px !important;
+    }
+
+    /* VOID_PARTICIPANT_RESPONSIVE_POLISH_V1 */
+    .main{
+      min-width:0;
+    }
+    .tabpane.active{
+      gap:16px;
+    }
+    .panel,
+    .subpanel{
+      overflow:hidden;
+    }
+    .panel > .panel{
+      box-shadow:none;
+    }
+    .metric-strip{
+      align-items:stretch;
+    }
+    .mini .v{
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      line-height:1.05;
+    }
+    .hero-note{
+      overflow-wrap:anywhere;
+    }
+    .action-rail{
+      gap:10px;
+    }
+    .action-rail .btn,
+    .action-rail .linkbtn{
+      white-space:normal;
+      text-align:center;
+    }
+    details.adv{
+      border:1px solid rgba(148,163,184,.14);
+      border-radius:14px;
+      padding:10px 12px;
+      background:rgba(2,6,23,.18);
+    }
+    details.adv > summary{
+      cursor:pointer;
+      list-style:none;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      color:#cbd5e1;
+      font-weight:850;
+    }
+    details.adv > summary::-webkit-details-marker{
+      display:none;
+    }
+    details.adv[open]{
+      background:rgba(2,6,23,.30);
+      border-color:rgba(148,163,184,.22);
+    }
+    details.adv .adv-body{
+      margin-top:10px;
+    }
+    #voidParticipantWalletNativeBar{
+      min-width:0;
+    }
+    #voidParticipantWalletNativeState{
+      min-width:0;
+      max-width:100%;
+    }
+    #voidParticipantWalletManageMenu summary::-webkit-details-marker{
+      display:none;
+    }
+    #participantTopStatusStrip{
+      overflow:hidden;
+    }
+    #participantTopStatusStrip span{
+      max-width:100%;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    @media (max-width: 1200px){
+      body{
+        padding:18px;
+      }
+      .shell{
+        gap:14px;
+      }
+    }
+
+    @media (max-width: 980px){
+      .main{
+        width:100%;
+      }
+      .tabpane.active{
+        gap:12px;
+      }
+      .panel,
+      .subpanel{
+        border-radius:16px;
+      }
+      #voidParticipantWalletNativeBar{
+        align-items:flex-start !important;
+      }
+      #voidParticipantWalletManageMenu{
+        width:auto;
+      }
+      #participantTopStatusStrip{
+        padding:12px !important;
+      }
+    }
+
+    @media (max-width: 640px){
+      body{
+        padding:12px;
+      }
+      .sidebar{
+        padding:12px;
+      }
+      .main{
+        gap:12px;
+      }
+      .panel,
+      .subpanel{
+        padding:14px !important;
+      }
+      .section-head{
+        gap:8px;
+      }
+      .metric-strip{
+        gap:8px;
+      }
+      .mini{
+        padding:10px;
+      }
+      .mini .v{
+        font-size:22px !important;
+      }
+      .btn,
+      .linkbtn{
+        width:100%;
+        justify-content:center;
+      }
+      .action-rail{
+        display:grid !important;
+        grid-template-columns:1fr;
+      }
+      #participantTopStatusStrip{
+        display:grid !important;
+        grid-template-columns:1fr;
+      }
+      #participantTopStatusStrip span{
+        justify-content:center;
+        width:100%;
+      }
+      #voidParticipantWalletNativeBar{
+        display:grid !important;
+        grid-template-columns:1fr;
+      }
+      #voidParticipantWalletManageMenu{
+        width:100%;
+      }
+      #voidParticipantWalletManageMenu > summary{
+        text-align:center;
+      }
+      #voidParticipantWalletManageMenu > div{
+        position:static !important;
+        margin-top:8px;
+        width:100%;
+      }
+    }
+
     .mini .k, .mini .s, .mini .v,
     .kpi .k, .kpi .s, .kpi .v,
     .hero-note, pre {
