@@ -19,7 +19,7 @@ umask 077
 DEPLOYER_PK="${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
 DEPLOYER="$(cast wallet address "$DEPLOYER_PK")"
 
-MIN_STAKE_WEI="${MIN_STAKE_WEI:-1000000000000000000000}"
+MIN_STAKE_WEI="${MIN_STAKE_WEI:-10000000000000000000000}"
 MAX_ACTIVE="${MAX_ACTIVE:-2}"
 CHURN="${CHURN:-1}"
 
@@ -95,8 +95,11 @@ echo "[ok] RPC chain and bind safe"
 
 echo
 echo "=== [c] fund deployer and temp candidates on disposable local RPC ==="
-BAL_HEX="$(python3 - <<'PY'
-print(hex(10000 * 10**18))
+BAL_HEX="$(MIN_STAKE_WEI="${MIN_STAKE_WEI:-10000000000000000000000}" python3 - <<'PY'
+import os
+stake = int(os.environ["MIN_STAKE_WEI"])
+gas_headroom = 100 * 10**18
+print(hex(stake + gas_headroom))
 PY
 )"
 
@@ -440,7 +443,7 @@ contract VoidValidatorCandidateRegistryActivationHarness {
     Actor bob;
     Actor carol;
 
-    uint256 constant MIN_STAKE = 1000 ether;
+    uint256 constant MIN_STAKE = 10000 ether;
 
     function setUp() public {
         reg = new VoidValidatorCandidateRegistry({

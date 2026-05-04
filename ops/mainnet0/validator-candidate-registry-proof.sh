@@ -49,7 +49,7 @@ contract VoidValidatorCandidateRegistryHarness {
     CandidateActor bob;
     CandidateActor carol;
 
-    uint256 constant MIN_STAKE = 1000 ether;
+    uint256 constant MIN_STAKE = 10000 ether;
 
     function setUp() public {
         reg = new VoidValidatorCandidateRegistry({

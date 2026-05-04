@@ -135,7 +135,7 @@ echo "contract_file=$CONTRACT_FILE"
 echo "proof_root=$PROOF_ROOT"
 echo "contract_spec=$CONTRACT_SPEC"
 
-MIN_STAKE_WEI="${MIN_STAKE_WEI:-1000000000000000000000}"
+MIN_STAKE_WEI="${MIN_STAKE_WEI:-10000000000000000000000}"
 MAX_ACTIVE_VALIDATORS="${MAX_ACTIVE_VALIDATORS:-256}"
 ACTIVATION_CHURN_LIMIT="${ACTIVATION_CHURN_LIMIT:-4}"
 
@@ -177,6 +177,11 @@ echo "registry=$REGISTRY"
 
 CANDIDATE_ADDR="$(cast wallet address "$(cat "$TMP_SIGNER_PK")")"
 DEPLOYER_ADDR="$(cast wallet address "$(cat "$TMP_DEPLOYER_PK")")"
+
+BAL_HEX="$(MIN_STAKE_WEI="$MIN_STAKE_WEI" python3 -c 'import os; stake=int(os.environ["MIN_STAKE_WEI"]); gas_headroom=100*10**18; print(hex(stake+gas_headroom))')"
+cast rpc --rpc-url "$RPC" anvil_setBalance "$CANDIDATE_ADDR" "$BAL_HEX" >/dev/null
+cast rpc --rpc-url "$RPC" anvil_setBalance "$DEPLOYER_ADDR" "$BAL_HEX" >/dev/null || true
+echo "[ok] funded submit-live signer/candidate with stake + gas headroom"
 
 C0="$(cast call --rpc-url "$RPC" "$REGISTRY" 'candidateCount()(uint256)')"
 W0="$(cast call --rpc-url "$RPC" "$REGISTRY" 'waitingCount()(uint256)')"

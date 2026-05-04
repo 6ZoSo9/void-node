@@ -22,13 +22,13 @@ updated_at: 2026-05-02
 - validator_rotation_policy: quarterly
 - money_step_remains_last: true
 
-## Current implementation gap
+## Public candidate proof alignment
 
-Some existing local candidate-registry proof lanes still use 1000 VOID as the default minimum stake.
+The local public candidate/registration proof lanes now enforce the locked 10000 VOID minimum stake policy.
 
-That is now treated as an implementation gap, not the locked Mainnet-0 public policy.
+Public registration still creates candidate/waiting state only and does not directly mutate the active validator set.
 
-Before public Mainnet-0 activation, the public candidate/admission path must enforce the locked 10000 VOID minimum stake policy.
+Before public Mainnet-0 activation, any live public candidate/admission path must continue to enforce the locked 10000 VOID minimum stake policy.
 
 ## Launch rule
 

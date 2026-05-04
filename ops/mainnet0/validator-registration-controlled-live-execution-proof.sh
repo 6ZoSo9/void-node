@@ -167,8 +167,11 @@ echo
 echo "=== [d] fund known local deploy proof wallets ==="
 DEPLOYER="0x0d66fCDf95d38f7Db6B4206BF183f34cD816C2AA"
 LEGACY_CANDIDATE="0x9ef8A8106858Ee6D6dfe8c3850d4320D2717FD55"
-BAL_HEX="$(python3 - <<'PY'
-print(hex(10000 * 10**18))
+BAL_HEX="$(MIN_STAKE_WEI="${MIN_STAKE_WEI:-10000000000000000000000}" python3 - <<'PY'
+import os
+stake = int(os.environ["MIN_STAKE_WEI"])
+gas_headroom = 100 * 10**18
+print(hex(stake + gas_headroom))
 PY
 )"
 cast rpc --rpc-url "$RPC" anvil_setBalance "$DEPLOYER" "$BAL_HEX" >/dev/null
@@ -225,7 +228,7 @@ echo "proof_account=$ACC"
 echo "[ok] temp proof account derived; private key not printed"
 
 echo
-echo "=== [h] fund temporary proof account for 1000 VOID stake + gas ==="
+echo "=== [h] fund temporary proof account for 10000 VOID stake + gas ==="
 cast rpc --rpc-url "$RPC" anvil_setBalance "$ACC" "$BAL_HEX" >/dev/null
 echo "proof_account_balance=$(cast balance --rpc-url "$RPC" "$ACC")"
 

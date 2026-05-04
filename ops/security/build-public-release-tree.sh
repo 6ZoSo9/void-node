@@ -94,6 +94,25 @@ rm -f docs/*ceremony*.txt
 rm -f docs/*broken*.json
 
 echo
+echo "=== [2b] remove operator-specific/public-export-noise paths ==="
+rm -rf \
+  .nodeid \
+  .nodeid-* \
+  .nodekey* \
+  .peerstore.json \
+  backup_*.tgz \
+  catchup_*.ndjson \
+  export_*.ndjson \
+  journal-txroot-*.txt \
+  rollover_test \
+  _baseline \
+  ops/checkpoints \
+  ops/unit-inventory \
+  ops/mainnet/*.zoso.md \
+  ops/mainnet/validator-status.current.yaml \
+  ops/mainnet0/mainnet0-8545-epoch125-state-proof.sh
+
+echo
 echo "=== [3] write sanitization report ==="
 cat > "$REPORT" <<REPORT_EOF
 VOID public release sanitization report

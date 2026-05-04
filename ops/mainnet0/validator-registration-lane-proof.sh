@@ -117,7 +117,7 @@ assert j["ok"] is True
 assert j["mutation"] is False
 assert j["sends_transaction"] is False
 assert j["functionSignature"] == "registerCandidate(address,bytes32,bytes32)"
-assert str(j["valueWei"]) == "1000000000000000000000"
+assert str(j["valueWei"]) == "10000000000000000000000"
 assert j["safety"]["public_registration_mutates_active_set"] is False
 assert j["safety"]["enters_waiting_pool_before_active_admission"] is True
 print("[ok] draft API non-mutating green")

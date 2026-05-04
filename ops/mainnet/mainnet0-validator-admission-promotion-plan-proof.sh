@@ -35,7 +35,7 @@ grep -q "activation churn limit per epoch: 4" "$PLAN"
 grep -q "public registration result: candidate_or_waiting_only" "$PLAN"
 grep -q "public registration directly mutates active set: false" "$PLAN"
 grep -q "active admission requires guarded operator epoch step: true" "$PLAN"
-grep -q "Current 1000 VOID proof defaults are implementation gaps only" "$PLAN"
+grep -q "proof lanes are aligned to the locked 10000 VOID" "$PLAN"
 echo "[ok] plan is explicitly plan-only, non-mutating, and policy-aligned"
 
 echo

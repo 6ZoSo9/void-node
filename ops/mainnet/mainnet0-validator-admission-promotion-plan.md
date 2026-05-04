@@ -48,9 +48,9 @@ Any future public validator admission or promotion path must preserve the locked
 - active admission requires guarded operator epoch step: true
 - money step remains last: true
 
-Current 1000 VOID proof defaults are implementation gaps only. They are not the locked public Mainnet-0 admission policy.
+Current public candidate/registration proof lanes are aligned to the locked 10000 VOID Mainnet-0 admission policy.
 
-Before public Mainnet-0 activation, controlled proof lanes and public candidate/admission paths must enforce the 10000 VOID minimum stake policy.
+Before public Mainnet-0 activation, controlled proof lanes and public candidate/admission paths must continue to enforce the 10000 VOID minimum stake policy.
 
 ## Promotion phases
 

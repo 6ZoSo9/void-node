@@ -814,7 +814,7 @@ const app = express();
         registry_ready: !!registry,
         chain_id_checked: !!chain.ok,
         chain_id_is_2050: chain.ok && chain.chainId === 2050,
-        value_is_min_stake_1000_void: valueWei === "1000000000000000000000",
+        value_is_registry_min_stake: valueWei === String(artifact.minValidatorStakeWei || "0") && valueWei !== "0",
         function_signature_allowed: true,
         active_set_safe: activeSetSafe,
         draft_payload_match: true,
@@ -828,7 +828,7 @@ const app = express();
         gates.valid_reward &&
         gates.registry_ready &&
         gates.chain_id_is_2050 &&
-        gates.value_is_min_stake_1000_void &&
+        gates.value_is_registry_min_stake &&
         gates.function_signature_allowed &&
         gates.active_set_safe &&
         gates.draft_payload_match;
@@ -1055,7 +1055,7 @@ const app = express();
       const account = normAddr(body.account);
       const reward = normAddr(body.reward || account);
       const registry = normAddr(body.registry);
-      const valueWei = String(body.valueWei || "1000000000000000000000");
+      const valueWei = String(body.valueWei || "10000000000000000000000");
       const functionSignature = String(body.functionSignature || "registerCandidate(address,bytes32,bytes32)");
       const consensusKeyHash = bytes32(body.consensusKeyHash || body.consensus_key_hash) || hash32("void-mainnet0-validator-consensus:" + account.toLowerCase());
       const metadataHash = bytes32(body.metadataHash || body.metadata_hash) || hash32("void-mainnet0-validator-metadata:" + account.toLowerCase());
@@ -1863,7 +1863,7 @@ const app = express();
       const consensusKeyHash = bytes32(submit?.args?.consensusKeyHash);
       const metadataHash = bytes32(submit?.args?.metadataHash);
 
-      if (!registry || !reward || valueWei !== "1000000000000000000000" || !consensusKeyHash || !metadataHash) {
+      if (!registry || !reward || valueWei !== "10000000000000000000000" || !consensusKeyHash || !metadataHash) {
         return res.status(409).json({
           ok:false,
           kind:"participant_validator_registration_submit_live",
@@ -2204,7 +2204,7 @@ const app = express();
         valid_reward: !!reward,
         registry_ready: !!registry,
         function_signature_match: gotFunctionSignature === expectedFunctionSignature,
-        value_is_min_stake_1000_void: valueWei === "1000000000000000000000",
+        value_is_registry_min_stake: valueWei === String(artifact.minValidatorStakeWei || "0") && valueWei !== "0",
         active_set_safe: activeBefore === activeAfter && activeBefore === activeFinal,
         payload_has_consensus_hash: !!consensusKeyHash,
         payload_has_metadata_hash: !!metadataHash,
@@ -2221,7 +2221,7 @@ const app = express();
         gates.valid_reward &&
         gates.registry_ready &&
         gates.function_signature_match &&
-        gates.value_is_min_stake_1000_void &&
+        gates.value_is_registry_min_stake &&
         gates.active_set_safe &&
         gates.payload_has_consensus_hash &&
         gates.payload_has_metadata_hash;

@@ -6,7 +6,7 @@ export PATH="$HOME/.foundry/bin:$PATH"
 
 RPC="${RPC:-http://127.0.0.1:8545}"
 SECRETS="${SECRETS:-/mnt/key2/mainnet-keygen/20260418-023715/private/wallet-secrets.json}"
-MIN_STAKE_WEI="${MIN_STAKE_WEI:-1000000000000000000000}"
+MIN_STAKE_WEI="${MIN_STAKE_WEI:-10000000000000000000000}"
 MAX_ACTIVE_VALIDATORS="${MAX_ACTIVE_VALIDATORS:-256}"
 ACTIVATION_CHURN_LIMIT="${ACTIVATION_CHURN_LIMIT:-4}"
 
@@ -196,8 +196,11 @@ echo "deployer=$DEPLOYER_ADDR"
 echo "candidate=$CANDIDATE_ADDR"
 echo "secrets=$SECRETS"
 
-BAL_HEX="$(python3 - <<'PYBAL'
-print(hex(10000 * 10**18))
+BAL_HEX="$(MIN_STAKE_WEI="$MIN_STAKE_WEI" python3 - <<'PYBAL'
+import os
+stake = int(os.environ["MIN_STAKE_WEI"])
+gas_headroom = 100 * 10**18
+print(hex(stake + gas_headroom))
 PYBAL
 )"
 cast rpc --rpc-url "$RPC" anvil_setBalance "$DEPLOYER_ADDR" "$BAL_HEX" >/dev/null 2>&1 || true

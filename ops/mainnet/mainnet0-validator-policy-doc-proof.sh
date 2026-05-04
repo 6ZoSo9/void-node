@@ -27,8 +27,8 @@ grep -q 'offline_demotion_grace: 48 hours' "$P"
 grep -q 'validator_rotation_policy: quarterly' "$P"
 grep -q 'money_step_remains_last: true' "$P"
 
-grep -q '1000 VOID as the default minimum stake' "$P"
-grep -q 'implementation gap' "$P"
+grep -q 'Public candidate proof alignment' "$P"
+grep -q 'proof lanes now enforce the locked 10000 VOID minimum stake policy' "$P"
 grep -q 'does not approve public Mainnet-0 launch' "$P"
 
 echo "[ok] validator policy doc is locked and non-mutating"
