@@ -47401,6 +47401,13 @@ a{color:#93c5fd;text-decoration:none}
 
 
     
+    
+    /* VOID_TOP_STATUS_HIDE_OPS_CHIPS_V1 */
+    #topStripRelayer,
+    #topStripRunner{
+      display:none !important;
+    }
+
     /* VOID_STATUS_STRIP_GLOBAL_COMPACT_V1 */
     #participantTopStatusStrip{
       width:100%;

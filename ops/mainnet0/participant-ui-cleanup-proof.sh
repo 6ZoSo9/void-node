@@ -55,6 +55,7 @@ needles=(
   "VOID_ACCOUNT_WALLET_SHORT_STATUS_V1"
   "VOID_PARTICIPANT_RESPONSIVE_POLISH_V1"
   "VOID_STATUS_STRIP_GLOBAL_COMPACT_V1"
+  "VOID_TOP_STATUS_HIDE_OPS_CHIPS_V1"
   "voidParticipantWalletManageMenu"
   "participantTopStatusStrip"
   "News & Updates"
