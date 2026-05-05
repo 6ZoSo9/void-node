@@ -47945,6 +47945,86 @@ a{color:#93c5fd;text-decoration:none}
       white-space:nowrap;
     }
 
+    
+    /* VOID_FIRST_RUN_ONBOARDING_V1 */
+    .home-start-here{
+      display:grid;
+      gap:14px;
+      margin:0 0 14px 0;
+      padding:18px;
+      border:1px solid rgba(34,211,238,.28);
+      border-radius:20px;
+      background:linear-gradient(180deg,#102237,#0b1622);
+      box-shadow:var(--shadow);
+    }
+    .home-start-head{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .home-start-head h2{
+      margin:0;
+      font-size:26px;
+      letter-spacing:-.035em;
+      line-height:1.05;
+      font-weight:950;
+    }
+    .home-start-sub{
+      color:var(--muted);
+      font-size:13px;
+      margin-top:4px;
+      max-width:70ch;
+    }
+    .home-start-steps{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:10px;
+    }
+    .home-start-step{
+      display:grid;
+      gap:8px;
+      border:1px solid rgba(148,163,184,.18);
+      border-radius:16px;
+      padding:13px 14px;
+      background:rgba(15,23,42,.45);
+      min-height:118px;
+    }
+    .home-start-step .k{
+      color:#93c5fd;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    .home-start-step .v{
+      font-size:16px;
+      line-height:1.2;
+      font-weight:900;
+      color:var(--text);
+    }
+    .home-start-step .s{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+    }
+    .home-start-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    body:not([data-active-tab="overview"]) .home-start-here{
+      display:none;
+    }
+    @media (max-width: 980px){
+      .home-start-steps{grid-template-columns:1fr 1fr}
+    }
+    @media (max-width: 640px){
+      .home-start-steps{grid-template-columns:1fr}
+      .home-start-actions .linkbtn{width:100%;justify-content:center}
+    }
+
     /* VOID_HOME_NEWS_FEED_V1 */
     .home-news-feed{
       display:grid;
@@ -48167,6 +48247,45 @@ a{color:#93c5fd;text-decoration:none}
       <span id="topStripRelayer" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Relayer: -</span>
       <span id="topStripRunner" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Runner: -</span>
       <span id="topStripUpdate" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 10px;border-radius:999px;border:1px solid rgba(245,158,11,.28);background:rgba(245,158,11,.12);color:#fcd34d;font-weight:700"><span id="topStripUpdateText">Update: -</span><button type="button" id="topStripUpdateNowBtn" style="border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#e5e7eb;border-radius:999px;padding:3px 8px;font-weight:800;cursor:pointer">Update now</button><button type="button" id="topStripUpdateRemindBtn" style="border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.8);color:#cbd5e1;border-radius:999px;padding:3px 8px;font-weight:700;cursor:pointer">Remind me later</button></span>
+    </section>
+
+    <!-- VOID_FIRST_RUN_ONBOARDING_V1 -->
+    <section class="home-start-here" id="homeStartHere" aria-label="Start here">
+      <div class="home-start-head">
+        <div>
+          <h2>Start Here</h2>
+          <div class="home-start-sub">New to VOID? Follow this path first. Nothing here sends funds or registers a validator by itself.</div>
+        </div>
+        <span class="pill">first run</span>
+      </div>
+      <div class="home-start-steps">
+        <div class="home-start-step">
+          <div class="k">Step 1</div>
+          <div class="v">Set up Account Wallet</div>
+          <div class="s">Use Manage Wallet to create, import, or unlock your local participant wallet.</div>
+        </div>
+        <div class="home-start-step">
+          <div class="k">Step 2</div>
+          <div class="v">Fund or earn</div>
+          <div class="s">Buy VOID when the funding rail is ready, or earn Work Credits from approved work.</div>
+        </div>
+        <div class="home-start-step">
+          <div class="k">Step 3</div>
+          <div class="v">Check balances</div>
+          <div class="s">Use Wallet to review VOID, WC, send status, and recent account activity.</div>
+        </div>
+        <div class="home-start-step">
+          <div class="k">Step 4</div>
+          <div class="v">Preview staking</div>
+          <div class="s">Stake/Register shows readiness and preview-only validator registration.</div>
+        </div>
+      </div>
+      <div class="home-start-actions">
+        <a class="linkbtn btn-primary" href="/participant#wallet">Open Wallet</a>
+        <a class="linkbtn" href="/participant#work">Earn WC</a>
+        <a class="linkbtn" href="/participant#buy">Buy VOID</a>
+        <a class="linkbtn" href="/participant#staking">Preview Staking</a>
+      </div>
     </section>
 
     <!-- VOID_HOME_NEWS_FEED_V1 -->
