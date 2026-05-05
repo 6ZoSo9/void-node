@@ -793,3 +793,7 @@ participant-ui-cleanup-proof:
 .PHONY: participant-news-feed-render
 participant-news-feed-render:
 	python3 ops/mainnet0/render-participant-news-feed.py
+
+.PHONY: buy-void-backend-readiness-proof
+buy-void-backend-readiness-proof:
+	bash ops/mainnet0/buy-void-backend-readiness-proof.sh
