@@ -789,3 +789,7 @@ mainnet0-validator-policy-doc-proof:
 .PHONY: participant-ui-cleanup-proof
 participant-ui-cleanup-proof:
 	bash ops/mainnet0/participant-ui-cleanup-proof.sh
+
+.PHONY: participant-news-feed-render
+participant-news-feed-render:
+	python3 ops/mainnet0/render-participant-news-feed.py

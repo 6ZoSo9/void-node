@@ -48289,34 +48289,35 @@ a{color:#93c5fd;text-decoration:none}
     </section>
 
     <!-- VOID_HOME_NEWS_FEED_V1 -->
+    <!-- VOID_HOME_NEWS_FEED_GENERATED_V1 -->
     <section class="home-news-feed" id="homeNewsFeed" aria-label="VOID news and updates">
       <div class="home-news-head">
         <div>
-          <h2>News & Updates</h2>
+          <h2>News &amp; Updates</h2>
           <div class="home-news-sub">What changed in the last 48 hours.</div>
         </div>
         <span class="pill">last 48h</span>
       </div>
       <div class="home-news-list">
         <div class="home-news-item">
-          <div class="k">Desktop launcher</div>
-          <div class="v">VOID can now be started from a Linux desktop launcher.</div>
-          <div class="s">The launcher starts the local node, waits for readiness, then opens the participant page.</div>
+          <div class="k">onboarding</div>
+          <div class="v">Start Here onboarding is now on Home.</div>
+          <div class="s">New users now get a simple first-run path: set up Account Wallet, fund or earn, check balances, then preview staking.</div>
         </div>
         <div class="home-news-item">
-          <div class="k">Cross-box proof</div>
-          <div class="v">Precision and Alienware both proved launcher install and no-open startup.</div>
-          <div class="s">Both boxes stayed ready with gap 0 and txroot live.</div>
+          <div class="k">ui cleanup</div>
+          <div class="v">Participant UI is cleaner across the main tabs.</div>
+          <div class="s">Home, Earn, Buy VOID, Wallet, Trade, Stake, and the Account Wallet bar were simplified for normal users.</div>
         </div>
         <div class="home-news-item">
-          <div class="k">Validator policy</div>
-          <div class="v">Public validator registration is aligned to the 10,000 VOID minimum stake policy.</div>
-          <div class="s">Public registration enters candidate/waiting state and does not directly mutate the active validator set.</div>
+          <div class="k">proofs</div>
+          <div class="v">One-command participant UI regression proof is live.</div>
+          <div class="s">The participant page can now be checked with make participant-ui-cleanup-proof on Precision and Alienware.</div>
         </div>
         <div class="home-news-item">
-          <div class="k">Participant UI</div>
-          <div class="v">Home is being simplified for normal users.</div>
-          <div class="s">Operator-heavy details are being moved out of the first screen.</div>
+          <div class="k">status strip</div>
+          <div class="v">Operator-only status chips were moved out of the normal top strip.</div>
+          <div class="s">Relayer and runner states no longer pollute the normal participant status bar; Trade still shows market readiness where it belongs.</div>
         </div>
       </div>
     </section>

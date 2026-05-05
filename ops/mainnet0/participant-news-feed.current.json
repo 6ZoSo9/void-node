@@ -1,0 +1,27 @@
+{
+  "window": "last 48h",
+  "title": "News & Updates",
+  "subtitle": "What changed in the last 48 hours.",
+  "items": [
+    {
+      "kind": "onboarding",
+      "title": "Start Here onboarding is now on Home.",
+      "summary": "New users now get a simple first-run path: set up Account Wallet, fund or earn, check balances, then preview staking."
+    },
+    {
+      "kind": "ui cleanup",
+      "title": "Participant UI is cleaner across the main tabs.",
+      "summary": "Home, Earn, Buy VOID, Wallet, Trade, Stake, and the Account Wallet bar were simplified for normal users."
+    },
+    {
+      "kind": "proofs",
+      "title": "One-command participant UI regression proof is live.",
+      "summary": "The participant page can now be checked with make participant-ui-cleanup-proof on Precision and Alienware."
+    },
+    {
+      "kind": "status strip",
+      "title": "Operator-only status chips were moved out of the normal top strip.",
+      "summary": "Relayer and runner states no longer pollute the normal participant status bar; Trade still shows market readiness where it belongs."
+    }
+  ]
+}
