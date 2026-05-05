@@ -797,3 +797,7 @@ participant-news-feed-render:
 .PHONY: buy-void-backend-readiness-proof
 buy-void-backend-readiness-proof:
 	bash ops/mainnet0/buy-void-backend-readiness-proof.sh
+
+.PHONY: buy-void-claim-tx-failclosed-proof
+buy-void-claim-tx-failclosed-proof:
+	bash ops/mainnet0/buy-void-claim-tx-failclosed-proof.sh
