@@ -801,3 +801,6 @@ buy-void-backend-readiness-proof:
 .PHONY: buy-void-claim-tx-failclosed-proof
 buy-void-claim-tx-failclosed-proof:
 	bash ops/mainnet0/buy-void-claim-tx-failclosed-proof.sh
+.PHONY: buy-void-base-claim-rehearsal-note-proof
+buy-void-base-claim-rehearsal-note-proof:
+	bash ops/mainnet0/buy-void-base-claim-rehearsal-note-proof.sh
