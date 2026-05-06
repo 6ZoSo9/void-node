@@ -812,3 +812,7 @@ buy-void-fulfillment-failclosed-proof:
 .PHONY: buy-void-payment-confirmed-no-void-send-proof
 buy-void-payment-confirmed-no-void-send-proof:
 	bash ops/mainnet0/buy-void-payment-confirmed-no-void-send-proof.sh
+
+.PHONY: buy-void-operator-fulfillment-runbook-proof
+buy-void-operator-fulfillment-runbook-proof:
+	bash ops/mainnet0/buy-void-operator-fulfillment-runbook-proof.sh
