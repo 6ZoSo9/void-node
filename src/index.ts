@@ -46409,7 +46409,7 @@ a{color:#93c5fd;text-decoration:none}
           const watchId = safeId(req.body?.watch_id);
           if (!watchId) return res.status(400).json({ ok:false, error:"missing_watch_id" });
 
-          const curWatch = latestWatch(watchId);
+          const curWatch = findWatchById(watchId);
           if (!curWatch) return res.status(404).json({ ok:false, error:"watch_not_found" });
 
           const curQueue = findQueuedById(String(curWatch.queue_id || ""));

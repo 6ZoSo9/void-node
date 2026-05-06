@@ -78,7 +78,14 @@ set -e
 sed -n '1,120p' "$TMP/fake-hash.http"
 
 grep -Eq "HTTP/1.1 (400|404|500)" "$TMP/fake-hash.http"
-grep -Eq "tx_receipt_not_found|rpc_|error" "$TMP/fake-hash.http"
+
+if [ "${WATCH_MODE:-}" = "latest_watch" ]; then
+  grep -q "tx_receipt_not_found" "$TMP/fake-hash.http"
+  echo "[ok] latest watch fake tx reached receipt lookup and failed closed"
+else
+  grep -q "watch_not_found" "$TMP/fake-hash.http"
+  echo "[ok] missing watch fake tx failed closed before receipt lookup"
+fi
 
 echo
 echo "=== [7] watcher status after ==="
