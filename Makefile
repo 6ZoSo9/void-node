@@ -808,3 +808,7 @@ buy-void-base-claim-rehearsal-note-proof:
 .PHONY: buy-void-fulfillment-failclosed-proof
 buy-void-fulfillment-failclosed-proof:
 	bash ops/mainnet0/buy-void-fulfillment-failclosed-proof.sh
+
+.PHONY: buy-void-payment-confirmed-no-void-send-proof
+buy-void-payment-confirmed-no-void-send-proof:
+	bash ops/mainnet0/buy-void-payment-confirmed-no-void-send-proof.sh
