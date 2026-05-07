@@ -5,6 +5,8 @@ set +o histexpand
 
 cd "${VOID_REPO:-$HOME/dev/void-node}"
 
+PROM="${PROM:-http://127.0.0.1:9090}"
+
 ART="ops/mainnet/mainnet0-validator-live-admission-readiness.current.json"
 LIVE="ops/mainnet/void-mainnet.live.json"
 STATUS="ops/mainnet/validator-status.current.yaml"
@@ -122,7 +124,16 @@ echo
 echo "=== [3] blocker/dry-run/status proofs still pass ==="
 make mainnet0-validator-admission-blocker-proof
 make mainnet0-validator-live-admission-dryrun-proof
-make mainnet0-status-proof
+
+echo
+echo "=== [3b] status proof or non-Prometheus smoke ==="
+if curl -fsS --max-time 2 "$PROM/-/ready" >/dev/null 2>&1; then
+  echo "[ok] Prometheus reachable; running full mainnet0-status-proof"
+  make mainnet0-status-proof
+else
+  echo "[warn] Prometheus not reachable at $PROM; running mainnet0-status-smoke"
+  make mainnet0-status-smoke
+fi
 
 echo
 echo "=== [4] summary ==="
