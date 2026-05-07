@@ -823,3 +823,7 @@ buy-void-hardstop-proof:
 .PHONY: mainnet0-validator-live-admission-readiness-proof
 mainnet0-validator-live-admission-readiness-proof:
 	bash ops/mainnet/mainnet0-validator-live-admission-readiness-proof.sh
+
+.PHONY: mainnet0-validator-next-onboard-live-gate-proof
+mainnet0-validator-next-onboard-live-gate-proof:
+	bash ops/mainnet/mainnet0-validator-next-onboard-live-gate-proof.sh

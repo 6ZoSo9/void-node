@@ -2612,11 +2612,52 @@ app.get("/__void/runtime/validator-truth/next-onboard", async (_req: any, res: a
 
 app.post("/__void/participant/stake/next-onboard", require("express").json({ limit: "64kb" }), async (req: any, res: any) => {
   try {
-    if (!(req?.body && req.body.confirm === true)) {
+    const body = req?.body || {};
+
+    if (!(body && body.confirm === true)) {
       return res.status(400).json({
         ok: false,
         error: "confirmation_required",
-        hint: "POST {\"confirm\":true} to execute live onboarding"
+        hint: "POST {\"confirm\":true} plus exact operator intent fields to execute live onboarding"
+      });
+    }
+
+    const liveExecutionEnabled = String(process.env.VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION || "").trim() === "1";
+    if (!liveExecutionEnabled) {
+      return res.status(403).json({
+        ok: false,
+        error: "live_execution_disabled",
+        blocker: "VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION_not_enabled",
+        hint: "Set VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 only inside a guarded live-admission proof."
+      });
+    }
+
+    const candidateName = String(body.expected_candidate || body.candidate || "").trim();
+    const targetEpoch = Number(body.expected_target_epoch || body.target_epoch || 0);
+    const expectedValidatorCount = Number(body.expected_validator_count || body.validator_count || 0);
+
+    if (!/^vault\d+$/.test(candidateName) || !Number.isFinite(targetEpoch) || targetEpoch <= 0 || !Number.isFinite(expectedValidatorCount) || expectedValidatorCount <= 0) {
+      return res.status(400).json({
+        ok: false,
+        error: "operator_intent_required",
+        required_fields: ["expected_candidate", "expected_target_epoch", "expected_validator_count", "operator_intent"],
+        example: {
+          confirm: true,
+          expected_candidate: "vault124",
+          expected_target_epoch: 126,
+          expected_validator_count: 125,
+          operator_intent: "ADMIT_vault124_EPOCH_126_COUNT_125"
+        }
+      });
+    }
+
+    const expectedIntent = `ADMIT_${candidateName}_EPOCH_${targetEpoch}_COUNT_${expectedValidatorCount}`;
+    const suppliedIntent = String(body.operator_intent || "").trim();
+    if (suppliedIntent !== expectedIntent) {
+      return res.status(400).json({
+        ok: false,
+        error: "operator_intent_mismatch",
+        expected_intent: expectedIntent
       });
     }
 
@@ -2642,6 +2683,9 @@ app.post("/__void/participant/stake/next-onboard", require("express").json({ lim
       SKIP_PREFLIGHT: "1",
       BASE: base,
       SECRETS: secretsPath,
+      CANDIDATE_NAME: candidateName,
+      TARGET_EPOCH: String(targetEpoch),
+      EXPECTED_VALIDATOR_COUNT: String(expectedValidatorCount),
     });
 
     const child = await execFile("bash", [runbook], {
