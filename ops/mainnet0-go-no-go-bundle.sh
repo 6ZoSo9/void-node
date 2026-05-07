@@ -33,7 +33,12 @@ git log --oneline --decorate -n 20 | tee "$OUT/meta/git.log.txt"
 git status --short | tee "$OUT/meta/git.status.txt"
 
 echo
-echo "=== [1] run launch-readiness runner ==="
+echo "=== [1] prelaunch safety hard-stop gate ==="
+run_step "[1] prelaunch safety hard-stop gate" \
+  make mainnet0-prelaunch-safety-proof
+
+echo
+echo "=== [2] run launch-readiness runner ==="
 OUT="$LAUNCH_OUT" bash ops/mainnet0-launch-readiness.sh | tee "$OUT/meta.launch-readiness.stdout.log"
 
 echo
