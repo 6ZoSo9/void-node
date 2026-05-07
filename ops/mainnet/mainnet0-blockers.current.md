@@ -34,6 +34,7 @@ Current healthy-but-not-launch posture:
 - Go/no-go wrapper intentionally exits NO-GO while blockers remain.
 - Validator admission blocker proof is green and proves public registration is plan-only/waiting/not-active.
 - Validator admission promotion plan proof is green and proves the future promotion path remains plan-only and non-mutating.
+- Validator live-admission readiness proof is green and proves candidate-validator-01 / vault124 / epoch126 readiness without mutation.
 
 ## Blocker 1: maintain status proof discipline
 
@@ -56,13 +57,14 @@ Current validator state:
 - Operator/bootstrap validator runtime truth is green through epoch125.
 - vault123 is admitted in the operator/bootstrap validator set.
 - The next operator selector is vault124 targeting epoch126.
+- Validator live-admission readiness artifact/proof is green, but live admission is not executed.
 - Public participant validator registration remains candidate/waiting only.
 - Public registration does not instantly expand the active validator set.
 - Public candidate/waiting state must not be confused with active validator admission.
 
 Required work:
 
-1. Decide the final public validator admission/promotion path.
+1. Decide the final public validator admission/promotion path. Readiness is green; guarded live admission is still not executed.
 2. Promote only through guarded config/runtime/proof lanes.
 3. Prove live config represents the intended public admission state.
 4. Prove runtime endpoints agree.

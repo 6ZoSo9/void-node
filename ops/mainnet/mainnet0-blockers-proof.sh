@@ -26,6 +26,8 @@ grep -q "Operator/bootstrap validator runtime truth is green through epoch125" "
 grep -q "Durable 8545 restore lane is green" "$BLOCKERS"
 grep -q "Blocker 3: Buy VOID real claim/send is not complete" "$BLOCKERS"
 grep -q "Blocker 4: final go/no-go remains blocked" "$BLOCKERS"
+grep -q "Validator live-admission readiness proof is green" "$BLOCKERS"
+grep -q "live admission is not executed" "$BLOCKERS"
 grep -q "Ready signals are not launch approval" "$BLOCKERS"
 
 grep -q "status: not_go_for_public_mainnet0" "$STATUS"

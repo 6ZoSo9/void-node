@@ -20,11 +20,13 @@ operator_label: zoso
 - Buy VOID watcher config uses Base native USDC.
 - Operator checkpoint/finality policy review is recorded.
 - Validator public reward address and consensus key are recorded.
+- Validator live-admission readiness proof is green for candidate-validator-01 / vault124 / epoch126, readiness-only and non-mutating.
 
 ## Still not done
 
 - Public validator candidate promotion/admission remains blocked.
 - Public candidate/waiting registration must not be confused with operator/bootstrap validator admission.
+- Validator live-admission readiness is green, but live admission itself has not been executed.
 - Buy VOID real payment claim has not been run.
 - No real Base USDC transaction hash has been verified.
 - No VOID has been sent from the Buy VOID claim path.
@@ -43,6 +45,8 @@ Two validator tracks must stay separate:
    - active validator count on recovered 8545 state: 124
    - next operator candidate selector: vault124 targeting epoch126 / expectedValidatorCount=125
    - durable 8545 restore lane is green.
+   - live-admission readiness artifact/proof is green for candidate-validator-01 / vault124 / epoch126.
+   - readiness remains non-mutating: mutation_allowed=false and live_admission_executed=false.
 
 2. Public participant validator registration:
    - public registration/candidate/waiting status remains non-launching.

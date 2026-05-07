@@ -102,6 +102,12 @@ Before live admission:
 - prove no private keys are present in the promotion artifact.
 - prove the intended validator count and epoch are explicit.
 
+### Current readiness checkpoint
+
+The live-admission readiness artifact/proof is green for candidate-validator-01 / vault124 / epoch126.
+
+This checkpoint is readiness-only. It does not activate a validator, does not mutate live validator state, does not approve public Mainnet-0 launch, and does not clear the Buy VOID blocker.
+
 ### Phase 4: guarded live admission
 
 Live admission may only occur after the dry-run proof is green.
