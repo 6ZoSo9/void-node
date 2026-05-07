@@ -84,3 +84,14 @@ Do not accept blind direct deposits.
 Do not accept exchange or custodial sends.
 
 Do not send VOID from the Buy VOID path until the real payment claim proof is green.
+
+
+## Buy VOID hard-stop gate
+
+Before Mainnet-0 approval, this gate is mandatory:
+
+Required command: make buy-void-hardstop-proof
+
+This composite proof must prove operator fulfillment rules, payment-confirmed does not send VOID, fulfillment fails closed without an explicit operator VOID tx reference, Base claim rehearsal remains claim-only, fake claim txs fail closed, and backend readiness is read-only/fail-closed.
+
+Payment confirmation is not VOID sent. Claim verification is not fulfillment. The money step remains last.

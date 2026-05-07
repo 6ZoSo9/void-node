@@ -72,3 +72,12 @@ Do not run MODE=claim without a real Base transaction hash.
 Ready signals are not the same as launch approval.
 
 Mainnet-0 remains not-go until remaining launch blockers are cleared and a final go/no-go bundle is run intentionally.
+
+
+## Buy VOID hard-stop gate
+
+- Buy VOID hard-stop composite proof is wired into Mainnet-0 prelaunch safety.
+- Buy VOID hard-stop proof target: make buy-void-hardstop-proof.
+- Payment confirmation does not equal VOID sent.
+- Fulfillment still requires an explicit operator VOID transaction reference.
+- Real Buy VOID payment claim/send remains blocked until the final operator money step.

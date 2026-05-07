@@ -18,6 +18,9 @@ test -f "$STATUS_FILE"
 test -f "$VALIDATOR_STATUS"
 grep -q 'status: not_go_for_public_mainnet0' "$STATUS_FILE"
 grep -q 'Buy VOID real payment claim has not been run' "$STATUS_FILE"
+grep -q 'Buy VOID hard-stop composite proof is wired into Mainnet-0 prelaunch safety' "$STATUS_FILE"
+grep -q 'Buy VOID hard-stop proof target: make buy-void-hardstop-proof' "$STATUS_FILE"
+grep -q 'Payment confirmation does not equal VOID sent' "$STATUS_FILE"
 grep -q 'Public validator candidate promotion/admission remains blocked' "$STATUS_FILE"
 grep -q 'Operator/bootstrap validator runtime truth is green through epoch125' "$STATUS_FILE"
 grep -q 'Durable local RPC restore lane is green for epoch125' "$STATUS_FILE"
@@ -78,7 +81,7 @@ print("[ok] validator lifecycle fresh")
 PY
 
 echo
-echo "=== [5] Buy VOID status is configured but not claimed ==="
+echo "=== [5] Buy VOID status is configured; real claim/send remains blocked ==="
 curl -fsS "$BASE/__void/operator/buy-void/base-watcher/status" \
   | tee /tmp/void-mainnet0-status-buy-void.json
 python3 - /tmp/void-mainnet0-status-buy-void.json <<'PY'
@@ -92,10 +95,16 @@ assert cfg.get("chain") == "base", cfg
 assert cfg.get("asset") == "base_native_usdc", cfg
 assert cfg.get("receiver_address") == "0x45dd104e3F7CC2A080F2edA094D011D09c51960B", cfg
 assert cfg.get("token_address") == "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", cfg
+
 if w:
-    assert not w.get("payment_ref"), w
-    assert not w.get("void_tx_ref"), w
-print("[ok] Buy VOID configured; latest watch has no payment_ref/void_tx_ref")
+    payment_ref = str(w.get("payment_ref") or "")
+    void_tx_ref = str(w.get("void_tx_ref") or "")
+
+    assert not void_tx_ref, w
+    if payment_ref:
+        assert payment_ref.startswith("base_tx_confirmed_manual_"), w
+
+print("[ok] Buy VOID configured; no VOID send recorded; only manual proof payment refs are allowed")
 PY
 
 echo
@@ -105,13 +114,18 @@ import json, pathlib
 ready=json.load(open("/tmp/void-mainnet0-status-ready.json"))
 buy=json.load(open("/tmp/void-mainnet0-status-buy-void.json"))
 w=buy.get("latest_watch") or {}
+payment_ref = str(w.get("payment_ref") or "")
+manual_payment_ref = bool(payment_ref and payment_ref.startswith("base_tx_confirmed_manual_"))
+real_claim_run = bool(payment_ref and not manual_payment_ref)
+
 print({
   "status": "not_go_for_public_mainnet0",
   "node_ready": ready.get("ready"),
   "head": ready.get("head"),
   "buy_void_pending_count": buy.get("pending_count"),
   "latest_watch_id": w.get("watch_id"),
-  "buy_void_claim_run": bool(w.get("payment_ref")),
+  "buy_void_real_claim_run": real_claim_run,
+  "buy_void_manual_proof_payment_ref": manual_payment_ref,
   "buy_void_void_sent": bool(w.get("void_tx_ref")),
   "validator_status": "public_candidate_waiting_operator_epoch125_green",
 })
