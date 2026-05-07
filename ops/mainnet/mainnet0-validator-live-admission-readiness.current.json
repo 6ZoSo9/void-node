@@ -1,0 +1,58 @@
+{
+  "ok": true,
+  "kind": "mainnet0_validator_live_admission_readiness_artifact",
+  "status": "readiness_only_not_live_admitted",
+  "launch_state": "not_go_for_public_mainnet0",
+  "mutation_allowed": false,
+  "created_at": "2026-05-07T11:02:07.480013+00:00",
+  "operator_label": "zoso",
+  "candidate": {
+    "validator_id": "candidate-validator-01",
+    "current_status": "candidate_not_active",
+    "validator_status_file_state": "plan_only_candidate_declared",
+    "public_registration_state": "waiting",
+    "public_registration_mutates_active_set": false
+  },
+  "public_values": {
+    "reward_address": "0xD2571D5D471D6574f7d57D0a3aCa5B34D0C8dA6F",
+    "consensus_key": "0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540"
+  },
+  "current_live_json_expected": {
+    "mode": "plan_only",
+    "status": "plan_only_not_live",
+    "candidate_status": "candidate_not_active"
+  },
+  "operator_next_onboard_reference": {
+    "selected_candidate_name": "vault124",
+    "selected_candidate_addr": "0xd954A5912F9E0d8e242bf2E2DE121076c4d7E60c",
+    "current_epoch": "125",
+    "target_epoch": "126",
+    "current_validator_count": "124",
+    "expected_validator_count": "125",
+    "live_admission_allowed": "false",
+    "live_admission_executed": "false"
+  },
+  "locked_policy": {
+    "public_candidate_minimum_stake_void": 10000,
+    "active_validator_cap": 256,
+    "activation_churn_limit_per_epoch": 4,
+    "public_registration_result": "candidate_or_waiting_only",
+    "public_registration_directly_mutates_active_set": false,
+    "active_admission_requires_guarded_operator_epoch_step": true,
+    "money_step_remains_last": true
+  },
+  "required_before_mutation": [
+    "mainnet0-validator-admission-blocker-proof",
+    "mainnet0-validator-live-admission-dryrun-proof",
+    "mainnet0-status-proof",
+    "mainnet0-crossbox-status-smoke",
+    "explicit operator confirmation",
+    "no private keys committed"
+  ],
+  "non_goals": [
+    "does not activate validator",
+    "does not mutate live validator state",
+    "does not approve public Mainnet-0 launch",
+    "does not clear Buy VOID blocker"
+  ]
+}

@@ -819,3 +819,7 @@ buy-void-operator-fulfillment-runbook-proof:
 .PHONY: buy-void-hardstop-proof
 buy-void-hardstop-proof:
 	bash ops/mainnet0/buy-void-hardstop-proof.sh
+
+.PHONY: mainnet0-validator-live-admission-readiness-proof
+mainnet0-validator-live-admission-readiness-proof:
+	bash ops/mainnet/mainnet0-validator-live-admission-readiness-proof.sh
