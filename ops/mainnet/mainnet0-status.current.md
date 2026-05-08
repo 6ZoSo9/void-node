@@ -21,12 +21,14 @@ operator_label: zoso
 - Operator checkpoint/finality policy review is recorded.
 - Validator public reward address and consensus key are recorded.
 - Validator live-admission readiness proof is green for candidate-validator-01 / vault124 / epoch126, readiness-only and non-mutating.
+- Validator next-onboard intent gate proof is green cross-box: confirm:true, exact operator intent, and VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 are required before live onboarding can run.
 
 ## Still not done
 
 - Public validator candidate promotion/admission remains blocked.
 - Public candidate/waiting registration must not be confused with operator/bootstrap validator admission.
 - Validator live-admission readiness is green, but live admission itself has not been executed.
+- Next-onboard intent gate is green, but it is a safety gate only; it does not promote or admit validators.
 - Buy VOID real payment claim has not been run.
 - No real Base USDC transaction hash has been verified.
 - No VOID has been sent from the Buy VOID claim path.

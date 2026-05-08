@@ -108,6 +108,14 @@ The live-admission readiness artifact/proof is green for candidate-validator-01 
 
 This checkpoint is readiness-only. It does not activate a validator, does not mutate live validator state, does not approve public Mainnet-0 launch, and does not clear the Buy VOID blocker.
 
+### Current next-onboard intent gate checkpoint
+
+The next-onboard intent gate is green and cross-box proven for vault124 / epoch126 / expectedValidatorCount=125.
+
+Missing operator intent returns operator_intent_required before the live env switch. Wrong operator intent returns operator_intent_mismatch before the live env switch. Exact operator intent remains blocked by live_execution_disabled while VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION is off.
+
+This checkpoint is a safety gate only. It does not execute live admission, does not mutate live validator state, does not approve public Mainnet-0 launch, and does not clear the Buy VOID blocker.
+
 ### Phase 4: guarded live admission
 
 Live admission may only occur after the dry-run proof is green.

@@ -35,6 +35,7 @@ Current healthy-but-not-launch posture:
 - Validator admission blocker proof is green and proves public registration is plan-only/waiting/not-active.
 - Validator admission promotion plan proof is green and proves the future promotion path remains plan-only and non-mutating.
 - Validator live-admission readiness proof is green and proves candidate-validator-01 / vault124 / epoch126 readiness without mutation.
+- Validator next-onboard intent gate proof is green and cross-box proven: missing/wrong operator intent fails before the live env switch, exact intent remains blocked while VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION is off.
 
 ## Blocker 1: maintain status proof discipline
 
@@ -58,6 +59,7 @@ Current validator state:
 - vault123 is admitted in the operator/bootstrap validator set.
 - The next operator selector is vault124 targeting epoch126.
 - Validator live-admission readiness artifact/proof is green, but live admission is not executed.
+- Next-onboard intent gate is green, but live admission remains blocked unless an explicit guarded live proof enables the env switch and supplies the exact operator intent.
 - Public participant validator registration remains candidate/waiting only.
 - Public registration does not instantly expand the active validator set.
 - Public candidate/waiting state must not be confused with active validator admission.
