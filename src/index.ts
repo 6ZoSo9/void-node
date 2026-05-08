@@ -2622,16 +2622,6 @@ app.post("/__void/participant/stake/next-onboard", require("express").json({ lim
       });
     }
 
-    const liveExecutionEnabled = String(process.env.VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION || "").trim() === "1";
-    if (!liveExecutionEnabled) {
-      return res.status(403).json({
-        ok: false,
-        error: "live_execution_disabled",
-        blocker: "VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION_not_enabled",
-        hint: "Set VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 only inside a guarded live-admission proof."
-      });
-    }
-
     const candidateName = String(body.expected_candidate || body.candidate || "").trim();
     const targetEpoch = Number(body.expected_target_epoch || body.target_epoch || 0);
     const expectedValidatorCount = Number(body.expected_validator_count || body.validator_count || 0);
@@ -2658,6 +2648,16 @@ app.post("/__void/participant/stake/next-onboard", require("express").json({ lim
         ok: false,
         error: "operator_intent_mismatch",
         expected_intent: expectedIntent
+      });
+    }
+
+    const liveExecutionEnabled = String(process.env.VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION || "").trim() === "1";
+    if (!liveExecutionEnabled) {
+      return res.status(403).json({
+        ok: false,
+        error: "live_execution_disabled",
+        blocker: "VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION_not_enabled",
+        hint: "Set VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 only inside a guarded live-admission proof."
       });
     }
 

@@ -22,7 +22,23 @@ sleep 3
 
 echo
 echo "=== [b] node ready ==="
-curl -fsS "$BASE/__void/ready.json" > "$OUT/ready.before.json"
+READY_RC=1
+for i in $(seq 1 45); do
+  if curl -fsS "$BASE/__void/ready.json" > "$OUT/ready.before.json.tmp" 2>/tmp/void-live-submit-ready-before.err; then
+    mv "$OUT/ready.before.json.tmp" "$OUT/ready.before.json"
+    READY_RC=0
+    break
+  fi
+  sleep 1
+done
+
+if [ "$READY_RC" -ne 0 ]; then
+  echo "[ERR] node did not become ready after restart"
+  cat /tmp/void-live-submit-ready-before.err 2>/dev/null || true
+  systemctl --user status void-node.service --no-pager -l | sed -n "1,100p" || true
+  false
+fi
+
 cat "$OUT/ready.before.json"
 echo
 python3 - "$OUT/ready.before.json" <<'PY'

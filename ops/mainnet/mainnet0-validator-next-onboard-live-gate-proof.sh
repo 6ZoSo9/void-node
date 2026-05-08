@@ -10,6 +10,8 @@ SRC="src/index.ts"
 
 NO_CONFIRM="/tmp/void-next-onboard-live-gate.no-confirm.json"
 ENV_OFF="/tmp/void-next-onboard-live-gate.env-off.json"
+MISSING_INTENT="/tmp/void-next-onboard-live-gate.missing-intent.json"
+WRONG_INTENT="/tmp/void-next-onboard-live-gate.wrong-intent.json"
 SELECTOR="/tmp/void-next-onboard-live-gate.selector.json"
 
 echo "=== Mainnet-0 validator next-onboard live gate proof ==="
@@ -85,8 +87,50 @@ assert j.get("error") == "confirmation_required", j
 print("[ok] no-confirm request blocked")
 PY
 
+
 echo
-echo "=== [5] exact-intent request is still blocked while live execution env is off ==="
+echo "=== [5] confirm true but missing operator intent is blocked before env switch ==="
+HTTP_MISSING="$(curl -sS -o "$MISSING_INTENT" -w "%{http_code}" \
+  -X POST "$BASE/__void/participant/stake/next-onboard" \
+  -H "content-type: application/json" \
+  --data '{"confirm":true}')"
+echo "http=$HTTP_MISSING"
+cat "$MISSING_INTENT"
+echo
+
+python3 - "$MISSING_INTENT" "$HTTP_MISSING" <<'PY'
+import json, sys
+j=json.load(open(sys.argv[1]))
+http=sys.argv[2]
+assert http == "400", (http, j)
+assert j.get("ok") is False, j
+assert j.get("error") == "operator_intent_required", j
+print("[ok] missing operator intent blocked before live execution env check")
+PY
+
+echo
+echo "=== [6] wrong operator intent is blocked before env switch ==="
+HTTP_WRONG="$(curl -sS -o "$WRONG_INTENT" -w "%{http_code}" \
+  -X POST "$BASE/__void/participant/stake/next-onboard" \
+  -H "content-type: application/json" \
+  --data '{"confirm":true,"expected_candidate":"vault124","expected_target_epoch":126,"expected_validator_count":125,"operator_intent":"ADMIT_vault124_EPOCH_126_COUNT_999"}')"
+echo "http=$HTTP_WRONG"
+cat "$WRONG_INTENT"
+echo
+
+python3 - "$WRONG_INTENT" "$HTTP_WRONG" <<'PY'
+import json, sys
+j=json.load(open(sys.argv[1]))
+http=sys.argv[2]
+assert http == "400", (http, j)
+assert j.get("ok") is False, j
+assert j.get("error") == "operator_intent_mismatch", j
+assert j.get("expected_intent") == "ADMIT_vault124_EPOCH_126_COUNT_125", j
+print("[ok] wrong operator intent blocked before live execution env check")
+PY
+
+echo
+echo "=== [7] exact-intent request is still blocked while live execution env is off ==="
 HTTP2="$(
   curl -sS -o "$ENV_OFF" -w "%{http_code}" \
     -X POST "$BASE/__void/participant/stake/next-onboard" \
@@ -109,11 +153,11 @@ print("[ok] exact-intent request blocked by live execution kill switch")
 PY
 
 echo
-echo "=== [6] existing readiness proof still passes ==="
+echo "=== [8] existing readiness proof still passes ==="
 make mainnet0-validator-live-admission-readiness-proof
 
 echo
-echo "=== [7] summary ==="
+echo "=== [9] summary ==="
 python3 - <<'PY'
 print({
   "next_onboard_live_gate": "green",
