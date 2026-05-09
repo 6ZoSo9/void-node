@@ -114,7 +114,15 @@ echo
 echo "=== [6] required proof stack ==="
 make mainnet0-validator-next-onboard-live-gate-proof
 make mainnet0-validator-live-admission-readiness-proof
-make mainnet0-status-proof
+echo
+echo "=== [6c] status proof or non-Prometheus smoke ==="
+if curl -fsS "http://127.0.0.1:9090/-/ready" >/dev/null 2>&1; then
+  echo "[ok] Prometheus reachable; running full mainnet0-status-proof"
+  make mainnet0-status-proof
+else
+  echo "[warn] Prometheus not reachable at http://127.0.0.1:9090; running mainnet0-status-smoke"
+  make mainnet0-status-smoke
+fi
 make mainnet0-crossbox-status-smoke
 make mainnet0-prelaunch-safety-proof
 
