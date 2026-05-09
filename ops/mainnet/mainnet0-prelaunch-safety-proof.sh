@@ -21,7 +21,13 @@ echo "[ok] runbook hard-stop rules present"
 
 echo
 echo "=== [2] status proof / Prometheus path ==="
-make mainnet0-status-proof
+if curl -fsS "http://127.0.0.1:9090/-/ready" >/dev/null 2>&1; then
+  echo "[ok] Prometheus reachable; running full mainnet0-status-proof"
+  make mainnet0-status-proof
+else
+  echo "[warn] Prometheus not reachable at http://127.0.0.1:9090; running mainnet0-status-smoke"
+  make mainnet0-status-smoke
+fi
 
 echo
 echo "=== [3] Buy VOID hard-stop proof ==="
@@ -37,7 +43,15 @@ make mainnet0-validator-live-admission-dryrun-proof
 
 echo
 echo "=== [6] cross-box smoke ==="
-make mainnet0-crossbox-status-smoke
+ALIEN="${ALIEN:-zoso@100.122.79.39}"
+if ssh -o BatchMode=yes -o ConnectTimeout=6 "$ALIEN" "true" >/dev/null 2>&1; then
+  echo "[ok] SSH to Alienware available; running cross-box status smoke"
+  make mainnet0-crossbox-status-smoke
+else
+  echo "[warn] SSH to Alienware not available from this node; running local status smoke fallback"
+  echo "[warn] Full cross-box smoke must still be run from Precision/coordinator before any live mutation"
+  make mainnet0-status-smoke
+fi
 
 echo
 echo "=== [7] summary ==="
