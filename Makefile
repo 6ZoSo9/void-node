@@ -831,3 +831,7 @@ mainnet0-validator-next-onboard-live-gate-proof:
 .PHONY: mainnet0-validator-live-admission-execution-runbook-proof
 mainnet0-validator-live-admission-execution-runbook-proof:
 	bash ops/mainnet/mainnet0-validator-live-admission-execution-runbook-proof.sh
+
+.PHONY: mainnet0-validator-live-admission-final-preflight-proof
+mainnet0-validator-live-admission-final-preflight-proof:
+	bash ops/mainnet/mainnet0-validator-live-admission-final-preflight-proof.sh
