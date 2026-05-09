@@ -43,7 +43,21 @@ echo "[ok] checkpoint lineage matches validator live-admission lane"
 
 echo
 echo "=== [2] node ready ==="
-curl -fsS "$BASE/__void/ready.json" > "$OUT/ready.json"
+READY_RC=1
+for i in $(seq 1 60); do
+  if curl -fsS "$BASE/__void/ready.json" > "$OUT/ready.json" 2>"$OUT/void-final-preflight-ready.err"; then
+    READY_RC=0
+    break
+  fi
+  sleep 1
+done
+
+if [ "$READY_RC" -ne 0 ]; then
+  echo "[ERR] node did not become ready for final preflight"
+  cat "$OUT/void-final-preflight-ready.err" 2>/dev/null || true
+  systemctl --user status void-node.service --no-pager -l | sed -n "1,120p" || true
+  false
+fi
 cat "$OUT/ready.json"
 echo
 python3 -c 'import json, sys
