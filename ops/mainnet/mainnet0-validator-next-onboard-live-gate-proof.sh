@@ -35,7 +35,23 @@ systemctl --user unset-environment VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION >/
 systemctl --user restart void-node.service
 sleep 3
 
-curl -fsS "$BASE/__void/ready.json" | tee /tmp/void-next-onboard-live-gate.ready.json
+READY_RC=1
+for i in $(seq 1 60); do
+  if curl -fsS "$BASE/__void/ready.json" > /tmp/void-next-onboard-live-gate.ready.json 2>/tmp/void-next-onboard-live-gate.ready.err; then
+    READY_RC=0
+    break
+  fi
+  sleep 1
+done
+
+if [ "$READY_RC" -ne 0 ]; then
+  echo "[ERR] node did not become ready after restart"
+  cat /tmp/void-next-onboard-live-gate.ready.err 2>/dev/null || true
+  systemctl --user status void-node.service --no-pager -l | sed -n "1,120p" || true
+  false
+fi
+
+cat /tmp/void-next-onboard-live-gate.ready.json
 echo
 python3 - /tmp/void-next-onboard-live-gate.ready.json <<'PY'
 import json, sys
