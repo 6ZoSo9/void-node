@@ -38,7 +38,7 @@ fi
 
 git rev-parse --short HEAD | tee "$OUT/git.head.txt"
 git describe --tags --always --dirty | tee "$OUT/git.describe.txt"
-grep -Eq "ckpt-validator-live-admission|ckpt-validator-next-onboard-ready-wait|ckpt-validator-final-preflight" "$OUT/git.describe.txt"
+grep -Eq "ckpt-validator-live-admission|ckpt-validator-next-onboard-ready-wait|ckpt-validator-final-preflight|ckpt-prelaunch-safety-noncoordinator-fallback" "$OUT/git.describe.txt"
 echo "[ok] checkpoint lineage matches validator live-admission lane"
 
 echo
