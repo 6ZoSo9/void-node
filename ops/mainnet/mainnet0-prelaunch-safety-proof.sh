@@ -35,7 +35,15 @@ make buy-void-hardstop-proof
 
 echo
 echo "=== [4] go/no-go must fail closed ==="
-make mainnet0-gonogo-no-go-proof
+if curl -fsS "http://127.0.0.1:9090/-/ready" >/dev/null 2>&1; then
+  echo "[ok] Prometheus reachable; running full go/no-go NO-GO proof"
+  make mainnet0-gonogo-no-go-proof
+else
+  echo "[warn] Prometheus not reachable at http://127.0.0.1:9090; running non-coordinator fail-closed fallback"
+  echo "[warn] Full go/no-go NO-GO proof must still run on Precision/coordinator before any live mutation"
+  make mainnet0-blockers-proof
+  make mainnet0-status-smoke
+fi
 
 echo
 echo "=== [5] validator live-admission dry-run proof ==="
