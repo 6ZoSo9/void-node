@@ -48,7 +48,7 @@ assert j.get("ok") is True, j
 assert cfg.get("enabled") is True, cfg
 assert cfg.get("chain") == "base", cfg
 assert cfg.get("asset") == "base_native_usdc", cfg
-assert cfg.get("receiver_address") == "0x45dd104e3F7CC2A080F2edA094D011D09c51960B", cfg
+assert cfg.get("receiver_address") == "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5", cfg
 assert cfg.get("token_address") == "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", cfg
 print("[ok] Buy VOID watcher config present")
 PY
