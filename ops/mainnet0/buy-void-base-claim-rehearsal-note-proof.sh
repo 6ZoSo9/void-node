@@ -21,7 +21,7 @@ needles=(
   "QUEUE_ID=buyq_1778051350285_11b64d45"
   "WATCH_ID=buywatch_1778051350400_6dcb454d"
   "Amount: 25 USDC"
-  "Receiver: 0x45dd104e3F7CC2A080F2edA094D011D09c51960B"
+  "Receiver: 0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5"
   "Delivery wallet: 0x1101A058E98eDCD775c93E26900d1DdBbdfa5d31"
   "Do not run MODE=claim until a real Base native USDC transaction hash exists"
   "Do not treat claim verification as VOID fulfillment."
