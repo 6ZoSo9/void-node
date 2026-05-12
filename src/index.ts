@@ -45571,9 +45571,22 @@ a{color:#93c5fd;text-decoration:none}
       const crypto = require("node:crypto");
       return "buyreq_" + nowMs() + "_" + crypto.randomBytes(4).toString("hex");
     }
-    function buildPolicy(deliveryWallet:string, requestedAmountUsdc:number){
+    function normalizeBuyVoidRequestChain(x:any): string {
+      const v = safeStr(x || "", 32).toLowerCase();
+      if (v === "ethereum" || v === "eth" || v === "mainnet" || v === "ethereum_mainnet") return "ethereum";
+      return "base";
+    }
+    function buyVoidAssetForChain(chain:string): string {
+      return normalizeBuyVoidRequestChain(chain) === "ethereum" ? "ethereum_native_usdc" : "base_native_usdc";
+    }
+    function buyVoidFulfillmentLaneForChain(chain:string): string {
+      return normalizeBuyVoidRequestChain(chain) === "ethereum" ? "buy_void_ethereum_usdc_v1_future" : "buy_void_base_usdc_v1_future";
+    }
+    function buildPolicy(deliveryWallet:string, requestedAmountUsdc:number, acceptedChain:any){
+      const chain = normalizeBuyVoidRequestChain(acceptedChain);
       return {
-        accepted_asset: "base_native_usdc",
+        accepted_chain: chain,
+        accepted_asset: buyVoidAssetForChain(chain),
         participant_page_only: true,
         blind_direct_deposits_blocked: true,
         exchange_or_custodial_wallet_sends_blocked: true,
@@ -45623,7 +45636,15 @@ a{color:#93c5fd;text-decoration:none}
 
           const deliveryWallet = safeWallet(req.body?.delivery_wallet || req.body?.wallet);
           const requestedAmountUsdc = safeAmountUsdc(req.body?.requested_amount_usdc ?? req.body?.amount_usdc ?? req.body?.amount);
-          const policy = buildPolicy(deliveryWallet, requestedAmountUsdc);
+          const requestedChain = normalizeBuyVoidRequestChain(
+            req.body?.chain ||
+            req.body?.expected_chain ||
+            req.body?.payment_chain ||
+            req.body?.asset_chain ||
+            req.body?.network ||
+            "base"
+          );
+          const policy = buildPolicy(deliveryWallet, requestedAmountUsdc, requestedChain);
           const status = buildStatus(policy);
 
           const row = {
@@ -45635,7 +45656,7 @@ a{color:#93c5fd;text-decoration:none}
             requested_amount_usdc: requestedAmountUsdc,
             policy,
             status,
-            fulfillment_lane: "buy_void_base_usdc_v1_future",
+            fulfillment_lane: buyVoidFulfillmentLaneForChain(requestedChain),
           };
 
           appendJsonl(requestFile(), row);
@@ -45854,7 +45875,7 @@ a{color:#93c5fd;text-decoration:none}
             operator_note: safeNote(req.body?.operator_note || ""),
             payment_ref: "",
             void_tx_ref: "",
-            fulfillment_lane: String(src.fulfillment_lane || "buy_void_base_usdc_v1_future"),
+            fulfillment_lane: String(src.fulfillment_lane || (String(src?.policy?.accepted_chain || "") === "ethereum" ? "buy_void_ethereum_usdc_v1_future" : "buy_void_base_usdc_v1_future")),
           };
 
           appendJsonl(queueFile(), row);
@@ -46073,6 +46094,36 @@ a{color:#93c5fd;text-decoration:none}
       };
     }
 
+    function normalizeBuyVoidChain(x:any): string {
+      const v = safeStr(x || "", 32).toLowerCase();
+      if (v === "ethereum" || v === "eth" || v === "mainnet" || v === "ethereum_mainnet") return "ethereum";
+      return "base";
+    }
+
+    function getWatcherConfigForChain(chainRaw:any){
+      const cur = getWatcherConfig();
+      const chain = normalizeBuyVoidChain(chainRaw || cur.chain || "base");
+
+      if (chain === "ethereum") {
+        return {
+          ...cur,
+          chain: "ethereum",
+          asset: "ethereum_native_usdc",
+          rpc_url: safeStr(process.env.VOID_BUY_VOID_ETHEREUM_RPC_URL || "https://ethereum-rpc.publicnode.com", 240),
+          token_address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          token_decimals: 6,
+          confirmations_required: Math.max(1, Math.min(100, Math.floor(Number(process.env.VOID_BUY_VOID_ETHEREUM_CONFIRMATIONS || cur.confirmations_required || 1) || 1))),
+          receiver_address: cur.receiver_address,
+        };
+      }
+
+      return {
+        ...cur,
+        chain: "base",
+        asset: "base_native_usdc",
+      };
+    }
+
     function latestQueueById(): Map<string, any> {
       const out = new Map<string, any>();
       const lines = readLines(queueFile());
@@ -46238,7 +46289,14 @@ a{color:#93c5fd;text-decoration:none}
           const src = findQueuedById(queueId);
           if (!src) return res.status(404).json({ ok:false, error:"queue_not_found" });
 
-          const cfg = getWatcherConfig();
+          const cfg = getWatcherConfigForChain(
+            req.body?.chain ||
+            req.body?.expected_chain ||
+            req.body?.payment_chain ||
+            req.body?.asset_chain ||
+            (src?.policy && src.policy.accepted_chain) ||
+            "base"
+          );
           const curStatus = String(src?.operator_status || "");
           if (curStatus === "completed" || curStatus === "failed") {
             return res.status(400).json({ ok:false, error:"queue_not_watchable", queued: src });
@@ -46265,7 +46323,7 @@ a{color:#93c5fd;text-decoration:none}
             observed_amount_usdc: 0,
             observed_amount_match: false,
             void_tx_ref: "",
-            fulfillment_lane: String(src.fulfillment_lane || "buy_void_base_usdc_v1_future"),
+            fulfillment_lane: String(src.fulfillment_lane || (String(src?.policy?.accepted_chain || "") === "ethereum" ? "buy_void_ethereum_usdc_v1_future" : "buy_void_base_usdc_v1_future")),
           };
 
           appendJsonl(watchFile(), row);
@@ -46419,7 +46477,7 @@ a{color:#93c5fd;text-decoration:none}
 
           const row = {
             ok: true,
-            obs_id: makeId("baseobs"),
+            obs_id: makeId(String(cfg.chain || "base") === "ethereum" ? "ethobs" : "baseobs"),
             ts_ms: nowMs(),
             payment_tag: paymentTag,
             payment_ref: paymentRef,
@@ -46462,7 +46520,12 @@ a{color:#93c5fd;text-decoration:none}
           const txHash = safeTxRef(req.body?.payment_ref || req.body?.tx_hash);
           if (!txHash) return res.status(400).json({ ok:false, error:"missing_payment_ref" });
 
-          const cfg = getWatcherConfig();
+          const cfg = getWatcherConfigForChain(
+            req.body?.chain ||
+            curWatch?.expected_chain ||
+            curWatch?.chain ||
+            "base"
+          );
           const rpcUrl = safeStr(cfg.rpc_url || "", 240);
           const tokenAddress = String(cfg.token_address || "").trim().toLowerCase();
           const receiverAddress = String(cfg.receiver_address || "").trim().toLowerCase();
