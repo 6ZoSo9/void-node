@@ -835,3 +835,7 @@ mainnet0-validator-live-admission-execution-runbook-proof:
 .PHONY: mainnet0-validator-live-admission-final-preflight-proof
 mainnet0-validator-live-admission-final-preflight-proof:
 	bash ops/mainnet/mainnet0-validator-live-admission-final-preflight-proof.sh
+
+.PHONY: buy-void-ethereum-payment-confirmed-no-void-send-proof
+buy-void-ethereum-payment-confirmed-no-void-send-proof:
+	bash ops/mainnet0/buy-void-ethereum-payment-confirmed-no-void-send-proof.sh
