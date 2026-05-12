@@ -843,3 +843,7 @@ buy-void-ethereum-payment-confirmed-no-void-send-proof:
 .PHONY: buy-void-explicit-fulfillment-runbook-proof
 buy-void-explicit-fulfillment-runbook-proof:
 	bash ops/mainnet0/buy-void-explicit-fulfillment-runbook-proof.sh
+
+.PHONY: buy-void-fixed-rate-fulfillment-policy-proof
+buy-void-fixed-rate-fulfillment-policy-proof:
+	bash ops/mainnet0/buy-void-fixed-rate-fulfillment-policy-proof.sh
