@@ -69,7 +69,7 @@ python3 - "$SELECTOR" <<'PY'
 import json, sys
 j=json.load(open(sys.argv[1]))
 assert j.get("ok") is True, j
-assert j.get("selectedCandidateName") == "vault124", j
+assert j.get("selectedCandidateName") == "vault125", j
 assert int(j.get("targetEpoch")) == 126, j
 assert int(j.get("expectedValidatorCount")) == 125, j
 assert "validator-staking-upgrade-onboard-runbook.sh" in str(j.get("command") or ""), j
@@ -129,7 +129,7 @@ echo "=== [6] wrong operator intent is blocked before env switch ==="
 HTTP_WRONG="$(curl -sS -o "$WRONG_INTENT" -w "%{http_code}" \
   -X POST "$BASE/__void/participant/stake/next-onboard" \
   -H "content-type: application/json" \
-  --data '{"confirm":true,"expected_candidate":"vault124","expected_target_epoch":126,"expected_validator_count":125,"operator_intent":"ADMIT_vault124_EPOCH_126_COUNT_999"}')"
+  --data '{"confirm":true,"expected_candidate":"vault125","expected_target_epoch":127,"expected_validator_count":126,"operator_intent":"ADMIT_vault125_EPOCH_126_COUNT_999"}')"
 echo "http=$HTTP_WRONG"
 cat "$WRONG_INTENT"
 echo
@@ -141,7 +141,7 @@ http=sys.argv[2]
 assert http == "400", (http, j)
 assert j.get("ok") is False, j
 assert j.get("error") == "operator_intent_mismatch", j
-assert j.get("expected_intent") == "ADMIT_vault124_EPOCH_126_COUNT_125", j
+assert j.get("expected_intent") == "ADMIT_vault125_EPOCH_127_COUNT_126", j
 print("[ok] wrong operator intent blocked before live execution env check")
 PY
 
@@ -151,7 +151,7 @@ HTTP2="$(
   curl -sS -o "$ENV_OFF" -w "%{http_code}" \
     -X POST "$BASE/__void/participant/stake/next-onboard" \
     -H "content-type: application/json" \
-    --data '{"confirm":true,"expected_candidate":"vault124","expected_target_epoch":126,"expected_validator_count":125,"operator_intent":"ADMIT_vault124_EPOCH_126_COUNT_125"}'
+    --data '{"confirm":true,"expected_candidate":"vault125","expected_target_epoch":127,"expected_validator_count":126,"operator_intent":"ADMIT_vault125_EPOCH_127_COUNT_126"}'
 )"
 echo "http=$HTTP2"
 cat "$ENV_OFF"
@@ -180,9 +180,9 @@ print({
   "confirm_required": True,
   "kill_switch_required": "VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1",
   "exact_operator_intent_required": True,
-  "candidate": "vault124",
+  "candidate": "vault125",
   "target_epoch": 126,
-  "expected_validator_count": 125,
+  "expected_validator_count": 126,
   "live_admission_executed": False,
   "money_step": "last",
 })

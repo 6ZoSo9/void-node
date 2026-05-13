@@ -17,7 +17,7 @@ echo "=== [1] required files ==="
 test -f "$STATUS_FILE"
 test -f "$VALIDATOR_STATUS"
 grep -q 'status: not_go_for_public_mainnet0' "$STATUS_FILE"
-grep -q 'Buy VOID real payment claim has not been run' "$STATUS_FILE"
+grep -Eq 'First real Buy VOID payment claim and fulfillment have completed successfully|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID real payment claim has not been run' "$STATUS_FILE"
 grep -q 'Buy VOID hard-stop composite proof is wired into Mainnet-0 prelaunch safety' "$STATUS_FILE"
 grep -q 'Buy VOID hard-stop proof target: make buy-void-hardstop-proof' "$STATUS_FILE"
 grep -q 'Payment confirmation does not equal VOID sent' "$STATUS_FILE"
@@ -85,7 +85,7 @@ print("[ok] validator lifecycle fresh")
 PY
 
 echo
-echo "=== [5] Buy VOID status is configured; real claim/send remains blocked ==="
+echo "=== [5] Buy VOID status is configured; manual proof or real fulfillment state accepted ==="
 curl -fsS "$BASE/__void/operator/buy-void/base-watcher/status" \
   | tee /tmp/void-mainnet0-status-buy-void.json
 python3 - /tmp/void-mainnet0-status-buy-void.json <<'PY'

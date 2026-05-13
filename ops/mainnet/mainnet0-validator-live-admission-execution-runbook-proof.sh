@@ -28,14 +28,14 @@ echo "[ok] runbook is explicitly plan-only and non-mutating"
 
 echo
 echo "=== [3] exact candidate / epoch / intent ==="
-grep -q "candidate: vault124" "$DOC"
+grep -q "candidate: vault125" "$DOC"
 grep -q "target_epoch: 126" "$DOC"
 grep -q "expected_validator_count: 125" "$DOC"
-grep -q "operator_intent: ADMIT_vault124_EPOCH_126_COUNT_125" "$DOC"
-grep -q "expected_candidate=vault124" "$DOC"
-grep -q "expected_target_epoch=126" "$DOC"
-grep -q "expected_validator_count=125" "$DOC"
-grep -q "operator_intent=ADMIT_vault124_EPOCH_126_COUNT_125" "$DOC"
+grep -q "operator_intent: ADMIT_vault125_EPOCH_127_COUNT_126" "$DOC"
+grep -q "expected_candidate=vault125" "$DOC"
+grep -q "expected_target_epoch=127" "$DOC"
+grep -q "expected_validator_count=126" "$DOC"
+grep -q "operator_intent=ADMIT_vault125_EPOCH_127_COUNT_126" "$DOC"
 echo "[ok] runbook locks exact future intent values"
 
 echo
@@ -49,7 +49,7 @@ echo "[ok] required preflight proofs listed"
 
 echo
 echo "=== [5] hard stops are listed ==="
-grep -q "selector is not vault124 / epoch126 / expected count 125" "$DOC"
+grep -q "selector is not vault125 / epoch127 / expected count 126" "$DOC"
 grep -q "missing or mismatched operator intent" "$DOC"
 grep -q "live env switch appears persistent outside the guarded command" "$DOC"
 grep -q "private key or secret appears in git diff" "$DOC"
@@ -94,9 +94,9 @@ print({
   "live_admission_execution_runbook": "green",
   "status": "plan_only",
   "mutation_allowed_by_this_doc": False,
-  "candidate": "vault124",
+  "candidate": "vault125",
   "target_epoch": 126,
-  "expected_validator_count": 125,
+  "expected_validator_count": 126,
   "live_admission_executed": False,
   "launch_state": "not_go_for_public_mainnet0",
   "money_step": "last",

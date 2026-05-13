@@ -19,7 +19,7 @@ Before doing any of the following, run the prelaunch safety proof on Precision:
 
 - validator live admission
 - validator status promotion
-- Buy VOID real payment claim
+- Buy VOID real fulfillment closeout
 - Buy VOID VOID-send or fulfillment
 - final public Mainnet-0 go/no-go
 - any action that changes launch_state away from not_go_for_public_mainnet0
@@ -44,7 +44,7 @@ It must prove:
 - launch_state remains not_go_for_public_mainnet0
 - go/no-go fails closed while blockers remain
 - validator live admission is blocked
-- Buy VOID claim/send is blocked
+- Buy VOID launch remains blocked until explicit public Mainnet-0 approval
 - money step remains last
 
 ## Where to run it

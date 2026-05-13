@@ -3,15 +3,15 @@
 status: locked_policy_plan_only
 launch_state: not_go_for_public_mainnet0
 mutation_allowed: false
-updated_at: 2026-05-02
+updated_at: 2026-05-13
 
 ## Locked Mainnet-0 policy
 
 - active_validator_cap: 256
-- current_operator_bootstrap_validators: 124
-- next_operator_candidate: vault124
-- next_operator_target_epoch: 126
-- next_expected_validator_count: 125
+- current_operator_bootstrap_validators: 125
+- next_operator_candidate: vault125
+- next_operator_target_epoch: 127
+- next_expected_validator_count: 126
 - early_public_active_slots_target: 32-64
 - public_registration_directly_mutates_active_set: false
 - public_registration_result: candidate_or_waiting_only
@@ -34,4 +34,4 @@ Before public Mainnet-0 activation, any live public candidate/admission path mus
 
 This file does not approve public Mainnet-0 launch.
 
-Mainnet-0 remains not-go until validator admission, Buy VOID real claim/send, UI, keys, public status, and final go/no-go are all proved green.
+Mainnet-0 remains not-go until validator admission/promotion, UI polish, keys/public status, and final go/no-go are all proved green. First Buy VOID real fulfillment closeout is complete, but future payment lanes must remain guarded.

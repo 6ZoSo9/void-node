@@ -23,7 +23,7 @@
     "candidate_status": "candidate_not_active"
   },
   "operator_next_onboard_reference": {
-    "selected_candidate_name": "vault124",
+    "selected_candidate_name": "vault125",
     "selected_candidate_addr": "0xd954A5912F9E0d8e242bf2E2DE121076c4d7E60c",
     "current_epoch": "125",
     "target_epoch": "126",

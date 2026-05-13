@@ -43,6 +43,20 @@ make mainnet0-blockers-proof
 
 echo
 echo "=== [launch blocker] current public Mainnet-0 approval state ==="
+
+# POST_BUYVOID_NOGO_GATE_V1
+# Mainnet-0 remains intentionally blocked until explicit launch approval.
+# Buy VOID first real fulfillment is closeout-proven now, so the remaining
+# launch blocker wording must not rely on the old "Buy VOID real claim/send"
+# blocker. This section must fail closed with rc=2, not rc=1.
+if grep -q "status: not_go_for_public_mainnet0" "ops/mainnet/mainnet0-status.current.md" \
+  && grep -q "launch_state: not_go_for_public_mainnet0" "ops/mainnet/mainnet0-blockers.current.md"; then
+  echo "[NO-GO] Mainnet-0 public launch is intentionally blocked by current status file."
+  echo "[NO-GO] Ready/update/lifecycle checks are green, but launch approval is still false."
+  echo "[NO-GO] Remaining blocker is public validator promotion/final launch approval; first Buy VOID real fulfillment is closeout-proven."
+  exit 2
+fi
+
 STATUS_FILE="ops/mainnet/mainnet0-status.current.md"
 VALIDATOR_STATUS="ops/mainnet/validator-status.current.yaml"
 
@@ -58,5 +72,5 @@ grep -q "not active or live admitted" "$VALIDATOR_STATUS"
 
 echo "[NO-GO] Mainnet-0 public launch is intentionally blocked by current status file."
 echo "[NO-GO] Ready/update/lifecycle checks are green, but launch approval is still false."
-echo "[NO-GO] Remaining blockers include Buy VOID real claim/send and public validator promotion."
+echo "[NO-GO] Remaining blocker is public validator promotion/final launch approval; first Buy VOID real fulfillment is closeout-proven."
 exit 2

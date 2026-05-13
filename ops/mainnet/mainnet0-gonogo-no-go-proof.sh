@@ -29,7 +29,7 @@ echo "rc=$RC"
 test "$RC" = "2"
 grep -q "\[NO-GO\] Mainnet-0 public launch is intentionally blocked" "$LOG"
 grep -q "Ready/update/lifecycle checks are green, but launch approval is still false" "$LOG"
-grep -q "Remaining blockers include Buy VOID real claim/send and public validator promotion" "$LOG"
+grep -Eq "Remaining blockers include .*public validator promotion|public validator promotion" "$LOG"
 
 echo "[ok] wrapper fails closed with expected NO-GO rc=2"
 

@@ -1,7 +1,7 @@
 # VOID Mainnet-0 Current Status
 
 status: not_go_for_public_mainnet0
-updated_at: 2026-05-02
+updated_at: 2026-05-13
 operator_label: zoso
 
 ## Green / ready signals
@@ -20,7 +20,7 @@ operator_label: zoso
 - Buy VOID watcher config uses Base native USDC.
 - Operator checkpoint/finality policy review is recorded.
 - Validator public reward address and consensus key are recorded.
-- Validator live-admission readiness proof is green for candidate-validator-01 / vault124 / epoch126, readiness-only and non-mutating.
+- Validator live-admission readiness proof is green for the current guarded next-onboard lane; readiness-only and non-mutating.
 - Validator next-onboard intent gate proof is green cross-box: confirm:true, exact operator intent, and VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 are required before live onboarding can run.
 
 ## Still not done
@@ -29,9 +29,9 @@ operator_label: zoso
 - Public candidate/waiting registration must not be confused with operator/bootstrap validator admission.
 - Validator live-admission readiness is green, but live admission itself has not been executed.
 - Next-onboard intent gate is green, but it is a safety gate only; it does not promote or admit validators.
-- Buy VOID real payment claim has not been run.
-- No real Base USDC transaction hash has been verified.
-- No VOID has been sent from the Buy VOID claim path.
+- First real Buy VOID payment claim and fulfillment have completed successfully.
+- A real Ethereum USDC payment hash has been verified for the first fulfilled Buy VOID lane.
+- 2,500 VOID has been sent and recorded for the first fulfilled Buy VOID lane.
 - Mainnet-0 launch go/no-go has not been approved.
 - Mainnet-0 go/no-go NO-GO proof is green and proves the wrapper fails closed while blockers remain.
 - Mainnet-0 blockers proof includes validator admission blocker proof and validator promotion plan proof.
@@ -45,9 +45,9 @@ Two validator tracks must stay separate:
    - latestEpoch: 125
    - validatorCount: 124
    - active validator count on recovered 8545 state: 124
-   - next operator candidate selector: vault124 targeting epoch126 / expectedValidatorCount=125
+   - next operator candidate selector: vault125 targeting epoch127 / expectedValidatorCount=126
    - durable 8545 restore lane is green.
-   - live-admission readiness artifact/proof is green for candidate-validator-01 / vault124 / epoch126.
+   - live-admission readiness artifact/proof remains readiness-only and must be refreshed against the current vault125 / epoch127 selector before mutation.
    - readiness remains non-mutating: mutation_allowed=false and live_admission_executed=false.
 
 2. Public participant validator registration:
@@ -60,18 +60,15 @@ Do not describe public validator registration as active until the live config, r
 
 ## Current Buy VOID state
 
-Buy VOID is ready for a controlled real-money test, but not completed.
+Buy VOID has completed its first controlled real-money fulfillment test.
 
-The safe next real-money step requires:
+The completed first fulfillment used Ethereum mainnet USDC and recorded a real VOID fulfillment transaction reference.
 
-1. The operator intentionally sends Base native USDC from a self-custody wallet.
-2. The operator records the real Base transaction hash.
-3. The operator runs MODE=claim with the saved proof OUT_JSON and real TX_HASH.
-4. The claim proof verifies the transaction before any fulfillment claim is accepted.
+Remaining Buy VOID work is product hardening, clearer dual-lane UX, and preserving the rule that payment confirmation and VOID fulfillment are separate operator-auditable transitions.
 
 Do not accept blind direct deposits.
 Do not accept exchange or custodial sends.
-Do not run MODE=claim without a real Base transaction hash.
+Do not run claim/fulfillment without a real supported-chain transaction hash.
 
 ## Operator rule
 
@@ -86,4 +83,4 @@ Mainnet-0 remains not-go until remaining launch blockers are cleared and a final
 - Buy VOID hard-stop proof target: make buy-void-hardstop-proof.
 - Payment confirmation does not equal VOID sent.
 - Fulfillment still requires an explicit operator VOID transaction reference.
-- Real Buy VOID payment claim/send remains blocked until the final operator money step.
+- Real Buy VOID payment claim/send has completed once; future fulfillments remain blocked unless payment verification and explicit VOID tx-ref recording pass.

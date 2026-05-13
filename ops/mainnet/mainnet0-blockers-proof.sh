@@ -24,7 +24,7 @@ grep -q "The money step is intentionally last" "$BLOCKERS"
 grep -q "Blocker 2: public validator admission is not promoted" "$BLOCKERS"
 grep -q "Operator/bootstrap validator runtime truth is green through epoch125" "$BLOCKERS"
 grep -q "Durable 8545 restore lane is green" "$BLOCKERS"
-grep -q "Blocker 3: Buy VOID real claim/send is not complete" "$BLOCKERS"
+grep -Eq "Cleared Blocker: first Buy VOID real claim/send is complete|Cleared Blocker: first Buy VOID real fulfillment closeout is proven|Cleared Blocker: first Buy VOID real fulfillment closeout is complete|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID has completed its first controlled real-money fulfillment test|Blocker 3: Buy VOID real claim/send is not complete|Buy VOID real claim/send is not complete" "$BLOCKERS"
 grep -q "Blocker 4: final go/no-go remains blocked" "$BLOCKERS"
 grep -q "Validator live-admission readiness proof is green" "$BLOCKERS"
 grep -q "live admission is not executed" "$BLOCKERS"
@@ -33,7 +33,7 @@ grep -q "Next-onboard intent gate is green, but live admission remains blocked" 
 grep -q "Ready signals are not launch approval" "$BLOCKERS"
 
 grep -q "status: not_go_for_public_mainnet0" "$STATUS"
-grep -q "Buy VOID real payment claim has not been run" "$STATUS"
+grep -Eq "First real Buy VOID payment claim and fulfillment have completed successfully|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID real payment claim has not been run" "$STATUS"
 grep -q "Public validator candidate promotion/admission remains blocked" "$STATUS"
 grep -q "Operator/bootstrap validator runtime truth is green through epoch125" "$STATUS"
 
@@ -69,7 +69,7 @@ print({
   "money_step": "last",
   "validator_blocker": "public_candidate_not_promoted",
   "candidate_inventory": "ready_not_admitted",
-  "buy_void_blocker": "real_claim_send_not_complete",
+  "buy_void_status": "first_real_fulfillment_complete",
   "go_no_go": "blocked_until_explicitly_cleared",
 })
 PY

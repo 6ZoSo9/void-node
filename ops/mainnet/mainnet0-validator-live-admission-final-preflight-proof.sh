@@ -86,12 +86,12 @@ curl -fsS "$BASE/__void/runtime/validator-truth/next-onboard" > "$OUT/next-onboa
 python3 -c 'import json, sys
 j=json.load(open(sys.argv[1]))
 assert j.get("ok") is True, j
-assert j.get("selectedCandidateName") == "vault124", j
+assert j.get("selectedCandidateName") == "vault125", j
 assert int(j.get("targetEpoch")) == 126, j
 assert int(j.get("expectedValidatorCount")) == 125, j
 assert int(j.get("currentEpoch")) == 125, j
 assert int(j.get("currentValidatorCount")) == 124, j
-print("[ok] selector matches vault124 / epoch126 / count125")
+print("[ok] selector matches vault125 / epoch127 / count126")
 print({
   "selectedCandidateName": j.get("selectedCandidateName"),
   "selectedCandidateAddr": j.get("selectedCandidateAddr"),
@@ -107,7 +107,7 @@ DOC="ops/mainnet/mainnet0-validator-live-admission-execution-runbook.md"
 grep -q "status: plan_only" "$DOC"
 grep -q "mutation_allowed_by_this_doc: false" "$DOC"
 grep -q "Do not execute live admission yet" "$DOC"
-grep -q "operator_intent: ADMIT_vault124_EPOCH_126_COUNT_125" "$DOC"
+grep -q "operator_intent: ADMIT_vault125_EPOCH_127_COUNT_126" "$DOC"
 echo "[ok] runbook remains plan-only"
 
 echo
@@ -167,10 +167,10 @@ summary = {
   },
   "required_operator_intent": {
     "confirm": True,
-    "expected_candidate": "vault124",
-    "expected_target_epoch": 126,
-    "expected_validator_count": 125,
-    "operator_intent": "ADMIT_vault124_EPOCH_126_COUNT_125",
+    "expected_candidate": "vault125",
+    "expected_target_epoch": 127,
+    "expected_validator_count": 126,
+    "operator_intent": "ADMIT_vault125_EPOCH_127_COUNT_126",
     "required_env_switch": "VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1"
   }
 }

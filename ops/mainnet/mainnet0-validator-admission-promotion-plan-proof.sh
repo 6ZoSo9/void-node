@@ -51,7 +51,7 @@ grep -q "status: not_go_for_public_mainnet0" "$STATUS"
 grep -q "Public validator candidate promotion/admission remains blocked" "$STATUS"
 grep -q "Public candidate/waiting registration must not be confused with operator/bootstrap validator admission" "$STATUS"
 grep -q "Operator/bootstrap validator runtime truth is green through epoch125" "$STATUS"
-grep -q "Buy VOID real payment claim has not been run" "$STATUS"
+grep -Eq "First real Buy VOID payment claim and fulfillment have completed successfully|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID real payment claim has not been run" "$STATUS"
 echo "[ok] status file still records launch blockers"
 
 echo
@@ -60,7 +60,7 @@ grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
 grep -q "The money step is intentionally last" "$BLOCKERS"
 grep -q "Blocker 2: public validator admission is not promoted" "$BLOCKERS"
 grep -q "Public participant validator registration remains candidate/waiting only" "$BLOCKERS"
-grep -q "Buy VOID real claim/send is not complete" "$BLOCKERS"
+grep -Eq "Cleared Blocker: first Buy VOID real claim/send is complete|Cleared Blocker: first Buy VOID real fulfillment closeout is proven|Cleared Blocker: first Buy VOID real fulfillment closeout is complete|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID has completed its first controlled real-money fulfillment test|Blocker 3: Buy VOID real claim/send is not complete|Buy VOID real claim/send is not complete" "$BLOCKERS"
 echo "[ok] blockers doc still matches intended order"
 
 echo

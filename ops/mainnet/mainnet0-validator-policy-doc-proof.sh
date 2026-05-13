@@ -14,9 +14,9 @@ grep -q '^mutation_allowed: false$' "$P"
 
 grep -q 'active_validator_cap: 256' "$P"
 grep -q 'current_operator_bootstrap_validators: 124' "$P"
-grep -q 'next_operator_candidate: vault124' "$P"
-grep -q 'next_operator_target_epoch: 126' "$P"
-grep -q 'next_expected_validator_count: 125' "$P"
+grep -q 'next_operator_candidate: vault125' "$P"
+grep -q 'next_operator_target_epoch: 127' "$P"
+grep -q 'next_expected_validator_count: 126' "$P"
 
 grep -q 'early_public_active_slots_target: 32-64' "$P"
 grep -q 'public_registration_directly_mutates_active_set: false' "$P"
