@@ -70,8 +70,8 @@ assert "not active or live admitted" in status, status
 
 next_ref = art.get("operator_next_onboard_reference") or {}
 assert next_ref.get("selected_candidate_name") == "vault125", next_ref
-assert next_ref.get("target_epoch") == "126", next_ref
-assert next_ref.get("expected_validator_count") == "125", next_ref
+assert next_ref.get("target_epoch") == "127", next_ref
+assert next_ref.get("expected_validator_count") == "126", next_ref
 assert next_ref.get("live_admission_allowed") == "false", next_ref
 assert next_ref.get("live_admission_executed") == "false", next_ref
 
@@ -144,7 +144,7 @@ print({
   "launch_state": "not_go_for_public_mainnet0",
   "candidate": "candidate-validator-01",
   "next_operator_candidate": "vault125",
-  "target_epoch": 126,
+  "target_epoch": 127,
   "expected_validator_count": 126,
   "live_admission_executed": False,
   "money_step": "last",

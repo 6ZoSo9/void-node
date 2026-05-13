@@ -5,8 +5,8 @@ launch_state: not_go_for_public_mainnet0
 mutation_allowed_by_this_doc: false
 operator_label: zoso
 candidate: vault125
-target_epoch: 126
-expected_validator_count: 125
+target_epoch: 127
+expected_validator_count: 126
 operator_intent: ADMIT_vault125_EPOCH_127_COUNT_126
 
 ## Purpose
@@ -62,7 +62,7 @@ All must pass from clean repo state.
 The selector must still match:
 
     selected_candidate=vault125
-    target_epoch=126
+    target_epoch=127
     expected_validator_count=126
 
 If selector values change, this runbook must not be used. Create a new runbook for the new candidate/epoch/count.

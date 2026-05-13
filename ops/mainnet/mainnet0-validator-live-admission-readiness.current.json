@@ -4,7 +4,7 @@
   "status": "readiness_only_not_live_admitted",
   "launch_state": "not_go_for_public_mainnet0",
   "mutation_allowed": false,
-  "created_at": "2026-05-07T11:02:07.480013+00:00",
+  "created_at": "2026-05-13T14:11:32.548004+00:00",
   "operator_label": "zoso",
   "candidate": {
     "validator_id": "candidate-validator-01",
@@ -24,11 +24,11 @@
   },
   "operator_next_onboard_reference": {
     "selected_candidate_name": "vault125",
-    "selected_candidate_addr": "0xd954A5912F9E0d8e242bf2E2DE121076c4d7E60c",
-    "current_epoch": "125",
-    "target_epoch": "126",
-    "current_validator_count": "124",
-    "expected_validator_count": "125",
+    "selected_candidate_addr": "0xCDCD49C2E920a21EbAA0d03f8BC2B6699c854017",
+    "current_epoch": "126",
+    "target_epoch": "127",
+    "current_validator_count": "125",
+    "expected_validator_count": "126",
     "live_admission_allowed": "false",
     "live_admission_executed": "false"
   },

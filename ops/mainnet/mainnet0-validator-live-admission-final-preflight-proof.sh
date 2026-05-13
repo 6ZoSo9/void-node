@@ -87,10 +87,10 @@ python3 -c 'import json, sys
 j=json.load(open(sys.argv[1]))
 assert j.get("ok") is True, j
 assert j.get("selectedCandidateName") == "vault125", j
-assert int(j.get("targetEpoch")) == 126, j
-assert int(j.get("expectedValidatorCount")) == 125, j
-assert int(j.get("currentEpoch")) == 125, j
-assert int(j.get("currentValidatorCount")) == 124, j
+assert int(j.get("targetEpoch")) == 127, j
+assert int(j.get("expectedValidatorCount")) == 126, j
+assert int(j.get("currentEpoch")) == 126, j
+assert int(j.get("currentValidatorCount")) == 125, j
 print("[ok] selector matches vault125 / epoch127 / count126")
 print({
   "selectedCandidateName": j.get("selectedCandidateName"),

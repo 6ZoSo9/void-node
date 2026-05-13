@@ -29,8 +29,8 @@ echo "[ok] runbook is explicitly plan-only and non-mutating"
 echo
 echo "=== [3] exact candidate / epoch / intent ==="
 grep -q "candidate: vault125" "$DOC"
-grep -q "target_epoch: 126" "$DOC"
-grep -q "expected_validator_count: 125" "$DOC"
+grep -q "target_epoch: 127" "$DOC"
+grep -q "expected_validator_count: 126" "$DOC"
 grep -q "operator_intent: ADMIT_vault125_EPOCH_127_COUNT_126" "$DOC"
 grep -q "expected_candidate=vault125" "$DOC"
 grep -q "expected_target_epoch=127" "$DOC"
@@ -95,7 +95,7 @@ print({
   "status": "plan_only",
   "mutation_allowed_by_this_doc": False,
   "candidate": "vault125",
-  "target_epoch": 126,
+  "target_epoch": 127,
   "expected_validator_count": 126,
   "live_admission_executed": False,
   "launch_state": "not_go_for_public_mainnet0",

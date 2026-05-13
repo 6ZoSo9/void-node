@@ -70,8 +70,8 @@ import json, sys
 j=json.load(open(sys.argv[1]))
 assert j.get("ok") is True, j
 assert j.get("selectedCandidateName") == "vault125", j
-assert int(j.get("targetEpoch")) == 126, j
-assert int(j.get("expectedValidatorCount")) == 125, j
+assert int(j.get("targetEpoch")) == 127, j
+assert int(j.get("expectedValidatorCount")) == 126, j
 assert "validator-staking-upgrade-onboard-runbook.sh" in str(j.get("command") or ""), j
 print({
   "selectedCandidateName": j.get("selectedCandidateName"),
@@ -129,7 +129,7 @@ echo "=== [6] wrong operator intent is blocked before env switch ==="
 HTTP_WRONG="$(curl -sS -o "$WRONG_INTENT" -w "%{http_code}" \
   -X POST "$BASE/__void/participant/stake/next-onboard" \
   -H "content-type: application/json" \
-  --data '{"confirm":true,"expected_candidate":"vault125","expected_target_epoch":127,"expected_validator_count":126,"operator_intent":"ADMIT_vault125_EPOCH_126_COUNT_999"}')"
+  --data '{"confirm":true,"expected_candidate":"vault125","expected_target_epoch":127,"expected_validator_count":126,"operator_intent":"ADMIT_vault125_EPOCH_127_COUNT_999"}')"
 echo "http=$HTTP_WRONG"
 cat "$WRONG_INTENT"
 echo
@@ -181,7 +181,7 @@ print({
   "kill_switch_required": "VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1",
   "exact_operator_intent_required": True,
   "candidate": "vault125",
-  "target_epoch": 126,
+  "target_epoch": 127,
   "expected_validator_count": 126,
   "live_admission_executed": False,
   "money_step": "last",
