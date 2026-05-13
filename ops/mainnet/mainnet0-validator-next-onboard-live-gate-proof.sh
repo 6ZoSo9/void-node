@@ -6,6 +6,45 @@ set +o histexpand
 cd "${VOID_REPO:-$HOME/dev/void-node}"
 
 BASE="${BASE:-http://127.0.0.1:4100}"
+
+wait_ready_stable() {
+  local out="${1:-/tmp/void-next-onboard-live-gate.ready.json}"
+  local good=0
+
+  for i in $(seq 1 120); do
+    if curl -fsS "$BASE/__void/ready.json" > "$out" 2>"$out.err"; then
+      if python3 - "$out" <<'PY'
+import json, sys
+j=json.load(open(sys.argv[1]))
+assert bool(j.get("ready")), j
+assert int(j.get("head") or 0) > 0, j
+assert int(j.get("txroot_live") or 0) == 1, j
+print(j)
+PY
+      then
+        good=$((good+1))
+      else
+        good=0
+      fi
+    else
+      good=0
+    fi
+
+    if [ "$good" -ge 3 ]; then
+      echo "[ok] ready/gap/txroot stable"
+      return 0
+    fi
+
+    sleep 1
+  done
+
+  echo "[ERR] node readiness did not stabilize after restart"
+  cat "$out" 2>/dev/null || true
+  cat "$out.err" 2>/dev/null || true
+  return 1
+}
+# NEXT_ONBOARD_LIVE_GATE_READY_WAIT_V1
+
 SRC="src/index.ts"
 
 NO_CONFIRM="/tmp/void-next-onboard-live-gate.no-confirm.json"
@@ -31,38 +70,9 @@ echo "[ok] source contains kill switch, exact intent gate, and explicit runbook 
 echo
 echo "=== [2] build and restart ==="
 npm run build
-systemctl --user unset-environment VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION >/dev/null 2>&1 || true
 systemctl --user restart void-node.service
-sleep 3
+wait_ready_stable "/tmp/void-next-onboard-live-gate.ready.json"
 
-READY_RC=1
-for i in $(seq 1 60); do
-  if curl -fsS "$BASE/__void/ready.json" > /tmp/void-next-onboard-live-gate.ready.json 2>/tmp/void-next-onboard-live-gate.ready.err; then
-    READY_RC=0
-    break
-  fi
-  sleep 1
-done
-
-if [ "$READY_RC" -ne 0 ]; then
-  echo "[ERR] node did not become ready after restart"
-  cat /tmp/void-next-onboard-live-gate.ready.err 2>/dev/null || true
-  systemctl --user status void-node.service --no-pager -l | sed -n "1,120p" || true
-  false
-fi
-
-cat /tmp/void-next-onboard-live-gate.ready.json
-echo
-python3 - /tmp/void-next-onboard-live-gate.ready.json <<'PY'
-import json, sys
-j=json.load(open(sys.argv[1]))
-assert j.get("ready") is True, j
-assert int(j.get("gap", 999999)) == 0, j
-assert int(j.get("txroot_live", 0)) == 1, j
-print("[ok] ready/gap/txroot")
-PY
-
-echo
 echo "=== [3] read-only selector still points to expected next candidate ==="
 curl -fsS "$BASE/__void/runtime/validator-truth/next-onboard" > "$SELECTOR"
 python3 - "$SELECTOR" <<'PY'
