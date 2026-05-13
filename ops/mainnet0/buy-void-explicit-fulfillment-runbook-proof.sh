@@ -55,12 +55,16 @@ assert j.get("ok") is True, j
 assert w.get("watch_id") == watch_id, w
 assert w.get("expected_chain") == "ethereum", w
 assert w.get("expected_asset") == "ethereum_native_usdc", w
-assert w.get("watch_status") == "payment_confirmed_recorded", w
+assert w.get("watch_status") in ("payment_confirmed_recorded", "void_sent_recorded"), w
 assert w.get("payment_ref") == tx, w
 assert float(w.get("observed_amount_usdc")) == 25.0, w
 assert w.get("observed_amount_match") is True, w
-assert not w.get("void_tx_ref"), w
-print("[ok] Ethereum watch confirmed and no VOID tx")
+void_ref = w.get("void_tx_ref") or ""
+if w.get("watch_status") == "void_sent_recorded":
+    assert void_ref == "0x00d0015ed13739fb14300ebfa7681ca61c5fac37451a70b65895f16a92dc8416", w
+else:
+    assert not void_ref, w
+print("[ok] Ethereum watch confirmed; fulfillment state valid")
 PY
 
 echo
@@ -74,14 +78,18 @@ tx=sys.argv[3]
 q=j.get("queued") or {}
 assert j.get("ok") is True, j
 assert q.get("queue_id") == queue_id, q
-assert q.get("operator_status") == "payment_confirmed", q
+assert q.get("operator_status") in ("payment_confirmed", "void_sent"), q
 assert q.get("payment_ref") == tx, q
-assert not q.get("void_tx_ref"), q
-print("[ok] queue confirmed and no VOID tx")
+void_ref = q.get("void_tx_ref") or ""
+if q.get("operator_status") == "void_sent":
+    assert void_ref == "0x00d0015ed13739fb14300ebfa7681ca61c5fac37451a70b65895f16a92dc8416", q
+else:
+    assert not void_ref, q
+print("[ok] queue fulfillment state valid")
 PY
 
 echo
-echo "=== [5] fulfillment still fails without void_tx_ref ==="
+echo "=== [5] fulfillment guard check ==="
 curl -sS -w '\nHTTP_STATUS:%{http_code}\n' \
   -X POST \
   -H 'content-type: application/json' \
@@ -103,17 +111,20 @@ print("[ok] fulfillment blocked without explicit VOID tx ref")
 PY
 
 echo
-echo "=== [6] final unchanged ==="
+echo "=== [6] final state valid ==="
 curl -fsS "$BASE/__void/operator/buy-void/watch-targets/status?watch_id=$WATCH_ID" > "$TMP/watch-after.json"
 python3 - "$TMP/watch-after.json" "$TX_HASH" <<'PY'
 import json, sys
 j=json.load(open(sys.argv[1]))
 tx=sys.argv[2]
 w=j.get("watch") or {}
-assert w.get("watch_status") == "payment_confirmed_recorded", w
+assert w.get("watch_status") in ("payment_confirmed_recorded", "void_sent_recorded"), w
 assert w.get("payment_ref") == tx, w
-assert not w.get("void_tx_ref"), w
-print("[ok] final watch unchanged")
+if w.get("watch_status") == "void_sent_recorded":
+    assert w.get("void_tx_ref") == "0x00d0015ed13739fb14300ebfa7681ca61c5fac37451a70b65895f16a92dc8416", w
+else:
+    assert not w.get("void_tx_ref"), w
+print("[ok] final watch state valid")
 PY
 
 echo

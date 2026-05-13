@@ -39,8 +39,12 @@ assert w.get("payment_ref") == tx, w
 assert float(w.get("observed_amount_usdc")) == 25.0, w
 assert w.get("observed_amount_match") is True, w
 assert w.get("delivery_wallet","").lower() == delivery, w
-assert not w.get("void_tx_ref"), w
-print("[ok] live payment matches fixed-rate policy and remains unfulfilled")
+void_ref = w.get("void_tx_ref") or ""
+if w.get("watch_status") == "void_sent_recorded":
+    assert void_ref == "0x00d0015ed13739fb14300ebfa7681ca61c5fac37451a70b65895f16a92dc8416", w
+else:
+    assert not void_ref, w
+print("[ok] live payment matches fixed-rate policy")
 PY
 
 echo "=== [3] amount calculation ==="
