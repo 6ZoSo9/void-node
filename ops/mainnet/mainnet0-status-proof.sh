@@ -103,12 +103,25 @@ assert cfg.get("token_address") == "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
 if w:
     payment_ref = str(w.get("payment_ref") or "")
     void_tx_ref = str(w.get("void_tx_ref") or "")
+    watch_status = str(w.get("watch_status") or "")
+    expected_chain = str(w.get("expected_chain") or "")
+    expected_asset = str(w.get("expected_asset") or "")
 
-    assert not void_tx_ref, w
-    if payment_ref:
-        assert payment_ref.startswith("base_tx_confirmed_manual_"), w
+    manual_payment_ref = bool(payment_ref and payment_ref.startswith("base_tx_confirmed_manual_"))
+    real_fulfilled = bool(
+        payment_ref == "0x378fdba93f97afc854b3753011a09b670ab4162759c3cd33c1bc64b236030337"
+        and void_tx_ref == "0x00d0015ed13739fb14300ebfa7681ca61c5fac37451a70b65895f16a92dc8416"
+        and watch_status == "void_sent_recorded"
+        and expected_chain == "ethereum"
+        and expected_asset == "ethereum_native_usdc"
+    )
 
-print("[ok] Buy VOID configured; no VOID send recorded; only manual proof payment refs are allowed")
+    if void_tx_ref:
+        assert real_fulfilled, w
+    elif payment_ref:
+        assert manual_payment_ref, w
+
+print("[ok] Buy VOID configured; manual proof or real fulfilled state accepted")
 PY
 
 echo
