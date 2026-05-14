@@ -11,6 +11,36 @@ BASE="${BASE:-http://127.0.0.1:4100}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUT="${OUT:-/tmp/void-validator-positive-readiness-proof.$STAMP}"
 
+wait_ready_stable() {
+  local out="$1"
+  local good=0
+
+  for i in $(seq 1 120); do
+    if curl -fsS "$BASE/__void/ready.json" > "$out" 2>"$out.err"; then
+      if python3 -c 'import json,sys; j=json.load(open(sys.argv[1])); assert j.get("ready") is True, j; assert int(j.get("head") or 0) > 0, j; assert int(j.get("gap") or 0) == 0, j; assert int(j.get("txroot_live") or 0) == 1, j; print(j)' "$out"; then
+        good=$((good+1))
+      else
+        good=0
+      fi
+    else
+      good=0
+    fi
+
+    if [ "$good" -ge 3 ]; then
+      echo "[ok] ready/gap/txroot stable"
+      return 0
+    fi
+
+    sleep 1
+  done
+
+  echo "[ERR] node readiness did not stabilize"
+  cat "$out" 2>/dev/null || true
+  cat "$out.err" 2>/dev/null || true
+  return 1
+}
+# POSITIVE_READINESS_WAIT_READY_V1
+
 mkdir -p "$OUT"
 chmod 700 "$OUT"
 umask 077
@@ -43,7 +73,7 @@ systemctl --user unset-environment \
   VOID_VALIDATOR_REGISTRATION_LIVE_SIGNER_PK_FILE \
   VOID_VALIDATOR_REGISTRATION_LIVE_EXECUTION >/dev/null 2>&1 || true
 systemctl --user restart void-node.service
-sleep 3
+wait_ready_stable "$OUT/ready.baseline.json"
 
 echo
 echo "=== [b] baseline ready ==="
