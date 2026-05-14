@@ -2633,10 +2633,10 @@ app.post("/__void/participant/stake/next-onboard", require("express").json({ lim
         required_fields: ["expected_candidate", "expected_target_epoch", "expected_validator_count", "operator_intent"],
         example: {
           confirm: true,
-          expected_candidate: "vault124",
-          expected_target_epoch: 126,
-          expected_validator_count: 125,
-          operator_intent: "ADMIT_vault124_EPOCH_126_COUNT_125"
+          expected_candidate: "vault125",
+          expected_target_epoch: 127,
+          expected_validator_count: 126,
+          operator_intent: "ADMIT_vault125_EPOCH_127_COUNT_126"
         }
       });
     }
