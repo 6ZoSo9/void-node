@@ -871,3 +871,7 @@ participant-home-clarity-proof:
 .PHONY: participant-wallet-clarity-proof
 participant-wallet-clarity-proof:
 	bash ops/mainnet0/participant-wallet-clarity-proof.sh
+
+.PHONY: participant-public-clarity-proof
+participant-public-clarity-proof:
+	bash ops/mainnet0/participant-public-clarity-proof.sh
