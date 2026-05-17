@@ -24,6 +24,11 @@ grep -q 'Next operator selector: vault126 / epoch128 / expectedValidatorCount=12
 grep -q 'Public validator admission: still blocked' "$DOC"
 grep -q 'Mainnet-0 public launch: still not approved' "$DOC"
 grep -q 'Ready signals are not launch approval' "$DOC"
+grep -q 'Participant public clarity rollup is cross-box green' "$DOC"
+grep -q 'Public release sanitization is cross-box green' "$DOC"
+grep -q 'gitleaks-clean with findings=0' "$DOC"
+grep -q 'UI/product polish baseline is green' "$DOC"
+grep -q 'Final public release hygiene baseline is green' "$DOC"
 
 grep -q 'status: not_go_for_public_mainnet0' "$STATUS"
 grep -q 'Operator/bootstrap validator runtime truth is green through epoch127' "$STATUS"

@@ -31,6 +31,13 @@ operator_label: zoso
 6. Mainnet-0 remains fail-closed / not-go.
 7. Dangerous live validator env is not set.
 8. Public validator registration remains candidate/waiting only.
+9. Participant public clarity rollup is cross-box green.
+10. Home / Start Here clarity is rendered.
+11. Buy VOID public safety clarity is rendered.
+12. Stake/Register active-admission clarity is rendered.
+13. Wallet backup/self-custody clarity is rendered.
+14. Public release sanitization is cross-box green.
+15. Sanitized public release export is gitleaks-clean with findings=0.
 
 ## Remaining launch blockers
 
@@ -54,16 +61,17 @@ Definition of done:
 - Runtime truth, status docs, and UI copy agree.
 - No public registration endpoint directly mutates the active validator set.
 
-### 3. UI/product polish is still needed
+### 3. UI/product polish baseline is green, but final visual polish remains
 
-The participant app is functional but still needs final public-facing polish.
+The core public-safety copy is now proof-backed across Home, Buy VOID, Stake/Register, and Wallet backup. Remaining UI work is visual/tidiness polish, not basic launch-safety clarity.
 
 Definition of done:
-- Home/start flow is clear.
-- Wallet/account setup is easy.
-- Buy VOID flow has clear supported-chain warnings.
-- Stake/validator copy clearly explains candidate vs active validator.
-- Advanced/operator controls are hidden from normal users.
+- Home/start flow remains clear.
+- Wallet/account setup remains easy.
+- Buy VOID flow keeps supported-chain warnings visible.
+- Stake/validator copy continues to explain candidate vs active validator.
+- Advanced/operator controls remain hidden from normal users.
+- Final visual layout pass does not weaken any public clarity marker.
 
 ### 4. Buy VOID hardening remains
 
@@ -86,26 +94,26 @@ Definition of done:
 - Node restart/recovery behavior is tested.
 - Rollback path is preserved.
 
-### 6. Final public release hygiene
+### 6. Final public release hygiene baseline is green
 
-Before launch, the public export/release tree must be clean.
+The public export/release sanitization gate is now cross-box green. The sanitized public release tree passes gitleaks with findings=0. This must remain green through launch.
 
 Definition of done:
 - Secrets are not committed.
 - Public release export passes.
-- Gitleaks/security checks pass.
+- Gitleaks/security checks pass with findings=0.
 - README/runbook is clear enough for early users.
+- Final launch candidate reruns the sanitization gate after the last code change.
 
 ## Next recommended execution order
 
 1. Keep this final-path doc current.
-2. Run a light status proof.
-3. Do UI/product polish.
-4. Harden Buy VOID user flow.
-5. Run public release scrub.
-6. Run final prelaunch safety proof.
-7. Run final go/no-go bundle.
-8. Only then consider Mainnet-0 launch approval.
+2. Keep public clarity rollup green.
+3. Keep public release sanitization green.
+4. Harden remaining Buy VOID fulfillment/operator flow.
+5. Run update-safety and prelaunch safety proofs.
+6. Run final go/no-go bundle.
+7. Only then consider Mainnet-0 launch approval.
 
 ## Hard rule
 
