@@ -15,8 +15,21 @@ echo "=== [1] build ==="
 npm run build
 
 echo
-echo "=== [2] node ready ==="
-curl -fsS "$BASE/__void/ready.json" | tee /tmp/void-participant-stake-clarity-ready.json
+echo "=== [2] restart node to serve current source ==="
+systemctl --user restart void-node.service
+
+READY_OK=0
+for i in $(seq 1 120); do
+  if curl -fsS "$BASE/__void/ready.json" > /tmp/void-participant-stake-clarity-ready.json; then
+    READY_OK=1
+    break
+  fi
+  sleep 1
+done
+test "$READY_OK" = "1"
+
+cat /tmp/void-participant-stake-clarity-ready.json
+echo
 python3 - /tmp/void-participant-stake-clarity-ready.json <<'PY'
 import json, sys
 j=json.load(open(sys.argv[1]))
