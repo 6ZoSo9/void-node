@@ -48332,7 +48332,7 @@ a{color:#93c5fd;text-decoration:none}
     <section class="hero">
       <div>
         <div class="eyebrow">
-          <span class="pill">Mainnet-0 prep</span>
+          <span class="pill">Mainnet-0 preview • not public launch</span>
         </div>
         <h1 style="margin:0 0 6px;font-size:28px;letter-spacing:-.03em">VOID Participant</h1>
         <div class="hero-actions" style="margin-top:10px">
@@ -48360,7 +48360,7 @@ a{color:#93c5fd;text-decoration:none}
     <section class="home-start-here" id="homeStartHere" aria-label="Start here">
       <div class="home-start-head">
         <div>
-          <h2>Start Here</h2>
+          <!-- VOID_HOME_START_PUBLIC_CLARITY_V1 --><h2>Start Here</h2>
           <div class="home-start-sub">New to VOID? Follow this path first. Nothing here sends funds or registers a validator by itself.</div>
         </div>
         <span class="pill">first run</span>
@@ -48369,12 +48369,12 @@ a{color:#93c5fd;text-decoration:none}
         <div class="home-start-step">
           <div class="k">Step 1</div>
           <div class="v">Set up Account Wallet</div>
-          <div class="s">Use Manage Wallet to create, import, or unlock your local participant wallet.</div>
+          <div class="s">Use Manage Wallet first. Create, import, or unlock your local participant wallet before earning, buying, or registering.</div>
         </div>
         <div class="home-start-step">
           <div class="k">Step 2</div>
           <div class="v">Fund or earn</div>
-          <div class="s">Buy VOID when the funding rail is ready, or earn Work Credits from approved work.</div>
+          <div class="s">Earn Work Credits from approved work, or use Buy VOID only through the guided participant-page request flow.</div>
         </div>
         <div class="home-start-step">
           <div class="k">Step 3</div>
@@ -48384,7 +48384,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="home-start-step">
           <div class="k">Step 4</div>
           <div class="v">Preview staking</div>
-          <div class="s">Stake/Register shows readiness and preview-only validator registration.</div>
+          <div class="s">Stake/Register is optional. Public registration is preview/candidate-first and does not make you an active validator.</div>
         </div>
       </div>
       <div class="home-start-actions">
@@ -48450,7 +48450,7 @@ a{color:#93c5fd;text-decoration:none}
 
     <section class="home-quiet-status" id="homeQuietStatus">
       <span class="pill">Ready</span>
-      <span>Advanced details are still available in the sections menu.</span>
+      <span>Advanced/operator details stay tucked away unless you open them.</span>
     </section>
 
     <section class="kpis">
