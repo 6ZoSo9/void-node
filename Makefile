@@ -859,3 +859,7 @@ mainnet0-final-path-proof:
 .PHONY: participant-stake-clarity-proof
 participant-stake-clarity-proof:
 	bash ops/mainnet0/participant-stake-clarity-proof.sh
+
+.PHONY: participant-buy-void-clarity-proof
+participant-buy-void-clarity-proof:
+	bash ops/mainnet0/participant-buy-void-clarity-proof.sh

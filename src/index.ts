@@ -49094,7 +49094,7 @@ a{color:#93c5fd;text-decoration:none}
           <button class="btn btn-primary" id="buyDraftCreateBtn" type="button">Create Buy Request</button>
         </div>
         <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount, confirm your delivery wallet, then create a Buy VOID request before sending Base USDC.</div>
-        <div class="buy-checkout-rules">Base native USDC only • use a self-custody wallet • start from this page • exchange/custodial sends and blind direct deposits are not supported.</div>
+        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base native USDC only • create a Buy VOID request first • use a self-custody wallet • start from this page • exchange/custodial sends and blind direct deposits are not supported • payment confirmation is not VOID fulfillment.</div>
         <div class="subtle-tab-copy" id="buyDraftLatestCard" style="margin-top:8px">Latest request: none</div>
         <details class="adv" style="margin-top:10px">
           <summary><span>Latest Draft Payload</span><span class="pill">json</span></summary>
