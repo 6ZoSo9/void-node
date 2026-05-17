@@ -49210,7 +49210,7 @@ a{color:#93c5fd;text-decoration:none}
               <div class="section-head">
                 <div>
                   <h2>Validator Registration<span class="help" tabindex="0" data-help="Read-only Mainnet-0 validator registration status. Public registration can create a candidate/waiting record, but does not make the validator active or live admitted.">?</span></h2>
-                  <div class="section-copy">Public registration enters a candidate/waiting pool first. Active validator admission is separate, capped, epoch-controlled, and operator-governed.</div>
+                  <div class="section-copy"><strong>Public Registration ≠ Active Validator Admission.</strong> Public registration enters a candidate/waiting pool first. It does not add you to the active validator set. Active validator admission is separate, capped, epoch-controlled, and operator-governed.</div>
                 </div>
               </div>
               <div class="metric-strip top-kpis" style="margin-top:6px">
@@ -49461,7 +49461,7 @@ a{color:#93c5fd;text-decoration:none}
                 <button class="btn" id="validatorRegistrationSubmitDisabledBtn" type="button" disabled>Submit Registration — Not Live</button>
                 <button class="btn" id="validatorRegistrationSubmitLiveBtn" type="button" disabled>Submit Registration — Backend Gated</button>
               </div>
-              <div class="hero-note" id="validatorRegistrationButtonNote" style="margin-top:10px">Preview is safe. Live registration stays disabled until Mainnet-0 operator gates are intentionally opened.</div>
+              <div class="hero-note" id="validatorRegistrationButtonNote" style="margin-top:10px">Preview is safe and non-mutating. It shows what a registration would look like; it does not make this wallet an active validator. Live public registration stays disabled until Mainnet-0 operator gates are intentionally opened.</div>
               <details class="adv" id="validatorRegistrationPreflightDetails" style="margin-top:12px">
                 <summary><span>Submit Preflight</span><span class="pill">blocked intentionally</span></summary>
                 <div class="adv-body">
@@ -49481,7 +49481,7 @@ a{color:#93c5fd;text-decoration:none}
             <h2>Participant Staking Path<span class="help" tabindex="0" data-help="This participant page now shows staking readiness and live validator truth. Browser stake execution is not wired yet; current live onboarding still runs through the node operator path.">?</span></h2>
           </div>
         </div>
-        <div class="hero-note" id="stakePathNote">Live validator truth is green on this node. This tab surfaces staking readiness and validator set truth, but candidate/waiting status is not active admission.</div>
+        <div class="hero-note" id="stakePathNote"><!-- VOID_STAKE_PUBLIC_CLARITY_V1 -->Live validator truth is green on this node. This tab shows staking readiness and validator set truth, but candidate/waiting status is not active admission. Active validators are admitted only through capped, epoch-controlled, proof-backed operator lanes until public admission is intentionally launched.</div>
         <div class="action-rail" style="margin-top:10px">
           <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
           <a class="linkbtn stake-operator-summary-link" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Open Validator Summary</a>
@@ -50921,12 +50921,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       validatorRegistrationSafe
         ? (
             validatorRegistrationStateLabel === "Waiting"
-              ? "This wallet is registered in the latest local proof and is waiting. It did not increase the active validator set."
+              ? "This wallet is registered in the latest local proof and is waiting. It did not increase the active validator set and is not an active validator."
               : validatorRegistrationStateLabel === "Candidate"
-                ? "This wallet is registered as a candidate. Activation is separate and capped."
+                ? "This wallet is registered as a candidate. Activation is separate, capped, epoch-controlled, and not automatic."
                 : validatorRegistrationStateLabel === "Active"
                   ? "This wallet is active in the latest local proof."
-                  : "This wallet is not registered in the latest local proof. Public registration will enter candidate/waiting first, not active immediately."
+                  : "This wallet is not registered in the latest local proof. Public registration will enter candidate/waiting first; it will not become active immediately."
           )
         : "Validator registration proof is unavailable or failed the active-set safety invariant."
     );

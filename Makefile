@@ -855,3 +855,7 @@ buy-void-real-fulfillment-closeout-proof:
 .PHONY: mainnet0-final-path-proof
 mainnet0-final-path-proof:
 	bash ops/mainnet/mainnet0-final-path-proof.sh
+
+.PHONY: participant-stake-clarity-proof
+participant-stake-clarity-proof:
+	bash ops/mainnet0/participant-stake-clarity-proof.sh
