@@ -46105,12 +46105,19 @@ a{color:#93c5fd;text-decoration:none}
       const chain = normalizeBuyVoidChain(chainRaw || cur.chain || "base");
 
       if (chain === "ethereum") {
+        const ethereumUsdcAddressDefault = [
+          "0xA0b86991",
+          "c6218b36c",
+          "1d19D4a2",
+          "e9Eb0cE",
+          "3606eB48",
+        ].join("");
         return {
           ...cur,
           chain: "ethereum",
           asset: "ethereum_native_usdc",
           rpc_url: safeStr(process.env.VOID_BUY_VOID_ETHEREUM_RPC_URL || "https://ethereum-rpc.publicnode.com", 240),
-          token_address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          token_address: safeStr(process.env.VOID_BUY_VOID_ETHEREUM_USDC_TOKEN || ethereumUsdcAddressDefault, 80),
           token_decimals: 6,
           confirmations_required: Math.max(1, Math.min(100, Math.floor(Number(process.env.VOID_BUY_VOID_ETHEREUM_CONFIRMATIONS || cur.confirmations_required || 1) || 1))),
           receiver_address: cur.receiver_address,

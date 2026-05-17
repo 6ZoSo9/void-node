@@ -7,12 +7,15 @@ OUT_BASE="${OUT_BASE:-/tmp/void-public-release-export}"
 OUT="$OUT_BASE/$STAMP"
 TREE="$OUT/tree"
 REPORT="$OUT/PUBLIC_RELEASE_SANITIZATION_REPORT.txt"
+SOURCE_TREEISH="${PUBLIC_RELEASE_TREEISH:-HEAD}"
+SOURCE_HEAD="$(git rev-parse "$SOURCE_TREEISH")"
 
 mkdir -p "$TREE"
 
 echo "=== build public release tree ==="
 echo "repo=$(pwd)"
-echo "head=$(git rev-parse HEAD)"
+echo "treeish=$SOURCE_TREEISH"
+echo "head=$SOURCE_HEAD"
 echo "out=$OUT"
 echo "tree=$TREE"
 
@@ -23,7 +26,7 @@ fi
 
 echo
 echo "=== [1] export current HEAD without git history ==="
-git archive --format=tar HEAD | tar -x -C "$TREE"
+git archive --format=tar "$SOURCE_TREEISH" | tar -x -C "$TREE"
 
 echo
 echo "=== [2] remove local/runtime/generated/sensitive paths ==="
@@ -79,6 +82,8 @@ rm -f ops/mainnet/*.live.json
 rm -f ops/mainnet/*.deployed.json
 rm -f ops/mainnet/*recovery*.json
 rm -f ops/mainnet/validator-truth-upgrade-track*.json
+rm -f ops/mainnet/mainnet0-validator-live-admission-readiness.current.json
+rm -f ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh
 
 rm -f config/*live*.json
 rm -f config/*state*.json
@@ -118,7 +123,8 @@ cat > "$REPORT" <<REPORT_EOF
 VOID public release sanitization report
 
 source_repo: $(cd "${VOID_REPO:-$HOME/dev/void-node}" && pwd)
-source_head: $(cd "${VOID_REPO:-$HOME/dev/void-node}" && git rev-parse HEAD)
+source_treeish: $SOURCE_TREEISH
+source_head: $SOURCE_HEAD
 generated_at: $STAMP
 tree: $TREE
 
