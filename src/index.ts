@@ -45900,6 +45900,11 @@ a{color:#93c5fd;text-decoration:none}
             return res.status(400).json({ ok:false, error:"invalid_transition", current:curStatus, next:nextStatus, queued:cur });
           }
 
+          const nextVoidTxRef = safeTxRef(req.body?.void_tx_ref || cur?.void_tx_ref || "");
+          if ((nextStatus === "void_sent" || nextStatus === "completed") && !nextVoidTxRef) {
+            return res.status(400).json({ ok:false, error:"missing_void_tx_ref", current:curStatus, next:nextStatus, queued:cur });
+          }
+
           const row = {
             ...cur,
             ok: true,
@@ -45907,7 +45912,7 @@ a{color:#93c5fd;text-decoration:none}
             operator_status: nextStatus,
             operator_note: safeNote(req.body?.operator_note || cur?.operator_note || ""),
             payment_ref: safeTxRef(req.body?.payment_ref || cur?.payment_ref || ""),
-            void_tx_ref: safeTxRef(req.body?.void_tx_ref || cur?.void_tx_ref || ""),
+            void_tx_ref: nextVoidTxRef,
           };
 
           appendJsonl(queueFile(), row);

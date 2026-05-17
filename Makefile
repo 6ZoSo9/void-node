@@ -875,3 +875,7 @@ participant-wallet-clarity-proof:
 .PHONY: participant-public-clarity-proof
 participant-public-clarity-proof:
 	bash ops/mainnet0/participant-public-clarity-proof.sh
+
+.PHONY: buy-void-queue-txref-guard-proof
+buy-void-queue-txref-guard-proof:
+	bash ops/mainnet0/buy-void-queue-txref-guard-proof.sh
