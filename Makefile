@@ -851,3 +851,7 @@ buy-void-fixed-rate-fulfillment-policy-proof:
 .PHONY: buy-void-real-fulfillment-closeout-proof
 buy-void-real-fulfillment-closeout-proof:
 	bash ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh
+
+.PHONY: mainnet0-final-path-proof
+mainnet0-final-path-proof:
+	bash ops/mainnet/mainnet0-final-path-proof.sh
