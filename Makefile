@@ -867,3 +867,7 @@ participant-buy-void-clarity-proof:
 .PHONY: participant-home-clarity-proof
 participant-home-clarity-proof:
 	bash ops/mainnet0/participant-home-clarity-proof.sh
+
+.PHONY: participant-wallet-clarity-proof
+participant-wallet-clarity-proof:
+	bash ops/mainnet0/participant-wallet-clarity-proof.sh

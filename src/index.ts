@@ -54647,9 +54647,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     wrap.style.cssText = "display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;width:100%;padding:10px 12px;border:1px solid rgba(51,65,85,.9);border-radius:14px;background:#0b1220;color:#e5e7eb;box-sizing:border-box;";
     wrap.innerHTML =
       '<!-- VOID_ACCOUNT_WALLET_BAR_CLEANUP_V1 -->' +
-      '<div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1">' +
-        '<div style="font-weight:900;color:#f8fafc;white-space:nowrap">Account Wallet</div>' +
-        '<div id="voidParticipantWalletNativeState" style="color:#93c5fd;overflow-wrap:anywhere;font-size:13px;line-height:1.35">Checking native participant wallet…</div>' +
+      '<div style="display:grid;gap:4px;min-width:220px;flex:1">' +
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+          '<div style="font-weight:900;color:#f8fafc;white-space:nowrap">Account Wallet</div>' +
+          '<div id="voidParticipantWalletNativeState" style="color:#93c5fd;overflow-wrap:anywhere;font-size:13px;line-height:1.35">Checking native participant wallet…</div>' +
+        '</div>' +
+        '<div id="voidParticipantWalletBackupNote" style="color:#94a3b8;font-size:12px;line-height:1.35;max-width:760px"><!-- VOID_WALLET_BACKUP_CLARITY_V1 -->Local self-custody wallet. After creating or importing, export and back up your keystore. This node cannot recover your wallet if you lose the password or local files.</div>' +
       '</div>' +
       '<details id="voidParticipantWalletManageMenu" style="position:relative;margin-left:auto">' +
         '<summary style="list-style:none;cursor:pointer;padding:8px 12px;border-radius:10px;background:#0f172a;border:1px solid #334155;color:#e5e7eb;font-weight:800">Manage Wallet</summary>' +
