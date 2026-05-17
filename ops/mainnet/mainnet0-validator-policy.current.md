@@ -3,15 +3,15 @@
 status: locked_policy_plan_only
 launch_state: not_go_for_public_mainnet0
 mutation_allowed: false
-updated_at: 2026-05-13
+updated_at: 2026-05-17
 
 ## Locked Mainnet-0 policy
 
 - active_validator_cap: 256
-- current_operator_bootstrap_validators: 125
-- next_operator_candidate: vault125
-- next_operator_target_epoch: 127
-- next_expected_validator_count: 126
+- current_operator_bootstrap_validators: 126
+- next_operator_candidate: vault126
+- next_operator_target_epoch: 128
+- next_expected_validator_count: 127
 - early_public_active_slots_target: 32-64
 - public_registration_directly_mutates_active_set: false
 - public_registration_result: candidate_or_waiting_only

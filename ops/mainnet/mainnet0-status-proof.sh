@@ -22,15 +22,15 @@ grep -q 'Buy VOID hard-stop composite proof is wired into Mainnet-0 prelaunch sa
 grep -q 'Buy VOID hard-stop proof target: make buy-void-hardstop-proof' "$STATUS_FILE"
 grep -q 'Payment confirmation does not equal VOID sent' "$STATUS_FILE"
 grep -q 'Public validator candidate promotion/admission remains blocked' "$STATUS_FILE"
-grep -q 'Operator/bootstrap validator runtime truth is green through epoch125' "$STATUS_FILE"
-grep -q 'Durable local RPC restore lane is green for epoch125' "$STATUS_FILE"
+grep -q 'Operator/bootstrap validator runtime truth is green through epoch127' "$STATUS_FILE"
+grep -q 'Durable local RPC restore/recovery lane is green through epoch127' "$STATUS_FILE"
 grep -q 'Ready signals are not the same as launch approval' "$STATUS_FILE"
 grep -q 'Mainnet-0 go/no-go NO-GO proof is green' "$STATUS_FILE"
 grep -q 'Mainnet-0 blockers proof includes validator admission blocker proof and validator promotion plan proof' "$STATUS_FILE"
 grep -q 'Validator live-admission readiness proof is green' "$STATUS_FILE"
-grep -q 'Validator live-admission readiness is green, but live admission itself has not been executed' "$STATUS_FILE"
+grep -q 'Guarded operator vault125 live admission has executed; public validator promotion/admission remains blocked.' "$STATUS_FILE"
 grep -q 'Validator next-onboard intent gate proof is green' "$STATUS_FILE"
-grep -q 'Next-onboard intent gate is green, but it is a safety gate only' "$STATUS_FILE"
+grep -q 'Next-onboard intent gate remains a safety gate for the next operator lane' "$STATUS_FILE"
 grep -q 'status: plan_only_candidate_declared' "$VALIDATOR_STATUS"
 grep -q 'not active or live admitted' "$VALIDATOR_STATUS"
 echo "[ok] status files encode not-go state"
@@ -144,7 +144,7 @@ print({
   "buy_void_real_claim_run": real_claim_run,
   "buy_void_manual_proof_payment_ref": manual_payment_ref,
   "buy_void_void_sent": bool(w.get("void_tx_ref")),
-  "validator_status": "public_candidate_waiting_operator_epoch125_green",
+  "validator_status": "operator_epoch127_green_public_admission_blocked",
 })
 PY
 

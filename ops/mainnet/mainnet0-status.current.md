@@ -1,7 +1,7 @@
 # VOID Mainnet-0 Current Status
 
 status: not_go_for_public_mainnet0
-updated_at: 2026-05-13
+updated_at: 2026-05-17
 operator_label: zoso
 
 ## Green / ready signals
@@ -10,25 +10,25 @@ operator_label: zoso
 - Alienware node readiness is green.
 - Update safety gate is green.
 - Validator lifecycle composite gate is green.
-- Operator/bootstrap validator runtime truth is green through epoch125.
-- vault123 live admission completed successfully.
-- Epoch125 reports validatorCount=124, totalPower=124000000000000000000000, published=true, and publishedMatch=true.
-- Durable local RPC restore lane is green for epoch125.
-- Mainnet-0 prelaunch safety proof is green for epoch125.
+- Operator/bootstrap validator runtime truth is green through epoch127.
+- vault123 and vault125 operator/bootstrap live admissions completed successfully.
+- Epoch127 reports validatorCount=126, totalPower=126000000000000000000000, published=true, and publishedMatch=true.
+- Durable local RPC restore/recovery lane is green through epoch127.
+- Mainnet-0 status smoke is green after epoch127 runtime-truth recovery.
 - Buy VOID Base create/watch path is green.
 - Buy VOID payment safety copy is live.
 - Buy VOID watcher config uses Base native USDC.
 - Operator checkpoint/finality policy review is recorded.
 - Validator public reward address and consensus key are recorded.
-- Validator live-admission readiness proof is green for the current guarded next-onboard lane; readiness-only and non-mutating.
+- Validator runtime truth is recovered through epoch127; the current guarded next-onboard lane now points to vault126 / epoch128 / expectedValidatorCount=127.
 - Validator next-onboard intent gate proof is green cross-box: confirm:true, exact operator intent, and VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 are required before live onboarding can run.
 
 ## Still not done
 
 - Public validator candidate promotion/admission remains blocked.
 - Public candidate/waiting registration must not be confused with operator/bootstrap validator admission.
-- Validator live-admission readiness is green, but live admission itself has not been executed.
-- Next-onboard intent gate is green, but it is a safety gate only; it does not promote or admit validators.
+- Guarded operator vault125 live admission has executed; public validator promotion/admission remains blocked.
+- Next-onboard intent gate remains a safety gate for the next operator lane; it does not approve public validator promotion/admission.
 - First real Buy VOID payment claim and fulfillment have completed successfully.
 - A real Ethereum USDC payment hash has been verified for the first fulfilled Buy VOID lane.
 - 2,500 VOID has been sent and recorded for the first fulfilled Buy VOID lane.
@@ -42,13 +42,13 @@ operator_label: zoso
 Two validator tracks must stay separate:
 
 1. Operator/bootstrap validator runtime truth:
-   - latestEpoch: 125
-   - validatorCount: 124
-   - active validator count on recovered 8545 state: 124
-   - next operator candidate selector: vault125 targeting epoch127 / expectedValidatorCount=126
-   - durable 8545 restore lane is green.
-   - live-admission readiness artifact/proof remains readiness-only and must be refreshed against the current vault125 / epoch127 selector before mutation.
-   - readiness remains non-mutating: mutation_allowed=false and live_admission_executed=false.
+   - latestEpoch: 127
+   - validatorCount: 126
+   - active validator count on recovered 8545 state: 126
+   - next operator candidate selector: vault126 targeting epoch128 / expectedValidatorCount=127
+   - durable 8545 restore/recovery lane is green through epoch127.
+   - vault125 admission required post-mutation recovery and is now reflected in verified runtime truth through epoch127.
+   - public admission remains non-mutating: mutation_allowed=false for public promotion/admission until a separate guarded proof lane intentionally changes it.
 
 2. Public participant validator registration:
    - public registration/candidate/waiting status remains non-launching.

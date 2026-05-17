@@ -50,7 +50,7 @@ echo "=== [3] current status still blocks launch ==="
 grep -q "status: not_go_for_public_mainnet0" "$STATUS"
 grep -q "Public validator candidate promotion/admission remains blocked" "$STATUS"
 grep -q "Public candidate/waiting registration must not be confused with operator/bootstrap validator admission" "$STATUS"
-grep -q "Operator/bootstrap validator runtime truth is green through epoch125" "$STATUS"
+grep -q "Operator/bootstrap validator runtime truth is green through epoch127" "$STATUS"
 grep -Eq "First real Buy VOID payment claim and fulfillment have completed successfully|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID real payment claim has not been run" "$STATUS"
 echo "[ok] status file still records launch blockers"
 

@@ -3,7 +3,7 @@
 status: active
 launch_state: not_go_for_public_mainnet0
 operator_label: zoso
-updated_at: 2026-05-13
+updated_at: 2026-05-17
 
 ## Purpose
 
@@ -20,12 +20,12 @@ Current healthy-but-not-launch posture:
 - Cross-box status smoke is green.
 - Update safety is green on Precision.
 - Validator lifecycle is green and fresh on Precision.
-- Operator/bootstrap validator runtime truth is green through epoch125.
-- vault123 live admission completed successfully.
-- Epoch125 reports validatorCount=124, totalPower=124000000000000000000000, published=true, and publishedMatch=true.
-- Durable 8545 restore lane is green and can recover local RPC state to epoch125.
-- Mainnet-0 prelaunch safety proof is green for epoch125.
-- Live-admission dry-run proof is dynamic and currently points to vault125 / epoch127 while still blocking mutation without confirm:true.
+- Operator/bootstrap validator runtime truth is green through epoch127.
+- vault123 and vault125 operator/bootstrap live admissions completed successfully.
+- Epoch127 reports validatorCount=126, totalPower=126000000000000000000000, published=true, and publishedMatch=true.
+- Durable 8545 restore/recovery lane is green through epoch127.
+- Mainnet-0 status smoke is green after epoch127 runtime-truth recovery.
+- Live-admission dry-run proof is dynamic and now points to vault126 / epoch128 while still blocking mutation without confirm:true.
 - Buy VOID Base create/watch path is green.
 - Buy VOID safety copy is live.
 - Buy VOID watcher config is set on both boxes.
@@ -34,7 +34,7 @@ Current healthy-but-not-launch posture:
 - Go/no-go wrapper intentionally exits NO-GO while blockers remain.
 - Validator admission blocker proof is green and proves public registration is plan-only/waiting/not-active.
 - Validator admission promotion plan proof is green and proves the future promotion path remains plan-only and non-mutating.
-- Validator live-admission readiness proof is green in readiness-only mode, but must be refreshed against the current vault125 / epoch127 selector before mutation.
+- Validator live-admission readiness must be refreshed against the current vault126 / epoch128 selector before any future operator mutation.
 - Validator next-onboard intent gate proof is green and cross-box proven: missing/wrong operator intent fails before the live env switch, exact intent remains blocked while VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION is off.
 
 ## Blocker 1: maintain status proof discipline
@@ -55,10 +55,10 @@ Definition of done:
 
 Current validator state:
 
-- Operator/bootstrap validator runtime truth is green through epoch125.
-- vault123 is admitted in the operator/bootstrap validator set.
-- The next operator selector is vault125 targeting epoch127.
-- Validator live-admission readiness artifact/proof is green, but live admission is not executed.
+- Operator/bootstrap validator runtime truth is green through epoch127.
+- vault123 and vault125 are admitted in the operator/bootstrap validator set.
+- The next operator selector is vault126 targeting epoch128.
+- Vault125 guarded operator live admission executed and epoch127 runtime truth is recovered; future operator admission remains blocked until a new guarded proof.
 - Next-onboard intent gate is green, but live admission remains blocked unless an explicit guarded live proof enables the env switch and supplies the exact operator intent.
 - Public participant validator registration remains candidate/waiting only.
 - Public registration does not instantly expand the active validator set.
