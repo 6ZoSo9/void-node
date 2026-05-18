@@ -63,12 +63,31 @@ assert j.get("ok") is True, j
 assert j.get("mutation") is False, j
 assert j.get("sends_transaction") is False, j
 assert j.get("submit_allowed") is False, j
+
 wa=j.get("wallet_authority") or {}
+g=j.get("gates") or {}
+
 assert wa.get("status_checked") is True, j
-assert wa.get("has_wallet") is True, j
-assert wa.get("account_match") is True, j
-assert str(wa.get("wallet_address","")).lower() == acc, j
-print("[ok] wallet authority is read-only and scoped to account")
+assert wa.get("status_ok") is True, j
+assert g.get("wallet_status_endpoint_checked") is True, j
+assert g.get("wallet_status_endpoint_reachable") is True, j
+
+ready = wa.get("ready_for_live_submit") is True
+if ready:
+    assert wa.get("has_wallet") is True, j
+    assert wa.get("wallet_unlocked") is True, j
+    assert wa.get("account_match") is True, j
+    assert str(wa.get("wallet_address","")).lower() == acc, j
+    assert g.get("wallet_gate_authoritative") is True, j
+else:
+    assert j.get("submit_blocked_reason") == "wallet_authority_not_ready", j
+    assert wa.get("has_wallet") is not True or wa.get("wallet_unlocked") is not True or wa.get("account_match") is not True, j
+    req = j.get("required_before_live_submit") or []
+    assert "participant native wallet must exist" in req, j
+    assert "participant native wallet must be unlocked" in req, j
+    assert "wallet address must match participant account" in req, j
+
+print("[ok] wallet authority is read-only and safely blocks unless account wallet is ready")
 PY
 
 echo

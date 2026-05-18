@@ -1444,16 +1444,45 @@ const app = express();
       return envOn && queryOn;
     }
 
-    function cast(args:string[]): any {
-      const r = child_process.spawnSync("cast", args, {
-        encoding:"utf8",
-        timeout:30000,
-        env:{ ...process.env, PATH:String(process.env.PATH || "") }
-      });
+    function cast(args:string[], opts?:{ timeout?:number }): any {
+      const home = String(process.env.HOME || "");
+      const candidates = [
+        String(process.env.CAST_BIN || "").trim(),
+        "/tmp/foundry-1.5.1/cast",
+        home ? (home + "/.foundry/bin/cast") : "",
+        "cast"
+      ].filter(Boolean);
+
+      let last:any = null;
+      for (const bin of candidates) {
+        const r = child_process.spawnSync(bin, args, {
+          encoding:"utf8",
+          timeout: opts?.timeout || 30000,
+          env:{
+            ...process.env,
+            PATH:[
+              "/tmp/foundry-1.5.1",
+              home ? (home + "/.foundry/bin") : "",
+              String(process.env.PATH || "")
+            ].filter(Boolean).join(":")
+          }
+        });
+        last = r;
+        if (!r.error && r.status === 0) {
+          return {
+            ok:true,
+            bin,
+            stdout:String(r.stdout || ""),
+            stderr:String(r.stderr || "")
+          };
+        }
+      }
+
       return {
-        ok:r.status === 0,
-        stdout:String(r.stdout || ""),
-        stderr:String(r.stderr || "")
+        ok:false,
+        bin:String(candidates[candidates.length - 1] || "cast"),
+        stdout:String(last?.stdout || ""),
+        stderr:String(last?.stderr || last?.error?.message || "")
       };
     }
 
