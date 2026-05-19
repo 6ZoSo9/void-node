@@ -22,6 +22,9 @@ PROOF_PASSPHRASE_FILE="$OUT/proof-wallet.passphrase"
 IMPORT_PAYLOAD="$OUT/import.payload.json"
 UNLOCK_PAYLOAD="$OUT/unlock.payload.json"
 SUBMIT_PAYLOAD="$OUT/submit-live.payload.json"
+DEPLOYER_JSON="${DEPLOYER_JSON:-/mnt/old_void_sdb/meta/void-mainnet-deployer-wallet.json}"
+DEPLOYER_PK_FILE="$OUT/deployer.pk"
+LOCAL_DEPLOY_CANDIDATE_PK_FILE="$OUT/local-deploy-candidate.pk"
 
 ANVIL_PID_FILE="$OUT/anvil.pid"
 ANVIL_LOG="$OUT/anvil.log"
@@ -46,7 +49,7 @@ cleanup() {
     fi
   fi
 
-  rm -f "$SIGNER_FILE" "$PROOF_PK_FILE" "$PROOF_PASSPHRASE_FILE" "$IMPORT_PAYLOAD" "$UNLOCK_PAYLOAD" "$SUBMIT_PAYLOAD" >/dev/null 2>&1 || true
+  rm -f "$SIGNER_FILE" "$PROOF_PK_FILE" "$PROOF_PASSPHRASE_FILE" "$IMPORT_PAYLOAD" "$UNLOCK_PAYLOAD" "$SUBMIT_PAYLOAD" "$DEPLOYER_PK_FILE" "$LOCAL_DEPLOY_CANDIDATE_PK_FILE" >/dev/null 2>&1 || true
   systemctl --user restart void-node.service >/dev/null 2>&1 || true
   for i in $(seq 1 45); do
     curl -fsS "$BASE/__void/ready.json" >/dev/null 2>&1 && break
@@ -107,7 +110,8 @@ wait_node_ready_after_restart "restart"
 
 echo
 echo "=== [b] baseline node ready ==="
-curl -fsS "$BASE/__void/ready.json" > "$OUT/ready.baseline.json"
+wait_node_ready_after_restart "baseline"
+cp "$OUT/ready-after-baseline.json" "$OUT/ready.baseline.json"
 cat "$OUT/ready.baseline.json"
 echo
 python3 - "$OUT/ready.baseline.json" <<'PY'
@@ -164,33 +168,78 @@ test "$CHAIN_ID" = "$EXPECTED_CHAIN_ID"
 echo "[ok] disposable RPC chain/bind safe"
 
 echo
-echo "=== [d] fund known local deploy proof wallets ==="
-DEPLOYER="0x0d66fCDf95d38f7Db6B4206BF183f34cD816C2AA"
-LEGACY_CANDIDATE="0x9ef8A8106858Ee6D6dfe8c3850d4320D2717FD55"
-BAL_HEX="$(MIN_STAKE_WEI="${MIN_STAKE_WEI:-10000000000000000000000}" python3 - <<'PY'
+echo "=== [d] load/fund local deploy proof wallets without printing secrets ==="
+python3 - "$DEPLOYER_JSON" "$DEPLOYER_PK_FILE" <<'PYKEY'
+import json, re, sys
+from pathlib import Path
+
+src = Path(sys.argv[1])
+out = Path(sys.argv[2])
+obj = json.loads(src.read_text())
+
+hex_re = re.compile(r"^0x[a-fA-F0-9]{64}$")
+found = None
+
+def walk(x):
+    global found
+    if found:
+        return
+    if isinstance(x, dict):
+        for k, v in x.items():
+            if found:
+                return
+            if isinstance(v, str) and str(k).lower() in {"private_key","privatekey","pk","key"} and hex_re.fullmatch(v.strip()):
+                found = v.strip()
+                return
+            walk(v)
+    elif isinstance(x, list):
+        for v in x:
+            walk(v)
+
+walk(obj)
+if not found:
+    raise SystemExit("[ERR] no private key found in deployer json")
+
+out.write_text(found)
+out.chmod(0o600)
+print("[ok] deployer key loaded to temp file; key not printed")
+PYKEY
+
+DEPLOYER="$(cast wallet address "$(cat "$DEPLOYER_PK_FILE")")"
+
+echo
+echo "=== [d1] create temporary local deploy seed candidate without printing it ==="
+python3 - "$LOCAL_DEPLOY_CANDIDATE_PK_FILE" <<'PYCAND'
+import secrets, sys
+pk_path = sys.argv[1]
+pk = "0x" + secrets.token_hex(32)
+open(pk_path, "w").write(pk)
+PYCAND
+chmod 600 "$LOCAL_DEPLOY_CANDIDATE_PK_FILE"
+
+LOCAL_DEPLOY_CANDIDATE="$(cast wallet address "$(cat "$LOCAL_DEPLOY_CANDIDATE_PK_FILE")")"
+echo "local_deploy_candidate=$LOCAL_DEPLOY_CANDIDATE"
+echo "[ok] temp local deploy seed candidate derived; private key not printed"
+
+BAL_HEX="$(MIN_STAKE_WEI="${MIN_STAKE_WEI:-10000000000000000000000}" python3 - <<'PYBAL'
 import os
 stake = int(os.environ["MIN_STAKE_WEI"])
 gas_headroom = 100 * 10**18
 print(hex(stake + gas_headroom))
-PY
+PYBAL
 )"
+
 cast rpc --rpc-url "$RPC" anvil_setBalance "$DEPLOYER" "$BAL_HEX" >/dev/null
-cast rpc --rpc-url "$RPC" anvil_setBalance "$LEGACY_CANDIDATE" "$BAL_HEX" >/dev/null
-echo "[ok] deployer and legacy candidate funded on disposable RPC"
+cast rpc --rpc-url "$RPC" anvil_setBalance "$LOCAL_DEPLOY_CANDIDATE" "$BAL_HEX" >/dev/null
+echo "[ok] deployer and local deploy seed candidate funded on disposable RPC"
 
 echo
 echo "=== [e] deploy fresh local candidate registry artifact ==="
-RPC="$RPC" bash ops/mainnet0/validator-candidate-registry-local-deploy-proof.sh > "$OUT/local-deploy-proof.log" 2>&1 || {
+DEPLOYER_PK="$(cat "$DEPLOYER_PK_FILE")" CANDIDATE_PK_FILE="$LOCAL_DEPLOY_CANDIDATE_PK_FILE" CANDIDATE_ADDR_EXPECTED="$LOCAL_DEPLOY_CANDIDATE" RPC="$RPC" bash ops/mainnet0/validator-candidate-registry-local-deploy-proof.sh > "$OUT/local-deploy-proof.log" 2>&1 || {
   echo "[ERR] local deploy proof failed"
-  tail -200 "$OUT/local-deploy-proof.log" || true
+  tail -n 120 "$OUT/local-deploy-proof.log" || true
   exit 1
 }
-tail -120 "$OUT/local-deploy-proof.log"
-
-echo
-echo "=== [f] restart node to load fresh artifact ==="
-systemctl --user restart void-node.service
-wait_node_ready_after_restart "restart"
 
 curl -fsS "$BASE/__void/mainnet0/validator-candidate-registry/status" > "$OUT/registry-status.json"
 cat "$OUT/registry-status.json"
@@ -211,21 +260,21 @@ PY
 echo "registry=$REGISTRY"
 
 echo
-echo "=== [g] create temporary proof wallet/private key without printing it ==="
-python3 - "$PROOF_PK_FILE" "$PROOF_PASSPHRASE_FILE" <<'PY'
+echo "=== [g] create separate temporary submit proof wallet/private key without printing it ==="
+python3 - "$PROOF_PK_FILE" "$PROOF_PASSPHRASE_FILE" <<'PYSUBMIT'
 import secrets, sys
 pk_path, pass_path = sys.argv[1], sys.argv[2]
 pk = "0x" + secrets.token_hex(32)
-pw = "void-controlled-live-execution-proof-" + secrets.token_hex(24)
+pw = "void-controlled-live-execution-proof-submit-" + secrets.token_hex(24)
 open(pk_path, "w").write(pk)
 open(pass_path, "w").write(pw)
-PY
+PYSUBMIT
 chmod 600 "$PROOF_PK_FILE" "$PROOF_PASSPHRASE_FILE"
 
 ACC="$(cast wallet address "$(cat "$PROOF_PK_FILE")")"
 printf '%s' "$ACC" > "$PROOF_ACCOUNT_FILE"
 echo "proof_account=$ACC"
-echo "[ok] temp proof account derived; private key not printed"
+echo "[ok] separate temp submit proof account derived; private key not printed"
 
 echo
 echo "=== [h] fund temporary proof account for 10000 VOID stake + gas ==="

@@ -220,9 +220,9 @@ DEPLOY_LOG="$OUT_DIR/validator-candidate-registry.forge-create.$STAMP.log"
     --rpc-url "$RPC" \
     --private-key "$DEPLOYER_PK" \
     --broadcast \
+    --json \
     src/VoidValidatorCandidateRegistry.sol:VoidValidatorCandidateRegistry \
-    --constructor-args "$MIN_STAKE_WEI" "$MAX_ACTIVE_VALIDATORS" "$ACTIVATION_CHURN_LIMIT" \
-    --json
+    --constructor-args "$MIN_STAKE_WEI" "$MAX_ACTIVE_VALIDATORS" "$ACTIVATION_CHURN_LIMIT"
 ) 2>&1 | tee "$DEPLOY_LOG"
 
 REGISTRY="$(python3 - "$DEPLOY_LOG" <<'PYPARSE'

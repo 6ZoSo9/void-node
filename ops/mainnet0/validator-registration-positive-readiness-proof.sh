@@ -407,7 +407,7 @@ PY
 
 echo
 echo "=== [n] final ready ==="
-curl -fsS "$BASE/__void/ready.json" > "$OUT/ready.final.json"
+wait_ready_stable "$OUT/ready.final.json"
 cat "$OUT/ready.final.json"
 echo
 python3 - "$OUT/ready.final.json" <<'PY'

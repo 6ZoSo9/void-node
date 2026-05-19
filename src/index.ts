@@ -1760,17 +1760,48 @@ const app = express();
       }
 
       function cast(args:string[], opts?:any): any {
-        const r = child_process.spawnSync("cast", args, {
-          encoding:"utf8",
-          timeout:Number(opts?.timeout || 120000),
-          env:{ ...process.env, PATH:String(process.env.PATH || "") }
-        });
+        const home = String(process.env.HOME || "");
+        const candidates = [
+          String(process.env.CAST_BIN || "").trim(),
+          "/tmp/foundry-1.5.1/cast",
+          home ? (home + "/.foundry/bin/cast") : "",
+          "cast"
+        ].filter(Boolean);
+
+        let last:any = null;
+        for (const bin of candidates) {
+          const r = child_process.spawnSync(bin, args, {
+            encoding:"utf8",
+            timeout:Number(opts?.timeout || 120000),
+            env:{
+              ...process.env,
+              PATH:[
+                "/tmp/foundry-1.5.1",
+                home ? (home + "/.foundry/bin") : "",
+                String(process.env.PATH || "")
+              ].filter(Boolean).join(":")
+            }
+          });
+          last = r;
+          if (!r.error && r.status === 0) {
+            return {
+              status:r.status,
+              signal:r.signal,
+              bin,
+              stdout:String(r.stdout || ""),
+              stderr:String(r.stderr || ""),
+              ok:true
+            };
+          }
+        }
+
         return {
-          status:r.status,
-          signal:r.signal,
-          stdout:String(r.stdout || ""),
-          stderr:String(r.stderr || ""),
-          ok:r.status === 0
+          status:last?.status,
+          signal:last?.signal,
+          bin:String(candidates[candidates.length - 1] || "cast"),
+          stdout:String(last?.stdout || ""),
+          stderr:String(last?.stderr || last?.error?.message || ""),
+          ok:false
         };
       }
 
