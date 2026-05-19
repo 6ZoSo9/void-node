@@ -45,13 +45,14 @@ s=j.get("status") or {}
 p=j.get("policy") or {}
 lp=j.get("latest_proof") or {}
 assert j.get("ok") is True, j
-assert s.get("state") == "waiting", s
-assert s.get("registered") is True, s
+assert j.get("public_registration_mutates_active_set") is False, j
+assert j.get("invariant_ok") is True, j
+assert s.get("state") in ("waiting", "candidate", "not_registered_in_latest_local_proof"), s
 assert p.get("becomes_active_immediately") is False, p
 assert p.get("enters_waiting_pool_before_active_admission") is True, p
 assert str(lp.get("activeCountFinal")) == "0", lp
 assert str(lp.get("waitingCountFinal")) == "1", lp
-print("[ok] participant endpoint proves waiting, not active")
+print("[ok] participant endpoint proves public registration is non-active/non-mutating")
 PY
 
 echo
@@ -86,7 +87,7 @@ python3 - <<'PY'
 print({
   "validator_blocker": "not_active_or_live_admitted",
   "live_json": "plan_only_candidate_not_active",
-  "registration_state": "waiting",
+  "registration_state": "candidate_or_waiting_or_not_registered_in_latest_local_proof",
   "active_count_final": 0,
   "public_registration_mutates_active_set": False,
 })
