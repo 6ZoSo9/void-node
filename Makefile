@@ -879,3 +879,7 @@ participant-public-clarity-proof:
 .PHONY: buy-void-queue-txref-guard-proof
 buy-void-queue-txref-guard-proof:
 	bash ops/mainnet0/buy-void-queue-txref-guard-proof.sh
+
+.PHONY: mainnet0-final-public-launch-checklist-proof
+mainnet0-final-public-launch-checklist-proof:
+	bash ops/mainnet/mainnet0-final-public-launch-checklist-proof.sh
