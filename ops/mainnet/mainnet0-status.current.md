@@ -84,3 +84,5 @@ Mainnet-0 remains not-go until remaining launch blockers are cleared and a final
 - Payment confirmation does not equal VOID sent.
 - Fulfillment still requires an explicit operator VOID transaction reference.
 - Real Buy VOID payment claim/send has completed once; future fulfillments remain blocked unless payment verification and explicit VOID tx-ref recording pass.
+
+- Validator live-admission readiness proof is green.

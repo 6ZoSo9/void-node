@@ -5,6 +5,7 @@ set +o histexpand
 
 BASE="${BASE:-http://127.0.0.1:4100}"
 MAN="${MAN:-config/update-manifest.v0.json}"
+PUBKEY="${PUBKEY:-config/update-pubkey.v1.pem}"
 SIGN_KEY="${SIGN_KEY:-.secrets/update-ed25519.v1.pem}"
 SERVICE="${SERVICE:-void-node.service}"
 OUT="${OUT:-/tmp/void-update-valid-artifact-marker-only-proof.$(date +%Y%m%d-%H%M%S)}"
@@ -17,6 +18,9 @@ cleanup() {
   set +e
   if [ -f "$OUT/original-update-manifest.v0.json" ]; then
     cp -a "$OUT/original-update-manifest.v0.json" "$MAN"
+  fi
+  if [ -f "$OUT/original-update-pubkey.v1.pem" ]; then
+    cp -a "$OUT/original-update-pubkey.v1.pem" "$PUBKEY"
   fi
   rm -f runtime/upgrade-staged.v1.json
   rm -f runtime/upgrade-apply-pending.v1.json
@@ -45,8 +49,19 @@ echo "out=$OUT"
 echo
 echo "=== [1] preconditions ==="
 test -f "$MAN"
-test -f "$SIGN_KEY"
+test -f "$PUBKEY"
 cp -a "$MAN" "$OUT/original-update-manifest.v0.json"
+cp -a "$PUBKEY" "$OUT/original-update-pubkey.v1.pem"
+
+if [ ! -f "$SIGN_KEY" ]; then
+  echo "[info] SIGN_KEY missing; generating temporary proof-only Ed25519 keypair"
+  SIGN_KEY="$OUT/update-ed25519.proof.pem"
+  openssl genpkey -algorithm Ed25519 -out "$SIGN_KEY"
+  openssl pkey -in "$SIGN_KEY" -pubout -out "$OUT/update-pubkey.proof.pem"
+  cp -a "$OUT/update-pubkey.proof.pem" "$PUBKEY"
+else
+  echo "[ok] using existing SIGN_KEY=$SIGN_KEY"
+fi
 
 rm -f runtime/upgrade-staged.v1.json
 rm -f runtime/upgrade-apply-pending.v1.json

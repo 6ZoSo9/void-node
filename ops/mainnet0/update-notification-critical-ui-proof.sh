@@ -5,18 +5,23 @@ set +o histexpand
 
 BASE="${BASE:-http://127.0.0.1:4100}"
 MAN="${MAN:-config/update-manifest.v0.json}"
+PUBKEY="${PUBKEY:-config/update-pubkey.v1.pem}"
 STATE="${STATE:-$HOME/.config/void/update-notification-state.json}"
 SIGN_KEY="${SIGN_KEY:-.secrets/update-ed25519.v1.pem}"
 OUT="${OUT:-/tmp/void-update-notification-critical-ui-proof.$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
 
 HAD_STATE=0
+HAD_PUBKEY=0
 RESTORED=0
 
 cleanup() {
   set +e
   if [ -f "$OUT/original-update-manifest.v0.json" ]; then
     cp -a "$OUT/original-update-manifest.v0.json" "$MAN"
+  fi
+  if [ "$HAD_PUBKEY" = "1" ] && [ -f "$OUT/original-update-pubkey.v1.pem" ]; then
+    cp -a "$OUT/original-update-pubkey.v1.pem" "$PUBKEY"
   fi
   if [ "$HAD_STATE" = "1" ] && [ -f "$OUT/original-update-notification-state.json" ]; then
     mkdir -p "$(dirname "$STATE")"
@@ -35,8 +40,20 @@ echo "out=$OUT"
 echo
 echo "=== [1] preconditions ==="
 test -f "$MAN"
-test -f "$SIGN_KEY"
+test -f "$PUBKEY"
 cp -a "$MAN" "$OUT/original-update-manifest.v0.json"
+cp -a "$PUBKEY" "$OUT/original-update-pubkey.v1.pem"
+HAD_PUBKEY=1
+
+if [ ! -f "$SIGN_KEY" ]; then
+  echo "[info] SIGN_KEY missing; generating temporary proof-only Ed25519 keypair"
+  SIGN_KEY="$OUT/update-ed25519.proof.pem"
+  openssl genpkey -algorithm Ed25519 -out "$SIGN_KEY"
+  openssl pkey -in "$SIGN_KEY" -pubout -out "$OUT/update-pubkey.proof.pem"
+  cp -a "$OUT/update-pubkey.proof.pem" "$PUBKEY"
+else
+  echo "[ok] using existing SIGN_KEY=$SIGN_KEY"
+fi
 if [ -f "$STATE" ]; then
   cp -a "$STATE" "$OUT/original-update-notification-state.json"
   HAD_STATE=1
