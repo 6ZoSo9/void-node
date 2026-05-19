@@ -48082,7 +48082,10 @@ a{color:#93c5fd;text-decoration:none}
     }
 
     /* VOID_SIDEBAR_ADVANCED_MENU_V1 */
-    .sidebar-advanced-menu{
+    
+    /* VOID_SIDEBAR_QUIET_NAV_V1 */
+    .tabbtn .navhint{display:none !important}
+.sidebar-advanced-menu{
       border-top:1px solid var(--line);
       margin-top:8px;
       padding-top:8px;
