@@ -7,8 +7,8 @@ operator_label: zoso
 
 ## Current green checkpoint
 
-- checkpoint: ckpt-final-checklist-launch-approval-plan-wired-green-20260520-133218
-- commit: 0bb28da9
+- checkpoint: ckpt-mainnet0-status-label-vault126-refresh-green-20260520-134151
+- commit: d02827bc
 - Precision: ready=true, gap=0, txroot_live=1
 - Alienware: ready=true, gap=0, txroot_live=1
 - Cross-box status smoke: green
