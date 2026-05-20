@@ -4,10 +4,10 @@ status: plan_only
 launch_state: not_go_for_public_mainnet0
 mutation_allowed_by_this_doc: false
 operator_label: zoso
-candidate: vault125
-target_epoch: 127
-expected_validator_count: 126
-operator_intent: ADMIT_vault125_EPOCH_127_COUNT_126
+candidate: vault126
+target_epoch: 128
+expected_validator_count: 127
+operator_intent: ADMIT_vault126_EPOCH_128_COUNT_127
 
 ## Purpose
 
@@ -29,10 +29,10 @@ The current safe route requires all of the following before live onboarding can 
 
 1. POST confirm:true.
 2. Exact operator intent fields:
-   - expected_candidate=vault125
-   - expected_target_epoch=127
-   - expected_validator_count=126
-   - operator_intent=ADMIT_vault125_EPOCH_127_COUNT_126
+   - expected_candidate=vault126
+   - expected_target_epoch=128
+   - expected_validator_count=127
+   - operator_intent=ADMIT_vault126_EPOCH_128_COUNT_127
 3. VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1.
 4. Current node readiness green.
 5. Validator live-admission readiness proof green.
@@ -61,9 +61,9 @@ All must pass from clean repo state.
 
 The selector must still match:
 
-    selected_candidate=vault125
-    target_epoch=127
-    expected_validator_count=126
+    selected_candidate=vault126
+    target_epoch=128
+    expected_validator_count=127
 
 If selector values change, this runbook must not be used. Create a new runbook for the new candidate/epoch/count.
 
@@ -75,10 +75,10 @@ Expected request body:
 
     {
       "confirm": true,
-      "expected_candidate": "vault125",
-      "expected_target_epoch": 127,
-      "expected_validator_count": 126,
-      "operator_intent": "ADMIT_vault125_EPOCH_127_COUNT_126"
+      "expected_candidate": "vault126",
+      "expected_target_epoch": 128,
+      "expected_validator_count": 127,
+      "operator_intent": "ADMIT_vault126_EPOCH_128_COUNT_127"
     }
 
 Expected endpoint:
@@ -107,7 +107,7 @@ After a future live admission attempt, immediately prove:
 
 Stop immediately if any of these occur:
 
-- selector is not vault125 / epoch127 / expected count 126
+- selector is not vault126 / epoch128 / expected count 127
 - missing or mismatched operator intent
 - live env switch appears persistent outside the guarded command
 - node readiness is not green

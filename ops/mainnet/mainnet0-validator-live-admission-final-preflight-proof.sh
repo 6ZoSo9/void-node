@@ -38,7 +38,7 @@ fi
 
 git rev-parse --short HEAD | tee "$OUT/git.head.txt"
 git describe --tags --always --dirty | tee "$OUT/git.describe.txt"
-grep -Eq "ckpt-validator-live-admission|ckpt-validator-next-onboard-ready-wait|ckpt-validator-final-preflight|ckpt-validator-selector-vault125-readiness-refresh|ckpt-validator-positive-readiness-ready-wait|ckpt-prelaunch-safety-noncoordinator-fallback|ckpt-prelaunch-safety-gonogo-fallback" "$OUT/git.describe.txt"
+grep -Eq "ckpt-validator-live-admission|ckpt-validator-next-onboard-ready-wait|ckpt-validator-final-preflight|ckpt-validator-selector-vault125-readiness-refresh|ckpt-validator-live-admission-readiness-selector-refresh|ckpt-validator-next-onboard-live-gate-selector-refresh|ckpt-validator-positive-readiness-ready-wait|ckpt-prelaunch-safety-noncoordinator-fallback|ckpt-prelaunch-safety-gonogo-fallback" "$OUT/git.describe.txt"
 echo "[ok] checkpoint lineage matches validator live-admission lane"
 
 echo
@@ -86,12 +86,12 @@ curl -fsS "$BASE/__void/runtime/validator-truth/next-onboard" > "$OUT/next-onboa
 python3 -c 'import json, sys
 j=json.load(open(sys.argv[1]))
 assert j.get("ok") is True, j
-assert j.get("selectedCandidateName") == "vault125", j
-assert int(j.get("targetEpoch")) == 127, j
-assert int(j.get("expectedValidatorCount")) == 126, j
-assert int(j.get("currentEpoch")) == 126, j
-assert int(j.get("currentValidatorCount")) == 125, j
-print("[ok] selector matches vault125 / epoch127 / count126")
+assert j.get("selectedCandidateName") == "vault126", j
+assert int(j.get("targetEpoch")) == 128, j
+assert int(j.get("expectedValidatorCount")) == 127, j
+assert int(j.get("currentEpoch")) == 127, j
+assert int(j.get("currentValidatorCount")) == 126, j
+print("[ok] selector matches vault126 / epoch128 / count127")
 print({
   "selectedCandidateName": j.get("selectedCandidateName"),
   "selectedCandidateAddr": j.get("selectedCandidateAddr"),
@@ -107,7 +107,7 @@ DOC="ops/mainnet/mainnet0-validator-live-admission-execution-runbook.md"
 grep -q "status: plan_only" "$DOC"
 grep -q "mutation_allowed_by_this_doc: false" "$DOC"
 grep -q "Do not execute live admission yet" "$DOC"
-grep -q "operator_intent: ADMIT_vault125_EPOCH_127_COUNT_126" "$DOC"
+grep -q "operator_intent: ADMIT_vault126_EPOCH_128_COUNT_127" "$DOC"
 echo "[ok] runbook remains plan-only"
 
 echo
@@ -167,10 +167,10 @@ summary = {
   },
   "required_operator_intent": {
     "confirm": True,
-    "expected_candidate": "vault125",
-    "expected_target_epoch": 127,
-    "expected_validator_count": 126,
-    "operator_intent": "ADMIT_vault125_EPOCH_127_COUNT_126",
+    "expected_candidate": "vault126",
+    "expected_target_epoch": 128,
+    "expected_validator_count": 127,
+    "operator_intent": "ADMIT_vault126_EPOCH_128_COUNT_127",
     "required_env_switch": "VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1"
   }
 }
