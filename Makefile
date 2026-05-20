@@ -883,3 +883,7 @@ buy-void-queue-txref-guard-proof:
 .PHONY: mainnet0-final-public-launch-checklist-proof
 mainnet0-final-public-launch-checklist-proof:
 	bash ops/mainnet/mainnet0-final-public-launch-checklist-proof.sh
+
+.PHONY: mainnet0-launch-approval-plan-proof
+mainnet0-launch-approval-plan-proof:
+	bash ops/mainnet/mainnet0-launch-approval-plan-proof.sh

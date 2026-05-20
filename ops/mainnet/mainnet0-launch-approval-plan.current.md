@@ -1,0 +1,74 @@
+# VOID Mainnet-0 Launch Approval Plan
+
+status: plan_only_not_approved
+launch_state: not_go_for_public_mainnet0
+launch_approval: false
+mutation_allowed: false
+operator_label: zoso
+money_step: last
+
+## Purpose
+
+This artifact defines the future launch approval gate.
+
+It is not launch approval.
+It does not change launch_state.
+It does not promote public validators.
+It does not execute vault126 onboarding.
+It does not execute Buy VOID claim/send.
+It does not mutate live validator state.
+
+## Current proven baseline
+
+- current_final_checklist_baseline: ckpt-final-path-baseline-refresh-green-20260520-130305
+- current_commit: 2c81ebd7
+- final public launch checklist proof is green.
+- final path proof is green.
+- cross-box status smoke is green.
+- Precision and Alienware are ready with gap=0 and txroot_live=1.
+- validator runtime truth is green through epoch127.
+- next operator candidate is vault126 for epoch128 / expectedValidatorCount=127.
+- Buy VOID first real fulfillment is closeout-proven.
+- public validator promotion/admission remains blocked.
+- launch approval remains false.
+
+## Required before launch approval can become true
+
+Before changing launch_approval to true or changing launch_state away from not_go_for_public_mainnet0, all of the following must be true:
+
+1. mainnet0-status-proof passes on Precision.
+2. mainnet0-blockers-proof passes on Precision.
+3. mainnet0-prelaunch-safety-proof passes on Precision.
+4. mainnet0-final-path-proof passes on Precision.
+5. mainnet0-final-public-launch-checklist-proof passes on Precision.
+6. mainnet0-crossbox-status-smoke passes from Precision.
+7. update-safety metric is green and fresh on Precision.
+8. public release sanitization is rerun after the last code change and is clean.
+9. public validator promotion/admission decision is explicit.
+10. public validator registration is still not misrepresented as active admission.
+11. any active validator admission change is capped, epoch-controlled, guarded, and cross-box proven.
+12. Buy VOID remains guarded: payment confirmation is not VOID sent, and every fulfillment requires an explicit VOID transaction reference.
+13. no private keys or sensitive signing material are present in tracked launch artifacts.
+14. the operator writes a separate explicit launch approval artifact.
+
+## Approval artifact requirements
+
+The future launch approval artifact must include:
+
+- approval: true
+- operator_label: zoso
+- approved_commit
+- approved_tag
+- approved_at timestamp
+- final checklist proof log path
+- cross-box smoke proof log path
+- update-safety freshness proof
+- public validator promotion/admission decision
+- Buy VOID fulfillment policy state
+- statement that ready signals alone are not launch approval
+
+## Current decision
+
+Do not approve public Mainnet-0 launch yet.
+
+Mainnet-0 remains not_go_for_public_mainnet0.
