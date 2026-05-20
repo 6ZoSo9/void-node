@@ -48415,7 +48415,7 @@ a{color:#93c5fd;text-decoration:none}
         </div>
         <h1 style="margin:0 0 6px;font-size:28px;letter-spacing:-.03em">VOID Participant</h1>
         <div class="hero-actions" style="margin-top:10px">
-          <a class="linkbtn btn-primary" style="padding:8px 12px; border-radius:12px; font-weight:700;" href="/participant#work">Start Earning</a>
+          <a class="linkbtn btn-primary" style="padding:8px 12px; border-radius:12px; font-weight:700;" href="/participant#wallet">Open Wallet</a><!-- VOID_HOME_HERO_WALLET_FIRST_V1 -->
           
           
           
