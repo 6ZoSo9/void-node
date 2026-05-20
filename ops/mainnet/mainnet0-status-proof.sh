@@ -144,7 +144,7 @@ print({
   "buy_void_real_claim_run": real_claim_run,
   "buy_void_manual_proof_payment_ref": manual_payment_ref,
   "buy_void_void_sent": bool(w.get("void_tx_ref")),
-  "validator_status": "operator_epoch127_green_public_admission_blocked",
+  "validator_status": "operator_epoch127_green_next_vault126_public_admission_blocked",
 })
 PY
 

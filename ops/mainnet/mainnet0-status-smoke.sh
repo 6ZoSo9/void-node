@@ -65,7 +65,7 @@ print({
   "head": ready.get("head"),
   "buy_void_configured": bool((buy.get("config") or {}).get("enabled")),
   "buy_void_pending_count": buy.get("pending_count"),
-  "validator_status": "operator_epoch127_green_public_admission_blocked",
+  "validator_status": "operator_epoch127_green_next_vault126_public_admission_blocked",
   "prometheus_required": False,
 })
 PY
