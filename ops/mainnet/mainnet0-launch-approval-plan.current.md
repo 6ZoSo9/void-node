@@ -20,8 +20,8 @@ It does not mutate live validator state.
 
 ## Current proven baseline
 
-- current_final_checklist_baseline: ckpt-final-path-baseline-refresh-green-20260520-130305
-- current_commit: 2c81ebd7
+- current_final_checklist_baseline: ckpt-final-path-public-validator-decision-baseline-green-20260520-144732
+- current_commit: 26904473
 - final public launch checklist proof is green.
 - final path proof is green.
 - cross-box status smoke is green.

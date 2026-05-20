@@ -40,8 +40,8 @@ echo "[ok] launch approval plan is explicitly non-mutating and not approved"
 
 echo
 echo "=== [3] current baseline markers ==="
-grep -q 'current_final_checklist_baseline: ckpt-final-path-baseline-refresh-green-20260520-130305' "$DOC"
-grep -q 'current_commit: 2c81ebd7' "$DOC"
+grep -q 'current_final_checklist_baseline: ckpt-final-path-public-validator-decision-baseline-green-20260520-144732' "$DOC"
+grep -q 'current_commit: 26904473' "$DOC"
 grep -q 'public validator promotion/admission remains blocked' "$DOC"
 grep -q 'launch approval remains false' "$DOC"
 grep -q 'Buy VOID first real fulfillment is closeout-proven' "$DOC"
