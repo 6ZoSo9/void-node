@@ -9,6 +9,7 @@ DOC="ops/mainnet/mainnet0-final-public-launch-checklist.current.md"
 STATUS="ops/mainnet/mainnet0-status.current.md"
 BLOCKERS="ops/mainnet/mainnet0-blockers.current.md"
 FINAL_PATH="ops/mainnet/mainnet0-final-path.current.md"
+LAUNCH_APPROVAL_PLAN="ops/mainnet/mainnet0-launch-approval-plan.current.md"
 
 BASE="${BASE:-http://127.0.0.1:4100}"
 PROM="${PROM:-http://127.0.0.1:9090}"
@@ -21,6 +22,7 @@ test -f "$DOC"
 test -f "$STATUS"
 test -f "$BLOCKERS"
 test -f "$FINAL_PATH"
+test -f "$LAUNCH_APPROVAL_PLAN"
 
 grep -q 'status: not_go_for_public_mainnet0' "$DOC"
 grep -q 'mutation_allowed: false' "$DOC"
@@ -28,6 +30,7 @@ grep -q 'launch_approval: false' "$DOC"
 grep -q 'money_step: last' "$DOC"
 grep -q 'Public validator promotion/admission remains blocked' "$DOC"
 grep -q 'Ready signals are not launch approval' "$DOC"
+grep -q 'Launch approval plan is proof-backed and still not approved' "$DOC"
 grep -q 'This checkpoint does not:' "$DOC"
 grep -q 'execute vault126 onboarding' "$DOC"
 grep -q 'approve public Mainnet-0 launch' "$DOC"
@@ -49,6 +52,10 @@ grep -q 'launch_state: not_go_for_public_mainnet0' "$FINAL_PATH"
 grep -q 'Public validator admission: still blocked' "$FINAL_PATH"
 grep -q 'Ready signals are not launch approval' "$FINAL_PATH"
 
+grep -q 'status: plan_only_not_approved' "$LAUNCH_APPROVAL_PLAN"
+grep -q 'launch_approval: false' "$LAUNCH_APPROVAL_PLAN"
+grep -q 'mutation_allowed: false' "$LAUNCH_APPROVAL_PLAN"
+grep -q 'Do not approve public Mainnet-0 launch yet' "$LAUNCH_APPROVAL_PLAN"
 echo "[ok] existing docs still preserve launch blockers"
 
 echo
@@ -107,7 +114,10 @@ print("[ok] update-safety metric is green/fresh")
 PY
 
 echo
-echo "=== [6] existing fail-closed proof remains green ==="
+echo "=== [6] launch approval plan proof remains green ==="
+make mainnet0-launch-approval-plan-proof
+
+echo "=== [6b] existing fail-closed proof remains green ==="
 make mainnet0-gonogo-no-go-proof
 
 echo

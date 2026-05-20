@@ -21,6 +21,7 @@ money_step: last
 - Buy VOID first real fulfillment is closeout-proven.
 - Future Buy VOID claim/send remains blocked unless explicitly verified and recorded.
 - Ready signals are not launch approval.
+- Launch approval plan is proof-backed and still not approved.
 
 ## Remaining blockers before public Mainnet-0 launch
 
