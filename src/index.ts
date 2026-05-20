@@ -48509,21 +48509,27 @@ a{color:#93c5fd;text-decoration:none}
     </section>
 
     <!-- VOID_PARTICIPANT_HOME_ACTIONS_V1 -->
+    <!-- VOID_HOME_ACTIONS_WALLET_FIRST_V1 -->
     <section class="user-home-actions" id="userHomeActions" aria-label="Main participant actions">
-      <a class="home-action-card" href="/participant#buy">
+      <a class="home-action-card" href="/participant#wallet">
         <span class="home-action-k">Step 1</span>
-        <span class="home-action-title">Buy VOID</span>
-        <span class="home-action-meta">Fund your account.</span>
+        <span class="home-action-title">Wallet</span>
+        <span class="home-action-meta">Create, import, or unlock your account wallet.</span>
       </a>
       <a class="home-action-card" href="/participant#work">
         <span class="home-action-k">Step 2</span>
         <span class="home-action-title">Earn Work Credits</span>
         <span class="home-action-meta">Run approved work and collect receipts.</span>
       </a>
-      <a class="home-action-card" href="/participant#staking">
+      <a class="home-action-card" href="/participant#buy">
         <span class="home-action-k">Step 3</span>
+        <span class="home-action-title">Buy VOID</span>
+        <span class="home-action-meta">Use the guided Base USDC request flow.</span>
+      </a>
+      <a class="home-action-card" href="/participant#staking">
+        <span class="home-action-k">Step 4</span>
         <span class="home-action-title">Stake / Register</span>
-        <span class="home-action-meta">Join the validator waiting pool.</span>
+        <span class="home-action-meta">Preview candidate/waiting status.</span>
       </a>
     </section>
 
