@@ -7,8 +7,8 @@ operator_label: zoso
 
 ## Current green checkpoint
 
-- checkpoint: ckpt-vault125-epoch127-runtime-truth-green-20260517-032808
-- commit: 37756189
+- checkpoint: ckpt-buy-void-gonogo-post-fulfillment-clean-green-20260520-124105
+- commit: 8770abc9
 - Precision: ready=true, gap=0, txroot_live=1
 - Alienware: ready=true, gap=0, txroot_live=1
 - Cross-box status smoke: green
