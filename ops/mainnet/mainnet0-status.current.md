@@ -35,6 +35,7 @@ operator_label: zoso
 - 2,500 VOID has been sent and recorded for the first fulfilled Buy VOID lane.
 - Mainnet-0 launch go/no-go has not been approved.
 - Mainnet-0 go/no-go NO-GO proof is green and proves the wrapper fails closed while blockers remain.
+- Final path launch approval baseline is cross-box proven at 903ba755 / ckpt-final-path-launch-approval-baseline-green-20260520-154603.
 - Mainnet-0 blockers proof includes validator admission blocker proof and validator promotion plan proof.
 - Money step remains last.
 

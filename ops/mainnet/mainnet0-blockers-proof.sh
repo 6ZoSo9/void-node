@@ -20,6 +20,7 @@ test -f "$VALIDATOR"
 test -f "$INVENTORY"
 
 grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
+grep -q "Final path launch approval baseline is cross-box proven at 903ba755 / ckpt-final-path-launch-approval-baseline-green-20260520-154603." "$BLOCKERS"
 grep -q "The money step is intentionally last" "$BLOCKERS"
 grep -q "Blocker 2: public validator admission is not promoted" "$BLOCKERS"
 grep -q "Operator/bootstrap validator runtime truth is green through epoch127" "$BLOCKERS"
