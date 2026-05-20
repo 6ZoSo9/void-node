@@ -48315,6 +48315,9 @@ a{color:#93c5fd;text-decoration:none}
       line-height:1.35;
       max-width:32ch;
     }
+
+    /* VOID_HOME_HIDE_ADMIN_LINK_V1 */
+    body[data-active-tab="overview"] #adminDataNetSummaryBtn{display:none !important}
     .home-quiet-status{
       display:flex;
       align-items:center;
