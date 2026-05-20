@@ -48485,25 +48485,26 @@ a{color:#93c5fd;text-decoration:none}
         <span class="pill">last 48h</span>
       </div>
       <div class="home-news-list">
+        <!-- VOID_HOME_NEWS_WALLET_FIRST_V1 -->
+        <div class="home-news-item">
+          <div class="k">wallet first</div>
+          <div class="v">Wallet is now the first step.</div>
+          <div class="s">Home, the hero button, and the sidebar now point new users to Wallet before earning, buying, or staking.</div>
+        </div>
         <div class="home-news-item">
           <div class="k">onboarding</div>
-          <div class="v">Start Here onboarding is now on Home.</div>
-          <div class="s">New users now get a simple first-run path: set up Account Wallet, fund or earn, check balances, then preview staking.</div>
+          <div class="v">Start Here follows the safer first-run path.</div>
+          <div class="s">Create, import, or unlock your account wallet first. Then earn, buy through the guided flow, or preview staking.</div>
         </div>
         <div class="home-news-item">
-          <div class="k">ui cleanup</div>
-          <div class="v">Participant UI is cleaner across the main tabs.</div>
-          <div class="s">Home, Earn, Buy VOID, Wallet, Trade, Stake, and the Account Wallet bar were simplified for normal users.</div>
+          <div class="k">cleanup</div>
+          <div class="v">Normal Home view is quieter.</div>
+          <div class="s">Sidebar hints and Home admin links are hidden from normal users while operator details stay available behind advanced areas.</div>
         </div>
         <div class="home-news-item">
-          <div class="k">proofs</div>
-          <div class="v">One-command participant UI regression proof is live.</div>
-          <div class="s">The participant page can now be checked with make participant-ui-cleanup-proof on Precision and Alienware.</div>
-        </div>
-        <div class="home-news-item">
-          <div class="k">status strip</div>
-          <div class="v">Operator-only status chips were moved out of the normal top strip.</div>
-          <div class="s">Relayer and runner states no longer pollute the normal participant status bar; Trade still shows market readiness where it belongs.</div>
+          <div class="k">launch safety</div>
+          <div class="v">Mainnet-0 remains preview-only.</div>
+          <div class="s">Ready status does not mean public launch. Validator promotion and final launch approval remain explicitly blocked.</div>
         </div>
       </div>
     </section>
