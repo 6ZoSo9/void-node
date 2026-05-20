@@ -60,13 +60,13 @@ fi
 STATUS_FILE="ops/mainnet/mainnet0-status.current.md"
 VALIDATOR_STATUS="ops/mainnet/validator-status.current.yaml"
 
+# Fallback fail-closed path for post-Buy-VOID-fulfillment status.
+# Do not resurrect the old "real claim/send has not run" blocker after the first fulfillment closeout.
 grep -q "status: not_go_for_public_mainnet0" "$STATUS_FILE"
-grep -q "Buy VOID real payment claim has not been run" "$STATUS_FILE"
-grep -q "No real Base USDC transaction hash has been verified" "$STATUS_FILE"
-grep -q "No VOID has been sent from the Buy VOID claim path" "$STATUS_FILE"
+grep -q "Buy VOID has completed its first controlled real-money fulfillment test." "$STATUS_FILE"
+grep -q "The completed first fulfillment used Ethereum mainnet USDC and recorded a real VOID fulfillment transaction reference." "$STATUS_FILE"
+grep -q "Real Buy VOID payment claim/send has completed once; future fulfillments remain blocked unless payment verification and explicit VOID tx-ref recording pass." "$STATUS_FILE"
 grep -q "Public validator candidate promotion/admission remains blocked" "$STATUS_FILE"
-grep -q "Public candidate/waiting registration must not be confused with operator/bootstrap validator admission" "$STATUS_FILE"
-grep -q "Operator/bootstrap validator runtime truth is green through epoch125" "$STATUS_FILE"
 grep -q "status: plan_only_candidate_declared" "$VALIDATOR_STATUS"
 grep -q "not active or live admitted" "$VALIDATOR_STATUS"
 
