@@ -17,6 +17,7 @@ money_step: last
 - Validator runtime truth is green through epoch127.
 - Next guarded operator onboarding candidate is vault126 for epoch128 / expectedValidatorCount=127.
 - Public validator registration remains candidate/waiting only.
+- Public validator admission decision is locked candidate-only for Mainnet-0.
 - Public validator promotion/admission remains blocked.
 - Buy VOID first real fulfillment is closeout-proven.
 - Future Buy VOID claim/send remains blocked unless explicitly verified and recorded.
