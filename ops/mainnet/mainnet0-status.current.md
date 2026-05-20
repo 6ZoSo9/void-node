@@ -1,7 +1,7 @@
 # VOID Mainnet-0 Current Status
 
 status: not_go_for_public_mainnet0
-updated_at: 2026-05-17
+updated_at: 2026-05-20
 operator_label: zoso
 
 ## Green / ready signals
@@ -22,6 +22,7 @@ operator_label: zoso
 - Validator public reward address and consensus key are recorded.
 - Validator runtime truth is recovered through epoch127; the current guarded next-onboard lane now points to vault126 / epoch128 / expectedValidatorCount=127.
 - Validator next-onboard intent gate proof is green cross-box: confirm:true, exact operator intent, and VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 are required before live onboarding can run.
+- Final path vault126 status baseline is green at commit 08fb4b6e / tag ckpt-final-path-vault126-status-baseline-green-20260520-140043.
 
 ## Still not done
 

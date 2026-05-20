@@ -30,6 +30,7 @@ grep -q "Validator live-admission readiness must be refreshed against the curren
 grep -q "future operator admission remains blocked until a new guarded proof" "$BLOCKERS"
 grep -q "Validator next-onboard intent gate proof is green" "$BLOCKERS"
 grep -q "Next-onboard intent gate is green, but live admission remains blocked" "$BLOCKERS"
+grep -q "Final path/checklist baseline is green at commit 08fb4b6e / tag ckpt-final-path-vault126-status-baseline-green-20260520-140043" "$BLOCKERS"
 grep -q "Ready signals are not launch approval" "$BLOCKERS"
 
 grep -q "status: not_go_for_public_mainnet0" "$STATUS"

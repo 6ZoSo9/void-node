@@ -20,6 +20,7 @@ grep -Eq 'First real Buy VOID payment claim and fulfillment have completed succe
 grep -q 'Public validator candidate promotion/admission remains blocked' "$STATUS_FILE"
 grep -q 'Operator/bootstrap validator runtime truth is green through epoch127' "$STATUS_FILE"
 grep -q 'Durable local RPC restore/recovery lane is green through epoch127' "$STATUS_FILE"
+grep -q 'Final path vault126 status baseline is green at commit 08fb4b6e / tag ckpt-final-path-vault126-status-baseline-green-20260520-140043' "$STATUS_FILE"
 grep -q 'Ready signals are not the same as launch approval' "$STATUS_FILE"
 grep -q 'status: plan_only_candidate_declared' "$VALIDATOR_STATUS"
 grep -q 'not active or live admitted' "$VALIDATOR_STATUS"

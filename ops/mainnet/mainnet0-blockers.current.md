@@ -3,7 +3,7 @@
 status: active
 launch_state: not_go_for_public_mainnet0
 operator_label: zoso
-updated_at: 2026-05-17
+updated_at: 2026-05-20
 
 ## Purpose
 
@@ -36,6 +36,7 @@ Current healthy-but-not-launch posture:
 - Validator admission promotion plan proof is green and proves the future promotion path remains plan-only and non-mutating.
 - Validator live-admission readiness must be refreshed against the current vault126 / epoch128 selector before any future operator mutation.
 - Validator next-onboard intent gate proof is green and cross-box proven: missing/wrong operator intent fails before the live env switch, exact intent remains blocked while VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION is off.
+- Final path/checklist baseline is green at commit 08fb4b6e / tag ckpt-final-path-vault126-status-baseline-green-20260520-140043.
 
 ## Blocker 1: maintain status proof discipline
 
