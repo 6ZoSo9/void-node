@@ -887,3 +887,7 @@ mainnet0-final-public-launch-checklist-proof:
 .PHONY: mainnet0-launch-approval-plan-proof
 mainnet0-launch-approval-plan-proof:
 	bash ops/mainnet/mainnet0-launch-approval-plan-proof.sh
+
+.PHONY: mainnet0-public-validator-admission-decision-proof
+mainnet0-public-validator-admission-decision-proof:
+	bash ops/mainnet/mainnet0-public-validator-admission-decision-proof.sh
