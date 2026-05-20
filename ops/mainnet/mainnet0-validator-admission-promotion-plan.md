@@ -104,13 +104,15 @@ Before live admission:
 
 ### Current readiness checkpoint
 
-The live-admission readiness artifact/proof is green for candidate-validator-01 / vault125 / epoch127.
+The previous guarded operator live-admission lane completed for vault125 and is reflected in verified runtime truth through epoch127.
 
-This checkpoint is readiness-only. It does not activate a validator, does not mutate live validator state, does not approve public Mainnet-0 launch, and does not clear the Buy VOID blocker.
+The current next guarded operator selector is vault126 / epoch128 / expectedValidatorCount=127.
+
+This checkpoint is readiness-only. It does not activate vault126, does not mutate live validator state, does not approve public Mainnet-0 launch, and does not clear the Buy VOID blocker.
 
 ### Current next-onboard intent gate checkpoint
 
-The next-onboard intent gate is green and cross-box proven for vault125 / epoch127 / expectedValidatorCount=126.
+The next-onboard intent gate remains a safety gate for the current vault126 / epoch128 / expectedValidatorCount=127 selector.
 
 Missing operator intent returns operator_intent_required before the live env switch. Wrong operator intent returns operator_intent_mismatch before the live env switch. Exact operator intent remains blocked by live_execution_disabled while VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION is off.
 
