@@ -48526,7 +48526,7 @@ a{color:#93c5fd;text-decoration:none}
       <a class="home-action-card" href="/participant#buy">
         <span class="home-action-k">Step 3</span>
         <span class="home-action-title">Buy VOID</span>
-        <span class="home-action-meta">Use the guided Base USDC request flow.</span>
+        <span class="home-action-meta"><!-- VOID_HOME_BUY_ACTION_GUIDED_ONLY_V1 -->Guided Base USDC request only; no blind deposits.</span>
       </a>
       <a class="home-action-card" href="/participant#staking">
         <span class="home-action-k">Step 4</span>
