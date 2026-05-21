@@ -907,3 +907,7 @@ mainnet0-key-ceremony-plan-proof:
 .PHONY: mainnet0-key-ceremony-result-template-proof
 mainnet0-key-ceremony-result-template-proof:
 	bash ops/mainnet/mainnet0-key-ceremony-result-template-proof.sh
+
+.PHONY: mainnet0-public-release-hygiene-proof
+mainnet0-public-release-hygiene-proof:
+	bash ops/mainnet/mainnet0-public-release-hygiene-proof.sh
