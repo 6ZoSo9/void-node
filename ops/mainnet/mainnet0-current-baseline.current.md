@@ -8,8 +8,8 @@ money_step: last
 
 ## Current canonical checkpoint
 
-commit: e25569f6
-tag: ckpt-status-blockers-final-path-ref-clean-green-20260521-004917
+commit: 5d39ab41
+tag: ckpt-final-path-wallet-doc-refresh-green-20260521-114305
 cross_box_proven: true
 
 ## Proven state
@@ -20,6 +20,9 @@ cross_box_proven: true
 - Mainnet-0 status proof passed.
 - Mainnet-0 blockers proof passed.
 - Mainnet-0 final path proof passed.
+- Final path Wallet doc refresh is cross-box proven.
+- Final path includes wallet-ui-cleanup-proof.
+- Wallet setup path and advanced send-action cleanup are proof-guarded.
 - Mainnet-0 launch approval plan proof passed.
 - Mainnet-0 final public launch checklist proof passed.
 - Mainnet-0 public validator admission decision proof passed.
@@ -34,6 +37,7 @@ cross_box_proven: true
 - Public registration remains candidate_or_waiting_only.
 - Public registration does not mutate the active validator set.
 - Next operator candidate remains vault126 / epoch128 / expectedValidatorCount=127.
+- Wallet setup, Send Local WC, and Send VOID cleanup remain proof-guarded.
 - Money step remains last.
 
 ## Historical references
