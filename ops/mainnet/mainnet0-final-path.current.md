@@ -2,13 +2,13 @@
 
 status: active
 launch_state: not_go_for_public_mainnet0
-updated_at: 2026-05-17
+updated_at: 2026-05-21
 operator_label: zoso
 
 ## Current green checkpoint
 
-- checkpoint: ckpt-launch-approval-plan-ref-clean-green-20260521-001525
-- commit: 0dcdcc81
+- checkpoint: ckpt-final-path-wallet-cleanup-proof-green-20260521-112508
+- commit: 4e05503c
 - Precision: ready=true, gap=0, txroot_live=1
 - Alienware: ready=true, gap=0, txroot_live=1
 - Cross-box status smoke: green
@@ -20,6 +20,8 @@ operator_label: zoso
 - Next operator selector: vault126 / epoch128 / expectedValidatorCount=127
 - Public validator admission: still blocked
 - Mainnet-0 public launch: still not approved
+- Final path proof now includes wallet-ui-cleanup-proof
+- Wallet setup/send-action cleanup is cross-box proven
 
 ## What is already green
 
@@ -36,8 +38,9 @@ operator_label: zoso
 11. Buy VOID public safety clarity is rendered.
 12. Stake/Register active-admission clarity is rendered.
 13. Wallet backup/self-custody clarity is rendered.
-14. Public release sanitization is cross-box green.
-15. Sanitized public release export is gitleaks-clean with findings=0.
+14. Wallet setup path and advanced send-action cleanup are proof-guarded.
+15. Public release sanitization is cross-box green.
+16. Sanitized public release export is gitleaks-clean with findings=0.
 
 ## Remaining launch blockers
 
@@ -63,11 +66,13 @@ Definition of done:
 
 ### 3. UI/product polish baseline is green, but final visual polish remains
 
-The core public-safety copy is now proof-backed across Home, Buy VOID, Stake/Register, and Wallet backup. Remaining UI work is visual/tidiness polish, not basic launch-safety clarity.
+The core public-safety copy is now proof-backed across Home, Buy VOID, Stake/Register, Wallet backup, Wallet setup, and advanced Wallet send-action cleanup. Remaining UI work is visual/tidiness polish, not basic launch-safety clarity.
 
 Definition of done:
 - Home/start flow remains clear.
 - Wallet/account setup remains easy.
+- Send Local WC and Send VOID remain behind advanced wallet-action sections.
+- Wallet setup path remains visible.
 - Buy VOID flow keeps supported-chain warnings visible.
 - Stake/validator copy continues to explain candidate vs active validator.
 - Advanced/operator controls remain hidden from normal users.
