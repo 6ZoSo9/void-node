@@ -22,7 +22,7 @@ operator_label: zoso
 - Validator public reward address and consensus key are recorded.
 - Validator runtime truth is recovered through epoch127; the current guarded next-onboard lane now points to vault126 / epoch128 / expectedValidatorCount=127.
 - Validator next-onboard intent gate proof is green cross-box: confirm:true, exact operator intent, and VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 are required before live onboarding can run.
-- Final path vault126 status baseline is green at commit 08fb4b6e / tag ckpt-final-path-vault126-status-baseline-green-20260520-140043.
+- Final path remaining blockers baseline is cross-box proven at eac325a0 / ckpt-final-path-remaining-blockers-baseline-green-20260520-212306.
 
 ## Still not done
 
@@ -35,7 +35,6 @@ operator_label: zoso
 - 2,500 VOID has been sent and recorded for the first fulfilled Buy VOID lane.
 - Mainnet-0 launch go/no-go has not been approved.
 - Mainnet-0 go/no-go NO-GO proof is green and proves the wrapper fails closed while blockers remain.
-- Final path launch approval baseline is cross-box proven at 903ba755 / ckpt-final-path-launch-approval-baseline-green-20260520-154603.
 - Mainnet-0 blockers proof includes validator admission blocker proof and validator promotion plan proof.
 - Money step remains last.
 

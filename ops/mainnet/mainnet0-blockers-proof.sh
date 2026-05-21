@@ -20,7 +20,7 @@ test -f "$VALIDATOR"
 test -f "$INVENTORY"
 
 grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
-grep -q "Final path launch approval baseline is cross-box proven at 903ba755 / ckpt-final-path-launch-approval-baseline-green-20260520-154603." "$BLOCKERS"
+grep -q "Final path remaining blockers baseline is cross-box proven at eac325a0 / ckpt-final-path-remaining-blockers-baseline-green-20260520-212306." "$BLOCKERS"
 grep -q "The money step is intentionally last" "$BLOCKERS"
 grep -q "Blocker 2: public validator admission is not promoted" "$BLOCKERS"
 grep -q "Operator/bootstrap validator runtime truth is green through epoch127" "$BLOCKERS"
@@ -31,7 +31,7 @@ grep -q "Validator live-admission readiness must be refreshed against the curren
 grep -q "future operator admission remains blocked until a new guarded proof" "$BLOCKERS"
 grep -q "Validator next-onboard intent gate proof is green" "$BLOCKERS"
 grep -q "Next-onboard intent gate is green, but live admission remains blocked" "$BLOCKERS"
-grep -q "Final path/checklist baseline is green at commit 08fb4b6e / tag ckpt-final-path-vault126-status-baseline-green-20260520-140043" "$BLOCKERS"
+grep -q "Final path remaining blockers baseline is cross-box proven at eac325a0 / ckpt-final-path-remaining-blockers-baseline-green-20260520-212306." "$BLOCKERS"
 grep -q "Ready signals are not launch approval" "$BLOCKERS"
 
 grep -q "status: not_go_for_public_mainnet0" "$STATUS"
