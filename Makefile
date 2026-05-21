@@ -891,3 +891,7 @@ mainnet0-launch-approval-plan-proof:
 .PHONY: mainnet0-public-validator-admission-decision-proof
 mainnet0-public-validator-admission-decision-proof:
 	bash ops/mainnet/mainnet0-public-validator-admission-decision-proof.sh
+
+.PHONY: mainnet0-current-baseline-proof
+mainnet0-current-baseline-proof:
+	bash ops/mainnet/mainnet0-current-baseline-proof.sh
