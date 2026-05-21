@@ -32,7 +32,7 @@ Current healthy-but-not-launch posture:
 - Validator public keys are recorded.
 - Validator policy review is recorded.
 - Go/no-go wrapper intentionally exits NO-GO while blockers remain.
-- Final path remaining blockers baseline is cross-box proven at eac325a0 / ckpt-final-path-remaining-blockers-baseline-green-20260520-212306.
+- Final path launch approval ref-clean baseline is cross-box proven at 6984f3bf / ckpt-final-path-launch-approval-ref-clean-green-20260521-003126.
 - Validator admission blocker proof is green and proves public registration is plan-only/waiting/not-active.
 - Validator admission promotion plan proof is green and proves the future promotion path remains plan-only and non-mutating.
 - Validator live-admission readiness must be refreshed against the current vault126 / epoch128 selector before any future operator mutation.
