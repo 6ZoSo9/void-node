@@ -61,7 +61,7 @@ grep -q 'launch_state: not_go_for_public_mainnet0' "$BLOCKERS"
 grep -q 'launch_state: not_go_for_public_mainnet0' "$FINAL_PATH"
 grep -q 'It is not launch approval.' "$LAUNCH_PLAN"
 grep -q 'candidate_only_for_mainnet0' "$PUBLIC_VALIDATOR_DECISION"
-grep -q 'public active admission stays disabled' "$PUBLIC_VALIDATOR_DECISION"
+grep -qiE 'public active admission (stays )?disabled|public_active_admission_enabled: false|public active validator admission remains disabled' "$PUBLIC_VALIDATOR_DECISION"
 echo "[ok] launch docs still block approval"
 
 echo

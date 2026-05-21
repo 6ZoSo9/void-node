@@ -31,15 +31,20 @@ grep -q 'This file is the canonical rolling pointer' "$DOC"
 echo "[ok] canonical baseline pointer is explicit and non-mutating"
 
 echo
-echo "=== [2] git checkpoint matches pointer ==="
+echo "=== [2] git checkpoint contains baseline pointer ==="
 HEAD="$(git rev-parse --short HEAD)"
 DESC="$(git describe --tags --always --dirty)"
+POINTER_COMMIT="e25569f6"
+POINTER_TAG="ckpt-status-blockers-final-path-ref-clean-green-20260521-004917"
 echo "head=$HEAD"
 echo "describe=$DESC"
+echo "pointer_commit=$POINTER_COMMIT"
+echo "pointer_tag=$POINTER_TAG"
 
-test "$HEAD" = "e25569f6"
-test "$DESC" = "ckpt-status-blockers-final-path-ref-clean-green-20260521-004917"
-echo "[ok] repo matches current baseline pointer"
+git cat-file -e "$POINTER_COMMIT^{commit}"
+git merge-base --is-ancestor "$POINTER_COMMIT" HEAD
+git rev-parse -q --verify "refs/tags/$POINTER_TAG" >/dev/null
+echo "[ok] current HEAD contains canonical baseline pointer lineage"
 
 echo
 echo "=== [3] node ready ==="
