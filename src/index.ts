@@ -49699,23 +49699,22 @@ a{color:#93c5fd;text-decoration:none}
             <div class="subtle-tab-copy" id="walletActivityMeta" style="margin-top:8px">Your latest wallet-side action will appear here.</div>
           </div>
 
-          <div class="panel" style="margin-top:12px;padding:12px 14px">
-            <div class="section-head">
-              <div>
-                <h2 style="margin-bottom:4px">Send Local WC<span class="help" tabindex="0" data-help="Transfers Work Credits between participant accounts on this node. This does not send onchain VOID.">?</span></h2>
+          <details class="adv wallet-send-wc-advanced" style="margin-top:12px"><!-- VOID_WALLET_SEND_WC_ADVANCED_V1 -->
+            <summary><span>Advanced: Send Local WC</span><span class="pill">wallet action</span></summary>
+            <div class="adv-body">
+              <div class="hero-note" style="margin-bottom:10px">Send Local WC is an advanced account action. Verify the recipient local account and amount before sending. This does not send on-chain VOID, approve public launch, or admit validators.</div>
+              <label for="sendTo">Recipient local account</label>
+              <input id="sendTo" value="" placeholder="remote-user-2 or another local account id" autocomplete="off" />
+              <label for="sendAmount">Send amount</label>
+              <input id="sendAmount" value="1" inputmode="decimal" />
+              <div class="action-rail" style="margin-top:10px">
+                <button class="btn btn-primary" id="sendWcBtn" type="button">Send WC</button>
+              </div>
+              <div style="margin-top:12px">
+                <pre id="sendOut">idle</pre>
               </div>
             </div>
-            <label for="sendTo">Recipient local account</label>
-            <input id="sendTo" value="" placeholder="remote-user-2 or another local account id" autocomplete="off" />
-            <label for="sendAmount">Send amount</label>
-            <input id="sendAmount" value="1" inputmode="decimal" />
-            <div class="action-rail" style="margin-top:10px">
-              <button class="btn btn-primary" id="sendWcBtn" type="button">Send WC</button>
-            </div>
-            <div style="margin-top:12px">
-              <pre id="sendOut">idle</pre>
-            </div>
-          </div>
+          </details>
 
           <div class="panel wallet-prepare-wc-panel" style="margin-top:16px;padding:14px">
             <div class="section-head">
