@@ -49178,7 +49178,7 @@ a{color:#93c5fd;text-decoration:none}
         <label for="buyDraftAmountUsdc">USDC amount</label>
         <input id="buyDraftAmountUsdc" value="25" inputmode="decimal" />
         <div class="action-rail" style="margin-top:10px">
-          <button class="btn btn-primary" id="buyDraftCreateBtn" type="button">Create Buy Request</button>
+          <button class="btn btn-primary" id="buyDraftCreateBtn" type="button"><!-- VOID_BUY_CREATE_GUIDED_REQUEST_BUTTON_V1 -->Create Guided Buy Request</button>
         </div>
         <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount, confirm your delivery wallet, then create a Buy VOID request before sending Base USDC.</div>
         <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base native USDC only • create a Buy VOID request first • use a self-custody wallet • start from this page • exchange/custodial sends and blind direct deposits are not supported • payment confirmation is not VOID fulfillment.</div>
