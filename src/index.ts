@@ -49813,23 +49813,22 @@ a{color:#93c5fd;text-decoration:none}
           </div>
 
 
-          <div class="panel" style="margin-top:16px;padding:14px">
-            <div class="section-head">
-              <div>
-                <h2 style="margin-bottom:4px">Send VOID<span class="help" tabindex="0" data-help="Sends on-chain VOID from the stored execution wallet to another wallet address.">?</span></h2>
+          <details class="adv wallet-send-void-advanced" style="margin-top:16px"><!-- VOID_WALLET_SEND_VOID_ADVANCED_V1 -->
+            <summary><span>Advanced: Send VOID</span><span class="pill">wallet action</span></summary>
+            <div class="adv-body">
+              <div class="hero-note" style="margin-bottom:10px">Send VOID is an advanced wallet action. Verify the recipient, amount, and unlocked Account Wallet before sending. This does not approve public launch or validator admission.</div>
+              <label for="voidSendTo">Recipient wallet</label>
+              <input id="voidSendTo" value="" placeholder="0x..." autocomplete="off" />
+              <label for="voidSendAmount">VOID amount</label>
+              <input id="voidSendAmount" value="1" inputmode="decimal" />
+              <div class="action-rail" style="margin-top:12px">
+                <button class="btn btn-primary" id="voidSendBtn" type="button">Send VOID</button>
+              </div>
+              <div style="margin-top:12px">
+                <pre id="voidSendOut">idle</pre>
               </div>
             </div>
-            <label for="voidSendTo">Recipient wallet</label>
-            <input id="voidSendTo" value="" placeholder="0x..." autocomplete="off" />
-            <label for="voidSendAmount">VOID amount</label>
-            <input id="voidSendAmount" value="1" inputmode="decimal" />
-            <div class="action-rail" style="margin-top:12px">
-              <button class="btn btn-primary" id="voidSendBtn" type="button">Send VOID</button>
-            </div>
-            <div style="margin-top:12px">
-              <pre id="voidSendOut">idle</pre>
-            </div>
-          </div>
+          </details>
         </div>
       </div>
 
