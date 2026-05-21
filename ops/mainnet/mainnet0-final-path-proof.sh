@@ -30,6 +30,10 @@ grep -q 'gitleaks-clean with findings=0' "$DOC"
 grep -q 'UI/product polish baseline is green' "$DOC"
 grep -q 'Final public release hygiene baseline is green' "$DOC"
 
+echo
+echo "=== [wallet-ui] Wallet UI cleanup proof ==="
+bash ops/mainnet0/wallet-ui-cleanup-proof.sh
+
 grep -q 'status: not_go_for_public_mainnet0' "$STATUS"
 grep -q 'Operator/bootstrap validator runtime truth is green through epoch127' "$STATUS"
 
