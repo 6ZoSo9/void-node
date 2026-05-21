@@ -919,3 +919,6 @@ participant-home-mainnet0-nogo-clarity-proof:
 .PHONY: participant-home-launch-strip-proof
 participant-home-launch-strip-proof:
 	bash ops/mainnet0/participant-home-launch-strip-proof.sh
+
+wallet-ui-cleanup-proof:
+	bash ops/mainnet0/wallet-ui-cleanup-proof.sh
