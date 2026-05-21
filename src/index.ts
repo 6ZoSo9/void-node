@@ -48531,7 +48531,7 @@ a{color:#93c5fd;text-decoration:none}
       <a class="home-action-card" href="/participant#staking">
         <span class="home-action-k">Step 4</span>
         <span class="home-action-title">Stake / Register</span>
-        <span class="home-action-meta">Preview candidate/waiting status.</span>
+        <span class="home-action-meta"><!-- VOID_HOME_STAKE_ACTION_CANDIDATE_ONLY_V1 -->Candidate/waiting preview only; active admission disabled.</span>
       </a>
     </section>
 
