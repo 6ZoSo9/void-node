@@ -899,3 +899,7 @@ mainnet0-current-baseline-proof:
 .PHONY: mainnet0-final-gonogo-map-proof
 mainnet0-final-gonogo-map-proof:
 	bash ops/mainnet/mainnet0-final-gonogo-map-proof.sh
+
+.PHONY: mainnet0-key-ceremony-plan-proof
+mainnet0-key-ceremony-plan-proof:
+	bash ops/mainnet/mainnet0-key-ceremony-plan-proof.sh
