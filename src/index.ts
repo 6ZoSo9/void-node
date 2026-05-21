@@ -49216,6 +49216,7 @@ a{color:#93c5fd;text-decoration:none}
           </div>
         </div>
         <div class="hero-note" id="buyQueueSummary" style="margin-top:12px">Checking operator lifecycle…</div>
+        <div class="subtle-tab-copy" id="buyReceiverLineageNote" style="margin-top:8px"><!-- VOID_BUY_STATUS_CURRENT_RECEIVER_LINEAGE_V1 -->Use the newest/current guided Buy VOID request. Older status history can show old receiver lineage; payment confirmation is not fulfillment, and VOID delivery requires an explicit recorded VOID tx ref.</div>
         <details class="adv" style="margin-top:10px">
           <summary><span>Latest Operator Queue Artifact</span><span class="pill">json</span></summary>
           <div class="adv-body">
