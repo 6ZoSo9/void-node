@@ -48516,7 +48516,7 @@ a{color:#93c5fd;text-decoration:none}
       <a class="home-action-card" href="/participant#wallet">
         <span class="home-action-k">Step 1</span>
         <span class="home-action-title">Wallet</span>
-        <span class="home-action-meta">Create, import, or unlock your account wallet.</span>
+        <span class="home-action-meta"><!-- VOID_HOME_WALLET_ACTION_FIRST_STEP_V1 -->Create, import, or unlock Account Wallet before earning, buying, or staking.</span>
       </a>
       <a class="home-action-card" href="/participant#work">
         <span class="home-action-k">Step 2</span>
