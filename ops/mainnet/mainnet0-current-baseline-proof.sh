@@ -91,8 +91,8 @@ echo
 echo "=== [6] summary ==="
 python3 - <<'PY'
 print({
-  "current_baseline": "e25569f6",
-  "tag": "ckpt-status-blockers-final-path-ref-clean-green-20260521-004917",
+  "current_baseline": "5d39ab41",
+  "tag": "ckpt-final-path-wallet-doc-refresh-green-20260521-114305",
   "cross_box_proven": True,
   "launch_state": "not_go_for_public_mainnet0",
   "launch_approval": False,
