@@ -49622,6 +49622,36 @@ a{color:#93c5fd;text-decoration:none}
 
     <section class="tabpane active" id="pane-wallet">
       <div class="hero-note" id="walletFirstStepNote" style="margin-bottom:12px"><!-- VOID_WALLET_TAB_FIRST_STEP_CLARITY_V1 -->Account Wallet is the first step. Create, import, or unlock this wallet before earning, buying VOID, sending balances, or previewing staking. This wallet page does not approve public launch, admit validators, or fulfill Buy VOID payments.</div>
+      <div class="panel wallet-setup-steps" id="walletSetupSteps" style="margin-bottom:12px;padding:12px 14px"><!-- VOID_WALLET_SETUP_STEPS_V1 -->
+        <div class="section-head">
+          <div>
+            <h2 style="margin-bottom:4px">Wallet Setup Path<span class="help" tabindex="0" data-help="Use Manage Wallet to create, import, unlock, or export your local self-custody wallet. This is setup only and does not approve launch, send funds, or admit validators.">?</span></h2>
+            <div class="section-copy">Use Manage Wallet first, then verify balances here before earning, buying, sending, or previewing staking.</div>
+          </div>
+        </div>
+        <div class="metric-strip" style="margin-top:10px">
+          <div class="mini">
+            <div class="k">Step 1</div>
+            <div class="v">Create / Import</div>
+            <div class="s">make or restore your Account Wallet</div>
+          </div>
+          <div class="mini">
+            <div class="k">Step 2</div>
+            <div class="v">Unlock</div>
+            <div class="s">required before wallet-signed actions</div>
+          </div>
+          <div class="mini">
+            <div class="k">Step 3</div>
+            <div class="v">Back Up</div>
+            <div class="s">export keystore and keep it safe</div>
+          </div>
+          <div class="mini">
+            <div class="k">Step 4</div>
+            <div class="v">Verify</div>
+            <div class="s">check VOID/WC balances before actions</div>
+          </div>
+        </div>
+      </div>
       <div class="grid-2-eq wallet-primary-grid">
         <div class="panel">
           <div class="section-head">
