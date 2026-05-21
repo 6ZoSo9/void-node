@@ -49621,6 +49621,7 @@ a{color:#93c5fd;text-decoration:none}
     </section>
 
     <section class="tabpane active" id="pane-wallet">
+      <div class="hero-note" id="walletFirstStepNote" style="margin-bottom:12px"><!-- VOID_WALLET_TAB_FIRST_STEP_CLARITY_V1 -->Account Wallet is the first step. Create, import, or unlock this wallet before earning, buying VOID, sending balances, or previewing staking. This wallet page does not approve public launch, admit validators, or fulfill Buy VOID payments.</div>
       <div class="grid-2-eq wallet-primary-grid">
         <div class="panel">
           <div class="section-head">
