@@ -9,8 +9,8 @@ operator_label: zoso
 
 ## Current canonical baseline
 
-- current_baseline_pointer_commit: bd373e29
-- current_baseline_pointer_tag: ckpt-mainnet0-current-baseline-pointer-green-20260521-011107
+- current_baseline_pointer_commit: 29e4c672
+- current_baseline_pointer_tag: ckpt-current-baseline-summary-output-green-20260521-120111
 - baseline_pointer_file: ops/mainnet/mainnet0-current-baseline.current.md
 - cross_box_proven: true
 
@@ -20,6 +20,8 @@ operator_label: zoso
 - Alienware node readiness is green.
 - Cross-box status smoke is green.
 - Mainnet-0 current baseline pointer proof is green.
+- Current baseline pointer output is aligned with the latest Wallet doc refresh baseline.
+- Final path includes wallet-ui-cleanup-proof.
 - Mainnet-0 status proof is green.
 - Mainnet-0 blockers proof is green.
 - Mainnet-0 final path proof is green.
