@@ -911,3 +911,7 @@ mainnet0-key-ceremony-result-template-proof:
 .PHONY: mainnet0-public-release-hygiene-proof
 mainnet0-public-release-hygiene-proof:
 	bash ops/mainnet/mainnet0-public-release-hygiene-proof.sh
+
+.PHONY: participant-home-mainnet0-nogo-clarity-proof
+participant-home-mainnet0-nogo-clarity-proof:
+	bash ops/mainnet0/participant-home-mainnet0-nogo-clarity-proof.sh

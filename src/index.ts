@@ -48534,9 +48534,9 @@ a{color:#93c5fd;text-decoration:none}
       </a>
     </section>
 
-    <section class="home-quiet-status" id="homeQuietStatus">
-      <span class="pill">Ready</span>
-      <span>Advanced/operator details stay tucked away unless you open them.</span>
+    <section class="home-quiet-status" id="homeQuietStatus"><!-- VOID_HOME_MAINNET0_NOGO_CLARITY_V1 -->
+      <span class="pill">Mainnet-0 preview</span>
+      <span>Node is healthy, but public launch is still NO-GO. Start with Wallet; Buy VOID must use the guided request flow; validator registration is candidate/waiting only and active admission stays disabled until explicit launch approval.</span>
     </section>
 
     <section class="kpis">
