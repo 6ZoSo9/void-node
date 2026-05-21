@@ -48427,6 +48427,7 @@ a{color:#93c5fd;text-decoration:none}
 
     <section id="participantTopStatusStrip" class="hero-note" style="margin:0 0 14px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="topStripWallet" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Wallet: -</span>
+      <span id="topStripLaunch" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(251,191,36,.32);background:rgba(251,191,36,.12);font-weight:800"><!-- VOID_HOME_TOPSTRIP_LAUNCH_NOGO_V1 -->Public launch: NO-GO preview</span>
       <span id="topStripWc" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Spendable WC: -</span>
       <span id="topStripTrade" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">On-chain WC: -</span>
       <span id="topStripVoid" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">VOID: -</span>

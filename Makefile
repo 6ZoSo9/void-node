@@ -915,3 +915,7 @@ mainnet0-public-release-hygiene-proof:
 .PHONY: participant-home-mainnet0-nogo-clarity-proof
 participant-home-mainnet0-nogo-clarity-proof:
 	bash ops/mainnet0/participant-home-mainnet0-nogo-clarity-proof.sh
+
+.PHONY: participant-home-launch-strip-proof
+participant-home-launch-strip-proof:
+	bash ops/mainnet0/participant-home-launch-strip-proof.sh
