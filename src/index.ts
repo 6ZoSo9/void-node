@@ -48387,7 +48387,7 @@ a{color:#93c5fd;text-decoration:none}
       <nav class="nav">
         <!-- VOID_SIDEBAR_ADVANCED_MENU_V1 -->
         <button class="tabbtn active" data-tab="overview" id="tab-overview">Home<span class="navhint">see your status and recent activity</span></button>
-        <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint">view balances, send WC, and manage VOID</span></button>
+        <button class="tabbtn" data-tab="wallet" id="tab-wallet">Wallet<span class="navhint"><!-- VOID_SIDEBAR_WALLET_FIRST_STEP_V1 -->first step: manage Account Wallet, balances, and sends</span></button>
         <!-- VOID_SIDEBAR_WALLET_TOPLEVEL_V1 -->
         <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work, get a receipt, and earn WC</span></button>
         <button class="tabbtn" data-tab="buy" id="tab-buy">Buy VOID<span class="navhint">check purchase-path readiness and wallet delivery status</span></button>
