@@ -903,3 +903,7 @@ mainnet0-final-gonogo-map-proof:
 .PHONY: mainnet0-key-ceremony-plan-proof
 mainnet0-key-ceremony-plan-proof:
 	bash ops/mainnet/mainnet0-key-ceremony-plan-proof.sh
+
+.PHONY: mainnet0-key-ceremony-result-template-proof
+mainnet0-key-ceremony-result-template-proof:
+	bash ops/mainnet/mainnet0-key-ceremony-result-template-proof.sh
