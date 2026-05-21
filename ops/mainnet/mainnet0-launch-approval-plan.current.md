@@ -20,9 +20,12 @@ It does not mutate live validator state.
 
 ## Current proven baseline
 
-- current_final_checklist_baseline: ckpt-status-blockers-baseline-ref-clean-green-20260520-215344
-- current_commit: 48df8623
+- current_final_checklist_baseline: ckpt-final-gonogo-current-baseline-ref-green-20260521-121728
+- current_commit: 6a8d15fb
 - final public launch checklist proof is green.
+- final go/no-go map current-baseline reference is cross-box proven.
+- current baseline summary-output checkpoint is cross-box proven.
+- final path includes wallet-ui-cleanup-proof.
 - final path proof is green.
 - cross-box status smoke is green.
 - Precision and Alienware are ready with gap=0 and txroot_live=1.

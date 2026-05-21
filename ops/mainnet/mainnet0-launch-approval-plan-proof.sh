@@ -40,11 +40,14 @@ echo "[ok] launch approval plan is explicitly non-mutating and not approved"
 
 echo
 echo "=== [3] current baseline markers ==="
-grep -q 'current_final_checklist_baseline: ckpt-status-blockers-baseline-ref-clean-green-20260520-215344' "$DOC"
-grep -q 'current_commit: 48df8623' "$DOC"
+grep -q 'current_final_checklist_baseline: ckpt-final-gonogo-current-baseline-ref-green-20260521-121728' "$DOC"
+grep -q 'current_commit: 6a8d15fb' "$DOC"
 grep -q 'public validator promotion/admission remains blocked' "$DOC"
 grep -q 'launch approval remains false' "$DOC"
 grep -q 'Buy VOID first real fulfillment is closeout-proven' "$DOC"
+grep -q 'final go/no-go map current-baseline reference is cross-box proven.' "$DOC"
+grep -q 'current baseline summary-output checkpoint is cross-box proven.' "$DOC"
+grep -q 'final path includes wallet-ui-cleanup-proof.' "$DOC"
 echo "[ok] plan references current proven baseline"
 
 echo
