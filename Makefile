@@ -895,3 +895,7 @@ mainnet0-public-validator-admission-decision-proof:
 .PHONY: mainnet0-current-baseline-proof
 mainnet0-current-baseline-proof:
 	bash ops/mainnet/mainnet0-current-baseline-proof.sh
+
+.PHONY: mainnet0-final-gonogo-map-proof
+mainnet0-final-gonogo-map-proof:
+	bash ops/mainnet/mainnet0-final-gonogo-map-proof.sh
