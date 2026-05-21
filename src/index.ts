@@ -48521,7 +48521,7 @@ a{color:#93c5fd;text-decoration:none}
       <a class="home-action-card" href="/participant#work">
         <span class="home-action-k">Step 2</span>
         <span class="home-action-title">Earn Work Credits</span>
-        <span class="home-action-meta">Run approved work and collect receipts.</span>
+        <span class="home-action-meta"><!-- VOID_HOME_EARN_ACTION_NOT_LAUNCH_APPROVAL_V1 -->Earn WC from approved work; this does not approve launch or validator admission.</span>
       </a>
       <a class="home-action-card" href="/participant#buy">
         <span class="home-action-k">Step 3</span>
