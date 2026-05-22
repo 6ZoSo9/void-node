@@ -49317,7 +49317,7 @@ a{color:#93c5fd;text-decoration:none}
               <div class="s">validator policy view</div>
             </div>
             <div class="mini">
-              <div class="k">Operator</div>
+              <div class="k">Validator Plan</div>
               <div class="v" id="stakeRuntimeStatus">-</div>
               <div class="s">summary status</div>
             </div>
@@ -49603,7 +49603,7 @@ a{color:#93c5fd;text-decoration:none}
               </details>
             </div>
 
-            <h2>Participant Staking Path<span class="help" tabindex="0" data-help="This participant page now shows staking readiness and live validator truth. Browser stake execution is not wired yet; current live onboarding still runs through the node operator path.">?</span></h2>
+            <h2>Staking Preview Path<span class="help" tabindex="0" data-help="This participant page shows staking readiness and live validator truth. Browser stake execution is not wired yet; live admission remains a guarded validator-plan path.">?</span></h2>
           </div>
         </div>
         <div class="hero-note" id="stakePathNote"><!-- VOID_STAKE_PUBLIC_CLARITY_V1 -->Live validator truth is green on this node. This tab shows staking readiness and validator set truth, but candidate/waiting status is not active admission. Active validators are admitted only through capped, epoch-controlled, proof-backed operator lanes until public admission is intentionally launched.</div>
@@ -49618,7 +49618,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel stake-next-validator-plan" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
-            <h2>Next Validator Plan<span class="help" tabindex="0" data-help="Shows the next operator-side validator onboarding step based on current live validator truth. This does not execute browser staking; it prepares the real next-step handoff.">?</span></h2>
+            <h2>Next Validator Plan<span class="help" tabindex="0" data-help="Shows the next guarded validator-plan step based on current live validator truth. This does not execute browser staking or public active admission.">?</span></h2>
           </div>
         </div>
         <div class="metric-strip" style="margin-top:6px">
@@ -49640,12 +49640,12 @@ a{color:#93c5fd;text-decoration:none}
           <div class="mini">
             <div class="k">Runbook</div>
             <div class="v" id="stakePlanState">-</div>
-            <div class="s">operator handoff path</div>
+            <div class="s">validator plan path</div>
           </div>
         </div>
         <div class="hero-note" id="stakeNextPlanSummary" style="margin-top:12px">Checking next validator plan…</div>
         <details class="adv" style="margin-top:10px">
-          <summary><span>Operator Handoff Commands</span><span class="pill">copy</span></summary>
+          <summary><span>Validator Plan Commands</span><span class="pill">copy</span></summary>
           <div class="adv-body">
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
               <button class="btn" type="button" id="stakeNextPlanCopyBtn">Copy Command</button>
@@ -51261,7 +51261,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
            " • unique rewards " + (voUnique !== null ? voUnique : "-") +
            " • shadow mismatch " + String(vo.shadowMismatchCount ?? "-") +
            " • compare mismatch " + String(vo.compareCoreMismatchCount ?? "-"))
-        : "Validator operator summary unavailable."
+        : "Validator plan summary unavailable."
     );
     setText(
       "stakeActionSummary",
@@ -51313,7 +51313,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       "stakeNextPlanSummary",
       (validatorNextOnboard && validatorNextOnboard.ok && nextStakeEpoch !== null && nextStakeCount !== null)
         ? (
-            "Operator next step is ready. Dry-run selected " +
+            "Validator plan is ready. Dry-run selected " +
             (nextStakeCandidateName || "next unused vault") +
             (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") +
             " for epoch " + nextStakeEpoch +
@@ -51321,8 +51321,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           )
         : (
             (vo && vo.overallGreen && nextStakeEpoch !== null && nextStakeCount !== null)
-              ? ("Operator next step is ready. The next onboarding runbook will auto-select the next unused vault and target epoch " + nextStakeEpoch + " with validator count " + nextStakeCount + ".")
-              : "Next validator plan unavailable until live validator truth and operator summary are green."
+              ? ("Validator plan is ready. The next guarded runbook will auto-select the next unused vault and target epoch " + nextStakeEpoch + " with validator count " + nextStakeCount + ".")
+              : "Next validator plan unavailable until live validator truth and plan summary are green."
           )
     );
     setText(
@@ -51424,14 +51424,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const canRunStakeNextOnboard = !!(validatorNextOnboard && validatorNextOnboard.ok && vo && vo.overallGreen);
       stakeNextOnboardBtn.disabled = !canRunStakeNextOnboard;
       stakeNextOnboardBtn.title = canRunStakeNextOnboard
-        ? "Run live next-validator onboarding using the current operator truth."
-        : "Needs green validator operator summary, green next-onboard selector, (wallet balance not required for operator onboarding).";
+        ? "Run guarded next-validator onboarding using the current validator truth."
+        : "Needs green validator plan summary and green next-onboard selector.";
 
       setText(
         "stakeNextOnboardStatus",
         canRunStakeNextOnboard
-          ? ("Operator-only live onboarding is available for " + (nextStakeCandidateName || "next vault") + (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") + ". This mutates live validator state and must not be confused with public candidate registration.")
-          : "Live onboarding action unavailable until wallet readiness, next-onboard selector truth, and operator summary are green."
+          ? ("Guarded live validator onboarding is available for " + (nextStakeCandidateName || "next vault") + (nextStakeCandidateAddr ? (" " + shortAddr(nextStakeCandidateAddr)) : "") + ". This changes live validator state and must not be confused with public candidate registration.")
+          : "Live onboarding action unavailable until wallet readiness, next-onboard selector truth, and validator plan summary are green."
       );
 
     }
