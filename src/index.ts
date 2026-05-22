@@ -48423,12 +48423,14 @@ a{color:#93c5fd;text-decoration:none}
       <!-- VOID_SETTINGS_GEAR_V1 -->
       <div id="participantSettingsDrawer" style="display:none;margin-top:12px;padding:12px;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)">
         <div style="font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Settings & Advanced</div>
-        <div style="font-size:13px;line-height:1.45;color:#94a3b8;margin-bottom:10px">Normal users can stay on Wallet, Earn, Buy, Stake, and DataNet. Advanced status, raw records, and validator-plan tools live here.</div>
+        <div style="font-size:13px;line-height:1.45;color:#94a3b8;margin-bottom:10px">Normal users can stay on Wallet, Earn, Buy, Stake, and DataNet. Advanced status, records, trade preview, proofs, and validator-plan tools live here.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <a class="linkbtn" href="/participant#wallet">Wallet setup</a>
           <a class="linkbtn" href="/participant#buy">Buy VOID status</a>
           <a class="linkbtn" href="/participant#staking">Stake preview</a>
           <a class="linkbtn" href="/participant#datanet">DataNet</a>
+          <a class="linkbtn" href="/participant#trading">Trade preview</a>
+          <a class="linkbtn" href="/participant#receipts">Proofs</a>
           <a class="linkbtn" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Validator summary</a>
           <a class="linkbtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">DataNet summary</a>
         </div>
@@ -48446,7 +48448,7 @@ a{color:#93c5fd;text-decoration:none}
         <button class="tabbtn" data-tab="staking" id="tab-staking">Stake<span class="navhint">check validator staking readiness and live validator truth</span></button>
 
         <details class="sidebar-advanced-menu">
-          <summary>Advanced</summary>
+          <summary>More</summary>
           <div class="sidebar-advanced-items">
             <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
             <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">check prices and trade WC for VOID</span></button>
