@@ -48405,6 +48405,7 @@ a{color:#93c5fd;text-decoration:none}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
         <button type="button" id="participantSwitchAccountBtn" class="btn" style="padding:8px 10px">Accounts</button>
         <button type="button" id="participantCreateAccountBtn" class="btn btn-primary" style="padding:8px 10px">New</button>
+        <button type="button" id="participantSettingsBtn" class="btn secondary" style="padding:8px 10px" title="Settings and advanced tools">⚙ Settings</button>
       </div>
 
       <div id="participantAccountsDrawer" style="display:none;margin-top:12px;padding:12px;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)">
@@ -48417,6 +48418,20 @@ a{color:#93c5fd;text-decoration:none}
         </div>
         <div id="participantAccountManagerMetaTop" style="display:none;margin-top:8px;font-size:12px;color:#94a3b8"></div>
         <div id="participantAccountManagerListTop" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+      </div>
+
+      <!-- VOID_SETTINGS_GEAR_V1 -->
+      <div id="participantSettingsDrawer" style="display:none;margin-top:12px;padding:12px;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)">
+        <div style="font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Settings & Advanced</div>
+        <div style="font-size:13px;line-height:1.45;color:#94a3b8;margin-bottom:10px">Normal users can stay on Wallet, Earn, Buy, Stake, and DataNet. Advanced status, raw records, and validator-plan tools live here.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a class="linkbtn" href="/participant#wallet">Wallet setup</a>
+          <a class="linkbtn" href="/participant#buy">Buy VOID status</a>
+          <a class="linkbtn" href="/participant#staking">Stake preview</a>
+          <a class="linkbtn" href="/participant#datanet">DataNet</a>
+          <a class="linkbtn" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Validator summary</a>
+          <a class="linkbtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">DataNet summary</a>
+        </div>
       </div>
     </div>
 <div class="side-section">
@@ -48537,7 +48552,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="home-news-item">
           <div class="k">cleanup</div>
           <div class="v">Normal Home view is quieter.</div>
-          <div class="s">Sidebar hints and Home admin links are hidden from normal users while operator details stay available behind advanced areas.</div>
+          <div class="s">Sidebar hints and Home admin links are hidden from normal users while advanced details stay available behind Settings.</div>
         </div>
         <div class="home-news-item">
           <div class="k">launch safety</div>
@@ -54021,6 +54036,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
       const createRow = $("participantAccountCreateRowTop");
       if (createRow) createRow.style.display = "none";
+    } catch (_) {}
+  });
+
+  if ($("participantSettingsBtn")) $("participantSettingsBtn").addEventListener("click", () => {
+    try {
+      const drawer = $("participantSettingsDrawer");
+      if (drawer) {
+        const open = drawer.style.display !== "none";
+        drawer.style.display = open ? "none" : "";
+      }
     } catch (_) {}
   });
 
