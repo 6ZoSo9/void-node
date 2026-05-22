@@ -11,6 +11,11 @@ money_step: last
 - Mainnet-0 status proof is green.
 - Mainnet-0 status smoke is green.
 - Mainnet-0 cross-box status smoke is green.
+- Launch approval plan baseline refresh is cross-box proven at 2a80ba9a / ckpt-launch-approval-plan-baseline-refresh-green-20260521-123542.
+- Final go/no-go map current-baseline ref is cross-box proven at 6a8d15fb / ckpt-final-gonogo-current-baseline-ref-green-20260521-121728.
+- Current baseline summary-output checkpoint is cross-box proven at 29e4c672 / ckpt-current-baseline-summary-output-green-20260521-120111.
+- Final path Wallet doc refresh is cross-box proven at 5d39ab41 / ckpt-final-path-wallet-doc-refresh-green-20260521-114305.
+- Final path includes wallet-ui-cleanup-proof.
 - Precision update-safety Prometheus timer is enabled and active.
 - Update-safety metric is durable on Precision.
 - Alienware is a follower/status-smoke box, not a Prometheus/node_exporter box.
