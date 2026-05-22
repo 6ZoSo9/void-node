@@ -49232,14 +49232,14 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel buy-status-panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
-            <h2>Buy VOID Status<span class="help" tabindex="0" data-help="Shows the latest operator-side Buy VOID lifecycle item for this participant account, including current status, payment ref, and VOID tx ref.">?</span></h2>
+            <h2>Buy VOID Status<span class="help" tabindex="0" data-help="Shows the latest Buy VOID request lifecycle for this participant account, including current status, payment ref, and VOID tx ref.">?</span></h2>
           </div>
         </div>
         <div class="metric-strip" style="margin-top:6px">
           <div class="mini">
             <div class="k">Status</div>
             <div class="v" id="buyQueueStatus">-</div>
-            <div class="s">latest operator state</div>
+            <div class="s">latest request state</div>
           </div>
           <div class="mini">
             <div class="k">Payment Ref</div>
@@ -49252,10 +49252,10 @@ a{color:#93c5fd;text-decoration:none}
             <div class="s">delivery transaction ref</div>
           </div>
         </div>
-        <div class="hero-note" id="buyQueueSummary" style="margin-top:12px">Checking operator lifecycle…</div>
+        <div class="hero-note" id="buyQueueSummary" style="margin-top:12px">Checking request lifecycle…</div>
         <div class="subtle-tab-copy" id="buyReceiverLineageNote" style="margin-top:8px"><!-- VOID_BUY_STATUS_CURRENT_RECEIVER_LINEAGE_V1 -->Use the newest/current guided Buy VOID request. Older status history can show old receiver lineage; payment confirmation is not fulfillment, and VOID delivery requires an explicit recorded VOID tx ref.</div>
         <details class="adv" style="margin-top:10px">
-          <summary><span>Latest Operator Queue Artifact</span><span class="pill">json</span></summary>
+          <summary><span>Latest Buy VOID Request Record</span><span class="pill">json</span></summary>
           <div class="adv-body">
             <pre id="buyQueueOut">loading…</pre>
           </div>
@@ -51523,7 +51523,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         setText("buyQueueVoidTxRef", String(q.void_tx_ref || "-"));
         setText(
           "buyQueueSummary",
-          "Latest operator item " + String(q.queue_id || "-") +
+          "Latest Buy VOID request " + String(q.queue_id || "-") +
           " • status " + String(q.operator_status || "-") +
           " • request " + String(q.request_id || "-")
         );
@@ -51539,7 +51539,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         setText("buyQueueStatus", "No queue item");
         setText("buyQueuePaymentRef", "-");
         setText("buyQueueVoidTxRef", "-");
-        setText("buyQueueSummary", "No operator queue item yet for this account.");
+        setText("buyQueueSummary", "No Buy VOID request record yet for this account.");
         setText("buyQueueOut", JSON.stringify({
           account: account,
           operator_queue_status: "none"
