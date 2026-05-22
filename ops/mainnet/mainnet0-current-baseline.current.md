@@ -8,8 +8,8 @@ money_step: last
 
 ## Current canonical checkpoint
 
-commit: f8684313
-tag: ckpt-settings-escape-close-green-20260522-120632
+commit: 16c20d3f
+tag: ckpt-public-validator-candidate-only-posture-green-20260522-125742
 cross_box_proven: true
 
 ## Proven state
@@ -31,6 +31,7 @@ cross_box_proven: true
 - Mainnet-0 public validator admission decision proof passed.
 - Product surface proof is cross-box proven.
 - Settings drawer/top Settings/Escape-close UI checkpoint is cross-box proven.
+- Public validator candidate-only posture is cross-box proven.
 - DataNet tab proof is green.
 - Participant DataNet E2E proof is green.
 - Participant golden path proof is green.
