@@ -40,14 +40,17 @@ echo "[ok] launch approval plan is explicitly non-mutating and not approved"
 
 echo
 echo "=== [3] current baseline markers ==="
-grep -q 'current_final_checklist_baseline: ckpt-final-gonogo-current-baseline-ref-green-20260521-121728' "$DOC"
-grep -q 'current_commit: 6a8d15fb' "$DOC"
+grep -q 'current_final_checklist_baseline: ckpt-current-baseline-final-checklist-closeout-green-20260521-211057' "$DOC"
+grep -q 'current_commit: 5efd1adf' "$DOC"
 grep -q 'public validator promotion/admission remains blocked' "$DOC"
 grep -q 'launch approval remains false' "$DOC"
 grep -q 'Buy VOID first real fulfillment is closeout-proven' "$DOC"
 grep -q 'final go/no-go map current-baseline reference is cross-box proven.' "$DOC"
 grep -q 'current baseline summary-output checkpoint is cross-box proven.' "$DOC"
 grep -q 'final path includes wallet-ui-cleanup-proof.' "$DOC"
+grep -q 'current baseline + final go/no-go map refresh is cross-box proven at 5efd1adf / ckpt-current-baseline-final-checklist-closeout-green-20260521-211057.' "$DOC"
+grep -q 'current baseline pointer records cc8a4f4a / ckpt-final-checklist-sections-closeout-doc-green-20260521-195012.' "$DOC"
+grep -q 'final checklist sections preserve update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.' "$DOC"
 echo "[ok] plan references current proven baseline"
 
 echo

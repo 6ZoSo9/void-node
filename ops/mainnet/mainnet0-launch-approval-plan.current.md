@@ -20,12 +20,15 @@ It does not mutate live validator state.
 
 ## Current proven baseline
 
-- current_final_checklist_baseline: ckpt-final-gonogo-current-baseline-ref-green-20260521-121728
-- current_commit: 6a8d15fb
+- current_final_checklist_baseline: ckpt-current-baseline-final-checklist-closeout-green-20260521-211057
+- current_commit: 5efd1adf
 - final public launch checklist proof is green.
 - final go/no-go map current-baseline reference is cross-box proven.
 - current baseline summary-output checkpoint is cross-box proven.
 - final path includes wallet-ui-cleanup-proof.
+- current baseline + final go/no-go map refresh is cross-box proven at 5efd1adf / ckpt-current-baseline-final-checklist-closeout-green-20260521-211057.
+- current baseline pointer records cc8a4f4a / ckpt-final-checklist-sections-closeout-doc-green-20260521-195012.
+- final checklist sections preserve update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.
 - final path proof is green.
 - cross-box status smoke is green.
 - Precision and Alienware are ready with gap=0 and txroot_live=1.
