@@ -8,8 +8,8 @@ money_step: last
 
 ## Current canonical checkpoint
 
-commit: cc8a4f4a
-tag: ckpt-final-checklist-sections-closeout-doc-green-20260521-195012
+commit: 5b279795
+tag: ckpt-product-surface-datanet-goldenpath-green-20260522-075118
 cross_box_proven: true
 
 ## Proven state
@@ -29,6 +29,12 @@ cross_box_proven: true
 - Final public launch checklist records restored proof sections and supersedes the weakened fdfa1af5 checkpoint.
 - Final checklist preserves update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.
 - Mainnet-0 public validator admission decision proof passed.
+- Product surface proof is cross-box proven.
+- DataNet tab proof is green.
+- Participant DataNet E2E proof is green.
+- Participant golden path proof is green.
+- Remote product/network regression proof is green.
+- WC trade remains non-mutating in product surface and is covered by separate WC stack proofs.
 
 ## Locked launch posture
 

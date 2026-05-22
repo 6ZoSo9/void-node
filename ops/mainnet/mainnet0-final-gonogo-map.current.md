@@ -9,8 +9,8 @@ operator_label: zoso
 
 ## Current canonical baseline
 
-- current_baseline_pointer_commit: cc8a4f4a
-- current_baseline_pointer_tag: ckpt-final-checklist-sections-closeout-doc-green-20260521-195012
+- current_baseline_pointer_commit: 5b279795
+- current_baseline_pointer_tag: ckpt-product-surface-datanet-goldenpath-green-20260522-075118
 - baseline_pointer_file: ops/mainnet/mainnet0-current-baseline.current.md
 - cross_box_proven: true
 
@@ -20,8 +20,13 @@ operator_label: zoso
 - Alienware node readiness is green.
 - Cross-box status smoke is green.
 - Mainnet-0 current baseline pointer proof is green.
-- Current baseline pointer output is aligned with the latest Wallet doc refresh baseline.
-- Current baseline pointer now records final checklist sections closeout doc as the canonical rolling baseline.
+- Current baseline pointer now records product surface/DataNet golden path as the canonical rolling baseline.
+- Product surface proof is green.
+- DataNet tab proof is green.
+- Participant DataNet E2E proof is green.
+- Participant golden path proof is green.
+- Remote product/network regression proof is green.
+- WC trade remains non-mutating in product surface and is covered by separate WC stack proofs.
 - Final checklist sections closeout doc preserves restored proof sections and supersedes fdfa1af5.
 - Final path includes wallet-ui-cleanup-proof.
 - Mainnet-0 status proof is green.

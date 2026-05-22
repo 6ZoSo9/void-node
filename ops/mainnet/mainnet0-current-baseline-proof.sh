@@ -19,13 +19,19 @@ grep -q '^launch_state: not_go_for_public_mainnet0$' "$DOC"
 grep -q '^mutation_allowed: false$' "$DOC"
 grep -q '^launch_approval: false$' "$DOC"
 grep -q '^money_step: last$' "$DOC"
-grep -q '^commit: cc8a4f4a$' "$DOC"
-grep -q '^tag: ckpt-final-checklist-sections-closeout-doc-green-20260521-195012$' "$DOC"
+grep -q '^commit: 5b279795$' "$DOC"
+grep -q '^tag: ckpt-product-surface-datanet-goldenpath-green-20260522-075118$' "$DOC"
 grep -q 'Final path Wallet doc refresh is cross-box proven.' "$DOC"
 grep -q 'Final path includes wallet-ui-cleanup-proof.' "$DOC"
 grep -q 'Final checklist sections closeout doc is cross-box proven.' "$DOC"
 grep -q 'Final public launch checklist records restored proof sections and supersedes the weakened fdfa1af5 checkpoint.' "$DOC"
 grep -q 'Final checklist preserves update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.' "$DOC"
+grep -q 'Product surface proof is cross-box proven.' "$DOC"
+grep -q 'DataNet tab proof is green.' "$DOC"
+grep -q 'Participant DataNet E2E proof is green.' "$DOC"
+grep -q 'Participant golden path proof is green.' "$DOC"
+grep -q 'Remote product/network regression proof is green.' "$DOC"
+grep -q 'WC trade remains non-mutating in product surface and is covered by separate WC stack proofs.' "$DOC"
 grep -q 'Wallet setup path and advanced send-action cleanup are proof-guarded.' "$DOC"
 grep -q 'Wallet setup, Send Local WC, and Send VOID cleanup remain proof-guarded.' "$DOC"
 grep -q '^cross_box_proven: true$' "$DOC"
@@ -41,8 +47,8 @@ echo
 echo "=== [2] git checkpoint contains baseline pointer ==="
 HEAD="$(git rev-parse --short HEAD)"
 DESC="$(git describe --tags --always --dirty)"
-POINTER_COMMIT="cc8a4f4a"
-POINTER_TAG="ckpt-final-checklist-sections-closeout-doc-green-20260521-195012"
+POINTER_COMMIT="5b279795"
+POINTER_TAG="ckpt-product-surface-datanet-goldenpath-green-20260522-075118"
 echo "head=$HEAD"
 echo "describe=$DESC"
 echo "pointer_commit=$POINTER_COMMIT"
@@ -94,8 +100,8 @@ echo
 echo "=== [6] summary ==="
 python3 - <<'PY'
 print({
-  "current_baseline": "cc8a4f4a",
-  "tag": "ckpt-final-checklist-sections-closeout-doc-green-20260521-195012",
+  "current_baseline": "5b279795",
+  "tag": "ckpt-product-surface-datanet-goldenpath-green-20260522-075118",
   "cross_box_proven": True,
   "launch_state": "not_go_for_public_mainnet0",
   "launch_approval": False,

@@ -20,14 +20,20 @@ It does not mutate live validator state.
 
 ## Current proven baseline
 
-- current_final_checklist_baseline: ckpt-current-baseline-final-checklist-closeout-green-20260521-211057
-- current_commit: 5efd1adf
+- current_product_surface_datanet_baseline: ckpt-product-surface-datanet-goldenpath-green-20260522-075118
+- current_commit: 5b279795
 - final public launch checklist proof is green.
 - final go/no-go map current-baseline reference is cross-box proven.
 - current baseline summary-output checkpoint is cross-box proven.
 - final path includes wallet-ui-cleanup-proof.
-- current baseline + final go/no-go map refresh is cross-box proven at 5efd1adf / ckpt-current-baseline-final-checklist-closeout-green-20260521-211057.
-- current baseline pointer records cc8a4f4a / ckpt-final-checklist-sections-closeout-doc-green-20260521-195012.
+- current baseline + final go/no-go map refresh is cross-box proven at 5b279795 / ckpt-product-surface-datanet-goldenpath-green-20260522-075118.
+- current baseline pointer records 5b279795 / ckpt-product-surface-datanet-goldenpath-green-20260522-075118.
+- product surface proof is green.
+- DataNet tab proof is green.
+- participant DataNet E2E proof is green.
+- participant golden path proof is green.
+- remote product/network regression proof is green.
+- WC trade remains non-mutating in product surface and is covered by separate WC stack proofs.
 - final checklist sections preserve update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.
 - final path proof is green.
 - cross-box status smoke is green.
