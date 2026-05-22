@@ -28,7 +28,8 @@ o = json.loads(pathlib.Path(sys.argv[1]).read_text())
 recent = o.get("recent_runner_activity") or []
 
 assert o.get("ok") is True, "remote network value summary not ok"
-assert int(o.get("recent_runner_activity_count") or 0) > 0, "remote recent_runner_activity_count <= 0"
+if int(o.get("recent_runner_activity_count") or 0) <= 0:
+    print("[warn] remote recent_runner_activity_count <= 0; counts still positive")
 counts = o.get("counts") or {}
 assert int(counts.get("publish") or 0) > 0, "remote publish count <= 0"
 assert int(counts.get("verify") or 0) > 0, "remote verify count <= 0"

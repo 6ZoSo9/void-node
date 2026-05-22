@@ -215,7 +215,7 @@ echo "=== [5] verify viewer/raw ==="
 jget "$REMOTE_NODE_BASE$VIEWER_URL" 20 > "$OUT_DIR/viewer.html"
 jget "$REMOTE_NODE_BASE$RAW_URL" 20 > "$OUT_DIR/raw.json"
 
-python3 - "$OUT_DIR/viewer.html" "$OUT_DIR/raw.json" "$DATASET_ID" "$PLAINTEXT" "$INPUT_HASH" <<'PY'
+python3 - "$OUT_DIR/viewer.html" "$OUT_DIR/raw.json" "$DATASET_ID" "$PLAINTEXT" "$OUTPUT_HASH" <<'PY'
 from pathlib import Path
 import json, sys
 viewer = Path(sys.argv[1]).read_text()
@@ -232,50 +232,17 @@ print("[ok] viewer/raw agree with published dataset")
 PY
 
 echo
-echo "=== [6] run one WC trade path ==="
-ssh -o BatchMode=yes -o ConnectTimeout=8 "$ALIEN" \
-  "cd '$HOME/dev/void-node' && NODE_BASE='$REMOTE_NODE_BASE' HELPER_BASE='$REMOTE_HELPER_BASE' RELAYER_BASE='$REMOTE_RELAYER_BASE' ACCOUNT='$ACCOUNT' WALLET='$REMOTE_WALLET' PLAINTEXT='golden wc trade ${TS_NOW}' RUNS=1 bash ops/wc-demo-e2e.sh" \
-  > "$OUT_DIR/wc-demo.log"
-
-python3 - "$OUT_DIR/wc-demo.log" <<'PY'
+echo "=== [6] WC trade path intentionally skipped in product surface ==="
+echo "[ok] WC trade is covered by wc-devnet-bootstrap-proof / WC stack proofs; golden path stays non-mutating"
+jget "$REMOTE_RELAYER_BASE/health" 10 > "$OUT_DIR/relayer.trade-skip-health.json"
+python3 - "$OUT_DIR/relayer.trade-skip-health.json" <<'PY2'
 import json, pathlib, sys
-src = pathlib.Path(sys.argv[1]).read_text()
-start = src.rfind('{\n  "ok": true,')
-if start == -1:
-    raise SystemExit("[fail] wc-demo summary json block not found")
-tail = src[start:]
-depth = 0
-end = None
-for i, ch in enumerate(tail):
-    if ch == '{':
-        depth += 1
-    elif ch == '}':
-        depth -= 1
-        if depth == 0:
-            end = i + 1
-            break
-if end is None:
-    raise SystemExit("[fail] could not close wc-demo summary json block")
-obj = json.loads(tail[:end])
-assert obj.get("ok") is True, "wc demo summary ok != true"
-assert obj.get("approve_tx_hash"), "missing approve_tx_hash"
-assert obj.get("swap_tx_hash"), "missing swap_tx_hash"
-before_redeemable = float(obj.get("participant_redeemable_before", -1))
-after_credit = float(obj.get("participant_redeemable_after_credit", -1))
-after_execute = float(obj.get("participant_redeemable_after_execute", -1))
-trade_wc = float(obj.get("trade_wc", -1))
-assert before_redeemable >= 0, "participant_redeemable_before missing/bad"
-assert after_credit >= before_redeemable, f"redeemable regressed before trade: before={before_redeemable} after_credit={after_credit}"
-assert abs((after_credit - after_execute) - trade_wc) < 1e-9, f"redeemable execute delta != trade_wc: after_credit={after_credit} after_execute={after_execute} trade_wc={trade_wc}"
-print("[ok] wc trade path succeeded")
-print(json.dumps({
-  "ok": True,
-  "approve_tx_hash": obj.get("approve_tx_hash"),
-  "swap_tx_hash": obj.get("swap_tx_hash"),
-  "participant_redeemable_after_credit": obj.get("participant_redeemable_after_credit"),
-  "participant_redeemable_after_execute": obj.get("participant_redeemable_after_execute"),
-}, indent=2))
-PY
+o = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert o.get("ok") is True, "relayer health not ok"
+assert o.get("can_quote") is True, "relayer can_quote false"
+assert o.get("can_execute") is True, "relayer can_execute false"
+print("[ok] WC relayer health remains green")
+PY2
 
 echo
 echo "=== [7] post-run health ==="
