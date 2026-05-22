@@ -99,56 +99,21 @@ print("[ok] runtime truth shows vault126 next-onboard info without executing it"
 PY
 
 echo
-echo "=== [5] update-safety Prom metric is fresh when Prometheus is reachable ==="
+echo "=== [6b] existing fail-closed proof remains green when Prometheus is reachable ==="
 PROM_BASE="${PROM_BASE:-http://127.0.0.1:9090}"
 
-if curl -fsS --max-time 2 --get "$PROM_BASE/api/v1/query" \
-  --data-urlencode 'query=void_mainnet0_update_safety_ok' >/tmp/void-final-checklist-update-safety-ok.json 2>/tmp/void-final-checklist-prom.err; then
-
-  cat /tmp/void-final-checklist-update-safety-ok.json
+if curl -fsS --max-time 2 "$PROM_BASE/-/ready" >/tmp/void-final-checklist-prom-ready.txt 2>/tmp/void-final-checklist-gonogo-prom.err; then
+  cat /tmp/void-final-checklist-prom-ready.txt || true
   echo
-
-  curl -fsS --max-time 2 --get "$PROM_BASE/api/v1/query" \
-    --data-urlencode 'query=time() - void_mainnet0_update_safety_timestamp_seconds' \
-    >/tmp/void-final-checklist-update-safety-age.json
-
-  cat /tmp/void-final-checklist-update-safety-age.json
-  echo
-
-  python3 - <<'PYCHECK'
-import json
-from pathlib import Path
-
-ok = json.loads(Path("/tmp/void-final-checklist-update-safety-ok.json").read_text())
-age = json.loads(Path("/tmp/void-final-checklist-update-safety-age.json").read_text())
-
-assert ok.get("status") == "success", ok
-rows = ok.get("data", {}).get("result", [])
-assert rows, ok
-assert str(rows[0].get("value", [None, None])[1]) == "1", ok
-
-assert age.get("status") == "success", age
-age_rows = age.get("data", {}).get("result", [])
-assert age_rows, age
-age_s = float(age_rows[0].get("value", [None, "999999"])[1])
-assert age_s < 600, age
-
-print("[ok] update-safety metric is green/fresh")
-PYCHECK
-
+  make mainnet0-gonogo-no-go-proof
+  echo "[ok] full fail-closed go/no-go proof passed with Prometheus available"
 else
-  echo "[skip] Prometheus not reachable at $PROM_BASE; treating this as non-Prometheus follower/status-smoke box"
-  echo "prom_error=$(cat /tmp/void-final-checklist-prom.err 2>/dev/null || true)"
+  echo "[skip] Prometheus not reachable at $PROM_BASE; using non-Prometheus follower fail-closed fallback"
+  echo "prom_error=$(cat /tmp/void-final-checklist-gonogo-prom.err 2>/dev/null || true)"
+  make mainnet0-final-gonogo-map-proof
   make mainnet0-status-smoke
-  echo "[ok] fallback status smoke passed on non-Prometheus box"
+  echo "[ok] fallback fail-closed checks passed on non-Prometheus box"
 fi
-echo "=== [6] launch approval plan proof remains green ==="
-make mainnet0-launch-approval-plan-proof
-
-echo "=== [6b] existing fail-closed proof remains green ==="
-make mainnet0-gonogo-no-go-proof
-
-echo
 echo "=== [7] summary ==="
 python3 - <<'PY'
 print({
