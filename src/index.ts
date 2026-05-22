@@ -41680,17 +41680,30 @@ a{color:#93c5fd;text-decoration:none}
             const limit = Math.max(1, Math.min(500, Number(req?.query?.limit || 100) || 100));
 
             const path = require("node:path");
-            const localReceiptsFile = path.join(
-              String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"),
-              "datanet_v1",
-              "receipts.jsonl"
-            );
+            const localReceiptsFiles = Array.from(new Set([
+              path.join(String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"), "datanet_v1", "receipts.jsonl"),
+              path.join("data", "datanet_v1", "receipts.jsonl"),
+              path.join("data_a", "datanet_v1", "receipts.jsonl")
+            ]));
 
             let localOut:any[] = [];
             let creditedOut:any[] = [];
+            const seenLocalReceiptLines = new Set<string>();
 
-            for (const line of readLines(localReceiptsFile)) {
-              try { localOut.push(JSON.parse(line)); } catch {}
+            for (const localReceiptsFile of localReceiptsFiles) {
+              try {
+                const fs = require("node:fs");
+                if (!fs.existsSync(localReceiptsFile)) continue;
+                const text = String(fs.readFileSync(localReceiptsFile, "utf8") || "");
+                for (const line of text.split(/\r?\n/)) {
+                  try {
+                    const raw = String(line || "").trim();
+                    if (!raw || seenLocalReceiptLines.has(raw)) continue;
+                    seenLocalReceiptLines.add(raw);
+                    localOut.push(JSON.parse(raw));
+                  } catch {}
+                }
+              } catch {}
             }
 
             try {
