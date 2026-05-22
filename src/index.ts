@@ -48430,7 +48430,7 @@ a{color:#93c5fd;text-decoration:none}
           <a class="linkbtn" href="/participant#staking">Stake preview</a>
           <a class="linkbtn" href="/participant#datanet">DataNet</a>
           <a class="linkbtn" href="/participant#trading">Trade preview</a>
-          <a class="linkbtn" href="/participant#receipts">Proofs</a>
+          <a class="linkbtn" href="/participant#receipts">Receipts</a>
           <a class="linkbtn" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Validator summary</a>
           <a class="linkbtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">DataNet summary</a>
         </div>
@@ -48452,7 +48452,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="sidebar-advanced-items">
             <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
             <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">check prices and trade WC for VOID</span></button>
-            <button class="tabbtn" data-tab="receipts" id="tab-receipts">Proofs<span class="navhint">review receipts and outputs from completed work</span></button>
+            <button class="tabbtn" data-tab="receipts" id="tab-receipts">Receipts<span class="navhint">review receipts and proof outputs from completed work</span></button>
           </div>
         </details>
       </nav>
@@ -49924,7 +49924,7 @@ a{color:#93c5fd;text-decoration:none}
     </section>
 
     <section class="tabpane" id="pane-receipts">
-      <div class="compact-tab-head" id="receipts-compact-head"><h1 class="compact-tab-title">Proofs</h1></div>
+      <div class="compact-tab-head" id="receipts-compact-head"><h1 class="compact-tab-title">Receipts</h1></div>
       <div class="grid-2-eq">
         <div class="panel">
           <div class="section-head">
@@ -53047,8 +53047,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if (btn && dsFull && dsFull !== "-") {
           btn.href = "/datanet/v1/local-job/" + encodeURIComponent(dsFull) + "?who=" + encodeURIComponent(account);
           btn.style.display = "";
-          btn.textContent = "Open from Proofs";
-          btn.title = "Open dataset " + dsFull + " from Proofs";
+          btn.textContent = "Open from Receipts";
+          btn.title = "Open dataset " + dsFull + " from Receipts";
           loadDatasetPreviewInto("latestReceiptDatasetPreviewCard", dsFull, account).catch(() => {});
         } else if (btn) {
           btn.style.display = "none";
