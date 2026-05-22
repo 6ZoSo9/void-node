@@ -8,8 +8,8 @@ money_step: last
 
 ## Current canonical checkpoint
 
-commit: 5b279795
-tag: ckpt-product-surface-datanet-goldenpath-green-20260522-075118
+commit: 56f9c2d2
+tag: ckpt-final-public-launch-checklist-product-baseline-green-20260522-084710
 cross_box_proven: true
 
 ## Proven state

@@ -20,14 +20,14 @@ It does not mutate live validator state.
 
 ## Current proven baseline
 
-- current_product_surface_datanet_baseline: ckpt-product-surface-datanet-goldenpath-green-20260522-075118
-- current_commit: 5b279795
+- current_final_public_launch_checklist_baseline: ckpt-final-public-launch-checklist-product-baseline-green-20260522-084710
+- current_commit: 56f9c2d2
 - final public launch checklist proof is green.
 - final go/no-go map current-baseline reference is cross-box proven.
 - current baseline summary-output checkpoint is cross-box proven.
 - final path includes wallet-ui-cleanup-proof.
-- current baseline + final go/no-go map refresh is cross-box proven at 5b279795 / ckpt-product-surface-datanet-goldenpath-green-20260522-075118.
-- current baseline pointer records 5b279795 / ckpt-product-surface-datanet-goldenpath-green-20260522-075118.
+- current baseline + final go/no-go map refresh is cross-box proven at 56f9c2d2 / ckpt-final-public-launch-checklist-product-baseline-green-20260522-084710.
+- current baseline pointer records 56f9c2d2 / ckpt-final-public-launch-checklist-product-baseline-green-20260522-084710.
 - product surface proof is green.
 - DataNet tab proof is green.
 - participant DataNet E2E proof is green.

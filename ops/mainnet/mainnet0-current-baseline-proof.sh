@@ -19,8 +19,8 @@ grep -q '^launch_state: not_go_for_public_mainnet0$' "$DOC"
 grep -q '^mutation_allowed: false$' "$DOC"
 grep -q '^launch_approval: false$' "$DOC"
 grep -q '^money_step: last$' "$DOC"
-grep -q '^commit: 5b279795$' "$DOC"
-grep -q '^tag: ckpt-product-surface-datanet-goldenpath-green-20260522-075118$' "$DOC"
+grep -q '^commit: 56f9c2d2$' "$DOC"
+grep -q '^tag: ckpt-final-public-launch-checklist-product-baseline-green-20260522-084710$' "$DOC"
 grep -q 'Final path Wallet doc refresh is cross-box proven.' "$DOC"
 grep -q 'Final path includes wallet-ui-cleanup-proof.' "$DOC"
 grep -q 'Final checklist sections closeout doc is cross-box proven.' "$DOC"
@@ -47,8 +47,8 @@ echo
 echo "=== [2] git checkpoint contains baseline pointer ==="
 HEAD="$(git rev-parse --short HEAD)"
 DESC="$(git describe --tags --always --dirty)"
-POINTER_COMMIT="5b279795"
-POINTER_TAG="ckpt-product-surface-datanet-goldenpath-green-20260522-075118"
+POINTER_COMMIT="56f9c2d2"
+POINTER_TAG="ckpt-final-public-launch-checklist-product-baseline-green-20260522-084710"
 echo "head=$HEAD"
 echo "describe=$DESC"
 echo "pointer_commit=$POINTER_COMMIT"
@@ -100,8 +100,8 @@ echo
 echo "=== [6] summary ==="
 python3 - <<'PY'
 print({
-  "current_baseline": "5b279795",
-  "tag": "ckpt-product-surface-datanet-goldenpath-green-20260522-075118",
+  "current_baseline": "56f9c2d2",
+  "tag": "ckpt-final-public-launch-checklist-product-baseline-green-20260522-084710",
   "cross_box_proven": True,
   "launch_state": "not_go_for_public_mainnet0",
   "launch_approval": False,
