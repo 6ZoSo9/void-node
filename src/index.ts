@@ -48354,7 +48354,7 @@ a{color:#93c5fd;text-decoration:none}
     }
 
     /* VOID_HOME_HIDE_ADMIN_LINK_V1 */
-    body[data-active-tab="overview"] #adminDataNetSummaryBtn{display:none !important}
+    #adminDataNetSummaryBtn{display:none !important}
     .home-quiet-status{
       display:flex;
       align-items:center;
