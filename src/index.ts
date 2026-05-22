@@ -54038,6 +54038,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (drawer) {
         const open = drawer.style.display !== "none";
         drawer.style.display = open ? "none" : "";
+        if (open === false && typeof drawer.scrollIntoView === "function") {
+          drawer.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
       }
       const createRow = $("participantAccountCreateRowTop");
       if (createRow) createRow.style.display = "none";
