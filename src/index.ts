@@ -48490,7 +48490,7 @@ a{color:#93c5fd;text-decoration:none}
       <span id="topStripRelayer" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Relayer: -</span>
       <span id="topStripRunner" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Runner: -</span>
       <span id="topStripUpdate" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 10px;border-radius:999px;border:1px solid rgba(245,158,11,.28);background:rgba(245,158,11,.12);color:#fcd34d;font-weight:700"><span id="topStripUpdateText">Update: -</span><button type="button" id="topStripUpdateNowBtn" style="border:1px solid rgba(148,163,184,.35);background:#0f172a;color:#e5e7eb;border-radius:999px;padding:3px 8px;font-weight:800;cursor:pointer">Update now</button><button type="button" id="topStripUpdateRemindBtn" style="border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.8);color:#cbd5e1;border-radius:999px;padding:3px 8px;font-weight:700;cursor:pointer">Remind me later</button></span>
-      <button type="button" id="participantTopSettingsBtn" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.28);background:rgba(15,23,42,.72);color:#e5e7eb;font-weight:800;cursor:pointer">⚙ Settings</button>
+      <button type="button" id="participantTopSettingsBtn" aria-controls="participantSettingsDrawer" aria-expanded="false" title="Open Settings and Advanced" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.28);background:rgba(15,23,42,.72);color:#e5e7eb;font-weight:800;cursor:pointer">⚙ Settings</button>
     </section>
 
     <!-- VOID_FIRST_RUN_ONBOARDING_V1 -->
@@ -54038,6 +54038,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       if (drawer) {
         const open = drawer.style.display !== "none";
         drawer.style.display = open ? "none" : "";
+        const topBtn = $("participantTopSettingsBtn");
+        if (topBtn) topBtn.setAttribute("aria-expanded", open ? "false" : "true");
         if (open === false && typeof drawer.scrollIntoView === "function") {
           drawer.scrollIntoView({ block: "nearest", behavior: "smooth" });
         }
@@ -54062,6 +54064,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     try {
       const drawer = $("participantSettingsDrawer");
       if (drawer) drawer.style.display = "none";
+      const topBtn = $("participantTopSettingsBtn");
+      if (topBtn) topBtn.setAttribute("aria-expanded", "false");
     } catch (_) {}
   });
 
