@@ -52,7 +52,7 @@ Definition of done:
 - Cross-box smoke passes.
 - No script says public launch is approved.
 
-## Blocker 2: public validator admission is not promoted
+## Blocker 2: public validator Mainnet-0 posture is candidate-only
 
 Current validator state:
 
@@ -67,9 +67,9 @@ Current validator state:
 
 Required work:
 
-1. Decide the final public validator admission/promotion path. Readiness is green; guarded live admission is still not executed.
-2. Promote only through guarded config/runtime/proof lanes.
-3. Prove live config represents the intended public admission state.
+1. Record candidate/waiting-only public validator registration as the intended Mainnet-0 launch posture.
+2. Keep public active validator admission disabled unless a later guarded config/runtime/proof lane intentionally changes it.
+3. Prove live config represents candidate/waiting-only public registration.
 4. Prove runtime endpoints agree.
 5. Prove Precision and Alienware agree.
 6. Update validator-status/current status files only after proof.
@@ -79,7 +79,7 @@ Definition of done:
 - Public validator promotion/admission path is explicitly represented.
 - Runtime validator truth agrees.
 - Cross-box proof agrees.
-- Status wording no longer relies on plan-only candidate state.
+- Status wording clearly says candidate/waiting public registration is the Mainnet-0 posture, not active validator admission.
 - No private keys are committed.
 
 ## Cleared Blocker: first Buy VOID real fulfillment closeout is complete

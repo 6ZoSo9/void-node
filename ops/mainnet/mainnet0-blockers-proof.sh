@@ -22,7 +22,7 @@ test -f "$INVENTORY"
 grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
 grep -q "Final path launch approval ref-clean baseline is cross-box proven at 6984f3bf / ckpt-final-path-launch-approval-ref-clean-green-20260521-003126." "$BLOCKERS"
 grep -q "The money step is intentionally last" "$BLOCKERS"
-grep -q "Blocker 2: public validator admission is not promoted" "$BLOCKERS"
+grep -q "Blocker 2: public validator Mainnet-0 posture is candidate-only" "$BLOCKERS"
 grep -q "Operator/bootstrap validator runtime truth is green through epoch127" "$BLOCKERS"
 grep -q "Durable 8545 restore/recovery lane is green through epoch127" "$BLOCKERS"
 grep -Eq "Cleared Blocker: first Buy VOID real claim/send is complete|Cleared Blocker: first Buy VOID real fulfillment closeout is proven|Cleared Blocker: first Buy VOID real fulfillment closeout is complete|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID has completed its first controlled real-money fulfillment test|Blocker 3: Buy VOID real claim/send is not complete|Buy VOID real claim/send is not complete" "$BLOCKERS"
@@ -69,7 +69,7 @@ python3 - <<'PY'
 print({
   "launch_state": "not_go_for_public_mainnet0",
   "money_step": "last",
-  "validator_blocker": "public_candidate_not_promoted",
+  "validator_blocker": "public_candidate_only_mainnet0_posture",
   "candidate_inventory": "ready_not_admitted",
   "buy_void_status": "first_real_fulfillment_complete",
   "go_no_go": "blocked_until_explicitly_cleared",

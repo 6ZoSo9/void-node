@@ -60,7 +60,7 @@ echo
 echo "=== [4] blockers doc still keeps money last ==="
 grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
 grep -q "The money step is intentionally last" "$BLOCKERS"
-grep -q "Blocker 2: public validator admission is not promoted" "$BLOCKERS"
+grep -q "Blocker 2: public validator Mainnet-0 posture is candidate-only" "$BLOCKERS"
 grep -q "Public participant validator registration remains candidate/waiting only" "$BLOCKERS"
 grep -Eq "Cleared Blocker: first Buy VOID real claim/send is complete|Cleared Blocker: first Buy VOID real fulfillment closeout is proven|Cleared Blocker: first Buy VOID real fulfillment closeout is complete|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID has completed its first controlled real-money fulfillment test|Blocker 3: Buy VOID real claim/send is not complete|Buy VOID real claim/send is not complete" "$BLOCKERS"
 echo "[ok] blockers doc still matches intended order"
