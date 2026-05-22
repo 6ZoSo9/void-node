@@ -48446,11 +48446,11 @@ a{color:#93c5fd;text-decoration:none}
         <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work, get a receipt, and earn WC</span></button>
         <button class="tabbtn" data-tab="buy" id="tab-buy">Buy VOID<span class="navhint">check purchase-path readiness and wallet delivery status</span></button>
         <button class="tabbtn" data-tab="staking" id="tab-staking">Stake<span class="navhint">check validator staking readiness and live validator truth</span></button>
+        <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
 
         <details class="sidebar-advanced-menu">
           <summary>More</summary>
           <div class="sidebar-advanced-items">
-            <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
             <button class="tabbtn" data-tab="trading" id="tab-trading">Swap<span class="navhint">preview WC/VOID swap readiness</span></button>
             <button class="tabbtn" data-tab="receipts" id="tab-receipts">Receipts<span class="navhint">review receipts and proof outputs from completed work</span></button>
           </div>
