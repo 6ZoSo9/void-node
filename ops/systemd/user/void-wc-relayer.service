@@ -4,6 +4,8 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+Environment=PATH=%h/.foundry/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=CAST_BIN=%h/.foundry/bin/cast
 Type=simple
 WorkingDirectory=%h/dev/void-node
 Environment=WC_RELAYER_PORT=4313
