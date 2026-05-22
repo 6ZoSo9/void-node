@@ -48422,7 +48422,10 @@ a{color:#93c5fd;text-decoration:none}
 
       <!-- VOID_SETTINGS_GEAR_V1 -->
       <div id="participantSettingsDrawer" style="display:none;margin-top:12px;padding:12px;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)">
-        <div style="font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Settings & Advanced</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+          <div style="font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8">Settings & Advanced</div>
+          <button type="button" id="participantSettingsCloseBtn" class="btn secondary" style="padding:5px 9px;border-radius:999px;font-size:12px">Close</button>
+        </div>
         <div style="font-size:13px;line-height:1.45;color:#94a3b8;margin-bottom:10px">Normal users can stay on Wallet, Earn, Buy, Stake, and DataNet. Advanced status, records, swap preview, receipts, and validator-plan tools live here.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <a class="linkbtn" href="/participant#wallet">Wallet setup</a>
@@ -54054,6 +54057,12 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   if ($("participantSettingsBtn")) $("participantSettingsBtn").addEventListener("click", toggleParticipantSettingsDrawer);
   if ($("participantTopSettingsBtn")) $("participantTopSettingsBtn").addEventListener("click", toggleParticipantSettingsDrawer);
+  if ($("participantSettingsCloseBtn")) $("participantSettingsCloseBtn").addEventListener("click", () => {
+    try {
+      const drawer = $("participantSettingsDrawer");
+      if (drawer) drawer.style.display = "none";
+    } catch (_) {}
+  });
 
   if ($("participantCreateAccountBtn")) $("participantCreateAccountBtn").addEventListener("click", () => {
     try {
