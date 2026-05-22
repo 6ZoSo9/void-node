@@ -8,8 +8,8 @@ money_step: last
 
 ## Current canonical checkpoint
 
-commit: 56f9c2d2
-tag: ckpt-final-public-launch-checklist-product-baseline-green-20260522-084710
+commit: f8684313
+tag: ckpt-settings-escape-close-green-20260522-120632
 cross_box_proven: true
 
 ## Proven state
@@ -30,6 +30,7 @@ cross_box_proven: true
 - Final checklist preserves update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.
 - Mainnet-0 public validator admission decision proof passed.
 - Product surface proof is cross-box proven.
+- Settings drawer/top Settings/Escape-close UI checkpoint is cross-box proven.
 - DataNet tab proof is green.
 - Participant DataNet E2E proof is green.
 - Participant golden path proof is green.

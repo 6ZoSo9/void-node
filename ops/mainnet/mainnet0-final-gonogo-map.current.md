@@ -9,8 +9,8 @@ operator_label: zoso
 
 ## Current canonical baseline
 
-- current_baseline_pointer_commit: 56f9c2d2
-- current_baseline_pointer_tag: ckpt-final-public-launch-checklist-product-baseline-green-20260522-084710
+- current_baseline_pointer_commit: f8684313
+- current_baseline_pointer_tag: ckpt-settings-escape-close-green-20260522-120632
 - baseline_pointer_file: ops/mainnet/mainnet0-current-baseline.current.md
 - cross_box_proven: true
 
@@ -20,7 +20,7 @@ operator_label: zoso
 - Alienware node readiness is green.
 - Cross-box status smoke is green.
 - Mainnet-0 current baseline pointer proof is green.
-- Current baseline pointer now records final public launch checklist product-baseline as the canonical rolling baseline.
+- Current baseline pointer now records the Settings escape-close product-surface checkpoint as the canonical rolling baseline.
 - Product surface proof is green.
 - DataNet tab proof is green.
 - Participant DataNet E2E proof is green.
