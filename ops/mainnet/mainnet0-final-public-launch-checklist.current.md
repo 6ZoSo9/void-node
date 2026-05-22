@@ -16,6 +16,9 @@ money_step: last
 - Current baseline summary-output checkpoint is cross-box proven at 29e4c672 / ckpt-current-baseline-summary-output-green-20260521-120111.
 - Final path Wallet doc refresh is cross-box proven at 5d39ab41 / ckpt-final-path-wallet-doc-refresh-green-20260521-114305.
 - Final path includes wallet-ui-cleanup-proof.
+- Final checklist proof sections restored is cross-box proven at 1b4ad771 / ckpt-final-checklist-proof-sections-restored-green-20260521-193346.
+- This supersedes fdfa1af5 / ckpt-final-checklist-gonogo-fallback-green-20260521-193000 because that checkpoint weakened the embedded checklist proof.
+- Final checklist now preserves update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.
 - Precision update-safety Prometheus timer is enabled and active.
 - Update-safety metric is durable on Precision.
 - Alienware is a follower/status-smoke box, not a Prometheus/node_exporter box.
