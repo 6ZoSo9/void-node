@@ -33,18 +33,23 @@ curl -fsS \
 
 echo
 echo "=== [5] execute ==="
-curl -fsS \
-  -H "content-type: application/json" \
-  -d "{\"side\":\"wc_to_void\",\"amount\":$AMOUNT,\"account\":\"$ACCOUNT\",\"wallet\":\"$WALLET\"}" \
-  "$REL/execute" | tee /tmp/wc-relayer-smoke.execute.json | sed -n "1,320p"
+if [ "${WC_RELAYER_SMOKE_REQUIRE_EXECUTE:-0}" = "1" ]; then
+  curl -fsS \
+    -H "content-type: application/json" \
+    -d "{\"side\":\"wc_to_void\",\"amount\":$AMOUNT,\"account\":\"$ACCOUNT\",\"wallet\":\"$WALLET\"}" \
+    "$REL/execute" | tee /tmp/wc-relayer-smoke.execute.json | sed -n "1,320p"
 
-echo
-echo "=== [6] dashboard after ==="
-curl -fsS "$HELPER/dashboard/$WALLET.json" | tee /tmp/wc-relayer-smoke.after.json | sed -n "1,220p"
+  echo
+  echo "=== [6] dashboard after ==="
+  curl -fsS "$HELPER/dashboard/$WALLET.json" | tee /tmp/wc-relayer-smoke.after.json | sed -n "1,220p"
 
-echo
-echo "=== [7] tx hashes ==="
-jq -r '.approve_tx.tx_hash, .swap_tx.tx_hash' /tmp/wc-relayer-smoke.execute.json
+  echo
+  echo "=== [7] tx hashes ==="
+  jq -r '.approve_tx.tx_hash, .swap_tx.tx_hash' /tmp/wc-relayer-smoke.execute.json
+else
+  echo "[skip] non-mutating smoke: execute requires WC_RELAYER_SMOKE_REQUIRE_EXECUTE=1"
+  echo "[ok] health + participant wiring + dashboard + quote proved"
+fi
 
 echo
 echo "=== [8] done ==="

@@ -922,3 +922,7 @@ participant-home-launch-strip-proof:
 
 wallet-ui-cleanup-proof:
 	bash ops/mainnet0/wallet-ui-cleanup-proof.sh
+
+.PHONY: wc-devnet-bootstrap-proof
+wc-devnet-bootstrap-proof:
+	bash ops/mainnet0/wc-devnet-bootstrap-proof.sh
