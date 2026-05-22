@@ -18,7 +18,7 @@ curl -fsS "$REL/health" | sed -n "1,160p"
 
 echo
 echo "=== [2] participant relayer wiring ==="
-curl -fsS "$NODE/participant" | rg -n "api/wc-relayer/v1/quote|api/wc-relayer/v1/execute|Relayer is live for quote and execution" | sed -n "1,120p"
+curl -fsS "$NODE/participant" | grep -En "api/wc-relayer/v1/quote|api/wc-relayer/v1/execute|Relayer is live for quote and execution" | sed -n "1,120p"
 
 echo
 echo "=== [3] dashboard before ==="

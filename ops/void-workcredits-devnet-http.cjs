@@ -49,6 +49,19 @@ function runScript(scriptRelPath, args, cb) {
 }
 
 
+
+function sendErr(res, status, err) {
+  const message = String((err && err.message) || err || "internal_error");
+  try {
+    if (!res.headersSent) {
+      res.writeHead(status || 500, { "content-type": "application/json" });
+    }
+    res.end(JSON.stringify({ ok: false, error: message }) + "\n");
+  } catch (_) {
+    try { res.end(); } catch (_) {}
+  }
+}
+
 function sendJson(res, status, obj) {
   const body = JSON.stringify(obj, null, 2);
   res.writeHead(status, {
