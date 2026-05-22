@@ -76,13 +76,13 @@ import json, sys
 html = Path(sys.argv[1]).read_text()
 needles = {
     "DataNet Viewer": "missing viewer title",
-    "Open raw JSON": "missing raw json button",
     "Plaintext": "missing plaintext section",
 }
 for needle, msg in needles.items():
     assert needle in html, msg
+assert ("Open raw JSON" in html or "Open Dataset JSON" in html), "missing raw json button"
 print("[ok] remote datanet viewer html looks right")
-print(json.dumps({"ok": True, "checked": list(needles.keys())}, indent=2))
+print(json.dumps({"ok": True, "checked": list(needles.keys()) + ["Open raw JSON|Open Dataset JSON"]}, indent=2))
 PY
 
 jget "$REMOTE_NODE_BASE/datanet/v1/local-job/$DS?who=$ACCOUNT" 20 > "$OUT_DIR/local-job.json"
