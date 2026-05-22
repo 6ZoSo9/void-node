@@ -66,6 +66,11 @@ printf '%s\n' "$REMOTE_SUBMIT" > "$OUT_DIR/submit.json"
 JOB_ID="$(printf '%s\n' "$REMOTE_SUBMIT" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("job",{}).get("job_id",""))')"
 test -n "$JOB_ID"
 echo "[ok] job_id=$JOB_ID"
+echo
+echo "=== [materializer] run remote DataNet job materializer once ==="
+ssh -o BatchMode=yes -o ConnectTimeout=8 "$ALIEN" \
+  'cd /home/zoso/dev/void-node && node ops/datanet-job-runner-v1.cjs >/tmp/void-datanet-job-runner-proof.tick.json'
+
 
 echo
 echo "=== [3] poll publish until completed ==="

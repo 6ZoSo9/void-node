@@ -44732,8 +44732,32 @@ a{color:#93c5fd;text-decoration:none}
         const account = safeStr(req.query?.account, 128);
         const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
         let out:any[] = [];
-        for (const line of readLines(receiptsFile())) {
-          try { out.push(JSON.parse(line)); } catch {}
+        const path = require("node:path");
+        const receiptFiles = Array.from(new Set([
+          receiptsFile(),
+          path.join(String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"), "agent", "receipts.jsonl"),
+          path.join(String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"), "agent_v1", "receipts.jsonl"),
+          path.join(String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"), "datanet_v1", "receipts.jsonl"),
+          path.join("data_a", "agent", "receipts.jsonl"),
+          path.join("data_a", "agent_v1", "receipts.jsonl"),
+          path.join("data_a", "datanet_v1", "receipts.jsonl"),
+          path.join("data", "datanet_v1", "receipts.jsonl")
+        ]));
+        const seenReceiptLines = new Set<string>();
+        for (const receiptFile of receiptFiles) {
+          try {
+            const fs = require("node:fs");
+            if (!fs.existsSync(receiptFile)) continue;
+            const text = String(fs.readFileSync(receiptFile, "utf8") || "");
+            for (const line of text.split(/\r?\n/)) {
+              try {
+                const raw = String(line || "").trim();
+                if (!raw || seenReceiptLines.has(raw)) continue;
+                seenReceiptLines.add(raw);
+                out.push(JSON.parse(raw));
+              } catch {}
+            }
+          } catch {}
         }
 
         try {
