@@ -11,12 +11,14 @@ money_step: last
 - Mainnet-0 status proof is green.
 - Mainnet-0 status smoke is green.
 - Mainnet-0 cross-box status smoke is green.
-- Launch approval plan baseline refresh is cross-box proven at 2a80ba9a / ckpt-launch-approval-plan-baseline-refresh-green-20260521-123542.
+- Launch approval plan current-baseline refresh is cross-box proven at e0fe2580 / ckpt-launch-approval-plan-current-baseline-green-20260521-220259.
 - Final go/no-go map current-baseline ref is cross-box proven at 6a8d15fb / ckpt-final-gonogo-current-baseline-ref-green-20260521-121728.
 - Current baseline summary-output checkpoint is cross-box proven at 29e4c672 / ckpt-current-baseline-summary-output-green-20260521-120111.
 - Final path Wallet doc refresh is cross-box proven at 5d39ab41 / ckpt-final-path-wallet-doc-refresh-green-20260521-114305.
 - Final path includes wallet-ui-cleanup-proof.
 - Final checklist proof sections restored is cross-box proven at 1b4ad771 / ckpt-final-checklist-proof-sections-restored-green-20260521-193346.
+- Launch approval plan now points to 5efd1adf / ckpt-current-baseline-final-checklist-closeout-green-20260521-211057.
+- Launch approval plan records current baseline pointer cc8a4f4a / ckpt-final-checklist-sections-closeout-doc-green-20260521-195012.
 - This supersedes fdfa1af5 / ckpt-final-checklist-gonogo-fallback-green-20260521-193000 because that checkpoint weakened the embedded checklist proof.
 - Final checklist now preserves update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.
 - Precision update-safety Prometheus timer is enabled and active.
