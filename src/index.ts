@@ -54069,6 +54069,17 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch (_) {}
   });
 
+  document.addEventListener("keydown", (ev) => {
+    try {
+      if (!ev || ev.key !== "Escape") return;
+      const drawer = $("participantSettingsDrawer");
+      if (!drawer || drawer.style.display === "none") return;
+      drawer.style.display = "none";
+      const topBtn = $("participantTopSettingsBtn");
+      if (topBtn) topBtn.setAttribute("aria-expanded", "false");
+    } catch (_) {}
+  });
+
   if ($("participantCreateAccountBtn")) $("participantCreateAccountBtn").addEventListener("click", () => {
     try {
       const drawer = $("participantAccountsDrawer");
