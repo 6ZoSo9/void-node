@@ -36,7 +36,7 @@ wc-stack-status:
 	curl -fsS --max-time 3 http://127.0.0.1:4313/api/wc-relayer/v1/health | sed -n "1,160p"; \
 	echo; \
 	echo "=== participant wiring ==="; \
-	curl -fsS --max-time 5 http://127.0.0.1:4100/participant | rg -n "api/wc-relayer/v1/quote|api/wc-relayer/v1/execute|approve_tx_hash|swap_tx_hash|Relayer is live for quote and execution" | sed -n "1,160p"; \
+	curl -fsS --max-time 5 http://127.0.0.1:4100/participant | grep -En "api/wc-relayer/v1/quote|api/wc-relayer/v1/execute|approve_tx_hash|swap_tx_hash|Relayer is live for quote and execution" | sed -n "1,160p"; \
 	echo; \
 	echo "=== relayer quote smoke ==="; \
 	curl -fsS --max-time 5 -H "content-type: application/json" \
@@ -117,7 +117,7 @@ wc-stack-doctor:
 	curl -fsS --max-time 3 http://127.0.0.1:4313/api/wc-relayer/v1/health | sed -n "1,160p" || echo "[fail] relayer health"; \
 	echo; \
 	echo "=== participant wiring snapshot ==="; \
-	curl -fsS --max-time 5 http://127.0.0.1:4100/participant | rg -n "api/wc-relayer/v1/quote|api/wc-relayer/v1/execute|approve_tx_hash|swap_tx_hash|No Redeemable WC|Relayer is live for quote and execution" | sed -n "1,200p" || echo "[fail] participant page"; \
+	curl -fsS --max-time 5 http://127.0.0.1:4100/participant | grep -En "api/wc-relayer/v1/quote|api/wc-relayer/v1/execute|approve_tx_hash|swap_tx_hash|No Redeemable WC|Relayer is live for quote and execution" | sed -n "1,200p" || echo "[fail] participant page"; \
 	echo; \
 	echo "=== helper recent journal ==="; \
 	journalctl --user -u void-workcredits-devnet-http.service --no-pager -n 40 || true; \
