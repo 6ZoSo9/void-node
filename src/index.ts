@@ -48429,7 +48429,7 @@ a{color:#93c5fd;text-decoration:none}
           <a class="linkbtn" href="/participant#buy">Buy VOID status</a>
           <a class="linkbtn" href="/participant#staking">Stake preview</a>
           <a class="linkbtn" href="/participant#datanet">DataNet</a>
-          <a class="linkbtn" href="/participant#trading">Trade preview</a>
+          <a class="linkbtn" href="/participant#trading">Swap preview</a>
           <a class="linkbtn" href="/participant#receipts">Receipts</a>
           <a class="linkbtn" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Validator summary</a>
           <a class="linkbtn" href="/__void/admin/datanet-summary" target="_blank" rel="noopener">DataNet summary</a>
