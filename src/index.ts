@@ -48941,7 +48941,7 @@ a{color:#93c5fd;text-decoration:none}
             <div class="trade-pair-title">WC / VOID</div>
             <div class="trade-pair-meta">Swap Work Credits and VOID from your execution wallet.</div>
           </div>
-          <span class="pill">Mainnet-0 swap</span>
+          <span class="pill">Swap preview</span>
         </div>
 
         <div class="action-rail" style="margin:6px 0 12px 0">
@@ -48952,7 +48952,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="hero-note" id="tradeDirectionNote" style="margin-bottom:12px">Choose direction, enter amount, review the quote, then execute from the stored wallet.</div>
         <!-- VOID_TRADE_MARKET_UNAVAILABLE_V1 -->
         <div class="hero-note trade-market-unavailable" id="tradeMarketUnavailableNotice">
-          Market services are not initialized on this node yet. Trading is shown as a prepared Mainnet-0 swap flow; Buy VOID, Earn, and Wallet are not blocked.
+          Market services are not initialized on this node yet. This is a prepared swap preview, not a live public trading launch; Buy VOID, Earn, and Wallet are not blocked.
         </div>
 
         <label for="tradeInputWc" id="tradeInputLabel">WC to trade</label>
