@@ -19,10 +19,13 @@ grep -q '^launch_state: not_go_for_public_mainnet0$' "$DOC"
 grep -q '^mutation_allowed: false$' "$DOC"
 grep -q '^launch_approval: false$' "$DOC"
 grep -q '^money_step: last$' "$DOC"
-grep -q '^commit: 5d39ab41$' "$DOC"
-grep -q '^tag: ckpt-final-path-wallet-doc-refresh-green-20260521-114305$' "$DOC"
+grep -q '^commit: cc8a4f4a$' "$DOC"
+grep -q '^tag: ckpt-final-checklist-sections-closeout-doc-green-20260521-195012$' "$DOC"
 grep -q 'Final path Wallet doc refresh is cross-box proven.' "$DOC"
 grep -q 'Final path includes wallet-ui-cleanup-proof.' "$DOC"
+grep -q 'Final checklist sections closeout doc is cross-box proven.' "$DOC"
+grep -q 'Final public launch checklist records restored proof sections and supersedes the weakened fdfa1af5 checkpoint.' "$DOC"
+grep -q 'Final checklist preserves update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.' "$DOC"
 grep -q 'Wallet setup path and advanced send-action cleanup are proof-guarded.' "$DOC"
 grep -q 'Wallet setup, Send Local WC, and Send VOID cleanup remain proof-guarded.' "$DOC"
 grep -q '^cross_box_proven: true$' "$DOC"
@@ -38,8 +41,8 @@ echo
 echo "=== [2] git checkpoint contains baseline pointer ==="
 HEAD="$(git rev-parse --short HEAD)"
 DESC="$(git describe --tags --always --dirty)"
-POINTER_COMMIT="5d39ab41"
-POINTER_TAG="ckpt-final-path-wallet-doc-refresh-green-20260521-114305"
+POINTER_COMMIT="cc8a4f4a"
+POINTER_TAG="ckpt-final-checklist-sections-closeout-doc-green-20260521-195012"
 echo "head=$HEAD"
 echo "describe=$DESC"
 echo "pointer_commit=$POINTER_COMMIT"
@@ -91,8 +94,8 @@ echo
 echo "=== [6] summary ==="
 python3 - <<'PY'
 print({
-  "current_baseline": "5d39ab41",
-  "tag": "ckpt-final-path-wallet-doc-refresh-green-20260521-114305",
+  "current_baseline": "cc8a4f4a",
+  "tag": "ckpt-final-checklist-sections-closeout-doc-green-20260521-195012",
   "cross_box_proven": True,
   "launch_state": "not_go_for_public_mainnet0",
   "launch_approval": False,

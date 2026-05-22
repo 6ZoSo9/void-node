@@ -9,8 +9,8 @@ operator_label: zoso
 
 ## Current canonical baseline
 
-- current_baseline_pointer_commit: 29e4c672
-- current_baseline_pointer_tag: ckpt-current-baseline-summary-output-green-20260521-120111
+- current_baseline_pointer_commit: cc8a4f4a
+- current_baseline_pointer_tag: ckpt-final-checklist-sections-closeout-doc-green-20260521-195012
 - baseline_pointer_file: ops/mainnet/mainnet0-current-baseline.current.md
 - cross_box_proven: true
 
@@ -21,6 +21,8 @@ operator_label: zoso
 - Cross-box status smoke is green.
 - Mainnet-0 current baseline pointer proof is green.
 - Current baseline pointer output is aligned with the latest Wallet doc refresh baseline.
+- Current baseline pointer now records final checklist sections closeout doc as the canonical rolling baseline.
+- Final checklist sections closeout doc preserves restored proof sections and supersedes fdfa1af5.
 - Final path includes wallet-ui-cleanup-proof.
 - Mainnet-0 status proof is green.
 - Mainnet-0 blockers proof is green.

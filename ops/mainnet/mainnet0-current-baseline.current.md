@@ -8,8 +8,8 @@ money_step: last
 
 ## Current canonical checkpoint
 
-commit: 5d39ab41
-tag: ckpt-final-path-wallet-doc-refresh-green-20260521-114305
+commit: cc8a4f4a
+tag: ckpt-final-checklist-sections-closeout-doc-green-20260521-195012
 cross_box_proven: true
 
 ## Proven state
@@ -25,6 +25,9 @@ cross_box_proven: true
 - Wallet setup path and advanced send-action cleanup are proof-guarded.
 - Mainnet-0 launch approval plan proof passed.
 - Mainnet-0 final public launch checklist proof passed.
+- Final checklist sections closeout doc is cross-box proven.
+- Final public launch checklist records restored proof sections and supersedes the weakened fdfa1af5 checkpoint.
+- Final checklist preserves update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.
 - Mainnet-0 public validator admission decision proof passed.
 
 ## Locked launch posture
