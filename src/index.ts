@@ -48451,7 +48451,7 @@ a{color:#93c5fd;text-decoration:none}
           <summary>More</summary>
           <div class="sidebar-advanced-items">
             <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
-            <button class="tabbtn" data-tab="trading" id="tab-trading">Trade<span class="navhint">check prices and trade WC for VOID</span></button>
+            <button class="tabbtn" data-tab="trading" id="tab-trading">Swap<span class="navhint">preview WC/VOID swap readiness</span></button>
             <button class="tabbtn" data-tab="receipts" id="tab-receipts">Receipts<span class="navhint">review receipts and proof outputs from completed work</span></button>
           </div>
         </details>
