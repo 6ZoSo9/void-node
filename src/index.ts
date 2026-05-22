@@ -48405,7 +48405,6 @@ a{color:#93c5fd;text-decoration:none}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
         <button type="button" id="participantSwitchAccountBtn" class="btn" style="padding:8px 10px">Accounts</button>
         <button type="button" id="participantCreateAccountBtn" class="btn btn-primary" style="padding:8px 10px">New</button>
-        <button type="button" id="participantSettingsBtn" class="btn secondary" style="padding:8px 10px" title="Settings and advanced tools">⚙ Settings</button>
       </div>
 
       <div id="participantAccountsDrawer" style="display:none;margin-top:12px;padding:12px;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.55)">
@@ -54055,7 +54054,6 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     } catch (_) {}
   }
 
-  if ($("participantSettingsBtn")) $("participantSettingsBtn").addEventListener("click", toggleParticipantSettingsDrawer);
   if ($("participantTopSettingsBtn")) $("participantTopSettingsBtn").addEventListener("click", toggleParticipantSettingsDrawer);
   if ($("participantSettingsCloseBtn")) $("participantSettingsCloseBtn").addEventListener("click", () => {
     try {
