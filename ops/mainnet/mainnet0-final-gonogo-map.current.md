@@ -9,8 +9,8 @@ operator_label: zoso
 
 ## Current canonical baseline
 
-- current_baseline_pointer_commit: 16c20d3f
-- current_baseline_pointer_tag: ckpt-public-validator-candidate-only-posture-green-20260522-125742
+- current_baseline_pointer_commit: 152cf74c
+- current_baseline_pointer_tag: ckpt-final-checklist-validator-candidate-posture-green-20260523-020915
 - baseline_pointer_file: ops/mainnet/mainnet0-current-baseline.current.md
 - cross_box_proven: true
 
@@ -20,7 +20,7 @@ operator_label: zoso
 - Alienware node readiness is green.
 - Cross-box status smoke is green.
 - Mainnet-0 current baseline pointer proof is green.
-- Current baseline pointer now records the public validator candidate-only posture checkpoint as the canonical rolling baseline.
+- Current baseline pointer now records the final checklist validator candidate posture checkpoint as the canonical rolling baseline.
 - Product surface proof is green.
 - DataNet tab proof is green.
 - Participant DataNet E2E proof is green.

@@ -20,15 +20,15 @@ It does not mutate live validator state.
 
 ## Current proven baseline
 
-- current_final_public_launch_checklist_baseline: ckpt-public-validator-candidate-only-posture-green-20260522-125742
-- current_commit: 16c20d3f
+- current_final_public_launch_checklist_baseline: ckpt-final-checklist-validator-candidate-posture-green-20260523-020915
+- current_commit: 152cf74c
 - final public launch checklist proof is green.
 - final go/no-go map current-baseline reference is cross-box proven.
 - current baseline summary-output checkpoint is cross-box proven.
 - final path includes wallet-ui-cleanup-proof.
-- current baseline + final go/no-go map refresh is cross-box proven at 16c20d3f / ckpt-public-validator-candidate-only-posture-green-20260522-125742.
-- current baseline pointer records 16c20d3f / ckpt-public-validator-candidate-only-posture-green-20260522-125742.
-- product surface, Settings UI, and public validator candidate-only posture proof stack are green.
+- current baseline + final go/no-go map refresh is cross-box proven at 152cf74c / ckpt-final-checklist-validator-candidate-posture-green-20260523-020915.
+- current baseline pointer records 152cf74c / ckpt-final-checklist-validator-candidate-posture-green-20260523-020915.
+- product surface, Settings UI, public validator candidate-only posture, and final checklist validator posture proof stack are green.
 - DataNet tab proof is green.
 - participant DataNet E2E proof is green.
 - participant golden path proof is green.
