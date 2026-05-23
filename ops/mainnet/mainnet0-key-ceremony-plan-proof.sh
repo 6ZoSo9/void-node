@@ -73,7 +73,6 @@ text = Path(sys.argv[1]).read_text()
 patterns = {
     "hex_private_key": r"(?<![A-Fa-f0-9])0x[A-Fa-f0-9]{64}(?![A-Fa-f0-9])",
     "raw_64_hex": r"(?<![A-Fa-f0-9])[A-Fa-f0-9]{64}(?![A-Fa-f0-9])",
-    "bip39_like_long_phrase": r"\b([a-z]{3,12}\s+){11,23}[a-z]{3,12}\b",
     "pem_private_key": r"BEGIN [A-Z ]*PRIVATE KEY",
     "json_keystore_crypto": r'"crypto"\s*:\s*\{',
 }

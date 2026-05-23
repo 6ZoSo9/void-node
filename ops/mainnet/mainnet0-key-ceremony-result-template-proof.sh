@@ -79,7 +79,6 @@ patterns = {
 }
 
 hits = {}
- for_name = None
 for name, pat in patterns.items():
     found = re.findall(pat, text, flags=re.IGNORECASE)
     if found:
