@@ -24,6 +24,7 @@ operator_label: zoso
 - Validator next-onboard intent gate proof is green cross-box: confirm:true, exact operator intent, and VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 are required before live onboarding can run.
 - Launch approval prep baseline-reference checkpoint is cross-box proven at 10a14b6d / ckpt-launch-approval-prep-baseline-ref-green-20260523-071451.
 - Launch approval artifact prep is plan-only/not-approved and cross-box proven; approval_artifact_created=false.
+- WC devnet local-state runtime is cross-box proven at e0637a17 / ckpt-wc-devnet-local-state-runtime-green-20260523-081804; per-machine WC deploy addresses live under .runtime/mainnet0/wc-devnet-local/current and tracked WC state files stay clean.
 
 ## Still not done
 

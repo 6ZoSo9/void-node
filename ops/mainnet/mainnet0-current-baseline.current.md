@@ -39,6 +39,7 @@ cross_box_proven: true
 - Participant golden path proof is green.
 - Remote product/network regression proof is green.
 - WC trade remains non-mutating in product surface and is covered by separate WC stack proofs.
+- WC devnet local-state runtime is cross-box proven at e0637a17 / ckpt-wc-devnet-local-state-runtime-green-20260523-081804; per-machine WC deploy addresses live under .runtime/mainnet0/wc-devnet-local/current and tracked WC state files stay clean.
 
 ## Locked launch posture
 
