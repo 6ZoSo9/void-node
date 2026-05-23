@@ -19,10 +19,10 @@ It does not contain private keys, mnemonic phrases, seed material, keystore JSON
 
 ## Current baseline dependency
 
-- current_baseline_pointer_commit: bd373e29
-- current_baseline_pointer_tag: ckpt-mainnet0-current-baseline-pointer-green-20260521-011107
-- final_gonogo_map_commit: 5e665158
-- final_gonogo_map_tag: ckpt-mainnet0-final-gonogo-map-green-20260521-022151
+- current_baseline_pointer_commit: 8be2636f
+- current_baseline_pointer_tag: ckpt-current-blocker-sweep-green-20260523-112429
+- final_gonogo_map_commit: 8be2636f
+- final_gonogo_map_tag: ckpt-current-blocker-sweep-green-20260523-112429
 - current_decision: NO_GO
 
 ## Mainnet-only fresh key requirement

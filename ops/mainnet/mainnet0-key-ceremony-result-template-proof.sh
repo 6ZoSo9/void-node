@@ -38,10 +38,10 @@ echo "[ok] result template is explicitly non-mutating and not completed"
 
 echo
 echo "=== [3] dependency checkpoints are recorded ==="
-grep -q 'key_ceremony_plan_commit: ceb1835c' "$DOC"
-grep -q 'key_ceremony_plan_tag: ckpt-mainnet0-key-ceremony-plan-green-20260521-023326' "$DOC"
-grep -q 'final_gonogo_map_commit: 5e665158' "$DOC"
-grep -q 'current_baseline_pointer_commit: bd373e29' "$DOC"
+grep -q 'key_ceremony_plan_commit: 3ee1a343' "$DOC"
+grep -q 'key_ceremony_plan_tag: ckpt-key-ceremony-proof-guard-fix-green-20260523-113543' "$DOC"
+grep -q 'final_gonogo_map_commit: 8be2636f' "$DOC"
+grep -q 'current_baseline_pointer_commit: 8be2636f' "$DOC"
 echo "[ok] dependency checkpoints recorded"
 
 echo

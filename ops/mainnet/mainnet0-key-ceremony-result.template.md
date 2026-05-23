@@ -23,12 +23,12 @@ It must record public addresses only.
 
 ## Required dependency checkpoints
 
-- key_ceremony_plan_commit: ceb1835c
-- key_ceremony_plan_tag: ckpt-mainnet0-key-ceremony-plan-green-20260521-023326
-- final_gonogo_map_commit: 5e665158
-- final_gonogo_map_tag: ckpt-mainnet0-final-gonogo-map-green-20260521-022151
-- current_baseline_pointer_commit: bd373e29
-- current_baseline_pointer_tag: ckpt-mainnet0-current-baseline-pointer-green-20260521-011107
+- key_ceremony_plan_commit: 3ee1a343
+- key_ceremony_plan_tag: ckpt-key-ceremony-proof-guard-fix-green-20260523-113543
+- final_gonogo_map_commit: 8be2636f
+- final_gonogo_map_tag: ckpt-current-blocker-sweep-green-20260523-112429
+- current_baseline_pointer_commit: 8be2636f
+- current_baseline_pointer_tag: ckpt-current-blocker-sweep-green-20260523-112429
 
 ## Public address result fields
 
