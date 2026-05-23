@@ -32,7 +32,7 @@ Current healthy-but-not-launch posture:
 - Validator public keys are recorded.
 - Validator policy review is recorded.
 - Go/no-go wrapper intentionally exits NO-GO while blockers remain.
-- Launch approval prep baseline-reference checkpoint is cross-box proven at 10a14b6d / ckpt-launch-approval-prep-baseline-ref-green-20260523-071451.
+- Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217.
 - Launch approval artifact prep is plan-only/not-approved and does not clear launch blockers.
 - Validator admission blocker proof is green and proves public registration is plan-only/waiting/not-active.
 - Validator admission promotion plan proof is green and proves the future promotion path remains plan-only and non-mutating.
@@ -60,7 +60,7 @@ Current validator state:
 - Operator/bootstrap validator runtime truth is green through epoch127.
 - vault123 and vault125 are admitted in the operator/bootstrap validator set.
 - The next operator selector is vault126 targeting epoch128.
-- Vault125 guarded operator live admission executed and epoch127 runtime truth is recovered; future operator admission remains blocked until a new guarded proof.
+- Previous vault125 guarded operator live admission executed and epoch127 runtime truth is recovered; current next guarded operator lane is vault126 / epoch128 / expectedValidatorCount=127; future operator admission remains blocked until a new guarded proof.
 - Next-onboard intent gate is green, but live admission remains blocked unless an explicit guarded live proof enables the env switch and supplies the exact operator intent.
 - Public participant validator registration remains candidate/waiting only.
 - Public registration does not instantly expand the active validator set.

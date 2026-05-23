@@ -22,7 +22,7 @@ operator_label: zoso
 - Validator public reward address and consensus key are recorded.
 - Validator runtime truth is recovered through epoch127; the current guarded next-onboard lane now points to vault126 / epoch128 / expectedValidatorCount=127.
 - Validator next-onboard intent gate proof is green cross-box: confirm:true, exact operator intent, and VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 are required before live onboarding can run.
-- Launch approval prep baseline-reference checkpoint is cross-box proven at 10a14b6d / ckpt-launch-approval-prep-baseline-ref-green-20260523-071451.
+- Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217.
 - Launch approval artifact prep is plan-only/not-approved and cross-box proven; approval_artifact_created=false.
 - WC devnet local-state runtime is cross-box proven at e0637a17 / ckpt-wc-devnet-local-state-runtime-green-20260523-081804; per-machine WC deploy addresses live under .runtime/mainnet0/wc-devnet-local/current and tracked WC state files stay clean.
 
@@ -30,7 +30,7 @@ operator_label: zoso
 
 - Public validator candidate promotion/admission remains blocked.
 - Public candidate/waiting registration must not be confused with operator/bootstrap validator admission.
-- Guarded operator vault125 live admission has executed; public validator promotion/admission remains blocked.
+- Previous guarded operator vault125 live admission has executed and is reflected through epoch127; current next guarded operator lane is vault126 / epoch128 / expectedValidatorCount=127; public validator promotion/admission remains blocked.
 - Next-onboard intent gate remains a safety gate for the next operator lane; it does not approve public validator promotion/admission.
 - First real Buy VOID payment claim and fulfillment have completed successfully.
 - A real Ethereum USDC payment hash has been verified for the first fulfilled Buy VOID lane.

@@ -20,7 +20,7 @@ test -f "$VALIDATOR"
 test -f "$INVENTORY"
 
 grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
-grep -q "Launch approval prep baseline-reference checkpoint is cross-box proven at 10a14b6d / ckpt-launch-approval-prep-baseline-ref-green-20260523-071451." "$BLOCKERS"
+grep -q "Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217." "$BLOCKERS"
 grep -q "Launch approval artifact prep is plan-only/not-approved and does not clear launch blockers." "$BLOCKERS"
 grep -q "The money step is intentionally last" "$BLOCKERS"
 grep -q "Blocker 2: public validator Mainnet-0 posture is candidate-only" "$BLOCKERS"
@@ -32,7 +32,7 @@ grep -q "Validator live-admission readiness must be refreshed against the curren
 grep -q "future operator admission remains blocked until a new guarded proof" "$BLOCKERS"
 grep -q "Validator next-onboard intent gate proof is green" "$BLOCKERS"
 grep -q "Next-onboard intent gate is green, but live admission remains blocked" "$BLOCKERS"
-grep -q "Launch approval prep baseline-reference checkpoint is cross-box proven at 10a14b6d / ckpt-launch-approval-prep-baseline-ref-green-20260523-071451." "$BLOCKERS"
+grep -q "Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217." "$BLOCKERS"
 grep -q "Ready signals are not launch approval" "$BLOCKERS"
 
 grep -q "status: not_go_for_public_mainnet0" "$STATUS"
