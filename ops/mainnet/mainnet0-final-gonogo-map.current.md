@@ -20,7 +20,7 @@ operator_label: zoso
 - Alienware node readiness is green.
 - Cross-box status smoke is green.
 - Mainnet-0 current baseline pointer proof is green.
-- Current baseline pointer now records the launch approval artifact prep checkpoint as the canonical rolling baseline.
+- Current baseline pointer now records 5a47a875 / ckpt-current-baseline-candidate-only-posture-green-20260523-085213 as the canonical rolling baseline.
 - Product surface proof is green.
 - DataNet tab proof is green.
 - Participant DataNet E2E proof is green.

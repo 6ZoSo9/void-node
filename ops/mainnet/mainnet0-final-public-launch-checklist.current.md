@@ -13,7 +13,7 @@ money_step: last
 - Mainnet-0 cross-box status smoke is green.
 - Mainnet-0 baseline product-surface refresh is cross-box proven at 21f4357b / ckpt-mainnet0-baseline-product-surface-refresh-green-20260522-082010.
 - Final go/no-go map now records product surface/DataNet golden path as the canonical rolling baseline.
-- Current baseline pointer now records 5b279795 / ckpt-product-surface-datanet-goldenpath-green-20260522-075118.
+- Current baseline pointer now records 5a47a875 / ckpt-current-baseline-candidate-only-posture-green-20260523-085213.
 - Final path Wallet doc refresh is cross-box proven at 5d39ab41 / ckpt-final-path-wallet-doc-refresh-green-20260521-114305.
 - Final path includes wallet-ui-cleanup-proof.
 - Final checklist proof sections restored is cross-box proven at 1b4ad771 / ckpt-final-checklist-proof-sections-restored-green-20260521-193346.
