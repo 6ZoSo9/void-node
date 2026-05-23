@@ -940,3 +940,7 @@ mainnet0-launch-approval-artifact-prep-proof:
 .PHONY: wc-devnet-local-state-proof
 wc-devnet-local-state-proof:
 	@bash ops/mainnet0/wc-devnet-local-state-proof.sh
+
+.PHONY: mainnet0-launch-approval-artifact-template-proof
+mainnet0-launch-approval-artifact-template-proof:
+	bash ops/mainnet/mainnet0-launch-approval-artifact-template-proof.sh
