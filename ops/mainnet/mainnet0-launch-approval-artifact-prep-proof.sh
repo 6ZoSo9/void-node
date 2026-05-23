@@ -34,12 +34,13 @@ echo "[ok] prep doc is plan-only and not approved"
 
 echo
 echo "=== [3] current baseline references are current ==="
-grep -q 'current_baseline: 2eb6301c / ckpt-mainnet0-baseline-final-checklist-posture-green-20260523-022108' "$DOC"
+grep -q 'current_baseline: 69fc2c96 / ckpt-mainnet0-baseline-launch-approval-prep-green-20260523-070707' "$DOC"
 grep -q 'final_checklist_validator_candidate_posture: 152cf74c / ckpt-final-checklist-validator-candidate-posture-green-20260523-020915' "$DOC"
-grep -q '^commit: 152cf74c$' "$BASELINE"
-grep -q '^tag: ckpt-final-checklist-validator-candidate-posture-green-20260523-020915$' "$BASELINE"
-grep -q 'current_baseline_pointer_commit: 152cf74c' "$GONOGO"
-grep -q 'current_baseline_pointer_tag: ckpt-final-checklist-validator-candidate-posture-green-20260523-020915' "$GONOGO"
+grep -q 'launch_approval_artifact_prep_checkpoint: 654ea54f / ckpt-launch-approval-artifact-prep-green-20260523-024355' "$DOC"
+grep -q '^commit: 654ea54f$' "$BASELINE"
+grep -q '^tag: ckpt-launch-approval-artifact-prep-green-20260523-024355$' "$BASELINE"
+grep -q 'current_baseline_pointer_commit: 654ea54f' "$GONOGO"
+grep -q 'current_baseline_pointer_tag: ckpt-launch-approval-artifact-prep-green-20260523-024355' "$GONOGO"
 echo "[ok] prep references current proven baseline"
 
 echo
