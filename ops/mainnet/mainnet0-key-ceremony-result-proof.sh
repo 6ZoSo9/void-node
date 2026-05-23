@@ -43,7 +43,7 @@ for role in \
   premine_treasury_bootstrap_liquidity_public_address \
   premine_treasury_grants_public_address \
   premine_treasury_reserve_public_address \
-  admingate_master_key_public_address \
+  admingate_master_public_address \
   updategate_signer_1_public_address \
   updategate_signer_2_public_address \
   updategate_signer_3_public_address \
