@@ -926,3 +926,7 @@ wallet-ui-cleanup-proof:
 .PHONY: wc-devnet-bootstrap-proof
 wc-devnet-bootstrap-proof:
 	bash ops/mainnet0/wc-devnet-bootstrap-proof.sh
+
+.PHONY: mainnet0-launch-approval-artifact-prep-proof
+mainnet0-launch-approval-artifact-prep-proof:
+	bash ops/mainnet/mainnet0-launch-approval-artifact-prep-proof.sh
