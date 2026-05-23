@@ -948,3 +948,7 @@ mainnet0-launch-approval-artifact-template-proof:
 .PHONY: mainnet0-key-ceremony-result-runbook-template-proof
 mainnet0-key-ceremony-result-runbook-template-proof:
 	bash ops/mainnet/mainnet0-key-ceremony-result-runbook-template-proof.sh
+
+.PHONY: mainnet0-key-ceremony-result-proof
+mainnet0-key-ceremony-result-proof:
+	bash ops/mainnet/mainnet0-key-ceremony-result-proof.sh
