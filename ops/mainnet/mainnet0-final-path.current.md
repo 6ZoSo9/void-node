@@ -58,6 +58,8 @@ Definition of done:
 
 Operator/bootstrap validator admission is green through epoch127, but public validator promotion/admission remains blocked.
 
+Public validator registration is intentionally candidate/waiting-only for Mainnet-0, and public active promotion/admission remains disabled.
+
 Definition of done:
 - Public candidate/waiting path is clearly separated from active validator admission.
 - Any public active admission path has a guarded owner/operator transition.

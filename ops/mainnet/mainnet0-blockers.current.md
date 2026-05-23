@@ -65,6 +65,7 @@ Current validator state:
 - Public participant validator registration remains candidate/waiting only.
 - Public registration does not instantly expand the active validator set.
 - Public candidate/waiting state must not be confused with active validator admission.
+- Candidate/waiting-only public registration is the intended Mainnet-0 launch posture; public active validator promotion/admission remains blocked unless a later launch-approved proof lane intentionally changes it.
 
 Required work:
 

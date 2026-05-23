@@ -55,6 +55,8 @@ operator_label: zoso
 9. Ready signals alone are not launch approval.
 10. Money step remains last.
 
+Candidate-only public registration is the intended Mainnet-0 posture; the blocked action is public active validator promotion/admission.
+
 ## Required before YES
 
 Before this can become GO, all of the following must be true:
