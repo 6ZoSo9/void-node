@@ -944,3 +944,7 @@ wc-devnet-local-state-proof:
 .PHONY: mainnet0-launch-approval-artifact-template-proof
 mainnet0-launch-approval-artifact-template-proof:
 	bash ops/mainnet/mainnet0-launch-approval-artifact-template-proof.sh
+
+.PHONY: mainnet0-key-ceremony-result-runbook-template-proof
+mainnet0-key-ceremony-result-runbook-template-proof:
+	bash ops/mainnet/mainnet0-key-ceremony-result-runbook-template-proof.sh
