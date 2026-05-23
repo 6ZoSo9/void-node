@@ -8,8 +8,8 @@ money_step: last
 
 ## Current canonical checkpoint
 
-commit: 654ea54f
-tag: ckpt-launch-approval-artifact-prep-green-20260523-024355
+commit: 1cd3e15a
+tag: ckpt-candidate-only-validator-posture-clarity-green-20260523-083458
 cross_box_proven: true
 
 ## Proven state
@@ -32,6 +32,7 @@ cross_box_proven: true
 - Product surface proof is cross-box proven.
 - Settings drawer/top Settings/Escape-close UI checkpoint is cross-box proven.
 - Public validator candidate-only posture is cross-box proven.
+- Candidate-only validator posture clarity checkpoint is current at 1cd3e15a / ckpt-candidate-only-validator-posture-clarity-green-20260523-083458.
 - Final public launch checklist validator candidate posture is cross-box proven.
 - Launch approval artifact prep is cross-box proven and plan-only/not-approved.
 - DataNet tab proof is green.

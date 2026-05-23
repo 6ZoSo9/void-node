@@ -9,8 +9,8 @@ operator_label: zoso
 
 ## Current canonical baseline
 
-- current_baseline_pointer_commit: 654ea54f
-- current_baseline_pointer_tag: ckpt-launch-approval-artifact-prep-green-20260523-024355
+- current_baseline_pointer_commit: 1cd3e15a
+- current_baseline_pointer_tag: ckpt-candidate-only-validator-posture-clarity-green-20260523-083458
 - baseline_pointer_file: ops/mainnet/mainnet0-current-baseline.current.md
 - cross_box_proven: true
 
@@ -38,6 +38,7 @@ operator_label: zoso
 - Validator runtime truth is green through epoch127.
 - Next guarded operator onboarding selector is vault126 / epoch128 / expectedValidatorCount=127.
 - Public validator registration is candidate_or_waiting_only.
+- Candidate-only validator posture clarity is current at 1cd3e15a / ckpt-candidate-only-validator-posture-clarity-green-20260523-083458.
 - Public validator registration does not mutate the active validator set.
 - Buy VOID watcher config is present and active config uses the current receiver.
 - Historical Buy VOID latest-watch artifacts are lineage only unless the active config changes.
