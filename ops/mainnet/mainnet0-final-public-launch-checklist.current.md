@@ -31,6 +31,7 @@ money_step: last
 - Public validator promotion/admission remains blocked.
 - Buy VOID first real fulfillment is closeout-proven.
 - Future Buy VOID claim/send remains blocked unless explicitly verified and recorded.
+- Public release export is gitleaks-clean at 72f536d0 / ckpt-public-release-export-gitleaks-clean-green-20260523-091412 with gitleaks_rc=0 and findings=0.
 - Ready signals are not launch approval.
 - Launch approval plan is proof-backed and still not approved.
 

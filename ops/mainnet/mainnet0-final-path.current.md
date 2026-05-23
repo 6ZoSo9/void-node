@@ -104,6 +104,7 @@ Definition of done:
 ### 6. Final public release hygiene baseline is green
 
 The public export/release sanitization gate is now cross-box green. The sanitized public release tree passes gitleaks with findings=0. This must remain green through launch.
+Public release export is gitleaks-clean at 72f536d0 / ckpt-public-release-export-gitleaks-clean-green-20260523-091412 with gitleaks_rc=0 and findings=0.
 
 Definition of done:
 - Secrets are not committed.

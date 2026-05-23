@@ -83,4 +83,5 @@ The public release may include:
 
 NO-GO.
 
+- Public release export is gitleaks-clean at 72f536d0 / ckpt-public-release-export-gitleaks-clean-green-20260523-091412 with gitleaks_rc=0 and findings=0.
 This hygiene lane prepares the public release boundary. It does not publish, approve, fund, or mutate anything.
