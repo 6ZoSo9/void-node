@@ -36,14 +36,14 @@ money_step: last
 
 ## Remaining blockers before public Mainnet-0 launch
 
-### 1. Public validator admission/promotion path
+### 1. Public validator candidate-only launch posture
 
 Public validator registration must not be described as active validator admission.
 
-Before launch approval, the public validator path must prove:
+Before launch approval, the public validator path must preserve the candidate-only Mainnet-0 posture:
 
-- public registration creates candidate/waiting state only, or
-- an intentional public promotion/admission lane is implemented, gated, and proven,
+- public registration creates candidate/waiting state only,
+- active public promotion/admission remains disabled for Mainnet-0 unless a later explicit launch-approved lane changes it,
 - active validator admission remains capped,
 - epoch-controlled admission remains enforced,
 - operator/public roles are clearly separated,

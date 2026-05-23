@@ -39,6 +39,9 @@ grep -q 'Product surface proof, DataNet tab proof, participant DataNet E2E proof
 grep -q 'fdfa1af5 remains superseded because that checkpoint weakened the embedded checklist proof.' "$DOC"
 grep -q 'Final checklist now preserves update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.' "$DOC"
 grep -q 'Public validator promotion/admission remains blocked' "$DOC"
+grep -q 'Public validator candidate-only launch posture' "$DOC"
+grep -q 'active public promotion/admission remains disabled for Mainnet-0 unless a later explicit launch-approved lane changes it' "$DOC"
+
 grep -q 'Ready signals are not launch approval' "$DOC"
 grep -q 'Launch approval plan is proof-backed and still not approved' "$DOC"
 grep -q 'This checkpoint does not:' "$DOC"
@@ -175,7 +178,7 @@ print({
   "next_operator_candidate": "vault126",
   "target_epoch": 128,
   "expected_validator_count": 127,
-  "public_validator_promotion": "blocked",
+  "public_validator_promotion": "candidate_only_mainnet0_posture",
   "money_step": "last",
   "proof": "final_public_launch_checklist_not_go",
 })
