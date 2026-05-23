@@ -8,8 +8,8 @@ money_step: last
 
 ## Current canonical checkpoint
 
-commit: 152cf74c
-tag: ckpt-final-checklist-validator-candidate-posture-green-20260523-020915
+commit: 654ea54f
+tag: ckpt-launch-approval-artifact-prep-green-20260523-024355
 cross_box_proven: true
 
 ## Proven state
@@ -33,6 +33,7 @@ cross_box_proven: true
 - Settings drawer/top Settings/Escape-close UI checkpoint is cross-box proven.
 - Public validator candidate-only posture is cross-box proven.
 - Final public launch checklist validator candidate posture is cross-box proven.
+- Launch approval artifact prep is cross-box proven and plan-only/not-approved.
 - DataNet tab proof is green.
 - Participant DataNet E2E proof is green.
 - Participant golden path proof is green.

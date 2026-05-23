@@ -19,8 +19,8 @@ grep -q '^launch_state: not_go_for_public_mainnet0$' "$DOC"
 grep -q '^mutation_allowed: false$' "$DOC"
 grep -q '^launch_approval: false$' "$DOC"
 grep -q '^money_step: last$' "$DOC"
-grep -q '^commit: 152cf74c$' "$DOC"
-grep -q '^tag: ckpt-final-checklist-validator-candidate-posture-green-20260523-020915$' "$DOC"
+grep -q '^commit: 654ea54f$' "$DOC"
+grep -q '^tag: ckpt-launch-approval-artifact-prep-green-20260523-024355$' "$DOC"
 grep -q 'Final path Wallet doc refresh is cross-box proven.' "$DOC"
 grep -q 'Final path includes wallet-ui-cleanup-proof.' "$DOC"
 grep -q 'Final checklist sections closeout doc is cross-box proven.' "$DOC"
@@ -30,6 +30,7 @@ grep -q 'Product surface proof is cross-box proven.' "$DOC"
 grep -q 'Settings drawer/top Settings/Escape-close UI checkpoint is cross-box proven.' "$DOC"
 grep -q 'Public validator candidate-only posture is cross-box proven.' "$DOC"
 grep -q 'Final public launch checklist validator candidate posture is cross-box proven.' "$DOC"
+grep -q 'Launch approval artifact prep is cross-box proven and plan-only/not-approved.' "$DOC"
 grep -q 'DataNet tab proof is green.' "$DOC"
 grep -q 'Participant DataNet E2E proof is green.' "$DOC"
 grep -q 'Participant golden path proof is green.' "$DOC"
@@ -50,8 +51,8 @@ echo
 echo "=== [2] git checkpoint contains baseline pointer ==="
 HEAD="$(git rev-parse --short HEAD)"
 DESC="$(git describe --tags --always --dirty)"
-POINTER_COMMIT="152cf74c"
-POINTER_TAG="ckpt-final-checklist-validator-candidate-posture-green-20260523-020915"
+POINTER_COMMIT="654ea54f"
+POINTER_TAG="ckpt-launch-approval-artifact-prep-green-20260523-024355"
 echo "head=$HEAD"
 echo "describe=$DESC"
 echo "pointer_commit=$POINTER_COMMIT"
@@ -103,8 +104,8 @@ echo
 echo "=== [6] summary ==="
 python3 - <<'PY'
 print({
-  "current_baseline": "152cf74c",
-  "tag": "ckpt-final-checklist-validator-candidate-posture-green-20260523-020915",
+  "current_baseline": "654ea54f",
+  "tag": "ckpt-launch-approval-artifact-prep-green-20260523-024355",
   "cross_box_proven": True,
   "launch_state": "not_go_for_public_mainnet0",
   "launch_approval": False,
