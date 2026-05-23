@@ -84,6 +84,8 @@ rm -f ops/mainnet/*recovery*.json
 rm -f ops/mainnet/validator-truth-upgrade-track*.json
 rm -f ops/mainnet/mainnet0-validator-live-admission-readiness.current.json
 rm -f ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh
+rm -f ops/mainnet/mainnet0-key-ceremony-result.template.md
+rm -f ops/mainnet/mainnet0-key-ceremony-result-template-proof.sh
 
 rm -f config/*live*.json
 rm -f config/*state*.json
