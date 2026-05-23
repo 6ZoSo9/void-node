@@ -22,7 +22,8 @@ operator_label: zoso
 - Validator public reward address and consensus key are recorded.
 - Validator runtime truth is recovered through epoch127; the current guarded next-onboard lane now points to vault126 / epoch128 / expectedValidatorCount=127.
 - Validator next-onboard intent gate proof is green cross-box: confirm:true, exact operator intent, and VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 are required before live onboarding can run.
-- Final path launch approval ref-clean baseline is cross-box proven at 6984f3bf / ckpt-final-path-launch-approval-ref-clean-green-20260521-003126.
+- Launch approval prep baseline-reference checkpoint is cross-box proven at 10a14b6d / ckpt-launch-approval-prep-baseline-ref-green-20260523-071451.
+- Launch approval artifact prep is plan-only/not-approved and cross-box proven; approval_artifact_created=false.
 
 ## Still not done
 
