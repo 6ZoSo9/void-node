@@ -28,7 +28,7 @@ It does not mutate live validator state.
 - final path includes wallet-ui-cleanup-proof.
 - current baseline + final go/no-go map refresh is cross-box proven at 5a47a875 / ckpt-current-baseline-candidate-only-posture-green-20260523-085213.
 - current baseline pointer records 5a47a875 / ckpt-current-baseline-candidate-only-posture-green-20260523-085213.
-- product surface, Settings UI, public validator candidate-only posture, final checklist validator posture, and launch approval artifact prep proof stack are green.
+- product surface, Settings UI, public validator candidate-only posture, final checklist validator posture, launch approval artifact prep, and launch approval artifact template proof stacks are green.
 - DataNet tab proof is green.
 - participant DataNet E2E proof is green.
 - participant golden path proof is green.
