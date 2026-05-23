@@ -25,9 +25,9 @@ It does not:
 
 ## Current proven baseline
 
-- current_baseline: 69fc2c96 / ckpt-mainnet0-baseline-launch-approval-prep-green-20260523-070707
+- current_baseline: 1cd3e15a / ckpt-candidate-only-validator-posture-clarity-green-20260523-083458
 - final_checklist_validator_candidate_posture: 152cf74c / ckpt-final-checklist-validator-candidate-posture-green-20260523-020915
-- launch_approval_artifact_prep_checkpoint: 654ea54f / ckpt-launch-approval-artifact-prep-green-20260523-024355
+- launch_approval_artifact_prep_checkpoint: 1cd3e15a / ckpt-candidate-only-validator-posture-clarity-green-20260523-083458
 - public validator registration is candidate/waiting-only for Mainnet-0.
 - public active validator admission remains disabled.
 - launch approval remains false.
