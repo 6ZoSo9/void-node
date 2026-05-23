@@ -12,7 +12,7 @@ type WorkCreditsDevnetState = {
 
 function readWorkcreditsDevnetState(): WorkCreditsDevnetState | null {
   try {
-    const p = path.join(process.cwd(), "docs", "VOID-WORKCREDITS-DEVNET-STATE.json");
+    const p = process.env.VOID_WORKCREDITS_STATE_FILE || process.env.WC_STATE_FILE || process.env.STATE_FILE || path.join(process.cwd(), "docs", "VOID-WORKCREDITS-DEVNET-STATE.json");
     const raw = fs.readFileSync(p, "utf8");
     const parsed = JSON.parse(raw);
 

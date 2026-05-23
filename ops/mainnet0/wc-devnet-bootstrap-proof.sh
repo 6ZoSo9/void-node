@@ -292,7 +292,9 @@ proto = {
   "workCreditsRelayerV1": "0x0000000000000000000000000000000000000000",
   "voidToken": void_token
 }
-pathlib.Path("docs/VOID-DEVNET-PROTOCOL-STATE.json").write_text(json.dumps(proto, indent=2) + "\n")
+proto_path = pathlib.Path(os.environ.get("STATE_JSON", "docs/VOID-DEVNET-PROTOCOL-STATE.json"))
+proto_path.parent.mkdir(parents=True, exist_ok=True)
+proto_path.write_text(json.dumps(proto, indent=2) + "\n")
 
 wc = {
   "chain": "devnet",
@@ -303,9 +305,12 @@ wc = {
   "workcredits_token": wc_token,
   "void_token": void_token
 }
-pathlib.Path("docs/VOID-WORKCREDITS-DEVNET-STATE.json").write_text(json.dumps(wc, indent=2) + "\n")
+wc_path = pathlib.Path(os.environ.get("STATE_FILE", "docs/VOID-WORKCREDITS-DEVNET-STATE.json"))
+wc_path.parent.mkdir(parents=True, exist_ok=True)
+wc_path.write_text(json.dumps(wc, indent=2) + "\n")
 
-cfg_path = pathlib.Path("config/void-workcredits-devnet.live.json")
+cfg_path = pathlib.Path(os.environ.get("WC_CONFIG_FILE", "config/void-workcredits-devnet.live.json"))
+cfg_path.parent.mkdir(parents=True, exist_ok=True)
 try:
     cfg = json.loads(cfg_path.read_text())
 except Exception:
@@ -329,7 +334,8 @@ bcast = {
     {"contractName": "WorkCreditsPoolV1", "contractAddress": pool}
   ]
 }
-bpath = pathlib.Path("broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json")
+bpath = pathlib.Path(os.environ.get("BCAST_FILE", "broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json"))
+bpath.parent.mkdir(parents=True, exist_ok=True)
 bpath.parent.mkdir(parents=True, exist_ok=True)
 bpath.write_text(json.dumps(bcast, indent=2) + "\n")
 

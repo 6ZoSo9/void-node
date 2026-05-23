@@ -6,7 +6,7 @@ REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$REPO_ROOT"
 
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
-STATE_FILE="docs/VOID-DEVNET-PROTOCOL-STATE.json"
+STATE_FILE="${STATE_FILE:-docs/VOID-DEVNET-PROTOCOL-STATE.json}"
 
 # Resolve VOID token from state first; only fall back if missing.
 DEVNET_VOID_TOKEN="$(jq -r '.voidToken // .voidTokenWorkCredits // empty' "$STATE_FILE" 2>/dev/null || true)"

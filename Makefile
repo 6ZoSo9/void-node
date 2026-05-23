@@ -925,8 +925,18 @@ wallet-ui-cleanup-proof:
 
 .PHONY: wc-devnet-bootstrap-proof
 wc-devnet-bootstrap-proof:
-	bash ops/mainnet0/wc-devnet-bootstrap-proof.sh
+	@mkdir -p .runtime/mainnet0/wc-devnet-local/current/docs .runtime/mainnet0/wc-devnet-local/current/config .runtime/mainnet0/wc-devnet-local/current/broadcast/WorkCreditsDevnetDeploy.s.sol/2050
+	@STATE_JSON="$$(pwd)/.runtime/mainnet0/wc-devnet-local/current/docs/VOID-DEVNET-PROTOCOL-STATE.json" \
+	  STATE_FILE="$$(pwd)/.runtime/mainnet0/wc-devnet-local/current/docs/VOID-WORKCREDITS-DEVNET-STATE.json" \
+	  WC_CONFIG_FILE="$$(pwd)/.runtime/mainnet0/wc-devnet-local/current/config/void-workcredits-devnet.live.json" \
+	  BCAST_FILE="$$(pwd)/.runtime/mainnet0/wc-devnet-local/current/broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json" \
+	  bash ops/mainnet0/wc-devnet-bootstrap-proof.sh
 
 .PHONY: mainnet0-launch-approval-artifact-prep-proof
 mainnet0-launch-approval-artifact-prep-proof:
 	bash ops/mainnet/mainnet0-launch-approval-artifact-prep-proof.sh
+
+
+.PHONY: wc-devnet-local-state-proof
+wc-devnet-local-state-proof:
+	@bash ops/mainnet0/wc-devnet-local-state-proof.sh

@@ -154,7 +154,7 @@ async function getDashboard(wallet) {
 }
 
 function readStateJson() {
-  const p = path.join(ROOT, 'docs', 'VOID-DEVNET-PROTOCOL-STATE.json');
+  const p = process.env.STATE_JSON || process.env.WC_STATE_JSON || path.join(ROOT, 'docs', 'VOID-DEVNET-PROTOCOL-STATE.json');
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); }
   catch { return {}; }
 }

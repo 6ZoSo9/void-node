@@ -295,8 +295,8 @@ else
   exit 1
 fi
 
-STATE_JSON="$ROOT/docs/VOID-DEVNET-PROTOCOL-STATE.json"
-BROADCAST_JSON="$ROOT/broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json"
+STATE_JSON="${STATE_JSON:-$ROOT/docs/VOID-DEVNET-PROTOCOL-STATE.json}"
+BROADCAST_JSON="${BROADCAST_JSON:-$ROOT/broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json}"
 LEDGER_JSONL="$ROOT/data_a/wc_v1/ledger.jsonl"
 REDEEMED_JSONL="$ROOT/data_a/wc_v1/redeemed.jsonl"
 
