@@ -245,6 +245,42 @@ systemctl --user restart void-node.service
 sleep 3
 
 echo
+echo "=== [i2a] re-import temporary proof wallet after proof-mode restart ==="
+python3 - "$ACC" "$PROOF_PK_FILE" "$PROOF_PASSPHRASE_FILE" "$IMPORT_PAYLOAD" <<'PY2'
+import json, sys
+acc, pk_file, pass_file, out = sys.argv[1:]
+payload = {
+  "account": acc,
+  "private_key": open(pk_file).read().strip(),
+  "passphrase": open(pass_file).read().strip()
+}
+open(out, "w").write(json.dumps(payload))
+PY2
+chmod 600 "$IMPORT_PAYLOAD"
+
+HTTP_IMPORT_AFTER_RESTART="$(curl -sS -o "$OUT/wallet-import.after-proof-restart.json" -w '%{http_code}' \
+  --max-time 10 \
+  -H 'content-type: application/json' \
+  -d @"$IMPORT_PAYLOAD" \
+  "$BASE/__void/participant/wallet/import" || true)"
+rm -f "$IMPORT_PAYLOAD"
+
+echo "wallet_import_after_restart_http=$HTTP_IMPORT_AFTER_RESTART"
+cat "$OUT/wallet-import.after-proof-restart.json"
+echo
+
+python3 - "$OUT/wallet-import.after-proof-restart.json" "$HTTP_IMPORT_AFTER_RESTART" "$ACC" <<'PY2'
+import json, sys
+j=json.load(open(sys.argv[1]))
+http=sys.argv[2]
+acc=sys.argv[3].lower()
+assert http == "200", (http, j)
+assert j.get("ok") is True, j
+addr = str(j.get("address") or j.get("wallet") or j.get("wallet_address") or "")
+assert addr.lower() == acc, j
+print("[ok] temporary proof wallet re-imported after proof-mode restart")
+PY2
+
 echo "=== [i2] unlock temporary proof wallet again after proof-mode restart ==="
 python3 - "$ACC" "$PROOF_PASSPHRASE_FILE" "$UNLOCK_PAYLOAD" <<'PY2'
 import json, sys
