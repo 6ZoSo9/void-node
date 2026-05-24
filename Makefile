@@ -968,3 +968,7 @@ mainnet0-launch-approval-artifact-draft-proof:
 .PHONY: mainnet0-post-ops-seed-launch-state-proof
 mainnet0-post-ops-seed-launch-state-proof:
 	bash ops/mainnet/mainnet0-post-ops-seed-launch-state-proof.sh
+
+.PHONY: mainnet0-public-launch-promotion-proof
+mainnet0-public-launch-promotion-proof:
+	bash ops/mainnet/mainnet0-public-launch-promotion-proof.sh
