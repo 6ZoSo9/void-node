@@ -8,6 +8,7 @@ Status: public_mainnet0_live / GO_PUBLIC_MAINNET0
 Start here:
 
 - Current public status: docs/public/mainnet0-current-public-status.md
+- FAQ: docs/public/mainnet0-faq.md
 - Whitepaper: docs/public/void-network-whitepaper.md
 - Public docs index: docs/public/README.md
 - Public release bundle closeout: docs/public/mainnet0-public-release-bundle-closeout.md

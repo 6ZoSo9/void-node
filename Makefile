@@ -992,3 +992,7 @@ mainnet0-whitepaper-proof:
 .PHONY: mainnet0-current-public-status-proof
 mainnet0-current-public-status-proof:
 	bash ops/mainnet/mainnet0-current-public-status-proof.sh
+
+.PHONY: mainnet0-public-faq-proof
+mainnet0-public-faq-proof:
+	bash ops/mainnet/mainnet0-public-faq-proof.sh
