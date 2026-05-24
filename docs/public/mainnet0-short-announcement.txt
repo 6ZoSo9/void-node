@@ -1,0 +1,20 @@
+VOID Network Mainnet-0 is live.
+
+Status: public_mainnet0_live / GO_PUBLIC_MAINNET0
+Checkpoint: 96ab31f7 / ckpt-mainnet0-public-docs-index-green-20260524-082202
+
+What is live:
+- VOID Mainnet-0 node runtime
+- public docs and participant onboarding
+- local participant page from a running node
+- candidate/waiting validator registration posture
+- guarded Buy VOID fulfillment path
+
+Still guarded:
+- public active validator admission is disabled
+- vault126 onboarding has not executed
+- future treasury spend is separately guarded
+- Buy VOID fulfillment requires explicit verification and tx-ref recording
+- no blind deposits or unsupported custodial/exchange sends
+
+Start with docs/public/README.md.

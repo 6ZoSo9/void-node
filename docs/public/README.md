@@ -8,6 +8,8 @@ Start here:
 1. `mainnet0-launch-notes.md` — what is live, what remains guarded, and the launch checkpoint.
 2. `run-a-node.md` — how to run a VOID Mainnet-0 node.
 3. `participant-onboarding.md` — how participants should start safely.
+4. `mainnet0-announcement.md` — public launch announcement.
+5. `mainnet0-short-announcement.txt` — short copy/paste launch blurb.
 
 ## Mainnet-0 status
 
