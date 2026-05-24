@@ -988,3 +988,7 @@ mainnet0-public-release-bundle-closeout-proof:
 .PHONY: mainnet0-whitepaper-proof
 mainnet0-whitepaper-proof:
 	bash ops/mainnet/mainnet0-whitepaper-proof.sh
+
+.PHONY: mainnet0-current-public-status-proof
+mainnet0-current-public-status-proof:
+	bash ops/mainnet/mainnet0-current-public-status-proof.sh

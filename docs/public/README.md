@@ -11,6 +11,7 @@ Start here:
 4. `mainnet0-announcement.md` — public launch announcement.
 5. `mainnet0-short-announcement.txt` — short copy/paste launch blurb.
 6. `void-network-whitepaper.md` — detailed technical and economic whitepaper.
+7. `mainnet0-current-public-status.md` — current public status and guardrails.
 
 ## Mainnet-0 status
 
