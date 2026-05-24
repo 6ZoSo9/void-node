@@ -956,3 +956,7 @@ mainnet0-key-ceremony-result-proof:
 .PHONY: mainnet0-key-ceremony-backup-receipt-proof
 mainnet0-key-ceremony-backup-receipt-proof:
 	bash ops/mainnet/mainnet0-key-ceremony-backup-receipt-proof.sh
+
+.PHONY: mainnet0-authority-funding-preflight-proof
+mainnet0-authority-funding-preflight-proof:
+	bash ops/mainnet/mainnet0-authority-funding-preflight-proof.sh
