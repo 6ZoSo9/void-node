@@ -960,3 +960,7 @@ mainnet0-key-ceremony-backup-receipt-proof:
 .PHONY: mainnet0-authority-funding-preflight-proof
 mainnet0-authority-funding-preflight-proof:
 	bash ops/mainnet/mainnet0-authority-funding-preflight-proof.sh
+
+.PHONY: mainnet0-launch-approval-artifact-draft-proof
+mainnet0-launch-approval-artifact-draft-proof:
+	bash ops/mainnet/mainnet0-launch-approval-artifact-draft-proof.sh
