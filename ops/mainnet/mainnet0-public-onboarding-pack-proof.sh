@@ -7,6 +7,7 @@ LAUNCH="docs/public/mainnet0-launch-notes.md"
 NODE="docs/public/run-a-node.md"
 PARTICIPANT="docs/public/participant-onboarding.md"
 INDEX="docs/public/README.md"
+ROOT_README="README.md"
 ANNOUNCEMENT="docs/public/mainnet0-announcement.md"
 SHORT_ANNOUNCEMENT="docs/public/mainnet0-short-announcement.txt"
 CLOSEOUT="ops/mainnet/mainnet0-public-live-closeout.20260524-075712.md"
@@ -16,13 +17,22 @@ echo "=== Mainnet-0 public onboarding pack proof ==="
 
 echo
 echo "=== [1] required files ==="
-for f in "$INDEX" "$LAUNCH" "$NODE" "$PARTICIPANT" "$ANNOUNCEMENT" "$SHORT_ANNOUNCEMENT" "$CLOSEOUT" "$STATUS"; do
+for f in "$ROOT_README" "$INDEX" "$LAUNCH" "$NODE" "$PARTICIPANT" "$ANNOUNCEMENT" "$SHORT_ANNOUNCEMENT" "$CLOSEOUT" "$STATUS"; do
   test -f "$f"
 done
 echo "[ok] required files exist"
 
 echo
-echo "=== [2] docs index ==="
+echo "=== [2] root README pointer ==="
+grep -q "VOID Mainnet-0 is live" "$ROOT_README"
+grep -q "docs/public/README.md" "$ROOT_README"
+grep -q "docs/public/run-a-node.md" "$ROOT_README"
+grep -q "Public active validator admission remains disabled." "$ROOT_README"
+grep -q "Future treasury spend remains separately guarded." "$ROOT_README"
+echo "[ok] root README points to public docs and guardrails"
+
+echo
+echo "=== [3] docs index ==="
 grep -q "^status: public_mainnet0_live$" "$INDEX"
 grep -q "mainnet0-launch-notes.md" "$INDEX"
 grep -q "run-a-node.md" "$INDEX"
@@ -31,7 +41,7 @@ grep -q "Public active validator admission remains disabled." "$INDEX"
 echo "[ok] docs index present"
 
 echo
-echo "=== [3] announcement docs ==="
+echo "=== [4] announcement docs ==="
 grep -q "^status: public_mainnet0_live$" "$ANNOUNCEMENT"
 grep -q "^decision: GO_PUBLIC_MAINNET0$" "$ANNOUNCEMENT"
 grep -q "VOID Network Mainnet-0 is live." "$ANNOUNCEMENT"
@@ -43,7 +53,7 @@ grep -q "Start with docs/public/README.md." "$SHORT_ANNOUNCEMENT"
 echo "[ok] announcement docs present and guarded"
 
 echo
-echo "=== [4] launch notes ==="
+echo "=== [5] launch notes ==="
 grep -q '^status: public_mainnet0_live$' "$LAUNCH"
 grep -q '^decision: GO_PUBLIC_MAINNET0$' "$LAUNCH"
 grep -q 'ckpt-mainnet0-public-live-closeout-green-20260524-075712' "$LAUNCH"
@@ -54,7 +64,7 @@ grep -q '0x98288e5a34ea28d63aa2ab396ef83a21c4fcc55747b7acebc53122591ed86fb2' "$L
 echo "[ok] launch notes encode public-live truth and guardrails"
 
 echo
-echo "=== [5] run node docs ==="
+echo "=== [6] run node docs ==="
 grep -q 'git clone https://github.com/6ZoSo9/void-node.git' "$NODE"
 grep -q 'npm install' "$NODE"
 grep -q 'npm run build' "$NODE"
@@ -64,7 +74,7 @@ grep -q 'Do not expose private keys.' "$NODE"
 echo "[ok] node-running docs present"
 
 echo
-echo "=== [6] participant onboarding docs ==="
+echo "=== [7] participant onboarding docs ==="
 grep -q 'Public validator registration is candidate/waiting only for Mainnet-0.' "$PARTICIPANT"
 grep -q 'Payment confirmation does not equal VOID sent.' "$PARTICIPANT"
 grep -q 'Do not send blind direct deposits.' "$PARTICIPANT"
@@ -73,14 +83,14 @@ grep -q 'Do not share private keys or seed phrases.' "$PARTICIPANT"
 echo "[ok] participant onboarding docs preserve safety boundaries"
 
 echo
-echo "=== [7] closeout/status agreement ==="
+echo "=== [8] closeout/status agreement ==="
 grep -q '^status: public_mainnet0_live_cross_box_green$' "$CLOSEOUT"
 grep -q '^status: public_mainnet0_live$' "$STATUS"
 grep -q 'This public launch state does not authorize public active validator admission' "$STATUS"
 echo "[ok] closeout and status agree"
 
 echo
-echo "=== [8] no obvious secret material in public docs ==="
+echo "=== [9] no obvious secret material in public docs ==="
 if grep -RInE 'private_key|seed phrase:|mnemonic|BEGIN PRIVATE' docs/public; then
   echo "[ERR] possible secret-like material found in public docs"
   exit 1
@@ -88,10 +98,11 @@ fi
 echo "[ok] no obvious secret material found"
 
 echo
-echo "=== [9] summary ==="
+echo "=== [10] summary ==="
 python3 - <<'PY'
 print({
   "public_onboarding_pack": "green",
+  "root_readme": "present",
   "launch_notes": "present",
   "run_node_docs": "present",
   "participant_onboarding": "present",

@@ -1,4 +1,27 @@
 # void-node
+
+<!-- VOID_PUBLIC_DOCS_START -->
+## VOID Mainnet-0 is live
+
+Status: public_mainnet0_live / GO_PUBLIC_MAINNET0
+
+Start here:
+
+- Public docs index: docs/public/README.md
+- Launch notes: docs/public/mainnet0-launch-notes.md
+- Run a node: docs/public/run-a-node.md
+- Participant onboarding: docs/public/participant-onboarding.md
+- Announcement: docs/public/mainnet0-announcement.md
+
+Important guardrails:
+
+- Public active validator admission remains disabled.
+- Public validator registration remains candidate/waiting only.
+- Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
+- Future treasury spend remains separately guarded.
+- Do not share private keys or seed phrases.
+<!-- VOID_PUBLIC_DOCS_END -->
+
 Minimal block node with segmented storage, pubsub, and HTTP APIs.
 
 ## Current Proven Paths (2026-03-23)
