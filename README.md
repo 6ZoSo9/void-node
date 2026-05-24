@@ -9,6 +9,7 @@ Start here:
 
 - Quick start: docs/public/quick-start.md
 - Windows WSL2 quick start: docs/public/windows-wsl2-quick-start.md
+- Support runbook: docs/public/support-runbook.md
 - Current public status: docs/public/mainnet0-current-public-status.md
 - FAQ: docs/public/mainnet0-faq.md
 - Whitepaper: docs/public/void-network-whitepaper.md

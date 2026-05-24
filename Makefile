@@ -1004,3 +1004,7 @@ mainnet0-quick-start-proof:
 .PHONY: mainnet0-windows-wsl2-quick-start-proof
 mainnet0-windows-wsl2-quick-start-proof:
 	bash ops/mainnet/mainnet0-windows-wsl2-quick-start-proof.sh
+
+.PHONY: mainnet0-support-runbook-proof
+mainnet0-support-runbook-proof:
+	bash ops/mainnet/mainnet0-support-runbook-proof.sh

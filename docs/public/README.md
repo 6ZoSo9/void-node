@@ -15,6 +15,7 @@ Start here:
 8. `mainnet0-faq.md` — common questions for users, operators, and potential investors.
 9. `quick-start.md` — fastest path for new users to run a node.
 10. `windows-wsl2-quick-start.md` — Windows WSL2 path for running a node.
+11. `support-runbook.md` — first-response support checklist for node/user issues.
 
 ## Mainnet-0 status
 
