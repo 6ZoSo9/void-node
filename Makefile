@@ -1012,3 +1012,7 @@ mainnet0-support-runbook-proof:
 .PHONY: mainnet0-start-here-proof
 mainnet0-start-here-proof:
 	bash ops/mainnet/mainnet0-start-here-proof.sh
+
+.PHONY: mainnet0-public-docs-stack-proof
+mainnet0-public-docs-stack-proof:
+	bash ops/mainnet/mainnet0-public-docs-stack-proof.sh
