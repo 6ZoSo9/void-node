@@ -7,7 +7,10 @@ Status: public_mainnet0_live / GO_PUBLIC_MAINNET0
 
 Start here:
 
+- Current public status: docs/public/mainnet0-current-public-status.md
+- Whitepaper: docs/public/void-network-whitepaper.md
 - Public docs index: docs/public/README.md
+- Public release bundle closeout: docs/public/mainnet0-public-release-bundle-closeout.md
 - Launch notes: docs/public/mainnet0-launch-notes.md
 - Run a node: docs/public/run-a-node.md
 - Participant onboarding: docs/public/participant-onboarding.md
@@ -17,6 +20,7 @@ Important guardrails:
 
 - Public active validator admission remains disabled.
 - Public validator registration remains candidate/waiting only.
+- Vault126 onboarding has not been executed.
 - Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
 - Future treasury spend remains separately guarded.
 - Do not share private keys or seed phrases.
