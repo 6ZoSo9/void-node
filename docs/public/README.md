@@ -10,6 +10,7 @@ Start here:
 3. `participant-onboarding.md` — how participants should start safely.
 4. `mainnet0-announcement.md` — public launch announcement.
 5. `mainnet0-short-announcement.txt` — short copy/paste launch blurb.
+6. `void-network-whitepaper.md` — detailed technical and economic whitepaper.
 
 ## Mainnet-0 status
 

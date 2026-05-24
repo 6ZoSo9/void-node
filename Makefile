@@ -984,3 +984,7 @@ mainnet0-public-onboarding-pack-proof:
 .PHONY: mainnet0-public-release-bundle-closeout-proof
 mainnet0-public-release-bundle-closeout-proof:
 	bash ops/mainnet/mainnet0-public-release-bundle-closeout-proof.sh
+
+.PHONY: mainnet0-whitepaper-proof
+mainnet0-whitepaper-proof:
+	bash ops/mainnet/mainnet0-whitepaper-proof.sh
