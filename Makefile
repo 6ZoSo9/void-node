@@ -964,3 +964,7 @@ mainnet0-authority-funding-preflight-proof:
 .PHONY: mainnet0-launch-approval-artifact-draft-proof
 mainnet0-launch-approval-artifact-draft-proof:
 	bash ops/mainnet/mainnet0-launch-approval-artifact-draft-proof.sh
+
+.PHONY: mainnet0-post-ops-seed-launch-state-proof
+mainnet0-post-ops-seed-launch-state-proof:
+	bash ops/mainnet/mainnet0-post-ops-seed-launch-state-proof.sh
