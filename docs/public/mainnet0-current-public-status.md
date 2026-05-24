@@ -11,6 +11,7 @@ public_release_hygiene_checkpoint: 9b904aa1 / ckpt-public-release-hygiene-public
 public_live_closeout_checkpoint: 6c8fa0df / ckpt-mainnet0-public-live-closeout-green-20260524-075712
 quick_start_checkpoint: 0635c606 / ckpt-mainnet0-quick-start-green-20260524-111319
 windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick-start-green-20260524-112502
+support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228
 
 ## Current truth
 
@@ -31,6 +32,7 @@ The current public package includes:
 - docs/public/void-network-whitepaper.md
 - docs/public/mainnet0-current-public-status.md
 - docs/public/windows-wsl2-quick-start.md
+- docs/public/support-runbook.md
 - docs/public/quick-start.md
 
 ## Start here
@@ -55,6 +57,10 @@ Node operators should read:
 
     docs/public/run-a-node.md
 
+Support/public operators should read:
+
+    docs/public/support-runbook.md
+
 Participants should read:
 
     docs/public/participant-onboarding.md
@@ -67,6 +73,7 @@ Participants should read:
 - Public documentation is available.
 - Linux quick-start is available.
 - Windows WSL2 quick-start is available.
+- Public support runbook is available.
 - Whitepaper v1 is available.
 - Public release hygiene is green.
 - Sanitized public export and gitleaks path are green.
