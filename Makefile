@@ -972,3 +972,7 @@ mainnet0-post-ops-seed-launch-state-proof:
 .PHONY: mainnet0-public-launch-promotion-proof
 mainnet0-public-launch-promotion-proof:
 	bash ops/mainnet/mainnet0-public-launch-promotion-proof.sh
+
+.PHONY: mainnet0-public-live-closeout-proof
+mainnet0-public-live-closeout-proof:
+	bash ops/mainnet/mainnet0-public-live-closeout-proof.sh
