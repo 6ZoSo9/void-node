@@ -10,8 +10,8 @@ operator_label: zoso
 
 ## Current canonical baseline
 
-- current_baseline_pointer_commit: 1cd3e15a
-- current_baseline_pointer_tag: ckpt-candidate-only-validator-posture-clarity-green-20260523-083458
+- current_baseline_pointer_commit: 4c3aa800
+- current_baseline_pointer_tag: ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500
 - baseline_pointer_file: ops/mainnet/mainnet0-current-baseline.current.md
 - cross_box_proven: true
 
@@ -21,7 +21,7 @@ operator_label: zoso
 - Alienware node readiness is green.
 - Cross-box status smoke is green.
 - Mainnet-0 current baseline pointer proof is green.
-- Current baseline pointer now records 5a47a875 / ckpt-current-baseline-candidate-only-posture-green-20260523-085213 as the canonical rolling baseline.
+- Current baseline pointer records 4c3aa800 / ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500 as the canonical public-live promotion baseline.
 - Product surface proof is green.
 - DataNet tab proof is green.
 - Participant DataNet E2E proof is green.
@@ -61,7 +61,7 @@ Candidate-only public registration is the intended Mainnet-0 posture; the blocke
 
 ## Required after GO
 
-Before this can become GO, all of the following must be true:
+After GO_PUBLIC_MAINNET0, all of the following must remain true:
 
 1. mainnet0-current-baseline-proof passes on the intended launch commit.
 2. mainnet0-status-smoke passes on Precision and Alienware.
@@ -77,7 +77,7 @@ Before this can become GO, all of the following must be true:
 12. Buy VOID claim/send remains blocked unless explicitly verified and recorded.
 13. Final public release hygiene remains green.
 14. Fresh mainnet key ceremony and secure backups are explicitly confirmed before public launch.
-15. A separate explicit launch approval artifact is written and proved.
+15. The explicit launch approval artifact and public launch promotion proof remain recorded and proved.
 
 ## Current decision
 

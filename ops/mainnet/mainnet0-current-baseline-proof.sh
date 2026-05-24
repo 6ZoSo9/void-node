@@ -19,8 +19,8 @@ grep -q '^launch_state: public_mainnet0_live$' "$DOC"
 grep -q '^mutation_allowed: true$' "$DOC"
 grep -q '^launch_approval: true$' "$DOC"
 grep -q '^money_step: ops_seed_complete_future_spend_guarded$' "$DOC"
-grep -q '^commit: 1cd3e15a$' "$DOC"
-grep -q '^tag: ckpt-candidate-only-validator-posture-clarity-green-20260523-083458$' "$DOC"
+grep -q '^commit: 4c3aa800$' "$DOC"
+grep -q '^tag: ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500$' "$DOC"
 grep -q 'Final path Wallet doc refresh is cross-box proven.' "$DOC"
 grep -q 'Final path includes wallet-ui-cleanup-proof.' "$DOC"
 grep -q 'Final checklist sections closeout doc is cross-box proven.' "$DOC"
@@ -53,8 +53,8 @@ echo
 echo "=== [2] git checkpoint contains baseline pointer ==="
 HEAD="$(git rev-parse --short HEAD)"
 DESC="$(git describe --tags --always --dirty)"
-POINTER_COMMIT="1cd3e15a"
-POINTER_TAG="ckpt-candidate-only-validator-posture-clarity-green-20260523-083458"
+POINTER_COMMIT="4c3aa800"
+POINTER_TAG="ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500"
 echo "head=$HEAD"
 echo "describe=$DESC"
 echo "pointer_commit=$POINTER_COMMIT"
@@ -106,14 +106,14 @@ echo
 echo "=== [6] summary ==="
 python3 - <<'PY'
 print({
-  "current_baseline": "1cd3e15a",
-  "tag": "ckpt-candidate-only-validator-posture-clarity-green-20260523-083458",
+  "current_baseline": "4c3aa800",
+  "tag": "ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500",
   "cross_box_proven": True,
   "launch_state": "public_mainnet0_live",
-  "launch_approval": False,
-  "mutation_allowed": False,
+  "launch_approval": True,
+  "mutation_allowed": True,
   "public_validator_admission": "candidate_only_for_mainnet0",
-  "money_step": "last",
+  "money_step": "ops_seed_complete_future_spend_guarded",
 })
 PY
 
