@@ -1000,3 +1000,7 @@ mainnet0-public-faq-proof:
 .PHONY: mainnet0-quick-start-proof
 mainnet0-quick-start-proof:
 	bash ops/mainnet/mainnet0-quick-start-proof.sh
+
+.PHONY: mainnet0-windows-wsl2-quick-start-proof
+mainnet0-windows-wsl2-quick-start-proof:
+	bash ops/mainnet/mainnet0-windows-wsl2-quick-start-proof.sh

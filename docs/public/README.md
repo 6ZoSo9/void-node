@@ -14,6 +14,7 @@ Start here:
 7. `mainnet0-current-public-status.md` — current public status and guardrails.
 8. `mainnet0-faq.md` — common questions for users, operators, and potential investors.
 9. `quick-start.md` — fastest path for new users to run a node.
+10. `windows-wsl2-quick-start.md` — Windows WSL2 path for running a node.
 
 ## Mainnet-0 status
 

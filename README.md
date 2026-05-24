@@ -8,6 +8,7 @@ Status: public_mainnet0_live / GO_PUBLIC_MAINNET0
 Start here:
 
 - Quick start: docs/public/quick-start.md
+- Windows WSL2 quick start: docs/public/windows-wsl2-quick-start.md
 - Current public status: docs/public/mainnet0-current-public-status.md
 - FAQ: docs/public/mainnet0-faq.md
 - Whitepaper: docs/public/void-network-whitepaper.md
