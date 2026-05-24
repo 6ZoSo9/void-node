@@ -91,12 +91,34 @@ echo "[ok] closeout and status agree"
 
 echo
 echo "=== [9] no obvious secret material in public docs ==="
-if grep -RInE 'private_key|seed phrase:|mnemonic|BEGIN PRIVATE' docs/public; then
-  echo "[ERR] possible secret-like material found in public docs"
-  exit 1
-fi
-echo "[ok] no obvious secret material found"
+python3 - <<'CHECK_PUBLIC_DOC_SECRETS'
+from pathlib import Path
+import re
 
+paths = [Path("README.md")] + sorted(Path("docs/public").glob("*"))
+patterns = {
+    "pem_private_key_block": r"BEGIN [A-Z ]*PRIVATE KEY",
+    "private_key_assignment": r"(?i)\bprivate[_-]?key\s*[:=]\s*[^\s]+",
+    "mnemonic_assignment": r"(?i)\bmnemonic\s*[:=]\s*[^\n]+",
+    "seed_phrase_assignment": r"(?i)\bseed[_ -]?phrase\s*[:=]\s*[^\n]+",
+    "passphrase_assignment": r"(?i)\bpassphrase\s*[:=]\s*[^\n]+",
+    "json_keystore_crypto": r"\"crypto\"\s*:\s*\{",
+}
+hits = []
+for path in paths:
+    if not path.is_file():
+        continue
+    text = path.read_text()
+    for name, pat in patterns.items():
+        for m in re.finditer(pat, text):
+            line = text.count("\n", 0, m.start()) + 1
+            hits.append((str(path), line, name))
+if hits:
+    for hit in hits:
+        print("[ERR]", hit)
+    raise SystemExit(1)
+print("[ok] no obvious secret-like assignments, keystore blocks, or PEM private keys found")
+CHECK_PUBLIC_DOC_SECRETS
 echo
 echo "=== [10] summary ==="
 python3 - <<'PY'

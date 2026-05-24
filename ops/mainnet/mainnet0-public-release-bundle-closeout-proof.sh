@@ -13,6 +13,7 @@ NODE="docs/public/run-a-node.md"
 PARTICIPANT="docs/public/participant-onboarding.md"
 ANNOUNCEMENT="docs/public/mainnet0-announcement.md"
 SHORT="docs/public/mainnet0-short-announcement.txt"
+WHITEPAPER="docs/public/void-network-whitepaper.md"
 HYGIENE="ops/mainnet/mainnet0-public-release-hygiene.current.md"
 STATUS="ops/mainnet/mainnet0-status.current.md"
 BASE="${BASE:-http://127.0.0.1:4100}"
@@ -21,7 +22,7 @@ echo "=== Mainnet-0 public release bundle closeout proof ==="
 
 echo
 echo "=== [1] required files ==="
-for f in "$DOC" "$ROOT_README" "$INDEX" "$LAUNCH" "$NODE" "$PARTICIPANT" "$ANNOUNCEMENT" "$SHORT" "$HYGIENE" "$STATUS"; do
+for f in "$DOC" "$ROOT_README" "$INDEX" "$LAUNCH" "$NODE" "$PARTICIPANT" "$ANNOUNCEMENT" "$SHORT" "$WHITEPAPER" "$HYGIENE" "$STATUS"; do
   test -f "$f"
 done
 echo "[ok] required files exist"
@@ -30,6 +31,7 @@ echo
 echo "=== [2] bundle closeout artifact ==="
 grep -q '^status: public_release_bundle_cross_box_green$' "$DOC"
 grep -q '^public_release_hygiene_checkpoint: 9b904aa1 / ckpt-public-release-hygiene-public-live-green-20260524-090437$' "$DOC"
+grep -q '^whitepaper_checkpoint: 9067695b / ckpt-mainnet0-whitepaper-v1-green-20260524-102511$' "$DOC"
 grep -q '^launch_state: public_mainnet0_live$' "$DOC"
 grep -q '^decision: GO_PUBLIC_MAINNET0$' "$DOC"
 grep -q '^launch_approval: true$' "$DOC"
@@ -37,6 +39,8 @@ grep -q '^mutation_allowed_scope: launch_state_public_surface_status_only$' "$DO
 grep -q '^precision_ready: true$' "$DOC"
 grep -q '^alienware_ready: true$' "$DOC"
 grep -q 'Sanitized public release export/gitleaks path is green on committed public-live hygiene HEAD.' "$DOC"
+grep -q 'docs/public/void-network-whitepaper.md gives the detailed technical and economic whitepaper.' "$DOC"
+grep -q 'Whitepaper v1 is cross-box proven.' "$DOC"
 grep -q 'Public active validator admission remains disabled.' "$DOC"
 grep -q 'Vault126 onboarding has not been executed.' "$DOC"
 grep -q 'Future treasury spend remains separately guarded.' "$DOC"
@@ -53,6 +57,9 @@ grep -q '^status: public_mainnet0_live$' "$PARTICIPANT"
 grep -q '^status: public_mainnet0_live$' "$ANNOUNCEMENT"
 grep -q 'VOID Network Mainnet-0 is live.' "$ANNOUNCEMENT"
 grep -q 'VOID Network Mainnet-0 is live.' "$SHORT"
+grep -q '^status: public_mainnet0_live$' "$WHITEPAPER"
+grep -q '^# VOID Network Whitepaper$' "$WHITEPAPER"
+grep -q 'Maximum supply cap: 666,666,666 VOID.' "$WHITEPAPER"
 echo "[ok] public docs agree"
 
 echo
@@ -74,15 +81,19 @@ grep -q 'Future treasury spend remains separately guarded' "$DOC"
 echo "[ok] guardrail language present"
 
 echo
-echo "=== [6] public release hygiene proof ==="
+echo "=== [6] whitepaper proof ==="
+make mainnet0-whitepaper-proof
+
+echo
+echo "=== [7] public release hygiene proof ==="
 make mainnet0-public-release-hygiene-proof
 
 echo
-echo "=== [7] status smoke ==="
+echo "=== [8] status smoke ==="
 make mainnet0-status-smoke
 
 echo
-echo "=== [8] local node ready ==="
+echo "=== [9] local node ready ==="
 curl -fsS "$BASE/__void/ready.json" | tee /tmp/void-public-release-bundle-closeout-ready.json
 echo
 python3 - /tmp/void-public-release-bundle-closeout-ready.json <<'PY'
@@ -95,7 +106,7 @@ print("[ok] ready/gap/txroot")
 PY
 
 echo
-echo "=== [9] no obvious secret material in public release docs ==="
+echo "=== [10] no obvious secret material in public release docs ==="
 python3 - <<'CHECK_SECRETS'
 from pathlib import Path
 import re
@@ -109,6 +120,7 @@ paths = [
     Path("docs/public/mainnet0-announcement.md"),
     Path("docs/public/mainnet0-short-announcement.txt"),
     Path("docs/public/mainnet0-public-release-bundle-closeout.md"),
+    Path("docs/public/void-network-whitepaper.md"),
     Path("ops/mainnet/mainnet0-public-release-hygiene.current.md"),
 ]
 
@@ -137,7 +149,7 @@ if hits:
 print("[ok] no obvious secret-like assignments, keystore blocks, or PEM private keys found")
 CHECK_SECRETS
 echo
-echo "=== [10] summary ==="
+echo "=== [11] summary ==="
 python3 - <<'PY'
 print({
   "public_release_bundle_closeout": "green",
@@ -146,6 +158,7 @@ print({
   "public_docs": "ready",
   "announcement": "ready",
   "hygiene": "cross_box_green",
+  "whitepaper": "cross_box_green",
   "public_active_validator_admission": "disabled",
   "vault126_onboarding_executed": False,
   "future_treasury_spend": "separately_guarded"

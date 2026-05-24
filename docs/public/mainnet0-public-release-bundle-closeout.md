@@ -10,6 +10,7 @@ root_readme_public_docs_checkpoint: 6afa564c / ckpt-root-readme-public-docs-gree
 public_announcement_pack_checkpoint: 718519c1 / ckpt-mainnet0-public-announcement-pack-green-20260524-083654
 public_docs_index_checkpoint: 96ab31f7 / ckpt-mainnet0-public-docs-index-green-20260524-082202
 public_onboarding_pack_checkpoint: 10657b80 / ckpt-mainnet0-public-onboarding-pack-green-20260524-081134
+whitepaper_checkpoint: 9067695b / ckpt-mainnet0-whitepaper-v1-green-20260524-102511
 
 alienware_public_release_hygiene_log: /tmp/void-alienware-public-release-hygiene-proof-20260524-091027.log
 precision_crossbox_public_release_hygiene_log: /tmp/void-crossbox-public-release-hygiene-final-20260524-091208.log
@@ -39,6 +40,7 @@ alienware_txroot_live: 1
 - docs/public/participant-onboarding.md gives participant safety/onboarding notes.
 - docs/public/mainnet0-announcement.md gives the public launch announcement.
 - docs/public/mainnet0-short-announcement.txt gives the short announcement blurb.
+- docs/public/void-network-whitepaper.md gives the detailed technical and economic whitepaper.
 - ops/mainnet/mainnet0-public-release-hygiene.current.md records public-live release hygiene.
 
 ## Proven
@@ -48,6 +50,7 @@ alienware_txroot_live: 1
 - Public announcement docs are cross-box proven.
 - Root README public docs pointer is cross-box proven.
 - Public release hygiene is cross-box proven.
+- Whitepaper v1 is cross-box proven.
 - Sanitized public release export/gitleaks path is green on committed public-live hygiene HEAD.
 - Precision and Alienware are synced and healthy at the hygiene checkpoint.
 
