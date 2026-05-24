@@ -5,6 +5,7 @@ checkpoint: 10657b80 / ckpt-mainnet0-public-onboarding-pack-green-20260524-08113
 
 Start here:
 
+0. `start-here.md` — shortest public entry point and reading order.
 1. `mainnet0-launch-notes.md` — what is live, what remains guarded, and the launch checkpoint.
 2. `run-a-node.md` — how to run a VOID Mainnet-0 node.
 3. `participant-onboarding.md` — how participants should start safely.
