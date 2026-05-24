@@ -1,0 +1,71 @@
+# VOID Mainnet-0 Quick Start
+
+status: public_mainnet0_live
+decision: GO_PUBLIC_MAINNET0
+updated_at_utc: 20260524-110500
+
+current_public_status_checkpoint: 30e9d994 / ckpt-mainnet0-public-faq-green-20260524-105421
+
+## Fast path
+
+Use Linux or WSL2.
+
+    git clone https://github.com/6ZoSo9/void-node.git
+    cd void-node
+    npm install
+    npm run build
+
+Start the node using the repo's documented runtime path.
+
+Then verify readiness:
+
+    curl -fsS http://127.0.0.1:4100/__void/ready.json
+
+A healthy node should report:
+
+    ready=true
+    gap=0
+    txroot_live=1
+
+Open the participant page:
+
+    http://127.0.0.1:4100/participant
+
+## Read these next
+
+- Current public status: docs/public/mainnet0-current-public-status.md
+- FAQ: docs/public/mainnet0-faq.md
+- Whitepaper: docs/public/void-network-whitepaper.md
+- Full run-a-node guide: docs/public/run-a-node.md
+- Participant onboarding: docs/public/participant-onboarding.md
+
+## Important guardrails
+
+VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
+
+Public onboarding is open.
+
+Still guarded:
+
+- Public active validator admission remains disabled.
+- Public validator registration remains candidate/waiting only.
+- Vault126 onboarding has not been executed.
+- Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
+- Future treasury spend remains separately guarded.
+- No additional authority transfer is authorized by public launch status.
+
+## Do not do this
+
+Do not send blind deposits.
+
+Do not assume payment confirmation means VOID has been sent.
+
+Do not confuse validator candidate/waiting status with active validator admission.
+
+Do not share wallet secrets, seed phrases, private keys, or keystore files.
+
+## Windows users
+
+Use WSL2 for Mainnet-0.
+
+Native Windows packaging can come later. Serious node operators should eventually move to Linux.

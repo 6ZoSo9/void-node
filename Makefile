@@ -996,3 +996,7 @@ mainnet0-current-public-status-proof:
 .PHONY: mainnet0-public-faq-proof
 mainnet0-public-faq-proof:
 	bash ops/mainnet/mainnet0-public-faq-proof.sh
+
+.PHONY: mainnet0-quick-start-proof
+mainnet0-quick-start-proof:
+	bash ops/mainnet/mainnet0-quick-start-proof.sh
