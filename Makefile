@@ -952,3 +952,7 @@ mainnet0-key-ceremony-result-runbook-template-proof:
 .PHONY: mainnet0-key-ceremony-result-proof
 mainnet0-key-ceremony-result-proof:
 	bash ops/mainnet/mainnet0-key-ceremony-result-proof.sh
+
+.PHONY: mainnet0-key-ceremony-backup-receipt-proof
+mainnet0-key-ceremony-backup-receipt-proof:
+	bash ops/mainnet/mainnet0-key-ceremony-backup-receipt-proof.sh
