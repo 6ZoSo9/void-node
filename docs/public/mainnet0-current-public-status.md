@@ -12,6 +12,7 @@ public_live_closeout_checkpoint: 6c8fa0df / ckpt-mainnet0-public-live-closeout-g
 quick_start_checkpoint: 0635c606 / ckpt-mainnet0-quick-start-green-20260524-111319
 windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick-start-green-20260524-112502
 support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228
+start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001
 
 ## Current truth
 
@@ -21,6 +22,7 @@ The public release bundle, public release hygiene, launch docs, participant onbo
 
 The current public package includes:
 
+- docs/public/start-here.md
 - README.md public docs pointer
 - docs/public/README.md
 - docs/public/mainnet0-launch-notes.md
@@ -37,7 +39,11 @@ The current public package includes:
 
 ## Start here
 
-New users should start with:
+Everyone should start with:
+
+    docs/public/start-here.md
+
+New users should then read:
 
     docs/public/quick-start.md
 
@@ -71,6 +77,7 @@ Participants should read:
 - Local node runtime is live.
 - Participant page is available from a running local node.
 - Public documentation is available.
+- Start-here public landing overview is available.
 - Linux quick-start is available.
 - Windows WSL2 quick-start is available.
 - Public support runbook is available.

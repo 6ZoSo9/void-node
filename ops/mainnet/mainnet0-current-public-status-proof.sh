@@ -11,6 +11,7 @@ WHITEPAPER="docs/public/void-network-whitepaper.md"
 QUICK="docs/public/quick-start.md"
 WSL2="docs/public/windows-wsl2-quick-start.md"
 SUPPORT="docs/public/support-runbook.md"
+START="docs/public/start-here.md"
 BUNDLE="docs/public/mainnet0-public-release-bundle-closeout.md"
 HYGIENE="ops/mainnet/mainnet0-public-release-hygiene.current.md"
 STATUS="ops/mainnet/mainnet0-status.current.md"
@@ -20,7 +21,7 @@ echo "=== Mainnet-0 current public status proof ==="
 
 echo
 echo "=== [1] required files ==="
-for f in "$DOC" "$INDEX" "$WHITEPAPER" "$QUICK" "$WSL2" "$SUPPORT" "$BUNDLE" "$HYGIENE" "$STATUS"; do
+for f in "$DOC" "$INDEX" "$WHITEPAPER" "$QUICK" "$WSL2" "$SUPPORT" "$START" "$BUNDLE" "$HYGIENE" "$STATUS"; do
   test -f "$f"
 done
 echo "[ok] required files exist"
@@ -35,11 +36,13 @@ grep -q '^public_release_hygiene_checkpoint: 9b904aa1 / ckpt-public-release-hygi
 grep -q '^quick_start_checkpoint: 0635c606 / ckpt-mainnet0-quick-start-green-20260524-111319$' "$DOC"
 grep -q '^windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick-start-green-20260524-112502$' "$DOC"
 grep -q '^support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228$' "$DOC"
+grep -q '^start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001$' "$DOC"
 grep -q 'VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.' "$DOC"
 echo "[ok] public status identity/checkpoints present"
 
 echo
 echo "=== [3] public docs bundle listed ==="
+grep -q 'docs/public/start-here.md' "$DOC"
 grep -q 'docs/public/void-network-whitepaper.md' "$DOC"
 grep -q 'docs/public/mainnet0-public-release-bundle-closeout.md' "$DOC"
 grep -q 'docs/public/mainnet0-current-public-status.md' "$DOC"
@@ -48,6 +51,7 @@ grep -q '^status: public_mainnet0_live$' "$WHITEPAPER"
 grep -q '^status: public_mainnet0_live$' "$QUICK"
 grep -q '^status: public_mainnet0_live$' "$WSL2"
 grep -q '^status: public_mainnet0_live$' "$SUPPORT"
+grep -q '^status: public_mainnet0_live$' "$START"
 grep -q '^status: public_release_bundle_cross_box_green$' "$BUNDLE"
 grep -q '^status: public_live_release_hygiene_green$' "$HYGIENE"
 echo "[ok] public docs bundle agrees"
@@ -56,6 +60,7 @@ echo
 echo "=== [4] live and guarded scopes ==="
 grep -q 'VOID Mainnet-0 public status is live.' "$DOC"
 grep -q 'Whitepaper v1 is available.' "$DOC"
+grep -q 'Start-here public landing overview is available.' "$DOC"
 grep -q 'Linux quick-start is available.' "$DOC"
 grep -q 'Windows WSL2 quick-start is available.' "$DOC"
 grep -q 'Public support runbook is available.' "$DOC"
