@@ -1,15 +1,16 @@
 # VOID Mainnet-0 Current Baseline Pointer
 
 status: current_baseline_cross_box_proven
-launch_state: not_go_for_public_mainnet0
-mutation_allowed: false
-launch_approval: false
-money_step: last
+launch_state: public_mainnet0_live
+mutation_allowed: true
+mutation_allowed_scope: launch_state_public_surface_status_only
+launch_approval: true
+money_step: ops_seed_complete_future_spend_guarded
 
 ## Current canonical checkpoint
 
-commit: 1cd3e15a
-tag: ckpt-candidate-only-validator-posture-clarity-green-20260523-083458
+commit: 4c3aa800
+tag: ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500
 cross_box_proven: true
 
 ## Proven state
@@ -42,18 +43,18 @@ cross_box_proven: true
 - WC trade remains non-mutating in product surface and is covered by separate WC stack proofs.
 - WC devnet local-state runtime is cross-box proven at e0637a17 / ckpt-wc-devnet-local-state-runtime-green-20260523-081804; per-machine WC deploy addresses live under .runtime/mainnet0/wc-devnet-local/current and tracked WC state files stay clean.
 
-## Locked launch posture
+## Locked public launch posture
 
-- Mainnet-0 remains not_go_for_public_mainnet0.
-- Launch approval remains false.
-- Mutation allowed remains false.
+- Mainnet-0 is public_mainnet0_live.
+- Launch approval is true.
+- Mutation allowed is limited to launch-state/public-surface status promotion.
 - Public validator admission remains candidate_only_for_mainnet0.
 - Public active validator admission remains disabled.
 - Public registration remains candidate_or_waiting_only.
 - Public registration does not mutate the active validator set.
 - Next operator candidate remains vault126 / epoch128 / expectedValidatorCount=127.
 - Wallet setup, Send Local WC, and Send VOID cleanup remain proof-guarded.
-- Money step remains last.
+- OpsTreasury seed money step is complete; future treasury spend remains separately guarded.
 
 ## Historical references
 

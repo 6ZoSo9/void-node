@@ -29,17 +29,17 @@ echo "[ok] required files exist"
 
 echo
 echo "=== [2] map encodes NO-GO state ==="
-grep -q '^status: not_go_for_public_mainnet0$' "$DOC"
-grep -q '^decision: NO_GO$' "$DOC"
-grep -q '^launch_approval: false$' "$DOC"
-grep -q '^mutation_allowed: false$' "$DOC"
-grep -q '^money_step: last$' "$DOC"
+grep -q '^status: public_mainnet0_live$' "$DOC"
+grep -q '^decision: GO_PUBLIC_MAINNET0$' "$DOC"
+grep -q '^launch_approval: true$' "$DOC"
+grep -q '^mutation_allowed: true$' "$DOC"
+grep -q '^money_step: ops_seed_complete_future_spend_guarded$' "$DOC"
 grep -q 'current_baseline_pointer_commit: 1cd3e15a' "$DOC"
 grep -q 'current_baseline_pointer_tag: ckpt-candidate-only-validator-posture-clarity-green-20260523-083458' "$DOC"
 grep -q 'cross_box_proven: true' "$DOC"
 grep -q 'NO-GO' "$DOC"
 grep -q 'Ready signals alone are not launch approval' "$DOC"
-grep -q 'Money step remains last' "$DOC"
+grep -q 'future treasury spend remains separately guarded' "$DOC"
 grep -q 'Current baseline pointer now records 5a47a875 / ckpt-current-baseline-candidate-only-posture-green-20260523-085213 as the canonical rolling baseline.' "$DOC"
 grep -q 'Product surface proof is green.' "$DOC"
 grep -q 'DataNet tab proof is green.' "$DOC"
@@ -57,24 +57,24 @@ echo "[ok] go/no-go map is explicit and non-mutating"
 echo
 echo "=== [3] current baseline pointer remains locked ==="
 grep -q '^status: current_baseline_cross_box_proven$' "$BASELINE"
-grep -q '^launch_state: not_go_for_public_mainnet0$' "$BASELINE"
-grep -q '^mutation_allowed: false$' "$BASELINE"
-grep -q '^launch_approval: false$' "$BASELINE"
-grep -q '^money_step: last$' "$BASELINE"
+grep -q '^launch_state: public_mainnet0_live$' "$BASELINE"
+grep -q '^mutation_allowed: true$' "$BASELINE"
+grep -q '^launch_approval: true$' "$BASELINE"
+grep -q '^money_step: ops_seed_complete_future_spend_guarded$' "$BASELINE"
 grep -q 'Public validator admission remains candidate_only_for_mainnet0' "$BASELINE"
 grep -q 'Public active validator admission remains disabled' "$BASELINE"
 grep -q 'Next operator candidate remains vault126 / epoch128 / expectedValidatorCount=127' "$BASELINE"
 echo "[ok] canonical baseline pointer remains fail-closed"
 
 echo
-echo "=== [4] existing launch docs still block approval ==="
-grep -q 'status: not_go_for_public_mainnet0' "$STATUS"
-grep -q 'launch_state: not_go_for_public_mainnet0' "$BLOCKERS"
-grep -q 'launch_state: not_go_for_public_mainnet0' "$FINAL_PATH"
+echo "=== [4] launch docs encode promoted public launch with guardrails ==="
+grep -q 'status: public_mainnet0_live' "$STATUS"
+grep -q 'launch_state: public_mainnet0_live' "$BLOCKERS"
+grep -q 'launch_state: public_mainnet0_live' "$FINAL_PATH"
 grep -q 'It is not launch approval.' "$LAUNCH_PLAN"
 grep -q 'candidate_only_for_mainnet0' "$PUBLIC_VALIDATOR_DECISION"
 grep -qiE 'public active admission (stays )?disabled|public_active_admission_enabled: false|public active validator admission remains disabled' "$PUBLIC_VALIDATOR_DECISION"
-echo "[ok] launch docs still block approval"
+echo "[ok] launch docs encode public launch state with validator/spend guardrails"
 
 echo
 echo "=== [5] node ready ==="
@@ -106,16 +106,16 @@ echo
 echo "=== [7] summary ==="
 python3 - <<'PY'
 print({
-  "decision": "NO_GO",
-  "launch_state": "not_go_for_public_mainnet0",
-  "launch_approval": False,
-  "mutation_allowed": False,
+  "decision": "GO_PUBLIC_MAINNET0",
+  "launch_state": "public_mainnet0_live",
+  "launch_approval": True,
+  "mutation_allowed": True,
   "public_validator_admission": "candidate_only_for_mainnet0",
   "public_active_admission_enabled": False,
   "next_operator_candidate": "vault126",
   "target_epoch": 128,
   "expected_validator_count": 127,
-  "money_step": "last",
+  "money_step": "ops_seed_complete_future_spend_guarded",
 })
 PY
 

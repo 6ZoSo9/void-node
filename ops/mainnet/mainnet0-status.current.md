@@ -1,7 +1,7 @@
 # VOID Mainnet-0 Current Status
 
-status: not_go_for_public_mainnet0
-updated_at: 2026-05-20
+status: public_mainnet0_live
+updated_at: 2026-05-24
 operator_label: zoso
 
 ## Green / ready signals
@@ -22,11 +22,12 @@ operator_label: zoso
 - Validator public reward address and consensus key are recorded.
 - Validator runtime truth is recovered through epoch127; the current guarded next-onboard lane now points to vault126 / epoch128 / expectedValidatorCount=127.
 - Validator next-onboard intent gate proof is green cross-box: confirm:true, exact operator intent, and VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION=1 are required before live onboarding can run.
-- Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217.
-- Launch approval artifact prep and final approval template are plan-only/not-approved and cross-box proven; approval_artifact_created=false.
+- Launch approval is committed and cross-box proven at 4c3aa800 / ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500.
+- Public launch state is promoted to public_mainnet0_live.
+- OpsTreasury seed is live and cross-box proven: 1,000,000 VOID moved from VoidTreasury to OpsTreasury in tx 0x98288e5a34ea28d63aa2ab396ef83a21c4fcc55747b7acebc53122591ed86fb2.
 - WC devnet local-state runtime is cross-box proven at e0637a17 / ckpt-wc-devnet-local-state-runtime-green-20260523-081804; per-machine WC deploy addresses live under .runtime/mainnet0/wc-devnet-local/current and tracked WC state files stay clean.
 
-## Still not done
+## Still guarded after public launch promotion
 
 - Public validator candidate promotion/admission remains blocked.
 - Public candidate/waiting registration must not be confused with operator/bootstrap validator admission.
@@ -35,10 +36,10 @@ operator_label: zoso
 - First real Buy VOID payment claim and fulfillment have completed successfully.
 - A real Ethereum USDC payment hash has been verified for the first fulfilled Buy VOID lane.
 - 2,500 VOID has been sent and recorded for the first fulfilled Buy VOID lane.
-- Mainnet-0 launch go/no-go has not been approved.
-- Mainnet-0 go/no-go NO-GO proof is green and proves the wrapper fails closed while blockers remain.
-- Mainnet-0 blockers proof includes validator admission blocker proof and validator promotion plan proof.
-- Money step remains last.
+- Mainnet-0 public launch promotion is approved and recorded.
+- Public active validator admission remains disabled.
+- Public validator registration remains candidate/waiting only.
+- The initial OpsTreasury seed is complete; any future treasury spend remains separately dry-run/proof/tx-ref gated.
 
 ## Current validator admission state
 
@@ -51,7 +52,7 @@ Two validator tracks must stay separate:
    - next operator candidate selector: vault126 targeting epoch128 / expectedValidatorCount=127
    - durable 8545 restore/recovery lane is green through epoch127.
    - vault125 admission required post-mutation recovery and is now reflected in verified runtime truth through epoch127.
-   - public admission remains non-mutating: mutation_allowed=false for public promotion/admission until a separate guarded proof lane intentionally changes it.
+   - public active validator admission remains disabled; launch-state promotion does not mutate public validator admission.
 
 2. Public participant validator registration:
    - public registration/candidate/waiting status remains non-launching.
@@ -75,9 +76,9 @@ Do not run claim/fulfillment without a real supported-chain transaction hash.
 
 ## Operator rule
 
-Ready signals are not the same as launch approval.
+VOID Mainnet-0 is public_mainnet0_live after the explicit launch approval, OpsTreasury seed, promotion artifact, and cross-box proof.
 
-Mainnet-0 remains not-go until remaining launch blockers are cleared and a final go/no-go bundle is run intentionally.
+This public launch state does not authorize public active validator admission, vault126 onboarding, blind Buy VOID fulfillment, or additional treasury spend.
 
 
 ## Buy VOID hard-stop gate

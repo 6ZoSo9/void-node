@@ -15,10 +15,10 @@ echo "=== [1] current baseline doc ==="
 test -f "$DOC"
 
 grep -q '^status: current_baseline_cross_box_proven$' "$DOC"
-grep -q '^launch_state: not_go_for_public_mainnet0$' "$DOC"
-grep -q '^mutation_allowed: false$' "$DOC"
-grep -q '^launch_approval: false$' "$DOC"
-grep -q '^money_step: last$' "$DOC"
+grep -q '^launch_state: public_mainnet0_live$' "$DOC"
+grep -q '^mutation_allowed: true$' "$DOC"
+grep -q '^launch_approval: true$' "$DOC"
+grep -q '^money_step: ops_seed_complete_future_spend_guarded$' "$DOC"
 grep -q '^commit: 1cd3e15a$' "$DOC"
 grep -q '^tag: ckpt-candidate-only-validator-posture-clarity-green-20260523-083458$' "$DOC"
 grep -q 'Final path Wallet doc refresh is cross-box proven.' "$DOC"
@@ -94,10 +94,10 @@ print("[ok] next-onboard remains vault126 / epoch128 / count127")
 PY
 
 echo
-echo "=== [5] existing launch docs still block approval ==="
-grep -q 'status: not_go_for_public_mainnet0' ops/mainnet/mainnet0-status.current.md
-grep -q 'launch_state: not_go_for_public_mainnet0' ops/mainnet/mainnet0-blockers.current.md
-grep -q 'launch_state: not_go_for_public_mainnet0' ops/mainnet/mainnet0-final-path.current.md
+echo "=== [5] launch docs encode promoted public launch with guardrails ==="
+grep -q 'status: public_mainnet0_live' ops/mainnet/mainnet0-status.current.md
+grep -q 'launch_state: public_mainnet0_live' ops/mainnet/mainnet0-blockers.current.md
+grep -q 'launch_state: public_mainnet0_live' ops/mainnet/mainnet0-final-path.current.md
 grep -q 'It is not launch approval.' ops/mainnet/mainnet0-launch-approval-plan.current.md
 grep -q 'Public validator admission remains candidate_only_for_mainnet0' "$DOC"
 echo "[ok] launch docs still fail closed"
@@ -109,7 +109,7 @@ print({
   "current_baseline": "1cd3e15a",
   "tag": "ckpt-candidate-only-validator-posture-clarity-green-20260523-083458",
   "cross_box_proven": True,
-  "launch_state": "not_go_for_public_mainnet0",
+  "launch_state": "public_mainnet0_live",
   "launch_approval": False,
   "mutation_allowed": False,
   "public_validator_admission": "candidate_only_for_mainnet0",

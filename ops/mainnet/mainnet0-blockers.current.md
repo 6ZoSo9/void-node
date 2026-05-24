@@ -1,19 +1,19 @@
-# VOID Mainnet-0 Remaining Blockers
+# VOID Mainnet-0 Guarded Post-Launch Boundaries
 
-status: active
-launch_state: not_go_for_public_mainnet0
+status: guarded_after_public_launch
+launch_state: public_mainnet0_live
 operator_label: zoso
-updated_at: 2026-05-20
+updated_at: 2026-05-24
 
 ## Purpose
 
-This file lists the remaining Mainnet-0 blockers in the intended execution order.
+This file lists the guarded boundaries that remain after public Mainnet-0 launch promotion.
 
-The money step is intentionally last.
+The initial OpsTreasury seed money step is complete; future money-moving steps remain separately guarded.
 
 ## Current known-good baseline
 
-Current healthy-but-not-launch posture:
+Current public-live-but-guarded posture:
 
 - Precision node readiness is green.
 - Alienware node readiness is green.
@@ -31,29 +31,29 @@ Current healthy-but-not-launch posture:
 - Buy VOID watcher config is set on both boxes.
 - Validator public keys are recorded.
 - Validator policy review is recorded.
-- Go/no-go wrapper intentionally exits NO-GO while blockers remain.
+- Public launch promotion proof is green and cross-box proven.
 - Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217.
-- Launch approval artifact prep is plan-only/not-approved and does not clear launch blockers.
+- Public launch approval is committed and proved; OpsTreasury seed is live and balance-delta verified.
 - Validator admission blocker proof is green and proves public registration is plan-only/waiting/not-active.
 - Validator admission promotion plan proof is green and proves the future promotion path remains plan-only and non-mutating.
 - Validator live-admission readiness must be refreshed against the current vault126 / epoch128 selector before any future operator mutation.
 - Validator next-onboard intent gate proof is green and cross-box proven: missing/wrong operator intent fails before the live env switch, exact intent remains blocked while VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION is off.
 
-## Blocker 1: maintain status proof discipline
+## Guard 1: maintain status proof discipline
 
 Required before every major launch-adjacent change:
 
 - Run make mainnet0-status-proof on Precision.
 - Run make mainnet0-crossbox-status-smoke from Precision.
-- Keep status file at not_go_for_public_mainnet0 until all blockers are actually cleared.
+- Keep status file at public_mainnet0_live only while launch approval, seed proof, and cross-box proofs remain green.
 
 Definition of done:
 
 - Precision full proof passes.
 - Cross-box smoke passes.
-- No script says public launch is approved.
+- Public launch approval is recorded, while validator/spend guardrails remain explicit.
 
-## Blocker 2: public validator Mainnet-0 posture is candidate-only
+## Guard 2: public validator Mainnet-0 posture is candidate-only
 
 Current validator state:
 
@@ -116,29 +116,21 @@ Definition of done:
 - Status proof accepts the real fulfilled Ethereum USDC state.
 - Future Buy VOID work is product hardening, not a blocker for proving the first fulfillment.
 
-## Blocker 4: final go/no-go remains blocked
+## Guard 4: public launch promotion is complete; future expansions remain blocked
 
-Current behavior:
+Public launch promotion is complete and proof-backed. Future expansions remain blocked unless separately approved:
 
-- ops/mainnet0-go-no-go-with-validator-lifecycle.sh intentionally exits rc=2 with NO-GO while blockers remain.
-- Mainnet-0 prelaunch safety proof is green, but still intentionally records launch_state=not_go_for_public_mainnet0.
-
-Required work:
-
-1. Clear public validator admission/promotion blocker.
-2. Re-run full Precision proof.
-4. Re-run cross-box smoke.
-5. Update status files deliberately.
-6. Run final go/no-go intentionally.
+1. Keep public active validator admission disabled unless a later guarded lane intentionally changes it.
+2. Keep vault126 onboarding blocked unless a later guarded operator proof intentionally executes it.
+3. Keep Buy VOID fulfillment explicit, payment-verified, and tx-ref-recorded.
+4. Keep additional treasury spend blocked unless a new dry-run, tx, and post-state proof is recorded.
 
 Definition of done:
 
-- Final go/no-go no longer depends on temporary or assumed state.
-- Public Mainnet-0 approval is explicit, not inferred from readiness.
-- The repo contains proof artifacts or scripts sufficient to reproduce the claim.
+- Public launch state remains public_mainnet0_live.
+- Public active validator admission remains disabled.
+- No extra treasury spend is authorized by this file.
 
 ## Operator rule
 
-Ready signals are not launch approval.
-
-Do not change launch_state away from not_go_for_public_mainnet0 until the blockers above are cleared and final go/no-go is run intentionally.
+Do not change validator admission, vault126 onboarding, Buy VOID fulfillment, or treasury spend beyond this public launch-state promotion without a separate exact proof lane.

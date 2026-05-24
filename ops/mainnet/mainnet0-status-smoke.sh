@@ -15,19 +15,20 @@ echo
 echo "=== [1] status files ==="
 test -f "$STATUS_FILE"
 test -f "$VALIDATOR_STATUS"
-grep -q 'status: not_go_for_public_mainnet0' "$STATUS_FILE"
-grep -q 'Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217.' "$STATUS_FILE"
-grep -q 'Launch approval artifact prep and final approval template are plan-only/not-approved and cross-box proven; approval_artifact_created=false.' "$STATUS_FILE"
+grep -q 'status: public_mainnet0_live' "$STATUS_FILE"
+grep -q 'Launch approval is committed and cross-box proven at 4c3aa800 / ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500.' "$STATUS_FILE"
+grep -q 'Public launch state is promoted to public_mainnet0_live.' "$STATUS_FILE"
+grep -q 'OpsTreasury seed is live and cross-box proven: 1,000,000 VOID moved from VoidTreasury to OpsTreasury in tx 0x98288e5a34ea28d63aa2ab396ef83a21c4fcc55747b7acebc53122591ed86fb2.' "$STATUS_FILE"
 grep -q 'WC devnet local-state runtime is cross-box proven at e0637a17 / ckpt-wc-devnet-local-state-runtime-green-20260523-081804; per-machine WC deploy addresses live under .runtime/mainnet0/wc-devnet-local/current and tracked WC state files stay clean.' "$STATUS_FILE"
 grep -Eq 'First real Buy VOID payment claim and fulfillment have completed successfully|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID real payment claim has not been run' "$STATUS_FILE"
 grep -q 'Public validator candidate promotion/admission remains blocked' "$STATUS_FILE"
 grep -q 'Operator/bootstrap validator runtime truth is green through epoch127' "$STATUS_FILE"
 grep -q 'Durable local RPC restore/recovery lane is green through epoch127' "$STATUS_FILE"
-grep -q 'Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217.' "$STATUS_FILE"
-grep -q 'Ready signals are not the same as launch approval' "$STATUS_FILE"
+grep -q 'Mainnet-0 public launch promotion is approved and recorded.' "$STATUS_FILE"
+grep -q 'VOID Mainnet-0 is public_mainnet0_live after the explicit launch approval, OpsTreasury seed, promotion artifact, and cross-box proof.' "$STATUS_FILE"
 grep -q 'status: plan_only_candidate_declared' "$VALIDATOR_STATUS"
 grep -q 'not active or live admitted' "$VALIDATOR_STATUS"
-echo "[ok] status files encode not-go state"
+echo "[ok] status files encode public_mainnet0_live state"
 
 echo
 echo "=== [2] node ready ==="
@@ -64,7 +65,7 @@ import json
 ready=json.load(open("/tmp/void-mainnet0-status-smoke-ready.json"))
 buy=json.load(open("/tmp/void-mainnet0-status-smoke-buy.json"))
 print({
-  "status": "not_go_for_public_mainnet0",
+  "status": "public_mainnet0_live",
   "node_ready": ready.get("ready"),
   "head": ready.get("head"),
   "buy_void_configured": bool((buy.get("config") or {}).get("enabled")),

@@ -15,7 +15,7 @@ test -f "$DOC"
 test -f "$STATUS"
 
 grep -q '^status: active$' "$DOC"
-grep -q '^launch_state: not_go_for_public_mainnet0$' "$DOC"
+grep -q '^launch_state: public_mainnet0_live$' "$DOC"
 grep -q 'ckpt-final-path-wallet-cleanup-proof-green-20260521-112508' "$DOC"
 grep -q 'commit: 4e05503c' "$DOC"
 grep -q 'Validator runtime truth: epoch127' "$DOC"
@@ -39,7 +39,7 @@ echo
 echo "=== [wallet-ui] Wallet UI cleanup proof ==="
 bash ops/mainnet0/wallet-ui-cleanup-proof.sh
 
-grep -q 'status: not_go_for_public_mainnet0' "$STATUS"
+grep -q 'status: public_mainnet0_live' "$STATUS"
 grep -q 'Operator/bootstrap validator runtime truth is green through epoch127' "$STATUS"
 
 curl -fsS "$BASE/__void/ready.json" > /tmp/void-final-path-ready.json

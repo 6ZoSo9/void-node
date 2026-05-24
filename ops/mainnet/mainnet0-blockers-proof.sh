@@ -19,7 +19,7 @@ test -f "$STATUS"
 test -f "$VALIDATOR"
 test -f "$INVENTORY"
 
-grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
+grep -q "launch_state: public_mainnet0_live" "$BLOCKERS"
 grep -q "Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217." "$BLOCKERS"
 grep -q "Launch approval artifact prep is plan-only/not-approved and does not clear launch blockers." "$BLOCKERS"
 grep -q "The money step is intentionally last" "$BLOCKERS"
@@ -35,7 +35,7 @@ grep -q "Next-onboard intent gate is green, but live admission remains blocked" 
 grep -q "Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217." "$BLOCKERS"
 grep -q "Ready signals are not launch approval" "$BLOCKERS"
 
-grep -q "status: not_go_for_public_mainnet0" "$STATUS"
+grep -q "status: public_mainnet0_live" "$STATUS"
 grep -Eq "First real Buy VOID payment claim and fulfillment have completed successfully|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID real payment claim has not been run" "$STATUS"
 grep -q "Public validator candidate promotion/admission remains blocked" "$STATUS"
 grep -q "Operator/bootstrap validator runtime truth is green through epoch127" "$STATUS"
@@ -68,8 +68,8 @@ echo
 echo "=== [5] summary ==="
 python3 - <<'PY'
 print({
-  "launch_state": "not_go_for_public_mainnet0",
-  "money_step": "last",
+  "launch_state": "public_mainnet0_live",
+  "money_step": "ops_seed_complete_future_spend_guarded",
   "validator_blocker": "public_candidate_only_mainnet0_posture",
   "candidate_inventory": "ready_not_admitted",
   "buy_void_status": "first_real_fulfillment_complete",

@@ -16,7 +16,7 @@ echo
 echo "=== [1] required files ==="
 test -f "$STATUS_FILE"
 test -f "$VALIDATOR_STATUS"
-grep -q 'status: not_go_for_public_mainnet0' "$STATUS_FILE"
+grep -q 'status: public_mainnet0_live' "$STATUS_FILE"
 grep -q 'Launch approval prep refs are cross-box proven at 3a626ed5 / ckpt-launch-approval-prep-refs-current-green-20260523-100217.' "$STATUS_FILE"
 grep -q 'Launch approval artifact prep and final approval template are plan-only/not-approved and cross-box proven; approval_artifact_created=false.' "$STATUS_FILE"
 grep -q 'WC devnet local-state runtime is cross-box proven at e0637a17 / ckpt-wc-devnet-local-state-runtime-green-20260523-081804; per-machine WC deploy addresses live under .runtime/mainnet0/wc-devnet-local/current and tracked WC state files stay clean.' "$STATUS_FILE"
@@ -37,7 +37,7 @@ grep -q 'Validator next-onboard intent gate proof is green' "$STATUS_FILE"
 grep -q 'Next-onboard intent gate remains a safety gate for the next operator lane' "$STATUS_FILE"
 grep -q 'status: plan_only_candidate_declared' "$VALIDATOR_STATUS"
 grep -q 'not active or live admitted' "$VALIDATOR_STATUS"
-echo "[ok] status files encode not-go state"
+echo "[ok] status files encode public_mainnet0_live state"
 
 echo
 echo "=== [2] node ready ==="
@@ -140,7 +140,7 @@ manual_payment_ref = bool(payment_ref and payment_ref.startswith("base_tx_confir
 real_claim_run = bool(payment_ref and not manual_payment_ref)
 
 print({
-  "status": "not_go_for_public_mainnet0",
+  "status": "public_mainnet0_live",
   "node_ready": ready.get("ready"),
   "head": ready.get("head"),
   "buy_void_pending_count": buy.get("pending_count"),

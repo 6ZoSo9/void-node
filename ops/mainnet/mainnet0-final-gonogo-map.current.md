@@ -1,10 +1,11 @@
 # VOID Mainnet-0 Final Go/No-Go Map
 
-status: not_go_for_public_mainnet0
-decision: NO_GO
-launch_approval: false
-mutation_allowed: false
-money_step: last
+status: public_mainnet0_live
+decision: GO_PUBLIC_MAINNET0
+launch_approval: true
+mutation_allowed: true
+mutation_allowed_scope: launch_state_public_surface_status_only
+money_step: ops_seed_complete_future_spend_guarded
 operator_label: zoso
 
 ## Current canonical baseline
@@ -43,22 +44,22 @@ operator_label: zoso
 - Buy VOID watcher config is present and active config uses the current receiver.
 - Historical Buy VOID latest-watch artifacts are lineage only unless the active config changes.
 
-## Why Mainnet-0 is still NO-GO
+## Why Mainnet-0 is GO for public launch but still guarded
 
-1. launch_approval is false.
-2. mutation_allowed is false.
-3. Public active validator admission is disabled.
+1. launch_approval is true through the committed launch approval artifact.
+2. mutation_allowed is true only for launch-state/public-surface status promotion.
+3. Public active validator admission remains disabled.
 4. Public validator admission remains candidate_only_for_mainnet0.
 5. Public validator promotion/admission remains blocked.
 6. Next guarded operator onboarding for vault126 has not been live-executed.
 7. Any future operator live-admission step requires a fresh guarded proof, exact operator intent, and explicit live-execution enablement.
-8. Public launch requires a separate explicit launch approval artifact.
-9. Ready signals alone are not launch approval.
-10. Money step remains last.
+8. OpsTreasury seed is complete and future treasury spend remains separately guarded.
+9. Buy VOID claim/send remains explicit, payment-verified, and tx-ref-recorded.
+10. No additional authority transfer is authorized.
 
 Candidate-only public registration is the intended Mainnet-0 posture; the blocked action is public active validator promotion/admission.
 
-## Required before YES
+## Required after GO
 
 Before this can become GO, all of the following must be true:
 
@@ -80,6 +81,6 @@ Before this can become GO, all of the following must be true:
 
 ## Current decision
 
-NO-GO.
+GO_PUBLIC_MAINNET0.
 
-VOID Mainnet-0 is healthy and close, but it is intentionally not approved for public launch yet.
+VOID Mainnet-0 is public_mainnet0_live. Public active validator admission, vault126 onboarding, Buy VOID fulfillment, and additional treasury spend remain separately guarded.

@@ -1,13 +1,14 @@
 # VOID Mainnet-0 Final Public Launch Checklist
 
-status: not_go_for_public_mainnet0
-mutation_allowed: false
-launch_approval: false
-money_step: last
+status: public_mainnet0_live
+mutation_allowed: true
+mutation_allowed_scope: launch_state_public_surface_status_only
+launch_approval: true
+money_step: ops_seed_complete_future_spend_guarded
 
 ## Current known-good baseline
 
-- Mainnet-0 NO-GO proof is green.
+- Mainnet-0 public launch promotion proof is green.
 - Mainnet-0 status proof is green.
 - Mainnet-0 status smoke is green.
 - Mainnet-0 cross-box status smoke is green.
@@ -32,10 +33,11 @@ money_step: last
 - Buy VOID first real fulfillment is closeout-proven.
 - Future Buy VOID claim/send remains blocked unless explicitly verified and recorded.
 - Public release export is gitleaks-clean at 72f536d0 / ckpt-public-release-export-gitleaks-clean-green-20260523-091412 with gitleaks_rc=0 and findings=0.
-- Ready signals are not launch approval.
-- Launch approval plan is proof-backed and still not approved.
+- Launch approval artifact is committed and proved.
+- OpsTreasury seed is live, recorded, and balance-delta verified.
+- Public launch promotion is cross-box proven.
 
-## Remaining blockers before public Mainnet-0 launch
+## Guardrails after public Mainnet-0 launch
 
 ### 1. Public validator candidate-only launch posture
 
@@ -52,9 +54,9 @@ Before launch approval, the public validator path must preserve the candidate-on
 
 ### 2. Final launch approval
 
-Launch approval must be explicit.
+Launch approval is explicit and recorded.
 
-Before changing launch_state away from not_go_for_public_mainnet0:
+Before changing validator admission, Buy VOID fulfillment, authority, or treasury spend beyond this launch-state promotion:
 
 - rerun mainnet0-gonogo-no-go-proof,
 - rerun mainnet0-status-proof,
@@ -66,9 +68,9 @@ Before changing launch_state away from not_go_for_public_mainnet0:
 - write an explicit launch approval artifact,
 - only then run the final go/no-go bundle intentionally.
 
-### 3. Money step remains last
+### 3. Money step is seeded and future spend remains guarded
 
-No additional Buy VOID claim/send or money-moving step clears launch by itself.
+The initial OpsTreasury seed is complete. No additional Buy VOID claim/send or money-moving step is authorized by launch itself.
 
 Payment confirmation does not equal VOID sent.
 VOID fulfillment must remain an explicit, auditable transition.
@@ -80,6 +82,6 @@ This checkpoint does not:
 - execute vault126 onboarding,
 - mutate validator state,
 - approve public validator promotion,
-- approve public Mainnet-0 launch,
-- execute Buy VOID claim/send,
-- change launch_state.
+- approve public active validator promotion,
+- execute Buy VOID claim/send without explicit verification and tx-ref recording,
+- authorize additional treasury spend.

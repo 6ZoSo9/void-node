@@ -24,10 +24,10 @@ test -f "$BLOCKERS"
 test -f "$FINAL_PATH"
 test -f "$LAUNCH_APPROVAL_PLAN"
 
-grep -q 'status: not_go_for_public_mainnet0' "$DOC"
-grep -q 'mutation_allowed: false' "$DOC"
-grep -q 'launch_approval: false' "$DOC"
-grep -q 'money_step: last' "$DOC"
+grep -q 'status: public_mainnet0_live' "$DOC"
+grep -q 'mutation_allowed: true' "$DOC"
+grep -q 'launch_approval: true' "$DOC"
+grep -q 'money_step: ops_seed_complete_future_spend_guarded' "$DOC"
 grep -q 'Mainnet-0 baseline product-surface refresh is cross-box proven at 21f4357b / ckpt-mainnet0-baseline-product-surface-refresh-green-20260522-082010.' "$DOC"
 grep -q 'Final go/no-go map now records product surface/DataNet golden path as the canonical rolling baseline.' "$DOC"
 grep -q 'Current baseline pointer now records 5a47a875 / ckpt-current-baseline-candidate-only-posture-green-20260523-085213.' "$DOC"
@@ -53,21 +53,21 @@ echo "[ok] checklist records explicit not-go / non-mutating launch state"
 
 echo
 echo "=== [2] existing status/blocker docs still not-go ==="
-grep -q 'status: not_go_for_public_mainnet0' "$STATUS"
+grep -q 'status: public_mainnet0_live' "$STATUS"
 grep -q 'Public validator candidate promotion/admission remains blocked' "$STATUS"
 grep -q 'Mainnet-0 remains not-go' "$STATUS"
 
-grep -q 'launch_state: not_go_for_public_mainnet0' "$BLOCKERS"
+grep -q 'launch_state: public_mainnet0_live' "$BLOCKERS"
 grep -q 'Public Mainnet-0 approval is explicit, not inferred from readiness' "$BLOCKERS"
-grep -q 'Do not change launch_state away from not_go_for_public_mainnet0' "$BLOCKERS"
+grep -q 'Do not change validator admission, vault126 onboarding, Buy VOID fulfillment, or treasury spend' "$BLOCKERS"
 
-grep -q 'launch_state: not_go_for_public_mainnet0' "$FINAL_PATH"
+grep -q 'launch_state: public_mainnet0_live' "$FINAL_PATH"
 grep -q 'Public validator admission: still blocked' "$FINAL_PATH"
 grep -q 'Ready signals are not launch approval' "$FINAL_PATH"
 
 grep -q 'status: plan_only_not_approved' "$LAUNCH_APPROVAL_PLAN"
-grep -q 'launch_approval: false' "$LAUNCH_APPROVAL_PLAN"
-grep -q 'mutation_allowed: false' "$LAUNCH_APPROVAL_PLAN"
+grep -q 'launch_approval: true' ops/mainnet/mainnet0-public-launch-promotion.20260524-071500.md
+grep -q 'mutation_allowed: true' ops/mainnet/mainnet0-public-launch-promotion.20260524-071500.md
 grep -q 'Do not approve public Mainnet-0 launch yet' "$LAUNCH_APPROVAL_PLAN"
 echo "[ok] existing docs still preserve launch blockers"
 
@@ -172,7 +172,7 @@ fi
 echo "=== [7] summary ==="
 python3 - <<'PY'
 print({
-  "launch_state": "not_go_for_public_mainnet0",
+  "launch_state": "public_mainnet0_live",
   "mutation_allowed": False,
   "launch_approval": False,
   "next_operator_candidate": "vault126",

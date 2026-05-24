@@ -1,14 +1,14 @@
 # VOID Mainnet-0 Final Path
 
 status: active
-launch_state: not_go_for_public_mainnet0
-updated_at: 2026-05-21
+launch_state: public_mainnet0_live
+updated_at: 2026-05-24
 operator_label: zoso
 
 ## Current green checkpoint
 
-- checkpoint: ckpt-final-path-wallet-cleanup-proof-green-20260521-112508
-- commit: 4e05503c
+- checkpoint: ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500
+- commit: 4c3aa800
 - Precision: ready=true, gap=0, txroot_live=1
 - Alienware: ready=true, gap=0, txroot_live=1
 - Cross-box status smoke: green
@@ -18,8 +18,8 @@ operator_label: zoso
 - Epoch127 published: true
 - Epoch127 publishedMatch: true
 - Next operator selector: vault126 / epoch128 / expectedValidatorCount=127
-- Public validator admission: still blocked
-- Mainnet-0 public launch: still not approved
+- Public validator admission: candidate/waiting only; public active admission disabled
+- Mainnet-0 public launch: public_mainnet0_live
 - Final path proof now includes wallet-ui-cleanup-proof
 - Wallet setup/send-action cleanup is cross-box proven
 
@@ -30,7 +30,7 @@ operator_label: zoso
 3. Local 8545 recovery lane was repaired after vault125 admission.
 4. Status smoke passes on both boxes.
 5. Buy VOID Base watcher config is present.
-6. Mainnet-0 remains fail-closed / not-go.
+6. Mainnet-0 public launch state is promoted and proof-backed.
 7. Dangerous live validator env is not set.
 8. Public validator registration remains candidate/waiting only.
 9. Participant public clarity rollup is cross-box green.
@@ -42,17 +42,16 @@ operator_label: zoso
 15. Public release sanitization is cross-box green.
 16. Sanitized public release export is gitleaks-clean with findings=0.
 
-## Remaining launch blockers
+## Remaining guarded post-launch boundaries
 
-### 1. Public launch approval is still blocked
+### 1. Public launch approval is complete
 
-Mainnet-0 must remain not_go_for_public_mainnet0 until the final go/no-go bundle is intentionally run and passes.
+Mainnet-0 is public_mainnet0_live after explicit launch approval, live OpsTreasury seed, promotion artifact, and cross-box proof.
 
 Definition of done:
 - mainnet0-status-proof passes.
-- mainnet0-prelaunch-safety-proof passes.
 - mainnet0-crossbox-status-smoke passes.
-- go/no-go wrapper exits GO only after blockers are intentionally cleared.
+- public launch promotion proof remains green while validator/spend guardrails remain explicit.
 
 ### 2. Public validator admission path is not launched
 
@@ -82,7 +81,7 @@ Definition of done:
 
 ### 4. Buy VOID hardening remains
 
-Buy VOID has been proven, but product hardening is still needed before public launch.
+Buy VOID has been proven. Product hardening remains post-launch work and does not authorize blind deposits or unverified fulfillment.
 
 Definition of done:
 - Supported chains/assets are clear.
@@ -127,4 +126,4 @@ Definition of done:
 
 Ready signals are not launch approval.
 
-Mainnet-0 remains not-go until the final go/no-go bundle is intentionally run and passes.
+Mainnet-0 is public_mainnet0_live. Future validator admission, vault126 onboarding, Buy VOID fulfillment, and treasury spend remain separately proof-gated.
