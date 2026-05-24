@@ -980,3 +980,7 @@ mainnet0-public-live-closeout-proof:
 .PHONY: mainnet0-public-onboarding-pack-proof
 mainnet0-public-onboarding-pack-proof:
 	bash ops/mainnet/mainnet0-public-onboarding-pack-proof.sh
+
+.PHONY: mainnet0-public-release-bundle-closeout-proof
+mainnet0-public-release-bundle-closeout-proof:
+	bash ops/mainnet/mainnet0-public-release-bundle-closeout-proof.sh
