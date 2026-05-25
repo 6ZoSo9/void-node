@@ -26,6 +26,7 @@ for f in \
   docs/public/windows-wsl2-quick-start.md \
   docs/public/mainnet0-faq.md \
   docs/public/void-network-whitepaper.md \
+  docs/public/developer-reference.md \
   docs/public/support-runbook.md \
   docs/public/run-a-node.md \
   docs/public/participant-onboarding.md \
@@ -41,13 +42,16 @@ echo "[ok] required public docs exist"
 echo
 echo "=== [3] public docs entry path ==="
 grep -q 'docs/public/start-here.md' README.md
+grep -q 'docs/public/developer-reference.md' README.md
 grep -q 'start-here.md' docs/public/README.md
+grep -q 'developer-reference.md' docs/public/README.md
 grep -q '^status: public_mainnet0_live$' docs/public/start-here.md
 grep -q '^status: public_mainnet0_live$' docs/public/mainnet0-current-public-status.md
 grep -q '^status: public_mainnet0_live$' docs/public/quick-start.md
 grep -q '^status: public_mainnet0_live$' docs/public/windows-wsl2-quick-start.md
 grep -q '^status: public_mainnet0_live$' docs/public/mainnet0-faq.md
 grep -q '^status: public_mainnet0_live$' docs/public/void-network-whitepaper.md
+grep -q '^status: public_mainnet0_live$' docs/public/developer-reference.md
 grep -q '^status: public_mainnet0_live$' docs/public/support-runbook.md
 echo "[ok] public docs entry path/status present"
 
@@ -108,6 +112,7 @@ make mainnet0-windows-wsl2-quick-start-proof
 make mainnet0-quick-start-proof
 make mainnet0-public-faq-proof
 make mainnet0-whitepaper-proof
+make mainnet0-developer-reference-proof
 make mainnet0-public-release-bundle-closeout-proof
 make mainnet0-public-onboarding-pack-proof
 
@@ -139,6 +144,7 @@ print({
   "windows_wsl2_quick_start": "green",
   "faq": "green",
   "whitepaper": "green",
+  "developer_reference": "green",
   "support_runbook": "green",
   "guardrails": "present"
 })
