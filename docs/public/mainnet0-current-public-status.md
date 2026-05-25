@@ -13,7 +13,8 @@ quick_start_checkpoint: 0635c606 / ckpt-mainnet0-quick-start-green-20260524-1113
 windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick-start-green-20260524-112502
 support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228
 start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001
-public_docs_stack_checkpoint: 791d6f4a / ckpt-mainnet0-public-docs-stack-green-20260524-175137
+public_docs_stack_checkpoint: d1d6fb47 / ckpt-public-docs-stack-developer-reference-green-20260525-070529
+developer_reference_checkpoint: 3a28fce3 / ckpt-mainnet0-developer-reference-green-20260525-022240
 
 ## Current truth
 
@@ -40,6 +41,7 @@ The current public package includes:
 - docs/public/mainnet0-current-public-status.md
 - docs/public/windows-wsl2-quick-start.md
 - docs/public/support-runbook.md
+- docs/public/developer-reference.md
 - docs/public/quick-start.md
 
 ## Start here
@@ -84,6 +86,7 @@ Participants should read:
 - Public documentation is available.
 - Start-here public landing overview is available.
 - Public docs stack composite proof is available.
+- Developer reference is available.
 - Linux quick-start is available.
 - Windows WSL2 quick-start is available.
 - Public support runbook is available.
