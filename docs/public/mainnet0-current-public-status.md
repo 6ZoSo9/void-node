@@ -15,6 +15,7 @@ support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260
 start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001
 public_docs_stack_checkpoint: d1d6fb47 / ckpt-public-docs-stack-developer-reference-green-20260525-070529
 developer_reference_checkpoint: 3a28fce3 / ckpt-mainnet0-developer-reference-green-20260525-022240
+public_surface_checkpoint: 83cb22f9 / ckpt-mainnet0-public-surface-green-20260525-085128
 
 ## Current truth
 
@@ -25,6 +26,10 @@ The public release bundle, public release hygiene, launch docs, participant onbo
 The full public docs stack is proven by:
 
     make mainnet0-public-docs-stack-proof
+
+The current served public surface is proven by:
+
+    make mainnet0-public-surface-proof
 
 The current public package includes:
 
@@ -43,6 +48,19 @@ The current public package includes:
 - docs/public/support-runbook.md
 - docs/public/developer-reference.md
 - docs/public/quick-start.md
+
+## Served public surface
+
+The current served public surface is intentionally narrow:
+
+- `/participant` is served.
+- `/__void/ready.json` is served.
+- `/__void/runtime/validator-truth/status` is served as a read surface.
+- `/` remains a non-public 404 surface.
+- `/__void/status` remains a non-public 404 surface.
+- GET `/__void/participant/stake/next-onboard` remains a non-public 404 surface.
+
+This proves the public participant/readiness/runtime-truth surface without opening default root, legacy status, or next-onboard GET surfaces.
 
 ## Start here
 
@@ -87,6 +105,7 @@ Participants should read:
 - Start-here public landing overview is available.
 - Public docs stack composite proof is available.
 - Developer reference is available.
+- Public served surface proof is available.
 - Linux quick-start is available.
 - Windows WSL2 quick-start is available.
 - Public support runbook is available.
