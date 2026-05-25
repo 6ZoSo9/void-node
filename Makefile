@@ -1016,3 +1016,7 @@ mainnet0-start-here-proof:
 .PHONY: mainnet0-public-docs-stack-proof
 mainnet0-public-docs-stack-proof:
 	bash ops/mainnet/mainnet0-public-docs-stack-proof.sh
+
+.PHONY: mainnet0-developer-reference-proof
+mainnet0-developer-reference-proof:
+	bash ops/mainnet/mainnet0-developer-reference-proof.sh
