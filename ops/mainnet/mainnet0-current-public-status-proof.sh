@@ -6,6 +6,7 @@ set +o histexpand
 cd "${VOID_REPO:-$HOME/dev/void-node}"
 
 DOC="docs/public/mainnet0-current-public-status.md"
+LIVE_CLOSEOUT="docs/public/mainnet0-public-live-closeout.md"
 INDEX="docs/public/README.md"
 WHITEPAPER="docs/public/void-network-whitepaper.md"
 QUICK="docs/public/quick-start.md"
@@ -159,3 +160,13 @@ print({
 PY
 
 echo "[ok] Mainnet-0 current public status proof passed"
+
+
+grep -q 'public_live_closeout_checkpoint: 4180224d / ckpt-mainnet0-public-live-closeout-green-20260525-110841' "$DOC"
+grep -q 'docs/public/mainnet0-public-live-closeout.md' "$DOC"
+grep -q 'make mainnet0-public-live-closeout-proof' "$DOC"
+grep -q 'Public live closeout proof is available.' "$DOC"
+test -f "$LIVE_CLOSEOUT"
+grep -q '^status: public_mainnet0_live$' "$LIVE_CLOSEOUT"
+grep -q '^decision: GO_PUBLIC_MAINNET0$' "$LIVE_CLOSEOUT"
+
