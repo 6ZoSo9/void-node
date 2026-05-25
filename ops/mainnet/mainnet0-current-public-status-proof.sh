@@ -12,6 +12,7 @@ QUICK="docs/public/quick-start.md"
 WSL2="docs/public/windows-wsl2-quick-start.md"
 SUPPORT="docs/public/support-runbook.md"
 START="docs/public/start-here.md"
+STACK_PROOF="ops/mainnet/mainnet0-public-docs-stack-proof.sh"
 BUNDLE="docs/public/mainnet0-public-release-bundle-closeout.md"
 HYGIENE="ops/mainnet/mainnet0-public-release-hygiene.current.md"
 STATUS="ops/mainnet/mainnet0-status.current.md"
@@ -21,7 +22,7 @@ echo "=== Mainnet-0 current public status proof ==="
 
 echo
 echo "=== [1] required files ==="
-for f in "$DOC" "$INDEX" "$WHITEPAPER" "$QUICK" "$WSL2" "$SUPPORT" "$START" "$BUNDLE" "$HYGIENE" "$STATUS"; do
+for f in "$DOC" "$INDEX" "$WHITEPAPER" "$QUICK" "$WSL2" "$SUPPORT" "$START" "$STACK_PROOF" "$BUNDLE" "$HYGIENE" "$STATUS"; do
   test -f "$f"
 done
 echo "[ok] required files exist"
@@ -37,7 +38,9 @@ grep -q '^quick_start_checkpoint: 0635c606 / ckpt-mainnet0-quick-start-green-202
 grep -q '^windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick-start-green-20260524-112502$' "$DOC"
 grep -q '^support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228$' "$DOC"
 grep -q '^start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001$' "$DOC"
+grep -q '^public_docs_stack_checkpoint: 791d6f4a / ckpt-mainnet0-public-docs-stack-green-20260524-175137$' "$DOC"
 grep -q 'VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.' "$DOC"
+grep -q 'make mainnet0-public-docs-stack-proof' "$DOC"
 echo "[ok] public status identity/checkpoints present"
 
 echo
@@ -61,6 +64,7 @@ echo "=== [4] live and guarded scopes ==="
 grep -q 'VOID Mainnet-0 public status is live.' "$DOC"
 grep -q 'Whitepaper v1 is available.' "$DOC"
 grep -q 'Start-here public landing overview is available.' "$DOC"
+grep -q 'Public docs stack composite proof is available.' "$DOC"
 grep -q 'Linux quick-start is available.' "$DOC"
 grep -q 'Windows WSL2 quick-start is available.' "$DOC"
 grep -q 'Public support runbook is available.' "$DOC"
@@ -75,6 +79,7 @@ echo "[ok] live scope and guardrails present"
 echo
 echo "=== [5] status file agreement ==="
 grep -q '^status: public_mainnet0_live$' "$STATUS"
+grep -q '^mainnet0-public-docs-stack-proof:' Makefile
 grep -q 'This public launch state does not authorize public active validator admission' "$STATUS"
 echo "[ok] status file agrees"
 

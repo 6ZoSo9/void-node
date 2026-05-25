@@ -13,12 +13,17 @@ quick_start_checkpoint: 0635c606 / ckpt-mainnet0-quick-start-green-20260524-1113
 windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick-start-green-20260524-112502
 support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228
 start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001
+public_docs_stack_checkpoint: 791d6f4a / ckpt-mainnet0-public-docs-stack-green-20260524-175137
 
 ## Current truth
 
 VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
 
 The public release bundle, public release hygiene, launch docs, participant onboarding, announcement materials, and whitepaper are cross-box proven.
+
+The full public docs stack is proven by:
+
+    make mainnet0-public-docs-stack-proof
 
 The current public package includes:
 
@@ -78,6 +83,7 @@ Participants should read:
 - Participant page is available from a running local node.
 - Public documentation is available.
 - Start-here public landing overview is available.
+- Public docs stack composite proof is available.
 - Linux quick-start is available.
 - Windows WSL2 quick-start is available.
 - Public support runbook is available.
