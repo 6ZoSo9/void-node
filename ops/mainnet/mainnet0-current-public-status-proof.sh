@@ -7,6 +7,7 @@ cd "${VOID_REPO:-$HOME/dev/void-node}"
 
 DOC="docs/public/mainnet0-current-public-status.md"
 LIVE_CLOSEOUT="docs/public/mainnet0-public-live-closeout.md"
+LIVE_ANNOUNCEMENT="docs/public/mainnet0-public-live-announcement.md"
 INDEX="docs/public/README.md"
 WHITEPAPER="docs/public/void-network-whitepaper.md"
 QUICK="docs/public/quick-start.md"
@@ -169,4 +170,17 @@ grep -q 'Public live closeout proof is available.' "$DOC"
 test -f "$LIVE_CLOSEOUT"
 grep -q '^status: public_mainnet0_live$' "$LIVE_CLOSEOUT"
 grep -q '^decision: GO_PUBLIC_MAINNET0$' "$LIVE_CLOSEOUT"
+
+
+
+grep -q 'public_live_announcement_checkpoint: 33c10bd6 / ckpt-mainnet0-public-live-announcement-green-20260525-211809' "$DOC"
+grep -q 'docs/public/mainnet0-public-live-announcement.md' "$DOC"
+grep -q 'make mainnet0-public-live-announcement-proof' "$DOC"
+grep -q 'Public live announcement proof is available.' "$DOC"
+test -f "$LIVE_ANNOUNCEMENT"
+grep -q '^status: public_mainnet0_live$' "$LIVE_ANNOUNCEMENT"
+grep -q '^decision: GO_PUBLIC_MAINNET0$' "$LIVE_ANNOUNCEMENT"
+grep -q 'current_public_status_checkpoint: e5f6a8a4 / ckpt-current-public-status-public-live-closeout-green-20260525-130102' "$LIVE_ANNOUNCEMENT"
+grep -q 'public_live_closeout_checkpoint: 4180224d / ckpt-mainnet0-public-live-closeout-green-20260525-110841' "$LIVE_ANNOUNCEMENT"
+grep -q 'Public active validator admission, treasury spend, Buy VOID fulfillment, and authority transfer remain guarded.' "$LIVE_ANNOUNCEMENT"
 

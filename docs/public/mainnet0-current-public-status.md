@@ -9,6 +9,7 @@ whitepaper_checkpoint: 9067695b / ckpt-mainnet0-whitepaper-v1-green-20260524-102
 public_release_bundle_checkpoint: 49f460ea / ckpt-mainnet0-public-release-bundle-closeout-green-20260524-091935
 public_release_hygiene_checkpoint: 9b904aa1 / ckpt-public-release-hygiene-public-live-green-20260524-090437
 public_live_closeout_checkpoint: 4180224d / ckpt-mainnet0-public-live-closeout-green-20260525-110841
+public_live_announcement_checkpoint: 33c10bd6 / ckpt-mainnet0-public-live-announcement-green-20260525-211809
 quick_start_checkpoint: 0635c606 / ckpt-mainnet0-quick-start-green-20260524-111319
 windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick-start-green-20260524-112502
 support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228
@@ -33,6 +34,7 @@ The current served public surface is proven by:
 
 The current public package includes:
 
+- docs/public/mainnet0-public-live-announcement.md
 - docs/public/mainnet0-public-live-closeout.md
 - docs/public/start-here.md
 - README.md public docs pointer
@@ -106,6 +108,7 @@ Participants should read:
 - Start-here public landing overview is available.
 - Public docs stack composite proof is available.
 - Public live closeout proof is available.
+- Public live announcement proof is available.
 - Developer reference is available.
 - Public served surface proof is available.
 - Linux quick-start is available.
@@ -178,3 +181,12 @@ The public live closeout is proven by:
     make mainnet0-public-live-closeout-proof
 
 It records the current public-facing Mainnet-0 baseline across the public docs stack, served participant surface, readiness, and cross-box runtime truth.
+
+
+## Public live announcement
+
+The public live announcement is proven by:
+
+    make mainnet0-public-live-announcement-proof
+
+It provides safe public wording for Mainnet-0: public-live infrastructure is open, while public active validator admission, treasury spend, Buy VOID fulfillment, and authority transfer remain guarded.
