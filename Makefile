@@ -1024,3 +1024,7 @@ mainnet0-developer-reference-proof:
 .PHONY: mainnet0-public-surface-proof
 mainnet0-public-surface-proof:
 	bash ops/mainnet/mainnet0-public-surface-proof.sh
+
+.PHONY: mainnet0-public-live-announcement-proof
+mainnet0-public-live-announcement-proof:
+	bash ops/mainnet/mainnet0-public-live-announcement-proof.sh

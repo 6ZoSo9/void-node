@@ -8,6 +8,7 @@ Status: public_mainnet0_live / GO_PUBLIC_MAINNET0
 Start here:
 
 - Start here: docs/public/start-here.md
+- Public live announcement: docs/public/mainnet0-public-live-announcement.md
 - Quick start: docs/public/quick-start.md
 - Windows WSL2 quick start: docs/public/windows-wsl2-quick-start.md
 - Support runbook: docs/public/support-runbook.md
