@@ -1032,3 +1032,7 @@ mainnet0-public-live-announcement-proof:
 .PHONY: public-repo-hardening-proof
 public-repo-hardening-proof:
 	bash ops/security/public-repo-hardening-proof.sh
+
+.PHONY: public-repo-gitleaks-current-proof
+public-repo-gitleaks-current-proof:
+	bash ops/security/public-repo-gitleaks-current-proof.sh

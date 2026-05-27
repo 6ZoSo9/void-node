@@ -1,0 +1,65 @@
+title = "VOID Network gitleaks config"
+
+[extend]
+useDefault = true
+
+# Public Ethereum addresses are not secrets.
+# This does NOT allow 0x64 private-key-shaped values.
+[[allowlists]]
+description = "Public Ethereum address values in tracked public/devnet status artifacts"
+regexTarget = "secret"
+regexes = [
+  '''^0x[a-fA-F0-9]{40}$'''
+]
+paths = [
+  '''^config/void-workcredits-devnet\.live\.json$''',
+  '''^docs/VOID-DEVNET-PROTOCOL-STATE\.json$''',
+  '''^docs/VOID-WORKCREDITS-DEVNET-STATE\.json$''',
+  '''^ops/mainnet/void-mainnet\.deployed\.json$''',
+  '''^ops/mainnet/void-mainnet\.live\.json$''',
+  '''^ops/mainnet0/buy-void-real-fulfillment-closeout-proof\.sh$''',
+  '''^ops/mainnet0/mainnet0-8545-epoch125-state-proof\.sh$''',
+  '''^ops/void-workcredits-devnet-pool-state\.sh$'''
+]
+condition = "AND"
+
+# Consensus keys here are public validator consensus keys, not signing/private keys.
+# Keep this path-limited and line-shape-limited so generic 0x64 private keys elsewhere still fail.
+[[allowlists]]
+description = "Public consensus key fields in validator status/deployment artifacts"
+regexTarget = "line"
+regexes = [
+  '''(?i)(consensus[_-]?key|consensusKey)[^A-Za-z0-9_]+["']?0x[a-fA-F0-9]{64}["']?'''
+]
+paths = [
+  '''^ops/mainnet/mainnet0-validator-live-admission-readiness\.current\.json$''',
+  '''^ops/mainnet/validator-admission-promotion-plan\.zoso\.md$''',
+  '''^ops/mainnet/validator-admission-public-keys\.zoso\.md$''',
+  '''^ops/mainnet/validator-status\.current\.yaml$''',
+  '''^ops/mainnet/validator-truth-upgrade-track\.deployed\.json$''',
+  '''^ops/mainnet/validator-truth-upgrade-track\.recovery-20260424-173432\.json$''',
+  '''^ops/mainnet/void-mainnet\.deployed\.json$''',
+  '''^ops/mainnet/void-mainnet\.live\.json$'''
+]
+condition = "AND"
+
+# This field name is historical; the value is an address-shaped public value in deployment metadata.
+[[allowlists]]
+description = "Public admin gate master address field in deployment metadata"
+regexTarget = "line"
+regexes = [
+  '''adminGateMasterKey[^A-Za-z0-9_]+["']?0x[a-fA-F0-9]{40}["']?'''
+]
+paths = [
+  '''^ops/mainnet/void-mainnet\.deployed\.json$'''
+]
+condition = "AND"
+
+# Known non-secret UI/storage key string in generated legacy JS artifact.
+# Keep path-limited; if this still fails, inspect and replace/remove src/index.js next.
+[[allowlists]]
+description = "Known non-secret key string in legacy generated src/index.js"
+paths = [
+  '''^src/index\.js$'''
+]
+condition = "AND"
