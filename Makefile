@@ -1036,3 +1036,7 @@ public-repo-hardening-proof:
 .PHONY: public-repo-gitleaks-current-proof
 public-repo-gitleaks-current-proof:
 	bash ops/security/public-repo-gitleaks-current-proof.sh
+
+.PHONY: public-repo-gitleaks-history-triage-proof
+public-repo-gitleaks-history-triage-proof:
+	bash ops/security/public-repo-gitleaks-history-triage-proof.sh
