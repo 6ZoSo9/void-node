@@ -165,3 +165,16 @@ keystore/
 wallet-secrets.json
 *wallet-secrets*.json
 *.agekey
+
+# Public repo secret-safety additions
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.ppk
+cache/
+.cache/
+*.seed
+*.mnemonic
+*.keystore
+*.wallet

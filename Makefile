@@ -1028,3 +1028,7 @@ mainnet0-public-surface-proof:
 .PHONY: mainnet0-public-live-announcement-proof
 mainnet0-public-live-announcement-proof:
 	bash ops/mainnet/mainnet0-public-live-announcement-proof.sh
+
+.PHONY: public-repo-hardening-proof
+public-repo-hardening-proof:
+	bash ops/security/public-repo-hardening-proof.sh
