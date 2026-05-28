@@ -21,7 +21,7 @@ curl -fsS --max-time 8 "$BASE/__void/ready.json" && echo
 echo
 echo "=== [1] source markers ==="
 grep -q 'datanet_live_v1_with_repo_static_fallback' src/index.ts
-grep -q '7a356fb2e835bce242f0eb824e8bc344' src/index.ts
+grep -q '3280ff66058b5429872a7e41a4b5c21d' src/index.ts
 grep -q '6519ce3c3233cd0d89845b7140791231' src/index.ts
 grep -q 'ckpt-void-native-site-live-datanet-publish-green-20260528-102010' src/index.ts
 echo "[ok] source markers present"
@@ -43,9 +43,9 @@ out = pathlib.Path(sys.argv[1])
 
 expected = {
     "voidchain": {
-        "dataset_id": "7a356fb2e835bce242f0eb824e8bc344",
-        "content_root": "c9b40ab82f88efccdad21cfacd0105e13c89407189270243dd4927effc0df0b5",
-        "sha256": "c9b40ab82f88efccdad21cfacd0105e13c89407189270243dd4927effc0df0b5",
+        "dataset_id": "3280ff66058b5429872a7e41a4b5c21d",
+        "content_root": "ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1",
+        "sha256": "ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1",
     },
     "nullfeed": {
         "dataset_id": "6519ce3c3233cd0d89845b7140791231",
