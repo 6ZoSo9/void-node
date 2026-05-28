@@ -1120,3 +1120,7 @@ void-native-site-domain-alias-proof:
 .PHONY: voidchain-download-page-proof
 voidchain-download-page-proof:
 	bash ops/security/voidchain-download-page-proof.sh
+
+.PHONY: void-public-site-route-aliases-proof
+void-public-site-route-aliases-proof:
+	bash ops/security/void-public-site-route-aliases-proof.sh

@@ -314,6 +314,21 @@ app.get("/", (_req:any, res:any) => {
   res.redirect(302, "/participant");
 });
 
+// === VOID public site route aliases v1 ===
+// These are convenience aliases only. Canonical site identity remains /site/<id>
+// and the VOID/DataNet site manifest/content root.
+app.get("/download", (_req:any, res:any) => {
+  res.redirect(302, "/site/voidchain");
+});
+
+app.get("/voidchain", (_req:any, res:any) => {
+  res.redirect(302, "/site/voidchain");
+});
+
+app.get("/nullfeed", (_req:any, res:any) => {
+  res.redirect(302, "/site/nullfeed");
+});
+
 // === VOID public sensitive route guard v1 ===
 // Mainnet-0 is public-live. Keep operator/dev/admin/diag/debug and wallet export
 // surfaces local-only by default while preserving normal participant and readiness routes.
