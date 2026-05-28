@@ -1052,3 +1052,7 @@ public-proof-cadence-proof:
 .PHONY: public-branch-release-policy-proof
 public-branch-release-policy-proof:
 	bash ops/security/public-branch-release-policy-proof.sh
+
+.PHONY: public-github-templates-proof
+public-github-templates-proof:
+	bash ops/security/public-github-templates-proof.sh
