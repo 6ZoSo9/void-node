@@ -1128,3 +1128,7 @@ void-public-site-route-aliases-proof:
 .PHONY: voidchain-public-status-block-proof
 voidchain-public-status-block-proof:
 	bash ops/security/voidchain-public-status-block-proof.sh
+
+.PHONY: nullfeed-public-preview-proof
+nullfeed-public-preview-proof:
+	bash ops/security/nullfeed-public-preview-proof.sh
