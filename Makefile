@@ -1164,3 +1164,7 @@ public-first60-user-journey-proof:
 .PHONY: public-download-install-journey-proof
 public-download-install-journey-proof:
 	bash ops/security/public-download-install-journey-proof.sh
+
+.PHONY: public-support-route-triage-proof
+public-support-route-triage-proof:
+	bash ops/security/public-support-route-triage-proof.sh

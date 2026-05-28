@@ -59,7 +59,7 @@ The current served public surface is intentionally narrow:
 - `/participant` is served.
 - `/__void/ready.json` is served.
 - `/__void/runtime/validator-truth/status` is served as a read surface.
-- `/` remains a non-public 404 surface.
+- `/` redirects to `/participant` as the public first-run entry path.
 - `/__void/status` remains a non-public 404 surface.
 - GET `/__void/participant/stake/next-onboard` remains a non-public 404 surface.
 
@@ -128,6 +128,19 @@ Participants should read:
 - Future treasury spend remains separately guarded.
 - No additional authority transfer is authorized by public launch status.
 - Operator/admin controls are not public participant controls.
+
+
+## Public support first checks
+
+For first-response support, start with these safe checks:
+
+- `/` should redirect to `/participant`.
+- `/download` and `/voidchain` should redirect to `/site/voidchain`.
+- `/participant` should serve the Wallet-first participant app.
+- `/__void/ready.json` should report `ready=true`, `gap=0`, and `txroot_live=1`.
+- Sensitive GET routes such as `/__void/status`, `/__void/participant/stake/next-onboard`, Buy VOID fulfill/claim routes, treasury routes, and admin routes should remain non-public `404` surfaces.
+- Public validator registration remains candidate/waiting only.
+- Buy VOID remains guided-only and fulfillment remains explicit, payment-verified, and tx-ref-recorded.
 
 ## Current validator posture
 

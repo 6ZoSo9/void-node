@@ -6,6 +6,35 @@ updated_at_utc: 20260524-123000
 
 current_public_status_checkpoint: 2f71d8b3 / ckpt-current-public-status-quickstarts-green-20260524-121756
 
+## Current public route triage
+
+When a user says the public surface is confusing or broken, verify the current route truth before deeper debugging:
+
+    curl -i http://127.0.0.1:4100/
+
+Expected result:
+
+- HTTP 302
+- `Location: /participant`
+
+Then verify the download/install aliases:
+
+    curl -i http://127.0.0.1:4100/download
+    curl -i http://127.0.0.1:4100/voidchain
+
+Expected result:
+
+- HTTP 302
+- `Location: /site/voidchain`
+
+Then verify the public pages:
+
+    http://127.0.0.1:4100/participant
+    http://127.0.0.1:4100/site/voidchain
+
+Do not treat public-live status as permission to use guarded mutation lanes. Validator active admission, Buy VOID fulfillment, treasury spend, and authority transfer remain proof-gated.
+
+
 ## Purpose
 
 This runbook is for public support, operators, and technically capable participants when a user says their VOID node is not working.
