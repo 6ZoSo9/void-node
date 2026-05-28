@@ -1044,3 +1044,7 @@ public-repo-gitleaks-history-triage-proof:
 .PHONY: public-github-landing-proof
 public-github-landing-proof:
 	bash ops/security/public-github-landing-proof.sh
+
+.PHONY: public-proof-cadence-proof
+public-proof-cadence-proof:
+	bash ops/security/public-proof-cadence-proof.sh

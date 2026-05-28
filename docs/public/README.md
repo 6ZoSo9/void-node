@@ -18,6 +18,7 @@ Start here:
 10. `windows-wsl2-quick-start.md` — Windows WSL2 path for running a node.
 11. `support-runbook.md` — first-response support checklist for node/user issues.
 12. `developer-reference.md` — public technical reference for endpoints, proofs, and guarded boundaries.
+13. `proof-cadence.md` — lightweight proof tiers for public repo development and checkpoint closeout.
 
 ## Mainnet-0 status
 
