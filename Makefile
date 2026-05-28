@@ -1088,3 +1088,7 @@ public-root-redirect-proof:
 .PHONY: public-sensitive-route-guard-proof
 public-sensitive-route-guard-proof:
 	bash ops/security/public-sensitive-route-guard-proof.sh
+
+.PHONY: void-native-web-hosting-proof
+void-native-web-hosting-proof:
+	bash ops/security/void-native-web-hosting-proof.sh
