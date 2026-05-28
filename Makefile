@@ -1156,3 +1156,7 @@ void-readme-native-site-bundle-proof:
 .PHONY: buy-void-public-safety-status-proof
 buy-void-public-safety-status-proof:
 	bash ops/mainnet0/buy-void-public-safety-status-proof.sh
+
+.PHONY: public-first60-user-journey-proof
+public-first60-user-journey-proof:
+	bash ops/security/public-first60-user-journey-proof.sh
