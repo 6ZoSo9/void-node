@@ -1108,3 +1108,7 @@ void-native-site-live-datanet-publish-proof:
 .PHONY: void-native-site-datanet-manifest-proof
 void-native-site-datanet-manifest-proof:
 	bash ops/security/void-native-site-datanet-manifest-proof.sh
+
+.PHONY: void-native-site-serve-datanet-first-proof
+void-native-site-serve-datanet-first-proof:
+	bash ops/security/void-native-site-serve-datanet-first-proof.sh

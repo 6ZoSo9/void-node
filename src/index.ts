@@ -413,6 +413,58 @@ app.get("/", (_req:any, res:any) => {
     return { info, html, sha256 };
   }
 
+  function readSiteFromDatanetOrStatic(site:string): any {
+    const fallback = readSite(site);
+    const dn = datanetProofs[site] || null;
+    if (!dn) {
+      return { ...fallback, source: "repo_static_v1", datanet: false };
+    }
+
+    try {
+      const dataDirRaw = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a");
+      const dataDirAbs = path0.isAbsolute(dataDirRaw) ? dataDirRaw : path0.join(process.cwd(), dataDirRaw);
+      const packedDir = path0.join(dataDirAbs, "datanet", "publish_shim_v1", "packed", String(dn.dataset_id));
+      const chunkPath = path0.join(packedDir, "chunk_000000.bin");
+      const rootPath = path0.join(packedDir, "root.txt");
+
+      if (!fs0.existsSync(chunkPath)) throw new Error("missing_datanet_chunk");
+      const html = fs0.readFileSync(chunkPath, "utf8");
+      const sha256 = crypto0.createHash("sha256").update(html).digest("hex");
+
+      if (sha256 !== String(dn.content_root)) {
+        throw new Error("datanet_content_hash_mismatch");
+      }
+
+      let rootTxt = "";
+      try { rootTxt = String(fs0.readFileSync(rootPath, "utf8") || "").trim(); } catch {}
+      if (rootTxt && rootTxt !== String(dn.content_root)) {
+        throw new Error("datanet_root_mismatch");
+      }
+
+      return {
+        info: fallback.info,
+        html,
+        sha256,
+        source: "datanet_live_v1",
+        datanet: true,
+        datanet_dataset_id: String(dn.dataset_id),
+        datanet_content_root: String(dn.content_root),
+        datanet_who: String(dn.who),
+        fallback_available: true
+      };
+    } catch (e:any) {
+      return {
+        ...fallback,
+        source: "repo_static_fallback_v1",
+        datanet: false,
+        datanet_dataset_id: String(dn.dataset_id),
+        datanet_content_root: String(dn.content_root),
+        datanet_who: String(dn.who),
+        fallback_reason: String(e?.message || e || "unknown")
+      };
+    }
+  }
+
   const datanetProofs:any = {
     voidchain: {
       who: "void-site-bundle-v1",
@@ -458,16 +510,26 @@ app.get("/", (_req:any, res:any) => {
   }
 
   app.get("/site/voidchain", (_req:any, res:any) => {
-    const got = readSite("voidchain");
+    const got = readSiteFromDatanetOrStatic("voidchain");
     res.setHeader("x-void-site", "voidchain");
     res.setHeader("x-void-site-sha256", got.sha256);
+    res.setHeader("x-void-site-source", got.source);
+    res.setHeader("x-void-datanet-backed", got.datanet ? "true" : "false");
+    if (got.datanet_dataset_id) res.setHeader("x-void-datanet-dataset-id", got.datanet_dataset_id);
+    if (got.datanet_content_root) res.setHeader("x-void-datanet-content-root", got.datanet_content_root);
+    if (got.fallback_reason) res.setHeader("x-void-site-fallback-reason", got.fallback_reason);
     res.type("html").send(got.html);
   });
 
   app.get("/site/nullfeed", (_req:any, res:any) => {
-    const got = readSite("nullfeed");
+    const got = readSiteFromDatanetOrStatic("nullfeed");
     res.setHeader("x-void-site", "nullfeed");
     res.setHeader("x-void-site-sha256", got.sha256);
+    res.setHeader("x-void-site-source", got.source);
+    res.setHeader("x-void-datanet-backed", got.datanet ? "true" : "false");
+    if (got.datanet_dataset_id) res.setHeader("x-void-datanet-dataset-id", got.datanet_dataset_id);
+    if (got.datanet_content_root) res.setHeader("x-void-datanet-content-root", got.datanet_content_root);
+    if (got.fallback_reason) res.setHeader("x-void-site-fallback-reason", got.fallback_reason);
     res.type("html").send(got.html);
   });
 
