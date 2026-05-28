@@ -35,3 +35,31 @@ Future treasury spend remains separately guarded.
 Do not share private keys or seed phrases.
 Do not send blind deposits.
 Do not confuse candidate/waiting validator registration with active validator admission.
+
+## Native public site bundle
+
+Status: cross-box proven.
+
+Checkpoint: 25899017 / ckpt-public-site-status-doc-green-20260528-131313
+
+Public routes:
+
+- /download redirects to /site/voidchain
+- /voidchain redirects to /site/voidchain
+- /nullfeed redirects to /site/nullfeed
+- /site/voidchain serves the Voidchain public site
+- /site/nullfeed serves the NullFeed public preview
+
+DataNet-backed site roots:
+
+- Voidchain dataset_id: 3280ff66058b5429872a7e41a4b5c21d
+- Voidchain content_root: ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1
+- NullFeed dataset_id: 6a24c375872459c0f9941c58e88bd61e
+- NullFeed content_root: f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372
+
+Canonical detail:
+
+- Current public status: mainnet0-current-public-status.md
+- DataNet site bundle seeding runbook: ../ops/runbooks/datanet-site-bundle-seeding.md
+
+Operational guardrail: repo static fallback is bootstrap availability only. DataNet-backed public site proof requires datanet_live_v1 headers and the expected content roots.

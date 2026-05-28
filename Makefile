@@ -1144,3 +1144,7 @@ void-public-site-bundle-seeding-runbook-proof:
 .PHONY: void-public-site-status-doc-proof
 void-public-site-status-doc-proof:
 	bash ops/security/void-public-site-status-doc-proof.sh
+
+.PHONY: void-public-docs-index-site-bundle-proof
+void-public-docs-index-site-bundle-proof:
+	bash ops/security/void-public-docs-index-site-bundle-proof.sh
