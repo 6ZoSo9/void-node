@@ -413,8 +413,24 @@ app.get("/", (_req:any, res:any) => {
     return { info, html, sha256 };
   }
 
+  const datanetProofs:any = {
+    voidchain: {
+      who: "void-site-bundle-v1",
+      dataset_id: "bada36412a45e85494120de97b93e021",
+      content_root: "89a6f397117cfa2d2825445f129abb8c5509129fa910b932d007d4dd8aeeef74",
+      checkpoint: "b071b531 / ckpt-void-native-site-live-datanet-publish-green-20260528-102010"
+    },
+    nullfeed: {
+      who: "void-site-bundle-v1",
+      dataset_id: "6519ce3c3233cd0d89845b7140791231",
+      content_root: "83f77b7ba41564da7671539a6bef1cf681832b9951477d8cc415381db46cf1b3",
+      checkpoint: "b071b531 / ckpt-void-native-site-live-datanet-publish-green-20260528-102010"
+    }
+  };
+
   function manifest(site:string): any {
     const got = readSite(site);
+    const dn = datanetProofs[site] || null;
     return {
       ok: true,
       kind: "void_native_site_manifest_v1",
@@ -425,13 +441,19 @@ app.get("/", (_req:any, res:any) => {
       route: got.info.route,
       manifest_route: got.info.manifest_route,
       content_sha256: got.sha256,
-      content_source: "repo_static_v1",
+      content_source: dn ? "datanet_live_v1_with_repo_static_fallback" : "repo_static_v1",
       hosted_by: "VOID node",
       canonical_target: "VOID Network / DataNet",
       external_cloud_canonical: false,
       google_cloud_required: false,
-      datanet_backed: false,
-      next_step: "publish this site bundle into DataNet and prove hash readback"
+      datanet_backed: !!dn,
+      datanet_who: dn ? dn.who : null,
+      datanet_dataset_id: dn ? dn.dataset_id : null,
+      datanet_content_root: dn ? dn.content_root : null,
+      datanet_fetch_url: dn ? ("/datanet/v1/fetch/" + encodeURIComponent(dn.dataset_id) + "?who=" + encodeURIComponent(dn.who)) : null,
+      datanet_proof_checkpoint: dn ? dn.checkpoint : null,
+      fallback_source: "repo_static_v1",
+      next_step: "serve website content directly from DataNet-backed storage with repo static fallback"
     };
   }
 
