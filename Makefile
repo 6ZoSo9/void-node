@@ -1100,3 +1100,7 @@ void-native-website-routes-proof:
 .PHONY: void-native-site-datanet-bundle-proof
 void-native-site-datanet-bundle-proof:
 	bash ops/security/void-native-site-datanet-bundle-proof.sh
+
+.PHONY: void-native-site-live-datanet-publish-proof
+void-native-site-live-datanet-publish-proof:
+	bash ops/security/void-native-site-live-datanet-publish-proof.sh
