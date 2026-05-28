@@ -366,6 +366,100 @@ app.get("/", (_req:any, res:any) => {
   try { console.log("[security] public sensitive route guard v1 installed"); } catch {}
 })();
 
+// === VOID native website routes v1 ===
+// Serves first static website bundles from the VOID node.
+// DataNet-backed bundles come next; these routes prove the local node can host the public sites.
+;(() => {
+  const G:any = globalThis as any;
+  if (G.__void_native_website_routes_v1_installed) return;
+  G.__void_native_website_routes_v1_installed = true;
+
+  const fs0 = require("fs");
+  const path0 = require("path");
+  const crypto0 = require("crypto");
+
+  const siteRoot = path0.join(process.cwd(), "docs", "site");
+
+  function siteInfo(site:string): any {
+    if (site === "voidchain") return {
+      site,
+      domain: "voidchain.io",
+      title: "VOID Network",
+      entry: "index.html",
+      route: "/site/voidchain",
+      manifest_route: "/__void/site-manifest/voidchain.json"
+    };
+    if (site === "nullfeed") return {
+      site,
+      domain: "nullfeed.io",
+      title: "NullFeed",
+      entry: "index.html",
+      route: "/site/nullfeed",
+      manifest_route: "/__void/site-manifest/nullfeed.json"
+    };
+    return null;
+  }
+
+  function siteFile(site:string): string {
+    return path0.join(siteRoot, site, "index.html");
+  }
+
+  function readSite(site:string): { info:any, html:string, sha256:string } {
+    const info = siteInfo(site);
+    if (!info) throw new Error("unknown_site");
+    const file = siteFile(site);
+    const html = fs0.readFileSync(file, "utf8");
+    const sha256 = crypto0.createHash("sha256").update(html).digest("hex");
+    return { info, html, sha256 };
+  }
+
+  function manifest(site:string): any {
+    const got = readSite(site);
+    return {
+      ok: true,
+      kind: "void_native_site_manifest_v1",
+      site: got.info.site,
+      public_domain: got.info.domain,
+      title: got.info.title,
+      entry: got.info.entry,
+      route: got.info.route,
+      manifest_route: got.info.manifest_route,
+      content_sha256: got.sha256,
+      content_source: "repo_static_v1",
+      hosted_by: "VOID node",
+      canonical_target: "VOID Network / DataNet",
+      external_cloud_canonical: false,
+      google_cloud_required: false,
+      datanet_backed: false,
+      next_step: "publish this site bundle into DataNet and prove hash readback"
+    };
+  }
+
+  app.get("/site/voidchain", (_req:any, res:any) => {
+    const got = readSite("voidchain");
+    res.setHeader("x-void-site", "voidchain");
+    res.setHeader("x-void-site-sha256", got.sha256);
+    res.type("html").send(got.html);
+  });
+
+  app.get("/site/nullfeed", (_req:any, res:any) => {
+    const got = readSite("nullfeed");
+    res.setHeader("x-void-site", "nullfeed");
+    res.setHeader("x-void-site-sha256", got.sha256);
+    res.type("html").send(got.html);
+  });
+
+  app.get("/__void/site-manifest/voidchain.json", (_req:any, res:any) => {
+    res.json(manifest("voidchain"));
+  });
+
+  app.get("/__void/site-manifest/nullfeed.json", (_req:any, res:any) => {
+    res.json(manifest("nullfeed"));
+  });
+
+  try { console.log("[site] VOID native website routes v1 mounted: /site/voidchain /site/nullfeed"); } catch {}
+})();
+
 
 /* __void_mainnet0_validator_candidate_registry_api_v1 */
 ;(() => {

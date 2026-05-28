@@ -1092,3 +1092,7 @@ public-sensitive-route-guard-proof:
 .PHONY: void-native-web-hosting-proof
 void-native-web-hosting-proof:
 	bash ops/security/void-native-web-hosting-proof.sh
+
+.PHONY: void-native-website-routes-proof
+void-native-website-routes-proof:
+	bash ops/security/void-native-website-routes-proof.sh

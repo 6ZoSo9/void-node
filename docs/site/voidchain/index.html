@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VOID Network — voidchain.io</title>
+  <style>
+    :root{color-scheme:dark;--bg:#05060a;--panel:#0e1320;--line:#263245;--text:#e5e7eb;--muted:#93a4b8;--accent:#93c5fd;--green:#86efac;--pink:#f0abfc}
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(circle at top,#111827 0,#05060a 52%,#02030a 100%);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .wrap{max-width:1120px;margin:0 auto;padding:36px 18px 54px}
+    .nav{display:flex;gap:14px;align-items:center;justify-content:space-between;margin-bottom:34px}
+    .brand{font-weight:900;letter-spacing:.08em}
+    .pill{border:1px solid var(--line);border-radius:999px;padding:8px 12px;color:var(--muted);font-size:13px}
+    .hero{border:1px solid var(--line);background:linear-gradient(135deg,rgba(147,197,253,.12),rgba(240,171,252,.08));border-radius:26px;padding:34px;box-shadow:0 18px 70px rgba(0,0,0,.38)}
+    h1{font-size:clamp(34px,7vw,76px);line-height:.95;margin:0 0 18px;letter-spacing:-.07em}
+    .lead{font-size:18px;line-height:1.6;color:#cbd5e1;max-width:820px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:22px}
+    .card{border:1px solid var(--line);background:rgba(14,19,32,.78);border-radius:20px;padding:20px}
+    .card h2{font-size:18px;margin:0 0 10px}
+    .card p{color:var(--muted);line-height:1.55;margin:0}
+    .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
+    a{color:var(--accent)}
+    .btn{display:inline-flex;text-decoration:none;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#0b1220;color:var(--text);font-weight:800}
+    .btn.primary{background:linear-gradient(135deg,#2563eb,#7c3aed);border-color:#60a5fa}
+    .status{margin-top:24px;color:var(--green)}
+    code{background:#060a12;border:1px solid #1f2937;border-radius:8px;padding:2px 6px;color:#bfdbfe}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="nav">
+      <div class="brand">VOID NETWORK</div>
+      <div class="pill">VOID-hosted site bundle v1</div>
+    </div>
+
+    <section class="hero">
+      <h1>Run the network. Own the path.</h1>
+      <p class="lead">
+        VOID is public-live infrastructure for self-hosted nodes, verifiable data, Work Credits, DataNet,
+        participant wallets, and guarded validator admission. This page is served by a VOID node, not Google Cloud.
+      </p>
+      <div class="actions">
+        <a class="btn primary" href="/participant">Open Participant App</a>
+        <a class="btn" href="/__void/site-manifest/voidchain.json">View Site Manifest</a>
+        <a class="btn" href="/site/nullfeed">Preview NullFeed</a>
+      </div>
+      <p class="status">Canonical direction: website content should be hosted, mirrored, verified, and eventually recovered through VOID/DataNet.</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Download / Run a Node</h2>
+        <p>For Mainnet-0, start from the repo quick-start path. Linux first; Windows users should use WSL2 until packaging improves.</p>
+      </article>
+      <article class="card">
+        <h2>DataNet</h2>
+        <p>Content can be published, fetched, verified, and later used as the backing store for this website bundle.</p>
+      </article>
+      <article class="card">
+        <h2>Public Safety</h2>
+        <p>Public routes are open. Operator, dev, diagnostic, and wallet export routes are remote-blocked by the sensitive route guard.</p>
+      </article>
+      <article class="card">
+        <h2>Next</h2>
+        <p>Move this static bundle into DataNet, prove the content hash, then point <code>voidchain.io</code> at a VOID-operated gateway.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
