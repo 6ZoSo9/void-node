@@ -1080,3 +1080,7 @@ public-readme-live-cleanup-proof:
 .PHONY: public-participant-first60-copy-proof
 public-participant-first60-copy-proof:
 	bash ops/security/public-participant-first60-copy-proof.sh
+
+.PHONY: public-root-redirect-proof
+public-root-redirect-proof:
+	bash ops/security/public-root-redirect-proof.sh

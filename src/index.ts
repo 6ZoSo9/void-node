@@ -307,6 +307,14 @@ console.log("[shim] published global node (post-construct)");
   
 const app = express();
 
+// === VOID public root redirect v1 ===
+// Public users often open http://127.0.0.1:4100/ first.
+// Keep the root route tiny and redirect to the participant UI.
+app.get("/", (_req:any, res:any) => {
+  res.redirect(302, "/participant");
+});
+
+
 /* __void_mainnet0_validator_candidate_registry_api_v1 */
 ;(() => {
   try {
