@@ -1152,3 +1152,7 @@ void-public-docs-index-site-bundle-proof:
 .PHONY: void-readme-native-site-bundle-proof
 void-readme-native-site-bundle-proof:
 	bash ops/security/void-readme-native-site-bundle-proof.sh
+
+.PHONY: buy-void-public-safety-status-proof
+buy-void-public-safety-status-proof:
+	bash ops/mainnet0/buy-void-public-safety-status-proof.sh
