@@ -1060,3 +1060,7 @@ public-github-templates-proof:
 .PHONY: public-support-md-proof
 public-support-md-proof:
 	bash ops/security/public-support-md-proof.sh
+
+.PHONY: public-readme-navigation-proof
+public-readme-navigation-proof:
+	bash ops/security/public-readme-navigation-proof.sh

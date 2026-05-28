@@ -3,32 +3,43 @@
 <!-- VOID_PUBLIC_DOCS_START -->
 ## VOID Mainnet-0 is live
 
-Status: public_mainnet0_live / GO_PUBLIC_MAINNET0
+Status: `public_mainnet0_live / GO_PUBLIC_MAINNET0`
 
-Start here:
+VOID Mainnet-0 is public-live. Start with the links below.
 
-- Start here: docs/public/start-here.md
-- Public live announcement: docs/public/mainnet0-public-live-announcement.md
-- Quick start: docs/public/quick-start.md
-- Windows WSL2 quick start: docs/public/windows-wsl2-quick-start.md
-- Support runbook: docs/public/support-runbook.md
-- Developer reference: docs/public/developer-reference.md
-- Current public status: docs/public/mainnet0-current-public-status.md
-- FAQ: docs/public/mainnet0-faq.md
-- Whitepaper: docs/public/void-network-whitepaper.md
-- Public docs index: docs/public/README.md
-- Security policy: SECURITY.md
-- Support guide: SUPPORT.md
-- Contributing guide: CONTRIBUTING.md
-- Proof cadence: docs/public/proof-cadence.md
-- Branch/release policy: docs/public/branch-release-policy.md
-- Public release bundle closeout: docs/public/mainnet0-public-release-bundle-closeout.md
-- Launch notes: docs/public/mainnet0-launch-notes.md
-- Run a node: docs/public/run-a-node.md
-- Participant onboarding: docs/public/participant-onboarding.md
-- Announcement: docs/public/mainnet0-announcement.md
+### Start here
 
-Important guardrails:
+- [Start here](docs/public/start-here.md)
+- [Quick start](docs/public/quick-start.md)
+- [Windows WSL2 quick start](docs/public/windows-wsl2-quick-start.md)
+- [Run a node](docs/public/run-a-node.md)
+- [Participant onboarding](docs/public/participant-onboarding.md)
+
+### Current status and announcements
+
+- [Current public status](docs/public/mainnet0-current-public-status.md)
+- [Public live announcement](docs/public/mainnet0-public-live-announcement.md)
+- [Launch notes](docs/public/mainnet0-launch-notes.md)
+- [Announcement](docs/public/mainnet0-announcement.md)
+- [Public release bundle closeout](docs/public/mainnet0-public-release-bundle-closeout.md)
+
+### Help, security, and contributing
+
+- [Support guide](SUPPORT.md)
+- [Support runbook](docs/public/support-runbook.md)
+- [Security policy](SECURITY.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Proof cadence](docs/public/proof-cadence.md)
+- [Branch/release policy](docs/public/branch-release-policy.md)
+
+### Technical reference
+
+- [Public docs index](docs/public/README.md)
+- [Developer reference](docs/public/developer-reference.md)
+- [FAQ](docs/public/mainnet0-faq.md)
+- [Whitepaper](docs/public/void-network-whitepaper.md)
+
+### Important guardrails
 
 - Public active validator admission remains disabled.
 - Public validator registration remains candidate/waiting only.
