@@ -314,6 +314,58 @@ app.get("/", (_req:any, res:any) => {
   res.redirect(302, "/participant");
 });
 
+// === VOID public sensitive route guard v1 ===
+// Mainnet-0 is public-live. Keep operator/dev/admin/diag/debug and wallet export
+// surfaces local-only by default while preserving normal participant and readiness routes.
+// Set VOID_ALLOW_REMOTE_SENSITIVE_ROUTES=1 only for an intentionally protected operator environment.
+;(() => {
+  const G:any = globalThis as any;
+  if (G.__void_public_sensitive_route_guard_v1_installed) return;
+  G.__void_public_sensitive_route_guard_v1_installed = true;
+
+  function remoteAddr(req:any): string {
+    return String(
+      req?.socket?.remoteAddress ||
+      req?.connection?.remoteAddress ||
+      req?.ip ||
+      ""
+    );
+  }
+
+  function isLocalRemote(req:any): boolean {
+    const r = remoteAddr(req);
+    return (
+      r === "127.0.0.1" ||
+      r === "::1" ||
+      r === "::ffff:127.0.0.1" ||
+      r === "localhost"
+    );
+  }
+
+  function sensitivePath(req:any): boolean {
+    const raw = String(req?.path || req?.url || "");
+    const path = raw.split("?")[0] || "/";
+    return (
+      path === "/__void/participant/wallet/export" ||
+      path.startsWith("/__void/operator/") ||
+      path.startsWith("/__void/admin/") ||
+      path.startsWith("/__void/dev/") ||
+      path.startsWith("/__void/diag/") ||
+      path.startsWith("/__debug/") ||
+      path.startsWith("/dev/")
+    );
+  }
+
+  app.use((req:any, res:any, next:any) => {
+    if (process.env.VOID_ALLOW_REMOTE_SENSITIVE_ROUTES === "1") return next();
+    if (!sensitivePath(req)) return next();
+    if (isLocalRemote(req)) return next();
+    return res.status(404).type("text/plain").send("not found");
+  });
+
+  try { console.log("[security] public sensitive route guard v1 installed"); } catch {}
+})();
+
 
 /* __void_mainnet0_validator_candidate_registry_api_v1 */
 ;(() => {

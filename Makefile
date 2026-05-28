@@ -1084,3 +1084,7 @@ public-participant-first60-copy-proof:
 .PHONY: public-root-redirect-proof
 public-root-redirect-proof:
 	bash ops/security/public-root-redirect-proof.sh
+
+.PHONY: public-sensitive-route-guard-proof
+public-sensitive-route-guard-proof:
+	bash ops/security/public-sensitive-route-guard-proof.sh
