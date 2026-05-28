@@ -1056,3 +1056,7 @@ public-branch-release-policy-proof:
 .PHONY: public-github-templates-proof
 public-github-templates-proof:
 	bash ops/security/public-github-templates-proof.sh
+
+.PHONY: public-support-md-proof
+public-support-md-proof:
+	bash ops/security/public-support-md-proof.sh

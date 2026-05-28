@@ -18,6 +18,7 @@ Start here:
 - Whitepaper: docs/public/void-network-whitepaper.md
 - Public docs index: docs/public/README.md
 - Security policy: SECURITY.md
+- Support guide: SUPPORT.md
 - Contributing guide: CONTRIBUTING.md
 - Proof cadence: docs/public/proof-cadence.md
 - Branch/release policy: docs/public/branch-release-policy.md
