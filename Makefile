@@ -1096,3 +1096,7 @@ void-native-web-hosting-proof:
 .PHONY: void-native-website-routes-proof
 void-native-website-routes-proof:
 	bash ops/security/void-native-website-routes-proof.sh
+
+.PHONY: void-native-site-datanet-bundle-proof
+void-native-site-datanet-bundle-proof:
+	bash ops/security/void-native-site-datanet-bundle-proof.sh
