@@ -6,104 +6,205 @@ set +o histexpand
 cd "${VOID_REPO:-$HOME/dev/void-node}"
 
 BASE="${BASE:-http://127.0.0.1:4100}"
-WATCH_ID="${WATCH_ID:-buywatch_1778589099533_22c953e4}"
-QUEUE_ID="${QUEUE_ID:-buyq_1778589099373_e86e1740}"
-TX_HASH="${TX_HASH:-0x378fdba93f97afc854b3753011a09b670ab4162759c3cd33c1bc64b236030337}"
-TMP="${TMP:-/tmp/void-buy-void-ethereum-no-void-send-proof}"
+ACCOUNT="${ACCOUNT:-zoso}"
+AMOUNT_USDC="${AMOUNT_USDC:-25}"
+TMP="${TMP:-/tmp/void-buy-ethereum-payment-confirmed-no-void-send}"
+NOTE="ops/mainnet0/buy-void-base-claim-rehearsal.current.md"
+
 mkdir -p "$TMP"
 
 echo "=== Buy VOID Ethereum payment-confirmed no-VOID-send proof ==="
+echo "base=$BASE"
+echo "account=$ACCOUNT"
+echo "amount_usdc=$AMOUNT_USDC"
 
 echo
-echo "=== [1] ready ==="
-curl -fsS "$BASE/__void/ready.json" > "$TMP/ready.json"
-cat "$TMP/ready.json"
-python3 - "$TMP/ready.json" <<'PY'
+echo "=== [1] git truth ==="
+git status --short
+git rev-parse --short HEAD
+git describe --tags --always --dirty
+
+echo
+echo "=== [2] build ==="
+npm run build
+
+echo
+echo "=== [3] readiness before ==="
+curl -fsS "$BASE/__void/ready.json" > "$TMP/ready-before.json"
+cat "$TMP/ready-before.json"
+echo
+
+echo
+echo "=== [4] resolve delivery wallet ==="
+DELIVERY_WALLET=""
+
+if [ -f "$NOTE" ]; then
+  DELIVERY_WALLET="$(grep -E '^Delivery wallet:' "$NOTE" | head -n 1 | awk '{print $3}' || true)"
+fi
+
+if [ -z "$DELIVERY_WALLET" ]; then
+  DELIVERY_WALLET="$(curl -fsS "$BASE/__void/participant/wallet/status?account=${ACCOUNT}" | python3 -c 'import sys,json; j=json.load(sys.stdin); print(j.get("address","") if j.get("ok") and j.get("has_wallet") else "")')"
+fi
+
+if [ -z "$DELIVERY_WALLET" ]; then
+  echo "[ERR] no delivery wallet available"
+  exit 1
+fi
+
+echo "delivery_wallet=$DELIVERY_WALLET"
+
+echo
+echo "=== [5] create disposable request ==="
+CREATE_JSON="$(curl -fsS   -H 'content-type: application/json'   -d "{\"account\":\"${ACCOUNT}\",\"delivery_wallet\":\"${DELIVERY_WALLET}\",\"requested_amount_usdc\":\"${AMOUNT_USDC}\",\"chain\":\"ethereum\"}"   "$BASE/__void/participant/buy-void/request")"
+printf '%s
+' "$CREATE_JSON" > "$TMP/create.json"
+python3 -m json.tool "$TMP/create.json" | sed -n '1,120p'
+
+REQUEST_ID="$(python3 - "$TMP/create.json" <<'PY2'
+import json, sys
+j=json.load(open(sys.argv[1]))
+print((j.get("request") or {}).get("request_id",""))
+PY2
+)"
+
+test -n "$REQUEST_ID"
+echo "request_id=$REQUEST_ID"
+
+echo
+echo "=== [6] queue disposable request ==="
+QUEUE_JSON="$(curl -fsS   -H 'content-type: application/json'   -d "{\"request_id\":\"${REQUEST_ID}\",\"operator_note\":\"queued for ethereum payment-confirmed no-void-send proof\"}"   "$BASE/__void/operator/buy-void/queue")"
+printf '%s
+' "$QUEUE_JSON" > "$TMP/queue.json"
+python3 -m json.tool "$TMP/queue.json" | sed -n '1,120p'
+
+QUEUE_ID="$(python3 - "$TMP/queue.json" <<'PY2'
+import json, sys
+j=json.load(open(sys.argv[1]))
+print((j.get("queued") or {}).get("queue_id",""))
+PY2
+)"
+
+test -n "$QUEUE_ID"
+echo "queue_id=$QUEUE_ID"
+
+echo
+echo "=== [7] create disposable watch target ==="
+WATCH_JSON="$(curl -fsS   -H 'content-type: application/json'   -d "{\"queue_id\":\"${QUEUE_ID}\",\"operator_note\":\"watch target for ethereum payment-confirmed no-void-send proof\"}"   "$BASE/__void/operator/buy-void/watch-targets")"
+printf '%s
+' "$WATCH_JSON" > "$TMP/watch.json"
+python3 -m json.tool "$TMP/watch.json" | sed -n '1,140p'
+
+WATCH_ID="$(python3 - "$TMP/watch.json" <<'PY2'
+import json, sys
+j=json.load(open(sys.argv[1]))
+print((j.get("watch") or {}).get("watch_id",""))
+PY2
+)"
+
+test -n "$WATCH_ID"
+echo "watch_id=$WATCH_ID"
+
+echo
+echo "=== [8] record manual payment_confirmed observation ==="
+PAYMENT_REF="ethereum_tx_confirmed_manual_no_void_send_proof_$(date +%Y%m%d_%H%M%S)"
+
+CONFIRMED_JSON="$(curl -fsS   -H 'content-type: application/json'   -d "{\"watch_id\":\"${WATCH_ID}\",\"observe_status\":\"payment_confirmed\",\"observed_amount_usdc\":\"${AMOUNT_USDC}\",\"payment_ref\":\"${PAYMENT_REF}\",\"operator_note\":\"manual ethereum payment_confirmed no VOID send proof\"}"   "$BASE/__void/operator/buy-void/watch-targets/observe")"
+printf '%s
+' "$CONFIRMED_JSON" > "$TMP/confirmed.json"
+python3 -m json.tool "$TMP/confirmed.json" | sed -n '1,180p'
+
+echo
+echo "=== [9] assert payment_confirmed and no VOID tx before fulfillment attempt ==="
+curl -fsS "$BASE/__void/operator/buy-void/watch-targets/status?watch_id=${WATCH_ID}" > "$TMP/watch-before-fulfill.json"
+curl -fsS "$BASE/__void/operator/buy-void/queue/status?queue_id=${QUEUE_ID}" > "$TMP/queue-before-fulfill.json"
+
+python3 - "$TMP/watch-before-fulfill.json" "$TMP/queue-before-fulfill.json" "$PAYMENT_REF" <<'PY2'
+import json, sys
+w=json.load(open(sys.argv[1])).get("watch") or {}
+q=json.load(open(sys.argv[2])).get("queued") or {}
+payment_ref=sys.argv[3]
+
+assert w.get("watch_status") == "payment_confirmed_recorded", w
+assert w.get("payment_ref") == payment_ref, w
+assert w.get("expected_chain") == "ethereum", w
+assert w.get("expected_asset") == "ethereum_native_usdc", w
+assert w.get("fulfillment_lane") == "buy_void_ethereum_usdc_v1_future", w
+assert w.get("observed_amount_match") is True, w
+assert not w.get("void_tx_ref"), w
+
+policy = q.get("policy") or {}
+assert policy.get("accepted_chain") == "ethereum", q
+assert policy.get("accepted_asset") == "ethereum_native_usdc", q
+assert q.get("fulfillment_lane") == "buy_void_ethereum_usdc_v1_future", q
+assert q.get("operator_status") == "payment_confirmed", q
+assert q.get("payment_ref") == payment_ref, q
+assert not q.get("void_tx_ref"), q
+
+print("[ok] payment_confirmed recorded and no VOID tx ref exists")
+PY2
+
+echo
+echo "=== [10] fulfillment without void_tx_ref must still fail ==="
+curl -sS -i   -H 'content-type: application/json'   -d "{\"watch_id\":\"${WATCH_ID}\",\"fulfill_status\":\"void_sent\",\"operator_note\":\"should fail without void tx ref\"}"   "$BASE/__void/operator/buy-void/watch-targets/fulfill" > "$TMP/missing-void-tx.http"
+
+sed -n '1,100p' "$TMP/missing-void-tx.http"
+grep -q "400 Bad Request" "$TMP/missing-void-tx.http"
+grep -q "missing_void_tx_ref" "$TMP/missing-void-tx.http"
+
+echo
+echo "=== [11] assert still no VOID-send mutation ==="
+curl -fsS "$BASE/__void/operator/buy-void/watch-targets/status?watch_id=${WATCH_ID}" > "$TMP/watch-after.json"
+curl -fsS "$BASE/__void/operator/buy-void/queue/status?queue_id=${QUEUE_ID}" > "$TMP/queue-after.json"
+
+python3 - "$TMP/watch-before-fulfill.json" "$TMP/watch-after.json" "$TMP/queue-before-fulfill.json" "$TMP/queue-after.json" <<'PY2'
+import json, sys
+wb=json.load(open(sys.argv[1])).get("watch") or {}
+wa=json.load(open(sys.argv[2])).get("watch") or {}
+qb=json.load(open(sys.argv[3])).get("queued") or {}
+qa=json.load(open(sys.argv[4])).get("queued") or {}
+
+assert wa.get("watch_id") == wb.get("watch_id"), (wb, wa)
+assert wa.get("watch_status") == wb.get("watch_status") == "payment_confirmed_recorded", (wb, wa)
+assert wa.get("payment_ref") == wb.get("payment_ref"), (wb, wa)
+assert not wa.get("void_tx_ref"), wa
+
+assert qa.get("queue_id") == qb.get("queue_id"), (qb, qa)
+assert qa.get("operator_status") == qb.get("operator_status") == "payment_confirmed", (qb, qa)
+assert qa.get("payment_ref") == qb.get("payment_ref"), (qb, qa)
+assert not qa.get("void_tx_ref"), qa
+
+print("[ok] no void_sent/completed transition and no void_tx_ref mutation")
+PY2
+
+echo
+echo "=== [12] readiness after ==="
+curl -fsS "$BASE/__void/ready.json" > "$TMP/ready-after.json"
+cat "$TMP/ready-after.json"
+echo
+
+python3 - "$TMP/ready-after.json" <<'PY2'
 import json, sys
 j=json.load(open(sys.argv[1]))
 assert j.get("ready") is True, j
 assert int(j.get("gap", 999999)) == 0, j
 assert int(j.get("txroot_live", 0)) == 1, j
-print("[ok] ready/gap/txroot")
-PY
+print("[ok] ready/gap/txroot still green")
+PY2
+
+cat > "$TMP/report.json" <<EOF2
+{
+  "ok": true,
+  "request_id": "$REQUEST_ID",
+  "queue_id": "$QUEUE_ID",
+  "watch_id": "$WATCH_ID",
+  "payment_ref": "$PAYMENT_REF",
+  "void_send_attempted": false,
+  "void_tx_ref_recorded": false,
+  "expected_queue_status": "payment_confirmed"
+}
+EOF2
 
 echo
-echo "=== [2] watch payment confirmed, no VOID tx ==="
-curl -fsS "$BASE/__void/operator/buy-void/watch-targets/status?watch_id=$WATCH_ID" > "$TMP/watch.json"
-python3 -m json.tool "$TMP/watch.json" | sed -n '1,180p'
-python3 - "$TMP/watch.json" "$WATCH_ID" "$TX_HASH" <<'PY'
-import json, sys
-j=json.load(open(sys.argv[1]))
-watch_id=sys.argv[2]
-tx=sys.argv[3]
-w=j.get("watch") or {}
-assert j.get("ok") is True, j
-assert w.get("watch_id") == watch_id, w
-assert w.get("expected_chain") == "ethereum", w
-assert w.get("expected_asset") == "ethereum_native_usdc", w
-assert w.get("watch_status") == "payment_confirmed_recorded", w
-assert w.get("payment_ref") == tx, w
-assert float(w.get("observed_amount_usdc")) == 25.0, w
-assert w.get("observed_amount_match") is True, w
-assert not w.get("void_tx_ref"), w
-print("[ok] Ethereum watch confirms payment and no VOID tx")
-PY
-
-echo
-echo "=== [3] queue payment confirmed, no VOID tx ==="
-curl -fsS "$BASE/__void/operator/buy-void/queue/status?queue_id=$QUEUE_ID" > "$TMP/queue.json"
-python3 -m json.tool "$TMP/queue.json" | sed -n '1,180p'
-python3 - "$TMP/queue.json" "$QUEUE_ID" "$TX_HASH" <<'PY'
-import json, sys
-j=json.load(open(sys.argv[1]))
-queue_id=sys.argv[2]
-tx=sys.argv[3]
-q=j.get("queued") or {}
-assert j.get("ok") is True, j
-assert q.get("queue_id") == queue_id, q
-assert q.get("operator_status") == "payment_confirmed", q
-assert q.get("payment_ref") == tx, q
-assert not q.get("void_tx_ref"), q
-print("[ok] Ethereum queue confirms payment and no VOID tx")
-PY
-
-echo
-echo "=== [4] fulfillment requires explicit VOID tx ref ==="
-curl -sS -w '\nHTTP_STATUS:%{http_code}\n' \
-  -X POST \
-  -H 'content-type: application/json' \
-  -d "{\"watch_id\":\"$WATCH_ID\",\"fulfill_status\":\"void_sent\",\"operator_note\":\"ethereum no-auto-send proof missing void tx ref\"}" \
-  "$BASE/__void/operator/buy-void/watch-targets/fulfill" \
-  > "$TMP/fulfill-missing-voidtx.http"
-
-cat "$TMP/fulfill-missing-voidtx.http"
-python3 - "$TMP/fulfill-missing-voidtx.http" <<'PY'
-import json, sys
-raw=open(sys.argv[1]).read()
-body, _, status = raw.partition("\nHTTP_STATUS:")
-j=json.loads(body)
-code=int(status.strip())
-assert code == 400, (code, j)
-assert j.get("ok") is False, j
-assert j.get("error") == "missing_void_tx_ref", j
-print("[ok] fulfillment blocked without explicit VOID tx ref")
-PY
-
-echo
-echo "=== [5] final watch unchanged ==="
-curl -fsS "$BASE/__void/operator/buy-void/watch-targets/status?watch_id=$WATCH_ID" > "$TMP/watch-after.json"
-python3 - "$TMP/watch-after.json" "$TX_HASH" <<'PY'
-import json, sys
-j=json.load(open(sys.argv[1]))
-tx=sys.argv[2]
-w=j.get("watch") or {}
-assert w.get("watch_status") == "payment_confirmed_recorded", w
-assert w.get("payment_ref") == tx, w
-assert float(w.get("observed_amount_usdc")) == 25.0, w
-assert w.get("observed_amount_match") is True, w
-assert not w.get("void_tx_ref"), w
-print("[ok] final watch unchanged; no VOID tx recorded")
-PY
-
+cat "$TMP/report.json"
 echo
 echo "[ok] Buy VOID Ethereum payment-confirmed no-VOID-send proof passed"
