@@ -57,16 +57,16 @@ echo "[ok] locked public admission policy preserved"
 
 echo
 echo "=== [4] existing status docs still block active public admission ==="
-grep -q 'status: not_go_for_public_mainnet0' "$STATUS"
+grep -q 'status: public_mainnet0_live' "$STATUS"
 grep -q 'Public validator candidate promotion/admission remains blocked' "$STATUS"
 grep -q 'public registration/candidate/waiting status remains non-launching' "$STATUS"
 grep -q 'public registration does not mutate the active validator set' "$STATUS"
 
-grep -q 'launch_state: not_go_for_public_mainnet0' "$BLOCKERS"
+grep -q 'launch_state: public_mainnet0_live' "$BLOCKERS"
 grep -q 'Public participant validator registration remains candidate/waiting only' "$BLOCKERS"
 grep -q 'Public registration does not instantly expand the active validator set' "$BLOCKERS"
 
-grep -q 'status: not_go_for_public_mainnet0' "$FINAL_CHECKLIST"
+grep -q 'status: public_mainnet0_live' "$FINAL_CHECKLIST"
 grep -q 'Public validator registration remains candidate/waiting only' "$FINAL_CHECKLIST"
 grep -q 'Public validator promotion/admission remains blocked' "$FINAL_CHECKLIST"
 echo "[ok] status/blocker/checklist docs still block public active admission"
@@ -120,7 +120,7 @@ print({
   "public_active_admission_enabled": False,
   "public_registration_result": "candidate_or_waiting_only",
   "public_registration_mutates_active_set": False,
-  "launch_state": "not_go_for_public_mainnet0",
+  "launch_state": "public_mainnet0_live",
   "mutation_allowed": False,
   "money_step": "last",
 })

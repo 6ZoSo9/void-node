@@ -49,7 +49,7 @@ echo "[ok] plan is explicitly plan-only, non-mutating, and policy-aligned"
 
 echo
 echo "=== [3] current status still blocks launch ==="
-grep -q "status: not_go_for_public_mainnet0" "$STATUS"
+grep -q "status: public_mainnet0_live" "$STATUS"
 grep -q "Public validator candidate promotion/admission remains blocked" "$STATUS"
 grep -q "Public candidate/waiting registration must not be confused with operator/bootstrap validator admission" "$STATUS"
 grep -q "Operator/bootstrap validator runtime truth is green through epoch127" "$STATUS"
@@ -58,9 +58,9 @@ echo "[ok] status file still records launch blockers"
 
 echo
 echo "=== [4] blockers doc still keeps money last ==="
-grep -q "launch_state: not_go_for_public_mainnet0" "$BLOCKERS"
-grep -q "The money step is intentionally last" "$BLOCKERS"
-grep -q "Blocker 2: public validator Mainnet-0 posture is candidate-only" "$BLOCKERS"
+grep -q "launch_state: public_mainnet0_live" "$BLOCKERS"
+grep -q "The initial OpsTreasury seed money step is complete; future money-moving steps remain separately guarded." "$BLOCKERS"
+grep -q "Guard 2: public validator Mainnet-0 posture is candidate-only" "$BLOCKERS"
 grep -q "Public participant validator registration remains candidate/waiting only" "$BLOCKERS"
 grep -Eq "Cleared Blocker: first Buy VOID real claim/send is complete|Cleared Blocker: first Buy VOID real fulfillment closeout is proven|Cleared Blocker: first Buy VOID real fulfillment closeout is complete|Buy VOID real fulfillment has been completed and closeout-proven|Buy VOID has completed its first controlled real-money fulfillment test|Blocker 3: Buy VOID real claim/send is not complete|Buy VOID real claim/send is not complete" "$BLOCKERS"
 echo "[ok] blockers doc still matches intended order"
@@ -75,7 +75,7 @@ python3 - <<'PY'
 print({
   "promotion_plan": "documented",
   "mutation_allowed": False,
-  "launch_state": "not_go_for_public_mainnet0",
+  "launch_state": "public_mainnet0_live",
   "public_validator_promotion": "blocked",
   "money_step": "last",
 })
