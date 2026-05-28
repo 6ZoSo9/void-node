@@ -468,9 +468,9 @@ app.get("/", (_req:any, res:any) => {
   const datanetProofs:any = {
     voidchain: {
       who: "void-site-bundle-v1",
-      dataset_id: "bada36412a45e85494120de97b93e021",
-      content_root: "89a6f397117cfa2d2825445f129abb8c5509129fa910b932d007d4dd8aeeef74",
-      checkpoint: "b071b531 / ckpt-void-native-site-live-datanet-publish-green-20260528-102010"
+      dataset_id: "7a356fb2e835bce242f0eb824e8bc344",
+      content_root: "c9b40ab82f88efccdad21cfacd0105e13c89407189270243dd4927effc0df0b5",
+      checkpoint: "7ce1ec0f / ckpt-voidchain-download-page-green-20260528-110714 + voidchain DataNet publish summary /tmp/voidchain-download-datanet-publish-20260528-111129/summary.json"
     },
     nullfeed: {
       who: "void-site-bundle-v1",
