@@ -1140,3 +1140,7 @@ void-public-site-bundle-proof:
 .PHONY: void-public-site-bundle-seeding-runbook-proof
 void-public-site-bundle-seeding-runbook-proof:
 	bash ops/security/void-public-site-bundle-seeding-runbook-proof.sh
+
+.PHONY: void-public-site-status-doc-proof
+void-public-site-status-doc-proof:
+	bash ops/security/void-public-site-status-doc-proof.sh

@@ -190,3 +190,26 @@ The public live announcement is proven by:
     make mainnet0-public-live-announcement-proof
 
 It provides safe public wording for Mainnet-0: public-live infrastructure is open, while public active validator admission, treasury spend, Buy VOID fulfillment, and authority transfer remain guarded.
+
+## Native public site bundle
+
+Status: cross-box proven.
+
+Checkpoint: c8f28e4c / ckpt-datanet-site-bundle-seeding-runbook-green-20260528-130538
+
+Routes:
+
+- /download
+- /voidchain
+- /nullfeed
+- /site/voidchain
+- /site/nullfeed
+
+DataNet site bundles:
+
+- Voidchain dataset_id: 3280ff66058b5429872a7e41a4b5c21d
+- Voidchain content_root: ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1
+- NullFeed dataset_id: 6a24c375872459c0f9941c58e88bd61e
+- NullFeed content_root: f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372
+
+Operational note: public site routes are DataNet-first with repo static fallback. Follower nodes must have the packed DataNet site bundles seeded locally until peer materialization is automated. Repo static fallback must not be treated as DataNet-backed serving.
