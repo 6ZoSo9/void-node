@@ -1124,3 +1124,7 @@ voidchain-download-page-proof:
 .PHONY: void-public-site-route-aliases-proof
 void-public-site-route-aliases-proof:
 	bash ops/security/void-public-site-route-aliases-proof.sh
+
+.PHONY: voidchain-public-status-block-proof
+voidchain-public-status-block-proof:
+	bash ops/security/voidchain-public-status-block-proof.sh
