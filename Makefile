@@ -1064,3 +1064,7 @@ public-support-md-proof:
 .PHONY: public-readme-navigation-proof
 public-readme-navigation-proof:
 	bash ops/security/public-readme-navigation-proof.sh
+
+.PHONY: public-participant-copy-proof
+public-participant-copy-proof:
+	bash ops/security/public-participant-copy-proof.sh

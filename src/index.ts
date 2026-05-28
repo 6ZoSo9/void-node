@@ -48467,7 +48467,7 @@ a{color:#93c5fd;text-decoration:none}
     <section class="hero">
       <div>
         <div class="eyebrow">
-          <span class="pill">Mainnet-0 preview • not public launch</span>
+          <span class="pill">Mainnet-0 public-live • guarded actions</span>
         </div>
         <h1 style="margin:0 0 6px;font-size:28px;letter-spacing:-.03em">VOID Participant</h1>
         <div class="hero-actions" style="margin-top:10px">
@@ -48483,7 +48483,7 @@ a{color:#93c5fd;text-decoration:none}
 
     <section id="participantTopStatusStrip" class="hero-note" style="margin:0 0 14px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="topStripWallet" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Wallet: -</span>
-      <span id="topStripLaunch" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(251,191,36,.32);background:rgba(251,191,36,.12);font-weight:800"><!-- VOID_HOME_TOPSTRIP_LAUNCH_NOGO_V1 -->Public launch: NO-GO preview</span>
+      <span id="topStripLaunch" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(251,191,36,.32);background:rgba(251,191,36,.12);font-weight:800"><!-- VOID_HOME_TOPSTRIP_LAUNCH_NOGO_V1 -->Mainnet-0: public-live</span>
       <span id="topStripWc" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Spendable WC: -</span>
       <span id="topStripTrade" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">On-chain WC: -</span>
       <span id="topStripVoid" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">VOID: -</span>
@@ -48562,7 +48562,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="home-news-item">
           <div class="k">launch safety</div>
           <div class="v">Mainnet-0 remains preview-only.</div>
-          <div class="s">Ready status does not mean public launch. Validator promotion and final launch approval remain explicitly blocked.</div>
+          <div class="s">Public-live status does not open guarded actions. Active validator admission, Buy VOID fulfillment, treasury spend, and authority transfer remain proof-gated.</div>
         </div>
       </div>
     </section>
@@ -48594,7 +48594,7 @@ a{color:#93c5fd;text-decoration:none}
 
     <section class="home-quiet-status" id="homeQuietStatus"><!-- VOID_HOME_MAINNET0_NOGO_CLARITY_V1 -->
       <span class="pill">Mainnet-0 preview</span>
-      <span>Node is healthy, but public launch is still NO-GO. Start with Wallet; Buy VOID must use the guided request flow; validator registration is candidate/waiting only and active admission stays disabled until explicit launch approval.</span>
+      <span>Node is healthy and Mainnet-0 is public-live. Start with Wallet; Buy VOID must use the guided request flow; validator registration is candidate/waiting only and active admission stays disabled unless a later guarded proof lane changes it.</span>
     </section>
 
     <section class="kpis">
@@ -48792,7 +48792,7 @@ a{color:#93c5fd;text-decoration:none}
           </div>
 
           <details class="adv earn-dev-shortcuts" style="margin-top:10px">
-            <summary><span>Developer account shortcuts</span><span class="pill">advanced</span></summary>
+            <summary><span>Advanced account shortcuts</span><span class="pill">advanced</span></summary>
             <div class="adv-body">
               <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
                 <button type="button" style="padding:7px 11px; border-radius:999px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; cursor:pointer; font-weight:600; font-size:12px;" onclick="document.getElementById('account').value='dev-zoso'; try{localStorage.setItem('void_participant_account_v1','dev-zoso')}catch(_){} if (window.refreshAll) window.refreshAll().catch(()=>{});">dev: zoso</button>
@@ -48804,7 +48804,7 @@ a{color:#93c5fd;text-decoration:none}
           </details>
           <div class="subtle-tab-copy" id="wcIdentityTruth" style="margin-top:8px">WC truth: checking active account and ledger…</div>
           <div class="subtle-tab-copy" id="backendTruthCard" style="margin-top:6px">Backend truth: loading…</div>
-          <div class="subtle-tab-copy" id="wcLegacyWarn" style="margin-top:6px; display:none; color:#fbbf24">Legacy migrated/demo account selected. Values may include historical merged WC from older identities.</div>
+          <div class="subtle-tab-copy" id="wcLegacyWarn" style="margin-top:6px; display:none; color:#fbbf24">Historical migrated account selected. Values may include reconciled WC from older local identities.</div>
 
           <label for="plaintext">What do you want to submit?</label>
           <textarea id="plaintext" placeholder="Enter text or data."></textarea>
@@ -49864,7 +49864,7 @@ a{color:#93c5fd;text-decoration:none}
               <div class="k">Spendable WC</div>
               <div class="v" id="helperRedeemableMini">-</div>
               <div class="s">participant-side now</div>
-          <div class="subtle-tab-copy" id="wcBetaAccountingNote" style="margin-top:8px">Beta note: this balance may include reconciled legacy WC credits.</div>
+          <div class="subtle-tab-copy" id="wcBetaAccountingNote" style="margin-top:8px">Mainnet-0 note: this balance may include reconciled historical WC credits.</div>
             </div>
           </div>
 
@@ -49917,7 +49917,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="grid-2-eq">
         <div class="panel">
           <details class="adv">
-            <summary><span>Helper Wallet Diagnostics</span><span class="pill">advanced</span></summary>
+            <summary><span>Wallet diagnostics</span><span class="pill">advanced</span></summary>
             <div class="adv-body">
               <pre id="helperWalletStateOut">loading…</pre>
             </div>
