@@ -1136,3 +1136,7 @@ nullfeed-public-preview-proof:
 .PHONY: void-public-site-bundle-proof
 void-public-site-bundle-proof:
 	bash ops/security/void-public-site-bundle-proof.sh
+
+.PHONY: void-public-site-bundle-seeding-runbook-proof
+void-public-site-bundle-seeding-runbook-proof:
+	bash ops/security/void-public-site-bundle-seeding-runbook-proof.sh
