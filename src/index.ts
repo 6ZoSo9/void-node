@@ -48743,7 +48743,7 @@ a{color:#93c5fd;text-decoration:none}
 
     <section id="participantTopStatusStrip" class="hero-note" style="margin:0 0 14px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="topStripWallet" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Wallet: -</span>
-      <span id="topStripLaunch" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(251,191,36,.32);background:rgba(251,191,36,.12);font-weight:800"><!-- VOID_HOME_TOPSTRIP_LAUNCH_NOGO_V1 -->Mainnet-0: public-live</span>
+      <span id="topStripLaunch" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(251,191,36,.32);background:rgba(251,191,36,.12);font-weight:800"><!-- VOID_HOME_TOPSTRIP_PUBLIC_LIVE_V1 -->Mainnet-0: public-live</span>
       <span id="topStripWc" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">Spendable WC: -</span>
       <span id="topStripTrade" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">On-chain WC: -</span>
       <span id="topStripVoid" style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-weight:700">VOID: -</span>
@@ -48852,7 +48852,7 @@ a{color:#93c5fd;text-decoration:none}
       </a>
     </section>
 
-    <section class="home-quiet-status" id="homeQuietStatus"><!-- VOID_HOME_MAINNET0_NOGO_CLARITY_V1 -->
+    <section class="home-quiet-status" id="homeQuietStatus"><!-- VOID_HOME_MAINNET0_PUBLIC_LIVE_CLARITY_V1 -->
       <span class="pill">Mainnet-0 public-live</span>
       <span>Node is healthy and Mainnet-0 is public-live. Start with Wallet; Buy VOID must use the guided request flow; validator registration is candidate/waiting only and active admission stays disabled unless a later guarded proof lane changes it.</span>
     </section>

@@ -8,18 +8,18 @@ cd "${VOID_REPO:-$HOME/dev/void-node}"
 BASE="${BASE:-http://127.0.0.1:4100}"
 HTML="/tmp/void-participant-home-nogo-clarity.html"
 
-echo "=== participant Home Mainnet-0 NO-GO clarity proof ==="
+echo "=== participant Home Mainnet-0 public-live clarity proof ==="
 
 echo
 echo "=== [1] source markers ==="
-grep -q 'VOID_HOME_MAINNET0_NOGO_CLARITY_V1' src/index.ts
-grep -q 'Mainnet-0 preview' src/index.ts
-grep -q 'public launch is still NO-GO' src/index.ts
+grep -q 'VOID_HOME_MAINNET0_PUBLIC_LIVE_CLARITY_V1' src/index.ts
+grep -q 'Mainnet-0 public-live' src/index.ts
+grep -q 'Mainnet-0 is public-live' src/index.ts
 grep -q 'Start with Wallet' src/index.ts
 grep -q 'Buy VOID must use the guided request flow' src/index.ts
 grep -q 'validator registration is candidate/waiting only' src/index.ts
-grep -q 'active admission stays disabled until explicit launch approval' src/index.ts
-echo "[ok] source has explicit Home NO-GO clarity"
+grep -q 'active admission stays disabled unless a later guarded proof lane changes it' src/index.ts
+echo "[ok] source has explicit Home public-live clarity"
 
 echo
 echo "=== [2] build + restart ==="
@@ -43,13 +43,13 @@ PY
 echo
 echo "=== [4] served participant HTML ==="
 curl -fsS "$BASE/participant" > "$HTML"
-grep -q 'VOID_HOME_MAINNET0_NOGO_CLARITY_V1' "$HTML"
-grep -q 'Mainnet-0 preview' "$HTML"
-grep -q 'public launch is still NO-GO' "$HTML"
+grep -q 'VOID_HOME_MAINNET0_PUBLIC_LIVE_CLARITY_V1' "$HTML"
+grep -q 'Mainnet-0 public-live' "$HTML"
+grep -q 'Mainnet-0 is public-live' "$HTML"
 grep -q 'Start with Wallet' "$HTML"
 grep -q 'Buy VOID must use the guided request flow' "$HTML"
 grep -q 'validator registration is candidate/waiting only' "$HTML"
-grep -q 'active admission stays disabled until explicit launch approval' "$HTML"
+grep -q 'active admission stays disabled unless a later guarded proof lane changes it' "$HTML"
 grep -q 'VOID_HOME_ACTIONS_WALLET_FIRST_V1' "$HTML"
 grep -q 'VOID_BUY_PUBLIC_SAFETY_CLARITY_V1' "$HTML"
 grep -q 'VOID_STAKE_PUBLIC_CLARITY_V1' "$HTML"
@@ -57,11 +57,11 @@ echo "[ok] served Home clarity is present"
 
 echo
 echo "=== [5] launch posture remains fail-closed ==="
-grep -q '^status: not_go_for_public_mainnet0' ops/mainnet/mainnet0-final-gonogo-map.current.md
-grep -q '^decision: NO_GO' ops/mainnet/mainnet0-final-gonogo-map.current.md
-grep -q '^launch_approval: false' ops/mainnet/mainnet0-final-gonogo-map.current.md
-grep -q '^mutation_allowed: false' ops/mainnet/mainnet0-final-gonogo-map.current.md
-echo "[ok] launch docs remain NO-GO"
+grep -q '^status: public_mainnet0_live' ops/mainnet/mainnet0-final-gonogo-map.current.md
+grep -q '^decision: GO_PUBLIC_MAINNET0' ops/mainnet/mainnet0-final-gonogo-map.current.md
+grep -q '^launch_approval: true' ops/mainnet/mainnet0-final-gonogo-map.current.md
+grep -q '^mutation_allowed: true' ops/mainnet/mainnet0-final-gonogo-map.current.md
+echo "[ok] launch docs remain public-live and guarded"
 
 echo
-echo "[ok] participant Home Mainnet-0 NO-GO clarity proof passed"
+echo "[ok] participant Home Mainnet-0 public-live clarity proof passed"

@@ -37,7 +37,7 @@ echo "=== [4] required wallet markers ==="
 grep -q "VOID_WALLET_SETUP_STEPS_V1" "$HTML"
 grep -q "VOID_WALLET_SEND_WC_ADVANCED_V1" "$HTML"
 grep -q "VOID_WALLET_SEND_VOID_ADVANCED_V1" "$HTML"
-grep -q "VOID_HOME_TOPSTRIP_LAUNCH_NOGO_V1" "$HTML"
+grep -q "VOID_HOME_TOPSTRIP_PUBLIC_LIVE_V1" "$HTML"
 grep -q "Wallet Setup Path" "$HTML"
 grep -q "Advanced: Send Local WC" "$HTML"
 grep -q "Advanced: Send VOID" "$HTML"
@@ -56,7 +56,7 @@ expected_once = [
   "VOID_WALLET_SETUP_STEPS_V1",
   "VOID_WALLET_SEND_WC_ADVANCED_V1",
   "VOID_WALLET_SEND_VOID_ADVANCED_V1",
-  "VOID_HOME_TOPSTRIP_LAUNCH_NOGO_V1",
+  "VOID_HOME_TOPSTRIP_PUBLIC_LIVE_V1",
   "Wallet Setup Path",
   "Advanced: Send Local WC",
   "Advanced: Send VOID",

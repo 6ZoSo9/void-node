@@ -70,7 +70,15 @@ check_404() {
   echo "[ok] $path is not exposed as public GET surface"
 }
 
-check_404 "/"
+code_root="$(curl -sS -o /tmp/void-public-surface-root-body.txt -w '%{http_code}' "$BASE/")"
+if [ "$code_root" != "302" ]; then
+  echo "[ERR] expected 302 for /, got $code_root"
+  head -c 300 /tmp/void-public-surface-root-body.txt || true
+  echo
+  exit 1
+fi
+grep -q 'Found. Redirecting to /participant' /tmp/void-public-surface-root-body.txt
+echo "[ok] / redirects to /participant"
 check_404 "/__void/status"
 check_404 "/__void/participant/stake/next-onboard"
 
@@ -88,7 +96,7 @@ print({
   "participant": "served",
   "ready": "green",
   "validator_truth_read": "served",
-  "root_get": "not_public_404",
+  "root_get": "redirects_to_participant",
   "legacy_status_get": "not_public_404",
   "next_onboard_get": "not_public_404",
   "mutation_lanes": "not_touched"
