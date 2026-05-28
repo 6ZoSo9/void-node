@@ -54,3 +54,17 @@ The next implementation lane should improve the claim/fulfillment path without w
 Payment confirmation is not fulfillment.
 
 A real fulfillment must require explicit operator intent, a verified payment, an expected recipient, an expected amount, and a recorded `void_tx_ref`.
+
+## Proof correction
+
+The checkpoint `16b3e64e / ckpt-buy-void-public-safety-status-green-20260528-132532` is superseded.
+
+Reason: the initial static guard matched its own grep expression, and the outer command wrapper masked the failure by continuing to `mainnet0-status-smoke`.
+
+A valid green checkpoint for this lane must prove that `buy-void-public-safety-status-proof` itself exits zero before status smoke is considered.
+
+## Proof scope clarification
+
+Nested no-send proofs are not executed inside this public safety status proof.
+
+Reason: this proof is a read-only public posture proof. It checks that deeper Buy VOID safety proof targets are wired, then leaves those deeper proofs to run independently. This avoids masking failures and avoids transient readiness races from nested proof execution.
