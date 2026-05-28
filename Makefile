@@ -1160,3 +1160,7 @@ buy-void-public-safety-status-proof:
 .PHONY: public-first60-user-journey-proof
 public-first60-user-journey-proof:
 	bash ops/security/public-first60-user-journey-proof.sh
+
+.PHONY: public-download-install-journey-proof
+public-download-install-journey-proof:
+	bash ops/security/public-download-install-journey-proof.sh
