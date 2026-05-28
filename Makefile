@@ -1112,3 +1112,7 @@ void-native-site-datanet-manifest-proof:
 .PHONY: void-native-site-serve-datanet-first-proof
 void-native-site-serve-datanet-first-proof:
 	bash ops/security/void-native-site-serve-datanet-first-proof.sh
+
+.PHONY: void-native-site-domain-alias-proof
+void-native-site-domain-alias-proof:
+	bash ops/security/void-native-site-domain-alias-proof.sh

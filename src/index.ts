@@ -488,6 +488,13 @@ app.get("/", (_req:any, res:any) => {
       kind: "void_native_site_manifest_v1",
       site: got.info.site,
       public_domain: got.info.domain,
+      canonical_site_id: got.info.site,
+      preferred_public_alias: got.info.domain,
+      public_aliases: got.info.site === "voidchain"
+        ? ["voidchain.io", "void-chain.io", "voidchain.local", "voidchain.void"]
+        : ["nullfeed.io", "nullfeed.local", "nullfeed.void"],
+      domain_alias_model: "domains_are_replaceable_aliases_not_identity",
+      identity_authority: "VOID/DataNet site manifest and content root",
       title: got.info.title,
       entry: got.info.entry,
       route: got.info.route,
