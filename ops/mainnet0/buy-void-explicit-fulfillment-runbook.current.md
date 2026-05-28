@@ -1,7 +1,7 @@
 # Buy VOID Explicit Fulfillment Runbook
 
 status: plan_only
-launch_state: not_go_for_public_mainnet0
+launch_state: public_mainnet0_live
 mutation_allowed_by_this_doc: false
 operator_label: zoso
 
@@ -18,15 +18,23 @@ VOID fulfillment must remain a separate operator step requiring an explicit VOID
 - Base native USDC
 - Ethereum mainnet USDC
 
-## Current confirmed Ethereum payment
+## Current proof posture
 
-chain: ethereum
-asset: ethereum_native_usdc
-payment_ref: 0x378fdba93f97afc854b3753011a09b670ab4162759c3cd33c1bc64b236030337
-watch_id: buywatch_1778589099533_22c953e4
-queue_id: buyq_1778589099373_e86e1740
-amount_usdc: 25
-receiver: 0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5
+The old hardcoded Ethereum watch/queue/payment example has been superseded.
+
+Current proof posture:
+
+- Base no-send proof uses a fresh disposable request, queue, and watch.
+- Ethereum no-send proof uses a fresh disposable request, queue, and watch.
+- Both lanes record manual payment_confirmed observations only.
+- Both lanes require void_tx_ref to remain empty before explicit fulfillment.
+- Fulfillment without void_tx_ref must fail with missing_void_tx_ref.
+- No void_sent or completed transition may occur from payment confirmation alone.
+
+Current proof checkpoint:
+
+- commit: fc954906
+- tag: ckpt-buy-void-ethereum-no-send-refresh-green-20260528-135155
 
 ## Required safety rules
 
