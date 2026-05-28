@@ -1,5 +1,33 @@
 # void-node
 
+## Native public sites
+
+VOID now serves its public site bundle directly from a VOID node with DataNet-backed content and repo static fallback for bootstrap availability.
+
+Proven public routes:
+
+- `/download` redirects to `/site/voidchain`
+- `/voidchain` redirects to `/site/voidchain`
+- `/nullfeed` redirects to `/site/nullfeed`
+- `/site/voidchain` serves the Voidchain public site
+- `/site/nullfeed` serves the NullFeed public preview
+
+Current cross-box checkpoint:
+
+- commit: `96ec9e76`
+- tag: `ckpt-public-docs-index-site-bundle-green-20260528-131718`
+
+DataNet roots:
+
+- Voidchain dataset: `3280ff66058b5429872a7e41a4b5c21d`
+- Voidchain content root: `ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1`
+- NullFeed dataset: `6a24c375872459c0f9941c58e88bd61e`
+- NullFeed content root: `f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372`
+
+See `docs/public/README.md` and `docs/public/mainnet0-current-public-status.md` for the public status path. Follower nodes must seed the packed DataNet site bundles until peer materialization is automated; see `ops/runbooks/datanet-site-bundle-seeding.md`.
+
+Guardrail: repo static fallback is bootstrap availability only. DataNet-backed public site proof requires `datanet_live_v1` headers and expected content roots.
+
 <!-- VOID_PUBLIC_DOCS_START -->
 ## VOID Mainnet-0 is live
 
