@@ -1132,3 +1132,7 @@ voidchain-public-status-block-proof:
 .PHONY: nullfeed-public-preview-proof
 nullfeed-public-preview-proof:
 	bash ops/security/nullfeed-public-preview-proof.sh
+
+.PHONY: void-public-site-bundle-proof
+void-public-site-bundle-proof:
+	bash ops/security/void-public-site-bundle-proof.sh
