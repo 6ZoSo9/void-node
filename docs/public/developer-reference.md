@@ -237,7 +237,7 @@ Safe developer work should focus on:
 
 Developers should not assume:
 
-- public active validator admission is open
+- public active validator admission is disabled/guarded, not open
 - Buy VOID payment confirmation automatically sends VOID
 - treasury spend is authorized
 - authority transfer is authorized

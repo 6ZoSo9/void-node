@@ -1040,3 +1040,7 @@ public-repo-gitleaks-current-proof:
 .PHONY: public-repo-gitleaks-history-triage-proof
 public-repo-gitleaks-history-triage-proof:
 	bash ops/security/public-repo-gitleaks-history-triage-proof.sh
+
+.PHONY: public-github-landing-proof
+public-github-landing-proof:
+	bash ops/security/public-github-landing-proof.sh

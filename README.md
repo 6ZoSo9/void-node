@@ -17,6 +17,8 @@ Start here:
 - FAQ: docs/public/mainnet0-faq.md
 - Whitepaper: docs/public/void-network-whitepaper.md
 - Public docs index: docs/public/README.md
+- Security policy: SECURITY.md
+- Contributing guide: CONTRIBUTING.md
 - Public release bundle closeout: docs/public/mainnet0-public-release-bundle-closeout.md
 - Launch notes: docs/public/mainnet0-launch-notes.md
 - Run a node: docs/public/run-a-node.md
