@@ -1076,3 +1076,7 @@ terminal-saveblock-log-polish-proof:
 .PHONY: public-readme-live-cleanup-proof
 public-readme-live-cleanup-proof:
 	bash ops/security/public-readme-live-cleanup-proof.sh
+
+.PHONY: public-participant-first60-copy-proof
+public-participant-first60-copy-proof:
+	bash ops/security/public-participant-first60-copy-proof.sh

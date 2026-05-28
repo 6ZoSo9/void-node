@@ -48561,7 +48561,7 @@ a{color:#93c5fd;text-decoration:none}
         </div>
         <div class="home-news-item">
           <div class="k">launch safety</div>
-          <div class="v">Mainnet-0 remains preview-only.</div>
+          <div class="v">Mainnet-0 is public-live.</div>
           <div class="s">Public-live status does not open guarded actions. Active validator admission, Buy VOID fulfillment, treasury spend, and authority transfer remain proof-gated.</div>
         </div>
       </div>
@@ -48593,7 +48593,7 @@ a{color:#93c5fd;text-decoration:none}
     </section>
 
     <section class="home-quiet-status" id="homeQuietStatus"><!-- VOID_HOME_MAINNET0_NOGO_CLARITY_V1 -->
-      <span class="pill">Mainnet-0 preview</span>
+      <span class="pill">Mainnet-0 public-live</span>
       <span>Node is healthy and Mainnet-0 is public-live. Start with Wallet; Buy VOID must use the guided request flow; validator registration is candidate/waiting only and active admission stays disabled unless a later guarded proof lane changes it.</span>
     </section>
 
