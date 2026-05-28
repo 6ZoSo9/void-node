@@ -22,7 +22,7 @@ echo
 echo "=== [1] source markers ==="
 grep -q 'datanet_live_v1_with_repo_static_fallback' src/index.ts
 grep -q '3280ff66058b5429872a7e41a4b5c21d' src/index.ts
-grep -q '6519ce3c3233cd0d89845b7140791231' src/index.ts
+grep -q '6a24c375872459c0f9941c58e88bd61e' src/index.ts
 grep -q 'ckpt-void-native-site-live-datanet-publish-green-20260528-102010' src/index.ts
 echo "[ok] source markers present"
 
@@ -48,9 +48,9 @@ expected = {
         "sha256": "ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1",
     },
     "nullfeed": {
-        "dataset_id": "6519ce3c3233cd0d89845b7140791231",
-        "content_root": "83f77b7ba41564da7671539a6bef1cf681832b9951477d8cc415381db46cf1b3",
-        "sha256": "83f77b7ba41564da7671539a6bef1cf681832b9951477d8cc415381db46cf1b3",
+        "dataset_id": "6a24c375872459c0f9941c58e88bd61e",
+        "content_root": "f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372",
+        "sha256": "f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372",
     },
 }
 

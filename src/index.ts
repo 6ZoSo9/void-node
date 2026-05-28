@@ -489,9 +489,9 @@ app.get("/nullfeed", (_req:any, res:any) => {
     },
     nullfeed: {
       who: "void-site-bundle-v1",
-      dataset_id: "6519ce3c3233cd0d89845b7140791231",
-      content_root: "83f77b7ba41564da7671539a6bef1cf681832b9951477d8cc415381db46cf1b3",
-      checkpoint: "b071b531 / ckpt-void-native-site-live-datanet-publish-green-20260528-102010"
+      dataset_id: "6a24c375872459c0f9941c58e88bd61e",
+      content_root: "f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372",
+      checkpoint: "045ed720 / ckpt-nullfeed-public-preview-green-20260528-122103 + nullfeed DataNet publish dataset 6a24c375872459c0f9941c58e88bd61e root f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372"
     }
   };
 
