@@ -1116,3 +1116,7 @@ void-native-site-serve-datanet-first-proof:
 .PHONY: void-native-site-domain-alias-proof
 void-native-site-domain-alias-proof:
 	bash ops/security/void-native-site-domain-alias-proof.sh
+
+.PHONY: voidchain-download-page-proof
+voidchain-download-page-proof:
+	bash ops/security/voidchain-download-page-proof.sh
