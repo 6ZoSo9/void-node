@@ -19,6 +19,7 @@ Start here:
 11. `support-runbook.md` — first-response support checklist for node/user issues.
 12. `developer-reference.md` — public technical reference for endpoints, proofs, and guarded boundaries.
 13. `proof-cadence.md` — lightweight proof tiers for public repo development and checkpoint closeout.
+14. `branch-release-policy.md` — public-safe branch, merge, tag, and release rules.
 
 ## Mainnet-0 status
 

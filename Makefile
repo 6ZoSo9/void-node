@@ -1048,3 +1048,7 @@ public-github-landing-proof:
 .PHONY: public-proof-cadence-proof
 public-proof-cadence-proof:
 	bash ops/security/public-proof-cadence-proof.sh
+
+.PHONY: public-branch-release-policy-proof
+public-branch-release-policy-proof:
+	bash ops/security/public-branch-release-policy-proof.sh

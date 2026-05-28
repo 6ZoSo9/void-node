@@ -20,6 +20,7 @@ Start here:
 - Security policy: SECURITY.md
 - Contributing guide: CONTRIBUTING.md
 - Proof cadence: docs/public/proof-cadence.md
+- Branch/release policy: docs/public/branch-release-policy.md
 - Public release bundle closeout: docs/public/mainnet0-public-release-bundle-closeout.md
 - Launch notes: docs/public/mainnet0-launch-notes.md
 - Run a node: docs/public/run-a-node.md
