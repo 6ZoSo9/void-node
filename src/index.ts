@@ -57838,7 +57838,9 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       lastBlock: -1,
       lastCount: 0,
       lastTxRoot: "",
-      lastErr: ""
+      lastErr: "",
+      lastWrapLogAt: 0,
+      suppressedWrapLogs: 0
     });
 
     function getNode(){ return G.__void_node || G.node || G.VOID_NODE || null; }
@@ -57931,7 +57933,23 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       store.__void_terminal_saveblock_fix_v2_prev = prev;
       state.wraps++;
       state.active = true;
-      try { console.log("[terminal-saveblock-v2] rewrapped live store.saveBlock"); } catch {}
+
+      // Keep the self-healing rewrap behavior, but do not spam one log line per second.
+      // Other store.saveBlock wrappers can replace this wrapper; v2 intentionally re-attaches.
+      // Log the first wrap and then at most once per minute with a suppressed count.
+      try {
+        const now = Date.now();
+        const last = Number(state.lastWrapLogAt || 0);
+        const suppressed = Number(state.suppressedWrapLogs || 0);
+        if (!last || now - last > 60000) {
+          const suffix = suppressed > 0 ? `; suppressed ${suppressed} repeated rewrap log(s)` : "";
+          console.log(`[terminal-saveblock-v2] rewrapped live store.saveBlock${suffix}`);
+          state.lastWrapLogAt = now;
+          state.suppressedWrapLogs = 0;
+        } else {
+          state.suppressedWrapLogs = suppressed + 1;
+        }
+      } catch {}
       return true;
     }
 

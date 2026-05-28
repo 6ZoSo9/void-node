@@ -1068,3 +1068,7 @@ public-readme-navigation-proof:
 .PHONY: public-participant-copy-proof
 public-participant-copy-proof:
 	bash ops/security/public-participant-copy-proof.sh
+
+.PHONY: terminal-saveblock-log-polish-proof
+terminal-saveblock-log-polish-proof:
+	bash ops/security/terminal-saveblock-log-polish-proof.sh
