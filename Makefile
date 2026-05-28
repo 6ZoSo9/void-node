@@ -1072,3 +1072,7 @@ public-participant-copy-proof:
 .PHONY: terminal-saveblock-log-polish-proof
 terminal-saveblock-log-polish-proof:
 	bash ops/security/terminal-saveblock-log-polish-proof.sh
+
+.PHONY: public-readme-live-cleanup-proof
+public-readme-live-cleanup-proof:
+	bash ops/security/public-readme-live-cleanup-proof.sh
