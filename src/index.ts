@@ -41103,7 +41103,50 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     });
 
     const GG:any = globalThis as any;
-    GG.__void_wc_runner_state_v1 = GG.__void_wc_runner_state_v1 || {};
+    function wcRunnerStateFile(){
+      const path = require("node:path");
+      const raw = String(process.env.DATA_DIR || "data_a");
+      const dataDir = path.isAbsolute(raw) ? raw : path.join(process.cwd(), raw);
+      return path.join(dataDir, "wc_v1", "runner-state.json");
+    }
+
+    function loadWcRunnerState(){
+      const fs = require("node:fs");
+      try {
+        const file = wcRunnerStateFile();
+        if (!fs.existsSync(file)) return {};
+        const j = JSON.parse(String(fs.readFileSync(file, "utf8") || "{}"));
+        const accounts = (j && typeof j === "object" && j.accounts && typeof j.accounts === "object") ? j.accounts : j;
+        const out:any = {};
+        for (const [k, v] of Object.entries(accounts || {})) out[String(k)] = !!v;
+        return out;
+      } catch {
+        return {};
+      }
+    }
+
+    function saveWcRunnerState(){
+      const fs = require("node:fs");
+      const path = require("node:path");
+      try {
+        const file = wcRunnerStateFile();
+        fs.mkdirSync(path.dirname(file), { recursive:true });
+        fs.writeFileSync(file, JSON.stringify({
+          ok: true,
+          version: 1,
+          updated_at_ms: Date.now(),
+          accounts: GG.__void_wc_runner_state_v1 || {}
+        }, null, 2) + "\n");
+      } catch {}
+    }
+
+    function setWcRunnerState(account:string, enabled:boolean){
+      GG.__void_wc_runner_state_v1 = GG.__void_wc_runner_state_v1 || {};
+      GG.__void_wc_runner_state_v1[String(account)] = !!enabled;
+      saveWcRunnerState();
+    }
+
+    GG.__void_wc_runner_state_v1 = GG.__void_wc_runner_state_v1 || loadWcRunnerState();
     GG.__void_wc_runner_config_v1 = GG.__void_wc_runner_config_v1 || {};
     GG.__void_wc_runner_runtime_v1 = GG.__void_wc_runner_runtime_v1 || {
       loop_started: false,
@@ -43274,7 +43317,8 @@ a{color:#93c5fd;text-decoration:none}
         account,
         enabled,
         mode: "agent_auto_only",
-        user_override: "stop_only",
+        user_override: enabled ? "user_enabled" : "stop_only",
+        state_file: wcRunnerStateFile(),
         payout_policy: "useful_verifiable_only",
         approved_task_classes: runnerApprovedTaskClassesFor(account),
         active_task_class: runnerSelectedTaskClassFor(account),
@@ -43324,10 +43368,11 @@ a{color:#93c5fd;text-decoration:none}
         const account = safeAccount(req.body?.account);
         const enabled = !!req.body?.enabled;
         if (!account) return res.status(400).json({ ok:false, error:"missing_account" });
-        GG.__void_wc_runner_state_v1[String(account)] = enabled;
+        setWcRunnerState(String(account), enabled);
         return res.json({
           ...runnerStateFor(account),
-          changed: true
+          changed: true,
+          persisted: true
         });
       } catch (e:any) {
         return res.status(500).json({ ok:false, error:String(e?.message || e) });
