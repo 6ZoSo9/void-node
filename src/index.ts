@@ -47879,6 +47879,10 @@ a{color:#93c5fd;text-decoration:none}
     
     
     /* VOID_TOP_STATUS_HIDE_OPS_CHIPS_V1 */
+    /* VOID_TOP_STRIP_NORMAL_USER_CLEANUP_V1
+       Keep the top strip user-facing: Wallet, public-live status, Spendable WC, and VOID.
+       Operational chips still update in code but are hidden from the normal top strip. */
+    #topStripTrade,
     #topStripRelayer,
     #topStripRunner{
       display:none !important;
