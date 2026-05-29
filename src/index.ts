@@ -51197,16 +51197,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "wcRunnerStatusCard",
       runnerEnabled
-        ? ("Earn Work Credits is ON for this account" +
-           (runnerSafeMode ? " • Safe Mode ON" : "") +
-           (latestUsefulRunnerMetaText
-             ? (". " + latestUsefulRunnerMetaText)
-             : ". Approved useful work can run here."))
-        : ("Earn Work Credits is OFF for this account" +
-           (runnerSafeMode ? " • Safe Mode still clamps limits" : "") +
-           (latestUsefulRunnerMetaText
-             ? (". " + latestUsefulRunnerMetaText)
-             : ". Turn it on to allow approved useful work."))
+        ? ("Earning is ON for " + account + ". Spendable WC: " + redeemableTotal + ". Lifetime earned: " + (localEarned ?? 0) + ".")
+        : ("Earning is OFF for " + account + ". Spendable WC: " + redeemableTotal + ". Lifetime earned: " + (localEarned ?? 0) + ". Turn earning on before using Run Once.")
     );
     if ($("wcRunnerToggleInput")) {
       $("wcRunnerToggleInput").checked = !!runnerEnabled;
@@ -51217,13 +51209,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     setText(
       "wcRunnerMeta",
-      [
-        "Mode: " + String((runnerStatus && runnerStatus.mode) || "agent_auto_only"),
-        "Override: " + String((runnerStatus && runnerStatus.user_override) || "stop_only"),
-        "Task: " + String((runnerStatus && runnerStatus.active_task_class) || (runnerConfig && runnerConfig.allow_datanet_publish ? "datanet_publish" : "-")),
-        "Min gap: " + (runnerMinGapSec !== null ? (String(runnerMinGapSec) + "s") : "-"),
-        "Cap: " + (runnerJobsHourCap !== null ? (String(runnerJobsHourCap) + "/hour") : "-")
-      ].join(" • ") + (runnerSafeMode ? " • Safe Mode clamps limits conservatively" : "")
+      runnerEnabled
+        ? "Run Once submits one approved DataNet publish task. Safety limits stay on."
+        : "Run Once is disabled while earning is OFF. Turn earning on when you want this node to submit approved work."
     );
 
     const isLegacyAccount = account === "remote-user-3";
@@ -54517,11 +54505,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText(
         "wcRunnerStatusCard",
         runnerEnabled
-          ? ("Earn Work Credits is ON for this account. Approved useful work can run here." +
-             (runnerStatus && runnerStatus.last_result && runnerStatus.last_result.job_id
-               ? (" Last job: " + runnerStatus.last_result.job_id)
-               : " Waiting for next approved task."))
-          : "Earn Work Credits is OFF for this account. Turn it on before running approved useful work."
+          ? ("Earning is ON for " + account + ". Approved work can run here.")
+          : ("Earning is OFF for " + account + ". Run Once is disabled until earning is turned ON.")
       );
 
       if (Date.now() > __voidRunnerTogglePendingUntil) {
