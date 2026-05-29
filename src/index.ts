@@ -48761,8 +48761,8 @@ a{color:#93c5fd;text-decoration:none}
     <section class="home-start-here" id="homeStartHere" aria-label="Start here">
       <div class="home-start-head">
         <div>
-          <!-- VOID_HOME_START_PUBLIC_CLARITY_V1 --><h2>Start Here</h2>
-          <div class="home-start-sub">New to VOID? Follow this path first. Nothing here sends funds or registers a validator by itself.</div>
+          <!-- VOID_HOME_START_PUBLIC_CLARITY_V1 --><!-- VOID_HOME_FIRST_SCREEN_COPY_V1 --><h2>Start Here</h2>
+          <div class="home-start-sub">Start with Wallet. Then earn, buy, or preview staking when ready.</div>
         </div>
         <span class="pill">first run</span>
       </div>
@@ -48770,22 +48770,22 @@ a{color:#93c5fd;text-decoration:none}
         <div class="home-start-step">
           <div class="k">Step 1</div>
           <div class="v">Set up Account Wallet</div>
-          <div class="s">Use Manage Wallet first. Create, import, or unlock your local participant wallet before earning, buying, or registering.</div>
+          <div class="s">Create, import, or unlock your Account Wallet first.</div>
         </div>
         <div class="home-start-step">
           <div class="k">Step 2</div>
           <div class="v">Fund or earn</div>
-          <div class="s">Earn Work Credits from approved work, or use Buy VOID only through the guided participant-page request flow.</div>
+          <div class="s">Earn WC through approved work, or create a guided Buy VOID request.</div>
         </div>
         <div class="home-start-step">
           <div class="k">Step 3</div>
           <div class="v">Check balances</div>
-          <div class="s">Use Wallet to review VOID, WC, send status, and recent account activity.</div>
+          <div class="s">Check WC, VOID, sends, and recent account activity.</div>
         </div>
         <div class="home-start-step">
           <div class="k">Step 4</div>
           <div class="v">Preview staking</div>
-          <div class="s">Stake/Register is optional. Public registration is preview/candidate-first and does not make you an active validator.</div>
+          <div class="s">Preview staking. Active validator admission stays gated.</div>
         </div>
       </div>
       <div class="home-start-actions">
@@ -48802,7 +48802,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="home-news-head">
         <div>
           <h2>News &amp; Updates</h2>
-          <div class="home-news-sub">What changed in the last 48 hours.</div>
+          <div class="home-news-sub">Recent product changes.</div>
         </div>
         <span class="pill">last 48h</span>
       </div>
@@ -48810,23 +48810,23 @@ a{color:#93c5fd;text-decoration:none}
         <!-- VOID_HOME_NEWS_WALLET_FIRST_V1 -->
         <div class="home-news-item">
           <div class="k">wallet first</div>
-          <div class="v">Wallet is now the first step.</div>
-          <div class="s">Home, the hero button, and the sidebar now point new users to Wallet before earning, buying, or staking.</div>
+          <div class="v">Wallet-first onboarding.</div>
+          <div class="s">New users now start with Wallet before Earn, Buy, or Stake.</div>
         </div>
         <div class="home-news-item">
           <div class="k">onboarding</div>
-          <div class="v">Start Here follows the safer first-run path.</div>
-          <div class="s">Create, import, or unlock your account wallet first. Then earn, buy through the guided flow, or preview staking.</div>
+          <div class="v">Cleaner first-run path.</div>
+          <div class="s">Set up Wallet, then use Earn, Buy, or Stake preview.</div>
         </div>
         <div class="home-news-item">
           <div class="k">cleanup</div>
-          <div class="v">Normal Home view is quieter.</div>
-          <div class="s">Sidebar hints and Home admin links are hidden from normal users while advanced details stay available behind Settings.</div>
+          <div class="v">Normal view is cleaner.</div>
+          <div class="s">Advanced details stay behind Settings.</div>
         </div>
         <div class="home-news-item">
           <div class="k">launch safety</div>
           <div class="v">Mainnet-0 is public-live.</div>
-          <div class="s">Public-live status does not open guarded actions. Active validator admission, Buy VOID fulfillment, treasury spend, and authority transfer remain proof-gated.</div>
+          <div class="s">Mainnet-0 is live. Guarded actions still require explicit proof gates.</div>
         </div>
       </div>
     </section>
@@ -48858,7 +48858,7 @@ a{color:#93c5fd;text-decoration:none}
 
     <section class="home-quiet-status" id="homeQuietStatus"><!-- VOID_HOME_MAINNET0_PUBLIC_LIVE_CLARITY_V1 -->
       <span class="pill">Mainnet-0 public-live</span>
-      <span>Node is healthy and Mainnet-0 is public-live. Start with Wallet; Buy VOID must use the guided request flow; validator registration is candidate/waiting only and active admission stays disabled unless a later guarded proof lane changes it.</span>
+      <span>Node is healthy. Start with Wallet; Buy VOID uses the guided request flow; validator registration is candidate/waiting only.</span>
     </section>
 
     <section class="kpis">
