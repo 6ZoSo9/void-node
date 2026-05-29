@@ -58083,6 +58083,11 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
 
 
 // === void terminal saveBlock inject+txroot v2 ===
+if (
+  process.env.VOID_DISABLE_TERMINAL_SAVEBLOCK_V2 !== "1" &&
+  process.env.VOID_DISABLE_WRAPPER_STORM !== "1" &&
+  process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1"
+) {
 ;(function voidTerminalSaveBlockInjectAndTxrootV2(){
   try{
     const G:any = globalThis as any;
@@ -58227,3 +58232,4 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
     try { console.warn("[terminal-saveblock-v2] init failed:", e?.message || e); } catch {}
   }
 })();
+}
