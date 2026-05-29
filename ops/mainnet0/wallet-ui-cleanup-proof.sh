@@ -42,7 +42,7 @@ grep -q "Wallet Setup Path" "$HTML"
 grep -q "Advanced: Send Local WC" "$HTML"
 grep -q "Advanced: Send VOID" "$HTML"
 grep -q "Wallet History" "$HTML"
-grep -q "Helper Wallet Diagnostics" "$HTML"
+grep -q "Wallet diagnostics" "$HTML"
 echo "[ok] required wallet markers present"
 
 echo
@@ -61,7 +61,7 @@ expected_once = [
   "Advanced: Send Local WC",
   "Advanced: Send VOID",
   "Wallet History",
-  "Helper Wallet Diagnostics",
+  "Wallet diagnostics",
 ]
 counts = {m: html.count(m) for m in expected_once}
 bad = {k:v for k,v in counts.items() if v != 1}
@@ -86,14 +86,17 @@ echo "=== [7] normal wallet cleanup expectations ==="
 grep -q '<details class="adv wallet-send-wc-advanced"' "$HTML"
 grep -q '<details class="adv wallet-send-void-advanced"' "$HTML"
 grep -q 'wallet action' "$HTML"
-grep -q 'does not approve public launch' "$HTML"
+grep -q 'does not approve launch' "$HTML"
 echo "[ok] send actions are tucked behind advanced details"
 
 echo
 echo "=== [8] launch remains fail-closed ==="
-grep -q "Public launch: NO-GO preview" "$HTML"
+grep -q 'VOID_HOME_TOPSTRIP_PUBLIC_LIVE_V1' "$HTML"
+grep -q 'Mainnet-0: public-live' "$HTML"
+grep -q 'VOID_HOME_MAINNET0_PUBLIC_LIVE_CLARITY_V1' "$HTML"
+grep -q 'Public-live status does not open guarded actions' "$HTML"
 grep -q "candidate/waiting only" "$HTML"
-echo "[ok] public launch remains NO-GO in participant UI"
+echo "[ok] participant UI is public-live and guarded"
 
 echo
 echo "[ok] Wallet UI cleanup proof passed"
