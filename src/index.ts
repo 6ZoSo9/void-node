@@ -49942,34 +49942,34 @@ a{color:#93c5fd;text-decoration:none}
     </section>
 
     <section class="tabpane active" id="pane-wallet">
-      <div class="hero-note" id="walletFirstStepNote" style="margin-bottom:12px"><!-- VOID_WALLET_TAB_FIRST_STEP_CLARITY_V1 -->Account Wallet is the first step. Create, import, or unlock this wallet before earning, buying VOID, sending balances, or previewing staking. This wallet page does not approve public launch, admit validators, or fulfill Buy VOID payments.</div>
+      <div class="hero-note" id="walletFirstStepNote" style="margin-bottom:12px"><!-- VOID_WALLET_TAB_FIRST_STEP_CLARITY_V1 --><!-- VOID_WALLET_FIRST_SCREEN_COPY_V1 -->Set up your Account Wallet first. This is where you create or unlock your wallet, check balances, and prepare for Earn, Buy VOID, Send, or Stake.</div>
       <div class="panel wallet-setup-steps" id="walletSetupSteps" style="margin-bottom:12px;padding:12px 14px"><!-- VOID_WALLET_SETUP_STEPS_V1 -->
         <div class="section-head">
           <div>
-            <h2 style="margin-bottom:4px">Wallet Setup Path<span class="help" tabindex="0" data-help="Use Manage Wallet to create, import, unlock, or export your local self-custody wallet. This is setup only and does not approve launch, send funds, or admit validators.">?</span></h2>
-            <div class="section-copy">Use Manage Wallet first, then verify balances here before earning, buying, sending, or previewing staking.</div>
+            <h2 style="margin-bottom:4px">Account Wallet Setup<span class="help" tabindex="0" data-help="Use Manage Wallet to create, import, unlock, or export your local self-custody wallet. This is setup only and does not approve launch, send funds, or admit validators.">?</span></h2>
+            <div class="section-copy">Create or unlock your wallet, back it up, then verify your balances before taking action.</div>
           </div>
         </div>
         <div class="metric-strip" style="margin-top:10px">
           <div class="mini">
             <div class="k">Step 1</div>
             <div class="v">Create / Import</div>
-            <div class="s">make or restore your Account Wallet</div>
+            <div class="s">create or restore your wallet</div>
           </div>
           <div class="mini">
             <div class="k">Step 2</div>
             <div class="v">Unlock</div>
-            <div class="s">required before wallet-signed actions</div>
+            <div class="s">required before sends or requests</div>
           </div>
           <div class="mini">
             <div class="k">Step 3</div>
             <div class="v">Back Up</div>
-            <div class="s">export keystore and keep it safe</div>
+            <div class="s">save your keystore safely</div>
           </div>
           <div class="mini">
             <div class="k">Step 4</div>
             <div class="v">Verify</div>
-            <div class="s">check VOID/WC balances before actions</div>
+            <div class="s">check WC and VOID balances</div>
           </div>
         </div>
       </div>
