@@ -40770,7 +40770,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     try {
       if (!fs.existsSync(file)) return [];
       return String(fs.readFileSync(file, "utf8") || "")
-        .split("\\n")
+        .split(/\r?\n/)
         .map((s:string)=>s.trim())
         .filter(Boolean);
     } catch { return []; }
@@ -40949,7 +40949,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     const fs = require("node:fs");
     try {
       if (!fs.existsSync(file)) return [];
-      return String(fs.readFileSync(file, "utf8") || "").split("\\n").map((s:string)=>s.trim()).filter(Boolean);
+      return String(fs.readFileSync(file, "utf8") || "").split(/\r?\n/).map((s:string)=>s.trim()).filter(Boolean);
     } catch { return []; }
   }
   function appendJsonl(file:string, obj:any){
@@ -43546,7 +43546,7 @@ a{color:#93c5fd;text-decoration:none}
     const fs = require("node:fs");
     try {
       if (!fs.existsSync(file)) return [];
-      return String(fs.readFileSync(file, "utf8") || "").split("\\n").map((s:string)=>s.trim()).filter(Boolean);
+      return String(fs.readFileSync(file, "utf8") || "").split(/\r?\n/).map((s:string)=>s.trim()).filter(Boolean);
     } catch { return []; }
   }
   function appendJsonl(file:string, obj:any){
@@ -43983,7 +43983,7 @@ a{color:#93c5fd;text-decoration:none}
     const fs = require("node:fs");
     try {
       if (!fs.existsSync(file)) return [];
-      return String(fs.readFileSync(file, "utf8") || "").split("\\n").map((s:string)=>s.trim()).filter(Boolean);
+      return String(fs.readFileSync(file, "utf8") || "").split(/\r?\n/).map((s:string)=>s.trim()).filter(Boolean);
     } catch { return []; }
   }
 
