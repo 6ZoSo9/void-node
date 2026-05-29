@@ -2864,6 +2864,29 @@ app.get("/__void/runtime/validator-truth/operator-summary", (_req: any, res: any
 
 app.get("/__void/runtime/validator-truth/next-onboard", async (_req: any, res: any) => {
   try {
+    const disableStatusRunbook =
+      String(process.env.VOID_DISABLE_VALIDATOR_NEXT_ONBOARD_STATUS_RUNBOOK || "") === "1" ||
+      String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1";
+    if (disableStatusRunbook) {
+      return res.json({
+        ok: true,
+        disabled: true,
+        mode: "public_safe_status_only",
+        blocker: "validator_next_onboard_status_runbook_disabled",
+        liveExecutionEnabled: String(process.env.VOID_VALIDATOR_NEXT_ONBOARD_LIVE_EXECUTION || "") === "1",
+        selectedCandidateName: "",
+        selectedCandidateAddr: "",
+        currentEpoch: 0,
+        targetEpoch: 0,
+        currentValidatorCount: 0,
+        expectedValidatorCount: 0,
+        windowLength: 0,
+        usedRewards: [],
+        command: "",
+        raw: "",
+        note: "Public-safe runtime does not spawn validator next-onboard runbooks from an HTTP status route."
+      });
+    }
     const cp = require("child_process");
     const util = require("util");
     const pathMod = require("path");
@@ -8036,6 +8059,11 @@ import type {} from "express"; // type-only safety; no runtime impact
 // -------------------------------------------------------------------------------
 
 // ---------------- [ADD] proposer queue mirror + diags ---------------------------
+if (
+  process.env.VOID_DISABLE_PROPOSER_QUEUE_MIRROR !== "1" &&
+  process.env.VOID_DISABLE_BACKGROUND_LOOPS !== "1" &&
+  process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1"
+) {
 ;(function proposerQueueMirror(){
   try{
     const g:any = globalThis as any;
@@ -8108,9 +8136,15 @@ import type {} from "express"; // type-only safety; no runtime impact
     })();
   }catch(e){ console.warn("[pq] init failed:", e); }
 })();
+}
 // -------------------------------------------------------------------------------
 
 // ---------------- [ADD] proposer pre-hook: drain txQueue -> mempool and alias -----------
+if (
+  process.env.VOID_DISABLE_PROPOSER_PREHOOK !== "1" &&
+  process.env.VOID_DISABLE_BACKGROUND_LOOPS !== "1" &&
+  process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1"
+) {
 ;(function proposerPreHook(){
   try{
     const g:any = globalThis as any;
@@ -8225,9 +8259,15 @@ import type {} from "express"; // type-only safety; no runtime impact
 
   }catch(e){ console.warn("[prehook] init failed:", e); }
 })();
+}
 // ---------------------------------------------------------------------------------------
 
 // ---------------- [ADD] pendingTxs <- mempool.txs sync + diags + nudge -------------
+if (
+  process.env.VOID_DISABLE_PENDING_ALIAS_NUDGE !== "1" &&
+  process.env.VOID_DISABLE_BACKGROUND_LOOPS !== "1" &&
+  process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1"
+) {
 ;(function pendingAliasAndNudge(){
   try{
     const g:any = globalThis as any;
@@ -8325,6 +8365,7 @@ import type {} from "express"; // type-only safety; no runtime impact
 
   }catch(e){ console.warn("[pending-alias] init failed:", e); }
 })();
+}
 // ---------------------------------------------------------------------------------------
 
 // ---------------- [ADD] sanitize nudge() (idempotent guard) --------------------
@@ -10646,8 +10687,15 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function registerTxRootDe
     }
     if (attached) return; attached = true;
 
-    const enabled = String(process.env.TXROOT_PERSIST || "0") === "1";
-    if (!enabled) { console.log("[txroot/persist] disabled (set TXROOT_PERSIST=1 to enable)"); return; }
+    const disabled =
+      String(process.env.VOID_DISABLE_TXROOT_PERSIST || "") === "1" ||
+      String(process.env.VOID_DISABLE_WRAPPER_STORM || "") === "1" ||
+      String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1";
+    const enabled = !disabled && String(process.env.TXROOT_PERSIST || "0") === "1";
+    if (!enabled) {
+      console.log("[txroot/persist] disabled (TXROOT_PERSIST!=1 or public-safe gate active)");
+      return;
+    }
 
     if ((node.store as any).__txrootPrePersistWrapped) {
       console.log("[txroot/persist] already wrapped"); return;
@@ -43179,6 +43227,16 @@ a{color:#93c5fd;text-decoration:none}
     function ensureWcRunnerLoop(){
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       if (rt.loop_started) return;
+      const disabled =
+        String(process.env.VOID_DISABLE_WC_RUNNER_LOOP || "") === "1" ||
+        String(process.env.VOID_DISABLE_BACKGROUND_LOOPS || "") === "1" ||
+        String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1";
+      if (disabled) {
+        rt.loop_started = false;
+        rt.loop_disabled = true;
+        rt.loop_disabled_reason = "public_safe_background_loop_disabled";
+        return;
+      }
       rt.loop_started = true;
       const everyMs = Number(rt.loop_interval_ms || 5000) || 5000;
       setInterval(() => { wcRunnerTick().catch(() => {}); }, everyMs);
@@ -43912,7 +43970,12 @@ a{color:#93c5fd;text-decoration:none}
       }
     });
 
-    if (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 !== "1" || process.env.VOID_ENABLE_WC_AUTOCREDIT_INCREMENTAL_V1 === "1") {
+    if (
+      process.env.VOID_DISABLE_WC_AUTO_CREDIT_INTERVAL !== "1" &&
+      process.env.VOID_DISABLE_BACKGROUND_LOOPS !== "1" &&
+      process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1" &&
+      (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 !== "1" || process.env.VOID_ENABLE_WC_AUTOCREDIT_INCREMENTAL_V1 === "1")
+    ) {
       setInterval(() => {
         try { scanOnce(); } catch {}
       }, 3000).unref?.();
@@ -44609,9 +44672,18 @@ a{color:#93c5fd;text-decoration:none}
       }
     };
 
-    st.timer = setInterval(() => { tick().catch(()=>{}); }, TICK_MS);
-    st.timer.unref?.();
-    setTimeout(() => { tick().catch(()=>{}); }, 250).unref?.();
+    const disabled =
+      String(process.env.VOID_DISABLE_JOBS_DATANET_WORKER_LOOP || "") === "1" ||
+      String(process.env.VOID_DISABLE_BACKGROUND_LOOPS || "") === "1" ||
+      String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1";
+    if (!disabled) {
+      st.timer = setInterval(() => { tick().catch(()=>{}); }, TICK_MS);
+      st.timer.unref?.();
+      setTimeout(() => { tick().catch(()=>{}); }, 250).unref?.();
+    } else {
+      st.loop_disabled = true;
+      st.loop_disabled_reason = "public_safe_background_loop_disabled";
+    }
   }
 
   function mount(){
@@ -55479,7 +55551,13 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
       }catch{}
     }
 
-    setInterval(tick, 1000);
+    if (
+      process.env.VOID_DISABLE_LEGACY_GLOBAL_TXQUEUE_NOISE_CLEANER !== "1" &&
+      process.env.VOID_DISABLE_BACKGROUND_LOOPS !== "1" &&
+      process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1"
+    ) {
+      setInterval(tick, 1000);
+    }
 
     const app:any = G.__void_http_app || G.app;
     if (app && !app.__void_legacy_global_tx_queue_noise_cleaner_v1_routes){
@@ -57922,6 +58000,11 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
 
 
 // === void terminal saveBlock inject+txroot v1 ===
+if (
+  process.env.VOID_DISABLE_TERMINAL_SAVEBLOCK !== "1" &&
+  process.env.VOID_DISABLE_WRAPPER_STORM !== "1" &&
+  process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1"
+) {
 ;(function voidTerminalSaveBlockInjectAndTxrootV1(){
   try{
     const G:any = globalThis as any;
@@ -58069,6 +58152,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
     try { console.warn("[terminal-saveblock] init failed:", e?.message || e); } catch {}
   }
 })();
+}
 
 
 // === void terminal saveBlock inject+txroot v2 ===
