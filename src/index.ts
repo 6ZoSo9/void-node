@@ -54613,8 +54613,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                (effectiveLatestUsefulReceipt ? " • Receipt ready" : "") +
                (effectiveLatestUsefulJob ? " • Job ready" : ""))
             : (runnerEnabled
-                ? "Earn Work Credits is on. Waiting for the next approved useful task."
-                : "Earn Work Credits is off. Turn it on to allow approved useful work.")
+                ? "Earning is ON. Approved work can run here."
+                : "Earning is OFF. Run Once is disabled until earning is turned ON.")
         );
 
         if ($("latestJobState")) {
