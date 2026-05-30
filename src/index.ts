@@ -48876,7 +48876,7 @@ a{color:#93c5fd;text-decoration:none}
         <!-- VOID_SIDEBAR_WALLET_TOPLEVEL_V1 -->
         <button class="tabbtn" data-tab="work" id="tab-work">Earn<span class="navhint">submit work, get a receipt, and earn WC</span></button>
         <button class="tabbtn" data-tab="buy" id="tab-buy">Buy VOID<span class="navhint">check purchase-path readiness and wallet delivery status</span></button>
-        <button class="tabbtn" data-tab="staking" id="tab-staking">Stake<span class="navhint">check validator staking readiness and live validator truth</span></button>
+        <button class="tabbtn" data-tab="staking" id="tab-staking">Stake<span class="navhint">preview staking readiness and candidate registration status</span></button>
         <button class="tabbtn" data-tab="datanet" id="tab-datanet">DataNet<span class="navhint">browse local datasets and open them directly</span></button>
 
         <details class="sidebar-advanced-menu">
@@ -49720,7 +49720,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Stake VOID<span class="help" tabindex="0" data-help="Shows the current validator stake policy, candidate/waiting status, and whether the stored execution wallet is funded enough. This does not mean active admission.">?</span></h2>
+              <h2>Stake VOID<span class="help" tabindex="0" data-help="Shows staking readiness and candidate/waiting status. This is a preview only and does not mean active validator admission.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip top-kpis" style="margin-top:6px">
@@ -49740,9 +49740,9 @@ a{color:#93c5fd;text-decoration:none}
               <div class="s">minimum check</div>
             </div>
             <div class="mini">
-              <div class="k">Latest Epoch</div>
-              <div class="v" id="stakeRuntimeEpoch">-</div>
-              <div class="s">live validator truth</div>
+              <div class="k">Runtime</div>
+              <div class="v" id="stakeRuntimeEpoch">Live</div>
+              <div class="s">validator truth available</div>
             </div>
           </div>
           <div class="hero-note" id="stakeActionSummary" style="margin-top:12px">Checking staking readiness…</div>
@@ -49751,14 +49751,14 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Live Validator Set<span class="help" tabindex="0" data-help="Mirrors the live validator runtime truth already published on this node.">?</span></h2>
+              <h2>Validator Network<span class="help" tabindex="0" data-help="Shows a compact validator-network summary. Detailed epoch history is kept out of the normal participant view.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip" style="margin-top:6px">
             <div class="mini">
               <div class="k">Validators</div>
               <div class="v" id="stakeRuntimeCount">-</div>
-              <div class="s">currently loaded</div>
+              <div class="s">active network count</div>
             </div>
             <div class="mini">
               <div class="k">Power</div>
@@ -49771,7 +49771,7 @@ a{color:#93c5fd;text-decoration:none}
               <div class="s">summary status</div>
             </div>
           </div>
-          <div class="subtle-tab-copy" id="stakeRuntimeLoaded" style="margin-top:8px">Loaded epochs: -</div>
+          <div class="subtle-tab-copy" id="stakeRuntimeLoaded" style="margin-top:8px"><!-- VOID_STAKE_EPOCH_LIST_HIDDEN_V1 -->Epoch history is hidden from the normal participant view. Use Advanced validator summary for full operator details.</div>
           <div class="hero-note" id="stakeOperatorSummary" style="margin-top:8px">Validator truth loading…</div>
         </div>
       </div>
@@ -49812,16 +49812,16 @@ a{color:#93c5fd;text-decoration:none}
               <div class="hero-note" id="validatorRegistrationNote" style="margin-top:12px">Checking validator registration status…</div>
               <div class="hero-note" id="validatorRegistrationCounts" style="margin-top:10px">Candidate registry counts loading…</div>
 
-              <div class="hero-note" id="validatorRegistrationReadinessPanel" role="status" aria-live="polite" style="margin-top:10px">
+              <details class="adv" id="validatorRegistrationReadinessDetails" style="margin-top:10px"><summary><span>Advanced: Live Submit Readiness</span><span class="pill">operator-gated</span></summary><div class="adv-body"><div class="hero-note" id="validatorRegistrationReadinessPanel" role="status" aria-live="polite" style="margin-top:10px">
                 <strong>Live Submit Readiness</strong>
                 <div id="validatorRegistrationReadinessSummary" style="margin-top:6px">Checking live-submit readiness…</div>
                 <div id="validatorRegistrationReadinessCore">Core safety gates: -</div>
                 <div id="validatorRegistrationReadinessWallet">Wallet authority: -</div>
                 <div id="validatorRegistrationReadinessExecution">Live execution: -</div>
                 <div id="validatorRegistrationReadinessSubmit">Submit: Disabled</div>
-              </div>
+              </div></div></details>
 
-              <div class="hero-note" id="validatorRegistrationLiveStatusPanel" role="status" aria-live="polite" style="margin-top:10px">
+              <details class="adv" id="validatorRegistrationLiveStatusDetails" style="margin-top:10px"><summary><span>Advanced: Live Submit Status</span><span class="pill">operator-gated</span></summary><div class="adv-body"><div class="hero-note" id="validatorRegistrationLiveStatusPanel" role="status" aria-live="polite" style="margin-top:10px">
                 <strong>Live Submit Status</strong>
                 <div id="validatorRegistrationLiveStatusSummary" style="margin-top:6px">Status panel installed. Wiring refresh next.</div>
                 <div id="validatorRegistrationLiveStatusSwitch">Kill switch: -</div>
@@ -49829,7 +49829,7 @@ a{color:#93c5fd;text-decoration:none}
                 <div id="validatorRegistrationLiveStatusWallet">Wallet: -</div>
                 <div id="validatorRegistrationLiveStatusPayload">Payload: -</div>
                 <div id="validatorRegistrationLiveStatusBlockers">Blockers: -</div>
-              </div>
+              </div></div></details>
               <script>
               (function(){
                 var MARK="__void_validator_registration_readiness_ui_v1";
@@ -50035,7 +50035,7 @@ a{color:#93c5fd;text-decoration:none}
                 <button class="btn" id="validatorRegistrationSubmitDisabledBtn" type="button" disabled>Submit Registration — Not Live</button>
                 <button class="btn" id="validatorRegistrationSubmitLiveBtn" type="button" disabled>Submit Registration — Backend Gated</button>
               </div>
-              <div class="hero-note" id="validatorRegistrationButtonNote" style="margin-top:10px">Preview is safe and non-mutating. It shows what a registration would look like; it does not make this wallet an active validator. Live public registration stays disabled until Mainnet-0 operator gates are intentionally opened.</div>
+              <div class="hero-note" id="validatorRegistrationButtonNote" style="margin-top:10px"><!-- VOID_STAKE_PUBLIC_PREVIEW_ONLY_V1 -->Preview is safe and non-mutating. It shows what candidate registration would look like; it does not make this wallet an active validator. Public active admission remains disabled until Mainnet-0 operator gates are intentionally opened.</div>
               <details class="adv" id="validatorRegistrationPreflightDetails" style="margin-top:12px">
                 <summary><span>Submit Preflight</span><span class="pill">blocked intentionally</span></summary>
                 <div class="adv-body">
@@ -50052,10 +50052,10 @@ a{color:#93c5fd;text-decoration:none}
               </details>
             </div>
 
-            <h2>Staking Preview Path<span class="help" tabindex="0" data-help="This participant page shows staking readiness and live validator truth. Browser stake execution is not wired yet; live admission remains a guarded validator-plan path.">?</span></h2>
+            <h2>Staking Preview Path<span class="help" tabindex="0" data-help="This participant page shows staking readiness and candidate/waiting preview status. Browser stake execution is not wired yet; active admission remains a guarded operator path.">?</span></h2>
           </div>
         </div>
-        <div class="hero-note" id="stakePathNote"><!-- VOID_STAKE_PUBLIC_CLARITY_V1 -->Live validator truth is green on this node. This tab shows staking readiness and validator set truth, but candidate/waiting status is not active admission. Active validators are admitted only through capped, epoch-controlled, proof-backed operator lanes until public admission is intentionally launched.</div>
+        <div class="hero-note" id="stakePathNote"><!-- VOID_STAKE_PUBLIC_CLARITY_V1 -->Live validator truth is green on this node. This tab shows staking readiness and candidate/waiting preview status. Candidate registration is not active admission; active validators are admitted only through capped, proof-backed operator lanes until public admission is intentionally launched.</div>
         <div class="action-rail" style="margin-top:10px">
           <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
           <a class="linkbtn stake-operator-summary-link" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Open Validator Summary</a>
@@ -50064,7 +50064,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="hero-note" id="stakeNextOnboardStatus" style="margin-top:10px">Live onboarding action not started.</div>
       </div>
     
-      <div class="panel stake-next-validator-plan" style="margin-top:12px;padding:12px 14px">
+      <details class="adv stake-next-validator-plan" style="margin-top:12px"><summary><span>Advanced: Next Validator Plan</span><span class="pill">operator</span></summary><div class="adv-body"><div class="panel" style="padding:12px 14px">
         <div class="section-head">
           <div>
             <h2>Next Validator Plan<span class="help" tabindex="0" data-help="Shows the next guarded validator-plan step based on current live validator truth. This does not execute browser staking or public active admission.">?</span></h2>
