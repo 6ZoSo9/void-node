@@ -41013,44 +41013,76 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
   }
   function nowMs(){ return Date.now(); }
 
-  function earnedTotal(account:string){
-    let n = 0;
+  const REDEEM_CACHE_TTL_MS = Math.max(
+    250,
+    Math.min(10_000, Number(process.env.VOID_WC_REDEEMABLE_CACHE_TTL_MS || 2_000) || 2_000)
+  );
+
+  if (!G.__void_wc_redeem_cache_v1 || typeof G.__void_wc_redeem_cache_v1.get !== "function") {
+    G.__void_wc_redeem_cache_v1 = new Map();
+  }
+  const redeemCache:any = G.__void_wc_redeem_cache_v1;
+
+  function fileSig(file:string): string {
+    const fs = require("node:fs");
+    try {
+      const st = fs.statSync(file);
+      return String(st.size || 0) + ":" + String(Math.floor(Number(st.mtimeMs || 0)));
+    } catch {
+      return "missing";
+    }
+  }
+
+  function redeemCacheSig(): string {
+    return fileSig(ledgerFile()) + "|" + fileSig(redeemedFile());
+  }
+
+  function scanRedeemState(account:string){
+    let earned = 0;
+    let debited = 0;
+    let redeemed = 0;
+
     for (const line of readLines(ledgerFile())) {
       try {
         const j = JSON.parse(line);
         if (String(j?.account || "") !== account) continue;
+
         const d = Number(j?.delta || 0);
-        if (Number.isFinite(d) && d > 0) n += d;
+        if (Number.isFinite(d) && d > 0) earned += d;
+
+        if (String(j?.kind || "") === "debit") {
+          const amount = Number(j?.amount ?? Math.abs(Number(j?.delta || 0)));
+          if (Number.isFinite(amount) && amount > 0) debited += amount;
+        }
       } catch {}
     }
-    return n;
-  }
 
-  function debitTotal(account:string){
-    let n = 0;
-    for (const line of readLines(ledgerFile())) {
-      try {
-        const j = JSON.parse(line);
-        if (String(j?.account || "") !== account) continue;
-        if (String(j?.kind || "") !== "debit") continue;
-        const d = Number(j?.amount ?? Math.abs(Number(j?.delta || 0)));
-        if (Number.isFinite(d) && d > 0) n += d;
-      } catch {}
-    }
-    return n;
-  }
-
-  function redeemedTotal(account:string){
-    let n = 0;
     for (const line of readLines(redeemedFile())) {
       try {
         const j = JSON.parse(line);
         if (String(j?.account || "") !== account) continue;
         const d = Number(j?.amount || 0);
-        if (Number.isFinite(d) && d > 0) n += d;
+        if (Number.isFinite(d) && d > 0) redeemed += d;
       } catch {}
     }
-    return n;
+
+    earned = wcRound(earned);
+    debited = wcRound(debited);
+    redeemed = wcRound(redeemed);
+    const redeemable = wcRound(Math.max(0, earned - debited - redeemed));
+    return { account, earned, debited, redeemed, redeemable, cached:false, cache_ttl_ms: REDEEM_CACHE_TTL_MS };
+  }
+
+  function earnedTotal(account:string){
+    return scanRedeemState(account).earned;
+  }
+
+  function debitTotal(account:string){
+    return scanRedeemState(account).debited;
+  }
+
+  function redeemedTotal(account:string){
+    return scanRedeemState(account).redeemed;
   }
 
   function wcRound(n:number){
@@ -41060,11 +41092,27 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
   }
 
   function redeemState(account:string){
-    const earned = wcRound(earnedTotal(account));
-    const debited = wcRound(debitTotal(account));
-    const redeemed = wcRound(redeemedTotal(account));
-    const redeemable = wcRound(Math.max(0, earned - debited - redeemed));
-    return { account, earned, debited, redeemed, redeemable };
+    const now = nowMs();
+    const sig = redeemCacheSig();
+    const key = String(account || "");
+
+    try {
+      const hit = redeemCache.get(key);
+      if (hit && hit.sig === sig && Number(hit.expires_ms || 0) > now && hit.value) {
+        return { ...hit.value, cached:true, cache_ttl_ms: REDEEM_CACHE_TTL_MS };
+      }
+    } catch {}
+
+    const value = scanRedeemState(account);
+    try {
+      redeemCache.set(key, {
+        sig,
+        expires_ms: now + REDEEM_CACHE_TTL_MS,
+        value
+      });
+    } catch {}
+
+    return value;
   }
 
   function mount(){
@@ -50353,11 +50401,59 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   const LOCAL_WC_BASE = (window.__VOID_LOCAL_WC_BASE || "http://127.0.0.1:4312/workcredits/devnet");
   const LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || "http://127.0.0.1:4313/api/wc-relayer/v1");
 
+  const __voidJInflight = new Map();
+  const __voidJCache = new Map();
+
   async function j(url, opts){
-    try{
-      const r = await fetch(url, opts);
-      const text = await r.text();
-      try { return JSON.parse(text); } catch { return { ok:false, raw:text, status:r.status, url }; }
+    const method = String((opts && opts.method) || "GET").toUpperCase();
+    const cacheable = method === "GET" && typeof url === "string";
+    const key = cacheable ? String(url) : "";
+    const now = Date.now();
+
+    try {
+      if (cacheable) {
+        const hit = __voidJCache.get(key);
+        if (hit && hit.expires_ms > now) return hit.value;
+        const pending = __voidJInflight.get(key);
+        if (pending) return await pending;
+      }
+
+      const run = (async () => {
+        const fetchOpts = opts ? Object.assign({}, opts) : {};
+        let ctrl = null;
+        let timer = null;
+        try {
+          if (!fetchOpts.signal && cacheable) {
+            ctrl = new AbortController();
+            fetchOpts.signal = ctrl.signal;
+            timer = setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, 7000);
+          }
+
+          const r = await fetch(url, fetchOpts);
+          const text = await r.text();
+          let out;
+          try { out = JSON.parse(text); } catch { out = { ok:false, raw:text, status:r.status, url }; }
+
+          if (cacheable && r && r.ok) {
+            const ttl =
+              key.indexOf("/wc/redeemable?") >= 0 ? 1500 :
+              key.indexOf("/wc/runner/status?") >= 0 ? 1500 :
+              key.indexOf("/__void/participant/wallet/status?") >= 0 ? 2500 :
+              key.indexOf("/health") >= 0 ? 1500 :
+              key.indexOf("/version") >= 0 ? 5000 :
+              750;
+            __voidJCache.set(key, { expires_ms: Date.now() + ttl, value: out });
+          }
+
+          return out;
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      })();
+
+      if (cacheable) __voidJInflight.set(key, run);
+      try { return await run; }
+      finally { if (cacheable) __voidJInflight.delete(key); }
     }catch(e){
       return { ok:false, error:String((e && e.message) || e), url };
     }
@@ -54493,7 +54589,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   });
 
   if ($("submitBtn")) $("submitBtn").addEventListener("click", submitJob);
-  if ($("refreshBtn")) $("refreshBtn").addEventListener("click", refresh);
+  if ($("refreshBtn")) $("refreshBtn").addEventListener("click", () => requestParticipantRefresh("manual", { force:true }).catch(() => {}));
   if ($("sendWcBtn")) $("sendWcBtn").addEventListener("click", () => sendWcNow());
   if ($("voidSendBtn")) $("voidSendBtn").addEventListener("click", () => sendVoidNow());
   if ($("redeemBtn")) $("redeemBtn").addEventListener("click", () => redeemNow(false));
@@ -54561,9 +54657,58 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   if ($("tradeRange1wBtn")) $("tradeRange1wBtn").addEventListener("click", async () => { await setTradeChartRange("1w"); });
   if ($("tradeRange1moBtn")) $("tradeRange1moBtn").addEventListener("click", async () => { await setTradeChartRange("1mo"); });
 
-  if ($("tradeInputWc")) $("tradeInputWc").addEventListener("input", refresh);
+  let __voidTradeInputRefreshTimer = null;
+  if ($("tradeInputWc")) $("tradeInputWc").addEventListener("input", () => {
+    try { if (__voidTradeInputRefreshTimer) clearTimeout(__voidTradeInputRefreshTimer); } catch (_) {}
+    __voidTradeInputRefreshTimer = setTimeout(() => {
+      requestParticipantRefresh("trade_input").catch(() => {});
+    }, 750);
+  });
 
-  await refresh();
+  let __voidParticipantRefreshBusy = false;
+  let __voidParticipantRefreshWanted = false;
+  let __voidParticipantLastRefreshMs = 0;
+
+  async function requestParticipantRefresh(reason, opts){
+    const force = !!(opts && opts.force);
+    try {
+      if (!force && document && document.hidden) return;
+    } catch (_) {}
+
+    const now = Date.now();
+    const minMs = force ? 0 : 12000;
+
+    if (__voidParticipantRefreshBusy) {
+      __voidParticipantRefreshWanted = true;
+      return;
+    }
+
+    if (!force && __voidParticipantLastRefreshMs && (now - __voidParticipantLastRefreshMs) < minMs) {
+      return;
+    }
+
+    __voidParticipantRefreshBusy = true;
+    __voidParticipantLastRefreshMs = now;
+
+    try {
+      await refresh();
+    } finally {
+      __voidParticipantRefreshBusy = false;
+      if (__voidParticipantRefreshWanted) {
+        __voidParticipantRefreshWanted = false;
+        setTimeout(() => {
+          requestParticipantRefresh("queued").catch(() => {});
+        }, 1000);
+      }
+    }
+  }
+
+  try {
+    window.refreshAll = function(){ return requestParticipantRefresh("external", { force:true }); };
+    window.refresh = window.refreshAll;
+  } catch (_) {}
+
+  await requestParticipantRefresh("initial", { force:true });
 
     async function __voidSetRunnerEnabled(nextEnabled){
       const account = resolveActiveParticipantAccount();
@@ -54839,10 +54984,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
   setInterval(() => {
     try {
+      if (document && document.hidden) return;
       const active = document && document.body && document.body.getAttribute("data-active-tab");
       if (active === "work") refreshRunnerPanelOnly().catch(() => {});
     } catch {}
-  }, 4000);
+  }, 15000);
 
   let initialTab = null;
   try {
@@ -54858,7 +55004,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   }
 
   switchTab(initialTab || "wallet");
-  setInterval(refresh, 3000);
+  setInterval(() => {
+    requestParticipantRefresh("auto_interval").catch(() => {});
+  }, 15000);
 })();
 </script>
 
