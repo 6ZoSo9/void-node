@@ -1168,3 +1168,8 @@ public-download-install-journey-proof:
 .PHONY: public-support-route-triage-proof
 public-support-route-triage-proof:
 	bash ops/security/public-support-route-triage-proof.sh
+
+.PHONY: buy-void-pool-empty-guard-plan-proof
+buy-void-pool-empty-guard-plan-proof:
+	bash ops/mainnet0/buy-void-pool-empty-guard-plan-proof.sh
+
