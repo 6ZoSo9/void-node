@@ -48542,6 +48542,15 @@ a{color:#93c5fd;text-decoration:none}
       color:#cbd5e1;
     }
 
+    /* VOID_TRADE_CHART_HIDE_PREVIEW_V1
+       Keep Trade focused on quote/status. Hide the weak helper-history chart until the
+       pool-history service has enough real data and a proper UI. */
+    body[data-active-tab="trading"] #tradeChartRanges,
+    body[data-active-tab="trading"] #tradeChartCard,
+    body[data-active-tab="trading"] #tradeChartMeta{
+      display:none !important;
+    }
+
     /* VOID_TRADE_CLEANUP_V1 */
     body[data-active-tab="trading"] #pane-trading{
       max-width:980px;
@@ -49543,7 +49552,7 @@ a{color:#93c5fd;text-decoration:none}
           <button class="btn" id="tradeDirVoidToWcBtn" type="button">VOID → WC</button>
         </div>
 
-        <div class="hero-note" id="tradeDirectionNote" style="margin-bottom:12px">Choose direction, enter amount, review the quote, then execute from the stored wallet.</div>
+        <div class="hero-note" id="tradeDirectionNote" style="margin-bottom:12px">Choose direction, enter amount, and review the quote/status card. <!-- VOID_TRADE_QUOTE_FIRST_V1 -->The market chart is hidden until helper pool-history is healthy enough to show real data.</div>
         <!-- VOID_TRADE_MARKET_UNAVAILABLE_V1 -->
         <div class="hero-note trade-market-unavailable" id="tradeMarketUnavailableNotice">
           Market services are not initialized on this node yet. This is a prepared swap preview, not a live public trading launch; Buy VOID, Earn, and Wallet are not blocked.
