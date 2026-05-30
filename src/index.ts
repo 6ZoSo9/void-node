@@ -43201,7 +43201,24 @@ a{color:#93c5fd;text-decoration:none}
           body: JSON.stringify(payload)
         });
 
-        const out = await r.json().catch(() => ({ ok:false, error:"non_json_runner_submit" }));
+        const out:any = await r.json().catch(() => ({ ok:false, error:"non_json_runner_submit" }));
+
+        let workerOut:any = null;
+        if (out && out.ok && out.job && out.job.job_id) {
+          try {
+            const wr = await fetch(`${runnerSubmitBase}/__void/jobs-and-datanet-worker/run-once?account=${encodeURIComponent(account)}&job_id=${encodeURIComponent(String(out.job.job_id))}`, {
+              method: "POST"
+            });
+            workerOut = await wr.json().catch(() => ({ ok:false, error:"non_json_worker_run_once" }));
+            out.worker = workerOut;
+            if (workerOut && workerOut.ok && workerOut.job) {
+              out.job = { ...out.job, ...workerOut.job };
+            }
+          } catch (e:any) {
+            workerOut = { ok:false, error:String(e?.message || e) };
+            out.worker = workerOut;
+          }
+        }
 
         if (out && out.ok) {
           rt.last_submit_ms[String(account)] = now;
@@ -44394,6 +44411,74 @@ a{color:#93c5fd;text-decoration:none}
     return out;
   }
 
+  function wcLedgerFile(){
+    const path = require("node:path");
+    return path.join(dataDir(), "wc_v1", "ledger.jsonl");
+  }
+
+  function ensureWcLedgerDir(){
+    const fs = require("node:fs");
+    const path = require("node:path");
+    fs.mkdirSync(path.dirname(wcLedgerFile()), { recursive:true });
+  }
+
+  function workerReceiptReward(receipt:any){
+    const kind = String(receipt?.kind || "").toLowerCase();
+    if (kind.includes("redundancy_check")) return 2;
+    if (kind.includes("fetch_verify") || kind.includes("verify")) return 3;
+    if (kind.includes("publish")) return 10;
+    if (kind.includes("datanet")) return 10;
+    return 1;
+  }
+
+  function workerAlreadyCredited(account:string, jobId:string, receiptId:string){
+    const file = wcLedgerFile();
+    for (const line of readLines(file)) {
+      try {
+        const j:any = JSON.parse(line);
+        if (String(j?.kind || "") !== "credit") continue;
+        if (account && String(j?.account || "") !== account) continue;
+        if (jobId && String(j?.job_id || "") === jobId) return true;
+        if (receiptId && String(j?.receipt_id || "") === receiptId) return true;
+      } catch {}
+    }
+    return false;
+  }
+
+  function creditWorkerReceiptOnce(receipt:any){
+    const fs = require("node:fs");
+    ensureWcLedgerDir();
+
+    const account = safeStr(receipt?.account || receipt?.who || "zoso", 128) || "zoso";
+    const jobId = safeStr(receipt?.job_id || "", 160);
+    const receiptId = safeStr(receipt?.receipt_id || receipt?.id || jobId, 180);
+    if (!receiptId) return null;
+
+    const status = String(receipt?.status || "").toLowerCase();
+    if (status && !/ok|success|credited|complete|done/.test(status)) return null;
+    if (workerAlreadyCredited(account, jobId, receiptId)) return null;
+
+    const delta = Math.max(1, Number(receipt?.wc_award || receipt?.delta || workerReceiptReward(receipt)) || 1);
+    const entry:any = {
+      kind: "credit",
+      account,
+      delta,
+      ts_ms: Number(receipt?.ts_ms || Date.now()),
+      reason: "receipt_auto_credit",
+      receipt_kind: String(receipt?.kind || "unknown"),
+      receipt_id: receiptId,
+      job_id: jobId || null,
+      reward_meta: {
+        source: "earn_run_once_worker_credit_v1",
+        bounded_one_shot: true,
+        policy: "useful_verifiable_only"
+      }
+    };
+
+    fs.appendFileSync(wcLedgerFile(), JSON.stringify(entry) + "\n");
+    return entry;
+  }
+
   function completedTruthCache(){
     const st:any = G[MARK].completed_truth_v1 || (G[MARK].completed_truth_v1 = {
       receipts_sig: "",
@@ -44786,6 +44871,66 @@ a{color:#93c5fd;text-decoration:none}
     G[MARK].installed = true;
     ensureExpressJson(app);
     ensureDirs();
+
+    app.post("/__void/jobs-and-datanet-worker/run-once", async (req:any, res:any) => {
+      try {
+        const account = safeStr(req.query?.account || req.body?.account || "", 128);
+        const requestedJobId = safeStr(req.query?.job_id || req.body?.job_id || "", 160);
+
+        let candidates = requestedJobId ? [requestedJobId] : scanQueuedJobsIncremental();
+        if (!candidates.length) candidates = listQueuedJobsFullScan();
+
+        let picked = "";
+        for (const jobId of candidates) {
+          const j:any = latestJobById(jobId);
+          if (!j) continue;
+          if (String(j?.status || "") !== "queued") continue;
+          if (account && String(j?.account || "") !== account) continue;
+          picked = jobId;
+          break;
+        }
+
+        if (!picked) {
+          return res.json({ ok:true, picked:false, reason:"no_queued_jobs", account: account || null });
+        }
+
+        await processJob(picked);
+
+        const receipts = listReceiptsForJob(picked);
+        let receipt:any = null;
+        for (let i = receipts.length - 1; i >= 0; i--) {
+          const r:any = receipts[i];
+          const st = String(r?.status || "").toLowerCase();
+          if (!st || /ok|success|credited|complete|done/.test(st)) {
+            receipt = r;
+            break;
+          }
+        }
+
+        const credit_event = receipt ? creditWorkerReceiptOnce(receipt) : null;
+        const after:any = latestJobById(picked) || {};
+        const job:any = {
+          ...after,
+          status: receipt ? "completed" : String(after?.status || "queued"),
+          receipt_id: receipt ? String(receipt?.receipt_id || "") : (after?.receipt_id || null),
+          dataset_id: receipt ? (receipt?.dataset_id || after?.dataset_id || null) : (after?.dataset_id || null),
+          completed_at_ms: receipt ? Number(receipt?.ts_ms || Date.now()) : (after?.completed_at_ms || null)
+        };
+
+        return res.json({
+          ok:true,
+          picked:true,
+          account: account || String(job?.account || ""),
+          job_id: picked,
+          job,
+          receipt,
+          credited: !!credit_event,
+          credit_event
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:String(e?.message || e) });
+      }
+    });
 
     app.post("/jobs/submit", (req:any, res:any) => {
       try {
