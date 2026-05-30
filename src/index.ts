@@ -50058,10 +50058,18 @@ a{color:#93c5fd;text-decoration:none}
         <div class="hero-note" id="stakePathNote"><!-- VOID_STAKE_PUBLIC_CLARITY_V1 -->Live validator truth is green on this node. This tab shows staking readiness and candidate/waiting preview status. Candidate registration is not active admission; active validators are admitted only through capped, proof-backed operator lanes until public admission is intentionally launched.</div>
         <div class="action-rail" style="margin-top:10px">
           <a class="linkbtn" href="/participant#wallet">Open Wallet</a>
-          <a class="linkbtn stake-operator-summary-link" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Open Validator Summary</a>
-          <button class="btn btn-primary" type="button" id="stakeNextOnboardBtn">Run Next Onboard</button>
         </div>
-        <div class="hero-note" id="stakeNextOnboardStatus" style="margin-top:10px">Live onboarding action not started.</div>
+        <details class="adv" id="stakeOperatorActionsAdvanced" style="margin-top:10px"><!-- VOID_STAKE_OPERATOR_ACTIONS_ADVANCED_V1 -->
+          <summary><span>Advanced: Operator Validator Actions</span><span class="pill">operator-gated</span></summary>
+          <div class="adv-body">
+            <div class="hero-note" style="margin-bottom:10px">Operator-only validator controls are not part of public staking or candidate registration. These controls remain guarded and should not be used by normal participants.</div>
+            <div class="action-rail" style="margin-top:10px">
+              <a class="linkbtn stake-operator-summary-link" href="/__void/runtime/validator-truth/operator-summary" target="_blank" rel="noopener">Open Validator Summary</a>
+              <button class="btn btn-primary" type="button" id="stakeNextOnboardBtn">Operator: Run Next Onboard</button>
+            </div>
+            <div class="hero-note" id="stakeNextOnboardStatus" style="margin-top:10px">Operator live onboarding action not started.</div>
+          </div>
+        </details>
       </div>
     
       <details class="adv stake-next-validator-plan" style="margin-top:12px"><summary><span>Advanced: Next Validator Plan</span><span class="pill">operator</span></summary><div class="adv-body"><div class="panel" style="padding:12px 14px">
