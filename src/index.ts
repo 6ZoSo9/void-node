@@ -49012,7 +49012,7 @@ a{color:#93c5fd;text-decoration:none}
       <a class="home-action-card" href="/participant#buy">
         <span class="home-action-k">Step 3</span>
         <span class="home-action-title">Buy VOID</span>
-        <span class="home-action-meta"><!-- VOID_HOME_BUY_ACTION_GUIDED_ONLY_V1 -->Guided Base USDC request only; no blind deposits.</span>
+        <span class="home-action-meta"><!-- VOID_HOME_BUY_ACTION_GUIDED_ONLY_V1 -->Guided Base or Ethereum USDC request only; no blind deposits.</span>
       </a>
       <a class="home-action-card" href="/participant#staking">
         <span class="home-action-k">Step 4</span>
@@ -49563,7 +49563,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Buy VOID<span class="help" tabindex="0" data-help="Shows the planned Base USDC purchase rail, self-custody wallet requirements, and the participant wallet that would receive VOID.">?</span></h2>
+              <h2>Buy VOID<span class="help" tabindex="0" data-help="Shows the planned Base or Ethereum USDC purchase rail, self-custody wallet requirements, and the participant wallet that would receive VOID.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip top-kpis" style="margin-top:6px">
@@ -49594,14 +49594,14 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Purchase Rules<span class="help" tabindex="0" data-help="This Buy VOID surface reflects Mainnet-0 funding safety rules: Base native USDC only, participant-page initiation only, and no exchange or custodial sends.">?</span></h2>
+              <h2>Purchase Rules<span class="help" tabindex="0" data-help="This Buy VOID surface reflects Mainnet-0 funding safety rules: Base or Ethereum native USDC only, participant-page initiation only, and no exchange or custodial sends.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip" style="margin-top:6px">
             <div class="mini">
               <div class="k">Asset</div>
               <div class="v">USDC</div>
-              <div class="s">Base native USDC only</div>
+              <div class="s">Base or Ethereum native USDC only</div>
             </div>
             <div class="mini">
               <div class="k">Flow</div>
@@ -49625,7 +49625,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel buy-handoff-panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
-            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Shows the participant-side preflight payload for the Base native USDC Buy VOID flow. This does not claim payment or send VOID; it records delivery wallet truth and policy checks.">?</span></h2>
+            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Shows the participant-side preflight payload for the Base or Ethereum native USDC Buy VOID flow. This does not claim payment or send VOID; it records delivery wallet truth and policy checks.">?</span></h2>
           </div>
         </div>
         <div class="metric-strip" style="margin-top:6px">
@@ -49666,8 +49666,8 @@ a{color:#93c5fd;text-decoration:none}
         <div class="action-rail" style="margin-top:10px">
           <button class="btn btn-primary" id="buyDraftCreateBtn" type="button"><!-- VOID_BUY_CREATE_GUIDED_REQUEST_BUTTON_V1 -->Create Guided Buy Request</button>
         </div>
-        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount, confirm your delivery wallet, then create a Buy VOID request before sending Base USDC.</div>
-        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base native USDC only • create a Buy VOID request first • use a self-custody wallet • start from this page • exchange/custodial sends and blind direct deposits are not supported • payment confirmation is not VOID fulfillment.</div>
+        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount, confirm your delivery wallet, then create a Buy VOID request before sending Base or Ethereum USDC.</div>
+        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base or Ethereum native USDC only • create a Buy VOID request first • use a self-custody wallet • start from this page • exchange/custodial sends and blind direct deposits are not supported • payment confirmation is not VOID fulfillment.</div>
         <div class="subtle-tab-copy" id="buyDraftLatestCard" style="margin-top:8px">Latest request: none</div>
         <details class="adv" style="margin-top:10px">
           <summary><span>Latest Draft Payload</span><span class="pill">json</span></summary>
@@ -51924,7 +51924,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const buyWalletState = executionWalletAddr
       ? (executionWalletUnlocked ? "Ready" : "Stored")
       : "Missing";
-    setText("buyRailStatus", "Base USDC");
+    setText("buyRailStatus", "Base/Ethereum USDC");
     setText("buyWalletAddr", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("buyWalletState", buyWalletState);
     setText("buyWalletVoid", executionWalletVoidText);
@@ -51937,8 +51937,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "buyPathNote",
       executionWalletAddr
-        ? ("Base native USDC only • start from this participant page • use your own self-custody wallet only • do not send from Coinbase, Binance, Robinhood, or any exchange/custodial account • blind direct deposits are not supported.")
-        : "Base native USDC only • participant-page initiation only • blind direct deposits are not supported • link a wallet first."
+        ? ("Base or Ethereum native USDC only • start from this participant page • use your own self-custody wallet only • do not send from Coinbase, Binance, Robinhood, or any exchange/custodial account • blind direct deposits are not supported.")
+        : "Base or Ethereum native USDC only • participant-page initiation only • blind direct deposits are not supported • link a wallet first."
     );
 
     const buyHandoffReady = !!executionWalletAddr;
@@ -51947,20 +51947,22 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       delivery_wallet: executionWalletAddr || null,
       execution_wallet_unlocked: !!executionWalletUnlocked,
       current_void_balance: executionWalletVoidText,
-      accepted_asset: "base_native_usdc",
+      accepted_asset: "base_or_ethereum_native_usdc",
+      accepted_assets: ["base_native_usdc", "ethereum_native_usdc"],
+      accepted_chains: ["base", "ethereum"],
       initiation: "participant_page_only",
       blind_direct_deposits: "blocked",
       exchange_or_custodial_wallet_sends: "blocked",
       status: buyHandoffReady ? "ready_for_buy_void_fulfillment_lane" : "missing_execution_wallet"
     };
 
-    setText("buyPlanRail", "Base USDC");
+    setText("buyPlanRail", "Base/Ethereum USDC");
     setText("buyPlanDelivery", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("buyPlanState", buyHandoffReady ? "Ready" : "Missing");
     setText(
       "buyPlanSummary",
       buyHandoffReady
-        ? ("Buy VOID participant preflight is ready. After an operator verifies the real Base USDC transaction hash, VOID delivery should target the stored participant wallet " + shortAddr(executionWalletAddr) + ".")
+        ? ("Buy VOID participant preflight is ready. After an operator verifies the real Base or Ethereum USDC transaction hash, VOID delivery should target the stored participant wallet " + shortAddr(executionWalletAddr) + ".")
         : "No execution wallet linked yet. Link a wallet first before the Buy VOID fulfillment lane can target delivery."
     );
     setText("buyPlanOut", JSON.stringify(buyHandoffPayload, null, 2));
@@ -51990,7 +51992,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           participant_account: account,
           delivery_wallet: executionWalletAddr || null,
           requested_amount_usdc: buyDraftAmount,
-          accepted_asset: "base_native_usdc",
+          accepted_asset: "base_or_ethereum_native_usdc",
+          accepted_assets: ["base_native_usdc", "ethereum_native_usdc"],
+          accepted_chains: ["base", "ethereum"],
           status: executionWalletAddr ? "ready_to_create_draft" : "missing_execution_wallet"
         }, null, 2));
       }

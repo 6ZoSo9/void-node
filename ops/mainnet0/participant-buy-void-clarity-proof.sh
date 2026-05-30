@@ -45,10 +45,16 @@ echo "=== [3] rendered Buy VOID safety copy ==="
 curl -fsS "$BASE/participant" > "$HTML"
 
 grep -q 'VOID_BUY_PUBLIC_SAFETY_CLARITY_V1' "$HTML"
-grep -q 'Base native USDC only' "$HTML"
+grep -q 'Base or Ethereum native USDC only' "$HTML"
+grep -q 'Base/Ethereum USDC' "$HTML"
 grep -q 'create a Buy VOID request first' "$HTML"
 grep -q 'use a self-custody wallet' "$HTML"
 grep -q 'exchange/custodial sends and blind direct deposits are not supported' "$HTML"
+
+if grep -qE 'Base native USDC only|Guided Base USDC request only|sending Base USDC' "$HTML"; then
+  echo "[fail] stale Base-only Buy VOID copy still rendered" >&2
+  exit 1
+fi
 grep -q 'payment confirmation is not VOID fulfillment' "$HTML"
 
 echo "[ok] Buy VOID public safety copy rendered"
