@@ -280,7 +280,7 @@ cast call --rpc-url "$RPC_URL" "$WC_TOKEN" 'balanceOf(address)(uint256)' "$POOL"
 echo
 echo "=== [7] write state JSON + broadcast compatibility artifact ==="
 python3 - "$VOID_TOKEN" "$WC_TOKEN" "$POOL" "$VOID_POOL_RAW" "$WC_POOL_RAW" <<'PY'
-import json, pathlib, sys
+import json, os, pathlib, sys
 
 void_token, wc_token, pool, void_raw, wc_raw = sys.argv[1:]
 
