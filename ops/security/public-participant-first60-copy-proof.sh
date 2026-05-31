@@ -18,8 +18,8 @@ echo
 echo "=== [1] source markers ==="
 grep -q 'Mainnet-0 is public-live.' src/index.ts
 grep -q 'Mainnet-0 public-live' src/index.ts
-grep -q 'Public-live status does not open guarded actions.' src/index.ts
-grep -q 'Node is healthy and Mainnet-0 is public-live.' src/index.ts
+grep -q 'Start with Wallet. Then earn, buy, or preview staking when ready.' src/index.ts
+grep -q 'Node is healthy. Start with Wallet; Buy VOID uses the guided request flow; validator registration is candidate/waiting only.' src/index.ts
 echo "[ok] public-live source markers present"
 
 echo
@@ -35,7 +35,7 @@ echo "=== [3] served participant copy ==="
 curl -fsS "$BASE/participant" > "$HTML"
 grep -q 'Mainnet-0 public-live' "$HTML"
 grep -q 'Mainnet-0 is public-live.' "$HTML"
-grep -q 'Node is healthy and Mainnet-0 is public-live.' "$HTML"
+grep -q 'Node is healthy. Start with Wallet; Buy VOID uses the guided request flow; validator registration is candidate/waiting only.' "$HTML"
 
 if grep -nE 'Mainnet-0 remains preview-only\.|Mainnet-0 preview|NO-GO preview|not public launch|public launch is still NO-GO' "$HTML"; then
   echo "[fail] stale first-60 copy still served"

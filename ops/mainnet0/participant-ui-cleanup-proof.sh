@@ -44,7 +44,7 @@ needles=(
   "VOID_HOME_HIDE_BIG_BOXES_V1"
   "VOID_HOME_NEWS_FEED_V1"
   "VOID_HOME_NEWS_FEED_GENERATED_V1"
-  "Start Here follows the safer first-run path."
+  "Start with Wallet. Then earn, buy, or preview staking when ready."
   "Normal Home view is quieter."
   "VOID_HOME_STATUS_STRIP_COMPACT_V1"
   "VOID_SIDEBAR_ADVANCED_MENU_V1"
