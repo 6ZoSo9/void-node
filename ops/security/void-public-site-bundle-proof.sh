@@ -86,7 +86,7 @@ check_manifest \
 
 check_manifest \
   "nullfeed" \
-  "6a24c375872459c0f9941c58e88bd61e" \
+  "2930d5e8436eb5674be06d2b0152d20c" \
   "f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372"
 
 echo
@@ -128,7 +128,7 @@ check_site \
 
 check_site \
   "nullfeed" \
-  "6a24c375872459c0f9941c58e88bd61e" \
+  "2930d5e8436eb5674be06d2b0152d20c" \
   "f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372" \
   "NullFeed public preview" \
   "DataNet social storage" \

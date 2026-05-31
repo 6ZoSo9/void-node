@@ -24,7 +24,7 @@ grep -q 'ckpt-public-docs-index-site-bundle-green-20260528-131718' "$DOC"
 
 grep -q '1b8bf41db2d64f8877d0aec397373fa1' "$DOC"
 grep -q 'db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2' "$DOC"
-grep -q '6a24c375872459c0f9941c58e88bd61e' "$DOC"
+grep -q '2930d5e8436eb5674be06d2b0152d20c' "$DOC"
 grep -q 'f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372' "$DOC"
 
 grep -q 'docs/public/README.md' "$DOC"

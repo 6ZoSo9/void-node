@@ -23,7 +23,7 @@ Voidchain:
 
 NullFeed:
 
-- dataset_id: 6a24c375872459c0f9941c58e88bd61e
+- dataset_id: 2930d5e8436eb5674be06d2b0152d20c
 - content_root: f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372
 - route: /site/nullfeed
 - alias: /nullfeed
@@ -50,7 +50,7 @@ Example from Precision to Alienware:
     ALIEN="zoso@100.122.79.39"
 
     VOIDCHAIN_DS="1b8bf41db2d64f8877d0aec397373fa1"
-    NULLFEED_DS="6a24c375872459c0f9941c58e88bd61e"
+    NULLFEED_DS="2930d5e8436eb5674be06d2b0152d20c"
 
     ssh -n "$ALIEN" 'mkdir -p /home/zoso/dev/void-node/data_a/datanet/publish_shim_v1/packed'
 

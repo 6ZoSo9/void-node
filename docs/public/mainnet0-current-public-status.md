@@ -222,7 +222,7 @@ DataNet site bundles:
 
 - Voidchain dataset_id: 1b8bf41db2d64f8877d0aec397373fa1
 - Voidchain content_root: db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2
-- NullFeed dataset_id: 6a24c375872459c0f9941c58e88bd61e
+- NullFeed dataset_id: 2930d5e8436eb5674be06d2b0152d20c
 - NullFeed content_root: f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372
 
 Operational note: public site routes are DataNet-first with repo static fallback. Follower nodes must have the packed DataNet site bundles seeded locally until peer materialization is automated. Repo static fallback must not be treated as DataNet-backed serving.
