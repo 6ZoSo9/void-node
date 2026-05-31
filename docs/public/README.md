@@ -52,8 +52,8 @@ Public routes:
 
 DataNet-backed site roots:
 
-- Voidchain dataset_id: 3280ff66058b5429872a7e41a4b5c21d
-- Voidchain content_root: ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1
+- Voidchain dataset_id: 1b8bf41db2d64f8877d0aec397373fa1
+- Voidchain content_root: db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2
 - NullFeed dataset_id: 6a24c375872459c0f9941c58e88bd61e
 - NullFeed content_root: f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372
 

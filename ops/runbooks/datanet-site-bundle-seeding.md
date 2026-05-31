@@ -16,8 +16,8 @@ Until peer materialization for site bundles is automated, follower nodes must ha
 
 Voidchain:
 
-- dataset_id: 3280ff66058b5429872a7e41a4b5c21d
-- content_root: ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1
+- dataset_id: 1b8bf41db2d64f8877d0aec397373fa1
+- content_root: db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2
 - route: /site/voidchain
 - aliases: /download, /voidchain
 
@@ -49,7 +49,7 @@ Example from Precision to Alienware:
 
     ALIEN="zoso@100.122.79.39"
 
-    VOIDCHAIN_DS="3280ff66058b5429872a7e41a4b5c21d"
+    VOIDCHAIN_DS="1b8bf41db2d64f8877d0aec397373fa1"
     NULLFEED_DS="6a24c375872459c0f9941c58e88bd61e"
 
     ssh -n "$ALIEN" 'mkdir -p /home/zoso/dev/void-node/data_a/datanet/publish_shim_v1/packed'

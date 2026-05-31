@@ -81,8 +81,8 @@ PY
 
 check_manifest \
   "voidchain" \
-  "3280ff66058b5429872a7e41a4b5c21d" \
-  "ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1"
+  "1b8bf41db2d64f8877d0aec397373fa1" \
+  "db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2"
 
 check_manifest \
   "nullfeed" \
@@ -119,8 +119,8 @@ check_site() {
 
 check_site \
   "voidchain" \
-  "3280ff66058b5429872a7e41a4b5c21d" \
-  "ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1" \
+  "1b8bf41db2d64f8877d0aec397373fa1" \
+  "db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2" \
   "Mainnet-0 public-live" \
   "DataNet-backed website" \
   "Google Cloud not required" \
