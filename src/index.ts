@@ -49555,7 +49555,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="hero-note" id="tradeDirectionNote" style="margin-bottom:12px">Choose direction, enter amount, and review the quote/status card. <!-- VOID_TRADE_QUOTE_FIRST_V1 -->The market chart is hidden until helper pool-history is healthy enough to show real data.</div>
         <!-- VOID_TRADE_MARKET_UNAVAILABLE_V1 -->
         <div class="hero-note trade-market-unavailable" id="tradeMarketUnavailableNotice">
-          Market services are not initialized on this node yet. This is a prepared swap preview, not a live public trading launch; Buy VOID, Earn, and Wallet are not blocked.
+          <!-- VOID_TRADE_GUIDED_SWAP_COPY_V1 -->Swap is guided by local WC helper and relayer status. When they are healthy, bridge spendable WC on-chain, review the quote/status card, use small amounts, and verify the execution wallet before trading. Buy VOID, Earn, and Wallet are not blocked.
         </div>
 
         <label for="tradeInputWc" id="tradeInputLabel">WC to trade</label>
