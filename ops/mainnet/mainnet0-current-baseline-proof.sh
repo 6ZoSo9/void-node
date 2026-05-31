@@ -79,18 +79,43 @@ print("[ok] ready/gap/txroot")
 PY
 
 echo
-echo "=== [4] runtime truth selector remains dry-run only ==="
+
+echo "=== [4] runtime truth selector is public-safe / non-executing ==="
 curl -fsS "$BASE/__void/runtime/validator-truth/next-onboard" > /tmp/void-current-baseline-next-onboard.json
 python3 - /tmp/void-current-baseline-next-onboard.json <<'PY'
 import json, sys
 j=json.load(open(sys.argv[1]))
 assert j.get("ok") is True, j
-assert j.get("selectedCandidateName") == "vault126", j
-assert int(j.get("currentEpoch")) == 127, j
-assert int(j.get("targetEpoch")) == 128, j
-assert int(j.get("currentValidatorCount")) == 126, j
-assert int(j.get("expectedValidatorCount")) == 127, j
-print("[ok] next-onboard remains vault126 / epoch128 / count127")
+
+mode = j.get("mode", "")
+disabled = j.get("disabled")
+
+if disabled is True or mode == "public_safe_status_only":
+    assert disabled is True, j
+    assert mode == "public_safe_status_only", j
+    assert j.get("blocker") == "validator_next_onboard_status_runbook_disabled", j
+    assert j.get("liveExecutionEnabled") is False, j
+    assert j.get("selectedCandidateName") == "", j
+    assert j.get("selectedCandidateAddr") == "", j
+    assert int(j.get("currentEpoch", -1)) == 0, j
+    assert int(j.get("targetEpoch", -1)) == 0, j
+    assert int(j.get("currentValidatorCount", -1)) == 0, j
+    assert int(j.get("expectedValidatorCount", -1)) == 0, j
+    assert int(j.get("windowLength", -1)) == 0, j
+    assert j.get("usedRewards") == [], j
+    assert j.get("command") == "", j
+    assert j.get("raw") == "", j
+    assert "does not spawn validator next-onboard runbooks" in j.get("note", ""), j
+    print("[ok] next-onboard status route is public-safe disabled / non-executing")
+else:
+    assert j.get("selectedCandidateName") == "vault126", j
+    assert int(j.get("currentEpoch")) == 127, j
+    assert int(j.get("targetEpoch")) == 128, j
+    assert int(j.get("currentValidatorCount")) == 126, j
+    assert int(j.get("expectedValidatorCount")) == 127, j
+    assert not j.get("command"), j
+    assert not j.get("raw"), j
+    print("[ok] next-onboard remains vault126 / epoch128 / count127 without execution payload")
 PY
 
 echo
