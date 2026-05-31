@@ -1177,3 +1177,7 @@ buy-void-pool-empty-guard-plan-proof:
 .PHONY: void-native-web-hosting-current-plan-proof
 void-native-web-hosting-current-plan-proof:
 	bash ops/security/void-native-web-hosting-current-plan-proof.sh
+
+.PHONY: alienware-runtime-service-proof
+alienware-runtime-service-proof:
+	bash ops/security/alienware-runtime-service-proof.sh
