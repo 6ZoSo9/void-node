@@ -1173,3 +1173,7 @@ public-support-route-triage-proof:
 buy-void-pool-empty-guard-plan-proof:
 	bash ops/mainnet0/buy-void-pool-empty-guard-plan-proof.sh
 
+
+.PHONY: void-native-web-hosting-current-plan-proof
+void-native-web-hosting-current-plan-proof:
+	bash ops/security/void-native-web-hosting-current-plan-proof.sh
