@@ -21,9 +21,9 @@ curl -fsS --max-time 8 "$BASE/__void/ready.json" && echo
 echo
 echo "=== [1] source markers ==="
 grep -q 'datanet_live_v1_with_repo_static_fallback' src/index.ts
-grep -q '3280ff66058b5429872a7e41a4b5c21d' src/index.ts
-grep -q '6a24c375872459c0f9941c58e88bd61e' src/index.ts
-grep -q 'ckpt-void-native-site-live-datanet-publish-green-20260528-102010' src/index.ts
+grep -q '1b8bf41db2d64f8877d0aec397373fa1' src/index.ts
+grep -q '2930d5e8436eb5674be06d2b0152d20c' src/index.ts
+grep -q 'ckpt-voidchain-run-node-doc-links-datanet-green-20260531-104226' src/index.ts
 echo "[ok] source markers present"
 
 echo
@@ -43,12 +43,12 @@ out = pathlib.Path(sys.argv[1])
 
 expected = {
     "voidchain": {
-        "dataset_id": "3280ff66058b5429872a7e41a4b5c21d",
-        "content_root": "ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1",
-        "sha256": "ec877b747894d093e4ffd4ab9ad8e83c0c43729efb9e002806287e4cfb4296a1",
+        "dataset_id": "1b8bf41db2d64f8877d0aec397373fa1",
+        "content_root": "db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2",
+        "sha256": "db0c54edcad0130b8de61e73ec61ff60701e97bee6bb3ac065d6c55efbd634e2",
     },
     "nullfeed": {
-        "dataset_id": "6a24c375872459c0f9941c58e88bd61e",
+        "dataset_id": "2930d5e8436eb5674be06d2b0152d20c",
         "content_root": "f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372",
         "sha256": "f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372",
     },
