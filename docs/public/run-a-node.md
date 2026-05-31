@@ -13,9 +13,11 @@ VOID Mainnet-0 is intended to be run by serious participants on Linux first. Win
     npm install
     npm run build
 
-Start the node using the project runtime command or installed user service for your environment.
+Install and start the local user service:
 
-Operator machines currently use a user service named:
+    ./ops/install-user-units.sh
+
+Check the service:
 
     systemctl --user status void-node.service
 

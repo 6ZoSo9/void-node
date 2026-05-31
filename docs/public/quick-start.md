@@ -15,7 +15,13 @@ Use Linux or WSL2.
     npm install
     npm run build
 
-Start the node using the repo's documented runtime path.
+Install and start the local user service:
+
+    ./ops/install-user-units.sh
+
+Check the service:
+
+    systemctl --user status void-node.service
 
 Then verify readiness:
 
