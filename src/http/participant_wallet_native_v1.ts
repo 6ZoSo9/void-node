@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
-import { Wallet, JsonRpcProvider } from "ethers";
+import { Wallet, JsonRpcProvider, formatEther } from "ethers";
 
 const G: any = globalThis as any;
 const MARK = "__void_participant_wallet_native_v1";
@@ -90,16 +90,36 @@ function writeRecord(account: string, rec: any) {
   ensureDir();
   fs.writeFileSync(walletPath(account), JSON.stringify(rec, null, 2));
 }
-function statusFor(account: string) {
+async function statusFor(account: string) {
   const rec = readRecord(account);
   const unlocked = UNLOCKED.get(account) || null;
+  const address = rec ? String(rec.address || "") : "";
+  let native_gas_wei: string | null = null;
+  let native_gas: string | null = null;
+  let native_gas_error: string | null = null;
+
+  if (isAddr(address)) {
+    try {
+      const provider = new JsonRpcProvider("http://127.0.0.1:8545");
+      const bal = await provider.getBalance(address);
+      native_gas_wei = bal.toString();
+      native_gas = formatEther(bal);
+    } catch (e: any) {
+      native_gas_error = String(e?.message || e || "native_gas_unavailable");
+    }
+  }
+
   return {
     ok: true,
     account,
     has_wallet: !!rec,
-    address: rec ? String(rec.address || "") : "",
+    address,
     unlocked: !!(unlocked && isAddr(unlocked.address)),
     unlocked_address: unlocked ? String(unlocked.address || "") : "",
+    native_gas_wei,
+    native_gas,
+    native_gas_error,
+    native_gas_rpc_url: "http://127.0.0.1:8545",
     created_at: rec ? Number(rec.created_at || 0) : 0,
     exported_at: rec ? Number(rec.exported_at || 0) : 0,
     source: "participant_wallet_native_v1",
@@ -218,10 +238,10 @@ function install(app: any) {
     res.end();
   });
 
-  app.get("/__void/participant/wallet/status", (req: any, res: any) => {
+  app.get("/__void/participant/wallet/status", async (req: any, res: any) => {
     try {
       const account = safeAccount(String(req?.query?.account || "").trim());
-      json(res, 200, statusFor(account));
+      json(res, 200, await statusFor(account));
     } catch (e: any) {
       json(res, 400, { ok: false, error: String(e?.message || e || "status_failed") });
     }

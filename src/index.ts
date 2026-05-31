@@ -43359,6 +43359,9 @@ a{color:#93c5fd;text-decoration:none}
       const lastResult = rt.last_result ? (rt.last_result[String(account)] || null) : null;
       const submitHistory = rt.submit_history_ms ? (rt.submit_history_ms[String(account)] || []) : [];
       const cfg:any = runnerConfigFor(account);
+      const loopDisabled = !!rt.loop_disabled;
+      const loopDisabledReason = rt.loop_disabled_reason || null;
+      const manualOnly = !!(enabled && loopDisabled);
       const selection:any = runnerSelectionDecisionFor(account) || null;
 
       const selectionTaskClass = selection && selection.task_class ? String(selection.task_class || "") : "";
@@ -43409,10 +43412,15 @@ a{color:#93c5fd;text-decoration:none}
         max_jobs_per_hour: Number(cfg.max_jobs_per_hour || 60) || 60,
         jobs_last_hour: Array.isArray(submitHistory) ? submitHistory.length : 0,
         safe_mode: !!cfg.safe_mode,
+        loop_disabled: loopDisabled,
+        loop_disabled_reason: loopDisabledReason,
+        manual_only: manualOnly,
         last_submit_ms: lastSubmit,
         last_result: lastResult,
         note: enabled
-          ? "Agent-selected useful work is enabled for this account."
+          ? (manualOnly
+              ? "Earning is enabled, but automatic background earning is disabled on this public-safe node. Use Run Once to submit approved work."
+              : "Agent-selected useful work is enabled for this account.")
           : "Agent-selected useful work is stopped for this account."
       };
     }
@@ -51417,6 +51425,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const nativeWalletAddr = (nativeWalletStatus && nativeWalletStatus.ok && nativeWalletStatus.has_wallet && /^0x[a-fA-F0-9]{40}$/.test(String(nativeWalletStatus.address || "").trim()))
       ? String(nativeWalletStatus.address || "").trim()
       : "";
+    const executionWalletNativeGasWei = nativeWalletStatus && nativeWalletStatus.ok && nativeWalletStatus.native_gas_wei != null
+      ? String(nativeWalletStatus.native_gas_wei || "0")
+      : null;
+    const executionWalletHasNativeGas = executionWalletNativeGasWei !== null && /^\d+$/.test(executionWalletNativeGasWei) && BigInt(executionWalletNativeGasWei) > 0n;
     const wcAddr = nativeWalletAddr;
     if ($("redeemWallet")) $("redeemWallet").value = wcAddr || "";
 
@@ -51531,6 +51543,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText("heroAccount", account);
 
     const runnerEnabled = !!(runnerStatus && runnerStatus.ok && runnerStatus.enabled);
+    const runnerManualOnly = !!(runnerStatus && runnerStatus.ok && (runnerStatus.manual_only || runnerStatus.loop_disabled));
     const runnerSafeMode = !!(runnerStatus && runnerStatus.safe_mode);
     const runnerMinGapSec = runnerStatus && Number.isFinite(Number(runnerStatus.min_submit_gap_ms))
       ? Math.round(Number(runnerStatus.min_submit_gap_ms) / 1000)
@@ -51576,7 +51589,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "wcRunnerStatusCard",
       runnerEnabled
-        ? ("Earning is ON for " + account + ". Spendable WC: " + redeemableTotal + ". Lifetime earned: " + (localEarned ?? 0) + ".")
+        ? (runnerManualOnly
+            ? ("Earning is ON for " + account + ", but automatic background earning is disabled on this public-safe node. Use Run Once to submit approved work. Spendable WC: " + redeemableTotal + ". Lifetime earned: " + (localEarned ?? 0) + ".")
+            : ("Earning is ON for " + account + ". Spendable WC: " + redeemableTotal + ". Lifetime earned: " + (localEarned ?? 0) + "."))
         : ("Earning is OFF for " + account + ". Spendable WC: " + redeemableTotal + ". Lifetime earned: " + (localEarned ?? 0) + ". Turn earning on before using Run Once.")
     );
     if ($("wcRunnerToggleInput")) {
@@ -51589,7 +51604,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "wcRunnerMeta",
       runnerEnabled
-        ? "Run Once submits one approved DataNet publish task. Safety limits stay on."
+        ? (runnerManualOnly
+            ? "Manual earning mode: background earning is disabled by the public-safe runtime. Run Once submits one approved DataNet publish task."
+            : "Run Once submits one approved DataNet publish task. Safety limits stay on.")
         : "Run Once is disabled while earning is OFF. Turn earning on when you want this node to submit approved work."
     );
 
@@ -52627,7 +52644,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const hasOnchainWcForInfo = Number.isFinite(onchainTradeableWc) && onchainTradeableWc > 0;
         const nativeUnlockedMatchesExecution = !!(nativeWalletStatus && nativeWalletStatus.ok && nativeWalletStatus.unlocked && isWalletAddr(nativeWalletStatus.address) && isWalletAddr(wcAddr) && String(nativeWalletStatus.address).toLowerCase() === String(wcAddr).toLowerCase());
         const connectedMatchesExecution = nativeUnlockedMatchesExecution;
-        const canWalletSwap = !reverseMode && walletReadyForInfo && connectedMatchesExecution && hasOnchainWcForInfo;
+        const hasNativeGasForInfo = executionWalletHasNativeGas;
+        const canWalletSwap = !reverseMode && walletReadyForInfo && connectedMatchesExecution && hasOnchainWcForInfo && hasNativeGasForInfo;
 
         $("tradeExecuteBtn").disabled = !canWalletSwap;
         $("tradeExecuteBtn").textContent = reverseMode
@@ -52640,7 +52658,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                       ? "Unlock Native Wallet"
                       : (!hasOnchainWcForInfo
                           ? "No On-chain WC"
-                          : "Approve + Swap WC for VOID"))));
+                          : (!hasNativeGasForInfo
+                              ? "Needs Devnet Gas"
+                              : "Approve + Swap WC for VOID")))));
 
         if ($("tradeSummary")) {
           let summaryText = "";
@@ -52654,8 +52674,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
             summaryText = "Unlock the native participant wallet shown above to sign the on-chain WC→VOID swap.";
           } else if (!hasOnchainWcForInfo) {
             summaryText = "No on-chain WC is available to trade yet. Bridge local WC below first.";
+          } else if (!hasNativeGasForInfo) {
+            summaryText = "On-chain WC is present, but this execution wallet has 0 native devnet gas. Add devnet gas before approve/swap can be submitted.";
           } else {
-            summaryText = "On-chain WC is present and ready. This trade will ask your wallet to sign approve, then swap.";
+            summaryText = "On-chain WC is present and native gas is available. This trade will ask your wallet to sign approve, then swap.";
           }
           $("tradeSummary").textContent = summaryText;
         }
@@ -54933,11 +54955,14 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const account = resolveActiveParticipantAccount();
       const runnerStatus = await j("/wc/runner/status?account=" + encodeURIComponent(account)).catch(() => ({ ok:false, unavailable:true }));
       const runnerEnabled = !!(runnerStatus && runnerStatus.ok && runnerStatus.enabled);
+      const runnerManualOnly = !!(runnerStatus && runnerStatus.ok && (runnerStatus.manual_only || runnerStatus.loop_disabled));
 
       setText(
         "wcRunnerStatusCard",
         runnerEnabled
-          ? ("Earning is ON for " + account + ". Approved work can run here.")
+          ? (runnerManualOnly
+              ? ("Earning is ON for " + account + ", but automatic background earning is disabled on this public-safe node. Use Run Once to submit approved work.")
+              : ("Earning is ON for " + account + ". Approved work can run here."))
           : ("Earning is OFF for " + account + ". Run Once is disabled until earning is turned ON.")
       );
 
@@ -54951,7 +54976,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
 
       try {
-        topStripSet("topStripRunner", runnerEnabled ? "Runner: ON" : "Runner: OFF", runnerEnabled ? "good" : "warn");
+        topStripSet("topStripRunner", runnerEnabled ? (runnerManualOnly ? "Runner: Manual" : "Runner: ON") : "Runner: OFF", runnerEnabled ? (runnerManualOnly ? "warn" : "good") : "warn");
       } catch (_) {}
 
       if ($("wcRunnerTickBtn")) {
@@ -55041,7 +55066,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
                (effectiveLatestUsefulReceipt ? " • Receipt ready" : "") +
                (effectiveLatestUsefulJob ? " • Job ready" : ""))
             : (runnerEnabled
-                ? "Earning is ON. Approved work can run here."
+                ? (runnerManualOnly
+                    ? "Earning is ON, but this public-safe node is in manual Run Once mode."
+                    : "Earning is ON. Approved work can run here.")
                 : "Earning is OFF. Run Once is disabled until earning is turned ON.")
         );
 
@@ -55120,7 +55147,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       setText(
         "wcRunnerMeta",
         runnerStatus && runnerStatus.ok
-          ? ("Mode: " + String(runnerStatus.mode || "agent_auto_only") +
+          ? ((runnerManualOnly ? "Manual earning mode • background loop disabled by public-safe runtime • " : "") + "Mode: " + String(runnerStatus.mode || "agent_auto_only") +
              " • Override: " + String(runnerStatus.user_override || "stop_only") +
              " • Policy: " + String(runnerStatus.payout_policy || "useful_verifiable_only") +
              " • Approved: " + String((runnerStatus.approved_task_classes || []).join(", ") || "-") +
