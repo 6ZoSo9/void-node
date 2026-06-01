@@ -1,8 +1,11 @@
 # Participant WC -> VOID current status
 
 status: green_precision_local
-checkpoint: ckpt-participant-wc-to-void-readiness-proof-green-20260601-023517
-head: c3f3da96
+checkpoint: ckpt-wc-to-void-trade-state-copy-green-20260601-081303
+head: 4ed40f5f
+
+previous_readiness_checkpoint: ckpt-participant-wc-to-void-readiness-proof-green-20260601-023517
+previous_readiness_head: c3f3da96
 
 ## What is proven
 
@@ -14,6 +17,7 @@ head: c3f3da96
 - Precision local devnet wallet has native gas.
 - Precision local devnet 1 WC -> VOID swap executed successfully through participant native wallet path.
 - WC -> VOID readiness proof is no-mutation by default.
+- Participant trade UI now clearly shows the three trade states: Needs Devnet Gas, Unlock Native Wallet, and Approve + Swap WC for VOID.
 
 ## Precision local swap proof
 
@@ -54,9 +58,23 @@ Alienware caveat:
 
 crossbox_closeout_log: /tmp/wc-to-void-readiness-proof-crossbox-closeout-20260601-023914.log
 
+## Trade state copy polish
+
+checkpoint: ckpt-wc-to-void-trade-state-copy-green-20260601-081303
+head: 4ed40f5f
+crossbox_closeout_log: /tmp/wc-to-void-trade-state-copy-crossbox-closeout-20260601-082646.log
+
+served_states:
+- WC→VOID state: Needs Devnet Gas
+- WC→VOID state: Unlock Native Wallet
+- WC→VOID state: Approve + Swap WC for VOID
+- Unlock Native Wallet before trading
+
 ## Current next step
 
-For product polish, the next useful improvement is to make the participant UI surface the post-gas state more clearly:
-- before gas: Needs Devnet Gas
-- after gas but locked: Unlock Native Wallet
-- after gas and unlocked: Approve + Swap WC for VOID
+WC -> VOID is closed for this lane.
+
+Future optional improvements:
+- Add a trade history/receipt panel so users can see recent approve/swap tx hashes without reading raw JSON.
+- Add a safer user-facing local-devnet gas explanation, but keep any funding helper ops-only and fail-closed.
+- Keep Alienware gas-dependent readiness proof disabled unless Alienware local Anvil wallet is intentionally funded.
