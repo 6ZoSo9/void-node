@@ -1,9 +1,11 @@
 # Participant WC -> VOID current status
 
 status: green_precision_local
-checkpoint: ckpt-wc-to-void-trade-state-copy-green-20260601-081303
-head: 4ed40f5f
+checkpoint: ckpt-wc-to-void-trade-receipt-activity-green-20260601-084635
+head: 597004d3
 
+previous_trade_state_copy_checkpoint: ckpt-wc-to-void-trade-state-copy-green-20260601-081303
+previous_trade_state_copy_head: 4ed40f5f
 previous_readiness_checkpoint: ckpt-participant-wc-to-void-readiness-proof-green-20260601-023517
 previous_readiness_head: c3f3da96
 
@@ -18,6 +20,7 @@ previous_readiness_head: c3f3da96
 - Precision local devnet 1 WC -> VOID swap executed successfully through participant native wallet path.
 - WC -> VOID readiness proof is no-mutation by default.
 - Participant trade UI now clearly shows the three trade states: Needs Devnet Gas, Unlock Native Wallet, and Approve + Swap WC for VOID.
+- Recent Wallet Activity now records WC -> VOID receipt details: quoted VOID, approve transaction hash, and swap transaction hash.
 
 ## Precision local swap proof
 
@@ -70,11 +73,28 @@ served_states:
 - WC→VOID state: Approve + Swap WC for VOID
 - Unlock Native Wallet before trading
 
+## Trade receipt activity
+
+checkpoint: ckpt-wc-to-void-trade-receipt-activity-green-20260601-084635
+head: 597004d3
+crossbox_closeout_log: /tmp/wc-to-void-trade-receipt-activity-crossbox-closeout-20260601-085633.log
+
+receipt_activity_fields:
+- quoted_void
+- approve_tx_hash
+- swap_tx_hash
+- void_wallet_activity_v1
+
+served_receipt_labels:
+- Quoted
+- Approve
+- Swap
+
 ## Current next step
 
 WC -> VOID is closed for this lane.
 
 Future optional improvements:
-- Add a trade history/receipt panel so users can see recent approve/swap tx hashes without reading raw JSON.
+- Add a multi-entry trade history panel if we want more than the latest wallet activity card.
 - Add a safer user-facing local-devnet gas explanation, but keep any funding helper ops-only and fail-closed.
 - Keep Alienware gas-dependent readiness proof disabled unless Alienware local Anvil wallet is intentionally funded.
