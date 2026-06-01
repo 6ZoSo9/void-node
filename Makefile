@@ -1201,3 +1201,7 @@ participant-wc-to-void-current-status-proof:
 .PHONY: participant-first-user-clarity-proof
 participant-first-user-clarity-proof:
 	bash ops/mainnet0/participant-first-user-clarity-proof.sh
+
+.PHONY: public-run-node-support-proof
+public-run-node-support-proof:
+	bash ops/mainnet0/public-run-node-support-proof.sh
