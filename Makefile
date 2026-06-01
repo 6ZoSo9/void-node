@@ -1205,3 +1205,7 @@ participant-first-user-clarity-proof:
 .PHONY: public-run-node-support-proof
 public-run-node-support-proof:
 	bash ops/mainnet0/public-run-node-support-proof.sh
+
+.PHONY: participant-buy-void-ux-proof
+participant-buy-void-ux-proof:
+	bash ops/mainnet0/participant-buy-void-ux-proof.sh

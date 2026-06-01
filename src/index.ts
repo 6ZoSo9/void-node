@@ -49831,6 +49831,7 @@ a{color:#93c5fd;text-decoration:none}
         </div>
         <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount, confirm your delivery wallet, then create a Buy VOID request before sending Base or Ethereum USDC.</div>
         <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base or Ethereum native USDC only • create a Buy VOID request first • use a self-custody wallet • start from this page • exchange/custodial sends and blind direct deposits are not supported • payment confirmation is not VOID fulfillment.</div>
+        <div class="hero-note" id="buyFulfillmentTxRefWarning" style="margin-top:10px"><!-- VOID_BUY_EXPLICIT_TXREF_FULFILLMENT_V1 --><b>No automatic VOID delivery:</b> a Buy VOID request, payment reference, or payment confirmation is not fulfillment. VOID is delivered only after operator verification records an explicit VOID tx ref.</div>
         <div class="subtle-tab-copy" id="buyDraftLatestCard" style="margin-top:8px">Latest request: none</div>
         <details class="adv" style="margin-top:10px">
           <summary><span>Latest Draft Payload</span><span class="pill">json</span></summary>
