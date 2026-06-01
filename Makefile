@@ -1189,3 +1189,7 @@ alienware-runtime-service-proof:
 .PHONY: participant-wallet-devnet-gas-helper
 participant-wallet-devnet-gas-helper:
 	bash ops/mainnet0/participant-wallet-devnet-gas-helper.sh
+
+.PHONY: participant-wallet-wc-to-void-readiness-proof
+participant-wallet-wc-to-void-readiness-proof:
+	bash ops/mainnet0/participant-wallet-wc-to-void-readiness-proof.sh
