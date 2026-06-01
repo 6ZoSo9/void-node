@@ -13,6 +13,8 @@ public_live_announcement_checkpoint: 33c10bd6 / ckpt-mainnet0-public-live-announ
 quick_start_checkpoint: 0635c606 / ckpt-mainnet0-quick-start-green-20260524-111319
 windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick-start-green-20260524-112502
 support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228
+participant_first_user_clarity_checkpoint: 9b118fec / ckpt-participant-first-user-clarity-green-20260601-111631
+public_run_node_support_checkpoint: a40e147b / ckpt-public-run-node-support-proof-green-20260601-113719
 start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001
 public_docs_stack_checkpoint: d1d6fb47 / ckpt-public-docs-stack-developer-reference-green-20260525-070529
 developer_reference_checkpoint: 3a28fce3 / ckpt-mainnet0-developer-reference-green-20260525-022240
@@ -129,6 +131,15 @@ Participants should read:
 - No additional authority transfer is authorized by public launch status.
 - Operator/admin controls are not public participant controls.
 
+
+
+## Latest first-user and run-node support proof refresh
+
+The participant first-user path is now cross-box proven at `9b118fec / ckpt-participant-first-user-clarity-green-20260601-111631`.
+
+The public run-node/support path is now cross-box proven at `a40e147b / ckpt-public-run-node-support-proof-green-20260601-113719`.
+
+Together these prove the public path from docs and install guidance to a running local node, the participant page, wallet-first onboarding, guided Earn/WC→VOID flow, DataNet-backed public site routing, and sensitive public GET route 404 behavior.
 
 ## Public support first checks
 

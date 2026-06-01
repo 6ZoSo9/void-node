@@ -41,6 +41,8 @@ grep -q '^public_release_hygiene_checkpoint: 9b904aa1 / ckpt-public-release-hygi
 grep -q '^quick_start_checkpoint: 0635c606 / ckpt-mainnet0-quick-start-green-20260524-111319$' "$DOC"
 grep -q '^windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick-start-green-20260524-112502$' "$DOC"
 grep -q '^support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228$' "$DOC"
+grep -q '^participant_first_user_clarity_checkpoint: 9b118fec / ckpt-participant-first-user-clarity-green-20260601-111631$' "$DOC"
+grep -q '^public_run_node_support_checkpoint: a40e147b / ckpt-public-run-node-support-proof-green-20260601-113719$' "$DOC"
 grep -q '^start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001$' "$DOC"
 grep -q '^public_docs_stack_checkpoint: d1d6fb47 / ckpt-public-docs-stack-developer-reference-green-20260525-070529$' "$DOC"
 grep -q '^developer_reference_checkpoint: 3a28fce3 / ckpt-mainnet0-developer-reference-green-20260525-022240$' "$DOC"
