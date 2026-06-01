@@ -1193,3 +1193,7 @@ participant-wallet-devnet-gas-helper:
 .PHONY: participant-wallet-wc-to-void-readiness-proof
 participant-wallet-wc-to-void-readiness-proof:
 	bash ops/mainnet0/participant-wallet-wc-to-void-readiness-proof.sh
+
+.PHONY: participant-wc-to-void-current-status-proof
+participant-wc-to-void-current-status-proof:
+	bash ops/mainnet0/participant-wc-to-void-current-status-proof.sh
