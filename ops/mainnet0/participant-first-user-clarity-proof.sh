@@ -97,6 +97,9 @@ need_html "$HTML" 'Earn WC' "Earn WC action"
 need_html "$HTML" 'Buy VOID' "Buy VOID action"
 need_html "$HTML" 'Preview Staking' "Preview Staking action"
 need_html "$HTML" 'Mainnet-0: public-live' "public-live top strip"
+need_html "$HTML" 'VOID_HOME_NEXT_STEPS_PUBLIC_V1' "home next steps marker"
+need_html "$HTML" 'bridge spendable WC on-chain' "home bridge WC next step"
+need_html "$HTML" 'swap WC to VOID' "home swap WC next step"
 
 echo
 echo "=== [4] wallet-first setup path ==="

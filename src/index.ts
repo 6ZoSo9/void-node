@@ -49121,6 +49121,7 @@ a{color:#93c5fd;text-decoration:none}
         <a class="linkbtn" href="/participant#buy">Buy VOID</a>
         <a class="linkbtn" href="/participant#staking">Preview Staking</a>
       </div>
+      <div class="hero-note" id="homeNextStepsPublic" style="margin-top:10px"><!-- VOID_HOME_NEXT_STEPS_PUBLIC_V1 --><b>Next after Wallet:</b> Earn WC, bridge spendable WC on-chain in Trade, then swap WC to VOID when helper/relayer are healthy. Use small amounts and verify the Account Wallet.</div>
     </section>
 
     <!-- VOID_HOME_NEWS_FEED_V1 -->
