@@ -52665,19 +52665,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if ($("tradeSummary")) {
           let summaryText = "";
           if (!walletReadyForInfo) {
-            summaryText = "Connect a wallet first. On-chain WC trading must be signed by the wallet owner.";
+            summaryText = "WC→VOID state: Connect Wallet First. Trading must be signed by the stored execution wallet.";
           } else if (reverseMode) {
             summaryText = hasVoidForInfo
-              ? "VOID is present in the execution wallet, but VOID→WC trading is disabled until the reverse wallet-signed path is wired."
-              : "No VOID is available in the execution wallet yet. Reverse wallet-signed trading is not wired yet.";
+              ? "WC→VOID state: Reverse Not Wired. VOID is present, but VOID→WC trading is disabled until the reverse wallet-signed path is wired."
+              : "WC→VOID state: Reverse Not Wired. No VOID is available in the execution wallet yet.";
           } else if (!connectedMatchesExecution) {
-            summaryText = "Unlock the native participant wallet shown above to sign the on-chain WC→VOID swap.";
+            summaryText = "WC→VOID state: Unlock Native Wallet. Native wallet gas is available, but the stored participant wallet must be unlocked before approve/swap can be signed.";
           } else if (!hasOnchainWcForInfo) {
-            summaryText = "No on-chain WC is available to trade yet. Bridge local WC below first.";
+            summaryText = "WC→VOID state: No On-chain WC. Bridge local WC to the execution wallet before trading.";
           } else if (!hasNativeGasForInfo) {
-            summaryText = "On-chain WC is present, but this execution wallet has 0 native devnet gas. Add devnet gas before approve/swap can be submitted.";
+            summaryText = "WC→VOID state: Needs Devnet Gas. On-chain WC is present, but this execution wallet has 0 native devnet gas. Add devnet gas before approve/swap can be submitted.";
           } else {
-            summaryText = "On-chain WC is present and native gas is available. This trade will ask your wallet to sign approve, then swap.";
+            summaryText = "WC→VOID state: Approve + Swap WC for VOID. On-chain WC is present, native gas is available, and the native wallet is unlocked.";
           }
           $("tradeSummary").textContent = summaryText;
         }
@@ -54316,9 +54316,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         return;
       }
       if (!isWalletAddr(from)) {
-        setPre("tradeStateOut", { ok:false, error:"wallet_not_connected" });
-        setText("tradeOut", "Connect the execution wallet before trading.");
-        setLatestAction("Connect the execution wallet before trading.");
+        setPre("tradeStateOut", { ok:false, error:"wallet_locked" });
+        setText("tradeOut", "Unlock Native Wallet before trading.");
+        setLatestAction("Unlock the native participant wallet before approve/swap.");
         return;
       }
       if (!isWalletAddr(wallet)) {
