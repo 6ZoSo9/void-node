@@ -50658,6 +50658,9 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       const unit = String((entry && entry.unit) || "").trim();
       const target = String((entry && entry.target) || "").trim();
       const txHash = String((entry && entry.tx_hash) || "").trim();
+      const approveTxHash = String((entry && entry.approve_tx_hash) || "").trim();
+      const swapTxHash = String((entry && entry.swap_tx_hash) || txHash || "").trim();
+      const quotedVoid = (entry && entry.quoted_void != null) ? String(entry.quoted_void) : "";
       const note = String((entry && entry.note) || "").trim();
       const now = new Date();
       const stamp = now.toLocaleTimeString();
@@ -50679,11 +50682,15 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
       card.textContent = statusLabel + " • " + actionLabel;
 
+      const shortTx = (h) => /^0x[a-fA-F0-9]{64}$/.test(String(h || "")) ? (String(h).slice(0, 10) + "…" + String(h).slice(-6)) : String(h || "");
       let metaParts = [];
       if (target) metaParts.push("Target " + target);
-      if (txHash) {
-        const shortHash = /^0x[a-fA-F0-9]{64}$/.test(txHash) ? (txHash.slice(0, 10) + "…" + txHash.slice(-6)) : txHash;
-        metaParts.push("Tx " + shortHash);
+      if (kind === "trade_wc_void") {
+        if (quotedVoid) metaParts.push("Quoted " + quotedVoid + " VOID");
+        if (approveTxHash) metaParts.push("Approve " + shortTx(approveTxHash));
+        if (swapTxHash) metaParts.push("Swap " + shortTx(swapTxHash));
+      } else if (txHash) {
+        metaParts.push("Tx " + shortTx(txHash));
       }
       metaParts.push("Updated " + stamp);
       if (note && note !== actionLabel && !note.startsWith(statusLabel + " •")) metaParts.push(note);
@@ -50691,7 +50698,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       meta.textContent = metaParts.join(" • ");
 
       try {
-        const stored = { kind, status, amount, unit, target, tx_hash: txHash, note, ts_ms: Date.now() };
+        const stored = { kind, status, amount, unit, target, tx_hash: txHash, approve_tx_hash: approveTxHash, swap_tx_hash: swapTxHash, quoted_void: quotedVoid, note, ts_ms: Date.now() };
         localStorage.setItem("void_wallet_activity_v1", JSON.stringify(stored));
       } catch (_) {}
     } catch (_) {}
@@ -54358,10 +54365,11 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         const shortApprove = /^0x[a-fA-F0-9]{64}$/.test(String(nativeOut.approve_tx_hash || "")) ? (String(nativeOut.approve_tx_hash).slice(0, 10) + "…" + String(nativeOut.approve_tx_hash).slice(-6)) : String(nativeOut.approve_tx_hash || "-");
         const shortSwap = /^0x[a-fA-F0-9]{64}$/.test(String(nativeOut.swap_tx_hash || "")) ? (String(nativeOut.swap_tx_hash).slice(0, 10) + "…" + String(nativeOut.swap_tx_hash).slice(-6)) : String(nativeOut.swap_tx_hash || "-");
 
+        const quotedVoid = nativeOut && nativeOut.quote && nativeOut.quote.quoted_void != null ? String(nativeOut.quote.quoted_void) : "";
         setPre("tradeStateOut", nativeOut);
         setText("tradeOut", "Participant wallet WC→VOID swap submitted.");
         setLatestAction("Participant wallet WC→VOID swap submitted • approve " + shortApprove + " • swap " + shortSwap);
-        try { setWalletActivity({ kind:"trade_wc_void", status:"sent", amount, unit:"WC", target:shortAddr(wallet), tx_hash:String(nativeOut.swap_tx_hash || "") }); } catch (_) {}
+        try { setWalletActivity({ kind:"trade_wc_void", status:"sent", amount, unit:"WC", target:shortAddr(wallet), tx_hash:String(nativeOut.swap_tx_hash || ""), approve_tx_hash:String(nativeOut.approve_tx_hash || ""), swap_tx_hash:String(nativeOut.swap_tx_hash || ""), quoted_void:quotedVoid }); } catch (_) {}
         try { await refresh(); } catch (_) {}
         return;
       }
