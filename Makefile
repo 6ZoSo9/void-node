@@ -1185,3 +1185,7 @@ void-native-web-hosting-current-plan-proof:
 .PHONY: alienware-runtime-service-proof
 alienware-runtime-service-proof:
 	bash ops/security/alienware-runtime-service-proof.sh
+
+.PHONY: participant-wallet-devnet-gas-helper
+participant-wallet-devnet-gas-helper:
+	bash ops/mainnet0/participant-wallet-devnet-gas-helper.sh
