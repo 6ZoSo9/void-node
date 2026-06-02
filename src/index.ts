@@ -49879,6 +49879,7 @@ a{color:#93c5fd;text-decoration:none}
 
     <section class="tabpane" id="pane-staking">
       <div class="compact-tab-head" id="staking-compact-head"><h1 class="compact-tab-title">Stake</h1></div>
+      <div class="hero-note" id="stakePublicPreviewWarning" style="margin-bottom:12px"><!-- VOID_STAKE_PUBLIC_PREVIEW_WARNING_V1 --><b>Preview only:</b> staking and registration on this page show readiness and candidate/waiting status. They do not make this wallet an active validator. Public active admission remains disabled until operator-governed Mainnet-0 gates are intentionally opened.</div>
 
       <div class="grid-2-eq stake-primary-grid">
         <div class="panel">

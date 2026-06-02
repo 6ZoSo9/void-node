@@ -48,24 +48,17 @@ grep -q 'Public Registration ≠ Active Validator Admission' "$HTML"
 grep -q 'does not add you to the active validator set' "$HTML"
 grep -q 'Preview is safe and non-mutating' "$HTML"
 grep -q 'does not make this wallet an active validator' "$HTML"
-grep -q 'candidate/waiting status is not active admission' "$HTML"
-grep -q 'capped, epoch-controlled, proof-backed operator lanes' "$HTML"
+grep -q 'candidate/waiting preview status' "$HTML"
+grep -q 'Candidate registration is not active admission' "$HTML"
+grep -q 'Public Registration ≠ Active Validator Admission' "$HTML"
+grep -q 'capped, epoch-controlled, and operator-governed' "$HTML"
+grep -q 'capped, proof-backed operator lanes' "$HTML"
+grep -q 'operator-governed Mainnet-0 gates' "$HTML"
 
 echo "[ok] Stake/Register public clarity copy rendered"
 
 echo
 echo "=== [4] runtime truth still green ==="
-curl -fsS "$BASE/__void/runtime/validator-truth/epoch/127" > /tmp/void-participant-stake-clarity-epoch127.json
-python3 - /tmp/void-participant-stake-clarity-epoch127.json <<'PY'
-import json, sys
-j=json.load(open(sys.argv[1]))
-s=j.get("summary") or {}
-assert s.get("epoch") == 127, j
-assert s.get("validatorCount") == 126, j
-assert s.get("published") is True, j
-assert s.get("publishedMatch") is True, j
-print("[ok] epoch127 runtime truth")
-PY
+make mainnet0-status-smoke
 
-echo
 echo "[ok] Participant Stake/Register clarity proof passed"

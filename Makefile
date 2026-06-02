@@ -1209,3 +1209,7 @@ public-run-node-support-proof:
 .PHONY: participant-buy-void-ux-proof
 participant-buy-void-ux-proof:
 	bash ops/mainnet0/participant-buy-void-ux-proof.sh
+
+.PHONY: participant-stake-public-preview-proof
+participant-stake-public-preview-proof:
+	bash ops/mainnet0/participant-stake-public-preview-proof.sh
