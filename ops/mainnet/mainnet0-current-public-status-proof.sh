@@ -162,6 +162,18 @@ print({
 })
 PY
 
+
+echo
+echo "=== [buy/stake public clarity pointer refresh] ==="
+grep -q '^buy_void_ux_txref_clarity_checkpoint: 67f3f3d8 / ckpt-buy-void-ux-txref-clarity-green-20260601-142627$' "$DOC"
+grep -q '^stake_public_preview_clarity_checkpoint: 5171df05 / ckpt-stake-public-preview-clarity-green-20260601-193825$' "$DOC"
+grep -q 'Latest Buy VOID and Stake public clarity refresh' "$DOC"
+grep -q 'ckpt-buy-void-ux-txref-clarity-green-20260601-142627' "$DOC"
+grep -q 'ckpt-stake-public-preview-clarity-green-20260601-193825' "$DOC"
+grep -q 'no automatic delivery' "$DOC"
+grep -q 'preview-only, candidate/waiting-only' "$DOC"
+echo "[ok] Buy VOID and Stake public clarity pointers present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 

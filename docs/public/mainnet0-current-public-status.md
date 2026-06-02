@@ -15,6 +15,8 @@ windows_wsl2_quick_start_checkpoint: 3e2fb76c / ckpt-mainnet0-windows-wsl2-quick
 support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-green-20260524-123228
 participant_first_user_clarity_checkpoint: 9b118fec / ckpt-participant-first-user-clarity-green-20260601-111631
 public_run_node_support_checkpoint: a40e147b / ckpt-public-run-node-support-proof-green-20260601-113719
+buy_void_ux_txref_clarity_checkpoint: 67f3f3d8 / ckpt-buy-void-ux-txref-clarity-green-20260601-142627
+stake_public_preview_clarity_checkpoint: 5171df05 / ckpt-stake-public-preview-clarity-green-20260601-193825
 start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001
 public_docs_stack_checkpoint: d1d6fb47 / ckpt-public-docs-stack-developer-reference-green-20260525-070529
 developer_reference_checkpoint: 3a28fce3 / ckpt-mainnet0-developer-reference-green-20260525-022240
@@ -132,6 +134,15 @@ Participants should read:
 - Operator/admin controls are not public participant controls.
 
 
+
+
+## Latest Buy VOID and Stake public clarity refresh
+
+Buy VOID UX now has a cross-box proven explicit tx-ref fulfillment warning at `67f3f3d8 / ckpt-buy-void-ux-txref-clarity-green-20260601-142627`.
+
+Stake public preview now has a cross-box proven top-of-tab warning at `5171df05 / ckpt-stake-public-preview-clarity-green-20260601-193825`.
+
+Together these prove that public users are told Buy VOID has no automatic delivery and requires an explicit recorded VOID tx ref, while Stake remains preview-only, candidate/waiting-only, and not active validator admission.
 
 ## Latest first-user and run-node support proof refresh
 
