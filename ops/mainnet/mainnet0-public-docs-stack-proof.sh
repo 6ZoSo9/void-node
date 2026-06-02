@@ -150,4 +150,15 @@ print({
 })
 PY
 
+
+echo
+echo "=== [network troubleshooting docs stack] ==="
+test -f docs/public/node-network-troubleshooting.md
+grep -q 'VOID public node network troubleshooting' docs/public/node-network-troubleshooting.md
+grep -q 'node-network-troubleshooting.md' docs/public/README.md
+grep -q 'node-network-troubleshooting.md' docs/public/run-a-node.md
+grep -q 'Network troubleshooting should not mutate chain state' docs/public/node-network-troubleshooting.md
+make public-node-network-troubleshooting-proof
+echo "[ok] network troubleshooting doc is part of public docs stack"
+
 echo "[ok] Mainnet-0 public docs stack proof passed"
