@@ -52,6 +52,15 @@ echo "=== [4] current node still locally ready ==="
 curl -fsS --max-time 8 http://127.0.0.1:4100/__void/ready.json && echo || fail "local VOID ready unavailable"
 
 echo
+
+echo
+echo "=== [4b] public docs discoverability ==="
+grep -q 'node-network-troubleshooting.md' docs/public/README.md
+grep -q 'Node network troubleshooting' docs/public/README.md
+grep -q 'node-network-troubleshooting.md' docs/public/run-a-node.md
+grep -q 'local VOID node remains ready but the host machine loses internet access' docs/public/run-a-node.md
+echo "[ok] network troubleshooting doc discoverable from public docs"
+
 echo "=== [5] summary ==="
 python3 - <<PY2
 print({

@@ -63,3 +63,5 @@ Canonical detail:
 - DataNet site bundle seeding runbook: ../ops/runbooks/datanet-site-bundle-seeding.md
 
 Operational guardrail: repo static fallback is bootstrap availability only. DataNet-backed public site proof requires datanet_live_v1 headers and the expected content roots.
+
+- [Node network troubleshooting](node-network-troubleshooting.md) — recover when the local node is ready but the host loses internet.

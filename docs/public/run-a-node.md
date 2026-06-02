@@ -49,3 +49,11 @@ Do not expose private keys.
 Do not paste seed phrases into chat, issue trackers, or public logs.
 Do not run operator/admin commands unless you understand the proof lane.
 Do not confuse public validator candidate/waiting registration with active validator admission.
+
+## Network troubleshooting
+
+If your local VOID node remains ready but the host machine loses internet access, use the public node network troubleshooting runbook:
+
+- [Node network troubleshooting](node-network-troubleshooting.md)
+
+The runbook covers interface, route, DNS, carrier-flap, NetworkManager, live-failure capture, non-reboot recovery, and physical cable or port troubleshooting. It is a documentation/support path only and does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
