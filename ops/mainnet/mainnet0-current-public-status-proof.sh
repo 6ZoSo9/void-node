@@ -184,6 +184,16 @@ grep -q 'seeded, peer-readable, and auto-materializing' "$DOC"
 grep -q 'datanet_live_v1_peer_materialized' "$DOC"
 echo "[ok] public site bundle auto-materialization pointer present"
 
+
+echo
+echo "=== [public node network troubleshooting pointer] ==="
+grep -q '^public_node_network_troubleshooting_checkpoint: b51a615c / ckpt-public-node-network-troubleshooting-green-20260602-023325$' "$DOC"
+grep -q 'Latest public node network troubleshooting refresh' "$DOC"
+grep -q 'ckpt-public-node-network-troubleshooting-green-20260602-023325' "$DOC"
+grep -q 'local VOID node remains ready while the host machine loses internet access' "$DOC"
+grep -q 'does not mutate chain state' "$DOC"
+echo "[ok] public node network troubleshooting pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 

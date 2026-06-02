@@ -24,6 +24,7 @@ public_surface_checkpoint: 83cb22f9 / ckpt-mainnet0-public-surface-green-2026052
 
 public_site_bundle_auto_materialize_checkpoint: cea7726a / ckpt-public-site-bundle-auto-materialize-green-20260601-204502
 
+public_node_network_troubleshooting_checkpoint: b51a615c / ckpt-public-node-network-troubleshooting-green-20260602-023325
 ## Current truth
 
 VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
@@ -137,6 +138,14 @@ Participants should read:
 
 
 
+
+## Latest public node network troubleshooting refresh
+
+The public node network troubleshooting runbook is now cross-box proven at `b51a615c / ckpt-public-node-network-troubleshooting-green-20260602-023325`.
+
+This runbook is for operators whose local VOID node remains ready while the host machine loses internet access. It documents interface, route, DNS, carrier-flap, NetworkManager, live-failure capture, non-reboot recovery, and physical cable/port troubleshooting.
+
+This is a documentation and proof lane only. It does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
 
 ## Latest DataNet site bundle auto-materialization refresh
 
