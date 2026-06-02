@@ -392,6 +392,7 @@ app.get("/nullfeed", (_req:any, res:any) => {
   const fs0 = require("fs");
   const path0 = require("path");
   const crypto0 = require("crypto");
+  const childProc0 = require("child_process");
 
   const siteRoot = path0.join(process.cwd(), "docs", "site");
 
@@ -468,6 +469,50 @@ app.get("/nullfeed", (_req:any, res:any) => {
         fallback_available: true
       };
     } catch (e:any) {
+      const originalReason = String(e?.message || e || "unknown");
+      const materialized = materializeSiteBundleFromPeer(site, dn, originalReason);
+      if (materialized?.ok) {
+        try {
+          const dataDirRaw = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a");
+          const dataDirAbs = path0.isAbsolute(dataDirRaw) ? dataDirRaw : path0.join(process.cwd(), dataDirRaw);
+          const packedDir = path0.join(dataDirAbs, "datanet", "publish_shim_v1", "packed", String(dn.dataset_id));
+          const chunkPath = path0.join(packedDir, "chunk_000000.bin");
+          const rootPath = path0.join(packedDir, "root.txt");
+
+          const html = fs0.readFileSync(chunkPath, "utf8");
+          const sha256 = crypto0.createHash("sha256").update(html).digest("hex");
+          if (sha256 !== String(dn.content_root)) throw new Error("materialized_content_hash_mismatch");
+
+          let rootTxt = "";
+          try { rootTxt = String(fs0.readFileSync(rootPath, "utf8") || "").trim(); } catch {}
+          if (rootTxt && rootTxt !== String(dn.content_root)) throw new Error("materialized_root_mismatch");
+
+          return {
+            info: fallback.info,
+            html,
+            sha256,
+            source: "datanet_live_v1_peer_materialized",
+            datanet: true,
+            datanet_dataset_id: String(dn.dataset_id),
+            datanet_content_root: String(dn.content_root),
+            datanet_who: String(dn.who),
+            materialized_from_peer: true,
+            peer_http: String(materialized.peer_http || ""),
+            fallback_available: true
+          };
+        } catch (after:any) {
+          return {
+            ...fallback,
+            source: "repo_static_fallback_v1",
+            datanet: false,
+            datanet_dataset_id: String(dn.dataset_id),
+            datanet_content_root: String(dn.content_root),
+            datanet_who: String(dn.who),
+            fallback_reason: originalReason + "; peer_materialized_but_verify_failed:" + String(after?.message || after || "unknown")
+          };
+        }
+      }
+
       return {
         ...fallback,
         source: "repo_static_fallback_v1",
@@ -475,7 +520,7 @@ app.get("/nullfeed", (_req:any, res:any) => {
         datanet_dataset_id: String(dn.dataset_id),
         datanet_content_root: String(dn.content_root),
         datanet_who: String(dn.who),
-        fallback_reason: String(e?.message || e || "unknown")
+        fallback_reason: originalReason + "; peer_materialize_failed:" + String(materialized?.error || "unknown")
       };
     }
   }
@@ -494,6 +539,144 @@ app.get("/nullfeed", (_req:any, res:any) => {
       checkpoint: "ckpt-voidchain-run-node-doc-links-datanet-green-20260531-104226 + nullfeed DataNet publish summary /tmp/void-native-site-live-datanet-publish-20260531-101201/summary.json"
     }
   };
+
+  // === VOID public site bundle peer auto-materialize v1 ===
+  // Fixed public site bundles only. If local DataNet packed content is missing,
+  // fetch the fixed manifest dataset from a configured peer, verify content root,
+  // atomically write the packed dir, then serve DataNet-backed instead of fallback.
+  function normalizeSiteBundlePeerBase(raw:any): string {
+    const v = String(raw || "").trim();
+    if (!v) return "";
+    try {
+      const u = new URL(v);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+      u.pathname = "";
+      u.search = "";
+      u.hash = "";
+      return u.toString().replace(/\/+$/, "");
+    } catch {
+      return "";
+    }
+  }
+
+  function siteBundlePeerBases(): string[] {
+    const raw = [
+      process.env.VOID_SITE_BUNDLE_PEERS,
+      process.env.VOID_DATANET_SITE_BUNDLE_PEERS,
+      process.env.VOID_DATANET_PEERS,
+      process.env.VOID_DRIFT_PEER
+    ].filter(Boolean).join(" ");
+
+    const out:string[] = [];
+    const seen = new Set<string>();
+
+    function add(rawPeer:any) {
+      const peer = normalizeSiteBundlePeerBase(rawPeer);
+      if (!peer) return;
+      try {
+        const u = new URL(peer);
+        const host = String(u.hostname || "").toLowerCase();
+        if (host === "127.0.0.1" || host === "localhost" || host === "::1") return;
+      } catch {}
+      if (seen.has(peer)) return;
+      seen.add(peer);
+      out.push(peer);
+    }
+
+    for (const part of raw.split(/[,\s]+/).map((x:string) => x.trim()).filter(Boolean)) add(part);
+
+    try {
+      const peers = peersReg && typeof peersReg.all === "function" ? peersReg.all() : [];
+      for (const peer of Array.isArray(peers) ? peers : []) add(peer?.http);
+    } catch {}
+
+    return out;
+  }
+
+  function materializeSiteBundleFromPeer(site:string, dn:any, reason:string): any {
+    const dataset = String(dn?.dataset_id || "");
+    const root = String(dn?.content_root || "");
+    const who = String(dn?.who || "void-site-bundle-v1");
+
+    if (!dataset || !root) return { ok:false, error:"missing_site_bundle_identity" };
+    if (site !== "voidchain" && site !== "nullfeed") return { ok:false, error:"unsupported_site_bundle" };
+
+    const dataDirRaw = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a");
+    const dataDirAbs = path0.isAbsolute(dataDirRaw) ? dataDirRaw : path0.join(process.cwd(), dataDirRaw);
+    const packedParent = path0.join(dataDirAbs, "datanet", "publish_shim_v1", "packed");
+    const packedDir = path0.join(packedParent, dataset);
+
+    const errors:string[] = [];
+    for (const peer of siteBundlePeerBases()) {
+      const url = peer + "/datanet/v1/fetch/" + encodeURIComponent(dataset) + "?who=" + encodeURIComponent(who);
+      try {
+        const raw = childProc0.execFileSync("curl", ["-fsS", "--max-time", "8", url], {
+          encoding: "utf8",
+          maxBuffer: 12 * 1024 * 1024
+        });
+        const obj = JSON.parse(String(raw || "{}"));
+        if (obj?.ok !== true) throw new Error("peer_fetch_not_ok");
+        if (String(obj?.id || "") !== dataset) throw new Error("peer_dataset_mismatch");
+
+        const b64 = String(obj?.cipher_b64 || obj?.plaintext_b64 || "");
+        if (!b64) throw new Error("peer_missing_bundle_b64");
+        const buf = Buffer.from(b64, "base64");
+        if (!buf.length) throw new Error("peer_empty_bundle");
+
+        const got = crypto0.createHash("sha256").update(buf).digest("hex");
+        if (got !== root) throw new Error("peer_content_root_mismatch:" + got);
+        const rootTxt = String(obj?.rootTxt || "").trim();
+        if (rootTxt && rootTxt !== root) throw new Error("peer_root_txt_mismatch:" + rootTxt);
+
+        const manifest = obj?.manifest && typeof obj.manifest === "object"
+          ? obj.manifest
+          : {
+              version: 1,
+              createdAt: new Date().toISOString(),
+              sourcePath: "peer:" + peer,
+              sizeBytes: buf.length,
+              chunkBytes: 65536,
+              merkleRootHex: root,
+              chunks: [{ index: 0, file: "chunk_000000.bin", sizeBytes: buf.length, leafHashHex: root }]
+            };
+
+        if (Number(manifest?.sizeBytes || buf.length) !== buf.length) {
+          throw new Error("peer_manifest_size_mismatch");
+        }
+
+        const tmpDir = path0.join(packedParent, "." + dataset + ".tmp-" + process.pid + "-" + Date.now());
+        fs0.mkdirSync(packedParent, { recursive: true });
+        fs0.rmSync(tmpDir, { recursive: true, force: true });
+        fs0.mkdirSync(tmpDir, { recursive: true });
+
+        fs0.writeFileSync(path0.join(tmpDir, "chunk_000000.bin"), buf);
+        fs0.writeFileSync(path0.join(tmpDir, "manifest.v1.json"), JSON.stringify(manifest, null, 2) + "\n");
+        fs0.writeFileSync(path0.join(tmpDir, "root.txt"), root + "\n");
+
+        const meta = {
+          ...(obj?.meta && typeof obj.meta === "object" ? obj.meta : {}),
+          materialized_from_peer_v1: true,
+          materialized_at: new Date().toISOString(),
+          materialized_reason: String(reason || "missing_or_invalid_local_bundle"),
+          source: "site_bundle_peer_auto_materialize_v1",
+          site,
+          dataset_id: dataset,
+          content_root: root,
+          peer_http: peer
+        };
+        fs0.writeFileSync(path0.join(tmpDir, "meta.publish_shim.v1.json"), JSON.stringify(meta, null, 2) + "\n");
+
+        fs0.rmSync(packedDir, { recursive: true, force: true });
+        fs0.renameSync(tmpDir, packedDir);
+
+        return { ok:true, site, dataset_id: dataset, content_root: root, peer_http: peer };
+      } catch (e:any) {
+        errors.push(peer + ":" + String(e?.message || e || "unknown"));
+      }
+    }
+
+    return { ok:false, error:"no_peer_materialized_site_bundle", errors };
+  }
 
   function manifest(site:string): any {
     const got = readSite(site);
@@ -539,6 +722,8 @@ app.get("/nullfeed", (_req:any, res:any) => {
     res.setHeader("x-void-datanet-backed", got.datanet ? "true" : "false");
     if (got.datanet_dataset_id) res.setHeader("x-void-datanet-dataset-id", got.datanet_dataset_id);
     if (got.datanet_content_root) res.setHeader("x-void-datanet-content-root", got.datanet_content_root);
+    if (got.materialized_from_peer) res.setHeader("x-void-site-peer-materialized", "true");
+    if (got.peer_http) res.setHeader("x-void-site-peer-http", got.peer_http);
     if (got.fallback_reason) res.setHeader("x-void-site-fallback-reason", got.fallback_reason);
     res.type("html").send(got.html);
   });
@@ -551,6 +736,8 @@ app.get("/nullfeed", (_req:any, res:any) => {
     res.setHeader("x-void-datanet-backed", got.datanet ? "true" : "false");
     if (got.datanet_dataset_id) res.setHeader("x-void-datanet-dataset-id", got.datanet_dataset_id);
     if (got.datanet_content_root) res.setHeader("x-void-datanet-content-root", got.datanet_content_root);
+    if (got.materialized_from_peer) res.setHeader("x-void-site-peer-materialized", "true");
+    if (got.peer_http) res.setHeader("x-void-site-peer-http", got.peer_http);
     if (got.fallback_reason) res.setHeader("x-void-site-fallback-reason", got.fallback_reason);
     res.type("html").send(got.html);
   });

@@ -1217,3 +1217,7 @@ participant-stake-public-preview-proof:
 .PHONY: void-public-site-bundle-peer-readiness-proof
 void-public-site-bundle-peer-readiness-proof:
 	bash ops/security/void-public-site-bundle-peer-readiness-proof.sh
+
+.PHONY: void-public-site-bundle-auto-materialize-proof
+void-public-site-bundle-auto-materialize-proof:
+	bash ops/security/void-public-site-bundle-auto-materialize-proof.sh
