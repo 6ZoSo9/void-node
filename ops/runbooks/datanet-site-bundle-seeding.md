@@ -4,6 +4,15 @@ Status: Mainnet-0 public-live operational runbook
 
 Scope: VOID native public site bundle routes and DataNet-backed site serving
 
+
+## Current status: auto-materialization is now proven
+
+Manual seeding is still a valid fallback path, but fixed public site bundles are no longer manual-only.
+
+Checkpoint `cea7726a / ckpt-public-site-bundle-auto-materialize-green-20260601-204502` proves a node can recover the fixed Voidchain and NullFeed public site bundles from a configured peer by fetching `/datanet/v1/fetch/<dataset_id>`, verifying the expected content hash/root, atomically writing the packed directory, and serving the site as `datanet_live_v1_peer_materialized`.
+
+This currently applies only to the fixed public site bundle dataset IDs for `/site/voidchain` and `/site/nullfeed`. Generic DataNet job materialization remains a separate path.
+
 ## Why this exists
 
 VOID public site routes are DataNet-first with repo static fallback.

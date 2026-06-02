@@ -174,6 +174,16 @@ grep -q 'no automatic delivery' "$DOC"
 grep -q 'preview-only, candidate/waiting-only' "$DOC"
 echo "[ok] Buy VOID and Stake public clarity pointers present"
 
+
+echo
+echo "=== [public site bundle auto-materialization pointer] ==="
+grep -q '^public_site_bundle_auto_materialize_checkpoint: cea7726a / ckpt-public-site-bundle-auto-materialize-green-20260601-204502$' "$DOC"
+grep -q 'Latest DataNet site bundle auto-materialization refresh' "$DOC"
+grep -q 'ckpt-public-site-bundle-auto-materialize-green-20260601-204502' "$DOC"
+grep -q 'seeded, peer-readable, and auto-materializing' "$DOC"
+grep -q 'datanet_live_v1_peer_materialized' "$DOC"
+echo "[ok] public site bundle auto-materialization pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 

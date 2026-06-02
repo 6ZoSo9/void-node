@@ -22,6 +22,8 @@ public_docs_stack_checkpoint: d1d6fb47 / ckpt-public-docs-stack-developer-refere
 developer_reference_checkpoint: 3a28fce3 / ckpt-mainnet0-developer-reference-green-20260525-022240
 public_surface_checkpoint: 83cb22f9 / ckpt-mainnet0-public-surface-green-20260525-085128
 
+public_site_bundle_auto_materialize_checkpoint: cea7726a / ckpt-public-site-bundle-auto-materialize-green-20260601-204502
+
 ## Current truth
 
 VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
@@ -135,6 +137,16 @@ Participants should read:
 
 
 
+
+## Latest DataNet site bundle auto-materialization refresh
+
+The public DataNet site bundle lane is now seeded, peer-readable, and auto-materializing at `cea7726a / ckpt-public-site-bundle-auto-materialize-green-20260601-204502`.
+
+The previous peer-readiness checkpoint proved both Precision and Alienware expose fixed DataNet manifests and `/datanet/v1/fetch` for Voidchain and NullFeed at `ckpt-public-site-bundle-peer-readiness-green-20260601-202959`.
+
+The new auto-materialization checkpoint proves a node can recover missing fixed public site bundle packed dirs from a configured peer, verify content hash/root, write the packed dir atomically, and serve `/site/voidchain` and `/site/nullfeed` as `datanet_live_v1_peer_materialized` instead of falling back to repo static.
+
+Manual seeding remains a safe fallback/runbook path, but it is no longer the only proven way for a peer node to restore these fixed public site bundles.
 
 ## Latest Buy VOID and Stake public clarity refresh
 

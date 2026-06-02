@@ -39,3 +39,12 @@ grep -q 'x-void-datanet-backed: true' "$DOC"
 grep -q 'Do not treat repo static fallback as DataNet-backed serving' "$DOC"
 
 echo "public_site_bundle_seeding_runbook_proof=green"
+
+echo
+echo "=== [auto-materialization status] ==="
+grep -q 'Current status: auto-materialization is now proven' "$DOC"
+grep -q 'ckpt-public-site-bundle-auto-materialize-green-20260601-204502' "$DOC"
+grep -q 'datanet_live_v1_peer_materialized' "$DOC"
+grep -q 'Manual seeding is still a valid fallback path' "$DOC"
+grep -q 'fixed public site bundle dataset IDs' "$DOC"
+echo "[ok] site bundle auto-materialization status documented"
