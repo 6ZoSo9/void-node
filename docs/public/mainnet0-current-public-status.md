@@ -18,7 +18,7 @@ public_run_node_support_checkpoint: a40e147b / ckpt-public-run-node-support-proo
 buy_void_ux_txref_clarity_checkpoint: 67f3f3d8 / ckpt-buy-void-ux-txref-clarity-green-20260601-142627
 stake_public_preview_clarity_checkpoint: 5171df05 / ckpt-stake-public-preview-clarity-green-20260601-193825
 start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001
-public_docs_stack_checkpoint: d1d6fb47 / ckpt-public-docs-stack-developer-reference-green-20260525-070529
+public_docs_stack_checkpoint: 9e1cd6d3 / ckpt-public-docs-stack-network-troubleshooting-green-20260602-071543
 developer_reference_checkpoint: 3a28fce3 / ckpt-mainnet0-developer-reference-green-20260525-022240
 public_surface_checkpoint: 83cb22f9 / ckpt-mainnet0-public-surface-green-20260525-085128
 
@@ -138,6 +138,14 @@ Participants should read:
 
 
 
+
+## Latest public docs stack refresh
+
+The public docs stack is now cross-box proven at `9e1cd6d3 / ckpt-public-docs-stack-network-troubleshooting-green-20260602-071543`.
+
+This stack explicitly requires the public node network troubleshooting runbook, its links from the public docs index and run-a-node guide, mutation-safety language, and the dedicated public node network troubleshooting proof.
+
+This is a documentation and proof lane only. It does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
 
 ## Latest public node network troubleshooting refresh
 
