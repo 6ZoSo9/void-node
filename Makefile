@@ -1221,3 +1221,7 @@ void-public-site-bundle-peer-readiness-proof:
 .PHONY: void-public-site-bundle-auto-materialize-proof
 void-public-site-bundle-auto-materialize-proof:
 	bash ops/security/void-public-site-bundle-auto-materialize-proof.sh
+
+.PHONY: void-site-bundle-peer-env-persistence-proof
+void-site-bundle-peer-env-persistence-proof:
+	bash ops/security/void-site-bundle-peer-env-persistence-proof.sh
