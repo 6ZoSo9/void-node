@@ -26,6 +26,7 @@ public_site_bundle_auto_materialize_checkpoint: cea7726a / ckpt-public-site-bund
 
 public_node_network_troubleshooting_checkpoint: b51a615c / ckpt-public-node-network-troubleshooting-green-20260602-023325
 current_public_status_docs_stack_proof_repair_checkpoint: ba8ecb44 / ckpt-current-public-status-docs-stack-proof-repair-green-20260602-081224
+public_faq_network_troubleshooting_checkpoint: 567d7a8b / ckpt-public-faq-network-troubleshooting-green-20260602-105407
 ## Current truth
 
 VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
@@ -139,6 +140,14 @@ Participants should read:
 
 
 
+
+## Latest public FAQ network troubleshooting refresh
+
+The public FAQ network troubleshooting entry is now cross-box proven at `567d7a8b / ckpt-public-faq-network-troubleshooting-green-20260602-105407`.
+
+The FAQ now answers the operator case where the local VOID node still returns `ready:true`, but the host machine loses internet access. It links users to `docs/public/node-network-troubleshooting.md` and keeps the issue framed as a local host/network troubleshooting path first, not a VOID chain failure.
+
+This is a documentation and proof lane only. It does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
 
 ## Latest current public status proof repair
 
