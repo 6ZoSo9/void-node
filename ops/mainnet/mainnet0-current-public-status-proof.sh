@@ -44,7 +44,7 @@ grep -q '^support_runbook_checkpoint: 85be902f / ckpt-mainnet0-support-runbook-g
 grep -q '^participant_first_user_clarity_checkpoint: 9b118fec / ckpt-participant-first-user-clarity-green-20260601-111631$' "$DOC"
 grep -q '^public_run_node_support_checkpoint: a40e147b / ckpt-public-run-node-support-proof-green-20260601-113719$' "$DOC"
 grep -q '^start_here_checkpoint: a149f3c4 / ckpt-mainnet0-start-here-green-20260524-163001$' "$DOC"
-grep -q '^public_docs_stack_checkpoint: d1d6fb47 / ckpt-public-docs-stack-developer-reference-green-20260525-070529$' "$DOC"
+grep -q '^public_docs_stack_checkpoint: 9e1cd6d3 / ckpt-public-docs-stack-network-troubleshooting-green-20260602-071543$' "$DOC"
 grep -q '^developer_reference_checkpoint: 3a28fce3 / ckpt-mainnet0-developer-reference-green-20260525-022240$' "$DOC"
 grep -q '^public_surface_checkpoint: 83cb22f9 / ckpt-mainnet0-public-surface-green-20260525-085128$' "$DOC"
 grep -q 'VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.' "$DOC"
@@ -193,6 +193,16 @@ grep -q 'ckpt-public-node-network-troubleshooting-green-20260602-023325' "$DOC"
 grep -q 'local VOID node remains ready while the host machine loses internet access' "$DOC"
 grep -q 'does not mutate chain state' "$DOC"
 echo "[ok] public node network troubleshooting pointer present"
+
+
+echo
+echo "=== [public docs stack pointer refresh] ==="
+grep -q '^public_docs_stack_checkpoint: 9e1cd6d3 / ckpt-public-docs-stack-network-troubleshooting-green-20260602-071543$' "$DOC"
+grep -q 'Latest public docs stack refresh' "$DOC"
+grep -q 'ckpt-public-docs-stack-network-troubleshooting-green-20260602-071543' "$DOC"
+grep -q 'public node network troubleshooting runbook' "$DOC"
+grep -q 'does not mutate chain state' "$DOC"
+echo "[ok] public docs stack pointer present"
 
 echo "[ok] Mainnet-0 current public status proof passed"
 
