@@ -1225,3 +1225,7 @@ void-public-site-bundle-auto-materialize-proof:
 .PHONY: void-site-bundle-peer-env-persistence-proof
 void-site-bundle-peer-env-persistence-proof:
 	bash ops/security/void-site-bundle-peer-env-persistence-proof.sh
+
+.PHONY: public-node-network-troubleshooting-proof
+public-node-network-troubleshooting-proof:
+	bash ops/security/public-node-network-troubleshooting-proof.sh
