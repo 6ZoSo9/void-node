@@ -126,4 +126,13 @@ print({
 })
 PY
 
+
+echo
+echo "=== [network troubleshooting FAQ] ==="
+grep -q 'node-network-troubleshooting.md' docs/public/mainnet0-faq.md
+grep -q 'ready:true' docs/public/mainnet0-faq.md
+grep -q 'local host/network issue' docs/public/mainnet0-faq.md
+grep -q 'does not mutate chain state' docs/public/mainnet0-faq.md
+echo "[ok] network troubleshooting FAQ present"
+
 echo "[ok] Mainnet-0 public FAQ proof passed"

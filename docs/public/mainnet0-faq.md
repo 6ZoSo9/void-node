@@ -195,3 +195,13 @@ VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
 Public onboarding is open.
 
 Public active validator admission, vault126 execution, Buy VOID fulfillment, and future treasury spend remain guarded by separate proof lanes.
+
+## My node is ready, but my computer lost internet. What should I do?
+
+If `http://127.0.0.1:4100/__void/ready.json` still returns `ready:true` but the host machine cannot reach the internet, treat it as a local host/network issue first, not a VOID chain failure.
+
+Use the public runbook here:
+
+- [Node network troubleshooting](node-network-troubleshooting.md)
+
+That runbook covers interface, route, DNS, carrier-flap, NetworkManager, non-reboot recovery, live-failure capture, and physical cable or port troubleshooting. It is a support/documentation path only and does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
