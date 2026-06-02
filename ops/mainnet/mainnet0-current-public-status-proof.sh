@@ -204,6 +204,16 @@ grep -q 'public node network troubleshooting runbook' "$DOC"
 grep -q 'does not mutate chain state' "$DOC"
 echo "[ok] public docs stack pointer present"
 
+
+echo
+echo "=== [current public status docs stack proof repair pointer] ==="
+grep -q '^current_public_status_docs_stack_proof_repair_checkpoint: ba8ecb44 / ckpt-current-public-status-docs-stack-proof-repair-green-20260602-081224$' "$DOC"
+grep -q 'Latest current public status proof repair' "$DOC"
+grep -q 'ckpt-current-public-status-docs-stack-proof-repair-green-20260602-081224' "$DOC"
+grep -q 'validate the public docs stack pointer refresh' "$DOC"
+grep -q 'does not mutate chain state' "$DOC"
+echo "[ok] current public status docs stack proof repair pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 

@@ -25,6 +25,7 @@ public_surface_checkpoint: 83cb22f9 / ckpt-mainnet0-public-surface-green-2026052
 public_site_bundle_auto_materialize_checkpoint: cea7726a / ckpt-public-site-bundle-auto-materialize-green-20260601-204502
 
 public_node_network_troubleshooting_checkpoint: b51a615c / ckpt-public-node-network-troubleshooting-green-20260602-023325
+current_public_status_docs_stack_proof_repair_checkpoint: ba8ecb44 / ckpt-current-public-status-docs-stack-proof-repair-green-20260602-081224
 ## Current truth
 
 VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
@@ -138,6 +139,14 @@ Participants should read:
 
 
 
+
+## Latest current public status proof repair
+
+The current public status proof repair is now cross-box proven at `ba8ecb44 / ckpt-current-public-status-docs-stack-proof-repair-green-20260602-081224`.
+
+This repair makes `mainnet0-current-public-status-proof` validate the public docs stack pointer refresh for `9e1cd6d3 / ckpt-public-docs-stack-network-troubleshooting-green-20260602-071543`.
+
+This is a documentation and proof repair lane only. It does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
 
 ## Latest public docs stack refresh
 
