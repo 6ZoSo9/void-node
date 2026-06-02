@@ -1213,3 +1213,7 @@ participant-buy-void-ux-proof:
 .PHONY: participant-stake-public-preview-proof
 participant-stake-public-preview-proof:
 	bash ops/mainnet0/participant-stake-public-preview-proof.sh
+
+.PHONY: void-public-site-bundle-peer-readiness-proof
+void-public-site-bundle-peer-readiness-proof:
+	bash ops/security/void-public-site-bundle-peer-readiness-proof.sh
