@@ -185,3 +185,13 @@ Current Mainnet-0 reorg severity intent is:
 - repeated shallow reorgs deserve monitoring
 - medium persistent reorgs require incident-watch posture
 - deep or checkpoint-crossing reorgs are emergency territory
+---
+
+## Current measurement status
+
+Mainnet-0 currently treats the required follow-up measurements as observability inputs, not as proof that a live reorg incident has occurred.
+
+Until an incident dataset exists, operators should record these measurements only when evidence is available from node logs, validator reports, checkpoint records, or incident bundles.
+
+This is a documentation and policy lane only. It does not mutate chain state, validator state, wallet state, Buy VOID state, or Work Credits state.
+
