@@ -127,7 +127,7 @@ need_html "$HTML" 'Operator-only validator controls are not part of public staki
 
 echo
 echo "=== [7] WC -> VOID closed-lane note remains present ==="
-need_file ops/mainnet0/participant-wc-to-void.current.md 'WC -> VOID is closed for this lane\.' "WC->VOID closed lane note"
+need_file ops/mainnet0/participant-wc-to-void.current.md 'WC -> VOID temp-wallet execution proof is reusable and cross-box status-smoke closed\.' "WC->VOID current temp execution note"
 need_file ops/mainnet0/participant-wc-to-void.current.md 'ckpt-wc-to-void-trade-receipt-activity-green-20260601-084635' "WC->VOID receipt checkpoint anchor"
 need_file ops/mainnet0/participant-wc-to-void.current.md 'previous_readiness_checkpoint: ckpt-participant-wc-to-void-readiness-proof-green-20260601-023517' "WC->VOID readiness checkpoint anchor"
 

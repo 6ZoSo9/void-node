@@ -24,6 +24,7 @@ previous_readiness_head: c3f3da96
 - A temporary proof wallet can execute native wallet WC -> VOID approve+swap on local 2050 Anvil.
 - The reusable proof target is committed: `make participant-wc-to-void-temp-wallet-execution-proof`.
 - Participant trade UI clearly shows the three trade states: Needs Devnet Gas, Unlock Native Wallet, and Approve + Swap WC for VOID.
+- Participant trade UI explains that the reusable test swap proof uses a temporary local-devnet wallet only, while real wallet execution requires explicit unlock/sign confirmation.
 - Recent Wallet Activity records WC -> VOID receipt details: quoted VOID, approve transaction hash, and swap transaction hash.
 
 ## Precision temp-wallet execution proof
@@ -110,5 +111,4 @@ WC -> VOID temp-wallet execution proof is reusable and cross-box status-smoke cl
 Future optional improvements:
 - Add a multi-entry trade history panel if we want more than the latest wallet activity card.
 - Add a safer user-facing local-devnet gas explanation, but keep any funding helper ops-only and fail-closed.
-- Add a user-facing “test swap” explanation that makes clear this proof is local devnet only.
 - Keep real-wallet execution behind explicit wallet unlock/sign confirmation.

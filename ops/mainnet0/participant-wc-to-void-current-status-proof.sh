@@ -60,6 +60,10 @@ grep -q 'void_wallet_activity_v1' "$DOC"
 grep -q 'multi-entry trade history panel' "$DOC"
 grep -q 'real-wallet execution behind explicit wallet unlock/sign confirmation' "$DOC"
 
+grep -q 'temporary local-devnet wallet only, while real wallet execution requires explicit unlock/sign confirmation' "$DOC"
+grep -q 'VOID_WC_TO_VOID_TEST_SWAP_EXPLAINER_V1' src/index.ts
+grep -q 'Real execution requires explicit unlock/sign confirmation' src/index.ts
+
 grep -q 'participant-wallet-wc-to-void-readiness-proof' Makefile
 grep -q 'participant-wc-to-void-current-status-proof' Makefile
 grep -q 'participant-wc-to-void-temp-wallet-execution-proof' Makefile
