@@ -290,6 +290,19 @@ grep -q 'buy_void_fulfillment: false' "$DOC"
 grep -q 'validator_mutation: false' "$DOC"
 echo "[ok] participant onboarding trust-boundary docs pointer present"
 
+echo
+echo "=== [public first-60 trust-boundary proof pointer] ==="
+grep -q 'public_first60_trust_boundary_proof_checkpoint: 9c211cdb / ckpt-public-first60-trust-boundary-proof-green-20260603-114916' "$DOC"
+grep -q 'public_first60_trust_boundary_proof_crossbox_closeout: /tmp/public-first60-trust-boundary-proof-crossbox-closeout-20260603-115216.log' "$DOC"
+grep -q 'public_first60_trust_boundary_proof_crossbox: green' "$DOC"
+grep -q 'public_first60_requires_trust_boundary: true' "$DOC"
+grep -q 'safe_now_copy: true' "$DOC"
+grep -q 'guarded_copy: true' "$DOC"
+grep -q 'no_blind_deposits_copy: true' "$DOC"
+grep -q 'buy_void_fulfillment: false' "$DOC"
+grep -q 'validator_mutation: false' "$DOC"
+echo "[ok] public first-60 trust-boundary proof pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 

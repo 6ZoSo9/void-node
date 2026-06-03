@@ -359,3 +359,17 @@ buy_void_fulfillment: false
 validator_mutation: false
 
 Public onboarding docs now match the participant first-screen trust boundary. README.md, docs/public/participant-onboarding.md, and docs/public/start-here.md explain what is safe now, what remains guarded, and that blind deposits, exchange sends, and custodial sends are not supported. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
+
+## Public first-60 trust-boundary proof checkpoint
+
+public_first60_trust_boundary_proof_checkpoint: 9c211cdb / ckpt-public-first60-trust-boundary-proof-green-20260603-114916
+public_first60_trust_boundary_proof_crossbox_closeout: /tmp/public-first60-trust-boundary-proof-crossbox-closeout-20260603-115216.log
+public_first60_trust_boundary_proof_crossbox: green
+public_first60_requires_trust_boundary: true
+safe_now_copy: true
+guarded_copy: true
+no_blind_deposits_copy: true
+buy_void_fulfillment: false
+validator_mutation: false
+
+The public first-60 user journey proof now explicitly requires the participant first-screen trust boundary marker and copy. This means the first-user journey fails if the Safe now / Guarded / No blind deposits boundary disappears from the served participant page. This checkpoint is proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
