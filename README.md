@@ -79,6 +79,24 @@ VOID Mainnet-0 is public-live. Start with the links below.
 
 Minimal block node with segmented storage, pubsub, participant UI, Work Credits, DataNet, validator truth, and HTTP APIs.
 
+## First-user trust boundary
+
+The participant page is public-live, but not every action is automatic or unguarded.
+
+Safe now:
+
+- Set up or unlock your Account Wallet.
+- Earn WC through approved useful work.
+- Use DataNet publish/read/verify flows.
+- Create a guided Buy VOID request from the participant page.
+
+Guarded:
+
+- VOID delivery requires operator verification and an explicit recorded VOID tx ref.
+- WC→VOID swaps and wallet sends require explicit unlock/sign confirmation.
+- Public validator registration is candidate/waiting only; active validator admission remains capped, proof-backed, and operator-governed.
+- Blind deposits, exchange sends, and custodial sends are not supported.
+
 ## Recommended public path
 
 New users should start with the public Mainnet-0 docs linked above.

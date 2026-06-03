@@ -80,6 +80,17 @@ need_file docs/public/participant-onboarding.md 'Back up your wallet' "participa
 need_file docs/public/participant-onboarding.md 'Payment confirmation does not equal VOID sent' "participant onboarding Buy VOID safety"
 
 echo
+
+echo
+echo "=== [docs first-user trust boundary] ==="
+grep -Rqs '## First-user trust boundary' docs README.md
+grep -Rqs 'Safe now:' docs README.md
+grep -Rqs 'Guarded:' docs README.md
+grep -Rqs 'Blind deposits, exchange sends, and custodial sends are not supported' docs README.md
+grep -Rqs 'VOID delivery requires operator verification and an explicit recorded VOID tx ref' docs README.md
+grep -Rqs 'Public validator registration is candidate/waiting only' docs README.md
+echo "[ok] docs first-user trust boundary present"
+
 echo "=== [3] served participant page anchors ==="
 HTML="$TMPDIR/participant.html"
 if curl -fsS --max-time 8 "$NODE/participant" > "$HTML"; then
