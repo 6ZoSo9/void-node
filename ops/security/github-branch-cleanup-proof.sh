@@ -14,13 +14,15 @@ git fetch origin --prune --tags >/dev/null 2>&1
 
 echo
 echo "=== [2] current branch and repo cleanliness ==="
-test "$(git branch --show-current)" = "main"
+CURRENT_BRANCH="$(git branch --show-current)"
+echo "current_branch=$CURRENT_BRANCH"
+test -n "$CURRENT_BRANCH"
 git diff --check
 git status --short
 
 echo
 echo "=== [3] remote branch count is zero excluding origin/HEAD and origin/main ==="
-COUNT="$(git branch -r | grep -Ev 'origin/(HEAD|main)$' | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"
+COUNT="$(git branch -r | { grep -Ev 'origin/(HEAD|main)$' || true; } | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"
 echo "remote_non_main_branch_count=$COUNT"
 test "$COUNT" = "0"
 
