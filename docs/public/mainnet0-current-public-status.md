@@ -415,3 +415,18 @@ buy_void_fulfillment: false
 validator_mutation: false
 
 The public release status summary is now discoverable from both the root README and the public docs README. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
+
+## Public launch/share checklist checkpoint
+
+public_launch_share_checklist_checkpoint: 606c595f / ckpt-public-launch-share-checklist-green-20260603-133644
+public_launch_share_checklist_crossbox_closeout: /tmp/public-launch-share-checklist-crossbox-closeout-20260603-134239.log
+public_launch_share_checklist_crossbox: green
+checklist_doc: docs/public/mainnet0-public-launch-share-checklist.md
+safe_path: README_to_summary_to_participant_to_guided_actions_only
+required_warnings: true
+do_not_say_guardrails: true
+public_trust_boundary_stack: green
+buy_void_fulfillment: false
+validator_mutation: false
+
+The public launch/share checklist gives social posts and onboarding replies one safe path: README -> public release status summary -> participant page -> guided actions only. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.

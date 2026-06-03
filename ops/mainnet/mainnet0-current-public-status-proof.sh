@@ -342,6 +342,20 @@ grep -q 'buy_void_fulfillment: false' "$DOC"
 grep -q 'validator_mutation: false' "$DOC"
 echo "[ok] public release summary discoverability pointer present"
 
+echo
+echo "=== [public launch/share checklist pointer] ==="
+grep -q 'public_launch_share_checklist_checkpoint: 606c595f / ckpt-public-launch-share-checklist-green-20260603-133644' "$DOC"
+grep -q 'public_launch_share_checklist_crossbox_closeout: /tmp/public-launch-share-checklist-crossbox-closeout-20260603-134239.log' "$DOC"
+grep -q 'public_launch_share_checklist_crossbox: green' "$DOC"
+grep -q 'checklist_doc: docs/public/mainnet0-public-launch-share-checklist.md' "$DOC"
+grep -q 'safe_path: README_to_summary_to_participant_to_guided_actions_only' "$DOC"
+grep -q 'required_warnings: true' "$DOC"
+grep -q 'do_not_say_guardrails: true' "$DOC"
+grep -q 'public_trust_boundary_stack: green' "$DOC"
+grep -q 'buy_void_fulfillment: false' "$DOC"
+grep -q 'validator_mutation: false' "$DOC"
+echo "[ok] public launch/share checklist pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 
