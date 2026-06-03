@@ -329,6 +329,19 @@ grep -q 'buy_void_fulfillment: false' "$DOC"
 grep -q 'validator_mutation: false' "$DOC"
 echo "[ok] public release status summary pointer present"
 
+echo
+echo "=== [public release summary discoverability pointer] ==="
+grep -q 'public_release_summary_discoverability_checkpoint: 713b2094 / ckpt-public-release-summary-discoverability-green-20260603-130818' "$DOC"
+grep -q 'public_release_summary_discoverability_crossbox_closeout: /tmp/public-release-summary-discoverability-crossbox-closeout-20260603-131334.log' "$DOC"
+grep -q 'public_release_summary_discoverability_crossbox: green' "$DOC"
+grep -q 'root_readme_link: true' "$DOC"
+grep -q 'public_docs_readme_link: true' "$DOC"
+grep -q 'summary_doc: docs/public/mainnet0-public-release-status-summary.md' "$DOC"
+grep -q 'public_trust_boundary_stack: green' "$DOC"
+grep -q 'buy_void_fulfillment: false' "$DOC"
+grep -q 'validator_mutation: false' "$DOC"
+echo "[ok] public release summary discoverability pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 

@@ -401,3 +401,17 @@ buy_void_fulfillment: false
 validator_mutation: false
 
 The public release status summary gives users one concise page for what is safe now, what remains guarded, which proof stack is green, and the current safety line. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
+
+## Public release summary discoverability checkpoint
+
+public_release_summary_discoverability_checkpoint: 713b2094 / ckpt-public-release-summary-discoverability-green-20260603-130818
+public_release_summary_discoverability_crossbox_closeout: /tmp/public-release-summary-discoverability-crossbox-closeout-20260603-131334.log
+public_release_summary_discoverability_crossbox: green
+root_readme_link: true
+public_docs_readme_link: true
+summary_doc: docs/public/mainnet0-public-release-status-summary.md
+public_trust_boundary_stack: green
+buy_void_fulfillment: false
+validator_mutation: false
+
+The public release status summary is now discoverable from both the root README and the public docs README. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
