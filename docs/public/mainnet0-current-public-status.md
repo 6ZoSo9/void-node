@@ -345,3 +345,17 @@ buy_void_fulfillment: false
 validator_mutation: false
 
 The participant first screen now includes a trust-boundary note that tells new users what is safe now, what remains guarded, and that blind deposits are not supported. This is a user-facing clarity checkpoint only; it did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
+
+## Participant onboarding trust-boundary docs checkpoint
+
+participant_onboarding_trust_boundary_checkpoint: 7b933a68 / ckpt-participant-onboarding-trust-boundary-green-20260603-112947
+participant_onboarding_trust_boundary_crossbox_closeout: /tmp/participant-onboarding-trust-boundary-crossbox-closeout-20260603-113231.log
+participant_onboarding_trust_boundary_crossbox: green
+docs_safe_now_copy: true
+docs_guarded_copy: true
+docs_no_blind_deposits_copy: true
+docs_ui_trust_boundary_agree: true
+buy_void_fulfillment: false
+validator_mutation: false
+
+Public onboarding docs now match the participant first-screen trust boundary. README.md, docs/public/participant-onboarding.md, and docs/public/start-here.md explain what is safe now, what remains guarded, and that blind deposits, exchange sends, and custodial sends are not supported. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.

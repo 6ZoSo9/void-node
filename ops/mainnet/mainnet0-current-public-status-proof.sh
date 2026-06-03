@@ -277,6 +277,19 @@ grep -q 'buy_void_fulfillment: false' "$DOC"
 grep -q 'validator_mutation: false' "$DOC"
 echo "[ok] participant first-user trust boundary pointer present"
 
+echo
+echo "=== [participant onboarding trust-boundary docs pointer] ==="
+grep -q 'participant_onboarding_trust_boundary_checkpoint: 7b933a68 / ckpt-participant-onboarding-trust-boundary-green-20260603-112947' "$DOC"
+grep -q 'participant_onboarding_trust_boundary_crossbox_closeout: /tmp/participant-onboarding-trust-boundary-crossbox-closeout-20260603-113231.log' "$DOC"
+grep -q 'participant_onboarding_trust_boundary_crossbox: green' "$DOC"
+grep -q 'docs_safe_now_copy: true' "$DOC"
+grep -q 'docs_guarded_copy: true' "$DOC"
+grep -q 'docs_no_blind_deposits_copy: true' "$DOC"
+grep -q 'docs_ui_trust_boundary_agree: true' "$DOC"
+grep -q 'buy_void_fulfillment: false' "$DOC"
+grep -q 'validator_mutation: false' "$DOC"
+echo "[ok] participant onboarding trust-boundary docs pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 
