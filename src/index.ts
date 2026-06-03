@@ -49806,7 +49806,7 @@ a{color:#93c5fd;text-decoration:none}
               <h2 style="margin-bottom:4px">Swap Status<span class="help" tabindex="0" data-help="Shows what is ready to trade now, the current quote, and where the output will go.">?</span></h2>
             </div>
           </div>
-          <div class="hero-note" id="tradeSummary"><!-- VOID_WC_TO_VOID_TEST_SWAP_EXPLAINER_V1 -->WC→VOID uses wallet-signed approve + swap. The reusable proof uses a temporary local-devnet wallet only; real wallet execution requires you to unlock/sign explicitly.</div>
+          <div class="hero-note" id="tradeSummary"><!-- VOID_WC_TO_VOID_TEST_SWAP_EXPLAINER_V1 -->WC→VOID swaps are wallet-signed. Test proof uses a temporary local-devnet wallet only. Real execution requires explicit unlock/sign confirmation.</div>
           <div class="hero-note" id="tradeOverviewCard" style="margin-top:8px">loading…</div>
           <div class="subtle-tab-copy" id="tradeBackendTruthCard" style="margin-top:8px">Backend truth: loading…</div>
         </div>
@@ -52862,19 +52862,19 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         if ($("tradeSummary")) {
           let summaryText = "";
           if (!walletReadyForInfo) {
-            summaryText = "WC→VOID state: Connect Wallet First. Trading must be signed by the stored execution wallet. The committed test proof uses a temporary local-devnet wallet only.";
+            summaryText = "WC→VOID state: Connect Wallet First. Connect the stored execution wallet before trading.";
           } else if (reverseMode) {
             summaryText = hasVoidForInfo
               ? "WC→VOID state: Reverse Not Wired. VOID is present, but VOID→WC trading is disabled until the reverse wallet-signed path is wired."
               : "WC→VOID state: Reverse Not Wired. No VOID is available in the execution wallet yet.";
           } else if (!connectedMatchesExecution) {
-            summaryText = "WC→VOID state: Unlock Native Wallet. Native wallet gas is available, but the stored participant wallet must be unlocked before approve/swap can be signed. Test proof execution used a temporary local-devnet wallet, not your real wallet.";
+            summaryText = "WC→VOID state: Unlock Native Wallet. Unlock before approve/swap can be signed.";
           } else if (!hasOnchainWcForInfo) {
-            summaryText = "WC→VOID state: No On-chain WC. Bridge local WC to the execution wallet before trading. The temp-wallet proof is local-devnet only.";
+            summaryText = "WC→VOID state: No On-chain WC. Bridge local WC to the execution wallet before trading.";
           } else if (!hasNativeGasForInfo) {
-            summaryText = "WC→VOID state: Needs Devnet Gas. On-chain WC is present, but this execution wallet has 0 native devnet gas. Add devnet gas before approve/swap can be submitted. Test proof execution is local-devnet only.";
+            summaryText = "WC→VOID state: Needs Devnet Gas. Add devnet gas before approve/swap can be submitted.";
           } else {
-            summaryText = "WC→VOID state: Approve + Swap WC for VOID. On-chain WC is present, native gas is available, and the native wallet is unlocked. Real execution requires explicit unlock/sign confirmation.";
+            summaryText = "WC→VOID state: Approve + Swap WC for VOID. Ready for explicit wallet-signed approve/swap.";
           }
           $("tradeSummary").textContent = summaryText;
         }
@@ -54536,7 +54536,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
           btn.disabled = true;
           btn.textContent = "Signing in Participant Wallet...";
         }
-        setText("tradeOut", "Sending WC→VOID trade from participant wallet. Real execution requires explicit unlock/sign confirmation; the reusable proof uses a temporary local-devnet wallet.");
+        setText("tradeOut", "Sending wallet-signed WC→VOID trade. Confirm only if you intend this real wallet action.");
         setLatestAction("Signing WC→VOID trade in participant wallet.");
 
         const nativeOut = await j("/__void/participant/wallet/trade/wc-to-void", {

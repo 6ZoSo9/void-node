@@ -63,6 +63,9 @@ grep -q 'real-wallet execution behind explicit wallet unlock/sign confirmation' 
 grep -q 'temporary local-devnet wallet only, while real wallet execution requires explicit unlock/sign confirmation' "$DOC"
 grep -q 'VOID_WC_TO_VOID_TEST_SWAP_EXPLAINER_V1' src/index.ts
 grep -q 'Real execution requires explicit unlock/sign confirmation' src/index.ts
+grep -q 'WC→VOID swaps are wallet-signed' src/index.ts
+grep -q 'Ready for explicit wallet-signed approve/swap' src/index.ts
+grep -q 'Confirm only if you intend this real wallet action' src/index.ts
 
 grep -q 'participant-wallet-wc-to-void-readiness-proof' Makefile
 grep -q 'participant-wc-to-void-current-status-proof' Makefile
