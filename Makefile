@@ -1241,3 +1241,7 @@ github-branch-cleanup-proof:
 .PHONY: participant-first-user-trust-audit
 participant-first-user-trust-audit:
 	bash ops/security/participant-first-user-trust-audit.sh
+
+.PHONY: public-trust-boundary-stack-proof
+public-trust-boundary-stack-proof:
+	bash ops/security/public-trust-boundary-stack-proof.sh
