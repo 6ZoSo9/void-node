@@ -30,6 +30,12 @@ Public validator registration remains candidate/waiting only.
 Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
 Future treasury spend remains separately guarded.
 
+## Current public status
+
+- [Mainnet-0 public release status summary](mainnet0-public-release-status-summary.md)
+
+Use this first for a concise public-live status summary: safe-now actions, guarded actions, proof stack, trust boundary, and current safety line.
+
 ## Safety
 
 Do not share private keys or seed phrases.

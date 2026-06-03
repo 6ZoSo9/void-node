@@ -176,3 +176,9 @@ New users should use the public Mainnet-0 docs at the top of this README.
 - [Contributing guide](CONTRIBUTING.md)
 
 Do not share private keys, seed phrases, wallet files, .env contents, or screenshots containing secrets.
+
+## Mainnet-0 public status
+
+- [Mainnet-0 public release status summary](docs/public/mainnet0-public-release-status-summary.md)
+
+This concise summary explains what is safe now, what remains guarded, which proof stack is green, and the current Mainnet-0 safety line.

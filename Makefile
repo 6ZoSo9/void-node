@@ -1249,3 +1249,7 @@ public-trust-boundary-stack-proof:
 .PHONY: mainnet0-public-release-status-summary-proof
 mainnet0-public-release-status-summary-proof:
 	bash ops/mainnet/mainnet0-public-release-status-summary-proof.sh
+
+.PHONY: mainnet0-public-release-summary-discoverability-proof
+mainnet0-public-release-summary-discoverability-proof:
+	bash ops/mainnet/mainnet0-public-release-summary-discoverability-proof.sh
