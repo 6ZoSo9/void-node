@@ -89,6 +89,10 @@ else
 fi
 
 need_html "$HTML" 'VOID_HOME_START_PUBLIC_CLARITY_V1' "home public clarity marker"
+need_html "$HTML" 'VOID_HOME_FIRST_USER_TRUST_BOUNDARY_V1' "first-user trust boundary marker"
+need_html "$HTML" 'Safe now:' "safe-now boundary copy"
+need_html "$HTML" 'Guarded:' "guarded boundary copy"
+need_html "$HTML" 'No blind deposits' "no blind deposits boundary copy"
 need_html "$HTML" 'VOID_HOME_FIRST_SCREEN_COPY_V1' "home first-screen marker"
 need_html "$HTML" 'Start Here' "home Start Here"
 need_html "$HTML" 'VOID_HOME_HERO_WALLET_FIRST_V1' "wallet-first hero marker"

@@ -49375,6 +49375,7 @@ a{color:#93c5fd;text-decoration:none}
       <span class="pill">Mainnet-0 public-live</span>
       <span>Node is healthy. Start with Wallet; Buy VOID uses the guided request flow; validator registration is candidate/waiting only.</span>
     </section>
+    <div class="hero-note" id="homeFirstUserTrustBoundary" style="margin-top:10px"><!-- VOID_HOME_FIRST_USER_TRUST_BOUNDARY_V1 --><b>Safe now:</b> Wallet setup, Earn WC, DataNet, and guided Buy VOID request creation. <b>Guarded:</b> VOID delivery, wallet swaps, sends, and active validator admission require explicit unlock/sign, operator verification, or proof-backed gates. No blind deposits.</div>
 
     <section class="kpis">
       <div class="kpi">
