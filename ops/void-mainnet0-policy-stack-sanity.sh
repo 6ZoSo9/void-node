@@ -79,9 +79,32 @@ grep -q '^validator_id:' "$REPO/ops/mainnet/validator-status.template.yaml" || {
 grep -q '^status:' "$REPO/ops/mainnet/validator-status.template.yaml" || { echo "[ERR] validator template missing status"; exit 1; }
 grep -q '^incident_id:' "$REPO/ops/mainnet/canonical-incident-bundle.template.yaml" || { echo "[ERR] incident bundle missing incident_id"; exit 1; }
 grep -q '^response_level:' "$REPO/ops/mainnet/canonical-incident-bundle.template.yaml" || { echo "[ERR] incident bundle missing response_level"; exit 1; }
-grep -q '"mode": "mainnet_plan_stub"' "$REPO/ops/mainnet/void-mainnet.live.json" || { echo "[ERR] live json missing mainnet_plan_stub mode"; exit 1; }
-grep -q '"chainId": 2050' "$REPO/ops/mainnet/void-mainnet.live.json" || { echo "[ERR] live json missing chainId 2050"; exit 1; }
-echo "[ok] yaml template fields present"
+python3 - "$REPO/ops/mainnet/void-mainnet.live.json" <<'PYJSON'
+import json, sys
+
+path = sys.argv[1]
+j = json.load(open(path, "r"))
+allowed_mode_status = {
+    ("mainnet_plan_stub", "stub_only_not_live"),
+    ("plan_only", "plan_only_not_live"),
+}
+mode_status = (j.get("mode"), j.get("status"))
+errs = []
+
+if j.get("chainId") != 2050:
+    errs.append(f"chainId expected 2050, got {j.get('chainId')!r}")
+if mode_status not in allowed_mode_status:
+    errs.append(f"mode/status expected one of {sorted(allowed_mode_status)!r}, got {mode_status!r}")
+
+if errs:
+    print("[ERR] live json policy lane check failed:")
+    for e in errs:
+        print(" - " + e)
+    raise SystemExit(1)
+
+print(f"[ok] live json policy lane accepted: mode={mode_status[0]} status={mode_status[1]}")
+PYJSON
+echo "[ok] yaml template fields and live json plan lane present"
 
 echo
 echo "=== [7] compact summary ==="

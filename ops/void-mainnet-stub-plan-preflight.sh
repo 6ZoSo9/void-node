@@ -26,8 +26,15 @@ need_eq("stub_only", 1)
 need_eq("plan_facts_ok", 1)
 need_eq("marker_detected", 1)
 need_eq("chain_id", 2050)
-need_eq("mode", "mainnet_plan_stub")
-need_eq("status", "stub_only_not_live")
+
+allowed_mode_status = {
+    ("mainnet_plan_stub", "stub_only_not_live"),
+    ("plan_only", "plan_only_not_live"),
+}
+mode_status = (j.get("mode"), j.get("status"))
+if mode_status not in allowed_mode_status:
+    errs.append(f"mode/status expected one of {sorted(allowed_mode_status)!r}, got {mode_status!r}")
+
 need_eq("plan_version", "void-mainnet-plan-stub-v2")
 
 rc = j.get("rc")
