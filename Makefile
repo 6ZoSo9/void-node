@@ -1198,6 +1198,10 @@ participant-wallet-wc-to-void-readiness-proof:
 participant-wc-to-void-current-status-proof:
 	bash ops/mainnet0/participant-wc-to-void-current-status-proof.sh
 
+.PHONY: participant-wc-to-void-temp-wallet-execution-proof
+participant-wc-to-void-temp-wallet-execution-proof:
+	bash ops/mainnet0/participant-wc-to-void-temp-wallet-execution-proof.sh
+
 .PHONY: participant-first-user-clarity-proof
 participant-first-user-clarity-proof:
 	bash ops/mainnet0/participant-first-user-clarity-proof.sh
