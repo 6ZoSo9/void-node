@@ -60,6 +60,10 @@ grep -q 'Expected archived branch tags: 13' "$DOC"
 grep -q 'Branch cleanup did not perform Buy VOID fulfillment' "$DOC"
 grep -q 'Branch cleanup did not perform validator mutation' "$DOC"
 
+grep -q 'canonical_checkpoint: f0366cfd / ckpt-github-branch-cleanup-proof-fixed-green-20260603-073931' "$DOC"
+grep -q 'superseded_bad_tag: ckpt-github-branch-cleanup-proof-green-20260603-072540' "$DOC"
+grep -q 'crossbox_closeout: /tmp/github-branch-cleanup-proof-crossbox-closeout-20260603-074525.log' "$DOC"
+
 echo
 echo "=== [6] runtime still ready ==="
 READY_JSON="$(curl -fsS --max-time 8 http://127.0.0.1:4100/__void/ready.json)"

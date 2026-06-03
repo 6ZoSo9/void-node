@@ -50,3 +50,14 @@ The local node must remain:
 - ready: true
 - gap: 0
 - txroot_live: 1
+
+## Canonical checkpoint
+
+canonical_checkpoint: f0366cfd / ckpt-github-branch-cleanup-proof-fixed-green-20260603-073931
+crossbox_closeout: /tmp/github-branch-cleanup-proof-crossbox-closeout-20260603-074525.log
+remote_non_main_branch_count: 0
+archive_tag_count: 13
+archive_prefix: archive/branch-cleanup-20260603-071740/*
+superseded_bad_tag: ckpt-github-branch-cleanup-proof-green-20260603-072540
+
+The earlier tag `ckpt-github-branch-cleanup-proof-green-20260603-072540` is superseded. It landed before the proof script was fixed to handle the zero-branch case and feature-branch precommit runs under a fail-fast wrapper. The canonical branch-cleanup checkpoint is `ckpt-github-branch-cleanup-proof-fixed-green-20260603-073931`.

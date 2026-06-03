@@ -255,6 +255,15 @@ grep -q "the user's real wallet" "$DOC"
 grep -q 'WC→VOID visible trade copy is compact' "$DOC"
 echo "[ok] WC->VOID compact-copy pointer present"
 
+echo
+echo "=== [github branch cleanup pointer] ==="
+grep -q 'github_branch_cleanup_checkpoint: f0366cfd / ckpt-github-branch-cleanup-proof-fixed-green-20260603-073931' "$DOC"
+grep -q 'remote_non_main_branch_count: 0' "$DOC"
+grep -q 'archive_branch_tag_count: 13' "$DOC"
+grep -q 'archive_branch_tag_prefix: archive/branch-cleanup-20260603-071740/\*' "$DOC"
+grep -q 'superseded_branch_cleanup_tag: ckpt-github-branch-cleanup-proof-green-20260603-072540' "$DOC"
+echo "[ok] GitHub branch cleanup pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 

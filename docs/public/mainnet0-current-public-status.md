@@ -319,3 +319,15 @@ DataNet site bundles:
 - NullFeed content_root: f4c8b03bb8f5dae627bb6df9eddab48060bc0dab1a8c886d56dbeab2b4b0c372
 
 Operational note: public site routes are DataNet-first with repo static fallback. Follower nodes must have the packed DataNet site bundles seeded locally until peer materialization is automated. Repo static fallback must not be treated as DataNet-backed serving.
+
+## Repo hygiene / branch cleanup checkpoint
+
+github_branch_cleanup_checkpoint: f0366cfd / ckpt-github-branch-cleanup-proof-fixed-green-20260603-073931
+github_branch_cleanup_crossbox_closeout: /tmp/github-branch-cleanup-proof-crossbox-closeout-20260603-074525.log
+remote_non_main_branch_count: 0
+archive_branch_tag_count: 13
+archive_branch_tag_prefix: archive/branch-cleanup-20260603-071740/*
+superseded_branch_cleanup_tag: ckpt-github-branch-cleanup-proof-green-20260603-072540
+branch_cleanup_canonical: true
+
+GitHub branch cleanup is cross-box green. Remote non-main branch count is zero. The 13 old unmerged branch tips were preserved as archive tags before deleting the remote branch refs. The earlier branch-cleanup tag `ckpt-github-branch-cleanup-proof-green-20260603-072540` is superseded by the fixed checkpoint because its original proof wrapper masked a failing proof.
