@@ -28,6 +28,7 @@ public_node_network_troubleshooting_checkpoint: b51a615c / ckpt-public-node-netw
 current_public_status_docs_stack_proof_repair_checkpoint: ba8ecb44 / ckpt-current-public-status-docs-stack-proof-repair-green-20260602-081224
 public_faq_network_troubleshooting_checkpoint: 567d7a8b / ckpt-public-faq-network-troubleshooting-green-20260602-105407
 wc_to_void_test_swap_explainer_checkpoint: 14a0c81a / ckpt-wc-to-void-test-swap-explainer-green-20260602-213920
+wc_to_void_copy_compact_checkpoint: 87f050a1 / ckpt-wc-to-void-copy-compact-green-20260603-023554
 ## Current truth
 
 VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
@@ -136,12 +137,23 @@ Participants should read:
 - Vault126 onboarding has not been executed.
 - Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
 - WC→VOID real wallet execution remains explicit unlock/sign only; the reusable proof uses a temporary local-devnet wallet.
+- WC→VOID visible trade copy is compact, but wallet-signed execution and unlock/sign boundaries remain explicit.
 - Future treasury spend remains separately guarded.
 - No additional authority transfer is authorized by public launch status.
 - Operator/admin controls are not public participant controls.
 
 
 
+
+## Latest WC→VOID compact-copy refresh
+
+The participant WC→VOID compact-copy refresh is now cross-box proven at `87f050a1 / ckpt-wc-to-void-copy-compact-green-20260603-023554`.
+
+This refresh shortens the visible Trade/WC→VOID state text while preserving the safety boundary: WC→VOID swaps are wallet-signed, test proof uses a temporary local-devnet wallet only, and real wallet execution requires explicit unlock/sign confirmation.
+
+The protected proof stack includes `make participant-wc-to-void-current-status-proof`, `make participant-first-user-clarity-proof`, `make public-first60-user-journey-proof`, and `make mainnet0-status-smoke`.
+
+This is a UI copy/proof lane only. It does not mutate chain state, validator state, Buy VOID state, treasury state, or the user's real wallet.
 
 ## Latest WC→VOID test-swap explainer refresh
 
