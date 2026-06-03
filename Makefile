@@ -1237,3 +1237,7 @@ public-node-network-troubleshooting-proof:
 .PHONY: github-branch-cleanup-proof
 github-branch-cleanup-proof:
 	bash ops/security/github-branch-cleanup-proof.sh
+
+.PHONY: participant-first-user-trust-audit
+participant-first-user-trust-audit:
+	bash ops/security/participant-first-user-trust-audit.sh
