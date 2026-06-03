@@ -373,3 +373,17 @@ buy_void_fulfillment: false
 validator_mutation: false
 
 The public first-60 user journey proof now explicitly requires the participant first-screen trust boundary marker and copy. This means the first-user journey fails if the Safe now / Guarded / No blind deposits boundary disappears from the served participant page. This checkpoint is proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
+
+## Public trust-boundary stack proof checkpoint
+
+public_trust_boundary_stack_proof_checkpoint: e7211c94 / ckpt-public-trust-boundary-stack-proof-green-20260603-123044
+public_trust_boundary_stack_proof_crossbox_closeout: /tmp/public-trust-boundary-stack-proof-crossbox-closeout-20260603-123437.log
+public_trust_boundary_stack_proof_crossbox: green
+current_public_status_pointer: green
+public_first60_requires_trust_boundary: true
+participant_ui_trust_boundary: true
+docs_trust_boundary: true
+buy_void_fulfillment: false
+validator_mutation: false
+
+The reusable public trust-boundary stack proof now verifies the current public status pointer, the public first-60 trust-boundary requirement, the participant UI trust-boundary marker/copy, the public onboarding docs trust boundary, and status smoke in one composite target. This checkpoint is proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
