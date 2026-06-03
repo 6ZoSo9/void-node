@@ -387,3 +387,17 @@ buy_void_fulfillment: false
 validator_mutation: false
 
 The reusable public trust-boundary stack proof now verifies the current public status pointer, the public first-60 trust-boundary requirement, the participant UI trust-boundary marker/copy, the public onboarding docs trust boundary, and status smoke in one composite target. This checkpoint is proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
+
+## Public release status summary checkpoint
+
+public_release_status_summary_checkpoint: 4494a9b2 / ckpt-public-release-status-summary-green-20260603-124755
+public_release_status_summary_crossbox_closeout: /tmp/public-release-status-summary-crossbox-closeout-20260603-125109.log
+public_release_status_summary_crossbox: green
+safe_now_copy: true
+guarded_copy: true
+no_blind_deposits_copy: true
+public_trust_boundary_stack: green
+buy_void_fulfillment: false
+validator_mutation: false
+
+The public release status summary gives users one concise page for what is safe now, what remains guarded, which proof stack is green, and the current safety line. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.

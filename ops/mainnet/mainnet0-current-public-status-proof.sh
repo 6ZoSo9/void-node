@@ -316,6 +316,19 @@ grep -q 'buy_void_fulfillment: false' "$DOC"
 grep -q 'validator_mutation: false' "$DOC"
 echo "[ok] public trust-boundary stack proof pointer present"
 
+echo
+echo "=== [public release status summary pointer] ==="
+grep -q 'public_release_status_summary_checkpoint: 4494a9b2 / ckpt-public-release-status-summary-green-20260603-124755' "$DOC"
+grep -q 'public_release_status_summary_crossbox_closeout: /tmp/public-release-status-summary-crossbox-closeout-20260603-125109.log' "$DOC"
+grep -q 'public_release_status_summary_crossbox: green' "$DOC"
+grep -q 'safe_now_copy: true' "$DOC"
+grep -q 'guarded_copy: true' "$DOC"
+grep -q 'no_blind_deposits_copy: true' "$DOC"
+grep -q 'public_trust_boundary_stack: green' "$DOC"
+grep -q 'buy_void_fulfillment: false' "$DOC"
+grep -q 'validator_mutation: false' "$DOC"
+echo "[ok] public release status summary pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 
