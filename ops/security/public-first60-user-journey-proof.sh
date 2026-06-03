@@ -88,6 +88,16 @@ for n in "${needles[@]}"; do
 done
 
 echo
+
+grep -q 'VOID_HOME_FIRST_USER_TRUST_BOUNDARY_V1' "$HTML"
+echo "[ok] first-user trust boundary marker"
+grep -q 'Safe now:' "$HTML"
+echo "[ok] safe-now trust boundary copy"
+grep -q 'Guarded:' "$HTML"
+echo "[ok] guarded trust boundary copy"
+grep -q 'No blind deposits' "$HTML"
+echo "[ok] no blind deposits trust boundary copy"
+
 echo "=== [6] sensitive route GET safety ==="
 for path in \
   /__void/status \
