@@ -1,9 +1,11 @@
 # Participant WC -> VOID current status
 
-status: green_precision_local
-checkpoint: ckpt-wc-to-void-trade-receipt-activity-green-20260601-084635
-head: 597004d3
+status: green_temp_wallet_execution_crossbox_status_smoke
+checkpoint: ckpt-wc-to-void-temp-wallet-execution-proof-green-20260602-205459
+head: c62b93f9
 
+previous_trade_receipt_activity_checkpoint: ckpt-wc-to-void-trade-receipt-activity-green-20260601-084635
+previous_trade_receipt_activity_head: 597004d3
 previous_trade_state_copy_checkpoint: ckpt-wc-to-void-trade-state-copy-green-20260601-081303
 previous_trade_state_copy_head: 4ed40f5f
 previous_readiness_checkpoint: ckpt-participant-wc-to-void-readiness-proof-green-20260601-023517
@@ -17,49 +19,60 @@ previous_readiness_head: c3f3da96
 - WC -> VOID pool exists and quote/build path works.
 - Participant native wallet status exposes native gas truth.
 - Precision local devnet wallet has native gas.
-- Precision local devnet 1 WC -> VOID swap executed successfully through participant native wallet path.
 - WC -> VOID readiness proof is no-mutation by default.
-- Participant trade UI now clearly shows the three trade states: Needs Devnet Gas, Unlock Native Wallet, and Approve + Swap WC for VOID.
-- Recent Wallet Activity now records WC -> VOID receipt details: quoted VOID, approve transaction hash, and swap transaction hash.
+- Locked participant wallet blocks WC -> VOID execution with `wallet_locked`.
+- A temporary proof wallet can execute native wallet WC -> VOID approve+swap on local 2050 Anvil.
+- The reusable proof target is committed: `make participant-wc-to-void-temp-wallet-execution-proof`.
+- Participant trade UI clearly shows the three trade states: Needs Devnet Gas, Unlock Native Wallet, and Approve + Swap WC for VOID.
+- Recent Wallet Activity records WC -> VOID receipt details: quoted VOID, approve transaction hash, and swap transaction hash.
 
-## Precision local swap proof
+## Precision temp-wallet execution proof
 
-scope: Precision_local_devnet_only
-account: zoso
-wallet: 0x1101A058E98eDCD775c93E26900d1DdBbdfa5d31
+scope: Precision_local_8545_devnet_only
+real_wallet_used: false
+make_target: participant-wc-to-void-temp-wallet-execution-proof
+script: ops/mainnet0/participant-wc-to-void-temp-wallet-execution-proof.sh
+main_proof_log: /tmp/wc-to-void-temp-wallet-execution-main-proof-20260602-205554.log
+main_status_smoke_log: /tmp/wc-to-void-temp-wallet-execution-main-status-smoke-20260602-205556.log
+local_closeout_log: /tmp/wc-to-void-temp-wallet-execution-proof-closeout-20260602-205658.log
+crossbox_closeout_log: /tmp/wc-to-void-temp-wallet-execution-proof-crossbox-closeout-20260602-205854.log
+
+temp_wallet: 0xC98e49110fF9b0FC88bae6Aa1425959B517972c3
 amount_wc: 1
-quoted_void: 0.009949761205253482
-approve_tx_hash: 0xeba1adf1b0b719291cdd5d7acad4ab59b3b70dbc91000bf8c2ba28ef4d573b6e
-swap_tx_hash: 0xbc5299681673daf67543cf247dec8b86955ba1c337a75dfdfab2f5c6fba5eb6a
-closeout_log: /tmp/wc-to-void-1wc-local-swap-closeout-20260601-022741.log
+quoted_void: 0.009948607111431085
+approve_tx_hash: 0x9dad40018a6e93a924ace9ada261b6213ba52311139c30da4f605ea6d93e9a9f
+swap_tx_hash: 0x6d26e2e0f9cc5fc4e4e1a28362e1f999daec84d3e96135d442ac7dab445129e8
+wc_before_raw: 5000000000000000000
+wc_after_raw: 4000000000000000000
+void_before_raw: 0
+void_after_raw: 10000000000000000
+temp_wallet_locked_after: true
 
-## Readiness proof
+## Safety boundaries
 
-target: make participant-wallet-wc-to-void-readiness-proof
-script: ops/mainnet0/participant-wallet-wc-to-void-readiness-proof.sh
-mutation: false
-checks:
-- local chain 2050
-- node ready/gap/txroot
-- wallet native gas greater than zero
-- relayer health
-- build-wallet-trade approve/swap plan for 1 WC
-- served Earn/Trade truth copy
-- mainnet0 status smoke
+- real_wallet_used: false
+- mutation_scope: Precision local 8545 devnet only
+- chain_mutation: local_anvil_only
+- Buy VOID fulfillment: false
+- validator mutation: false
+- public Mainnet-0 launch approval: false
+- public validator active admission: still blocked
 
-validation_log: /tmp/wc-to-void-readiness-proof-fixed-20260601-023308.log
-quoted_void_in_readiness_log: 0.009949363226744477
+## Cross-box status
 
-## Cross-box caveat
+checkpoint: ckpt-wc-to-void-temp-wallet-execution-proof-green-20260602-205459
+head: c62b93f9
+precision_status_smoke: passed
+alienware_status_smoke: passed
+crossbox_status_smoke: passed
+alienware_build: true
+alienware_code_alignment: true
+alienware_temp_wallet_execution_proof: not_run_by_design
 
-Alienware is synced to c3f3da96 / ckpt-participant-wc-to-void-readiness-proof-green-20260601-023517, but the WC -> VOID readiness proof must not be run on Alienware unless Alienware local Anvil wallet is intentionally funded.
-
-Alienware caveat:
-- alienware_proof_not_run: true
-- alienware_reason: local_anvil_wallet_unfunded_native_gas_0
-- alienware_wallet_native_gas: 0.0
-
-crossbox_closeout_log: /tmp/wc-to-void-readiness-proof-crossbox-closeout-20260601-023914.log
+Alienware note:
+- Alienware is code-aligned and status-smoke green at the checkpoint.
+- The temp-wallet execution proof was intentionally run on Precision only.
+- Do not run the local Anvil temp-wallet execution proof on Alienware unless its local 8545 WC devnet is intentionally refreshed first.
 
 ## Trade state copy polish
 
@@ -92,9 +105,10 @@ served_receipt_labels:
 
 ## Current next step
 
-WC -> VOID is closed for this lane.
+WC -> VOID temp-wallet execution proof is reusable and cross-box status-smoke closed.
 
 Future optional improvements:
 - Add a multi-entry trade history panel if we want more than the latest wallet activity card.
 - Add a safer user-facing local-devnet gas explanation, but keep any funding helper ops-only and fail-closed.
-- Keep Alienware gas-dependent readiness proof disabled unless Alienware local Anvil wallet is intentionally funded.
+- Add a user-facing “test swap” explanation that makes clear this proof is local devnet only.
+- Keep real-wallet execution behind explicit wallet unlock/sign confirmation.
