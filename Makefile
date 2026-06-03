@@ -1253,3 +1253,7 @@ mainnet0-public-release-status-summary-proof:
 .PHONY: mainnet0-public-release-summary-discoverability-proof
 mainnet0-public-release-summary-discoverability-proof:
 	bash ops/mainnet/mainnet0-public-release-summary-discoverability-proof.sh
+
+.PHONY: mainnet0-public-launch-share-checklist-proof
+mainnet0-public-launch-share-checklist-proof:
+	bash ops/mainnet/mainnet0-public-launch-share-checklist-proof.sh

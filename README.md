@@ -182,3 +182,9 @@ Do not share private keys, seed phrases, wallet files, .env contents, or screens
 - [Mainnet-0 public release status summary](docs/public/mainnet0-public-release-status-summary.md)
 
 This concise summary explains what is safe now, what remains guarded, which proof stack is green, and the current Mainnet-0 safety line.
+
+## Public launch/share checklist
+
+- [Mainnet-0 public launch/share checklist](docs/public/mainnet0-public-launch-share-checklist.md)
+
+Use this before posting publicly about VOID Network. It keeps public posts pointed at the safe path: README -> public status summary -> participant page -> guided actions only.

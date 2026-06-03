@@ -71,3 +71,9 @@ Canonical detail:
 Operational guardrail: repo static fallback is bootstrap availability only. DataNet-backed public site proof requires datanet_live_v1 headers and the expected content roots.
 
 - [Node network troubleshooting](node-network-troubleshooting.md) — recover when the local node is ready but the host loses internet.
+
+## Public launch/share checklist
+
+- [Mainnet-0 public launch/share checklist](mainnet0-public-launch-share-checklist.md)
+
+Use this before public posts, onboarding replies, or social updates. It records the safe path, required warnings, and things not to say.
