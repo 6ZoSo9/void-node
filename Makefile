@@ -1245,3 +1245,7 @@ participant-first-user-trust-audit:
 .PHONY: public-trust-boundary-stack-proof
 public-trust-boundary-stack-proof:
 	bash ops/security/public-trust-boundary-stack-proof.sh
+
+.PHONY: mainnet0-public-release-status-summary-proof
+mainnet0-public-release-status-summary-proof:
+	bash ops/mainnet/mainnet0-public-release-status-summary-proof.sh
