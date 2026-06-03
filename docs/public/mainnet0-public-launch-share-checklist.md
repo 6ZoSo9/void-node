@@ -79,3 +79,9 @@ public_validator_registration: candidate_waiting_only
 runtime_ready: true
 runtime_gap: 0
 txroot_live: 1
+
+## Public share templates
+
+- [Mainnet-0 public share posts](mainnet0-public-share-posts.md)
+
+Use these templates after this checklist so public posts keep the safe path and required warnings.

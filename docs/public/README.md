@@ -77,3 +77,9 @@ Operational guardrail: repo static fallback is bootstrap availability only. Data
 - [Mainnet-0 public launch/share checklist](mainnet0-public-launch-share-checklist.md)
 
 Use this before public posts, onboarding replies, or social updates. It records the safe path, required warnings, and things not to say.
+
+## Public share posts
+
+- [Mainnet-0 public share posts](mainnet0-public-share-posts.md)
+
+Proof-checked public templates for Reddit, X/Twitter, Discord, GitHub announcements, and onboarding replies.

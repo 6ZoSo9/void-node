@@ -188,3 +188,9 @@ This concise summary explains what is safe now, what remains guarded, which proo
 - [Mainnet-0 public launch/share checklist](docs/public/mainnet0-public-launch-share-checklist.md)
 
 Use this before posting publicly about VOID Network. It keeps public posts pointed at the safe path: README -> public status summary -> participant page -> guided actions only.
+
+## Public share posts
+
+- [Mainnet-0 public share posts](docs/public/mainnet0-public-share-posts.md)
+
+Use these proof-checked templates for Reddit, X/Twitter, Discord, GitHub announcements, and onboarding replies.
