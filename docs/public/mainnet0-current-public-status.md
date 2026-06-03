@@ -27,6 +27,7 @@ public_site_bundle_auto_materialize_checkpoint: cea7726a / ckpt-public-site-bund
 public_node_network_troubleshooting_checkpoint: b51a615c / ckpt-public-node-network-troubleshooting-green-20260602-023325
 current_public_status_docs_stack_proof_repair_checkpoint: ba8ecb44 / ckpt-current-public-status-docs-stack-proof-repair-green-20260602-081224
 public_faq_network_troubleshooting_checkpoint: 567d7a8b / ckpt-public-faq-network-troubleshooting-green-20260602-105407
+wc_to_void_test_swap_explainer_checkpoint: 14a0c81a / ckpt-wc-to-void-test-swap-explainer-green-20260602-213920
 ## Current truth
 
 VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
@@ -134,12 +135,23 @@ Participants should read:
 - Public validator registration remains candidate/waiting only.
 - Vault126 onboarding has not been executed.
 - Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
+- WC→VOID real wallet execution remains explicit unlock/sign only; the reusable proof uses a temporary local-devnet wallet.
 - Future treasury spend remains separately guarded.
 - No additional authority transfer is authorized by public launch status.
 - Operator/admin controls are not public participant controls.
 
 
 
+
+## Latest WC→VOID test-swap explainer refresh
+
+The participant WC→VOID test-swap explainer is now cross-box proven at `14a0c81a / ckpt-wc-to-void-test-swap-explainer-green-20260602-213920`.
+
+This refresh makes the participant Trade/WC→VOID UI state clear: the reusable proof uses a temporary local-devnet wallet only, while real wallet execution requires explicit native-wallet unlock/sign confirmation.
+
+The reusable proof target is `make participant-wc-to-void-temp-wallet-execution-proof`.
+
+This is a UI/documentation/proof lane only. It does not mutate chain state, validator state, Buy VOID state, treasury state, or the user's real wallet.
 
 ## Latest public FAQ network troubleshooting refresh
 

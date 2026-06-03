@@ -218,12 +218,26 @@ echo "[ok] current public status docs stack proof repair pointer present"
 echo
 echo "=== [public FAQ network troubleshooting pointer] ==="
 grep -q '^public_faq_network_troubleshooting_checkpoint: 567d7a8b / ckpt-public-faq-network-troubleshooting-green-20260602-105407$' "$DOC"
+grep -q '^wc_to_void_test_swap_explainer_checkpoint: 14a0c81a / ckpt-wc-to-void-test-swap-explainer-green-20260602-213920$' "$DOC"
 grep -q 'Latest public FAQ network troubleshooting refresh' "$DOC"
 grep -q 'ckpt-public-faq-network-troubleshooting-green-20260602-105407' "$DOC"
 grep -q 'local VOID node still returns `ready:true`' "$DOC"
 grep -q 'docs/public/node-network-troubleshooting.md' "$DOC"
 grep -q 'does not mutate chain state' "$DOC"
 echo "[ok] public FAQ network troubleshooting pointer present"
+
+echo
+echo "=== [WC->VOID test-swap explainer pointer] ==="
+grep -q '^wc_to_void_test_swap_explainer_checkpoint: 14a0c81a / ckpt-wc-to-void-test-swap-explainer-green-20260602-213920$' "$DOC"
+grep -q 'Latest WC→VOID test-swap explainer refresh' "$DOC"
+grep -q 'ckpt-wc-to-void-test-swap-explainer-green-20260602-213920' "$DOC"
+grep -q 'temporary local-devnet wallet only' "$DOC"
+grep -q 'explicit native-wallet unlock/sign confirmation' "$DOC"
+grep -q 'make participant-wc-to-void-temp-wallet-execution-proof' "$DOC"
+grep -q "does not mutate chain state" "$DOC"
+grep -q "the user's real wallet" "$DOC"
+grep -q 'WC→VOID real wallet execution remains explicit unlock/sign only' "$DOC"
+echo "[ok] WC->VOID test-swap explainer pointer present"
 
 echo "[ok] Mainnet-0 current public status proof passed"
 
