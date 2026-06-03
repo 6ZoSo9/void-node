@@ -264,6 +264,19 @@ grep -q 'archive_branch_tag_prefix: archive/branch-cleanup-20260603-071740/\*' "
 grep -q 'superseded_branch_cleanup_tag: ckpt-github-branch-cleanup-proof-green-20260603-072540' "$DOC"
 echo "[ok] GitHub branch cleanup pointer present"
 
+echo
+echo "=== [participant first-user trust boundary pointer] ==="
+grep -q 'participant_first_user_trust_boundary_checkpoint: 9674bc92 / ckpt-participant-first-user-trust-boundary-green-20260603-093941' "$DOC"
+grep -q 'participant_first_user_trust_boundary_crossbox_closeout: /tmp/participant-first-user-trust-boundary-crossbox-closeout-20260603-094418.log' "$DOC"
+grep -q 'participant_first_user_trust_boundary_crossbox: green' "$DOC"
+grep -q 'first_user_trust_boundary_marker: VOID_HOME_FIRST_USER_TRUST_BOUNDARY_V1' "$DOC"
+grep -q 'safe_now_copy: true' "$DOC"
+grep -q 'guarded_copy: true' "$DOC"
+grep -q 'no_blind_deposits_copy: true' "$DOC"
+grep -q 'buy_void_fulfillment: false' "$DOC"
+grep -q 'validator_mutation: false' "$DOC"
+echo "[ok] participant first-user trust boundary pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 

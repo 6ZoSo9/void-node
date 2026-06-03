@@ -331,3 +331,17 @@ superseded_branch_cleanup_tag: ckpt-github-branch-cleanup-proof-green-20260603-0
 branch_cleanup_canonical: true
 
 GitHub branch cleanup is cross-box green. Remote non-main branch count is zero. The 13 old unmerged branch tips were preserved as archive tags before deleting the remote branch refs. The earlier branch-cleanup tag `ckpt-github-branch-cleanup-proof-green-20260603-072540` is superseded by the fixed checkpoint because its original proof wrapper masked a failing proof.
+
+## Participant first-user trust boundary checkpoint
+
+participant_first_user_trust_boundary_checkpoint: 9674bc92 / ckpt-participant-first-user-trust-boundary-green-20260603-093941
+participant_first_user_trust_boundary_crossbox_closeout: /tmp/participant-first-user-trust-boundary-crossbox-closeout-20260603-094418.log
+participant_first_user_trust_boundary_crossbox: green
+first_user_trust_boundary_marker: VOID_HOME_FIRST_USER_TRUST_BOUNDARY_V1
+safe_now_copy: true
+guarded_copy: true
+no_blind_deposits_copy: true
+buy_void_fulfillment: false
+validator_mutation: false
+
+The participant first screen now includes a trust-boundary note that tells new users what is safe now, what remains guarded, and that blind deposits are not supported. This is a user-facing clarity checkpoint only; it did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
