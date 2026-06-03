@@ -430,3 +430,19 @@ buy_void_fulfillment: false
 validator_mutation: false
 
 The public launch/share checklist gives social posts and onboarding replies one safe path: README -> public release status summary -> participant page -> guided actions only. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
+
+## Public share posts pack checkpoint
+
+public_share_posts_pack_checkpoint: 7f622630 / ckpt-public-share-posts-pack-green-20260603-143632
+public_share_posts_pack_crossbox_closeout: /tmp/public-share-posts-pack-crossbox-closeout-20260603-144555.log
+public_share_posts_pack_crossbox: green
+share_posts_doc: docs/public/mainnet0-public-share-posts.md
+templates: reddit,x_short,x_thread,discord,github
+safe_path: README_to_summary_to_participant_to_guided_actions_only
+required_warnings: true
+unsafe_promotional_claims: false
+public_trust_boundary_stack: green
+buy_void_fulfillment: false
+validator_mutation: false
+
+The public share posts pack gives proof-checked templates for Reddit, X/Twitter, Discord, GitHub announcements, and onboarding replies. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.

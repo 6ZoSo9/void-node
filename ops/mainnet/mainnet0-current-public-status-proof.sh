@@ -356,6 +356,21 @@ grep -q 'buy_void_fulfillment: false' "$DOC"
 grep -q 'validator_mutation: false' "$DOC"
 echo "[ok] public launch/share checklist pointer present"
 
+echo
+echo "=== [public share posts pack pointer] ==="
+grep -q 'public_share_posts_pack_checkpoint: 7f622630 / ckpt-public-share-posts-pack-green-20260603-143632' "$DOC"
+grep -q 'public_share_posts_pack_crossbox_closeout: /tmp/public-share-posts-pack-crossbox-closeout-20260603-144555.log' "$DOC"
+grep -q 'public_share_posts_pack_crossbox: green' "$DOC"
+grep -q 'share_posts_doc: docs/public/mainnet0-public-share-posts.md' "$DOC"
+grep -q 'templates: reddit,x_short,x_thread,discord,github' "$DOC"
+grep -q 'safe_path: README_to_summary_to_participant_to_guided_actions_only' "$DOC"
+grep -q 'required_warnings: true' "$DOC"
+grep -q 'unsafe_promotional_claims: false' "$DOC"
+grep -q 'public_trust_boundary_stack: green' "$DOC"
+grep -q 'buy_void_fulfillment: false' "$DOC"
+grep -q 'validator_mutation: false' "$DOC"
+echo "[ok] public share posts pack pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 
