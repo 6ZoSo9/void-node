@@ -1233,3 +1233,7 @@ void-site-bundle-peer-env-persistence-proof:
 .PHONY: public-node-network-troubleshooting-proof
 public-node-network-troubleshooting-proof:
 	bash ops/security/public-node-network-troubleshooting-proof.sh
+
+.PHONY: github-branch-cleanup-proof
+github-branch-cleanup-proof:
+	bash ops/security/github-branch-cleanup-proof.sh
