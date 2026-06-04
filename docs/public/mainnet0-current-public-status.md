@@ -446,3 +446,19 @@ buy_void_fulfillment: false
 validator_mutation: false
 
 The public share posts pack gives proof-checked templates for Reddit, X/Twitter, Discord, GitHub announcements, and onboarding replies. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
+
+## Public communications stack proof checkpoint
+
+public_communications_stack_proof_checkpoint: 0bf36a62 / ckpt-public-communications-stack-proof-green-20260603-193224
+public_communications_stack_proof_crossbox_closeout: /tmp/public-communications-stack-proof-crossbox-closeout-20260603-194852.log
+public_communications_stack_proof_crossbox: green
+current_public_status: green
+share_templates: reddit,x_short,x_thread,discord,github
+safe_path: README_to_summary_to_participant_to_guided_actions_only
+required_warnings: true
+unsafe_promotional_claims: false
+public_trust_boundary_stack: green
+buy_void_fulfillment: false
+validator_mutation: false
+
+The public communications stack proof bundles current public status, public share posts, launch/share checklist, release summary discoverability, release status summary, trust-boundary stack, public onboarding pack, status smoke, unsafe promotional-claim scanning, and public-doc secret scanning into one reusable proof target. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
