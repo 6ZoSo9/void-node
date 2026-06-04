@@ -1261,3 +1261,7 @@ mainnet0-public-launch-share-checklist-proof:
 .PHONY: mainnet0-public-share-posts-proof
 mainnet0-public-share-posts-proof:
 	bash ops/mainnet/mainnet0-public-share-posts-proof.sh
+
+.PHONY: mainnet0-public-communications-stack-proof
+mainnet0-public-communications-stack-proof:
+	bash ops/mainnet/mainnet0-public-communications-stack-proof.sh

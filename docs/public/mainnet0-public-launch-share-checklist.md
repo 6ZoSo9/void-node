@@ -54,7 +54,7 @@ Include these boundaries when the post discusses money, staking, or onboarding:
 ## Do not say
 
 - Do not say exchange or custodial sends are supported.
-- Do not say payment confirmation automatically sends VOID.
+- Do not say payment confirmation itself completes fulfillment.
 - Do not say public validator registration makes someone an active validator.
 - Do not say wallet sends or swaps are automatic.
 - Do not imply treasury spend or authority changes are unguarded.

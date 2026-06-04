@@ -57,7 +57,7 @@ echo
 
 echo "=== [5] do-not-say guardrails ==="
 grep -q 'Do not say exchange or custodial sends are supported' "$DOC"
-grep -q 'Do not say payment confirmation automatically sends VOID' "$DOC"
+grep -q 'Do not say payment confirmation itself completes fulfillment' "$DOC"
 grep -q 'Do not say public validator registration makes someone an active validator' "$DOC"
 grep -q 'Do not ask users to send blind deposits' "$DOC"
 grep -q 'Do not paste private keys, secrets, seed phrases, or operator-only data' "$DOC"
