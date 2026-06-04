@@ -462,3 +462,19 @@ buy_void_fulfillment: false
 validator_mutation: false
 
 The public communications stack proof bundles current public status, public share posts, launch/share checklist, release summary discoverability, release status summary, trust-boundary stack, public onboarding pack, status smoke, unsafe promotional-claim scanning, and public-doc secret scanning into one reusable proof target. This checkpoint is docs/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
+
+## Participant public UI polish checkpoint
+
+participant_public_ui_polish_v1_checkpoint: e06ddab4 / ckpt-participant-public-ui-polish-v1-green-20260604-024034
+participant_public_ui_polish_v1_crossbox_closeout: /tmp/participant-public-ui-polish-v1-crossbox-closeout-20260604-025814.log
+participant_public_ui_polish_v1_crossbox: green
+wallet_first: true
+safe_now_copy: true
+guarded_copy: true
+guided_actions: true
+no_blind_deposits: true
+public_communications_stack: green
+buy_void_fulfillment: false
+validator_mutation: false
+
+The participant public UI polish v1 checkpoint makes the first participant screen clearer for public users while preserving the safe path: Wallet first, Earn WC, DataNet, guided Buy VOID request creation, WC-to-VOID path visibility, staking preview, and guarded money-moving / active-validator actions. This checkpoint is UI/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.

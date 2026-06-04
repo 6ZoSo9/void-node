@@ -386,6 +386,21 @@ grep -q 'buy_void_fulfillment: false' "$DOC"
 grep -q 'validator_mutation: false' "$DOC"
 echo "[ok] public communications stack proof pointer present"
 
+echo
+echo "=== [participant public UI polish pointer] ==="
+grep -q 'participant_public_ui_polish_v1_checkpoint: e06ddab4 / ckpt-participant-public-ui-polish-v1-green-20260604-024034' "$DOC"
+grep -q 'participant_public_ui_polish_v1_crossbox_closeout: /tmp/participant-public-ui-polish-v1-crossbox-closeout-20260604-025814.log' "$DOC"
+grep -q 'participant_public_ui_polish_v1_crossbox: green' "$DOC"
+grep -q 'wallet_first: true' "$DOC"
+grep -q 'safe_now_copy: true' "$DOC"
+grep -q 'guarded_copy: true' "$DOC"
+grep -q 'guided_actions: true' "$DOC"
+grep -q 'no_blind_deposits: true' "$DOC"
+grep -q 'public_communications_stack: green' "$DOC"
+grep -q 'buy_void_fulfillment: false' "$DOC"
+grep -q 'validator_mutation: false' "$DOC"
+echo "[ok] participant public UI polish pointer present"
+
 echo "[ok] Mainnet-0 current public status proof passed"
 
 
