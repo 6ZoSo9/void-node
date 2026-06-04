@@ -1265,3 +1265,7 @@ mainnet0-public-share-posts-proof:
 .PHONY: mainnet0-public-communications-stack-proof
 mainnet0-public-communications-stack-proof:
 	bash ops/mainnet/mainnet0-public-communications-stack-proof.sh
+
+.PHONY: participant-public-ui-polish-proof
+participant-public-ui-polish-proof:
+	bash ops/mainnet0/participant-public-ui-polish-proof.sh

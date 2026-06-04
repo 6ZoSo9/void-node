@@ -49275,8 +49275,8 @@ a{color:#93c5fd;text-decoration:none}
     <section class="home-start-here" id="homeStartHere" aria-label="Start here">
       <div class="home-start-head">
         <div>
-          <!-- VOID_HOME_START_PUBLIC_CLARITY_V1 --><!-- VOID_HOME_FIRST_SCREEN_COPY_V1 --><h2>Start Here</h2>
-          <div class="home-start-sub">Start with Wallet. Then earn, buy, or preview staking when ready.</div>
+          <!-- VOID_HOME_PUBLIC_UI_POLISH_V1 --><!-- VOID_HOME_START_PUBLIC_CLARITY_V1 --><!-- VOID_HOME_FIRST_SCREEN_COPY_V1 --><h2>Start Here</h2>
+          <div class="home-start-sub">Start with Wallet. Then earn WC, use DataNet, create a guided Buy VOID request, or preview staking when ready.</div>
         </div>
         <span class="pill">first run</span>
       </div>
@@ -49289,7 +49289,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="home-start-step">
           <div class="k">Step 2</div>
           <div class="v">Fund or earn</div>
-          <div class="s">Earn WC through approved work, or create a guided Buy VOID request.</div>
+          <div class="s">Earn WC through approved work, use DataNet, or create a guided Buy VOID request.</div>
         </div>
         <div class="home-start-step">
           <div class="k">Step 3</div>
@@ -49299,7 +49299,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="home-start-step">
           <div class="k">Step 4</div>
           <div class="v">Preview staking</div>
-          <div class="s">Preview staking. Active validator admission stays gated.</div>
+          <div class="s">Preview candidate/waiting status. Active validator admission stays gated.</div>
         </div>
       </div>
       <div class="home-start-actions">
@@ -49308,7 +49308,7 @@ a{color:#93c5fd;text-decoration:none}
         <a class="linkbtn" href="/participant#buy">Buy VOID</a>
         <a class="linkbtn" href="/participant#staking">Preview Staking</a>
       </div>
-      <div class="hero-note" id="homeNextStepsPublic" style="margin-top:10px"><!-- VOID_HOME_NEXT_STEPS_PUBLIC_V1 --><b>Next after Wallet:</b> Earn WC, bridge spendable WC on-chain in Trade, then swap WC to VOID when helper/relayer are healthy. Use small amounts and verify the Account Wallet.</div>
+      <div class="hero-note" id="homeNextStepsPublic" style="margin-top:10px"><!-- VOID_HOME_NEXT_STEPS_PUBLIC_V1 --><b>Next after Wallet:</b> Earn WC, use DataNet, bridge spendable WC on-chain in Trade, then swap WC to VOID when helper/relayer are healthy, create a guided Buy VOID request, or preview staking. Wallet sends, swaps, VOID delivery, and active validator admission stay explicit and guarded.</div>
     </section>
 
     <!-- VOID_HOME_NEWS_FEED_V1 -->
@@ -49341,7 +49341,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="home-news-item">
           <div class="k">launch safety</div>
           <div class="v">Mainnet-0 is public-live.</div>
-          <div class="s">Mainnet-0 is live. Guarded actions still require explicit proof gates.</div>
+          <div class="s">Mainnet-0 is public-live. Guided actions are available now; money-moving and active-validator paths stay explicit and guarded.</div>
         </div>
       </div>
     </section>
@@ -49375,7 +49375,7 @@ a{color:#93c5fd;text-decoration:none}
       <span class="pill">Mainnet-0 public-live</span>
       <span>Node is healthy. Start with Wallet; Buy VOID uses the guided request flow; validator registration is candidate/waiting only.</span>
     </section>
-    <div class="hero-note" id="homeFirstUserTrustBoundary" style="margin-top:10px"><!-- VOID_HOME_FIRST_USER_TRUST_BOUNDARY_V1 --><b>Safe now:</b> Wallet setup, Earn WC, DataNet, and guided Buy VOID request creation. <b>Guarded:</b> VOID delivery, wallet swaps, sends, and active validator admission require explicit unlock/sign, operator verification, or proof-backed gates. No blind deposits.</div>
+    <div class="hero-note" id="homeFirstUserTrustBoundary" style="margin-top:10px"><!-- VOID_HOME_FIRST_USER_TRUST_BOUNDARY_V1 --><b>Safe now:</b> Wallet setup, Earn WC, DataNet, guided Buy VOID request creation, and staking preview. <b>Guarded:</b> VOID delivery, wallet swaps, sends, and active validator admission require explicit unlock/sign, operator verification, or proof-backed gates. No blind deposits.</div>
 
     <section class="kpis">
       <div class="kpi">
