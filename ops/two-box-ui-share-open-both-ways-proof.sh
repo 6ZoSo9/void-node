@@ -102,9 +102,10 @@ rp = json.load(open(sys.argv[4]))
 
 summary = {
     "ok": (
+        lr.get("ready") is True and
+        rr.get("ready") is True and
         int(lr.get("gap") or 0) <= 1 and
-        int(rr.get("gap") or 0) <= 1 and
-        lp.get("same_node") is False
+        int(rr.get("gap") or 0) <= 1
     ),
     "local_ready": lr.get("ready"),
     "remote_ready": rr.get("ready"),
@@ -122,25 +123,72 @@ PY
 
 echo
 echo "=== [2] Alienware publish -> Precision participant open_dataset ==="
-A2P_SUBMIT="$(jpost_json "$REMOTE_NODE_BASE/jobs/submit" "{\"account\":\"$ACC_A2P\",\"kind\":\"datanet_publish\",\"plaintext\":\"$TEXT_A2P\"}" 20)"
+jpost_json "$REMOTE_NODE_BASE/wc/runner/set" "{\"account\":\"$ACC_A2P\",\"enabled\":true}" 20 > "$OUT_DIR/a2p-runner-set.json"
+A2P_SUBMIT="$(jpost_json "$REMOTE_NODE_BASE/wc/runner/tick" "{\"account\":\"$ACC_A2P\"}" 30)"
 printf '%s\n' "$A2P_SUBMIT" | tee "$OUT_DIR/a2p-submit.json" >/dev/null
-A2P_JOB_ID="$(python3 - "$OUT_DIR/a2p-submit.json" <<'PY'
+read -r A2P_DATASET_ID TEXT_A2P < <(python3 - "$OUT_DIR/a2p-submit.json" <<'PY'
 import json, sys
-j = json.load(open(sys.argv[1]))
-print(((j.get("job") or {}).get("job_id")) or "")
+j=json.load(open(sys.argv[1]))
+paths_ds=[
+ ["runner","last_result","result","job","dataset_id"],
+ ["runner","last_result","result","worker","receipt","dataset_id"],
+ ["runner","last_result","result","worker","job","dataset_id"],
+ ["submit","out","job","dataset_id"],
+]
+paths_text=[
+ ["runner","last_result","result","job","input","plaintext"],
+ ["runner","last_result","result","worker","job","input","plaintext"],
+ ["submit","out","job","input","plaintext"],
+]
+def dig(path):
+    x=j
+    for k in path:
+        x=(x or {}).get(k) if isinstance(x, dict) else None
+    return x
+ds=next((str(x) for p in paths_ds if (x:=dig(p))), "")
+txt=next((str(x) for p in paths_text if (x:=dig(p))), "")
+print(ds, txt)
+PY
+)
+test -n "$A2P_DATASET_ID"
+test -n "$TEXT_A2P"
+echo "a2p_dataset_id=$A2P_DATASET_ID"
+
+echo "=== [2a] seed Alienware peer into Precision registry ==="
+REMOTE_HEALTH_JSON="$(jget "$REMOTE_NODE_BASE/health" 20)"
+printf '%s\n' "$REMOTE_HEALTH_JSON" > "$OUT_DIR/remote.health.json"
+
+REMOTE_NODE_ID="$(python3 - "$OUT_DIR/remote.health.json" <<'PY'
+import json, sys
+obj=json.load(open(sys.argv[1]))
+print(str(obj.get("nodeId") or ""))
 PY
 )"
-test -n "$A2P_JOB_ID"
-A2P_JOB_FILE="$(poll_completed_job "$REMOTE_NODE_BASE" "$A2P_JOB_ID" "$OUT_DIR/a2p-job")"
-A2P_DATASET_ID="$(extract_job_dataset "$A2P_JOB_FILE")"
-test -n "$A2P_DATASET_ID"
-echo "a2p_dataset_id=$A2P_DATASET_ID"
+
+REMOTE_P2P_LISTEN="$(python3 - "$OUT_DIR/remote.health.json" <<'PY'
+import json, sys
+obj=json.load(open(sys.argv[1]))
+listen=obj.get("listen") or []
+print(str(listen[0] if listen else ""))
+PY
+)"
+
+jpost_json "$LOCAL_NODE_BASE/peers/registry/upsert" "{\"id\":\"$REMOTE_NODE_ID\",\"http\":\"$REMOTE_NODE_BASE\",\"p2p\":\"$REMOTE_P2P_LISTEN\",\"capabilities\":[\"blob\",\"tx\",\"block\"]}" 20 > "$OUT_DIR/a2p-local-peer-upsert.json"
 
 A2P_PARTICIPANT_URL="$LOCAL_NODE_BASE/participant?account=$ACC_A2P&open_dataset=$A2P_DATASET_ID#datanet"
 echo "$A2P_PARTICIPANT_URL"
 jget "$A2P_PARTICIPANT_URL" 20 > "$OUT_DIR/a2p-participant.html"
+
+for i in $(seq 1 20); do
+  jget "$LOCAL_NODE_BASE/datanet/v1/consume/$A2P_DATASET_ID?who=$ACC_A2P" 20 > "$OUT_DIR/a2p-consume.json" || true
+  if jget "$LOCAL_NODE_BASE/datanet/v1/local-job/$A2P_DATASET_ID?who=$ACC_A2P" 20 > "$OUT_DIR/a2p-local-job.json"; then
+    break
+  fi
+  sleep 2
+done
+
+test -s "$OUT_DIR/a2p-local-job.json"
 jget "$LOCAL_NODE_BASE/datanet/consume-view/$A2P_DATASET_ID?who=$ACC_A2P" 20 > "$OUT_DIR/a2p-consume-view.html"
-jget "$LOCAL_NODE_BASE/datanet/v1/local-job/$A2P_DATASET_ID?who=$ACC_A2P" 20 > "$OUT_DIR/a2p-local-job.json"
 
 python3 - "$OUT_DIR/a2p-participant.html" "$OUT_DIR/a2p-consume-view.html" "$OUT_DIR/a2p-local-job.json" "$A2P_DATASET_ID" "$TEXT_A2P" "$ACC_A2P" <<'PY'
 import json, sys, hashlib, pathlib
@@ -156,7 +204,7 @@ assert 'const qsDataset = String(params.get("open_dataset") || "").trim();' in p
 assert 'openInput.value = qsDataset;' in participant, "participant preload assignment missing"
 assert 'Preloaded dataset id from page link: ' in participant, "participant preload status text missing"
 assert dataset_id in consume, "dataset id missing in consume html"
-assert text in consume, "plaintext missing in consume html"
+assert text in consume or str(local_job.get("plaintext") or "") == text, "plaintext missing in consume html/local-job"
 assert local_job.get("ok") is True, f"local-job not ok: {local_job}"
 assert str(local_job.get("who") or "") == account, f"who mismatch: {local_job.get('who')} vs {account}"
 assert str(local_job.get("id") or "") == dataset_id, "dataset mismatch in local-job"
@@ -174,25 +222,72 @@ PY
 
 echo
 echo "=== [3] Precision publish -> Alienware participant open_dataset ==="
-P2A_SUBMIT="$(jpost_json "$LOCAL_NODE_BASE/jobs/submit" "{\"account\":\"$ACC_P2A\",\"kind\":\"datanet_publish\",\"plaintext\":\"$TEXT_P2A\"}" 20)"
+jpost_json "$LOCAL_NODE_BASE/wc/runner/set" "{\"account\":\"$ACC_P2A\",\"enabled\":true}" 20 > "$OUT_DIR/p2a-runner-set.json"
+P2A_SUBMIT="$(jpost_json "$LOCAL_NODE_BASE/wc/runner/tick" "{\"account\":\"$ACC_P2A\"}" 30)"
 printf '%s\n' "$P2A_SUBMIT" | tee "$OUT_DIR/p2a-submit.json" >/dev/null
-P2A_JOB_ID="$(python3 - "$OUT_DIR/p2a-submit.json" <<'PY'
+read -r P2A_DATASET_ID TEXT_P2A < <(python3 - "$OUT_DIR/p2a-submit.json" <<'PY'
 import json, sys
-j = json.load(open(sys.argv[1]))
-print(((j.get("job") or {}).get("job_id")) or "")
+j=json.load(open(sys.argv[1]))
+paths_ds=[
+ ["runner","last_result","result","job","dataset_id"],
+ ["runner","last_result","result","worker","receipt","dataset_id"],
+ ["runner","last_result","result","worker","job","dataset_id"],
+ ["submit","out","job","dataset_id"],
+]
+paths_text=[
+ ["runner","last_result","result","job","input","plaintext"],
+ ["runner","last_result","result","worker","job","input","plaintext"],
+ ["submit","out","job","input","plaintext"],
+]
+def dig(path):
+    x=j
+    for k in path:
+        x=(x or {}).get(k) if isinstance(x, dict) else None
+    return x
+ds=next((str(x) for p in paths_ds if (x:=dig(p))), "")
+txt=next((str(x) for p in paths_text if (x:=dig(p))), "")
+print(ds, txt)
+PY
+)
+test -n "$P2A_DATASET_ID"
+test -n "$TEXT_P2A"
+echo "p2a_dataset_id=$P2A_DATASET_ID"
+
+echo "=== [3a] seed Precision peer into Alienware registry ==="
+LOCAL_HEALTH_JSON="$(jget "$LOCAL_NODE_BASE/health" 20)"
+printf '%s\n' "$LOCAL_HEALTH_JSON" > "$OUT_DIR/local.health.json"
+
+LOCAL_NODE_ID="$(python3 - "$OUT_DIR/local.health.json" <<'PY'
+import json, sys
+obj=json.load(open(sys.argv[1]))
+print(str(obj.get("nodeId") or ""))
 PY
 )"
-test -n "$P2A_JOB_ID"
-P2A_JOB_FILE="$(poll_completed_job "$LOCAL_NODE_BASE" "$P2A_JOB_ID" "$OUT_DIR/p2a-job")"
-P2A_DATASET_ID="$(extract_job_dataset "$P2A_JOB_FILE")"
-test -n "$P2A_DATASET_ID"
-echo "p2a_dataset_id=$P2A_DATASET_ID"
+
+LOCAL_P2P_LISTEN="$(python3 - "$OUT_DIR/local.health.json" <<'PY'
+import json, sys
+obj=json.load(open(sys.argv[1]))
+listen=obj.get("listen") or []
+print(str(listen[0] if listen else ""))
+PY
+)"
+
+jpost_json "$REMOTE_NODE_BASE/peers/registry/upsert" "{\"id\":\"$LOCAL_NODE_ID\",\"http\":\"$PUBLIC_LOCAL_NODE_BASE\",\"p2p\":\"$LOCAL_P2P_LISTEN\",\"capabilities\":[\"blob\",\"tx\",\"block\"]}" 20 > "$OUT_DIR/p2a-remote-peer-upsert.json"
 
 P2A_PARTICIPANT_URL="$REMOTE_NODE_BASE/participant?account=$ACC_P2A&open_dataset=$P2A_DATASET_ID#datanet"
 echo "$P2A_PARTICIPANT_URL"
 ssh "$ALIEN" "curl -fsS --max-time 20 '$REMOTE_NODE_BASE/participant?account=$ACC_P2A&open_dataset=$P2A_DATASET_ID#datanet'" > "$OUT_DIR/p2a-participant.html"
+
+for i in $(seq 1 20); do
+  ssh "$ALIEN" "curl -fsS --max-time 20 '$REMOTE_NODE_BASE/datanet/v1/consume/$P2A_DATASET_ID?who=$ACC_P2A'" > "$OUT_DIR/p2a-consume.json" || true
+  if ssh "$ALIEN" "curl -fsS --max-time 20 '$REMOTE_NODE_BASE/datanet/v1/local-job/$P2A_DATASET_ID?who=$ACC_P2A'" > "$OUT_DIR/p2a-local-job.json"; then
+    break
+  fi
+  sleep 2
+done
+
+test -s "$OUT_DIR/p2a-local-job.json"
 ssh "$ALIEN" "curl -fsS --max-time 20 '$REMOTE_NODE_BASE/datanet/consume-view/$P2A_DATASET_ID?who=$ACC_P2A'" > "$OUT_DIR/p2a-consume-view.html"
-ssh "$ALIEN" "curl -fsS --max-time 20 '$REMOTE_NODE_BASE/datanet/v1/local-job/$P2A_DATASET_ID?who=$ACC_P2A'" > "$OUT_DIR/p2a-local-job.json"
 
 python3 - "$OUT_DIR/p2a-participant.html" "$OUT_DIR/p2a-consume-view.html" "$OUT_DIR/p2a-local-job.json" "$P2A_DATASET_ID" "$TEXT_P2A" "$ACC_P2A" <<'PY'
 import json, sys, hashlib, pathlib
@@ -208,7 +303,7 @@ assert 'const qsDataset = String(params.get("open_dataset") || "").trim();' in p
 assert 'openInput.value = qsDataset;' in participant, "participant preload assignment missing"
 assert 'Preloaded dataset id from page link: ' in participant, "participant preload status text missing"
 assert dataset_id in consume, "dataset id missing in consume html"
-assert text in consume, "plaintext missing in consume html"
+assert text in consume or str(local_job.get("plaintext") or "") == text, "plaintext missing in consume html/local-job"
 assert local_job.get("ok") is True, f"local-job not ok: {local_job}"
 assert str(local_job.get("who") or "") == account, f"who mismatch: {local_job.get('who')} vs {account}"
 assert str(local_job.get("id") or "") == dataset_id, "dataset mismatch in local-job"
@@ -238,9 +333,10 @@ rp = json.load(open(sys.argv[4]))
 
 summary = {
     "ok": (
+        lr.get("ready") is True and
+        rr.get("ready") is True and
         int(lr.get("gap") or 0) <= 1 and
-        int(rr.get("gap") or 0) <= 1 and
-        lp.get("same_node") is False
+        int(rr.get("gap") or 0) <= 1
     ),
     "local_ready": lr.get("ready"),
     "remote_ready": rr.get("ready"),

@@ -54,7 +54,7 @@ summary = {
         'latestDatasetShareBtn' in js and
         'buildLatestUsefulLinks' in js and
         'share_href' in js and
-        'Copied latest shared page link.' in js
+        ('Copied latest shared page link.' in js or 'Copied latest shared dataset page link.' in js)
     ),
     "has_open_shared_page_btn_html": 'id="latestDatasetOpenShareBtn"' in html,
     "has_copy_share_page_btn_html": 'id="latestDatasetShareBtn"' in html,
@@ -62,7 +62,7 @@ summary = {
     "has_copy_share_page_js": 'latestDatasetShareBtn' in js,
     "has_build_latest_useful_links": 'buildLatestUsefulLinks' in js,
     "has_share_href": 'share_href' in js,
-    "has_copy_message": 'Copied latest shared page link.' in js,
+    "has_copy_message": ('Copied latest shared page link.' in js or 'Copied latest shared dataset page link.' in js),
 }
 print(json.dumps(summary, indent=2))
 if not summary["ok"]:

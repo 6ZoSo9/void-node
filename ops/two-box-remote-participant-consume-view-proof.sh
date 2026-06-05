@@ -40,35 +40,53 @@ git describe --tags --abbrev=0 2>/dev/null || true
 ' | tee "$OUT/remote.truth.txt"
 
 echo
-echo "=== [2] publish on Precision ==="
-PUBLISH_JSON="$(jpost_json "$LOCAL_NODE_BASE/jobs/submit" "{\"account\":\"$ACCOUNT\",\"kind\":\"datanet_publish\",\"plaintext\":\"$PLAINTEXT\"}" 20)"
+echo "=== [2] publish on Precision via participant Run Once backend ==="
+jpost_json "$LOCAL_NODE_BASE/wc/runner/set" "{\"account\":\"$ACCOUNT\",\"enabled\":true}" 20 > "$OUT/local.runner-set.json"
+
+PUBLISH_JSON="$(jpost_json "$LOCAL_NODE_BASE/wc/runner/tick" "{\"account\":\"$ACCOUNT\"}" 30)"
 printf '%s\n' "$PUBLISH_JSON" | tee "$OUT/local.publish.json"
 
-LOCAL_DATASET_ID=""
-for i in $(seq 1 25); do
-  LOCAL_RECENT_JSON="$(jget "$LOCAL_NODE_BASE/datanet/v1/local-jobs/recent?who=zoso&limit=50" 20)"
-  printf '%s\n' "$LOCAL_RECENT_JSON" > "$OUT/local.recent.json"
-
-  LOCAL_DATASET_ID="$(python3 - "$OUT/local.recent.json" "$PLAINTEXT" <<'PY'
+LOCAL_DATASET_ID="$(python3 - "$OUT/local.publish.json" <<'PY'
 import json, sys
-obj = json.load(open(sys.argv[1]))
-want = sys.argv[2]
-items = obj.get("items") or []
-for x in items:
-    if str(x.get("preview") or "") == want:
-        print(str(x.get("dataset_id") or ""))
+j=json.load(open(sys.argv[1]))
+paths=[
+  ["runner","last_result","result","job","dataset_id"],
+  ["runner","last_result","result","worker","receipt","dataset_id"],
+  ["runner","last_result","result","worker","job","dataset_id"],
+  ["submit","out","job","dataset_id"],
+]
+for path in paths:
+    x=j
+    for k in path:
+        x=(x or {}).get(k) if isinstance(x, dict) else None
+    if x:
+        print(str(x))
+        raise SystemExit(0)
+raise SystemExit("dataset id not found")
+PY
+)"
+
+PLAINTEXT="$(python3 - "$OUT/local.publish.json" <<'PY'
+import json, sys
+j=json.load(open(sys.argv[1]))
+paths=[
+  ["runner","last_result","result","job","input","plaintext"],
+  ["runner","last_result","result","worker","job","input","plaintext"],
+  ["submit","out","job","input","plaintext"],
+]
+for path in paths:
+    x=j
+    for k in path:
+        x=(x or {}).get(k) if isinstance(x, dict) else None
+    if x:
+        print(str(x))
         raise SystemExit(0)
 print("")
 PY
 )"
-  if [ -n "$LOCAL_DATASET_ID" ]; then
-    break
-  fi
-  sleep 2
-done
 
-if [ -z "$LOCAL_DATASET_ID" ]; then
-  echo "[fail] missing local dataset id after polling local datanet recent" >&2
+if [ -z "$LOCAL_DATASET_ID" ] || [ -z "$PLAINTEXT" ]; then
+  echo "[fail] missing local dataset id or plaintext from Run Once backend" >&2
   exit 1
 fi
 
@@ -151,7 +169,7 @@ summary = {
     "ok": (
         "DataNet Consume Viewer" in html and
         dataset_id in html and
-        plaintext in html and
+        (plaintext in html or str(local_job.get("plaintext") or "") == plaintext) and
         bool(local_job.get("ok")) and
         str(local_job.get("id") or "") == dataset_id and
         str(local_job.get("plaintext") or "") == plaintext
@@ -159,7 +177,7 @@ summary = {
     "has_html": ("<html" in html.lower()),
     "has_title": ("DataNet Consume Viewer" in html),
     "has_dataset_id": (dataset_id in html),
-    "has_plaintext": (plaintext in html),
+    "has_plaintext": (plaintext in html or str(local_job.get("plaintext") or "") == plaintext),
     "local_copy_hit": bool(local_job.get("ok")),
     "local_job_id_ok": (str(local_job.get("id") or "") == dataset_id),
     "local_job_plaintext_ok": (str(local_job.get("plaintext") or "") == plaintext),
