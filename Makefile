@@ -1285,3 +1285,7 @@ participant-run-once-wc-delta-proof:
 .PHONY: participant-run-once-visible-result-proof
 participant-run-once-visible-result-proof:
 	bash ops/mainnet0/participant-run-once-visible-result-proof.sh
+
+.PHONY: tailnet-http-public-base-proof
+tailnet-http-public-base-proof:
+	bash ops/mainnet0/tailnet-http-public-base-proof.sh
