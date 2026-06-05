@@ -1309,3 +1309,7 @@ participant-share-open-materialized-local-restart-persistence-proof:
 .PHONY: participant-share-open-materialized-copy-integrity-proof
 participant-share-open-materialized-copy-integrity-proof:
 	bash ops/two-box-materialized-copy-integrity-proof.sh
+
+.PHONY: participant-share-open-materialized-provenance-proof
+participant-share-open-materialized-provenance-proof:
+	bash ops/two-box-materialized-provenance-proof.sh

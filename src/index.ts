@@ -41716,6 +41716,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             if (!/^ds_[A-Za-z0-9_\-]+$/.test(id)) return res.status(400).json({ ok:false, error:"bad_id" });
 
             const file = path.join(dataDir(), "datanet_v1", "local_jobs", id + ".txt");
+            const provenanceFile = path.join(dataDir(), "datanet_v1", "local_jobs", id + ".provenance.json");
             if (!fs.existsSync(file)) return res.status(404).json({ ok:false, error:"not_found", id });
 
             const plaintext = String(fs.readFileSync(file, "utf8") || "");
@@ -41724,6 +41725,16 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
 
             let parsed:any = null;
             try { parsed = JSON.parse(plaintext); } catch {}
+
+            let materialization_provenance_v1:any = null;
+            try {
+              if (fs.existsSync(provenanceFile)) {
+                const pv:any = JSON.parse(String(fs.readFileSync(provenanceFile, "utf8") || "{}"));
+                if (pv && String(pv?.dataset_id || "") === id && String(pv?.who || "") === who) {
+                  materialization_provenance_v1 = pv;
+                }
+              }
+            } catch {}
 
             const task_class = String(parsed?.task_class || "").trim() || null;
             let receipt_id = String(parsed?.receipt_id || parsed?.latest_receipt_id || "").trim() || null;
@@ -41750,6 +41761,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               job_id,
               latest_receipt_id: receipt_id,
               latest_job_id: job_id,
+              materialization_provenance_v1,
               plaintext
             });
           } catch (e:any) {
@@ -42017,6 +42029,24 @@ a{color:#93c5fd;text-decoration:none}
 
               fs.mkdirSync(dir, { recursive: true });
               fs.writeFileSync(file, plaintext, "utf8");
+
+              try {
+                const crypto = require("node:crypto");
+                const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
+                const prov = {
+                  ok: true,
+                  schema: "void_datanet_materialized_provenance_v1",
+                  source: "peer_materialized",
+                  dataset_id: id,
+                  who,
+                  peer_http: peerHttp,
+                  receiver_file: file,
+                  sha256,
+                  sizeBytes: Buffer.byteLength(plaintext, "utf8"),
+                  materialized_at_ms: Date.now()
+                };
+                fs.writeFileSync(path.join(dir, id + ".provenance.json"), JSON.stringify(prov, null, 2) + "\n", "utf8");
+              } catch {}
 
               return { ok:true, source:"peer_materialized", file, plaintext, peer_http:peerHttp };
             } catch {}
