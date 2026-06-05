@@ -26,7 +26,7 @@ import { createRequire } from 'node:module';
     };
     try{ console.log("[diag-eaddrinuse-listen.v1] installed"); }catch{}
   }catch{}
-})(); 
+})();
 
 import { createRequire as __voidCreateRequire } from "node:module";
 import { fileURLToPath as __voidFileURLToPath } from "node:url";
@@ -215,7 +215,7 @@ const KEY_PATH = path.resolve(
 console.log("[void-node] config", { DATA_DIR, HTTP_PORT, P2P_PORT, KEY_PATH });
 
 /* Optional legacy helper (safe to keep for scripts/tests) */
-const __apiSegStore = 
+const __apiSegStore =
 new SegStore(DATA_DIR, { segmentMaxBytes: 8 * 1024 * 1024, sparseEvery: 16 } as any);
 
 /* ------------------------- Top-level main -------------------------- */
@@ -304,7 +304,7 @@ console.log("[shim] published global node (post-construct)");
   }
 
   /* ----------------------------- HTTP ----------------------------- */
-  
+
 const app = express();
 
 // === VOID public root redirect v1 ===
@@ -6395,10 +6395,10 @@ try {
     });
   } catch {}
 })();
- 
 
 
- 
+
+
 
 
 
@@ -6562,8 +6562,8 @@ try {
   // --- minimal mempool-backed tx submit route (dev only) ---
   const MEMPOOL = path.join(process.env.DATA_DIR || "data", "mempool.jsonl");
   app.post("/tx/submit", async (req, res) => {
-    
-    
+
+
     try { globalEnqueueTx(req.body ?? {}); const q=(globalThis as any).__void_tx_queue; console.log("[route] /tx/submit enq size=%s", Array.isArray(q)?q.length:-1); } catch {}
   try { globalEnqueueTx(req.body ?? {}); } catch {}
   try {
@@ -9541,7 +9541,7 @@ if (
 ;(function enforceCapAtSaveBlock(){
   try{
     const g:any = globalThis as any;
-    if (g.__void_enforce_cap_saveblock_installed) return; 
+    if (g.__void_enforce_cap_saveblock_installed) return;
     g.__void_enforce_cap_saveblock_installed = true;
 
     function getNode(){ return g.__void_node || g.node || g.VOID_NODE; }
@@ -11553,13 +11553,13 @@ if (process.env.VOID_DISABLE_SELFHTTP_FAMILY !== "1") (function __void_txroot_v4
   let tries = 0, attached = false;
   function getApp(){ return (globalThis as any).__void_http_app || (globalThis as any).app || undefined; }
   async function getHead(base:string){
-    const r = await fetch(`${base}/head.txt`); 
-    const t = await r.text(); 
-    const n = Number(t.trim()); 
-    if (!Number.isFinite(n)) throw new Error(`bad head: ${t}`); 
+    const r = await fetch(`${base}/head.txt`);
+    const t = await r.text();
+    const n = Number(t.trim());
+    if (!Number.isFinite(n)) throw new Error(`bad head: ${t}`);
     return n;
   }
-  function parseFromTo(q:any){ 
+  function parseFromTo(q:any){
     let from = q?.from!=null ? Number(q.from) : NaN;
     let to   = q?.to!=null   ? Number(q.to)   : NaN;
     return {from, to};
@@ -13928,7 +13928,7 @@ void_seal_rate_1m ${rate1m()}
     } catch { return S.lastNumber; }
   }
 
-  function pushRecent(ts:number){ 
+  function pushRecent(ts:number){
     const cut = Date.now() - 60_000;
     S.recent = Array.isArray(S.recent) ? S.recent.filter((t:number)=>t>=cut) : [];
     S.recent.push(ts);
@@ -15185,7 +15185,7 @@ if (process.env.VOID_DISABLE_TXROOT_CORE_BUCKET !== "1") (async function txrootH
   Object.defineProperty(g, "__lastMile_info", {
     configurable: true,
     get(){ return origDesc?.get ? origDesc.get.call(g) : g.__lastMile_info_value; },
-    set(v:any){ 
+    set(v:any){
       try {
         if (v && typeof v.injected === "number") bump(v.injected);
       } catch {}
@@ -15874,17 +15874,17 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function lastMileV3b
     return await Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), ms))]);
   }
 
-  async function fetchText(url:string, ms=300){ 
+  async function fetchText(url:string, ms=300){
     const r = await withTimeout((globalThis as any).fetch(url), ms);
-    if (!r || !r.ok) throw new Error("bad status"); 
-    return await r.text(); 
+    if (!r || !r.ok) throw new Error("bad status");
+    return await r.text();
   }
 
   function parseNumber(s:string){ const n = Number(s); return Number.isFinite(n) ? n : 0; }
 
   function parsePromMetric(text:string, name:string, dflt=0){
     const re = new RegExp(`^${name}\\s+([0-9eE+\\.-]+)\\s*$`, "m");
-    const m = text.match(re); 
+    const m = text.match(re);
     return m ? parseNumber(m[1]) : dflt;
   }
 
@@ -20724,11 +20724,11 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]       if (!app) throw new Error("app not ready");
 // [wal-iife-neutralized]       if (app.__void_wal_v1b_bound) return;
 // [wal-iife-neutralized]       app.__void_wal_v1b_bound = true;
-// [wal-iife-neutralized] 
+// [wal-iife-neutralized]
 // [wal-iife-neutralized]       app.get("/__void/metrics/wal.status.json", (_req:any,res:any)=>{
 // [wal-iife-neutralized]         res.json({ wrapped: S.wrapped, overwrites: S.overwrites, synthetic_seq: S.syntheticSeq, wrapped_at_ms: S.wrappedStamp });
 // [wal-iife-neutralized]       });
-// [wal-iife-neutralized] 
+// [wal-iife-neutralized]
 // [wal-iife-neutralized]       app.get("/__void/metrics/wal.v3.prom", (_req:any,res:any)=>{
 // [wal-iife-neutralized]         const lines = [
 // [wal-iife-neutralized]           `void_wal_wrapped ${S.wrapped ? 1 : 0}`,
@@ -20740,7 +20740,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]         ];
 // [wal-iife-neutralized]         res.type("text/plain").send(lines.join("\\n")+"\n");
 // [wal-iife-neutralized]       });
-// [wal-iife-neutralized] 
+// [wal-iife-neutralized]
 // [wal-iife-neutralized]       // tiny debug: show current saveBlock chain length
 // [wal-iife-neutralized]       app.get("/__void/metrics/wal.debug.prom", (_req:any,res:any)=>{
 // [wal-iife-neutralized]         const st:any = getStore();
@@ -20748,7 +20748,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]         const len = (typeof fn === "function") ? String(fn).length : -1;
 // [wal-iife-neutralized]         res.type("text/plain").send(`void_wal_saveBlock_toString_len ${len}\n`);
 // [wal-iife-neutralized]       });
-// [wal-iife-neutralized] 
+// [wal-iife-neutralized]
 // [wal-iife-neutralized]       console.error("[wal.v1b] exporters bound");
 // [wal-iife-neutralized]     } catch(e:any){
 // [wal-iife-neutralized]       return void setTimeout(exportLoop, TICK);
@@ -20764,7 +20764,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]       const app:any = getApp();
 // [wal-iife-neutralized]       if (!app) throw new Error("app not ready");
 // [wal-iife-neutralized]       if (app.__void_wal_v1c_bound) return; app.__void_wal_v1c_bound = true;
-// [wal-iife-neutralized] 
+// [wal-iife-neutralized]
 // [wal-iife-neutralized]       // Non-colliding endpoints (.v4) and a richer status
 // [wal-iife-neutralized]       app.get("/__void/metrics/wal.status2.json", (_req:any,res:any)=>{
 // [wal-iife-neutralized]         const st:any = getStore();
@@ -20784,7 +20784,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]           }
 // [wal-iife-neutralized]         });
 // [wal-iife-neutralized]       });
-// [wal-iife-neutralized] 
+// [wal-iife-neutralized]
 // [wal-iife-neutralized]       app.get("/__void/metrics/wal.v4.prom", (_req:any,res:any)=>{
 // [wal-iife-neutralized]         const st:any = getStore();
 // [wal-iife-neutralized]         const sb:any = st?.saveBlock;
@@ -20799,7 +20799,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]         ];
 // [wal-iife-neutralized]         res.type("text/plain").send(lines.join("\\n")+"\n");
 // [wal-iife-neutralized]       });
-// [wal-iife-neutralized] 
+// [wal-iife-neutralized]
 // [wal-iife-neutralized]       console.error("[wal.v1c] exporters bound (/__void/metrics/wal.v4.prom, status2.json)");
 // [wal-iife-neutralized]     } catch { /* retry until app exists */ }
 // [wal-iife-neutralized]     setTimeout(exportLoop, TICK);
@@ -20813,7 +20813,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]     try{
 // [wal-iife-neutralized]       const app:any = getApp(); if (!app) throw new Error("app not ready");
 // [wal-iife-neutralized]       if (app.__void_wal_v1d_bound) return; app.__void_wal_v1d_bound = true;
-// [wal-iife-neutralized] 
+// [wal-iife-neutralized]
 // [wal-iife-neutralized]       app.get("/__void/metrics/wal.status3.json", (_req:any,res:any)=>{
 // [wal-iife-neutralized]         const st = getStore();
 // [wal-iife-neutralized]         const Seg = st && st.constructor;
@@ -20834,7 +20834,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]           }
 // [wal-iife-neutralized]         });
 // [wal-iife-neutralized]       });
-// [wal-iife-neutralized] 
+// [wal-iife-neutralized]
 // [wal-iife-neutralized]       app.get("/__void/metrics/wal.v5.prom", (_req:any,res:any)=>{
 // [wal-iife-neutralized]         res.type("text/plain").send([
 // [wal-iife-neutralized]           `void_wal_v5_active ${S.active ? 1 : 0}`,
@@ -20844,7 +20844,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
 // [wal-iife-neutralized]           `void_wal_v5_last_uncommitted_number ${S.last_uncommitted}`,
 // [wal-iife-neutralized]         ].join("\\n")+"\n");
 // [wal-iife-neutralized]       });
-// [wal-iife-neutralized] 
+// [wal-iife-neutralized]
 // [wal-iife-neutralized]       console.error("[wal.v1d] exporters bound (/__void/metrics/wal.v5.prom, status3.json)");
 // [wal-iife-neutralized]     } catch { /* retry */ }
 // [wal-iife-neutralized]     setTimeout(exportLoop, TICK);
@@ -20885,7 +20885,8 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function walV1Inline
     if (!looksRecursive) return;
 
     let _p: Promise<(alg:string)=>any> | null = null;
-    async function load(){
+
+async function load(){
       try {
         // CJS fast-path when available — do NOT call __void_getCreateHash here.
         // @ts-ignore
@@ -21816,10 +21817,10 @@ const wal = new WALv1(getDataDir());
   mount();
 })();
 // --- Agent v0: retrofit wrapper for existing /agent/v0/done/:id ---------------
-// [DISABLED router-stack churn block] 
+// [DISABLED router-stack churn block]
 
 // --- Agent v0: remove old DoneCapture middleware at runtime (keep RetroWrap) ---
-// [DISABLED router-stack churn block] 
+// [DISABLED router-stack churn block]
 
 // --- Agent v0: prune legacy DoneCapture middleware (avoid double logging) ------
 (function agentV0PruneOldCapture(){
@@ -22117,7 +22118,7 @@ const wal = new WALv1(getDataDir());
   } mount();
 })();
 // --- Agent v0: receipts compat pruner (keep last writer) -----------------------
-// [DISABLED router-stack churn block] 
+// [DISABLED router-stack churn block]
 
 // --- Agent v0: receipts compat prune (drop legacy relay; keep v2 direct writer)
 (function agentV0ReceiptsCompatPruneVFinal(){
@@ -22169,7 +22170,7 @@ const wal = new WALv1(getDataDir());
   } mount();
 })();
 // --- Agent receipts exporter: force-replace handler with real newlines ----------
-// [DISABLED router-stack churn block] 
+// [DISABLED router-stack churn block]
 
 // --- Agent v0: receipts coverage (results ↔ receipts) + Prom exporter ----------
 (function agentV0ReceiptsCoverage(){
@@ -40103,7 +40104,7 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
       }
     });
 
-    
+
 
 /* === __void update plan status v1 (additive) === */
 try {
@@ -48439,12 +48440,12 @@ a{color:#93c5fd;text-decoration:none}
       .hero h1{font-size:28px}
       .brand .title{font-size:24px}
     }
-  
+
     .help{position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:999px;border:1px solid #334155;background:#0f172a;color:#cbd5e1;font-size:11px;font-weight:800;line-height:1;cursor:help;margin-left:6px;vertical-align:middle;flex:none}
     .help::after{content:attr(data-help);position:absolute;left:50%;bottom:125%;transform:translateX(-50%);min-width:180px;max-width:260px;padding:8px 10px;border-radius:10px;background:#020617;border:1px solid #334155;color:#e5e7eb;font-size:12px;font-weight:500;line-height:1.35;white-space:normal;opacity:0;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.35);z-index:80}
     .help:hover::after,.help:focus::after{opacity:1}
 
-  
+
     body[data-active-tab="work"] .hero-shell,
     body[data-active-tab="datanet"] .hero-shell,
     body[data-active-tab="trading"] .hero-shell,
@@ -48476,8 +48477,8 @@ a{color:#93c5fd;text-decoration:none}
     .mini, .panel, .subpanel, .kpi { min-width: 0; }
 
 
-    
-    
+
+
     /* VOID_TOP_STATUS_HIDE_OPS_CHIPS_V1 */
     /* VOID_TOP_STRIP_NORMAL_USER_CLEANUP_V1
        Keep the top strip user-facing: Wallet, public-live status, Spendable WC, and VOID.
@@ -48746,13 +48747,13 @@ a{color:#93c5fd;text-decoration:none}
 
     .compact-tab-meta{color:#93a4bf;font-size:13px}
 
-  
+
     .subtle-tab-copy{color:#93a4bf;font-size:13px;margin:2px 0 12px}
     details.soft-adv{margin-top:14px}
     details.soft-adv > summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;font-weight:800;color:#f8fafc;padding:0}
     details.soft-adv > summary::-webkit-details-marker{display:none}
 
-  
+
     body[data-active-tab="work"] .hero,
     body[data-active-tab="datanet"] .hero,
     body[data-active-tab="trading"] .hero,
@@ -48770,7 +48771,7 @@ a{color:#93c5fd;text-decoration:none}
     body[data-active-tab="receipts"] .kpis{display:none}
 
 
-    
+
     /* VOID_HOME_HIDE_BIG_BOXES_V1 */
     body[data-active-tab="overview"] .hero,
     body[data-active-tab="overview"] .user-home-actions,
@@ -48779,14 +48780,14 @@ a{color:#93c5fd;text-decoration:none}
     }
 
 
-    
-    
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
     /* VOID_STAKE_CLEANUP_V1 */
     body[data-active-tab="staking"] #pane-staking{
       max-width:1080px;
@@ -48992,7 +48993,7 @@ a{color:#93c5fd;text-decoration:none}
     }
 
     /* VOID_SIDEBAR_ADVANCED_MENU_V1 */
-    
+
     /* VOID_SIDEBAR_QUIET_NAV_V1 */
     .tabbtn .navhint{display:none !important}
 .sidebar-advanced-menu{
@@ -49037,7 +49038,7 @@ a{color:#93c5fd;text-decoration:none}
       white-space:nowrap;
     }
 
-    
+
     /* VOID_FIRST_RUN_ONBOARDING_V1 */
     .home-start-here{
       display:grid;
@@ -49257,8 +49258,8 @@ a{color:#93c5fd;text-decoration:none}
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <a href="/participant" style="color:#e5e7eb;text-decoration:none;font-weight:800;letter-spacing:.04em;">VOID</a>
     <a href="/participant" style="color:#93c5fd;text-decoration:none;">Participant</a>
-    
-    
+
+
   </div>
 </div>
 <div class="shell">
@@ -49345,9 +49346,9 @@ a{color:#93c5fd;text-decoration:none}
         <h1 style="margin:0 0 6px;font-size:28px;letter-spacing:-.03em">VOID Participant</h1>
         <div class="hero-actions" style="margin-top:10px">
           <a class="linkbtn btn-primary" style="padding:8px 12px; border-radius:12px; font-weight:700;" href="/participant#wallet">Open Wallet</a><!-- VOID_HOME_HERO_WALLET_FIRST_V1 -->
-          
-          
-          
+
+
+
         </div>
       </div>
 
@@ -49472,6 +49473,12 @@ a{color:#93c5fd;text-decoration:none}
     </section>
     <div class="hero-note" id="homeFirstUserTrustBoundary" style="margin-top:10px"><!-- VOID_HOME_FIRST_USER_TRUST_BOUNDARY_V1 --><b>Safe now:</b> Wallet setup, Earn WC, DataNet, guided Buy VOID request creation, and staking preview. <b>Guarded:</b> VOID delivery, wallet swaps, sends, and active validator admission require explicit unlock/sign, operator verification, or proof-backed gates. No blind deposits.</div>
 
+    <div class="hero-note" id="homeDatanetWcStatus" style="margin-top:10px"><!-- VOID_PARTICIPANT_DATANET_WC_STATUS_V1 -->
+      <b>DataNet/WC useful work:</b>
+      <span id="homeDatanetWcSummary">Checking DataNet receipts and WC credit status…</span>
+      <span class="muted" id="homeDatanetWcDetail">Run Once submits approved useful work; accepted DataNet receipts can credit WC.</span>
+    </div>
+
     <section class="kpis">
       <div class="kpi">
         <div class="k">Onchain VOID</div>
@@ -49558,7 +49565,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="section-head">
             <div>
               <h2>Recent activity</h2>
-              
+
             </div>
           </div>
           <div class="table-wrap"><div id="jobsWrapOverview" class="empty">loading…</div></div>
@@ -49568,7 +49575,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="section-head">
             <div>
               <h2>Recent Receipts</h2>
-              
+
             </div>
           </div>
           <div class="table-wrap"><div id="receiptsWrapOverview" class="empty">loading…</div></div>
@@ -49578,7 +49585,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="section-head">
             <div>
               <h2>Recent DataNet Datasets</h2>
-              
+
             </div>
           </div>
           <div class="table-wrap"><div id="recentDatasetsWrapOverview" class="empty">loading…</div></div>
@@ -49594,7 +49601,7 @@ a{color:#93c5fd;text-decoration:none}
             <div class="section-copy">Actual local datasets currently viewable on this node for the selected participant account.</div>
           </div>
         </div>
-        
+
         <div class="hero-note" id="datanetOverviewCard">loading…</div>
         <div class="panel" style="margin:10px 0 12px 0;padding:14px;border-radius:14px;border:1px solid #1e293b;background:#0b1220">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
@@ -49640,7 +49647,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="section-head">
             <div>
               <h2>Earn Work Credits<span class="help" tabindex="0" data-help="Submit work for the selected participant account. Completed work creates a receipt and can earn WC.">?</span></h2>
-              
+
             </div>
           </div>
 
@@ -49810,13 +49817,13 @@ a{color:#93c5fd;text-decoration:none}
             <div class="section-head">
               <div>
                 <h2>Recent work</h2>
-                
+
               </div>
             </div>
             <div class="table-wrap"><div id="jobsWrap" class="empty">loading…</div></div>
           </div>
 
-          
+
         </div>
       </div>
     </section>
@@ -50000,8 +50007,8 @@ a{color:#93c5fd;text-decoration:none}
       </div>
     </section>
 
-    
-    
+
+
     <section class="tabpane" id="pane-buy">
       <div class="compact-tab-head" id="buy-compact-head"><h1 class="compact-tab-title">Buy VOID</h1></div>
 
@@ -50067,7 +50074,7 @@ a{color:#93c5fd;text-decoration:none}
           </div>
         </div>
       </div>
-    
+
       <div class="panel buy-handoff-panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
@@ -50100,7 +50107,7 @@ a{color:#93c5fd;text-decoration:none}
         </details>
       </div>
 
-    
+
       <div class="panel buy-checkout-panel" style="margin-top:12px;padding:16px 18px">
         <div class="section-head">
           <div>
@@ -50124,7 +50131,7 @@ a{color:#93c5fd;text-decoration:none}
         </details>
       </div>
 
-    
+
       <div class="panel buy-status-panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
@@ -50519,7 +50526,7 @@ a{color:#93c5fd;text-decoration:none}
           </div>
         </details>
       </div>
-    
+
       <details class="adv stake-next-validator-plan" style="margin-top:12px"><summary><span>Advanced: Next Validator Plan</span><span class="pill">operator</span></summary><div class="adv-body"><div class="panel" style="padding:12px 14px">
         <div class="section-head">
           <div>
@@ -51688,6 +51695,40 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
     loadRememberedWalletActivity();
 
+      // VOID_PARTICIPANT_DATANET_WC_STATUS_JS_V1
+      async function refreshParticipantDatanetWcStatusV1(){
+        try {
+          const accountEl = $("account");
+          const account = accountEl && accountEl.value ? String(accountEl.value).trim() : "zoso";
+          const out = await j("/__void/participant/datanet-wc/status?account=" + encodeURIComponent(account || "zoso"));
+          if (!out || !out.ok) throw new Error("status_not_ok");
+
+          const receipts = out.datanet && out.datanet.receipts ? out.datanet.receipts : {};
+          const wc = out.wc && out.wc.account_events ? out.wc.account_events : {};
+          const safety = out.safety || {};
+
+          const total = receipts.total != null ? String(receipts.total) : "0";
+          const matched = wc.matched != null ? String(wc.matched) : "0";
+          const lastReason = wc.last_reason || receipts.last_reason || "none";
+          const summary = "DataNet receipts: " + total + " • Account WC events: " + matched + " • Last useful-work reason: " + lastReason;
+
+          setText("homeDatanetWcSummary", summary);
+          setText("homeDatanetWcDetail",
+            "Useful-work policy: " + String(safety.useful_work_policy || "useful_verifiable_only") +
+            " • Background loop: " + String(safety.automatic_background_loop || "disabled_on_public_safe_node") +
+            " • Buy VOID fulfillment: " + String(!!safety.buy_void_fulfillment) +
+            " • Validator mutation: " + String(!!safety.validator_mutation)
+          );
+        } catch (e) {
+          setText("homeDatanetWcSummary", "DataNet/WC status unavailable on this node.");
+          setText("homeDatanetWcDetail", "Use Earn -> Run Once for approved useful work when the node is ready.");
+        }
+      }
+
+        // VOID_PARTICIPANT_DATANET_WC_STATUS_CALL_V1
+        refreshParticipantDatanetWcStatusV1().catch(() => {});
+
+
     const wcUiLink = document.querySelector('[data-local-wc-ui="1"]');
     if (wcUiLink) wcUiLink.setAttribute("href", LOCAL_WC_BASE + "/ui");
     const wcPoolLink = document.querySelector('[data-local-wc-pool="1"]');
@@ -52374,7 +52415,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         };
       }
 
-      
+
 
     const stakeNextOnboardStatus = $("stakeNextOnboardStatus");
     if (stakeNextOnboardBtn) {

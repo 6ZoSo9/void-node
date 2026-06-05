@@ -1273,3 +1273,7 @@ participant-public-ui-polish-proof:
 .PHONY: datanet-wc-status-v1-proof
 datanet-wc-status-v1-proof:
 	bash ops/mainnet0/datanet-wc-status-v1-proof.sh
+
+.PHONY: participant-datanet-wc-status-ui-proof
+participant-datanet-wc-status-ui-proof:
+	bash ops/mainnet0/participant-datanet-wc-status-ui-proof.sh
