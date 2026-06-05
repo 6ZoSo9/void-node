@@ -41815,12 +41815,54 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             if (!/^ds_[A-Za-z0-9_\-]+$/.test(id)) return res.status(400).send("bad_id");
 
             const file = path.join(dataDir(), "datanet_v1", "local_jobs", id + ".txt");
+            const provenanceFile = path.join(dataDir(), "datanet_v1", "local_jobs", id + ".provenance.json");
             if (!fs.existsSync(file)) return res.status(404).send("not_found");
 
             const plaintext = String(fs.readFileSync(file, "utf8") || "");
             const crypto = require("node:crypto");
             const sha256 = crypto.createHash("sha256").update(Buffer.from(plaintext, "utf8")).digest("hex");
             const sizeBytes = Buffer.byteLength(plaintext, "utf8");
+
+      let materializationProvenance:any = null;
+      let provenanceStatus:any = {
+        ok: true,
+        present: false,
+        schema: "void_datanet_materialized_provenance_status_v1"
+      };
+      try {
+        if (fs.existsSync(provenanceFile)) {
+          const pv:any = JSON.parse(String(fs.readFileSync(provenanceFile, "utf8") || "{}"));
+          const checks:any = {
+            schema_ok: String(pv?.schema || "") === "void_datanet_materialized_provenance_v1",
+            source_ok: String(pv?.source || "") === "peer_materialized",
+            dataset_id_match: String(pv?.dataset_id || "") === id,
+            who_match: String(pv?.who || "") === who,
+            peer_http_present: String(pv?.peer_http || "").startsWith("http://") || String(pv?.peer_http || "").startsWith("https://"),
+            receiver_file_match: String(pv?.receiver_file || "").endsWith(id + ".txt"),
+            sha256_match: String(pv?.sha256 || "") === sha256,
+            sizeBytes_match: Number(pv?.sizeBytes || -1) === sizeBytes,
+            materialized_at_ms_present: Number(pv?.materialized_at_ms || 0) > 0
+          };
+          const ok = Object.values(checks).every(Boolean);
+          provenanceStatus = {
+            ok,
+            present: true,
+            schema: "void_datanet_materialized_provenance_status_v1",
+            checks,
+            error: ok ? null : "materialization_provenance_mismatch"
+          };
+          if (ok) materializationProvenance = pv;
+        }
+      } catch (e:any) {
+        provenanceStatus = {
+          ok: false,
+          present: true,
+          schema: "void_datanet_materialized_provenance_status_v1",
+          error: "materialization_provenance_read_error",
+          msg: String(e?.message || e)
+        };
+      }
+
       const previewText = plaintext.length > 220 ? (plaintext.slice(0, 220) + "…") : plaintext;
       let parsed:any = null;
       try { parsed = JSON.parse(plaintext); } catch {}
@@ -41842,6 +41884,19 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
         plaintext.includes('"task_class":"datanet_fetch_verify"') ? { label: "Verified Dataset", style: "color:#93c5fd;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.28)" } :
         plaintext.includes('"task_class":"datanet_publish"') ? { label: "Published Dataset", style: "color:#86efac;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.28)" } :
         { label: "Dataset", style: "color:#e5e7eb;background:rgba(148,163,184,.10);border:1px solid rgba(148,163,184,.25)" };
+
+      const provenanceLabel =
+        provenanceStatus?.present
+          ? (provenanceStatus?.ok ? "Provenance verified" : "Provenance mismatch")
+          : "Local origin / no peer provenance";
+      const provenanceTone =
+        provenanceStatus?.present
+          ? (provenanceStatus?.ok
+              ? "color:#86efac;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.28)"
+              : "color:#fca5a5;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.28)")
+          : "color:#cbd5e1;background:rgba(148,163,184,.10);border:1px solid rgba(148,163,184,.25)";
+      const provChecks = provenanceStatus?.checks || {};
+      const prov = materializationProvenance || {};
 
             const esc = (v:any) => String(v == null ? "" : v)
               .replace(/&/g, "&amp;")
@@ -41895,6 +41950,24 @@ a{color:#93c5fd;text-decoration:none}
       <div class="k">SHA-256</div><div><code>${esc(sha256)}</code></div>
       <div class="k">Bytes</div><div>${esc(sizeBytes)}</div>
       <div class="k">Source</div><div><code>${esc(file)}</code></div>
+    </div>
+  </div>
+
+  <div class="card" data-void-materialized-provenance-status="v1">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;${provenanceTone}">${esc(provenanceLabel)}</span>
+      <span class="sub">Materialized copy audit status</span>
+    </div>
+    <div class="meta">
+      <div class="k">Status</div><div><code>${esc(provenanceStatus?.ok ? "ok" : "mismatch")}</code></div>
+      <div class="k">Schema</div><div><code>${esc(provenanceStatus?.schema || "-")}</code></div>
+      <div class="k">Peer source</div><div><code>${esc(prov?.peer_http || "-")}</code></div>
+      <div class="k">Receiver file</div><div><code>${esc(prov?.receiver_file || "-")}</code></div>
+      <div class="k">Provenance SHA-256</div><div><code>${esc(prov?.sha256 || "-")}</code></div>
+      <div class="k">Provenance bytes</div><div><code>${esc(prov?.sizeBytes ?? "-")}</code></div>
+      <div class="k">Materialized at</div><div><code>${esc(prov?.materialized_at_ms || "-")}</code></div>
+      <div class="k">Mismatch reason</div><div><code>${esc(provenanceStatus?.error || "-")}</code></div>
+      <div class="k">Checks</div><div><code>${esc(JSON.stringify(provChecks))}</code></div>
     </div>
   </div>
 
