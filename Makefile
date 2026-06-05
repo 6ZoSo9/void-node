@@ -1325,3 +1325,7 @@ participant-share-open-materialized-provenance-mismatch-guard-proof:
 .PHONY: participant-share-open-materialized-provenance-status-view-proof
 participant-share-open-materialized-provenance-status-view-proof:
 	bash ops/two-box-materialized-provenance-status-view-proof.sh
+
+.PHONY: tailscale-ssh-auth-preflight-proof
+tailscale-ssh-auth-preflight-proof:
+	bash ops/tailscale-ssh-auth-preflight-proof.sh
