@@ -1329,3 +1329,7 @@ participant-share-open-materialized-provenance-status-view-proof:
 .PHONY: tailscale-ssh-auth-preflight-proof
 tailscale-ssh-auth-preflight-proof:
 	bash ops/tailscale-ssh-auth-preflight-proof.sh
+
+.PHONY: datanet-materialized-current-baseline-proof
+datanet-materialized-current-baseline-proof:
+	bash ops/datanet-materialized-current-baseline-proof.sh
