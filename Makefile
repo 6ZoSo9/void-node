@@ -1269,3 +1269,7 @@ mainnet0-public-communications-stack-proof:
 .PHONY: participant-public-ui-polish-proof
 participant-public-ui-polish-proof:
 	bash ops/mainnet0/participant-public-ui-polish-proof.sh
+
+.PHONY: datanet-wc-status-v1-proof
+datanet-wc-status-v1-proof:
+	bash ops/mainnet0/datanet-wc-status-v1-proof.sh

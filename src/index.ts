@@ -16189,6 +16189,101 @@ void_uptime_ms ${Math.max(0,(process.uptime?.()||0)*1000)|0}
     if (!app || typeof app.get !== "function"){ if(++tries<MAX_TRIES) return setTimeout(attach, RETRY); return; }
     if (attached) return; attached = true;
 
+
+// === [BEGIN DataNetWcParticipantStatusV1] ===
+// Functional participant-facing DataNet/WC status.
+// Purpose: expose the useful-work loop surface without requiring proof-log spelunking.
+// Routes:
+//   GET /__void/datanet/status
+//   GET /__void/participant/datanet-wc/status?account=zoso
+try {
+  const __datanetWcStatusV1 = async (req: any, res: any) => {
+    const pathMod: any = await import("path");
+    const pathAny: any = pathMod.default || pathMod;
+
+    const accountRaw = String((req.query && (req.query.account || req.query.who)) || "zoso").trim();
+    const account = accountRaw || "zoso";
+
+    const root = process.env.VOID_DATA_DIR || pathAny.join(process.cwd(), "data_a");
+
+    const receiptsFile = process.env.VOID_DATANET_RECEIPTS_FILE || pathAny.join(root, "datanet", "receipts", "datanet.jsonl");
+    const wcLedgerFile = pathAny.join(root, "wc_v1", "ledger.jsonl");
+
+    function jsonlStats(file: string, filter?: (x: any) => boolean) {
+      const out: any = {
+        file,
+        exists: false,
+        total: 0,
+        matched: 0,
+        last_ts_ms: null,
+        last_id: null,
+        last_reason: null,
+      };
+
+      try {
+        if (!fs.existsSync(file)) return out;
+        out.exists = true;
+        const lines = fs.readFileSync(file, "utf8").split(/\n/).filter(Boolean);
+        out.total = lines.length;
+
+        for (const line of lines) {
+          let j: any = null;
+          try { j = JSON.parse(line); } catch { continue; }
+          if (filter && !filter(j)) continue;
+          out.matched += 1;
+          out.last_ts_ms = j.ts_ms || j.ts || j.completed_at_ms || j.created_at_ms || out.last_ts_ms;
+          out.last_id = j.receipt_id || j.id || j.job_id || out.last_id;
+          out.last_reason = j.reason || j.kind || j.task_class || j.source || out.last_reason;
+        }
+      } catch (e: any) {
+        out.error = String(e && e.message || e);
+      }
+
+      return out;
+    }
+
+    const receipts = jsonlStats(receiptsFile, (j: any) => !!(j && (j.ok === true || j.accepted === true || j.verified === true || j.status === "completed")));
+    const wcAccount = jsonlStats(wcLedgerFile, (j: any) => String(j && (j.account || j.who || "")) === account);
+
+    res.json({
+      ok: true,
+      account,
+      public_safe: true,
+      mutation: false,
+      datanet: {
+        status: receipts.exists ? "available" : "receipts_file_missing",
+        canonical_api: "/datanet/v1",
+        publish_path: "/datanet/v1/publish",
+        fetch_path: "/datanet/v1/fetch",
+        receipts_status_path: "/datanet/v1/receipts/status",
+        receipts,
+      },
+      wc: {
+        ledger_file: wcLedgerFile,
+        account_events: wcAccount,
+        redeemable_path: "/wc/redeemable?account=" + encodeURIComponent(account),
+        runner_status_path: "/wc/runner/status?account=" + encodeURIComponent(account),
+      },
+      participant_next_step: "Use Earn -> Run Once for approved useful work; DataNet receipts can credit WC when accepted.",
+      safety: {
+        automatic_background_loop: "disabled_on_public_safe_node",
+        useful_work_policy: "useful_verifiable_only",
+        wallet_send: false,
+        wc_to_void_swap: false,
+        buy_void_fulfillment: false,
+        validator_mutation: false,
+      }
+    });
+  };
+
+  app.get("/__void/datanet/status", __datanetWcStatusV1);
+  app.get("/__void/participant/datanet-wc/status", __datanetWcStatusV1);
+  try { console.log("[datanet.wc.status.v1] mounted /__void/datanet/status and /__void/participant/datanet-wc/status"); } catch {}
+} catch (e: any) {
+  try { console.error("[datanet.wc.status.v1] mount failed:", e?.message || String(e)); } catch {}
+}
+// === [END DataNetWcParticipantStatusV1] ===
+
     app.get("/__void/ready.json", async (_req,res)=>{
       const {head, live, seen} = await readInputs();
       const seenEff = (Number.isFinite(seen) && seen >= 0) ? seen : ((Number.isFinite(head) && head >= 0) ? head : seen);
