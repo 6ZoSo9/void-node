@@ -1301,3 +1301,7 @@ participant-share-open-no-manual-peer-seed-proof:
 .PHONY: participant-share-open-materialized-local-persistence-proof
 participant-share-open-materialized-local-persistence-proof:
 	bash ops/two-box-materialized-local-persistence-proof.sh
+
+.PHONY: participant-share-open-materialized-local-restart-persistence-proof
+participant-share-open-materialized-local-restart-persistence-proof:
+	bash ops/two-box-materialized-local-restart-persistence-proof.sh
