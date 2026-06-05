@@ -56281,6 +56281,47 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 })();
 </script>
 
+
+<section
+  id="void-datanet-materialized-status-card"
+  data-void-datanet-materialized-participant-status-card="VOID_DATANET_MATERIALIZED_PARTICIPANT_STATUS_CARD_V1"
+  style="margin:14px 0;padding:14px;border:1px solid rgba(34,197,94,.30);border-radius:16px;background:rgba(34,197,94,.08);color:#e5e7eb"
+>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+    <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;color:#86efac;background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.32);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.02em">DataNet proven</span>
+    <strong>DataNet materialization status</strong>
+  </div>
+  <div style="color:#94a3b8;margin-bottom:10px">
+    The current two-box DataNet materialized share/open baseline is green, with provenance, copy integrity, restart persistence, and served public status proofs.
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px">
+    <a
+      href="/datanet/materialized-status"
+      style="display:inline-flex;align-items:center;padding:8px 12px;border:1px solid #334155;border-radius:12px;background:#111827;color:#e5e7eb;text-decoration:none;font-weight:700"
+    >Open DataNet status</a>
+    <a
+      href="/__void/datanet/materialized-status.json"
+      style="display:inline-flex;align-items:center;padding:8px 12px;border:1px solid #334155;border-radius:12px;background:#111827;color:#e5e7eb;text-decoration:none;font-weight:700"
+    >Open JSON</a>
+  </div>
+</section>
+<script>
+(function(){
+  try {
+    var card = document.getElementById("void-datanet-materialized-status-card");
+    if (!card) return;
+    var target =
+      document.querySelector("#datanet") ||
+      document.querySelector("[data-tab-panel='datanet']") ||
+      document.querySelector("[data-panel='datanet']") ||
+      document.querySelector("[data-section='datanet']") ||
+      document.querySelector("main") ||
+      document.body;
+    if (target && card.parentNode !== target) target.insertBefore(card, target.firstChild);
+  } catch (_) {}
+})();
+</script>
+
 </body>
 </html>`;
   }
