@@ -1345,3 +1345,7 @@ datanet-materialized-public-status-served-proof:
 .PHONY: datanet-materialized-participant-status-card-proof
 datanet-materialized-participant-status-card-proof:
 	bash ops/datanet-materialized-participant-status-card-proof.sh
+
+.PHONY: datanet-materialized-public-discoverability-closeout-proof
+datanet-materialized-public-discoverability-closeout-proof:
+	bash ops/datanet-materialized-public-discoverability-closeout-proof.sh
