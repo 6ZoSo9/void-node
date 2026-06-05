@@ -41727,14 +41727,46 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
             try { parsed = JSON.parse(plaintext); } catch {}
 
             let materialization_provenance_v1:any = null;
+            let materialization_provenance_status_v1:any = {
+              ok: true,
+              present: false,
+              schema: "void_datanet_materialized_provenance_status_v1"
+            };
             try {
               if (fs.existsSync(provenanceFile)) {
                 const pv:any = JSON.parse(String(fs.readFileSync(provenanceFile, "utf8") || "{}"));
-                if (pv && String(pv?.dataset_id || "") === id && String(pv?.who || "") === who) {
+                const checks:any = {
+                  schema_ok: String(pv?.schema || "") === "void_datanet_materialized_provenance_v1",
+                  source_ok: String(pv?.source || "") === "peer_materialized",
+                  dataset_id_match: String(pv?.dataset_id || "") === id,
+                  who_match: String(pv?.who || "") === who,
+                  peer_http_present: String(pv?.peer_http || "").startsWith("http://") || String(pv?.peer_http || "").startsWith("https://"),
+                  receiver_file_match: String(pv?.receiver_file || "").endsWith(id + ".txt"),
+                  sha256_match: String(pv?.sha256 || "") === sha256,
+                  sizeBytes_match: Number(pv?.sizeBytes || -1) === Buffer.byteLength(plaintext, "utf8"),
+                  materialized_at_ms_present: Number(pv?.materialized_at_ms || 0) > 0
+                };
+                const ok = Object.values(checks).every(Boolean);
+                materialization_provenance_status_v1 = {
+                  ok,
+                  present: true,
+                  schema: "void_datanet_materialized_provenance_status_v1",
+                  checks,
+                  error: ok ? null : "materialization_provenance_mismatch"
+                };
+                if (ok) {
                   materialization_provenance_v1 = pv;
                 }
               }
-            } catch {}
+            } catch (e:any) {
+              materialization_provenance_status_v1 = {
+                ok: false,
+                present: true,
+                schema: "void_datanet_materialized_provenance_status_v1",
+                error: "materialization_provenance_read_error",
+                msg: String(e?.message || e)
+              };
+            }
 
             const task_class = String(parsed?.task_class || "").trim() || null;
             let receipt_id = String(parsed?.receipt_id || parsed?.latest_receipt_id || "").trim() || null;
@@ -41762,6 +41794,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
               latest_receipt_id: receipt_id,
               latest_job_id: job_id,
               materialization_provenance_v1,
+              materialization_provenance_status_v1,
               plaintext
             });
           } catch (e:any) {
