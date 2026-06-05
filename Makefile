@@ -1289,3 +1289,7 @@ participant-run-once-visible-result-proof:
 .PHONY: tailnet-http-public-base-proof
 tailnet-http-public-base-proof:
 	bash ops/mainnet0/tailnet-http-public-base-proof.sh
+
+.PHONY: mutual-tailnet-peer-env-proof
+mutual-tailnet-peer-env-proof:
+	bash ops/mainnet0/mutual-tailnet-peer-env-proof.sh
