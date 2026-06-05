@@ -89,6 +89,15 @@ check_baseline() {
   jget "$base/__void/peer-main-status.json" 10 | tee "$out/${label}-peer.json" >/dev/null
 }
 
+echo
+echo "=== Tailscale SSH auth preflight guard ==="
+if [ "${VOID_SKIP_TAILSCALE_PREFLIGHT:-0}" != "1" ]; then
+  make tailscale-ssh-auth-preflight-proof
+else
+  echo "[warn] VOID_SKIP_TAILSCALE_PREFLIGHT=1; skipping auth preflight"
+fi
+echo "[ok] Tailscale SSH auth preflight guard passed"
+
 echo "=== [1] baseline truth ==="
 check_baseline local "$LOCAL_NODE_BASE" "$OUT_DIR"
 check_baseline remote "$REMOTE_NODE_BASE" "$OUT_DIR"
