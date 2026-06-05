@@ -1337,3 +1337,7 @@ datanet-materialized-current-baseline-proof:
 .PHONY: datanet-materialized-public-status-surface-proof
 datanet-materialized-public-status-surface-proof:
 	bash ops/datanet-materialized-public-status-surface-proof.sh
+
+.PHONY: datanet-materialized-public-status-served-proof
+datanet-materialized-public-status-served-proof:
+	bash ops/datanet-materialized-public-status-served-proof.sh

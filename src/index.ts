@@ -42005,7 +42005,175 @@ a{color:#93c5fd;text-decoration:none}
       } catch {}
     })();
 
-    // __void_datanet_consumer_fetch_v1
+        // __void_datanet_materialized_public_status_routes_v1
+    ;(() => {
+      try {
+        const APP:any = (globalThis as any).__void_http_app || (typeof app !== "undefined" ? app : null);
+        if (!APP || typeof APP.get !== "function") return;
+        if ((APP as any).__void_datanet_materialized_public_status_routes_v1) return;
+        (APP as any).__void_datanet_materialized_public_status_routes_v1 = true;
+
+        const fs = require("node:fs");
+        const path = require("node:path");
+
+        const root = process.cwd();
+        const statusMdPath = path.join(root, "docs", "public", "datanet-materialized-current-status.md");
+        const statusJsonPath = path.join(root, "docs", "public", "datanet-materialized-current-status.json");
+        const baselineMdPath = path.join(root, "docs", "public", "datanet-materialized-current-baseline.md");
+        const currentPublicStatusPath = path.join(root, "docs", "public", "mainnet0-current-public-status.md");
+
+        const esc = (v:any) => String(v == null ? "" : v)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+
+        const readText = (file:string) => {
+          try { return String(fs.readFileSync(file, "utf8") || ""); } catch { return ""; }
+        };
+
+        const readJson = (file:string) => {
+          const txt = readText(file);
+          try { return JSON.parse(txt); } catch { return null; }
+        };
+
+        APP.get("/__void/datanet/materialized-status.json", (_req:any, res:any) => {
+          try {
+            const j = readJson(statusJsonPath);
+            if (!j) return res.status(404).json({ ok:false, error:"datanet_materialized_status_json_not_found" });
+            return res.status(200).json({
+              ok: true,
+              served_surface: "void_datanet_materialized_public_status_routes_v1",
+              ...j
+            });
+          } catch (e:any) {
+            return res.status(500).json({ ok:false, error:"datanet_materialized_status_json_throw", msg:String(e?.message || e) });
+          }
+        });
+
+        APP.get("/__void/datanet/materialized-status.md", (_req:any, res:any) => {
+          try {
+            const txt = readText(statusMdPath);
+            if (!txt) return res.status(404).type("text/plain").send("datanet_materialized_status_md_not_found");
+            return res.status(200).type("text/markdown; charset=utf-8").send(txt);
+          } catch (e:any) {
+            return res.status(500).type("text/plain").send(String(e?.message || e));
+          }
+        });
+
+        APP.get("/datanet/materialized-status", (_req:any, res:any) => {
+          try {
+            const md = readText(statusMdPath);
+            const bj = readJson(statusJsonPath);
+            const baseline = readText(baselineMdPath);
+            const publicStatus = readText(currentPublicStatusPath);
+
+            if (!md || !bj) return res.status(404).type("text/plain").send("datanet_materialized_status_not_found");
+
+            const checkpoint = String(bj?.current_baseline_checkpoint || "");
+            const head = String(bj?.current_baseline_head || "");
+            const runtime = bj?.runtime || {};
+            const lanes = bj?.green_lanes || {};
+            const safety = bj?.safety_invariants || {};
+
+            const laneRows = Object.keys(lanes).sort().map((k) =>
+              `<tr><td><code>${esc(k)}</code></td><td>${lanes[k] === true ? "green" : esc(String(lanes[k]))}</td></tr>`
+            ).join("");
+
+            const safetyRows = Object.keys(safety).sort().map((k) =>
+              `<tr><td><code>${esc(k)}</code></td><td>${esc(String(safety[k]))}</td></tr>`
+            ).join("");
+
+            const linkedFromPublicStatus = publicStatus.includes("VOID_DATANET_MATERIALIZED_PUBLIC_STATUS_BLOCK_V1_START");
+            const baselineMarkerPresent = baseline.includes("VOID_DATANET_MATERIALIZED_CURRENT_BASELINE_V1");
+
+            const html = `<!doctype html>
+    <html lang="en">
+    <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>VOID DataNet Materialized Status</title>
+    <style>
+    body{margin:0;padding:24px;background:#020617;color:#e5e7eb;font:14px/1.5 Inter,system-ui,sans-serif}
+    .wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+    .card{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:16px}
+    h1{margin:0 0 6px;font-size:28px}
+    h2{margin:0 0 10px;font-size:18px}
+    .sub{color:#94a3b8}
+    .ok{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;color:#86efac;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.28);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.02em}
+    .meta{display:grid;grid-template-columns:220px 1fr;gap:8px 12px}
+    .k{color:#93c5fd;font-weight:700}
+    code,pre{background:#020617;border:1px solid #1e293b;border-radius:10px}
+    code{padding:2px 6px}
+    pre{padding:14px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+    .row{display:flex;flex-wrap:wrap;gap:10px}
+    a{color:#93c5fd;text-decoration:none}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #334155;border-radius:12px;background:#111827;color:#e5e7eb;text-decoration:none;font-weight:700}
+    table{width:100%;border-collapse:collapse}
+    td{border-top:1px solid #1e293b;padding:8px;vertical-align:top}
+    </style>
+    </head>
+    <body>
+    <div class="wrap" data-void-datanet-materialized-public-status="VOID_DATANET_MATERIALIZED_PUBLIC_STATUS_V1">
+      <div class="card">
+        <div class="row" style="align-items:center">
+          <span class="ok">DataNet materialization green</span>
+          <span class="sub">Served public status surface</span>
+        </div>
+        <h1>VOID DataNet Materialized Status</h1>
+        <div class="sub">Human-readable status backed by the committed public Markdown/JSON artifacts and baseline proof.</div>
+      </div>
+
+      <div class="card">
+        <h2>Checkpoint</h2>
+        <div class="meta">
+          <div class="k">Current baseline head</div><div><code>${esc(head)}</code></div>
+          <div class="k">Current baseline checkpoint</div><div><code>${esc(checkpoint)}</code></div>
+          <div class="k">Ready</div><div><code>${esc(runtime.ready)}</code></div>
+          <div class="k">Runtime head</div><div><code>${esc(runtime.head)}</code></div>
+          <div class="k">Gap</div><div><code>${esc(runtime.gap)}</code></div>
+          <div class="k">Txroot live</div><div><code>${esc(runtime.txroot_live)}</code></div>
+          <div class="k">Linked from public status doc</div><div><code>${esc(linkedFromPublicStatus)}</code></div>
+          <div class="k">Baseline marker present</div><div><code>${esc(baselineMarkerPresent)}</code></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Green lanes</h2>
+        <table>${laneRows}</table>
+      </div>
+
+      <div class="card">
+        <h2>Safety invariants</h2>
+        <table>${safetyRows}</table>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <a class="btn" href="/__void/datanet/materialized-status.json" target="_blank" rel="noopener">Open JSON</a>
+          <a class="btn" href="/__void/datanet/materialized-status.md" target="_blank" rel="noopener">Open Markdown</a>
+          <a class="btn" href="/participant#datanet">Back to Participant</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Raw status Markdown</h2>
+        <pre>${esc(md)}</pre>
+      </div>
+    </div>
+    </body>
+    </html>`;
+            return res.status(200).type("html").send(html);
+          } catch (e:any) {
+            return res.status(500).type("text/plain").send(String(e?.message || e));
+          }
+        });
+
+        try { console.log("[datanet.materialized_public_status.v1] mounted: /datanet/materialized-status, /__void/datanet/materialized-status.json, /__void/datanet/materialized-status.md"); } catch {}
+      } catch {}
+    })();
+
+// __void_datanet_consumer_fetch_v1
     ;(() => {
       try {
         const APP:any = (globalThis as any).__void_http_app || (typeof app !== "undefined" ? app : null);
