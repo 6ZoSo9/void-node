@@ -478,3 +478,16 @@ buy_void_fulfillment: false
 validator_mutation: false
 
 The participant public UI polish v1 checkpoint makes the first participant screen clearer for public users while preserving the safe path: Wallet first, Earn WC, DataNet, guided Buy VOID request creation, WC-to-VOID path visibility, staking preview, and guarded money-moving / active-validator actions. This checkpoint is UI/proof-only and did not perform Buy VOID fulfillment, validator mutation, wallet sends, swaps, or authority changes.
+
+<!-- VOID_DATANET_MATERIALIZED_PUBLIC_STATUS_BLOCK_V1_START -->
+## DataNet materialization status
+
+DataNet materialization is currently green on the two-box Mainnet-0 baseline.
+
+- Status artifact: `docs/public/datanet-materialized-current-status.md`
+- Machine status: `docs/public/datanet-materialized-current-status.json`
+- Baseline doc: `docs/public/datanet-materialized-current-baseline.md`
+- Baseline checkpoint: `ckpt-datanet-materialized-current-baseline-v1-green-20260605-155821`
+- Stack sweep checkpoint: `ckpt-no-manual-peer-seed-tailscale-preflight-guard-v1-green-20260605-154722`
+
+<!-- VOID_DATANET_MATERIALIZED_PUBLIC_STATUS_BLOCK_V1_END -->

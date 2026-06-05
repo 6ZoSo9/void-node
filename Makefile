@@ -1333,3 +1333,7 @@ tailscale-ssh-auth-preflight-proof:
 .PHONY: datanet-materialized-current-baseline-proof
 datanet-materialized-current-baseline-proof:
 	bash ops/datanet-materialized-current-baseline-proof.sh
+
+.PHONY: datanet-materialized-public-status-surface-proof
+datanet-materialized-public-status-surface-proof:
+	bash ops/datanet-materialized-public-status-surface-proof.sh
