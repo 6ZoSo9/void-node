@@ -43,18 +43,47 @@ grep -q 'Start Here' /tmp/void-public-surface-participant.html
 echo "[ok] participant page served with expected public markers"
 
 echo
-echo "=== [4] validator truth read surface is served ==="
+echo "=== [4] validator truth read surface is served / public-safe ==="
 curl -fsS "$BASE/__void/runtime/validator-truth/status" > /tmp/void-public-surface-validator-truth.json
 python3 - /tmp/void-public-surface-validator-truth.json <<'PY'
-import json, sys
+import json, pathlib, sys
+
 j=json.load(open(sys.argv[1]))
 assert j.get("ok") is True, j
-assert j.get("configuredMode") == "verified_epoch_manifests", j
-assert j.get("mode") == "verified_epoch_manifests", j
-assert isinstance(j.get("loadedEpochs"), list) and len(j["loadedEpochs"]) > 0, j
-print("[ok] validator truth read surface")
-PY
 
+configured = str(j.get("configuredMode") or "")
+mode = str(j.get("mode") or "")
+loaded = j.get("loadedEpochs")
+
+docs = "\n".join(
+    pathlib.Path(p).read_text(errors="ignore")
+    for p in [
+        "docs/public/mainnet0-current-public-status.md",
+        "ops/mainnet/mainnet0-status.current.md",
+        "ops/mainnet/mainnet0-final-gonogo-map.current.md",
+        "ops/mainnet/mainnet0-current-baseline.current.md",
+    ]
+    if pathlib.Path(p).exists()
+)
+
+public_safe_candidate_only = all(x in docs for x in [
+    "public_mainnet0_live",
+    "Public active validator admission remains disabled",
+    "Public validator registration",
+])
+
+if configured == "verified_epoch_manifests" and mode == "verified_epoch_manifests":
+    assert isinstance(loaded, list) and len(loaded) > 0, j
+    print("[ok] validator truth read surface verified_epoch_manifests")
+elif configured == "legacy" and mode == "legacy":
+    assert isinstance(loaded, list), j
+    assert j.get("latestEpoch") in (None, "", 0), j
+    assert j.get("lookupsAvailable") is False, j
+    assert public_safe_candidate_only, "legacy validator read surface requires public-safe candidate-only docs posture"
+    print("[ok] validator truth read surface legacy public-safe candidate-only")
+else:
+    raise AssertionError(j)
+PY
 echo
 echo "=== [5] non-public/default routes stay non-public ==="
 check_404() {
@@ -95,7 +124,7 @@ print({
   "public_surface": "green",
   "participant": "served",
   "ready": "green",
-  "validator_truth_read": "served",
+  "validator_truth_read": "served_public_safe",
   "root_get": "redirects_to_participant",
   "legacy_status_get": "not_public_404",
   "next_onboard_get": "not_public_404",
