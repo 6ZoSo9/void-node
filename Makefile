@@ -1321,3 +1321,7 @@ participant-share-open-materialized-provenance-restart-persistence-proof:
 .PHONY: participant-share-open-materialized-provenance-mismatch-guard-proof
 participant-share-open-materialized-provenance-mismatch-guard-proof:
 	bash ops/two-box-materialized-provenance-mismatch-guard-proof.sh
+
+.PHONY: participant-share-open-materialized-provenance-status-view-proof
+participant-share-open-materialized-provenance-status-view-proof:
+	bash ops/two-box-materialized-provenance-status-view-proof.sh
