@@ -1277,3 +1277,7 @@ datanet-wc-status-v1-proof:
 .PHONY: participant-datanet-wc-status-ui-proof
 participant-datanet-wc-status-ui-proof:
 	bash ops/mainnet0/participant-datanet-wc-status-ui-proof.sh
+
+.PHONY: participant-run-once-wc-delta-proof
+participant-run-once-wc-delta-proof:
+	bash ops/mainnet0/participant-run-once-wc-delta-proof.sh
