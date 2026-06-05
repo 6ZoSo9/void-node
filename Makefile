@@ -1297,3 +1297,7 @@ mutual-tailnet-peer-env-proof:
 .PHONY: participant-share-open-no-manual-peer-seed-proof
 participant-share-open-no-manual-peer-seed-proof:
 	bash ops/two-box-ui-share-open-both-ways-no-seed-proof.sh
+
+.PHONY: participant-share-open-materialized-local-persistence-proof
+participant-share-open-materialized-local-persistence-proof:
+	bash ops/two-box-materialized-local-persistence-proof.sh
