@@ -1293,3 +1293,7 @@ tailnet-http-public-base-proof:
 .PHONY: mutual-tailnet-peer-env-proof
 mutual-tailnet-peer-env-proof:
 	bash ops/mainnet0/mutual-tailnet-peer-env-proof.sh
+
+.PHONY: participant-share-open-no-manual-peer-seed-proof
+participant-share-open-no-manual-peer-seed-proof:
+	bash ops/two-box-ui-share-open-both-ways-no-seed-proof.sh

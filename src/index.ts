@@ -41906,11 +41906,45 @@ a{color:#93c5fd;text-decoration:none}
           }
 
           let peers:any[] = [];
+
+          const addDurableEnvPeers = (raw:any) => {
+            for (const part of String(raw || "").split(/[,\s]+/).map((x:string) => x.trim()).filter(Boolean)) {
+              try {
+                const u = new URL(part);
+                if (u.protocol !== "http:" && u.protocol !== "https:") continue;
+                u.pathname = "";
+                u.search = "";
+                u.hash = "";
+                const http = u.toString().replace(/\/+$/, "");
+                if (!http) continue;
+                if (peers.some((p:any) => String(p?.http || "") === http)) continue;
+                peers.push({
+                  id: "env:" + String(u.host || http),
+                  http,
+                  p2p: "",
+                  capabilities: ["blob", "tx", "block"],
+                  source: "durable_env_peer_v1"
+                });
+              } catch {}
+            }
+          };
+
+          addDurableEnvPeers(process.env.VOID_SITE_BUNDLE_PEERS);
+          addDurableEnvPeers(process.env.VOID_DATANET_SITE_BUNDLE_PEERS);
+          addDurableEnvPeers(process.env.VOID_DATANET_PEERS);
+          addDurableEnvPeers(process.env.VOID_DRIFT_PEER);
+
           try {
             const rr = await fetch(selfBase + "/peers/registry");
             if (rr.ok) {
               const rj:any = await rr.json().catch(() => ({}));
-              peers = Array.isArray(rj?.peers) ? rj.peers : [];
+              const regPeers = Array.isArray(rj?.peers) ? rj.peers : [];
+              for (const rp of regPeers) {
+                const http = String(rp?.http || "").trim();
+                if (!http) continue;
+                if (peers.some((p:any) => String(p?.http || "") === http)) continue;
+                peers.push(rp);
+              }
             }
           } catch {}
 
@@ -44458,7 +44492,7 @@ a{color:#93c5fd;text-decoration:none}
   }
 
   // __void_datanet_peer_fetch_fallback_v1
-  async function tryFetchDatasetFromPeers(datasetId:string, expectedHash:string=""): Promise<{ ok:boolean; path?:string; fetchedFrom?:string; fetchedHash?:string; error?:string }> {
+  async function tryFetchDatasetFromPeers(datasetId:string, expectedHash:string="", who:string="zoso"): Promise<{ ok:boolean; path?:string; fetchedFrom?:string; fetchedHash?:string; error?:string }> {
     const fs = require("node:fs");
     const path = require("node:path");
 
@@ -44485,13 +44519,26 @@ a{color:#93c5fd;text-decoration:none}
         };
 
         try {
+          const addEnvPeerBases = (raw:any) => {
+            for (const part of String(raw || "").split(/[,\s]+/).map((x:string) => x.trim()).filter(Boolean)) {
+              try {
+                const u = new URL(part);
+                if (u.protocol !== "http:" && u.protocol !== "https:") continue;
+                u.pathname = "";
+                u.search = "";
+                u.hash = "";
+                addPeer(u.toString().replace(/\/+$/, ""), "");
+              } catch {}
+            }
+          };
+
           const mainBase = String(process.env.VOID_MAIN_BASE || "").trim();
           if (mainBase) addPeer(mainBase, String(process.env.BOOTSTRAP_ADDRS || "").trim());
-        } catch {}
 
-        try {
-          const peerBase = String(process.env.VOID_DRIFT_PEER || "").trim();
-          if (peerBase) addPeer(peerBase, "");
+          addEnvPeerBases(process.env.VOID_SITE_BUNDLE_PEERS);
+          addEnvPeerBases(process.env.VOID_DATANET_SITE_BUNDLE_PEERS);
+          addEnvPeerBases(process.env.VOID_DATANET_PEERS);
+          addEnvPeerBases(process.env.VOID_DRIFT_PEER);
         } catch {}
 
         try {
@@ -44530,7 +44577,7 @@ a{color:#93c5fd;text-decoration:none}
             if (adv && host === adv) continue;
           }
 
-          const url = new URL("/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=zoso", httpBase).toString();
+          const url = new URL("/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(String(who || "zoso")), httpBase).toString();
           const r = await fetch(url);
           if (!r.ok) continue;
 
@@ -44962,7 +45009,7 @@ a{color:#93c5fd;text-decoration:none}
         const expectedHash = safeStr(verifyInput.expected_input_hash || verifyInput.input_hash || "", 128);
 
         if (!fs.existsSync(payloadPath)) {
-          const pulled = await tryFetchDatasetFromPeers(datasetId, expectedHash);
+          const pulled = await tryFetchDatasetFromPeers(datasetId, expectedHash, safeStr((job as any)?.account || "zoso", 160));
           if (!pulled.ok || !pulled.path) throw new Error(pulled.error || "dataset_not_found");
           payloadPath = pulled.path;
         }
@@ -45037,7 +45084,7 @@ a{color:#93c5fd;text-decoration:none}
         const expectedHash = safeStr(checkInput.expected_input_hash || checkInput.input_hash || "", 128);
 
         if (!fs.existsSync(payloadPath)) {
-          const pulled = await tryFetchDatasetFromPeers(datasetId, expectedHash);
+          const pulled = await tryFetchDatasetFromPeers(datasetId, expectedHash, safeStr((job as any)?.account || "zoso", 160));
           if (!pulled.ok || !pulled.path) throw new Error(pulled.error || "dataset_not_found");
           payloadPath = pulled.path;
         }
