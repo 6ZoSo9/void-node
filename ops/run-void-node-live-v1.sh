@@ -15,4 +15,4 @@ if [ -n "${VOID_HTTP_HOST:-}" ]; then
   export VOID_HTTP_HOST
 fi
 
-exec npm exec tsx src/index.ts
+exec ./node_modules/.bin/tsx src/index.ts
