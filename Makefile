@@ -1369,3 +1369,6 @@ vps-public-seed-preflight-v1-proof:
 
 vps-public-seed-gateway-install-v1-proof:
 	bash ops/public/vps-public-seed-gateway-install-v1-proof.sh
+
+vps-public-seed-remote-proof-v1-proof:
+	bash ops/public/vps-public-seed-remote-proof-v1-proof.sh
