@@ -15,4 +15,8 @@ if [ -n "${VOID_HTTP_HOST:-}" ]; then
   export VOID_HTTP_HOST
 fi
 
-exec ./node_modules/.bin/tsx src/index.ts
+ROOT="$(pwd)"
+exec /usr/bin/node \
+  --require "$ROOT/node_modules/tsx/dist/preflight.cjs" \
+  --import "file://$ROOT/node_modules/tsx/dist/loader.mjs" \
+  "$ROOT/src/index.ts"
