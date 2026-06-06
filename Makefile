@@ -1372,3 +1372,7 @@ vps-public-seed-gateway-install-v1-proof:
 
 vps-public-seed-remote-proof-v1-proof:
 	bash ops/public/vps-public-seed-remote-proof-v1-proof.sh
+
+.PHONY: public-seed-adapter-status
+public-seed-adapter-status:
+	VOID_ADAPTER_HOST=$${VOID_ADAPTER_HOST:-100.122.79.39} VOID_ADAPTER_PORT=$${VOID_ADAPTER_PORT:-4111} bash ops/public/public-seed-adapter-status-v1.sh
