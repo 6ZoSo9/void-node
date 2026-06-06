@@ -1392,3 +1392,7 @@ vps-public-seed-deploy-v2:
 .PHONY: vps-public-seed-internet-proof-v2
 vps-public-seed-internet-proof-v2:
 	bash ops/public/vps-public-seed-internet-proof-v2.sh
+
+.PHONY: alienware-funnel-public-seed
+alienware-funnel-public-seed:
+	bash ops/public/alienware-funnel-public-seed-v1.sh
