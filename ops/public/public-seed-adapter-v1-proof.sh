@@ -23,6 +23,12 @@ cat "$LOG"
 
 curl -fsS --max-time 8 http://127.0.0.1:4111/__void/ready.json | grep -Fq '"ready":true'
 
+curl -fsS --max-time 8 http://127.0.0.1:4111/__void/adapter.json -o "$OUT/adapter.json"
+python3 -m json.tool "$OUT/adapter.json" >/dev/null
+grep -Fq '"adapter": "void_public_seed_adapter"' "$OUT/adapter.json"
+grep -Fq '"upstream_private": true' "$OUT/adapter.json"
+grep -Fq '"private_rpc_public": false' "$OUT/adapter.json"
+
 RPC_CODE="$(curl -sS -o "$OUT/rpc.out" -w "%{http_code}" --max-time 8 http://127.0.0.1:4111/rpc)"
 test "$RPC_CODE" = "404"
 grep -Fq "not_public" "$OUT/rpc.out"

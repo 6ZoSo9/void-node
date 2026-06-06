@@ -9,6 +9,7 @@ const exactAllow = new Set([
   "/",
   "/__void/ready.json",
   "/__void/public-bootstrap.json",
+  "/__void/adapter.json",
   "/datanet/materialized-status",
 ]);
 
@@ -49,6 +50,24 @@ const server = http.createServer(async (req, res) => {
     if (!allowed(url.pathname)) {
       res.writeHead(404, { "content-type": "text/plain" });
       res.end("not_public\n");
+      return;
+    }
+
+    if (url.pathname === "/__void/adapter.json") {
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "x-void-public-seed-adapter": "v1"
+      });
+      res.end(JSON.stringify({
+        adapter: "void_public_seed_adapter",
+        version: 1,
+        mode: "read_only_allowlist_proxy",
+        upstream_private: true,
+        exact_allow: Array.from(exactAllow).sort(),
+        prefix_allow: prefixAllow.slice().sort(),
+        blocked: blocked.slice().sort(),
+        private_rpc_public: false
+      }, null, 2) + "\n");
       return;
     }
 
