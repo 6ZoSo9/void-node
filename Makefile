@@ -1353,3 +1353,7 @@ datanet-materialized-public-discoverability-closeout-proof:
 .PHONY: public-bootstrap-gateway-proof
 public-bootstrap-gateway-proof:
 	bash ops/public-bootstrap-gateway-proof.sh
+
+.PHONY: public-bootstrap-gateway-routes-proof
+public-bootstrap-gateway-routes-proof:
+	bash ops/public-bootstrap-gateway-routes-proof.sh

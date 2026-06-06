@@ -42005,7 +42005,118 @@ a{color:#93c5fd;text-decoration:none}
       } catch {}
     })();
 
-        // __void_datanet_materialized_public_status_routes_v1
+// __void_public_bootstrap_gateway_routes_v1
+;(() => {
+  try {
+    const APP:any = (globalThis as any).__void_http_app || (typeof app !== "undefined" ? app : null);
+    if (!APP || typeof APP.get !== "function") return;
+    if ((APP as any).__void_public_bootstrap_gateway_routes_v1) return;
+    (APP as any).__void_public_bootstrap_gateway_routes_v1 = true;
+
+    const marker = "VOID_PUBLIC_BOOTSTRAP_GATEWAY_V1";
+    const network = "void-mainnet0";
+    const chainId = 2050;
+
+    const basePublic = (req:any) => {
+      try {
+        const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "http").split(",")[0].trim();
+        const host = String(req.headers["x-forwarded-host"] || req.headers.host || "").split(",")[0].trim();
+        return host ? `${proto}://${host}` : "";
+      } catch {
+        return "";
+      }
+    };
+
+    const publicNetworkJson = (req:any) => {
+      const base = basePublic(req);
+      return {
+        ok: true,
+        marker,
+        gateway_role: "bootstrap_gateway",
+        gateway_authority: "discovery_only_non_authority",
+        network,
+        chain_id: chainId,
+        status: "public_mainnet0_live",
+        participant_url: `${base}/participant`,
+        ready_url: `${base}/__void/ready.json`,
+        datanet_status_url: `${base}/datanet/materialized-status`,
+        datanet_status_json_url: `${base}/__void/datanet/materialized-status.json`,
+        peers_url: `${base}/bootstrap/peers.json`,
+        public_active_validator_admission: false,
+        public_validator_registration: "candidate_waiting_only",
+        public_rpc_8545: false,
+        admin_authority: false,
+        treasury_authority: false,
+        buy_void_fulfillment: false,
+        validator_mutation: false,
+        wallet_send: false,
+        wc_to_void_swap: false
+      };
+    };
+
+    const publicPeersJson = (req:any) => {
+      const base = basePublic(req);
+      return {
+        ok: true,
+        marker,
+        network,
+        peers: [
+          {
+            id: "seed-local",
+            role: "bootstrap_gateway",
+            http_base_url: base || "http://127.0.0.1:4100",
+            peer_port: 4700,
+            public_rpc_8545: false,
+            authority: "none"
+          }
+        ]
+      };
+    };
+
+    APP.get("/bootstrap/network.json", (req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(publicNetworkJson(req));
+    });
+
+    APP.get("/bootstrap/peers.json", (req:any, res:any) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(publicPeersJson(req));
+    });
+
+    APP.get("/bootstrap", (req:any, res:any) => {
+      const base = basePublic(req);
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      res.send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VOID Public Bootstrap Gateway</title>
+</head>
+<body style="font-family:system-ui;background:#020617;color:#e5e7eb;padding:32px;line-height:1.5">
+  <main style="max-width:860px;margin:0 auto">
+    <p style="display:inline-block;padding:4px 10px;border:1px solid #334155;border-radius:999px;color:#86efac">VOID_PUBLIC_BOOTSTRAP_GATEWAY_V1</p>
+    <h1>VOID Public Bootstrap Gateway</h1>
+    <p>This gateway is discovery-only. It is not an admin, treasury, validator mutation, wallet-send, Buy VOID fulfillment, or public RPC endpoint.</p>
+    <ul>
+      <li><a style="color:#93c5fd" href="${base}/participant">Open Participant</a></li>
+      <li><a style="color:#93c5fd" href="${base}/__void/ready.json">Ready JSON</a></li>
+      <li><a style="color:#93c5fd" href="${base}/datanet/materialized-status">DataNet Status</a></li>
+      <li><a style="color:#93c5fd" href="${base}/bootstrap/network.json">Network Bootstrap JSON</a></li>
+      <li><a style="color:#93c5fd" href="${base}/bootstrap/peers.json">Peer Bootstrap JSON</a></li>
+    </ul>
+    <p><strong>Public RPC 8545:</strong> false</p>
+    <p><strong>Public active validator admission:</strong> false</p>
+  </main>
+</body>
+</html>`);
+    });
+
+    try { console.log("[public.bootstrap.gateway.v1] mounted"); } catch {}
+  } catch {}
+})();
+
+// __void_datanet_materialized_public_status_routes_v1
     ;(() => {
       try {
         const APP:any = (globalThis as any).__void_http_app || (typeof app !== "undefined" ? app : null);
