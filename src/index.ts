@@ -16332,6 +16332,66 @@ try {
       });
     });
 
+    app.get("/__void/public-seed-adapter/status.json", async (_req:any,res:any)=>{
+      const base = String(process.env.VOID_PUBLIC_SEED_ADAPTER_BASE || "http://100.122.79.39:4111").replace(/\/+$/, "");
+      const errors:any = {};
+      let adapter_manifest_reachable = false;
+      let private_rpc_blocked = false;
+      let public_bootstrap_reachable = false;
+      let rpc_status:any = null;
+
+      async function fetchText(path:string){
+        const ac = new AbortController();
+        const timer = setTimeout(()=>ac.abort(), 5000);
+        try {
+          const r:any = await fetch(base + path, { signal: ac.signal } as any);
+          const text = await r.text();
+          return { ok: !!r.ok, status: Number(r.status || 0), text };
+        } catch(e:any) {
+          return { ok:false, status:0, text:String(e?.message || e) };
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      const adapterResp = await fetchText("/__void/adapter.json");
+      try {
+        const j = JSON.parse(adapterResp.text || "{}");
+        adapter_manifest_reachable = adapterResp.ok && j.adapter === "void_public_seed_adapter" && j.private_rpc_public === false;
+        if (!adapter_manifest_reachable) errors.adapter = "adapter_manifest_invalid";
+      } catch {
+        errors.adapter = "adapter_manifest_parse_failed";
+      }
+
+      const rpcResp = await fetchText("/rpc");
+      rpc_status = String(rpcResp.status);
+      private_rpc_blocked = rpcResp.status === 404 && String(rpcResp.text || "").includes("not_public");
+      if (!private_rpc_blocked) errors.rpc = "private_rpc_block_check_failed";
+
+      const bootstrapResp = await fetchText("/__void/public-bootstrap.json");
+      try {
+        const j = JSON.parse(bootstrapResp.text || "{}");
+        public_bootstrap_reachable = bootstrapResp.ok && j.schema === "void_public_bootstrap_v1" && j.private_rpc_public === false;
+        if (!public_bootstrap_reachable) errors.public_bootstrap = "public_bootstrap_invalid";
+      } catch {
+        errors.public_bootstrap = "public_bootstrap_parse_failed";
+      }
+
+      const ok = adapter_manifest_reachable && private_rpc_blocked && public_bootstrap_reachable;
+      res.status(ok ? 200 : 502).json({
+        schema: "void_public_seed_adapter_status_v1",
+        ok,
+        base,
+        checks: {
+          adapter_manifest_reachable,
+          private_rpc_blocked,
+          public_bootstrap_reachable
+        },
+        rpc_status,
+        errors
+      });
+    });
+
     app.get("/__void/ready.prom", async (_req,res)=>{
       const {head, live, seen} = await readInputs();
       const seenEff = (Number.isFinite(seen) && seen >= 0) ? seen : ((Number.isFinite(head) && head >= 0) ? head : seen);
