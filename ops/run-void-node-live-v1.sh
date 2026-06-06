@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${NODE_PRIVKEY_PATH:?missing NODE_PRIVKEY_PATH}"
+
+HTTP_HOST="${HTTP_HOST:-0.0.0.0}"
+HTTP_PORT="${HTTP_PORT:-4100}"
+P2P_PORT="${P2P_PORT:-4700}"
+NODE_ENV="${NODE_ENV:-dev}"
+VOID_PUBLIC_SEED_ADAPTER_BASE="${VOID_PUBLIC_SEED_ADAPTER_BASE:-http://100.122.79.39:4111}"
+
+export NODE_PRIVKEY_PATH HTTP_HOST HTTP_PORT P2P_PORT NODE_ENV VOID_PUBLIC_SEED_ADAPTER_BASE
+
+if [ -n "${VOID_HTTP_HOST:-}" ]; then
+  export VOID_HTTP_HOST
+fi
+
+exec npm exec tsx src/index.ts
