@@ -1404,3 +1404,7 @@ current-public-seed-url-proof:
 .PHONY: public-entrypoints-proof
 public-entrypoints-proof:
 	bash ops/public/public-entrypoints-v1-proof.sh
+
+.PHONY: funding-support-proof
+funding-support-proof:
+	bash ops/public/funding-support-v1-proof.sh
