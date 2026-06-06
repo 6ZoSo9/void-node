@@ -1349,3 +1349,7 @@ datanet-materialized-participant-status-card-proof:
 .PHONY: datanet-materialized-public-discoverability-closeout-proof
 datanet-materialized-public-discoverability-closeout-proof:
 	bash ops/datanet-materialized-public-discoverability-closeout-proof.sh
+
+.PHONY: public-bootstrap-gateway-proof
+public-bootstrap-gateway-proof:
+	bash ops/public-bootstrap-gateway-proof.sh
