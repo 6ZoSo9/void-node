@@ -25,3 +25,16 @@ else
   echo "[fail] private rpc block check failed code=$RPC_CODE"
   exit 1
 fi
+
+if curl -fsS --max-time 5 "$BASE/__void/public-bootstrap.json" -o /tmp/void-adapter-bootstrap-status.json; then
+  python3 - <<'PY2'
+import json
+j = json.load(open("/tmp/void-adapter-bootstrap-status.json"))
+assert j.get("schema") == "void_public_bootstrap_v1"
+assert j.get("private_rpc_public") is False
+PY2
+  echo "[ok] public bootstrap reachable"
+else
+  echo "[down] public bootstrap not reachable"
+  exit 1
+fi
