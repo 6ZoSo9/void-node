@@ -1360,3 +1360,6 @@ public-bootstrap-gateway-routes-proof:
 
 home-public-reachability-v1-proof:
 	bash ops/home-public-reachability-v1-proof.sh
+
+vps-public-seed-bootstrap-v1-proof:
+	bash ops/public/vps-public-seed-bootstrap-v1-proof.sh
