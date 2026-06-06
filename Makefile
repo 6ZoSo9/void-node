@@ -1400,3 +1400,7 @@ alienware-funnel-public-seed:
 .PHONY: current-public-seed-url-proof
 current-public-seed-url-proof:
 	bash ops/public/current-public-seed-url-proof-v1.sh
+
+.PHONY: public-entrypoints-proof
+public-entrypoints-proof:
+	bash ops/public/public-entrypoints-v1-proof.sh
