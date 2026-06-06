@@ -16298,6 +16298,40 @@ try {
       res.json({ready: readyReasons.length===0, head: okHead?head:null, lastmile_seen: okSeen?seenEff:null, gap: (typeof gap_clamped!=="undefined"? gap_clamped : Math.max(0,(gap ?? -1))), txroot_live: okLive?1:0, reasons});
     });
 
+    app.get("/__void/public-bootstrap.json", async (_req:any,res:any)=>{
+      res.json({
+        schema: "void_public_bootstrap_v1",
+        network: "VOID Network",
+        chain_id: 2050,
+        generated_at_ms: Date.now(),
+        current_checkpoint: "ckpt-current-public-seed-adapter-pointer-green-20260606-105900",
+        seed_adapters: [
+          {
+            role: "internal_operator_mesh_seed_adapter",
+            base: "http://100.122.79.39:4111",
+            manifest: "http://100.122.79.39:4111/__void/adapter.json",
+            ready: "http://100.122.79.39:4111/__void/ready.json",
+            public_internet_reachable: false,
+            operator_mesh_reachable: true
+          }
+        ],
+        blocked_private_surfaces: [
+          "private JSON-RPC",
+          "tcp/8545",
+          "/rpc",
+          "/admin",
+          "/operator",
+          "/validator/admin",
+          "wallet files",
+          "keys",
+          "mnemonics",
+          ".env files",
+          "secrets"
+        ],
+        private_rpc_public: false
+      });
+    });
+
     app.get("/__void/ready.prom", async (_req,res)=>{
       const {head, live, seen} = await readInputs();
       const seenEff = (Number.isFinite(seen) && seen >= 0) ? seen : ((Number.isFinite(head) && head >= 0) ? head : seen);
