@@ -1357,3 +1357,6 @@ public-bootstrap-gateway-proof:
 .PHONY: public-bootstrap-gateway-routes-proof
 public-bootstrap-gateway-routes-proof:
 	bash ops/public-bootstrap-gateway-routes-proof.sh
+
+home-public-reachability-v1-proof:
+	bash ops/home-public-reachability-v1-proof.sh
