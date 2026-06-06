@@ -50034,6 +50034,11 @@ a{color:#93c5fd;text-decoration:none}
       <span id="homeDatanetWcSummary">Checking DataNet receipts and WC credit status…</span>
       <span class="muted" id="homeDatanetWcDetail">Run Once submits approved useful work; accepted DataNet receipts can credit WC.</span>
     </div>
+    <div class="hero-note" id="homeSeedAdapterStatus" style="margin-top:10px"><!-- VOID_PARTICIPANT_PUBLIC_SEED_ADAPTER_STATUS_V1 -->
+      <b>Seed Adapter:</b>
+      <span id="homeSeedAdapterSummary">Checking public seed adapter status…</span>
+      <span class="muted" id="homeSeedAdapterDetail">Verifies adapter manifest, blocked private RPC, and public bootstrap reachability.</span>
+    </div>
 
     <section class="kpis">
       <div class="kpi">
@@ -52283,6 +52288,37 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
 
         // VOID_PARTICIPANT_DATANET_WC_STATUS_CALL_V1
         refreshParticipantDatanetWcStatusV1().catch(() => {});
+
+      // VOID_PARTICIPANT_PUBLIC_SEED_ADAPTER_STATUS_JS_V1
+      async function refreshParticipantSeedAdapterStatusV1(){
+        try {
+          const out = await j("/__void/public-seed-adapter/status.json");
+          if (!out || !out.ok) throw new Error("seed_adapter_status_not_ok");
+
+          const checks = out.checks || {};
+          const adapterOk = checks.adapter_manifest_reachable === true;
+          const rpcBlocked = checks.private_rpc_blocked === true;
+          const bootstrapOk = checks.public_bootstrap_reachable === true;
+          const base = String(out.base || "unknown");
+
+          setText("homeSeedAdapterSummary",
+            "Healthy • adapter manifest " + (adapterOk ? "ok" : "bad") +
+            " • RPC " + (rpcBlocked ? "blocked" : "open") +
+            " • bootstrap " + (bootstrapOk ? "reachable" : "missing")
+          );
+          setText("homeSeedAdapterDetail",
+            "Base: " + base +
+            " • rpc_status: " + String(out.rpc_status || "-") +
+            " • Public internet: not yet; operator mesh: active"
+          );
+        } catch (e) {
+          setText("homeSeedAdapterSummary", "Seed adapter status unavailable on this node.");
+          setText("homeSeedAdapterDetail", "The node could not verify adapter manifest, RPC block, and bootstrap reachability.");
+        }
+      }
+
+      // VOID_PARTICIPANT_PUBLIC_SEED_ADAPTER_STATUS_CALL_V1
+      refreshParticipantSeedAdapterStatusV1().catch(() => {});
 
 
     const wcUiLink = document.querySelector('[data-local-wc-ui="1"]');
