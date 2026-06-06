@@ -1380,3 +1380,7 @@ public-seed-adapter-status:
 .PHONY: public-seed-adapter-status-json
 public-seed-adapter-status-json:
 	@VOID_ADAPTER_HOST=$${VOID_ADAPTER_HOST:-100.122.79.39} VOID_ADAPTER_PORT=$${VOID_ADAPTER_PORT:-4111} bash ops/public/public-seed-adapter-status-v1.sh --json
+
+.PHONY: live-public-seed-stack-closeout
+live-public-seed-stack-closeout:
+	bash ops/public/live-public-seed-stack-closeout-v1.sh
