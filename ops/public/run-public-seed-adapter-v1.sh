@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VOID_SEED_UPSTREAM="${VOID_SEED_UPSTREAM:-http://127.0.0.1:4100}"
+VOID_ADAPTER_HOST="${VOID_ADAPTER_HOST:-127.0.0.1}"
+VOID_ADAPTER_PORT="${VOID_ADAPTER_PORT:-4111}"
+
+export VOID_SEED_UPSTREAM VOID_ADAPTER_HOST VOID_ADAPTER_PORT
+
+exec node ops/public/public-seed-adapter-v1.mjs
