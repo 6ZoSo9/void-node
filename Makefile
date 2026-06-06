@@ -1384,3 +1384,11 @@ public-seed-adapter-status-json:
 .PHONY: live-public-seed-stack-closeout
 live-public-seed-stack-closeout:
 	bash ops/public/live-public-seed-stack-closeout-v1.sh
+
+.PHONY: vps-public-seed-deploy-v2
+vps-public-seed-deploy-v2:
+	bash ops/public/deploy-vps-public-seed-adapter-v2.sh
+
+.PHONY: vps-public-seed-internet-proof-v2
+vps-public-seed-internet-proof-v2:
+	bash ops/public/vps-public-seed-internet-proof-v2.sh

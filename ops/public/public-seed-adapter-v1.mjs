@@ -10,6 +10,7 @@ const exactAllow = new Set([
   "/__void/ready.json",
   "/__void/public-bootstrap.json",
   "/__void/adapter.json",
+  "/__void/public-seed-adapter/status.json",
   "/datanet/materialized-status",
 ]);
 
