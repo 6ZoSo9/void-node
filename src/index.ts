@@ -50157,6 +50157,16 @@ a{color:#93c5fd;text-decoration:none}
       <span class="muted" id="homeSeedAdapterDetail">Verifies adapter manifest, blocked private RPC, and public bootstrap reachability.</span>
     </div>
 
+    <div class="hero-note" id="homeFundingStatus" style="margin-top:10px"><!-- VOID_PARTICIPANT_PUBLIC_FUNDING_CARD_V1 -->
+      <b>Buy VOID / Fund Development:</b>
+      <span id="homeFundingSummary">Guarded USDC → VOID funding path is available.</span>
+      <span class="muted" id="homeFundingDetail">Manual review required. No automatic delivery. No investment return promised.</span>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn" href="/funding">Open Funding Page</a>
+        <a class="btn secondary" href="/__void/funding/status.json">Funding Status JSON</a>
+      </div>
+    </div>
+
     <section class="kpis">
       <div class="kpi">
         <div class="k">Onchain VOID</div>

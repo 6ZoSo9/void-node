@@ -1408,3 +1408,7 @@ public-entrypoints-proof:
 .PHONY: funding-support-proof
 funding-support-proof:
 	bash ops/public/funding-support-v1-proof.sh
+
+.PHONY: participant-funding-card-proof
+participant-funding-card-proof:
+	bash ops/public/participant-funding-card-v1-proof.sh
