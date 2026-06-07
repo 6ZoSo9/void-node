@@ -16735,6 +16735,13 @@ function esc(x){
 }
 
 // VOID_BUY_VOID_OPERATOR_PAGE_FULFILL_TX_PROMPT_V1
+// VOID_BUY_VOID_OPERATOR_PAGE_VERIFY_PAYMENT_BUTTON_V1
+async function verifyPayment(id){
+  const out = await j("/__void/buy-void/operator/verify-payment.json?id=" + encodeURIComponent(id));
+  alert(out.ok ? "Payment verified" : JSON.stringify(out));
+  refresh();
+}
+
 async function markReq(id, status){
   const note = prompt("Operator note for " + status + ":", status);
   if (note === null) return;
@@ -16768,6 +16775,7 @@ function renderReq(r){
     '<p><span class="badge">' + status + '</span><span class="badge">' + esc(r.usdc_amount) + ' USDC</span><span class="badge">' + esc(r.quoted_void) + ' VOID</span></p>' +
     '<p><b>Delivery:</b> ' + esc(r.delivery_address || "") + '</p>' +
     '<p><b>TX:</b> ' + (tx || '<small>none</small>') + '</p>' +
+    '<button onclick="verifyPayment(\\'' + id + '\\')">Verify payment</button>' +
     '<button class="review" onclick="markReq(\\'' + id + '\\',\\'reviewed\\')">Mark reviewed</button>' +
     '<button class="fulfill" onclick="markReq(\\'' + id + '\\',\\'fulfilled\\')">Mark fulfilled</button>' +
     '<button class="reject" onclick="markReq(\\'' + id + '\\',\\'rejected\\')">Reject</button>' +
