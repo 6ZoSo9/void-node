@@ -16392,6 +16392,123 @@ try {
       });
     });
 
+    // VOID_PUBLIC_FUNDING_USDC_VOID_V1
+    app.get("/__void/funding/status.json", (_req:any,res:any)=>{
+      res.json({
+        schema: "void_public_funding_status_v1",
+        ok: true,
+        funding_model: "guarded_usdc_to_void",
+        public_seed: "https://zoso-alienware-aurora-r7.taila47fd.ts.net",
+        public_funding_page: "/funding",
+        participant_page: "/participant",
+        funding_path: {
+          asset_in: "USDC",
+          asset_out: "VOID",
+          flow: "guarded_buy_void_request",
+          automatic_fulfillment: false,
+          manual_review_required: true,
+          exchange_custody_required: false
+        },
+        safety: {
+          experimental: true,
+          no_investment_return_promised: true,
+          no_automatic_token_delivery_promised: true,
+          private_rpc_public: false,
+          sensitive_surfaces_blocked: true
+        },
+        public_routes: [
+          "/funding",
+          "/participant",
+          "/__void/adapter.json",
+          "/__void/ready.json",
+          "/__void/public-bootstrap.json",
+          "/__void/public-seed-adapter/status.json",
+          "/__void/funding/status.json"
+        ],
+        blocked_routes: [
+          "/rpc",
+          "/wallet",
+          "/admin",
+          "/operator",
+          "/validator/admin",
+          "/.env",
+          "/keys",
+          "/secrets"
+        ]
+      });
+    });
+
+    app.get("/funding", (_req:any,res:any)=>{
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VOID Network Funding</title>
+<style>
+body{margin:0;background:#070b14;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
+main{max-width:860px;margin:0 auto;padding:32px 18px}
+.card{border:1px solid #263244;background:#0d1321;border-radius:16px;padding:18px;margin:16px 0}
+a{color:#93c5fd}
+.badge{display:inline-block;border:1px solid #334155;border-radius:999px;padding:4px 10px;margin:4px 6px 4px 0;color:#cbd5e1}
+.warn{color:#fbbf24}
+.ok{color:#86efac}
+code{background:#111827;padding:2px 5px;border-radius:5px}
+</style>
+</head>
+<body>
+<main>
+<h1>VOID Network Funding</h1>
+<p><b>VOID is publicly reachable now.</b> Funding is centered around the guarded <b>USDC -&gt; VOID</b> path.</p>
+
+<div class="card">
+<h2>Current funding model</h2>
+<p>Participants may request VOID using USDC through the guarded Buy VOID flow.</p>
+<span class="badge">USDC -&gt; VOID</span>
+<span class="badge">manual review</span>
+<span class="badge">guarded fulfillment</span>
+<span class="badge">no exchange custody required</span>
+<p class="warn"><b>No automatic token delivery is promised.</b></p>
+<p class="warn"><b>No investment return, yield, or profit is promised.</b></p>
+</div>
+
+<div class="card">
+<h2>Public seed</h2>
+<p><a href="https://zoso-alienware-aurora-r7.taila47fd.ts.net">https://zoso-alienware-aurora-r7.taila47fd.ts.net</a></p>
+<p><a href="/participant">Open participant page</a></p>
+<p><a href="/__void/funding/status.json">Funding status JSON</a></p>
+</div>
+
+<div class="card">
+<h2>What funding helps with</h2>
+<ul>
+<li>Keeping the public node online</li>
+<li>Hardware and internet uptime</li>
+<li>Public seed/tunnel/domain infrastructure</li>
+<li>Participant UI polish</li>
+<li>DataNet storage and public readback</li>
+<li>Work Credits loop development</li>
+<li>Testing, onboarding, and security hardening</li>
+</ul>
+</div>
+
+<div class="card">
+<h2>Safety posture</h2>
+<ul>
+<li class="ok">Public seed adapter is live.</li>
+<li class="ok">Participant page is reachable.</li>
+<li class="ok">Public bootstrap and readiness are reachable.</li>
+<li class="ok"><code>/rpc</code> is blocked.</li>
+<li class="ok">Wallet, key, admin, operator, and secret surfaces are blocked.</li>
+<li class="ok">Private JSON-RPC remains private.</li>
+</ul>
+</div>
+</main>
+</body>
+</html>`);
+    });
+
+
     app.get("/__void/ready.prom", async (_req,res)=>{
       const {head, live, seen} = await readInputs();
       const seenEff = (Number.isFinite(seen) && seen >= 0) ? seen : ((Number.isFinite(head) && head >= 0) ? head : seen);

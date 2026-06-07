@@ -7,9 +7,11 @@ const PORT = Number(process.env.VOID_ADAPTER_PORT || "4111");
 
 const exactAllow = new Set([
   "/",
+  "/funding",
   "/__void/ready.json",
   "/__void/public-bootstrap.json",
   "/__void/adapter.json",
+  "/__void/funding/status.json",
   "/__void/public-seed-adapter/status.json",
   "/datanet/materialized-status",
 ]);
