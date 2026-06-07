@@ -16875,9 +16875,42 @@ setInterval(refresh, 10000);
       return "0x" + s.slice(-40);
     }
 
-    async function __voidBuyVoidRpcV1(method:string, params:any[]){
-      const rpc = String(process.env.VOID_BUY_BASE_RPC_URL || process.env.BASE_RPC_URL || "").trim();
-      if (!rpc) throw new Error("base_rpc_url_not_configured");
+    // VOID_BUY_VOID_MULTI_CHAIN_USDC_VERIFIER_V1
+    function __voidBuyVoidPaymentChainV1(sourceChain:any){
+      const raw = String(sourceChain || "base").trim().toLowerCase();
+      const chain = raw === "eth" ? "ethereum" : raw;
+
+      if (chain === "base") {
+        return {
+          ok: true,
+          chain: "base",
+          rpc_env: "VOID_BUY_BASE_RPC_URL",
+          rpc_url: String(process.env.VOID_BUY_BASE_RPC_URL || process.env.BASE_RPC_URL || "").trim(),
+          usdc_contract: String(process.env.VOID_BUY_BASE_USDC_CONTRACT || process.env.VOID_BUY_USDC_CONTRACT || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913").trim()
+        };
+      }
+
+      if (chain === "ethereum") {
+        return {
+          ok: true,
+          chain: "ethereum",
+          rpc_env: "VOID_BUY_ETH_RPC_URL",
+          rpc_url: String(process.env.VOID_BUY_ETH_RPC_URL || process.env.ETH_RPC_URL || process.env.ETHEREUM_RPC_URL || "").trim(),
+          usdc_contract: String(process.env.VOID_BUY_ETH_USDC_CONTRACT || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48").trim()
+        };
+      }
+
+      return {
+        ok: false,
+        chain,
+        error: "unsupported_usdc_source_chain",
+        supported_chains: ["base", "ethereum"]
+      };
+    }
+
+    async function __voidBuyVoidRpcV1(chainCfg:any, method:string, params:any[]){
+      const rpc = String(chainCfg?.rpc_url || "").trim();
+      if (!rpc) throw new Error(String(chainCfg?.rpc_env || "rpc_url") + "_not_configured");
       const r = await fetch(rpc, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -16888,8 +16921,8 @@ setInterval(refresh, 10000);
       return j.result;
     }
 
-    function __voidBuyVoidUsdcTransferMatchV1(logs:any[], receiveAddress:string, requestedUsdc:any){
-      const usdc = String(process.env.VOID_BUY_USDC_CONTRACT || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913").toLowerCase();
+    function __voidBuyVoidUsdcTransferMatchV1(logs:any[], chainCfg:any, receiveAddress:string, requestedUsdc:any){
+      const usdc = String(chainCfg?.usdc_contract || "").toLowerCase();
       const to = String(receiveAddress || "").toLowerCase();
       const transferSig = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
       const requestedUnits = BigInt(Math.ceil(Number(requestedUsdc || 0) * 1000000));
@@ -16957,7 +16990,18 @@ setInterval(refresh, 10000);
           });
         }
 
-        const receipt:any = await __voidBuyVoidRpcV1("eth_getTransactionReceipt", [tx]);
+        const chainCfg:any = __voidBuyVoidPaymentChainV1(found.source_chain || found.chain || "base");
+        if (!chainCfg.ok) {
+          return res.status(400).json({
+            schema: "void_buy_void_payment_verifier_v1",
+            ok: false,
+            error: chainCfg.error,
+            source_chain: chainCfg.chain,
+            supported_chains: chainCfg.supported_chains
+          });
+        }
+
+        const receipt:any = await __voidBuyVoidRpcV1(chainCfg, "eth_getTransactionReceipt", [tx]);
         if (!receipt) {
           return res.status(404).json({
             schema: "void_buy_void_payment_verifier_v1",
@@ -16977,7 +17021,7 @@ setInterval(refresh, 10000);
           });
         }
 
-        const match = __voidBuyVoidUsdcTransferMatchV1(receipt.logs || [], cfg.receive_address, found.usdc_amount);
+        const match = __voidBuyVoidUsdcTransferMatchV1(receipt.logs || [], chainCfg, cfg.receive_address, found.usdc_amount);
         if (!match.ok) {
           return res.status(400).json({
             schema: "void_buy_void_payment_verifier_v1",
@@ -17000,7 +17044,8 @@ setInterval(refresh, 10000);
           tx_hash: tx,
           payment_verified: true,
           payment_verifier: {
-            chain: "base",
+            chain: chainCfg.chain,
+            rpc_env: chainCfg.rpc_env,
             receipt_status: receipt.status,
             block_number: receipt.blockNumber || "",
             transaction_hash: receipt.transactionHash || tx,
