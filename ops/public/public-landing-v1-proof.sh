@@ -7,6 +7,7 @@ echo "=== VOID public landing v1 proof ==="
 echo "base=$PUBLIC_SEED_BASE"
 
 grep -Fq "VOID_PUBLIC_LANDING_ROOT_V1" src/index.ts
+grep -Fq "VOID_PUBLIC_EDGE_LANDING_ROOT_V1" ops/public/public-seed-adapter-v1.mjs
 grep -Fq "VOID Network is live" src/index.ts
 grep -Fq "/participant" src/index.ts
 grep -Fq "/funding" src/index.ts
@@ -22,6 +23,7 @@ PUBLIC_SEED_BASE="$PUBLIC_SEED_BASE" bash ops/public/participant-funding-card-v1
 
 curl -fsS --max-time 30 "$PUBLIC_SEED_BASE/" -o /tmp/void-public-landing.html
 grep -Fq "VOID_PUBLIC_LANDING_ROOT_V1" /tmp/void-public-landing.html
+grep -Fq "VOID_PUBLIC_EDGE_LANDING_ROOT_V1" /tmp/void-public-landing.html
 grep -Fq "VOID Network is live" /tmp/void-public-landing.html
 grep -Fq "Open Participant Page" /tmp/void-public-landing.html
 grep -Fq "Buy VOID / Fund Development" /tmp/void-public-landing.html
