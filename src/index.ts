@@ -16921,9 +16921,11 @@ setInterval(refresh, 10000);
       return j.result;
     }
 
-    function __voidBuyVoidUsdcTransferMatchV1(logs:any[], chainCfg:any, receiveAddress:string, requestedUsdc:any){
+    // VOID_BUY_VOID_PAYMENT_SENDER_DELIVERY_MATCH_V1
+    function __voidBuyVoidUsdcTransferMatchV1(logs:any[], chainCfg:any, receiveAddress:string, deliveryAddress:string, requestedUsdc:any){
       const usdc = String(chainCfg?.usdc_contract || "").toLowerCase();
       const to = String(receiveAddress || "").toLowerCase();
+      const expectedFrom = String(deliveryAddress || "").toLowerCase();
       const transferSig = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
       const requestedUnits = BigInt(Math.ceil(Number(requestedUsdc || 0) * 1000000));
 
@@ -16932,14 +16934,21 @@ setInterval(refresh, 10000);
         const topics = log.topics || [];
         if (addr !== usdc) continue;
         if (String(topics[0] || "").toLowerCase() !== transferSig) continue;
+
+        const logFrom = __voidBuyVoidTopicAddressV1(topics[1]);
         const logTo = __voidBuyVoidTopicAddressV1(topics[2]);
+
         if (logTo !== to) continue;
+        if (logFrom !== expectedFrom) continue;
+
         const amountUnits = __voidBuyVoidHexToBigIntV1(log.data || "0x0");
         if (amountUnits >= requestedUnits) {
           return {
             ok: true,
             usdc_contract: usdc,
+            from_address: logFrom,
             receive_address: to,
+            delivery_address: expectedFrom,
             amount_units: amountUnits.toString(),
             requested_units: requestedUnits.toString()
           };
@@ -16949,6 +16958,7 @@ setInterval(refresh, 10000);
       return {
         ok: false,
         usdc_contract: usdc,
+        expected_from_address: expectedFrom,
         receive_address: to,
         requested_units: requestedUnits.toString()
       };
@@ -17021,7 +17031,7 @@ setInterval(refresh, 10000);
           });
         }
 
-        const match = __voidBuyVoidUsdcTransferMatchV1(receipt.logs || [], chainCfg, cfg.receive_address, found.usdc_amount);
+        const match = __voidBuyVoidUsdcTransferMatchV1(receipt.logs || [], chainCfg, cfg.receive_address, found.delivery_address || "", found.usdc_amount);
         if (!match.ok) {
           return res.status(400).json({
             schema: "void_buy_void_payment_verifier_v1",
@@ -17050,7 +17060,9 @@ setInterval(refresh, 10000);
             block_number: receipt.blockNumber || "",
             transaction_hash: receipt.transactionHash || tx,
             usdc_contract: match.usdc_contract,
+            from_address: match.from_address,
             receive_address: match.receive_address,
+            delivery_address: match.delivery_address,
             amount_units: match.amount_units,
             requested_units: match.requested_units
           },
