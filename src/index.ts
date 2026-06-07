@@ -16827,6 +16827,8 @@ setInterval(refresh, 10000);
       const id = String(q.id || "").trim();
       const operator_status = String(q.status || "").trim().toLowerCase();
       const note = String(q.note || "").trim().slice(0, 240);
+      // VOID_BUY_VOID_FULFILLMENT_RECEIPT_V1
+      const void_delivery_tx_hash = String(q.void_tx_hash || q.delivery_tx_hash || "").trim();
       const allowed = new Set(["reviewed", "fulfilled", "rejected"]);
 
       if (!id || !allowed.has(operator_status)) {
@@ -16835,6 +16837,15 @@ setInterval(refresh, 10000);
           ok: false,
           error: "invalid_operator_mark",
           allowed_statuses: Array.from(allowed)
+        });
+      }
+
+      if (operator_status === "fulfilled" && !/^0x[a-fA-F0-9]{64}$/.test(void_delivery_tx_hash)) {
+        return res.status(400).json({
+          schema: "void_buy_void_operator_mark_v1",
+          ok: false,
+          error: "fulfilled_requires_valid_void_delivery_tx_hash",
+          hint: "pass void_tx_hash=0x..."
         });
       }
 
@@ -16858,6 +16869,8 @@ setInterval(refresh, 10000);
         marked_at_ms: Date.now(),
         prior_status: found.status || "",
         tx_hash: found.tx_hash || "",
+        void_delivery_tx_hash: operator_status === "fulfilled" ? void_delivery_tx_hash : "",
+        fulfillment_receipt_required: operator_status === "fulfilled",
         usdc_amount: found.usdc_amount,
         quoted_void: found.quoted_void,
         delivery_address: found.delivery_address || ""
