@@ -1424,3 +1424,7 @@ buy-void-public-proof:
 .PHONY: buy-void-request-intake-proof
 buy-void-request-intake-proof:
 	bash ops/public/buy-void-request-intake-v1-proof.sh
+
+.PHONY: buy-void-pool-accounting-proof
+buy-void-pool-accounting-proof:
+	bash ops/public/buy-void-pool-accounting-v1-proof.sh

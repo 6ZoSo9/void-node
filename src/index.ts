@@ -16421,7 +16421,7 @@ small{color:#94a3b8}
 <main>
 <section class="hero"><!-- VOID_PUBLIC_LANDING_ROOT_V1 -->
   <h1>VOID Network is live</h1>
-  <p>VOID is a public-safe seed surface for the VOID Network: participant access, bootstrap discovery, readiness status, and guarded USDC → VOID funding.</p>
+  <p>VOID is a public-safe seed surface for the VOID Network: participant access, bootstrap discovery, readiness status, and guarded USDC → VOID funding at $0.50 per VOID.</p>
   <p>
     <a class="btn" href="/participant">Open Participant Page</a>
     <a class="btn" href="/funding">Buy VOID / Fund Development</a>
@@ -16483,7 +16483,7 @@ small{color:#94a3b8}
       const receive_address = String(process.env.VOID_BUY_RECEIVE_ADDRESS || process.env.VOID_USDC_RECEIVER || "").trim();
       const chain = String(process.env.VOID_BUY_CHAIN || "base").trim();
       const usdc_symbol = String(process.env.VOID_BUY_USDC_SYMBOL || "USDC").trim();
-      const rate_void_per_usdc = Number(process.env.VOID_BUY_RATE_VOID_PER_USDC || "100");
+      const rate_void_per_usdc = Number(process.env.VOID_BUY_RATE_VOID_PER_USDC || "2");
       const min_usdc = Number(process.env.VOID_BUY_MIN_USDC || "1");
       const max_usdc = Number(process.env.VOID_BUY_MAX_USDC || "500");
       const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "1") !== "0";
@@ -16498,6 +16498,9 @@ small{color:#94a3b8}
         usdc_symbol,
         receive_address: payment_ready ? receive_address : "",
         rate_void_per_usdc,
+        price_usdc_per_void: Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50"),
+        pool_void_total: Number(process.env.VOID_BUY_POOL_VOID_TOTAL || "10000000"),
+        max_raise_usdc: Number(process.env.VOID_BUY_MAX_RAISE_USDC || "5000000"),
         min_usdc,
         max_usdc,
         asset_in: "USDC",
@@ -16509,6 +16512,83 @@ small{color:#94a3b8}
         do_not_send_from_exchange: true
       };
     }
+
+    // VOID_BUY_VOID_POOL_ACCOUNTING_V1
+    async function __voidBuyVoidSaleStateV1(){
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
+      const pool_void_total = Number(process.env.VOID_BUY_POOL_VOID_TOTAL || "10000000");
+      const price_usdc_per_void = Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50");
+      const rate_void_per_usdc = Number(process.env.VOID_BUY_RATE_VOID_PER_USDC || "2");
+      const max_raise_usdc = Math.floor((pool_void_total * price_usdc_per_void) * 1e6) / 1e6;
+
+      let requested_usdc_total = 0;
+      let requested_void_total = 0;
+      let submitted_usdc_total = 0;
+      let submitted_void_total = 0;
+      let request_count = 0;
+      let submitted_tx_count = 0;
+
+      const jsonl = path.join(dir, "requests.jsonl");
+      if (fs.existsSync(jsonl)) {
+        const lines = fs.readFileSync(jsonl, "utf8").split(/\n+/).filter(Boolean);
+        const seen = new Set();
+        for (const line of lines) {
+          try {
+            const j = JSON.parse(line);
+            if (!j || !j.request_id || seen.has(j.request_id)) continue;
+            seen.add(j.request_id);
+            const usdc = Number(j.usdc_amount || 0);
+            const quoted = Number(j.quoted_void || 0);
+            if (!Number.isFinite(usdc) || !Number.isFinite(quoted) || usdc <= 0 || quoted <= 0) continue;
+            request_count++;
+            requested_usdc_total += usdc;
+            requested_void_total += quoted;
+            if (String(j.tx_hash || "").match(/^0x[a-fA-F0-9]{64}$/)) {
+              submitted_tx_count++;
+              submitted_usdc_total += usdc;
+              submitted_void_total += quoted;
+            }
+          } catch {}
+        }
+      }
+
+      const reserved_void = Math.min(pool_void_total, requested_void_total);
+      const remaining_void = Math.max(0, Math.floor((pool_void_total - reserved_void) * 1e6) / 1e6);
+      const raised_usdc_reported = Math.floor(submitted_usdc_total * 1e6) / 1e6;
+      const requested_usdc = Math.floor(requested_usdc_total * 1e6) / 1e6;
+      const requested_void = Math.floor(requested_void_total * 1e6) / 1e6;
+      const submitted_void = Math.floor(submitted_void_total * 1e6) / 1e6;
+      const sold_out = remaining_void <= 0.000001;
+      const progress_pct = pool_void_total > 0 ? Math.floor((reserved_void / pool_void_total) * 10000) / 100 : 0;
+
+      return {
+        schema: "void_buy_void_sale_state_v1",
+        ok: true,
+        pool_void_total,
+        price_usdc_per_void,
+        rate_void_per_usdc,
+        max_raise_usdc,
+        requested_usdc_total: requested_usdc,
+        requested_void_total: requested_void,
+        submitted_usdc_total: raised_usdc_reported,
+        submitted_void_total: submitted_void,
+        raised_usdc_so_far: raised_usdc_reported,
+        request_count,
+        submitted_tx_count,
+        remaining_void,
+        sold_out,
+        progress_pct,
+        cutoff_rule: "buy_void_hidden_and_requests_rejected_when_remaining_void_is_zero",
+        accounting_note: "requested totals reserve pool capacity; submitted tx totals show reported funding awaiting/manual review"
+      };
+    }
+
+    app.get("/__void/buy-void/sale-state.json", async (_req:any,res:any)=>{
+      res.json(await __voidBuyVoidSaleStateV1());
+    });
+
 
     async function __voidPersistBuyVoidRequestV1(reqObj:any){
       const fs = await import("node:fs");
@@ -16542,6 +16622,16 @@ small{color:#94a3b8}
           return res.status(503).json({ schema:"void_public_buy_void_request_v1", ok:false, error:"buy_void_receive_address_not_configured" });
         }
 
+        const sale_state:any = await __voidBuyVoidSaleStateV1();
+        if (sale_state.sold_out) {
+          return res.status(409).json({
+            schema: "void_public_buy_void_request_v1",
+            ok: false,
+            error: "buy_void_pool_sold_out",
+            sale_state
+          });
+        }
+
         const rawAmount = __voidBuyVoidReadParamV1(req, "usdc_amount");
         const delivery_address = __voidBuyVoidReadParamV1(req, "delivery_address");
         const source_chain = (__voidBuyVoidReadParamV1(req, "source_chain") || cfg.chain).toLowerCase();
@@ -16568,6 +16658,17 @@ small{color:#94a3b8}
         }
 
         const quoted_void = Math.floor(usdc_amount * cfg.rate_void_per_usdc * 1e6) / 1e6;
+        if (quoted_void > sale_state.remaining_void) {
+          return res.status(409).json({
+            schema: "void_public_buy_void_request_v1",
+            ok: false,
+            error: "buy_void_request_exceeds_remaining_pool",
+            requested_void: quoted_void,
+            remaining_void: sale_state.remaining_void,
+            sale_state
+          });
+        }
+
         const request_id = "buyvoid_" + Date.now().toString(36) + "_" + Math.random().toString(16).slice(2,10);
         const created_at_ms = Date.now();
 
@@ -16583,7 +16684,10 @@ small{color:#94a3b8}
           asset_out: "VOID",
           usdc_amount,
           rate_void_per_usdc: cfg.rate_void_per_usdc,
+          price_usdc_per_void: cfg.price_usdc_per_void,
+          pool_void_total: cfg.pool_void_total,
           quoted_void,
+          sale_state_before_request: sale_state,
           receive_address: cfg.receive_address,
           delivery_address,
           tx_hash: tx_hash || "",
@@ -16621,11 +16725,13 @@ small{color:#94a3b8}
 
 
     // VOID_PUBLIC_BUY_VOID_ROUTE_V1
-    app.get("/__void/buy-void/status.json", (_req:any,res:any)=>{
+    app.get("/__void/buy-void/status.json", async (_req:any,res:any)=>{
+      const sale_state = await __voidBuyVoidSaleStateV1();
       res.json({
         schema: "void_public_buy_void_status_v1",
         ok: true,
-        mode: "guarded_request_only",
+        mode: sale_state.sold_out ? "sold_out" : "guarded_request_only",
+        sale_state,
         funding_model: "guarded_usdc_to_void",
         public_buy_page: "/buy-void",
         public_funding_page: "/funding",
@@ -16685,7 +16791,7 @@ a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:
 <main>
 <section class="hero"><!-- VOID_PUBLIC_BUY_VOID_ROUTE_V1 -->
   <h1>Buy VOID / Fund Development</h1>
-  <p>VOID funding uses a guarded <b>USDC → VOID</b> request path.</p>
+  <p>VOID funding uses a guarded <b>USDC → VOID</b> request path. Sale pool: <b>10,000,000 VOID</b> at <b>$0.50 USDC per VOID</b>.</p>
   <p>
     <a class="btn" href="/participant">Open Participant Page</a>
     <a class="btn secondary" href="/__void/buy-void/status.json">Buy VOID Status JSON</a>
@@ -16725,7 +16831,26 @@ async function createBuyVoidRequestV1(){
     out.textContent = "request_failed: " + String(e && e.message || e);
   }
 }
+async function refreshBuyVoidSaleStateV1(){
+  try {
+    const r = await fetch("/__void/buy-void/sale-state.json");
+    const j = await r.json();
+    const el = document.getElementById("buySaleState");
+    if (!el) return;
+    const msg = "Raised so far: $" + Number(j.raised_usdc_so_far || 0).toLocaleString() +
+      " USDC • Requested/reserved: " + Number(j.requested_void_total || 0).toLocaleString() +
+      " / " + Number(j.pool_void_total || 0).toLocaleString() +
+      " VOID • Remaining: " + Number(j.remaining_void || 0).toLocaleString() + " VOID";
+    el.textContent = j.sold_out ? "SOLD OUT • " + msg : msg;
+    const btn = document.getElementById("buyCreateRequestBtn");
+    if (j.sold_out && btn) {
+      btn.disabled = true;
+      btn.textContent = "Buy VOID Sold Out";
+    }
+  } catch(e) {}
+}
 document.getElementById("buyCreateRequestBtn")?.addEventListener("click", createBuyVoidRequestV1);
+refreshBuyVoidSaleStateV1();
 </script>
 
 <section class="card">
@@ -16753,11 +16878,13 @@ document.getElementById("buyCreateRequestBtn")?.addEventListener("click", create
 
 
     // VOID_PUBLIC_FUNDING_USDC_VOID_V1
-    app.get("/__void/funding/status.json", (_req:any,res:any)=>{
+    app.get("/__void/funding/status.json", async (_req:any,res:any)=>{
+      const sale_state = await __voidBuyVoidSaleStateV1();
       res.json({
         schema: "void_public_funding_status_v1",
         ok: true,
         funding_model: "guarded_usdc_to_void",
+        sale_state,
         public_seed: "https://zoso-alienware-aurora-r7.taila47fd.ts.net",
         public_funding_page: "/funding",
         participant_page: "/participant",

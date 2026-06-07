@@ -16,6 +16,7 @@ const exactAllow = new Set([
   "/__void/buy-void/config.json",
   "/__void/buy-void/request.json",
   "/__void/buy-void/status.json",
+  "/__void/buy-void/sale-state.json",
   "/__void/public-seed-adapter/status.json",
   "/datanet/materialized-status",
 ]);
