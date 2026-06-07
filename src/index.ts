@@ -17099,6 +17099,21 @@ setInterval(refresh, 10000);
       const note = String(q.note || "").trim().slice(0, 240);
       // VOID_BUY_VOID_FULFILLMENT_RECEIPT_V1
       const void_delivery_tx_hash = String(q.void_tx_hash || q.delivery_tx_hash || "").trim();
+
+      // VOID_BUY_VOID_FULFILLMENT_TX_HASH_GUARD_V1
+      if (operator_status === "fulfilled") {
+        if (!/^0x[a-fA-F0-9]{64}$/.test(void_delivery_tx_hash)) {
+          return res.status(400).json({
+            schema: "void_buy_void_operator_mark_v1",
+            ok: false,
+            error: "invalid_void_delivery_tx_hash",
+            message: "fulfilled status requires a real 0x-prefixed 32-byte VOID delivery transaction hash",
+            request_id,
+            operator_status,
+            void_delivery_tx_hash
+          });
+        }
+      }
       const allowed = new Set(["reviewed", "fulfilled", "rejected"]);
 
       if (!id || !allowed.has(operator_status)) {
