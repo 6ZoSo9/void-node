@@ -16719,12 +16719,26 @@ function esc(x){
   });
 }
 
+// VOID_BUY_VOID_OPERATOR_PAGE_FULFILL_TX_PROMPT_V1
 async function markReq(id, status){
   const note = prompt("Operator note for " + status + ":", status);
   if (note === null) return;
-  const url = "/__void/buy-void/operator/mark.json?id=" + encodeURIComponent(id) +
+
+  let voidTx = "";
+  if (status === "fulfilled") {
+    voidTx = prompt("VOID delivery tx hash required for fulfillment:", "0x");
+    if (voidTx === null) return;
+    voidTx = voidTx.trim();
+  }
+
+  let url = "/__void/buy-void/operator/mark.json?id=" + encodeURIComponent(id) +
     "&status=" + encodeURIComponent(status) +
     "&note=" + encodeURIComponent(note);
+
+  if (status === "fulfilled") {
+    url += "&void_tx_hash=" + encodeURIComponent(voidTx);
+  }
+
   const out = await j(url);
   alert(out.ok ? "Marked " + status : JSON.stringify(out));
   refresh();
