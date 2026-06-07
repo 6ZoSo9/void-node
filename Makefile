@@ -1432,3 +1432,7 @@ buy-void-pool-accounting-proof:
 .PHONY: buy-void-fulfillment-10246-live-proof
 buy-void-fulfillment-10246-live-proof:
 	RPC=$${RPC:-http://127.0.0.1:18545} ops/mainnet0/buy-void-fulfillment-10246-live-proof.sh
+
+.PHONY: participant-datanet-store-serve-demo-proof
+participant-datanet-store-serve-demo-proof:
+	BASE=$${BASE:-http://127.0.0.1:4100} ops/mainnet0/participant-datanet-store-serve-demo-proof.sh

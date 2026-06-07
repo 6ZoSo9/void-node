@@ -51255,6 +51255,16 @@ a{color:#93c5fd;text-decoration:none}
       <span id="homeDatanetWcSummary">Checking DataNet receipts and WC credit status…</span>
       <span class="muted" id="homeDatanetWcDetail">Run Once submits approved useful work; accepted DataNet receipts can credit WC.</span>
     </div>
+
+    <div class="hero-note" id="homeDatanetStoreServeDemo" style="margin-top:10px"><!-- VOID_DATANET_STORE_SERVE_DEMO_V1 -->
+      <b>Store &amp; Serve demo:</b>
+      <span>This node can publish a small DataNet object, verify it, and serve it back through /datanet/v1/publish and /datanet/v1/fetch.</span>
+      <span class="muted">Use this before bigger hosting: prove one object can be stored, checked, and read back.</span>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn" href="/datanet-demo">Open DataNet Demo</a>
+        <a class="btn secondary" href="/participant#datanet">Open DataNet Tab</a>
+      </div>
+    </div>
     <div class="hero-note" id="homeSeedAdapterStatus" style="margin-top:10px"><!-- VOID_PARTICIPANT_PUBLIC_SEED_ADAPTER_STATUS_V1 -->
       <b>Seed Adapter:</b>
       <span id="homeSeedAdapterSummary">Checking public seed adapter status…</span>
