@@ -16627,6 +16627,36 @@ small{color:#94a3b8}
       return false;
     }
 
+    // VOID_BUY_VOID_OPERATOR_MARK_V1
+    async function __voidReadBuyVoidOperatorEventsV1(){
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
+      const jsonl = path.join(dir, "operator-events.jsonl");
+      const events:any[] = [];
+      if (!fs.existsSync(jsonl)) return events;
+
+      for (const line of fs.readFileSync(jsonl, "utf8").split(/\n+/).filter(Boolean)) {
+        try {
+          const j:any = JSON.parse(line);
+          if (j && j.request_id && j.operator_status) events.push(j);
+        } catch {}
+      }
+
+      events.sort((a:any,b:any)=>Number(b.marked_at_ms||0)-Number(a.marked_at_ms||0));
+      return events;
+    }
+
+    async function __voidWriteBuyVoidOperatorEventV1(event:any){
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
+      fs.mkdirSync(dir, { recursive: true });
+      fs.appendFileSync(path.join(dir, "operator-events.jsonl"), JSON.stringify(event) + "\n");
+      fs.writeFileSync(path.join(dir, "operator-event-" + event.request_id + "-" + event.marked_at_ms + ".json"), JSON.stringify(event, null, 2));
+      return { ok:true, dir };
+    }
+
     app.get("/__void/buy-void/operator/queue.json", async (req:any,res:any)=>{
       if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
 
@@ -16650,6 +16680,59 @@ small{color:#94a3b8}
           awaiting_payment,
           tx_submitted
         }
+      });
+    });
+
+    app.get("/__void/buy-void/operator/mark.json", async (req:any,res:any)=>{
+      if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+
+      const q:any = req.query || {};
+      const id = String(q.id || "").trim();
+      const operator_status = String(q.status || "").trim().toLowerCase();
+      const note = String(q.note || "").trim().slice(0, 240);
+      const allowed = new Set(["reviewed", "fulfilled", "rejected"]);
+
+      if (!id || !allowed.has(operator_status)) {
+        return res.status(400).json({
+          schema: "void_buy_void_operator_mark_v1",
+          ok: false,
+          error: "invalid_operator_mark",
+          allowed_statuses: Array.from(allowed)
+        });
+      }
+
+      const requests = await __voidReadBuyVoidRequestsV1();
+      const found = requests.find((r:any)=>String(r.request_id || "") === id);
+      if (!found) {
+        return res.status(404).json({
+          schema: "void_buy_void_operator_mark_v1",
+          ok: false,
+          error: "buy_void_request_not_found",
+          request_id: id
+        });
+      }
+
+      const event = {
+        schema: "void_buy_void_operator_mark_v1",
+        ok: true,
+        request_id: id,
+        operator_status,
+        note,
+        marked_at_ms: Date.now(),
+        prior_status: found.status || "",
+        tx_hash: found.tx_hash || "",
+        usdc_amount: found.usdc_amount,
+        quoted_void: found.quoted_void,
+        delivery_address: found.delivery_address || ""
+      };
+
+      await __voidWriteBuyVoidOperatorEventV1(event);
+
+      res.json({
+        schema: "void_buy_void_operator_mark_result_v1",
+        ok: true,
+        event,
+        request: found
       });
     });
 
