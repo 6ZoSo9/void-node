@@ -16392,6 +16392,92 @@ try {
       });
     });
 
+    // VOID_PUBLIC_LANDING_ROOT_V1
+    app.get("/", (_req:any,res:any)=>{
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VOID Network</title>
+<style>
+body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
+main{max-width:980px;margin:0 auto;padding:38px 18px}
+.hero{border:1px solid #263244;background:linear-gradient(135deg,#0d1321,#111827);border-radius:18px;padding:24px;margin:16px 0}
+.card{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+a{color:#93c5fd;text-decoration:none}
+a:hover{text-decoration:underline}
+.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none}
+.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}
+.badge{display:inline-block;border:1px solid #334155;border-radius:999px;padding:4px 10px;margin:4px 6px 4px 0;color:#cbd5e1}
+.ok{color:#86efac}
+.warn{color:#fbbf24}
+code{background:#111827;padding:2px 5px;border-radius:5px}
+small{color:#94a3b8}
+</style>
+</head>
+<body>
+<main>
+<section class="hero"><!-- VOID_PUBLIC_LANDING_ROOT_V1 -->
+  <h1>VOID Network is live</h1>
+  <p>VOID is a public-safe seed surface for the VOID Network: participant access, bootstrap discovery, readiness status, and guarded USDC → VOID funding.</p>
+  <p>
+    <a class="btn" href="/participant">Open Participant Page</a>
+    <a class="btn" href="/funding">Buy VOID / Fund Development</a>
+    <a class="btn secondary" href="/__void/public-seed-adapter/status.json">Seed Status JSON</a>
+  </p>
+  <span class="badge">public seed online</span>
+  <span class="badge">ready endpoint live</span>
+  <span class="badge">/rpc blocked</span>
+  <span class="badge">guarded funding only</span>
+</section>
+
+<section class="grid">
+  <div class="card">
+    <h2>Start here</h2>
+    <p>Use the participant page to inspect VOID, wallet/onboarding surfaces, Work Credits, DataNet, and the guarded funding path.</p>
+    <p><a href="/participant">Go to participant page →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Funding</h2>
+    <p>Funding is the guarded <b>USDC → VOID</b> path. Manual review is required.</p>
+    <p class="warn">No automatic token delivery. No investment return promised.</p>
+    <p><a href="/funding">Open funding page →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Public proof</h2>
+    <p>Inspect machine-readable public seed state.</p>
+    <p><a href="/__void/adapter.json">Adapter manifest</a></p>
+    <p><a href="/__void/ready.json">Readiness JSON</a></p>
+    <p><a href="/__void/public-bootstrap.json">Public bootstrap JSON</a></p>
+    <p><a href="/__void/funding/status.json">Funding status JSON</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Safety</h2>
+    <ul>
+      <li class="ok"><code>/rpc</code> is blocked.</li>
+      <li class="ok">Wallet/key/admin/operator/secret routes are blocked.</li>
+      <li class="ok">Private JSON-RPC is not public.</li>
+      <li class="ok">Public surface is allowlisted.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Current public seed URL</h2>
+  <p><a href="https://zoso-alienware-aurora-r7.taila47fd.ts.net">https://zoso-alienware-aurora-r7.taila47fd.ts.net</a></p>
+  <small>Custom domains are optional wrappers. The seed proves itself through public JSON routes.</small>
+</section>
+</main>
+</body>
+</html>`);
+    });
+
+
     // VOID_PUBLIC_FUNDING_USDC_VOID_V1
     app.get("/__void/funding/status.json", (_req:any,res:any)=>{
       res.json({

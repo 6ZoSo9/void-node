@@ -1412,3 +1412,7 @@ funding-support-proof:
 .PHONY: participant-funding-card-proof
 participant-funding-card-proof:
 	bash ops/public/participant-funding-card-v1-proof.sh
+
+.PHONY: public-landing-proof
+public-landing-proof:
+	bash ops/public/public-landing-v1-proof.sh
