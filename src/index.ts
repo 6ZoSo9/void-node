@@ -16554,7 +16554,10 @@ small{color:#94a3b8}
         }
       }
 
-      const reserved_void = Math.min(pool_void_total, requested_void_total);
+      // VOID_BUY_VOID_PAID_ONLY_POOL_RESERVATION_V1
+      // Unpaid quote/request records do not reserve pool capacity.
+      // Pool capacity is reserved only once a payment tx hash is submitted.
+      const reserved_void = Math.min(pool_void_total, submitted_void_total);
       const remaining_void = Math.max(0, Math.floor((pool_void_total - reserved_void) * 1e6) / 1e6);
       const raised_usdc_reported = Math.floor(submitted_usdc_total * 1e6) / 1e6;
       const requested_usdc = Math.floor(requested_usdc_total * 1e6) / 1e6;
@@ -16580,8 +16583,8 @@ small{color:#94a3b8}
         remaining_void,
         sold_out,
         progress_pct,
-        cutoff_rule: "buy_void_hidden_and_requests_rejected_when_remaining_void_is_zero",
-        accounting_note: "requested totals reserve pool capacity; submitted tx totals show reported funding awaiting/manual review"
+        cutoff_rule: "buy_void_hidden_and_requests_rejected_when_paid_or_submitted_tx_reserved_void_reaches_pool_limit",
+        accounting_note: "unpaid requests are quotes only; submitted tx totals reserve pool capacity pending/manual review"
       };
     }
 
