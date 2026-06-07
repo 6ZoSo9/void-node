@@ -16588,6 +16588,96 @@ small{color:#94a3b8}
       };
     }
 
+    // VOID_BUY_VOID_OPERATOR_QUEUE_V1
+    async function __voidReadBuyVoidRequestsV1(){
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
+      const jsonl = path.join(dir, "requests.jsonl");
+      const out:any[] = [];
+      const seen = new Set();
+
+      if (!fs.existsSync(jsonl)) return out;
+
+      const lines = fs.readFileSync(jsonl, "utf8").split(/\n+/).filter(Boolean);
+      for (const line of lines) {
+        try {
+          const j:any = JSON.parse(line);
+          if (!j || !j.request_id || seen.has(j.request_id)) continue;
+          seen.add(j.request_id);
+          out.push(j);
+        } catch {}
+      }
+
+      out.sort((a:any,b:any)=>Number(b.created_at_ms||0)-Number(a.created_at_ms||0));
+      return out;
+    }
+
+    function __voidBuyVoidOperatorLocalOnlyV1(req:any,res:any){
+      const host = String(req.headers?.host || "");
+      const remote = String(req.socket?.remoteAddress || "");
+      const localHost = host.startsWith("127.0.0.1:") || host.startsWith("localhost:");
+      const localRemote = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
+      if (localHost || localRemote) return true;
+      res.status(403).json({
+        schema: "void_buy_void_operator_auth_v1",
+        ok: false,
+        error: "operator_queue_local_only"
+      });
+      return false;
+    }
+
+    app.get("/__void/buy-void/operator/queue.json", async (req:any,res:any)=>{
+      if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+
+      const sale_state = await __voidBuyVoidSaleStateV1();
+      const requests = await __voidReadBuyVoidRequestsV1();
+
+      const awaiting_payment = requests.filter((r:any)=>!String(r.tx_hash || "").match(/^0x[a-fA-F0-9]{64}$/));
+      const tx_submitted = requests.filter((r:any)=>String(r.tx_hash || "").match(/^0x[a-fA-F0-9]{64}$/));
+
+      res.json({
+        schema: "void_buy_void_operator_queue_v1",
+        ok: true,
+        local_only: true,
+        sale_state,
+        counts: {
+          total: requests.length,
+          awaiting_payment: awaiting_payment.length,
+          tx_submitted: tx_submitted.length
+        },
+        requests: {
+          awaiting_payment,
+          tx_submitted
+        }
+      });
+    });
+
+    app.get("/__void/buy-void/operator/request.json", async (req:any,res:any)=>{
+      if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+
+      const id = String((req.query || {}).id || "").trim();
+      const requests = await __voidReadBuyVoidRequestsV1();
+      const found = requests.find((r:any)=>String(r.request_id || "") === id);
+
+      if (!found) {
+        return res.status(404).json({
+          schema: "void_buy_void_operator_request_v1",
+          ok: false,
+          error: "buy_void_request_not_found",
+          request_id: id
+        });
+      }
+
+      res.json({
+        schema: "void_buy_void_operator_request_v1",
+        ok: true,
+        local_only: true,
+        request: found
+      });
+    });
+
+
     app.get("/__void/buy-void/sale-state.json", async (_req:any,res:any)=>{
       res.json(await __voidBuyVoidSaleStateV1());
     });
