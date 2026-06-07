@@ -16478,6 +16478,112 @@ small{color:#94a3b8}
     });
 
 
+    // VOID_PUBLIC_BUY_VOID_ROUTE_V1
+    app.get("/__void/buy-void/status.json", (_req:any,res:any)=>{
+      res.json({
+        schema: "void_public_buy_void_status_v1",
+        ok: true,
+        mode: "guarded_request_only",
+        funding_model: "guarded_usdc_to_void",
+        public_buy_page: "/buy-void",
+        public_funding_page: "/funding",
+        participant_page: "/participant",
+        flow: {
+          step_1: "Open public Buy VOID page",
+          step_2: "Open participant page",
+          step_3: "Use guided Buy VOID request flow",
+          step_4: "Manual review and guarded fulfillment",
+          automatic_fulfillment: false,
+          manual_review_required: true,
+          exchange_custody_required: false
+        },
+        assets: {
+          asset_in: "USDC",
+          asset_out: "VOID"
+        },
+        safety: {
+          experimental: true,
+          no_investment_return_promised: true,
+          no_automatic_token_delivery_promised: true,
+          private_rpc_public: false,
+          sensitive_surfaces_blocked: true,
+          do_not_send_from_exchange: true
+        },
+        public_routes: [
+          "/",
+          "/buy-void",
+          "/funding",
+          "/participant",
+          "/__void/buy-void/status.json",
+          "/__void/funding/status.json",
+          "/__void/adapter.json",
+          "/__void/ready.json",
+          "/__void/public-bootstrap.json",
+          "/__void/public-seed-adapter/status.json"
+        ]
+      });
+    });
+
+    app.get("/buy-void", (_req:any,res:any)=>{
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Buy VOID</title>
+<style>
+body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
+main{max-width:880px;margin:0 auto;padding:34px 18px}
+.card{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}
+.hero{border:1px solid #263244;background:linear-gradient(135deg,#0d1321,#111827);border-radius:18px;padding:24px;margin:16px 0}
+a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none}.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}.warn{color:#fbbf24}.ok{color:#86efac}code{background:#111827;padding:2px 5px;border-radius:5px}
+</style>
+</head>
+<body>
+<main>
+<section class="hero"><!-- VOID_PUBLIC_BUY_VOID_ROUTE_V1 -->
+  <h1>Buy VOID / Fund Development</h1>
+  <p>VOID funding uses a guarded <b>USDC → VOID</b> request path.</p>
+  <p>
+    <a class="btn" href="/participant">Open Participant Page</a>
+    <a class="btn secondary" href="/__void/buy-void/status.json">Buy VOID Status JSON</a>
+  </p>
+</section>
+
+<section class="card">
+  <h2>How it works</h2>
+  <ol>
+    <li>Open the participant page.</li>
+    <li>Use the guided Buy VOID request flow.</li>
+    <li>Submit/request using the supported USDC path shown by the participant UI.</li>
+    <li>VOID fulfillment is manually reviewed and guarded.</li>
+  </ol>
+</section>
+
+<section class="card">
+  <h2>Important safety notes</h2>
+  <ul>
+    <li class="warn"><b>No automatic token delivery is promised.</b></li>
+    <li class="warn"><b>No investment return, yield, or profit is promised.</b></li>
+    <li class="warn"><b>Do not send from an exchange/custodial wallet.</b></li>
+    <li class="ok">Private JSON-RPC is not public.</li>
+    <li class="ok">Wallet, key, admin, operator, and secret surfaces are blocked.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Public proof</h2>
+  <p><a href="/__void/buy-void/status.json">Buy VOID status JSON</a></p>
+  <p><a href="/__void/funding/status.json">Funding status JSON</a></p>
+  <p><a href="/__void/adapter.json">Public adapter manifest</a></p>
+  <p><a href="/__void/ready.json">Readiness JSON</a></p>
+</section>
+</main>
+</body>
+</html>`);
+    });
+
+
     // VOID_PUBLIC_FUNDING_USDC_VOID_V1
     app.get("/__void/funding/status.json", (_req:any,res:any)=>{
       res.json({

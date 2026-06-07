@@ -1416,3 +1416,7 @@ participant-funding-card-proof:
 .PHONY: public-landing-proof
 public-landing-proof:
 	bash ops/public/public-landing-v1-proof.sh
+
+.PHONY: buy-void-public-proof
+buy-void-public-proof:
+	bash ops/public/buy-void-public-v1-proof.sh
