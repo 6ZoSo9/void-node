@@ -16530,6 +16530,21 @@ small{color:#94a3b8}
       let request_count = 0;
       let submitted_tx_count = 0;
 
+      // VOID_BUY_VOID_VERIFIED_ONLY_POOL_RESERVATION_V1
+      const verifiedIds = new Set();
+      const eventsJsonl = path.join(dir, "operator-events.jsonl");
+      if (fs.existsSync(eventsJsonl)) {
+        const eventLines = fs.readFileSync(eventsJsonl, "utf8").split(/\n+/).filter(Boolean);
+        for (const line of eventLines) {
+          try {
+            const e = JSON.parse(line);
+            if (e && e.request_id && e.operator_status === "payment_verified") {
+              verifiedIds.add(String(e.request_id));
+            }
+          } catch {}
+        }
+      }
+
       const jsonl = path.join(dir, "requests.jsonl");
       if (fs.existsSync(jsonl)) {
         const lines = fs.readFileSync(jsonl, "utf8").split(/\n+/).filter(Boolean);
@@ -16545,7 +16560,7 @@ small{color:#94a3b8}
             request_count++;
             requested_usdc_total += usdc;
             requested_void_total += quoted;
-            if (String(j.tx_hash || "").match(/^0x[a-fA-F0-9]{64}$/)) {
+            if (verifiedIds.has(String(j.request_id || ""))) {
               submitted_tx_count++;
               submitted_usdc_total += usdc;
               submitted_void_total += quoted;
@@ -16584,7 +16599,7 @@ small{color:#94a3b8}
         sold_out,
         progress_pct,
         cutoff_rule: "buy_void_hidden_and_requests_rejected_when_paid_or_submitted_tx_reserved_void_reaches_pool_limit",
-        accounting_note: "unpaid requests are quotes only; submitted tx totals reserve pool capacity pending/manual review"
+        accounting_note: "unpaid and unverified tx-submitted requests are quotes only; payment_verified operator events reserve pool capacity"
       };
     }
 
