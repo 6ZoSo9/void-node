@@ -16798,6 +16798,12 @@ a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:
   </p>
 </section>
 
+<section class="card"><!-- VOID_BUY_VOID_SALE_STATE_UI_V1 -->
+  <h2>Sale state</h2>
+  <p id="buySaleState">Loading sale state…</p>
+  <p><a href="/__void/buy-void/sale-state.json">Sale state JSON</a></p>
+</section>
+
 <section class="card"><!-- VOID_PUBLIC_BUY_VOID_REQUEST_FORM_V1 -->
   <h2>Start a Buy VOID request</h2>
   <p>This creates a guarded request record. It does not automatically fulfill VOID.</p>

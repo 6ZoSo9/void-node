@@ -36,7 +36,7 @@ PY
 
 curl -fsS --connect-timeout 10 --max-time 30 "$PUBLIC_SEED_BASE/buy-void" -o /tmp/void-buy-page-pool-public.html
 grep -Fq "10,000,000 VOID" /tmp/void-buy-page-pool-public.html
-grep -Fq "$0.50 USDC per VOID" /tmp/void-buy-page-pool-public.html
+grep -Fq '$0.50 USDC per VOID' /tmp/void-buy-page-pool-public.html
 grep -Fq "Sale state" /tmp/void-buy-page-pool-public.html
 grep -Fq "Raised so far" /tmp/void-buy-page-pool-public.html
 
