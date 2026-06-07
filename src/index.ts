@@ -16790,6 +16790,7 @@ async function refresh(){
     '<p><span class="badge">total ' + esc(c.total || 0) + '</span>' +
     '<span class="badge">awaiting ' + esc(c.awaiting_payment || 0) + '</span>' +
     '<span class="badge">tx submitted ' + esc(c.tx_submitted || 0) + '</span>' +
+    '<span class="badge">payment verified ' + esc(c.payment_verified || 0) + '</span>' +
     '<span class="badge">reviewed ' + esc(c.reviewed || 0) + '</span>' +
     '<span class="badge">fulfilled ' + esc(c.fulfilled || 0) + '</span>' +
     '<span class="badge">rejected ' + esc(c.rejected || 0) + '</span></p>' +
@@ -16799,6 +16800,7 @@ async function refresh(){
   document.getElementById("queue").innerHTML =
     renderBucket("Awaiting payment", r.awaiting_payment || []) +
     renderBucket("TX submitted", r.tx_submitted || []) +
+    renderBucket("Payment verified", r.payment_verified || []) +
     renderBucket("Reviewed", r.reviewed || []) +
     renderBucket("Fulfilled", r.fulfilled || []) +
     renderBucket("Rejected", r.rejected || []);
@@ -16821,6 +16823,8 @@ setInterval(refresh, 10000);
 
       const awaiting_payment = requests.filter((r:any)=>r.effective_status === "awaiting_payment");
       const tx_submitted = requests.filter((r:any)=>r.effective_status === "payment_submitted_pending_manual_review");
+      // VOID_BUY_VOID_PAYMENT_VERIFIED_QUEUE_BUCKET_V1
+      const payment_verified = requests.filter((r:any)=>r.effective_status === "payment_verified");
       const reviewed = requests.filter((r:any)=>r.effective_status === "reviewed");
       const fulfilled = requests.filter((r:any)=>r.effective_status === "fulfilled");
       const rejected = requests.filter((r:any)=>r.effective_status === "rejected");
@@ -16834,6 +16838,7 @@ setInterval(refresh, 10000);
           total: requests.length,
           awaiting_payment: awaiting_payment.length,
           tx_submitted: tx_submitted.length,
+          payment_verified: payment_verified.length,
           reviewed: reviewed.length,
           fulfilled: fulfilled.length,
           rejected: rejected.length,
@@ -16842,6 +16847,7 @@ setInterval(refresh, 10000);
         requests: {
           awaiting_payment,
           tx_submitted,
+          payment_verified,
           reviewed,
           fulfilled,
           rejected
