@@ -1420,3 +1420,7 @@ public-landing-proof:
 .PHONY: buy-void-public-proof
 buy-void-public-proof:
 	bash ops/public/buy-void-public-v1-proof.sh
+
+.PHONY: buy-void-request-intake-proof
+buy-void-request-intake-proof:
+	bash ops/public/buy-void-request-intake-v1-proof.sh

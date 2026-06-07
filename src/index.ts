@@ -16478,6 +16478,148 @@ small{color:#94a3b8}
     });
 
 
+    // VOID_PUBLIC_BUY_VOID_REQUEST_INTAKE_V1
+    function __voidBuyVoidConfigV1(){
+      const receive_address = String(process.env.VOID_BUY_RECEIVE_ADDRESS || process.env.VOID_USDC_RECEIVER || "").trim();
+      const chain = String(process.env.VOID_BUY_CHAIN || "base").trim();
+      const usdc_symbol = String(process.env.VOID_BUY_USDC_SYMBOL || "USDC").trim();
+      const rate_void_per_usdc = Number(process.env.VOID_BUY_RATE_VOID_PER_USDC || "100");
+      const min_usdc = Number(process.env.VOID_BUY_MIN_USDC || "1");
+      const max_usdc = Number(process.env.VOID_BUY_MAX_USDC || "500");
+      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "1") !== "0";
+      const payment_ready = /^0x[a-fA-F0-9]{40}$/.test(receive_address);
+      return {
+        schema: "void_public_buy_void_config_v1",
+        ok: true,
+        mode: "guarded_request_intake",
+        requests_enabled,
+        payment_ready,
+        chain,
+        usdc_symbol,
+        receive_address: payment_ready ? receive_address : "",
+        rate_void_per_usdc,
+        min_usdc,
+        max_usdc,
+        asset_in: "USDC",
+        asset_out: "VOID",
+        automatic_fulfillment: false,
+        manual_review_required: true,
+        no_investment_return_promised: true,
+        no_automatic_token_delivery_promised: true,
+        do_not_send_from_exchange: true
+      };
+    }
+
+    async function __voidPersistBuyVoidRequestV1(reqObj:any){
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
+      fs.mkdirSync(dir, { recursive: true });
+      const json = JSON.stringify(reqObj);
+      fs.appendFileSync(path.join(dir, "requests.jsonl"), json + "\n");
+      fs.writeFileSync(path.join(dir, reqObj.request_id + ".json"), JSON.stringify(reqObj, null, 2));
+      return { dir, file: path.join(dir, reqObj.request_id + ".json") };
+    }
+
+    function __voidBuyVoidReadParamV1(req:any, name:string){
+      const q = (req && req.query) || {};
+      const v = q[name];
+      if (Array.isArray(v)) return String(v[0] || "").trim();
+      return String(v || "").trim();
+    }
+
+    app.get("/__void/buy-void/config.json", (_req:any,res:any)=>{
+      res.json(__voidBuyVoidConfigV1());
+    });
+
+    app.get("/__void/buy-void/request.json", async (req:any,res:any)=>{
+      try {
+        const cfg:any = __voidBuyVoidConfigV1();
+        if (!cfg.requests_enabled) {
+          return res.status(503).json({ schema:"void_public_buy_void_request_v1", ok:false, error:"buy_void_requests_disabled" });
+        }
+        if (!cfg.payment_ready) {
+          return res.status(503).json({ schema:"void_public_buy_void_request_v1", ok:false, error:"buy_void_receive_address_not_configured" });
+        }
+
+        const rawAmount = __voidBuyVoidReadParamV1(req, "usdc_amount");
+        const delivery_address = __voidBuyVoidReadParamV1(req, "delivery_address");
+        const source_chain = (__voidBuyVoidReadParamV1(req, "source_chain") || cfg.chain).toLowerCase();
+        const tx_hash = __voidBuyVoidReadParamV1(req, "tx_hash");
+        const note = __voidBuyVoidReadParamV1(req, "note").slice(0, 240);
+
+        const usdc_amount = Number(rawAmount);
+        const errors:string[] = [];
+
+        if (!Number.isFinite(usdc_amount) || usdc_amount <= 0) errors.push("invalid_usdc_amount");
+        if (Number.isFinite(usdc_amount) && usdc_amount < cfg.min_usdc) errors.push("below_min_usdc");
+        if (Number.isFinite(usdc_amount) && usdc_amount > cfg.max_usdc) errors.push("above_max_usdc");
+        if (!/^0x[a-fA-F0-9]{40}$/.test(delivery_address)) errors.push("invalid_delivery_address");
+        if (!["base","ethereum"].includes(source_chain)) errors.push("unsupported_source_chain");
+        if (tx_hash && !/^0x[a-fA-F0-9]{64}$/.test(tx_hash)) errors.push("invalid_tx_hash");
+
+        if (errors.length) {
+          return res.status(400).json({
+            schema: "void_public_buy_void_request_v1",
+            ok: false,
+            errors,
+            config: cfg
+          });
+        }
+
+        const quoted_void = Math.floor(usdc_amount * cfg.rate_void_per_usdc * 1e6) / 1e6;
+        const request_id = "buyvoid_" + Date.now().toString(36) + "_" + Math.random().toString(16).slice(2,10);
+        const created_at_ms = Date.now();
+
+        const requestObj:any = {
+          schema: "void_public_buy_void_request_v1",
+          ok: true,
+          request_id,
+          created_at_ms,
+          status: tx_hash ? "payment_submitted_pending_manual_review" : "awaiting_payment_tx_hash",
+          funding_model: "guarded_usdc_to_void",
+          source_chain,
+          asset_in: "USDC",
+          asset_out: "VOID",
+          usdc_amount,
+          rate_void_per_usdc: cfg.rate_void_per_usdc,
+          quoted_void,
+          receive_address: cfg.receive_address,
+          delivery_address,
+          tx_hash: tx_hash || "",
+          note,
+          payment_instructions: {
+            send_asset: "USDC",
+            send_chain: source_chain,
+            send_to: cfg.receive_address,
+            amount: usdc_amount,
+            then_submit_tx_hash: true
+          },
+          safety: {
+            automatic_fulfillment: false,
+            manual_review_required: true,
+            no_investment_return_promised: true,
+            no_automatic_token_delivery_promised: true,
+            do_not_send_from_exchange: true,
+            private_rpc_public: false
+          }
+        };
+
+        const persisted = await __voidPersistBuyVoidRequestV1(requestObj);
+        requestObj.persisted = { ok:true, file:persisted.file };
+
+        res.json(requestObj);
+      } catch(e:any) {
+        res.status(500).json({
+          schema: "void_public_buy_void_request_v1",
+          ok: false,
+          error: "buy_void_request_failed",
+          message: String(e?.message || e)
+        });
+      }
+    });
+
+
     // VOID_PUBLIC_BUY_VOID_ROUTE_V1
     app.get("/__void/buy-void/status.json", (_req:any,res:any)=>{
       res.json({
@@ -16550,15 +16692,41 @@ a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:
   </p>
 </section>
 
-<section class="card">
-  <h2>How it works</h2>
-  <ol>
-    <li>Open the participant page.</li>
-    <li>Use the guided Buy VOID request flow.</li>
-    <li>Submit/request using the supported USDC path shown by the participant UI.</li>
-    <li>VOID fulfillment is manually reviewed and guarded.</li>
-  </ol>
+<section class="card"><!-- VOID_PUBLIC_BUY_VOID_REQUEST_FORM_V1 -->
+  <h2>Start a Buy VOID request</h2>
+  <p>This creates a guarded request record. It does not automatically fulfill VOID.</p>
+  <label>USDC amount<br/><input id="buyUsdcAmount" inputmode="decimal" placeholder="25" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#111827;color:#e5e7eb"/></label>
+  <br/><br/>
+  <label>VOID delivery wallet<br/><input id="buyDeliveryAddress" placeholder="0x..." style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#111827;color:#e5e7eb"/></label>
+  <br/><br/>
+  <label>Payment tx hash, optional if already sent<br/><input id="buyTxHash" placeholder="0x..." style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#111827;color:#e5e7eb"/></label>
+  <br/><br/>
+  <button class="btn" id="buyCreateRequestBtn" type="button">Create Buy VOID Request</button>
+  <pre id="buyRequestResult" style="white-space:pre-wrap;background:#020617;border:1px solid #1f2937;border-radius:10px;padding:12px;overflow:auto"></pre>
 </section>
+
+<script>
+async function createBuyVoidRequestV1(){
+  const amount = document.getElementById("buyUsdcAmount").value.trim();
+  const delivery = document.getElementById("buyDeliveryAddress").value.trim();
+  const tx = document.getElementById("buyTxHash").value.trim();
+  const qs = new URLSearchParams();
+  qs.set("usdc_amount", amount);
+  qs.set("delivery_address", delivery);
+  qs.set("source_chain", "base");
+  if (tx) qs.set("tx_hash", tx);
+  const out = document.getElementById("buyRequestResult");
+  out.textContent = "Creating request...";
+  try {
+    const r = await fetch("/__void/buy-void/request.json?" + qs.toString());
+    const j = await r.json();
+    out.textContent = JSON.stringify(j, null, 2);
+  } catch(e) {
+    out.textContent = "request_failed: " + String(e && e.message || e);
+  }
+}
+document.getElementById("buyCreateRequestBtn")?.addEventListener("click", createBuyVoidRequestV1);
+</script>
 
 <section class="card">
   <h2>Important safety notes</h2>
