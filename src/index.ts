@@ -16679,6 +16679,109 @@ small{color:#94a3b8}
       });
     }
 
+    // VOID_BUY_VOID_OPERATOR_PAGE_V1
+    app.get("/__void/buy-void/operator", async (req:any,res:any)=>{
+      if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+
+      res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VOID Buy VOID Operator</title>
+<style>
+body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
+main{max-width:1100px;margin:0 auto;padding:28px 16px}
+.card{border:1px solid #263244;background:#0b1020;border-radius:14px;padding:14px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+button{background:#1d4ed8;color:#fff;border:0;border-radius:8px;padding:8px 10px;margin:4px;cursor:pointer}
+button.reject{background:#7f1d1d}
+button.fulfill{background:#166534}
+button.review{background:#854d0e}
+pre{white-space:pre-wrap;background:#020617;border:1px solid #1f2937;border-radius:8px;padding:10px;overflow:auto}
+small{color:#94a3b8}
+.badge{display:inline-block;border:1px solid #334155;border-radius:999px;padding:3px 8px;margin:3px;color:#cbd5e1}
+</style>
+</head>
+<body>
+<main><!-- VOID_BUY_VOID_OPERATOR_PAGE_V1 -->
+<h1>Buy VOID Operator Queue</h1>
+<p><small>Local-only operator page. This route is not public-adapter allowlisted.</small></p>
+<div id="summary" class="card">Loading queue…</div>
+<div id="queue"></div>
+</main>
+<script>
+async function j(url){ const r = await fetch(url); return await r.json(); }
+
+function esc(x){
+  return String(x == null ? "" : x).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c];
+  });
+}
+
+async function markReq(id, status){
+  const note = prompt("Operator note for " + status + ":", status);
+  if (note === null) return;
+  const url = "/__void/buy-void/operator/mark.json?id=" + encodeURIComponent(id) +
+    "&status=" + encodeURIComponent(status) +
+    "&note=" + encodeURIComponent(note);
+  const out = await j(url);
+  alert(out.ok ? "Marked " + status : JSON.stringify(out));
+  refresh();
+}
+
+function renderReq(r){
+  const id = esc(r.request_id);
+  const tx = esc(r.tx_hash || "");
+  const status = esc(r.effective_status || r.status || "");
+  return '<div class="card">' +
+    '<h3>' + id + '</h3>' +
+    '<p><span class="badge">' + status + '</span><span class="badge">' + esc(r.usdc_amount) + ' USDC</span><span class="badge">' + esc(r.quoted_void) + ' VOID</span></p>' +
+    '<p><b>Delivery:</b> ' + esc(r.delivery_address || "") + '</p>' +
+    '<p><b>TX:</b> ' + (tx || '<small>none</small>') + '</p>' +
+    '<button class="review" onclick="markReq(\\'' + id + '\\',\\'reviewed\\')">Mark reviewed</button>' +
+    '<button class="fulfill" onclick="markReq(\\'' + id + '\\',\\'fulfilled\\')">Mark fulfilled</button>' +
+    '<button class="reject" onclick="markReq(\\'' + id + '\\',\\'rejected\\')">Reject</button>' +
+    '<pre>' + esc(JSON.stringify(r, null, 2)) + '</pre>' +
+    '</div>';
+}
+
+function renderBucket(name, arr){
+  return '<section class="card"><h2>' + esc(name) + ' (' + arr.length + ')</h2>' +
+    (arr.length ? arr.map(renderReq).join("") : '<p><small>empty</small></p>') +
+    '</section>';
+}
+
+async function refresh(){
+  const q = await j("/__void/buy-void/operator/queue.json");
+  const c = q.counts || {};
+  const s = q.sale_state || {};
+  document.getElementById("summary").innerHTML =
+    '<h2>Summary</h2>' +
+    '<p><span class="badge">total ' + esc(c.total || 0) + '</span>' +
+    '<span class="badge">awaiting ' + esc(c.awaiting_payment || 0) + '</span>' +
+    '<span class="badge">tx submitted ' + esc(c.tx_submitted || 0) + '</span>' +
+    '<span class="badge">reviewed ' + esc(c.reviewed || 0) + '</span>' +
+    '<span class="badge">fulfilled ' + esc(c.fulfilled || 0) + '</span>' +
+    '<span class="badge">rejected ' + esc(c.rejected || 0) + '</span></p>' +
+    '<p>Raised: $' + esc(s.raised_usdc_so_far || 0) + ' USDC • Remaining: ' + esc(s.remaining_void || 0) + ' VOID • Sold out: ' + esc(s.sold_out) + '</p>';
+
+  const r = q.requests || {};
+  document.getElementById("queue").innerHTML =
+    renderBucket("Awaiting payment", r.awaiting_payment || []) +
+    renderBucket("TX submitted", r.tx_submitted || []) +
+    renderBucket("Reviewed", r.reviewed || []) +
+    renderBucket("Fulfilled", r.fulfilled || []) +
+    renderBucket("Rejected", r.rejected || []);
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>`);
+    });
+
     app.get("/__void/buy-void/operator/queue.json", async (req:any,res:any)=>{
       if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
 
