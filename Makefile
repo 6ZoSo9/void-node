@@ -1428,3 +1428,7 @@ buy-void-request-intake-proof:
 .PHONY: buy-void-pool-accounting-proof
 buy-void-pool-accounting-proof:
 	bash ops/public/buy-void-pool-accounting-v1-proof.sh
+
+.PHONY: buy-void-fulfillment-10246-live-proof
+buy-void-fulfillment-10246-live-proof:
+	RPC=$${RPC:-http://127.0.0.1:18545} ops/mainnet0/buy-void-fulfillment-10246-live-proof.sh
