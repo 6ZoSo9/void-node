@@ -1436,3 +1436,7 @@ buy-void-fulfillment-10246-live-proof:
 .PHONY: participant-datanet-store-serve-demo-proof
 participant-datanet-store-serve-demo-proof:
 	BASE=$${BASE:-http://127.0.0.1:4100} ops/mainnet0/participant-datanet-store-serve-demo-proof.sh
+
+.PHONY: datanet-store-serve-live-service-crossbox-closeout-proof
+datanet-store-serve-live-service-crossbox-closeout-proof:
+	ops/mainnet0/datanet-store-serve-live-service-crossbox-closeout-proof.sh
