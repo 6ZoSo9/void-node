@@ -35,7 +35,8 @@ receipt_status() {
 }
 
 receipt_to() {
-  cast receipt --rpc-url "$RPC" "$1" to | awk '{print $1}'
+  cast rpc --rpc-url "$RPC" eth_getTransactionByHash "$1" \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["to"])'
 }
 
 echo "=== VOID Buy fulfillment 102.46 live proof ==="
