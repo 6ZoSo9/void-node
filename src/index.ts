@@ -16834,6 +16834,176 @@ setInterval(refresh, 10000);
       });
     });
 
+    // VOID_BUY_VOID_PAYMENT_VERIFIER_V1
+    function __voidBuyVoidHexToBigIntV1(x:any){
+      const s = String(x || "0x0");
+      try { return BigInt(s); } catch { return 0n; }
+    }
+
+    function __voidBuyVoidTopicAddressV1(topic:any){
+      const s = String(topic || "").toLowerCase();
+      if (!s.startsWith("0x") || s.length < 66) return "";
+      return "0x" + s.slice(-40);
+    }
+
+    async function __voidBuyVoidRpcV1(method:string, params:any[]){
+      const rpc = String(process.env.VOID_BUY_BASE_RPC_URL || process.env.BASE_RPC_URL || "").trim();
+      if (!rpc) throw new Error("base_rpc_url_not_configured");
+      const r = await fetch(rpc, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params })
+      });
+      const j:any = await r.json();
+      if (j.error) throw new Error(String(j.error.message || JSON.stringify(j.error)));
+      return j.result;
+    }
+
+    function __voidBuyVoidUsdcTransferMatchV1(logs:any[], receiveAddress:string, requestedUsdc:any){
+      const usdc = String(process.env.VOID_BUY_USDC_CONTRACT || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913").toLowerCase();
+      const to = String(receiveAddress || "").toLowerCase();
+      const transferSig = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+      const requestedUnits = BigInt(Math.ceil(Number(requestedUsdc || 0) * 1000000));
+
+      for (const log of logs || []) {
+        const addr = String(log.address || "").toLowerCase();
+        const topics = log.topics || [];
+        if (addr !== usdc) continue;
+        if (String(topics[0] || "").toLowerCase() !== transferSig) continue;
+        const logTo = __voidBuyVoidTopicAddressV1(topics[2]);
+        if (logTo !== to) continue;
+        const amountUnits = __voidBuyVoidHexToBigIntV1(log.data || "0x0");
+        if (amountUnits >= requestedUnits) {
+          return {
+            ok: true,
+            usdc_contract: usdc,
+            receive_address: to,
+            amount_units: amountUnits.toString(),
+            requested_units: requestedUnits.toString()
+          };
+        }
+      }
+
+      return {
+        ok: false,
+        usdc_contract: usdc,
+        receive_address: to,
+        requested_units: requestedUnits.toString()
+      };
+    }
+
+    app.get("/__void/buy-void/operator/verify-payment.json", async (req:any,res:any)=>{
+      if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+
+      try {
+        const id = String((req.query || {}).id || "").trim();
+        const requests = await __voidReadBuyVoidRequestsV1();
+        const found = requests.find((r:any)=>String(r.request_id || "") === id);
+
+        if (!found) {
+          return res.status(404).json({
+            schema: "void_buy_void_payment_verifier_v1",
+            ok: false,
+            error: "buy_void_request_not_found",
+            request_id: id
+          });
+        }
+
+        const tx = String(found.tx_hash || "").trim();
+        if (!/^0x[a-fA-F0-9]{64}$/.test(tx)) {
+          return res.status(400).json({
+            schema: "void_buy_void_payment_verifier_v1",
+            ok: false,
+            error: "request_has_no_valid_payment_tx_hash",
+            request_id: id
+          });
+        }
+
+        const cfg:any = __voidBuyVoidConfigV1();
+        if (!cfg.payment_ready) {
+          return res.status(503).json({
+            schema: "void_buy_void_payment_verifier_v1",
+            ok: false,
+            error: "buy_void_receive_address_not_configured"
+          });
+        }
+
+        const receipt:any = await __voidBuyVoidRpcV1("eth_getTransactionReceipt", [tx]);
+        if (!receipt) {
+          return res.status(404).json({
+            schema: "void_buy_void_payment_verifier_v1",
+            ok: false,
+            error: "payment_tx_receipt_not_found",
+            tx_hash: tx
+          });
+        }
+
+        if (String(receipt.status || "").toLowerCase() !== "0x1") {
+          return res.status(400).json({
+            schema: "void_buy_void_payment_verifier_v1",
+            ok: false,
+            error: "payment_tx_failed",
+            tx_hash: tx,
+            receipt_status: receipt.status || ""
+          });
+        }
+
+        const match = __voidBuyVoidUsdcTransferMatchV1(receipt.logs || [], cfg.receive_address, found.usdc_amount);
+        if (!match.ok) {
+          return res.status(400).json({
+            schema: "void_buy_void_payment_verifier_v1",
+            ok: false,
+            error: "matching_usdc_transfer_not_found",
+            tx_hash: tx,
+            request_id: id,
+            match
+          });
+        }
+
+        const event = {
+          schema: "void_buy_void_operator_mark_v1",
+          ok: true,
+          request_id: id,
+          operator_status: "payment_verified",
+          note: "Base USDC payment verified by receipt/log check",
+          marked_at_ms: Date.now(),
+          prior_status: found.status || "",
+          tx_hash: tx,
+          payment_verified: true,
+          payment_verifier: {
+            chain: "base",
+            receipt_status: receipt.status,
+            block_number: receipt.blockNumber || "",
+            transaction_hash: receipt.transactionHash || tx,
+            usdc_contract: match.usdc_contract,
+            receive_address: match.receive_address,
+            amount_units: match.amount_units,
+            requested_units: match.requested_units
+          },
+          usdc_amount: found.usdc_amount,
+          quoted_void: found.quoted_void,
+          delivery_address: found.delivery_address || ""
+        };
+
+        await __voidWriteBuyVoidOperatorEventV1(event);
+
+        res.json({
+          schema: "void_buy_void_payment_verifier_v1",
+          ok: true,
+          verified: true,
+          event,
+          request: found
+        });
+      } catch(e:any) {
+        res.status(500).json({
+          schema: "void_buy_void_payment_verifier_v1",
+          ok: false,
+          error: "payment_verifier_failed",
+          message: String(e?.message || e)
+        });
+      }
+    });
+
     app.get("/__void/buy-void/operator/mark.json", async (req:any,res:any)=>{
       if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
 
