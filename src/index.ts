@@ -16657,14 +16657,41 @@ small{color:#94a3b8}
       return { ok:true, dir };
     }
 
+    // VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1
+    function __voidApplyBuyVoidOperatorEventsV1(requests:any[], events:any[]){
+      const latest = new Map();
+      for (const e of events) {
+        const id = String(e.request_id || "");
+        if (id && !latest.has(id)) latest.set(id, e);
+      }
+
+      return requests.map((r:any)=>{
+        const id = String(r.request_id || "");
+        const e = latest.get(id);
+        const hasTx = /^0x[a-fA-F0-9]{64}$/.test(String(r.tx_hash || ""));
+        const baseStatus = hasTx ? "payment_submitted_pending_manual_review" : "awaiting_payment";
+        const effective_status = e ? String(e.operator_status || baseStatus) : baseStatus;
+        return {
+          ...r,
+          effective_status,
+          operator_event: e || null
+        };
+      });
+    }
+
     app.get("/__void/buy-void/operator/queue.json", async (req:any,res:any)=>{
       if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
 
       const sale_state = await __voidBuyVoidSaleStateV1();
-      const requests = await __voidReadBuyVoidRequestsV1();
+      const raw_requests = await __voidReadBuyVoidRequestsV1();
+      const operator_events = await __voidReadBuyVoidOperatorEventsV1();
+      const requests = __voidApplyBuyVoidOperatorEventsV1(raw_requests, operator_events);
 
-      const awaiting_payment = requests.filter((r:any)=>!String(r.tx_hash || "").match(/^0x[a-fA-F0-9]{64}$/));
-      const tx_submitted = requests.filter((r:any)=>String(r.tx_hash || "").match(/^0x[a-fA-F0-9]{64}$/));
+      const awaiting_payment = requests.filter((r:any)=>r.effective_status === "awaiting_payment");
+      const tx_submitted = requests.filter((r:any)=>r.effective_status === "payment_submitted_pending_manual_review");
+      const reviewed = requests.filter((r:any)=>r.effective_status === "reviewed");
+      const fulfilled = requests.filter((r:any)=>r.effective_status === "fulfilled");
+      const rejected = requests.filter((r:any)=>r.effective_status === "rejected");
 
       res.json({
         schema: "void_buy_void_operator_queue_v1",
@@ -16674,11 +16701,18 @@ small{color:#94a3b8}
         counts: {
           total: requests.length,
           awaiting_payment: awaiting_payment.length,
-          tx_submitted: tx_submitted.length
+          tx_submitted: tx_submitted.length,
+          reviewed: reviewed.length,
+          fulfilled: fulfilled.length,
+          rejected: rejected.length,
+          operator_events: operator_events.length
         },
         requests: {
           awaiting_payment,
-          tx_submitted
+          tx_submitted,
+          reviewed,
+          fulfilled,
+          rejected
         }
       });
     });
