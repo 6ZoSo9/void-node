@@ -17108,7 +17108,7 @@ setInterval(refresh, 10000);
             ok: false,
             error: "invalid_void_delivery_tx_hash",
             message: "fulfilled status requires a real 0x-prefixed 32-byte VOID delivery transaction hash",
-            request_id,
+            request_id: id,
             operator_status,
             void_delivery_tx_hash
           });
