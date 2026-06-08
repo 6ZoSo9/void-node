@@ -40451,6 +40451,113 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
       }
     });
 
+
+    APP.get("/datanet/v1/object/:id", (req:any, res:any) => {
+      // VOID_DATANET_PUBLISH_SHIM_OBJECT_DETAIL_ROUTE_V1
+      try {
+        const fs = require("node:fs");
+        const path = require("node:path");
+
+        const id = String(req?.params?.id || "").trim();
+        if (!/^[A-Za-z0-9_-]{8,128}$/.test(id)) {
+          return res.status(400).json({
+            ok: false,
+            marker: "VOID_DATANET_PUBLISH_SHIM_OBJECT_DETAIL_ROUTE_V1",
+            error: "bad_dataset_id"
+          });
+        }
+
+        const dir = path.join(DATA_DIR, "datanet", "publish_shim_v1", "packed", id);
+        if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+          return res.status(404).json({
+            ok: false,
+            marker: "VOID_DATANET_PUBLISH_SHIM_OBJECT_DETAIL_ROUTE_V1",
+            error: "object_not_found",
+            dataset_id: id
+          });
+        }
+
+        const metaPath = path.join(dir, "meta.publish_shim.v1.json");
+        const manifestPath = path.join(dir, "manifest.v1.json");
+        const rootPath = path.join(dir, "root.txt");
+
+        let meta:any = {};
+        let manifest:any = {};
+        let rootTxt = "";
+
+        try {
+          if (fs.existsSync(metaPath)) meta = JSON.parse(String(fs.readFileSync(metaPath, "utf8") || "{}"));
+        } catch {}
+
+        try {
+          if (fs.existsSync(manifestPath)) manifest = JSON.parse(String(fs.readFileSync(manifestPath, "utf8") || "{}"));
+        } catch {}
+
+        try {
+          if (fs.existsSync(rootPath)) rootTxt = String(fs.readFileSync(rootPath, "utf8") || "").trim();
+        } catch {}
+
+        const stat = fs.statSync(dir);
+        const createdAt = String(meta.createdAt || manifest.createdAt || "");
+        const sizeBytes = Number(meta.sizeBytes || manifest.sizeBytes || 0);
+        const merkleRootHex = String(meta.merkleRootHex || manifest.merkleRootHex || rootTxt || "");
+        const imported = !!(meta.imported_from_peer_v1 || meta.peer_import_requested_id || meta.peer_http);
+        const chunks = Array.isArray(manifest.chunks) ? manifest.chunks : [];
+        const firstChunkName = chunks[0]?.file || "chunk_000000.bin";
+        const firstChunkPath = path.join(dir, String(firstChunkName));
+
+        let previewText = "";
+        let previewBytes = 0;
+        let previewTruncated = false;
+
+        try {
+          if (fs.existsSync(firstChunkPath)) {
+            const maxPreview = 4096;
+            const buf = fs.readFileSync(firstChunkPath);
+            previewBytes = Math.min(buf.length, maxPreview);
+            previewTruncated = buf.length > maxPreview;
+            previewText = buf.subarray(0, maxPreview).toString("utf8");
+          }
+        } catch {}
+
+        return res.json({
+          ok: true,
+          marker: "VOID_DATANET_PUBLISH_SHIM_OBJECT_DETAIL_ROUTE_V1",
+          packed_root: "datanet/publish_shim_v1/packed",
+          id,
+          dataset_id: String(meta.dataset_id || meta.id || id),
+          name: String(meta.name || ""),
+          mime: String(meta.mime || ""),
+          who: String(meta.who || ""),
+          createdAt,
+          created_at_ms: stat.mtimeMs,
+          sizeBytes,
+          chunks: chunks.length,
+          merkleRootHex,
+          imported_from_peer_v1: imported,
+          peer_http: String(meta.peer_http || ""),
+          source_who: String(meta.source_who || ""),
+          peer_import_source_id: String(meta.peer_import_source_id || ""),
+          peer_import_requested_id: String(meta.peer_import_requested_id || ""),
+          local_fetch_url: "/datanet/v1/fetch/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(String(meta.who || "")),
+          share_url_path: "/datanet-demo?id=" + encodeURIComponent(id) + "&who=" + encodeURIComponent(String(meta.who || "datanet-demo-ui")),
+          object_detail_path: "/datanet-demo?detail=" + encodeURIComponent(id) + "&who=" + encodeURIComponent(String(meta.who || "datanet-demo-ui")),
+          preview: {
+            text: previewText,
+            bytes: previewBytes,
+            truncated: previewTruncated
+          }
+        });
+      } catch (e:any) {
+        return res.status(500).json({
+          ok: false,
+          marker: "VOID_DATANET_PUBLISH_SHIM_OBJECT_DETAIL_ROUTE_V1",
+          error: "object_detail_route_throw",
+          msg: String(e?.message || e)
+        });
+      }
+    });
+
     try { console.log("[datanet.publish_shim.objects.v1] mounted: GET /datanet/v1/objects"); } catch {}
   }
 

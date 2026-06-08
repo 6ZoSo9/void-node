@@ -231,6 +231,10 @@
         <div class="row" style="margin-bottom:10px;">
           <span id="selectedStatus" class="small muted"></span>
         </div>
+        <div class="selectedBox" style="margin-bottom:10px;"><!-- VOID_DATANET_DEMO_OBJECT_DETAIL_PANEL_V1 -->
+          <div class="small muted">Object details</div>
+          <pre id="objectDetailOut">{}</pre>
+        </div>
         <div class="row" style="margin-bottom:10px;">
           <input id="decryptPassphrase" class="full" type="text" value="void-demo-pass" placeholder="Decrypt passphrase" />
         </div>
@@ -658,6 +662,29 @@
       }
     }
 
+    async function loadObjectDetail(id) {
+      // VOID_DATANET_DEMO_OBJECT_DETAIL_RENDER_V1
+      if (!id) {
+        setJSON("objectDetailOut", { ok: false, error: "missing_dataset_id" });
+        return;
+      }
+
+      setText("selectedStatus", "loading object details…");
+      try {
+        const j = await jfetch(`/datanet/v1/object/${encodeURIComponent(id)}`);
+        selectedId = j.dataset_id || id;
+        setText("selectedId", selectedId);
+        setText("quickDatasetId", selectedId);
+        setText("quickFetchUrl", j.local_fetch_url || `/datanet/v1/fetch/${encodeURIComponent(selectedId)}?who=${quickAccount()}`);
+        setText("quickShareUrl", j.share_url_path || quickShareUrlFor(selectedId));
+        setJSON("objectDetailOut", j);
+        setText("selectedStatus", j.ok ? "object details loaded" : "object detail load failed");
+      } catch (e) {
+        setJSON("objectDetailOut", { ok: false, error: String(e.message || e) });
+        setText("selectedStatus", "object detail load failed");
+      }
+    }
+
     async function loadList() {
       // VOID_DATANET_DEMO_OBJECT_BROWSER_RENDER_V1
       setText("listStatus", "loading local objects…");
@@ -721,11 +748,17 @@
             ${imported ? `<div class="mono small muted" style="margin-top:6px;">source peer=${esc(sourcePeer || "(unknown)")}</div>` : ""}
             ${sourceWho ? `<div class="mono small muted" style="margin-top:6px;">source who=${esc(sourceWho)}</div>` : ""}
             <div class="row" style="margin-top:10px;">
+              <button data-action="details">View details</button>
               <button data-action="open">Open/fetch</button>
               <button data-action="copy-id">Copy id</button>
               <button data-action="copy-share">Copy share</button>
             </div>
           `;
+
+          div.querySelector('[data-action="details"]').onclick = async (ev) => {
+            ev.stopPropagation();
+            await loadObjectDetail(id);
+          };
 
           div.querySelector('[data-action="open"]').onclick = async (ev) => {
             ev.stopPropagation();
