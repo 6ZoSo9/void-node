@@ -43736,6 +43736,7 @@ a{color:#93c5fd;text-decoration:none}
           const job = cleanId((req.query && (req.query as any).job) || "");
           const delta = cleanId((req.query && (req.query as any).delta) || "10") || "10";
           const rawPath = dataset ? ("/datanet/v1/local-job/" + encodeURIComponent(dataset) + "?who=" + encodeURIComponent(who)) : "";
+          const proofPath = dataset ? ("/wc-proof-viewer?dataset=" + encodeURIComponent(dataset) + "&who=" + encodeURIComponent(who) + "&delta=" + encodeURIComponent(delta)) : "";
 
           const html = [
             "<!doctype html>",
@@ -43760,11 +43761,14 @@ a{color:#93c5fd;text-decoration:none}
             "</div>",
             "<div class='card'><div class='k'>Safety state</div><div class='v good'>no wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation</div></div>",
             "<div class='card'><div class='k'>Policy payload</div><pre id='wcProofPlaintext'>loading…</pre></div>",
-            "<p><a class='btn' href='" + esc(rawPath) + "'>Open raw JSON</a><a class='btn' href='/participant'>Back to participant</a></p>",
+            "<div class='card' id='wcProofPermalinkCard'><!-- VOID_WC_PROOF_VIEWER_COPY_LINK_V1 --><div class='k'>Proof link</div><div class='v' id='wcProofPermalink'>" + esc(proofPath) + "</div></div>",
+            "<p><button class='btn' id='wcProofCopyLinkBtn' type='button'>Copy proof link</button><a class='btn' href='" + esc(rawPath) + "'>Open raw JSON</a><a class='btn' href='/participant'>Back to participant</a></p>",
             "</div></main>",
             "<script>(function(){ // VOID_WC_PROOF_VIEWER_CLIENT_V1",
             "const rawPath=" + JSON.stringify(rawPath) + ";",
+            "const proofPath=" + JSON.stringify(proofPath) + ";",
             "function text(id,v){const el=document.getElementById(id);if(el)el.textContent=String(v==null?'':v)}",
+            "const copyBtn=document.getElementById('wcProofCopyLinkBtn');if(copyBtn){copyBtn.addEventListener('click',()=>{const url=new URL(proofPath||window.location.pathname+window.location.search,window.location.origin).toString();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>{copyBtn.textContent='Copied proof link'}).catch(()=>{copyBtn.textContent=url})}else{copyBtn.textContent=url}})}",
             "if(!rawPath){text('wcProofViewerStatus','Missing dataset id.');return}",
             "fetch(rawPath,{cache:'no-store'}).then(r=>r.json()).then(j=>{let parsed={};try{parsed=JSON.parse(j.plaintext||'{}')}catch(_){parsed={}};text('wcProofTaskClass',j.task_class||parsed.task_class||'datanet_publish');text('wcProofDataset',j.dataset_id||j.id||'not recorded');text('wcProofReceipt',j.receipt_id||j.latest_receipt_id||'not recorded');text('wcProofJob',j.job_id||j.latest_job_id||'not recorded');text('wcProofWho',j.who||parsed.account||'not recorded');text('wcProofSha',j.sha256||'not recorded');text('wcProofSize',j.sizeBytes?(String(j.sizeBytes)+' bytes'):'not recorded');text('wcProofPlaintext',j.plaintext||JSON.stringify(j,null,2));const st=document.getElementById('wcProofViewerStatus');if(st){st.className='good';st.textContent='Proof loaded from stable local-job JSON.'}}).catch(err=>{const st=document.getElementById('wcProofViewerStatus');if(st){st.className='warn';st.textContent='Could not load raw JSON: '+String(err&&err.message||err)}})",
             "})();</script></body></html>"

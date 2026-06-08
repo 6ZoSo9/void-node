@@ -29,6 +29,7 @@ echo "=== [1] source markers ==="
 expect_grep "viewer route marker" "VOID_WC_PROOF_VIEWER_ROUTE_V1" src/index.ts
 expect_grep "viewer render marker" "VOID_WC_PROOF_VIEWER_RENDER_V1" src/index.ts
 expect_grep "viewer client marker" "VOID_WC_PROOF_VIEWER_CLIENT_V1" src/index.ts
+expect_grep "copy link marker" "VOID_WC_PROOF_VIEWER_COPY_LINK_V1" src/index.ts
 expect_grep "participant viewer link marker" "VOID_PARTICIPANT_WC_PROOF_VIEWER_LINK_V1" src/index.ts
 expect_grep "stable raw marker" "VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1" src/index.ts
 expect_grep "viewer path" "/wc-proof-viewer?dataset=" src/index.ts
@@ -134,6 +135,9 @@ echo "=== [7] proof viewer resolves ==="
 curl -fsS --max-time 20 "$BASE$VIEWER_PATH" > "$OUT/viewer.html"
 expect_grep "viewer render marker served" "VOID_WC_PROOF_VIEWER_RENDER_V1" "$OUT/viewer.html"
 expect_grep "viewer client marker served" "VOID_WC_PROOF_VIEWER_CLIENT_V1" "$OUT/viewer.html"
+expect_grep "copy link marker served" "VOID_WC_PROOF_VIEWER_COPY_LINK_V1" "$OUT/viewer.html"
+expect_grep "copy proof button served" "Copy proof link" "$OUT/viewer.html"
+expect_grep "permalink card served" "wcProofPermalink" "$OUT/viewer.html"
 expect_grep "viewer title" "WC Proof Viewer" "$OUT/viewer.html"
 expect_grep "viewer dataset" "$DATASET_ID" "$OUT/viewer.html"
 expect_grep "viewer raw path" "/datanet/v1/local-job/" "$OUT/viewer.html"
