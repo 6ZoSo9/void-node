@@ -1444,3 +1444,7 @@ datanet-store-serve-live-service-crossbox-closeout-proof:
 .PHONY: alienware-runtime-service-truth-guard-proof
 alienware-runtime-service-truth-guard-proof:
 	ops/mainnet0/alienware-runtime-service-truth-guard-proof.sh
+
+.PHONY: alienware-duplicate-service-disabled-closeout-proof
+alienware-duplicate-service-disabled-closeout-proof:
+	ops/mainnet0/alienware-duplicate-service-disabled-closeout-proof.sh
