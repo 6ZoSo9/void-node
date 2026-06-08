@@ -1023,6 +1023,44 @@
     }
 
     refreshAll().then(() => quickAutoloadSharedDataset()).catch(() => quickAutoloadSharedDataset());
-  </script>
+  
+      async function autoLoadObjectDetailFromUrl() {
+        // VOID_DATANET_DEMO_DETAIL_URL_AUTOLOAD_V1
+        try {
+          const params = new URLSearchParams(window.location.search || "");
+          const detailId = String(params.get("detail") || "").trim();
+          const fallbackId = String(params.get("id") || "").trim();
+          const rawId = detailId || fallbackId;
+          const clean = rawId.replace(/[^A-Za-z0-9_-]/g, "");
+          if (!clean) return false;
+
+          const who = String(params.get("who") || "").trim();
+          const out = document.getElementById("objectDetailOut");
+          if (out) {
+            out.textContent = "Auto-loading object detail from URL: " + clean + (who ? ("\\nwho=" + who) : "") + "\\n\\nLoading...";
+          }
+
+          await loadObjectDetail(clean);
+          return true;
+        } catch (e) {
+          const out = document.getElementById("objectDetailOut");
+          if (out) out.textContent = "Failed to auto-load object detail from URL:\\n" + String((e && e.message) || e);
+          return false;
+        }
+      }
+
+      function scheduleObjectDetailUrlAutoload() {
+        // VOID_DATANET_DEMO_DETAIL_URL_AUTOLOAD_CALL_V1
+        const run = () => { setTimeout(() => { autoLoadObjectDetailFromUrl(); }, 0); };
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", run, { once: true });
+        } else {
+          run();
+        }
+      }
+
+      scheduleObjectDetailUrlAutoload();
+
+</script>
 </body>
 </html>

@@ -1481,6 +1481,10 @@ datanet-demo-import-share-url-two-box-proof:
 datanet-demo-object-browser-proof:
 	ops/mainnet0/datanet-demo-object-browser-proof.sh
 
+.PHONY: datanet-demo-detail-url-autoload-proof
+datanet-demo-detail-url-autoload-proof:
+	ops/mainnet0/datanet-demo-detail-url-autoload-proof.sh
+
 .PHONY: datanet-demo-object-detail-proof
 datanet-demo-object-detail-proof:
 	ops/mainnet0/datanet-demo-object-detail-proof.sh
