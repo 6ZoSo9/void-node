@@ -1500,3 +1500,8 @@ datanet-demo-object-detail-proof:
 .PHONY: participant-datanet-object-browser-link-proof
 participant-datanet-object-browser-link-proof:
 	ops/mainnet0/participant-datanet-object-browser-link-proof.sh
+
+
+.PHONY: participant-wc-proof-viewer-proof
+participant-wc-proof-viewer-proof:
+	bash ops/mainnet0/participant-wc-proof-viewer-proof.sh

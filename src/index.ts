@@ -43724,6 +43724,56 @@ a{color:#93c5fd;text-decoration:none}
           }
         });
 
+
+        APP.get("/wc-proof-viewer", (req:any, res:any) => {
+          // VOID_WC_PROOF_VIEWER_ROUTE_V1
+          const cleanId = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 180);
+          const cleanWho = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:@-]/g, "").slice(0, 180);
+          const esc = (v:any) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+          const dataset = cleanId((req.query && ((req.query as any).dataset || (req.query as any).id)) || "");
+          const who = cleanWho((req.query && ((req.query as any).who || (req.query as any).account)) || "zoso") || "zoso";
+          const receipt = cleanId((req.query && (req.query as any).receipt) || "");
+          const job = cleanId((req.query && (req.query as any).job) || "");
+          const delta = cleanId((req.query && (req.query as any).delta) || "10") || "10";
+          const rawPath = dataset ? ("/datanet/v1/local-job/" + encodeURIComponent(dataset) + "?who=" + encodeURIComponent(who)) : "";
+
+          const html = [
+            "<!doctype html>",
+            "<html lang='en'><head><meta charset='utf-8' />",
+            "<meta name='viewport' content='width=device-width,initial-scale=1' />",
+            "<title>VOID WC Proof Viewer</title>",
+            "<style>body{margin:0;background:#05070c;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif}main{max-width:980px;margin:0 auto;padding:34px 18px}.card{border:1px solid #334155;background:#0f172a;border-radius:18px;padding:20px;margin-top:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.metric{border:1px solid #334155;background:#020617;border-radius:14px;padding:14px}.k{font-size:12px;color:#94a3b8;text-transform:uppercase}.v{font-family:monospace;word-break:break-word}.good{color:#86efac}.warn{color:#fbbf24}.muted{color:#94a3b8}a.btn{display:inline-block;color:#e0f2fe;border:1px solid #38bdf8;border-radius:999px;padding:10px 14px;text-decoration:none;margin-right:8px}pre{white-space:pre-wrap;word-break:break-word;background:#020617;border:1px solid #334155;border-radius:14px;padding:14px}</style>",
+            "</head><body>",
+            "<main id='wcProofViewerApp' data-dataset='" + esc(dataset) + "' data-who='" + esc(who) + "'><!-- VOID_WC_PROOF_VIEWER_RENDER_V1 -->",
+            "<div class='card'><div class='k'>VOID Network</div><h1>WC Proof Viewer</h1>",
+            "<p class='muted'>Human-readable proof for a Work Credits receipt backed by a local DataNet job record.</p>",
+            "<div id='wcProofViewerStatus' class='" + (dataset ? "good" : "warn") + "'>" + (dataset ? "Loading DataNet proof…" : "Missing dataset id.") + "</div>",
+            "<div class='grid'>",
+            "<div class='metric'><div class='k'>WC earned</div><div class='v good' id='wcProofDelta'>+" + esc(delta) + " WC</div></div>",
+            "<div class='metric'><div class='k'>Task class</div><div class='v' id='wcProofTaskClass'>loading…</div></div>",
+            "<div class='metric'><div class='k'>Dataset ID</div><div class='v' id='wcProofDataset'>" + esc(dataset || "missing") + "</div></div>",
+            "<div class='metric'><div class='k'>Receipt ID</div><div class='v' id='wcProofReceipt'>" + esc(receipt || "loading…") + "</div></div>",
+            "<div class='metric'><div class='k'>Job ID</div><div class='v' id='wcProofJob'>" + esc(job || "loading…") + "</div></div>",
+            "<div class='metric'><div class='k'>Account</div><div class='v' id='wcProofWho'>" + esc(who) + "</div></div>",
+            "<div class='metric'><div class='k'>SHA-256</div><div class='v' id='wcProofSha'>loading…</div></div>",
+            "<div class='metric'><div class='k'>Size</div><div class='v' id='wcProofSize'>loading…</div></div>",
+            "</div>",
+            "<div class='card'><div class='k'>Safety state</div><div class='v good'>no wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation</div></div>",
+            "<div class='card'><div class='k'>Policy payload</div><pre id='wcProofPlaintext'>loading…</pre></div>",
+            "<p><a class='btn' href='" + esc(rawPath) + "'>Open raw JSON</a><a class='btn' href='/participant'>Back to participant</a></p>",
+            "</div></main>",
+            "<script>(function(){ // VOID_WC_PROOF_VIEWER_CLIENT_V1",
+            "const rawPath=" + JSON.stringify(rawPath) + ";",
+            "function text(id,v){const el=document.getElementById(id);if(el)el.textContent=String(v==null?'':v)}",
+            "if(!rawPath){text('wcProofViewerStatus','Missing dataset id.');return}",
+            "fetch(rawPath,{cache:'no-store'}).then(r=>r.json()).then(j=>{let parsed={};try{parsed=JSON.parse(j.plaintext||'{}')}catch(_){parsed={}};text('wcProofTaskClass',j.task_class||parsed.task_class||'datanet_publish');text('wcProofDataset',j.dataset_id||j.id||'not recorded');text('wcProofReceipt',j.receipt_id||j.latest_receipt_id||'not recorded');text('wcProofJob',j.job_id||j.latest_job_id||'not recorded');text('wcProofWho',j.who||parsed.account||'not recorded');text('wcProofSha',j.sha256||'not recorded');text('wcProofSize',j.sizeBytes?(String(j.sizeBytes)+' bytes'):'not recorded');text('wcProofPlaintext',j.plaintext||JSON.stringify(j,null,2));const st=document.getElementById('wcProofViewerStatus');if(st){st.className='good';st.textContent='Proof loaded from stable local-job JSON.'}}).catch(err=>{const st=document.getElementById('wcProofViewerStatus');if(st){st.className='warn';st.textContent='Could not load raw JSON: '+String(err&&err.message||err)}})",
+            "})();</script></body></html>"
+          ].join("\\n");
+
+          try { if (res && typeof res.type === "function") res.type("html"); } catch {}
+          return res.send(html);
+        });
+
         try { console.log("[datanet.local_job_readback.v1] mounted: GET /datanet/v1/local-jobs/recent, /datanet/v1/local-job/:id and /datanet/view/:id"); } catch {}
       } catch {}
     })();
@@ -53671,13 +53721,16 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       }
 
       const localJobUrl = "/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(account);
-      const viewerUrl = localJobUrl; // VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1
-      const rawUrl = localJobUrl;
+      let viewerUrl = "/wc-proof-viewer?dataset=" + encodeURIComponent(datasetId) + "&who=" + encodeURIComponent(account); // VOID_PARTICIPANT_WC_PROOF_VIEWER_LINK_V1
+      if (receiptId) viewerUrl += "&receipt=" + encodeURIComponent(receiptId);
+      if (jobId) viewerUrl += "&job=" + encodeURIComponent(jobId);
+      if (Number.isFinite(delta)) viewerUrl += "&delta=" + encodeURIComponent(String(delta));
+      const rawUrl = localJobUrl; // VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1
 
       if (datasetLink) {
         datasetLink.href = viewerUrl;
         datasetLink.style.display = "";
-        datasetLink.textContent = "Open DataNet job detail";
+        datasetLink.textContent = "Open WC proof viewer";
       }
       if (rawLink) {
         rawLink.href = rawUrl;
