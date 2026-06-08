@@ -51563,7 +51563,9 @@ a{color:#93c5fd;text-decoration:none}
       <span class="muted">Use this before bigger hosting: prove one object can be stored, checked, and read back.</span>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
         <a class="btn" href="/datanet-demo">Open DataNet Demo</a>
+        <a class="btn secondary" id="homeDatanetObjectBrowserLink" href="/datanet-demo">View Object Browser</a><!-- VOID_PARTICIPANT_DATANET_OBJECT_BROWSER_LINK_V1 -->
         <a class="btn secondary" href="/participant#datanet">Open DataNet Tab</a>
+        <span class="muted">View local/imported DataNet objects carried by this node.</span>
       </div>
     </div>
     <div class="hero-note" id="homeSeedAdapterStatus" style="margin-top:10px"><!-- VOID_PARTICIPANT_PUBLIC_SEED_ADAPTER_STATUS_V1 -->
