@@ -111,3 +111,7 @@ money_movement: false
 validator_mutation: false
 buy_void_fulfillment: false
 runtime_feature_scope: participant UI plus DataNet publish/fetch proof
+
+## Closeout proof marker
+
+VOID_DATANET_STORE_SERVE_LIVE_SERVICE_CROSSBOX_CLOSEOUT_GREEN

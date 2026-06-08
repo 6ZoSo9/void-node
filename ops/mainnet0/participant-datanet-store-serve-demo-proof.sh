@@ -12,6 +12,7 @@ ACCOUNT="${ACCOUNT:-store-serve-demo-proof}"
 mkdir -p "$OUT"
 
 echo "=== participant DataNet Store & Serve demo proof ==="
+echo "runtime_guard=VOID_RUNTIME_SERVICE_GUARD_V1"
 echo "mutation=false"
 echo "money_movement=false"
 echo "validator_mutation=false"
@@ -31,8 +32,24 @@ echo "[ok] source store/serve demo markers present"
 echo
 echo "=== [2] build/restart/ready ==="
 npm run build > "$OUT/build.log" 2>&1
-systemctl --user restart void-node.service
-sleep 3
+
+RUNTIME_SERVICE="${VOID_RUNTIME_SERVICE:-}"
+if [ -z "$RUNTIME_SERVICE" ]; then
+  if systemctl --user is-active --quiet void-node-live.service 2>/dev/null; then
+    RUNTIME_SERVICE="void-node-live.service"
+  else
+    RUNTIME_SERVICE="void-node.service"
+  fi
+fi
+
+echo "runtime_service=$RUNTIME_SERVICE"
+
+if [ "${VOID_PROOF_SKIP_RESTART:-0}" = "1" ]; then
+  echo "[ok] VOID_PROOF_SKIP_RESTART=1, using already-running runtime service"
+else
+  systemctl --user restart "$RUNTIME_SERVICE"
+  sleep 3
+fi
 
 curl -fsS --max-time 10 "$BASE/__void/ready.json" > "$OUT/ready.json"
 python3 -c '

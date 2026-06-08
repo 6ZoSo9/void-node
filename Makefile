@@ -1440,3 +1440,7 @@ participant-datanet-store-serve-demo-proof:
 .PHONY: datanet-store-serve-live-service-crossbox-closeout-proof
 datanet-store-serve-live-service-crossbox-closeout-proof:
 	ops/mainnet0/datanet-store-serve-live-service-crossbox-closeout-proof.sh
+
+.PHONY: alienware-runtime-service-truth-guard-proof
+alienware-runtime-service-truth-guard-proof:
+	ops/mainnet0/alienware-runtime-service-truth-guard-proof.sh
