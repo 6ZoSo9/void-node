@@ -1452,3 +1452,7 @@ alienware-duplicate-service-disabled-closeout-proof:
 .PHONY: datanet-demo-text-store-fetch-ui-proof
 datanet-demo-text-store-fetch-ui-proof:
 	BASE=$${BASE:-http://127.0.0.1:4100} ops/mainnet0/datanet-demo-text-store-fetch-ui-proof.sh
+
+.PHONY: datanet-demo-share-open-by-id-ui-proof
+datanet-demo-share-open-by-id-ui-proof:
+	BASE=$${BASE:-http://127.0.0.1:4100} ops/mainnet0/datanet-demo-share-open-by-id-ui-proof.sh

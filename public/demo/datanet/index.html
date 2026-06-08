@@ -147,7 +147,10 @@
         <button onclick="quickStoreText()">Store text</button>
         <button onclick="quickFetchText()">Fetch stored text</button>
         <button onclick="quickCopyDatasetId()">Copy dataset id</button>
-        <span id="quickStatus" class="muted small"></span>
+        <button onclick="quickCopyShareLink()">Copy share link</button>
+        <input id="quickDatasetIdInput" type="text" placeholder="Paste dataset id to open" style="min-width:280px;flex:1;" />
+        <button onclick="quickOpenDatasetById()">Open dataset id</button>
+        <span id="quickStatus" class="muted small"></span><!-- VOID_DATANET_DEMO_SHARE_OPEN_BY_ID_UI_V1 -->
       </div>
 
       <div class="grid" style="margin-top:12px;">
@@ -162,6 +165,8 @@
             <div id="quickSizeBytes" class="mono small">(none)</div>
             <div class="small muted" style="margin-top:8px;">fetch URL</div>
             <div id="quickFetchUrl" class="mono small">(none)</div>
+            <div class="small muted" style="margin-top:8px;">share URL</div>
+            <div id="quickShareUrl" class="mono small">(none)</div>
           </div>
         </div>
         <div>
@@ -364,7 +369,12 @@
         selectedId = id;
         setText("selectedId", id);
         setText("quickDatasetId", id);
-        setText("quickFetchUrl", `/datanet/v1/fetch/${id}?who=${quickAccount()}`);
+        const fetchUrl = `/datanet/v1/fetch/${id}?who=${quickAccount()}`;
+        const shareUrl = quickShareUrlFor(id);
+        setText("quickFetchUrl", fetchUrl);
+        setText("quickShareUrl", shareUrl);
+        const input = document.getElementById("quickDatasetIdInput");
+        if (input) input.value = id;
       }
 
       setText("quickMerkleRoot", root || "(none)");
@@ -430,6 +440,67 @@
         quickSetPill("quick demo: error", "err");
         setJSON("quickStoreFetchOut", { ok: false, error: String(e.message || e) });
       }
+    }
+
+    function quickShareUrlFor(id) {
+      const u = new URL(window.location.href);
+      u.pathname = "/datanet-demo";
+      u.search = "";
+      u.hash = "";
+      u.searchParams.set("id", id);
+      u.searchParams.set("who", quickAccount());
+      return u.toString();
+    }
+
+    function quickDatasetIdFromLocation() {
+      const q = new URLSearchParams(window.location.search || "");
+      return q.get("id") || q.get("dataset_id") || q.get("datasetId") || "";
+    }
+
+    async function quickOpenDatasetById() {
+      const input = document.getElementById("quickDatasetIdInput");
+      const id = (input && input.value ? input.value : "").trim();
+      if (!id) return setText("quickStatus", "paste a dataset id first");
+
+      selectedId = id;
+      setText("selectedId", id);
+      setText("quickDatasetId", id);
+      setText("quickFetchUrl", `/datanet/v1/fetch/${id}?who=${quickAccount()}`);
+      setText("quickShareUrl", quickShareUrlFor(id));
+
+      await quickFetchText();
+    }
+
+    async function quickCopyShareLink() {
+      const id = selectedId || document.getElementById("quickDatasetId").textContent.trim();
+      if (!id || id === "(none)") return setText("quickStatus", "no dataset id to share");
+
+      const url = quickShareUrlFor(id);
+      setText("quickShareUrl", url);
+
+      try {
+        await navigator.clipboard.writeText(url);
+        setText("quickStatus", "share link copied");
+      } catch {
+        setText("quickStatus", "share link copy failed");
+      }
+    }
+
+    async function quickAutoloadSharedDataset() {
+      const id = quickDatasetIdFromLocation();
+      if (!id) return;
+
+      const input = document.getElementById("quickDatasetIdInput");
+      if (input) input.value = id;
+
+      selectedId = id;
+      setText("selectedId", id);
+      setText("quickDatasetId", id);
+      setText("quickFetchUrl", `/datanet/v1/fetch/${id}?who=${quickAccount()}`);
+      setText("quickShareUrl", quickShareUrlFor(id));
+      setText("quickStatus", "dataset id loaded from URL; fetching…");
+
+      await quickFetchText();
     }
 
     async function quickCopyDatasetId() {
@@ -725,7 +796,7 @@
       if (selectedJobId) await loadLatestIntegration();
     }
 
-    refreshAll();
+    refreshAll().then(() => quickAutoloadSharedDataset()).catch(() => quickAutoloadSharedDataset());
   </script>
 </body>
 </html>
