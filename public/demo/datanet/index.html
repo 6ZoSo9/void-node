@@ -132,6 +132,50 @@
       </div>
     </div>
 
+    <div class="card" id="textStoreFetchQuickDemo" style="margin-bottom:16px;"><!-- VOID_DATANET_DEMO_TEXT_STORE_FETCH_UI_V1 -->
+      <div class="row" style="justify-content:space-between;align-items:flex-start;">
+        <div>
+          <h2>Store &amp; Fetch text</h2>
+          <p class="small">Simple user path: type text, store it in DataNet, then fetch it back by dataset id.</p>
+        </div>
+        <span id="quickDemoPill" class="pill warn">quick demo: ready</span>
+      </div>
+
+      <textarea id="quickPlaintext">hello from VOID DataNet quick demo</textarea>
+
+      <div class="row" style="margin-top:10px;">
+        <button onclick="quickStoreText()">Store text</button>
+        <button onclick="quickFetchText()">Fetch stored text</button>
+        <button onclick="quickCopyDatasetId()">Copy dataset id</button>
+        <span id="quickStatus" class="muted small"></span>
+      </div>
+
+      <div class="grid" style="margin-top:12px;">
+        <div>
+          <div class="small muted" style="margin-bottom:6px;">Stored dataset</div>
+          <div class="selectedBox">
+            <div class="small muted">dataset id</div>
+            <div id="quickDatasetId" class="mono small">(none)</div>
+            <div class="small muted" style="margin-top:8px;">root / merkle</div>
+            <div id="quickMerkleRoot" class="mono small">(none)</div>
+            <div class="small muted" style="margin-top:8px;">size</div>
+            <div id="quickSizeBytes" class="mono small">(none)</div>
+            <div class="small muted" style="margin-top:8px;">fetch URL</div>
+            <div id="quickFetchUrl" class="mono small">(none)</div>
+          </div>
+        </div>
+        <div>
+          <div class="small muted" style="margin-bottom:6px;">Fetched text</div>
+          <pre id="quickFetchedText">(nothing fetched yet)</pre>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div class="small muted" style="margin-bottom:6px;">Raw Store/Fetch output</div>
+        <pre id="quickStoreFetchOut">{}</pre>
+      </div>
+    </div>
+
     <div class="grid">
       <div class="card">
         <h2>Publish plaintext</h2>
@@ -277,6 +321,127 @@
       const el = document.getElementById(id);
       el.textContent = text;
       el.className = `pill ${kind || ""}`.trim();
+    }
+
+    function quickAccount() {
+      return "datanet-demo-ui";
+    }
+
+    function quickB64Encode(str) {
+      return btoa(unescape(encodeURIComponent(str || "")));
+    }
+
+    function quickB64Decode(b64) {
+      try {
+        return decodeURIComponent(escape(atob(b64 || "")));
+      } catch {
+        try { return atob(b64 || ""); } catch { return ""; }
+      }
+    }
+
+    function quickDatasetFrom(obj) {
+      return obj?.id || obj?.dataset_id || obj?.datasetId || obj?.root || obj?.content_root || "";
+    }
+
+    function quickRootFrom(obj) {
+      return obj?.merkleRootHex || obj?.rootTxt || obj?.root || obj?.plain_sha256 || obj?.manifest?.merkleRootHex || obj?.meta?.merkleRootHex || "";
+    }
+
+    function quickSizeFrom(obj) {
+      return obj?.sizeBytes ?? obj?.size_bytes ?? obj?.meta?.sizeBytes ?? obj?.manifest?.sizeBytes ?? "";
+    }
+
+    function quickSetPill(text, kind) {
+      setPill("quickDemoPill", text, kind || "");
+    }
+
+    function quickRenderDataset(obj) {
+      const id = quickDatasetFrom(obj);
+      const root = quickRootFrom(obj);
+      const size = quickSizeFrom(obj);
+
+      if (id) {
+        selectedId = id;
+        setText("selectedId", id);
+        setText("quickDatasetId", id);
+        setText("quickFetchUrl", `/datanet/v1/fetch/${id}?who=${quickAccount()}`);
+      }
+
+      setText("quickMerkleRoot", root || "(none)");
+      setText("quickSizeBytes", String(size || "(none)"));
+    }
+
+    async function quickStoreText() {
+      const text = document.getElementById("quickPlaintext").value || "";
+      setText("quickStatus", "storing text in DataNet…");
+      quickSetPill("quick demo: storing", "warn");
+
+      try {
+        const j = await jfetch(`/datanet/v1/publish?who=${encodeURIComponent(quickAccount())}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: "datanet-demo-text-store-fetch-ui.txt",
+            mime: "text/plain",
+            plaintext_b64: quickB64Encode(text),
+            who: quickAccount()
+          })
+        });
+
+        quickRenderDataset(j);
+        setJSON("quickStoreFetchOut", { store: j });
+        setText("quickStatus", "store ok; fetching back…");
+        quickSetPill("quick demo: stored", "ok");
+
+        await quickFetchText();
+        await loadList();
+        await loadReceipts();
+        await loadDemoSummary();
+      } catch (e) {
+        setText("quickStatus", String(e.message || e));
+        quickSetPill("quick demo: error", "err");
+        setJSON("quickStoreFetchOut", { ok: false, error: String(e.message || e) });
+      }
+    }
+
+    async function quickFetchText() {
+      const id = selectedId || document.getElementById("quickDatasetId").textContent.trim();
+      if (!id || id === "(none)") {
+        setText("quickStatus", "no dataset id to fetch");
+        return;
+      }
+
+      setText("quickStatus", "fetching stored text…");
+      quickSetPill("quick demo: fetching", "warn");
+
+      try {
+        const j = await jfetch(`/datanet/v1/fetch/${encodeURIComponent(id)}?who=${encodeURIComponent(quickAccount())}`);
+        quickRenderDataset(j);
+
+        const b64 = j?.plaintext_b64 || j?.cipher_b64 || "";
+        const decoded = b64 ? quickB64Decode(b64) : "(fetch returned no plaintext_b64/cipher_b64)";
+
+        setText("quickFetchedText", decoded);
+        setJSON("quickStoreFetchOut", { fetch: j, decoded_text: decoded });
+        setText("quickStatus", "fetch ok");
+        quickSetPill("quick demo: fetched", "ok");
+      } catch (e) {
+        setText("quickStatus", String(e.message || e));
+        quickSetPill("quick demo: error", "err");
+        setJSON("quickStoreFetchOut", { ok: false, error: String(e.message || e) });
+      }
+    }
+
+    async function quickCopyDatasetId() {
+      const id = selectedId || document.getElementById("quickDatasetId").textContent.trim();
+      if (!id || id === "(none)") return setText("quickStatus", "no dataset id to copy");
+
+      try {
+        await navigator.clipboard.writeText(id);
+        setText("quickStatus", "dataset id copied");
+      } catch {
+        setText("quickStatus", "copy failed");
+      }
     }
 
     async function loadHealth() {

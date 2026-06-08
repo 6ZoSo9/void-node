@@ -1448,3 +1448,7 @@ alienware-runtime-service-truth-guard-proof:
 .PHONY: alienware-duplicate-service-disabled-closeout-proof
 alienware-duplicate-service-disabled-closeout-proof:
 	ops/mainnet0/alienware-duplicate-service-disabled-closeout-proof.sh
+
+.PHONY: datanet-demo-text-store-fetch-ui-proof
+datanet-demo-text-store-fetch-ui-proof:
+	BASE=$${BASE:-http://127.0.0.1:4100} ops/mainnet0/datanet-demo-text-store-fetch-ui-proof.sh
