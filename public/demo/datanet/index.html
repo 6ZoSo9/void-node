@@ -152,7 +152,9 @@
         <button onclick="quickOpenDatasetById()">Open dataset id</button>
         <input id="quickPeerHttpInput" type="text" placeholder="Peer URL, e.g. http://100.x.x.x:4100" style="min-width:320px;flex:1;" />
         <button onclick="quickImportFromPeer()">Import from peer</button>
-        <span id="quickStatus" class="muted small"></span><!-- VOID_DATANET_DEMO_SHARE_OPEN_BY_ID_UI_V1 --><!-- VOID_DATANET_DEMO_PEER_IMPORT_UI_V1 -->
+        <input id="quickShareImportInput" type="text" placeholder="Paste peer share URL to import" style="min-width:360px;flex:1;" />
+        <button onclick="quickImportFromShareUrl()">Import share URL</button>
+        <span id="quickStatus" class="muted small"></span><!-- VOID_DATANET_DEMO_SHARE_OPEN_BY_ID_UI_V1 --><!-- VOID_DATANET_DEMO_PEER_IMPORT_UI_V1 --><!-- VOID_DATANET_DEMO_IMPORT_SHARE_URL_UI_V1 -->
       </div>
 
       <div class="grid" style="margin-top:12px;">
@@ -519,6 +521,75 @@
         setText("quickStatus", String(e.message || e));
         quickSetPill("quick demo: import error", "err");
         setJSON("quickStoreFetchOut", { ok: false, import_from_peer_error: String(e.message || e) });
+      }
+    }
+
+    function quickParseShareUrl(raw) {
+      const text = String(raw || "").trim();
+      if (!text) throw new Error("paste a share URL first");
+
+      const u = new URL(text);
+      const id = u.searchParams.get("id") || u.searchParams.get("dataset_id") || u.searchParams.get("datasetId") || "";
+      const who = u.searchParams.get("who") || quickAccount();
+
+      if (!id) throw new Error("share URL missing dataset id");
+
+      u.pathname = "";
+      u.search = "";
+      u.hash = "";
+
+      return {
+        peer_http: u.toString().replace(/\/+$/, ""),
+        dataset_id: id,
+        source_who: who
+      };
+    }
+
+    async function quickImportFromShareUrl() {
+      const input = document.getElementById("quickShareImportInput");
+      const raw = input && input.value ? input.value : "";
+
+      try {
+        const parsed = quickParseShareUrl(raw);
+
+        const peerInput = document.getElementById("quickPeerHttpInput");
+        const idInput = document.getElementById("quickDatasetIdInput");
+
+        if (peerInput) peerInput.value = parsed.peer_http;
+        if (idInput) idInput.value = parsed.dataset_id;
+
+        setText("quickStatus", "share URL parsed; importing from peer…");
+        quickSetPill("quick demo: importing share", "warn");
+
+        const j = await jfetch(`/datanet/v1/import-from-peer?who=${encodeURIComponent(quickAccount())}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            peer_http: parsed.peer_http,
+            dataset_id: parsed.dataset_id,
+            who: quickAccount(),
+            source_who: parsed.source_who
+          })
+        });
+
+        selectedId = j.dataset_id || parsed.dataset_id;
+        setText("selectedId", selectedId);
+        setText("quickDatasetId", selectedId);
+        setText("quickFetchUrl", `/datanet/v1/fetch/${selectedId}?who=${quickAccount()}`);
+        setText("quickShareUrl", quickShareUrlFor(selectedId));
+        setJSON("quickStoreFetchOut", { import_from_share_url: j, parsed_share_url: parsed });
+
+        setText("quickStatus", "share import ok; fetching local copy…");
+        quickSetPill("quick demo: share imported", "ok");
+
+        await quickFetchText();
+        await loadList();
+        await loadReceipts();
+        await loadDemoSummary();
+      } catch (e) {
+        setText("quickStatus", String(e.message || e));
+        quickSetPill("quick demo: share import error", "err");
+        setJSON("quickStoreFetchOut", { ok: false, import_share_url_error: String(e.message || e) });
       }
     }
 
