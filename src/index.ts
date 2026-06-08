@@ -40337,6 +40337,188 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 })();
 
 
+
+// [ADD] DataNet publish-shim peer import v1
+// VOID_DATANET_PUBLISH_SHIM_PEER_IMPORT_V1
+;(() => {
+  const g:any = globalThis as any;
+  if (g.__void_datanet_publish_shim_peer_import_v1_installed) return;
+  g.__void_datanet_publish_shim_peer_import_v1_installed = true;
+
+  function getApp(){
+    return g.__void_http_app || g.app || (typeof app !== "undefined" ? app : null);
+  }
+
+  function cleanPeerBase(raw:any){
+    const s = String(raw || "").trim();
+    if (!s) return "";
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("bad_peer_protocol");
+    u.pathname = "";
+    u.search = "";
+    u.hash = "";
+    return u.toString().replace(/\/+$/, "");
+  }
+
+  function validPublishShimId(id:string){
+    return /^[A-Za-z0-9_-]{8,128}$/.test(String(id || ""));
+  }
+
+  function attach(){
+    const APP:any = getApp();
+    if (!APP || typeof APP.post !== "function") {
+      return setTimeout(attach, 500).unref?.();
+    }
+    if ((APP as any).__void_datanet_publish_shim_peer_import_v1_mounted) return;
+    (APP as any).__void_datanet_publish_shim_peer_import_v1_mounted = true;
+
+    APP.post("/datanet/v1/import-from-peer", (express as any).json({ limit: "12mb" }), async (req:any, res:any) => {
+      try {
+        const body = req?.body || {};
+        const peerHttp = cleanPeerBase(body.peer_http || body.peerHttp || body.source_peer || body.sourcePeer || "");
+        const id = String(body.dataset_id || body.datasetId || body.id || "").trim();
+        const who = String(body.who || body.account || req?.query?.who || "datanet-demo-ui").trim();
+        const sourceWho = String(body.source_who || body.sourceWho || who).trim();
+
+        if (!peerHttp) return res.status(400).json({ ok:false, error:"missing_peer_http" });
+        if (!id) return res.status(400).json({ ok:false, error:"missing_dataset_id" });
+        if (!validPublishShimId(id)) return res.status(400).json({ ok:false, error:"bad_dataset_id" });
+        if (!who) return res.status(400).json({ ok:false, error:"missing_who" });
+
+        const selfBase = String(req.protocol || "http") + "://" + String(req.get("host") || "127.0.0.1:4100");
+        const peerFetchUrl = peerHttp + "/datanet/v1/fetch/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(sourceWho);
+
+        const peerResp = await fetch(peerFetchUrl);
+        const peerText = await peerResp.text();
+        let peerJson:any = null;
+        try { peerJson = JSON.parse(peerText); } catch {}
+
+        if (!peerResp.ok || !peerJson || peerJson.ok !== true) {
+          return res.status(502).json({
+            ok:false,
+            error:"peer_fetch_failed",
+            peer_http: peerHttp,
+            peer_status: peerResp.status,
+            peer_body: String(peerText || "").slice(0, 500)
+          });
+        }
+
+        const b64 = String(peerJson.plaintext_b64 || peerJson.cipher_b64 || "");
+        if (!b64) return res.status(502).json({ ok:false, error:"peer_missing_payload_b64", peer_http: peerHttp, id });
+
+        const localPublishUrl = selfBase + "/datanet/v1/publish?who=" + encodeURIComponent(who);
+        const publishResp = await fetch(localPublishUrl, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: String(peerJson?.meta?.name || peerJson?.name || "peer-import-" + id + ".bin"),
+            mime: String(peerJson?.meta?.mime || peerJson?.mime || "application/octet-stream"),
+            plaintext_b64: b64,
+            who
+          })
+        });
+
+        const publishText = await publishResp.text();
+        let publishJson:any = null;
+        try { publishJson = JSON.parse(publishText); } catch {}
+
+        if (!publishResp.ok || !publishJson || publishJson.ok !== true) {
+          return res.status(500).json({
+            ok:false,
+            error:"local_publish_failed",
+            status: publishResp.status,
+            body: String(publishText || "").slice(0, 500)
+          });
+        }
+
+        const localId = String(publishJson.id || publishJson.dataset_id || publishJson.datasetId || "");
+        let copiedToRequestedId = false;
+
+        if (localId && localId !== id) {
+          try {
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const packedParent = path.join(DATA_DIR, "datanet", "publish_shim_v1", "packed");
+            const localDir = path.join(packedParent, localId);
+            const requestedDir = path.join(packedParent, id);
+
+            if (fs.existsSync(localDir)) {
+              fs.rmSync(requestedDir, { recursive: true, force: true });
+              fs.cpSync(localDir, requestedDir, { recursive: true });
+
+              const metaPath = path.join(requestedDir, "meta.publish_shim.v1.json");
+              if (fs.existsSync(metaPath)) {
+                const meta = JSON.parse(String(fs.readFileSync(metaPath, "utf8") || "{}"));
+                meta.id = id;
+                meta.dataset_id = id;
+                meta.imported_from_peer_v1 = true;
+                meta.peer_import_source_id = localId;
+                meta.peer_import_requested_id = id;
+                meta.peer_http = peerHttp;
+                meta.source_who = sourceWho;
+                meta.imported_at = new Date().toISOString();
+                fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + "\n", "utf8");
+              }
+
+              copiedToRequestedId = true;
+            }
+          } catch {}
+        }
+
+        const localFetchUrl = selfBase + "/datanet/v1/fetch/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who);
+        const localFetchResp = await fetch(localFetchUrl);
+        const localFetchText = await localFetchResp.text();
+        let localFetchJson:any = null;
+        try { localFetchJson = JSON.parse(localFetchText); } catch {}
+
+        const localFetchOk = !!(localFetchResp.ok && localFetchJson && localFetchJson.ok === true);
+        const idMatch = localId === id || copiedToRequestedId || String(publishJson.merkleRootHex || "").toLowerCase() === id.toLowerCase();
+
+        if (!idMatch || !localFetchOk) {
+          return res.status(500).json({
+            ok:false,
+            error:"import_verify_failed",
+            expected_id: id,
+            local_id: localId,
+            id_match: idMatch,
+            copied_to_requested_id: copiedToRequestedId,
+            local_fetch_ok: localFetchOk,
+            local_fetch_status: localFetchResp.status,
+            local_fetch_body: String(localFetchText || "").slice(0, 500),
+            publish: publishJson
+          });
+        }
+
+        return res.status(200).json({
+          ok: true,
+          imported: true,
+          mode: "publish_shim_peer_import_v1",
+          marker: "VOID_DATANET_PUBLISH_SHIM_PEER_IMPORT_V1",
+          peer_http: peerHttp,
+          source_who: sourceWho,
+          who,
+          dataset_id: id,
+          local_id: localId,
+          id_match: idMatch,
+          copied_to_requested_id: copiedToRequestedId,
+          local_fetch_ok: localFetchOk,
+          peer_merkleRootHex: peerJson.merkleRootHex || peerJson?.manifest?.merkleRootHex || "",
+          local_merkleRootHex: localFetchJson?.merkleRootHex || publishJson?.merkleRootHex || "",
+          sizeBytes: Number(localFetchJson?.sizeBytes || peerJson?.sizeBytes || publishJson?.sizeBytes || 0),
+          peer_fetch_url: peerFetchUrl,
+          local_fetch_url: "/datanet/v1/fetch/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(who)
+        });
+      } catch (e:any) {
+        return res.status(500).json({ ok:false, error:"import_from_peer_throw", msg:String(e?.message || e) });
+      }
+    });
+
+    try { console.log("[datanet.publish_shim.peer_import.v1] mounted: POST /datanet/v1/import-from-peer"); } catch {}
+  }
+
+  setTimeout(attach, 250);
+})();
+
 // [ADD] datanet demo clean path v1
 ;(()=>{
   const g:any = globalThis as any;

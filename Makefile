@@ -1456,3 +1456,7 @@ datanet-demo-text-store-fetch-ui-proof:
 .PHONY: datanet-demo-share-open-by-id-ui-proof
 datanet-demo-share-open-by-id-ui-proof:
 	BASE=$${BASE:-http://127.0.0.1:4100} ops/mainnet0/datanet-demo-share-open-by-id-ui-proof.sh
+
+.PHONY: datanet-publish-shim-peer-import-proof
+datanet-publish-shim-peer-import-proof:
+	BASE=$${BASE:-http://127.0.0.1:4100} ops/mainnet0/datanet-publish-shim-peer-import-proof.sh
