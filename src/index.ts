@@ -51910,6 +51910,11 @@ a{color:#93c5fd;text-decoration:none}
             <button class="btn" id="wcRunnerTickBtn" type="button">Run Once</button>
           </div>
           <div class="subtle-tab-copy" id="wcRunnerMeta">Approved useful work only. Turn earning on or off, or run once.</div>
+          <div class="hero-note" id="wcEarnReceiptCard" style="margin-top:10px"><!-- VOID_PARTICIPANT_WC_EARN_RECEIPT_CARD_V1 -->
+            <b>Latest WC earned:</b>
+            <span id="wcEarnReceiptSummary"><!-- VOID_PARTICIPANT_WC_EARN_RECEIPT_CARD_COPY_V1 -->Run Once displays the WC reward, receipt, dataset, and latest activity result after approved work completes.</span>
+            <div class="muted" id="wcEarnReceiptDetail">Expected result: You earned +10 WC from approved DataNet publish work. Receipt and dataset details appear in Latest Activity / result output. Safety: no wallet send, no WC→VOID swap, no Buy VOID fulfillment, no validator mutation.</div>
+          </div>
 
           <details class="adv" style="margin-top:12px">
             <summary><span>Runner Details</span><span class="pill">advanced</span></summary>
