@@ -1472,3 +1472,7 @@ datanet-demo-peer-import-ui-proof:
 .PHONY: datanet-demo-import-share-url-ui-proof
 datanet-demo-import-share-url-ui-proof:
 	BASE=$${BASE:-http://127.0.0.1:4100} ops/mainnet0/datanet-demo-import-share-url-ui-proof.sh
+
+.PHONY: datanet-demo-import-share-url-two-box-proof
+datanet-demo-import-share-url-two-box-proof:
+	ops/mainnet0/datanet-demo-import-share-url-two-box-proof.sh
