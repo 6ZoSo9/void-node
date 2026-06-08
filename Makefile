@@ -1282,6 +1282,10 @@ participant-datanet-wc-status-ui-proof:
 participant-run-once-wc-delta-proof:
 	bash ops/mainnet0/participant-run-once-wc-delta-proof.sh
 
+.PHONY: participant-wc-receipt-detail-link-proof
+participant-wc-receipt-detail-link-proof:
+	bash ops/mainnet0/participant-wc-receipt-detail-link-proof.sh
+
 .PHONY: participant-wc-earn-receipt-card-proof
 participant-wc-earn-receipt-card-proof:
 	bash ops/mainnet0/participant-wc-earn-receipt-card-proof.sh

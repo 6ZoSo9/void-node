@@ -51914,6 +51914,11 @@ a{color:#93c5fd;text-decoration:none}
             <b>Latest WC earned:</b>
             <span id="wcEarnReceiptSummary"><!-- VOID_PARTICIPANT_WC_EARN_RECEIPT_CARD_COPY_V1 -->Run Once displays the WC reward, receipt, dataset, and latest activity result after approved work completes.</span>
             <div class="muted" id="wcEarnReceiptDetail">Expected result: You earned +10 WC from approved DataNet publish work. Receipt and dataset details appear in Latest Activity / result output. Safety: no wallet send, no WC→VOID swap, no Buy VOID fulfillment, no validator mutation.</div>
+            <div class="row" id="wcEarnReceiptLinks" style="margin-top:8px"><!-- VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_V1 -->
+              <a class="btn secondary" id="wcEarnReceiptDatasetLink" href="/datanet-demo" style="display:none">Open latest DataNet dataset</a>
+              <a class="btn secondary" id="wcEarnReceiptRawJsonLink" href="/datanet-demo" style="display:none">Open raw dataset JSON</a>
+              <span class="muted" id="wcEarnReceiptLinkHint">Run Once will unlock dataset links here.</span>
+            </div>
           </div>
 
           <details class="adv" style="margin-top:12px">
@@ -53572,6 +53577,129 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
   function isWalletAddr(v){
     return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
   }
+
+
+  function wcReceiptDetailLinkPick(obj, paths){
+    for (const path of paths) {
+      try {
+        let cur = obj;
+        const parts = String(path).split(".");
+        for (const part of parts) {
+          if (cur == null) break;
+          cur = cur[part];
+        }
+        if (cur !== undefined && cur !== null && String(cur) !== "") return cur;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  function wcReceiptDetailLinkUpdateFromResult(result, fallbackAccount){
+    // VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_RENDER_V1
+    try {
+      const account = String(
+        wcReceiptDetailLinkPick(result, [
+          "account",
+          "runner.account",
+          "submit.out.job.account",
+          "submit.out.worker.job.account",
+          "submit.out.worker.receipt.account"
+        ]) || fallbackAccount || resolveActiveParticipantAccount() || "zoso"
+      ).trim();
+
+      const datasetId = String(wcReceiptDetailLinkPick(result, [
+        "dataset_id",
+        "job.dataset_id",
+        "submit.out.job.dataset_id",
+        "submit.out.worker.job.dataset_id",
+        "submit.out.worker.receipt.dataset_id",
+        "submit.out.worker.receipt.output.dataset_id",
+        "runner.last_result.result.job.dataset_id",
+        "runner.last_result.result.worker.job.dataset_id",
+        "runner.last_result.result.worker.receipt.dataset_id",
+        "runner_after.last_result.result.job.dataset_id",
+        "runner_after.last_result.result.worker.job.dataset_id",
+        "runner_after.last_result.result.worker.receipt.dataset_id"
+      ]) || "").trim();
+
+      const receiptId = String(wcReceiptDetailLinkPick(result, [
+        "receipt_id",
+        "job.receipt_id",
+        "submit.out.job.receipt_id",
+        "submit.out.worker.receipt.receipt_id",
+        "submit.out.worker.credit_event.receipt_id",
+        "runner.last_result.receipt_id",
+        "runner.last_result.result.worker.receipt.receipt_id",
+        "runner.last_result.result.worker.credit_event.receipt_id",
+        "runner_after.last_result.receipt_id",
+        "runner_after.last_result.result.worker.receipt.receipt_id",
+        "runner_after.last_result.result.worker.credit_event.receipt_id"
+      ]) || "").trim();
+
+      const jobId = String(wcReceiptDetailLinkPick(result, [
+        "job_id",
+        "job.job_id",
+        "submit.out.job.job_id",
+        "submit.out.worker.job_id",
+        "submit.out.worker.job.job_id",
+        "submit.out.worker.receipt.job_id",
+        "runner.last_result.job_id",
+        "runner.last_result.result.worker.job_id",
+        "runner_after.last_result.job_id",
+        "runner_after.last_result.result.worker.job_id"
+      ]) || "").trim();
+
+      const deltaRaw = wcReceiptDetailLinkPick(result, [
+        "delta",
+        "credit_delta",
+        "submit.out.worker.credit_event.delta",
+        "runner.last_result.result.worker.credit_event.delta",
+        "runner_after.last_result.result.worker.credit_event.delta"
+      ]);
+      const delta = Number(deltaRaw);
+      const deltaText = Number.isFinite(delta) ? ("+" + delta + " WC") : "WC credit";
+
+      const datasetLink = document.getElementById("wcEarnReceiptDatasetLink");
+      const rawLink = document.getElementById("wcEarnReceiptRawJsonLink");
+      const hint = document.getElementById("wcEarnReceiptLinkHint");
+      const summary = document.getElementById("wcEarnReceiptSummary");
+      const detail = document.getElementById("wcEarnReceiptDetail");
+
+      if (!datasetId) {
+        if (hint) hint.textContent = "Run Once completed, but no dataset id was found yet. Check Latest Activity.";
+        return;
+      }
+
+      const localJobUrl = "/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(account);
+      const viewerUrl = localJobUrl; // VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1
+      const rawUrl = localJobUrl;
+
+      if (datasetLink) {
+        datasetLink.href = viewerUrl;
+        datasetLink.style.display = "";
+        datasetLink.textContent = "Open DataNet job detail";
+      }
+      if (rawLink) {
+        rawLink.href = rawUrl;
+        rawLink.style.display = "";
+        rawLink.textContent = "Open raw JSON";
+      }
+      if (hint) {
+        hint.textContent = "Dataset link ready for " + datasetId + ".";
+      }
+      if (summary) {
+        summary.textContent = "You earned " + deltaText + " from Run Once. Dataset link is ready.";
+      }
+
+      const bits = [];
+      bits.push("Dataset: " + datasetId + ".");
+      if (receiptId) bits.push("Receipt: " + receiptId + ".");
+      if (jobId) bits.push("Job: " + jobId + ".");
+      bits.push("Safety: no wallet send, no WC→VOID swap, no Buy VOID fulfillment, no validator mutation.");
+      if (detail) detail.textContent = bits.join(" ");
+    } catch (_) {}
+  }
+
 
   async function waitForRedeemableIncrease(account, beforeRedeemable, timeoutMs){
     const started = Date.now();
@@ -57494,6 +57622,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
         });
         if (input) input.checked = !!(out && out.ok && out.enabled);
         setPre("submitOut", out);
+        try { wcReceiptDetailLinkUpdateFromResult(out, resolveActiveParticipantAccount()); } catch (_) {}
         await refresh();
       } catch (e) {
         if (input) input.checked = !nextEnabled;
