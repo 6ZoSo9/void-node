@@ -1464,3 +1464,7 @@ datanet-publish-shim-peer-import-proof:
 .PHONY: datanet-publish-shim-peer-import-two-box-closeout-proof
 datanet-publish-shim-peer-import-two-box-closeout-proof:
 	ops/mainnet0/datanet-publish-shim-peer-import-two-box-closeout-proof.sh
+
+.PHONY: datanet-demo-peer-import-ui-proof
+datanet-demo-peer-import-ui-proof:
+	BASE=$${BASE:-http://127.0.0.1:4100} ops/mainnet0/datanet-demo-peer-import-ui-proof.sh
