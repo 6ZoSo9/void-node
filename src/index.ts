@@ -40338,6 +40338,125 @@ void_txsubmit_late_repair_v1_last_err{msg="${lastErr.replace(/\\/g,"\\\\").repla
 
 
 
+
+// [ADD] DataNet publish-shim object browser route v1
+// VOID_DATANET_PUBLISH_SHIM_OBJECT_BROWSER_ROUTE_V1
+;(() => {
+  const g:any = globalThis as any;
+  if (g.__void_datanet_publish_shim_object_browser_route_v1_installed) return;
+  g.__void_datanet_publish_shim_object_browser_route_v1_installed = true;
+
+  function getApp(){
+    return g.__void_http_app || g.app || (typeof app !== "undefined" ? app : null);
+  }
+
+  function attach(){
+    const APP:any = getApp();
+    if (!APP || typeof APP.get !== "function") {
+      const t:any = setTimeout(attach, 500);
+      try { t.unref?.(); } catch {}
+      return;
+    }
+    if ((APP as any).__void_datanet_publish_shim_object_browser_route_v1_mounted) return;
+    (APP as any).__void_datanet_publish_shim_object_browser_route_v1_mounted = true;
+
+    APP.get("/datanet/v1/objects", (req:any, res:any) => {
+      try {
+        const fs = require("node:fs");
+        const path = require("node:path");
+
+        const limit = Math.max(1, Math.min(250, Number(req?.query?.limit || 50)));
+        const packedRoot = path.join(DATA_DIR, "datanet", "publish_shim_v1", "packed");
+
+        if (!fs.existsSync(packedRoot)) {
+          return res.json({
+            ok: true,
+            marker: "VOID_DATANET_PUBLISH_SHIM_OBJECT_BROWSER_ROUTE_V1",
+            count: 0,
+            items: []
+          });
+        }
+
+        const items:any[] = [];
+
+        for (const ent of fs.readdirSync(packedRoot, { withFileTypes: true })) {
+          if (!ent.isDirectory()) continue;
+
+          const id = String(ent.name || "");
+          const dir = path.join(packedRoot, id);
+          const metaPath = path.join(dir, "meta.publish_shim.v1.json");
+          const manifestPath = path.join(dir, "manifest.v1.json");
+          const rootPath = path.join(dir, "root.txt");
+
+          let meta:any = {};
+          let manifest:any = {};
+          let rootTxt = "";
+
+          try {
+            if (fs.existsSync(metaPath)) meta = JSON.parse(String(fs.readFileSync(metaPath, "utf8") || "{}"));
+          } catch {}
+
+          try {
+            if (fs.existsSync(manifestPath)) manifest = JSON.parse(String(fs.readFileSync(manifestPath, "utf8") || "{}"));
+          } catch {}
+
+          try {
+            if (fs.existsSync(rootPath)) rootTxt = String(fs.readFileSync(rootPath, "utf8") || "").trim();
+          } catch {}
+
+          const stat = fs.statSync(dir);
+          const createdAt = String(meta.createdAt || manifest.createdAt || "");
+          const sizeBytes = Number(meta.sizeBytes || manifest.sizeBytes || 0);
+          const merkleRootHex = String(meta.merkleRootHex || manifest.merkleRootHex || rootTxt || "");
+          const imported = !!(meta.imported_from_peer_v1 || meta.peer_import_requested_id || meta.peer_http);
+
+          items.push({
+            id,
+            dataset_id: String(meta.dataset_id || meta.id || id),
+            name: String(meta.name || ""),
+            mime: String(meta.mime || ""),
+            who: String(meta.who || ""),
+            createdAt,
+            created_at_ms: stat.mtimeMs,
+            sizeBytes,
+            chunks: Number(meta.chunks || (manifest.chunks || []).length || 0),
+            merkleRootHex,
+            imported_from_peer_v1: imported,
+            peer_http: String(meta.peer_http || ""),
+            source_who: String(meta.source_who || ""),
+            peer_import_source_id: String(meta.peer_import_source_id || ""),
+            peer_import_requested_id: String(meta.peer_import_requested_id || ""),
+            local_fetch_url: "/datanet/v1/fetch/" + encodeURIComponent(id) + "?who=" + encodeURIComponent(String(meta.who || "")),
+            share_url_path: "/datanet-demo?id=" + encodeURIComponent(id) + "&who=" + encodeURIComponent(String(meta.who || "datanet-demo-ui"))
+          });
+        }
+
+        items.sort((a:any, b:any) => Number(b.created_at_ms || 0) - Number(a.created_at_ms || 0));
+
+        return res.json({
+          ok: true,
+          marker: "VOID_DATANET_PUBLISH_SHIM_OBJECT_BROWSER_ROUTE_V1",
+          packed_root: "datanet/publish_shim_v1/packed",
+          count: items.length,
+          returned: items.slice(0, limit).length,
+          items: items.slice(0, limit)
+        });
+      } catch (e:any) {
+        return res.status(500).json({
+          ok: false,
+          marker: "VOID_DATANET_PUBLISH_SHIM_OBJECT_BROWSER_ROUTE_V1",
+          error: "objects_route_throw",
+          msg: String(e?.message || e)
+        });
+      }
+    });
+
+    try { console.log("[datanet.publish_shim.objects.v1] mounted: GET /datanet/v1/objects"); } catch {}
+  }
+
+  setTimeout(attach, 250);
+})();
+
 // [ADD] DataNet publish-shim peer import v1
 // VOID_DATANET_PUBLISH_SHIM_PEER_IMPORT_V1
 ;(() => {

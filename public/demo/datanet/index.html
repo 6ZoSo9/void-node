@@ -206,9 +206,9 @@
       </div>
 
       <div class="card">
-        <h2>Recent datasets</h2>
+        <h2>Local DataNet objects</h2><!-- VOID_DATANET_DEMO_OBJECT_BROWSER_V1 -->
         <div class="row" style="margin-bottom:10px;">
-          <button onclick="loadList()">Reload list</button>
+          <button onclick="loadList()">Reload objects</button>
           <span id="listStatus" class="muted small"></span>
         </div>
         <div id="datasetList" class="list"></div>
@@ -659,41 +659,112 @@
     }
 
     async function loadList() {
-      setText("listStatus", "loading…");
+      // VOID_DATANET_DEMO_OBJECT_BROWSER_RENDER_V1
+      setText("listStatus", "loading local objects…");
+
+      function esc(v) {
+        return String(v ?? "").replace(/[&<>"']/g, ch => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          "\"": "&quot;",
+          "'": "&#39;"
+        }[ch]));
+      }
+
+      function shortId(id) {
+        id = String(id || "");
+        if (id.length <= 18) return id;
+        return id.slice(0, 10) + "…" + id.slice(-8);
+      }
+
       try {
-        const j = await jfetch("/datanet/list?limit=25");
+        const j = await jfetch("/datanet/v1/objects?limit=50");
         const el = document.getElementById("datasetList");
         el.innerHTML = "";
-        for (const item of (j.items || [])) {
+
+        const items = j.items || [];
+        if (!items.length) {
+          el.innerHTML = `<div class="item"><div class="muted small">No local publish-shim objects yet.</div></div>`;
+          setText("listStatus", "loaded 0 objects");
+          return;
+        }
+
+        for (const item of items) {
+          const id = item.dataset_id || item.id || "";
+          const imported = !!item.imported_from_peer_v1;
+          const sourcePeer = item.peer_http || "";
+          const sourceWho = item.source_who || "";
+          const root = item.merkleRootHex || item.rootTxt || "";
+          const size = item.sizeBytes ?? "";
+          const created = item.createdAt || item.created_at_ms || "";
+          const sharePath = item.share_url_path || `/datanet-demo?id=${encodeURIComponent(id)}&who=${encodeURIComponent(item.who || quickAccount())}`;
+
           const div = document.createElement("div");
-          div.className = "item" + (item.id === selectedId ? " active" : "");
-          div.onclick = () => selectDataset(item.id);
+          div.className = "item" + (id === selectedId ? " active" : "");
+          div.dataset.id = id;
+          div.dataset.sharePath = sharePath;
+          div.onclick = () => selectDataset(id);
+
           div.innerHTML = `
             <div class="row" style="justify-content:space-between;">
-              <strong class="mono small">${item.id}</strong>
-              <span class="pill">${item.mime || "unknown"}</span>
+              <strong class="mono small" title="${esc(id)}">${esc(shortId(id))}</strong>
+              <span class="pill ${imported ? "ok" : ""}">${imported ? "imported" : "local"}</span>
             </div>
             <div class="small muted" style="margin-top:8px;">
-              created_at_ms=${item.created_at_ms} | plain=${item.plaintext_len} | cipher=${item.ciphertext_len}
+              name=${esc(item.name || "(unnamed)")} | mime=${esc(item.mime || "unknown")} | size=${esc(size)}
             </div>
-            <div class="mono small muted" style="margin-top:6px;">sha256=${item.sha256}</div>
+            <div class="small muted" style="margin-top:6px;">
+              created=${esc(created)}
+            </div>
+            <div class="mono small muted" style="margin-top:6px;">root=${esc(root || "(none)")}</div>
+            ${imported ? `<div class="mono small muted" style="margin-top:6px;">source peer=${esc(sourcePeer || "(unknown)")}</div>` : ""}
+            ${sourceWho ? `<div class="mono small muted" style="margin-top:6px;">source who=${esc(sourceWho)}</div>` : ""}
+            <div class="row" style="margin-top:10px;">
+              <button data-action="open">Open/fetch</button>
+              <button data-action="copy-id">Copy id</button>
+              <button data-action="copy-share">Copy share</button>
+            </div>
           `;
+
+          div.querySelector('[data-action="open"]').onclick = async (ev) => {
+            ev.stopPropagation();
+            selectedId = id;
+            setText("selectedId", id);
+            setText("quickDatasetId", id);
+            const input = document.getElementById("quickDatasetIdInput");
+            if (input) input.value = id;
+            await quickFetchText();
+            await loadList();
+          };
+
+          div.querySelector('[data-action="copy-id"]').onclick = async (ev) => {
+            ev.stopPropagation();
+            try {
+              await navigator.clipboard.writeText(id);
+              setText("listStatus", "dataset id copied");
+            } catch {
+              setText("listStatus", "copy id failed");
+            }
+          };
+
+          div.querySelector('[data-action="copy-share"]').onclick = async (ev) => {
+            ev.stopPropagation();
+            const url = window.location.origin + sharePath;
+            try {
+              await navigator.clipboard.writeText(url);
+              setText("listStatus", "share link copied");
+            } catch {
+              setText("listStatus", "copy share failed");
+            }
+          };
+
           el.appendChild(div);
         }
-        setText("listStatus", `loaded ${j.count} items`);
+
+        setText("listStatus", `loaded ${j.returned || items.length}/${j.count || items.length} objects`);
       } catch (e) {
         setText("listStatus", String(e.message || e));
-      }
-    }
-
-    async function loadReceipts() {
-      setText("receiptsStatus", "loading…");
-      try {
-        const j = await jfetch("/datanet/receipts");
-        setJSON("receiptsOut", j);
-        setText("receiptsStatus", `loaded ${j.count} receipts`);
-      } catch (e) {
-        setText("receiptsStatus", String(e.message || e));
       }
     }
 
