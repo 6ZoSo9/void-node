@@ -43725,6 +43725,65 @@ a{color:#93c5fd;text-decoration:none}
         });
 
 
+
+        APP.get("/wc-proofs/latest", (req:any, res:any) => { // VOID_WC_PROOFS_LATEST_ROUTE_V1
+          try {
+            const fs2 = require("fs");
+            const path2 = require("path");
+            const clean = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:@-]/g, "").slice(0, 180);
+            const root = path2.join(process.cwd(), "data_a", "datanet_v1", "local_jobs");
+            const limitRaw = Number((req.query && (req.query as any).limit) || 5);
+            const limit = Math.max(1, Math.min(12, Number.isFinite(limitRaw) ? limitRaw : 5));
+            const wantedWho = clean((req.query && (req.query as any).who) || "");
+            const files = fs2.existsSync(root)
+              ? fs2.readdirSync(root)
+                  .filter((name:string) => /^ds_[a-zA-Z0-9_]+\.txt$/.test(name))
+                  .map((name:string) => {
+                    const file = path2.join(root, name);
+                    const st = fs2.statSync(file);
+                    return { name, file, mtimeMs: st.mtimeMs };
+                  })
+                  .sort((a:any, b:any) => b.mtimeMs - a.mtimeMs)
+              : [];
+            const proofs:any[] = [];
+            for (const item of files) {
+              if (proofs.length >= limit) break;
+              try {
+                const raw = fs2.readFileSync(item.file, "utf8");
+                const j = JSON.parse(raw);
+                let parsed:any = {};
+                try { parsed = JSON.parse(j.plaintext || "{}"); } catch (_) { parsed = {}; }
+                const dataset = clean(j.dataset_id || j.id || item.name.replace(/\.txt$/, ""));
+                const who = clean(j.who || parsed.account || "");
+                if (wantedWho && who && wantedWho !== who) continue;
+                const delta = clean(j.wc_delta || j.credit_delta || parsed.wc_delta || parsed.credit_delta || "10") || "10";
+                proofs.push({
+                  dataset_id: dataset,
+                  who,
+                  delta,
+                  task_class: clean(j.task_class || parsed.task_class || "datanet_publish"),
+                  receipt_id: clean(j.receipt_id || j.latest_receipt_id || ""),
+                  job_id: clean(j.job_id || j.latest_job_id || ""),
+                  sha256: clean(j.sha256 || ""),
+                  sizeBytes: j.sizeBytes || 0,
+                  mtime_ms: Math.floor(item.mtimeMs),
+                  viewer_path: "/wc-proof-viewer?dataset=" + encodeURIComponent(dataset) + "&who=" + encodeURIComponent(who) + "&delta=" + encodeURIComponent(delta),
+                  raw_path: "/datanet/v1/local-job/" + encodeURIComponent(dataset) + "?who=" + encodeURIComponent(who)
+                });
+              } catch (_) {}
+            }
+            return res.json({
+              ok: true,
+              marker: "VOID_WC_PROOFS_LATEST_ROUTE_V1",
+              proofs,
+              money_movement: false,
+              validator_mutation: false
+            });
+          } catch (e:any) {
+            return res.status(500).json({ ok:false, error:String(e?.message || e) });
+          }
+        });
+
         APP.get("/wc-proof-viewer", (req:any, res:any) => {
           // VOID_WC_PROOF_VIEWER_ROUTE_V1
           const cleanId = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 180);
@@ -51974,6 +52033,34 @@ a{color:#93c5fd;text-decoration:none}
               <span class="muted" id="wcEarnReceiptLinkHint">Run Once will unlock dataset links here.</span>
             </div>
           </div>
+
+          <div class="hero-note" id="wcLatestProofsCard" style="margin-top:10px"><!-- VOID_PARTICIPANT_WC_LATEST_PROOFS_LIST_V1 -->
+            <b>Latest WC Proofs:</b>
+            <span class="muted">Recent local DataNet-backed proof links from this node.</span>
+            <div class="row" id="wcLatestProofsList" style="margin-top:8px">Loading latest proofs…</div>
+          </div>
+          <script>
+          // VOID_PARTICIPANT_WC_LATEST_PROOFS_CLIENT_V1
+          (function(){
+            async function loadLatestWcProofsV1(){
+              var box=document.getElementById("wcLatestProofsList");
+              if(!box)return;
+              try{
+                var r=await fetch("/wc-proofs/latest?limit=5",{cache:"no-store"});
+                var j=await r.json();
+                var proofs=Array.isArray(j.proofs)?j.proofs:[];
+                if(!proofs.length){box.textContent="No local WC proof links found yet.";return;}
+                box.innerHTML=proofs.map(function(p){
+                  var vp=String(p.viewer_path||"#").replace(/"/g,"&quot;");
+                  var ds=String(p.dataset_id||"unknown dataset");
+                  var who=String(p.who||"unknown account");
+                  return "<a class='btn secondary' href='"+vp+"'>Open proof</a><span class='muted'>"+ds+" · "+who+"</span>";
+                }).join("");
+              }catch(e){box.textContent="Could not load latest proof links.";}
+            }
+            if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",loadLatestWcProofsV1)}else{loadLatestWcProofsV1()}
+          })();
+          </script>
 
           <details class="adv" style="margin-top:12px">
             <summary><span>Runner Details</span><span class="pill">advanced</span></summary>
