@@ -43921,6 +43921,119 @@ a{color:#93c5fd;text-decoration:none}
         });
 
         
+
+        APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
+          res.type("html").send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>VOID Public Node Profile</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#080a12;color:#e5e7eb;margin:0;padding:24px}
+    main{max-width:980px;margin:0 auto}
+    .card{background:#111827;border:1px solid #253044;border-radius:16px;padding:18px;margin:14px 0;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .muted{color:#9ca3af}
+    .good{color:#86efac}
+    .warn{color:#fbbf24}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+    .btn{display:inline-block;background:#2563eb;color:white;text-decoration:none;border-radius:10px;padding:10px 12px;margin:4px 4px 4px 0}
+    code{background:#020617;border:1px solid #1f2937;border-radius:8px;padding:2px 6px}
+    h1{margin:.2rem 0 0.6rem}
+    ul{margin-top:8px}
+  </style>
+</head>
+<body id="publicNodeProfilePage">
+<main>
+  <section class="card" id="publicNodeProfileHero"><!-- VOID_PUBLIC_NODE_PROFILE_V1 -->
+    <div class="muted">VOID Public Node Profile</div>
+    <h1>This node exposes proofs, not controls.</h1>
+    <p class="muted">Read-only public surface for a VOID node. It shows proof-backed activity and DataNet-backed public records without exposing the owner console.</p>
+    <p class="good" id="publicNodeReadOnlyState"><!-- VOID_PUBLIC_NODE_PROFILE_READ_ONLY_V1 -->Read-only: no wallet send, no WC→VOID swap, no Buy VOID fulfillment, no staking action, no validator mutation, no admin control.</p>
+  </section>
+
+  <section class="grid">
+    <div class="card" id="publicNodeIdentityCard"><!-- VOID_PUBLIC_NODE_IDENTITY_CARD_V1 -->
+      <b>Node identity</b>
+      <p class="muted">VOID Mainnet-0 public node profile.</p>
+      <p><code>/public-node</code></p>
+    </div>
+
+    <div class="card" id="publicNodeProofStatsCard"><!-- VOID_PUBLIC_NODE_PROOF_STATS_V1 -->
+      <b>Public proof stats</b>
+      <p class="muted" id="publicNodeProofSummary">Loading latest public proof records from this node...</p>
+      <p class="muted" id="publicNodeLatestProof">Waiting for <code>/wc-proofs/latest?limit=12</code></p>
+      <p>
+        <a class="btn" id="publicNodeLatestProofLink" href="/proofs">Open latest proof</a>
+        <a class="btn" id="publicNodeLatestRawLink" href="/proofs">Open latest raw JSON</a>
+        <a class="btn" id="publicNodeProofHistoryLink" href="/proofs">Open proof history</a>
+      </p>
+    </div>
+  </section>
+
+  <section class="card" id="publicNodeBoundaryCard"><!-- VOID_PUBLIC_NODE_PRIVATE_BOUNDARY_V1 -->
+    <b>Public / private boundary</b>
+    <ul>
+      <li><span class="good">Public:</span> node profile, proof history, public Work Credit proof summaries, verifier links, public DataNet-backed proof JSON.</li>
+      <li><span class="warn">Private:</span> wallet controls, Earn controls, local DataNet management, trade, Buy VOID request tools, staking tools, validator/admin/operator controls.</li>
+    </ul>
+    <p class="muted">The participant page remains the owner console. This page is the public proof surface.</p>
+  </section>
+
+  <section class="card" id="publicNodeDataIntelligenceCard"><!-- VOID_PUBLIC_NODE_DATA_INTELLIGENCE_SEED_V1 -->
+    <b>Data intelligence seed</b>
+    <p class="muted" id="publicNodeDataIntelligenceSummary">Seed metrics: proof count, latest proof age, latest dataset, task class, and DataNet backing. Later this becomes node effectiveness, data importance, staleness, compression, organization, and retrieval scoring.</p>
+  </section>
+</main>
+
+<script><!-- VOID_PUBLIC_NODE_PROFILE_SCRIPT_V1 -->
+(function(){
+  function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c;});}
+  function pick(o,a){for(var i=0;i<a.length;i++){if(o&&o[a[i]])return o[a[i]];}return '';}
+  function setText(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
+  function setHtml(id,v){var el=document.getElementById(id);if(el)el.innerHTML=v;}
+  function setHref(id,v){var el=document.getElementById(id);if(el&&v)el.href=v;}
+  function proofHref(dataset,who,delta){return '/proof/'+encodeURIComponent(dataset)+'?who='+encodeURIComponent(who||'')+'&delta='+encodeURIComponent(delta||10);}
+  function viewerHref(dataset,who,delta){return '/wc-proof-viewer?dataset='+encodeURIComponent(dataset)+'&who='+encodeURIComponent(who||'')+'&delta='+encodeURIComponent(delta||10);}
+  function rawHref(dataset,who){return '/datanet/v1/local-job/'+encodeURIComponent(dataset)+(who?'?who='+encodeURIComponent(who):'');}
+
+  fetch('/wc-proofs/latest?limit=12',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    var items=j.items||j.proofs||j.latest||[];
+    if(!Array.isArray(items))items=items?[items]:[];
+    if(!items.length){
+      setText('publicNodeProofSummary','No public Work Credit proof records found yet.');
+      setText('publicNodeDataIntelligenceSummary','No proof records available yet; data intelligence seed is waiting for public proof history.');
+      return;
+    }
+
+    var latest=items[0]||{};
+    var dataset=pick(latest,['dataset_id','dataset','id']);
+    var who=pick(latest,['who','account']);
+    var task=pick(latest,['task_class','taskClass'])||'work_credit_activity';
+    var delta=latest.delta||latest.wc_delta||latest.credit_delta||10;
+    var latestMs=Number(latest.mtime_ms||latest.ts_ms||latest.created_ms||0);
+    var ageText=latestMs?Math.max(0,Math.floor((Date.now()-latestMs)/60000))+'m':'unknown';
+
+    var viewer=pick(latest,['viewer_path','viewerPath','viewer'])||viewerHref(dataset,who,delta);
+    var raw=pick(latest,['raw_path','rawPath','raw'])||rawHref(dataset,who);
+    var share=pick(latest,['share_path','sharePath','share'])||proofHref(dataset,who,delta);
+
+    setText('publicNodeProofSummary','public proofs='+items.length+' / 12 · backing=DataNet local-job JSON');
+    setHtml('publicNodeLatestProof','latest dataset='+esc(dataset)+' · who='+esc(who)+' · task='+esc(task)+' · age='+esc(ageText));
+    setHref('publicNodeLatestProofLink',share||viewer);
+    setHref('publicNodeLatestRawLink',raw);
+    setHref('publicNodeProofHistoryLink','/proofs');
+    setText('publicNodeDataIntelligenceSummary','seed metrics: proof_count='+items.length+' · latest_age='+ageText+' · latest_task='+task+' · backing=DataNet local-job JSON · next=node effectiveness/data importance/staleness/compression scoring');
+  }).catch(function(){
+    setText('publicNodeProofSummary','Public proof stats unavailable right now.');
+    setText('publicNodeDataIntelligenceSummary','Data intelligence seed unavailable because latest proof feed could not be read.');
+  });
+})();
+</script>
+</body>
+</html>`);
+        });
+
         APP.get("/proofs", (_req:any, res:any) => { // VOID_WC_PROOFS_PUBLIC_INDEX_ROUTE_V1
           res.setHeader("content-type", "text/html; charset=utf-8");
           const escProof = (v:any) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
