@@ -30,6 +30,7 @@ expect_grep "viewer route marker" "VOID_WC_PROOF_VIEWER_ROUTE_V1" src/index.ts
 expect_grep "viewer render marker" "VOID_WC_PROOF_VIEWER_RENDER_V1" src/index.ts
 expect_grep "viewer client marker" "VOID_WC_PROOF_VIEWER_CLIENT_V1" src/index.ts
 expect_grep "copy link marker" "VOID_WC_PROOF_VIEWER_COPY_LINK_V1" src/index.ts
+expect_grep "copy public proof link marker" "VOID_WC_PROOF_VIEWER_COPY_PUBLIC_LINK_V1" src/index.ts
 expect_grep "verify proof button marker" "VOID_WC_PROOF_VIEWER_VERIFY_BUTTON_V1" src/index.ts
 expect_grep "verify proof client marker" "VOID_WC_PROOF_VIEWER_VERIFY_CLIENT_V1" src/index.ts
 expect_grep "latest proofs route marker" "VOID_WC_PROOFS_LATEST_ROUTE_V1" src/index.ts
@@ -174,6 +175,8 @@ expect_grep "verify proof marker served" "VOID_WC_PROOF_VIEWER_VERIFY_BUTTON_V1"
 expect_grep "verify proof client marker served" "VOID_WC_PROOF_VIEWER_VERIFY_CLIENT_V1" "$OUT/viewer.html"
 expect_grep "verify proof success copy served" "Verified from DataNet local-job JSON" "$OUT/viewer.html"
 expect_grep "permalink card served" "wcProofPermalink" "$OUT/viewer.html"
+expect_grep "copy public proof link marker served" "VOID_WC_PROOF_VIEWER_COPY_PUBLIC_LINK_V1" "$OUT/viewer.html"
+expect_grep "copy public proof link path served" "/proof/$DATASET_ID" "$OUT/viewer.html"
 expect_grep "viewer title" "WC Proof Viewer" "$OUT/viewer.html"
 expect_grep "viewer dataset" "$DATASET_ID" "$OUT/viewer.html"
 expect_grep "viewer raw path" "/datanet/v1/local-job/" "$OUT/viewer.html"
@@ -188,6 +191,8 @@ curl -fsSL --max-time 20 "$BASE$SHARE_PATH" > "$OUT/public-proof-share-viewer.ht
 expect_grep "public proof share viewer title" "WC Proof Viewer" "$OUT/public-proof-share-viewer.html"
 expect_grep "public proof share verify button" "Verify proof" "$OUT/public-proof-share-viewer.html"
 expect_grep "public proof share verify marker" "VOID_WC_PROOF_VIEWER_VERIFY_BUTTON_V1" "$OUT/public-proof-share-viewer.html"
+expect_grep "public proof share permalink marker" "VOID_WC_PROOF_VIEWER_COPY_PUBLIC_LINK_V1" "$OUT/public-proof-share-viewer.html"
+expect_grep "public proof share permalink path" "/proof/$DATASET_ID" "$OUT/public-proof-share-viewer.html"
 echo "[ok] public proof share route resolves"
 echo
 

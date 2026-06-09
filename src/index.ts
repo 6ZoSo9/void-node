@@ -43815,6 +43815,7 @@ a{color:#93c5fd;text-decoration:none}
           const delta = cleanId((req.query && (req.query as any).delta) || "10") || "10";
           const rawPath = dataset ? ("/datanet/v1/local-job/" + encodeURIComponent(dataset) + "?who=" + encodeURIComponent(who)) : "";
           const proofPath = dataset ? ("/wc-proof-viewer?dataset=" + encodeURIComponent(dataset) + "&who=" + encodeURIComponent(who) + "&delta=" + encodeURIComponent(delta)) : "";
+          const publicProofPath = dataset ? ("/proof/" + encodeURIComponent(dataset) + "?who=" + encodeURIComponent(who) + "&delta=" + encodeURIComponent(delta || "10")) : proofPath; // VOID_WC_PROOF_VIEWER_COPY_PUBLIC_LINK_V1
 
           const html = [
             "<!doctype html>",
@@ -43839,13 +43840,13 @@ a{color:#93c5fd;text-decoration:none}
             "</div>",
             "<div class='card'><div class='k'>Safety state</div><div class='v good'>no wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation</div></div>",
             "<div class='card'><div class='k'>Policy payload</div><pre id='wcProofPlaintext'>loading…</pre></div>",
-            "<div class='card' id='wcProofPermalinkCard'><!-- VOID_WC_PROOF_VIEWER_COPY_LINK_V1 --><div class='k'>Proof link</div><div class='v' id='wcProofPermalink'>" + esc(proofPath) + "</div></div>",
+            "<div class='card' id='wcProofPermalinkCard'><!-- VOID_WC_PROOF_VIEWER_COPY_LINK_V1 --><!-- VOID_WC_PROOF_VIEWER_COPY_PUBLIC_LINK_V1 --><div class='k'>Proof link</div><div class='v' id='wcProofPermalink'>" + esc(publicProofPath) + "</div></div>",
             "<div class='card' id='wcProofVerifyCard'><!-- VOID_WC_PROOF_VIEWER_VERIFY_BUTTON_V1 --><div class='k'>Verification</div><div class='v' id='wcProofVerifyStatus'>Not verified yet.</div></div>",
             "<p><button class='btn' id='wcProofVerifyBtn' type='button'>Verify proof</button><button class='btn' id='wcProofCopyLinkBtn' type='button'>Copy proof link</button><a class='btn' href='" + esc(rawPath) + "'>Open raw JSON</a><a class='btn' href='/participant'>Back to participant</a></p>",
             "</div></main>",
             "<script>(function(){ // VOID_WC_PROOF_VIEWER_CLIENT_V1",
             "const rawPath=" + JSON.stringify(rawPath) + ";",
-            "const proofPath=" + JSON.stringify(proofPath) + ";",
+            "const proofPath=" + JSON.stringify(publicProofPath) + ";",
             "const expectedDataset=" + JSON.stringify(dataset) + ";",
             "const expectedWho=" + JSON.stringify(who) + ";",
             "function text(id,v){const el=document.getElementById(id);if(el)el.textContent=String(v==null?'':v)}",
