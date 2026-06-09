@@ -54,6 +54,7 @@ expect_grep "public proofs summary marker" "VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_
 expect_grep "public proofs copy latest marker" "VOID_WC_PROOFS_PUBLIC_INDEX_COPY_LATEST_V1" src/index.ts
 expect_grep "public proofs open latest marker" "VOID_WC_PROOFS_PUBLIC_INDEX_OPEN_LATEST_V1" src/index.ts
 expect_grep "public proofs open latest raw marker" "VOID_WC_PROOFS_PUBLIC_INDEX_OPEN_LATEST_RAW_V1" src/index.ts
+expect_grep "public proofs verify guide marker" "VOID_WC_PROOFS_PUBLIC_INDEX_VERIFY_GUIDE_V1" src/index.ts
 expect_grep "public proofs summary client marker" "VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_CLIENT_V1" src/index.ts
 expect_grep "public share redirect direct viewer proof marker" "VOID_WC_PROOF_PUBLIC_SHARE_REDIRECT_DIRECT_VIEWER_PROOF_V1" ops/mainnet0/participant-wc-proof-viewer-proof.sh
 expect_grep "public share no-follow redirect proof marker" "VOID_WC_PROOF_PUBLIC_SHARE_NO_FOLLOW_REDIRECT_PROOF_V1" ops/mainnet0/participant-wc-proof-viewer-proof.sh
@@ -139,6 +140,13 @@ expect_grep "public proofs copy latest id served" "publicProofsCopyLatestBtn" "$
 expect_grep "public proofs copy latest copy served" "Copy latest proof" "$OUT/public-proofs-index.html"
 expect_grep "public proofs summary client marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_CLIENT_V1" "$OUT/public-proofs-index.html"
 expect_grep "public proofs summary backing served" "backing=DataNet local-job JSON" "$OUT/public-proofs-index.html"
+expect_grep "public proofs verify guide marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_VERIFY_GUIDE_V1" "$OUT/public-proofs-index.html"
+expect_grep "public proofs verify guide id served" "publicProofsVerifyGuideCard" "$OUT/public-proofs-index.html"
+expect_grep "public proofs verify guide title served" "How to verify" "$OUT/public-proofs-index.html"
+expect_grep "public proofs verify guide proof path served" "Open a clean /proof/" "$OUT/public-proofs-index.html"
+expect_grep "public proofs verify guide verifier served" "Click Verify proof" "$OUT/public-proofs-index.html"
+expect_grep "public proofs verify guide raw served" "raw DataNet local-job JSON" "$OUT/public-proofs-index.html"
+expect_grep "public proofs verify guide safety served" "does not send funds" "$OUT/public-proofs-index.html"
 expect_grep "public proofs index latest endpoint" "/wc-proofs/latest?limit=20" "$OUT/public-proofs-index.html"
 expect_grep "public proofs index proof path" "/proof/" "$OUT/public-proofs-index.html"
 expect_grep "public proofs index raw backing" "/datanet/v1/local-job/" "$OUT/public-proofs-index.html"
