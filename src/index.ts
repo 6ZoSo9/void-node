@@ -44152,9 +44152,18 @@ a{color:#93c5fd;text-decoration:none}
     <p class="muted">The participant page remains the owner console. This page is the public proof surface.</p>
   </section>
 
-  <section class="card" id="publicNodeDataIntelligenceCard"><!-- VOID_PUBLIC_NODE_DATA_INTELLIGENCE_SEED_V1 -->
-    <b>Data intelligence seed</b>
-    <p class="muted" id="publicNodeDataIntelligenceSummary">Seed metrics: proof count, latest proof age, latest dataset, task class, and DataNet backing. Later this becomes node effectiveness, data importance, staleness, compression, organization, and retrieval scoring.</p>
+  <section class="card" id="publicNodeDataIntelligenceCard"><!-- VOID_PUBLIC_NODE_DATA_INTELLIGENCE_SEED_V1 --><!-- VOID_PUBLIC_NODE_INTELLIGENCE_UI_V1 -->
+    <b>Node intelligence</b>
+    <p class="muted" id="publicNodeDataIntelligenceSummary">Loading public node intelligence metrics...</p>
+    <div class="grid" id="publicNodeIntelligenceGrid">
+      <div class="card" id="publicNodeUsefulnessScoreCard"><div class="muted">Usefulness seed score</div><h2 id="publicNodeUsefulnessScore">--</h2></div>
+      <div class="card" id="publicNodeProofCountCard"><div class="muted">Public proof count</div><h2 id="publicNodeProofCount">--</h2></div>
+      <div class="card" id="publicNodeLatestAgeCard"><div class="muted">Latest proof age</div><h2 id="publicNodeLatestAge">--</h2></div>
+      <div class="card" id="publicNodeRawCoverageCard"><div class="muted">Raw JSON coverage</div><h2 id="publicNodeRawCoverage">--</h2></div>
+    </div>
+    <p class="muted" id="publicNodeLatestTask">Latest task: loading...</p>
+    <p class="muted" id="publicNodeNextMetrics">Next metrics: loading...</p>
+    <p><a class="btn" id="publicNodeIntelligenceJsonLink" href="/public-node/intelligence.json">Open intelligence JSON</a></p>
   </section>
 </main>
 
@@ -44199,6 +44208,29 @@ a{color:#93c5fd;text-decoration:none}
   }).catch(function(){
     setText('publicNodeProofSummary','Public proof stats unavailable right now.');
     setText('publicNodeDataIntelligenceSummary','Data intelligence seed unavailable because latest proof feed could not be read.');
+  });
+})();
+</script>
+
+<script><!-- VOID_PUBLIC_NODE_INTELLIGENCE_UI_SCRIPT_V1 -->
+(function(){
+  function setText(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
+  function pct(n,d){n=Number(n||0);d=Number(d||0);return d?Math.round((n/d)*100)+'%':'0%';}
+  fetch('/public-node/intelligence.json',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    if(!j||j.ok!==true){throw new Error('intelligence_not_ok');}
+    setText('publicNodeDataIntelligenceSummary','Public intelligence online · backing='+String(j.data_backing||'unknown')+' · read_only='+String(j.safety&&j.safety.read_only===true));
+    setText('publicNodeUsefulnessScore',String(j.public_usefulness_seed_score==null?'--':j.public_usefulness_seed_score)+'/100');
+    setText('publicNodeProofCount',String(j.proof_count==null?'0':j.proof_count));
+    setText('publicNodeLatestAge',j.latest_age_minutes==null?'unknown':String(j.latest_age_minutes)+'m');
+    setText('publicNodeRawCoverage',pct(j.proofs_with_raw_json,j.proof_count));
+    setText('publicNodeLatestTask','Latest task: '+String(j.latest_task||'unknown')+' · dataset='+String(j.latest_dataset||'none'));
+    setText('publicNodeNextMetrics','Next metrics: '+((j.next_metrics||[]).join(', ')||'none'));
+  }).catch(function(){
+    setText('publicNodeDataIntelligenceSummary','Public intelligence metrics unavailable right now.');
+    setText('publicNodeUsefulnessScore','offline');
+    setText('publicNodeProofCount','--');
+    setText('publicNodeLatestAge','--');
+    setText('publicNodeRawCoverage','--');
   });
 })();
 </script>
