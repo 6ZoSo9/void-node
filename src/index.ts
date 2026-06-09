@@ -43803,7 +43803,47 @@ a{color:#93c5fd;text-decoration:none}
             .send("VOID_WC_PROOF_PUBLIC_SHARE_ROUTE_V1\n" + target + "\n");
         });
 
-        APP.get("/wc-proof-viewer", (req:any, res:any) => {
+        
+        APP.get("/proofs", (_req:any, res:any) => { // VOID_WC_PROOFS_PUBLIC_INDEX_ROUTE_V1
+          res.setHeader("content-type", "text/html; charset=utf-8");
+          res.status(200).send([
+            "<!doctype html>",
+            "<meta charset='utf-8'>",
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>",
+            "<title>VOID WC Proofs</title>",
+            "<style>",
+            "body{margin:0;background:#060816;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif}",
+            "main{max-width:980px;margin:0 auto;padding:28px 18px}",
+            ".hero{border:1px solid rgba(148,163,184,.28);border-radius:18px;padding:20px;background:linear-gradient(135deg,rgba(59,130,246,.14),rgba(15,23,42,.72))}",
+            ".muted{color:#94a3b8}.good{color:#86efac}.card{border:1px solid rgba(148,163,184,.22);border-radius:16px;padding:14px;margin-top:12px;background:rgba(15,23,42,.72)}",
+            ".row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.btn{border:1px solid rgba(147,197,253,.45);border-radius:999px;padding:8px 12px;background:rgba(30,64,175,.35);color:#dbeafe;text-decoration:none;cursor:pointer}",
+            "code{color:#bae6fd;word-break:break-all}",
+            "</style>",
+            "<main>",
+            "<section class='hero'><!-- VOID_WC_PROOFS_PUBLIC_INDEX_RENDER_V1 -->",
+            "<h1>VOID WC Proofs</h1>",
+            "<p class='muted'>Recent local Work Credit proofs backed by DataNet local-job JSON. Share clean /proof/&lt;dataset&gt; links or open the verifier.</p>",
+            "<p class='good'>No wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation</p>",
+            "<p><a class='btn' href='/participant'>Back to participant</a></p>",
+            "</section>",
+            "<section id='proofsList' class='card'>Loading proofs…</section>",
+            "</main>",
+            "<script>(async function(){ // VOID_WC_PROOFS_PUBLIC_INDEX_CLIENT_V1",
+            "const box=document.getElementById('proofsList');",
+            "function esc(v){return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}",
+            "function proofHref(p){var ds=String(p.dataset_id||'');var who=String(p.who||'');var delta=String(p.delta||'10');if(!ds)return '#';return '/proof/'+encodeURIComponent(ds)+'?who='+encodeURIComponent(who)+'&delta='+encodeURIComponent(delta)}",
+            "function rawHref(p){if(p.raw_path)return String(p.raw_path);var ds=String(p.dataset_id||'');var who=String(p.who||'');return ds?'/datanet/v1/local-job/'+encodeURIComponent(ds)+'?who='+encodeURIComponent(who):'#'}",
+            "function copyLink(url,btn){var abs=new URL(url,window.location.origin).toString();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(abs).then(function(){btn.textContent='Copied';}).catch(function(){btn.textContent=abs;});}else{btn.textContent=abs;}}",
+            "var r=await fetch('/wc-proofs/latest?limit=20',{cache:'no-store'});var j=await r.json();var proofs=Array.isArray(j.proofs)?j.proofs:[];",
+            "if(!proofs.length){box.textContent='No local WC proofs found yet.';return;}",
+            "box.innerHTML='<h2>Recent proofs</h2>'+proofs.map(function(p,i){var u=proofHref(p);var raw=rawHref(p);return '<div class=\'card\'><div class=\'muted\'>#'+(i+1)+' · '+esc(p.task_class||'wc proof')+'</div><b>'+esc(p.dataset_id||'unknown dataset')+'</b><div><code>'+esc(u)+'</code></div><div class=\'row\' style=\'margin-top:8px\'><a class=\'btn\' href=\''+esc(u)+'\'>Open verifier</a><button class=\'btn\' data-copy=\''+esc(u)+'\'>Copy proof link</button><a class=\'btn\' href=\''+esc(raw)+'\'>Open raw JSON</a></div></div>';}).join('');",
+            "box.addEventListener('click',function(ev){var b=ev.target&&ev.target.closest&&ev.target.closest('button[data-copy]');if(!b)return;copyLink(b.getAttribute('data-copy'),b);});",
+            "})().catch(function(e){var box=document.getElementById('proofsList');if(box)box.textContent='Failed to load proofs: '+String(e&&e.message||e);});</script>",
+            ""
+          ].join("\n"));
+        });
+
+APP.get("/wc-proof-viewer", (req:any, res:any) => {
           // VOID_WC_PROOF_VIEWER_ROUTE_V1
           const cleanId = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 180);
           const cleanWho = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:@-]/g, "").slice(0, 180);

@@ -45,6 +45,9 @@ expect_grep "public proof share route marker" "VOID_WC_PROOF_PUBLIC_SHARE_ROUTE_
 expect_grep "public proof share link marker" "VOID_PARTICIPANT_WC_PUBLIC_PROOF_SHARE_LINK_V1" src/index.ts
 expect_grep "share latest proof button marker" "VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_BUTTON_V1" src/index.ts
 expect_grep "share latest proof client marker" "VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_CLIENT_V1" src/index.ts
+expect_grep "public proofs index route marker" "VOID_WC_PROOFS_PUBLIC_INDEX_ROUTE_V1" src/index.ts
+expect_grep "public proofs index render marker" "VOID_WC_PROOFS_PUBLIC_INDEX_RENDER_V1" src/index.ts
+expect_grep "public proofs index client marker" "VOID_WC_PROOFS_PUBLIC_INDEX_CLIENT_V1" src/index.ts
 expect_grep "public proof share path" "/proof/" src/index.ts
 expect_grep "raw local-job path" "/datanet/v1/local-job/" src/index.ts
 expect_grep "safety copy" "no wallet send" src/index.ts
@@ -97,6 +100,18 @@ expect_grep "served share latest proof button id" "wcLatestProofShareLatestBtn" 
 expect_grep "served share latest proof copy" "Share latest proof" "$OUT/participant.html"
 expect_grep "served share latest proof client marker" "VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_CLIENT_V1" "$OUT/participant.html"
 expect_grep "served stable raw marker" "VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1" "$OUT/participant.html"
+echo
+
+echo "=== [4b] public proofs index resolves ==="
+curl -fsSL --max-time 20 "$BASE/proofs" > "$OUT/public-proofs-index.html"
+expect_grep "public proofs index title" "VOID WC Proofs" "$OUT/public-proofs-index.html"
+expect_grep "public proofs index route marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_RENDER_V1" "$OUT/public-proofs-index.html"
+expect_grep "public proofs index client marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_CLIENT_V1" "$OUT/public-proofs-index.html"
+expect_grep "public proofs index latest endpoint" "/wc-proofs/latest?limit=20" "$OUT/public-proofs-index.html"
+expect_grep "public proofs index proof path" "/proof/" "$OUT/public-proofs-index.html"
+expect_grep "public proofs index raw backing" "/datanet/v1/local-job/" "$OUT/public-proofs-index.html"
+expect_grep "public proofs index safety" "No wallet send" "$OUT/public-proofs-index.html"
+echo "[ok] public proofs index resolves"
 echo
 
 echo "=== [5] choose latest existing local DataNet job ==="
