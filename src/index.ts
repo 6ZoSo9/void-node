@@ -44020,6 +44020,26 @@ a{color:#93c5fd;text-decoration:none}
             const rawOrganizationScore = proofCount ? Math.round((proofsWithRawJson / proofCount) * 20) : 0;
             const organizationSeedScore = Math.max(0, Math.min(100, organizationCoverageScore + freshnessOrganizationScore + sizeOrganizationScore + rawOrganizationScore));
 
+            // VOID_PUBLIC_NODE_RETRIEVAL_METRICS_V1
+            function hasPublicDataset(r:any) {
+              return !!(r && r.dataset && String(r.dataset).startsWith("ds_"));
+            }
+            function hasPublicWho(r:any) {
+              return !!(r && r.who && String(r.who).length >= 4);
+            }
+            const retrievalCandidates = records.filter((r:any) => hasPublicDataset(r));
+            const retrievalCandidateCount = retrievalCandidates.length;
+            const recentProofLinkCount = retrievalCandidates.filter((r:any) => hasPublicDataset(r) && hasPublicWho(r)).length;
+            const rawJsonLinkCount = records.filter((r:any) => !!r.raw_path).length;
+            const verifierLinkCount = retrievalCandidates.filter((r:any) => hasPublicDataset(r) && hasPublicWho(r)).length;
+            const shareLinkCount = retrievalCandidates.filter((r:any) => hasPublicDataset(r) && hasPublicWho(r)).length;
+            const retrievalCoverageScore = proofCount ? Math.round((retrievalCandidateCount / proofCount) * 30) : 0;
+            const proofLinkScore = proofCount ? Math.round((recentProofLinkCount / proofCount) * 20) : 0;
+            const rawJsonScore = proofCount ? Math.round((rawJsonLinkCount / proofCount) * 20) : 0;
+            const verifierScore = proofCount ? Math.round((verifierLinkCount / proofCount) * 15) : 0;
+            const shareScore = proofCount ? Math.round((shareLinkCount / proofCount) * 15) : 0;
+            const retrievalSeedScore = Math.max(0, Math.min(100, retrievalCoverageScore + proofLinkScore + rawJsonScore + verifierScore + shareScore));
+
             const proofCountScore = Math.min(40, proofCount * 4);
             const freshnessScore = latestAgeMs == null ? 0 : latestAgeMs <= 60 * 60 * 1000 ? 25 : latestAgeMs <= 24 * 60 * 60 * 1000 ? 15 : 5;
             const rawCoverageScore = proofCount ? Math.round((proofsWithRawJson / proofCount) * 20) : 0;
@@ -44051,6 +44071,20 @@ a{color:#93c5fd;text-decoration:none}
               large_record_count: largeRecordCount,
               compression_candidate_count: compressionCandidateCount,
               organization_seed_score: organizationSeedScore,
+              retrieval_marker: "VOID_PUBLIC_NODE_RETRIEVAL_METRICS_V1",
+              retrieval_candidate_count: retrievalCandidateCount,
+              recent_proof_link_count: recentProofLinkCount,
+              raw_json_link_count: rawJsonLinkCount,
+              verifier_link_count: verifierLinkCount,
+              share_link_count: shareLinkCount,
+              retrieval_seed_score: retrievalSeedScore,
+              retrieval_policy: {
+                public_route_only: true,
+                no_local_path_exposure: true,
+                raw_json_semantics: "count_public_raw_json_availability_without_exposing_local_filesystem_paths",
+                retrieval_candidate_rule: "public_dataset_id_present",
+                proof_link_rule: "public_dataset_and_public_who_present"
+              },
               lifecycle_policy: {
                 stale_after_minutes: staleAfterMinutes,
                 large_record_threshold_bytes: largeRecordThresholdBytes,
@@ -44087,7 +44121,12 @@ a{color:#93c5fd;text-decoration:none}
                 share_path: r.share_path,
                 data_backing: r.data_backing,
                 age_minutes: Math.floor(Math.max(0, now - Number(r.mtime_ms || now)) / 60000),
-                compression_candidate: Math.floor(Math.max(0, now - Number(r.mtime_ms || now)) / 60000) >= staleAfterMinutes || Number(r.size_bytes || 0) >= largeRecordThresholdBytes
+                compression_candidate: Math.floor(Math.max(0, now - Number(r.mtime_ms || now)) / 60000) >= staleAfterMinutes || Number(r.size_bytes || 0) >= largeRecordThresholdBytes,
+                retrieval_candidate: hasPublicDataset(r),
+                has_public_proof_link: hasPublicDataset(r) && hasPublicWho(r),
+                has_public_verifier_link: hasPublicDataset(r) && hasPublicWho(r),
+                has_public_share_link: hasPublicDataset(r) && hasPublicWho(r),
+                has_public_raw_json: !!r.raw_path
               })),
               public_private_boundary: {
                 owner_console_route: "/participant",
