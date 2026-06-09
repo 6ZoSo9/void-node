@@ -48,6 +48,7 @@ expect_grep "share latest proof client marker" "VOID_PARTICIPANT_WC_SHARE_LATEST
 expect_grep "public proofs index route marker" "VOID_WC_PROOFS_PUBLIC_INDEX_ROUTE_V1" src/index.ts
 expect_grep "public proofs index render marker" "VOID_WC_PROOFS_PUBLIC_INDEX_RENDER_V1" src/index.ts
 expect_grep "public proofs index client marker" "VOID_WC_PROOFS_PUBLIC_INDEX_CLIENT_V1" src/index.ts
+expect_grep "public proofs index link marker" "VOID_PARTICIPANT_WC_PUBLIC_PROOFS_INDEX_LINK_V1" src/index.ts
 expect_grep "public proof share path" "/proof/" src/index.ts
 expect_grep "raw local-job path" "/datanet/v1/local-job/" src/index.ts
 expect_grep "safety copy" "no wallet send" src/index.ts
@@ -99,6 +100,10 @@ expect_grep "served share latest proof button marker" "VOID_PARTICIPANT_WC_SHARE
 expect_grep "served share latest proof button id" "wcLatestProofShareLatestBtn" "$OUT/participant.html"
 expect_grep "served share latest proof copy" "Share latest proof" "$OUT/participant.html"
 expect_grep "served share latest proof client marker" "VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_CLIENT_V1" "$OUT/participant.html"
+expect_grep "served public proofs index link marker" "VOID_PARTICIPANT_WC_PUBLIC_PROOFS_INDEX_LINK_V1" "$OUT/participant.html"
+expect_grep "served public proofs index link id" "wcLatestProofsPublicIndexLink" "$OUT/participant.html"
+expect_grep "served public proofs index link route" "href=\"/proofs\"" "$OUT/participant.html"
+expect_grep "served public proofs index link copy" "View public proofs" "$OUT/participant.html"
 expect_grep "served stable raw marker" "VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1" "$OUT/participant.html"
 echo
 

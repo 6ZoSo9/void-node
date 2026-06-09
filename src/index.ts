@@ -52109,7 +52109,7 @@ a{color:#93c5fd;text-decoration:none}
             <b>Latest WC Proofs:</b>
             <span class="muted">Recent local DataNet-backed proof links from this node.</span>
             <div class="muted" id="wcLatestProofsSummary" style="margin-top:6px"><!-- VOID_PARTICIPANT_WC_LATEST_PROOFS_SUMMARY_V1 -->Proof count and last proof time load from this node.</div>
-            <div class="row" style="margin-top:8px"><button class="btn secondary" id="wcLatestProofShareLatestBtn" type="button" disabled><!-- VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_BUTTON_V1 -->Share latest proof</button></div>
+            <div class="row" style="margin-top:8px"><button class="btn secondary" id="wcLatestProofShareLatestBtn" type="button" disabled><!-- VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_BUTTON_V1 -->Share latest proof</button><a class="btn secondary" id="wcLatestProofsPublicIndexLink" href="/proofs"><!-- VOID_PARTICIPANT_WC_PUBLIC_PROOFS_INDEX_LINK_V1 -->View public proofs</a></div>
             <div class="row" id="wcLatestProofsList" style="margin-top:8px">Loading latest proofs…</div>
           </div>
           <script>
