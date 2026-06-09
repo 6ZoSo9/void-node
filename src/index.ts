@@ -43807,7 +43807,7 @@ a{color:#93c5fd;text-decoration:none}
               "<!doctype html>",
               "<meta charset='utf-8'>",
               "<meta name='viewport' content='width=device-width,initial-scale=1'>",
-              "<title>VOID Proof Created</title>",
+              "<title>VOID Work Credit Proof Created</title>",
               "<style>",
               "body{margin:0;background:#060816;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif}",
               "main{max-width:880px;margin:0 auto;padding:28px 18px}.card{border:1px solid rgba(148,163,184,.25);border-radius:18px;padding:18px;background:rgba(15,23,42,.75);margin-top:12px}",
@@ -43815,9 +43815,9 @@ a{color:#93c5fd;text-decoration:none}
               "</style>",
               "<main>",
               "<section class='card' id='participantWcProofGenerateSuccessCard'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_SUCCESS_CARD_V1 -->",
-              "<div class='good'>Proof created</div>",
-              "<h1>Fresh WC proof generated</h1>",
-              "<p class='muted'>This local Work Credit proof is backed by DataNet local-job JSON and can be opened, verified, copied, or shared.</p>",
+              "<div class='good'><!-- VOID_WC_PROOF_ACTIVITY_SUCCESS_COPY_V1 -->Work Credit proof created</div>",
+              "<h1>Verifiable Work Credit activity</h1>",
+              "<p class='muted'>This local Work Credit activity proof is backed by DataNet local-job JSON and can be opened, verified, copied, or shared.</p>",
               "<p class='muted'>No wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation.</p>",
               "<div class='card'><b>Dataset</b><p><code id='participantWcProofSuccessDataset'>" + esc(dataset) + "</code></p><b>Account</b><p><code id='participantWcProofSuccessWho'>" + esc(who) + "</code></p><b>Public proof</b><p><code id='participantWcProofSuccessPublicLink'>" + esc(sharePath) + "</code></p></div>",
               "<div class='row' style='margin-top:12px'>",
@@ -52265,7 +52265,7 @@ a{color:#93c5fd;text-decoration:none}
             <span class="muted">Recent local DataNet-backed proof links from this node.</span>
             <div class="muted" id="wcLatestProofsSummary" style="margin-top:6px"><!-- VOID_PARTICIPANT_WC_LATEST_PROOFS_SUMMARY_V1 -->Proof count and last proof time load from this node.</div>
             <div class="row" style="margin-top:8px"><button class="btn secondary" id="wcLatestProofShareLatestBtn" type="button" disabled><!-- VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_BUTTON_V1 -->Share latest proof</button><a class="btn secondary" id="wcLatestProofsPublicIndexLink" href="/proofs"><!-- VOID_PARTICIPANT_WC_PUBLIC_PROOFS_INDEX_LINK_V1 -->View public proofs</a></div>
-          "<div class='card' id='participantWcProofGenerateCard'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_UI_V1 --><b>Prove fresh WC work</b><p class='muted'>Create a local demo Work Credit proof backed by DataNet JSON, then open its clean public proof route.</p><form method='post' action='/wc-proof-demo/generate'><button class='btn' id='participantWcProofGenerateBtn' type='submit'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_ACTION_V1 -->Generate proof demo</button></form><p class='muted'>No wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation.</p></div>",
+          "<div class='card' id='participantWcProofGenerateCard'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_UI_V1 --><b><!-- VOID_WC_PROOF_ACTIVITY_COPY_V1 -->Prove Work Credit Activity</b><p class='muted'>Create a local Work Credit activity proof backed by DataNet JSON, then open its clean public proof route.</p><form method='post' action='/wc-proof-demo/generate'><button class='btn' id='participantWcProofGenerateBtn' type='submit'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_ACTION_V1 -->Prove WC activity</button></form><p class='muted'>No wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation.</p></div>",
             <div class="row" id="wcLatestProofsList" style="margin-top:8px">Loading latest proofs…</div>
           </div>
           <script>
