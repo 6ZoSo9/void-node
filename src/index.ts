@@ -43806,6 +43806,35 @@ a{color:#93c5fd;text-decoration:none}
         
         APP.get("/proofs", (_req:any, res:any) => { // VOID_WC_PROOFS_PUBLIC_INDEX_ROUTE_V1
           res.setHeader("content-type", "text/html; charset=utf-8");
+          const escProof = (v:any) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+          const localJobsDir = path.join(process.cwd(), "data_a", "datanet_v1", "local_jobs");
+          let serverProofs:any[] = []; // VOID_WC_PROOFS_PUBLIC_INDEX_SERVER_RENDER_V1
+          try {
+            if (fs.existsSync(localJobsDir)) {
+              serverProofs = fs.readdirSync(localJobsDir)
+                .filter((name:string) => /^ds_[a-zA-Z0-9_.:-]+\.txt$/.test(name))
+                .map((name:string) => {
+                  const file = path.join(localJobsDir, name);
+                  let parsed:any = {};
+                  try { parsed = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
+                  const dataset_id = String(parsed.dataset_id || name.replace(/\.txt$/, ""));
+                  const who = String(parsed.who || parsed.account || "unknown");
+                  const delta = String(parsed.delta || parsed.credit_delta || "10");
+                  const task_class = String(parsed.task_class || parsed.kind || "wc proof");
+                  const mtime_ms = Number(fs.statSync(file).mtimeMs || 0);
+                  const proof_href = "/proof/" + encodeURIComponent(dataset_id) + "?who=" + encodeURIComponent(who) + "&delta=" + encodeURIComponent(delta);
+                  const raw_href = "/datanet/v1/local-job/" + encodeURIComponent(dataset_id) + "?who=" + encodeURIComponent(who);
+                  return { dataset_id, who, delta, task_class, mtime_ms, proof_href, raw_href };
+                })
+                .sort((a:any,b:any) => Number(b.mtime_ms||0) - Number(a.mtime_ms||0))
+                .slice(0, 20);
+            }
+          } catch {}
+          const serverProofsHtml = serverProofs.length
+            ? "<h2>Recent proofs</h2>" + serverProofs.map((p:any, i:number) =>
+                "<div class='card'><!-- VOID_WC_PROOFS_PUBLIC_INDEX_SERVER_RENDER_ITEM_V1 --><div class='muted'>#" + (i+1) + " · " + escProof(p.task_class) + "</div><b>" + escProof(p.dataset_id) + "</b><div><code>" + escProof(p.proof_href) + "</code></div><div class='row' style='margin-top:8px'><a class='btn' href='" + escProof(p.proof_href) + "'>Open verifier</a><button class='btn' data-copy='" + escProof(p.proof_href) + "'>Copy proof link</button><a class='btn' href='" + escProof(p.raw_href) + "'>Open raw JSON</a></div></div>"
+              ).join("")
+            : "No local WC proofs found yet.";
           res.status(200).send([
             "<!doctype html>",
             "<meta charset='utf-8'>",
@@ -43826,7 +43855,7 @@ a{color:#93c5fd;text-decoration:none}
             "<p class='good'>No wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation</p>",
             "<p><a class='btn' href='/participant'>Back to participant</a></p>",
             "</section>",
-            "<section id='proofsList' class='card'>Loading proofs…</section>",
+            "<section id='proofsList' class='card'><!-- VOID_WC_PROOFS_PUBLIC_INDEX_SERVER_RENDER_V1 -->" + serverProofsHtml + "</section>",
             "</main>",
             "<script>(async function(){ // VOID_WC_PROOFS_PUBLIC_INDEX_CLIENT_V1",
             "const box=document.getElementById('proofsList');",
