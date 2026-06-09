@@ -53,6 +53,7 @@ expect_grep "public proofs server render item marker" "VOID_WC_PROOFS_PUBLIC_IND
 expect_grep "public proofs summary marker" "VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_V1" src/index.ts
 expect_grep "public proofs copy latest marker" "VOID_WC_PROOFS_PUBLIC_INDEX_COPY_LATEST_V1" src/index.ts
 expect_grep "public proofs open latest marker" "VOID_WC_PROOFS_PUBLIC_INDEX_OPEN_LATEST_V1" src/index.ts
+expect_grep "public proofs open latest raw marker" "VOID_WC_PROOFS_PUBLIC_INDEX_OPEN_LATEST_RAW_V1" src/index.ts
 expect_grep "public proofs summary client marker" "VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_CLIENT_V1" src/index.ts
 expect_grep "public share redirect direct viewer proof marker" "VOID_WC_PROOF_PUBLIC_SHARE_REDIRECT_DIRECT_VIEWER_PROOF_V1" ops/mainnet0/participant-wc-proof-viewer-proof.sh
 expect_grep "public share no-follow redirect proof marker" "VOID_WC_PROOF_PUBLIC_SHARE_NO_FOLLOW_REDIRECT_PROOF_V1" ops/mainnet0/participant-wc-proof-viewer-proof.sh
@@ -131,6 +132,9 @@ expect_grep "public proofs copy latest marker served" "VOID_WC_PROOFS_PUBLIC_IND
 expect_grep "public proofs open latest marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_OPEN_LATEST_V1" "$OUT/public-proofs-index.html"
 expect_grep "public proofs open latest id served" "publicProofsOpenLatestLink" "$OUT/public-proofs-index.html"
 expect_grep "public proofs open latest copy served" "Open latest proof" "$OUT/public-proofs-index.html"
+expect_grep "public proofs open latest raw marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_OPEN_LATEST_RAW_V1" "$OUT/public-proofs-index.html"
+expect_grep "public proofs open latest raw id served" "publicProofsOpenLatestRawLink" "$OUT/public-proofs-index.html"
+expect_grep "public proofs open latest raw copy served" "Open latest raw JSON" "$OUT/public-proofs-index.html"
 expect_grep "public proofs copy latest id served" "publicProofsCopyLatestBtn" "$OUT/public-proofs-index.html"
 expect_grep "public proofs copy latest copy served" "Copy latest proof" "$OUT/public-proofs-index.html"
 expect_grep "public proofs summary client marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_CLIENT_V1" "$OUT/public-proofs-index.html"
