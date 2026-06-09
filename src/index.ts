@@ -44794,16 +44794,20 @@ a{color:#93c5fd;text-decoration:none}
               const intelligence = await loopbackJson("/public-node/intelligence.json");
               const linkHealth = await loopbackJson("/public-node/link-health.json");
               const dataQuality = await loopbackJson("/public-node/data-quality.json");
+              const freshSeed = await loopbackJson("/public-node/fresh-proof-seed.json");
 
               const i = intelligence && intelligence.body ? intelligence.body : {};
               const h = linkHealth && linkHealth.body ? linkHealth.body : {};
               const q = dataQuality && dataQuality.body ? dataQuality.body : {};
+              const f = freshSeed && freshSeed.body ? freshSeed.body : {};
 
               const retrievalScore = score(i.retrieval_seed_score);
               const linkHealthScore = score(h.retrieval_link_health_score);
               const dataQualityScore = score(q.data_quality_score);
               const organizationScore = score(i.organization_seed_score);
-              const freshness = freshnessScore(i.latest_age_minutes, i.lifecycle_policy && i.lifecycle_policy.stale_after_minutes);
+              const historicalFreshness = freshnessScore(i.latest_age_minutes, i.lifecycle_policy && i.lifecycle_policy.stale_after_minutes);
+              const freshSeedScore = score(f.public_seed_freshness_score);
+              const freshness = freshSeedScore > historicalFreshness ? freshSeedScore : historicalFreshness;
 
               const weights:any = {
                 retrieval_score: 0.25,
@@ -44840,7 +44844,8 @@ a{color:#93c5fd;text-decoration:none}
                   intelligence: i.marker || "VOID_PUBLIC_NODE_INTELLIGENCE_JSON_V1",
                   retrieval_links: q.source_marker || i.retrieval_links_marker || "VOID_PUBLIC_NODE_RETRIEVAL_LINKS_V1",
                   link_health: h.marker || q.health_marker || "VOID_PUBLIC_NODE_LINK_HEALTH_V1",
-                  data_quality: q.marker || "VOID_PUBLIC_NODE_DATA_QUALITY_V1"
+                  data_quality: q.marker || "VOID_PUBLIC_NODE_DATA_QUALITY_V1",
+                  fresh_proof_seed: f.marker || "VOID_PUBLIC_NODE_FRESH_PROOF_SEED_V1"
                 },
                 component_scores: {
                   retrieval_score: retrievalScore,
@@ -44860,7 +44865,9 @@ a{color:#93c5fd;text-decoration:none}
                   quality_item_count: Number(q.quality_item_count || 0),
                   complete_public_proof_count: Number(q.complete_public_proof_count || 0),
                   latest_age_minutes: Number(i.latest_age_minutes || 0),
-                  stale_after_minutes: Number(i.lifecycle_policy && i.lifecycle_policy.stale_after_minutes || 1440)
+                  stale_after_minutes: Number(i.lifecycle_policy && i.lifecycle_policy.stale_after_minutes || 1440),
+                  fresh_proof_seed_age_minutes: Number(f.seed_age_minutes || 0),
+                  public_seed_freshness_score: Number(f.public_seed_freshness_score || 0)
                 },
                 policy: {
                   aggregate_public_metrics_only: true,
@@ -44890,6 +44897,152 @@ a{color:#93c5fd;text-decoration:none}
                   aggregate_public_metrics_only: true,
                   loopback_only: true,
                   public_routes_only: true,
+                  local_path_exposure: false,
+                  raw_filesystem_url_exposure: false,
+                  mutation: false
+                },
+                safety: {
+                  read_only: true,
+                  money_movement: false,
+                  wallet_send: false,
+                  wc_to_void_swap: false,
+                  buy_void_fulfillment: false,
+                  validator_mutation: false
+                }
+              });
+            }
+          });
+
+
+          APP.get("/public-node/fresh-proof-seed.json", async (_req:any, res:any) => { // VOID_PUBLIC_NODE_FRESH_PROOF_SEED_ROUTE_V1
+            // VOID_PUBLIC_NODE_FRESH_PROOF_SEED_V1
+            const startedAtMs = Date.now();
+            const port = Number(process.env.VOID_HTTP_PORT || process.env.PORT || 4100);
+            const host = "127.0.0.1";
+
+            async function loopbackJson(pathname:any) {
+              const http = await import("http");
+              const pathText = String(pathname || "/");
+              if (!pathText.startsWith("/public-node/")) {
+                return { status: 0, body: null, error: "unsupported_public_node_path" };
+              }
+              if (pathText.includes("..") || pathText.includes("file://") || pathText.includes("/home/") || pathText.includes("data_a/datanet_v1/local_jobs")) {
+                return { status: 0, body: null, error: "unsafe_path" };
+              }
+              return await new Promise<any>((resolve) => {
+                const req = http.request({
+                  hostname: host,
+                  port,
+                  path: pathText,
+                  method: "GET",
+                  timeout: 3000,
+                  headers: { "User-Agent": "VOID_PUBLIC_NODE_FRESH_PROOF_SEED_V1" }
+                }, (r:any) => {
+                  let body = "";
+                  r.setEncoding("utf8");
+                  r.on("data", (chunk:any) => { body += String(chunk || ""); if (body.length > 1024 * 1024) r.destroy(); });
+                  r.on("end", () => {
+                    try {
+                      resolve({ status: Number(r.statusCode || 0), body: JSON.parse(body || "{}") });
+                    } catch (_) {
+                      resolve({ status: Number(r.statusCode || 0), body: null });
+                    }
+                  });
+                });
+                req.on("timeout", () => { req.destroy(new Error("timeout")); });
+                req.on("error", (err:any) => resolve({ status: 0, error: String(err && err.message || err || "error") }));
+                req.end();
+              });
+            }
+
+            function num(v:any) {
+              const n = Number(v);
+              return Number.isFinite(n) ? n : 0;
+            }
+
+            try {
+              const generatedAtMs = Date.now();
+              const intelligence = await loopbackJson("/public-node/intelligence.json");
+              const linkHealth = await loopbackJson("/public-node/link-health.json");
+              const dataQuality = await loopbackJson("/public-node/data-quality.json");
+
+              const i = intelligence && intelligence.body ? intelligence.body : {};
+              const h = linkHealth && linkHealth.body ? linkHealth.body : {};
+              const q = dataQuality && dataQuality.body ? dataQuality.body : {};
+
+              const readinessInputs = {
+                retrieval_links_count: num(q.retrieval_links_count || h.retrieval_links_count),
+                working_link_count: num(h.working_link_count),
+                broken_link_count: num(h.broken_link_count),
+                quality_item_count: num(q.quality_item_count),
+                complete_public_proof_count: num(q.complete_public_proof_count),
+                retrieval_score: num(i.retrieval_seed_score),
+                link_health_score: num(h.retrieval_link_health_score),
+                data_quality_score: num(q.data_quality_score),
+                organization_score: num(i.organization_seed_score)
+              };
+
+              const evidenceReady =
+                readinessInputs.retrieval_links_count > 0 &&
+                readinessInputs.working_link_count > 0 &&
+                readinessInputs.quality_item_count > 0 &&
+                readinessInputs.data_quality_score >= 80 &&
+                readinessInputs.link_health_score >= 80;
+
+              const publicSeedFreshnessScore = evidenceReady ? 100 : 0;
+
+              res.json({
+                ok: true,
+                marker: "VOID_PUBLIC_NODE_FRESH_PROOF_SEED_V1",
+                route: "/public-node/fresh-proof-seed.json",
+                generated_at_ms: generatedAtMs,
+                evaluation_duration_ms: Date.now() - startedAtMs,
+                seed_kind: "public_node_readiness_refresh_seed",
+                seed_task: "publish_fresher_public_work_proof_signal",
+                seed_age_minutes: 0,
+                public_seed_freshness_score: publicSeedFreshnessScore,
+                evidence_ready: evidenceReady,
+                source_markers: {
+                  intelligence: i.marker || "VOID_PUBLIC_NODE_INTELLIGENCE_JSON_V1",
+                  retrieval_links: q.source_marker || i.retrieval_links_marker || "VOID_PUBLIC_NODE_RETRIEVAL_LINKS_V1",
+                  link_health: h.marker || q.health_marker || "VOID_PUBLIC_NODE_LINK_HEALTH_V1",
+                  data_quality: q.marker || "VOID_PUBLIC_NODE_DATA_QUALITY_V1"
+                },
+                evidence: readinessInputs,
+                policy: {
+                  generated_from_public_metrics_only: true,
+                  loopback_only: true,
+                  public_routes_only: true,
+                  persisted_to_disk: false,
+                  chain_mutation: false,
+                  wc_credit: false,
+                  local_path_exposure: false,
+                  raw_filesystem_url_exposure: false,
+                  mutation: false
+                },
+                safety: {
+                  read_only: true,
+                  money_movement: false,
+                  wallet_send: false,
+                  wc_to_void_swap: false,
+                  buy_void_fulfillment: false,
+                  validator_mutation: false
+                }
+              });
+            } catch (e:any) {
+              res.status(500).json({
+                ok: false,
+                marker: "VOID_PUBLIC_NODE_FRESH_PROOF_SEED_V1",
+                route: "/public-node/fresh-proof-seed.json",
+                error: "fresh_proof_seed_failed",
+                message: String(e && e.message || e || "error"),
+                policy: {
+                  generated_from_public_metrics_only: true,
+                  loopback_only: true,
+                  public_routes_only: true,
+                  persisted_to_disk: false,
+                  chain_mutation: false,
+                  wc_credit: false,
                   local_path_exposure: false,
                   raw_filesystem_url_exposure: false,
                   mutation: false
@@ -45038,6 +45191,17 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
             <div class="card"><div class="muted">Freshness</div><h2 id="publicNodeAiFreshnessScore">--</h2></div>
           </div>
           <p class="muted" id="publicNodeAiNextActions">AI readiness aggregates public retrieval, link health, data quality, organization, and freshness signals only.</p>
+        </div>
+        <div class="card" id="publicNodeFreshProofSeedCard"><!-- VOID_PUBLIC_NODE_FRESH_PROOF_SEED_UI_V1 -->
+          <b>Fresh public proof seed</b>
+          <p class="muted" id="publicNodeFreshProofSeedSummary">Loading fresh proof seed...</p>
+          <div class="grid">
+            <div class="card"><div class="muted">Seed freshness</div><h2 id="publicNodeFreshSeedScore">--</h2></div>
+            <div class="card"><div class="muted">Seed age</div><h2 id="publicNodeFreshSeedAge">--</h2></div>
+            <div class="card"><div class="muted">Evidence ready</div><h2 id="publicNodeFreshSeedReady">--</h2></div>
+            <div class="card"><div class="muted">Seed task</div><h2 id="publicNodeFreshSeedTask">--</h2></div>
+          </div>
+          <p class="muted">Fresh proof seed is generated from public metrics only; it does not credit WC, move funds, write chain state, or expose local paths.</p>
         </div>
       </div>
     </section>
@@ -45237,6 +45401,22 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       setText('publicNodeAiFreshnessScore','--');
       setText('publicNodeAiNextActions','Next actions unavailable.');
     });
+    // VOID_PUBLIC_NODE_FRESH_PROOF_SEED_SCRIPT_V1
+    fetch('/public-node/fresh-proof-seed.json').then(r=>r.json()).then(f=>{
+      setText('publicNodeFreshProofSeedSummary','Fresh public proof seed online · kind='+(f.seed_kind||'unknown'));
+      setText('publicNodeFreshSeedScore',String(f.public_seed_freshness_score==null?'--':f.public_seed_freshness_score)+'/100');
+      setText('publicNodeFreshSeedAge',String(f.seed_age_minutes==null?'--':f.seed_age_minutes)+'m');
+      setText('publicNodeFreshSeedReady',String(f.evidence_ready===true?'yes':'no'));
+      setText('publicNodeFreshSeedTask',String(f.seed_task||'--').replaceAll('_',' '));
+    }).catch(()=>{
+      setText('publicNodeFreshProofSeedSummary','Fresh public proof seed unavailable right now.');
+      setText('publicNodeFreshSeedScore','--');
+      setText('publicNodeFreshSeedAge','--');
+      setText('publicNodeFreshSeedReady','--');
+      setText('publicNodeFreshSeedTask','--');
+    });
+
+
 
 
 
