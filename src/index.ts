@@ -44391,6 +44391,19 @@ a{color:#93c5fd;text-decoration:none}
       </div>
       <p class="muted" id="publicNodeCompressionPolicy"><!-- VOID_PUBLIC_NODE_LOSSLESS_COMPRESSION_POLICY_V1 -->Compression candidate means review for lossless packing/deduplication/archive. VOID originals and proof records must remain bit-for-bit recoverable; lossy derivatives must never replace source data.</p>
     </section>
+    <section class="card" id="publicNodeRetrievalCard"><!-- VOID_PUBLIC_NODE_RETRIEVAL_UI_V1 -->
+      <b>Retrieval intelligence</b>
+      <p class="muted" id="publicNodeRetrievalSummary">Loading public retrieval metrics...</p>
+      <div class="grid" id="publicNodeRetrievalGrid">
+        <div class="card" id="publicNodeRetrievalScoreCard"><div class="muted">Retrieval seed score</div><h2 id="publicNodeRetrievalScore">--</h2></div>
+        <div class="card" id="publicNodeDatasetExtractionCard"><div class="muted">Dataset extractions</div><h2 id="publicNodeDatasetExtractionCount">--</h2></div>
+        <div class="card" id="publicNodeWhoExtractionCard"><div class="muted">Who/account extractions</div><h2 id="publicNodeWhoExtractionCount">--</h2></div>
+        <div class="card" id="publicNodeProofLinkCandidatesCard"><div class="muted">Proof link candidates</div><h2 id="publicNodeProofLinkCandidates">--</h2></div>
+        <div class="card" id="publicNodeVerifierLinkCandidatesCard"><div class="muted">Verifier link candidates</div><h2 id="publicNodeVerifierLinkCandidates">--</h2></div>
+        <div class="card" id="publicNodeShareLinkCandidatesCard"><div class="muted">Share link candidates</div><h2 id="publicNodeShareLinkCandidates">--</h2></div>
+      </div>
+      <p class="muted" id="publicNodeRetrievalPolicy">Retrieval extraction uses public raw record text and public identifiers only. It exposes no local filesystem paths and performs no retrieval mutation.</p>
+    </section>
   </section>
 </main>
 
@@ -44459,6 +44472,14 @@ a{color:#93c5fd;text-decoration:none}
     setText('publicNodePublicBytes',String(j.total_public_proof_bytes==null?'0':j.total_public_proof_bytes));
     setText('publicNodeAverageProofSize',String(j.average_public_proof_size_bytes==null?'0':j.average_public_proof_size_bytes)+' B');
     setText('publicNodeProofAgeRange',(j.newest_proof_age_minutes==null?'?':String(j.newest_proof_age_minutes))+'m → '+(j.oldest_proof_age_minutes==null?'?':String(j.oldest_proof_age_minutes))+'m');
+    // VOID_PUBLIC_NODE_RETRIEVAL_UI_SCRIPT_V1
+    setText('publicNodeRetrievalSummary','Retrieval online · extraction_matches='+String(j.retrieval_extraction_match_count==null?'0':j.retrieval_extraction_match_count)+' · policy='+(j.retrieval_extraction_policy&&j.retrieval_extraction_policy.extraction_source||'public_only'));
+    setText('publicNodeRetrievalScore',String(j.retrieval_seed_score==null?'--':j.retrieval_seed_score)+'/100');
+    setText('publicNodeDatasetExtractionCount',String(j.dataset_extraction_count==null?'0':j.dataset_extraction_count));
+    setText('publicNodeWhoExtractionCount',String(j.who_extraction_count==null?'0':j.who_extraction_count));
+    setText('publicNodeProofLinkCandidates',String(j.recent_proof_link_count==null?'0':j.recent_proof_link_count));
+    setText('publicNodeVerifierLinkCandidates',String(j.verifier_link_count==null?'0':j.verifier_link_count));
+    setText('publicNodeShareLinkCandidates',String(j.share_link_count==null?'0':j.share_link_count));
   }).catch(function(){
     setText('publicNodeDataIntelligenceSummary','Public intelligence metrics unavailable right now.');
     setText('publicNodeUsefulnessScore','offline');
@@ -44472,6 +44493,13 @@ a{color:#93c5fd;text-decoration:none}
     setText('publicNodePublicBytes','--');
     setText('publicNodeAverageProofSize','--');
     setText('publicNodeProofAgeRange','--');
+    setText('publicNodeRetrievalSummary','Public retrieval metrics unavailable right now.');
+    setText('publicNodeRetrievalScore','--');
+    setText('publicNodeDatasetExtractionCount','--');
+    setText('publicNodeWhoExtractionCount','--');
+    setText('publicNodeProofLinkCandidates','--');
+    setText('publicNodeVerifierLinkCandidates','--');
+    setText('publicNodeShareLinkCandidates','--');
   });
 })();
 </script>
