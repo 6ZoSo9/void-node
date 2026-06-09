@@ -43922,6 +43922,178 @@ a{color:#93c5fd;text-decoration:none}
 
         
 
+
+        APP.get("/public-node/intelligence.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_INTELLIGENCE_JSON_ROUTE_V1
+          try {
+            const fs = require("fs");
+            const path = require("path");
+            const now = Date.now();
+            const dir = path.join(process.cwd(), "data_a", "datanet_v1", "local_jobs");
+
+            function pickMatch(text:any, patterns:any[]) {
+              for (const pat of patterns) {
+                const m = String(text || "").match(pat);
+                if (m && m[1]) return String(m[1]).trim();
+              }
+              return "";
+            }
+
+            function safeNum(x:any, fallback:number) {
+              const n = Number(x);
+              return Number.isFinite(n) ? n : fallback;
+            }
+
+            let records:any[] = [];
+            let sourceDirExists = false;
+
+            if (fs.existsSync(dir)) {
+              sourceDirExists = true;
+              const names = fs.readdirSync(dir)
+                .filter((name:any) => /^ds_.*\.txt$/.test(String(name)))
+                .slice(0, 5000);
+
+              records = names.map((name:any) => {
+                const file = path.join(dir, String(name));
+                const st = fs.statSync(file);
+                const text = fs.readFileSync(file, "utf8");
+                const dataset = String(name).replace(/\.txt$/, "");
+                const who = pickMatch(text, [
+                  /(?:^|\n)who=([^\r\n]+)/,
+                  /"who"\s*:\s*"([^"]+)"/,
+                  /"account"\s*:\s*"([^"]+)"/
+                ]);
+                const task = pickMatch(text, [
+                  /(?:^|\n)task_class=([^\r\n]+)/,
+                  /"task_class"\s*:\s*"([^"]+)"/,
+                  /"taskClass"\s*:\s*"([^"]+)"/
+                ]) || "work_credit_activity";
+                const deltaRaw = pickMatch(text, [
+                  /(?:^|\n)(?:delta|wc_delta|credit_delta)=([0-9]+)/,
+                  /"(?:delta|wc_delta|credit_delta)"\s*:\s*([0-9]+)/
+                ]);
+                const delta = safeNum(deltaRaw || 10, 10);
+                const viewer = "/wc-proof-viewer?dataset=" + encodeURIComponent(dataset) + "&who=" + encodeURIComponent(who || "") + "&delta=" + encodeURIComponent(delta);
+                const raw = "/datanet/v1/local-job/" + encodeURIComponent(dataset) + (who ? "?who=" + encodeURIComponent(who) : "");
+                const share = "/proof/" + encodeURIComponent(dataset) + "?who=" + encodeURIComponent(who || "") + "&delta=" + encodeURIComponent(delta);
+                return {
+                  dataset_id: dataset,
+                  who,
+                  task_class: task,
+                  delta,
+                  mtime_ms: Math.floor(st.mtimeMs),
+                  size_bytes: st.size,
+                  viewer_path: viewer,
+                  raw_path: raw,
+                  share_path: share,
+                  public_record: true,
+                  data_backing: "DataNet local-job JSON"
+                };
+              }).sort((a:any, b:any) => Number(b.mtime_ms || 0) - Number(a.mtime_ms || 0));
+            }
+
+            const latest = records[0] || null;
+            const latestAgeMs = latest ? Math.max(0, now - Number(latest.mtime_ms || now)) : null;
+            const latestAgeMinutes = latestAgeMs == null ? null : Math.floor(latestAgeMs / 60000);
+            const proofCount = records.length;
+            const proofsWithRawJson = records.filter((r:any) => !!r.raw_path).length;
+
+            const proofCountScore = Math.min(40, proofCount * 4);
+            const freshnessScore = latestAgeMs == null ? 0 : latestAgeMs <= 60 * 60 * 1000 ? 25 : latestAgeMs <= 24 * 60 * 60 * 1000 ? 15 : 5;
+            const rawCoverageScore = proofCount ? Math.round((proofsWithRawJson / proofCount) * 20) : 0;
+            const boundaryScore = 15;
+            const publicUsefulnessSeedScore = Math.max(0, Math.min(100, proofCountScore + freshnessScore + rawCoverageScore + boundaryScore));
+
+            res.json({
+              ok: true,
+              marker: "VOID_PUBLIC_NODE_INTELLIGENCE_JSON_V1",
+              route: "/public-node/intelligence.json",
+              generated_at_ms: now,
+              source_dir_exists: sourceDirExists,
+              data_backing: "DataNet local-job JSON",
+              proof_count: proofCount,
+              latest_dataset: latest ? latest.dataset_id : null,
+              latest_task: latest ? latest.task_class : null,
+              latest_who: latest ? latest.who : null,
+              latest_age_ms: latestAgeMs,
+              latest_age_minutes: latestAgeMinutes,
+              proofs_with_raw_json: proofsWithRawJson,
+              public_usefulness_seed_score: publicUsefulnessSeedScore,
+              score_inputs: {
+                proof_count_score: proofCountScore,
+                freshness_score: freshnessScore,
+                raw_coverage_score: rawCoverageScore,
+                boundary_score: boundaryScore
+              },
+              latest: latest ? {
+                dataset_id: latest.dataset_id,
+                who: latest.who,
+                task_class: latest.task_class,
+                delta: latest.delta,
+                mtime_ms: latest.mtime_ms,
+                size_bytes: latest.size_bytes,
+                viewer_path: latest.viewer_path,
+                raw_path: latest.raw_path,
+                share_path: latest.share_path,
+                data_backing: latest.data_backing
+              } : null,
+              recent: records.slice(0, 12).map((r:any) => ({
+                dataset_id: r.dataset_id,
+                who: r.who,
+                task_class: r.task_class,
+                delta: r.delta,
+                mtime_ms: r.mtime_ms,
+                size_bytes: r.size_bytes,
+                viewer_path: r.viewer_path,
+                raw_path: r.raw_path,
+                share_path: r.share_path,
+                data_backing: r.data_backing
+              })),
+              public_private_boundary: {
+                owner_console_route: "/participant",
+                owner_console_exposed: false,
+                forms_present: false,
+                proof_generation_mutation_exposed: false,
+                private_participant_api_exposed: false,
+                wallet_controls_exposed: false,
+                earn_controls_exposed: false,
+                buy_void_controls_exposed: false,
+                stake_mutation_exposed: false,
+                admin_controls_exposed: false
+              },
+              safety: {
+                read_only: true,
+                money_movement: false,
+                wallet_send: false,
+                wc_to_void_swap: false,
+                buy_void_fulfillment: false,
+                validator_mutation: false
+              },
+              next_metrics: [
+                "node_effectiveness",
+                "data_importance",
+                "data_staleness",
+                "compression_candidate",
+                "organization_score",
+                "retrieval_success"
+              ]
+            });
+          } catch (e:any) {
+            res.status(500).json({
+              ok: false,
+              marker: "VOID_PUBLIC_NODE_INTELLIGENCE_JSON_V1",
+              error: String(e && e.message || e),
+              safety: {
+                read_only: true,
+                money_movement: false,
+                wallet_send: false,
+                wc_to_void_swap: false,
+                buy_void_fulfillment: false,
+                validator_mutation: false
+              }
+            });
+          }
+        });
+
         APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
 <html>
