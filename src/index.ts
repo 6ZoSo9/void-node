@@ -43744,6 +43744,7 @@ a{color:#93c5fd;text-decoration:none}
             const share_path = "/proof/" + encodeURIComponent(dataset_id) + "?who=" + encodeURIComponent(who) + "&delta=10";
             const viewer_path = "/wc-proof-viewer?dataset=" + encodeURIComponent(dataset_id) + "&who=" + encodeURIComponent(who) + "&delta=10";
             const raw_path = "/datanet/v1/local-job/" + encodeURIComponent(dataset_id) + "?who=" + encodeURIComponent(who);
+            const success_path = "/wc-proof-demo/success?dataset=" + encodeURIComponent(dataset_id) + "&who=" + encodeURIComponent(who) + "&delta=10";
             const record:any = {
               schema: "void.datanet.local_job.v1",
               marker: "VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_V1",
@@ -43780,10 +43781,56 @@ a{color:#93c5fd;text-decoration:none}
             fs2.writeFileSync(file, JSON.stringify(record, null, 2) + "\n");
             try { fs2.utimesSync(file, new Date(Date.now() + 20 * 60 * 1000), new Date(Date.now() + 20 * 60 * 1000)); } catch {}
             return res.status(303)
-              .set("location", share_path)
+              .set("location", success_path)
               .set("cache-control", "no-store")
               .type("text/plain")
-              .send("VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_V1\n" + share_path + "\n" + viewer_path + "\n" + raw_path + "\n");
+              .send("VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_V1\n" + success_path + "\n" + share_path + "\n" + viewer_path + "\n" + raw_path + "\n");
+          } catch (e:any) {
+            return res.status(500).type("text/plain").send(String(e?.message || e));
+          }
+        });
+
+
+        APP.get("/wc-proof-demo/success", (req:any, res:any) => { // VOID_WC_PUBLIC_PROOF_GENERATE_SUCCESS_ROUTE_V1
+          try {
+            const cleanId = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 180);
+            const cleanWho = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:@-]/g, "").slice(0, 180);
+            const esc = (v:any) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+            const dataset = cleanId(req.query && (req.query as any).dataset);
+            const who = cleanWho(req.query && (req.query as any).who);
+            const delta = cleanId((req.query && (req.query as any).delta) || "10") || "10";
+            if (!dataset) return res.status(400).type("text/plain").send("missing dataset");
+            const sharePath = "/proof/" + encodeURIComponent(dataset) + "?who=" + encodeURIComponent(who) + "&delta=" + encodeURIComponent(delta);
+            const viewerPath = "/wc-proof-viewer?dataset=" + encodeURIComponent(dataset) + "&who=" + encodeURIComponent(who) + "&delta=" + encodeURIComponent(delta);
+            const rawPath = "/datanet/v1/local-job/" + encodeURIComponent(dataset) + "?who=" + encodeURIComponent(who);
+            const html = [
+              "<!doctype html>",
+              "<meta charset='utf-8'>",
+              "<meta name='viewport' content='width=device-width,initial-scale=1'>",
+              "<title>VOID Proof Created</title>",
+              "<style>",
+              "body{margin:0;background:#060816;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif}",
+              "main{max-width:880px;margin:0 auto;padding:28px 18px}.card{border:1px solid rgba(148,163,184,.25);border-radius:18px;padding:18px;background:rgba(15,23,42,.75);margin-top:12px}",
+              ".muted{color:#94a3b8}.good{color:#86efac}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.btn{border:1px solid rgba(147,197,253,.45);border-radius:999px;padding:9px 13px;background:rgba(30,64,175,.35);color:#dbeafe;text-decoration:none;cursor:pointer}code{color:#bae6fd;word-break:break-all}",
+              "</style>",
+              "<main>",
+              "<section class='card' id='participantWcProofGenerateSuccessCard'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_SUCCESS_CARD_V1 -->",
+              "<div class='good'>Proof created</div>",
+              "<h1>Fresh WC proof generated</h1>",
+              "<p class='muted'>This local Work Credit proof is backed by DataNet local-job JSON and can be opened, verified, copied, or shared.</p>",
+              "<p class='muted'>No wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation.</p>",
+              "<div class='card'><b>Dataset</b><p><code id='participantWcProofSuccessDataset'>" + esc(dataset) + "</code></p><b>Account</b><p><code id='participantWcProofSuccessWho'>" + esc(who) + "</code></p><b>Public proof</b><p><code id='participantWcProofSuccessPublicLink'>" + esc(sharePath) + "</code></p></div>",
+              "<div class='row' style='margin-top:12px'>",
+              "<a class='btn' id='participantWcProofSuccessOpenVerifierLink' href='" + esc(viewerPath) + "'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_SUCCESS_OPEN_VERIFIER_V1 -->Open verifier</a>",
+              "<a class='btn' id='participantWcProofSuccessOpenRawLink' href='" + esc(rawPath) + "'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_SUCCESS_OPEN_RAW_V1 -->Open raw JSON</a>",
+              "<button class='btn' id='participantWcProofSuccessCopyLinkBtn' type='button' data-copy='" + esc(sharePath) + "'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_SUCCESS_COPY_LINK_V1 -->Copy public proof link</button>",
+              "<a class='btn' id='participantWcProofSuccessBackLink' href='/participant'>Back to participant</a>",
+              "</div>",
+              "</section>",
+              "</main>",
+              "<script>(function(){var b=document.getElementById('participantWcProofSuccessCopyLinkBtn');if(!b)return;b.onclick=function(){var u=new URL(b.getAttribute('data-copy'),window.location.origin).toString();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){b.textContent='Copied';}).catch(function(){b.textContent=u;});}else{b.textContent=u;}};})();</script>"
+            ].join("\n");
+            return res.status(200).set("cache-control","no-store").type("html").send(html);
           } catch (e:any) {
             return res.status(500).type("text/plain").send(String(e?.message || e));
           }
