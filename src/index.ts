@@ -52049,13 +52049,28 @@ a{color:#93c5fd;text-decoration:none}
                 var r=await fetch("/wc-proofs/latest?limit=5",{cache:"no-store"});
                 var j=await r.json();
                 var proofs=Array.isArray(j.proofs)?j.proofs:[];
+                function escProofText(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
                 if(!proofs.length){box.textContent="No local WC proof links found yet.";return;}
                 box.innerHTML=proofs.map(function(p){
                   var vp=String(p.viewer_path||"#").replace(/"/g,"&quot;");
                   var ds=String(p.dataset_id||"unknown dataset");
                   var who=String(p.who||"unknown account");
-                  return "<a class='btn secondary' href='"+vp+"'>Open proof</a><span class='muted'>"+ds+" · "+who+"</span>";
+                  var raw=String(p.raw_path||"#").replace(/'/g,"&#39;");
+                  var delta=escProofText(p.delta||"10");
+                  var task=escProofText(p.task_class||"datanet_publish");
+                  return "<div class='miniRow'><!-- VOID_PARTICIPANT_WC_LATEST_PROOFS_ACTIONS_V1 --><a class='btn secondary' href='"+vp+"'>Open proof</a><button class='btn secondary wcLatestProofCopyBtn' type='button' data-proof='"+vp+"'>Copy link</button><a class='btn secondary' href='"+raw+"'>Open raw JSON</a><span class='muted'>+"+delta+" WC · "+task+" · "+ds+" · "+who+"</span></div>";
                 }).join("");
+                Array.prototype.slice.call(box.querySelectorAll(".wcLatestProofCopyBtn")).forEach(function(btn){
+                  btn.addEventListener("click",function(){
+                    var link=String(btn.getAttribute("data-proof")||"");
+                    var url=new URL(link,window.location.origin).toString();
+                    if(navigator.clipboard&&navigator.clipboard.writeText){
+                      navigator.clipboard.writeText(url).then(function(){btn.textContent="Copied";}).catch(function(){btn.textContent=url;});
+                    }else{
+                      btn.textContent=url;
+                    }
+                  });
+                });
               }catch(e){box.textContent="Could not load latest proof links.";}
             }
             if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",loadLatestWcProofsV1)}else{loadLatestWcProofsV1()}
