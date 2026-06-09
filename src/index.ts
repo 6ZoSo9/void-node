@@ -52069,6 +52069,7 @@ a{color:#93c5fd;text-decoration:none}
             <b>Latest WC Proofs:</b>
             <span class="muted">Recent local DataNet-backed proof links from this node.</span>
             <div class="muted" id="wcLatestProofsSummary" style="margin-top:6px"><!-- VOID_PARTICIPANT_WC_LATEST_PROOFS_SUMMARY_V1 -->Proof count and last proof time load from this node.</div>
+            <div class="row" style="margin-top:8px"><button class="btn secondary" id="wcLatestProofShareLatestBtn" type="button" disabled><!-- VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_BUTTON_V1 -->Share latest proof</button></div>
             <div class="row" id="wcLatestProofsList" style="margin-top:8px">Loading latest proofs…</div>
           </div>
           <script>
@@ -52081,6 +52082,24 @@ a{color:#93c5fd;text-decoration:none}
                 var r=await fetch("/wc-proofs/latest?limit=5",{cache:"no-store"});
                 var j=await r.json();
                 var proofs=Array.isArray(j.proofs)?j.proofs:[];
+                var shareLatestBtn=document.getElementById("wcLatestProofShareLatestBtn"); // VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_CLIENT_V1
+                function latestProofPublicHref(p){
+                  if(!p)return "";
+                  var ds=String(p.dataset_id||"");
+                  var who=String(p.who||"");
+                  var delta=String(p.delta||"10");
+                  if(!ds)return "";
+                  return "/proof/"+encodeURIComponent(ds)+"?who="+encodeURIComponent(who)+"&delta="+encodeURIComponent(delta);
+                }
+                function copyLatestProofLink(url,btn){
+                  var abs=new URL(url,window.location.origin).toString();
+                  if(navigator.clipboard&&navigator.clipboard.writeText){
+                    navigator.clipboard.writeText(abs).then(function(){btn.textContent="Copied latest proof";}).catch(function(){btn.textContent=abs;});
+                  }else{
+                    btn.textContent=abs;
+                  }
+                }
+                if(shareLatestBtn){shareLatestBtn.disabled=true;shareLatestBtn.textContent="Share latest proof";}
                 var summary=document.getElementById("wcLatestProofsSummary");
                 if(summary){
                   var latestMs=proofs.reduce(function(max,p){var v=Number(p&&p.mtime_ms||0);return v>max?v:max;},0);
@@ -52089,6 +52108,12 @@ a{color:#93c5fd;text-decoration:none}
                 }
                 function escProofText(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
                 if(!proofs.length){box.textContent="No local WC proof links found yet.";return;}
+                var latestProofHref=latestProofPublicHref(proofs[0]);
+                if(shareLatestBtn&&latestProofHref){
+                  shareLatestBtn.disabled=false;
+                  shareLatestBtn.setAttribute("data-proof",latestProofHref);
+                  shareLatestBtn.addEventListener("click",function(){copyLatestProofLink(latestProofHref,shareLatestBtn)});
+                }
                 box.innerHTML=proofs.map(function(p){
                   var vp=String(p.viewer_path||"#").replace(/"/g,"&quot;");
                   var ds=String(p.dataset_id||"unknown dataset");

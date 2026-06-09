@@ -43,6 +43,8 @@ expect_grep "stable raw marker" "VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_
 expect_grep "viewer path" "/wc-proof-viewer?dataset=" src/index.ts
 expect_grep "public proof share route marker" "VOID_WC_PROOF_PUBLIC_SHARE_ROUTE_V1" src/index.ts
 expect_grep "public proof share link marker" "VOID_PARTICIPANT_WC_PUBLIC_PROOF_SHARE_LINK_V1" src/index.ts
+expect_grep "share latest proof button marker" "VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_BUTTON_V1" src/index.ts
+expect_grep "share latest proof client marker" "VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_CLIENT_V1" src/index.ts
 expect_grep "public proof share path" "/proof/" src/index.ts
 expect_grep "raw local-job path" "/datanet/v1/local-job/" src/index.ts
 expect_grep "safety copy" "no wallet send" src/index.ts
@@ -90,6 +92,10 @@ expect_grep "served latest proofs copy action" "wcLatestProofCopyBtn" "$OUT/part
 expect_grep "served latest proofs raw action" "Open raw JSON" "$OUT/participant.html"
 expect_grep "served public proof share link marker" "VOID_PARTICIPANT_WC_PUBLIC_PROOF_SHARE_LINK_V1" "$OUT/participant.html"
 expect_grep "served public proof share path" "/proof/" "$OUT/participant.html"
+expect_grep "served share latest proof button marker" "VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_BUTTON_V1" "$OUT/participant.html"
+expect_grep "served share latest proof button id" "wcLatestProofShareLatestBtn" "$OUT/participant.html"
+expect_grep "served share latest proof copy" "Share latest proof" "$OUT/participant.html"
+expect_grep "served share latest proof client marker" "VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_CLIENT_V1" "$OUT/participant.html"
 expect_grep "served stable raw marker" "VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1" "$OUT/participant.html"
 echo
 
@@ -193,6 +199,7 @@ expect_grep "public proof share verify button" "Verify proof" "$OUT/public-proof
 expect_grep "public proof share verify marker" "VOID_WC_PROOF_VIEWER_VERIFY_BUTTON_V1" "$OUT/public-proof-share-viewer.html"
 expect_grep "public proof share permalink marker" "VOID_WC_PROOF_VIEWER_COPY_PUBLIC_LINK_V1" "$OUT/public-proof-share-viewer.html"
 expect_grep "public proof share permalink path" "/proof/$DATASET_ID" "$OUT/public-proof-share-viewer.html"
+expect_grep "share latest proof source path" "/proof/" src/index.ts
 echo "[ok] public proof share route resolves"
 echo
 
