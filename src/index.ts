@@ -43994,6 +43994,127 @@ a{color:#93c5fd;text-decoration:none}
             const latest = records[0] || null;
             const latestAgeMs = latest ? Math.max(0, now - Number(latest.mtime_ms || now)) : null;
             const latestAgeMinutes = latestAgeMs == null ? null : Math.floor(latestAgeMs / 60000);
+            // VOID_PUBLIC_NODE_RETRIEVAL_EXTRACTION_V1
+            function normalizePublicDatasetCandidate(v:any) {
+              const raw = String(v || "").trim();
+              if (!raw) return "";
+              const m = raw.match(/(ds_[A-Za-z0-9][A-Za-z0-9._:-]*)/);
+              return m && m[1] ? String(m[1]).replace(/[),;'"`<>\]\[]+$/g, "") : "";
+            }
+
+            function normalizePublicWhoCandidate(v:any) {
+              const raw = String(v || "").trim();
+              if (!raw) return "";
+              const eth = raw.match(/(0x[a-fA-F0-9]{40})/);
+              if (eth && eth[1]) return eth[1].toLowerCase();
+              const q = raw.match(/(?:who|account|address|owner|participant)[=:"'\s]+([A-Za-z0-9_.:@-]{4,96})/i);
+              if (q && q[1]) return String(q[1]).replace(/[),;'"`<>\]\[]+$/g, "");
+              if (/^[A-Za-z0-9_.:@-]{4,96}$/.test(raw)) return raw;
+              return "";
+            }
+
+            function collectJsonStringsForPublicRetrieval(obj:any, out:any[], depth:any) {
+              if (!obj || depth > 5 || out.length > 200) return;
+              if (typeof obj === "string") {
+                out.push(obj);
+                return;
+              }
+              if (Array.isArray(obj)) {
+                for (const x of obj.slice(0, 100)) collectJsonStringsForPublicRetrieval(x, out, depth + 1);
+                return;
+              }
+              if (typeof obj === "object") {
+                for (const [k, v] of Object.entries(obj).slice(0, 200)) {
+                  if (/dataset|who|account|address|owner|participant|proof|raw|share|verify/i.test(String(k))) out.push(String(k) + ":" + String(v));
+                  collectJsonStringsForPublicRetrieval(v, out, depth + 1);
+                }
+              }
+            }
+
+            function publicRetrievalExtractionText(r:any) {
+              const chunks:any[] = [];
+              for (const k of ["dataset", "dataset_id", "datasetId", "who", "account", "address", "owner", "participant", "task", "raw_path"]) {
+                if (r && r[k]) chunks.push(String(k) + ":" + String(r[k]));
+              }
+
+              const candidatePaths = [r && r.raw_path, r && r.path, r && r.file_path, r && r.file].filter(Boolean);
+              for (const candidate of candidatePaths) {
+                try {
+                  const cp = String(candidate || "");
+                  if (!cp || !fs.existsSync(cp)) continue;
+                  const stat = fs.statSync(cp);
+                  if (!stat.isFile()) continue;
+                  chunks.push(path.basename(cp));
+                  const raw = fs.readFileSync(cp, "utf8").slice(0, 65536);
+                  chunks.push(raw);
+
+                  try {
+                    const parsed = JSON.parse(raw);
+                    const jsonStrings:any[] = [];
+                    collectJsonStringsForPublicRetrieval(parsed, jsonStrings, 0);
+                    chunks.push(jsonStrings.join("\n"));
+                  } catch (_) {}
+                } catch (_) {}
+              }
+
+              return chunks.join("\n");
+            }
+
+            function pickPublicDatasetForRetrievalExtraction(r:any) {
+              const text = publicRetrievalExtractionText(r);
+              const direct = normalizePublicDatasetCandidate(r && (r.dataset || r.dataset_id || r.datasetId));
+              if (direct) return direct;
+              const patterns = [
+                /["']?(?:dataset_id|datasetId|dataset|datasetID)["']?\s*[:=]\s*["']?([^"',\s}<>]+)/i,
+                /\/proof\/(ds_[A-Za-z0-9][A-Za-z0-9._:-]*)/i,
+                /[?&]dataset=([^&\s"'<>]+)/i,
+                /[?&]dataset_id=([^&\s"'<>]+)/i,
+                /(ds_[A-Za-z0-9][A-Za-z0-9._:-]*)/i
+              ];
+              for (const pat of patterns) {
+                const m = text.match(pat);
+                const got = m && m[1] ? normalizePublicDatasetCandidate(m[1]) : "";
+                if (got) return got;
+              }
+              return "";
+            }
+
+            function pickPublicWhoForRetrievalExtraction(r:any) {
+              const text = publicRetrievalExtractionText(r);
+              const direct = normalizePublicWhoCandidate(r && (r.who || r.account || r.address || r.owner || r.participant));
+              if (direct) return direct;
+              const patterns = [
+                /["']?(?:who|account|address|owner|participant|wallet)["']?\s*[:=]\s*["']?([^"',\s}<>]+)/i,
+                /[?&]who=([^&\s"'<>]+)/i,
+                /[?&]account=([^&\s"'<>]+)/i,
+                /(0x[a-fA-F0-9]{40})/i
+              ];
+              for (const pat of patterns) {
+                const m = text.match(pat);
+                const got = m && m[1] ? normalizePublicWhoCandidate(m[1]) : "";
+                if (got) return got;
+              }
+              return "";
+            }
+
+            for (const r of records) {
+              const extractedDataset = pickPublicDatasetForRetrievalExtraction(r);
+              const extractedWho = pickPublicWhoForRetrievalExtraction(r);
+              if (extractedDataset) {
+                r.dataset = extractedDataset;
+                r.dataset_extracted_v1 = true;
+              }
+              if (extractedWho) {
+                r.who = extractedWho;
+                r.who_extracted_v1 = true;
+              }
+              r.retrieval_extraction_v1 = !!(extractedDataset || extractedWho);
+            }
+
+            const datasetExtractionCount = records.filter((r:any) => !!r.dataset_extracted_v1 && !!normalizePublicDatasetCandidate(r.dataset)).length;
+            const whoExtractionCount = records.filter((r:any) => !!r.who_extracted_v1 && !!normalizePublicWhoCandidate(r.who)).length;
+            const retrievalExtractionMatchCount = records.filter((r:any) => !!r.retrieval_extraction_v1).length;
+
             const proofCount = records.length;
             const proofsWithRawJson = records.filter((r:any) => !!r.raw_path).length;
 
@@ -44072,6 +44193,17 @@ a{color:#93c5fd;text-decoration:none}
               compression_candidate_count: compressionCandidateCount,
               organization_seed_score: organizationSeedScore,
               retrieval_marker: "VOID_PUBLIC_NODE_RETRIEVAL_METRICS_V1",
+              retrieval_extraction_marker: "VOID_PUBLIC_NODE_RETRIEVAL_EXTRACTION_V1",
+              retrieval_extraction_match_count: retrievalExtractionMatchCount,
+              dataset_extraction_count: datasetExtractionCount,
+              who_extraction_count: whoExtractionCount,
+              retrieval_extraction_policy: {
+                extraction_source: "public_raw_record_text_and_public_identifiers_only",
+                local_path_exposure: false,
+                mutation: false,
+                dataset_rule: "extract_ds_prefixed_public_dataset_ids",
+                who_rule: "extract_public_who_account_or_address"
+              },
               retrieval_candidate_count: retrievalCandidateCount,
               recent_proof_link_count: recentProofLinkCount,
               raw_json_link_count: rawJsonLinkCount,
@@ -44126,7 +44258,10 @@ a{color:#93c5fd;text-decoration:none}
                 has_public_proof_link: hasPublicDataset(r) && hasPublicWho(r),
                 has_public_verifier_link: hasPublicDataset(r) && hasPublicWho(r),
                 has_public_share_link: hasPublicDataset(r) && hasPublicWho(r),
-                has_public_raw_json: !!r.raw_path
+                has_public_raw_json: !!r.raw_path,
+                retrieval_extraction_v1: !!r.retrieval_extraction_v1,
+                dataset_extracted_v1: !!r.dataset_extracted_v1,
+                who_extracted_v1: !!r.who_extracted_v1
               })),
               public_private_boundary: {
                 owner_console_route: "/participant",
