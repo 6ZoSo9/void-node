@@ -44161,6 +44161,39 @@ a{color:#93c5fd;text-decoration:none}
             const shareScore = proofCount ? Math.round((shareLinkCount / proofCount) * 15) : 0;
             const retrievalSeedScore = Math.max(0, Math.min(100, retrievalCoverageScore + proofLinkScore + rawJsonScore + verifierScore + shareScore));
 
+            // VOID_PUBLIC_NODE_RETRIEVAL_LINKS_V1
+            function publicRetrievalLinkSafePart(v:any) {
+              return encodeURIComponent(String(v || "").trim()).replace(/%2F/gi, "");
+            }
+            function publicRetrievalProofLink(dataset:any, who:any) {
+              return "/proof/" + publicRetrievalLinkSafePart(dataset) + "?who=" + publicRetrievalLinkSafePart(who) + "&delta=10";
+            }
+            function publicRetrievalVerifyLink(dataset:any, who:any) {
+              return "/wc-proof-viewer?dataset=" + publicRetrievalLinkSafePart(dataset) + "&who=" + publicRetrievalLinkSafePart(who) + "&delta=10";
+            }
+            function publicRetrievalTaskLabel(v:any) {
+              const raw = String(v || "public-proof").trim();
+              return raw.replace(/[<>]/g, "").slice(0, 96) || "public-proof";
+            }
+            const retrievalLinks = retrievalCandidates
+              .filter((r:any) => hasPublicDataset(r) && hasPublicWho(r))
+              .slice(0, 12)
+              .map((r:any, idx:number) => {
+                const dataset = normalizePublicDatasetCandidate(r.dataset);
+                const who = normalizePublicWhoCandidate(r.who);
+                const proofLink = publicRetrievalProofLink(dataset, who);
+                return {
+                  index: idx + 1,
+                  dataset,
+                  who,
+                  task: publicRetrievalTaskLabel(r.task),
+                  proof_link: proofLink,
+                  verify_link: publicRetrievalVerifyLink(dataset, who),
+                  share_link: proofLink,
+                  raw_json_available: !!r.raw_path
+                };
+              });
+
             const proofCountScore = Math.min(40, proofCount * 4);
             const freshnessScore = latestAgeMs == null ? 0 : latestAgeMs <= 60 * 60 * 1000 ? 25 : latestAgeMs <= 24 * 60 * 60 * 1000 ? 15 : 5;
             const rawCoverageScore = proofCount ? Math.round((proofsWithRawJson / proofCount) * 20) : 0;
@@ -44203,6 +44236,18 @@ a{color:#93c5fd;text-decoration:none}
                 mutation: false,
                 dataset_rule: "extract_ds_prefixed_public_dataset_ids",
                 who_rule: "extract_public_who_account_or_address"
+              },
+              retrieval_links_marker: "VOID_PUBLIC_NODE_RETRIEVAL_LINKS_V1",
+              retrieval_links_count: retrievalLinks.length,
+              retrieval_links: retrievalLinks,
+              retrieval_links_policy: {
+                max_items: 12,
+                public_identifiers_only: true,
+                local_path_exposure: false,
+                raw_filesystem_url_exposure: false,
+                mutation: false,
+                proof_link_rule: "/proof/<dataset>?who=<who>&delta=10",
+                verify_link_rule: "/wc-proof-viewer?dataset=<dataset>&who=<who>&delta=10"
               },
               retrieval_candidate_count: retrievalCandidateCount,
               recent_proof_link_count: recentProofLinkCount,
@@ -44403,6 +44448,11 @@ a{color:#93c5fd;text-decoration:none}
         <div class="card" id="publicNodeShareLinkCandidatesCard"><div class="muted">Share link candidates</div><h2 id="publicNodeShareLinkCandidates">--</h2></div>
       </div>
       <p class="muted" id="publicNodeRetrievalPolicy">Retrieval extraction uses public raw record text and public identifiers only. It exposes no local filesystem paths and performs no retrieval mutation.</p>
+      <div class="card" id="publicNodeRetrievalLinksCard"><!-- VOID_PUBLIC_NODE_RETRIEVAL_LINKS_V1 -->
+        <b>Top public retrieval links</b>
+        <p class="muted">Capped public proof candidates. Raw JSON is shown as availability only; no local filesystem paths are exposed.</p>
+        <div id="publicNodeRetrievalLinksList" class="list">Loading retrieval links...</div>
+      </div>
     </section>
   </section>
 </main>
@@ -44480,6 +44530,49 @@ a{color:#93c5fd;text-decoration:none}
     setText('publicNodeProofLinkCandidates',String(j.recent_proof_link_count==null?'0':j.recent_proof_link_count));
     setText('publicNodeVerifierLinkCandidates',String(j.verifier_link_count==null?'0':j.verifier_link_count));
     setText('publicNodeShareLinkCandidates',String(j.share_link_count==null?'0':j.share_link_count));
+    // VOID_PUBLIC_NODE_RETRIEVAL_LINKS_SCRIPT_V1
+    const retrievalLinksBox = document.getElementById('publicNodeRetrievalLinksList');
+    if (retrievalLinksBox) {
+      retrievalLinksBox.textContent = '';
+      const links = Array.isArray(j.retrieval_links) ? j.retrieval_links.slice(0, 12) : [];
+      if (!links.length) {
+        retrievalLinksBox.textContent = 'No public retrieval links available yet.';
+      } else {
+        for (const link of links) {
+          const row = document.createElement('div');
+          row.className = 'card';
+          const title = document.createElement('b');
+          title.textContent = String(link.dataset || 'dataset') + ' · ' + String(link.who || 'who');
+          row.appendChild(title);
+
+          const meta = document.createElement('p');
+          meta.className = 'muted';
+          meta.textContent = 'task=' + String(link.task || 'public-proof') + ' · raw_json_available=' + String(!!link.raw_json_available);
+          row.appendChild(meta);
+
+          const actions = document.createElement('p');
+          const proof = document.createElement('a');
+          proof.textContent = 'Proof';
+          proof.href = String(link.proof_link || '#').startsWith('/') ? String(link.proof_link) : '#';
+
+          const verify = document.createElement('a');
+          verify.textContent = 'Verify';
+          verify.href = String(link.verify_link || '#').startsWith('/') ? String(link.verify_link) : '#';
+
+          const share = document.createElement('a');
+          share.textContent = 'Share';
+          share.href = String(link.share_link || '#').startsWith('/') ? String(link.share_link) : '#';
+
+          actions.appendChild(proof);
+          actions.appendChild(document.createTextNode(' · '));
+          actions.appendChild(verify);
+          actions.appendChild(document.createTextNode(' · '));
+          actions.appendChild(share);
+          row.appendChild(actions);
+          retrievalLinksBox.appendChild(row);
+        }
+      }
+    }
   }).catch(function(){
     setText('publicNodeDataIntelligenceSummary','Public intelligence metrics unavailable right now.');
     setText('publicNodeUsefulnessScore','offline');
@@ -44500,6 +44593,8 @@ a{color:#93c5fd;text-decoration:none}
     setText('publicNodeProofLinkCandidates','--');
     setText('publicNodeVerifierLinkCandidates','--');
     setText('publicNodeShareLinkCandidates','--');
+    const retrievalLinksBox = document.getElementById('publicNodeRetrievalLinksList');
+    if (retrievalLinksBox) retrievalLinksBox.textContent = 'Public retrieval links unavailable right now.';
   });
 })();
 </script>
