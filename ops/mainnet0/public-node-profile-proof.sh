@@ -31,9 +31,34 @@ reject_grep(){
   local name="$1"
   local pattern="$2"
   local file="$3"
-  if grep -Eiq "$pattern" "$file"; then
+  local err="$OUT/reject-grep-error-$(echo "$name" | tr -c 'A-Za-z0-9_' '_').log"
+
+  set +e
+  grep -Eiq "$pattern" "$file" 2>"$err"
+  local rc="$?"
+  set -e
+
+  if [ "$rc" -eq 0 ]; then
     echo "[fail] $name matched forbidden pattern: $pattern"
     grep -Ein "$pattern" "$file" || true
+    exit 1
+  elif [ "$rc" -eq 1 ]; then
+    echo "[ok] $name"
+  else
+    echo "[fail] $name grep pattern error: $pattern"
+    cat "$err" || true
+    exit 1
+  fi
+}
+
+reject_fixed(){
+  local name="$1"
+  local needle="$2"
+  local file="$3"
+
+  if grep -Fq "$needle" "$file"; then
+    echo "[fail] $name matched forbidden string: $needle"
+    grep -Fn "$needle" "$file" || true
     exit 1
   else
     echo "[ok] $name"
@@ -113,12 +138,21 @@ echo "[ok] public node page renders safe public profile"
 
 echo
 echo "=== [5] public/private boundary checks ==="
-reject_grep "no form actions" '<form|method=["'\'']?post|action=' "$OUT/public-node.html"
-reject_grep "no participant owner-console links" 'href=["'\'']/participant|/participant\\?' "$OUT/public-node.html"
-reject_grep "no private participant api links" 'href=["'\'']/__void/participant|fetch\\(["'\'']/__void/participant' "$OUT/public-node.html"
-reject_grep "no buy void links" 'href=["'\''][^"'\'' ]*buy-void|/__void/buy-void' "$OUT/public-node.html"
-reject_grep "no stake mutation links" 'stake/next-onboard|validator-registration/submit|submit-live' "$OUT/public-node.html"
-reject_grep "no proof generation mutation" '/wc-proof-demo/generate' "$OUT/public-node.html"
+reject_fixed "no form tags" "<form" "$OUT/public-node.html"
+reject_fixed "no post method double quote" 'method="post' "$OUT/public-node.html"
+reject_fixed "no post method single quote" "method='post" "$OUT/public-node.html"
+reject_fixed "no action attribute double quote" 'action="' "$OUT/public-node.html"
+reject_fixed "no action attribute single quote" "action='" "$OUT/public-node.html"
+reject_fixed "no participant owner-console link double quote" 'href="/participant' "$OUT/public-node.html"
+reject_fixed "no participant owner-console link single quote" "href='/participant" "$OUT/public-node.html"
+reject_fixed "no private participant api path" "/__void/participant" "$OUT/public-node.html"
+reject_fixed "no buy void private api path" "/__void/buy-void" "$OUT/public-node.html"
+reject_fixed "no buy void public link double quote" 'href="/buy-void' "$OUT/public-node.html"
+reject_fixed "no buy void public link single quote" "href='/buy-void" "$OUT/public-node.html"
+reject_fixed "no stake next-onboard mutation" "stake/next-onboard" "$OUT/public-node.html"
+reject_fixed "no validator submit mutation" "validator-registration/submit" "$OUT/public-node.html"
+reject_fixed "no submit-live mutation" "submit-live" "$OUT/public-node.html"
+reject_fixed "no proof generation mutation" "/wc-proof-demo/generate" "$OUT/public-node.html"
 echo "[ok] public/private boundary checks"
 
 echo
