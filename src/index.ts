@@ -43784,6 +43784,25 @@ a{color:#93c5fd;text-decoration:none}
           }
         });
 
+        APP.get("/proof/:dataset", (req:any, res:any) => {
+          // VOID_WC_PROOF_PUBLIC_SHARE_ROUTE_V1
+          const cleanId = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 180);
+          const cleanWho = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:@-]/g, "").slice(0, 180);
+          const dataset = cleanId(req.params && req.params.dataset);
+          const who = cleanWho(req.query && (req.query as any).who);
+          const delta = cleanId((req.query && (req.query as any).delta) || "10") || "10";
+          const qp = new URLSearchParams();
+          if (dataset) qp.set("dataset", dataset);
+          if (who) qp.set("who", who);
+          if (delta) qp.set("delta", delta);
+          const target = "/wc-proof-viewer?" + qp.toString();
+          res.status(302)
+            .set("location", target)
+            .set("cache-control", "no-store")
+            .type("text/plain")
+            .send("VOID_WC_PROOF_PUBLIC_SHARE_ROUTE_V1\n" + target + "\n");
+        });
+
         APP.get("/wc-proof-viewer", (req:any, res:any) => {
           // VOID_WC_PROOF_VIEWER_ROUTE_V1
           const cleanId = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 180);
@@ -52076,7 +52095,8 @@ a{color:#93c5fd;text-decoration:none}
                   var raw=String(p.raw_path||"#").replace(/'/g,"&#39;");
                   var delta=escProofText(p.delta||"10");
                   var task=escProofText(p.task_class||"datanet_publish");
-                  return "<div class='miniRow'><!-- VOID_PARTICIPANT_WC_LATEST_PROOFS_ACTIONS_V1 --><a class='btn secondary' href='"+vp+"'>Open proof</a><button class='btn secondary wcLatestProofCopyBtn' type='button' data-proof='"+vp+"'>Copy link</button><a class='btn secondary' href='"+raw+"'>Open raw JSON</a><span class='muted'>+"+delta+" WC · "+task+" · "+ds+" · "+who+"</span></div>";
+                  var proofHref=(ds&&ds!=="unknown dataset")?String("/proof/"+encodeURIComponent(ds)+"?who="+encodeURIComponent(who)+"&delta="+encodeURIComponent(delta)).replace(/"/g,"&quot;"):vp;
+                  return "<div class='miniRow'><!-- VOID_PARTICIPANT_WC_LATEST_PROOFS_ACTIONS_V1 --><!-- VOID_PARTICIPANT_WC_PUBLIC_PROOF_SHARE_LINK_V1 --><a class='btn secondary' href='"+proofHref+"'>Open proof</a><button class='btn secondary wcLatestProofCopyBtn' type='button' data-proof='"+proofHref+"'>Copy link</button><a class='btn secondary' href='"+raw+"'>Open raw JSON</a><span class='muted'>+"+delta+" WC · "+task+" · "+ds+" · "+who+"</span></div>";
                 }).join("");
                 Array.prototype.slice.call(box.querySelectorAll(".wcLatestProofCopyBtn")).forEach(function(btn){
                   btn.addEventListener("click",function(){

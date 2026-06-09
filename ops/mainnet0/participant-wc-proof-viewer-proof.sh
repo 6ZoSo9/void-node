@@ -40,6 +40,9 @@ expect_grep "latest proofs summary marker" "VOID_PARTICIPANT_WC_LATEST_PROOFS_SU
 expect_grep "participant viewer link marker" "VOID_PARTICIPANT_WC_PROOF_VIEWER_LINK_V1" src/index.ts
 expect_grep "stable raw marker" "VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1" src/index.ts
 expect_grep "viewer path" "/wc-proof-viewer?dataset=" src/index.ts
+expect_grep "public proof share route marker" "VOID_WC_PROOF_PUBLIC_SHARE_ROUTE_V1" src/index.ts
+expect_grep "public proof share link marker" "VOID_PARTICIPANT_WC_PUBLIC_PROOF_SHARE_LINK_V1" src/index.ts
+expect_grep "public proof share path" "/proof/" src/index.ts
 expect_grep "raw local-job path" "/datanet/v1/local-job/" src/index.ts
 expect_grep "safety copy" "no wallet send" src/index.ts
 echo
@@ -84,6 +87,8 @@ expect_grep "served latest proofs summary" "VOID_PARTICIPANT_WC_LATEST_PROOFS_SU
 expect_grep "served latest proofs summary id" "wcLatestProofsSummary" "$OUT/participant.html"
 expect_grep "served latest proofs copy action" "wcLatestProofCopyBtn" "$OUT/participant.html"
 expect_grep "served latest proofs raw action" "Open raw JSON" "$OUT/participant.html"
+expect_grep "served public proof share link marker" "VOID_PARTICIPANT_WC_PUBLIC_PROOF_SHARE_LINK_V1" "$OUT/participant.html"
+expect_grep "served public proof share path" "/proof/" "$OUT/participant.html"
 expect_grep "served stable raw marker" "VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1" "$OUT/participant.html"
 echo
 
@@ -128,6 +133,8 @@ echo "dataset_id=$DATASET_ID"
 echo "who=$WHO"
 echo "viewer_path=$VIEWER_PATH"
 echo "raw_path=$RAW_PATH"
+SHARE_PATH="/proof/$DATASET_ID?who=$WHO&delta=10"
+echo "share_path=$SHARE_PATH"
 echo
 
 echo "=== [5b] latest WC proofs endpoint resolves ==="
@@ -171,6 +178,17 @@ expect_grep "viewer title" "WC Proof Viewer" "$OUT/viewer.html"
 expect_grep "viewer dataset" "$DATASET_ID" "$OUT/viewer.html"
 expect_grep "viewer raw path" "/datanet/v1/local-job/" "$OUT/viewer.html"
 expect_grep "viewer safety" "no wallet send" "$OUT/viewer.html"
+echo
+
+echo "=== [8b] public proof share route resolves ==="
+curl -fsS --max-time 20 -D "$OUT/public-proof-share.headers" "$BASE$SHARE_PATH" > "$OUT/public-proof-share.txt"
+expect_grep "public proof share route marker served" "VOID_WC_PROOF_PUBLIC_SHARE_ROUTE_V1" "$OUT/public-proof-share.txt"
+expect_grep "public proof share redirect target" "/wc-proof-viewer?dataset=$DATASET_ID" "$OUT/public-proof-share.headers"
+curl -fsSL --max-time 20 "$BASE$SHARE_PATH" > "$OUT/public-proof-share-viewer.html"
+expect_grep "public proof share viewer title" "WC Proof Viewer" "$OUT/public-proof-share-viewer.html"
+expect_grep "public proof share verify button" "Verify proof" "$OUT/public-proof-share-viewer.html"
+expect_grep "public proof share verify marker" "VOID_WC_PROOF_VIEWER_VERIFY_BUTTON_V1" "$OUT/public-proof-share-viewer.html"
+echo "[ok] public proof share route resolves"
 echo
 
 echo "=== [8] status smoke ==="
