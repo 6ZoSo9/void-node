@@ -44516,6 +44516,216 @@ a{color:#93c5fd;text-decoration:none}
             }
           });
 
+
+          APP.get("/public-node/data-quality.json", async (_req:any, res:any) => { // VOID_PUBLIC_NODE_DATA_QUALITY_ROUTE_V1
+            // VOID_PUBLIC_NODE_DATA_QUALITY_V1
+            const startedAtMs = Date.now();
+            const port = Number(process.env.VOID_HTTP_PORT || process.env.PORT || 4100);
+            const host = "127.0.0.1";
+
+            function safeQualityPublicPath(v:any) {
+              const raw = String(v || "").trim();
+              if (!raw.startsWith("/")) return "";
+              if (raw.includes("..")) return "";
+              if (raw.includes("\\\\")) return "";
+              if (raw.includes("/__void/participant")) return "";
+              if (raw.includes("/__void/buy-void")) return "";
+              if (raw.includes("/participant")) return "";
+              if (raw.includes("file://")) return "";
+              if (raw.includes("/home/")) return "";
+              if (raw.includes("data_a/datanet_v1/local_jobs")) return "";
+              if (!(raw.startsWith("/proof/") || raw.startsWith("/wc-proof-viewer?"))) return "";
+              return raw;
+            }
+
+            function safeQualityToken(v:any) {
+              const raw = String(v || "").trim();
+              if (!raw || raw.includes("/") || raw.includes("..") || raw.includes("file://")) return "";
+              if (raw.includes("/home/") || raw.includes("data_a/datanet_v1/local_jobs")) return "";
+              return raw.slice(0, 160);
+            }
+
+            async function loopbackJson(pathname:any) {
+              const http = await import("http");
+              const pathText = String(pathname || "/");
+              return await new Promise<any>((resolve) => {
+                const req = http.request({
+                  hostname: host,
+                  port,
+                  path: pathText,
+                  method: "GET",
+                  timeout: 3000,
+                  headers: { "User-Agent": "VOID_PUBLIC_NODE_DATA_QUALITY_V1" }
+                }, (r:any) => {
+                  let body = "";
+                  r.setEncoding("utf8");
+                  r.on("data", (chunk:any) => { body += String(chunk || ""); if (body.length > 1024 * 1024) r.destroy(); });
+                  r.on("end", () => {
+                    try {
+                      resolve({ status: Number(r.statusCode || 0), body: JSON.parse(body || "{}") });
+                    } catch (_) {
+                      resolve({ status: Number(r.statusCode || 0), body: null });
+                    }
+                  });
+                });
+                req.on("timeout", () => { req.destroy(new Error("timeout")); });
+                req.on("error", (err:any) => resolve({ status: 0, error: String(err && err.message || err || "error") }));
+                req.end();
+              });
+            }
+
+            function hasDelta(v:any) {
+              return /[?&]delta=[0-9]+/.test(String(v || ""));
+            }
+
+            function healthWorked(probes:any[], type:string, path:string) {
+              return probes.some((p:any) => p && p.type === type && p.path === path && p.ok === true);
+            }
+
+            function qualityScore(checks:any) {
+              const keys = [
+                "has_dataset",
+                "has_who",
+                "has_task",
+                "has_delta",
+                "has_proof_link",
+                "has_verifier",
+                "has_share_link",
+                "has_raw_availability",
+                "has_working_public_link"
+              ];
+              const passed = keys.filter((k) => checks[k] === true).length;
+              return Math.round((passed / keys.length) * 100);
+            }
+
+            try {
+              const intelligence = await loopbackJson("/public-node/intelligence.json");
+              const health = await loopbackJson("/public-node/link-health.json");
+              const intelligenceBody = intelligence && intelligence.body ? intelligence.body : {};
+              const healthBody = health && health.body ? health.body : {};
+              const links = Array.isArray(intelligenceBody.retrieval_links) ? intelligenceBody.retrieval_links.slice(0, 12) : [];
+              const probes = Array.isArray(healthBody.probes) ? healthBody.probes : [];
+              const sourceMarker = intelligenceBody.retrieval_links_marker || (links.length ? "VOID_PUBLIC_NODE_RETRIEVAL_LINKS_V1" : "");
+              const healthMarker = healthBody.marker || (Array.isArray(probes) ? "VOID_PUBLIC_NODE_LINK_HEALTH_V1" : "");
+
+              const items = links.map((link:any, idx:number) => {
+                const dataset = safeQualityToken(link && link.dataset);
+                const who = safeQualityToken(link && link.who);
+                const task = safeQualityToken(link && link.task) || "public-proof";
+                const proofLink = safeQualityPublicPath(link && link.proof_link);
+                const verifyLink = safeQualityPublicPath(link && link.verify_link);
+                const shareLink = safeQualityPublicPath(link && link.share_link);
+                const rawJsonAvailable = typeof (link && link.raw_json_available) === "boolean" ? !!link.raw_json_available : false;
+                const proofWorks = proofLink ? healthWorked(probes, "proof", proofLink) : false;
+                const verifyWorks = verifyLink ? healthWorked(probes, "verify", verifyLink) : false;
+
+                const checks:any = {
+                  has_dataset: !!dataset && dataset.startsWith("ds_"),
+                  has_who: !!who && who.length >= 4,
+                  has_task: !!task,
+                  has_delta: hasDelta(proofLink) || hasDelta(verifyLink) || hasDelta(shareLink),
+                  has_proof_link: !!proofLink && proofLink.startsWith("/proof/"),
+                  has_verifier: !!verifyLink && verifyLink.startsWith("/wc-proof-viewer?"),
+                  has_share_link: !!shareLink && shareLink.startsWith("/proof/"),
+                  has_raw_availability: rawJsonAvailable === true || rawJsonAvailable === false,
+                  has_working_public_link: proofWorks || verifyWorks
+                };
+
+                return {
+                  index: idx + 1,
+                  dataset,
+                  who,
+                  task,
+                  has_dataset: checks.has_dataset,
+                  has_who: checks.has_who,
+                  has_task: checks.has_task,
+                  has_delta: checks.has_delta,
+                  has_proof_link: checks.has_proof_link,
+                  has_verifier: checks.has_verifier,
+                  has_share_link: checks.has_share_link,
+                  has_raw_availability: checks.has_raw_availability,
+                  has_working_public_link: checks.has_working_public_link,
+                  proof_link_status: proofWorks ? "ok" : (proofLink ? "not_ok" : "missing"),
+                  verify_link_status: verifyWorks ? "ok" : (verifyLink ? "not_ok" : "missing"),
+                  quality_score: qualityScore(checks)
+                };
+              });
+
+              const qualityItemCount = items.length;
+              const averageQualityScore = qualityItemCount ? Math.round(items.reduce((a:number, x:any) => a + Number(x.quality_score || 0), 0) / qualityItemCount) : 0;
+              const qualityPassCount = items.filter((x:any) => Number(x.quality_score || 0) >= 80).length;
+              const qualityWarnCount = Math.max(0, qualityItemCount - qualityPassCount);
+              const completePublicProofCount = items.filter((x:any) =>
+                x.has_dataset &&
+                x.has_who &&
+                x.has_task &&
+                x.has_delta &&
+                x.has_proof_link &&
+                x.has_verifier &&
+                x.has_share_link &&
+                x.has_raw_availability
+              ).length;
+
+              res.json({
+                ok: true,
+                marker: "VOID_PUBLIC_NODE_DATA_QUALITY_V1",
+                route: "/public-node/data-quality.json",
+                generated_at_ms: Date.now(),
+                evaluation_duration_ms: Date.now() - startedAtMs,
+                source_marker: sourceMarker,
+                health_marker: healthMarker,
+                retrieval_links_count: links.length,
+                quality_item_count: qualityItemCount,
+                complete_public_proof_count: completePublicProofCount,
+                quality_pass_count: qualityPassCount,
+                quality_warn_count: qualityWarnCount,
+                average_public_proof_quality_score: averageQualityScore,
+                data_quality_score: averageQualityScore,
+                items,
+                policy: {
+                  max_items: 12,
+                  public_identifiers_only: true,
+                  public_paths_only: true,
+                  local_path_exposure: false,
+                  raw_filesystem_url_exposure: false,
+                  mutation: false,
+                  scoring_fields: ["has_dataset","has_who","has_task","has_delta","has_proof_link","has_verifier","has_share_link","has_raw_availability","has_working_public_link"]
+                },
+                safety: {
+                  read_only: true,
+                  money_movement: false,
+                  wallet_send: false,
+                  wc_to_void_swap: false,
+                  buy_void_fulfillment: false,
+                  validator_mutation: false
+                }
+              });
+            } catch (e:any) {
+              res.status(500).json({
+                ok: false,
+                marker: "VOID_PUBLIC_NODE_DATA_QUALITY_V1",
+                route: "/public-node/data-quality.json",
+                error: "data_quality_evaluation_failed",
+                message: String(e && e.message || e || "error"),
+                policy: {
+                  public_identifiers_only: true,
+                  public_paths_only: true,
+                  local_path_exposure: false,
+                  raw_filesystem_url_exposure: false,
+                  mutation: false
+                },
+                safety: {
+                  read_only: true,
+                  money_movement: false,
+                  wallet_send: false,
+                  wc_to_void_swap: false,
+                  buy_void_fulfillment: false,
+                  validator_mutation: false
+                }
+              });
+            }
+          });
+
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
 <html>
@@ -44624,6 +44834,17 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
             <div class="card"><div class="muted">Probed links</div><h2 id="publicNodeProbedLinkCount">--</h2></div>
           </div>
           <p class="muted">Health probes are read-only loopback GET checks against public proof and verifier links only.</p>
+        </div>
+        <div class="card" id="publicNodeDataQualityCard"><!-- VOID_PUBLIC_NODE_DATA_QUALITY_UI_V1 -->
+          <b>Public data quality</b>
+          <p class="muted" id="publicNodeDataQualitySummary">Loading data quality...</p>
+          <div class="grid">
+            <div class="card"><div class="muted">Quality score</div><h2 id="publicNodeDataQualityScore">--</h2></div>
+            <div class="card"><div class="muted">Complete proofs</div><h2 id="publicNodeCompleteProofCount">--</h2></div>
+            <div class="card"><div class="muted">Quality pass</div><h2 id="publicNodeQualityPassCount">--</h2></div>
+            <div class="card"><div class="muted">Quality warnings</div><h2 id="publicNodeQualityWarnCount">--</h2></div>
+          </div>
+          <p class="muted">Quality checks public dataset, who/account, task, delta, proof link, verifier link, share link, raw availability, and working public link status.</p>
         </div>
       </div>
     </section>
@@ -44786,6 +45007,23 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       setText('publicNodeProbedLinkCount','--');
     }
 
+
+
+    // VOID_PUBLIC_NODE_DATA_QUALITY_SCRIPT_V1
+    try {
+      const q = await (await fetch('/public-node/data-quality.json')).json();
+      setText('publicNodeDataQualitySummary','Data quality online · items='+String(q.quality_item_count==null?'0':q.quality_item_count)+' · source='+(q.source_marker||'retrieval_links'));
+      setText('publicNodeDataQualityScore',String(q.data_quality_score==null?'--':q.data_quality_score)+'/100');
+      setText('publicNodeCompleteProofCount',String(q.complete_public_proof_count==null?'0':q.complete_public_proof_count));
+      setText('publicNodeQualityPassCount',String(q.quality_pass_count==null?'0':q.quality_pass_count));
+      setText('publicNodeQualityWarnCount',String(q.quality_warn_count==null?'0':q.quality_warn_count));
+    } catch(e) {
+      setText('publicNodeDataQualitySummary','Public data quality unavailable right now.');
+      setText('publicNodeDataQualityScore','--');
+      setText('publicNodeCompleteProofCount','--');
+      setText('publicNodeQualityPassCount','--');
+      setText('publicNodeQualityWarnCount','--');
+    }
 
 </script>
 </body>
