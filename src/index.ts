@@ -43835,6 +43835,10 @@ a{color:#93c5fd;text-decoration:none}
                 "<div class='card'><!-- VOID_WC_PROOFS_PUBLIC_INDEX_SERVER_RENDER_ITEM_V1 --><div class='muted'>#" + (i+1) + " · " + escProof(p.task_class) + "</div><b>" + escProof(p.dataset_id) + "</b><div><code>" + escProof(p.proof_href) + "</code></div><div class='row' style='margin-top:8px'><a class='btn' href='" + escProof(p.proof_href) + "'>Open verifier</a><button class='btn' data-copy='" + escProof(p.proof_href) + "'>Copy proof link</button><a class='btn' href='" + escProof(p.raw_href) + "'>Open raw JSON</a></div></div>"
               ).join("")
             : "No local WC proofs found yet.";
+          const serverLatestProof:any = serverProofs.length ? serverProofs[0] : null; // VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_V1
+          const serverProofCount = serverProofs.length;
+          const serverLatestIso = serverLatestProof && serverLatestProof.mtime_ms ? new Date(Number(serverLatestProof.mtime_ms)).toISOString() : "none";
+          const serverLatestHref = serverLatestProof ? String(serverLatestProof.proof_href || "") : "";
           res.status(200).send([
             "<!doctype html>",
             "<meta charset='utf-8'>",
@@ -43853,6 +43857,7 @@ a{color:#93c5fd;text-decoration:none}
             "<h1>VOID WC Proofs</h1>",
             "<p class='muted'>Recent local Work Credit proofs backed by DataNet local-job JSON. Share clean /proof/&lt;dataset&gt; links or open the verifier.</p>",
             "<p class='good'>No wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation</p>",
+            "<div class='card' id='publicProofsSummaryCard'><!-- VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_V1 --><b>Proof summary</b><div class='muted' id='publicProofsSummary'>proofs=" + escProof(serverProofCount) + " · latest=" + escProof(serverLatestIso) + " · backing=DataNet local-job JSON</div><div class='row' style='margin-top:8px'><button class='btn' id='publicProofsCopyLatestBtn' type='button'" + (serverLatestHref ? " data-proof='" + escProof(serverLatestHref) + "'" : " disabled") + "><!-- VOID_WC_PROOFS_PUBLIC_INDEX_COPY_LATEST_V1 -->Copy latest proof</button></div></div>",
             "<p><a class='btn' href='/participant'>Back to participant</a></p>",
             "</section>",
             "<section id='proofsList' class='card'><!-- VOID_WC_PROOFS_PUBLIC_INDEX_SERVER_RENDER_V1 -->" + serverProofsHtml + "</section>",
@@ -43864,6 +43869,8 @@ a{color:#93c5fd;text-decoration:none}
             "function rawHref(p){if(p.raw_path)return String(p.raw_path);var ds=String(p.dataset_id||'');var who=String(p.who||'');return ds?'/datanet/v1/local-job/'+encodeURIComponent(ds)+'?who='+encodeURIComponent(who):'#'}",
             "function copyLink(url,btn){var abs=new URL(url,window.location.origin).toString();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(abs).then(function(){btn.textContent='Copied';}).catch(function(){btn.textContent=abs;});}else{btn.textContent=abs;}}",
             "var r=await fetch('/wc-proofs/latest?limit=20',{cache:'no-store'});var j=await r.json();var proofs=Array.isArray(j.proofs)?j.proofs:[];",
+            "var summary=document.getElementById('publicProofsSummary');var latestBtn=document.getElementById('publicProofsCopyLatestBtn'); // VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_CLIENT_V1",
+            "var latest=proofs.length?proofs[0]:null;var latestHref=latest?proofHref(latest):'';if(summary){var latestMs=latest?Number(latest.mtime_ms||0):0;summary.textContent='proofs='+proofs.length+' · latest='+(latestMs?new Date(latestMs).toISOString():'none')+' · backing=DataNet local-job JSON';}if(latestBtn){latestBtn.disabled=!latestHref;if(latestHref)latestBtn.setAttribute('data-proof',latestHref);latestBtn.onclick=function(){if(latestHref)copyLink(latestHref,latestBtn);};}",
             "if(!proofs.length){box.textContent='No local WC proofs found yet.';return;}",
             "box.innerHTML='<h2>Recent proofs</h2>'+proofs.map(function(p,i){var u=proofHref(p);var raw=rawHref(p);return '<div class=\'card\'><div class=\'muted\'>#'+(i+1)+' · '+esc(p.task_class||'wc proof')+'</div><b>'+esc(p.dataset_id||'unknown dataset')+'</b><div><code>'+esc(u)+'</code></div><div class=\'row\' style=\'margin-top:8px\'><a class=\'btn\' href=\''+esc(u)+'\'>Open verifier</a><button class=\'btn\' data-copy=\''+esc(u)+'\'>Copy proof link</button><a class=\'btn\' href=\''+esc(raw)+'\'>Open raw JSON</a></div></div>';}).join('');",
             "box.addEventListener('click',function(ev){var b=ev.target&&ev.target.closest&&ev.target.closest('button[data-copy]');if(!b)return;copyLink(b.getAttribute('data-copy'),b);});",

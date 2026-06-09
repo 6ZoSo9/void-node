@@ -50,6 +50,9 @@ expect_grep "public proofs index render marker" "VOID_WC_PROOFS_PUBLIC_INDEX_REN
 expect_grep "public proofs index client marker" "VOID_WC_PROOFS_PUBLIC_INDEX_CLIENT_V1" src/index.ts
 expect_grep "public proofs server render marker" "VOID_WC_PROOFS_PUBLIC_INDEX_SERVER_RENDER_V1" src/index.ts
 expect_grep "public proofs server render item marker" "VOID_WC_PROOFS_PUBLIC_INDEX_SERVER_RENDER_ITEM_V1" src/index.ts
+expect_grep "public proofs summary marker" "VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_V1" src/index.ts
+expect_grep "public proofs copy latest marker" "VOID_WC_PROOFS_PUBLIC_INDEX_COPY_LATEST_V1" src/index.ts
+expect_grep "public proofs summary client marker" "VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_CLIENT_V1" src/index.ts
 expect_grep "public share redirect direct viewer proof marker" "VOID_WC_PROOF_PUBLIC_SHARE_REDIRECT_DIRECT_VIEWER_PROOF_V1" ops/mainnet0/participant-wc-proof-viewer-proof.sh
 expect_grep "public share no-follow redirect proof marker" "VOID_WC_PROOF_PUBLIC_SHARE_NO_FOLLOW_REDIRECT_PROOF_V1" ops/mainnet0/participant-wc-proof-viewer-proof.sh
 expect_grep "public share reuse viewer artifact marker" "VOID_WC_PROOF_PUBLIC_SHARE_REUSE_VIEWER_ARTIFACT_V1" ops/mainnet0/participant-wc-proof-viewer-proof.sh
@@ -121,6 +124,13 @@ expect_grep "public proofs index route marker served" "VOID_WC_PROOFS_PUBLIC_IND
 expect_grep "public proofs index client marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_CLIENT_V1" "$OUT/public-proofs-index.html"
 expect_grep "public proofs server render marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_SERVER_RENDER_V1" "$OUT/public-proofs-index.html"
 expect_grep "public proofs server render item served" "VOID_WC_PROOFS_PUBLIC_INDEX_SERVER_RENDER_ITEM_V1" "$OUT/public-proofs-index.html"
+expect_grep "public proofs summary marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_V1" "$OUT/public-proofs-index.html"
+expect_grep "public proofs summary id served" "publicProofsSummary" "$OUT/public-proofs-index.html"
+expect_grep "public proofs copy latest marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_COPY_LATEST_V1" "$OUT/public-proofs-index.html"
+expect_grep "public proofs copy latest id served" "publicProofsCopyLatestBtn" "$OUT/public-proofs-index.html"
+expect_grep "public proofs copy latest copy served" "Copy latest proof" "$OUT/public-proofs-index.html"
+expect_grep "public proofs summary client marker served" "VOID_WC_PROOFS_PUBLIC_INDEX_SUMMARY_CLIENT_V1" "$OUT/public-proofs-index.html"
+expect_grep "public proofs summary backing served" "backing=DataNet local-job JSON" "$OUT/public-proofs-index.html"
 expect_grep "public proofs index latest endpoint" "/wc-proofs/latest?limit=20" "$OUT/public-proofs-index.html"
 expect_grep "public proofs index proof path" "/proof/" "$OUT/public-proofs-index.html"
 expect_grep "public proofs index raw backing" "/datanet/v1/local-job/" "$OUT/public-proofs-index.html"
