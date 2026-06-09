@@ -44726,6 +44726,186 @@ a{color:#93c5fd;text-decoration:none}
             }
           });
 
+
+          APP.get("/public-node/ai-readiness.json", async (_req:any, res:any) => { // VOID_PUBLIC_NODE_AI_READINESS_ROUTE_V1
+            // VOID_PUBLIC_NODE_AI_READINESS_V1
+            const startedAtMs = Date.now();
+            const port = Number(process.env.VOID_HTTP_PORT || process.env.PORT || 4100);
+            const host = "127.0.0.1";
+
+            async function loopbackJson(pathname:any) {
+              const http = await import("http");
+              const pathText = String(pathname || "/");
+              if (!pathText.startsWith("/public-node/")) {
+                return { status: 0, body: null, error: "unsupported_public_node_path" };
+              }
+              if (pathText.includes("..") || pathText.includes("file://") || pathText.includes("/home/") || pathText.includes("data_a/datanet_v1/local_jobs")) {
+                return { status: 0, body: null, error: "unsafe_path" };
+              }
+              return await new Promise<any>((resolve) => {
+                const req = http.request({
+                  hostname: host,
+                  port,
+                  path: pathText,
+                  method: "GET",
+                  timeout: 3000,
+                  headers: { "User-Agent": "VOID_PUBLIC_NODE_AI_READINESS_V1" }
+                }, (r:any) => {
+                  let body = "";
+                  r.setEncoding("utf8");
+                  r.on("data", (chunk:any) => { body += String(chunk || ""); if (body.length > 1024 * 1024) r.destroy(); });
+                  r.on("end", () => {
+                    try {
+                      resolve({ status: Number(r.statusCode || 0), body: JSON.parse(body || "{}") });
+                    } catch (_) {
+                      resolve({ status: Number(r.statusCode || 0), body: null });
+                    }
+                  });
+                });
+                req.on("timeout", () => { req.destroy(new Error("timeout")); });
+                req.on("error", (err:any) => resolve({ status: 0, error: String(err && err.message || err || "error") }));
+                req.end();
+              });
+            }
+
+            function score(v:any) {
+              const n = Number(v);
+              if (!Number.isFinite(n)) return 0;
+              return Math.max(0, Math.min(100, Math.round(n)));
+            }
+
+            function freshnessScore(latestAgeMinutes:any, staleAfterMinutes:any) {
+              const age = Number(latestAgeMinutes);
+              const staleAfter = Math.max(1, Number(staleAfterMinutes || 1440));
+              if (!Number.isFinite(age) || age < 0) return 0;
+              if (age <= staleAfter) return 100;
+              return Math.max(0, Math.min(100, Math.round((staleAfter / age) * 100)));
+            }
+
+            function readinessStatus(v:number) {
+              if (v >= 90) return "excellent";
+              if (v >= 80) return "ready";
+              if (v >= 60) return "usable";
+              if (v >= 40) return "limited";
+              return "not_ready";
+            }
+
+            try {
+              const intelligence = await loopbackJson("/public-node/intelligence.json");
+              const linkHealth = await loopbackJson("/public-node/link-health.json");
+              const dataQuality = await loopbackJson("/public-node/data-quality.json");
+
+              const i = intelligence && intelligence.body ? intelligence.body : {};
+              const h = linkHealth && linkHealth.body ? linkHealth.body : {};
+              const q = dataQuality && dataQuality.body ? dataQuality.body : {};
+
+              const retrievalScore = score(i.retrieval_seed_score);
+              const linkHealthScore = score(h.retrieval_link_health_score);
+              const dataQualityScore = score(q.data_quality_score);
+              const organizationScore = score(i.organization_seed_score);
+              const freshness = freshnessScore(i.latest_age_minutes, i.lifecycle_policy && i.lifecycle_policy.stale_after_minutes);
+
+              const weights:any = {
+                retrieval_score: 0.25,
+                link_health_score: 0.25,
+                data_quality_score: 0.25,
+                organization_score: 0.15,
+                freshness_score: 0.10
+              };
+
+              const aiReadinessScore = score(
+                retrievalScore * weights.retrieval_score +
+                linkHealthScore * weights.link_health_score +
+                dataQualityScore * weights.data_quality_score +
+                organizationScore * weights.organization_score +
+                freshness * weights.freshness_score
+              );
+
+              const readiness = readinessStatus(aiReadinessScore);
+              const recommendedNextActions:string[] = [];
+              if (retrievalScore < 80) recommendedNextActions.push("increase_public_retrieval_coverage");
+              if (linkHealthScore < 100) recommendedNextActions.push("repair_broken_public_links");
+              if (dataQualityScore < 90) recommendedNextActions.push("improve_public_proof_completeness");
+              if (organizationScore < 90) recommendedNextActions.push("improve_public_data_organization");
+              if (freshness < 50) recommendedNextActions.push("publish_fresher_public_work_proofs");
+              if (!recommendedNextActions.length) recommendedNextActions.push("maintain_current_public_node_quality");
+
+              res.json({
+                ok: true,
+                marker: "VOID_PUBLIC_NODE_AI_READINESS_V1",
+                route: "/public-node/ai-readiness.json",
+                generated_at_ms: Date.now(),
+                evaluation_duration_ms: Date.now() - startedAtMs,
+                source_markers: {
+                  intelligence: i.marker || "VOID_PUBLIC_NODE_INTELLIGENCE_JSON_V1",
+                  retrieval_links: q.source_marker || i.retrieval_links_marker || "VOID_PUBLIC_NODE_RETRIEVAL_LINKS_V1",
+                  link_health: h.marker || q.health_marker || "VOID_PUBLIC_NODE_LINK_HEALTH_V1",
+                  data_quality: q.marker || "VOID_PUBLIC_NODE_DATA_QUALITY_V1"
+                },
+                component_scores: {
+                  retrieval_score: retrievalScore,
+                  link_health_score: linkHealthScore,
+                  data_quality_score: dataQualityScore,
+                  organization_score: organizationScore,
+                  freshness_score: freshness
+                },
+                weights,
+                ai_readiness_score: aiReadinessScore,
+                ai_readiness_status: readiness,
+                recommended_next_actions: recommendedNextActions,
+                inputs: {
+                  retrieval_links_count: Number(q.retrieval_links_count || h.retrieval_links_count || 0),
+                  working_link_count: Number(h.working_link_count || 0),
+                  broken_link_count: Number(h.broken_link_count || 0),
+                  quality_item_count: Number(q.quality_item_count || 0),
+                  complete_public_proof_count: Number(q.complete_public_proof_count || 0),
+                  latest_age_minutes: Number(i.latest_age_minutes || 0),
+                  stale_after_minutes: Number(i.lifecycle_policy && i.lifecycle_policy.stale_after_minutes || 1440)
+                },
+                policy: {
+                  aggregate_public_metrics_only: true,
+                  loopback_only: true,
+                  public_routes_only: true,
+                  local_path_exposure: false,
+                  raw_filesystem_url_exposure: false,
+                  mutation: false
+                },
+                safety: {
+                  read_only: true,
+                  money_movement: false,
+                  wallet_send: false,
+                  wc_to_void_swap: false,
+                  buy_void_fulfillment: false,
+                  validator_mutation: false
+                }
+              });
+            } catch (e:any) {
+              res.status(500).json({
+                ok: false,
+                marker: "VOID_PUBLIC_NODE_AI_READINESS_V1",
+                route: "/public-node/ai-readiness.json",
+                error: "ai_readiness_evaluation_failed",
+                message: String(e && e.message || e || "error"),
+                policy: {
+                  aggregate_public_metrics_only: true,
+                  loopback_only: true,
+                  public_routes_only: true,
+                  local_path_exposure: false,
+                  raw_filesystem_url_exposure: false,
+                  mutation: false
+                },
+                safety: {
+                  read_only: true,
+                  money_movement: false,
+                  wallet_send: false,
+                  wc_to_void_swap: false,
+                  buy_void_fulfillment: false,
+                  validator_mutation: false
+                }
+              });
+            }
+          });
+
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
 <html>
@@ -44845,6 +45025,19 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
             <div class="card"><div class="muted">Quality warnings</div><h2 id="publicNodeQualityWarnCount">--</h2></div>
           </div>
           <p class="muted">Quality checks public dataset, who/account, task, delta, proof link, verifier link, share link, raw availability, and working public link status.</p>
+        </div>
+        <div class="card" id="publicNodeAiReadinessCard"><!-- VOID_PUBLIC_NODE_AI_READINESS_UI_V1 -->
+          <b>AI readiness</b>
+          <p class="muted" id="publicNodeAiReadinessSummary">Loading AI readiness...</p>
+          <div class="grid">
+            <div class="card"><div class="muted">AI readiness score</div><h2 id="publicNodeAiReadinessScore">--</h2></div>
+            <div class="card"><div class="muted">Status</div><h2 id="publicNodeAiReadinessStatus">--</h2></div>
+            <div class="card"><div class="muted">Retrieval</div><h2 id="publicNodeAiRetrievalScore">--</h2></div>
+            <div class="card"><div class="muted">Link health</div><h2 id="publicNodeAiLinkHealthScore">--</h2></div>
+            <div class="card"><div class="muted">Data quality</div><h2 id="publicNodeAiDataQualityScore">--</h2></div>
+            <div class="card"><div class="muted">Freshness</div><h2 id="publicNodeAiFreshnessScore">--</h2></div>
+          </div>
+          <p class="muted" id="publicNodeAiNextActions">AI readiness aggregates public retrieval, link health, data quality, organization, and freshness signals only.</p>
         </div>
       </div>
     </section>
@@ -45024,6 +45217,28 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
       setText('publicNodeQualityPassCount','--');
       setText('publicNodeQualityWarnCount','--');
     }
+    // VOID_PUBLIC_NODE_AI_READINESS_SCRIPT_V1
+    fetch('/public-node/ai-readiness.json').then(r=>r.json()).then(a=>{
+      setText('publicNodeAiReadinessSummary','AI readiness online · status='+(a.ai_readiness_status||'unknown')+' · policy='+(a.policy&&a.policy.aggregate_public_metrics_only?'public_only':'unknown'));
+      setText('publicNodeAiReadinessScore',String(a.ai_readiness_score==null?'--':a.ai_readiness_score)+'/100');
+      setText('publicNodeAiReadinessStatus',String(a.ai_readiness_status||'--'));
+      setText('publicNodeAiRetrievalScore',String(a.component_scores&&a.component_scores.retrieval_score!=null?a.component_scores.retrieval_score:'--')+'/100');
+      setText('publicNodeAiLinkHealthScore',String(a.component_scores&&a.component_scores.link_health_score!=null?a.component_scores.link_health_score:'--')+'/100');
+      setText('publicNodeAiDataQualityScore',String(a.component_scores&&a.component_scores.data_quality_score!=null?a.component_scores.data_quality_score:'--')+'/100');
+      setText('publicNodeAiFreshnessScore',String(a.component_scores&&a.component_scores.freshness_score!=null?a.component_scores.freshness_score:'--')+'/100');
+      setText('publicNodeAiNextActions','Next actions: '+(Array.isArray(a.recommended_next_actions)?a.recommended_next_actions.join(', '):'none'));
+    }).catch(()=>{
+      setText('publicNodeAiReadinessSummary','AI readiness unavailable right now.');
+      setText('publicNodeAiReadinessScore','--');
+      setText('publicNodeAiReadinessStatus','--');
+      setText('publicNodeAiRetrievalScore','--');
+      setText('publicNodeAiLinkHealthScore','--');
+      setText('publicNodeAiDataQualityScore','--');
+      setText('publicNodeAiFreshnessScore','--');
+      setText('publicNodeAiNextActions','Next actions unavailable.');
+    });
+
+
 
 </script>
 </body>
