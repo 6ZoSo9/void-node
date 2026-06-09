@@ -52037,6 +52037,7 @@ a{color:#93c5fd;text-decoration:none}
           <div class="hero-note" id="wcLatestProofsCard" style="margin-top:10px"><!-- VOID_PARTICIPANT_WC_LATEST_PROOFS_LIST_V1 -->
             <b>Latest WC Proofs:</b>
             <span class="muted">Recent local DataNet-backed proof links from this node.</span>
+            <div class="muted" id="wcLatestProofsSummary" style="margin-top:6px"><!-- VOID_PARTICIPANT_WC_LATEST_PROOFS_SUMMARY_V1 -->Proof count and last proof time load from this node.</div>
             <div class="row" id="wcLatestProofsList" style="margin-top:8px">Loading latest proofs…</div>
           </div>
           <script>
@@ -52049,6 +52050,12 @@ a{color:#93c5fd;text-decoration:none}
                 var r=await fetch("/wc-proofs/latest?limit=5",{cache:"no-store"});
                 var j=await r.json();
                 var proofs=Array.isArray(j.proofs)?j.proofs:[];
+                var summary=document.getElementById("wcLatestProofsSummary");
+                if(summary){
+                  var latestMs=proofs.reduce(function(max,p){var v=Number(p&&p.mtime_ms||0);return v>max?v:max;},0);
+                  var latestText=latestMs?new Date(latestMs).toLocaleString():"not available";
+                  summary.textContent=String(proofs.length)+" local proof"+(proofs.length===1?"":"s")+" available · last proof: "+latestText;
+                }
                 function escProofText(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
                 if(!proofs.length){box.textContent="No local WC proof links found yet.";return;}
                 box.innerHTML=proofs.map(function(p){

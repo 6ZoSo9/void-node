@@ -34,6 +34,7 @@ expect_grep "latest proofs route marker" "VOID_WC_PROOFS_LATEST_ROUTE_V1" src/in
 expect_grep "latest proofs card marker" "VOID_PARTICIPANT_WC_LATEST_PROOFS_LIST_V1" src/index.ts
 expect_grep "latest proofs client marker" "VOID_PARTICIPANT_WC_LATEST_PROOFS_CLIENT_V1" src/index.ts
 expect_grep "latest proofs actions marker" "VOID_PARTICIPANT_WC_LATEST_PROOFS_ACTIONS_V1" src/index.ts
+expect_grep "latest proofs summary marker" "VOID_PARTICIPANT_WC_LATEST_PROOFS_SUMMARY_V1" src/index.ts
 expect_grep "participant viewer link marker" "VOID_PARTICIPANT_WC_PROOF_VIEWER_LINK_V1" src/index.ts
 expect_grep "stable raw marker" "VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1" src/index.ts
 expect_grep "viewer path" "/wc-proof-viewer?dataset=" src/index.ts
@@ -77,6 +78,8 @@ expect_grep "served viewer path" "/wc-proof-viewer?dataset=" "$OUT/participant.h
 expect_grep "served latest proofs card" "VOID_PARTICIPANT_WC_LATEST_PROOFS_LIST_V1" "$OUT/participant.html"
 expect_grep "served latest proofs client" "VOID_PARTICIPANT_WC_LATEST_PROOFS_CLIENT_V1" "$OUT/participant.html"
 expect_grep "served latest proofs actions" "VOID_PARTICIPANT_WC_LATEST_PROOFS_ACTIONS_V1" "$OUT/participant.html"
+expect_grep "served latest proofs summary" "VOID_PARTICIPANT_WC_LATEST_PROOFS_SUMMARY_V1" "$OUT/participant.html"
+expect_grep "served latest proofs summary id" "wcLatestProofsSummary" "$OUT/participant.html"
 expect_grep "served latest proofs copy action" "wcLatestProofCopyBtn" "$OUT/participant.html"
 expect_grep "served latest proofs raw action" "Open raw JSON" "$OUT/participant.html"
 expect_grep "served stable raw marker" "VOID_PARTICIPANT_WC_RECEIPT_DETAIL_LINK_STABLE_LOCAL_JOB_V1" "$OUT/participant.html"
@@ -132,6 +135,7 @@ expect_grep "latest proofs endpoint viewer path" "/wc-proof-viewer?dataset=" "$O
 expect_grep "latest proofs endpoint raw path" "/datanet/v1/local-job/" "$OUT/latest-proofs.json"
 expect_grep "latest proofs endpoint task class" "task_class" "$OUT/latest-proofs.json"
 expect_grep "latest proofs endpoint delta" "delta" "$OUT/latest-proofs.json"
+expect_grep "latest proofs endpoint mtime" "mtime_ms" "$OUT/latest-proofs.json"
 echo "[ok] latest WC proofs endpoint resolves"
 
 echo "=== [6] raw local-job JSON resolves ==="
