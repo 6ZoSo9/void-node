@@ -44204,7 +44204,19 @@ a{color:#93c5fd;text-decoration:none}
     </div>
     <p class="muted" id="publicNodeLatestTask">Latest task: loading...</p>
     <p class="muted" id="publicNodeNextMetrics">Next metrics: loading...</p>
-    <p><a class="btn" id="publicNodeIntelligenceJsonLink" href="/public-node/intelligence.json">Open intelligence JSON</a></p>
+    <section class="card" id="publicNodeLifecycleCard"><!-- VOID_PUBLIC_NODE_LIFECYCLE_UI_V1 -->
+      <b>Data lifecycle</b>
+      <p class="muted" id="publicNodeLifecycleSummary">Loading public data lifecycle metrics...</p>
+      <div class="grid" id="publicNodeLifecycleGrid">
+        <div class="card" id="publicNodeOrganizationScoreCard"><div class="muted">Organization seed score</div><h2 id="publicNodeOrganizationScore">--</h2></div>
+        <div class="card" id="publicNodeCompressionCandidatesCard"><div class="muted">Compression candidates</div><h2 id="publicNodeCompressionCandidates">--</h2></div>
+        <div class="card" id="publicNodeStaleProofsCard"><div class="muted">Stale public proofs</div><h2 id="publicNodeStaleProofs">--</h2></div>
+        <div class="card" id="publicNodePublicBytesCard"><div class="muted">Public proof bytes</div><h2 id="publicNodePublicBytes">--</h2></div>
+        <div class="card" id="publicNodeAverageProofSizeCard"><div class="muted">Average proof size</div><h2 id="publicNodeAverageProofSize">--</h2></div>
+        <div class="card" id="publicNodeProofAgeRangeCard"><div class="muted">Proof age range</div><h2 id="publicNodeProofAgeRange">--</h2></div>
+      </div>
+      <p class="muted" id="publicNodeCompressionPolicy"><!-- VOID_PUBLIC_NODE_LOSSLESS_COMPRESSION_POLICY_V1 -->Compression candidate means review for lossless packing/deduplication/archive. VOID originals and proof records must remain bit-for-bit recoverable; lossy derivatives must never replace source data.</p>
+    </section>
   </section>
 </main>
 
@@ -44266,12 +44278,26 @@ a{color:#93c5fd;text-decoration:none}
     setText('publicNodeRawCoverage',pct(j.proofs_with_raw_json,j.proof_count));
     setText('publicNodeLatestTask','Latest task: '+String(j.latest_task||'unknown')+' · dataset='+String(j.latest_dataset||'none'));
     setText('publicNodeNextMetrics','Next metrics: '+((j.next_metrics||[]).join(', ')||'none'));
+    setText('publicNodeLifecycleSummary','Lifecycle online · stale_after_minutes='+(j.lifecycle_policy&&j.lifecycle_policy.stale_after_minutes)+' · large_record_threshold_bytes='+(j.lifecycle_policy&&j.lifecycle_policy.large_record_threshold_bytes));
+    setText('publicNodeOrganizationScore',String(j.organization_seed_score==null?'--':j.organization_seed_score)+'/100');
+    setText('publicNodeCompressionCandidates',String(j.compression_candidate_count==null?'0':j.compression_candidate_count));
+    setText('publicNodeStaleProofs',String(j.stale_proof_count==null?'0':j.stale_proof_count));
+    setText('publicNodePublicBytes',String(j.total_public_proof_bytes==null?'0':j.total_public_proof_bytes));
+    setText('publicNodeAverageProofSize',String(j.average_public_proof_size_bytes==null?'0':j.average_public_proof_size_bytes)+' B');
+    setText('publicNodeProofAgeRange',(j.newest_proof_age_minutes==null?'?':String(j.newest_proof_age_minutes))+'m → '+(j.oldest_proof_age_minutes==null?'?':String(j.oldest_proof_age_minutes))+'m');
   }).catch(function(){
     setText('publicNodeDataIntelligenceSummary','Public intelligence metrics unavailable right now.');
     setText('publicNodeUsefulnessScore','offline');
     setText('publicNodeProofCount','--');
     setText('publicNodeLatestAge','--');
     setText('publicNodeRawCoverage','--');
+    setText('publicNodeLifecycleSummary','Public lifecycle metrics unavailable right now.');
+    setText('publicNodeOrganizationScore','--');
+    setText('publicNodeCompressionCandidates','--');
+    setText('publicNodeStaleProofs','--');
+    setText('publicNodePublicBytes','--');
+    setText('publicNodeAverageProofSize','--');
+    setText('publicNodeProofAgeRange','--');
   });
 })();
 </script>
