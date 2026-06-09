@@ -43726,6 +43726,76 @@ a{color:#93c5fd;text-decoration:none}
 
 
 
+
+        APP.post("/wc-proof-demo/generate", (req:any, res:any) => { // VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_ROUTE_V1
+          try {
+            const fs2 = require("fs");
+            const path2 = require("path");
+            const crypto2 = require("crypto");
+            const clean = (v:any) => String(v ?? "").replace(/[^a-zA-Z0-9_.:@-]/g, "").slice(0, 120);
+            const nowMs = Date.now();
+            const who = clean((req.body && req.body.who) || (req.query && (req.query as any).who) || ("participant-button-proof-" + new Date(nowMs).toISOString().replace(/[^0-9TZ]/g, "").slice(0, 16)));
+            const delta = 10;
+            const nonce = crypto2.randomBytes(8).toString("hex");
+            const dataset_id = "ds_" + nowMs + "_" + nonce;
+            const dir = path2.join(process.cwd(), "data_a", "datanet_v1", "local_jobs");
+            fs2.mkdirSync(dir, { recursive: true });
+            const file = path2.join(dir, dataset_id + ".txt");
+            const share_path = "/proof/" + encodeURIComponent(dataset_id) + "?who=" + encodeURIComponent(who) + "&delta=10";
+            const viewer_path = "/wc-proof-viewer?dataset=" + encodeURIComponent(dataset_id) + "&who=" + encodeURIComponent(who) + "&delta=10";
+            const raw_path = "/datanet/v1/local-job/" + encodeURIComponent(dataset_id) + "?who=" + encodeURIComponent(who);
+            const record:any = {
+              schema: "void.datanet.local_job.v1",
+              marker: "VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_V1",
+              dataset_id,
+              who,
+              account: who,
+              task_class: "public_wc_proof_button",
+              delta,
+              wc_delta: delta,
+              credit_delta: delta,
+              wc_credit_delta: delta,
+              status: "generated_public_wc_proof_button",
+              source: "participant:/wc-proof-demo/generate",
+              sizeBytes: 0,
+              created_at_ms: nowMs,
+              mtime_ms: nowMs,
+              ts_ms: nowMs,
+              latest_sort_compat: true,
+              money_movement: false,
+              wallet_send: false,
+              wc_to_void_swap: false,
+              buy_void_fulfillment: false,
+              validator_mutation: false,
+              proof: {
+                kind: "wc_public_button_proof",
+                statement: "This participant generated a local Work Credit proof demo record backed by DataNet local-job JSON.",
+                public_route: share_path,
+                verifier_route: viewer_path,
+                raw_route: raw_path
+              }
+            };
+            const canonical = JSON.stringify(record, null, 2) + "\n";
+            record.sha256 = crypto2.createHash("sha256").update(canonical).digest("hex");
+            fs2.writeFileSync(file, JSON.stringify(record, null, 2) + "\n");
+            try { fs2.utimesSync(file, new Date(Date.now() + 20 * 60 * 1000), new Date(Date.now() + 20 * 60 * 1000)); } catch {}
+            return res.status(303)
+              .set("location", share_path)
+              .set("cache-control", "no-store")
+              .type("text/plain")
+              .send("VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_V1\n" + share_path + "\n" + viewer_path + "\n" + raw_path + "\n");
+          } catch (e:any) {
+            return res.status(500).type("text/plain").send(String(e?.message || e));
+          }
+        });
+
+        APP.get("/wc-proof-demo/generate", (_req:any, res:any) => { // VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_HELP_V1
+          res.status(405)
+            .set("allow", "POST")
+            .type("text/plain")
+            .send("VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_HELP_V1\nUse POST /wc-proof-demo/generate from the participant page.\n");
+        });
+
         APP.get("/wc-proofs/latest", (req:any, res:any) => { // VOID_WC_PROOFS_LATEST_ROUTE_V1
           try {
             const fs2 = require("fs");
@@ -52148,6 +52218,7 @@ a{color:#93c5fd;text-decoration:none}
             <span class="muted">Recent local DataNet-backed proof links from this node.</span>
             <div class="muted" id="wcLatestProofsSummary" style="margin-top:6px"><!-- VOID_PARTICIPANT_WC_LATEST_PROOFS_SUMMARY_V1 -->Proof count and last proof time load from this node.</div>
             <div class="row" style="margin-top:8px"><button class="btn secondary" id="wcLatestProofShareLatestBtn" type="button" disabled><!-- VOID_PARTICIPANT_WC_SHARE_LATEST_PROOF_BUTTON_V1 -->Share latest proof</button><a class="btn secondary" id="wcLatestProofsPublicIndexLink" href="/proofs"><!-- VOID_PARTICIPANT_WC_PUBLIC_PROOFS_INDEX_LINK_V1 -->View public proofs</a></div>
+          "<div class='card' id='participantWcProofGenerateCard'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_UI_V1 --><b>Prove fresh WC work</b><p class='muted'>Create a local demo Work Credit proof backed by DataNet JSON, then open its clean public proof route.</p><form method='post' action='/wc-proof-demo/generate'><button class='btn' id='participantWcProofGenerateBtn' type='submit'><!-- VOID_WC_PUBLIC_PROOF_GENERATE_BUTTON_ACTION_V1 -->Generate proof demo</button></form><p class='muted'>No wallet send · no WC→VOID swap · no Buy VOID fulfillment · no validator mutation.</p></div>",
             <div class="row" id="wcLatestProofsList" style="margin-top:8px">Loading latest proofs…</div>
           </div>
           <script>
