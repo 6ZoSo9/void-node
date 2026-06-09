@@ -43997,6 +43997,29 @@ a{color:#93c5fd;text-decoration:none}
             const proofCount = records.length;
             const proofsWithRawJson = records.filter((r:any) => !!r.raw_path).length;
 
+            // VOID_PUBLIC_NODE_LIFECYCLE_METRICS_V1
+            const agesMs = records.map((r:any) => Math.max(0, now - Number(r.mtime_ms || now)));
+            const newestProofAgeMs = agesMs.length ? Math.min(...agesMs) : null;
+            const oldestProofAgeMs = agesMs.length ? Math.max(...agesMs) : null;
+            const newestProofAgeMinutes = newestProofAgeMs == null ? null : Math.floor(newestProofAgeMs / 60000);
+            const oldestProofAgeMinutes = oldestProofAgeMs == null ? null : Math.floor(oldestProofAgeMs / 60000);
+            const totalPublicProofBytes = records.reduce((sum:number, r:any) => sum + Number(r.size_bytes || 0), 0);
+            const averagePublicProofSizeBytes = proofCount ? Math.round(totalPublicProofBytes / proofCount) : 0;
+            const staleAfterMinutes = 24 * 60;
+            const largeRecordThresholdBytes = 4096;
+            const staleProofCount = records.filter((r:any) => Math.floor(Math.max(0, now - Number(r.mtime_ms || now)) / 60000) >= staleAfterMinutes).length;
+            const largeRecordCount = records.filter((r:any) => Number(r.size_bytes || 0) >= largeRecordThresholdBytes).length;
+            const compressionCandidateCount = records.filter((r:any) => {
+              const ageMinutes = Math.floor(Math.max(0, now - Number(r.mtime_ms || now)) / 60000);
+              const sizeBytes = Number(r.size_bytes || 0);
+              return ageMinutes >= staleAfterMinutes || sizeBytes >= largeRecordThresholdBytes;
+            }).length;
+            const organizationCoverageScore = proofCount ? 35 : 0;
+            const freshnessOrganizationScore = staleProofCount === 0 ? 25 : Math.max(5, 25 - Math.min(20, staleProofCount * 2));
+            const sizeOrganizationScore = largeRecordCount === 0 ? 20 : Math.max(5, 20 - Math.min(15, largeRecordCount * 3));
+            const rawOrganizationScore = proofCount ? Math.round((proofsWithRawJson / proofCount) * 20) : 0;
+            const organizationSeedScore = Math.max(0, Math.min(100, organizationCoverageScore + freshnessOrganizationScore + sizeOrganizationScore + rawOrganizationScore));
+
             const proofCountScore = Math.min(40, proofCount * 4);
             const freshnessScore = latestAgeMs == null ? 0 : latestAgeMs <= 60 * 60 * 1000 ? 25 : latestAgeMs <= 24 * 60 * 60 * 1000 ? 15 : 5;
             const rawCoverageScore = proofCount ? Math.round((proofsWithRawJson / proofCount) * 20) : 0;
@@ -44017,6 +44040,22 @@ a{color:#93c5fd;text-decoration:none}
               latest_age_ms: latestAgeMs,
               latest_age_minutes: latestAgeMinutes,
               proofs_with_raw_json: proofsWithRawJson,
+              lifecycle_marker: "VOID_PUBLIC_NODE_LIFECYCLE_METRICS_V1",
+              oldest_proof_age_ms: oldestProofAgeMs,
+              oldest_proof_age_minutes: oldestProofAgeMinutes,
+              newest_proof_age_ms: newestProofAgeMs,
+              newest_proof_age_minutes: newestProofAgeMinutes,
+              total_public_proof_bytes: totalPublicProofBytes,
+              average_public_proof_size_bytes: averagePublicProofSizeBytes,
+              stale_proof_count: staleProofCount,
+              large_record_count: largeRecordCount,
+              compression_candidate_count: compressionCandidateCount,
+              organization_seed_score: organizationSeedScore,
+              lifecycle_policy: {
+                stale_after_minutes: staleAfterMinutes,
+                large_record_threshold_bytes: largeRecordThresholdBytes,
+                compression_candidate_rule: "stale_or_large_public_record"
+              },
               public_usefulness_seed_score: publicUsefulnessSeedScore,
               score_inputs: {
                 proof_count_score: proofCountScore,
@@ -44046,7 +44085,9 @@ a{color:#93c5fd;text-decoration:none}
                 viewer_path: r.viewer_path,
                 raw_path: r.raw_path,
                 share_path: r.share_path,
-                data_backing: r.data_backing
+                data_backing: r.data_backing,
+                age_minutes: Math.floor(Math.max(0, now - Number(r.mtime_ms || now)) / 60000),
+                compression_candidate: Math.floor(Math.max(0, now - Number(r.mtime_ms || now)) / 60000) >= staleAfterMinutes || Number(r.size_bytes || 0) >= largeRecordThresholdBytes
               })),
               public_private_boundary: {
                 owner_console_route: "/participant",
