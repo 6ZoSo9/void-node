@@ -44354,7 +44354,169 @@ a{color:#93c5fd;text-decoration:none}
           }
         });
 
-        APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
+        
+          APP.get("/public-node/link-health.json", async (_req:any, res:any) => { // VOID_PUBLIC_NODE_LINK_HEALTH_ROUTE_V1
+            // VOID_PUBLIC_NODE_LINK_HEALTH_V1
+            const startedAtMs = Date.now();
+            const port = Number(process.env.VOID_HTTP_PORT || process.env.PORT || 4100);
+            const host = "127.0.0.1";
+
+            function safeHealthProbePath(v:any) {
+              const raw = String(v || "").trim();
+              if (!raw.startsWith("/")) return "";
+              if (raw.includes("..")) return "";
+              if (raw.includes("\\\\")) return "";
+              if (raw.includes("/__void/participant")) return "";
+              if (raw.includes("/__void/buy-void")) return "";
+              if (raw.includes("/participant")) return "";
+              if (raw.includes("file://")) return "";
+              if (raw.includes("/home/")) return "";
+              if (raw.includes("data_a/datanet_v1/local_jobs")) return "";
+              if (!(raw.startsWith("/proof/") || raw.startsWith("/wc-proof-viewer?"))) return "";
+              return raw;
+            }
+
+            async function loopbackJson(pathname:any) {
+              const http = await import("http");
+              const pathText = String(pathname || "/");
+              return await new Promise<any>((resolve) => {
+                const req = http.request({
+                  hostname: host,
+                  port,
+                  path: pathText,
+                  method: "GET",
+                  timeout: 2500,
+                  headers: { "User-Agent": "VOID_PUBLIC_NODE_LINK_HEALTH_V1" }
+                }, (r:any) => {
+                  let body = "";
+                  r.setEncoding("utf8");
+                  r.on("data", (chunk:any) => { body += String(chunk || ""); if (body.length > 1024 * 1024) r.destroy(); });
+                  r.on("end", () => {
+                    try {
+                      resolve({ status: Number(r.statusCode || 0), body: JSON.parse(body || "{}") });
+                    } catch (_) {
+                      resolve({ status: Number(r.statusCode || 0), body: null });
+                    }
+                  });
+                });
+                req.on("timeout", () => { req.destroy(new Error("timeout")); });
+                req.on("error", (err:any) => resolve({ status: 0, error: String(err && err.message || err || "error") }));
+                req.end();
+              });
+            }
+
+            async function loopbackProbe(pathname:any) {
+              const http = await import("http");
+              const safePath = safeHealthProbePath(pathname);
+              if (!safePath) return { path: "", status: 0, ok: false, error: "unsafe_or_unsupported_public_path" };
+
+              return await new Promise<any>((resolve) => {
+                const req = http.request({
+                  hostname: host,
+                  port,
+                  path: safePath,
+                  method: "GET",
+                  timeout: 2500,
+                  headers: { "User-Agent": "VOID_PUBLIC_NODE_LINK_HEALTH_V1" }
+                }, (r:any) => {
+                  r.resume();
+                  r.on("end", () => {
+                    const status = Number(r.statusCode || 0);
+                    resolve({ path: safePath, status, ok: status >= 200 && status < 400 });
+                  });
+                });
+                req.on("timeout", () => { req.destroy(new Error("timeout")); });
+                req.on("error", (err:any) => resolve({ path: safePath, status: 0, ok: false, error: String(err && err.message || err || "error") }));
+                req.end();
+              });
+            }
+
+            try {
+              const intelligence = await loopbackJson("/public-node/intelligence.json");
+              const body = intelligence && intelligence.body ? intelligence.body : {};
+              const links = Array.isArray(body.retrieval_links) ? body.retrieval_links.slice(0, 12) : [];
+              const probes:any[] = [];
+
+              for (const link of links) {
+                const dataset = String(link && link.dataset || "");
+                const who = String(link && link.who || "");
+                const proofPath = safeHealthProbePath(link && link.proof_link);
+                const verifyPath = safeHealthProbePath(link && link.verify_link);
+
+                if (proofPath) {
+                  const proof = await loopbackProbe(proofPath);
+                  probes.push({ type: "proof", dataset, who, ...proof });
+                }
+                if (verifyPath) {
+                  const verify = await loopbackProbe(verifyPath);
+                  probes.push({ type: "verify", dataset, who, ...verify });
+                }
+              }
+
+              const probedLinkCount = probes.length;
+              const workingLinkCount = probes.filter((p:any) => p && p.ok === true).length;
+              const brokenLinkCount = Math.max(0, probedLinkCount - workingLinkCount);
+              const retrievalLinkHealthScore = probedLinkCount ? Math.round((workingLinkCount / probedLinkCount) * 100) : 0;
+
+              res.json({
+                ok: true,
+                marker: "VOID_PUBLIC_NODE_LINK_HEALTH_V1",
+                route: "/public-node/link-health.json",
+                generated_at_ms: Date.now(),
+                probe_duration_ms: Date.now() - startedAtMs,
+                source_marker: body.retrieval_links_marker || "",
+                retrieval_links_count: links.length,
+                probed_link_count: probedLinkCount,
+                working_link_count: workingLinkCount,
+                broken_link_count: brokenLinkCount,
+                retrieval_link_health_score: retrievalLinkHealthScore,
+                probes,
+                policy: {
+                  loopback_only: true,
+                  max_retrieval_links: 12,
+                  probe_types: ["proof", "verify"],
+                  public_paths_only: true,
+                  local_path_exposure: false,
+                  raw_filesystem_url_exposure: false,
+                  mutation: false,
+                  timeout_ms_per_probe: 2500
+                },
+                safety: {
+                  read_only: true,
+                  money_movement: false,
+                  wallet_send: false,
+                  wc_to_void_swap: false,
+                  buy_void_fulfillment: false,
+                  validator_mutation: false
+                }
+              });
+            } catch (e:any) {
+              res.status(500).json({
+                ok: false,
+                marker: "VOID_PUBLIC_NODE_LINK_HEALTH_V1",
+                route: "/public-node/link-health.json",
+                error: "link_health_probe_failed",
+                message: String(e && e.message || e || "error"),
+                policy: {
+                  loopback_only: true,
+                  public_paths_only: true,
+                  local_path_exposure: false,
+                  raw_filesystem_url_exposure: false,
+                  mutation: false
+                },
+                safety: {
+                  read_only: true,
+                  money_movement: false,
+                  wallet_send: false,
+                  wc_to_void_swap: false,
+                  buy_void_fulfillment: false,
+                  validator_mutation: false
+                }
+              });
+            }
+          });
+
+APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
 <html>
 <head>
@@ -44452,6 +44614,17 @@ a{color:#93c5fd;text-decoration:none}
         <b>Top public retrieval links</b>
         <p class="muted">Capped public proof candidates. Raw JSON is shown as availability only; no local filesystem paths are exposed.</p>
         <div id="publicNodeRetrievalLinksList" class="list">Loading retrieval links...</div>
+        <div class="card" id="publicNodeLinkHealthCard"><!-- VOID_PUBLIC_NODE_LINK_HEALTH_UI_V1 -->
+          <b>Retrieval link health</b>
+          <p class="muted" id="publicNodeLinkHealthSummary">Loading link health...</p>
+          <div class="grid">
+            <div class="card"><div class="muted">Health score</div><h2 id="publicNodeLinkHealthScore">--</h2></div>
+            <div class="card"><div class="muted">Working links</div><h2 id="publicNodeWorkingLinkCount">--</h2></div>
+            <div class="card"><div class="muted">Broken links</div><h2 id="publicNodeBrokenLinkCount">--</h2></div>
+            <div class="card"><div class="muted">Probed links</div><h2 id="publicNodeProbedLinkCount">--</h2></div>
+          </div>
+          <p class="muted">Health probes are read-only loopback GET checks against public proof and verifier links only.</p>
+        </div>
       </div>
     </section>
   </section>
@@ -44597,6 +44770,23 @@ a{color:#93c5fd;text-decoration:none}
     if (retrievalLinksBox) retrievalLinksBox.textContent = 'Public retrieval links unavailable right now.';
   });
 })();
+    // VOID_PUBLIC_NODE_LINK_HEALTH_SCRIPT_V1
+    try {
+      const h = await (await fetch('/public-node/link-health.json')).json();
+      setText('publicNodeLinkHealthSummary','Link health online · source='+(h.source_marker||'retrieval_links')+' · duration_ms='+String(h.probe_duration_ms==null?'?':h.probe_duration_ms));
+      setText('publicNodeLinkHealthScore',String(h.retrieval_link_health_score==null?'--':h.retrieval_link_health_score)+'/100');
+      setText('publicNodeWorkingLinkCount',String(h.working_link_count==null?'0':h.working_link_count));
+      setText('publicNodeBrokenLinkCount',String(h.broken_link_count==null?'0':h.broken_link_count));
+      setText('publicNodeProbedLinkCount',String(h.probed_link_count==null?'0':h.probed_link_count));
+    } catch(e) {
+      setText('publicNodeLinkHealthSummary','Public link health unavailable right now.');
+      setText('publicNodeLinkHealthScore','--');
+      setText('publicNodeWorkingLinkCount','--');
+      setText('publicNodeBrokenLinkCount','--');
+      setText('publicNodeProbedLinkCount','--');
+    }
+
+
 </script>
 </body>
 </html>`);
