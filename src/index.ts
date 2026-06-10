@@ -45169,6 +45169,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/quickstart.json", kind: "json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", use: "outside tester quickstart and local start command" },
       { path: "/public-node/tester-handoff.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_HANDOFF_V1", use: "single outside tester handoff packet" },
       { path: "/public-node/tester-result-receipt.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1", use: "outside tester result receipt template" },
+      { path: "/public-node/tester-bundle.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1", use: "single canonical outside tester bundle" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45427,6 +45428,40 @@ APP.get("/public-node/tester-result-receipt.json", (_req:any, res:any) => { // V
       "error_output=",
       "notes="
     ],
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+APP.get("/public-node/tester-bundle.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_BUNDLE_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const smokeCommand = 'PUBLIC_NODE_BASE="' + effectiveBaseUrl + '"; for p in /public-node /public-node/tester-bundle.json /public-node/quickstart.json /public-node/tester-handoff.json /public-node/tester-result-receipt.json /public-node/public-exposure-smoke-pack.json /public-node/route-index.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" >/dev/null && echo "ok $p"; done';
+  res.json({
+    marker: "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1",
+    purpose: "public_node_single_tester_bundle",
+    headline: "VOID public node tester bundle",
+    effective_base_url: effectiveBaseUrl,
+    start_here: effectiveBaseUrl + "/public-node",
+    quickstart: effectiveBaseUrl + "/public-node/quickstart.json",
+    handoff: effectiveBaseUrl + "/public-node/tester-handoff.json",
+    result_receipt: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
+    smoke_pack: effectiveBaseUrl + "/public-node/public-exposure-smoke-pack.json",
+    route_index: effectiveBaseUrl + "/public-node/route-index.json",
+    proofs: effectiveBaseUrl + "/proofs",
+    smoke_command: smokeCommand,
+    expected_success: "Smoke command prints ok for every public route.",
     policy: {
       public_routes_only: true,
       private_api: false,
@@ -45914,6 +45949,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <b>Tester result receipt</b>
           <p class="muted">Structured template for testers to paste back after running the public-node smoke check.</p>
           <p><code>/public-node/tester-result-receipt.json</code></p>
+        </div>
+
+        <div class="card" id="publicNodeTesterBundleCard"><!-- VOID_PUBLIC_NODE_TESTER_BUNDLE_UI_V1 -->
+          <b>Tester bundle</b>
+          <p class="muted">Single canonical packet linking quickstart, tester handoff, result receipt, smoke pack, route index, and proofs.</p>
+          <p><code>/public-node/tester-bundle.json</code></p>
         </div>
 </body>
 </html>`);
