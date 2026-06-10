@@ -45189,6 +45189,36 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
   });
 });
 
+
+APP.get("/public-node/tester-smoke.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_SMOKE_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_TESTER_SMOKE_V1",
+    purpose: "public_node_one_command_tester_smoke",
+    headline: "VOID public node one-command tester smoke",
+    smoke_command: 'BASE=\${PUBLIC_NODE_BASE:-http://127.0.0.1:4100}; for p in /public-node/route-index.json /public-node/share-pack.json /public-node/tester-checklist.json /public-node/client-work-pack.json /public-node/ai-readiness.json /proofs; do curl -fsS "$BASE$p" >/dev/null && echo "ok $p"; done',
+    checks: [
+      "/public-node/route-index.json",
+      "/public-node/share-pack.json",
+      "/public-node/tester-checklist.json",
+      "/public-node/client-work-pack.json",
+      "/public-node/ai-readiness.json",
+      "/proofs"
+    ],
+    expected_result: "Each public route returns successfully and prints ok.",
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
 <html>
@@ -45615,6 +45645,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p class="muted">Machine-readable registry of public routes and expected markers:</p>
           <p><code>/public-node/route-index.json</code></p>
           <p class="muted">Agents and testers can start here to discover safe public routes without touching private APIs.</p>
+        </div>
+
+        <div class="card" id="publicNodeTesterSmokeCard"><!-- VOID_PUBLIC_NODE_TESTER_SMOKE_UI_V1 -->
+          <b>One-command tester smoke</b>
+          <p class="muted">Copy-paste smoke command for public routes:</p>
+          <pre><code>BASE=\${PUBLIC_NODE_BASE:-http://127.0.0.1:4100}; for p in /public-node/route-index.json /public-node/share-pack.json /public-node/tester-checklist.json /public-node/client-work-pack.json /public-node/ai-readiness.json /proofs; do curl -fsS "$BASE$p" &gt;/dev/null &amp;&amp; echo "ok $p"; done</code></pre>
+          <p class="muted">Public routes only. No private APIs, wallet sends, swaps, buys, validator mutations, or proof-generation mutations.</p>
         </div>
 </body>
 </html>`);
