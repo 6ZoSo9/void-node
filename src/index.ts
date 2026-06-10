@@ -45171,6 +45171,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/tester-result-receipt.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1", use: "outside tester result receipt template" },
       { path: "/public-node/tester-bundle.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1", use: "single canonical outside tester bundle" },
       { path: "/public-node/share-link.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_LINK_V1", use: "copy-paste outside tester invite link" },
+      { path: "/public-node/tester-loop-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LOOP_STATUS_V1", use: "outside tester loop wiring status" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45494,6 +45495,55 @@ APP.get("/public-node/share-link.json", (_req:any, res:any) => { // VOID_PUBLIC_
     copy_paste_invite: "Want to test a VOID public node? Open " + publicNodeUrl + " and use the tester bundle at " + testerBundleUrl + ". It is public-route/read-only smoke testing only: no wallet sends, no swaps, no Buy VOID fulfillment, no validator mutation, and no money movement.",
     short_invite: "Test this VOID public node: " + publicNodeUrl,
     report_back: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+APP.get("/public-node/tester-loop-status.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_LOOP_STATUS_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  res.json({
+    marker: "VOID_PUBLIC_NODE_TESTER_LOOP_STATUS_V1",
+    purpose: "public_node_outside_tester_loop_status",
+    headline: "VOID public node outside tester loop status",
+    effective_base_url: effectiveBaseUrl,
+    loop_ready: true,
+    discovery_chain: [
+      "README.md",
+      "/public-node/share-link.json",
+      "/public-node",
+      "/public-node/tester-bundle.json",
+      "/public-node/tester-result-receipt.json"
+    ],
+    linked_routes: {
+      share_link: effectiveBaseUrl + "/public-node/share-link.json",
+      public_node: effectiveBaseUrl + "/public-node",
+      tester_bundle: effectiveBaseUrl + "/public-node/tester-bundle.json",
+      result_receipt: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
+      route_index: effectiveBaseUrl + "/public-node/route-index.json",
+      proofs: effectiveBaseUrl + "/proofs"
+    },
+    status: {
+      readme_pointer: true,
+      share_link: true,
+      public_node_page: true,
+      tester_bundle: true,
+      result_receipt: true,
+      route_index: true,
+      proofs: true
+    },
     policy: {
       public_routes_only: true,
       private_api: false,
@@ -45993,6 +46043,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <b>Share link</b>
           <p class="muted">Copy-paste tester invite linking the public node, tester bundle, and result receipt.</p>
           <p><code>/public-node/share-link.json</code></p>
+        </div>
+
+        <div class="card" id="publicNodeTesterLoopStatusCard"><!-- VOID_PUBLIC_NODE_TESTER_LOOP_STATUS_UI_V1 -->
+          <b>Tester loop status</b>
+          <p class="muted">Machine-readable status for the README → share link → public node → tester bundle → result receipt loop.</p>
+          <p><code>/public-node/tester-loop-status.json</code></p>
         </div>
 </body>
 </html>`);
