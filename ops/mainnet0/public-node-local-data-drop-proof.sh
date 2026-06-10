@@ -19,9 +19,11 @@ grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UI_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DOC_V1" docs/public/public-node-local-data-drop.md
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1_IMPORTED" ops/mainnet0/public-node-local-data-drop-import.sh
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_V1_GREEN" ops/mainnet0/public-node-local-data-drop-verify-object.sh
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_MANIFEST_V1_GREEN" ops/mainnet0/public-node-local-data-drop-verify-manifest.sh
 
 bash -n ops/mainnet0/public-node-local-data-drop-import.sh
 bash -n ops/mainnet0/public-node-local-data-drop-verify-object.sh
+bash -n ops/mainnet0/public-node-local-data-drop-verify-manifest.sh
 bash -n ops/mainnet0/public-node-route-manifest-proof.sh
 bash -n ops/mainnet0/public-node-self-check-snapshot-proof.sh
 
@@ -75,6 +77,9 @@ curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof/$EXPECTED_SHA.j
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/manifest.json" > "$OUT/local-data-drop-manifest.json"
 ops/mainnet0/public-node-local-data-drop-verify-object.sh "$BASE" "$EXPECTED_SHA" "$OUT/client-verify" > "$OUT/client-verify.log"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_V1_GREEN" "$OUT/client-verify.log"
+ops/mainnet0/public-node-local-data-drop-verify-manifest.sh "$BASE" "$OUT/client-manifest-verify" > "$OUT/client-manifest-verify.log"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_MANIFEST_V1_GREEN" "$OUT/client-manifest-verify.log"
+grep -Fq "object_verifier_chain_green=true" "$OUT/client-manifest-verify.log"
 curl --max-time 10 -fsS "$BASE/public-node" > "$OUT/public-node.html"
 curl --max-time 10 -fsS "$BASE/public-node/route-manifest.json" > "$OUT/route-manifest.json"
 curl --max-time 10 -fsS "$BASE/public-node/self-check-snapshot.json" > "$OUT/self-check-snapshot.json"
@@ -201,6 +206,8 @@ echo "content_address_sha256_fetch=true"
 echo "public_object_proof_valid=true"
 echo "client_verify_object_green=true"
 echo "manifest_root_verified=true"
+echo "client_verify_manifest_green=true"
+echo "object_verifier_chain_green=true"
 echo "receipt_valid_for_current_object=true"
 echo "route_manifest_route_count=25"
 echo "self_check_expected_route_count=25"

@@ -79,3 +79,11 @@ The manifest includes object IDs, byte sizes, SHA-256 hashes, receipt metadata, 
     VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_ROOT_V1
 
 This gives the public storage lane a verifiable state root over the currently served object set.
+
+## Manifest verifier <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_MANIFEST_DOC_V1 -->
+
+Clients can verify the public storage manifest and every listed object:
+
+    ops/mainnet0/public-node-local-data-drop-verify-manifest.sh <base-url>
+
+The verifier fetches the manifest, recomputes the manifest root, then chains through object proof and object-byte verification for each listed SHA-256.
