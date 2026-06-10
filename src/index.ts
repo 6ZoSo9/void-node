@@ -46191,6 +46191,7 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
         sha256,
         href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(String(name)),
         href_by_sha256: effectiveBaseUrl + "/public-node/local-data-drop/by-sha256/" + sha256,
+        proof_href: effectiveBaseUrl + "/public-node/local-data-drop/proof/" + sha256 + ".json",
         receipt_marker: receipt && receipt.marker || null,
         receipt_sha256: receipt && receipt.sha256 || null,
         receipt_imported_at: receipt && receipt.imported_at || null,
