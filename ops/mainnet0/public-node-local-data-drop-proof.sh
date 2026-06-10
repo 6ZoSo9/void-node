@@ -73,10 +73,14 @@ done
 
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof-sample.txt" > "$OUT/fetched-sample.txt"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/by-sha256/$EXPECTED_SHA" > "$OUT/fetched-sample-by-sha256.txt"
+curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/by-sha256/$EXPECTED_SHA2" > "$OUT/fetched-sample-2-by-sha256.txt"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof/$EXPECTED_SHA.json" > "$OUT/object-proof.json"
+curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof/$EXPECTED_SHA2.json" > "$OUT/object-proof-2.json"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/manifest.json" > "$OUT/local-data-drop-manifest.json"
 ops/mainnet0/public-node-local-data-drop-verify-object.sh "$BASE" "$EXPECTED_SHA" "$OUT/client-verify" > "$OUT/client-verify.log"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_V1_GREEN" "$OUT/client-verify.log"
+ops/mainnet0/public-node-local-data-drop-verify-object.sh "$BASE" "$EXPECTED_SHA2" "$OUT/client-verify-2" > "$OUT/client-verify-2.log"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_V1_GREEN" "$OUT/client-verify-2.log"
 ops/mainnet0/public-node-local-data-drop-verify-manifest.sh "$BASE" "$OUT/client-manifest-verify" > "$OUT/client-manifest-verify.log"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_MANIFEST_V1_GREEN" "$OUT/client-manifest-verify.log"
 grep -Fq "object_verifier_chain_green=true" "$OUT/client-manifest-verify.log"
@@ -91,14 +95,16 @@ FETCHED_BY_SHA256_SHA="$(sha256sum "$OUT/fetched-sample-by-sha256.txt" | awk '{p
 test "$FETCHED_SHA" = "$EXPECTED_SHA"
 test "$FETCHED_BY_SHA256_SHA" = "$EXPECTED_SHA"
 
-node - "$OUT/local-data-drop.json" "$OUT/route-manifest.json" "$OUT/self-check-snapshot.json" "$OUT/object-proof.json" "$OUT/local-data-drop-manifest.json" "$EXPECTED_SHA" <<'NODE'
+node - "$OUT/local-data-drop.json" "$OUT/route-manifest.json" "$OUT/self-check-snapshot.json" "$OUT/object-proof.json" "$OUT/object-proof-2.json" "$OUT/local-data-drop-manifest.json" "$EXPECTED_SHA" "$EXPECTED_SHA2" <<'NODE'
 const fs = require("fs");
 const index = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const manifest = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 const snap = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
 const proof = JSON.parse(fs.readFileSync(process.argv[5], "utf8"));
-const storageManifest = JSON.parse(fs.readFileSync(process.argv[6], "utf8"));
-const expectedSha = process.argv[7];
+const proof2 = JSON.parse(fs.readFileSync(process.argv[6], "utf8"));
+const storageManifest = JSON.parse(fs.readFileSync(process.argv[7], "utf8"));
+const expectedSha = process.argv[8];
+const expectedSha2 = process.argv[9];
 const crypto = require("crypto");
 
 function ok(x, msg) {
@@ -112,8 +118,13 @@ ok(index.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", "index marker")
 ok(index.status === "local_data_drop_ready", "status");
 ok(index.manifest_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", "index manifest marker");
 ok(index.manifest_href === "http://127.0.0.1:4150/public-node/local-data-drop/manifest.json", "index manifest href");
-ok(index.object_count === 1, "object count");
-ok(index.objects[0].object_id === "proof-sample.txt", "object id");
+ok(index.object_count === 2, "object count");
+ok(index.objects.some(o => o.object_id === "proof-sample.txt" && o.sha256 === expectedSha), "object 1 id/sha");
+ok(index.objects.some(o => o.object_id === "proof-sample-2.txt" && o.sha256 === expectedSha2), "object 2 id/sha");
+const object1 = index.objects.find(o => o.object_id === "proof-sample.txt");
+const object2 = index.objects.find(o => o.object_id === "proof-sample-2.txt");
+ok(object1, "object 1 present");
+ok(object2, "object 2 present");
 ok(index.objects[0].sha256 === expectedSha, "sha256");
 ok(index.objects[0].href === "http://127.0.0.1:4150/public-node/local-data-drop/proof-sample.txt", "href");
 ok(index.objects[0].href_by_sha256 === "http://127.0.0.1:4150/public-node/local-data-drop/by-sha256/" + expectedSha, "href by sha256");
@@ -138,16 +149,29 @@ ok(proof.public_upload === false, "proof no public upload");
 ok(proof.operator_local_import_only === true, "proof operator local only");
 ok(proof.public_read_only === true, "proof public read only");
 ok(proof.trusted_as_network_truth === false, "proof not network truth");
+ok(proof2.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", "proof 2 marker");
+ok(proof2.object_id === "proof-sample-2.txt", "proof 2 object id");
+ok(proof2.sha256 === expectedSha2, "proof 2 sha");
+ok(proof2.receipt_sha256 === expectedSha2, "proof 2 receipt sha");
+ok(proof2.receipt_valid_for_current_object === true, "proof 2 receipt valid");
+ok(proof2.public_upload === false, "proof 2 no public upload");
+ok(proof2.operator_local_import_only === true, "proof 2 operator local only");
+ok(proof2.public_read_only === true, "proof 2 public read only");
+ok(proof2.trusted_as_network_truth === false, "proof 2 not network truth");
 
 ok(storageManifest.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", "storage manifest marker");
 ok(storageManifest.manifest_root_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_ROOT_V1", "storage manifest root marker");
 ok(/^[a-f0-9]{64}$/.test(storageManifest.manifest_root_sha256), "storage manifest root sha shape");
-ok(storageManifest.object_count === 1, "storage manifest object count");
-ok(storageManifest.total_bytes === index.objects[0].bytes, "storage manifest total bytes");
-ok(storageManifest.objects[0].object_id === "proof-sample.txt", "storage manifest object id");
-ok(storageManifest.objects[0].sha256 === expectedSha, "storage manifest object sha");
-ok(storageManifest.objects[0].proof_href === "http://127.0.0.1:4150/public-node/local-data-drop/proof/" + expectedSha + ".json", "storage manifest proof href");
-ok(storageManifest.objects[0].receipt_valid_for_current_object === true, "storage manifest receipt valid");
+ok(storageManifest.object_count === 2, "storage manifest object count");
+ok(storageManifest.total_bytes === object1.bytes + object2.bytes, "storage manifest total bytes");
+ok(storageManifest.objects.some(o => o.object_id === "proof-sample.txt" && o.sha256 === expectedSha), "storage manifest object 1 id/sha");
+ok(storageManifest.objects.some(o => o.object_id === "proof-sample-2.txt" && o.sha256 === expectedSha2), "storage manifest object 2 id/sha");
+const manifestObject1 = storageManifest.objects.find(o => o.object_id === "proof-sample.txt");
+const manifestObject2 = storageManifest.objects.find(o => o.object_id === "proof-sample-2.txt");
+ok(manifestObject1.proof_href === "http://127.0.0.1:4150/public-node/local-data-drop/proof/" + expectedSha + ".json", "storage manifest proof 1 href");
+ok(manifestObject2.proof_href === "http://127.0.0.1:4150/public-node/local-data-drop/proof/" + expectedSha2 + ".json", "storage manifest proof 2 href");
+ok(manifestObject1.receipt_valid_for_current_object === true, "storage manifest receipt 1 valid");
+ok(manifestObject2.receipt_valid_for_current_object === true, "storage manifest receipt 2 valid");
 const recomputedRoot = crypto.createHash("sha256").update(JSON.stringify(storageManifest.root_payload)).digest("hex");
 ok(recomputedRoot === storageManifest.manifest_root_sha256, "storage manifest root recomputes");
 
@@ -197,15 +221,19 @@ echo "doc=docs/public/public-node-local-data-drop.md"
 echo "import_helper=ops/mainnet0/public-node-local-data-drop-import.sh"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
-echo "object_count=1"
+echo "object_count=2"
 echo "object_id=proof-sample.txt"
+echo "object_id_2=proof-sample-2.txt"
 echo "object_sha256=$EXPECTED_SHA"
+echo "object_sha256_2=$EXPECTED_SHA2"
 echo "fetch_sha256=$FETCHED_SHA"
 echo "fetch_by_sha256_sha=$FETCHED_BY_SHA256_SHA"
 echo "content_address_sha256_fetch=true"
 echo "public_object_proof_valid=true"
 echo "client_verify_object_green=true"
 echo "manifest_root_verified=true"
+echo "multi_object_manifest_green=true"
+echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MULTI_OBJECT_MANIFEST_V1"
 echo "client_verify_manifest_green=true"
 echo "object_verifier_chain_green=true"
 echo "receipt_valid_for_current_object=true"

@@ -87,3 +87,17 @@ Clients can verify the public storage manifest and every listed object:
     ops/mainnet0/public-node-local-data-drop-verify-manifest.sh <base-url>
 
 The verifier fetches the manifest, recomputes the manifest root, then chains through object proof and object-byte verification for each listed SHA-256.
+
+## Multi-object manifest proof <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MULTI_OBJECT_MANIFEST_DOC_V1 -->
+
+The proof lane imports multiple deterministic local objects and verifies that:
+
+- the public manifest lists the full served object set,
+- the manifest root recomputes from the public root payload,
+- every object has a valid receipt,
+- every object has proof JSON,
+- and the client manifest verifier chains through object-byte verification for each SHA-256.
+
+Marker:
+
+    VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MULTI_OBJECT_MANIFEST_V1
