@@ -45174,6 +45174,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/tester-loop-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LOOP_STATUS_V1", use: "outside tester loop wiring status" },
       { path: "/public-node/outside-tester-smoke.json", kind: "json", marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1", use: "outside tester smoke command surface" },
       { path: "/public-node/self-check-snapshot.json", kind: "json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", use: "public node self-check health snapshot" },
+      { path: "/public-node/route-manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", use: "canonical public node route manifest" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45535,6 +45536,7 @@ APP.get("/public-node/tester-loop-status.json", (_req:any, res:any) => { // VOID
       tester_bundle: effectiveBaseUrl + "/public-node/tester-bundle.json",
       result_receipt: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
       route_index: effectiveBaseUrl + "/public-node/route-index.json",
+      route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
       proofs: effectiveBaseUrl + "/proofs"
     },
     status: {
@@ -45607,6 +45609,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
   const expectedRoutes = [
     "/public-node",
     "/public-node/self-check-snapshot.json",
+    "/public-node/route-manifest.json",
     "/public-node/share-link.json",
     "/public-node/tester-bundle.json",
     "/public-node/outside-tester-smoke.json",
@@ -45628,6 +45631,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     links: {
       public_node: effectiveBaseUrl + "/public-node",
       route_index: effectiveBaseUrl + "/public-node/route-index.json",
+      route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
       smoke_surface: effectiveBaseUrl + "/public-node/outside-tester-smoke.json",
       tester_bundle: effectiveBaseUrl + "/public-node/tester-bundle.json",
       result_receipt: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
@@ -45636,6 +45640,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     checks: {
       self_check_snapshot: true,
       route_index_present: true,
+      route_manifest_present: true,
       outside_tester_smoke_surface_present: true,
       tester_loop_status_present: true,
       tester_bundle_present: true,
@@ -45643,6 +45648,47 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       public_proofs_present: true,
       externally_testable: true
     },
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_ROUTE_MANIFEST_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const routes = [
+    { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
+    { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
+    { path: "/public-node/self-check-snapshot.json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", purpose: "externally testable read-only health snapshot", safety_class: "public_read_only" },
+    { path: "/public-node/share-link.json", marker: "VOID_PUBLIC_NODE_SHARE_LINK_V1", purpose: "copyable public tester share link", safety_class: "public_read_only" },
+    { path: "/public-node/tester-bundle.json", marker: "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1", purpose: "outside tester route bundle", safety_class: "public_read_only" },
+    { path: "/public-node/outside-tester-smoke.json", marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1", purpose: "outside tester smoke command surface", safety_class: "public_read_only" },
+    { path: "/public-node/tester-loop-status.json", marker: "VOID_PUBLIC_NODE_TESTER_LOOP_STATUS_V1", purpose: "tester loop wiring readiness", safety_class: "public_read_only" },
+    { path: "/public-node/tester-result-receipt.json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1", purpose: "tester result receipt schema", safety_class: "public_read_only" },
+    { path: "/public-node/quickstart.json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", purpose: "public node quickstart", safety_class: "public_read_only" },
+    { path: "/public-node/tester-handoff.json", marker: "VOID_PUBLIC_NODE_TESTER_HANDOFF_V1", purpose: "outside tester handoff", safety_class: "public_read_only" },
+    { path: "/public-node/public-exposure-smoke-pack.json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", purpose: "public exposure smoke pack", safety_class: "public_read_only" },
+    { path: "/public-node/route-index.json", marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", purpose: "public node route index", safety_class: "public_read_only" },
+    { path: "/proofs", marker: "VOID_PUBLIC_PROOFS_INDEX_V1", purpose: "public proofs index", safety_class: "public_read_only" }
+  ];
+  res.json({
+    marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1",
+    purpose: "canonical_public_node_route_manifest",
+    status: "public_node_route_manifest_ready",
+    effective_base_url: effectiveBaseUrl,
+    route_count: routes.length,
+    routes,
     policy: {
       public_routes_only: true,
       private_api: false,
@@ -46160,6 +46206,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <b>Self-check snapshot</b>
           <p class="muted">Live public health object for the externally testable read-only node surface.</p>
           <p><code>/public-node/self-check-snapshot.json</code></p>
+        </div>
+
+        <div class="card" id="publicNodeRouteManifestCard"><!-- VOID_PUBLIC_NODE_ROUTE_MANIFEST_UI_V1 -->
+          <b>Route manifest</b>
+          <p class="muted">Canonical machine-readable map of public node routes, markers, purposes, and safety class.</p>
+          <p><code>/public-node/route-manifest.json</code></p>
         </div>
 </body>
 </html>`);
