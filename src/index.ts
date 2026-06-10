@@ -45167,6 +45167,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
       { path: "/public-node/public-exposure-smoke-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", use: "copyable public exposure smoke command" },
       { path: "/public-node/quickstart.json", kind: "json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", use: "outside tester quickstart and local start command" },
+      { path: "/public-node/tester-handoff.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_HANDOFF_V1", use: "single outside tester handoff packet" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45333,6 +45334,46 @@ APP.get("/public-node/quickstart.json", (_req:any, res:any) => { // VOID_PUBLIC_
       "/public-node/public-exposure-smoke-pack.json",
       "/proofs"
     ],
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+APP.get("/public-node/tester-handoff.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_HANDOFF_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const smokeCommand = 'PUBLIC_NODE_BASE="' + effectiveBaseUrl + '"; for p in /public-node /public-node/quickstart.json /public-node/tester-handoff.json /public-node/route-index.json /public-node/external-base-url.json /public-node/public-exposure-smoke-pack.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" >/dev/null && echo "ok $p"; done';
+  res.json({
+    marker: "VOID_PUBLIC_NODE_TESTER_HANDOFF_V1",
+    purpose: "public_node_outside_tester_handoff",
+    headline: "VOID public node tester handoff",
+    effective_base_url: effectiveBaseUrl,
+    open_first: effectiveBaseUrl + "/public-node",
+    quickstart: effectiveBaseUrl + "/public-node/quickstart.json",
+    smoke_pack: effectiveBaseUrl + "/public-node/public-exposure-smoke-pack.json",
+    smoke_command: smokeCommand,
+    expected_success: [
+      "The /public-node page loads.",
+      "The smoke command prints ok for every checked public route.",
+      "No wallet, swap, buy, validator, private API, or mutation action is required."
+    ],
+    report_back_template: {
+      node_url: effectiveBaseUrl,
+      smoke_result: "paste ok lines here",
+      browser_result: "public node page loaded: yes/no",
+      notes: "anything confusing or broken"
+    },
     policy: {
       public_routes_only: true,
       private_api: false,
@@ -45808,6 +45849,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p class="muted">Start here if you are testing a public VOID node from a clean machine or public URL.</p>
           <p><code>/public-node/quickstart.json</code></p>
           <p class="muted">Includes a local isolated start command, public smoke command, and safety boundary.</p>
+        </div>
+
+        <div class="card" id="publicNodeTesterHandoffCard"><!-- VOID_PUBLIC_NODE_TESTER_HANDOFF_UI_V1 -->
+          <b>Tester handoff</b>
+          <p class="muted">One packet to send to an outside tester: what to open, what to run, what success looks like, and what is not enabled.</p>
+          <p><code>/public-node/tester-handoff.json</code></p>
         </div>
 </body>
 </html>`);
