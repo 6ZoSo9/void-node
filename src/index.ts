@@ -45071,6 +45071,41 @@ a{color:#93c5fd;text-decoration:none}
             res.json({ ok:true, marker:"VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", route:"/public-node/client-work-pack.json", purpose:"agent_and_client_bootstrap_pack", public_routes:["/public-node","/public-node/intelligence.json","/public-node/link-health.json","/public-node/data-quality.json","/public-node/ai-readiness.json","/public-node/fresh-proof-seed.json","/public-node/requester-work-policy.json","/proofs"], node_serves:["proofs","chunks","manifests","minimal_indexes","bounded_summaries"], client_should:["fetch_public_routes","verify_proofs","check_link_health","rank_results_locally","cache_results_locally","retry_failed_public_links","avoid_private_owner_routes"], requester_work_default:true, policy:{ public_pack_only:true, local_path_exposure:false, raw_filesystem_url_exposure:false, mutation:false }, safety:{ read_only:true, money_movement:false, wallet_send:false, wc_to_void_swap:false, buy_void_fulfillment:false, validator_mutation:false } });
           });
 
+
+APP.get("/public-node/share-pack.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_SHARE_PACK_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1",
+    purpose: "public_node_share_pack",
+    headline: "VOID public node is online",
+    summary: "Start at /public-node, fetch the client work pack, use public routes only, and verify proofs client-side.",
+    public_routes: [
+      "/public-node",
+      "/public-node/share-pack.json",
+      "/public-node/client-work-pack.json",
+      "/public-node/ai-readiness.json",
+      "/public-node/fresh-proof-seed.json",
+      "/public-node/requester-work-policy.json",
+      "/proofs"
+    ],
+    share_text: {
+      short: "VOID public node is online. Open /public-node, fetch /public-node/client-work-pack.json, and verify proofs client-side.",
+      tester: "Start at /public-node. Use public routes only. Clients should verify proofs, cache locally, rank locally, and retry failed public links."
+    },
+    policy: {
+      public_routes_only: true,
+      owner_routes: false,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
 <html>
@@ -45470,6 +45505,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
             <li><code>/proofs</code> — public proofs index</li>
           </ul>
           <p class="muted">Share public routes only. Do not use private owner routes.</p>
+        </div>
+
+        <div class="card" id="publicNodeSharePackCard"><!-- VOID_PUBLIC_NODE_SHARE_PACK_UI_V1 -->
+          <b>Share pack</b>
+          <p class="muted">One clean public payload for testers and agents:</p>
+          <p><code>/public-node/share-pack.json</code></p>
+          <p class="muted">Share text: VOID public node is online. Open <code>/public-node</code>, fetch <code>/public-node/client-work-pack.json</code>, and verify proofs client-side.</p>
         </div>
 </body>
 </html>`);
