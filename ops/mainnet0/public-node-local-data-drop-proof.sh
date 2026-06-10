@@ -68,13 +68,17 @@ for i in $(seq 1 100); do
 done
 
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof-sample.txt" > "$OUT/fetched-sample.txt"
+curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/by-sha256/$EXPECTED_SHA" > "$OUT/fetched-sample-by-sha256.txt"
 curl --max-time 10 -fsS "$BASE/public-node" > "$OUT/public-node.html"
 curl --max-time 10 -fsS "$BASE/public-node/route-manifest.json" > "$OUT/route-manifest.json"
 curl --max-time 10 -fsS "$BASE/public-node/self-check-snapshot.json" > "$OUT/self-check-snapshot.json"
 
 cmp "$OUT/sample.txt" "$OUT/fetched-sample.txt"
+cmp "$OUT/sample.txt" "$OUT/fetched-sample-by-sha256.txt"
 FETCHED_SHA="$(sha256sum "$OUT/fetched-sample.txt" | awk '{print $1}')"
+FETCHED_BY_SHA256_SHA="$(sha256sum "$OUT/fetched-sample-by-sha256.txt" | awk '{print $1}')"
 test "$FETCHED_SHA" = "$EXPECTED_SHA"
+test "$FETCHED_BY_SHA256_SHA" = "$EXPECTED_SHA"
 
 node - "$OUT/local-data-drop.json" "$OUT/route-manifest.json" "$OUT/self-check-snapshot.json" "$EXPECTED_SHA" <<'NODE'
 const fs = require("fs");
@@ -96,6 +100,8 @@ ok(index.object_count === 1, "object count");
 ok(index.objects[0].object_id === "proof-sample.txt", "object id");
 ok(index.objects[0].sha256 === expectedSha, "sha256");
 ok(index.objects[0].href === "http://127.0.0.1:4150/public-node/local-data-drop/proof-sample.txt", "href");
+ok(index.objects[0].href_by_sha256 === "http://127.0.0.1:4150/public-node/local-data-drop/by-sha256/" + expectedSha, "href by sha256");
+ok(index.public_content_address_route_template === "/public-node/local-data-drop/by-sha256/:sha256", "content address route template");
 ok(index.receipt_ledger_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1", "receipt ledger marker");
 ok(index.objects[0].receipt_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1", "object receipt marker");
 ok(index.objects[0].receipt_sha256 === expectedSha, "object receipt sha");
@@ -111,11 +117,13 @@ ok(index.policy.validator_mutation === false, "no validator");
 ok(index.policy.trusted_as_network_truth === false, "not network truth");
 
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop.json" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1"), "manifest has index");
+ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/by-sha256/:sha256" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1"), "manifest has content address route");
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/:objectId" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1"), "manifest has object route");
-ok(manifest.route_count === 22, "manifest route count 22");
+ok(manifest.route_count === 23, "manifest route count 23");
 ok(snap.expected_routes.includes("/public-node/local-data-drop.json"), "self-check has index");
+ok(snap.expected_routes.includes("/public-node/local-data-drop/by-sha256/:sha256"), "self-check has content address route");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/:objectId"), "self-check has object route");
-ok(snap.expected_route_count === 22, "self-check route count 22");
+ok(snap.expected_route_count === 23, "self-check route count 23");
 
 console.log("[ok] json local data drop");
 NODE
@@ -128,6 +136,8 @@ echo "import_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1"
 echo "receipt_ledger_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1"
 echo "route=/public-node/local-data-drop.json"
 echo "object_route=/public-node/local-data-drop/:objectId"
+echo "content_address_route=/public-node/local-data-drop/by-sha256/:sha256"
+echo "content_address_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1"
 echo "ui_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UI_V1"
 echo "doc=docs/public/public-node-local-data-drop.md"
 echo "import_helper=ops/mainnet0/public-node-local-data-drop-import.sh"
@@ -137,9 +147,11 @@ echo "object_count=1"
 echo "object_id=proof-sample.txt"
 echo "object_sha256=$EXPECTED_SHA"
 echo "fetch_sha256=$FETCHED_SHA"
+echo "fetch_by_sha256_sha=$FETCHED_BY_SHA256_SHA"
+echo "content_address_sha256_fetch=true"
 echo "receipt_valid_for_current_object=true"
-echo "route_manifest_route_count=22"
-echo "self_check_expected_route_count=22"
+echo "route_manifest_route_count=23"
+echo "self_check_expected_route_count=23"
 echo "public_upload=false"
 echo "operator_local_import_only=true"
 echo "public_read_only=true"

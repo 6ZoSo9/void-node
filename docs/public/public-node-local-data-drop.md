@@ -43,3 +43,11 @@ Receipt marker:
     VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1
 
 The public index exposes receipt metadata and whether the receipt matches the currently served object bytes.
+
+## Content-address fetch <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_DOC_V1 -->
+
+Objects can also be fetched by SHA-256:
+
+    /public-node/local-data-drop/by-sha256/:sha256
+
+This lets clients retrieve the object by content hash instead of object ID.

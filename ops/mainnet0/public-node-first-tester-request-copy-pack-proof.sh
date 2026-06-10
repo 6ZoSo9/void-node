@@ -113,9 +113,9 @@ ok(pack.safety_boundary.validator_mutation === false, "validator false");
 ok(pack.safety_boundary.trusted_as_network_truth === false, "network truth false");
 
 ok(manifest.routes.some(r => r.path === "/public-node/first-tester-request-copy-pack.json" && r.marker === "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1"), "manifest has copy pack");
-ok(manifest.route_count === 22, "manifest route count 20");
+ok(manifest.route_count === 23, "manifest route count 20");
 ok(snap.expected_routes.includes("/public-node/first-tester-request-copy-pack.json"), "self-check has copy pack");
-ok(snap.expected_route_count === 22, "self-check route count 20");
+ok(snap.expected_route_count === 23, "self-check route count 20");
 ok(external.copy_pack.first_tester_request_copy_pack_url === "http://127.0.0.1:4149/public-node/first-tester-request-copy-pack.json", "external pack has first tester copy pack url");
 ok(lane.marker === "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", "lane summary still green route");
 
@@ -134,8 +134,8 @@ echo "status=first_tester_request_copy_ready"
 echo "tester_share_route=/public-node/tester-share"
 echo "tester_lane_summary_route=/public-node/tester-lane-summary.json"
 echo "standalone_script_route=/public-node/standalone-outside-tester-smoke.sh"
-echo "route_manifest_route_count=22"
-echo "self_check_expected_route_count=22"
+echo "route_manifest_route_count=23"
+echo "self_check_expected_route_count=23"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "receipt_file=tester-receipt.json"
 echo "reddit_copy=true"

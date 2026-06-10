@@ -124,9 +124,9 @@ ok(summary.policy.validator_mutation === false, "validator mutation false");
 ok(summary.policy.trusted_as_network_truth === false, "not network truth");
 
 ok(manifest.routes.some(r => r.path === "/public-node/tester-lane-summary.json" && r.marker === "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1"), "manifest has tester lane summary");
-ok(manifest.route_count === 22, "manifest route count 19");
+ok(manifest.route_count === 23, "manifest route count 19");
 ok(snap.expected_routes.includes("/public-node/tester-lane-summary.json"), "self-check has tester lane summary");
-ok(snap.expected_route_count === 22, "self-check route count 19");
+ok(snap.expected_route_count === 23, "self-check route count 19");
 ok(pack.copy_pack.tester_lane_summary_url === "http://127.0.0.1:4148/public-node/tester-lane-summary.json", "copy pack lane summary url");
 ok(shareHtml.includes("VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1"), "share page still present");
 
@@ -151,8 +151,8 @@ echo "import_helper_available=true"
 echo "agent_discovery_ready=true"
 echo "route_manifest_ready=true"
 echo "self_check_snapshot_ready=true"
-echo "route_manifest_route_count=22"
-echo "self_check_expected_route_count=22"
+echo "route_manifest_route_count=23"
+echo "self_check_expected_route_count=23"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "expected_receipt_marker=VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1"
 echo "receipt_file=tester-receipt.json"

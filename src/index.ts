@@ -45183,6 +45183,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
       { path: "/public-node/first-tester-request-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1", use: "first outside tester request copy pack" },
       { path: "/public-node/local-data-drop.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", use: "operator-local public data drop index" },
+      { path: "/public-node/local-data-drop/by-sha256/:sha256", kind: "binary", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", use: "operator-local public data content-address fetch" },
       { path: "/public-node/local-data-drop/:objectId", kind: "binary", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", use: "operator-local public data object fetch" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
@@ -45624,6 +45625,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/tester-lane-summary.json",
     "/public-node/first-tester-request-copy-pack.json",
     "/public-node/local-data-drop.json",
+    "/public-node/local-data-drop/by-sha256/:sha256",
     "/public-node/local-data-drop/:objectId",
     "/public-node",
     "/public-node/self-check-snapshot.json",
@@ -45710,6 +45712,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/tester-lane-summary.json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", purpose: "outside tester lane readiness summary", safety_class: "public_read_only_summary" },
     { path: "/public-node/first-tester-request-copy-pack.json", marker: "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1", purpose: "first outside tester request copy pack", safety_class: "public_read_only_copy_pack" },
     { path: "/public-node/local-data-drop.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", purpose: "operator-local public data drop index", safety_class: "public_read_only_local_file_index" },
+    { path: "/public-node/local-data-drop/by-sha256/:sha256", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", purpose: "operator-local public data content-address fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node/local-data-drop/:objectId", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", purpose: "operator-local public data object fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
@@ -46184,6 +46187,7 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
         bytes: st.size,
         sha256,
         href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(String(name)),
+        href_by_sha256: effectiveBaseUrl + "/public-node/local-data-drop/by-sha256/" + sha256,
         receipt_marker: receipt && receipt.marker || null,
         receipt_sha256: receipt && receipt.sha256 || null,
         receipt_imported_at: receipt && receipt.imported_at || null,
@@ -46203,6 +46207,7 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
     operator_local_drop_dir: "DATA_DIR/public-node/local-data-drop/objects",
     operator_local_receipt_dir: "DATA_DIR/public-node/local-data-drop/receipts",
     public_fetch_route_template: "/public-node/local-data-drop/:objectId",
+    public_content_address_route_template: "/public-node/local-data-drop/by-sha256/:sha256",
     policy: {
       public_upload: false,
       operator_local_import_only: true,
@@ -46217,6 +46222,39 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
     }
   });
 });
+
+
+APP.get("/public-node/local-data-drop/by-sha256/:sha256", (req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_ROUTE_V1
+  const fs = require("fs");
+  const path = require("path");
+  const crypto = require("crypto");
+  const sha256 = String(req.params.sha256 || "").toLowerCase();
+
+  if (!/^[a-f0-9]{64}$/.test(sha256)) {
+    return res.status(400).json({ error: "invalid_sha256", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1" });
+  }
+
+  const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
+  const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
+  fs.mkdirSync(dropDir, { recursive: true });
+
+  const names = fs.readdirSync(dropDir).filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+  for (const name of names) {
+    const filePath = path.join(dropDir, String(name));
+    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) continue;
+    const buf = fs.readFileSync(filePath);
+    const fileSha = crypto.createHash("sha256").update(buf).digest("hex");
+    if (fileSha === sha256) {
+      res.setHeader("X-VOID-Marker", "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1");
+      res.setHeader("X-VOID-Object-Id", String(name));
+      res.setHeader("X-VOID-SHA256", fileSha);
+      return res.type("application/octet-stream").send(buf);
+    }
+  }
+
+  return res.status(404).json({ error: "sha256_not_found", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1" });
+});
+
 
 APP.get("/public-node/local-data-drop/:objectId", (req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_ROUTE_V1
   const fs = require("fs");
