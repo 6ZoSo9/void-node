@@ -51,3 +51,11 @@ Objects can also be fetched by SHA-256:
     /public-node/local-data-drop/by-sha256/:sha256
 
 This lets clients retrieve the object by content hash instead of object ID.
+
+## Public object proof <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_DOC_V1 -->
+
+Clients can fetch a JSON proof bundle by SHA-256:
+
+    /public-node/local-data-drop/proof/:sha256.json
+
+The proof includes object ID, byte size, SHA-256, object fetch URL, content-address fetch URL, receipt metadata, and whether the receipt matches the currently served object.

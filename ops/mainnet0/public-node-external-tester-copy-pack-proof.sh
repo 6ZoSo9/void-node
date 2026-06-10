@@ -101,9 +101,9 @@ ok(pack.policy.buy_void_fulfillment === false, "no buy fulfillment");
 ok(pack.policy.validator_mutation === false, "no validator mutation");
 
 ok(manifest.routes.some(r => r.path === "/public-node/external-tester-copy-pack.json" && r.marker === "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1"), "manifest has copy pack");
-ok(manifest.route_count === 23, "manifest route count 15");
+ok(manifest.route_count === 24, "manifest route count 15");
 ok(snap.expected_routes.includes("/public-node/external-tester-copy-pack.json"), "self-check has copy pack");
-ok(snap.expected_route_count === 23, "self-check route count 15");
+ok(snap.expected_route_count === 24, "self-check route count 15");
 ok(discovery.links.public_node === "http://127.0.0.1:4143/public-node", "discovery still valid");
 
 console.log("[ok] json external tester copy pack");
@@ -118,8 +118,8 @@ echo "doc=docs/public/public-node-external-tester-copy-pack.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=external_tester_copy_pack_ready"
-echo "route_manifest_route_count=23"
-echo "self_check_expected_route_count=23"
+echo "route_manifest_route_count=24"
+echo "self_check_expected_route_count=24"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "public_routes_only=true"
 echo "read_only=true"
