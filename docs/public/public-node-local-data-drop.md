@@ -31,3 +31,15 @@ This is a simple public-node storage/serve lane:
 There is no public upload endpoint.
 
 This lane is operator-local import only and public-read-only fetch. It does not move money, send wallet transactions, execute WC to VOID swaps, fulfill Buy VOID requests, mutate validators, or treat dropped files as network truth.
+
+## Receipt ledger <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_DOC_V1 -->
+
+Each operator-local import writes a receipt JSON file:
+
+    DATA_DIR/public-node/local-data-drop/receipts/<objectId>.json
+
+Receipt marker:
+
+    VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1
+
+The public index exposes receipt metadata and whether the receipt matches the currently served object bytes.

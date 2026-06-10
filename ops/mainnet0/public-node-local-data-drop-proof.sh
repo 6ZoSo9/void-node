@@ -30,8 +30,11 @@ TXT
 
 DATA_DIR="$OUT/data" ops/mainnet0/public-node-local-data-drop-import.sh "$OUT/sample.txt" proof-sample.txt > "$OUT/import.log"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1_IMPORTED" "$OUT/import.log"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" "$OUT/import.log"
 grep -Fq "public_upload=false" "$OUT/import.log"
 grep -Fq "operator_local_import_only=true" "$OUT/import.log"
+test -f "$OUT/data/public-node/local-data-drop/receipts/proof-sample.txt.json"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" "$OUT/data/public-node/local-data-drop/receipts/proof-sample.txt.json"
 
 EXPECTED_SHA="$(sha256sum "$OUT/sample.txt" | awk '{print $1}')"
 
@@ -93,6 +96,10 @@ ok(index.object_count === 1, "object count");
 ok(index.objects[0].object_id === "proof-sample.txt", "object id");
 ok(index.objects[0].sha256 === expectedSha, "sha256");
 ok(index.objects[0].href === "http://127.0.0.1:4150/public-node/local-data-drop/proof-sample.txt", "href");
+ok(index.receipt_ledger_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1", "receipt ledger marker");
+ok(index.objects[0].receipt_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1", "object receipt marker");
+ok(index.objects[0].receipt_sha256 === expectedSha, "object receipt sha");
+ok(index.objects[0].receipt_valid_for_current_object === true, "receipt valid for current object");
 ok(index.policy.public_upload === false, "no public upload");
 ok(index.policy.operator_local_import_only === true, "operator local only");
 ok(index.policy.public_read_only === true, "public read only");
@@ -118,6 +125,7 @@ grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UI_V1" "$OUT/public-node.html"
 echo "marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1"
 echo "object_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1"
 echo "import_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1"
+echo "receipt_ledger_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1"
 echo "route=/public-node/local-data-drop.json"
 echo "object_route=/public-node/local-data-drop/:objectId"
 echo "ui_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UI_V1"
@@ -129,6 +137,7 @@ echo "object_count=1"
 echo "object_id=proof-sample.txt"
 echo "object_sha256=$EXPECTED_SHA"
 echo "fetch_sha256=$FETCHED_SHA"
+echo "receipt_valid_for_current_object=true"
 echo "route_manifest_route_count=22"
 echo "self_check_expected_route_count=22"
 echo "public_upload=false"

@@ -46161,8 +46161,10 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
   const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
+  const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
   fs.mkdirSync(dropDir, { recursive: true });
+  fs.mkdirSync(receiptDir, { recursive: true });
 
   const objects = fs.readdirSync(dropDir)
     .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)))
@@ -46172,11 +46174,20 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
       if (!st.isFile()) return null;
       const buf = fs.readFileSync(filePath);
       const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+      const receiptPath = path.join(receiptDir, String(name) + ".json");
+      let receipt = null;
+      if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
+        try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
+      }
       return {
         object_id: String(name),
         bytes: st.size,
         sha256,
-        href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(String(name))
+        href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(String(name)),
+        receipt_marker: receipt && receipt.marker || null,
+        receipt_sha256: receipt && receipt.sha256 || null,
+        receipt_imported_at: receipt && receipt.imported_at || null,
+        receipt_valid_for_current_object: !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === st.size)
       };
     })
     .filter(Boolean);
@@ -46188,7 +46199,9 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
     effective_base_url: effectiveBaseUrl,
     object_count: objects.length,
     objects,
+    receipt_ledger_marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1",
     operator_local_drop_dir: "DATA_DIR/public-node/local-data-drop/objects",
+    operator_local_receipt_dir: "DATA_DIR/public-node/local-data-drop/receipts",
     public_fetch_route_template: "/public-node/local-data-drop/:objectId",
     policy: {
       public_upload: false,
