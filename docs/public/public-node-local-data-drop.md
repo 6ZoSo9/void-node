@@ -59,3 +59,11 @@ Clients can fetch a JSON proof bundle by SHA-256:
     /public-node/local-data-drop/proof/:sha256.json
 
 The proof includes object ID, byte size, SHA-256, object fetch URL, content-address fetch URL, receipt metadata, and whether the receipt matches the currently served object.
+
+## Client verifier <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_DOC_V1 -->
+
+Clients can verify a public object by SHA-256:
+
+    ops/mainnet0/public-node-local-data-drop-verify-object.sh <base-url> <sha256>
+
+The verifier fetches the proof JSON, fetches bytes by SHA-256, hashes the bytes locally, and confirms the proof/receipt/fetched object all agree.

@@ -18,8 +18,10 @@ grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_ROUTE_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UI_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DOC_V1" docs/public/public-node-local-data-drop.md
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1_IMPORTED" ops/mainnet0/public-node-local-data-drop-import.sh
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_V1_GREEN" ops/mainnet0/public-node-local-data-drop-verify-object.sh
 
 bash -n ops/mainnet0/public-node-local-data-drop-import.sh
+bash -n ops/mainnet0/public-node-local-data-drop-verify-object.sh
 bash -n ops/mainnet0/public-node-route-manifest-proof.sh
 bash -n ops/mainnet0/public-node-self-check-snapshot-proof.sh
 
@@ -70,6 +72,8 @@ done
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof-sample.txt" > "$OUT/fetched-sample.txt"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/by-sha256/$EXPECTED_SHA" > "$OUT/fetched-sample-by-sha256.txt"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof/$EXPECTED_SHA.json" > "$OUT/object-proof.json"
+ops/mainnet0/public-node-local-data-drop-verify-object.sh "$BASE" "$EXPECTED_SHA" "$OUT/client-verify" > "$OUT/client-verify.log"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_V1_GREEN" "$OUT/client-verify.log"
 curl --max-time 10 -fsS "$BASE/public-node" > "$OUT/public-node.html"
 curl --max-time 10 -fsS "$BASE/public-node/route-manifest.json" > "$OUT/route-manifest.json"
 curl --max-time 10 -fsS "$BASE/public-node/self-check-snapshot.json" > "$OUT/self-check-snapshot.json"
@@ -173,6 +177,7 @@ echo "fetch_sha256=$FETCHED_SHA"
 echo "fetch_by_sha256_sha=$FETCHED_BY_SHA256_SHA"
 echo "content_address_sha256_fetch=true"
 echo "public_object_proof_valid=true"
+echo "client_verify_object_green=true"
 echo "receipt_valid_for_current_object=true"
 echo "route_manifest_route_count=24"
 echo "self_check_expected_route_count=24"
