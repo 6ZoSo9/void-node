@@ -45065,6 +45065,12 @@ a{color:#93c5fd;text-decoration:none}
             res.json({ ok:true, marker:"VOID_PUBLIC_NODE_REQUESTER_WORK_POLICY_V1", route:"/public-node/requester-work-policy.json", requester_work_default:true, design_rule:"nodes_serve_bounded_public_data_requesters_do_expensive_per_view_work", node_serves:["proofs","chunks","manifests","minimal_indexes","bounded_summaries"], requester_does:["verification","decompression","filtering","ranking","caching","retries"], compensation:{ pay_nodes_for_hosted_served_network_value:true, requester_cpu_not_network_paid:true, do_not_pay_viewer_cpu:true }, policy:{ public_policy_only:true, public_routes_only:true, bounded_server_cpu:true, local_path_exposure:false, raw_filesystem_url_exposure:false, mutation:false }, safety:{ read_only:true, money_movement:false, wallet_send:false, wc_to_void_swap:false, buy_void_fulfillment:false, validator_mutation:false } });
           });
 
+
+          APP.get("/public-node/client-work-pack.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_CLIENT_WORK_PACK_ROUTE_V1
+            // VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1
+            res.json({ ok:true, marker:"VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", route:"/public-node/client-work-pack.json", purpose:"agent_and_client_bootstrap_pack", public_routes:["/public-node","/public-node/intelligence.json","/public-node/link-health.json","/public-node/data-quality.json","/public-node/ai-readiness.json","/public-node/fresh-proof-seed.json","/public-node/requester-work-policy.json","/proofs"], node_serves:["proofs","chunks","manifests","minimal_indexes","bounded_summaries"], client_should:["fetch_public_routes","verify_proofs","check_link_health","rank_results_locally","cache_results_locally","retry_failed_public_links","avoid_private_owner_routes"], requester_work_default:true, policy:{ public_pack_only:true, local_path_exposure:false, raw_filesystem_url_exposure:false, mutation:false }, safety:{ read_only:true, money_movement:false, wallet_send:false, wc_to_void_swap:false, buy_void_fulfillment:false, validator_mutation:false } });
+          });
+
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
 <html>
@@ -45432,6 +45438,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <b>Requester work policy</b>
           <p class="muted">Nodes serve proofs, chunks, manifests, minimal indexes, and bounded summaries. Requesters do verification, decompression, filtering, ranking, caching, and retries.</p>
           <p class="muted">Requester CPU is not network-paid. Nodes are paid for hosted and served network value.</p>
+        </div>
+
+        <div class="card" id="publicNodeClientWorkPackCard"><!-- VOID_PUBLIC_NODE_CLIENT_WORK_PACK_UI_V1 -->
+          <b>Client work pack</b>
+          <p class="muted">Machine-readable bootstrap pack for agents and clients: public routes, verification steps, requester-side work, and node-served data.</p>
+          <p class="muted">Use <code>/public-node/client-work-pack.json</code> to discover how to use this node without private owner routes.</p>
         </div>
 </body>
 </html>`);
