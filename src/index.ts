@@ -45445,6 +45445,18 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p class="muted">Machine-readable bootstrap pack for agents and clients: public routes, verification steps, requester-side work, and node-served data.</p>
           <p class="muted">Use <code>/public-node/client-work-pack.json</code> to discover how to use this node without private owner routes.</p>
         </div>
+
+        <div class="card" id="publicNodeHumanQuickstartCard"><!-- VOID_PUBLIC_NODE_HUMAN_QUICKSTART_UI_V1 -->
+          <b>Human quickstart</b>
+          <ol>
+            <li>Open <code>/public-node</code> and check AI readiness.</li>
+            <li>Fetch <code>/public-node/client-work-pack.json</code>.</li>
+            <li>Use public routes only.</li>
+            <li>Verify proofs on your side.</li>
+            <li>Cache, rank, retry, and filter locally.</li>
+          </ol>
+          <p class="muted">VOID nodes serve bounded public data. Clients and requesters do the expensive per-view work.</p>
+        </div>
 </body>
 </html>`);
         });
