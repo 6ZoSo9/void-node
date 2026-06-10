@@ -72,6 +72,7 @@ done
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof-sample.txt" > "$OUT/fetched-sample.txt"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/by-sha256/$EXPECTED_SHA" > "$OUT/fetched-sample-by-sha256.txt"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof/$EXPECTED_SHA.json" > "$OUT/object-proof.json"
+curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/manifest.json" > "$OUT/local-data-drop-manifest.json"
 ops/mainnet0/public-node-local-data-drop-verify-object.sh "$BASE" "$EXPECTED_SHA" "$OUT/client-verify" > "$OUT/client-verify.log"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_V1_GREEN" "$OUT/client-verify.log"
 curl --max-time 10 -fsS "$BASE/public-node" > "$OUT/public-node.html"
@@ -85,13 +86,15 @@ FETCHED_BY_SHA256_SHA="$(sha256sum "$OUT/fetched-sample-by-sha256.txt" | awk '{p
 test "$FETCHED_SHA" = "$EXPECTED_SHA"
 test "$FETCHED_BY_SHA256_SHA" = "$EXPECTED_SHA"
 
-node - "$OUT/local-data-drop.json" "$OUT/route-manifest.json" "$OUT/self-check-snapshot.json" "$OUT/object-proof.json" "$EXPECTED_SHA" <<'NODE'
+node - "$OUT/local-data-drop.json" "$OUT/route-manifest.json" "$OUT/self-check-snapshot.json" "$OUT/object-proof.json" "$OUT/local-data-drop-manifest.json" "$EXPECTED_SHA" <<'NODE'
 const fs = require("fs");
 const index = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const manifest = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 const snap = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
 const proof = JSON.parse(fs.readFileSync(process.argv[5], "utf8"));
-const expectedSha = process.argv[6];
+const storageManifest = JSON.parse(fs.readFileSync(process.argv[6], "utf8"));
+const expectedSha = process.argv[7];
+const crypto = require("crypto");
 
 function ok(x, msg) {
   if (!x) {
@@ -102,6 +105,8 @@ function ok(x, msg) {
 
 ok(index.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", "index marker");
 ok(index.status === "local_data_drop_ready", "status");
+ok(index.manifest_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", "index manifest marker");
+ok(index.manifest_href === "http://127.0.0.1:4150/public-node/local-data-drop/manifest.json", "index manifest href");
 ok(index.object_count === 1, "object count");
 ok(index.objects[0].object_id === "proof-sample.txt", "object id");
 ok(index.objects[0].sha256 === expectedSha, "sha256");
@@ -129,6 +134,18 @@ ok(proof.operator_local_import_only === true, "proof operator local only");
 ok(proof.public_read_only === true, "proof public read only");
 ok(proof.trusted_as_network_truth === false, "proof not network truth");
 
+ok(storageManifest.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", "storage manifest marker");
+ok(storageManifest.manifest_root_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_ROOT_V1", "storage manifest root marker");
+ok(/^[a-f0-9]{64}$/.test(storageManifest.manifest_root_sha256), "storage manifest root sha shape");
+ok(storageManifest.object_count === 1, "storage manifest object count");
+ok(storageManifest.total_bytes === index.objects[0].bytes, "storage manifest total bytes");
+ok(storageManifest.objects[0].object_id === "proof-sample.txt", "storage manifest object id");
+ok(storageManifest.objects[0].sha256 === expectedSha, "storage manifest object sha");
+ok(storageManifest.objects[0].proof_href === "http://127.0.0.1:4150/public-node/local-data-drop/proof/" + expectedSha + ".json", "storage manifest proof href");
+ok(storageManifest.objects[0].receipt_valid_for_current_object === true, "storage manifest receipt valid");
+const recomputedRoot = crypto.createHash("sha256").update(JSON.stringify(storageManifest.root_payload)).digest("hex");
+ok(recomputedRoot === storageManifest.manifest_root_sha256, "storage manifest root recomputes");
+
 ok(index.policy.public_upload === false, "no public upload");
 ok(index.policy.operator_local_import_only === true, "operator local only");
 ok(index.policy.public_read_only === true, "public read only");
@@ -140,15 +157,17 @@ ok(index.policy.validator_mutation === false, "no validator");
 ok(index.policy.trusted_as_network_truth === false, "not network truth");
 
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop.json" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1"), "manifest has index");
+ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/manifest.json" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1"), "route manifest has storage manifest route");
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/proof/:sha256.json" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1"), "manifest has object proof route");
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/by-sha256/:sha256" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1"), "manifest has content address route");
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/:objectId" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1"), "manifest has object route");
-ok(manifest.route_count === 24, "manifest route count 24");
+ok(manifest.route_count === 25, "manifest route count 24");
 ok(snap.expected_routes.includes("/public-node/local-data-drop.json"), "self-check has index");
+ok(snap.expected_routes.includes("/public-node/local-data-drop/manifest.json"), "self-check has storage manifest route");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/proof/:sha256.json"), "self-check has object proof route");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/by-sha256/:sha256"), "self-check has content address route");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/:objectId"), "self-check has object route");
-ok(snap.expected_route_count === 24, "self-check route count 24");
+ok(snap.expected_route_count === 25, "self-check route count 24");
 
 console.log("[ok] json local data drop");
 NODE
@@ -160,6 +179,9 @@ echo "object_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1"
 echo "import_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1"
 echo "receipt_ledger_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1"
 echo "route=/public-node/local-data-drop.json"
+echo "manifest_route=/public-node/local-data-drop/manifest.json"
+echo "manifest_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1"
+echo "manifest_root_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_ROOT_V1"
 echo "object_route=/public-node/local-data-drop/:objectId"
 echo "content_address_route=/public-node/local-data-drop/by-sha256/:sha256"
 echo "content_address_marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1"
@@ -178,9 +200,10 @@ echo "fetch_by_sha256_sha=$FETCHED_BY_SHA256_SHA"
 echo "content_address_sha256_fetch=true"
 echo "public_object_proof_valid=true"
 echo "client_verify_object_green=true"
+echo "manifest_root_verified=true"
 echo "receipt_valid_for_current_object=true"
-echo "route_manifest_route_count=24"
-echo "self_check_expected_route_count=24"
+echo "route_manifest_route_count=25"
+echo "self_check_expected_route_count=25"
 echo "public_upload=false"
 echo "operator_local_import_only=true"
 echo "public_read_only=true"

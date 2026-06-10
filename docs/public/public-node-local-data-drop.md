@@ -67,3 +67,15 @@ Clients can verify a public object by SHA-256:
     ops/mainnet0/public-node-local-data-drop-verify-object.sh <base-url> <sha256>
 
 The verifier fetches the proof JSON, fetches bytes by SHA-256, hashes the bytes locally, and confirms the proof/receipt/fetched object all agree.
+
+## Manifest root <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_DOC_V1 -->
+
+The node exposes a deterministic public manifest of locally dropped objects:
+
+    /public-node/local-data-drop/manifest.json
+
+The manifest includes object IDs, byte sizes, SHA-256 hashes, receipt metadata, public fetch links, proof links, and a deterministic manifest root:
+
+    VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_ROOT_V1
+
+This gives the public storage lane a verifiable state root over the currently served object set.

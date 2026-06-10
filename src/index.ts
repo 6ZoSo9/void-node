@@ -45182,6 +45182,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
       { path: "/public-node/first-tester-request-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1", use: "first outside tester request copy pack" },
+      { path: "/public-node/local-data-drop/manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", use: "operator-local public data manifest root" },
       { path: "/public-node/local-data-drop.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", use: "operator-local public data drop index" },
       { path: "/public-node/local-data-drop/proof/:sha256.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", use: "operator-local public data object proof by sha256" },
       { path: "/public-node/local-data-drop/by-sha256/:sha256", kind: "binary", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", use: "operator-local public data content-address fetch" },
@@ -45625,6 +45626,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/tester-share",
     "/public-node/tester-lane-summary.json",
     "/public-node/first-tester-request-copy-pack.json",
+    "/public-node/local-data-drop/manifest.json",
     "/public-node/local-data-drop.json",
     "/public-node/local-data-drop/proof/:sha256.json",
     "/public-node/local-data-drop/by-sha256/:sha256",
@@ -45713,6 +45715,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
     { path: "/public-node/tester-lane-summary.json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", purpose: "outside tester lane readiness summary", safety_class: "public_read_only_summary" },
     { path: "/public-node/first-tester-request-copy-pack.json", marker: "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1", purpose: "first outside tester request copy pack", safety_class: "public_read_only_copy_pack" },
+    { path: "/public-node/local-data-drop/manifest.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", purpose: "operator-local public data manifest root", safety_class: "public_read_only_local_file_manifest" },
     { path: "/public-node/local-data-drop.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", purpose: "operator-local public data drop index", safety_class: "public_read_only_local_file_index" },
     { path: "/public-node/local-data-drop/proof/:sha256.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", purpose: "operator-local public data object proof by sha256", safety_class: "public_read_only_local_file_proof" },
     { path: "/public-node/local-data-drop/by-sha256/:sha256", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1", purpose: "operator-local public data content-address fetch", safety_class: "public_read_only_local_file_fetch" },
@@ -46158,6 +46161,84 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
 
 
 
+
+APP.get("/public-node/local-data-drop/manifest.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_ROUTE_V1
+  const fs = require("fs");
+  const path = require("path");
+  const crypto = require("crypto");
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
+  const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
+  const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
+
+  fs.mkdirSync(dropDir, { recursive: true });
+  fs.mkdirSync(receiptDir, { recursive: true });
+
+  const objects = fs.readdirSync(dropDir)
+    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)))
+    .map((name:any) => {
+      const objectId = String(name);
+      const filePath = path.join(dropDir, objectId);
+      if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+      const st = fs.statSync(filePath);
+      const buf = fs.readFileSync(filePath);
+      const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+      const receiptPath = path.join(receiptDir, objectId + ".json");
+      let receipt = null;
+      if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
+        try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
+      }
+      const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === st.size);
+      return {
+        object_id: objectId,
+        bytes: st.size,
+        sha256,
+        receipt_marker: receipt && receipt.marker || null,
+        receipt_sha256: receipt && receipt.sha256 || null,
+        receipt_imported_at: receipt && receipt.imported_at || null,
+        receipt_valid_for_current_object: receiptValid,
+        object_href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(objectId),
+        content_address_href: effectiveBaseUrl + "/public-node/local-data-drop/by-sha256/" + sha256,
+        proof_href: effectiveBaseUrl + "/public-node/local-data-drop/proof/" + sha256 + ".json"
+      };
+    })
+    .filter(Boolean)
+    .sort((a:any, b:any) => String(a.object_id).localeCompare(String(b.object_id)));
+
+  const rootPayload = {
+    marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_ROOT_PAYLOAD_V1",
+    objects: objects.map((o:any) => ({
+      object_id: o.object_id,
+      bytes: o.bytes,
+      sha256: o.sha256,
+      receipt_sha256: o.receipt_sha256,
+      receipt_valid_for_current_object: o.receipt_valid_for_current_object
+    }))
+  };
+
+  const manifestRootSha256 = crypto.createHash("sha256").update(JSON.stringify(rootPayload)).digest("hex");
+  const totalBytes = objects.reduce((acc:any, o:any) => acc + Number(o.bytes || 0), 0);
+
+  res.json({
+    marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1",
+    manifest_root_marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_ROOT_V1",
+    manifest_root_sha256: manifestRootSha256,
+    object_count: objects.length,
+    total_bytes: totalBytes,
+    objects,
+    root_payload: rootPayload,
+    policy: {
+      public_upload: false,
+      operator_local_import_only: true,
+      public_read_only: true,
+      trusted_as_network_truth: false
+    }
+  });
+});
+
+
 APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_ROUTE_V1
   const fs = require("fs");
   const path = require("path");
@@ -46207,6 +46288,8 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
     effective_base_url: effectiveBaseUrl,
     object_count: objects.length,
     objects,
+    manifest_marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1",
+    manifest_href: effectiveBaseUrl + "/public-node/local-data-drop/manifest.json",
     receipt_ledger_marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1",
     operator_local_drop_dir: "DATA_DIR/public-node/local-data-drop/objects",
     operator_local_receipt_dir: "DATA_DIR/public-node/local-data-drop/receipts",

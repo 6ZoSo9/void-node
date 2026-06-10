@@ -21,8 +21,8 @@ grep -Fq "/.well-known/void-public-node.json" src/index.ts
 
 bash -n ops/mainnet0/public-node-self-check-snapshot-proof.sh
 bash -n ops/mainnet0/public-node-route-manifest-proof.sh
-grep -Fq "expected_route_count=24" ops/mainnet0/public-node-self-check-snapshot-proof.sh
-grep -Fq "route_count=24" ops/mainnet0/public-node-route-manifest-proof.sh
+grep -Fq "expected_route_count=25" ops/mainnet0/public-node-self-check-snapshot-proof.sh
+grep -Fq "route_count=25" ops/mainnet0/public-node-route-manifest-proof.sh
 grep -Fq "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1" ops/mainnet0/public-node-route-manifest-proof.sh
 
 npm run build
@@ -101,13 +101,13 @@ ok(idx.routes.some(r => r.path === "/.well-known/void-public-node.json" && r.mar
 
 const manifestRow = manifest.routes.find(r => r.path === "/.well-known/void-public-node.json");
 ok(manifest.marker === "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", "manifest still works");
-ok(manifest.route_count === 24, "manifest route count 14");
+ok(manifest.route_count === 25, "manifest route count 14");
 ok(manifestRow, "manifest discovery row");
 ok(manifestRow.marker === "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", "manifest discovery marker");
 ok(manifestRow.safety_class === "public_read_only", "manifest discovery safety class");
 
 ok(snap.marker === "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", "self-check still works");
-ok(snap.expected_route_count === 24, "self-check route count 14");
+ok(snap.expected_route_count === 25, "self-check route count 14");
 ok(snap.expected_routes.includes("/.well-known/void-public-node.json"), "self-check includes discovery");
 ok(snap.links.agent_discovery === "http://127.0.0.1:4142/.well-known/void-public-node.json", "self-check discovery link");
 ok(snap.checks.agent_discovery_present === true, "self-check discovery present");
@@ -127,8 +127,8 @@ echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=public_node_agent_discovery_ready"
 echo "protocol=void-public-node-discovery-v1"
-echo "route_manifest_route_count=24"
-echo "self_check_expected_route_count=24"
+echo "route_manifest_route_count=25"
+echo "self_check_expected_route_count=25"
 echo "public_routes_only=true"
 echo "read_only=true"
 echo "money_movement=false"

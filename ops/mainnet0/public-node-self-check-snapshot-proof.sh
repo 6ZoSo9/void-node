@@ -80,6 +80,7 @@ const required = [
   "/public-node/tester-share",
   "/public-node/tester-lane-summary.json",
   "/public-node/first-tester-request-copy-pack.json",
+  "/public-node/local-data-drop/manifest.json",
   "/public-node/local-data-drop.json",
   "/public-node/local-data-drop/proof/:sha256.json",
   "/public-node/local-data-drop/by-sha256/:sha256",
@@ -142,7 +143,7 @@ echo "doc=docs/public/public-node-self-check-snapshot.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=public_node_externally_testable_read_only_surface_ready"
-echo "expected_route_count=24"
+echo "expected_route_count=25"
 echo "public_routes_only=true"
 echo "read_only=true"
 echo "money_movement=false"
