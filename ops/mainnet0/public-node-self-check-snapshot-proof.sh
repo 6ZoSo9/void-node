@@ -75,6 +75,7 @@ ok(snap.expected_route_count === snap.expected_routes.length, "route count match
 const required = [
   "/.well-known/void-public-node.json",
   "/public-node/external-tester-copy-pack.json",
+  "/public-node/tester-result-intake.json",
   "/public-node",
   "/public-node/self-check-snapshot.json",
   "/public-node/route-manifest.json",
@@ -133,7 +134,7 @@ echo "doc=docs/public/public-node-self-check-snapshot.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=public_node_externally_testable_read_only_surface_ready"
-echo "expected_route_count=15"
+echo "expected_route_count=16"
 echo "public_routes_only=true"
 echo "read_only=true"
 echo "money_movement=false"
