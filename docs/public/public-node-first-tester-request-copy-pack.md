@@ -38,3 +38,12 @@ It points testers to the human tester share page and the machine-readable tester
 This route is public-read-only.
 
 It does not expose a public POST endpoint, call private APIs, mutate chain state, move money, send wallet transactions, execute WC to VOID swaps, fulfill Buy VOID requests, mutate validators, or treat outside tester receipts as network truth.
+
+
+## GitHub pointer <!-- VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_README_POINTER_DOC_V1 -->
+
+The top-level README points operators to:
+
+    /public-node/first-tester-request-copy-pack.json
+
+This route provides ready-to-post first-tester copy for Reddit, X/Twitter, short DMs, and GitHub blurbs.

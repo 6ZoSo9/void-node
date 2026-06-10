@@ -248,3 +248,32 @@ Expected green marker:
     VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN
 
 Safety boundary: public routes only, read-only, no money movement, no wallet send, no WC to VOID swap, no Buy VOID fulfillment, no validator mutation, and tester receipts are not treated as network truth.
+
+## First Tester Request Copy Pack <!-- VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_README_POINTER_V1 -->
+
+VOID public nodes expose ready-to-post first-tester recruiting copy.
+
+Copy pack route:
+
+    /public-node/first-tester-request-copy-pack.json
+
+It includes:
+
+- Reddit post copy
+- X/Twitter post copy
+- short DM copy
+- GitHub blurb
+- tester share page link
+- standalone smoke command
+- expected green marker
+- tester receipt instructions
+
+Expected green marker:
+
+    VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN
+
+Expected receipt file:
+
+    tester-receipt.json
+
+Safety boundary: public routes only, read-only, no money movement, no wallet send, no WC to VOID swap, no Buy VOID fulfillment, no validator mutation, and tester receipts are not treated as network truth.
