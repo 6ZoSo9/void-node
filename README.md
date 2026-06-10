@@ -214,3 +214,18 @@ Or run the short public-route smoke check:
     PUBLIC_NODE_BASE=https://your-domain.example; for p in /public-node /public-node/route-index.json /public-node/external-base-url.json /public-node/public-exposure-smoke-pack.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" >/dev/null && echo "ok $p"; done
 
 This checks public routes only. It does not touch private APIs, wallets, swaps, Buy VOID fulfillment, validators, or proof mutation.
+
+## Public node outside tester path <!-- VOID_PUBLIC_NODE_OUTSIDE_TESTER_README_POINTER_V1 -->
+
+For an outside tester, start with the public-node share link:
+
+    /public-node/share-link.json
+
+That route gives a copy-paste invite and points testers to:
+
+    /public-node
+    /public-node/tester-bundle.json
+    /public-node/tester-result-receipt.json
+
+The tester bundle links the quickstart, handoff, smoke pack, route index, and public proofs. This path is public-route and read-only only: no wallet sends, no WC to VOID swaps, no Buy VOID fulfillment, no validator mutation, and no money movement.
+
