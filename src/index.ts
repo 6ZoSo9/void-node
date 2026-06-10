@@ -45164,6 +45164,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
     routes: [
       { path: "/public-node", kind: "html", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", use: "public node profile" },
       { path: "/public-node/route-index.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", use: "machine-readable public route registry" },
+      { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45206,6 +45207,48 @@ APP.get("/public-node/tester-smoke.json", (_req:any, res:any) => { // VOID_PUBLI
     ],
     expected_result: "Each public route returns successfully and prints ok.",
     policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+APP.get("/public-node/external-base-url.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const smokeCommand = 'PUBLIC_NODE_BASE="' + effectiveBaseUrl + '"; for p in /public-node/route-index.json /public-node/share-pack.json /public-node/tester-checklist.json /public-node/tester-smoke.json /public-node/client-work-pack.json /public-node/ai-readiness.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" >/dev/null && echo "ok $p"; done';
+  res.json({
+    marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1",
+    purpose: "public_node_external_base_url",
+    headline: "VOID public node external base URL",
+    default_base_url: defaultBaseUrl,
+    external_base_url: configuredExternalBaseUrl || null,
+    effective_base_url: effectiveBaseUrl,
+    env_keys: ["PUBLIC_NODE_EXTERNAL_BASE_URL", "VOID_PUBLIC_BASE_URL"],
+    usage: "Set PUBLIC_NODE_EXTERNAL_BASE_URL when this node is exposed publicly. Testers can keep localhost for local smoke tests.",
+    smoke_command: smokeCommand,
+    public_routes: [
+      "/public-node",
+      "/public-node/external-base-url.json",
+      "/public-node/route-index.json",
+      "/public-node/share-pack.json",
+      "/public-node/tester-checklist.json",
+      "/public-node/tester-smoke.json",
+      "/public-node/client-work-pack.json",
+      "/public-node/ai-readiness.json",
+      "/proofs"
+    ],
+    policy: {
+      optional_external_base_url: true,
       public_routes_only: true,
       private_api: false,
       mutation: false,
@@ -45652,6 +45695,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p class="muted">Copy-paste smoke command for public routes:</p>
           <pre><code>BASE=\${PUBLIC_NODE_BASE:-http://127.0.0.1:4100}; for p in /public-node/route-index.json /public-node/share-pack.json /public-node/tester-checklist.json /public-node/client-work-pack.json /public-node/ai-readiness.json /proofs; do curl -fsS "$BASE$p" &gt;/dev/null &amp;&amp; echo "ok $p"; done</code></pre>
           <p class="muted">Public routes only. No private APIs, wallet sends, swaps, buys, validator mutations, or proof-generation mutations.</p>
+        </div>
+
+        <div class="card" id="publicNodeExternalBaseUrlCard"><!-- VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_UI_V1 -->
+          <b>External base URL</b>
+          <p class="muted">Optional public address helper for testers:</p>
+          <p><code>/public-node/external-base-url.json</code></p>
+          <p class="muted">Defaults to localhost. Set <code>PUBLIC_NODE_EXTERNAL_BASE_URL</code> or <code>VOID_PUBLIC_BASE_URL</code> when exposing this node publicly.</p>
         </div>
 </body>
 </html>`);
