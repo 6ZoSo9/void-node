@@ -114,9 +114,9 @@ ok(intake.policy.validator_mutation === false, "no validator mutation");
 ok(intake.policy.trusted_as_network_truth === false, "not trusted as network truth policy");
 
 ok(manifest.routes.some(r => r.path === "/public-node/tester-result-intake.json" && r.marker === "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1"), "manifest has intake");
-ok(manifest.route_count === 16, "manifest route count 16");
+ok(manifest.route_count === 17, "manifest route count 16");
 ok(snap.expected_routes.includes("/public-node/tester-result-intake.json"), "self-check has intake");
-ok(snap.expected_route_count === 16, "self-check route count 16");
+ok(snap.expected_route_count === 17, "self-check route count 16");
 ok(pack.copy_pack.tester_result_receipt_url === "http://127.0.0.1:4144/public-node/tester-result-receipt.json", "copy pack still valid");
 
 console.log("[ok] json tester result intake");
@@ -131,8 +131,8 @@ echo "doc=docs/public/public-node-tester-result-intake.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=external_tester_result_imported"
-echo "route_manifest_route_count=16"
-echo "self_check_expected_route_count=16"
+echo "route_manifest_route_count=17"
+echo "self_check_expected_route_count=17"
 echo "expected_receipt_marker=VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "public_post_endpoint=false"
