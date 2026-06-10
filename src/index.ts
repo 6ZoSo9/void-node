@@ -45182,6 +45182,8 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
       { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
       { path: "/public-node/first-tester-request-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1", use: "first outside tester request copy pack" },
+      { path: "/public-node/local-data-drop.json", kind: "json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", use: "operator-local public data drop index" },
+      { path: "/public-node/local-data-drop/:objectId", kind: "binary", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", use: "operator-local public data object fetch" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45621,6 +45623,8 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/tester-share",
     "/public-node/tester-lane-summary.json",
     "/public-node/first-tester-request-copy-pack.json",
+    "/public-node/local-data-drop.json",
+    "/public-node/local-data-drop/:objectId",
     "/public-node",
     "/public-node/self-check-snapshot.json",
     "/public-node/route-manifest.json",
@@ -45650,6 +45654,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
       tester_lane_summary: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
       first_tester_request_copy_pack: effectiveBaseUrl + "/public-node/first-tester-request-copy-pack.json",
+      local_data_drop_index: effectiveBaseUrl + "/public-node/local-data-drop.json",
       public_node: effectiveBaseUrl + "/public-node",
       route_index: effectiveBaseUrl + "/public-node/route-index.json",
       route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
@@ -45667,6 +45672,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       tester_share_page_present: true,
       tester_lane_summary_present: true,
       first_tester_request_copy_pack_present: true,
+      local_data_drop_present: true,
       route_index_present: true,
       route_manifest_present: true,
       outside_tester_smoke_surface_present: true,
@@ -45703,6 +45709,8 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
     { path: "/public-node/tester-lane-summary.json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", purpose: "outside tester lane readiness summary", safety_class: "public_read_only_summary" },
     { path: "/public-node/first-tester-request-copy-pack.json", marker: "VOID_PUBLIC_NODE_FIRST_TESTER_REQUEST_COPY_PACK_V1", purpose: "first outside tester request copy pack", safety_class: "public_read_only_copy_pack" },
+    { path: "/public-node/local-data-drop.json", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1", purpose: "operator-local public data drop index", safety_class: "public_read_only_local_file_index" },
+    { path: "/public-node/local-data-drop/:objectId", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1", purpose: "operator-local public data object fetch", safety_class: "public_read_only_local_file_fetch" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
     { path: "/public-node/self-check-snapshot.json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", purpose: "externally testable read-only health snapshot", safety_class: "public_read_only" },
@@ -46141,6 +46149,81 @@ APP.get("/public-node/first-tester-request-copy-pack.json", (_req:any, res:any) 
   });
 });
 
+
+
+
+APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_ROUTE_V1
+  const fs = require("fs");
+  const path = require("path");
+  const crypto = require("crypto");
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
+  const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
+
+  fs.mkdirSync(dropDir, { recursive: true });
+
+  const objects = fs.readdirSync(dropDir)
+    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)))
+    .map((name:any) => {
+      const filePath = path.join(dropDir, name);
+      const st = fs.statSync(filePath);
+      if (!st.isFile()) return null;
+      const buf = fs.readFileSync(filePath);
+      const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+      return {
+        object_id: String(name),
+        bytes: st.size,
+        sha256,
+        href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(String(name))
+      };
+    })
+    .filter(Boolean);
+
+  res.json({
+    marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_INDEX_V1",
+    purpose: "public_node_operator_local_data_drop_index",
+    status: "local_data_drop_ready",
+    effective_base_url: effectiveBaseUrl,
+    object_count: objects.length,
+    objects,
+    operator_local_drop_dir: "DATA_DIR/public-node/local-data-drop/objects",
+    public_fetch_route_template: "/public-node/local-data-drop/:objectId",
+    policy: {
+      public_upload: false,
+      operator_local_import_only: true,
+      public_read_only: true,
+      mutation_from_public: false,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false,
+      trusted_as_network_truth: false
+    }
+  });
+});
+
+APP.get("/public-node/local-data-drop/:objectId", (req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_ROUTE_V1
+  const fs = require("fs");
+  const path = require("path");
+  const objectId = String(req.params.objectId || "");
+  if (!/^[a-zA-Z0-9._-]{1,160}$/.test(objectId)) {
+    return res.status(400).json({ error: "invalid_object_id", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1" });
+  }
+
+  const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
+  const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
+  const filePath = path.join(dropDir, objectId);
+
+  if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    return res.status(404).json({ error: "object_not_found", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1" });
+  }
+
+  res.setHeader("X-VOID-Marker", "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1");
+  res.type("application/octet-stream").send(fs.readFileSync(filePath));
+});
 
 
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
@@ -46695,6 +46778,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Ready-to-post Reddit, X, DM, and GitHub copy for recruiting the first outside testers. Includes tester page, lane summary, smoke command, expected green marker, and receipt instructions.</p>
           <p><code>/public-node/first-tester-request-copy-pack.json</code></p>
         </div>
+
+        <div class="card" id="publicNodeLocalDataDropCard"><!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UI_V1 -->
+          <h2>Local Data Drop</h2>
+          <p>Operator-local storage lane: drop files into the node runtime, then serve them publicly through read-only node routes. No public upload endpoint.</p>
+          <p><code>/public-node/local-data-drop.json</code></p>
+        </div>
+
 
 
 
