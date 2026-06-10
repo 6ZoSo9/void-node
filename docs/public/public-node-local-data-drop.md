@@ -101,3 +101,13 @@ The proof lane imports multiple deterministic local objects and verifies that:
 Marker:
 
     VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MULTI_OBJECT_MANIFEST_V1
+
+## Import directory helper <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_DIR_DOC_V1 -->
+
+The import directory helper lets an operator import a local folder into the public-node local data drop store.
+
+Marker:
+
+    VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_DIR_V1
+
+The helper is operator-local only. It does not enable public uploads. It walks regular files in a source directory, converts relative paths into safe object ids, imports each file with the existing local data drop import helper, and exposes the resulting objects through the same public read-only index, manifest, content-address, proof, receipt, and verifier routes.
