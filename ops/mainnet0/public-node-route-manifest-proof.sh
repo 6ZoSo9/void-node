@@ -20,7 +20,7 @@ grep -Fq "VOID_PUBLIC_NODE_ROUTE_MANIFEST_DOC_V1" docs/public/public-node-route-
 grep -Fq "/public-node/route-manifest.json" src/index.ts
 
 bash -n ops/mainnet0/public-node-self-check-snapshot-proof.sh
-grep -Fq "expected_route_count=13" ops/mainnet0/public-node-self-check-snapshot-proof.sh
+grep -Fq "expected_route_count=14" ops/mainnet0/public-node-self-check-snapshot-proof.sh
 
 npm run build
 echo "[ok] source/docs/build/self-check-proof-updated"
@@ -74,9 +74,10 @@ ok(manifest.status === "public_node_route_manifest_ready", "status");
 ok(manifest.effective_base_url === "http://127.0.0.1:4141", "effective base");
 ok(Array.isArray(manifest.routes), "routes array");
 ok(manifest.route_count === manifest.routes.length, "route count matches");
-ok(manifest.route_count === 13, "route count 13");
+ok(manifest.route_count === 14, "route count 14");
 
 const required = [
+  ["/.well-known/void-public-node.json", "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1"],
   ["/public-node", "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1"],
   ["/public-node/route-manifest.json", "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"],
   ["/public-node/self-check-snapshot.json", "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"],
@@ -112,7 +113,7 @@ ok(manifest.policy.validator_mutation === false, "no validator mutation");
 
 ok(idx.routes.some(r => r.path === "/public-node/route-manifest.json" && r.marker === "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"), "route index manifest entry");
 ok(snap.marker === "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", "self-check still works");
-ok(snap.expected_route_count === 13, "self-check route count 13");
+ok(snap.expected_route_count === 14, "self-check route count 14");
 ok(snap.expected_routes.includes("/public-node/route-manifest.json"), "self-check includes manifest");
 ok(snap.checks.route_manifest_present === true, "self-check manifest present");
 
@@ -130,8 +131,8 @@ echo "doc=docs/public/public-node-route-manifest.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=public_node_route_manifest_ready"
-echo "route_count=13"
-echo "self_check_expected_route_count=13"
+echo "route_count=14"
+echo "self_check_expected_route_count=14"
 echo "public_routes_only=true"
 echo "read_only=true"
 echo "money_movement=false"

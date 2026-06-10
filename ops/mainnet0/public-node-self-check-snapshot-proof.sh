@@ -73,6 +73,7 @@ ok(Array.isArray(snap.expected_routes), "expected routes array");
 ok(snap.expected_route_count === snap.expected_routes.length, "route count matches");
 
 const required = [
+  "/.well-known/void-public-node.json",
   "/public-node",
   "/public-node/self-check-snapshot.json",
   "/public-node/route-manifest.json",
@@ -90,6 +91,7 @@ const required = [
 
 for (const route of required) ok(snap.expected_routes.includes(route), "missing " + route);
 
+ok(snap.links.agent_discovery === "http://127.0.0.1:4140/.well-known/void-public-node.json", "agent discovery link");
 ok(snap.links.public_node === "http://127.0.0.1:4140/public-node", "public node link");
 ok(snap.links.route_index === "http://127.0.0.1:4140/public-node/route-index.json", "route index link");
 ok(snap.links.route_manifest === "http://127.0.0.1:4140/public-node/route-manifest.json", "route manifest link");
@@ -97,6 +99,7 @@ ok(snap.links.smoke_surface === "http://127.0.0.1:4140/public-node/outside-teste
 ok(snap.links.proofs === "http://127.0.0.1:4140/proofs", "proofs link");
 
 ok(snap.checks.self_check_snapshot === true, "self check true");
+ok(snap.checks.agent_discovery_present === true, "agent discovery present");
 ok(snap.checks.route_index_present === true, "route index present");
 ok(snap.checks.route_manifest_present === true, "route manifest present");
 ok(snap.checks.outside_tester_smoke_surface_present === true, "smoke surface present");
@@ -129,7 +132,7 @@ echo "doc=docs/public/public-node-self-check-snapshot.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=public_node_externally_testable_read_only_surface_ready"
-echo "expected_route_count=13"
+echo "expected_route_count=14"
 echo "public_routes_only=true"
 echo "read_only=true"
 echo "money_movement=false"
