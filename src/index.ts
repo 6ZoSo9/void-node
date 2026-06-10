@@ -45166,6 +45166,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/route-index.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", use: "machine-readable public route registry" },
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
       { path: "/public-node/public-exposure-smoke-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", use: "copyable public exposure smoke command" },
+      { path: "/public-node/quickstart.json", kind: "json", marker: "VOID_PUBLIC_NODE_QUICKSTART_V1", use: "outside tester quickstart and local start command" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45292,6 +45293,51 @@ APP.get("/public-node/public-exposure-smoke-pack.json", (_req:any, res:any) => {
       read_only: true,
       private_api: false,
       mutation: false,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+APP.get("/public-node/quickstart.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_QUICKSTART_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const localStartCommand = "mkdir -p .runtime/public-node && if [ ! -f .runtime/public-node/node.key ]; then openssl genpkey -algorithm ED25519 -out .runtime/public-node/node.key && chmod 600 .runtime/public-node/node.key; fi; npm run build && DATA_DIR=.runtime/public-node/data NODE_PRIVKEY_PATH=.runtime/public-node/node.key HTTP_PORT=4100 PORT=4100 VOID_HTTP_PORT=4100 HOST=127.0.0.1 P2P_PORT=4700 PUBLIC_NODE_EXTERNAL_BASE_URL=http://127.0.0.1:4100 npm start";
+  const smokeCommand = 'PUBLIC_NODE_BASE="' + effectiveBaseUrl + '"; for p in /public-node /public-node/quickstart.json /public-node/route-index.json /public-node/external-base-url.json /public-node/public-exposure-smoke-pack.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" >/dev/null && echo "ok $p"; done';
+  res.json({
+    marker: "VOID_PUBLIC_NODE_QUICKSTART_V1",
+    purpose: "public_node_outside_tester_quickstart",
+    headline: "VOID public node quickstart",
+    effective_base_url: effectiveBaseUrl,
+    external_base_url: configuredExternalBaseUrl || null,
+    steps: [
+      "Install dependencies with npm install.",
+      "Build with npm run build.",
+      "Start a local public-node smoke runtime with an isolated key and data dir.",
+      "Open /public-node.",
+      "Run the public-route smoke command.",
+      "Do not use private APIs, wallet sends, swaps, buys, validator mutation, or proof mutation."
+    ],
+    local_start_command: localStartCommand,
+    smoke_command: smokeCommand,
+    public_routes: [
+      "/public-node",
+      "/public-node/quickstart.json",
+      "/public-node/route-index.json",
+      "/public-node/external-base-url.json",
+      "/public-node/public-exposure-smoke-pack.json",
+      "/proofs"
+    ],
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
       money_movement: false,
       wallet_send: false,
       wc_to_void_swap: false,
@@ -45755,6 +45801,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <pre><code>PUBLIC_NODE_BASE=https://your-domain.example; for p in /public-node /public-node/route-index.json /public-node/external-base-url.json /public-node/public-exposure-smoke-pack.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" &gt;/dev/null &amp;&amp; echo "ok $p"; done</code></pre>
           <p><code>/public-node/public-exposure-smoke-pack.json</code></p>
           <p class="muted">This smoke pack checks public routes only. It does not touch private APIs, wallets, swaps, buys, validators, or proof mutation.</p>
+        </div>
+
+        <div class="card" id="publicNodeQuickstartCard"><!-- VOID_PUBLIC_NODE_QUICKSTART_UI_V1 -->
+          <b>Outside tester quickstart</b>
+          <p class="muted">Start here if you are testing a public VOID node from a clean machine or public URL.</p>
+          <p><code>/public-node/quickstart.json</code></p>
+          <p class="muted">Includes a local isolated start command, public smoke command, and safety boundary.</p>
         </div>
 </body>
 </html>`);
