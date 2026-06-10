@@ -45176,6 +45176,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/self-check-snapshot.json", kind: "json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", use: "public node self-check health snapshot" },
       { path: "/public-node/route-manifest.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", use: "canonical public node route manifest" },
       { path: "/.well-known/void-public-node.json", kind: "json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", use: "well-known public node agent discovery" },
+      { path: "/public-node/external-tester-copy-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", use: "copy/paste pack for outside testers" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45609,6 +45610,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
   const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
   const expectedRoutes = [
     "/.well-known/void-public-node.json",
+    "/public-node/external-tester-copy-pack.json",
     "/public-node",
     "/public-node/self-check-snapshot.json",
     "/public-node/route-manifest.json",
@@ -45632,6 +45634,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     expected_routes: expectedRoutes,
     links: {
       agent_discovery: effectiveBaseUrl + "/.well-known/void-public-node.json",
+      external_tester_copy_pack: effectiveBaseUrl + "/public-node/external-tester-copy-pack.json",
       public_node: effectiveBaseUrl + "/public-node",
       route_index: effectiveBaseUrl + "/public-node/route-index.json",
       route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
@@ -45643,6 +45646,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     checks: {
       self_check_snapshot: true,
       agent_discovery_present: true,
+      external_tester_copy_pack_present: true,
       route_index_present: true,
       route_manifest_present: true,
       outside_tester_smoke_surface_present: true,
@@ -45673,6 +45677,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
   const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
   const routes = [
     { path: "/.well-known/void-public-node.json", marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1", purpose: "well-known public node agent discovery", safety_class: "public_read_only" },
+    { path: "/public-node/external-tester-copy-pack.json", marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1", purpose: "copy/paste pack for outside testers", safety_class: "public_read_only" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
     { path: "/public-node/self-check-snapshot.json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", purpose: "externally testable read-only health snapshot", safety_class: "public_read_only" },
@@ -45741,6 +45746,51 @@ APP.get("/.well-known/void-public-node.json", (_req:any, res:any) => { // VOID_P
     }
   });
 });
+
+
+APP.get("/public-node/external-tester-copy-pack.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const smokeCommand = "PUBLIC_NODE_BASE=" + effectiveBaseUrl + " ops/mainnet0/public-node-outside-tester-smoke.sh";
+  res.json({
+    marker: "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1",
+    purpose: "public_node_external_tester_copy_pack",
+    status: "external_tester_copy_pack_ready",
+    effective_base_url: effectiveBaseUrl,
+    copy_pack: {
+      public_node_url: effectiveBaseUrl + "/public-node",
+      well_known_discovery_url: effectiveBaseUrl + "/.well-known/void-public-node.json",
+      route_manifest_url: effectiveBaseUrl + "/public-node/route-manifest.json",
+      self_check_snapshot_url: effectiveBaseUrl + "/public-node/self-check-snapshot.json",
+      outside_tester_smoke_url: effectiveBaseUrl + "/public-node/outside-tester-smoke.json",
+      tester_bundle_url: effectiveBaseUrl + "/public-node/tester-bundle.json",
+      tester_result_receipt_url: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
+      proofs_url: effectiveBaseUrl + "/proofs",
+      smoke_command: smokeCommand,
+      expected_green_marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
+    },
+    tester_instructions: [
+      "Open the public_node_url in a browser.",
+      "Open the well_known_discovery_url to confirm agent discovery.",
+      "Open the route_manifest_url to confirm the public route list.",
+      "Run the smoke_command from a checked-out void-node repo.",
+      "Paste the expected green marker and receipt details back to the node operator."
+    ],
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
 
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
@@ -46258,6 +46308,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p class="muted">Well-known discovery object for agents, testers, UIs, manifests, self-checks, smoke command, and proofs.</p>
           <p><code>/.well-known/void-public-node.json</code></p>
         </div>
+
+        <div class="card" id="publicNodeExternalTesterCopyPackCard"><!-- VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_UI_V1 -->
+          <h2>External Tester Copy Pack</h2>
+          <p>Copy/paste bundle for outside testers: public URL, discovery URL, route manifest, self-check snapshot, smoke command, expected green marker, receipt route, and proofs.</p>
+          <p><code>/public-node/external-tester-copy-pack.json</code></p>
+        </div>
+
 </body>
 </html>`);
         });
