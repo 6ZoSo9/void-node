@@ -45165,6 +45165,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node", kind: "html", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", use: "public node profile" },
       { path: "/public-node/route-index.json", kind: "json", marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", use: "machine-readable public route registry" },
       { path: "/public-node/external-base-url.json", kind: "json", marker: "VOID_PUBLIC_NODE_EXTERNAL_BASE_URL_V1", use: "optional external public base URL helper" },
+      { path: "/public-node/public-exposure-smoke-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1", use: "copyable public exposure smoke command" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45253,6 +45254,44 @@ APP.get("/public-node/external-base-url.json", (_req:any, res:any) => { // VOID_
       private_api: false,
       mutation: false,
       read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+APP.get("/public-node/public-exposure-smoke-pack.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const smokeCommand = 'PUBLIC_NODE_BASE="' + effectiveBaseUrl + '"; for p in /public-node /public-node/route-index.json /public-node/external-base-url.json /public-node/public-exposure-smoke-pack.json /public-node/share-pack.json /public-node/tester-checklist.json /public-node/tester-smoke.json /public-node/client-work-pack.json /public-node/ai-readiness.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" >/dev/null && echo "ok $p"; done';
+  res.json({
+    marker: "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1",
+    purpose: "public_node_public_exposure_smoke_pack",
+    headline: "VOID public exposure smoke pack",
+    effective_base_url: effectiveBaseUrl,
+    external_base_url: configuredExternalBaseUrl || null,
+    smoke_command: smokeCommand,
+    routes_checked: [
+      "/public-node",
+      "/public-node/route-index.json",
+      "/public-node/external-base-url.json",
+      "/public-node/public-exposure-smoke-pack.json",
+      "/public-node/share-pack.json",
+      "/public-node/tester-checklist.json",
+      "/public-node/tester-smoke.json",
+      "/public-node/client-work-pack.json",
+      "/public-node/ai-readiness.json",
+      "/proofs"
+    ],
+    policy: {
+      public_routes_only: true,
+      read_only: true,
+      private_api: false,
+      mutation: false,
       money_movement: false,
       wallet_send: false,
       wc_to_void_swap: false,
@@ -45709,6 +45748,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p class="muted">When this node is exposed to the internet, start it with the public base URL testers should copy:</p>
           <pre><code>PUBLIC_NODE_EXTERNAL_BASE_URL=https://your-domain.example npm start</code></pre>
           <p class="muted">Local testers can keep localhost. Public testers should use the external URL shown by <code>/public-node/external-base-url.json</code>.</p>
+        </div>
+        <div class="card" id="publicNodePublicExposureSmokePackCard"><!-- VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_UI_V1 -->
+          <b>Public exposure smoke pack</b>
+          <p class="muted">Outside testers can copy this after replacing the base URL:</p>
+          <pre><code>PUBLIC_NODE_BASE=https://your-domain.example; for p in /public-node /public-node/route-index.json /public-node/external-base-url.json /public-node/public-exposure-smoke-pack.json /proofs; do curl -fsS "$PUBLIC_NODE_BASE$p" &gt;/dev/null &amp;&amp; echo "ok $p"; done</code></pre>
+          <p><code>/public-node/public-exposure-smoke-pack.json</code></p>
+          <p class="muted">This smoke pack checks public routes only. It does not touch private APIs, wallets, swaps, buys, validators, or proof mutation.</p>
         </div>
 </body>
 </html>`);
