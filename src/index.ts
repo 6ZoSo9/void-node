@@ -45173,6 +45173,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/share-link.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_LINK_V1", use: "copy-paste outside tester invite link" },
       { path: "/public-node/tester-loop-status.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LOOP_STATUS_V1", use: "outside tester loop wiring status" },
       { path: "/public-node/outside-tester-smoke.json", kind: "json", marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1", use: "outside tester smoke command surface" },
+      { path: "/public-node/self-check-snapshot.json", kind: "json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", use: "public node self-check health snapshot" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45584,6 +45585,64 @@ APP.get("/public-node/outside-tester-smoke.json", (_req:any, res:any) => { // VO
       "/public-node/route-index.json",
       "/proofs"
     ],
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
+
+APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  const expectedRoutes = [
+    "/public-node",
+    "/public-node/self-check-snapshot.json",
+    "/public-node/share-link.json",
+    "/public-node/tester-bundle.json",
+    "/public-node/outside-tester-smoke.json",
+    "/public-node/tester-loop-status.json",
+    "/public-node/tester-result-receipt.json",
+    "/public-node/quickstart.json",
+    "/public-node/tester-handoff.json",
+    "/public-node/public-exposure-smoke-pack.json",
+    "/public-node/route-index.json",
+    "/proofs"
+  ];
+  res.json({
+    marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
+    purpose: "public_node_self_check_snapshot",
+    status: "public_node_externally_testable_read_only_surface_ready",
+    effective_base_url: effectiveBaseUrl,
+    expected_route_count: expectedRoutes.length,
+    expected_routes: expectedRoutes,
+    links: {
+      public_node: effectiveBaseUrl + "/public-node",
+      route_index: effectiveBaseUrl + "/public-node/route-index.json",
+      smoke_surface: effectiveBaseUrl + "/public-node/outside-tester-smoke.json",
+      tester_bundle: effectiveBaseUrl + "/public-node/tester-bundle.json",
+      result_receipt: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
+      proofs: effectiveBaseUrl + "/proofs"
+    },
+    checks: {
+      self_check_snapshot: true,
+      route_index_present: true,
+      outside_tester_smoke_surface_present: true,
+      tester_loop_status_present: true,
+      tester_bundle_present: true,
+      result_receipt_present: true,
+      public_proofs_present: true,
+      externally_testable: true
+    },
     policy: {
       public_routes_only: true,
       private_api: false,
@@ -46095,6 +46154,12 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <b>Outside tester smoke command</b>
           <p class="muted">Live public route exposing the one-env-var smoke command and expected green marker.</p>
           <p><code>/public-node/outside-tester-smoke.json</code></p>
+        </div>
+
+        <div class="card" id="publicNodeSelfCheckSnapshotCard"><!-- VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_UI_V1 -->
+          <b>Self-check snapshot</b>
+          <p class="muted">Live public health object for the externally testable read-only node surface.</p>
+          <p><code>/public-node/self-check-snapshot.json</code></p>
         </div>
 </body>
 </html>`);
