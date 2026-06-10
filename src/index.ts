@@ -45106,6 +45106,55 @@ APP.get("/public-node/share-pack.json", (_req:any, res:any) => { // VOID_PUBLIC_
   });
 });
 
+
+APP.get("/public-node/tester-checklist.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_CHECKLIST_ROUTE_V1
+  res.json({
+    marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1",
+    purpose: "public_node_tester_checklist",
+    headline: "VOID public node tester checklist",
+    checklist: [
+      "Open /public-node",
+      "Fetch /public-node/share-pack.json",
+      "Fetch /public-node/client-work-pack.json",
+      "Fetch /public-node/ai-readiness.json",
+      "Open /proofs",
+      "Verify proofs client-side",
+      "Cache, rank, retry, and filter locally"
+    ],
+    allowed_routes: [
+      "/public-node",
+      "/public-node/tester-checklist.json",
+      "/public-node/share-pack.json",
+      "/public-node/client-work-pack.json",
+      "/public-node/ai-readiness.json",
+      "/public-node/fresh-proof-seed.json",
+      "/public-node/requester-work-policy.json",
+      "/proofs"
+    ],
+    do_not_touch: [
+      "private owner routes",
+      "participant private APIs",
+      "buy VOID APIs",
+      "wallet send paths",
+      "WC swap paths",
+      "validator mutation paths",
+      "proof generation mutation paths"
+    ],
+    policy: {
+      tester_safe: true,
+      public_routes_only: true,
+      private_api: false,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false
+    }
+  });
+});
+
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
 <html>
@@ -45512,6 +45561,19 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p class="muted">One clean public payload for testers and agents:</p>
           <p><code>/public-node/share-pack.json</code></p>
           <p class="muted">Share text: VOID public node is online. Open <code>/public-node</code>, fetch <code>/public-node/client-work-pack.json</code>, and verify proofs client-side.</p>
+        </div>
+
+        <div class="card" id="publicNodeTesterChecklistCard"><!-- VOID_PUBLIC_NODE_TESTER_CHECKLIST_UI_V1 -->
+          <b>Tester checklist</b>
+          <p class="muted">Safe public validation path:</p>
+          <ol>
+            <li>Open <code>/public-node</code>.</li>
+            <li>Fetch <code>/public-node/tester-checklist.json</code>.</li>
+            <li>Fetch <code>/public-node/share-pack.json</code>.</li>
+            <li>Fetch <code>/public-node/client-work-pack.json</code>.</li>
+            <li>Open <code>/proofs</code> and verify proofs client-side.</li>
+          </ol>
+          <p class="muted">Do not touch private owner routes, buy APIs, wallet send paths, WC swap paths, validator mutation paths, or proof generation mutation paths.</p>
         </div>
 </body>
 </html>`);
