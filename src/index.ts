@@ -45180,6 +45180,7 @@ APP.get("/public-node/route-index.json", (_req:any, res:any) => { // VOID_PUBLIC
       { path: "/public-node/tester-result-intake.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", use: "operator-local external tester result intake status" },
       { path: "/public-node/standalone-outside-tester-smoke.sh", kind: "text", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", use: "standalone outside tester smoke script" },
       { path: "/public-node/tester-share", kind: "html", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", use: "human outside tester share page" },
+      { path: "/public-node/tester-lane-summary.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", use: "outside tester lane readiness summary" },
       { path: "/public-node/share-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_SHARE_PACK_V1", use: "public share payload" },
       { path: "/public-node/tester-checklist.json", kind: "json", marker: "VOID_PUBLIC_NODE_TESTER_CHECKLIST_V1", use: "safe tester validation checklist" },
       { path: "/public-node/client-work-pack.json", kind: "json", marker: "VOID_PUBLIC_NODE_CLIENT_WORK_PACK_V1", use: "agent and client bootstrap pack" },
@@ -45617,6 +45618,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
     "/public-node/tester-result-intake.json",
     "/public-node/standalone-outside-tester-smoke.sh",
     "/public-node/tester-share",
+    "/public-node/tester-lane-summary.json",
     "/public-node",
     "/public-node/self-check-snapshot.json",
     "/public-node/route-manifest.json",
@@ -45644,6 +45646,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       tester_result_intake: effectiveBaseUrl + "/public-node/tester-result-intake.json",
       standalone_outside_tester_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
+      tester_lane_summary: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
       public_node: effectiveBaseUrl + "/public-node",
       route_index: effectiveBaseUrl + "/public-node/route-index.json",
       route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
@@ -45659,6 +45662,7 @@ APP.get("/public-node/self-check-snapshot.json", (_req:any, res:any) => { // VOI
       tester_result_intake_present: true,
       standalone_outside_tester_smoke_script_present: true,
       tester_share_page_present: true,
+      tester_lane_summary_present: true,
       route_index_present: true,
       route_manifest_present: true,
       outside_tester_smoke_surface_present: true,
@@ -45693,6 +45697,7 @@ APP.get("/public-node/route-manifest.json", (_req:any, res:any) => { // VOID_PUB
     { path: "/public-node/tester-result-intake.json", marker: "VOID_PUBLIC_NODE_TESTER_RESULT_INTAKE_V1", purpose: "operator-local external tester result intake status", safety_class: "public_read_only_local_file_status" },
     { path: "/public-node/standalone-outside-tester-smoke.sh", marker: "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1", purpose: "standalone outside tester smoke script", safety_class: "public_read_only_script" },
     { path: "/public-node/tester-share", marker: "VOID_PUBLIC_NODE_TESTER_SHARE_PAGE_V1", purpose: "human outside tester share page", safety_class: "public_read_only_html" },
+    { path: "/public-node/tester-lane-summary.json", marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1", purpose: "outside tester lane readiness summary", safety_class: "public_read_only_summary" },
     { path: "/public-node", marker: "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1", purpose: "human-readable public node profile", safety_class: "public_read_only" },
     { path: "/public-node/route-manifest.json", marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", purpose: "canonical machine-readable public route manifest", safety_class: "public_read_only" },
     { path: "/public-node/self-check-snapshot.json", marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", purpose: "externally testable read-only health snapshot", safety_class: "public_read_only" },
@@ -45781,6 +45786,7 @@ APP.get("/public-node/external-tester-copy-pack.json", (_req:any, res:any) => { 
       outside_tester_smoke_url: effectiveBaseUrl + "/public-node/outside-tester-smoke.json",
       standalone_smoke_script_url: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
       tester_share_page_url: effectiveBaseUrl + "/public-node/tester-share",
+      tester_lane_summary_url: effectiveBaseUrl + "/public-node/tester-lane-summary.json",
       tester_bundle_url: effectiveBaseUrl + "/public-node/tester-bundle.json",
       tester_result_receipt_url: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
       proofs_url: effectiveBaseUrl + "/proofs",
@@ -45996,6 +46002,66 @@ APP.get("/public-node/tester-share", (_req:any, res:any) => { // VOID_PUBLIC_NOD
   </main>
 </body>
 </html>`);
+});
+
+
+
+APP.get("/public-node/tester-lane-summary.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_ROUTE_V1
+  const defaultBaseUrl = "http://127.0.0.1:4100";
+  const configuredExternalBaseUrl = String(process.env.PUBLIC_NODE_EXTERNAL_BASE_URL || process.env.VOID_PUBLIC_BASE_URL || "").trim();
+  const effectiveBaseUrl = configuredExternalBaseUrl || defaultBaseUrl;
+  res.json({
+    marker: "VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_V1",
+    purpose: "public_node_tester_lane_summary",
+    status: "public_node_outside_tester_lane_ready",
+    effective_base_url: effectiveBaseUrl,
+    tester_lane: {
+      tester_share_page_ready: true,
+      standalone_smoke_script_ready: true,
+      copy_pack_ready: true,
+      result_receipt_schema_ready: true,
+      result_intake_ready: true,
+      import_helper_available: true,
+      agent_discovery_ready: true,
+      route_manifest_ready: true,
+      self_check_snapshot_ready: true
+    },
+    links: {
+      tester_share_page: effectiveBaseUrl + "/public-node/tester-share",
+      standalone_smoke_script: effectiveBaseUrl + "/public-node/standalone-outside-tester-smoke.sh",
+      external_tester_copy_pack: effectiveBaseUrl + "/public-node/external-tester-copy-pack.json",
+      tester_result_receipt_schema: effectiveBaseUrl + "/public-node/tester-result-receipt.json",
+      tester_result_intake: effectiveBaseUrl + "/public-node/tester-result-intake.json",
+      agent_discovery: effectiveBaseUrl + "/.well-known/void-public-node.json",
+      route_manifest: effectiveBaseUrl + "/public-node/route-manifest.json",
+      self_check_snapshot: effectiveBaseUrl + "/public-node/self-check-snapshot.json",
+      public_node: effectiveBaseUrl + "/public-node",
+      proofs: effectiveBaseUrl + "/proofs"
+    },
+    local_operator_helper: {
+      script: "ops/mainnet0/public-node-import-tester-result.sh",
+      doc: "docs/public/public-node-tester-result-import-helper.md",
+      public_route: false,
+      operator_local_only: true
+    },
+    expected_green_marker: "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN",
+    expected_receipt_marker: "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1",
+    expected_receipt_file: "tester-receipt.json",
+    policy: {
+      public_routes_only: true,
+      private_api: false,
+      public_post_endpoint: false,
+      operator_local_import_only: true,
+      mutation: false,
+      read_only: true,
+      money_movement: false,
+      wallet_send: false,
+      wc_to_void_swap: false,
+      buy_void_fulfillment: false,
+      validator_mutation: false,
+      trusted_as_network_truth: false
+    }
+  });
 });
 
 
@@ -46539,6 +46605,13 @@ APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROU
           <p>Human page with the exact curl command, expected green marker, receipt instructions, and useful public tester links.</p>
           <p><code>/public-node/tester-share</code></p>
         </div>
+
+        <div class="card" id="publicNodeTesterLaneSummaryCard"><!-- VOID_PUBLIC_NODE_TESTER_LANE_SUMMARY_UI_V1 -->
+          <h2>Tester Lane Summary</h2>
+          <p>Machine-readable summary showing the outside tester lane is assembled: share page, standalone smoke script, copy pack, receipt schema, intake, import helper, discovery, manifest, and self-check.</p>
+          <p><code>/public-node/tester-lane-summary.json</code></p>
+        </div>
+
 
 
 
